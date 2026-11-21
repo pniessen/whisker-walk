@@ -220,8 +220,10 @@ function farmgate(body, leaf, band) {
 // The promenade's gate: white railings running out a short way each side, a
 // lamp on the latch post, the band on both posts; the leaf is a swing gate
 // of iron bars between a white top rail and bottom rail.
+const PROM_RUN = 1.2; // m of railing each side, post centre to end post
+const PROM_RAIL = Object.freeze({ post: 0.95, top: 0.9, mid: 0.45 });
 function promenade(body, leaf, band) {
-  const run = 1.2;
+  const run = PROM_RUN;
   body.cyl(0.11, 0.13, 1.05, 8, -H, 0.525, 0, WHITE);
   body.solid(new THREE.OctahedronGeometry(0.12, 0), -H, 1.15, 0, WHITE);
   body.cyl(0.08, 0.13, 2.3, 8, H, 1.15, 0, IRON);
@@ -232,12 +234,7 @@ function promenade(body, leaf, band) {
   body.box(0.22, 0.3, 0.22, H, 2.495, 0, GLASS);
   body.cone(0.22, 0.2, 4, H, 2.75, 0, IRON);
   // The railings out each side: an end post, a top rail and a mid rail.
-  for (const s of [-1, 1]) {
-    const xEnd = s * (H + run);
-    body.box(0.1, 0.95, 0.1, xEnd, 0.475, 0, WHITE);
-    body.box(run, 0.07, 0.07, s * (H + run / 2), 0.9, 0, WHITE);
-    body.box(run, 0.05, 0.05, s * (H + run / 2), 0.45, 0, WHITE);
-  }
+  for (const s of [-1, 1]) railing(body, s * H, s * (H + run), false);
   // The gate: rails, two stiles and five iron bars.
   const x0 = 0.13;
   const x1 = 2 * H - 0.13;
@@ -246,6 +243,60 @@ function promenade(body, leaf, band) {
   leaf.box(len, 0.06, 0.06, x0 + len / 2, 0.14, 0, WHITE);
   for (const x of [x0 + 0.04, x1 - 0.04]) leaf.box(0.07, 0.86, 0.07, x, 0.53, 0, WHITE);
   for (let i = 1; i <= 5; i++) leaf.box(0.035, 0.72, 0.035, x0 + (i * len) / 6, 0.53, 0, IRON);
+}
+
+// A white railing along local x from x0 to x1: a post at x1 (and at x0 too
+// when `first`), more posts so none is over WING_STEP from the next, a top
+// rail and a mid rail.
+function railing(kit, x0, x1, first) {
+  const len = Math.abs(x1 - x0);
+  const n = Math.max(1, Math.ceil(len / WING_STEP - 1e-9));
+  for (let i = first ? 0 : 1; i <= n; i++) kit.box(0.1, PROM_RAIL.post, 0.1, x0 + ((x1 - x0) * i) / n, PROM_RAIL.post / 2, 0, WHITE);
+  kit.box(len, 0.07, 0.07, (x0 + x1) / 2, PROM_RAIL.top, 0, WHITE);
+  kit.box(len, 0.05, 0.05, (x0 + x1) / 2, PROM_RAIL.mid, 0, WHITE);
+}
+
+// An end's `wings` (gateways.js): the promenade's railing run on from the end
+// of its own short run (PROM_RUN past each post) out to `wings` m past each
+// post, along the edge line. One mesh, 'gateWings', a top-level child of the
+// scene in the gate's own frame (so the look stays its own two meshes), and
+// circles of WING_R at most WING_GAP apart from each post out to each end:
+// with the cat's CAT_RADIUS (0.35) the push zones overlap the posts' and each
+// other's, so she cannot get through the railing anywhere along it.
+export const WING_STEP = 2.4;
+export const WING_R = 0.25;
+export const WING_GAP = 0.8;
+function buildWings(end, ground) {
+  if (!end.wings) return null;
+  const kit0 = kit();
+  let drawn = 0;
+  end.wings.forEach((len, i) => {
+    const s = i === 0 ? -1 : 1;
+    if (len <= PROM_RUN) return;
+    railing(kit0, s * (H + PROM_RUN), s * (H + len), false);
+    drawn++;
+  });
+  if (!drawn) return null;
+  const mesh = new THREE.Mesh(kit0.merged(), gateMaterial());
+  mesh.name = 'gateWings';
+  mesh.userData.endId = end.id;
+  mesh.position.set(end.x, ground.y(end.x, end.z), end.z);
+  mesh.rotation.y = OUT_YAW[end.faces];
+  return mesh;
+}
+function wingColliders(end) {
+  const out = [];
+  if (!end.wings) return out;
+  const [ex, ez] = EDGE[end.faces];
+  end.wings.forEach((len, i) => {
+    const s = i === 0 ? -1 : 1;
+    const n = Math.ceil(len / WING_GAP - 1e-9);
+    for (let k = 1; k <= n; k++) {
+      const d = H + (len * k) / n;
+      out.push({ x: end.x + s * ex * d, z: end.z + s * ez * d, r: WING_R });
+    }
+  });
+  return out;
 }
 
 const LOOKS = { signpost, fairgate, farmgate, promenade };
@@ -289,7 +340,8 @@ export const NO_GATES = Object.freeze({ colliders: Object.freeze([]), attach() {
 
 // Adds each end's look and lane to `scene`. Returns:
 //   colliders  the posts' colliders for walk.js to push (two per drawn end,
-//              hinge post first); fixed, whatever the leaves do.
+//              hinge post first, then its wings' circles, hinge side first);
+//              fixed, whatever the leaves do.
 //   attach(list)  pushes the leaf circles of every end shut right now into
 //              `list` (the walk's live collider list) and remembers it.
 //   setOpen(endId, open)  swings the leaf; once attached, an opened end's
@@ -313,8 +365,11 @@ export function addGatewayDressing(scene, areaId, { ground = FLAT_GROUND, ends =
       scene.add(lane);
     }
     scene.add(look);
+    const wings = buildWings(end, ground);
+    if (wings) scene.add(wings);
     const [ex, ez] = EDGE[end.faces];
     for (const s of [-1, 1]) colliders.push({ x: end.x + s * ex * H, z: end.z + s * ez * H, r: GATE_POST_R });
+    colliders.push(...wingColliders(end));
     const blocks = [];
     for (let i = 1; i <= LEAF_BLOCKS; i++) {
       const t = -H + (2 * H * i) / (LEAF_BLOCKS + 1);

@@ -16,6 +16,10 @@
 //   lane          optional [x1, z1, x2, z2] path joining the end to the area's walks
 //   arrive        where a cat coming in through this end lands: { x, z, yaw }.
 //                 Without one she lands ARRIVE_IN m inside the end, facing in.
+//   wings         optional [hinge side, latch side]: metres of railing running
+//                 on along the edge line from each post, so the gate stands
+//                 in something (world/gateway.js draws them, solid to her cat).
+//                 A 'promenade' look only: it is that look's railing, run on.
 //
 // A door or a climb (the Old House's front door, the Rooftops' fire escape) is
 // a row with placement 'inside', an explicit `arrive` and usually look 'none'
@@ -43,15 +47,19 @@ const THROUGH = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
 
 const own = (o, k) => o != null && Object.prototype.hasOwnProperty.call(o, k);
 
-export function gatewayEnd({ id, gateway, x, z, faces, to, twin, look, placement = 'edge', lane = null, arrive = null }) {
+export function gatewayEnd({ id, gateway, x, z, faces, to, twin, look, placement = 'edge', lane = null, arrive = null, wings = null }) {
   if (!FACINGS.includes(faces)) throw new Error(`gateway end ${id}: faces "${faces}" is not one of ${FACINGS.join(', ')}`);
   if (!GATE_LOOKS.includes(look)) throw new Error(`gateway end ${id}: look "${look}" is not one of ${GATE_LOOKS.join(', ')}`);
   if (!PLACEMENTS.includes(placement)) throw new Error(`gateway end ${id}: placement "${placement}" is not one of ${PLACEMENTS.join(', ')}`);
   if (placement === 'inside' && !arrive) throw new Error(`gateway end ${id}: placement "inside" needs an arrive { x, z, yaw }`);
+  if (wings && (look !== 'promenade' || wings.length !== 2 || !wings.every((w) => Number.isFinite(w) && w >= 0))) {
+    throw new Error(`gateway end ${id}: wings must be [hinge side, latch side] metres on a 'promenade' look`);
+  }
   return Object.freeze({
     id, gateway, x, z, faces, to, twin, look, placement,
     lane: lane ? Object.freeze([...lane]) : null,
     arrive: arrive ? Object.freeze({ ...arrive }) : null,
+    wings: wings ? Object.freeze([...wings]) : null,
   });
 }
 const end = gatewayEnd;
@@ -76,7 +84,10 @@ export const GATEWAY_ENDS = Object.freeze({
   ]),
   docks: Object.freeze([
     end({ id: 'docks-town', gateway: 'town-docks', x: -10, z: -37, faces: 'north', to: 'neighborhood', twin: 'town-docks', look: 'signpost' }),
-    end({ id: 'docks-seaside', gateway: 'docks-seaside', x: 35, z: -20, faces: 'east', to: 'seaside', twin: 'seaside-docks', look: 'promenade' }),
+    // Its railing runs on from the hinge post (z -21.4) to the bounds (z -40)
+    // and from the latch post (z -18.6) to just short of the south quay's
+    // pavement (z -9.6), so the gate is the way through it.
+    end({ id: 'docks-seaside', gateway: 'docks-seaside', x: 35, z: -20, faces: 'east', to: 'seaside', twin: 'seaside-docks', look: 'promenade', wings: [18.6, 8.4] }),
   ]),
   seaside: Object.freeze([
     end({ id: 'seaside-docks', gateway: 'docks-seaside', x: 10, z: 45, faces: 'south', to: 'docks', twin: 'docks-seaside', look: 'promenade' }),

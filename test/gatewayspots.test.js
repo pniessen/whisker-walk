@@ -25,6 +25,9 @@ const { floodFrom } = await import('./helpers/flood.js');
 const { waterGap } = await import('../src/world/builder.js');
 const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
+const { propsFor } = await import('../src/propsets.js');
+const { addGatewayDressing } = await import('../src/world/gateway.js');
+const { itemsOf: docksItems } = await import('../src/world/docksdressing.js');
 const { setGrow } = await import('../src/grow.js');
 const neighborhood = await import('../src/world/neighborhood.js');
 const park = await import('../src/world/park.js');
@@ -208,5 +211,81 @@ describe('P1: the Fair\'s and the Farm\'s gates to the Park are set into the fro
       if (eastC.length) expect(Math.min(...eastC.map((c) => c.x - c.r)) - (q.x + GATE_POST_R)).toBeLessThan(2 * CAT_RADIUS);
     });
   }
+});
+
+// P2 (the owner, 2026-11-21): the Docks' gate to the Seaside stood alone in an
+// open yard. A railing now runs on from each of its posts along the edge line,
+// one way (-z) to the bounds and the other (+z) to the south quay's pavement,
+// so the gate reads as the way through it.
+describe('P2: the Docks\' gate to the Seaside stands in a railing', () => {
+  const e = endById('docks-seaside').end;
+  const area = areas.docks;
+  const scene = new THREE.Scene();
+  const gates = addGatewayDressing(scene, 'docks');
+  const gate = scene.children.find((o) => o.name === 'gateway' && o.userData.endId === e.id);
+  const wings = scene.children.filter((o) => o.name === 'gateWings' && o.userData.endId === e.id);
+  scene.updateMatrixWorld(true);
+  const PAVEMENT_Z = -9.6; // the south quay's pavement (docks.js: sidewalk at z -9, 1.2 wide)
+  const HINGE_END = area.bounds.minZ; // the hinge side runs to the bounds
+  // Along the line x 35: z from the bounds to just short of the pavement.
+  const along = (z0, z1, step) => {
+    const out = [];
+    for (let z = z0; z <= z1 + 1e-9; z += step) out.push(z);
+    return out;
+  };
+
+  it('has a railing on both sides, drawn on the edge line, joining each post and running out to the bounds and the quay', () => {
+    expect(gate).toBeTruthy();
+    expect(wings).toHaveLength(1);
+    const body = gate.getObjectByName('gateBody');
+    const ray = new THREE.Raycaster();
+    const hits = (z, y) => {
+      ray.set(new THREE.Vector3(e.x - 1, y, z), new THREE.Vector3(1, 0, 0));
+      ray.far = 2;
+      return ray.intersectObjects([body, ...wings], false).length > 0;
+    };
+    // At the top rail's height, the railing is there everywhere from each
+    // post out to the end of its run (the posts' own width included)...
+    const miss = [];
+    for (const z of [...along(HINGE_END + 0.05, e.z - GATE_HALF, 0.1), ...along(e.z + GATE_HALF, PAVEMENT_Z - 0.75, 0.1)]) {
+      if (!hits(z, 0.9)) miss.push(+z.toFixed(2));
+    }
+    expect(miss, 'no rail across the line at these z').toEqual([]);
+    // ... and nowhere past those ends, nor in the gate's opening (the leaf is
+    // not the railing).
+    for (const z of [HINGE_END - 0.4, PAVEMENT_Z - 0.3, ...along(e.z - GATE_HALF + 0.2, e.z + GATE_HALF - 0.2, 0.1)]) {
+      expect(hits(z, 0.9), `rail at z ${z.toFixed(2)}`).toBe(false);
+    }
+  });
+
+  it('its colliders block her cat everywhere along it except through the gate', () => {
+    const blocked = (x, z) => gates.colliders.some((c) => Math.hypot(x - c.x, z - c.z) < c.r + CAT_RADIUS);
+    const open = [];
+    const shut = [];
+    for (const z of along(HINGE_END, PAVEMENT_Z - 0.75, 0.02)) {
+      const inOpening = Math.abs(z - e.z) < GATE_HALF;
+      if (!inOpening && !blocked(e.x, z)) open.push(+z.toFixed(2));
+      if (Math.abs(z - e.z) <= GATE_HALF - GATE_POST_R - CAT_RADIUS && blocked(e.x, z)) shut.push(+z.toFixed(2));
+    }
+    expect(open, 'a cat gets through the railing at these z').toEqual([]);
+    expect(shut, 'the open gate is blocked at these z').toEqual([]);
+    // and never the area's own list: walk.js pushes them on the live one
+    expect(area.colliders.some((c) => Math.abs(c.x - e.x) < 0.01 && c.z < e.z - GATE_HALF)).toBe(false);
+  });
+
+  it('stands clear of everything in the yard: colliders, points, perches, props and the dressing', () => {
+    const seg = [e.x, HINGE_END, e.x, PAVEMENT_Z - 0.6];
+    for (const c of area.colliders) expect(segDist(c.x, c.z, seg) - c.r, `collider (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(0.5);
+    const props = propsFor('docks');
+    for (const t of [...(area.pois ?? []), ...(area.collectibles ?? []), ...(area.scenics ?? []), ...(area.perches ?? []), ...(GOLD_MICE.docks ?? []),
+      ...props.carryables, ...props.knockables, ...props.markables, ...props.flaps, ...props.rests]) {
+      expect(segDist(t.x, t.z, seg), `(${t.x}, ${t.z}) by the railing`).toBeGreaterThanOrEqual(1.0);
+    }
+    for (const it of docksItems()) {
+      expect(segDist(it.x, it.z, seg) - it.r, `the dressing's ${it.what} at (${it.x}, ${it.z}) on the railing`).toBeGreaterThanOrEqual(0.3);
+    }
+    const arr = arrivalFor('seaside-docks');
+    for (const c of gates.colliders) expect(Math.hypot(arr.x - c.x, arr.z - c.z) - c.r, 'the arrival spot vs the railing').toBeGreaterThanOrEqual(1.2);
+  });
 });
 

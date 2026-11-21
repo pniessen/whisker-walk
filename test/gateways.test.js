@@ -55,6 +55,11 @@ describe('gateways', () => {
     expect(() => gatewayEnd({ ...ok, look: 'arch' })).toThrow(/x.*arch/);
     expect(() => gatewayEnd({ ...ok, placement: 'roof' })).toThrow(/x.*roof/);
     expect(() => gatewayEnd({ ...ok, placement: 'inside' })).toThrow(/x.*arrive/);
+    expect(() => gatewayEnd({ ...ok, wings: [2, 2] })).toThrow(/x.*wings/); // a signpost has no railing
+    expect(() => gatewayEnd({ ...ok, look: 'promenade', wings: [2] })).toThrow(/x.*wings/);
+    expect(() => gatewayEnd({ ...ok, look: 'promenade', wings: [2, -1] })).toThrow(/x.*wings/);
+    expect(gatewayEnd({ ...ok, look: 'promenade', wings: [2, 3] }).wings).toEqual([2, 3]);
+    expect(endById('docks-seaside').end.wings).toEqual([18.6, 8.4]);
   });
   it('lookups', () => {
     expect(endsFor('island')).toEqual([]); expect(endsFor('__proto__')).toEqual([]); expect(endsFor(7)).toEqual([]);
