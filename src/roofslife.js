@@ -18,6 +18,11 @@
 //     the walk already has: nothing is allocated between steps.
 //   * The sun and the fill start brighter, by SUNSET_SUN and SUNSET_FILL, and
 //     end at what applyDusk set (read once, when the life is made).
+//   * The sky glow (roofs.js's additive band low round the horizon,
+//     area.skyGlow) is coloured every frame, its material's colour moved
+//     channel by channel from its userData.skyGlow.sunset to .dusk by
+//     eveningAt: warm and strong at sunset, rose and weaker at dusk. It is set
+//     in place, like the fog.
 //
 // THE BUS (busAt) runs along the street below, x from BUS.x0 to BUS.x1 over
 // BUS.run seconds, once every BUS.every; between runs, and while it is inside
@@ -68,7 +73,7 @@ export function busAt(t, out = {}) {
 }
 
 // createRoofsLife(area) -> (ctx) => { update(dt, t), dispose() }. `area` is
-// the built record (its skySunset, skyDusk and bus); ctx is walk.js's life
+// the built record (its skySunset, skyDusk, skyGlow and bus); ctx is walk.js's life
 // context ({ scene, sun, fill, ... }).
 export function createRoofsLife(area) {
   return ({ scene, sun, fill }) => {
@@ -77,6 +82,9 @@ export function createRoofsLife(area) {
     const sunEnd = sun.intensity;
     const fillEnd = fill.intensity;
     const bus = area.bus ?? null;
+    const glow = area.skyGlow ?? null;
+    const glowFrom = glow?.userData.skyGlow.sunset;
+    const glowTo = glow?.userData.skyGlow.dusk;
     const at = { x: 0, z: 0, visible: false };
     let walk = 0;
     let step = -1;
@@ -98,6 +106,13 @@ export function createRoofsLife(area) {
       scene.fog?.color.setHex(mixHex(from.horizon, to.horizon, e));
       sun.intensity = sunEnd * (SUNSET_SUN + (1 - SUNSET_SUN) * e);
       fill.intensity = fillEnd * (SUNSET_FILL + (1 - SUNSET_FILL) * e);
+      if (glow) {
+        glow.material.color.setRGB(
+          glowFrom[0] + (glowTo[0] - glowFrom[0]) * e,
+          glowFrom[1] + (glowTo[1] - glowFrom[1]) * e,
+          glowFrom[2] + (glowTo[2] - glowFrom[2]) * e,
+        );
+      }
       if (bus) {
         busAt(walk, at);
         bus.position.x = at.x;

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as b from './builder.js';
 import { litMaterial, tileMetres } from '../render/materials.js';
+import { SUN_POSITION } from '../render/rig.js';
 import { withLocalUuids } from './localuuids.js';
 import { hash01 } from './warehouselook.js';
 import { roofsMaterials, addWindowQuads, windowCell, markMesh, ATLAS_SIZE } from './roofsparts.js';
@@ -74,7 +75,10 @@ import { createRoofsLife, mixHex } from '../roofslife.js';
 //     windows lit by an emissive map; roofslife.js drives it);
 //   * the far town: the roofs carrying on into the haze, one unlit,
 //     vertex-coloured, noCast mesh (builder.horizonBand's pattern: top-level,
-//     never merged, faded by the fog);
+//     never merged, faded by the fog), dark against the evening, with its
+//     own lights and landmarks (beauty pass, Task A);
+//   * the sky glow: one additive band low round the sky, warm toward the sun
+//     at sunset and rose at dusk (roofslife.js colours it);
 //   * the garden (discovery A), the skylight over the lamp-lit attic (D) and
 //     the warm chimney's cowl (F).
 // THE EVENING is roofslife.js: the record's `life`.
@@ -340,8 +344,9 @@ const warmCell = (x, z) => Math.floor(hash01(x, z, 23) * 8) % 8;
 // The build
 // ---------------------------------------------------------------------------
 
-const SKY_SUNSET = Object.freeze({ top: 0x4a5a8c, horizon: 0xe89a6a });
-const SKY_DUSK = Object.freeze({ top: 0x1f2a52, horizon: 0x8a5a6a });
+// Beauty pass, Task A: a warmer sunset; the dusk top a touch lighter, never near black.
+const SKY_SUNSET = Object.freeze({ top: 0x55609a, horizon: 0xf0a46c });
+const SKY_DUSK = Object.freeze({ top: 0x24305c, horizon: 0x8a5a6a });
 
 export function build(scene, { water, wind } = {}) { // eslint-disable-line no-unused-vars
   const plan = roofsArea();
@@ -382,6 +387,7 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     street.name = 'roofsStreet';
     const bus = drawStreet(scene, street, M, win);
     drawTown(scene);
+    const skyGlow = drawSkyGlow(scene);
 
     // every window of the place: one mesh on the one atlas
     const panes = new THREE.Mesh(mergeGeometries([addWindowQuads(windows).geometry, upQuads(skyWindows)]), M.windows);
@@ -419,6 +425,7 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
       evening: true,
       strays: false,
       bus,
+      skyGlow, // the band low round the sky; roofslife.js colours it
     };
     // the evening deepening over the walk, and the bus (roofslife.js)
     record.life = createRoofsLife(record);
@@ -1515,41 +1522,100 @@ function drawBus(scene) {
 // unlit mesh in vertex colours (fogged like everything else), never cast,
 // never merged, at the top level (builder.horizonBand's pattern), with the
 // town's ground under it.
+// Beauty pass, Task A (critique finding 2): dark, cool silhouettes that stand
+// against the sky glow, not a lilac fence brighter than the sky; three to five
+// lit windows on every front (from the top floor down: the row in front hides
+// the ground floors), a roof light on half the roofs, and lines of street
+// lights down side streets that run out through the rows, their colours in
+// HDR (TOWN_LIGHT.k times a warm colour: the Float32 colour attribute is not
+// clamped, so after the fog's mix they still read as lights);
+// a skyline with landmarks (two blocks of flats, a mill chimney, a gasholder, a
+// second clock tower, the two spires) and dark tree clumps between the rows.
 const TOWN_ROWS = Object.freeze([
-  { s: 52.5, depth: 7, h: [2.5, 6] },
-  { s: 66, depth: 9, h: [5, 9] },
-  { s: 84, depth: 12, h: [7, 11.5] },
+  { s: 52.5, depth: 7, h: [2, 7] },
+  { s: 66, depth: 9, h: [4, 10.5] },
+  { s: 84, depth: 12, h: [6, 12.5] }, // a chimney on the tallest still under the tower's top (17.1)
 ]);
 const TOWN_KEEP_OUT = Object.freeze([
   { x0: ROOFS_BOUNDS.minX - 0.8, x1: ROOFS_BOUNDS.maxX + 0.8, z0: ROOFS_BOUNDS.minZ - 0.8, z1: ROOFS_BOUNDS.maxZ + 0.8 },
   { x0: BLOCK.street.x0 - 10.5, x1: BLOCK.street.x0, z0: BLOCK.street.z0 - 1.5, z1: BLOCK.street.z1 + 0.7 }, // the end house
 ]);
+const TOWN_WALL = Object.freeze([0x221e2c, 0x342a3a]);
+const TOWN_ROOF = Object.freeze([0x15131c, 0x221d29]);
+const TOWN_TREE = Object.freeze([0x16211d, 0x1f2a26]);
+// the lights: windows warm, street lamps a paler sodium, the chimney's red lamp
+const TOWN_LIGHT = Object.freeze({ window: 0xffb04c, lamp: 0xffc46a, red: 0xff3a24, clock: 0xfff0c8, k: 4 });
+// the side streets: running out from the place through every row, at these
+// places along each side (u, nudged per side by hash01), each with a line of
+// street lights down one kerb, TOWN_LAMP.every apart from TOWN_LAMP.s to the
+// town's edge; the gaps between the rows (TOWN_GAPS) hold the tree clumps
+const TOWN_STREETS = Object.freeze([-34, 0, 31]);
+const TOWN_STREET_HALF = 3.2;
+const TOWN_LAMP = Object.freeze({ s: 50, to: 100, every: 7, kerb: 2.3, y: 4.2, size: 0.5 });
+const TOWN_GAPS = Object.freeze([58.8, 74.2]);
 function drawTown(scene) {
   const pos = [];
   const col = [];
   const c = new THREE.Color();
-  const tri = (p, q, r, hex) => {
+  const tri = (p, q, r, hex, k = 1) => {
     pos.push(...p, ...q, ...r);
-    c.setHex(hex);
+    c.setHex(hex).multiplyScalar(k);
     for (let i = 0; i < 3; i++) col.push(c.r, c.g, c.b);
   };
-  const quad = (p, q, r, s, hex) => { tri(p, q, r, hex); tri(p, r, s, hex); };
+  const quad = (p, q, r, s, hex, k) => { tri(p, q, r, hex, k); tri(p, r, s, hex, k); };
   const cx = (ROOFS_BOUNDS.minX + ROOFS_BOUNDS.maxX) / 2;
   const cz = (ROOFS_BOUNDS.minZ + ROOFS_BOUNDS.maxZ) / 2;
   const y0 = L.STREET;
   const dim = (hex, k) => mixHex(0, hex, k);
+  const blocked = (x, z, hw, hd) => TOWN_KEEP_OUT.some((r) => x + hw > r.x0 && x - hw < r.x1 && z + hd > r.z0 && z - hd < r.z1);
+  // a light: a small square at (x, y, z) facing the place's middle
+  function light(x, y, z, size, hex, k = TOWN_LIGHT.k) {
+    const dx = cx - x;
+    const dz = cz - z;
+    const n = Math.hypot(dx, dz);
+    const [tx, tz] = [-dz / n * size / 2, dx / n * size / 2];
+    const h = size / 2;
+    quad([x - tx, y - h, z - tz], [x + tx, y - h, z + tz], [x + tx, y + h, z + tz], [x - tx, y + h, z - tz], hex, k);
+  }
+  // a box of walls (no floor) with a flat top, centre (x, z), t along, n toward the place
+  function walls(P, a, e, ya, yb, wallHex) {
+    quad(P(-a, e, ya), P(a, e, ya), P(a, e, yb), P(-a, e, yb), wallHex); // the front, toward the place
+    quad(P(a, -e, ya), P(-a, -e, ya), P(-a, -e, yb), P(a, -e, yb), dim(wallHex, 0.7));
+    quad(P(-a, -e, ya), P(-a, e, ya), P(-a, e, yb), P(-a, -e, yb), dim(wallHex, 0.82));
+    quad(P(a, e, ya), P(a, -e, ya), P(a, -e, yb), P(a, e, yb), dim(wallHex, 0.82));
+  }
+  // lit windows on a front: `n` of its grid's cells, picked by hash01
+  function frontWindows(P, w, e, h, n, seed, x, z) {
+    const floors = Math.max(1, Math.floor((h - y0 - 1.2) / 2.7));
+    const cols = Math.max(2, Math.floor((w - 0.8) / 1.8));
+    const cells = floors * cols;
+    const lit = new Set();
+    for (let i = 0; lit.size < Math.min(n, cells) && i < n * 4; i++) lit.add(Math.floor(hash01(x + i, z - i, seed) * cells) % cells);
+    for (const cell of lit) {
+      const f = Math.floor(cell / cols);
+      const j = cell % cols;
+      const u = -w / 2 + (j + 0.5) * (w / cols);
+      const fy = h - 1.5 - 2.7 * f; // from the top floor down: the row in front hides the ground floors
+      quad(P(u - 0.36, e + 0.05, fy), P(u + 0.36, e + 0.05, fy), P(u + 0.36, e + 0.05, fy + 0.9), P(u - 0.36, e + 0.05, fy + 0.9), TOWN_LIGHT.window, TOWN_LIGHT.k);
+    }
+  }
+  const frame = (x, z, t, n) => (a, bb, yy) => [x + t[0] * a + n[0] * bb, yy, z + t[1] * a + n[1] * bb];
   // a house: centre (x, z), t its tangent (along the row), n toward the place
   function house(x, z, t, n, w, d, h, rise, seed) {
-    const P = (a, bb, yy) => [x + t[0] * a + n[0] * bb, yy, z + t[1] * a + n[1] * bb];
-    const wallHex = mixHex(0x4b4559, 0x665660, hash01(x, z, seed));
-    const roofHex = mixHex(0x2a2836, 0x3a3444, hash01(z, x, seed + 1));
+    const P = frame(x, z, t, n);
+    const wallHex = mixHex(TOWN_WALL[0], TOWN_WALL[1], hash01(x, z, seed));
+    const roofHex = mixHex(TOWN_ROOF[0], TOWN_ROOF[1], hash01(z, x, seed + 1));
     const [a, e] = [w / 2, d / 2];
-    quad(P(-a, e, y0), P(a, e, y0), P(a, e, h), P(-a, e, h), wallHex); // the front, toward the place
-    quad(P(a, -e, y0), P(-a, -e, y0), P(-a, -e, h), P(a, -e, h), dim(wallHex, 0.7));
-    quad(P(-a, -e, y0), P(-a, e, y0), P(-a, e, h), P(-a, -e, h), dim(wallHex, 0.82));
-    quad(P(a, e, y0), P(a, -e, y0), P(a, -e, h), P(a, e, h), dim(wallHex, 0.82));
+    walls(P, a, e, y0, h, wallHex);
     if (rise > 0) {
       quad(P(-a, e, h), P(a, e, h), P(a, 0, h + rise), P(-a, 0, h + rise), roofHex);
+      // a lit roof light on the front slope of half of them: seen from the tower and the high roofs
+      if (hash01(x, z, seed + 11) < 0.5) {
+        const k = (hash01(z, x, seed + 12) - 0.5) * (w - 1.4);
+        const [s0, s1] = [0.3, 0.62]; // up the slope, from the eaves
+        const at = (u, f) => P(k + u, e * (1 - f) + 0.04, h + rise * f + 0.04);
+        quad(at(-0.35, s0), at(0.35, s0), at(0.35, s1), at(-0.35, s1), TOWN_LIGHT.window, TOWN_LIGHT.k);
+      }
       quad(P(a, -e, h), P(-a, -e, h), P(-a, 0, h + rise), P(a, 0, h + rise), dim(roofHex, 0.8));
       tri(P(-a, -e, h), P(-a, e, h), P(-a, 0, h + rise), dim(wallHex, 0.82));
       tri(P(a, e, h), P(a, -e, h), P(a, 0, h + rise), dim(wallHex, 0.82));
@@ -1564,14 +1630,8 @@ function drawTown(scene) {
       for (const [u, v, uu, vv] of [[-s, s, s, s], [s, -s, -s, -s], [-s, -s, -s, s], [s, s, s, -s]]) quad(P(k + u, v, h), P(k + uu, vv, h), P(k + uu, vv, top), P(k + u, v, top), dim(wallHex, 0.75));
       quad(P(k - s, s, top), P(k + s, s, top), P(k + s, -s, top), P(k - s, -s, top), dim(roofHex, 0.7));
     }
-    // a lit window or two on the front
-    const floors = Math.max(1, Math.floor((h - 0.5) / 2.8));
-    for (let i = 0; i < 2; i++) {
-      if (hash01(x + i, z, seed + 4) > 0.6) continue;
-      const u = (hash01(x, z + i, seed + 5) - 0.5) * (w - 1.6);
-      const fy = 0.6 + 2.8 * Math.floor(hash01(z, x + i, seed + 6) * floors) + 0.4;
-      quad(P(u - 0.4, e + 0.05, fy), P(u + 0.4, e + 0.05, fy), P(u + 0.4, e + 0.05, fy + 1.0), P(u - 0.4, e + 0.05, fy + 1.0), 0xffc56a);
-    }
+    // three to five lit windows on the front
+    frontWindows(P, w, e, h, 3 + Math.floor(hash01(z, x, seed + 4) * 3), seed + 5, x, z);
   }
   const sides = [
     { t: [1, 0], n: [0, -1], at: (s, u) => [cx + u, cz + s] }, // south, facing north
@@ -1579,35 +1639,132 @@ function drawTown(scene) {
     { t: [0, -1], n: [-1, 0], at: (s, u) => [cx + s, cz - u] }, // east
     { t: [0, 1], n: [1, 0], at: (s, u) => [cx - s, cz + u] }, // west
   ];
+  const streetsOf = (si) => TOWN_STREETS.map((u, k) => u + 8 * (hash01(si, k, 470) - 0.5));
   TOWN_ROWS.forEach((row, ri) => {
     sides.forEach((side, si) => {
+      const streets = streetsOf(si);
       let u = -row.s + row.depth / 2;
       let k = 0;
       while (u < row.s - row.depth / 2) {
         const seed = ri * 97 + si * 31 + k++;
         const w = 5.5 + 3.5 * hash01(u, row.s, seed);
+        const cut = streets.find((q) => u < q + TOWN_STREET_HALF && u + w > q - TOWN_STREET_HALF);
+        if (cut !== undefined) { // a side street runs through here
+          u = cut + TOWN_STREET_HALF + 0.3;
+          continue;
+        }
         const mid = u + w / 2;
         u += w + 0.6;
         const [x, z] = side.at(row.s, mid);
         const hw = Math.abs(side.t[0]) * w / 2 + Math.abs(side.n[0]) * row.depth / 2;
         const hd = Math.abs(side.t[1]) * w / 2 + Math.abs(side.n[1]) * row.depth / 2;
-        if (TOWN_KEEP_OUT.some((r) => x + hw > r.x0 && x - hw < r.x1 && z + hd > r.z0 && z - hd < r.z1)) continue;
+        if (blocked(x, z, hw, hd)) continue;
         const h = row.h[0] + (row.h[1] - row.h[0]) * hash01(x, z, seed + 7);
         const flatTop = hash01(z, x, seed + 8) < 0.15;
         house(x, z, side.t, side.n, w, row.depth * (0.75 + 0.25 * hash01(x, z, seed + 9)), h, flatTop ? 0 : 1.6 + 1.2 * hash01(x, z, seed + 10), seed);
       }
     });
   });
+  // street lights down the side streets: lines of lights running out into the haze
+  sides.forEach((side, si) => {
+    for (const q of streetsOf(si)) {
+      for (let s = TOWN_LAMP.s; s <= TOWN_LAMP.to; s += TOWN_LAMP.every) {
+        const [x, z] = side.at(s, q + TOWN_LAMP.kerb);
+        if (blocked(x, z, 0.5, 0.5)) continue;
+        light(x, y0 + TOWN_LAMP.y, z, TOWN_LAMP.size, TOWN_LIGHT.lamp);
+      }
+    }
+  });
+  // dark tree clumps in the gaps between the rows
+  const ico = new THREE.IcosahedronGeometry(1, 0); // non-indexed: three vertices a face
+  const ip = ico.attributes.position;
+  TOWN_GAPS.forEach((s) => {
+    sides.forEach((side, si) => {
+      for (let k = 0; k < 3; k++) {
+        const u = (hash01(s, si, 500 + k) - 0.5) * 1.6 * s;
+        const [x, z] = side.at(s, u);
+        const r = 2.6 + 1.6 * hash01(x, z, 510 + k);
+        if (blocked(x, z, r, r)) continue;
+        const hex = mixHex(TOWN_TREE[0], TOWN_TREE[1], hash01(z, x, 520 + k));
+        const ty = y0 + r * 1.1;
+        for (let f = 0; f < ip.count; f += 3) {
+          const v = (i) => [x + ip.getX(i) * r, ty + ip.getY(i) * r * 0.85, z + ip.getZ(i) * r];
+          tri(v(f), v(f + 1), v(f + 2), ip.getY(f) + ip.getY(f + 1) + ip.getY(f + 2) > 0 ? hex : dim(hex, 0.75));
+        }
+      }
+    });
+  });
+  ico.dispose();
   // two church spires, far off
   for (const [x, z] of [[-70, -66], [64, 72]]) {
     house(x, z, [1, 0], [0, 1], 4, 4, 10, 0, 401);
     const top = [x, 16.2, z];
     const r = 2;
     const pts = [[x - r, 10, z - r], [x + r, 10, z - r], [x + r, 10, z + r], [x - r, 10, z + r]];
-    for (let i = 0; i < 4; i++) tri(pts[i], pts[(i + 1) % 4], top, i % 2 ? 0x2c2a38 : 0x36323f);
+    for (let i = 0; i < 4; i++) tri(pts[i], pts[(i + 1) % 4], top, i % 2 ? 0x1a1822 : 0x221e2a);
+  }
+  // the landmarks, out past the last row, every one under the tower's top (LEVELS.TOP)
+  const toward = (x, z) => { const dx = cx - x; const dz = cz - z; const n = Math.hypot(dx, dz); return [[-dz / n, dx / n], [dx / n, dz / n]]; };
+  // two blocks of flats, a grid of windows on the side toward the place
+  for (const [x, z, w, d, h, seed] of [[cx - 26, cz + 103, 16, 10, y0 + 20, 601], [cx + 104, cz - 34, 14, 10, y0 + 18, 611]]) {
+    const [t, n] = toward(x, z);
+    const P = frame(x, z, t, n);
+    const wallHex = mixHex(TOWN_WALL[0], TOWN_WALL[1], 0.6);
+    walls(P, w / 2, d / 2, y0, h, wallHex);
+    quad(P(-w / 2, d / 2, h), P(w / 2, d / 2, h), P(w / 2, -d / 2, h), P(-w / 2, -d / 2, h), TOWN_ROOF[0]);
+    const floors = Math.floor((h - y0 - 1.6) / 2.8);
+    const cols = Math.floor((w - 0.8) / 1.8);
+    frontWindows(P, w, d / 2, h, Math.round(floors * cols * 0.45), seed, x, z);
+  }
+  // the mill chimney: tall, tapering, eight-sided, a red lamp at its top
+  {
+    const [x, z] = [cx - 99, cz - 44];
+    const top = y0 + 20.5;
+    const seg = 8;
+    for (let i = 0; i < seg; i++) {
+      const a0 = (i / seg) * Math.PI * 2;
+      const a1 = ((i + 1) / seg) * Math.PI * 2;
+      const at = (a, r, y) => [x + Math.cos(a) * r, y, z + Math.sin(a) * r];
+      quad(at(a0, 1.7, y0), at(a1, 1.7, y0), at(a1, 1.0, top), at(a0, 1.0, top), dim(0x3a2a2c, 0.7 + 0.3 * Math.abs(Math.cos(a0 + 0.4))));
+    }
+    light(x + 0.6, top - 0.6, z + 0.9, 0.6, TOWN_LIGHT.red);
+  }
+  // the gasholder: a dark drum inside a ring of posts with a girder round the top
+  {
+    const [x, z] = [cx + 96, cz + 74];
+    const seg = 12;
+    const at = (a, r, y) => [x + Math.cos(a) * r, y, z + Math.sin(a) * r];
+    const drum = y0 + 9;
+    const ring = y0 + 12.5;
+    for (let i = 0; i < seg; i++) {
+      const a0 = (i / seg) * Math.PI * 2;
+      const a1 = ((i + 1) / seg) * Math.PI * 2;
+      const shade = 0.75 + 0.25 * Math.abs(Math.cos(a0 + 0.6));
+      quad(at(a0, 9, y0), at(a1, 9, y0), at(a1, 9, drum), at(a0, 9, drum), dim(0x2a3030, shade));
+      tri(at(a0, 9, drum), at(a1, 9, drum), [x, drum + 1.2, z], 0x1c2122);
+      quad(at(a0, 10, ring - 0.7), at(a1, 10, ring - 0.7), at(a1, 10, ring), at(a0, 10, ring), 0x1e2224);
+      if (i % 2 === 0) { // a post: a thin flat upright, its face toward the place
+        const [px, , pz] = at(a0, 10, 0);
+        const [[tx, tz]] = toward(px, pz);
+        quad([px - tx * 0.3, y0, pz - tz * 0.3], [px + tx * 0.3, y0, pz + tz * 0.3], [px + tx * 0.3, ring, pz + tz * 0.3], [px - tx * 0.3, ring, pz - tz * 0.3], 0x1e2224);
+      }
+    }
+  }
+  // a second clock tower over the town, its lit face toward the place
+  {
+    const [x, z] = [cx - 62, cz + 100];
+    const [t, n] = toward(x, z);
+    const P = frame(x, z, t, n);
+    const h = y0 + 16;
+    walls(P, 2.2, 2.2, y0, h, mixHex(TOWN_WALL[0], TOWN_WALL[1], 0.8));
+    for (const [p, q] of [[P(-2.4, 2.4, h), P(2.4, 2.4, h)], [P(2.4, 2.4, h), P(2.4, -2.4, h)], [P(2.4, -2.4, h), P(-2.4, -2.4, h)], [P(-2.4, -2.4, h), P(-2.4, 2.4, h)]]) {
+      tri(p, q, P(0, 0, h + 4), TOWN_ROOF[1]);
+    }
+    const f = h - 2.4;
+    quad(P(-1.1, 2.25, f - 1.1), P(1.1, 2.25, f - 1.1), P(1.1, 2.25, f + 1.1), P(-1.1, 2.25, f + 1.1), TOWN_LIGHT.clock, TOWN_LIGHT.k * 0.8);
   }
   // the town's ground under it all, outside the place
-  const g = 0x262430;
+  const g = 0x1c1a24;
   const R = 112;
   const K = TOWN_KEEP_OUT[0];
   const gy = y0 - 0.02;
@@ -1628,4 +1785,88 @@ function drawTown(scene) {
   mesh.userData.noCast = true;
   mesh.userData.townBand = true;
   scene.add(mesh);
+}
+
+// --- the sky glow (beauty pass, Task A; critique finding 1). render/sky.js's
+// gradient is shared by every area and packs its whole change into the few
+// degrees over the horizon, so a shot that sees more sky shows a flat slab and
+// a seam, and the sunset has no glow. The Rooftops add their own: one open
+// band at SKY_GLOW.r, behind the far town and well inside the camera's 300 m
+// far plane, from under the horizon up to about 25 degrees, added onto the sky
+// (AdditiveBlending, unfogged, writing no depth, so the town and the roofs
+// hide it). It is built round the place's middle and, like the sky it
+// brightens, moves with the camera across the ground (onBeforeRender sets its
+// x and z to the camera's; nothing is allocated): from a spot near the edge
+// of the place a fixed band would rise higher on the near side than the far
+// one, and the card, taken from the alley's south end, showed it as a dome.
+// Its vertex colours are the shape: faint at its foot, brightest over
+// sky.js's seam (so the sky climbs smoothly past it) and black at its top,
+// with a warm lobe
+// toward the sun's azimuth (render/rig.js SUN_POSITION, the north-west) and a
+// violet belt opposite. roofslife.js colours its material every frame, from
+// userData.skyGlow.sunset to .dusk (linear RGB). Top-level, noCast, noMerge.
+const SKY_GLOW = Object.freeze({
+  r: 200,
+  seg: 24,
+  rings: Object.freeze([-2, 16, 40, 66, 93]), // y: under the horizon, ~2, ~9, ~16 and ~25 degrees up (from 8 m)
+  ringK: Object.freeze([0.3, 0.55, 0.7, 0.4, 0]), // brightest over sky.js's seam (~5 degrees), so the sky rises smoothly past it
+  base: Object.freeze([0.42, 0.26, 0.34]), // rose, all round
+  warm: Object.freeze([0.95, 0.5, 0.1]), // toward the sun
+  belt: Object.freeze([0.14, 0.08, 0.3]), // violet, opposite
+  sunset: Object.freeze([0.4, 0.29, 0.13]), // the material's colour at sunset: warm and strong
+  dusk: Object.freeze([0.14, 0.08, 0.11]), // and at dusk: rose and weaker
+});
+function drawSkyGlow(scene) {
+  const { r, seg, rings, ringK, base, warm, belt } = SKY_GLOW;
+  const cx = (ROOFS_BOUNDS.minX + ROOFS_BOUNDS.maxX) / 2;
+  const cz = (ROOFS_BOUNDS.minZ + ROOFS_BOUNDS.maxZ) / 2;
+  const sn = Math.hypot(SUN_POSITION[0], SUN_POSITION[2]);
+  const [sx, sz] = [SUN_POSITION[0] / sn, SUN_POSITION[2] / sn];
+  const pos = [];
+  const col = [];
+  for (let j = 0; j < rings.length; j++) {
+    for (let i = 0; i <= seg; i++) {
+      const a = (i / seg) * Math.PI * 2;
+      const [ux, uz] = [Math.cos(a), Math.sin(a)];
+      const s = 0.5 + 0.5 * (ux * sx + uz * sz); // 1 toward the sun, 0 away
+      const w = s ** 2.5;
+      const v = (1 - s) ** 3;
+      pos.push(ux * r, rings[j], uz * r);
+      for (let k = 0; k < 3; k++) col.push((base[k] + warm[k] * w + belt[k] * v) * ringK[j]);
+    }
+  }
+  const index = [];
+  for (let j = 0; j + 1 < rings.length; j++) {
+    for (let i = 0; i < seg; i++) {
+      const p = j * (seg + 1) + i;
+      const q = p + seg + 1;
+      index.push(p, p + 1, q + 1, p, q + 1, q);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setIndex(index);
+  geo.computeBoundingSphere();
+  const mat = new THREE.MeshBasicMaterial({
+    vertexColors: true, side: THREE.DoubleSide, fog: false, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  mat.forceSinglePass = true; // one draw, not three's two for a transparent double-sided material
+  mat.color.setRGB(...SKY_GLOW.sunset);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.name = 'roofsSkyGlow';
+  mesh.position.set(cx, 0, cz);
+  mesh.onBeforeRender = (_renderer, _scene, camera) => {
+    const e = camera.matrixWorld.elements;
+    mesh.position.x = e[12];
+    mesh.position.z = e[14];
+    mesh.updateMatrixWorld();
+  };
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  mesh.userData.noCast = true;
+  mesh.userData.noMerge = true;
+  mesh.userData.skyGlow = { sunset: SKY_GLOW.sunset, dusk: SKY_GLOW.dusk };
+  scene.add(mesh);
+  return mesh;
 }

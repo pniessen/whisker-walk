@@ -109,6 +109,39 @@ describe('the Rooftops’ evening', () => {
     expect(a.bus.position.z).toBe(BUS.z);
   });
 
+  // Beauty pass, Task A: the sky glow (roofs.js's band) follows the evening
+  // every frame, from its warm, strong sunset to its rose, weaker dusk.
+  it('the sky glow moves from its sunset colour to its dusk colour, each channel one way', () => {
+    const sunset = [1.1, 0.8, 0.55];
+    const dusk = [0.5, 0.3, 0.42];
+    const w = walk();
+    const glow = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial());
+    glow.userData.skyGlow = { sunset, dusk };
+    const area = { ...w.area, skyGlow: glow };
+    const life = createRoofsLife(area)({ scene: w.scene, sun: w.sun, fill: w.fill });
+    const c = glow.material.color;
+    const same = c; // set in place, never replaced
+    expect([c.r, c.g, c.b].map((v) => +v.toFixed(6))).toEqual(sunset);
+    let last = [c.r, c.g, c.b];
+    let t = 0;
+    for (let k = 0; k < 300; k++) {
+      life.update(1);
+      t += 1;
+      const now = [c.r, c.g, c.b];
+      for (let i = 0; i < 3; i++) {
+        const want = sunset[i] + (dusk[i] - sunset[i]) * eveningAt(t);
+        expect(now[i]).toBeCloseTo(want, 6);
+        // never back the way it came
+        expect(Math.sign(dusk[i] - sunset[i]) * (now[i] - last[i])).toBeGreaterThanOrEqual(-1e-9);
+      }
+      last = now;
+    }
+    expect([c.r, c.g, c.b].map((v) => +v.toFixed(6))).toEqual(dusk);
+    expect(glow.material.color).toBe(same);
+    // a record without a glow (the tests' plain area) still runs
+    expect(() => run(w, 10)).not.toThrow();
+  });
+
   it('update allocates nothing between sky steps', () => {
     const w = walk();
     run(w, 1);

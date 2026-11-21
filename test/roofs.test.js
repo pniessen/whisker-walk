@@ -31,7 +31,7 @@ const {
 } = await import('../src/world/roofsplan.js');
 const { STEP_MAX } = await import('../src/ground.js');
 const { findFadeOccluders } = await import('../src/treefade.js');
-const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
+const { castsFromBox, isTransparentMat, SUN_POSITION } = await import('../src/render/rig.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { clearSpot } = await import('../src/world/spots.js');
 const { BASE_ABILITIES } = await import('../src/traversal.js');
@@ -73,9 +73,15 @@ const centreOf = (b) => {
 // added): 113 / 67 / 32,202 -> 114 / 68 / 32,506. Follow-up 2 (calmer
 // take-off marks: real things mark 48 of the 79 hops, the rest a small flush
 // piece; the render and slate marks gone): -> 112 / 68 / 31,218 (merged 57 -> 55).
-const MEASURED_BUILT = { meshes: 112, casters: 68, triangles: 31218 };
-const MEASURED_MERGED = { meshes: 55, casters: 30, triangles: 31218 };
+// Beauty pass Task A (the evening sky and the far town): the sky glow band
+// (+1 mesh, 192 triangles, casting nothing, never merged) and the far town
+// redrawn (3,992 -> 4,964 triangles: lit windows, roof lights, street lights
+// down side streets, landmarks, tree clumps; still one mesh casting nothing):
+// -> 113 / 68 / 32,382 (merged 55 -> 56).
+const MEASURED_BUILT = { meshes: 113, casters: 68, triangles: 32382 };
+const MEASURED_MERGED = { meshes: 56, casters: 30, triangles: 32382 };
 const MEASURED_DRAWS = 0;
+const TOWN_TRIANGLES = 4964; // the far town's one mesh (Task A: 3,992 before)
 
 let flood0 = null;
 const baseFlood = () => (flood0 ??= floodTraversal(area, { abilities: BASE_ABILITIES }));
@@ -312,6 +318,7 @@ describe('the Rooftops drawn', () => {
     const peak = new THREE.Vector3(0, -Infinity, 0);
     const high = [];
     for (const m of meshes) {
+      if (m.userData.skyGlow) continue; // the glow low in the sky (Task A) is the sky, not a thing on the skyline
       const pos = m.geometry.attributes.position;
       for (let i = 0; i < pos.count; i++) {
         v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
@@ -400,6 +407,122 @@ describe('the Rooftops drawn', () => {
     expect(town[0].parent).toBe(scene);
   });
 
+  // Beauty pass, Task A (critique finding 1): the evening glow low in the sky.
+  it('the sky glow: one additive band round the place, behind the town, unfogged, casting nothing, never merged', () => {
+    const glow = meshes.filter((m) => m.userData.skyGlow);
+    expect(glow).toHaveLength(1);
+    const g = glow[0];
+    expect(area.skyGlow).toBe(g); // roofslife.js colours it through the record
+    expect(g.parent).toBe(scene);
+    expect(g.castShadow).toBe(false);
+    expect(g.userData.noCast).toBe(true);
+    expect(g.userData.noMerge).toBe(true);
+    expect(g.material).toBeInstanceOf(THREE.MeshBasicMaterial); // unlit
+    expect(g.material.fog).toBe(false);
+    expect(g.material.blending).toBe(THREE.AdditiveBlending);
+    expect(g.material.transparent).toBe(true);
+    expect(g.material.depthWrite).toBe(false);
+    expect(g.material.vertexColors).toBe(true);
+    const geo = g.geometry;
+    expect((geo.index ? geo.index.count : geo.attributes.position.count) / 3).toBeLessThanOrEqual(200);
+    // a ring behind the far town (whose ground reaches 112 m out), inside the
+    // camera's 300 m far plane from every corner of the place
+    const B = area.bounds;
+    const cx = (B.minX + B.maxX) / 2;
+    const cz = (B.minZ + B.maxZ) / 2;
+    const P = new THREE.Vector3();
+    const pos = { count: geo.attributes.position.count, at: (i) => P.fromBufferAttribute(geo.attributes.position, i).applyMatrix4(g.matrixWorld) };
+    pos.getX = (i) => pos.at(i).x;
+    pos.getY = (i) => pos.at(i).y;
+    pos.getZ = (i) => pos.at(i).z;
+    const col = geo.attributes.color;
+    const corners = [[B.minX, B.minZ], [B.minX, B.maxZ], [B.maxX, B.minZ], [B.maxX, B.maxZ]];
+    let topY = -Infinity;
+    let footY = Infinity;
+    for (let i = 0; i < pos.count; i++) {
+      const [x, y, z] = [pos.getX(i), pos.getY(i), pos.getZ(i)];
+      expect(Math.hypot(x - cx, z - cz)).toBeGreaterThan(150);
+      for (const [qx, qz] of corners) expect(Math.hypot(x - qx, y - 10, z - qz)).toBeLessThan(295);
+      topY = Math.max(topY, y);
+      footY = Math.min(footY, y);
+    }
+    expect(footY).toBeLessThan(0); // from under the horizon
+    expect(Math.atan2(topY, 200) * 180 / Math.PI).toBeGreaterThan(20); // to ~25 degrees up
+    // bright at its foot, black at its top, warmer toward the sun than away from it
+    let footSum = 0;
+    for (let i = 0; i < pos.count; i++) {
+      const s = col.getX(i) + col.getY(i) + col.getZ(i);
+      if (pos.getY(i) === topY) expect(s).toBe(0);
+      if (pos.getY(i) === footY) footSum = Math.max(footSum, s);
+    }
+    expect(footSum).toBeGreaterThan(0.3);
+    const warmth = (dx, dz) => { // the red over blue of the column nearest a direction
+      let best = -2;
+      let r = 0;
+      for (let i = 0; i < pos.count; i++) {
+        if (pos.getY(i) !== footY) continue;
+        const d = ((pos.getX(i) - cx) * dx + (pos.getZ(i) - cz) * dz) / Math.hypot(pos.getX(i) - cx, pos.getZ(i) - cz);
+        if (d > best) { best = d; r = col.getX(i) / col.getZ(i); }
+      }
+      return r;
+    };
+    const [sx, , sz] = SUN_POSITION;
+    const n = Math.hypot(sx, sz);
+    expect(warmth(sx / n, sz / n)).toBeGreaterThan(warmth(-sx / n, -sz / n) * 1.5);
+    // like the sky it brightens, it moves with the camera across the ground (and only across it)
+    const cam = new THREE.PerspectiveCamera(70, 16 / 9, 0.1, 300);
+    cam.position.set(18, 4.2, 45);
+    cam.updateMatrixWorld();
+    const before = g.position.clone();
+    g.onBeforeRender(null, scene, cam, g.geometry, g.material, null);
+    expect([g.position.x, g.position.y, g.position.z]).toEqual([18, before.y, 45]);
+    expect(new THREE.Vector3().setFromMatrixPosition(g.matrixWorld).toArray()).toEqual([18, before.y, 45]);
+    let far = 0;
+    for (let i = 0; i < pos.count; i++) far = Math.max(far, pos.at(i).distanceTo(cam.position));
+    expect(far).toBeLessThan(250); // inside the far plane, wherever she stands
+    g.position.copy(before);
+    g.updateMatrixWorld();
+    // sunset's colour warmer and stronger than dusk's
+    const { sunset, dusk } = g.userData.skyGlow;
+    const sum = (c) => c[0] + c[1] + c[2];
+    expect(sum(sunset)).toBeGreaterThan(sum(dusk));
+    expect(sunset[0] / sunset[2]).toBeGreaterThan(dusk[0] / dusk[2]);
+    // and after the walk's prop merge it is still its own mesh at the top
+    const ms = new THREE.Scene();
+    build(ms);
+    mergeStaticProps(ms);
+    const kept = [];
+    ms.traverse((o) => { if (o.isMesh && o.userData.skyGlow) kept.push(o); });
+    expect(kept).toHaveLength(1);
+    expect(kept[0].parent).toBe(ms);
+  });
+
+  // Beauty pass, Task A (critique finding 2): a dark town against the glow,
+  // full of little lights.
+  it('the far town: one unlit mesh of dark silhouettes, with hundreds of lights that outshine the fog', () => {
+    const town = meshes.filter((m) => m.userData.townBand);
+    expect(town).toHaveLength(1);
+    const t = town[0];
+    expect(t.material).toBeInstanceOf(THREE.MeshBasicMaterial);
+    expect(t.material.fog).toBe(true); // in the haze like everything else
+    expect(t.castShadow).toBe(false);
+    const col = t.geometry.attributes.color;
+    const tris = col.count / 3;
+    expect(tris).toBe(TOWN_TRIANGLES);
+    let lights = 0;
+    let darkMax = 0;
+    for (let f = 0; f < tris; f++) {
+      const [r, gg, bb] = [col.getX(f * 3), col.getY(f * 3), col.getZ(f * 3)];
+      if (Math.max(r, gg, bb) > 1) lights++; // HDR: still a light after the fog's mix
+      else darkMax = Math.max(darkMax, 0.2126 * r + 0.7152 * gg + 0.0722 * bb);
+    }
+    // a window or a street light is two triangles
+    expect(lights / 2).toBeGreaterThanOrEqual(500);
+    // the rest is darker than the dusk sky's horizon (linear luminance)
+    const h = new THREE.Color(area.skyDusk.horizon);
+    expect(darkMax).toBeLessThan(0.6 * (0.2126 * h.r + 0.7152 * h.g + 0.0722 * h.b));
+  });
+
   it('every POI is in the walk region of the spawn', () => {
     const f = baseFlood();
     const spawnR = f.regionAt(ROOFS_SPAWN.x, ROOFS_SPAWN.z);
@@ -469,8 +592,9 @@ describe('the Rooftops drawn', () => {
       expect(Array.isArray(area[k]), k).toBe(true);
     }
     expect(area.spawn).toEqual({ x: 4, z: 41 });
-    expect(area.skyDusk).toEqual({ top: 0x1f2a52, horizon: 0x8a5a6a });
-    expect(area.skySunset).toEqual({ top: 0x4a5a8c, horizon: 0xe89a6a });
+    // retuned in the beauty pass (Task A): a warmer sunset, a dusk top never near black
+    expect(area.skyDusk).toEqual({ top: 0x24305c, horizon: 0x8a5a6a });
+    expect(area.skySunset).toEqual({ top: 0x55609a, horizon: 0xf0a46c });
     expect(area.duskLight).toEqual({ fogNear: 40, fogFar: 140 });
     expect(typeof area.life).toBe('function');
     expect(area.bounds).toEqual({ minX: -46, maxX: 46, minZ: -50, maxZ: 46 });

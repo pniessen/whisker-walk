@@ -446,7 +446,9 @@ const AREAS = [
   // The Rooftops (Rooftops step 2, 2026-11-20), measured 113 / 67 / 32,202
   // (part one alone was 76 / 42 / 13,284); 114 / 68 / 32,506 after
   // follow-up 3 (stack-5 on the flat house, its ridge beam gone); 112 / 68 /
-  // 31,218 after follow-up 2 (calmer take-off marks). Held to the territories' ceilings,
+  // 31,218 after follow-up 2 (calmer take-off marks); 113 / 68 / 32,382 after
+  // the beauty pass's Task A (the sky glow band, +1 mesh casting nothing, and
+  // the far town's lights and landmarks). Held to the territories' ceilings,
   // never raised; the place aims for 300 / 120 / 60,000 (test/roofs.test.js
   // pins the exact numbers).
   ['roofs', buildRoofs, 450, 380, 70000],
