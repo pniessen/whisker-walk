@@ -714,7 +714,7 @@ export function teacups(x, z, glow, yaw = 0) {
   turn.add(meshOf(P, 'teacupsDeck', { roughness: 0.75 }));
   const L = [];
   ring(16, (a, i) => bulb(L, Math.cos(a) * 1.16, deckY + 0.2, Math.sin(a) * 1.16, BULB_COLORS[i % BULB_COLORS.length]));
-  ring(24, (a, i) => bulb(L, Math.cos(a) * (r - 0.12), deckY + 0.06, Math.sin(a) * (r - 0.12), BULB_COLORS[i % 2]));
+  ring(24, (a, i) => bulb(L, Math.cos(a) * (r - 0.12), deckY + 0.075, Math.sin(a) * (r - 0.12), BULB_COLORS[i % 2]));
   turn.add(glowMesh(L, 'teacupsBulbs', glow));
 
   const cups = [];
@@ -1033,11 +1033,16 @@ export function coasterTrack(track, { skip = () => false, glow = null } = {}) {
   }
   const rails = canvasOf(P, 'coasterRails');
   rails.material.roughness = 0.5;
-  // (beauty round two) the track outlined in bulbs at the ends of every
-  // fourth sleeper, chasing round it at dusk: the caterpillar's whole run
-  // drawn in lights. Static (the track does not move); one mesh, no shadow.
+  // (beauty round two) the track outlined in bulbs at the ends of sleepers,
+  // LIGHTS a side spaced evenly round the loop (about 3 m apart), chasing
+  // round it at dusk: the caterpillar's whole run drawn in lights. The chase
+  // is per bulb, LIGHTS_PER_WAVE to a wave, so the loop holds a whole number
+  // of waves and has no seam. Static (the track does not move); one mesh, no shadow.
   const L = [];
-  for (let i = 0; i < n; i += 4) {
+  const LIGHTS = 49;
+  const LIGHTS_PER_WAVE = 7;
+  for (let j = 0; j < LIGHTS; j++) {
+    const i = 2 * Math.round((j * n) / LIGHTS / 2); // a sleeper's point (sleepers are on even points)
     const a = pts[(i - 1 + n) % n];
     const b = pts[(i + 1) % n];
     const p = pts[i];
@@ -1045,7 +1050,7 @@ export function coasterTrack(track, { skip = () => false, glow = null } = {}) {
     for (const s of [-1, 1]) {
       const x = p.x + Math.cos(yaw) * s * (g + 0.16);
       const z = p.z - Math.sin(yaw) * s * (g + 0.16);
-      chaseOf(bulb(L, x, p.y - 0.12, z, BULB_COLORS[(i / 4 + (s > 0 ? 1 : 0)) % BULB_COLORS.length]), (i * track.step) / GLOW_LOOK.wave);
+      chaseOf(bulb(L, x, p.y - 0.12, z, BULB_COLORS[(j + (s > 0 ? 1 : 0)) % BULB_COLORS.length]), j / LIGHTS_PER_WAVE);
     }
   }
   return { rails, supports: meshOf(S, 'coasterSupports', { roughness: 0.6 }), lights: glow ? glowMesh(L, 'coasterLights', glow) : null };

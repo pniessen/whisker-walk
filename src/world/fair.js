@@ -884,7 +884,7 @@ export function build(scene, { water = {}, wind } = {}) {
     skyDusk: { top: 0x2b3560, horizon: 0x9a6a78 },
     // (beauty round two) at dusk the field goes deeper and bluer than a
     // street's lawn, so the fair's lights stand out on it
-    duskLight: { lawnTint: { dark: 0.6, desat: 0.3 } },
+    duskLight: { lawnTint: { dark: 0.6, desat: 0.3, cool: [0.93, 0.99, 1.12] } },
     tippables: [
       { x: 3.5, z: 31.2, kind: 'bin' }, { x: -3.5, z: 12.4, kind: 'bin' }, { x: 9.6, z: 9.4, kind: 'bin' },
       { x: -18.6, z: 17, kind: 'can' }, { x: -21.4, z: 31.6, kind: 'pot' }, { x: 19.2, z: -3.4, kind: 'can' },

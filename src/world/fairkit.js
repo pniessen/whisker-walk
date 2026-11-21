@@ -247,7 +247,7 @@ export function bulbString(P, W, a, b, { sag = 0.4, every = 0.7, salt = 0, wire 
     const p = pts[i];
     const q = pts[i + 1];
     if (W) sheet(W, [[p[0], p[1] + 0.012, p[2]], [q[0], q[1] + 0.012, q[2]], [q[0], q[1] - 0.012, q[2]], [p[0], p[1] - 0.012, p[2]]], wire);
-    if (i > 0) chaseOf(bulb(P, p[0], p[1] - 0.06, p[2], colors[(i + salt) % colors.length]), (i * len) / n / GLOW_LOOK.wave);
+    if (i > 0) chaseOf(bulb(P, p[0], p[1] - 0.072, p[2], colors[(i + salt) % colors.length]), (i * len) / n / GLOW_LOOK.wave);
   }
 }
 

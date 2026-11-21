@@ -1605,7 +1605,17 @@ describe('The Fairground: the beauty pass, round two', () => {
     expect(lights.castShadow).toBe(false);
     const chase = lights.geometry.getAttribute('fairChase');
     // every one a chasing bulb (eight triangles each), none a steady pane
-    expect(lights.geometry.getAttribute('position').count % 24).toBe(0);
+    const pos0 = lights.geometry.getAttribute('position');
+    expect(pos0.count % 24).toBe(0);
+    // each beside the track, at a sleeper's end (gauge + 0.16 out), below the rail top
+    const pts = COASTER_TRACK.points;
+    for (let b = 0; b < pos0.count / 24; b++) {
+      let x = 0, y = 0, z = 0;
+      for (let k = 0; k < 24; k++) { x += pos0.getX(b * 24 + k) / 24; y += pos0.getY(b * 24 + k) / 24; z += pos0.getZ(b * 24 + k) / 24; }
+      const near = pts.reduce((m, p) => (Math.hypot(p.x - x, p.z - z) < Math.hypot(m.x - x, m.z - z) ? p : m), pts[0]);
+      expect(Math.hypot(near.x - x, near.z - z)).toBeCloseTo(COASTER.gauge + 0.16, 1);
+      expect(y).toBeLessThan(near.y);
+    }
     for (let i = 0; i < chase.count; i++) expect(chase.getX(i)).toBeGreaterThanOrEqual(0);
     // spread along the whole track, both sides
     const pos = lights.geometry.getAttribute('position');
@@ -1626,7 +1636,9 @@ describe('The Fairground: the beauty pass, round two', () => {
         const lx = dx * Math.cos(s.yaw) - dz * Math.sin(s.yaw);
         return Math.abs(lz - (-STALL.d / 2 + 0.1)) < 0.03 && Math.abs(lx) < STALL.w / 2 && p.y > 0.05 && p.y < 2.0;
       });
-      expect(inside.length, s.id).toBeGreaterThan(0);
+      // the dado and the board over it
+      expect(inside.some((p) => p.y < 1.0), s.id).toBe(true);
+      expect(inside.some((p) => p.y > 1.5), s.id).toBe(true);
     }
   });
 
