@@ -153,6 +153,31 @@ describe('the plan of the Rooftops', () => {
     for (const h of kinds('drop')) expect([h.id, -h.dy >= 0.9 - EPS && -h.dy <= 3.0 + EPS]).toEqual([h.id, true]);
   });
 
+  it('every ridge rail lies over slates or its own stacks, never in the air over a flat roof', () => {
+    // sampled every 0.25 m along each ridge: the ground under the rail is the
+    // void under the slates, or a chimney stack's disc at the ridge
+    const stacks = R.BLOCKS.filter((b) => b.kind === 'disc' && b.id.startsWith('stack-'));
+    const ridges = R.ROOFS_TRAVERSAL.crossings.filter((c) => c.kind === 'ridge');
+    expect(ridges.length).toBeGreaterThanOrEqual(6);
+    const bad = [];
+    let sampled = 0;
+    for (const c of ridges) {
+      const p = c.points[0];
+      const q = c.points[c.points.length - 1];
+      const n = Math.ceil(Math.hypot(q.x - p.x, q.z - p.z) / 0.25);
+      for (let k = 0; k <= n; k++) {
+        const x = p.x + ((q.x - p.x) * k) / n;
+        const z = p.z + ((q.z - p.z) * k) / n;
+        const y = a.ground.y(x, z);
+        const onStack = Math.abs(y - R.LEVELS.RIDGE) < EPS && stacks.some((s) => Math.hypot(x - s.x, z - s.z) <= s.r + EPS);
+        sampled++;
+        if (!(Math.abs(y - R.LEVELS.VOID) < EPS || onStack)) bad.push([c.id, +x.toFixed(2), z, y]);
+      }
+    }
+    expect(sampled).toBeGreaterThan(200);
+    expect(bad.slice(0, 4)).toEqual([]);
+  });
+
   it('the tower is on the skyline from the alley', () => {
     const from = { x: R.ROOFS_SPAWN.x, y: 2.5, z: R.ROOFS_SPAWN.z };
     const to = { x: 26, y: 18.5, z: -17.9 };

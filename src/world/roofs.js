@@ -47,9 +47,9 @@ import { createRoofsLife, mixHex } from '../roofslife.js';
 //   * the outriggers overhang the side returns by 0.35 m: the overhang is a
 //     jettied first floor on a corbelled brick course, the side return open
 //     beneath it;
-//   * ridge-4 runs 1.5 m over the flat house's roof: there the ridge is an
-//     old timber ridge beam left standing between the two gable cheeks when
-//     the slates came off, braced at both ends.
+//   * the flat house has no ridge over it (follow-up 3: the old timber beam
+//     read as a beam in the air): a chimney stack stands on each of its party
+//     walls, and every ridge lies on slates from stack to stack.
 //
 // NOTHING FADES (R7) but the clock tower's body: no mesh carries
 // userData.window, and the one fadeOccluder besides the lamp posts is the
@@ -86,7 +86,7 @@ import { createRoofsLife, mixHex } from '../roofslife.js';
 // own disc, the void under the slates, or ground as high as their top. A
 // stack is four quarters, each as long across the ridge as that allows and
 // narrowed to a square inside the disc where a flat roof or the west garden
-// lies beside it (stack-0, stack--10, stack-20, stack--30); a quarter beside
+// lies beside it (stack-0, stack-5, stack--10, stack-20, stack--30); a quarter beside
 // ground lower than the eaves goes down to it (stack--30's breast on the
 // gable end).
 // =============================================================================
@@ -788,7 +788,6 @@ function drawTerrace(group, M, win, ground) {
 // mesh each along its rail; the line's cloths in one mesh of their own.
 function drawCrossings(group, M) {
   const K = makeKit('roofsMoves');
-  const flatHouse = BLOCK.flatHouse;
   for (const c of ROOFS_TRAVERSAL.crossings) {
     const p = c.points;
     const first = p[0];
@@ -799,25 +798,12 @@ function drawCrossings(group, M) {
       noCast = false;
       for (let i = 0; i + 1 < p.length; i++) pieces.push({ geo: beam(p[i], p[i + 1], 0.28, 0.04), color: 0xb8986a });
     } else if (c.kind === 'ridge') {
-      // half-round ridge tiles on the slates; over the flat house, the old
-      // ridge beam between the gable cheeks, braced at both ends
+      // half-round ridge tiles on the slates, stack to stack (the plan runs
+      // no ridge over a flat roof)
       const r = 0.13;
       const x0 = Math.min(first.x, last.x);
       const x1 = Math.max(first.x, last.x);
-      const y = first.y;
-      const z = first.z;
-      if (x0 < flatHouse.x1 && x1 > flatHouse.x0) {
-        const bx0 = Math.max(x0, flatHouse.x0);
-        const bx1 = Math.min(x1, flatHouse.x1 + 0.15);
-        pieces.push({ geo: beam({ x: bx0, y, z }, { x: bx1, y, z }, 0.2, 0.2), color: 0x6b5238 });
-        for (const [fx, dir] of [[flatHouse.x0 + 0.5, 1], [flatHouse.x1, -1]]) {
-          pieces.push({ geo: beam({ x: fx, y: y - 0.65, z }, { x: fx + dir * 0.9, y: y - 0.18, z }, 0.12, 0.12), color: 0x6b5238 });
-        }
-        if (x0 < flatHouse.x0) pieces.push({ geo: rod({ x: x0, y: y - r, z }, { x: flatHouse.x0, y: y - r, z }, r, 8), color: 0x8e4b38 });
-        if (x1 > bx1) pieces.push({ geo: rod({ x: bx1, y: y - r, z }, { x: x1, y: y - r, z }, r, 8), color: 0x8e4b38 });
-      } else {
-        pieces.push({ geo: rod({ x: x0, y: y - r, z }, { x: x1, y: y - r, z }, r, 8), color: 0x8e4b38 });
-      }
+      pieces.push({ geo: rod({ x: x0, y: first.y - r, z: first.z }, { x: x1, y: first.y - r, z: first.z }, r, 8), color: 0x8e4b38 });
     } else if (c.kind === 'gutter') {
       // a lead-lined box gutter at the back eave, its rim the rail
       const x0 = Math.min(first.x, last.x);

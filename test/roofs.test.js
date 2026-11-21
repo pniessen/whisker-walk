@@ -69,8 +69,10 @@ const centreOf = (b) => {
 // the warehouse and its roof, the tower, the street below with its bus, the
 // far town (3,992 triangles, one unlit mesh) and the discoveries. The build
 // runs inside withLocalUuids, so it draws nothing from Math.random.
-const MEASURED_BUILT = { meshes: 113, casters: 67, triangles: 32202 };
-const MEASURED_MERGED = { meshes: 57, casters: 30, triangles: 32202 };
+// Follow-up 3 (the flat house's ridge beam gone, stack-5 and its two hops
+// added): 113 / 67 / 32,202 -> 114 / 68 / 32,506.
+const MEASURED_BUILT = { meshes: 114, casters: 68, triangles: 32506 };
+const MEASURED_MERGED = { meshes: 57, casters: 30, triangles: 32506 };
 const MEASURED_DRAWS = 0;
 
 let flood0 = null;
@@ -153,6 +155,26 @@ describe('the Rooftops drawn', () => {
     }
   });
 
+  it('every ridge is drawn on slates or a stack, never as a beam in the air', () => {
+    // every vertex of a ridge's own mesh lies over the void under the slates
+    // or a chimney stack's disc at the ridge, no lower than 0.35 m under it
+    const v = new THREE.Vector3();
+    const ridges = ROOFS_TRAVERSAL.crossings.filter((c) => c.kind === 'ridge');
+    const bad = [];
+    for (const c of ridges) {
+      const m = meshes.find((o) => o.userData.crossing === c.id);
+      const pos = m.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+        const y = area.ground.y(v.x, v.z);
+        const under = Math.abs(y - LEVELS.VOID) < 1e-6 || Math.abs(y - LEVELS.RIDGE) < 1e-6;
+        if (!under || v.y < LEVELS.RIDGE - 0.35) bad.push([c.id, +v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(2), y]);
+      }
+    }
+    expect(ridges.length).toBeGreaterThanOrEqual(6);
+    expect(bad.slice(0, 4)).toEqual([]);
+  });
+
   it('each hop has its mark within 0.5 m of its take-off', () => {
     // every merged mark mesh says which vertices each hop's mark put in it
     const marked = meshes.filter((m) => m.userData.markRanges);
@@ -195,7 +217,7 @@ describe('the Rooftops drawn', () => {
       ...meshes.filter((m) => /^stack-/.test(m.userData.block ?? '')).map((m) => [m, LEVELS.RIDGE]),
       ...meshes.filter((m) => m.userData.yardWalls).map((m) => [m, YARD.h]),
     ];
-    expect(checks.length).toBe(8);
+    expect(checks.length).toBe(9); // eight stacks and the yard walls
     for (const [m, top] of checks) {
       const box = boxOf(m);
       let drawn = 0;

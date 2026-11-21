@@ -13,7 +13,7 @@
 //   z -13 |e+------------------------------------[  22..30 ]---+corner|n |
 //         |     THE STREET BELOW  -4  (walled, never entered)  | shop |e |
 //   z   3 +------+=== terrace, pitched: VOID 6.0 ==============| 9.6  |l |
-//         |west  | o    o    o[dormer]o[flat]  o  [roofT]o    o|      |sh|
+//         |west  | o    o    o[dormer]o[flat]o o  [roofT]o    o|      |sh|
 //   z  12 |garden| [e1][e2][e3] ... back extensions 3.6 ... [e12]+------+op|
 //         |      |   outriggers 5.1 on e2 e5 e7 e10             yard   |
 //   z  20 |      |   back yards 0, bunkers 1.2 at e1 e4 e8 e12          |
@@ -25,7 +25,8 @@
 // skills makes) and every drop falls 0.9-3.0 m. The way up: bin, shed,
 // garages; planks over the back yards; level leaps along the extensions;
 // climbs to the outriggers, the flat roofs and the chimney stacks; the ridges
-// from stack to stack; the corner shop, the warehouse, the tank, the loft and
+// from stack to stack (over slates only: the flat house is crossed on foot,
+// below); the corner shop, the warehouse, the tank, the loft and
 // the tower's stages. Every climb is mirrored by a drop, except shed ->
 // garages (0.8, under the 0.9 a drop falls; the bin bags and the alley stair
 // come down from the garages).
@@ -35,6 +36,12 @@
 // face. Its footprint is ground at VOID (6.0), 0.6 m under the flat roofs and
 // gutters next to it: a wall all round, and no move lands there. She walks its
 // ridge (stack to stack) and its back gutter as crossings, rails in the air.
+//
+// THE FLAT HOUSE HAS NO RIDGE (follow-up 3, the owner's "a beam in the
+// air"): a ridge rail runs only over slates and its own stacks. The flat house
+// (house 7) has a stack on each party wall, stack-0 and stack-5; no ridge runs
+// between them, and she crosses its roof on foot, climbing to either stack
+// from the felt (1.5 m) and dropping back. ridge-4 runs stack-5 -> stack-10.
 //
 // WHY THE STREET IS AT -4 (ruling R3): the streets below close the place. At
 // -4 they are walled on every side (the terrace's front, the warehouse, the
@@ -128,7 +135,9 @@ const OUT_WIDEN = 0.35; // m, toward the washing line's other end (header: shift
 const OUTRIGGERS = Object.freeze({ 2: [0, OUT_WIDEN], 5: [-OUT_WIDEN, 0], 7: [0, OUT_WIDEN], 10: [-OUT_WIDEN, 0] });
 const BUNKER_KS = Object.freeze([1, 4, 8, 12]);
 const BUNKER_SIZE = 1.4;
-const STACK_XS = Object.freeze([-30, -20, -10, 0, 10, 20, 29.4]);
+const FLAT_HOUSE_X = Object.freeze([0, 5]); // house 7, between two party walls
+// The chimney stacks, on every other party wall and on both of the flat house's.
+const STACK_XS = Object.freeze([-30, -20, -10, FLAT_HOUSE_X[0], FLAT_HOUSE_X[1], 10, 20, 29.4]);
 const STACK_Z = 7.5;
 const STACK_R = 0.6;
 const TERRACE = Object.freeze({ x0: -30, x1: 30, z0: 3, z1: 12 }); // eaves at z 3 and 12, the ridge along STACK_Z
@@ -174,7 +183,7 @@ export const BLOCKS = Object.freeze([
   ...Object.entries(OUTRIGGERS).map(([k, [w, e]]) => flat(`out-${k}`, EXT_X0(+k) + w, EXT_X1(+k) + e, EXT_Z.z0, OUT_Z1, L.OUTRIGGER)),
   // The terrace: pitched slates (VOID, R4), three flat roofs in it, the stacks on its party walls.
   Object.freeze({ id: 'terrace', kind: 'pitched', ...TERRACE, y: L.VOID, ridgeZ: STACK_Z, ridge: L.RIDGE }),
-  flat('flatHouse', 0, 5, 3, 12, L.FLAT, { house: 7 }),
+  flat('flatHouse', FLAT_HOUSE_X[0], FLAT_HOUSE_X[1], 3, 12, L.FLAT, { house: 7 }),
   flat('dormer', -10, -4.3, 8, 12, L.FLAT, { house: 5 }),
   flat('roofTerrace', 14.3, 20, 8, 12, L.FLAT, { house: 10 }),
   ...STACK_XS.map((x) => disc(`stack-${x}`, x, STACK_Z, STACK_R, L.RIDGE)),
@@ -320,13 +329,17 @@ crossings.push({ id: 'gutter-2', kind: 'gutter', points: [P(4.6, 11.6, L.FLAT), 
 
 // Flat roof -> chimney stack.
 upDown('stack-0', S(1.5, STACK_Z), S(0.1, STACK_Z), 'pipe', 'gutter');
+upDown('stack-5', S(3.5, STACK_Z), S(4.9, STACK_Z), 'pipe', 'gutter');
 upDown('stack--10', S(-8.6, 8.8), S(-9.9, 7.6), 'pipe', 'gutter');
 upDown('stack-20', S(18.6, 8.8), S(19.9, 7.6), 'pipe', 'gutter');
 
-// The ridges, stack to stack.
-for (let k = 1; k < STACK_XS.length; k++) {
-  crossings.push({ id: `ridge-${k}`, kind: 'ridge', points: [P(STACK_XS[k - 1] + 0.15, STACK_Z, L.RIDGE), P(STACK_XS[k] - 0.15, STACK_Z, L.RIDGE)] });
-}
+// The ridges, stack to stack over the slates: none over the flat house
+// (header), so ridge-4 runs stack-5 -> stack-10.
+const RIDGE_RUNS = STACK_XS.slice(1).map((x, i) => [STACK_XS[i], x])
+  .filter(([a, b]) => !(a >= FLAT_HOUSE_X[0] && b <= FLAT_HOUSE_X[1]));
+RIDGE_RUNS.forEach(([a, b], i) => {
+  crossings.push({ id: `ridge-${i + 1}`, kind: 'ridge', points: [P(a + 0.15, STACK_Z, L.RIDGE), P(b - 0.15, STACK_Z, L.RIDGE)] });
+});
 
 // The last stack -> the corner shop -> the warehouse.
 upDown('cornerShop', S(29.5, STACK_Z), S(30.8, STACK_Z), 'pipe', 'wall');
@@ -637,7 +650,7 @@ export const ROOFS_REGISTRATION = Object.freeze({
   pawprints: Object.freeze({ ground: null, path: 'gravel', strip: null }),
   // The measured counts test/budget.test.js and test/roofs.test.js pin:
   // [meshes, casters, triangles] built, [meshes, casters] merged
-  budget: Object.freeze({ built: Object.freeze([113, 67, 32202]), merged: Object.freeze([57, 30]) }),
+  budget: Object.freeze({ built: Object.freeze([114, 68, 32506]), merged: Object.freeze([57, 30]) }),
   // verify-places.html VIEWS.roofs and the card picture (public/places/roofs.jpg)
   view: ROOFS_SHOTS.card,
   // src/marks.js MARK_AREAS and emptyMarks(): add 'roofs'
