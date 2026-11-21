@@ -281,6 +281,93 @@ describe('a place that does not come', () => {
   });
 });
 
+describe('a start belongs to the room it was made in (or to none)', () => {
+  it('a solo start whose wait outlasts joining a room starts nothing: no solo world on the room\'s line', async () => {
+    const ctl = controlledLoader();
+    const park = ctl.hold('park');
+    const life = lifecycle({ areas: ctl.areas });
+    const p = life.w.startWalkWhenReady({ areaOverride: 'park' }); // Explore: "Getting ready…"
+    await vi.advanceTimersByTimeAsync(200);
+    life.setPendingRoom({ code: 'ABCD', roster: [] }); // Play together while it came
+    park.release();
+    expect(await p).toBe('dropped');
+    expect(life.getSession()).toBe(null);
+  });
+
+  it('the den waiting while a room is joined starts nothing either', async () => {
+    const ctl = controlledLoader();
+    const den = ctl.hold('den');
+    const life = lifecycle({ areas: ctl.areas });
+    const p = life.w.beginDenWalk();
+    life.setPendingRoom({ code: 'ABCD', roster: [] });
+    den.release();
+    expect(await p).toBe('dropped');
+    expect(life.getSession()).toBe(null);
+  });
+
+  it('a room start whose room is left while it waits still drops', async () => {
+    const ctl = controlledLoader();
+    const fair = ctl.hold('fair');
+    const life = lifecycle({ areas: ctl.areas });
+    life.setPendingRoom({ code: 'ABCD', roster: [] });
+    const p = life.w.startWalkWhenReady({ roomSeed: 99, areaOverride: 'fair' });
+    life.setPendingRoom(null);
+    fair.release();
+    expect(await p).toBe('dropped');
+    expect(life.getSession()).toBe(null);
+  });
+
+  it('a solo start with no room before or after still starts', async () => {
+    const ctl = controlledLoader();
+    const park = ctl.hold('park');
+    const life = lifecycle({ areas: ctl.areas });
+    const p = life.w.startWalkWhenReady({ areaOverride: 'park' });
+    park.release();
+    expect(await p).toBe('started');
+    expect(life.getSession()?.net).toBeUndefined();
+    end(life);
+  });
+});
+
+describe('a fresh start only ever follows her own tap, for a place not here', () => {
+  async function twoFailures() {
+    const ctl = controlledLoader();
+    ctl.hold('park').fail();
+    const life = lifecycle({ areas: ctl.areas });
+    expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed');
+    expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed');
+    expect(life.rec.toasts.at(-1)).toBe(phrase('start.notReadyReload'));
+    return { ctl, life };
+  }
+
+  it('after two failures, Explore for a place already here walks there and does not reload', async () => {
+    const { ctl, life } = await twoFailures();
+    await ctl.areas.ensure('den');
+    const p = life.w.startWalkWhenReady({ areaOverride: 'den' });
+    expect(life.getSession()?.areaId).toBe('den'); // the same tick, as always
+    expect(await p).toBe('started');
+    expect(life.rec.reloads).toBe(0);
+    end(life);
+  });
+
+  it('after two failures, a room start never reloads the page: it tries, and a failure stays home with the plain line', async () => {
+    const { ctl, life } = await twoFailures();
+    life.setPendingRoom({ code: 'ABCD', roster: [] });
+    // a heard "Explore together": no tap of hers, so no reload
+    expect(await life.w.startWalkWhenReady({ roomSeed: 5, areaOverride: 'park' })).toBe('failed');
+    expect(life.rec.reloads).toBe(0);
+    expect(ctl.calls.park).toBe(3); // it did try the place
+    expect(life.rec.toasts.at(-1)).toBe(phrase('start.notReady'));
+    expect(await life.w.startWalkWhenReady({ roomSeed: 6, areaOverride: 'park' })).toBe('failed');
+    expect(life.rec.reloads).toBe(0);
+    // and a room start whose place comes walks
+    ctl.letGo('park');
+    expect(await life.w.startWalkWhenReady({ roomSeed: 7, areaOverride: 'park' })).toBe('started');
+    expect(life.rec.reloads).toBe(0);
+    end(life);
+  });
+});
+
 describe('a room start that waited', () => {
   it('a room left and another joined while the place came starts nothing in the new room', async () => {
     const ctl = controlledLoader();

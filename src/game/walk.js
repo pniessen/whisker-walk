@@ -558,15 +558,21 @@ export function createWalkLifecycle({
   //     the Explore button (a quicker one never shows it);
   //   - a second start while one waits is ignored ('busy'): one load, one walk;
   //   - the place came: the walk starts, unless one has started some other
-  //     way meanwhile, the room it was for has gone (or another room has
-  //     taken its place), or her place changed
-  //     while it came (Change place, a room's start) ('dropped');
+  //     way meanwhile, the room it belonged to has changed (a room start whose
+  //     room went, or another took its place; a solo, den or Rooftops start
+  //     made before she joined one: startWalk would put her solo world on the
+  //     room's line), or her place changed while it came (Change place, a
+  //     room's start) ('dropped');
   //   - it did not: she stays home with one gentle line ('failed'), and the
   //     next Explore tries again; after RELOAD_AFTER_FAILURES of them in a
   //     row online (any walk that starts clears the count) the line says the
   //     game will start fresh, and the next Explore reloads the page (the
-  //     files may have changed underneath). A place this build does not have
-  //     at all (AreaLoadError 'unknown') never counts: a reload cannot bring it.
+  //     files may have changed underneath). Only her own tap for a place not
+  //     here reloads: a place already here just starts, and a room start
+  //     (heard from the room, no tap of hers) never reloads, never counts and
+  //     never offers it: it stays home with the plain line. A place this build
+  //     does not have at all (AreaLoadError 'unknown') never counts: a reload
+  //     cannot bring it.
   // Nothing here draws a random number, so a walk that waited is the same
   // walk, draw for draw, as one whose place was already here.
   // Resolves to 'started' | 'busy' | 'failed' | 'dropped'; a build throw on the
@@ -576,18 +582,19 @@ export function createWalkLifecycle({
   let failures = 0;
   function startWalkWhenReady(opts = {}) {
     const areaId = opts.areaOverride ?? progression.state.area;
-    // A room start belongs to the room it was made in: one left (and perhaps
-    // another joined) during the wait drops it.
-    const room = opts.roomSeed !== undefined ? getPendingRoom() : null;
+    const inRoom = opts.roomSeed !== undefined;
+    // Every start belongs to the room it was made in, or to none: a room left
+    // (and perhaps another joined), or one joined, during the wait drops it.
+    const roomAtCall = getPendingRoom();
     if (waiting !== null) return Promise.resolve('busy');
-    if (failures >= RELOAD_AFTER_FAILURES && isOnline()) {
-      reloadPage();
-      return Promise.resolve('failed');
-    }
     if (areas.loaded(areaId)) {
       startWalk(opts);
       failures = 0;
       return Promise.resolve('started');
+    }
+    if (!inRoom && failures >= RELOAD_AFTER_FAILURES && isOnline()) {
+      reloadPage();
+      return Promise.resolve('failed');
     }
     audio?.getContext?.();
     const token = ++waitTokens;
@@ -604,7 +611,7 @@ export function createWalkLifecycle({
       () => {
         const stale = waiting !== token;
         done();
-        if (stale || getSession() || (opts.roomSeed !== undefined && (!room || getPendingRoom() !== room))) return 'dropped';
+        if (stale || getSession() || getPendingRoom() !== roomAtCall || (inRoom && !roomAtCall)) return 'dropped';
         // startWalk reads her place again when there is no override: a place
         // changed during the wait would build somewhere other than what came.
         if ((opts.areaOverride ?? progression.state.area) !== areaId) return 'dropped';
@@ -614,10 +621,10 @@ export function createWalkLifecycle({
       },
       (err) => {
         done();
-        if (err?.kind !== 'unknown') failures += 1;
+        if (!inRoom && err?.kind !== 'unknown') failures += 1;
         note('area', err);
         const online = isOnline();
-        const reload = failures >= RELOAD_AFTER_FAILURES && online;
+        const reload = !inRoom && failures >= RELOAD_AFTER_FAILURES && online;
         homeToast(reload ? phrase('start.notReadyReload') : !online ? phrase('start.notReadyOffline') : phrase('start.notReady'));
         return 'failed';
       },
