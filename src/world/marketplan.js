@@ -114,6 +114,19 @@ function stallColliders(s) {
     const p = fromStall(s, -half + (2 * half * i) / (n - 1), 0);
     out.push(freeze({ x: p.x, z: p.z, r }));
   }
+  // The counter's two BACK corners, so a cat never stands overlapping them. The
+  // hide-side FRONT corner stays open: it is the way in to the treat.
+  for (const sx of [-1, 1]) {
+    const p = fromStall(s, sx * s.w / 2, -s.d / 2);
+    out.push(freeze({ x: p.x, z: p.z, r: 0.3 }));
+  }
+  // and the front corner on the side away from the hide, a full one
+  const fc = fromStall(s, -HIDE_SIDE * s.w / 2, s.d / 2);
+  out.push(freeze({ x: fc.x, z: fc.z, r: 0.3 }));
+  // The hide-side front corner, the treat's approach, gets only a post: it keeps
+  // a cat's centre 0.4 m off the corner and leaves the way in open.
+  const hc = fromStall(s, HIDE_SIDE * s.w / 2, s.d / 2);
+  out.push(freeze({ x: hc.x, z: hc.z, r: 0.05 }));
   return out;
 }
 

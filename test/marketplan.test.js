@@ -40,7 +40,27 @@ describe('the plan of the Market Square', () => {
   });
 
   it('no stallholder can be reached: each keeper stands where no cat can', () => {
-    for (const s of STALLS.filter((s) => s.keeper)) expect(isWalkableAt(a, s.keeper.x, s.keeper.z), s.id).toBe(false);
+    for (const s of STALLS.filter((s) => s.keeper)) {
+      expect(isWalkableAt(a, s.keeper.x, s.keeper.z), s.id).toBe(false);
+      for (let x = s.keeper.x - 0.6; x <= s.keeper.x + 0.6; x += 0.05) {
+        for (let z = s.keeper.z - 0.6; z <= s.keeper.z + 0.6; z += 0.05) {
+          if (Math.hypot(x - s.keeper.x, z - s.keeper.z) <= 0.6) expect(isWalkableAt(a, x, z), `${s.id} ${x},${z}`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('no cat can stand overlapping a counter: no walkable centre within 0.2 m of its rectangle', () => {
+    for (const s of STALLS.filter((s) => s.w > 0)) {
+      for (let lx = -s.w / 2 - 0.2; lx <= s.w / 2 + 0.2 + 1e-9; lx += 0.05) {
+        for (let lz = -s.d / 2 - 0.2; lz <= s.d / 2 + 0.2 + 1e-9; lz += 0.05) {
+          const gx = Math.max(Math.abs(lx) - s.w / 2, 0), gz = Math.max(Math.abs(lz) - s.d / 2, 0);
+          if (Math.hypot(gx, gz) >= 0.2) continue;
+          const p = fromStall(s, lx, lz);
+          expect(isWalkableAt(a, p.x, p.z), `${s.id} local ${lx.toFixed(2)},${lz.toFixed(2)}`).toBe(false);
+        }
+      }
+    }
   });
 
   it('every treat can be reached from the cobbles', () => {
@@ -81,7 +101,7 @@ describe('the plan of the Market Square', () => {
     expect(MARKET_HIDES).toContainEqual(expect.objectContaining({ x: CAFE.tables[0].x, z: CAFE.tables[0].z }));
   });
 
-  it('every stall is clear of the fountain and of each other by 2 m, and inside the bounds', () => {
+  it('stall centres are 2 m from the fountain edge and from each other, and inside the bounds', () => {
     const inB = (p) => p.x >= MARKET_BOUNDS.minX && p.x <= MARKET_BOUNDS.maxX && p.z >= MARKET_BOUNDS.minZ && p.z <= MARKET_BOUNDS.maxZ;
     for (const s of STALLS) {
       expect(inB(s.at), s.id).toBe(true);
