@@ -19,7 +19,7 @@ import { SKULL } from './torso.js';
 // the cat's head slot builds these.
 
 export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown', 'acorncap',
-  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume'];
+  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat'];
 
 // Palette. The three shop hats' colours are model.js's own (it imports these
 // for Hagrid's hats); the prize colours are the same hexes as model.js's
@@ -1111,7 +1111,40 @@ function featherplume(simple) {
   return finish('featherplume', [quill, vane, backFace(vane), band, bead]);
 }
 
-const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume };
+// Party Hat (a gift outfit, src/foundwear/gifts.js: the birthday's): a paper
+// cone standing on the crown of the head, its tip leaning a little to her
+// right, with spiral stripes of teal, gold and purple, a white frill round its
+// foot lying on the skull and a white pompom on top.
+const PARTYHAT = { at: [0.008, 0.004], r: 0.05, h: 0.135, lean: 0.03, frill: 0.0065, pom: 0.019 };
+const PARTYHAT_STRIPES = [0x4ec9d4, 0xf5c518, 0x8a5cf0];
+const PARTYHAT_WHITE = 0xfdfaf2;
+function partyhat(simple) {
+  const segs = simple ? 10 : 20, rows = simple ? 4 : 9;
+  const [cx, cz] = PARTYHAT.at, R = PARTYHAT.r;
+  const foot = (i) => {
+    const th = (i / segs) * Math.PI * 2, x = cx + Math.sin(th) * R, z = cz - Math.cos(th) * R;
+    return drape(new THREE.Vector3(x, skullY(x, z), z), 0.002)[0];
+  };
+  const tip = new THREE.Vector3(cx + PARTYHAT.lean, skullY(cx, cz) + PARTYHAT.h, cz);
+  const axis = new THREE.Vector3(cx, skullY(cx, cz), cz);
+  const cone = grid(segs, rows, { wrapU: true }, (i, j) => {
+    const t = j / (rows - 1), p = foot(i).lerp(tip, t);
+    const band = Math.floor(t * 4.5 + (i / segs) * 3) % 3;
+    return { p, c: PARTYHAT_STRIPES[band], out: p.clone().sub(axis.clone().lerp(tip, t)) };
+  });
+  // the frill: a soft tube round the cone's foot, resting on the skull
+  const centres = [], normals = [];
+  for (let i = 0; i < segs; i++) {
+    const th = (i / segs) * Math.PI * 2, x = cx + Math.sin(th) * (R + 0.002), z = cz - Math.cos(th) * (R + 0.002);
+    const [p, n] = drape(new THREE.Vector3(x, skullY(x, z), z), PARTYHAT.frill + 0.001);
+    centres.push(p); normals.push(n);
+  }
+  const frill = tube(centres, normals, { closed: true, sides: simple ? 3 : 4, radius: (i) => PARTYHAT.frill * (simple ? 1 : 0.85 + 0.15 * (i % 2)), colour: () => PARTYHAT_WHITE });
+  const pom = blob(PARTYHAT.pom, simple ? 5 : 8, simple ? 4 : 6, tip.clone().add(new THREE.Vector3(0.002, PARTYHAT.pom * 0.6, 0)), [1, 1, 1], (uy) => mix(0xe8e0d0, PARTYHAT_WHITE, (uy + 1) / 2));
+  return finish('partyhat', [cone, frill, pom]);
+}
+
+const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat };
 
 // The clips' ground looks (src/foundwear/display.js): the clip as worn (the
 // simple build), turned so its face is up and propped toward -z, as if

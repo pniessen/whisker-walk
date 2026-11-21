@@ -278,6 +278,9 @@ export function renderSlotPickerHtml(state, catalog, slot, tryOn, thumbs) {
       return `<div class="dr-pick locked found-silhouette" role="group" aria-label="${escapeHtml(phrase('wear.notYet'))}">`
         + `<span class="found-shape" aria-hidden="true">${escapeHtml(a.emoji ?? '')}</span><span>${escapeHtml(where)}</span></div>`;
     }
+    // A gift outfit (src/foundwear/gifts.js) not given: not shown at all, so
+    // nothing hints at a surprise only a code brings.
+    if (a.code && !owned) return '';
     // An unwon prize stays a surprise: no data-dr-acc (the controller ignores
     // it), no price, no try-on.
     if (a.prize && !owned) {

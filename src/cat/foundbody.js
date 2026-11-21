@@ -185,7 +185,22 @@ function candyfloss({ onBack, floatOn, floatString }) {
   puff.position.set(0.05, 0.95, 0.2);
   floatOn(puff, tie);
 }
-export const FOUND_FLOATS = Object.freeze({ kitetailribbon: kiteTail, candyflosspuff: candyfloss });
+// Birthday Balloon (a gift outfit, src/foundwear/gifts.js): one round purple
+// balloon on a white string tied on where the tail begins, as the Tail
+// Balloon is, floating up behind her a little to one side; a gold knot under
+// it. Not the Party Balloon's pink nor the Tail Balloon's yellow.
+const BDAY_BALLOON = 0xa45ce8, BDAY_KNOT = 0xf5c518;
+function birthdayBalloon({ onBack, floatOn, floatString, ball }) {
+  const foot = new THREE.Vector3(...onBack(0, 0.5, 0.31)), top = new THREE.Vector3(0.05, 0.85, 0.42);
+  floatString(foot, top, 0.0035);
+  const knot = ball(0.016, BDAY_KNOT, 1, 1.2, 1, 6, 4);
+  knot.position.set(0.05, 0.865, 0.42);
+  floatOn(knot, foot);
+  const balloon = ball(0.092, BDAY_BALLOON, 1, 1.14, 1, 12, 9);
+  balloon.position.set(0.05, 0.965, 0.42);
+  floatOn(balloon, foot);
+}
+export const FOUND_FLOATS = Object.freeze({ kitetailribbon: kiteTail, candyflosspuff: candyfloss, bdayballoon: birthdayBalloon });
 
 function paintedGeo(geo, hexOf) {
   const p = geo.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color();

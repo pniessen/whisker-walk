@@ -121,7 +121,9 @@ describe('slot picker', () => {
     // found (its area is in her edition and has find spots); the rest show.
     const state = defaultishState();
     const owned = state.unlocked.accessories;
+    // (a gift outfit not given is not shown at all)
     const want = Object.entries(CATALOG.accessories).filter(([id, a]) => a.slot === 'head'
+      && !(a.code && !owned.includes(id))
       && (!a.find || owned.includes(id)
         || (areaInEdition(CATALOG.areas?.[a.find], state.edition) && spotsIn(a.find).length > 0))).length;
     const html = renderSlotPickerHtml(state, CATALOG, 'head', null);
