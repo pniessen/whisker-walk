@@ -32,6 +32,11 @@ const MOVES = [
 ];
 // The far ends of her moves: a crossing's end 1, a leap's, climb's or drop's landing.
 const FAR_ENDS = new Set([...ROOFS_TRAVERSAL.crossings.map((c) => `${c.id}:1`), ...UNLOCKED.map((h) => `${h.id}:to`)]);
+// The perches where her moves end: both of a crossing's ends, every landing she can make.
+const MOVE_ENDS = new Set([
+  ...ROOFS_TRAVERSAL.crossings.flatMap((c) => [`${c.id}:0`, `${c.id}:1`]),
+  ...UNLOCKED.map((h) => `${h.id}:to`),
+].map((id) => I.get(id).id));
 const NONE = new Set();
 
 const d2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -95,9 +100,10 @@ function expectedChoice(b, cat, taken) {
     if (!allowed(b.kind, to) || taken.has(to.id)) continue;
     if (l.kind === 'hop' ? l.d < K.hop.min || l.d > K.hop.max : !K.leads && l.d > K.hop.max) continue;
     if (keepsOffHer(from, to, cat)) continue;
-    const score = (K.leads
-      ? 2 * (l.kind === 'move') + (G.homeDist.get(to.id) < G.homeDist.get(from.id))
-      : -Math.abs(l.d - 5) / 5);
+    const nearer = G.homeDist.get(to.id) < G.homeDist.get(from.id);
+    const level = G.homeDist.get(to.id) <= G.homeDist.get(from.id);
+    const end = MOVE_ENDS.has(to.id) && (l.kind === 'move' || level);
+    const score = (K.leads ? 2 * (l.kind === 'move') + nearer + end : -Math.abs(l.d - 5) / 5);
     scored.push([score, l]);
   }
   if (!scored.length) return null;
@@ -511,9 +517,12 @@ describe('the flock’s plan', () => {
     // from plank-1:1 (the plan's case) and from every other pigeon's home, she
     // coming over the move that lands there; always 2.2 m behind along the last flight
     const starts = [['plank-1:1', 'plank-1:0'], ...ROOFS_BIRDS
-      .filter((b) => b.kind === 'pigeon' && /:(1|to)$/.test(b.home) && b.home !== 'plank-1:1')
+      .filter((b) => b.kind === 'pigeon' && FAR_ENDS.has(b.home) && b.home !== 'plank-1:1')
       .map((b) => [b.home, b.home.replace(/:1$/, ':0').replace(/:to$/, ':from')])];
     expect(starts.length).toBe(7);
+    let flights = 0;
+    let onEnds = 0;
+    let moves = 0;
     starts.forEach(([start, before], index) => {
       let p = I.get(start);
       let from = I.get(before);
@@ -525,9 +534,27 @@ describe('the flock’s plan', () => {
         expect(linkOf(p, I.get(f.to))).toBeDefined();
         [from, p] = [p, I.get(f.to)];
         landed = p.kind === 'loft';
+        flights++;
+        onEnds += MOVE_ENDS.has(p.id);
+        moves += f.kind === 'move';
       }
       expect(landed, start).toBe(true);
     });
+    // on the way they wait where her moves end, and fly her moves. Measured
+    // 2026-11-21 over these seven chases: 58 of 135 landings (43%) on a move
+    // end and 16 move flights; without the move-end term, 27 of 111 (24%) and 5
+    expect(onEnds / flights).toBeGreaterThanOrEqual(0.38);
+    expect(moves).toBeGreaterThanOrEqual(12);
+  });
+
+  it('the move ends she can make are the graph’s, and no skill leap’s landing is one', () => {
+    expect([...G.moveEnds].sort()).toEqual([...MOVE_ENDS].sort());
+    for (const g of LOCKED) {
+      const b = I.get(`${g.id}:to`);
+      // a locked landing counts only where one of her own moves also ends there
+      if (G.moveEnds.has(b.id)) expect(MOVES.some(([, t]) => I.get(t) === b), g.id).toBe(true);
+    }
+    expect(G.moveEnds.has(I.get('long-lantern:to').id)).toBe(false);
   });
 
   it('sparrows and gulls make local hops and never lead', () => {

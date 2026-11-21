@@ -37,9 +37,18 @@
 // THE CHOICE: a flushed bird takes the best link from its perch that lands at
 // least 4 m from her and 0.5 m further from her than it was, never comes
 // within 1.5 m of her on the way, and ends on a perch no other bird is on.
-// A pigeon likes a move link best, then one a flight nearer the loft (so a
-// chase walks a child along the planks, ridges and leaps, up the place to
-// the warehouse and the loft); sparrows and gulls make local hops near 5 m.
+// A pigeon scores each link:
+//   2 for a move link (it flies a move of hers),
+//   + 1 if it lands a flight nearer the loft (homeDist),
+//   + 1 if it lands on a move end she can make (a crossing's end, or the
+//     landing of a leap with no skill needed, a climb or a drop: moveEnds)
+//     by a move link, or by a hop no further from the loft,
+//   + 0.25 x hash01, the tie-break.
+// So a pigeon flies her move from where it sits, else waits where one of
+// her moves ends ("they like to wait at the far end of a plank or a gap's
+// landing spot"), and a chase walks a child along the planks, ridges and
+// leaps, up the place to the warehouse and the loft. Sparrows and gulls
+// make local hops near 5 m: -|d - 5| / 5 + the tie-break.
 // With no such link it flutters where it is (null). That is the anti-goal
 // ("nothing that chases the cat"): no bird ever flies toward her, over her,
 // or lands nearer her than it was.
@@ -356,7 +365,8 @@ function railUnder(c) {
   };
 }
 
-// The links from every perch, and each perch's flights to the loft.
+// The links from every perch, each perch's flights to the loft (homeDist),
+// and the perches at her moves' ends (moveEnds).
 export function flightGraph(perches, traversal) {
   const index = perchIndex(perches);
   const links = new Map(perches.map((p) => [p.id, []]));
@@ -376,7 +386,9 @@ export function flightGraph(perches, traversal) {
     tryLink(b, a, 'move', 'arc', railUnder(c));
   }
   for (const g of traversal.gaps || []) if (!g.requires) tryLink(index.get(`${g.id}:from`), index.get(`${g.id}:to`), 'move');
-  for (const h of [...(traversal.climbs || []), ...(traversal.drops || [])]) tryLink(index.get(`${h.id}:from`), index.get(`${h.id}:to`), 'move', 'step');
+  for (const h of [...(traversal.climbs || []), ...(traversal.drops || [])]) {
+    tryLink(index.get(`${h.id}:from`), index.get(`${h.id}:to`), 'move', 'step');
+  }
   for (const a of perches) {
     for (const b of perches) {
       if (Math.abs(a.x - b.x) <= FLIGHT.maxHop && Math.abs(a.z - b.z) <= FLIGHT.maxHop) tryLink(a, b, 'hop');
@@ -401,7 +413,12 @@ export function flightGraph(perches, traversal) {
     }
     ring = next;
   }
-  return Object.freeze({ links, homeDist });
+  // moveEnds: the perches at the ends of the moves she can make (a crossing's
+  // two ends, the landing of a leap with no skill needed, a climb's, a drop's)
+  const moveEnds = new Set();
+  for (const c of traversal.crossings || []) for (const k of [0, 1]) if (index.has(`${c.id}:${k}`)) moveEnds.add(index.get(`${c.id}:${k}`).id);
+  for (const h of hopsOf(traversal)) if (!h.requires && index.has(`${h.id}:to`)) moveEnds.add(index.get(`${h.id}:to`).id);
+  return Object.freeze({ links, homeDist, moveEnds });
 }
 
 // ---------------------------------------------------------------------------
@@ -411,6 +428,10 @@ const CAT_S0 = 0.1;
 const CAT_S1 = 0.9;
 const CAT_SAMPLES = 32; // s 0.1..0.9 in steps of 0.025
 const TIE = 0.25; // the hash's share of a score
+// A landing on a move end: as much as a flight nearer the loft, so the
+// tie-break chooses between them (more and the chases dawdle; less and
+// they seldom wait where her moves end).
+const END = 1;
 const TIE_SALT = 7;
 const dist3 = (p, c) => Math.hypot(p.x - c.x, p.y - c.y, p.z - c.z);
 
@@ -430,8 +451,9 @@ function keepsOff(from, to, cat, shape) {
 const isTaken = (p, taken) => taken.has(p.id) || p.aliases.some((a) => taken.has(a));
 
 // Where a flushed bird flies: { to, kind, shape } (`to` a perch id; `shape`
-// for flightPlan), or null for a flutter where it is. `bird` is { index, kind, at, flights, guideStep }; her
-// spot `cat` is { x, y, z }; `taken` holds the perches other birds are on.
+// for flightPlan), or null for a flutter where it is. `bird` is
+// { index, kind, at, flights, guideStep }; her spot `cat` is { x, y, z };
+// `taken` holds the perches other birds are on.
 export function chooseFlight(graph, index, bird, cat, taken) {
   const from = index.get(bird.at);
   if (!from) throw new Error(`roofsflock: ${bird.at} is not a perch`);
@@ -457,9 +479,10 @@ export function chooseFlight(graph, index, bird, cat, taken) {
     // the plan's hash01(index, flights, 7), offset by where the link lands
     // so that it breaks ties between links rather than adding the same to all
     const tie = TIE * hash01(bird.index + to.x, bird.flights + to.z, TIE_SALT);
-    const score = K.leads
-      ? 2 * (l.kind === 'move') + (graph.homeDist.get(to.id) < here) + tie
-      : -Math.abs(l.d - 5) / 5 + tie;
+    const move = l.kind === 'move';
+    const there = graph.homeDist.get(to.id);
+    const waits = graph.moveEnds.has(to.id) && (move || there <= here); // at a move end of hers
+    const score = K.leads ? 2 * move + (there < here) + END * waits + tie : -Math.abs(l.d - 5) / 5 + tie;
     if (score > bestScore) { best = l; bestScore = score; }
   }
   return best && { to: best.to, kind: best.kind, shape: best.shape };
