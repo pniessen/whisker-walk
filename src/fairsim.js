@@ -68,8 +68,11 @@ export const RIDE = Object.freeze({
   MAT_Y: 0.1,          // the mat's top
   SLIDE_SWEEP: 0.9,    // nobody lands this near the low end of the chute
   // ---- the caterpillar coaster ----
-  COASTER_LAP: 46,     // seconds from leaving the station to leaving it again
-  COASTER_WAIT: 6,     // of which the train stands in the station this long
+  // The train stands 12 s (it was 6 until 2026-11-20: a child who had just
+  // missed it waited too long for the next); the run round the track is the
+  // same 40 s as before, so the lap is 52.
+  COASTER_LAP: 52,     // seconds from leaving the station to leaving it again
+  COASTER_WAIT: 12,    // of which the train stands in the station this long
   COASTER_LIFT: 2.3,   // m/s up the hill, clanking
   COASTER_G: 3.4,      // how much of the hill's height comes back as speed (a real coaster's is 9.8)
   COASTER_TOP: 7.0,    // m/s, the fastest it is ever asked to go: about a cat's own run and a bit

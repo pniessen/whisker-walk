@@ -550,11 +550,12 @@ describe('the caterpillar coaster', () => {
     lap.push({ t: i * DT, d: K.d, speed: K.speed, waiting: K.waiting, x: cars[0].x, y: cars[0].y, z: cars[0].z, py: cars[0].py });
   }
 
-  it('takes 40 to 50 seconds a lap, a few of them standing in the station, and comes back exactly', () => {
-    expect(LAP).toBeGreaterThanOrEqual(40);
-    expect(LAP).toBeLessThanOrEqual(50);
-    expect(RIDE.COASTER_WAIT).toBeGreaterThanOrEqual(4);
-    expect(RIDE.COASTER_WAIT).toBeLessThanOrEqual(8);
+  it('runs the track in about 40 seconds, stands about 12 in the station, and comes back exactly', () => {
+    // the stand was 6 s until 2026-11-20; it was doubled, the run kept as it was
+    expect(LAP - RIDE.COASTER_WAIT).toBeGreaterThanOrEqual(38);
+    expect(LAP - RIDE.COASTER_WAIT).toBeLessThanOrEqual(42);
+    expect(RIDE.COASTER_WAIT).toBeGreaterThanOrEqual(10);
+    expect(RIDE.COASTER_WAIT).toBeLessThanOrEqual(14);
     sim.setTime(123.4);
     const a = cars.map((c) => [c.x, c.y, c.z, c.yaw]);
     sim.setTime(123.4 + LAP);
@@ -1629,7 +1630,9 @@ describe('the walk: a cat on the caterpillar coaster', () => {
   });
 
   it('lets her hop out anywhere on the lap: down in under a second onto free ground beside the track, never on it', () => {
-    for (const after of [0.5, 7, 12, 17, 21, 26, 31, 36, 41, 44]) {
+    // seconds after boarding (1 s into the stand): one in the station, then
+    // from 2 s to 39 s into the 40 s run, whatever the stand's length
+    for (const after of [0.5, ...[7, 12, 17, 21, 26, 31, 36, 41, 44].map((s) => s + RIDE.COASTER_WAIT - 6)]) {
       const w = onThePlatform({ T: LAP * 500 + 1 });
       w.frame();
       expect(w.live.jump(w.ctx)).toBe(true);
@@ -1665,7 +1668,7 @@ describe('the walk: a cat on the caterpillar coaster', () => {
     const w = onThePlatform({ T: LAP * 600 + 1 });
     w.frame();
     w.live.jump(w.ctx);
-    w.run(16);
+    w.run(RIDE.COASTER_WAIT - 1 + 11); // 11 s out of the station: up the hill
     expect(w.cat.position.y).toBeGreaterThan(3);
     const at = { x: w.cat.position.x, z: w.cat.position.z };
     expect(() => w.live.dispose()).not.toThrow();
