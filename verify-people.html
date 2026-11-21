@@ -22,7 +22,8 @@
        sheet: lineup-day lineup-cateye-day faces-front-day faces-near-day blink-day glance-day stride-day
               wave-cateye-day crouch-cateye-day dismay-day lineup-sunset wave-cateye-sunset stride-sunset
               neck-side-day neck-far-day far-day lod-close faces-day back-day crowd-spots
-              scratch-touch-day scratch-touch-cateye scratch-touch-side scratch-touch-ears scratch-held-day scratch-older-day
+              scratch-touch-day scratch-touch-cateye scratch-touch-side scratch-touch-ears scratch-touch-mainecoon
+              scratch-held-day scratch-older-day
        fair:  fair-day fair-dusk fair-close
      Tours (scripts/record-page.mjs --tour name): window.__tour(name), then window.__frame() steps 1/30 s
      (two 1/60 s steps) and renders, and answers { done, caption }.
@@ -197,6 +198,11 @@
     scene.add(cat);
     cats.push(cat);
     animateCat(cat, 'follow', 0.5, 0, false);
+    // a Maine Coon (the biggest preset cat) for the scratch shot, hidden till then
+    const coon = buildCat('mainecoon');
+    coon.visible = false;
+    scene.add(coon);
+    cats.push(coon);
     shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
     sun.shadow.bias = SUN_BIAS;
     assignShadowCasters(scene);
@@ -249,8 +255,9 @@
   let clock = 0; // the walk clock every pose and blink reads
   const HEAD_AT = new THREE.Vector3();
   // her head (the gaze's target); on cat-eye shots the camera is her eyes
+  let her = 0; // which of cats is her (the scratch shots may use the Maine Coon)
   function herHead() {
-    const c = cats[0];
+    const c = cats[her];
     if (!c.visible) return HEAD_AT.copy(camera.position);
     c.updateMatrixWorld(true);
     return c.userData.parts.head.getWorldPosition(HEAD_AT);
@@ -259,7 +266,7 @@
   const TOP_AT = new THREE.Vector3();
   let VOL = null;
   function herTop() {
-    const c = cats[0];
+    const c = cats[her];
     if (!c.visible) return null;
     c.updateMatrixWorld(true);
     c.userData.parts.head.getWorldPosition(TOP_AT);
@@ -531,6 +538,16 @@
       settle(SCRATCH, { which: only('man'), seconds: 3 });
       return `Close over her back (the normal camera's view, nearer): the hand lies along her head between her ears. ${touchNote('man')}`;
     },
+    'scratch-touch-mainecoon': () => {
+      dayLight();
+      cats[0].visible = false;
+      her = 1;
+      cats[1].visible = true;
+      scratchScene('man', 1.0);
+      cam(-2.0, 1.25, 1.6, 0, 0.95, 0.5, 38); // from his right, in front
+      settle(SCRATCH, { which: only('man'), seconds: 3 });
+      return `The head scratch on a Maine Coon, the biggest preset cat (her head's top 1.17 m, above his kneeling shoulder): the hand comes over and rests on her head. ${touchNote('man')}`;
+    },
     'scratch-held-day': () => {
       dayLight();
       scratchScene('man', 1.5);
@@ -561,7 +578,7 @@
     const it = byId(id);
     it.group.position.set(0, 0, 0);
     it.group.rotation.y = Math.PI;
-    const cat = cats[0];
+    const cat = cats[her];
     cat.position.set(0, 0, dist);
     cat.rotation.y = heading;
     animateCat(cat, 'requestPet', 1, 0, false);
@@ -607,7 +624,9 @@
     const f = (sceneId === 'fair' ? FAIR : SHOTS)[name];
     if (!f) throw new Error(`no shot ${name}`);
     tour = null;
+    her = 0;
     cats[0].visible = true;
+    if (cats[1]) cats[1].visible = false;
     if (sceneId === 'sheet') sheetDefaults(name);
     reset();
     const text = f();
@@ -740,6 +759,8 @@
     const make = TOURS[name];
     if (!make) throw new Error(`no tour ${name}`);
     clock = 0;
+    her = 0;
+    if (cats[1]) cats[1].visible = false;
     tour = { name, ...make(), t: 0, frames: 0 };
     labels(false);
     return name;

@@ -3,9 +3,10 @@
 // when she is within arm's reach, slowly, from in front and above, by way of
 // a point over her head; it rests there with its palm down, CLEAR above her
 // head's top as it is on this frame, following it, with a slow stroke along
-// her head's front-to-back line. Out of reach (or her head higher than the
-// person's shoulder) the hand is held out, low, palm down, toward her, and she
-// can come closer; losing reach, it withdraws, rising first. Only the hand
+// her head's front-to-back line. Out of reach (or perched: her head's top
+// more than PERCHED_ABOVE over the person's shoulder, as on a wall) the hand
+// is held out, low, palm down, toward her, and she can come closer; losing
+// reach, it withdraws, rising first. Only the hand
 // comes to her: the chest leans at most LEAN_MAX (the pose's lean counted).
 //
 // Order each frame: pose(), applyPose(), stepGaze(), then stepScratch(). The
@@ -36,12 +37,13 @@ export const REACH = Object.freeze({
   HOLD_R: 2.5, // m: the kneel lasts while she is within this (the walk's)
   MIN_TIME: 2.5, // s: and at least this long (the walk's)
   STAND_DELAY: 0.6, // s: they stand this long after she leaves (the walk's)
+  PERCHED_ABOVE: 0.3, // m: her head's top more than this over the person's shoulder (as posed) is perched: held out (ruling R10)
 });
 
 // ---- tuning (my calls, not the spec's) --------------------------------------------
 const REACH_IN = 0.95; // a reach starts when the wrist is within this much of the arm's length
 const REACH_OUT = 0.985; // and is kept to this (the elbow never quite locked)
-const PERCH_GIVE = 0.02; // m: her head this far under the shoulder to start a touch
+const PERCH_GIVE = 0.02; // m: her head this far under the perched line to start a touch
 const HAND_TURN = 0.6; // rad: the hand turns this far at most from the reach to lie along her head
 const HAND_RATE = 2.5; // rad/s: the hand's turn while held or resting
 const HELD_FWD = 0.4; // the held palm, in front of the middle (x s, the height over 1.75 m)
@@ -50,8 +52,13 @@ const HELD_X = 0.12; // to the right of the middle (x s)
 const HELD_YAW = 0.5; // rad: it turns toward her up to this
 const HELD_RATE = 1.5; // rad/s
 const HELD_REACH = 0.92; // the held arm reaches at most this much of its length
+const READY_TIME = 0.2; // s: the held hand comes up to the ready place over this
+const READY_X = 0.16; // the ready place: to the right of the middle (x s),
+const READY_FWD = 0.06; // just in front of the chest (x s),
+const READY_DROP = 0.15; // m: this far under the shoulder
 const BACK_FWD = 0.12; // the guard's drawn-back hand: just in front of the person (x s)
 const BACK_X = 0.3; // and out to the side of the hip (x s)
+const HAND_SPEED = 2.5; // m/s: the palm never moves faster than this unless her clearance needs it
 const LIFT_MAX = 0.6; // m: the guard lifts the hand at most this far
 const RISE = 0.1; // m: a withdrawal rises this far first
 const GAP = 0.004; // m: each limb's surface stays this clear of her volumes
@@ -393,7 +400,8 @@ function tryAt(P, f, vol) {
 
 // ---- the guard ---------------------------------------------------------------------
 // The first clear point along a way out from P: drawn back to `back` (when
-// given) over the first half, then up by LIFT_MAX. Writes OUT.
+// given: beside the hip, for the held hand) over the first half, then up by
+// LIFT_MAX (on the way in and back it only rises). Writes OUT.
 const OUT = new THREE.Vector3();
 const _back = new THREE.Vector3();
 function wayOut(P, back, s, out) {
@@ -401,26 +409,55 @@ function wayOut(P, back, s, out) {
   if (s <= 0.5) return out.lerpVectors(P, back, s * 2);
   return out.copy(back).addScaledVector(UP, (s - 0.5) * 2 * LIFT_MAX);
 }
-function guard(P, f, vol, back) {
-  OUT.copy(P);
-  if (tryAt(OUT, f, vol) >= 0) return OUT; // (always, with no volumes)
-  const N = 24;
-  let lo = 0, hi = -1, best = -Infinity, bestS = 0;
-  for (let i = 1; i <= N; i++) {
-    const s = i / N;
-    const m = tryAt(wayOut(P, back, s, OUT), f, vol);
-    if (m >= 0) { hi = s; break; }
-    if (m > best) { best = m; bestS = s; }
-    lo = s;
-  }
-  if (hi < 0) hi = bestS; // nowhere clear (she is in the person): the least bad
-  else {
-    for (let i = 0; i < 6; i++) {
-      const mid = (lo + hi) / 2;
-      if (tryAt(wayOut(P, back, mid, OUT), f, vol) >= 0) hi = mid; else lo = mid;
+// The guard keeps its place on the way out from frame to frame (s0, what it
+// chose last frame; the chosen one is left in GUARD_S), so the hand moves
+// smoothly: while clear it eases back toward P at RELAX a second, and when
+// she comes in the way it goes out only as far as clears her.
+const RELAX = 0.8;
+let GUARD_S = 0;
+function guard(P, f, vol, back, s0, dt) {
+  let s = clamp(s0, 0, 1);
+  if (tryAt(wayOut(P, back, s, OUT), f, vol) >= 0) {
+    // clear: come back toward P, at most RELAX * dt (always clear with no volumes)
+    const lo = Math.max(0, s - RELAX * dt);
+    if (lo < s) {
+      if (tryAt(wayOut(P, back, lo, OUT), f, vol) >= 0) s = lo;
+      else {
+        let bad = lo;
+        for (let i = 0; i < 5; i++) {
+          const mid = (bad + s) / 2;
+          if (tryAt(wayOut(P, back, mid, OUT), f, vol) >= 0) s = mid; else bad = mid;
+        }
+      }
+    }
+  } else {
+    // in her: out from here to the first clear place
+    const N = 24;
+    let lo = s, hi = -1;
+    for (let i = Math.floor(s * N) + 1; i <= N; i++) {
+      const si = i / N;
+      if (tryAt(wayOut(P, back, si, OUT), f, vol) >= 0) { hi = si; break; }
+      lo = si;
+    }
+    if (hi < 0) {
+      // nowhere clear out from here (she is in the person): the least bad
+      // place on the whole way
+      let best = -Infinity;
+      for (let i = 0; i <= N; i++) {
+        const m = tryAt(wayOut(P, back, i / N, OUT), f, vol);
+        if (m > best) { best = m; s = i / N; }
+      }
+    }
+    else {
+      for (let i = 0; i < 6; i++) {
+        const mid = (lo + hi) / 2;
+        if (tryAt(wayOut(P, back, mid, OUT), f, vol) >= 0) hi = mid; else lo = mid;
+      }
+      s = hi;
     }
   }
-  tryAt(wayOut(P, back, hi, OUT), f, vol); // the arm (and LEAN) left solved for OUT
+  tryAt(wayOut(P, back, s, OUT), f, vol); // the arm (and LEAN) left solved for OUT
+  GUARD_S = s;
   return OUT;
 }
 
@@ -435,7 +472,11 @@ export function createScratch() {
     palm: new THREE.Vector3(), // the palm last frame (world)
     yaw: 0, // the hand's heading (world yaw of the fingers)
     heldYaw: 0, // the held hand's turn toward her (figure frame, + to the figure's right)
+    ready: 0, // 0..1: the held hand drawn up to the ready place (her head in reach)
     lean: 0,
+    plan: new Float64Array(WAY_N + 1), // the way in's planned rise (see planWay)
+    gs: 0, // the guard's place on its way out (see guard), and the held hand's on the way back
+    gh: 0,
     wrote: new Float64Array(3).fill(NaN), // the chest's rotation after the lean, and before it
     before: new Float64Array(3),
   };
@@ -473,15 +514,39 @@ function cubic(p0, p1, p2, p3, u, out) {
   );
 }
 
-// The way in: up from where the hand was, over and down through the point
-// ABOVE her head (seg 1, 70% of the time), then straight down to the touch.
+// The way in: up from where the hand was (drawn in toward the shoulder as it
+// rises, so a hand held low near her chin comes up clear of her face), over
+// and down through the point ABOVE her head (seg 1), then straight down to
+// the touch (seg 2). wayAt gives the shape for v in 0..1; approachAt walks it
+// at an even pace along its length (eased in and out by u), so the hand
+// never hurries through the long part.
 const SEG1 = 0.7;
-function approachAt(from, A, T, u, out) {
-  if (u >= SEG1) return out.lerpVectors(A, T, (u - SEG1) / (1 - SEG1));
-  _c1.copy(from); _c1.y = Math.max(from.y, A.y); // up first
-  // arrive at A moving down at the speed the second part goes on with
+const DRAW_IN = 0.6;
+function wayAt(from, A, T, S, v, out) {
+  if (v >= SEG1) return out.lerpVectors(A, T, (v - SEG1) / (1 - SEG1));
+  _c1.copy(from).lerp(S, DRAW_IN); _c1.y = Math.max(from.y, A.y); // up first
+  // arrive at A moving down, as the second part goes on
   _c2.copy(A).addScaledVector(UP, ((A.y - T.y) * SEG1) / (3 * (1 - SEG1)));
-  return cubic(from, _c1, _c2, A, u / SEG1, out);
+  return cubic(from, _c1, _c2, A, v / SEG1, out);
+}
+const WAY_LEN = new Float64Array(25);
+const _wp = new THREE.Vector3();
+const _wq = new THREE.Vector3();
+function approachAt(from, A, T, S, u, out) {
+  const N = WAY_LEN.length - 1;
+  wayAt(from, A, T, S, 0, _wq);
+  WAY_LEN[0] = 0;
+  for (let i = 1; i <= N; i++) {
+    wayAt(from, A, T, S, i / N, _wp);
+    WAY_LEN[i] = WAY_LEN[i - 1] + _wp.distanceTo(_wq);
+    _wq.copy(_wp);
+  }
+  const want = clamp(u, 0, 1) * WAY_LEN[N];
+  let i = 1;
+  while (i < N && WAY_LEN[i] < want) i++;
+  const seg = WAY_LEN[i] - WAY_LEN[i - 1];
+  const k = seg > 1e-9 ? (want - WAY_LEN[i - 1]) / seg : 0;
+  return wayAt(from, A, T, S, (i - 1 + k) / N, out);
 }
 
 // The way back: up first, then over and down to the held hand.
@@ -491,7 +556,54 @@ function withdrawAt(from, held, u, out) {
   return cubic(from, _c1, _c2, held, u, out);
 }
 
+// The way in, planned as it starts: at WAY_N + 1 places along it, how far it
+// must rise to be clear of her (each widened to its neighbours', so between
+// them it is clear too). The hand then follows the way plus this rise, eased
+// between the places: a smooth arc over her that goes no higher than it has
+// to, with no sudden lift on the way. False when some place is nowhere clear
+// (then no touch starts). The guard still keeps it clear if she moves.
+const WAY_N = 12;
+const PLAN_RISE = 0.25; // m: a way that has to rise more than this to clear her is no way in
+const _plan = new Float64Array(WAY_N + 1);
+function planWay(sc, touchYaw, vol) {
+  sc.plan.fill(0);
+  if (!vol) return true;
+  _A.copy(_top).addScaledVector(UP, REACH.ABOVE);
+  for (let i = 1; i < WAY_N; i++) {
+    const u = i / WAY_N;
+    approachAt(sc.palm, _A, _T, _s0, u, _P);
+    dirOf(sc.yaw + wrapPi(touchYaw - sc.yaw) * u, _f);
+    guard(_P, _f, vol, null, 0, 0);
+    if (clearOf(vol) < 0 || GUARD_S * LIFT_MAX > PLAN_RISE) return false;
+    _plan[i] = GUARD_S * LIFT_MAX;
+  }
+  _plan[0] = 0; _plan[WAY_N] = 0;
+  for (let i = 1; i < WAY_N; i++) sc.plan[i] = Math.max(_plan[i - 1], _plan[i], _plan[i + 1]);
+  // and between the places the planned way needs no more than that either
+  // (the guard gives it, as smoothly as the way goes)
+  for (let i = 0; i < WAY_N; i++) {
+    const u = (i + 0.5) / WAY_N;
+    approachAt(sc.palm, _A, _T, _s0, u, _P);
+    _P.y += planAt(sc, u);
+    dirOf(sc.yaw + wrapPi(touchYaw - sc.yaw) * u, _f);
+    guard(_P, _f, vol, null, 0, 0);
+    if (clearOf(vol) < 0 || GUARD_S * LIFT_MAX > PLAN_RISE) return false;
+  }
+  return true;
+}
+// the planned rise at u (smoothly between the places)
+function planAt(sc, u) {
+  const x = clamp(u, 0, 1) * WAY_N;
+  const i = Math.min(WAY_N - 1, Math.floor(x));
+  const k = smooth(x - i);
+  return sc.plan[i] + (sc.plan[i + 1] - sc.plan[i]) * k;
+}
+
 function begin(sc, state) {
+  // each way starts where the hand is (its guard from there); the held hand
+  // takes over the way back's end
+  sc.gs = state === 'held' ? sc.gh : 0;
+  sc.gh = 0;
   sc.state = state;
   sc.t = 0;
   sc.from.copy(sc.palm);
@@ -547,13 +659,14 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
       if (Math.abs(wrapPi(ly - base)) > Math.PI / 2) ly = wrapPi(ly + Math.PI);
       touchYaw = base + clamp(wrapPi(ly - base), -HAND_TURN, HAND_TURN);
     }
-    if (_top.y <= _s0.y) {
+    const perch = _s0.y + REACH.PERCHED_ABOVE; // the unleaned shoulder, kneeling or bowing
+    if (_top.y <= perch) {
       dirOf(touchYaw, _f);
       wristFor(_T, _f, _wr);
       const len = ARM.a + ARM.b;
       if (leanFor(_wr, REACH_OUT * len) >= 0 && tryAt(_T, _f, vol) >= 0 && ARM.reached) {
         canStay = true;
-        canStart = _top.y <= _s0.y - PERCH_GIVE && leanFor(_wr, REACH_IN * len) >= 0;
+        canStart = _top.y <= perch - PERCH_GIVE && leanFor(_wr, REACH_IN * len) >= 0;
       }
     }
   }
@@ -573,8 +686,18 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
   const hx = _held.x - Math.sin(psi) * 0.92 * ARM.hr - _loc.x, hz = _held.z + Math.cos(psi) * 0.92 * ARM.hr - _loc.z;
   const drop = Math.sqrt(Math.max(0, (HELD_REACH * (ARM.a + ARM.b)) ** 2 - hx * hx - hz * hz));
   _held.y = Math.max(_held.y, _loc.y - drop - (0.36 * ARM.hr - 0.004));
+  // with her head in reach the held hand comes up to the ready place in
+  // front of the person's own chest first, so the way in starts clear of her
+  sc.ready = clamp(sc.ready + (canStay ? dt : -dt) / READY_TIME, 0, 1);
+  if (!sc.started) sc.ready = 0;
+  const kr = smooth(sc.ready);
+  if (kr > 0) {
+    _held.x += (READY_X * s - _held.x) * kr;
+    _held.y += (Math.max(_held.y, _loc.y - READY_DROP) - _held.y) * kr;
+    _held.z += (-READY_FWD * s - _held.z) * kr;
+  }
   fig.localToWorld(_held);
-  _back.set(BACK_X * s, HELD_Y * s, -BACK_FWD * s);
+  _back.set(BACK_X * s, Math.max(HELD_Y * s, _loc.y - 0.85 * (ARM.a + ARM.b)), -BACK_FWD * s);
   fig.localToWorld(_back);
   const heldYaw = yawOf(_ft.set(Math.sin(psi), 0, -Math.cos(psi)).applyQuaternion(_fq));
 
@@ -582,13 +705,15 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
     sc.started = true;
     sc.yaw = heldYaw;
     dirOf(sc.yaw, _f);
-    sc.palm.copy(guard(_held, _f, vol, _back));
+    sc.palm.copy(guard(_held, _f, vol, _back, 0, 0));
+    sc.gs = GUARD_S;
     sc.from.copy(sc.palm);
   }
 
   // ---- what happens ----
   sc.t += dt;
-  if (sc.state === 'held') { if (canStart) begin(sc, 'reaching'); }
+  // a reach starts from the ready place, on a planned way
+  if (sc.state === 'held') { if (canStart && sc.ready >= 1 && planWay(sc, touchYaw, vol)) begin(sc, 'reaching'); }
   else if (sc.state === 'reaching') { if (!canStay) begin(sc, 'withdrawing'); else if (sc.t >= REACH.APPROACH) begin(sc, 'resting'); }
   else if (sc.state === 'resting') { if (!canStay) begin(sc, 'withdrawing'); }
   else if (sc.state === 'withdrawing' && sc.t >= REACH.WITHDRAW) begin(sc, 'held');
@@ -603,7 +728,8 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
     const u = smooth(Math.min(1, sc.t / REACH.APPROACH));
     sc.yaw = sc.yawFrom + wrapPi(touchYaw - sc.yawFrom) * u;
     _A.copy(_top).addScaledVector(UP, REACH.ABOVE);
-    approachAt(sc.from, _A, _T, u, _P);
+    approachAt(sc.from, _A, _T, _s0, u, _P);
+    _P.y += planAt(sc, u);
   } else if (sc.state === 'resting') {
     sc.yaw = towardYaw(sc.yaw, touchYaw, HAND_RATE * dt);
     const grow = smooth(Math.min(1, sc.t / STROKE_IN));
@@ -614,11 +740,24 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
     sc.yaw = sc.yawFrom + wrapPi(heldYaw - sc.yawFrom) * u;
     // the held hand's own clear place is where the way back ends
     dirOf(heldYaw, _f);
-    _hd.copy(guard(_held, _f, vol, _back));
+    _hd.copy(guard(_held, _f, vol, _back, sc.gh, dt));
+    sc.gh = GUARD_S;
     withdrawAt(sc.from, _hd, u, _P);
   }
   dirOf(sc.yaw, _f);
-  guard(_P, _f, vol, back);
+  guard(_P, _f, vol, back, sc.gs, dt);
+  sc.gs = GUARD_S;
+  // never faster than HAND_SPEED: a step that would be quicker goes as far as
+  // that allows toward it, if the arm is clear there (else clearance wins)
+  if (sc.started && dt > 0) {
+    const step = OUT.distanceTo(sc.palm);
+    const most = HAND_SPEED * dt;
+    if (step > most) {
+      _P.copy(OUT);
+      _P.lerpVectors(sc.palm, _P, most / step);
+      if (tryAt(_P, _f, vol) < 0) tryAt(OUT, _f, vol);
+    }
+  }
   // guard() leaves the arm solved for OUT, with its lean in LEAN
 
   // ---- pose the arm ----
