@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createCrossing, swallowsCanvasClick, CROSS_RESEND_MS, CROSS_END_MS, WALK_ON_WAIT_MS } from '../src/game/crossing.js';
+import { createCrossing, swallowsCanvasClick, CROSS_RESEND_MS, CROSS_END_MS, WALK_ON_WAIT_MS, WALK_ON_FOLLOW_MS } from '../src/game/crossing.js';
 import { AREA_LOAD_TIMEOUT_MS, AreaLoadError } from '../src/game/areaload.js';
 import { phrase } from '../src/clanphrases.js';
 import { pauseCardHtml, pauseCardFor } from '../src/game/walk.js';
@@ -876,6 +876,15 @@ describe('walking on together', () => {
     expect(h.loads.asked).toEqual([]);
   });
 
+  it("the host's cat dropped from the guest's screen (5 s on the card): the guest still follows the gate's crossing", () => {
+    const h = together({ host: false, selfId: 'c', remotes: [{ playerId: 'a', petName: 'Pip' }] });
+    h.s.remotes.list.length = 0;
+    h.crossing.onRemote(h.s, { v: 1, id: 'a', type: 'border-cross', from: 'park', to: 'farm' });
+    expect(h.toasts).toEqual(['Pip is leading the way to Appletree Farm! 🧭']); // named from the roster
+    vi.advanceTimersByTime(1500);
+    expect(h.endWalk.mock.calls).toEqual([[{ crossTo: 'farm', ledBy: 'Pip', together: [] }]]);
+  });
+
   it('a guest on this build follows that crossing through the gate: its walk ends too', () => {
     const h = together({ host: false, selfId: 'c', remotes: [{ playerId: 'a', petName: 'Pip' }] });
     h.crossing.onRemote(h.s, { v: 1, id: 'a', type: 'border-cross', from: 'park', to: 'farm' });
@@ -991,7 +1000,7 @@ describe('walking on together', () => {
       expect(h.handlers()).toBe(0);
     });
 
-    it('R15 only after a yes, only from the host, only within the wait', async () => {
+    it('R15 only after a yes, only from the host, only within WALK_ON_FOLLOW_MS', async () => {
       const st = { v: 1, id: 'a', pos: [0, 0], yaw: 0, pose: 'idle', speed: 0, area: 'farm' };
       const no = guest();
       no.crossing.onWalkOnAsk(no.s, no.ask());
@@ -1000,13 +1009,33 @@ describe('walking on together', () => {
       no.hear(st);
       expect(no.walkOn).not.toHaveBeenCalled();
       expect(no.handlers()).toBe(0);
+      expect(WALK_ON_FOLLOW_MS).toBe(60000);
+      // the host may sit on its Ready? card in the Farm: still followed after the room's wait
+      const slow = guest();
+      slow.crossing.onWalkOnAsk(slow.s, slow.ask());
+      slow.loads.come('farm');
+      await vi.advanceTimersByTimeAsync(WALK_ON_FOLLOW_MS - 1);
+      expect(slow.handlers()).toBe(1);
+      slow.hear(st);
+      expect(slow.walkOn).toHaveBeenCalledTimes(1);
+      expect(slow.handlers()).toBe(0);
       const late = guest();
       late.crossing.onWalkOnAsk(late.s, late.ask());
       late.loads.come('farm');
-      await vi.advanceTimersByTimeAsync(WALK_ON_WAIT_MS + 1);
+      await vi.advanceTimersByTimeAsync(WALK_ON_FOLLOW_MS + 1);
       expect(late.handlers()).toBe(0);
       late.hear(st);
       expect(late.walkOn).not.toHaveBeenCalled();
+      // her walk ended: the watch is taken off with it (netOffs) and never follows
+      const gone = guest();
+      gone.crossing.onWalkOnAsk(gone.s, gone.ask());
+      gone.loads.come('farm');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(gone.s.netOffs).toHaveLength(1);
+      gone.replace(null);
+      gone.hear(st);
+      expect(gone.handlers()).toBe(0);
+      expect(gone.walkOn).not.toHaveBeenCalled();
       // a host that is no longer the host (someone lower joined) is not followed
       const moved = guest();
       moved.crossing.onWalkOnAsk(moved.s, moved.ask());

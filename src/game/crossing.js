@@ -43,6 +43,10 @@ export const LED_DELAY_MS = 1500;
 // How long a room's host waits for every friend to have the place: a little
 // longer than one place load may take.
 export const WALK_ON_WAIT_MS = AREA_LOAD_TIMEOUT_MS + 1000;
+// How long a guest who said yes watches for the host's state from the new
+// place (ruling R15): the host sends none until it plays there, and it may
+// sit on that walk's Ready? card a while.
+export const WALK_ON_FOLLOW_MS = 60000;
 // A guest takes an ask heard again this soon for the host's resend.
 const ASK_SAME_MS = 1000;
 // The most answers the host keeps for one ask (each friend sends two).
@@ -291,18 +295,18 @@ export function createCrossing({
   }
 
   // Ruling R15: having said yes, a guest also follows the host when, within
-  // WALK_ON_WAIT_MS, a state from the host (by the roster) shows it in the
+  // WALK_ON_FOLLOW_MS, a state from the host (by the roster) shows it in the
   // place, so both walk-on copies lost do not split the room.
   function watchHost(s, net, { via, to, hostId }) {
     const since = now();
     let off = () => {};
     off = keepOff(s, net.onState?.((state) => {
-      if (getSession() !== s || s.crossLed || now() - since > WALK_ON_WAIT_MS) { off(); return; }
+      if (getSession() !== s || s.crossLed || now() - since > WALK_ON_FOLLOW_MS) { off(); return; }
       if (!decideHostThere(state, { hostId, to, selfId: s.playerId, remoteIds: roomIdsOf(s) })) return;
       off();
       follow(s, { via, to, hostId });
     }));
-    setTimeout(() => off(), WALK_ON_WAIT_MS);
+    setTimeout(() => off(), WALK_ON_FOLLOW_MS);
   }
 
   // A guest walks on behind the host: once a walk, as a guest (nothing is
@@ -376,14 +380,17 @@ export function createCrossing({
   function onRemote(s, ev) {
     if (!s || !ev || s.crossLed) return;
     const remotes = Array.isArray(s.remotes?.list) ? s.remotes.list : [];
-    // A border post's crossing, or a gate's in a room with an older build.
-    const ctx = { areaId: s.areaId, selfId: s.playerId, remoteIds: remotes.map((r) => r.playerId), catalog };
-    const d = decideBorderCross(ev, ctx) ?? decideGateCross(ev, ctx);
+    // A border post's crossing (its room still read from the drawn cats until
+    // Task 10), or a gate's in a room with an older build, whose room and
+    // host are the roster's, as every gate room decision is.
+    const base = { areaId: s.areaId, selfId: s.playerId, catalog };
+    const d = decideBorderCross(ev, { ...base, remoteIds: remotes.map((r) => r.playerId) })
+      ?? decideGateCross(ev, { ...base, remoteIds: roomIdsOf(s) });
     if (!d) return;
     prefetchArea(d.to);
     s.crossLed = true;
     const together = remotes.map((r) => r.petName);
-    const name = remotes.find((r) => r.playerId === ev.id)?.petName ?? 'A friend';
+    const name = petNameOf(s, ev.id);
     hud.toast(phrase('cross.leading', name, lower(targetName(d.to, getEdition(), catalog))));
     setTimeout(() => { if (getSession() === s) endWalk({ crossTo: d.to, ledBy: name, together }); }, LED_DELAY_MS);
   }
