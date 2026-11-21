@@ -17,7 +17,7 @@ vi.mock('../src/render/sky.js', async (importOriginal) => {
 });
 
 const { skyBackground } = await import('../src/render/sky.js');
-const { createRoofsLife, eveningAt, busAt, EVENING_RAMP, EVENING_STEPS } = await import('../src/roofslife.js');
+const { createRoofsLife, eveningAt, busAt, EVENING_RAMP, EVENING_STEPS, GLOW } = await import('../src/roofslife.js');
 const { BUS, ROOFS_SHOT_T, ROOFS_SHOTS, ROOFS_TRAVERSAL, ROOFS_GROUND } = await import('../src/world/roofsplan.js');
 const { createGround } = await import('../src/ground.js');
 const { flockPerches, perchIndex, ROOFS_BIRDS } = await import('../src/world/roofsflock.js');
@@ -186,6 +186,80 @@ describe('the Rooftops’ evening', () => {
   });
 });
 
+// Rooftops step 5, Task 8: the lit materials come up with the evening.
+describe('the lights at dusk', () => {
+  const lit = (reducedMotion = false) => {
+    const mk = (base) => { const m = new THREE.MeshStandardMaterial({ emissiveIntensity: base }); m.userData.glowBase = base; return m; };
+    const eveningLights = { windows: mk(1.1), clock: mk(1.9), bulbs: mk(1.5) };
+    const w = walk();
+    const sun = { intensity: 0.8 };
+    const fill = { intensity: 0.5 };
+    const life = createRoofsLife({ ...w.area, eveningLights })({ scene: w.scene, sun, fill, reducedMotion });
+    return { w: { ...w, life, sun, fill }, eveningLights };
+  };
+
+  it('the lights come up as the evening deepens', () => {
+    expect(GLOW).toEqual({ sunset: 0.55, breathe: 0.06, rate: 1.1 });
+    const { w, eveningLights: L } = lit();
+    expect(L.windows.emissiveIntensity).toBeCloseTo(0.605, 6);
+    expect(L.clock.emissiveIntensity).toBeCloseTo(1.045, 6);
+    let lastW = L.windows.emissiveIntensity;
+    let lastC = L.clock.emissiveIntensity;
+    for (let t = 1; t <= EVENING_RAMP; t++) {
+      run(w, t);
+      expect(L.windows.emissiveIntensity).toBeGreaterThanOrEqual(lastW - 1e-9);
+      expect(L.clock.emissiveIntensity).toBeGreaterThanOrEqual(lastC - 1e-9);
+      lastW = L.windows.emissiveIntensity;
+      lastC = L.clock.emissiveIntensity;
+    }
+    expect(L.windows.emissiveIntensity).toBeCloseTo(1.1, 6);
+    expect(L.clock.emissiveIntensity).toBeCloseTo(1.9, 6);
+    run(w, 600);
+    expect(L.windows.emissiveIntensity).toBeCloseTo(1.1, 6);
+    expect(L.clock.emissiveIntensity).toBeCloseTo(1.9, 6);
+  });
+
+  it('the garden lights breathe 6% at dusk, and hold still under reduced motion', () => {
+    const { w, eveningLights: L } = lit();
+    run(w, 600);
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let k = 0; k < 600; k++) {
+      run(w, 600 + (k + 1) * 0.05);
+      lo = Math.min(lo, L.bulbs.emissiveIntensity);
+      hi = Math.max(hi, L.bulbs.emissiveIntensity);
+    }
+    expect(hi).toBeCloseTo(1.5 * 1.06, 2);
+    expect(lo).toBeCloseTo(1.5 * 0.94, 2);
+    const still = lit(true);
+    run(still.w, 600);
+    const a = still.eveningLights.bulbs.emissiveIntensity;
+    run(still.w, 603.3);
+    expect(still.eveningLights.bulbs.emissiveIntensity).toBe(a);
+    expect(a).toBeCloseTo(1.5, 6);
+  });
+
+  it('never darker than the game\'s own dusk', () => {
+    const { w } = lit();
+    for (const t of [240, 600]) {
+      run(w, t);
+      expect(w.sun.intensity).toBeCloseTo(0.8, 6);
+      expect(w.fill.intensity).toBeCloseTo(0.5, 6);
+    }
+  });
+
+  it('the lights are set in place, scaled from the built value and never compounded', () => {
+    const { w, eveningLights: L } = lit();
+    const mats = Object.values(L);
+    run(w, 100);
+    const a = L.windows.emissiveIntensity;
+    run(w, 100.0001);
+    expect(Object.values(L)).toEqual(mats);
+    expect(L.windows.emissiveIntensity).toBeCloseTo(a, 3);
+    expect(L.windows.userData.glowBase).toBe(1.1);
+  });
+});
+
 describe('the picture times', () => {
   it('the card is taken at sunset, the edge at full dusk, every time names a shot', () => {
     expect(Object.isFrozen(ROOFS_SHOT_T)).toBe(true);
@@ -258,26 +332,35 @@ describe('the Rooftops’ flock, in the life', () => {
     life2.dispose();
   });
 
-  it('the life adds at most three meshes, no casters, under 1,600 triangles', () => {
+  it('the life adds at most five meshes, no casters, under 1,800 triangles', async () => {
+    // Rooftops step 5, Task 5: the flock and its wings, the smoke, the
+    // chimney's smoke ring and the attic's pane (where there is a page)
+    const { ROOFS_DISCOVERIES, SMOKE_POTS } = await import('../src/world/roofsplan.js');
+    const { fakePage } = await import('./helpers/fakepage.js');
     const { scene, area } = withFlock();
+    const smokePots = [{ id: SMOKE_POTS[0], x: -10, y: 8.72, z: 6.95 }, { id: 'pot:b', x: 10, y: 8.57, z: 8.05 }, { id: 'pot:c', x: -29.75, y: 8.66, z: 8.05 }];
+    Object.assign(area, { smokePots, potTops: Object.fromEntries(smokePots.map((p) => [p.id, p])), anchors: { discoveries: ROOFS_DISCOVERIES } });
     const before = [...scene.children];
-    const life = createRoofsLife(area)({ scene, sun: { intensity: 0.8 }, fill: { intensity: 0.5 }, critters: null, visits: 0, reducedMotion: false });
+    const life = createRoofsLife(area)({ scene, sun: { intensity: 0.8 }, fill: { intensity: 0.5 }, critters: null, visits: 0, reducedMotion: false, doc: fakePage() });
     let meshes = 0;
     let tris = 0;
+    const names = [];
     for (const o of added(scene, before)) {
       o.traverse((m) => {
         if (!m.isMesh) return;
         meshes++;
+        names.push(m.name);
         expect(m.castShadow, m.name).toBe(false);
         expect(m.userData.noCast, m.name).toBe(true);
         const g = m.geometry;
         tris += ((g.index ? g.index.count : g.attributes.position.count) / 3) * (m.isInstancedMesh ? m.count : 1);
       });
     }
-    expect(meshes).toBe(2); // the flock and its wings (Task 5's smoke makes three)
-    expect(meshes).toBeLessThanOrEqual(3);
-    expect(tris).toBeLessThan(1600);
+    expect(names.sort()).toEqual(['roofsAttic', 'roofsFlock', 'roofsFlockWings', 'roofsRing', 'roofsSmoke']);
+    expect(meshes).toBeLessThanOrEqual(5);
+    expect(tris).toBeLessThan(1800);
     life.dispose();
+    expect(scene.children).toEqual(before);
   });
 });
 

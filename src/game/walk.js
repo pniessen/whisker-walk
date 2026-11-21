@@ -37,7 +37,7 @@ import { PAW } from '../ui/pawicon.js';
 import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
-import { createCritters, goatForDay } from '../critters.js';
+import { createCritters, goatForDay, questMarkerY } from '../critters.js';
 import { createStrayCats, strayStream } from '../straycats.js';
 import { createClanCats } from '../clancats.js';
 import { castFor, CLAN_COLOURS, clanCountFor, clanHomeFor, lonersFor, roamHomes, borderWarriorFor } from '../clancast.js';
@@ -80,7 +80,7 @@ import { NO_FARM } from '../farmnone.js';
 import { handleFarmEvent, addFarmHat, restoreFarmJobs } from './farmplay.js';
 import { NO_FAIR } from '../fairnone.js';
 import { handleFairEvent, addBalloonRibbon, restoreFairGames } from './fairplay.js';
-import { createTraversalLive, NO_TRAVERSAL, traversalEventEffects } from '../traversallive.js';
+import { createTraversalLive, NO_TRAVERSAL, traversalEventEffects, traversalTally } from '../traversallive.js';
 import { moveAbilities } from '../traversal.js';
 import { groundOf } from '../ground.js';
 import { isFearless } from '../dogs.js';
@@ -710,7 +710,7 @@ export function createWalkLifecycle({
     const pack = areas.loaded(areaOverride ?? progression.state.area);
     if (!pack) throw new Error(`Whisker Walk: area "${areaOverride ?? progression.state.area}" is not loaded; start walks with startWalkWhenReady`);
     // The Farm's animals and the Fair's rides and games come with their place.
-    const { createFarmAnimals, createFairLive, createFairShow } = pack.life;
+    const { createFarmAnimals, createFairLive, createFairShow, createPeopleKit, lodNearFor } = pack.life;
     // A visit prize held for the tap (styles A and C) goes on FIRST, before
     // anything below reads state.equipped (the avatar, the collar/crown
     // perks). Style C never dims and A lets go after its reveal, so Start,
@@ -1082,6 +1082,10 @@ export function createWalkLifecycle({
       : createSecrets(scene, areaData, rollSecrets(walkRng, { eveningLight: duskActive || weather.condition === 'sunset' }), walkRng);
 
     const critters = createCritters(scene, areaData.critterSpawns, {
+      people: createPeopleKit,
+      camera,
+      reducedMotion,
+      lodNear: () => lodNearFor(qualityAdapter.status?.rung), // the live rung's switch
       fleeScale: equipped.collar === 'bell' ? 0.5 : 1,        // bell: birds tolerate you closer
       spawnFireflies: duskActive && !indoor,                   // glow: dusk fireflies, never in a room
       trailButterflies: equipped.head === 'crown',              // crown: butterflies trail the cat
@@ -1135,7 +1139,7 @@ export function createWalkLifecycle({
         litMaterial(0xf2c14e, { emissive: 0x6a5010 })
       );
       marker.rotation.x = Math.PI;
-      marker.position.y = 2.1;
+      marker.position.y = questMarkerY(giver);
       (giver.figure ?? giver.group).add(marker);
       questGiver.marker = marker;
       // quest object at the target, revealed on accept
@@ -1662,6 +1666,8 @@ export function createWalkLifecycle({
       if (!fairToasted.has(key)) { fairToasted.add(key); hud.toast(text); }
     }
     const fairShow = areaId !== 'fair' ? null : createFairShow(scene, areaData, {
+      people: createPeopleKit,
+      lodNear: () => lodNearFor(qualityAdapter.status?.rung), // the live rung's switch
       swept: fairLive.sim.swept,
       strays: tier.strays,
       camera,
@@ -1682,7 +1688,8 @@ export function createWalkLifecycle({
     // per walk and disposed in endWalk, so a held stick never outlives it.
     // The abilities are read live off the save at each use, like the climb
     // budget. `session.fx` is read when an event fires, after `session` exists.
-    const traversalLive = areaData.traversal ? createTraversalLive(areaData.traversal, { ground, reducedMotion, abilities: () => moveAbilities(progression.state), onEvent: (e) => traversalEventEffects(e, { audio, fx: session.fx, cat, bus }) }) : NO_TRAVERSAL;
+    const tallyTraversal = traversalTally(progression, celebrateNewSkills);
+    const traversalLive = areaData.traversal ? createTraversalLive(areaData.traversal, { ground, reducedMotion, abilities: () => moveAbilities(progression.state), onEvent: (e) => traversalEventEffects(e, { audio, fx: session.fx, cat, bus, tally: tallyTraversal }) }) : NO_TRAVERSAL;
 
     // Live contact decals for everything that moves, registered now that the
     // movers exist. The cat first and by name: it is on screen 100% of the
@@ -1704,6 +1711,7 @@ export function createWalkLifecycle({
     for (const stray of strayCats.strays) decals.follow(stray.group);
     for (const c of clanCats.list) decals.follow(c.group);
     for (const critter of critters.list) decals.follow(critter.figure ?? critter.group);
+    for (const critter of critters.list) if (critter.people?.[1]) decals.follow(critter.people[1].figure); // a pair's child (R26)
     for (const g of farm.groups) decals.follow(g);
     if (fairShow) for (const g of fairShow.groups) decals.follow(g);
     for (const dc of denCats.list) decals.follow(dc.group);
@@ -1836,8 +1844,10 @@ export function createWalkLifecycle({
     // shadow of their own (built after the caster sweep); the cave glow is a
     // PointLight with castShadow false, added here so shaders compile with it
     // once. Draws on no rng. The Rooftops' life also takes the walk's critters,
-    // to move its birds, and how many walks she has had there.
-    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0, log, hud, toy }) ?? NO_AREA_LIFE;
+    // to move its birds, how many walks she has had there, the log and progression its finds are noted with,
+    // her view heading (the tower view turns it), and the Old House's hud and yarn toy.
+    const lifeViewYaw = { get: () => player.viewYaw(), set: (v) => player.setViewYaw(v) };
+    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0, log, hud, toy, progression, viewYaw: lifeViewYaw }) ?? NO_AREA_LIFE;
     const session = createSession({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       farm,

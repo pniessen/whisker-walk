@@ -2027,6 +2027,7 @@ export function createInteractions({
       if (rest.kind === 'nap') { audio.purr?.(NAP_PURR_LEN); bus.emit('purr', { seconds: NAP_PURR_LEN }); }
     } else if (s.prompt.kind === 'scratch') {
       s.prompt.data.scratched = true;
+      s.critters.scratchHello?.(s.prompt.data); // they kneel for it (lifelike people)
       log.award('pet', 'pet', 'blissful head scratches');
       audio.purr(2.5);
       bus.emit('purr', { seconds: 2.5 }); // the haptic purr, as long as the sound

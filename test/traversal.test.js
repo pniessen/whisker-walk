@@ -106,9 +106,11 @@ describe('validateTraversal, every phrase', () => {
 });
 
 describe('moveAbilities', () => {
-  it('is the base set for any save until step 4 adds the two skills', () => {
+  it('is the base set for a save without the two skills; Tightrope Tail and Long Leap (step 5) add theirs', () => {
     expect(T.moveAbilities({})).toEqual(T.BASE_ABILITIES);
-    expect(T.moveAbilities({ skills: ['long-leap', 'tightrope-tail'] })).toEqual(T.BASE_ABILITIES); // unknown ids fail closed
+    expect(T.moveAbilities({ skills: ['long-leap', 'tightrope-tail'] })).toEqual({ steady: true, longLeap: true, climb: T.BASE_ABILITIES.climb });
+    expect(T.moveAbilities({ feats: { cross: 20 } }).steady).toBe(true);
+    expect(T.moveAbilities({ feats: { leap: 14 } }).longLeap).toBe(false);
     expect(T.moveAbilities(null)).toEqual(T.BASE_ABILITIES);
   });
   it('climbs on Spring Paws’ budget', () => expect(T.moveAbilities({ skills: ['spring-paws'] }).climb).toBe(2.2));

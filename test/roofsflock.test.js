@@ -7,6 +7,7 @@ import {
 import {
   FLIGHT, BIRD_KINDS, ROOFS_BIRDS, GUIDE, LOFT_REST, OUT_OF_SIGHT, DRAWN_ID, PERCH_LIFT,
   flockPerches, perchIndex, flightGraph, flightPlan, flightPoint, chooseFlight, roofsCritterSpawns,
+  FOLLOW, chooseFollow,
 } from '../src/world/roofsflock.js';
 
 // The flock's plan (Rooftops step 3), pure: where the birds perch, the short
@@ -761,6 +762,71 @@ describe('the flock’s plan', () => {
         const b = bird('pigeon', p.id, { flights: 2 });
         expect(chooseFlight(G2, I2, b, cat, NONE)).toEqual(chooseFlight(G, I, b, cat, NONE));
       }
+    }
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+// Rooftops step 5, Task 6 (ruling R5): at the loft one pigeon comes along
+// with her for a while, keeping its distance.
+describe('the follower', () => {
+  const loft = P.filter((p) => p.kind === 'loft');
+  const south = (p, d) => ({ x: p.x, y: L.WAREHOUSE, z: p.z + d }); // her on the warehouse roof, d m south of p
+
+  it('its numbers are the plan\'s, frozen', () => {
+    expect(FOLLOW).toEqual({ time: 75, flights: 14, near: 3.5, sit: 4.5, far: 7, lost: 30 });
+    expect(Object.isFrozen(FOLLOW)).toBe(true);
+  });
+
+  it('a follower\'s flight lands near her, never nearer than 3.5 m, and only if it gains on her', () => {
+    expect(loft).toHaveLength(6);
+    let chosen = 0;
+    for (const p of loft) {
+      const cat = south(p, 12);
+      const f = chooseFollow(G, I, bird('pigeon', p.id), cat, NONE);
+      if (!f) continue;
+      chosen++;
+      const to = I.get(f.to);
+      const link = linkOf(p, to);
+      expect(link, `${p.id} -> ${f.to}`).toBeTruthy();
+      expect([f.kind, f.shape]).toEqual([link.kind, link.shape]);
+      expect(allowed('pigeon', to)).toBe(true);
+      expect(G.landable.pigeon.has(to.id)).toBe(true);
+      expect(d3(to, cat)).toBeGreaterThanOrEqual(FOLLOW.near);
+      expect(d3(to, cat)).toBeLessThanOrEqual(d3(p, cat) - 1 + 1e-9);
+      // and never within 1.5 m of her on the way
+      for (let s = 0.1; s <= 0.9 + 1e-9; s += 0.025) expect(d3(at(p, to, s, f.shape), cat)).toBeGreaterThanOrEqual(FLIGHT.clearCat - 1e-9);
+      // the best by -|d - 4.5|, give or take the tie-break
+      for (const l of G.links.get(p.id)) {
+        const q = I.get(l.to);
+        const e = d3(q, cat);
+        if (!allowed('pigeon', q) || !G.landable.pigeon.has(q.id) || e < FOLLOW.near || e > d3(p, cat) - 1) continue;
+        if (l.kind === 'hop' && (l.d < BIRD_KINDS.pigeon.hop.min || l.d > BIRD_KINDS.pigeon.hop.max)) continue;
+        expect(Math.abs(d3(to, cat) - FOLLOW.sit)).toBeLessThanOrEqual(Math.abs(e - FOLLOW.sit) + 0.25 + 1e-9);
+      }
+    }
+    expect(chosen).toBeGreaterThanOrEqual(4);
+    // with her 5 m away (within `far`) it waits
+    for (const p of loft) expect(chooseFollow(G, I, bird('pigeon', p.id), south(p, 5), NONE)).toBe(null);
+  });
+
+  it('with nowhere nearer it waits, and the same question gives the same answer', () => {
+    const spy = vi.spyOn(Math, 'random');
+    const p = loft[0];
+    const cat = south(p, 12);
+    const f = chooseFollow(G, I, bird('pigeon', p.id), cat, NONE);
+    expect(f).not.toBe(null);
+    expect(chooseFollow(G, I, bird('pigeon', p.id), cat, NONE)).toEqual(f);
+    // every other perch taken: nowhere to go, it waits where it is
+    const all = new Set(P.filter((q) => q !== p).map((q) => q.id));
+    expect(chooseFollow(G, I, bird('pigeon', p.id), cat, all)).toBe(null);
+    // the one it chose taken: another, or none, never that one
+    const other = chooseFollow(G, I, bird('pigeon', p.id), cat, new Set([f.to]));
+    expect(other?.to).not.toBe(f.to);
+    // her 20 m off: none of its flights (10 m at most) gains on her and lands within 3.5 m? some do; each asked twice gives the same
+    for (const q of loft) {
+      const cat2 = south(q, 20);
+      expect(chooseFollow(G, I, bird('pigeon', q.id, { flights: 3 }), cat2, NONE)).toEqual(chooseFollow(G, I, bird('pigeon', q.id, { flights: 3 }), cat2, NONE));
     }
     expect(spy).not.toHaveBeenCalled();
   });

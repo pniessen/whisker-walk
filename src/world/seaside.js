@@ -779,8 +779,10 @@ export function build(scene, { water = {}, wind } = {}) {
       // The pickup gate is 1.6 horizontal, so it needed a cat standing on the
       // sea. Now on the deck itself, 0.9 in from its south edge (z -11.5) —
       // once the water is solid the cat is pushed no further north than
-      // z -11.15, so it can stand directly on top of this.
-      { id: 'fish-1', x: 33, z: -10.6, label: 'a shiny little fish' },
+      // z -11.15, so it can stand directly on top of this. Task 11 fix 1c:
+      // 1.6 m further out along the deck (was x 33), clear of the soft bumps
+      // of the person standing on the pier at (32, -10).
+      { id: 'fish-1', x: 34.6, z: -10.6, label: 'a shiny little fish' },
       { id: 'fish-2', x: -9, z: 8.5, label: 'a striped shell-fish' },
       { id: 'fish-3', x: -29, z: 16.5, label: 'a silver sardine' },
       { id: 'fish-4', x: 19, z: -31, label: 'a lost lure-fish' },
@@ -814,7 +816,9 @@ export function build(scene, { water = {}, wind } = {}) {
       { type: 'butterfly', x: -14, z: 30 },
       { type: 'mouse', x: -22, z: 20, x2: -14, z2: 25 },
       { type: 'mouse', x: 10, z: 22, x2: 16, z2: 18 },
-      { type: 'villager', x: 18, z: 16 }, { type: 'villager', x: 32, z: -10 },
+      // (the first stands off its spot onto the boardwalk, whose west edge
+      // board runs through the spot: ruling R35; its group stays where it was)
+      { type: 'villager', x: 18, z: 16, standOff: { x: 0.45, z: 0 } }, { type: 'villager', x: 32, z: -10 },
     ],
     moments: [
       { id: 'gull-heist', label: 'a seagull stealing someone\'s sandwich!', x: 18, z: 14, from: { x: 30, z: -6 } },

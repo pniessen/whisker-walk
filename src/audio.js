@@ -469,6 +469,7 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       muted = !!v;
       if (muted) api.stopAmbient();
     },
+    isMuted: () => muted,
     // 0..1 master factor applied live at the master gain node — affects
     // every currently-playing and future sound immediately, including
     // long-lived ambient loops.

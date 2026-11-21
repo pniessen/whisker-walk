@@ -502,6 +502,25 @@ const LATER = Object.freeze({
   'house.find.bookcase': 'The bookcase swings open… a secret stair! 🗝️',
   'house.find.cushion': 'A cat-shaped dent in the cushion… someone else naps here too 💤',
   'house.find.toys': 'A box of old toys! A wooden mouse rolls out 🧸',
+  // ---- Rooftops step 5 (2026-11-21) ----
+  'roofs.page.garden.name': 'Rooftop Garden',
+  'roofs.page.garden.hint': 'High up, someone grows tomatoes.',
+  'roofs.page.loft.name': 'Pigeon Loft',
+  'roofs.page.loft.hint': 'Where do the pigeons go home at night?',
+  'roofs.page.vane.name': 'Top of the Clock Tower',
+  'roofs.page.vane.hint': 'Climb as high as a cat can go.',
+  'roofs.page.skylight.name': 'The Attic Window',
+  'roofs.page.skylight.hint': 'One roof has a warm, glowing window in it.',
+  'roofs.page.telescope.name': 'The Telescope',
+  'roofs.page.telescope.hint': 'Someone looks at the sky from a roof.',
+  'roofs.page.chimney.name': 'Warm Chimney',
+  'roofs.page.chimney.hint': 'Find a warm spot up high and sit a while.',
+  'roofs.find.garden': 'A garden on the roof! Tomatoes and twinkly lights. 🍅',
+  'roofs.find.loft': 'The pigeon loft! Coo, coo. One pigeon wants to come with you. 🕊️',
+  'roofs.find.vane': 'The very top! You can see the whole town. 🌇',
+  'roofs.find.skylight': 'A peek in the attic window. Someone is reading a bedtime story. 📖',
+  'roofs.find.telescope': 'You look through the telescope. Hello, moon! 🌕',
+  'roofs.find.chimney': 'A warm chimney! Puff, a smoke ring. What a cosy spot. 💨',
 });
 
 // Every id of the first table, in table order.

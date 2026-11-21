@@ -3,8 +3,9 @@ import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import {
   createCritters, PREY_NOTICE, PREY_NOTICE_STALKED, HIDE_REACH, PREY_STARTLE, STILL_SPEED, CAT_SPEED_CAP,
-  GOAT_NOTICE, GOAT_DAY_SHARE, goatToday, goatForDay, twolegHead, villagerPos,
+  GOAT_NOTICE, GOAT_DAY_SHARE, goatToday, goatForDay, villagerPos,
 } from '../src/critters.js';
+import { createPeopleKit, personFor, spotKind } from '../src/people/index.js';
 import { critterLabel } from '../src/game/labels.js';
 import { mulberry32 } from '../src/rng.js';
 import { gorgeGround, SHOULDER, CLIFFTOP } from '../src/world/gorgeshape.js';
@@ -1068,172 +1069,174 @@ describe('createCritters — the mountain goat (Gorge G9)', () => {
   });
 });
 
-// Polish-edges Task 4 — the friendly neighbours are low-poly Twolegs (legs,
-// shoes, a coat, hands, a hat or hair) instead of a blue peg with a ball head.
-// Still three meshes (body, head, arm), each one merged vertex-coloured
-// geometry, so the draw calls and the Math.random draws are what they were.
-describe('villager Twolegs', () => {
-  const build = (x, z) => createCritters(scene, [{ type: 'villager', x, z }], { rng: mulberry32(7) }).list[0];
+// The friendly neighbours are lifelike people (src/people/, lifelike people;
+// the box-and-ball figure retired in Task 16). The kit comes from the place's
+// pack in a walk (opts.people); these tests pass it as the walk does. One
+// mesh a person, the look from the spot (never a roll), and the same 41 real
+// Math.random draws the peg and the old figure took. (Hair over the eyes and
+// the parts' other shapes are held in test/people.parts.test.js.)
+const HEIGHTS = { child: [1.16, 1.42], older: [1.55, 1.78], adult: [1.6, 1.85] };
+const firstSpot = (kind, z = 0) => { for (let x = 0; x < 400; x++) if (spotKind({ x, z }) === kind) return { x, z }; throw new Error(kind); };
 
-  it('consumes exactly as many Math.random draws as the old peg (41, measured before the change)', () => {
+describe('villagers are people', () => {
+  const build = (x, z, extra = {}) => createCritters(scene, [{ type: 'villager', x, z }], { rng: mulberry32(7), people: createPeopleKit, ...extra }).list[0];
+  const draws = (fn) => {
     const real = Math.random;
     let n = 0;
     Math.random = () => { n++; return real(); };
-    try {
-      createCritters(scene, [{ type: 'villager', x: 4, z: 0 }], { rng: mulberry32(7) });
-    } finally {
-      Math.random = real;
+    try { fn(); } finally { Math.random = real; }
+    return n;
+  };
+
+  it('consumes exactly as many Math.random draws as the old peg (41, measured before the change)', () => {
+    for (const kind of ['adult', 'older', 'child']) {
+      const { x, z } = firstSpot(kind);
+      expect(draws(() => createCritters(scene, [{ type: 'villager', x, z }], { rng: mulberry32(7), people: createPeopleKit })), kind).toBe(41);
     }
-    expect(n).toBe(41);
   });
 
-  it('is three vertex-coloured meshes, one of them the arm, 1.55-1.75 m tall', () => {
-    const v = build(4, 0);
-    const g = v.group;
-    const parts = v.figure.children;
-    expect(parts).toHaveLength(3);
-    expect(parts.every((m) => m.isMesh)).toBe(true);
-    expect(parts).toContain(g.userData.arm);
-    for (const m of parts) {
-      expect(m.geometry.getAttribute('color')).toBeTruthy();
-      expect(m.material.vertexColors).toBe(true);
-    }
-    g.position.set(0, 0, 0);
-    g.updateMatrixWorld(true);
-    const bb = new THREE.Box3().setFromObject(g);
-    expect(bb.max.y - bb.min.y).toBeGreaterThanOrEqual(1.55);
-    expect(bb.max.y - bb.min.y).toBeLessThanOrEqual(1.75);
-  });
-
-  it('hangs the arm down at rest and raises it to wave', () => {
-    const v = build(4, 0);
-    const g = v.group;
-    const arm = g.userData.arm;
-    g.position.set(0, 0, 0);
-    const reach = (rz) => {
-      arm.rotation.z = rz;
-      g.updateMatrixWorld(true);
-      return new THREE.Box3().setFromObject(arm);
-    };
-    const rest = reach(0.4);
-    expect(rest.max.y).toBeLessThanOrEqual(arm.position.y + 0.06); // nothing above the shoulder
-    expect(rest.min.y).toBeLessThan(arm.position.y - 0.45);         // the hand down by the hip
-    const wave = reach(2.6);
-    expect(wave.max.y).toBeGreaterThan(arm.position.y + 0.3);       // the hand up in the air
-    expect(wave.max.x).toBeGreaterThan(arm.position.x + 0.2);       // and out to the side
-  });
-
-  it('hair never covers the eyes: every front hair vertex is above the eye tops', () => {
-    const HAIR = 0x123456;
-    const parts = twolegHead({ top: 'hair', hair: HAIR, skin: 0xe0b090 });
-    // parts: neck, head, two eyes, then the hair cap and the back fall.
-    let eyeTop = -Infinity;
-    for (const e of parts.slice(2, 4)) {
-      e.computeBoundingBox();
-      eyeTop = Math.max(eyeTop, e.boundingBox.max.y);
-    }
-    expect(eyeTop).toBeCloseTo(1.5075, 4);
-    const hair = new THREE.Color(HAIR);
-    let front = 0;
-    for (const p of parts.slice(4)) {
-      const pos = p.getAttribute('position');
-      const col = p.getAttribute('color');
-      expect(col.getX(0)).toBeCloseTo(hair.r, 6);
-      for (let i = 0; i < pos.count; i++) {
-        if (pos.getZ(i) >= -0.05) continue; // behind the face (the face looks down -z)
-        front++;
-        expect(pos.getY(i)).toBeGreaterThan(eyeTop);
+  it('is one mesh a person (a pair is two), standing within its kind\'s height', () => {
+    for (const kind of ['adult', 'older', 'child']) {
+      const { x, z } = firstSpot(kind);
+      const v = build(x, z);
+      expect(v.people).toHaveLength(kind === 'child' ? 2 : 1);
+      expect(v.group.children).toEqual(v.people.map((p) => p.figure));
+      for (const p of v.people) {
+        const meshes = [];
+        p.figure.traverse((o) => { if (o.isMesh) meshes.push(o); });
+        expect(meshes, kind).toEqual([p.mesh]);
+        expect(p.mesh.isSkinnedMesh).toBe(true);
+        const [lo, hi] = HEIGHTS[p.look.kind];
+        expect(p.look.height, `${kind}: ${p.look.kind}`).toBeGreaterThanOrEqual(lo);
+        expect(p.look.height, `${kind}: ${p.look.kind}`).toBeLessThanOrEqual(hi);
+        // the head's top is where the look says: the head bone is near the top, never above it
+        p.figure.updateMatrixWorld(true);
+        const head = p.bones.head.getWorldPosition(new THREE.Vector3()).y - v.group.position.y;
+        expect(head).toBeGreaterThan(0.8 * p.look.height);
+        expect(head).toBeLessThan(p.look.height);
       }
+      // a child spot is a grown-up with the child; any other spot is its own kind
+      if (kind === 'child') {
+        expect(v.people[0].look.kind).not.toBe('child');
+        expect(v.people[1].look.kind).toBe('child');
+      } else expect(v.people[0].look.kind).toBe(kind);
     }
-    expect(front).toBeGreaterThan(0);
+  });
+
+  it('stands with its hands down, and raises one to wave when she comes near', () => {
+    const { x, z } = firstSpot('adult');
+    const crit = createCritters(scene, [{ type: 'villager', x, z }], { people: createPeopleKit });
+    const v = crit.list[0];
+    const p = v.people[0];
+    const hands = () => {
+      p.figure.updateMatrixWorld(true);
+      return ['handL', 'handR'].map((n) => p.bones[n].getWorldPosition(new THREE.Vector3()).y);
+    };
+    const shoulder = () => p.bones.upperArmR.getWorldPosition(new THREE.Vector3()).y;
+    const run = (frames, at, t0) => {
+      let t = t0;
+      for (let i = 0; i < frames; i++) { t += 1 / 60; crit.update(1 / 60, t, at, at, null); }
+      return t;
+    };
+    let t = run(90, V(x + 30, z + 30), 0);
+    expect(v.poseMode).toBe('stand');
+    for (const y of hands()) expect(y).toBeLessThan(shoulder() - 0.3); // both down by the hips
+    t = run(90, V(x + 1.5, z - 1.5), t); // she comes within the wave's 5 m
+    expect(v.poseMode).toBe('wave');
+    expect(Math.max(...hands())).toBeGreaterThan(shoulder() + 0.2); // a hand up in the air
   });
 
   it('chooses its look from its spawn, the same every time', () => {
-    const colours = (v) => Array.from(v.figure.children[0].geometry.getAttribute('color').array);
-    // The coat's colour, read off a vertex of its shoulder rim (y 1.35, r 0.21).
-    const coat = (v) => {
-      const geo = v.figure.children[0].geometry;
-      const p = geo.getAttribute('position');
-      const c = geo.getAttribute('color');
-      for (let i = 0; i < p.count; i++) {
-        if (Math.abs(p.getY(i) - 1.35) < 1e-4 && Math.abs(Math.hypot(p.getX(i), p.getZ(i)) - 0.21) < 1e-4) return [c.getX(i), c.getY(i), c.getZ(i)];
-      }
-      return null;
-    };
+    const positions = (v) => Array.from(v.people[0].mesh.geometry.getAttribute('position').array);
     const a = build(4, 0);
     const a2 = build(4, 0);
-    const b = build(10, 3); // hashes to another coat than (4, 0)
-    for (let i = 0; i < 3; i++) {
-      expect(Array.from(a.figure.children[i].geometry.getAttribute('position').array))
-        .toEqual(Array.from(a2.figure.children[i].geometry.getAttribute('position').array));
-    }
-    expect(colours(a)).toEqual(colours(a2));
-    expect(coat(a)).not.toBe(null);
-    expect(coat(b)).not.toBe(null);
-    expect(coat(a)).not.toEqual(coat(b));
+    const b = build(10, 3);
+    expect(a.people[0].look).toEqual(personFor({ x: 4, z: 0 }));
+    expect(a2.people[0].look).toEqual(a.people[0].look);
+    expect(positions(a2)).toEqual(positions(a));
+    expect(b.people[0].look).not.toEqual(a.people[0].look);
+    // whatever the rng, the motion stream or the camera: the spot decides
+    const c = build(4, 0, { rng: mulberry32(99), motionRng: mulberry32(3) });
+    expect(c.people[0].look).toEqual(a.people[0].look);
+  });
+
+  it('handed no people (a Node test that passes none), a villager is its group alone: no figure, no person', () => {
+    const real = Math.random;
+    let n = 0;
+    Math.random = () => { n++; return real(); };
+    let crit;
+    try { crit = createCritters(scene, [{ type: 'villager', x: 4, z: 0, standOff: { x: 1, z: -1 } }]); } finally { Math.random = real; }
+    expect(n).toBe(5); // its idle phase and its group's uuid
+    const v = crit.list[0];
+    expect(v.figure).toBeUndefined();
+    expect(v.people).toBeUndefined();
+    expect(v.group.children).toEqual([]);
+    expect(villagerPos(v, new THREE.Vector3()).toArray()).toEqual([4, 0, 0]);
+    expect(crit.bumps).toEqual([]);
+    expect(() => crit.update(1 / 60, 1 / 60, V(4, 0.5), V(4, 0.5), null)).not.toThrow();
   });
 });
 
-describe('a Twoleg steps out of its spawn (polish-places)', () => {
+describe('a villager steps out of its spawn (polish-places)', () => {
   const world = (o) => { const p = new THREE.Vector3(); o.updateWorldMatrix(true, false); return o.getWorldPosition(p); };
-  const dad = { type: 'villager', x: 4, z: 27 };
-  const meshPositions = (c) => c.figure.children.map((m) => Array.from(m.geometry.getAttribute('position').array));
+  const dad = { type: 'villager', ...firstSpot('adult', 27) };
+  const town = (defs) => createCritters(scene, defs, { people: createPeopleKit });
+  const meshPositions = (c) => c.people.map((p) => Array.from(p.mesh.geometry.getAttribute('position').array));
 
   it('the figure stands at its standOff and the group stays on the spawn', () => {
-    const c = createCritters(scene, [{ ...dad, standOff: { x: 1.1, z: -1.3 } }]).list[0];
-    expect(c.group.position.x).toBe(4);
+    const c = town([{ ...dad, standOff: { x: 1.1, z: -1.3 } }]).list[0];
+    expect(c.group.position.x).toBe(dad.x);
     expect(c.group.position.y).toBe(0);
     expect(c.group.position.z).toBe(27);
     const w = world(c.figure);
-    expect([w.x, w.y, w.z].map((v) => +v.toFixed(6))).toEqual([5.1, 0, 25.7]);
+    expect([w.x, w.y, w.z].map((v) => +v.toFixed(6))).toEqual([dad.x + 1.1, 0, 25.7]);
     expect(c.group.userData.figure).toBe(c.figure);
-    let p = c.group.userData.arm;
-    while (p && p !== c.figure) p = p.parent;
-    expect(p).toBe(c.figure);
+    expect(c.figure).toBe(c.people[0].figure);
+    expect(c.figure.parent).toBe(c.group);
+    expect(c.people[0].mesh.parent).toBe(c.figure);
   });
 
-  it('a villager with no standOff is unchanged', () => {
-    const c = createCritters(scene, [dad]).list[0];
+  it('a villager with no standOff stands on its spawn, the same person', () => {
+    const c = town([dad]).list[0];
     expect(c.figure.position.toArray()).toEqual([0, 0, 0]);
-    expect(c.figure.children).toHaveLength(3);
-    expect(c.figure.children[2]).toBe(c.group.userData.arm);
     expect(c.group.children).toEqual([c.figure]);
-    c.group.position.set(4, 0.3, 27);
+    c.group.position.set(dad.x, 0.3, 27);
     c.group.rotation.y = 0.7;
     c.group.updateMatrixWorld(true);
     expect(world(c.figure).toArray()).toEqual(c.group.position.toArray());
-    for (const m of c.figure.children) {
-      m.updateMatrix();
-      const direct = c.group.matrixWorld.clone().multiply(m.matrix);
-      m.matrixWorld.elements.forEach((e, i) => expect(e).toBeCloseTo(direct.elements[i], 9));
-    }
-    const off = createCritters(scene, [{ ...dad, standOff: { x: 2, z: 1 } }]).list[0];
+    const m = c.people[0].mesh;
+    m.updateMatrix();
+    const direct = c.group.matrixWorld.clone().multiply(c.figure.matrix).multiply(m.matrix);
+    m.matrixWorld.elements.forEach((e, i) => expect(e).toBeCloseTo(direct.elements[i], 9));
+    // a standOff moves the figure, never its shape or its look
+    const off = town([{ ...dad, standOff: { x: 2, z: 1 } }]).list[0];
     expect(meshPositions(off)).toEqual(meshPositions(c));
+    expect(off.people[0].look).toEqual(c.people[0].look);
   });
 
   it('villagerPos is the figure for a standOff villager, the group otherwise', () => {
-    const off = createCritters(scene, [{ ...dad, standOff: { x: 1.5, z: -1.4 } }]).list[0];
+    const off = town([{ ...dad, standOff: { x: 1.5, z: -1.4 } }]).list[0];
     const out = new THREE.Vector3();
     expect(villagerPos(off, out)).toBe(out);
-    expect(out.toArray().map((v) => +v.toFixed(6))).toEqual([5.5, 0, 25.6]);
-    const plain = createCritters(scene, [dad]).list[0];
-    expect(villagerPos(plain, out).toArray()).toEqual([4, 0, 27]);
-    expect(villagerPos({ group: plain.group }, out).toArray()).toEqual([4, 0, 27]);
+    expect(out.toArray().map((v) => +v.toFixed(6))).toEqual([dad.x + 1.5, 0, 25.6]);
+    const plain = town([dad]).list[0];
+    expect(villagerPos(plain, out).toArray()).toEqual([dad.x, 0, 27]);
+    expect(villagerPos({ group: plain.group }, out).toArray()).toEqual([dad.x, 0, 27]);
   });
 
   it('a standOff villager waves and is dismayed by what is near its figure, not its spawn', () => {
-    const crit = createCritters(scene, [{ ...dad, standOff: { x: 1.5, z: -1.4 } }]);
+    const crit = town([{ ...dad, standOff: { x: 1.5, z: -1.4 } }]);
     const c = crit.list[0];
-    const near = new THREE.Vector3(6.2, 0, 24.9); // 1 m from the figure, 3.3 m from the group
+    const near = new THREE.Vector3(dad.x + 2.2, 0, 24.9); // 1 m from the figure, 3.3 m from the group
     crit.dismayNear(near, 2);
     expect(c.meowWaveT).toBe(1.5);
     c.meowWaveT = 0;
-    crit.dismayNear(new THREE.Vector3(4, 0, 27), 1); // on the spawn, 2 m from the figure
+    crit.dismayNear(new THREE.Vector3(dad.x, 0, 27), 1); // on the spawn, 2 m from the figure
     expect(c.meowWaveT).toBe(0);
   });
 
   it('removing a villager hides its figure', () => {
-    const crit = createCritters(scene, [dad]);
+    const crit = town([dad]);
     const c = crit.list[0];
     crit.dispose(); // removes every critter
     expect(c.figure.visible).toBe(false);
@@ -1255,7 +1258,7 @@ describe('a Twoleg steps out of its spawn (polish-places)', () => {
     const count = (def) => {
       const real = Math.random; let n = 0;
       Math.random = () => { n++; return real(); };
-      try { createCritters(scene, [def]); } finally { Math.random = real; }
+      try { createCritters(scene, [def], { people: createPeopleKit }); } finally { Math.random = real; }
       return n;
     };
     const plain = count(dad);

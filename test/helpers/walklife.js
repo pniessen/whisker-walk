@@ -92,6 +92,7 @@ export function lifecycle({
   const homebase = anything({ setGettingReady: (on) => rec.gettingReady.push(on) });
   const camera = new THREE.PerspectiveCamera(); // the walk's camera, as walk.js places it at the start
   const overlay = anything({ classList: anything() });
+  const hud = anything({ mapHost: fakeEl() });
   const w = createWalkLifecycle({
     // MP on, so a solo walk asks the cloud for friends who could visit as ghosts
     MP: true, pid: 'me', coarse, envMap: new THREE.Texture(), overlay, blockList,
@@ -99,7 +100,7 @@ export function lifecycle({
     composerRig: anything({ applyLighting: (_scene, o) => rec.lighting.push(o.dusk) }),
     player, progression,
     settings: { get: (k) => (k === 'muted' ? true : null) },
-    hud: anything({ mapHost: fakeEl() }),
+    hud,
     audio: anything({ startAmbient: (areaId, o) => rec.sound.push({ areaId, ...o }), getContext: () => { rec.soundContexts++; } }),
     music: anything({ start: (_seed, mood) => rec.music.push(mood) }),
     log, touchUI: anything(), catVoice: () => {},
@@ -116,6 +117,6 @@ export function lifecycle({
     reloadPage: () => { rec.reloads++; },
     isOnline: online,
   });
-  return { w, rec, progression, areas, camera, overlay, getSession: () => session, setPendingRoom: (r) => { pendingRoom = r; } };
+  return { w, rec, progression, hud, log, player, areas, camera, overlay, getSession: () => session, setPendingRoom: (r) => { pendingRoom = r; } };
 }
 

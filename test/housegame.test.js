@@ -428,7 +428,7 @@ describe('a walk in the house', () => {
     expect(HOUSE_YARN_SPOTS.length).toBe(2);
   }, 90_000);
 
-  it('a golden mouse found in the house is saved, and the tally stays 36 until step 4', () => {
+  it('a golden mouse found in the house is saved, and the tally stays 39 until step 4', () => {
     const life = lifecycleHere();
     houseWalk(life, false, {
       keep: (s) => {
@@ -441,7 +441,7 @@ describe('a walk in the house', () => {
     expect(life.progression.recordGolden('gm-house-1')).toBe(true);
     expect(life.progression.recordGolden('gm-house-1')).toBe(false); // once
     expect(life.progression.state.golden).toContain('gm-house-1');
-    expect(goldForEdition(life.progression.state.edition, CATALOG).size).toBe(36);
+    expect(goldForEdition(life.progression.state.edition, CATALOG).size).toBe(39); // the Rooftops' three joined on main
     expect(Object.hasOwn(GOLD_MICE, 'house')).toBe(false);
   }, 90_000);
 

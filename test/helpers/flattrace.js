@@ -63,6 +63,7 @@ const { buildCat } = await import('../../src/cat/model.js');
 const { applyWaterLook } = await import('../../src/cat/waterlook.js');
 const { createStrayCats, strayStream } = await import('../../src/straycats.js');
 const { createCritters } = await import('../../src/critters.js');
+const { createPeopleKit } = await import('../../src/people/index.js');
 const { createToy } = await import('../../src/toy.js');
 const { createClanCats } = await import('../../src/clancats.js');
 const { castFor, clanCountFor, roamHomes } = await import('../../src/clancast.js');
@@ -184,6 +185,9 @@ export function traceArea(areaId, world, motion = MOTION(areaId), { pinMoorDraws
 
   const critters = createCritters(scene, area.critterSpawns, {
     rng: motion.critterPlace, motionRng: motion.critterMotion, hides: propsFor(areaId).hides,
+    area, // as the walk passes it: a pair's child is placed clear of the colliders and water
+    // as the walk passes them: villagers are the people, with soft bumps
+    people: createPeopleKit, camera,
   });
   const strays = createStrayCats(scene, area, 3, motion.stray, { roomSeed: 12345 });
   const cast = castFor(areaId).slice(0, clanCountFor(TIER.strays, 0));
@@ -214,6 +218,7 @@ export function traceArea(areaId, world, motion = MOTION(areaId), { pinMoorDraws
   for (const st of strays.strays) decals.follow(st.group);
   for (const c of clan?.list ?? []) decals.follow(c.group);
   for (const c of critters.list) decals.follow(c.figure ?? c.group);
+  for (const c of critters.list) if (c.people?.[1]) decals.follow(c.people[1].figure);
   if (intruders?.anchor) decals.follow(intruders.anchor, INTRUDER_DECAL_RADIUS);
   for (const g of ghosts.list) decals.follow(g.group);
 
@@ -244,8 +249,8 @@ export function traceArea(areaId, world, motion = MOTION(areaId), { pinMoorDraws
       }, t);
     }
 
-    player.update(DT, area.colliders, area.bounds, area.waters);
-    critters.update(DT, t, cat.position, cat.position);
+    player.update(DT, area.colliders, area.bounds, area.waters, critters.bumps);
+    critters.update(DT, t, cat.position, cat.position, cat);
     strays.update(DT, t, cat.position, { stalking: player.stalking, catSpeed: player.speed, toy });
     clan?.update(DT, t, cat.position);
     intruders?.update(DT, cat.position);

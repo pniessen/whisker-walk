@@ -85,7 +85,8 @@ describe('the phrase table', () => {
   it('imports only the door to the word files, so anything may import it', () => {
     const specs = [...read('src/clanphrases.js').matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
     expect(specs).toEqual(['./wordset.js']);
-    // the words a phrase says are not code: quoted and template text is left out (ruling S2-8)
+    // the words a phrase says are not code: quoted and template text is left out (ruling S2-8;
+    // the Rooftops' attic-window and the house's round-window lines say "window" in prose)
     const DOM = /document|window|localStorage|THREE/;
     expect(codeOnly(read('src/clanphrases.js'))).not.toMatch(DOM);
     expect(codeOnly(read('src/clanphrases.js'))).toMatch(/export function phrase\(id, \.\.\.args\)/); // the code itself is kept
