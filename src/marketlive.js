@@ -9,7 +9,8 @@
 // createMarketLive(scene, area, opts) → MarketLive
 //   area   world/market.js's build record: `keepers` (where each stallholder
 //          stands, its front yaw and its stall's roof top; every stall with a
-//          stallholder must have one, or this throws), and `treatMeshes`
+//          stallholder must have one, and every guarded one a finite roof, or
+//          this throws before adding anything), and `treatMeshes`
 //          (Task 12 hides and shows them)
 //   opts   { seed, now = () => Date.now() / 1000, reducedMotion = false, ground = FLAT_GROUND,
 //            isFree = () => true, onEvent = () => {}, figure = twolegKeeper }
@@ -51,12 +52,15 @@
 //
 // THE BUBBLE: one Sprite per guarded stall, one shared transparent material on
 // marketparts.js's bubble texture (three dots, no letters: M12), 0.5 m wide.
-// It floats over the counter's front line, in the stall's middle, its middle
-// 0.35 m above the top of the stall's roof and sign (`area.keepers[id].roof`,
-// market.js's stallRoof), or above the stallholder's crown if that were
-// higher. Under the awning (the first place it went) the awning, its valance
-// and the sign hid it from every camera a cat has; up here a cat's camera
-// looks past the sign's top edge to it (test: the bubble's sightline). Drawn
+// It floats BUBBLE_FORWARD (0.6 m) in front of the stallholder, toward the
+// counter, so it reads as theirs, its middle 0.35 m above the top of the
+// stall's roof and sign (`area.keepers[id].roof`, market.js's stallRoof), or
+// above the stallholder's crown if that were higher. Under the awning (the
+// first place it went) the awning, its valance and the sign hid it from every
+// camera a cat has; up here a cat's camera looks past the sign's top edge to
+// it. Over the counter's front line it was 1-1.5 m off the person and off
+// screen from a cat 0.5 m out; 0.6 m forward keeps it in sight and on screen
+// at the default zoom from every distance (test: the bubble's sightline). Drawn
 // late (renderOrder) and still depth-tested. Shown exactly while the stall's
 // `bubble` is up (busy, the turn, turned away: M3). It bobs a few cm; with
 // reducedMotion it holds still (and the arms do not sway).
@@ -77,7 +81,7 @@
 // =============================================================================
 import * as THREE from 'three';
 import { MARKET, STALL_TIMES, stallOffsets, stallPhase } from './marketrules.js';
-import { STALLS, TREAT_STALLS, fromStall } from './world/marketplan.js';
+import { STALLS, TREAT_STALLS, fromStall, toStall } from './world/marketplan.js';
 import { createBubbleTexture, buildBroom } from './world/marketparts.js';
 import { withLocalUuids } from './world/localuuids.js';
 import { FLAT_GROUND } from './ground.js';
@@ -88,6 +92,7 @@ export const MARKET_LOOK = Object.freeze({
   BUBBLE_W: 0.5,     // m, the bubble's width (and height: its texture is square)
   BUBBLE_UP: 0.35,   // m, from the top of the stall's roof and sign (or the crown, if higher) to the bubble's middle
   BUBBLE_ORDER: 10,  // its renderOrder: drawn after the square (still depth-tested)
+  BUBBLE_FORWARD: 0.6, // m, from the stallholder's spot toward the counter
   BOB: 0.025,        // m, how far the bubble bobs either way
   BOB_W: 3.1,        // rad/s
   SWAY: 0.32,        // rad, how far a serving arm swings out from its rest
@@ -120,7 +125,24 @@ export function createMarketLive(scene, area, opts = {}) {
   const serveRows = []; // the serve-only stalls: made[id]
   const owned = { figures: [], brooms: [], bubbles: [], material: null, texture: null };
 
-  withLocalUuids('market-live', () => {
+  // Every stall with a stallholder needs its spot, and every guarded one its
+  // roof top (the bubble's height): checked before anything is added.
+  for (const s of STALLS) {
+    if (!s.keeper) continue;
+    if (!spots[s.id]) throw new Error(`createMarketLive: the area has no keeper spot for the '${s.id}' stall`);
+    if (TREAT_STALLS.includes(s.id) && !Number.isFinite(spots[s.id].roof)) {
+      throw new Error(`createMarketLive: the area's keeper spot for the '${s.id}' stall has no roof height`);
+    }
+  }
+
+  try {
+    withLocalUuids('market-live', makePeople);
+  } catch (err) {
+    freeAll(); // a figure that throws half way leaves nothing behind
+    throw err;
+  }
+
+  function makePeople() {
     const texture = createBubbleTexture();
     const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
     owned.texture = texture;
@@ -128,15 +150,14 @@ export function createMarketLive(scene, area, opts = {}) {
     STALLS.forEach((s, i) => {
       if (!s.keeper) return;
       const spot = spots[s.id];
-      if (!spot) throw new Error(`createMarketLive: the area has no keeper spot for the '${s.id}' stall`);
       const k = figure({ x: spot.x, z: spot.z, yaw: spot.yaw });
+      owned.figures.push(k);
       k.group.position.set(spot.x, gy(spot.x, spot.z), spot.z);
       k.group.rotation.y = spot.yaw;
       k.group.name = `marketKeeper:${s.id}`;
       k.group.userData.keeper = s.id;
       scene.add(k.group);
       groups.push(k.group);
-      owned.figures.push(k);
       // the arm's rest, and each stallholder's sway on a beat of its own
       const row = { k, yaw: spot.yaw, rest: k.arm.rotation.z, phi: i * 1.37, bubble: null, base: 0 };
       made[s.id] = row;
@@ -147,33 +168,50 @@ export function createMarketLive(scene, area, opts = {}) {
       }
       // the broom, in the hand, hidden until a shoo (Task 12 swings it)
       const broom = buildBroom();
+      owned.brooms.push(broom);
       broom.name = `marketBroom:${s.id}`;
       const hand = k.hand ?? HAND;
       broom.position.set(hand.x, hand.y, hand.z);
       broom.visible = false;
       k.arm.add(broom);
-      owned.brooms.push(broom);
-      // the bubble: over the counter's front, above the stall's roof and sign
-      // (a cat's camera looks up past the sign's top edge to it), or over the
-      // stallholder's crown if that were higher
+      // the bubble: a little in front of the stallholder, above the stall's
+      // roof and sign (a cat's camera looks up past the sign's top edge to
+      // it), or over the stallholder's crown if that were higher
       const bubble = new THREE.Sprite(material);
       bubble.name = `marketBubble:${s.id}`;
       bubble.scale.set(MARKET_LOOK.BUBBLE_W, MARKET_LOOK.BUBBLE_W, 1);
       bubble.renderOrder = MARKET_LOOK.BUBBLE_ORDER;
-      const at = fromStall(s, 0, s.d / 2);
+      const kl = toStall(s, spot.x, spot.z);
+      const at = fromStall(s, kl.lx, kl.lz + MARKET_LOOK.BUBBLE_FORWARD);
       const feet = k.group.position.y;
-      const roof = Number.isFinite(spot.roof) ? gy(at.x, at.z) + spot.roof : -Infinity;
+      const roof = gy(at.x, at.z) + spot.roof;
       const base = Math.max(roof, feet + k.headY) + MARKET_LOOK.BUBBLE_UP;
       bubble.position.set(at.x, base, at.z);
       bubble.visible = false;
       bubble.userData.noCast = true;
-      scene.add(bubble);
       owned.bubbles.push(bubble);
+      scene.add(bubble);
       row.bubble = bubble;
       row.base = base;
       keepers[s.id] = { group: k.group, arm: k.arm, bubble, broom };
     });
-  });
+  }
+
+  // takes out and frees everything made so far (dispose, and a failed creation)
+  function freeAll() {
+    for (const broom of owned.brooms) {
+      broom.removeFromParent();
+      broom.traverse((m) => { if (m.isMesh) { m.geometry.dispose(); m.material.dispose(); } });
+    }
+    for (const k of owned.figures) { k.group.removeFromParent(); k.dispose(); }
+    for (const b of owned.bubbles) b.removeFromParent();
+    owned.material?.dispose();
+    owned.texture?.dispose();
+    owned.brooms.length = 0;
+    owned.figures.length = 0;
+    owned.bubbles.length = 0;
+    groups.length = 0;
+  }
 
   const stalls = [];
   for (const id of TREAT_STALLS) {
@@ -243,18 +281,7 @@ export function createMarketLive(scene, area, opts = {}) {
     dispose() {
       if (disposed) return;
       disposed = true;
-      for (const broom of owned.brooms) {
-        broom.removeFromParent();
-        broom.traverse((m) => { if (m.isMesh) { m.geometry.dispose(); m.material.dispose(); } });
-      }
-      for (const k of owned.figures) { k.group.removeFromParent(); k.dispose(); }
-      for (const b of owned.bubbles) b.removeFromParent();
-      owned.material.dispose();
-      owned.texture.dispose();
-      owned.brooms.length = 0;
-      owned.figures.length = 0;
-      owned.bubbles.length = 0;
-      groups.length = 0;
+      freeAll();
     },
   };
   return live;

@@ -19,7 +19,7 @@ const { isWalkableAt } = await import('../src/player.js');
 const { assignShadowCasters } = await import('../src/render/rig.js');
 const { createContactShadows } = await import('../src/render/contactshadows.js');
 const { AREA_LOADERS, AREA_ENTRY_MODULES } = await import('../src/world/areas.js');
-const { ZOOM_STEPS, DEFAULT_ZOOM_STEP } = await import('../src/camzoom.js');
+const { ZOOM_STEPS, DEFAULT_ZOOM_STEP, cameraPullScale, MIN_CAMERA_Y } = await import('../src/camzoom.js');
 const { cameraOffset } = await import('../src/catcam.js');
 const { DEFAULT_PITCH } = await import('../src/player.js');
 const { CAT_LOOK_Y } = await import('../src/cat/model.js');
@@ -185,13 +185,14 @@ describe('the stallholders (Task 11)', () => {
       expect(ups[id], id).toBeGreaterThan(0);
       const { group, bubble } = r.live.keepers[id];
       const s = stallById(id);
-      // over the counter's front, in the stall's middle: 0.5 m wide, its middle
-      // 0.35 m over the top of the stall's roof and sign, and over the stallholder's crown
+      // 0.6 m in front of the stallholder, toward the counter: 0.5 m wide, its
+      // middle 0.35 m over the top of the stall's roof and sign, and over the stallholder's crown
       expect(bubble.isSprite).toBe(true);
       expect(bubble.scale.x).toBeCloseTo(0.5, 9);
       const { lx, lz } = toStall(s, bubble.position.x, bubble.position.z);
-      expect(lx, id).toBeCloseTo(0, 9);
-      expect(lz, id).toBeCloseTo(s.d / 2, 9);
+      const kl = toStall(s, r.area.keepers[id].x, r.area.keepers[id].z);
+      expect(lx, id).toBeCloseTo(kl.lx, 9);
+      expect(lz - kl.lz, id).toBeCloseTo(0.6, 9);
       expect(bubble.position.y - r.area.keepers[id].roof, id).toBeCloseTo(0.35, 9);
       expect(bubble.position.y - 0.25, `${id}: its bottom over the crown`).toBeGreaterThan(shownBox(group).max.y);
       // and the roof is the stall's: nothing of the awning or the sign above it
@@ -218,19 +219,33 @@ describe('the stallholders (Task 11)', () => {
   });
 
   it("the bubble is in sight from a cat's camera in front of every guarded stall", () => {
-    // the walk's chase camera (player.js: catcam.js cameraOffset at DEFAULT_PITCH,
-    // camzoom.js's steps) behind a cat 1..5 m out from the counter, across its
-    // width, facing it. From each, the line to the bubble's middle (at its
-    // lowest bob) crosses nothing of the stall: no awning, valance, sign,
-    // post or lantern. At the default step the bubble is on screen too, in a
-    // landscape frame and on a phone held upright.
+    // The walk's chase camera, as player.js places it: catcam.js cameraOffset at
+    // DEFAULT_PITCH for each of camzoom.js's steps, pulled in by cameraPullScale
+    // and kept over MIN_CAMERA_Y, behind a cat 0.5..5 m out from the counter,
+    // across its width, facing it. Nothing of the stall (awning, valance, sign,
+    // posts) or its lanterns may cross the line from the camera to:
+    //   at the default step, the bubble's middle and eight points round its rim
+    //   (0.2 m out, the inner 80% of its disc, in the camera's own plane), at
+    //   rest and at either end of its bob; and the bubble on screen, in a
+    //   landscape frame and on a phone held upright;
+    //   at every other step, its middle.
     const r = marketRig({ reducedMotion: true });
     const lanterns = r.scene.getObjectByName('marketLanterns');
     const ray = new THREE.Raycaster();
     const cam = new THREE.Vector3();
     const to = new THREE.Vector3();
     const off = new THREE.Vector3();
+    const right = new THREE.Vector3();
+    const up = new THREE.Vector3();
     const frames = [16 / 9, 390 / 844].map((aspect) => new THREE.PerspectiveCamera(70, aspect, 0.1, 300));
+    const RIM = [[0, 0], ...Array.from({ length: 8 }, (_, i) => [0.2 * Math.cos((i * Math.PI) / 4), 0.2 * Math.sin((i * Math.PI) / 4)])];
+    const blocked = (stall, from, at) => {
+      const d = at.clone().sub(from);
+      const far = d.length();
+      ray.set(from, d.normalize());
+      ray.far = far - 0.01;
+      return ray.intersectObjects([stall, lanterns], true).map((h) => h.object.name || h.object.type);
+    };
     for (const id of TREAT_STALLS) {
       const s = stallById(id);
       const stall = r.scene.children.find((o) => o.userData.stall === id);
@@ -238,28 +253,36 @@ describe('the stallholders (Task 11)', () => {
       const { bubble } = r.live.keepers[id];
       const yaw = Math.atan2(s.face.x, s.face.z); // the cat faces the counter; the camera is behind her
       for (const [step, view] of ZOOM_STEPS.entries()) {
+        const full = step === DEFAULT_ZOOM_STEP;
         for (const lx of [-s.w / 2, 0, s.w / 2]) {
-          for (const out of [1, 2, 3, 4, 5]) {
+          for (const out of [0.5, 1, 2, 3, 4, 5]) {
             const c = fromPlan(s, lx, s.d / 2 + out);
+            const catPos = new THREE.Vector3(c.x, 0, c.z);
             cameraOffset(yaw, DEFAULT_PITCH, view.dist, view.height, off);
-            cam.set(c.x + off.x, off.y, c.z + off.z);
-            for (const bob of [0, -0.025]) {
-              to.copy(bubble.position).setY(bubble.position.y + bob);
-              const d = to.clone().sub(cam);
-              const far = d.length();
-              ray.set(cam, d.normalize());
-              ray.far = far - 0.01;
-              const hits = ray.intersectObjects([stall, lanterns], true);
-              expect(hits.map((h) => h.object.name || h.object.type), `${id} zoom ${step} at (${lx}, +${out}) bob ${bob}`).toEqual([]);
+            off.multiplyScalar(cameraPullScale(catPos, off, view.dist, r.area.colliders, r.area.bounds));
+            cam.copy(catPos).add(off);
+            if (cam.y < MIN_CAMERA_Y) cam.y = MIN_CAMERA_Y;
+            const f = frames[0];
+            f.position.copy(cam);
+            f.lookAt(c.x, CAT_LOOK_Y, c.z);
+            f.updateMatrixWorld(true);
+            right.setFromMatrixColumn(f.matrixWorld, 0);
+            up.setFromMatrixColumn(f.matrixWorld, 1);
+            for (const bob of full ? [0, -0.025, 0.025] : [0]) {
+              for (const [i, j] of full ? RIM : RIM.slice(0, 1)) {
+                to.copy(bubble.position).addScaledVector(right, i).addScaledVector(up, j);
+                to.y += bob;
+                expect(blocked(stall, cam, to), `${id} zoom ${step} cat at (${lx}, +${out}) point (${i.toFixed(2)}, ${j.toFixed(2)}) bob ${bob}`).toEqual([]);
+              }
             }
-            if (step !== DEFAULT_ZOOM_STEP) continue;
-            for (const f of frames) {
-              f.position.copy(cam);
-              f.lookAt(c.x, CAT_LOOK_Y, c.z);
-              f.updateMatrixWorld(true);
-              const p = bubble.position.clone().project(f);
-              expect(Math.abs(p.x), `${id} on screen across, aspect ${f.aspect.toFixed(2)}, at (${lx}, +${out})`).toBeLessThan(1);
-              expect(Math.abs(p.y), `${id} on screen up, aspect ${f.aspect.toFixed(2)}, at (${lx}, +${out})`).toBeLessThan(1);
+            if (!full) continue;
+            for (const fr of frames) {
+              fr.position.copy(cam);
+              fr.lookAt(c.x, CAT_LOOK_Y, c.z);
+              fr.updateMatrixWorld(true);
+              const p = bubble.position.clone().project(fr);
+              expect(Math.abs(p.x), `${id} on screen across, aspect ${fr.aspect.toFixed(2)}, cat at (${lx}, +${out})`).toBeLessThan(1);
+              expect(Math.abs(p.y), `${id} on screen up, aspect ${fr.aspect.toFixed(2)}, cat at (${lx}, +${out})`).toBeLessThan(1);
             }
           }
         }
@@ -289,11 +312,38 @@ describe('the stallholders (Task 11)', () => {
 
   it('a stall with a stallholder and no keeper spot is a mistake, not a silent gap', () => {
     const { scene, area } = buildSquare();
+    const before = scene.children.length;
     for (const id of ['fish', 'flowers']) {
       const keepers = { ...area.keepers };
       delete keepers[id];
       expect(() => createMarketLive(scene, { ...area, keepers }, { seed: 1, now: () => 0 }), id).toThrow(id);
     }
+    // a guarded stall needs its roof's height for the bubble (a serve-only one has no bubble)
+    for (const roof of [undefined, NaN, Infinity, '2.8']) {
+      const keepers = { ...area.keepers, milk: { ...area.keepers.milk, roof } };
+      expect(() => createMarketLive(scene, { ...area, keepers }, { seed: 1, now: () => 0 }), String(roof)).toThrow('milk');
+    }
+    const keepers = { ...area.keepers, fruit: { ...area.keepers.fruit, roof: undefined } };
+    createMarketLive(scene, { ...area, keepers }, { seed: 1, now: () => 0 }).dispose();
+    expect(scene.children).toHaveLength(before);
+  });
+
+  it('a figure that fails half way leaves nothing behind', () => {
+    const { scene, area } = buildSquare();
+    const before = scene.children.length;
+    const made = [];
+    let n = 0;
+    const figure = (spot) => {
+      if (++n === 4) throw new Error('no fourth figure');
+      const k = twolegKeeper(spot);
+      const dispose = vi.fn(k.dispose);
+      made.push(dispose);
+      return { ...k, dispose };
+    };
+    expect(() => createMarketLive(scene, area, { seed: 1, now: () => 0, figure })).toThrow('no fourth figure');
+    expect(scene.children).toHaveLength(before);
+    expect(made).toHaveLength(3);
+    for (const d of made) expect(d).toHaveBeenCalledTimes(1);
   });
 
   it('two rigs with one seed and one clock pose every stallholder alike', () => {
