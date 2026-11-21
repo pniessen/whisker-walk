@@ -690,6 +690,29 @@ export const ROOFS_LIFE_SHOTS = Object.freeze({
   sleeper: lifeShot('-25.3,5.4,15.2,-25.75,4.4,12.2', 240),
 });
 
+// The picture views for the six discoveries' moments and the tank's golden
+// mouse (Rooftops step 5), { view, t } as ROOFS_LIFE_SHOTS'. verify-places.html's
+// __shot takes these names too: it puts a stand-in cat at the discovery's
+// anchor (perched on the crate for the telescope) and runs the life to t. The
+// vane's view is where the cat's follow camera starts; the life eases it round.
+const momentShot = (view, t = 240) => Object.freeze({ view, t });
+export const ROOFS_MOMENT_SHOTS = Object.freeze({
+  // the roof terrace at dusk: the bench, the pots and the string lights
+  garden: momentShot('20.6,8.4,13.2,16.4,6.9,9.2'),
+  // on the loft's roof, the loft pigeon that has come along and landed beside her
+  loft: momentShot('-24.6,15.0,-40.4,-30.6,12.4,-47.8'),
+  // the tower top: her follow camera, behind her; the life eases it round to the town
+  vane: momentShot('26,18.4,-20,26,17.4,-16.5'),
+  // the attic's pane from over the frame
+  skylight: momentShot('3.4,8.4,8.2,3.4,6.6,4.9'),
+  // on the telescope's crate, the moon over the screen
+  telescope: momentShot('38.8,11.4,5.8,35.8,10.2,8.2'),
+  // by the warm stack, the smoke ring
+  chimney: momentShot('-12.5,9.7,10.5,-10,9.2,7.5'),
+  // the gold mouse on the water tank's lid
+  mice: momentShot('-23.6,14.6,-30.4,-26.8,13.0,-33.6'),
+});
+
 // ---------------------------------------------------------------------------
 // WHAT THE SHARED TABLES HOLD (Task 10). Plain data in the shapes those tables
 // use, as FAIR_REGISTRATION is: each row is copied into its table, and
@@ -704,6 +727,12 @@ export const ROOFS_REGISTRATION = Object.freeze({
   // src/progression.js CATALOG.areas: held back (R1) until Rooftops step 4
   // copied it into the catalog (ruling T1: co-walkers see height).
   catalog: Object.freeze({ name: 'The Rooftops', price: 100, requires: Object.freeze({ area: 'fair', walks: 2 }) }),
+  // src/goldmice.js GOLD_MICE.roofs (`y` is metres above the ground under each)
+  goldMice: Object.freeze([
+    Object.freeze({ id: 'gm-roofs-1', x: -26.8, z: -33.6, y: 0 }), // on the water tank's lid, one climb up from the warehouse roof
+    Object.freeze({ id: 'gm-roofs-2', x: 27.6, z: -15.4, y: 0 }), // on the clock tower's lantern stage, a corner below the vane
+    Object.freeze({ id: 'gm-roofs-3', x: -14.3, z: 21.7, y: 0 }), // hidden in a back yard, in the nook between bunker-4 and the party wall
+  ]),
   // src/propsets.js SETS.roofs
   propSet: Object.freeze({
     carryables: Object.freeze([
@@ -734,6 +763,8 @@ export const ROOFS_REGISTRATION = Object.freeze({
       Object.freeze({ id: 'roofs-drink-1', kind: 'drink', x: -8, z: 42, mesh: true }), // a water bowl in the alley
       Object.freeze({ id: 'roofs-eat-1', kind: 'eat', x: 22, z: 38, mesh: true }), // a dish at the alley's east end
       Object.freeze({ id: 'roofs-nap-1', kind: 'nap', x: 14.5, z: 31.5, mesh: true }), // a cushion on the shed roof
+      // On the warm chimney stack (Rooftops step 5, R6): the warm bricks are the bed
+      Object.freeze({ id: 'roofs-nap-2', kind: 'nap', x: ROOFS_DISCOVERIES.chimney.x, z: ROOFS_DISCOVERIES.chimney.z, mesh: false }),
     ]),
     // Behind the bins, on the garage roof by the fire escape, at the tank's foot.
     hides: Object.freeze([{ x: 14.5, z: 37 }, { x: -24, z: 30.5 }, { x: -26, z: -31.3 }].map((h) => Object.freeze(h))),
@@ -760,7 +791,7 @@ export const ROOFS_REGISTRATION = Object.freeze({
   pawprints: Object.freeze({ ground: null, path: 'gravel', strip: null }),
   // The measured counts test/budget.test.js and test/roofs.test.js pin:
   // [meshes, casters, triangles] built, [meshes, casters] merged
-  budget: Object.freeze({ built: Object.freeze([116, 68, 37335]), merged: Object.freeze([59, 30]) }),
+  budget: Object.freeze({ built: Object.freeze([117, 68, 37335]), merged: Object.freeze([60, 30]) }),
   // verify-places.html VIEWS.roofs and the card picture (public/places/roofs.jpg)
   view: ROOFS_SHOTS.card,
   // src/marks.js MARK_AREAS and emptyMarks(): add 'roofs'

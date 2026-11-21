@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
   hash01, box, cyl, ball, sheet, stripes, stripedSlab, bunting, bulb, bulbString, meshOf, canvasOf, glowMesh, recentre,
-  BULB_COLORS, BUNTING_COLORS,
+  BULB_COLORS, BUNTING_COLORS, lampLit, lampMaterial, LAMP_LOOK,
 } from './fairkit.js';
 
 // =============================================================================
@@ -297,7 +297,11 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
     plate(P, [[sx + s * 0.014, 0.92, -0.43], [sx + s * 0.014, 1.07, -0.28], [sx + s * 0.014, 1.22, -0.43], [sx + s * 0.014, 1.07, -0.58]], C.gold, [s, 0, 0]);
     box(P, 0.12, 0.12, 1.34, s * hw, 2.02, -hd + 0.65, b);
   }
-  // the counter: a white front with two-tone panels and a painted band under its top, a board top
+  // the counter: a white front with two-tone panels and a painted band under its top, a board top.
+  // At dusk the stall's lamps light it from inside (fairkit.js LAMP_LOOK): the
+  // front facing the midway a little, the board top, the back shelf and
+  // everything on them in full.
+  const lampFront = P.length;
   box(P, w, counterY - 0.06, 0.5, 0, 0, counterZ, C.white);
   const cf = counterZ + 0.25 + 0.006;
   rectZ(P, -hw + 0.04, hw - 0.04, 0, 0.1, cf, 1, b, 0.92);
@@ -310,9 +314,12 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
     cut(0.25, 0.16, 0.7, 0, outer);
     cut(0.19, 0.22, 0.64, 0.007, inner);
   }
+  lampLit(P, lampFront, LAMP_LOOK.front);
+  const lampTop = P.length;
   box(P, w + 0.1, 0.06, 0.62, 0, counterY - 0.06, counterZ, C.wood);
   // the back shelf
   box(P, w - 0.3, 0.05, 0.36, 0, STALL.shelfY - 0.05, -hd + 0.28, C.wood);
+  lampLit(P, lampTop);
 
   if (top === 'flat') {
     stripedSlab(P, w + 0.5, 0.12, d + 0.5, [a, b], 0, roofY - 0.12, 0.05, { n: 8 });
@@ -343,6 +350,7 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
   const cy = counterY;
   const sy = STALL.shelfY;
   const sz = -hd + 0.28;
+  const lampGoods = P.length;
   if (goods === 'floss') {
     // the spinning pan with a big pink cloud in it, and sticks of floss in a rack
     cyl(P, 0.46, 0.4, 0.26, -0.75, cy, counterZ - 0.02, C.steel, { sides: 14 });
@@ -413,6 +421,7 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
     for (let i = 0; i < 4; i++) ball(P, 0.1, -0.9 + i * 0.6, sy + 0.1, sz, i % 2 ? 0xf9d648 : 0xf58a2e);
   }
   // 'tins' and 'plain' leave the counter bare (the tin-can alley's shelf is tinCanShelf)
+  lampLit(P, lampGoods);
 }
 
 // ---- tin-can alley ---------------------------------------------------------------------------------------
@@ -425,24 +434,32 @@ export const TINS = Object.freeze({
 });
 export function tinCanShelf(K) {
   const P = K.solid;
+  const lamp = P.length; // lit from inside at dusk, like every stall's counter
   box(P, 1.5, 0.06, 0.5, 0, TINS.shelfY - 0.06, TINS.shelfZ, C.wood);
   for (const sx of [-1, 1]) box(P, 0.08, TINS.shelfY - 0.06, 0.4, sx * 0.65, 0, TINS.shelfZ, C.woodDark);
   // three bean bags on the counter to throw
   for (let i = 0; i < 3; i++) ball(P, 0.09, 0.9 + i * 0.2, STALL.counterY + 0.05, STALL.counterZ, [C.red, C.blue, C.yellow][i], { sy: 0.6 });
+  lampLit(P, lamp);
 }
 export function tinCans(spots) {
   const g = new THREE.Group();
   g.name = 'tinCans';
   g.userData.noMerge = true;
+  // the six share one material, lamp-lit at dusk like the shelf they stand on
+  // (fairkit.js LAMP_LOOK; g.userData.lamp is it, for setFairGlow)
+  let lamp = null;
   spots.forEach((s, i) => {
     const P = [];
     cyl(P, TINS.r, TINS.r, TINS.h, 0, 0, 0, C.steel, { sides: 10 });
     cyl(P, TINS.r + 0.004, TINS.r + 0.004, TINS.h * 0.55, 0, TINS.h * 0.22, 0, [C.red, C.blue, C.yellow, C.green, C.orange, C.purple][i % 6], { sides: 10, open: true });
+    lampLit(P, 0);
     const m = meshOf(P, 'tin' + i, { roughness: 0.35 });
+    if (lamp) { m.material.dispose(); m.material = lamp; } else lamp = lampMaterial(m.material);
     m.position.set(s.x, s.y, s.z);
     m.userData.home = { x: s.x, y: s.y, z: s.z };
     g.add(m);
   });
+  g.userData.lamp = lamp;
   return g;
 }
 
@@ -922,7 +939,13 @@ export { bunting, bulbString };
 // ---- turning the lists into meshes -------------------------------------------------------------------------------------------
 export function meshesOf(K, glow, prefix = 'fair') {
   const out = [];
-  if (K.solid.length) out.push(meshOf(K.solid, prefix + 'Props', { roughness: 0.65 }));
+  if (K.solid.length) {
+    // the stalls' counters and goods carry a lamp weight: lit at dusk (setFairGlow)
+    const lit = K.solid.some((g) => g.attributes.fairLamp);
+    const props = meshOf(K.solid, prefix + 'Props', { roughness: 0.65 });
+    if (lit) lampMaterial(props.material);
+    out.push(props);
+  }
   if (K.canvas.length) out.push(canvasOf(K.canvas, prefix + 'Canvas'));
   if (K.flags.length) out.push(canvasOf(K.flags, prefix + 'Bunting', { noCast: true }));
   if (K.bulbs.length) {

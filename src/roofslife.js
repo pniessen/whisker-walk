@@ -59,16 +59,41 @@
 // sills (area.sleepers, roofs.js) breathe, every frame and under reduced
 // motion too: scale.y = 1 + BREATH.amp * sin(BREATH.rate * t + i), t walk
 // seconds, i the sleeper's place in the list. Nothing else reads them.
+//
+// THE SIX FINDS (Rooftops step 5, world/roofsmoments.js): where the place has
+// its discoveries (area.anchors.discoveries) the life makes the moments with
+// the walk's log and progression (walk.js's context; a picture page has
+// none, and then nothing is noted), and hands them her spot, the camera and
+// her session every frame, after the flock: update's fifth argument (main.js).
+// An older caller's four arguments still work (no session: no perch).
+//   * Their looks (Task 5): the warm chimney's smoke ring (one mesh, where
+//     the place has its pots), the attic's pane under the skylight (one mesh,
+//     where there is a page: the context's `doc`, else the game's document;
+//     none headless), the moon over the screen from the telescope, and the
+//     view from the vane, which leans the camera player.update placed (so the
+//     moments run after it: main.js calls this after player.update).
+//
+// THE BIRDS' SOUNDS (Rooftops step 5, world/roofssound.js): where there is a
+// flock and the context has the game's `audio`, the life hears it every
+// frame after the flock (so a take-off or a landing is this frame's): the
+// loft's cooing, pigeons, sparrows, gulls and wings, by her distance. Silent
+// while the game is muted (audio.isMuted), and a picture page hands no audio.
 // =============================================================================
 import { skyBackground } from './render/sky.js';
 import { BUS } from './world/roofsplan.js';
 import { createRoofsBirds } from './world/roofsbirds.js';
 import { WASH, createRoofsSmoke } from './world/roofsair.js';
+import { createRoofsMoments } from './world/roofsmoments.js';
+import { createRoofsSound } from './world/roofssound.js';
 
 export const EVENING_RAMP = 240; // s, sunset to dusk
 export const EVENING_STEPS = 6; // the sky's rebuilds on the way
 export const SUNSET_SUN = 1.8; // x the dusk sun, at the start
 export const SUNSET_FILL = 1.3; // x the dusk fill, at the start
+// The lit windows, clock faces and garden bulbs: GLOW.sunset of their built
+// brightness at sunset, all of it at dusk (by eveningAt); the bulbs breathe
+// GLOW.breathe about it, a swell every 2pi / GLOW.rate s, still under reduced motion.
+export const GLOW = Object.freeze({ sunset: 0.55, breathe: 0.06, rate: 1.1 });
 export const BREATH = Object.freeze({ amp: 0.02, rate: 1.3 }); // the sleeping cats': under 3%, a breath every 4.8 s
 
 const smoothstep = (a, b, x) => {
@@ -101,13 +126,13 @@ export function busAt(t, out = {}) {
   return out;
 }
 
-// createRoofsLife(area) -> (ctx) => { update(dt, t, catPos, camera), dispose() }.
+// createRoofsLife(area) -> (ctx) => { update(dt, t, catPos, camera, session), dispose() }.
 // `area` is the built record (its skySunset, skyDusk, skyGlow, markGlow, bus,
-// birdPerches, washSway, smokePots and sleepers); ctx is walk.js's life context ({ scene, sun, fill,
-// critters, visits, reducedMotion, ... }), or a picture page's (which may add
-// a `guideStore`).
+// birdPerches, washSway, smokePots, sleepers and anchors); ctx is walk.js's life context ({ scene, sun, fill,
+// critters, visits, reducedMotion, log, progression, viewYaw, ... }), or a picture
+// page's (which may add a `guideStore`).
 export function createRoofsLife(area) {
-  return ({ scene, sun, fill, critters, visits, reducedMotion, guideStore }) => {
+  return ({ scene, sun, fill, critters, visits, reducedMotion, guideStore, log, progression, doc, audio, viewYaw }) => {
     const from = area.skySunset;
     const to = area.skyDusk;
     const sunEnd = sun.intensity;
@@ -119,6 +144,9 @@ export function createRoofsLife(area) {
     const marks = area.markGlow ?? null;
     const marksFrom = marks?.userData.glowOpacity.sunset;
     const marksTo = marks?.userData.glowOpacity.dusk;
+    const lights = area.eveningLights ?? null;
+    const lit = lights ? Object.values(lights).filter(Boolean) : [];
+    const bulbs = lights?.bulbs ?? null;
     const at = { x: 0, z: 0, visible: false };
     let walk = 0;
     let step = -1;
@@ -146,6 +174,13 @@ export function createRoofsLife(area) {
           glowFrom[1] + (glowTo[1] - glowFrom[1]) * e,
           glowFrom[2] + (glowTo[2] - glowFrom[2]) * e,
         );
+      }
+      if (lit.length) {
+        const k = GLOW.sunset + (1 - GLOW.sunset) * e;
+        for (let i = 0; i < lit.length; i++) {
+          const m = lit[i];
+          m.emissiveIntensity = m.userData.glowBase * (m === bulbs && !reducedMotion ? k * (1 + GLOW.breathe * Math.sin(GLOW.rate * walk)) : k);
+        }
       }
       if (marks) marks.material.opacity = marksFrom + (marksTo - marksFrom) * e;
       if (bus) {
@@ -176,21 +211,37 @@ export function createRoofsLife(area) {
       for (let i = 0; i < sleepers.length; i++) sleepers[i].scale.y = 1 + BREATH.amp * Math.sin(BREATH.rate * walk + i);
     }
 
+    // The page the moon and the attic's pane are made on: the context's (a
+    // test's), else the game's own; headless there is none, and no pane.
+    const page = doc !== undefined ? doc : (globalThis.document ?? null);
+    const moments = area.anchors?.discoveries
+      ? createRoofsMoments(area, { log, progression, birds, scene, reducedMotion: reducedMotion ?? false, doc: page, viewYaw })
+      : null;
+
+    // The birds' sounds (world/roofssound.js): where there is a flock and the
+    // walk's audio; silent while the game is muted.
+    const sound = birds && audio ? createRoofsSound(audio, { birds, loft: area.anchors?.discoveries?.loft ?? null }) : null;
+
     apply(); // the first frame is already sunset
     wind();
     breathe();
     return {
-      update(dt, t, catPos = null, camera = null) {
+      update(dt, t, catPos = null, camera = null, session = null) {
         walk += dt;
         apply();
         wind();
         breathe();
         birds?.update(dt, catPos, camera);
+        moments?.update(dt, catPos, camera, session);
+        sound?.update(dt, catPos);
       },
       dispose() {
+        sound?.dispose();
+        moments?.dispose();
         birds?.dispose();
         smoke?.dispose();
         for (const s of sleepers) s.scale.y = 1;
+        for (const m of lit) m.emissiveIntensity = m.userData.glowBase;
       },
     };
   };

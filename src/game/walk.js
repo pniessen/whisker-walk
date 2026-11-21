@@ -79,7 +79,7 @@ import { NO_FARM } from '../farmnone.js';
 import { handleFarmEvent, addFarmHat, restoreFarmJobs } from './farmplay.js';
 import { NO_FAIR } from '../fairnone.js';
 import { handleFairEvent, addBalloonRibbon, restoreFairGames } from './fairplay.js';
-import { createTraversalLive, NO_TRAVERSAL, traversalEventEffects } from '../traversallive.js';
+import { createTraversalLive, NO_TRAVERSAL, traversalEventEffects, traversalTally } from '../traversallive.js';
 import { moveAbilities } from '../traversal.js';
 import { groundOf } from '../ground.js';
 import { isFearless } from '../dogs.js';
@@ -1674,7 +1674,8 @@ export function createWalkLifecycle({
     // per walk and disposed in endWalk, so a held stick never outlives it.
     // The abilities are read live off the save at each use, like the climb
     // budget. `session.fx` is read when an event fires, after `session` exists.
-    const traversalLive = areaData.traversal ? createTraversalLive(areaData.traversal, { ground, reducedMotion, abilities: () => moveAbilities(progression.state), onEvent: (e) => traversalEventEffects(e, { audio, fx: session.fx, cat, bus }) }) : NO_TRAVERSAL;
+    const tallyTraversal = traversalTally(progression, celebrateNewSkills);
+    const traversalLive = areaData.traversal ? createTraversalLive(areaData.traversal, { ground, reducedMotion, abilities: () => moveAbilities(progression.state), onEvent: (e) => traversalEventEffects(e, { audio, fx: session.fx, cat, bus, tally: tallyTraversal }) }) : NO_TRAVERSAL;
 
     // Live contact decals for everything that moves, registered now that the
     // movers exist. The cat first and by name: it is on screen 100% of the
@@ -1829,8 +1830,9 @@ export function createWalkLifecycle({
     // shadow of their own (built after the caster sweep); the cave glow is a
     // PointLight with castShadow false, added here so shaders compile with it
     // once. Draws on no rng. The Rooftops' life also takes the walk's critters,
-    // to move its birds, and how many walks she has had there.
-    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0 }) ?? NO_AREA_LIFE;
+    // to move its birds, how many walks she has had there, the log and progression its finds are noted with, and her view heading (the tower view turns it).
+    const lifeViewYaw = { get: () => player.viewYaw(), set: (v) => player.setViewYaw(v) };
+    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0, log, progression, viewYaw: lifeViewYaw }) ?? NO_AREA_LIFE;
     const session = createSession({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       farm,

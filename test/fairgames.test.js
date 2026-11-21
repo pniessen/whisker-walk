@@ -137,7 +137,8 @@ describe('the table of games: three states, no clock, no way to lose', () => {
       expect(page.emoji.length).toBeGreaterThan(0);
     }
     // the save's list holds exactly these, after the rides' five
-    expect(JOURNAL_TYPES.slice(-9)).toEqual([...FAIR_JOURNAL_TYPES]);
+    const games = JOURNAL_TYPES.indexOf('gamecans');
+    expect(JOURNAL_TYPES.slice(games, games + 9)).toEqual([...FAIR_JOURNAL_TYPES]);
     expect(FAIR_GAME_IDS.map(gameJournalId)).toEqual(['gamecans', 'gameducks', 'gamebell']);
     expect(fairFindJournalId('lookout')).toBe('fairlookout');
   });

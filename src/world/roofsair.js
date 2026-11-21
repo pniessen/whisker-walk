@@ -26,6 +26,13 @@
 // (aFade), and each puff turned and squashed its own fixed way (puffShape).
 // Made inside withLocalUuids, so it draws nothing on Math.random. Under
 // reduced motion it runs at half speed.
+//
+// THE SMOKE RING (Rooftops step 5, Task 5, R6) is the warm chimney's moment:
+// one flat torus over its pot (roofsplan.js SMOKE_POTS[0]) that the moments
+// (roofsmoments.js) puff while she sits still by the stack or naps there. A
+// puff rises RING.rise, grows to RING.grow times, drifts RING.drift downwind
+// and fades out over RING.time (ringAt: eased out, every part one way), then
+// the ring is hidden until the next. Twice as long under reduced motion.
 // =============================================================================
 import * as THREE from 'three';
 import { withLocalUuids } from './localuuids.js';
@@ -237,6 +244,94 @@ export function createRoofsSmoke(scene, pots, { reducedMotion = false } = {}) {
       mesh.geometry.dispose();
       mesh.material.dispose();
       mesh.dispose();
+    },
+  };
+}
+
+// --- the smoke ring (Rooftops step 5) ----------------------------------------
+
+export const RING = Object.freeze({ time: 3.2, rise: 1.4, grow: 2.4, opacity: 0.75, drift: 0.5, every: 7 });
+const RING_COLOR = 0xd8d4cc;
+export const RING_TILT = (35 * Math.PI) / 180;
+
+// A puff's look at `u` (0 at the pot, 1 gone) into `out`: its height over the
+// pot, its scale, its opacity and how far downwind it has gone. Eased out (it
+// leaves the pot briskly and slows); y, scale and drift only grow, the
+// opacity only falls, and it stays visible most of the way. Pure.
+export function ringAt(u, out = {}) {
+  const k = u <= 0 ? 0 : u >= 1 ? 1 : u;
+  const e = 1 - (1 - k) * (1 - k);
+  out.y = RING.rise * e;
+  out.scale = 1 + (RING.grow - 1) * e;
+  out.opacity = RING.opacity * (1 - k * k);
+  out.drift = RING.drift * e;
+  return out;
+}
+
+// The ring over `pot` ({ x, y, z }): one mesh (roofsRing), a torus of 320
+// triangles (fix wave, M3: 5 x 14 sides read as a flat slab), casting
+// nothing, hidden between puffs. puff(eye) starts one (again from the pot if
+// one is still rising), lying flat, or with `eye` (the camera's position at
+// the puff) tilted RING_TILT toward it, turned about the up axis to face it,
+// so the camera sees the hole; update(dt) takes the frame's seconds and
+// allocates nothing.
+export function createSmokeRing(scene, pot, { reducedMotion = false } = {}) {
+  const mesh = withLocalUuids('roofs-ring', () => {
+    const m = new THREE.Mesh(
+      new THREE.TorusGeometry(0.16, 0.045, 8, 20),
+      new THREE.MeshBasicMaterial({ color: RING_COLOR, transparent: true, opacity: RING.opacity, depthWrite: false }),
+    );
+    m.name = 'roofsRing';
+    m.castShadow = false;
+    m.receiveShadow = false;
+    m.userData.noCast = true;
+    m.rotation.order = 'YXZ'; // turned to face the camera, then tilted toward it
+    m.rotation.x = Math.PI / 2; // the torus's hole points up
+    m.visible = false;
+    return m;
+  });
+  const time = RING.time * (reducedMotion ? 2 : 1);
+  const at = { y: 0, scale: 1, opacity: 0, drift: 0 };
+  let age = -1; // seconds into the puff; < 0 between puffs
+
+  function place() {
+    ringAt(age / time, at);
+    mesh.position.set(pot.x + WX * at.drift, pot.y + at.y, pot.z + WZ * at.drift);
+    mesh.scale.setScalar(at.scale);
+    mesh.material.opacity = at.opacity;
+  }
+
+  scene.add(mesh);
+  return {
+    mesh,
+    puff(eye = null) {
+      age = 0;
+      const dx = eye ? eye.x - pot.x : 0;
+      const dz = eye ? eye.z - pot.z : 0;
+      if (dx * dx + dz * dz > 1e-8) {
+        mesh.rotation.y = Math.atan2(dx, dz); // its local +z toward the camera
+        mesh.rotation.x = Math.PI / 2 + RING_TILT; // the hole's top side leans toward it
+      } else {
+        mesh.rotation.y = 0;
+        mesh.rotation.x = Math.PI / 2;
+      }
+      mesh.visible = true;
+      place();
+    },
+    update(dt) {
+      if (age < 0) return;
+      age += dt;
+      if (age >= time) {
+        age = -1;
+        mesh.visible = false;
+        return;
+      }
+      place();
+    },
+    dispose() {
+      scene.remove(mesh);
+      mesh.geometry.dispose();
+      mesh.material.dispose();
     },
   };
 }

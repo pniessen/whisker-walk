@@ -58,7 +58,10 @@ test.each(AREAS)('%s: one mesh per rest, standing on the ground (or the deck) at
   const curated = propsFor(a).rests;
   const rests = createRests(scene, curated);
   expect(rests.list.map((r) => r.id)).toEqual(curated.map((r) => r.id));
-  for (const r of rests.list) {
+  // a `mesh: false` rest (the Rooftops' warm chimney: the bricks are the bed) draws nothing
+  const bare = new Set(curated.filter((r) => r.mesh === false).map((r) => r.id));
+  for (const r of rests.list.filter((e) => bare.has(e.id))) expect(r.group).toBeNull();
+  for (const r of rests.list.filter((e) => !bare.has(e.id))) {
     expect(r.group).toBeInstanceOf(THREE.Group);
     expect(scene.children).toContain(r.group);
     const box = new THREE.Box3().setFromObject(r.group);
