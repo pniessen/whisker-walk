@@ -12,6 +12,7 @@ import * as rides from './fairrides.js';
 import * as edge from './fairedge.js';
 import { STALL, STALL_SIGN, SIGN_POST, TINS, BELL, FORTUNE, BANDSTAND, PICNIC, RIDGE_TENT, FAIR_PAINT, POOL } from './fairparts.js';
 import { MGR, FERRIS, TEACUPS, HELTER, COASTER, STATION, MUSIC_BOX } from './fairrides.js';
+import { endsFor, cutForGates } from '../gateways.js';
 
 // =============================================================================
 // The Fairground (docs/superpowers/specs/2026-11-18-fairground-design.md),
@@ -626,10 +627,13 @@ export function build(scene, { water = {}, wind } = {}) {
     const K = parts.lists();
 
     out.push(parts.gateArch(GATE_AT.x, GATE_AT.z, GATE_HALF, glow));
-    parts.fence(K, [
+    // The front fence, with the gate back to the Park set into it (its place
+    // is fixed data in gateways.js, whoever is playing: walk.js draws the gate
+    // itself, shut or open, after the build).
+    parts.fence(K, cutForGates([
       { a: [-44, GATE_AT.z], b: [-GATE_HALF - 0.5, GATE_AT.z] },
       { a: [GATE_HALF + 0.5, GATE_AT.z], b: [44, GATE_AT.z] },
-    ]);
+    ], endsFor('fair')));
     for (const s of [-1, 1]) parts.balloonBunch(K, s * (GATE_HALF + 0.3), 3.3, GATE_AT.z + 0.15, 4, s + 3);
 
     // the midway's stalls

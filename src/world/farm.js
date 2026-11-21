@@ -8,6 +8,7 @@ import { withLocalUuids } from './localuuids.js';
 import { seedFromCode } from '../rng.js';
 import * as parts from './farmparts.js';
 import { BARN, BALE, TRACTOR, STAND, SCARECROW, GRAIN_STORE, FARM_COLORS } from './farmparts.js';
+import { endsFor, cutForGates } from '../gateways.js';
 
 // =============================================================================
 // Appletree Farm (docs/superpowers/specs/2026-11-18-farm-design.md), step 1:
@@ -213,8 +214,12 @@ const FENCE_RUNS = Object.freeze([
   ...ring(PASTURE, { side: 'w', from: PASTURE_GATE.z - 1.4, to: PASTURE_GATE.z + 1.4 }).map(([x1, z1, x2, z2]) => ({ a: [x1, z1], b: [x2, z2], style: 'rail' })),
   ...ring(GOAT_PADDOCK, { side: 'e', from: GOAT_GATE.z - 1.7, to: GOAT_GATE.z + 1.7 }).map(([x1, z1, x2, z2]) => ({ a: [x1, z1], b: [x2, z2], style: 'rail' })),
   ...ring(HEN_RUN, { side: 'e', from: COOP_AT.z - 0.8, to: COOP_AT.z + 0.8 }).map(([x1, z1, x2, z2]) => ({ a: [x1, z1], b: [x2, z2], style: 'wire' })),
-  { a: [-44, GATE_AT.z], b: [-2.6, GATE_AT.z], style: 'picket' },
-  { a: [2.6, GATE_AT.z], b: [44, GATE_AT.z], style: 'picket' },
+  // The front fence, with the gate back to the Park set into it (its place is
+  // fixed data in gateways.js; walk.js draws the gate itself after the build).
+  ...cutForGates([
+    { a: [-44, GATE_AT.z], b: [-2.6, GATE_AT.z], style: 'picket' },
+    { a: [2.6, GATE_AT.z], b: [44, GATE_AT.z], style: 'picket' },
+  ], endsFor('farm')),
 ]);
 const GATES = Object.freeze([
   { x: PASTURE_GATE.x, z: PASTURE_GATE.z + 1.4, len: 2.7, yaw: Math.PI * 0.72 },

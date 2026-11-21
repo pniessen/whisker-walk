@@ -19,11 +19,11 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { GATEWAY_ENDS, GATE_HALF, GATE_REACH, arrivalFor, endsFor } = await import('../src/gateways.js');
+const { GATEWAY_ENDS, GATE_HALF, GATE_POST_R, GATE_REACH, arrivalFor, endsFor, endById } = await import('../src/gateways.js');
 const { BORDER_POSTS } = await import('../src/borderposts.js');
 const { floodFrom } = await import('./helpers/flood.js');
 const { waterGap } = await import('../src/world/builder.js');
-const { isWalkableAt } = await import('../src/player.js');
+const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 const { setGrow } = await import('../src/grow.js');
 const neighborhood = await import('../src/world/neighborhood.js');
@@ -39,7 +39,8 @@ const T = 60000;
 
 setGrow(false);
 const areas = {};
-for (const id of IDS) areas[id] = MODS[id].build(new THREE.Scene());
+const scenes = {};
+for (const id of IDS) areas[id] = MODS[id].build(scenes[id] = new THREE.Scene());
 
 const floods = {};
 const flood = (id) => (floods[id] ??= floodFrom(areas[id], MODS[id].SPAWN, (x, z) => isWalkableAt(areas[id], x, z)));
@@ -62,6 +63,10 @@ function posts(e) {
     ? [{ x: e.x - GATE_HALF, z: e.z }, { x: e.x + GATE_HALF, z: e.z }]
     : [{ x: e.x, z: e.z - GATE_HALF }, { x: e.x, z: e.z + GATE_HALF }];
 }
+// The Fair's and the Farm's south edge, for a child, is the white picket
+// front fence along the gate arch's line (GATE_AT, z 45), 5 m in from the
+// bounds: the strip past it is the lane where a walk starts.
+const FENCE_LINE = { fair: fair.GATE_AT.z, farm: farm.GATE_AT.z };
 const edgeGap = (b, p) => Math.min(p.x - b.minX, b.maxX - p.x, p.z - b.minZ, b.maxZ - p.z);
 
 describe('gateways: where the gates stand', () => {
@@ -80,9 +85,15 @@ describe('gateways: where the gates stand', () => {
       const at = `${a}/${e.id}`;
       const area = areas[a];
       const spawn = MODS[a].SPAWN;
-      const g = edgeGap(area.bounds, e);
-      expect(g, `${at} inside the edge`).toBeGreaterThanOrEqual(2.5);
-      expect(g, `${at} inside the edge`).toBeLessThanOrEqual(3.5);
+      if (FENCE_LINE[a] !== undefined && e.faces === 'south') {
+        // The place's edge on that side is its front fence (P1 below): the
+        // gate is set into it, 5 m in from the bounds.
+        expect(Math.abs(e.z - FENCE_LINE[a]), `${at} on the front fence`).toBeLessThanOrEqual(0.01);
+      } else {
+        const g = edgeGap(area.bounds, e);
+        expect(g, `${at} inside the edge`).toBeGreaterThanOrEqual(2.5);
+        expect(g, `${at} inside the edge`).toBeLessThanOrEqual(3.5);
+      }
       for (const p of posts(e)) {
         for (const c of area.colliders) {
           expect(Math.hypot(p.x - c.x, p.z - c.z) - c.r, `${at} gate post (${p.x}, ${p.z}) vs collider (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(1.2);
@@ -151,3 +162,51 @@ describe('gateways: where the gates stand', () => {
     }
   }, T);
 });
+
+// P1 (the owner, 2026-11-21): the Fair's and the Farm's gates back to the Park
+// are set into each place's white picket front fence, the fence meeting both
+// gate posts. The front fence runs right across the place along the gate
+// arch's line (GATE_AT, z 45); the strip past it, out to the bounds, is the
+// lane where a walk starts. It has no collider (fair.js, farm.js: a cat slips
+// between the pickets), so what meets the posts is the drawn fence.
+describe('P1: the Fair\'s and the Farm\'s gates to the Park are set into the front fence', () => {
+  for (const [a, id, meshName] of [['fair', 'fair-park', 'fairFence'], ['farm', 'farm-park', 'farmFences']]) {
+    it(`${a}/${id}: both posts on the fence line, nothing of the fence in the opening, the fence meeting each post`, () => {
+      const e = endById(id).end;
+      const line = FENCE_LINE[a];
+      const [p, q] = posts(e).sort((u, w) => u.x - w.x);
+      for (const post of [p, q]) expect(Math.abs(post.z - line), `${id} post (${post.x}, ${post.z}) on the fence line z ${line}`).toBeLessThanOrEqual(0.05);
+      // The drawn fence: every vertex of the place's fence mesh on the line.
+      const mesh = scenes[a].getObjectByName(meshName);
+      expect(mesh, meshName).toBeTruthy();
+      mesh.updateWorldMatrix(true, false);
+      const pos = mesh.geometry.attributes.position;
+      const v = new THREE.Vector3();
+      const xs = [];
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+        if (Math.abs(v.z - line) <= 0.3) xs.push(v.x);
+      }
+      const lo = p.x + GATE_POST_R;
+      const hi = q.x - GATE_POST_R;
+      expect(xs.filter((x) => x > lo && x < hi), `${meshName} vertices in the opening of ${id}`).toEqual([]);
+      // Meets: the fence's nearest vertex beyond each post is within a cat's
+      // half-width of that post's side, so no cat-sized gap is left.
+      const left = Math.max(...xs.filter((x) => x <= lo));
+      const right = Math.min(...xs.filter((x) => x >= hi));
+      expect(p.x - GATE_POST_R - left, `${id}: gap between the fence and the post at x ${p.x}`).toBeLessThan(CAT_RADIUS);
+      expect(right - (q.x + GATE_POST_R), `${id}: gap between the fence and the post at x ${q.x}`).toBeLessThan(CAT_RADIUS);
+      // No collider of the place in the opening either; and if the fence ever
+      // gets colliders, they meet each post too (today it has none).
+      const onLine = areas[a].colliders.filter((c) => Math.abs(c.z - line) < c.r + 0.3 && Math.abs(c.x - e.x) < 12);
+      for (const c of onLine) {
+        expect(c.x + c.r <= lo || c.x - c.r >= hi, `${a} collider (${c.x}, ${c.z}) in the opening of ${id}`).toBe(true);
+      }
+      const westC = onLine.filter((c) => c.x < e.x);
+      const eastC = onLine.filter((c) => c.x > e.x);
+      if (westC.length) expect(p.x - GATE_POST_R - Math.max(...westC.map((c) => c.x + c.r))).toBeLessThan(2 * CAT_RADIUS);
+      if (eastC.length) expect(Math.min(...eastC.map((c) => c.x - c.r)) - (q.x + GATE_POST_R)).toBeLessThan(2 * CAT_RADIUS);
+    });
+  }
+});
+

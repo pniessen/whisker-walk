@@ -1718,7 +1718,9 @@ describe('The Fairground: the drawing budget', () => {
     // finer kerb stripes and its top, the coaster platform’s panelled skirt: +312.
     // Round two: the coaster's lights (one mesh, no shadow), the big wheel's
     // sunbursts, red post caps, the stalls' lit insides, three bale stacks: +1,728.
-    expect(built).toEqual({ meshes: 175, casters: 109, triangles: 68732 });
+    // Gateways placement round (2026-11-21): the front fence is cut where the
+    // gate back to the Park is set into it, two more striped end posts: +24.
+    expect(built).toEqual({ meshes: 175, casters: 109, triangles: 68756 });
     expect({ meshes: merged.meshes, casters: merged.casters }).toEqual({ meshes: 160, casters: 104 });
   });
 

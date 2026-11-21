@@ -105,7 +105,7 @@ describe('walking on through a gate', () => {
     const s = h.getSession();
     expect(s.areaId).toBe('farm');
     expect(s.cat.position.x).toBeCloseTo(-8, 9);
-    expect(s.cat.position.z).toBeCloseTo(43.4, 9);
+    expect(s.cat.position.z).toBeCloseTo(41.4, 9);
     expect(s.cat.rotation.y).toBe(0);
     expect(s.arrivedVia).toBe('farm-park');
     expect(h.progression.state.area).toBe('farm');
@@ -210,13 +210,13 @@ describe('walking on through a gate', () => {
       return { out, cat };
     };
     const atSpawn = world(null);
-    const atGate = world({ x: -8, z: 43.4, yaw: 0 });
+    const atGate = world({ x: -8, z: 41.4, yaw: 0 });
     expect(atGate.out).toEqual(atSpawn.out);
     expect(atGate.out.goals).toHaveLength(3);
     expect(atGate.out.rings.length).toBeGreaterThan(0);
     // and the two cats did start in different places
     expect(atGate.cat[0]).toBeCloseTo(-8, 9);
-    expect(atGate.cat[1]).toBeCloseTo(43.4, 9);
+    expect(atGate.cat[1]).toBeCloseTo(41.4, 9);
     expect(atSpawn.cat.slice(0, 2)).not.toEqual(atGate.cat.slice(0, 2));
   }, WALK_MS);
 
@@ -782,7 +782,7 @@ describe('two devices walk on together', () => {
     expect(host.h.getSession().areaId).toBe('farm');
     expect(guest.h.getSession()).toBe(b0); // the guest never heard the walk-on
     // the host's walk in the Farm begins: its first state, tagged with its place
-    hostNet.sendState({ v: 1, id: 'ann', pos: [-8, 43.4], yaw: 0, pose: 'idle', speed: 0, area: 'farm' });
+    hostNet.sendState({ v: 1, id: 'ann', pos: [-8, 41.4], yaw: 0, pose: 'idle', speed: 0, area: 'farm' });
     await vi.advanceTimersByTimeAsync(GATE_MOMENT_MS);
     const a = host.h.getSession();
     const b = guest.h.getSession();

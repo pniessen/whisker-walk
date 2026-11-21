@@ -108,7 +108,7 @@ Three things landed on main after this plan was written and were merged into thi
   - `gatewayNear(areaId, x, z, catalog, { reach = GATE_REACH, table = GATEWAY_ENDS } = {}) -> end | null`: the nearest live end within `reach`; null for non-finite input.
   - `arrivalFor(viaId, table = GATEWAY_ENDS) -> { areaId, x, z, yaw } | null`: where she lands after going through `viaId`: the twin end's area and its `arrive`, or, without one, the twin's spot moved `ARRIVE_IN` inward (opposite `faces`) with yaw `INWARD_YAW[twin.faces]`.
 
-The ten ends (all `placement: 'edge'`; every spot probed on the built maps, re-proved in Task 2):
+The ten ends (all `placement: 'edge'`; every spot probed on the built maps, re-proved in Task 2; `fair-park` and `farm-park` moved from z 47 to the front picket fence at z 45 in the placement round, 2026-11-21):
 
 | area | id | gateway | x | z | faces | to | twin | look | lane |
 |---|---|---|---|---|---|---|---|---|---|
@@ -117,8 +117,8 @@ The ten ends (all `placement: 'edge'`; every spot probed on the built maps, re-p
 | park | `park-town` | town-park | 0 | 49 | south | neighborhood | town-park | signpost | – |
 | park | `park-fair` | park-fair | 0 | -47 | north | fair | fair-park | fairgate | [4, -25.2, 0, -47] |
 | park | `park-farm` | park-farm | 42 | 10 | east | farm | farm-park | farmgate | [16, 10, 42, 10] |
-| fair | `fair-park` | park-fair | 8 | 47 | south | park | park-fair | signpost | – |
-| farm | `farm-park` | park-farm | -8 | 47 | south | park | park-farm | farmgate | – |
+| fair | `fair-park` | park-fair | 8 | 45 | south | park | park-fair | signpost | – |
+| farm | `farm-park` | park-farm | -8 | 45 | south | park | park-farm | farmgate | – |
 | docks | `docks-town` | town-docks | -10 | -37 | north | neighborhood | town-docks | signpost | – |
 | docks | `docks-seaside` | docks-seaside | 35 | -20 | east | seaside | seaside-docks | promenade | – |
 | seaside | `seaside-docks` | docks-seaside | 10 | 45 | south | docks | docks-seaside | promenade | – |
@@ -166,7 +166,7 @@ it('lookups', () => {
 });
 it('she arrives at the twin, 3.6 m inside it, facing in', () => {
   const near = (a, b) => { expect(a.areaId).toBe(b.areaId); for (const k of ['x', 'z', 'yaw']) expect(a[k]).toBeCloseTo(b[k], 9); };
-  near(arrivalFor('park-farm'), { areaId: 'farm', x: -8, z: 43.4, yaw: 0 });
+  near(arrivalFor('park-farm'), { areaId: 'farm', x: -8, z: 41.4, yaw: 0 });
   near(arrivalFor('town-park'), { areaId: 'park', x: 0, z: 45.4, yaw: 0 });
   near(arrivalFor('park-town'), { areaId: 'neighborhood', x: 48.4, z: 0, yaw: Math.PI / 2 });
   near(arrivalFor('docks-town'), { areaId: 'neighborhood', x: 0, z: 48.4, yaw: 0 });
@@ -580,7 +580,7 @@ it('walks straight on from the Park to the Farm: banked quietly, the moment, the
   const s = h.getSession();
   expect(s.areaId).toBe('farm');
   expect(s.cat.position.x).toBeCloseTo(-8, 9);
-  expect(s.cat.position.z).toBeCloseTo(43.4, 9);
+  expect(s.cat.position.z).toBeCloseTo(41.4, 9);
   expect(s.cat.rotation.y).toBe(0);
   expect(s.arrivedVia).toBe('farm-park');
   expect(h.progression.state.area).toBe('farm');

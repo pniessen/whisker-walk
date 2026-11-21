@@ -9,7 +9,10 @@
 //   to, twin      the place beyond, and the id of the end that place has
 //   look          how it is drawn (GATE_LOOKS); 'none' when the area draws it
 //   placement     'edge' (a gate on the area's edge) or 'inside' (a door or a
-//                 climb within the area; needs an explicit `arrive`)
+//                 climb within the area; needs an explicit `arrive`). A place
+//                 fenced short of its bounds (the Fair's and the Farm's white
+//                 front fences, 5 m in) has its edge at that fence: an 'edge'
+//                 gate there is set into the fence (cutForGates below).
 //   lane          optional [x1, z1, x2, z2] path joining the end to the area's walks
 //   arrive        where a cat coming in through this end lands: { x, z, yaw }.
 //                 Without one she lands ARRIVE_IN m inside the end, facing in.
@@ -64,10 +67,12 @@ export const GATEWAY_ENDS = Object.freeze({
     end({ id: 'park-farm', gateway: 'park-farm', x: 42, z: 10, faces: 'east', to: 'farm', twin: 'farm-park', look: 'farmgate', lane: [16, 10, 42, 10] }),
   ]),
   fair: Object.freeze([
-    end({ id: 'fair-park', gateway: 'park-fair', x: 8, z: 47, faces: 'south', to: 'park', twin: 'park-fair', look: 'signpost' }),
+    // Set into the front picket fence (z 45, fair.js cuts it with cutForGates).
+    end({ id: 'fair-park', gateway: 'park-fair', x: 8, z: 45, faces: 'south', to: 'park', twin: 'park-fair', look: 'signpost' }),
   ]),
   farm: Object.freeze([
-    end({ id: 'farm-park', gateway: 'park-farm', x: -8, z: 47, faces: 'south', to: 'park', twin: 'park-farm', look: 'farmgate' }),
+    // Set into the front picket fence (z 45, farm.js cuts it with cutForGates).
+    end({ id: 'farm-park', gateway: 'park-farm', x: -8, z: 45, faces: 'south', to: 'park', twin: 'park-farm', look: 'farmgate' }),
   ]),
   docks: Object.freeze([
     end({ id: 'docks-town', gateway: 'town-docks', x: -10, z: -37, faces: 'north', to: 'neighborhood', twin: 'town-docks', look: 'signpost' }),
@@ -121,3 +126,53 @@ export function inwardOf({ x, z, faces }) {
   const [dx, dz] = THROUGH[faces];
   return { x: x - dx * ARRIVE_IN, z: z - dz * ARRIVE_IN, yaw: INWARD_YAW[faces] };
 }
+
+// m, centre to centre: how far the fence's last post stands beyond a gate's
+// post when a gate is set into a fence (the two posts all but touch).
+export const GATE_FENCE_GAP = 0.25;
+
+// A place's fence runs with its gates cut out. A run is { a: [x, z], b: [x, z],
+// ...anything else } straight along x or along z; an end standing on its line
+// with its edge along it (and its centre between the run's ends) takes
+// GATE_HALF + GATE_FENCE_GAP either side of its centre out of the run, so the
+// fence's last post stands just beside each gate post and nothing of the fence
+// is left in the opening. Every other run, and every other key, comes back as
+// it was. Pure: the area builders call it with endsFor(their id), so a gate
+// set into a fence and the gap in that fence can never drift apart.
+export function cutForGates(runs, ends) {
+  const out = [];
+  const cut = GATE_HALF + GATE_FENCE_GAP;
+  for (const run of runs) {
+    const [ax, az] = run.a;
+    const [bx, bz] = run.b;
+    const alongX = az === bz;
+    if (!alongX && ax !== bx) { out.push(run); continue; }
+    const line = alongX ? az : ax;
+    const u0 = alongX ? ax : az;
+    const u1 = alongX ? bx : bz;
+    const lo = Math.min(u0, u1);
+    const hi = Math.max(u0, u1);
+    const holes = ends
+      .filter((e) => (alongX ? e.faces === 'north' || e.faces === 'south' : e.faces === 'east' || e.faces === 'west'))
+      .filter((e) => Math.abs((alongX ? e.z : e.x) - line) < 0.01)
+      .map((e) => (alongX ? e.x : e.z))
+      .filter((c) => c > lo && c < hi)
+      .map((c) => [c - cut, c + cut])
+      .sort((p, q) => p[0] - q[0]);
+    if (!holes.length) { out.push(run); continue; }
+    // The pieces left, in the run's own direction.
+    const pieces = [];
+    let from = lo;
+    for (const [h0, h1] of holes) {
+      if (h0 - from > 0.05) pieces.push([from, h0]);
+      from = Math.max(from, h1);
+    }
+    if (hi - from > 0.05) pieces.push([from, hi]);
+    if (u0 > u1) { pieces.reverse(); for (const pc of pieces) pc.reverse(); }
+    for (const [p0, p1] of pieces) {
+      out.push({ ...run, a: alongX ? [p0, line] : [line, p0], b: alongX ? [p1, line] : [line, p1] });
+    }
+  }
+  return out;
+}
+

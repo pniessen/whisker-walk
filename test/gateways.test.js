@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   GATE_REACH, GATE_HALF, GATE_POST_R, ARRIVE_IN, GATE_LOOKS, PLACEMENTS, INWARD_YAW,
   GATEWAY_ENDS, gatewayEnd, endsFor, endById, liveEndsFor, gatewayNear, arrivalFor,
+  GATE_FENCE_GAP, cutForGates,
 } from '../src/gateways.js';
 import { GATEWAYS } from '../src/worldmap.js';
 import { CATALOG } from '../src/progression.js';
@@ -18,8 +19,8 @@ const TABLE = [
   ['park', 'park-town', 'town-park', 0, 49, 'south', 'neighborhood', 'town-park', 'signpost', null],
   ['park', 'park-fair', 'park-fair', 0, -47, 'north', 'fair', 'fair-park', 'fairgate', [4, -25.2, 0, -47]],
   ['park', 'park-farm', 'park-farm', 42, 10, 'east', 'farm', 'farm-park', 'farmgate', [16, 10, 42, 10]],
-  ['fair', 'fair-park', 'park-fair', 8, 47, 'south', 'park', 'park-fair', 'signpost', null],
-  ['farm', 'farm-park', 'park-farm', -8, 47, 'south', 'park', 'park-farm', 'farmgate', null],
+  ['fair', 'fair-park', 'park-fair', 8, 45, 'south', 'park', 'park-fair', 'signpost', null],
+  ['farm', 'farm-park', 'park-farm', -8, 45, 'south', 'park', 'park-farm', 'farmgate', null],
   ['docks', 'docks-town', 'town-docks', -10, -37, 'north', 'neighborhood', 'town-docks', 'signpost', null],
   ['docks', 'docks-seaside', 'docks-seaside', 35, -20, 'east', 'seaside', 'seaside-docks', 'promenade', null],
   ['seaside', 'seaside-docks', 'docks-seaside', 10, 45, 'south', 'docks', 'docks-seaside', 'promenade', null],
@@ -65,13 +66,32 @@ describe('gateways', () => {
   });
   it('she arrives at the twin, 3.6 m inside it, facing in', () => {
     const near = (a, b) => { expect(a.areaId).toBe(b.areaId); for (const k of ['x', 'z', 'yaw']) expect(a[k]).toBeCloseTo(b[k], 9); };
-    near(arrivalFor('park-farm'), { areaId: 'farm', x: -8, z: 43.4, yaw: 0 });
+    near(arrivalFor('park-farm'), { areaId: 'farm', x: -8, z: 41.4, yaw: 0 });
+    near(arrivalFor('park-fair'), { areaId: 'fair', x: 8, z: 41.4, yaw: 0 });
     near(arrivalFor('town-park'), { areaId: 'park', x: 0, z: 45.4, yaw: 0 });
     near(arrivalFor('park-town'), { areaId: 'neighborhood', x: 48.4, z: 0, yaw: Math.PI / 2 });
     near(arrivalFor('docks-town'), { areaId: 'neighborhood', x: 0, z: 48.4, yaw: 0 });
     near(arrivalFor('town-docks'), { areaId: 'docks', x: -10, z: -33.4, yaw: Math.PI });
     near(arrivalFor('seaside-docks'), { areaId: 'docks', x: 31.4, z: -20, yaw: Math.PI / 2 });
     expect(arrivalFor('nope')).toBeNull();
+  });
+  it('cutForGates takes each gate on a fence run out of it, and leaves every other run as it was', () => {
+    expect(GATE_FENCE_GAP).toBe(0.25);
+    const cut = GATE_HALF + GATE_FENCE_GAP; // 1.65
+    const southGate = { x: 8, z: 45, faces: 'south' };
+    const eastGate = { x: 30, z: 2, faces: 'east' };
+    const r = (a, b, more) => ({ a, b, ...more });
+    const close = (runs) => runs.map(({ a, b, ...rest }) => ({ a: a.map((v) => +v.toFixed(9)), b: b.map((v) => +v.toFixed(9)), ...rest }));
+    // west to east, and east to west (each piece keeps the run's direction)
+    expect(close(cutForGates([r([3.8, 45], [44, 45], { style: 'picket' })], [southGate])))
+      .toEqual(close([r([3.8, 45], [8 - cut, 45], { style: 'picket' }), r([8 + cut, 45], [44, 45], { style: 'picket' })]));
+    expect(close(cutForGates([r([44, 45], [3.8, 45])], [southGate]))).toEqual(close([r([44, 45], [8 + cut, 45]), r([8 - cut, 45], [3.8, 45])]));
+    // along z, for a gate facing east or west
+    expect(close(cutForGates([r([30, -10], [30, 10])], [eastGate]))).toEqual(close([r([30, -10], [30, 2 - cut]), r([30, 2 + cut], [30, 10])]));
+    // not on the line, the wrong way round, or past the run's end: untouched
+    const runs = [r([-44, 45], [-3.8, 45]), r([3.8, 46], [44, 46]), r([8, 30], [8, 50]), r([3.8, 45], [7, 45])];
+    expect(cutForGates(runs, [southGate])).toEqual([runs[0], runs[1], runs[2], r([3.8, 45], [7, 45])]);
+    expect(cutForGates(runs, [])).toEqual(runs);
   });
   it('a front door is data only (the Old House, later)', () => {
     const table = {
