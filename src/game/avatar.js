@@ -161,6 +161,7 @@ export function createAvatarUpdater({
         let nearest = null;
         let nearestDist = 1.3;
         for (const r of s.remotes.list) {
+          if (r.group.visible === false) continue; // not drawn yet (remotecats.js): nobody to tag
           const d = r.group.position.distanceTo(paws);
           if (d < nearestDist) { nearestDist = d; nearest = r; }
         }

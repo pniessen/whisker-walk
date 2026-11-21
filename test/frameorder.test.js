@@ -226,7 +226,7 @@ function makeSession() {
   s.find = system('find', { impl: { update: () => null } });
   s.race = system('race', { props: { state: 'idle' } });
   s.carry = { items: system('carry.items') };
-  s.remotes = system('remotes', { props: { list: [] } });
+  s.remotes = system('remotes', { props: { list: [], placed: [] } });
   s.pushThroughs = system('pushThroughs', { impl: { update: () => [] } });
   return s;
 }
@@ -405,8 +405,11 @@ describe('what the frame hands its systems', () => {
   });
 
   it('every cat on her screen pushes the flaps: hers first, then each co-walker\'s', () => {
-    const partner = { group: { position: { x: 9, y: 0, z: 9 }, rotation: { y: 0 }, scale: { y: 1 } }, water: { placed: false }, speed: 0 };
-    session.remotes = system('remotes', { props: { list: [partner] } });
+    // remotecats' `placed`: the co-walkers drawn so far. One still waiting for
+    // its first state (F6 R16: not drawn, not at the origin) pushes nothing.
+    const partner = { group: { position: { x: 9, y: 0, z: 9 }, rotation: { y: 0 }, scale: { y: 1 } }, water: { placed: true }, speed: 0 };
+    const waiting = { group: { position: { x: 0, y: 0, z: 0 }, rotation: { y: 0 }, scale: { y: 1 } }, water: { placed: false }, speed: 0 };
+    session.remotes = system('remotes', { props: { list: [partner, waiting], placed: [partner] } });
     frame(1020);
     const [dt, movers] = argsOf('pushThroughs.update');
     expect(dt).toBeCloseTo(0.02, 12);
@@ -455,6 +458,16 @@ describe('what the frame hands its systems', () => {
     frame(1020);
     expect(ran(['minimap.show', 'remotes.update', 'minimap.update'])).toEqual(['minimap.show', 'remotes.update', 'minimap.update']);
     expect(argsOf('minimap.update')[1].camp).toBe(session.campMarker);
+  });
+
+  it('the corner map has a dot for each co-walker drawn so far, and none for one still on its way', () => {
+    session.minimap = system('minimap');
+    const partner = { group: { position: { x: 4, y: 0, z: -3 }, rotation: { y: 0 }, scale: { y: 1 } }, water: { placed: true }, speed: 0, breed: 'tabby', look: null };
+    const waiting = { group: { position: { x: 0, y: 0, z: 0 }, rotation: { y: 0 }, scale: { y: 1 } }, water: { placed: false }, speed: 0, breed: 'tabby', look: null };
+    session.remotes = system('remotes', { props: { list: [partner, waiting], placed: [partner] } });
+    frame(1020);
+    const dots = argsOf('minimap.update')[1].remotes;
+    expect(dots.map((d) => [d.x, d.z])).toEqual([[4, -3]]);
   });
 });
 

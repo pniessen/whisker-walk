@@ -1407,7 +1407,8 @@ function init() {
       // makes a sound: a flap's soft thunk, a hedge's rustle.
       pushMovers.length = 0;
       pushMovers.push(session.cat.position);
-      for (const r of session.remotes.list) pushMovers.push(r.group.position);
+      // (only cats drawn yet: one still waiting for its first state pushes nothing)
+      for (const r of session.remotes.placed) pushMovers.push(r.group.position);
       for (const push of session.pushThroughs.update(dt, pushMovers)) {
         if (push.by === 0) (push.kind === 'gap' ? audio.zoomWind() : audio.landThump());
       }
@@ -1425,7 +1426,8 @@ function init() {
         mapFrame.camp = session.campMarker;
         mapFrame.posts = session.postMarkers;
         mapRemotes.length = 0;
-        for (const r of session.remotes.list) {
+        // a co-walker's dot from its first state, as its cat is drawn (remotecats.js)
+        for (const r of session.remotes.placed) {
           let dot = mapRemotePool[mapRemotes.length];
           if (!dot) { dot = { x: 0, z: 0, color: 0 }; mapRemotePool.push(dot); }
           dot.x = r.group.position.x;

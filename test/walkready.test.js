@@ -333,7 +333,9 @@ describe('a co-walker who arrives late', () => {
   it('a member silent past DESPAWN_AFTER is drawn again, where it is, when its state comes', async () => {
     const { life, peer } = await roomWalk();
     const s = life.getSession();
-    expect(ids(s)).toEqual([PEER]); // in the room from the start
+    expect(ids(s)).toEqual([PEER]); // in the room from the start ...
+    expect(s.remotes.list[0].group.visible).toBe(false); // ... but not drawn before its first state
+    expect(s.remotes.placed).toEqual([]);
     s.remotes.update(0.1, nowSec() + 6); // still loading: quiet for more than 5 s
     expect(ids(s)).toEqual([]);
     peer.sendState(state([3, -4]));
@@ -341,6 +343,8 @@ describe('a co-walker who arrives late', () => {
     const cat = s.remotes.list[0];
     expect(cat.petName).toBe('Robin');
     expect([cat.group.position.x, cat.group.position.z]).toEqual([3, -4]);
+    expect(cat.group.visible).toBe(true);
+    expect(s.remotes.placed).toEqual([cat]);
     end(life);
   });
 
