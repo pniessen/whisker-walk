@@ -36,6 +36,7 @@ const { STEP_MAX } = await import('../src/ground.js');
 const { findFadeOccluders } = await import('../src/treefade.js');
 const { castsFromBox, isTransparentMat, SUN_POSITION } = await import('../src/render/rig.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
+const { ROOFS_BIRDS, perchIndex, roofsCritterSpawns } = await import('../src/world/roofsflock.js');
 const { clearSpot } = await import('../src/world/spots.js');
 const { BASE_ABILITIES } = await import('../src/traversal.js');
 const { floodTraversal } = await import('./helpers/traversalflood.js');
@@ -2090,7 +2091,7 @@ describe('the Rooftops drawn', () => {
     expect(area.strays).toBe(false);
     expect(area.waters).toEqual([]);
     expect(area.waterFx).toEqual([]);
-    expect(area.critterSpawns).toEqual([]);
+    expect(area.critterSpawns).toEqual(roofsCritterSpawns(ROOFS_BIRDS, perchIndex(area.birdPerches)));
     expect(area.moments).toEqual([]);
     for (const k of ['boxes', 'pois', 'collectibles', 'scenics', 'puddles', 'tippables', 'perches', 'colliders']) {
       expect(Array.isArray(area[k]), k).toBe(true);
@@ -2385,7 +2386,7 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
     expect(feedsHere('roofs')).toBe(false);
     expect(Object.hasOwn(LEGENDARY_BY_AREA, 'roofs')).toBe(false);
     expect(propsFor('roofs').dogYard).toBeNull();
-    expect(area.critterSpawns).toEqual([]);
+    expect(area.critterSpawns).toEqual(roofsCritterSpawns(ROOFS_BIRDS, perchIndex(area.birdPerches)));
     expect(area.strays).toBe(false);
   });
 

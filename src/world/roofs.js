@@ -14,7 +14,7 @@ import {
 } from './roofsplan.js';
 import { STEP_MAX } from '../ground.js';
 import { createRoofsLife, mixHex } from '../roofslife.js';
-import { DRAWN_ID, flockPerches } from './roofsflock.js';
+import { DRAWN_ID, ROOFS_BIRDS, flockPerches, perchIndex, roofsCritterSpawns } from './roofsflock.js';
 
 // =============================================================================
 // THE ROOFTOPS, DRAWN (Rooftops step 2). Every position comes from
@@ -570,7 +570,7 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
       pois: plan.pois.map((p) => ({ ...p })), // 13, all walked to from the spawn (R5)
       collectibles: plan.collectibles.map((c) => ({ ...c })),
       scenics: plan.scenics.map((c) => ({ ...c })),
-      critterSpawns: [], // R8; step 3 adds the birds
+      critterSpawns: [], // the birds, below: one critter each, at its home (step 3)
       moments: [],
       puddles: [],
       groundBounce: ROOFS_GROUND_COLOR,
@@ -591,6 +591,9 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
       // Task 5 names the smoking pots
       birdPerches: flockPerches({ traversal: ROOFS_TRAVERSAL, ground, drawn, smoking: [] }),
     };
+    // the fourteen birds as the walk's critters (tag, the bell, a meow, the
+    // journal: critters.js), each at its home; the life flies them
+    record.critterSpawns = roofsCritterSpawns(ROOFS_BIRDS, perchIndex(record.birdPerches));
     // the evening deepening over the walk, and the bus (roofslife.js)
     record.life = createRoofsLife(record);
     return record;

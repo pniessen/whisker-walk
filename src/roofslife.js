@@ -41,7 +41,12 @@
 // THE FLOCK (Rooftops step 3, world/roofsbirds.js): where the place has bird
 // perches (area.birdPerches), the life makes the fourteen birds, hands them
 // her spot and the camera every frame, and takes them away at the walk's end.
-// A record without them (older tests' fake areas) has no flock.
+// It hands them the walk's critters (the birds are critters for tag; the
+// flock flies them) and her walks here before this one, and the guide's
+// memory: the context's `guideStore` where it has one (the picture pages'),
+// else the device's (roofsbirds.js deviceGuideStore). update() runs after
+// critters.update (main.js), so the flock's spots are the critters' this
+// frame. A record without perches (older tests' fake areas) has no flock.
 // =============================================================================
 import { skyBackground } from './render/sky.js';
 import { BUS } from './world/roofsplan.js';
@@ -85,9 +90,10 @@ export function busAt(t, out = {}) {
 // createRoofsLife(area) -> (ctx) => { update(dt, t, catPos, camera), dispose() }.
 // `area` is the built record (its skySunset, skyDusk, skyGlow, markGlow, bus
 // and birdPerches); ctx is walk.js's life context ({ scene, sun, fill,
-// critters, visits, reducedMotion, ... }).
+// critters, visits, reducedMotion, ... }), or a picture page's (which may add
+// a `guideStore`).
 export function createRoofsLife(area) {
-  return ({ scene, sun, fill, critters, visits, reducedMotion }) => {
+  return ({ scene, sun, fill, critters, visits, reducedMotion, guideStore }) => {
     const from = area.skySunset;
     const to = area.skyDusk;
     const sunEnd = sun.intensity;
@@ -137,7 +143,7 @@ export function createRoofsLife(area) {
     }
 
     const birds = area.birdPerches
-      ? createRoofsBirds(area, { scene, critters: critters ?? null, visits: visits ?? 0, reducedMotion: reducedMotion ?? false })
+      ? createRoofsBirds(area, { scene, critters: critters ?? null, visits: visits ?? 0, reducedMotion: reducedMotion ?? false, guideStore })
       : null;
 
     apply(); // the first frame is already sunset

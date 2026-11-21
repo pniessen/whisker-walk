@@ -564,6 +564,9 @@ export function roofsArea() {
 //   firstRoof  from the spawn, up the bin, the shed and onto the garage roof:
 //              the spec's "A child gets onto the first roof within the first
 //              minute", in seconds.
+//   terrace    firstRoof, then on over plank-2 to the flat roof (below).
+//   birds      after the guide pigeon, over plank-3 (below; its test runs
+//              the flock and the walk's critters with it: test/roofsbirds.test.js).
 export const ROOFS_TOURS = deepFreeze({
   firstRoof: {
     start: { x: ROOFS_SPAWN.x, z: ROOFS_SPAWN.z, face: [0, -1] },
@@ -585,6 +588,22 @@ export const ROOFS_TOURS = deepFreeze({
       { say: 'Over the plank' }, { walk: [1.0, 29.3] }, { walk: [1.0, 18.6] },
       { say: 'Up the drainpipe' }, { walk: [EXT_CX(7), 17.3] }, { jump: true },
       { say: 'Onto the flat roof' }, { walk: [2.0, 12.8] }, { jump: true }, { walk: [2.5, 8.0] },
+    ],
+  },
+  // Following the guide pigeon (step 3, the film): up to it in the alley
+  // (it waits 4.6 m in front of her, further than it lets her come), then
+  // firstRoof's way up the bin and onto the shed, which flushes it from the
+  // bin's lid and the shed's roof; along the shed to plank-3's near end,
+  // where it waits, and over the plank after it onto ext-10's roof. Not onto
+  // the garage roof: no drop leads back down from it to the shed.
+  birds: {
+    start: { x: ROOFS_SPAWN.x, z: ROOFS_SPAWN.z, face: [0, -1] },
+    steps: [
+      { say: 'A pigeon in the alley' }, { walk: [5.2, 38.4] },
+      { say: 'Up the bin' }, { walk: [14.5, 37.6] }, { walk: [14.5, 36.6] }, { jump: true },
+      { say: 'Onto the shed' }, { jump: true },
+      { say: 'After the pigeon, over the plank' }, { walk: [16, 29.3] }, { walk: [16, 19.0] },
+      { say: 'Onto the roof' }, { walk: [16, 17.6] },
     ],
   },
 });
