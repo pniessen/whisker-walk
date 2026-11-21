@@ -16,6 +16,11 @@ const { HOUSE_SHOTS } = await import('../src/world/housetour.js');
 const { behindYaw } = await import('../src/traversal.js');
 const { cameraOffset } = await import('../src/catcam.js');
 const { build } = await import('../src/world/house.js');
+const { HOUSE_LEDGES, houseFloorGround } = await import('../src/world/houseplan.js');
+const { HOUSE_PERCHES, HOUSE_ROUTES } = await import('../src/world/housemoves.js');
+const { facingYaw } = await import('../src/traversal.js');
+const { createTreeFade, findFadeOccluders } = await import('../src/treefade.js');
+const { CAT_LOOK_Y } = await import('../src/cat/model.js');
 
 // =============================================================================
 // The Old House, Task 6: "If the camera ever shows a wall instead of the cat,
@@ -356,6 +361,257 @@ describe('the life hook', () => {
     for (const s of withPane) expect(rel(s, panes.get(s.id)[0])).toEqual(rest.get(s.id));
   }, 60_000);
 
+});
+
+// =============================================================================
+// Step 2, Task 3: never lost on a climb. The furniture tops she stands on are
+// ground (ledges, houseplan.js HOUSE_LEDGES, ruling D1), joined by the Rooftops'
+// moves (housemoves.js), and the knock-over pieces are perches. Ruling D1's cost:
+// with the camera over a ledge, the rock rule (camzoom.js) pulls the view in
+// toward her (Review Focus 1). The real player, the traversal runtime and the
+// walls' sink, frame by frame, at every view step.
+// =============================================================================
+
+// Every spot on a ledge's top she can stand on, no further apart than 0.25 m, out to 2 cm
+// inside its edges (the wall behind a wall-backed top keeps her 0.55 m off its line).
+function ledgeCells(l, area) {
+  const line = (lo, hi) => {
+    const n = Math.max(1, Math.ceil((hi - lo - 0.04) / 0.25 - 1e-9));
+    return Array.from({ length: n + 1 }, (_, i) => lo + 0.02 + ((hi - lo - 0.04) * i) / n);
+  };
+  const out = [];
+  for (const x of line(l.minX, l.maxX)) for (const z of line(l.minZ, l.maxZ)) {
+    if (isWalkableAt(area, x, z) && Math.abs(area.ground.y(x, z) - l.y) < 1e-6) out.push([x, z]);
+  }
+  return out;
+}
+// Horizontal distance from (x, z) to a ledge's footprint (0 inside it).
+const toLedge = (l, x, z) => Math.hypot(Math.max(l.minX - x, 0, x - l.maxX), Math.max(l.minZ - z, 0, z - l.maxZ));
+const floorGround = houseFloorGround();
+const onFloor = (area, x, z) => Math.abs(area.ground.y(x, z) - floorGround.y(x, z)) < 1e-6;
+
+// Frame by frame, the camera's longest step and the longest run of frames she was lost.
+function watcher(w) {
+  const prev = w.camera.position.clone();
+  const st = { run: 0, longest: 0, worst: 0, at: '' };
+  st.frame = (tag) => {
+    w.frame(1 / 60);
+    const c = w.camera.position;
+    const d = c.distanceTo(prev);
+    if (d > st.worst) { st.worst = d; st.at = `${tag} at ${w.cat.position.x.toFixed(2)},${w.cat.position.y.toFixed(2)},${w.cat.position.z.toFixed(2)}`; }
+    prev.copy(c);
+    st.run = w.blockers().length ? st.run + 1 : 0;
+    st.longest = Math.max(st.longest, st.run);
+  };
+  return st;
+}
+
+describe('never lost on a climb', () => {
+  it('never lost on a ledge: every 0.25 m cell of every ledge, 8 directions, all four view steps', () => {
+    const w = createHouseWalk({ moves: true });
+    const bad = [];
+    let n = 0;
+    for (const l of HOUSE_LEDGES) {
+      const cells = ledgeCells(l, w.area);
+      expect(cells.length, l.id).toBeGreaterThan(0);
+      for (const [x, z] of cells) for (let k = 0; k < 8; k++) for (const zoom of ZOOMS) {
+        w.placeOnLedge(l.id, x, z, (k * Math.PI) / 4, zoom);
+        n++;
+        const b = w.blockers();
+        if (b.length) bad.push(say(x, z, `${l.id} yaw ${k} zoom ${zoom}: ${b.join(' ')}`));
+        if (cameraInsideStanding(w)) bad.push(say(x, z, `${l.id} yaw ${k} zoom ${zoom}: camera inside a wall`));
+      }
+    }
+    expect(n).toBeGreaterThan(1500);
+    expect(bad).toEqual([]);
+  }, 90_000);
+
+  it('never lost on a perch: every knock-over perch, 8 directions, all four view steps', () => {
+    const w = createHouseWalk({ moves: true });
+    const bad = [];
+    for (const p of HOUSE_PERCHES) for (let k = 0; k < 8; k++) for (const zoom of ZOOMS) {
+      w.placeOnPerch(p, (k * Math.PI) / 4, zoom);
+      expect(w.cat.position.y, p.id).toBeCloseTo(w.area.ground.y(p.x, p.z) + p.y, 9);
+      const b = w.blockers();
+      if (b.length) bad.push(say(p.x, p.z, `${p.id} yaw ${k} zoom ${zoom}: ${b.join(' ')}`));
+      if (cameraInsideStanding(w)) bad.push(say(p.x, p.z, `${p.id} yaw ${k} zoom ${zoom}: camera inside a wall`));
+    }
+    expect(bad).toEqual([]);
+  }, 60_000);
+
+  it('never lost on a move: along the plank and through every hop, eased, at every view step', () => {
+    const w = createHouseWalk({ reducedMotion: false, moves: true });
+    const hops = new Map(w.area.traversal.hops.map((h) => [h.id, h]));
+    const crossings = new Map(w.area.traversal.crossings.map((c) => [c.id, c]));
+    const off = [];
+    let moved = 0;
+    for (const [route, ids] of Object.entries(HOUSE_ROUTES)) for (const zoom of ZOOMS) {
+      const tag = `${route} zoom ${zoom}`;
+      const first = hops.get(ids[0]);
+      w.place(first.x0, first.z0, behindYaw(first.x1 - first.x0, first.z1 - first.z0), zoom);
+      w.cat.rotation.y = facingYaw(first.x1 - first.x0, first.z1 - first.z0);
+      expect(w.blockers(), `${tag} at the start`).toEqual([]);
+      const st = watcher(w);
+      for (const id of ids) {
+        const c = crossings.get(id);
+        if (c) {
+          // onto the plank at its nearer end, the stick held along it, and off its far end
+          const near = Math.hypot(w.cat.position.x - c.ends[0].x, w.cat.position.z - c.ends[0].z)
+            <= Math.hypot(w.cat.position.x - c.ends[1].x, w.cat.position.z - c.ends[1].z) ? 0 : 1;
+          const e = c.ends[near];
+          const far = c.ends[1 - near];
+          w.push(e.inX, e.inZ);
+          for (let i = 0; i < 3 * 60 && !w.traversal.crossing; i++) st.frame(`${tag} to ${id}`);
+          expect(w.traversal.crossing?.id, `${tag} gets on ${id}`).toBe(id);
+          for (let i = 0; i < Math.ceil((c.length / 1.2 + 3) * 60) && w.traversal.crossing; i++) st.frame(`${tag} on ${id}`);
+          w.release();
+          expect(w.traversal.crossing, `${tag} off ${id}`).toBe(null);
+          const d = Math.hypot(w.cat.position.x - far.x, w.cat.position.z - far.z);
+          if (d > 0.05 || Math.abs(w.cat.position.y - far.y) > 0.05) off.push(`${tag} ${id} ends ${d.toFixed(3)} off`);
+          moved++;
+          // the thumb lifted, a frame before the next push (the held stick lets go)
+          st.frame(`${tag} off ${id}`);
+          continue;
+        }
+        const h = hops.get(id);
+        // walk to its take-off (the jump's crouch glides her the last of it)
+        for (let i = 0; i < 4 * 60 && Math.hypot(w.cat.position.x - h.x0, w.cat.position.z - h.z0) > 0.3; i++) {
+          w.push(h.x0 - w.cat.position.x, h.z0 - w.cat.position.z);
+          st.frame(`${tag} to ${id}`);
+        }
+        w.release();
+        expect(w.jump(), `${tag} ${id} jump at ${w.cat.position.x.toFixed(3)},${w.cat.position.y.toFixed(3)},${w.cat.position.z.toFixed(3)} perchY ${w.player.perchY} yaw ${w.cat.rotation.y.toFixed(2)}`).toBe(true);
+        expect(w.traversal.hop?.id, `${tag} the jump takes ${id}`).toBe(id);
+        for (let i = 0; i < 6 * 60 && w.traversal.busy; i++) st.frame(`${tag} ${id}`);
+        expect(w.traversal.busy, `${tag} ${id} is over`).toBe(false);
+        const d = Math.hypot(w.cat.position.x - h.x1, w.cat.position.z - h.z1);
+        if (d > 0.05 || Math.abs(w.cat.position.y - h.y1) > 0.05) off.push(`${tag} ${id} ends ${d.toFixed(3)} off, y ${w.cat.position.y.toFixed(3)}`);
+        moved++;
+      }
+      // a moment on the floor again
+      for (let i = 0; i < 30; i++) st.frame(`${tag} after`);
+      expect(st.longest, `${tag} frames lost`).toBeLessThanOrEqual(15);
+      expect(st.worst, `${tag} camera step, worst ${st.at}`).toBeLessThanOrEqual(0.25);
+    }
+    expect(moved).toBe(Object.values(HOUSE_ROUTES).flat().length * ZOOMS.length);
+    expect(off).toEqual([]);
+  }, 90_000);
+
+  it('beside a ledge on the floor, she is seen and the camera never jumps', () => {
+    const w = createHouseWalk({ moves: true });
+    const flood = houseFlood(w.area, w.area.spawn, 0.25);
+    const cells = flood.cells.filter((c) => onFloor(w.area, c.x, c.z)
+      && HOUSE_LEDGES.some((l) => toLedge(l, c.x, c.z) > 0 && toLedge(l, c.x, c.z) <= 0.8 && Math.abs(w.area.ground.y(c.x, c.z) - levelY(l.level)) < 1e-6));
+    expect(cells.length).toBeGreaterThan(150);
+    const bad = [];
+    for (const { x, z } of cells) for (let k = 0; k < 8; k++) for (const zoom of ZOOMS) {
+      w.place(x, z, (k * Math.PI) / 4, zoom);
+      const b = w.blockers();
+      if (b.length) bad.push(say(x, z, `yaw ${k} zoom ${zoom}: ${b.join(' ')}`));
+    }
+    expect(bad).toEqual([]);
+    // along each open side of every ledge, 0.45 m out (her side brushing it), from 0.4 m
+    // short of its one end to 0.4 m past the other, eased, every view yaw and step
+    const e = createHouseWalk({ reducedMotion: false, moves: true });
+    const jumps = [];
+    let sides = 0;
+    for (const l of HOUSE_LEDGES) {
+      const y = levelY(l.level);
+      const lines = [
+        [l.minX - 0.4, l.minZ - 0.45, l.maxX + 0.4, l.minZ - 0.45],
+        [l.minX - 0.4, l.maxZ + 0.45, l.maxX + 0.4, l.maxZ + 0.45],
+        [l.minX - 0.45, l.minZ - 0.4, l.minX - 0.45, l.maxZ + 0.4],
+        [l.maxX + 0.45, l.minZ - 0.4, l.maxX + 0.45, l.maxZ + 0.4],
+      ];
+      for (const [ax, az, bx, bz] of lines) {
+        // the stretch of the line she can stand on, from its first open spot to its last
+        const open = (x, z) => isWalkableAt(e.area, x, z) && onFloor(e.area, x, z) && Math.abs(e.area.ground.y(x, z) - y) < 1e-6;
+        const n = Math.round(Math.hypot(bx - ax, bz - az) / 0.05);
+        const at = (i) => [ax + ((bx - ax) * i) / n, az + ((bz - az) * i) / n];
+        let i0 = 0;
+        while (i0 <= n && !open(...at(i0))) i0++;
+        let i1 = n;
+        while (i1 > i0 && !open(...at(i1))) i1--;
+        if (i1 - i0 < 10 || !open(...at(Math.round((i0 + i1) / 2)))) continue;
+        const [x0, z0] = at(i0);
+        const [x1, z1] = at(i1);
+        sides++;
+        const len = Math.hypot(x1 - x0, z1 - z0);
+        for (let k = 0; k < 8; k++) for (const zoom of ZOOMS) {
+          e.place(x0, z0, (k * Math.PI) / 4, zoom);
+          const st = watcher(e);
+          // the stick held along the side until she is past its end, then let go
+          e.push(x1 - x0, z1 - z0);
+          const along = () => ((e.cat.position.x - x0) * (x1 - x0) + (e.cat.position.z - z0) * (z1 - z0)) / len;
+          for (let i = 0; i < Math.ceil((len / 3.5 + 1) * 60) && along() < len; i++) st.frame(`${l.id} yaw ${k} zoom ${zoom}`);
+          e.release();
+          for (let i = 0; i < 20; i++) st.frame(`${l.id} yaw ${k} zoom ${zoom}`);
+          if (st.worst > 0.25) jumps.push(`${st.worst.toFixed(3)} m: ${st.at}`);
+        }
+      }
+    }
+    // 26 sides of the 11 ledges are open floor (the rest stand against a wall or another ledge)
+    expect(sides).toBe(26);
+    expect(jumps).toEqual([]);
+  }, 90_000);
+
+  it('the library\'s north-west corner on the floor, between bookcases n1 and w: 16 directions, three pitches', () => {
+    // the corner test's spot there is on n1's top (step 2); this is the floor beside it
+    const w = createHouseWalk({ moves: true });
+    const library = HOUSE_ROOMS.find((r) => r.id === 'library');
+    const flood = houseFlood(w.area, w.area.spawn, 0.25);
+    const [cx, cz] = [library.minX + 0.6, library.minZ + 0.6];
+    let spot = null;
+    for (const c of flood.cells) {
+      if (!onFloor(w.area, c.x, c.z)) continue;
+      const d = Math.hypot(c.x - cx, c.z - cz);
+      if (!spot || d < spot.d) spot = { d, x: c.x, z: c.z };
+    }
+    expect(spot.d).toBeLessThanOrEqual(1.0);
+    expect(w.area.ground.y(spot.x, spot.z)).toBe(0);
+    const bad = [];
+    for (let k = 0; k < 16; k++) for (const zoom of ZOOMS) for (const pitch of [-0.25, DEFAULT_PITCH, 0.85]) {
+      w.place(spot.x, spot.z, (k * Math.PI) / 8, zoom, pitch);
+      const b = w.blockers();
+      if (b.length) bad.push(say(spot.x, spot.z, `yaw ${k} zoom ${zoom} pitch ${pitch}: ${b.join(' ')}`));
+      if (cameraInsideStanding(w)) bad.push(say(spot.x, spot.z, `yaw ${k} zoom ${zoom} pitch ${pitch}: camera inside a wall`));
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it('the piece she stands on never fades', () => {
+    const scene = new THREE.Scene();
+    build(scene);
+    const fade = createTreeFade([...findFadeOccluders(scene)]);
+    const w = createHouseWalk({ moves: true });
+    const look = { x: 0, y: 0, z: 0 };
+    const tall = HOUSE_LEDGES.map((l) => [l, scene.getObjectByName(`houseTall:${l.id}`)]).filter(([, g]) => g);
+    // the bookcases, the wardrobe and the bedroom's bookshelf are tall pieces, which fade (ruling H8)
+    expect(tall.map(([l]) => l.id).sort()).toEqual(['bedroom-shelf', 'bedroom-wardrobe', 'library-books-n1', 'library-books-n2', 'library-books-w']);
+    const bad = [];
+    for (const [l, g] of tall) {
+      // the spot she stands on nearest the ledge's centre
+      const [x, z] = ledgeCells(l, w.area).reduce((a, b) => (Math.hypot(b[0] - (l.minX + l.maxX) / 2, b[1] - (l.minZ + l.maxZ) / 2)
+        < Math.hypot(a[0] - (l.minX + l.maxX) / 2, a[1] - (l.minZ + l.maxZ) / 2) ? b : a));
+      for (let k = 0; k < 8; k++) for (const zoom of ZOOMS) {
+        w.placeOnLedge(l.id, x, z, (k * Math.PI) / 4, zoom);
+        for (let i = 0; i < 60; i++) {
+          w.frame(1 / 60);
+          look.x = w.cat.position.x;
+          look.y = w.cat.position.y + CAT_LOOK_Y;
+          look.z = w.cat.position.z;
+          fade.update(1 / 60, w.camera, look);
+        }
+        expect(Math.abs(w.area.ground.y(w.cat.position.x, w.cat.position.z) - l.y), `${l.id} still on it`).toBeLessThan(1e-6);
+        const faded = fade.faded().has(g);
+        let solid = true;
+        g.traverse((o) => { if (o.isMesh) for (const m of [].concat(o.material)) if (m.opacity !== 1) solid = false; });
+        if (faded || !solid) bad.push(`${l.id} yaw ${k} zoom ${zoom}`);
+      }
+    }
+    fade.dispose();
+    expect(bad).toEqual([]);
+  }, 60_000);
 });
 
 // =============================================================================
