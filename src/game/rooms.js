@@ -69,8 +69,12 @@ export function createRooms({
   // The gathered walk is starting and its place is still on its way (main.js's
   // startWalk is walk.js's startWalkWhenReady, which waits for it). Home stays
   // on "Starting…", and no second start opens meanwhile: not her own Start,
-  // nor one heard from the room.
-  let startingWalk = false;
+  // nor one heard from the room. Held as the room the start was made in, so a
+  // room left (or torn down) during the wait never leaves the next room on
+  // "Starting…" or deaf to a proposal: starting() is true only while that
+  // room is still the pending one.
+  let startingWalk = null;
+  const starting = () => startingWalk !== null && startingWalk === pendingRoom;
   // host()/join() both check `pendingRoom` before doing anything async, but
   // pendingRoom itself is only set AFTER the await — a double-click (or
   // host+join fired back to back) would pass that guard twice and open two
@@ -158,7 +162,8 @@ export function createRooms({
   // how startWalkWhenReady knows to drop it.
   async function startRoomWalk({ area, dusk, seed }) {
     clearGathering();
-    startingWalk = true;
+    const room = pendingRoom;
+    startingWalk = room;
     notifyRoomChange();
     try {
       let opts;
@@ -177,7 +182,7 @@ export function createRooms({
       console.warn('Whisker Walk: a room walk did not start', err);
       note('room', err);
     } finally {
-      startingWalk = false;
+      if (startingWalk === room) startingWalk = null; // a newer room's start is its own
       notifyRoomChange();
     }
   }
@@ -213,7 +218,7 @@ export function createRooms({
   // is no room, a walk is running, or a start is already being gathered: a
   // second press, or a press after someone else's Start was heard.
   function startRoomTogether({ area, dusk }) {
-    if (!pendingRoom || gathering || startingWalk || getSession()) return false;
+    if (!pendingRoom || gathering || starting() || getSession()) return false;
     const room = pendingRoom;
     // Someone in the room is already out walking: starting now would put us
     // in two different worlds in one room. Say so instead.
@@ -246,7 +251,7 @@ export function createRooms({
   // proposal counts, and when) are lobby.js's decideLobbyEvent.
   function handleLobbyEvent(ev) {
     // A start already on its way (its place loading) takes no other.
-    if (!pendingRoom || startingWalk) return;
+    if (!pendingRoom || starting()) return;
     const d = decideLobbyEvent(ev, {
       roster: pendingRoom.roster,
       selfId: pid,
@@ -311,7 +316,7 @@ export function createRooms({
       if (!pendingRoom) return null;
       return {
         code: pendingRoom.code, roster: pendingRoom.roster, isHost: pendingRoom.net.isHost(),
-        pair: pendingRoom.pair, starting: !!gathering || startingWalk,
+        pair: pendingRoom.pair, starting: !!gathering || starting(),
         // This child tapped Host for this room (game/nearby.js: only such a
         // room is ever made findable nearby; isHost can move to a joiner).
         hosted: pendingRoom.hosted === true,

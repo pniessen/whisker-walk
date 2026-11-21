@@ -507,6 +507,47 @@ describe('a room start that waits for its place', () => {
     }
   });
 
+  it('a room left while its start waits: the next room is not "Starting…" and hears a proposal', async () => {
+    const a = client(hub, { pid: HOST, petName: 'Mittens', waits: true });
+    const b = client(hub, { pid: KID, petName: 'Robin', waits: true });
+    for (const x of [a, b]) await x.rooms.join('ABCD');
+    expect(b.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(true);
+    await vi.advanceTimersByTimeAsync(MEMBER_GATHER_MS);
+    expect(b.walks).toHaveLength(1);
+    expect(b.rooms.getState().starting).toBe(true); // her place is still on its way
+    await b.rooms.leave(); // she leaves during the wait ...
+    const cousin = createNet(hub.transport());
+    await cousin.join('WXYZ', { playerId: 'aaaa-cousin-03', petName: 'Pip' });
+    await b.rooms.join('WXYZ'); // ... and joins another room
+    expect(b.rooms.getState().starting).toBe(false);
+    // a proposal heard in the new room is gathered and starts her
+    cousin.sendEvent({ v: 1, id: 'aaaa-cousin-03', type: 'walk-config', area: 'neighborhood', dusk: false, seed: 5 });
+    expect(b.rooms.getState().starting).toBe(true);
+    await vi.advanceTimersByTimeAsync(MEMBER_GATHER_MS);
+    expect(b.walks).toHaveLength(2);
+    expect(b.walks[1].roomSeed).toBe(5);
+    // the old start settling late leaves the new one "Starting…"
+    b.starts[0].resolve('dropped');
+    await flush();
+    expect(b.rooms.getState().starting).toBe(true);
+    b.starts[1].resolve('started');
+    await flush();
+    expect(b.rooms.getState().starting).toBe(false);
+  });
+
+  it('a walk ending (clearPendingRoom) during a start\'s wait leaves no "Starting…" behind', async () => {
+    const { kid } = await inPairRoom();
+    kid.startRoomTogether({ area: 'neighborhood', dusk: false });
+    await vi.advanceTimersByTimeAsync(MEMBER_GATHER_MS);
+    expect(kid.rooms.getState().starting).toBe(true);
+    kid.clearPendingRoom();
+    const cousin = createNet(hub.transport());
+    await cousin.join('WXYZ', { playerId: 'aaaa-cousin-03', petName: 'Pip' });
+    await kid.rooms.join('WXYZ');
+    expect(kid.rooms.getState().starting).toBe(false);
+    expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(true); // her own Start works too
+  });
+
   it('a start that throws or rejects is noted, never thrown, and Starting… ends', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const before = diagnostics.total;
