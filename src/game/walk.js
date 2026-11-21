@@ -2975,8 +2975,8 @@ export function createWalkLifecycle({
   // "Off to the Farm!" moment shows, and the next walk starts by itself just
   // inside the twin gate or post, or at the spawn for a post with no twin.
   //   - 'refused': no walk, a gate or post this walk does not have (`via`
-  //     names a gate end or a post of this walk's place; posts in Clan
-  //     Edition only), or a walk-on already under way.
+  //     names a gate end or a post of this walk's place; her own post in
+  //     Clan Edition only, a guest's in either), or a walk-on already under way.
   //   - The next place already here (the usual case: it is prefetched as she
   //     nears the gate): banked, freed and the moment up before this returns,
   //     so there is no session right after the call; 'walked'.
@@ -3000,9 +3000,12 @@ export function createWalkLifecycle({
     const s = getSession();
     const plan = typeof via === 'string' ? viaPlan(via) : null;
     if (!s || s.walkingOn || !plan || plan.from !== s.areaId) return Promise.resolve('refused');
-    // Border posts stand in Clan Edition only (Task 10): Legacy has none.
+    // Border posts stand in Clan Edition only (Task 10): Legacy has none of
+    // its own. A guest is never turned away for her edition: a Legacy guest
+    // in a Clan host's room follows the host through its post, or the room
+    // would split (she already said she has the place).
     const post = postById(via);
-    if (post && !isClanEdition(progression.state)) return Promise.resolve('refused');
+    if (post && !guest && !isClanEdition(progression.state)) return Promise.resolve('refused');
     const { to, arrive } = plan;
     const twin = post ? postArrival(via) : (endById(via)?.end.twin ?? null);
     const keepRoom = !!s.net;

@@ -64,7 +64,7 @@ describe('the crossing card', () => {
   it('ask then yes walks on through the post, never ends the walk', () => {
     const { crossing, overlay, s, calls } = setup();
     crossing.ask(s, goData());
-    expect(s.crossing).toEqual({ to: 'moor', name: 'The Moor', via: 'woods-moor-path', kind: 'post' });
+    expect(s.crossing).toEqual({ to: 'moor', name: 'The Moor', via: 'woods-moor-path', kind: 'post', endsHere: false });
     expect(overlay.innerHTML).toContain('Head to the Moor?');
     expect(overlay.innerHTML).toContain('You keep everything you found.');
     expect(overlay.innerHTML).not.toContain('Your trip ends here');
@@ -90,18 +90,19 @@ describe('the crossing card', () => {
     expect(refused.overlay.innerHTML).toBe(pauseCardHtml({ welcome: 'Welcome home!', touch: false }));
   });
 
-  // F6: the place over the border is its own download. A yes starts fetching
-  // it at once, so it is likely here by the time the summary's Continue asks.
-  it('a yes starts fetching the place over the border; asking alone, cancelling or a second yes does not', () => {
+  // F6: the place over the border is its own download. Asking and the yes
+  // start fetching it (ruling R2, as at a gate), so the walk-on rarely waits.
+  it('asking and a yes fetch the place over the border; cancelling, no card or a second yes do not', () => {
     const { crossing, s, calls } = setup();
     crossing.ask(s, goData());
+    expect(calls.prefetch).toEqual(['moor']);
     crossing.cancel();
-    expect(calls.prefetch).toEqual([]);
     crossing.confirm(); // no card up: nothing
-    expect(calls.prefetch).toEqual([]);
+    expect(calls.prefetch).toEqual(['moor']);
     crossing.ask(s, goData());
     crossing.confirm();
-    expect(calls.prefetch).toEqual(['moor']);
+    crossing.confirm(); // a second yes
+    expect(calls.prefetch).toEqual(['moor', 'moor', 'moor']);
   });
 
   it('keep exploring restores the pause card and leaves the race running', () => {
@@ -267,14 +268,14 @@ describe('crossing together in a room with an older build', () => {
     expect(endWalk.mock.calls).toEqual([[{ crossTo: 'moor' }]]);
   });
 
-  it("the host's yes fetches the place over the border, once", () => {
+  it("the host's card and its yes fetch the place over the border, once each", () => {
     const { crossing, s, prefetched } = room();
     crossing.ask(s, goData2());
     crossing.confirm();
     crossing.confirm();
-    expect(prefetched).toEqual(['moor']);
+    expect(prefetched).toEqual(['moor', 'moor']);
     vi.advanceTimersByTime(1000);
-    expect(prefetched).toEqual(['moor']);
+    expect(prefetched).toEqual(['moor', 'moor']);
   });
 
   it('a guest led over the border fetches that place as soon as it hears, and a forged event fetches nothing', () => {
@@ -364,7 +365,7 @@ describe('crossing together in a room with an older build', () => {
     crossing.onRemote(s, ev({ id: 'a' }));
     expect(toasts).toEqual(['Pip is leading the way to the Moor! 🧭']); // named from the roster
     vi.advanceTimersByTime(1500);
-    expect(endWalk.mock.calls).toEqual([[{ crossTo: 'moor', ledBy: 'Pip', together: [] }]]);
+    expect(endWalk.mock.calls).toEqual([[{ crossTo: 'moor', ledBy: 'Pip', together: ['Pip'] }]]); // who she walked with: the roster
   });
 
   it("a cat still drawn but gone from the room is not the post's host", () => {
@@ -432,7 +433,7 @@ describe('at a gate', () => {
   it('a gate: ask then yes walks on, never ends the walk', () => {
     const { crossing, overlay, s, calls } = setup();
     crossing.askGate(s, farmGo());
-    expect(s.crossing).toEqual({ to: 'farm', name: 'Appletree Farm', via: 'park-farm', kind: 'gate' });
+    expect(s.crossing).toEqual({ to: 'farm', name: 'Appletree Farm', via: 'park-farm', kind: 'gate', endsHere: false });
     expect(overlay.innerHTML).toContain('Head to Appletree Farm?');
     expect(overlay.innerHTML).toContain('You keep everything you found.');
     expect(calls.release).toBe(1);
@@ -526,7 +527,7 @@ describe('at a gate', () => {
     expect(calls.buy).toEqual([['areas', 'farm']]);
     expect(calls.setOpen).toEqual([['park-farm', true]]);
     expect(overlay.innerHTML).toContain('Head to Appletree Farm?');
-    expect(s.crossing).toEqual({ to: 'farm', name: 'Appletree Farm', via: 'park-farm', kind: 'gate' });
+    expect(s.crossing).toEqual({ to: 'farm', name: 'Appletree Farm', via: 'park-farm', kind: 'gate', endsHere: false });
     crossing.buyYes({ detail: 1 }); // the crossing card is up: nothing more is bought
     expect(calls.buy).toHaveLength(1);
     crossing.cancel(); // Keep exploring: still bought, still open
@@ -912,7 +913,12 @@ describe('walking on together', () => {
   // crossing is today's, the walk ends and the room closes.
   it('a room with an older build crosses as a border post does: the walk ends, no walk-on', () => {
     const h = together({ roster: [{ playerId: 'a', walkOn: 1 }, { playerId: 'b' }] });
-    h.yes();
+    // Ruling R16: the gate's card says so
+    h.crossing.askGate(h.s, farmGo());
+    expect(h.s.crossing.endsHere).toBe(true);
+    expect(h.overlay.innerHTML).toContain('Your trip ends here, and you keep everything you found.');
+    expect(h.overlay.innerHTML).toContain('Head to Appletree Farm?');
+    h.crossing.confirm();
     expect(h.overlay.innerHTML).toContain('<h1>Off we go! 🧭</h1>');
     expect(h.sent).toEqual([{ v: 1, id: 'a', type: 'border-cross', from: 'park', to: 'farm' }]);
     vi.advanceTimersByTime(CROSS_RESEND_MS);
@@ -925,13 +931,46 @@ describe('walking on together', () => {
     expect(h.loads.asked).toEqual([]);
   });
 
+  // Ruling R16: the ending is decided once, when the card goes up, so what
+  // happens is what the card said even if the room changes under it.
+  it('a card that said she walks on still walks the room on when an older build joins before the yes', () => {
+    for (const ask of [(h) => h.crossing.askGate(h.s, farmGo()), (h) => { h.s.areaId = 'woods'; h.crossing.ask(h.s, goData()); }]) {
+      const h = together();
+      ask(h);
+      expect(h.s.crossing.endsHere).toBe(false);
+      expect(h.overlay.innerHTML).toContain('You keep everything you found.');
+      expect(h.overlay.innerHTML).not.toContain('Your trip ends here');
+      h.setRoster([{ playerId: 'a', walkOn: 1 }, { playerId: 'b', petName: 'Pip', walkOn: 1 }, { playerId: 'd' }]);
+      h.crossing.confirm();
+      expect(h.ofType('walk-on-ask')).toHaveLength(1);
+      expect(h.ofType('border-cross')).toEqual([]);
+      expect(h.endWalk).not.toHaveBeenCalled();
+    }
+  });
+
+  it('a card that said the trip ends here still ends it when the older build leaves before the yes', () => {
+    for (const [ask, to] of [[(h) => h.crossing.askGate(h.s, farmGo()), 'farm'], [(h) => { h.s.areaId = 'woods'; h.crossing.ask(h.s, goData()); }, 'moor']]) {
+      const h = together({ roster: [{ playerId: 'a', walkOn: 1 }, { playerId: 'b', petName: 'Pip' }] });
+      ask(h);
+      expect(h.s.crossing.endsHere).toBe(true);
+      expect(h.overlay.innerHTML).toContain('Your trip ends here');
+      h.setRoster([{ playerId: 'a', walkOn: 1 }]);
+      h.crossing.confirm();
+      expect(h.ofType('border-cross')).toHaveLength(1);
+      expect(h.ofType('walk-on-ask')).toEqual([]);
+      vi.advanceTimersByTime(CROSS_END_MS);
+      expect(h.endWalk.mock.calls).toEqual([[{ crossTo: to }]]);
+      expect(h.walkOn).not.toHaveBeenCalled();
+    }
+  });
+
   it("the host's cat dropped from the guest's screen (5 s on the card): the guest still follows the gate's crossing", () => {
     const h = together({ host: false, selfId: 'c', remotes: [{ playerId: 'a', petName: 'Pip' }] });
     h.s.remotes.list.length = 0;
     h.crossing.onRemote(h.s, { v: 1, id: 'a', type: 'border-cross', from: 'park', to: 'farm' });
     expect(h.toasts).toEqual(['Pip is leading the way to Appletree Farm! 🧭']); // named from the roster
     vi.advanceTimersByTime(1500);
-    expect(h.endWalk.mock.calls).toEqual([[{ crossTo: 'farm', ledBy: 'Pip', together: [] }]]);
+    expect(h.endWalk.mock.calls).toEqual([[{ crossTo: 'farm', ledBy: 'Pip', together: ['Pip'] }]]); // who she walked with: the roster
   });
 
   it('a guest on this build follows that crossing through the gate: its walk ends too', () => {
@@ -1058,6 +1097,15 @@ describe('walking on together', () => {
       await vi.advanceTimersByTimeAsync(1000);
       expect(h.loads.asked).toEqual([]);
       expect(solo.loads.asked).toEqual([]);
+      expect(h.sent).toEqual([]);
+    });
+
+    it('a guest whose own walk-on is under way does not answer', async () => {
+      const h = guest();
+      h.s.walkingOn = true;
+      h.crossing.onWalkOnAsk(h.s, h.ask());
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(h.loads.asked).toEqual([]);
       expect(h.sent).toEqual([]);
     });
 

@@ -108,17 +108,27 @@ export function createCrossing({
     });
   }
 
-  // A border post she can go through now (Task 10): the gate's card, whose
-  // yes walks on as a gate's does. A room with a member on an older build
-  // still crosses as posts always have (the walk ends), so its card says so.
+  // Ruling R16: the card says what its yes will do, decided once, when it
+  // goes up. In a room with a member on an older build (the roster cannot
+  // walk on) the crossing ends the walk, as posts always did, and the card
+  // says so ("Your trip ends here"); anywhere else she walks on. confirmGate
+  // reads s.crossing.endsHere, never the roster again, so the card and what
+  // happens always agree.
+  function showCrossing(s, { to, name, via, kind }) {
+    const endsHere = !!s.net && !roomWalksOn(getRoster());
+    s.crossing = { to, name, via, kind, endsHere };
+    overlay.innerHTML = (endsHere ? crossCardHtml : gateCardHtml)({ name, extras: extrasFor(s) });
+    releaseControl();
+  }
+
+  // A border post she can go through now (Task 10): the gate's card and the
+  // gate's yes. Asking starts fetching the place beyond, as at a gate.
   function ask(s, data) {
     if (!s || !data || !data.post || !data.status || data.status.kind !== 'go') return;
     if (!mayAsk(s)) return; // only a room's host crosses
     const { to, name } = data.status;
-    s.crossing = { to, name, via: data.post.id, kind: 'post' };
-    const endsHere = !!s.net && !roomWalksOn(getRoster());
-    overlay.innerHTML = (endsHere ? crossCardHtml : gateCardHtml)({ name, extras: extrasFor(s) });
-    releaseControl();
+    prefetchArea(to);
+    showCrossing(s, { to, name, via: data.post.id, kind: 'post' });
   }
 
   // A gate she can go through now: the crossing card, whose yes walks on.
@@ -127,9 +137,7 @@ export function createCrossing({
     if (!mayAsk(s)) return;
     const { to, name } = data.status;
     prefetchArea(to);
-    s.crossing = { to, name, via: data.end.id, kind: 'gate' };
-    overlay.innerHTML = gateCardHtml({ name, extras: extrasFor(s) });
-    releaseControl();
+    showCrossing(s, { to, name, via: data.end.id, kind: 'gate' });
   }
 
   // A gate to a place she can open now: the usual "Get it?" card first.
@@ -177,8 +185,8 @@ export function createCrossing({
     prefetchArea(c.to);
     c.going = true;
     if (!s.net) { goOn(s, c); return; }
-    // A room with a member on an older build: as at a border post.
-    if (!roomWalksOn(getRoster())) { crossRoom(s, c.to); return; }
+    // A room with a member on an older build, as the card said: the walk ends.
+    if (c.endsHere) { crossRoom(s, c.to); return; }
     askRoom(s, c);
   }
 
@@ -279,7 +287,8 @@ export function createCrossing({
   // the same ask; a later one (she tried again) is answered afresh. Her own
   // load failing gives her its own line too.
   function onWalkOnAsk(s, ev) {
-    if (!s || !s.net) return;
+    // A walk-on of her own under way would refuse the host's: no answer.
+    if (!s || !s.net || s.walkingOn) return;
     const d = decideWalkOnAsk(ev, { areaId: s.areaId, selfId: s.playerId, remoteIds: roomIdsOf(s), catalog });
     if (!d) return;
     const last = s.walkOnAnswer;
@@ -376,8 +385,8 @@ export function createCrossing({
   }
 
   // The host's event reached a guest: validate it, say so, and end this walk
-  // the same way, once. Who to walk on with is read now, because the host's
-  // leaving empties the remotes list before the timer fires.
+  // the same way, once. Who she walked with is read now, from the roster, as
+  // the host's leaving empties the room before the timer fires.
   function onRemote(s, ev) {
     if (!s || !ev || s.crossLed) return;
     // A post's or a gate's crossing in a room with an older build. Its room
@@ -388,7 +397,7 @@ export function createCrossing({
     if (!d) return;
     prefetchArea(d.to);
     s.crossLed = true;
-    const together = remotesOf(s).map((r) => r.petName);
+    const together = roomIdsOf(s).map((id) => petNameOf(s, id));
     const name = petNameOf(s, ev.id);
     hud.toast(phrase('cross.leading', name, lower(targetName(d.to, getEdition(), catalog))));
     setTimeout(() => { if (getSession() === s) endWalk({ crossTo: d.to, ledBy: name, together }); }, LED_DELAY_MS);

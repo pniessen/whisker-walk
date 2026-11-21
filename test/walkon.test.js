@@ -7,6 +7,8 @@ import { createCrossing } from '../src/game/crossing.js';
 import { createNetEvents } from '../src/game/netevents.js';
 import { nowSec } from '../src/game/util.js';
 import { endById } from '../src/gateways.js';
+import { postsFor } from '../src/borderposts.js';
+import { postStatus } from '../src/bordercross.js';
 import { CATALOG } from '../src/progression.js';
 import { LEAF_OPEN, LEAF_R, LEAF_BLOCKS, NO_GATES } from '../src/world/gateway.js';
 import { phrase } from '../src/clanphrases.js';
@@ -695,6 +697,53 @@ describe('two devices walk on together', () => {
     expect(host.toasts).toEqual([phrase('gate.friendNotReady', 'Bea')]);
     expect(guest.toasts).toEqual([phrase('start.notReady')]);
     expect([parkA.areaId, parkB.areaId]).toEqual(['park', 'park']);
+    host.h.w.endWalk();
+    guest.h.w.endWalk();
+  }, WALK_MS);
+
+  // Fix round 1 of Task 10: a Legacy guest in a Clan host's room walks the
+  // Woods by override (rooms.js). The host's post moves her too: a guest is
+  // never turned away for her edition, or the room would split.
+  it("a Clan host and a Legacy guest in the Woods: the host's post walks both on to the Moor", async () => {
+    const hub = createFakeHub();
+    const hostNet = createNet(hub.transport());
+    const guestNet = createNet(hub.transport());
+    const hostP = { playerId: 'ann', petName: 'Ann', breed: 'tabby', walkOn: 1 };
+    const guestP = { playerId: 'bea', petName: 'Bea', breed: 'tabby', walkOn: 1 };
+    await hostNet.join('ROOM', hostP);
+    await guestNet.join('ROOM', guestP);
+    const roster = [hostP, guestP];
+    const clanWoods = (p) => {
+      p.setTutorialFirst('done');
+      p.state.unlocked.areas.push('woods', 'moor');
+      p.state.walks.neighborhood = 2;
+      p.state.walks.woods = 2;
+      p.setArea('woods');
+    };
+    const legacyTown = (p) => { p.setTutorialFirst('done'); p.setEdition('legacy'); };
+    const host = device('ann', { net: hostNet, roster }, clanWoods);
+    const guest = device('bea', { net: guestNet, roster }, legacyTown);
+    expect(guest.h.progression.state.edition).toBe('legacy');
+    host.h.w.startWalk({ roomSeed: 7 });
+    guest.h.w.startWalk({ roomSeed: 7, areaOverride: 'woods' }); // as rooms.js starts a place she does not have
+    expect([host.h.getSession().areaId, guest.h.getSession().areaId]).toEqual(['woods', 'woods']);
+    const gSent = [];
+    const gSend = guestNet.sendEvent;
+    guestNet.sendEvent = (e) => { gSent.push(e); gSend(e); };
+    const post = postsFor('woods').find((p) => p.id === 'woods-moor-path');
+    host.crossing.ask(host.h.getSession(), { post, status: postStatus(post, host.h.progression.state, CATALOG, 'woods') });
+    host.crossing.confirm();
+    await vi.advanceTimersByTimeAsync(GATE_MOMENT_MS);
+    expect(gSent.filter((e) => e.type === 'walk-on-have')[0]).toMatchObject({ via: 'woods-moor-path', ok: true });
+    const a = host.h.getSession();
+    const b = guest.h.getSession();
+    expect([a.areaId, b.areaId]).toEqual(['moor', 'moor']);
+    expect(b.roomSeed).toBe(a.roomSeed);
+    expect([a.arrivedVia, b.arrivedVia]).toEqual(['moor-woods-path', 'moor-woods-path']);
+    expect(guest.toasts).toContain('Ann is leading the way to the Moor! 🧭');
+    // nothing was taken or bought for the Legacy guest
+    expect(guest.h.progression.state.unlocked.areas).not.toContain('moor');
+    expect(guest.h.progression.state.edition).toBe('legacy');
     host.h.w.endWalk();
     guest.h.w.endWalk();
   }, WALK_MS);
