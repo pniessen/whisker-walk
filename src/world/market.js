@@ -174,7 +174,8 @@ const FRUIT = stallById('fruit');
 export const MARKET_ANCHORS = Object.freeze({
   // the baker's warm flour sacks, beside the stall on the side away from its hide (step 3's nap)
   flourSacks: Object.freeze({ x: FLOUR_SACKS.x, z: FLOUR_SACKS.z, y: 0.45 }),
-  // the crate of apples at the fruit stall's end: a tippable (the record's row, drawn by marketfruit.js), solid in the plan
+  // the crate of apples at the fruit stall's end: a tippable (the record's row, drawn by
+  // marketfruit.js), solid in the plan; y the drawn crate's height
   apples: Object.freeze({ ...fromStall(FRUIT, FRUIT_CRATE.lx, FRUIT_CRATE.lz), y: FRUIT_CRATE.h }),
   // the bench facing the fountain (drawn here, MARKET_CLUTTER; step 3 makes it a perch): its seat
   bench: Object.freeze({ x: BENCH_AT.x, z: BENCH_AT.z, y: BENCH_SEAT_Y }),

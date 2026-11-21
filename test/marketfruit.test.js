@@ -14,7 +14,7 @@ const {
 } = await import('../src/world/marketfruit.js');
 const { createMarketLife } = await import('../src/world/marketlife.js');
 const { MARKET_ANCHORS } = await import('../src/world/market.js');
-const { marketArea, MARKET_REGISTRATION, STALLS, TREAT_STALLS, stallById, toStall } = await import('../src/world/marketplan.js');
+const { marketArea, MARKET_REGISTRATION, STALLS, TREAT_STALLS, stallById, toStall, FRUIT_CRATE } = await import('../src/world/marketplan.js');
 const { createTippables } = await import('../src/tippables.js');
 const { createKnockables } = await import('../src/knockables.js');
 const { isWalkableAt } = await import('../src/player.js');
@@ -64,14 +64,14 @@ describe('the apple crate', () => {
       expect(m.castShadow).toBe(false);
       expect(m.userData.noCast).toBe(true);
     }
-    // it stands inside the plan's collider (r 0.3) near enough: no part more than 0.45 m off its spot
+    // it stands inside the plan's collider: no part further off its spot than its r
     const pos = [];
     for (const m of meshesOf(g)) {
       const p = m.geometry.attributes.position;
       const v = new THREE.Vector3();
       for (let i = 0; i < p.count; i++) pos.push(Math.hypot(...v.fromBufferAttribute(p, i).applyMatrix4(m.matrix).toArray().filter((_, k) => k !== 1)));
     }
-    expect(Math.max(...pos)).toBeLessThan(0.45);
+    expect(Math.max(...pos)).toBeLessThanOrEqual(FRUIT_CRATE.r);
   });
 
   it('lies on its side once over, not sunk into the cobbles', () => {
@@ -183,6 +183,7 @@ describe('the apples roll', () => {
     const paths = applePaths(AREA, CRATE, tippedCrate().entry.group.rotation.y);
     const apples = createApples(scene, paths, { reducedMotion: false });
     expect(apples.mesh.isInstancedMesh).toBe(true);
+    expect(apples.mesh.material.vertexColors).toBe(true); // the stems brown, the apples their own colours
     expect(apples.mesh.count).toBe(APPLES.n);
     expect(apples.mesh.visible).toBe(false); // nothing until the crate goes over
     const children = scene.children.length;
@@ -210,12 +211,17 @@ describe('the apples roll', () => {
     expect(scene.children.length).toBe(children - 1);
   });
 
-  it('under reduced motion the apples are simply there, at their ends', () => {
+  it('under reduced motion the apples are simply there, at their ends, at the same rest as anywhere', () => {
     const scene = new THREE.Scene();
     const paths = applePaths(AREA, CRATE, tippedCrate().entry.group.rotation.y);
     const apples = createApples(scene, paths, { reducedMotion: true });
     apples.start();
     apples.update(1 / 60);
+    const rolled = createApples(scene, paths, { reducedMotion: false });
+    rolled.start();
+    for (let i = 0; i < 200; i++) rolled.update(1 / 60);
+    expect(closeDiffs(Array.from(apples.mesh.instanceMatrix.array), Array.from(rolled.mesh.instanceMatrix.array), 1e-6)).toEqual([]);
+    rolled.dispose();
     const m = new THREE.Matrix4();
     const v = new THREE.Vector3();
     for (let i = 0; i < paths.length; i++) {
@@ -253,6 +259,13 @@ describe('the market life', () => {
       expect(scene.getObjectByName('marketApples'), how).toBeUndefined();
       if (how === 'tip') session.tippables.tip(session.tippables.list[0]);
       else expect(session.tippables.tipById('tip-0')).toBe(true);
+      // not while the crate is still going over: once it is nearly down (anim 0.25 s left)
+      frames(life, session, 6);
+      expect(session.tippables.list[0].anim, how).toBeGreaterThan(0.25);
+      expect(scene.getObjectByName('marketApples'), how).toBeUndefined();
+      frames(life, session, 2);
+      expect(session.tippables.list[0].anim, how).toBeLessThanOrEqual(0.25);
+      expect(scene.getObjectByName('marketApples')?.visible, how).toBe(true);
       frames(life, session, 90);
       const apples = scene.getObjectByName('marketApples');
       expect(apples?.visible, how).toBe(true);
@@ -268,6 +281,30 @@ describe('the market life', () => {
       life.dispose();
       expect(scene.getObjectByName('marketApples')).toBeUndefined();
     }
+  });
+
+  it("the apples roll over the plan's square, whatever this device added to the live record", () => {
+    // the walk pushes this device's own colliders (scratch posts, gate frames, rests,
+    // a birthday cake) onto the record: one right across the apples' fan
+    const plan = applePaths(marketArea(), CRATE, tippedCrate().entry.group.rotation.y);
+    const mid = plan[2];
+    const blocked = { ...LIFE_AREA, colliders: [...AREA.colliders, { x: (mid.x0 + mid.x1) / 2, z: (mid.z0 + mid.z1) / 2, r: 0.5 }] };
+    expect(applePaths(blocked, CRATE, tippedCrate().entry.group.rotation.y)).not.toEqual(plan);
+    const scene = new THREE.Scene();
+    const session = standIn(scene);
+    const life = createMarketLife(blocked, { scene, dusk: false, reducedMotion: false });
+    session.tippables.tip(session.tippables.list[0]);
+    frames(life, session, 120);
+    const apples = scene.getObjectByName('marketApples');
+    const m = new THREE.Matrix4();
+    const v = new THREE.Vector3();
+    for (let i = 0; i < plan.length; i++) {
+      apples.getMatrixAt(i, m);
+      v.setFromMatrixPosition(m);
+      expect(v.x).toBeCloseTo(plan[i].x1, 5);
+      expect(v.z).toBeCloseTo(plan[i].z1, 5);
+    }
+    life.dispose();
   });
 
   it('the petals show where the bucket lands, once, and stay', () => {

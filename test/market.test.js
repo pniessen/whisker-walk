@@ -27,7 +27,7 @@ const { createMarketLife } = await import('../src/world/marketlife.js');
 const { buildAppleCrate } = await import('../src/world/marketfruit.js');
 const {
   MARKET_BOUNDS, MARKET_SPAWN, MARKET_COLLIDERS, MARKET_KEEPOUT, MARKET_POIS, MARKET_COLLECTIBLES, STALLS, TREAT_STALLS, CAFE,
-  stallById, toStall, MARKET_LAMPS,
+  stallById, toStall, MARKET_LAMPS, FRUIT_CRATE,
 } = await import('../src/world/marketplan.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -362,7 +362,13 @@ describe('the Market Square drawn', () => {
     expect(t.build).toBe(buildAppleCrate);
     // still solid where it stands
     const c = area.colliders.find((q) => Math.hypot(q.x - t.x, q.z - t.z) < 0.05);
-    expect(c?.r).toBeCloseTo(0.3, 9);
+    expect(c?.r).toBeCloseTo(0.4, 9);
+    // the anchor's y is the drawn crate's height
+    expect(area.anchors.apples.y).toBe(FRUIT_CRATE.h);
+    const g = buildAppleCrate();
+    const top = new THREE.Box3().setFromObject(g).max.y;
+    expect(top).toBeGreaterThanOrEqual(FRUIT_CRATE.h);
+    expect(top).toBeLessThan(FRUIT_CRATE.h + 0.06); // the heap just over the rim
     // the fruit stall draws nothing where the crate stands
     let n = 0;
     const v = new THREE.Vector3();

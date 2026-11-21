@@ -27,7 +27,7 @@
 // apple tumbles out of the mouth, drops to the cobbles and rolls (its spin is
 // its roll, distance over radius) to its end, where it is set exactly, so
 // every screen ends on the same numbers. Under reduced motion they are simply
-// there at their ends.
+// there at their ends, at the same rest as everywhere else.
 //
 // THE PETALS (createPetals). Where the flower stall's bucket lands (its
 // curated fallTo, propsets.js), about twelve flat petals lie in a ring round
@@ -40,6 +40,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { hash01 } from './warehouselook.js';
 import { isWalkableAt } from '../player.js';
 import { withLocalUuids } from './localuuids.js';
+import { FRUIT_CRATE } from './marketplan.js';
 
 export const MARKET_APPLE_SALT = 113;
 export const MARKET_PETAL_SALT = 127;
@@ -53,8 +54,8 @@ const TUMBLE = 0.3; // m: an apple starts this far behind its path, at the mouth
 const DROP = 0.1; // m: and this far up, falling to the cobbles in its first quarter
 const STAGGER = 0.06; // s between one apple and the next
 
-// the crate: a box of slats, local x -W..0, z -D/2..D/2, H high
-const CRATE = Object.freeze({ w: 0.36, d: 0.34, h: 0.3 });
+// the crate: a box of slats, local x -w..0, z -d/2..d/2, h high (the plan's numbers)
+const CRATE = FRUIT_CRATE;
 const SLAT_WOOD = 0xb98a55;
 const POST_WOOD = 0x8a6238;
 const APPLE_REDS = Object.freeze([0xc8322a, 0xd9452e, 0xb02a24, 0x9fbf3a, 0xd23c2c, 0xa8c040]);
@@ -144,7 +145,7 @@ function appleMesh(n) {
   const parts = [painted(body, 0xffffff), painted(stem, 0x5a3a20)];
   const geo = mergeGeometries(parts);
   for (const p of parts) p.dispose();
-  const mat = new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0 });
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0 });
   const mesh = new THREE.InstancedMesh(geo, mat, n);
   mesh.name = 'marketApples';
   mesh.castShadow = false;
@@ -187,7 +188,7 @@ export function createApples(scene, paths, { reducedMotion = false } = {}) {
     const a = apples[i];
     if (u >= 1) {
       _p.set(a.x1, r, a.z1);
-      _q.setFromAxisAngle(a.axis, reducedMotion ? 0 : a.run / r);
+      _q.setFromAxisAngle(a.axis, a.run / r); // the same rest on every screen, reduced motion or not
     } else {
       const e = 1 - (1 - u) * (1 - u) * (1 - u);
       const f = Math.max(0, 1 - u * 4);

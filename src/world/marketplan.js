@@ -156,8 +156,11 @@ function stallColliders(s) {
 // (an ice crate, a stool, a barrel, the cart's step) at its treat, r 0.2, so a
 // cat's centre stops 0.55 from the treat, inside TREAT_REACH; the crate of
 // apples at the fruit stall's end (step 3 rolls its fruit); the four lamp posts.
+// FRUIT_CRATE: where the crate stands (lx, lz), the crate as marketfruit.js draws
+// it (w, d, h: it stands on local x -w..0 of its spot, the edge it tips over) and
+// its collider (r 0.4: the drawn crate's far corner is 0.40 m off its spot).
 export const STAND_R = 0.2;
-export const FRUIT_CRATE = freeze({ lx: stallById('fruit').w / 2 + 0.45, lz: 0.3, w: 0.5, h: 0.4, d: 0.4, r: 0.3 });
+export const FRUIT_CRATE = freeze({ lx: stallById('fruit').w / 2 + 0.45, lz: 0.3, w: 0.36, h: 0.3, d: 0.34, r: 0.4 });
 // The four lamp posts ring the fountain, each out of every treat counter's view
 // from in front of it (the final review: the old two at (+-5, -5) stood 4.7 m
 // in front of the baker's and the cheese counters, between the chase camera and

@@ -11,8 +11,8 @@
 // looks for the fruit stall's crate (the tippable of kind 'applecrate') in
 // session.tippables.list turning `tipped`, by her paw (tip) or her partner's
 // (tipById, the `tip` net event): both screens see the same entry go over.
-// Then it makes the six apples once, on paths from the crate's spot and the
-// tipped crate's yaw (its group.rotation.y, which tippables.js derives from
+// Once it is nearly over (ROLL_AT) it makes the six apples once, on paths
+// over the plan's square (PLAN_AREA) from the crate's spot and the tipped crate's yaw (its group.rotation.y, which tippables.js derives from
 // the spot, so it is the same on both screens), and rolls them on walk
 // seconds.
 //
@@ -25,11 +25,18 @@
 // own lists, and the apples write into their one InstancedMesh.
 // =============================================================================
 import { setMarketDusk } from './market.js';
-import { MARKET_REGISTRATION } from './marketplan.js';
+import { MARKET_REGISTRATION, marketArea } from './marketplan.js';
 import { applePaths, createApples, createPetals } from './marketfruit.js';
 
 export const MARKET_BUCKET_ID = 'market-bucket-1';
 const CRATE_KIND = 'applecrate';
+// The apples roll once the crate is nearly over: its tip animation (0.5 s,
+// tippables.js) has this much left. Both screens play the same anim.
+const ROLL_AT = 0.25;
+// The paths are walked on the plan's own square, never the live record: the
+// walk adds this device's own colliders to it (scratch posts, gate frames,
+// rests, a birthday cake), which differ between screens (walk.js).
+const PLAN_AREA = marketArea();
 
 function findBy(list, key, value) {
   if (!list) return null;
@@ -38,7 +45,7 @@ function findBy(list, key, value) {
 }
 
 // createMarketLife(area, ctx) -> { update(dt, t, catPos, camera, session), dispose() }.
-// `area` is the built record (its look, its anchors.apples and its colliders).
+// `area` is the built record (its look and its anchors.apples).
 export function createMarketLife(area, ctx = {}) {
   setMarketDusk(area, ctx.dusk ? 1 : 0);
   const scene = ctx.scene ?? null;
@@ -57,8 +64,8 @@ export function createMarketLife(area, ctx = {}) {
       if (disposed) return;
       if (!apples && scene && crateAt) {
         crate ??= findBy(session?.tippables?.list, 'kind', CRATE_KIND);
-        if (crate?.tipped) {
-          apples = createApples(scene, applePaths(area, crateAt, crate.group.rotation.y), { reducedMotion });
+        if (crate?.tipped && crate.anim <= ROLL_AT) {
+          apples = createApples(scene, applePaths(PLAN_AREA, crateAt, crate.group.rotation.y), { reducedMotion });
           apples.start();
         }
       }
