@@ -24,14 +24,19 @@
 // ball that crossed a wall line since last frame (housethings.js toyStop; the shut
 // bookcase is a wall, the open one is not) is put back at the wall, at rest. A step
 // longer than any roll (TELEPORT) is a jump the walk made (the roll home, a co-walk
-// handoff), never stopped. `colliders` is the walk's own live list (the bookcase's
+// handoff), never stopped. Task 7: the clock's tick and the creaks (housesound.js, under the
+// walk's mute) and the sunbeams with their dust motes (houseair.js: none at `dusk`, still
+// under reduced motion), drawn for the levels in full. `colliders` is the walk's own live list (the bookcase's
 // row swaps in it); `log`, `hud`, `audio` and `toy` are the walk's.
 
 import { makeView, createWallSink, createCellarLid, SINK } from '../housewalls.js';
 import { createLevelDrawing } from '../houselevels.js';
 import { CAT_LOOK_Y } from '../cat/model.js';
 import { createHouseFinds } from './housefinds.js';
-import { toyStop } from './housethings.js';
+import { toyStop, HOUSE_FINDS } from './housethings.js';
+import { HOUSE_WINDOWS, HOUSE_ROOMS, HOUSE_STAIRS } from './houseplan.js';
+import { createHouseSound } from './housesound.js';
+import { createHouseAir } from './houseair.js';
 
 const NO_PANES = Object.freeze([]);
 const TELEPORT = 25; // m/s: no ball rolls this fast
@@ -39,7 +44,7 @@ const OPEN = Object.freeze({ secretOpen: true });
 const SHUT = Object.freeze({ secretOpen: false });
 
 export function createHouseLife(scene, house, {
-  reducedMotion = false, log = null, hud = null, audio = null, toy = null, colliders = [], now,
+  reducedMotion = false, log = null, hud = null, audio = null, toy = null, colliders = [], now, dusk = false,
 } = {}) {
   const { sections, sectionMeshes, panes } = house;
   const lid = house.lid ? createCellarLid(house.lid, sections) : null;
@@ -60,6 +65,12 @@ export function createHouseLife(scene, house, {
   const finds = createHouseFinds({
     finds: house.finds ?? [], secret: house.secret, colliders, parts: house.parts, log, hud, audio, reducedMotion, now,
   });
+  const sound = createHouseSound(audio, {
+    clock: HOUSE_FINDS.find((f) => f.id === 'clock'),
+    stairs: HOUSE_STAIRS,
+    attic: HOUSE_ROOMS.find((r) => r.id === 'attic'),
+  });
+  const air = createHouseAir(scene, { windows: HOUSE_WINDOWS, rooms: HOUSE_ROOMS, levels: house.levels, dusk: !!dusk, reducedMotion });
   let ballX = 0, ballZ = 0, ballSeen = false;
 
   // The yarn ball, after toy.update (main.js): stopped at a wall it rolled into since last frame.
@@ -103,6 +114,7 @@ export function createHouseLife(scene, house, {
     lid?.settle(sink);
     write();
     drawing.settle(floorY(catPos));
+    air.update(0, 0, drawing.full);
   }
 
   return {
@@ -119,11 +131,15 @@ export function createHouseLife(scene, house, {
       lid?.update(dt, sink);
       write();
       drawing.update(floorY(catPos));
+      air.update(dt, t, drawing.full);
       finds.update(dt, t, catPos);
+      sound.update(dt, t, catPos);
       keepBall(dt);
     },
     dispose() {
       finds.dispose();
+      sound.dispose();
+      air.dispose();
       for (const m of lidMeshes) m.visible = true;
       for (const m of meshes) {
         if (!m) continue;

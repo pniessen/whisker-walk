@@ -462,8 +462,8 @@ export function build(scene, { wind, gateEnds } = {}) {
     // every frame: the walls between the camera and the cat sink, and the levels are drawn for hers
     // and the six finds, and the yarn ball kept out of the walls (step 2, Task 6): the walk's
     // log, HUD, sound and ball, and its live colliders (the bookcase's row swaps there)
-    areaData.life = ({ scene: lifeScene, reducedMotion, log, hud, audio, toy }) => createHouseLife(lifeScene, areaData.house, {
-      reducedMotion, log, hud, audio, toy, colliders: areaData.colliders,
+    areaData.life = ({ scene: lifeScene, reducedMotion, log, hud, audio, toy, dusk }) => createHouseLife(lifeScene, areaData.house, {
+      reducedMotion, log, hud, audio, toy, dusk, colliders: areaData.colliders,
     });
     return areaData;
   });

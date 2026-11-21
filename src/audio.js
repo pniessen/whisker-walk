@@ -549,6 +549,15 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       tone(2600, 0.06, { gain: 0.03 * volume, slideTo: 3300 });
       tone(2800, 0.06, { gain: 0.025 * volume, slideTo: 3500, delay: 0.11 });
     },
+    // The Old House's quiet ambience (housesound.js): a clock's click, a stair's creak.
+    tick(volume = 1) {
+      const v = Math.max(0, Math.min(1, volume));
+      if (v > 0) tone(2200, 0.03, { gain: 0.012 * v });
+    },
+    creak(volume = 1) {
+      const v = Math.max(0, Math.min(1, volume));
+      if (v > 0) tone(170, 0.35, { type: 'sawtooth', gain: 0.018 * v, slideTo: 130 });
+    },
     // The Fairground's music box (fairlive.js): one small bright note, with a
     // softer octave above it. Quiet: it plays for as long as she is near.
     musicBoxNote(freq, volume = 1) {
