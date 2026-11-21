@@ -277,6 +277,7 @@ Before Task 9: F6 is merged to main; rebase `people` onto main; run `npx vitest 
 - Test: `test/critters.people.test.js` (scratch: kneel lasts while she is within 2.5 m and at least 2.5 s; stands 0.6 s after she leaves; touches when she walks up; `stepScratch` is given her volumes: with her standing where the held hand would be, the arm keeps clear of her)
 - Her head's box and ears are measured once per head object (reach.js `HEAD_BOX`, `OFF_EARS`, `EAR_CAP`, WeakMaps keyed by the part). If anything is added to her head mid-walk (a found hat or other wearable, see the found-outfits work), either the cat is rebuilt (a new head object: measured afresh) or the build clears that head's entries; confirm which before wiring, and test that a hat put on mid-walk is kept clear of.
 
+- **Running the scratch (ruling R18, final review):** `stepScratch` runs on every frame the villager kneels for a scratch and stops only on the frame the pose mode changes; each kneel gets a fresh `createScratch()` (a reused state starts from a stale palm; stopping mid-kneel snaps the arm about 0.11 m).
 - [ ] Render into `.../people/build/step3/`: each street place from the normal camera with a villager waving and from her eye height; a pair; a woman in a skirt or a dress kneeling for the scratch and walking (the skirt over the kneel and the stride); tours `slide` (she walks into a villager and slides round) and `scratch-town`. Look at each.
 - [ ] Commit `People: the head scratch in town; Step 3 pictures`.
 
