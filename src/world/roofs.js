@@ -2792,7 +2792,7 @@ function drawLampHalos(scene) {
   geo.computeBoundingSphere();
   geo.boundingSphere.radius += HALO.size; // whichever way the quads turn
   const mat = new THREE.MeshBasicMaterial({
-    color: HALO.color, map: markGlowMap(), transparent: true, opacity: HALO.opacity, blending: THREE.AdditiveBlending, depthWrite: false,
+    color: HALO.color, map: markGlowMap(), transparent: true, opacity: HALO.opacity, blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
   });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'roofsLampHalo';

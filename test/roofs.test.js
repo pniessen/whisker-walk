@@ -1636,6 +1636,7 @@ describe('the Rooftops drawn', () => {
     expect([h.castShadow, h.receiveShadow, h.userData.noCast, h.userData.noMerge]).toEqual([false, false, true, true]);
     const mat = h.material;
     expect([mat.blending, mat.transparent, mat.depthWrite]).toEqual([THREE.AdditiveBlending, true, false]);
+    expect(mat.fog).toBe(false); // unfogged like the sky glow: fog tinted it peach-pink at distance
     expect(mat.map).toBe(area.markGlow.material.map); // the take-off glow's ringless falloff
     expect(mat.color.r > mat.color.g && mat.color.g > mat.color.b).toBe(true); // warm
     expect(mat.opacity).toBeGreaterThan(0.3);
