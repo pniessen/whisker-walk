@@ -6,6 +6,7 @@ import { TAME_FEEDS, COLONY_MAX, SOLO_MAX, FEEDS_MAX, HEAD_START_MAX, SHY_PARTNE
   canFeed, feedCat, feedsHere, catsInArea, tamedCats, settleTaming, denMoment, denHome, denResidents } from '../src/colony.js';
 import { DEN_SPOTS, DEN_HOMES } from '../src/den.js';
 import { sanitizeColony, mergeColony, unsyncedFeeds, tradeEffect, rewardsDue, COLONY_REWARDS } from '../src/colony.js';
+import { withOffWords } from './helpers/offwords.js';
 
 const ME = 'aaaaaaaa-1111', SIB = 'bbbbbbbb-2222';
 const feed = (c, name, by, n, extra = {}) =>
@@ -1014,7 +1015,7 @@ describe('colonyNews', () => {
     expect(before.lines).toContain(`${N1} came home to the den! 🏠`);
     expect(before.lines).toContain(`Robin found a new cat: ${N2} (fed 🐟)`);
     expect(before.lines).toContain(`Robin fed ${N3} 🐟`);
-    expect(before.lines).toContain('Robin wants to swap — have a look in Colony');
+    expect(before.lines).toContain('Robin wants to swap — have a look in My clan');
     expect(before.lines.some((l) => l.startsWith('In the den: '))).toBe(true);
     const read = { ...c, seen: before.seen };
     expect(news(read)).toMatchObject({ lines: [], any: false });
@@ -1082,11 +1083,25 @@ describe('colonyNews', () => {
     expect(NEWS_LINES_MAX).toBe(8);
     expect(n.lines).toHaveLength(8);
     expect(n.lines.slice(0, 7).every((l) => l.startsWith('Robin fed '))).toBe(true);
-    expect(n.lines[7]).toBe('…and 4 more — have a look in Colony');
+    expect(n.lines[7]).toBe('…and 4 more — have a look in My clan');
     // exactly 8 is not capped
     const eight = news(colonyWith({ cats: cats.slice(0, 8), feeds: feeds.slice(0, 8), seen: NOSEEN }));
     expect(eight.lines).toHaveLength(8);
     expect(eight.lines.some((l) => l.includes('more'))).toBe(false);
+  });
+
+  it('names the Menu door as the words in use say it, read when the card is made', () => {
+    const names = BOLD.slice(0, 11);
+    const c = colonyWith({
+      cats: names.map((n) => cat(n)), feeds: names.map((n, i) => fed(n, SIB, `walk-${i + 1}`)),
+      trades: [{ id: 3, from: SIB, to: ME, give: 'crown', want: 'tophat', status: 'offered' }], seen: NOSEEN,
+    });
+    withOffWords(() => {
+      const n = news(c);
+      expect(n.lines.at(-1)).toMatch(/ more — have a look in My cats$/);
+      expect(news({ ...c, cats: [], feeds: [] }).lines).toContain('Robin wants to swap — have a look in My cats');
+    });
+    expect(news(c).lines.at(-1)).toMatch(/ more — have a look in My clan$/);
   });
 
   it('seen is only what the card showed: the hidden cats stay unread', () => {

@@ -6,6 +6,8 @@ import { samples, lum as lumC, meshCount, surfaceHit, PRESETS, triangles, colour
 import { animateCat } from '../src/cat/animator.js';
 import { LEG_BLEND, CLAW_HEX } from '../src/cat/limbs.js';
 import { CATALOG } from '../src/progression.js';
+import { isPieceOf } from '../src/foundwear/display.js';
+import { foundRecord } from '../src/foundwear/index.js';
 import { VISIT_PRIZES } from '../src/visits.js';
 import { ruffGeometry, RUFF, jawFluffColour } from '../src/cat/ruff.js';
 import { DEFAULT_LOOK, lookToStyle } from '../src/customcats.js';
@@ -23,7 +25,7 @@ import { WHISKERS } from '../src/cat/face.js';
 
 const BREEDS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'robbie', 'd2', 'digit'];
 const ALL = [...BREEDS, 'hagrid'];
-const FEET = ['booties', 'sneakers', 'rainboots', 'socks'];
+const FEET = ['booties', 'sneakers', 'rainboots', 'socks', 'puddlewellies'];
 const STATES = ['follow', 'nap', 'stretch', 'groom', 'requestPet', 'perch', 'sniff', 'stalk', 'pounce', 'scared', 'cross', 'land'];
 
 // The published shape of the cat rig: buildCat's radius and the scale it puts
@@ -272,6 +274,15 @@ describe('cat model: D2 and Digit, from the photos', () => {
     expect(count(buildCat('digit', { collar: 'bell' }))).toBe(1);
     expect(count(buildCat('d2'))).toBe(0);
   });
+
+  it("Digit's built-in tag gives way to a found collar", () => {
+    const rings = (cat) => { const out = []; cat.traverse((o) => { if (o.name === 'collarRing') out.push(o); }); return out; };
+    for (const id of ['bottletopcollar', 'ropecollar', 'anchorcharm']) {
+      const cat = buildCat('digit', { collar: id });
+      expect(rings(cat), id).toHaveLength(1);
+      expect(rings(cat)[0].userData.foundWear, id).toBe(id);
+    }
+  });
 });
 
 describe('cat model: the cat stands on the ground', () => {
@@ -388,6 +399,14 @@ describe('visit prize placement', () => {
     expect(worn.max.y).toBeLessThan(1.1);
     expect(worn.max.y).toBeGreaterThan(bare.max.y);
   });
+  it.each(['kitetailribbon', 'candyflosspuff'])('%s stays inside the whole-cat thumbnail framing (top < 1.1)', (back) => {
+    const bare = boxOfMesh(buildCat('tabby', bareSet));
+    const worn = boxOfMesh(buildCat('tabby', { ...bareSet, back }));
+    expect(worn.max.y).toBeLessThan(1.1);
+    // the ribbon's top (0.86) is under the head's (0.95); only the puff rises over the cat
+    if (back === 'candyflosspuff') expect(worn.max.y).toBeGreaterThan(bare.max.y);
+    else expect(worn.max.y).toBeGreaterThanOrEqual(bare.max.y);
+  });
   // Accessories polish Task 1: the head prizes are one hat mesh each, seated
   // on the skull (cathats.test.js has the full sweep). The cake and the crown's
   // points rise over the skull's top but start on it, and stay under the top
@@ -478,7 +497,7 @@ describe('cat model: the Version 2 proportions', () => {
   });
   // R2 binds dressed cats too: no point of a cat more than 1 cm below y = 0, in every pose.
   it.each(['tabby', 'digit', 'mainecoon'])('%s: every feet item stays on the ground in every pose', (breed) => {
-    for (const feet of ['booties', 'goldbooties', 'sneakers', 'rainboots', 'socks']) {
+    for (const feet of ['booties', 'goldbooties', 'sneakers', 'rainboots', 'socks', 'puddlewellies']) {
       for (const state of STATES) {
         const cat = buildCat(breed, { feet }); animateCat(cat, state, 1.3, 0, false);
         cat.updateMatrixWorld(true);
@@ -589,7 +608,7 @@ describe('cat model: the chest, merged with the belly and ruff, kept under the h
 
 describe('cat model: shells take the new torso shape (Task 7)', () => {
   const shellOf = (cat, hex) => cat.userData.parts.body.children.find((m) => m !== cat.userData.parts.underside && (m.material.color.getHex() === hex || m.material.vertexColors));
-  const SHELLS = [['hoodie', 0x6a4c93], ['raincoat', 0xf2c94e], ['sweater', null]];
+  const SHELLS = [['hoodie', 0x6a4c93], ['raincoat', 0xf2c94e], ['sweater', null], ['fishermansjumper', null]];
   it.each(PRESETS.flatMap((b) => SHELLS.map((s) => [b, ...s])))('%s %s hugs the new torso: 5 mm-4 cm outside the fur (belly side: not inside)', (breed, id, hex) => {
     const cat = buildCat(breed, { body: id }); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);
     const { body } = cat.userData.parts, shell = shellOf(cat, hex), c = body.getWorldPosition(new THREE.Vector3());
@@ -635,8 +654,17 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     bandana: [0x3a6ea5], necktie: [0x7a2436], bowtie: [0x2c3e6b], scarf: [0xd6602f], streamerscarf: [0xe0405a, 0xf2c14e, 0x4ec9d4, 0x8a6cf2],
     bell: [0xf2c14e], heart: [0xe0447a],
     prizerosette: [0x2f6fc0, 0x6fa6e6, 0xf5c518], // the Fairground's rosette: its disc and tails, and its gold button
+    // the found neck pieces: their ring's (or knot's) plain colour; what is vertex-coloured is found by isPieceOf
+    daisychain: [0x5a9a3c], gardenglovescarf: [0x6a9a4a], shellnecklace: [0x8a6a4a], neckerchief: [0xd8403a], ticketgarland: [0xf5f5f5],
+    anchorcharm: [0xc8ccd4], // the Anchor Charm's silver anchor, found by isPieceOf with its id
   };
-  const itemMeshes = (cat, hexes) => { const out = []; cat.traverse((o) => { if (o.isMesh && !o.material.vertexColors && hexes.includes(o.material.color.getHex())) out.push(o); }); return out; };
+  // (a found piece is found by isPieceOf when given its id: much of it is vertex-coloured, and the
+  // colours list names only its first plain material; with no colours it falls back to isPieceOf too)
+  const itemMeshes = (cat, hexes, id) => {
+    const byId = id && (!hexes || foundRecord(id)), out = [];
+    cat.traverse((o) => { if (o.isMesh && (byId ? isPieceOf(o, id) : !o.material.vertexColors && hexes.includes(o.material.color.getHex()))) out.push(o); });
+    return out;
+  };
   const posed = (acc, breed = 'tabby') => { const c = buildCat(breed, acc); animateCat(c, 'follow', 0, 0, false); c.updateMatrixWorld(true); return c; };
   // Each back item (accessories polish Task 2: backitems.js) is hung on the
   // body and rests on the back: every vertex is outside the fur, the nearest
@@ -698,10 +726,11 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     }
   };
   // Tabby, and the fluffy cats (NECK_FLUFFY).
+  const FOUND_NECK_IDS = ['daisychain', 'gardenglovescarf', 'shellnecklace', 'neckerchief', 'ticketgarland'];
   const CHEST_BREEDS = ['tabby', 'persian', 'mainecoon', 'd2'];
-  it.each(CHEST_BREEDS.flatMap((b) => ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart', 'prizerosette'].map((id) => [b, id])))('%s: %s lies on the chest, not inside it', (breed, id) => {
+  it.each(CHEST_BREEDS.flatMap((b) => ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart', 'prizerosette', ...FOUND_NECK_IDS, 'anchorcharm'].map((id) => [b, id])))('%s: %s lies on the chest, not inside it', (breed, id) => {
     const slot = CATALOG.accessories[id].slot, cat = posed({ [slot]: id }, breed);
-    onChest(cat, itemMeshes(cat, COLOURS[id]));
+    onChest(cat, itemMeshes(cat, COLOURS[id], id));
   });
   it.each(CHEST_BREEDS)('%s: the sparkle collar: its charm and front beads lie on the chest', (breed) => {
     const cat = posed({ [CATALOG.accessories.sparklecollar.slot]: 'sparklecollar' }, breed);
@@ -745,7 +774,7 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
       expect(b.min.z).toBeGreaterThan(nose.min.z);    // behind the nose tip (front is -z)
     }
   };
-  it.each(CHEST_BREEDS.flatMap((b) => ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart', 'sparklecollar', 'prizerosette'].map((id) => [b, id])))('%s: %s stays under the chin, below the mouth and behind the nose', (breed, id) => {
+  it.each(CHEST_BREEDS.flatMap((b) => ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart', 'sparklecollar', 'prizerosette', ...FOUND_NECK_IDS, 'anchorcharm'].map((id) => [b, id])))('%s: %s stays under the chin, below the mouth and behind the nose', (breed, id) => {
     const bare = posed({}, breed), cat = posed({ [CATALOG.accessories[id].slot]: id }, breed);
     underChin(bare, addedToHead(cat, bare));
   });

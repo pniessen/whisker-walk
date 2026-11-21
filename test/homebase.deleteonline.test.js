@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // answer's line, the busy state, and the times it waits. Same no-DOM
 // stand-in as test/confirmcard.test.js; the delete itself is a fake (its own
 // tests are test/onlinedelete.test.js).
-vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
+vi.mock('../src/thumbnails.js', () => ({ fillFoundThumbs: () => {}, menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
 const dressingMock = vi.hoisted(() => ({ opts: null }));
 vi.mock('../src/ui/dressingroomview.js', () => ({
@@ -73,7 +73,7 @@ const card = () => doc.body.children.find((c) => c.id === 'confirm-card');
 const click = (target) => doc.root.listeners.click({ target: { closest: () => null, dataset: {}, ...target }, detail: 1 });
 const html = () => doc.root.innerHTML;
 
-function setup({ code = null, result = { outcome: 'done', player: 'ok', save: 'ok' }, rooms = null, colonySync = null, onlineDelete } = {}) {
+function setup({ code = null, result = { outcome: 'done', player: 'ok', save: 'ok' }, rooms = null, colonySync = null, onlineDelete, getIsTouch } = {}) {
   let linked = code;
   const sync = { available: true, getCode: () => linked, unlink: () => { linked = null; } };
   let release;
@@ -84,7 +84,7 @@ function setup({ code = null, result = { outcome: 'done', player: 'ok', save: 'o
   const progression = createProgression(memStorage());
   progression.setPetName('Mittens');
   const settings = { get: () => null, set() {}, all: () => ({}) };
-  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync, onlineDelete: od, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync, myId: 'me', toast: () => {} });
+  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync, onlineDelete: od, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync, myId: 'me', toast: () => {}, getIsTouch });
   hb.show();
   dressingMock.opts.onOpenSheet('sync');
   return { od, sync, progression, hb, release: () => release() };
@@ -138,7 +138,7 @@ describe('the confirm card', () => {
     const h = card().innerHTML;
     expect(h).toContain('Delete this device’s online data?');
     expect(h).toContain(`Deletes the cloud save and photo album under the code ${CODE}, and this device’s cat profile, friends and colony sharing.`);
-    expect(h).toContain('The game on this device stays as it is, except that your walking name is cleared. This can’t be undone.');
+    expect(h).toContain('The game on this device stays as it is, except that your friend name is cleared. This can’t be undone.');
     expect(h).toContain('Another device linked to the same save code will upload the save again, unless you unlink it or delete there too.');
     expect(h.indexOf('id="confirm-card-no"')).toBeLessThan(h.indexOf('id="confirm-card-yes"'));
     expect(h).toContain('data-confirm="no">Not now</button>');
@@ -172,7 +172,7 @@ describe('the confirm card', () => {
     await click({ id: 'sync-delete-online' }); // a tap while it runs does nothing
     expect(card()).toBeUndefined();
     s.release();
-    await vi.waitFor(() => expect(html()).toContain('Done. Your online data is deleted. To play together again, pick a walking name in Play together.'));
+    await vi.waitFor(() => expect(html()).toContain('Done. Your online data is deleted. To play together again, pick a friend name in Play together.'));
     expect(html()).toContain('<div class="sync-unlinked">');
     expect(html()).toContain(BUTTON);
   });
@@ -184,8 +184,8 @@ describe('the line after each answer', () => {
     [{ outcome: 'offline', player: 'offline', save: 'offline' }, 'Could not reach the cloud — check your connection and try again. Nothing was deleted.'],
     [{ outcome: 'denied', player: 'denied', save: 'ok' }, 'The cloud wouldn’t let this device delete it. Nothing was deleted.'],
     [{ outcome: 'busy', player: 'busy', save: 'busy' }, 'The cloud is busy right now — try again later. Nothing was deleted.'],
-    [{ outcome: 'partial', player: 'ok', save: 'offline' }, 'The cat profile, friends and colony sharing are deleted, but the cloud save isn’t yet. Tap Delete my online data again to finish.'],
-    [{ outcome: 'partial', player: 'offline', save: 'ok' }, 'The cloud save is deleted and this device is unlinked, but the cat profile, friends and colony sharing aren’t yet. Tap Delete my online data again to finish.'],
+    [{ outcome: 'partial', player: 'ok', save: 'offline' }, 'The cat profile, friends and colony sharing are deleted, but the cloud save isn’t yet. Click Delete my online data again to finish.'],
+    [{ outcome: 'partial', player: 'offline', save: 'ok' }, 'The cloud save is deleted and this device is unlinked, but the cat profile, friends and colony sharing aren’t yet. Click Delete my online data again to finish.'],
   ];
   for (const [result, line] of LINES) {
     it(`${result.outcome} (${result.player}/${result.save})`, async () => {
@@ -196,4 +196,10 @@ describe('the line after each answer', () => {
       expect(html()).toContain(BUTTON); // and it can be tried again
     });
   }
+  it('on a touch screen the half-done line says Tap', async () => {
+    const s = setup({ code: CODE, result: { outcome: 'partial', player: 'ok', save: 'offline' }, getIsTouch: () => true });
+    await confirmYes();
+    s.release();
+    await vi.waitFor(() => expect(html()).toContain('isn’t yet. Tap Delete my online data again to finish.'));
+  });
 });

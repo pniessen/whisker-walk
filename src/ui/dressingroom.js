@@ -3,9 +3,10 @@
 // stage goes in #dr-stage, and CSS grid places each region. Every control
 // renders exactly once. Nothing here writes state: ownership and
 // affordability mirror progression.isUnlocked/canBuy, purely from the save.
+import { phrase } from '../clanphrases.js';
 import { asFiniteNonNeg } from '../progression.js';
 import { areaInEdition, isClanEdition, placeName, effectiveArea, accessoryName } from '../edition.js';
-import { opensAfterLine, lower } from '../territories.js';
+import { opensAfterLine, lower, goHereLine } from '../territories.js';
 import { worldMapModel } from '../worldmap.js';
 import { renderWorldMapHtml } from './territorymap.js';
 import { placeCardFor, renderPlaceCardHtml } from './placecard.js';
@@ -19,28 +20,33 @@ import { PAW } from './pawicon.js';
 import { sanitizeOutfits, wornNow, sameWear, canSaveOutfit, OUTFIT_SLOTS, OUTFIT_MAX } from '../outfits.js';
 import { escapeHtml } from '../escapehtml.js';
 import { areaOffer } from '../areaoffer.js';
-import { phrase } from '../clanphrases.js';
+import { spotsIn } from '../foundwear/spots/index.js';
 
 // Launch A (2026-11-05): home holds the cat, the place and Start; every other
 // screen is a sheet behind one of three doors. `menu` and `places` are the
-// doors; the rest open from the Menu (the kid tiles, then the grown-ups row).
-// Sound & controls is the children's half of the old Settings (volume, the
-// touch controls); Game settings keeps the grown-ups' half (edition, quality,
-// Start over). Friends folded into Play together (the friends list and the
-// friend code) and the Journal (the stray cats), so one sheet holds every code.
-export const MENU_TILES = ['together', 'colony', 'journal', 'album', 'skills', 'controls'];
+// doors; the rest open from the Menu: the kid tiles (My den, not a sheet, is
+// the sixth), then Sound & controls as a slim row, then one quiet For grown-ups
+// door (menu review #6 and #14, 2026-11-20). Sound & controls is the children's
+// half of the old Settings (volume, the touch controls); For grown-ups opens
+// the GROWNUP_SHEETS: Game settings keeps the grown-ups' half (edition,
+// quality, Start over), then Cloud save and Gift code. Friends folded into
+// Play together (the friends list and the friend code) and the Journal (the
+// stray cats), so one sheet holds every code.
+export const MENU_TILES = ['together', 'colony', 'journal', 'album', 'skills'];
 export const GROWNUP_SHEETS = ['settings', 'sync', 'code'];
-export const HOME_SHEETS = ['menu', 'places', ...MENU_TILES, ...GROWNUP_SHEETS];
+export const HOME_SHEETS = ['menu', 'places', ...MENU_TILES, 'controls', 'grownups', ...GROWNUP_SHEETS];
 export const SHEET_ICON = {
   menu: '☰', places: '🗺️', together: '👫', skills: '⭐', colony: '🐈', journal: '📖',
-  album: '📸', sync: '☁️', settings: '⚙️', code: '🎁', controls: '🔊',
+  album: '📸', sync: '☁️', settings: '⚙️', code: '🎁', controls: '🔊', grownups: '⚙️',
 };
 export const SHEET_NAME = {
-  menu: 'Menu', places: 'Change place', together: 'Play together', skills: 'Skills', colony: 'Colony',
+  menu: 'Menu', places: 'Change place', together: 'Play together', skills: 'Skills',
+  // read when asked, so the word set in use decides it (My clan / My cats)
+  get colony() { return phrase('menu.myCats'); },
   journal: 'Journal', album: 'Album', sync: 'Cloud save', settings: 'Game settings', code: 'Gift code',
-  controls: 'Sound & controls',
+  controls: 'Sound & controls', grownups: 'For grown-ups',
 };
-export const SHEET_LABEL = Object.fromEntries(HOME_SHEETS.map((id) => [id, `${SHEET_ICON[id]} ${SHEET_NAME[id]}`]));
+export const SHEET_LABEL = Object.defineProperties({}, Object.fromEntries(HOME_SHEETS.map((id) => [id, { enumerable: true, get: () => `${SHEET_ICON[id]} ${SHEET_NAME[id]}` }])));
 // The den shop is not a home sheet: it lives inside the den (ui/denshopview.js).
 // The old Friends sheet ('social') opens Play together, where its friends
 // list and friend code went, so anything still asking for it lands there.
@@ -101,7 +107,24 @@ function equippedId(state, catalog, slot) {
   return typeof id === 'string' && has(catalog.accessories, id) && catalog.accessories[id].slot === slot ? id : null;
 }
 
-export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard } = {}) {
+// The first visits that show the small "the town" line under the Neighborhood.
+export const TOWN_NOTE_VISITS = 5;
+
+// The line under the Neighborhood's name while the series name is new to her;
+// '' for every other place, once past the first visits, and in the everyday
+// words (an empty phrase). Legacy keeps the plain name, so no line there.
+function withTownNote(card, state) {
+  return card ? { ...card, townNote: townNoteFor(card.id, state) } : card;
+}
+
+function townNoteFor(areaId, state) {
+  if (areaId !== 'neighborhood' || !isClanEdition(state)) return '';
+  const v = num(state?.visits);
+  return v <= TOWN_NOTE_VISITS ? phrase('place.townNote') : '';
+}
+
+// touch: a touch screen (the home screen's getIsTouch), for "tap" or "click".
+export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard, touch = false } = {}) {
   const points = num(state?.points);
   const equippedCat = plain(state?.equipped).cat;
   const ownedCats = ownedList(state, 'cats');
@@ -167,7 +190,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard 
     } else if (!owned) {
       lockLine = points >= price ? `Unlock — ${price} 🐾` : `${price} 🐾 — keep exploring!`;
     }
-    return { id, name: placeName(id, state?.edition, catalog) || a.name, owned, selected: id === walkArea, canBuy: !owned && !gated && points >= price, price, locked: gated, lockLine };
+    return { id, name: placeName(id, state?.edition, catalog) || a.name, owned, selected: id === walkArea, canBuy: !owned && !gated && points >= price, price, locked: gated, lockLine, goLine: goHereLine(touch) };
   });
 
   // Clan Edition draws the world map, every place on it (her board and the
@@ -175,10 +198,10 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard 
   // (mapCard, an areaId) when one is open. Legacy keeps its picture cards.
   let clanPlaces = { placeCard: null };
   if (isClanEdition(state)) {
-    const worldMap = worldMapModel(state, catalog);
+    const worldMap = worldMapModel(state, catalog, { touch });
     clanPlaces = {
       worldMap,
-      placeCard: typeof mapCard === 'string' ? placeCardFor(worldMap, mapCard, points) : null,
+      placeCard: typeof mapCard === 'string' ? withTownNote(placeCardFor(worldMap, mapCard, points), state) : null,
       clanPicker: clanPickerModel(state),
       clanPartnerName: typeof state?.colony?.partner?.petName === 'string' && state.colony.partner.petName ? state.colony.partner.petName : 'your partner',
     };
@@ -211,6 +234,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard 
       // Clan Edition: whose land today's walk is on ("StormClan land").
       clan: isClanEdition(state) && isClanId(walkArea) ? walkArea : null,
       line: isClanEdition(state) && isClanId(walkArea) ? phrase('place.groupLand', clanName(walkArea)) : '',
+      townNote: townNoteFor(walkArea, state),
     },
     // What she has on, for the Wearing summary (display order, prizes included).
     worn: slotIds.map((slot) => ({ slot, id: equippedId(state, catalog, slot) })).filter((w) => w.id)
@@ -248,6 +272,8 @@ export function renderSlotPickerHtml(state, catalog, slot, tryOn, thumbs) {
     // a place her edition hides keeps its outfits out of sight until found.
     if (a.find && !owned) {
       if (!areaInEdition(catalog.areas?.[a.find], state?.edition)) return '';
+      // Nothing is hidden in a place with no find spots: no silhouette to hunt for.
+      if (spotsIn(a.find).length === 0) return '';
       const where = phrase('wear.foundIn', lower(placeName(a.find, state?.edition, catalog)));
       return `<div class="dr-pick locked found-silhouette" role="group" aria-label="${escapeHtml(phrase('wear.notYet'))}">`
         + `<span class="found-shape" aria-hidden="true">${escapeHtml(a.emoji ?? '')}</span><span>${escapeHtml(where)}</span></div>`;
@@ -309,7 +335,7 @@ function placeHtml(p) {
       + `<img src="${escapeHtml(PLACE_PICTURE(p.id))}" alt="" onerror="this.style.display='none'">`
       + `<span class="cap">${escapeHtml(p.name)}<button type="button" class="dr-place-buy" data-dr-place-buy="${escapeHtml(p.id)}">${escapeHtml(p.lockLine)}</button></span></div>`;
   }
-  const sub = p.selected ? 'you’re going here' : p.owned ? 'tap to go here' : p.lockLine;
+  const sub = p.selected ? 'you’re going here' : p.owned ? p.goLine : p.lockLine;
   const cant = !p.owned && !p.locked && !p.canBuy;
   return `<button class="dr-place ${p.selected ? 'sel' : ''} ${p.locked ? 'locked' : ''} ${cant ? 'cant' : ''}" data-dr-place="${escapeHtml(p.id)}">`
     + `<img src="${escapeHtml(PLACE_PICTURE(p.id))}" alt="" onerror="this.style.display='none'">`
@@ -430,7 +456,7 @@ function todayHtml(m, extrasHtml = '') {
     <button class="dr-today-card" data-dr-sheet="places" aria-label="${escapeHtml(label)}">
       <img src="${escapeHtml(PLACE_PICTURE(p.id))}" alt="" onerror="this.style.display='none'">
       <span class="dr-change" aria-hidden="true">Change place ›</span>
-      <span class="cap"><span class="dr-today-name">${emblem}${escapeHtml(p.name)}</span>${p.line ? `<small>${escapeHtml(p.line)}</small>` : ''}<small class="dr-today-change" aria-hidden="true">change ›</small></span>
+      <span class="cap"><span class="dr-today-name">${emblem}${escapeHtml(p.name)}</span>${p.townNote ? `<small class="dr-town-note">${escapeHtml(p.townNote)}</small>` : ''}${p.line ? `<small>${escapeHtml(p.line)}</small>` : ''}<small class="dr-today-change" aria-hidden="true">change ›</small></span>
     </button>
     ${extrasHtml ? `<div class="dr-today-extras">${extrasHtml}</div>` : ''}
     </div>
@@ -504,14 +530,15 @@ export function renderDressingRoomHtml({ model, headerHtml = '', startHtml = '',
 // its own Menu tile, so denHtml is not drawn here. Legacy keeps the picture
 // cards and the den after them, exactly as before.
 // clanLineHtml (the clan in one line) and denHtml are the owner's, verbatim.
-export function renderPlacesSheetHtml(model, { clanLineHtml = '', denHtml = '' } = {}) {
+// hintHtml (the map's first-time line) shows above the map frame only.
+export function renderPlacesSheetHtml(model, { clanLineHtml = '', denHtml = '', hintHtml = '' } = {}) {
   const m = model;
   if (m.worldMap) {
     const card = m.placeCard ? renderPlaceCardHtml(m.placeCard, { picture: PLACE_PICTURE(m.placeCard.id) }) : '';
     const zoom = '<div class="wm-zoom"><button type="button" class="wm-zoom-in" data-wm-zoom="in" aria-label="Zoom in">＋</button>'
       + '<button type="button" class="wm-zoom-out" data-wm-zoom="out" aria-label="Zoom out">－</button></div>';
-    return `<div class="dr-where">${clanLineHtml}<div class="wm-frame">${renderWorldMapHtml(m.worldMap)}${zoom}${card}</div></div>`;
+    return `<div class="dr-where">${clanLineHtml}${hintHtml}<div class="wm-frame">${renderWorldMapHtml(m.worldMap)}${zoom}${card}</div></div>`;
   }
-  const body = `<div class="dr-places">${m.places.map(placeHtml).join('')}${denHtml}</div>`;
+  const body = `<div class="dr-places">${[...m.places.filter((p) => !p.locked), ...m.places.filter((p) => p.locked)].map(placeHtml).join('')}${denHtml}</div>`;
   return `<div class="dr-where">${clanLineHtml}${body}</div>`;
 }

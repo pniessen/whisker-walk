@@ -99,7 +99,7 @@ test('RIVAL_PREFIXES has only its own keys', () => {
 
 // ---- Task 14: no borrowed word is hard-coded outside clanwords.js ----
 
-const BORROWED = [...Object.values(OUTSIDE_WORDS), ...Object.values(RANK_WORDS), ...Object.values(PLACE_WORDS), CLAN_SUFFIX];
+const BORROWED = [...Object.values(OUTSIDE_WORDS), ...Object.values(RANK_WORDS), ...Object.values({ ...PLACE_WORDS, roofs: undefined }).filter(Boolean), CLAN_SUFFIX]; // 'The Rooftops' (roofs) is plain words in both sets, not a borrowed one
 
 // The contents of every string and template literal in a source text, with
 // comments skipped. A template's text is kept across its lines, and each

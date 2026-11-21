@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
+import { isPack } from './cat/wearkind.js';
 import { CATALOG } from './progression.js';
 import { activeCat } from './customcats.js';
 import { mulberry32, seedFromCode } from './rng.js';
@@ -53,12 +54,13 @@ function makeSnapper(renderer, scene, camera, canvas) {
 // they need the whole-cat framing; head/face/neck-worn items (collar,
 // head, face, neck slots) still read best close up. Driven by slot
 // rather than a hardcoded id list so future catalog items frame
-// correctly automatically. backpack and jetpack sit flat on the back so
-// they get a rear-quarter angle; wings/balloon read fine from the front.
+// correctly automatically. A pack (backpack, jetpack, a found pack) sits
+// flat on the back so it gets a rear-quarter angle; wings/balloon read fine
+// from the front.
 const WHOLE_CAT_SLOTS = new Set(['feet', 'back', 'body']);
 export function accessoryFraming(id) {
   const slot = CATALOG.accessories[id]?.slot;
-  return { closeUp: !WHOLE_CAT_SLOTS.has(slot), rotY: id === 'backpack' || id === 'jetpack' ? -2.4 : -0.45 };
+  return { closeUp: !WHOLE_CAT_SLOTS.has(slot), rotY: isPack(id) && id !== 'wings' ? -2.4 : -0.45 };
 }
 
 function renderAll() {
@@ -71,7 +73,21 @@ function renderAll() {
   }
 }
 
-function renderAllUnsafe() {
+// Every accessory id the menu draws at once: the shop's, not the found
+// outfits (a record with `find`), which are drawn once she owns them.
+export function thumbnailIds(catalog) {
+  return Object.keys(catalog.accessories).filter((id) => !catalog.accessories[id].find);
+}
+
+// Owned found outfits that have no picture yet and have not been tried
+// (a failed draw is not retried at every render).
+export function missingFoundThumbs(thumbs, owned, catalog, tried = new Set()) {
+  return (owned || []).filter((id) => catalog.accessories[id]?.find && !thumbs?.accessories?.[id] && !tried.has(id));
+}
+
+const foundTried = new Set();
+
+function makeStudio() {
   const canvas = document.createElement('canvas');
   canvas.width = SIZE;
   canvas.height = SIZE;
@@ -87,23 +103,52 @@ function renderAllUnsafe() {
   const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
 
   const snap = makeSnapper(renderer, scene, camera, canvas);
+  return { renderer, snap };
+}
 
+function snapAccessory(snap, id) {
+  const slot = CATALOG.accessories[id].slot;
+  const worn = buildCat('tabby', slot === 'collar' ? { collar: id } : { [slot]: id });
+  const { closeUp, rotY } = accessoryFraming(id);
+  return snap(worn, closeUp, rotY);
+}
+
+function releaseStudio(renderer) {
+  renderer.dispose();
+  renderer.forceContextLoss(); // deterministically release the throwaway context
+}
+
+function renderAllUnsafe() {
+  const { renderer, snap } = makeStudio();
   const cats = {};
   for (const breed of Object.keys(CATALOG.cats)) {
     cats[breed] = snap(buildCat(breed), false);
   }
 
   const accessories = {};
-  for (const id of Object.keys(CATALOG.accessories)) {
-    const slot = CATALOG.accessories[id].slot;
-    const worn = buildCat('tabby', slot === 'collar' ? { collar: id } : { [slot]: id });
-    const { closeUp, rotY } = accessoryFraming(id);
-    accessories[id] = snap(worn, closeUp, rotY);
-  }
+  for (const id of thumbnailIds(CATALOG)) accessories[id] = snapAccessory(snap, id);
 
-  renderer.dispose();
-  renderer.forceContextLoss(); // deterministically release the throwaway context
+  releaseStudio(renderer);
   return { cats, accessories };
+}
+
+// Draws the owned found outfits the menu cache lacks, in one throwaway
+// renderer, into thumbs.accessories. Does nothing (no renderer) when none are missing.
+export function fillFoundThumbs(thumbs, owned) {
+  const missing = missingFoundThumbs(thumbs, owned, CATALOG, foundTried);
+  if (!missing.length) return;
+  for (const id of missing) foundTried.add(id);
+  let studio = null;
+  try {
+    studio = makeStudio();
+    if (!thumbs.accessories) thumbs.accessories = {};
+    for (const id of missing) thumbs.accessories[id] = snapAccessory(studio.snap, id);
+  } catch (err) {
+    console.warn('Whisker Walk: found-outfit thumbnails unavailable', err);
+    note('gl', err);
+  } finally {
+    if (studio) releaseStudio(studio.renderer);
+  }
 }
 
 export function menuThumbnails() {
@@ -271,6 +316,9 @@ export function herCatPortrait(state) {
 // rescue: the honest size of what this page can give back cheaply.
 export function releaseThumbnails() {
   cache = null;
+  foundTried.clear(); // the fresh cache lacks the found pictures: draw them again
   customCache.clear();
   portraitCache.clear();
 }
+
+export const foundThumbsTried = () => [...foundTried];

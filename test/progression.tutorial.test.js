@@ -80,6 +80,12 @@ describe('the tutorial field', () => {
     for (const first of TUTORIAL_FIRST) expect(createProgression(seeded({ walks: { neighborhood: 9 }, tutorial: { first } })).state.tutorial.first).toBe(first);
   });
 
+  it('the find, find-kept and map counts survive loading; a save without them has none', () => {
+    const t = createProgression(seeded({ tutorial: { first: 'done', hints: { map: 1, 'find-kept': 1, find: 1 } } })).state.tutorial;
+    expect(t.hints).toEqual({ map: 1, 'find-kept': 1, find: 1 });
+    expect(createProgression(seeded({ tutorial: { first: 'done', hints: { look: 1 } } })).state.tutorial.hints).toEqual({ look: 1 });
+  });
+
   it('a save loaded from the cloud follows the same rules', () => {
     const p = createProgression(memStorage());
     p.replaceFromPayload({ version: 4, walks: { neighborhood: 5 }, lifetimePoints: 200, points: 80 });

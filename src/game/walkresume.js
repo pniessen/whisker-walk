@@ -95,7 +95,8 @@ export function snapshotWalk(session, { yaw, now, paid = [] }) {
     seed: session.soloSeed,
     stamp: session.walkStamp,
     dusk: !!session.duskMode,
-    duskActive: !!session.duskActive,
+    // whether the walk counts as dusk (session.js walkDusk): what settleAbandoned credits
+    duskActive: !!session.countsDusk,
     x: down ? down.x : session.cat.position.x,
     z: down ? down.z : session.cat.position.z,
     yaw,

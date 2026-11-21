@@ -16,23 +16,31 @@
 //      then re-record test/fixtures/series-words-on-later.json
 //      (UPDATE_OFF_SNAPSHOT=1 npx vitest run test/offwords.test.js; the diff
 //      only adds rows);
-//   3. its mesh on the cat, and its mesh count in
+//   3. its mesh on the cat, from the cat-side files (one per slot group, all in
+//      src/cat/): foundhead.js (Hagrid's hen head), foundface.js, foundneck.js
+//      (neck pieces, and FOUND_COLLARS for collars), foundbody.js (FOUND_BODY
+//      capes and shells, FOUND_FLOATS), foundfeet.js (FOUND_FEET); a hat is a
+//      hats.js BUILD entry and a pack a backitems.js one. model.js calls each
+//      through a hook and tags every mesh it adds with userData.foundWear = id
+//      (tagFound); wearkind.js (bodyKind, isPack, isCharmed) says what a piece
+//      covers or gives way to. Its mesh count goes in
 //      test/fixtures/accessory-mesh-delta.json, in CATALOG.accessories' order
-//      (that is FOUND_WEAR's order: head, face, neck, body, feet);
-//   4. for a head, face, neck or collar one, Hagrid the hen's version
-//      (src/cat/model.js) and its count in test/hagrid.test.js DELTA. He wears
+//      (that is FOUND_WEAR's order);
+//   4. for a head, face, neck or collar one, Hagrid the hen's version: his
+//      pieces are in the same cat-side files (the hooks in src/cat/model.js
+//      are shared) and its count goes in test/hagrid.test.js DELTA. He wears
 //      no body, back or feet item;
-//   5. its look on the ground where it is found: a builder for its slot in
-//      DISPLAY_BY_SLOT (src/foundwear/display.js), (id) -> a fresh mesh or
-//      group, as the cat wears it (simple: the find is small and far). The
-//      first record of a new slot adds the slot's builder there; later ones
-//      need only that their slot's builder knows their id. seatDisplay sets
-//      it on the ground whatever it returns: one mesh has its geometry moved;
-//      a group, or anything built off its own origin (a collar round the neck,
-//      a cape on the back), is moved inside a holder group, so it rests on the
-//      spot and turns about its own middle. test/foundlive.test.js builds every
-//      record's ground look and fails if one shows as the pouch or passes 600
-//      triangles.
+//   5. its look on the ground where it is found: for every slot but head,
+//      wornPieces (src/foundwear/display.js) builds it from the tagged worn
+//      pieces, so nothing more is needed. A head one is a hat (buildHat). An
+//      id that needs its own picture goes in DISPLAY_BY_ID (checked before
+//      DISPLAY_BY_SLOT; the Fisherman's Jumper's folded one is there).
+//      seatDisplay sets it on the ground whatever it returns: one mesh has its
+//      geometry moved; a group is moved inside a holder group, so it rests on
+//      the spot and turns about its own middle. test/foundlive.test.js builds
+//      every record's ground look and fails if one shows as the pouch or
+//      passes 600 triangles; test/foundwearfit.test.js runs every record
+//      through the cost, ground and Hagrid gates.
 // test/foundwear.test.js runs validateFoundWear over all of it.
 import { HEAD_WEAR } from './head.js';
 import { FACE_WEAR } from './face.js';

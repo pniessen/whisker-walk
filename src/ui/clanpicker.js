@@ -135,12 +135,14 @@ export function clanMomentDue(state, catalog) {
 // cards are the same, the words say she is changing, and "Not yet" keeps hers.
 // The words are read from the phrase table when the card is drawn.
 
-export function renderClanMomentHtml(model, partnerName) {
+// touch: a touch screen's change card says Tap, a desktop's Click.
+export function renderClanMomentHtml(model, partnerName, { touch = false } = {}) {
   const change = !!model.mine;
+  const ask = !change ? phrase('pick.momentAsk') : touch ? phrase('pick.changeAsk') : phrase('pick.changeAskClick');
   return `<div class="join-moment-card" role="dialog" aria-modal="true" aria-labelledby="join-moment-title" tabindex="-1">`
     + `<p class="join-moment-paws" aria-hidden="true">🐾 🐾 🐾</p>`
     + `<h2 id="join-moment-title">${escapeHtml(phrase(change ? 'pick.changeTitle' : 'pick.momentTitle'))}</h2>`
-    + `<p class="join-moment-ask">${escapeHtml(phrase(change ? 'pick.changeAsk' : 'pick.momentAsk'))}</p>`
+    + `<p class="join-moment-ask">${escapeHtml(ask)}</p>`
     + renderClanPickerHtml(model, partnerName)
     + `<div class="join-moment-foot"><button type="button" class="join-moment-later" data-${clanWord}-later>${escapeHtml(change ? phrase('pick.keep') : 'Not yet')}</button>`
     + '<p class="join-moment-note">You can change it later in 🗺️ Change place.</p></div>'

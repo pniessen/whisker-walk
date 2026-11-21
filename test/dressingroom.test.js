@@ -5,6 +5,8 @@ import { CLAN_SUFFIX } from '../src/clanwords.js';
 import { CAT_BLURBS, ACC_BLURBS } from '../src/ui/catblurbs.js';
 import { PAW } from '../src/ui/pawicon.js';
 import { clanName } from '../src/clanhomes.js';
+import { spotsIn } from '../src/foundwear/spots/index.js';
+import { areaInEdition } from '../src/edition.js';
 import {
   HOME_SHEETS, SHEET_LABEL, resolveSheet, PLACE_PICTURE,
   MENU_TILES, GROWNUP_SHEETS,
@@ -114,8 +116,14 @@ describe('dressing-room model', () => {
 
 describe('slot picker', () => {
   it('lists every accessory in the slot', () => {
-    const want = Object.values(CATALOG.accessories).filter((a) => a.slot === 'head').length;
-    const html = renderSlotPickerHtml(defaultishState(), CATALOG, 'head', null);
+    // The rule: a find-only outfit not found yet shows only where it can be
+    // found (its area is in her edition and has find spots); the rest show.
+    const state = defaultishState();
+    const owned = state.unlocked.accessories;
+    const want = Object.entries(CATALOG.accessories).filter(([id, a]) => a.slot === 'head'
+      && (!a.find || owned.includes(id)
+        || (areaInEdition(CATALOG.areas?.[a.find], state.edition) && spotsIn(a.find).length > 0))).length;
+    const html = renderSlotPickerHtml(state, CATALOG, 'head', null);
     expect(count(html, /class="dr-pick[ "]/g)).toBe(want);
   });
   it('an unfound outfit is a silhouette saying where it is found, never a price', () => {
@@ -136,6 +144,23 @@ describe('slot picker', () => {
     expect(renderSlotPickerHtml({ ...s, edition: 'canon' }, cat, 'head', null)).toContain('Found in the Woods');
     s.unlocked.accessories.push('mosscap');
     expect(renderSlotPickerHtml(s, cat, 'head', null)).toContain('data-dr-acc="mosscap"');
+  });
+  it('a find-only outfit from a place with no find spots stays out of sight until found', () => {
+    const hats = { ...CATALOG, accessories: {
+      parkhat: { name: 'Park Hat', slot: 'head', price: 0, prize: true, find: 'park', emoji: '🌰' },
+      riverhat: { name: 'River Hat', slot: 'head', price: 0, prize: true, find: 'river', emoji: '🐟' },
+    } };
+    const s = { ...defaultishState(), edition: 'canon' };
+    const html = renderSlotPickerHtml(s, hats, 'head', null);
+    expect(html).toContain('Found in City Park');
+    expect(html).not.toContain('River'); expect(html).not.toContain('🐟');
+  });
+  it('once owned it shows, spots or not', () => {
+    const hats = { ...CATALOG, accessories: {
+      riverhat: { name: 'River Hat', slot: 'head', price: 0, prize: true, find: 'river', emoji: '🐟' },
+    } };
+    const s = { ...defaultishState(), edition: 'canon' }; s.unlocked.accessories.push('riverhat');
+    expect(renderSlotPickerHtml(s, hats, 'head', null)).toContain('data-dr-acc="riverhat" data-dr-act="wear"');
   });
   it('an unwon prize is a wrapped surprise: no price, no try-on, not buyable', () => {
     const slot = CATALOG.accessories.leafcrown.slot;
@@ -260,6 +285,19 @@ describe('dressing-room renderer', () => {
       expect(count(html, /<button id="start">GO<\/button>/g)).toBe(1);
     }
   });
+  it("Legacy's picture cards put open places first, each group in catalog order", () => {
+    const s = { ...defaultishState(), edition: 'legacy' };
+    const ids = Object.keys(CATALOG.areas);
+    s.unlocked.areas = ids.filter((id) => id !== 'park');
+    const m = buildDressingModel(s, CATALOG);
+    const order = [...renderPlacesSheetHtml(m).matchAll(/<(?:button|div) class="dr-place[^"]*"(?: data-dr-place="([^"]+)")?/g)].map((x) => x[1]).filter(Boolean);
+    const inCatalog = m.places.map((p) => p.id);
+    const locked = m.places.filter((p) => p.locked).map((p) => p.id);
+    const open = inCatalog.filter((id) => !locked.includes(id));
+    expect(locked).toContain('park');
+    expect(order).toEqual([...open, ...locked]);
+    expect(open.indexOf('neighborhood')).toBe(0);
+  });
   it('a place card in the places sheet says whether it can be unlocked now, and looks not-yet when it cannot', () => {
     const price = CATALOG.areas.park.price;
     const s = { ...defaultishState(), edition: 'legacy' }; s.walks.neighborhood = 2;
@@ -355,8 +393,8 @@ describe('sheets and pictures', () => {
     expect(HOME_SHEETS).not.toContain('den-shop');
     expect(SHEET_LABEL['den-shop']).toBeUndefined();
   });
-  it('labels name the two doors, the Menu tiles and the grown-ups sheets, in that order', () => {
-    expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['☰ Menu', '🗺️ Change place', '👫 Play together', '🐈 Colony', '📖 Journal', '📸 Album', '⭐ Skills', '🔊 Sound & controls', '⚙️ Game settings', '☁️ Cloud save', '🎁 Gift code']);
+  it('labels name the two doors, the Menu tiles, Sound & controls, For grown-ups and its sheets, in that order', () => {
+    expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['☰ Menu', '🗺️ Change place', '👫 Play together', '🐈 My clan', '📖 Journal', '📸 Album', '⭐ Skills', '🔊 Sound & controls', '⚙️ For grown-ups', '⚙️ Game settings', '☁️ Cloud save', '🎁 Gift code']);
   });
   it('Play together is a sheet of its own', () => {
     expect(resolveSheet('together')).toBe('together');
@@ -407,7 +445,7 @@ describe('the world map in the dressing room', () => {
   it('dressingroom: Clan shows every place on the world map, and no picture cards', () => {
     const s = { ...defaultishState(), edition: 'canon' };
     const m = buildDressingModel(s, CATALOG);
-    expect(m.worldMap.regions.map((r) => r.areaId)).toEqual(['neighborhood', 'woods', 'moor', 'river', 'pines', 'gorge', 'park', 'fair', 'farm', 'docks', 'seaside']);
+    expect(m.worldMap.regions.map((r) => r.areaId)).toEqual(['neighborhood', 'woods', 'moor', 'river', 'pines', 'gorge', 'park', 'fair', 'farm', 'docks', 'seaside', 'roofs']);
     expect(m).not.toHaveProperty('otherPlaces');
     expect(m).not.toHaveProperty('territoryMap');
     expect(m.worldMap.regions.find((r) => r.id === 'park').line).toBe('opens after you explore Twolegplace 2 times · 0/2');
@@ -794,10 +832,10 @@ describe('Launch A: the home screen (cat, place, go)', () => {
   });
 
   describe('the sheets', () => {
-    it('the Menu holds the kid tiles then three grown-up sheets; the doors are menu and places', () => {
-      expect(MENU_TILES).toEqual(['together', 'colony', 'journal', 'album', 'skills', 'controls']);
+    it('the Menu holds the kid tiles, Sound & controls and For grown-ups, which opens three sheets; the doors are menu and places', () => {
+      expect(MENU_TILES).toEqual(['together', 'colony', 'journal', 'album', 'skills']);
       expect(GROWNUP_SHEETS).toEqual(['settings', 'sync', 'code']);
-      expect(HOME_SHEETS).toEqual(['menu', 'places', ...MENU_TILES, ...GROWNUP_SHEETS]);
+      expect(HOME_SHEETS).toEqual(['menu', 'places', ...MENU_TILES, 'controls', 'grownups', ...GROWNUP_SHEETS]);
     });
     it('Cloud save is the name for sync; Friends is folded into Play together', () => {
       expect(SHEET_LABEL.social).toBeUndefined();

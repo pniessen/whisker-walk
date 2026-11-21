@@ -164,6 +164,13 @@ describe('fur tufts (cat realism B7)', () => {
       expect(tuftTris(caped[0].children[0]) + tuftTris(caped[1].children[0])).toBe(0);
       expect(tuftTris(caped[3].children[0])).toBeGreaterThan(0);
     });
+    it('a found cape or the jumper is a cover', () => {
+      for (const b of ['tabby', 'persian', 'mainecoon']) {
+        expect(tuftPlan(catStyle(b), { ...BARE, body: 'doormatcape' }), b).toEqual(tuftPlan(catStyle(b), { ...BARE, body: 'cape' }));
+        expect(tuftPlan(catStyle(b), { ...BARE, body: 'beachtowelcape' }), b).toEqual(tuftPlan(catStyle(b), { ...BARE, body: 'cape' }));
+        expect(tuftPlan(catStyle(b), { ...BARE, body: 'fishermansjumper' }), b).toEqual(tuftPlan(catStyle(b), { ...BARE, body: 'sweater' }));
+      }
+    });
     it.each(['backpack', 'jetpack', 'wings'])('%s straps lie where the mane would: no mane, the rest stays', (back) => {
       for (const b of LONG) {
         const cat = buildCat(b, { ...BARE, back }), bare = buildCat(b, { ...BARE });

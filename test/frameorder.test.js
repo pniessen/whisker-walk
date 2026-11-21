@@ -563,7 +563,8 @@ describe('the frame guard', () => {
     throwing(5, 1020);
     expect(calls()).toContain('setAnimationLoop(null)');
     expect(h.loop).toBeNull();
-    expect(element('overlay').innerHTML).toBe(stuckNoticeHtml('error'));
+    // (touchui is stubbed inert here, so the page reads as a touch screen)
+    expect(element('overlay').innerHTML).toBe(stuckNoticeHtml('error', { touch: true }));
   });
 
   it('when the home screen\'s own frame keeps throwing, the loop stops', () => {
@@ -572,6 +573,7 @@ describe('the frame guard', () => {
     throwing(5, 1020);
     expect(calls()).not.toContain('endWalk');
     expect(calls()).toContain('setAnimationLoop(null)');
-    expect(element('overlay').innerHTML).toBe(stuckNoticeHtml('error'));
+    // (touchui is stubbed inert here, so the page reads as a touch screen)
+    expect(element('overlay').innerHTML).toBe(stuckNoticeHtml('error', { touch: true }));
   });
 });

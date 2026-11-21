@@ -308,8 +308,8 @@ describe('renderPairingHtml', () => {
 
   it('needs-name says a walking name comes first, with one button that leads to it and nothing else', () => {
     const html = renderPairingHtml(st('needs-name'), { hasPetName: false });
-    expect(html).toContain('To share your colony, you need a walking name first.');
-    expect(html).toContain('<button type="button" id="colony-pair-name" class="colony-pair-btn">Pick your walking name →</button>');
+    expect(html).toContain('To share your colony, you need a friend name first.');
+    expect(html).toContain('<button type="button" id="colony-pair-name" class="colony-pair-btn">Pick your friend name →</button>');
     expect(html.match(/<button/g)).toHaveLength(1);
     expect(html).not.toContain('disabled');
     expect(html).not.toContain('<input');

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { bus } from './events.js';
 import { createPlayer } from './player.js';
 import { coatColor, CAT_LOOK_Y } from './cat/model.js';
+import { resumableAreaIds, roofsOn, loadRoofs } from './roofsflag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { createProgression, rankFor, CATALOG } from './progression.js';
 import { colonyNews, tradeEffect } from './colony.js';
@@ -132,6 +133,11 @@ if (!renderer) {
 }
 
 function init() {
+  // ?roofs=1: fetch the Rooftops' drawing now, its own download, so it has
+  // come by the time Explore is pressed. Without the switch nothing fetches it.
+  // A failure here is quiet: Explore (walk.js) tries again and, failing,
+  // walks her own place.
+  if (roofsOn()) loadRoofs().catch(() => {});
   // coarse-pointer devices (phones/tablets) get a lower pixel-ratio cap here,
   // for the home base only. Walks no longer key off the pointer: each walk's
   // pixel ratio, shadows and stray count come from its quality rung, which
@@ -451,6 +457,7 @@ function init() {
     supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
     supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
     progression, getCloud, getPsecret, colonySync, onlineAllowed: togetherAllowed,
+    getIsTouch: () => isTouch,
     getSession: () => session,
     startWalk: (opts) => startWalk(opts),
     toast: cloudToast,
@@ -538,7 +545,7 @@ function init() {
   const homebaseCloud = createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed: togetherAllowed, pushProfileNow, blockList });
   // "Delete my online data" on the Cloud save sheet (src/game/onlinedelete.js).
   const onlineDelete = createOnlineDelete({ MP, pid, getCloud: openCloud, getPsecret, sync, progression });
-  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby });
+  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the
@@ -547,7 +554,7 @@ function init() {
   // closed in the middle of. Read once, here. A walk left too long is settled
   // now, before the home screen draws its numbers; one still fresh is picked
   // up at the end of init (see "Mid-walk resume" above the render loop).
-  const leftWalk = readResume(window.localStorage, { now: Date.now(), areaIds: Object.keys(progression.state.walks) });
+  const leftWalk = readResume(window.localStorage, { now: Date.now(), areaIds: resumableAreaIds(progression.state.walks) });
   if (leftWalk?.kind === 'stale') {
     clearResume(window.localStorage);
     settleAbandoned(progression, leftWalk.data);
@@ -967,19 +974,32 @@ function init() {
   // it does for any walk). The try is counted BEFORE the build: a walk that
   // cannot be rebuilt is settled on a later launch (RESUME_MAX_TRIES) rather
   // than tried forever.
+  //
+  // A Rooftops walk (only noted with the switch on, resumableAreaIds) waits
+  // for its drawing to come. Home is up meanwhile; a fetch that fails leaves
+  // the note, already counted, for a later launch, and she stays home.
   if (resuming) {
-    const note = markTried(window.localStorage, leftWalk.data);
-    try {
-      startWalk({ duskMode: note.dusk, areaOverride: note.areaId, resume: note });
-    } catch (err) {
-      console.warn('Whisker Walk: could not pick the walk up', err);
-      note('resume', err);
-      // The walk counts as finished and is forgotten. If it got as far as a
-      // half-built session, start the page again clean: with the note gone
-      // that opens at home, once.
-      clearResume(window.localStorage);
-      settleAbandoned(progression, note);
-      if (session) window.location.reload();
+    const left = markTried(window.localStorage, leftWalk.data);
+    const pickUp = () => {
+      try {
+        startWalk({ duskMode: left.dusk, areaOverride: left.areaId, resume: left });
+      } catch (err) {
+        console.warn('Whisker Walk: could not pick the walk up', err);
+        note('resume', err);
+        // The walk counts as finished and is forgotten. If it got as far as a
+        // half-built session, start the page again clean: with the note gone
+        // that opens at home, once.
+        clearResume(window.localStorage);
+        settleAbandoned(progression, left);
+        if (session) window.location.reload();
+      }
+    };
+    if (left.areaId !== 'roofs') pickUp();
+    else {
+      loadRoofs().then(
+        () => { if (!session) pickUp(); },
+        (err) => { console.warn('Whisker Walk: the Rooftops did not load', err); note('roofs', err); },
+      );
     }
   }
   // The frame guard (src/game/recovery.js holds the policy and its numbers).
@@ -1007,7 +1027,7 @@ function init() {
       session = null;
     }
     try { player.disable(); } catch { /* the notice matters more */ }
-    overlay.innerHTML = stuckNoticeHtml(kind);
+    overlay.innerHTML = stuckNoticeHtml(kind, { touch: isTouch });
     overlay.classList.remove('hidden');
     perfHud.showDiagnostics();
   }

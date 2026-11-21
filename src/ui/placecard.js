@@ -47,6 +47,7 @@ export function renderPlaceCardHtml(card, { picture } = {}) {
   return `<div class="wm-card" role="dialog" aria-labelledby="wm-card-name" data-wm-card="${id}">`
     + `<img class="wm-card-pic" src="${escapeHtml(picture ?? '')}" alt="" onerror="this.style.display='none'">`
     + `<h3 id="wm-card-name">${c.locked ? '🔒 ' : ''}${escapeHtml(c.name)}</h3>`
+    + (c.townNote ? `<small class="dr-town-note">${escapeHtml(c.townNote)}</small>` : '')
     + `<p class="wm-card-line">${escapeHtml(c.line)}</p>`
     + button
     + `<button type="button" class="wm-card-close" data-dr-map-close="${id}" aria-label="Close">✕</button>`

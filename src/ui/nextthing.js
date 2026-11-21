@@ -39,14 +39,15 @@ const inSentence = (name) => String(name).replace(/^The /, 'the ');
 //   denVisitedToday  she has been to the den today (this device's note)
 //   guideName        the guide cat's name, for a guided walk left half done
 //   now              epoch ms, for the colony's rules
-export function nextThing(state, { catalog = CATALOG, present = false, toldNow = null, denVisitedToday = false, guideName = null, now = Date.now() } = {}) {
+//   touch            a touch screen: its lines say Tap (a desktop's say Click)
+export function nextThing(state, { catalog = CATALOG, present = false, toldNow = null, denVisitedToday = false, guideName = null, now = Date.now(), touch = false } = {}) {
   const s = state && typeof state === 'object' ? state : {};
   const edition = s.edition;
   const areas = catalog.areas;
   const walks = s.walks && typeof s.walks === 'object' ? s.walks : {};
   const owned = Array.isArray(s.unlocked?.areas) ? s.unlocked.areas : [];
   const points = count(s.points);
-  const say = (rule, id, pic, slots, action = null, extra = {}) => ({ rule, id, pic, text: line(id, slots), action, ...extra });
+  const say = (rule, id, pic, slots, action = null, extra = {}) => ({ rule, id, pic, text: line(id, { ...slots, touch: !!touch }), action, ...extra });
   const nameOf = (areaId) => inSentence(placeName(areaId, edition, catalog) || areaId);
   // A place's gate and price, from areaOffer, which knows a kept offer.
   const offer = (id) => areaOffer(s, catalog, id);

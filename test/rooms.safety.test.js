@@ -40,7 +40,7 @@ describe('rooms: names and members', () => {
     await bad.join(res.code, { playerId: 'aaaa', petName: '<img src=x onerror=alert(1)>' });
     bad.sendState({ v: 1, id: 'aaaa', pos: [1, 2], yaw: 0, pose: 'follow', speed: 1 });
     expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
-    expect(kid.toasts).toEqual(['Your friend is exploring. Tap Explore when they’re back.']);
+    expect(kid.toasts).toEqual(['Your friend is exploring. Click Explore when they’re back.']);
   });
   it('the room lists at most four cats, the same four on every device', async () => {
     const kid = client(hub, 'p3', 'Robin');

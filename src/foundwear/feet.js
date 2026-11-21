@@ -18,4 +18,9 @@
 // validateFoundWear (index.js; test/foundwear.test.js runs it) checks all of it.
 // What else a new outfit needs, outside this file: see index.js, "ADDING ONE".
 
-export const FEET_WEAR = Object.freeze([]);
+import { phrase } from '../clanphrases.js';
+
+export const FEET_WEAR = Object.freeze([
+  // the Park: tall yellow wellies (src/cat/foundfeet.js builds them)
+  Object.freeze({ id: 'puddlewellies', slot: 'feet', find: 'park', emoji: '👢', name: () => phrase('wear.puddlewellies.name') }),
+]);

@@ -330,6 +330,45 @@ const SETS = {
     keepSlots: [],
   },
 
+  // The Rooftops (src/world/roofsplan.js ROOFS_REGISTRATION.propSet; test/roofs.test.js
+  // holds the two equal). The street areas' counts; NO DOG YARD, no markable is
+  // `nearBorder`, and no strays: nothing up here chases the cat. Every prop stands
+  // on one level, reached without Long Leap.
+  roofs: {
+    carryables: [
+      { id: 'roofs-sock-1', kind: 'sock', x: -15.9, z: 24.5 },      // a sock off the washing line, in a back yard
+      { id: 'roofs-cap-1', kind: 'cap', x: -6, z: 30.5 },           // a cap left on the garage roof
+      { id: 'roofs-glove-1', kind: 'glove', x: -13.25, z: 18 },     // a roofer's glove on a back extension
+      { id: 'roofs-rope-1', kind: 'rope', x: -10, z: -22 },         // a coil of rope on the warehouse roof
+    ],
+    // On the alley crates: a can on top of the stack, a cup on the second crate,
+    // a book on the lone crate. Each falls south onto the alley (`y` is metres
+    // above the ground there).
+    knockables: [
+      { id: 'roofs-can-1', kind: 'can', x: -18.3, z: 35.05, y: 1.1, fallTo: { x: -18.3, z: 36.4 } },
+      { id: 'roofs-cup-1', kind: 'cup', x: -17.75, z: 35.15, y: 0.55, fallTo: { x: -17.4, z: 36.3 } },
+      { id: 'roofs-book-1', kind: 'book', x: 9.4, z: 35, y: 0.6, fallTo: { x: 9.4, z: 36.4 } },
+    ],
+    markables: [
+      { id: 'roofs-post-1', kind: 'post', x: -3, z: 44.5, nearBorder: false, mesh: false },    // the alley lamp post
+      { id: 'roofs-post-2', kind: 'post', x: -2.3, z: 27, nearBorder: false, mesh: false },    // a washing post in a back yard
+      { id: 'roofs-post-3', kind: 'post', x: 22.7, z: 22, nearBorder: false, mesh: false },    // another, further east
+    ],
+    flaps: [
+      // A loose fence board at the alley's west end.
+      { id: 'roofs-flap-1', kind: 'flap', x: -28, z: 42, rotY: QUARTER, width: 1.0 },
+    ],
+    rests: [
+      { id: 'roofs-drink-1', kind: 'drink', x: -8, z: 42, mesh: true },   // a water bowl in the alley
+      { id: 'roofs-eat-1', kind: 'eat', x: 22, z: 38, mesh: true },       // a dish at the alley's east end
+      { id: 'roofs-nap-1', kind: 'nap', x: 14.5, z: 31.5, mesh: true },   // a cushion on the shed roof
+    ],
+    // Behind the bins, on the garage roof by the fire escape, at the tank's foot.
+    hides: [{ x: 14.5, z: 37 }, { x: -24, z: 30.5 }, { x: -26, z: -31.3 }],
+    dogYard: null,
+    keepSlots: [],
+  },
+
   // The Moor: only its hides for now, three of the rabbit warren's burrows
   // (src/world/moor.js's WARREN_BURROWS 0, 2 and 4), the holes a fleeing
   // rabbit dives into. The rest of a Moor prop set is deferred: nothing to
@@ -441,6 +480,10 @@ const YARN_SPOTS = {
   fair: [
     { x: -3.6, z: 27.5, where: 'by the prize stall' },
     { x: -31, z: 13, where: 'on the picnic lawn' },
+  ],
+  roofs: [
+    { x: -12, z: 37, where: 'in the back alley' },
+    { x: -12, z: 31, where: 'on the garage roof' },
   ],
   woods: [
     { x: -2.5, z: 18, where: 'by the fallen log' },

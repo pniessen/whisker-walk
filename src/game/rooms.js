@@ -48,6 +48,8 @@ export function createRooms({
   // is about other players, so a linked cloud save alone opens none. main.js
   // always passes it; the default is for tests that build rooms on their own.
   onlineAllowed = () => true,
+  // A touch screen's toast says Tap, a desktop's Click (main.js's isTouch).
+  getIsTouch = () => false,
 }) {
   // Room state lives OUTSIDE the walk session — a room can be formed on the
   // home base screen (host/join) before anyone has clicked Start, and
@@ -189,7 +191,7 @@ export function createRooms({
     if (walkers.length) {
       const who = room.roster.find((p) => p?.playerId === walkers[0]);
       const name = safeRemoteName(who?.petName, 'Your friend'); // another device's name: never shown raw
-      try { toast?.(`${name} is exploring. Tap Explore when they’re back.`); } catch { /* a toast is never worth a crash */ }
+      try { toast?.(`${name} is exploring. ${getIsTouch() ? 'Tap' : 'Click'} Explore when they’re back.`); } catch { /* a toast is never worth a crash */ }
       return false;
     }
     // The player id is mixed in so two presses in the same millisecond still

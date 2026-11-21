@@ -62,6 +62,8 @@ export function capePoint(a, s, out = new THREE.Vector3(), C = CAPE) {
 }
 
 // The cape's cloth: a grid of (a, s), 24×20 (12×10 simple), double-sided.
+// userData.grid is [na, ns]: vertex (i, j) is at index j × (na + 1) + i, at
+// a = -1 + 2i / na, s = j / ns (model.js capeOn paints a found cape by it).
 export function capeGeometry(simple, C = CAPE) {
   const [na, ns] = simple ? [12, 10] : [24, 20];
   const pos = new Float32Array((na + 1) * (ns + 1) * 3), idx = [], p = new THREE.Vector3();
@@ -79,6 +81,7 @@ export function capeGeometry(simple, C = CAPE) {
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setIndex(idx);
   geo.computeVertexNormals();
+  geo.userData.grid = [na, ns];
   return geo;
 }
 

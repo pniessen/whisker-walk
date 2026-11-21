@@ -13,7 +13,12 @@
 // from one, and it would cost a draw). Nothing is random or reads the clock.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { buildHat } from '../cat/hats.js';
+import { buildHat, lyingClip } from '../cat/hats.js';
+import { buildCat } from '../cat/model.js';
+import { buildFoldedJumper } from '../cat/foundbody.js';
+import { STRAP_GREY } from '../cat/backitems.js';
+import { bodyKind } from '../cat/wearkind.js';
+import { animateCat } from '../cat/animator.js';
 import { litMaterial } from '../render/materials.js';
 import { foundRecord } from './index.js';
 
@@ -29,14 +34,114 @@ export const LOOK_POSE = Object.freeze({
   perch: Object.freeze({ tilt: 0.1, lift: 0 }),
 });
 
+// isPieceOf(obj, id): true when `obj` is a mesh of outfit `id` as a cat
+// wears it: tagged by model.js's found-outfit hooks (userData.foundWear), a
+// hat (userData.hat, hats.js) or a pack (userData.backItem, backitems.js).
+export function isPieceOf(obj, id) {
+  if (!obj.isMesh || typeof id !== 'string') return false;
+  const u = obj.userData;
+  return u.foundWear === id || u.hat === id || u.backItem === id;
+}
+
+const BARE = Object.freeze({ collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null });
+
+// wornPieces(id) -> THREE.Group named 'wear:<id>' holding the outfit's own
+// meshes, as a simple tabby wears it, standing (so a cape's clasp and bands
+// are laid), each where it sat on her; null for an id that is no record, or
+// one she wears nothing of. Boots are the front pair only. The rest of the
+// cat is dropped: it was never drawn.
+export function wornPieces(id) {
+  const rec = foundRecord(id);
+  if (!rec) return null;
+  const cat = buildCat('tabby', { ...BARE, [rec.slot]: id }, { simple: true });
+  animateCat(cat, 'follow', 0, 0, false);
+  cat.updateMatrixWorld(true);
+  const roots = rec.slot === 'feet' ? cat.userData.parts.legs.slice(0, 2) : [cat];
+  const meshes = [];
+  for (const root of roots) root.traverse((o) => { if (isPieceOf(o, id)) meshes.push(o); });
+  if (meshes.length === 0) return null;
+  const group = new THREE.Group();
+  group.name = `wear:${id}`;
+  for (const m of meshes) group.attach(m);
+  return group;
+}
+
 // The builder for each slot's outfits on the ground: (id) -> THREE.Object3D
 // (one mesh or a group of them, built where the cat wears it), or null for an
-// id it does not know. Step 2 adds the other slots (index.js, ADDING ONE,
-// step 5); until a slot has one, its finds show as the pouch, and
-// test/foundlive.test.js fails for any record whose slot has none.
+// id it does not know (then the find shows as the pouch, and
+// test/foundlive.test.js fails for that record). A hat is built on its own;
+// every other slot is the pieces the cat wears (wornPieces).
 export const DISPLAY_BY_SLOT = Object.freeze({
   head: (id) => buildHat(id, { simple: true }),
+  face: wornPieces,
+  // a necklace or a collar dropped settles: what hung from it (shells,
+  // tickets, a charm) folds up level with the ring instead of holding it up
+  neck: (id) => settled(wornPieces(id)),
+  collar: (id) => settled(wornPieces(id)),
+  // a cape dropped lies in a low heap of cloth, not standing as an arch
+  body: (id) => (bodyKind(id) === 'cape' ? settled(wornPieces(id), 0.3) : wornPieces(id)),
+  back: wornPieces,
+  feet: wornPieces,
 });
+
+// One outfit's own ground look, in place of its slot's (its id: (id) ->
+// THREE.Object3D): for a thing that lies on the ground otherwise than it is
+// worn (a jumper folded). buildFindDisplay looks here first.
+// The Hay-bale Backpack lying on the grass: the bale and its twine, without
+// the two straps, which worn arch over a body that is not there and would
+// hold the bale up in the air. The pack's one merged mesh is cut back to the
+// triangles that are not strap-coloured (STRAP_GREY, backitems.js).
+export function buildLyingHayBale(id = 'haybalepack') {
+  const group = wornPieces(id);
+  if (!group) return null;
+  const strap = new THREE.Color(STRAP_GREY);
+  for (const m of group.children) {
+    if (!m.isMesh) continue;
+    const src = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+    const names = Object.keys(src.attributes);
+    const col = src.attributes.color;
+    const keep = [];
+    for (let t = 0; t < col.count; t += 3) {
+      const isStrap = [0, 1, 2].every((k) => Math.abs(col.getX(t + k) - strap.r) + Math.abs(col.getY(t + k) - strap.g) + Math.abs(col.getZ(t + k) - strap.b) < 0.02);
+      if (!isStrap) keep.push(t);
+    }
+    const geo = new THREE.BufferGeometry();
+    for (const n of names) {
+      const a = src.attributes[n], out = new Float32Array(keep.length * 3 * a.itemSize);
+      keep.forEach((t, i) => { for (let k = 0; k < 3; k++) for (let c = 0; c < a.itemSize; c++) out[(i * 3 + k) * a.itemSize + c] = a.array[(t + k) * a.itemSize + c]; });
+      geo.setAttribute(n, new THREE.BufferAttribute(out, a.itemSize));
+    }
+    m.geometry = geo;
+  }
+  return group;
+}
+
+export const DISPLAY_BY_ID = Object.freeze({
+  fishermansjumper: buildFoldedJumper,
+  haybalepack: buildLyingHayBale,
+  // the two clips lie face up, as dropped (a hat stands on its brim)
+  starfishclip: lyingClip,
+  featherplume: lyingClip,
+  // the glasses rest tipped back on their rims, lenses to the sky
+  heartglasses: (id) => tipped(wornPieces(id), 1.0),
+  // the kite and its tail of bows lie along the grass, faces up; the
+  // candyfloss lies on its side, the stick in the grass
+  kitetailribbon: (id) => { const g = tipped(wornPieces(id), -1.4); if (g) { g.rotation.order = 'YXZ'; g.rotation.y = 1.2; } return g; },
+  candyflosspuff: (id) => tipped(wornPieces(id), 0, 1.35),
+});
+
+// A worn group pressed down to `k` of its height, as a soft thing settles.
+function settled(group, k = 0.65) {
+  if (group) group.scale.y = k;
+  return group;
+}
+
+// A worn group tipped back about x (its front, -z, turned up by `a` radians)
+// and rolled `b` radians about z.
+function tipped(group, a, b = 0) {
+  if (group) group.rotation.set(a, 0, b);
+  return group;
+}
 
 function noShadow(obj) {
   obj.traverse((o) => { if (o.isMesh) o.castShadow = false; });
@@ -79,12 +184,14 @@ export function seatDisplay(obj) {
   return holder;
 }
 
-// buildFindDisplay(item) -> the outfit's own look for a wear item whose slot
-// has a builder, seated (seatDisplay); the pouch otherwise (the pouch itself,
-// an unknown id, a slot with no builder yet).
+// buildFindDisplay(item) -> the outfit's own look for a wear item with a
+// builder (its own in DISPLAY_BY_ID, else its slot's), seated (seatDisplay);
+// the pouch otherwise (the pouch itself, an unknown id, no builder).
 export function buildFindDisplay(item) {
   const rec = item?.kind === 'wear' ? foundRecord(item.id) : null;
-  const make = rec && Object.hasOwn(DISPLAY_BY_SLOT, rec.slot) ? DISPLAY_BY_SLOT[rec.slot] : null;
+  const make = !rec ? null
+    : Object.hasOwn(DISPLAY_BY_ID, rec.id) ? DISPLAY_BY_ID[rec.id]
+      : Object.hasOwn(DISPLAY_BY_SLOT, rec.slot) ? DISPLAY_BY_SLOT[rec.slot] : null;
   const obj = make ? make(rec.id) : null;
   return noShadow(obj ? seatDisplay(obj) : buildPouch());
 }

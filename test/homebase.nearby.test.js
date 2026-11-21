@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // without a cat name, the host's line, and nothing at all outside the app.
 // Driven through createHomeBase over a no-DOM stand-in, with the real
 // game/nearby.js between a fake app bridge and a fake `rooms`.
-vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
+vi.mock('../src/thumbnails.js', () => ({ fillFoundThumbs: () => {}, menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
 const dressingMock = vi.hoisted(() => ({ opts: null, ui: { builder: null } }));
 vi.mock('../src/ui/dressingroomview.js', () => ({
@@ -229,7 +229,7 @@ describe('a fresh device: not online yet, so no search', () => {
     const { hb, sent } = setup({ opted: false, name: null });
     openSheet('together');
     expect(sent).toEqual([]);
-    expect(html()).toContain('First, pick your walking name:');
+    expect(html()).toContain('First, pick your friend name:');
     expect(html()).not.toContain('wt-nearby-row');
     openSheet(null);
     openSheet('menu');
@@ -251,7 +251,7 @@ describe('a fresh device: not online yet, so no search', () => {
     openSheet('together');
     await tap({ id: 'wt-host' });
     expect(rooms.host).not.toHaveBeenCalled();
-    expect(html()).toContain('You need a walking name before you can play together. Type one here and tap Save:');
+    expect(html()).toContain('You need a friend name before you can play together. Type one here and click Save:');
     expect(sent).toEqual([]);
   });
   it('saving a walking name on Play together is what starts the search', async () => {
@@ -281,7 +281,7 @@ describe('the rows in Play together', () => {
     expect(h).not.toContain('wt-nearby-row');
     expect(h).not.toMatch(/search|looking/i);
   });
-  it('one row per room, above the code box, with a big Join that carries the code', () => {
+  it('one row per room, under the two choices and above the Friends, with a big Join that carries the code', () => {
     const { nearby } = setup();
     nearby.receive(found(['WXYZ', 'Robin'], ['QRST', 'Tiger Lily']));
     openSheet('together');
@@ -293,9 +293,9 @@ describe('the rows in Play together', () => {
     expect(h).toContain('<span class="wt-nearby-code">Room WXYZ: check it&#39;s the code on their screen</span>');
     expect(h).toContain('<span class="wt-nearby-code">Room QRST: check it&#39;s the code on their screen</span>');
     expect(h).toContain('<button class="primary wt-nearby-join" data-nearby-code="WXYZ">Join</button>');
-    expect(h.indexOf('wt-nearby-row')).toBeGreaterThan(h.indexOf('id="wt-petname-input"'));
-    expect(h.indexOf('wt-nearby-row')).toBeLessThan(h.indexOf('id="wt-join-code"'));
-    expect(h.indexOf('wt-nearby-row')).toBeLessThan(h.indexOf('id="wt-host"'));
+    expect(h.indexOf('wt-nearby-row')).toBeGreaterThan(h.indexOf('id="wt-host"'));
+    expect(h.indexOf('wt-nearby-row')).toBeGreaterThan(h.indexOf('id="wt-join-open"'));
+    expect(h.indexOf('wt-nearby-row')).toBeLessThan(h.indexOf('>Friends</h3>'));
   });
   it('a room that appears or goes while the sheet is open changes only the rows (a half-typed code is kept)', () => {
     const { nearby } = setup();
@@ -339,8 +339,9 @@ describe('the rows in Play together', () => {
     doc.root.querySelector = (sel) => (sel === '#wt-petname-input' ? nameBox : null);
     await tap({ dataset: { nearbyCode: 'WXYZ' } });
     expect(rooms.join).not.toHaveBeenCalled();
-    expect(html()).toContain('You need a walking name before you can play together');
-    expect(html().indexOf('You need a walking name')).toBeLessThan(html().indexOf('id="wt-petname-input"'));
+    expect(html()).toContain('You need a friend name before you can play together');
+    expect(html().indexOf('You need a friend name')).toBeGreaterThan(-1);
+    expect(html().indexOf('You need a friend name')).toBeLessThan(html().indexOf('id="wt-petname-input"'));
     expect(nameBox.focus).toHaveBeenCalled();
     expect(html()).toContain('wt-nearby-row'); // the row waits for her
   });
@@ -352,11 +353,11 @@ describe('the rows in Play together', () => {
     doc.root.querySelector = (sel) => (sel === '#wt-petname-input' ? { value: 'Mittens' } : null);
     await tap({ id: 'wt-petname-save' });
     expect(progression.state.petName).toBe('Mittens');
-    expect(html()).not.toContain('You need a walking name before');
+    expect(html()).not.toContain('You need a friend name before');
     await tap({ dataset: { nearbyCode: 'WXYZ' } });
     expect(rooms.join).toHaveBeenCalledWith('WXYZ');
   });
-  it('a join that fails says so and leaves the typed code to try', async () => {
+  it('a join that fails says so and opens the room-code box to try', async () => {
     const { nearby } = setup({ joinOk: false });
     nearby.receive(found(['WXYZ', 'Robin']));
     openSheet('together');
@@ -485,7 +486,7 @@ describe('the card over home', () => {
     expect(rooms.join).not.toHaveBeenCalled();
     expect(card()).toBeUndefined();
     expect(html()).toContain('data-sheet="together"');
-    expect(html()).toContain('You need a walking name before you can play together');
+    expect(html()).toContain('You need a friend name before you can play together');
     expect(html()).toContain('data-nearby-code="WXYZ"');
     expect(nameBox.focus).toHaveBeenCalled();
   });

@@ -29,7 +29,7 @@ const { isWalkableAt, createPlayer, CAT_RADIUS } = await import('../src/player.j
 const { build: buildNeigh } = await import('../src/world/neighborhood.js');
 const { build: buildPark } = await import('../src/world/park.js');
 
-const AREAS = ['neighborhood', 'park', 'seaside', 'docks', 'farm', 'fair'];
+const AREAS = ['neighborhood', 'park', 'seaside', 'docks', 'farm', 'fair', 'roofs'];
 
 // A scene that counts what goes in and out.
 function countingScene() {

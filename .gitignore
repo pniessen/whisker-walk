@@ -25,6 +25,8 @@ verify-*.html
 !verify-traversal.html
 # This one draws the found outfits (the Acorn Cap on every cat, the find at every Park and Woods spot, the card, the dress-up and the Journal): found outfits step 1's sign-off record.
 !verify-finds.html
+# Found outfits step 2's picture sheets: imports src/render/rig.js, so kept where a rig change cannot leave it behind.
+!verify-wear.html
 
 # Brainstorming visual-companion scratch (mockups, server state)
 .superpowers/

@@ -12,6 +12,7 @@ import { placeName, areaInEdition, accessoryName } from '../edition.js';
 import { lower } from '../bordercross.js';
 import { escapeHtml } from '../escapehtml.js';
 import { phrase } from '../clanphrases.js';
+import { spotsIn } from './spots/index.js';
 
 function ownedAccessories(state) {
   const list = state?.unlocked?.accessories;
@@ -34,6 +35,8 @@ export function renderThingsToWearHtml(state, catalog) {
           + `<span class="journal-name">${escapeHtml(accessoryName(a, edition))}</span></div>`;
       }
       if (!shown) return '';
+      // Nothing is hidden in a place with no find spots: no silhouette to hunt for.
+      if (spotsIn(areaId).length === 0) return '';
       const where = phrase('wear.foundIn', lower(placeName(areaId, edition, catalog)));
       return `<div class="journal-card unspotted" role="group" aria-label="${escapeHtml(phrase('wear.notYet'))}">`
         + `<span class="journal-emoji silhouette" aria-hidden="true">${emoji}</span>`

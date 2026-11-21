@@ -25,9 +25,22 @@ const { floodFrom } = await import('./helpers/flood.js');
 const { perchHops } = await import('./helpers/findreach.js');
 const { SPAWN_CLEAR, PICKUP } = await import('../src/foundwear/rules.js');
 const { FIND_LOOKS, SPOT_ID, FIND_SPOTS, spotsIn, findSpotsKey, FIND_KEY } = await import('../src/foundwear/spots/index.js');
-const { yarnSpotsFor } = await import('../src/propsets.js');
+const { yarnSpotsFor, propsFor } = await import('../src/propsets.js');
 const { groundOf } = await import('../src/ground.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
+const { CHICK_SPOT_SETS, goatRoute } = await import('../src/farmjobs.js');
+const { FARM_HIDES } = await import('../src/world/farm.js');
+const { FAIR_HIDES } = await import('../src/world/fair.js');
+
+// Scripted job points per area: a find never sits where a job's animal or
+// object is placed (PICKUP is 1 m, so a find that close doubles up with it).
+const JOB_CLEAR = 3;
+// The Fair's: its games' and finds' anchors (each a point { x, z }, or a list of them) and its hides.
+const FAIR_JOB_ANCHORS = ['tinCanPlay', 'tinCanCounter', 'tinCans', 'duckPool', 'duckPoolSide', 'bellPad', 'bellPole', 'fortuneDoor', 'fortuneSeat', 'fortuneBall', 'musicBox', 'candyfloss', 'candyflossPan', 'juggler', 'jugglerWatch', 'balloonCart', 'wheelBoard', 'teacupsBoard', 'merryGoRoundBoard', 'helterDoor', 'helterSlideOff', 'coasterBoard'];
+const JOB_POINTS = {
+  farm: (area) => [...CHICK_SPOT_SETS.flat(), ...goatRoute(area.anchors), ...FARM_HIDES],
+  fair: (area) => [...FAIR_JOB_ANCHORS.flatMap((k) => area.anchors[k]), ...FAIR_HIDES],
+};
 
 const YARN_CLEAR = 3;
 const THING_CLEAR = 2;
@@ -119,6 +132,34 @@ describe.each(Object.keys(BUILDERS))('%s find spots', (areaId) => {
       }
     }
   });
+  // A find is a nook of its own: 1.5 m (sideways, any height) from every point
+  // of interest's centre, scenic and labelled perch (a lookout, "king of the
+  // roof"), where she stops for something else.
+  it('never at a point of interest: 1.5 m from every POI, scenic and labelled perch', () => {
+    const marks = [...(area.pois ?? []), ...(area.scenics ?? []), ...(area.perches ?? []).filter((p) => p.label)];
+    expect(marks.length).toBeGreaterThan(0);
+    for (const s of spots()) {
+      for (const m of marks) expect(Math.hypot(s.x - m.x, s.z - m.z), `${s.id} by ${m.label ?? m.id ?? `(${m.x}, ${m.z})`}`).toBeGreaterThanOrEqual(1.5);
+    }
+  });
+  // The dog's yard is its chase area: a find there is a fetch with a dog on it.
+  it("never in the dog's yard: its radius and 1.5 m more (as the yarn ball's rule)", () => {
+    const yard = propsFor(areaId).dogYard;
+    if (!yard) return;
+    for (const s of spots()) expect(Math.hypot(s.x - yard.x, s.z - yard.z), s.id).toBeGreaterThanOrEqual(yard.r + 1.5);
+  });
+  it('never on a scripted job point: 3 m from every one the area exposes', () => {
+    const pts = JOB_POINTS[areaId]?.(area) ?? [];
+    if (Object.hasOwn(JOB_POINTS, areaId)) expect(pts.length, areaId).toBeGreaterThan(0);
+    for (const s of spots()) for (const p of pts) expect(Math.hypot(s.x - p.x, s.z - p.z), `${s.id} by (${p.x}, ${p.z})`).toBeGreaterThanOrEqual(JOB_CLEAR);
+  });
+  // The rival patrol notices within 4.5 m of its disc and chases; a clan cat
+  // gets a fight. So no find within the disc's radius and 1.5 m more.
+  it("never in a rival patrol's disc: its radius and 1.5 m more", () => {
+    const d = DISCS[areaId];
+    if (!d) return;
+    for (const s of spots()) expect(Math.hypot(s.x - d.cx, s.z - d.cz), s.id).toBeGreaterThanOrEqual(d.r + 1.5);
+  });
   it('never beside the yarn ball: 3 m from both its spots', () => {
     const yarn = yarnSpotsFor(areaId);
     expect(yarn.length).toBe(2);
@@ -127,7 +168,7 @@ describe.each(Object.keys(BUILDERS))('%s find spots', (areaId) => {
     }
   });
 });
-it('the Woods spots sit in the open: no trunk within 2 m, no fern or bramble within 1.2 m, none in the camp', async () => {
+it('the Woods spots sit in the open: no trunk within 2 m, no fern or bramble within 1.2 m, none in the camp (the generic disc rule is above)', async () => {
   const { woodsTreeSpots, woodsUndergrowth } = await import('../src/world/woods.js');
   const trees = woodsTreeSpots(); const { ferns, brambles } = woodsUndergrowth(); const camp = DISCS.woods;
   for (const s of spotsIn('woods')) {

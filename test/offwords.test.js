@@ -162,10 +162,10 @@ describe('nothing in the everyday set is a word of the family\'s set', () => {
   });
 
   it('no table of the set holds one', () => {
-    expect(bannedLeaks(off, [...IDS, /^PHRASES\./])).toEqual([]);
+    expect(bannedLeaks(off, [...IDS, /^PHRASES\./, /^PLACE_WORDS\.roofs$/])).toEqual([]);
     // and no word is shared with the family's rank, outside or place words, bar the one
-    const theirs = new Set([...flat(on.RANK_WORDS), ...flat(on.OUTSIDE_WORDS), ...flat(on.PLACE_WORDS), on.CLAN_SUFFIX].map((w) => w.toLowerCase()));
-    const shared = [...flat(off.RANK_WORDS), ...flat(off.OUTSIDE_WORDS), ...flat(off.PLACE_WORDS), off.CLAN_SUFFIX].filter((w) => theirs.has(w.toLowerCase()));
+    const theirs = new Set([...flat(on.RANK_WORDS), ...flat(on.OUTSIDE_WORDS), ...flat({ ...on.PLACE_WORDS, roofs: [] }), on.CLAN_SUFFIX].map((w) => w.toLowerCase()));
+    const shared = [...flat(off.RANK_WORDS), ...flat(off.OUTSIDE_WORDS), ...flat({ ...off.PLACE_WORDS, roofs: [] }), off.CLAN_SUFFIX].filter((w) => theirs.has(w.toLowerCase()));
     expect(shared).toEqual(['loner']);
     expect(flat(off.RANK_WORDS)).not.toContain('elder');
     // no title word, group word or home-base name is a GROUP word of the family's set
@@ -189,8 +189,8 @@ describe('nothing in the everyday set is a word of the family\'s set', () => {
       for (const [id, text] of Object.entries(said)) {
         expect(typeof text, id).toBe('string');
         expect(text, id).not.toMatch(/undefined|null|NaN|\[object/);
-        // only the line that is never drawn in this set may be empty
-        if (id !== 'star.pick') expect(text.length, id).toBeGreaterThan(0);
+        // only the lines never drawn in this set may be empty
+        if (id !== 'star.pick' && id !== 'place.townNote') expect(text.length, id).toBeGreaterThan(0);
       }
     });
   });
@@ -369,7 +369,7 @@ describe('4. the player\'s cat has no label, and picking a group is choosing a h
       const moment = htmlText(renderClanMomentHtml(model, 'Robin'));
       expect(moment.slice(1, 4)).toEqual(['Time to pick a home!', 'Which crew will be your home?', 'Pick your home crew']);
       const change = htmlText(renderClanMomentHtml(clanPickerModel({ clanPick: { mine: 'woods' } }), 'Robin'));
-      expect(change.slice(1, 3)).toEqual(['Change your crew?', 'Tap a crew to make it your home.']);
+      expect(change.slice(1, 3)).toEqual(['Change your crew?', 'Click a crew to make it your home.']);
       const line = htmlText(clanLineHtml(model, 'Robin', { canChoose: true }));
       expect(line).toEqual(['Time to pick a home!', 'Choose your crew ›']);
       for (const t of [...moment, ...change, ...line]) expect(t).not.toMatch(/join|noticed|wild cats/i);
