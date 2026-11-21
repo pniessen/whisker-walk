@@ -187,8 +187,9 @@ numbers, so this build does not move them.
   place's pack. F6's numbers are the baseline this build plans against.
 - **The Fairground's own pins.** `test/fairgames.test.js` caps the show (people,
   balls, balloon, wisp) at 6,000 triangles (today 4,554 on the high tier) and
-  the place plus the show at 75,000 (the place alone is 66,692). These hold
-  (see "Performance").
+  the place plus the show at 75,000 (the place alone is 66,692). The 75,000
+  holds; the show's own 6,000 rises to 8,000 because pairs add people (my
+  call, see "The Fairground's test pins").
 - **Old iPads.** The scene is draw-call bound (`test/budget.test.js`'s notes):
   draws are the scarce thing, triangles nearly free.
 
