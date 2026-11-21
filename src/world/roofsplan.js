@@ -526,6 +526,42 @@ export const ROOFS_DISCOVERIES = Object.freeze({
   chimney: Object.freeze({ x: -10, z: STACK_Z, y: L.RIDGE }), // F: on the warm stack
 });
 
+// The wind tonight (Rooftops step 3): `from` is the heading it blows from
+// (radians, x = cos, z = sin), the one the weathervane's arrow points along.
+// The washing leans and the smoke drifts the other way (downwind).
+export const ROOFS_WIND = Object.freeze({ from: 0.6 });
+export function downwind() {
+  return [-Math.cos(ROOFS_WIND.from), -Math.sin(ROOFS_WIND.from)];
+}
+// The three pots that smoke (roofs.js's drawn ids, roofsflock.js DRAWN_ID.pot):
+// the warm chimney's cowled pot (discovery F), and one on each of two other
+// stacks, on the yards' side (the alley sees them). No bird perches on them.
+export const SMOKE_POTS = Object.freeze([`pot:${ROOFS_DISCOVERIES.chimney.x}:-1`, 'pot:10:1', 'pot:-30:1']);
+
+// Two house cats asleep on warm back-window sills (Rooftops step 3, S1):
+// scenery only. No name, no label, no prompt, in no cat list; they never move
+// but breathe (roofslife.js). Each lies on the deep stone sill of the window
+// over a side return (roofs.js draws it lit, warm), 4.3 m up the terrace's
+// back wall, out of her reach: no ground she can walk is within 0.6 m beside
+// it or less than 1 m below it (test/roofs.test.js; out-2's west edge, its
+// roof 0.8 m above the sill, is 0.75 m from the grey-and-white cat's). `y`
+// is the sill's top, `z` SLEEPER_SILL.out from the wall (clear of the
+// window's glass); face out to the yards; head toward +x, or toward -x where
+// `mirror` (the owner's tweak, 2026-11-21: the two lie different ways, each
+// head toward the middle of the terrace); `coat` its two colours. Each is on
+// a side return no washing line runs in front of (the owner's tweak: from
+// the yards and the roofs she walks, the washing never hides one;
+// test/roofs.test.js measures it): at the terrace's two ends.
+const SIDE_RETURN_X = (k) => (EXT_X1(k) + EXT_X0(k + 1)) / 2; // the side return beside house k's extension
+export const SLEEPER_SILL = Object.freeze({ y: 4.3, depth: 0.32, out: 0.17 });
+const sleeper = (id, k, yaw, fur, pale, mirror) => Object.freeze({
+  id, x: SIDE_RETURN_X(k), y: SLEEPER_SILL.y, z: TERRACE.z1 + SLEEPER_SILL.out, yaw, mirror, coat: Object.freeze({ fur, pale }),
+});
+export const ROOFS_SLEEPERS = Object.freeze([
+  sleeper('ginger', 11, -0.12, 0xc8783a, 0xeadbc0, true), // over the east yards, by the corner shop, its head to the west
+  sleeper('greyWhite', 1, -0.1, 0x8a8c90, 0xe8e6e0, false), // over the west yards, by the end house, its head to the east
+]);
+
 // The street below (R3): its pavements, three lamps, and the bus's route. The
 // bus runs east along the near lane from x0 to x1 every `every` seconds,
 // taking `run` of them, and is seen while any of it is out in the street:
@@ -564,6 +600,9 @@ export function roofsArea() {
 //   firstRoof  from the spawn, up the bin, the shed and onto the garage roof:
 //              the spec's "A child gets onto the first roof within the first
 //              minute", in seconds.
+//   terrace    firstRoof, then on over plank-2 to the flat roof (below).
+//   birds      after the guide pigeon, over plank-3 (below; its test runs
+//              the flock and the walk's critters with it: test/roofsbirds.test.js).
 export const ROOFS_TOURS = deepFreeze({
   firstRoof: {
     start: { x: ROOFS_SPAWN.x, z: ROOFS_SPAWN.z, face: [0, -1] },
@@ -585,6 +624,22 @@ export const ROOFS_TOURS = deepFreeze({
       { say: 'Over the plank' }, { walk: [1.0, 29.3] }, { walk: [1.0, 18.6] },
       { say: 'Up the drainpipe' }, { walk: [EXT_CX(7), 17.3] }, { jump: true },
       { say: 'Onto the flat roof' }, { walk: [2.0, 12.8] }, { jump: true }, { walk: [2.5, 8.0] },
+    ],
+  },
+  // Following the guide pigeon (step 3, the film): up to it in the alley
+  // (it waits 4.6 m in front of her, further than it lets her come), then
+  // firstRoof's way up the bin and onto the shed, which flushes it from the
+  // bin's lid and the shed's roof; along the shed to plank-3's near end,
+  // where it waits, and over the plank after it onto ext-10's roof. Not onto
+  // the garage roof: no drop leads back down from it to the shed.
+  birds: {
+    start: { x: ROOFS_SPAWN.x, z: ROOFS_SPAWN.z, face: [0, -1] },
+    steps: [
+      { say: 'A pigeon in the alley' }, { walk: [5.2, 38.4] },
+      { say: 'Up the bin' }, { walk: [14.5, 37.6] }, { walk: [14.5, 36.6] }, { jump: true },
+      { say: 'Onto the shed' }, { jump: true },
+      { say: 'After the pigeon, over the plank' }, { walk: [16, 29.3] }, { walk: [16, 19.0] },
+      { say: 'Onto the roof' }, { walk: [16, 17.6] },
     ],
   },
 });
@@ -614,6 +669,26 @@ export const ROOFS_SHOTS = Object.freeze({
 // at; a shot not named here is taken at full dusk (240 s on). The card is what
 // a walk starts with, at sunset, and the edge waits for the bus.
 export const ROOFS_SHOT_T = Object.freeze({ card: 0, edge: 276.4 });
+
+// The life's picture views (Rooftops step 3, for the owner): { view, t }, the
+// view as ROOFS_SHOTS' and the walk second the life is run to first
+// (verify-places.html's __shot takes these names too). Kept apart from
+// ROOFS_SHOTS, whose eight views are the place's own pictures.
+const lifeShot = (view, t) => Object.freeze({ view, t });
+export const ROOFS_LIFE_SHOTS = Object.freeze({
+  // the alley at sunset, the guide pigeon waiting in front of her spawn
+  guide: lifeShot('3.9,0.95,39.4,7.2,0.55,33.6', 0),
+  // from the shed, along plank-3 to ext-10's roof, a pigeon waiting at its far end
+  plank: lifeShot('15.4,3.1,29.0,16,3.5,19.4', 240),
+  // line-2 close, from over the yards: the washing downwind, a sill behind it
+  washing: lifeShot('9.6,5.4,19.2,9.0,4.7,13.0', 240.5),
+  // over the yards, across the ridges: the three smoking pots, the warm one in the middle
+  smoke: lifeShot('-10,13.5,33,-10,9.6,7.5', 240),
+  // the warehouse roof by the loft: the loft and its pigeon, the north parapet
+  loft: lifeShot('-38.8,14.0,-40.8,-33.2,12.5,-46.2', 240),
+  // the grey-and-white cat asleep on its sill over the west yards, from the side return in front of it
+  sleeper: lifeShot('-25.3,5.4,15.2,-25.75,4.4,12.2', 240),
+});
 
 // ---------------------------------------------------------------------------
 // WHAT THE SHARED TABLES HOLD (Task 10). Plain data in the shapes those tables
@@ -685,7 +760,7 @@ export const ROOFS_REGISTRATION = Object.freeze({
   pawprints: Object.freeze({ ground: null, path: 'gravel', strip: null }),
   // The measured counts test/budget.test.js and test/roofs.test.js pin:
   // [meshes, casters, triangles] built, [meshes, casters] merged
-  budget: Object.freeze({ built: Object.freeze([114, 68, 36707]), merged: Object.freeze([57, 30]) }),
+  budget: Object.freeze({ built: Object.freeze([116, 68, 37335]), merged: Object.freeze([59, 30]) }),
   // verify-places.html VIEWS.roofs and the card picture (public/places/roofs.jpg)
   view: ROOFS_SHOTS.card,
   // src/marks.js MARK_AREAS and emptyMarks(): add 'roofs'

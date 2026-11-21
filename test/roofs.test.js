@@ -29,13 +29,17 @@ const {
   BLOCKS, LEVELS, ROOFS_TRAVERSAL, ROOFS_COLLIDERS, YARD, STREETS, VANE, VANE_TIP, ROOFS_SPAWN,
   ROOFS_POIS, ROOFS_COLLECTIBLES, ROOFS_SCENICS, ROOFS_PERCHES, ROOFS_DISCOVERIES, BIN_BAGS,
   ROOFS_TOURS, ROOFS_REGISTRATION, ALLEY_CLUTTER, ALLEY_CHANNEL, WASHING_POSTS, GARDEN, ALLEY_CRATES, PAVEMENT,
+  SMOKE_POTS, downwind, ROOFS_SLEEPERS,
 } = await import('../src/world/roofsplan.js');
-const { CAT_RADIUS, isWalkableAt } = await import('../src/player.js');
+const { CAT_RADIUS, isWalkableAt, DEFAULT_PITCH } = await import('../src/player.js');
+const { cameraOffset } = await import('../src/catcam.js');
+const { ZOOM_STEPS, DEFAULT_ZOOM_STEP } = await import('../src/camzoom.js');
 const { createRoofsLife, EVENING_RAMP } = await import('../src/roofslife.js');
 const { STEP_MAX } = await import('../src/ground.js');
 const { findFadeOccluders } = await import('../src/treefade.js');
 const { castsFromBox, isTransparentMat, SUN_POSITION } = await import('../src/render/rig.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
+const { ROOFS_BIRDS, perchIndex, roofsCritterSpawns } = await import('../src/world/roofsflock.js');
 const { clearSpot } = await import('../src/world/spots.js');
 const { BASE_ABILITIES } = await import('../src/traversal.js');
 const { floodTraversal } = await import('./helpers/traversalflood.js');
@@ -129,8 +133,13 @@ const centreOf = (b) => {
 // three bars +48, two eight-sided covers +16, +72; the far town's back row
 // up to 11.5 m again, so its fronts have room for one more lit window, +2;
 // the felt patches' shades cost nothing) -> 114 / 68 / 36,707 (merged 57 / 30).
-const MEASURED_BUILT = { meshes: 114, casters: 68, triangles: 36707 };
-const MEASURED_MERGED = { meshes: 57, casters: 30, triangles: 36707 };
+// Rooftops step 3, Task 6 (S1, the two house cats asleep on warm sills): +2
+// meshes, never merged and casting nothing, 314 triangles each (a body 100,
+// a head 80, two ears 6, two paws 48, the tail 80), +628; their two deep sills
+// are the old sills' boxes deepened, in the stone bucket the terrace had, at no
+// cost -> 116 / 68 / 37,335 (merged 57 -> 59 / 30).
+const MEASURED_BUILT = { meshes: 116, casters: 68, triangles: 37335 };
+const MEASURED_MERGED = { meshes: 59, casters: 30, triangles: 37335 };
 const MEASURED_DRAWS = 0;
 const TOWN_TRIANGLES = 4960; // the far town's one mesh (Task A: 3,992 before; 4,964 until round two, Task E: its back rows lower, so their fronts have room for three lit windows fewer; 4,958 until Task G: its back row's tallest 2 m higher again, one window more)
 
@@ -853,6 +862,69 @@ describe('the Rooftops drawn', () => {
     expect(houses.size).toBe(2);
   });
 
+  // Rooftops step 3, Task 3: the birds' perches (roofsflock.js), the drawn
+  // ones pushed while drawing.
+  it('every bird perch sits on something drawn', { timeout: 60000 }, () => {
+    const solid = meshes.filter((m) => !m.userData.skyGlow && !m.userData.townBand);
+    const ray = new THREE.Raycaster();
+    const down = new THREE.Vector3(0, -1, 0);
+    expect(area.birdPerches.length).toBeGreaterThan(150);
+    // (the bin bags' landing too: its perch is lifted onto the heap, roofsflock.js PERCH_LIFT)
+    const off = [];
+    for (const p of area.birdPerches) {
+      ray.set(new THREE.Vector3(p.x, p.y + 0.3, p.z), down);
+      ray.far = 0.6;
+      const hit = ray.intersectObjects(solid, false)[0];
+      if (!hit) off.push(`${p.id}: nothing under it`);
+      else if (Math.abs(hit.point.y - p.y) > 0.06) off.push(`${p.id} (${p.kind}) on ${hit.object.name} at ${hit.point.y.toFixed(3)}, not ${p.y.toFixed(3)}`);
+    }
+    expect(off).toEqual([]);
+  });
+
+  it('the pots, the aerials, the parapets, the posts and the yard walls give perches', () => {
+    const of = (kind) => area.birdPerches.filter((p) => p.kind === kind);
+    const stacks = BLOCKS.filter((b) => b.id.startsWith('stack-'));
+    // a pot top each side of a stack's ridge line, named by the stack's x and the side
+    expect(of('pot').length).toBeGreaterThanOrEqual(10);
+    for (const p of of('pot')) {
+      const [, x, side] = p.id.split(':').map(Number);
+      const s = stacks.find((k) => k.x === x);
+      expect(s, p.id).toBeDefined();
+      expect(Math.sign(p.z - s.z), p.id).toBe(side);
+      expect(p.y, p.id).toBeGreaterThan(s.y + 0.4);
+      expect(p.y, p.id).toBeLessThan(s.y + 0.8);
+    }
+    // the warm chimney's pot (discovery F): its top on its cowl's, over the other pots
+    // (it smokes, Task 5, so it is in the drawn pot tops but no bird's perch)
+    const warmId = `pot:${ROOFS_DISCOVERIES.chimney.x}:-1`;
+    const warm = area.potTops[warmId];
+    expect(warm).toBeDefined();
+    expect(of('pot').find((p) => p.id === warmId)).toBeUndefined();
+    expect(warm.y).toBeGreaterThan(Math.max(...Object.entries(area.potTops).filter(([id]) => id !== warmId).map(([, p]) => p.y)));
+    // an aerial on each of the six stacks that carries one, high over its stack
+    // (five perches: aerial:-10 stands in the warm chimney's smoke, 0.12 m from
+    // its pot's top, so no bird perches on it while that pot smokes, Task 5)
+    expect(of('aerial').map((p) => p.id)).not.toContain('aerial:-10');
+    expect(of('aerial')).toHaveLength(5);
+    for (const p of of('aerial')) {
+      const s = stacks.find((k) => `aerial:${k.x}` === p.id);
+      expect(s, p.id).toBeDefined();
+      expect(p.y).toBeGreaterThan(s.y + 0.9);
+      expect(Math.hypot(p.x - s.x, p.z - s.z)).toBeLessThan(1.6);
+    }
+    // the parapets every 3 m, none over a street: the warehouse's, the shop's and tower-1's ring corners
+    expect(of('parapet').length).toBeGreaterThanOrEqual(8);
+    for (const p of of('parapet')) for (const s of STREETS) expect(p.x >= s.x0 && p.x <= s.x1 && p.z >= s.z0 && p.z <= s.z1, p.id).toBe(false);
+    for (const block of ['warehouse', 'cornerShop']) expect(of('parapet').filter((p) => p.id.startsWith(`parapet:${block}:`)).length, block).toBeGreaterThanOrEqual(4);
+    expect(of('parapet').filter((p) => p.id.startsWith('parapet:tower-1:')).map((p) => p.id).sort()).toEqual([0, 1, 2, 3].map((n) => `parapet:tower-1:${n}`));
+    // each washing post's T-bar, and the coping of each yard wall
+    expect(of('post').map((p) => p.id).sort()).toEqual(WASHING_POSTS.flatMap((_, i) => [`post:${i}:0`, `post:${i}:1`]).sort());
+    for (const p of of('post')) expect(p.y).toBeGreaterThan(1.9);
+    expect(of('wall').length).toBeGreaterThanOrEqual(6);
+    for (const p of of('wall')) expect(p.y).toBeGreaterThan(YARD.h);
+    expect(Object.isFrozen(area.birdPerches)).toBe(true);
+  });
+
   it('nothing drawn stands where she walks a rail or makes a hop', () => {
     // her body's space above every rail and along every hop (at the higher
     // end's level), 0.25 m either side: only the rail's own drawing, the
@@ -1169,7 +1241,10 @@ describe('the Rooftops drawn', () => {
     expect(dusk).toBeLessThanOrEqual(GLOW_OPACITY_MAX);
     expect(mat.opacity).toBe(dusk);
     const fog = new THREE.Fog(0x765266, 40, 140);
-    const life = area.life({ scene: { background: null, fog }, sun: { intensity: 1 }, fill: { intensity: 1 } });
+    // a real scene: the built place has bird perches, so the life adds its flock (step 3)
+    const lifeScene = new THREE.Scene();
+    lifeScene.fog = fog;
+    const life = area.life({ scene: lifeScene, sun: { intensity: 1 }, fill: { intensity: 1 } });
     expect(mat.opacity).toBeCloseTo(sunset, 6);
     let last = mat.opacity;
     for (let t = 0; t < EVENING_RAMP; t += 10) {
@@ -1178,6 +1253,7 @@ describe('the Rooftops drawn', () => {
       last = mat.opacity;
     }
     expect(mat.opacity).toBeCloseTo(dusk, 6);
+    life.dispose();
     // the walk's own material: the shared kit glow (markMesh's) is never moved
     expect(mat).not.toBe(markMesh('lip', { x0: 0, z0: 0, x1: 1, z1: 0, prop: 'tank' }).children[0].material);
   });
@@ -1966,6 +2042,318 @@ describe('the Rooftops drawn', () => {
     expect(WASHING_POSTS.length).toBe(4);
   });
 
+  // Rooftops step 3, Task 5: what the wind moves (roofsair.js).
+  it('every thing on a line sways from it; the tyres do not', () => {
+    const [wx, wz] = downwind();
+    const cloth = meshes.filter((m) => m.geometry.attributes.aSway);
+    expect(cloth.length).toBe(2); // the yards' washing (with the bicycle's tyres) and the lines'
+    let things = 0;
+    let tyres = 0;
+    for (const m of cloth) {
+      const pos = m.geometry.attributes.position;
+      const sway = m.geometry.attributes.aSway;
+      expect(sway.count).toBe(pos.count);
+      for (const r of m.userData.itemRanges) {
+        const len = (i) => Math.hypot(sway.getX(i), sway.getY(i));
+        if (r.id === 'clutter:bike') {
+          tyres++;
+          for (let i = r.start; i < r.start + r.count; i++) expect([r.id, len(i)]).toEqual([r.id, 0]);
+          continue;
+        }
+        expect(r.id.startsWith('wash:'), r.id).toBe(true);
+        things++;
+        let top = -Infinity;
+        for (let i = r.start; i < r.start + r.count; i++) top = Math.max(top, pos.getY(i));
+        let deepest = 0;
+        for (let i = r.start; i < r.start + r.count; i++) {
+          // its drop under the line, so 0 at its top and growing down it
+          expect([r.id, Math.abs(len(i) - (top - pos.getY(i))) < 1e-4]).toEqual([r.id, true]);
+          if (top - pos.getY(i) < 1e-4) expect([r.id, len(i) < 1e-4]).toEqual([r.id, true]);
+          // on the downwind side
+          expect([r.id, sway.getX(i) * wx + sway.getY(i) * wz >= -1e-9]).toEqual([r.id, true]);
+          deepest = Math.max(deepest, len(i));
+        }
+        expect([r.id, deepest > 0.2]).toEqual([r.id, true]);
+      }
+    }
+    expect(things).toBeGreaterThanOrEqual(20);
+    expect(tyres).toBe(2); // the bicycle's two tyres
+    // every cloth vertex in a mesh that sways has a phase, the same over one thing
+    for (const m of cloth) {
+      const sway = m.geometry.attributes.aSway;
+      for (const r of m.userData.itemRanges) {
+        if (r.id === 'clutter:bike') continue;
+        const phase = sway.getZ(r.start);
+        for (let i = r.start; i < r.start + r.count; i++) expect([r.id, sway.getZ(i)]).toEqual([r.id, phase]);
+      }
+    }
+    expect(area.washSway).toBe(cloth[0].material.userData.wash);
+  });
+
+  it('the washing keeps its own material through the walk\'s prop merge', () => {
+    const s = new THREE.Scene();
+    const rec = build(s);
+    mergeStaticProps(s);
+    const washing = [];
+    s.traverse((o) => { if (o.isMesh && o.material.userData.wash) washing.push(o); });
+    expect(washing).toHaveLength(2);
+    for (const m of washing) {
+      expect(m.material.userData.wash).toBe(rec.washSway);
+      expect(m.geometry.attributes.aSway).toBeDefined();
+      expect(m.userData.noCast).toBe(true);
+    }
+    expect(Object.keys(rec.washSway).sort()).toEqual(['uWashAmp', 'uWashRest', 'uWashT']);
+  });
+
+  it('three pots smoke, the warm chimney\'s among them, each a drawn pot, and no bird perch within 0.6 m and above 0.3 m under a smoking pot\'s top', () => {
+    expect(SMOKE_POTS).toHaveLength(3);
+    expect(SMOKE_POTS).toContain(`pot:${ROOFS_DISCOVERIES.chimney.x}:-1`);
+    // every pot the build draws has its top in potTops; the smoking three among them
+    const pots = area.birdPerches.filter((p) => p.kind === 'pot');
+    for (const p of pots) expect(area.potTops[p.id]).toEqual({ x: p.x, y: p.y, z: p.z });
+    expect(Object.keys(area.potTops)).toHaveLength(pots.length + SMOKE_POTS.length);
+    expect(area.smokePots).toHaveLength(3);
+    area.smokePots.forEach((q, k) => {
+      expect(q.id).toBe(SMOKE_POTS[k]);
+      expect(area.potTops[q.id], q.id).toBeDefined();
+      expect({ x: q.x, y: q.y, z: q.z }).toEqual(area.potTops[q.id]);
+    });
+    // on three different stacks
+    expect(new Set(SMOKE_POTS.map((id) => id.split(':')[1])).size).toBe(3);
+    // no bird perches on one under any name, nor in its smoke: within 0.6 m
+    // (2D) of its top and no lower than 0.3 m under it (the smoke rises; the
+    // stack tops beside and below a pot stay perches)
+    const index = perchIndex(area.birdPerches);
+    for (const q of area.smokePots) {
+      expect(index.has(q.id), q.id).toBe(false);
+      for (const p of area.birdPerches) {
+        expect([q.id, p.id, Math.hypot(p.x - q.x, p.z - q.z) < 0.6 && p.y >= q.y - 0.3]).toEqual([q.id, p.id, false]);
+      }
+    }
+    // the warm stack's aerial, 0.12 m from its smoking pot and over it, is no perch
+    expect(index.has('aerial:-10')).toBe(false);
+    for (const b of ROOFS_BIRDS) expect(SMOKE_POTS, b.id).not.toContain(b.home);
+  });
+
+  // Rooftops step 3, Task 6 (S1): two house cats asleep on warm back-window
+  // sills. Scenery only: no name, no label, no prompt, out of her reach.
+  const sleeperMeshes = () => meshes.filter((m) => m.name.startsWith('roofsSleeper:'));
+  it('two house cats sleep on warm sills, out of her reach', { timeout: 60000 }, () => {
+    expect(ROOFS_SLEEPERS).toHaveLength(2);
+    expect(Object.isFrozen(ROOFS_SLEEPERS)).toBe(true);
+    const coats = ROOFS_SLEEPERS.map((s) => [s.coat.fur, s.coat.pale]).sort((p, q) => p[0] - q[0]);
+    expect(coats).toEqual([[0x8a8c90, 0xe8e6e0], [0xc8783a, 0xeadbc0]]);
+    const solid = meshes.filter((m) => !m.userData.skyGlow && !m.userData.townBand && !m.name.startsWith('roofsSleeper:'));
+    const ray = new THREE.Raycaster();
+    const f = floodTraversal(area, { abilities: { longLeap: true, steady: true, climb: 2.2 } });
+    const got = f.reachable(f.regionAt(ROOFS_SPAWN.x, ROOFS_SPAWN.z));
+    // every spot a game system reads: the rails, the hops' ends, the POIs,
+    // collectibles, scenics, perches, discoveries, the birds' spawns and perches, the props
+    const P = ROOFS_REGISTRATION.propSet;
+    const spots = [
+      ...area.pois, ...area.collectibles, ...area.scenics, ...area.perches, ...Object.values(ROOFS_DISCOVERIES),
+      ...area.critterSpawns, ...area.birdPerches,
+      ...P.carryables, ...P.knockables, ...P.markables, ...P.flaps, ...P.rests, ...P.hides,
+      ...area.traversal.hops.flatMap((h) => [{ x: h.x0, z: h.z0 }, { x: h.x1, z: h.z1 }]),
+    ];
+    const segDist = (s, a, c) => {
+      const len2 = (c.x - a.x) ** 2 + (c.z - a.z) ** 2 || 1e-12;
+      const t = Math.max(0, Math.min(1, ((s.x - a.x) * (c.x - a.x) + (s.z - a.z) * (c.z - a.z)) / len2));
+      return Math.hypot(s.x - (a.x + (c.x - a.x) * t), s.z - (a.z + (c.z - a.z) * t));
+    };
+    for (const s of ROOFS_SLEEPERS) {
+      // on a drawn sill: the ray down from over it (the sleeper aside) lands on stone at its y
+      ray.set(new THREE.Vector3(s.x, s.y + 0.3, s.z), new THREE.Vector3(0, -1, 0));
+      ray.far = 0.6;
+      const hit = ray.intersectObjects(solid, false)[0];
+      expect([s.id, hit?.object.name]).toEqual([s.id, 'roofsTerrace:stone']);
+      expect(Math.abs(hit.point.y - s.y), s.id).toBeLessThan(0.02);
+      // on the terrace's back wall, under a warm lit window
+      expect([s.id, s.z > 12 && s.z < 12.4]).toEqual([s.id, true]);
+      const pane = firstHit([s.x, s.y + 0.7, s.z + 1.5], [0, 0, -1], solid);
+      expect([s.id, pane?.object.name]).toEqual([s.id, 'roofsWindows']);
+      const cell = Math.floor(pane.uv.x * 4) + 4 * Math.floor(pane.uv.y * 4);
+      expect([s.id, WINDOW_CELLS[cell].light, WINDOW_CELLS[cell].kind === 'cat']).toEqual([s.id, 'warm', false]);
+      // out of her reach: no ground she can walk to (every ability) within
+      // 0.6 m beside it, and none less than 1.0 m below it there
+      const near = [];
+      for (let dx = -0.6; dx <= 0.6 + 1e-9; dx += 0.05) {
+        for (let dz = -0.6; dz <= 0.6 + 1e-9; dz += 0.05) {
+          if (Math.hypot(dx, dz) > 0.6) continue;
+          const [x, z] = [s.x + dx, s.z + dz];
+          const y = area.ground.y(x, z);
+          if (got.has(f.regionAt(x, z)) && y > s.y - 1.0) near.push([+x.toFixed(2), +z.toFixed(2), y]);
+        }
+      }
+      expect([s.id, near.slice(0, 3)]).toEqual([s.id, []]);
+      // 0.5 m clear of every rail and of every spot a game system reads
+      for (const c of ROOFS_TRAVERSAL.crossings) {
+        for (let i = 0; i + 1 < c.points.length; i++) expect([s.id, c.id, segDist(s, c.points[i], c.points[i + 1]) >= 0.5]).toEqual([s.id, c.id, true]);
+      }
+      for (const q of spots) expect([s.id, q.id ?? q.kind ?? `${q.x},${q.z}`, Math.hypot(q.x - s.x, q.z - s.z) >= 0.5]).toEqual([s.id, q.id ?? q.kind ?? `${q.x},${q.z}`, true]);
+    }
+  });
+
+  it('the sleepers are their own meshes, never merged, casting nothing', () => {
+    const own = sleeperMeshes();
+    expect(own.map((m) => m.name).sort()).toEqual(ROOFS_SLEEPERS.map((s) => `roofsSleeper:${s.id}`).sort());
+    expect(area.sleepers).toHaveLength(2);
+    ROOFS_SLEEPERS.forEach((s, i) => expect(area.sleepers[i]).toBe(own.find((m) => m.name === `roofsSleeper:${s.id}`)));
+    const lin = (hex) => new THREE.Color(hex);
+    for (const [i, s] of ROOFS_SLEEPERS.entries()) {
+      const m = area.sleepers[i];
+      expect([m.castShadow, m.userData.noCast, m.userData.noMerge, m.material.vertexColors]).toEqual([false, true, true, true]);
+      // (a mirrored cat is mirrored in its geometry, never by a negative scale)
+      expect([m.position.x, m.position.y, m.position.z, m.rotation.y, m.scale.x, m.scale.z]).toEqual([s.x, s.y, s.z, s.yaw, 1, 1]);
+      const g = m.geometry;
+      const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
+      expect(tris, s.id).toBeLessThanOrEqual(320);
+      // a curled loaf about 0.5 m long, lower than it is deep, sitting on its sill (its origin)
+      g.computeBoundingBox();
+      const size = g.boundingBox.getSize(new THREE.Vector3());
+      expect(size.x, s.id).toBeGreaterThan(0.4);
+      expect(size.x, s.id).toBeLessThan(0.6);
+      expect(size.z, s.id).toBeGreaterThan(0.25);
+      expect(size.z, s.id).toBeLessThan(size.x);
+      expect(size.y, s.id).toBeGreaterThan(0.18);
+      expect(size.y, s.id).toBeLessThan(size.z);
+      expect(Math.abs(g.boundingBox.min.y), s.id).toBeLessThan(0.02);
+      // in its coat's two colours, and only those
+      const col = g.attributes.color;
+      const seen = new Set();
+      for (let k = 0; k < col.count; k++) {
+        const c = [lin(s.coat.fur), lin(s.coat.pale)].findIndex((q) => Math.abs(q.r - col.getX(k)) + Math.abs(q.g - col.getY(k)) + Math.abs(q.b - col.getZ(k)) < 1e-4);
+        expect(c, `${s.id} vertex ${k}`).toBeGreaterThanOrEqual(0);
+        seen.add(c);
+      }
+      expect(seen.size, s.id).toBe(2);
+    }
+    // nobody's: no label, no prompt, no spawn, no list a game system reads
+    for (const k of ['pois', 'collectibles', 'scenics', 'perches', 'critterSpawns', 'tippables', 'moments', 'boxes']) {
+      for (const q of area[k]) for (const s of ROOFS_SLEEPERS) expect(Object.values(q), k).not.toContain(s.id);
+    }
+    // through the walk's prop merge: still the record's own two meshes, in the scene, not cast
+    const s2 = new THREE.Scene();
+    const rec = build(s2);
+    mergeStaticProps(s2);
+    const kept = [];
+    s2.traverse((o) => { if (o.isMesh && o.name.startsWith('roofsSleeper:')) kept.push(o); });
+    expect(kept).toHaveLength(2);
+    for (const m of rec.sleepers) expect(kept).toContain(m);
+    for (const m of kept) expect(m.castShadow).toBe(false);
+  });
+
+  // The owner's tweak (2026-11-21): the two cats lie different ways, and
+  // neither is hidden behind the washing.
+  // A sleeper's head (the middle of its head, under its ear tips, its
+  // highest points) and its body's middle, in the world.
+  const sleeperParts = (m) => {
+    const p = m.geometry.attributes.position;
+    let top = -Infinity;
+    for (let k = 0; k < p.count; k++) top = Math.max(top, p.getY(k));
+    const ears = new THREE.Vector3();
+    let n = 0;
+    for (let k = 0; k < p.count; k++) if (p.getY(k) > top - 1e-6) { ears.add(new THREE.Vector3().fromBufferAttribute(p, k)); n++; }
+    ears.multiplyScalar(1 / n);
+    m.updateMatrixWorld(true);
+    const head = ears.clone().setY(ears.y - 0.1).applyMatrix4(m.matrixWorld);
+    m.geometry.computeBoundingBox();
+    const body = m.geometry.boundingBox.getCenter(new THREE.Vector3()).applyMatrix4(m.matrixWorld);
+    return { head, body, earsLocal: ears };
+  };
+  it('the two cats lie different ways, one head to the west and one to the east, both facing out to the yards', () => {
+    const [a, b] = area.sleepers;
+    const sides = area.sleepers.map((m) => Math.sign(sleeperParts(m).head.x - m.position.x));
+    expect(sides.sort()).toEqual([-1, 1]);
+    expect(ROOFS_SLEEPERS.map((s) => !!s.mirror).sort()).toEqual([false, true]);
+    for (const [i, m] of area.sleepers.entries()) {
+      const id = ROOFS_SLEEPERS[i].id;
+      // a mirrored cat's head is toward -x
+      expect([id, Math.sign(sleeperParts(m).head.x - m.position.x)]).toEqual([id, ROOFS_SLEEPERS[i].mirror ? -1 : 1]);
+      // its pale front (chest, muzzle, paws) out toward the yards (+z), in the world
+      const g = m.geometry;
+      const col = g.attributes.color;
+      const pale = new THREE.Color(ROOFS_SLEEPERS[i].coat.pale);
+      const front = new THREE.Vector3();
+      let n = 0;
+      for (let k = 0; k < col.count; k++) {
+        if (Math.abs(col.getX(k) - pale.r) + Math.abs(col.getY(k) - pale.g) + Math.abs(col.getZ(k) - pale.b) < 1e-4) {
+          front.add(new THREE.Vector3().fromBufferAttribute(g.attributes.position, k).applyMatrix4(m.matrixWorld));
+          n++;
+        }
+      }
+      expect([id, front.multiplyScalar(1 / n).z - m.position.z > 0.03]).toEqual([id, true]);
+      // every triangle wound the way its normals face (a single-sided
+      // material shows its outside): mirroring kept them so
+      const p = g.attributes.position;
+      const nr = g.attributes.normal;
+      const [u, v, w, e1, e2, nn, nk] = [0, 0, 0, 0, 0, 0, 0].map(() => new THREE.Vector3());
+      let agree = 0;
+      for (let t = 0; t < p.count; t += 3) {
+        u.fromBufferAttribute(p, t);
+        v.fromBufferAttribute(p, t + 1);
+        w.fromBufferAttribute(p, t + 2);
+        nn.set(0, 0, 0);
+        for (let j = 0; j < 3; j++) nn.add(nk.fromBufferAttribute(nr, t + j));
+        if (e1.subVectors(v, u).cross(e2.subVectors(w, u)).dot(nn) > 0) agree++;
+      }
+      expect([id, agree / (p.count / 3) > 0.97]).toEqual([id, true]);
+    }
+    // the same cat, mirrored: each vertex of one is a vertex of the other with x turned over
+    const key = (x, y, z) => [x, y, z].map((n) => (Math.abs(n) < 5e-5 ? 0 : n).toFixed(4)).join(',');
+    const pa = a.geometry.attributes.position;
+    const pb = b.geometry.attributes.position;
+    expect(pa.count).toBe(pb.count);
+    const there = new Set();
+    for (let k = 0; k < pb.count; k++) there.add(key(pb.getX(k), pb.getY(k), pb.getZ(k)));
+    let missing = 0;
+    for (let k = 0; k < pa.count; k++) if (!there.has(key(-pa.getX(k), pa.getY(k), pa.getZ(k)))) missing++;
+    expect(missing).toBe(0);
+  });
+
+  // From where a child sees a sleeper: the walk's follow camera (catcam.js
+  // cameraOffset at the walk's first pitch and default zoom step, behind her
+  // and above) while she stands on ground she can walk to (every ability),
+  // in front of its wall (on the yards' side), 4 to 15 m from it and facing
+  // it. The lines from the camera to its head and to its body's middle miss
+  // all the washing (the two cloth meshes) from at least 90% of those spots.
+  it('neither sleeper is hidden behind the washing from where she sees it', { timeout: 60000 }, () => {
+    const cloth = meshes.filter((m) => m.geometry.attributes.aSway);
+    expect(cloth).toHaveLength(2);
+    const f = floodTraversal(area, { abilities: { longLeap: true, steady: true, climb: 2.2 } });
+    const got = f.reachable(f.regionAt(ROOFS_SPAWN.x, ROOFS_SPAWN.z));
+    const { dist, height } = ZOOM_STEPS[DEFAULT_ZOOM_STEP];
+    const ray = new THREE.Raycaster();
+    const off = new THREE.Vector3();
+    const dir = new THREE.Vector3();
+    const shares = [];
+    for (const [i, s] of ROOFS_SLEEPERS.entries()) {
+      const { head, body } = sleeperParts(area.sleepers[i]);
+      let spots = 0;
+      let clear = 0;
+      for (let x = s.x - 15; x <= s.x + 15 + 1e-9; x += 0.5) {
+        for (let z = s.z + 0.5; z <= s.z + 15 + 1e-9; z += 0.5) {
+          const d = Math.hypot(x - s.x, z - s.z);
+          if (d < 4 || d > 15 || !got.has(f.regionAt(x, z))) continue;
+          spots++;
+          // facing it: the camera behind her, on the far side from it
+          cameraOffset(Math.atan2(x - s.x, z - s.z), DEFAULT_PITCH, dist, height, off);
+          const cam = off.add(new THREE.Vector3(x, area.ground.y(x, z), z));
+          const seen = [head, body].every((t) => {
+            dir.subVectors(t, cam);
+            ray.set(cam, dir.clone().normalize());
+            ray.far = dir.length();
+            return ray.intersectObjects(cloth, false).length === 0;
+          });
+          if (seen) clear++;
+        }
+      }
+      expect([s.id, spots > 500]).toEqual([s.id, true]);
+      shares.push([s.id, +(clear / spots).toFixed(3)]);
+    }
+    expect(shares.filter(([, k]) => k < 0.9)).toEqual([]); // each cat's share, if under
+  });
+
   it('every POI is in the walk region of the spawn', () => {
     const f = baseFlood();
     const spawnR = f.regionAt(ROOFS_SPAWN.x, ROOFS_SPAWN.z);
@@ -2029,7 +2417,7 @@ describe('the Rooftops drawn', () => {
     expect(area.strays).toBe(false);
     expect(area.waters).toEqual([]);
     expect(area.waterFx).toEqual([]);
-    expect(area.critterSpawns).toEqual([]);
+    expect(area.critterSpawns).toEqual(roofsCritterSpawns(ROOFS_BIRDS, perchIndex(area.birdPerches)));
     expect(area.moments).toEqual([]);
     for (const k of ['boxes', 'pois', 'collectibles', 'scenics', 'puddles', 'tippables', 'perches', 'colliders']) {
       expect(Array.isArray(area[k]), k).toBe(true);
@@ -2324,7 +2712,7 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
     expect(feedsHere('roofs')).toBe(false);
     expect(Object.hasOwn(LEGENDARY_BY_AREA, 'roofs')).toBe(false);
     expect(propsFor('roofs').dogYard).toBeNull();
-    expect(area.critterSpawns).toEqual([]);
+    expect(area.critterSpawns).toEqual(roofsCritterSpawns(ROOFS_BIRDS, perchIndex(area.birdPerches)));
     expect(area.strays).toBe(false);
   });
 
@@ -2417,5 +2805,19 @@ describe('The Rooftops: the first roof, and the picture views', async () => {
       const n = v.split(',').map(Number);
       expect([name, n.length, n.every(Number.isFinite)]).toEqual([name, 6, true]);
     }
+  });
+
+  it('has its six life views, each six numbers and a walk second', async () => {
+    const { ROOFS_LIFE_SHOTS } = await import('../src/world/roofsplan.js');
+    expect(Object.isFrozen(ROOFS_LIFE_SHOTS)).toBe(true);
+    expect(Object.keys(ROOFS_LIFE_SHOTS)).toEqual(['guide', 'plank', 'washing', 'smoke', 'loft', 'sleeper']);
+    for (const [name, shot] of Object.entries(ROOFS_LIFE_SHOTS)) {
+      const n = shot.view.split(',').map(Number);
+      expect([name, n.length, n.every(Number.isFinite)]).toEqual([name, 6, true]);
+      expect([name, Number.isFinite(shot.t) && shot.t >= 0]).toEqual([name, true]);
+      expect(ROOFS_SHOTS[name], `${name} is not also one of the eight`).toBeUndefined();
+    }
+    expect(ROOFS_LIFE_SHOTS.guide.t).toBe(0);
+    expect(ROOFS_LIFE_SHOTS.washing.t).toBe(240.5);
   });
 });

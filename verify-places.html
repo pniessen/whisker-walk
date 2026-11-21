@@ -37,7 +37,8 @@
   import * as farm from '/src/world/farm.js';
   import * as fair from '/src/world/fair.js';
   import * as roofs from '/src/world/roofs.js';
-  import { ROOFS_REGISTRATION, ROOFS_SHOTS, ROOFS_SHOT_T } from '/src/world/roofsplan.js';
+  import { ROOFS_REGISTRATION, ROOFS_SHOTS, ROOFS_SHOT_T, ROOFS_LIFE_SHOTS } from '/src/world/roofsplan.js';
+  import { GUIDE, perchIndex } from '/src/world/roofsflock.js';
   import { applyDusk, duskEnv, createLampPools } from '/src/render/dusk.js';
   import { createFarmAnimals } from '/src/farmanimals.js';
   import { buildCat } from '/src/cat/model.js';
@@ -119,16 +120,35 @@
   // forward, so a shot at an earlier time rebuilds it from the start (the sun
   // and fill put back first). The lamp pools are added after the caster sweep,
   // as walk.js does.
+  //   The Rooftops' life is handed the walk's shape (roofslife.js): every
+  // update gets dt, the walk second, a stand-in cat spot far from every bird
+  // (FAR) and the camera. Its critters are stand-ins, one per roof bird (an
+  // empty group and its anchors, never in the scene: nothing more is drawn),
+  // so __flush can send a bird off as critters.js would; nothing else
+  // flushes one. The guide's memory is in-memory (memoryStore), so a picture
+  // never reads or writes the device's key and the guide always starts in
+  // the alley.
   const EVENING_DUSK = 240; // s (src/roofslife.js EVENING_RAMP): full dusk
   const evParam = new URLSearchParams(location.search).get('evening');
   const EVENING_T = evParam !== null ? Number(evParam) : id === 'roofs' ? ROOFS_SHOT_T.card : EVENING_DUSK;
   const sun0 = sun.intensity, fill0 = fill.intensity;
-  const makeLife = () => (evening && area.life ? area.life({ scene, sun, fill }) : null);
+  const FAR = Object.freeze({ x: 0, y: 0, z: 1000 }); // m: no bird sees her, none is flushed
+  const memoryStore = (v = null) => ({ get: () => v, set: (x) => { v = x; } });
+  let standIns = [];
+  const makeLife = () => {
+    if (!evening || !area.life) return null;
+    standIns = (area.critterSpawns ?? []).filter((s) => s.roofBird).map((s) => ({
+      def: { roofBird: s.roofBird }, group: new THREE.Group(), anchor: new THREE.Vector3(), anchorHome: new THREE.Vector3(), fleeing: false, cooldown: 0,
+    }));
+    return area.life({ scene, sun, fill, critters: { list: standIns }, visits: 0, guideStore: memoryStore() });
+  };
   let life = makeLife();
   let lifeT = 0;
+  let lifeStirred = false; // a bird has been flushed: the next shot starts the life again
+  const lifeStep = (dt, cat = FAR) => { life?.update(dt, lifeT + dt, cat, camera); lifeT += dt; };
   const lifeTo = (t) => {
-    if (t < lifeT - 1e-9) { life?.dispose?.(); sun.intensity = sun0; fill.intensity = fill0; life = makeLife(); lifeT = 0; }
-    while (lifeT < t - 1e-9) { const dt = Math.min(1 / 30, t - lifeT); life?.update(dt); lifeT += dt; }
+    if (t < lifeT - 1e-9 || lifeStirred) { life?.dispose?.(); sun.intensity = sun0; fill.intensity = fill0; life = makeLife(); lifeT = 0; lifeStirred = false; }
+    while (lifeT < t - 1e-9) lifeStep(Math.min(1 / 30, t - lifeT));
   };
   lifeTo(EVENING_T);
   if (evening) createLampPools(scene);
@@ -282,16 +302,109 @@
   // (ROOFS_SHOT_T: the card at sunset, the edge's bus in the street; any other
   // shot at full dusk, or at ?evening when that is given). __info() renders and returns
   // renderer.info.render's { calls, triangles } (shadow passes included).
+  //   The life's views (ROOFS_LIFE_SHOTS: { view, t }) are shots too, and so
+  // are the harness's own LIFE_EXTRAS below, for the owner's pictures of the
+  // life: each puts the camera first (the loft's pigeons look for it), runs
+  // the life to its t, then any setup (a lead, flushes), and renders.
   const SHOTS = id === 'roofs' ? ROOFS_SHOTS : {};
   const SHOT_T = id === 'roofs' ? ROOFS_SHOT_T : {};
+  // Harness only (never shipped): a bird sent off as critters.js sends one,
+  // her stand-in spot `r` m from it at its height, `k` eighths of a turn round
+  // from +x. __flush(birdId, k, r) flushes it and runs one frame with her
+  // there; the life is started again at the next shot.
+  const proxyOf = (birdId) => {
+    const c = standIns.find((s) => s.def.roofBird === birdId);
+    if (!c) throw new Error(`no roof bird "${birdId}"`);
+    return c;
+  };
+  const near = (p, k, r = 2.4) => ({ x: p.x + r * Math.cos((k * Math.PI) / 4), y: p.y, z: p.z + r * Math.sin((k * Math.PI) / 4) });
+  window.__flush = (birdId, k = 0, r = 2.4) => {
+    const c = proxyOf(birdId);
+    c.fleeing = true;
+    c.cooldown = 18; // critters.js's, for a flushed bird
+    lifeStirred = true;
+    lifeStep(1 / 30, near(c.group.position, k, r));
+    const p = c.group.position;
+    return `${birdId} ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}`;
+  };
+  // Where each roof bird is drawn now: 'id x,y,z' (its stand-in follows it).
+  window.__birds = () => standIns.map((c) => `${c.def.roofBird} ${c.group.position.toArray().map((v) => v.toFixed(2)).join(',')}`).join(' | ');
+  // The guide led along its whole route (GUIDE.route), her stand-in each time
+  // 2.2 m behind it, on the side away from its next stop, until it lands.
+  const perches = area.birdPerches ? perchIndex(area.birdPerches) : null;
+  const lead = () => {
+    const c = proxyOf(GUIDE.bird);
+    lifeStirred = true;
+    for (const stop of GUIDE.route) {
+      const p = c.group.position;
+      const n = perches.get(stop);
+      const d = Math.hypot(n.x - p.x, n.z - p.z) || 1;
+      const cat = { x: p.x - (2.2 * (n.x - p.x)) / d, y: p.y, z: p.z - (2.2 * (n.z - p.z)) / d };
+      c.fleeing = true;
+      c.cooldown = 18;
+      for (let f = 0; f < 150 && c.fleeing; f++) lifeStep(1 / 30, cat);
+      for (let f = 0; f < 15; f++) lifeStep(1 / 30); // she stays back a moment
+    }
+    const p = c.group.position;
+    if (Math.hypot(p.x - perches.get(GUIDE.route.at(-1)).x, p.z - perches.get(GUIDE.route.at(-1)).z) > 0.05) console.error('the guide never reached the end of its route');
+  };
+  // The extras: { view, t, lead, flush: [[birdId, k]], after (s) }. A clip
+  // (__tour, below) flushes at `at` s into it and runs `len` s.
+  const LIFE_EXTRAS = id === 'roofs' ? {
+    // two pigeons off at once over the flat roofs: one along the back gutter
+    // (west), one off a chimney's aerial along the ridge (east)
+    takeoff: { view: '6.5,7.4,15.0,11,8.9,8.5', t: 240, flush: [['pigeon-4', 0], ['pigeon-5', 2]], after: 0.6, len: 4.5, at: 1 },
+    // close by the guide pigeon waiting on plank-3's far end, after it has led her there
+    guideplank: { view: '14.9,4.3,22.2,16,3.7,19.4', t: 240, lead: true },
+    // the gull on the warehouse's east parapet, and the same view as it flutters
+    // off west along the north parapet
+    gullperch: { view: '36.5,13.4,-39.5,33,12,-49', t: 240 },
+    gull: { view: '36.5,13.4,-39.5,33,12,-49', t: 240, flush: [['gull-1', 5]], after: 0.6, len: 4, at: 1 },
+    // the ginger cat asleep on its sill over the east yards, from over ext-11 (its face's side)
+    ginger: { view: '22.9,5.5,14.9,24.25,4.4,12.2', t: 240 },
+  } : {};
+  // What the harness does after a life view's t: plank-3's far end shows the
+  // guide having led her there (it waits on plank-3:1).
+  const LIFE_SETUP = { plank: { lead: true } };
+  const lifeShot = (name) => (id === 'roofs' ? (ROOFS_LIFE_SHOTS[name] && { ...ROOFS_LIFE_SHOTS[name], ...LIFE_SETUP[name] }) ?? LIFE_EXTRAS[name] ?? null : null);
+  const stir = (s) => {
+    if (s.lead) lead();
+    for (const [birdId, k] of s.flush ?? []) window.__flush(birdId, k);
+    if (s.flush) for (let f = 0; f < Math.round((s.after ?? 0) * 30); f++) lifeStep(1 / 30);
+  };
   window.__shot = (name) => {
-    const v = name === 'view' ? (params.get('cam') || VIEWS[id]) : SHOTS[name];
-    if (!v) throw new Error(`no shot "${name}" for ${id}; there are ${['view', ...Object.keys(SHOTS)].join(', ')}`);
+    const ls = lifeShot(name);
+    const v = name === 'view' ? (params.get('cam') || VIEWS[id]) : ls ? ls.view : SHOTS[name];
+    if (!v) throw new Error(`no shot "${name}" for ${id}; there are ${['view', ...Object.keys(SHOTS), ...Object.keys(ROOFS_LIFE_SHOTS), ...Object.keys(LIFE_EXTRAS)].join(', ')}`);
+    window.__cam(...v.split(',').map(Number));
     if (id === 'roofs') {
-      lifeTo(name === 'view' ? EVENING_T : SHOT_T[name] ?? (evParam !== null ? EVENING_T : EVENING_DUSK));
+      lifeTo(name === 'view' ? EVENING_T : ls ? ls.t : SHOT_T[name] ?? (evParam !== null ? EVENING_T : EVENING_DUSK));
+      if (ls) stir(ls);
     }
     window.__cam(...v.split(',').map(Number));
     return name;
+  };
+  // A short clip of a life extra (scripts/record-page.mjs --tour <name>):
+  // __tour(name) puts the life at its t, then each __frame() is one 1/30 s
+  // frame and a render; its flushes come `at` s in, and it is done at `len` s.
+  let clip = null;
+  window.__tour = (name) => {
+    const s = LIFE_EXTRAS[name];
+    if (!s?.len) throw new Error(`no clip "${name}"; there are ${Object.keys(LIFE_EXTRAS).filter((k) => LIFE_EXTRAS[k].len).join(', ')}`);
+    window.__cam(...s.view.split(',').map(Number));
+    lifeTo(s.t);
+    clip = { s, n: 0, flushed: false };
+    return name;
+  };
+  window.__frame = () => {
+    const { s } = clip;
+    clip.n++;
+    if (!clip.flushed && clip.n / 30 >= s.at) {
+      clip.flushed = true;
+      for (const [birdId, k] of s.flush ?? []) window.__flush(birdId, k);
+    } else lifeStep(1 / 30);
+    render();
+    return { done: clip.n / 30 >= s.len, caption: null };
   };
   window.__info = () => {
     render();
