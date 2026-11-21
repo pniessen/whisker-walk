@@ -22,8 +22,10 @@
 // the hand where the pose has it (the body may be only one frame into the
 // kneel) and its turn, which eases to palm down over HANDOFF while the held
 // follower (at most VMAX) carries it out; no way in starts until the hand is
-// palm down and the shoulder still. Standing up again, pose() blends the
-// right arm from where the bones are (see armFromBones in pose.js).
+// palm down and the shoulder still (while the body goes down with her in
+// reach, the carry-out goes to the ready place, so the way in can start as
+// soon as it is still). Standing up again, pose() blends the right arm from
+// where the bones are (see armFromBones in pose.js).
 //
 // "Never through her": given her volumes (catVolumes), a guard keeps every
 // limb's surface clear of her head sphere and body capsule on every frame:
@@ -1063,10 +1065,15 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
   if (headMoved > HEAD_STILL) canStart = false;
   // nor while the person is still going down into the kneel (or the bow), or
   // the arm is still easing in from the pose's: the way is planned from
-  // where the shoulder is
+  // where the shoulder is. But her head in reach as the body goes down (soon),
+  // the hand's carry-out goes to the ready place, not out low (Task 8a: the
+  // kneel takes 0.7 s, and the touch still comes within about 2 s), so the
+  // way in starts from there once the body is still; no way from there and
+  // it is held out after all (blocked, as ever)
   const shoulderMoved = sc.hadS0 && dt > 0 ? sc.lastS0.distanceTo(_s0) / dt : 0;
   sc.hadS0 = true;
   sc.lastS0.copy(_s0);
+  const soon = canStart && shoulderMoved > SHOULDER_STILL;
   if (shoulderMoved > SHOULDER_STILL || sc.handoff < 1) canStart = false;
   sc.hadTop = !!headTop;
   if (headTop) sc.lastTop.copy(headTop);
@@ -1091,8 +1098,10 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
       else if (!sc.readyTried) { sc.readyTried = true; sc.toReady = true; }
       else { sc.blocked = true; sc.blockedAt.copy(headTop); sc.readyTried = false; sc.toReady = false; sc.planWait = PLAN_RETRY; }
     }
-  } else if (sc.state === 'held') sc.readyTried = false;
-  else if (sc.state === 'reaching') { if (!canStay || headJumped) begin(sc, 'withdrawing'); else if (sc.t >= sc.dur) begin(sc, 'resting'); }
+  } else if (sc.state === 'held') {
+    sc.readyTried = soon && !sc.blocked;
+    sc.toReady = sc.readyTried;
+  } else if (sc.state === 'reaching') { if (!canStay || headJumped) begin(sc, 'withdrawing'); else if (sc.t >= sc.dur) begin(sc, 'resting'); }
   else if (sc.state === 'resting') { if (!canStay || headJumped) begin(sc, 'withdrawing'); }
   else if (sc.state === 'withdrawing' && sc.t >= sc.dur) begin(sc, 'held');
   if (sc.state === 'withdrawing' && sc.t === 0) sc.dur = withdrawTime(sc);

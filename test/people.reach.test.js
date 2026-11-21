@@ -337,6 +337,59 @@ describe('the head scratch', () => {
     expect(most).toBeLessThan(0.02 + 1e-6);
   });
 
+  // Task 8a (the owner, 2026-11-21): the kneel takes 0.7 s now, and the hand
+  // still rests on her head within about 2 s of the word to kneel (2.2 s at
+  // the latest), counted from the frame the person is told to kneel (a fresh
+  // scratch then, R18), she standing still in front. WORST_TOUCH pins the
+  // slowest it measures (s).
+  const TOUCH_BY = 2.2;
+  const WORST_TOUCH = 2.0;
+  it('touch within about 2 s of the word to kneel: men, women, older people, a tabby and a siamese, 0.6-0.75 m', () => {
+    let worst = 0;
+    let worstAt = '';
+    for (const [who, kind, over] of [['man', 'adult', { sex: 'm' }], ['woman', 'adult', { sex: 'f' }], ['older', 'older', {}]]) {
+      for (const breed of ['tabby', 'siamese']) {
+        const cat = buildCat(breed);
+        animateCat(cat, 'requestPet', 1, 0, false);
+        for (const dist of [0.6, 0.65, 0.7, 0.75]) {
+          // (or as near as she can stand: a tabby's head is in a kneeling
+          // adult's shoulder at 0.6 m, so she stands at 0.65 m)
+          const d = standOff(rig(kind, over), cat, dist);
+          const r = rig(kind, over);
+          place(r, cat, d);
+          const at = `${who} ${breed} ${d} m`;
+          // standing a second, looking at her
+          for (let i = 0; i < 60; i++) {
+            r.t += DT;
+            pose(r.p, { mode: 'stand', t: r.t });
+            applyPose(r.p, DT);
+            stepGaze(r.p, r.gaze, DT, r.t, { target: headTopOf(cat) });
+          }
+          // told to kneel: a fresh scratch from this frame
+          r.sc = createScratch();
+          let when = Infinity;
+          const want = new THREE.Vector3();
+          const palm = new THREE.Vector3();
+          const last = palmPoint(r.p, new THREE.Vector3());
+          for (let i = 1; i <= Math.ceil(TOUCH_BY * 60) + 6 && when === Infinity; i++) {
+            const s = frame(r, cat);
+            // never through her, and never a jump (R13), all the way down too
+            expect(worstClearance(r.p, r.vol), `${at} frame ${i}`).toBeGreaterThan(0.005);
+            expect(worstEar(r.p, r.vol), `${at} frame ${i}`).toBeGreaterThan(0);
+            palmPoint(r.p, palm);
+            expect(palm.distanceTo(last), `${at} frame ${i}: a step`).toBeLessThanOrEqual(STEP_MAX);
+            last.copy(palm);
+            want.copy(headTopOf(cat)).addScaledVector(UP, REACH.CLEAR);
+            if (s === 'resting' && palm.distanceTo(want) < 0.02) when = i * DT;
+          }
+          if (when > worst) { worst = when; worstAt = at; }
+        }
+      }
+    }
+    expect(worst, worstAt).toBeLessThanOrEqual(TOUCH_BY);
+    expect(worst, worstAt).toBeLessThanOrEqual(WORST_TOUCH);
+  });
+
   it('holds the hand out when she is out of reach (1.5 m): low, at most 0.55 m in front', () => {
     for (const kind of ['adult', 'older']) {
       const r = rig(kind);
@@ -629,9 +682,9 @@ describe('the head scratch', () => {
 // Standing, then kneeling (an older person bows) with the scratch from its
 // first frame, then standing again without it. Up to the stand the palm
 // never steps further than R13 allows in a frame; standing up, the body
-// rises as every pose change does (over 0.3 s, the spec's "Pose priority"),
-// and the arm comes from where the scratch left it: no jump at the hand-off,
-// and the palm's own way (in the chest's frame) within R13 all along.
+// rises over POSE_TIMES.KNEEL (0.7 s, Task 8a), and the arm comes from where
+// the scratch left it: no jump at the hand-off, and the palm's own way (in
+// the chest's frame, and in the world) within R13 all along.
 describe('the hand-offs between the pose and the scratch', () => {
   const palmInChest = (p, out) => {
     const c = p.bones.chest;
@@ -685,8 +738,9 @@ describe('the hand-offs between the pose and the scratch', () => {
         expect(worst.up, msg).toBeLessThanOrEqual(STEP_MAX);
         expect(worst.first, msg).toBeLessThanOrEqual(STEP_MAX);
         expect(worst.rel, msg).toBeLessThanOrEqual(STEP_MAX);
-        // in the world, the arm's own way on top of the body's rise at most
-        expect(worst.world, msg).toBeLessThanOrEqual(Math.max(STEP_MAX, plain + STEP_MAX));
+        // in the world too (R17 allowed the body's own rise on top: with the
+        // 0.7 s stand of Task 8a the palm keeps within R13's step all along)
+        expect(worst.world, msg).toBeLessThanOrEqual(STEP_MAX);
         // the scratch did its work in between (a touch when in reach)
         expect([...seen], msg).toEqual(dist < 1 ? expect.arrayContaining(['resting']) : ['held']);
       });

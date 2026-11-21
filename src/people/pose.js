@@ -29,6 +29,19 @@ const [LEFT, RIGHT] = SIDES;
 
 export const POSE_MODES = Object.freeze(['stand', 'walk', 'wave', 'dismay', 'kneel', 'bow', 'juggle']);
 
+// How long a change of pose takes, where it is not the caller's ease (s).
+// KNEEL: going down into a kneel (an older person's bow) and up out of it
+// (the owner, 2026-11-21: about 0.7 s, so the kneel is gentle).
+export const POSE_TIMES = Object.freeze({ KNEEL: 0.7 });
+const GENTLE = (mode) => mode === 'kneel' || mode === 'bow';
+// on the way into or out of a kneel (rad, at the blend's middle, none at
+// either end): both legs bend this much more (a squat: the thigh forward, the
+// knee back twice as far, the foot's pitch kept), and the right foot's toe
+// comes up this much, so its toe never props the hips up as the shin swings
+// back: the hips go down steadily (half way at half the time)
+const KNEEL_SQUAT = 0.35;
+const KNEEL_TOE = 0.7;
+
 // ---- per-person blend state ----------------------------------------------------
 // cur: what the bones were last given (before grounding); from: where a blend
 // started. 60 rotations then the pelvis offset.
@@ -36,7 +49,7 @@ const STATE = new WeakMap();
 function stateOf(person) {
   let st = STATE.get(person);
   if (!st) {
-    st = { mode: null, applied: false, w: 1, wa: 1, armEase: 0, from: new Float32Array(N * 3 + 3), cur: new Float32Array(N * 3 + 3) };
+    st = { mode: null, applied: false, w: 1, wa: 1, armEase: 0, gentle: false, kneelPath: false, from: new Float32Array(N * 3 + 3), cur: new Float32Array(N * 3 + 3) };
     STATE.set(person, st);
   }
   return st;
@@ -295,7 +308,11 @@ export function pose(person, spec) {
   const st = stateOf(person);
   let changed = false;
   if (st.mode !== mode) {
-    if (st.applied) { st.from.set(st.cur); st.w = 0; st.wa = 0; st.armEase = 0; changed = true; }
+    if (st.applied) {
+      st.from.set(st.cur); st.w = 0; st.wa = 0; st.armEase = 0; changed = true;
+      st.gentle = GENTLE(st.mode) || GENTLE(mode); // into or out of a kneel or a bow
+      st.kneelPath = st.mode === 'kneel' || mode === 'kneel';
+    }
     st.mode = mode;
   }
 
@@ -464,11 +481,15 @@ function bowing(r, look) {
 // ---- applyPose() ----------------------------------------------------------------
 const smooth = (k) => k * k * (3 - 2 * k);
 
+// ease (s): how long a change of pose blends, but a change into or out of a
+// kneel or a bow takes POSE_TIMES.KNEEL whatever it is (0 still snaps: no
+// blend at all); the arm's own longer blend (armEase) still counts.
 export function applyPose(person, dt, ease = 0.3) {
   const st = stateOf(person);
   const { rot, pelvis } = person.target;
   const cur = st.cur;
   if (!st.applied) { st.applied = true; st.w = 1; st.wa = 1; }
+  if (st.gentle && ease > 0) ease = POSE_TIMES.KNEEL;
   if (st.w < 1) st.w = ease > 0 ? Math.min(1, st.w + dt / ease) : 1;
   if (st.wa < 1) st.wa = ease > 0 ? Math.min(1, st.wa + dt / Math.max(ease, st.armEase)) : 1;
   const k = smooth(st.w);
@@ -480,7 +501,18 @@ export function applyPose(person, dt, ease = 0.3) {
     cur[i] = w >= 1 ? rot[i] : from[i] + (rot[i] - from[i]) * w;
   }
   for (let i = 0; i < 3; i++) cur[R + i] = k >= 1 ? pelvis[i] : from[R + i] + (pelvis[i] - from[R + i]) * k;
-
+  // into or out of a kneel, the knees bend a little more on the way (and the
+  // kneeling foot's toe comes up), so the hips go down (and up) steadily
+  // rather than rising onto the toes first
+  if (st.kneelPath && k < 1) {
+    const b = Math.sin(Math.PI * k);
+    for (let i = 0; i < 2; i++) {
+      const S = SIDES[i];
+      const a = KNEEL_SQUAT * b;
+      cur[S.thigh] += a; cur[S.shin] -= 2 * a; cur[S.foot] += a; // the foot keeps its pitch
+      if (S === RIGHT) cur[S.foot] += KNEEL_TOE * b;
+    }
+  }
   const B = person.bones;
   for (let j = 0; j < N; j++) B[JOINTS[j]].rotation.set(cur[j * 3], cur[j * 3 + 1], cur[j * 3 + 2]);
   const rp = person.rest.pelvis;

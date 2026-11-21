@@ -4,7 +4,8 @@ import { buildSpot } from '../src/people/figure.js';
 import { JOINT_INDEX } from '../src/people/parts.js';
 import { spotKind } from '../src/people/look.js';
 import { neckFrame } from '../src/people/shapes.js';
-import { pose, applyPose, strideFor, POSE_MODES } from '../src/people/pose.js';
+import { pose, applyPose, strideFor, POSE_MODES, POSE_TIMES } from '../src/people/pose.js';
+import * as peopleKit from '../src/people/index.js';
 import { createGaze, stepGaze, GAZE } from '../src/people/gaze.js';
 
 const material = new THREE.MeshStandardMaterial({ vertexColors: true });
@@ -284,6 +285,64 @@ describe('people poses', () => {
     expect(mid).toBeGreaterThan(stand + 0.3);
     expect(mid).toBeLessThan(wave - 0.3);
     for (let i = 0; i < 12; i++) { pose(p, { ...spec, mode: 'stand' }); applyPose(p, 1 / 60); } // past 0.3 s
+    expect(p.bones.upperArmR.rotation.z).toBeCloseTo(stand, 6);
+  });
+
+  // Task 8a (the owner, 2026-11-21): kneeling and standing up take about
+  // 0.7 s (POSE_TIMES.KNEEL), whatever ease the caller passes, so the kneel
+  // is gentle; an older person's bow too.
+  it('POSE_TIMES: the kneel takes 0.7 s, frozen, from the kit too', () => {
+    expect(POSE_TIMES).toEqual({ KNEEL: 0.7 });
+    expect(Object.isFrozen(POSE_TIMES)).toBe(true);
+    expect(peopleKit.POSE_TIMES).toBe(POSE_TIMES);
+  });
+
+  it('kneels gently: down and up over 0.7 s (an older person bows as gently)', () => {
+    const spec = (mode) => ({ mode, t: 1, reducedMotion: true });
+    const chestLean = (p) => axisWorld(p.bones.chest, 0, 1, 0).angleTo(new THREE.Vector3(0, 1, 0));
+    const pelvisY = (p) => world(p.bones.pelvis).y;
+    for (const [kind, measure] of [['adult', pelvisY], ['older', chestLean]]) {
+      // where each pose settles (posed alone, no blend)
+      const settled = (mode) => { const q = personOf(kind); poseAt(q, spec(mode)); return measure(q); };
+      const at = { stand: settled('stand'), kneel: settled('kneel') };
+      expect(Math.abs(at.kneel - at.stand), kind).toBeGreaterThan(kind === 'adult' ? 0.15 : 0.2);
+      const p = personOf(kind);
+      poseAt(p, spec('stand'), 30);
+      for (const [from, to] of [['stand', 'kneel'], ['kneel', 'stand']]) {
+        const way = at[to] - at[from];
+        poseAt(p, spec(to), 21); // 0.35 s
+        const half = (measure(p) - at[from]) / way;
+        expect(half, `${kind} ${from} -> ${to} at 0.35 s`).toBeGreaterThan(0.3);
+        expect(half, `${kind} ${from} -> ${to} at 0.35 s`).toBeLessThan(0.7);
+        poseAt(p, spec(to), 21 + 2); // 0.7 s and two frames
+        expect(Math.abs(measure(p) - at[to]), `${kind} ${from} -> ${to} by 0.7 s`).toBeLessThan(0.005);
+      }
+    }
+    // whatever ease the caller passes (0 alone snaps: no blend at all)
+    const down = personOf('adult');
+    poseAt(down, spec('kneel'));
+    const q = personOf('adult');
+    poseAt(q, spec('stand'), 30);
+    const y0 = pelvisY(q);
+    for (let i = 0; i < 21; i++) { pose(q, spec('kneel')); applyPose(q, 1 / 60, 0.1); }
+    refresh(q);
+    const half = (y0 - pelvisY(q)) / (y0 - pelvisY(down));
+    expect(half, 'ease 0.1').toBeGreaterThan(0.3);
+    expect(half, 'ease 0.1').toBeLessThan(0.7);
+  });
+
+  it('other changes keep their ease: wave to stand still blends over 0.3 s', () => {
+    const p = personOf('adult');
+    const spec = (mode) => ({ mode, t: 1, reducedMotion: true });
+    poseAt(p, spec('wave'), 30);
+    const wave = p.bones.upperArmR.rotation.z;
+    pose(p, spec('stand'));
+    const stand = p.target.rot[JOINT_INDEX.upperArmR * 3 + 2];
+    poseAt(p, spec('stand'), 9); // 0.15 s: half way
+    const half = (p.bones.upperArmR.rotation.z - wave) / (stand - wave);
+    expect(half).toBeGreaterThan(0.4);
+    expect(half).toBeLessThan(0.6);
+    poseAt(p, spec('stand'), 10); // 0.316 s
     expect(p.bones.upperArmR.rotation.z).toBeCloseTo(stand, 6);
   });
 

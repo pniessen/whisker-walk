@@ -5,7 +5,7 @@ import { LOW_RUNG } from '../render/quality.js';
 import { buildSpot } from './figure.js';
 
 export { personFor, pairFor, spotKind } from './look.js';
-export { pose, applyPose, strideFor } from './pose.js';
+export { pose, applyPose, strideFor, POSE_TIMES } from './pose.js';
 export { createGaze, stepGaze, GAZE } from './gaze.js';
 export { REACH, headTopOffset, catVolumes, createScratch, stepScratch } from './reach.js';
 
