@@ -1,7 +1,8 @@
-// The people switch (the lifelike people, Task 9).
+// The people switch (the lifelike people, Task 9; on by default since Task 15).
 //
-// Off by default: the new person figure (src/people/) is drawn only when the
-// address ends in ?people=1, or a test calls setPeople(true).
+// On by default: the new person figure (src/people/) stands in the places
+// unless the address ends in ?people=0 (today's figure, the way back), or a
+// test calls setPeople(false).
 //
 // Read at call time, never at import time, like roofsflag.js and grow.js.
 let forced = null;
@@ -10,9 +11,9 @@ export function peopleOn() {
   if (forced !== null) return forced;
   try {
     const search = globalThis.location?.search;
-    return typeof search === 'string' && new URLSearchParams(search).get('people') === '1';
+    return !(typeof search === 'string' && new URLSearchParams(search).get('people') === '0');
   } catch {
-    return false;
+    return true;
   }
 }
 
