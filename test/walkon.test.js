@@ -563,7 +563,7 @@ describe('walking on in a room', () => {
 // Park's Farm gate moves both, and both arrive at the twin gate in one walk.
 describe('two devices walk on together', () => {
   // olderBuild: a build from before gates (it cannot follow a gate's border-cross).
-  function device(pid, room, save, { ensureArea = (id) => areas.ensure(id), olderBuild = false } = {}) {
+  function device(pid, room, save, { ensureArea = (id) => areas.ensure(id), olderBuild = false, blockList = new Set() } = {}) {
     const toasts = [];
     let crossing = null;
     const { applyRemoteEvent } = createNetEvents({
@@ -574,7 +574,7 @@ describe('two devices walk on together', () => {
       onWalkOnAsk: (s, ev) => crossing.onWalkOnAsk(s, ev),
       onWalkOnHave: (s, ev) => crossing.onWalkOnHave(s, ev),
     });
-    const h = walkHarness({ pid, save, pendingRoom: room, applyRemoteEvent });
+    const h = walkHarness({ pid, save, pendingRoom: room, applyRemoteEvent, blockList });
     crossing = createCrossing({
       getSession: h.getSession, overlay: h.overlay, hud: { toast: (t) => toasts.push(t) },
       releaseControl() {}, resumeWalk() {}, endWalk: (o) => h.w.endWalk(o), getIsTouch: () => false,
@@ -585,7 +585,7 @@ describe('two devices walk on together', () => {
     });
     return { h, crossing, toasts };
   }
-  async function twoDevices({ guestProfile = { walkOn: 1 }, guestOpts = {} } = {}) {
+  async function twoDevices({ guestProfile = { walkOn: 1 }, guestOpts = {}, hostOpts = {} } = {}) {
     const hub = createFakeHub();
     const hostNet = createNet(hub.transport());
     const guestNet = createNet(hub.transport());
@@ -594,7 +594,7 @@ describe('two devices walk on together', () => {
     await hostNet.join('ROOM', hostP);
     await guestNet.join('ROOM', guestP);
     const roster = [hostP, guestP];
-    const host = device('ann', { net: hostNet, roster }, parkSave);
+    const host = device('ann', { net: hostNet, roster }, parkSave, hostOpts);
     const guest = device('bea', { net: guestNet, roster }, parkSave, guestOpts);
     host.h.w.startWalk({ roomSeed: 7 });
     guest.h.w.startWalk({ roomSeed: 7 });
@@ -682,6 +682,28 @@ describe('two devices walk on together', () => {
     expect(b.arrivedVia).toBe('farm-park');
     host.h.w.endWalk();
     guest.h.w.endWalk();
+  }, WALK_MS);
+
+  // Ruling R17: the host has hidden the guest ("Hide this visitor"). The
+  // guest's answer is protocol only, so it still counts: the room walks on,
+  // and nothing on the host's screen ever names her.
+  it('a host who has hidden the guest: both still walk on, and no line names her', async () => {
+    const { host, guest } = await twoDevices({ hostOpts: { blockList: new Set(['bea']) } });
+    expect(host.h.getSession().remotes.list).toEqual([]); // she is not drawn
+    host.crossing.askGate(host.h.getSession(), farmGate(host.h));
+    expect(host.h.overlay.innerHTML).not.toContain('Bea');
+    host.crossing.confirm();
+    await vi.advanceTimersByTimeAsync(GATE_MOMENT_MS);
+    const a = host.h.getSession();
+    const b = guest.h.getSession();
+    expect([a.areaId, b.areaId]).toEqual(['farm', 'farm']);
+    expect(b.roomSeed).toBe(a.roomSeed);
+    expect(a.remotes.list).toEqual([]);
+    const seen = [...host.toasts, ...host.h.toasts, host.h.overlay.innerHTML].join(' ');
+    expect(seen).not.toContain('Bea');
+    host.h.w.endWalk();
+    guest.h.w.endWalk();
+    expect(host.h.overlay.innerHTML).not.toContain('Bea');
   }, WALK_MS);
 
   it("a guest whose game cannot have the Farm: nobody moves, the host gets its card back and the friend's line", async () => {

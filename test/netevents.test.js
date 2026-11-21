@@ -841,11 +841,20 @@ describe('applyRemoteEvent: walk-on, walk-on-ask and walk-on-have', () => {
     applyRemoteEvent(s, have);
     expect(calls).toEqual([['walk-on', s, on], ['ask', s, ask], ['have', s, have]]);
   });
-  it('a hidden visitor\'s walk-on events reach nothing', () => {
+  it('a hidden visitor\'s walk-on and ask reach nothing', () => {
     const { applyRemoteEvent, calls } = make();
     const s = { isBlocked: (id) => id === 'a' };
-    for (const type of ['walk-on', 'walk-on-ask', 'walk-on-have']) applyRemoteEvent(s, { type, id: 'a' });
+    for (const type of ['walk-on', 'walk-on-ask']) applyRemoteEvent(s, { type, id: 'a' });
     expect(calls).toEqual([]);
+  });
+  // Ruling R17: an answer is protocol only (it draws and names nothing), so
+  // a room with a hidden member can still walk on.
+  it("a hidden visitor's answer still reaches the host's crossing, unchanged", () => {
+    const { applyRemoteEvent, calls } = make();
+    const s = { isBlocked: (id) => id === 'a' };
+    const have = { v: 1, type: 'walk-on-have', id: 'a', via: 'park-farm', ok: true };
+    applyRemoteEvent(s, have);
+    expect(calls).toEqual([['have', s, have]]);
   });
   it('works with none of the deps', () => {
     const { applyRemoteEvent } = createNetEvents({

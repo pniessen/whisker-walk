@@ -205,8 +205,12 @@ export function createCrossing({
   const rosterOf = () => { const r = getRoster(); return Array.isArray(r) ? r : []; };
   const roomIdsOf = (s) => rosterOf().map((m) => m?.playerId).filter((id) => id !== s.playerId);
   const remotesOf = (s) => (Array.isArray(s.remotes?.list) ? s.remotes.list : []);
-  const petNameOf = (s, id) => remotesOf(s).find((r) => r.playerId === id)?.petName
-    ?? safeRemoteName(rosterOf().find((m) => m?.playerId === id)?.petName, 'A friend');
+  // A hidden visitor (ruling R17: "Hide this visitor") is in the roster but
+  // never named: she is "A friend" in every line, and left out of who came.
+  const hiddenIn = (s, id) => !!s.isBlocked?.(id);
+  const petNameOf = (s, id) => (hiddenIn(s, id) ? 'A friend'
+    : remotesOf(s).find((r) => r.playerId === id)?.petName
+      ?? safeRemoteName(rosterOf().find((m) => m?.playerId === id)?.petName, 'A friend'));
   // A net handler this walk-on path adds: freeWalk takes it off with the
   // walk's own (session.netOffs); the caller may take it off sooner.
   function keepOff(s, off) {
@@ -397,7 +401,7 @@ export function createCrossing({
     if (!d) return;
     prefetchArea(d.to);
     s.crossLed = true;
-    const together = roomIdsOf(s).map((id) => petNameOf(s, id));
+    const together = roomIdsOf(s).filter((id) => !hiddenIn(s, id)).map((id) => petNameOf(s, id));
     const name = petNameOf(s, ev.id);
     hud.toast(phrase('cross.leading', name, lower(targetName(d.to, getEdition(), catalog))));
     setTimeout(() => { if (getSession() === s) endWalk({ crossTo: d.to, ledBy: name, together }); }, LED_DELAY_MS);

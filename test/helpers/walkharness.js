@@ -87,11 +87,15 @@ function fakeOverlay() {
 //   isOnline           () -> whether the device is online (default: true)
 //   pid                this device's player id (default: 'me')
 //   applyRemoteEvent   (s, ev) for every room event the walk hears (default: none)
+//   blockList          the ids this device has hidden (default: none)
+//   isTouch            a touch device (default: false); player, homebase: the
+//                      walk's player and home screen (default: no-ops)
 export function walkHarness({
   save = () => {}, renderer = null, pendingRoom = null,
   onWalkedOn = () => {}, onWalkEnded = () => {},
   areas: loader = areas, isOnline = () => true,
-  pid = 'me', applyRemoteEvent = () => {},
+  pid = 'me', applyRemoteEvent = () => {}, blockList = new Set(),
+  isTouch = false, player = anything(), homebase = anything(),
 } = {}) {
   let session = null;
   let room = pendingRoom;
@@ -104,15 +108,15 @@ export function walkHarness({
   let reloads = 0;
   const camera = new THREE.PerspectiveCamera();
   const w = createWalkLifecycle({
-    MP: false, pid, coarse: false, envMap, overlay, blockList: new Set(),
+    MP: false, pid, coarse: false, envMap, overlay, blockList,
     renderer, camera, composerRig: anything(),
-    player: anything(), progression,
+    player, progression,
     settings: { get: (k) => (k === 'muted' ? true : null) },
     hud: anything({ mapHost: fakeEl(), toast: (t) => toasts.push(t) }),
     audio: anything(), music: anything(), log: anything(), touchUI: anything(),
     catVoice: () => {},
-    getCloud: () => null, getSession: () => session, setSession: (s) => { session = s; }, getIsTouch: () => false,
-    getHomebase: () => anything(),
+    getCloud: () => null, getSession: () => session, setSession: (s) => { session = s; }, getIsTouch: () => isTouch,
+    getHomebase: () => homebase,
     getPendingRoom: () => room, clearPendingRoom: () => { room = null; }, pushProfileNow: () => {},
     startRoomTogether: () => {},
     awardStrayGreet: () => {}, applyRemoteEvent,

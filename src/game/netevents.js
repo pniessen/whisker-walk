@@ -95,6 +95,11 @@ export function takeHeldItemsWithRemotes(remotes, items, localCat, { getClanCats
 // mirrors something she did to the shared world (a tipped pot, a dug treat, a
 // picked-up collectible), with nothing of hers drawn, heard or named.
 const BLOCKED_WORLD_EVENTS = new Set(['tip', 'knock', 'tip-gnome', 'dig', 'collect']);
+// Events a hidden visitor's device may still send unchanged: protocol only,
+// drawing and naming nothing. Her answer to a room's walk-on ask (ruling
+// R17) counts, or a room with a hidden member could never walk on together
+// (crossing.js names her "A friend" if it ever has to name her).
+const BLOCKED_PROTOCOL_EVENTS = new Set(['walk-on-have']);
 // How long after her own boop window an answer is still taken (seconds).
 const BOOP_CONFIRM_GRACE = 4;
 
@@ -231,7 +236,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
   // it too, and our two worlds must stay the same.
   function applyRemoteEvent(s, ev) {
     if (!s || !ev || typeof ev.type !== 'string') return;
-    if (s.isBlocked?.(ev.id)) {
+    if (s.isBlocked?.(ev.id) && !BLOCKED_PROTOCOL_EVENTS.has(ev.type)) {
       if (!BLOCKED_WORLD_EVENTS.has(ev.type)) return;
       ev = { ...ev, quiet: true };
     }

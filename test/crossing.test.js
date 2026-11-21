@@ -862,6 +862,56 @@ describe('walking on together', () => {
     expect(q.toasts).toEqual([phrase('gate.friendNotReady', 'Pip')]);
   });
 
+  // Ruling R17: a hidden visitor ("Hide this visitor") is never named. She is
+  // in the room (the roster) but not drawn, and her answer still counts.
+  describe('with a hidden member in the room', () => {
+    const hidden = () => {
+      const h = together({ remotes: [], roster: [{ playerId: 'a', walkOn: 1 }, { playerId: 'b', petName: 'Pip', walkOn: 1 }] });
+      h.s.isBlocked = (id) => id === 'b';
+      return h;
+    };
+    it('her yes walks the room on', async () => {
+      const h = hidden();
+      h.yes();
+      h.loads.come('farm');
+      h.crossing.onWalkOnHave(h.s, h.have());
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.walkOn).toHaveBeenCalledTimes(1);
+      expect(h.toasts).toEqual([]);
+    });
+    it('her no, or no answer from her, is told without her name', async () => {
+      const no = hidden();
+      no.yes();
+      no.crossing.onWalkOnHave(no.s, no.have({ ok: false }));
+      expect(no.toasts).toEqual([phrase('gate.friendNotReady', 'A friend')]);
+      const quiet = hidden();
+      quiet.yes();
+      quiet.loads.come('farm');
+      await vi.advanceTimersByTimeAsync(WALK_ON_WAIT_MS);
+      expect(quiet.toasts).toEqual([phrase('gate.friendNotReady', 'A friend')]);
+      expect([...no.toasts, ...quiet.toasts].join(' ')).not.toContain('Pip');
+    });
+    it('a guest led over the border by the host does not list her among who came', () => {
+      const h = together({
+        host: false, selfId: 'c', remotes: [{ playerId: 'a', petName: 'Ann' }],
+        roster: [{ playerId: 'a', petName: 'Ann', walkOn: 1 }, { playerId: 'c', walkOn: 1 }, { playerId: 'd', petName: 'Pip', walkOn: 1 }],
+      });
+      h.s.isBlocked = (id) => id === 'd';
+      h.crossing.onRemote(h.s, { v: 1, id: 'a', type: 'border-cross', from: 'park', to: 'farm' });
+      vi.advanceTimersByTime(1500);
+      expect(h.endWalk.mock.calls).toEqual([[{ crossTo: 'farm', ledBy: 'Ann', together: ['Ann'] }]]);
+      expect(h.toasts.join(' ')).not.toContain('Pip');
+    });
+    it('a hidden host is never named either', () => {
+      const h = together({ host: false, selfId: 'c', remotes: [], roster: [{ playerId: 'a', petName: 'Pip', walkOn: 1 }, { playerId: 'c', walkOn: 1 }] });
+      h.s.isBlocked = (id) => id === 'a';
+      h.crossing.onRemote(h.s, { v: 1, id: 'a', type: 'border-cross', from: 'park', to: 'farm' });
+      vi.advanceTimersByTime(1500);
+      expect(h.toasts).toEqual(['A friend is leading the way to Appletree Farm! 🧭']);
+      expect(h.endWalk.mock.calls).toEqual([[{ crossTo: 'farm', ledBy: 'A friend', together: [] }]]);
+    });
+  });
+
   it('the roster handler comes off when the host stays, and freeWalk could take it off too', async () => {
     const h = together();
     h.yes();
