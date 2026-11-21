@@ -11,8 +11,8 @@
 // would move it for every place at once. So walk.js adds the gates right after
 // the area build (they get contact shadows like any static prop, and the body
 // merges with nothing because each gate is already one body mesh) and pushes
-// the returned colliders onto the live list only her own cat reads. Never
-// area.colliders.
+// the returned colliders onto the live list only her own cat reads, and hands
+// that list to attach() so a shut leaf blocks the way. Never area.colliders.
 //
 // A gate is a group named 'gateway' at its end's spot, turned so its local -z
 // points the way the cat walks out (`faces`) and its local x runs along the
@@ -47,6 +47,13 @@ const OUT_YAW = { north: 0, south: Math.PI, east: -Math.PI / 2, west: Math.PI / 
 const EDGE = { north: [1, 0], south: [-1, 0], east: [0, 1], west: [0, -1] };
 export const LEAF_OPEN = Math.PI / 2;
 const LANE_W = 2;
+// A shut leaf blocks (ruling R11): LEAF_BLOCKS circles of LEAF_R spaced
+// evenly across the gap between the posts. With the cat's CAT_RADIUS (0.35,
+// player.js) each circle keeps her 0.65 m off its centre, and the circles are
+// 0.7 m apart (and 0.7 m from each post), so the push zones overlap into one
+// wall with no way through.
+export const LEAF_BLOCKS = 3;
+export const LEAF_R = 0.3;
 
 // The neighbour's colour on the map: the territories' LAND for the town (and
 // clan places), the street places' colours, the town's own places.
@@ -65,7 +72,6 @@ const TEAL = 0x3f8f8c;
 const CREAM = 0xf3e6c4;
 const IRON = 0x2f4a4a;
 const GLASS = 0xffe9a6;
-const STONE = 0x8e8c88;
 
 // Parts merged into one vertex-coloured indexed geometry (as builder.js's
 // houseTrim does, but kept indexed: the triangle budget counts index entries).
@@ -244,6 +250,8 @@ function promenade(body, leaf, band) {
 
 const LOOKS = { signpost, fairgate, farmgate, promenade };
 
+// One material per gate, shared by its body and its leaf: noMerge and noCast
+// are read off the mesh's userData, never off its material.
 const gateMaterial = () => litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('wood') });
 
 // The look for one end, or null for 'none'.
@@ -260,14 +268,15 @@ export function buildGateLook(end, { ground = FLAT_GROUND } = {}) {
   g.position.set(end.x, ground.y(end.x, end.z), end.z);
   g.rotation.y = OUT_YAW[end.faces];
 
-  const bodyMesh = new THREE.Mesh(body.merged(), gateMaterial());
+  const material = gateMaterial();
+  const bodyMesh = new THREE.Mesh(body.merged(), material);
   bodyMesh.name = 'gateBody';
   g.add(bodyMesh);
 
   const hinge = new THREE.Group();
   hinge.name = 'gateHinge';
   hinge.position.set(-H, 0, 0);
-  const leafMesh = new THREE.Mesh(leaf.merged(), gateMaterial());
+  const leafMesh = new THREE.Mesh(leaf.merged(), material);
   leafMesh.name = 'gateLeaf';
   leafMesh.userData.noCast = true;
   leafMesh.userData.noMerge = true;
@@ -276,36 +285,67 @@ export function buildGateLook(end, { ground = FLAT_GROUND } = {}) {
   return g;
 }
 
-export const NO_GATES = Object.freeze({ colliders: Object.freeze([]), setOpen() {}, dispose() {} });
+export const NO_GATES = Object.freeze({ colliders: Object.freeze([]), attach() {}, setOpen() {}, dispose() {} });
 
-// Adds each end's look and lane to `scene`. Returns the posts' colliders for
-// walk.js to push (two per drawn end, hinge post first), setOpen to swing a
-// leaf, and dispose (a no-op: the walk's scene sweep frees the meshes; kept so
-// endWalk has one door to call).
+// Adds each end's look and lane to `scene`. Returns:
+//   colliders  the posts' colliders for walk.js to push (two per drawn end,
+//              hinge post first); fixed, whatever the leaves do.
+//   attach(list)  pushes the leaf circles of every end shut right now into
+//              `list` (the walk's live collider list) and remembers it.
+//   setOpen(endId, open)  swings the leaf; once attached, an opened end's
+//              circles leave `list` and a shut one's come back. Idempotent;
+//              unknown ids are ignored; before attach it only records.
+//   dispose()  a no-op (the walk's scene sweep frees the meshes; kept so
+//              endWalk has one door to call).
 export function addGatewayDressing(scene, areaId, { ground = FLAT_GROUND, ends = endsFor(areaId), isOpen = () => false } = {}) {
   const colliders = [];
-  const hinges = new Map();
+  const gates = new Map(); // endId -> { hinge, blocks, open }
+  let live = null;
   for (const end of ends) {
     const look = buildGateLook(end, { ground });
     if (!look) continue;
     if (end.lane) {
       // A top-level child, so the grass mask and the corner map see it.
       const lane = seatOnGround(path(...end.lane, LANE_W, { surface: 'gravel' }), ground);
-      lane.name = 'gateLane';
+      // Named 'path' (ruling R12): the wet and dusk tints and the paw prints
+      // find path strips by that name. The flag tells a gate's lane apart.
+      lane.userData.gateLane = true;
       scene.add(lane);
     }
     scene.add(look);
     const [ex, ez] = EDGE[end.faces];
     for (const s of [-1, 1]) colliders.push({ x: end.x + s * ex * H, z: end.z + s * ez * H, r: GATE_POST_R });
+    const blocks = [];
+    for (let i = 1; i <= LEAF_BLOCKS; i++) {
+      const t = -H + (2 * H * i) / (LEAF_BLOCKS + 1);
+      blocks.push({ x: end.x + t * ex, z: end.z + t * ez, r: LEAF_R });
+    }
     const hinge = look.getObjectByName('gateHinge');
-    hinge.rotation.y = isOpen(end) ? LEAF_OPEN : 0;
-    hinges.set(end.id, hinge);
+    const open = !!isOpen(end);
+    hinge.rotation.y = open ? LEAF_OPEN : 0;
+    gates.set(end.id, { hinge, blocks, open });
   }
+  const unblock = (gate) => {
+    for (const c of gate.blocks) {
+      const i = live.indexOf(c);
+      if (i >= 0) live.splice(i, 1);
+    }
+  };
+  const block = (gate) => {
+    for (const c of gate.blocks) if (!live.includes(c)) live.push(c);
+  };
   return {
     colliders,
+    attach(list) {
+      live = list;
+      for (const gate of gates.values()) if (!gate.open) block(gate);
+    },
     setOpen(endId, open) {
-      const hinge = hinges.get(endId);
-      if (hinge) hinge.rotation.y = open ? LEAF_OPEN : 0;
+      const gate = gates.get(endId);
+      if (!gate) return;
+      gate.open = !!open;
+      gate.hinge.rotation.y = gate.open ? LEAF_OPEN : 0;
+      if (live) (gate.open ? unblock : block)(gate);
     },
     dispose() {},
   };

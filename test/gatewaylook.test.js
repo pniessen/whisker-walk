@@ -20,7 +20,8 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { buildGateLook, addGatewayDressing, NO_GATES } = await import('../src/world/gateway.js');
+const { buildGateLook, addGatewayDressing, NO_GATES, LEAF_BLOCKS, LEAF_R } = await import('../src/world/gateway.js');
+const { CAT_RADIUS } = await import('../src/player.js');
 const { GATEWAY_ENDS, endById, gatewayEnd, GATE_HALF, GATE_POST_R } = await import('../src/gateways.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { LAND } = await import('../src/territories.js');
@@ -81,7 +82,7 @@ describe('addGatewayDressing', () => {
     const scene = new THREE.Scene();
     const d = addGatewayDressing(scene, 'park');
     expect(scene.children.filter((c) => c.name === 'gateway').map((c) => c.userData.endId)).toEqual(['park-town', 'park-fair', 'park-farm']);
-    expect(scene.children.filter((c) => c.name === 'gateLane')).toHaveLength(2);
+    expect(scene.children.filter((c) => c.userData.gateLane)).toHaveLength(2);
     expect(d.colliders).toHaveLength(6);
     // park-farm faces east, so its posts stand along z
     expect(d.colliders.slice(4)).toEqual([{ x: 42, z: 10 - GATE_HALF, r: GATE_POST_R }, { x: 42, z: 10 + GATE_HALF, r: GATE_POST_R }]);
@@ -117,7 +118,9 @@ describe('addGatewayDressing', () => {
   it('lanes lie on the ground, top-level, where the data says', () => {
     const scene = new THREE.Scene();
     addGatewayDressing(scene, 'park', { ground: { flat: false, y: () => 0.25 } });
-    const lanes = scene.children.filter((c) => c.name === 'gateLane');
+    const lanes = scene.children.filter((c) => c.userData.gateLane);
+    // named 'path', so the wet and dusk tints and the paw prints treat it as one
+    expect(lanes.every((l) => l.name === 'path')).toBe(true);
     expect(lanes.every((l) => l.isMesh && Math.abs(l.position.y - 0.26) < 1e-9)).toBe(true);
     // park-farm's lane runs (16, 10) to (42, 10)
     expect(lanes.some((l) => Math.abs(l.position.x - 29) < 1e-9 && Math.abs(l.position.z - 10) < 1e-9)).toBe(true);
@@ -138,8 +141,41 @@ describe('addGatewayDressing', () => {
     expect(scene.children).toHaveLength(0);
   });
 
+  it('a shut leaf blocks: attach puts its circles on the live list, opening takes them off', () => {
+    const scene = new THREE.Scene();
+    const d = addGatewayDressing(scene, 'park', { isOpen: (e) => e.id === 'park-town' });
+    const posts = d.colliders.slice();
+    d.setOpen('park-fair', true); // before attach: only recorded
+    const list = [{ x: 0, z: 0, r: 1 }];
+    d.attach(list);
+    const blocks = (id) => {
+      const { end } = endById(id);
+      return list.filter((c) => c.r === LEAF_R && Math.hypot(c.x - end.x, c.z - end.z) < GATE_HALF);
+    };
+    // only the shut end (park-farm) blocks; park-town started open, park-fair was opened
+    expect(list).toHaveLength(1 + LEAF_BLOCKS);
+    expect(blocks('park-farm')).toHaveLength(LEAF_BLOCKS);
+    expect(blocks('park-fair')).toHaveLength(0);
+    // the circles close the gap: no two neighbours (posts included) leave room for the cat
+    const line = [posts[4], ...blocks('park-farm'), posts[5]].sort((a, b) => a.z - b.z);
+    for (let i = 1; i < line.length; i++) {
+      expect(Math.hypot(line[i].x - line[i - 1].x, line[i].z - line[i - 1].z)).toBeLessThan(line[i].r + line[i - 1].r + 2 * CAT_RADIUS);
+    }
+    d.setOpen('park-farm', true);
+    expect(list).toHaveLength(1);
+    d.setOpen('park-farm', true);
+    expect(list).toHaveLength(1);
+    d.setOpen('park-farm', false);
+    d.setOpen('park-farm', false);
+    expect(blocks('park-farm')).toHaveLength(LEAF_BLOCKS);
+    expect(list).toHaveLength(1 + LEAF_BLOCKS);
+    d.setOpen('park-town', false);
+    expect(list).toHaveLength(1 + 2 * LEAF_BLOCKS);
+    expect(d.colliders).toEqual(posts); // the posts never change
+  });
+
   it('NO_GATES does nothing', () => {
     expect(NO_GATES.colliders).toEqual([]);
-    expect(() => { NO_GATES.setOpen('park-town', true); NO_GATES.dispose(); }).not.toThrow();
+    expect(() => { NO_GATES.attach([]); NO_GATES.setOpen('park-town', true); NO_GATES.dispose(); }).not.toThrow();
   });
 });
