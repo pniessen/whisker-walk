@@ -11,7 +11,7 @@ import { marketRig, buildSquare } from './helpers/marketrig.js';
 // =============================================================================
 
 const { createMarketLive } = await import('../src/marketlive.js');
-const { marketFigure } = await import('../src/marketkeeper.js');
+const { marketFigure, personKeeper } = await import('../src/marketkeeper.js');
 const { createPeopleKit } = await import('../src/people/index.js');
 const { TREAT_ITEM_PREFIX, treatItemId, treatStallOf, NO_MARKET } = await import('../src/marketnone.js');
 const { STALLS, TREAT_STALLS, stallById, toStall, fromStall, MARKET_SPAWN, MARKET_REGISTRATION, stallClimb } = await import('../src/world/marketplan.js');
@@ -508,6 +508,33 @@ describe('the stallholders (Task 11)', () => {
       a.dispose();
       b.dispose();
     }
+  });
+
+  it('the stallholders are built through the one figure function', () => {
+    const { scene, area } = buildSquare();
+    const figure = vi.fn((spot) => marketFigure(spot));
+    const live = createMarketLive(scene, area, { people: createPeopleKit, seed: 1, now: () => 0, figure });
+    expect(figure).toHaveBeenCalledTimes(KEEPER_IDS.length);
+    KEEPER_IDS.forEach((id, i) => {
+      const k = area.keepers[id];
+      const spot = figure.mock.calls[i][0];
+      expect({ x: spot.x, z: spot.z, yaw: spot.yaw }, id).toEqual({ x: k.x, z: k.z, yaw: k.yaw });
+      expect(spot.people, id).toBe(createPeopleKit); // the pack's factory, handed on
+      expect(live.keepers[id].group, id).toBe(figure.mock.results[i].value.group);
+    });
+    live.dispose();
+    // with no figure, every keeper is marketFigure's: personKeeper names its
+    // group 'marketKeeper', and the life adds the stall's id to it
+    const one = marketFigure({ x: 1, z: 2, yaw: 0, people: createPeopleKit });
+    expect(one.group.name).toBe('marketKeeper');
+    one.dispose();
+    const plain = createMarketLive(scene, area, { people: createPeopleKit, seed: 1, now: () => 0 });
+    for (const id of KEEPER_IDS) {
+      expect(plain.keepers[id].group.name, id).toBe(`marketKeeper:${id}`);
+      expect(plain.keepers[id].group.children[0].isSkinnedMesh || plain.keepers[id].group.getObjectByProperty('isSkinnedMesh', true), id).toBeTruthy();
+    }
+    plain.dispose();
+    expect(marketFigure).toBe(personKeeper);
   });
 
   it('creating the stallholders draws nothing from Math.random', () => {

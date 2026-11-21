@@ -21,12 +21,26 @@
 // screen, and then shows the petals, made at the start, hidden, round the
 // bucket's curated landing spot. Once.
 //
+// THE STREET MUSICIAN (V7, world/marketfolk.js). When the walk hands it the
+// people factory (ctx.people, the pack's createPeopleKit), it stands one
+// person at the plan's pitch (MUSICIAN), built through the one figure
+// function the stallholders use, bowing a fiddle on the walk's seconds. They
+// never move. No factory (the picture pages, the plain tests): nobody.
+//
+// THE SOUNDS (V9, world/marketsound.js). When the walk hands it the game's
+// audio (ctx.audio), the tune by the musician, the pigeons' coos at their
+// patch (PIGEON_PATCH; Task 6 hands it the birds), the chatter by the four
+// treat stalls; `sound.bell()` for the bicycle's bell. All silent, the
+// context never asked for, while the game is muted.
+//
 // Nothing per frame allocates: the watch is an index loop over the session's
 // own lists, and the apples write into their one InstancedMesh.
 // =============================================================================
 import { setMarketDusk } from './market.js';
-import { MARKET_REGISTRATION, marketArea } from './marketplan.js';
+import { MARKET_REGISTRATION, marketArea, MUSICIAN, PIGEON_PATCH, TREAT_STALLS, stallById } from './marketplan.js';
 import { applePaths, createApples, createPetals } from './marketfruit.js';
+import { createMusician } from './marketfolk.js';
+import { createMarketSound } from './marketsound.js';
 
 export const MARKET_BUCKET_ID = 'market-bucket-1';
 const CRATE_KIND = 'applecrate';
@@ -44,8 +58,10 @@ function findBy(list, key, value) {
   return null;
 }
 
-// createMarketLife(area, ctx) -> { update(dt, t, catPos, camera, session), dispose() }.
-// `area` is the built record (its look and its anchors.apples).
+// createMarketLife(area, ctx) -> { update(dt, t, catPos, camera, session), dispose(), musician, sound }.
+// `area` is the built record (its look and its anchors.apples). `musician`
+// and `sound` are marketfolk.js's and marketsound.js's, or null without a
+// people factory or an audio.
 export function createMarketLife(area, ctx = {}) {
   setMarketDusk(area, ctx.dusk ? 1 : 0);
   const scene = ctx.scene ?? null;
@@ -58,10 +74,21 @@ export function createMarketLife(area, ctx = {}) {
   let bucket = null;
   let shown = false;
   let disposed = false;
+  const people = typeof ctx.people === 'function' ? ctx.people : null;
+  let musician = scene && people
+    ? createMusician(scene, MUSICIAN, { people, reducedMotion, y: ctx.ground?.y?.(MUSICIAN.x, MUSICIAN.z) })
+    : null;
+  let sound = ctx.audio
+    ? createMarketSound(ctx.audio, { pigeons: [PIGEON_PATCH], musician: MUSICIAN, stalls: TREAT_STALLS.map((id) => stallById(id).at) })
+    : null;
 
   return {
+    get musician() { return musician; },
+    get sound() { return sound; },
     update(dt, t, catPos = null, camera = null, session = null) {
       if (disposed) return;
+      musician?.update(t);
+      sound?.update(dt, catPos, t);
       if (!apples && scene && crateAt) {
         crate ??= findBy(session?.tippables?.list, 'kind', CRATE_KIND);
         if (crate?.tipped && crate.anim <= ROLL_AT) {
@@ -82,8 +109,12 @@ export function createMarketLife(area, ctx = {}) {
       disposed = true;
       apples?.dispose();
       petals?.dispose();
+      musician?.dispose();
+      sound?.dispose();
       apples = null;
       petals = null;
+      musician = null;
+      sound = null;
     },
   };
 }

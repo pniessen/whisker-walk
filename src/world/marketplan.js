@@ -283,6 +283,22 @@ const MILK_SHAFTS_AT = fromStall(MILK, MILK_SHAFTS.lx, MILK_SHAFTS.lz);
 const BAKER = stallById('baker');
 export const FLOUR_SACKS = freeze(fromStall(BAKER, -(BAKER.w / 2 + 0.6), -BAKER.d / 2 + 0.5));
 
+// V7 (step 3): THE STREET MUSICIAN's pitch, against the fountain's south-east
+// rim, turned out to the square (yaw as a keeper's: their front is (sin yaw,
+// cos yaw)), so she sees them playing as she comes up from the spawn. Solid,
+// r 0.45 (the person and the open fiddle case at their feet), its circle into
+// the fountain's own, so there is no gap to squeeze into. Out of every
+// counter's view lane, every watch zone and every dash from a hide, 3 m from
+// every POI and collectible, 1.5 m from the golden mice and the found-outfit
+// spots (marketplan.test.js): between the flower stall's lane and the
+// fountain's drink there is about a hand's width of room for it. Nobody moves
+// it: world/marketfolk.js stands the person here.
+export const MUSICIAN = freeze({ x: 1.9, z: 3.3, yaw: 0.45, r: 0.45 });
+// The pigeons' patch (Task 6 spawns the birds here): free cobbles between the
+// fountain and its bench, where the bench's crumbs fall, off every lane, zone
+// and hide line, a way off from the musician.
+export const PIGEON_PATCH = freeze({ x: -2.8, z: 5.3, r: 1.2 });
+
 export const MARKET_COLLIDERS = freeze([
   freeze({ x: FOUNTAIN.x, z: FOUNTAIN.z, r: FOUNTAIN_COLLIDER_R }),
   ...STALLS.flatMap(stallColliders),
@@ -291,6 +307,7 @@ export const MARKET_COLLIDERS = freeze([
   freeze({ x: MILK_SHAFTS_AT.x, z: MILK_SHAFTS_AT.z, r: MILK_SHAFTS.r }),
   ...MARKET_LAMPS.map((p) => freeze({ x: p.x, z: p.z, r: LAMP_R })),
   ...MARKET_CLUTTER.flatMap((c) => c.solid),
+  freeze({ x: MUSICIAN.x, z: MUSICIAN.z, r: MUSICIAN.r }),
 ]);
 
 export const MARKET_HIDES = freeze(STALLS.filter((s) => s.hide).map((s) => s.hide));

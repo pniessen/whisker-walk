@@ -4,7 +4,9 @@ import {
   MARKET_COLLIDERS, MARKET_HIDES, MARKET_KEEPOUT, marketArea, MARKET_REGISTRATION, MARKET_POIS, MARKET_COLLECTIBLES,
   MARKET_CLUTTER, MARKET_LAMPS, FRUIT_CRATE, FLOUR_SACKS,
   MARKET_PERCHES, CLIMB_STACKS, CLIMB_STACK, AWNING, awningHeight, stallClimb, BICYCLE_BASKET, TRESTLE_PERCH, RIM_PERCHES, TABLE_PERCHES,
+  MUSICIAN, PIGEON_PATCH,
 } from '../src/world/marketplan.js';
+import { MARKET_SPOTS } from '../src/foundwear/spots/market.js';
 import { MARKET } from '../src/marketrules.js';
 import { isWalkableAt, CAT_RADIUS } from '../src/player.js';
 import { keepOutPoint } from '../src/keepout.js';
@@ -459,6 +461,68 @@ describe('the plan of the Market Square', () => {
       expect(from.length, k.id).toBeGreaterThan(0);
       expect(from.some((p) => walkableNear(p, 1.2, (q) => canReach(p, q, 0, BASE_CLIMB_BUDGET))), k.id).toBe(true);
     }
+  });
+
+  // Step 3 (V7): the street musician's pitch, and (Task 6) the pigeons' patch.
+  // What both must keep clear of: every counter's view lane (the lamps' rule),
+  // every treat counter's watch zone, every dash from a hide (a cat's width
+  // clear), and 1.5 m round each golden mouse and each found-outfit spot.
+  const inLane = (o, p) => { const q = toStall(o, p.x, p.z); return q.lz > o.d / 2 - 0.5 && q.lz < o.d / 2 + 9 && Math.abs(q.lx) < o.w / 2 + 1.6; };
+  const hideLines = () => [
+    ...DRAWN.filter((s) => s.hide).map((s) => [s.hide, s.treat ?? fromStall(s, s.hideSide * (s.w / 2 - 0.3), s.d / 2 + 0.35)]),
+    [stallById('cafe').hide, stallById('cafe').treat],
+  ];
+  const ring = (c, r, n = 16) => Array.from({ length: n }, (_, k) => ({ x: c.x + r * Math.cos((k * 2 * Math.PI) / n), z: c.z + r * Math.sin((k * 2 * Math.PI) / n) }));
+  function clearOfEverything(c, r, what) {
+    const treat = TREAT_STALLS.map(stallById);
+    const pts = [c, ...ring(c, r), ...ring(c, r / 2, 8)];
+    for (const p of pts) {
+      for (const o of DRAWN) expect(inLane(o, p), `${what} in front of ${o.id}'s counter`).toBe(false);
+      for (const o of treat) expect(inZone(o, p.x, p.z), `${what} in ${o.id}'s zone`).toBe(false);
+    }
+    for (const [h, t] of hideLines()) expect(segDist(c, h, t), `${what} on a hide's line`).toBeGreaterThan(r + CAT_RADIUS);
+    for (const m of [...MARKET_REGISTRATION.goldMice, ...MARKET_SPOTS]) expect(dist(c, m) - r, `${what} by ${m.id}`).toBeGreaterThanOrEqual(1.5);
+  }
+
+  it('the musician stands where no cat can, out of every lane, zone and hide line, 3 m from every point of interest', () => {
+    expect(MUSICIAN.r).toBe(0.45);
+    expect(Object.isFrozen(MUSICIAN)).toBe(true);
+    for (const k of ['x', 'z', 'yaw']) expect(Number.isFinite(MUSICIAN[k]), k).toBe(true);
+    // solid: their pitch and the open fiddle case, so nobody walks into them
+    expect(MARKET_COLLIDERS).toContainEqual({ x: MUSICIAN.x, z: MUSICIAN.z, r: MUSICIAN.r });
+    for (const p of [MUSICIAN, ...ring(MUSICIAN, MUSICIAN.r + CAT_RADIUS - 0.01), ...ring(MUSICIAN, 0.3)]) {
+      expect(isWalkableAt(a, p.x, p.z), `${p.x},${p.z}`).toBe(false);
+    }
+    // by the fountain: within 1.5 m of its rim, and turned away from it, out to the square
+    expect(dist(MUSICIAN, FOUNTAIN) - FOUNTAIN.r).toBeLessThanOrEqual(1.5);
+    const out = { x: (MUSICIAN.x - FOUNTAIN.x) / dist(MUSICIAN, FOUNTAIN), z: (MUSICIAN.z - FOUNTAIN.z) / dist(MUSICIAN, FOUNTAIN) };
+    expect(Math.sin(MUSICIAN.yaw) * out.x + Math.cos(MUSICIAN.yaw) * out.z).toBeGreaterThan(0.7);
+    clearOfEverything(MUSICIAN, MUSICIAN.r, 'the musician');
+    // 3 m from every point of interest, every collectible, every prop and perch
+    for (const p of [...MARKET_POIS, ...MARKET_COLLECTIBLES]) expect(dist(p, MUSICIAN) - MUSICIAN.r, JSON.stringify(p)).toBeGreaterThanOrEqual(3);
+    const props = Object.values(MARKET_REGISTRATION.propSet).filter(Array.isArray).flat();
+    for (const p of [...props, ...MARKET_PERCHES]) expect(dist(p, MUSICIAN) - MUSICIAN.r, JSON.stringify(p)).toBeGreaterThanOrEqual(1.5);
+    // no pocket a cat could be pushed into: each other solid thing either
+    // overlaps the pitch or leaves a cat's width and more between them
+    for (const c of MARKET_COLLIDERS) {
+      if (c.x === MUSICIAN.x && c.z === MUSICIAN.z) continue;
+      const gap = dist(c, MUSICIAN) - c.r - MUSICIAN.r;
+      expect(gap < 0 || gap > 2 * CAT_RADIUS + 0.2, `${c.x},${c.z}`).toBe(true);
+    }
+    // the fountain's drink is still reached, and the spawn's walk up to the fountain is open
+    expect(dist(MUSICIAN, MARKET_REGISTRATION.propSet.rests[0]) - MUSICIAN.r).toBeGreaterThan(1);
+    expect(segDist(MUSICIAN, MARKET_SPAWN, { x: 0, z: FOUNTAIN.r + 0.3 })).toBeGreaterThan(MUSICIAN.r + 2 * CAT_RADIUS);
+  });
+
+  it("the pigeons' patch is free cobbles, off every lane and zone", () => {
+    expect(Object.isFrozen(PIGEON_PATCH)).toBe(true);
+    expect(PIGEON_PATCH.r).toBeGreaterThanOrEqual(0.8);
+    for (const p of [PIGEON_PATCH, ...ring(PIGEON_PATCH, PIGEON_PATCH.r), ...ring(PIGEON_PATCH, PIGEON_PATCH.r / 2, 8)]) {
+      expect(isWalkableAt(a, p.x, p.z), `${p.x},${p.z}`).toBe(true);
+    }
+    clearOfEverything(PIGEON_PATCH, PIGEON_PATCH.r, "the pigeons' patch");
+    // the birds peck their own patch, a way off from the musician's
+    expect(dist(PIGEON_PATCH, MUSICIAN) - PIGEON_PATCH.r - MUSICIAN.r).toBeGreaterThanOrEqual(3);
   });
 
   it('nothing offers it yet, and strays are allowed', () => {
