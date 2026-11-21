@@ -133,6 +133,8 @@ import { mergeStaticProps } from '../render/mergeprops.js';
 import { createStripTiles } from '../render/striptiles.js';
 import { createGrass, groundFinds } from '../render/grass.js';
 import { createPawPrints } from '../render/pawprints.js';
+import { createPartyBalloons } from '../render/partyballoons.js';
+import { birthdayPartyOn } from '../ui/party.js';
 import { createSplash } from '../render/splash.js';
 import { createClouds } from '../render/clouds.js';
 import { createAmbient } from '../render/ambient.js';
@@ -1717,7 +1719,12 @@ export function createWalkLifecycle({
     // Stream 4 round four — paw prints (render/pawprints.js). After the same
     // scans as the grass, for the same reason (1 main-pass draw, 0 shadow).
     // Purely local: no wire event, and never walkRng. The den gets the stub.
-    const paws = createPawPrints(scene, { areaId, areaData, tier });
+    // The birthday (ui/party.js): while this save's party is on, the prints
+    // glitter and two balloons follow her (render/partyballoons.js: 2 draws,
+    // 0 shadow). This device only: nothing goes on the wire.
+    const partyWalk = birthdayPartyOn(progression);
+    const paws = createPawPrints(scene, { areaId, areaData, tier, glitter: partyWalk, reducedMotion });
+    const balloons = createPartyBalloons(scene, { on: partyWalk, areaId, areaData, ground, reducedMotion, dusk: !!duskLookNow });
     // Swimming's splashes, ripples, wake and shake spray (render/splash.js):
     // two pooled draws, 0 while no cat is in water; the den gets NO_SPLASH.
     const splash = createSplash(scene, { areaData, tier, reducedMotion });
@@ -1864,6 +1871,7 @@ export function createWalkLifecycle({
       grass,
       duskLawn,
       paws,
+      balloons,
       splash,
       fish,
       // Stream 4 round four — drifting sky clouds (render/clouds.js), same
@@ -2850,6 +2858,7 @@ export function createWalkLifecycle({
     // geometry and material once.
     session.grass.dispose();
     session.paws.dispose();
+    session.balloons.dispose();
     session.splash.dispose();
     session.fish.dispose();
     session.clouds.dispose();

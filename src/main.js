@@ -1007,6 +1007,8 @@ function init() {
   // The cat's paws for paws.update, mutated every frame rather than rebuilt
   // (pawprints.js reads the fields and keeps no reference).
   const pawState = { x: 0, z: 0, grounded: false };
+  // ...and her pose for the birthday balloons (render/partyballoons.js).
+  const balloonPose = { x: 0, y: 0, z: 0, yaw: 0, hidden: false };
   // The find's inputs (foundwear/live.js update), mutated every frame rather
   // than rebuilt.
   const findFrame = { x: 0, z: 0, pawsY: 0, camera, remotes: null, busy: false };
@@ -1425,6 +1427,13 @@ function init() {
       pawState.z = session.cat.position.z;
       pawState.grounded = !session.perched && player.perchY === 0 && !(player.hopY > 0) && !player.inWater;
       session.paws.update(dt, pawState);
+      // The birthday balloons: away while she swims or rides.
+      balloonPose.x = pawState.x;
+      balloonPose.y = session.cat.position.y;
+      balloonPose.z = pawState.z;
+      balloonPose.yaw = session.cat.rotation.y;
+      balloonPose.hidden = player.inWater || !!session.fair?.riding;
+      session.balloons.update(dt, t, balloonPose);
       // Clouds take the same absolute t and follow the camera, so after player.update too.
       session.clouds.update(t);
       session.ambient.update(t, session.weather.condition === 'rain' ? 1.7 : 1);
