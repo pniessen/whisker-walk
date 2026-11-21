@@ -94,6 +94,7 @@ import { createFind, NO_FIND } from '../foundwear/live.js';
 import { restoreFind } from '../foundwear/play.js';
 import { foundWearIn } from '../foundwear/index.js';
 import { crossingOutcome } from '../bordercross.js';
+import { pickOnCrossing } from '../gatecross.js';
 import { rivalForWalk, placeName, effectiveArea, isClanEdition } from '../edition.js';
 import { picksOf, homeWelcome } from '../clanhomes.js';
 import { phrase } from '../clanphrases.js';
@@ -2627,7 +2628,7 @@ export function createWalkLifecycle({
     lastCrossing = null;
     if (crossTo) {
       const clan = isClanEdition(progression.state);
-      const out = crossingOutcome({ crossTo, ledBy, together: together ?? walkedWithNames, clan, pickPlace: (id) => progression.pickPlace(id), catalog: CATALOG, edition: progression.state.edition, touch: !!getIsTouch() });
+      const out = crossingOutcome({ crossTo, ledBy, together: together ?? walkedWithNames, clan, pick: (id) => pickOnCrossing(progression, CATALOG, id, { guest: !!ledBy }), catalog: CATALOG, edition: progression.state.edition, touch: !!getIsTouch() });
       crossLines = out.lines;
       lastCrossing = { to: crossTo, picked: out.picked, clan };
     }

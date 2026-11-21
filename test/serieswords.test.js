@@ -372,8 +372,8 @@ function lines() {
         open: promptFor(go).text,
         openForAGuest: promptFor(go, { inRoom: true, isHost: false }).text,
         card: htmlText(crossCardHtml({ name: go.name })),
-        after: crossingOutcome({ crossTo: post.to, clan: true, pickPlace: () => true, catalog: CATALOG, edition: 'canon' }).lines,
-        afterLed: crossingOutcome({ crossTo: post.to, ledBy: PARTNER_NAME, together: [PARTNER_NAME], clan: true, pickPlace: () => false, catalog: CATALOG, edition: 'canon' }).lines,
+        after: crossingOutcome({ crossTo: post.to, clan: true, pick: () => true, catalog: CATALOG, edition: 'canon' }).lines,
+        afterLed: crossingOutcome({ crossTo: post.to, ledBy: PARTNER_NAME, together: [PARTNER_NAME], clan: true, pick: () => false, catalog: CATALOG, edition: 'canon' }).lines,
       };
     }
   }
