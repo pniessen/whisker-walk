@@ -4247,13 +4247,14 @@ describe('Colony — petting a tamed cat at home in the den (v21 Stream 2)', () 
 // ===========================================================================
 describe('endWalk: what the cat carried home', () => {
   const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
-  const end = src.indexOf('function endWalk(');
+  // endWalk's first half is bankWalk, its teardown freeWalk (world map step 3).
+  const end = src.indexOf('function bankWalk(');
   const a = src.indexOf('What the cat carried home', end);
   const b = src.indexOf('(end of what the cat carried home)', a);
   const block = src.slice(a, b);
   const code = block.replace(/\/\/.*$/gm, '');
 
-  it('sits inside endWalk, after completeWalk and before the summary and the teardown', () => {
+  it('sits inside endWalk\'s bankWalk, after completeWalk and before the summary and the teardown', () => {
     expect(end).toBeGreaterThan(0);
     expect(a).toBeGreaterThan(src.indexOf('progression.completeWalk(', end));
     expect(b).toBeGreaterThan(a);

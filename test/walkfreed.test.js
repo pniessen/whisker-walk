@@ -1,14 +1,11 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
-import * as THREE from 'three';
-import { createWalkLifecycle } from '../src/game/walk.js';
-import { createAreaLoader } from '../src/game/areaload.js';
-import { createProgression } from '../src/progression.js';
-import { resolveQuality } from '../src/render/quality.js';
+import { walkHarness, areas, anything, envMap, fakeDocument } from './helpers/walkharness.js';
 import { contactShadowTexture } from '../src/render/contactshadows.js';
 import { diagnostics } from '../src/diagnostics.js';
 import { mulberry32 } from '../src/rng.js';
 import { rollWeather } from '../src/weather.js';
 import { NO_FIND } from '../src/foundwear/live.js';
+import { GATE_MOMENT_MS } from '../src/gatecross.js';
 
 // endWalk (src/game/walk.js) frees a walk by hand: a dispose() per rig, then
 // a sweep over the scene. Nothing else would notice a rig that forgot its
@@ -24,79 +21,14 @@ import { NO_FIND } from '../src/foundwear/live.js';
 // day, and each walk below pins the one seed it needs, or a leak would show
 // only on the runs whose seed happened to build the leaking part.
 
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
-
-// No jsdom here: the headless canvas stub the world tests use (see
-// test/den.test.js), with measureText for the cats' name tags.
-function fakeContext() {
-  return new Proxy({}, {
-    get: (_target, key) => {
-      if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-      if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-      if (key === 'measureText') return () => ({ width: 0 });
-      return () => {};
-    },
-    set: () => true,
-  });
-}
-// Enough of an element for the chat wheel, the minimap and the unlock card.
-function fakeEl() {
-  return {
-    width: 0, height: 0, getContext: fakeContext,
-    classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, style: {},
-    setAttribute() {}, appendChild() {}, insertBefore() {}, addEventListener() {}, removeEventListener() {},
-    remove() {}, contains: () => false, querySelector: () => fakeEl(), querySelectorAll: () => [],
-  };
-}
-function fakeDocument() {
-  return {
-    body: fakeEl(), createElement: fakeEl, getElementById: () => null,
-    addEventListener() {}, removeEventListener() {},
-  };
-}
-
-// A dependency the walk only calls: every property is a no-op function, apart
-// from the few given values it reads as values.
-const anything = (values = {}) => new Proxy(values, {
-  get: (target, key) => (key in target ? target[key] : () => undefined),
-  set: (target, key, v) => { target[key] = v; return true; },
-});
-
-// The app's one environment map, made once by main.js and handed to every walk.
-const envMap = new THREE.Texture();
-envMap.name = 'test env map';
-
-// Every place is its own download (F6): the two this file walks are loaded
+// Every place is its own download (F6): the places this file walks are loaded
 // first, so each walk starts in the same tick, as it does once its place is here.
-const areas = createAreaLoader();
-beforeAll(() => areas.ensureAll(['neighborhood', 'park']));
+beforeAll(() => areas.ensureAll(['neighborhood', 'park', 'farm']));
 
+// The walk lifecycle, headless (test/helpers/walkharness.js).
 function lifecycle({ renderer = null, save = () => {} } = {}) {
-  let session = null;
-  const progression = createProgression(memStorage());
-  save(progression);
-  const w = createWalkLifecycle({
-    MP: false, pid: 'me', coarse: false, envMap, overlay: anything({ classList: anything() }), blockList: new Set(),
-    renderer, camera: new THREE.PerspectiveCamera(), composerRig: anything(),
-    player: anything(), progression,
-    settings: { get: (k) => (k === 'muted' ? true : null) },
-    hud: anything({ mapHost: fakeEl() }), audio: anything(), music: anything(), log: anything(), touchUI: anything(),
-    catVoice: () => {},
-    getCloud: () => null, getSession: () => session, setSession: (s) => { session = s; }, getIsTouch: () => false,
-    getHomebase: () => anything(),
-    getPendingRoom: () => null, clearPendingRoom: () => {}, pushProfileNow: () => {},
-    startRoomTogether: () => {},
-    awardStrayGreet: () => {}, applyRemoteEvent: () => {},
-    // HIGH, so the walk builds everything a tier can add (normal maps, grass,
-    // shadows); no post-processing, which needs a real renderer.
-    qualityAdapter: { beginWalk: () => ({ ...resolveQuality({ override: 'high' }), postFx: false }) },
-    denShop: null,
-    areas,
-  });
-  return { w, getSession: () => session, progression };
+  const { w, getSession, progression } = walkHarness({ renderer, save });
+  return { w, getSession, progression };
 }
 
 // The nearest name up the tree, so a failure says where a resource was.
@@ -287,6 +219,37 @@ describe('everything a walk made is freed', () => {
     expectFreed(walkOnce(w, getSession, { area: 'park', duskMode: true, seed: seedFor('clear') }).tracked);
     expect(progression.state.equipped.collar).toBe('glow');
   });
+});
+
+describe('a walk walked on through a gate is freed too', () => {
+  // World map step 3: walkOn frees the walk it leaves with the same teardown
+  // as endWalk (freeWalk), and then starts the next walk by itself.
+  it('a Park walk walks on to the Farm, the Farm walk ends: both scenes are freed', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'], now: new Date('2026-11-19T15:00:00Z') });
+    const { w, getSession, progression } = lifecycle({
+      save: (p) => {
+        pastTheGuidedWalk(p);
+        p.state.unlocked.areas.push('park', 'farm');
+        p.state.walks.park = 2;
+        p.setArea('park');
+      },
+    });
+    w.startWalk({});
+    const park = getSession();
+    expect(park.areaId).toBe('park');
+    const parkTracked = track(park.scene);
+    expect(await w.walkOn({ via: 'park-farm' })).toBe('walked');
+    expect(getSession()).toBe(null);
+    expectFreed(parkTracked);
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    const farm = getSession();
+    expect(farm.areaId).toBe('farm');
+    expect(progression.state.area).toBe('farm');
+    const farmTracked = track(farm.scene);
+    w.endWalk();
+    expect(getSession()).toBe(null);
+    expectFreed(farmTracked);
+  }, 90_000);
 });
 
 describe('the renderer\'s memory counts at each walk end', () => {

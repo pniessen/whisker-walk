@@ -410,10 +410,10 @@ describe('the clan in the walk (source pins)', () => {
     expect(line).toContain('isGround: clanWalkable');
     expect(line).not.toContain('progression');
     const abort = s.indexOf('session.clanFight.abort()');
-    expect(abort).toBeGreaterThan(s.indexOf('function endWalk('));
+    expect(abort).toBeGreaterThan(s.indexOf('function freeWalk(')); // endWalk's teardown
     expect(abort).toBeLessThan(s.indexOf('session.intruders.dispose()'));
     // its intruder-done goes out while the room is still joined: before leave()
-    const leave = s.indexOf('net.leave()', s.indexOf('function endWalk('));
+    const leave = s.indexOf('net.leave()', s.indexOf('function freeWalk('));
     expect(leave).toBeGreaterThan(-1);
     expect(abort).toBeLessThan(leave);
     expect(s.split('session.clanFight.abort()')).toHaveLength(2);
@@ -597,7 +597,7 @@ describe('fights teach moves and leave scars (source pins)', () => {
 
   it('endWalk re-pushes the profile when the fade changed her rendered scars', () => {
     const s = src();
-    const end = s.indexOf('function endWalk(');
+    const end = s.indexOf('function bankWalk('); // endWalk's first half
     const before = s.indexOf('const scarsBefore = JSON.stringify(progression.catScars(scarKey(progression.state)));', end);
     const done = s.indexOf('progression.completeWalk(', end);
     const after = s.indexOf('if (JSON.stringify(progression.catScars(scarKey(progression.state))) !== scarsBefore) onScarsChanged();', end);
