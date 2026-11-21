@@ -31,6 +31,7 @@ const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { findFadeOccluders } = await import('../src/treefade.js');
 const { keepOutPoint } = await import('../src/keepout.js');
 const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
+const MARKET_HIDES_COUNT = (await import('../src/world/marketplan.js')).MARKET_HIDES.length;
 
 // =============================================================================
 // The Market Square drawn (step 1, Task 3): the square, day and dusk, inside
@@ -399,5 +400,51 @@ describe('the Market Square drawn', () => {
     let fb = null;
     s2.traverse((o) => { if (o.isMesh && o.userData.shopFront === 'north') fb = o; });
     expect(Array.from(fb.geometry.attributes.position.array)).toEqual(Array.from(fa.geometry.attributes.position.array));
+  });
+});
+
+// =============================================================================
+// Task 5: registered in every per-area list a street area is in. MARKET_REGISTRATION
+// holds each row in its table's shape; each table holds exactly that row.
+// =============================================================================
+describe('The Market: registered in every per-area list', async () => {
+  const { MARKET_REGISTRATION: REG } = await import('../src/world/marketplan.js');
+  const { MARK_AREAS, emptyMarks } = await import('../src/marks.js');
+  const { propsFor } = await import('../src/propsets.js');
+  const { ambientKind } = await import('../src/render/ambient.js');
+  const { CLOUD_AREAS, AREA_SKY } = await import('../src/render/clouds.js');
+  const { AREA_RULES } = await import('../src/render/pawprints.js');
+  const { COLONY_AREAS } = await import('../src/colony.js');
+  const { createProgression } = await import('../src/progression.js');
+  const plain = (v) => JSON.parse(JSON.stringify(v));
+
+  it('each registration row is in its table', () => {
+    expect(plain(propsFor('market'))).toEqual(plain(REG.propSet));
+    expect(ambientKind('market')).toBe(REG.ambient);
+    expect(ambientKind('market', { dusk: true })).toBe(REG.ambient);
+    expect(CLOUD_AREAS).toContain('market');
+    expect(plain(AREA_SKY.market)).toEqual(plain(REG.clouds));
+    expect(AREA_SKY.market).toEqual({ clouds: 8, banks: 2 });
+    expect(plain(AREA_RULES.market)).toEqual(plain(REG.pawprints));
+    expect(MARK_AREAS).toContain('market');
+    expect(emptyMarks().market).toEqual([]);
+    expect(propsFor('market').hides.length).toBe(MARKET_HIDES_COUNT);
+  });
+
+  it('an old save loads with marks.market []', () => {
+    const store = {};
+    const ls = { getItem: (k) => store[k] ?? null, setItem: (k, v) => { store[k] = v; }, removeItem: (k) => { delete store[k]; } };
+    const first = createProgression(ls);
+    const saved = JSON.parse(JSON.stringify(first.state));
+    delete saved.marks.market;
+    const old = createProgression({ getItem: () => JSON.stringify(saved), setItem: () => {}, removeItem: () => {} });
+    expect(old.state.marks.market).toEqual([]);
+    expect(old.state.marks.park).toEqual([]);
+  });
+
+  it('not a colony area, no dog yard', () => {
+    expect(REG.colony).toBe(false);
+    expect(COLONY_AREAS).not.toContain('market');
+    expect(propsFor('market').dogYard).toBeNull();
   });
 });

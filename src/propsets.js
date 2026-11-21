@@ -330,6 +330,28 @@ const SETS = {
     keepSlots: [],
   },
 
+  // The Market Square (src/world/marketplan.js MARKET_REGISTRATION.propSet; test/market.test.js
+  // holds the two equal). Step 1 has only its hides, one at each stall's back
+  // (MARKET_HIDES: critters flee to them too); step 3 fills the rest. No dog
+  // yard, no colony.
+  market: {
+    carryables: [],
+    knockables: [],
+    markables: [],
+    flaps: [],
+    rests: [],
+    hides: [
+      { x: -13.627946385766231, z: 6.428470481531133 },
+      { x: -10.955083870624602, z: -13.010616412346897 },
+      { x: 6.547570232462124, z: -15.77174363314129 },
+      { x: 15.206130120448266, z: 1.6745945786930008 },
+      { x: -12.759354601174321, z: 19.21635035936251 },
+      { x: 9, z: 19 },
+    ],
+    dogYard: null,
+    keepSlots: [],
+  },
+
   // The Rooftops (src/world/roofsplan.js ROOFS_REGISTRATION.propSet; test/roofs.test.js
   // holds the two equal). The street areas' counts; NO DOG YARD, no markable is
   // `nearBorder`, and no strays: nothing up here chases the cat. Every prop stands

@@ -213,6 +213,27 @@ describe('layered ambience', () => {
     wet.audio.stopAmbient();
   });
 
+  // The Market Square: the town's hum (a low wind layer) and the fountain's
+  // running water (the lap layer), and never birdsong at any hour. Rain gets
+  // its wash; crickets at dusk come from the shared line.
+  it('market ambience is the town hum and running water, and never birdsong, gulls or a horn', () => {
+    const dry = ambienceProbe('market');
+    expect(dry.bufferSources).toHaveLength(2); // hum + water
+    expect(dry.intervals).toBe(0); // no birdsong
+    expect(dry.timeouts).toBe(0); // no gulls, no horn
+    dry.audio.stopAmbient();
+    for (const src of dry.bufferSources) expect(src.stopped).toBe(true);
+    const dusk = ambienceProbe('market', { dusk: true });
+    expect(dusk.bufferSources).toHaveLength(2);
+    expect(dusk.intervals).toBe(1); // crickets only
+    expect(dusk.timeouts).toBe(0);
+    dusk.audio.stopAmbient();
+    const wet = ambienceProbe('market', { rain: true });
+    expect(wet.bufferSources).toHaveLength(3); // hum + water + rain
+    expect(wet.intervals).toBe(0);
+    wet.audio.stopAmbient();
+  });
+
   // The River: wind + a quiet water lap under the usual birdsong. Never gulls.
   // Looped-noise layers are buffer sources (wind, lap, rain); birdsong and
   // crickets are setInterval; gulls and the horn are setTimeout.

@@ -827,6 +827,13 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         // at dusk come from the shared line below.
         layers.push(windLayer({ gain: 0.022, cutoff: 160 }));
         if (rain) layers.push(rainLayer());
+      } else if (areaKey === 'market') {
+        // The Market Square: the town's hum (a low wind layer) and the
+        // fountain's running water, and never birdsong at any hour. Rain gets
+        // its wash; crickets at dusk come from the shared line below.
+        layers.push(windLayer({ gain: 0.022, cutoff: 160 }));
+        layers.push(waterLapLayer());
+        if (rain) layers.push(rainLayer());
       } else if (areaKey === 'pines') {
         // The Pines and Swamp: a low hush of wind and the bog frogs, never
         // birdsong at any hour. Crickets at dusk come from the shared line.

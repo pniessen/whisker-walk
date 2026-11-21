@@ -237,7 +237,7 @@ export const MARKET_REGISTRATION = freeze({
     keepSlots: freeze([]),
   }),
   // src/render/clouds.js CLOUD_AREAS and AREA_SKY.market
-  clouds: freeze({ clouds: 6, banks: 3 }),
+  clouds: freeze({ clouds: 8, banks: 2 }),
   // src/render/ambient.js ambientKind
   ambient: 'fluff',
   // src/render/pawprints.js AREA_RULES.market: cobbles, no grass
