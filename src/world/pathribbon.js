@@ -84,7 +84,7 @@ export const SAWDUST_LOOK = {
   featherIn: -0.13, featherOut: 0.11,
   edgeBand: 0.6, edgeTint: [0.8, 0.79, 0.66],
   centreLift: 0.05,
-  blotch: 0.11, blotchL: 2.4,
+  blotch: 0.15, blotchL: 2.4,
   pebbleCell: 0.2, pebbleChance: 0.34, pebbleRMin: 0.02, pebbleRMax: 0.05,
   pebbleTint: [1.15, 1.07, 0.86], pebbleRim: 0.93, pebbleMinAlpha: 0.5,
   pebbleDark: [0.8, 0.7, 0.56], pebbleDarkShare: 0.35,

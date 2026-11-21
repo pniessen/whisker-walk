@@ -58,7 +58,7 @@ export const FAIR_GRASS = 0x62ac50;
 // The midway, the plaza and the paths: pale trodden earth and sawdust
 // (world/pathribbon.js SAWDUST_LOOK: scuffed patches, a darker trodden
 // margin, sawdust chips and crumbs of earth).
-export const FAIR_PATH_STYLE = Object.freeze({ surface: 'sand', color: 0xdcc79a, look: 'sawdust' });
+export const FAIR_PATH_STYLE = Object.freeze({ surface: 'sand', color: 0xd3b98b, look: 'sawdust' });
 export const FAIR_PATH_EXTEND = 17;
 
 // Just outside the gate, on the lane: the walk opens looking in under the
