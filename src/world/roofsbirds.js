@@ -36,7 +36,11 @@
 // writes each one's group.position to its bird's spot. A perched bird whose
 // critter critters.js has flagged `fleeing` (she came near, a meow, a pounce)
 // takes the flight chooseFlight gives it (roofsflock.js: short, along her
-// moves, never toward her), or flutters where it is (FLUTTER). A flight runs
+// moves, never toward her), or flutters where it is (FLUTTER). A flutter
+// leaves it owed a flight: perched again, it tries chooseFlight every frame
+// and is off the moment she gives it room (she steps back after a pounce, or
+// with the bell on), until she is more than FLIGHT.landFromCat from it,
+// when it is calm again. The cat rules hold for that flight too. A flight runs
 // at its plan's time, s clamped so it lands exactly on its perch, whatever
 // the frame's length; flushed again on the way it keeps its flight. On
 // landing the critter's `fleeing` is cleared, its `cooldown` zeroed and its
@@ -72,7 +76,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { withLocalUuids } from './localuuids.js';
 import { hash01 } from './warehouselook.js';
-import { BIRD_KINDS, ROOFS_BIRDS, GUIDE, LOFT_REST, OUT_OF_SIGHT, perchIndex, flightGraph, flightPlan, flightPoint, chooseFlight } from './roofsflock.js';
+import { BIRD_KINDS, ROOFS_BIRDS, GUIDE, FLIGHT, LOFT_REST, OUT_OF_SIGHT, perchIndex, flightGraph, flightPlan, flightPoint, chooseFlight } from './roofsflock.js';
 import { ROOFS_TRAVERSAL } from './roofsplan.js';
 
 // Each kind's body and wing colours (the instances' colours).
@@ -226,6 +230,7 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
     return {
       scale: BIRD_KINDS[b.kind].scale, rest, yaw: rest, look: 0, lookK: 0, lookAt: lookTime(i, 0), peckK: 0, peckAt: peckTime(i, 0, 0), pitch: 0,
       wing: hash01(i, 2, SALT.wing) * Math.PI * 2, flight: null, from: null, dest: null, s: 0, flutterT: 0, restT: 0,
+      owed: false, ask: { index: i, kind: b.kind, at: b.at, flights: 0, guideStep: -1 },
     };
   });
 
@@ -320,28 +325,50 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
     return taken;
   }
 
-  // Flushed: off on the flight chooseFlight gives it, or a flutter.
-  function flush(i, cat) {
+  // Where chooseFlight sends bird i from its perch, her at `cat`, or null.
+  // Allocates nothing unless it finds one.
+  function choose(i, cat) {
+    const b = birds[i];
+    const q = idle[i].ask;
+    q.at = b.at;
+    q.flights = b.flights;
+    q.guideStep = b.guideStep;
+    return chooseFlight(graph, index, q, cat, takenBy(i));
+  }
+
+  // Off on flight f (chooseFlight's).
+  function takeOff(i, f) {
     const b = birds[i];
     const s = idle[i];
     const from = index.get(b.at);
-    const f = cat ? chooseFlight(graph, index, { index: i, kind: b.kind, at: b.at, flights: b.flights, guideStep: b.guideStep }, cat, takenBy(i)) : null;
     s.from = from;
     s.restT = 0;
-    b.flying = true;
-    if (f) {
-      s.dest = index.get(f.to);
-      s.flight = flightPlan(from, s.dest, f.shape);
-      s.s = 0;
-      b.to = f.to;
-      if (s.flight.d > 0.05) s.yaw = Math.atan2(s.dest.x - from.x, s.dest.z - from.z);
-    } else {
-      s.dest = from;
-      s.flight = null;
-      s.flutterT = 0;
-      b.to = b.at;
-    }
+    s.owed = false;
     s.pitch = 0;
+    b.flying = true;
+    s.dest = index.get(f.to);
+    s.flight = flightPlan(from, s.dest, f.shape);
+    s.s = 0;
+    b.to = f.to;
+    if (s.flight.d > 0.05) s.yaw = Math.atan2(s.dest.x - from.x, s.dest.z - from.z);
+  }
+
+  // Flushed: off on the flight chooseFlight gives it; with none, a flutter
+  // where it is, and it is owed a flight (FLUSH OWED, update()).
+  function flush(i, cat) {
+    const f = cat ? choose(i, cat) : null;
+    if (f) return takeOff(i, f);
+    const b = birds[i];
+    const s = idle[i];
+    s.from = index.get(b.at);
+    s.dest = s.from;
+    s.restT = 0;
+    s.pitch = 0;
+    s.flight = null;
+    s.flutterT = 0;
+    s.owed = true;
+    b.flying = true;
+    b.to = b.at;
   }
 
   // On its perch: the critter told so, its anchors there.
@@ -490,6 +517,22 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
           c.cooldown = CRITTER_FLUSH_COOLDOWN;
         }
         if (!b.flying && c?.fleeing) flush(i, catPos);
+        else if (!b.flying && idle[i].owed) {
+          // FLUSH OWED: a bird that could only flutter tries again each frame
+          // and is off the moment she gives it room; past landFromCat she
+          // has let it be, and it is calm again
+          if (!catPos || dist3(catPos, b.pos) > FLIGHT.landFromCat) idle[i].owed = false;
+          else {
+            const f = choose(i, catPos);
+            if (f) {
+              takeOff(i, f);
+              if (c) {
+                c.fleeing = true; // on its way, as critters.js's flushed birds are
+                c.cooldown = CRITTER_FLUSH_COOLDOWN;
+              }
+            }
+          }
+        }
         if (b.flying) fly(i, dt);
         else rest(i, dt, catPos, camera);
         if (!b.flying) perch(i, dt, catPos);

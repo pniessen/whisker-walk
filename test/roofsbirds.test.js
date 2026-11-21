@@ -556,27 +556,66 @@ describe('the critters contract', () => {
     expect(posOf(c)).toEqual(b.pos);
   });
 
-  it('a pounce tags a pigeon: it flaps off, nobody is removed, and it cannot be tagged again for 20 s', () => {
-    // with the bell on (critters.js fleeScale 0.5) she gets near enough to pounce
-    const live = liveFlock({ fleeScale: 0.5 });
+  it.each([['', 1], [', with the bell on', 0.5]])('a pounce tags a pigeon%s: it flaps off when she steps back, nobody is removed, and it cannot be tagged again for 20 s', (_, fleeScale) => {
+    const live = liveFlock({ fleeScale });
     const id = 'pigeon-2';
     const b = live.bird(id);
-    const cat = flushSpot(live, id, 1.8);
-    live.run(1, cat);
-    expect(b.flying).toBe(false); // the bell: 1.8 m does not flush it
+    const home = I.get(b.at);
+    expect(home.id).toBe('plank-2:1');
+    // where a pounce leaves her: on plank-2, 0.7 m behind it (her paws reach 0.9 m)
+    const rail = ROOFS_TRAVERSAL.crossings.find((c) => c.id === 'plank-2').points;
+    const onPlank = (z) => new THREE.Vector3(home.x, rail[1].y + ((rail[2].y - rail[1].y) * (rail[1].z - z)) / (rail[1].z - rail[2].z), z);
+    const cat = onPlank(home.z + 0.7);
     const n = live.critters.list.length;
     expect(live.critters.pounceCatch(v3(b.pos))).toMatchObject({ type: 'bird' });
-    const r = untilLanded(live, id, cat, 4);
+    // a second where she landed: every flight would pass within 1.5 m of her, so it flutters
+    live.run(1, cat);
+    expect(I.get(b.at)).toBe(home);
+    expect(b.flights).toBe(0);
+    // she steps back 1.5 m: it is off to another perch within a few seconds
+    const back = onPlank(home.z + 2.2);
+    const r = untilLanded(live, id, back, 3);
     expect(r.landed).toBe(true);
-    expect(r.to.id).not.toBe('plank-2:1');
+    expect(r.to).not.toBe(home);
+    expect(d3(r.to, back)).toBeGreaterThan(d3(home, back));
+    expect(live.proxy(id).fleeing).toBe(false);
     expect(live.critters.list.length).toBe(n);
     // 5 s after the catch, at its new perch: still caught
-    live.run(5 - r.after, cat);
+    live.run(5 - live.time(), back);
     expect(live.critters.pounceCatch(v3(b.pos))).toBe(null);
     // 21 s after: it can be tagged again
-    live.run(16, cat);
+    live.run(21 - live.time(), back);
     expect(live.critters.pounceCatch(v3(b.pos))).toMatchObject({ type: 'bird' });
     expect(live.critters.list.length).toBe(n);
+  });
+
+  it('with the bell on, a pigeon or sparrow she walks right up to is off once she steps back', () => {
+    const ids = ROOFS_BIRDS.filter((r) => r.kind !== 'gull').map((r) => r.id);
+    const dirs = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+    let cases = 0;
+    let off = 0;
+    const stuck = [];
+    for (const id of ids) {
+      for (const [dx, dz] of dirs) {
+        const live = liveFlock({ fleeScale: 0.5, guideStore: memStore(GUIDE_CROSSED) });
+        const b = live.bird(id);
+        const p = I.get(b.at);
+        const at = (r) => new THREE.Vector3(p.x + dx * r, p.y, p.z + dz * r);
+        // can it fly at all once she is back 2.1 m off on this side?
+        const room = live.flightFor(id, at(2.1)) !== null;
+        // she walks in from 4 m to 0.6 m over 2 s, waits half a second, and steps back 1.5 m
+        for (let k = 0; k <= 60; k++) live.step(1 / 30, at(4 - (3.4 * k) / 60));
+        live.run(0.5, at(0.6));
+        live.run(4, at(2.1));
+        if (!room) continue;
+        cases++;
+        if (b.flights > 0) off++;
+        else stuck.push(`${id} from ${dx},${dz}`);
+      }
+    }
+    expect(stuck).toEqual([]);
+    expect(cases).toBeGreaterThanOrEqual(30);
+    expect(off).toBe(cases);
   });
 
   it('a gull flutters off but is not tagged, as at the seaside', () => {

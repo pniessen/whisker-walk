@@ -310,13 +310,24 @@ const STEP = Object.freeze({ lift: 0.4, up: 0.45, across0: 0.25, across: 0.6, do
 // straight line between its ends, for the step its lift over the higher end;
 // `time` (s), at FLIGHT.speed along its way; `shape` as given ('arc' or
 // 'step': the link's); and the step's `top`.
-export function flightPlan(a, b, shape = 'arc') {
+// `out`, if given, is filled and returned instead of a new object (the
+// choice's own scratch, so a bird retrying its flight allocates nothing).
+export function flightPlan(a, b, shape = 'arc', out = null) {
   const d = Math.hypot(b.x - a.x, b.z - a.z);
+  const o = out ?? {};
+  o.d = d;
   if (shape === 'step') {
     const top = Math.max(a.y, b.y) + STEP.lift;
-    return { d, h: STEP.lift, time: 0.5 + (d + (top - a.y) + (top - b.y)) / FLIGHT.speed, shape, top };
+    o.h = STEP.lift;
+    o.time = 0.5 + (d + (top - a.y) + (top - b.y)) / FLIGHT.speed;
+    o.shape = shape;
+    o.top = top;
+    return o;
   }
-  return { d, h: Math.min(1.4, 0.6 + 0.08 * d), time: 0.5 + d / FLIGHT.speed, shape: 'arc' };
+  o.h = Math.min(1.4, 0.6 + 0.08 * d);
+  o.time = 0.5 + d / FLIGHT.speed;
+  o.shape = 'arc';
+  return o;
 }
 
 // The bird's spot at s (0..1) of the flight from a to b. The arc: across by
@@ -449,10 +460,11 @@ const dist3 = (p, c) => Math.hypot(p.x - c.x, p.y - c.y, p.z - c.z);
 
 // The rules near her: it lands 4 m from her and 0.5 m further than it was,
 // and keeps 1.5 m from her on the way.
+const planTmp = { d: 0, h: 0, time: 0, shape: 'arc', top: 0 };
 function keepsOff(from, to, cat, shape) {
   const end = dist3(to, cat);
   if (end < FLIGHT.landFromCat || end <= dist3(from, cat) + 0.5) return false;
-  const plan = flightPlan(from, to, shape);
+  const plan = flightPlan(from, to, shape, planTmp);
   for (let i = 0; i <= CAT_SAMPLES; i++) {
     flightPoint(from, to, plan, CAT_S0 + ((CAT_S1 - CAT_S0) * i) / CAT_SAMPLES, tmp);
     if (dist3(tmp, cat) < FLIGHT.clearCat) return false;
@@ -460,7 +472,12 @@ function keepsOff(from, to, cat, shape) {
   return true;
 }
 
-const isTaken = (p, taken) => taken.has(p.id) || p.aliases.some((a) => taken.has(a));
+function isTaken(p, taken) {
+  if (taken.has(p.id)) return true;
+  for (const a of p.aliases) if (taken.has(a)) return true;
+  return false;
+}
+const NO_LINKS = Object.freeze([]);
 
 // Where a flushed bird flies: { to, kind, shape } (`to` a perch id; `shape`
 // for flightPlan), or null for a flutter where it is. `bird` is
@@ -469,12 +486,13 @@ const isTaken = (p, taken) => taken.has(p.id) || p.aliases.some((a) => taken.has
 export function chooseFlight(graph, index, bird, cat, taken) {
   const from = index.get(bird.at);
   if (!from) throw new Error(`roofsflock: ${bird.at} is not a perch`);
-  const links = graph.links.get(from.id) || [];
+  const links = graph.links.get(from.id) || NO_LINKS;
 
   // the guide, on its route: the next stop, or a flutter
   if (bird.guideStep >= 0 && bird.guideStep < GUIDE.route.length) {
     const stop = index.get(GUIDE.route[bird.guideStep]);
-    const link = stop && links.find((l) => l.to === stop.id);
+    let link = null;
+    if (stop) for (const l of links) if (l.to === stop.id) { link = l; break; }
     if (!link || isTaken(stop, taken) || !keepsOff(from, stop, cat, link.shape)) return null;
     return { to: stop.id, kind: link.kind, shape: link.shape };
   }
