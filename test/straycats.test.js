@@ -1791,7 +1791,7 @@ describe('createStrayCats — homes (Gorge part 3, C8)', () => {
   // waits for the child, and one in a mouth is hers.
   it('a playful stray leaves a found ball alone until someone plays with it, and never takes one from a mouth', () => {
     for (const [claimed, held, runs] of [[false, false, false], [true, true, false], [true, false, true]]) {
-      const cats = createStrayCats(fakeScene(), AREA, 1, () => 0.4, { homes: [HOME] });
+      const cats = createStrayCats(fakeScene(), AREA, 1, () => 0.4, { homes: [HOME], roomSeed: 1 });
       const [s] = cats.strays;
       const toy = { active: true, claimed, held, mesh: { position: new THREE.Vector3(HOME.x + 5, 0, HOME.z) }, bat() {} };
       let toward = 0;
@@ -1804,7 +1804,7 @@ describe('createStrayCats — homes (Gorge part 3, C8)', () => {
   });
 
   it('a homed stray\'s recoil never pushes it past its roam', () => {
-    const cats = createStrayCats(fakeScene(), AREA, 1, () => 0.4, { homes: [HOME] });
+    const cats = createStrayCats(fakeScene(), AREA, 1, () => 0.4, { homes: [HOME], roomSeed: 1 });
     const [s] = cats.strays;
     // at the edge of its roam, and she stands on its home side
     s.group.position.set(HOME.x + HOME.roam, 0, HOME.z);
