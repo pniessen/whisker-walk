@@ -606,10 +606,8 @@ export function createWalkLifecycle({
         failures += 1;
         note('area', err);
         const online = isOnline();
-        const id = failures >= RELOAD_AFTER_FAILURES && online ? 'start.notReadyReload'
-          : !online ? 'start.notReadyOffline'
-            : 'start.notReady';
-        homeToast(phrase(id));
+        const reload = failures >= RELOAD_AFTER_FAILURES && online;
+        homeToast(reload ? phrase('start.notReadyReload') : !online ? phrase('start.notReadyOffline') : phrase('start.notReady'));
         return 'failed';
       },
     );

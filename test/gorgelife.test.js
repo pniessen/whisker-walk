@@ -439,14 +439,31 @@ describe('gorge life: the caves', () => {
   });
 
   it('on any other area none of this exists', async () => {
-    // Only the Gorge, the River and (with the bigger-areas switch on) the
-    // Pines hand walk.js a `life`, and only the Gorge's has a light: the
-    // River's (marshlife.js) is its mist and dragonflies, the Pines' its
-    // strips' stand fade (pinesstrips.js).
-    const { readFileSync, readdirSync } = await import('node:fs');
+    // Only the Gorge, the River, the Rooftops and (with the bigger-areas
+    // switch on) the Pines hand walk.js a `life`, and only the Gorge's has a
+    // light: the River's (marshlife.js) is its mist and dragonflies, the
+    // Rooftops' (roofslife.js) its evening deepening, the Pines' its strips'
+    // stand fade (pinesstrips.js).
+    // Every place a walk can build (world/areas.js), built headless as
+    // walk.js builds it, with the bigger-areas switch off and on.
+    const { readFileSync } = await import('node:fs');
     const dir = new URL('../src/world/', import.meta.url);
-    const withLife = readdirSync(dir).filter((f) => f.endsWith('.js') && /\blife\s*:/.test(readFileSync(new URL(f, dir), 'utf8')));
-    expect(withLife).toEqual(['gorge.js', 'pines.js', 'river.js']);
+    const { AREA_LOADERS } = await import('../src/world/areas.js');
+    const { setGrow } = await import('../src/grow.js');
+    const packs = await Promise.all(Object.values(AREA_LOADERS).map((load) => load()));
+    const withLife = (grow) => {
+      setGrow(grow);
+      try {
+        return packs.filter(({ id, world }) => {
+          const areaData = id === 'den' ? world.build(new THREE.Scene(), { placed: [] }) : world.build(new THREE.Scene());
+          return typeof areaData.life === 'function';
+        }).map(({ id }) => id).sort();
+      } finally {
+        setGrow(null);
+      }
+    };
+    expect(withLife(false)).toEqual(['gorge', 'river', 'roofs']);
+    expect(withLife(true)).toEqual(['gorge', 'pines', 'river', 'roofs']);
     expect(readFileSync(new URL('marshlife.js', dir), 'utf8')).not.toMatch(/Light\(/);
     const walk = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
     expect(walk).toMatch(/areaData\.life\?\.\(\{[^}]*\bweather\b[^}]*\}\) \?\? NO_AREA_LIFE/);
