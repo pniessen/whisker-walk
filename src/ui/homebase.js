@@ -45,7 +45,7 @@ import { note } from '../diagnostics.js';
 import { line as tutorialLine } from '../tutorialwords.js';
 import { hintMax } from '../hints.js';
 import { nextThing, nextThingHtml, NEXT_ATTR } from './nextthing.js';
-import { createHomeParty, birthdayPartyOn, partyBannerText, partyCatName } from './party.js';
+import { createHomeParty, birthdayPartyOn, partyBannerText, partyCatName, presentDue } from './party.js';
 import { BIRTHDAY_EVENT, localDay } from '../giftevents.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
@@ -226,10 +226,28 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     document.addEventListener('pointerdown', onSongTap, true);
     document.addEventListener('keydown', onSongTap, true);
   }
+  // The present (ui/party.js presentDue): one tap opens it with a burst and
+  // the fanfare (muted, silent), and the birthday kitten is hers and on show.
+  let presentOpening = false;
+  function openPresentNow(box) {
+    if (presentOpening) return;
+    presentOpening = true;
+    party.burst();
+    try { onCelebrate?.(); } catch (err) { console.warn('Whisker Walk: the present sound failed', err); note('audio', err); }
+    setTimeout(() => {
+      presentOpening = false;
+      const cat = progression.openPresent(BIRTHDAY_EVENT);
+      if (!cat) { box?.classList?.remove?.('opening'); return; }
+      try { rooms?.retrackProfile?.(); } catch { /* her room sees the kitten on the next push */ }
+      render();
+      try { toast?.(phrase('present.opened', CATALOG.cats[cat].name)); } catch { /* a toast is never worth a crash */ }
+    }, reducedNow() ? 0 : 900);
+  }
   function syncParty() {
     const st = root.querySelector('#dr-stage');
     if (!st) return;
-    if (partyOn() && !dressing?.ui?.builder) party.mount(st, partyBannerText(partyCatName(progression.state, CATALOG)));
+    const present = presentDue(progression) && !dressing?.ui?.wardrobe ? { label: phrase('present.label'), onOpen: openPresentNow } : null;
+    if (partyOn() && !dressing?.ui?.builder) party.mount(st, partyBannerText(partyCatName(progression.state, CATALOG)), present);
     else party.unmount(st);
   }
 

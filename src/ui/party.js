@@ -34,6 +34,16 @@ export function birthdayPartyOn(progression, now = new Date()) {
   }
 }
 
+// The wrapped present waits on home while the party is on and this save has
+// not opened it (progression.presentWaiting: owning its kitten is opening it).
+export function presentDue(progression, now = new Date()) {
+  try {
+    return birthdayPartyOn(progression, now) && !!progression?.presentWaiting?.(BIRTHDAY_EVENT);
+  } catch {
+    return false;
+  }
+}
+
 // The balloons round the cat: [left %, top %, colour, size, seconds of bob].
 // Kept to the stage's sides and top, clear of the cat in the middle and the
 // name along the bottom.
@@ -68,13 +78,16 @@ export function createHomeParty({ doc = globalThis.document, reduced = () => fal
     root?.classList?.remove?.('party-on');
   }
 
-  function mount(stage, text) {
+  // present: { label, onOpen } puts the wrapped box beside the cat (a real
+  // button: the layer takes no taps, the box does); null leaves it out.
+  function mount(stage, text, present = null) {
     if (!stage || !doc) return;
     const still = reduced();
-    // Already up with the same words and stillness: left as it is, so the
+    // Already up with the same words, stillness and box: left as it is, so the
     // banner does not fade in again on every render.
     const up = stage.querySelector?.('.party-layer');
-    if (up && up.querySelector('.party-banner')?.textContent === text && up.classList.contains('still') === still) return;
+    if (up && up.querySelector('.party-banner')?.textContent === text && up.classList.contains('still') === still
+      && !!up.querySelector('.party-present') === !!present) return;
     unmount(stage);
     const layer = doc.createElement('div');
     layer.className = `party-layer${still ? ' still' : ''}`;
@@ -85,6 +98,20 @@ export function createHomeParty({ doc = globalThis.document, reduced = () => fal
     banner.setAttribute('role', 'status');
     banner.textContent = text;
     layer.appendChild(banner);
+    if (present) {
+      const box = doc.createElement('button');
+      box.type = 'button';
+      box.className = 'party-present';
+      box.setAttribute('aria-label', present.label);
+      box.innerHTML = '<span class="party-present-lid"></span><span class="party-present-box"></span>';
+      box.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (box.classList.contains('opening')) return;
+        box.classList.add('opening');
+        present.onOpen?.(box);
+      });
+      layer.appendChild(box);
+    }
     stage.appendChild(layer);
     stage.classList.add('party-on');
   }

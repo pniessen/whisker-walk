@@ -38,7 +38,7 @@ import { latestMilestoneUpTo, milestoneIndex, styleFor, prizeFor, prizesWonBy } 
 import { FAIR_GAME_IDS, FAIR_PRIZES, gameJournalId, fairPrizesWonBy } from './fairprizes.js';
 import { FOUND_CATALOG } from './foundwear/index.js';
 import { GIFT_CATALOG } from './foundwear/gifts.js';
-import { sanitizeEvents, eventWear, isEventId } from './giftevents.js';
+import { sanitizeEvents, eventWear, isEventId, eventPresent } from './giftevents.js';
 // v21 Stream 3b: private per-area marks. marks.js is the pure rules half (its only
 // import is propsets.js, a zero-import leaf), so the edge is cycle-free. Every
 // write still happens here: marks.js computes, this module saves.
@@ -318,6 +318,10 @@ export const CATALOG = {
     d2: { name: 'D2', price: 40 },
     digit: { name: 'Digit', price: 40 },
     hagrid: { name: 'Hagrid', price: 60 },
+    // The birthday kitten (2026-11-21): the birthday's present gives her
+    // (openPresent), never the shop: `prize` keeps her out of it, `code` says
+    // a gift may give her. Her name is read from the phrase table when shown.
+    ribbonkit: { get name() { return phrase('cat.ribbonkit.name'); }, price: 0, prize: true, code: true },
   },
   // The hand-written ones (BASE_ACCESSORIES above), then the found outfits
   // (src/foundwear/): one hidden on every walk, found, never bought. `prize`
@@ -1451,6 +1455,23 @@ export function createProgression(storage) {
     // Whether its window is still open is giftevents.js eventWindowOpen's.
     hasEvent(id) {
       return isEventId(id) && state.events.includes(id);
+    },
+    // openPresent(eventId) -> the cat id it gave, or null. Event `eventId`'s
+    // present, once per save: the save must have the event and not own the
+    // cat yet. She owns the cat from now and plays as it (in one save()).
+    openPresent(eventId) {
+      const cat = api.hasEvent(eventId) ? eventPresent(eventId) : null;
+      if (!cat || !Object.hasOwn(CATALOG.cats, cat) || state.unlocked.cats.includes(cat)) return null;
+      state.unlocked.cats.push(cat);
+      state.equipped.cat = cat;
+      state.equipped.custom = null;
+      save();
+      return cat;
+    },
+    // True while event `eventId`'s present is still wrapped for this save.
+    presentWaiting(eventId) {
+      const cat = api.hasEvent(eventId) ? eventPresent(eventId) : null;
+      return !!cat && Object.hasOwn(CATALOG.cats, cat) && !state.unlocked.cats.includes(cat);
     },
     // -------------------------------------------------------------------
     // deductPoints(n) → the number of points ACTUALLY deducted (0 if none).

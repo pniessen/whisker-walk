@@ -131,7 +131,8 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard,
   const ownedAcc = ownedList(state, 'accessories');
   const ownedAreas = ownedList(state, 'areas');
 
-  const catIds = Object.keys(catalog.cats);
+  // A gift cat (`code`, the birthday kitten) is not in the picker until hers.
+  const catIds = Object.keys(catalog.cats).filter((id) => !catalog.cats[id].code || ownedCats.includes(id));
   const selectedCat = typeof equippedCat === 'string' && has(catalog.cats, equippedCat) ? equippedCat : catIds[0];
   // Her own cats (the builder's): walking one means no ready-made portrait is selected.
   const customCats = sanitizeCustomCats(state?.customCats);

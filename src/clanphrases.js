@@ -415,6 +415,11 @@ const LATER = Object.freeze({
   'wear.bdayballoon.name': 'Birthday Balloon',
   'wear.cakecharm.name': 'Cake Charm',
   'wear.birthdayhat.name': 'Birthday Hat',
+  // the birthday kitten the present holds: "Ribbon" and the kit word of the set in use
+  'cat.ribbonkit.name': () => `Ribbon${words().RANK_SUFFIX.kit}`,
+  // the line when the present is opened
+  'present.label': 'A present for you! Tap to open it',
+  'present.opened': (name) => `${name} is yours! 🎀`,
   // the home screen's banner while the birthday is on; the name is her cat's
   'party.banner': (catName) => `Happy birthday, ${catName}! 🎂`,
   // the line with the brother's code's confetti
