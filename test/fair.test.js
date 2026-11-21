@@ -37,7 +37,7 @@ const {
 } = fair;
 const { MGR, FERRIS, TEACUPS, HELTER, COASTER, STATION, trackPose, coasterTrackPoints } = await import('../src/world/fairrides.js');
 const { TINS, BELL, FORTUNE, STALL, PICNIC, BANDSTAND, STALL_SIGN, SIGN_POST } = await import('../src/world/fairparts.js');
-const { GLOW_MAX } = await import('../src/world/fairkit.js');
+const { GLOW_MAX, GLOW_LOOK } = await import('../src/world/fairkit.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { isWalkableAt, isWadeableAt, CAT_RADIUS } = await import('../src/player.js');
 const { inWater, waterClearance, shallowExcess } = await import('../src/world/builder.js');
@@ -1639,6 +1639,43 @@ describe('The Fairground: the beauty pass, round two', () => {
       // the dado and the board over it
       expect(inside.some((p) => p.y < 1.0), s.id).toBe(true);
       expect(inside.some((p) => p.y > 1.5), s.id).toBe(true);
+    }
+  });
+
+  it('every stall’s inside is a shaded version of its own paint, never pale: warm at dusk, never white', () => {
+    const bulbs = scene.getObjectByName('fairBulbs');
+    const r = bulbs.geometry.getAttribute('fairBulbR');
+    const pos = bulbs.geometry.getAttribute('position');
+    const col = bulbs.geometry.getAttribute('color');
+    const v = new THREE.Vector3();
+    bulbs.updateWorldMatrix(true, false);
+    const unit = (c) => { const n = Math.hypot(c[0], c[1], c[2]) || 1; return c.map((x) => x / n); };
+    for (const s of STALLS) {
+      const own = new THREE.Color(s.colors[0]);
+      const ownU = unit([own.r, own.g, own.b]);
+      const inside = [];
+      for (let i = 0; i < r.count; i++) {
+        if (r.getX(i) !== 0) continue;
+        v.fromBufferAttribute(pos, i).applyMatrix4(bulbs.matrixWorld);
+        const dx = v.x - s.x, dz = v.z - s.z;
+        const lz = dx * Math.sin(s.yaw) + dz * Math.cos(s.yaw);
+        const lx = dx * Math.cos(s.yaw) - dz * Math.sin(s.yaw);
+        if (Math.abs(lz - (-STALL.d / 2 + 0.1)) < 0.03 && Math.abs(lx) < STALL.w / 2 && v.y > 0.05 && v.y < 2.0) {
+          inside.push([col.getX(i), col.getY(i), col.getZ(i)]);
+        }
+      }
+      expect(inside.length, s.id).toBeGreaterThan(0);
+      for (const c of inside) {
+        const top = Math.max(...c);
+        // the stall's own hue (not cream, not grey)
+        const u = unit(c);
+        expect(u[0] * ownU[0] + u[1] * ownU[1] + u[2] * ownU[2], s.id).toBeGreaterThan(0.95);
+        // coloured, not pale: a pale board has its channels close together
+        expect((top - Math.min(...c)) / top, s.id).toBeGreaterThan(0.45);
+        // shaded, and dim enough that its dusk glow (paint x pane x GLOW_MAX)
+        // stays under the bloom's threshold (1.1): warm, never a white box
+        expect(top * GLOW_LOOK.pane * GLOW_MAX, s.id).toBeLessThan(0.9);
+      }
     }
   });
 

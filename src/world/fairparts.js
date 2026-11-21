@@ -264,13 +264,15 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
   const [a, b] = colors;
   // the back and half-depth sides, in the stall's colour with a pale dado
   box(P, w, 2.1, 0.08, 0, 0, -hd + 0.04, a, { shade: 0.86 });
-  // the inside of the back, a pale dado and a pale board over it, is on the
-  // glow list (beauty round two): at dusk the stall's inside is softly
-  // lamp-lit, by day it is paint, shaded by the roof like the rest. A pane
-  // glows as bright as its paint (fairkit.js GLOW_LOOK.pane), so these are
-  // painted dim: a warm glow, not a white box
-  box(K.bulbs, w - 0.3, 0.9, 0.03, 0, 0.1, -hd + 0.1, b, { shade: 0.75 });
-  box(K.bulbs, w - 0.3, 0.86, 0.03, 0, 1.08, -hd + 0.1, b, { shade: 0.66 });
+  // the inside of the back, a dado and a board over it, is on the glow list
+  // (beauty round two): at dusk the stall's inside is softly lamp-lit, by day
+  // it is paint, shaded by the roof like the rest. Both are the stall's own
+  // colour, a shade darker, a touch warmed: a pane glows in its paint's colour
+  // and as bright as it (fairkit.js GLOW_LOOK.pane), so a pale board burned
+  // white at dusk, and this glows the stall's colour, under the bloom
+  const inside = new THREE.Color(a).lerp(new THREE.Color(0xffa040), 0.12).getHex();
+  box(K.bulbs, w - 0.3, 0.9, 0.03, 0, 0.1, -hd + 0.1, inside, { shade: 0.72 });
+  box(K.bulbs, w - 0.3, 0.86, 0.03, 0, 1.08, -hd + 0.1, inside, { shade: 0.62 });
   for (const s of [-1, 1]) {
     box(P, 0.08, 2.1, 1.3, s * (hw - 0.04), 0, -hd + 0.65, a, { shade: 0.92 });
     for (const pz of [-hd + 0.05, hd - 0.05]) box(P, 0.1, 2.2, 0.1, s * (hw - 0.05), 0, pz, C.white);
