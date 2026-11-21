@@ -36,6 +36,7 @@ const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { clearSpot } = await import('../src/world/spots.js');
 const { BASE_ABILITIES } = await import('../src/traversal.js');
 const { floodTraversal } = await import('./helpers/traversalflood.js');
+const { WINDOW_CELLS } = await import('../src/world/roofsparts.js');
 
 // =============================================================================
 // The Rooftops drawn (Rooftops step 2). Task 7: part one, the alley and the
@@ -85,8 +86,14 @@ const centreOf = (b) => {
 // soffits, +80; half-round gutters, +16 on the box ones; ridge caps, -48 on
 // the round rods; six TV aerials, +180; two dishes, +160; the shed's fascia, +36)
 // -> 113 / 68 / 32,918 (merged 56 / 30).
-const MEASURED_BUILT = { meshes: 113, casters: 68, triangles: 32918 };
-const MEASURED_MERGED = { meshes: 56, casters: 30, triangles: 32918 };
+// Beauty pass Task C (windows and the tower): no mesh and no caster added,
+// every piece in a bucket the place already had; +328 triangles (the six
+// roof lights' frames round the glass instead of a slab over it, +72; the
+// four clock faces' pale panels, +48; twelve louvre slats, +144; four
+// pinnacles, +64; the bezels replace the stone rings, the faces and the
+// window atlas cost nothing) -> 113 / 68 / 33,246 (merged 56 / 30).
+const MEASURED_BUILT = { meshes: 113, casters: 68, triangles: 33246 };
+const MEASURED_MERGED = { meshes: 56, casters: 30, triangles: 33246 };
 const MEASURED_DRAWS = 0;
 const TOWN_TRIANGLES = 4964; // the far town's one mesh (Task A: 3,992 before)
 
@@ -794,6 +801,162 @@ describe('the Rooftops drawn', () => {
       });
     }
     expect(bad.slice(0, 6)).toEqual([]);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Beauty pass, Task C (critique findings 4 and 6): windows and the tower.
+  // Looks only; read where the camera looks.
+  // ---------------------------------------------------------------------------
+  const W = BLOCKS.find((b) => b.id === 'warehouse');
+  const T1 = BLOCKS.find((b) => b.id === 'tower-1');
+  const BF = BLOCKS.find((b) => b.id === 'belfry');
+  const LS = BLOCKS.find((b) => b.id === 'lanternStage');
+  const TT = BLOCKS.find((b) => b.id === 'towerTop');
+  const TCX = (BF.x0 + BF.x1) / 2;
+  const TCZ = (BF.z0 + BF.z1) / 2;
+  // the four sides of a stage: its wall's x or z, its outward normal, the right of someone facing it
+  const sidesOf = (r) => [[r.x0, TCZ, -1, 0], [r.x1, TCZ, 1, 0], [TCX, r.z0, 0, -1], [TCX, r.z1, 0, 1]];
+  // a level ray at the wall from `out` m in front of it (inside the railings of the stage below), `side` along it, at height y
+  const atWall = ([x, z, nx, nz], side, y, out = 0.5) => firstHit([x + nx * out + nz * side, y, z + nz * out - nx * side], [-nx, 0, -nz]);
+
+  it('the warehouse roof lights show their warm glass, framed round its edge and never covered', () => {
+    let n = 0;
+    for (const x of [-12, -4, 4]) {
+      for (const z of [-22, -40]) {
+        n++;
+        for (const [dx, dz] of [[0, 0], [0.4, 0.9], [-0.4, -0.9], [0.4, -0.9], [-0.4, 0.9]]) {
+          const hit = firstHit([x + dx, W.y + 3, z + dz], [0, -1, 0]);
+          expect([x, z, dx, dz, hit?.object.name]).toEqual([x, z, dx, dz, 'roofsWindows']);
+          const cell = Math.floor(hit.uv.x * 4) + 4 * Math.floor(hit.uv.y * 4);
+          expect([x, z, WINDOW_CELLS[cell].light, WINDOW_CELLS[cell].kind]).toEqual([x, z, 'warm', 'plain']);
+        }
+        // just outside the glass: an iron frame standing a little above it
+        for (const [dx, dz] of [[0.53, 0], [-0.53, 0], [0, 1.13], [0, -1.13]]) {
+          const hit = firstHit([x + dx, W.y + 3, z + dz], [0, -1, 0]);
+          expect([x, z, dx, dz, /iron/i.test(hit?.object.name ?? '')]).toEqual([x, z, dx, dz, true]);
+          expect(hit.point.y).toBeGreaterThan(W.y + 0.025);
+          expect(hit.point.y).toBeLessThan(W.y + 0.06);
+        }
+      }
+    }
+    expect(n).toBe(6);
+  });
+
+  it('the clock faces are big and bright, ringed in a dark bezel on a pale stone panel', () => {
+    const clock = meshes.filter((m) => m.userData.clockFaces);
+    expect(clock).toHaveLength(1);
+    const f = clock[0];
+    expect([f.castShadow, f.userData.noCast]).toEqual([false, true]);
+    expect(f.material.emissiveIntensity).toBeGreaterThanOrEqual(1.8);
+    const pos = f.geometry.attributes.position;
+    const v = new THREE.Vector3();
+    for (const s of sidesOf(BF)) {
+      const [x, z, nx, nz] = s;
+      // the face's own vertices on this side: as tall as the belfry's storey allows
+      const ys = [];
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(f.matrixWorld);
+        if ((nx && Math.sign(v.x - x) === nx && Math.abs(v.x - x) < 0.3) || (nz && Math.sign(v.z - z) === nz && Math.abs(v.z - z) < 0.3)) ys.push(v.y);
+      }
+      expect(ys.length, `${nx},${nz}`).toBeGreaterThan(20);
+      const lo = Math.min(...ys);
+      const hi = Math.max(...ys);
+      expect(hi - lo, `${nx},${nz} diameter`).toBeGreaterThanOrEqual(1.26); // R 0.63 or more (it was 0.55)
+      expect(lo).toBeGreaterThan(T1.y);
+      expect(hi).toBeLessThan(BF.y);
+      const cy = (lo + hi) / 2;
+      const R = (hi - lo) / 2;
+      // the face at 12 o'clock, clear of the hands and the ticks
+      expect(atWall(s, 0, cy + 0.3 * R)?.object).toBe(f);
+      // just outside it, the dark bezel, all round
+      for (const a of [0, 1.2, 2.5, 3.6, 4.9]) {
+        const hit = atWall(s, Math.sin(a) * (R + 0.03), cy + Math.cos(a) * (R + 0.03));
+        expect([nx, nz, a, lum(colourAt(hit)) < 0.03]).toEqual([nx, nz, a, true]);
+      }
+      // in the corners round it, the pale stone panel, paler than the belfry's wall beside it
+      const wall = atWall(s, 2.3, cy);
+      expect(wall.object.name).toBe('belfry');
+      for (const [u, w] of [[0.62, 0.6], [-0.62, 0.6], [0.62, -0.6], [-0.62, -0.6]]) {
+        const hit = atWall(s, u, cy + w);
+        expect([nx, nz, u, w, hit.object.name]).toEqual([nx, nz, u, w, 'roofsNorth:stone']);
+        expect(lum(colourAt(hit))).toBeGreaterThan(1.3 * lum(colourAt(wall)));
+      }
+    }
+  });
+
+  it('the tower is warm sandstone, with pale dressings between its stages and a verdigris band round its drum', () => {
+    const warm = (c) => c.b < 0.5 * c.r;
+    // the stages' walls, clear of the clock and the bell openings
+    for (const [r, id, y] of [[BF, 'belfry', (T1.y + BF.y) / 2], [LS, 'lanternStage', BF.y + 0.15]]) {
+      for (const s of sidesOf(r)) {
+        const hit = atWall(s, 1.6, y);
+        expect([id, s[2], s[3], hit?.object.name]).toEqual([id, s[2], s[3], id]);
+        expect([id, s[2], s[3], warm(colourAt(hit))]).toEqual([id, s[2], s[3], true]);
+      }
+    }
+    const wallLum = lum(colourAt(atWall(sidesOf(BF)[1], 1.6, (T1.y + BF.y) / 2)));
+    // the first ledge and the belfry's cornice: paler stone
+    const ledge = atWall(sidesOf(T1)[1], 1.6, T1.y - 0.15);
+    expect(ledge.object.name).toBe('tower-1');
+    expect(lum(colourAt(ledge))).toBeGreaterThan(1.3 * wallLum);
+    const cornice = atWall(sidesOf(BF)[1], 1.6, BF.y - 0.16);
+    expect(cornice.object.name).toBe('roofsNorth:stone');
+    expect(lum(colourAt(cornice))).toBeGreaterThan(1.3 * wallLum);
+    // round the top drum, under its railing: copper gone green
+    for (const a of [0, 1.6, 3.1, 4.7]) {
+      const hit = firstHit([TT.x + Math.cos(a) * 3, TT.y - 0.15, TT.z + Math.sin(a) * 3], [-Math.cos(a), 0, -Math.sin(a)]);
+      const c = colourAt(hit);
+      expect([a, c.g > 1.3 * c.r, c.b > c.r]).toEqual([a, true, true]);
+    }
+  });
+
+  it('each bell opening has three louvre slats across it', () => {
+    // inside the opening (0.95 m tall), clear of its very edges where the wall shows
+    const y0 = (BF.y + LS.y) / 2 - 0.49;
+    const y1 = (BF.y + LS.y) / 2 + 0.44;
+    for (const s of sidesOf(LS)) {
+      let runs = 0;
+      let inSlat = false;
+      for (let i = 0; i <= 80; i++) {
+        const hit = atWall(s, 0.2, y0 + ((y1 - y0) * i) / 80);
+        const light = lum(colourAt(hit)) > 0.04;
+        if (light && !inSlat) runs++;
+        inSlat = light;
+      }
+      expect([s[2], s[3], runs]).toEqual([s[2], s[3], 3]);
+      // ...and they lie close on the wall, out of her way on the belfry's ring
+      const out = atWall(s, 0.2, (y0 + y1) / 2).point;
+      expect(Math.abs((s[2] ? out.x - s[0] : out.z - s[1]))).toBeLessThan(0.1);
+    }
+  });
+
+  it('four pinnacles stand on the belfry\'s corners, outside every stage she walks on', () => {
+    const stone = named('roofsNorth:stone');
+    expect(stone).toHaveLength(1);
+    const corners = [[BF.x0, BF.z0, -1, -1], [BF.x1, BF.z0, 1, -1], [BF.x0, BF.z1, -1, 1], [BF.x1, BF.z1, 1, 1]];
+    // seen against the sky: higher than the belfry's railing (0.55 m)
+    for (const [x, z, sx, sz] of corners) {
+      const hit = firstHit([x + sx * 0.12, 20, z + sz * 0.12], [0, -1, 0]);
+      expect([x, z, hit?.object.name]).toEqual([x, z, 'roofsNorth:stone']);
+      expect(hit.point.y).toBeGreaterThan(BF.y + 0.6);
+    }
+    // all of the stone near the belfry's corners, above the ledge she walks: outside the
+    // belfry's and the lantern stage's tops, and over the ledge's ring only far above her head
+    const v = new THREE.Vector3();
+    const pos = stone[0].geometry.attributes.position;
+    const near = corners.map(() => 0);
+    const inside = (r, p) => p.x > r.x0 + 1e-6 && p.x < r.x1 - 1e-6 && p.z > r.z0 + 1e-6 && p.z < r.z1 - 1e-6;
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(stone[0].matrixWorld);
+      const k = corners.findIndex(([x, z]) => Math.hypot(v.x - x, v.z - z) < 0.45);
+      if (k < 0 || v.y < T1.y) continue;
+      if (v.y > BF.y + 0.1) {
+        near[k]++;
+        expect([v.x, v.y, v.z, inside(BF, v) || inside(LS, v)]).toEqual([v.x, v.y, v.z, false]);
+      }
+      if (!inside(BF, v)) expect(v.y).toBeGreaterThan(T1.y + 0.6);
+    }
+    for (const n of near) expect(n).toBeGreaterThan(4);
   });
 
   it('every POI is in the walk region of the spawn', () => {

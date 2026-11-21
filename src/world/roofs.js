@@ -5,7 +5,7 @@ import { litMaterial, tileMetres } from '../render/materials.js';
 import { SUN_POSITION } from '../render/rig.js';
 import { withLocalUuids } from './localuuids.js';
 import { hash01 } from './warehouselook.js';
-import { roofsMaterials, addWindowQuads, windowCell, markMesh, ATLAS_SIZE } from './roofsparts.js';
+import { roofsMaterials, addWindowQuads, windowCell, markMesh, ATLAS_SIZE, PLAIN_WARM } from './roofsparts.js';
 import {
   LEVELS as L, BLOCKS, GROUNDS, ROOFS_BOUNDS, ROOFS_SPAWN, ROOFS_COLLIDERS, ROOFS_TRAVERSAL, roofsArea,
   ALLEY_LAMP, BIN_2, BIN_3, BIN_BAGS, ALLEY_CRATES, YARD, YARD_WALLS, WASHING_POSTS,
@@ -350,6 +350,25 @@ function extrudeX(poly, x0, x1) {
   return triangles(tris);
 }
 
+// A flat frame round the rectangle x0..x1 by z0..z1, `t` wide, from y0 up to y1:
+// its top, its outer and its inner sides (24 triangles, the middle open).
+function frameRing(x0, x1, z0, z1, t, y0, y1) {
+  const inner = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
+  const outer = [[x0 - t, z0 - t], [x1 + t, z0 - t], [x1 + t, z1 + t], [x0 - t, z1 + t]];
+  const cx = (x0 + x1) / 2;
+  const cz = (z0 + z1) / 2;
+  const tris = [];
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    const [a, c, d, e] = [inner[i], inner[j], outer[j], outer[i]];
+    tris.push(...quadTris([a[0], y1, a[1]], [c[0], y1, c[1]], [d[0], y1, d[1]], [e[0], y1, e[1]], [0, 1, 0]));
+    const out = [(outer[i][0] + outer[j][0]) / 2 - cx, 0, (outer[i][1] + outer[j][1]) / 2 - cz];
+    tris.push(...quadTris([e[0], y0, e[1]], [d[0], y0, d[1]], [d[0], y1, d[1]], [e[0], y1, e[1]], out));
+    tris.push(...quadTris([a[0], y0, a[1]], [c[0], y0, c[1]], [c[0], y1, c[1]], [a[0], y1, a[1]], out.map((q) => -q)));
+  }
+  return triangles(tris);
+}
+
 // ---------------------------------------------------------------------------
 // The kit: pieces gathered by bucket, one merged mesh per bucket.
 // ---------------------------------------------------------------------------
@@ -426,7 +445,9 @@ function buildMaterials() {
     flags: tiled(0x958f85, 'flagstone'),
     grass: tiled(0x5c8748, 'grass'),
     shed: tiled(0x6e5a40, 'wood'),
-    stone: litMaterial(0xcdc4b2, { roughness: 0.9 }),
+    // vertex-coloured (beauty pass, Task C): the tower's sandstone, dressings and
+    // verdigris (TOWER); every other stone piece is the colour it always was
+    stone: tinted(litMaterial(0xffffff, { roughness: 0.9, vertexColors: true }), 0xcdc4b2),
     iron: litMaterial(0x2b2e33, { roughness: 0.5 }),
     paint: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0 }),
     cloth: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide }),
@@ -435,15 +456,17 @@ function buildMaterials() {
     pavement: tiled(0x8a847a, 'flagstone'),
     gold: new THREE.MeshStandardMaterial({ color: 0xc9a043, roughness: 0.35, metalness: 0.7, emissive: 0x3a2a08 }),
     // lit from inside: the clock's faces and the garden's bulbs (no real lights)
-    clock: new THREE.MeshStandardMaterial({ color: 0xfff1d0, roughness: 0.6, metalness: 0, emissive: 0xffd890, emissiveIntensity: 1.25 }),
+    // (Task C: brighter, 1.25 -> 1.9, so from the alley the faces read as two lit dots)
+    clock: new THREE.MeshStandardMaterial({ color: 0xfff1d0, roughness: 0.6, metalness: 0, emissive: 0xffd890, emissiveIntensity: 1.9 }),
     bulbs: new THREE.MeshStandardMaterial({ color: 0xfff0c0, roughness: 0.5, metalness: 0, emissive: 0xffc860, emissiveIntensity: 2.2 }),
   };
 }
 
 const TILE = Object.fromEntries(['brick', 'shingle', 'gravel', 'cobble', 'flagstone', 'grass', 'wood'].map((s) => [s, tileMetres(s) || 1]));
 
-// A window cell that is always lit warm (the lantern, the skylight).
-const warmCell = (x, z) => Math.floor(hash01(x, z, 23) * 8) % 8;
+// A window cell that is always lit warm and plain, nothing standing in it (the
+// lantern, the roof lights, the skylight, the shop).
+const warmCell = (x, z) => PLAIN_WARM[Math.floor(hash01(x, z, 23) * PLAIN_WARM.length) % PLAIN_WARM.length];
 
 // ---------------------------------------------------------------------------
 // The build
@@ -1325,11 +1348,13 @@ function drawWarehouse(K, group, M, win, upWin) {
   }
   for (const z of [-48.2, -27.6, -23.4, -19.2, -15]) for (const y of rows.slice(1)) fw(W.x1, y, z, 1, 0, 1.5, 2.0);
 
-  // roof lights, flush with the felt, lit from below
+  // roof lights, flush with the felt, lit from below: the iron frame runs round
+  // the glass's edge (Task C: it was one slab over the whole light, so the glass
+  // never showed)
   for (const x of [-12, -4, 4]) {
     for (const z of [-22, -40]) {
       upWin(x, W.y + 0.02, z, 1.0, 2.2, warmCell(x, z));
-      iron(box(x - 0.56, x + 0.56, W.y, W.y + 0.03, z - 1.16, z + 1.16), true);
+      iron(frameRing(x - 0.5, x + 0.5, z - 1.1, z + 1.1, 0.06, W.y, W.y + 0.04), true);
     }
   }
 
@@ -1406,8 +1431,19 @@ function drawWarehouse(K, group, M, win, upWin) {
 
 // --- the clock tower: the landmark of the skyline. Its body below the first
 // ledge is a top-level group with a fadeOccluder (R7); the rest is the kit.
+// Beauty pass, Task C (critique finding 6): warm sandstone stages with pale
+// dressings between them (the ledge, the cornices, the quoins, the clocks'
+// panels), a verdigris band round the top drum, bigger and brighter clock faces
+// in dark bezels, louvres in the bell openings, pinnacles on the belfry's corners.
+const TOWER = Object.freeze({ stone: 0xc29a66, dressing: 0xe6dcc4, verdigris: 0x5fa08c, bezel: 0x1b1814, louvre: 0x7a7062, hands: 0x1a1612, ticks: 0x2a2420 });
+// The clock: the belfry's storey is 1.5 m between two levels she walks, so the
+// face (R 0.64, it was 0.55) and its bezel fill it; their panel stands 0.1 m
+// proud, in front of the cornice.
+const CLOCK = Object.freeze({ y: 13.33, r: 0.64, bezel: 0.07, half: 0.75, lo: 0.71, hi: 0.73, proud: 0.1 });
+const LOUVRE = Object.freeze({ dy: [-0.3, -0.02, 0.26], len: 1.0, depth: 0.1, thick: 0.03, tilt: 0.6, out: 0.05 });
+const PINNACLE = Object.freeze({ off: 0.12, half: 0.09, y0: -0.45, y1: 0.42, cap: 0.45 }); // y from the belfry's top
 function drawTower(K, group, M, scene) {
-  const stone = (g) => K.put('stone', M.stone, g);
+  const stone = (g, color = TOWER.dressing) => K.put('stone', M.stone, g, { color });
   const painted = (g, color) => K.put('paint', M.paint, g, { color, noCast: true });
   const rail = (g) => K.put('ironSmall', M.iron, g, { noCast: true });
   const gold = (g) => K.put('gold', M.gold, g, { noCast: true });
@@ -1423,53 +1459,79 @@ function drawTower(K, group, M, scene) {
   const body = new THREE.Group();
   body.name = 'roofsTowerBody';
   body.position.set(cx, 0, cz);
-  const bodyMesh = own('roofsTowerBody:stone', M.stone, [box(T1.x0 - cx, T1.x1 - cx, L.WAREHOUSE, LEDGE, T1.z0 - cz, T1.z1 - cz)]);
+  const bodyMesh = own('roofsTowerBody:stone', M.stone, [box(T1.x0 - cx, T1.x1 - cx, L.WAREHOUSE, LEDGE, T1.z0 - cz, T1.z1 - cz)], { color: TOWER.stone });
   body.add(bodyMesh);
   const half = Math.hypot(T1.x1 - T1.x0, T1.z1 - T1.z0) / 2;
   body.userData.fadeOccluder = [{ t: 'cyl', r: half, y0: L.WAREHOUSE, y1: LEDGE }];
   scene.add(body);
 
   // the first ledge (tower-1's ring) and the stages above, each a block's top
-  group.add(own('tower-1', M.stone, [box(T1.x0 - 0.1, T1.x1 + 0.1, LEDGE, T1.y, T1.z0 - 0.1, T1.z1 + 0.1)], { tag: { block: 'tower-1' } }));
-  group.add(own('belfry', M.stone, [box(BF.x0, BF.x1, T1.y, BF.y, BF.z0, BF.z1)], { tag: { block: 'belfry' } }));
+  group.add(own('tower-1', M.stone, [box(T1.x0 - 0.1, T1.x1 + 0.1, LEDGE, T1.y, T1.z0 - 0.1, T1.z1 + 0.1)], { color: TOWER.dressing, tag: { block: 'tower-1' } }));
+  group.add(own('belfry', M.stone, [box(BF.x0, BF.x1, T1.y, BF.y, BF.z0, BF.z1)], { color: TOWER.stone, tag: { block: 'belfry' } }));
   stone(box(BF.x0 - 0.08, BF.x1 + 0.08, BF.y - 0.22, BF.y - 0.1, BF.z0 - 0.08, BF.z1 + 0.08)); // its cornice
-  group.add(own('lanternStage', M.stone, [box(LS.x0, LS.x1, BF.y, LS.y, LS.z0, LS.z1)], { tag: { block: 'lanternStage' } }));
+  group.add(own('lanternStage', M.stone, [box(LS.x0, LS.x1, BF.y, LS.y, LS.z0, LS.z1)], { color: TOWER.stone, tag: { block: 'lanternStage' } }));
   stone(box(LS.x0 - 0.08, LS.x1 + 0.08, LS.y - 0.22, LS.y - 0.1, LS.z0 - 0.08, LS.z1 + 0.08));
-  group.add(own('towerTop', M.stone, [post(TT.x, TT.z, LS.y, TT.y - LS.y, TT.r, TT.r, 18)], { tag: { block: 'towerTop' } }));
-  stone(post(TT.x, TT.z, TT.y - 0.2, 0.1, TT.r + 0.06, TT.r + 0.06, 18));
+  group.add(own('towerTop', M.stone, [post(TT.x, TT.z, LS.y, TT.y - LS.y, TT.r, TT.r, 18)], { color: TOWER.stone, tag: { block: 'towerTop' } }));
+  stone(post(TT.x, TT.z, TT.y - 0.2, 0.1, TT.r + 0.06, TT.r + 0.06, 18), TOWER.verdigris); // the drum's cornice: copper gone green
+  // a pinnacle on each of the belfry's corners, out beyond its railing (and
+  // high over the ledge's ring below): a shaft from under the cornice, a cap
+  for (const [x, z, sx, sz] of [[BF.x0, BF.z0, -1, -1], [BF.x1, BF.z0, 1, -1], [BF.x0, BF.z1, -1, 1], [BF.x1, BF.z1, 1, 1]]) {
+    const px = x + sx * PINNACLE.off;
+    const pz = z + sz * PINNACLE.off;
+    const h = PINNACLE.half;
+    stone(box(px - h, px + h, BF.y + PINNACLE.y0, BF.y + PINNACLE.y1, pz - h, pz + h), TOWER.stone);
+    const cap = new THREE.ConeGeometry(h * Math.SQRT2 + 0.005, PINNACLE.cap, 4, 1, true);
+    cap.rotateY(Math.PI / 4);
+    cap.translate(px, BF.y + PINNACLE.y1 + PINNACLE.cap / 2, pz);
+    stone(cap);
+  }
   // quoins on the body's corners, and the bell openings in the lantern stage
   for (const [x, z] of [[T1.x0, T1.z0], [T1.x1, T1.z0], [T1.x0, T1.z1], [T1.x1, T1.z1]]) stone(box(x - 0.06, x + 0.06, L.WAREHOUSE, LEDGE, z - 0.06, z + 0.06));
   const lsy = (BF.y + LS.y) / 2;
   for (const [x, z, nx, nz] of [[cx, LS.z0, 0, -1], [cx, LS.z1, 0, 1], [LS.x0, cz, -1, 0], [LS.x1, cz, 1, 0]]) {
     const [hw, hd] = nx ? [0.02, 0.55] : [0.55, 0.02];
     painted(box(x - hw + nx * 0.01, x + hw + nx * 0.01, lsy - 0.5, lsy + 0.45, z - hd + nz * 0.01, z + hd + nz * 0.01), 0x16141a);
+    // three louvre slats across it, sloping down and out, lying close on the wall
+    for (const dy of LOUVRE.dy) {
+      const slat = new THREE.BoxGeometry(LOUVRE.len, LOUVRE.thick, LOUVRE.depth);
+      slat.rotateX(LOUVRE.tilt);
+      slat.rotateY(Math.atan2(nx, nz));
+      slat.translate(x + nx * LOUVRE.out, lsy + dy, z + nz * LOUVRE.out);
+      painted(slat, TOWER.louvre);
+    }
   }
 
-  // the clock: a lit face on each side of the belfry at 13.3, its hands at 7:10
-  const CY = 13.3;
-  const R = 0.55;
+  // the clock: a lit face on each side of the belfry, its hands at 7:10; hands
+  // and tick marks only, never numbers
+  const CY = CLOCK.y;
+  const R = CLOCK.r;
+  const P = CLOCK.proud;
   const faces = [];
   const sides = [[BF.x0, cz, -1, 0], [BF.x1, cz, 1, 0], [cx, BF.z0, 0, -1], [cx, BF.z1, 0, 1]];
   for (const [x, z, nx, nz] of sides) {
     const disc = new THREE.CircleGeometry(R, 24);
     disc.rotateY(Math.atan2(nx, nz));
-    disc.translate(x + nx * 0.03, CY, z + nz * 0.03);
+    disc.translate(x + nx * (P + 0.01), CY, z + nz * (P + 0.01));
     faces.push(disc);
-    // the stone ring round it
-    const ring = new THREE.RingGeometry(R, R + 0.09, 24);
-    ring.rotateY(Math.atan2(nx, nz));
-    ring.translate(x + nx * 0.035, CY, z + nz * 0.035);
-    stone(ring);
     // the right of someone looking at the face, and up
     const rx = nz;
     const rz = -nx;
-    const at = (theta, rad, off = 0.05) => ({ x: x + nx * off + rx * Math.sin(theta) * rad, y: CY + Math.cos(theta) * rad, z: z + nz * off + rz * Math.sin(theta) * rad });
+    // the pale stone panel it is set in, standing proud of the wall
+    const [i0, i1] = nx ? [x - nx * 0.02, x + nx * P].sort((p, q) => p - q) : [z - nz * 0.02, z + nz * P].sort((p, q) => p - q);
+    if (nx) stone(box(i0, i1, CY - CLOCK.lo, CY + CLOCK.hi, z - CLOCK.half, z + CLOCK.half));
+    else stone(box(x - CLOCK.half, x + CLOCK.half, CY - CLOCK.lo, CY + CLOCK.hi, i0, i1));
+    // the dark bezel round the face
+    const ring = new THREE.RingGeometry(R, R + CLOCK.bezel, 24);
+    ring.rotateY(Math.atan2(nx, nz));
+    ring.translate(x + nx * (P + 0.012), CY, z + nz * (P + 0.012));
+    painted(ring, TOWER.bezel);
+    const at = (theta, rad, off = P + 0.03) => ({ x: x + nx * off + rx * Math.sin(theta) * rad, y: CY + Math.cos(theta) * rad, z: z + nz * off + rz * Math.sin(theta) * rad });
     const centre = at(0, 0);
     const hour = ((7 + 10 / 60) / 12) * Math.PI * 2;
     const minute = (10 / 60) * Math.PI * 2;
-    painted(rod(centre, at(hour, 0.3), 0.03, 5), 0x1a1612);
-    painted(rod(centre, at(minute, 0.45), 0.02, 5), 0x1a1612);
-    for (let i = 0; i < 12; i++) painted(rod(at((i / 12) * Math.PI * 2, 0.43, 0.04), at((i / 12) * Math.PI * 2, 0.51, 0.04), i % 3 ? 0.012 : 0.022, 4), 0x2a2420);
+    painted(rod(centre, at(hour, 0.35), 0.035, 5), TOWER.hands);
+    painted(rod(centre, at(minute, 0.52), 0.024, 5), TOWER.hands);
+    for (let i = 0; i < 12; i++) painted(rod(at((i / 12) * Math.PI * 2, 0.5, P + 0.02), at((i / 12) * Math.PI * 2, 0.59, P + 0.02), i % 3 ? 0.014 : 0.026, 4), TOWER.ticks);
   }
   group.add(own('roofsClockFaces', M.clock, faces, { noCast: true, tag: { clockFaces: true } }));
 

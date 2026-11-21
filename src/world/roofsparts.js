@@ -13,46 +13,142 @@ import { hash01 } from './warehouselook.js';
 // Math.random.
 // =============================================================================
 
-export const ATLAS_SIZE = 64;
+export const ATLAS_SIZE = 128;
 export const ATLAS_CELLS = 16;
-const CELL_PX = 16;
+const CELL_PX = 32;
 
-// Cells 0-7 lit warm (curtain shades), 8-10 lit cool (a TV's blue), 11-15 dark
-// or curtained. Pane colours, then the frame.
-const WARM = [0xffc766, 0xffb347, 0xffd98a, 0xf2a65a, 0xffe0a8, 0xe8924a, 0xffcf80, 0xd9843a];
-const COOL = [0x6fa8ff, 0x8fc0ff, 0x5a8fe0];
-const DARK = [0x1d2230, 0x2a2d3a, 0x3a2a30, 0x242a2a, 0x33303a];
-const FRAME = 0xd8d0c0;
+// Beauty pass, Task C (critique finding 4): windows with something in them.
+// Each cell is one window: its light ('warm', a 'tv', or 'dark'), what is in
+// it (`kind`), its pane colour, its frame (white or dark green-black) and, for
+// curtains and blinds, their cloth. Shapes only, never letters.
+export const WINDOW_FRAMES = Object.freeze({ white: 0xa49f94, dark: 0x18221c });
+const TV = 0x8090d8; // shown at 0.7: a dim blue-violet, not the daylight blue it was
+export const WINDOW_CELLS = Object.freeze([
+  { light: 'warm', kind: 'plain', pane: 0xffc766, frame: 'white' }, // 0
+  { light: 'warm', kind: 'plain', pane: 0xffb347, frame: 'dark' }, // 1
+  { light: 'warm', kind: 'plain', pane: 0xffd98a, frame: 'white' }, // 2
+  { light: 'warm', kind: 'curtains', pane: 0xf7b464, frame: 'white', cloth: 0xa23a42 }, // 3: red curtains open
+  { light: 'warm', kind: 'curtains', pane: 0xffdca0, frame: 'dark', cloth: 0x4a7a58 }, // 4: green curtains open
+  { light: 'warm', kind: 'blind', pane: 0xffcf80, frame: 'white', cloth: 0xd9bc84 }, // 5: a blind half down
+  { light: 'warm', kind: 'blind', pane: 0xeea052, frame: 'dark', cloth: 0xc79a62 }, // 6
+  { light: 'warm', kind: 'cat', pane: 0xffc766, frame: 'white', pose: 'sit' }, // 7: a cat sitting on the sill
+  { light: 'warm', kind: 'cat', pane: 0xffd28a, frame: 'dark', pose: 'loaf' }, // 8: a cat lying on the sill
+  { light: 'warm', kind: 'plant', pane: 0xffb860, frame: 'white' }, // 9: a pot plant on the sill
+  { light: 'warm', kind: 'plain', pane: 0xf2a65a, frame: 'dark' }, // 10
+  { light: 'tv', kind: 'tv', pane: TV, frame: 'white' }, // 11
+  { light: 'dark', kind: 'plain', pane: 0x1d2230, frame: 'white' }, // 12
+  { light: 'dark', kind: 'plain', pane: 0x242a2a, frame: 'dark' }, // 13
+  { light: 'dark', kind: 'closed', pane: 0x3a2a30, frame: 'white', cloth: 0x3a2a30 }, // 14: curtains drawn
+  { light: 'dark', kind: 'closed', pane: 0x2a2d3a, frame: 'dark', cloth: 0x2c3240 }, // 15
+].map((c) => Object.freeze(c)));
+// The plain warm cells: roof lights, the lantern, the shop (nothing stands in them).
+export const PLAIN_WARM = Object.freeze(WINDOW_CELLS.map((c, i) => (c.light === 'warm' && c.kind === 'plain' ? i : -1)).filter((i) => i >= 0));
+// What a lit window shows, by weight: mostly plain or curtained, a cat now and then.
+const LIT_PICK = Object.freeze([0, 0, 1, 1, 2, 2, 10, 10, 3, 3, 3, 4, 4, 5, 5, 6, 9, 9, 7, 8]);
 
-function paneColor(cell) {
-  const hex = cell < 8 ? WARM[cell] : cell < 11 ? COOL[cell - 8] : DARK[cell - 11];
-  return [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255];
+const rgbOf = (hex, k = 1) => [((hex >> 16) & 255) * k, ((hex >> 8) & 255) * k, (hex & 255) * k];
+const mix = (a, c, t) => [a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t, a[2] + (c[2] - a[2]) * t];
+const smooth = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+
+// The shapes, in pixels from the sill (y up), each a test (x, y) -> inside.
+const inEllipse = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
+const inTri = (x, y, [ax, ay], [bx, by], [qx, qy]) => {
+  const d1 = (x - bx) * (ay - by) - (ax - bx) * (y - by);
+  const d2 = (x - qx) * (by - qy) - (bx - qx) * (y - qy);
+  const d3 = (x - ax) * (qy - ay) - (qx - ax) * (y - ay);
+  return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
+};
+const inCapsule = (x, y, ax, ay, bx, by, r) => {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(x - ax - dx * t, y - ay - dy * t) <= r;
+};
+const LEAVES = Object.freeze([[-1.05, 5.6], [-0.6, 7.4], [-0.2, 8.6], [0.25, 8.0], [0.7, 6.8], [1.1, 5.2]]); // [angle from upright, length]
+const SHAPES = {
+  // sitting on the sill looking out, seen from the front: body, head, two ears
+  // well apart, the tail curled round to one side
+  sit: (x, y) => y >= 0 && (inEllipse(x, y, 0, 3.9, 3.7, 4.2) || inEllipse(x, y, 0, 9.3, 2.8, 2.5)
+    || inTri(x, y, [-2.9, 9.9], [-2.6, 13.8], [-0.6, 11.4]) || inTri(x, y, [0.6, 11.4], [2.6, 13.8], [2.9, 9.9])
+    || inCapsule(x, y, 2.0, 0.8, 5.6, 0.8, 0.8) || inCapsule(x, y, 5.6, 0.8, 6.4, 2.4, 0.75)),
+  // lying in a loaf, facing left: a low body, the head at its front, two ears, the tail's tip curled up
+  loaf: (x, y) => y >= 0 && (inEllipse(x, y, 0, 2.6, 5.4, 3.4) || inEllipse(x, y, -4.0, 5.0, 2.5, 2.3)
+    || inTri(x, y, [-7.0, 5.4], [-6.8, 9.3], [-4.9, 6.9]) || inTri(x, y, [-3.2, 6.9], [-1.4, 9.3], [-1.0, 5.2])
+    || inCapsule(x, y, 4.6, 0.9, 6.6, 2.8, 0.8)),
+  // a pot plant: the pot and its rim, a fan of long pointed leaves
+  plant: (x, y) => y >= 0 && ((y <= 4 && Math.abs(x) <= 2.0 + 0.2 * y) || (y > 3.6 && y <= 4.6 && Math.abs(x) <= 3.0)
+    || LEAVES.some(([a, l]) => inCapsule(x, y, 0, 4.4, Math.sin(a) * l, 4.4 + Math.cos(a) * l, 1.0 - 0.04 * l))),
+};
+const SHADOW = rgbOf(0x1c1511); // a backlit cat, or a plant's leaves: dark against the light
+// how much of pixel (px, py) the shape at (ox, 0), `scale` times its size, covers (4 x 4 samples)
+function cover(shape, px, py, ox, scale) {
+  let n = 0;
+  for (let j = 0; j < 4; j++) {
+    for (let i = 0; i < 4; i++) {
+      if (shape((px + (i + 0.5) / 4 - ox) / scale, (py + (j + 0.5) / 4) / scale)) n++;
+    }
+  }
+  return n / 16;
+}
+// where each stands on the sill (px from the pane's left edge of the cell) and how big
+const PLACE = Object.freeze({ sit: { ox: 11, scale: 1.2 }, loaf: { ox: 17.5, scale: 1.35 }, plant: { ox: 20.5, scale: 1.2 } });
+
+// One cell's pixel at (x, y) in it (y up from the sill), as [r, g, b] 0..255.
+// The frame is 3 px, the glazing bars 2 px; cats and the plant stand in a sash
+// window (a meeting rail high up, no middle bar) so the lower pane is big.
+const FRAME_PX = 3;
+function cellPixel(cell, x, y) {
+  const c = WINDOW_CELLS[cell];
+  const frame = rgbOf(WINDOW_FRAMES[c.frame]);
+  const sash = c.kind === 'cat' || c.kind === 'plant';
+  const lo = FRAME_PX;
+  const hi = CELL_PX - 1 - FRAME_PX;
+  if (x < lo || y < lo || x > hi || y > hi) return frame;
+  const bar = sash ? y === 21 || y === 22 : x === 15 || x === 16 || y === 15 || y === 16;
+  if (bar) return frame;
+  const u = (x - lo + 0.5) / (hi - lo + 1); // 0..1 across the pane
+  const v = (y - lo + 0.5) / (hi - lo + 1); // 0..1 up it
+  const glow = Math.sin(Math.PI * u) * Math.sin(Math.PI * v); // soft, brightest in the middle
+  let rgb;
+  if (c.light === 'warm') rgb = rgbOf(c.pane, 0.75 + 0.25 * glow);
+  else if (c.light === 'tv') rgb = rgbOf(c.pane, 0.7 * (0.55 + 0.45 * Math.sin(Math.PI * u) * smooth(0, 0.5, 1 - Math.abs(v - 0.35))));
+  else rgb = rgbOf(c.pane, 0.9 + 0.35 * Math.exp(-(((u + v - 0.95) / 0.16) ** 2))); // dark glass, a faint sheen of sky
+  if (c.kind === 'curtains') {
+    // open at both sides: wide at the rail, tied back low, flaring to the sill
+    const w = v > 0.38 ? 0.13 + 0.15 * ((v - 0.38) / 0.62) ** 1.2 : 0.13 + 0.06 * ((0.38 - v) / 0.38);
+    const d = Math.min(u, 1 - u);
+    const t = smooth(w + 0.02, w - 0.02, d);
+    if (t > 0) {
+      const fold = 0.8 + 0.2 * Math.sin((u < 0.5 ? u : 1 - u) * 60) ** 2;
+      rgb = mix(rgb, rgbOf(c.cloth, fold), t);
+    }
+  } else if (c.kind === 'closed') {
+    const fold = 0.78 + 0.22 * Math.sin(u * 40) ** 2;
+    rgb = mix(rgb, rgbOf(c.cloth, fold * (0.9 + 0.1 * v)), 0.92);
+  } else if (c.kind === 'blind') {
+    // a roller blind down to just under the bars' middle, its hem darker, a cord with a ring
+    const hem = 0.6;
+    if (v >= hem) rgb = rgbOf(c.cloth, (v < hem + 0.045 ? 0.5 : 0.74 + 0.1 * (v - hem)) * (0.9 + 0.1 * Math.sin(Math.PI * u)));
+    else if (Math.abs(x - 22) < 0.6 && v > hem - 0.12) rgb = mix(rgb, rgbOf(c.cloth, 0.55), 0.7);
+  } else if (c.kind === 'cat' || c.kind === 'plant') {
+    const which = c.kind === 'plant' ? 'plant' : c.pose;
+    const k = cover(SHAPES[which], x, y - lo, PLACE[which].ox, PLACE[which].scale);
+    if (k > 0) rgb = mix(rgb, SHADOW, k);
+  }
+  return rgb.map((q) => Math.round(Math.min(255, Math.max(0, q))));
 }
 
-// A DataTexture, 64 x 64 RGBA: the same pixels every call. Each 16 px cell has
-// a frame and glazing bars; the pane inside is the cell's colour. Curtained
-// cells (13-15) have a curtain edge down one side.
+// A DataTexture, 128 x 128 RGBA in 32 px cells: the same pixels every call.
+// Magnified smoothly (the half-texel pad in the quads keeps a cell's own
+// pixels), so up close a window is a soft picture, not nested squares.
 export function createWindowAtlas() {
   const data = new Uint8Array(ATLAS_SIZE * ATLAS_SIZE * 4);
-  const frame = [(FRAME >> 16) & 255, (FRAME >> 8) & 255, FRAME & 255];
   for (let cell = 0; cell < ATLAS_CELLS; cell++) {
     const ox = (cell % 4) * CELL_PX;
     const oy = Math.floor(cell / 4) * CELL_PX;
-    const pane = paneColor(cell);
-    const lit = cell <= 10;
     for (let y = 0; y < CELL_PX; y++) {
       for (let x = 0; x < CELL_PX; x++) {
-        const edge = x < 2 || y < 2 || x >= CELL_PX - 2 || y >= CELL_PX - 2;
-        const bar = x === 7 || x === 8 || y === 7 || y === 8;
-        let rgb = pane;
-        if (edge || bar) rgb = lit ? frame.map((c) => Math.round(c * 0.35)) : frame.map((c) => Math.round(c * 0.5));
-        else if (cell >= 13 && x < 5) rgb = pane.map((c) => Math.min(255, c + 30));
-        else if (lit) {
-          // a soft falloff toward the frame
-          const d = Math.min(x - 2, y - 2, CELL_PX - 3 - x, CELL_PX - 3 - y);
-          const k = 0.8 + 0.05 * Math.min(d, 4);
-          rgb = pane.map((c) => Math.round(c * k));
-        }
+        const rgb = cellPixel(cell, x, y);
         const i = ((oy + y) * ATLAS_SIZE + ox + x) * 4;
         data[i] = rgb[0]; data[i + 1] = rgb[1]; data[i + 2] = rgb[2]; data[i + 3] = 255;
       }
@@ -60,23 +156,22 @@ export function createWindowAtlas() {
   }
   const texture = new THREE.DataTexture(data, ATLAS_SIZE, ATLAS_SIZE, THREE.RGBAFormat);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.magFilter = THREE.NearestFilter;
+  texture.magFilter = THREE.LinearFilter;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.generateMipmaps = true;
   texture.needsUpdate = true;
   return { texture, size: ATLAS_SIZE, cells: ATLAS_CELLS };
 }
 
-// Which cell the window at (x, z), number i, shows: four in five are lit
-// (cells 0-10, warm three times in four), the rest dark or curtained.
+// Which cell the window at (x, z), number i, shows: seven in ten lit warm
+// (mostly plain or curtained, a cat now and then: LIT_PICK), one in ten a TV,
+// two in ten dark or curtained.
 export function windowCell(x, z, i) {
   const h = hash01(x, z, i * 3 + 1);
   const g = hash01(x, z, i * 3 + 2);
-  if (h < 0.8) {
-    const k = h / 0.8;
-    return k < 0.72 ? Math.min(7, Math.floor(g * 8)) : 8 + Math.min(2, Math.floor(g * 3));
-  }
-  return 11 + Math.min(4, Math.floor(g * 5));
+  if (h < 0.7) return LIT_PICK[Math.min(LIT_PICK.length - 1, Math.floor(g * LIT_PICK.length))];
+  if (h < 0.8) return 11;
+  return 12 + Math.min(3, Math.floor(g * 4));
 }
 
 // Every window quad of a facade batch as ONE indexed BufferGeometry. A quad is
