@@ -154,15 +154,17 @@ describe('a place that does not come', () => {
   it('a load that fails keeps her home with the gentle line, and Explore tries again', async () => {
     const ctl = controlledLoader();
     const park = ctl.hold('park');
-    const life = lifecycle({ areas: ctl.areas });
+    let online = false; // an offline failure does not count, so Explore tries again
+    const life = lifecycle({ areas: ctl.areas, online: () => online });
     const p = life.w.startWalkWhenReady({ areaOverride: 'park' });
     await vi.advanceTimersByTimeAsync(200);
     park.fail();
     expect(await p).toBe('failed');
     expect(life.getSession()).toBe(null);
     expect(life.rec.gettingReady).toEqual([true, false]);
-    expect(life.rec.toasts).toEqual([phrase('start.notReady')]);
+    expect(life.rec.toasts).toEqual([phrase('start.notReadyOffline')]);
     // the next Explore asks for the place again, and this time it comes
+    online = true;
     ctl.letGo('park');
     expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('started');
     expect(ctl.calls.park).toBe(2);
@@ -183,34 +185,59 @@ describe('a place that does not come', () => {
     expect(life.rec.toasts.every((t) => t === phrase('start.notReadyOffline'))).toBe(true);
   });
 
-  it('after two failures online the line offers a fresh start and the next Explore reloads', async () => {
-    expect(RELOAD_AFTER_FAILURES).toBe(2);
+  it('the first failure online offers a fresh start and the next Explore reloads', async () => {
+    expect(RELOAD_AFTER_FAILURES).toBe(1);
     const ctl = controlledLoader();
     ctl.hold('park').fail();
     const life = lifecycle({ areas: ctl.areas });
     expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed');
-    expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed');
-    expect(life.rec.toasts).toEqual([phrase('start.notReady'), phrase('start.notReadyReload')]);
-    expect(ctl.calls.park).toBe(2);
+    expect(life.rec.toasts).toEqual([phrase('start.notReadyReload')]);
+    expect(ctl.calls.park).toBe(1);
     expect(life.rec.reloads).toBe(0);
     expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed');
     expect(life.rec.reloads).toBe(1);
-    expect(ctl.calls.park).toBe(2); // the reload is the try: no third load
+    expect(ctl.calls.park).toBe(1); // the reload is the try: no second load
     expect(life.getSession()).toBe(null);
   });
 
-  it('two failures must be in a row: a walk that starts between them clears the count', async () => {
+  it('offline failures never reload, however many taps', async () => {
+    const ctl = controlledLoader();
+    ctl.hold('park').fail();
+    const life = lifecycle({ areas: ctl.areas, online: () => false });
+    for (let i = 0; i < 3; i++) expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed');
+    expect(life.rec.reloads).toBe(0);
+    expect(life.rec.toasts).toEqual([phrase('start.notReadyOffline'), phrase('start.notReadyOffline'), phrase('start.notReadyOffline')]);
+  });
+
+  it('an offline failure does not count: back online, one tap tries, fails to the reload line, the next reloads', async () => {
+    const ctl = controlledLoader();
+    ctl.hold('park').fail();
+    let online = false;
+    const life = lifecycle({ areas: ctl.areas, online: () => online });
+    expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed');
+    expect(life.rec.toasts).toEqual([phrase('start.notReadyOffline')]);
+    online = true;
+    expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed');
+    expect(ctl.calls.park).toBe(2); // it did try
+    expect(life.rec.reloads).toBe(0);
+    expect(life.rec.toasts.at(-1)).toBe(phrase('start.notReadyReload'));
+    expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed');
+    expect(life.rec.reloads).toBe(1);
+    expect(ctl.calls.park).toBe(2);
+  });
+
+  it('a walk that starts clears the count', async () => {
     const ctl = controlledLoader();
     await ctl.areas.ensure('den');
     ctl.hold('park').fail();
     const life = lifecycle({ areas: ctl.areas });
-    expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed');
-    expect(await life.w.startWalkWhenReady({ areaOverride: 'den' })).toBe('started'); // a place already here, same tick
+    expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed'); // counts: 1
+    expect(await life.w.startWalkWhenReady({ areaOverride: 'den' })).toBe('started'); // already here, no reload
+    expect(life.rec.reloads).toBe(0);
     end(life);
-    expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed');
-    expect(life.rec.toasts).toEqual([phrase('start.notReady'), phrase('start.notReady')]);
-    expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed'); // now two in a row
-    expect(life.rec.toasts.at(-1)).toBe(phrase('start.notReadyReload'));
+    expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed'); // count was cleared: tries again
+    expect(ctl.calls.park).toBe(2);
+    expect(life.rec.toasts).toEqual([phrase('start.notReadyReload'), phrase('start.notReadyReload')]);
     expect(life.rec.reloads).toBe(0);
   });
 
@@ -330,18 +357,17 @@ describe('a start belongs to the room it was made in (or to none)', () => {
 });
 
 describe('a fresh start only ever follows her own tap, for a place not here', () => {
-  async function twoFailures() {
+  async function oneFailure() {
     const ctl = controlledLoader();
     ctl.hold('park').fail();
     const life = lifecycle({ areas: ctl.areas });
-    expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed');
     expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed');
     expect(life.rec.toasts.at(-1)).toBe(phrase('start.notReadyReload'));
     return { ctl, life };
   }
 
-  it('after two failures, Explore for a place already here walks there and does not reload', async () => {
-    const { ctl, life } = await twoFailures();
+  it('after a failure online, Explore for a place already here walks there and does not reload', async () => {
+    const { ctl, life } = await oneFailure();
     await ctl.areas.ensure('den');
     const p = life.w.startWalkWhenReady({ areaOverride: 'den' });
     expect(life.getSession()?.areaId).toBe('den'); // the same tick, as always
@@ -350,13 +376,13 @@ describe('a fresh start only ever follows her own tap, for a place not here', ()
     end(life);
   });
 
-  it('after two failures, a room start never reloads the page: it tries, and a failure stays home with the plain line', async () => {
-    const { ctl, life } = await twoFailures();
+  it('after a failure online, a room start never reloads the page: it tries, and a failure stays home with the plain line', async () => {
+    const { ctl, life } = await oneFailure();
     life.setPendingRoom({ code: 'ABCD', roster: [] });
     // a heard "Explore together": no tap of hers, so no reload
     expect(await life.w.startWalkWhenReady({ roomSeed: 5, areaOverride: 'park' })).toBe('failed');
     expect(life.rec.reloads).toBe(0);
-    expect(ctl.calls.park).toBe(3); // it did try the place
+    expect(ctl.calls.park).toBe(2); // it did try the place
     expect(life.rec.toasts.at(-1)).toBe(phrase('start.notReady'));
     expect(await life.w.startWalkWhenReady({ roomSeed: 6, areaOverride: 'park' })).toBe('failed');
     expect(life.rec.reloads).toBe(0);
@@ -614,7 +640,7 @@ describe('a walk picked up again waits for its place', () => {
     park.fail();
     expect(await p).toBe('failed');
     expect(life.getSession()).toBe(null);
-    expect(life.rec.toasts).toEqual([phrase('start.notReady')]);
+    expect(life.rec.toasts).toEqual([phrase('start.notReadyReload')]);
     expect(read(storage)).toEqual({ kind: 'resume', data: { ...data, tries: 1 } });
     expect(life.progression.state.walks.park ?? 0).toBe(walked); // not settled yet
     expect(rec.reloads).toBe(0);

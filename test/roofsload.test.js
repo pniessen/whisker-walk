@@ -39,18 +39,19 @@ describe('when the Rooftops cannot be loaded', () => {
     expect(life.getSession()).toBe(null); // home stays up while it tries
     expect(await started).toBe('failed');
     expect(life.getSession()).toBe(null);
-    expect(life.rec.toasts).toEqual([phrase('start.notReady')]);
+    expect(life.rec.toasts).toEqual([phrase('start.notReadyReload')]);
     expect(tries.n).toBeGreaterThan(0);
     expect(areas.loaded('roofs')).toBe(null);
   });
 
-  it('a failed fetch is not kept: the next Explore tries again', async () => {
+  it('a failed fetch online offers a fresh start: the next Explore reloads without another fetch', async () => {
     setRoofs(true);
     const life = lifecycle();
     expect(await life.w.beginWalkFromHomebase({ duskMode: false })).toBe('failed');
     const before = tries.n;
     expect(await life.w.beginWalkFromHomebase({ duskMode: false })).toBe('failed');
-    expect(tries.n).toBe(before + 1);
+    expect(tries.n).toBe(before);
+    expect(life.rec.reloads).toBe(1);
     expect(life.getSession()).toBe(null);
   });
 });

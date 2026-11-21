@@ -93,8 +93,11 @@ Linux in CI, so float fixtures should compare with a tolerance.
 - **Every walk starts through `startWalkWhenReady`** (`walk.js`), which loads
   the place first (`src/game/areaload.js`, `src/world/areas.js`). `startWalk`
   stays synchronous and throws if the place isn't loaded. A first entry may
-  show "Getting ready..."; a failed load stays home with a gentle line; two
-  failures in a row online make the next Explore reload the page.
+  show "Getting ready..."; a failed load stays home with a gentle line; the
+  first failure online makes the line offer a fresh start and the next Explore
+  reload the page (a failed import is remembered by the browser, so retrying
+  cannot help). Offline failures never count and never reload. The home toast
+  skips a line identical to one still showing.
 - **Offline.** `public/sw.js` caches every file listed in `dist/precache.json`
   on install, tops up on every online page load, and keeps the newest three
   builds' files (`KEEP_BUILDS`). The website build stamps `sw.js` with the

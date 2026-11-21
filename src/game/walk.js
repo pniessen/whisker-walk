@@ -177,10 +177,10 @@ import { walkDusk } from './session.js'; // its own line: test/session.test.js p
 //
 // startWalkWhenReady's two numbers (F6): how long a wait goes before the
 // Explore button says "Getting ready…" (a quicker load never shows it), and
-// how many failed loads in a row, online, before the next Explore starts the
+// how many failed loads, online, before the next Explore starts the
 // page again fresh (a deploy that swapped the files underneath).
 export const GETTING_READY_DELAY_MS = 150;
-export const RELOAD_AFTER_FAILURES = 2;
+export const RELOAD_AFTER_FAILURES = 1;
 // default session.ghosts before (or absent) an async spawn resolves — lets
 // the render loop/updateInteractions/endWalk call the ghosts API
 // unconditionally instead of null-checking it everywhere.
@@ -563,11 +563,14 @@ export function createWalkLifecycle({
   //     made before she joined one: startWalk would put her solo world on the
   //     room's line), or her place changed while it came (Change place, a
   //     room's start) ('dropped');
-  //   - it did not: she stays home with one gentle line ('failed'), and the
-  //     next Explore tries again; after RELOAD_AFTER_FAILURES of them in a
-  //     row online (any walk that starts clears the count) the line says the
-  //     game will start fresh, and the next Explore reloads the page (the
-  //     files may have changed underneath). Only her own tap for a place not
+  //   - it did not: she stays home with one gentle line ('failed'). Online,
+  //     the first failure (RELOAD_AFTER_FAILURES; any walk that starts clears
+  //     the count) makes the line say the game will start fresh, and the next
+  //     Explore reloads the page: the browser remembers a failed import, so
+  //     trying again cannot help while the page lives. A failure offline
+  //     says the place needs the internet, never counts and never reloads;
+  //     back online, one tap tries (and fails fast) before the line appears.
+  //     Only her own tap for a place not
   //     here reloads: a place already here just starts, and a room start
   //     (heard from the room, no tap of hers) never reloads, never counts and
   //     never offers it: it stays home with the plain line. A place this build
@@ -621,10 +624,11 @@ export function createWalkLifecycle({
       },
       (err) => {
         done();
-        if (!inRoom && err?.kind !== 'unknown') failures += 1;
         note('area', err);
         const online = isOnline();
-        const reload = !inRoom && failures >= RELOAD_AFTER_FAILURES && online;
+        const counts = !inRoom && err?.kind !== 'unknown' && online;
+        if (counts) failures += 1;
+        const reload = counts && failures >= RELOAD_AFTER_FAILURES;
         homeToast(reload ? phrase('start.notReadyReload') : !online ? phrase('start.notReadyOffline') : phrase('start.notReady'));
         return 'failed';
       },
