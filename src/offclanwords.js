@@ -7,7 +7,8 @@
 //
 // This file is a word SET, like clanwords.js: the tables every set has
 // (wordset.js TABLES), plus what this set does differently, carried as data
-// (RULES, RANK_AS, LINES, BADGE_WORDS, EMBLEMS, PHRASES; see wordset.js). No module
+// (RULES, RANK_AS, LINES, BADGE_WORDS, PHRASES; see wordset.js), and its own
+// drawings for EMBLEMS, a table every set may carry. No module
 // asks "is the set 'off'?": they ask the set in use for a table or a rule.
 //
 // NOT IN USE YET. Nothing in src/ imports this file and no build holds the

@@ -48,7 +48,8 @@ export const HEAVY_COST = [
   ['straycats.test.js', 23],
   ['dencats-den.test.js', 22],
   // every shipped map traced again in the everyday words (series A3): 5.4 s in
-  // a full run, 2026-11-20, lighter than the rest but a whole-world build
+  // a full run, 2026-11-20, lighter than the rest but a whole-world build; listed
+  // so it starts early beside its family-words twin instead of last
   ['flattrace.offwords.test.js', 5],
 ];
 

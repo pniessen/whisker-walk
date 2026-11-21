@@ -1825,11 +1825,11 @@ function killMesh(kill, groundY = () => 0) {
 // arguments and no Math.random draws.
 const leaderSeat = () => (wordRule('stoneSeat') ? highStoneGeometry : highrockGeometry);
 
-// The Highrock's material: the clan's rock colour, shaded per face by the
+// The leader's rock material (either seat): the clan's rock colour, shaded per face by the
 // geometry's grey multipliers.
 const rockMaterial = (look) => litMaterial(look.rock, { ...surfaceProps('cobble'), vertexColors: true });
 
-// A ledge camp: three top-level meshes, the Highrock (highrockGeometry), the
+// A ledge camp: three top-level meshes, the leader's rock (leaderSeat: the Highrock or the High Stone), the
 // bedding (moss nests) and the fresh-kill pile, and one
 // collider, the rock (a cave den is the rock round it). They are separate
 // children of the scene, not a Group, because the contact-shadow scan boxes
@@ -1884,7 +1884,7 @@ function addLedgeCamp(scene, area, L) {
  *
  * Three top-level children of the scene for a flat camp:
  *  - `clanCamp`, a Group: the woven den (one vertex-coloured mesh with its
- *    strands and doorway arch), the dark doorway, the Highrock, the nests and
+ *    strands and doorway arch), the dark doorway, the leader's rock (leaderSeat: the Highrock or the High Stone), the nests and
  *    the fresh-kill pile. Five meshes, each one geometry already, so
  *    mergeStaticProps has nothing left to do; the doorway, nests and pile are
  *    noCast and noMerge (a merge would drop their noCast). Its box stays
