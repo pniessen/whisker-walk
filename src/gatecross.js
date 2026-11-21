@@ -51,7 +51,8 @@ export function gatePrompt(status, { inRoom = false, isHost = false } = {}) {
   }
   if (status.kind === 'buy') {
     if (guest) return { text: phrase('gate.thisWay', status.name), kind: 'gate-info' };
-    return { text: phrase('gate.buyPrompt', status.name, status.price), kind: 'gate-buy' };
+    // "The" mid-sentence is lower case, as in every other gate line.
+    return { text: phrase('gate.buyPrompt', lower(status.name), status.price), kind: 'gate-buy' };
   }
   return { text: status.line, kind: 'gate-info' };
 }
@@ -68,9 +69,11 @@ export function gateCardHtml({ name, extras = [] }) {
     </div>`;
 }
 
-// The usual "Get it?" card for a place.
+// The usual "Get it?" card for a place. The shared card (spendAsk) keeps a
+// name as given, as the map's own card does ("Open The Old Docks"); the
+// gate's card lowers "The" mid-sentence, as every other gate line does.
 export function gateBuyHtml({ name, price, points }) {
-  return `<div class="pause-card cross-card gate-buy">${confirmCardHtml(spendAsk({ kind: 'place', name, price, points }))}</div>`;
+  return `<div class="pause-card cross-card gate-buy">${confirmCardHtml(spendAsk({ kind: 'place', name: lower(name), price, points }))}</div>`;
 }
 
 // The short "Off to the Farm!" screen between two places.

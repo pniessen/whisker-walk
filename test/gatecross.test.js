@@ -63,6 +63,16 @@ describe('the cards', () => {
     for (const s of ['Open Appletree Farm for 75 🐾?', 'You’ll have 25 🐾 left.', 'Yes, open it', 'Not now']) expect(ask).toContain(s);
     expect(ask.indexOf('confirm-card-no')).toBeLessThan(ask.indexOf('confirm-card-yes'));
     expect(gateMomentHtml({ name: 'The Fairground' })).toContain('<h1>Off to the Fairground!</h1>');
+    // Fix 9: "The" mid-sentence is lower case, as in every other gate line.
+    // The shared Get it? card (spendAsk) keeps the name as given, as the
+    // map's own card does; the gate's two lines lower it.
+    const docks = gateBuyHtml({ name: 'The Old Docks', price: 40, points: 100 });
+    expect(docks).toContain('Open the Old Docks for 40 🐾?');
+    expect(docks).not.toContain('Open The');
+    expect(gatePrompt({ kind: 'buy', to: 'fair', name: 'The Fairground', price: 60 }).text).toBe('E — Open the Fairground for 60 🐾?');
+    expect(gatePrompt({ kind: 'buy', to: 'farm', name: 'Appletree Farm', price: 75 }).text).toBe('E — Open Appletree Farm for 75 🐾?');
+    // a guest's line starts the sentence: "The" stays
+    expect(gatePrompt({ kind: 'buy', to: 'fair', name: 'The Fairground', price: 60 }, { inRoom: true }).text).toBe('The Fairground is this way 🧭');
     expect(gateMomentHtml({ name: 'Appletree Farm', ledBy: 'Pip' })).toContain('Pip is leading the way to Appletree Farm! 🧭');
     expect(gateMomentHtml({ name: 'Appletree Farm', ledBy: '<b>' })).not.toContain('<b>');
   });
