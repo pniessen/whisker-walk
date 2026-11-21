@@ -19,6 +19,10 @@ const { isWalkableAt } = await import('../src/player.js');
 const { assignShadowCasters } = await import('../src/render/rig.js');
 const { createContactShadows } = await import('../src/render/contactshadows.js');
 const { AREA_LOADERS, AREA_ENTRY_MODULES } = await import('../src/world/areas.js');
+const { ZOOM_STEPS, DEFAULT_ZOOM_STEP } = await import('../src/camzoom.js');
+const { cameraOffset } = await import('../src/catcam.js');
+const { DEFAULT_PITCH } = await import('../src/player.js');
+const { CAT_LOOK_Y } = await import('../src/cat/model.js');
 
 const DT = 1 / 30;
 const KEEPER_IDS = STALLS.filter((s) => s.keeper).map((s) => s.id);
@@ -46,6 +50,19 @@ describe('the treat ids and the no-market stand-in (marketnone.js)', () => {
     expect(NO_MARKET.remotePick({}, 'market-treat-fish')).toBe(false);
     expect(Object.isFrozen(NO_MARKET)).toBe(true);
     expect(() => { NO_MARKET.update(); NO_MARKET.restore(); NO_MARKET.dispose(); }).not.toThrow();
+  });
+
+  it('NO_MARKET has everything a caller reads of the live one, of the same kind', () => {
+    const r = marketRig();
+    for (const [k, v] of Object.entries(r.live)) {
+      expect(Object.hasOwn(NO_MARKET, k), k).toBe(true);
+      if (k === 'treats') { expect(NO_MARKET.treats).toBeNull(); continue; }
+      expect(typeof NO_MARKET[k], k).toBe(typeof v);
+      expect(Array.isArray(NO_MARKET[k]), k).toBe(Array.isArray(v));
+    }
+    expect(NO_MARKET.groups).toEqual([]);
+    expect(NO_MARKET.keepers).toEqual({});
+    r.live.dispose();
   });
 
   it("the Market's loader hands over its life", async () => {
@@ -167,14 +184,23 @@ describe('the stallholders (Task 11)', () => {
     for (const id of TREAT_STALLS) {
       expect(ups[id], id).toBeGreaterThan(0);
       const { group, bubble } = r.live.keepers[id];
-      const k = r.area.keepers[id];
-      // over the stallholder's head: 0.5 m wide, its middle 0.45 m above the crown
+      const s = stallById(id);
+      // over the counter's front, in the stall's middle: 0.5 m wide, its middle
+      // 0.35 m over the top of the stall's roof and sign, and over the stallholder's crown
       expect(bubble.isSprite).toBe(true);
       expect(bubble.scale.x).toBeCloseTo(0.5, 9);
-      expect(bubble.position.x).toBeCloseTo(k.x, 9);
-      expect(bubble.position.z).toBeCloseTo(k.z, 9);
-      const crown = shownBox(group).max.y;
-      expect(bubble.position.y - crown, id).toBeCloseTo(0.45, 2);
+      const { lx, lz } = toStall(s, bubble.position.x, bubble.position.z);
+      expect(lx, id).toBeCloseTo(0, 9);
+      expect(lz, id).toBeCloseTo(s.d / 2, 9);
+      expect(bubble.position.y - r.area.keepers[id].roof, id).toBeCloseTo(0.35, 9);
+      expect(bubble.position.y - 0.25, `${id}: its bottom over the crown`).toBeGreaterThan(shownBox(group).max.y);
+      // and the roof is the stall's: nothing of the awning or the sign above it
+      // over the counter (the back post that holds the bunting is the stall's one taller thing)
+      const stallTop = topOver(r.scene, id, s);
+      expect(r.area.keepers[id].roof, id).toBeGreaterThanOrEqual(stallTop - 1e-6);
+      expect(r.area.keepers[id].roof, id).toBeLessThan(stallTop + 0.05);
+      expect(bubble.renderOrder).toBeGreaterThan(0);
+      expect(bubble.material.depthTest).toBe(true);
       expect(heights[id].size, `${id}: reduced motion, no bob`).toBe(1);
       expect(bubble.material.transparent).toBe(true);
       expect(bubble.material.map).toBeTruthy();
@@ -189,6 +215,85 @@ describe('the stallholders (Task 11)', () => {
     expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(0.01);
     expect(Math.max(...ys) - Math.min(...ys)).toBeLessThan(0.12);
     b.live.dispose();
+  });
+
+  it("the bubble is in sight from a cat's camera in front of every guarded stall", () => {
+    // the walk's chase camera (player.js: catcam.js cameraOffset at DEFAULT_PITCH,
+    // camzoom.js's steps) behind a cat 1..5 m out from the counter, across its
+    // width, facing it. From each, the line to the bubble's middle (at its
+    // lowest bob) crosses nothing of the stall: no awning, valance, sign,
+    // post or lantern. At the default step the bubble is on screen too, in a
+    // landscape frame and on a phone held upright.
+    const r = marketRig({ reducedMotion: true });
+    const lanterns = r.scene.getObjectByName('marketLanterns');
+    const ray = new THREE.Raycaster();
+    const cam = new THREE.Vector3();
+    const to = new THREE.Vector3();
+    const off = new THREE.Vector3();
+    const frames = [16 / 9, 390 / 844].map((aspect) => new THREE.PerspectiveCamera(70, aspect, 0.1, 300));
+    for (const id of TREAT_STALLS) {
+      const s = stallById(id);
+      const stall = r.scene.children.find((o) => o.userData.stall === id);
+      expect(stall, id).toBeTruthy();
+      const { bubble } = r.live.keepers[id];
+      const yaw = Math.atan2(s.face.x, s.face.z); // the cat faces the counter; the camera is behind her
+      for (const [step, view] of ZOOM_STEPS.entries()) {
+        for (const lx of [-s.w / 2, 0, s.w / 2]) {
+          for (const out of [1, 2, 3, 4, 5]) {
+            const c = fromPlan(s, lx, s.d / 2 + out);
+            cameraOffset(yaw, DEFAULT_PITCH, view.dist, view.height, off);
+            cam.set(c.x + off.x, off.y, c.z + off.z);
+            for (const bob of [0, -0.025]) {
+              to.copy(bubble.position).setY(bubble.position.y + bob);
+              const d = to.clone().sub(cam);
+              const far = d.length();
+              ray.set(cam, d.normalize());
+              ray.far = far - 0.01;
+              const hits = ray.intersectObjects([stall, lanterns], true);
+              expect(hits.map((h) => h.object.name || h.object.type), `${id} zoom ${step} at (${lx}, +${out}) bob ${bob}`).toEqual([]);
+            }
+            if (step !== DEFAULT_ZOOM_STEP) continue;
+            for (const f of frames) {
+              f.position.copy(cam);
+              f.lookAt(c.x, CAT_LOOK_Y, c.z);
+              f.updateMatrixWorld(true);
+              const p = bubble.position.clone().project(f);
+              expect(Math.abs(p.x), `${id} on screen across, aspect ${f.aspect.toFixed(2)}, at (${lx}, +${out})`).toBeLessThan(1);
+              expect(Math.abs(p.y), `${id} on screen up, aspect ${f.aspect.toFixed(2)}, at (${lx}, +${out})`).toBeLessThan(1);
+            }
+          }
+        }
+      }
+    }
+    r.live.dispose();
+  });
+
+  it('the arms sway calmly: no phase change makes one jump', () => {
+    const r = marketRig({ seed: 5, clock: 3e8 });
+    const prev = {};
+    let worst = 0;
+    let moved = 0;
+    const frames = Math.ceil(Math.max(...TREAT_STALLS.map(periodOf)) / DT) * 2;
+    for (let i = 0; i < frames; i++) {
+      r.step(DT);
+      for (const id of KEEPER_IDS) {
+        const z = r.live.keepers[id].arm.rotation.z;
+        if (id in prev) { worst = Math.max(worst, Math.abs(z - prev[id])); moved += Math.abs(z - prev[id]); }
+        prev[id] = z;
+      }
+    }
+    expect(worst).toBeLessThan(0.05); // under 3 degrees a frame at 30 fps
+    expect(moved).toBeGreaterThan(1);
+    r.live.dispose();
+  }, 60_000);
+
+  it('a stall with a stallholder and no keeper spot is a mistake, not a silent gap', () => {
+    const { scene, area } = buildSquare();
+    for (const id of ['fish', 'flowers']) {
+      const keepers = { ...area.keepers };
+      delete keepers[id];
+      expect(() => createMarketLive(scene, { ...area, keepers }, { seed: 1, now: () => 0 }), id).toThrow(id);
+    }
   });
 
   it('two rigs with one seed and one clock pose every stallholder alike', () => {
@@ -320,6 +425,31 @@ function shownBox(obj) {
     box.union(m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld)); // this mesh alone, not its children
   });
   return box;
+}
+
+// plan-local (lx, lz) of a stall to the world
+function fromPlan(s, lx, lz) {
+  return { x: s.at.x + lx * -s.face.z + lz * s.face.x, z: s.at.z + lx * s.face.x + lz * s.face.z };
+}
+
+// the highest point of a stall's own drawing over its counter and in front of
+// it (plan-local |lx| <= w/2, lz from the keeper's spot forward): every vertex
+// of the stall group's meshes there
+function topOver(scene, id, s) {
+  const stall = scene.children.find((o) => o.userData.stall === id);
+  stall.updateWorldMatrix(true, true);
+  const v = new THREE.Vector3();
+  let top = -Infinity;
+  stall.traverse((m) => {
+    if (!m.isMesh) return;
+    const pos = m.geometry.getAttribute('position');
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+      const { lx, lz } = toStall(s, v.x, v.z);
+      if (Math.abs(lx) <= s.w / 2 && lz >= -s.d / 2 + 0.45) top = Math.max(top, v.y);
+    }
+  });
+  return top;
 }
 
 // the ids of the scene's top-level children, in order

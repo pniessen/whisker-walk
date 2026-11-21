@@ -22,10 +22,13 @@ export function treatStallOf(itemId) {
 }
 
 // What every walk that is not the Market holds where the Market's life goes:
-// no stalls, no tally (null, so the summary shows no treats tile), no prompt,
-// and nothing a pick from the wire can change.
+// no stalls, no people (no contact shadows to follow), no tally (null, so the
+// summary shows no treats tile), no prompt, and nothing a pick from the wire
+// can change. Its shape is a superset of what callers read of the live one.
 export const NO_MARKET = Object.freeze({
   stalls: Object.freeze([]),
+  keepers: Object.freeze({}),
+  groups: Object.freeze([]),
   treats: null,
   actionFor: () => null,
   act: () => false,

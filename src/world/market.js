@@ -115,6 +115,9 @@ const TOP_BOWL_PROFILE = Object.freeze([
 // the keeper behind it, the back shelf at the back).
 const COUNTER_H = 0.9;
 const AWNING = Object.freeze({ y: 2.35, rise: 2.5, over: 0.4, front: 0.45, back: 0.15 });
+// the stall's sign: a square board standing on the awning's front edge, `inset`
+// back from it, its middle `lift` over the sheet there
+const SIGN = Object.freeze({ size: 0.7, thick: 0.05, inset: 0.25, lift: 0.38 });
 const POLE_H = 4.7; // the bunting's pole, the stall's back post on the plan's -x side
 const BUNTING_SAG = 0.45;
 const PENNANT = Object.freeze({ w: 0.26, h: 0.32, every: 0.5 });
@@ -474,8 +477,9 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       keepOut: MARKET_KEEPOUT,
       // one display treat per treat stall and the café (step 2 hides and shows them)
       treatMeshes,
-      // where each stallholder stands, facing front (step 2 puts the people there)
-      keepers: Object.fromEntries(STALLS.filter((s) => s.keeper).map((s) => [s.id, { x: s.keeper.x, z: s.keeper.z, yaw: yawOf(s) }])),
+      // where each stallholder stands, facing front (step 2 puts the people there),
+      // and the top of the stall's roof and sign over them (the bubble floats above it)
+      keepers: Object.fromEntries(STALLS.filter((s) => s.keeper).map((s) => [s.id, { x: s.keeper.x, z: s.keeper.z, yaw: yawOf(s), roof: stallRoof(s) }])),
       anchors: Object.fromEntries(Object.entries(MARKET_ANCHORS).map(([k, v]) => [k, { ...v }])),
       // what setMarketDusk drives
       look: { lantern: M.lantern, windows: winLit, packing, baskets, level: 0 },
@@ -581,6 +585,16 @@ function awningGeom(s) {
   return { sx, sz, cz, z1, yAt };
 }
 
+// The highest point of a stall's roof: its sign's top edge, or the awning's
+// back edge (the sheet's highest line) if that were higher. The lanterns and
+// the valance hang below the front edge. marketlive.js floats the busy bubble
+// over it (keepers[id].roof), so no awning or sign ever hides the tell.
+function stallRoof(s) {
+  const awn = awningGeom(s);
+  const sign = awn.yAt(0, awn.z1 - SIGN.inset) + SIGN.lift + SIGN.size / 2;
+  return Math.max(sign, AWNING.y + AWNING.rise * 0.12 * 0.5);
+}
+
 // A cart's spoked wheel in a kit's frame: its centre at (x, r, z), its face
 // to `side` (+1 +z, -1 -z): a dark rim, a pale disc set in it, four spokes and
 // a hub. `wood` and `box` are the kit's painters, `wheel` the build's unit
@@ -634,9 +648,9 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
   }
   // the sign, standing on the awning's front edge, its picture both ways
   {
-    const sz = awn.z1 - 0.25;
-    const sign = new THREE.BoxGeometry(0.7, 0.7, 0.05);
-    atlas(sign, mat4(0, awn.yAt(0, sz) + 0.38, sz), look.sign);
+    const sz = awn.z1 - SIGN.inset;
+    const sign = new THREE.BoxGeometry(SIGN.size, SIGN.size, SIGN.thick);
+    atlas(sign, mat4(0, awn.yAt(0, sz) + SIGN.lift, sz), look.sign);
     sign.dispose();
   }
   // the lanterns: a string along the awning's front edge (the treat stalls)
