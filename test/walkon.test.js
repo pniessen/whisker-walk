@@ -334,7 +334,7 @@ describe('walking on between the town and the Rooftops', () => {
     expect(s.arrivedVia).toBe('roofs-town');
     expect(s.cat.position.x).toBeCloseTo(14, 9);
     expect(s.cat.position.z).toBeCloseTo(41.9, 9);
-    expect(s.cat.rotation.y).toBe(0);
+    expect(s.cat.rotation.y).toBe(1.0);
     // the door is drawn, open (the town is hers), its leaf turned into the alley
     const door = s.scene.children.find((c) => c.name === 'gateway' && c.userData.endId === 'roofs-town');
     expect(door).toBeTruthy();

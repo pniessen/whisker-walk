@@ -5,6 +5,7 @@ import {
   createCritters, PREY_NOTICE, PREY_NOTICE_STALKED, HIDE_REACH, PREY_STARTLE, STILL_SPEED, CAT_SPEED_CAP,
   GOAT_NOTICE, GOAT_DAY_SHARE, goatToday, goatForDay, twolegHead, villagerPos,
 } from '../src/critters.js';
+import { critterLabel } from '../src/game/labels.js';
 import { mulberry32 } from '../src/rng.js';
 import { gorgeGround, SHOULDER, CLIFFTOP } from '../src/world/gorgeshape.js';
 import { FLAT_GROUND } from '../src/ground.js';
@@ -1240,6 +1241,14 @@ describe('a Twoleg steps out of its spawn (polish-places)', () => {
 
   it('other critters have no figure', () => {
     expect(createCritters(scene, [{ type: 'bird', x: 1, z: 1 }]).list[0].figure).toBeUndefined();
+  });
+
+  it('a pounced pigeon (a bird spawn with labelAs) keeps its shown name', () => {
+    const c = createCritters(scene, [{ type: 'bird', labelAs: 'pigeon', x: 2, z: 0 }], { rng: mulberry32(5) });
+    const res = c.pounceCatch(V(2, 0));
+    expect(res.type).toBe('bird');
+    expect(res.def.labelAs).toBe('pigeon');
+    expect(critterLabel(res)).toBe('a cooing pigeon');
   });
 
   it('building a villager draws on Math.random exactly as before', () => {

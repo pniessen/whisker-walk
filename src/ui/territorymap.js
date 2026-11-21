@@ -98,8 +98,8 @@ function labelHtml(r, { small = false } = {}) {
   const name = wrap(`${r.locked ? '🔒 ' : ''}${r.name}`, tiny ? 8 : small ? 12 : 14);
   // ...and has room for a short line only (two short rows clear the town's
   // icon): a locked one shows its lock alone, one she is still finding the
-  // paws for its price alone; its card has the whole line
-  const tinyLine = r.locked ? null : !r.owned && !r.selected && !r.canOpen && r.price > 0 ? `${r.price} 🐾` : r.mapLine ?? r.line;
+  // paws for its price alone, today's place (its ring marks it) none; its card has the whole line
+  const tinyLine = r.locked || r.selected ? null : !r.owned && !r.selected && !r.canOpen && r.price > 0 ? `${r.price} 🐾` : r.mapLine ?? r.line;
   const sub = tiny ? (tinyLine ? wrap(tinyLine, 8) : []) : wrap(r.mapLine ?? r.line, small ? 20 : 22);
   const nameSize = tiny ? 28 : small ? 36 : r.status === 'built' ? 44 : 38;
   const [lineFirst, lineNext] = tiny ? [26, 22] : small ? [32, 26] : [36, 30];

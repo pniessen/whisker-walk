@@ -448,6 +448,8 @@ describe('world map: the Rooftops inside the town', () => {
     expect(rows({ ...s, points: 20, walks: { ...s.walks, fair: 2 } })).toEqual(['100 🐾']); // the paws still to find
     expect(rows({ ...s, points: 100, walks: { ...s.walks, fair: 2 } })).toEqual(['Open for', '100 🐾']);
     expect(rows({ ...s, unlocked: { ...s.unlocked, areas: ['neighborhood', 'roofs'] } })).toEqual(['click to', 'go here']);
+    // today's place: its ring marks it, so the label has no line at all
+    expect(rows({ ...s, area: 'roofs', unlocked: { ...s.unlocked, areas: ['neighborhood', 'roofs'] } })).toEqual([]);
     // the aria-label still reads the whole line
     expect(regionHtml(renderWorldMapHtml(worldMapModel(s, CATALOG)), 'roofs')).toContain('aria-label="The Rooftops: opens after you explore the Fairground 2 times · 0/2"');
   });

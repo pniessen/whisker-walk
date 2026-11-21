@@ -103,7 +103,7 @@ export const GATEWAY_ENDS = Object.freeze({
     // ROOFS_BOUNDS.maxZ, z 46): its dark doorway's back meets the wall face,
     // so the wall needs no hole. She lands in the alley facing north, 3.65 m
     // in front of it (GATE_REACH + 2 clear of it, as every arrival is).
-    end({ id: 'roofs-town', gateway: 'town-roofs', x: 14, z: 45.55, faces: 'south', to: 'neighborhood', twin: 'town-roofs', look: 'alleydoor', placement: 'inside', arrive: { x: 14, z: 41.9, yaw: 0 } }),
+    end({ id: 'roofs-town', gateway: 'town-roofs', x: 14, z: 45.55, faces: 'south', to: 'neighborhood', twin: 'town-roofs', look: 'alleydoor', placement: 'inside', arrive: { x: 14, z: 41.9, yaw: 1.0 } }),
   ]),
 });
 

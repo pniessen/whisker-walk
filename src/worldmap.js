@@ -43,9 +43,8 @@ export const STREET_PLACES = freezeAll([
 export const STREET_LAND = Object.freeze({ park: '#b9dc8f', fair: '#e9b7c9', farm: '#e3cf7e', docks: '#b7b9bf', seaside: '#ecdca8' });
 
 // Places inside the town, drawn on top of it: the Rooftops, up the back
-// alley's fire escape (draft 2's "Rooftops"). Its name is read from the word
-// tables by id (placeName knows only catalog areas), so it shows before the
-// catalog has its row.
+// alley's fire escape (draft 2's "Rooftops"). Its name comes from the word tables
+// (placeName reads PLACE_WORDS.roofs).
 export const TOWN_PLACES = freezeAll([
   { id: 'roofs', areaId: 'roofs', x: 905, y: 458, r: 46 },
 ]);

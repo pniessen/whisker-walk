@@ -175,8 +175,7 @@ import { walkDusk } from './session.js'; // its own line: test/session.test.js p
 // The recipe for a new area (builder, AREA_LOADERS line, catalog row) is in src/world/areas.js.
 // A walk builds from its place's pack (areas.loaded(id): { id, world, life }),
 // which startWalkWhenReady fetches first. The Rooftops (`roofs`) is a pack like
-// any other, and in no list a child picks from: every such list comes from
-// CATALOG.areas, which has no Rooftops row until step 4.
+// any other, with its own row in CATALOG.areas (Rooftops step 4).
 //
 // startWalkWhenReady's two numbers (F6): how long a wait goes before the
 // Explore button says "Getting ready…" (a quicker load never shows it), and

@@ -24,8 +24,9 @@
 //             post, so turning that group swings it. Shut is 0; open is +pi/2,
 //             which swings the free end out of the area, the way `faces`
 //             points. The 'alleydoor' look turns the other way (openAngle):
-//             a wall stands just outside it, so its door opens inward. noMerge (it moves after the build) and noCast (a thin
-//             swinging leaf is not worth a shadow draw).
+//             a wall stands just outside it, so its door opens inward.
+//             noMerge (it moves after the build) and noCast (a thin swinging
+//             leaf is not worth a shadow draw).
 // Each look is at most 400 triangles over both meshes.
 //
 // A 'none' look is for a door or a climb the area draws itself (the Old

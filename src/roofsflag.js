@@ -35,6 +35,6 @@ export function resumableAreaIds(walks) {
 // The Rooftops' drawing (world/roofs.js, with roofsplan.js, roofsparts.js and
 // roofslife.js, which only it uses) is its own download, as every place's is
 // (F6): world/areas.js's `roofs` pack, fetched by the one area loader
-// (game/areaload.js). A child without the switch never fetches it. main.js
-// starts it at boot when the switch is on, and every Rooftops start waits for
-// it through walk.js's startWalkWhenReady, like a walk anywhere else.
+// (game/areaload.js). A child fetches it when she picks the Rooftops or
+// walks to its gate; main.js also starts it at boot when the switch is on, and
+// every Rooftops start waits for it through walk.js's startWalkWhenReady, like a walk anywhere else.

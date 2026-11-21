@@ -63,7 +63,7 @@
   const SPACING = 18, PAIR = 4.5;
   const ends = [];
   looks.forEach((look, i) => {
-    const real = Object.values(GATEWAY_ENDS).flat().find((e) => e.look === look) || { to: 'neighborhood' }; // the alley door has no live end until Rooftops step 4 task 5
+    const real = Object.values(GATEWAY_ENDS).flat().find((e) => e.look === look);
     const cx = (i - (looks.length - 1) / 2) * SPACING;
     for (const [state, dx] of [['shut', -PAIR], ['open', PAIR]]) {
       const x = cx + dx;

@@ -343,6 +343,8 @@ export const CATALOG = {
     // The Rooftops (docs/superpowers/plans/2026-11-21-rooftops-step4-into-game.md,
     // ruling T1): held back until co-walkers could see height (R1), now in.
     // ROOFS_REGISTRATION.catalog is the same row; in both editions.
+    // `name` here is not what a child sees: the shown name comes from the word
+    // tables (PLACE_WORDS.roofs, read by placeName).
     roofs: { name: 'The Rooftops', price: 100, requires: { area: 'fair', walks: 2 } },
     // The world map (docs/superpowers/specs/2026-11-19-world-map-design.md,
     // decision 5): the Seaside follows the Docks on the map, so it opens after

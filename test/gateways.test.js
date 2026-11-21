@@ -44,7 +44,7 @@ describe('gateways', () => {
     expect(rows).toEqual(TABLE);
     // only the Rooftops' alley door stands inside its place, with its own arrival
     const inside = Object.values(GATEWAY_ENDS).flat().filter((e) => e.placement === 'inside');
-    expect(inside.map((e) => [e.id, e.arrive])).toEqual([['roofs-town', { x: 14, z: 41.9, yaw: 0 }]]);
+    expect(inside.map((e) => [e.id, e.arrive])).toEqual([['roofs-town', { x: 14, z: 41.9, yaw: 1.0 }]]);
   });
   it('every map road has one end on each side, and the two ends twin each other', () => {
     expect(GATEWAYS.map((g) => g.id)).toContain('town-roofs');
@@ -88,7 +88,15 @@ describe('gateways', () => {
     expect(arrivalFor('nope')).toBeNull();
   });
   it("through the town's north signpost she lands in the Rooftops' alley, 3.65 m in front of its door, facing north", () => {
-    expect(arrivalFor('town-roofs')).toEqual({ areaId: 'roofs', x: 14, z: 41.9, yaw: 0 });
+    expect(arrivalFor('town-roofs')).toEqual({ areaId: 'roofs', x: 14, z: 41.9, yaw: 1.0 });
+  });
+  it('arriving from the alley door she faces the white guide pigeon, within 20 degrees of straight ahead', () => {
+    const arr = arrivalFor('town-roofs');
+    const GUIDE = { x: 5.5, z: 36.5 }; // roofsflock.js's GUIDE_SPOT
+    const fwd = { x: -Math.sin(arr.yaw), z: -Math.cos(arr.yaw) }; // rotation.y 0 faces -z
+    const dx = GUIDE.x - arr.x, dz = GUIDE.z - arr.z;
+    const off = Math.acos((fwd.x * dx + fwd.z * dz) / Math.hypot(dx, dz)) * 180 / Math.PI;
+    expect(off).toBeLessThan(20);
   });
   it('cutForGates takes each gate on a fence run out of it, and leaves every other run as it was', () => {
     expect(GATE_FENCE_GAP).toBe(0.25);
