@@ -11,11 +11,26 @@
 // opens the place and puts the gate's card up. The words live in gatecross.js.
 // s.crossing is this module's: it sets it, and clears it on every answer,
 // including a walk-on that walk.js refused or could not load.
+//
+// Task 9, a room walks on together, and both devices have the place before
+// anyone moves. The host's yes shows the "Off to ..." moment, asks the room
+// (walk-on-ask, sent twice) and fetches the place itself; each guest fetches
+// it and answers (walk-on-have, sent twice). Once the host has the place and
+// every friend still in the room has said yes, it sends walk-on (twice, the
+// room's next seed) and walks on; the guests follow it (onRemoteWalkOn), so
+// every device builds the same next walk. A no, its own failure, or no full
+// answer within WALK_ON_WAIT_MS puts its pause card back with a line, and
+// nobody moves. A room with a member on an older build (no walkOn in its
+// room profile) crosses as at a border post: the walk ends, the room closes.
 
 import { CATALOG } from '../progression.js';
 import { carryLabel } from '../carry.js';
 import { crossCardHtml, crossExtras, decideBorderCross, targetName, lower } from '../bordercross.js';
-import { gateStatus, gateCardHtml, gateBuyHtml } from '../gatecross.js';
+import {
+  gateStatus, gateCardHtml, gateBuyHtml, gateMomentHtml, nextRoomSeed, roomWalksOn,
+  decideWalkOn, decideWalkOnAsk, decideWalkOnHave, decideGateCross,
+} from '../gatecross.js';
+import { AREA_LOAD_TIMEOUT_MS } from './areaload.js';
 import { endById } from '../gateways.js';
 import { deliberateTap } from '../ui/confirmcard.js';
 import { phrase } from '../clanphrases.js';
@@ -24,6 +39,13 @@ import { pauseCardFor } from './walk.js';
 export const CROSS_RESEND_MS = 150;
 export const CROSS_END_MS = 400;
 export const LED_DELAY_MS = 1500;
+// How long a room's host waits for every friend to have the place: a little
+// longer than one place load may take.
+export const WALK_ON_WAIT_MS = AREA_LOAD_TIMEOUT_MS + 1000;
+// A guest takes an ask heard again this soon for the host's resend.
+const ASK_SAME_MS = 1000;
+// The most answers the host keeps for one ask (each friend sends two).
+const MAX_HAVES = 32;
 
 // swallowsCanvasClick(session) -> true while a room host's confirmed crossing
 // is on its way out (the CROSS_END_MS "Off we go!" pause), and while a walk-on
@@ -48,6 +70,14 @@ export function createCrossing({
   walkOn = () => Promise.resolve('refused'),
   progression = null,
   now = () => Date.now(),
+  // Task 9: the pending room's roster (every member's room profile, her own
+  // included) and its net, the one place load a room's walk-on waits for
+  // (main.js passes the area loader's ensure), and whether the device is
+  // online (which line a failed load says).
+  getRoster = () => [],
+  getRoomNet = () => null,
+  ensureArea = () => Promise.resolve(),
+  isOnline = () => globalThis.navigator?.onLine !== false,
 }) {
   function restoreCard(s) {
     overlay.innerHTML = pauseCardFor(s, getIsTouch(), getSound());
@@ -133,16 +163,127 @@ export function createCrossing({
   function confirmGate(s) {
     const c = s.crossing;
     if (c.asking) return; // the "Get it?" card answers through buyYes
-    // A room's host: Task 9 walks the whole room on together. Until then a
-    // gate's yes in a room does nothing (a border post's room crossing below
-    // is unchanged).
-    if (s.net) return;
     prefetchArea(c.to);
     c.going = true;
+    if (!s.net) { goOn(s, c); return; }
+    // A room with a member on an older build: as at a border post.
+    if (!roomWalksOn(getRoster())) { crossRoom(s, c.to); return; }
+    askRoom(s, c);
+  }
+
+  function goOn(s, c) {
     walkOn({ via: c.via }).then((answer) => {
       if (getSession() !== s || s.crossing !== c) return;
       if (answer === 'failed') s.crossing = null; // walk.js put the pause card back
       else if (answer === 'refused' && !s.walkingOn) restoreCard(s);
+    });
+  }
+
+  const remotesOf = (s) => (Array.isArray(s.remotes?.list) ? s.remotes.list : []);
+  const remoteIdsOf = (s) => remotesOf(s).map((r) => r.playerId);
+  const petNameOf = (s, id) => remotesOf(s).find((r) => r.playerId === id)?.petName ?? 'A friend';
+  // The place's load, started now; a loader that throws is a failed load.
+  function ensure(id) {
+    try { return Promise.resolve(ensureArea(id)); } catch (err) { return Promise.reject(err); }
+  }
+  const notReadyLine = () => phrase(isOnline() ? 'start.notReady' : 'start.notReadyOffline');
+
+  // The host's yes in a room that walks on: the moment, the ask (twice), and
+  // its own place; settle decides as the answers come in.
+  function askRoom(s, c) {
+    const room = { haves: [], ready: false, failed: false, done: false };
+    c.room = room;
+    overlay.innerHTML = gateMomentHtml({ name: c.name });
+    const ask = { v: 1, id: s.playerId, type: 'walk-on-ask', from: s.areaId, via: c.via };
+    s.net.sendEvent(ask);
+    setTimeout(() => {
+      if (getSession() === s && s.crossing === c && !room.done) s.net.sendEvent(ask);
+    }, CROSS_RESEND_MS);
+    setTimeout(() => settle(s, c, { timedOut: true }), WALK_ON_WAIT_MS);
+    ensure(c.to)
+      .then(() => { room.ready = true; }, () => { room.failed = true; })
+      .then(() => settle(s, c));
+  }
+
+  function settle(s, c, { timedOut = false } = {}) {
+    const room = c.room;
+    if (!room || room.done || getSession() !== s || s.crossing !== c) return;
+    if (room.failed) { stayHere(s, room, notReadyLine()); return; }
+    const d = decideWalkOnHave(room.haves, {
+      areaId: s.areaId, via: c.via, selfId: s.playerId, remoteIds: remoteIdsOf(s), catalog, ready: room.ready,
+    });
+    if (d.kind === 'no') { stayHere(s, room, phrase('gate.friendNotReady', petNameOf(s, d.id))); return; }
+    if (d.kind === 'wait') {
+      if (!timedOut) return;
+      stayHere(s, room, room.ready ? phrase('gate.friendNotReady', petNameOf(s, d.waiting[0])) : notReadyLine());
+      return;
+    }
+    // Every device has the place: tell the room (twice), then walk on at
+    // once; the room is kept, so there is nothing to wait for. The resend
+    // goes only into the room it was made in.
+    room.done = true;
+    const net = s.net;
+    const ev = { v: 1, id: s.playerId, type: 'walk-on', from: s.areaId, via: c.via, seed: nextRoomSeed(s.roomSeed, c.via) };
+    net.sendEvent(ev);
+    setTimeout(() => { if (getRoomNet() === net) net.sendEvent(ev); }, CROSS_RESEND_MS);
+    goOn(s, c);
+  }
+
+  // Nobody moves: the pause card comes back with one line.
+  function stayHere(s, room, line) {
+    room.done = true;
+    restoreCard(s);
+    hud.toast(line);
+  }
+
+  // A friend's answer reached the host.
+  function onWalkOnHave(s, ev) {
+    const c = s?.crossing;
+    if (!c || !c.room || c.room.done || c.room.haves.length >= MAX_HAVES) return;
+    c.room.haves.push(ev);
+    settle(s, c);
+  }
+
+  // The host's ask reached a guest: fetch the place and answer, twice. The
+  // host's resend, heard while the answer is on its way (or just after), is
+  // the same ask; a later one (she tried again) is answered afresh. Her own
+  // load failing gives her its own line too.
+  function onWalkOnAsk(s, ev) {
+    if (!s || !s.net) return;
+    const d = decideWalkOnAsk(ev, { areaId: s.areaId, selfId: s.playerId, remoteIds: remoteIdsOf(s), catalog });
+    if (!d) return;
+    const last = s.walkOnAnswer;
+    if (last && last.via === d.via && (last.pending || now() - last.at < ASK_SAME_MS)) return;
+    const answer = { via: d.via, at: now(), pending: true };
+    s.walkOnAnswer = answer;
+    const net = s.net;
+    ensure(d.to)
+      .then(() => true, () => false)
+      .then((ok) => {
+        answer.pending = false;
+        if (getSession() !== s) return;
+        if (!ok) hud.toast(notReadyLine());
+        const have = { v: 1, id: s.playerId, type: 'walk-on-have', via: d.via, ok };
+        net.sendEvent(have);
+        setTimeout(() => { if (getSession() === s) net.sendEvent(have); }, CROSS_RESEND_MS);
+      });
+  }
+
+  // The host's walk-on reached a guest: follow it, once a walk, as a guest
+  // (nothing is ever spent for her), into the same next room seed.
+  function onRemoteWalkOn(s, ev) {
+    if (!s || !ev || s.crossLed) return;
+    const d = decideWalkOn(ev, {
+      areaId: s.areaId, selfId: s.playerId, remoteIds: remoteIdsOf(s), catalog, roomSeed: s.roomSeed,
+    });
+    if (!d) return;
+    s.crossLed = true;
+    const name = petNameOf(s, ev.id);
+    hud.toast(phrase('cross.leading', name, lower(targetName(d.to, getEdition(), catalog))));
+    walkOn({ via: d.via, ledBy: name, guest: true }).then((answer) => {
+      // Her place could not come: she is still in this walk, and the host's
+      // resend may lead her on.
+      if (answer === 'failed' && getSession() === s) s.crossLed = false;
     });
   }
 
@@ -157,9 +298,14 @@ export function createCrossing({
       endWalk({ crossTo: to });
       return;
     }
-    // A room's host: tell the room (twice, in case one is lost), then end once
-    // the broadcast has left, since endWalk closes the room.
     s.crossing.going = true;
+    crossRoom(s, to);
+  }
+
+  // A room's host crossing that ends the walk: tell the room (twice, in case
+  // one is lost), then end once the broadcast has left, since endWalk closes
+  // the room.
+  function crossRoom(s, to) {
     const ev = { v: 1, id: s.playerId, type: 'border-cross', from: s.areaId, to };
     s.net.sendEvent(ev);
     setTimeout(() => { if (getSession() === s) s.net.sendEvent(ev); }, CROSS_RESEND_MS);
@@ -188,9 +334,9 @@ export function createCrossing({
   function onRemote(s, ev) {
     if (!s || !ev || s.crossLed) return;
     const remotes = Array.isArray(s.remotes?.list) ? s.remotes.list : [];
-    const d = decideBorderCross(ev, {
-      areaId: s.areaId, selfId: s.playerId, remoteIds: remotes.map((r) => r.playerId), catalog,
-    });
+    // A border post's crossing, or a gate's in a room with an older build.
+    const ctx = { areaId: s.areaId, selfId: s.playerId, remoteIds: remotes.map((r) => r.playerId), catalog };
+    const d = decideBorderCross(ev, ctx) ?? decideGateCross(ev, ctx);
     if (!d) return;
     prefetchArea(d.to);
     s.crossLed = true;
@@ -200,5 +346,5 @@ export function createCrossing({
     setTimeout(() => { if (getSession() === s) endWalk({ crossTo: d.to, ledBy: name, together }); }, LED_DELAY_MS);
   }
 
-  return { ask, askGate, askGateBuy, buyYes, confirm, cancel, onLockChange, onRemote };
+  return { ask, askGate, askGateBuy, buyYes, confirm, cancel, onLockChange, onRemote, onRemoteWalkOn, onWalkOnAsk, onWalkOnHave };
 }

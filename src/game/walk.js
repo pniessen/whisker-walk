@@ -96,7 +96,7 @@ import { createFind, NO_FIND } from '../foundwear/live.js';
 import { restoreFind } from '../foundwear/play.js';
 import { foundWearIn } from '../foundwear/index.js';
 import { crossingOutcome } from '../bordercross.js';
-import { pickOnCrossing, gateStatus, viaPlan, walkOnMove, GATE_MOMENT_MS, gateMomentHtml, nextRoomSeed } from '../gatecross.js';
+import { pickOnCrossing, gateStatus, viaPlan, walkOnMove, GATE_MOMENT_MS, gateMomentHtml, nextRoomSeed, stateIsHere } from '../gatecross.js';
 import { rivalForWalk, placeName, effectiveArea, isClanEdition } from '../edition.js';
 import { picksOf, homeWelcome } from '../clanhomes.js';
 import { phrase } from '../clanphrases.js';
@@ -2510,6 +2510,9 @@ export function createWalkLifecycle({
         const session = getSession();
         if (!session) return; // a state can land after endWalk tore the session down
         if (state.id === session.playerId) return; // explicit self-filter; applyState is a no-op for us anyway
+        // World map step 3: a co-walker in another place (a walk-on a moment
+        // ahead or behind) is not drawn here. An older build sends no area.
+        if (!stateIsHere(state, session.areaId)) return;
         // F6: a co-walker whose device was still loading its place sent no
         // state, so its cat went after remotecats' DESPAWN_AFTER, and its
         // presence never changed, so no roster sync brings it back. Its first

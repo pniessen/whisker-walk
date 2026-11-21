@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createCrossing, swallowsCanvasClick } from '../src/game/crossing.js';
-import { pauseCardHtml } from '../src/game/walk.js';
+import { createCrossing, swallowsCanvasClick, CROSS_RESEND_MS, CROSS_END_MS, WALK_ON_WAIT_MS } from '../src/game/crossing.js';
+import { AREA_LOAD_TIMEOUT_MS, AreaLoadError } from '../src/game/areaload.js';
+import { phrase } from '../src/clanphrases.js';
+import { pauseCardHtml, pauseCardFor } from '../src/game/walk.js';
 import { CATALOG } from '../src/progression.js';
 import { postStatus } from '../src/bordercross.js';
 import { placeName } from '../src/edition.js';
 import { PLACE_WORDS } from '../src/clanwords.js';
 import { postsFor } from '../src/borderposts.js';
 import { createClanFight } from '../src/game/clanfight.js';
-import { gateStatus } from '../src/gatecross.js';
+import { gateStatus, nextRoomSeed } from '../src/gatecross.js';
 import { endById } from '../src/gateways.js';
 import { CONFIRM_DELAY_MS } from '../src/ui/colonypanel.js';
 
@@ -531,17 +533,6 @@ describe('at a gate', () => {
     expect(calls.release).toBe(0);
   });
 
-  it("a room host's gate yes does nothing new yet (Task 9 walks the room on)", () => {
-    const sent = [];
-    const { crossing, s, calls } = setup({ session: { net: { isHost: () => true, sendEvent: (e) => sent.push(e) }, remotes: { list: [] } } });
-    crossing.askGate(s, farmGo());
-    expect(s.crossing).toMatchObject({ kind: 'gate' });
-    crossing.confirm();
-    expect(calls.walkOn).toEqual([]);
-    expect(calls.endWalk).toEqual([]);
-    expect(sent).toEqual([]);
-  });
-
   describe('while a slow walk-on waits for its place', () => {
     const waiting = () => {
       const h = setup();
@@ -583,6 +574,365 @@ describe('at a gate', () => {
       crossing.askGateBuy(s, farmBuy());
       expect(overlay.innerHTML).toBe('Off to Appletree Farm!');
       expect(s.crossing).toBe(null);
+    });
+  });
+});
+
+// World map step 3, Task 9: a room walks on together. The host's yes asks the
+// room first (walk-on-ask); each friend fetches the place and answers
+// (walk-on-have); only when the host has the place too and every friend still
+// in the room said yes does it send walk-on and walk on itself. Anything else
+// and nobody moves.
+describe('walking on together', () => {
+  afterEachRestore();
+  // A deferred place load: the test says when (and whether) it comes.
+  function deferredLoads() {
+    const asked = [];
+    const pending = new Map();
+    const ensureArea = (id) => {
+      asked.push(id);
+      if (!pending.has(id)) {
+        let resolve; let reject;
+        const p = new Promise((res, rej) => { resolve = res; reject = rej; });
+        pending.set(id, { p, resolve, reject });
+      }
+      return pending.get(id).p;
+    };
+    const come = (id) => { pending.get(id).resolve({}); pending.delete(id); };
+    const fail = (id, kind = 'failed') => { pending.get(id).reject(new AreaLoadError(id, kind)); pending.delete(id); };
+    return { asked, ensureArea, come, fail };
+  }
+  function together({
+    host = true, selfId = 'a', remotes = [{ playerId: 'b', petName: 'Pip' }],
+    roster = [{ playerId: 'a', walkOn: 1 }, { playerId: 'b', walkOn: 1 }], online = true, walkOnSays = 'walked',
+  } = {}) {
+    vi.useFakeTimers();
+    const sent = [];
+    const toasts = [];
+    const overlay = { innerHTML: '' };
+    const net = { isHost: () => host, sendEvent: (e) => sent.push(e) };
+    const s = {
+      welcome: 'Welcome home!', race: null, quest: null, carry: { mouth: { held: null } },
+      areaId: 'park', playerId: selfId, roomSeed: 7, remotes: { list: [...remotes] }, net,
+    };
+    const loads = deferredLoads();
+    const walkOn = vi.fn(() => Promise.resolve(walkOnSays));
+    const endWalk = vi.fn();
+    const resume = vi.fn();
+    let current = s;
+    let roomNet = net;
+    const crossing = createCrossing({
+      getSession: () => current, overlay, hud: { toast: (t) => toasts.push(t) },
+      releaseControl() {}, resumeWalk: resume, endWalk, getIsTouch: () => false, getEdition: () => 'canon',
+      catalog: CATALOG, setTimeout: globalThis.setTimeout, prefetchArea() {},
+      walkOn, getRoster: () => roster, getRoomNet: () => roomNet, ensureArea: loads.ensureArea,
+      isOnline: () => online,
+    });
+    const yes = () => { crossing.askGate(s, farmGo()); crossing.confirm(); };
+    const have = (o = {}) => ({ v: 1, id: 'b', type: 'walk-on-have', via: 'park-farm', ok: true, ...o });
+    const ask = (o = {}) => ({ v: 1, id: 'a', type: 'walk-on-ask', from: 'park', via: 'park-farm', ...o });
+    const ofType = (t) => sent.filter((e) => e.type === t);
+    return {
+      crossing, s, sent, toasts, overlay, walkOn, endWalk, resume, loads, yes, have, ask, ofType,
+      replace: (o) => { current = o; }, leaveRoom: () => { roomNet = null; },
+    };
+  }
+  const SEED = nextRoomSeed(7, 'park-farm');
+  const WALK_ON = { v: 1, id: 'a', type: 'walk-on', from: 'park', via: 'park-farm', seed: SEED };
+  // The pause card of a room walk (the chat keys are on it).
+  const pause = (s) => pauseCardFor(s, false, null);
+
+  it("the host's yes shows the moment, asks the room twice and fetches its own place", () => {
+    const h = together();
+    h.yes();
+    expect(h.overlay.innerHTML).toContain('Off to Appletree Farm!');
+    expect(h.s.crossing).toMatchObject({ kind: 'gate', going: true });
+    expect(swallowsCanvasClick(h.s)).toBe(true);
+    expect(h.loads.asked).toEqual(['farm']);
+    expect(h.sent).toEqual([{ v: 1, id: 'a', type: 'walk-on-ask', from: 'park', via: 'park-farm' }]);
+    vi.advanceTimersByTime(CROSS_RESEND_MS);
+    expect(h.ofType('walk-on-ask')).toHaveLength(2);
+    expect(h.ofType('walk-on')).toEqual([]);
+    expect(h.walkOn).not.toHaveBeenCalled();
+    expect(h.endWalk).not.toHaveBeenCalled();
+  });
+
+  it('with its place here and the friend\'s yes, it sends walk-on twice with the derived seed and walks on once', async () => {
+    const h = together();
+    h.yes();
+    h.crossing.onWalkOnHave(h.s, h.have());
+    expect(h.ofType('walk-on')).toEqual([]); // its own place is not here yet
+    h.loads.come('farm');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.ofType('walk-on')).toEqual([WALK_ON]);
+    expect(h.walkOn.mock.calls).toEqual([[{ via: 'park-farm' }]]);
+    h.replace(null); // walk.js freed the walk: the moment is up, no session
+    await vi.advanceTimersByTimeAsync(CROSS_RESEND_MS);
+    expect(h.ofType('walk-on')).toEqual([WALK_ON, WALK_ON]);
+    h.replace(h.s);
+    h.crossing.confirm(); // a second yes
+    h.crossing.onWalkOnHave(h.s, h.have()); // a late duplicate answer
+    await vi.advanceTimersByTimeAsync(WALK_ON_WAIT_MS * 2);
+    expect(h.ofType('walk-on')).toHaveLength(2);
+    expect(h.ofType('walk-on-ask')).toHaveLength(1); // answered before its resend was due
+    expect(h.walkOn).toHaveBeenCalledTimes(1);
+  });
+
+  it('the friend may answer after the host has its place; the walk-on resend stays in the room it was made in', async () => {
+    const h = together();
+    h.yes();
+    h.loads.come('farm');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.walkOn).not.toHaveBeenCalled();
+    h.crossing.onWalkOnHave(h.s, h.have());
+    expect(h.walkOn.mock.calls).toEqual([[{ via: 'park-farm' }]]);
+    h.leaveRoom();
+    await vi.advanceTimersByTimeAsync(CROSS_RESEND_MS);
+    expect(h.ofType('walk-on')).toEqual([WALK_ON]);
+  });
+
+  it("a friend whose game cannot have the place: the pause card, the friend's line, nobody moves", async () => {
+    const h = together();
+    h.yes();
+    h.crossing.onWalkOnHave(h.s, h.have({ ok: false }));
+    expect(h.overlay.innerHTML).toBe(pause(h.s));
+    expect(h.overlay.innerHTML).toContain('btn-resume');
+    expect(h.s.crossing).toBe(null);
+    expect(h.toasts).toEqual(["Pip's game isn't ready for that place yet. Try again in a moment! 🐾"]);
+    expect(h.toasts[0]).toBe(phrase('gate.friendNotReady', 'Pip'));
+    h.loads.come('farm');
+    h.crossing.onWalkOnHave(h.s, h.have()); // a late yes changes nothing
+    await vi.advanceTimersByTimeAsync(WALK_ON_WAIT_MS * 2);
+    expect(h.ofType('walk-on')).toEqual([]);
+    expect(h.walkOn).not.toHaveBeenCalled();
+    expect(h.endWalk).not.toHaveBeenCalled();
+    expect(h.resume).not.toHaveBeenCalled();
+    expect(h.toasts).toHaveLength(1);
+    // she can ask again
+    h.crossing.askGate(h.s, farmGo());
+    expect(h.s.crossing).toMatchObject({ kind: 'gate', via: 'park-farm' });
+  });
+
+  it("the host's own place does not come: the pause card, its own line, nobody moves", async () => {
+    for (const [online, line] of [[true, 'start.notReady'], [false, 'start.notReadyOffline']]) {
+      const h = together({ online });
+      h.yes();
+      h.crossing.onWalkOnHave(h.s, h.have());
+      h.loads.fail('farm');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.overlay.innerHTML).toBe(pause(h.s));
+      expect(h.overlay.innerHTML).toContain('btn-resume');
+      expect(h.s.crossing).toBe(null);
+      expect(h.toasts).toEqual([phrase(line)]);
+      await vi.advanceTimersByTimeAsync(WALK_ON_WAIT_MS * 2);
+      expect(h.ofType('walk-on')).toEqual([]);
+      expect(h.walkOn).not.toHaveBeenCalled();
+      expect(h.endWalk).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    }
+  });
+
+  it('no full answer in time: the pause card, the friend\'s line, nobody moves', async () => {
+    expect(WALK_ON_WAIT_MS).toBe(AREA_LOAD_TIMEOUT_MS + 1000);
+    const h = together({ remotes: [{ playerId: 'b', petName: 'Pip' }, { playerId: 'c', petName: 'Moss' }], roster: [{ walkOn: 1 }, { walkOn: 1 }, { walkOn: 1 }] });
+    h.yes();
+    h.loads.come('farm');
+    h.crossing.onWalkOnHave(h.s, h.have());
+    await vi.advanceTimersByTimeAsync(WALK_ON_WAIT_MS - 1);
+    expect(h.overlay.innerHTML).toContain('Off to Appletree Farm!');
+    expect(h.toasts).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(h.overlay.innerHTML).toBe(pause(h.s));
+    expect(h.overlay.innerHTML).toContain('btn-resume');
+    expect(h.s.crossing).toBe(null);
+    expect(h.toasts).toEqual([phrase('gate.friendNotReady', 'Moss')]);
+    h.crossing.onWalkOnHave(h.s, h.have({ id: 'c' })); // too late
+    await vi.advanceTimersByTimeAsync(WALK_ON_WAIT_MS);
+    expect(h.ofType('walk-on')).toEqual([]);
+    expect(h.walkOn).not.toHaveBeenCalled();
+  });
+
+  it('its own place still loading at the wait\'s end: its own line', async () => {
+    const h = together();
+    h.yes();
+    h.crossing.onWalkOnHave(h.s, h.have());
+    await vi.advanceTimersByTimeAsync(WALK_ON_WAIT_MS);
+    expect(h.overlay.innerHTML).toBe(pause(h.s));
+    expect(h.overlay.innerHTML).toContain('btn-resume');
+    expect(h.toasts).toEqual([phrase('start.notReady')]);
+    expect(h.walkOn).not.toHaveBeenCalled();
+  });
+
+  it('a friend who left during the wait is not waited for', async () => {
+    const h = together();
+    h.yes();
+    h.loads.come('farm');
+    await vi.advanceTimersByTimeAsync(0);
+    h.s.remotes.list.length = 0; // Pip went home
+    await vi.advanceTimersByTimeAsync(WALK_ON_WAIT_MS);
+    expect(h.ofType('walk-on')).toEqual([WALK_ON]);
+    expect(h.walkOn).toHaveBeenCalledTimes(1);
+  });
+
+  it('a walk that ended during the wait is left alone', async () => {
+    const h = together();
+    h.yes();
+    h.replace(null);
+    h.loads.come('farm');
+    h.crossing.onWalkOnHave(h.s, h.have());
+    await vi.advanceTimersByTimeAsync(WALK_ON_WAIT_MS * 2);
+    expect(h.ofType('walk-on')).toEqual([]);
+    expect(h.ofType('walk-on-ask')).toHaveLength(1);
+    expect(h.walkOn).not.toHaveBeenCalled();
+    expect(h.toasts).toEqual([]);
+  });
+
+  it('an answer with no ask waiting, from a stranger or for another gate, changes nothing', async () => {
+    const h = together();
+    h.crossing.onWalkOnHave(h.s, h.have()); // no ask
+    h.crossing.onWalkOnHave(null, h.have());
+    h.yes();
+    h.loads.come('farm');
+    h.crossing.onWalkOnHave(h.s, h.have({ id: 'z' }));
+    h.crossing.onWalkOnHave(h.s, h.have({ via: 'park-fair' }));
+    h.crossing.onWalkOnHave(h.s, h.have({ id: 'z', ok: false }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.walkOn).not.toHaveBeenCalled();
+    expect(h.toasts).toEqual([]);
+    h.crossing.onWalkOnHave(h.s, h.have());
+    expect(h.walkOn).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancel, Back and a lock change leave the moment up while the room is asked', () => {
+    const h = together();
+    h.yes();
+    h.crossing.cancel();
+    h.crossing.onLockChange(true);
+    expect(h.overlay.innerHTML).toContain('Off to Appletree Farm!');
+    expect(h.resume).not.toHaveBeenCalled();
+  });
+
+  // A room with a member on an older build (no walkOn in its profile): the
+  // crossing is today's, the walk ends and the room closes.
+  it('a room with an older build crosses as a border post does: the walk ends, no walk-on', () => {
+    const h = together({ roster: [{ playerId: 'a', walkOn: 1 }, { playerId: 'b' }] });
+    h.yes();
+    expect(h.overlay.innerHTML).toContain('<h1>Off we go! 🧭</h1>');
+    expect(h.sent).toEqual([{ v: 1, id: 'a', type: 'border-cross', from: 'park', to: 'farm' }]);
+    vi.advanceTimersByTime(CROSS_RESEND_MS);
+    expect(h.sent).toHaveLength(2);
+    vi.advanceTimersByTime(CROSS_END_MS - CROSS_RESEND_MS);
+    expect(h.endWalk.mock.calls).toEqual([[{ crossTo: 'farm' }]]);
+    expect(h.ofType('walk-on')).toEqual([]);
+    expect(h.ofType('walk-on-ask')).toEqual([]);
+    expect(h.walkOn).not.toHaveBeenCalled();
+    expect(h.loads.asked).toEqual([]);
+  });
+
+  it('a guest on this build follows that crossing through the gate: its walk ends too', () => {
+    const h = together({ host: false, selfId: 'c', remotes: [{ playerId: 'a', petName: 'Pip' }] });
+    h.crossing.onRemote(h.s, { v: 1, id: 'a', type: 'border-cross', from: 'park', to: 'farm' });
+    expect(h.toasts).toEqual(['Pip is leading the way to Appletree Farm! 🧭']);
+    vi.advanceTimersByTime(1500);
+    expect(h.endWalk.mock.calls).toEqual([[{ crossTo: 'farm', ledBy: 'Pip', together: ['Pip'] }]]);
+    expect(h.walkOn).not.toHaveBeenCalled();
+  });
+
+  describe('a guest', () => {
+    const guest = (o = {}) => together({ host: false, selfId: 'c', remotes: [{ playerId: 'a', petName: 'Pip' }], ...o });
+    const asGuest = (o = {}) => ({ v: 1, id: 'c', type: 'walk-on-have', via: 'park-farm', ok: true, ...o });
+
+    it("fetches the place the host asks about and says so twice", async () => {
+      const h = guest();
+      h.crossing.onWalkOnAsk(h.s, h.ask());
+      expect(h.loads.asked).toEqual(['farm']);
+      expect(h.sent).toEqual([]);
+      h.crossing.onWalkOnAsk(h.s, h.ask()); // the host's resend: folded into this answer
+      h.loads.come('farm');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.sent).toEqual([asGuest()]);
+      await vi.advanceTimersByTimeAsync(CROSS_RESEND_MS);
+      expect(h.sent).toEqual([asGuest(), asGuest()]);
+      expect(h.loads.asked).toEqual(['farm']);
+      expect(h.toasts).toEqual([]);
+      expect(h.walkOn).not.toHaveBeenCalled();
+      expect(h.s.crossLed).toBeUndefined();
+    });
+
+    it('a place that does not come: it says no twice and sees its own line', async () => {
+      const h = guest({ online: false });
+      h.crossing.onWalkOnAsk(h.s, h.ask());
+      h.loads.fail('farm');
+      await vi.advanceTimersByTimeAsync(CROSS_RESEND_MS);
+      expect(h.sent).toEqual([asGuest({ ok: false }), asGuest({ ok: false })]);
+      expect(h.toasts).toEqual([phrase('start.notReadyOffline')]);
+    });
+
+    it("the host's next ask, after its first was answered, is answered again", async () => {
+      const h = guest();
+      h.crossing.onWalkOnAsk(h.s, h.ask());
+      h.loads.fail('farm');
+      await vi.advanceTimersByTimeAsync(5000);
+      h.crossing.onWalkOnAsk(h.s, h.ask());
+      h.loads.come('farm');
+      await vi.advanceTimersByTimeAsync(CROSS_RESEND_MS);
+      expect(h.sent).toEqual([asGuest({ ok: false }), asGuest({ ok: false }), asGuest(), asGuest()]);
+      expect(h.loads.asked).toEqual(['farm', 'farm']);
+    });
+
+    it('a forged or stale ask is not answered', async () => {
+      const h = guest();
+      for (const bad of [{ id: 'zzz' }, { from: 'fair' }, { via: 'fair-park' }, { via: 'nope' }, { type: 'walk-on' }]) {
+        h.crossing.onWalkOnAsk(h.s, h.ask(bad));
+      }
+      h.crossing.onWalkOnAsk(null, h.ask());
+      const solo = guest();
+      delete solo.s.net;
+      solo.crossing.onWalkOnAsk(solo.s, solo.ask());
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(h.loads.asked).toEqual([]);
+      expect(solo.loads.asked).toEqual([]);
+      expect(h.sent).toEqual([]);
+    });
+
+    it('an answer whose walk ended is not sent', async () => {
+      const h = guest();
+      h.crossing.onWalkOnAsk(h.s, h.ask());
+      h.replace(null);
+      h.loads.come('farm');
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(h.sent).toEqual([]);
+    });
+
+    it('follows the host on, once: the toast, and a walk-on as a guest', () => {
+      const h = guest();
+      h.crossing.onRemoteWalkOn(h.s, WALK_ON);
+      expect(h.toasts).toEqual(['Pip is leading the way to Appletree Farm! 🧭']);
+      expect(h.walkOn.mock.calls).toEqual([[{ via: 'park-farm', ledBy: 'Pip', guest: true }]]);
+      h.crossing.onRemoteWalkOn(h.s, WALK_ON); // the resend
+      expect(h.walkOn).toHaveBeenCalledTimes(1);
+      expect(h.toasts).toHaveLength(1);
+      expect(h.endWalk).not.toHaveBeenCalled();
+    });
+
+    it('a walk-on from someone who is not the host, or with the wrong seed, changes nothing', () => {
+      const h = guest({ remotes: [{ playerId: 'a', petName: 'Pip' }, { playerId: 'd', petName: 'Moss' }] });
+      h.crossing.onRemoteWalkOn(h.s, { ...WALK_ON, id: 'd' });
+      h.crossing.onRemoteWalkOn(h.s, { ...WALK_ON, seed: SEED + 1 });
+      h.crossing.onRemoteWalkOn(h.s, { ...WALK_ON, id: 'zzz' });
+      h.crossing.onRemoteWalkOn(h.s, { ...WALK_ON, from: 'fair' });
+      h.crossing.onRemoteWalkOn(null, WALK_ON);
+      expect(h.walkOn).not.toHaveBeenCalled();
+      expect(h.toasts).toEqual([]);
+      expect(h.s.crossLed).toBeUndefined();
+    });
+
+    it('a walk-on that could not load its place may be followed again', async () => {
+      const h = guest({ walkOnSays: 'failed' });
+      h.crossing.onRemoteWalkOn(h.s, WALK_ON);
+      await vi.advanceTimersByTimeAsync(0);
+      h.crossing.onRemoteWalkOn(h.s, WALK_ON);
+      expect(h.walkOn).toHaveBeenCalledTimes(2);
     });
   });
 });

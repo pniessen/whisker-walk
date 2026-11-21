@@ -6,7 +6,7 @@ import { withOffWords } from './helpers/offwords.js';
 import { endById } from '../src/gateways.js';
 import {
   gateStatus, gatePrompt, gateCardHtml, gateBuyHtml, gateMomentHtml, walkOnMove, pickOnCrossing,
-  nextRoomSeed, decideWalkOn, roomWalksOn, stateIsHere,
+  nextRoomSeed, decideWalkOn, decideWalkOnAsk, decideWalkOnHave, decideGateCross, roomWalksOn, stateIsHere,
 } from '../src/gatecross.js';
 
 function fakeStorage() {
@@ -88,6 +88,55 @@ describe('the room', () => {
       expect(decideWalkOn({ ...ev, ...bad }, ctx), JSON.stringify(bad)).toBeNull();
     }
     expect(decideWalkOn(ev, { ...ctx, selfId: '0' })).toBeNull();
+  });
+  // Task 9: in a room, every device has the place before anyone moves.
+  it("a guest answers only a well-formed ask from the host: the walk-on's checks, without the seed", () => {
+    const ev = { v: 1, id: 'a', type: 'walk-on-ask', from: 'park', via: 'park-farm' };
+    const ctx = { areaId: 'park', selfId: 'b', remoteIds: ['a'], catalog: CATALOG };
+    expect(decideWalkOnAsk(ev, ctx)).toEqual({ via: 'park-farm', to: 'farm' });
+    expect(decideWalkOnAsk({ ...ev, seed: 99 }, ctx)).toEqual({ via: 'park-farm', to: 'farm' }); // a seed is not read
+    for (const bad of [{ v: 2 }, { from: 'fair' }, { via: 'fair-park' }, { via: 'nope' }, { via: 7 }, { type: 'walk-on' }, { type: 'walk-on-have' }, { id: 'z' }]) {
+      expect(decideWalkOnAsk({ ...ev, ...bad }, ctx), JSON.stringify(bad)).toBeNull();
+    }
+    expect(decideWalkOnAsk(ev, { ...ctx, selfId: '0' })).toBeNull(); // not from the host
+    expect(decideWalkOnAsk(ev, { ...ctx, remoteIds: ['a', null] })).toBeNull(); // a member with no id
+    expect(decideWalkOnAsk(null, ctx)).toBeNull();
+    expect(decideWalkOnAsk(ev, { ...ctx, areaId: 'roofs' })).toBeNull(); // a place with no gates
+  });
+  it("the host goes only when it has the place and every friend still in the room said yes", () => {
+    const have = (id, ok = true, o = {}) => ({ v: 1, id, type: 'walk-on-have', via: 'park-farm', ok, ...o });
+    const ctx = { areaId: 'park', via: 'park-farm', selfId: 'a', remoteIds: ['b', 'c'], catalog: CATALOG, ready: true };
+    expect(decideWalkOnHave([], ctx)).toEqual({ kind: 'wait', waiting: ['b', 'c'] });
+    expect(decideWalkOnHave([have('b')], ctx)).toEqual({ kind: 'wait', waiting: ['c'] });
+    expect(decideWalkOnHave([have('b'), have('c'), have('b')], ctx)).toEqual({ kind: 'go' });
+    // its own place not here yet: everyone else's yes waits for it
+    expect(decideWalkOnHave([have('b'), have('c')], { ...ctx, ready: false })).toEqual({ kind: 'wait', waiting: [] });
+    // one friend who cannot: no, at once, whatever else came
+    expect(decideWalkOnHave([have('b'), have('c', false)], ctx)).toEqual({ kind: 'no', id: 'c' });
+    expect(decideWalkOnHave([have('c', false)], { ...ctx, ready: false })).toEqual({ kind: 'no', id: 'c' });
+    // a friend who left is not waited for; nobody left at all: go
+    expect(decideWalkOnHave([have('b')], { ...ctx, remoteIds: ['b'] })).toEqual({ kind: 'go' });
+    expect(decideWalkOnHave([], { ...ctx, remoteIds: [] })).toEqual({ kind: 'go' });
+    // what does not count: another gate, not a yes or no, not an answer, not v1, a stranger
+    for (const bad of [{ via: 'park-fair' }, { ok: 'yes' }, { ok: 1 }, { type: 'walk-on-ask' }, { v: 2 }]) {
+      expect(decideWalkOnHave([have('b', true, bad), have('c')], ctx), JSON.stringify(bad)).toEqual({ kind: 'wait', waiting: ['b'] });
+      expect(decideWalkOnHave([have('b', false, bad), have('c')], ctx), JSON.stringify(bad)).toEqual({ kind: 'wait', waiting: ['b'] });
+    }
+    expect(decideWalkOnHave([have('z', false), have('b'), have('c')], ctx)).toEqual({ kind: 'go' });
+    expect(decideWalkOnHave([null, 7, have('b'), have('c')], ctx)).toEqual({ kind: 'go' });
+    // a device that is not the room's host counts nothing
+    expect(decideWalkOnHave([have('0'), have('c')], { ...ctx, remoteIds: ['0', 'c'] })).toEqual({ kind: 'wait', waiting: ['0', 'c'] });
+    // a gate this place does not have counts nothing
+    expect(decideWalkOnHave([have('b', true, { via: 'fair-park' }), have('c', true, { via: 'fair-park' })], { ...ctx, via: 'fair-park' })).toEqual({ kind: 'wait', waiting: ['b', 'c'] });
+  });
+  it("a border-cross through a gate, from the host, is followed the way a post's is (a room with an older build)", () => {
+    const ev = { v: 1, id: 'a', type: 'border-cross', from: 'park', to: 'farm' };
+    const ctx = { areaId: 'park', selfId: 'b', remoteIds: ['a'], catalog: CATALOG };
+    expect(decideGateCross(ev, ctx)).toEqual({ to: 'farm' });
+    for (const bad of [{ from: 'fair' }, { to: 'woods' }, { to: 7 }, { type: 'walk-on' }, { id: 'z' }]) {
+      expect(decideGateCross({ ...ev, ...bad }, ctx), JSON.stringify(bad)).toBeNull();
+    }
+    expect(decideGateCross(ev, { ...ctx, selfId: '0' })).toBeNull();
   });
   it('room capability and the state filter', () => {
     expect(roomWalksOn([{ walkOn: 1 }, { walkOn: 1 }])).toBe(true);

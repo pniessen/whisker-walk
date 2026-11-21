@@ -815,6 +815,47 @@ describe('applyRemoteEvent: border-cross', () => {
   });
 });
 
+// World map step 3, Task 9: the room's walk-on, its ask and its answers.
+describe('applyRemoteEvent: walk-on, walk-on-ask and walk-on-have', () => {
+  function make() {
+    const calls = [];
+    const { applyRemoteEvent } = createNetEvents({
+      MP: 1, getCloud: () => null, getPsecret: () => null,
+      log: {}, hud: { toast() {} }, audio: {}, samples: { has: () => false },
+      catVoice() {}, applyGoalResult() {},
+      onBorderCross: (s, ev) => calls.push(['border-cross', s, ev]),
+      onWalkOn: (s, ev) => calls.push(['walk-on', s, ev]),
+      onWalkOnAsk: (s, ev) => calls.push(['ask', s, ev]),
+      onWalkOnHave: (s, ev) => calls.push(['have', s, ev]),
+    });
+    return { applyRemoteEvent, calls };
+  }
+  it('each reaches its own handler with (s, ev)', () => {
+    const { applyRemoteEvent, calls } = make();
+    const s = {};
+    const on = { type: 'walk-on', id: 'a' };
+    const ask = { type: 'walk-on-ask', id: 'a' };
+    const have = { type: 'walk-on-have', id: 'b' };
+    applyRemoteEvent(s, on);
+    applyRemoteEvent(s, ask);
+    applyRemoteEvent(s, have);
+    expect(calls).toEqual([['walk-on', s, on], ['ask', s, ask], ['have', s, have]]);
+  });
+  it('a hidden visitor\'s walk-on events reach nothing', () => {
+    const { applyRemoteEvent, calls } = make();
+    const s = { isBlocked: (id) => id === 'a' };
+    for (const type of ['walk-on', 'walk-on-ask', 'walk-on-have']) applyRemoteEvent(s, { type, id: 'a' });
+    expect(calls).toEqual([]);
+  });
+  it('works with none of the deps', () => {
+    const { applyRemoteEvent } = createNetEvents({
+      MP: 1, getCloud: () => null, getPsecret: () => null, log: {}, hud: {}, audio: {},
+      samples: {}, catVoice() {}, applyGoalResult() {},
+    });
+    for (const type of ['walk-on', 'walk-on-ask', 'walk-on-have']) expect(() => applyRemoteEvent({}, { type })).not.toThrow();
+  });
+});
+
 // Clan Life Part 2, Task 5: a co-walker's fight with the visiting clan cat.
 describe('applyRemoteEvent: intruder-fight and intruder-done', () => {
   function intruderHarness({ intruders = true, clanFight = true, clanEdition = true } = {}) {

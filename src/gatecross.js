@@ -113,21 +113,80 @@ export function viaPlan(via, table) {
   return { via, from: hit.areaId, to: hit.end.to, arrive: { x, z, yaw } };
 }
 
+// The room's host sent it: `id` is a remote in the room and nobody in the
+// room (this device included) has a lower id.
+function fromHost(id, selfId, remoteIds) {
+  const remotes = Array.isArray(remoteIds) ? remoteIds : [];
+  if (!remotes.includes(id)) return false;
+  const all = [selfId, ...remotes];
+  if (!all.every((i) => typeof i === 'string' || typeof i === 'number')) return false;
+  return !all.some((i) => i < id);
+}
+
+// This device is the room's host: every remote's id is higher than its own.
+function isHostOf(selfId, remoteIds) {
+  const all = [selfId, ...(Array.isArray(remoteIds) ? remoteIds : [])];
+  if (!all.every((i) => typeof i === 'string' || typeof i === 'number')) return false;
+  return !all.some((i) => i < selfId);
+}
+
+// One of this place's live gate ends, by id, else null.
+function liveEnd(areaId, via, catalog) {
+  if (typeof via !== 'string') return null;
+  return liveEndsFor(areaId, catalog).find((e) => e.id === via) ?? null;
+}
+
 // A guest follows a walk-on only when it is well formed, for this walk's
 // area, through one of its live gates, from the room's host, with the seed
 // every device derives.
 export function decideWalkOn(ev, { areaId, selfId, remoteIds, catalog, roomSeed } = {}) {
   if (!isObj(ev) || ev.v !== 1 || ev.type !== 'walk-on' || ev.from !== areaId) return null;
   if (typeof ev.via !== 'string' || typeof ev.seed !== 'number') return null;
-  const end = liveEndsFor(areaId, catalog).find((e) => e.id === ev.via);
-  if (!end) return null;
-  const remotes = Array.isArray(remoteIds) ? remoteIds : [];
-  if (!remotes.includes(ev.id)) return null;
-  const all = [selfId, ...remotes];
-  if (!all.every((i) => typeof i === 'string' || typeof i === 'number')) return null;
-  if (all.some((i) => i < ev.id)) return null;
+  const end = liveEnd(areaId, ev.via, catalog);
+  if (!end || !fromHost(ev.id, selfId, remoteIds)) return null;
   if (ev.seed !== nextRoomSeed(roomSeed, ev.via)) return null;
   return { via: ev.via, to: end.to, seed: ev.seed };
+}
+
+// In a room, every device has the place before anyone moves. The host's yes
+// asks first ({ v: 1, id, type: 'walk-on-ask', from, via }); a guest answers
+// only an ask that passes the walk-on's own checks, without the seed.
+export function decideWalkOnAsk(ev, { areaId, selfId, remoteIds, catalog } = {}) {
+  if (!isObj(ev) || ev.v !== 1 || ev.type !== 'walk-on-ask' || ev.from !== areaId) return null;
+  const end = liveEnd(areaId, ev.via, catalog);
+  if (!end || !fromHost(ev.id, selfId, remoteIds)) return null;
+  return { via: ev.via, to: end.to };
+}
+
+// The host's reading of the answers it has heard ({ v: 1, id, type:
+// 'walk-on-have', via, ok }, any order, repeats welcome): { kind: 'no', id }
+// as soon as one friend still in the room says it cannot have the place;
+// { kind: 'go' } once the host has the place itself (`ready`) and every
+// friend still in the room has said it can; else { kind: 'wait', waiting }
+// (the friends not yet heard from). Only answers for this place's live gate
+// `via`, from a remote in the room, to the room's host, count.
+export function decideWalkOnHave(haves, { areaId, via, selfId, remoteIds, catalog, ready = false } = {}) {
+  const remotes = Array.isArray(remoteIds) ? remoteIds : [];
+  const counts = !!liveEnd(areaId, via, catalog) && isHostOf(selfId, remotes);
+  const yes = new Set();
+  for (const ev of Array.isArray(haves) ? haves : []) {
+    if (!counts || !isObj(ev) || ev.v !== 1 || ev.type !== 'walk-on-have' || ev.via !== via) continue;
+    if (typeof ev.ok !== 'boolean' || !remotes.includes(ev.id)) continue;
+    if (!ev.ok) return { kind: 'no', id: ev.id };
+    yes.add(ev.id);
+  }
+  const waiting = remotes.filter((id) => !yes.has(id));
+  return waiting.length === 0 && ready ? { kind: 'go' } : { kind: 'wait', waiting };
+}
+
+// A room with a member on an older build crosses at a gate as at a border
+// post (the walk ends): a guest on this build follows that border-cross when
+// it names a place one of this walk's live gates leads to, from the host.
+export function decideGateCross(ev, { areaId, selfId, remoteIds, catalog } = {}) {
+  if (!isObj(ev) || ev.type !== 'border-cross' || ev.from !== areaId || typeof ev.to !== 'string') return null;
+  if (!liveEndsFor(areaId, catalog).some((e) => e.to === ev.to)) return null;
+  if (!fromHost(ev.id, selfId, remoteIds)) return null;
+  return { to: ev.to };
 }
 
 // A room walks on together only when every member says it can.

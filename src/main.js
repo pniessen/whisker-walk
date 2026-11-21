@@ -390,6 +390,10 @@ function init() {
     // v21 Stream 2: who may show a live 'colony-feed' (display only).
     getPartner: () => progression.state.colony?.partner ?? null,
     onBorderCross: (s, ev) => crossing?.onRemote(s, ev),
+    // World map step 3: a room walks on together (src/game/crossing.js).
+    onWalkOn: (s, ev) => crossing?.onRemoteWalkOn(s, ev),
+    onWalkOnAsk: (s, ev) => crossing?.onWalkOnAsk(s, ev),
+    onWalkOnHave: (s, ev) => crossing?.onWalkOnHave(s, ev),
   });
 
   // Photo mode (src/game/photo.js). renderFrame/noteGoal are hoisted
@@ -549,6 +553,11 @@ function init() {
     getSound: pauseSound,
     prefetchArea: (id) => areas.prefetch(id),
     walkOn, progression,
+    // A room walks on together: who is in it (every member's room profile),
+    // its net, and the place load every device waits for before anyone moves.
+    getRoster: () => getPendingRoom()?.roster ?? [],
+    getRoomNet: () => getPendingRoom()?.net ?? null,
+    ensureArea: (id) => areas.ensure(id),
   });
   // Found outfits: the find card (src/game/findcard.js), Wear it / Later in
   // the pause overlay. Wear it dresses her cat in place, at the shadow trim
@@ -1499,6 +1508,8 @@ function init() {
             toy: toyForState(session.toy),
             // her height on a perch or seat, and the seat (remotecats.js liftForState)
             ...liftForState(player.perchY, session.fair.riding),
+            // the place she is in: a co-walker elsewhere does not draw her
+            area: session.areaId,
           });
         }
       }

@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { walkHarness, areas, fakeDocument, anything } from './helpers/walkharness.js';
 import { AreaLoadError } from '../src/game/areaload.js';
-import { GATE_MOMENT_MS } from '../src/gatecross.js';
+import { GATE_MOMENT_MS, nextRoomSeed, gateStatus } from '../src/gatecross.js';
+import { createNet, createFakeHub } from '../src/net.js';
+import { createCrossing } from '../src/game/crossing.js';
+import { createNetEvents } from '../src/game/netevents.js';
+import { endById } from '../src/gateways.js';
+import { CATALOG } from '../src/progression.js';
 import { LEAF_OPEN, LEAF_R, LEAF_BLOCKS, NO_GATES } from '../src/world/gateway.js';
 import { phrase } from '../src/clanphrases.js';
 import { diagnostics } from '../src/diagnostics.js';
@@ -432,5 +437,231 @@ describe('the summary card', () => {
     await h.w.walkOn({ via: 'park-farm' });
     vi.advanceTimersByTime(GATE_MOMENT_MS);
     expect(walked).toEqual([[]]);
+  }, WALK_MS);
+});
+
+// World map step 3, Task 9: a room walks on together. The room is kept (no
+// leave), the next walk takes the same net, both devices derive the same
+// next seed, and the walk just left hands nothing on.
+describe('walking on in a room', () => {
+  const profile = (playerId, petName) => ({ playerId, petName, breed: 'tabby', walkOn: 1 });
+  // A fake-hub room of two: this device ('me') and Pip, whose net the test holds.
+  async function hubRoom() {
+    const hub = createFakeHub();
+    const net = createNet(hub.transport());
+    const partner = createNet(hub.transport());
+    await net.join('ROOM', profile('me', 'Mochi'));
+    await partner.join('ROOM', profile('pip', 'Pip'));
+    const room = { net, roster: [profile('me', 'Mochi'), profile('pip', 'Pip')] };
+    return { net, partner, room };
+  }
+  const state = (o = {}) => ({ v: 1, id: 'pip', pos: [1, 2], yaw: 0, pose: 'idle', speed: 0, ...o });
+
+  it('in a room the room stays: same net, no leave, the next seed derived, old handlers gone', async () => {
+    const { net, partner, room } = await hubRoom();
+    const heard = [];
+    const h = walkHarness({ save: parkSave, pendingRoom: room, applyRemoteEvent: (s, ev) => heard.push([s, ev.type]) });
+    h.w.startWalk({ roomSeed: 7 });
+    const park = h.getSession();
+    expect(park.net).toBe(net);
+    const leave = vi.spyOn(net, 'leave');
+    expect(await h.w.walkOn({ via: 'park-farm' })).toBe('walked');
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    const s = h.getSession();
+    expect(s.areaId).toBe('farm');
+    expect(leave).not.toHaveBeenCalled();
+    expect(h.getRoom()).toBe(room);
+    expect(s.net).toBe(room.net);
+    expect(s.roomSeed).toBe(nextRoomSeed(7, 'park-farm'));
+    // a state from the partner tagged area 'park' draws no cat in the Farm; one tagged 'farm' does
+    const pip = s.remotes.list.find((r) => r.playerId === 'pip');
+    expect(pip).toBeTruthy();
+    expect(pip.group.visible).toBe(false);
+    partner.sendState(state({ area: 'park' }));
+    expect(pip.group.visible).toBe(false);
+    partner.sendState(state({ area: 'farm' }));
+    expect(pip.group.visible).toBe(true);
+    // an event from the partner reaches the Farm walk's handler only (the Park walk's was taken off)
+    partner.sendEvent({ v: 1, id: 'pip', type: 'meow' });
+    expect(heard).toEqual([[s, 'meow']]);
+    h.w.endWalk();
+    expect(leave).toHaveBeenCalledTimes(1);
+  }, WALK_MS);
+
+  it('an older build sends no area: its state is drawn wherever she is', async () => {
+    const { partner, room } = await hubRoom();
+    const h = walkHarness({ save: parkSave, pendingRoom: room });
+    h.w.startWalk({ roomSeed: 7 });
+    const pip = h.getSession().remotes.list.find((r) => r.playerId === 'pip');
+    partner.sendState(state());
+    expect(pip.group.visible).toBe(true);
+    h.w.endWalk();
+  }, WALK_MS);
+
+  it('a guest who does not own the place walks it once and spends nothing', async () => {
+    const { room } = await hubRoom();
+    const guestSave = (p) => {
+      p.setTutorialFirst('done');
+      p.state.unlocked.areas.push('park');
+      p.state.walks.park = 2;
+      p.setArea('park');
+      p.addPoints(100);
+    };
+    const h = walkHarness({ save: guestSave, pendingRoom: room });
+    h.w.startWalk({ roomSeed: 7 });
+    expect(gateStatus(endById('park-farm').end, h.progression.state, CATALOG).kind).toBe('buy'); // she could open it, so a slip would spend
+    expect(await h.w.walkOn({ via: 'park-farm', guest: true })).toBe('walked');
+    const banked = h.progression.state.points;
+    expect(banked).toBeGreaterThanOrEqual(100);
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    const s = h.getSession();
+    expect(s.areaId).toBe('farm');
+    expect(s.arrivedVia).toBe('farm-park');
+    expect(h.progression.state.area).toBe('park');
+    expect(h.progression.state.points).toBe(banked);
+    expect(h.progression.state.unlocked.areas).not.toContain('farm');
+    h.w.endWalk();
+    expect(h.progression.state.unlocked.areas).not.toContain('farm');
+  }, WALK_MS);
+
+  // Task 7's review: every handler a walk wires comes off when it ends, a
+  // walk-on keeps the room, and only a real ending leaves it.
+  it('every handler is taken off on walkOn and on endWalk; only endWalk leaves the room', async () => {
+    const made = [];
+    const handler = () => { const off = vi.fn(); made.push(off); return off; };
+    const leave = vi.fn(() => Promise.resolve());
+    const net = anything({ onRoster: handler, onState: handler, onEvent: handler, onChat: handler, leave, isHost: () => true });
+    const h = walkHarness({ save: parkSave, pendingRoom: { net, roster: [] } });
+    h.w.startWalk({ roomSeed: 7 });
+    const park = made.slice();
+    expect(park).toHaveLength(4);
+    expect(park.every((off) => off.mock.calls.length === 0)).toBe(true);
+    expect(await h.w.walkOn({ via: 'park-farm' })).toBe('walked');
+    expect(park.map((off) => off.mock.calls.length)).toEqual([1, 1, 1, 1]);
+    expect(leave).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    expect(h.getSession().net).toBe(net);
+    const farm = made.slice(4);
+    expect(farm).toHaveLength(4);
+    expect(farm.every((off) => off.mock.calls.length === 0)).toBe(true);
+    h.w.endWalk();
+    expect(farm.map((off) => off.mock.calls.length)).toEqual([1, 1, 1, 1]);
+    expect(park.map((off) => off.mock.calls.length)).toEqual([1, 1, 1, 1]);
+    expect(leave).toHaveBeenCalledTimes(1);
+  }, WALK_MS);
+});
+
+// Two whole devices in one fake-hub room, each with its own walk, crossing and
+// event routing (netevents.js), as main.js wires them: the host's yes at the
+// Park's Farm gate moves both, and both arrive at the twin gate in one walk.
+describe('two devices walk on together', () => {
+  // olderBuild: a build from before gates (it cannot follow a gate's border-cross).
+  function device(pid, room, save, { ensureArea = (id) => areas.ensure(id), olderBuild = false } = {}) {
+    const toasts = [];
+    let crossing = null;
+    const { applyRemoteEvent } = createNetEvents({
+      MP: 1, getCloud: () => null, getPsecret: () => null, log: {}, hud: { toast: (t) => toasts.push(t) },
+      audio: {}, samples: { has: () => false }, catVoice() {}, applyGoalResult() {},
+      onBorderCross: (s, ev) => { if (!olderBuild) crossing.onRemote(s, ev); },
+      onWalkOn: (s, ev) => crossing.onRemoteWalkOn(s, ev),
+      onWalkOnAsk: (s, ev) => crossing.onWalkOnAsk(s, ev),
+      onWalkOnHave: (s, ev) => crossing.onWalkOnHave(s, ev),
+    });
+    const h = walkHarness({ pid, save, pendingRoom: room, applyRemoteEvent });
+    crossing = createCrossing({
+      getSession: h.getSession, overlay: h.overlay, hud: { toast: (t) => toasts.push(t) },
+      releaseControl() {}, resumeWalk() {}, endWalk: (o) => h.w.endWalk(o), getIsTouch: () => false,
+      getEdition: () => h.progression.state.edition, catalog: CATALOG, setTimeout: globalThis.setTimeout,
+      walkOn: (o) => h.w.walkOn(o), progression: h.progression,
+      getRoster: () => h.getRoom()?.roster ?? [], getRoomNet: () => h.getRoom()?.net ?? null,
+      ensureArea,
+    });
+    return { h, crossing, toasts };
+  }
+  async function twoDevices({ guestProfile = { walkOn: 1 }, guestOpts = {} } = {}) {
+    const hub = createFakeHub();
+    const hostNet = createNet(hub.transport());
+    const guestNet = createNet(hub.transport());
+    const hostP = { playerId: 'ann', petName: 'Ann', breed: 'tabby', walkOn: 1 };
+    const guestP = { playerId: 'bea', petName: 'Bea', breed: 'tabby', ...guestProfile };
+    await hostNet.join('ROOM', hostP);
+    await guestNet.join('ROOM', guestP);
+    const roster = [hostP, guestP];
+    const host = device('ann', { net: hostNet, roster }, parkSave);
+    const guest = device('bea', { net: guestNet, roster }, parkSave, guestOpts);
+    host.h.w.startWalk({ roomSeed: 7 });
+    guest.h.w.startWalk({ roomSeed: 7 });
+    expect(hostNet.isHost()).toBe(true);
+    return { host, guest, hostNet, guestNet };
+  }
+  const farmGate = (h) => {
+    const end = endById('park-farm').end;
+    return { end, status: gateStatus(end, h.progression.state, CATALOG) };
+  };
+
+  it("the host's yes: both devices fetch the Farm, then both walk on to its Park gate in the next room walk", async () => {
+    const { host, guest, hostNet, guestNet } = await twoDevices();
+    const sent = [];
+    const send = hostNet.sendEvent;
+    hostNet.sendEvent = (e) => { sent.push(e.type); send(e); };
+    const gSent = [];
+    const gSend = guestNet.sendEvent;
+    guestNet.sendEvent = (e) => { gSent.push(e.type); gSend(e); };
+    host.crossing.askGate(host.h.getSession(), farmGate(host.h));
+    host.crossing.confirm();
+    await vi.advanceTimersByTimeAsync(GATE_MOMENT_MS);
+    expect(sent).toEqual(['walk-on-ask', 'walk-on', 'walk-on']); // answered before the ask's resend was due
+    expect(gSent).toEqual(['walk-on-have']); // it walked on before its resend was due
+    expect(guest.toasts).toContain('Ann is leading the way to Appletree Farm! 🧭');
+    const a = host.h.getSession();
+    const b = guest.h.getSession();
+    expect([a.areaId, b.areaId]).toEqual(['farm', 'farm']);
+    expect(a.roomSeed).toBe(nextRoomSeed(7, 'park-farm'));
+    expect(b.roomSeed).toBe(a.roomSeed);
+    expect([a.arrivedVia, b.arrivedVia]).toEqual(['farm-park', 'farm-park']);
+    expect([a.net, b.net]).toEqual([hostNet, guestNet]);
+    expect([host.h.getRoom(), guest.h.getRoom()].every(Boolean)).toBe(true);
+    // the same Farm on both: the shared world is drawn from the one seed
+    expect(b.race.rings.map((r) => [r.x, r.z])).toEqual(a.race.rings.map((r) => [r.x, r.z]));
+    // and each sees the other: the guest's partner is still in its walk
+    expect(b.remotes.list.map((r) => r.playerId)).toEqual(['ann']);
+    expect(a.remotes.list.map((r) => r.playerId)).toEqual(['bea']);
+    host.h.w.endWalk();
+    guest.h.w.endWalk();
+  }, WALK_MS);
+
+  it("a guest whose game cannot have the Farm: nobody moves, the host gets its card back and the friend's line", async () => {
+    const { host, guest } = await twoDevices({ guestOpts: { ensureArea: (id) => (id === 'farm' ? Promise.reject(new AreaLoadError('farm', 'failed')) : areas.ensure(id)) } });
+    const parkA = host.h.getSession();
+    const parkB = guest.h.getSession();
+    host.crossing.askGate(parkA, farmGate(host.h));
+    host.crossing.confirm();
+    await vi.advanceTimersByTimeAsync(GATE_MOMENT_MS * 2);
+    expect(host.h.getSession()).toBe(parkA);
+    expect(guest.h.getSession()).toBe(parkB);
+    expect(host.h.overlay.innerHTML).toContain('btn-resume');
+    expect(host.toasts).toEqual([phrase('gate.friendNotReady', 'Bea')]);
+    expect(guest.toasts).toEqual([phrase('start.notReady')]);
+    expect([parkA.areaId, parkB.areaId]).toEqual(['park', 'park']);
+    host.h.w.endWalk();
+    guest.h.w.endWalk();
+  }, WALK_MS);
+
+  it('a room with an older build: the host crosses as at a border post and its walk ends; the older guest walks on alone', async () => {
+    const { host, guest } = await twoDevices({ guestProfile: { walkOn: undefined }, guestOpts: { olderBuild: true } });
+    const parkB = guest.h.getSession();
+    host.crossing.askGate(host.h.getSession(), farmGate(host.h));
+    host.crossing.confirm();
+    expect(host.h.overlay.innerHTML).toContain('Off we go!');
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(host.h.getSession()).toBeNull();
+    expect(host.h.overlay.innerHTML).toContain('Home again!');
+    expect(host.h.getRoom()).toBeNull(); // the host left the room
+    // the older guest is still walking in the Park, alone, still in the room
+    expect(guest.h.getSession()).toBe(parkB);
+    expect(parkB.areaId).toBe('park');
+    expect(parkB.remotes.list).toEqual([]);
+    expect(guest.h.getRoom()).toBeTruthy();
+    guest.h.w.endWalk();
   }, WALK_MS);
 });

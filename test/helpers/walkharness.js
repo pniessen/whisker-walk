@@ -85,10 +85,13 @@ function fakeOverlay() {
 //   onWalkedOn, onWalkEnded   the walk's two hooks
 //   areas              the area loader (default: the shared one above)
 //   isOnline           () -> whether the device is online (default: true)
+//   pid                this device's player id (default: 'me')
+//   applyRemoteEvent   (s, ev) for every room event the walk hears (default: none)
 export function walkHarness({
   save = () => {}, renderer = null, pendingRoom = null,
   onWalkedOn = () => {}, onWalkEnded = () => {},
   areas: loader = areas, isOnline = () => true,
+  pid = 'me', applyRemoteEvent = () => {},
 } = {}) {
   let session = null;
   let room = pendingRoom;
@@ -101,7 +104,7 @@ export function walkHarness({
   let reloads = 0;
   const camera = new THREE.PerspectiveCamera();
   const w = createWalkLifecycle({
-    MP: false, pid: 'me', coarse: false, envMap, overlay, blockList: new Set(),
+    MP: false, pid, coarse: false, envMap, overlay, blockList: new Set(),
     renderer, camera, composerRig: anything(),
     player: anything(), progression,
     settings: { get: (k) => (k === 'muted' ? true : null) },
@@ -112,7 +115,7 @@ export function walkHarness({
     getHomebase: () => anything(),
     getPendingRoom: () => room, clearPendingRoom: () => { room = null; }, pushProfileNow: () => {},
     startRoomTogether: () => {},
-    awardStrayGreet: () => {}, applyRemoteEvent: () => {},
+    awardStrayGreet: () => {}, applyRemoteEvent,
     // HIGH, so the walk builds everything a tier can add (normal maps, grass,
     // shadows); no post-processing, which needs a real renderer.
     qualityAdapter: { beginWalk: () => ({ ...resolveQuality({ override: 'high' }), postFx: false }) },
@@ -123,5 +126,5 @@ export function walkHarness({
     reloadPage: () => { reloads += 1; },
     isOnline,
   });
-  return { w, getSession: () => session, progression, overlay, storage, toasts, homeToasts, reloads: () => reloads, camera };
+  return { w, getSession: () => session, progression, overlay, storage, toasts, homeToasts, reloads: () => reloads, camera, getRoom: () => room };
 }
