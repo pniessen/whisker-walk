@@ -324,14 +324,20 @@ function waving(r, t, still) {
 }
 
 function dismayed(r, look) {
-  // a surprised "oh!": both hands come up, palms out, the chest back a little
+  // a surprised "oh!": both hands come up by the shoulders and out to the
+  // sides, palms forward, the chest back a little. The upper arms go out
+  // (and a little forward), the forearms stand up and out from the elbows,
+  // so the hands stay well clear of the face whichever way the head turns
+  // (ruling R8: at least 0.3 m from the head's middle)
   for (let i = 0; i < 2; i++) {
     const S = SIDES[i];
-    r[S.upperArm] = 0.6;
-    r[S.upperArm + 2] = S.sd * 0.55;
-    r[S.forearm] = 2.3;
-    r[S.hand] = -0.4;
-    r[S.hand + 1] = S.sd * Math.PI / 2;
+    r[S.upperArm] = 0.3;
+    r[S.upperArm + 2] = S.sd * 0.85;
+    r[S.forearm] = 0;
+    r[S.forearm + 2] = S.sd * 1.9;
+    r[S.hand] = 0;
+    r[S.hand + 1] = -S.sd * Math.PI / 2; // the palm, which faces in at rest, to the front
+    r[S.hand + 2] = S.sd * 0.3; // the fingers a little nearer upright
   }
   r[CHEST] = 0.1 - 0.15 * look.dims.stoop;
 }

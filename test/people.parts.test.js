@@ -284,6 +284,71 @@ describe('people parts', () => {
     }
   });
 
+  it('the trousers\' top: thigh tops inside the seat, the seat\'s rim inside the thighs, its top inside the shirt', () => {
+    // ruling R9: no jutting rim where the seat meets the thighs or the chest.
+    // (1) the thighs' round tops (and a pair of shorts' tops) are inside the
+    // seat; (2) below the hips the seat stays within the thighs' outline
+    // (their two tubes and the band between them, front to back); (3) near,
+    // the seat's top is inside the chest above the shirt's hem
+    const M = 0.002;
+    const jointOf = (part) => part.geo.getAttribute('skinIndex').getX(0);
+    const thighJ = new Set([JOINT_INDEX.thighL, JOINT_INDEX.thighR]);
+    const xz = (x, z) => Math.hypot(x, z);
+    // a horizontal ray turned 1e-4 rad, so it never runs exactly along a
+    // lathe's seam edge (and slips between its two triangles)
+    const ray = (on, o, dx, dz) => hit(on, o, [dx * Math.cos(1e-4) - dz * Math.sin(1e-4), 0, dx * Math.sin(1e-4) + dz * Math.cos(1e-4)]);
+    for (const kind of KINDS) for (const sex of SEXES) for (const bottom of BOTTOMS) for (const top of ['tshirt', 'coat']) {
+      for (const girth of [0.94, 1.08]) {
+        const look = personFor({ x: 6, z: 3, kind, sex, girth, top: { kind: top }, bottom: { kind: bottom } });
+        const d = look.dims;
+        for (const detail of DETAILS) {
+          const label = `${kind} ${sex} ${bottom} ${top} ${girth} ${detail}`;
+          const parts = personParts(look, detail);
+          const seat = tagged(parts, 'seat');
+          expect(seat.length, label).toBe(1);
+          const thighs = parts.filter((p) => thighJ.has(jointOf(p)) && (p.tag === 'leg' || p.tag === 'shorts'));
+          const legs = thighs.filter((p) => p.tag === 'leg');
+          expect(legs.length, label).toBe(2);
+          // (1) every thigh vertex at or above the hips is inside the seat
+          for (const [x, y, z] of verts(thighs)) {
+            if (y < d.hipY - 1e-6) continue;
+            const r = xz(x, z);
+            const p = ray(seat, [0, y, 0], x, z);
+            expect(p, `${label}: no seat round a thigh top at y ${y.toFixed(3)}`).toBeTruthy();
+            expect(xz(p.x, p.z) + M, `${label}: a thigh top out of the seat at y ${y.toFixed(3)}`).toBeGreaterThanOrEqual(r);
+          }
+          // (2) below the hips, every seat vertex is within the thighs' outline
+          for (const [x, y, z] of verts(seat)) {
+            if (y >= d.hipY - 1e-6) continue;
+            const sd = x < 0 ? -1 : 1;
+            const ax = sd * d.hipX;
+            if (Math.abs(x) >= d.hipX) {
+              const p = ray(legs, [ax, y, 0], x - ax, z);
+              expect(p, `${label}: the seat below a thigh at y ${y.toFixed(3)}`).toBeTruthy();
+              expect(xz(x - ax, z), `${label}: the seat juts out of a thigh at y ${y.toFixed(3)}`).toBeLessThanOrEqual(xz(p.x - ax, p.z) + M);
+            } else if (Math.abs(z) > 1e-9) {
+              const p = ray(legs, [ax, y, 0], 0, Math.sign(z));
+              expect(p, label).toBeTruthy();
+              expect(Math.abs(z), `${label}: the seat in front of or behind the thighs at y ${y.toFixed(3)}`).toBeLessThanOrEqual(Math.abs(p.z) + M);
+            }
+          }
+          // (3) near, above the shirt's hem the seat is inside the chest
+          if (detail === 'near' && top !== 'dress') {
+            const chest = tagged(parts, 'chest');
+            let hem = Infinity;
+            for (const [, y] of verts(chest)) hem = Math.min(hem, y);
+            for (const [x, y, z] of verts(seat)) {
+              if (y <= hem + 1e-4 || xz(x, z) < 1e-6) continue;
+              const p = ray(chest, [0, y, 0], x, z);
+              expect(p, `${label}: no chest round the seat at y ${y.toFixed(3)}`).toBeTruthy();
+              expect(xz(x, z), `${label}: the seat through the shirt at y ${y.toFixed(3)}`).toBeLessThanOrEqual(xz(p.x, p.z) - M);
+            }
+          }
+        }
+      }
+    }
+  }, 60000);
+
   it('triangle targets', () => {
     const counts = { near: [Infinity, 0], far: [Infinity, 0] };
     const add = (look) => {

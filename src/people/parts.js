@@ -6,7 +6,7 @@
 // on the face. Metres, faces -z.
 import * as THREE from 'three';
 import {
-  limbGeo, lathe, ellipsoid, jawTaper, headGeo, hairShell, onFace, faceLayout, dipNeckline, neckFrame,
+  limbGeo, lathe, stadiumTube, ellipsoid, jawTaper, headGeo, hairShell, onFace, faceLayout, dipNeckline, neckFrame,
   dropDegenerate, HAIR_STYLES,
 } from './shapes.js';
 
@@ -151,16 +151,31 @@ export function personParts(look, detail = 'near') {
   }
 
   // ---- the seat: hips and the trousers' top ----
-  // its widest ring sits just inside the thighs' outer edge, and its
-  // underside tucks between them (wider, it read as a nappy over the legs);
-  // its top is closed inside the chest
+  // One smooth line from the shirt's hem over the hips into the legs (ruling
+  // R9). Its rings are stadiums whose ends share the thighs' axes and facets:
+  // at the hips it is the thighs' outline a few millimetres out, so their
+  // round tops stay inside it; below the hips it tucks inside the thighs (the
+  // band between them is the crotch); above, it narrows to sit inside the
+  // shirt, whose hem is the trousers' top. (A lathe, wider or narrower,
+  // either jutted over the legs or let the thighs' tops show through it.)
+  const thTop = d.thR[0] * 1.06; // the thigh's radius at its top (see the legs)
   const crotch = d.hipY - d.thR[0] * 0.55;
-  const seatR = Math.min(d.hipR, d.hipX + d.thR[0] * 0.8);
+  const m = 0.004 * d.s;
+  const shirtHem = d.waistY - 0.04 * d.s; // the shirt's lower edge (the chest's bottom)
+  const capY = d.hipY + thTop * Math.SQRT1_2; // the near thigh cap's middle ring
   const seat = near
-    ? [[0, crotch - 0.015], [d.hipX * 0.8, crotch], [seatR * 0.9, d.hipY - 0.03 * d.s], [seatR, d.hipY + 0.02 * d.s],
-      [lerp(seatR, d.waistR, 0.6), d.waistY - 0.01], [d.waistR * 0.98, d.waistY + 0.03 * d.s], [0, d.waistY + 0.04 * d.s]]
-    : [[0, crotch - 0.015], [d.hipX * 0.8, crotch], [seatR, d.hipY + 0.02 * d.s], [d.waistR * 0.98, d.waistY + 0.03 * d.s]];
-  add(lathe(seat, S.torso, torsoSx, d.torsoZ + 0.05), dress ? top.color : bot.color, 'pelvis', 'seat');
+    ? [[d.hipX * 0.6, 0, 0, crotch - 0.012], [d.hipX, thTop * 0.5, thTop * 0.5, crotch],
+      [d.hipX, thTop + m, thTop + m, d.hipY],
+      [d.hipX, thTop * Math.SQRT1_2 + m, thTop * Math.SQRT1_2 + m, capY],
+      // just inside the shirt's ten-sided hem (its sides sit at cos 18 deg of its radius)
+      [0, d.waistR * torsoSx * 0.92, d.waistR * d.torsoZ * 0.92, shirtHem + 0.004 * d.s],
+      [0, 0, 0, d.waistY]]
+    // far: the chest's bottom is open inside the seat, so the seat holds it
+    : [[d.hipX * 0.6, 0, 0, crotch - 0.012], [d.hipX, thTop * 0.5, thTop * 0.5, crotch],
+      [d.hipX, thTop + m, thTop + m, d.hipY],
+      [0, d.waistR * torsoSx + m, d.waistR * d.torsoZ + m, shirtHem],
+      [0, 0, 0, d.waistY + 0.03 * d.s]];
+  add(stadiumTube(seat, S.limb / 2 + 1), dress ? top.color : bot.color, 'pelvis', 'seat');
 
   // ---- the chest: waist to shoulders, the shoulders rounded over to the neck ----
   const shR = d.shoulderX + d.uaR[0] * 0.25;

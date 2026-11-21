@@ -41,6 +41,43 @@ export function lathe(points, segs, sx = 1, sz = 1, phiStart = 0) {
   return geo;
 }
 
+// A closed tube through horizontal rings, bottom to top, each [L, rx, rz, y]:
+// a stadium, two half-ellipses (radii rx, rz) centred at x = +-L and joined by
+// straight sides front and back (L = 0: an ellipse; rx = rz = 0: a point or a
+// ridge). Each half has `half` points at the angles a limb of 2 * (half - 1)
+// sides puts its own (-90, ..., +90 degrees round its axis), so the seat's
+// ends and the thighs (L = their hipX) share their facets and their seam is a
+// clean line. Indexed; the zero-area triangles of a point or a ridge are left
+// for dropDegenerate.
+export function stadiumTube(rings, half) {
+  const n = half * 2;
+  const pos = [];
+  for (const [L, rx, rz, y] of rings) {
+    for (let side = 0; side < 2; side++) {
+      const sd = side === 0 ? 1 : -1; // the right half (+x) first, then the left
+      for (let k = 0; k < half; k++) {
+        const a = -Math.PI / 2 + (k * Math.PI) / (half - 1); // -90..+90 round its own centre
+        const c = Math.cos(a), sn = Math.sin(a);
+        // going round: +x half from -z to +z, then the -x half from +z back to -z
+        pos.push(sd * (L + rx * c), y, sd * rz * sn);
+      }
+    }
+  }
+  const index = [];
+  for (let i = 0; i + 1 < rings.length; i++) {
+    for (let j = 0; j < n; j++) {
+      const a = i * n + j, b = i * n + ((j + 1) % n);
+      const c = a + n, e = b + n;
+      index.push(a, c, b, b, c, e); // outward, as a lathe winds
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(index);
+  geo.computeVertexNormals();
+  return geo;
+}
+
 export function ellipsoid(rx, ry, rz, ws, hs) {
   return new THREE.SphereGeometry(1, ws, hs).scale(rx, ry, rz);
 }

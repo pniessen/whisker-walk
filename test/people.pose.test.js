@@ -5,6 +5,7 @@ import { JOINT_INDEX } from '../src/people/parts.js';
 import { spotKind } from '../src/people/look.js';
 import { neckFrame } from '../src/people/shapes.js';
 import { pose, applyPose, strideFor, POSE_MODES } from '../src/people/pose.js';
+import { createGaze, stepGaze, GAZE } from '../src/people/gaze.js';
 
 const material = new THREE.MeshStandardMaterial({ vertexColors: true });
 function spotOf(kind) {
@@ -212,6 +213,43 @@ describe('people poses', () => {
       const up = axisWorld(p.bones.chest, 0, 1, 0);
       expect(Math.atan2(up.z, up.y)).toBeGreaterThan(0.06); // back
       expect(Math.atan2(up.z, up.y)).toBeLessThan(0.14);
+    }
+  });
+
+  it('dismay: the hands stay out at the sides, 0.3 m from the head, whichever way it turns', () => {
+    // ruling R8: a surprised "oh!" with the hands up by the shoulders and out
+    // to the sides, never over the face, even with the head turned as far
+    // round as the gaze takes it, toward her on either side
+    for (const kind of KINDS) {
+      const p = personOf(kind);
+      const d = p.look.dims;
+      const nk = neckFrame(d);
+      const centre = new THREE.Vector3(0, nk.headCY - nk.topY, nk.headCZ - nk.topZ); // in the head's frame
+      const hands = { L: skinnedVerts(p, ['handL']), R: skinnedVerts(p, ['handR']) };
+      for (const side of [-1, 1]) {
+        const a = side * GAZE.LOOK_MAX; // + is the figure's left
+        // her head on the ground ahead and to that side, near enough to be looked at
+        const target = new THREE.Vector3(-Math.sin(a) * 1.5, 0.25, -Math.cos(a) * 1.5);
+        const gaze = createGaze(p.look);
+        for (let f = 0; f < 150; f++) {
+          pose(p, { mode: 'dismay', t: 2 + f / 60 });
+          applyPose(p, 1 / 60);
+          stepGaze(p, gaze, 1 / 60, 2 + f / 60, { target });
+        }
+        refresh(p);
+        expect(Math.abs(gaze.yaw), `${kind} turned`).toBeGreaterThan(GAZE.LOOK_MAX - 0.1);
+        const head = centre.clone().applyMatrix4(p.bones.head.matrixWorld);
+        for (const L of ['L', 'R']) {
+          const c = new THREE.Vector3();
+          for (const i of hands[L]) c.add(p.mesh.getVertexPosition(i, V));
+          c.divideScalar(hands[L].length);
+          expect(c.distanceTo(head), `${kind} hand${L}, head turned ${side > 0 ? 'left' : 'right'}`).toBeGreaterThanOrEqual(0.3);
+          // up about the shoulders, and out to the side of them
+          const sh = world(p.bones[`upperArm${L}`]);
+          expect(Math.abs(c.y - sh.y), `${kind} hand${L} height`).toBeLessThan(0.15 * d.s + 0.05);
+          expect(Math.abs(c.x), `${kind} hand${L} out`).toBeGreaterThan(Math.abs(sh.x));
+        }
+      }
     }
   });
 
