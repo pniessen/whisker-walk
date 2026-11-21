@@ -453,8 +453,10 @@ const AREAS = [
   // triangles in the buckets it had); 113 / 68 / 33,246 after Task C (windows
   // and the tower: no mesh or caster added, +328 triangles in the buckets it
   // had); 113 / 68 / 33,933 after Task D (readable hints and a lived-in
-  // alley: no mesh or caster added, +687 triangles in the buckets it had).
-  // Held to the territories' ceilings,
+  // alley: no mesh or caster added, +687 triangles in the buckets it had);
+  // 113 / 68 / 34,023 after round two's Task E (the shop's string courses
+  // and the garden bench's uprights, +96, in noCast buckets it had; the far
+  // town's lower back rows, -6: no mesh or caster added). Held to the territories' ceilings,
   // never raised; the place aims for 300 / 120 / 60,000 (test/roofs.test.js
   // pins the exact numbers).
   ['roofs', buildRoofs, 450, 380, 70000],
@@ -502,7 +504,7 @@ const MERGED_AREAS = [
   ['gorge', buildGorge, 260, 205],
   ['farm', buildFarm, 200, 135], // measured 176 / 119
   ['fair', buildFair, 200, 140], // measured 178 / 124
-  ['roofs', buildRoofs, 64, 34], // measured 55 / 30 (57 / 30 before follow-up 2's calmer marks), ceiling unchanged
+  ['roofs', buildRoofs, 64, 34], // measured 56 / 30 (55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {

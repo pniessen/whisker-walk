@@ -33,7 +33,7 @@ export const WINDOW_CELLS = Object.freeze([
   { light: 'warm', kind: 'blind', pane: 0xeea052, frame: 'dark', cloth: 0xc79a62 }, // 6
   { light: 'warm', kind: 'cat', pane: 0xffc766, frame: 'white', pose: 'sit' }, // 7: a cat sitting on the sill
   { light: 'warm', kind: 'cat', pane: 0xffd28a, frame: 'dark', pose: 'loaf' }, // 8: a cat lying on the sill
-  { light: 'warm', kind: 'plant', pane: 0xffb860, frame: 'white' }, // 9: a pot plant on the sill
+  { light: 'warm', kind: 'plant', pane: 0xffb860, frame: 'white' }, // 9: a pot plant (a geranium) on the sill
   { light: 'warm', kind: 'plain', pane: 0xf2a65a, frame: 'dark' }, // 10
   { light: 'tv', kind: 'tv', pane: TV, frame: 'white' }, // 11
   { light: 'dark', kind: 'plain', pane: 0x1d2230, frame: 'white' }, // 12
@@ -44,7 +44,9 @@ export const WINDOW_CELLS = Object.freeze([
 // The plain warm cells: roof lights, the lantern, the shop (nothing stands in them).
 export const PLAIN_WARM = Object.freeze(WINDOW_CELLS.map((c, i) => (c.light === 'warm' && c.kind === 'plain' ? i : -1)).filter((i) => i >= 0));
 // What a lit window shows, by weight: mostly plain or curtained, a cat now and then.
-const LIT_PICK = Object.freeze([0, 0, 1, 1, 2, 2, 10, 10, 3, 3, 3, 4, 4, 5, 5, 6, 9, 9, 7, 8]);
+// Round two, Task E (critique finding 1): one of the plant's two picks is a
+// sitting cat's now (cats were only ~7% of lit windows).
+const LIT_PICK = Object.freeze([0, 0, 1, 1, 2, 2, 10, 10, 3, 3, 3, 4, 4, 5, 5, 6, 9, 7, 7, 8]);
 
 const rgbOf = (hex, k = 1) => [((hex >> 16) & 255) * k, ((hex >> 8) & 255) * k, (hex & 255) * k];
 const mix = (a, c, t) => [a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t, a[2] + (c[2] - a[2]) * t];
@@ -64,7 +66,13 @@ const inCapsule = (x, y, ax, ay, bx, by, r) => {
   const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)));
   return Math.hypot(x - ax - dx * t, y - ay - dy * t) <= r;
 };
-const LEAVES = Object.freeze([[-1.05, 5.6], [-0.6, 7.4], [-0.2, 8.6], [0.25, 8.0], [0.7, 6.8], [1.1, 5.2]]); // [angle from upright, length]
+// Round two, Task E (critique finding 1): the plant was a fan of six long thin
+// leaves, which backlit read as a black hand pressed to the glass. Now a
+// geranium: a lumpy round crown of overlapping leaf clumps (dark green-black,
+// LEAF) over a dark terracotta pot (POT), with small red flower heads
+// (FLOWER) dotted over its top, a few of them just proud of it.
+const CROWN = Object.freeze([[0, 7.2, 4.5, 3.0], [-3.5, 6.0, 2.6, 2.3], [3.6, 6.2, 2.5, 2.2], [1.0, 9.0, 2.6, 1.9]]); // [cx, cy, rx, ry], px
+const FLOWERS = Object.freeze([[-2.6, 8.2, 0.95], [-0.4, 9.9, 1.0], [2.4, 10.2, 0.95], [3.6, 7.6, 0.85], [0.9, 7.6, 0.8]]); // [cx, cy, r], px
 const SHAPES = {
   // sitting on the sill looking out, seen from the front: body, head, two ears
   // well apart, the tail curled round to one side
@@ -75,11 +83,32 @@ const SHAPES = {
   loaf: (x, y) => y >= 0 && (inEllipse(x, y, 0, 2.6, 5.4, 3.4) || inEllipse(x, y, -4.0, 5.0, 2.5, 2.3)
     || inTri(x, y, [-7.0, 5.4], [-6.8, 9.3], [-4.9, 6.9]) || inTri(x, y, [-3.2, 6.9], [-1.4, 9.3], [-1.0, 5.2])
     || inCapsule(x, y, 4.6, 0.9, 6.6, 2.8, 0.8)),
-  // a pot plant: the pot and its rim, a fan of long pointed leaves
-  plant: (x, y) => y >= 0 && ((y <= 4 && Math.abs(x) <= 2.0 + 0.2 * y) || (y > 3.6 && y <= 4.6 && Math.abs(x) <= 3.0)
-    || LEAVES.some(([a, l]) => inCapsule(x, y, 0, 4.4, Math.sin(a) * l, 4.4 + Math.cos(a) * l, 1.0 - 0.04 * l))),
+  // a pot plant: the pot and its rim, a round crown of leaves, no pointed ones
+  plant: (x, y) => potOf(x, y) || leafOf(x, y) || flowerOf(x, y),
 };
-const SHADOW = rgbOf(0x1c1511); // a backlit cat, or a plant's leaves: dark against the light
+const potOf = (x, y) => y >= 0 && ((y <= 4 && Math.abs(x) <= 2.0 + 0.2 * y) || (y > 3.6 && y <= 4.6 && Math.abs(x) <= 3.0));
+const leafOf = (x, y) => CROWN.some(([cx, cy, rx, ry]) => inEllipse(x, y, cx, cy, rx, ry));
+const flowerOf = (x, y) => FLOWERS.some(([cx, cy, r]) => Math.hypot(x - cx, y - cy) <= r);
+const LEAF = rgbOf(0x141a10); // backlit leaves: dark, a little green
+const POT = rgbOf(0x3a1d14); // backlit terracotta
+const FLOWER = rgbOf(0x7a2228); // the flower heads: a deep red that still reads against the light
+// The plant's colour over pixel (px, py) (as cover()), flowers over leaves over the pot: [rgb, how much]
+function plantCover(px, py, ox, scale) {
+  const sum = [0, 0, 0];
+  let n = 0;
+  for (let j = 0; j < 4; j++) {
+    for (let i = 0; i < 4; i++) {
+      const x = (px + (i + 0.5) / 4 - ox) / scale;
+      const y = (py + (j + 0.5) / 4) / scale;
+      const c = flowerOf(x, y) ? FLOWER : leafOf(x, y) ? LEAF : potOf(x, y) ? POT : null;
+      if (!c) continue;
+      n++;
+      for (let k = 0; k < 3; k++) sum[k] += c[k];
+    }
+  }
+  return n ? [sum.map((v) => v / n), n / 16] : [null, 0];
+}
+const SHADOW = rgbOf(0x1c1511); // a backlit cat: dark against the light
 // how much of pixel (px, py) the shape at (ox, 0), `scale` times its size, covers (4 x 4 samples)
 function cover(shape, px, py, ox, scale) {
   let n = 0;
@@ -91,7 +120,7 @@ function cover(shape, px, py, ox, scale) {
   return n / 16;
 }
 // where each stands on the sill (px from the pane's left edge of the cell) and how big
-const PLACE = Object.freeze({ sit: { ox: 11, scale: 1.2 }, loaf: { ox: 17.5, scale: 1.35 }, plant: { ox: 20.5, scale: 1.2 } });
+const PLACE = Object.freeze({ sit: { ox: 11, scale: 1.2 }, loaf: { ox: 17.5, scale: 1.35 }, plant: { ox: 19.5, scale: 1.2 } });
 
 // One cell's pixel at (x, y) in it (y up from the sill), as [r, g, b] 0..255.
 // The frame is 3 px, the glazing bars 2 px; cats and the plant stand in a sash
@@ -132,8 +161,14 @@ function cellPixel(cell, x, y) {
     else if (Math.abs(x - 22) < 0.6 && v > hem - 0.12) rgb = mix(rgb, rgbOf(c.cloth, 0.55), 0.7);
   } else if (c.kind === 'cat' || c.kind === 'plant') {
     const which = c.kind === 'plant' ? 'plant' : c.pose;
-    const k = cover(SHAPES[which], x, y - lo, PLACE[which].ox, PLACE[which].scale);
-    if (k > 0) rgb = mix(rgb, SHADOW, k);
+    const { ox, scale } = PLACE[which];
+    if (which === 'plant') {
+      const [leaf, k] = plantCover(x, y - lo, ox, scale);
+      if (k > 0) rgb = mix(rgb, leaf, k);
+    } else {
+      const k = cover(SHAPES[which], x, y - lo, ox, scale);
+      if (k > 0) rgb = mix(rgb, SHADOW, k);
+    }
   }
   return rgb.map((q) => Math.round(Math.min(255, Math.max(0, q))));
 }
@@ -283,28 +318,33 @@ for (const k of NAMES) Object.defineProperty(PARTS, k, { enumerable: true, get: 
 // at its middle fading to nothing at its rim (it was 0.35 all over), so a row
 // of extensions is not dotted and a spot still shows at dusk.
 // Beauty pass, Task D (critique finding 7): warm amber (it was a near-white
-// 0xffd9a0, a puddle on dark felt), a faint ring just inside its rim (RING),
-// and its opacity follows the evening (roofslife.js, on the walk's own copy of
-// the material): 0.42 on the sunlit felt at sunset, 0.26 at dusk. `opacity`
-// is the kit's own (the dusk one).
-export const MARK_GLOW = Object.freeze({ radius: 0.45, opacity: 0.26, sunset: 0.42, dusk: 0.26, color: 0xffb860 });
-const RING = Object.freeze({ at: 0.78, width: 0.085, alpha: 0.32, fade: 0.9 }); // where (of the radius), how wide, how strong, where it fades to the rim
+// 0xffd9a0, a puddle on dark felt), and its opacity follows the evening
+// (roofslife.js, on the walk's own copy of the material). `opacity` is the
+// kit's own (the dusk one).
+// Round two, Task E (critique finding 3): Task D's faint ring just inside the
+// rim made every spot a dried puddle or a target, and the amber tone-mapped to
+// beige on the dark felt. No ring now: a tight falloff (FALLOFF, of the
+// radius: a small bright core, no visible edge), a deeper, more saturated
+// amber (0xff8a2c: the critique's 0xff9a3c still read tan at dusk under the
+// opacity ceiling), 0.45 at sunset and 0.3 at dusk (the core carries it).
+export const MARK_GLOW = Object.freeze({ radius: 0.45, opacity: 0.3, sunset: 0.45, dusk: 0.3, color: 0xff8a2c });
+const FALLOFF = 0.42; // alpha = exp(-(d / FALLOFF)^2), d 0 at the middle, 1 at the rim, less its value at the rim
 const GLOW_PX = 32;
 let glowCache = null;
 function glowParts() {
   if (!glowCache) {
     const geometry = new THREE.CircleGeometry(MARK_GLOW.radius, 20);
     geometry.rotateX(-Math.PI / 2);
-    // white, its alpha falling smoothly from the middle to 0 at the disc's rim
-    // (the disc's uv spans 0..1 across it)
+    // white, its alpha falling from the middle to 0 at the disc's rim, never
+    // rising again (the disc's uv spans 0..1 across it)
     const data = new Uint8Array(GLOW_PX * GLOW_PX * 4);
+    const rim = Math.exp(-((1 / FALLOFF) ** 2));
     for (let j = 0; j < GLOW_PX; j++) {
       for (let i = 0; i < GLOW_PX; i++) {
         const d = Math.min(1, Math.hypot((i + 0.5) / GLOW_PX - 0.5, (j + 0.5) / GLOW_PX - 0.5) / 0.47);
         const k = (j * GLOW_PX + i) * 4;
         data[k] = data[k + 1] = data[k + 2] = 255;
-        const ring = RING.alpha * Math.exp(-(((d - RING.at) / RING.width) ** 2)) * Math.min(1, Math.max(0, (1 - d) / (1 - RING.fade)));
-        data[k + 3] = Math.round(255 * Math.min(1, 1 - d * d * (3 - 2 * d) + ring));
+        data[k + 3] = Math.round(255 * (Math.exp(-((d / FALLOFF) ** 2)) - rim) / (1 - rim));
       }
     }
     const map = new THREE.DataTexture(data, GLOW_PX, GLOW_PX, THREE.RGBAFormat);

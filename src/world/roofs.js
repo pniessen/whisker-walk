@@ -131,14 +131,19 @@ const paint = (x, z, salt) => PAINTS[Math.floor(hash01(x, z, salt) * PAINTS.leng
 // buildings have their own: the warehouse a darker brick, the corner shop
 // painted. What the pass did not touch (the alley's walls, the yard walls)
 // keeps the old brick, BRICK.red, and the old slate, SLATE[0].
-const BRICK = Object.freeze({ red: 0x9a5640, brownRed: 0x7c4434, sooty: 0x6b4739, yellow: 0xb39468 });
+// Round two, Task E (critique finding 11): the sooty brick a touch warmer and
+// lighter (0x6b4739 read as a near-black slab at dusk), the purple-grey slate
+// greyer (0x625a6c, with the dusk's purple fill, read clearly purple beside the
+// green ones), the shop a deeper painted buff (0xdcc59a was the brightest flat
+// block in the card), the warehouse a lighter brick (0x6a3a2c: a sooty slab).
+const BRICK = Object.freeze({ red: 0x9a5640, brownRed: 0x7c4434, sooty: 0x76503f, yellow: 0xb39468 });
 const BRICKS = Object.freeze([BRICK.red, BRICK.brownRed, BRICK.red, BRICK.sooty, BRICK.yellow, BRICK.brownRed]); // red and brown-red the commonest
 const RENDERS = Object.freeze({ cream: 0xe4dac4, blue: 0x8eaac4 });
-const SLATE = Object.freeze([0x55606e, 0x625a6c, 0x58635a]); // blue-grey, purple-grey, green-grey
+const SLATE = Object.freeze([0x55606e, 0x5d5a64, 0x58635a]); // blue-grey, grey with a hint of violet, green-grey
 const SLATE_SHADE = Object.freeze({ eave: 0.72, ridge: 1.12, edge: 0.62 }); // times the slate, by height
 const TRIM = Object.freeze({ white: 0xe9e5da, black: 0x26272b });
 const STACK_SOOT = 0.84; // a stack is its house's brick, a little sooty
-const NORTH = Object.freeze({ shop: 0xdcc59a, warehouse: 0x6a3a2c, endHouse: BRICK.sooty, endSlates: SLATE[1] });
+const NORTH = Object.freeze({ shop: 0xc6a678, warehouse: 0x7a4432, endHouse: BRICK.sooty, endSlates: SLATE[1] });
 const RIDGE_TILE = 0x763a2b; // a darker terracotta than the old 0x8e4b38
 const DISH = 0xd6d4cc;
 
@@ -467,7 +472,9 @@ function buildMaterials() {
     // lit from inside: the clock's faces and the garden's bulbs (no real lights)
     // (Task C: brighter, 1.25 -> 1.9, so from the alley the faces read as two lit dots)
     clock: new THREE.MeshStandardMaterial({ color: 0xfff1d0, roughness: 0.6, metalness: 0, emissive: 0xffd890, emissiveIntensity: 1.9 }),
-    bulbs: new THREE.MeshStandardMaterial({ color: 0xfff0c0, roughness: 0.5, metalness: 0, emissive: 0xffc860, emissiveIntensity: 2.2 }),
+    // (round two, Task E, critique finding 7: warmer and less blown, 0xfff0c0 / 0xffc860 x 2.2
+    // tone-mapped to white hexagons)
+    bulbs: new THREE.MeshStandardMaterial({ color: 0xffc88a, roughness: 0.5, metalness: 0, emissive: 0xff8a30, emissiveIntensity: 1.5 }),
   };
 }
 
@@ -482,8 +489,11 @@ const warmCell = (x, z) => PLAIN_WARM[Math.floor(hash01(x, z, 23) * PLAIN_WARM.l
 // ---------------------------------------------------------------------------
 
 // Beauty pass, Task A: a warmer sunset; the dusk top a touch lighter, never near black.
-const SKY_SUNSET = Object.freeze({ top: 0x55609a, horizon: 0xf0a46c });
-const SKY_DUSK = Object.freeze({ top: 0x24305c, horizon: 0x8a5a6a });
+// Round two, Task E (critique finding 8): the dusk horizon a touch darker and
+// less red (0x8a5a6a stood as a salmon strip over the seam), the sunset's a
+// deeper orange (0xf0a46c was near white: the roofline lost its silhouette).
+const SKY_SUNSET = Object.freeze({ top: 0x55609a, horizon: 0xe8925a });
+const SKY_DUSK = Object.freeze({ top: 0x24305c, horizon: 0x765266 });
 
 export function build(scene, { water, wind } = {}) { // eslint-disable-line no-unused-vars
   const plan = roofsArea();
@@ -1450,6 +1460,14 @@ const climbTo = (id) => climbOf(id).to;
 
 // --- the corner shop: brick to the street, a shopfront and the bus's arch,
 // lit windows, parapets.
+// Round two, Task E (critique finding 11): a deeper painted buff (NORTH.shop),
+// two pale stone string courses at the floor lines between its windows, and a
+// cornice under the parapets, so it reads as a building, not a cardboard box.
+const SHOP_DRESS = Object.freeze({
+  courses: Object.freeze([2.8, 5.8]), // their feet (y), between the floors' windows
+  h: 0.15, out: 0.06, stone: 0xcdc4b2, // the stone's own colour
+  cornice: Object.freeze({ h: 0.2, out: 0.3 }), // tall, and proud of the wall (the parapets stand 0.25 out)
+});
 function drawShop(K, group, M, win) {
   const wall = (g) => K.put('wall', M.wall, g, { tile: TILE.brick, color: NORTH.shop }); // painted (Task B)
   const stone = (g) => K.put('stone', M.stone, g);
@@ -1460,10 +1478,19 @@ function drawShop(K, group, M, win) {
   const top = S.y - 0.15;
   wall(box(S.x0, S.x1, L.STREET, top, S.z0, S.z1));
   group.add(own('cornerShop', M.felt, [box(S.x0, S.x1, top, S.y, S.z0, S.z1)], { tile: TILE.gravel, tag: { block: 'cornerShop' } }));
-  // a stone band under the roof, on the faces over the street, the shop yard and the back yards
-  stone(box(S.x1, S.x1 + 0.1, top - 0.3, top - 0.1, S.z0, S.z1 + 0.1));
-  stone(box(S.x0 - 0.1, S.x1 + 0.1, top - 0.3, top - 0.1, S.z1, S.z1 + 0.1));
-  stone(box(S.x0 - 0.1, S.x0, top - 0.3, top - 0.1, S.z0, T.z0));
+  // a stone cornice under the parapets, on the faces over the street, the shop yard and the back
+  // yards (round two, Task E: SHOP_DRESS.cornice proud, past the parapet's face; it was a 0.1 m band)
+  const D = SHOP_DRESS;
+  const c = D.cornice;
+  stone(box(S.x1, S.x1 + c.out, top - c.h, top, S.z0, S.z1 + c.out));
+  stone(box(S.x0 - c.out, S.x1 + c.out, top - c.h, top, S.z1, S.z1 + c.out));
+  stone(box(S.x0 - c.out, S.x0, top - c.h, top, S.z0, T.z0));
+  // and pale stone string courses at its floor lines on the same faces (flush pieces, casting nothing)
+  for (const y of D.courses) {
+    painted(box(S.x1, S.x1 + D.out, y, y + D.h, S.z0, S.z1 + D.out), D.stone);
+    painted(box(S.x0 - D.out, S.x1 + D.out, y, y + D.h, S.z1, S.z1 + D.out), D.stone);
+    painted(box(S.x0 - D.out, S.x0, y, y + D.h, S.z0, T.z0), D.stone);
+  }
   // parapets: open on the terrace side where she climbs up from the last stack
   const up = climbTo('cornerShop');
   for (const [z0, z1] of runsAround(S.z0, S.z1, [up.z], 0.7)) parapet(wall, stone, S.x0 - 0.25, S.x0, z0, z1, S.y);
@@ -1847,6 +1874,11 @@ function drawDiscoveries(K, group, M, upWin) {
   const [bx0, bx1] = [B.x - B.len / 2, B.x + B.len / 2];
   wood(box(bx0, bx1, y + B.seat - 0.05, y + B.seat, B.z - 0.2, B.z + 0.2));
   wood(box(bx0, bx1, y + B.seat + 0.1, y + 0.9, RT.z0 + 0.04, RT.z0 + 0.09));
+  // two back uprights from the seat's back edge up to the backrest's foot, so the back is joined to the seat (round two, Task E)
+  for (const x of [bx0 + 0.1, bx1 - 0.1]) {
+    const { matrix, len } = along({ x, y: y + B.seat - 0.03, z: B.z - 0.17 }, { x, y: y + B.seat + 0.13, z: RT.z0 + 0.065 });
+    wood(new THREE.BoxGeometry(len, 0.06, 0.05).applyMatrix4(matrix));
+  }
   for (const x of [bx0 + 0.08, bx1 - 0.08]) for (const z of [B.z - 0.15, B.z + 0.15]) wood(box(x - 0.03, x + 0.03, y, y + B.seat - 0.05, z - 0.03, z + 0.03));
   GARDEN.pots.forEach((p, i) => {
     painted(post(p.x, p.z, y, 0.32, 0.19, 0.14, 10), 0xb8613f);
@@ -1881,7 +1913,7 @@ function drawDiscoveries(K, group, M, upWin) {
     for (let i = 0; i < n; i++) iron(rod(at(i / n), at((i + 1) / n), 0.006, 3));
     for (let i = 1; i < n; i++) {
       const q = at(i / n);
-      const g = new THREE.IcosahedronGeometry(0.045, 0);
+      const g = new THREE.IcosahedronGeometry(0.035, 0);
       g.translate(q.x, q.y - 0.05, q.z);
       bulbs.push(g);
     }
@@ -2051,11 +2083,20 @@ function drawBus(scene) {
 // clamped, so after the fog's mix they still read as lights);
 // a skyline with landmarks (two blocks of flats, a mill chimney, a gasholder, a
 // second clock tower, the two spires) and dark tree clumps between the rows.
+// Round two, Task E (critique finding 9): evenly dark, with its back rows the
+// tallest, the town read as near and huge, a wall that hid the glow. Now
+// aerial perspective: walls and roofs mixed toward the dusk horizon by how far
+// out they stand (TOWN_HAZE: 0 at the front row, 0.22 at the second, 0.4 at the
+// third and beyond), and the back rows lower than they were (h 4..10.5 and
+// 6..12.5), so the skyline steps down into the haze and the glow shows over
+// it. The lights less blown, so they stay amber after the fog: windows
+// TOWN_LIGHT.window at k 2.8, roof lights small squares (TOWN_ROOF_LIGHT) at 2.6.
 const TOWN_ROWS = Object.freeze([
   { s: 52.5, depth: 7, h: [2, 7] },
-  { s: 66, depth: 9, h: [4, 10.5] },
-  { s: 84, depth: 12, h: [6, 12.5] }, // a chimney on the tallest still under the tower's top (17.1)
+  { s: 66, depth: 9, h: [3.5, 8.5] },
+  { s: 84, depth: 12, h: [4.5, 9.5] },
 ]);
+const TOWN_HAZE = Object.freeze([[52.5, 0], [66, 0.22], [84, 0.4]]); // [s, how far toward the horizon], linear between, held past the ends
 const TOWN_KEEP_OUT = Object.freeze([
   { x0: ROOFS_BOUNDS.minX - 0.8, x1: ROOFS_BOUNDS.maxX + 0.8, z0: ROOFS_BOUNDS.minZ - 0.8, z1: ROOFS_BOUNDS.maxZ + 0.8 },
   { x0: BLOCK.street.x0 - 10.5, x1: BLOCK.street.x0, z0: BLOCK.street.z0 - 1.5, z1: BLOCK.street.z1 + 0.7 }, // the end house
@@ -2064,7 +2105,8 @@ const TOWN_WALL = Object.freeze([0x221e2c, 0x342a3a]);
 const TOWN_ROOF = Object.freeze([0x15131c, 0x221d29]);
 const TOWN_TREE = Object.freeze([0x16211d, 0x1f2a26]);
 // the lights: windows warm, street lamps a paler sodium, the chimney's red lamp
-const TOWN_LIGHT = Object.freeze({ window: 0xffb04c, lamp: 0xffc46a, red: 0xff3a24, clock: 0xfff0c8, k: 4 });
+const TOWN_LIGHT = Object.freeze({ window: 0xff9c3a, lamp: 0xffc46a, red: 0xff3a24, clock: 0xfff0c8, k: 4, windowK: 2.8 });
+const TOWN_ROOF_LIGHT = Object.freeze({ w: 0.45, h: 0.32, at: 0.45, k: 2.6 }); // its width (m) and height (of the slope), centred at `at` up it
 // the side streets: running out from the place through every row, at these
 // places along each side (u, nudged per side by hash01), each with a line of
 // street lights down one kerb, TOWN_LAMP.every apart from TOWN_LAMP.s to the
@@ -2088,6 +2130,14 @@ function drawTown(scene) {
   const y0 = L.STREET;
   const dim = (hex, k) => mixHex(0, hex, k);
   const blocked = (x, z, hw, hd) => TOWN_KEEP_OUT.some((r) => x + hw > r.x0 && x - hw < r.x1 && z + hd > r.z0 && z - hd < r.z1);
+  // a wall's or a roof's colour at (x, z), mixed toward the dusk horizon by how far out it stands
+  const hazed = (hex, x, z) => {
+    const s = Math.max(Math.abs(x - cx), Math.abs(z - cz));
+    const H = TOWN_HAZE;
+    let k = s <= H[0][0] ? H[0][1] : H[H.length - 1][1];
+    for (let i = 0; i + 1 < H.length; i++) if (s > H[i][0] && s <= H[i + 1][0]) k = H[i][1] + (H[i + 1][1] - H[i][1]) * (s - H[i][0]) / (H[i + 1][0] - H[i][0]);
+    return mixHex(hex, SKY_DUSK.horizon, k);
+  };
   // a light: a small square at (x, y, z) facing the place's middle
   function light(x, y, z, size, hex, k = TOWN_LIGHT.k) {
     const dx = cx - x;
@@ -2116,15 +2166,15 @@ function drawTown(scene) {
       const j = cell % cols;
       const u = -w / 2 + (j + 0.5) * (w / cols);
       const fy = h - 1.5 - 2.7 * f; // from the top floor down: the row in front hides the ground floors
-      quad(P(u - 0.36, e + 0.05, fy), P(u + 0.36, e + 0.05, fy), P(u + 0.36, e + 0.05, fy + 0.9), P(u - 0.36, e + 0.05, fy + 0.9), TOWN_LIGHT.window, TOWN_LIGHT.k);
+      quad(P(u - 0.36, e + 0.05, fy), P(u + 0.36, e + 0.05, fy), P(u + 0.36, e + 0.05, fy + 0.9), P(u - 0.36, e + 0.05, fy + 0.9), TOWN_LIGHT.window, TOWN_LIGHT.windowK);
     }
   }
   const frame = (x, z, t, n) => (a, bb, yy) => [x + t[0] * a + n[0] * bb, yy, z + t[1] * a + n[1] * bb];
   // a house: centre (x, z), t its tangent (along the row), n toward the place
   function house(x, z, t, n, w, d, h, rise, seed) {
     const P = frame(x, z, t, n);
-    const wallHex = mixHex(TOWN_WALL[0], TOWN_WALL[1], hash01(x, z, seed));
-    const roofHex = mixHex(TOWN_ROOF[0], TOWN_ROOF[1], hash01(z, x, seed + 1));
+    const wallHex = hazed(mixHex(TOWN_WALL[0], TOWN_WALL[1], hash01(x, z, seed)), x, z);
+    const roofHex = hazed(mixHex(TOWN_ROOF[0], TOWN_ROOF[1], hash01(z, x, seed + 1)), x, z);
     const [a, e] = [w / 2, d / 2];
     walls(P, a, e, y0, h, wallHex);
     if (rise > 0) {
@@ -2132,9 +2182,10 @@ function drawTown(scene) {
       // a lit roof light on the front slope of half of them: seen from the tower and the high roofs
       if (hash01(x, z, seed + 11) < 0.5) {
         const k = (hash01(z, x, seed + 12) - 0.5) * (w - 1.4);
-        const [s0, s1] = [0.3, 0.62]; // up the slope, from the eaves
+        const R = TOWN_ROOF_LIGHT;
+        const [s0, s1] = [R.at - R.h / 2, R.at + R.h / 2]; // up the slope, from the eaves
         const at = (u, f) => P(k + u, e * (1 - f) + 0.04, h + rise * f + 0.04);
-        quad(at(-0.35, s0), at(0.35, s0), at(0.35, s1), at(-0.35, s1), TOWN_LIGHT.window, TOWN_LIGHT.k);
+        quad(at(-R.w / 2, s0), at(R.w / 2, s0), at(R.w / 2, s1), at(-R.w / 2, s1), TOWN_LIGHT.window, R.k);
       }
       quad(P(a, -e, h), P(-a, -e, h), P(-a, 0, h + rise), P(a, 0, h + rise), dim(roofHex, 0.8));
       tri(P(-a, -e, h), P(-a, e, h), P(-a, 0, h + rise), dim(wallHex, 0.82));
@@ -2221,17 +2272,18 @@ function drawTown(scene) {
     const top = [x, 16.2, z];
     const r = 2;
     const pts = [[x - r, 10, z - r], [x + r, 10, z - r], [x + r, 10, z + r], [x - r, 10, z + r]];
-    for (let i = 0; i < 4; i++) tri(pts[i], pts[(i + 1) % 4], top, i % 2 ? 0x1a1822 : 0x221e2a);
+    for (let i = 0; i < 4; i++) tri(pts[i], pts[(i + 1) % 4], top, hazed(i % 2 ? 0x1a1822 : 0x221e2a, x, z));
   }
-  // the landmarks, out past the last row, every one under the tower's top (LEVELS.TOP)
+  // the landmarks, out past the last row, every one under the tower's top (LEVELS.TOP),
+  // in the back row's haze (round two)
   const toward = (x, z) => { const dx = cx - x; const dz = cz - z; const n = Math.hypot(dx, dz); return [[-dz / n, dx / n], [dx / n, dz / n]]; };
   // two blocks of flats, a grid of windows on the side toward the place
   for (const [x, z, w, d, h, seed] of [[cx - 26, cz + 103, 16, 10, y0 + 20, 601], [cx + 104, cz - 34, 14, 10, y0 + 18, 611]]) {
     const [t, n] = toward(x, z);
     const P = frame(x, z, t, n);
-    const wallHex = mixHex(TOWN_WALL[0], TOWN_WALL[1], 0.6);
+    const wallHex = hazed(mixHex(TOWN_WALL[0], TOWN_WALL[1], 0.6), x, z);
     walls(P, w / 2, d / 2, y0, h, wallHex);
-    quad(P(-w / 2, d / 2, h), P(w / 2, d / 2, h), P(w / 2, -d / 2, h), P(-w / 2, -d / 2, h), TOWN_ROOF[0]);
+    quad(P(-w / 2, d / 2, h), P(w / 2, d / 2, h), P(w / 2, -d / 2, h), P(-w / 2, -d / 2, h), hazed(TOWN_ROOF[0], x, z));
     const floors = Math.floor((h - y0 - 1.6) / 2.8);
     const cols = Math.floor((w - 0.8) / 1.8);
     frontWindows(P, w, d / 2, h, Math.round(floors * cols * 0.45), seed, x, z);
@@ -2245,7 +2297,7 @@ function drawTown(scene) {
       const a0 = (i / seg) * Math.PI * 2;
       const a1 = ((i + 1) / seg) * Math.PI * 2;
       const at = (a, r, y) => [x + Math.cos(a) * r, y, z + Math.sin(a) * r];
-      quad(at(a0, 1.7, y0), at(a1, 1.7, y0), at(a1, 1.0, top), at(a0, 1.0, top), dim(0x3a2a2c, 0.7 + 0.3 * Math.abs(Math.cos(a0 + 0.4))));
+      quad(at(a0, 1.7, y0), at(a1, 1.7, y0), at(a1, 1.0, top), at(a0, 1.0, top), dim(hazed(0x3a2a2c, x, z), 0.7 + 0.3 * Math.abs(Math.cos(a0 + 0.4))));
     }
     light(x + 0.6, top - 0.6, z + 0.9, 0.6, TOWN_LIGHT.red);
   }
@@ -2260,13 +2312,13 @@ function drawTown(scene) {
       const a0 = (i / seg) * Math.PI * 2;
       const a1 = ((i + 1) / seg) * Math.PI * 2;
       const shade = 0.75 + 0.25 * Math.abs(Math.cos(a0 + 0.6));
-      quad(at(a0, 9, y0), at(a1, 9, y0), at(a1, 9, drum), at(a0, 9, drum), dim(0x2a3030, shade));
-      tri(at(a0, 9, drum), at(a1, 9, drum), [x, drum + 1.2, z], 0x1c2122);
-      quad(at(a0, 10, ring - 0.7), at(a1, 10, ring - 0.7), at(a1, 10, ring), at(a0, 10, ring), 0x1e2224);
+      quad(at(a0, 9, y0), at(a1, 9, y0), at(a1, 9, drum), at(a0, 9, drum), dim(hazed(0x2a3030, x, z), shade));
+      tri(at(a0, 9, drum), at(a1, 9, drum), [x, drum + 1.2, z], hazed(0x1c2122, x, z));
+      quad(at(a0, 10, ring - 0.7), at(a1, 10, ring - 0.7), at(a1, 10, ring), at(a0, 10, ring), hazed(0x1e2224, x, z));
       if (i % 2 === 0) { // a post: a thin flat upright, its face toward the place
         const [px, , pz] = at(a0, 10, 0);
         const [[tx, tz]] = toward(px, pz);
-        quad([px - tx * 0.3, y0, pz - tz * 0.3], [px + tx * 0.3, y0, pz + tz * 0.3], [px + tx * 0.3, ring, pz + tz * 0.3], [px - tx * 0.3, ring, pz - tz * 0.3], 0x1e2224);
+        quad([px - tx * 0.3, y0, pz - tz * 0.3], [px + tx * 0.3, y0, pz + tz * 0.3], [px + tx * 0.3, ring, pz + tz * 0.3], [px - tx * 0.3, ring, pz - tz * 0.3], hazed(0x1e2224, x, z));
       }
     }
   }
@@ -2276,9 +2328,9 @@ function drawTown(scene) {
     const [t, n] = toward(x, z);
     const P = frame(x, z, t, n);
     const h = y0 + 16;
-    walls(P, 2.2, 2.2, y0, h, mixHex(TOWN_WALL[0], TOWN_WALL[1], 0.8));
+    walls(P, 2.2, 2.2, y0, h, hazed(mixHex(TOWN_WALL[0], TOWN_WALL[1], 0.8), x, z));
     for (const [p, q] of [[P(-2.4, 2.4, h), P(2.4, 2.4, h)], [P(2.4, 2.4, h), P(2.4, -2.4, h)], [P(2.4, -2.4, h), P(-2.4, -2.4, h)], [P(-2.4, -2.4, h), P(-2.4, 2.4, h)]]) {
-      tri(p, q, P(0, 0, h + 4), TOWN_ROOF[1]);
+      tri(p, q, P(0, 0, h + 4), hazed(TOWN_ROOF[1], x, z));
     }
     const f = h - 2.4;
     quad(P(-1.1, 2.25, f - 1.1), P(1.1, 2.25, f - 1.1), P(1.1, 2.25, f + 1.1), P(-1.1, 2.25, f + 1.1), TOWN_LIGHT.clock, TOWN_LIGHT.k * 0.8);
@@ -2329,12 +2381,20 @@ const SKY_GLOW = Object.freeze({
   r: 200,
   seg: 24,
   rings: Object.freeze([-2, 16, 40, 66, 93]), // y: under the horizon, ~2, ~9, ~16 and ~25 degrees up (from 8 m)
-  ringK: Object.freeze([0.3, 0.55, 0.7, 0.4, 0]), // brightest over sky.js's seam (~5 degrees), so the sky rises smoothly past it
+  // Task A: brightest over sky.js's seam (~5 degrees), so the sky rises smoothly past it.
+  // Round two, Task E (critique finding 8): sky.js lifts its horizon toward white in a strip
+  // a few degrees up (its haze stop), so from a high roof the sky fell again under the glow's
+  // peak: a salmon line, not a glow. The band is now strongest at the horizon (its second
+  // ring) and still strong above the seam (0.3, 0.55, 0.7, 0.4 before), so the sky climbs
+  // over a wider span and does not fall again before the roofline.
+  ringK: Object.freeze([0.9, 1.3, 0.8, 0.45, 0]),
   base: Object.freeze([0.42, 0.26, 0.34]), // rose, all round
   warm: Object.freeze([0.95, 0.5, 0.1]), // toward the sun
   belt: Object.freeze([0.14, 0.08, 0.3]), // violet, opposite
-  sunset: Object.freeze([0.4, 0.29, 0.13]), // the material's colour at sunset: warm and strong
-  dusk: Object.freeze([0.14, 0.08, 0.11]), // and at dusk: rose and weaker
+  // the material's colour at sunset: warm and strong (round two, Task E: redder and weaker than
+  // 0.4, 0.29, 0.13, which with the stronger foot washed the horizon near white over the roofline)
+  sunset: Object.freeze([0.22, 0.1, 0.045]),
+  dusk: Object.freeze([0.13, 0.08, 0.085]), // and at dusk: rose and weaker (round two, Task E: less magenta than 0.14, 0.08, 0.11, now the band is strongest at the horizon)
 });
 function drawSkyGlow(scene) {
   const { r, seg, rings, ringK, base, warm, belt } = SKY_GLOW;

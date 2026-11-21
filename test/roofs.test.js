@@ -28,7 +28,7 @@ const { build, ALLEY_WEEDS } = await import('../src/world/roofs.js');
 const {
   BLOCKS, LEVELS, ROOFS_TRAVERSAL, ROOFS_COLLIDERS, YARD, STREETS, VANE, VANE_TIP, ROOFS_SPAWN,
   ROOFS_POIS, ROOFS_COLLECTIBLES, ROOFS_SCENICS, ROOFS_PERCHES, ROOFS_DISCOVERIES, BIN_BAGS,
-  ROOFS_TOURS, ROOFS_REGISTRATION, ALLEY_CLUTTER, ALLEY_CHANNEL, WASHING_POSTS,
+  ROOFS_TOURS, ROOFS_REGISTRATION, ALLEY_CLUTTER, ALLEY_CHANNEL, WASHING_POSTS, GARDEN,
 } = await import('../src/world/roofsplan.js');
 const { CAT_RADIUS, isWalkableAt } = await import('../src/player.js');
 const { createRoofsLife, EVENING_RAMP } = await import('../src/roofslife.js');
@@ -104,10 +104,17 @@ const centreOf = (b) => {
 // clock's panel and the east bell opening's three louvres gone, -48; the
 // glow's amber, ring and evening opacity cost nothing) -> 113 / 68 / 33,933
 // (merged 56 / 30).
-const MEASURED_BUILT = { meshes: 113, casters: 68, triangles: 33933 };
-const MEASURED_MERGED = { meshes: 56, casters: 30, triangles: 33933 };
+// Beauty pass round two, Task E (fix what round one made odd): no mesh and no
+// caster added; +90 triangles (the corner shop's two string courses on three
+// faces, 6 x 12 = +72, in the north's noCast paint bucket; the garden bench's
+// two back uprights, +24, in its noCast wood bucket; the far town's back rows
+// lower, so their fronts have room for three lit windows fewer, -6; the shop's cornice is its
+// old stone band reshaped; the plant, the glow, the bulbs, the sky, the town's
+// haze and lights and the palette cost nothing) -> 113 / 68 / 34,023 (merged 56 / 30).
+const MEASURED_BUILT = { meshes: 113, casters: 68, triangles: 34023 };
+const MEASURED_MERGED = { meshes: 56, casters: 30, triangles: 34023 };
 const MEASURED_DRAWS = 0;
-const TOWN_TRIANGLES = 4964; // the far town's one mesh (Task A: 3,992 before)
+const TOWN_TRIANGLES = 4958; // the far town's one mesh (Task A: 3,992 before; 4,964 until round two, Task E: its back rows lower, so their fronts have room for three lit windows fewer)
 
 let flood0 = null;
 const baseFlood = () => (flood0 ??= floodTraversal(area, { abilities: BASE_ABILITIES }));
@@ -547,6 +554,52 @@ describe('the Rooftops drawn', () => {
     // the rest is darker than the dusk sky's horizon (linear luminance)
     const h = new THREE.Color(area.skyDusk.horizon);
     expect(darkMax).toBeLessThan(0.6 * (0.2126 * h.r + 0.7152 * h.g + 0.0722 * h.b));
+  });
+
+  // Round two, Task E (critique finding 9): the darkened town loomed, its back
+  // rows taller than the front and as dark. Now aerial perspective: each row
+  // farther out is paler (mixed toward the dusk horizon) and no taller than
+  // the beauty pass's front row, so the skyline steps down into the haze.
+  it('the far town steps back into the haze: each row paler than the one in front, the back rows lower', () => {
+    const t = meshes.find((m) => m.userData.townBand);
+    const pos = t.geometry.attributes.position;
+    const col = t.geometry.attributes.color;
+    const B = area.bounds;
+    const [cx, cz] = [(B.minX + B.maxX) / 2, (B.minZ + B.maxZ) / 2];
+    const ROWS = [[52.5, 7], [66, 9], [84, 12]]; // roofs.js TOWN_ROWS: s and depth
+    const sums = ROWS.map(() => ({ l: 0, n: 0, ys: [], top: 0 }));
+    for (let f = 0; f < pos.count / 3; f++) {
+      const [r, g, b] = [col.getX(f * 3), col.getY(f * 3), col.getZ(f * 3)];
+      if (Math.max(r, g, b) > 1 || g > r) continue; // a light, or a tree clump
+      let [x, y, z] = [0, 0, 0];
+      for (let k = 0; k < 3; k++) { x += pos.getX(f * 3 + k) / 3; y += pos.getY(f * 3 + k) / 3; z += pos.getZ(f * 3 + k) / 3; }
+      if (y < LEVELS.STREET + 0.05) continue; // the town's ground
+      const s = Math.max(Math.abs(x - cx), Math.abs(z - cz));
+      const ri = ROWS.findIndex(([rs, d]) => Math.abs(s - rs) <= d / 2 + 0.3);
+      if (ri < 0) continue;
+      sums[ri].l += 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      sums[ri].n++;
+      for (let k = 0; k < 3; k++) sums[ri].ys.push(pos.getY(f * 3 + k));
+    }
+    const mean = sums.map((q) => q.l / q.n);
+    // a row's skyline: the height under which 98% of its walls' and roofs' corners lie (a far spire stands in the second)
+    for (const q of sums) { q.ys.sort((p, o) => p - o); q.top = q.ys[Math.floor(0.98 * q.ys.length)]; }
+    for (const q of sums) expect(q.n).toBeGreaterThan(100);
+    expect(mean[1], mean.join(' ')).toBeGreaterThan(mean[0] * 1.15);
+    expect(mean[2], mean.join(' ')).toBeGreaterThan(mean[1] * 1.15);
+    // the back rows' highest walls and roofs no higher than the front row's plus a storey
+    expect(sums[1].top).toBeLessThanOrEqual(sums[0].top + 2);
+    expect(sums[2].top).toBeLessThanOrEqual(sums[0].top + 3);
+    // its lights stay amber after the fog: the windows' red well over their blue
+    let warm = 0;
+    let n = 0;
+    for (let f = 0; f < pos.count / 3; f++) {
+      const [r, g, b] = [col.getX(f * 3), col.getY(f * 3), col.getZ(f * 3)];
+      if (Math.max(r, g, b) <= 1) continue;
+      n++;
+      if (g < 0.5 * r && b < 0.15 * r) warm++;
+    }
+    expect(warm / n).toBeGreaterThan(0.6);
   });
 
   // ---------------------------------------------------------------------------
@@ -1072,20 +1125,20 @@ describe('the Rooftops drawn', () => {
   // ---------------------------------------------------------------------------
   const srgbHSL = (lin) => new THREE.Color().setRGB(lin.r, lin.g, lin.b).getHSL({}, THREE.SRGBColorSpace);
 
-  it('the take-off glow is warm amber with a faint ring at its rim, brighter at sunset than at dusk', () => {
+  // Round two, Task E (critique finding 3): the ring is gone (it read as a
+  // puddle's rim or a target), so this no longer pins a rise near the rim.
+  it('the take-off glow is warm amber, ringless, brighter at sunset than at dusk', () => {
     const glow = glowMesh();
     expect(area.markGlow).toBe(glow);
     const mat = glow.material;
     // amber, not the near-white it was (0xffd9a0)
     const [r, g, b] = [mat.color.getHex() >> 16, (mat.color.getHex() >> 8) & 255, mat.color.getHex() & 255];
     expect(r > g && g > b && b < 0.5 * r).toBe(true);
-    // its map: full at the middle, nothing at the rim, and a faint ring that rises again near the rim
+    // its map: full at the middle, nothing at the rim, and never rising again on the way out
     const { data, width, height } = mat.map.image;
     const row = Array.from({ length: width / 2 }, (_, i) => data[((height / 2) * width + width / 2 + i) * 4 + 3]);
     expect(row[0]).toBeGreaterThanOrEqual(240);
-    const rise = row.findIndex((q, i) => i > width / 4 && q > row[i - 1] + 3);
-    expect(rise, row.join(',')).toBeGreaterThan(width * 0.25);
-    expect(rise).toBeLessThan(width * 0.48);
+    for (let i = 1; i < row.length; i++) expect(row[i], row.join(',')).toBeLessThanOrEqual(row[i - 1]);
     expect(row[row.length - 1]).toBe(0);
     // the evening drives its opacity: stronger on the sunlit felt, fainter (under FU2's ceiling) at dusk
     const { sunset, dusk } = glow.userData.glowOpacity;
@@ -1093,7 +1146,7 @@ describe('the Rooftops drawn', () => {
     expect(sunset).toBeLessThanOrEqual(0.45);
     expect(dusk).toBeLessThanOrEqual(GLOW_OPACITY_MAX);
     expect(mat.opacity).toBe(dusk);
-    const fog = new THREE.Fog(0x8a5a6a, 40, 140);
+    const fog = new THREE.Fog(0x765266, 40, 140);
     const life = area.life({ scene: { background: null, fog }, sun: { intensity: 1 }, fill: { intensity: 1 } });
     expect(mat.opacity).toBeCloseTo(sunset, 6);
     let last = mat.opacity;
@@ -1105,6 +1158,67 @@ describe('the Rooftops drawn', () => {
     expect(mat.opacity).toBeCloseTo(dusk, 6);
     // the walk's own material: the shared kit glow (markMesh's) is never moved
     expect(mat).not.toBe(markMesh('lip', { x0: 0, z0: 0, x1: 1, z1: 0, prop: 'tank' }).children[0].material);
+  });
+
+  // Round two, Task E (critique finding 7): the garden's bulbs tone-mapped to
+  // white hexagons, and the bench's back floated on the wall.
+  it('the garden bulbs glow warm orange, not white; the bench back is joined to its seat', () => {
+    const lights = named('roofsGardenLights');
+    expect(lights).toHaveLength(1);
+    const e = lights[0].material.emissive;
+    expect(e.r > e.g && e.g > e.b).toBe(true);
+    expect(e.g).toBeLessThan(0.45 * e.r); // linear: an orange, not a cream
+    expect(lights[0].material.emissiveIntensity).toBeLessThanOrEqual(1.6);
+    // the bench: between its seat's back edge and the backrest's foot, wood near both ends
+    const RT = BLOCKS.find((b) => b.id === 'roofTerrace');
+    const Bn = GARDEN.bench;
+    const wood = meshes.filter((m) => /:wood$/.test(m.name));
+    const seat = { y: RT.y + Bn.seat, z: Bn.z - 0.2 };
+    const backrest = { y: RT.y + Bn.seat + 0.1, z: RT.z0 + 0.065 };
+    for (const k of [0.2, 0.5, 0.8]) {
+      const y = seat.y + (backrest.y - seat.y) * k;
+      const z = seat.z + (backrest.z - seat.z) * k;
+      const west = firstHit([Bn.x - Bn.len / 2 - 0.3, y, z], [1, 0, 0], wood);
+      const east = firstHit([Bn.x + Bn.len / 2 + 0.3, y, z], [-1, 0, 0], wood);
+      expect(west?.point.x ?? Infinity, `west ${k}`).toBeLessThan(Bn.x - Bn.len / 4);
+      expect(east?.point.x ?? -Infinity, `east ${k}`).toBeGreaterThan(Bn.x + Bn.len / 4);
+    }
+  });
+
+  // Round two, Task E (critique finding 11): the corner shop was a pale
+  // cardboard box. A deeper buff, with stone string courses at its floor lines
+  // and a cornice under its parapet.
+  it('the corner shop has two stone string courses at its floor lines and a cornice, on every face she sees', () => {
+    const S = BLOCKS.find((b) => b.id === 'cornerShop');
+    const top = S.y - 0.15;
+    const north = meshes.filter((m) => /^roofsNorth:/.test(m.name));
+    const wallHit = firstHit([25, 3.4, -6], [1, 0, 0], named('roofsNorth:wall'));
+    const wallLum = lum(colourAt(wallHit));
+    // [where the ray starts, which way, the face's coordinate, its axis]: between windows on each face
+    const faces = [
+      [[S.x0 - 3, 0, -9.35], [1, 0, 0], S.x0, 'x', -1], // the street end
+      [[S.x1 + 3, 0, 0], [-1, 0, 0], S.x1, 'x', 1], // over the shop yard
+      [[34, 0, S.z1 + 3], [0, 0, -1], S.z1, 'z', 1], // over the back yards
+    ];
+    for (const [from, dir, face, ax, out] of faces) {
+      const proudAt = (y) => {
+        const h = firstHit([from[0], y, from[2]], dir, north);
+        if (!h) return [0, 0];
+        return [(h.point[ax] - face) * out, lum(colourAt(h))];
+      };
+      let runs = 0;
+      let inRun = false;
+      for (let y = 0.5; y <= top - 0.5; y += 0.025) {
+        const [proud, l] = proudAt(y);
+        const course = proud >= 0.04 && proud <= 0.2 && l > 1.2 * wallLum;
+        if (course && !inRun) runs++;
+        inRun = course;
+      }
+      expect(runs, `${ax} ${face} courses`).toBeGreaterThanOrEqual(2);
+      let cornice = 0;
+      for (let y = top - 0.3; y <= top - 0.03; y += 0.02) cornice = Math.max(cornice, proudAt(y)[0]);
+      expect(cornice, `${ax} ${face} cornice`).toBeGreaterThanOrEqual(0.15);
+    }
   });
 
   it('the tank shows its leap: a plank across its lid to the rim toward the lantern, and a bright hoop at the rim', () => {
@@ -1411,9 +1525,12 @@ describe('the Rooftops drawn', () => {
       expect(Array.isArray(area[k]), k).toBe(true);
     }
     expect(area.spawn).toEqual({ x: 4, z: 41 });
-    // retuned in the beauty pass (Task A): a warmer sunset, a dusk top never near black
-    expect(area.skyDusk).toEqual({ top: 0x24305c, horizon: 0x8a5a6a });
-    expect(area.skySunset).toEqual({ top: 0x55609a, horizon: 0xf0a46c });
+    // retuned in the beauty pass (Task A): a warmer sunset, a dusk top never near black;
+    // round two, Task E (critique finding 8): the dusk horizon a touch darker and less
+    // red (0x8a5a6a: a salmon strip), the sunset's a deeper orange (0xf0a46c: near white,
+    // the roofline lost against it)
+    expect(area.skyDusk).toEqual({ top: 0x24305c, horizon: 0x765266 });
+    expect(area.skySunset).toEqual({ top: 0x55609a, horizon: 0xe8925a });
     expect(area.duskLight).toEqual({ fogNear: 40, fogFar: 140 });
     expect(typeof area.life).toBe('function');
     expect(area.bounds).toEqual({ minX: -46, maxX: 46, minZ: -50, maxZ: 46 });

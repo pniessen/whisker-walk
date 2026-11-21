@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { HOP_MARKS, DRAWN_MARKS, ROOFS_TRAVERSAL } from '../src/world/roofsplan.js';
 import {
   createWindowAtlas, windowCell, addWindowQuads, roofsMaterials, PARTS, markMesh,
-  WINDOW_CELLS, WINDOW_FRAMES,
+  WINDOW_CELLS, WINDOW_FRAMES, MARK_GLOW,
 } from '../src/world/roofsparts.js';
 
 // windowCell's split of the 2,000-window sample below into warm / TV / dark (Task C)
@@ -172,6 +172,60 @@ describe('roofsparts', () => {
       const lower = meanOf(pane.filter(([, y]) => y < PX * 0.35));
       expect(Math.max(...[0, 1, 2].map((k) => Math.abs(upper[k] - lower[k]))), `cell ${c}`).toBeGreaterThan(20);
     }
+  });
+
+  // Beauty pass round two, Task E (critique finding 1): the pot plant was a fan
+  // of long thin leaves, a black hand at the glass. Now a round bushy crown.
+  it('the pot plant is a round bushy crown, not a fan of fingers', () => {
+    const [cell] = cellsOf((c) => c.kind === 'plant');
+    const pane = paneOf(cell);
+    const bright = lumOf(meanOf(pane.filter(([, , p]) => lumOf(p) > 0.3)));
+    // its shape: the dark leaves and pot and the red flower heads on them, all well under the light
+    const dark = pane.filter(([, , p]) => lumOf(p) < 0.45 * bright).map(([x, y]) => [x, y]);
+    // its silhouette is a blob: its area at least 0.7 of its convex hull's
+    const pts = dark.flatMap(([x, y]) => [[x, y], [x + 1, y], [x, y + 1], [x + 1, y + 1]]);
+    pts.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const half = (list) => { const h = []; for (const p of list) { while (h.length >= 2 && cross(h[h.length - 2], h[h.length - 1], p) <= 0) h.pop(); h.push(p); } h.pop(); return h; };
+    const hull = [...half(pts), ...half([...pts].reverse())];
+    let area = 0;
+    for (let i = 0; i < hull.length; i++) { const [a, b] = [hull[i], hull[(i + 1) % hull.length]]; area += a[0] * b[1] - b[0] * a[1]; }
+    area = Math.abs(area) / 2;
+    expect(dark.length / area).toBeGreaterThanOrEqual(0.7);
+    // and no row of it has more than two separate dark runs (the fingers gave four to six)
+    const rows = new Map();
+    for (const [x, y] of dark) rows.set(y, [...(rows.get(y) ?? []), x]);
+    for (const [y, xs] of rows) {
+      xs.sort((p, q) => p - q);
+      const runs = 1 + xs.filter((x, i) => i > 0 && x - xs[i - 1] > 1).length;
+      expect(runs, `row ${y}`).toBeLessThanOrEqual(2);
+    }
+  });
+
+  // Beauty pass round two, Task E (critique finding 3): the take-off glow's ring
+  // made every spot a puddle or a target. No ring now: a small bright core
+  // fading to nothing, in a deeper amber that stays orange on dark felt.
+  it('the take-off glow has no ring: its alpha falls from the middle all the way to its rim', () => {
+    const disc = markMesh('lip', { x0: 0, z0: 0, x1: 1, z1: 0, prop: 'tank' }).children.find((m) => m.userData.markGlow);
+    const { data, width, height } = disc.material.map.image;
+    const texels = [];
+    for (let j = 0; j < height; j++) {
+      for (let i = 0; i < width; i++) texels.push([Math.hypot((i + 0.5) / width - 0.5, (j + 0.5) / height - 0.5), data[(j * width + i) * 4 + 3]]);
+    }
+    texels.sort((p, q) => p[0] - q[0]);
+    // monotone along every radius: farther out is never brighter
+    for (let k = 1; k < texels.length; k++) expect(texels[k][1], `at ${texels[k][0].toFixed(3)}`).toBeLessThanOrEqual(texels[k - 1][1]);
+    expect(texels[0][1]).toBeGreaterThanOrEqual(240);
+    // nothing to see at the disc's rim (the uv's 0.45..0.5 from the middle)
+    for (const [d, a] of texels) if (d >= 0.45) expect(a, `at ${d.toFixed(3)}`).toBeLessThan(0.03 * 255);
+    // a tight core: at half the radius it is under a third of its middle
+    const at = (r) => texels.find(([d]) => d >= r)[1];
+    expect(at(0.25)).toBeLessThan(at(0) / 3);
+    // a deep amber: red over green over blue, the blue well under the green
+    const [r, g, b] = [MARK_GLOW.color >> 16, (MARK_GLOW.color >> 8) & 255, MARK_GLOW.color & 255];
+    expect(r > g && g > b).toBe(true);
+    expect(g).toBeLessThanOrEqual(0.62 * r);
+    expect(b).toBeLessThan(0.45 * g);
   });
 
   it('every window quad uses the one windows material and stays inside its cell', () => {
