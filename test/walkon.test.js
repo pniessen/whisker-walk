@@ -36,7 +36,7 @@ import { clampZoomStep, maxZoomStep, zoomView } from '../src/camzoom.js';
 
 const WALK_MS = 90_000; // whole walks: an explicit timeout
 
-beforeAll(() => areas.ensureAll(['neighborhood', 'park', 'farm', 'fair', 'woods', 'moor']));
+beforeAll(() => areas.ensureAll(['neighborhood', 'park', 'farm', 'fair', 'woods', 'moor', 'roofs']));
 
 beforeEach(() => {
   globalThis.document = fakeDocument();
@@ -300,6 +300,76 @@ describe('walking on through a gate', () => {
     expect(s.arrivedVia).toBeNull();
     expect(s.walkingOn).toBe(false);
     h.w.endWalk();
+  }, WALK_MS);
+});
+
+// Rooftops step 4: the town's north signpost (town-roofs) and the green door
+// in the Rooftops' back-alley wall (roofs-town), walked through both ways.
+describe('walking on between the town and the Rooftops', () => {
+  // Clan Edition: the Fairground walked twice and the Rooftops bought.
+  function roofsSave(area) {
+    return (p) => {
+      p.setTutorialFirst('done');
+      p.state.unlocked.areas.push('park', 'fair', 'roofs');
+      p.state.walks.fair = 2;
+      p.setArea(area);
+      expect(p.state.edition).not.toBe('legacy');
+      expect(p.state.area).toBe(area);
+    };
+  }
+
+  it("from the town through its north signpost: the Rooftops walk starts in the alley, in front of the door, facing north", async () => {
+    const h = walkHarness({ save: roofsSave('neighborhood') });
+    h.w.startWalk({});
+    const town = h.getSession();
+    expect(town.areaId).toBe('neighborhood');
+    const signs = town.scene.children.filter((c) => c.name === 'gateway').map((g) => g.userData.endId).sort();
+    expect(signs).toEqual(['town-docks', 'town-park', 'town-roofs']);
+    expect(await h.w.walkOn({ via: 'town-roofs' })).toBe('walked');
+    expect(h.overlay.innerHTML).toContain('Off to the Rooftops!');
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    const s = h.getSession();
+    expect(s.areaId).toBe('roofs');
+    expect(h.progression.state.area).toBe('roofs');
+    expect(s.arrivedVia).toBe('roofs-town');
+    expect(s.cat.position.x).toBeCloseTo(14, 9);
+    expect(s.cat.position.z).toBeCloseTo(41.9, 9);
+    expect(s.cat.rotation.y).toBe(0);
+    // the door is drawn, open (the town is hers), its leaf turned into the alley
+    const door = s.scene.children.find((c) => c.name === 'gateway' && c.userData.endId === 'roofs-town');
+    expect(door).toBeTruthy();
+    expect(door.getObjectByName('gateHinge').rotation.y).toBe(-LEAF_OPEN);
+  }, WALK_MS);
+
+  it('from the Rooftops through the alley door: the town walk starts just inside its north signpost, facing south', async () => {
+    const h = walkHarness({ save: roofsSave('roofs') });
+    h.w.startWalk({});
+    expect(h.getSession().areaId).toBe('roofs');
+    expect(await h.w.walkOn({ via: 'town-roofs' })).toBe('refused'); // the town's gate, not this walk's
+    expect(await h.w.walkOn({ via: 'roofs-town' })).toBe('walked');
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    const s = h.getSession();
+    expect(s.areaId).toBe('neighborhood');
+    expect(s.arrivedVia).toBe('town-roofs');
+    expect(s.cat.position.x).toBeCloseTo(0, 9);
+    expect(s.cat.position.z).toBeCloseTo(-48.4, 9);
+    expect(s.cat.rotation.y).toBe(Math.PI);
+  }, WALK_MS);
+
+  // Review Focus 4: Legacy has the Rooftops as a picture card, and no gates.
+  it('a Legacy Rooftops walk draws no door: no gateway, no door colliders, the alley wall as it was', () => {
+    const h = walkHarness({ save: (p) => { roofsSave('roofs')(p); p.setEdition('legacy'); } });
+    h.w.startWalk({});
+    const s = h.getSession();
+    expect(s.areaId).toBe('roofs');
+    expect(s.gates).toBe(NO_GATES);
+    let gatewayChildren = 0;
+    s.scene.traverse((o) => { if (o.name === 'gateway' || o.name === 'gateBody' || o.name === 'gateLeaf') gatewayChildren++; });
+    expect(gatewayChildren).toBe(0);
+    const door = endById('roofs-town').end;
+    const atDoor = s.areaData.colliders.filter((c) => Math.hypot(c.x - door.x, c.z - door.z) < 2);
+    expect(atDoor).toEqual([]);
+    expect(s.scene.getObjectByName('roofsAlley')).toBeTruthy();
   }, WALK_MS);
 });
 

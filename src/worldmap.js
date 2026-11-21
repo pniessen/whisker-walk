@@ -68,6 +68,8 @@ export const GATEWAYS = Object.freeze([
   { id: 'park-farm', from: 'park', to: 'farm', road: [[1168, 450], [1210, 440], [1240, 430], [1235, 405]] },
   { id: 'town-docks', from: 'neighborhood', to: 'docks', road: [[860, 676], [870, 700], [885, 700], [892, 690]] },
   { id: 'docks-seaside', from: 'docks', to: 'seaside', road: [[980, 780], [1040, 790], [1110, 790], [1140, 765]] },
+  // The Rooftops' circle lies over the town's north rim: round the east side, in the open.
+  { id: 'town-roofs', from: 'neighborhood', to: 'roofs', road: [[946, 520], [980, 508], [984, 468], [951, 455]] },
 ].map((g) => Object.freeze({ ...g, road: pts(g.road) })));
 
 // A camp the world map draws somewhere other than CAMP_AT. The Moor's: on

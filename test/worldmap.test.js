@@ -91,16 +91,17 @@ describe('world map: the world as data', () => {
     }
   });
 
-  it('five gateways join the places draft 2 joins, edge to edge', () => {
+  it('six gateways join the places draft 2 joins and the Rooftops, edge to edge', () => {
     expect(GATEWAYS.map((g) => [g.id, g.from, g.to])).toEqual([
       ['town-park', 'neighborhood', 'park'], ['park-fair', 'park', 'fair'], ['park-farm', 'park', 'farm'],
-      ['town-docks', 'neighborhood', 'docks'], ['docks-seaside', 'docks', 'seaside']]);
+      ['town-docks', 'neighborhood', 'docks'], ['docks-seaside', 'docks', 'seaside'], ['town-roofs', 'neighborhood', 'roofs']]);
     expect(GATEWAYS.map((g) => g.road)).toEqual([
       [[952, 570], [1000, 580], [1060, 590], [1080, 560]],
       [[1080, 380], [1080, 350], [1060, 340], [1060, 315]],
       [[1168, 450], [1210, 440], [1240, 430], [1235, 405]],
       [[860, 676], [870, 700], [885, 700], [892, 690]],
       [[980, 780], [1040, 790], [1110, 790], [1140, 765]],
+      [[946, 520], [980, 508], [984, 468], [951, 455]],
     ]);
     expect(Object.isFrozen(GATEWAYS) && GATEWAYS.every((g) => Object.isFrozen(g) && Object.isFrozen(g.road))).toBe(true);
     const m = worldMapModel(fresh(), CATALOG);
@@ -111,6 +112,26 @@ describe('world map: the world as data', () => {
       const [fx, fy] = g.road[0]; const [tx, ty] = g.road.at(-1);
       expect(Math.abs(dist(fx, fy, a.x, a.y) - a.r) <= 8, `${g.id} from`).toBe(true);
       expect(Math.abs(dist(tx, ty, b.x, b.y) - b.r) <= 8, `${g.id} to`).toBe(true);
+    }
+  });
+
+  // The Rooftops sits on the town's north rim, its circle over the town's:
+  // the roads are drawn under the places, so its road runs round the east
+  // side in the open, starting clear of the Rooftops and ending clear of the
+  // town, and nowhere near the Park.
+  it("the Rooftops' road runs in the open between the town and the Rooftops", () => {
+    const m = worldMapModel(fresh(), CATALOG);
+    const at = (id) => m.regions.find((r) => r.areaId === id);
+    const [town, roofs, park] = ['neighborhood', 'roofs', 'park'].map(at);
+    const g = GATEWAYS.find((x) => x.id === 'town-roofs');
+    const [p0, p1, p2, p3] = g.road;
+    expect(dist(p0[0], p0[1], roofs.x, roofs.y)).toBeGreaterThan(roofs.r + 8);
+    expect(dist(p3[0], p3[1], town.x, town.y)).toBeGreaterThan(town.r + 8);
+    for (let i = 0; i <= 20; i++) {
+      const t = i / 20, u = 1 - t;
+      const x = u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0];
+      const y = u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1];
+      expect(dist(x, y, park.x, park.y), `road at t ${t}`).toBeGreaterThan(park.r + 8);
     }
   });
 
@@ -246,12 +267,12 @@ describe('drawing the world', () => {
     expect(html.match(/<g class="tm-region[^>]*>(?=<title>)/)).toBeNull();
   });
 
-  it('her paths and bridge, five roads and five gate marks', () => {
+  it('her paths and bridge, six roads and six gate marks', () => {
     expect((html.match(/class="tm-path"/g) || []).length).toBe(3);
     expect(html).toContain('class="tm-bridge"');
     for (const cls of ['tm-lake', 'tm-island', 'tm-star', 'tm-pond', 'tm-river']) expect(html).toContain(`class="${cls}`);
-    expect((html.match(/class="wm-road"/g) || []).length).toBe(5);
-    expect((html.match(/class="wm-gate"/g) || []).length).toBe(5);
+    expect((html.match(/class="wm-road"/g) || []).length).toBe(6);
+    expect((html.match(/class="wm-gate"/g) || []).length).toBe(6);
     expect(html).toContain('<path class="wm-road" d="M952 570 C1000 580 1060 590 1080 560"/>');
     expect(html).toContain('<circle class="wm-gate" cx="1080" cy="560" r="8"/>');
     expect(html).toContain('<path class="wm-road" d="M980 780 C1040 790 1110 790 1140 765"/><circle class="wm-gate" cx="1140" cy="765" r="8"/>');
