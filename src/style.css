@@ -2732,11 +2732,17 @@ body.touch-mode .fight-key { display: none; }
 .party-layer.still .party-present { animation: none; }
 .party-layer.still .party-present-lid { transition: none; }
 @media (max-width: 600px) { .party-present { width: 56px; height: 56px; bottom: 84px; } .party-present-box { height: 33px; } .party-present-lid { bottom: 31px; } }
-/* the kitten's new tile in the picker, just after the present is opened */
-.dr .dr-portrait.party-new { animation: party-new-tile 1.2s ease-in-out 3; box-shadow: 0 0 0 3px #f2c14e, 0 0 16px 4px rgba(242, 193, 78, .7); }
-@keyframes party-new-tile { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+/* the kitten's new tile in the picker, just after the present is opened: it
+   pulses and glows three times; still (reduced motion) it only glows, and the
+   class is taken off when the time is up */
+.dr .dr-portrait.party-new { animation: party-new-tile 1.2s ease-in-out 3; }
+.dr .dr-portrait.party-new.still { animation: none; box-shadow: 0 0 0 3px #f2c14e, 0 0 16px 4px rgba(242, 193, 78, .7); }
+@keyframes party-new-tile {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(242, 193, 78, 0); }
+  50% { transform: scale(1.12); box-shadow: 0 0 0 3px #f2c14e, 0 0 16px 4px rgba(242, 193, 78, .7); }
+}
 @media (prefers-reduced-motion: reduce) {
-  .dr .dr-portrait.party-new { animation: none; }
+  .dr .dr-portrait.party-new { animation: none; box-shadow: 0 0 0 3px #f2c14e, 0 0 16px 4px rgba(242, 193, 78, .7); }
   .party-present, .party-present.opening { animation: none; }
   .party-present-lid { transition: none; }
   .party-balloon, .party-banner { animation: none; }

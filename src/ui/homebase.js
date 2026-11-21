@@ -238,6 +238,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (!cat) { box?.remove?.(); return; }
     newCat = cat;
     newCatUntil = Date.now() + 900 + 3600;
+    // the glow goes when its time is up, whatever renders there were
+    setTimeout(() => { try { root.querySelector('.party-new')?.classList.remove('party-new', 'still'); } catch { /* a nicety */ } }, 900 + 3600);
     party.burst();
     try { onCelebrate?.(); } catch (err) { console.warn('Whisker Walk: the present sound failed', err); note('audio', err); }
     setTimeout(() => {
@@ -248,7 +250,14 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   }
   function syncParty() {
     if (newCat && Date.now() < newCatUntil) {
-      try { root.querySelector(`[data-dr-cat="${newCat}"]`)?.classList.add('party-new'); } catch { /* a nicety */ }
+      try {
+        const tile = root.querySelector(`[data-dr-cat="${newCat}"]`);
+        if (tile && !tile.classList.contains('party-new')) {
+          tile.classList.add('party-new');
+          if (reducedNow()) tile.classList.add('still');
+          tile.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+        }
+      } catch { /* a nicety */ }
     }
     const st = root.querySelector('#dr-stage');
     if (!st) return;
