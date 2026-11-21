@@ -45,6 +45,9 @@ export function discoveryText({ type, label, repeat }) {
       : `You finished ${label}`;
   }
   if (type === 'jackpot' || type === 'duogoal') return capitalise(label);
+  // A pounce's label is its own sentence ("you pounce-tagged a sparrow!",
+  // game/avatar.js), so it never takes "You spotted" in front.
+  if (type === 'hunt') return repeat ? `Again — ${label}` : capitalise(label);
   return `${repeat ? 'Again — ' : 'You spotted '}${label}`;
 }
 
