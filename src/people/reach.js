@@ -33,6 +33,7 @@
 // her and back it rises. Nothing here allocates per frame (module-level
 // scratch); a cat's head and body boxes are measured once and kept.
 import * as THREE from 'three';
+import { headBoxIn, earsOffMidline } from '../cat/headbox.js';
 
 export const REACH = Object.freeze({
   LEAN_MAX: 0.5, // the chest's whole forward lean (rad), the pose's included
@@ -90,7 +91,6 @@ const HANDOFF = 0.4; // s: at the start the hand turns from the pose's to palm d
 // far; out to the side, a little down, with it folded (a close head)
 const POLE_FAR = Object.freeze([0.55, -1, 0.25]);
 const POLE_NEAR = Object.freeze([1, -0.25, 0.3]);
-const EAR_OFF = 0.03; // m (head frame): an ear wholly this far off her midline is left out of her head
 
 const UP = new THREE.Vector3(0, 1, 0);
 const TAU = Math.PI * 2;
@@ -102,42 +102,24 @@ const wrapPi = (a) => a - TAU * Math.floor((a + Math.PI) / TAU);
 // Boxes in the parts' own frames, measured once per head and body part.
 const HEAD_BOX = new WeakMap();
 const BODY_BOX = new WeakMap();
+const SKULL_TOP = new WeakMap(); // head part -> her own head's top (head frame), what she wears left out
 const _inv = new THREE.Matrix4();
 const _rel = new THREE.Matrix4();
-const _pt = new THREE.Vector3();
 const _box = new THREE.Box3();
 
-function boxIn(frame, obj, box, skip) {
-  _inv.copy(frame.matrixWorld).invert();
-  obj.traverse((o) => {
-    if (!o.isMesh || o.isSprite || (skip && skip(o))) return;
-    const pos = o.geometry?.attributes?.position;
-    if (!pos) return;
-    _rel.multiplyMatrices(_inv, o.matrixWorld);
-    for (let i = 0; i < pos.count; i++) box.expandByPoint(_pt.fromBufferAttribute(pos, i).applyMatrix4(_rel));
-  });
-  return box;
-}
-
-const within = (o, root) => { for (let q = o; q; q = q.parent) if (q === root) return true; return false; };
-
-// Her head's box in the head part's frame: every mesh on it (hats too), but
-// not ears that stand wholly off her midline (the hand rests between them; a
-// hen's comb is on the midline and counts), nor whiskers (lines).
+// Her head's box in the head part's frame (src/cat/headbox.js: every mesh on
+// it, hats too, but not ears that stand wholly off her midline, nor
+// whiskers). Her head's top for the touch is the top of what she wears: the
+// palm rests on a hat, never in it.
 function headBox(cat) {
-  const { head, earL, earR } = cat.userData.parts;
+  const parts = cat.userData.parts;
+  const head = parts.head;
   let box = HEAD_BOX.get(head);
   if (box) return box;
-  head.updateWorldMatrix(true, true);
-  const off = [];
-  for (const ear of [earL, earR]) {
-    if (!ear || !within(ear, head)) continue;
-    boxIn(head, ear, _box.makeEmpty());
-    if (!_box.isEmpty() && (_box.min.x >= EAR_OFF || _box.max.x <= -EAR_OFF)) off.push(ear);
-  }
-  box = boxIn(head, head, new THREE.Box3(), (o) => off.some((ear) => within(o, ear)));
+  box = headBoxIn(parts, new THREE.Box3());
   HEAD_BOX.set(head, box);
-  OFF_EARS.set(head, off);
+  OFF_EARS.set(head, earsOffMidline(parts, []));
+  SKULL_TOP.set(head, headBoxIn(parts, _box, { worn: false }).max.y);
   return box;
 }
 
@@ -154,6 +136,7 @@ function earCapsule(head, ear) {
   head.updateWorldMatrix(true, true);
   _inv.copy(head.matrixWorld).invert();
   const pts = [];
+  const all = [];
   ear.traverse((o) => {
     if (!o.isMesh) return;
     const pos = o.geometry?.attributes?.position;
@@ -161,10 +144,14 @@ function earCapsule(head, ear) {
     _rel.multiplyMatrices(_inv, o.matrixWorld);
     for (let i = 0; i < pos.count; i++) {
       const p = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(_rel);
-      // only what stands out of her head (below that, her head's sphere holds it)
-      if (p.y >= HEAD_BOX.get(head).max.y - EAR_SINK) pts.push(p);
+      all.push(p);
+      // only what stands out of her own head (below that, her head's sphere
+      // holds it): measured from her head's top without what she wears, which
+      // a hat would raise above her ears
+      if (p.y >= SKULL_TOP.get(head) - EAR_SINK) pts.push(p);
     }
   });
+  if (!pts.length) pts.push(...all); // (an ear wholly under the line: all of it)
   // in the head's frame: the tip is the highest point, the base the middle
   // of the lowest third
   let lo = Infinity, hi = -Infinity, tip = pts[0];
@@ -224,7 +211,7 @@ const _ax = new THREE.Vector3();
 // body part's long axis. out (optional) is filled in place.
 const newEar = () => ({ a: new THREE.Vector3(), b: new THREE.Vector3(), r0: 0, r1: 0 });
 export function catVolumes(cat, out) {
-  const v = out ?? { head: new THREE.Sphere(), body: { a: new THREE.Vector3(), b: new THREE.Vector3(), r: 0 }, ears: [newEar(), newEar()], earN: 0 };
+  const v = out ?? { head: new THREE.Sphere(), headFlat: 0, body: { a: new THREE.Vector3(), b: new THREE.Vector3(), r: 0 }, ears: [newEar(), newEar()], earN: 0 };
   const { head, body } = cat.userData.parts;
   const hb = headBox(cat);
   head.updateWorldMatrix(true, false);
@@ -235,6 +222,9 @@ export function catVolumes(cat, out) {
   _c.set((hb.min.x + hb.max.x) / 2, hb.max.y - rLoc, (hb.min.z + hb.max.z) / 2).applyMatrix4(head.matrixWorld);
   v.head.center.set(_c.x, _hp.y + hb.max.y * _ws.y - r, _c.z);
   v.head.radius = r;
+  // and how wide her head is on the ground (the soft bumps' circle for it,
+  // as player.update has it): its width and depth, which a hat leaves alone
+  v.headFlat = (Math.max(hb.max.x - hb.min.x, hb.max.z - hb.min.z) / 2) * s;
 
   const bb = bodyBox(cat);
   body.updateWorldMatrix(true, false);

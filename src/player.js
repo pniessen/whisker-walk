@@ -11,6 +11,7 @@ import {
 } from './camzoom.js';
 import { FLAT_GROUND, MAX_PATH_GRADE } from './ground.js';
 import { underCeiling } from './caves.js';
+import { headBoxIn } from './cat/headbox.js';
 
 // You ARE the cat: arrows move the cat avatar at its breed's pace, the camera
 // follows behind/above with mouse-orbit, and the cat stays centered on screen.
@@ -22,19 +23,17 @@ const NO_BUMPS = Object.freeze([]);
 // ---- her points for the soft bumps (rulings R28-R30) --------------------------
 // The bumps keep four points of her out of each circle, each pushed as a
 // collider pushes her middle (a slide, never a shove): her middle by
-// r + CAT_RADIUS, her head's middle by r + her head's radius, and each end of
-// her body by r + her body's radius. The head and the body are where her
-// pose has them now (a stalk or a sniff carries her head forward), turned as
-// she turns this frame. Her head's box (every mesh on the head part but ears
-// wholly off her midline, as the people kit measures it) is measured once per
-// head part, in its own frame; the body's box once per body part.
-const HEAD_BOX = new WeakMap(); // head part -> [cx, cy, cz, r] (head frame, r in metres)
+// r + CAT_RADIUS, her head's middle by r + her head's half width, and each
+// end of her body by r + her body's radius. The head and the body are where
+// her pose has them now (a stalk or a sniff carries her head forward), turned
+// as she turns this frame. Her head's box (cat/headbox.js, as the head
+// scratch reads it) is measured once per head part, in its own frame; on the
+// ground only its width and depth count, which a hat leaves alone (a tall hat
+// would otherwise hold her further from the person's hand). The body's box
+// is measured once per body part.
+const HEAD_BOX = new WeakMap(); // head part -> [cx, cy, cz, half width (m)] (head frame)
 const BODY_BOX = new WeakMap(); // body part -> its geometry's box
-const EAR_OFF = 0.03; // (head frame) an ear wholly this far off her midline is left out
 const _box = new THREE.Box3();
-const _earBox = new THREE.Box3();
-const _inv = new THREE.Matrix4();
-const _rel = new THREE.Matrix4();
 const _pt = new THREE.Vector3();
 const _sc = new THREE.Vector3();
 const _q = new THREE.Quaternion();
@@ -45,37 +44,15 @@ let nPts = 1;
 // its r): her head's and her body's ends' reach is under 1 m for every cat
 const BUMP_NEAR = 1.5;
 
-function boxInFrame(frame, obj, box, skipA, skipB) {
-  _inv.copy(frame.matrixWorld).invert();
-  obj.traverse((o) => {
-    if (!o.isMesh || o.isSprite) return;
-    for (let q = o; q && q !== obj; q = q.parent) if (q === skipA || q === skipB) return;
-    const pos = o.geometry?.attributes?.position;
-    if (!pos) return;
-    _rel.multiplyMatrices(_inv, o.matrixWorld);
-    for (let i = 0; i < pos.count; i++) box.expandByPoint(_pt.fromBufferAttribute(pos, i).applyMatrix4(_rel));
-  });
-  return box;
-}
-const inside = (o, root) => { for (let q = o; q; q = q.parent) if (q === root) return true; return false; };
-
 function headBoxOf(parts) {
   const head = parts.head;
   let hb = HEAD_BOX.get(head);
   if (hb) return hb;
-  head.updateWorldMatrix(true, true);
-  let offL = null; let offR = null;
-  for (const ear of [parts.earL, parts.earR]) {
-    if (!ear || !inside(ear, head)) continue;
-    boxInFrame(head, ear, _earBox.makeEmpty());
-    if (!_earBox.isEmpty() && (_earBox.min.x >= EAR_OFF || _earBox.max.x <= -EAR_OFF)) {
-      if (ear === parts.earL) offL = ear; else offR = ear;
-    }
-  }
-  boxInFrame(head, head, _box.makeEmpty(), offL, offR);
+  headBoxIn(parts, _box);
   head.matrixWorld.decompose(_pt, _q, _sc);
+  const half = Math.max(_box.max.x - _box.min.x, _box.max.z - _box.min.z) / 2;
   const rLoc = Math.max(_box.max.x - _box.min.x, _box.max.y - _box.min.y, _box.max.z - _box.min.z) / 2;
-  hb = [(_box.min.x + _box.max.x) / 2, _box.max.y - rLoc, (_box.min.z + _box.max.z) / 2, rLoc * Math.max(_sc.x, _sc.y, _sc.z)];
+  hb = [(_box.min.x + _box.max.x) / 2, _box.max.y - rLoc, (_box.min.z + _box.max.z) / 2, half * Math.max(_sc.x, _sc.y, _sc.z)];
   HEAD_BOX.set(head, hb);
   return hb;
 }

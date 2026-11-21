@@ -32,10 +32,10 @@ const scene = { add() {}, remove() {} };
 const material = new THREE.MeshStandardMaterial({ vertexColors: true });
 const UP = new THREE.Vector3(0, 1, 0);
 
-function walker(x, z, breed = 'tabby') {
+function walker(x, z, breed = 'tabby', head = null) {
   const camera = new THREE.PerspectiveCamera();
   const player = createPlayer(camera, { addEventListener() {} });
-  const cat = buildCat(breed);
+  const cat = buildCat(breed, head ? { head } : undefined);
   cat.position.set(x, 0, z);
   player.setAvatar(cat, 3);
   player.enable();
@@ -101,7 +101,7 @@ describe('the soft bumps', () => {
       const bumps = [{ x: 0, z: -4, r: 0.2 }];
       const w = walker(0, -2, breed);
       w.cat.updateMatrixWorld(true);
-      const hr = catVolumes(w.cat).head.radius;
+      const hr = catVolumes(w.cat).headFlat;
       walkToContact(w, bumps);
       expect(w.cat.position.z, breed).toBeGreaterThan(-4); // stopped in front of it
       const head = catVolumes(w.cat).head.center;
@@ -119,7 +119,7 @@ describe('the soft bumps', () => {
     const before = w.cat.position.z;
     // she drops into a stalk where she stands: her head goes forward
     for (let i = 0; i < 30; i++) step(w, bumps, 'stalk');
-    const hr = catVolumes(w.cat).head.radius;
+    const hr = catVolumes(w.cat).headFlat;
     const head = catVolumes(w.cat).head.center;
     expect(w.cat.position.z).toBeGreaterThan(before + 0.03); // slid back
     expect(Math.hypot(head.x, head.z + 4)).toBeGreaterThanOrEqual(0.2 + hr - 0.01);
@@ -255,7 +255,7 @@ function catReach() {
     const v = catVolumes(cat);
     const p = cat.position;
     most = Math.max(most,
-      Math.hypot(v.head.center.x - p.x, v.head.center.z - p.z) + v.head.radius,
+      Math.hypot(v.head.center.x - p.x, v.head.center.z - p.z) + v.headFlat,
       Math.hypot(v.body.a.x - p.x, v.body.a.z - p.z) + v.body.r,
       Math.hypot(v.body.b.x - p.x, v.body.b.z - p.z) + v.body.r);
   }
@@ -344,7 +344,7 @@ describe('her head stays out (ruling R28)', () => {
 // the person, who stood looking at her, is told to kneel (a fresh scratch).
 // Returns the seconds to the touch from that word, or Infinity.
 const TOUCH_BY = 2.4;
-function touchFrom(def, breed, side) {
+function touchFrom(def, breed, side, head = null) {
   const { people } = buildSpot(def, { material });
   const p = people[0];
   const group = new THREE.Group();
@@ -352,7 +352,7 @@ function touchFrom(def, breed, side) {
   group.updateMatrixWorld(true);
   const bumps = circlesAt(p.look);
   const gaze = createGaze(p.look);
-  const w = walker(2.5 * Math.sin(side), -2.5 * Math.cos(side), breed);
+  const w = walker(2.5 * Math.sin(side), -2.5 * Math.cos(side), breed, head);
   const top = new THREE.Vector3();
   const headTop = () => w.cat.userData.parts.head.getWorldPosition(top).addScaledVector(UP, headTopOffset(w.cat));
   let t = 0;
@@ -398,6 +398,17 @@ describe('still touched (rulings R29, R30)', () => {
     it(`${who}: a tabby and a siamese, head-on`, () => {
       const def = { ...spotOf(kind, 7), ...over };
       for (const breed of ['tabby', 'siamese']) expect(touchFrom(def, breed, 0), breed).toBeLessThanOrEqual(TOUCH_BY);
+    }, 90000);
+  }
+
+  // in the tallest hats too (fix round 1): a hat makes her head no wider, so
+  // the bump stops her where it stops her bare, and the hand rests on the hat
+  for (const [who, over] of [['a man', { sex: 'm' }], ['a woman', { sex: 'f' }]]) {
+    it(`${who}: a tabby and a siamese in a top hat, a wizard hat and a candle hat, head-on`, () => {
+      const def = { ...spotOf('adult', 7), ...over };
+      for (const breed of ['tabby', 'siamese']) {
+        for (const head of ['tophat', 'wizard', 'candlehat']) expect(touchFrom(def, breed, 0, head), `${breed} ${head}`).toBeLessThanOrEqual(TOUCH_BY);
+      }
     }, 90000);
   }
 });

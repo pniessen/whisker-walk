@@ -167,18 +167,18 @@ function standOff(r, cat, want) {
 // player.update pushes her: her middle, her head's middle and her body's ends
 // outside every one of the person's circles (figure frame), she walking up
 // (follow). The distance, in 0.01 m steps from outside.
-function bumpStop(r, breed) {
-  const cat = buildCat(breed);
+function bumpStop(r, breed, head = null) {
+  const cat = buildCat(breed, head ? { head } : undefined);
   animateCat(cat, 'follow', 1, 1, false);
   const circles = bumpCircles(r.p.look);
-  const vol = { head: new THREE.Sphere(), body: { a: new THREE.Vector3(), b: new THREE.Vector3(), r: 0 } };
+  const vol = { head: new THREE.Sphere(), headFlat: 0, body: { a: new THREE.Vector3(), b: new THREE.Vector3(), r: 0 } };
   const pts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
   const clear = (d) => {
     place(r, cat, d);
     catVolumes(cat, vol);
     pts[0].copy(local(r, cat.position)); pts[1].copy(local(r, vol.head.center));
     pts[2].copy(local(r, vol.body.a)); pts[3].copy(local(r, vol.body.b));
-    const own = [0.35, vol.head.radius, vol.body.r, vol.body.r];
+    const own = [0.35, vol.headFlat, vol.body.r, vol.body.r];
     return circles.every((c) => pts.every((p, i) => Math.hypot(p.x - c.x, p.z - c.z) >= c.r + own[i]));
   };
   let d = 2;
@@ -241,6 +241,69 @@ describe('her head and her volumes', () => {
   });
 });
 
+// What she wears on her head (the tallest of the shop and prize hats, and
+// the feather plume): her volumes hold, and the touch rests ON the hat, her
+// head's top for the touch being the top of what she wears (fix round 1).
+const HATS = ['tophat', 'wizard', 'candlehat', 'featherplume'];
+describe('her head in a hat', () => {
+  it('catVolumes and headTopOffset work for every tall hat on a tabby and a siamese: the head\'s top is the hat\'s', () => {
+    for (const breed of ['tabby', 'siamese']) {
+      const bare = buildCat(breed);
+      animateCat(bare, 'requestPet', 1, 0, false);
+      const bareTop = headTopOf(bare, new THREE.Vector3()).y;
+      for (const head of HATS) {
+        const cat = buildCat(breed, { head });
+        animateCat(cat, 'requestPet', 1, 0, false);
+        const v = catVolumes(cat);
+        const top = headTopOf(cat, new THREE.Vector3()).y;
+        expect(top, `${breed} ${head}`).toBeGreaterThan(bareTop + 0.01);
+        // the top is the hat's own highest point
+        let hatTop = -Infinity;
+        cat.updateMatrixWorld(true);
+        cat.userData.parts.head.traverse((o) => {
+          if (!o.userData.hat) return;
+          const pos = o.geometry.getAttribute('position');
+          for (let i = 0; i < pos.count; i++) hatTop = Math.max(hatTop, new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).y);
+        });
+        // (headTopOffset reads the top in the head's own frame, straight up:
+        // within a few centimetres of the world's top when the head and a
+        // slanting plume tip)
+        expect(Math.abs(top - Math.max(hatTop, bareTop)), `${breed} ${head}`).toBeLessThan(0.03);
+        expect(Math.abs(v.head.center.y + v.head.radius - top), `${breed} ${head}`).toBeLessThan(1e-6);
+        // the ears still have their capsules
+        expect(v.earN, `${breed} ${head}`).toBe(catVolumes(bare).earN);
+        for (let i = 0; i < v.earN; i++) expect(v.ears[i].a.distanceTo(v.ears[i].b), `${breed} ${head} ear ${i}`).toBeGreaterThan(0.01);
+      }
+    }
+  });
+
+  it('the touch rests on the hat\'s top and never goes through her: every tall hat, a tabby and a siamese, a man and a woman, from where the bump stops her', () => {
+    for (const [who, over] of [['man', { sex: 'm' }], ['woman', { sex: 'f' }]]) {
+      for (const breed of ['tabby', 'siamese']) {
+        for (const head of HATS) {
+          const cat = buildCat(breed, { head });
+          animateCat(cat, 'requestPet', 1, 0, false);
+          const r = rig('adult', over);
+          place(r, cat, bumpStop(r, breed, head));
+          const at = `${who} ${breed} ${head}`;
+          let state;
+          // (5 s: the time from the word to kneel is the walked test's, in
+          // test/bumps.test.js; here she stands exactly head-on, a little
+          // further out than a walk leaves her)
+          for (let i = 0; i < 300; i++) {
+            state = frame(r, cat);
+            expect(worstClearance(r.p, r.vol), `${at} frame ${i}`).toBeGreaterThan(0.005);
+            expect(worstEar(r.p, r.vol), `${at} frame ${i}`).toBeGreaterThan(0);
+          }
+          expect(state, at).toBe('resting');
+          const want = headTopOf(cat, new THREE.Vector3()).addScaledVector(UP, REACH.CLEAR);
+          expect(palmPoint(r.p, new THREE.Vector3()).distanceTo(want), at).toBeLessThanOrEqual(0.02 + 1e-6);
+        }
+      }
+    }
+  }, 90000);
+});
+
 describe('the head scratch', () => {
   it('REACH holds the spec\'s numbers', () => {
     expect(REACH).toEqual({ LEAN_MAX: 0.5, APPROACH: 0.7, ABOVE: 0.12, CLEAR: 0.01, STROKE: 0.02, STROKE_HZ: 1.5, WITHDRAW: 0.4, HELD_MAX: 0.55, HOLD_R: 2.5, MIN_TIME: 2.5, STAND_DELAY: 0.6, PERCHED_ABOVE: 0.3 });
@@ -301,7 +364,6 @@ describe('the head scratch', () => {
       }
       expect(state, breed).toBe('resting');
     }
-    console.info(`every preset cat touched within 2.5 s, her middle this far in front: ${JSON.stringify(at)}`);
     for (const breed of CATS) expect(at[breed], breed).toBeLessThanOrEqual(breed === 'mainecoon' ? 1.1 : 0.8);
   });
 
@@ -657,7 +719,6 @@ describe('the head scratch', () => {
         }
       }
     }
-    console.info(`never through her: ${configs} places (${skipped} skipped: she inside the person), ${touched} touched; worst clearance ${worst.toFixed(4)} m at ${worstAt}; worst surface ${surface.toFixed(4)} m at ${surfaceAt}; worst ear (skin) ${ear.toFixed(4)} m at ${earAt}; biggest palm step ${jump.toFixed(4)} m at ${jumpAt}`);
     expect(worst, worstAt).toBeGreaterThan(0.005); // the arm's middle line, as the spec words it
     expect(surface, surfaceAt).toBeGreaterThan(0); // and its skin
     expect(ear, earAt).toBeGreaterThan(0); // her ears too
