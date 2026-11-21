@@ -1,8 +1,8 @@
-import { rmSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import { defineConfig } from 'vite';
-import { precacheManifest } from './scripts/precache.mjs';
+import { precacheManifest, stampServiceWorker } from './scripts/precache.mjs';
 import { HEAVY_TESTS, HeavyFirst } from './test/heavy.js';
 
 // The iOS app (ios/) bundles its own copy of the game: `npm run build:ios`
@@ -16,12 +16,22 @@ export const IOS_OUT_DIR = 'ios/web';
 // registers it in the app).
 const IOS_PRUNE = ['sw.js', '.vite'];
 
-// Lists every file under assets/ for the service worker (website build only).
+// Lists every file under assets/ for the service worker (website build only),
+// and ships sw.js stamped with the same build id so every deploy installs a
+// new worker. Vite copies public/ into the out dir before the bundle is
+// written (renderStart), so this emitted sw.js replaces the plain copy.
 function precacheList() {
+  let publicDir;
   return {
     name: 'precache-list',
+    configResolved(config) {
+      publicDir = config.publicDir;
+    },
     generateBundle(_, bundle) {
-      this.emitFile({ type: 'asset', fileName: 'precache.json', source: JSON.stringify(precacheManifest(Object.keys(bundle))) });
+      const manifest = precacheManifest(Object.keys(bundle));
+      this.emitFile({ type: 'asset', fileName: 'precache.json', source: JSON.stringify(manifest) });
+      const sw = readFileSync(join(publicDir, 'sw.js'), 'utf8');
+      this.emitFile({ type: 'asset', fileName: 'sw.js', source: stampServiceWorker(sw, manifest.build) });
     },
   };
 }

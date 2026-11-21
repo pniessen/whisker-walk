@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { realBuild } from './helpers/realbuild.js';
 import { AREA_ENTRY_MODULES } from '../src/world/areas.js';
 import { startupFiles, areaDownloads, lazyProblems, areaSizeProblems, sizeProblem } from '../scripts/buildjson.mjs';
@@ -33,5 +34,14 @@ describe('the real website build is split into start-up and places', () => {
     const emitted = [...b.files.keys()].filter((n) => n.startsWith('assets/')).sort();
     expect(files).toEqual(emitted);
     expect(build).toMatch(/^[0-9a-f]{12}$/);
+  });
+
+  it('the shipped sw.js carries the build id from precache.json, and is otherwise public/sw.js', () => {
+    const { build } = JSON.parse(String(b.files.get('precache.json').source));
+    const sw = b.files.get('sw.js');
+    expect(sw, 'sw.js is emitted by the build').toBeTruthy();
+    const text = String(sw.source);
+    expect(text).toContain(build);
+    expect(text.endsWith(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'))).toBe(true);
   });
 });

@@ -33,5 +33,6 @@ describe('places in the app bundle', () => {
       for (const m of mods) expect(b.manifest[m]?.isDynamicEntry, `${id}: ${m}`).toBe(true);
     }
     expect(b.files.has('precache.json')).toBe(false);
+    expect(b.files.has('sw.js')).toBe(false);
   }, 300_000);
 });
