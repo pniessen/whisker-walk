@@ -189,8 +189,10 @@ const creepIn = (id) => { const s = stallById(id); return at(id, s.w / 2 + 0.5, 
 const munchSpot = (id) => { const s = stallById(id); return at(id, s.w / 2 + 1.3, s.d / 2 + 1.8); };
 const steps = (list) => freeze(list.map(freeze));
 const BAKER = stallById('baker');
-// the baker's view: out on the hide's side, the counter and her walk in in one frame
-const BAKER_VIEW = freeze({ stall: 'baker', eye: freeze([BAKER.w / 2 + 2.9, BAKER.d / 2 + 3.4, 2.2]), at: freeze([-0.4, BAKER.d / 2 + 0.4]) });
+// the baker's view: from out in front, a little off the middle on the side
+// she walks in from, her walk in, the counter and her dash to the hide in one
+// frame (the north-west lamp post, MARKET_LAMPS, off to the right, not in the way)
+const BAKER_VIEW = freeze({ stall: 'baker', eye: freeze([-1.0, BAKER.d / 2 + 7.5, 2.6]), at: freeze([-0.4, BAKER.d / 2 + 0.4]) });
 const CHEESE = stallById('cheese');
 export const MARKET_TOURS = freeze({
   // From the spawn the café crumbs; the fishmonger's hide, the bubble, the creep
