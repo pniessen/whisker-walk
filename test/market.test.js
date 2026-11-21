@@ -22,6 +22,7 @@ vi.stubGlobal('document', {
 });
 
 const marketModule = await import('../src/world/market.js');
+const marketParts = await import('../src/world/marketparts.js');
 const { build, setMarketDusk, MARKET_COBBLE } = marketModule;
 const { createMarketLife } = await import('../src/world/marketlife.js');
 const { buildAppleCrate } = await import('../src/world/marketfruit.js');
@@ -93,8 +94,14 @@ const clearOf = (x, z, colliders) => Math.min(...colliders.map((c) => Math.hypot
 // Step 3, Task 6 (2026-11-21): the bicycle is its own child (two meshes, never merged,
 // casting nothing) so the life can rock it, and needs no invisible box: +1 mesh,
 // -12 triangles (the box's, never drawn).
-const MEASURED_BUILT = { meshes: 109, casters: 27, triangles: 38329 };
-const MEASURED_MERGED = { meshes: 106, casters: 24, triangles: 38329 };
+// Step 3, Task 8 (2026-11-21, V11): the café's painted front (+1 mesh, its paint, casting
+// nothing; its awning, valance, sign, windows, boards and door +370 triangles, its panes
+// in the lit windows' mesh +6), its A-frame chalkboard in the clutter's kit (+50) with its
+// invisible contact-shadow box (+1 mesh, 12 triangles never drawn), the seven flower tubs'
+// stems and blooms (a lighter clump of leaves, -60 in all, and 5-7 flowers a tub, +628):
+// +2 meshes, no caster, +1,006 triangles; merged 108 / 24.
+const MEASURED_BUILT = { meshes: 111, casters: 27, triangles: 39335 };
+const MEASURED_MERGED = { meshes: 108, casters: 24, triangles: 39335 };
 const MEASURED_DRAWS = 0;
 
 function budgetStats(s) {
@@ -490,6 +497,166 @@ describe('the Market Square drawn', () => {
       expect(qualifies(b), c.id).toBe(true);
       expect(b.containsPoint(new THREE.Vector3(c.x, Math.min(0.3, b.max.y / 2), c.z)), c.id).toBe(true);
     }
+  });
+
+  // ---- Step 3, Task 8 (V11): the café front, the flower tubs and the cobbles ----
+  // world-space vertices of a mesh (the square's kits are drawn in place, under groups at the origin)
+  const vertsOf = (m) => {
+    const p = m.geometry.attributes.position;
+    const c = m.geometry.attributes.color;
+    const uv = m.geometry.attributes.uv;
+    return Array.from({ length: p.count }, (_, i) => ({
+      ...new THREE.Vector3(p.getX(i), p.getY(i), p.getZ(i)).applyMatrix4(m.matrixWorld),
+      col: c ? [c.getX(i), c.getY(i), c.getZ(i)] : null,
+      u: uv ? uv.getX(i) : null,
+      v: uv ? uv.getY(i) : null,
+    }));
+  };
+  // the triangles of a mesh whose middles lie within r of (x, z), across the ground
+  const trisNear = (m, x, z, r) => {
+    const p = m.geometry.attributes.position;
+    const idx = m.geometry.index ? m.geometry.index.array : Array.from({ length: p.count }, (_, i) => i);
+    let n = 0;
+    for (let t = 0; t < idx.length; t += 3) {
+      let cx = 0; let cz = 0;
+      for (let k = 0; k < 3; k++) { cx += p.getX(idx[t + k]) / 3; cz += p.getZ(idx[t + k]) / 3; }
+      if (Math.hypot(cx - x, cz - z) < r) n++;
+    }
+    return n;
+  };
+  const inCellUV = (q, cell) => {
+    const { atlasCell } = marketParts;
+    const b = atlasCell(cell);
+    return q.u >= b.u0 && q.u <= b.u1 && q.v >= b.v0 && q.v <= b.v1;
+  };
+
+  it('the café has its awning, window boards and a chalkboard of pictures, casting nothing', async () => {
+    const { MARKET_CLUTTER } = await import('../src/world/marketplan.js');
+    const front = scene.getObjectByName('marketCafeFront');
+    const fm = front.children.filter((o) => o.isMesh);
+    // its striped awning (which casts, as it did), the atlas (its sign and window boards)
+    // and its painted front: nothing new casts
+    expect(fm.length).toBeLessThanOrEqual(3);
+    for (const m of fm) expect([m.name, m.castShadow]).toEqual([m.name, !!m.userData.awning]);
+    for (const m of fm.filter((q) => !q.userData.awning)) expect(m.userData.noCast, m.name).toBe(true);
+    // the awning slopes from high on the wall down over the cobbles, to a scalloped valance
+    const awn = fm.find((m) => m.userData.awning);
+    const ab = boxOf(awn);
+    expect(ab.max.y).toBeGreaterThan(3.0);
+    expect(ab.min.y).toBeLessThan(2.3);
+    expect(ab.min.z).toBeLessThan(MARKET_BOUNDS.maxZ - 1.0);
+    const low = vertsOf(awn).filter((q) => q.y < ab.min.y + 0.015).map((q) => q.x).sort((p, q) => p - q);
+    let tips = low.length ? 1 : 0;
+    for (let i = 1; i < low.length; i++) if (low[i] - low[i - 1] > 0.12) tips++;
+    expect(tips, 'scallops along the valance').toBeGreaterThanOrEqual(12);
+    // the window boards: painted boards (atlas cell 17) low on the front, under its windows
+    const atlasMesh = fm.find((m) => m.material.map && !m.userData.awning);
+    const boards = vertsOf(atlasMesh).filter((q) => inCellUV(q, 17));
+    expect(boards.length).toBeGreaterThan(0);
+    for (const q of boards) {
+      expect(q.y).toBeGreaterThanOrEqual(0);
+      expect(q.y).toBeLessThan(0.8);
+      expect(q.z).toBeGreaterThan(MARKET_BOUNDS.maxZ);
+    }
+    // the chalkboard: an A-frame on the cobbles by the café's door, solid, out of every
+    // counter's view lane, its board the chalk pictures' cell (no letters: M12)
+    const chalk = MARKET_CLUTTER.find((c) => c.kind === 'chalkboard');
+    expect(chalk).toBeTruthy();
+    expect(chalk.solid).toEqual([{ x: chalk.x, z: chalk.z, r: 0.25 }]);
+    expect(area.colliders).toContainEqual({ x: chalk.x, z: chalk.z, r: 0.25 });
+    expect(isWalkableAt(area, chalk.x, chalk.z)).toBe(false);
+    const fb = boxOf(front);
+    expect(chalk.x).toBeGreaterThan(fb.min.x);
+    expect(chalk.x).toBeLessThan(fb.max.x);
+    expect(MARKET_BOUNDS.maxZ + 0.8 - chalk.z).toBeLessThan(1.5);
+    for (const s of DRAWN_STALLS) {
+      for (const [dx, dz] of [[0, 0], [0.3, 0.3], [-0.3, 0.3], [0.3, -0.3], [-0.3, -0.3]]) {
+        const { lx, lz } = toStall(s, chalk.x + dx, chalk.z + dz);
+        expect(lz > s.d / 2 - 0.5 && lz < s.d / 2 + 9 && Math.abs(lx) < s.w / 2 + 1.6, `in front of ${s.id}'s counter`).toBe(false);
+      }
+    }
+    const kit = scene.getObjectByName('marketClutter');
+    const kitAtlas = kit.children.find((m) => m.isMesh && m.material.map);
+    const face = vertsOf(kitAtlas).filter((q) => inCellUV(q, 16));
+    expect(face.length).toBeGreaterThan(0);
+    for (const q of face) {
+      expect(Math.hypot(q.x - chalk.x, q.z - chalk.z)).toBeLessThan(0.45);
+      expect(q.y).toBeGreaterThan(0.05);
+      expect(q.y).toBeLessThan(1.1);
+    }
+    const anchor = scene.getObjectByName(`marketClutter:${chalk.id}`);
+    expect([anchor.visible, anchor.castShadow]).toEqual([false, false]);
+    // the café front and its chalkboard together: at most 1,500 triangles more than the
+    // front's 68 (its awning, valance and sign before)
+    const tri = (m) => (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
+    const boardTris = kit.children.filter((m) => m.isMesh).reduce((n, m) => n + trisNear(m, chalk.x, chalk.z, 0.5), 0);
+    expect(fm.reduce((n, m) => n + tri(m), 0) + boardTris).toBeLessThanOrEqual(68 + 1500);
+  });
+
+  it('every flower tub has stems and blooms, and the clutter is still two meshes', async () => {
+    const { MARKET_CLUTTER } = await import('../src/world/marketplan.js');
+    const kit = scene.getObjectByName('marketClutter');
+    const drawn = kit.children.filter((o) => o.isMesh);
+    expect(drawn.length).toBeLessThanOrEqual(2);
+    const paintMesh = drawn.find((m) => m.material.vertexColors);
+    const verts = vertsOf(paintMesh);
+    const tubs = MARKET_CLUTTER.filter((c) => c.kind === 'tub');
+    expect(tubs).toHaveLength(7);
+    const green = (c) => c[1] > c[0] * 1.15 && c[1] > c[2] * 1.15;
+    for (const t of tubs) {
+      const over = (q) => Math.hypot(q.x - t.x, q.z - t.z) < 0.48 && q.y > 0.62;
+      const up = verts.filter(over);
+      // green stems rise out of the leaves
+      expect(up.filter((q) => green(q.col)).length, `${t.id}: stems`).toBeGreaterThan(0);
+      // 5 to 7 blooms over them, in more than one colour: each bloom one piece, its petal
+      // triangles joined at their corners (one stem or bloom never shares a corner with another)
+      const key = (q) => `${q.x.toFixed(4)},${q.y.toFixed(4)},${q.z.toFixed(4)}`;
+      const idx = paintMesh.geometry.index.array;
+      const parent = new Map();
+      const find = (k) => { while (parent.get(k) !== k) k = parent.get(k); return k; };
+      for (let i = 0; i < idx.length; i += 3) {
+        const tri = [verts[idx[i]], verts[idx[i + 1]], verts[idx[i + 2]]];
+        if (!tri.every(over) || tri.every((q) => green(q.col))) continue;
+        const ks = tri.map(key);
+        for (const k of ks) if (!parent.has(k)) parent.set(k, k);
+        for (const k of ks.slice(1)) parent.set(find(k), find(ks[0]));
+      }
+      const groups = new Map();
+      for (const q of up) {
+        if (!parent.has(key(q)) || green(q.col)) continue;
+        const r = find(key(q));
+        if (!groups.has(r)) groups.set(r, []);
+        groups.get(r).push(q);
+      }
+      const heads = [...groups.values()];
+      expect(heads.length, `${t.id}: blooms`).toBeGreaterThanOrEqual(5);
+      expect(heads.length, `${t.id}: blooms`).toBeLessThanOrEqual(7);
+      const tops = heads.map((h) => Math.max(...h.map((p) => p.y)));
+      for (const y of tops) { expect(y).toBeGreaterThan(0.66); expect(y).toBeLessThan(1.1); }
+      const colours = new Set(heads.map((h) => h.map((p) => p.col.map((v) => v.toFixed(2)).join(',')).sort()[0]));
+      expect(colours.size, `${t.id}: colours`).toBeGreaterThan(1);
+      // and cheap: at most 140 triangles over the barrel, its hoops and its leaves (224 before)
+      const n = drawn.reduce((s, m) => s + trisNear(m, t.x, t.z, 0.48), 0);
+      expect(n, t.id).toBeLessThanOrEqual(224 + 140);
+    }
+  });
+
+  it("the ground uses the square's own cobbles", () => {
+    const ground = scene.getObjectByName('marketCobbles');
+    const map = ground.material.map;
+    expect(map.isDataTexture).toBe(true);
+    expect([map.image.width, map.image.height]).toEqual([128, 128]);
+    expect(Array.from(map.image.data)).toEqual(Array.from(marketParts.createCobbleTexture().image.data));
+    expect([map.wrapS, map.wrapT]).toEqual([THREE.RepeatWrapping, THREE.RepeatWrapping]);
+    // one tile to 0.6 m across the whole ground
+    const size = boxOf(ground).getSize(new THREE.Vector3());
+    expect(map.repeat.x * 0.6).toBeCloseTo(size.x, 3);
+    expect(map.repeat.y * 0.6).toBeCloseTo(size.z, 3);
+    // its own picture, freed with the walk (no 'surface:' name), no shared relief that would not
+    // match its stones, and the ground's gentle tone steps still on top
+    expect(map.name.startsWith('surface:')).toBe(false);
+    expect(ground.material.normalMap ?? null).toBeNull();
+    expect(ground.material.vertexColors).toBe(true);
   });
 
   it('nothing in the square fades but its four lamp posts', () => {

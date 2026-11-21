@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as b from './builder.js';
 import { litMaterial, surfaceMaterialNoMap, tileMetres } from '../render/materials.js';
+import { getTextureAnisotropy } from '../render/textures.js';
 import { withLocalUuids } from './localuuids.js';
 import { hash01 } from './warehouselook.js';
-import { createMarketParts, marketMaterials, atlasCell, buildTreatMesh, ATLAS_SIZE } from './marketparts.js';
+import { createMarketParts, marketMaterials, atlasCell, buildTreatMesh, createCobbleTexture, ATLAS_W, ATLAS_H } from './marketparts.js';
 import { buildAppleCrate } from './marketfruit.js';
 import { createMarketLife } from './marketlife.js';
 import {
@@ -47,7 +48,11 @@ import {
 //     (userData.stall = its id): paint (posts, counter, shelf, crates, the
 //     treat's stand, the trestle over its hide), awning, atlas (sign and
 //     produce), metal and cloth, one mesh each;
-//   * each café table with its chairs, and the café's front (awning, sign);
+//   * each café table with its chairs, and the café's front (a painted
+//     shopfront with its windows, window boards and door, a steep striped
+//     awning with a scalloped valance, its cup sign): awning (casting, as it
+//     did), atlas and paint, one mesh each; its A-frame chalkboard stands on
+//     the cobbles in the clutter's kit (step 3, V11);
 //   * the four lamp posts (builder.lampPost), the only things that fade;
 //   * the five display treats (record.treatMeshes), each its own child,
 //     noMerge and casting nothing, so step 2 can hide and show them;
@@ -84,11 +89,15 @@ export const MARKET_SKY_DUSK = Object.freeze({ top: 0x2a3358, horizon: 0xa86e62 
 export const LANTERN_MAX = 1.6; // the lanterns' emissiveIntensity at full dusk
 export const WINDOW_GLOW = 1.0; // the lit shop and house windows' at full dusk
 const GROUND_SIZE = 96;
-// The cobbles (Task 6): the shared 'cobble' surface tiled at 0.6 m, so its 4 x 4
-// setts are 15 cm stones (the shared tile's are 30 cm, which read as big even
-// tiles at a cat's height), and a gentle tone step per ground vertex (2 m
-// apart) on top of builder.ground's macro patches, so the fine tile never
-// reads as one even sheet.
+// The cobbles (Task 6): tiled at 0.6 m, so a tile's four rows are 15 cm stones
+// (the shared tile's are 30 cm, which read as big even tiles at a cat's height),
+// and a gentle tone step per ground vertex (2 m apart) on top of
+// builder.ground's macro patches, so the fine tile never reads as one even
+// sheet. Step 3 (V11): the square's own tile (marketparts.js
+// createCobbleTexture), its rows laid half a stone apart and its stones uneven
+// in width and tone, in place of the shared 'cobble' grid of even squares; the
+// shared surface's light response (its roughness) is kept, its relief map is
+// not (it would not match these stones).
 const COBBLE_TILE = 0.6;
 const COBBLE_TONE = 0.06; // ± this much value, vertex to vertex
 const FLAG_RING = Object.freeze({ r0: 3.15, r1: 5.4, y: 0.012, color: 0x9a9284 });
@@ -145,6 +154,7 @@ const CLOTHED = Object.freeze(['flowers', 'fruit']);
 const STACKED = Object.freeze(['fish', 'baker', 'cheese']);
 const CAFE_CELL = 5;
 const CAFE_SIGN = 15;
+const CAFE_BOARD_CELL = 17; // the window boards' painted panel (marketparts.js)
 
 // The shop fronts: facade lines just outside the bounds, rows of town
 // buildings behind them, each side one mesh.
@@ -165,8 +175,12 @@ const FASCIAS = Object.freeze([0x3d6b4f, 0x7a2f35, 0x2f4268, 0x5a3b26, 0x6b4d7a,
 const GLASS = 0x34404c;
 const FRAME = 0xefe9dc;
 const DOORS = Object.freeze([0x4a3426, 0x2f4268, 0x3d6b4f, 0x7a2f35]);
-// the café's front, on the south row behind its tables
-const CAFE_FRONT = Object.freeze({ x0: -10, x1: -5, depth: 2.2, y: 2.75 });
+// The café's front, on the south row behind its tables (step 3, V11): a
+// shopfront painted over the houses' ground floor from x0 to x1, two windows
+// either side of its door, the awning from `top` on the wall down to `low`,
+// `depth` out over the cobbles, its valance's scallops one to each stripe.
+const CAFE_FRONT = Object.freeze({ x0: -10, x1: -5, top: 3.25, low: 2.45, depth: 1.95, band: 0.13, scallop: 0.12 });
+const CAFE_LOOK = Object.freeze({ front: 0x2c5646, trim: 0xefe6cf, door: 0x7a4a30, step: 0x9a9284, curtain: 0xf6eedc, brass: 0xc9a040 });
 
 // The clutter's shapes (marketplan.js MARKET_CLUTTER places them).
 const BENCH_SEAT_Y = 0.48;
@@ -220,10 +234,11 @@ const stallMatrix = (s) => mat4(s.at.x, 0, s.at.z, { yaw: yawOf(s) });
 // UVs squeezed into one atlas cell, inset half a texel so no neighbour bleeds in.
 function intoCell(g, cell) {
   const { u0, v0, u1, v1 } = atlasCell(cell);
-  const pad = 0.5 / ATLAS_SIZE;
+  const pu = 0.5 / ATLAS_W;
+  const pv = 0.5 / ATLAS_H;
   const uv = g.attributes.uv;
   for (let i = 0; i < uv.count; i++) {
-    uv.setXY(i, u0 + pad + uv.getX(i) * (u1 - u0 - 2 * pad), v0 + pad + uv.getY(i) * (v1 - v0 - 2 * pad));
+    uv.setXY(i, u0 + pu + uv.getX(i) * (u1 - u0 - 2 * pu), v0 + pv + uv.getY(i) * (v1 - v0 - 2 * pv));
   }
   uv.needsUpdate = true;
   return g;
@@ -232,9 +247,10 @@ function intoCell(g, cell) {
 const KEEP = ['position', 'normal', 'uv'];
 // A clone of `geo`, moved into place, with exactly the attributes a bucket
 // merges (position, normal, uv, and color for a vertex-coloured material).
-function prep(geo, matrix, { color = null, cell = null } = {}) {
+// `own`: keep the geometry's own vertex colours (a flower's petals and middle).
+function prep(geo, matrix, { color = null, cell = null, own = false } = {}) {
   const g = geo.clone();
-  for (const k of Object.keys(g.attributes)) if (!KEEP.includes(k)) g.deleteAttribute(k);
+  for (const k of Object.keys(g.attributes)) if (!KEEP.includes(k) && !(own && k === 'color')) g.deleteAttribute(k);
   const n = g.attributes.position.count;
   if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n * 2), 2));
   if (!g.attributes.normal) g.computeVertexNormals();
@@ -255,10 +271,10 @@ function prep(geo, matrix, { color = null, cell = null } = {}) {
 function makeKit(prefix) {
   const buckets = new Map();
   return {
-    put(key, mat, geo, matrix, { color = null, cell = null, noCast = false, tag = null } = {}) {
+    put(key, mat, geo, matrix, { color = null, cell = null, noCast = false, tag = null, own = false } = {}) {
       let k = buckets.get(key);
       if (!k) buckets.set(key, (k = { mat, noCast, tag, geos: [] }));
-      k.geos.push(prep(geo, matrix, { color: mat.vertexColors ? (color ?? 0xffffff) : null, cell }));
+      k.geos.push(prep(geo, matrix, { color: mat.vertexColors && !own ? (color ?? 0xffffff) : null, cell, own }));
     },
     meshes() {
       return [...buckets.entries()].map(([key, k]) => {
@@ -366,7 +382,10 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       if (s.w <= 0) continue;
       scene.add(drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, poles, basketKit, packKit }));
     }
-    drawCafe(scene, { PARTS, M, paint, lanterns });
+    // the shop fronts' windows lit at dusk, the café's among them: one mesh for all
+    const winLit = new THREE.MeshStandardMaterial({ color: GLASS, roughness: 0.85, metalness: 0, emissive: 0xffc070, emissiveIntensity: 0 });
+    const litKit = makeKit('marketWindowsLit');
+    drawCafe(scene, { PARTS, M, paint, quad, lanterns, litKit, winLit });
     for (const { x, z } of MARKET_LAMPS) {
       const lamp = own(`market-lamp-${x},${z}`, () => b.lampPost(x, z));
       lamp.name = `marketLamp:${x},${z}`;
@@ -448,9 +467,7 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
     scene.add(baskets, packing);
 
     scene.add(drawBunting(PARTS, flags, poles));
-    // the shop fronts, and a share of their windows lit at dusk: one mesh for all four sides
-    const winLit = new THREE.MeshStandardMaterial({ color: GLASS, roughness: 0.85, metalness: 0, emissive: 0xffc070, emissiveIntensity: 0 });
-    const litKit = makeKit('marketWindowsLit');
+    // the shop fronts, and a share of their windows lit at dusk (the lit kit above)
     const sack = new THREE.SphereGeometry(0.5, 8, 6);
     for (const side of SIDES) scene.add(drawShopFront(side, { paint, winLit, litKit, barrel, sack }));
     const windows = litKit.meshes()[0];
@@ -526,11 +543,13 @@ function groupOf(name, kit) {
 // --- the cobbles and the flagstones round the fountain
 function drawGround(scene) {
   const ground = b.ground(GROUND_SIZE, MARKET_COBBLE, { surface: 'cobble' });
-  // finer setts (COBBLE_TILE), keeping builder.ground's macro patches (vertex colours)
+  // the square's own setts (COBBLE_TILE), keeping builder.ground's macro patches (vertex colours)
   const n = Math.round(GROUND_SIZE / COBBLE_TILE);
   ground.material.dispose();
-  ground.material = litMaterial(MARKET_COBBLE, { surface: 'cobble', repeat: [n, n] });
-  ground.material.vertexColors = true;
+  const setts = createCobbleTexture(); // freed with the walk's scene (not a shared 'surface:' tile)
+  setts.repeat.set(n, n);
+  setts.anisotropy = getTextureAnisotropy();
+  ground.material = surfaceMaterialNoMap('cobble', MARKET_COBBLE, { map: setts, vertexColors: true });
   const col = ground.geometry.attributes.color;
   const gp = ground.geometry.attributes.position;
   for (let i = 0; i < col.count; i++) {
@@ -822,6 +841,56 @@ const BENCH_GREEN = 0x3d6b4f;
 const IRON = 0x34383c;
 const SACK = 0xc9b48a;
 const NOTES = Object.freeze([0xf3ead2, 0xe8d36a, 0xa9cfdc, 0xe7a5b5, 0xffffff]);
+// The flower tubs' blooms (step 3, V11): 5-7 a tub, [petals, middle], and their stems.
+const TUB_BLOOMS = Object.freeze({ min: 5, max: 7 });
+const TUB_SALT = 173;
+const BLOOMS = Object.freeze([
+  [0xe8528a, 0xf7d64a], [0xf5cf3a, 0xe07a1c], [0xf8f4ea, 0xf2c230], [0x9a5fd0, 0xf6e7a0],
+  [0xdc3a33, 0x3a2a24], [0xf28a26, 0xf8dc5a], [0xf0a6d2, 0xfff4d0],
+]);
+const STEM_GREEN = 0x4f8f3e;
+const LEAF_GREEN = 0x2f5e2c;
+const SEPAL_GREEN = 0x3f7a35;
+const UP = new THREE.Vector3(0, 1, 0);
+// One flower, 1 across, facing +y, its own colours: five petals round a cup
+// (a ring of tips and notches), the middle sunk a little; under it a green
+// sepal narrowing to the stem. Flat faces, 20 triangles.
+function bloomGeometry(petal, middle) {
+  const P = new THREE.Color(petal);
+  const Pd = P.clone().multiplyScalar(0.78);
+  const Mi = new THREE.Color(middle);
+  const G = new THREE.Color(SEPAL_GREEN);
+  const ring = Array.from({ length: 10 }, (_, j) => {
+    const a = (j * Math.PI) / 5;
+    const r = j % 2 ? 0.25 : 0.5;
+    return new THREE.Vector3(r * Math.cos(a), j % 2 ? 0 : 0.08, r * Math.sin(a));
+  });
+  const mid = new THREE.Vector3(0, -0.05, 0);
+  const base = new THREE.Vector3(0, -0.3, 0);
+  const pos = [];
+  const col = [];
+  const tri = (a, ca, b, cb, c, cc, up) => {
+    // wound so the face looks up (the petals' tops) or out (their undersides)
+    const n = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a));
+    const out = up ? n.y > 0 : n.dot(new THREE.Vector3(a.x + b.x + c.x, 0, a.z + b.z + c.z)) > 0;
+    const v = out ? [[a, ca], [b, cb], [c, cc]] : [[a, ca], [c, cc], [b, cb]];
+    for (const [p, q] of v) { pos.push(p.x, p.y, p.z); col.push(q.r, q.g, q.b); }
+  };
+  for (let j = 0; j < 10; j++) {
+    const a = ring[j];
+    const b = ring[(j + 1) % 10];
+    tri(mid, Mi, a, P, b, P, true);
+    tri(base, G, a, Pd, b, Pd, false);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  return g;
+}
+// The café's A-frame chalkboard: `h` high at its hinge, `w` wide, each board
+// `tilt` off upright; its slate is atlas cell 16 (marketparts.js).
+const CHALKBOARD = Object.freeze({ h: 0.86, w: 0.52, tilt: 0.24, cell: 16 });
 function drawClutter(c, K, { PARTS, M, paint, barrel, wheel, tyre, disc, quad }) {
   const casts = c.kind === 'board';
   const lean = c.kind === 'bicycle' ? BIKE.lean : 0;
@@ -871,10 +940,35 @@ function drawClutter(c, K, { PARTS, M, paint, barrel, wheel, tyre, disc, quad })
     for (const sz of [-0.12, 0, 0.12]) box(0, BENCH_SEAT_Y - 0.03, sz, 1.62, 0.03, 0.1, BENCH_GREEN);
     for (const y of [0.62, 0.79]) box(0, y, -0.18, 1.62, 0.1, 0.03, BENCH_GREEN);
   } else if (c.kind === 'tub') {
-    // a half-barrel of flowers: two iron hoops, a dome of blooms
+    // a half-barrel of flowers: two iron hoops, a low mound of leaves, and
+    // over it 5-7 flowers on short green stems, each a cup of five petals
+    // round a bright middle (step 3, V11: it was a dome painted with blooms)
     wood(barrel, mat4(0, 0, 0, { sx: 0.76, sy: 0.45, sz: 0.76 }), WOOD);
     for (const y of [0.07, 0.33]) wood(barrel, mat4(0, y, 0, { sx: 0.785, sy: 0.04, sz: 0.785 }), IRON);
-    atlas(PARTS.bulb, mat4(0, 0.43, 0, { sx: 0.68, sy: 0.42, sz: 0.68 }), 8);
+    wood(PARTS.dome, mat4(0, 0.43, 0, { yaw: 6 * hash01(c.x, c.z, TUB_SALT + 9), sx: 0.74, sy: 0.38, sz: 0.74 }), LEAF_GREEN);
+    const n = TUB_BLOOMS.min + Math.floor(hash01(c.x, c.z, TUB_SALT) * (TUB_BLOOMS.max - TUB_BLOOMS.min + 1));
+    const turn = 2 * Math.PI * hash01(c.z, c.x, TUB_SALT + 1);
+    const hue = Math.floor(hash01(c.x, c.z, TUB_SALT + 2) * BLOOMS.length);
+    for (let i = 0; i < n; i++) {
+      const h = (k) => hash01(c.x + i, c.z - i, TUB_SALT + 3 + k);
+      // the first in the middle, the rest round it
+      const a = turn + (i * 2 * Math.PI) / (n - 1) + 0.3 * (h(0) - 0.5);
+      const r = i === 0 ? 0.03 : 0.22 + 0.04 * h(1);
+      const head = new THREE.Vector3(r * Math.sin(a), 0.66 + 0.08 * h(2) + (i === 0 ? 0.05 : 0), r * Math.cos(a));
+      const foot = new THREE.Vector3(head.x * 0.45, 0.5, head.z * 0.45);
+      const dir = head.clone().sub(foot);
+      const stemM = new THREE.Matrix4().compose(foot, _q.setFromUnitVectors(UP, dir.clone().normalize()), _s.set(0.016, dir.length(), 0.016));
+      wood(PARTS.stem, stemM, STEM_GREEN);
+      // the flower faces up and a little out, toward whoever looks at the tub
+      const face = new THREE.Vector3(head.x * 1.6, 1, head.z * 1.6).normalize();
+      const [petal, middle] = BLOOMS[(hue + i * 3) % BLOOMS.length];
+      const bloom = bloomGeometry(petal, middle);
+      const s = 0.17 + 0.03 * h(3);
+      const w = at.clone().multiply(new THREE.Matrix4().compose(head, _q.setFromUnitVectors(UP, face), _s.set(s, s, s)));
+      K.put('paint', paint, bloom, w, { own: true, noCast: true });
+      grow(bloom, w);
+      bloom.dispose();
+    }
   } else if (c.kind === 'stack') {
     // crates three high, one beside, two sacks and a basket of apples on top
     box(-0.15, 0, 0, 0.5, 0.3, 0.42, CRATE);
@@ -902,6 +996,28 @@ function drawClutter(c, K, { PARTS, M, paint, barrel, wheel, tyre, disc, quad })
       box(x, y, 0.034, 0.17 + 0.04 * (i % 3), 0.22, 0.006, col, { roll: 0.12 * Math.sin(i * 3.3) });
     });
     box(0, 1.92, 0, 1.5, 0.05, 0.26, WOOD_DARK);
+  } else if (c.kind === 'chalkboard') {
+    // the café's A-frame chalkboard (step 3, V11), its front (+z) to the square:
+    // two framed boards leaning together from a hinged top, the front one's
+    // slate the atlas's chalk pictures (a cup, a slice of cake, a croissant:
+    // no letters, M12) with a little ledge for the chalk; the back one plain
+    const { h, w, tilt } = CHALKBOARD;
+    const len = h / Math.cos(tilt);
+    const foot = Math.tan(tilt) * h; // each board's foot, out from under the hinge
+    for (const side of [1, -1]) {
+      // a board stands on its foot and leans in to the hinge (a box turns about its base)
+      const pitch = -side * tilt;
+      box(0, 0, side * foot, w, len, 0.03, WOOD, { pitch });
+      if (side > 0) {
+        // the slate, just proud of the frame, and the ledge across its foot
+        const n = [Math.sin(tilt), Math.cos(tilt)]; // its outward normal's (y, z)
+        const mid = (0.13 + len - 0.035) / 2; // the slate's middle, this far up the board
+        atlas(quad, mat4(0, mid * Math.cos(tilt) + n[0] * 0.017, foot - mid * Math.sin(tilt) + n[1] * 0.017, { pitch, sx: w - 0.06, sy: len - 0.165 }), CHALKBOARD.cell);
+        const up = 0.08; // the ledge, this far up the board, under the slate
+        box(0, up * Math.cos(tilt) + n[0] * 0.035 - 0.0125, foot - up * Math.sin(tilt) + n[1] * 0.035, w - 0.04, 0.025, 0.05, WOOD_DARK, { pitch });
+      }
+    }
+    box(0, h - 0.02, 0, w + 0.02, 0.04, 0.07, WOOD_DARK); // the hinge along the top
   } else if (c.kind === 'bicycle') {
     // a bicycle on its stand, leaning a touch to the wall (+z), its basket over the front wheel
     const fr = 0x2f5f5f;
@@ -948,7 +1064,7 @@ function clutterAnchor(c, box, geo, mat) {
 }
 
 // --- the café: three tables with their chairs, and its front on the south row
-function drawCafe(scene, { PARTS, M, paint, lanterns }) {
+function drawCafe(scene, { PARTS, M, paint, quad, lanterns, litKit, winLit }) {
   // the crumbs (marketplan.js CAFE) lie under table 0's top's edge, clear of its foot
   const CHAIRS = [[0.6, 2.1, 3.4], [0.4, 2.4, 4.3], [1.1, 3.1, 5.0]];
   CAFE.tables.forEach((t, i) => {
@@ -965,7 +1081,13 @@ function drawCafe(scene, { PARTS, M, paint, lanterns }) {
     for (const m of K.meshes()) g.add(m);
     scene.add(g);
   });
-  // the café's striped awning and its cup sign on the south row's front
+  // The café's front on the south row (step 3, V11): a painted shopfront over
+  // the houses' ground floor, cream pilasters, a window either side of the
+  // door, café curtains, painted window boards under the windows; a steep
+  // striped awning from high on the wall down over the cobbles, its valance
+  // scalloped one tongue to a stripe, closed at the ends; the cup sign above
+  // it. Everything but the awning casts nothing. Its world frame: x along
+  // the row, v out from the house fronts (world z = zf - v).
   const F = CAFE_FRONT;
   const zf = MARKET_BOUNDS.maxZ + 0.8;
   const g = new THREE.Group();
@@ -973,24 +1095,102 @@ function drawCafe(scene, { PARTS, M, paint, lanterns }) {
   const K = makeKit('marketCafeFront');
   const w = F.x1 - F.x0;
   const cx = (F.x0 + F.x1) / 2;
-  K.put('awning', M.awning, PARTS.awningSheet(CAFE_CELL), mat4(cx, F.y, zf - F.depth / 2, { yaw: Math.PI, sx: w, sy: 2.5, sz: F.depth }), { tag: { awning: true } });
-  {
-    // the sheet's front edge in its own frame: y = F.y + 2.5 * (-0.06 - 0.05 sin(pi u))
-    const edge = (x) => F.y + 2.5 * (-0.06 - 0.05 * Math.sin(Math.PI * (x / w + 0.5))) + 0.01;
-    const flap = valance(w, F.depth / 2, edge, 0.3, 12);
-    K.put('awning', M.awning, flap, mat4(cx, 0, zf - F.depth / 2, { yaw: Math.PI }), { cell: CAFE_CELL });
-    flap.dispose();
+  const front = (x, y, v, extra) => mat4(x, y, zf - v, { yaw: Math.PI, ...extra });
+  const paintBox = (x, y, v, sx, sy, sz, color) => K.put('paint', paint, PARTS.crate, front(x, y, v, { sx, sy, sz }), { color, noCast: true });
+  const plane = (x, y, v, sx, sy) => front(x, y, v, { sx, sy });
+  // the shopfront: a green board over the ground floor, a cream band under the awning
+  paintBox(cx, 0, 0.075, w, F.top + 0.05, 0.06, CAFE_LOOK.front);
+  paintBox(cx, 2.5, 0.12, w, 0.12, 0.04, CAFE_LOOK.trim);
+  // the door in the middle, a window either side, cream pilasters between them
+  const DOOR = { x: cx, w: 0.9, h: 2.15 };
+  const posts = [F.x0 + 0.1, DOOR.x - DOOR.w / 2 - 0.15, DOOR.x + DOOR.w / 2 + 0.15, F.x1 - 0.1];
+  for (const x of posts) paintBox(x, 0, 0.13, 0.2, 2.5, 0.06, CAFE_LOOK.trim);
+  const windows = [[posts[0] + 0.1, posts[1] - 0.1], [posts[2] + 0.1, posts[3] - 0.1]];
+  for (const [x0, x1] of windows) {
+    const wx = (x0 + x1) / 2;
+    const ww = x1 - x0;
+    paintBox(wx, 0.72, 0.12, ww, 1.72, 0.03, CAFE_LOOK.trim); // the frame
+    litKit.put('glass', winLit, quad, plane(wx, 1.58, 0.137, ww - 0.12, 1.6), { noCast: true });
+    // café curtains on a brass rod across the lower half
+    K.put('paint', paint, quad, plane(wx, 1.17, 0.142, ww - 0.14, 0.62), { color: CAFE_LOOK.curtain, noCast: true });
+    paintBox(wx, 1.47, 0.145, ww - 0.1, 0.025, 0.02, CAFE_LOOK.brass);
+    // the glazing bars: one upright, one across near the top
+    paintBox(wx, 0.78, 0.15, 0.05, 1.6, 0.02, CAFE_LOOK.trim);
+    paintBox(wx, 1.96, 0.15, ww - 0.12, 0.05, 0.02, CAFE_LOOK.trim);
+    // the sill, and under it two painted window boards (atlas cell 17)
+    paintBox(wx, 0.68, 0.17, ww + 0.08, 0.05, 0.1, CAFE_LOOK.trim);
+    for (const side of [-1, 1]) {
+      K.put('atlas', M.stall, PARTS.crate, front(wx + side * ww / 4, 0.1, 0.13, { sx: ww / 2 - 0.04, sy: 0.55, sz: 0.03 }), { cell: CAFE_BOARD_CELL, noCast: true });
+    }
   }
+  // the door: a frame, a wooden door with a glass top and a brass knob, a stone step
+  paintBox(DOOR.x, 0, 0.12, DOOR.w + 0.1, DOOR.h + 0.08, 0.03, CAFE_LOOK.trim);
+  paintBox(DOOR.x, 0, 0.135, DOOR.w, DOOR.h, 0.03, CAFE_LOOK.door);
+  litKit.put('glass', winLit, quad, plane(DOOR.x, 1.5, 0.152, DOOR.w - 0.24, 0.95), { noCast: true });
+  paintBox(DOOR.x + DOOR.w / 2 - 0.12, 0.98, 0.16, 0.06, 0.06, 0.04, CAFE_LOOK.brass);
+  paintBox(DOOR.x, 0, 0.3, DOOR.w + 0.4, 0.08, 0.34, CAFE_LOOK.step);
+
+  // the awning: two striped sheets (each the café's stripes once), from `top` at the wall to `low`
+  const run = F.depth - 0.12;
+  const rise = F.top - 0.05 - F.low;
+  const slope = Math.hypot(run, rise);
+  const pitch = Math.atan2(run, rise);
+  // the valance under each, scalloped one tongue to a stripe
+  const flap = scallopedValance(w / 2, F.band, F.scallop);
+  for (const k of [0, 1]) {
+    const x = F.x0 + (w / 2) * (k + 0.5);
+    K.put('awning', M.awning, quad, front(x, F.low + rise / 2, 0.12 + run / 2, { pitch: -pitch, sx: w / 2, sy: slope }), { cell: CAFE_CELL, tag: { awning: true } });
+    K.put('awning', M.awning, flap, front(x, F.low + 0.01, F.depth, {}), { cell: CAFE_CELL });
+  }
+  flap.dispose();
+  // the two ends closed with a triangle of the stripes' colour
+  {
+    const end = new THREE.BufferGeometry();
+    end.setAttribute('position', new THREE.Float32BufferAttribute([0, F.top - 0.05, 0.12, 0, F.low, F.depth, 0, F.low, 0.12], 3));
+    end.setAttribute('uv', new THREE.Float32BufferAttribute([0.05, 0.5, 0.05, 0.5, 0.05, 0.5], 2));
+    end.computeVertexNormals();
+    for (const x of [F.x0, F.x1]) K.put('awning', M.awning, end, mat4(x, 0, zf, { sz: -1 }), { cell: CAFE_CELL });
+    end.dispose();
+  }
+  // the cup sign on the wall over the awning
   const sign = new THREE.BoxGeometry(0.9, 0.9, 0.05);
-  K.put('atlas', M.stall, sign, mat4(cx, F.y + 0.9, zf - 0.05, { yaw: Math.PI }), { cell: CAFE_SIGN, noCast: true });
+  K.put('atlas', M.stall, sign, mat4(cx, F.top + 0.47, zf - 0.05, { yaw: Math.PI }), { cell: CAFE_SIGN, noCast: true });
   sign.dispose();
   for (const m of K.meshes()) g.add(m);
   scene.add(g);
+  // the lanterns along the awning's front, under its scallops
   const n = 7;
   for (let i = 0; i < n; i++) {
     const x = F.x0 + 0.3 + (i * (w - 0.6)) / (n - 1);
-    lanterns.push({ x, y: F.y - 0.3 - 0.1 - 0.12 * Math.sin((Math.PI * i) / (n - 1)), z: zf - F.depth + 0.05 });
+    lanterns.push({ x, y: F.low - F.band - F.scallop - 0.12 - 0.06 * Math.sin((Math.PI * i) / (n - 1)), z: zf - F.depth + 0.06 });
   }
+}
+
+// A valance `w` wide hanging from y 0 at z 0, a band `band` deep with a tongue
+// under each of a cell's eight stripes (its UVs run across the cell once),
+// each `scallop` deeper at its middle, so each tongue is one stripe's colour.
+const SCALLOP_SEGS = 4;
+function scallopedValance(w, band, scallop) {
+  const tongues = 8;
+  const pos = [];
+  const uv = [];
+  const n = tongues * SCALLOP_SEGS;
+  for (let i = 0; i <= n; i++) {
+    const f = (i % SCALLOP_SEGS) / SCALLOP_SEGS;
+    const x = -w / 2 + (i * w) / n;
+    const u = i / n;
+    const drop = band + scallop * Math.sin(Math.PI * f);
+    pos.push(x, 0, 0, x, -drop, 0);
+    uv.push(u, 1, u, 0);
+  }
+  const idx = [];
+  for (let i = 0; i < n; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 2, a + 1, a + 3); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
 }
 
 // --- the bunting: six strings from the stalls' poles to the fountain's mast

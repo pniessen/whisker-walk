@@ -208,6 +208,8 @@ const LAMP_R = 0.12;
 //   bicycle parked on its stand by the south row, just inside the bounds: its
 //           rear wheel and frame are solid, its basket over the front wheel is
 //           the step-3 anchor (market.js MARKET_ANCHORS.basket)
+//   chalkboard the café's A-frame board of chalk pictures (step 3, V11), on the
+//           cobbles beside its door, turned a little toward the spawn, r 0.25
 // `half` is each thing's half-extent in its own frame [along x, along z], so
 // the plan test can check its whole footprint, not just its centre.
 // Five of them (the review, 2026-11-21) fill the open middle: a barrow and a
@@ -222,6 +224,7 @@ const CLUTTER_RAW = [
   ['stack-w', 'stack', -17.5, 12, 0.3], ['stack-e', 'stack', 16.5, 13, -0.2], ['stack-fruit', 'stack', 3.4, -18, 0.1],
   ['board', 'board', 4.8, 21.9, Math.PI], // its face to the square (-z)
   ['bicycle', 'bicycle', 9, 22.72, 0],
+  ['chalkboard', 'chalkboard', -6.45, 22.55, Math.PI - 0.35], // its face to the square, turned toward the spawn
   ['barrow-mid', 'barrow', 3.6, 13.6, 0.9], ['stack-mid', 'stack', -3.6, 10.4, 0.2],
   ['bench-sw', 'bench', -9.2, 9.6, 0], ['stack-sw', 'stack', -14, 7.6, -0.3], ['tub-sw-mid', 'tub', -11.6, 12.4, 0],
 ];
@@ -238,7 +241,7 @@ for (const s of STALLS.filter((q) => q.w > 0)) {
   const p = climbAt(s);
   CLUTTER_RAW.push([`crates-${s.id}`, 'crates', r2(p.x), r2(p.z), r2(Math.atan2(s.face.x, s.face.z) + 0.15)]);
 }
-const CLUTTER_HALF = freeze({ barrow: [1.26, 0.5], bench: [0.83, 0.25], tub: [0.4, 0.4], stack: [0.55, 0.5], board: [0.75, 0.15], bicycle: [0.85, 0.26], crates: [0.27, 0.27] });
+const CLUTTER_HALF = freeze({ barrow: [1.26, 0.5], bench: [0.83, 0.25], tub: [0.4, 0.4], stack: [0.55, 0.5], board: [0.75, 0.15], bicycle: [0.85, 0.26], crates: [0.27, 0.27], chalkboard: [0.28, 0.26] });
 // a bench faces the fountain: its yaw turns its seat's front (+z) to (0, 0)
 const benchYaw = (x, z) => Math.atan2(FOUNTAIN.x - x, FOUNTAIN.z - z);
 function clutterSolid(kind, x, z, yaw) {
@@ -249,6 +252,7 @@ function clutterSolid(kind, x, z, yaw) {
   if (kind === 'crates') return [freeze({ x, z, r: CLIMB_STACK.r })];
   if (kind === 'board') return [-0.55, 0.55].map((d) => freeze({ ...along(d), r: 0.1 }));
   if (kind === 'bicycle') return [-0.5, 0].map((d) => freeze({ ...along(d), r: 0.3 }));
+  if (kind === 'chalkboard') return [freeze({ x, z, r: 0.25 })];
   return [];
 }
 export const MARKET_CLUTTER = freeze(CLUTTER_RAW.map(([id, kind, x, z, y]) => {

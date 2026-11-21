@@ -3,7 +3,9 @@ import * as THREE from 'three';
 import { withLocalUuids } from '../src/world/localuuids.js';
 import {
   createMarketAtlas, atlasCell, marketMaterials, createMarketParts, buildTreatMesh, createBubbleTexture, buildBroom, TREAT_KINDS,
+  createCobbleTexture,
 } from '../src/world/marketparts.js';
+import OLD_CELLS from './fixtures/market-atlas-cells.json';
 
 const px = (tex, x, y) => { const i = (y * tex.image.width + x) * 4; return Array.from(tex.image.data.slice(i, i + 4)); };
 
@@ -19,32 +21,139 @@ function withDocumentSpy(fn) {
 
 describe('marketparts', () => {
   const PARTS = createMarketParts();
+  // a cell's 32 x 32 pixels, read where atlasCell says it is
+  const cellPixels = (atlas, c) => {
+    const { width: W, height: H, data } = atlas.texture.image;
+    const { u0, v0 } = atlasCell(c);
+    const ox = Math.round(u0 * W);
+    const oy = Math.round(v0 * H);
+    const out = [];
+    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+      const i = ((oy + y) * W + ox + x) * 4;
+      out.push([data[i], data[i + 1], data[i + 2], data[i + 3]]);
+    }
+    return out;
+  };
+  const lumOf = ([r, g, b]) => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+
   it('the atlas is the same twice and paints no canvas', () => {
     let a; let b;
     const spy = withDocumentSpy(() => { a = createMarketAtlas(); b = createMarketAtlas(); marketMaterials(); });
     expect(spy).not.toHaveBeenCalled();
-    expect(a.size).toBe(128);
-    expect(a.cells).toBe(16);
+    // Step 3 (V11): 8 x 4 cells of 32 px
+    expect([a.w, a.h, a.cells]).toEqual([256, 128, 32]);
+    expect([a.texture.image.width, a.texture.image.height]).toEqual([256, 128]);
     expect(a.texture.isDataTexture).toBe(true);
     expect(a.texture.magFilter).toBe(THREE.LinearFilter);
     expect(Array.from(a.texture.image.data)).toEqual(Array.from(b.texture.image.data));
-    // every cell is opaque and painted (not one flat colour)
+    // every pixel is opaque, and every cell in use is painted (not one flat colour)
     const d = a.texture.image.data;
-    for (let c = 0; c < 16; c++) {
-      const seen = new Set();
-      for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
-        const i = ((Math.floor(c / 4) * 32 + y) * 128 + (c % 4) * 32 + x) * 4;
-        expect(d[i + 3]).toBe(255);
-        seen.add(`${d[i]},${d[i + 1]},${d[i + 2]}`);
-      }
+    for (let i = 3; i < d.length; i += 4) expect(d[i]).toBe(255);
+    for (let c = 0; c < 18; c++) {
+      const seen = new Set(cellPixels(a, c).map((p) => p.slice(0, 3).join(',')));
       expect(seen.size, `cell ${c}`).toBeGreaterThan(2);
     }
   });
 
-  it('atlasCell gives each cell its own quarter-row box', () => {
-    expect(atlasCell(0)).toEqual({ u0: 0, v0: 0, u1: 0.25, v1: 0.25 });
-    expect(atlasCell(5)).toEqual({ u0: 0.25, v0: 0.25, u1: 0.5, v1: 0.5 });
-    expect(atlasCell(15)).toEqual({ u0: 0.75, v0: 0.75, u1: 1, v1: 1 });
+  it('every old cell keeps its picture', () => {
+    // the sums of cells 0-15's pixels, recorded from the 128 px atlas before it grew
+    const a = createMarketAtlas();
+    expect(OLD_CELLS.cells).toHaveLength(16);
+    for (let c = 0; c < 16; c++) {
+      const sum = [0, 0, 0];
+      for (const p of cellPixels(a, c)) for (let k = 0; k < 3; k++) sum[k] += p[k];
+      expect(sum, `cell ${c}`).toEqual(OLD_CELLS.cells[c]);
+    }
+  });
+
+  it('the two new cells: a chalkboard of pictures on slate, and a painted window board', () => {
+    const a = createMarketAtlas();
+    // 16, the chalkboard: mostly dark slate, with chalk pictures in several colours on it
+    const board = cellPixels(a, 16);
+    const dark = board.filter((p) => lumOf(p) < 0.3).length;
+    const chalk = board.filter((p) => lumOf(p) > 0.55);
+    expect(dark / board.length).toBeGreaterThan(0.45);
+    expect(chalk.length / board.length).toBeGreaterThan(0.12);
+    // white chalk (the cup), pink (the cake's icing) and yellow (the croissant)
+    const hsl = (p) => new THREE.Color(p[0] / 255, p[1] / 255, p[2] / 255).getHSL({});
+    expect(chalk.some((p) => hsl(p).s < 0.2)).toBe(true);
+    expect(chalk.some((p) => { const h = hsl(p); return h.s > 0.35 && (h.h > 0.85 || h.h < 0.03); })).toBe(true);
+    expect(chalk.some((p) => { const h = hsl(p); return h.s > 0.35 && h.h > 0.08 && h.h < 0.18; })).toBe(true);
+    // the three pictures stand apart: the top half holds the cup, the bottom half two more
+    const lit = (y0, y1, x0, x1) => board.filter((p, i) => {
+      const x = i % 32;
+      const y = Math.floor(i / 32);
+      return y >= y0 && y < y1 && x >= x0 && x < x1 && lumOf(p) > 0.55;
+    }).length;
+    expect(lit(17, 30, 8, 24)).toBeGreaterThan(20);
+    expect(lit(3, 15, 3, 15)).toBeGreaterThan(20);
+    expect(lit(3, 15, 17, 29)).toBeGreaterThan(20);
+    // 17, the window board: a painted panel in light and dark paint, more than three colours
+    const wb = cellPixels(a, 17);
+    expect(new Set(wb.map((p) => p.slice(0, 3).join(','))).size).toBeGreaterThan(3);
+    expect(wb.some((p) => lumOf(p) > 0.6)).toBe(true);
+    expect(wb.some((p) => lumOf(p) < 0.3)).toBe(true);
+  });
+
+  it('atlasCell gives each cell its own eighth-column, quarter-row box', () => {
+    expect(atlasCell(0)).toEqual({ u0: 0, v0: 0, u1: 0.125, v1: 0.25 });
+    expect(atlasCell(5)).toEqual({ u0: 0.625, v0: 0, u1: 0.75, v1: 0.25 });
+    expect(atlasCell(15)).toEqual({ u0: 0.875, v0: 0.25, u1: 1, v1: 0.5 });
+    expect(atlasCell(16)).toEqual({ u0: 0, v0: 0.5, u1: 0.125, v1: 0.75 });
+    expect(atlasCell(31)).toEqual({ u0: 0.875, v0: 0.75, u1: 1, v1: 1 });
+  });
+
+  it('the cobble texture: rows offset, stones varied, the same twice, no canvas', () => {
+    let a; let b;
+    const spy = withDocumentSpy(() => { a = createCobbleTexture(); b = createCobbleTexture(); });
+    expect(spy).not.toHaveBeenCalled();
+    expect(a.isDataTexture).toBe(true);
+    expect(a).not.toBe(b);
+    expect([a.image.width, a.image.height]).toEqual([128, 128]);
+    expect([a.wrapS, a.wrapT]).toEqual([THREE.RepeatWrapping, THREE.RepeatWrapping]);
+    expect(Array.from(a.image.data)).toEqual(Array.from(b.image.data));
+    const L = (x, y) => lumOf(px(a, ((x % 128) + 128) % 128, ((y % 128) + 128) % 128));
+    // four rows of setts, 32 px each: along each row's middle line, dark joints between light stones
+    const rows = [];
+    for (let r = 0; r < 4; r++) {
+      const y = r * 32 + 16;
+      const line = Array.from({ length: 128 }, (_, x) => L(x, y));
+      const joints = [];
+      // a joint starts where two dark pixels follow a light one (a stone's shaded edge is not one)
+      const dark = (x) => line[(x + 128) % 128] < 0.7;
+      for (let x = 0; x < 128; x++) if (dark(x) && dark(x + 1) && !dark(x - 1)) joints.push(x);
+      expect(joints.length, `row ${r}`).toBeGreaterThanOrEqual(3);
+      expect(joints.length, `row ${r}`).toBeLessThanOrEqual(5);
+      // the stones between: each one's tone from the middle of its run
+      const stones = joints.map((j, k) => {
+        const next = k + 1 < joints.length ? joints[k + 1] : joints[0] + 128;
+        const mid = Math.round((j + next) / 2);
+        let s = 0; let n = 0;
+        for (let dx = -3; dx <= 3; dx++) for (let dy = -3; dy <= 3; dy++) { s += L(mid + dx, y + dy); n++; }
+        return { w: next - j, tone: s / n };
+      });
+      rows.push({ joints, stones });
+    }
+    // in no two neighbouring rows (the last and the next tile's first too) do the joints line up
+    const gap = (p, q) => { const d = Math.abs(p - q) % 128; return Math.min(d, 128 - d); };
+    for (let r = 0; r < 4; r++) {
+      const A = rows[r].joints;
+      const B = rows[(r + 1) % 4].joints;
+      for (const p of A) for (const q of B) expect(gap(p, q), `rows ${r} and ${(r + 1) % 4}: joints at ${p} and ${q}`).toBeGreaterThanOrEqual(5);
+    }
+    // the stones differ: in width (by more than a few px, within a fifth or so of 32) and in tone
+    const stones = rows.flatMap((r) => r.stones);
+    const widths = stones.map((s) => s.w);
+    expect(Math.max(...widths) - Math.min(...widths)).toBeGreaterThan(4);
+    for (const w of widths) { expect(w).toBeGreaterThan(32 * 0.75); expect(w).toBeLessThan(32 * 1.25); }
+    const tones = stones.map((s) => s.tone);
+    expect(Math.max(...tones) - Math.min(...tones)).toBeGreaterThan(0.04);
+    // light stones, darker joints, never near black (the ground's colour multiplies it)
+    let lo = 1; let mean = 0;
+    for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) { const v = L(x, y); lo = Math.min(lo, v); mean += v / (128 * 128); }
+    expect(lo).toBeGreaterThan(0.3);
+    expect(mean).toBeGreaterThan(0.8);
+    expect(mean).toBeLessThan(0.97);
   });
 
   it('the materials are one set: awning and stall carry the atlas, the lantern is dark until dusk', () => {
@@ -75,13 +184,17 @@ describe('marketparts', () => {
   });
 
   it('the shared parts are few and small', () => {
-    for (const k of ['box', 'post', 'counter', 'crate', 'basket', 'trestle', 'cafeTable', 'cafeChair', 'bulb', 'pennant']) {
+    for (const k of ['box', 'post', 'counter', 'crate', 'basket', 'trestle', 'cafeTable', 'cafeChair', 'bulb', 'pennant', 'dome', 'stem']) {
       const g = PARTS[k];
       expect(g, k).toBeTruthy();
       expect(g.attributes.position.count, k).toBeGreaterThan(0);
       expect(g).toBe(PARTS[k]);
     }
     expect(PARTS.crate.index.count / 3).toBe(12);
+    // the flower tubs' (step 3): a clump of leaves, and a thin three-sided stem
+    const tris = (g) => (g.index ? g.index.count : g.attributes.position.count) / 3;
+    expect(tris(PARTS.dome)).toBeLessThanOrEqual(40);
+    expect(tris(PARTS.stem)).toBe(6);
   });
 
   it('there is a treat mesh for every treat kind, small and casting nothing', () => {

@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // =============================================================================
-// THE MARKET'S KIT: one 128 px atlas (awning stripes, produce, sign pictures),
+// THE MARKET'S KIT: one 256 x 128 px atlas (awning stripes, produce, sign
+// pictures, the café's chalkboard and window boards), the square's own cobbles,
 // the materials, the shared geometries (PARTS), the five treats, the speech
-// bubble and the broom. marketbuild.js builds the square from it.
+// bubble and the broom. market.js builds the square from it.
 //
 // LOCAL UUIDS: nothing here is made at import. Materials come from
 // marketMaterials() and the shared geometries from createMarketParts(), each
@@ -14,9 +15,13 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 // Pictures only, never letters (M12).
 // =============================================================================
 
-export const ATLAS_SIZE = 128;
-export const ATLAS_CELLS = 16;
+// 8 x 4 cells of 32 px (step 3, V11: it was 4 x 4; cells 0-15 keep their pictures)
+const ATLAS_COLS = 8;
+const ATLAS_ROWS = 4;
 const CELL_PX = 32;
+export const ATLAS_W = ATLAS_COLS * CELL_PX;
+export const ATLAS_H = ATLAS_ROWS * CELL_PX;
+export const ATLAS_CELLS = ATLAS_COLS * ATLAS_ROWS;
 
 export const TREAT_KINDS = Object.freeze(['fishhead', 'sausageroll', 'cheddar', 'cream', 'crumbs']);
 
@@ -25,6 +30,13 @@ const CREAM = 0xf3ead2;
 const STRIPES = Object.freeze([0x3f6fb5, 0xc23b34, 0xe8b92c, 0x4c9a52, 0xe58fb0, 0x6e4a33]);
 
 const rgbOf = (hex) => [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255];
+// warehouselook.js's hash01, the same numbers: a copy, because importing that
+// file here splits it out of start-up's builder chunk into a start-up file of
+// its own (+0.4 kB at start-up, measured 2026-11-21)
+const hash01 = (x, z, salt) => {
+  const h = Math.sin(x * 12.9898 + z * 78.233 + salt * 37.719) * 43758.5453;
+  return h - Math.floor(h);
+};
 const mixc = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 const inCircle = (x, y, cx, cy, r) => (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
 const inEllipse = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
@@ -108,40 +120,183 @@ function signPixel(i, x, y) {
   return c;
 }
 
+// Cell 16 (step 3, V11): the café's A-frame chalkboard, pictures in chalk on
+// dark slate, in a thin wooden frame: a cup of something hot at the top, a
+// slice of cake with a cherry and a croissant below. Pictures only (M12).
+const SLATE = rgbOf(0x2c3532);
+const CHALK = Object.freeze({ white: rgbOf(0xe9ece4), pink: rgbOf(0xf1a2bd), yellow: rgbOf(0xf2cf6a), red: rgbOf(0xe25a55), cream: rgbOf(0xf3e3c0) });
+const BOARD_WOOD = rgbOf(0x8a6642);
+const CHALKBOARD = Object.freeze([
+  // the cup: a round-bottomed cup on a saucer, a handle, two curls of steam
+  [(x, y) => inRect(x, y, 11, 20, 19.5, 26) || inEllipse(x, y, 15.25, 20.5, 4.25, 2.2), CHALK.white],
+  [(x, y) => inCircle(x, y, 20.6, 23.2, 2.4) && !inCircle(x, y, 20.6, 23.2, 1.2), CHALK.white],
+  [(x, y) => inEllipse(x, y, 15.25, 18.2, 6.5, 1.1), CHALK.white],
+  [(x, y) => (Math.abs(x - (13.6 + 1.1 * Math.sin(y * 1.4))) < 0.65 || Math.abs(x - (17 + 1.1 * Math.sin(y * 1.4 + 1.5))) < 0.65) && y >= 27 && y <= 30, CHALK.white],
+  // the cake slice: a wedge of sponge, a pink layer of icing on top and through its middle, a cherry
+  [(x, y) => inTri(x, y, [3.5, 4.5], [14.5, 4.5], [14.5, 11.5]), CHALK.cream],
+  [(x, y) => inTri(x, y, [3.5, 4.5], [14.5, 4.5], [14.5, 11.5]) && Math.abs(y - 7.6) < 0.8, CHALK.pink],
+  [(x, y) => inTri(x, y, [1.8, 4.6], [14.6, 11.6], [14.6, 13.4]) && !inTri(x, y, [3.5, 4.5], [14.5, 4.5], [14.5, 11.5]), CHALK.pink],
+  [(x, y) => inCircle(x, y, 12.3, 14, 1.6), CHALK.red],
+  // the croissant: a fat crescent in golden chalk, its rolls marked in darker lines
+  [(x, y) => inEllipse(x, y, 23, 7.5, 6.8, 5) && !inEllipse(x, y, 23, 3.2, 4.4, 4.4), CHALK.yellow],
+  [(x, y) => inEllipse(x, y, 23, 8, 6.2, 4.4) && !inEllipse(x, y, 23, 3.4, 4.2, 3.2) && (Math.abs(x - 20) < 0.5 || Math.abs(x - 23) < 0.5 || Math.abs(x - 26) < 0.5), mixc(CHALK.yellow, SLATE, 0.45)],
+]);
+function chalkboardPixel(x, y) {
+  if (x < 1 || y < 1 || x > 30 || y > 30) return BOARD_WOOD;
+  // slate, with the faint smudge of old chalk wiped off
+  let c = mixc(SLATE, CHALK.white, 0.05 * hash01(Math.floor(x / 3), Math.floor(y / 2), 151));
+  for (const [test, col] of CHALKBOARD) if (test(x + 0.5, y + 0.5)) c = col;
+  return c;
+}
+
+// Cell 17 (step 3, V11): a painted window board under the café's windows: a
+// cream panel framed in the café's green, a fine gold line inside the frame
+// and a painted flower with two leaves in its middle. Each board shows the
+// cell once, about 0.72 x 0.55 m, so the flower is drawn a little squat.
+const CAFE_GREEN = rgbOf(0x284e3f);
+const PANEL = rgbOf(0xeadcb8);
+const GOLD = rgbOf(0xc9a040);
+const PETAL_PAINT = rgbOf(0xd8587e);
+function windowBoardPixel(x, y) {
+  const px = x + 0.5;
+  const py = y + 0.5;
+  if (px < 2.5 || px > 29.5 || py < 3 || py > 29) return CAFE_GREEN;
+  if (px < 4 || px > 28 || py < 4.5 || py > 27.5) return mixc(PANEL, CAFE_GREEN, 0.25);
+  if ((px < 5.2 || px > 26.8 || py < 5.8 || py > 26.2) && px > 4.4 && px < 27.6 && py > 4.9 && py < 27.1) return GOLD;
+  let c = PANEL;
+  // the leaves, then the petals round a gold middle
+  if (inEllipse(px, py, 10.6, 13.5, 4, 2.2) || inEllipse(px, py, 21.4, 13.5, 4, 2.2)) c = rgbOf(0x4c8a4a);
+  for (let k = 0; k < 5; k++) {
+    const a = (k / 5) * Math.PI * 2 + Math.PI / 2;
+    if (inEllipse(px, py, 16 + 3.4 * Math.cos(a), 17 + 3.6 * Math.sin(a), 2.6, 2.8)) c = PETAL_PAINT;
+  }
+  if (inCircle(px, py, 16, 17, 2.1)) c = rgbOf(0xf2c94c);
+  return c;
+}
+
+// the atlas's unused cells (18-31): plain cream, never drawn
+const SPARE = rgbOf(CREAM);
+
 function cellPixel(i, x, y) {
   if (i < 6) return awningPixel(i, x);
   if (i < 11) return producePixel(i, x, y);
-  return signPixel(i, x, y);
+  if (i < 16) return signPixel(i, x, y);
+  if (i === 16) return chalkboardPixel(x, y);
+  if (i === 17) return windowBoardPixel(x, y);
+  return SPARE;
 }
 
-// A DataTexture, 128 x 128 RGBA in 32 px cells: the same pixels every call.
-// Cell i sits at column i % 4, row floor(i / 4) counted from the bottom (v up).
+// A DataTexture, 256 x 128 RGBA in 32 px cells: the same pixels every call.
+// Cell i sits at column i % 8, row floor(i / 8) counted from the bottom (v up).
 export function createMarketAtlas() {
-  const data = new Uint8Array(ATLAS_SIZE * ATLAS_SIZE * 4);
+  const data = new Uint8Array(ATLAS_W * ATLAS_H * 4);
   for (let cell = 0; cell < ATLAS_CELLS; cell++) {
-    const ox = (cell % 4) * CELL_PX;
-    const oy = Math.floor(cell / 4) * CELL_PX;
+    const ox = (cell % ATLAS_COLS) * CELL_PX;
+    const oy = Math.floor(cell / ATLAS_COLS) * CELL_PX;
     for (let y = 0; y < CELL_PX; y++) {
       for (let x = 0; x < CELL_PX; x++) {
         const rgb = cellPixel(cell, x, y);
-        const j = ((oy + y) * ATLAS_SIZE + ox + x) * 4;
+        const j = ((oy + y) * ATLAS_W + ox + x) * 4;
         data[j] = Math.round(rgb[0]); data[j + 1] = Math.round(rgb[1]); data[j + 2] = Math.round(rgb[2]); data[j + 3] = 255;
       }
     }
   }
-  const texture = new THREE.DataTexture(data, ATLAS_SIZE, ATLAS_SIZE, THREE.RGBAFormat);
+  const texture = new THREE.DataTexture(data, ATLAS_W, ATLAS_H, THREE.RGBAFormat);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.magFilter = THREE.LinearFilter;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.generateMipmaps = true;
   texture.needsUpdate = true;
-  return { texture, size: ATLAS_SIZE, cells: ATLAS_CELLS };
+  return { texture, w: ATLAS_W, h: ATLAS_H, cells: ATLAS_CELLS };
 }
 
 export function atlasCell(i) {
-  const u0 = (i % 4) / 4;
-  const v0 = Math.floor(i / 4) / 4;
-  return { u0, v0, u1: u0 + 0.25, v1: v0 + 0.25 };
+  const u0 = (i % ATLAS_COLS) / ATLAS_COLS;
+  const v0 = Math.floor(i / ATLAS_COLS) / ATLAS_ROWS;
+  return { u0, v0, u1: u0 + 1 / ATLAS_COLS, v1: v0 + 1 / ATLAS_ROWS };
+}
+
+// ---------------------------------------------------------------------------
+// THE SQUARE'S OWN COBBLES (step 3, V11). One 0.6 m tile, 128 x 128: four rows
+// of setts 32 px (15 cm) deep, each row set half a stone along from the last
+// (running bond, so the joints never line up from row to row), each stone's
+// width within a fifth of 32 px and its tone within 8% (hash01), with a
+// rounded edge, a soft lit side and a shaded one, and dark joints between.
+// Near white, as the shared tiles are: the ground's colour multiplies it. A
+// DataTexture, so no canvas; the same pixels every call; RepeatWrapping.
+// ---------------------------------------------------------------------------
+const COBBLE_PX = 128;
+const SETT_ROWS = 4;
+const SETTS_A_ROW = 4;
+const SETT_PX = COBBLE_PX / SETT_ROWS; // 32: a row's depth, and a stone's width before its ±20%
+const COBBLE_SALT = 163;
+const JOINT_HALF = 1.6; // px either side of a joint's line
+const SETT_ROUND = 7; // the corners' radius, px
+// row r's joints, along it: its first joint, then each stone's width in turn
+// (two stones a fraction wider and two as much narrower, so the row still fills the tile)
+function settRow(r) {
+  const a = 0.4 * (hash01(0, r, COBBLE_SALT) - 0.5);
+  const b = 0.4 * (hash01(1, r, COBBLE_SALT) - 0.5);
+  const start = r * (SETT_PX / 2); // half a stone along from the row before
+  const edges = [start];
+  for (const d of [a, b, -a, -b]) edges.push(edges[edges.length - 1] + SETT_PX * (1 + d));
+  return edges; // SETTS_A_ROW + 1 joints, the last the first one a tile on
+}
+// how far into its stone (px) a point is, and which stone: -ve in a joint
+function settAt(x, y, rows) {
+  const r = Math.floor(y / SETT_PX) % SETT_ROWS;
+  const edges = rows[r];
+  let u = x;
+  while (u < edges[0]) u += COBBLE_PX;
+  while (u >= edges[0] + COBBLE_PX) u -= COBBLE_PX;
+  let k = 0;
+  while (u >= edges[k + 1]) k++;
+  const ex = Math.min(u - edges[k], edges[k + 1] - u) - JOINT_HALF;
+  const vy = y - r * SETT_PX;
+  const ey = Math.min(vy, SETT_PX - vy) - JOINT_HALF;
+  let d = Math.min(ex, ey);
+  if (ex < SETT_ROUND && ey < SETT_ROUND && d > 0) d = SETT_ROUND - Math.hypot(SETT_ROUND - ex, SETT_ROUND - ey);
+  return { d, r, k };
+}
+export function createCobbleTexture() {
+  const rows = Array.from({ length: SETT_ROWS }, (_, r) => settRow(r));
+  const height = (x, y) => { const { d } = settAt(x, y, rows); return d <= 0 ? 0 : Math.min(1, d / 5); };
+  const data = new Uint8Array(COBBLE_PX * COBBLE_PX * 4);
+  for (let y = 0; y < COBBLE_PX; y++) {
+    for (let x = 0; x < COBBLE_PX; x++) {
+      const px = x + 0.5;
+      const py = y + 0.5;
+      const { d, r, k } = settAt(px, py, rows);
+      const grain = 1 + 0.035 * (2 * hash01(x, y, COBBLE_SALT + 2) - 1);
+      let rgb;
+      if (d <= 0) {
+        // the joint: darker toward its line, a little grit
+        const t = Math.min(1, -d / JOINT_HALF);
+        rgb = [0.64, 0.62, 0.59].map((v) => v * (1 - 0.1 * t) * grain);
+      } else {
+        const tone = 1 + 0.16 * (hash01(k, r, COBBLE_SALT + 1) - 0.5); // ±8%
+        const warm = 0.03 * (2 * hash01(k, r, COBBLE_SALT + 3) - 1);
+        // the rounded edge: lit where the stone rises toward the light (up-left), shaded opposite
+        const slope = height(px - 1.5, py + 1.5) - height(px, py);
+        const lit = 1 - 0.18 * slope - 0.06 * (1 - Math.min(1, d / 5));
+        const v = 0.95 * tone * lit * grain;
+        rgb = [v * (1 + warm), v, v * (1 - warm)];
+      }
+      const j = (y * COBBLE_PX + x) * 4;
+      for (let c = 0; c < 3; c++) data[j + c] = Math.max(0, Math.min(255, Math.round(255 * rgb[c])));
+      data[j + 3] = 255;
+    }
+  }
+  const texture = new THREE.DataTexture(data, COBBLE_PX, COBBLE_PX, THREE.RGBAFormat);
+  texture.name = 'marketCobbles';
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.generateMipmaps = true;
+  texture.needsUpdate = true;
+  return texture;
 }
 
 // The place's materials, made once per build (never at import).
@@ -182,6 +337,11 @@ function buildParts() {
     boxAt(0.04, 0.4, 0.04, -0.17, 0.2, 0.17), boxAt(0.04, 0.4, 0.04, 0.17, 0.2, 0.17),
   ]);
   const basket = based(new THREE.CylinderGeometry(0.5, 0.38, 1, 8, 1, true)); // open top, wider at the lip
+  // a flower tub's clump of leaves (step 3): a twenty-sided ball, r 0.5, its faces catching
+  // the light unevenly as leaves do (20 triangles)
+  const dome = new THREE.IcosahedronGeometry(0.5, 0);
+  // a flower's stem: a thin three-sided prism, open, 1 m high, base at 0 (6 triangles)
+  const stem = based(new THREE.CylinderGeometry(0.5, 0.5, 1, 3, 1, true));
   const pennant = new THREE.BufferGeometry(); // a triangle in x/y, hanging point down, one-sided (cloth is double-sided)
   pennant.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, 0, 0, 0.5, 0, 0, 0, -1, 0], 3));
   pennant.setAttribute('normal', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1], 3));
@@ -197,6 +357,8 @@ function buildParts() {
     cafeChair,
     bulb: new THREE.SphereGeometry(0.5, 8, 6),
     pennant,
+    dome,
+    stem,
   };
 }
 // A gently sagging strip, 1 m wide (x) and 1 m deep (z, back at -0.5, front at +0.5), sloping down
@@ -206,7 +368,8 @@ function makeAwningSheet(cell) {
   if (!Number.isInteger(cell) || cell < 0 || cell >= ATLAS_CELLS) throw new Error(`awningSheet: no atlas cell ${cell}`);
   const NX = 8;
   const NZ = 2;
-  const pad = 0.5 / ATLAS_SIZE;
+  const padU = 0.5 / ATLAS_W;
+  const padV = 0.5 / ATLAS_H;
   const { u0, v0, u1, v1 } = atlasCell(cell);
   const pos = [];
   const uv = [];
@@ -215,7 +378,7 @@ function makeAwningSheet(cell) {
     for (let i = 0; i <= NX; i++) {
       const s = i / NX;
       pos.push(s - 0.5, 0.12 * (0.5 - t) - 0.05 * Math.sin(Math.PI * s) * t, t - 0.5);
-      uv.push(u0 + pad + s * (u1 - u0 - 2 * pad), v0 + pad + (1 - t) * (v1 - v0 - 2 * pad));
+      uv.push(u0 + padU + s * (u1 - u0 - 2 * padU), v0 + padV + (1 - t) * (v1 - v0 - 2 * padV));
     }
   }
   const idx = [];
