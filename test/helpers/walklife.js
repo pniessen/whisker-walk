@@ -1,11 +1,15 @@
 // walk.js's createWalkLifecycle booted headless, as test/walkfreed.test.js
 // boots it, for the Rooftops' walk tests (test/roofswalk.test.js and
-// test/roofsload.test.js). The lifecycle's own dependencies (the lighting rig,
-// the sound, the music, the cloud) are recorders. A test file's vi.mock calls
-// still reach the modules walk.js imports from here.
+// test/roofsload.test.js) and the loading tests (test/walkready.test.js). The
+// lifecycle's own dependencies (the lighting rig, the sound, the music, the
+// cloud, the home screen, the home toast, a page reload) are recorders. A test
+// file's vi.mock calls still reach the modules walk.js imports from here,
+// the area modules included (vi.mock applies to dynamic imports too).
 import * as THREE from 'three';
 import { expect } from 'vitest';
 import { createWalkLifecycle } from '../../src/game/walk.js';
+import { AREA_LOADERS } from '../../src/world/areas.js';
+import { createAreaLoader } from '../../src/game/areaload.js';
 import { createProgression } from '../../src/progression.js';
 import { resolveQuality } from '../../src/render/quality.js';
 
@@ -38,17 +42,43 @@ const anything = (values = {}) => new Proxy(values, {
   set: (target, key, v) => { target[key] = v; return true; },
 });
 
+// An area loader (game/areaload.js) over the real packs (world/areas.js)
+// whose loads the test holds and lets go: hold(id) makes the next loads of
+// that place wait until release() (or fail()). calls[id] counts the loads
+// actually begun.
+export function controlledLoader() {
+  const calls = {};
+  const held = new Map();
+  const loaders = Object.fromEntries(Object.entries(AREA_LOADERS).map(([id, load]) => [id, () => {
+    calls[id] = (calls[id] ?? 0) + 1;
+    const h = held.get(id);
+    return h ? h.promise.then(load) : load();
+  }]));
+  function hold(id) {
+    let release;
+    let fail;
+    const promise = new Promise((res, rej) => { release = res; fail = rej; });
+    promise.catch(() => {}); // a failed hold nobody asked for again is not an unhandled rejection
+    const h = { release: () => release(), fail: (err = new Error('offline')) => fail(err), promise };
+    held.set(id, h);
+    return h;
+  }
+  return { areas: createAreaLoader({ loaders }), calls, hold, letGo: (id) => held.delete(id) };
+}
+
 // A save past the guided first walk, with the Glow Collar bought, and on
-// when `collar` says so.
-export function lifecycle({ collar = false } = {}) {
+// when `collar` says so. `areas` is the walk's area loader (a fresh one, with
+// nothing loaded, by default); `online` answers isOnline.
+export function lifecycle({ collar = false, areas = createAreaLoader(), online = () => true } = {}) {
   let session = null;
   let pendingRoom = null;
-  const rec = { lighting: [], sound: [], music: [], roomStarts: [], friendFetches: 0 };
+  const rec = { lighting: [], sound: [], music: [], roomStarts: [], friendFetches: 0, gettingReady: [], toasts: [], reloads: 0, soundContexts: 0 };
   const progression = createProgression(memStorage());
   progression.setTutorialFirst('done');
   progression.addPoints(1000);
   expect(progression.buy('accessories', 'glow')).toBe(true);
   if (collar) progression.equipAccessory('glow');
+  const homebase = anything({ setGettingReady: (on) => rec.gettingReady.push(on) });
   const w = createWalkLifecycle({
     // MP on, so a solo walk asks the cloud for friends who could visit as ghosts
     MP: true, pid: 'me', coarse: false, envMap: new THREE.Texture(), overlay: anything({ classList: anything() }), blockList: new Set(),
@@ -57,18 +87,22 @@ export function lifecycle({ collar = false } = {}) {
     player: anything(), progression,
     settings: { get: (k) => (k === 'muted' ? true : null) },
     hud: anything({ mapHost: fakeEl() }),
-    audio: anything({ startAmbient: (areaId, o) => rec.sound.push({ areaId, ...o }) }),
+    audio: anything({ startAmbient: (areaId, o) => rec.sound.push({ areaId, ...o }), getContext: () => { rec.soundContexts++; } }),
     music: anything({ start: (_seed, mood) => rec.music.push(mood) }),
     log: anything(), touchUI: anything(), catVoice: () => {},
     getCloud: () => ({ fetchFriendships: async () => { rec.friendFetches++; return []; }, fetchProfiles: async () => [] }),
     getSession: () => session, setSession: (s) => { session = s; }, getIsTouch: () => false,
-    getHomebase: () => anything(),
+    getHomebase: () => homebase,
     getPendingRoom: () => pendingRoom, clearPendingRoom: () => { pendingRoom = null; }, pushProfileNow: () => {},
     startRoomTogether: (o) => rec.roomStarts.push(o),
     awardStrayGreet: () => {}, applyRemoteEvent: () => {},
     qualityAdapter: { beginWalk: () => ({ ...resolveQuality({ override: 'high' }), postFx: false }) },
     denShop: null,
+    areas,
+    homeToast: (text) => rec.toasts.push(text),
+    reloadPage: () => { rec.reloads++; },
+    isOnline: online,
   });
-  return { w, rec, progression, getSession: () => session, setPendingRoom: (r) => { pendingRoom = r; } };
+  return { w, rec, progression, areas, getSession: () => session, setPendingRoom: (r) => { pendingRoom = r; } };
 }
 

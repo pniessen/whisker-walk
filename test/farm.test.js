@@ -969,13 +969,6 @@ describe('Appletree Farm: catalog, unlocking and old saves', () => {
 });
 
 describe('Appletree Farm: registered everywhere a street area is', () => {
-  const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
-
-  it('is in walk.js’s AREAS map', () => {
-    expect(walkSrc).toMatch(/import \* as farm from '\.\.\/world\/farm\.js';/);
-    expect(walkSrc.match(/const AREAS = \{([^}]*)\}/)[1]).toContain('farm');
-  });
-
   it('has clouds, drifting seed down, paw prints on its earth paths and pasture grass', () => {
     expect(CLOUD_AREAS).toContain('farm');
     expect(AREA_SKY.farm).toEqual({ clouds: 10, banks: 5 });

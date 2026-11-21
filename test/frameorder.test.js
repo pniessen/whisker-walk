@@ -95,6 +95,11 @@ vi.mock('../src/game/walk.js', () => h.stubModule({
     });
   },
 }));
+// F6: the area loader main.js makes at boot. Nothing is ever loaded and no
+// load ever settles, so the boot prefetches fetch nothing here.
+vi.mock('../src/game/areaload.js', () => ({
+  createAreaLoader: () => ({ loaded: () => null, ensure: () => new Promise(() => {}), prefetch() {}, ensureAll: async () => [] }),
+}));
 vi.mock('../src/ui/perfhud.js', () => h.stubModule({
   createPerfHud: () => h.withFallback({ frameStart: h.rec('perfHud.frameStart'), frameEnd: h.rec('perfHud.frameEnd') }),
 }));

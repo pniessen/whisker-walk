@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { bus } from './events.js';
 import { createPlayer } from './player.js';
 import { coatColor, CAT_LOOK_Y } from './cat/model.js';
-import { resumableAreaIds, roofsOn, loadRoofs } from './roofsflag.js';
+import { resumableAreaIds, roofsOn } from './roofsflag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { createProgression, rankFor, CATALOG } from './progression.js';
 import { colonyNews, tradeEffect } from './colony.js';
@@ -47,6 +47,8 @@ import { createGuideWalk } from './game/guidewalk.js';
 import { createGuideBubble } from './ui/guidebubble.js';
 import { createButtonUses } from './ui/buttonwords.js';
 import { tickAutoSniff } from './game/autosniff.js';
+import { createAreaLoader } from './game/areaload.js';
+import { effectiveArea } from './edition.js';
 import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode, SKIP_LESSON_ID, PAUSE_SOUND_ID, PAUSE_MUSIC_ID, PAUSE_VIEW_CLASS, pauseSoundOf } from './game/walk.js';
 import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
@@ -133,11 +135,6 @@ if (!renderer) {
 }
 
 function init() {
-  // ?roofs=1: fetch the Rooftops' drawing now, its own download, so it has
-  // come by the time Explore is pressed. Without the switch nothing fetches it.
-  // A failure here is quiet: Explore (walk.js) tries again and, failing,
-  // walks her own place.
-  if (roofsOn()) loadRoofs().catch(() => {});
   // coarse-pointer devices (phones/tablets) get a lower pixel-ratio cap here,
   // for the home base only. Walks no longer key off the pointer: each walk's
   // pixel ratio, shadows and stray count come from its quality rung, which
@@ -448,8 +445,10 @@ function init() {
 
   // Co-walk room lobby + profile push (src/game/rooms.js). It owns
   // pendingRoom; the walk lifecycle reads it back through getPendingRoom /
-  // clearPendingRoom below. startWalk is passed as a thunk because it is
-  // declared further down — nothing can reach it before init() returns.
+  // clearPendingRoom below. Its startWalk is the walk's startWalkWhenReady
+  // (a room start waits for its place like any start), passed as a thunk
+  // because it is declared further down — nothing can reach it before init()
+  // returns.
   const {
     rooms, pushProfileNow, getPendingRoom, clearPendingRoom, startRoomTogether,
   } = createRooms({
@@ -459,7 +458,7 @@ function init() {
     progression, getCloud, getPsecret, colonySync, onlineAllowed: togetherAllowed,
     getIsTouch: () => isTouch,
     getSession: () => session,
-    startWalk: (opts) => startWalk(opts),
+    startWalk: (opts) => startWalkWhenReady(opts),
     toast: cloudToast,
   });
   // Nearby one-tap joining (src/game/nearby.js): in the app, the shell finds
@@ -493,8 +492,14 @@ function init() {
   // it — and hands the module accessors for it. getHomebase is a thunk
   // because homebase is created below (it takes beginWalkFromHomebase as its
   // Start handler), and nothing calls back into it before init() returns.
+  //
+  // F6: every place is its own download. `areas` (game/areaload.js) fetches
+  // and keeps them; every walk start goes through startWalkWhenReady, which
+  // waits for its place with home up, and a place that does not come is one
+  // gentle line on the home screen (cloudToast).
+  const areas = createAreaLoader();
   const {
-    beginWalkFromHomebase, beginDenWalk, startWalk, endWalk, takeCrossing,
+    beginWalkFromHomebase, beginDenWalk, startWalkWhenReady, endWalk, takeCrossing,
   } = createWalkLifecycle({
     MP, pid, coarse, envMap, overlay, blockList,
     renderer, camera, composerRig,
@@ -514,6 +519,8 @@ function init() {
     // purr outlive the walk it was in.
     onWalkEnded: () => { clearResume(window.localStorage); haptics.stopPurr(); tips.end(); },
     buttonUses,
+    areas,
+    homeToast: cloudToast,
   });
   // resumeWalk is a hoisted function declaration, so it is safe to pass here.
   crossing = createCrossing({
@@ -565,6 +572,13 @@ function init() {
   const resuming = leftWalk?.kind === 'resume';
   const visit = resuming ? { visits: progression.state.visits, milestone: null } : progression.recordVisit();
   homebase.show();
+  // F6: fetch her own place and the den now, so Explore and the den button
+  // usually find them already here. ?roofs=1 fetches the Rooftops too (her
+  // Explore goes there); without the switch nothing fetches it. A failure here
+  // is quiet: the start itself tries again, and says so if it cannot.
+  areas.prefetch(effectiveArea(progression.state, CATALOG));
+  areas.prefetch('den');
+  if (roofsOn()) areas.prefetch('roofs');
   // Rosa's one-time farewell goes up before the news (showNews yields while it is up).
   const showFarewell = () => {
     if (resuming) return; // kept for a launch that opens at home
@@ -975,31 +989,26 @@ function init() {
   // cannot be rebuilt is settled on a later launch (RESUME_MAX_TRIES) rather
   // than tried forever.
   //
-  // A Rooftops walk (only noted with the switch on, resumableAreaIds) waits
-  // for its drawing to come. Home is up meanwhile; a fetch that fails leaves
-  // the note, already counted, for a later launch, and she stays home.
+  // The walk waits for its place like any start (startWalkWhenReady): home is
+  // up meanwhile. A place that does not come leaves the note, already
+  // counted, for a later launch, and she stays home. A build that throws,
+  // straight away or once the place has come, is settled here.
   if (resuming) {
     const left = markTried(window.localStorage, leftWalk.data);
-    const pickUp = () => {
-      try {
-        startWalk({ duskMode: left.dusk, areaOverride: left.areaId, resume: left });
-      } catch (err) {
-        console.warn('Whisker Walk: could not pick the walk up', err);
-        note('resume', err);
-        // The walk counts as finished and is forgotten. If it got as far as a
-        // half-built session, start the page again clean: with the note gone
-        // that opens at home, once.
-        clearResume(window.localStorage);
-        settleAbandoned(progression, left);
-        if (session) window.location.reload();
-      }
+    const giveUp = (err) => {
+      console.warn('Whisker Walk: could not pick the walk up', err);
+      note('resume', err);
+      // The walk counts as finished and is forgotten. If it got as far as a
+      // half-built session, start the page again clean: with the note gone
+      // that opens at home, once.
+      clearResume(window.localStorage);
+      settleAbandoned(progression, left);
+      if (session) window.location.reload();
     };
-    if (left.areaId !== 'roofs') pickUp();
-    else {
-      loadRoofs().then(
-        () => { if (!session) pickUp(); },
-        (err) => { console.warn('Whisker Walk: the Rooftops did not load', err); note('roofs', err); },
-      );
+    try {
+      startWalkWhenReady({ duskMode: left.dusk, areaOverride: left.areaId, resume: left }).catch(giveUp);
+    } catch (err) {
+      giveUp(err);
     }
   }
   // The frame guard (src/game/recovery.js holds the policy and its numbers).

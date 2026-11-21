@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 // Clan Edition Task 8: a Legacy walk goes quiet. A Legacy kid whose chosen
@@ -53,6 +53,13 @@ const { createWalkLifecycle } = await import('../src/game/walk.js');
 const { createProgression } = await import('../src/progression.js');
 const { resolveQuality } = await import('../src/render/quality.js');
 const { goatToday } = await import('../src/critters.js');
+const { createAreaLoader } = await import('../src/game/areaload.js');
+
+// Every place is its own download (F6): the places this file walks are loaded
+// first (through the mocks above: vi.mock reaches a dynamic import too), so a
+// start runs startWalk in the same tick and its STOP comes straight out.
+const areas = createAreaLoader();
+beforeAll(() => areas.ensureAll(['neighborhood', 'woods', 'river', 'moor', 'pines', 'gorge']));
 
 function memStorage() {
   const map = new Map();
@@ -93,6 +100,7 @@ function lifecycle(progression, { pendingRoom = null, startRoomTogether = vi.fn(
     awardStrayGreet: () => {}, applyRemoteEvent: () => {},
     qualityAdapter: { beginWalk: () => ({ ...resolveQuality({ reducedMotion: true, override: 'low' }), postFx: false }) },
     denShop: null,
+    areas,
   });
 }
 
@@ -530,8 +538,8 @@ describe('a crossing ends the walk the normal way (source pins)', () => {
     expect(s).toMatch(/crossLines\.map\(\(l\) => `<div class="best-line">\$\{escapeHtml\(l\)\}<\/div>`\)/);
     expect(s.indexOf('${crossHtml}')).toBeLessThan(s.indexOf('id="btn-summary-continue"'));
     expect(s).toContain('lastCrossing = { to: crossTo, picked: out.picked, clan }');
-    expect(s).toMatch(/function takeCrossing\(\)/);
-    expect(s).toMatch(/return \{ beginWalkFromHomebase, beginDenWalk, startWalk, endWalk, takeCrossing/);
+    // the lifecycle hands takeCrossing to main.js (no walk has crossed yet)
+    expect(lifecycle(createProgression(memStorage())).takeCrossing()).toBe(null);
   });
 });
 

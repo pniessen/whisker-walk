@@ -1,12 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { setRoofs, loadRoofs, loadedRoofs } from '../src/roofsflag.js';
+import { setRoofs } from '../src/roofsflag.js';
+import { phrase } from '../src/clanphrases.js';
+import { createAreaLoader } from '../src/game/areaload.js';
 import { lifecycle, fakeEl } from './helpers/walklife.js';
 
 // =============================================================================
-// The Rooftops' drawing is its own download (roofsflag.js loadRoofs, build fix
-// F2). When that download fails (offline, a deploy swapped underneath), Explore
-// with ?roofs=1 still goes somewhere: she walks her own place, never a blank
-// screen. Here world/roofs.js cannot be loaded at all.
+// The Rooftops' drawing is its own download, as every place's is (F6: the
+// `roofs` pack in world/areas.js, fetched by game/areaload.js). When that
+// download fails (offline, a deploy swapped underneath), Explore with
+// ?roofs=1 keeps her home with the same gentle line as any place that did not
+// come, starts no walk, and the next Explore tries again. Here world/roofs.js
+// cannot be loaded at all.
 // =============================================================================
 
 const tries = vi.hoisted(() => ({ n: 0 }));
@@ -26,22 +30,27 @@ afterEach(() => {
 });
 
 describe('when the Rooftops cannot be loaded', () => {
-  it('Explore with the switch walks her own place instead', async () => {
+  it('Explore with the switch stays home with the gentle line, and walks nowhere', async () => {
     setRoofs(true);
-    const life = lifecycle();
+    const areas = createAreaLoader();
+    await areas.ensure('neighborhood'); // her own place is here: she still does not walk it
+    const life = lifecycle({ areas });
     const started = life.w.beginWalkFromHomebase({ duskMode: false });
     expect(life.getSession()).toBe(null); // home stays up while it tries
-    await started;
-    expect(life.getSession()?.areaId).toBe('neighborhood');
+    expect(await started).toBe('failed');
+    expect(life.getSession()).toBe(null);
+    expect(life.rec.toasts).toEqual([phrase('start.notReady')]);
     expect(tries.n).toBeGreaterThan(0);
-    expect(loadedRoofs()).toBe(null);
-    life.w.endWalk();
+    expect(areas.loaded('roofs')).toBe(null);
   });
 
-  it('a failed fetch is not kept: the next call tries again', async () => {
-    await expect(loadRoofs()).rejects.toThrow();
+  it('a failed fetch is not kept: the next Explore tries again', async () => {
+    setRoofs(true);
+    const life = lifecycle();
+    expect(await life.w.beginWalkFromHomebase({ duskMode: false })).toBe('failed');
     const before = tries.n;
-    await expect(loadRoofs()).rejects.toThrow();
+    expect(await life.w.beginWalkFromHomebase({ duskMode: false })).toBe('failed');
     expect(tries.n).toBe(before + 1);
+    expect(life.getSession()).toBe(null);
   });
 });

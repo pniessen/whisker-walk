@@ -1629,7 +1629,6 @@ describe('The Fairground: registered everywhere a street area is', async () => {
   const { LEGENDARY_BY_AREA } = await import('../src/legendary.js');
   const { DRESSED_AREAS } = await import('../src/render/waterdress.js');
   const { nextThing } = await import('../src/ui/nextthing.js');
-  const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
   const plain = (v) => JSON.parse(JSON.stringify(v));
   function fakeStorage(initial = {}) {
     const map = new Map(Object.entries(initial));
@@ -1708,12 +1707,6 @@ describe('The Fairground: registered everywhere a street area is', async () => {
     expect(MARK_AREAS).toContain('fair');
     expect(emptyMarks().fair).toEqual([]);
     expect(p.state.marks.fair).toEqual([]);
-  });
-
-  it('is in walk.js’s AREAS map, and its bulbs are lit by the walk’s dusk and by nothing else', () => {
-    expect(walkSrc).toMatch(/import \* as fair from '\.\.\/world\/fair\.js';/);
-    expect(walkSrc.match(/const AREAS = \{([^}]*)\}/)[1]).toContain('fair');
-    expect(walkSrc).toMatch(/if \(areaId === 'fair'\) fair\.setFairGlow\(areaData, duskLookNow \? 1 : 0\);/);
   });
 
   it('holds the golden mice, the prop set and the rest looks exactly as its rows say', () => {
