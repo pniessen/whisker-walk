@@ -681,7 +681,7 @@ function drawAlley(K, group, M, ground) {
 
   // Task D: what an alley gathers, drawn only (no colliders, clear of every
   // spot she goes to: roofsplan.js ALLEY_CLUTTER), and weeds at the walls' feet.
-  drawClutter(K, M, G);
+  drawClutter(K, M);
   // (the weeds and the gully go in the stone bucket, as long as the alley
   // already, so no other bucket's bounds grow to reach shots of other places)
   for (const w of ALLEY_WEEDS) stone(weedTuft(w), weedColour);
@@ -802,29 +802,41 @@ function weedTuft(w) {
   }
   return triangles(tris);
 }
-// The bicycle against a garage door, a pallet leant on the next, a paint tin.
-function drawClutter(K, M, G) {
-  const painted = (geo, color) => K.put('paint', M.paint, geo, { color, noCast: true });
-  const wood = (geo) => K.put('wood', M.wood, geo, { noCast: true });
-  // the bicycle, in the plane z = bike.z, its front wheel east
+// The bicycle, the pallet and the paint tin under the fire escape (roofsplan.js
+// ALLEY_CLUTTER, where her body never reaches them).
+function drawClutter(K, M) {
+  let item = null; // which piece is being drawn, recorded in the kit's itemRanges for the tests
+  const painted = (geo, color) => K.put('paint', M.paint, geo, { color, noCast: true, item });
+  const wood = (geo) => K.put('wood', M.wood, geo, { noCast: true, item });
+  // the bicycle: u along it (front +), v across it, y up
+  item = { id: 'clutter:bike', kind: 'clutter' };
   const B = ALLEY_CLUTTER.bike;
-  const P = (x, y, dz = 0) => ({ x: B.x + x, y, z: B.z + dz });
-  for (const x of [-0.52, 0.52]) {
+  const [sx, sz] = [-B.az, B.ax];
+  const yaw = Math.atan2(-B.az, B.ax); // turns +x onto its length
+  const P = (u, y, v = 0) => ({ x: B.x + B.ax * u + sx * v, y, z: B.z + B.az * u + sz * v });
+  for (const u of [-0.52, 0.52]) {
     const tyre = new THREE.RingGeometry(0.29, 0.335, 14);
-    tyre.translate(B.x + x, 0.335, B.z);
-    K.put('cloth', M.cloth, tyre, { noCast: true, color: 0x1c1c1e }); // two-sided
+    tyre.rotateY(yaw);
+    const c = P(u, 0.335);
+    tyre.translate(c.x, c.y, c.z);
+    K.put('cloth', M.cloth, tyre, { noCast: true, color: 0x1c1c1e, item }); // two-sided
   }
   const [rear, front, crank, seat, head, fork] = [P(-0.52, 0.335), P(0.52, 0.335), P(-0.05, 0.3), P(-0.2, 0.82), P(0.36, 0.8), P(0.42, 0.62)];
   for (const [a, c] of [[rear, crank], [rear, seat], [crank, seat], [crank, fork], [seat, head], [fork, front], [head, fork], [head, P(0.34, 0.98)]]) painted(wire(a, c, 0.017), 0x6e3530);
   painted(wire(P(0.34, 0.98, -0.2), P(0.34, 0.98, 0.2), 0.015), 0x2b2b2e); // the handlebar
-  painted(box(B.x - 0.33, B.x - 0.09, 0.84, 0.89, B.z - 0.06, B.z + 0.06), 0x222224); // the saddle
-  // the pallet: five slats up its face, three bearers behind, leaning back on the door
+  const sd = P(-0.21, 0.84);
+  painted(turnedBox(sd.x, sd.z, 0.84, 0.24, 0.05, 0.12, yaw), 0x222224); // the saddle
+  // the pallet: five slats up its face, three bearers behind, leaning back 0.33 m onto the wall
+  item = { id: 'clutter:pallet', kind: 'clutter' };
   const PL = ALLEY_CLUTTER.pallet;
-  const [zb, zt, tall] = [PL.z + 0.18, G.z1 + 0.12, 1.0];
-  const zAt = (y) => zb + ((zt - zb) * y) / tall;
-  for (const dx of [-0.5, -0.25, 0, 0.25, 0.5]) wood(beam({ x: PL.x + dx, y: 0, z: zb }, { x: PL.x + dx, y: tall, z: zt }, 0.1, 0.022));
-  for (const y of [0.1, 0.5, 0.9]) wood(box(PL.x - 0.6, PL.x + 0.6, y - 0.05, y + 0.05, zAt(y) - 0.11, zAt(y) - 0.025));
+  const [tx, tz] = [-PL.nz, PL.nx]; // along the wall
+  const tall = 1.0;
+  const back = 0.33;
+  const at = (t, y, inward = 0) => ({ x: PL.x + tx * t - PL.nx * (back * y / tall + inward), y, z: PL.z + tz * t - PL.nz * (back * y / tall + inward) });
+  for (const t of [-0.5, -0.25, 0, 0.25, 0.5]) wood(beam(at(t, 0), at(t, tall), 0.1, 0.022));
+  for (const y of [0.1, 0.5, 0.9]) wood(beam(at(-0.6, y + 0.05, 0.0675), at(0.6, y + 0.05, 0.0675), 0.085, 0.1));
   // the paint tin, its lid left on
+  item = { id: 'clutter:tin', kind: 'clutter' };
   const T = ALLEY_CLUTTER.tin;
   painted(post(T.x, T.z, 0, 0.19, 0.085, 0.085, 8), 0x8a9298);
   painted(post(T.x, T.z, 0.19, 0.012, 0.09, 0.09, 8), 0x5c6a3e);

@@ -30,7 +30,7 @@ const {
   ROOFS_POIS, ROOFS_COLLECTIBLES, ROOFS_SCENICS, ROOFS_PERCHES, ROOFS_DISCOVERIES, BIN_BAGS,
   ROOFS_TOURS, ROOFS_REGISTRATION, ALLEY_CLUTTER, ALLEY_CHANNEL, WASHING_POSTS,
 } = await import('../src/world/roofsplan.js');
-const { CAT_RADIUS } = await import('../src/player.js');
+const { CAT_RADIUS, isWalkableAt } = await import('../src/player.js');
 const { createRoofsLife, EVENING_RAMP } = await import('../src/roofslife.js');
 const { STEP_MAX } = await import('../src/ground.js');
 const { findFadeOccluders } = await import('../src/treefade.js');
@@ -1185,8 +1185,55 @@ describe('the Rooftops drawn', () => {
     expect(pipes.length).toBeGreaterThanOrEqual(doors / 2);
   });
 
-  it('a bicycle, a pallet and a paint tin stand against the garages, clear of every spot she goes to', () => {
-    const G = BLOCKS.find((q) => q.id === 'garages');
+  // Task D's review: the ground is centre-only (ground.slide), so her centre
+  // reaches any wall's line and her body (CAT_RADIUS round it, 0.07 to 0.45 m
+  // over the ground there) would pass through a bicycle leant anywhere she can
+  // walk. Every point of the clutter's drawing more than 0.1 m up is sampled
+  // against every point she can stand on near it (inside the bounds, clear of
+  // the colliders: isWalkableAt), at the height of the ground there.
+  it('the alley\'s clutter stands where her body never reaches it', () => {
+    const items = meshes.filter((m) => m.userData.itemRanges).flatMap((m) => m.userData.itemRanges.filter((r) => r.kind === 'clutter').map((r) => [m, r]));
+    expect([...new Set(items.map(([, r]) => r.id))].sort()).toEqual(['clutter:bike', 'clutter:pallet', 'clutter:tin']);
+    const STEP = 0.05;
+    const bad = [];
+    let sampled = 0;
+    const [a, b, c, p] = [0, 1, 2, 3].map(() => new THREE.Vector3());
+    const seenOf = new Map();
+    for (const [m, r] of items) {
+      const pos = m.geometry.attributes.position;
+      if (!seenOf.has(r.id)) seenOf.set(r.id, new Set());
+      const seen = seenOf.get(r.id);
+      for (let i = r.start; i < r.start + r.count; i += 3) {
+        [a, b, c].forEach((v, j) => v.fromBufferAttribute(pos, i + j).applyMatrix4(m.matrixWorld));
+        const k = Math.min(60, Math.ceil(Math.max(a.distanceTo(b), b.distanceTo(c), c.distanceTo(a)) / 0.03));
+        for (let u = 0; u <= k; u++) {
+          for (let w = 0; u + w <= k; w++) {
+            p.copy(a).addScaledVector(b.clone().sub(a), u / k).addScaledVector(c.clone().sub(a), w / k);
+            if (p.y < 0.1) continue;
+            sampled++;
+            // every point she can stand on within CAT_RADIUS of it
+            for (let gx = Math.floor((p.x - CAT_RADIUS) / STEP) * STEP; gx <= p.x + CAT_RADIUS; gx += STEP) {
+              for (let gz = Math.floor((p.z - CAT_RADIUS) / STEP) * STEP; gz <= p.z + CAT_RADIUS; gz += STEP) {
+                if (Math.hypot(gx - p.x, gz - p.z) >= CAT_RADIUS || !isWalkableAt(area, gx, gz)) continue;
+                const g = area.ground.y(gx, gz);
+                const key = `${gx.toFixed(2)},${gz.toFixed(2)}`;
+                if (p.y > g + 0.07 && p.y < g + 0.45 && !seen.has(key)) {
+                  seen.add(key);
+                  if (seen.size <= 2) bad.push([r.id, +gx.toFixed(2), +gz.toFixed(2), +g.toFixed(2), +p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2)]);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(sampled).toBeGreaterThan(300);
+    expect(bad).toEqual([]);
+  });
+
+  it('a bicycle, a pallet and a paint tin stand under the fire escape, clear of every spot she goes to', () => {
+    const ST = BLOCKS.find((q) => q.id === 'alleyStair');
+    const F = ST.flights[0];
     const REG = ROOFS_REGISTRATION;
     const spots = [
       ROOFS_SPAWN, ...ROOFS_POIS, ...ROOFS_COLLECTIBLES, ...ROOFS_SCENICS, ...Object.values(ROOFS_DISCOVERIES), ...ROOFS_PERCHES,
@@ -1206,9 +1253,9 @@ describe('the Rooftops drawn', () => {
     };
     expect(Object.keys(ALLEY_CLUTTER).sort()).toEqual(['bike', 'pallet', 'tin']);
     for (const [name, q] of Object.entries(ALLEY_CLUTTER)) {
-      // against the garages' front, in the alley
-      expect([name, q.z - G.z1 > 0 && q.z - G.z1 < 0.6, q.x > G.x0 && q.x < G.x1]).toEqual([name, true, true]);
-      expect(area.ground.y(q.x, q.z)).toBe(0);
+      // under the fire escape's flight, where the ground she walks is the stair, high over it
+      expect([name, q.x > F.x0 && q.x < F.x1 && q.z > Math.min(F.z0, F.z1) && q.z < Math.max(F.z0, F.z1)]).toEqual([name, true]);
+      expect([name, area.ground.y(q.x, q.z) > 1.4]).toEqual([name, true]);
       // clear: of every spot by clearSpot's clearance, of the tours' paths, of every hop's ends, of every collider
       for (const s of spots) expect([name, s.x, s.z, Math.hypot(q.x - s.x, q.z - s.z) >= 1.6]).toEqual([name, s.x, s.z, true]);
       for (const sg of segs) expect([name, segDist(q, sg) >= CAT_RADIUS + 0.6]).toEqual([name, true]);
@@ -1216,15 +1263,20 @@ describe('the Rooftops drawn', () => {
         for (const [x, z] of [[h.x0, h.z0], [h.x1, h.z1]]) expect([name, h.id, Math.hypot(q.x - x, q.z - z) >= 0.9]).toEqual([name, h.id, true]);
       }
       for (const c of area.colliders) expect([name, Math.hypot(q.x - c.x, q.z - c.z) >= c.r + CAT_RADIUS]).toEqual([name, true]);
-      // and it is drawn there, standing up off the cobbles
-      let hits = 0;
-      for (let dx = -0.4; dx <= 0.4; dx += 0.02) {
-        for (let dz = -0.2; dz <= 0.2; dz += 0.02) {
-          const hit = firstHit([q.x + dx, 3, q.z + dz], [0, -1, 0], meshes.filter((m) => m.parent?.name === 'roofsAlley' && !m.userData.block));
-          if (hit && hit.point.y > 0.15 && hit.point.y < 1.3) hits++;
+      // and it is drawn there, standing up off the ground, wholly under the flight
+      const v = new THREE.Vector3();
+      let n = 0;
+      for (const m of meshes) {
+        for (const r of m.userData.itemRanges ?? []) {
+          if (r.id !== `clutter:${name}`) continue;
+          for (let i = r.start; i < r.start + r.count; i++) {
+            v.fromBufferAttribute(m.geometry.attributes.position, i).applyMatrix4(m.matrixWorld);
+            n++;
+            expect([name, Math.hypot(v.x - q.x, v.z - q.z) < 1.0, v.y > -0.01 && v.y < area.ground.y(v.x, v.z) - 0.3]).toEqual([name, true, true]);
+          }
         }
       }
-      expect([name, hits > 3]).toEqual([name, true]);
+      expect([name, n > 20]).toEqual([name, true]);
     }
     // the colliders and perches are the plan's, as before
     expect(area.colliders).toEqual(ROOFS_COLLIDERS.map((c) => ({ ...c })));
@@ -1253,7 +1305,7 @@ describe('the Rooftops drawn', () => {
   });
 
   it('the washing is shirts, trousers, socks, towels and sheets in softened colours, swinging from the line', () => {
-    const items = meshes.filter((m) => m.userData.itemRanges).flatMap((m) => m.userData.itemRanges.map((r) => [m, r]));
+    const items = meshes.filter((m) => m.userData.itemRanges).flatMap((m) => m.userData.itemRanges.filter((r) => r.id.startsWith('wash:')).map((r) => [m, r]));
     expect(items.length).toBeGreaterThanOrEqual(20);
     expect(new Set(items.map(([, r]) => r.kind))).toEqual(new Set(['shirt', 'trousers', 'socks', 'towel', 'sheet']));
     const lineTop = new Map(ROOFS_TRAVERSAL.crossings.filter((q) => q.kind === 'line').map((q) => [q.id, Math.max(...q.points.map((p) => p.y))]));

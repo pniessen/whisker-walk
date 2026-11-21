@@ -249,13 +249,18 @@ export const ALLEY_CRATES = Object.freeze([
   { x: 9.4, z: 35.0, y: 0, s: 0.6, yaw: -0.3 },
 ].map(Object.freeze));
 
-// Beauty pass, Task D (drawn only, no colliders): the alley's clutter against
-// the garages' doors, clear of every spot she goes to, and the flagstone
-// drainage channel down the alley's middle (flush with the cobbles).
+// Beauty pass, Task D (drawn only, no colliders): the alley's clutter, under
+// the fire escape's high end. The ground there is the stair she walks over
+// (1.4 m and more up), and the west garden beside it is 0.4 m away or more, so
+// her body (CAT_RADIUS round a centre that reaches any wall's line) never
+// meets it; against a wall in the open alley it would (Task D's review).
+// Each { x, z } is its foot's middle; the bike runs along (ax, az), front
+// first; the pallet leans back from its foot onto the wall behind it, (nx, nz)
+// pointing out from that wall.
 export const ALLEY_CLUTTER = Object.freeze({
-  bike: Object.freeze({ x: 4.5, z: 34.3 }), // leaning on a garage door, in the spawn's view
-  pallet: Object.freeze({ x: 1.1, z: 34.4 }), // leaning on the next door west
-  tin: Object.freeze({ x: 2.35, z: 34.35 }), // a paint tin beside it
+  bike: Object.freeze({ x: -30.7, z: 32.42, ax: 0, az: 1 }), // parked under the stair, front to the alley
+  pallet: Object.freeze({ x: -30.45, z: 30.6, nx: -1, nz: 0 }), // leant on the garages' west end wall
+  tin: Object.freeze({ x: -30.95, z: 31.3 }), // a paint tin by the pallet
 });
 export const ALLEY_CHANNEL = Object.freeze({ z: 40, half: 0.3, x0: -45.7, x1: 45.7 });
 
