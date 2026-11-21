@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   MARKET_BOUNDS, MARKET_SPAWN, FOUNTAIN, CAFE, STALLS, TREAT_STALLS, stallById, toStall, fromStall,
   MARKET_COLLIDERS, MARKET_HIDES, MARKET_KEEPOUT, marketArea, MARKET_REGISTRATION, MARKET_POIS, MARKET_COLLECTIBLES,
-  MARKET_CLUTTER, MARKET_LAMPS,
+  MARKET_CLUTTER, MARKET_LAMPS, FRUIT_CRATE, FLOUR_SACKS,
 } from '../src/world/marketplan.js';
 import { MARKET } from '../src/marketrules.js';
 import { isWalkableAt } from '../src/player.js';
@@ -213,13 +213,92 @@ describe('the plan of the Market Square', () => {
     // she faces a counter, so nothing tall may stand in front of one (out to
     // 9 m, across its width and 1.6 m either side). The final review found two
     // posts 4.7 m in front of the baker's and the cheese counters.
+    // Step 3 (V4): all six stalls with a counter, not only the four watched ones.
     for (const l of MARKET_LAMPS) {
-      for (const s of treat) {
+      for (const s of STALLS.filter((q) => q.w > 0)) {
         const { lx, lz } = toStall(s, l.x, l.z);
         const inLane = lz > s.d / 2 - 0.5 && lz < s.d / 2 + 9 && Math.abs(lx) < s.w / 2 + 1.6;
         expect(inLane, `lamp ${l.x},${l.z} in front of ${s.id}'s counter`).toBe(false);
       }
     }
+  });
+
+  it('no lamp stands where it stood in front of the fruit and flower stalls', () => {
+    expect(MARKET_LAMPS).toHaveLength(4);
+    for (const old of [[0, -10.4], [5.5, 1]]) {
+      expect(MARKET_LAMPS.some((l) => l.x === old[0] && l.z === old[1]), `${old}`).toBe(false);
+    }
+  });
+
+  it('both playable stalls have a hide a short dash from their front', () => {
+    for (const id of ['flowers', 'fruit']) {
+      const s = stallById(id);
+      expect(s.hide, id).not.toBeNull();
+      expect(isWalkableAt(a, s.hide.x, s.hide.z), id).toBe(true);
+      // the counter's front middle is a short dash away, and the straight line
+      // to the front corner on the hide's side (where a treat's spot would be:
+      // the way in is left open there), up to a cat's reach of it, is walkable
+      const front = fromStall(s, 0, s.d / 2);
+      expect(dist(s.hide, front), id).toBeLessThanOrEqual(3);
+      const stand = fromStall(s, s.hideSide * (s.w / 2 - 0.3), s.d / 2 + 0.35);
+      const d = dist(s.hide, stand);
+      for (let t = 0; t <= 1; t += 0.1 / d) {
+        const x = s.hide.x + (stand.x - s.hide.x) * t, z = s.hide.z + (stand.z - s.hide.z) * t;
+        if (Math.hypot(x - stand.x, z - stand.z) < TREAT_REACH) break;
+        expect(isWalkableAt(a, x, z), `${id} line at ${t.toFixed(2)}`).toBe(true);
+      }
+    }
+    expect(MARKET_HIDES).toContainEqual(stallById('fruit').hide);
+  });
+
+  it("the fruit stall's hide is on the side away from its crate", () => {
+    const s = stallById('fruit');
+    const h = toStall(s, s.hide.x, s.hide.z);
+    expect(Math.sign(h.lx)).toBe(-Math.sign(FRUIT_CRATE.lx));
+    // and the flower stall's is on its default side
+    const f = stallById('flowers');
+    expect(toStall(f, f.hide.x, f.hide.z).lx).toBeGreaterThan(0);
+  });
+
+  it('the rests are reached from the cobbles, the knockables sit on their ledge and land on free cobbles', () => {
+    const ps = MARKET_REGISTRATION.propSet;
+    expect(ps.rests.map((r) => r.kind).sort()).toEqual(['drink', 'nap']);
+    expect(ps.rests.every((r) => r.mesh === false)).toBe(true);
+    const nap = ps.rests.find((r) => r.kind === 'nap');
+    expect(nap.x).toBeCloseTo(FLOUR_SACKS.x, 1);
+    expect(nap.z).toBeCloseTo(FLOUR_SACKS.z, 1);
+    for (const r of ps.rests) {
+      let found = false;
+      for (let dx = -0.8; dx <= 0.8 + 1e-9 && !found; dx += 0.1) {
+        for (let dz = -0.8; dz <= 0.8 + 1e-9 && !found; dz += 0.1) {
+          if (Math.hypot(dx, dz) <= 0.8 && isWalkableAt(a, r.x + dx, r.z + dz)) found = true;
+        }
+      }
+      expect(found, r.id).toBe(true);
+    }
+    expect(ps.knockables.map((k) => k.kind).sort()).toEqual(['bucket', 'cup']);
+    const treat = TREAT_STALLS.map(stallById);
+    for (const k of ps.knockables) {
+      expect(k.fallTo, k.id).toBeDefined();
+      expect(isWalkableAt(a, k.fallTo.x, k.fallTo.z), k.id).toBe(true);
+      for (const c of MARKET_COLLIDERS) expect(Math.hypot(k.fallTo.x - c.x, k.fallTo.z - c.z) - c.r, k.id).toBeGreaterThanOrEqual(0.3);
+      for (const s of treat) expect(inZone(s, k.fallTo.x, k.fallTo.z), `${k.id} lands in ${s.id}'s zone`).toBe(false);
+      expect(dist(k, k.fallTo), k.id).toBeLessThan(3);
+    }
+    const bucket = ps.knockables.find((k) => k.kind === 'bucket');
+    expect(bucket.y).toBe(0.75);
+    // the bucket stands on the flower trestle: over the flower stall's hide, falls toward the fountain side
+    const f = stallById('flowers');
+    expect(dist(bucket, f.hide)).toBeLessThan(0.3);
+    expect(toStall(f, bucket.fallTo.x, bucket.fallTo.z).lz).toBeGreaterThan(toStall(f, bucket.x, bucket.z).lz);
+    // the cup is on café table 2 (the third), its top about 0.74
+    const cup = ps.knockables.find((k) => k.kind === 'cup');
+    expect(dist(cup, CAFE.tables[2])).toBeLessThan(0.4);
+    expect(cup.y).toBeCloseTo(0.74, 2);
+    // markables and carryables are on free cobbles
+    expect(ps.markables).toHaveLength(2);
+    expect(ps.carryables).toHaveLength(2);
+    for (const p of [...ps.markables, ...ps.carryables]) expect(isWalkableAt(a, p.x, p.z), p.id).toBe(true);
   });
 
   it('nothing offers it yet, and strays are allowed', () => {

@@ -69,8 +69,10 @@ const clearOf = (x, z, colliders) => Math.min(...colliders.map((c) => Math.hypot
 // meshes for them all, casting nothing, each with an invisible box for its
 // contact shadow (19 meshes that draw nothing, 228 triangles never drawn); the
 // noticeboard, the one caster, its own child; the bicycle inside the bounds.
-const MEASURED_BUILT = { meshes: 101, casters: 27, triangles: 37943 };
-const MEASURED_MERGED = { meshes: 98, casters: 24, triangles: 37943 };
+// Step 3, Task 1 (2026-11-21): the fruit stall's hide trestle (a trestle, its cloth
+// and two baskets of apples): +1 mesh, +124 triangles; the lamps only moved.
+const MEASURED_BUILT = { meshes: 102, casters: 27, triangles: 38067 };
+const MEASURED_MERGED = { meshes: 99, casters: 24, triangles: 38067 };
 const MEASURED_DRAWS = 0;
 
 function budgetStats(s) {
@@ -245,6 +247,32 @@ describe('the Market Square drawn', () => {
     const ap = toStall(fruit, area.anchors.apples.x, area.anchors.apples.z);
     expect(Math.abs(ap.lx)).toBeGreaterThan(fruit.w / 2);
     expect(Math.abs(ap.lx)).toBeLessThan(fruit.w / 2 + 1);
+  });
+
+  it("the fruit stall's trestle is drawn over its hide", () => {
+    // a plank top at about 0.75 m, under the hide's spot, in the stall's own meshes
+    const planks = (id) => {
+      const hide = stallById(id).hide;
+      let n = 0;
+      scene.traverse((o) => {
+        if (o.userData.stall !== id) return;
+        o.traverse((m) => {
+          if (!m.isMesh) return;
+          const pos = m.geometry.attributes.position;
+          const v = new THREE.Vector3();
+          for (let i = 0; i < pos.count; i++) {
+            v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+            if (v.y > 0.7 && v.y < 0.8 && Math.hypot(v.x - hide.x, v.z - hide.z) < 0.9) n++;
+          }
+        });
+      });
+      return n;
+    };
+    expect(planks('flowers')).toBeGreaterThan(0);
+    expect(planks('fruit')).toBeGreaterThan(0);
+    // on the side away from the crate
+    const fruit = stallById('fruit');
+    expect(toStall(fruit, fruit.hide.x, fruit.hide.z).lx).toBeLessThan(0);
   });
 
   it('dusk lights the lanterns and packs up, and the treats stay', () => {
@@ -455,7 +483,7 @@ describe('the Market Square drawn', () => {
 describe('The Market: registered in every per-area list', async () => {
   const { MARKET_REGISTRATION: REG } = await import('../src/world/marketplan.js');
   const { MARK_AREAS, emptyMarks } = await import('../src/marks.js');
-  const { propsFor } = await import('../src/propsets.js');
+  const { propsFor, KNOCK_KINDS, CARRY_KINDS, REST_KINDS } = await import('../src/propsets.js');
   const { ambientKind } = await import('../src/render/ambient.js');
   const { CLOUD_AREAS, AREA_SKY } = await import('../src/render/clouds.js');
   const { AREA_RULES } = await import('../src/render/pawprints.js');
@@ -474,6 +502,16 @@ describe('The Market: registered in every per-area list', async () => {
     expect(MARK_AREAS).toContain('market');
     expect(emptyMarks().market).toEqual([]);
     expect(propsFor('market').hides.length).toBe(MARKET_HIDES_COUNT);
+    // step 3's rows: two of each kind but the hides (seven now, the fruit stall's joins)
+    const ps = propsFor('market');
+    expect(MARKET_HIDES_COUNT).toBe(7);
+    expect(ps.rests.map((r) => r.kind).sort()).toEqual(['drink', 'nap']);
+    expect(ps.knockables.map((k) => k.id).sort()).toEqual(['market-cafe-cup-1', 'market-flowers-bucket-1']);
+    expect(ps.markables).toHaveLength(2);
+    expect(ps.carryables).toHaveLength(2);
+    expect(KNOCK_KINDS).toContain('bucket');
+    for (const c of ps.carryables) expect(CARRY_KINDS).toContain(c.kind);
+    for (const r of ps.rests) expect(REST_KINDS).toContain(r.kind);
   });
 
   it('an old save loads with marks.market []', () => {

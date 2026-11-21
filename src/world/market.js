@@ -10,7 +10,7 @@ import {
 } from './parkfountain.js';
 import {
   MARKET_BOUNDS, MARKET_SPAWN, FOUNTAIN, CAFE, STALLS, TREAT_STALLS, stallById, fromStall,
-  MARKET_COLLIDERS, MARKET_KEEPOUT, MARKET_POIS, MARKET_COLLECTIBLES, FRUIT_CRATE, MARKET_LAMPS,
+  MARKET_COLLIDERS, MARKET_KEEPOUT, MARKET_POIS, MARKET_COLLECTIBLES, FRUIT_CRATE, MARKET_LAMPS, FLOUR_SACKS,
   MARKET_CLUTTER, BENCH_AT, BICYCLE_AT, MILK_SHAFTS,
 } from './marketplan.js';
 
@@ -133,7 +133,7 @@ const STALL_LOOK = Object.freeze({
   fruit: { awning: 0, sign: 6, paint: 0x6b8fb8, goods: [6, 7] },
 });
 // what sits in the baskets on each stall's trestle (produce cells)
-const TRESTLE_GOODS = Object.freeze({ fish: 7, baker: 9, cheese: 10, milk: 6, flowers: 8 });
+const TRESTLE_GOODS = Object.freeze({ fish: 7, baker: 9, cheese: 10, milk: 6, flowers: 8, fruit: 6 });
 // the two displays the cloths go over at dusk, and the stalls whose crates are stacked
 const CLOTHED = Object.freeze(['flowers', 'fruit']);
 const STACKED = Object.freeze(['fish', 'baker', 'cheese']);
@@ -168,11 +168,10 @@ const BENCH_SEAT_Y = 0.48;
 const BIKE = Object.freeze({ wheelR: 0.33, axle: 0.52, basketX: 0.62, basketY: 0.87, lean: 0.05 });
 
 // The anchors for step 3: where things will be, { x, z, y } (y their top).
-const BAKER = stallById('baker');
 const FRUIT = stallById('fruit');
 export const MARKET_ANCHORS = Object.freeze({
   // the baker's warm flour sacks, beside the stall on the side away from its hide (step 3's nap)
-  flourSacks: Object.freeze({ ...fromStall(BAKER, -(BAKER.w / 2 + 0.6), -BAKER.d / 2 + 0.5), y: 0.45 }),
+  flourSacks: Object.freeze({ x: FLOUR_SACKS.x, z: FLOUR_SACKS.z, y: 0.45 }),
   // the crate of apples at the fruit stall's end (step 3's rolling fruit; drawn here, solid in the plan)
   apples: Object.freeze({ ...fromStall(FRUIT, FRUIT_CRATE.lx, FRUIT_CRATE.lz), y: FRUIT_CRATE.h }),
   // the bench facing the fountain (drawn here, MARKET_CLUTTER; step 3 makes it a perch): its seat
@@ -744,7 +743,7 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
 
   // the trestle over the hide, its cloth and its baskets
   if (s.hide) {
-    const [x, z] = pl(W / 2 + 1.2, D / 2 - 0.3);
+    const [x, z] = pl(s.hideSide * (W / 2 + 1.2), D / 2 - 0.3);
     wood(PARTS.trestle, mat4(x, 0, z, { yaw: Math.PI / 2, sx: 1.4, sz: 1.8 }), WOOD);
     K.put('cloth', M.cloth, PARTS.box, mat4(x, 0.765, z, { sx: 0.95, sy: 0.02, sz: 1.46 }), { noCast: true });
     for (const dz of [-0.35, 0.35]) {
