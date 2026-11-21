@@ -266,6 +266,10 @@ export const ALLEY_CHANNEL = Object.freeze({ z: 40, half: 0.3, x0: -45.7, x1: 45
 
 export const ROOFS_COLLIDERS = Object.freeze([
   ALLEY_LAMP, BIN_2, BIN_3, TELESCOPE, VANE_MAST,
+  // The alley crates are solid (owner's fix): a circle round each, as wide as
+  // the crate's half-diagonal, so she bumps round them or jumps onto them (the
+  // perches below). The stack's three overlap into one lump.
+  ...ALLEY_CRATES.map((c) => Object.freeze({ x: c.x, z: c.z, r: Math.ceil(c.s * Math.SQRT1_2 * 100) / 100 })),
   ...WASHING_POSTS.flatMap((p) => [p.z0, p.z1].map((z) => Object.freeze({ x: p.x, z, r: 0.12 }))),
 ]);
 

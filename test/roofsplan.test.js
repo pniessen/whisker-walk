@@ -277,6 +277,18 @@ describe('the plan of the Rooftops', () => {
     }
   });
 
+  it('each alley crate is inside a collider that covers its whole footprint', () => {
+    for (const c of R.ALLEY_CRATES) {
+      const h = c.s / 2;
+      for (const [sx, sz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
+        const [dx, dz] = [sx * h, sz * h];
+        const x = c.x + dx * Math.cos(c.yaw) - dz * Math.sin(c.yaw);
+        const z = c.z + dx * Math.sin(c.yaw) + dz * Math.cos(c.yaw);
+        expect(R.ROOFS_COLLIDERS.some((k) => Math.hypot(k.x - x, k.z - z) <= k.r + 1e-9), `crate ${c.x},${c.z} corner`).toBe(true);
+      }
+    }
+  });
+
   it('every collider stands on one level', () => {
     for (const c of R.ROOFS_COLLIDERS) {
       const ys = [a.ground.y(c.x, c.z)];

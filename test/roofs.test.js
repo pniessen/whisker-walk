@@ -2347,7 +2347,8 @@ describe('The Rooftops: the first roof, and the picture views', async () => {
   it('the first roof in seconds, on the real player', () => {
     const tour = ROOFS_TOURS.firstRoof;
     expect([tour.start.x, tour.start.z]).toEqual([ROOFS_SPAWN.x, ROOFS_SPAWN.z]);
-    const w = yardWalk({ area: roofsArea(), at: [ROOFS_SPAWN.x, ROOFS_SPAWN.z], face: [0, -1] });
+    const area = roofsArea();
+    const w = yardWalk({ area, at: [ROOFS_SPAWN.x, ROOFS_SPAWN.z], face: [0, -1], colliders: area.colliders }); // the colliders the game gives the player
     const pilot = createYardPilot(tour);
     const DT = 1 / 30;
     let r; let frames = 0;
@@ -2364,7 +2365,8 @@ describe('The Rooftops: the first roof, and the picture views', async () => {
 
   it('the terrace tour (the film) runs on from the garages, over plank-2, onto the flat roof, in under 30 s', () => {
     const tour = ROOFS_TOURS.terrace;
-    const w = yardWalk({ area: roofsArea(), at: [tour.start.x, tour.start.z], face: tour.start.face });
+    const area = roofsArea();
+    const w = yardWalk({ area, at: [tour.start.x, tour.start.z], face: tour.start.face, colliders: area.colliders });
     const pilot = createYardPilot(tour);
     const DT = 1 / 30;
     let r; let frames = 0;
@@ -2375,6 +2377,30 @@ describe('The Rooftops: the first roof, and the picture views', async () => {
     expect(w.area.ground.y(p.x, p.z)).toBe(LEVELS.FLAT);
     const kinds = w.events.map((e) => `${e.type}:${e.id ?? e.kind}`);
     expect(kinds).toEqual(expect.arrayContaining(['climb:garages-up', 'cross:plank-2', 'climb:out-7-up', 'climb:flatHouse-up']));
+  });
+
+  it('the alley crates are solid: she is stopped outside them, and still reaches their tops', async () => {
+    const { ALLEY_CRATES, ROOFS_PERCHES } = await import('../src/world/roofsplan.js');
+    const { canReach } = await import('../src/climbing.js');
+    const { CAT_RADIUS } = await import('../src/player.js');
+    const area = roofsArea();
+    // the stack's side and the lone crate's side, walked straight at each one's middle
+    for (const [i, from] of [[0, [-22, 35.07]], [3, [6, 35.0]]]) {
+      const c = ALLEY_CRATES[i];
+      const w = yardWalk({ area, at: from, face: [1, 0], colliders: area.colliders });
+      w.push(1, 0);
+      let minGap = Infinity; // her middle's gap to every crate's near face, over two seconds of a held stick
+      for (let f = 0; f < 60; f++) {
+        w.frame(1 / 30);
+        const q = w.cat.position;
+        for (const k of ALLEY_CRATES) minGap = Math.min(minGap, Math.hypot(q.x - k.x, q.z - k.z) - k.s / 2);
+      }
+      const p = w.cat.position;
+      expect(minGap, `crate ${i} walked through`).toBeGreaterThan(0.3);
+      // from where she stops, a pounce still reaches a crate's top
+      const reach = ROOFS_PERCHES.filter((q) => q.kind === 'crate' && canReach(q, { x: p.x, z: p.z }, 0));
+      expect(reach.length, `crate ${i} unreachable`).toBeGreaterThan(0);
+    }
   });
 
   it('has a card picture for the home screen', async () => {
