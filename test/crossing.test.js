@@ -602,18 +602,29 @@ describe('walking on together', () => {
     const fail = (id, kind = 'failed') => { pending.get(id).reject(new AreaLoadError(id, kind)); pending.delete(id); };
     return { asked, ensureArea, come, fail };
   }
+  // The room's roster is who is in the room (every member's room profile,
+  // her own included); by default it is her and the cats she is drawing.
   function together({
     host = true, selfId = 'a', remotes = [{ playerId: 'b', petName: 'Pip' }],
-    roster = [{ playerId: 'a', walkOn: 1 }, { playerId: 'b', walkOn: 1 }], online = true, walkOnSays = 'walked',
+    roster = [{ playerId: selfId, walkOn: 1 }, ...remotes.map((r) => ({ playerId: r.playerId, petName: r.petName, walkOn: 1 }))],
+    online = true, walkOnSays = 'walked',
   } = {}) {
     vi.useFakeTimers();
     const sent = [];
     const toasts = [];
     const overlay = { innerHTML: '' };
-    const net = { isHost: () => host, sendEvent: (e) => sent.push(e) };
+    // A net whose roster and state handlers the test can drive (net.js:
+    // onRoster replays the roster at once; each on* returns its remover).
+    const rosterFns = new Set();
+    const stateFns = new Set();
+    const net = {
+      isHost: () => host, sendEvent: (e) => sent.push(e),
+      onRoster: (fn) => { rosterFns.add(fn); fn(roster); return () => rosterFns.delete(fn); },
+      onState: (fn) => { stateFns.add(fn); return () => stateFns.delete(fn); },
+    };
     const s = {
       welcome: 'Welcome home!', race: null, quest: null, carry: { mouth: { held: null } },
-      areaId: 'park', playerId: selfId, roomSeed: 7, remotes: { list: [...remotes] }, net,
+      areaId: 'park', playerId: selfId, roomSeed: 7, remotes: { list: [...remotes] }, net, netOffs: [],
     };
     const loads = deferredLoads();
     const walkOn = vi.fn(() => Promise.resolve(walkOnSays));
@@ -635,6 +646,11 @@ describe('walking on together', () => {
     return {
       crossing, s, sent, toasts, overlay, walkOn, endWalk, resume, loads, yes, have, ask, ofType,
       replace: (o) => { current = o; }, leaveRoom: () => { roomNet = null; },
+      // the room's presence changes (a member left or came)
+      setRoster: (list) => { roster = list; for (const fn of [...rosterFns]) fn(list); },
+      // a state reaches this device
+      hear: (st) => { for (const fn of [...stateFns]) fn(st); },
+      handlers: () => rosterFns.size + stateFns.size,
     };
   }
   const SEED = nextRoomSeed(7, 'park-farm');
@@ -734,7 +750,7 @@ describe('walking on together', () => {
 
   it('no full answer in time: the pause card, the friend\'s line, nobody moves', async () => {
     expect(WALK_ON_WAIT_MS).toBe(AREA_LOAD_TIMEOUT_MS + 1000);
-    const h = together({ remotes: [{ playerId: 'b', petName: 'Pip' }, { playerId: 'c', petName: 'Moss' }], roster: [{ walkOn: 1 }, { walkOn: 1 }, { walkOn: 1 }] });
+    const h = together({ remotes: [{ playerId: 'b', petName: 'Pip' }, { playerId: 'c', petName: 'Moss' }] });
     h.yes();
     h.loads.come('farm');
     h.crossing.onWalkOnHave(h.s, h.have());
@@ -763,15 +779,46 @@ describe('walking on together', () => {
     expect(h.walkOn).not.toHaveBeenCalled();
   });
 
-  it('a friend who left during the wait is not waited for', async () => {
+  // Fix round 1: who is in the room is the roster, never the drawn cats
+  // (remotecats.js drops a quiet one after 5 s; a paused device is quiet).
+  it('a friend who left the room during the wait is not waited for: the host goes at once', async () => {
     const h = together();
     h.yes();
     h.loads.come('farm');
     await vi.advanceTimersByTimeAsync(0);
-    h.s.remotes.list.length = 0; // Pip went home
-    await vi.advanceTimersByTimeAsync(WALK_ON_WAIT_MS);
+    expect(h.walkOn).not.toHaveBeenCalled();
+    h.setRoster([{ playerId: 'a', walkOn: 1 }]); // Pip went home
     expect(h.ofType('walk-on')).toEqual([WALK_ON]);
     expect(h.walkOn).toHaveBeenCalledTimes(1);
+    expect(h.handlers()).toBe(0); // its roster handler came off
+  });
+
+  it("a friend whose cat is no longer drawn (quiet for 5 s) is still in the room: the host waits for her", async () => {
+    const h = together();
+    h.s.remotes.list.length = 0; // the host's cache dropped the paused guest
+    h.yes();
+    h.loads.come('farm');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(h.walkOn).not.toHaveBeenCalled();
+    h.crossing.onWalkOnHave(h.s, h.have());
+    expect(h.walkOn).toHaveBeenCalledTimes(1);
+    // and with no answer at all, nobody moves; the line names her from the roster
+    const q = together();
+    q.s.remotes.list.length = 0;
+    q.yes();
+    q.loads.come('farm');
+    await vi.advanceTimersByTimeAsync(WALK_ON_WAIT_MS);
+    expect(q.walkOn).not.toHaveBeenCalled();
+    expect(q.toasts).toEqual([phrase('gate.friendNotReady', 'Pip')]);
+  });
+
+  it('the roster handler comes off when the host stays, and freeWalk could take it off too', async () => {
+    const h = together();
+    h.yes();
+    expect(h.handlers()).toBe(1);
+    expect(h.s.netOffs).toHaveLength(1);
+    h.crossing.onWalkOnHave(h.s, h.have({ ok: false }));
+    expect(h.handlers()).toBe(0);
   });
 
   it('a walk that ended during the wait is left alone', async () => {
@@ -902,6 +949,72 @@ describe('walking on together', () => {
       h.loads.come('farm');
       await vi.advanceTimersByTimeAsync(1000);
       expect(h.sent).toEqual([]);
+    });
+
+    it("the host's cat no longer drawn (it read the card for 5 s): it still answers and still follows", async () => {
+      const h = guest();
+      h.s.remotes.list.length = 0; // the guest's cache dropped the quiet host
+      h.crossing.onWalkOnAsk(h.s, h.ask());
+      h.loads.come('farm');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.sent).toEqual([asGuest()]);
+      h.crossing.onRemoteWalkOn(h.s, WALK_ON);
+      expect(h.walkOn.mock.calls).toEqual([[{ via: 'park-farm', ledBy: 'Pip', guest: true }]]);
+      expect(h.toasts).toEqual(['Pip is leading the way to Appletree Farm! 🧭']); // named from the roster
+    });
+
+    it('a cat drawn but no longer in the room is not its host', () => {
+      const h = guest({ remotes: [{ playerId: 'a', petName: 'Pip' }], roster: [{ playerId: 'c', walkOn: 1 }] });
+      h.crossing.onWalkOnAsk(h.s, h.ask());
+      h.crossing.onRemoteWalkOn(h.s, WALK_ON);
+      expect(h.loads.asked).toEqual([]);
+      expect(h.walkOn).not.toHaveBeenCalled();
+    });
+
+    // Ruling R15: both walk-on copies lost, the host's own state shows it there.
+    it('having said yes, it follows a state from the host tagged with the place, once', async () => {
+      const h = guest();
+      h.crossing.onWalkOnAsk(h.s, h.ask());
+      h.loads.come('farm');
+      await vi.advanceTimersByTimeAsync(0);
+      const st = (o = {}) => ({ v: 1, id: 'a', pos: [0, 0], yaw: 0, pose: 'idle', speed: 0, area: 'farm', ...o });
+      h.hear(st({ area: 'park' })); // still in the Park
+      h.hear(st({ area: undefined })); // an older build's state
+      h.hear(st({ id: 'zzz' })); // not the host
+      expect(h.walkOn).not.toHaveBeenCalled();
+      h.hear(st());
+      expect(h.walkOn.mock.calls).toEqual([[{ via: 'park-farm', ledBy: 'Pip', guest: true }]]);
+      expect(h.toasts).toEqual(['Pip is leading the way to Appletree Farm! 🧭']);
+      h.hear(st());
+      h.crossing.onRemoteWalkOn(h.s, WALK_ON); // a late copy
+      expect(h.walkOn).toHaveBeenCalledTimes(1);
+      expect(h.handlers()).toBe(0);
+    });
+
+    it('R15 only after a yes, only from the host, only within the wait', async () => {
+      const st = { v: 1, id: 'a', pos: [0, 0], yaw: 0, pose: 'idle', speed: 0, area: 'farm' };
+      const no = guest();
+      no.crossing.onWalkOnAsk(no.s, no.ask());
+      no.loads.fail('farm');
+      await vi.advanceTimersByTimeAsync(0);
+      no.hear(st);
+      expect(no.walkOn).not.toHaveBeenCalled();
+      expect(no.handlers()).toBe(0);
+      const late = guest();
+      late.crossing.onWalkOnAsk(late.s, late.ask());
+      late.loads.come('farm');
+      await vi.advanceTimersByTimeAsync(WALK_ON_WAIT_MS + 1);
+      expect(late.handlers()).toBe(0);
+      late.hear(st);
+      expect(late.walkOn).not.toHaveBeenCalled();
+      // a host that is no longer the host (someone lower joined) is not followed
+      const moved = guest();
+      moved.crossing.onWalkOnAsk(moved.s, moved.ask());
+      moved.loads.come('farm');
+      await vi.advanceTimersByTimeAsync(0);
+      moved.setRoster([{ playerId: '0' }, { playerId: 'a' }, { playerId: 'c' }]);
+      moved.hear(st);
+      expect(moved.walkOn).not.toHaveBeenCalled();
     });
 
     it('follows the host on, once: the toast, and a walk-on as a guest', () => {

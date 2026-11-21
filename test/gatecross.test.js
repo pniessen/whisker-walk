@@ -6,7 +6,7 @@ import { withOffWords } from './helpers/offwords.js';
 import { endById } from '../src/gateways.js';
 import {
   gateStatus, gatePrompt, gateCardHtml, gateBuyHtml, gateMomentHtml, walkOnMove, pickOnCrossing,
-  nextRoomSeed, decideWalkOn, decideWalkOnAsk, decideWalkOnHave, decideGateCross, roomWalksOn, stateIsHere,
+  nextRoomSeed, decideWalkOn, decideWalkOnAsk, decideWalkOnHave, decideGateCross, decideHostThere, roomWalksOn, stateIsHere,
 } from '../src/gatecross.js';
 
 function fakeStorage() {
@@ -137,6 +137,18 @@ describe('the room', () => {
       expect(decideGateCross({ ...ev, ...bad }, ctx), JSON.stringify(bad)).toBeNull();
     }
     expect(decideGateCross(ev, { ...ctx, selfId: '0' })).toBeNull();
+  });
+  it("R15: the host's own state, tagged with the place, from the room's host", () => {
+    const st = { v: 1, id: 'a', area: 'farm' };
+    const ctx = { hostId: 'a', to: 'farm', selfId: 'b', remoteIds: ['a'] };
+    expect(decideHostThere(st, ctx)).toEqual({ to: 'farm' });
+    for (const bad of [{ area: 'park' }, { area: undefined }, { id: 'z' }]) {
+      expect(decideHostThere({ ...st, ...bad }, ctx), JSON.stringify(bad)).toBeNull();
+    }
+    expect(decideHostThere(st, { ...ctx, remoteIds: [] })).toBeNull(); // left the room
+    expect(decideHostThere(st, { ...ctx, remoteIds: ['0', 'a'] })).toBeNull(); // no longer the host
+    expect(decideHostThere(st, { ...ctx, to: undefined })).toBeNull();
+    expect(decideHostThere(null, ctx)).toBeNull();
   });
   it('room capability and the state filter', () => {
     expect(roomWalksOn([{ walkOn: 1 }, { walkOn: 1 }])).toBe(true);

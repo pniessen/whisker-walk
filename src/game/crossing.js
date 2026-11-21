@@ -28,8 +28,9 @@ import { carryLabel } from '../carry.js';
 import { crossCardHtml, crossExtras, decideBorderCross, targetName, lower } from '../bordercross.js';
 import {
   gateStatus, gateCardHtml, gateBuyHtml, gateMomentHtml, nextRoomSeed, roomWalksOn,
-  decideWalkOn, decideWalkOnAsk, decideWalkOnHave, decideGateCross,
+  decideWalkOn, decideWalkOnAsk, decideWalkOnHave, decideGateCross, decideHostThere,
 } from '../gatecross.js';
+import { safeRemoteName } from '../net.js';
 import { AREA_LOAD_TIMEOUT_MS } from './areaload.js';
 import { endById } from '../gateways.js';
 import { deliberateTap } from '../ui/confirmcard.js';
@@ -179,9 +180,22 @@ export function createCrossing({
     });
   }
 
+  // Who is in the room, and so who its host is, comes from the room's
+  // roster (live presence), never from the walk's drawn cats: remotecats.js
+  // drops a cat after 5 s without a state, and a paused device, or one
+  // reading a card, sends none. Names may come from either.
+  const rosterOf = () => { const r = getRoster(); return Array.isArray(r) ? r : []; };
+  const roomIdsOf = (s) => rosterOf().map((m) => m?.playerId).filter((id) => id !== s.playerId);
   const remotesOf = (s) => (Array.isArray(s.remotes?.list) ? s.remotes.list : []);
-  const remoteIdsOf = (s) => remotesOf(s).map((r) => r.playerId);
-  const petNameOf = (s, id) => remotesOf(s).find((r) => r.playerId === id)?.petName ?? 'A friend';
+  const petNameOf = (s, id) => remotesOf(s).find((r) => r.playerId === id)?.petName
+    ?? safeRemoteName(rosterOf().find((m) => m?.playerId === id)?.petName, 'A friend');
+  // A net handler this walk-on path adds: freeWalk takes it off with the
+  // walk's own (session.netOffs); the caller may take it off sooner.
+  function keepOff(s, off) {
+    if (typeof off !== 'function') return () => {};
+    if (Array.isArray(s.netOffs)) s.netOffs.push(off);
+    return off;
+  }
   // The place's load, started now; a loader that throws is a failed load.
   function ensure(id) {
     try { return Promise.resolve(ensureArea(id)); } catch (err) { return Promise.reject(err); }
@@ -191,9 +205,12 @@ export function createCrossing({
   // The host's yes in a room that walks on: the moment, the ask (twice), and
   // its own place; settle decides as the answers come in.
   function askRoom(s, c) {
-    const room = { haves: [], ready: false, failed: false, done: false };
+    const room = { haves: [], ready: false, failed: false, done: false, off: () => {} };
     c.room = room;
     overlay.innerHTML = gateMomentHtml({ name: c.name });
+    // A friend who leaves the room mid-wait is not waited for: the roster
+    // changing decides again at once (net.onRoster also replays it now).
+    room.off = keepOff(s, s.net.onRoster?.(() => settle(s, c)));
     const ask = { v: 1, id: s.playerId, type: 'walk-on-ask', from: s.areaId, via: c.via };
     s.net.sendEvent(ask);
     setTimeout(() => {
@@ -207,10 +224,11 @@ export function createCrossing({
 
   function settle(s, c, { timedOut = false } = {}) {
     const room = c.room;
-    if (!room || room.done || getSession() !== s || s.crossing !== c) return;
+    if (!room) return;
+    if (room.done || getSession() !== s || s.crossing !== c) { room.off(); return; }
     if (room.failed) { stayHere(s, room, notReadyLine()); return; }
     const d = decideWalkOnHave(room.haves, {
-      areaId: s.areaId, via: c.via, selfId: s.playerId, remoteIds: remoteIdsOf(s), catalog, ready: room.ready,
+      areaId: s.areaId, via: c.via, selfId: s.playerId, remoteIds: roomIdsOf(s), catalog, ready: room.ready,
     });
     if (d.kind === 'no') { stayHere(s, room, phrase('gate.friendNotReady', petNameOf(s, d.id))); return; }
     if (d.kind === 'wait') {
@@ -222,6 +240,7 @@ export function createCrossing({
     // once; the room is kept, so there is nothing to wait for. The resend
     // goes only into the room it was made in.
     room.done = true;
+    room.off();
     const net = s.net;
     const ev = { v: 1, id: s.playerId, type: 'walk-on', from: s.areaId, via: c.via, seed: nextRoomSeed(s.roomSeed, c.via) };
     net.sendEvent(ev);
@@ -232,6 +251,7 @@ export function createCrossing({
   // Nobody moves: the pause card comes back with one line.
   function stayHere(s, room, line) {
     room.done = true;
+    room.off();
     restoreCard(s);
     hud.toast(line);
   }
@@ -250,7 +270,7 @@ export function createCrossing({
   // load failing gives her its own line too.
   function onWalkOnAsk(s, ev) {
     if (!s || !s.net) return;
-    const d = decideWalkOnAsk(ev, { areaId: s.areaId, selfId: s.playerId, remoteIds: remoteIdsOf(s), catalog });
+    const d = decideWalkOnAsk(ev, { areaId: s.areaId, selfId: s.playerId, remoteIds: roomIdsOf(s), catalog });
     if (!d) return;
     const last = s.walkOnAnswer;
     if (last && last.via === d.via && (last.pending || now() - last.at < ASK_SAME_MS)) return;
@@ -266,25 +286,47 @@ export function createCrossing({
         const have = { v: 1, id: s.playerId, type: 'walk-on-have', via: d.via, ok };
         net.sendEvent(have);
         setTimeout(() => { if (getSession() === s) net.sendEvent(have); }, CROSS_RESEND_MS);
+        if (ok) watchHost(s, net, { via: d.via, to: d.to, hostId: ev.id });
       });
   }
 
-  // The host's walk-on reached a guest: follow it, once a walk, as a guest
-  // (nothing is ever spent for her), into the same next room seed.
-  function onRemoteWalkOn(s, ev) {
-    if (!s || !ev || s.crossLed) return;
-    const d = decideWalkOn(ev, {
-      areaId: s.areaId, selfId: s.playerId, remoteIds: remoteIdsOf(s), catalog, roomSeed: s.roomSeed,
-    });
-    if (!d) return;
+  // Ruling R15: having said yes, a guest also follows the host when, within
+  // WALK_ON_WAIT_MS, a state from the host (by the roster) shows it in the
+  // place, so both walk-on copies lost do not split the room.
+  function watchHost(s, net, { via, to, hostId }) {
+    const since = now();
+    let off = () => {};
+    off = keepOff(s, net.onState?.((state) => {
+      if (getSession() !== s || s.crossLed || now() - since > WALK_ON_WAIT_MS) { off(); return; }
+      if (!decideHostThere(state, { hostId, to, selfId: s.playerId, remoteIds: roomIdsOf(s) })) return;
+      off();
+      follow(s, { via, to, hostId });
+    }));
+    setTimeout(() => off(), WALK_ON_WAIT_MS);
+  }
+
+  // A guest walks on behind the host: once a walk, as a guest (nothing is
+  // ever spent for her), into the same next room seed (walk.js derives it).
+  function follow(s, { via, to, hostId }) {
+    if (s.crossLed) return;
     s.crossLed = true;
-    const name = petNameOf(s, ev.id);
-    hud.toast(phrase('cross.leading', name, lower(targetName(d.to, getEdition(), catalog))));
-    walkOn({ via: d.via, ledBy: name, guest: true }).then((answer) => {
+    const name = petNameOf(s, hostId);
+    hud.toast(phrase('cross.leading', name, lower(targetName(to, getEdition(), catalog))));
+    walkOn({ via, ledBy: name, guest: true }).then((answer) => {
       // Her place could not come: she is still in this walk, and the host's
       // resend may lead her on.
       if (answer === 'failed' && getSession() === s) s.crossLed = false;
     });
+  }
+
+  // The host's walk-on reached a guest: follow it.
+  function onRemoteWalkOn(s, ev) {
+    if (!s || !ev || s.crossLed) return;
+    const d = decideWalkOn(ev, {
+      areaId: s.areaId, selfId: s.playerId, remoteIds: roomIdsOf(s), catalog, roomSeed: s.roomSeed,
+    });
+    if (!d) return;
+    follow(s, { via: d.via, to: d.to, hostId: ev.id });
   }
 
   function confirm() {

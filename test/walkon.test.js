@@ -5,6 +5,7 @@ import { GATE_MOMENT_MS, nextRoomSeed, gateStatus } from '../src/gatecross.js';
 import { createNet, createFakeHub } from '../src/net.js';
 import { createCrossing } from '../src/game/crossing.js';
 import { createNetEvents } from '../src/game/netevents.js';
+import { nowSec } from '../src/game/util.js';
 import { endById } from '../src/gateways.js';
 import { CATALOG } from '../src/progression.js';
 import { LEAF_OPEN, LEAF_R, LEAF_BLOCKS, NO_GATES } from '../src/world/gateway.js';
@@ -626,6 +627,53 @@ describe('two devices walk on together', () => {
     // and each sees the other: the guest's partner is still in its walk
     expect(b.remotes.list.map((r) => r.playerId)).toEqual(['ann']);
     expect(a.remotes.list.map((r) => r.playerId)).toEqual(['bea']);
+    host.h.w.endWalk();
+    guest.h.w.endWalk();
+  }, WALK_MS);
+
+  // Fix round 1: a device reading a card, or paused, sends no state, and the
+  // other drops its cat after 5 s (remotecats.js). Who is in the room, and who
+  // hosts it, is the roster, so the room still moves together.
+  it('both cats dropped from each other\'s screen after 5 s of quiet: the room still walks on together', async () => {
+    const { host, guest } = await twoDevices();
+    const a0 = host.h.getSession();
+    const b0 = guest.h.getSession();
+    host.crossing.askGate(a0, farmGate(host.h)); // the host reads the card
+    await vi.advanceTimersByTimeAsync(6000);
+    // a frame on each device, 6 s after the last state: each drops the other's cat
+    a0.remotes.update(0, nowSec() + 6);
+    b0.remotes.update(0, nowSec() + 6);
+    expect([a0.remotes.list, b0.remotes.list]).toEqual([[], []]);
+    host.crossing.confirm();
+    await vi.advanceTimersByTimeAsync(GATE_MOMENT_MS);
+    const a = host.h.getSession();
+    const b = guest.h.getSession();
+    expect([a.areaId, b.areaId]).toEqual(['farm', 'farm']);
+    expect(b.roomSeed).toBe(a.roomSeed);
+    expect(guest.toasts).toContain('Ann is leading the way to Appletree Farm! 🧭');
+    host.h.w.endWalk();
+    guest.h.w.endWalk();
+  }, WALK_MS);
+
+  // Ruling R15: both walk-on copies lost; the host's first state from the Farm leads the guest on.
+  it('both walk-on copies lost: the host\'s state from the Farm leads the guest on', async () => {
+    const { host, guest, hostNet } = await twoDevices();
+    const send = hostNet.sendEvent;
+    hostNet.sendEvent = (e) => { if (e.type !== 'walk-on') send(e); };
+    const b0 = guest.h.getSession();
+    host.crossing.askGate(host.h.getSession(), farmGate(host.h));
+    host.crossing.confirm();
+    await vi.advanceTimersByTimeAsync(GATE_MOMENT_MS);
+    expect(host.h.getSession().areaId).toBe('farm');
+    expect(guest.h.getSession()).toBe(b0); // the guest never heard the walk-on
+    // the host's walk in the Farm begins: its first state, tagged with its place
+    hostNet.sendState({ v: 1, id: 'ann', pos: [-8, 43.4], yaw: 0, pose: 'idle', speed: 0, area: 'farm' });
+    await vi.advanceTimersByTimeAsync(GATE_MOMENT_MS);
+    const a = host.h.getSession();
+    const b = guest.h.getSession();
+    expect(b.areaId).toBe('farm');
+    expect(b.roomSeed).toBe(a.roomSeed);
+    expect(b.arrivedVia).toBe('farm-park');
     host.h.w.endWalk();
     guest.h.w.endWalk();
   }, WALK_MS);

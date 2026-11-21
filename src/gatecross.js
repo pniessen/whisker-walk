@@ -179,6 +179,15 @@ export function decideWalkOnHave(haves, { areaId, via, selfId, remoteIds, catalo
   return waiting.length === 0 && ready ? { kind: 'go' } : { kind: 'wait', waiting };
 }
 
+// Ruling R15: a guest who said it has the place follows the host on when,
+// both walk-on copies lost, the host's own state shows it already there: a
+// state from `hostId`, still the room's host, tagged with the place `to`.
+export function decideHostThere(state, { hostId, to, selfId, remoteIds } = {}) {
+  if (!isObj(state) || state.id !== hostId || typeof to !== 'string' || state.area !== to) return null;
+  if (!fromHost(hostId, selfId, remoteIds)) return null;
+  return { to };
+}
+
 // A room with a member on an older build crosses at a gate as at a border
 // post (the walk ends): a guest on this build follows that border-cross when
 // it names a place one of this walk's live gates leads to, from the host.
