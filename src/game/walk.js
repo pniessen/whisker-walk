@@ -180,12 +180,8 @@ import { metOnly, deviceMetPlayers } from '../metplayers.js';
 import { createSession } from './session.js';
 import { walkDusk } from './session.js'; // its own line: test/session.test.js pins the one above
 
-// Every walkable area the game can build. Registering here is the last of
-// the three steps that make an area real: the builder module, the
-// CATALOG.areas entry + state.walks key in progression.js (which give it a
-// home-base card, a price and an unlock gate), and this map, which is what
-// startWalk indexes with state.area. An area missing from here is a fully
-// built world nothing can ever call.
+// The recipe for a new area (builder, AREA_LOADERS line, catalog row) is in src/world/areas.js.
+// AREAS is what startWalk indexes with state.area until the area loader replaces it.
 // `roofs` is here so a walk can build it, and nowhere a child picks from:
 // AREAS is read only to build (AREAS[areaId], AREAS.den); every list a child
 // sees comes from CATALOG.areas, which has no Rooftops row until step 4.
