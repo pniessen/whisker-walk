@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createGround } from '../src/ground.js';
 import {
-  ROOFS_TRAVERSAL, ROOFS_GROUND, LEVELS, STREETS, PITCHED, BLOCKS, skylineY, ROOFS_SPAWN,
+  ROOFS_TRAVERSAL, ROOFS_GROUND, LEVELS, STREETS, PITCHED, BLOCKS, skylineY, ROOFS_SPAWN, ROOFS_BOUNDS,
   ROOFS_COLLIDERS, ROOFS_DISCOVERIES, ROOFS_PERCHES, WASHING_POSTS, YARD_WALLS,
 } from '../src/world/roofsplan.js';
 import {
@@ -22,6 +22,16 @@ const G = flightGraph(P, ROOFS_TRAVERSAL);
 const L = LEVELS;
 const BLOCK = Object.fromEntries(BLOCKS.map((b) => [b.id, b]));
 const HOPS = [...ROOFS_TRAVERSAL.gaps, ...ROOFS_TRAVERSAL.climbs, ...ROOFS_TRAVERSAL.drops];
+const LOCKED = ROOFS_TRAVERSAL.gaps.filter((g) => g.requires); // leaps that need a skill: none in step 3
+const UNLOCKED = HOPS.filter((h) => !h.requires);
+// Every move she makes, as [take-off id, landing id, its crossing or null]:
+// each crossing both ways, every leap she can make, every climb and drop.
+const MOVES = [
+  ...ROOFS_TRAVERSAL.crossings.flatMap((c) => [[`${c.id}:0`, `${c.id}:1`, c], [`${c.id}:1`, `${c.id}:0`, c]]),
+  ...UNLOCKED.map((h) => [`${h.id}:from`, `${h.id}:to`, null]),
+];
+// The far ends of her moves: a crossing's end 1, a leap's, climb's or drop's landing.
+const FAR_ENDS = new Set([...ROOFS_TRAVERSAL.crossings.map((c) => `${c.id}:1`), ...UNLOCKED.map((h) => `${h.id}:to`)]);
 const NONE = new Set();
 
 const d2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -51,7 +61,21 @@ const sOf = (f) => {
   }
   return (lo + hi) / 2;
 };
-const at = (a, b, s) => flightPoint(a, b, flightPlan(a, b), s, { x: 0, y: 0, z: 0 });
+// a flight's spot, in the shape of the link that joins its ends (the arc when none does)
+const at = (a, b, s, shape = linkOf(a, b)?.shape ?? 'arc') => flightPoint(a, b, flightPlan(a, b, shape), s, { x: 0, y: 0, z: 0 });
+// the rail's height at its point nearest (x, z)
+const railY = (c, x, z) => {
+  let best = Infinity;
+  let y = 0;
+  for (let i = 1; i < c.points.length; i++) {
+    const [p, q] = [c.points[i - 1], c.points[i]];
+    const [dx, dz] = [q.x - p.x, q.z - p.z];
+    const t = Math.max(0, Math.min(1, ((x - p.x) * dx + (z - p.z) * dz) / (dx * dx + dz * dz)));
+    const e = Math.hypot(x - p.x - dx * t, z - p.z - dz * t);
+    if (e < best) { best = e; y = p.y + (q.y - p.y) * t; }
+  }
+  return y;
+};
 
 // The flight rules near her, checked from the outside.
 function keepsOffHer(from, to, cat) {
@@ -254,41 +278,80 @@ describe('the flock’s plan', () => {
         }
         expect(b.y - a.y).toBeLessThanOrEqual(FLIGHT.up);
         expect(a.y - b.y).toBeLessThanOrEqual(FLIGHT.down);
-        const steps = Math.max(1, Math.ceil(l.d / 0.5));
-        for (let i = 0; i <= steps; i++) {
-          const f = i / steps;
-          const x = a.x + (b.x - a.x) * f;
-          const z = a.z + (b.z - a.z) * f;
-          if (Math.hypot(x - a.x, z - a.z) < 0.6 || Math.hypot(x - b.x, z - b.z) < 0.6) continue;
-          const q = at(a, b, sOf(f));
-          expect(q.y, `${id} -> ${l.to} at ${f.toFixed(2)}`).toBeGreaterThanOrEqual(skylineY(q.x, q.z) + FLIGHT.clearSky - 1e-6);
+        // what it keeps 0.25 m over: a crossing's own rail, else the skyline
+        const crossing = l.kind === 'move' && MOVES.find(([f, t, c]) => c && I.get(f) === a && I.get(t) === b)?.[2];
+        const under = crossing ? (x, z) => railY(crossing, x, z) : skylineY;
+        // a climb or a drop flies up and over, every other link the arc
+        const climbOrDrop = [...ROOFS_TRAVERSAL.climbs, ...ROOFS_TRAVERSAL.drops].some((h) => I.get(`${h.id}:from`) === a && I.get(`${h.id}:to`) === b);
+        expect(l.shape, `${id} -> ${l.to}`).toBe(l.kind === 'move' && climbOrDrop ? 'step' : 'arc');
+        // the arc every 0.5 m across; the step, finer, by s
+        const k = l.shape === 'step' ? 200 : Math.max(1, Math.ceil(l.d / 0.5));
+        const samples = Array.from({ length: k + 1 }, (_, i) => (l.shape === 'step' ? i / k : sOf(i / k)));
+        for (const s of samples) {
+          const q = at(a, b, s);
+          if (Math.hypot(q.x - a.x, q.z - a.z) < 0.6 || Math.hypot(q.x - b.x, q.z - b.z) < 0.6) continue;
+          expect(q.y, `${id} -> ${l.to} at s ${s.toFixed(3)}`).toBeGreaterThanOrEqual(under(q.x, q.z) + FLIGHT.clearSky - 1e-6);
         }
       }
       expect(new Set(links.map((l) => l.to)).size).toBe(links.length);
     }
     expect(n).toBeGreaterThan(500);
-    // every move whose flight is short and clear is a move link
-    const move = (a, b) => {
-      const l = linkOf(I.get(a), I.get(b));
-      if (l) expect(l.kind).toBe('move');
-      return !!l;
-    };
-    for (const c of ROOFS_TRAVERSAL.crossings.filter((r) => r.kind === 'plank' || r.kind === 'ridge')) {
-      expect(move(`${c.id}:0`, `${c.id}:1`), c.id).toBe(true);
-      expect(move(`${c.id}:1`, `${c.id}:0`), c.id).toBe(true);
+    // every move she makes is a move link: each crossing both ways, every
+    // leap she can make, every climb and drop (none is over 12 m)
+    expect(MOVES.length).toBe(2 * ROOFS_TRAVERSAL.crossings.length + UNLOCKED.length);
+    for (const [f, t] of MOVES) {
+      const [a, b] = [I.get(f), I.get(t)];
+      expect(d2(a, b), `${f} -> ${t}`).toBeLessThanOrEqual(FLIGHT.maxMove);
+      expect(linkOf(a, b)?.kind, `${f} -> ${t}`).toBe('move');
     }
-    for (const h of ROOFS_TRAVERSAL.gaps.filter((r) => !r.requires)) expect(move(`${h.id}:from`, `${h.id}:to`), h.id).toBe(true);
+    // and nothing else is: no move link but hers
+    let moves = 0;
+    for (const [id, links] of G.links) {
+      for (const l of links.filter((k) => k.kind === 'move')) {
+        moves++;
+        expect(MOVES.some(([f, t]) => I.get(f).id === id && I.get(t).id === l.to), `${id} -> ${l.to}`).toBe(true);
+      }
+    }
+    expect(moves).toBe(MOVES.length);
+  });
+
+  it('a leap she cannot make yet leads nowhere: no move link, no far end, no lead', () => {
+    expect(LOCKED.map((g) => g.id).sort()).toEqual(['long-dormer', 'long-lantern', 'long-terrace']);
+    for (const g of LOCKED) {
+      const [a, b] = [I.get(`${g.id}:from`), I.get(`${g.id}:to`)];
+      // at most a hop, by the hop's rules (long-lantern's is one: tank to lantern, 4.35 m)
+      const l = linkOf(a, b);
+      if (l) expect(l.kind, g.id).toBe('hop');
+      // chased from behind, a pigeon at its take-off never flies it as a move
+      const f = chooseFlight(G, I, bird('pigeon', a.id), behind(a, b, -2), NONE);
+      expect(f?.kind === 'move' && f.to === b.id, g.id).toBe(false);
+    }
+    expect(linkOf(I.get('long-lantern:from'), I.get('long-lantern:to'))?.kind).toBe('hop');
+    for (const b of ROOFS_BIRDS) for (const g of LOCKED) expect([`${g.id}:from`, `${g.id}:to`]).not.toContain(b.home);
   });
 
   it('a flight is a short arc, never more than 1.4 m over its higher end', () => {
+    let steps = 0;
     for (const [id, links] of G.links) {
       const a = I.get(id);
       for (const l of links) {
         const b = I.get(l.to);
-        const plan = flightPlan(a, b);
+        const plan = flightPlan(a, b, l.shape);
+        expect(plan.shape).toBe(l.shape);
         expect(plan.d).toBeCloseTo(l.d, 9);
-        expect(plan.h).toBeCloseTo(Math.min(1.4, 0.6 + 0.08 * l.d), 9);
-        expect(plan.time).toBeCloseTo(0.5 + l.d / FLIGHT.speed, 9);
+        if (l.shape === 'step') {
+          // up and over: 0.4 m over the higher end, its time along its way
+          steps++;
+          const top = Math.max(a.y, b.y) + 0.4;
+          expect(plan.top).toBeCloseTo(top, 9);
+          expect(plan.time).toBeCloseTo(0.5 + (l.d + (top - a.y) + (top - b.y)) / FLIGHT.speed, 9);
+          let peak = -Infinity;
+          for (let s = 0; s <= 1 + 1e-9; s += 0.01) peak = Math.max(peak, at(a, b, s).y);
+          expect(peak).toBeCloseTo(top, 6);
+        } else {
+          expect(plan.h).toBeCloseTo(Math.min(1.4, 0.6 + 0.08 * l.d), 9);
+          expect(plan.time).toBeCloseTo(0.5 + l.d / FLIGHT.speed, 9);
+        }
         const top = Math.max(a.y, b.y) + 1.4 + 1e-9;
         for (let s = 0; s <= 1 + 1e-9; s += 0.01) expect(at(a, b, s).y).toBeLessThanOrEqual(top);
         for (const [s, end] of [[0, a], [1, b]]) {
@@ -297,6 +360,8 @@ describe('the flock’s plan', () => {
         }
       }
     }
+    expect(steps).toBe(ROOFS_TRAVERSAL.climbs.length + ROOFS_TRAVERSAL.drops.length);
+    expect(flightPlan(I.get('plank-3:0'), I.get('plank-3:1')).shape).toBe('arc'); // the default
     // the out object is the one written and returned
     const out = { x: 0, y: 0, z: 0 };
     const a = I.get('plank-3:0');
@@ -332,7 +397,7 @@ describe('the flock’s plan', () => {
     }
     const pigeons = of('pigeon').map((b) => b.home);
     expect(pigeons.every((h) => I.has(h))).toBe(true);
-    expect(pigeons.filter((h) => /:(1|to)$/.test(h) && I.get(h).kind === 'move').length).toBeGreaterThanOrEqual(4);
+    expect(pigeons.filter((h) => FAR_ENDS.has(h) && I.get(h).kind === 'move').length).toBeGreaterThanOrEqual(4);
     expect(pigeons.filter((h) => I.get(h).y >= L.WAREHOUSE).length).toBeGreaterThanOrEqual(2);
     const sparrows = of('sparrow').map((b) => b.home);
     expect(sparrows.filter((h) => /^(post|wall):/.test(h)).length).toBe(2);
@@ -346,6 +411,22 @@ describe('the flock’s plan', () => {
     expect(sparrows.filter((h) => /^roof:(flatHouse|dormer|roofTerrace):/.test(h) && I.get(h)?.kind === 'roof').length).toBe(1);
     const gulls = of('gull').map((b) => b.home);
     expect(gulls.filter((h) => h.startsWith('parapet:warehouse:')).length).toBe(1);
+    // the warehouse gull's parapet, by DRAWN_ID's numbering (3 m apart clockwise
+    // from the north-west corner, 0.125 m out from the edge): inside the bounds,
+    // over no street
+    const W = BLOCK.warehouse;
+    for (const h of gulls.filter((g) => g.startsWith('parapet:warehouse:'))) {
+      let t = 3 * +h.split(':')[2];
+      const sides = [
+        [W.x1 - W.x0, (u) => [W.x0 + u, W.z0 - 0.125]], [W.z1 - W.z0, (u) => [W.x1 + 0.125, W.z0 + u]],
+        [W.x1 - W.x0, (u) => [W.x1 - u, W.z1 + 0.125]], [W.z1 - W.z0, (u) => [W.x0 - 0.125, W.z1 - u]],
+      ];
+      const [len, spot] = sides.find(([n]) => (t < n ? true : ((t -= n), false)));
+      expect(t).toBeLessThan(len);
+      const [x, z] = spot(t);
+      expect(x >= ROOFS_BOUNDS.minX && x <= ROOFS_BOUNDS.maxX && z >= ROOFS_BOUNDS.minZ && z <= ROOFS_BOUNDS.maxZ, `${h} at ${x}, ${z}`).toBe(true);
+      for (const s of STREETS) expect(inRect(s, x, z), h).toBe(false);
+    }
     expect(gulls.filter((h) => h.startsWith('parapet:tower-1:')).length).toBe(1);
     // no two birds share a home, by id or through an alias
     const homes = ROOFS_BIRDS.map((b) => (I.has(b.home) ? I.get(b.home).id : b.home));
@@ -422,7 +503,7 @@ describe('the flock’s plan', () => {
     for (const [near, far] of moves) {
       const [a, b] = [I.get(near), I.get(far)];
       const cat = behind(a, b, -2); // 2 m behind her quarry, the far end beyond it
-      expect(chooseFlight(G, I, bird('pigeon', near), cat, NONE), near).toEqual({ to: b.id, kind: 'move' });
+      expect(chooseFlight(G, I, bird('pigeon', near), cat, NONE), near).toEqual({ to: b.id, kind: 'move', shape: 'arc' });
     }
   });
 
@@ -563,7 +644,7 @@ describe('the flock’s plan', () => {
           const want = expectedChoice(b, cat, NONE);
           if (want === 'tie') continue; // within the hash's 0.25: the hash decides
           const got = chooseFlight(G, I, b, cat, NONE);
-          expect(got, `${p.id}`).toEqual(want ? { to: want.to, kind: want.kind } : null);
+          expect(got, `${p.id}`).toEqual(want ? { to: want.to, kind: want.kind, shape: want.shape } : null);
           checked++;
         }
       }

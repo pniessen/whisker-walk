@@ -18,12 +18,21 @@
 // id, the other's goes in its `aliases`. No perch is over the street, low
 // over a pitched roof's slates (the void, R4) or on a smoking pot.
 //
-// A LINK is a flight between two perches, of two kinds:
-//   * move: along a move of hers (a crossing's two ends both ways, a hop's
-//     take-off to its landing), up to 12 m;
-//   * hop: any other two perches 3-10 m apart, at most 5 m up or 6 m down.
-// Each only if its arc keeps 0.25 m over the skyline between. A flight is a
-// short arc, never more than 1.4 m over its higher end: not up into the sky.
+// A LINK is a flight between two perches, { to, kind, d, shape }, of two kinds:
+//   * move: along a move she makes, up to 12 m: a crossing's two ends both
+//     ways, and a leap's, climb's or drop's take-off to its landing. Not a
+//     leap that needs a skill (`requires`: she has none in step 3), which is
+//     at most a hop. Each is checked against the move's own path: a
+//     crossing's flight keeps 0.25 m over the rail she walks (a gutter runs
+//     under the slates' skyline, and the birds fly along it all the same); a
+//     climb's or a drop's goes up and over (`shape` 'step': up to 0.4 m over
+//     its higher end, across, down onto its perch) and keeps 0.25 m over the
+//     skyline; a leap's is the arc, over the skyline;
+//   * hop: any other two perches 3-10 m apart, at most 5 m up or 6 m down,
+//     the arc keeping 0.25 m over the skyline.
+// A FLIGHT (flightPlan(a, b, shape), flightPoint) is the link's shape: the
+// 'arc' (default) or the 'step'. Either is short and never more than 1.4 m
+// over its higher end: not up into the sky.
 //
 // THE CHOICE: a flushed bird takes the best link from its perch that lands at
 // least 4 m from her and 0.5 m further from her than it was, never comes
@@ -103,7 +112,9 @@ export const ROOFS_BIRDS = Object.freeze([
   { id: 'sparrow-2', kind: 'sparrow', home: DRAWN_ID.wall(13) }, // the wall between yards 7 and 8, by the garages
   { id: 'sparrow-3', kind: 'sparrow', home: 'roof:garages:1' },
   { id: 'sparrow-4', kind: 'sparrow', home: 'roof:dormer:0' },
-  { id: 'gull-1', kind: 'gull', home: DRAWN_ID.parapet('warehouse', 3) }, // the north parapet, by the loft
+  // the east parapet, over the ginnel by the stair's top flights (n 27: 3 m
+  // south of the north-east corner; the north parapet is outside the bounds)
+  { id: 'gull-1', kind: 'gull', home: DRAWN_ID.parapet('warehouse', 27) },
   { id: 'gull-2', kind: 'gull', home: DRAWN_ID.parapet('tower-1', 0) },
 ].map(Object.freeze));
 
@@ -268,14 +279,37 @@ const smoothstep = (s) => s * s * (3 - 2 * s);
 // smoothstep's inverse on [0, 1]: the s at which a flight is share f across
 const unsmooth = (f) => 0.5 - Math.sin(Math.asin(1 - 2 * f) / 3);
 
-export function flightPlan(a, b) {
+const clamp01 = (u) => (u < 0 ? 0 : u > 1 ? 1 : u);
+const ease = (u) => smoothstep(clamp01(u));
+// The 'step', in shares of s: up over its first 0.45, across from 0.25 to
+// 0.85, down onto its perch from 0.6; `lift` m over its higher end.
+const STEP = Object.freeze({ lift: 0.4, up: 0.45, across0: 0.25, across: 0.6, down0: 0.6 });
+
+// A flight's plan: `d` across (m); `h`, for the arc its bump over the
+// straight line between its ends, for the step its lift over the higher end;
+// `time` (s), at FLIGHT.speed along its way; `shape` as given ('arc' or
+// 'step': the link's); and the step's `top`.
+export function flightPlan(a, b, shape = 'arc') {
   const d = Math.hypot(b.x - a.x, b.z - a.z);
-  return { d, h: Math.min(1.4, 0.6 + 0.08 * d), time: 0.5 + d / FLIGHT.speed };
+  if (shape === 'step') {
+    const top = Math.max(a.y, b.y) + STEP.lift;
+    return { d, h: STEP.lift, time: 0.5 + (d + (top - a.y) + (top - b.y)) / FLIGHT.speed, shape, top };
+  }
+  return { d, h: Math.min(1.4, 0.6 + 0.08 * d), time: 0.5 + d / FLIGHT.speed, shape: 'arc' };
 }
 
-// The bird's spot at s (0..1) of the flight from a to b: across by
-// smoothstep(s), up the straight line between its ends plus the arc.
+// The bird's spot at s (0..1) of the flight from a to b. The arc: across by
+// smoothstep(s), up the straight line between its ends plus the bump. The
+// step: up to its top, across, and down onto b. Either is at a for s 0 and
+// exactly at b for s 1.
 export function flightPoint(a, b, plan, s, out) {
+  if (plan.shape === 'step') {
+    const f = ease((s - STEP.across0) / STEP.across);
+    out.x = a.x + (b.x - a.x) * f;
+    out.z = a.z + (b.z - a.z) * f;
+    out.y = a.y + (plan.top - a.y) * ease(s / STEP.up) - (plan.top - b.y) * ease((s - STEP.down0) / (1 - STEP.down0));
+    return out;
+  }
   const f = smoothstep(s);
   out.x = a.x + (b.x - a.x) * f;
   out.z = a.z + (b.z - a.z) * f;
@@ -287,17 +321,39 @@ const SKY_STEP = 0.5; // m between the sky check's samples
 const SKY_ENDS = 0.6; // m round either end left unchecked (she stands there)
 const tmp = { x: 0, y: 0, z: 0 };
 
-function clearsSky(a, b, plan) {
-  const n = Math.max(1, Math.ceil(plan.d / SKY_STEP));
+const STEP_SAMPLES = 50; // the step's sky check, s every 0.02
+
+// The flight keeps FLIGHT.clearSky over what lies under it (`under(x, z)`:
+// the skyline, or a crossing's rail), except within SKY_ENDS of either end.
+// The arc is sampled every SKY_STEP across; the step, finer, by s.
+function clears(a, b, plan, under) {
+  const step = plan.shape === 'step';
+  const n = step ? STEP_SAMPLES : Math.max(1, Math.ceil(plan.d / SKY_STEP));
   for (let i = 0; i <= n; i++) {
-    const f = i / n;
-    const x = a.x + (b.x - a.x) * f;
-    const z = a.z + (b.z - a.z) * f;
-    if (Math.hypot(x - a.x, z - a.z) < SKY_ENDS || Math.hypot(x - b.x, z - b.z) < SKY_ENDS) continue;
-    flightPoint(a, b, plan, unsmooth(f), tmp);
-    if (tmp.y < skylineY(tmp.x, tmp.z) + FLIGHT.clearSky - 1e-9) return false;
+    flightPoint(a, b, plan, step ? i / n : unsmooth(i / n), tmp);
+    if (Math.hypot(tmp.x - a.x, tmp.z - a.z) < SKY_ENDS || Math.hypot(tmp.x - b.x, tmp.z - b.z) < SKY_ENDS) continue;
+    if (tmp.y < under(tmp.x, tmp.z) + FLIGHT.clearSky - 1e-9) return false;
   }
   return true;
+}
+
+// A crossing's rail height under (x, z): at the rail's nearest point.
+function railUnder(c) {
+  const pts = c.points;
+  return (x, z) => {
+    let best = Infinity;
+    let y = pts[0].y;
+    for (let i = 1; i < pts.length; i++) {
+      const [p, q] = [pts[i - 1], pts[i]];
+      const dx = q.x - p.x;
+      const dz = q.z - p.z;
+      const n = dx * dx + dz * dz;
+      const t = n > 0 ? Math.max(0, Math.min(1, ((x - p.x) * dx + (z - p.z) * dz) / n)) : 0;
+      const e = Math.hypot(x - p.x - dx * t, z - p.z - dz * t);
+      if (e < best) { best = e; y = p.y + (q.y - p.y) * t; }
+    }
+    return y;
+  };
 }
 
 // The links from every perch, and each perch's flights to the loft.
@@ -305,21 +361,22 @@ export function flightGraph(perches, traversal) {
   const index = perchIndex(perches);
   const links = new Map(perches.map((p) => [p.id, []]));
   const has = (a, b) => links.get(a.id).some((l) => l.to === b.id);
-  const tryLink = (a, b, kind) => {
+  const tryLink = (a, b, kind, shape = 'arc', under = skylineY) => {
     if (!a || !b || a === b || has(a, b)) return;
-    const plan = flightPlan(a, b);
+    const plan = flightPlan(a, b, shape);
     if (kind === 'move' ? plan.d > FLIGHT.maxMove : plan.d < FLIGHT.min || plan.d > FLIGHT.maxHop) return;
     if (b.y - a.y > FLIGHT.up || a.y - b.y > FLIGHT.down) return;
-    if (!clearsSky(a, b, plan)) return;
-    links.get(a.id).push(Object.freeze({ to: b.id, kind, d: plan.d }));
+    if (!clears(a, b, plan, under)) return;
+    links.get(a.id).push(Object.freeze({ to: b.id, kind, d: plan.d, shape }));
   };
   for (const c of traversal.crossings || []) {
     const a = index.get(`${c.id}:0`);
     const b = index.get(`${c.id}:1`);
-    tryLink(a, b, 'move');
-    tryLink(b, a, 'move');
+    tryLink(a, b, 'move', 'arc', railUnder(c));
+    tryLink(b, a, 'move', 'arc', railUnder(c));
   }
-  for (const h of hopsOf(traversal)) tryLink(index.get(`${h.id}:from`), index.get(`${h.id}:to`), 'move');
+  for (const g of traversal.gaps || []) if (!g.requires) tryLink(index.get(`${g.id}:from`), index.get(`${g.id}:to`), 'move');
+  for (const h of [...(traversal.climbs || []), ...(traversal.drops || [])]) tryLink(index.get(`${h.id}:from`), index.get(`${h.id}:to`), 'move', 'step');
   for (const a of perches) {
     for (const b of perches) {
       if (Math.abs(a.x - b.x) <= FLIGHT.maxHop && Math.abs(a.z - b.z) <= FLIGHT.maxHop) tryLink(a, b, 'hop');
@@ -359,10 +416,10 @@ const dist3 = (p, c) => Math.hypot(p.x - c.x, p.y - c.y, p.z - c.z);
 
 // The rules near her: it lands 4 m from her and 0.5 m further than it was,
 // and keeps 1.5 m from her on the way.
-function keepsOff(from, to, cat) {
+function keepsOff(from, to, cat, shape) {
   const end = dist3(to, cat);
   if (end < FLIGHT.landFromCat || end <= dist3(from, cat) + 0.5) return false;
-  const plan = flightPlan(from, to);
+  const plan = flightPlan(from, to, shape);
   for (let i = 0; i <= CAT_SAMPLES; i++) {
     flightPoint(from, to, plan, CAT_S0 + ((CAT_S1 - CAT_S0) * i) / CAT_SAMPLES, tmp);
     if (dist3(tmp, cat) < FLIGHT.clearCat) return false;
@@ -372,8 +429,8 @@ function keepsOff(from, to, cat) {
 
 const isTaken = (p, taken) => taken.has(p.id) || p.aliases.some((a) => taken.has(a));
 
-// Where a flushed bird flies: { to, kind } (`to` a perch id), or null for a
-// flutter where it is. `bird` is { index, kind, at, flights, guideStep }; her
+// Where a flushed bird flies: { to, kind, shape } (`to` a perch id; `shape`
+// for flightPlan), or null for a flutter where it is. `bird` is { index, kind, at, flights, guideStep }; her
 // spot `cat` is { x, y, z }; `taken` holds the perches other birds are on.
 export function chooseFlight(graph, index, bird, cat, taken) {
   const from = index.get(bird.at);
@@ -384,8 +441,8 @@ export function chooseFlight(graph, index, bird, cat, taken) {
   if (bird.guideStep >= 0 && bird.guideStep < GUIDE.route.length) {
     const stop = index.get(GUIDE.route[bird.guideStep]);
     const link = stop && links.find((l) => l.to === stop.id);
-    if (!link || isTaken(stop, taken) || !keepsOff(from, stop, cat)) return null;
-    return { to: stop.id, kind: link.kind };
+    if (!link || isTaken(stop, taken) || !keepsOff(from, stop, cat, link.shape)) return null;
+    return { to: stop.id, kind: link.kind, shape: link.shape };
   }
 
   const K = BIRD_KINDS[bird.kind];
@@ -396,7 +453,7 @@ export function chooseFlight(graph, index, bird, cat, taken) {
     const to = index.get(l.to);
     if (!K.perches.includes(to.kind) || to.y >= K.below || isTaken(to, taken)) continue;
     if (l.kind === 'hop' ? l.d < K.hop.min || l.d > K.hop.max : !K.leads && l.d > K.hop.max) continue;
-    if (!keepsOff(from, to, cat)) continue;
+    if (!keepsOff(from, to, cat, l.shape)) continue;
     // the plan's hash01(index, flights, 7), offset by where the link lands
     // so that it breaks ties between links rather than adding the same to all
     const tie = TIE * hash01(bird.index + to.x, bird.flights + to.z, TIE_SALT);
@@ -405,7 +462,7 @@ export function chooseFlight(graph, index, bird, cat, taken) {
       : -Math.abs(l.d - 5) / 5 + tie;
     if (score > bestScore) { best = l; bestScore = score; }
   }
-  return best && { to: best.to, kind: best.kind };
+  return best && { to: best.to, kind: best.kind, shape: best.shape };
 }
 
 // ---------------------------------------------------------------------------
