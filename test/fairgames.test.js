@@ -27,7 +27,8 @@ vi.stubGlobal('document', {
 const { build } = await import('../src/world/fair.js');
 const { createFairSim } = await import('../src/fairsim.js');
 const { createFairGames, GAME, GAME_STATES, FAIR_GAME_IDS, FAIR_FIND_IDS } = await import('../src/fairgames.js');
-const { createFairVisitors, VISITOR, visitorCount } = await import('../src/fairvisitors.js');
+const { createFairVisitors, VISITOR, PAIR, visitorCount } = await import('../src/fairvisitors.js');
+const { spotKind } = await import('../src/people/look.js');
 const { createFairShow } = await import('../src/fairshow.js');
 const { createFairLive, NO_FAIR } = await import('../src/fairlive.js');
 const { FAIR_PRIZES, FAIR_PRIZE_IDS, FAIR_JOURNAL_TYPES, gameJournalId, fairFindJournalId, fairPrizesWonBy } = await import('../src/fairprizes.js');
@@ -981,6 +982,63 @@ describe('what they pay, and what the save keeps', () => {
 describe('the visitors', () => {
   const visitors = (count = 8, seed = 'people') => createFairVisitors(AREA, { count, seed, swept: SIM.swept });
   const far = { x: 40, z: -40, y: 0, speed: 0 };
+  const pairs = (v) => v.list.filter((p) => p.pair);
+  const childAt = (p) => ({ x: p.childX, z: p.childZ });
+  // A pair's child holds every rule a visitor does: on free ground (inside
+  // the bounds, clear of everything solid by its own radius, out of the pool,
+  // off every ride), and, with a cat about, never within KEEP of her middle.
+  const childRules = (p, cat, t, area = AREA) => {
+    const c = childAt(p);
+    const at = `${p.id}'s child at ${t.toFixed(1)} s`;
+    expect(Number.isFinite(c.x) && Number.isFinite(c.z) && Number.isFinite(p.childYaw), at).toBe(true);
+    expect(clearance(area.colliders, c.x, c.z), `${at} in something solid`).toBeGreaterThanOrEqual(PAIR.CHILD_R);
+    expect(SIM.swept(c.x, c.z), `${at} on a ride`).toBe(false);
+    expect(inPool(c.x, c.z, PAIR.CHILD_R), `${at} in the pool`).toBe(false);
+    expect(c.x > AREA.bounds.minX && c.x < AREA.bounds.maxX && c.z > AREA.bounds.minZ && c.z < AREA.bounds.maxZ, at).toBe(true);
+    if (cat) expect(dist(c, cat), at).toBeGreaterThanOrEqual(VISITOR.KEEP - 1e-6);
+    // and it is with its grown-up: never wandered off, never through it
+    expect(dist(c, p), at).toBeLessThan(1.6);
+    expect(dist(c, p), at).toBeGreaterThanOrEqual(PAIR.APART - 1e-9);
+  };
+  // How far each child moved this step, against its grown-up: a child never
+  // jumps further than the grown-up's own step and a small allowance (PAIR.CATCH)
+  // and, out of the way of a cat who runs at it, than she came.
+  const moves = (v, cat = null) => {
+    const last = new Map(pairs(v).map((p) => [p, { x: p.x, z: p.z, cx: p.childX, cz: p.childZ }]));
+    const was = cat ? { x: cat.x, z: cat.z } : null;
+    let worst = -Infinity;
+    let hops = 0;
+    return {
+      check(dt) {
+        const came = cat ? Math.max(dist(cat, was), (cat.speed ?? 0) * dt) : 0;
+        for (const [p, o] of last) {
+          const over = Math.hypot(p.childX - o.cx, p.childZ - o.cz) - Math.hypot(p.x - o.x, p.z - o.z) - PAIR.CATCH * dt - came;
+          worst = Math.max(worst, over);
+          if (over > 1e-9) hops++;
+          o.x = p.x; o.z = p.z; o.cx = p.childX; o.cz = p.childZ;
+        }
+        if (cat) { was.x = cat.x; was.z = cat.z; }
+      },
+      get worst() { return worst; },
+      get hops() { return hops; },
+    };
+  };
+
+  it('are a grown-up with a child where the look spot says child: three of the eight, the same three every walk', () => {
+    const v = visitors(8);
+    expect(PAIR.R).toBe(0.65);
+    expect(v.list).toHaveLength(8); // one visitor drawn as two: the count is unchanged
+    expect(pairs(v).map((p) => p.id)).toEqual(['fair-visitor-4', 'fair-visitor-5', 'fair-visitor-8']);
+    for (const p of v.list) expect(p.pair, p.id).toBe(spotKind(p.look) === 'child');
+    // which they are comes from the spot, never the seed
+    expect(pairs(visitors(8, 'another seed')).map((p) => p.id)).toEqual(['fair-visitor-4', 'fair-visitor-5', 'fair-visitor-8']);
+    for (const p of v.list) {
+      if (p.pair) {
+        childRules(p, null, 0);
+        expect(['beside', 'behind', 'back']).toContain(p.childAt);
+      } else expect(p.childX).toBe(null);
+    }
+  });
 
   it('are a handful: eight on the high tier, fewer on the lower ones, never none', () => {
     expect(VISITOR.MAX).toBe(8);
@@ -1019,9 +1077,25 @@ describe('the visitors', () => {
   it('left to themselves for half an hour they stroll the loop, stop to watch the rides, and only ever stand on free ground', () => {
     const v = visitors();
     const watched = new Set();
+    const placed = new Set();
+    const mv = moves(v);
     let strolled = 0;
     for (let i = 0; i < 30 * 60 * 15; i++) {
       v.step(1 / 15, far);
+      mv.check(1 / 15);
+      for (const p of pairs(v)) {
+        childRules(p, null, i / 15);
+        placed.add(p.childAt);
+        // side by side only where the way is clear for the two of them: the
+        // pair's own radius round its middle, and the way PAIR.CLEAR wide
+        if (p.childAt === 'beside') {
+          const mx = p.x + Math.cos(p.yaw) * p.childSide * PAIR.BESIDE / 2;
+          const mz = p.z - Math.sin(p.yaw) * p.childSide * PAIR.BESIDE / 2;
+          expect(clearance(AREA.colliders, mx, mz)).toBeGreaterThanOrEqual(PAIR.CLEAR / 2 - 1e-9);
+          expect(clearance(AREA.colliders, mx, mz)).toBeGreaterThan(PAIR.R);
+          expect(inPool(mx, mz, PAIR.R)).toBe(false);
+        }
+      }
       for (const p of v.list) {
         expect(Number.isFinite(p.x) && Number.isFinite(p.z) && Number.isFinite(p.yaw)).toBe(true);
         expect(clearance(AREA.colliders, p.x, p.z), `${p.id} in something solid`).toBeGreaterThanOrEqual(VISITOR.R);
@@ -1040,7 +1114,12 @@ describe('the visitors', () => {
     for (const p of v.list) expect(p.walked, p.id).toBeGreaterThan(400);
     // and they keep apart on the loop
     for (const p of v.list) for (const q of v.list) if (p !== q && p.mode === 'stroll' && q.mode === 'stroll') expect(dist(p, q)).toBeGreaterThan(0.6);
-  });
+    // the children walk beside their grown-ups, a step behind on the narrow
+    // ways (and see the fenced midway below), and never jump
+    expect(placed.has('beside')).toBe(true);
+    expect(placed.has('behind')).toBe(true);
+    expect(mv.worst).toBeLessThanOrEqual(1e-9);
+  }, 90_000);
 
   // The cats that try them: sitting in the way, crossing, running straight at
   // one after another, and chasing one wherever it goes.
@@ -1056,10 +1135,17 @@ describe('the visitors', () => {
     const cat = { x: 0, z: 30, y: 0, speed: 0 };
     let nearest = Infinity;
     let stopped = 0;
+    CATS[name](cat, 0);
+    const mv = moves(v, cat);
     for (let i = 0; i < 15 * 60 * 12; i++) {
       const t = i / 15;
       CATS[name](cat, t);
       v.step(1 / 15, cat);
+      mv.check(1 / 15);
+      for (const p of pairs(v)) {
+        childRules(p, cat, t);
+        nearest = Math.min(nearest, dist(childAt(p), cat));
+      }
       for (const p of v.list) {
         const d = dist(p, cat);
         nearest = Math.min(nearest, d);
@@ -1074,7 +1160,8 @@ describe('the visitors', () => {
     expect(stopped).toBeGreaterThan(0); // and somebody gave way
     // nobody is stuck for good behind a cat who sits: every one still gets round
     for (const p of v.list) expect(p.walked, p.id).toBeGreaterThan(name.startsWith('sitting') ? 250 : 60);
-  });
+    expect(mv.worst).toBeLessThanOrEqual(1e-9); // a child steps out of her way smoothly too
+  }, 90_000);
 
   it('a cat who chases one visitor for five minutes never touches it, and it never comes after her', () => {
     const v = visitors(8, 'chased');
@@ -1092,12 +1179,98 @@ describe('the visitors', () => {
       const gap = dist(target, cat); // once she has moved, before it does
       v.step(DT, cat);
       for (const p of v.list) expect(dist(p, cat)).toBeGreaterThanOrEqual(VISITOR.KEEP - 1e-6);
+      for (const p of pairs(v)) childRules(p, cat, i * DT);
       expect(v.free(target.x, target.z)).toBe(true);
       // with her within arm's length and coming on, it never takes a step towards her
       if (gap < VISITOR.NEAR && gap >= VISITOR.KEEP && dist(target, cat) < gap - 1e-6) approached++;
     }
     expect(approached).toBe(0);
   });
+
+  it('a cat who chases a child for five minutes never touches it or its grown-up', () => {
+    const v = visitors(8, 'chased child');
+    const pair = v.list[3];
+    expect(pair.pair).toBe(true);
+    const cat = { x: 0, z: 20, y: 0, speed: 0 };
+    let nearest = Infinity;
+    const mv = moves(v, cat);
+    for (let i = 0; i < 30 * 300; i++) {
+      const kid = childAt(pair);
+      const d = dist(cat, kid);
+      if (d > 0.3) {
+        const stepLen = Math.min(d, 4 * DT);
+        const nx = cat.x + ((kid.x - cat.x) / d) * stepLen;
+        const nz = cat.z + ((kid.z - cat.z) / d) * stepLen;
+        if (isWalkableAt(AREA, nx, nz)) { cat.x = nx; cat.z = nz; cat.speed = 4; } else cat.speed = 0;
+      }
+      v.step(DT, cat);
+      mv.check(DT);
+      nearest = Math.min(nearest, dist(childAt(pair), cat));
+      for (const p of v.list) expect(dist(p, cat)).toBeGreaterThanOrEqual(VISITOR.KEEP - 1e-6);
+      for (const p of pairs(v)) childRules(p, cat, i * DT);
+    }
+    expect(nearest).toBeLessThan(1.2); // she did catch up with it
+    // Hunted, it runs from her as fast as she comes. Only where she gets
+    // between it and its grown-up, or pins it against a stall at the end of its
+    // reach, does it hop round her: rarely (measured: 3 steps in the 9,000),
+    // never further than it may be from its grown-up. (A grown-up's own step
+    // aside from a cat can be several metres.)
+    expect(mv.hops).toBeLessThanOrEqual(5);
+    expect(mv.worst).toBeLessThan(PAIR.FAR + PAIR.APART);
+  }, 90_000);
+
+  // A stretch of the midway fenced in to a narrow way (posts either side, a
+  // test's own copy of the place): too narrow for the two side by side, wide
+  // enough for the pair one behind the other.
+  function fenced() {
+    const v0 = visitors();
+    const P = { x: 0, z: 0, hx: 0, hz: 1 };
+    const clearAround = (s) => {
+      for (let d = -3; d <= 3; d += 0.25) {
+        v0.loop.at(s + d, P);
+        if (clearance(AREA.colliders, P.x, P.z) < 2.6 || SIM.swept(P.x, P.z)) return false;
+      }
+      return true;
+    };
+    let at = 0;
+    while (!clearAround(at)) at += 0.5;
+    const posts = [];
+    for (let d = -1.5; d <= 1.5; d += 0.5) {
+      v0.loop.at(at + d, P);
+      for (const side of [1, -1]) posts.push({ x: P.x + P.hz * side * 1.05, z: P.z - P.hx * side * 1.05, r: 0.2 });
+    }
+    v0.loop.at(at, P);
+    return { area: { ...AREA, colliders: [...AREA.colliders, ...posts] }, mid: { x: P.x, z: P.z } };
+  }
+
+  it('a child steps behind its grown-up where the way is narrow, and back beside after, smoothly', () => {
+    const { area, mid } = fenced();
+    const v = createFairVisitors(area, { count: 8, seed: 'fenced', swept: SIM.swept });
+    const mv = moves(v);
+    const inside = new Map(pairs(v).map((p) => [p, false]));
+    let through = 0;
+    let besideIn = 0;
+    const seen = new Set();
+    for (let i = 0; i < 15 * 60 * 10; i++) {
+      v.step(1 / 15, far);
+      mv.check(1 / 15);
+      for (const p of pairs(v)) {
+        childRules(p, null, i / 15, area);
+        expect(clearance(area.colliders, p.x, p.z)).toBeGreaterThanOrEqual(VISITOR.R);
+        const now = dist(p, mid) < 1.2;
+        if (now) {
+          seen.add(p.childAt);
+          if (p.childAt === 'beside') besideIn++;
+        }
+        if (inside.get(p) && !now) through++;
+        inside.set(p, now);
+      }
+    }
+    expect(through).toBeGreaterThan(3); // pairs went through, more than once
+    expect(besideIn).toBe(0); // never side by side between the fences
+    expect(seen.has('behind')).toBe(true);
+    expect(mv.worst).toBeLessThanOrEqual(1e-9); // and the child moved there and back without a jump
+  }, 90_000);
 
   it('take no notice of a cat up on a counter or a horse, and walk past underneath', () => {
     const v = visitors(8, 'high');
