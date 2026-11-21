@@ -1255,7 +1255,7 @@ export function createInteractions({
     // could land somewhere the cat cannot reach. Nor on a raised deck (the
     // pier, the Docks bridges; ruling R42): a drop is placed at ground height,
     // under the boards, where it cannot be seen. The cat just keeps holding it.
-    if (!s.prompt && carry?.mouth.held && !s.perched && !player.inWater && !overDeck(s)) {
+    if (!s.prompt && carry?.mouth.held && !carry.mouth.held.treat && !s.perched && !player.inWater && !overDeck(s)) {
       s.prompt = { kind: 'drop' };
       setPrompt(carry.mouth.held.job ? JOB_WORDS.goat.putPrompt() : `E — put the ${carryLabel(carry.mouth.held.kind)} down`);
     }
