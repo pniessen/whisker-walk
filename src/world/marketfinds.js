@@ -6,6 +6,7 @@
 import { phrase } from '../clanphrases.js';
 import { words } from '../wordset.js';
 import { marketPageId, MARKET_FIND_IDS } from '../marketpages.js';
+import { REST_REACH } from '../rests.js';
 import { MUSICIAN, BICYCLE_BASKET, MARKET_REGISTRATION, FRUIT_CRATE, fromStall, stallById } from './marketplan.js';
 
 export const MARKET_FIND_WORDS = Object.freeze({
@@ -54,7 +55,9 @@ export const MARKET_FIND_ANCHORS = Object.freeze({
 
 // Each find's rule, against its anchor (spot is findAt's):
 //   rest   she is resting (session.rest) of this kind, her paws within r m of
-//          the anchor, for at least t seconds of it (the sacks' nap);
+//          the anchor (the rests' own reach, REST_REACH: wherever the game
+//          lets her drink or nap there, she finds it), for at least t seconds
+//          of it (the sacks' nap);
 //   flush  a pigeon took off this frame within `flush` m of her while she ran
 //          at `speed` m/s or more (the pigeons: no anchor);
 //   listen she has stood still `still` s within r m of the musician, facing
@@ -69,9 +72,9 @@ export const MARKET_FIND_ANCHORS = Object.freeze({
 //          she was within r m of it.
 const rule = (o) => Object.freeze(o);
 export const FIND_RULES = Object.freeze({
-  fountain: rule({ rest: 'drink', r: 0.8, t: 0 }), // drinking at the fountain's rest
+  fountain: rule({ rest: 'drink', r: REST_REACH, t: 0 }), // drinking at the fountain's rest
   pigeons: rule({ flush: 3, speed: 1.5 }), // running at them as they take off
-  sacks: rule({ rest: 'nap', r: 0.8, t: 2 }), // a nap on the warm flour sacks
+  sacks: rule({ rest: 'nap', r: REST_REACH, t: 2 }), // a nap on the warm flour sacks
   musician: rule({ listen: true, r: 3, still: 2, face: Math.cos(Math.PI / 4) }), // still, near, facing them
   basket: rule({ perch: true, near: 0.05 }), // up in the bicycle's basket
   apples: rule({ tipped: true, r: 2.5 }), // by the crate as it goes over

@@ -129,6 +129,7 @@ describe('the Market Square journal pages', () => {
 const { findAt, FIND_RULES, MARKET_FIND_ANCHORS } = await import('../src/world/marketfinds.js');
 const { MUSICIAN, BICYCLE_BASKET, TRESTLE_PERCH, PIGEON_PATCH, MARKET_REGISTRATION } = await import('../src/world/marketplan.js');
 const { MARKET_ANCHORS } = await import('../src/world/market.js');
+const { REST_REACH } = await import('../src/rests.js');
 
 const A = MARKET_FIND_ANCHORS;
 const BLANK = Object.freeze({ y: 0, speed: 0, still: 0, perched: null, rest: null, pigeonFlush: null, crateTipped: false, yaw: 0 });
@@ -223,14 +224,21 @@ describe('where the six are found (findAt)', () => {
     expect(findAt(A, spotAt(LISTEN, { ...LISTENING, still: 30 }))).toBe('musician');
   });
 
-  it('the sacks want a nap of 2 s, the fountain a drink, each within 0.8 m', () => {
+  it('the sacks want a nap of 2 s, the fountain a drink, each anywhere the rest reaches', () => {
+    expect(FIND_RULES.fountain.r).toBe(REST_REACH);
+    expect(FIND_RULES.sacks.r).toBe(REST_REACH);
     expect(findAt(A, spotAt(A.sacks, { rest: nap(1.9) }))).toBe(null);
     expect(findAt(A, spotAt(A.sacks, { rest: drink(3) }))).toBe(null);
-    expect(findAt(A, spotAt({ x: A.sacks.x + 0.75, z: A.sacks.z }, { rest: nap(2) }))).toBe('sacks');
-    expect(findAt(A, spotAt({ x: A.sacks.x + 0.85, z: A.sacks.z }, { rest: nap(2) }))).toBe(null);
     expect(findAt(A, spotAt(A.fountain, { rest: nap(3) }))).toBe(null);
-    expect(findAt(A, spotAt({ x: A.fountain.x, z: A.fountain.z + 0.75 }, { rest: drink() }))).toBe('fountain');
-    expect(findAt(A, spotAt({ x: A.fountain.x, z: A.fountain.z + 0.85 }, { rest: drink() }))).toBe(null);
+    // from the very edge of the rest's reach, any side: found; a step beyond it: not
+    for (let k = 0; k < 8; k++) {
+      const a = (k * Math.PI) / 4;
+      const edge = (p, r) => ({ x: p.x + r * Math.cos(a), z: p.z + r * Math.sin(a) });
+      expect(findAt(A, spotAt(edge(A.sacks, REST_REACH - 1e-6), { rest: nap(2) })), `sacks ${k}`).toBe('sacks');
+      expect(findAt(A, spotAt(edge(A.fountain, REST_REACH - 1e-6), { rest: drink() })), `fountain ${k}`).toBe('fountain');
+      expect(findAt(A, spotAt(edge(A.sacks, REST_REACH + 0.05), { rest: nap(2) })), `sacks ${k} out`).toBe(null);
+      expect(findAt(A, spotAt(edge(A.fountain, REST_REACH + 0.05), { rest: drink() })), `fountain ${k} out`).toBe(null);
+    }
   });
 
   it('the basket from its perch, not beside it', () => {

@@ -23,6 +23,7 @@ const { createDiscoveryLog } = await import('../src/discoveries.js');
 const { createPeopleKit } = await import('../src/people/index.js');
 const { mulberry32 } = await import('../src/rng.js');
 const { bus } = await import('../src/events.js');
+const { createRests, REST_REACH } = await import('../src/rests.js');
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -139,6 +140,35 @@ describe('the Market life finds the six', () => {
     expect(s.progression.state.journal.marketfountain).toBe(2);
     expect(s.progression.state.points).toBe(12);
     w.life.dispose();
+  });
+
+  it('a drink or a nap from the edge of the rest\'s reach finds its page (and the drink never the musician)', () => {
+    const scene = new THREE.Scene();
+    const rests = createRests(scene, MARKET_REGISTRATION.propSet.rests);
+    const r = REST_REACH - 0.01;
+    // the edge toward the musician (the nearest the drink comes to the pitch), and away from it
+    const toM = Math.atan2(MUSICIAN.z - A.fountain.z, MUSICIAN.x - A.fountain.x);
+    for (const a of [toM, toM + Math.PI / 2, Math.PI / 2]) {
+      const s = save();
+      const w = square(s);
+      const p = { x: A.fountain.x + r * Math.cos(a), z: A.fountain.z + r * Math.sin(a) };
+      // the game offers the drink there (interactions.js: rests.nearest within REST_REACH)
+      expect(rests.nearest({ x: p.x, z: p.z }, REST_REACH)?.kind, `${a}`).toBe('drink');
+      drinkAt(w, p, faceTo(p, MUSICIAN)); // even facing the musician
+      w.secs(5, (ww) => { ww.cat.rotation.y = faceTo(p, { x: 0, z: 0 }); }); // then on, facing the fountain
+      expect(s.progression.state.journal.marketfountain, `${a}`).toBe(1);
+      expect(s.progression.state.journal.marketmusician ?? 0, `${a}`).toBe(0);
+      // and the nap at the sacks' reach
+      const q = { x: A.sacks.x + r * Math.cos(a), z: A.sacks.z + r * Math.sin(a) };
+      expect(rests.nearest({ x: q.x, z: q.z }, REST_REACH)?.kind, `${a}`).toBe('nap');
+      w.at(q.x, q.z, 0);
+      w.session.rest = { kind: 'nap', t: 0 };
+      w.secs(3);
+      w.session.rest = null;
+      expect(s.progression.state.journal.marketsacks, `${a}`).toBe(1);
+      w.life.dispose();
+    }
+    rests.dispose?.();
   });
 
   it('listening to the musician finds the musician, and only that', () => {

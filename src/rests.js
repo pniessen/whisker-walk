@@ -33,6 +33,10 @@ import { FLAT_GROUND } from './ground.js';
 // traversal so that traversal never frees them a second time. No randomness.
 // =============================================================================
 
+// How close the cat must be to a bowl, a dish or a cushion to drink, eat or
+// nap there (game/interactions.js offers the rest within it; the Market's
+// fountain and flour-sack finds count within it too, world/marketfinds.js).
+export const REST_REACH = 1.2;
 export const REST_SIP = 3;          // seconds: a drink or a nibble
 export const NAP_PURR_EVERY = 0.8;  // seconds between purr pieces while napping
 export const NAP_PURR_LEN = 1.0;    // seconds: each piece (fades out over its last 0.25)

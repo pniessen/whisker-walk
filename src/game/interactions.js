@@ -48,7 +48,7 @@ import { gateStatus, gatePrompt } from '../gatecross.js';
 import { phrase } from '../clanphrases.js';
 import * as THREE from 'three';
 import { villagerPos } from '../critters.js';
-import { startRest, REST_PROMPTS, REST_TOASTS, NAP_PURR_LEN } from '../rests.js';
+import { startRest, REST_PROMPTS, REST_TOASTS, NAP_PURR_LEN, REST_REACH } from '../rests.js';
 import { bus } from '../events.js';
 import { note } from '../diagnostics.js';
 
@@ -106,8 +106,7 @@ const MARK_REACH = 1.2;
 // to scent over it.
 const BORDER_MARK_REACH = 1.0;
 // v21 3b Task 15: how close the cat must be to a bowl, a dish or a cushion to
-// drink, eat or nap there.
-const REST_REACH = 1.2;
+// drink, eat or nap there: rests.js REST_REACH.
 
 // v21 3b ruling R42 — is the cat, or the thing in its mouth, over a raised
 // deck (the seaside pier, the Docks bridges)? A drop is placed at ground
