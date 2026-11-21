@@ -774,3 +774,17 @@ describe('waterSplash (swimming)', () => {
     expect(play('toString').started).toHaveLength(0);
   });
 });
+
+describe('isMuted (Rooftops step 5)', () => {
+  it('isMuted follows setMuted', () => {
+    let made = 0;
+    const audio = createAudio({ contextFactory: () => { made++; return fakeCtx(); } });
+    expect(audio.isMuted()).toBe(false);
+    audio.setMuted(true);
+    expect(audio.isMuted()).toBe(true);
+    audio.setMuted(false);
+    expect(audio.isMuted()).toBe(false);
+    // asking never builds the AudioContext
+    expect(made).toBe(0);
+  });
+});

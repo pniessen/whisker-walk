@@ -50,7 +50,7 @@ describe('the phrase table', () => {
   it('imports only the door to the word files, so anything may import it', () => {
     const specs = [...read('src/clanphrases.js').matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
     expect(specs).toEqual(['./wordset.js']);
-    expect(noComments(read('src/clanphrases.js'))).not.toMatch(/document|window|localStorage|THREE/);
+    expect(noComments(read('src/clanphrases.js'))).not.toMatch(/document|\bwindow\.[A-Za-z]|localStorage|THREE/); // (the attic window's lines say "window" in prose)
   });
 
   it('every phrase(...) call in src/ names an id the table has, and every id is used', () => {

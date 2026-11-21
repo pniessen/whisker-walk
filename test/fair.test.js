@@ -2088,9 +2088,9 @@ describe('The Fairground: registered everywhere a street area is', async () => {
 
   it('holds the golden mice, the prop set and the rest looks exactly as its rows say', () => {
     expect(GOLD_MICE.fair).toEqual(plain(REG.goldMice));
-    expect(GOLD_TOTAL).toBe(36);
-    expect(goldForEdition('canon', CATALOG).size).toBe(36);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(18);
+    expect(GOLD_TOTAL).toBe(39); // 36 until the Rooftops added its three
+    expect(goldForEdition('canon', CATALOG).size).toBe(39);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(21); // 18 until the Rooftops added its three
     const live = propsFor('fair');
     for (const k of ['carryables', 'knockables', 'markables', 'flaps', 'rests', 'hides', 'keepSlots']) expect(plain(live[k]), k).toEqual(plain(set[k]));
     expect(live.dogYard).toBeNull();
