@@ -462,8 +462,8 @@ describe('gorge life: the caves', () => {
         setGrow(null);
       }
     };
-    expect(withLife(false)).toEqual(['gorge', 'river', 'roofs']);
-    expect(withLife(true)).toEqual(['gorge', 'pines', 'river', 'roofs']);
+    expect(withLife(false)).toEqual(['gorge', 'market', 'river', 'roofs']);
+    expect(withLife(true)).toEqual(['gorge', 'market', 'pines', 'river', 'roofs']);
     expect(readFileSync(new URL('marshlife.js', dir), 'utf8')).not.toMatch(/Light\(/);
     const walk = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
     expect(walk).toMatch(/areaData\.life\?\.\(\{[^}]*\bweather\b[^}]*\}\) \?\? NO_AREA_LIFE/);

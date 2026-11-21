@@ -170,7 +170,8 @@ const CAFE_FRONT = Object.freeze({ x0: -10, x1: -5, depth: 2.2, y: 2.75 });
 
 // The clutter's shapes (marketplan.js MARKET_CLUTTER places them).
 const BENCH_SEAT_Y = 0.48;
-const BIKE = Object.freeze({ wheelR: 0.33, axle: 0.52, basketX: 0.62 });
+// the bicycle: its basket's centre is basketX along it, basketY up, before its lean (about x, to the wall)
+const BIKE = Object.freeze({ wheelR: 0.33, axle: 0.52, basketX: 0.62, basketY: 0.87, lean: 0.05 });
 
 // The anchors for step 3: where things will be, { x, z, y } (y their top).
 const BAKER = stallById('baker');
@@ -182,9 +183,13 @@ export const MARKET_ANCHORS = Object.freeze({
   apples: Object.freeze({ ...fromStall(FRUIT, FRUIT_CRATE.lx, FRUIT_CRATE.lz), y: FRUIT_CRATE.h }),
   // the bench facing the fountain (drawn here, MARKET_CLUTTER; step 3 makes it a perch): its seat
   bench: Object.freeze({ x: BENCH_AT.x, z: BENCH_AT.z, y: BENCH_SEAT_Y }),
-  // the bicycle parked on the south row's foot (drawn here, outside the bounds): its basket,
-  // whose front lip is just inside them
-  basket: Object.freeze({ x: BICYCLE_AT.x + BIKE.basketX, z: MARKET_BOUNDS.maxZ - 0.05, y: 0.9 }),
+  // the bicycle on its stand by the south row (drawn here, MARKET_CLUTTER): the centre of
+  // its basket, as drawn (its yaw is 0: the basket is basketX east of it, leaning to the wall)
+  basket: Object.freeze({
+    x: BICYCLE_AT.x + BIKE.basketX,
+    z: BICYCLE_AT.z + BIKE.basketY * Math.sin(BIKE.lean),
+    y: BIKE.basketY * Math.cos(BIKE.lean),
+  }),
 });
 
 const MARKET_SCENICS = Object.freeze([Object.freeze({ id: 'market-fountain', x: 0, z: 5.6, label: 'the fountain' })]);
@@ -367,10 +372,34 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       lamp.name = `marketLamp:${x},${z}`;
       scene.add(lamp);
     }
-    // the clutter (Task 6): each thing its own top-level child, so the walk's
-    // contact shadows find each one and its merge keeps them apart
+    // the clutter (Task 6): everything under 1.3 m drawn into one kit, one
+    // mesh per material for the whole square (two draws, casting nothing), and
+    // one invisible box per thing, its own top-level child, so the walk's
+    // contact shadows still find each one. The noticeboard, the one thing that
+    // casts, is its own child: the walk's merge joins meshes by material, and
+    // would otherwise make the whole kit cast.
     const tyre = new THREE.TorusGeometry(0.5, 0.07, 6, 20);
-    for (const c of MARKET_CLUTTER) scene.add(drawClutter(c, { PARTS, M, paint, barrel, wheel, tyre, disc, quad }));
+    const clutterKit = makeKit('marketClutter');
+    const anchorGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+    const anchorMat = new THREE.MeshBasicMaterial();
+    for (const c of MARKET_CLUTTER) {
+      if (c.kind === 'board') {
+        const bk = makeKit(`marketClutter:${c.id}`);
+        drawClutter(c, bk, { PARTS, M, paint, barrel, wheel, tyre, disc, quad });
+        const board = new THREE.Group();
+        board.name = `marketClutter:${c.id}`;
+        board.userData.clutter = c.kind;
+        for (const m of bk.meshes()) board.add(m);
+        scene.add(board);
+        continue;
+      }
+      const box = drawClutter(c, clutterKit, { PARTS, M, paint, barrel, wheel, tyre, disc, quad });
+      scene.add(clutterAnchor(c, box, anchorGeo, anchorMat));
+    }
+    const clutter = new THREE.Group();
+    clutter.name = 'marketClutter';
+    for (const m of clutterKit.meshes()) clutter.add(m);
+    scene.add(clutter);
     tyre.dispose();
 
     // the treats on display, each its own top-level child
@@ -758,23 +787,33 @@ function basketAt(kit, PARTS, paint, M, disc, m, cell) {
   kit.put('produce', M.stall, disc, m.clone().multiply(mat4(0, 0.2, 0, { sx: 0.34, sz: 0.34 })), { cell, noCast: true });
 }
 
-// --- the clutter (marketplan.js MARKET_CLUTTER): one group a thing, turned by
-// its yaw, one mesh per material; everything under 1.3 m casts nothing, the
-// noticeboard (1.95 m) does.
+// --- the clutter (marketplan.js MARKET_CLUTTER): every thing drawn into the
+// one shared kit `K`, in place (its spot, its yaw, the bicycle's lean), one
+// mesh per material for them all; everything under 1.3 m casts nothing, the
+// noticeboard (1.95 m) does. Answers the thing's world box, for its anchor.
 const BENCH_GREEN = 0x3d6b4f;
 const IRON = 0x34383c;
 const SACK = 0xc9b48a;
 const NOTES = Object.freeze([0xf3ead2, 0xe8d36a, 0xa9cfdc, 0xe7a5b5, 0xffffff]);
-function drawClutter(c, { PARTS, M, paint, barrel, wheel, tyre, disc, quad }) {
-  const g = new THREE.Group();
-  g.name = `marketClutter:${c.id}`;
-  g.userData.clutter = c.kind;
-  g.position.set(c.x, 0, c.z);
-  g.rotation.y = c.yaw;
+function drawClutter(c, K, { PARTS, M, paint, barrel, wheel, tyre, disc, quad }) {
   const casts = c.kind === 'board';
-  const K = makeKit(`marketClutter:${c.id}`);
-  const wood = (geo, m, color = WOOD) => K.put('paint', paint, geo, m, { color, noCast: !casts });
-  const atlas = (geo, m, cell) => K.put('atlas', M.stall, geo, m, { cell, noCast: true });
+  const lean = c.kind === 'bicycle' ? BIKE.lean : 0;
+  const at = mat4(c.x, 0, c.z, { yaw: c.yaw }).multiply(new THREE.Matrix4().makeRotationX(lean));
+  const box3 = new THREE.Box3();
+  const grow = (geo, m) => {
+    if (!geo.boundingBox) geo.computeBoundingBox();
+    box3.union(geo.boundingBox.clone().applyMatrix4(m));
+  };
+  const wood = (geo, m, color = WOOD) => {
+    const w = at.clone().multiply(m);
+    K.put(casts ? 'paint:cast' : 'paint', paint, geo, w, { color, noCast: !casts });
+    grow(geo, w);
+  };
+  const atlas = (geo, m, cell) => {
+    const w = at.clone().multiply(m);
+    K.put('atlas', M.stall, geo, w, { cell, noCast: true });
+    grow(geo, w);
+  };
   const box = (x, y, z, w, h, d, color, extra = {}) => wood(PARTS.crate, mat4(x, y, z, { sx: w, sy: h, sz: d, ...extra }), color);
   // a beam between two points in the x-y plane, at depth z
   const tube = (ax, ay, bx, by, z, t, color) => wood(PARTS.box, mat4((ax + bx) / 2, (ay + by) / 2, z, { roll: Math.atan2(by - ay, bx - ax), sx: Math.hypot(bx - ax, by - ay), sy: t, sz: t }), color);
@@ -831,7 +870,7 @@ function drawClutter(c, { PARTS, M, paint, barrel, wheel, tyre, disc, quad }) {
     });
     box(0, 1.92, 0, 1.5, 0.05, 0.26, WOOD_DARK);
   } else if (c.kind === 'bicycle') {
-    // a parked bicycle, leaning to the wall (+z), its basket over the front wheel
+    // a bicycle on its stand, leaning a touch to the wall (+z), its basket over the front wheel
     const fr = 0x2f5f5f;
     const A = BIKE.axle;
     const R = BIKE.wheelR;
@@ -850,12 +889,29 @@ function drawClutter(c, { PARTS, M, paint, barrel, wheel, tyre, disc, quad }) {
     box(S[0] - 0.03, S[1] + 0.02, 0, 0.24, 0.05, 0.1, 0x4a3426); // the saddle
     tube(H[0], H[1], H[0] - 0.02, H[1] + 0.08, 0, 0.03, fr);
     box(H[0] - 0.02, H[1] + 0.08, 0, 0.04, 0.035, 0.52, IRON); // the handlebar
-    wood(PARTS.basket, mat4(BIKE.basketX, 0.76, 0, { sx: 0.3, sy: 0.22, sz: 0.34 }), WICKER);
-    atlas(disc, mat4(BIKE.basketX, 0.95, 0, { sx: 0.26, sz: 0.3 }), 9);
-    g.rotation.x = 0.1;
+    wood(PARTS.basket, mat4(BIKE.basketX, BIKE.basketY - 0.11, 0, { sx: 0.3, sy: 0.22, sz: 0.34 }), WICKER);
+    atlas(disc, mat4(BIKE.basketX, BIKE.basketY + 0.08, 0, { sx: 0.26, sz: 0.3 }), 9);
+    tube(BB[0], BB[1], BB[0] - 0.12, 0.0, 0.08, 0.025, IRON); // the stand
   }
-  for (const m of K.meshes()) g.add(m);
-  return g;
+  return box3;
+}
+
+// One thing's contact-shadow anchor: an invisible box over its drawn footprint,
+// a top-level child of its own (render/contactshadows.js scans each top-level
+// child's box; the walk's merge skips a hidden mesh). It draws nothing.
+function clutterAnchor(c, box, geo, mat) {
+  const a = new THREE.Mesh(geo, mat);
+  a.name = `marketClutter:${c.id}`;
+  a.userData.clutter = c.kind;
+  a.userData.noCast = true;
+  a.castShadow = false;
+  a.receiveShadow = false;
+  a.visible = false;
+  const size = box.getSize(new THREE.Vector3());
+  const mid = box.getCenter(new THREE.Vector3());
+  a.position.set(mid.x, box.min.y, mid.z);
+  a.scale.set(size.x, size.y, size.z);
+  return a;
 }
 
 // --- the café: three tables with their chairs, and its front on the south row

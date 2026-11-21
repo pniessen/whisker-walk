@@ -161,8 +161,14 @@ const LAMP_R = 0.12;
 //   tub     a half-barrel of flowers, r 0.4
 //   stack   crates and sacks, r 0.5
 //   board   the noticeboard on two posts (she walks under the board)
-//   bicycle parked on the south row's foot, outside the bounds; its basket is
-//           the step-3 anchor
+//   bicycle parked on its stand by the south row, just inside the bounds: its
+//           rear wheel and frame are solid, its basket over the front wheel is
+//           the step-3 anchor (market.js MARKET_ANCHORS.basket)
+// `half` is each thing's half-extent in its own frame [along x, along z], so
+// the plan test can check its whole footprint, not just its centre.
+// Five of them (the review, 2026-11-21) fill the open middle: a barrow and a
+// stack either side of the spawn-to-fountain walk (off the crumbs' line), and a
+// bench, a stack and a tub between the café and the fish stall.
 const CLUTTER_RAW = [
   ['tub-gate-w', 'tub', -2.5, 21.9, 0], ['tub-gate-e', 'tub', 2.5, 21.9, 0],
   ['tub-nw', 'tub', -19.3, -19.3, 0], ['tub-ne', 'tub', 19.3, -19.3, 0],
@@ -171,8 +177,11 @@ const CLUTTER_RAW = [
   ['bench-fountain', 'bench', -4.5, 6, 0], ['bench-east', 'bench', 5.5, -2.5, 0],
   ['stack-w', 'stack', -17.5, 12, 0.3], ['stack-e', 'stack', 16.5, 13, -0.2], ['stack-fruit', 'stack', 3.4, -18, 0.1],
   ['board', 'board', 4.8, 21.9, Math.PI], // its face to the square (-z)
-  ['bicycle', 'bicycle', 9, 23.25, 0],
+  ['bicycle', 'bicycle', 9, 22.72, 0],
+  ['barrow-mid', 'barrow', 3.6, 13.6, 0.9], ['stack-mid', 'stack', -3.6, 10.4, 0.2],
+  ['bench-sw', 'bench', -9.2, 9.6, 0], ['stack-sw', 'stack', -14, 7.6, -0.3], ['tub-sw-mid', 'tub', -11.6, 12.4, 0],
 ];
+const CLUTTER_HALF = freeze({ barrow: [1.26, 0.5], bench: [0.83, 0.25], tub: [0.4, 0.4], stack: [0.55, 0.5], board: [0.75, 0.15], bicycle: [0.85, 0.26] });
 // a bench faces the fountain: its yaw turns its seat's front (+z) to (0, 0)
 const benchYaw = (x, z) => Math.atan2(FOUNTAIN.x - x, FOUNTAIN.z - z);
 function clutterSolid(kind, x, z, yaw) {
@@ -181,11 +190,12 @@ function clutterSolid(kind, x, z, yaw) {
   if (kind === 'tub') return [freeze({ x, z, r: 0.4 })];
   if (kind === 'stack') return [freeze({ x, z, r: 0.5 })];
   if (kind === 'board') return [-0.55, 0.55].map((d) => freeze({ ...along(d), r: 0.1 }));
+  if (kind === 'bicycle') return [-0.5, 0].map((d) => freeze({ ...along(d), r: 0.3 }));
   return [];
 }
 export const MARKET_CLUTTER = freeze(CLUTTER_RAW.map(([id, kind, x, z, y]) => {
   const yaw = kind === 'bench' ? benchYaw(x, z) : y;
-  return freeze({ id, kind, x, z, yaw, solid: freeze(clutterSolid(kind, x, z, yaw)) });
+  return freeze({ id, kind, x, z, yaw, half: CLUTTER_HALF[kind], solid: freeze(clutterSolid(kind, x, z, yaw)) });
 }));
 const clutterById = (id) => MARKET_CLUTTER.find((c) => c.id === id);
 export const BENCH_AT = clutterById('bench-fountain');
@@ -258,14 +268,14 @@ export const MARKET_POIS = freeze([
   { x: 15.5, z: -19.5 }, // the north-east corner
   { x: 19.5, z: 8.5 }, // the east edge, past the flowers
   { x: 17.5, z: 17.5 }, // the south-east corner
-  { x: -3, z: 8 }, // the fountain's south side, by the bench
+  { x: -2, z: 7 }, // the fountain's south side, by the bench
   { x: -1, z: -7 }, // the fountain's north side
   { x: 9, z: -4 }, // between the fountain and the flowers
   { x: -12.5, z: -7 }, // between the fish and the baker
 ].map(freeze));
 
 export const MARKET_COLLECTIBLES = freeze([
-  { id: 'market-1', x: -15, z: 9, label: 'a shiny button' },
+  { id: 'market-1', x: -15.5, z: 15.5, label: 'a shiny button' },
   { id: 'market-2', x: -7, z: -1.5, label: 'a dropped coin' },
   { id: 'market-3', x: 7, z: -16, label: 'a red ribbon' },
   { id: 'market-4', x: 18.5, z: 1, label: 'a paper ticket' },
@@ -295,7 +305,7 @@ export const MARKET_SHOTS = Object.freeze({
   cheese: counterShot('cheese'),
   milk: counterShot('milk'),
   // from the fountain's side, the tables in front of the café's awning
-  cafe: '-2.5,1.3,9.5,-7.5,1.2,18',
+  cafe: '-1,1.3,11.5,-7.5,1.2,18',
   // high over the south-west corner, the whole square and all six stalls
   overview: '-17,17,21,1,0,-1',
   // the spawn view again, at 390 x 844

@@ -176,19 +176,35 @@ describe('the plan of the Market Square', () => {
     expect(MARKET_CLUTTER.length).toBeGreaterThanOrEqual(10);
     const treat = TREAT_STALLS.map(stallById);
     for (const c of MARKET_CLUTTER) {
-      // its own spot and each solid circle's edge points
-      const pts = [{ x: c.x, z: c.z }, ...c.solid.flatMap((q) => Array.from({ length: 8 }, (_, k) => ({ x: q.x + q.r * Math.cos((k * Math.PI) / 4), z: q.z + q.r * Math.sin((k * Math.PI) / 4) })))];
+      // its whole footprint (its half-extent, in its own frame, turned by its yaw:
+      // own +x is world (cos yaw, -sin yaw), own +z is (sin yaw, cos yaw)) and
+      // each solid circle's edge points
+      const [hx, hz] = c.half;
+      const foot = [];
+      for (let i = -4; i <= 4; i++) for (let j = -4; j <= 4; j++) {
+        const u = (i / 4) * hx, v = (j / 4) * hz;
+        foot.push({ x: c.x + u * Math.cos(c.yaw) + v * Math.sin(c.yaw), z: c.z - u * Math.sin(c.yaw) + v * Math.cos(c.yaw) });
+      }
+      const pts = [...foot, ...c.solid.flatMap((q) => Array.from({ length: 8 }, (_, k) => ({ x: q.x + q.r * Math.cos((k * Math.PI) / 4), z: q.z + q.r * Math.sin((k * Math.PI) / 4) })))];
       for (const s of treat) {
         for (const p of pts) expect(inZone(s, p.x, p.z), `${c.id} in ${s.id}'s zone`).toBe(false);
         expect(dist(c, s.hide), `${c.id} by ${s.id}'s hide`).toBeGreaterThan(1.5);
       }
       expect(dist(c, FOUNTAIN) - FOUNTAIN.r, c.id).toBeGreaterThanOrEqual(2.5);
-      // the gateway's lane (U3): x within 1.6 of 0, behind the spawn
-      expect(Math.abs(c.x) > 1.6 + 0.5 || c.z < MARKET_SPAWN.z, c.id).toBe(true);
-      // inside the bounds, but for the bicycle on the south row's foot
-      if (c.kind !== 'bicycle') expect(c.x > MARKET_BOUNDS.minX && c.x < MARKET_BOUNDS.maxX && c.z > MARKET_BOUNDS.minZ && c.z < MARKET_BOUNDS.maxZ, c.id).toBe(true);
-      // what a cat would walk through is solid; the bench (she goes under it) and the bicycle (outside) are not
-      expect(c.solid.length > 0, c.id).toBe(!['bench', 'bicycle'].includes(c.kind));
+      for (const p of foot) {
+        // the gateway's lane (U3): x within 1.6 of 0, behind the spawn
+        expect(Math.abs(p.x) > 1.6 || p.z < MARKET_SPAWN.z, c.id).toBe(true);
+        // inside the bounds, footprint and all
+        expect(p.x > MARKET_BOUNDS.minX && p.x < MARKET_BOUNDS.maxX && p.z > MARKET_BOUNDS.minZ && p.z < MARKET_BOUNDS.maxZ, c.id).toBe(true);
+      }
+      // off the crumbs' straight line from the spawn (the first treat's walk), by a cat's width
+      const cr = CAFE.crumbs, sp = MARKET_SPAWN, L = dist(cr, sp);
+      for (const p of foot) {
+        const t = Math.max(0, Math.min(1, ((p.x - sp.x) * (cr.x - sp.x) + (p.z - sp.z) * (cr.z - sp.z)) / (L * L)));
+        expect(Math.hypot(p.x - (sp.x + (cr.x - sp.x) * t), p.z - (sp.z + (cr.z - sp.z) * t)), `${c.id} on the crumbs' line`).toBeGreaterThan(0.6);
+      }
+      // what a cat would walk through is solid; the bench (she goes under its seat) is not
+      expect(c.solid.length > 0, c.id).toBe(c.kind !== 'bench');
       for (const q of c.solid) expect(MARKET_COLLIDERS, c.id).toContainEqual(q);
     }
     // and the lamps stand out of every zone too

@@ -63,9 +63,14 @@ const clearOf = (x, z, colliders) => Math.min(...colliders.map((c) => Math.hypot
 // -4 casters, built and merged.
 // Task 6's rework (controller's ruling, 2026-11-21): the square drawn in to 42 x 44
 // m, the clutter (15 things, each its own child: +27 meshes, the noticeboard
-// the one caster), the milk cart on spoked wheels, finer cobbles: +3,292 triangles.
-const MEASURED_BUILT = { meshes: 106, casters: 27, triangles: 36297 };
-const MEASURED_MERGED = { meshes: 103, casters: 24, triangles: 36297 };
+// the one caster), the milk cart on spoked wheels, finer cobbles: +3,292 triangles
+// (106 / 27 / 36,297; merged 103 / 24). The review's follow-up: five more things
+// in the open middle (20 in all); all but the noticeboard drawn into one kit, two
+// meshes for them all, casting nothing, each with an invisible box for its
+// contact shadow (19 meshes that draw nothing, 228 triangles never drawn); the
+// noticeboard, the one caster, its own child; the bicycle inside the bounds.
+const MEASURED_BUILT = { meshes: 101, casters: 27, triangles: 37943 };
+const MEASURED_MERGED = { meshes: 98, casters: 24, triangles: 37943 };
 const MEASURED_DRAWS = 0;
 
 function budgetStats(s) {
@@ -227,6 +232,12 @@ describe('the Market Square drawn', () => {
       expect(a.y, k).toBeGreaterThan(0.2);
       expect(a.y, k).toBeLessThan(1.2);
     }
+    // the basket is the drawn bicycle's: inside its box, near its front, at basket height
+    const bike = scene.getObjectByName('marketClutter:bicycle');
+    const bb = boxOf(bike);
+    const bk = area.anchors.basket;
+    expect(bb.containsPoint(new THREE.Vector3(bk.x, bk.y, bk.z))).toBe(true);
+    expect(bb.max.x - bk.x).toBeLessThan(0.4);
     // the flour sacks are beside the baker, the apples at the fruit stall's end
     const baker = stallById('baker');
     const fruit = stallById('fruit');
@@ -343,6 +354,31 @@ describe('the Market Square drawn', () => {
     expect(bunting.userData.noCast).toBe(true);
     // the bunting hangs above the chase camera's second zoom step (3.8 m)
     expect(boxOf(bunting).min.y).toBeGreaterThan(3.8);
+  });
+
+  it('the clutter is two meshes for the whole square, casting nothing, and each thing still gets its contact shadow', async () => {
+    const { MARKET_CLUTTER } = await import('../src/world/marketplan.js');
+    const { qualifies } = await import('../src/render/contactshadows.js');
+    const kit = scene.getObjectByName('marketClutter');
+    const drawn = kit.children.filter((o) => o.isMesh);
+    expect(drawn.length).toBeLessThanOrEqual(2);
+    for (const m of drawn) expect([m.name, m.castShadow, m.userData.noCast]).toEqual([m.name, false, true]);
+    // and still none after the walk's merge (it joins meshes by material)
+    const merged = new THREE.Scene();
+    build(merged);
+    mergeStaticProps(merged);
+    merged.getObjectByName('marketClutter').traverse((o) => { if (o.isMesh) expect(o.castShadow, o.name).toBe(false); });
+    for (const c of MARKET_CLUTTER) {
+      const a = scene.getObjectByName(`marketClutter:${c.id}`);
+      expect(a.parent, c.id).toBe(scene);
+      if (c.kind === 'board') {
+        // the one that casts: its own child, drawn
+        a.traverse((o) => { if (o.isMesh) expect(o.castShadow, c.id).toBe(true); });
+      } else expect([c.id, a.visible, a.castShadow]).toEqual([c.id, false, false]);
+      const b = boxOf(a);
+      expect(qualifies(b), c.id).toBe(true);
+      expect(b.containsPoint(new THREE.Vector3(c.x, Math.min(0.3, b.max.y / 2), c.z)), c.id).toBe(true);
+    }
   });
 
   it('nothing in the square fades but its four lamp posts', () => {

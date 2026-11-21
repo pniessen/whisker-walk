@@ -7,7 +7,7 @@ import { CATALOG, createProgression } from '../src/progression.js';
 import { STREET_PLACES } from '../src/worldmap.js';
 import { nextThing } from '../src/ui/nextthing.js';
 import { readResume, writeResume, snapshotWalk } from '../src/game/walkresume.js';
-import { STALLS, TREAT_STALLS, stallById, toStall } from '../src/world/marketplan.js';
+import { STALLS, TREAT_STALLS, stallById, toStall, MARKET_SPAWN } from '../src/world/marketplan.js';
 import { createEnemyWalkLog } from '../src/enemies.js';
 import { lifecycle, fakeEl, memStorage } from './helpers/walklife.js';
 
@@ -154,7 +154,7 @@ describe('strays in the square', () => {
       for (const c of strays) for (const st of treat) expect(inZone(st, c.group.position)).toBe(false);
     };
     check();
-    for (let i = 0; i < 120; i++) s.strayCats.update(0.1, i * 0.1, { x: 0, y: 0, z: 29 });
+    for (let i = 0; i < 120; i++) s.strayCats.update(0.1, i * 0.1, { x: MARKET_SPAWN.x, y: 0, z: MARKET_SPAWN.z });
     check();
     l.w.endWalk();
   }, 90_000);
