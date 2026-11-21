@@ -96,7 +96,14 @@ describe('the room', () => {
     const ctx = { areaId: 'park', selfId: 'b', remoteIds: ['a'], catalog: CATALOG };
     expect(decideWalkOnAsk(ev, ctx)).toEqual({ via: 'park-farm', to: 'farm' });
     expect(decideWalkOnAsk({ ...ev, seed: 99 }, ctx)).toEqual({ via: 'park-farm', to: 'farm' }); // a seed is not read
-    for (const bad of [{ v: 2 }, { from: 'fair' }, { via: 'fair-park' }, { via: 'nope' }, { via: 7 }, { type: 'walk-on' }, { type: 'walk-on-have' }, { id: 'z' }]) {
+    // Fix 6: a way this build does not know (a newer build's gate), or one to
+    // a place it has no row for, is answered "no" at once: { to: null }
+    expect(decideWalkOnAsk({ ...ev, via: 'nope' }, ctx)).toEqual({ via: 'nope', to: null });
+    expect(decideWalkOnAsk({ ...ev, via: 'town-roofs' }, ctx)).toEqual({ via: 'town-roofs', to: null });
+    const { farm: _farm, ...noFarm } = CATALOG.areas;
+    expect(decideWalkOnAsk(ev, { ...ctx, catalog: { ...CATALOG, areas: noFarm } })).toEqual({ via: 'park-farm', to: null });
+    // a way this build knows, but of another place, is stale: no answer
+    for (const bad of [{ v: 2 }, { from: 'fair' }, { via: 'fair-park' }, { via: 'woods-moor-path' }, { via: 7 }, { via: 'x'.repeat(65) }, { type: 'walk-on' }, { type: 'walk-on-have' }, { id: 'z' }]) {
       expect(decideWalkOnAsk({ ...ev, ...bad }, ctx), JSON.stringify(bad)).toBeNull();
     }
     expect(decideWalkOnAsk(ev, { ...ctx, selfId: '0' })).toBeNull(); // not from the host

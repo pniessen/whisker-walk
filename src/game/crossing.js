@@ -313,12 +313,15 @@ export function createCrossing({
     s.walkOnWatch?.();
     s.walkOnWatch = null;
     const net = s.net;
-    ensure(d.to)
+    // A way or place this build does not have (the host is on a newer
+    // build): no at once, so the host does not wait the whole while.
+    const loaded = d.to === null ? Promise.reject(new Error('not in this build')) : ensure(d.to);
+    loaded
       .then(() => true, () => false)
       .then((ok) => {
         answer.pending = false;
         if (getSession() !== s) return;
-        if (!ok) hud.toast(notReadyLine());
+        if (!ok && d.to !== null) hud.toast(notReadyLine());
         const have = { v: 1, id: s.playerId, type: 'walk-on-have', via: d.via, ok };
         net.sendEvent(have);
         setTimeout(() => { if (getSession() === s) net.sendEvent(have); }, CROSS_RESEND_MS);

@@ -1162,7 +1162,7 @@ describe('walking on together', () => {
 
     it('a forged or stale ask is not answered', async () => {
       const h = guest();
-      for (const bad of [{ id: 'zzz' }, { from: 'fair' }, { via: 'fair-park' }, { via: 'nope' }, { type: 'walk-on' }]) {
+      for (const bad of [{ id: 'zzz' }, { from: 'fair' }, { via: 'fair-park' }, { type: 'walk-on' }]) {
         h.crossing.onWalkOnAsk(h.s, h.ask(bad));
       }
       h.crossing.onWalkOnAsk(null, h.ask());
@@ -1173,6 +1173,21 @@ describe('walking on together', () => {
       expect(h.loads.asked).toEqual([]);
       expect(solo.loads.asked).toEqual([]);
       expect(h.sent).toEqual([]);
+    });
+
+    // Fix 6: the host is on a newer build with a way this one does not
+    // know: the host hears no at once, instead of waiting out WALK_ON_WAIT_MS.
+    it('an ask about a way or place this build does not have is answered no at once, twice', async () => {
+      const h = guest();
+      h.crossing.onWalkOnAsk(h.s, h.ask({ via: 'park-roofs' }));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.sent).toEqual([asGuest({ via: 'park-roofs', ok: false })]);
+      h.crossing.onWalkOnAsk(h.s, h.ask({ via: 'park-roofs' })); // the host's resend
+      await vi.advanceTimersByTimeAsync(CROSS_RESEND_MS);
+      expect(h.sent).toEqual([asGuest({ via: 'park-roofs', ok: false }), asGuest({ via: 'park-roofs', ok: false })]);
+      expect(h.loads.asked).toEqual([]);
+      expect(h.handlers()).toBe(0); // no watch: she said no
+      expect(h.toasts).toEqual([]);
     });
 
     it('a guest whose own walk-on is under way does not answer', async () => {

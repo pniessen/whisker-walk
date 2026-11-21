@@ -169,14 +169,25 @@ export function decideWalkOn(ev, { areaId, selfId, remoteIds, catalog, roomSeed 
   return { via: ev.via, to: end.to, seed: ev.seed };
 }
 
+// The longest way id an ask may name (every id here is far shorter).
+const MAX_VIA = 64;
+
 // In a room, every device has the place before anyone moves. The host's yes
 // asks first ({ v: 1, id, type: 'walk-on-ask', from, via }); a guest answers
-// only an ask that passes the walk-on's own checks, without the seed.
+// only an ask that passes the walk-on's own checks, without the seed:
+// { via, to }. A well-formed ask from the host about a way this build does
+// not have (a newer build's gate), or about one to a place it has no row
+// for, gets { via, to: null }: the guest says no at once, so the host need
+// not wait. A way this build has, but of another place, is stale: null.
 export function decideWalkOnAsk(ev, { areaId, selfId, remoteIds, catalog } = {}) {
   if (!isObj(ev) || ev.v !== 1 || ev.type !== 'walk-on-ask' || ev.from !== areaId) return null;
+  if (typeof ev.via !== 'string' || ev.via.length === 0 || ev.via.length > MAX_VIA) return null;
+  if (!fromHost(ev.id, selfId, remoteIds)) return null;
   const end = liveEnd(areaId, ev.via, catalog);
-  if (!end || !fromHost(ev.id, selfId, remoteIds)) return null;
-  return { via: ev.via, to: end.to };
+  if (end) return { via: ev.via, to: end.to };
+  const known = endById(ev.via) ?? postById(ev.via);
+  if (known && known.areaId !== areaId) return null;
+  return { via: ev.via, to: null };
 }
 
 // The host's reading of the answers it has heard ({ v: 1, id, type:
