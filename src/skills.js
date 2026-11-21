@@ -309,7 +309,10 @@ export const SKILLS = [
     family: 'traversal',
     name: 'Tightrope Tail',
     effect: 'You walk planks, ridges and washing lines quicker and steadier.',
-    feat: 'Walk 20 crossings from end to end',
+    // Says where (fix wave, M4). "the roofs", not the place's name: "The
+    // Rooftops" is a word-table word (clanwords.js PLACE_WORDS), and this
+    // file imports nothing.
+    feat: 'Walk 20 crossings on the roofs',
     // Reads the dedicated feats.cross counter: one per crossing walked from
     // end to end (the traversal's 'cross' event), on any walk, lifetime.
     progress: (state) => ({ have: featTally(state, 'cross'), need: 20 }),
@@ -319,7 +322,7 @@ export const SKILLS = [
     family: 'traversal',
     name: 'Long Leap',
     effect: 'You can leap the wider gaps between the roofs.',
-    feat: 'Leap 15 gaps',
+    feat: 'Leap 15 gaps on the roofs',
     // Reads the dedicated feats.leap counter: one per leap landed (a 'land'
     // event of kind 'leap', Long Leaps included; climbs and drops are not
     // leaps), lifetime.

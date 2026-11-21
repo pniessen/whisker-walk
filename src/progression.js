@@ -132,10 +132,10 @@ const DEN_SPOT_IDS = new Set(DEN_SPOTS.map((s) => s.id));
 // duplicated here, so adding an ability or an award type can never leave
 // sanitizeState silently dropping a legitimate new key.
 const KNOWN_SKILL_IDS = new Set(SKILL_IDS);
-// v18 Task 1.4: two tallies that are NOT award types.
+// v18 Task 1.4 (and Rooftops step 5): four tallies that are NOT award types.
 //
 // state.feats' key vocabulary is normally exactly AWARDS' keys, because
-// recordFeat is driven by discoveries.js's pay(). These two are counted
+// recordFeat is driven by discoveries.js's pay(). The first two are counted
 // ALONGSIDE an existing award rather than by retyping one, because the
 // existing award type is load-bearing somewhere else and retyping it would
 // silently change live gameplay (the spec's non-goals forbid rebalancing):
@@ -151,11 +151,17 @@ const KNOWN_SKILL_IDS = new Set(SKILL_IDS);
 //             goal completions, so feats.goal hits 3 in one normal walk.
 //             Same treatment: unchanged award + a dedicated tally, which is
 //             what lets Long Zoomies mean "finish the race 3 times".
+//  - 'cross'  (Rooftops step 5) a crossing walked from end to end (the
+//             traversal's 'cross' event), read by Tightrope Tail.
+//  - 'leap'   (Rooftops step 5) a leap landed (a 'land' of kind 'leap'),
+//             read by Long Leap. Neither of these two pays an award at all:
+//             they are tallied straight from the traversal's events
+//             (traversallive.js traversalTally).
 //
 // They live in state.feats (rather than as two more top-level save fields)
 // because they are the same KIND of thing — a lifetime count of a player
 // action — and so inherit sanitizeFeats' coercion, cap and __proto__
-// handling for free. Neither name collides with an AWARDS key; the
+// handling for free. No name collides with an AWARDS key; the
 // assertion below makes that a build-time failure rather than a silent
 // double-count if a future award type ever takes one of these names.
 const EXTRA_FEAT_TYPES = ['perch', 'race', 'cross', 'leap'];
@@ -2077,7 +2083,7 @@ export function createProgression(storage) {
     // lastWalk guard is once per cat per walk), so those feats cannot be
     // farmed by holding one key down.
     //
-    // TWO call sites are NOT inside pay(): the feats.perch tally in
+    // FOUR call sites are NOT inside pay(): the feats.perch tally in
     // game/interactions.js and the feats.race tally in main.js, both of
     // which count something no award type means on its own. Neither gets the
     // cap for free — each must gate itself on its neighbouring awardOnce()
@@ -2086,8 +2092,16 @@ export function createProgression(storage) {
     // fired on every landing, so re-climbing one perch 100 times bought two
     // traversal abilities (fixed at the v18 final review; test/
     // interactions.test.js' "the perch tally is not farmable" drives the real
-    // doPounceOrClimb 100 times to hold that shut). If you add a third
-    // out-of-band tally, gate it the same way.
+    // doPounceOrClimb 100 times to hold that shut). If you add another
+    // out-of-band tally that buys something cheap to repeat, gate it the
+    // same way.
+    //
+    // The other two, feats.cross and feats.leap (Rooftops step 5, ruling
+    // R11, via traversallive.js traversalTally), are deliberately NOT gated:
+    // practice is the point (Tightrope Tail and Long Leap are earned by
+    // walking 20 crossings and landing 15 leaps, the same plank twenty times
+    // if she likes), nothing is paid for them, and a crossing or a leap takes
+    // seconds of the child's own play, so there is nothing to farm.
     //
     // Unknown types are ignored rather than stored: state.feats' key
     // vocabulary is exactly AWARDS' keys, so anything else would just be

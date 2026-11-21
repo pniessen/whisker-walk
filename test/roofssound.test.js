@@ -116,6 +116,7 @@ describe('muted (Review Focus 2)', () => {
     audio.ctx.currentTime += 1 / 30;
     const frame = audio.ctx.currentTime;
     const still = audio.ctx.oscs.filter((o) => o.stops[0] > frame);
+    expect(still.length).toBeGreaterThan(0); // a tone was sounding: the ease below is tested on something
     sound.update(1 / 30, at(1));
     // every tone still sounding stops by the end of its 20 ms ease to silence
     for (const o of still) {

@@ -116,7 +116,8 @@ describe('renderSkillsHtml', () => {
     // Denominator is SKILLS.length in the renderer, not a literal — the
     // literal here is the point of the assertion, so it moves with the
     // catalog: eleven from the CF-12 descope, twelve since the v20 Sea Legs
-    // reinstatement put the spec's full set back.
+    // reinstatement put the spec's full set back, fourteen since Rooftops
+    // step 5 added Tightrope Tail and Long Leap.
     expect(html).toContain('Abilities earned: 1/14');
   });
 

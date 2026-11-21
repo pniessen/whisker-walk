@@ -25,7 +25,8 @@ const featState = (type) => (n) => ({ feats: { [type]: n } });
 
 describe('skills catalog', () => {
   it('has the fourteen shipped abilities across four families', () => {
-    // Twelve — the spec's full set. Sea Legs was descoped in v18 (CF-12,
+    // Fourteen: the spec's full twelve, and Tightrope Tail and Long Leap
+    // (Rooftops step 5, in traversal after Sea Legs). Sea Legs was descoped in v18 (CF-12,
     // "water is already a walk-over surface, so swimming is a downgrade")
     // and reinstated in v20 once water went solid. It sits in TRAVERSAL, not
     // the spec's mischief: it changes where the cat can go and how fast it
@@ -128,8 +129,8 @@ describe('feat predicates at their boundaries', () => {
       expect(SKILLS.find((s) => s.id === id).family).toBe('traversal');
       expect(hasSkill({ feats: { perch: 999, mischief: 999 } }, id)).toBe(false);
     }
-    expect(SKILLS.find((s) => s.id === 'tightrope-tail').feat).toBe('Walk 20 crossings from end to end');
-    expect(SKILLS.find((s) => s.id === 'long-leap').feat).toBe('Leap 15 gaps');
+    expect(SKILLS.find((s) => s.id === 'tightrope-tail').feat).toBe('Walk 20 crossings on the roofs');
+    expect(SKILLS.find((s) => s.id === 'long-leap').feat).toBe('Leap 15 gaps on the roofs');
   });
 
   it('an old save has neither, at 0 of 20 and 0 of 15', () => {

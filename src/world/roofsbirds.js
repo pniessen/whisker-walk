@@ -139,6 +139,11 @@ const CRITTER_FLUSH_COOLDOWN = 18; // s, as critters.js sets on a flushed bird
 // How the follower reads her pace: smoothed over this (s), and never taken
 // as faster than this (m/s: a sprint; a hop down or a teleport is not a pace).
 const FOLLOW_SMOOTH = 0.5;
+// With no pigeon on the loft, the follower is the perched pigeon nearest her
+// within this (m); and for its first FOLLOW_GRACE walk seconds it is not
+// flushed for her being within FOLLOW.near (fix wave, M2)
+export const FOLLOW_FALLBACK = 12;
+export const FOLLOW_GRACE = 3;
 const FOLLOW_TOP = 4;
 
 // The guide's memory (per device, never the save): she has crossed plank-3.
@@ -635,19 +640,28 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
       return followI >= 0 ? birds[followI].id : null;
     },
     // On her loft find: the perched pigeon on a loft perch nearest her comes
-    // along (its id), never the guide on its route; null if none (or no
+    // along (its id), never the guide on its route; with none on the loft
+    // (she flushed them on her way up), the perched pigeon nearest her within
+    // FOLLOW_FALLBACK, never the guide (fix wave, M2); null if none (or no
     // critters: nothing flies). One at a time: while one follows, its id.
     follow(catPos) {
       if (followI >= 0) return birds[followI].id;
       if (!graph || !catPos) return null;
-      let best = -1;
-      let bestD = Infinity;
-      for (let i = 0; i < birds.length; i++) {
-        const b = birds[i];
-        if (b.kind !== 'pigeon' || b.flying || b.guideStep >= 0 || index.get(b.at)?.kind !== 'loft') continue;
-        const d = dist3(catPos, b.pos);
-        if (d < bestD) { best = i; bestD = d; }
-      }
+      const nearest = (onLoft) => {
+        let best = -1;
+        let bestD = Infinity;
+        for (let i = 0; i < birds.length; i++) {
+          const b = birds[i];
+          if (b.kind !== 'pigeon' || b.flying || b.guideStep >= 0) continue;
+          if (onLoft && index.get(b.at)?.kind !== 'loft') continue;
+          const d = dist3(catPos, b.pos);
+          if (!onLoft && d > FOLLOW_FALLBACK) continue;
+          if (d < bestD) { best = i; bestD = d; }
+        }
+        return best;
+      };
+      let best = nearest(true);
+      if (best < 0) best = nearest(false);
       if (best < 0) return null;
       followI = best;
       followT = 0;
@@ -662,7 +676,9 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
       for (let i = 0; i < birds.length; i++) {
         const b = birds[i];
         const c = proxies[i];
-        const keep = b.guideStep >= 0 ? GUIDE_FLUSH : i === followI ? FOLLOW.near : 0;
+        // the follower is spared the near flush its first FOLLOW_GRACE s, so
+        // the find's own moment is not a bird bolting off (fix wave, M2)
+        const keep = b.guideStep >= 0 ? GUIDE_FLUSH : i === followI && followT >= FOLLOW_GRACE ? FOLLOW.near : 0;
         if (c && !b.flying && !c.fleeing && keep > 0 && catPos && dist3(catPos, b.pos) < keep) {
           c.fleeing = true; // the guide and the follower keep their distance: flushed, as critters.js flushes a bird
           c.cooldown = CRITTER_FLUSH_COOLDOWN;
