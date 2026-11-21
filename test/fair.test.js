@@ -1624,7 +1624,7 @@ describe('The Fairground: registered everywhere a street area is', async () => {
   const { MARK_AREAS, emptyMarks } = await import('../src/marks.js');
   const { CLOUD_AREAS, AREA_SKY } = await import('../src/render/clouds.js');
   const { ambientKind } = await import('../src/render/ambient.js');
-  const { GRASS_STYLES, GROUND_TINTS, tuftAt } = await import('../src/render/grass.js');
+  const { GRASS_STYLES, grassStyle, tuftAt } = await import('../src/render/grass.js');
   const { COLONY_AREAS, feedsHere } = await import('../src/colony.js');
   const { LEGENDARY_BY_AREA } = await import('../src/legendary.js');
   const { DRESSED_AREAS } = await import('../src/render/waterdress.js');
@@ -1733,10 +1733,11 @@ describe('The Fairground: registered everywhere a street area is', async () => {
     expect(ambientKind('fair')).toBe(REG.ambient);
     expect(ambientKind('fair', { dusk: true })).toBe(REG.ambient);
     expect(AREA_RULES.fair).toEqual(plain(REG.pawprints));
-    expect(GROUND_TINTS.fair).toBe(fair[REG.grass.groundTint]);
-    expect(GRASS_STYLES.fair.bare).toBe(fair[REG.grass.bare]);
+    expect(fair.GRASS_HOOKS.tint).toBe(fair[REG.grass.groundTint]);
+    expect(fair.GRASS_HOOKS.bare).toBe(fair[REG.grass.bare]);
+    expect(GRASS_STYLES.fair.bare).toBeNull();
     // the Park's lawn in every other number
-    const { bare, ...rest } = GRASS_STYLES.fair;
+    const { bare, ...rest } = grassStyle('fair', fair.GRASS_HOOKS);
     expect(rest).toEqual({ ...GRASS_STYLES.park });
   });
 
@@ -1746,7 +1747,7 @@ describe('The Fairground: registered everywhere a street area is', async () => {
     const s = 0.3;
     for (let i = -150; i < 150; i++) {
       for (let j = -150; j < 150; j++) {
-        const t = tuftAt(i, j, s, GRASS_STYLES.fair);
+        const t = tuftAt(i, j, s, grassStyle('fair', fair.GRASS_HOOKS));
         const lawn = tuftAt(i, j, s, GRASS_STYLES.park);
         if (!t) { if (lawn) expect(fairBare(lawn.x, lawn.z)).toBe(true); continue; }
         expect(t).toEqual(lawn);

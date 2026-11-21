@@ -1572,7 +1572,7 @@ export function createWalkLifecycle({
       // the yarn ball's spot: it should be seen from a little way off
       ...(yarnSpot ? [{ x: yarnSpot.x, z: yarnSpot.z, r: GRASS_FIND_CLEAR }] : []),
     ] : [];
-    const grass = createGrass(scene, { areaId, areaData, tier, camera, reducedMotion, keepOut: grassKeepOut });
+    const grass = createGrass(scene, { areaId, areaData, tier, camera, reducedMotion, keepOut: grassKeepOut, hooks: AREAS[areaId]?.GRASS_HOOKS });
     // The blades dominate a lawn's look, so a rainy walk darkens them too.
     if (grass.mesh) weather.tintWet?.(grass.mesh.material);
     const duskLawn = duskLookNow

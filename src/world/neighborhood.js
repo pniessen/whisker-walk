@@ -408,3 +408,6 @@ export function build(scene, { water = {}, wind } = {}) { // `water`: see above
     ],
   };
 }
+
+// What the grass asks this area for (render/grass.js grassStyle, createGrass).
+export const GRASS_HOOKS = Object.freeze({ tint: neighborhoodLawnTint, bare: null });

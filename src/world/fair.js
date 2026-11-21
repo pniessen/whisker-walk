@@ -985,3 +985,6 @@ export function build(scene, { water = {}, wind } = {}) {
     glow: glowState,
   };
 }
+
+// What the grass asks this area for (render/grass.js grassStyle, createGrass).
+export const GRASS_HOOKS = Object.freeze({ tint: fairGroundTint, bare: fairBare });

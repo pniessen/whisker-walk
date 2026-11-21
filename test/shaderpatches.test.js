@@ -277,7 +277,7 @@ try { await (async () => {
     // The same per-walk systems walk.js builds, once with the evening look
     // (dusk lawn tint, lamp pools) and rain on the first area that has them.
     const look = duskLook(areaData);
-    const grass = createGrass(scene, { areaId, areaData, tier, camera, reducedMotion: false, keepOut: [] });
+    const grass = createGrass(scene, { areaId, areaData, tier, camera, reducedMotion: false, keepOut: [], hooks: mods[areaId].GRASS_HOOKS });
     if (grass.mesh?.material) tintDuskLawn({ ground: [], grass: grass.mesh.material, look });
     createPawPrints(scene, { areaId, areaData, tier });
     createSplash(scene, { areaData, tier, reducedMotion: false });

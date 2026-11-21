@@ -1084,3 +1084,6 @@ export function build(scene, { water = {}, wind } = {}) {
     ...(standFade ? { life: (ctx) => grow.createStandFade(scene, standFade, { reducedMotion: ctx?.reducedMotion }) } : {}),
   };
 }
+
+// What the grass asks this area for (render/grass.js grassStyle, createGrass).
+export const GRASS_HOOKS = Object.freeze({ tint: pinesGroundTint, bare: null });
