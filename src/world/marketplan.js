@@ -3,12 +3,11 @@
 //
 //   north = -z, east = +x, metres.      Bounds x -21..21, z -21..23. Spawn (0, 20.5).
 //
-//                           fruit
-//              baker                     cheese
-//           lamp
-//     fish              (fountain)    lamp      flowers
-//                              lamp
-//                  lamp
+//                             fruit
+//              baker          lamp          cheese
+//             lamp
+//     fish                 (fountain)  lamp      flowers
+//                   lamp
 //        café tables                     milk cart
 //          (crumbs)        ^ spawn
 //   (town shop fronts close the square just outside the bounds, all four sides;

@@ -1421,6 +1421,28 @@ describe('the sneak (Task 12)', () => {
     r.live.dispose();
   }, 60_000);
 
+  it('a treat in her mouth keeps the idle poses away: her idle clock is held at 0 from the grab to the eat', () => {
+    for (const id of ['cafe', 'fish', 'milk']) {
+      const r = marketRig();
+      if (id !== 'cafe') r.setPhase(id, 'away', 0.2);
+      const p = id === 'cafe' ? { x: treatOf(id).x - 0.5, z: treatOf(id).z } : reachSpot(id); // west of the crumbs, clear of the table's foot
+      r.place(p.x, p.z).step(DT);
+      // she has stood still long enough to nap (avatar.js counts idleTime up after the life each frame)
+      r.session.idleTime = 30;
+      expect(r.grab(), id).toBe(true);
+      expect(r.session.idleTime, `${id}: the grab`).toBe(0);
+      let most = 0;
+      while (ofType(r, 'eat').length === 0 && r.t < 5) {
+        r.session.idleTime += DT; // the avatar's own count, as in the walk
+        r.step(DT);
+        most = Math.max(most, r.session.idleTime);
+      }
+      expect(ofType(r, 'eat'), id).toHaveLength(1);
+      expect(most, `${id}: never long enough to groom (6 s), let alone sit or nap`).toBeLessThanOrEqual(DT + 1e-9);
+      r.live.dispose();
+    }
+  });
+
   it('the hop rises and falls (session.hopLift, which avatar.js draws her at), and is 0 once she lands', () => {
     const id = 'fish';
     const r = marketRig();

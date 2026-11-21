@@ -43,7 +43,6 @@ import { stallById, fromStall, MARKET_SPAWN } from './marketplan.js';
 
 const freeze = Object.freeze;
 
-
 export const PACE = Object.freeze({ walk: 2.4, creep: 0.9, dash: 3.4 }); // m/s
 export const ARRIVE_R = 0.05; // m
 export const STEP_LIMIT = 20; // s: a step that takes longer fails the tour
@@ -175,7 +174,7 @@ export function createMarketPilot(tour) {
 // Every point comes from a stall's own frame (fromStall), so a tour follows a
 // stall that moves. Each tour has its seed and its start clock (the time of
 // day the rhythm reads), so the film and the test see the same stallholders.
-// The step kinds are marketpilot.js's; `view` is the page's camera ('follow',
+// The step kinds are the pilot's (above); `view` is the page's camera ('follow',
 // behind her; { stall }, her and that stallholder in one frame; { stall, wide },
 // a still camera out in front of that stall, the hide's side).
 const at = (id, lx, lz) => {

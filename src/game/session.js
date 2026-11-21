@@ -186,6 +186,7 @@ const FIELDS = [
   ['fight', 'late (clanfight.js): the fight in progress, or null'],
   ['fightPose', "late (clanfight.js): the cat's pose in the fight"],
   ['fightLift', "late (clanfight.js): the cat's lift in the fight"],
+  ['hopLift', "late (marketlive.js): the cat's lift in the Market's shoo hop"],
   ['fightPitch', "late (clanfight.js): the cat's pitch in the fight"],
   ['fightRoll', "late (clanfight.js): the cat's roll in the fight"],
   ['fightGait', "late (clanfight.js): the cat's run speed walking over to the fight"],
