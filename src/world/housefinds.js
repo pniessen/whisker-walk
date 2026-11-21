@@ -12,7 +12,11 @@
 //   bookcase  she stays at the shut bookcase, from either side: it swings open on its
 //             hinge onto the secret stair (D9). Its colliders swap in the walk's own live
 //             list at the swing's start, and its fade shape (treefade.js) follows the leaf.
-//             It stays open; a walk picked up again finds it shut.
+//             It stays open; a walk picked up again finds it shut. Shut, swinging or
+//             open, it is held solid (treefade.js fadeHold) unless, seen from above, the
+//             line from the camera to her passes it: the tree fade's line runs on past
+//             her (PAST_LOOK), and so faded the shut bookcase she walked up to, the stair
+//             showing through it, and hid its swing (Task 10, from the pictures).
 //   cushion   she stays still on the hearth cushion: a purr.
 //   toys      she stays at the toy box: its lid tips and three toys tumble out.
 // Each pays once a walk by the log's own rule (awardOnce: a walk picked up again has its
@@ -41,6 +45,23 @@ const LID_SHARE = 0.4; // of TOYS_S, the lid's tip
 const TOYS_WAIT = 0.25; // of TOYS_S, before the toys tumble (the lid is well up by then)
 const DIP = 0.01; // m: a key under her paws
 const TOY_HOP = 0.5; // m: how high a toy tumbles over the rim
+const HOLD_PAD = 0.1; // m past the leaf's half depth: a sight line this near it may fade it
+
+// The least distance, seen from above, between the segments a-b and c-d (0 when they cross).
+function pointSeg(px, pz, ax, az, bx, bz) {
+  const dx = bx - ax, dz = bz - az;
+  const l2 = dx * dx + dz * dz;
+  const k = l2 > 0 ? Math.min(1, Math.max(0, ((px - ax) * dx + (pz - az) * dz) / l2)) : 0;
+  return Math.hypot(px - (ax + dx * k), pz - (az + dz * k));
+}
+function segSeg(ax, az, bx, bz, cx, cz, dx, dz) {
+  const side = (px, pz, qx, qz, rx, rz) => (qx - px) * (rz - pz) - (qz - pz) * (rx - px);
+  const d1 = side(cx, cz, dx, dz, ax, az), d2 = side(cx, cz, dx, dz, bx, bz);
+  const d3 = side(ax, az, bx, bz, cx, cz), d4 = side(ax, az, bx, bz, dx, dz);
+  if (((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0))) return 0;
+  return Math.min(pointSeg(ax, az, cx, cz, dx, dz), pointSeg(bx, bz, cx, cz, dx, dz),
+    pointSeg(cx, cz, ax, az, bx, bz), pointSeg(dx, dz, ax, az, bx, bz));
+}
 
 // The lines, by literal id (clanphrases.js wants every phrase id literal).
 const SAY = {
@@ -161,9 +182,19 @@ export function createHouseFinds({
     }
   }
 
+  // Whether the leaf, at the pivot's angle, stands in the camera's line to her (from above).
+  function leafInLine(cam, cat) {
+    const a = pivot.rotation.y;
+    const tx = B.hinge.x + B.w * Math.cos(a);
+    const tz = B.hinge.z - B.w * Math.sin(a);
+    return segSeg(cam.x, cam.z, cat.x, cat.z, B.hinge.x, B.hinge.z, tx, tz) < B.d / 2 + HOLD_PAD;
+  }
+
   return {
     get open() { return open; },
-    update(dt, t, catPos) {
+    // camPos: the camera, after player.update (house life hands it); without it the leaf's
+    // fade is left to the tree fade alone.
+    update(dt, t, catPos, camPos = null) {
       let speed = 0;
       if (seen) {
         const span = t > lastT ? t - lastT : dt;
@@ -182,6 +213,7 @@ export function createHouseFinds({
         placeToys(Math.min(1, tipped / TOYS_S));
         tipped = tipped >= TOYS_S ? -1 : tipped + dt;
       }
+      if (leaf && camPos) leaf.userData.fadeHold = !leafInLine(camPos, catPos);
     },
     // Everything back as it was built: the bookcase shut, its shut colliders back.
     dispose() {
@@ -190,6 +222,7 @@ export function createHouseFinds({
         for (const c of secret?.shut ?? []) colliders.push({ ...c });
       }
       turnTo(0);
+      if (leaf) leaf.userData.fadeHold = false;
       if (pendulum) pendulum.rotation.z = 0;
       for (const k of keys) k.position.y = 0;
       placeToys(0);

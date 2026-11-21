@@ -266,9 +266,11 @@ function houseWords() {
 // starts as on the ground level; house life (Task 6) keeps it up from there.
 // Step 2 (Task 6): a find's moving parts (houseparts.js findParts: the clock's pendulum,
 // the piano's keys, the toy box's lid and toys) stand with their piece, kept out of the
-// prop merge; furnish hands them back by name for house life.
+// prop merge; furnish hands them back by name for house life. Task 10: it hands back
+// the fading pieces too, each group with its footprint, for house life's fade hold.
 function furnish(scene, material, start, traversal) {
   const parts = {};
+  const fading = [];
   const full = fullLevels(start, LEVEL_LINKS);
   const tag = (o, level) => {
     o.userData.houseDetail = true;
@@ -297,6 +299,10 @@ function furnish(scene, material, start, traversal) {
         tall.add(mesh);
         if (moving) tall.add(...moving.objects);
         scene.add(tall);
+        const turned = Math.abs(Math.sin(f.rotY)) > 0.5; // every fading piece stands square to the walls
+        const hx = (turned ? f.d : f.w) / 2;
+        const hz = (turned ? f.w : f.d) / 2;
+        fading.push(freeze({ obj: tall, minX: f.x - hx, maxX: f.x + hx, minZ: f.z - hz, maxZ: f.z + hz }));
         continue;
       }
       mesh.position.set(f.x, y, f.z);
@@ -323,7 +329,7 @@ function furnish(scene, material, start, traversal) {
     m.visible = !full.has(l.id);
     scene.add(m);
   }
-  return parts;
+  return { parts, fading };
 }
 
 // Step 2: a faint pair of paw prints at every hop's take-off (housemoves.js), one mesh per
@@ -387,7 +393,7 @@ export function build(scene, { wind, gateEnds } = {}) {
       g.userData.lampPoolClip = lampPoolClip(room);
       scene.add(g);
     });
-    const parts = furnish(scene, material, START_LEVEL, plan.traversal);
+    const { parts, fading } = furnish(scene, material, START_LEVEL, plan.traversal);
     drawMarks(scene, plan.traversal, START_LEVEL);
     // the secret stair's bookcase, shut in the library's north wall (step 2, ruling D9)
     const secretGroup = secretBookcaseGroup(material);
@@ -454,6 +460,9 @@ export function build(scene, { wind, gateEnds } = {}) {
         // the six discoveries' spots (step 2, D6) and their moving parts: house life runs them
         finds: HOUSE_FINDS,
         parts,
+        // the pieces that fade, with their footprints: house life holds each solid unless it
+        // stands between the camera and her (Task 10)
+        fading,
       },
     };
     // A walk picked up again finds her where she was (Review Focus 5): a spot she can stand

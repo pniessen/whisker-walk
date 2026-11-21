@@ -28,6 +28,14 @@
 // walk's mute) and the sunbeams with their dust motes (houseair.js: none at `dusk`, still
 // under reduced motion), drawn for the levels in full. `colliders` is the walk's own live list (the bookcase's
 // row swaps in it); `log`, `hud`, `audio` and `toy` are the walk's.
+// Task 10 (from the pictures): the furniture's fade hold. The tree fade (treefade.js) fades a
+// piece when its line from the camera, run on PAST_LOOK beyond her, passes it, so a piece
+// just beyond her faded: the piano when she stood on its keys, the clock as she stood at it,
+// a bookcase she faced. Each fading piece (house.fading) is held solid (fadeHold) unless,
+// seen from above, the line from the camera to her (stopped HOLD_SHY short of her middle, so
+// a piece at her back is not in the way) passes within HOLD_PAD of its footprint, or the
+// camera stands over it: then the tree fade decides as before. The secret bookcase's leaf,
+// which turns, is housefinds.js's.
 
 import { makeView, createWallSink, createCellarLid, SINK } from '../housewalls.js';
 import { createLevelDrawing } from '../houselevels.js';
@@ -39,6 +47,23 @@ import { createHouseSound } from './housesound.js';
 import { createHouseAir } from './houseair.js';
 
 const NO_PANES = Object.freeze([]);
+const NO_FADING = Object.freeze([]);
+export const HOLD_PAD = 0.1; // m round a fading piece's footprint: a line this near it may fade it
+export const HOLD_SHY = 0.3; // m: the line stops this short of her middle (her body), toward the camera
+
+// Whether the segment a-b, seen from above, meets the rectangle grown by pad (slab clipping).
+export function segmentNearRect(ax, az, bx, bz, r, pad) {
+  let t0 = 0, t1 = 1;
+  const dx = bx - ax, dz = bz - az;
+  const clip = (p, q) => {
+    if (Math.abs(p) < 1e-12) return q >= 0;
+    const k = q / p;
+    if (p < 0) { if (k > t1) return false; if (k > t0) t0 = k; } else { if (k < t0) return false; if (k < t1) t1 = k; }
+    return true;
+  };
+  return clip(-dx, ax - (r.minX - pad)) && clip(dx, r.maxX + pad - ax)
+    && clip(-dz, az - (r.minZ - pad)) && clip(dz, r.maxZ + pad - az) && t0 <= t1;
+}
 const TELEPORT = 25; // m/s: no ball rolls this fast
 const OPEN = Object.freeze({ secretOpen: true });
 const SHUT = Object.freeze({ secretOpen: false });
@@ -72,6 +97,19 @@ export function createHouseLife(scene, house, {
   });
   const air = createHouseAir(scene, { windows: HOUSE_WINDOWS, rooms: HOUSE_ROOMS, levels: house.levels, dusk: !!dusk, reducedMotion });
   let ballX = 0, ballZ = 0, ballSeen = false;
+  const fading = house.fading ?? NO_FADING;
+
+  // Each fading piece held solid unless it stands in the camera's line to her (see the top).
+  function holdFades(catPos, cam) {
+    const d = Math.hypot(cam.x - catPos.x, cam.z - catPos.z);
+    const k = d > HOLD_SHY ? HOLD_SHY / d : 0;
+    const ex = catPos.x + (cam.x - catPos.x) * k;
+    const ez = catPos.z + (cam.z - catPos.z) * k;
+    for (let i = 0; i < fading.length; i++) {
+      const p = fading[i];
+      p.obj.userData.fadeHold = !segmentNearRect(cam.x, cam.z, ex, ez, p, HOLD_PAD);
+    }
+  }
 
   // The yarn ball, after toy.update (main.js): stopped at a wall it rolled into since last frame.
   function keepBall(dt) {
@@ -115,6 +153,7 @@ export function createHouseLife(scene, house, {
     write();
     drawing.settle(floorY(catPos));
     air.update(0, 0, drawing.full);
+    holdFades(catPos, camera.position);
   }
 
   return {
@@ -132,7 +171,8 @@ export function createHouseLife(scene, house, {
       write();
       drawing.update(floorY(catPos));
       air.update(dt, t, drawing.full);
-      finds.update(dt, t, catPos);
+      finds.update(dt, t, catPos, camera.position); // after the camera's move: the bookcase's fade hold
+      holdFades(catPos, camera.position);
       sound.update(dt, t, catPos);
       keepBall(dt);
     },
@@ -140,6 +180,7 @@ export function createHouseLife(scene, house, {
       finds.dispose();
       sound.dispose();
       air.dispose();
+      for (const p of fading) p.obj.userData.fadeHold = false;
       for (const m of lidMeshes) m.visible = true;
       for (const m of meshes) {
         if (!m) continue;

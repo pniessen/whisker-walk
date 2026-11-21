@@ -224,6 +224,56 @@ describe('the attic window', () => {
 
 describe('the secret bookcase', () => {
   const b = SECRET_BOOKCASE;
+  // Task 10 (from the pictures): the tree fade's line runs on PAST_LOOK beyond her, so
+  // with the camera behind her the shut bookcase ahead of her faded away as she walked up
+  // to it, the stair showing through it, and it swung open unseen. It fades only when it
+  // stands between the camera and her.
+  it('stays solid unless it stands between the camera and her, shut, swinging or open', () => {
+    const s = setup();
+    const leaf = s.record.house.secret.group.userData.leaf;
+    const fade = createTreeFade(findFadeOccluders(s.scene), { reducedMotion: true });
+    const camera = new THREE.PerspectiveCamera();
+    const look = { x: 0, y: 0, z: 0 };
+    let t = 0;
+    const view = (cx, cy, cz, x, z) => {
+      camera.position.set(cx, cy, cz);
+      s.cat.set(x, 0, z);
+      t += DT;
+      s.f.update(DT, t, s.cat, camera.position);
+      look.x = x; look.y = 0.4; look.z = z;
+      fade.update(DT, camera, look);
+      return fade.faded().has(leaf);
+    };
+    // behind her in the library, the shut bookcase 1.3 m ahead of her: it stands
+    expect(view(-6, 2.2, 7.8, -6, 3.3)).toBe(false);
+    expect(s.f.open).toBe(false);
+    // the camera up the stair, she in the library: it is in the way and fades
+    expect(view(-6, 2.6, -2.5, -6, 4.5)).toBe(true);
+    // she stands at it from the library, the camera behind her: it stands while she waits,
+    // and through most of its swing; it fades only while it sweeps across the line between
+    // the camera and her (it swings through her spot: D9's geometry)
+    let faded = 0;
+    let frames = 0;
+    for (let i = 0; i < Math.round((b.holdS + b.openS + 0.2) / DT); i++) {
+      const was = s.f.open;
+      if (view(-6, 2.2, 7.3, -6, 2.8)) {
+        expect(was, 'faded while she waits').toBe(true);
+        faded++;
+      }
+      if (was) frames++;
+    }
+    expect(s.f.open).toBe(true);
+    expect(faded).toBeGreaterThan(0);
+    expect(faded).toBeLessThan(frames / 2);
+    // open, along the library's side of the opening: a camera west of it looking at her east of it fades it
+    expect(view(-9, 1.6, 4.0, -5.6, 4.0)).toBe(true);
+    // and with the camera east of her, it stands again
+    expect(view(-2.5, 2.2, 5.0, -5.6, 4.0)).toBe(false);
+    s.f.dispose();
+    expect(leaf.userData.fadeHold).toBeFalsy();
+    fade.dispose();
+  });
+
   const hasCircle = (list, c) => list.some((q) => q.secret && Math.abs(q.x - c.x) < 1e-9 && Math.abs(q.z - c.z) < 1e-9 && q.r === c.r);
 
   for (const [side, z] of [['the library', 3.0], ['the stair', 1.0]]) {
@@ -437,5 +487,55 @@ describe('the words', () => {
     }
     expect(phrase('house.find.clock', 3)).toBe('The old clock bongs 3 times! 🕰️');
     expect(phrase('house.find.clock', 1)).toBe('The old clock bongs 1 time! 🕰️');
+  });
+});
+
+// Task 10 (from the pictures): the tree fade's line runs on PAST_LOOK beyond her, so the
+// piano faded away while she stood on its keys, and a piece she faced from close by (the
+// clock as it struck) went see-through. House life holds every fading piece solid unless it
+// stands between the camera and her, seen from above; then the tree fade decides as before.
+describe('the furniture fades only when it is in the way', () => {
+  it('the piano stays while she plays it, the clock while it strikes; between the camera and her, they fade', () => {
+    const scene = new THREE.Scene();
+    const record = build(scene);
+    mergeStaticProps(scene);
+    const fade = createTreeFade(findFadeOccluders(scene), { reducedMotion: true });
+    const life = record.life({ scene, reducedMotion: true, log: null, hud: null, audio: null, toy: null, dusk: false });
+    const camera = new THREE.PerspectiveCamera();
+    const cat = new THREE.Vector3();
+    const look = { x: 0, y: 0, z: 0 };
+    const piece = (id) => record.house.fading.find((p) => p.obj.name === `houseFade:${id}`).obj;
+    let t = 0;
+    const view = (cx, cy, cz, x, y, z) => {
+      camera.position.set(cx, cy, cz);
+      cat.set(x, y, z);
+      t += DT;
+      life.update(DT, t, cat, camera);
+      look.x = x; look.y = y + 0.4; look.z = z;
+      fade.update(DT, camera, look);
+      return fade.faded();
+    };
+    expect(record.house.fading.length).toBeGreaterThan(10);
+    const keys = ledge('parlour-keys');
+    // on the keys facing the piano, the camera behind her in the parlour
+    let f = view(8.7, keys.y + 2.2, 7.0, 8.7, keys.y, 11.15);
+    expect(f.has(piece('parlour-piano'))).toBe(false);
+    expect(f.has(piece('parlour-keys'))).toBe(false);
+    // the same view with no hold (a piece the walk's life has not seen): the tree fade alone takes the piano
+    piece('parlour-piano').userData.fadeHold = false;
+    fade.update(DT, camera, look);
+    expect(fade.faded().has(piece('parlour-piano'))).toBe(true);
+    // at the clock's foot, facing it, the camera behind her
+    f = view(-2.9, 2.2, 7.6, -2.9, 0, 3.1);
+    expect(f.has(piece('hall-clock'))).toBe(false);
+    // the camera behind the clock, she in front of it: it is in the way and fades
+    f = view(-2.9, 1.6, 1.0, -2.9, 0, 4.5);
+    expect(f.has(piece('hall-clock'))).toBe(true);
+    // the camera low behind the big books, she on the library floor beyond them
+    f = view(-13.55, 0.8, 8.2, -12.0, 0, 5.0);
+    expect(f.has(piece('library-bigbooks'))).toBe(true);
+    life.dispose();
+    for (const p of record.house.fading) expect(p.obj.userData.fadeHold).toBe(false);
+    fade.dispose();
   });
 });

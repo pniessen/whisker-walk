@@ -63,14 +63,17 @@ export const HOUSE_SHOTS = freeze({
   'bookcase-open': shot([-6.0, 4.6], [0, -1], 1, 'The bookcase is open', { open: true }),
   'secret-stair': shot([-6.0, -2.0], [0, -1], 1, 'Up the secret stair', { open: true }),
   cushion: shot([12.7, 7.0], [1, 0], 1, 'Someone naps here'),
-  toys: shot([-17.6, -14.1], [0, -1], 1, 'A box of old toys'),
-  knock: shot([7.45, -7.6], [0.6, -1], 1, 'A cup to knock over', { perch: 'kitchen-counter-a' }),
-  mice: shot([9.4, -1.2], [1, -0.2], 1, 'Mice by the pantry'),
-  'mice-cellar': shot([22.5, -2.5], [0.4, -1], 1, 'Mice in the cellar'),
-  'gold-library': shot([-13.4, 6.6], [0, -1], 1, 'A golden mouse on the bookcase', { ledge: 'library-books-w' }),
-  'gold-wardrobe': shot([-5.8, -15.4], [-1, 0], 1, 'A golden mouse on the wardrobe', { ledge: 'bedroom-wardrobe' }),
-  'gold-cellar': shot([25.0, -3.0], [0.6, 1], 1, 'A golden mouse in the cellar'),
-  'climb-plank': shot([-9.6, 2.6], [-1, 0], 1, 'Along the plank', { ledge: 'library-books-n2' }),
+  toys: shot([-18.5, -14.6], [1, 0.15], 0, 'A box of old toys'),
+  knock: shot([7.45, -7.6], [0, -1], 0, 'A cup to knock over', { perch: 'kitchen-counter-a' }),
+  // the mice as a still cat sees them (the picture page has her sitting still: a mouse
+  // notices a still cat at 1.2 m, critters.js PREY_NOTICE_STALKED)
+  mice: shot([10.0, -1.5], [1, 0.1], 0, 'Mice by the pantry'),
+  'mice-cellar': shot([24.5, -4.6], [-0.4, -1], 0, 'Mice in the cellar'),
+  // the golden mice, seen from the tops she leaps to them from (and the cellar floor)
+  'gold-library': shot([-12.2, 2.6], [-0.3, 1], 1, 'A golden mouse on the bookcase', { ledge: 'library-books-n1' }),
+  'gold-wardrobe': shot([-4.45, -15.4], [-1, 0.15], 1, 'A golden mouse on the wardrobe', { ledge: 'bedroom-shelf' }),
+  'gold-cellar': shot([26.0, -2.0], [0.5, 1], 0, 'A golden mouse in the cellar'),
+  'climb-plank': shot([-8.6, 2.6], [-1, 0.25], 1, 'Along the plank', { ledge: 'library-books-n2' }),
   hud: shot([0, 6], [0, -1], 1, 'Goals and the map', { hud: true }),
 });
 
