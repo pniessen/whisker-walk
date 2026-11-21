@@ -53,6 +53,7 @@ import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resume
 import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
 import { shareYarn, toyForState } from './game/yarnshare.js';
+import { liftForState } from './remotecats.js';
 import { placeInMouth } from './carryables.js';
 import { hintMax } from './hints.js';
 import { line as tutorialLine } from './tutorialwords.js';
@@ -1393,7 +1394,7 @@ function init() {
       // Clouds take the same absolute t and follow the camera, so after player.update too.
       session.clouds.update(t);
       session.ambient.update(t, session.weather.condition === 'rain' ? 1.7 : 1);
-      session.remotes.update(dt, nowSec(), session.areaData.waters);
+      session.remotes.update(dt, nowSec(), session.areaData.waters, session.fair);
       // Splashes, ripples and the wake for my cat, then each placed co-walker.
       session.splash.track(player.waterState, session.cat.position.x, session.cat.position.z, session.cat.rotation.y, player.speed, session.cat.scale.y, dt, player.hopY);
       for (const r of session.remotes.list) {
@@ -1472,6 +1473,8 @@ function init() {
             pose: session.pose,
             speed: player.speed,
             toy: toyForState(session.toy),
+            // her height on a perch or seat, and the seat (remotecats.js liftForState)
+            ...liftForState(player.perchY, session.fair.riding),
           });
         }
       }

@@ -26,6 +26,7 @@ import { validPetName } from '../net.js';
 import { groundTilt, easeTilt } from '../ground.js';
 import { bus } from '../events.js';
 import { isWalkableAt } from '../player.js';
+import { stickTakesOff } from '../climbing.js';
 
 // The y the local cat is drawn at, before the water look: the ground under
 // it (Gorge part 1, R4), then perchY + hopY (where player.js drew it) and a
@@ -127,7 +128,9 @@ export function createAvatarUpdater({
     const groundUnder = s.ground && !s.ground.flat ? s.ground.y(cat.position.x, cat.position.z) : null;
     const paws = cat.position.clone().setY(groundUnder === null ? player.perchY : groundUnder + player.perchY);
 
-    if (s.perched && player.inputActive) {
+    // A push takes her off a perch, but not the one she jumped onto with the
+    // stick still held, until it is let go (climbing.js stickTakesOff).
+    if (stickTakesOff(s, player.inputActive)) {
       s.perched = null;
       player.perchY = 0;
     }

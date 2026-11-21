@@ -1867,6 +1867,7 @@ export function createWalkLifecycle({
       freezeTime: 0,
       boxTime: 0,
       perched: null,
+      perchHold: null,
       pounceTime: 0,
       pounceCooldown: 0,
       landTime: 0,

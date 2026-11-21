@@ -72,6 +72,7 @@ const FIELDS = [
   ['freezeTime', 'seconds the cat is frozen (a scuffle, a fright)'],
   ['boxTime', 'seconds sitting in a box'],
   ['perched', 'the perch the cat is on, or null'],
+  ['perchHold', 'the perch a jump put her on with the stick already held, or null: a push does not take her off it until the stick is let go (climbing.js stickTakesOff)'],
   ['pounceTime', 'seconds left in the current pounce'],
   ['pounceCooldown', 'seconds until the next pounce'],
   ['landTime', 'seconds of landing squash left'],

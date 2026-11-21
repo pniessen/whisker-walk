@@ -271,6 +271,10 @@ export function createInteractions({
         : ground.y(next.x, next.z) - ground.y(session.cat.position.x, session.cat.position.z);
       const ranTheFence = !canReach(next, session.cat.position, player.perchY, budget, dy);
       session.perched = next;
+      // jumped up with the stick still held: it holds her until it is let go (climbing.js stickTakesOff)
+      session.perchHold = player.inputActive ? next : null;
+      // and she stands still on it from this frame (avatar.js sets the same each frame), not a step on
+      if (session.perchHold) player.speedFactor = 0;
       player.perchY = next.y; // relative: metres above the ground under the cat (R4)
       player.halt();
       const from = session.cat.position.clone();
