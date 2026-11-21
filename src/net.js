@@ -205,6 +205,9 @@ function isValidStateMsg(msg) {
     Number.isFinite(msg.yaw) &&
     typeof msg.pose === 'string' &&
     Number.isFinite(msg.speed) &&
+    // area: which place the sender is in. Optional; when present it must be a
+    // short string (h and seat are read leniently by remotecats.js instead).
+    (msg.area === undefined || (typeof msg.area === 'string' && msg.area.length <= 32)) &&
     messageSizeOk(msg)
   );
 }
@@ -332,16 +335,26 @@ export function createNet(transport, { now = defaultClock } = {}) {
     transport.send('chat', msg);
   }
 
+  // Adds fn and returns a remover for that one handler (by identity); calling
+  // it again does nothing.
+  function addHandler(list, fn) {
+    list.push(fn);
+    return () => {
+      const i = list.indexOf(fn);
+      if (i >= 0) list.splice(i, 1);
+    };
+  }
+
   function onState(fn) {
-    stateHandlers.push(fn);
+    return addHandler(stateHandlers, fn);
   }
 
   function onEvent(fn) {
-    eventHandlers.push(fn);
+    return addHandler(eventHandlers, fn);
   }
 
   function onChat(fn) {
-    chatHandlers.push(fn);
+    return addHandler(chatHandlers, fn);
   }
 
   // Replay-to-late-subscriber: a caller that wires up onRoster() after the
@@ -353,8 +366,9 @@ export function createNet(transport, { now = defaultClock } = {}) {
   // makes onRoster safe to call at any time, not just before the roster
   // first populates.
   function onRoster(fn) {
-    rosterHandlers.push(fn);
+    const off = addHandler(rosterHandlers, fn);
     if (roster.length > 0) fn(roster);
+    return off;
   }
 
   function isHost() {

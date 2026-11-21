@@ -163,3 +163,96 @@ describe('updateProfile', () => {
     expect(updateProfile).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('handler removers and the state area', () => {
+  async function pair() {
+    const hub = createFakeHub();
+    const a = createNet(hub.transport());
+    const b = createNet(hub.transport());
+    await a.join('AB23', { playerId: 'aaa', petName: 'A', breed: 'tabby', accessories: {} });
+    await b.join('AB23', { playerId: 'bbb', petName: 'B', breed: 'robbie', accessories: {} });
+    return { hub, a, b };
+  }
+  const STATE = { v: 1, id: 'aaa', pos: [1, 2], yaw: 0, pose: 'follow', speed: 1 };
+
+  it('an off()ed event handler stops hearing while a second still does', async () => {
+    const { a, b } = await pair();
+    const one = [];
+    const two = [];
+    const off = b.onEvent((e) => one.push(e));
+    b.onEvent((e) => two.push(e));
+    a.sendEvent({ v: 1, id: 'aaa', type: 'x' });
+    off();
+    off(); // twice is harmless
+    a.sendEvent({ v: 1, id: 'aaa', type: 'y' });
+    expect(one).toHaveLength(1);
+    expect(two).toHaveLength(2);
+  });
+
+  it('the same for state', async () => {
+    const { a, b } = await pair();
+    const one = [];
+    const two = [];
+    const off = b.onState((e) => one.push(e));
+    b.onState((e) => two.push(e));
+    a.sendState(STATE);
+    off();
+    off();
+    a.sendState({ ...STATE, pos: [3, 4] });
+    expect(one).toHaveLength(1);
+    expect(two).toHaveLength(2);
+  });
+
+  it('the same for chat', async () => {
+    const { a, b } = await pair();
+    const one = [];
+    const two = [];
+    const off = b.onChat((e) => one.push(e));
+    b.onChat((e) => two.push(e));
+    a.sendChat({ v: 1, id: 'aaa', phraseId: PHRASES[0].id });
+    off();
+    off();
+    a.sendChat({ v: 1, id: 'aaa', phraseId: PHRASES[0].id });
+    expect(one).toHaveLength(1);
+    expect(two).toHaveLength(2);
+  });
+
+  it('the same for the roster (which still replays on subscribe)', async () => {
+    const { hub, b } = await pair();
+    const one = [];
+    const two = [];
+    const off = b.onRoster((r) => one.push(r.length));
+    b.onRoster((r) => two.push(r.length));
+    expect(one).toEqual([2]);
+    off();
+    off();
+    const c = createNet(hub.transport());
+    await c.join('AB23', { playerId: 'ccc', petName: 'C', breed: 'tabby', accessories: {} });
+    expect(one).toEqual([2]);
+    expect(two[two.length - 1]).toBe(3);
+  });
+
+  it('a state with area arrives with it; a bad area drops the message; none is fine', async () => {
+    const { a, b } = await pair();
+    const seen = [];
+    b.onState((s) => seen.push(s));
+    a.sendState({ ...STATE, area: 'park' });
+    expect(seen).toHaveLength(1);
+    expect(seen[0].area).toBe('park');
+    a.sendState({ ...STATE, area: 7 });
+    a.sendState({ ...STATE, area: 'x'.repeat(33) });
+    expect(seen).toHaveLength(1);
+    a.sendState({ ...STATE, area: 'x'.repeat(32) });
+    a.sendState(STATE);
+    expect(seen).toHaveLength(3);
+  });
+
+  it('a state carrying h, seat and area together arrives whole', async () => {
+    const { a, b } = await pair();
+    const seen = [];
+    b.onState((s) => seen.push(s));
+    const msg = { ...STATE, h: 0.4, seat: 'bench', area: 'farm' };
+    a.sendState(msg);
+    expect(seen).toEqual([msg]);
+  });
+});
