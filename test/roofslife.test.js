@@ -142,6 +142,26 @@ describe('the Rooftops’ evening', () => {
     expect(() => run(w, 10)).not.toThrow();
   });
 
+  // Beauty pass, Task D: the take-off glows are stronger on the sunlit felt
+  // at sunset and fade to a soft hint by dusk, every frame, one way.
+  it('the take-off glows fade from their sunset opacity to their dusk one, never back', () => {
+    const w = walk();
+    const marks = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.26 }));
+    marks.userData.glowOpacity = { sunset: 0.42, dusk: 0.26 };
+    const life = createRoofsLife({ ...w.area, markGlow: marks })({ scene: w.scene, sun: w.sun, fill: w.fill });
+    const mat = marks.material;
+    expect(mat.opacity).toBeCloseTo(0.42, 9);
+    let last = mat.opacity;
+    for (let t = 1; t <= 300; t++) {
+      life.update(1);
+      expect(mat.opacity).toBeCloseTo(0.42 + (0.26 - 0.42) * eveningAt(t), 9);
+      expect(mat.opacity).toBeLessThanOrEqual(last + 1e-12);
+      last = mat.opacity;
+    }
+    expect(mat.opacity).toBeCloseTo(0.26, 9);
+    expect(marks.material).toBe(mat);
+  });
+
   it('update allocates nothing between sky steps', () => {
     const w = walk();
     run(w, 1);

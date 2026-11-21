@@ -5,10 +5,10 @@ import { litMaterial, tileMetres } from '../render/materials.js';
 import { SUN_POSITION } from '../render/rig.js';
 import { withLocalUuids } from './localuuids.js';
 import { hash01 } from './warehouselook.js';
-import { roofsMaterials, addWindowQuads, windowCell, markMesh, ATLAS_SIZE, PLAIN_WARM } from './roofsparts.js';
+import { roofsMaterials, addWindowQuads, windowCell, markMesh, ATLAS_SIZE, PLAIN_WARM, MARK_GLOW } from './roofsparts.js';
 import {
   LEVELS as L, BLOCKS, GROUNDS, ROOFS_BOUNDS, ROOFS_SPAWN, ROOFS_COLLIDERS, ROOFS_TRAVERSAL, roofsArea,
-  ALLEY_LAMP, BIN_2, BIN_3, BIN_BAGS, ALLEY_CRATES, YARD, YARD_WALLS, WASHING_POSTS,
+  ALLEY_LAMP, BIN_2, BIN_3, BIN_BAGS, ALLEY_CRATES, ALLEY_CLUTTER, ALLEY_CHANNEL, YARD, YARD_WALLS, WASHING_POSTS,
   VANE, VANE_TIP, TELESCOPE, GARDEN, SKYLIGHT, TELESCOPE_CRATE, ROOFS_DISCOVERIES, STREETS, PAVEMENT, STREET_LAMPS, BUS,
 } from './roofsplan.js';
 import { STEP_MAX } from '../ground.js';
@@ -114,8 +114,13 @@ const STACK = Object.freeze({ half: 0.85, inner: 0.42, pot: 0.55 }); // half its
 const slopeY = (z) => (z >= RIDGE_Z ? EAVE_Y + (TERRACE.z1 - z) * PITCH : EAVE_Y + (z - TERRACE.z0) * PITCH);
 
 export const ROOFS_GROUND_COLOR = 0x7d7873; // the alley's cobbles, for groundBounce
-const PAINTS = Object.freeze([0x2f5d8a, 0x7a2b2b, 0x2f5a3a, 0x2a2a2e, 0xd8c9a0, 0x5a3a6a, 0x9a6a2a, 0x3d6f73]);
-const CLOTHS = Object.freeze([0xf2efe6, 0xd9534f, 0x5b8fd1, 0xf3c94b, 0x7cc47a, 0xe9a3c4, 0xffffff, 0x9b7fd1]);
+// Beauty pass, Task D (critique findings 8 and 9): the doors' paints muted 20%
+// toward their own grey (worn, not toy-bright), and the washing's colours
+// softened, faded as washing is: no pure white, no shop-new red or yellow.
+const MUTE = 0.2;
+const greyOf = (h) => { const g = Math.round(0.299 * (h >> 16) + 0.587 * ((h >> 8) & 255) + 0.114 * (h & 255)); return (g << 16) | (g << 8) | g; };
+const PAINTS = Object.freeze([0x2f5d8a, 0x7a2b2b, 0x2f5a3a, 0x2a2a2e, 0xd8c9a0, 0x5a3a6a, 0x9a6a2a, 0x3d6f73].map((h) => mixHex(h, greyOf(h), MUTE)));
+const CLOTHS = Object.freeze([0xe6e1d6, 0xb5655d, 0x6c8db5, 0xc9b27a, 0x7fa27c, 0xc99aac, 0xd9d6cf, 0x8f80ad]);
 const paint = (x, z, salt) => PAINTS[Math.floor(hash01(x, z, salt) * PAINTS.length) % PAINTS.length];
 
 // --- Beauty pass, Task B: houses that differ (critique finding 3). The
@@ -390,13 +395,16 @@ function makeKit(prefix) {
   const buckets = new Map();
   return {
     // `mark`, if given ({ id, kind }), records the vertices this piece adds
-    put(key, mat, geo, { noCast = false, color = null, tile = 0, mark = null } = {}) {
+    // `item`, if given ({ id, kind, ... }), likewise into userData.itemRanges
+    // (the washing: each thing on a line, for the tests)
+    put(key, mat, geo, { noCast = false, color = null, tile = 0, mark = null, item = null } = {}) {
       const full = noCast ? `${key}` : `${key}:cast`;
       let k = buckets.get(full);
-      if (!k) buckets.set(full, (k = { key, mat, noCast, geos: [], count: 0, ranges: [] }));
+      if (!k) buckets.set(full, (k = { key, mat, noCast, geos: [], count: 0, ranges: [], items: [] }));
       const g = prep(geo, { color: color ?? mat.userData.vcBase ?? null, tile });
       const count = g.attributes.position.count;
       if (mark) k.ranges.push({ ...mark, start: k.count, count });
+      if (item) k.items.push({ ...item, start: k.count, count });
       k.count += count;
       k.geos.push(g);
     },
@@ -405,6 +413,7 @@ function makeKit(prefix) {
         const m = finish(new THREE.Mesh(merged(k.geos, k.key), k.mat), k.noCast);
         m.name = `${prefix}:${k.key}`;
         if (k.ranges.length) m.userData.markRanges = k.ranges;
+        if (k.items.length) m.userData.itemRanges = k.items;
         return m;
       });
     },
@@ -500,7 +509,7 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     const moves = new THREE.Group();
     moves.name = 'roofsMoves';
     drawCrossings(moves, M);
-    drawMarks(moves, M, traversal, ground);
+    const markGlow = drawMarks(moves, M, traversal, ground);
 
     // part two: the north, the tower, the discoveries, the street, the town
     const north = new THREE.Group();
@@ -554,6 +563,7 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
       strays: false,
       bus,
       skyGlow, // the band low round the sky; roofslife.js colours it
+      markGlow, // the take-off glows; roofslife.js sets their opacity (Task D)
     };
     // the evening deepening over the walk, and the bus (roofslife.js)
     record.life = createRoofsLife(record);
@@ -561,6 +571,7 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
   });
 }
 
+const CHANNEL_Y = 0.012;
 // --- the ground at 0: cobbles in the alley, flags in the yards, grass in the
 // west garden. Top-level, as builder.ground is, and casting nothing.
 function drawGround(scene, M) {
@@ -577,6 +588,13 @@ function drawGround(scene, M) {
     if (!kit.has(key)) kit.set(key, { mat, geos: [] });
     kit.get(key).geos.push(prep(plane, { tile }));
   }
+  // Task D: a flagstone drainage channel down the alley's middle, flush on the
+  // cobbles (1.2 cm up), in the yards' flags: drawn only, the ground is the plan's
+  const C = ALLEY_CHANNEL;
+  const channel = new THREE.PlaneGeometry(C.x1 - C.x0, 2 * C.half);
+  channel.rotateX(-Math.PI / 2);
+  channel.translate((C.x0 + C.x1) / 2, CHANNEL_Y, C.z);
+  kit.get('flags').geos.push(prep(channel, { tile: TILE.flagstone }));
   for (const [key, k] of kit) {
     const m = finish(new THREE.Mesh(merged(k.geos, key), k.mat), true);
     m.name = `roofsGround:${key}`;
@@ -594,7 +612,7 @@ const SHED_FASCIA = Object.freeze({ depth: 0.18, below: 0.03, out: 0.065, thick:
 // bin bags, a drainpipe and the fire escape.
 function drawAlley(K, group, M, ground) {
   const wall = (geo) => K.put('wall', M.wall, geo, { tile: TILE.brick });
-  const stone = (geo) => K.put('stone', M.stone, geo);
+  const stone = (geo, color = null) => K.put('stone', M.stone, geo, { color });
   const iron = (geo, noCast = false) => K.put(noCast ? 'ironSmall' : 'iron', M.iron, geo, { noCast });
   const painted = (geo, color) => K.put('paint', M.paint, geo, { color, noCast: true });
   const { minX, maxX, maxZ } = ROOFS_BOUNDS;
@@ -614,14 +632,28 @@ function drawAlley(K, group, M, ground) {
   group.add(own('garages', M.felt, [box(G.x0, G.x1, gTop, G.y, G.z0, G.z1)], { tile: TILE.gravel, tag: { block: 'garages' } }));
   stone(box(G.x0, G.x1, gTop - 0.12, gTop - 0.02, G.z1, G.z1 + 0.06)); // the fascia under the felt
   const doors = Math.floor((G.x1 - G.x0) / 3);
+  let last = null;
   for (let i = 0; i < doors; i++) {
     const cx = G.x0 + 1.5 + 3 * i;
-    painted(box(cx - 1.15, cx + 1.15, 0, 2.1, G.z1, G.z1 + 0.04), paint(cx, G.z1, 3));
+    // Task D: muted paints (PAINTS), each door weathered its own shade, never
+    // the same paint as the door beside it, and ribbed across (an up-and-over door)
+    let j = PAINTS.indexOf(paint(cx, G.z1, 3));
+    if (PAINTS[j] === last) j = (j + 1) % PAINTS.length;
+    last = PAINTS[j];
+    const shade = new THREE.Color(last).multiplyScalar(DOOR.dark[0] + (DOOR.dark[1] - DOOR.dark[0]) * hash01(cx, G.z1, 9));
+    painted(box(cx - 1.15, cx + 1.15, 0, 2.1, G.z1, G.z1 + 0.04), shade);
+    painted(doorRibs(cx - 1.1, cx + 1.1, G.z1 + 0.04), shade);
     stone(box(cx - 1.25, cx + 1.25, 2.1, 2.22, G.z1, G.z1 + 0.05)); // lintel
   }
   // a drainpipe from the garages' gutter at the shed's end
   iron(box(G.x1 - 0.3, G.x1 - 0.2, 0, gTop - 0.05, G.z1 + 0.04, G.z1 + 0.14), true);
   iron(box(G.x1 - 0.38, G.x1 - 0.12, gTop - 0.3, gTop - 0.05, G.z1 + 0.02, G.z1 + 0.2), true); // its hopper head
+  // Task D: and one down every second garage's pier, an open square pipe and its hopper
+  for (let i = 2; i < doors; i += 2) {
+    const x = G.x0 + 3 * i;
+    iron(squarePipe(x, G.z1 + 0.09, 0, gTop - 0.05, 0.05), true);
+    iron(squarePipe(x, G.z1 + 0.09, gTop - 0.3, gTop - 0.05, 0.1), true);
+  }
 
   // The shed: boards, a felt roof, a green door.
   const S = BLOCK.shed;
@@ -646,6 +678,15 @@ function drawAlley(K, group, M, ground) {
   K.put('metal', M.metal, post(bin2.x + 0.02, bin2.z, 0.8, 0.05, bin2.r - 0.02, bin2.r - 0.02, 12), { noCast: true });
   painted(turnedBox(bin3.x, bin3.z, 0, 0.58, 0.95, 0.66, 0.1), 0x3b6b3b);
   painted(turnedBox(bin3.x, bin3.z, 0.95, 0.62, 0.05, 0.72, 0.1), 0x2f5730);
+
+  // Task D: what an alley gathers, drawn only (no colliders, clear of every
+  // spot she goes to: roofsplan.js ALLEY_CLUTTER), and weeds at the walls' feet.
+  drawClutter(K, M, G);
+  // (the weeds and the gully go in the stone bucket, as long as the alley
+  // already, so no other bucket's bounds grow to reach shots of other places)
+  for (const w of ALLEY_WEEDS) stone(weedTuft(w), weedColour);
+  // the channel's gully: a dark line down the flags' middle
+  stone(flatStrip(ALLEY_CHANNEL.x0, ALLEY_CHANNEL.x1, ALLEY_CHANNEL.z - 0.07, ALLEY_CHANNEL.z + 0.07, CHANNEL_Y + 0.004), 0x4a4540);
 
   // The crates, and the bin bags she drops onto from the garages.
   for (const c of ALLEY_CRATES) K.put('wood', M.wood, turnedBox(c.x, c.z, c.y, c.s, c.s, c.s, c.yaw), { noCast: true });
@@ -694,6 +735,137 @@ function drawAlley(K, group, M, ground) {
   for (const [x, z, top] of legs) iron(box(x - 0.05, x + 0.05, 0, top, z - 0.05, z + 0.05));
 }
 
+// --- Task D (critique finding 8): the alley lived in.
+const DOOR = Object.freeze({ dark: [0.45, 0.72], ribs: [0.55, 1.05, 1.55], rib: 0.03, out: 0.025 });
+// Three ribs across an up-and-over door's face (at z), each a bevel up and a
+// bevel down standing `out` proud: the light catches the one, not the other.
+function doorRibs(x0, x1, z) {
+  const tris = [];
+  for (const y of DOOR.ribs) {
+    const [lo, mid, hi] = [y - DOOR.rib, y, y + DOOR.rib];
+    const zo = z + DOOR.out;
+    tris.push(...quadTris([x0, hi, z], [x1, hi, z], [x1, mid, zo], [x0, mid, zo], [0, 1, 1]));
+    tris.push(...quadTris([x0, mid, zo], [x1, mid, zo], [x1, lo, z], [x0, lo, z], [0, -1, 1]));
+  }
+  return triangles(tris);
+}
+// An open square pipe (four sides, faces square to x and z) from y0 to y1.
+function squarePipe(x, z, y0, y1, half) {
+  const g = new THREE.CylinderGeometry(half * Math.SQRT2, half * Math.SQRT2, y1 - y0, 4, 1, true);
+  g.rotateY(Math.PI / 4);
+  g.translate(x, (y0 + y1) / 2, z);
+  return g;
+}
+// A flat strip x0..x1 by z0..z1 at y, facing up.
+function flatStrip(x0, x1, z0, z1, y) {
+  const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0);
+  g.rotateX(-Math.PI / 2);
+  g.translate((x0 + x1) / 2, y, (z0 + z1) / 2);
+  return g;
+}
+// The weeds: a tuft at the foot of a garage pier now and then, and along the
+// alley's far wall; each { x, z, h, out } (out: the way it leans, away from its wall).
+export const ALLEY_WEEDS = Object.freeze((() => {
+  const out = [];
+  const G = BLOCK.garages;
+  for (let i = 1; i < Math.floor((G.x1 - G.x0) / 3); i++) {
+    const x = G.x0 + 3 * i;
+    if (hash01(x, G.z1, 41) < 0.3) continue;
+    out.push(Object.freeze({ x: x + 0.25 * (hash01(x, G.z1, 43) - 0.5), z: G.z1 + 0.1, h: 0.3 + 0.15 * hash01(x, 1, 45), out: 1 }));
+  }
+  const wallZ = ROOFS_BOUNDS.maxZ;
+  for (let x = -43; x <= 43; x += 4) {
+    if (hash01(x, wallZ, 41) < 0.35) continue;
+    const at = x + 1.6 * (hash01(x, wallZ, 43) - 0.5);
+    if (Math.abs(at - ALLEY_LAMP.x) < 0.6) continue;
+    out.push(Object.freeze({ x: at, z: wallZ - 0.1, h: 0.28 + 0.17 * hash01(at, 2, 45), out: -1 }));
+  }
+  return out;
+})());
+const WEED = Object.freeze({ base: new THREE.Color(0x34502a), tip: new THREE.Color(0x7f9a4c), y: 0.4, half: 0.045, lean: 0.13 });
+const _weed = new THREE.Color();
+const weedColour = (x, y) => _weed.copy(WEED.base).lerp(WEED.tip, Math.min(1, y / WEED.y));
+// A tuft: three blades fanned out from its foot, leaning away from the wall.
+function weedTuft(w) {
+  const tris = [];
+  for (let k = 0; k < 3; k++) {
+    const a = (k - 1) * 0.9 + 0.4 * (hash01(w.x, k, 47) - 0.5); // across the wall, -0.9..0.9 rad off square
+    const [dx, dz] = [Math.sin(a), Math.cos(a) * w.out];
+    const bx = w.x + 0.04 * dx;
+    const bz = w.z + 0.03 * dz;
+    const h = w.h * (0.75 + 0.25 * hash01(w.x, k, 49));
+    const [hw, ln] = [WEED.half, WEED.lean];
+    const blade = [[bx - hw * dz * w.out, 0, bz + hw * dx * w.out], [bx + hw * dz * w.out, 0, bz - hw * dx * w.out], [bx + ln * dx, h, bz + ln * dz]];
+    // one-sided: wound to face the way it leans, out into the alley
+    const n = cross(sub(blade[1], blade[0]), sub(blade[2], blade[0]));
+    tris.push(...(dot(n, [dx, 0, dz]) >= 0 ? blade : [blade[0], blade[2], blade[1]]));
+  }
+  return triangles(tris);
+}
+// The bicycle against a garage door, a pallet leant on the next, a paint tin.
+function drawClutter(K, M, G) {
+  const painted = (geo, color) => K.put('paint', M.paint, geo, { color, noCast: true });
+  const wood = (geo) => K.put('wood', M.wood, geo, { noCast: true });
+  // the bicycle, in the plane z = bike.z, its front wheel east
+  const B = ALLEY_CLUTTER.bike;
+  const P = (x, y, dz = 0) => ({ x: B.x + x, y, z: B.z + dz });
+  for (const x of [-0.52, 0.52]) {
+    const tyre = new THREE.RingGeometry(0.29, 0.335, 14);
+    tyre.translate(B.x + x, 0.335, B.z);
+    K.put('cloth', M.cloth, tyre, { noCast: true, color: 0x1c1c1e }); // two-sided
+  }
+  const [rear, front, crank, seat, head, fork] = [P(-0.52, 0.335), P(0.52, 0.335), P(-0.05, 0.3), P(-0.2, 0.82), P(0.36, 0.8), P(0.42, 0.62)];
+  for (const [a, c] of [[rear, crank], [rear, seat], [crank, seat], [crank, fork], [seat, head], [fork, front], [head, fork], [head, P(0.34, 0.98)]]) painted(wire(a, c, 0.017), 0x6e3530);
+  painted(wire(P(0.34, 0.98, -0.2), P(0.34, 0.98, 0.2), 0.015), 0x2b2b2e); // the handlebar
+  painted(box(B.x - 0.33, B.x - 0.09, 0.84, 0.89, B.z - 0.06, B.z + 0.06), 0x222224); // the saddle
+  // the pallet: five slats up its face, three bearers behind, leaning back on the door
+  const PL = ALLEY_CLUTTER.pallet;
+  const [zb, zt, tall] = [PL.z + 0.18, G.z1 + 0.12, 1.0];
+  const zAt = (y) => zb + ((zt - zb) * y) / tall;
+  for (const dx of [-0.5, -0.25, 0, 0.25, 0.5]) wood(beam({ x: PL.x + dx, y: 0, z: zb }, { x: PL.x + dx, y: tall, z: zt }, 0.1, 0.022));
+  for (const y of [0.1, 0.5, 0.9]) wood(box(PL.x - 0.6, PL.x + 0.6, y - 0.05, y + 0.05, zAt(y) - 0.11, zAt(y) - 0.025));
+  // the paint tin, its lid left on
+  const T = ALLEY_CLUTTER.tin;
+  painted(post(T.x, T.z, 0, 0.19, 0.085, 0.085, 8), 0x8a9298);
+  painted(post(T.x, T.z, 0.19, 0.012, 0.09, 0.09, 8), 0x5c6a3e);
+}
+
+// --- Task D (critique finding 9): the washing, things with shapes. Each is
+// made along +x (the line), its top at y 0, hanging down in the plane z 0:
+// a list of quads, two to four. Then it hangs a little crooked (one peg
+// slipped: turned in its plane, lifted back to the line) and swings out in
+// the wind (turned about the line), from hash01 of where it hangs.
+const WASH_KINDS = Object.freeze(['shirt', 'trousers', 'socks', 'towel', 'sheet']);
+const washKind = (x, z) => WASH_KINDS[Math.floor(hash01(x, z, 29) * WASH_KINDS.length) % WASH_KINDS.length];
+const WASH = Object.freeze({ crook: 0.14, swing: [0.1, 0.22], sheetH: 0.7 });
+function washQuads(kind, w, h) {
+  const q = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  if (kind === 'shirt') {
+    const s = w / 2;
+    return [q(-s, 0, s, -h), [[-s, 0], [-s, -0.16], [-s - 0.17, -0.3], [-s - 0.17, -0.13]], [[s, 0], [s + 0.17, -0.13], [s + 0.17, -0.3], [s, -0.16]]];
+  }
+  if (kind === 'trousers') {
+    const s = Math.min(w, 0.46) / 2;
+    return [q(-s, 0, s, -0.1), [[-s, -0.1], [-0.02, -0.1], [-0.05, -h - 0.1], [-s - 0.04, -h - 0.1]], [[0.02, -0.1], [s, -0.1], [s + 0.04, -h - 0.1], [0.05, -h - 0.1]]];
+  }
+  if (kind === 'socks') {
+    return [-0.11, 0.1].flatMap((x) => [q(x - 0.045, 0, x + 0.045, -0.26), [[x - 0.045, -0.26], [x + 0.045, -0.26], [x + 0.13, -0.3], [x + 0.11, -0.36]]]);
+  }
+  if (kind === 'sheet') return [q(-w * 0.8, 0, w * 0.8, -Math.min(h + 0.15, WASH.sheetH))];
+  return [q(-w / 2, 0, w / 2, -h)]; // a towel
+}
+function washItem(kind, w, h, x, z) {
+  const tris = [];
+  for (const [a, c, d, e] of washQuads(kind, w, h)) tris.push(...[a, c, d, a, d, e].map(([u, v]) => [u, v, 0]));
+  const g = triangles(tris);
+  g.rotateZ((hash01(x, z, 31) - 0.5) * WASH.crook);
+  g.computeBoundingBox();
+  g.translate(0, -g.boundingBox.max.y, 0); // its top back on the line
+  const sw = WASH.swing[0] + (WASH.swing[1] - WASH.swing[0]) * hash01(z, x, 37);
+  g.rotateX(hash01(x, z, 39) < 0.5 ? sw : -sw);
+  return g;
+}
+
 // --- the back yards: walls with a gateway, washing posts, coal bunkers.
 function drawYards(K, group, M) {
   const stone = (geo) => K.put('stone', M.stone, geo);
@@ -722,10 +894,11 @@ function drawYards(K, group, M) {
       const z = p.z0 + 1.2 + j * 1.4;
       const w = 0.5 + 0.25 * hash01(p.x, z, 5);
       const h = 0.45 + 0.3 * hash01(z, p.x, 7);
-      const g = new THREE.PlaneGeometry(w, h);
+      const kind = washKind(p.x, z);
+      const g = washItem(kind, w, h, p.x, z);
       g.rotateY(Math.PI / 2);
-      g.translate(p.x + (j % 2 ? 0.25 : -0.25), 1.92 - h / 2, z);
-      K.put('cloth', M.cloth, g, { noCast: true, color: CLOTHS[Math.floor(hash01(p.x, z, 11) * CLOTHS.length) % CLOTHS.length] });
+      g.translate(p.x + (j % 2 ? 0.25 : -0.25), 1.92, z);
+      K.put('cloth', M.cloth, g, { noCast: true, color: CLOTHS[Math.floor(hash01(p.x, z, 11) * CLOTHS.length) % CLOTHS.length], item: { id: `wash:yard:${i}:${j}`, kind, line: 'yard' } });
     }
   });
   for (const g of lineGeos) K.put('paint', M.paint, g, { noCast: true, color: 0xe8e2d0 });
@@ -1078,9 +1251,10 @@ function drawCrossings(group, M) {
         const cy = s.y + (u.y - s.y) * f;
         const w = 0.4 + 0.3 * hash01(cx, z.z, 13);
         const h = 0.45 + 0.35 * hash01(z.z, cx, 17);
-        const g = new THREE.PlaneGeometry(w, h);
-        g.translate(cx, cy - h / 2 - 0.01, s.z);
-        K.put('cloth', M.cloth, g, { noCast: true, color: CLOTHS[Math.floor(hash01(cx, s.z, 19) * CLOTHS.length) % CLOTHS.length] });
+        const kind = washKind(cx, s.z);
+        const g = washItem(kind, w, h, cx, s.z);
+        g.translate(cx, cy - 0.01, s.z);
+        K.put('cloth', M.cloth, g, { noCast: true, color: CLOTHS[Math.floor(hash01(cx, s.z, 19) * CLOTHS.length) % CLOTHS.length], item: { id: `wash:${c.id}:${i}`, kind, line: c.id } });
       }
     } else if (c.kind === 'pipe') {
       // an iron pipe from the tank to the loft, its top the rail, on two
@@ -1151,7 +1325,12 @@ function drawMarks(group, M, traversal, ground) {
   }
   for (const m of K.meshes()) group.add(m);
   if (glows.length) {
-    const glow = new THREE.Mesh(merged(glows, 'markGlow'), glowMat);
+    // the walk's own copy of the glow's material (its map shared): the evening
+    // (roofslife.js) moves its opacity, from glowOpacity.sunset to .dusk (Task D)
+    const mat = glowMat.clone();
+    mat.opacity = MARK_GLOW.dusk;
+    const glow = new THREE.Mesh(merged(glows, 'markGlow'), mat);
+    glow.userData.glowOpacity = { sunset: MARK_GLOW.sunset, dusk: MARK_GLOW.dusk };
     glow.name = 'roofsMarks:glow';
     finish(glow, true);
     glow.receiveShadow = false;
@@ -1160,7 +1339,9 @@ function drawMarks(group, M, traversal, ground) {
     glow.userData.noMerge = true;
     glow.userData.markRanges = glowRanges;
     group.add(glow);
+    return glow;
   }
+  return null;
 }
 
 // =============================================================================
@@ -1295,6 +1476,7 @@ function drawShop(K, group, M, win) {
   K.put('ironSmall', M.iron, box(S.x1, S.x1 + 0.1, 0, top, S.z1 - 0.45, S.z1 - 0.35), { noCast: true }); // a downpipe
 }
 
+const TANK_PLANK = Object.freeze({ thick: 0.018, wide: 0.26, color: 0xc9ad7e, hoop: 0xb9c0c4 }); // a pale, sun-bleached plank on the dark lid
 // --- the warehouse, and what stands on its roof: the tank, the loft, the
 // lantern, roof lights; its stair down to the ginnel.
 function drawWarehouse(K, group, M, win, upWin) {
@@ -1363,6 +1545,16 @@ function drawWarehouse(K, group, M, win, upWin) {
   group.add(own('tank', M.wood, [post(T.x, T.z, L.WAREHOUSE, T.y - L.WAREHOUSE, T.r, T.r, 18)], { tile: TILE.wood, tag: { block: 'tank' } }));
   for (const y of [11.4, 11.9, 12.4]) iron(post(T.x, T.z, y, 0.07, T.r + 0.02, T.r + 0.02, 18), true);
   iron(box(T.x - 0.25, T.x + 0.25, T.y, T.y + 0.02, T.z - 0.6, T.z - 0.1), true);
+  // Task D (critique finding 7): the long leap to the lantern goes off this
+  // rim, so the tank shows it: a plank laid across the lid from behind the
+  // take-off to the rim toward the lantern (under the glow, flush), and a
+  // bright galvanised hoop round the rim, catching the light
+  const ll = ROOFS_TRAVERSAL.gaps.find((g) => g.id === 'long-lantern');
+  const [ux, uz] = [ll.to.x - ll.from.x, ll.to.z - ll.from.z].map((q, _, a) => q / Math.hypot(...a));
+  const rimAt = T.r - Math.hypot(ll.from.x - T.x, ll.from.z - T.z) - 0.04; // from the take-off, ahead
+  const back = Math.hypot(ll.from.x - T.x, ll.from.z - T.z) - 0.45; // stop short of the hatch
+  painted(beam({ x: ll.from.x - ux * back, y: T.y + TANK_PLANK.thick, z: ll.from.z - uz * back }, { x: ll.from.x + ux * rimAt, y: T.y + TANK_PLANK.thick, z: ll.from.z + uz * rimAt }, TANK_PLANK.wide, TANK_PLANK.thick), TANK_PLANK.color);
+  painted(new THREE.CylinderGeometry(T.r + 0.025, T.r + 0.025, 0.065, 18, 1, true).translate(T.x, T.y - 0.0375, T.z), TANK_PLANK.hoop);
 
   // the pigeon loft (discovery B): a timber hut, a row of holes, a landing board, a door
   const P = BLOCK.loft;
@@ -1440,6 +1632,17 @@ const TOWER = Object.freeze({ stone: 0xc29a66, dressing: 0xe6dcc4, verdigris: 0x
 // face (R 0.64, it was 0.55) and its bezel fill it; their panel stands 0.1 m
 // proud, in front of the cornice.
 const CLOCK = Object.freeze({ y: 13.33, r: 0.64, bezel: 0.07, half: 0.75, lo: 0.71, hi: 0.73, proud: 0.1 });
+// The dial on the face she climbs (Task D): it fits under the cornice
+// (bezel 12.62..13.86), and its pieces are pressed to within 3.5 cm of the wall.
+const CLOCK_FLUSH = Object.freeze({ y: 13.24, r: 0.55, proud: 0.006, press: 0.45 });
+// Whether a climb or drop on the tower goes over this side of a stage
+// (`r`'s side at x or z, facing nx, nz): the face she climbs, kept clear.
+const TOWER_HOPS = [...ROOFS_TRAVERSAL.climbs, ...ROOFS_TRAVERSAL.drops];
+function climbedFace(r, x, z, nx, nz) {
+  return TOWER_HOPS.some(({ from: a, to: c }) => (nx
+    ? (a.x - x) * (c.x - x) < 0 && Math.abs(a.z + ((c.z - a.z) * (x - a.x)) / (c.x - a.x) - z) < (r.z1 - r.z0) / 2
+    : (a.z - z) * (c.z - z) < 0 && Math.abs(a.x + ((c.x - a.x) * (z - a.z)) / (c.z - a.z) - x) < (r.x1 - r.x0) / 2));
+}
 const LOUVRE = Object.freeze({ dy: [-0.3, -0.02, 0.26], len: 1.0, depth: 0.1, thick: 0.03, tilt: 0.6, out: 0.05 });
 const PINNACLE = Object.freeze({ off: 0.12, half: 0.09, y0: -0.45, y1: 0.42, cap: 0.45 }); // y from the belfry's top
 function drawTower(K, group, M, scene) {
@@ -1472,7 +1675,9 @@ function drawTower(K, group, M, scene) {
   group.add(own('lanternStage', M.stone, [box(LS.x0, LS.x1, BF.y, LS.y, LS.z0, LS.z1)], { color: TOWER.stone, tag: { block: 'lanternStage' } }));
   stone(box(LS.x0 - 0.08, LS.x1 + 0.08, LS.y - 0.22, LS.y - 0.1, LS.z0 - 0.08, LS.z1 + 0.08));
   group.add(own('towerTop', M.stone, [post(TT.x, TT.z, LS.y, TT.y - LS.y, TT.r, TT.r, 18)], { color: TOWER.stone, tag: { block: 'towerTop' } }));
-  stone(post(TT.x, TT.z, TT.y - 0.2, 0.1, TT.r + 0.06, TT.r + 0.06, 18), TOWER.verdigris); // the drum's cornice: copper gone green
+  // the drum's cornice: copper gone green (Task D: 3 cm proud, it was 6, so it
+  // lies flush where she climbs up onto the drum's top)
+  stone(post(TT.x, TT.z, TT.y - 0.2, 0.1, TT.r + 0.03, TT.r + 0.03, 18), TOWER.verdigris);
   // a pinnacle on each of the belfry's corners, out beyond its railing (and
   // high over the ledge's ring below): a shaft from under the cornice, a cap
   for (const [x, z, sx, sz] of [[BF.x0, BF.z0, -1, -1], [BF.x1, BF.z0, 1, -1], [BF.x0, BF.z1, -1, 1], [BF.x1, BF.z1, 1, 1]]) {
@@ -1491,7 +1696,9 @@ function drawTower(K, group, M, scene) {
   for (const [x, z, nx, nz] of [[cx, LS.z0, 0, -1], [cx, LS.z1, 0, 1], [LS.x0, cz, -1, 0], [LS.x1, cz, 1, 0]]) {
     const [hw, hd] = nx ? [0.02, 0.55] : [0.55, 0.02];
     painted(box(x - hw + nx * 0.01, x + hw + nx * 0.01, lsy - 0.5, lsy + 0.45, z - hd + nz * 0.01, z + hd + nz * 0.01), 0x16141a);
-    // three louvre slats across it, sloping down and out, lying close on the wall
+    // three louvre slats across it, sloping down and out, lying close on the
+    // wall; none on the face she climbs up past (Task D: they stood in her way)
+    if (climbedFace(LS, x, z, nx, nz)) continue;
     for (const dy of LOUVRE.dy) {
       const slat = new THREE.BoxGeometry(LOUVRE.len, LOUVRE.thick, LOUVRE.depth);
       slat.rotateX(LOUVRE.tilt);
@@ -1509,29 +1716,45 @@ function drawTower(K, group, M, scene) {
   const faces = [];
   const sides = [[BF.x0, cz, -1, 0], [BF.x1, cz, 1, 0], [cx, BF.z0, 0, -1], [cx, BF.z1, 0, 1]];
   for (const [x, z, nx, nz] of sides) {
+    // the face she climbs up (the belfry climb, Task D): a smaller dial lying
+    // flush on the wall, under the cornice, no panel, so nothing stands proud
+    // in her way; the others stand out on their panels
+    const flush = climbedFace(BF, x, z, nx, nz);
+    const [R, CY, P] = flush ? [CLOCK_FLUSH.r, CLOCK_FLUSH.y, CLOCK_FLUSH.proud] : [CLOCK.r, CLOCK.y, CLOCK.proud];
+    const k = R / CLOCK.r; // hands and ticks scaled to the face
+    // a flush dial's pieces pressed toward the wall (their offset from it times CLOCK_FLUSH.press)
+    const press = (g) => {
+      if (!flush) return g;
+      const p = g.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        if (nx) p.setX(i, x + (p.getX(i) - x) * CLOCK_FLUSH.press);
+        else p.setZ(i, z + (p.getZ(i) - z) * CLOCK_FLUSH.press);
+      }
+      return g;
+    };
     const disc = new THREE.CircleGeometry(R, 24);
     disc.rotateY(Math.atan2(nx, nz));
     disc.translate(x + nx * (P + 0.01), CY, z + nz * (P + 0.01));
-    faces.push(disc);
+    faces.push(press(disc));
     // the right of someone looking at the face, and up
     const rx = nz;
     const rz = -nx;
     // the pale stone panel it is set in, standing proud of the wall
     const [i0, i1] = nx ? [x - nx * 0.02, x + nx * P].sort((p, q) => p - q) : [z - nz * 0.02, z + nz * P].sort((p, q) => p - q);
-    if (nx) stone(box(i0, i1, CY - CLOCK.lo, CY + CLOCK.hi, z - CLOCK.half, z + CLOCK.half));
+    if (flush) { /* none */ } else if (nx) stone(box(i0, i1, CY - CLOCK.lo, CY + CLOCK.hi, z - CLOCK.half, z + CLOCK.half));
     else stone(box(x - CLOCK.half, x + CLOCK.half, CY - CLOCK.lo, CY + CLOCK.hi, i0, i1));
     // the dark bezel round the face
     const ring = new THREE.RingGeometry(R, R + CLOCK.bezel, 24);
     ring.rotateY(Math.atan2(nx, nz));
     ring.translate(x + nx * (P + 0.012), CY, z + nz * (P + 0.012));
-    painted(ring, TOWER.bezel);
+    painted(press(ring), TOWER.bezel);
     const at = (theta, rad, off = P + 0.03) => ({ x: x + nx * off + rx * Math.sin(theta) * rad, y: CY + Math.cos(theta) * rad, z: z + nz * off + rz * Math.sin(theta) * rad });
     const centre = at(0, 0);
     const hour = ((7 + 10 / 60) / 12) * Math.PI * 2;
     const minute = (10 / 60) * Math.PI * 2;
-    painted(rod(centre, at(hour, 0.35), 0.035, 5), TOWER.hands);
-    painted(rod(centre, at(minute, 0.52), 0.024, 5), TOWER.hands);
-    for (let i = 0; i < 12; i++) painted(rod(at((i / 12) * Math.PI * 2, 0.5, P + 0.02), at((i / 12) * Math.PI * 2, 0.59, P + 0.02), i % 3 ? 0.014 : 0.026, 4), TOWER.ticks);
+    painted(press(rod(centre, at(hour, 0.35 * k), 0.035, 5)), TOWER.hands);
+    painted(press(rod(centre, at(minute, 0.52 * k), 0.024, 5)), TOWER.hands);
+    for (let i = 0; i < 12; i++) painted(press(rod(at((i / 12) * Math.PI * 2, 0.5 * k, P + 0.02), at((i / 12) * Math.PI * 2, 0.59 * k, P + 0.02), i % 3 ? 0.014 : 0.026, 4)), TOWER.ticks);
   }
   group.add(own('roofsClockFaces', M.clock, faces, { noCast: true, tag: { clockFaces: true } }));
 

@@ -249,6 +249,16 @@ export const ALLEY_CRATES = Object.freeze([
   { x: 9.4, z: 35.0, y: 0, s: 0.6, yaw: -0.3 },
 ].map(Object.freeze));
 
+// Beauty pass, Task D (drawn only, no colliders): the alley's clutter against
+// the garages' doors, clear of every spot she goes to, and the flagstone
+// drainage channel down the alley's middle (flush with the cobbles).
+export const ALLEY_CLUTTER = Object.freeze({
+  bike: Object.freeze({ x: 4.5, z: 34.3 }), // leaning on a garage door, in the spawn's view
+  pallet: Object.freeze({ x: 1.1, z: 34.4 }), // leaning on the next door west
+  tin: Object.freeze({ x: 2.35, z: 34.35 }), // a paint tin beside it
+});
+export const ALLEY_CHANNEL = Object.freeze({ z: 40, half: 0.3, x0: -45.7, x1: 45.7 });
+
 export const ROOFS_COLLIDERS = Object.freeze([
   ALLEY_LAMP, BIN_2, BIN_3, TELESCOPE, VANE_MAST,
   ...WASHING_POSTS.flatMap((p) => [p.z0, p.z1].map((z) => Object.freeze({ x: p.x, z, r: 0.12 }))),
@@ -666,7 +676,7 @@ export const ROOFS_REGISTRATION = Object.freeze({
   pawprints: Object.freeze({ ground: null, path: 'gravel', strip: null }),
   // The measured counts test/budget.test.js and test/roofs.test.js pin:
   // [meshes, casters, triangles] built, [meshes, casters] merged
-  budget: Object.freeze({ built: Object.freeze([113, 68, 33246]), merged: Object.freeze([56, 30]) }),
+  budget: Object.freeze({ built: Object.freeze([113, 68, 33933]), merged: Object.freeze([56, 30]) }),
   // verify-places.html VIEWS.roofs and the card picture (public/places/roofs.jpg)
   view: ROOFS_SHOTS.card,
   // src/marks.js MARK_AREAS and emptyMarks(): add 'roofs'

@@ -24,11 +24,14 @@ vi.stubGlobal('document', {
   exitPointerLock() {},
 });
 
-const { build } = await import('../src/world/roofs.js');
+const { build, ALLEY_WEEDS } = await import('../src/world/roofs.js');
 const {
   BLOCKS, LEVELS, ROOFS_TRAVERSAL, ROOFS_COLLIDERS, YARD, STREETS, VANE, VANE_TIP, ROOFS_SPAWN,
   ROOFS_POIS, ROOFS_COLLECTIBLES, ROOFS_SCENICS, ROOFS_PERCHES, ROOFS_DISCOVERIES, BIN_BAGS,
+  ROOFS_TOURS, ROOFS_REGISTRATION, ALLEY_CLUTTER, ALLEY_CHANNEL, WASHING_POSTS,
 } = await import('../src/world/roofsplan.js');
+const { CAT_RADIUS } = await import('../src/player.js');
+const { createRoofsLife, EVENING_RAMP } = await import('../src/roofslife.js');
 const { STEP_MAX } = await import('../src/ground.js');
 const { findFadeOccluders } = await import('../src/treefade.js');
 const { castsFromBox, isTransparentMat, SUN_POSITION } = await import('../src/render/rig.js');
@@ -36,7 +39,7 @@ const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { clearSpot } = await import('../src/world/spots.js');
 const { BASE_ABILITIES } = await import('../src/traversal.js');
 const { floodTraversal } = await import('./helpers/traversalflood.js');
-const { WINDOW_CELLS } = await import('../src/world/roofsparts.js');
+const { WINDOW_CELLS, markMesh } = await import('../src/world/roofsparts.js');
 
 // =============================================================================
 // The Rooftops drawn (Rooftops step 2). Task 7: part one, the alley and the
@@ -92,8 +95,17 @@ const centreOf = (b) => {
 // four clock faces' pale panels, +48; twelve louvre slats, +144; four
 // pinnacles, +64; the bezels replace the stone rings, the faces and the
 // window atlas cost nothing) -> 113 / 68 / 33,246 (merged 56 / 30).
-const MEASURED_BUILT = { meshes: 113, casters: 68, triangles: 33246 };
-const MEASURED_MERGED = { meshes: 56, casters: 30, triangles: 33246 };
+// Beauty pass Task D (readable hints, a lived-in alley): no mesh and no
+// caster added, every piece in a bucket the place already had, all casting
+// nothing; +687 triangles (the garage doors' ribs, 14 x 3 x 4 = 168; six
+// drainpipes, +96; 23 weed tufts, +69; the bicycle, +122; the pallet, +96;
+// the paint tin, +64; the washing's shapes, 44 -> 112, +68; the tank's plank
+// and rim hoop, +48; the channel and its gully, +4; on the tower, the north
+// clock's panel and the east bell opening's three louvres gone, -48; the
+// glow's amber, ring and evening opacity cost nothing) -> 113 / 68 / 33,933
+// (merged 56 / 30).
+const MEASURED_BUILT = { meshes: 113, casters: 68, triangles: 33933 };
+const MEASURED_MERGED = { meshes: 56, casters: 30, triangles: 33933 };
 const MEASURED_DRAWS = 0;
 const TOWN_TRIANGLES = 4964; // the far town's one mesh (Task A: 3,992 before)
 
@@ -850,18 +862,31 @@ describe('the Rooftops drawn', () => {
     expect(f.material.emissiveIntensity).toBeGreaterThanOrEqual(1.8);
     const pos = f.geometry.attributes.position;
     const v = new THREE.Vector3();
+    // the face she climbs (the belfry climb, Task D): a flush dial, no panel
+    const climbed = new Set(climbedSides(BF).map(sideKey));
+    expect(climbed.size).toBe(1);
     for (const s of sidesOf(BF)) {
       const [x, z, nx, nz] = s;
+      const onClimb = climbed.has(sideKey(s));
       // the face's own vertices on this side: as tall as the belfry's storey allows
       const ys = [];
+      let proud = 0;
       for (let i = 0; i < pos.count; i++) {
         v.fromBufferAttribute(pos, i).applyMatrix4(f.matrixWorld);
-        if ((nx && Math.sign(v.x - x) === nx && Math.abs(v.x - x) < 0.3) || (nz && Math.sign(v.z - z) === nz && Math.abs(v.z - z) < 0.3)) ys.push(v.y);
+        if ((nx && Math.sign(v.x - x) === nx && Math.abs(v.x - x) < 0.3) || (nz && Math.sign(v.z - z) === nz && Math.abs(v.z - z) < 0.3)) {
+          ys.push(v.y);
+          proud = Math.max(proud, nx ? Math.abs(v.x - x) : Math.abs(v.z - z));
+        }
       }
       expect(ys.length, `${nx},${nz}`).toBeGreaterThan(20);
       const lo = Math.min(...ys);
       const hi = Math.max(...ys);
-      expect(hi - lo, `${nx},${nz} diameter`).toBeGreaterThanOrEqual(1.26); // R 0.63 or more (it was 0.55)
+      // R 0.63 or more (it was 0.55); on the climb's face R 0.55, under the cornice
+      expect(hi - lo, `${nx},${nz} diameter`).toBeGreaterThanOrEqual(onClimb ? 1.1 : 1.26);
+      if (onClimb) {
+        expect(proud).toBeLessThan(FLUSH);
+        expect(hi + CLOCK_BEZEL).toBeLessThan(BF.y - 0.22); // clear under the cornice
+      }
       expect(lo).toBeGreaterThan(T1.y);
       expect(hi).toBeLessThan(BF.y);
       const cy = (lo + hi) / 2;
@@ -874,12 +899,13 @@ describe('the Rooftops drawn', () => {
         expect([nx, nz, a, lum(colourAt(hit)) < 0.03]).toEqual([nx, nz, a, true]);
       }
       // in the corners round it, the pale stone panel, paler than the belfry's wall beside it
+      // (on the climb's face, the belfry's own wall: nothing proud there)
       const wall = atWall(s, 2.3, cy);
       expect(wall.object.name).toBe('belfry');
-      for (const [u, w] of [[0.62, 0.6], [-0.62, 0.6], [0.62, -0.6], [-0.62, -0.6]]) {
+      for (const [u, w] of [[0.62, 0.6], [-0.62, 0.6], [0.62, -0.6], [-0.62, -0.6]].map(([p, q]) => (onClimb ? [p, q * 0.92] : [p, q]))) {
         const hit = atWall(s, u, cy + w);
-        expect([nx, nz, u, w, hit.object.name]).toEqual([nx, nz, u, w, 'roofsNorth:stone']);
-        expect(lum(colourAt(hit))).toBeGreaterThan(1.3 * lum(colourAt(wall)));
+        expect([nx, nz, u, w, hit.object.name]).toEqual([nx, nz, u, w, onClimb ? 'belfry' : 'roofsNorth:stone']);
+        if (!onClimb) expect(lum(colourAt(hit))).toBeGreaterThan(1.3 * lum(colourAt(wall)));
       }
     }
   });
@@ -910,11 +936,21 @@ describe('the Rooftops drawn', () => {
     }
   });
 
-  it('each bell opening has three louvre slats across it', () => {
+  it('each bell opening has three louvre slats across it, but the one she climbs past', () => {
     // inside the opening (0.95 m tall), clear of its very edges where the wall shows
     const y0 = (BF.y + LS.y) / 2 - 0.49;
     const y1 = (BF.y + LS.y) / 2 + 0.44;
+    const climbed = new Set(climbedSides(LS).map(sideKey));
+    expect(climbed.size).toBe(1);
     for (const s of sidesOf(LS)) {
+      if (climbed.has(sideKey(s))) {
+        // open (Task D): she climbs up past it, so nothing stands out of its dark
+        for (let i = 0; i <= 80; i++) {
+          const hit = atWall(s, 0.2, y0 + ((y1 - y0) * i) / 80);
+          expect([i, lum(colourAt(hit)) < 0.04, Math.abs(s[2] ? hit.point.x - s[0] : hit.point.z - s[1]) < FLUSH]).toEqual([i, true, true]);
+        }
+        continue;
+      }
       let runs = 0;
       let inSlat = false;
       for (let i = 0; i <= 80; i++) {
@@ -957,6 +993,301 @@ describe('the Rooftops drawn', () => {
       if (!inside(BF, v)) expect(v.y).toBeGreaterThan(T1.y + 0.6);
     }
     for (const n of near) expect(n).toBeGreaterThan(4);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Task C's review: the north clock panel stood 0.1 m proud right where the
+  // belfry climb goes up the wall. Her body is CAT_RADIUS round the straight
+  // path of every climb and drop on the tower (take-off to landing, its height
+  // running from one end's to the other's), from 0.07 to 0.45 m over it. Only
+  // the stages she climbs may be there: their walls, and what lies flush on
+  // them (within FLUSH). Every triangle is sampled, not only its corners.
+  // ---------------------------------------------------------------------------
+  const FLUSH = 0.035; // m: paint lying on a wall, no more proud than this
+  const CLOCK_BEZEL = 0.07;
+  const onTower = (x, z) => x > T1.x0 - 0.2 && x < T1.x1 + 0.2 && z > T1.z0 - 0.2 && z < T1.z1 + 0.2;
+  const towerHops = () => area.traversal.hops.filter((h) => onTower(h.x0, h.z0) || onTower(h.x1, h.z1));
+  // which side of a stage's rectangle a tower hop goes over (the face she climbs)
+  const climbedSides = (r) => sidesOf(r).filter(([x, z, nx, nz]) => towerHops().some((h) => (nx
+    ? (h.x0 - x) * (h.x1 - x) < 0 && Math.abs(h.z0 + ((h.z1 - h.z0) * (x - h.x0)) / (h.x1 - h.x0) - z) < (r.z1 - r.z0) / 2
+    : (h.z0 - z) * (h.z1 - z) < 0 && Math.abs(h.x0 + ((h.x1 - h.x0) * (z - h.z0)) / (h.z1 - h.z0) - x) < (r.x1 - r.x0) / 2)));
+  const sideKey = (s) => `${s[2]},${s[3]}`;
+
+  it('no drawn tower piece stands in her body on a climb or a drop up the tower', () => {
+    const hops = towerHops();
+    expect(hops.map((h) => h.id).sort()).toEqual(['belfry-down', 'belfry-up', 'lanternStage-down', 'lanternStage-up', 'tower-1-down', 'tower-1-up', 'towerTop-down', 'towerTop-up']);
+    // the stages' walls (and the ledge's 0.1 m overhang), each over its own heights
+    const WALLS = [[T1, 0, LEVELS.WAREHOUSE, 12.3], [T1, 0.1, 12.3, T1.y], [BF, 0, T1.y, BF.y], [LS, 0, BF.y, LS.y]];
+    const flush = (p) => WALLS.some(([r, o, y0, y1]) => p.y > y0 - 1e-3 && p.y < y1 + 1e-3
+      && p.x > r.x0 - o - FLUSH && p.x < r.x1 + o + FLUSH && p.z > r.z0 - o - FLUSH && p.z < r.z1 + o + FLUSH)
+      || (p.y > LS.y - 1e-3 && p.y < TT.y + 1e-3 && Math.hypot(p.x - TT.x, p.z - TT.z) < TT.r + FLUSH);
+    const others = meshes.filter((m) => !m.userData.block && !m.name.startsWith('roofsTowerBody') && !m.userData.markRanges
+      && !m.userData.ground && !m.userData.townBand && !m.userData.skyGlow);
+    const lo = new THREE.Vector3(Infinity, Infinity, Infinity);
+    const hi = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+    for (const h of hops) {
+      lo.min(new THREE.Vector3(Math.min(h.x0, h.x1) - CAT_RADIUS, Math.min(h.y0, h.y1), Math.min(h.z0, h.z1) - CAT_RADIUS));
+      hi.max(new THREE.Vector3(Math.max(h.x0, h.x1) + CAT_RADIUS, Math.max(h.y0, h.y1) + 0.45, Math.max(h.z0, h.z1) + CAT_RADIUS));
+    }
+    const near = new THREE.Box3(lo, hi);
+    const bad = [];
+    let sampled = 0;
+    const [a, b, c, p] = [0, 1, 2, 3].map(() => new THREE.Vector3());
+    const tri = new THREE.Box3();
+    for (const m of others) {
+      const pos = m.geometry.attributes.position;
+      const idx = m.geometry.index;
+      const n = idx ? idx.count : pos.count;
+      for (let i = 0; i < n; i += 3) {
+        [a, b, c].forEach((v, j) => v.fromBufferAttribute(pos, idx ? idx.getX(i + j) : i + j).applyMatrix4(m.matrixWorld));
+        tri.setFromPoints([a, b, c]);
+        if (!tri.intersectsBox(near)) continue;
+        const k = Math.min(200, Math.ceil(Math.max(a.distanceTo(b), b.distanceTo(c), c.distanceTo(a)) / 0.015));
+        for (let u = 0; u <= k; u++) {
+          for (let w = 0; u + w <= k; w++) {
+            p.copy(a).addScaledVector(b.clone().sub(a), u / k).addScaledVector(c.clone().sub(a), w / k);
+            if (flush(p)) continue;
+            sampled++;
+            for (const h of hops) {
+              const len2 = (h.x1 - h.x0) ** 2 + (h.z1 - h.z0) ** 2;
+              const t = Math.max(0, Math.min(1, ((p.x - h.x0) * (h.x1 - h.x0) + (p.z - h.z0) * (h.z1 - h.z0)) / len2));
+              const d = Math.hypot(p.x - (h.x0 + (h.x1 - h.x0) * t), p.z - (h.z0 + (h.z1 - h.z0) * t));
+              const y = h.y0 + (h.y1 - h.y0) * t;
+              if (d < CAT_RADIUS && p.y > y + 0.07 && p.y < y + 0.45) bad.push([h.id, m.name, +p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2)]);
+            }
+          }
+        }
+      }
+    }
+    expect(sampled).toBeGreaterThan(1000);
+    expect([...new Map(bad.map((q) => [`${q[0]} ${q[1]}`, q])).values()]).toEqual([]);
+    // the faces she climbs: the belfry's north (the clock) and the lantern stage's east (a bell opening)
+    expect(climbedSides(BF).map(sideKey)).toEqual(['0,-1']);
+    expect(climbedSides(LS).map(sideKey)).toEqual(['1,0']);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Beauty pass, Task D (critique findings 7, 8 and 9): readable hints and a
+  // lived-in alley. Looks only: colliders, perches, rails and hops are the plan's.
+  // ---------------------------------------------------------------------------
+  const srgbHSL = (lin) => new THREE.Color().setRGB(lin.r, lin.g, lin.b).getHSL({}, THREE.SRGBColorSpace);
+
+  it('the take-off glow is warm amber with a faint ring at its rim, brighter at sunset than at dusk', () => {
+    const glow = glowMesh();
+    expect(area.markGlow).toBe(glow);
+    const mat = glow.material;
+    // amber, not the near-white it was (0xffd9a0)
+    const [r, g, b] = [mat.color.getHex() >> 16, (mat.color.getHex() >> 8) & 255, mat.color.getHex() & 255];
+    expect(r > g && g > b && b < 0.5 * r).toBe(true);
+    // its map: full at the middle, nothing at the rim, and a faint ring that rises again near the rim
+    const { data, width, height } = mat.map.image;
+    const row = Array.from({ length: width / 2 }, (_, i) => data[((height / 2) * width + width / 2 + i) * 4 + 3]);
+    expect(row[0]).toBeGreaterThanOrEqual(240);
+    const rise = row.findIndex((q, i) => i > width / 4 && q > row[i - 1] + 3);
+    expect(rise, row.join(',')).toBeGreaterThan(width * 0.25);
+    expect(rise).toBeLessThan(width * 0.48);
+    expect(row[row.length - 1]).toBe(0);
+    // the evening drives its opacity: stronger on the sunlit felt, fainter (under FU2's ceiling) at dusk
+    const { sunset, dusk } = glow.userData.glowOpacity;
+    expect(sunset).toBeGreaterThan(0.36);
+    expect(sunset).toBeLessThanOrEqual(0.45);
+    expect(dusk).toBeLessThanOrEqual(GLOW_OPACITY_MAX);
+    expect(mat.opacity).toBe(dusk);
+    const fog = new THREE.Fog(0x8a5a6a, 40, 140);
+    const life = area.life({ scene: { background: null, fog }, sun: { intensity: 1 }, fill: { intensity: 1 } });
+    expect(mat.opacity).toBeCloseTo(sunset, 6);
+    let last = mat.opacity;
+    for (let t = 0; t < EVENING_RAMP; t += 10) {
+      life.update(10);
+      expect(mat.opacity).toBeLessThanOrEqual(last + 1e-9);
+      last = mat.opacity;
+    }
+    expect(mat.opacity).toBeCloseTo(dusk, 6);
+    // the walk's own material: the shared kit glow (markMesh's) is never moved
+    expect(mat).not.toBe(markMesh('lip', { x0: 0, z0: 0, x1: 1, z1: 0, prop: 'tank' }).children[0].material);
+  });
+
+  it('the tank shows its leap: a plank across its lid to the rim toward the lantern, and a bright hoop at the rim', () => {
+    const TK = BLOCKS.find((q) => q.id === 'tank');
+    const h = area.traversal.hops.find((q) => q.id === 'long-lantern');
+    const dir = [(h.x1 - h.x0) / h.dist, (h.z1 - h.z0) / h.dist];
+    // from just behind the take-off to within 0.1 m of the rim ahead, a plank lies on the lid
+    const rimAhead = TK.r - Math.hypot(h.x0 - TK.x, h.z0 - TK.z);
+    const noGlow = meshes.filter((m) => !m.userData.markGlow);
+    // the lid beside the plank, for its colour
+    const lid = firstHit([h.x0 - dir[1] * 0.5, TK.y + 2, h.z0 + dir[0] * 0.5], [0, -1, 0], noGlow);
+    expect(lid.object.userData.block).toBe('tank');
+    for (let s = -0.4; s <= rimAhead - 0.1; s += 0.05) {
+      const hit = firstHit([h.x0 + dir[0] * s, TK.y + 2, h.z0 + dir[1] * s], [0, -1, 0], noGlow);
+      expect([+s.toFixed(2), hit?.object.name]).toEqual([+s.toFixed(2), 'roofsNorth:paint']);
+      expect(lum(colourAt(hit))).toBeGreaterThan(1.5 * lum(colourAt(lid))); // pale on the dark lid
+      const up = hit.point.y - TK.y;
+      expect(up).toBeGreaterThan(0.005);
+      expect(up).toBeLessThanOrEqual(0.025); // under the take-off's glow (0.03 up), flush
+    }
+    // its iron hoops are dark; the one at the rim, on the lantern's side, is bright
+    const at = (y) => firstHit([TK.x + dir[0] * (TK.r + 2), y, TK.z + dir[1] * (TK.r + 2)], [-dir[0], 0, -dir[1]]);
+    const rim = at(TK.y - 0.035);
+    const low = at(12.43);
+    expect(rim.object.userData.block).toBeUndefined();
+    expect(lum(colourAt(rim))).toBeGreaterThan(3 * lum(colourAt(low)));
+    expect(lum(colourAt(rim))).toBeGreaterThan(0.2);
+  });
+
+  it('the alley has a flagstone channel down its middle, the ground unchanged', () => {
+    const flags = named('roofsGround:flags');
+    expect(flags).toHaveLength(1);
+    for (let x = -40; x <= 40; x += 8) {
+      const mid = firstHit([x, 1, ALLEY_CHANNEL.z + ALLEY_CHANNEL.half * 0.6], [0, -1, 0]); // beside its dark gully
+      expect([x, mid?.object.name]).toEqual([x, 'roofsGround:flags']);
+      expect(mid.point.y).toBeLessThan(0.03);
+      for (const dz of [-ALLEY_CHANNEL.half - 0.5, ALLEY_CHANNEL.half + 0.5]) {
+        expect([x, dz, firstHit([x, 1, ALLEY_CHANNEL.z + dz], [0, -1, 0])?.object.name]).toEqual([x, dz, 'roofsGround:cobble']);
+      }
+      expect(area.ground.y(x, ALLEY_CHANNEL.z)).toBe(0);
+    }
+  });
+
+  it('the garage doors are muted paints, each its own shade, ribbed across, with a drainpipe on every second garage', () => {
+    const G = BLOCKS.find((q) => q.id === 'garages');
+    const doors = Math.floor((G.x1 - G.x0) / 3);
+    const seen = [];
+    // read each door where nothing stands in front of it (the clutter's half-widths)
+    const reach = { bike: 0.9, pallet: 0.65, tin: 0.12 };
+    const clearX = (cx) => [0.3, -0.9, 0.9, -1.0, 1.0].map((d) => cx + d).find((x) => Object.entries(ALLEY_CLUTTER).every(([k, q]) => Math.abs(x - q.x) > reach[k]));
+    for (let i = 0; i < doors; i++) {
+      const cx = G.x0 + 1.5 + 3 * i;
+      const sx = clearX(cx);
+      expect(sx, `door ${i}`).toBeDefined();
+      const hit = firstHit([sx, 0.3, G.z1 + 2], [0, 0, -1]);
+      expect([i, hit?.object.name]).toEqual([i, 'roofsAlley:paint']);
+      const c = colourAt(hit);
+      const hsl = srgbHSL(c);
+      expect([i, hsl.s <= 0.45, hsl.l <= 0.65]).toEqual([i, true, true]);
+      if (seen.length) expect(differs(c, seen[seen.length - 1])).toBe(true);
+      seen.push(c);
+      // the ribs: runs where the door stands proud of its face, up its height
+      let ribs = 0;
+      let inRib = false;
+      for (let y = 0.2; y <= 2.0; y += 0.01) {
+        const z = firstHit([sx, y, G.z1 + 2], [0, 0, -1]).point.z;
+        const proud = z > G.z1 + 0.047;
+        if (proud && !inRib) ribs++;
+        inRib = proud;
+      }
+      expect([i, ribs]).toEqual([i, 3]);
+    }
+    // drainpipes down the garages' front: one per two garages
+    rcB.set(new THREE.Vector3(G.x0 - 1, 1.0, G.z1 + 0.09), new THREE.Vector3(1, 0, 0));
+    rcB.far = 60;
+    const xs = rcB.intersectObjects(named('roofsAlley:ironSmall'), false).map((q) => q.point.x);
+    const pipes = xs.filter((x, i) => i === 0 || x - xs[i - 1] > 0.5);
+    expect(pipes.length).toBeGreaterThanOrEqual(doors / 2);
+  });
+
+  it('a bicycle, a pallet and a paint tin stand against the garages, clear of every spot she goes to', () => {
+    const G = BLOCKS.find((q) => q.id === 'garages');
+    const REG = ROOFS_REGISTRATION;
+    const spots = [
+      ROOFS_SPAWN, ...ROOFS_POIS, ...ROOFS_COLLECTIBLES, ...ROOFS_SCENICS, ...Object.values(ROOFS_DISCOVERIES), ...ROOFS_PERCHES,
+      ...Object.values(REG.propSet).filter(Array.isArray).flat().flatMap((q) => [q, q.fallTo].filter(Boolean)),
+      ...REG.yarnSpots,
+    ].filter((q) => Number.isFinite(q.x) && Number.isFinite(q.z));
+    expect(spots.length).toBeGreaterThan(40);
+    const segs = [];
+    for (const tour of Object.values(ROOFS_TOURS)) {
+      let at = tour.start;
+      for (const s of tour.steps) if (s.walk) { const q = { x: s.walk[0], z: s.walk[1] }; segs.push([at, q]); at = q; }
+    }
+    const segDist = (q, [u, v]) => {
+      const len2 = (v.x - u.x) ** 2 + (v.z - u.z) ** 2 || 1e-9;
+      const t = Math.max(0, Math.min(1, ((q.x - u.x) * (v.x - u.x) + (q.z - u.z) * (v.z - u.z)) / len2));
+      return Math.hypot(q.x - u.x - (v.x - u.x) * t, q.z - u.z - (v.z - u.z) * t);
+    };
+    expect(Object.keys(ALLEY_CLUTTER).sort()).toEqual(['bike', 'pallet', 'tin']);
+    for (const [name, q] of Object.entries(ALLEY_CLUTTER)) {
+      // against the garages' front, in the alley
+      expect([name, q.z - G.z1 > 0 && q.z - G.z1 < 0.6, q.x > G.x0 && q.x < G.x1]).toEqual([name, true, true]);
+      expect(area.ground.y(q.x, q.z)).toBe(0);
+      // clear: of every spot by clearSpot's clearance, of the tours' paths, of every hop's ends, of every collider
+      for (const s of spots) expect([name, s.x, s.z, Math.hypot(q.x - s.x, q.z - s.z) >= 1.6]).toEqual([name, s.x, s.z, true]);
+      for (const sg of segs) expect([name, segDist(q, sg) >= CAT_RADIUS + 0.6]).toEqual([name, true]);
+      for (const h of area.traversal.hops) {
+        for (const [x, z] of [[h.x0, h.z0], [h.x1, h.z1]]) expect([name, h.id, Math.hypot(q.x - x, q.z - z) >= 0.9]).toEqual([name, h.id, true]);
+      }
+      for (const c of area.colliders) expect([name, Math.hypot(q.x - c.x, q.z - c.z) >= c.r + CAT_RADIUS]).toEqual([name, true]);
+      // and it is drawn there, standing up off the cobbles
+      let hits = 0;
+      for (let dx = -0.4; dx <= 0.4; dx += 0.02) {
+        for (let dz = -0.2; dz <= 0.2; dz += 0.02) {
+          const hit = firstHit([q.x + dx, 3, q.z + dz], [0, -1, 0], meshes.filter((m) => m.parent?.name === 'roofsAlley' && !m.userData.block));
+          if (hit && hit.point.y > 0.15 && hit.point.y < 1.3) hits++;
+        }
+      }
+      expect([name, hits > 3]).toEqual([name, true]);
+    }
+    // the colliders and perches are the plan's, as before
+    expect(area.colliders).toEqual(ROOFS_COLLIDERS.map((c) => ({ ...c })));
+    expect(area.perches).toEqual(ROOFS_PERCHES.map((c) => ({ ...c })));
+  });
+
+  it('weeds grow in tufts at the alley walls\' feet', () => {
+    const G = BLOCKS.find((q) => q.id === 'garages');
+    expect(ALLEY_WEEDS.length).toBeGreaterThanOrEqual(20);
+    const kit = named('roofsAlley:stone'); // with the alley's copings: long already
+    expect(kit).toHaveLength(1);
+    const pos = kit[0].geometry.attributes.position;
+    const col = kit[0].geometry.attributes.color;
+    const v = new THREE.Vector3();
+    for (const w of ALLEY_WEEDS) {
+      // at a wall's foot: the garages' front or the alley's far wall
+      expect([w.x, w.z, Math.abs(w.z - G.z1) < 0.3 || Math.abs(w.z - 46) < 0.3]).toEqual([w.x, w.z, true]);
+      let green = 0;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i);
+        if (Math.hypot(v.x - w.x, v.z - w.z) > 0.25 || v.y < 0.05 || v.y > 0.5) continue;
+        if (col.getY(i) > col.getX(i) && col.getY(i) > col.getZ(i)) green++;
+      }
+      expect([w.x, w.z, green >= 2]).toEqual([w.x, w.z, true]);
+    }
+  });
+
+  it('the washing is shirts, trousers, socks, towels and sheets in softened colours, swinging from the line', () => {
+    const items = meshes.filter((m) => m.userData.itemRanges).flatMap((m) => m.userData.itemRanges.map((r) => [m, r]));
+    expect(items.length).toBeGreaterThanOrEqual(20);
+    expect(new Set(items.map(([, r]) => r.kind))).toEqual(new Set(['shirt', 'trousers', 'socks', 'towel', 'sheet']));
+    const lineTop = new Map(ROOFS_TRAVERSAL.crossings.filter((q) => q.kind === 'line').map((q) => [q.id, Math.max(...q.points.map((p) => p.y))]));
+    const yardTop = 1.95;
+    let swinging = 0;
+    const [a, b, c] = [0, 1, 2].map(() => new THREE.Vector3());
+    const n = new THREE.Vector3();
+    for (const [m, r] of items) {
+      const pos = m.geometry.attributes.position;
+      const col = m.geometry.attributes.color;
+      const tris = r.count / 3;
+      if (r.kind === 'shirt' || r.kind === 'trousers') expect([r.id, tris >= 6]).toEqual([r.id, true]);
+      if (r.kind === 'socks') expect([r.id, tris >= 4]).toEqual([r.id, true]);
+      // it hangs from its line, never above it
+      const top = r.line === 'yard' ? yardTop : lineTop.get(r.line);
+      expect(top, r.id).toBeDefined();
+      let maxY = -Infinity;
+      let tilted = false;
+      for (let i = r.start; i < r.start + r.count; i++) {
+        maxY = Math.max(maxY, pos.getY(i));
+        // softened: no colour stronger than a faded paint, nothing pure white
+        const hsl = srgbHSL({ r: col.getX(i), g: col.getY(i), b: col.getZ(i) });
+        if (i === r.start) expect([r.id, hsl.s <= 0.45, hsl.l <= 0.88]).toEqual([r.id, true, true]);
+      }
+      for (let i = r.start; i < r.start + r.count; i += 3) {
+        [a, b, c].forEach((v, j) => v.fromBufferAttribute(pos, i + j));
+        n.subVectors(b, a).cross(c.clone().sub(a)).normalize();
+        if (Math.abs(n.y) > 0.05) tilted = true;
+      }
+      expect([r.id, maxY <= top + 0.02]).toEqual([r.id, true]);
+      if (tilted) swinging++;
+    }
+    expect(swinging).toBeGreaterThanOrEqual(items.length / 2);
+    expect(WASHING_POSTS.length).toBe(4);
   });
 
   it('every POI is in the walk region of the spawn', () => {

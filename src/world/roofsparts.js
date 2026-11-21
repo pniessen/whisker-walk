@@ -280,9 +280,15 @@ for (const k of NAMES) Object.defineProperty(PARTS, k, { enumerable: true, get: 
 // ---------------------------------------------------------------------------
 
 // The glow: a disc 0.45 m across the take-off (it was 0.7), added warm light
-// at 0.28 at its middle fading to nothing at its rim (it was 0.35 all over),
-// so a row of extensions is not dotted and a spot still shows at dusk.
-export const MARK_GLOW = Object.freeze({ radius: 0.45, opacity: 0.28, color: 0xffd9a0 });
+// at its middle fading to nothing at its rim (it was 0.35 all over), so a row
+// of extensions is not dotted and a spot still shows at dusk.
+// Beauty pass, Task D (critique finding 7): warm amber (it was a near-white
+// 0xffd9a0, a puddle on dark felt), a faint ring just inside its rim (RING),
+// and its opacity follows the evening (roofslife.js, on the walk's own copy of
+// the material): 0.42 on the sunlit felt at sunset, 0.26 at dusk. `opacity`
+// is the kit's own (the dusk one).
+export const MARK_GLOW = Object.freeze({ radius: 0.45, opacity: 0.26, sunset: 0.42, dusk: 0.26, color: 0xffb860 });
+const RING = Object.freeze({ at: 0.78, width: 0.085, alpha: 0.32, fade: 0.9 }); // where (of the radius), how wide, how strong, where it fades to the rim
 const GLOW_PX = 32;
 let glowCache = null;
 function glowParts() {
@@ -297,7 +303,8 @@ function glowParts() {
         const d = Math.min(1, Math.hypot((i + 0.5) / GLOW_PX - 0.5, (j + 0.5) / GLOW_PX - 0.5) / 0.47);
         const k = (j * GLOW_PX + i) * 4;
         data[k] = data[k + 1] = data[k + 2] = 255;
-        data[k + 3] = Math.round(255 * (1 - d * d * (3 - 2 * d)));
+        const ring = RING.alpha * Math.exp(-(((d - RING.at) / RING.width) ** 2)) * Math.min(1, Math.max(0, (1 - d) / (1 - RING.fade)));
+        data[k + 3] = Math.round(255 * Math.min(1, 1 - d * d * (3 - 2 * d) + ring));
       }
     }
     const map = new THREE.DataTexture(data, GLOW_PX, GLOW_PX, THREE.RGBAFormat);

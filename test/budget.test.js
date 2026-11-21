@@ -452,7 +452,9 @@ const AREAS = [
   // (houses that differ and real roof edges: no mesh or caster added, +536
   // triangles in the buckets it had); 113 / 68 / 33,246 after Task C (windows
   // and the tower: no mesh or caster added, +328 triangles in the buckets it
-  // had). Held to the territories' ceilings,
+  // had); 113 / 68 / 33,933 after Task D (readable hints and a lived-in
+  // alley: no mesh or caster added, +687 triangles in the buckets it had).
+  // Held to the territories' ceilings,
   // never raised; the place aims for 300 / 120 / 60,000 (test/roofs.test.js
   // pins the exact numbers).
   ['roofs', buildRoofs, 450, 380, 70000],

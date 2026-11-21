@@ -23,6 +23,10 @@
 //     channel by channel from its userData.skyGlow.sunset to .dusk by
 //     eveningAt: warm and strong at sunset, rose and weaker at dusk. It is set
 //     in place, like the fog.
+//   * The take-off glows (roofs.js's merged disc mesh, area.markGlow): their
+//     material's opacity moves from userData.glowOpacity.sunset (strong, on
+//     the sunlit felt) to .dusk (soft, a hint, not a puddle) by eveningAt,
+//     every frame, on the walk's own copy of the material (beauty Task D).
 //
 // THE BUS (busAt) runs along the street below, x from BUS.x0 to BUS.x1 over
 // BUS.run seconds, once every BUS.every; between runs, and while it is inside
@@ -73,7 +77,7 @@ export function busAt(t, out = {}) {
 }
 
 // createRoofsLife(area) -> (ctx) => { update(dt, t), dispose() }. `area` is
-// the built record (its skySunset, skyDusk, skyGlow and bus); ctx is walk.js's life
+// the built record (its skySunset, skyDusk, skyGlow, markGlow and bus); ctx is walk.js's life
 // context ({ scene, sun, fill, ... }).
 export function createRoofsLife(area) {
   return ({ scene, sun, fill }) => {
@@ -85,6 +89,9 @@ export function createRoofsLife(area) {
     const glow = area.skyGlow ?? null;
     const glowFrom = glow?.userData.skyGlow.sunset;
     const glowTo = glow?.userData.skyGlow.dusk;
+    const marks = area.markGlow ?? null;
+    const marksFrom = marks?.userData.glowOpacity.sunset;
+    const marksTo = marks?.userData.glowOpacity.dusk;
     const at = { x: 0, z: 0, visible: false };
     let walk = 0;
     let step = -1;
@@ -113,6 +120,7 @@ export function createRoofsLife(area) {
           glowFrom[2] + (glowTo[2] - glowFrom[2]) * e,
         );
       }
+      if (marks) marks.material.opacity = marksFrom + (marksTo - marksFrom) * e;
       if (bus) {
         busAt(walk, at);
         bus.position.x = at.x;
