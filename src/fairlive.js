@@ -43,6 +43,7 @@ export const NO_FAIR = Object.freeze({
   late() {},
   jump() { return false; },
   canBoard() { return false; },
+  pawKind() { return null; },
   // step 3 (src/fairshow.js): no games, no finds, no visitors anywhere else
   games: null,
   show: null,
@@ -234,6 +235,8 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
 
   function seatCat(seat, cat, player, session) {
     session.perched = seat;
+    // jumped on with the stick still held: it holds her until it is let go (climbing.js stickTakesOff)
+    session.perchHold = player.inputActive ? seat : null;
     player.perchY = seat.y;
     cat.position.set(seat.x, gy(seat.x, seat.z) + seat.y, seat.z);
     cat.rotation.y = seat.yaw;
@@ -293,11 +296,27 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
       return sim.jumpTarget(catAt(cat, player), session.perched ?? null, null)?.type === 'board';
     },
 
+    // pawKind(cat, player, session) → what the jump button would do on a ride
+    // now, for the paw's badge (game/tips.js): 'up' onto a seat (from the
+    // ground, a perch or another seat), 'down' off one (or down the slide),
+    // 'none' when it would do nothing (waiting on the boarding deck or the
+    // coaster's platform for the next one), null when it is not the rides'
+    // business. Asked with no slack: the jump reaches a little further
+    // (RIDE.JUMP_SLACK), so a press always finds the seat the paw promised.
+    pawKind(cat, player, session) {
+      if (hop.on) return 'none';
+      const t = sim.jumpTarget(catAt(cat, player), session.perched ?? null, lastSeat);
+      if (!t) return null;
+      if (t.type === 'board' || t.type === 'hop') return 'up';
+      if (t.type === 'stay') return 'none';
+      return 'down';
+    },
+
     // jump({ cat, player, session }) → true when a ride took the jump.
     jump({ cat, player, session }) {
       if (hop.on) return true; // in the air on the way down: nothing to do
       const from = session.perched ?? null;
-      const t = sim.jumpTarget(catAt(cat, player), from, lastSeat);
+      const t = sim.jumpTarget(catAt(cat, player), from, lastSeat, RIDE.JUMP_SLACK);
       if (!t) return false;
       if (t.type === 'board' || t.type === 'hop') {
         lastSeat = t.type === 'hop' ? riding : null;
@@ -324,6 +343,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
         // off a seat onto one of the area's own perches (the boarding deck)
         riding = null; lastSeat = null; rodeRide = null;
         session.perched = t.perch;
+        session.perchHold = player.inputActive ? t.perch : null;
         player.perchY = t.perch.y;
         cat.position.set(t.perch.x, gy(t.perch.x, t.perch.z) + t.perch.y, t.perch.z);
         player.halt?.();

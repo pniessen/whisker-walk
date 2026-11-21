@@ -51,6 +51,16 @@ function ahead(from, fwd, to) {
   return d < 0.5 || (dx * fwd.x + dz * fwd.z) / d > 0.35;
 }
 
+// What the Fairground's rides would do with the press (src/fairlive.js
+// pawKind): 'up', 'down', 'none' or null (not theirs). Asked from the ground,
+// a perch or a seat alike: on the merry-go-round's platform the press hops
+// up onto a horse, and on the coaster's platform it boards the train, or does
+// nothing while the train is away. Never while the moves are busy.
+function ridePaw(session, player) {
+  if (session.traversal?.busy || !session.fair?.pawKind) return null;
+  return session.fair.pawKind(session.cat, player, session);
+}
+
 // climbInReach(session, player, state) -> true when the paw would climb:
 // a perch in reach from where the cat is (a higher one, when perched), or a
 // seat of one of the Fairground's rides (src/fairlive.js). In the press's own
@@ -59,9 +69,9 @@ function ahead(from, fwd, to) {
 // would take the press (true for a climb-up, false for a leap, a drop, a look
 // or a press on a crossing or mid-hop), then the perches. NO_TRAVERSAL (every
 // shipped area) never takes it.
-export function climbInReach(session, player, state) {
+export function climbInReach(session, player, state, ride = ridePaw(session, player)) {
   if (player.swimming || session.chasing) return false;
-  if (!session.perched && !session.traversal?.busy && session.fair?.canBoard(session.cat, player, session)) return true;
+  if (ride) return ride === 'up';
   const move = session.traversal?.pressKind?.({ cat: session.cat, player, session }) ?? null;
   if (move) return move === 'climb';
   const ground = session.ground ?? FLAT_GROUND;
@@ -78,7 +88,9 @@ export function climbInReach(session, player, state) {
 // the facts the hints use; main.js asks a few times a second.
 export function climbBadge(session, player, state) {
   if (!session?.cat || !session.areaData || session.fight) return null;
-  if (climbInReach(session, player, state)) return 'up';
+  const ride = player.swimming || session.chasing ? null : ridePaw(session, player);
+  if (climbInReach(session, player, state, ride)) return 'up';
+  if (ride) return ride === 'down' ? 'down' : null; // waiting for the next seat: the paw does nothing just now
   return session.perched ? 'down' : null;
 }
 

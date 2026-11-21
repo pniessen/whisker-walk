@@ -329,6 +329,20 @@ function climbFor(budget, perch) {
   return typeof lift === 'number' && Number.isFinite(lift) && lift > base ? lift : base;
 }
 
+// stickTakesOff(session, inputActive) → true when a pushed stick (or a held
+// move key) takes her off the perch she is on: game/avatar.js asks once a
+// frame. Any push does, EXCEPT on the perch a jump has just put her on while
+// the stick was already held (session.perchHold, set by whatever perched her:
+// game/interactions.js, src/fairlive.js). A child runs at a ride and presses
+// jump without letting go; until 2026-11-20 the very next frame took her
+// straight back off (fair-jumps: 0 of 640 such boardings of the
+// merry-go-round stayed on). The held perch keeps her until the stick is let
+// go once; from then on a push takes her off as before.
+export function stickTakesOff(session, inputActive) {
+  if (!inputActive) { session.perchHold = null; return false; }
+  return !!session.perched && session.perched !== session.perchHold;
+}
+
 // canReach(perch, catPos, currentY, budget) — budget defaults to the
 // no-skills baseline, so the three-argument call this function shipped with
 // is byte-for-byte the old behaviour.
