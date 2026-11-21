@@ -13,14 +13,16 @@
 // small marks only; they are ready for step 3, which gives them gates and
 // states.
 //
-// Not on the map: the den (home, a Menu tile), the Rooftops and the House
-// (not built yet), and today's border posts.
+// Not on the map: the den (home, a Menu tile), and the House (not
+// built yet), and today's border posts. The Rooftops is on it, inside the
+// town (TOWN_PLACES), coming soon until its catalog row exists.
 //
 // One thing moves on the world map only: the Moor's camp (WORLD_CAMP_AT).
 // The world map's bigger words leave no room for it on the Moor's north edge
 // beside the name, so it sits in the bend of her river instead. Her board's
 // CAMP_AT is kept.
 import { placeName } from './edition.js';
+import { words } from './wordset.js';
 import { STAR, territoryMapModel, placeState } from './territories.js';
 
 export const WORLD = Object.freeze({ w: 1500, h: 880 });
@@ -39,6 +41,17 @@ export const STREET_PLACES = freezeAll([
 
 // Land colours for the street places, as territories.js's LAND is for hers.
 export const STREET_LAND = Object.freeze({ park: '#b9dc8f', fair: '#e9b7c9', farm: '#e3cf7e', docks: '#b7b9bf', seaside: '#ecdca8' });
+
+// Places inside the town, drawn on top of it: the Rooftops, up the back
+// alley's fire escape (draft 2's "Rooftops"). Its name is read from the word
+// tables by id (placeName knows only catalog areas), so it shows before the
+// catalog has its row.
+export const TOWN_PLACES = freezeAll([
+  { id: 'roofs', areaId: 'roofs', x: 905, y: 458, r: 46 },
+]);
+
+// A roof-slate land colour for them.
+export const TOWN_LAND = Object.freeze({ roofs: '#8e9bb0' });
 
 // The coast, west edge of the sea: the points of a cubic chain,
 // M p0 C p1 p2 p3 C p4 p5 p6 C p7 p8 p9, closed along the world's east and
@@ -72,9 +85,10 @@ export const ISLAND_HIT_R = 46;
 
 // What the world map shows for this save: her board's regions (kind 'board',
 // from territoryMapModel), then the street places (kind 'street'), each with
-// its name from the word tables and its state from placeState.
-export function worldMapModel(state, catalog) {
-  const board = territoryMapModel(state, catalog);
+// its name from the word tables and its state from placeState. touch: as
+// placeState's (the home screen's getIsTouch).
+export function worldMapModel(state, catalog, { touch = false } = {}) {
+  const board = territoryMapModel(state, catalog, { touch });
   const edition = state?.edition;
   const regions = [
     ...board.regions.map((r) => {
@@ -85,6 +99,11 @@ export function worldMapModel(state, catalog) {
       id: p.id, areaId: p.areaId, x: p.x, y: p.y, r: p.r,
       // (a street place the catalog does not have yet is not built)
       kind: 'street', name: placeName(p.areaId, edition, catalog), status: catalog?.areas?.[p.areaId] ? 'built' : 'soon', camp: null,
+      ...placeState(state, catalog, p.areaId, { touch }),
+    })),
+    ...TOWN_PLACES.map((p) => ({
+      id: p.id, areaId: p.areaId, x: p.x, y: p.y, r: p.r,
+      kind: 'town', name: words().PLACE_WORDS[p.id], status: catalog?.areas?.[p.areaId] ? 'built' : 'soon', camp: null,
       ...placeState(state, catalog, p.areaId),
     })),
   ];

@@ -71,6 +71,40 @@ describe('validateTraversal', () => {
   ])('flags %s', (_, spec, message, more = {}) => expect(T.validateTraversal(spec, { ...tctx, ...more })).toContain(message));
 });
 
+describe('validateTraversal, every phrase', () => {
+  const roofA = { x0: -6, z0: 0, x1: -2, z1: 0, width: 4, y0: 3 };
+  const roofB = { x0: 2, z0: 0, x1: 6, z1: 0, width: 4, y0: 3 };
+  const on = (strips, more = {}) => ({ ...ctx, ground: createGround({ strips }), ...more });
+  const gapOf = (from, to, more = {}) => ({ gaps: [{ id: 'g', from, to, ...more }] });
+  const only = (spec, c, phrase) => expect(T.validateTraversal(spec, c)).toEqual([phrase]);
+  // The spec rows: one record, one phrase.
+  it('needs two points or more', () => only({ crossings: [{ ...plank, points: [{ x: -2.4, z: 0, y: 3 }] }] }, ctx, 'crossing p: needs two points or more'));
+  it('has a segment shorter than 0.2 m', () => only({ crossings: [{ ...plank, points: [{ x: -2.4, z: 0, y: 3 }, { x: -1, z: 0, y: 3 }, { x: -0.9, z: 0, y: 3 }, { x: 2.4, z: 0, y: 3 }] }] }, ctx, 'crossing p: has a segment shorter than 0.2 m'));
+  it('is longer than 12 m', () => only({ crossings: [{ ...plank, points: [{ x: -6, z: 0, y: 3 }, { x: 6.5, z: 0, y: 3 }] }] },
+    on([{ x0: -8, z0: 0, x1: 8, z1: 0, width: 4, y0: 3 }]), 'crossing p: is longer than 12 m'));
+  it('does not lie on its roof for its first 0.35 m', () => {
+    // A rail 0.5 m up within the first 0.35 m is also steeper than 1 in 3: the table says two. (The second point is 0.25 m, not 0.2 m, from end 0: -2.2 - -2.4 is a hair under 0.2 in floats and would add the short-segment phrase.)
+    const r = T.validateTraversal({ crossings: [{ ...plank, points: [{ x: -2.4, z: 0, y: 3 }, { x: -2.15, z: 0, y: 3.5 }, { x: 2.4, z: 0, y: 3 }] }] }, ctx);
+    expect(r).toContain('crossing p: does not lie on its roof for its first 0.35 m');
+    expect(r).toEqual(['crossing p: is steeper than 1 in 3', 'crossing p: does not lie on its roof for its first 0.35 m']);
+  });
+  it('unknown requirement', () => only(gapOf({ x: -2.4, z: 0 }, { x: 0.6, z: 0 }, { requires: 'wings' }), on([roofA, { x0: -1, z0: 0, x1: 3, z1: 0, width: 4, y0: 3 }]), 'gap g: unknown requirement'));
+  it('is shorter than 1 m', () => only(gapOf({ x: -2.4, z: 0 }, { x: -3.2, z: 0 }), ctx, 'gap g: is shorter than 1 m'));
+  it('rises more than 1.6 m', () => only(gapOf({ x: -2.5, z: 0 }, { x: -1.2, z: 0 }),
+    on([roofA, { x0: -2, z0: 0, x1: 2, z1: 0, width: 4, y0: 4.8 }]), 'gap g: rises more than 1.6 m'));
+  it('is not a drop', () => only({ drops: [{ id: 'd', from: { x: -4, z: 1 }, to: { x: -4, z: -1 } }] }, ctx, 'drop d: is not a drop'));
+  it('is not a climb', () => only({ climbs: [{ id: 'c', from: { x: -4, z: 1 }, to: { x: -4, z: -1 } }] }, ctx, 'climb c: is not a climb'));
+  const lowRoof = { x0: -6, z0: 0, x1: -2, z1: 0, width: 4, y0: 2 };
+  it('a drop reaches more than 2.5 m', () => only({ drops: [{ id: 'd', from: { x: -2.4, z: 0 }, to: { x: 0.4, z: 0 } }] }, on([lowRoof]), 'drop d: reaches more than 2.5 m'));
+  it('a climb reaches more than 2.5 m', () => only({ climbs: [{ id: 'c', from: { x: 0.4, z: 0 }, to: { x: -2.4, z: 0 } }] }, on([lowRoof]), 'climb c: reaches more than 2.5 m'));
+  it('arc hits the ground', () => only(gapOf({ x: -2.4, z: 0 }, { x: 0.8, z: 0 }),
+    on([roofA, { x0: 0.5, z0: 0, x1: 4.5, z1: 0, width: 4, y0: 3 }, { x0: -1.6, z0: 0, x1: -0.4, z1: 0, width: 4, y0: 6 }]), 'gap g: arc hits the ground'));
+  it('is outside the bounds', () => only(gapOf({ x: 7, z: 0 }, { x: 9.8, z: 0 }), on([{ x0: 6, z0: 0, x1: 10, z1: 0, width: 4, y0: 3 }]), 'gap g: is outside the bounds'));
+  it('is in the water', () => only(gapOf({ x: 2.5, z: 0 }, { x: 5, z: 0 }), { ...ctx, wet: (x) => x > 4 }, 'gap g: is in the water'));
+  it('cannot be walked to from its own level', () => only(gapOf({ x: -3.55, z: 0 }, { x: -0.3, z: 0 }),
+    on([roofA, { x0: -1, z0: 0, x1: 3, z1: 0, width: 4, y0: 3 }, { x0: -4, z0: -2, x1: -4, z1: 2, width: 0.1, y0: 4 }]), 'gap g: cannot be walked to from its own level'));
+});
+
 describe('moveAbilities', () => {
   it('is the base set for any save until step 4 adds the two skills', () => {
     expect(T.moveAbilities({})).toEqual(T.BASE_ABILITIES);
@@ -318,4 +352,50 @@ describe('yaw and stick helpers', () => {
     expect(T.easeYawToward(-3.0, 3.0, 0.1, 5, 1)).toBeLessThan(-3.0);
     expect(T.easeYawToward(0, 1, 0.1, 5, 100)).toBeCloseTo(1 - Math.exp(-0.5), 12);
   });
+});
+
+describe('crossings that share an end', () => {
+  // A and B meet at (0, 0) on a roof at y 3: A runs west, B runs north
+  const roof = createGround({ strips: [{ x0: -6, z0: -3, x1: 6, z1: -3, width: 12, y0: 3 }] });
+  const sharedSpec = { crossings: [
+    { id: 'A', kind: 'ridge', points: [{ x: 0, z: 0, y: 3 }, { x: -4, z: 0, y: 3 }] },
+    { id: 'B', kind: 'ridge', points: [{ x: 0, z: 0, y: 3 }, { x: 0, z: -4, y: 3 }] },
+  ] };
+  const t = T.createTraversal(sharedSpec, roof);
+  const A = t.crossings[0];
+  const out = { crossing: null, end: 0, u: 0 };
+  it('at a shared end the push picks the crossing it points along', () => {
+    expect(T.crossingToMount(t, 0, 0, 3, -1, 0, out).crossing.id).toBe('A');
+    expect(T.crossingToMount(t, 0, 0, 3, 0, -1, out).crossing.id).toBe('B');
+  });
+  it('the end she just left is skipped, not the whole spot', () => {
+    expect(T.crossingToMount(t, 0, 0, 3, 0, -1, out, A, 0).crossing.id).toBe('B');
+    expect(T.crossingToMount(t, 0, 0, 3, -1, 0, out, A, 0)).toBeNull();
+  });
+  it('the alignment bonus is 0.4 m', () => expect(T.MOUNT_ALIGN_BONUS).toBe(0.4));
+  it('when two ends both qualify the better-aligned wins, even if slightly farther', () => {
+    // P leaves (0, 0) east; Q leaves (0, -0.1) 50 degrees north of east. Pushing exactly along Q: P still passes
+    // MOUNT_DOT (cos 50 = 0.64) and is nearer (0 vs 0.1 m), but Q scores 0.1 - 0.4 = -0.30 against P's -0.26.
+    const q = [Math.cos(Math.PI * 50 / 180), -Math.sin(Math.PI * 50 / 180)];
+    const two = T.createTraversal({ crossings: [
+      { id: 'P', kind: 'ridge', points: [{ x: 0, z: 0, y: 3 }, { x: 5, z: 0, y: 3 }] },
+      { id: 'Q', kind: 'ridge', points: [{ x: 0, z: -0.1, y: 3 }, { x: 0 + q[0] * 5, z: -0.1 + q[1] * 5, y: 3 }] },
+    ] }, roof);
+    expect(T.crossingToMount(two, 0, 0, 3, q[0], q[1], out).crossing.id).toBe('Q');
+    // pushed along P, P is both nearer and better aligned
+    expect(T.crossingToMount(two, 0, 0, 3, 1, 0, out).crossing.id).toBe('P');
+  });
+  it('a skipped end that is strictly nearer is never chosen, and the farther end takes the push', () => {
+    // A ends at (0, 0) (inward: south); B leaves (0.3, -0.05) 100 degrees round from that, east. The bisector push
+    // (50 degrees from each) passes MOUNT_DOT for both, and A's end is the nearer one.
+    const b = [Math.sin(Math.PI * 100 / 180), Math.cos(Math.PI * 100 / 180)];
+    const bent = T.createTraversal({ crossings: [
+      { id: 'A', kind: 'ridge', points: [{ x: 0, z: 2.5, y: 3 }, { x: 0, z: 0, y: 3 }] },
+      { id: 'B', kind: 'ridge', points: [{ x: 0.3, z: -0.05, y: 3 }, { x: 0.3 + b[0] * 5, z: -0.05 + b[1] * 5, y: 3 }] },
+    ] }, roof);
+    const push = [Math.sin(Math.PI * 50 / 180), Math.cos(Math.PI * 50 / 180)];
+    expect(T.crossingToMount(bent, 0, 0, 3, push[0], push[1], out).crossing.id).toBe('A');
+    expect(T.crossingToMount(bent, 0, 0, 3, push[0], push[1], out, bent.crossings[0], 1).crossing.id).toBe('B');
+  });
+  it('two crossings may share an end', () => expect(T.validateTraversal(sharedSpec, { ground: roof, bounds: { minX: -10, maxX: 10, minZ: -10, maxZ: 10 } })).toEqual([]));
 });

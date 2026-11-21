@@ -458,30 +458,9 @@ describe('The Old Docks — the eleventh journal critter', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// This wave's characteristic failure has been a fully-built thing that nothing
-// calls. The catalog entry alone is not enough: startWalk indexes an AREAS map
-// in src/game/walk.js, and an area missing from it throws the moment the
-// player presses Walk. walk.js cannot be imported here (it pulls in the whole
-// render stack), so the registration is asserted against the source text.
-// ---------------------------------------------------------------------------
-describe('The Old Docks — actually registered', () => {
-  const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
-
-  it('is imported and present in walk.js’s AREAS map', () => {
-    expect(walkSrc).toMatch(/import \* as docks from '\.\.\/world\/docks\.js';/);
-    const map = walkSrc.match(/const AREAS = \{([^}]*)\}/);
-    expect(map).toBeTruthy();
-    expect(map[1]).toContain('docks');
-  });
-
-  it('has an AREAS entry for every buyable area in the catalog', () => {
-    const map = walkSrc.match(/const AREAS = \{([^}]*)\}/)[1];
-    for (const id of Object.keys(CATALOG.areas)) {
-      expect(map, `area '${id}' is in the catalog but not in walk.js's AREAS`).toContain(id);
-    }
-  });
-});
+// The Old Docks' registration (a catalog place that nothing can build) is
+// test/areas.test.js's: every place a child can walk has a loader, and each
+// loader hands over its own builder.
 
 // ---------------------------------------------------------------------------
 // v20 — the surface/water/wind pilot.
@@ -605,13 +584,11 @@ describe('The Old Docks — the canal is a water surface', () => {
 // ---------------------------------------------------------------------------
 // ...and the same "a fully-built thing that nothing calls" guard the block
 // above applies to the area itself, applied to the four render modules this
-// wave wired in. walk.js and main.js cannot be imported here (they pull in the
-// whole render stack), so it is asserted against the source text — the same
-// technique, for the same reason.
+// wave wired in. walk.js is asserted against its source text here; main.js's
+// frame wiring is tested by behaviour in test/frameorder.test.js.
 // ---------------------------------------------------------------------------
 describe('the surface wave is actually wired up', () => {
   const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
-  const mainSrc = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
 
   it('sets the texture tier before any world geometry is built', () => {
     const setTier = walkSrc.indexOf('setTextureTier(');
@@ -624,18 +601,7 @@ describe('the surface wave is actually wired up', () => {
   });
 
   it('threads the tier and reducedMotion into the area builders', () => {
-    expect(walkSrc).toMatch(/build\(scene, \{ water: \{ quality: tier, reducedMotion \}, wind \}\)/);
-  });
-
-  it('drives the water and the wind on REAL time, never the slow-mo clock', () => {
-    // `wdt` slows critters for a pounce beat. Slowing the canal or the trees
-    // with them reads as the whole world lurching, which is why skyLife and
-    // weather sit on real dt too.
-    expect(mainSrc).toContain('session.water.update(dt)');
-    expect(mainSrc).not.toContain('session.water.update(wdt)');
-    // Wind takes ABSOLUTE elapsed time, not a delta, and takes its intensity
-    // as a hint from weather rather than importing weather itself.
-    expect(mainSrc).toMatch(/session\.wind\.update\(t, session\.weather\.condition === 'rain' \? 1\.7 : 1\)/);
+    expect(walkSrc).toMatch(/build\(scene, \{ water: \{ quality: tier, reducedMotion \}, wind, gateEnds \}\)/);
   });
 
   it('disposes both alongside the other per-walk systems', () => {

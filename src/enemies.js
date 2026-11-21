@@ -15,8 +15,8 @@
 // below). It is callable from a unit test, from the home-base UI and from
 // deep inside the per-frame render loop alike.
 //
-// It is NOT zero-import, and that is deliberate. It imports exactly two
-// modules, both of which are themselves zero-import, so both edges are
+// It is NOT zero-import, and that is deliberate. It imports three
+// modules, all of which are themselves zero-import, so every edge is
 // unconditionally cycle-free. skills.js, for two things this module must not
 // own a second copy of:
 //
@@ -38,9 +38,13 @@
 // And rng.js, for mulberry32/seedFromCode: that module exists precisely so
 // seeded randomness is not re-implemented per caller, and copying it here to
 // preserve a zero-import badge would be the wrong trade.
+//
+// And plainobject.js, the shared untrusted-input guard (zero-import, so it adds
+// no cycle).
 
 import { friendRungs, hasSkill } from './skills.js';
 import { mulberry32, seedFromCode } from './rng.js';
+import { isPlainObject } from './plainobject.js';
 
 // ---------------------------------------------------------------------------
 // Hostile-state coercion
@@ -56,9 +60,6 @@ import { mulberry32, seedFromCode } from './rng.js';
 // ever throw.
 // ---------------------------------------------------------------------------
 
-function isPlainObject(v) {
-  return !!v && typeof v === 'object' && !Array.isArray(v);
-}
 
 // Anything that isn't a plain finite non-negative number reads as 0, so a
 // hostile payload's '9e99', {}, NaN, Infinity or -1 can never satisfy a

@@ -95,6 +95,11 @@ export function takeHeldItemsWithRemotes(remotes, items, localCat, { getClanCats
 // mirrors something she did to the shared world (a tipped pot, a dug treat, a
 // picked-up collectible), with nothing of hers drawn, heard or named.
 const BLOCKED_WORLD_EVENTS = new Set(['tip', 'knock', 'tip-gnome', 'dig', 'collect']);
+// Events a hidden visitor's device may still send unchanged: protocol only,
+// drawing and naming nothing. Her answer to a room's walk-on ask (ruling
+// R17) counts, or a room with a hidden member could never walk on together
+// (crossing.js names her "A friend" if it ever has to name her).
+const BLOCKED_PROTOCOL_EVENTS = new Set(['walk-on-have']);
 // How long after her own boop window an answer is still taken (seconds).
 const BOOP_CONFIRM_GRACE = 4;
 
@@ -102,7 +107,11 @@ const BOOP_CONFIRM_GRACE = 4;
 // (v21 Stream 2). Optional: without it no colony-feed is ever shown.
 // metPlayers (src/metplayers.js): a completed boop marks the other player as
 // met on this device, which is what lets her show in Player pets and as a ghost.
-export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, samples, catVoice, applyGoalResult, getPartner, onBorderCross = () => {}, metPlayers = null }) {
+export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, samples, catVoice, applyGoalResult, getPartner, onBorderCross = () => {},
+  // World map step 3 (Task 9): the room's walk-on (the host's lead), the
+  // host's ask before it, and each friend's answer (src/game/crossing.js).
+  onWalkOn = () => {}, onWalkOnAsk = () => {}, onWalkOnHave = () => {},
+  metPlayers = null }) {
   function petNameFor(s, playerId) {
     return s.remotes.list.find((r) => r.playerId === playerId)?.petName ?? 'A friend';
   }
@@ -227,7 +236,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
   // it too, and our two worlds must stay the same.
   function applyRemoteEvent(s, ev) {
     if (!s || !ev || typeof ev.type !== 'string') return;
-    if (s.isBlocked?.(ev.id)) {
+    if (s.isBlocked?.(ev.id) && !BLOCKED_PROTOCOL_EVENTS.has(ev.type)) {
       if (!BLOCKED_WORLD_EVENTS.has(ev.type)) return;
       ev = { ...ev, quiet: true };
     }
@@ -337,6 +346,9 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
     } else if (ev.type === 'patrol-fight' || ev.type === 'patrol-done') {
       applyRemotePatrol(s, ev);
     } else if (ev.type === 'border-cross') onBorderCross(s, ev);
+    else if (ev.type === 'walk-on') onWalkOn(s, ev);
+    else if (ev.type === 'walk-on-ask') onWalkOnAsk(s, ev);
+    else if (ev.type === 'walk-on-have') onWalkOnHave(s, ev);
   }
 
   // Clan Life Part 2, Task 5 — a co-walker's fight with the visiting clan cat.

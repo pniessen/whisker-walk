@@ -12,8 +12,7 @@ import { BASE_ABILITIES, behindYaw, facingYaw, stickToWorld } from '../../src/tr
 //
 // The importing test file must stub `document` first (test/flattrace.test.js's
 // stub) and load this with `await import(...)`: createPlayer listens on it.
-export function yardWalk({ at, face, viewYaw, abilities = () => BASE_ABILITIES, reducedMotion = false, cat = new THREE.Group() } = {}) {
-  const area = yardArea();
+export function yardWalk({ at, face, viewYaw, abilities = () => BASE_ABILITIES, reducedMotion = false, cat = new THREE.Group(), area = yardArea(), colliders = [] } = {}) {
   const [x, z] = at;
   cat.position.set(x, area.ground.y(x, z), z);
   if (face) cat.rotation.y = facingYaw(face[0], face[1]);
@@ -34,7 +33,7 @@ export function yardWalk({ at, face, viewYaw, abilities = () => BASE_ABILITIES, 
   function frame(dt = 1 / 60) {
     t += dt;
     live.update(dt, t, ctx);
-    player.update(dt, [], area.bounds, []);
+    player.update(dt, colliders, area.bounds, []);
     player.speedFactor = 1; // game/avatar.js writes it after player.update
     cat.rotation.x = 0;
     cat.rotation.z = 0;

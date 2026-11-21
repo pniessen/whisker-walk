@@ -91,21 +91,27 @@ describe('names and prompts', () => {
 describe('crossingOutcome', () => {
   const base = { crossTo: 'moor', catalog: CATALOG, edition: 'canon', together: [] };
   it('solo', () => {
-    const r = crossingOutcome({ ...base, clan: true, pickPlace: () => 'bought' });
+    const r = crossingOutcome({ ...base, clan: true, pick: () => 'bought' });
     expect(r).toEqual({ picked: true, lines: ['Next stop: the Moor! 🧭', "It's picked on your map."] });
   });
   it('host with a friend', () => {
-    const r = crossingOutcome({ ...base, clan: true, together: ['Pip'], pickPlace: () => 'set' });
+    const r = crossingOutcome({ ...base, clan: true, together: ['Pip'], pick: () => 'set' });
     expect(r.lines[2]).toBe('Explore together again from the home screen to head there with Pip.');
   });
   it('guest who could not pick', () => {
-    const r = crossingOutcome({ ...base, clan: true, ledBy: 'Pip', together: ['Pip'], pickPlace: () => false });
-    expect(r).toEqual({ picked: false, lines: ['Pip led the way to the Moor! 🧭', 'Ask Pip to tap Explore on the home screen to head there together.'] });
+    const r = crossingOutcome({ ...base, clan: true, ledBy: 'Pip', together: ['Pip'], pick: () => false });
+    expect(r).toEqual({ picked: false, lines: ['Pip led the way to the Moor! 🧭', 'Ask Pip to click Explore on the home screen to head there together.'] });
+    const t = crossingOutcome({ ...base, clan: true, ledBy: 'Pip', together: ['Pip'], pick: () => false, touch: true });
+    expect(t.lines[1]).toBe('Ask Pip to tap Explore on the home screen to head there together.');
+  });
+  it('a crossing whose pick is false says no picked line', () => {
+    const r = crossingOutcome({ ...base, clan: true, pick: () => false });
+    expect(r).toEqual({ picked: false, lines: ['Next stop: the Moor! 🧭'] });
   });
   it('legacy never picks', () => {
-    const pickPlace = vi.fn();
-    const r = crossingOutcome({ ...base, clan: false, together: ['Pip'], pickPlace, edition: 'legacy' });
-    expect(pickPlace).not.toHaveBeenCalled();
+    const pick = vi.fn();
+    const r = crossingOutcome({ ...base, clan: false, together: ['Pip'], pick, edition: 'legacy' });
+    expect(pick).not.toHaveBeenCalled();
     expect(r.lines).toHaveLength(1);
     expect(r.picked).toBe(false);
   });

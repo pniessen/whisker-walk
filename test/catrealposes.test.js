@@ -43,7 +43,7 @@ function span(obj, from = 0, to = Infinity) {
 describe('the stretch is a play bow (A7)', () => {
   it('the front paws press on the ground, and so do the hind paws', () => {
     for (const [breed, simple] of BUILDS) {
-      for (const feet of [null, 'booties', 'rainboots', 'sneakers', 'socks']) {
+      for (const feet of [null, 'booties', 'rainboots', 'sneakers', 'socks', 'puddlewellies']) {
         const cat = pose(make(breed, simple, { feet }), 'stretch');
         cat.userData.parts.legs.forEach((leg, i) => {
           const low = span(leg).min;
@@ -349,7 +349,7 @@ describe('napping, the cat curls toward its tail and no lump stands behind the h
 });
 
 describe('in the bow a tall boot or sock lies back along the forearm (leftovers)', () => {
-  const TALL = ['rainboots', 'socks'];
+  const TALL = ['rainboots', 'socks', 'puddlewellies'];
   it('standing first, then bowing: each front shell is as low as it is wide, its sole and toe where they were, its shaft back over the wrist; the hind ones stand as built', () => {
     for (const [breed, simple] of BUILDS) for (const feet of TALL) {
       const cat = pose(make(breed, simple, { feet }), 'follow', 0.5);

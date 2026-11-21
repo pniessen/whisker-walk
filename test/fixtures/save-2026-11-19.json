@@ -1,0 +1,172 @@
+{
+  "version": 4,
+  "points": 190,
+  "walks": {
+    "neighborhood": 3,
+    "park": 2,
+    "seaside": 0,
+    "den": 0,
+    "docks": 0,
+    "woods": 0,
+    "river": 0,
+    "moor": 0,
+    "pines": 0,
+    "gorge": 0,
+    "farm": 0,
+    "fair": 0
+  },
+  "unlocked": {
+    "cats": [
+      "tabby",
+      "siamese",
+      "persian",
+      "black",
+      "calico"
+    ],
+    "accessories": [
+      "bell",
+      "bandana",
+      "crown",
+      "backpack",
+      "partycrown"
+    ],
+    "areas": [
+      "neighborhood",
+      "park"
+    ]
+  },
+  "equipped": {
+    "cat": "black",
+    "collar": "bell",
+    "head": "crown",
+    "face": null,
+    "neck": "bandana",
+    "body": null,
+    "back": "backpack",
+    "feet": null,
+    "custom": null
+  },
+  "customCats": [
+    {
+      "id": "mine1",
+      "name": "Mossy",
+      "personality": "keenNose",
+      "look": {
+        "coat": "ginger",
+        "marks": "chocolate",
+        "pattern": "stripes",
+        "fur": "short",
+        "eyes": "green",
+        "size": 1
+      }
+    }
+  ],
+  "outfits": [],
+  "usage": {},
+  "area": "neighborhood",
+  "lifetimePoints": 400,
+  "bestWalk": 37,
+  "friends": {},
+  "petName": "Testpaw",
+  "journal": {},
+  "golden": [
+    "gm-neighborhood-1"
+  ],
+  "streak": {
+    "last": "2026-11-19",
+    "count": 2
+  },
+  "kitten": {
+    "stage": 0
+  },
+  "race": {
+    "date": "2026-11-19",
+    "area": "neighborhood",
+    "bestMs": 41234
+  },
+  "den": {
+    "owned": [],
+    "placed": {}
+  },
+  "skills": [],
+  "feats": {},
+  "duskWalks": 0,
+  "fightsWon": 0,
+  "fightMoves": [],
+  "scars": {},
+  "scarredIntruders": [],
+  "gifts": [],
+  "grudges": [],
+  "colony": {
+    "id": null,
+    "partner": null,
+    "cats": [],
+    "feeds": [],
+    "trades": [],
+    "tradesApplied": [],
+    "rewarded": [],
+    "seen": {
+      "feedKeys": [],
+      "tamed": [],
+      "trades": [],
+      "day": null
+    }
+  },
+  "clanRoles": {
+    "medicine": null,
+    "deputy": null
+  },
+  "clan": {
+    "name": null,
+    "adopted": false
+  },
+  "marks": {
+    "neighborhood": [
+      {
+        "kind": "scratch",
+        "id": "garden-tree-1",
+        "x": 3,
+        "z": 4,
+        "at": 1763500000000,
+        "contested": false,
+        "item": null
+      }
+    ],
+    "park": [],
+    "seaside": [],
+    "docks": [],
+    "woods": [],
+    "river": [],
+    "moor": [],
+    "pines": [],
+    "gorge": [],
+    "farm": [],
+    "fair": [],
+    "den": []
+  },
+  "retired": [
+    "rosa"
+  ],
+  "redeemed": [],
+  "visits": 1,
+  "visitPrizesSeen": 1,
+  "visitPrizePending": "partycrown",
+  "mapMode": "north",
+  "edition": "canon",
+  "clanPick": {
+    "mine": null,
+    "partner": null,
+    "partnerId": null
+  },
+  "keptOffers": [],
+  "tutorial": {
+    "first": null,
+    "camp": false,
+    "hints": {},
+    "told": {
+      "thing": null,
+      "visits": 0
+    }
+  },
+  "foundWear": []
+}

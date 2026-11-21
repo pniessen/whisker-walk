@@ -72,7 +72,25 @@ export const GRAVEL_LOOK = {
   edgeLine: [-0.17, -0.07], edgeLineSoft: 0.02, edgeLineTint: [0.62, 0.60, 0.56],
 };
 
-export const TRAIL_LOOKS = { trail: TRAIL_LOOK, gravel: GRAVEL_LOOK };
+// The Fairground's midway and plaza (fair beauty pass): trodden earth with
+// sawdust strewn on it. Bigger, stronger blotches than a country trail (dry
+// and scuffed patches), a darker trodden margin where it meets the grass,
+// and dense small flecks: golden sawdust chips, a share of them dark crumbs
+// of earth. Same keys as GRAVEL_LOOK, no edging line.
+export const SAWDUST_LOOK = {
+  wobbleA1: 0.16, wobbleL1: 6.0,
+  wobbleA2: 0.07, wobbleL2: 0.9,
+  wobbleA3: 0.04, wobbleL3: 0.32,
+  featherIn: -0.13, featherOut: 0.11,
+  edgeBand: 0.6, edgeTint: [0.8, 0.79, 0.66],
+  centreLift: 0.05,
+  blotch: 0.15, blotchL: 2.4,
+  pebbleCell: 0.2, pebbleChance: 0.34, pebbleRMin: 0.02, pebbleRMax: 0.05,
+  pebbleTint: [1.15, 1.07, 0.86], pebbleRim: 0.93, pebbleMinAlpha: 0.5,
+  pebbleDark: [0.8, 0.7, 0.56], pebbleDarkShare: 0.35,
+};
+
+export const TRAIL_LOOKS = { trail: TRAIL_LOOK, gravel: GRAVEL_LOOK, sawdust: SAWDUST_LOOK };
 
 // A look given by name or as an object, and its name ('custom' if unlisted).
 function lookOf(look) {

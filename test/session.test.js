@@ -61,6 +61,15 @@ describe('createSession', () => {
     expect(Object.isSealed(s)).toBe(false);
   });
 
+  // World map step 3: what walking on through a gate needs on a walk.
+  it('holds the walk-on fields: the room seed, the net removers, the gates, the gate she came by, a walk-on under way', () => {
+    for (const name of ['roomSeed', 'netOffs', 'gates', 'arrivedVia', 'walkingOn']) {
+      expect(SESSION_FIELDS, name).toContain(name);
+    }
+    const offs = [];
+    expect(createSession({ roomSeed: 7, netOffs: offs, arrivedVia: 'farm-park', walkingOn: false })).toMatchObject({ roomSeed: 7, netOffs: offs, arrivedVia: 'farm-park', walkingOn: false });
+  });
+
   it('names no field twice', () => {
     expect(new Set(SESSION_FIELDS).size).toBe(SESSION_FIELDS.length);
     expect(Object.isFrozen(SESSION_FIELDS)).toBe(true);

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   createDiagnostics, describeError, listenForErrors, DIAG_CAPACITY, DIAG_MESSAGE_MAX,
+  DIAG_MEMORY_CAPACITY, diagnostics as record, noteMemory,
 } from '../src/diagnostics.js';
 
 const clockFrom = (start = 1000) => { let t = start; return () => t++; };
@@ -107,6 +108,69 @@ describe('createDiagnostics', () => {
     expect(d.entries()).toHaveLength(0);
     expect(d.total).toBe(0);
     expect(d.version).toBe(v0 + 3);
+  });
+});
+
+describe('memory readings', () => {
+  const info = (geometries, textures, programs) => ({ memory: { geometries, textures }, programs });
+
+  it('keeps the counts from a renderer\'s info, programs as a count', () => {
+    const d = createDiagnostics({ now: clockFrom(500) });
+    d.noteMemory(info(412, 96, new Array(31)));
+    expect(d.memory()).toEqual([{ time: 500, geometries: 412, textures: 96, programs: 31 }]);
+  });
+
+  it('keeps the last few, newest last, and hands out a copy', () => {
+    const d = createDiagnostics({ now: clockFrom() });
+    for (let i = 0; i < DIAG_MEMORY_CAPACITY + 3; i++) d.noteMemory(info(i, 0, []));
+    const list = d.memory();
+    expect(DIAG_MEMORY_CAPACITY).toBe(5);
+    expect(list.map((r) => r.geometries)).toEqual([3, 4, 5, 6, 7]);
+    list.length = 0;
+    expect(d.memory()).toHaveLength(DIAG_MEMORY_CAPACITY);
+  });
+
+  it('a missing or non-finite count is 0', () => {
+    const d = createDiagnostics({ now: clockFrom() });
+    d.noteMemory({});
+    d.noteMemory({ memory: { geometries: NaN, textures: Infinity }, programs: null });
+    d.noteMemory({ memory: { geometries: '7', textures: -Infinity } });
+    for (const r of d.memory()) expect(r).toMatchObject({ geometries: 0, textures: 0, programs: 0 });
+  });
+
+  it('never pushes a failure out, and is not counted as one', () => {
+    const d = createDiagnostics({ capacity: 2, now: clockFrom() });
+    d.note('save', 'could not save');
+    for (let i = 0; i < 50; i++) d.noteMemory(info(i, i, []));
+    expect(d.entries().map((e) => e.message)).toEqual(['could not save']);
+    expect(d.total).toBe(1);
+  });
+
+  it('bumps the version so the readout redraws, and clear() empties it too', () => {
+    const d = createDiagnostics({ now: clockFrom() });
+    const v0 = d.version;
+    d.noteMemory(info(1, 1, []));
+    expect(d.version).toBe(v0 + 1);
+    d.clear();
+    expect(d.memory()).toEqual([]);
+  });
+
+  it('never throws, on any input or a throwing clock', () => {
+    const d = createDiagnostics({ now: clockFrom() });
+    expect(() => d.noteMemory(undefined)).not.toThrow();
+    expect(() => d.noteMemory(null)).not.toThrow();
+    const nasty = { get memory() { throw new Error('boom'); } };
+    expect(() => d.noteMemory(nasty)).not.toThrow();
+    const broken = createDiagnostics({ now: () => { throw new Error('clock'); } });
+    expect(() => broken.noteMemory(info(1, 1, []))).not.toThrow();
+    expect(broken.memory()).toEqual([]);
+  });
+
+  it('the module-level noteMemory goes into the game\'s one record', () => {
+    record.clear();
+    noteMemory(info(3, 2, [1, 2]));
+    expect(record.memory()).toEqual([expect.objectContaining({ geometries: 3, textures: 2, programs: 2 })]);
+    record.clear();
   });
 });
 

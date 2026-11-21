@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, globSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createRooms } from '../src/game/rooms.js';
 import { createFakeHub } from '../src/net.js';
 import { createProgression } from '../src/progression.js';
@@ -44,29 +45,29 @@ describe('found outfits: the wiring', () => {
     expect(w).toContain('onNear: () => audio.findChime?.()');
   });
 
-  it('main.js checks the find each frame, after the golden mice, and runs the nose after the treasure sniff', () => {
+  // The frame checking the find after the golden mice, with the co-walkers and
+  // whether she is busy, in one frame object, and the nose after the
+  // stand-still sniff, is test/frameorder.test.js's.
+  it('main.js routes the find card\'s buttons, Back and the lock to it', () => {
     const m = noComments(read('src/main.js'));
-    expect(m.indexOf('session.find.update(')).toBeGreaterThan(m.indexOf('session.goldMice.checkFind('));
-    expect(m.indexOf('tickFindNose(session, dt, progression.state)')).toBeGreaterThan(m.indexOf('tickAutoSniff(session, dt)'));
     for (const s of ["'btn-find-wear'", "'btn-find-later'", 'findCard?.onLockChange(locked)', "'find-later'", 'rooms.retrackProfile()']) expect(m).toContain(s);
   });
 
-  it('main.js hands the find the remotes array, the busy test and the card the live shadow trim and the sound switches', () => {
+  it('main.js hands the card the live shadow trim and the sound switches, and notes a taken find at once', () => {
     const m = noComments(read('src/main.js'));
-    expect(m).toContain('findFrame.remotes = session.remotes.list');
-    expect(m).toContain('findFrame.busy = findBusy(session)');
     expect(m).toContain('shadowMinPart: (s) => shadowMinPartNow(s.tier, qualityAdapter.status.rung)');
     expect(m).toMatch(/createFindCard\(\{[\s\S]*?getSound: pauseSound/);
     expect(m).toContain('findCard: !!session?.findCard');
     expect(m).toContain('handleFindArrival(session, arrival, { progression, log, hud, audio, card: findCard })');
     // a find taken is noted into the resume note at once, so a resumed walk never gives a second one
     expect(m).toContain('if (arrival && handleFindArrival(session, arrival, { progression, log, hud, audio, card: findCard })) noteWalk();');
-    // one frame object, made once in init(), not per frame
-    expect(m.match(/const findFrame = /g)).toHaveLength(1);
   });
 
   it('nothing in the find code throws its own dice or reads the clock', () => {
-    for (const f of ['src/foundwear/rules.js', 'src/foundwear/live.js', 'src/foundwear/play.js', 'src/foundwear/display.js', 'src/foundwear/spots/index.js', 'src/game/findcard.js']) {
+    // the cat-side found files too (src/cat/foundhead.js ... foundfeet.js)
+    const found = globSync('src/cat/found*.js', { cwd: fileURLToPath(new URL('..', import.meta.url)) }).sort();
+    expect(found).toEqual(expect.arrayContaining(['src/cat/foundhead.js', 'src/cat/foundface.js', 'src/cat/foundneck.js', 'src/cat/foundbody.js', 'src/cat/foundfeet.js']));
+    for (const f of ['src/foundwear/rules.js', 'src/foundwear/live.js', 'src/foundwear/play.js', 'src/foundwear/display.js', 'src/foundwear/spots/index.js', 'src/game/findcard.js', ...found]) {
       expect(noComments(read(f)), f).not.toMatch(/Math\.random|walkRng|Date\.now|performance\.now/);
     }
   });

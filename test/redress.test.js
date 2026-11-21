@@ -103,10 +103,10 @@ describe('redressCat', () => {
   });
 
   it('works for Hagrid and a builder cat', () => {
-    // Hagrid keeps his own body: the Acorn Cap's two meshes sit on his head.
+    // Hagrid keeps his own body: the Acorn Cap (one mesh since the beauty pass) sits on his head.
     const hen = redressCat(buildCat('hagrid', BARE), 'hagrid', { ...BARE, head: 'acorncap' });
-    const cap = hen.userData.parts.head.children.filter((o) => o.isMesh && [0x8a5a2b, 0x5a3a1c].includes(o.material?.color?.getHex?.()));
-    expect(cap).toHaveLength(2);
+    const cap = hen.userData.parts.head.children.filter((o) => o.isMesh && o.userData.foundWear === 'acorncap');
+    expect(cap).toHaveLength(1);
     expect(hen.userData.breed).toBe('hagrid');
     expect(fingerprintCat(posed(hen))).toEqual(fingerprintCat(posed(buildCat('hagrid', { ...BARE, head: 'acorncap' }))));
     // A custom look keeps its coat.

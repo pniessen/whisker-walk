@@ -392,9 +392,8 @@ describe('wired into the game', () => {
     expect(call).not.toMatch(/walkRng|Math\.random/);
   });
 
-  it('the frame loop moves them after the player, and a meow reaches them', () => {
-    const main = read('main.js');
-    expect(main.indexOf('session.farm.update(')).toBeGreaterThan(main.indexOf('player.update(dt, session.areaData.colliders'));
+  // The frame loop moving them after the player is test/frameorder.test.js's.
+  it('a meow reaches them', () => {
     expect(read('game/interactions.js')).toMatch(/session\.farm\?\.reactToMeow\(session\.cat\.position\)/);
     expect(read('game/netevents.js')).toMatch(/s\.farm\?\.reactToMeow\(pos\)/);
   });

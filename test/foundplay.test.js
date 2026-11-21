@@ -155,6 +155,44 @@ describe('found outfits: giving the find', () => {
     expect(p2.state.equipped.head).toBe(null);
   });
 
+  it('handleFindArrival: picking a find up herself marks the find hint known; a partner\'s pick-up does not', () => {
+    const p1 = createProgression(fakeStorage());
+    const log1 = createDiscoveryLog(p1);
+    log1.startWalk();
+    const s = { cat: { position: { x: 0, y: 0, z: 0 } }, fx: { burst: vi.fn() }, find: findOf({ kind: 'wear', id: 'acorncap' }) };
+    const deps = { progression: p1, log: log1, hud: { toast: vi.fn() }, audio: { fanfare: vi.fn() }, card: { show: vi.fn() } };
+    expect(p1.state.tutorial.hints.find ?? 0).toBe(0);
+    handleFindArrival(s, { by: 'me' }, deps);
+    expect(p1.state.tutorial.hints.find).toBeGreaterThanOrEqual(1);
+    const p2 = createProgression(fakeStorage());
+    const log2 = createDiscoveryLog(p2);
+    log2.startWalk();
+    s.find = findOf({ kind: 'wear', id: 'acorncap' });
+    handleFindArrival(s, { by: 'partner', petName: 'Robin' }, { ...deps, progression: p2, log: log2 });
+    expect(p2.state.tutorial.hints.find ?? 0).toBe(0);
+  });
+
+  it('handleFindArrival: her own pick-up takes the find line down (tip:did find); a partner\'s does not', () => {
+    const seen = [];
+    const off = bus.on('tip:did', (e) => seen.push(e.id));
+    try {
+      const mk = () => {
+        const pr = createProgression(fakeStorage());
+        const lg = createDiscoveryLog(pr);
+        lg.startWalk();
+        return { progression: pr, log: lg, hud: { toast: vi.fn() }, audio: { fanfare: vi.fn() }, card: { show: vi.fn() } };
+      };
+      const s = { cat: { position: { x: 0, y: 0, z: 0 } }, fx: { burst: vi.fn() }, find: findOf({ kind: 'wear', id: 'acorncap' }) };
+      handleFindArrival(s, { by: 'partner', petName: 'Robin' }, mk());
+      expect(seen).toEqual([]);
+      s.find = findOf({ kind: 'wear', id: 'acorncap' });
+      handleFindArrival(s, { by: 'me' }, mk());
+      expect(seen).toEqual(['find']);
+    } finally {
+      if (typeof off === 'function') off();
+    }
+  });
+
   it('handleFindArrival reads the walk\'s own find, and does nothing once it has been given', () => {
     const find = findOf({ kind: 'pouch' });
     const s = { cat: { position: { x: 0, y: 0, z: 0 } }, fx: { burst: vi.fn() }, find };

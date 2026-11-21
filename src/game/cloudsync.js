@@ -19,8 +19,13 @@ import { toastLifeMs } from '../ui/toastlife.js';
 // as long as its words need (toastLifeMs); a tap holds it for a fresh spell,
 // a second tap lets it go. The container is a polite live region (index.html).
 export const CLOUD_TOAST_FADE_MS = 800;
+// The same words while they are already up are not stacked a second time (a
+// repeat tap that fails the same way says the same line once).
 export function createCloudToast(container) {
+  const up = new Set();
   return function cloudToast(text) {
+    if (up.has(text)) return;
+    up.add(text);
     const el = document.createElement('div');
     el.className = 'toast';
     el.textContent = text;
@@ -30,7 +35,7 @@ export function createCloudToast(container) {
     const go = () => {
       clearTimeout(fadeTimer);
       el.classList.add('fade');
-      setTimeout(() => el.remove(), CLOUD_TOAST_FADE_MS);
+      setTimeout(() => { el.remove(); up.delete(text); }, CLOUD_TOAST_FADE_MS);
     };
     const live = () => { clearTimeout(fadeTimer); fadeTimer = setTimeout(go, toastLifeMs(text)); };
     el.addEventListener?.('click', () => { if (held) go(); else { held = true; live(); } });

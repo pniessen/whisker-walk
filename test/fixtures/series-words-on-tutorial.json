@@ -45,6 +45,18 @@
    "touch": "Yarn balls lie around now. Find one! 🧶",
    "keys": "Yarn balls lie around now. Find one! 🧶"
   },
+  "hint.find": {
+   "touch": "Something is twinkling! Go and see.",
+   "keys": "Something is twinkling! Go and see."
+  },
+  "hint.find-kept": {
+   "touch": "It's yours to keep! Change clothes in Dress up.",
+   "keys": "It's yours to keep! Change clothes in Dress up."
+  },
+  "hint.map": {
+   "touch": "Tap a place to see it. Pinch to zoom.",
+   "keys": "Click a place to see it. Scroll to zoom."
+  },
   "hint.call": {
    "touch": "Tap 😺 to call a cat over.",
    "keys": "Press V to call a cat over."
@@ -139,15 +151,15 @@
   },
   "home.present": {
    "touch": "Tap the present! 🎁",
-   "keys": "Tap the present! 🎁"
+   "keys": "Click the present! 🎁"
   },
   "home.first": {
    "touch": "A friend is waiting outside. Tap Explore!",
-   "keys": "A friend is waiting outside. Tap Explore!"
+   "keys": "A friend is waiting outside. Click Explore!"
   },
   "home.part": {
    "touch": "{name} has more to show you. Tap Explore!",
-   "keys": "{name} has more to show you. Tap Explore!"
+   "keys": "{name} has more to show you. Click Explore!"
   },
   "home.pick": {
    "touch": "The wild cats have seen you. Pick your home!",
@@ -175,7 +187,7 @@
   },
   "home.wear": {
    "touch": "You have enough for the {thing}. Tap Dress up!",
-   "keys": "You have enough for the {thing}. Tap Dress up!"
+   "keys": "You have enough for the {thing}. Click Dress up!"
   },
   "home.feed": {
    "touch": "Feed {name} again: {n} of 6.",
@@ -199,7 +211,7 @@
   },
   "home.part-friend": {
    "touch": "Your friend has more to show you. Tap Explore!",
-   "keys": "Your friend has more to show you. Tap Explore!"
+   "keys": "Your friend has more to show you. Click Explore!"
   },
   "guide.walk": {
    "touch": "Push the circle to walk.",
@@ -292,6 +304,10 @@
   "settings.tips": {
    "touch": "Show tips",
    "keys": "Show tips"
+  },
+  "settings.save-failed": {
+   "touch": "This device could not save. Free up space, then play again.",
+   "keys": "This device could not save. Free up space, then play again."
   }
  },
  "slotsFilledWith": {
@@ -347,6 +363,18 @@
   "hint.tkey": {
    "touch": "Yarn balls lie around now. Find one! 🧶",
    "keys": "Yarn balls lie around now. Find one! 🧶"
+  },
+  "hint.find": {
+   "touch": "Something is twinkling! Go and see.",
+   "keys": "Something is twinkling! Go and see."
+  },
+  "hint.find-kept": {
+   "touch": "It's yours to keep! Change clothes in Dress up.",
+   "keys": "It's yours to keep! Change clothes in Dress up."
+  },
+  "hint.map": {
+   "touch": "Tap a place to see it. Pinch to zoom.",
+   "keys": "Click a place to see it. Scroll to zoom."
   },
   "hint.call": {
    "touch": "Tap 😺 to call a cat over.",
@@ -442,15 +470,15 @@
   },
   "home.present": {
    "touch": "Tap the present! 🎁",
-   "keys": "Tap the present! 🎁"
+   "keys": "Click the present! 🎁"
   },
   "home.first": {
    "touch": "A friend is waiting outside. Tap Explore!",
-   "keys": "A friend is waiting outside. Tap Explore!"
+   "keys": "A friend is waiting outside. Click Explore!"
   },
   "home.part": {
    "touch": "Conkerbelly has more to show you. Tap Explore!",
-   "keys": "Conkerbelly has more to show you. Tap Explore!"
+   "keys": "Conkerbelly has more to show you. Click Explore!"
   },
   "home.pick": {
    "touch": "The wild cats have seen you. Pick your home!",
@@ -478,7 +506,7 @@
   },
   "home.wear": {
    "touch": "You have enough for the Clan War Paint. Tap Dress up!",
-   "keys": "You have enough for the Clan War Paint. Tap Dress up!"
+   "keys": "You have enough for the Clan War Paint. Click Dress up!"
   },
   "home.feed": {
    "touch": "Feed Conkerbelly again: 3 of 6.",
@@ -502,7 +530,7 @@
   },
   "home.part-friend": {
    "touch": "Your friend has more to show you. Tap Explore!",
-   "keys": "Your friend has more to show you. Tap Explore!"
+   "keys": "Your friend has more to show you. Click Explore!"
   },
   "guide.walk": {
    "touch": "Push the circle to walk.",
@@ -595,14 +623,18 @@
   "settings.tips": {
    "touch": "Show tips",
    "keys": "Show tips"
+  },
+  "settings.save-failed": {
+   "touch": "This device could not save. Free up space, then play again.",
+   "keys": "This device could not save. Free up space, then play again."
   }
  },
  "nextThing": {
   "clanEdition": {
-   "presentWaiting": "rule 1: Tap the present! 🎁",
-   "noWalkYet": "rule 2: A friend is waiting outside. Tap Explore!",
-   "firstWalkHalfDone": "rule 3: Pickles has more to show you. Tap Explore!",
-   "firstWalkHalfDoneNoName": "rule 3: Your friend has more to show you. Tap Explore!",
+   "presentWaiting": "rule 1: Click the present! 🎁",
+   "noWalkYet": "rule 2: A friend is waiting outside. Click Explore!",
+   "firstWalkHalfDone": "rule 3: Pickles has more to show you. Click Explore!",
+   "firstWalkHalfDoneNoName": "rule 3: Your friend has more to show you. Click Explore!",
    "pickIsReady": "rule 4: The wild cats have seen you. Pick your home!",
    "newHome": {
     "woods": "rule 5: Your new home is the Woods. Go and see your camp!",
@@ -630,7 +662,7 @@
     "pines": "rule 7: Explore here again to open the Pines and Swamp!",
     "gorge": "rule 7: Explore here again to open the Gorge!"
    },
-   "canBuy": "rule 8: You have enough for the Cozy Beanie. Tap Dress up!",
+   "canBuy": "rule 8: You have enough for the Cozy Beanie. Click Dress up!",
    "feedAgain": "rule 9: Feed Pickles again: 3 of 6.",
    "nearlyEnough": "rule 10: 12 more 🐾 and the Cozy Beanie is yours.",
    "waitingInTheDen": "rule 11: Pickles is waiting in your den.",
@@ -638,10 +670,10 @@
    "lastRank": "rule 12: Your cat is ready to explore."
   },
   "legacyEdition": {
-   "presentWaiting": "rule 1: Tap the present! 🎁",
-   "noWalkYet": "rule 2: A friend is waiting outside. Tap Explore!",
-   "firstWalkHalfDone": "rule 3: Pickles has more to show you. Tap Explore!",
-   "firstWalkHalfDoneNoName": "rule 3: Your friend has more to show you. Tap Explore!",
+   "presentWaiting": "rule 1: Click the present! 🎁",
+   "noWalkYet": "rule 2: A friend is waiting outside. Click Explore!",
+   "firstWalkHalfDone": "rule 3: Pickles has more to show you. Click Explore!",
+   "firstWalkHalfDoneNoName": "rule 3: Your friend has more to show you. Click Explore!",
    "pickIsReady": "rule 12: 150 🐾 more to become a Yard Prowler.",
    "newHome": {
     "woods": "rule 12: 150 🐾 more to become a Yard Prowler.",
@@ -669,7 +701,7 @@
     "pines": "rule 12: 150 🐾 more to become a Yard Prowler.",
     "gorge": "rule 12: 150 🐾 more to become a Yard Prowler."
    },
-   "canBuy": "rule 8: You have enough for the Cozy Beanie. Tap Dress up!",
+   "canBuy": "rule 8: You have enough for the Cozy Beanie. Click Dress up!",
    "feedAgain": "rule 9: Feed Pickles again: 3 of 6.",
    "nearlyEnough": "rule 10: 12 more 🐾 and the Cozy Beanie is yours.",
    "waitingInTheDen": "rule 11: Pickles is waiting in your den.",

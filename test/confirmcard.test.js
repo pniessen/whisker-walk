@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 
 // The home base's WebGL pieces can't run in node (as in homebase.visits.test.js).
-vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
+vi.mock('../src/thumbnails.js', () => ({ fillFoundThumbs: () => {}, menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
 const dressingMock = vi.hoisted(() => ({ opts: null }));
 vi.mock('../src/ui/dressingroomview.js', () => ({
@@ -17,7 +17,7 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
   },
 }));
 
-const { confirmCardHtml, createConfirmCard, spendAsk } = await import('../src/ui/confirmcard.js');
+const { confirmCardHtml, createConfirmCard, spendAsk, deliberateTap } = await import('../src/ui/confirmcard.js');
 const { CONFIRM_DELAY_MS } = await import('../src/ui/colonypanel.js');
 const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression, BACKUP_KEYS } = await import('../src/progression.js');
@@ -303,5 +303,21 @@ describe('the home base uses it', () => {
     const btn = { getAttribute: () => '__proto__' };
     await click({ closest: (sel) => (sel === '[data-backup-restore]' ? btn : null) });
     expect(card()).toBeUndefined();
+  });
+});
+
+describe('deliberateTap: the one rule for a "Get it?" Yes', () => {
+  it('a single click or an Enter, once the card has been up long enough', () => {
+    expect(deliberateTap({ detail: 1, shownAt: 1000, now: 1000 + CONFIRM_DELAY_MS })).toBe(true);
+    expect(deliberateTap({ detail: 0, shownAt: 1000, now: 1000 + CONFIRM_DELAY_MS })).toBe(true);
+  });
+  it('never too soon, never the tail of a double-tap', () => {
+    expect(deliberateTap({ detail: 1, shownAt: 1000, now: 1000 + CONFIRM_DELAY_MS - 1 })).toBe(false);
+    expect(deliberateTap({ detail: 2, shownAt: 1000, now: 9000 })).toBe(false);
+  });
+  it('fails closed on a missing or odd time', () => {
+    expect(deliberateTap()).toBe(false);
+    expect(deliberateTap({ detail: 1, shownAt: NaN, now: 9000 })).toBe(false);
+    expect(deliberateTap({ detail: 1, shownAt: 1000, now: undefined })).toBe(false);
   });
 });

@@ -60,7 +60,7 @@ vi.mock('@supabase/supabase-js', () => {
     },
   };
 });
-vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
+vi.mock('../src/thumbnails.js', () => ({ fillFoundThumbs: () => {}, menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
 const dressingMock = vi.hoisted(() => ({ opts: null }));
 vi.mock('../src/ui/dressingroomview.js', () => ({
@@ -378,12 +378,12 @@ describe('a device already online behaves as before', () => {
     const f = spy.rpc.find((c) => c.name === 'friendships_of');
     expect(f.args).toEqual({ p_player_id: PID, p_secret: g.getPsecret() });
   });
-  it('with a walking name: Play together fills the friends list from the database', async () => {
+  it('with a walking name: My clan fills the friends list from the database', async () => {
     const g = boot({ petName: 'Mittens' });
     spy.answers.friendships_of = [];
     spy.answers.colony_sync = { status: 'unpaired' };
     g.homebase.show();
-    openSheet('together');
+    openSheet('colony');
     await settle();
     expect(rpcNames()).toContain('friendships_of');
   });
@@ -560,7 +560,11 @@ describe('where the network can start', () => {
     expect(main.match(/\bonlineAllowed\b/g)).toHaveLength(5); // a comment, the destructure, rooms, the nearby search, the pets list
     expect(main).toContain("getName: () => progression.state.petName,\n    onlineAllowed,\n  });");
     expect(main).toContain('sync.autoSync(); // fire-and-forget; no-op when unlinked/offline');
-    expect(main).not.toMatch(/fetch\(|createClient|getSupabaseClient|new WebSocket/);
+    // (main.js calling fetch() itself is test/frameorder.test.js's: it boots
+    // main.js headless with fetch stubbed, and the frame runs without it. Its
+    // text now holds areas.prefetch(), the area loader's, which this pin read
+    // as a fetch.)
+    expect(main).not.toMatch(/createClient|getSupabaseClient|new WebSocket/);
   });
   it('only cloudsync.js and rooms.js can make a cloud or a transport, and only net.js a client', () => {
     const files = ['main.js', 'game/walk.js', 'game/netevents.js', 'game/interactions.js', 'game/colonysync.js',

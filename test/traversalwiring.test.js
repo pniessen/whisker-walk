@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 
 // Headless document stub (test/traversallive.test.js's): createPlayer listens on it.
 vi.stubGlobal('document', {
@@ -44,7 +44,6 @@ const { yardWalk } = await import('./helpers/traversalwalk.js');
 
 const read = (p) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8');
 const walk = read('game/walk.js');
-const main = read('main.js');
 
 it('the session has a traversal field', () => expect(SESSION_FIELDS).toContain('traversal'));
 
@@ -56,42 +55,21 @@ it('walk.js builds it only for an area that places moves, and disposes it', () =
   expect(walk.indexOf('session.traversal?.dispose();')).toBeGreaterThan(walk.indexOf('session.fair?.dispose();'));
 });
 
-it('main.js runs it before the player moves and touches her up after she is posed', () => {
-  const up = main.indexOf('session.traversal.update(dt, t, moveCtx);');
-  const move = main.indexOf('player.update(dt, session.areaData.colliders');
-  expect(up).toBeGreaterThan(-1);
-  expect(main.indexOf('player.update(dt, session.areaData.colliders', move + 1)).toBe(-1); // the one walk move
-  // inside the engaged block that holds player.update, with nothing closing it in between
-  const engaged = main.lastIndexOf('if (player.engaged) {', move);
-  expect(engaged).toBeGreaterThan(-1);
-  expect(up).toBeGreaterThan(engaged);
-  expect(up).toBeLessThan(move);
-  expect(main.slice(engaged, move)).not.toMatch(/\n {4}\}/);
-  expect(main.indexOf('session.traversal.late(')).toBeGreaterThan(main.indexOf('session.fair.late('));
-  expect(main.indexOf('session.traversal.late(')).toBeLessThan(main.indexOf('updateInteractions(session);'));
-  expect(main).toContain('session.traversal.late(dt, t, moveCtx);');
-});
-
-it('main.js hands the moves one context object, made once outside the frame', () => {
-  const made = main.indexOf('const moveCtx = { cat: null, player, session: null };');
-  expect(made).toBeGreaterThan(-1);
-  expect(made).toBeLessThan(main.indexOf('renderer.setAnimationLoop(() => {'));
-  expect(main.match(/const moveCtx\b/g)).toHaveLength(1);
-  // no fresh object literal at either call
-  expect(main).not.toMatch(/session\.traversal\.(update|late)\([^)]*\{/);
-  // refreshed right before each call
-  for (const call of ['session.traversal.update(dt, t, moveCtx);', 'session.traversal.late(dt, t, moveCtx);']) {
-    const at = main.indexOf(call);
-    expect(main.slice(at - 120, at)).toMatch(/moveCtx\.cat = session\.cat;\s+moveCtx\.session = session;\s+$/);
+it('only the Rooftops places moves', async () => {
+  // Every place a walk can go (a fresh save's walks, the den included), each
+  // built as walk.js builds it: only the Rooftops' record has `traversal`.
+  const ids = Object.keys(createProgression({ getItem: () => null, setItem() {} }).state.walks);
+  expect(ids.length).toBeGreaterThan(10);
+  const withMoves = [];
+  for (const id of ids) {
+    const { build } = await import(`../src/world/${id}.js`);
+    const record = build(new THREE.Scene());
+    if (record.traversal !== undefined) withMoves.push(id);
   }
-});
-
-it('no shipped area places moves yet', () => {
-  const files = readdirSync(new URL('../src/world/', import.meta.url)).filter((n) => n.endsWith('.js') && n !== 'traversalyard.js');
-  expect(files.length).toBeGreaterThan(10);
-  for (const f of files) {
-    expect(read(`world/${f}`), f).not.toMatch(/\btraversal\s*:/);
-  }
+  expect(withMoves).toEqual(['roofs']);
+  // the plan's roofsArea(), that roofs.js builds from, places them too
+  const { roofsArea } = await import('../src/world/roofsplan.js');
+  expect(roofsArea().traversal.hops.length).toBeGreaterThan(0);
 });
 
 // ---------------------------------------------------------------------------
@@ -401,21 +379,27 @@ describe("the paw's climb badge", () => {
 
   it('in the press’s own order: a ride’s seat before the moves, never while they are busy', () => {
     const l = yardWalk({ at: [3, -7.0], face: [0, 1] });
-    const canBoard = vi.fn(() => true);
-    const fair = { canBoard };
+    const pawKind = vi.fn(() => 'up');
+    const fair = { pawKind };
     // the press would board the ride before the moves could leap, so the badge says up
     expect(l.live.pressKind(l.ctx)).toBe('leap');
     expect(climbBadge({ ...badgeSession(l), fair }, l.player, state)).toBe('up');
-    expect(canBoard).toHaveBeenCalledWith(l.cat, l.player, expect.objectContaining({ fair }));
+    expect(pawKind).toHaveBeenCalledWith(l.cat, l.player, expect.objectContaining({ fair }));
     // mid-hop the press boards nothing, and the badge says nothing; the ride is not asked
     l.jump();
-    canBoard.mockClear();
+    pawKind.mockClear();
     expect(climbBadge({ ...badgeSession(l), fair }, l.player, state)).toBeNull();
-    expect(canBoard).not.toHaveBeenCalled();
+    expect(pawKind).not.toHaveBeenCalled();
     // NO_TRAVERSAL (every shipped area): a seat in reach is up, none is nothing, as before
     const n = { ...badgeSession(l), traversal: NO_TRAVERSAL };
     expect(climbBadge({ ...n, fair }, l.player, state)).toBe('up');
-    expect(climbBadge({ ...n, fair: { canBoard: () => false } }, l.player, state)).toBeNull();
-    expect(climbBadge({ ...n, perched: { y: 1 }, fair }, l.player, state)).toBe('down'); // a seat is boarded from the ground only
+    expect(climbBadge({ ...n, fair: { pawKind: () => null } }, l.player, state)).toBeNull();
+    expect(climbBadge({ ...n, perched: { y: 1 }, fair: { pawKind: () => null } }, l.player, state)).toBe('down'); // not the rides': hop down
+    // on a perch or a seat the rides answer too (fair-jumps, 2026-11-20): the
+    // coaster's platform with the train in is up, a horse's next hop is up,
+    // waiting for the train is nothing at all, and getting off a seat is down
+    expect(climbBadge({ ...n, perched: { y: 1 }, fair }, l.player, state)).toBe('up');
+    expect(climbBadge({ ...n, perched: { y: 1 }, fair: { pawKind: () => 'none' } }, l.player, state)).toBeNull();
+    expect(climbBadge({ ...n, perched: { y: 1 }, fair: { pawKind: () => 'down' } }, l.player, state)).toBe('down');
   });
 });

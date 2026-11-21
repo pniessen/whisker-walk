@@ -121,16 +121,21 @@ export function createBackStack({ hist, depth, closeTop, later = () => null, can
 // What Back does during a walk (main.js carries it out). Pure.
 //   summary     the "Walk complete!" card is up (the walk is over)
 //   walking     a walk is on (session)
+//   walkingOn   a walk-on is waiting for its place (the "Off to ..." moment)
 //   shopAsk     the den shop's "Get it?" card is up
 //   shop        the den shop is open
 //   findCard    the find card ("You found something to wear!") is up
-//   crossing    the border post's "Cross over?" card is up
+//   crossing    a crossing card is up: a border post's or a gate's, or the
+//               gate's "Get it?" card (Back is Not now: nothing is bought)
 //   engaged     the walk is being played (not paused)
 //   photo       photo mode is on
 //   started     the walk has begun (the card behind it is "Paused", not "Ready?")
 //   touch       a touch walk (a paused one can walk on without a click)
-export function walkBackAction({ summary = false, walking = false, shopAsk = false, shop = false, findCard = false, crossing = false, engaged = false, photo = false, started = false, touch = false } = {}) {
+export function walkBackAction({ summary = false, walking = false, walkingOn = false, shopAsk = false, shop = false, findCard = false, crossing = false, engaged = false, photo = false, started = false, touch = false } = {}) {
   if (!walking) return summary ? 'continue' : null;
+  // A walk-on waiting for its place (walk.js session.walkingOn): the "Off to
+  // ..." moment stays up and the walk stays paused until the place comes.
+  if (walkingOn) return null;
   if (shopAsk) return 'shop-not-now';
   if (shop) return 'shop-done';
   if (findCard) return 'find-later';

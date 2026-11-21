@@ -1,11 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 // Clan Edition Task 8: a Legacy walk goes quiet. A Legacy kid whose chosen
 // place is the Woods walks the Neighborhood, solo or in a room, and keeps the
 // Woods as their place. The area builders are stubbed to record which area a
 // walk builds, then stop it: the area is built before anything else that
-// matters here (walk.js, the AREAS[areaId].build call).
+// matters here (walk.js startWalk's pack.world.build call; every place is
+// loaded first in beforeAll, so a start reaches it in the same tick).
 // vi.mock is hoisted above plain consts, so the shared pieces are hoisted too.
 const { STOP, builtAreas, stubBuild, gorgeWalk } = vi.hoisted(() => {
   const STOP = new Error('stop: area built');
@@ -53,6 +54,13 @@ const { createWalkLifecycle } = await import('../src/game/walk.js');
 const { createProgression } = await import('../src/progression.js');
 const { resolveQuality } = await import('../src/render/quality.js');
 const { goatToday } = await import('../src/critters.js');
+const { createAreaLoader } = await import('../src/game/areaload.js');
+
+// Every place is its own download (F6): the places this file walks are loaded
+// first (through the mocks above: vi.mock reaches a dynamic import too), so a
+// start runs startWalk in the same tick and its STOP comes straight out.
+const areas = createAreaLoader();
+beforeAll(() => areas.ensureAll(['neighborhood', 'woods', 'river', 'moor', 'pines', 'gorge']));
 
 function memStorage() {
   const map = new Map();
@@ -93,6 +101,7 @@ function lifecycle(progression, { pendingRoom = null, startRoomTogether = vi.fn(
     awardStrayGreet: () => {}, applyRemoteEvent: () => {},
     qualityAdapter: { beginWalk: () => ({ ...resolveQuality({ reducedMotion: true, override: 'low' }), postFx: false }) },
     denShop: null,
+    areas,
   });
 }
 
@@ -334,7 +343,6 @@ describe('the clan in the walk (source pins)', () => {
     const literal = w.indexOf('const session = createSession({');
     expect(w.slice(0, literal)).not.toMatch(/session\.campMarker\s*=/);
     expect(w.slice(literal, literal + 4000)).toMatch(/\bcampMarker,/);
-    expect(readFileSync('src/main.js', 'utf8')).toContain('mapFrame.camp = session.campMarker');
   });
 
   it('joins clanCats to the session literal, never assigned before it exists', () => {
@@ -363,14 +371,6 @@ describe('the clan in the walk (source pins)', () => {
     const s = src();
     expect(s).toMatch(/for \(const c of clanCats\.list\) decals\.follow\(c\.group\);/);
     expect(s.indexOf('createClanCats(scene,')).toBeLessThan(s.indexOf('assignShadowCasters(scene);'));
-  });
-
-  it('main.js updates the clan beside the strays', () => {
-    const m = readFileSync('src/main.js', 'utf8');
-    const strays = m.indexOf('session.strayCats.update(');
-    const clan = m.indexOf('session.clanCats.update(wdt, t, session.cat.position)');
-    expect(clan).toBeGreaterThan(strays);
-    expect(strays).toBeGreaterThan(-1);
   });
 
   it('intruders come after the session literal and the clanHome line, named only in Clan Edition', () => {
@@ -410,10 +410,10 @@ describe('the clan in the walk (source pins)', () => {
     expect(line).toContain('isGround: clanWalkable');
     expect(line).not.toContain('progression');
     const abort = s.indexOf('session.clanFight.abort()');
-    expect(abort).toBeGreaterThan(s.indexOf('function endWalk('));
+    expect(abort).toBeGreaterThan(s.indexOf('function freeWalk(')); // endWalk's teardown
     expect(abort).toBeLessThan(s.indexOf('session.intruders.dispose()'));
     // its intruder-done goes out while the room is still joined: before leave()
-    const leave = s.indexOf('net.leave()', s.indexOf('function endWalk('));
+    const leave = s.indexOf('net.leave()', s.indexOf('function freeWalk('));
     expect(leave).toBeGreaterThan(-1);
     expect(abort).toBeLessThan(leave);
     expect(s.split('session.clanFight.abort()')).toHaveLength(2);
@@ -429,27 +429,6 @@ describe('the clan in the walk (source pins)', () => {
     const { clanHomeFor } = await import('../src/clancast.js');
     expect(clanHomeFor('woods', 'legacy', ['woods'])).toBe(false);
     expect(clanHomeFor('woods', 'canon', ['woods'])).toBe(true);
-  });
-
-  it('main.js updates the clan fight after the rival and the dog', () => {
-    const m = readFileSync('src/main.js', 'utf8');
-    const dog = m.indexOf('session.dog.update(');
-    const cf = m.indexOf('session.clanFight.update(dt, session)');
-    expect(dog).toBeGreaterThan(m.indexOf('session.rival.update('));
-    expect(cf).toBeGreaterThan(dog);
-    expect(cf).toBeLessThan(m.indexOf('updateAvatar(session, dt, t)'));
-  });
-
-  it('main.js runs the fight camera after the fight places the cats and before the shadows read the camera', () => {
-    const m = readFileSync('src/main.js', 'utf8');
-    const cf = m.indexOf('session.clanFight.update(dt, session)');
-    const cam = m.indexOf('session.fightCam?.update(dt, {');
-    expect(cam).toBeGreaterThan(cf);
-    expect(cam).toBeLessThan(m.indexOf('session.shadows.update('));
-    const call = m.slice(cam, m.indexOf('});', cam));
-    expect(call).toContain('subject: session.clanFight.cameraSubject');
-    expect(call).toContain('cameraMode: session.cameraMode');
-    expect(m.split('session.fightCam?.update(')).toHaveLength(2);
   });
 
   it('walk.js builds the fight camera from the area\'s trees only where a fight can happen, and lets it go at the end', () => {
@@ -469,7 +448,9 @@ describe('the clan in the walk (source pins)', () => {
     expect(end).toBeGreaterThan(s.indexOf('session.clanFight.abort()'));
   });
 
-  it('the tree fade shares the trees, runs after the fight camera, and lets go at the end', () => {
+  // Its place in the frame (after the fight camera, before the shadows) is
+  // test/frameorder.test.js's.
+  it('the tree fade shares the trees and lets go at the end', () => {
     const s = readFileSync('src/game/walk.js', 'utf8');
     const fade = s.indexOf('session.treeFade = createTreeFade(isDen ? [] : [...occluders, ...findFadeOccluders(scene)], { reducedMotion });');
     expect(fade).toBeGreaterThan(s.indexOf('const occluders = '));
@@ -477,11 +458,6 @@ describe('the clan in the walk (source pins)', () => {
     expect(end).toBeGreaterThan(s.indexOf('session.fightCam?.dispose()'));
     // before the scene traversal frees the materials
     expect(end).toBeLessThan(s.indexOf('session.skyLife.dispose()', end));
-    const m = readFileSync('src/main.js', 'utf8');
-    const call = m.indexOf('session.treeFade?.update(dt, camera, treeFadeLook);');
-    expect(call).toBeGreaterThan(m.indexOf('session.fightCam?.update(dt, {'));
-    expect(call).toBeLessThan(m.indexOf('session.shadows.update('));
-    expect(m).toContain('treeFadeLook.y = session.cat.position.y + CAT_LOOK_Y;');
   });
 
   it("main.js's keydown hands every key to the fight sheet first", () => {
@@ -511,14 +487,6 @@ describe('the clan in the walk (source pins)', () => {
     const pill = body.indexOf("session?.clanFight?.uiShowing === 'challenge'");
     expect(pill).toBeGreaterThan(gate);
     expect(pill).toBeLessThan(body.indexOf("e.code === 'KeyE' && session"));
-  });
-
-  it('main.js updates the intruders right after the clan', () => {
-    const m = readFileSync('src/main.js', 'utf8');
-    const clan = m.indexOf('session.clanCats.update(wdt, t, session.cat.position)');
-    const intr = m.indexOf('session.intruders.update(dt, session.cat.position)');
-    expect(intr).toBeGreaterThan(clan);
-    expect(m.slice(clan, intr).split('\n')).toHaveLength(2);
   });
 });
 
@@ -571,8 +539,8 @@ describe('a crossing ends the walk the normal way (source pins)', () => {
     expect(s).toMatch(/crossLines\.map\(\(l\) => `<div class="best-line">\$\{escapeHtml\(l\)\}<\/div>`\)/);
     expect(s.indexOf('${crossHtml}')).toBeLessThan(s.indexOf('id="btn-summary-continue"'));
     expect(s).toContain('lastCrossing = { to: crossTo, picked: out.picked, clan }');
-    expect(s).toMatch(/function takeCrossing\(\)/);
-    expect(s).toMatch(/return \{ beginWalkFromHomebase, beginDenWalk, startWalk, endWalk, takeCrossing/);
+    // the lifecycle hands takeCrossing to main.js (no walk has crossed yet)
+    expect(lifecycle(createProgression(memStorage())).takeCrossing()).toBe(null);
   });
 });
 
@@ -629,7 +597,7 @@ describe('fights teach moves and leave scars (source pins)', () => {
 
   it('endWalk re-pushes the profile when the fade changed her rendered scars', () => {
     const s = src();
-    const end = s.indexOf('function endWalk(');
+    const end = s.indexOf('function bankWalk('); // endWalk's first half
     const before = s.indexOf('const scarsBefore = JSON.stringify(progression.catScars(scarKey(progression.state)));', end);
     const done = s.indexOf('progression.completeWalk(', end);
     const after = s.indexOf('if (JSON.stringify(progression.catScars(scarKey(progression.state))) !== scarsBefore) onScarsChanged();', end);

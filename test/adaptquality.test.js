@@ -642,21 +642,6 @@ describe('the 30 fps cap, the last resort', () => {
   });
 });
 
-describe('the render loop asks before it does anything', () => {
-  it('main.js skips a capped refresh before reading the clock or the readout', async () => {
-    const { readFileSync } = await import('node:fs');
-    const src = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-    const loop = src.slice(src.indexOf('function walkFrame() {'));
-    const ask = loop.indexOf('if (session && !qualityAdapter.shouldRender(performance.now())) return false;');
-    expect(ask).toBeGreaterThan(-1);
-    expect(ask).toBeLessThan(loop.indexOf('perfHud.frameStart('));
-    expect(ask).toBeLessThan(loop.indexOf('clock.getDelta()'));
-    // The clamp that keeps a 33 ms frame a 33 ms step of game time.
-    expect(loop).toContain('const dt = Math.min(clock.getDelta(), 0.05);');
-    expect(1 / 30).toBeLessThan(0.05);
-  });
-});
-
 // The iPhone and iPad app's device profile (render/deviceprofile.js). Without
 // one (every test above) nothing here applies.
 const iPad7 = { model: 'iPad7,11', memoryGB: 2.9, thermal: 'nominal', lowPower: false };

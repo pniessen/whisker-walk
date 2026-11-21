@@ -3,7 +3,7 @@ import { PAW } from '../src/ui/pawicon.js';
 
 // The home base's WebGL pieces can't run in node: stub the thumbnails, the hero
 // stage and the dressing-room controller so createHomeBase can be driven.
-vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: { partycrown: 'crown.png' } }) }));
+vi.mock('../src/thumbnails.js', () => ({ fillFoundThumbs: () => {}, menuThumbnails: () => ({ cats: {}, accessories: { partycrown: 'crown.png' } }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
 // The last dressing room made: its options (onChange, onOpenSheet) and its ui,
 // so a test can open the builder or a sheet the way the real controller does.
@@ -112,8 +112,8 @@ describe('the home base on a visit', () => {
     expect(h).toMatch(/<\/h1><div class="hb-pill hb-points"[^>]*>[\s\S]*?<\/div><div class="hb-pill hb-rank">[\s\S]*?<\/div><div class="hb-pill dr-visit milestone">🎉 Visit 1<\/div><button class="hb-menu-btn"/);
   });
 
-  it('a plain visit shows the welcome line and no celebration', () => {
-    const storage = memStorage({ [KEY]: JSON.stringify({ version: 4, visits: 1, visitPrizesSeen: 1 }) });
+  it("a milestone visit whose celebration cannot open shows the welcome line and no celebration", () => {
+    const storage = memStorage({ [KEY]: JSON.stringify({ version: 4, visits: 4, visitPrizesSeen: 5 }) });
     const { progression, hb } = setup({ storage });
     const visit = progression.recordVisit();
     expect(visit.milestone).toBe(null);
@@ -122,15 +122,35 @@ describe('the home base on a visit', () => {
     expect(hb.showVisit(visit, { onClosed })).toBe(false);
     expect(hb.visitOpen()).toBe(false);
     const line = doc.body.children.find((c) => c.className === 'visit-welcome');
-    expect(line.textContent).toBe(welcomeLine(2));
+    expect(line.textContent).toBe(welcomeLine(5));
     expect(celebration()).toBe(undefined);
     vi.advanceTimersByTime(6000);
     expect(line.removed).toBe(true);
     expect(onClosed).not.toHaveBeenCalled();
   });
 
+  it('an ordinary visit (2, 7, 42) shows no welcome bubble at all', () => {
+    for (const n of [2, 7, 42]) {
+      const { hb } = setup();
+      hb.show();
+      expect(hb.showVisit({ milestone: null, visits: n })).toBe(false);
+      expect(doc.body.children.find((c) => c.className === 'visit-welcome')).toBe(undefined);
+    }
+  });
+
+  it('a milestone visit (1, 5, 10) that cannot open its celebration shows the bubble', () => {
+    for (const n of [1, 5, 10]) {
+      doc.body.children = [];
+      const { hb } = setup();
+      hb.show();
+      hb.showVisit({ milestone: null, visits: n });
+      const line = doc.body.children.find((c) => c.className === 'visit-welcome');
+      expect(line.textContent).toBe(welcomeLine(n));
+    }
+  });
+
   it('the welcome bubble closes when the page scrolls', () => {
-    const storage = memStorage({ [KEY]: JSON.stringify({ version: 4, visits: 1, visitPrizesSeen: 1 }) });
+    const storage = memStorage({ [KEY]: JSON.stringify({ version: 4, visits: 4, visitPrizesSeen: 5 }) });
     const { progression, hb } = setup({ storage });
     const visit = progression.recordVisit();
     hb.show();
@@ -153,7 +173,7 @@ describe('the home base on a visit', () => {
   it('showing the welcome again does not leak scroll listeners', () => {
     const { hb } = setup();
     hb.show();
-    const v = { milestone: null, visits: 2 };
+    const v = { milestone: null, visits: 10 };
     hb.showVisit(v);
     hb.showVisit(v);
     expect(doc.docListeners.filter((l) => l.t === 'scroll')).toHaveLength(1);
@@ -284,7 +304,7 @@ describe('Start while a locked cat or a try-on is on show', () => {
 describe('the welcome line beside the head', () => {
   // A plain visit (visit 2) with the home base up and the line showing.
   function plainVisit() {
-    const storage = memStorage({ [KEY]: JSON.stringify({ version: 4, visits: 1, visitPrizesSeen: 1 }) });
+    const storage = memStorage({ [KEY]: JSON.stringify({ version: 4, visits: 4, visitPrizesSeen: 5 }) });
     const { progression, hb } = setup({ storage });
     const visit = progression.recordVisit();
     hb.show();
@@ -306,7 +326,7 @@ describe('the welcome line beside the head', () => {
   });
 
   it('never goes up over an open sheet or the cat builder', () => {
-    const storage = memStorage({ [KEY]: JSON.stringify({ version: 4, visits: 1, visitPrizesSeen: 1 }) });
+    const storage = memStorage({ [KEY]: JSON.stringify({ version: 4, visits: 4, visitPrizesSeen: 5 }) });
     const { progression, hb } = setup({ storage });
     const visit = progression.recordVisit();
     hb.show();

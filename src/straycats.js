@@ -503,6 +503,10 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
   ground = groundOf(area), homes = [],
 } = {}) {
   const strays = [];
+  // An area record with `strays: false` (the Rooftops) has no cats at all: no
+  // loners, no colony cats, no visitor. walk.js also asks for none; this is
+  // the guard that holds whatever it asks.
+  if (area.strays === false) { count = 0; colonyCats = []; extras = []; }
   // v21 3b: the legendary glows under this walk's cats (none, usually), and
   // the clock their pulse reads. Kept here, never on a stray.
   const glows = [];

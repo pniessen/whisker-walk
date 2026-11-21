@@ -208,7 +208,7 @@ describe('hats sit on the head (accessories polish Task 1)', () => {
 
 describe('the Acorn Cap (found outfits step 1)', () => {
   it('is in HAT_IDS, so every hat sweep above covers it', () => {
-    expect(HAT_IDS.at(-1)).toBe('acorncap');
+    expect(HAT_IDS).toContain('acorncap');
   });
   it('its stalk is the top, near the middle of the crown, under the old top hat', () => {
     for (const simple of [false, true]) {
@@ -239,5 +239,102 @@ describe('the Acorn Cap (found outfits step 1)', () => {
       const lowBrow = Math.min(...verts(hat).filter((v) => v.z < -0.1).map((v) => v.y));
       expect(lowBrow, breed).toBeGreaterThan(eyeTop + 0.015);
     }
+  });
+});
+
+// Found outfits step 2, lane H: five hats with brims. The seat, triangle and
+// ear-tip sweeps above already run over them (they are in HAT_IDS).
+describe('found hats with brims (found outfits step 2)', () => {
+  const BRIMMED = [['paperboycap', 0x7d6b58], ['buckethat', 0xe9c46a], ['sailorcap', 0xf2f2ee], ['strawhat', 0xe3c26b], ['stripedboater', 0xe8cf86]];
+  const IDS = BRIMMED.map(([id]) => id);
+  const breeds = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'robbie', 'd2', 'digit'];
+  it.each(IDS)('%s is in HAT_IDS', (id) => {
+    expect(HAT_IDS).toContain(id);
+  });
+  it.each(IDS)('%s: the brim or peak clears the eyes on every preset', (id) => {
+    for (const breed of breeds) {
+      const cat = buildCat(breed, { head: id });
+      const { head } = cat.userData.parts;
+      const eyes = head.children.filter((m) => m.isMesh && m.userData.eye);
+      expect(eyes, breed).toHaveLength(2);
+      const eyeTop = Math.max(...eyes.map((e) => { e.updateMatrix(); return new THREE.Box3().setFromBufferAttribute(e.geometry.attributes.position).applyMatrix4(e.matrix).max.y; }));
+      const [hat] = hatOf(cat);
+      const lowBrow = Math.min(...verts(hat).filter((v) => v.z < -0.1).map((v) => v.y));
+      expect(lowBrow, breed).toBeGreaterThan(eyeTop + 0.015);
+    }
+  });
+  it.each(BRIMMED)('%s: its own colours (the vertex colours include %s)', (id, first) => {
+    const c = buildHat(id).geometry.attributes.color;
+    const hexes = new Set();
+    for (let i = 0; i < c.count; i++) hexes.add(new THREE.Color(c.getX(i), c.getY(i), c.getZ(i)).getHex());
+    expect(hexes.has(first)).toBe(true);
+  });
+  it('the paperboy cap\'s peak is at the front only', () => {
+    const V = verts(buildHat('paperboycap'));
+    const peak = V.filter((v) => v.z < -SKULL_R[2] * 1.02);
+    expect(peak.length).toBeGreaterThan(0);
+    for (const v of peak) expect(Math.abs(Math.atan2(v.x, -v.z))).toBeLessThan(0.95);
+  });
+});
+
+// Found outfits step 2, lane H, Task 3: two clips, not hats. The sweeps above
+// (seat, triangles, ear tips, thumbnail top) already run over them.
+describe('the Starfish Clip and the Feather Plume (found outfits step 2)', () => {
+  const breeds = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'robbie', 'd2', 'digit'];
+  it.each(['starfishclip', 'featherplume'])('%s is in HAT_IDS', (id) => {
+    expect(HAT_IDS).toContain(id);
+  });
+  it('the starfish lies on the right of the crown, clear of the right ear\'s tip', () => {
+    for (const simple of [false, true]) {
+      for (const v of verts(buildHat('starfishclip', { simple }))) expect(v.x).toBeGreaterThan(0);
+    }
+    for (const breed of breeds) {
+      const cat = buildCat(breed, { head: 'starfishclip' });
+      const ear = cat.userData.parts.head.userData.earR;
+      ear.updateMatrix();
+      // the tip: the ear's highest point in head space; the clip keeps 3 cm from it
+      const tip = verts(ear).map((v) => v.applyMatrix4(ear.matrix)).reduce((m, v) => (v.y > m.y ? v : m));
+      for (const v of verts(hatOf(cat)[0])) expect(v.distanceTo(tip), breed).toBeGreaterThan(0.03);
+    }
+  });
+  it('the starfish keeps 5 mm from every vertex of the right ear, on every preset', () => {
+    for (const simple of [false, true]) {
+      for (const breed of breeds) {
+        const cat = buildCat(breed, { head: 'starfishclip' }, { simple });
+        const ear = cat.userData.parts.head.userData.earR;
+        ear.updateMatrix();
+        const E = verts(ear).map((v) => v.applyMatrix4(ear.matrix));
+        let min = Infinity;
+        for (const v of verts(hatOf(cat)[0])) for (const e of E) min = Math.min(min, v.distanceTo(e));
+        expect(min, `${breed} simple ${simple}`).toBeGreaterThan(0.005);
+      }
+    }
+  });
+  it('the starfish is orange with paler dots', () => {
+    const c = buildHat('starfishclip').geometry.attributes.color;
+    const hexes = new Set();
+    for (let i = 0; i < c.count; i++) hexes.add(new THREE.Color(c.getX(i), c.getY(i), c.getZ(i)).getHex());
+    expect(hexes.has(0xf28a3c)).toBe(true);
+    expect(hexes.has(0xf7c08a)).toBe(true);
+  });
+  it('the feather stands behind the left ear and is the hat\'s top', () => {
+    for (const simple of [false, true]) {
+      const top = verts(buildHat('featherplume', { simple })).reduce((a, b) => (b.y > a.y ? b : a));
+      expect(top.x).toBeLessThan(0);
+      expect(top.z).toBeGreaterThan(0);
+      expect(top.y).toBeLessThan(OLD_TOPHAT_TOP);
+      expect(top.y).toBeGreaterThan(0.26);
+    }
+  });
+  it('the feather\'s vane runs from russet to dark brown', () => {
+    const c = buildHat('featherplume').geometry.attributes.color;
+    const reds = [];
+    for (let i = 0; i < c.count; i++) {
+      const col = new THREE.Color(c.getX(i), c.getY(i), c.getZ(i)).getHex();
+      if (col !== 0xf2e6c8 && col !== 0x5a3a1c) reds.push(c.getX(i)); // not the quill or the band
+    }
+    // linear red: 0xa0522d is about 0.35, 0x3b2a20 about 0.04
+    expect(Math.max(...reds)).toBeGreaterThan(0.25);
+    expect(Math.min(...reds)).toBeLessThan(0.09);
   });
 });

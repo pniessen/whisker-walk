@@ -103,8 +103,8 @@ describe('the mode and the sets', () => {
     expect(seriesModes()).toEqual(['on']);
     for (const name of TABLES) expect(words()[name], name).toBe(on[name]);
     expect(words().PHRASES).toBeUndefined();
-    // every table of the word file is on the list, bar the ids and the spares
-    expect([...TABLES, 'RANK_KEYS', 'HOMAGE_CHOICES'].sort()).toEqual(Object.keys(on).sort());
+    // every table of the word file is on the list, bar the ids, the spares and the optional drawings
+    expect([...TABLES, 'RANK_KEYS', 'HOMAGE_CHOICES', 'EMBLEMS'].sort()).toEqual(Object.keys(on).sort());
   });
 
   it('the ids are not words: they are the same in every set', () => {

@@ -4,7 +4,7 @@
 // trail. "No marker on the map, no arrow, no prompt."
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { LOOK_POSE, DISPLAY_BY_SLOT, TWINKLE_GOLD, buildFindDisplay, buildPouch, buildTwinkle, seatDisplay } from '../src/foundwear/display.js';
+import { LOOK_POSE, DISPLAY_BY_SLOT, DISPLAY_BY_ID, TWINKLE_GOLD, buildFindDisplay, buildPouch, buildTwinkle, seatDisplay } from '../src/foundwear/display.js';
 import { NO_FIND, TWINKLE_LIFT, TWINKLE_FULL_AT, TWINKLE_PULSE, TWINKLE_OPACITY, createFind, fixedWobble, tickFindNose } from '../src/foundwear/live.js';
 import { FOUND_WEAR } from '../src/foundwear/index.js';
 import { AUTO_SNIFF_STILL_S, AUTO_SNIFF_EVERY_S } from '../src/game/autosniff.js';
@@ -26,6 +26,16 @@ describe('found outfits: how a find sits (display.js)', () => {
       water: { tilt: 0.15, lift: 0 }, perch: { tilt: 0.1, lift: 0 },
     });
     expect(DISPLAY_BY_SLOT.head('acorncap').name).toBe('hat:acorncap');
+  });
+  it('every slot has a ground builder; one outfit has its own', () => {
+    expect(Object.keys(DISPLAY_BY_SLOT)).toEqual(['head', 'face', 'neck', 'collar', 'body', 'back', 'feet']);
+    expect(Object.isFrozen(DISPLAY_BY_ID)).toBe(true);
+    expect(Object.keys(DISPLAY_BY_ID)).toContain('fishermansjumper');
+  });
+  it('the jumper lies folded on the ground', () => {
+    const d = buildFindDisplay({ kind: 'wear', id: 'fishermansjumper' });
+    expect(d.name).toBe('wear:fishermansjumper');
+    expect(trisIn(d)).toBeLessThan(300);
   });
   // The seam step 2 comes through (index.js, ADDING ONE, step 5): every
   // record shows as itself on the ground, never as the pouch, and small.

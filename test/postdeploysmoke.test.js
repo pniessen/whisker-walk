@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { extractAssets, hasAppRoot, contentTypeOk, commitMatches, parseArgs } from '../scripts/smoke.mjs';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { extractAssets, hasAppRoot, contentTypeOk, commitMatches, parseArgs, precacheProblems, runChecks } from '../scripts/smoke.mjs';
 import { buildInfo } from '../scripts/buildjson.mjs';
 
 const BASE = 'https://example.github.io/whisker-walk/';
@@ -57,6 +57,55 @@ describe('smoke: small checks', () => {
       retrySeconds: 0,
     });
     expect(() => parseArgs([])).toThrow();
+  });
+});
+
+describe('smoke: precache.json', () => {
+  it('accepts a list of files under assets/', () => {
+    expect(precacheProblems(JSON.stringify({ build: 'abc', files: ['assets/a.js', 'assets/b.css'] }))).toEqual([]);
+  });
+  it('flags a list that is not JSON', () => {
+    expect(precacheProblems('<h1>404</h1>')).toHaveLength(1);
+  });
+  it('flags a list with no files array', () => {
+    expect(precacheProblems('{"build":"abc"}')).toHaveLength(1);
+    expect(precacheProblems('{"files":"assets/a.js"}')).toHaveLength(1);
+    expect(precacheProblems('null')).toHaveLength(1);
+  });
+  it('flags a file outside assets/', () => {
+    const problems = precacheProblems(JSON.stringify({ files: ['assets/a.js', 'index.html'] }));
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('index.html');
+  });
+});
+
+describe('smoke: runChecks reads precache.json', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const site = (files) => {
+    const big = (s) => s + ' '.repeat(600);
+    vi.stubGlobal('fetch', async (u) => {
+      const path = new URL(u).pathname.replace('/whisker-walk/', '');
+      const hit = files[path];
+      if (!hit) return new Response('nope', { status: 404, headers: { 'content-type': 'text/html' } });
+      return new Response(big(hit[1]), { status: 200, headers: { 'content-type': hit[0] } });
+    });
+  };
+  const page = ['text/html', '<div id="app"></div><script type="module" src="/whisker-walk/assets/index-abc.js"></script>'];
+  const js = ['text/javascript', 'x'];
+
+  it('passes when every listed file is served as a script or stylesheet', async () => {
+    site({ '': page, 'assets/index-abc.js': js, 'sw.js': js, 'assets/woods-x.js': js, 'assets/index-y.css': ['text/css', 'a{}'],
+      'precache.json': ['application/json', JSON.stringify({ build: 'b', files: ['assets/index-abc.js', 'assets/woods-x.js', 'assets/index-y.css'] })] });
+    expect(await runChecks({ base: 'https://example.github.io/whisker-walk/' })).toEqual([]);
+  });
+  it('reports a listed place chunk that does not load, and a missing list', async () => {
+    site({ '': page, 'assets/index-abc.js': js, 'sw.js': js,
+      'precache.json': ['application/json', JSON.stringify({ build: 'b', files: ['assets/woods-x.js'] })] });
+    const problems = await runChecks({ base: 'https://example.github.io/whisker-walk/' });
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toMatch(/woods-x\.js.*404/);
+    site({ '': page, 'assets/index-abc.js': js, 'sw.js': js });
+    expect((await runChecks({ base: 'https://example.github.io/whisker-walk/' })).join('\n')).toMatch(/precache\.json/);
   });
 });
 

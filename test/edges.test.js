@@ -51,7 +51,7 @@ const EXPECTED = {
   moor: { nearColor: 0x6f8044, style: 'wall' },
   pines: { nearColor: 0x56603e, style: 'pinescrub' },
   farm: { nearColor: 0x62a24e, style: 'hedge' }, // FARM_GRASS
-  fair: { nearColor: 0x62ac50, style: 'hedge' }, // FAIR_GRASS
+  fair: { nearColor: 0x5ea446, style: 'hedge' }, // FAIR_GRASS
 };
 
 // How far (x, z) lies outside a bounds box, Chebyshev: 0 or less is inside.
@@ -240,21 +240,35 @@ describe('the edge, its own noCast mesh under the band', () => {
     expect(() => b.edgeSpots({ half: 60, style: 'nope' }, 1, [])).toThrow(/unknown style/);
   });
 
-  it('the neighbourhood edge has gates: brown vertices inside each gap, none over 1.1 m', () => {
-    const { scene, opts } = built.neighborhood;
-    const edge = edgesIn(scene)[0];
-    const pos = edge.geometry.attributes.position;
-    const col = edge.geometry.attributes.color;
-    expect(opts.edge.gaps.length).toBeGreaterThan(0);
-    for (const gp of opts.edge.gaps) {
-      let brown = 0;
-      for (let v = 0; v < pos.count; v++) {
-        if (Math.hypot(pos.getX(v) - gp.x, pos.getZ(v) - gp.z) < gp.r && !green(col.getX(v), col.getY(v))) {
-          brown++;
-          expect(pos.getY(v)).toBeLessThanOrEqual(1.1);
+  // Gateways placement round P3 (the owner, 2026-11-21): the hedges' shut
+  // five-bar field gates, where a street or a walk ran out, read as more gates
+  // that never open now that real gates stand at the places' edges (the one
+  // right behind the town's and the Park's signposts most of all). The hedge
+  // runs on across each spot instead: no gate spot, and only hedge there.
+  const FORMER_FIELD_GATES = {
+    neighborhood: [[0, -60.6, 3], [0, 60.6, 3], [-60.6, 0, 3], [60.6, 0, 3]],
+    park: [[0, 60.6, 2]],
+    fair: [[0, 60.6, 2]],
+    farm: [[0, 60.6, 2]],
+  };
+  it('no hedge has a field gate any more: where each one stood, the hedge runs on', () => {
+    for (const [name, spots] of Object.entries(FORMER_FIELD_GATES)) {
+      const { scene, opts } = built[name];
+      expect(b.edgeSpots(opts.edge, opts.salt, opts.edge.avoid ?? opts.avoid ?? []).filter((sp) => sp.kind === 'gate'), name).toEqual([]);
+      const edge = edgesIn(scene)[0];
+      const pos = edge.geometry.attributes.position;
+      const col = edge.geometry.attributes.color;
+      for (const [x, z, r] of spots) {
+        let hedge = 0;
+        let other = 0;
+        for (let v = 0; v < pos.count; v++) {
+          if (Math.hypot(pos.getX(v) - x, pos.getZ(v) - z) >= r) continue;
+          if (green(col.getX(v), col.getY(v))) hedge++;
+          else other++;
         }
+        expect(other, `${name}: something not hedge where the field gate at (${x}, ${z}) stood`).toBe(0);
+        expect(hedge, `${name}: the hedge runs across (${x}, ${z})`).toBeGreaterThan(0);
       }
-      expect(brown, `gate at ${gp.x},${gp.z}`).toBeGreaterThan(0);
     }
   });
 

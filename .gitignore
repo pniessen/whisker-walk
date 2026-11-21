@@ -25,6 +25,12 @@ verify-*.html
 !verify-traversal.html
 # This one draws the found outfits (the Acorn Cap on every cat, the find at every Park and Woods spot, the card, the dress-up and the Journal): found outfits step 1's sign-off record.
 !verify-finds.html
+# Found outfits step 2's picture sheets: imports src/render/rig.js, so kept where a rig change cannot leave it behind.
+!verify-wear.html
+# The owner approves the everyday set's five badges from this page's pictures.
+!verify-badges.html
+# The owner approves the High Stone (the everyday set's leader's seat) from this page's pictures; it imports src/render/rig.js, so it is kept where a rig change cannot leave it behind.
+!verify-highstone.html
 
 # Brainstorming visual-companion scratch (mockups, server state)
 .superpowers/

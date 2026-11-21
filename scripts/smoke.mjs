@@ -2,9 +2,12 @@
 // Post-deploy smoke check. Usage:
 //   node scripts/smoke.mjs <baseUrl> [--commit <sha>] [--retry-seconds 150] [--interval 10]
 // Only ever sends GET requests, and nothing but the URLs it is given or finds
-// in the page's own HTML. Checks that the page serves the app root, that every
-// script/stylesheet/modulepreload it references is real, that sw.js and the
-// manifest are served, and (with --commit) that build.json names that commit.
+// in the page's own HTML or the build's precache.json. Checks that the page
+// serves the app root, that every script/stylesheet/modulepreload it
+// references is real, that every file precache.json lists (each place's
+// download, which the service worker caches for offline play) is real, that
+// sw.js and the manifest are served, and (with --commit) that build.json names
+// that commit.
 // The whole check retries until the deadline, because the Pages CDN can lag.
 import { pathToFileURL } from 'node:url';
 
@@ -51,10 +54,26 @@ export function contentTypeOk(kind, contentType) {
   if (kind === 'script') return /javascript|ecmascript/.test(ct);
   if (kind === 'modulepreload') return /javascript|ecmascript/.test(ct);
   if (kind === 'stylesheet') return ct.includes('text/css');
-  if (kind === 'manifest') return /json/.test(ct);
+  if (kind === 'manifest' || kind === 'precache') return /json/.test(ct);
   if (kind === 'html') return ct.includes('text/html');
   return true;
 }
+
+// precache.json (scripts/precache.mjs) as served: { build, files } with every
+// file under assets/. Returns problem strings (empty = fine).
+export function precacheProblems(text) {
+  let list;
+  try {
+    list = JSON.parse(text);
+  } catch {
+    return ['not valid JSON'];
+  }
+  if (!list || !Array.isArray(list.files)) return ['no files array'];
+  return list.files.filter((f) => typeof f !== 'string' || !f.startsWith('assets/')).map((f) => `lists ${JSON.stringify(f)}, outside assets/`);
+}
+
+// The kind a listed file is checked as, by its extension.
+const listedKind = (file) => (file.endsWith('.css') ? 'stylesheet' : file.endsWith('.js') ? 'script' : 'file');
 
 // build.json holds the full commit sha; accept a short sha on either side
 // (at least 7 chars) so `--commit abc1234` works by hand.
@@ -107,6 +126,7 @@ export async function runChecks({ base, commit }, log = () => {}) {
     }
   };
 
+  const checked = new Set();
   const page = await check('html', base, { minBytes: 500 });
   if (page && page.status === 200) {
     const html = page.body.toString('utf8');
@@ -114,6 +134,7 @@ export async function runChecks({ base, commit }, log = () => {}) {
     const assets = extractAssets(html, base);
     if (!assets.some((a) => a.kind === 'script')) problems.push(`html ${base}: references no scripts`);
     for (const a of assets) {
+      checked.add(a.url);
       const r = await check(a.kind, a.url);
       if (a.kind === 'manifest' && r && r.status === 200) {
         try {
@@ -126,6 +147,24 @@ export async function runChecks({ base, commit }, log = () => {}) {
   }
   const sw = new URL('sw.js', base).href;
   await check('script', sw);
+
+  // Every file the service worker precaches must load, exactly as the page's
+  // own scripts must: a place that 404s here would fail the first walk there.
+  const pre = new URL('precache.json', base).href;
+  const list = await check('precache', pre, { minBytes: 2 });
+  if (list && list.status === 200) {
+    const text = list.body.toString('utf8');
+    const bad = precacheProblems(text);
+    for (const p of bad) problems.push(`precache ${pre}: ${p}`);
+    if (!bad.length) {
+      for (const f of JSON.parse(text).files) {
+        const u = new URL(f, base).href;
+        if (checked.has(u)) continue;
+        checked.add(u);
+        await check(listedKind(f), u);
+      }
+    }
+  }
 
   if (commit) {
     const url = new URL('build.json', base).href;

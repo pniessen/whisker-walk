@@ -8,6 +8,9 @@ import { SURE_CLAWS_ID } from '../climbing.js';
 import { tintGround } from './dressing.js';
 import { propsFor } from '../propsets.js';
 import { sandTint, dressBeach, KERB_COL } from './beachdress.js';
+import { wetness } from './seasidewet.js';
+
+export { wetness } from './seasidewet.js';
 
 // The edge dressing's dusk tint (render/dusk.js duskLawnColor): greyer and
 // darker than the default { desat 0.25, dark 0.72 }, and a touch cooler.
@@ -78,19 +81,6 @@ export const WET_TINT = [0.31, 0.28, 0.25];
 function hash1(n) {
   const v = Math.sin(n * 127.1 + 311.7) * 43758.5453;
   return v - Math.floor(v);
-}
-
-// The wet band's vertex colour at (x, z): 1 (dry, the beach itself) at
-// WET_FROM, WET_TINT at the waterline, with a wavy edge where the last wave
-// reached.
-export function wetness(x, z) {
-  // The wet edge wanders +-0.5m along the beach; the ramp itself runs 1.7m,
-  // and reaches full wet ~0.5m short of the foam strip's lace edge
-  // (waterdress.js, x ~24.1..25), so the soaked sand shows behind the foam
-  // instead of only under it (polish-water Task 4; it ran 22.4..24.4 before).
-  const reach = 0.32 * Math.sin(z * 0.33 + 1.3) + 0.16 * Math.sin(z * 0.91);
-  const t = Math.min(1, Math.max(0, (x - 22.2 + reach) / 1.7));
-  return t * t * (3 - 2 * t);
 }
 
 // Sky top for the bay: a deeper blue than the first pass so the pale horizon
@@ -187,6 +177,27 @@ function bandTone(band, salt) {
     prev = t === prev ? (t + 1) % n : t;
   }
   return prev;
+}
+// BoxGeometry's group 3 is its -y face. The cliff's lies under the sand and is
+// never seen: 60 x 6 segments, 720 triangles, which is what the Seaside's
+// gateway (world map step 3) was paid for with. Only the index drops it: the
+// vertices (so the bounding box), the strata colours and the colliders stay.
+function dropBottomFace(geo) {
+  const g = geo.groups[3];
+  const idx = geo.index.array;
+  const kept = new idx.constructor(idx.length - g.count);
+  kept.set(idx.subarray(0, g.start), 0);
+  kept.set(idx.subarray(g.start + g.count), g.start);
+  geo.setIndex(new THREE.BufferAttribute(kept, 1));
+  // Keep every group at its index (group 3 stays, empty) so code that reads
+  // geo.groups[4] for the seaward face (test/edges.test.js) still finds it.
+  const groups = geo.groups.map((q) => ({ ...q }));
+  geo.clearGroups();
+  for (const q of groups) {
+    const start = q.start > g.start ? q.start - g.count : q.start;
+    geo.addGroup(start, q === groups[3] ? 0 : q.count, q.materialIndex);
+  }
+  return geo;
 }
 function strata(geo, worldX, salt) {
   const pos = geo.attributes.position;
@@ -676,7 +687,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // A 1m x 0.33m grid on the faces (Task 3): fine enough for gullies every
   // ~3.5m and for metre-thick bands that change tone in a third of a metre
   // rather than smearing across a whole metre-tall row.
-  const cliff = new THREE.Mesh(strata(new THREE.BoxGeometry(60, 8, 18, 60, 24, 6), -10, 1.7),
+  const cliff = new THREE.Mesh(dropBottomFace(strata(new THREE.BoxGeometry(60, 8, 18, 60, 24, 6), -10, 1.7)),
     cliffMat(60, 8));
   cliff.position.set(-10, 4, -46);
   cliff.userData.duskTint = true; // dims and cools at dusk like the ground (render/dusk.js tintDuskLawn)

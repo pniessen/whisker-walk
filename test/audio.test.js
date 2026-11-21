@@ -192,6 +192,27 @@ describe('layered ambience', () => {
     for (const src of wet.bufferSources) expect(src.stopped).toBe(true);
   });
 
+  // The Rooftops: one low wind layer for the far town's hum, and never
+  // birdsong, gulls or the horn at any hour. Dusk adds crickets from the shared
+  // line (always-evening or not, the walk asks for it), rain its wash.
+  it('roofs ambience is one low town hum, and never birdsong, gulls or a horn', () => {
+    const dry = ambienceProbe('roofs');
+    expect(dry.bufferSources).toHaveLength(1); // the hum
+    expect(dry.intervals).toBe(0); // no birdsong
+    expect(dry.timeouts).toBe(0); // no gulls, no horn
+    dry.audio.stopAmbient();
+    for (const src of dry.bufferSources) expect(src.stopped).toBe(true);
+    const dusk = ambienceProbe('roofs', { dusk: true });
+    expect(dusk.bufferSources).toHaveLength(1);
+    expect(dusk.intervals).toBe(1); // crickets only
+    expect(dusk.timeouts).toBe(0);
+    dusk.audio.stopAmbient();
+    const wet = ambienceProbe('roofs', { rain: true });
+    expect(wet.bufferSources).toHaveLength(2); // hum + rain
+    expect(wet.intervals).toBe(0);
+    wet.audio.stopAmbient();
+  });
+
   // The River: wind + a quiet water lap under the usual birdsong. Never gulls.
   // Looped-noise layers are buffer sources (wind, lap, rain); birdsong and
   // crickets are setInterval; gulls and the horn are setTimeout.
