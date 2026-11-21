@@ -23,7 +23,7 @@ import { GIFT_LEAVE_RANGE } from '../gifts.js';
 import { friendRungCrossed, isGrudgeableStray } from '../straycats.js';
 import { isLegendaryName } from '../legendary.js';
 import { shouldTurnHostile, SCUFFLE_COST, SCUFFLE_FREEZE } from '../enemies.js';
-import { labelFor } from './labels.js';
+import { labelFor, critterLabel } from './labels.js';
 import { questTrailStep } from '../questscent.js';
 import { canFeed, outsideTag, feedsHere } from '../colony.js';
 import { CATALOG } from '../progression.js';
@@ -753,7 +753,7 @@ export function createInteractions({
       if (!c.spottable || (c.fleeing && !goat)) continue;
       const to = c.group.position.clone().sub(catP).setY(0);
       if (to.length() < (goat ? GOAT_SPOT : 6) && to.normalize().dot(player.forward()) > 0.5) {
-        if (log.awardOnce('critter', `spot-${c.id}`, labelFor(c.type)) > 0) progression.recordSighting(c.type);
+        if (log.awardOnce('critter', `spot-${c.id}`, critterLabel(c)) > 0) progression.recordSighting(c.type);
       }
     }
     // Appletree Farm's animals: met the same way (6 m, looking at one), the

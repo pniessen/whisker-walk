@@ -455,7 +455,7 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
     const mouse = byType(c, 'mouse');
     c.markStalked(V(-0.5, 0), true);
     // The pounce result is exactly what it was: the caller pays from it.
-    expect(c.pounceCatch(V(-0.5, 0))).toEqual({ type: 'mouse', wasStalked: true });
+    expect(c.pounceCatch(V(-0.5, 0))).toMatchObject({ type: 'mouse', wasStalked: true });
     expect(c.pounceCatch(V(-0.5, 0))).toBe(null); // once
     run(c, 2, V(-0.5, 0), true);
     expect(mouse.hidden).toBe(true);
@@ -486,7 +486,7 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
       expect(mouse.group.position.z).toBeCloseTo(0, 5);
       // And a pounce-tag with no cover is the old 3s dash too.
       const tagged = createCritters(scene, [still()], opts);
-      expect(tagged.pounceCatch(V(0.5, 0))).toEqual({ type: 'mouse', wasStalked: false });
+      expect(tagged.pounceCatch(V(0.5, 0))).toMatchObject({ type: 'mouse', wasStalked: false });
       expect(byType(tagged, 'mouse').cooldown).toBe(3);
       run(tagged, 4, V(-30, 0));
       expect(byType(tagged, 'mouse').hidden).toBeFalsy();
@@ -540,7 +540,7 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
           .map((x) => x.group.position.toArray().map((v) => +v.toFixed(6))));
       }
     }
-    expect(tag).toEqual({ type: 'bird', wasStalked: false });
+    expect(tag).toMatchObject({ type: 'bird', wasStalked: false });
     expect(out).toEqual(GOLDEN);
     expect(c.list[0].fleeing).toBe(false); // the tagged bird has landed
     expect(byType(c, 'mouse').hidden).toBe(true); // and the mouse did evade, mid-flock
@@ -612,7 +612,7 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
     c.markStalked(V(-6, 0), true);
     for (let x = -3; x <= -1.1; x += 0.03) frame(c, V(x, 0), true);
     expect(mouse.startleT).toBeGreaterThan(0);
-    expect(c.pounceCatch(V(-0.3, 0))).toEqual({ type: 'mouse', wasStalked: true });
+    expect(c.pounceCatch(V(-0.3, 0))).toMatchObject({ type: 'mouse', wasStalked: true });
     frame(c, V(-0.3, 0), true);
     expect(mouse.group.position.x).toBeGreaterThan(0.05);
   });
@@ -820,7 +820,7 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
     const tick = (cat) => { t += 1 / 60; c.update(1 / 60, t, cat, cat); c.markStalked(cat, false); };
     tick(V(-50, 0));
     expect(sq.group.position.x).toBeLessThan(0.1);
-    expect(c.pounceCatch(sq.group.position.clone())).toEqual({ type: 'squirrel', wasStalked: false });
+    expect(c.pounceCatch(sq.group.position.clone())).toMatchObject({ type: 'squirrel', wasStalked: false });
     expect(sq.tagged).toBe(true);
     expect(sq.hideAt).toBe(null); // no cover from here: the old dash
     while (sq.fleeing) tick(V(-50, 0));

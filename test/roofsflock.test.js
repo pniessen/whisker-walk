@@ -479,7 +479,10 @@ describe('the flock’s plan', () => {
     expect(spawns.length).toBe(14);
     ROOFS_BIRDS.forEach((b, i) => {
       const home = index.get(b.home);
-      expect(spawns[i]).toEqual({ type: b.kind === 'gull' ? 'seagull' : 'bird', x: home.x, z: home.z, roofBird: b.id });
+      const want = { type: b.kind === 'gull' ? 'seagull' : 'bird', x: home.x, z: home.z, roofBird: b.id };
+      if (b.kind === 'pigeon') want.labelAs = 'pigeon';
+      expect(spawns[i]).toEqual(want);
+      expect(spawns[i].labelAs).toBe(b.kind === 'pigeon' ? 'pigeon' : undefined);
       expect(Object.isFrozen(spawns[i])).toBe(true);
     });
     // a home that is not a perch fails loudly, naming it
