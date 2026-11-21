@@ -296,3 +296,14 @@ export const CLAN_CAT_PREFIXES = Object.freeze({
   gorge: Object.freeze(['Crag', 'Granite', 'Scree', 'Sprig', 'Flint', 'Merlin', 'Shale', 'Pika', 'Gully',
     'Bluff', 'Tarn', 'Puff', 'Nimble', 'Stonecrop', 'Thrift', 'Crest']),
 });
+
+// One small hand-drawn emblem per group, in its dark colour, for the cream badge on
+// its pick card and the Change-place line. Each value is the whole <svg>. Keyed by
+// territory id. Optional: a set without EMBLEMS shows no emblem (wordset.js).
+export const EMBLEMS = Object.freeze({
+  woods: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path fill="#2f5a33" d="M7 14.5a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 6.1 4.2 4.2 0 0 1 17.5 14.5z"/><path fill="#e0a21c" stroke="#2f5a33" stroke-width="1" stroke-linejoin="round" d="M14.2 9.5L8.8 16.2h3.4L10.4 22.6l6.2-8h-3.5z"/></svg>',
+  river: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path fill="#24516b" d="M3 12c3-5 9-6 13-1.5L21 7v10l-5-3.5C12 18 6 17 3 12z"/><circle cx="8" cy="11" r="1.1" fill="#f1e0c2"/></svg>',
+  moor: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><g fill="none" stroke="#5c3f68" stroke-width="2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12.5h16a3 3 0 1 1-3 3"/><path d="M3 17h8"/></g></svg>',
+  pines: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path fill="#353d68" d="M14.5 3.5a9 9 0 1 0 6 13.5A7.5 7.5 0 0 1 14.5 3.5z"/><circle cx="17.5" cy="6.5" r="1.4" fill="#353d68"/></svg>',
+  gorge: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path fill="#6b4128" d="M3 20.5L6.5 13.5h4L12.5 6H21v14.5z"/></svg>',
+});

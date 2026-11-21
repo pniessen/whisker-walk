@@ -35,7 +35,8 @@ import { FIGHT_MOVES } from '../src/fightmoves.js';
 import { validPetName } from '../src/net.js';
 import { renderColonyHtml } from '../src/ui/colonypanel.js';
 import { renderStarNamePicker } from '../src/ui/hometabs.js';
-import { clanPickerModel, renderClanPickerHtml, renderClanMomentHtml, clanLineHtml, CLAN_EMBLEMS } from '../src/ui/clanpicker.js';
+import { clanPickerModel, renderClanPickerHtml, renderClanMomentHtml, clanLineHtml } from '../src/ui/clanpicker.js';
+import { EMBLEMS } from '../src/clanwords.js';
 import { htmlText, readFixture, checkAgainstFixture, UPDATING_OFF } from './helpers/serieswords.js';
 import { OFF, withOffWords, bannedIn, bannedLeaks, BANNED } from './helpers/offwords.js';
 import { withStandInWords } from './helpers/standinwords.js';
@@ -380,7 +381,7 @@ describe('4. the player\'s cat has no label, and picking a group is choosing a h
   it('a pick card names its badge in words and draws no emblem; the family\'s cards draw theirs', () => {
     const emblems = (html) => html.split('dr-home-emblem').length - 1;
     const theirs = renderClanPickerHtml(clanPickerModel({}), 'Robin');
-    expect(emblems(theirs)).toBe(Object.keys(CLAN_EMBLEMS).length);
+    expect(emblems(theirs)).toBe(Object.keys(EMBLEMS).length);
     expect(theirs).not.toMatch(/dr-home-badge/);
     withOffWords(() => {
       const html = renderClanPickerHtml(clanPickerModel({}), 'Robin');

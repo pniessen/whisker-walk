@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-  clanPickerModel, renderClanPickerHtml, PICK_ATTR, CLAN_EMBLEMS,
+  clanPickerModel, renderClanPickerHtml, PICK_ATTR, emblemOf,
   MOMENT_SEEN_KEY, MOMENT_ATTR, woodsOpen, clanMomentDue, renderClanMomentHtml, clanLineHtml,
 } from '../src/ui/clanpicker.js';
+import { withOffWords } from './helpers/offwords.js';
 import { CATALOG } from '../src/progression.js';
 import { TERRITORIES } from '../src/territories.js';
 import { clanName, pickableClans, HOMES } from '../src/clanhomes.js';
-import { CLAN_SUFFIX, HOME_LINES } from '../src/clanwords.js';
+import { CLAN_SUFFIX, HOME_LINES, EMBLEMS } from '../src/clanwords.js';
 
 const PARTNER = 'robin-player-02';
 const word = CLAN_SUFFIX.toLowerCase();
@@ -72,7 +73,7 @@ describe('clanPickerModel', () => {
         id, name: clanName(id), line: HOME_LINES[id], place: t.name, soon: false, pickable: true, mine, partner: id === 'moor',
       });
       expect(html).toContain(`<button class="dr-home ${mine ? 'sel' : ''} dr-home-${id}" ${PICK_ATTR}="${id}" aria-pressed="${mine}">`
-        + `<span class="dr-home-name"><span class="dr-home-emblem">${CLAN_EMBLEMS[id]}</span>${clanName(id)}</span><small>of ${t.name}</small><small>${HOME_LINES[id]}</small>`
+        + `<span class="dr-home-name"><span class="dr-home-emblem">${EMBLEMS[id]}</span>${clanName(id)}</span><small>of ${t.name}</small><small>${HOME_LINES[id]}</small>`
         + (mine ? '<small class="dr-home-tag">✓ yours</small>' : '')
         + (id === 'moor' ? "<small class=\"dr-home-tag\">🤝 Robin's</small>" : '')
         + '</button>');
@@ -82,12 +83,12 @@ describe('clanPickerModel', () => {
   it('every clan has its own emblem and colour class; the off card has neither', () => {
     const html = renderClanPickerHtml(clanPickerModel(save()), 'Robin');
     for (const id of pickableClans()) {
-      expect(CLAN_EMBLEMS[id].startsWith('<svg')).toBe(true);
-      expect(CLAN_EMBLEMS[id]).toContain('aria-hidden="true"');
+      expect(EMBLEMS[id].startsWith('<svg')).toBe(true);
+      expect(EMBLEMS[id]).toContain('aria-hidden="true"');
       expect(html).toContain(`dr-home-${id}`);
     }
-    expect(new Set(pickableClans().map((id) => CLAN_EMBLEMS[id])).size).toBe(5);
-    expect(Object.isFrozen(CLAN_EMBLEMS)).toBe(true);
+    expect(new Set(pickableClans().map((id) => EMBLEMS[id])).size).toBe(5);
+    expect(Object.isFrozen(EMBLEMS)).toBe(true);
     const homes = { ...HOMES, gorge: { neighbours: ['moor'], pickable: false } };
     const off = renderClanPickerHtml(clanPickerModel(save(), TERRITORIES, homes), 'Robin')
       .split('<button').find((b) => b.includes(`>${clanName('gorge')}<`));
@@ -193,8 +194,8 @@ describe('the pickable clan cards (style.css, final fix wave)', () => {
     expect(html).toContain('<span class="dr-home-name">Nowhere</span>');
   });
   it('the emblems are single shapes: the gorge is one cliff, the woods bolt has an outline', () => {
-    expect(CLAN_EMBLEMS.gorge.match(/<path/g)).toHaveLength(1);
-    expect(CLAN_EMBLEMS.woods).toContain('stroke="#2f5a33"');
+    expect(EMBLEMS.gorge.match(/<path/g)).toHaveLength(1);
+    expect(EMBLEMS.woods).toContain('stroke="#2f5a33"');
   });
 });
 
@@ -298,7 +299,7 @@ describe('clanLineHtml', () => {
     const h = line({ clanPick: { mine: 'moor', partner: null, partnerId: null } });
     expect(h).toContain('class="hb-pick-line"');
     expect(h).toContain(`You’re <b>${clanName('moor')}</b>`);
-    expect(h).toContain(CLAN_EMBLEMS.moor);
+    expect(h).toContain(EMBLEMS.moor);
     expect(h).toMatch(/^<button type="button" class="hb-pick-line"/);
     expect(h).toContain(MOMENT_ATTR);
     expect(h).toContain('Change ›');
@@ -327,5 +328,29 @@ describe('clanLineHtml', () => {
     expect(h).not.toContain('hb-pick-choose');
     expect(h).toContain('hb-pick-line');
     expect(line({ clanPick: { mine: 'pines', partner: null, partnerId: null } }, 'Robin', { canChoose: false })).toContain(MOMENT_ATTR);
+  });
+});
+
+describe('the emblems are the word set\'s', () => {
+  const WOODS_BOLT = 'M14.2 9.5L8.8 16.2h3.4L10.4 22.6l6.2-8h-3.5z';
+  it('the family\'s emblems come from the word set, unchanged', () => {
+    expect(emblemOf('woods')).toContain(WOODS_BOLT);
+    for (const id of pickableClans()) expect(emblemOf(id)).toBe(EMBLEMS[id]);
+    expect(emblemOf('moor')).toBe('<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><g fill="none" stroke="#5c3f68" stroke-width="2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12.5h16a3 3 0 1 1-3 3"/><path d="M3 17h8"/></g></svg>');
+    // the picker html, as built before the emblems moved (the card string pinned above)
+    const m = clanPickerModel(save({ clanPick: { mine: 'woods', partner: null, partnerId: null } }));
+    const html = renderClanPickerHtml(m, 'Robin');
+    expect(html).toContain(`<span class="dr-home-emblem">${emblemOf('woods')}</span>`);
+    expect(html.split('dr-home-emblem').length - 1).toBe(5);
+  });
+  it('an unknown id has no emblem', () => {
+    expect(emblemOf('nowhere')).toBe('');
+    expect(emblemOf('constructor')).toBe('');
+  });
+  it('a set with no EMBLEMS shows none (the everyday set has none yet)', () => {
+    withOffWords(() => {
+      expect(emblemOf('woods')).toBe('');
+      expect(renderClanPickerHtml(clanPickerModel(save()), 'Robin')).not.toContain('dr-home-emblem');
+    });
   });
 });

@@ -16,26 +16,6 @@ export const PICK_ATTR = `data-${clanWord}-pick`;
 export const PICK_SELECT_ID = `set-${clanWord}-pick`;
 
 
-// One small hand-drawn emblem per clan, in its dark gradient colour, for the
-// cream badge on its card. Keyed by territory id; an unknown id gets none.
-const emblem = (body) => `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">${body}</svg>`;
-export const CLAN_EMBLEMS = Object.freeze({
-  // storm cloud with a gold bolt (dark outline so it holds on the cream badge)
-  woods: emblem('<path fill="#2f5a33" d="M7 14.5a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 6.1 4.2 4.2 0 0 1 17.5 14.5z"/>'
-    + '<path fill="#e0a21c" stroke="#2f5a33" stroke-width="1" stroke-linejoin="round" d="M14.2 9.5L8.8 16.2h3.4L10.4 22.6l6.2-8h-3.5z"/>'),
-  // fish
-  river: emblem('<path fill="#24516b" d="M3 12c3-5 9-6 13-1.5L21 7v10l-5-3.5C12 18 6 17 3 12z"/>'
-    + '<circle cx="8" cy="11" r="1.1" fill="#f1e0c2"/>'),
-  // three wind swooshes
-  moor: emblem('<g fill="none" stroke="#5c3f68" stroke-width="2" stroke-linecap="round">'
-    + '<path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12.5h16a3 3 0 1 1-3 3"/><path d="M3 17h8"/></g>'),
-  // crescent moon with a small star
-  pines: emblem('<path fill="#353d68" d="M14.5 3.5a9 9 0 1 0 6 13.5A7.5 7.5 0 0 1 14.5 3.5z"/>'
-    + '<circle cx="17.5" cy="6.5" r="1.4" fill="#353d68"/>'),
-  // one cliff: sloped face, a single ledge, a flat top
-  gorge: emblem('<path fill="#6b4128" d="M3 20.5L6.5 13.5h4L12.5 6H21v14.5z"/>'),
-});
-
 // The line on a clan's card that can't be picked yet (G10): its territory is
 // walkable, but its camp comes later. Read when it is needed, so it follows
 // the words in use.
@@ -68,14 +48,17 @@ export function clanPickerModel(state, territories = TERRITORIES, homes = HOMES)
 }
 
 // The badge of a group, as a pick card and the line in Change place show it.
-// The drawings above belong to the family's words. A set that has badge WORDS
-// of its own (BADGE_WORDS) has no drawings yet: it shows no emblem, and its
-// cards name the badge in a line of text instead.
+// The drawings belong to the word set (EMBLEMS, whole <svg> strings). A set
+// without them shows no emblem; a set with badge WORDS (BADGE_WORDS) also names
+// the badge in a line of text on its cards.
 const badgeWordOf = (id) => {
   const badges = words().BADGE_WORDS;
   return badges && Object.hasOwn(badges, id) ? badges[id] : null;
 };
-const emblemOf = (id) => (words().BADGE_WORDS ? '' : CLAN_EMBLEMS[id] ?? '');
+export function emblemOf(id) {
+  const emblems = words().EMBLEMS;
+  return emblems && Object.hasOwn(emblems, id) ? emblems[id] : '';
+}
 
 export function renderClanPickerHtml(model, partnerName) {
   const mineCard = model.cards.find((c) => c.mine);

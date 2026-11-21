@@ -32,6 +32,8 @@
 //                   fewer ranks (rankShown, rankWord)
 //       LINES       guided-walk lines of its own, keyed as tutorialwords.js is
 //       BADGE_WORDS a word for each group's badge on the pick cards
+//       EMBLEMS     a drawing (a whole <svg> string) for each group's badge, keyed by
+//                   territory id. Optional: a set without it shows no emblem
 //     Code asks these questions of the set; it never asks which set is in use.
 //
 // A leaf like clanwords.js: it imports that file only, so anything may import
