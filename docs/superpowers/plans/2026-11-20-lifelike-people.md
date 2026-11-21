@@ -233,6 +233,27 @@ iPad): read them in the spec.
 - [ ] **Step 5: Add to the page and render** into `.../people/build/step2/`: shots `scratch-touch-day` (a man kneeling, hand on a tabby's head, at the normal camera), `scratch-touch-cateye`, `scratch-held-day` (she at 1.5 m, hand held out), `scratch-older-day` (an older person's bow and reach); tour `scratch` (she walks up from 2 m, is touched, turns away: 6 s). Look at each.
 - [ ] **Step 6: Commit** `People: the head scratch touch`.
 
+### Task 8a: The gentle kneel (the owner, 2026-11-21)
+
+The owner's answer to ruling R17: **kneeling and standing up take about 0.7 s**, not 0.3 s, so the kneel is gentle. The hand should still reach her within about 2 s.
+
+**Files:**
+- Modify: `src/people/pose.js` (a change of mode into or out of `kneel` or `bow` blends over `POSE_TIMES.KNEEL` = 0.7 s, whatever `ease` the caller passes; every other change keeps the caller's `ease`), `src/people/reach.js` (only if the 2 s below needs it: the hand may start its carry-out while the body is still going down, as long as every rule of Task 8 still holds), `src/people/index.js` (re-export `POSE_TIMES`)
+- Test: `test/people.pose.test.js`, `test/people.reach.test.js`
+
+**Interfaces:**
+- Produces: `POSE_TIMES = { KNEEL: 0.7 }` (frozen) from `pose.js`.
+
+- [ ] **Step 1: Write the failing tests**:
+  - `kneels gently` (an adult going stand -> kneel with `applyPose(person, 1/60)`: at 0.35 s the pelvis height is between 30% and 70% of its way; by 0.7 s + 2 frames it is within 0.005 m of the kneel's; the same for kneel -> stand, and for an older person's bow, measured on the chest's lean).
+  - `other changes keep their ease` (wave -> stand still blends over the caller's 0.3 s).
+  - `touch within about 2 s` (for an adult man, an adult woman and an older person with a tabby and a siamese standing still 0.6-0.75 m in front, from the frame the person is told to kneel (pose `kneel` and a fresh `createScratch()`): state 'resting' with the palm within 0.02 m of `headTop + CLEAR` by 2.2 s at the latest; the test prints nothing, and pins the worst case it measures).
+  - Task 8's sweep (`never through her`) and every palm-speed rule still pass unchanged.
+- [ ] **Step 2: Run** `npx vitest run test/people.pose.test.js test/people.reach.test.js`. Expected: the new tests FAIL.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run** the people tests (`npx vitest run test/people.*.test.js`). Expected: PASS.
+- [ ] **Step 5: Commit** `People: kneeling and standing take 0.7 s (the owner)`.
+
 ## Step 3: the town (WAITS FOR F6). Ends in pictures.
 
 Before Task 9: F6 is merged to main; rebase `people` onto main; run `npx vitest run test/people.*.test.js`.
