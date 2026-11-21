@@ -254,7 +254,7 @@ describe('the head scratch', () => {
   // the person's chest at 0.65 m).
   // (the Maine Coon by a 1.70 m adult: a shorter kneeling adult's arm cannot
   // go over her head's sphere, 1.17 m up and 0.62 m across, clear of it)
-  it('touches every preset cat standing about 0.65 m in front of a 1.61 m adult', () => {
+  it('touches every preset cat standing about 0.65 m in front: a 1.61 m adult (the Maine Coon a 1.70 m one, R14)', () => {
     const at = {};
     for (const breed of CATS) {
       const cat = buildCat(breed);
@@ -402,6 +402,45 @@ describe('the head scratch', () => {
     expect(s).toBe('resting');
   });
 
+  // The scan (fix round 2): head-on, sitting up (requestPet) and still, after
+  // he has knelt for 1 s, every adult height and every cat but the Maine Coon
+  // (R14), at every 0.05 m from the nearest place she can stand to 1.0 m:
+  // resting within 2.5 s (R15).
+  it('touches in every cell of the scan: 1.61-1.90 m adults, four cats, head-on up to 1.0 m', () => {
+    const missed = [];
+    const cells = [];
+    const far = [];
+    const farFrom = {};
+    for (const breed of ['tabby', 'siamese', 'persian', 'hagrid']) {
+      const cat = buildCat(breed);
+      animateCat(cat, 'requestPet', 1, 0, false);
+      for (const tall of [1.61, 1.7, 1.8, 1.9]) {
+        const first = standOff(rig('adult', { height: tall }), cat, 0.65);
+        for (let d = first; d <= 1.0 + 1e-9; d = Math.round((d + 0.05) * 100) / 100) {
+          const r = rig('adult', { height: tall });
+          for (let i = 0; i < 60; i++) frame(r, null, { headTop: null });
+          place(r, cat, d);
+          // (she appears in front of him at once, maybe over his held-out
+          // hand: clearance is the sweep's to pin, not this scan's)
+          let rested = false;
+          let inReach = false;
+          for (let i = 0; i < REACH_FRAMES && !rested; i++) {
+            rested = frame(r, cat) === 'resting';
+            inReach ||= r.sc.inReach;
+          }
+          cells.push(`${breed} ${tall} ${d}`);
+          // past the arm's reach (with the chest's lean) the hand is held out:
+          // those cells are listed, and must be the far end of their row
+          if (!inReach) { far.push(`${breed} ${tall} m at ${d} m`); farFrom[`${breed} ${tall}`] ??= d; continue; }
+          if (farFrom[`${breed} ${tall}`] !== undefined) missed.push(`${breed} ${tall} m at ${d} m: in reach past a cell out of it`);
+          if (!rested) missed.push(`${breed} ${tall} m at ${d} m (${r.sc.state}${r.sc.blocked ? ', blocked' : ''})`);
+        }
+      }
+    }
+    console.info(`the scan: ${cells.length} cells, ${far.length} out of reach: ${far.join(', ')}`);
+    expect(missed, `${cells.length} cells`).toEqual([]);
+  }, 120000);
+
   it('no way in (a Maine Coon 1 m in front of a 1.61 m adult): the hand goes back to held out, not parked at the chest', () => {
     const r = rig('adult', { height: 1.61 });
     const cat = buildCat('mainecoon');
@@ -425,6 +464,15 @@ describe('the head scratch', () => {
     expect(Math.abs(l.x)).toBeLessThan(0.25);
   });
 
+  // what follows the turn to his right over 4 s, she still: for the kneeling
+  // adult her head is still in reach, so once held out the hand comes back
+  // to her by a new way in; for the bowing older man it is out of his reach
+  const RIGHT_AFTER = {
+    'tabby adult': ['withdrawing', 'held', 'reaching', 'resting'],
+    'tabby older': ['withdrawing', 'held'],
+    'siamese adult': ['withdrawing', 'held', 'reaching', 'resting'],
+    'siamese older': ['withdrawing', 'held'],
+  };
   for (const [what, move] of [
     // to the person's left her head goes out of the right hand's reach; to the
     // right it swings toward the arm (and may stay in reach, the hand on it)
@@ -445,7 +493,7 @@ describe('the head scratch', () => {
           cat.updateMatrixWorld(true);
           const seen = [];
           const last = palmPoint(r.p, new THREE.Vector3());
-          for (let i = 0; i < 120; i++) {
+          for (let i = 0; i < 240; i++) {
             const s = frame(r, cat);
             if (seen[seen.length - 1] !== s) seen.push(s);
             expect(worstClearance(r.p, r.vol), `${breed} ${kind} frame ${i}`).toBeGreaterThan(0.005);
@@ -454,11 +502,13 @@ describe('the head scratch', () => {
             expect(palm.distanceTo(last), `${breed} ${kind} frame ${i}: a step`).toBeLessThanOrEqual(STEP_MAX);
             last.copy(palm);
           }
-          // she went out of reach: withdrawn and held out; or (turned to his
-          // right) still in reach: the hand stays on her, or comes back
-          if (seen.includes('withdrawing')) expect(seen.slice(0, 2), `${breed} ${kind}`).toEqual(['withdrawing', 'held']);
-          else expect(seen, `${breed} ${kind}`).toEqual(['resting']);
-          if (/0\.5 m/.test(what) || /left/.test(what)) expect(seen.slice(0, 2), `${breed} ${kind}`).toEqual(['withdrawing', 'held']);
+          // her head whipped round (faster than a hand may follow): let go,
+          // withdrawn, held out; and out of reach (left, 0.5 m away) it stays
+          // held out for the rest of the 4 s. Turned to his right: RIGHT_AFTER.
+          const want = /right/.test(what) ? RIGHT_AFTER[`${breed} ${kind}`] : ['withdrawing', 'held'];
+          expect(seen, `${breed} ${kind}`).toEqual(want);
+          // held out at the end only because she is out of reach
+          expect(r.sc.inReach, `${breed} ${kind}`).toBe(seen[seen.length - 1] === 'resting');
         }
       }
     });

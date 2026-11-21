@@ -60,13 +60,15 @@ const READY_DROP = 0.15; // m: this far under the shoulder
 const BACK_FWD = 0.12; // the guard's drawn-back hand: just in front of the person (x s)
 const BACK_X = 0.3; // and out to the side of the hip (x s)
 const VMAX = 1.2; // m/s: the palm never moves faster than this (ruling R13)
-const HOLD_TAU = 0.15; // s: the held hand follows its place this closely
+const HOLD_TAU = 0.06; // s: the held hand follows its place this closely, at the last
+const HOLD_BRAKE = 0.7; // of HOLD_ACC: how hard it plans to brake
 const HOLD_ACC = 6; // m/s2: and its speed changes no faster than this
-const PLAN_RETRY = 0.25;
+const PLAN_RETRY = 0.25; // s: a way in that could not be planned is tried again after this
 const BLOCK_MOVE = 0.1; // m: she moves this far and a blocked way in is tried again
 const CUSHION = 0.015; // m: the held hand's place keeps this much more room, so it can move off it
+const HEAD_STILL = 0.15; // m/s: a way in starts only with her head slower than this
 const HEAD_LET_GO = 3; // m/s: her head faster than this and the hand lets go
-const SETTLED = 0.05; // m/s: the held hand is settled under this // s: a way in that could not be planned is tried again after this
+const SETTLED = 0.05; // m/s: the held hand is settled under this
 const DRAW_IN = 0.3; // the way in draws in toward the shoulder this much as it rises
 const RISE_FIRST = 0.75; // and rises this much of the way to over her head first
 const LIFT_MAX = 0.6; // m: the guard lifts the hand at most this far
@@ -268,7 +270,6 @@ const _p2 = new THREE.Vector3();
 
 // The closest point's place along a-b (0..1) is left in SEG_K by both.
 let SEG_K = 0;
-let SEG_T = 0; // and segSeg's place along the second segment
 function pointSeg(c, a, b) {
   _d1.subVectors(b, a);
   const L2 = _d1.lengthSq();
@@ -284,7 +285,7 @@ function segSeg(p1, q1, p2, q2) {
   _rr.subVectors(p1, p2);
   const a = _d1.lengthSq(), e = _d2.lengthSq(), f = _d2.dot(_rr);
   let s, t;
-  if (a <= 1e-12 && e <= 1e-12) { SEG_K = 0; SEG_T = 0; return p1.distanceTo(p2); }
+  if (a <= 1e-12 && e <= 1e-12) { SEG_K = 0; return p1.distanceTo(p2); }
   if (a <= 1e-12) { s = 0; t = clamp(f / e, 0, 1); }
   else {
     const c = _d1.dot(_rr);
@@ -299,7 +300,6 @@ function segSeg(p1, q1, p2, q2) {
     }
   }
   SEG_K = s;
-  SEG_T = t;
   _p1.copy(p1).addScaledVector(_d1, s);
   _p2.copy(p2).addScaledVector(_d2, t);
   return _p1.distanceTo(_p2);
@@ -312,6 +312,7 @@ const ARM = {
   avail: 0, // the lean the chest has left (rad)
   S: new THREE.Vector3(), E: new THREE.Vector3(), W: new THREE.Vector3(), tip: new THREE.Vector3(),
   reached: false,
+  folded: false, // the solve wanted a tighter fold than the arm goes
 };
 let PERSON = null;
 const _eul = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -452,7 +453,8 @@ function solveArm(P, f, lean, vol) {
   // reached: neither past the arm's length nor folded tighter than it goes
   // (the wrist at least FOLD_MIN past the forearm's tuck against the upper arm)
   const dMin = Math.abs(a - b) + FOLD_MIN;
-  ARM.reached = d <= dMax + 1e-9 && d >= dMin - 1e-9;
+  ARM.folded = d < dMin - 1e-9;
+  ARM.reached = d <= dMax + 1e-9 && !ARM.folded;
   d = clamp(d, dMin, dMax);
   ARM.W.copy(ARM.S).addScaledVector(_n, d);
   ARM.tip.copy(ARM.W).addScaledVector(f, 1.92 * ARM.hr);
@@ -604,17 +606,37 @@ const _wq = new THREE.Vector3();
 const _ready = new THREE.Vector3();
 
 // The way's key places for this frame (module state: _top, _T, _s0, _ready).
-function keysFor(from, viaReady) {
+function keysFor(from, viaReady, drawIn) {
   KEY_N = 0;
   KEYS[KEY_N++].copy(from);
   if (viaReady) KEYS[KEY_N++].copy(_ready);
   const last = KEYS[KEY_N - 1];
   _A.copy(_top).addScaledVector(UP, REACH.ABOVE);
-  const up = KEYS[KEY_N++].copy(last).lerp(_s0, DRAW_IN);
+  const up = KEYS[KEY_N++].copy(last).lerp(_s0, drawIn);
   up.y = last.y + Math.max(0, _A.y - last.y) * RISE_FIRST;
+  // never so far in that the arm would have to fold tighter than it goes:
+  // out from the shoulder, level, toward her, to the arm's room
+  const room = Math.abs(ARM.a - ARM.b) + FOLD_MIN + 0.92 * ARM.hr + ROOM_GIVE;
+  const dy = up.y - _s0.y;
+  const flat = room * room - dy * dy;
+  if (flat > 0) {
+    _wk.set(up.x - _s0.x, 0, up.z - _s0.z);
+    const h = _wk.length();
+    const need = Math.sqrt(flat);
+    if (h < need) {
+      if (h < 1e-6) _wk.set(_A.x - _s0.x, 0, _A.z - _s0.z);
+      _wk.normalize();
+      up.x = _s0.x + _wk.x * need;
+      up.z = _s0.z + _wk.z * need;
+    }
+  }
   KEYS[KEY_N++].copy(_A);
   KEYS[KEY_N++].copy(_T);
 }
+const _wk = new THREE.Vector3();
+const ROOM_GIVE = 0.04; // m: the rise key's palm keeps this much more room from the shoulder
+// The ways in planWay tries, in turn: [by the ready place?, drawn in how much]
+const WAYS = Object.freeze([[0, DRAW_IN], [1, DRAW_IN], [0, DRAW_IN / 3], [1, DRAW_IN / 3], [0, 0], [1, 0]]);
 // the curve at v in 0..1 (uniform Catmull-Rom through KEYS, ends doubled)
 function curveAt(v, out) {
   const segs = KEY_N - 1;
@@ -679,8 +701,9 @@ const PLAN_RISE = 0.35;
 const PLAN_ROUNDS = 6;
 const _plan = new Float64Array(WAY_N + 1);
 function planWay(sc, touchYaw, vol) {
-  for (let via = 0; via < 2; via++) {
-    keysFor(sc.palm, via === 1);
+  for (let w = 0; w < WAYS.length; w++) {
+    const via = w;
+    keysFor(sc.palm, WAYS[w][0] === 1, WAYS[w][1]);
     sc.plan.fill(0);
     measureWay(sc.plan);
     let ok = true;
@@ -712,7 +735,9 @@ function planWay(sc, touchYaw, vol) {
           wayAt(sc.plan, a, _P);
           dirOf(sc.yaw + wrapPi(touchYaw - sc.yaw) * a, _f);
           const m = tryAt(_P, _f, vol);
-          if (!ARM.reached) { ok = false; break; } // the arm cannot follow it there
+          // the arm may fall short of a point (over her head, out of its reach:
+          // the palm passes as near as it goes) but never fold up past its tuck
+          if (ARM.folded) { ok = false; break; }
           // the step the palm itself takes (where the arm puts it)
           palmOfArm(_f, _wp);
           most = Math.max(most, _wp.distanceTo(_wq));
@@ -776,12 +801,13 @@ export function createScratch() {
     heldYaw: 0, // the held hand's turn toward her (figure frame, + to the figure's right)
     lean: 0,
     plan: new Float64Array(WAY_N + 1), // the way in's planned rise (see planWay)
-    via: 0, // 1: the way in goes by way of the ready place
+    via: 0, // which of WAYS the way in is
     dur: 0, // the move's time (s)
     planWait: 0, // s until the way in may be planned again
     readyTried: false, // the way in from the held hand failed: try it from the ready place
     toReady: false, // the held hand is going to the ready place
-    blocked: false, // no way in from the ready place either, while she stays where she was
+    inReach: false, // her head can be touched from here (this frame)
+    blocked: false, // no way in from the ready place either: held out, tried again every PLAN_RETRY
     blockedAt: new THREE.Vector3(),
     target: new THREE.Vector3(), // where the held hand is going (guarded)
     lastTop: new THREE.Vector3(), // her head's top last frame
@@ -847,22 +873,32 @@ function towardYaw(cur, to, most) {
 // The palm's place this frame when its planned one is in her: the place, of
 // a few within one frame's reach (VMAX * dt) of where it was, that is clear
 // (the planned one cut to that reach, straight up, back toward the person,
-// where it was), else the least bad. Leaves the arm solved for it (in OUT).
+// level away from her, along each axis, where it was), else the clearest, so
+// a hand she has come over works its way out. Leaves the arm solved for it
+// (in OUT).
 function stepClear(sc, P, f, vol, dt) {
   const most = VMAX * dt;
   let best = -Infinity;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 10; i++) {
     if (i === 0) { _vt.subVectors(P, sc.palm); const L = _vt.length(); OUT.copy(sc.palm).addScaledVector(_vt, L > most ? most / L : 1); }
     else if (i === 1) OUT.copy(sc.palm).addScaledVector(UP, most);
     else if (i === 2) { // back toward the person, level (out from under her chin)
       _vt.set(_s0.x - sc.palm.x, 0, _s0.z - sc.palm.z);
       const L = _vt.length();
       OUT.copy(sc.palm).addScaledVector(_vt, L > most ? most / L : 1);
+    } else if (i < 9) {
+      // (caught in her, she having come over it: any way out, the clearest)
+      const k = i - 3;
+      _vt.set(k === 0 ? 1 : k === 1 ? -1 : 0, k === 2 ? -1 : 0, k === 3 ? 1 : k === 4 ? -1 : 0);
+      if (k === 5) _vt.subVectors(sc.palm, _top).setY(0).normalize();
+      OUT.copy(sc.palm).addScaledVector(_vt, most);
     } else OUT.copy(sc.palm);
     const m = tryAt(OUT, f, vol);
-    if (m >= 0 && palmOfArm(f, _pa).distanceTo(sc.palm) <= most * STEP_GIVE) return OUT;
-    if (m > best) { best = m; _best.copy(OUT); }
+    const steady = palmOfArm(f, _pa).distanceTo(sc.palm) <= most * STEP_GIVE;
+    if (m >= 0 && steady) return OUT;
+    if (steady && m > best) { best = m; _best.copy(OUT); }
   }
+  if (best === -Infinity) _best.copy(sc.palm);
   tryAt(OUT.copy(_best), f, vol);
   return OUT;
 }
@@ -886,6 +922,7 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
   ARM.avail = Math.max(0, REACH.LEAN_MAX + r.x + B.pelvis.rotation.x);
   const s = person.look.dims.s;
   const fig = person.figure;
+  sc.inReach = false;
   fig.getWorldQuaternion(_fq);
   shoulderAt(0, _s0);
 
@@ -919,6 +956,7 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
       if (leanFor(_wr, REACH_OUT * len) >= 0 && tryAt(_T, _f, vol) >= 0 && ARM.reached) {
         canStay = true;
         canStart = _top.y <= perch - PERCH_GIVE && leanFor(_wr, REACH_IN * len) >= 0;
+        sc.inReach = canStart;
       }
     }
   }
@@ -958,24 +996,30 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
   // ---- what happens ----
   // the hand rides on her head while touching; a head that moves faster than
   // a hand may (she whips round) is let go of instead
-  const headJumped = !!headTop && sc.hadTop && dt > 0 && sc.lastTop.distanceTo(headTop) > HEAD_LET_GO * dt;
+  const headMoved = headTop && sc.hadTop && dt > 0 ? sc.lastTop.distanceTo(headTop) / dt : 0;
+  const headJumped = headMoved > HEAD_LET_GO;
+  // (a way in is planned with her still: none starts while she is moving)
+  if (headMoved > HEAD_STILL) canStart = false;
   sc.hadTop = !!headTop;
   if (headTop) sc.lastTop.copy(headTop);
   sc.t += dt;
   sc.planWait = Math.max(0, sc.planWait - dt);
-  // a way in that could not be planned from the ready place is not tried
-  // again till she moves (or goes out of reach and comes back)
+  // a way in that could not be planned even from the ready place: the hand
+  // stays held out and the way in is tried again from there every
+  // PLAN_RETRY (she moving more than BLOCK_MOVE, or going out of reach, lets
+  // it go by the ready place again)
   if (sc.blocked && (!canStart || !headTop || sc.blockedAt.distanceTo(headTop) > BLOCK_MOVE)) sc.blocked = false;
   sc.toReady = false;
-  if (sc.state === 'held' && canStart && !sc.blocked) {
+  if (sc.state === 'held' && canStart) {
     // a reach starts with the held hand settled, on a planned way: from where
     // it is held out if that way is clear, else from the ready place in front
     // of the chest (the hand goes there first)
-    sc.toReady = sc.readyTried;
+    sc.toReady = sc.readyTried && !sc.blocked;
     const settled = sc.vel.lengthSq() < SETTLED * SETTLED;
     const atReady = sc.palm.distanceTo(sc.target) < 0.03; // (its guarded place)
-    if (settled && sc.planWait <= 0 && (!sc.readyTried || atReady)) {
-      if (planWay(sc, touchYaw, vol)) { begin(sc, 'reaching'); sc.readyTried = false; }
+    if (settled && sc.planWait <= 0 && (sc.blocked || !sc.readyTried || atReady)) {
+      if (planWay(sc, touchYaw, vol)) { begin(sc, 'reaching'); sc.readyTried = false; sc.blocked = false; }
+      else if (sc.blocked) sc.planWait = PLAN_RETRY;
       else if (!sc.readyTried) { sc.readyTried = true; sc.toReady = true; }
       else { sc.blocked = true; sc.blockedAt.copy(headTop); sc.readyTried = false; sc.toReady = false; sc.planWait = PLAN_RETRY; }
     }
@@ -995,8 +1039,12 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
     sc.gs = GUARD_S;
     sc.target.copy(_hd);
     // follow it, eased: toward it at up to VMAX, the speed changing gently
-    _vt.subVectors(_hd, sc.palm).divideScalar(HOLD_TAU);
-    if (_vt.length() > VMAX) _vt.setLength(VMAX);
+    // the speed it can still stop from in time (braking at most at HOLD_ACC,
+    // with some to spare), up to VMAX; near its place, it eases in
+    _vt.subVectors(_hd, sc.palm);
+    const gap = _vt.length();
+    const v = Math.min(VMAX, Math.sqrt(2 * HOLD_ACC * HOLD_BRAKE * gap), gap / HOLD_TAU);
+    if (gap > 1e-9) _vt.multiplyScalar(v / gap);
     _vt.sub(sc.vel);
     const most = HOLD_ACC * dt;
     if (_vt.length() > most) _vt.setLength(most);
@@ -1005,7 +1053,7 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
   } else if (sc.state === 'reaching') {
     const a = ease(sc.t / sc.dur);
     sc.yaw = sc.yawFrom + wrapPi(touchYaw - sc.yawFrom) * a;
-    keysFor(sc.from, sc.via === 1);
+    keysFor(sc.from, WAYS[sc.via][0] === 1, WAYS[sc.via][1]);
     measureWay(sc.plan);
     wayAt(sc.plan, a, _P);
   } else if (sc.state === 'resting') {
