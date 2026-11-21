@@ -37,9 +37,15 @@
 // app clock (it runs on from walk to walk, and through a pause), so it is not
 // read: every walk starts at sunset, and a pause holds the evening still.
 // Nothing here draws on a random stream or the network.
+//
+// THE FLOCK (Rooftops step 3, world/roofsbirds.js): where the place has bird
+// perches (area.birdPerches), the life makes the fourteen birds, hands them
+// her spot and the camera every frame, and takes them away at the walk's end.
+// A record without them (older tests' fake areas) has no flock.
 // =============================================================================
 import { skyBackground } from './render/sky.js';
 import { BUS } from './world/roofsplan.js';
+import { createRoofsBirds } from './world/roofsbirds.js';
 
 export const EVENING_RAMP = 240; // s, sunset to dusk
 export const EVENING_STEPS = 6; // the sky's rebuilds on the way
@@ -76,11 +82,12 @@ export function busAt(t, out = {}) {
   return out;
 }
 
-// createRoofsLife(area) -> (ctx) => { update(dt, t), dispose() }. `area` is
-// the built record (its skySunset, skyDusk, skyGlow, markGlow and bus); ctx is walk.js's life
-// context ({ scene, sun, fill, ... }).
+// createRoofsLife(area) -> (ctx) => { update(dt, t, catPos, camera), dispose() }.
+// `area` is the built record (its skySunset, skyDusk, skyGlow, markGlow, bus
+// and birdPerches); ctx is walk.js's life context ({ scene, sun, fill,
+// critters, visits, reducedMotion, ... }).
 export function createRoofsLife(area) {
-  return ({ scene, sun, fill }) => {
+  return ({ scene, sun, fill, critters, visits, reducedMotion }) => {
     const from = area.skySunset;
     const to = area.skyDusk;
     const sunEnd = sun.intensity;
@@ -129,13 +136,20 @@ export function createRoofsLife(area) {
       }
     }
 
+    const birds = area.birdPerches
+      ? createRoofsBirds(area, { scene, critters: critters ?? null, visits: visits ?? 0, reducedMotion: reducedMotion ?? false })
+      : null;
+
     apply(); // the first frame is already sunset
     return {
-      update(dt) {
+      update(dt, t, catPos = null, camera = null) {
         walk += dt;
         apply();
+        birds?.update(dt, catPos, camera);
       },
-      dispose() {},
+      dispose() {
+        birds?.dispose();
+      },
     };
   };
 }

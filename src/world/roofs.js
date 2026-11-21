@@ -14,6 +14,7 @@ import {
 } from './roofsplan.js';
 import { STEP_MAX } from '../ground.js';
 import { createRoofsLife, mixHex } from '../roofslife.js';
+import { DRAWN_ID, flockPerches } from './roofsflock.js';
 
 // =============================================================================
 // THE ROOFTOPS, DRAWN (Rooftops step 2). Every position comes from
@@ -83,6 +84,13 @@ import { createRoofsLife, mixHex } from '../roofslife.js';
 //   * the garden (discovery A), the skylight over the lamp-lit attic (D) and
 //     the warm chimney's cowl (F).
 // THE EVENING is roofslife.js: the record's `life`.
+//
+// THE BIRDS' PERCHES (Rooftops step 3): while drawing, the pot tops (the warm
+// chimney's cowl top on its pot), the aerials' booms, the parapets' copings
+// every 3 m (not over a street), tower-1's ring corners, the washing posts'
+// T-bars and the yard walls' copings are pushed as drawn spots, `{ id, kind,
+// x, y, z }` with roofsflock.js's DRAWN_ID ids; with the plan's own they are
+// the record's `birdPerches` (roofsflock.js flockPerches). Data only: no mesh.
 //
 // THE BACK YARDS' WALLS are the plan's raised ground (roofsplan.js YARD_WALLS),
 // drawn inside it: one mesh, userData.yardWalls.
@@ -514,11 +522,12 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     alley.name = 'roofsAlley';
     const AK = makeKit('roofsAlley');
     drawAlley(AK, alley, M, ground);
-    drawYards(AK, alley, M);
+    const drawn = []; // the birds' drawn perches (the header)
+    drawYards(AK, alley, M, drawn);
     for (const m of AK.meshes()) alley.add(m);
     const terrace = new THREE.Group();
     terrace.name = 'roofsTerrace';
-    drawTerrace(terrace, M, win, ground);
+    drawTerrace(terrace, M, win, ground, drawn);
     const moves = new THREE.Group();
     moves.name = 'roofsMoves';
     drawCrossings(moves, M);
@@ -528,9 +537,9 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     const north = new THREE.Group();
     north.name = 'roofsNorth';
     const NK = makeKit('roofsNorth');
-    drawShop(NK, north, M, win, ground);
-    drawWarehouse(NK, north, M, win, upWin, ground);
-    drawTower(NK, north, M, scene);
+    drawShop(NK, north, M, win, ground, drawn);
+    drawWarehouse(NK, north, M, win, upWin, ground, drawn);
+    drawTower(NK, north, M, scene, drawn);
     drawDiscoveries(NK, north, M, upWin);
     for (const m of NK.meshes()) north.add(m);
     const street = new THREE.Group();
@@ -578,6 +587,9 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
       bus,
       skyGlow, // the band low round the sky; roofslife.js colours it
       markGlow, // the take-off glows; roofslife.js sets their opacity (Task D)
+      // where the birds perch: the plan's spots and the drawn ones (step 3);
+      // Task 5 names the smoking pots
+      birdPerches: flockPerches({ traversal: ROOFS_TRAVERSAL, ground, drawn, smoking: [] }),
     };
     // the evening deepening over the walk, and the bus (roofslife.js)
     record.life = createRoofsLife(record);
@@ -1077,7 +1089,7 @@ function washItem(kind, w, h, x, z) {
 }
 
 // --- the back yards: walls with a gateway, washing posts, coal bunkers.
-function drawYards(K, group, M) {
+function drawYards(K, group, M, drawn) {
   const stone = (geo) => K.put('stone', M.stone, geo);
   // the walls: brick inside the plan's raised ground, a pier at each side of
   // the gateway, a stone coping
@@ -1090,6 +1102,8 @@ function drawYards(K, group, M) {
     stone(box(w.x0, w.x1, YARD.h, YARD.h + 0.08, w.z0, w.z1));
     stone(box(w.x0, w.x1, YARD.h + 0.15, YARD.h + 0.23, z, z + 0.36));
   }
+  // a bird's perch on each wall's coping, at its middle
+  YARD_WALLS.forEach((w, i) => drawn.push({ id: DRAWN_ID.wall(i), kind: 'wall', x: w.x, y: YARD.h + 0.08, z: (w.z0 + w.z1) / 2 }));
   group.add(own('yardWalls', M.wall, walls, { tile: TILE.brick, tag: { yardWalls: true } }));
   const lineGeos = [];
   WASHING_POSTS.forEach((p, i) => {
@@ -1097,6 +1111,8 @@ function drawYards(K, group, M) {
       K.put('ironSmall', M.iron, post(p.x, z, 0, 2.0, 0.04), { noCast: true });
       K.put('ironSmall', M.iron, rod({ x: p.x - 0.3, y: 1.95, z }, { x: p.x + 0.3, y: 1.95, z }, 0.025), { noCast: true });
     }
+    // a bird's perch on each post's top, at its T-bar
+    [p.z0, p.z1].forEach((z, end) => drawn.push({ id: DRAWN_ID.post(i, end), kind: 'post', x: p.x, y: 2.0, z }));
     for (const dx of [-0.25, 0.25]) lineGeos.push(rod({ x: p.x + dx, y: 1.95, z: p.z0 }, { x: p.x + dx, y: 1.9, z: p.z1 }, 0.008, 4));
     // two or three things drying on each
     for (let j = 0; j < 3; j++) {
@@ -1168,7 +1184,9 @@ const EAVE = Object.freeze({ slate: 0.04, inset: 0.04, board: 0.22, gutterDrop: 
 // TV aerials on six stacks (hash01's pick), each on the stack's street face
 // on the side over the slates, every one pointing the same way (at the same
 // transmitter): a mast, a boom and three elements, all thin open wires.
-const AERIAL = Object.freeze({ count: 6, off: 0.3, foot: 0.6, tall: 1.15, extra: 0.35, mast: 0.022, rod: 0.011, yaw: 0.55, boom: [-0.35, 0.65], elements: [[-0.25, 0.27], [0.15, 0.22], [0.5, 0.17]] });
+// Returns a bird's perch on the boom (AERIAL.perch along it, between two
+// elements, on the wire's top), or null where it draws none.
+const AERIAL = Object.freeze({ count: 6, off: 0.3, foot: 0.6, tall: 1.15, extra: 0.35, mast: 0.022, rod: 0.011, yaw: 0.55, boom: [-0.35, 0.65], elements: [[-0.25, 0.27], [0.15, 0.22], [0.5, 0.17]], perch: 0.33 });
 const AERIAL_STACKS = new Set([...STACKS].sort((p, q) => hash01(p.x, 7.1, 61) - hash01(q.x, 7.1, 61)).slice(0, AERIAL.count).map((s) => s.id));
 function aerial(put, s, quarters, ground) {
   const first = hash01(s.x, 2.2, 67) < 0.5 ? -1 : 1;
@@ -1185,8 +1203,10 @@ function aerial(put, s, quarters, ground) {
     const at = (t, u = 0) => ({ x: mx + dx * t - dz * u, y, z: mz + dz * t + dx * u });
     put(wire(at(AERIAL.boom[0]), at(AERIAL.boom[1]), AERIAL.rod));
     for (const [t, half] of AERIAL.elements) put(wire(at(t, -half), at(t, half), AERIAL.rod * 0.8));
-    return;
+    const perch = at(AERIAL.perch);
+    return { x: perch.x, y: y + AERIAL.rod, z: perch.z };
   }
+  return null;
 }
 // A satellite dish on two back walls (hash01's pick of the houses with no
 // outrigger), between the upstairs window and the eave, facing south and up.
@@ -1209,7 +1229,7 @@ function dish(put, x, y, z) {
 
 // --- the terrace: the houses, their extensions and outriggers, the slates,
 // the flat roofs, the stacks and every window.
-function drawTerrace(group, M, win, ground) {
+function drawTerrace(group, M, win, ground, drawn) {
   const K = makeKit('roofsTerrace');
   // `color`: whose brick (lookOf(k).wall), or a colour of its own
   const wall = (geo, color = null) => K.put('wall', M.wall, geo, { tile: TILE.brick, color });
@@ -1343,7 +1363,8 @@ function drawTerrace(group, M, win, ground) {
     const brick = stackBrick(s);
     group.add(own(s.id, M.wall, quarters.map((q) => box(q.x0, q.x1, q.y0, s.y, q.z0, q.z1)), { tile: TILE.brick, color: brick, tag: { block: s.id } }));
     for (const q of quarters) wall(box(q.x0 - 0.06, q.x1 + 0.06, s.y - 0.16, s.y - 0.06, q.z0 - 0.06, q.z1 + 0.06), brick); // the oversailing course
-    if (AERIAL_STACKS.has(s.id)) aerial(iron, s, quarters, ground);
+    const mast = AERIAL_STACKS.has(s.id) ? aerial(iron, s, quarters, ground) : null;
+    if (mast) drawn.push({ id: DRAWN_ID.aerial(s.x), kind: 'aerial', ...mast });
     for (const side of [-1, 1]) {
       // a pot each side of the ridge's line, on the quarters that reach it
       const reach = quarters.filter((q) => (side < 0 ? s.z - q.z0 : q.z1 - s.z) >= STACK.pot + 0.13);
@@ -1353,8 +1374,11 @@ function drawTerrace(group, M, win, ground) {
       const col = hash01(s.x, side, 9) < 0.7 ? 0xb8613f : 0x8a7f72;
       pots(post(px, s.z + side * STACK.pot, s.y, tall, 0.1, 0.13, 10), col);
       pots(post(px, s.z + side * STACK.pot, s.y + tall - 0.04, 0.05, 0.125, 0.125, 10), col);
+      // a bird's perch on its rim (on the warm chimney's, the cowl's top)
+      const warm = s.x === ROOFS_DISCOVERIES.chimney.x && side < 0;
+      drawn.push({ id: DRAWN_ID.pot(s.x, side), kind: 'pot', x: px, y: s.y + tall + (warm ? 0.14 : 0.01), z: s.z + side * STACK.pot });
       // the warm chimney (discovery F): a cowl on its pot, soot round the rim
-      if (s.x === ROOFS_DISCOVERIES.chimney.x && side < 0) {
+      if (warm) {
         const z = s.z + side * STACK.pot;
         pots(post(px, z, s.y + tall - 0.08, 0.06, 0.128, 0.128, 10), 0x2a2622);
         pots(post(px, z, s.y + tall + 0.08, 0.06, 0.04, 0.16, 10), 0x3a3d42);
@@ -1679,6 +1703,32 @@ function parapet(wall, stone, x0, x1, z0, z1, y, h = 0.45, joint = null) {
   }
 }
 
+// The birds' perches on a block's parapets (roofsflock.js DRAWN_ID.parapet):
+// spot n is 3n m clockwise round the block's edge from its north-west corner,
+// on the coping's middle (PARAPET_MID out from the edge), pushed where a
+// coping of `runs` ({ x0, x1, z0, z1, y }, y its top) lies under it with
+// PARAPET_END to spare along it, and not over a street.
+const PARAPET_EVERY = 3;
+const PARAPET_MID = 0.125;
+const PARAPET_END = 0.1;
+function parapetPerches(drawn, blockId, k, runs) {
+  const [w, d] = [k.x1 - k.x0, k.z1 - k.z0];
+  const sides = [
+    [w, (u) => [k.x0 + u, k.z0 - PARAPET_MID]], [d, (u) => [k.x1 + PARAPET_MID, k.z0 + u]],
+    [w, (u) => [k.x1 - u, k.z1 + PARAPET_MID]], [d, (u) => [k.x0 - PARAPET_MID, k.z1 - u]],
+  ];
+  const e = PARAPET_END;
+  for (let n = 0; PARAPET_EVERY * n < 2 * (w + d); n++) {
+    let t = PARAPET_EVERY * n;
+    let i = 0;
+    while (t >= sides[i][0]) t -= sides[i++][0];
+    const [x, z] = sides[i][1](t);
+    if (STREETS.some((r) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1)) continue;
+    const run = runs.find((r) => x >= r.x0 + e && x <= r.x1 - e && z >= r.z0 + e && z <= r.z1 - e);
+    if (run) drawn.push({ id: DRAWN_ID.parapet(blockId, n), kind: 'parapet', x, y: run.y, z });
+  }
+}
+
 // Splits [a, b] round each gap centre (half-width `half`): the runs left.
 function runsAround(a, c, gaps, half) {
   let runs = [[a, c]];
@@ -1723,7 +1773,7 @@ const SHOP_DRESS = Object.freeze({
   h: 0.15, out: 0.06, stone: 0xcdc4b2, // the stone's own colour
   cornice: Object.freeze({ h: 0.2, out: 0.3 }), // tall, and proud of the wall (the parapets stand 0.25 out)
 });
-function drawShop(K, group, M, win, ground) {
+function drawShop(K, group, M, win, ground, drawn) {
   const wall = (g) => K.put('wall', M.wall, g, { tile: TILE.brick, color: NORTH.shop }); // painted (Task B)
   const stone = (g) => K.put('stone', M.stone, g);
   const painted = (g, color) => K.put('paint', M.paint, g, { color, noCast: true });
@@ -1750,9 +1800,12 @@ function drawShop(K, group, M, win, ground) {
   // parapets: open on the terrace side where she climbs up from the last stack
   const up = climbTo('cornerShop');
   const joint = (g, item) => K.put('paint', M.paint, g, { color: COPING.color, noCast: true, item }); // round two, Task G
-  for (const [z0, z1] of runsAround(S.z0, S.z1, [up.z], 0.7)) parapet(wall, stone, S.x0 - 0.25, S.x0, z0, z1, S.y, 0.45, joint);
-  parapet(wall, stone, S.x1, S.x1 + 0.25, S.z0, S.z1 + 0.25, S.y, 0.45, joint);
-  parapet(wall, stone, S.x0 - 0.25, S.x1, S.z1, S.z1 + 0.25, S.y, 0.45, joint);
+  const runs = []; // the copings, for the birds' perches
+  const para = (x0, x1, z0, z1) => { runs.push({ x0, x1, z0, z1, y: S.y + 0.45 + COPING.h }); parapet(wall, stone, x0, x1, z0, z1, S.y, 0.45, joint); };
+  for (const [z0, z1] of runsAround(S.z0, S.z1, [up.z], 0.7)) para(S.x0 - 0.25, S.x0, z0, z1);
+  para(S.x1, S.x1 + 0.25, S.z0, S.z1 + 0.25);
+  para(S.x0 - 0.25, S.x1, S.z1, S.z1 + 0.25);
+  parapetPerches(drawn, 'cornerShop', S, runs);
 
   // over the street: the arch the bus goes under, the shopfront, three floors of windows
   const arch = { z0: BUS.z - BUS.width / 2 - 0.95, z1: BUS.z + BUS.width / 2 + 0.95, y1: L.STREET + BUS.height + 0.3 };
@@ -1826,7 +1879,7 @@ function warehouseFelt(put, W, ground, lights, stairZ, gapX) {
 const TANK_PLANK = Object.freeze({ thick: 0.018, wide: 0.26, color: 0xc9ad7e, hoop: 0xb9c0c4 }); // a pale, sun-bleached plank on the dark lid
 // --- the warehouse, and what stands on its roof: the tank, the loft, the
 // lantern, roof lights; its stair down to the ginnel.
-function drawWarehouse(K, group, M, win, upWin, ground) {
+function drawWarehouse(K, group, M, win, upWin, ground, drawn) {
   const wall = (g, color = NORTH.warehouse) => K.put('wall', M.wall, g, { tile: TILE.brick, color }); // a darker brick (Task B)
   const stone = (g) => K.put('stone', M.stone, g);
   const iron = (g, noCast = false) => K.put(noCast ? 'ironSmall' : 'iron', M.iron, g, { noCast });
@@ -1847,10 +1900,13 @@ function drawWarehouse(K, group, M, win, upWin, ground) {
   const tower = BLOCK['tower-1'];
   const up = climbTo('warehouse');
   const joint = (g, item) => K.put('paint', M.paint, g, { color: COPING.color, noCast: true, item }); // round two, Task G
-  for (const [x0, x1] of [[W.x0 - 0.25, tower.x0], ...runsAround(tower.x1, W.x1 + 0.25, [up.x], 0.7)]) parapet(wall, stone, x0, x1, W.z1, W.z1 + 0.25, W.y, 0.5, joint);
-  parapet(wall, stone, W.x0 - 0.25, W.x0, W.z0 - 0.25, W.z1, W.y, 0.5, joint);
-  parapet(wall, stone, W.x0, W.x1 + 0.25, W.z0 - 0.25, W.z0, W.y, 0.5, joint);
-  for (const [z0, z1] of [[W.z0, stairZ[0]], [stairZ[1], W.z1]]) parapet(wall, stone, W.x1, W.x1 + 0.25, z0, z1, W.y, 0.5, joint);
+  const runs = []; // the copings, for the birds' perches
+  const para = (x0, x1, z0, z1) => { runs.push({ x0, x1, z0, z1, y: W.y + 0.5 + COPING.h }); parapet(wall, stone, x0, x1, z0, z1, W.y, 0.5, joint); };
+  for (const [x0, x1] of [[W.x0 - 0.25, tower.x0], ...runsAround(tower.x1, W.x1 + 0.25, [up.x], 0.7)]) para(x0, x1, W.z1, W.z1 + 0.25);
+  para(W.x0 - 0.25, W.x0, W.z0 - 0.25, W.z1);
+  para(W.x0, W.x1 + 0.25, W.z0 - 0.25, W.z0);
+  for (const [z0, z1] of [[W.z0, stairZ[0]], [stairZ[1], W.z1]]) para(W.x1, W.x1 + 0.25, z0, z1);
+  parapetPerches(drawn, 'warehouse', W, runs);
   // the ginnel's far wall and its end
   wall(box(ROOFS_BOUNDS.maxX, ROOFS_BOUNDS.maxX + 0.3, 0, 2.4, W.z0 - 0.3, W.z1), BRICK.red); stone(box(ROOFS_BOUNDS.maxX - 0.05, ROOFS_BOUNDS.maxX + 0.35, 2.4, 2.5, W.z0 - 0.3, W.z1));
   wall(box(W.x1, ROOFS_BOUNDS.maxX, 0, 2.4, W.z0 - 0.3, W.z0), BRICK.red); stone(box(W.x1, ROOFS_BOUNDS.maxX, 2.4, 2.5, W.z0 - 0.35, W.z0 + 0.05));
@@ -1996,7 +2052,7 @@ function climbedFace(r, x, z, nx, nz) {
 }
 const LOUVRE = Object.freeze({ dy: [-0.3, -0.02, 0.26], len: 1.0, depth: 0.1, thick: 0.03, tilt: 0.6, out: 0.05 });
 const PINNACLE = Object.freeze({ off: 0.12, half: 0.09, y0: -0.45, y1: 0.42, cap: 0.45 }); // y from the belfry's top
-function drawTower(K, group, M, scene) {
+function drawTower(K, group, M, scene, drawn) {
   const stone = (g, color = TOWER.dressing) => K.put('stone', M.stone, g, { color });
   const painted = (g, color) => K.put('paint', M.paint, g, { color, noCast: true });
   const rail = (g) => K.put('ironSmall', M.iron, g, { noCast: true });
@@ -2021,6 +2077,10 @@ function drawTower(K, group, M, scene) {
 
   // the first ledge (tower-1's ring) and the stages above, each a block's top
   group.add(own('tower-1', M.stone, [box(T1.x0 - 0.1, T1.x1 + 0.1, LEDGE, T1.y, T1.z0 - 0.1, T1.z1 + 0.1)], { color: TOWER.dressing, tag: { block: 'tower-1' } }));
+  // the birds' perches on the ring: its corners, clockwise from the north-west, half way to the belfry
+  const inset = (BLOCK.belfry.x0 - T1.x0) / 2;
+  [[T1.x0 + inset, T1.z0 + inset], [T1.x1 - inset, T1.z0 + inset], [T1.x1 - inset, T1.z1 - inset], [T1.x0 + inset, T1.z1 - inset]]
+    .forEach(([x, z], n) => drawn.push({ id: DRAWN_ID.parapet('tower-1', n), kind: 'parapet', x, y: T1.y, z }));
   group.add(own('belfry', M.stone, [box(BF.x0, BF.x1, T1.y, BF.y, BF.z0, BF.z1)], { color: TOWER.stone, tag: { block: 'belfry' } }));
   stone(box(BF.x0 - 0.08, BF.x1 + 0.08, BF.y - 0.22, BF.y - 0.1, BF.z0 - 0.08, BF.z1 + 0.08)); // its cornice
   group.add(own('lanternStage', M.stone, [box(LS.x0, LS.x1, BF.y, LS.y, LS.z0, LS.z1)], { color: TOWER.stone, tag: { block: 'lanternStage' } }));

@@ -853,6 +853,69 @@ describe('the Rooftops drawn', () => {
     expect(houses.size).toBe(2);
   });
 
+  // Rooftops step 3, Task 3: the birds' perches (roofsflock.js), the drawn
+  // ones pushed while drawing.
+  it('every bird perch sits on something drawn', { timeout: 60000 }, () => {
+    const solid = meshes.filter((m) => !m.userData.skyGlow && !m.userData.townBand);
+    const ray = new THREE.Raycaster();
+    const down = new THREE.Vector3(0, -1, 0);
+    expect(area.birdPerches.length).toBeGreaterThan(150);
+    // where she drops onto the bin bags the perch is the ground she lands on
+    // (0), and the soft heap drawn over it stands up to 0.17 m: a bird sits
+    // in its top
+    const onBags = new Set(ROOFS_TRAVERSAL.drops.filter((h) => h.prop === 'binBags').map((h) => `${h.id}:to`));
+    expect(onBags.size).toBe(1);
+    const off = [];
+    for (const p of area.birdPerches) {
+      ray.set(new THREE.Vector3(p.x, p.y + 0.3, p.z), down);
+      ray.far = 0.6;
+      const hit = ray.intersectObjects(solid, false)[0];
+      const dy = hit ? hit.point.y - p.y : null;
+      const bags = [p.id, ...p.aliases].some((id) => onBags.has(id));
+      if (!hit) off.push(`${p.id}: nothing under it`);
+      else if (bags ? dy < -0.06 || dy > 0.17 : Math.abs(dy) > 0.06) off.push(`${p.id} (${p.kind}) on ${hit.object.name} at ${hit.point.y.toFixed(3)}, not ${p.y.toFixed(3)}`);
+    }
+    expect(off).toEqual([]);
+  });
+
+  it('the pots, the aerials, the parapets, the posts and the yard walls give perches', () => {
+    const of = (kind) => area.birdPerches.filter((p) => p.kind === kind);
+    const stacks = BLOCKS.filter((b) => b.id.startsWith('stack-'));
+    // a pot top each side of a stack's ridge line, named by the stack's x and the side
+    expect(of('pot').length).toBeGreaterThanOrEqual(10);
+    for (const p of of('pot')) {
+      const [, x, side] = p.id.split(':').map(Number);
+      const s = stacks.find((k) => k.x === x);
+      expect(s, p.id).toBeDefined();
+      expect(Math.sign(p.z - s.z), p.id).toBe(side);
+      expect(p.y, p.id).toBeGreaterThan(s.y + 0.4);
+      expect(p.y, p.id).toBeLessThan(s.y + 0.8);
+    }
+    // the warm chimney's pot (discovery F): on its cowl's top, over the other pots
+    const warm = of('pot').find((p) => p.id === `pot:${ROOFS_DISCOVERIES.chimney.x}:-1`);
+    expect(warm).toBeDefined();
+    expect(warm.y).toBeGreaterThan(Math.max(...of('pot').filter((p) => p !== warm).map((p) => p.y)));
+    // an aerial on each of the six stacks that carries one, high over its stack
+    expect(of('aerial')).toHaveLength(6);
+    for (const p of of('aerial')) {
+      const s = stacks.find((k) => `aerial:${k.x}` === p.id);
+      expect(s, p.id).toBeDefined();
+      expect(p.y).toBeGreaterThan(s.y + 0.9);
+      expect(Math.hypot(p.x - s.x, p.z - s.z)).toBeLessThan(1.6);
+    }
+    // the parapets every 3 m, none over a street: the warehouse's, the shop's and tower-1's ring corners
+    expect(of('parapet').length).toBeGreaterThanOrEqual(8);
+    for (const p of of('parapet')) for (const s of STREETS) expect(p.x >= s.x0 && p.x <= s.x1 && p.z >= s.z0 && p.z <= s.z1, p.id).toBe(false);
+    for (const block of ['warehouse', 'cornerShop']) expect(of('parapet').filter((p) => p.id.startsWith(`parapet:${block}:`)).length, block).toBeGreaterThanOrEqual(4);
+    expect(of('parapet').filter((p) => p.id.startsWith('parapet:tower-1:')).map((p) => p.id).sort()).toEqual([0, 1, 2, 3].map((n) => `parapet:tower-1:${n}`));
+    // each washing post's T-bar, and the coping of each yard wall
+    expect(of('post').map((p) => p.id).sort()).toEqual(WASHING_POSTS.flatMap((_, i) => [`post:${i}:0`, `post:${i}:1`]).sort());
+    for (const p of of('post')) expect(p.y).toBeGreaterThan(1.9);
+    expect(of('wall').length).toBeGreaterThanOrEqual(6);
+    for (const p of of('wall')) expect(p.y).toBeGreaterThan(YARD.h);
+    expect(Object.isFrozen(area.birdPerches)).toBe(true);
+  });
+
   it('nothing drawn stands where she walks a rail or makes a hop', () => {
     // her body's space above every rail and along every hop (at the higher
     // end's level), 0.25 m either side: only the rail's own drawing, the
@@ -1169,7 +1232,10 @@ describe('the Rooftops drawn', () => {
     expect(dusk).toBeLessThanOrEqual(GLOW_OPACITY_MAX);
     expect(mat.opacity).toBe(dusk);
     const fog = new THREE.Fog(0x765266, 40, 140);
-    const life = area.life({ scene: { background: null, fog }, sun: { intensity: 1 }, fill: { intensity: 1 } });
+    // a real scene: the built place has bird perches, so the life adds its flock (step 3)
+    const lifeScene = new THREE.Scene();
+    lifeScene.fog = fog;
+    const life = area.life({ scene: lifeScene, sun: { intensity: 1 }, fill: { intensity: 1 } });
     expect(mat.opacity).toBeCloseTo(sunset, 6);
     let last = mat.opacity;
     for (let t = 0; t < EVENING_RAMP; t += 10) {
@@ -1178,6 +1244,7 @@ describe('the Rooftops drawn', () => {
       last = mat.opacity;
     }
     expect(mat.opacity).toBeCloseTo(dusk, 6);
+    life.dispose();
     // the walk's own material: the shared kit glow (markMesh's) is never moved
     expect(mat).not.toBe(markMesh('lip', { x0: 0, z0: 0, x1: 1, z1: 0, prop: 'tank' }).children[0].material);
   });

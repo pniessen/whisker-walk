@@ -18,7 +18,9 @@ vi.mock('../src/render/sky.js', async (importOriginal) => {
 
 const { skyBackground } = await import('../src/render/sky.js');
 const { createRoofsLife, eveningAt, busAt, EVENING_RAMP, EVENING_STEPS } = await import('../src/roofslife.js');
-const { BUS, ROOFS_SHOT_T, ROOFS_SHOTS } = await import('../src/world/roofsplan.js');
+const { BUS, ROOFS_SHOT_T, ROOFS_SHOTS, ROOFS_TRAVERSAL, ROOFS_GROUND } = await import('../src/world/roofsplan.js');
+const { createGround } = await import('../src/ground.js');
+const { flockPerches, perchIndex, ROOFS_BIRDS } = await import('../src/world/roofsflock.js');
 
 const SUNSET = { top: 0x4a5a8c, horizon: 0xe89a6a };
 const DUSK = { top: 0x1f2a52, horizon: 0x8a5a6a };
@@ -199,5 +201,82 @@ describe('the picture times', () => {
     expect(skyBackground).toHaveBeenLastCalledWith(DUSK.top, DUSK.horizon);
     expect(edge.scene.fog.color.getHex()).toBe(DUSK.horizon);
     expect(edge.sun.intensity).toBeCloseTo(0.8, 6);
+  });
+});
+
+// Rooftops step 3, Task 3: the life makes the flock (roofsbirds.js) where the
+// place has bird perches. These perches are the plan's, with SYNTHETIC drawn
+// spots standing in for roofs.js's at the roster's drawn homes
+// (test/roofsbirds.test.js has the built place's).
+describe('the Rooftops’ flock, in the life', () => {
+  const ground = createGround(ROOFS_GROUND);
+  const plain = perchIndex(flockPerches({ traversal: ROOFS_TRAVERSAL, ground }));
+  const drawn = ROOFS_BIRDS.filter((b) => !plain.has(b.home)).map((b, k) => ({
+    id: b.home, kind: b.home.split(':')[0], x: 30 + 3 * k, y: 11.67, z: -40,
+  }));
+  const birdPerches = flockPerches({ traversal: ROOFS_TRAVERSAL, ground, drawn });
+  const withFlock = () => {
+    const scene = new THREE.Scene();
+    scene.background = { isTexture: true, dispose: vi.fn() };
+    scene.fog = new THREE.Fog(DUSK.horizon, 40, 140);
+    const area = { skySunset: { ...SUNSET }, skyDusk: { ...DUSK }, bus: new THREE.Object3D(), birdPerches };
+    return { scene, area };
+  };
+  const added = (scene, before) => scene.children.filter((c) => !before.includes(c));
+
+  it('the life makes the flock when the place has bird perches, and takes it away', () => {
+    const { scene, area } = withFlock();
+    const before = [...scene.children];
+    const life = createRoofsLife(area)({ scene, sun: { intensity: 0.8 }, fill: { intensity: 0.5 }, critters: null, visits: 0, reducedMotion: false });
+    const mine = added(scene, before);
+    expect(mine.map((m) => m.name).sort()).toEqual(['roofsFlock', 'roofsFlockWings']);
+    const disposed = new Set();
+    for (const m of mine) {
+      m.geometry.addEventListener('dispose', () => disposed.add(m.geometry));
+      m.material.addEventListener('dispose', () => disposed.add(m.material));
+    }
+    // it passes her spot on: a pigeon she stands by turns to face her
+    const flock = mine.find((m) => m.name === 'roofsFlock');
+    const i = ROOFS_BIRDS.findIndex((b) => b.id === 'pigeon-1');
+    const home = perchIndex(birdPerches).get(ROOFS_BIRDS[i].home);
+    const cat = new THREE.Vector3(home.x + 3, home.y, home.z);
+    for (let k = 0; k < 90; k++) life.update(1 / 60, 1000 + k, cat, null);
+    const m = new THREE.Matrix4();
+    flock.getMatrixAt(i, m);
+    const fwd = new THREE.Vector3(0, 0, 1).transformDirection(m);
+    expect(fwd.x).toBeGreaterThan(0.99);
+    life.dispose();
+    expect(scene.children).toEqual(before);
+    expect(disposed.size).toBe(4);
+    // a place with no bird perches (every older test's fake area) has no flock
+    const { scene: s2, area: a2 } = withFlock();
+    delete a2.birdPerches;
+    const n = s2.children.length;
+    const life2 = createRoofsLife(a2)({ scene: s2, sun: { intensity: 0.8 }, fill: { intensity: 0.5 } });
+    life2.update(1 / 60, 0, cat, null);
+    expect(s2.children.length).toBe(n);
+    life2.dispose();
+  });
+
+  it('the life adds at most three meshes, no casters, under 1,600 triangles', () => {
+    const { scene, area } = withFlock();
+    const before = [...scene.children];
+    const life = createRoofsLife(area)({ scene, sun: { intensity: 0.8 }, fill: { intensity: 0.5 }, critters: null, visits: 0, reducedMotion: false });
+    let meshes = 0;
+    let tris = 0;
+    for (const o of added(scene, before)) {
+      o.traverse((m) => {
+        if (!m.isMesh) return;
+        meshes++;
+        expect(m.castShadow, m.name).toBe(false);
+        expect(m.userData.noCast, m.name).toBe(true);
+        const g = m.geometry;
+        tris += ((g.index ? g.index.count : g.attributes.position.count) / 3) * (m.isInstancedMesh ? m.count : 1);
+      });
+    }
+    expect(meshes).toBe(2); // the flock and its wings (Task 5's smoke makes three)
+    expect(meshes).toBeLessThanOrEqual(3);
+    expect(tris).toBeLessThan(1600);
+    life.dispose();
   });
 });
