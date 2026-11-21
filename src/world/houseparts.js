@@ -29,7 +29,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { hash01 } from './builder.js';
 import { litMaterial } from '../render/materials.js';
 import {
-  WALL_T, WALL_H, LAWN_Y, DOOR_H, HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_FRONT_DOOR,
+  WALL_T, WALL_H, LAWN_Y, DOOR_H, HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_FRONT_DOOR, SECRET_BOOKCASE,
   houseSections, roomAt, stairAt,
 } from './houseplan.js';
 
@@ -813,6 +813,7 @@ const STAIR_LOOK = freeze({
   main: freeze({ tread: 'oak', riser: 'plaster', side: 'darkWood' }),
   back: freeze({ tread: 'pine', riser: 'pine', side: 'darkWood' }),
   cellar: freeze({ tread: 'stone', riser: 'stone', side: 'cellar' }),
+  secret: freeze({ tread: 'pine', riser: 'darkWood', side: 'darkWood' }), // a plain old back stair, behind the bookcase
 });
 
 // A flight as a solid wedge: treads level at the ramp's height at their middles (so
@@ -1648,6 +1649,44 @@ export function furnitureGeometry(f) {
 // it joins its room's merged mesh, or is a tall piece's own group.
 export function furnitureMesh(f, material) {
   return kitMeshFrom(furnitureGeometry(f), material, `houseFurniture:${f.id}`, { cast: true });
+}
+
+// The library's secret bookcase (step 2, ruling D9), shut: a bookcase like the
+// others, books facing the library (+z), standing in the secret stair's mouth on
+// the wall line. A top-level group whose pivot is the hinge (houseplan.js
+// SECRET_BOOKCASE: the opening's west jamb), so house life swings it open by
+// turning the group (rotation.y = SECRET_OPEN_ROT_Y). Drawn 0.06 m narrower than
+// the opening, so its cornice stays inside the jambs. It fades like a tall piece
+// (ruling H8), and its fade shape is a tall piece's: a cylinder round the leaf's
+// middle, on the leaf (the group's one child, `leaf`), not on the pivot. A fade
+// shape is placed at its object's origin (treefade.js), and one round the hinge
+// would have to reach the leaf's far end, 2.4 m out: seen from the stair, the
+// bookcase then faded away and she faced an invisible wall. A ground-level detail
+// for the level drawing. Unlike the others it is seen from behind (from the stair),
+// so it has a plain wooden back, in its one mesh (the prop merge would empty the
+// leaf of a second one, and the fade find nothing on it).
+export function secretBookcaseGroup(material) {
+  const b = SECRET_BOOKCASE;
+  const f = { id: 'library-secret', kind: 'bookcase', x: b.x, z: b.z, w: b.w - 0.06, d: b.d, h: b.h };
+  const p = new Piece();
+  BUILDERS.bookcase(p, f);
+  const hw = f.w / 2 - 0.04; // inside its side boards
+  p.box(-hw, hw, 0.1, f.h - 0.08, -f.d / 2, -f.d / 2 + 0.02, 'darkWood', ['x-', 'x+', 'y-', 'y+', 'z+']);
+  const leaf = new THREE.Group();
+  leaf.name = 'houseSecretBookcase:leaf';
+  leaf.position.set(b.w / 2, 0, 0);
+  leaf.userData.fadeOccluder = [{ t: 'cyl', r: Math.hypot(b.w, b.d) / 2, y0: 0, y1: b.h }];
+  leaf.add(kitMeshFrom(p.geometry(), material, 'houseFurniture:library-secret', { cast: true }));
+  const g = new THREE.Group();
+  g.name = 'houseSecretBookcase';
+  g.position.set(b.hinge.x, levelY('ground'), b.hinge.z);
+  g.add(leaf);
+  g.userData.secretBookcase = true;
+  g.userData.leaf = leaf;
+  g.userData.noContactShadow = true;
+  g.userData.houseDetail = true;
+  g.userData.houseLevel = 'ground';
+  return g;
 }
 
 // The walked-over pieces of a room (its rugs, its runner, its cobwebs) as one mesh in

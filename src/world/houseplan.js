@@ -58,6 +58,9 @@ export const HOUSE_STAIRS = frozenAll([
   { id: 'main', from: 'ground', to: 'upstairs', x0: 0, z0: 2, x1: 0, z1: -6.4, width: 3.0 },
   { id: 'back', from: 'upstairs', to: 'attic', x0: -8, z0: -11, x1: -14, z1: -11, width: 2.4 },
   { id: 'cellar', from: 'ground', to: 'cellar', x0: 14, z0: -5, x1: 20, z1: -5, width: 2.4 },
+  // step 2 (ruling D9): the hidden passage, from behind the library's shut bookcase up through
+  // the courtyard to the bedroom, 5 m from the back stair's foot. 2.4 m over 8.4 m (0.286).
+  { id: 'secret', from: 'ground', to: 'upstairs', x0: -6, z0: 2, x1: -6, z1: -6.4, width: 2.4 },
 ]);
 
 export const LEVEL_LINKS = freeze(HOUSE_STAIRS.map((s) => freeze([s.from, s.to])));
@@ -82,6 +85,34 @@ export const HOUSE_WINDOWS = frozenAll([
 ]);
 
 export const HOUSE_BOUNDS = freeze({ minX: -24, maxX: 30, minZ: -16, maxZ: 12 });
+
+// ---- the secret bookcase (step 2, ruling D9) ----
+
+// A bookcase stands shut in the secret stair's mouth in the library's north wall: its
+// leaf spans the opening, x [-7.2, -4.8], centred on the wall line, books facing the
+// library. It swings a quarter turn on its west hinge into the library (a vertical
+// hinge at the opening's west jamb), standing open along z from 2 to 4.4, books
+// facing west. In three.js terms the open leaf is the shut one turned by rotation.y
+// = -PI/2 about the hinge (+x to +z). openS: the swing's seconds; reach and holdS:
+// she opens it by staying within reach of it for holdS, from either side (house life).
+export const SECRET_BOOKCASE = freeze({ x: -6, z: 2, w: 2.4, d: 0.42, h: 2.25, hinge: freeze({ x: -7.2, z: 2 }), openS: 1.2, reach: 1.1, holdS: 0.6 });
+export const SECRET_OPEN_ROT_Y = -Math.PI / 2;
+
+// The bookcase's colliders, shut or open: COLLIDER_R circles every COLLIDER_STEP (or
+// less) down the leaf's centreline from the hinge, on the ground level, tagged
+// `secret` so the walk can swap one row for the other. houseColliders carries the shut row.
+export function secretColliders(open) {
+  const b = SECRET_BOOKCASE;
+  const ux = open ? 0 : 1;
+  const uz = open ? 1 : 0;
+  const n = Math.max(1, Math.ceil(b.w / COLLIDER_STEP - 1e-9));
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const t = (b.w * i) / n;
+    out.push({ x: b.hinge.x + ux * t, z: b.hinge.z + uz * t, r: COLLIDER_R, level: 'ground', secret: true });
+  }
+  return out;
+}
 
 // The shut front door on the hall's south wall, and where she lands coming in
 // (yaw 0 faces -z). Data only in step 1; step 4 opens it.
@@ -406,9 +437,9 @@ function along(edge, a, b) {
 }
 
 // Which of the stair's two ends meets this room's edge, as an opening [a, b].
-function stairOpenings(room, edge) {
+function stairOpenings(room, edge, stairs) {
   const out = [];
-  for (const s of HOUSE_STAIRS) {
+  for (const s of stairs) {
     const ends = [[s.x0, s.z0, s.from], [s.x1, s.z1, s.to]];
     for (const [px, pz, level] of ends) {
       if (level !== room.level) continue;
@@ -426,7 +457,7 @@ function stairOpenings(room, edge) {
 }
 
 let sectionCache = null;
-function buildSections() {
+function buildSections(stairs) {
   const sections = [];
   const make = (o) => freeze({ window: null, ...o });
   HOUSE_ROOMS.forEach((room, ri) => {
@@ -441,7 +472,7 @@ function buildSections() {
       if (shared) continue;
       const doors = HOUSE_DOORWAYS.filter((d) => d.rooms.includes(room.id) && (edge.run === 'z' ? d.axis === 'x' && Math.abs(d.x - edge.fixed) < 1e-9 : d.axis === 'z' && Math.abs(d.z - edge.fixed) < 1e-9));
       const doorSpans = doors.map((d) => { const c = edge.run === 'z' ? d.z : d.x; return [c - d.width / 2, c + d.width / 2]; });
-      const openings = [...doorSpans, ...stairOpenings(room, edge)];
+      const openings = [...doorSpans, ...stairOpenings(room, edge, stairs)];
       let k = 0;
       for (const [a, b] of solidRuns(edge.lo, edge.hi, openings)) {
         for (const [pa, pb] of pieces(a, b)) {
@@ -461,7 +492,7 @@ function buildSections() {
       }
     }
   });
-  for (const s of HOUSE_STAIRS) {
+  for (const s of stairs) {
     const y0 = levelY(s.from);
     const y1 = levelY(s.to);
     const hw = s.width / 2;
@@ -492,8 +523,11 @@ function buildSections() {
   return freeze(sections);
 }
 
-export function houseSections() {
-  if (!sectionCache) sectionCache = buildSections();
+// The house's wall sections. `stairs` is for tests only (the walls as they would
+// stand with a stair left out): any other list is built fresh, never cached.
+export function houseSections(stairs = HOUSE_STAIRS) {
+  if (stairs !== HOUSE_STAIRS) return buildSections(stairs);
+  if (!sectionCache) sectionCache = buildSections(HOUSE_STAIRS);
   return sectionCache;
 }
 
@@ -512,6 +546,7 @@ export function houseColliders() {
   }
   for (const f of HOUSE_FURNITURE) out.push(...furnitureColliders(f));
   for (const l of HOUSE_LAMPS) out.push({ x: l.x, z: l.z, r: LAMP_R, level: roomById(l.room).level });
+  out.push(...secretColliders(false)); // the bookcase shut (house life swaps in the open row)
   return out;
 }
 

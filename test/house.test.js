@@ -373,7 +373,9 @@ describe('the furniture', () => {
 
   it('makes every tall piece a fade occluder, and tags every detail object with a level', () => {
     const shapes = findFadeOccluders(scene).filter((e) => !e.box);
-    expect(shapes.length).toBe(tall.length);
+    // step 2 (D9): and the secret bookcase, a tall ground-level piece of its own (test/housesecret.test.js)
+    expect(shapes.length).toBe(tall.length + 1);
+    expect(shapes.filter((e) => e.obj.parent?.userData.secretBookcase).length).toBe(1);
     for (const f of tall) {
       const e = shapes.find((q) => Math.abs(q.x - f.x) < 1e-6 && Math.abs(q.z - f.z) < 1e-6);
       expect(e, f.id).toBeTruthy();
@@ -410,7 +412,7 @@ describe('the furniture', () => {
     mergeStaticProps(s);
     expect(s.children.length).toBe(before);
     const tagged = s.children.filter((c) => c.userData?.houseDetail);
-    expect(tagged.length).toBe(tall.length + HOUSE_ROOMS.length);
+    expect(tagged.length).toBe(tall.length + HOUSE_ROOMS.length + 1); // + the secret bookcase (step 2, D9)
     for (const c of tagged) {
       expect(levelIds).toContain(c.userData.houseLevel);
       let meshes = 0;

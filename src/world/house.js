@@ -32,12 +32,12 @@ import { withLocalUuids } from './localuuids.js';
 import { words } from '../wordset.js';
 import {
   HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_BOUNDS, HOUSE_FRONT_DOOR, HOUSE_LAMPS, HOUSE_FURNITURE, LEVEL_LINKS,
-  LAWN_Y, WALL_T, TALL_H, HOUSE_KITTEN_HOME, HOUSE_CELLAR_LID, houseArea,
+  LAWN_Y, WALL_T, TALL_H, HOUSE_KITTEN_HOME, HOUSE_CELLAR_LID, houseArea, secretColliders,
 } from './houseplan.js';
 import {
   HOUSE_ATLAS_CELLS as CELL, createHouseAtlas, houseMaterial, sectionMesh, paneMesh, floorMesh, stairMesh,
   skirtMesh, lampGroup, partsKit, kitBox, kitFace, kitMesh, FRONT_DOOR_W, furnitureMesh, flatsMesh, standInMesh,
-  cellarLidMeshes,
+  cellarLidMeshes, secretBookcaseGroup,
 } from './houseparts.js';
 import { fullLevels } from '../houselevels.js';
 import { createHouseLife } from './houselife.js';
@@ -331,6 +331,10 @@ export function build(scene, { wind, gateEnds } = {}) {
       scene.add(g);
     });
     furnish(scene, material, START_LEVEL);
+    // the secret stair's bookcase, shut in the library's north wall (step 2, ruling D9)
+    const secretGroup = secretBookcaseGroup(material);
+    secretGroup.visible = fullLevels(START_LEVEL, LEVEL_LINKS).has(secretGroup.userData.houseLevel);
+    scene.add(secretGroup);
 
     drawLawn(scene);
     // the cellar's turf lid: garden from outside, out of the way when she is down there (house life)
@@ -344,7 +348,7 @@ export function build(scene, { wind, gateEnds } = {}) {
     const areaData = {
       name: words().PLACE_WORDS.house,
       ground: plan.ground,
-      colliders: plan.colliders, // the walls', the furniture's and the lamps' (houseColliders)
+      colliders: plan.colliders, // the walls', the furniture's, the lamps' and the shut bookcase's (houseColliders)
       bounds: { ...HOUSE_BOUNDS },
       spawn: { ...plan.spawn },
       kittenHome: { ...HOUSE_KITTEN_HOME }, // Mochi's circle: the hall's middle, clear of the door and the lamp
@@ -370,6 +374,8 @@ export function build(scene, { wind, gateEnds } = {}) {
         panes,
         lid: HOUSE_CELLAR_LID,
         lidMeshes,
+        // the secret bookcase and its two collider rows (`secret: true`): colliders holds the shut one
+        secret: { group: secretGroup, shut: secretColliders(false), open: secretColliders(true) },
       },
     };
     // every frame: the walls between the camera and the cat sink, and the levels are drawn for hers

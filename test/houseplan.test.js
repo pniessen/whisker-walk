@@ -103,7 +103,7 @@ describe('the plan of the house', () => {
     for (const s of HOUSE_STAIRS) expect(Math.abs(rise(s)) / run(s)).toBeLessThanOrEqual(MAX_PATH_GRADE + 1e-9);
     expect(run(stair('main'))).toBeGreaterThanOrEqual(7);
     expect(run(stair('main'))).toBeLessThanOrEqual(9);
-    expect(LEVEL_LINKS).toEqual([['ground', 'upstairs'], ['upstairs', 'attic'], ['ground', 'cellar']]);
+    expect(LEVEL_LINKS).toEqual([['ground', 'upstairs'], ['upstairs', 'attic'], ['ground', 'cellar'], ['ground', 'upstairs']]);
     expect(HOUSE_LEVELS.at(-1).id).toBe('attic');
     expect(HOUSE_LEVELS[0].id).toBe('cellar');
   });

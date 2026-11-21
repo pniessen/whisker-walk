@@ -133,7 +133,8 @@ describe('never lost behind a wall', () => {
   it('on every stair at every view step: never lost, and the camera eases', () => {
     // the slowest and the fastest cat (walk.js: pace = 2.2 + breed speed * 0.8, speeds 1.2 to 2.8)
     for (const pace of [2.2 + 1.2 * 0.8, 2.2 + 2.8 * 0.8]) {
-      const w = createHouseWalk({ reducedMotion: false, pace });
+      // the secret stair's bookcase stands open, so she can climb it from the library
+      const w = createHouseWalk({ reducedMotion: false, pace, secretOpen: true });
       for (const s of HOUSE_STAIRS) {
         const len = Math.hypot(s.x1 - s.x0, s.z1 - s.z0);
         const ux = (s.x1 - s.x0) / len;

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { houseArea } from '../../src/world/houseplan.js';
+import { houseArea, secretColliders } from '../../src/world/houseplan.js';
 import { createPlayer, DEFAULT_PITCH } from '../../src/player.js';
 import { createWallSink, createCellarLid, lidInLine, makeView, blockers as blockersOf } from '../../src/housewalls.js';
 import { CAT_LOOK_Y } from '../../src/cat/model.js';
@@ -21,10 +21,14 @@ import { stickToWorld } from '../../src/traversal.js';
 // before the sink, updated after it. blockers() names it ('cellarLid') when it
 // is shown and the line to her look or paws meets it.
 //
+// secretOpen (step 2): the library's secret bookcase stands open, its open
+// colliders in place of its shut ones (houseplan.js secretColliders).
+//
 // The importing test file must stub `document` first (test/flattrace.test.js's
 // stub) and load this with `await import(...)`: createPlayer listens on it.
-export function createHouseWalk({ reducedMotion = true, pace = 3.5 } = {}) {
+export function createHouseWalk({ reducedMotion = true, pace = 3.5, secretOpen = false } = {}) {
   const area = houseArea();
+  if (secretOpen) area.colliders = [...area.colliders.filter((c) => !c.secret), ...secretColliders(true)];
   const cat = new THREE.Group();
   const camera = new THREE.PerspectiveCamera();
   const player = createPlayer(camera, { addEventListener() {} });
