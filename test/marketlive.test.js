@@ -487,7 +487,7 @@ describe('the stallholders (Task 11)', () => {
 
   it('each stallholder is one grown-up from the people kit, its look from the spot, its feet on the ground', () => {
     const { area } = buildSquare();
-    expect(() => marketFigure({ x: 1, z: 2 })).toThrow('people kit'); // the pack's kit, or nothing
+    expect(() => marketFigure({ x: 1, z: 2 })).toThrow('people factory'); // the pack's createPeopleKit, or nothing
     for (const id of KEEPER_IDS) {
       const spot = area.keepers[id];
       const a = marketFigure({ ...spot, y: 0.3, people: createPeopleKit });

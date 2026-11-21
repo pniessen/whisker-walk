@@ -32,8 +32,8 @@
 //
 // The look comes from the spot (the kit's personFor reads x, z), never a roll;
 // a spot that would hold a child and its grown-up keeps the grown-up alone (a
-// stallholder is one person: the child is freed as soon as it is made). It is always drawn at the kit's near detail:
-// nobody calls the kit's update (the LOD switch), and a cat at the counter is
+// stallholder is one person: the child is freed as soon as it is made). It is
+// always drawn at the kit's near detail: nobody calls the kit's update (the LOD switch), and a cat at the counter is
 // a metre or two from it. It casts no shadow (castShadow false and
 // userData.noCast, so the walk's caster sweep leaves it alone); the walk lays
 // its contact shadow. Everything is made inside withLocalUuids on a stream of
@@ -47,7 +47,7 @@ const HAND_MID = 0.46; // the grip, down the hand from the wrist (hand lengths; 
 const _v = new THREE.Vector3();
 
 export function personKeeper({ x, y, z, yaw = 0, people }) {
-  if (typeof people !== 'function') throw new Error('marketFigure: needs the people kit (opts.people, from the place pack)');
+  if (typeof people !== 'function') throw new Error('marketFigure: needs the people factory (opts.people, from the place pack)');
   return withLocalUuids(`market-keeper:${x.toFixed(3)},${z.toFixed(3)}`, () => {
     const kit = people();
     const person = kit.buildSpot({ x, z }).people[0];
