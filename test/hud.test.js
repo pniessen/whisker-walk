@@ -216,6 +216,11 @@ describe('discovery lead words (polish-hud2)', () => {
     expect(discoveryText({ type: 'jackpot', label: 'ALL GOALS COMPLETE! 🎯' })).toBe('ALL GOALS COMPLETE! 🎯');
     expect(discoveryText({ type: 'duogoal', label: 'a goal completed TOGETHER! 🤝' })).toBe('A goal completed TOGETHER! 🤝');
   });
+  it('a pounce says its own line, never "You spotted you pounce-tagged"', () => {
+    expect(discoveryText({ type: 'hunt', label: 'you pounce-tagged a sparrow!', repeat: false })).toBe('You pounce-tagged a sparrow!');
+    expect(discoveryText({ type: 'hunt', label: 'you pounce-tagged a sparrow! — a perfect sneak!', repeat: true }))
+      .toBe('Again — you pounce-tagged a sparrow! — a perfect sneak!');
+  });
   it('everything else still leads with "You spotted" / "Again —", and an intruder stands alone', () => {
     expect(discoveryText({ type: 'treasure', label: 'a lost marble', repeat: false })).toBe('You spotted a lost marble');
     expect(discoveryText({ type: 'treasure', label: 'a lost marble', repeat: true })).toBe('Again — a lost marble');

@@ -52,6 +52,16 @@
 4. **The guide (S7):** first visit only, or every visit until she has once crossed plank-3?
 5. **The pictures and the film:** do the flights, the washing, the smoke and the sleeping cats look right?
 
+## The owner's answers (2026-11-21)
+
+These are his, and they override the rulings above where they differ.
+
+1. **Cats sunning (S1):** keep the two sleeping house cats. Task 6 stays.
+2. **Gulls (S2):** uncatchable, as at the Seaside: they flutter off, and a pounce does not tag them. (S2 as written.)
+3. **The guide pigeon (S7):** she appears on every visit until the cat has once crossed plank-3, then retires. This replaces "first visit only".
+4. **The pigeon's name (S10):** not asked of him. Left to the controller, which he can overturn: give pigeons their own name now ("a pigeon", through the word tables in both word sets) if that is a small change, else keep "a songbird" until step 4. The controller's call is in the SDD ledger and the step report.
+5. **The pictures and the film:** still open; he answers from them.
+
 ## Global Constraints
 
 - **Work only in** `/Users/pniessen/CLAUDE-CODE/projects/cat-game/.claude/worktrees/rooftops-2`, branch `rooftops-2`. Never touch the main checkout. Never merge or push. No database, no `.env` file. Dispatch no subagents unless the controller does.

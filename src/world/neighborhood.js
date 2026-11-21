@@ -52,18 +52,16 @@ export const SPAWN = Object.freeze({ x: 0, z: 45 });
 
 // The horizon band (see the note at its scene.add in build). Polish "edges":
 // the strip past the lawn's edge is the lawn's own colour, and a clipped
-// hedge runs round the edge with a field gate where each street runs out
-// (the streets are 5 m wide on the axes, so each gap is 2.5 + 0.5 across).
+// hedge runs right round the edge. (It had a field gate where each street
+// runs out, until the gateways placement round, 2026-11-21: the shut ones
+// right behind the signposts to the Park and the Docks read as more gates
+// that never open, and all four went, so no street end is different.)
 export const NEIGHBORHOOD_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 7, wavelength: 34,
   color: 0x88b07d, salt: 11,
   nearColor: NEIGHBORHOOD_LAWN,
   edge: Object.freeze({
     half: 60, style: 'hedge',
-    gaps: Object.freeze([
-      Object.freeze({ x: 0, z: -60.6, r: 3 }), Object.freeze({ x: 0, z: 60.6, r: 3 }),
-      Object.freeze({ x: -60.6, z: 0, r: 3 }), Object.freeze({ x: 60.6, z: 0, r: 3 }),
-    ]),
   }),
 });
 

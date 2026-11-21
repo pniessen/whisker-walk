@@ -852,7 +852,7 @@ export function createCritters(scene, spawns, opts = {}) {
         best.startleT = 0; // caught mid-startle: it is off at once
         best.hideAt = best.hideAt ?? nearestHide(best.group.position);
       }
-      return { type: best.type, wasStalked };
+      return { type: best.type, def: best.def, wasStalked };
     },
     // cat: the local cat's object (her head part is what the people look at);
     // null for no look at all. A co-walker's cat is never passed.

@@ -205,6 +205,9 @@ function isValidStateMsg(msg) {
     Number.isFinite(msg.yaw) &&
     typeof msg.pose === 'string' &&
     Number.isFinite(msg.speed) &&
+    // area: which place the sender is in. Optional; when present it must be a
+    // short string (h and seat are read leniently by remotecats.js instead).
+    (msg.area === undefined || (typeof msg.area === 'string' && msg.area.length <= 32)) &&
     messageSizeOk(msg)
   );
 }
@@ -267,7 +270,7 @@ export function createNet(transport, { now = defaultClock } = {}) {
       if (!next.has(id)) for (const b of Object.values(limits)) b.forget(id);
     }
     members = next;
-    for (const fn of rosterHandlers) fn(roster);
+    for (const fn of [...rosterHandlers]) fn(roster);
   }
 
   // A message from someone this device is not showing, or past its sender's
@@ -281,17 +284,17 @@ export function createNet(transport, { now = defaultClock } = {}) {
       if (!isValidStateMsg(payload)) return;
       if (payload.id === selfId) return; // echo suppression
       if (!admit('state', payload.id)) return;
-      for (const fn of stateHandlers) fn(payload);
+      for (const fn of [...stateHandlers]) fn(payload);
     } else if (kind === 'event') {
       if (!isValidEventMsg(payload)) return;
       if (payload.id === selfId) return; // echo suppression
       if (!admit(payload.type === 'meow' ? 'meow' : 'event', payload.id)) return;
-      for (const fn of eventHandlers) fn(payload);
+      for (const fn of [...eventHandlers]) fn(payload);
     } else if (kind === 'chat') {
       if (!isValidChatMsg(payload)) return;
       if (payload.id === selfId) return; // echo suppression
       if (!admit('chat', payload.id)) return;
-      for (const fn of chatHandlers) fn(payload);
+      for (const fn of [...chatHandlers]) fn(payload);
     }
   }
 
@@ -332,16 +335,26 @@ export function createNet(transport, { now = defaultClock } = {}) {
     transport.send('chat', msg);
   }
 
+  // Adds fn and returns a remover for that one handler (by identity); calling
+  // it again does nothing.
+  function addHandler(list, fn) {
+    list.push(fn);
+    return () => {
+      const i = list.indexOf(fn);
+      if (i >= 0) list.splice(i, 1);
+    };
+  }
+
   function onState(fn) {
-    stateHandlers.push(fn);
+    return addHandler(stateHandlers, fn);
   }
 
   function onEvent(fn) {
-    eventHandlers.push(fn);
+    return addHandler(eventHandlers, fn);
   }
 
   function onChat(fn) {
-    chatHandlers.push(fn);
+    return addHandler(chatHandlers, fn);
   }
 
   // Replay-to-late-subscriber: a caller that wires up onRoster() after the
@@ -353,8 +366,9 @@ export function createNet(transport, { now = defaultClock } = {}) {
   // makes onRoster safe to call at any time, not just before the roster
   // first populates.
   function onRoster(fn) {
-    rosterHandlers.push(fn);
+    const off = addHandler(rosterHandlers, fn);
     if (roster.length > 0) fn(roster);
+    return off;
   }
 
   function isHost() {

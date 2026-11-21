@@ -1718,7 +1718,11 @@ describe('The Fairground: the drawing budget', () => {
     // finer kerb stripes and its top, the coaster platform’s panelled skirt: +312.
     // Round two: the coaster's lights (one mesh, no shadow), the big wheel's
     // sunbursts, red post caps, the stalls' lit insides, three bale stacks: +1,728.
-    expect(built).toEqual({ meshes: 175, casters: 109, triangles: 68732 });
+    // Gateways placement round (2026-11-21): the hedge runs on where its field
+    // gate stood (the hedge's pieces there cost less than the gate did): -160.
+    // (The front fence is cut for the gate back to the Park only in a Clan
+    // walk, which hands build() its gate ends; this bare build keeps it whole.)
+    expect(built).toEqual({ meshes: 175, casters: 109, triangles: 68572 });
     expect({ meshes: merged.meshes, casters: merged.casters }).toEqual({ meshes: 160, casters: 104 });
   });
 
@@ -1829,9 +1833,9 @@ describe('The Fairground: registered everywhere a street area is', async () => {
     expect(area.name).toBe(CATALOG.areas.fair.name);
   });
 
-  it('is the fourth place, after the Farm and before the Seaside', () => {
+  it('is the fourth place, after the Farm and before the Rooftops', () => {
     const ids = Object.keys(CATALOG.areas);
-    expect(ids.slice(0, 5)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'seaside']);
+    expect(ids.slice(0, 6)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'roofs', 'seaside']);
     // and nothing else about the others moved
     expect(CATALOG.areas.farm).toEqual({ name: 'Appletree Farm', price: 75, requires: { area: 'park', walks: 2 } });
     expect(CATALOG.areas.seaside).toEqual({ name: 'Seaside', price: 200, requires: { area: 'docks', walks: 2 } });

@@ -8,6 +8,8 @@ import { postsFor } from '../src/borderposts.js';
 // During the CROSS_END_MS "Off we go!" pause after a room's host confirms a
 // crossing, a click on the game canvas must not re-lock the pointer: the walk
 // is about to end (once), and a fresh lock would hide the summary's cursor.
+// Since Task 10 a post walks on; the walk still ends this way in a room with
+// a member on an older build (here: a roster with no walkOn).
 
 function roomSetup() {
   const overlay = { innerHTML: '' };
@@ -26,14 +28,14 @@ function roomSetup() {
   });
   const post = postsFor('woods').find((p) => p.to === 'moor');
   const status = postStatus(post, { edition: 'canon', unlocked: { areas: ['moor'] } }, CATALOG, 'woods');
-  return { crossing, s, timers, ended, status };
+  return { crossing, s, timers, ended, post, status };
 }
 
 describe('canvas clicks during "Off we go"', () => {
   it('are swallowed only while a confirmed crossing is on its way out', () => {
-    const { crossing, s, timers, ended, status } = roomSetup();
+    const { crossing, s, timers, ended, post, status } = roomSetup();
     expect(swallowsCanvasClick(s)).toBe(false);
-    crossing.ask(s, { status });
+    crossing.ask(s, { post, status });
     expect(swallowsCanvasClick(s)).toBe(false); // the card is up: a click on it is the card's
     crossing.confirm();
     expect(swallowsCanvasClick(s)).toBe(true);

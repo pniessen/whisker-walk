@@ -601,7 +601,7 @@ describe('the surface wave is actually wired up', () => {
   });
 
   it('threads the tier and reducedMotion into the area builders', () => {
-    expect(walkSrc).toMatch(/build\(scene, \{ water: \{ quality: tier, reducedMotion \}, wind \}\)/);
+    expect(walkSrc).toMatch(/build\(scene, \{ water: \{ quality: tier, reducedMotion \}, wind, gateEnds \}\)/);
   });
 
   it('disposes both alongside the other per-walk systems', () => {

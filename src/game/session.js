@@ -50,6 +50,7 @@ const FIELDS = [
   ['grass', 'lawn tufts, updated beside wind'],
   ['duskLawn', "the dusk tint on ground and grass (when the walk has a dusk look)"],
   ['paws', 'paw prints the cat leaves'],
+  ['balloons', 'the birthday balloons behind her cat (render/partyballoons.js)'],
   ['splash', 'water splashes'],
   ['fish', 'fish jumping in the water'],
   ['clouds', 'drifting sky clouds (render/clouds.js), per-area seed, never walkRng'],
@@ -95,6 +96,8 @@ const FIELDS = [
   ['ghosts', "friends' ghost cats (NO_GHOSTS until rolled)"],
   ['remotes', "co-walkers' cats"],
   ['clanBuddy', 'the clanmate on patrol with me, or null (interactions.js)'],
+  ['birthday', "late (walk.js): her birthday Gathering on the island (world/birthdaygathering.js), or null"],
+  ['birthdayVisit', 'late (walk.js): a birthday walk in a place she has not opened, so endWalk counts no walk there'],
   ['intruders', 'late (walk.js): a neighbouring territory\'s cat crossing this one, or NO_INTRUDERS'],
   ['clanFight', 'late (walk.js): the territory fight / border-patrol fight, or NO_CLAN_FIGHT'],
   ['awayFights', "late (walk.js): the walk's book of away fights with the roaming cats (awayfights.js), or null"],
@@ -115,8 +118,13 @@ const FIELDS = [
   ['clanHome', 'late (walk.js): the group whose home this territory is, or null'],
   ['clanEdition', 'late (walk.js): the save is on the canon edition (not Legacy)'],
   ['colonyWalk', 'solo, or a room of only my colony partner — gates the live colony-feed event'],
-  ['crossing', 'late (crossing.js): the border-crossing card being asked { to, name, going? }, or null'],
-  ['crossLed', 'late (crossing.js): a co-walker already led this walk across a border'],
+  ['crossing', 'late (crossing.js): the crossing card being asked { to, name, via?, kind?, asking?, going?, room? }, or null'],
+  ['crossLed', 'late (crossing.js): a co-walker already led this walk across a border or through a gate'],
+  ['walkOnAnswer', "late (crossing.js): a guest's answer to the host's walk-on ask { via, at, pending }, so the ask's resend is not answered twice"],
+  ['walkOnWatch', "late (crossing.js): the remover of a guest's watch for the host's state from the place she last said yes to (ruling R18), or null"],
+  ['gates', "the gateways drawn at this place's edges (world/gateway.js addGatewayDressing), or NO_GATES (the den, Legacy)"],
+  ['arrivedVia', 'late (walk.js): the gate end or border post she came in by on a walk-on, or null (none, or the spawn)'],
+  ['walkingOn', 'late (walk.js): a walk-on is waiting for its place to load (the moment is up over this walk), else false'],
 
   // ── Things in the world ─────────────────────────────────────────────────
   ['collectibleMeshes', 'collectible id → mesh'],
@@ -200,6 +208,8 @@ const FIELDS = [
   ['groomTimers', 'player id → mutual-grooming timer'],
   ['duetWindow', 'the open meow-duet window, or null'],
   ['rally', 'the yarn rally in progress { count, lastId, at }, or null'],
+  ['roomSeed', "the room walk's seed, the one a walk-on derives the next room walk's from (undefined on a solo walk)"],
+  ['netOffs', "the removers of this walk's net handlers (net.on*): freeWalk calls each, so a room kept for the next walk hands nothing to this one"],
 
   // ── Start and end of the walk ───────────────────────────────────────────
   ['welcome', 'late (walk.js): the welcome line on the Ready card'],

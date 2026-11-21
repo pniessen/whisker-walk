@@ -39,6 +39,8 @@ const { build: buildFair } = await import('../src/world/fair.js');
 const { build: buildRoofs } = await import('../src/world/roofs.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { addBorderDressing } = await import('../src/world/borderpost.js');
+const { addGatewayDressing } = await import('../src/world/gateway.js');
+const { endsFor } = await import('../src/gateways.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 
 // ---------------------------------------------------------------------------
@@ -463,8 +465,10 @@ const AREAS = [
   // caster added); 114 / 68 / 36,707 after round two's Task G (the street
   // lit: the lamps' halo, +1 mesh casting nothing and never merged, 8
   // triangles; the copings' joints, the road's lines, grates and covers, +632
-  // in noCast buckets it had; the far town's back row a little taller, +2).
-  // Held to the territories' ceilings,
+  // in noCast buckets it had; the far town's back row a little taller, +2);
+  // 116 / 68 / 37,335 after Rooftops step 3's Task 6 (two house cats asleep
+  // on warm sills: +2 meshes casting nothing and never merged, 314 triangles
+  // each). Held to the territories' ceilings,
   // never raised; the place aims for 300 / 120 / 60,000 (test/roofs.test.js
   // pins the exact numbers).
   ['roofs', buildRoofs, 450, 380, 70000],
@@ -512,7 +516,7 @@ const MERGED_AREAS = [
   ['gorge', buildGorge, 260, 205],
   ['farm', buildFarm, 200, 135], // measured 176 / 119
   ['fair', buildFair, 200, 140], // measured 178 / 124
-  ['roofs', buildRoofs, 64, 34], // measured 57 / 30 (56 / 30 before round two's lamp halo, Task G; 55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
+  ['roofs', buildRoofs, 64, 34], // measured 59 / 30 (57 / 30 before Rooftops step 3's two sleeping cats, Task 6, never merged; 56 / 30 before round two's lamp halo, Task G; 55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {
@@ -597,6 +601,53 @@ describe('with the Clan dressing', () => {
       if (process.env.BUDGET_LOG) console.log(name, JSON.stringify({ before, after }));
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// World map step 3 (gateways): a street place's gates are added by walk.js
+// after the build, like the border posts, so the bare rows above stay as they
+// are. Each gate is at most 400 triangles. This holds every gated place, built
+// with its gates, to the SAME ceilings, as built and as merged; no ceiling
+// rose. The Seaside, with about 490 triangles left of 30,000, paid first: its
+// cliff lost the hidden bottom face (720 triangles), so
+//   seaside triangles   29,513 -> 28,793 bare, 29,125 dressed
+// ---------------------------------------------------------------------------
+// Rooftops step 4 added the town's third signpost (town-roofs) and the
+// Rooftops' alley door (roofs-town), inside the same ceilings.
+describe('with the gateways (world map step 3)', () => {
+  it('covers every place with a gate, the Rooftops and the town\'s three signposts among them', () => {
+    expect(endsFor('neighborhood').map((e) => [e.id, e.look])).toEqual([['town-park', 'signpost'], ['town-docks', 'signpost'], ['town-roofs', 'signpost']]);
+    expect(endsFor('roofs').map((e) => [e.id, e.look])).toEqual([['roofs-town', 'alleydoor']]);
+  });
+  for (const [name, build, meshCeiling, casterCeiling, triangleCeiling] of AREAS.filter(([n]) => ['neighborhood', 'park', 'fair', 'farm', 'docks', 'seaside', 'roofs'].includes(n))) {
+    const merged = MERGED_AREAS.find(([n]) => n === name);
+    it(`${name}: dressed, still under ${meshCeiling} / ${casterCeiling} / ${triangleCeiling}, merged under ${merged[2]} / ${merged[3]}`, () => {
+      const scene = new THREE.Scene();
+      // as walk.js builds a Clan walk: the gate ends go to the builder too
+      // (the Fair and the Farm cut their front fences for them)
+      build(scene, { gateEnds: endsFor(name) });
+      if (name === 'neighborhood') addBorderDressing(scene, name);
+      addGatewayDressing(scene, name);
+      const before = budgetStats(scene);
+      if (process.env.BUDGET_LOG) console.log(name, JSON.stringify(before));
+      expect(before.meshes).toBeLessThanOrEqual(meshCeiling);
+      expect(before.casters).toBeLessThanOrEqual(casterCeiling);
+      expect(before.triangles).toBeLessThanOrEqual(triangleCeiling);
+      mergeStaticProps(scene);
+      const after = budgetStats(scene);
+      if (process.env.BUDGET_LOG) console.log(name, 'merged', JSON.stringify(after));
+      expect(after.meshes).toBeLessThanOrEqual(merged[2]);
+      expect(after.casters).toBeLessThanOrEqual(merged[3]);
+    });
+  }
+  it('the Seaside paid for its gate first: 28793 bare, and dressed it is at or under the 29513 it had before the trim', () => {
+    const scene = new THREE.Scene();
+    buildSeaside(scene);
+    expect(budgetStats(scene).triangles).toBe(28793);
+    addGatewayDressing(scene, 'seaside');
+    if (process.env.BUDGET_LOG) console.log('seaside dressed', JSON.stringify(budgetStats(scene)));
+    expect(budgetStats(scene).triangles).toBeLessThanOrEqual(29513);
+  });
 });
 
 // ---------------------------------------------------------------------------

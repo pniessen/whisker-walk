@@ -857,6 +857,12 @@ body.touch-mode:not(.left-handed) .hud-top {
 .pause-card { display: grid; place-items: center; align-content: center; gap: 12px;
   height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }
 .pause-card h1 { font-size: 2.2rem; }
+/* The line on the pause card when a walk-on could not go (walk.js
+   pauseCardHtml's note): a toast would sit under the card. */
+.pause-card .pause-note {
+  margin: 0; padding: 8px 14px; max-width: 34ch; border-radius: 14px;
+  background: rgba(255,244,220,0.12); color: #fff4dc; font-weight: 700; line-height: 1.35;
+}
 /* The find card (game/findcard.js) on the pause card's panel: her cat
    wearing it, or the outfit's emoji when no portrait could be drawn. */
 .find-card .find-portrait { width: 160px; height: 160px; }
@@ -929,6 +935,16 @@ body.touch-mode:not(.left-handed) .hud-top {
 .cross-card button { min-height: 48px; min-width: 200px; }
 .cross-card #btn-cross-yes { background: #f2c14e; color: #3a2a10; }
 .cross-card #btn-cross-yes:hover { filter: brightness(1.08); }
+/* A gate's "Get it?" card (gatecross.js gateBuyHtml) is the usual confirm
+   card inside a .cross-card (which hides the prompt pill): its buttons keep
+   the usual look, a quiet outlined Not now beside the yellow Yes (the
+   .nearby-card-later and .colony-news-btn rules below), not the blue
+   .cross-card buttons. */
+.cross-card.gate-buy .confirm-card { margin: 0 auto; text-align: left; }
+.cross-card.gate-buy .nearby-card-btns button { min-width: 0; flex: 1 1 120px; min-height: 48px; padding: 10px 18px; border-radius: 12px;
+  font: inherit; font-size: 1.1rem; font-weight: 700; cursor: pointer; }
+.cross-card.gate-buy .nearby-card-btns .colony-news-btn { border: 0; background: #f2c14e; color: #1c2431; }
+.cross-card.gate-buy .nearby-card-btns .nearby-card-later { border: 1.5px solid #5b6c88; background: transparent; color: #f1e0c2; font-size: 1.05rem; }
 /* The post's prompt pill would show, dimmed, under the card's scrim. */
 body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
 .controls-hint { color: #a8c0e0; font-size: 0.9rem; }
@@ -2630,6 +2646,108 @@ body.touch-mode .fight-key { display: none; }
 .hb-usage-table thead th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #a8c0e0; }
 .hb-usage-table td { font-variant-numeric: tabular-nums; }
 .hb-usage-table tr.never { opacity: .55; }
+
+/* The birthday party (ui/party.js), while the birthday is on: a banner over
+   the hero cat, balloons bobbing round it, confetti over the whole screen.
+   None of it takes a tap. Pink is Start's alone: the banner is navy and gold;
+   the balloons and confetti may be every colour. Reduced motion: the
+   balloons stand still and the confetti only fades. */
+.party-layer { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.dr-stage.party-on .dr-spin-hint { display: none; }
+.party-banner {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  max-width: calc(100% - 24px); box-sizing: border-box; text-align: center;
+  background: rgba(20, 26, 38, .72); color: #f2c14e; border: 1.5px solid #f2c14e; border-radius: 999px;
+  padding: 6px 16px; font-weight: 800; font-size: 19px; line-height: 1.25; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0, 0, 0, .5);
+  animation: party-banner-in .6s ease-out both;
+}
+@media (max-width: 600px) { .party-banner { font-size: 15px; padding: 5px 12px; } }
+@keyframes party-banner-in { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.party-balloons { position: absolute; inset: 0; }
+.party-balloon {
+  position: absolute; width: calc(34px * var(--s, 1)); height: calc(42px * var(--s, 1));
+  border-radius: 50% 50% 48% 48% / 56% 56% 44% 44%;
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, .55) 0 12%, transparent 13%), var(--c);
+  box-shadow: inset -4px -6px 10px rgba(0, 0, 0, .18);
+  animation: party-bob var(--d, 6s) ease-in-out infinite;
+}
+.party-balloon::before { /* the knot */
+  content: ''; position: absolute; left: 50%; bottom: -4px; transform: translateX(-50%);
+  border-style: solid; border-width: 0 4px 6px; border-color: transparent transparent var(--c);
+}
+.party-balloon::after { /* the string */
+  content: ''; position: absolute; left: 50%; top: 100%; width: 1px; height: calc(46px * var(--s, 1));
+  background: rgba(241, 224, 194, .6); transform-origin: top; transform: rotate(4deg);
+}
+@keyframes party-bob {
+  0%, 100% { transform: translate(0, 0) rotate(-3deg); }
+  50% { transform: translate(4px, -12px) rotate(3deg); }
+}
+.party-layer.still .party-balloon, .party-layer.still .party-banner { animation: none; }
+.party-confetti { position: fixed; inset: 0; z-index: 30; pointer-events: none; overflow: hidden; }
+.party-bit {
+  position: absolute; top: -16px; width: 8px; height: 13px; border-radius: 2px; background: var(--c);
+  animation-name: party-fall; animation-timing-function: cubic-bezier(.3, .2, .6, 1); animation-fill-mode: both;
+}
+.party-bit.round { width: 9px; height: 9px; border-radius: 50%; }
+@keyframes party-fall {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translate(24px, 108vh) rotate(var(--spin, 360deg)); opacity: 0; }
+}
+.party-confetti.still .party-bit { animation-name: party-fade; animation-duration: 2.8s !important; animation-delay: 0s !important; }
+@keyframes party-fade { 0%, 60% { opacity: 1; } 100% { opacity: 0; } }
+.party-line {
+  position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%);
+  background: rgba(20, 26, 38, .82); color: #f2c14e; border: 2px solid #f2c14e; border-radius: 18px;
+  padding: 10px 22px; font: 800 26px/1.2 Avenir, Nunito, 'Trebuchet MS', sans-serif; white-space: nowrap;
+  animation: party-fade 3.6s ease-in both;
+}
+/* The present: a teal box with a gold ribbon and bow, beside the cat; a tap
+   pops its lid and it is gone (ui/party.js). The only tappable part. */
+.party-present {
+  position: absolute; left: 7%; bottom: 92px; width: 66px; height: 66px; padding: 0; border: 0; background: none;
+  pointer-events: auto; cursor: pointer; animation: party-wiggle 2.8s ease-in-out infinite;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .35));
+}
+.party-present-box {
+  position: absolute; left: 6px; right: 6px; bottom: 0; height: 40px; border-radius: 5px;
+  background: linear-gradient(90deg, transparent 42%, #f2c14e 42% 58%, transparent 58%), #4ec9d4;
+}
+.party-present-lid {
+  position: absolute; left: 2px; right: 2px; bottom: 38px; height: 14px; border-radius: 4px; z-index: 1;
+  background: linear-gradient(90deg, transparent 42%, #f2c14e 42% 58%, transparent 58%), #3fb3be;
+  transition: transform .6s cubic-bezier(.2, 1.4, .5, 1), opacity .6s;
+}
+.party-present-lid::before, .party-present-lid::after { /* the bow's two loops */
+  content: ''; position: absolute; bottom: 12px; width: 16px; height: 13px; border: 4px solid #f2c14e; border-radius: 50% 50% 40% 40%;
+}
+.party-present-lid::before { left: 13px; transform: rotate(-22deg); }
+.party-present-lid::after { right: 13px; transform: rotate(22deg); }
+.party-present.opening { animation: party-present-go .9s ease-in forwards; }
+.party-present.opening .party-present-lid { transform: translate(10px, -46px) rotate(28deg); opacity: 0; }
+@keyframes party-wiggle { 0%, 80%, 100% { transform: rotate(0); } 85% { transform: rotate(-6deg); } 90% { transform: rotate(6deg); } 95% { transform: rotate(-3deg); } }
+@keyframes party-present-go { 0% { transform: scale(1); opacity: 1; } 40% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(.6); opacity: 0; } }
+.party-layer.still .party-present { animation: none; }
+.party-layer.still .party-present-lid { transition: none; }
+@media (max-width: 600px) { .party-present { width: 56px; height: 56px; bottom: 84px; } .party-present-box { height: 33px; } .party-present-lid { bottom: 31px; } }
+/* the kitten's new tile in the picker, just after the present is opened: it
+   pulses and glows three times; still (reduced motion) it only glows, and the
+   class is taken off when the time is up */
+.dr .dr-portrait.party-new { animation: party-new-tile 1.2s ease-in-out 3; }
+.dr .dr-portrait.party-new.still { animation: none; box-shadow: 0 0 0 3px #f2c14e, 0 0 16px 4px rgba(242, 193, 78, .7); }
+@keyframes party-new-tile {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(242, 193, 78, 0); }
+  50% { transform: scale(1.12); box-shadow: 0 0 0 3px #f2c14e, 0 0 16px 4px rgba(242, 193, 78, .7); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dr .dr-portrait.party-new { animation: none; box-shadow: 0 0 0 3px #f2c14e, 0 0 16px 4px rgba(242, 193, 78, .7); }
+  .party-present, .party-present.opening { animation: none; }
+  .party-present-lid { transition: none; }
+  .party-balloon, .party-banner { animation: none; }
+  .party-bit { animation-name: party-fade; animation-duration: 2.8s !important; animation-delay: 0s !important; }
+}
 
 /* ===== Sideways phones, tiny windows and enlarged text (UX review, finding 11) =====
    Three cases the layouts above did not cover. Each one is behind its own

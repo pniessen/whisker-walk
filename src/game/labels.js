@@ -2,7 +2,10 @@
 // (updateInteractions), the pounce-hunt award, and the photo album's subject
 // label — one table so a critter never reads as "a songbird" in one place and
 // "something interesting" in another.
+import { phrase } from '../clanphrases.js';
+
 export function labelFor(type) {
+  if (type === 'pigeon') return phrase('critter.pigeon');
   return {
     bird: 'a songbird', squirrel: 'a busy squirrel', butterfly: 'a butterfly',
     duck: 'a paddling duck', seagull: 'a seagull', crab: 'a sideways crab',
@@ -14,6 +17,12 @@ export function labelFor(type) {
     chick: 'a fluffy chick', sheepdog: 'the farm’s sheepdog', duckling: 'a little duckling',
   }[type] ?? 'something interesting';
 }
+
+// A critter's shown name and album key: a pigeon is a 'bird' to the game
+// (tag, flight, journal) but its spawn says labelAs: 'pigeon'. Takes a
+// critter or a pounceCatch result.
+export function critterLabel(c) { return labelFor(c?.def?.labelAs ?? c?.type); }
+export function critterKey(c) { return c?.def?.labelAs ?? c?.type; }
 
 // The toast when a critter reaches cover. The frog's bog is wet, not a den,
 // and the goat bounds off rather than diving under anything.

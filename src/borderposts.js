@@ -91,12 +91,54 @@ export const BORDER_POSTS = {
   ],
 };
 
+// World map step 3, Task 10: a post walks straight on, as a gate does. For
+// each post, the post she arrives at in the place beyond (she lands ARRIVE_IN
+// m inside it, facing in: gatecross.js viaPlan), or null for that place's
+// spawn (town-moor and gorge-town have no post back). The R6 twins are the
+// pairs the "twins line up" test finds; woods-town-long and river-town-long
+// both arrive at the town's footpath end, where the long path meets the town.
+export const POST_ARRIVE = {
+  'town-woods': 'woods-town-short',
+  'town-moor': null,
+  'town-river': 'river-town-long',
+  'woods-town-short': 'town-woods',
+  'woods-town-long': 'town-river',
+  'woods-river-long': 'river-woods-long',
+  'woods-river-pond': 'river-woods-pond',
+  'woods-moor-path': 'moor-woods-path',
+  'woods-moor-river': 'moor-woods-river',
+  'river-woods-long': 'woods-river-long',
+  'river-town-long': 'town-river',
+  'river-woods-pond': 'woods-river-pond',
+  'river-pines-path': 'pines-river-path',
+  'moor-woods-path': 'woods-moor-path',
+  'moor-woods-river': 'woods-moor-river',
+  'moor-gorge': 'gorge-moor',
+  'moor-pines-trail': 'pines-moor-trail',
+  'pines-river-path': 'river-pines-path',
+  'pines-moor-trail': 'moor-pines-trail',
+  'gorge-moor': 'moor-gorge',
+  'gorge-town': null,
+};
+
+// Where a cat coming in by one of these posts lands instead, still facing
+// in: the spot ARRIVE_IN m straight inside it is too near a collider (River
+// 0.9 m from a stone, Moor inside a boulder), so she lands the same depth in,
+// a step along the edge (probed on the built maps; test/borderposts.test.js
+// proves every arrival).
+export const POST_ARRIVE_AT = {
+  'river-woods-pond': { x: 43.9, z: 8 },
+  'moor-pines-trail': { x: -43.9, z: -14 },
+};
+
 function deepFreeze(o) {
   for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v);
   return Object.freeze(o);
 }
 deepFreeze(BORDER_POSTS);
 deepFreeze(TOWN_FOOTPATH);
+deepFreeze(POST_ARRIVE);
+deepFreeze(POST_ARRIVE_AT);
 
 const NONE = Object.freeze([]);
 
@@ -115,4 +157,20 @@ export function postNear(areaId, x, z, reach = POST_REACH) {
     if (d <= reach && d < bestD) { best = p; bestD = d; }
   }
   return best;
+}
+
+// { areaId, post } for a post's id (own keys only), else null.
+export function postById(id) {
+  if (typeof id !== 'string') return null;
+  for (const areaId of Object.keys(BORDER_POSTS)) {
+    const post = BORDER_POSTS[areaId].find((p) => p.id === id);
+    if (post) return { areaId, post };
+  }
+  return null;
+}
+
+// The id of the post she arrives at through post `id`, or null (the spawn,
+// or no such post).
+export function postArrival(id) {
+  return typeof id === 'string' && Object.hasOwn(POST_ARRIVE, id) ? POST_ARRIVE[id] : null;
 }

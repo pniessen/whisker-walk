@@ -19,6 +19,7 @@ import { attachBackStack, walkBackAction } from './ui/backstack.js';
 import { createZoomControl, createWheelStepper, keyZoomDir, zoomActionDir, clampZoomStep, maxZoomStep } from './camzoom.js';
 import { createAudio } from './audio.js';
 import { createMusic } from './music.js';
+import { birthdayTune } from './birthdaysong.js';
 import { createSamples } from './samples.js';
 import { voiceFor } from './catvoice.js';
 import { createAlbum } from './album.js';
@@ -390,6 +391,10 @@ function init() {
     // v21 Stream 2: who may show a live 'colony-feed' (display only).
     getPartner: () => progression.state.colony?.partner ?? null,
     onBorderCross: (s, ev) => crossing?.onRemote(s, ev),
+    // World map step 3: a room walks on together (src/game/crossing.js).
+    onWalkOn: (s, ev) => crossing?.onRemoteWalkOn(s, ev),
+    onWalkOnAsk: (s, ev) => crossing?.onWalkOnAsk(s, ev),
+    onWalkOnHave: (s, ev) => crossing?.onWalkOnHave(s, ev),
   });
 
   // Photo mode (src/game/photo.js). renderFrame/noteGoal are hoisted
@@ -436,6 +441,11 @@ function init() {
     player, progression, log, hud, audio, catVoice, snapPhoto,
     petNameFor, completeBoop, colonySync,
     askCrossing: (s, d) => crossing?.ask(s, d),
+    // World map step 3: a gate's cards, and the place beyond fetched as she
+    // nears a gate she can go through or open.
+    askGate: (s, d) => crossing?.askGate(s, d),
+    askGateBuy: (s, d) => crossing?.askGateBuy(s, d),
+    prefetchArea: (id) => areas.prefetch(id),
   });
 
   // Per-frame avatar/moment updates (src/game/avatar.js).
@@ -504,11 +514,12 @@ function init() {
   // startWalkWhenReady, which waits for its place with home up, and a place
   // that does not come is one gentle line on the home screen (cloudToast).
   const {
-    beginWalkFromHomebase, beginDenWalk, startWalkWhenReady, endWalk, takeCrossing,
+    beginWalkFromHomebase, beginDenWalk, startWalkWhenReady, endWalk, takeCrossing, walkOn,
   } = createWalkLifecycle({
     MP, pid, coarse, envMap, overlay, blockList,
     renderer, camera, composerRig,
     player, progression, settings, hud, audio, music, log, touchUI, catVoice,
+    album,
     getCloud,
     getSession: () => session,
     setSession: (next) => { session = next; },
@@ -526,6 +537,12 @@ function init() {
     buttonUses,
     areas,
     homeToast: cloudToast,
+    // World map step 3: a walk-on banks the walk without a summary, so what
+    // the summary would have said is toasted in the next walk, and the save
+    // goes up as the summary's Continue would send it. A walk-on that waits
+    // for its place pauses the walk as ⏸ does.
+    onWalkedOn: (lines) => { for (const l of lines) hud.toast(l); sync.autoSync(); },
+    releaseControl: () => handleTouchAction('pause'),
   });
   // resumeWalk is a hoisted function declaration, so it is safe to pass here.
   crossing = createCrossing({
@@ -537,6 +554,12 @@ function init() {
     getEdition: () => progression.state.edition,
     getSound: pauseSound,
     prefetchArea: (id) => areas.prefetch(id),
+    walkOn, progression,
+    // A room walks on together: who is in it (every member's room profile),
+    // its net, and the place load every device waits for before anyone moves.
+    getRoster: () => getPendingRoom()?.roster ?? [],
+    getRoomNet: () => getPendingRoom()?.net ?? null,
+    ensureArea: (id) => areas.ensure(id),
   });
   // Found outfits: the find card (src/game/findcard.js), Wear it / Later in
   // the pause overlay. Wear it dresses her cat in place, at the shadow trim
@@ -558,7 +581,7 @@ function init() {
   const homebaseCloud = createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed: togetherAllowed, pushProfileNow, blockList });
   // "Delete my online data" on the Cloud save sheet (src/game/onlinedelete.js).
   const onlineDelete = createOnlineDelete({ MP, pid, getCloud: openCloud, getPsecret, sync, progression });
-  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
+  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onBirthdaySong: () => audio.playTune(birthdayTune(), settings.get('musicVolume')), onAudioWake: () => { const c = audio.getContext(); if (c.state === 'suspended') c.resume?.()?.catch?.(() => {}); }, onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the
@@ -580,7 +603,7 @@ function init() {
   homebase.show();
   // F6: fetch her own place and the den now, so Explore and the den button
   // usually find them already here. ?roofs=1 fetches the Rooftops too (her
-  // Explore goes there); without the switch nothing fetches it. A failure here
+  // Explore goes there); otherwise a Rooftops choice or the gate prefetch does. A failure here
   // is quiet: the start itself tries again, and says so if it cannot.
   areas.prefetch(effectiveArea(progression.state, CATALOG));
   areas.prefetch('den');
@@ -704,6 +727,12 @@ function init() {
   bus.on('purr:end', () => haptics.stopPurr());
   bus.on('player:lockchange', ({ locked }) => {
     if (!locked) haptics.stopPurr(); // paused: the purr stops with the walk
+    // A walk-on waiting for its place: the "Off to ..." moment stays up over
+    // the paused walk, and a re-lock gives control straight back.
+    if (locked && session?.walkingOn) {
+      handleTouchAction('pause');
+      return;
+    }
     if (session) overlay.classList.toggle('hidden', locked);
     // The first engage is the walk beginning: from here on the card behind
     // the walk is the "Paused" one (walk.js pauseCardFor), and a touch walk
@@ -744,6 +773,7 @@ function init() {
     }
   });
   function resumeWalk() {
+    if (session?.walkingOn) return; // the "Off to ..." moment: the place is on its way
     if (isTouch) player.setTouchEngaged(true);
     else Promise.resolve(canvas.requestPointerLock()).catch(() => {}); // refused without a click: the pause card stays
   }
@@ -792,6 +822,10 @@ function init() {
     if (e.target.id === SKIP_LESSON_ID && session) guideWalk.skip(session);
     if (e.target.id === 'btn-cross-yes') crossing.confirm();
     if (e.target.id === 'btn-cross-no') crossing.cancel();
+    // A gate's "Get it?" card (gatecross.js gateBuyHtml): Yes only from a
+    // deliberate tap (crossing.buyYes reads the click), Not now buys nothing.
+    if (e.target.id === 'confirm-card-yes') crossing.buyYes(e);
+    if (e.target.id === 'confirm-card-no') crossing.cancel();
     if (e.target.id === 'btn-find-wear') findCard.wear();
     if (e.target.id === 'btn-find-later') findCard.later();
     if (e.target.id === RELOAD_BUTTON_ID) window.location.reload();
@@ -816,6 +850,7 @@ function init() {
     const action = walkBackAction({
       summary: summaryUp(),
       walking: !!session,
+      walkingOn: !!session?.walkingOn,
       shopAsk: denShop.isAsking,
       shop: denShop.isOpen,
       findCard: !!session?.findCard,
@@ -973,6 +1008,8 @@ function init() {
   // The cat's paws for paws.update, mutated every frame rather than rebuilt
   // (pawprints.js reads the fields and keeps no reference).
   const pawState = { x: 0, z: 0, grounded: false };
+  // ...and her pose for the birthday balloons (render/partyballoons.js).
+  const balloonPose = { x: 0, y: 0, z: 0, yaw: 0, hidden: false };
   // The find's inputs (foundwear/live.js update), mutated every frame rather
   // than rebuilt.
   const findFrame = { x: 0, z: 0, pawsY: 0, camera, remotes: null, busy: false };
@@ -1192,6 +1229,7 @@ function init() {
         toy: session.toy,
       });
       session.clanCats.update(wdt, t, session.cat.position);
+      session.birthday?.update(wdt, t, session.cat.position);
       session.intruders.update(dt, session.cat.position);
       session.toy.update(dt, session.areaData.bounds);
       // THE YARN BALL FLOATS — v20.
@@ -1391,6 +1429,13 @@ function init() {
       pawState.z = session.cat.position.z;
       pawState.grounded = !session.perched && player.perchY === 0 && !(player.hopY > 0) && !player.inWater;
       session.paws.update(dt, pawState);
+      // The birthday balloons: away while she swims or rides.
+      balloonPose.x = pawState.x;
+      balloonPose.y = session.cat.position.y;
+      balloonPose.z = pawState.z;
+      balloonPose.yaw = session.cat.rotation.y;
+      balloonPose.hidden = player.inWater || !!session.fair?.riding;
+      session.balloons.update(dt, t, balloonPose);
       // Clouds take the same absolute t and follow the camera, so after player.update too.
       session.clouds.update(t);
       session.ambient.update(t, session.weather.condition === 'rain' ? 1.7 : 1);
@@ -1475,6 +1520,8 @@ function init() {
             toy: toyForState(session.toy),
             // her height on a perch or seat, and the seat (remotecats.js liftForState)
             ...liftForState(player.perchY, session.fair.riding),
+            // the place she is in: a co-walker elsewhere does not draw her
+            area: session.areaId,
           });
         }
       }

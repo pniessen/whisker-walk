@@ -697,7 +697,7 @@ describe('her cat\'s scars on the wire', () => {
 
   it('an unscarred profile is byte-identical to today', async () => {
     const { cloud, made } = pushing();
-    expect(JSON.stringify(made.roomProfile())).toBe(`{"playerId":"${HOST}","petName":"Mittens","breed":"tabby","accessories":{${SLOTS}},"finds":${FIND_KEY}}`);
+    expect(JSON.stringify(made.roomProfile())).toBe(`{"playerId":"${HOST}","petName":"Mittens","breed":"tabby","accessories":{${SLOTS}},"finds":${FIND_KEY},"walkOn":1}`);
     await made.pushProfileNow();
     expect(JSON.stringify(cloud.pushProfile.mock.calls[0][0])).toBe(
       `{"playerId":"${HOST}","secret":"sec","petName":"Mittens","breed":"tabby","accessories":{${SLOTS},"home":null},"rankTitle":${JSON.stringify(cloud.pushProfile.mock.calls[0][0].rankTitle)}}`);

@@ -10,10 +10,12 @@ import {
   LEVELS as L, BLOCKS, GROUNDS, ROOFS_BOUNDS, ROOFS_SPAWN, ROOFS_COLLIDERS, ROOFS_TRAVERSAL, roofsArea,
   ALLEY_LAMP, BIN_2, BIN_3, BIN_BAGS, ALLEY_CRATES, ALLEY_CLUTTER, ALLEY_CHANNEL, YARD, YARD_WALLS, WASHING_POSTS,
   VANE, VANE_TIP, TELESCOPE, GARDEN, SKYLIGHT, TELESCOPE_CRATE, ROOFS_DISCOVERIES, STREETS, PAVEMENT, STREET_LAMPS, BUS,
-  ROOFS_PERCHES,
+  ROOFS_PERCHES, ROOFS_WIND, SMOKE_POTS, ROOFS_SLEEPERS, SLEEPER_SILL,
 } from './roofsplan.js';
 import { STEP_MAX } from '../ground.js';
 import { createRoofsLife, mixHex } from '../roofslife.js';
+import { DRAWN_ID, ROOFS_BIRDS, flockPerches, perchIndex, roofsCritterSpawns } from './roofsflock.js';
+import { makeWashMaterial, swayAttribute, downwindSide } from './roofsair.js';
 
 // =============================================================================
 // THE ROOFTOPS, DRAWN (Rooftops step 2). Every position comes from
@@ -83,6 +85,23 @@ import { createRoofsLife, mixHex } from '../roofslife.js';
 //   * the garden (discovery A), the skylight over the lamp-lit attic (D) and
 //     the warm chimney's cowl (F).
 // THE EVENING is roofslife.js: the record's `life`.
+//
+// THE BIRDS' PERCHES (Rooftops step 3): while drawing, the pot tops (the warm
+// chimney's cowl top on its pot), the aerials' booms, the parapets' copings
+// every 3 m (not over a street), tower-1's ring corners, the washing posts'
+// T-bars and the yard walls' copings are pushed as drawn spots, `{ id, kind,
+// x, y, z }` with roofsflock.js's DRAWN_ID ids; with the plan's own they are
+// the record's `birdPerches` (roofsflock.js flockPerches), less the pots that
+// smoke (roofsplan.js SMOKE_POTS) and anything in their smoke (roofsflock.js
+// SMOKE_CLEAR). Data only: no mesh.
+//
+// THE WIND (Rooftops step 3, Task 5; roofsair.js): the vane points where it is
+// from (roofsplan.js ROOFS_WIND). The cloth material is the washing's sway
+// shader (record.washSway, its uniforms; the life sets its clock), and every
+// piece in a `cloth` bucket carries aSway: its drop under its line on the
+// line's downwind side for each thing hanging, zeros for the bicycle's tyres.
+// The record's `potTops` are every pot's top and `smokePots` the three that
+// smoke, for the life's smoke. No mesh: the build's counts are unchanged.
 //
 // THE BACK YARDS' WALLS are the plan's raised ground (roofsplan.js YARD_WALLS),
 // drawn inside it: one mesh, userData.yardWalls.
@@ -399,17 +418,24 @@ function merged(geos, name) {
   return g;
 }
 
+const STILL = Object.freeze({ lineY: 0, nx: 0, nz: 0, phase: 0 }); // a piece on the washing's material that never sways
+const washPhase = (x, z) => hash01(x, z, 53) * Math.PI * 2;
+
 function makeKit(prefix) {
   const buckets = new Map();
   return {
     // `mark`, if given ({ id, kind }), records the vertices this piece adds
     // `item`, if given ({ id, kind, ... }), likewise into userData.itemRanges
     // (the washing: each thing on a line, for the tests)
-    put(key, mat, geo, { noCast = false, color = null, tile = 0, mark = null, item = null } = {}) {
+    // `sway`, if given ({ lineY, nx, nz, phase }), is a thing on a line's
+    // (roofsair.js swayAttribute); every piece on the washing's material
+    // carries aSway, still (zeros) where none is given
+    put(key, mat, geo, { noCast = false, color = null, tile = 0, mark = null, item = null, sway = null } = {}) {
       const full = noCast ? `${key}` : `${key}:cast`;
       let k = buckets.get(full);
       if (!k) buckets.set(full, (k = { key, mat, noCast, geos: [], count: 0, ranges: [], items: [] }));
       const g = prep(geo, { color: color ?? mat.userData.vcBase ?? null, tile });
+      if (mat.userData.wash) swayAttribute(g, sway ?? STILL);
       const count = g.attributes.position.count;
       if (mark) k.ranges.push({ ...mark, start: k.count, count });
       if (item) k.items.push({ ...item, start: k.count, count });
@@ -448,6 +474,11 @@ function tinted(mat, base) {
   return mat;
 }
 
+function washing(mat) {
+  makeWashMaterial(mat);
+  return mat;
+}
+
 function buildMaterials() {
   const M = roofsMaterials();
   const tiled = (color, surface, extra = {}) => litMaterial(color, { surface, repeat: [1, 1], ...extra });
@@ -467,7 +498,8 @@ function buildMaterials() {
     stone: tinted(litMaterial(0xffffff, { roughness: 0.9, vertexColors: true }), 0xcdc4b2),
     iron: litMaterial(0x2b2e33, { roughness: 0.5 }),
     paint: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0 }),
-    cloth: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide }),
+    // the washing sways in the wind (roofsair.js: its shader patch, its uniforms on userData.wash)
+    cloth: washing(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide })),
     // part two
     road: tiled(0x3a3b40, 'gravel'),
     pavement: tiled(0x8a847a, 'flagstone'),
@@ -514,11 +546,13 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     alley.name = 'roofsAlley';
     const AK = makeKit('roofsAlley');
     drawAlley(AK, alley, M, ground);
-    drawYards(AK, alley, M);
+    const drawn = []; // the birds' drawn perches (the header)
+    drawYards(AK, alley, M, drawn);
     for (const m of AK.meshes()) alley.add(m);
     const terrace = new THREE.Group();
     terrace.name = 'roofsTerrace';
-    drawTerrace(terrace, M, win, ground);
+    drawTerrace(terrace, M, win, ground, drawn);
+    const sleepers = drawSleepers(terrace);
     const moves = new THREE.Group();
     moves.name = 'roofsMoves';
     drawCrossings(moves, M);
@@ -528,9 +562,9 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     const north = new THREE.Group();
     north.name = 'roofsNorth';
     const NK = makeKit('roofsNorth');
-    drawShop(NK, north, M, win, ground);
-    drawWarehouse(NK, north, M, win, upWin, ground);
-    drawTower(NK, north, M, scene);
+    drawShop(NK, north, M, win, ground, drawn);
+    drawWarehouse(NK, north, M, win, upWin, ground, drawn);
+    drawTower(NK, north, M, scene, drawn);
     drawDiscoveries(NK, north, M, upWin);
     for (const m of NK.meshes()) north.add(m);
     const street = new THREE.Group();
@@ -548,6 +582,7 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     lamp.name = 'roofsAlleyLamp';
     scene.add(alley, terrace, moves, north, street, lamp);
     drawLampHalos(scene); // round two, Task G: round every globe now in the scene
+    const potTops = Object.freeze(Object.fromEntries(drawn.filter((d) => d.kind === 'pot').map((d) => [d.id, Object.freeze({ x: d.x, y: d.y, z: d.z })])));
 
     const record = {
       name: 'The Rooftops',
@@ -561,7 +596,7 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
       pois: plan.pois.map((p) => ({ ...p })), // 13, all walked to from the spawn (R5)
       collectibles: plan.collectibles.map((c) => ({ ...c })),
       scenics: plan.scenics.map((c) => ({ ...c })),
-      critterSpawns: [], // R8; step 3 adds the birds
+      critterSpawns: [], // the birds, below: one critter each, at its home (step 3)
       moments: [],
       puddles: [],
       groundBounce: ROOFS_GROUND_COLOR,
@@ -578,7 +613,23 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
       bus,
       skyGlow, // the band low round the sky; roofslife.js colours it
       markGlow, // the take-off glows; roofslife.js sets their opacity (Task D)
+      // where the birds perch: the plan's spots and the drawn ones (step 3),
+      // less the pots that smoke and anything in their smoke (SMOKE_CLEAR)
+      birdPerches: flockPerches({ traversal: ROOFS_TRAVERSAL, ground, drawn, smoking: SMOKE_POTS }),
+      // every chimney pot's top, and the three that smoke (roofsair.js; the life makes the smoke)
+      potTops,
+      smokePots: SMOKE_POTS.map((id) => {
+        if (!potTops[id]) throw new Error(`roofs: no pot ${id} to smoke`);
+        return Object.freeze({ id, ...potTops[id] });
+      }),
+      // the washing's sway (roofsair.js): the cloth material's uniforms; the life sets its clock
+      washSway: M.cloth.userData.wash,
+      // the two house cats asleep on their sills (S1): scenery, which only the life breathes
+      sleepers,
     };
+    // the fourteen birds as the walk's critters (tag, the bell, a meow, the
+    // journal: critters.js), each at its home; the life flies them
+    record.critterSpawns = roofsCritterSpawns(ROOFS_BIRDS, perchIndex(record.birdPerches));
     // the evening deepening over the walk, and the bus (roofslife.js)
     record.life = createRoofsLife(record);
     return record;
@@ -1077,7 +1128,7 @@ function washItem(kind, w, h, x, z) {
 }
 
 // --- the back yards: walls with a gateway, washing posts, coal bunkers.
-function drawYards(K, group, M) {
+function drawYards(K, group, M, drawn) {
   const stone = (geo) => K.put('stone', M.stone, geo);
   // the walls: brick inside the plan's raised ground, a pier at each side of
   // the gateway, a stone coping
@@ -1090,13 +1141,18 @@ function drawYards(K, group, M) {
     stone(box(w.x0, w.x1, YARD.h, YARD.h + 0.08, w.z0, w.z1));
     stone(box(w.x0, w.x1, YARD.h + 0.15, YARD.h + 0.23, z, z + 0.36));
   }
+  // a bird's perch on each wall's coping, at its middle
+  YARD_WALLS.forEach((w, i) => drawn.push({ id: DRAWN_ID.wall(i), kind: 'wall', x: w.x, y: YARD.h + 0.08, z: (w.z0 + w.z1) / 2 }));
   group.add(own('yardWalls', M.wall, walls, { tile: TILE.brick, tag: { yardWalls: true } }));
   const lineGeos = [];
+  const [ynx, ynz] = downwindSide(0, 1); // the yards' lines run north-south
   WASHING_POSTS.forEach((p, i) => {
     for (const z of [p.z0, p.z1]) {
       K.put('ironSmall', M.iron, post(p.x, z, 0, 2.0, 0.04), { noCast: true });
       K.put('ironSmall', M.iron, rod({ x: p.x - 0.3, y: 1.95, z }, { x: p.x + 0.3, y: 1.95, z }, 0.025), { noCast: true });
     }
+    // a bird's perch on each post's top, at its T-bar
+    [p.z0, p.z1].forEach((z, end) => drawn.push({ id: DRAWN_ID.post(i, end), kind: 'post', x: p.x, y: 2.0, z }));
     for (const dx of [-0.25, 0.25]) lineGeos.push(rod({ x: p.x + dx, y: 1.95, z: p.z0 }, { x: p.x + dx, y: 1.9, z: p.z1 }, 0.008, 4));
     // two or three things drying on each
     for (let j = 0; j < 3; j++) {
@@ -1108,7 +1164,8 @@ function drawYards(K, group, M) {
       const g = washItem(kind, w, h, p.x, z);
       g.rotateY(Math.PI / 2);
       g.translate(p.x + (j % 2 ? 0.25 : -0.25), 1.92, z);
-      K.put('cloth', M.cloth, g, { noCast: true, color: CLOTHS[Math.floor(hash01(p.x, z, 11) * CLOTHS.length) % CLOTHS.length], item: { id: `wash:yard:${i}:${j}`, kind, line: 'yard' } });
+      const sway = { lineY: 1.92, nx: ynx, nz: ynz, phase: washPhase(p.x, z) };
+      K.put('cloth', M.cloth, g, { noCast: true, color: CLOTHS[Math.floor(hash01(p.x, z, 11) * CLOTHS.length) % CLOTHS.length], item: { id: `wash:yard:${i}:${j}`, kind, line: 'yard' }, sway });
     }
   });
   for (const g of lineGeos) K.put('paint', M.paint, g, { noCast: true, color: 0xe8e2d0 });
@@ -1168,7 +1225,9 @@ const EAVE = Object.freeze({ slate: 0.04, inset: 0.04, board: 0.22, gutterDrop: 
 // TV aerials on six stacks (hash01's pick), each on the stack's street face
 // on the side over the slates, every one pointing the same way (at the same
 // transmitter): a mast, a boom and three elements, all thin open wires.
-const AERIAL = Object.freeze({ count: 6, off: 0.3, foot: 0.6, tall: 1.15, extra: 0.35, mast: 0.022, rod: 0.011, yaw: 0.55, boom: [-0.35, 0.65], elements: [[-0.25, 0.27], [0.15, 0.22], [0.5, 0.17]] });
+// Returns a bird's perch on the boom (AERIAL.perch along it, between two
+// elements, on the wire's top), or null where it draws none.
+const AERIAL = Object.freeze({ count: 6, off: 0.3, foot: 0.6, tall: 1.15, extra: 0.35, mast: 0.022, rod: 0.011, yaw: 0.55, boom: [-0.35, 0.65], elements: [[-0.25, 0.27], [0.15, 0.22], [0.5, 0.17]], perch: 0.33 });
 const AERIAL_STACKS = new Set([...STACKS].sort((p, q) => hash01(p.x, 7.1, 61) - hash01(q.x, 7.1, 61)).slice(0, AERIAL.count).map((s) => s.id));
 function aerial(put, s, quarters, ground) {
   const first = hash01(s.x, 2.2, 67) < 0.5 ? -1 : 1;
@@ -1185,8 +1244,10 @@ function aerial(put, s, quarters, ground) {
     const at = (t, u = 0) => ({ x: mx + dx * t - dz * u, y, z: mz + dz * t + dx * u });
     put(wire(at(AERIAL.boom[0]), at(AERIAL.boom[1]), AERIAL.rod));
     for (const [t, half] of AERIAL.elements) put(wire(at(t, -half), at(t, half), AERIAL.rod * 0.8));
-    return;
+    const perch = at(AERIAL.perch);
+    return { x: perch.x, y: y + AERIAL.rod, z: perch.z };
   }
+  return null;
 }
 // A satellite dish on two back walls (hash01's pick of the houses with no
 // outrigger), between the upstairs window and the eave, facing south and up.
@@ -1209,7 +1270,7 @@ function dish(put, x, y, z) {
 
 // --- the terrace: the houses, their extensions and outriggers, the slates,
 // the flat roofs, the stacks and every window.
-function drawTerrace(group, M, win, ground) {
+function drawTerrace(group, M, win, ground, drawn) {
   const K = makeKit('roofsTerrace');
   // `color`: whose brick (lookOf(k).wall), or a colour of its own
   const wall = (geo, color = null) => K.put('wall', M.wall, geo, { tile: TILE.brick, color });
@@ -1343,7 +1404,8 @@ function drawTerrace(group, M, win, ground) {
     const brick = stackBrick(s);
     group.add(own(s.id, M.wall, quarters.map((q) => box(q.x0, q.x1, q.y0, s.y, q.z0, q.z1)), { tile: TILE.brick, color: brick, tag: { block: s.id } }));
     for (const q of quarters) wall(box(q.x0 - 0.06, q.x1 + 0.06, s.y - 0.16, s.y - 0.06, q.z0 - 0.06, q.z1 + 0.06), brick); // the oversailing course
-    if (AERIAL_STACKS.has(s.id)) aerial(iron, s, quarters, ground);
+    const mast = AERIAL_STACKS.has(s.id) ? aerial(iron, s, quarters, ground) : null;
+    if (mast) drawn.push({ id: DRAWN_ID.aerial(s.x), kind: 'aerial', ...mast });
     for (const side of [-1, 1]) {
       // a pot each side of the ridge's line, on the quarters that reach it
       const reach = quarters.filter((q) => (side < 0 ? s.z - q.z0 : q.z1 - s.z) >= STACK.pot + 0.13);
@@ -1353,8 +1415,11 @@ function drawTerrace(group, M, win, ground) {
       const col = hash01(s.x, side, 9) < 0.7 ? 0xb8613f : 0x8a7f72;
       pots(post(px, s.z + side * STACK.pot, s.y, tall, 0.1, 0.13, 10), col);
       pots(post(px, s.z + side * STACK.pot, s.y + tall - 0.04, 0.05, 0.125, 0.125, 10), col);
+      // a bird's perch on its rim (on the warm chimney's, the cowl's top)
+      const warm = s.x === ROOFS_DISCOVERIES.chimney.x && side < 0;
+      drawn.push({ id: DRAWN_ID.pot(s.x, side), kind: 'pot', x: px, y: s.y + tall + (warm ? 0.14 : 0.01), z: s.z + side * STACK.pot });
       // the warm chimney (discovery F): a cowl on its pot, soot round the rim
-      if (s.x === ROOFS_DISCOVERIES.chimney.x && side < 0) {
+      if (warm) {
         const z = s.z + side * STACK.pot;
         pots(post(px, z, s.y + tall - 0.08, 0.06, 0.128, 0.128, 10), 0x2a2622);
         pots(post(px, z, s.y + tall + 0.08, 0.06, 0.04, 0.16, 10), 0x3a3d42);
@@ -1383,7 +1448,14 @@ function drawTerrace(group, M, win, ground) {
     stone(box(e.x1, e.x1 + 0.08, 1.0, 1.05, 16.1, 16.9));
     const ret = (e.x1 + x0 + HOUSE_W) / 2; // the middle of the side return
     painted(box(ret - 0.42, ret + 0.42, 0, 2.0, T.z1, T.z1 + 0.05), paint(x0, T.z1, 5)); // the back door
-    zWin(ret, 4.8, T.z1, 1, 0.7, 1.0);
+    // its window, or, where a house cat sleeps (S1, ROOFS_SLEEPERS), a deep
+    // stone sill under a window lit warm (a plain one: no cat in it too)
+    if (ROOFS_SLEEPERS.some((q) => Math.abs(q.x - ret) < 1e-6)) {
+      win(ret, SLEEPER_SILL.y + 0.5, T.z1, 0, 1, 0.7, 1.0, warmCell(ret, T.z1));
+      stone(box(ret - 0.41, ret + 0.41, SLEEPER_SILL.y - 0.07, SLEEPER_SILL.y, T.z1, T.z1 + SLEEPER_SILL.depth));
+    } else {
+      zWin(ret, 4.8, T.z1, 1, 0.7, 1.0);
+    }
     if (o) {
       wall(box(o.x0, o.x1, e.y - 0.1, o.y - 0.1, o.z0, o.z1), brickOf(k));
       group.add(own(o.id, M.felt, [box(o.x0, o.x1, o.y - 0.1, o.y, o.z0, o.z1)], { tile: TILE.gravel, tag: { block: o.id } }));
@@ -1413,6 +1485,146 @@ function drawTerrace(group, M, win, ground) {
   win(S.x1, 1.25, (S.z0 + S.z1) / 2, 1, 0, 0.8, 0.5);
 
   for (const m of K.meshes()) group.add(m);
+}
+
+// --- the two house cats asleep on their sills (Rooftops step 3, S1;
+// roofsplan.js ROOFS_SLEEPERS). Each is one mesh of its own in its coat's two
+// vertex colours, at most 320 triangles: a loaf of a body (flat underneath),
+// the head down on its front paws at the +x end (the -x end for a `mirror`
+// sleeper: its geometry mirrored, mirrorX), its face turned out to the
+// yards (+z), two ears, and the tail wrapped round the front to the paws. Its
+// origin is on the sill, so the life's breathing (scale.y) lifts its back and
+// never sinks it into the stone. Never merged (the life breathes it), casting
+// nothing; no label, no prompt, in no list a game system reads.
+const SLEEPER = Object.freeze({
+  body: Object.freeze({ at: [-0.03, 0.075, 0], r: [0.2, 0.105, 0.13], flat: 0.7, seg: [10, 6] }),
+  head: Object.freeze({ at: [0.17, 0.1, 0.05], r: [0.084, 0.072, 0.08], seg: [8, 6] }),
+  face: Object.freeze([0.55, 0.835]), // the way its face turns, level (unit)
+  ear: Object.freeze({ up: 0.05, apart: 0.035, back: 0.012, half: 0.024, deep: 0.022, tall: 0.05 }),
+  paws: Object.freeze([[0.19, 0.025, 0.08], [0.17, 0.025, 0.13]]),
+  paw: Object.freeze({ r: [0.055, 0.025, 0.03], seg: [6, 3] }),
+  tail: Object.freeze({
+    points: Object.freeze([[-0.2, 0.05, -0.06], [-0.245, 0.04, 0.05], [-0.17, 0.035, 0.135], [-0.04, 0.03, 0.165], [0.08, 0.03, 0.16], [0.14, 0.035, 0.135]]),
+    r: 0.032, tip: 0.45, seg: [10, 4],
+  }),
+});
+
+// An ellipsoid of radii r at `at`, as a sphere of seg[0] x seg[1].
+function ellipsoid(at, r, seg) {
+  const g = new THREE.SphereGeometry(1, seg[0], seg[1]);
+  g.scale(r[0], r[1], r[2]);
+  g.translate(at[0], at[1], at[2]);
+  return g;
+}
+
+// One ear: a three-sided pyramid, its base inside the head, each face turned out.
+function earGeometry(base, side, face) {
+  const E = SLEEPER.ear;
+  const v = (x, y, z) => new THREE.Vector3(x, y, z);
+  const foot = [
+    v(base.x + side[0] * E.half, base.y, base.z + side[1] * E.half),
+    v(base.x - side[0] * E.half, base.y, base.z - side[1] * E.half),
+    v(base.x - face[0] * E.deep, base.y, base.z - face[1] * E.deep),
+  ];
+  const apex = v(base.x + face[0] * 0.004, base.y + E.tall, base.z + face[1] * 0.004);
+  const mid = foot.reduce((t, p) => t.add(p), apex.clone()).multiplyScalar(0.25);
+  const pos = [];
+  for (let i = 0; i < 3; i++) {
+    let [a, c] = [foot[i], foot[(i + 1) % 3]];
+    const n = new THREE.Vector3().subVectors(c, a).cross(new THREE.Vector3().subVectors(apex, a));
+    const centre = a.clone().add(c).add(apex).multiplyScalar(1 / 3);
+    if (n.dot(centre.sub(mid)) < 0) [a, c] = [c, a];
+    pos.push(a.x, a.y, a.z, c.x, c.y, c.z, apex.x, apex.y, apex.z);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return g;
+}
+
+// The tail: a tube along its points, thinning to `tip` of its root's radius.
+function tailGeometry() {
+  const T = SLEEPER.tail;
+  const curve = new THREE.CatmullRomCurve3(T.points.map(([x, y, z]) => new THREE.Vector3(x, y, z)));
+  const [n, radial] = T.seg;
+  const g = new THREE.TubeGeometry(curve, n, T.r, radial, false);
+  const p = g.attributes.position;
+  const at = new THREE.Vector3();
+  for (let i = 0; i <= n; i++) {
+    curve.getPointAt(i / n, at);
+    const k = 1 - (1 - T.tip) * (i / n) ** 1.5;
+    for (let j = 0; j <= radial; j++) {
+      const q = i * (radial + 1) + j;
+      p.setXYZ(q, at.x + (p.getX(q) - at.x) * k, at.y + (p.getY(q) - at.y) * k, at.z + (p.getZ(q) - at.z) * k);
+    }
+  }
+  return g;
+}
+
+// A geometry (non-indexed) mirrored in x: its positions and normals turned
+// over, and each triangle's winding swapped back, so its outside is still
+// the side a single-sided material shows (a negative scale on the mesh
+// would turn it inside out to the shadow and the light).
+function mirrorX(g) {
+  g.scale(-1, 1, 1);
+  for (const a of Object.values(g.attributes)) {
+    const n = a.itemSize;
+    const arr = a.array;
+    for (let t = 0; t < a.count; t += 3) {
+      for (let j = 0; j < n; j++) {
+        const [i1, i2] = [(t + 1) * n + j, (t + 2) * n + j];
+        [arr[i1], arr[i2]] = [arr[i2], arr[i1]];
+      }
+    }
+    a.needsUpdate = true;
+  }
+  return g;
+}
+
+// A sleeper's geometry in its coat: `fur` all over, `pale` on its chest, its
+// muzzle and its paws; its head toward -x where `mirror`.
+function sleeperGeometry(coat, mirror = false) {
+  const S = SLEEPER;
+  const fur = new THREE.Color(coat.fur);
+  const pale = new THREE.Color(coat.pale);
+  const [fx, fz] = S.face;
+  const body = ellipsoid(S.body.at, S.body.r, S.body.seg);
+  const bp = body.attributes.position;
+  for (let i = 0; i < bp.count; i++) {
+    const y = bp.getY(i);
+    if (y < S.body.at[1]) bp.setY(i, S.body.at[1] + (y - S.body.at[1]) * S.body.flat); // a loaf: flat underneath
+  }
+  const h = S.head.at;
+  const head = ellipsoid(h, S.head.r, S.head.seg);
+  const side = [fz, -fx];
+  const ears = [1, -1].map((k) => earGeometry(
+    { x: h[0] + side[0] * k * S.ear.apart - fx * S.ear.back, y: h[1] + S.ear.up, z: h[2] + side[1] * k * S.ear.apart - fz * S.ear.back },
+    side, S.face,
+  ));
+  const chest = (x, y, z) => (x > 0.04 && z > 0.03 && y < 0.13 ? pale : fur);
+  const muzzle = (x, y, z) => ((x - h[0]) * fx + (z - h[2]) * fz > 0.035 && y - h[1] < 0.015 ? pale : fur);
+  const g = mergeGeometries([
+    prep(body, { color: chest }),
+    prep(head, { color: muzzle }),
+    ...ears.map((e) => prep(e, { color: fur })),
+    ...S.paws.map((at) => prep(ellipsoid(at, S.paw.r, S.paw.seg), { color: pale })),
+    prep(tailGeometry(), { color: fur }),
+  ]);
+  return mirror ? mirrorX(g) : g;
+}
+
+// The two sleepers, each its own mesh added to `group`; returned in
+// ROOFS_SLEEPERS' order (the record's `sleepers`).
+function drawSleepers(group) {
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
+  return ROOFS_SLEEPERS.map((s) => {
+    const m = finish(new THREE.Mesh(sleeperGeometry(s.coat, s.mirror), mat), true);
+    m.name = `roofsSleeper:${s.id}`;
+    m.userData.noMerge = true;
+    m.position.set(s.x, s.y, s.z);
+    m.rotation.y = s.yaw;
+    group.add(m);
+    return m;
+  });
 }
 
 // A ridge tile's section at its spigot end (dz across the ridge, dy below the
@@ -1514,7 +1726,9 @@ function drawCrossings(group, M) {
         const kind = washKind(cx, s.z);
         const g = washItem(kind, w, h, cx, s.z);
         g.translate(cx, cy - 0.01, s.z);
-        K.put('cloth', M.cloth, g, { noCast: true, color: CLOTHS[Math.floor(hash01(cx, s.z, 19) * CLOTHS.length) % CLOTHS.length], item: { id: `wash:${c.id}:${i}`, kind, line: c.id } });
+        const [nx, nz] = downwindSide(u.x - s.x, u.z - s.z);
+        const sway = { lineY: cy - 0.01, nx, nz, phase: washPhase(cx, s.z) };
+        K.put('cloth', M.cloth, g, { noCast: true, color: CLOTHS[Math.floor(hash01(cx, s.z, 19) * CLOTHS.length) % CLOTHS.length], item: { id: `wash:${c.id}:${i}`, kind, line: c.id }, sway });
       }
     } else if (c.kind === 'pipe') {
       // an iron pipe from the tank to the loft, its top the rail, on two
@@ -1679,6 +1893,32 @@ function parapet(wall, stone, x0, x1, z0, z1, y, h = 0.45, joint = null) {
   }
 }
 
+// The birds' perches on a block's parapets (roofsflock.js DRAWN_ID.parapet):
+// spot n is 3n m clockwise round the block's edge from its north-west corner,
+// on the coping's middle (PARAPET_MID out from the edge), pushed where a
+// coping of `runs` ({ x0, x1, z0, z1, y }, y its top) lies under it with
+// PARAPET_END to spare along it, and not over a street.
+const PARAPET_EVERY = 3;
+const PARAPET_MID = 0.125;
+const PARAPET_END = 0.1;
+function parapetPerches(drawn, blockId, k, runs) {
+  const [w, d] = [k.x1 - k.x0, k.z1 - k.z0];
+  const sides = [
+    [w, (u) => [k.x0 + u, k.z0 - PARAPET_MID]], [d, (u) => [k.x1 + PARAPET_MID, k.z0 + u]],
+    [w, (u) => [k.x1 - u, k.z1 + PARAPET_MID]], [d, (u) => [k.x0 - PARAPET_MID, k.z1 - u]],
+  ];
+  const e = PARAPET_END;
+  for (let n = 0; PARAPET_EVERY * n < 2 * (w + d); n++) {
+    let t = PARAPET_EVERY * n;
+    let i = 0;
+    while (t >= sides[i][0]) t -= sides[i++][0];
+    const [x, z] = sides[i][1](t);
+    if (STREETS.some((r) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1)) continue;
+    const run = runs.find((r) => x >= r.x0 + e && x <= r.x1 - e && z >= r.z0 + e && z <= r.z1 - e);
+    if (run) drawn.push({ id: DRAWN_ID.parapet(blockId, n), kind: 'parapet', x, y: run.y, z });
+  }
+}
+
 // Splits [a, b] round each gap centre (half-width `half`): the runs left.
 function runsAround(a, c, gaps, half) {
   let runs = [[a, c]];
@@ -1723,7 +1963,7 @@ const SHOP_DRESS = Object.freeze({
   h: 0.15, out: 0.06, stone: 0xcdc4b2, // the stone's own colour
   cornice: Object.freeze({ h: 0.2, out: 0.3 }), // tall, and proud of the wall (the parapets stand 0.25 out)
 });
-function drawShop(K, group, M, win, ground) {
+function drawShop(K, group, M, win, ground, drawn) {
   const wall = (g) => K.put('wall', M.wall, g, { tile: TILE.brick, color: NORTH.shop }); // painted (Task B)
   const stone = (g) => K.put('stone', M.stone, g);
   const painted = (g, color) => K.put('paint', M.paint, g, { color, noCast: true });
@@ -1750,9 +1990,12 @@ function drawShop(K, group, M, win, ground) {
   // parapets: open on the terrace side where she climbs up from the last stack
   const up = climbTo('cornerShop');
   const joint = (g, item) => K.put('paint', M.paint, g, { color: COPING.color, noCast: true, item }); // round two, Task G
-  for (const [z0, z1] of runsAround(S.z0, S.z1, [up.z], 0.7)) parapet(wall, stone, S.x0 - 0.25, S.x0, z0, z1, S.y, 0.45, joint);
-  parapet(wall, stone, S.x1, S.x1 + 0.25, S.z0, S.z1 + 0.25, S.y, 0.45, joint);
-  parapet(wall, stone, S.x0 - 0.25, S.x1, S.z1, S.z1 + 0.25, S.y, 0.45, joint);
+  const runs = []; // the copings, for the birds' perches
+  const para = (x0, x1, z0, z1) => { runs.push({ x0, x1, z0, z1, y: S.y + 0.45 + COPING.h }); parapet(wall, stone, x0, x1, z0, z1, S.y, 0.45, joint); };
+  for (const [z0, z1] of runsAround(S.z0, S.z1, [up.z], 0.7)) para(S.x0 - 0.25, S.x0, z0, z1);
+  para(S.x1, S.x1 + 0.25, S.z0, S.z1 + 0.25);
+  para(S.x0 - 0.25, S.x1, S.z1, S.z1 + 0.25);
+  parapetPerches(drawn, 'cornerShop', S, runs);
 
   // over the street: the arch the bus goes under, the shopfront, three floors of windows
   const arch = { z0: BUS.z - BUS.width / 2 - 0.95, z1: BUS.z + BUS.width / 2 + 0.95, y1: L.STREET + BUS.height + 0.3 };
@@ -1826,7 +2069,7 @@ function warehouseFelt(put, W, ground, lights, stairZ, gapX) {
 const TANK_PLANK = Object.freeze({ thick: 0.018, wide: 0.26, color: 0xc9ad7e, hoop: 0xb9c0c4 }); // a pale, sun-bleached plank on the dark lid
 // --- the warehouse, and what stands on its roof: the tank, the loft, the
 // lantern, roof lights; its stair down to the ginnel.
-function drawWarehouse(K, group, M, win, upWin, ground) {
+function drawWarehouse(K, group, M, win, upWin, ground, drawn) {
   const wall = (g, color = NORTH.warehouse) => K.put('wall', M.wall, g, { tile: TILE.brick, color }); // a darker brick (Task B)
   const stone = (g) => K.put('stone', M.stone, g);
   const iron = (g, noCast = false) => K.put(noCast ? 'ironSmall' : 'iron', M.iron, g, { noCast });
@@ -1847,10 +2090,13 @@ function drawWarehouse(K, group, M, win, upWin, ground) {
   const tower = BLOCK['tower-1'];
   const up = climbTo('warehouse');
   const joint = (g, item) => K.put('paint', M.paint, g, { color: COPING.color, noCast: true, item }); // round two, Task G
-  for (const [x0, x1] of [[W.x0 - 0.25, tower.x0], ...runsAround(tower.x1, W.x1 + 0.25, [up.x], 0.7)]) parapet(wall, stone, x0, x1, W.z1, W.z1 + 0.25, W.y, 0.5, joint);
-  parapet(wall, stone, W.x0 - 0.25, W.x0, W.z0 - 0.25, W.z1, W.y, 0.5, joint);
-  parapet(wall, stone, W.x0, W.x1 + 0.25, W.z0 - 0.25, W.z0, W.y, 0.5, joint);
-  for (const [z0, z1] of [[W.z0, stairZ[0]], [stairZ[1], W.z1]]) parapet(wall, stone, W.x1, W.x1 + 0.25, z0, z1, W.y, 0.5, joint);
+  const runs = []; // the copings, for the birds' perches
+  const para = (x0, x1, z0, z1) => { runs.push({ x0, x1, z0, z1, y: W.y + 0.5 + COPING.h }); parapet(wall, stone, x0, x1, z0, z1, W.y, 0.5, joint); };
+  for (const [x0, x1] of [[W.x0 - 0.25, tower.x0], ...runsAround(tower.x1, W.x1 + 0.25, [up.x], 0.7)]) para(x0, x1, W.z1, W.z1 + 0.25);
+  para(W.x0 - 0.25, W.x0, W.z0 - 0.25, W.z1);
+  para(W.x0, W.x1 + 0.25, W.z0 - 0.25, W.z0);
+  for (const [z0, z1] of [[W.z0, stairZ[0]], [stairZ[1], W.z1]]) para(W.x1, W.x1 + 0.25, z0, z1);
+  parapetPerches(drawn, 'warehouse', W, runs);
   // the ginnel's far wall and its end
   wall(box(ROOFS_BOUNDS.maxX, ROOFS_BOUNDS.maxX + 0.3, 0, 2.4, W.z0 - 0.3, W.z1), BRICK.red); stone(box(ROOFS_BOUNDS.maxX - 0.05, ROOFS_BOUNDS.maxX + 0.35, 2.4, 2.5, W.z0 - 0.3, W.z1));
   wall(box(W.x1, ROOFS_BOUNDS.maxX, 0, 2.4, W.z0 - 0.3, W.z0), BRICK.red); stone(box(W.x1, ROOFS_BOUNDS.maxX, 2.4, 2.5, W.z0 - 0.35, W.z0 + 0.05));
@@ -1996,7 +2242,7 @@ function climbedFace(r, x, z, nx, nz) {
 }
 const LOUVRE = Object.freeze({ dy: [-0.3, -0.02, 0.26], len: 1.0, depth: 0.1, thick: 0.03, tilt: 0.6, out: 0.05 });
 const PINNACLE = Object.freeze({ off: 0.12, half: 0.09, y0: -0.45, y1: 0.42, cap: 0.45 }); // y from the belfry's top
-function drawTower(K, group, M, scene) {
+function drawTower(K, group, M, scene, drawn) {
   const stone = (g, color = TOWER.dressing) => K.put('stone', M.stone, g, { color });
   const painted = (g, color) => K.put('paint', M.paint, g, { color, noCast: true });
   const rail = (g) => K.put('ironSmall', M.iron, g, { noCast: true });
@@ -2021,6 +2267,10 @@ function drawTower(K, group, M, scene) {
 
   // the first ledge (tower-1's ring) and the stages above, each a block's top
   group.add(own('tower-1', M.stone, [box(T1.x0 - 0.1, T1.x1 + 0.1, LEDGE, T1.y, T1.z0 - 0.1, T1.z1 + 0.1)], { color: TOWER.dressing, tag: { block: 'tower-1' } }));
+  // the birds' perches on the ring: its corners, clockwise from the north-west, half way to the belfry
+  const inset = (BLOCK.belfry.x0 - T1.x0) / 2;
+  [[T1.x0 + inset, T1.z0 + inset], [T1.x1 - inset, T1.z0 + inset], [T1.x1 - inset, T1.z1 - inset], [T1.x0 + inset, T1.z1 - inset]]
+    .forEach(([x, z], n) => drawn.push({ id: DRAWN_ID.parapet('tower-1', n), kind: 'parapet', x, y: T1.y, z }));
   group.add(own('belfry', M.stone, [box(BF.x0, BF.x1, T1.y, BF.y, BF.z0, BF.z1)], { color: TOWER.stone, tag: { block: 'belfry' } }));
   stone(box(BF.x0 - 0.08, BF.x1 + 0.08, BF.y - 0.22, BF.y - 0.1, BF.z0 - 0.08, BF.z1 + 0.08)); // its cornice
   group.add(own('lanternStage', M.stone, [box(LS.x0, LS.x1, BF.y, LS.y, LS.z0, LS.z1)], { color: TOWER.stone, tag: { block: 'lanternStage' } }));
@@ -2156,7 +2406,7 @@ function drawTower(K, group, M, scene) {
     }
   }
   const vy = 19.35;
-  const yaw = 0.6; // where the wind is from tonight
+  const yaw = ROOFS_WIND.from; // where the wind is from tonight
   const [ux, uz] = [Math.cos(yaw), Math.sin(yaw)];
   const tip = { x: VANE.x + ux * 0.6, y: vy, z: VANE.z + uz * 0.6 };
   const tail = { x: VANE.x - ux * 0.55, y: vy, z: VANE.z - uz * 0.55 };
