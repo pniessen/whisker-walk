@@ -573,6 +573,8 @@ export function roofsCritterSpawns(birds, index) {
   return birds.map((b) => {
     const home = index.get(b.home);
     if (!home) throw new Error(`roofsflock: ${b.id}'s home ${b.home} is not a perch`);
-    return Object.freeze({ type: BIRD_KINDS[b.kind].critter, x: home.x, z: home.z, roofBird: b.id });
+    const spawn = { type: BIRD_KINDS[b.kind].critter, x: home.x, z: home.z, roofBird: b.id };
+    if (b.kind === 'pigeon') spawn.labelAs = 'pigeon';
+    return Object.freeze(spawn);
   });
 }

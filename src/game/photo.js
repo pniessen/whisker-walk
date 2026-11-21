@@ -9,13 +9,13 @@
 // un-bloomed frame on the high tier.
 
 import * as THREE from 'three';
-import { labelFor } from './labels.js';
+import { labelFor, critterLabel, critterKey } from './labels.js';
 
 export function createPhotoMode({ renderer, camera, player, album, hud, log, audio, renderFrame, noteGoal }) {
   function findPhotoSubject(s) {
     const candidates = [];
     for (const c of s.critters.list) {
-      if (c.spottable && !c.fleeing) candidates.push({ key: `critter-${c.type}`, label: labelFor(c.type), pos: c.group.position });
+      if (c.spottable && !c.fleeing) candidates.push({ key: `critter-${critterKey(c)}`, label: critterLabel(c), pos: c.group.position });
     }
     for (const a of s.farm?.spottable ?? []) candidates.push({ key: `critter-${a.type}`, label: labelFor(a.type), pos: a.pos });
     // v21 3b Task 16: the yard dog is the photo subject the critter dog was.

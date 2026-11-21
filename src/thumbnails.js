@@ -74,15 +74,17 @@ function renderAll() {
 }
 
 // Every accessory id the menu draws at once: the shop's, not the found
-// outfits (a record with `find`), which are drawn once she owns them.
+// outfits (a record with `find`) nor the gift outfits (`code`), which are
+// drawn once she owns them.
+const drawnWhenOwned = (a) => !!(a?.find || a?.code);
 export function thumbnailIds(catalog) {
-  return Object.keys(catalog.accessories).filter((id) => !catalog.accessories[id].find);
+  return Object.keys(catalog.accessories).filter((id) => !drawnWhenOwned(catalog.accessories[id]));
 }
 
-// Owned found outfits that have no picture yet and have not been tried
-// (a failed draw is not retried at every render).
+// Owned found (or gift) outfits that have no picture yet and have not been
+// tried (a failed draw is not retried at every render).
 export function missingFoundThumbs(thumbs, owned, catalog, tried = new Set()) {
-  return (owned || []).filter((id) => catalog.accessories[id]?.find && !thumbs?.accessories?.[id] && !tried.has(id));
+  return (owned || []).filter((id) => drawnWhenOwned(catalog.accessories[id]) && !thumbs?.accessories?.[id] && !tried.has(id));
 }
 
 const foundTried = new Set();

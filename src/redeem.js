@@ -1,8 +1,9 @@
 // Redeem codes: pure normalise + hash helpers (v21 §10.4).
-// DOM-free; its only imports are the plain-data code table and escapehtml.js. Only hashes of codes
-// are ever stored or compared.
+// DOM-free; its only imports are the plain-data code table, escapehtml.js and the phrase table.
+// Only hashes of codes are ever stored or compared.
 import { REDEEM_CODES } from './redeemcodes.js';
 import { escapeHtml } from './escapehtml.js';
+import { phrase } from './clanphrases.js';
 
 export const REDEEM_SALT = 'whisker-walk-redeem-v1';
 export const REDEEM_ITERATIONS = 100000;
@@ -110,7 +111,8 @@ export function createRedeemer({ progression, codes = REDEEM_CODES, hash = hashC
     const res = progression.redeemCode(h, codes[h]);
     if (res.ok) {
       writeRest({ misses: 0, until: 0, last: 0 });
-      return { kind: 'gift', items: res.items, points: res.points };
+      // events: the gift events it switched on; confetti: a one-time burst on home.
+      return { kind: 'gift', items: res.items, points: res.points, events: res.events ?? [], confetti: res.confetti === true };
     }
     return res.reason === 'used' ? { kind: 'used' } : { kind: 'unknown' };
   };
@@ -162,8 +164,9 @@ export function redeemMessage(result, catalog) {
         const back = Number(it.refund) || 0;
         parts.push(back > 0 ? `${back} 🐾 for ${nameOf(it)} you already had` : `${nameOf(it)} you already had`);
       }
-      if (!parts.length) return '🎉 You opened it! There was nothing new inside this time — but thanks for trying it! 💛';
-      return `🎉 Surprise! You got ${joinNice(parts)}!`;
+      const party = result.confetti === true ? ` ${phrase('party.time')}` : '';
+      if (!parts.length) return `🎉 You opened it! There was nothing new inside this time — but thanks for trying it! 💛${party}`;
+      return `🎉 Surprise! You got ${joinNice(parts)}!${party}`;
     }
     case 'used': return 'You already opened this one — it’s safe in your collection. 💛';
     case 'unknown': return 'Hmm, that code isn’t one we know. Check the letters and try again! 🐾';

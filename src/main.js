@@ -19,6 +19,7 @@ import { attachBackStack, walkBackAction } from './ui/backstack.js';
 import { createZoomControl, createWheelStepper, keyZoomDir, zoomActionDir, clampZoomStep, maxZoomStep } from './camzoom.js';
 import { createAudio } from './audio.js';
 import { createMusic } from './music.js';
+import { birthdayTune } from './birthdaysong.js';
 import { createSamples } from './samples.js';
 import { voiceFor } from './catvoice.js';
 import { createAlbum } from './album.js';
@@ -518,6 +519,7 @@ function init() {
     MP, pid, coarse, envMap, overlay, blockList,
     renderer, camera, composerRig,
     player, progression, settings, hud, audio, music, log, touchUI, catVoice,
+    album,
     getCloud,
     getSession: () => session,
     setSession: (next) => { session = next; },
@@ -579,7 +581,7 @@ function init() {
   const homebaseCloud = createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed: togetherAllowed, pushProfileNow, blockList });
   // "Delete my online data" on the Cloud save sheet (src/game/onlinedelete.js).
   const onlineDelete = createOnlineDelete({ MP, pid, getCloud: openCloud, getPsecret, sync, progression });
-  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
+  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onBirthdaySong: () => audio.playTune(birthdayTune(), settings.get('musicVolume')), onAudioWake: () => { const c = audio.getContext(); if (c.state === 'suspended') c.resume?.()?.catch?.(() => {}); }, onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the
@@ -601,7 +603,7 @@ function init() {
   homebase.show();
   // F6: fetch her own place and the den now, so Explore and the den button
   // usually find them already here. ?roofs=1 fetches the Rooftops too (her
-  // Explore goes there); without the switch nothing fetches it. A failure here
+  // Explore goes there); otherwise a Rooftops choice or the gate prefetch does. A failure here
   // is quiet: the start itself tries again, and says so if it cannot.
   areas.prefetch(effectiveArea(progression.state, CATALOG));
   areas.prefetch('den');
@@ -1006,6 +1008,8 @@ function init() {
   // The cat's paws for paws.update, mutated every frame rather than rebuilt
   // (pawprints.js reads the fields and keeps no reference).
   const pawState = { x: 0, z: 0, grounded: false };
+  // ...and her pose for the birthday balloons (render/partyballoons.js).
+  const balloonPose = { x: 0, y: 0, z: 0, yaw: 0, hidden: false };
   // The find's inputs (foundwear/live.js update), mutated every frame rather
   // than rebuilt.
   const findFrame = { x: 0, z: 0, pawsY: 0, camera, remotes: null, busy: false };
@@ -1225,6 +1229,7 @@ function init() {
         toy: session.toy,
       });
       session.clanCats.update(wdt, t, session.cat.position);
+      session.birthday?.update(wdt, t, session.cat.position);
       session.intruders.update(dt, session.cat.position);
       session.toy.update(dt, session.areaData.bounds);
       // THE YARN BALL FLOATS — v20.
@@ -1424,6 +1429,13 @@ function init() {
       pawState.z = session.cat.position.z;
       pawState.grounded = !session.perched && player.perchY === 0 && !(player.hopY > 0) && !player.inWater;
       session.paws.update(dt, pawState);
+      // The birthday balloons: away while she swims or rides.
+      balloonPose.x = pawState.x;
+      balloonPose.y = session.cat.position.y;
+      balloonPose.z = pawState.z;
+      balloonPose.yaw = session.cat.rotation.y;
+      balloonPose.hidden = player.inWater || !!session.fair?.riding;
+      session.balloons.update(dt, t, balloonPose);
       // Clouds take the same absolute t and follow the camera, so after player.update too.
       session.clouds.update(t);
       session.ambient.update(t, session.weather.condition === 'rain' ? 1.7 : 1);

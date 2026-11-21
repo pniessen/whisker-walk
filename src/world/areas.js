@@ -16,9 +16,8 @@
 // AREA_GZIP_CEILING_KB in scripts/buildjson.mjs), and test/areas.test.js and
 // test/lazybuild.test.js fail if step 1 or 2 was missed.
 //
-// `roofs` is here so a walk can build it, and nowhere a child picks from:
-// every list a child sees comes from CATALOG.areas, which has no Rooftops row
-// until step 4. `den` is not in the catalog either; it is built from home.
+// `roofs` has its own row in CATALOG.areas (Rooftops step 4), so the place
+// lists show it. `den` is not in the catalog; it is built from home.
 //
 // An AreaPack is { id, world, life }: world is the builder module, life the
 // area's live-animal factories ({} when it has none). This file imports
@@ -36,7 +35,9 @@ export const AREA_LOADERS = Object.freeze({
   woods: () => import('./woods.js').then((w) => own('woods', w)),
   river: () => import('./river.js').then((w) => own('river', w)),
   moor: () => import('./moor.js').then((w) => own('moor', w)),
-  pines: () => import('./pines.js').then((w) => own('pines', w)),
+  // The Pines carry her birthday Gathering on the island (birthdaygathering.js).
+  pines: () => Promise.all([import('./pines.js'), import('./birthdaygathering.js')])
+    .then(([world, g]) => ({ id: 'pines', world, life: { planGathering: g.planGathering, gatheringCast: g.gatheringCast, createBirthdayGathering: g.createBirthdayGathering } })),
   gorge: () => import('./gorge.js').then((w) => own('gorge', w)),
   farm: () => Promise.all([import('./farm.js'), import('../farmanimals.js')])
     .then(([world, a]) => ({ id: 'farm', world, life: { createFarmAnimals: a.createFarmAnimals } })),
@@ -54,7 +55,7 @@ export const AREA_ENTRY_MODULES = Object.freeze({
   woods: Object.freeze(['src/world/woods.js']),
   river: Object.freeze(['src/world/river.js']),
   moor: Object.freeze(['src/world/moor.js']),
-  pines: Object.freeze(['src/world/pines.js']),
+  pines: Object.freeze(['src/world/pines.js', 'src/world/birthdaygathering.js']),
   gorge: Object.freeze(['src/world/gorge.js']),
   farm: Object.freeze(['src/world/farm.js', 'src/farmanimals.js']),
   fair: Object.freeze(['src/world/fair.js', 'src/fairlive.js', 'src/fairshow.js']),
