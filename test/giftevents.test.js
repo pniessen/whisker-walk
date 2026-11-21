@@ -123,6 +123,29 @@ describe('the save keeps events, and hasEvent reads them', () => {
     expect(p.isUnlocked('accessories', 'birthdayhat')).toBe(true);
   });
 
+  it('opening the birthday puts the Birthday Hat on her cat at once, in the same save', () => {
+    p.equipAccessory('bell');
+    p.redeemCode(H, { points: 0, accessories: CODE_WEAR, cats: [], events: [BIRTHDAY_EVENT] });
+    expect(p.state.equipped.head).toBe('birthdayhat');
+    // the rest of what she wears stays as it was
+    expect(p.state.equipped.collar).toBe('bell');
+    // and it is saved, not only in memory
+    const q = createProgression(fakeStorage({ [KEY]: JSON.stringify(p.state) }));
+    expect(q.state.equipped.head).toBe('birthdayhat');
+  });
+
+  it('only the opening puts it on: a hat she later takes off stays off', () => {
+    p.redeemCode(H, { events: [BIRTHDAY_EVENT] });
+    p.state.equipped.head = null;
+    p.redeemCode(H2, { events: [BIRTHDAY_EVENT] });
+    expect(p.state.equipped.head).toBe(null);
+  });
+
+  it('a code with no event never changes what the cat wears', () => {
+    p.redeemCode(H, { points: 0, accessories: ['partyhat'], cats: [], confetti: true });
+    expect(p.state.equipped.head).toBe(null);
+  });
+
   it('a cloud load keeps this device\'s events', () => {
     p.redeemCode(H, { events: [BIRTHDAY_EVENT] });
     const older = JSON.parse(JSON.stringify(p.state));

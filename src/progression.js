@@ -38,7 +38,7 @@ import { latestMilestoneUpTo, milestoneIndex, styleFor, prizeFor, prizesWonBy } 
 import { FAIR_GAME_IDS, FAIR_PRIZES, gameJournalId, fairPrizesWonBy } from './fairprizes.js';
 import { FOUND_CATALOG } from './foundwear/index.js';
 import { GIFT_CATALOG } from './foundwear/gifts.js';
-import { sanitizeEvents, eventWear, isEventId, eventPresent } from './giftevents.js';
+import { sanitizeEvents, eventWear, eventWearOnOpen, isEventId, eventPresent } from './giftevents.js';
 // v21 Stream 3b: private per-area marks. marks.js is the pure rules half (its only
 // import is propsets.js, a zero-import leaf), so the edge is cycle-free. Every
 // write still happens here: marks.js computes, this module saves.
@@ -1432,6 +1432,7 @@ export function createProgression(storage) {
       // Gift events (src/giftevents.js): known ids only, each kept once. An
       // event's own outfits are owned from now (and rebuilt on every load).
       const events = Array.isArray(reward?.events) ? [...new Set(reward.events.filter(isEventId))] : [];
+      const opened = events.filter((ev) => !state.events.includes(ev));
       if (events.length) state.events = sanitizeEvents([...state.events, ...events]);
       for (const ev of events) {
         for (const id of eventWear(ev)) {
@@ -1439,6 +1440,13 @@ export function createProgression(storage) {
           state.unlocked.accessories.push(id);
           items.push({ kind: 'accessories', id, name: CATALOG.accessories[id].name, owned: false, refund: 0 });
         }
+      }
+      // An event opened by this code (not one the save already had) dresses
+      // the cat in its own outfit at once: her Birthday Hat goes straight on.
+      for (const ev of opened) {
+        const id = eventWearOnOpen(ev);
+        const item = id ? CATALOG.accessories[id] : null;
+        if (item && state.unlocked.accessories.includes(id)) state.equipped[item.slot] = id;
       }
       state.points += points;
       state.redeemed = [...state.redeemed, hash].slice(-REDEEMED_MAX);

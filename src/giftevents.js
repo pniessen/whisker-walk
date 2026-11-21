@@ -15,7 +15,7 @@ export const BIRTHDAY_EVENT = 'bday-2026-11-21';
 // The birthday kitten (CATALOG.cats): what the birthday's present holds.
 export const BIRTHDAY_KITTEN = 'ribbonkit';
 
-// id -> { last: [year, month 1-12, day], wear: [accessory ids], present: cat id }. An event is
+// id -> { last: [year, month 1-12, day], wear: [accessory ids], wearOnOpen: accessory id, present: cat id }. An event is
 // on from the moment its code is opened until the end of its last day, local
 // time (a late evening the day after still counts).
 const EVENTS = Object.freeze({
@@ -24,6 +24,9 @@ const EVENTS = Object.freeze({
     // the Birthday Hat comes with the event only (no code lists it), so a
     // save that opened the code before it existed gains it on its next load
     wear: Object.freeze(['partyhat', 'bdayrosette', 'bdayballoon', 'cakecharm', 'birthdayhat']),
+    // the moment her code opens the birthday, her cat is wearing this
+    // (once only: a hat she takes off later stays off)
+    wearOnOpen: 'birthdayhat',
     // the wrapped present on home (ui/party.js): opened once, it gives this cat
     present: BIRTHDAY_KITTEN,
   }),
@@ -60,6 +63,11 @@ export function eventWindowOpen(id, now = new Date()) {
 // The outfits an event gives, [] for anything else.
 export function eventWear(id) {
   return isEventId(id) ? EVENTS[id].wear : [];
+}
+
+// The outfit an event puts on the cat the moment its code opens it, or null.
+export function eventWearOnOpen(id) {
+  return isEventId(id) ? EVENTS[id].wearOnOpen ?? null : null;
 }
 
 // The cat an event's present holds, or null.
