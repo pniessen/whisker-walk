@@ -37,6 +37,8 @@
   import * as farm from '/src/world/farm.js';
   import * as fair from '/src/world/fair.js';
   import * as roofs from '/src/world/roofs.js';
+  import * as market from '/src/world/market.js';
+  import { MARKET_REGISTRATION } from '/src/world/marketplan.js';
   import { ROOFS_REGISTRATION, ROOFS_SHOTS, ROOFS_SHOT_T, ROOFS_LIFE_SHOTS } from '/src/world/roofsplan.js';
   import { GUIDE, perchIndex } from '/src/world/roofsflock.js';
   import { applyDusk, duskEnv, createLampPools } from '/src/render/dusk.js';
@@ -44,7 +46,7 @@
   import { buildCat } from '/src/cat/model.js';
   import { animateCat } from '/src/cat/animator.js';
 
-  const AREAS = { neighborhood, park, seaside, docks, woods, river, moor, pines, gorge, farm, fair, roofs };
+  const AREAS = { neighborhood, park, seaside, docks, woods, river, moor, pines, gorge, farm, fair, roofs, market };
   const id = new URLSearchParams(location.search).get('area') || 'neighborhood';
   // ?size=WxH renders bigger than the card pictures (for looking, not shipping).
   const [W, H] = (new URLSearchParams(location.search).get('size') || '640x360').split('x').map(Number);
@@ -79,6 +81,7 @@
     scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
   }
   if (id === 'fair') fair.setFairGlow(area, Number(new URLSearchParams(location.search).get('glow') || 0)); // &glow=1 lights the bulbs
+  if (id === 'market') market.setMarketDusk(area, Number(new URLSearchParams(location.search).get('glow') || 0)); // &glow=1 lights the lanterns and packs up
   if (new URLSearchParams(location.search).has('nofog')) scene.fog = null; // for a picture from high above
 
   // ?animals (the Farm only) adds its animals (src/farmanimals.js) and a cat,
@@ -292,6 +295,8 @@
     fair: fair.FAIR_REGISTRATION.view,
     // from the alley, up at the terrace backs and the clock tower (the card picture)
     roofs: ROOFS_REGISTRATION.view,
+    // from the café side, over the bunting to two stalls and the fountain (the card picture)
+    market: MARKET_REGISTRATION.view,
   };
   const c = (params.get('cam') || VIEWS[id]).split(',').map(Number);
   if (params.has('bare')) document.getElementById('hud').remove();

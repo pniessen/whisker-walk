@@ -57,7 +57,7 @@ import {
 //   * the baskets of produce (hidden at dusk) and the packing-up (shown at
 //     dusk): one group each, noMerge, casting nothing;
 //   * the bunting: one noCast mesh, every pennant and string;
-//   * the shop fronts, one vertex-coloured mesh a side;
+//   * the shop fronts, one vertex-coloured mesh a side, casting nothing;
 //   * the far town: builder.horizonBand's skyline, noCast.
 //
 // THE PLAN'S FRAME AND THREE'S. A stall group turned by yaw = atan2(fx, fz)
@@ -65,9 +65,14 @@ import {
 // local +x is the plan's -x (the plan's +x is (-fz, fx)). So a plan-local
 // point (lx, lz) is the group-local point (-lx, lz): pl() below.
 //
-// WHAT CASTS. Stalls (their paint and awning), the fountain's stone and mast,
-// the shop fronts and the lamp posts. Everything else under 1.3 m (the café,
-// the treats, the baskets, the packing-up) and the high, thin bunting do not.
+// WHAT CASTS. Stalls (their paint and awning), the fountain's stone and mast
+// and the lamp posts. Everything else under 1.3 m (the café, the treats, the
+// baskets, the packing-up), the high, thin bunting and the shop fronts do not.
+// The shop fronts did (Task 6's pictures): at the morning sun's 20 degrees a
+// 10 m row throws its shadow ~27 m into the square, so the walk's ±20 m shadow
+// box (render/shadowfit.js) cut it off in a hard line across the cobbles that
+// moved with the camera, and the seams between the houses let thin lit slits
+// through that read as painted road lines. The square is in full sun instead.
 //
 // NOTHING FADES but the four lamp posts: no mesh carries userData.window.
 // =============================================================================
@@ -772,7 +777,7 @@ function drawBunting(PARTS, flags, poles) {
 function drawShopFront(side, { paint, winLit, litKit, barrel, sack }) {
   const K = makeKit(`marketShops:${side.id}`);
   const sideM = mat4(side.x, 0, side.z, { yaw: side.yaw });
-  const put = (geo, m, color) => K.put('paint', paint, geo, sideM.clone().multiply(m), { color });
+  const put = (geo, m, color) => K.put('paint', paint, geo, sideM.clone().multiply(m), { color, noCast: true }); // WHAT CASTS
   const lit = (geo, m) => litKit.put('glass', winLit, geo, sideM.clone().multiply(m), { noCast: true });
   const cube = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
   const plane = new THREE.PlaneGeometry(1, 1);

@@ -216,9 +216,37 @@ export const MARKET_COLLECTIBLES = freeze([
   { id: 'market-5', x: 17, z: 12, label: 'a little brass key' },
 ].map(freeze));
 
-// The picture views, 'px,py,pz,lx,ly,lz' (Task 6 fills the rest).
+// The picture views (verify-market.html's __shot, scripts/record-page.mjs
+// --shots), 'px,py,pz,lx,ly,lz' in world metres. A counter's shot stands 3 m in
+// front of its counter, on its middle, at a cat's height, looking at the counter
+// (built from the plan, so it follows a stall that moves).
+const view = (...n) => n.map((v) => +v.toFixed(2)).join(',');
+const COUNTER_EYE = 0.5; // m: a cat's eye, near enough
+const COUNTER_LOOK = 1.5; // m: up a little, so the stall's sign over its awning is in
+function counterShot(id) {
+  const s = stallById(id);
+  const eye = fromStall(s, 0, s.d / 2 + 3);
+  const at = fromStall(s, 0, 0);
+  return view(eye.x, COUNTER_EYE, eye.z, at.x, COUNTER_LOOK, at.z);
+}
+const SPAWN_VIEW = '0,2.2,33.5,0,0.4,29';
 export const MARKET_SHOTS = Object.freeze({
-  card: '0,3.2,31,0,1.2,0',
+  // the walk's own camera at the spawn (4.5 m behind her, 2.2 m up), up the square to the fountain
+  spawn: SPAWN_VIEW,
+  fountain: '6,1.6,9,0,1.4,0',
+  fish: counterShot('fish'),
+  baker: counterShot('baker'),
+  cheese: counterShot('cheese'),
+  milk: counterShot('milk'),
+  // from the fountain's side, the tables in front of the café's awning
+  cafe: '5,1.3,14.5,11,1.3,23',
+  // high over the south-west corner, the whole square and all six stalls
+  overview: '-26,24,30,2,0,-2',
+  // the spawn view again, at 390 x 844
+  phone: SPAWN_VIEW,
+  // the place card: from the café side, over the bunting to two stalls and the fountain
+  // (east of the café, by the milk cart: the cart, the fountain, the cheese and baker's stalls)
+  card: '20,4,11,5,1.8,-8',
 });
 
 export const MARKET_REGISTRATION = freeze({

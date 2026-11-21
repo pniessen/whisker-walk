@@ -59,8 +59,10 @@ const clearOf = (x, z, colliders) => Math.min(...colliders.map((c) => Math.hypot
 // 27,113). The build runs inside withLocalUuids: no Math.random draw.
 // Fix round (2026-11-21): +1 mesh, the dusk-lit windows (noCast); the crates,
 // sacks, barrels and handcarts in buckets the square had: +5,892 triangles.
-const MEASURED_BUILT = { meshes: 79, casters: 30, triangles: 33005 };
-const MEASURED_MERGED = { meshes: 76, casters: 27, triangles: 33005 };
+// Task 6 (2026-11-21): the shop fronts cast nothing (market.js WHAT CASTS):
+// -4 casters, built and merged.
+const MEASURED_BUILT = { meshes: 79, casters: 26, triangles: 33005 };
+const MEASURED_MERGED = { meshes: 76, casters: 23, triangles: 33005 };
 const MEASURED_DRAWS = 0;
 
 function budgetStats(s) {
@@ -302,6 +304,8 @@ describe('the Market Square drawn', () => {
     expect(fronts.map((m) => m.userData.shopFront).sort()).toEqual(['east', 'north', 'south', 'west']);
     for (const m of fronts) {
       expect(m.parent).toBe(scene); // one mesh a side
+      // Task 6: no long row shadow across the square for the shadow box to cut off
+      expect([m.userData.shopFront, m.castShadow, m.userData.noCast]).toEqual([m.userData.shopFront, false, true]);
       const pos = m.geometry.attributes.position;
       const v = new THREE.Vector3();
       for (let i = 0; i < pos.count; i++) {
@@ -446,5 +450,50 @@ describe('The Market: registered in every per-area list', async () => {
     expect(REG.colony).toBe(false);
     expect(COLONY_AREAS).not.toContain('market');
     expect(propsFor('market').dogYard).toBeNull();
+  });
+});
+
+// =============================================================================
+// Task 6: the picture views (verify-market.html's __shot, the card picture).
+// =============================================================================
+describe('The Market: its picture views', async () => {
+  const { MARKET_SHOTS, MARKET_REGISTRATION: REG } = await import('../src/world/marketplan.js');
+  const NAMES = ['spawn', 'fountain', 'fish', 'baker', 'cheese', 'milk', 'cafe', 'overview', 'phone', 'card'];
+  const inside = (x, z, m = 0) => x >= MARKET_BOUNDS.minX - m && x <= MARKET_BOUNDS.maxX + m && z >= MARKET_BOUNDS.minZ - m && z <= MARKET_BOUNDS.maxZ + m;
+
+  it('every shot is inside the square, above the ground and looks at it', () => {
+    expect(Object.isFrozen(MARKET_SHOTS)).toBe(true);
+    expect(Object.keys(MARKET_SHOTS)).toEqual(NAMES);
+    for (const [name, v] of Object.entries(MARKET_SHOTS)) {
+      const n = v.split(',').map(Number);
+      expect([name, n.length, n.every(Number.isFinite)]).toEqual([name, 6, true]);
+      const [px, py, pz, lx, ly, lz] = n;
+      expect([name, 'eye', inside(px, pz, 15)]).toEqual([name, 'eye', true]);
+      expect([name, 'eye height', py >= 0.3 && py <= 30]).toEqual([name, 'eye height', true]);
+      expect([name, 'look', inside(lx, lz)]).toEqual([name, 'look', true]);
+      expect([name, 'looks somewhere', Math.hypot(lx - px, ly - py, lz - pz) > 1]).toEqual([name, 'looks somewhere', true]);
+    }
+    expect(MARKET_SHOTS.phone).toBe(MARKET_SHOTS.spawn);
+    expect(REG.view).toBe(MARKET_SHOTS.card);
+  });
+
+  it('each counter shot is 3 m in front of its counter, at a cat\'s height, looking at it', () => {
+    for (const id of TREAT_STALLS) {
+      const s = stallById(id);
+      const [px, py, pz, lx, , lz] = MARKET_SHOTS[id].split(',').map(Number);
+      const eye = toStall(s, px, pz);
+      expect([id, Math.abs(eye.lz - (s.d / 2 + 3)) < 0.05, Math.abs(eye.lx) < 0.05]).toEqual([id, true, true]);
+      expect([id, py <= 0.8]).toEqual([id, true]);
+      const at = toStall(s, lx, lz);
+      expect([id, Math.abs(at.lx) < 0.05, at.lz <= s.d / 2 + 0.05]).toEqual([id, true, true]);
+    }
+  });
+
+  it('the card picture is shipped (a JPEG, about the size of the others)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const jpg = readFileSync(new URL('../public/places/market.jpg', import.meta.url));
+    expect([jpg[0], jpg[1]]).toEqual([0xff, 0xd8]);
+    expect(jpg.length).toBeGreaterThan(5000);
+    expect(jpg.length).toBeLessThan(60000);
   });
 });
