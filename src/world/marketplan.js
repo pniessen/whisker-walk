@@ -317,6 +317,85 @@ export const MARKET_SHOTS = Object.freeze({
   card: '-4,3.2,17,5,1.5,2',
 });
 
+// THE TOURS (Task 14): the owner's two films, driven by world/marketpilot.js's
+// createMarketPilot on verify-market.html (?live=1&drive=1, __tour(name)) and,
+// headless, by test/marketlive.test.js through the rig with the same pilot.
+// Every point comes from a stall's own frame (fromStall), so a tour follows a
+// stall that moves. Each tour has its seed and its start clock (the time of
+// day the rhythm reads), so the film and the test see the same stallholders.
+// The step kinds are marketpilot.js's; `view` is the page's camera ('follow',
+// behind her; { stall }, her and that stallholder in one frame; { stall, wide },
+// a still camera out in front of that stall, the hide's side).
+const at = (id, lx, lz) => {
+  const p = fromStall(stallById(id), lx, lz);
+  return freeze([+p.x.toFixed(3), +p.z.toFixed(3)]);
+};
+// a stall's hide, and the creep in from it: out past the corner post, then at the treat
+const hideOf = (id) => freeze([stallById(id).hide.x, stallById(id).hide.z]);
+const creepIn = (id) => { const s = stallById(id); return at(id, s.w / 2 + 0.5, s.d / 2 + 0.6); };
+// where she takes a treat to munch it: out past the hide's side of the zone, toward the camera
+const munchSpot = (id) => { const s = stallById(id); return at(id, s.w / 2 + 1.3, s.d / 2 + 1.8); };
+const steps = (list) => freeze(list.map(freeze));
+const BAKER = stallById('baker');
+// the baker's view: out on the hide's side, so the lamp post in front of the
+// baker's (MARKET_LAMPS) stays out of the frame, the counter and the walk in
+const BAKER_VIEW = freeze({ stall: 'baker', eye: freeze([BAKER.w / 2 + 2.9, BAKER.d / 2 + 3.4, 2.2]), at: freeze([-0.4, BAKER.d / 2 + 0.4]) });
+const CHEESE = stallById('cheese');
+export const MARKET_TOURS = freeze({
+  // From the spawn the café crumbs; the fishmonger's hide, the bubble, the creep
+  // in, the grab and the munch; then the baker walked straight into while
+  // watched (the shoo, the broom, the hop back), a dash under the trestle, the
+  // wait, the grab. Ends with 3 treats and one shoo.
+  sneak: freeze({
+    seed: 7,
+    clock: 36000,
+    start: freeze({ x: MARKET_SPAWN.x, z: MARKET_SPAWN.z, face: freeze([0, -1]) }),
+    steps: steps([
+      { view: 'follow' }, { say: 'The café crumbs first: nobody minds those' }, { grab: 'cafe' }, { wait: 2.2 },
+      { say: 'Now the fish stall: under the trestle to hide' }, { view: { stall: 'fish' } }, { walk: hideOf('fish') },
+      { say: 'Watch the fishmonger…' }, { until: { stall: 'fish', phase: 'serve' } }, { until: { stall: 'fish', bubble: true } },
+      { say: 'The busy bubble! They are about to turn round' }, { until: { stall: 'fish', watching: false } },
+      { say: 'Turned away: creep in and grab it!' }, { walk: creepIn('fish'), pace: 'creep' }, { grab: 'fish', pace: 'creep' },
+      { say: 'Got it! Munch, munch' }, { walk: munchSpot('fish') }, { wait: 1.6 },
+      { say: 'Over to the baker' }, { walk: at('fish', 1.6, 5.2) }, { view: 'follow' }, { walk: [-4, -4] }, { walk: at('baker', -3.0, BAKER.d / 2 + 3.4) },
+      { view: BAKER_VIEW },
+      { say: 'What if she just walks straight in?' }, { until: { stall: 'baker', phase: 'serve' } },
+      { walk: [BAKER.treat.x, BAKER.treat.z], stopOn: 'shoo' }, { say: 'Spotted!' }, { wait: 1.0 },
+      { say: 'Dash under the trestle!' }, { walk: at('baker', BAKER.w / 2 + 1.3, BAKER.d / 2 + 3.2), pace: 'dash' }, { walk: hideOf('baker'), pace: 'dash' },
+      { say: 'Wait for the bubble…' }, { until: { stall: 'baker', bubble: true } }, { until: { stall: 'baker', watching: false } },
+      { say: 'Now!' }, { walk: creepIn('baker'), pace: 'creep' }, { grab: 'baker', pace: 'creep' },
+      { say: 'A sausage roll!' }, { walk: munchSpot('baker') }, { wait: 1.6 },
+      { say: 'Treats this walk:', tally: true }, { wait: 2.0 },
+    ]),
+  }),
+  // A partner cat walks along the cheese stall's front and stops there: the
+  // stallholder turns to her and coos, and while it does, her cat comes round
+  // to the hide and creeps in for the cheddar. Her device pays her the treat
+  // (and says who kept them busy); the partner's pays the teamwork.
+  team: freeze({
+    seed: 7,
+    clock: 36004,
+    start: freeze({ x: at('cheese', 1.5, 6.4)[0], z: at('cheese', 1.5, 6.4)[1], face: freeze([CHEESE.face.x * -1, CHEESE.face.z * -1]) }),
+    me: freeze({ id: 'mittens', name: 'Mittens' }), // her cat, as the partner's device knows her
+    partner: freeze({
+      id: 'biscuit',
+      name: 'Biscuit',
+      start: freeze({ x: at('cheese', -0.6, 6.9)[0], z: at('cheese', -0.6, 6.9)[1] }),
+      steps: steps([
+        { wait: 0.8 }, { walk: at('cheese', -CHEESE.w / 2 - 2.6, CHEESE.d / 2 + 4.6) }, { walk: at('cheese', -CHEESE.w / 2 - 2.2, CHEESE.d / 2 + 1.1) },
+        { walk: at('cheese', -CHEESE.w / 2 - 0.8, CHEESE.d / 2 + 1.1) }, { wait: 12 },
+      ]),
+    }),
+    steps: steps([
+      { view: { stall: 'cheese', wide: true, eye: [CHEESE.w / 2 + 1.8, CHEESE.d / 2 + 4.8, 2.3] } }, { say: 'Teamwork at the cheese stall' },
+      { walk: at('cheese', CHEESE.w / 2 + 2.5, CHEESE.d / 2 + 4.1) }, { walk: hideOf('cheese') },
+      { say: 'Biscuit stops right in front…' }, { until: { stall: 'cheese', cooing: 'biscuit' } },
+      { say: '…and while they coo at her, round the side!' }, { walk: creepIn('cheese'), pace: 'creep' }, { grab: 'cheese', pace: 'creep' },
+      { say: 'The cheddar! Teamwork!' }, { walk: munchSpot('cheese') }, { wait: 4.5 },
+    ]),
+  }),
+});
+
 export const MARKET_REGISTRATION = freeze({
   id: 'market',
   // src/progression.js CATALOG.areas: nothing offers the Market until step 4 (M1)

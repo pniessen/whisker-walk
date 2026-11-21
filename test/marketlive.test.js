@@ -1459,3 +1459,125 @@ function topOver(scene, id, s) {
 function scene0(scene) {
   return scene.children.map((o) => o.id);
 }
+
+// =============================================================================
+// The tours (Task 14): the owner's two films (verify-market.html ?live=1&drive=1),
+// driven here headless through the rig with the page's own pilot.
+// =============================================================================
+
+const { MARKET_TOURS } = await import('../src/world/marketplan.js');
+const { createMarketPilot } = await import('../src/world/marketpilot.js');
+const { handleMarketEvent, createMarketToasts } = await import('../src/game/marketplay.js');
+const { createDiscoveryLog } = await import('../src/discoveries.js');
+const { MARKET_LINES } = await import('../src/marketwords.js');
+
+// One device's walk: the rig, a discovery log that pays into `points`, and the
+// walk's handleMarketEvent on every event (its toasts kept).
+function tourDevice(tour, square, x, z) {
+  const paid = { points: 0 };
+  const log = createDiscoveryLog({ addPoints: (p) => { paid.points += p; } });
+  log.startWalk();
+  const toasts = [];
+  const hud = { toast: (t) => toasts.push(t) };
+  let r = null;
+  const marketToasts = createMarketToasts({ hud, now: () => r.t });
+  r = marketRig({
+    seed: tour.seed, clock: tour.clock, ...square,
+    onEvent: (e) => handleMarketEvent(e, { hud, audio: null, log, session: r.session, ...marketToasts }),
+  });
+  r.place(x, z);
+  return { r, log, paid, toasts };
+}
+
+// The tour as the page plays it: her device (A) and, for a tour with a
+// partner, the partner's own device (B), each cat walked the same way on both
+// (as the wire would show it), her grab reaching B as the carry-pick does.
+function playTour(name) {
+  const tour = MARKET_TOURS[name];
+  const square = buildSquare();
+  const A = tourDevice(tour, square, tour.start.x, tour.start.z);
+  let B = null, partner = null, meOnB = null;
+  if (tour.partner) {
+    const p = tour.partner;
+    partner = A.r.addRemote(p.id, p.start.x, p.start.z);
+    partner.petName = p.name;
+    B = tourDevice(tour, square, p.start.x, p.start.z);
+    B.r.session.playerId = p.id;
+    meOnB = B.r.addRemote(tour.me.id, tour.start.x, tour.start.z);
+    meOnB.petName = tour.me.name;
+  }
+  const driver = {
+    events: A.r.events,
+    pos: (who) => (who === 'me' ? A.r.cat.position : partner.group.position),
+    move(who, dx, dz, speed, crouch) {
+      if (who === 'me') {
+        A.r.walk(dx, dz, speed);
+        A.r.player.stalking = crouch;
+        if (B) { B.r.walkRemote(meOnB, dx, dz, speed); meOnB.pose = crouch ? 'stalk' : 'follow'; }
+      } else {
+        A.r.walkRemote(partner, dx, dz, speed);
+        partner.pose = crouch ? 'stalk' : 'follow';
+        B.r.walk(dx, dz, speed);
+        B.r.player.stalking = crouch;
+      }
+    },
+    stall: (id) => A.r.stall(id),
+    reach: () => A.r.live.actionFor(A.r.session)?.stall ?? null,
+    press() {
+      const stall = driver.reach();
+      const took = A.r.grab();
+      if (took === true && B) B.r.live.remotePick(meOnB, treatItemId(stall));
+      return took;
+    },
+  };
+  const pilot = createMarketPilot(tour);
+  let res = null;
+  let frames = 0;
+  for (; frames < 4000; frames++) {
+    res = pilot.step(DT, driver);
+    if (res.done) break;
+    A.r.step(DT);
+    B?.r.step(DT);
+  }
+  return { tour, A, B, res, frames };
+}
+
+describe('the tours (Task 14)', () => {
+  it('both tours finish and pay what the film shows', () => {
+    const sneak = playTour('sneak');
+    expect(sneak.res.failed).toBeNull();
+    expect(sneak.res.done).toBe(true);
+    const A = sneak.A;
+    expect(A.r.live.treats).toBe(3);
+    expect(ofType(A.r, 'eat').map((e) => [e.stall, e.teamWith])).toEqual([['cafe', null], ['fish', null], ['baker', null]]);
+    const shoos = ofType(A.r, 'shoo');
+    expect(shoos).toEqual([{ type: 'shoo', stall: 'baker', who: 'me', laugh: false, hopped: true }]);
+    expect(A.paid.points).toBe(3 * 6);
+    for (const id of ['cafe', 'fish', 'baker']) expect(A.log.count(`market-treat-${id}`), id).toBe(1);
+    expect(A.toasts).toContain(MARKET_LINES.shoo());
+    expect(sneak.res.tally).toBe(true); // the film's last caption carries the tally
+
+    const team = playTour('team');
+    expect(team.res.failed).toBeNull();
+    const a = team.A, b = team.B;
+    const p = team.tour.partner;
+    // her device: the coo is at the partner, she eats the cheddar with her, the treat is paid
+    expect(ofType(a.r, 'coo')).toEqual([{ type: 'coo', stall: 'cheese', who: p.id }]);
+    expect(ofType(a.r, 'eat')).toEqual([{ type: 'eat', stall: 'cheese', kind: 'cheddar', teamWith: p.id }]);
+    expect(ofType(a.r, 'shoo')).toEqual([]);
+    expect(a.log.count('market-treat-cheese')).toBe(1);
+    expect(a.log.count('market-team-cheese')).toBe(0);
+    expect(a.paid.points).toBe(6);
+    expect(a.toasts).toContain(MARKET_LINES.teamEater(p.name));
+    // the partner's device: cooed at herself, then the teamwork, and no treat
+    expect(ofType(b.r, 'coo')).toEqual([{ type: 'coo', stall: 'cheese', who: 'me' }]);
+    expect(ofType(b.r, 'team')).toEqual([{ type: 'team', stall: 'cheese', partner: team.tour.me.id }]);
+    expect(ofType(b.r, 'shoo')).toEqual([]);
+    expect(b.log.count('market-team-cheese')).toBe(1);
+    expect(b.log.count('market-treat-cheese')).toBe(0);
+    expect(b.r.live.treats).toBe(0);
+    expect(b.paid.points).toBe(6);
+    expect(b.toasts).toContain(MARKET_LINES.coo());
+    for (const t of [sneak, team]) { t.A.r.live.dispose(); t.B?.r.live.dispose(); }
+  }, 90_000);
+});
