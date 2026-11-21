@@ -107,6 +107,7 @@ describe('the visible band stays at least as rich as the flat colour it replaces
     farm: [0x9ad0ee, 0xdcefe4],
     fair: [0x8fcbf0, 0xe4f1e2],
     roofs: [0x4a5a8c, 0xe89a6a], // always evening: the sunset pair its build paints (roofs.js SKY_SUNSET)
+    market: [0x8ec4ea, 0xe8e0cc], // a clear, warm morning (market.js MARKET_SKY)
     'sunset (weather.js)': [0xf0a060, 0xf8c890],
     'rain (weather.js)': [0x7a8a98, 0x8a9aa8],
   };
