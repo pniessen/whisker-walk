@@ -24,6 +24,11 @@
 //     never a roll), with overrides so the picture sheet can show each kind;
 //   * poses: standing with a weight shift, mid-stride, waving, crouching,
 //     juggling, and a look toward a point (the cat).
+// v2 (2026-11-20, the owner: "The humans need necks"): a real neck leaning
+// forward, the head set forward on it with the back of the skull tucked, the
+// shoulders sloping up to it, the neckline dipping at the front, low collars.
+// A spot whose hash says "child" is drawn by verify-people.html as a pair
+// (a grown-up and the child): children never stand alone.
 // Faces -z, like the critters. Metres.
 // =============================================================================
 import * as THREE from 'three';
@@ -122,9 +127,15 @@ export function bodyDims(look) {
   const child = look.kind === 'child';
   const f = look.sex === 'f';
   const g = look.girth;
+  // Fractions of height, from adult and child body measurements: the shoulder
+  // joint (acromion) about 0.818, the neck's root at the trapezius about
+  // 0.845, the chin 0.872 (a head of about 1/7.8 of the height, 23 cm on a
+  // 1.80 m man). A child of about eight: a head of about 1/6.2, a shorter neck.
+  // v2 (the owner, 2026-11-20: "The humans need necks"): the neck root and the
+  // chin moved apart, the shoulders slope up to the neck.
   const P = child
-    ? { knee: 0.272, hip: 0.50, waist: 0.60, shoulder: 0.79, neck: 0.805, chin: 0.835 }
-    : { knee: 0.285, hip: 0.525, waist: 0.615, shoulder: 0.815, neck: 0.832, chin: 0.866 };
+    ? { knee: 0.272, hip: 0.50, waist: 0.60, shoulder: 0.785, neck: 0.808, chin: 0.846 }
+    : { knee: 0.285, hip: 0.525, waist: 0.615, shoulder: 0.818, neck: f ? 0.842 : 0.845, chin: 0.872 };
   const s = H / 1.75;
   const limb = s * g * (f ? 0.93 : 1) * (child ? 0.95 : 1);
   const headH = H * (1 - P.chin);
@@ -139,9 +150,12 @@ export function bodyDims(look) {
     chinY: P.chin * H,
     headH,
     // the head: a rounded egg, the jaw a little narrower
-    headXr: headH * (child ? 0.40 : 0.37),
+    // a real head is about 0.67 as wide as it is tall and 0.85 as deep; a
+    // touch wider here (hair is added on top) reads friendlier, not small
+    headXr: headH * (child ? 0.385 : 0.355),
     headYr: headH * 0.5,
-    headZr: headH * (child ? 0.45 : 0.43),
+    headZr: headH * (child ? 0.445 : 0.425),
+    neckLean: 0.23, // rad: the neck leans forward from its root (a slight forward set)
     shoulderX: H * (child ? 0.098 : f ? 0.099 : 0.108) * Math.sqrt(g),
     hipX: H * (f ? 0.056 : 0.052) * Math.sqrt(g),
     waistR: H * (f ? 0.074 : 0.083) * g,
@@ -159,7 +173,8 @@ export function bodyDims(look) {
     faR: [0.046 * limb, 0.031 * limb],
     thR: [0.094 * limb * (f ? 1.04 : 1), 0.06 * limb],
     shR: [0.062 * limb, 0.035 * limb],
-    neckR: 0.046 * s * Math.sqrt(g) * (f ? 0.9 : 1),
+    // a neck about 38 cm round on a man, 32 on a woman, 26 on a child of eight
+    neckR: (child ? 0.056 : f ? 0.05 : 0.059) * s * Math.sqrt(g),
     stoop: look.kind === 'older' ? 1 : 0,
   };
 }
@@ -233,6 +248,33 @@ function jawTaper(y, yr) {
   return { x: 1 - 0.24 * k * k, z: 1 - 0.1 * k * k };
 }
 
+// The neckline dips at the front, down to the notch between the collarbones:
+// the sides keep the trapezius's height, the front of the neck runs longer
+// (on a 1.80 m man about 8 cm from chin to notch, as a real one).
+function necklineDip(x, y, z, d) {
+  if (z >= 0 || y < d.shoulderY - 0.01 * d.s) return 0;
+  const front = clamp01(-z / (d.neckR * 1.6));
+  const mid = clamp01(1 - Math.abs(x) / (d.neckR * 2.6));
+  const up = clamp01((y - (d.shoulderY - 0.01 * d.s)) / (d.neckY - d.shoulderY + 0.01 * d.s));
+  return 0.016 * d.H * front * mid * mid * up;
+}
+function dipNeckline(geo, d) {
+  const p = geo.getAttribute('position');
+  for (let i = 0; i < p.count; i++) p.setY(i, p.getY(i) - necklineDip(p.getX(i), p.getY(i), p.getZ(i), d));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// The back of the skull ends above the nape: below the head's middle, the
+// back half is drawn in toward the neck, so the neck shows behind the jaw
+// (v2: an egg reaching down to the chin all round hid the neck).
+function occiputTuck(y, z, d) {
+  if (z <= 0 || y >= 0) return 1;
+  const back = clamp01(z / d.headZr);
+  const low = clamp01(-y / d.headYr);
+  return 1 - 0.42 * back * low * low * (3 - 2 * low);
+}
+
 function headGeo(d, ws, hs) {
   const geo = ellipsoid(d.headXr, d.headYr, d.headZr, ws, hs);
   const p = geo.getAttribute('position');
@@ -240,7 +282,8 @@ function headGeo(d, ws, hs) {
     const y = p.getY(i);
     const t = jawTaper(y, d.headYr);
     p.setX(i, p.getX(i) * t.x);
-    p.setZ(i, p.getZ(i) * t.z);
+    const z = p.getZ(i) * t.z;
+    p.setZ(i, z * occiputTuck(y, z, d));
   }
   geo.computeVertexNormals();
   return geo;
@@ -281,7 +324,8 @@ function hairShell(d, { top = 0, front, side, back, thick = 1.07, flare = 0, rea
     const yy = y * d.headYr * thick;
     const t = jawTaper(yy, d.headYr);
     const fl = 1 + flare * clamp01(-y * 1.6);
-    p.setXYZ(i, x * d.headXr * thick * t.x * fl, yy, z * d.headZr * thick * t.z * fl);
+    const zz = z * d.headZr * thick * t.z * fl;
+    p.setXYZ(i, x * d.headXr * thick * t.x * fl, yy, zz * occiputTuck(yy, zz, d));
   }
   geo.computeVertexNormals();
   return geo;
@@ -347,13 +391,16 @@ function personParts(look, near) {
     [lerp(seatR, d.waistR, 0.6), d.waistY - 0.01], [d.waistR * 0.98, d.waistY + 0.03 * d.s], [0, d.waistY + 0.04 * d.s],
   ], S.torso, 1, d.torsoZ + 0.05), pelvisCol, 'pelvis'));
   // ---- the chest: waist to shoulders, the shoulders rounded over to the neck ----
-  const shR = d.shoulderX + d.uaR[0] * 0.35;
+  const shR = d.shoulderX + d.uaR[0] * 0.25;
   const f = look.sex === 'f' && look.kind !== 'child';
   const chest = lathe([
     [0, d.waistY - 0.04 * d.s], [d.waistR, d.waistY - 0.04 * d.s], [d.waistR * 1.02, d.waistY + 0.03 * d.s],
     [lerp(d.waistR, d.chestR, 0.7), lerp(d.waistY, d.shoulderY, 0.45)], [d.chestR, lerp(d.waistY, d.shoulderY, 0.75)],
-    [shR * 0.98, d.shoulderY - 0.02 * d.s], [shR * 0.82, d.shoulderY + 0.025 * d.s], [d.neckR * 2.2, d.neckY + 0.005],
-    [d.neckR * 1.15, d.neckY + 0.012], [0, d.neckY + 0.014],
+    // the shoulder's top, then the trapezius sloping up about 20 degrees to
+    // the neck's root (flat, it read as square shoulders)
+    [shR * 0.97, d.shoulderY - 0.015 * d.s], [shR * 0.86, d.shoulderY + 0.012 * d.s],
+    [lerp(shR * 0.86, d.neckR * 1.35, 0.55), lerp(d.shoulderY + 0.012 * d.s, d.neckY, 0.72)],
+    [d.neckR * 1.35, d.neckY], [d.neckR * 0.9, d.neckY + 0.004], [0, d.neckY + 0.005],
   ], S.torso, 1, d.torsoZ);
   if (f) {
     // a softer front: the chest a touch fuller below the collarbones
@@ -366,10 +413,12 @@ function personParts(look, near) {
     }
     chest.computeVertexNormals();
   }
-  out.push(part(chest, top.color, 'chest'));
+  out.push(part(dipNeckline(chest, d), top.color, 'chest'));
   // deltoids: round off each shoulder where the arm meets it
   for (const [sd, L] of [[-1, 'L'], [1, 'R']]) {
-    out.push(part(ellipsoid(d.uaR[0] * 1.04, d.uaR[0] * 1.0, d.uaR[0] * 1.06, S.hand[0], S.hand[1]).translate(sd * d.shoulderX * 0.96, d.shoulderY - 0.02 * d.s, 0), top.color, `upperArm${L}`));
+    // (v2) low and flat, so the shoulder line runs on from the neck into the
+    // arm instead of standing up in a square bump
+    out.push(part(ellipsoid(d.uaR[0] * 1.06, d.uaR[0] * 0.6, d.uaR[0] * 1.06, S.hand[0], S.hand[1]).translate(sd * d.shoulderX * 0.97, d.shoulderY - 0.006 * d.s, 0), top.color, `upperArm${L}`));
   }
   // ---- a coat's skirt, a dress or a skirt: a flare from the waist ----
   // flares are sized from the thighs' outer edge, so a leg never pokes through
@@ -388,10 +437,10 @@ function personParts(look, near) {
     const elbowY = d.shoulderY - d.upperArm;
     const wristY = elbowY - d.forearm;
     const sleeveEnd = d.shoulderY - d.upperArm * 0.5;
-    out.push(part(limbGeo(d.upperArm, d.uaR[0], d.uaR[1], { segs: S.limb, rings: S.ring, capN: S.cap, bulge: 0.004 * d.s, bulgeAt: 0.35 }).translate(x, d.shoulderY, 0),
+    out.push(part(limbGeo(d.upperArm, d.uaR[0], d.uaR[1], { segs: S.limb, rings: S.ring, capN: S.cap, capTop: 0.3, bulge: 0.004 * d.s, bulgeAt: 0.35 }).translate(x, d.shoulderY, 0),
       longSleeve ? top.color : skin, `upperArm${L}`));
     if (!longSleeve) {
-      out.push(part(limbGeo(d.shoulderY - sleeveEnd, d.uaR[0] * 1.1, d.uaR[0] * 1.02, { segs: S.limb, rings: 2, capN: S.cap, capBot: 0.15 }).translate(x, d.shoulderY, 0), top.color, `upperArm${L}`));
+      out.push(part(limbGeo(d.shoulderY - sleeveEnd, d.uaR[0] * 1.05, d.uaR[0] * 1.02, { segs: S.limb, rings: 2, capN: S.cap, capTop: 0.3, capBot: 0.15 }).translate(x, d.shoulderY, 0), top.color, `upperArm${L}`));
     }
     out.push(part(limbGeo(d.forearm, d.faR[0], d.faR[1], { segs: S.limb, rings: S.ring, capN: S.cap, bulge: 0.006 * d.s, bulgeAt: 0.25 }).translate(x, elbowY, 0),
       longSleeve ? top.color : skin, `forearm${L}`));
@@ -401,8 +450,21 @@ function personParts(look, near) {
     if (near) out.push(part(ellipsoid(hr * 0.2, hr * 0.42, hr * 0.2, 4, 3).rotateX(0.5).translate(x - sd * hr * 0.12, wristY - hr * 0.5, -hr * 0.45), skin, `hand${L}`));
   }
   // ---- neck and head ----
-  const headCY = d.chinY + d.headYr * 0.92;
-  out.push(part(limbGeo(d.neckY + 0.02 - d.chinY + d.headYr * 0.35, d.neckR, d.neckR * 1.08, { segs: S.limb, rings: 2, capN: S.cap }).translate(0, d.chinY + d.headYr * 0.35, d.headZr * 0.12), skin, 'neck'));
+  // The neck rises from inside the chest, a little behind the middle, and
+  // leans forward; the head sits on its top, its middle forward of the neck
+  // (where a skull balances on the spine).
+  const nk = neckFrame(d);
+  const headCY = nk.headCY;
+  out.push(part(limbGeo(nk.len, d.neckR * 1.08, d.neckR * 0.94, { segs: S.limb, rings: 2, capN: S.cap })
+    .rotateX(Math.PI).rotateX(-d.neckLean).translate(0, nk.baseY, nk.baseZ), skin, 'neck'));
+  // a low crew collar in the top's colour (a coat's a little fuller): it sits
+  // at the neck's root and never climbs it
+  const collarH = (top.kind === 'coat' ? 0.02 : 0.016) * d.s;
+  const collarZ = nk.baseZ - (d.neckY - nk.baseY) * Math.tan(d.neckLean);
+  out.push(part(limbGeo(collarH, d.neckR * (top.kind === 'coat' ? 1.45 : 1.32), d.neckR * (top.kind === 'coat' ? 1.34 : 1.2), { segs: S.limb + 2, rings: 1, capN: 1, capTop: 0.2, capBot: 0.2 })
+    .rotateX(Math.PI).rotateX(-d.neckLean).translate(0, d.neckY - collarH * 0.7, collarZ), top.color, 'chest'));
+  dipNeckline(out[out.length - 1], d); // the collar follows the neckline down at the front
+  const headStart = out.length;
   const head = headGeo(d, ...S.head).translate(0, headCY, 0);
   out.push(part(head, skin, 'head'));
   // ears
@@ -480,7 +542,21 @@ function personParts(look, near) {
       out.push(part(new THREE.CylinderGeometry(d.headXr * 2.0 * k, d.headXr * 2.05 * k, d.headYr * 0.05, S.torso + 4).translate(0, hy + d.headYr * 0.48, 0), look.hat.color, 'head'));
     }
   }
+  // everything on the head was built round x = z = 0: set it forward on the neck
+  for (let i = headStart; i < out.length; i++) out[i].translate(0, 0, nk.headCZ);
   return out;
+}
+
+// Where the neck runs and the head sits (shared by the parts and the joints).
+export function neckFrame(d) {
+  const headCY = d.chinY + d.headYr * 0.92;
+  const baseY = d.neckY - 0.035 * d.s;        // its root, inside the chest
+  const baseZ = 0.012 * d.s;                  // a touch behind the middle
+  const topY = d.chinY + d.headYr * 0.5;      // its top, inside the head behind the jaw
+  const len = (topY - baseY) / Math.cos(d.neckLean);
+  const topZ = baseZ - len * Math.sin(d.neckLean);
+  const headCZ = topZ - d.headZr * 0.22;       // the head's middle forward of the neck
+  return { headCY, baseY, baseZ, topY, topZ, len, headCZ };
 }
 
 // The joints: a Bone each, parented as a body is, at their rest places.
@@ -491,8 +567,8 @@ function makeBones(d) {
     root: [0, 0, 0],
     pelvis: [0, d.hipY, 0],
     chest: [0, d.waistY, 0],
-    neck: [0, d.neckY, 0],
-    head: [0, d.chinY + d.headYr * 0.4, 0],
+    neck: [0, neckFrame(d).baseY + 0.03 * d.s, neckFrame(d).baseZ],
+    head: [0, neckFrame(d).topY, neckFrame(d).topZ],
     upperArmL: [-d.shoulderX, d.shoulderY, 0], forearmL: [-d.shoulderX, d.shoulderY - d.upperArm, 0], handL: [-d.shoulderX, d.shoulderY - d.upperArm - d.forearm, 0],
     upperArmR: [d.shoulderX, d.shoulderY, 0], forearmR: [d.shoulderX, d.shoulderY - d.upperArm, 0], handR: [d.shoulderX, d.shoulderY - d.upperArm - d.forearm, 0],
     thighL: [-d.hipX, d.hipY, 0], shinL: [-d.hipX, d.kneeY, 0], footL: [-d.hipX, d.ankleY, 0],
