@@ -18,7 +18,7 @@
 //
 // `roofs` is here so a walk can build it, and nowhere a child picks from:
 // every list a child sees comes from CATALOG.areas, which has no Rooftops row
-// until step 4. `den` is not in the catalog either; it is built from home.
+// until step 4. `market` is the same (?market=1 only, no row until its step 4). `den` is not in the catalog either; it is built from home.
 //
 // An AreaPack is { id, world, life }: world is the builder module, life the
 // area's live-animal factories ({} when it has none). This file imports
@@ -43,6 +43,7 @@ export const AREA_LOADERS = Object.freeze({
   fair: () => Promise.all([import('./fair.js'), import('../fairlive.js'), import('../fairshow.js')])
     .then(([world, live, show]) => ({ id: 'fair', world, life: { createFairLive: live.createFairLive, createFairShow: show.createFairShow } })),
   roofs: () => import('./roofs.js').then((w) => own('roofs', w)),
+  market: () => import('./market.js').then((w) => own('market', w)),
 });
 
 export const AREA_ENTRY_MODULES = Object.freeze({
@@ -59,4 +60,5 @@ export const AREA_ENTRY_MODULES = Object.freeze({
   farm: Object.freeze(['src/world/farm.js', 'src/farmanimals.js']),
   fair: Object.freeze(['src/world/fair.js', 'src/fairlive.js', 'src/fairshow.js']),
   roofs: Object.freeze(['src/world/roofs.js']),
+  market: Object.freeze(['src/world/market.js']),
 });

@@ -19,6 +19,7 @@ import * as THREE from 'three';
 // loaded pack. No area module is imported here.
 import { createAreaLoader } from './areaload.js';
 import { roofsOn } from '../roofsflag.js';
+import { marketOn } from '../marketflag.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
@@ -563,6 +564,8 @@ export function createWalkLifecycle({
   // walk has started, or not); a room start returns nothing.
   function beginWalkFromHomebase({ duskMode }) {
     if (roofsOn() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'roofs' });
+    // ?market=1: a solo Market walk in Clan Edition, never in a room (Market step 1).
+    if (marketOn() && isClanEdition(progression.state) && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'market' });
     const area = effectiveArea(progression.state, CATALOG);
     if (!getPendingRoom()) {
       return startWalkWhenReady(area === progression.state.area ? { duskMode } : { duskMode, areaOverride: area });

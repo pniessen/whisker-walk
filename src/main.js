@@ -3,6 +3,7 @@ import { bus } from './events.js';
 import { createPlayer } from './player.js';
 import { coatColor, CAT_LOOK_Y } from './cat/model.js';
 import { resumableAreaIds, roofsOn } from './roofsflag.js';
+import { marketOn, marketResumable } from './marketflag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { createProgression, rankFor, CATALOG } from './progression.js';
 import { colonyNews, tradeEffect } from './colony.js';
@@ -588,7 +589,7 @@ function init() {
   // closed in the middle of. Read once, here. A walk left too long is settled
   // now, before the home screen draws its numbers; one still fresh is picked
   // up at the end of init (see "Mid-walk resume" above the render loop).
-  const leftWalk = readResume(window.localStorage, { now: Date.now(), areaIds: resumableAreaIds(progression.state.walks) });
+  const leftWalk = readResume(window.localStorage, { now: Date.now(), areaIds: marketResumable(resumableAreaIds(progression.state.walks)) });
   if (leftWalk?.kind === 'stale') {
     clearResume(window.localStorage);
     settleAbandoned(progression, leftWalk.data);
@@ -606,6 +607,7 @@ function init() {
   areas.prefetch(effectiveArea(progression.state, CATALOG));
   areas.prefetch('den');
   if (roofsOn()) areas.prefetch('roofs');
+  if (marketOn()) areas.prefetch('market');
   // Rosa's one-time farewell goes up before the news (showNews yields while it is up).
   const showFarewell = () => {
     if (resuming) return; // kept for a launch that opens at home
