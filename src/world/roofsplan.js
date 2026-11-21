@@ -542,17 +542,24 @@ export const SMOKE_POTS = Object.freeze([`pot:${ROOFS_DISCOVERIES.chimney.x}:-1`
 // scenery only. No name, no label, no prompt, in no cat list; they never move
 // but breathe (roofslife.js). Each lies on the deep stone sill of the window
 // over a side return (roofs.js draws it lit, warm), 4.3 m up the terrace's
-// back wall, with no extension or outrigger beside it: out of her reach. `y`
+// back wall, out of her reach: no ground she can walk is within 0.6 m beside
+// it or less than 1 m below it (test/roofs.test.js; out-2's west edge, its
+// roof 0.8 m above the sill, is 0.75 m from the grey-and-white cat's). `y`
 // is the sill's top, `z` SLEEPER_SILL.out from the wall (clear of the
-// window's glass); head toward +x, face out to the yards; `coat` its two colours.
+// window's glass); face out to the yards; head toward +x, or toward -x where
+// `mirror` (the owner's tweak, 2026-11-21: the two lie different ways, each
+// head toward the middle of the terrace); `coat` its two colours. Each is on
+// a side return no washing line runs in front of (the owner's tweak: from
+// the yards and the roofs she walks, the washing never hides one;
+// test/roofs.test.js measures it): at the terrace's two ends.
 const SIDE_RETURN_X = (k) => (EXT_X1(k) + EXT_X0(k + 1)) / 2; // the side return beside house k's extension
 export const SLEEPER_SILL = Object.freeze({ y: 4.3, depth: 0.32, out: 0.17 });
-const sleeper = (id, k, yaw, fur, pale) => Object.freeze({
-  id, x: SIDE_RETURN_X(k), y: SLEEPER_SILL.y, z: TERRACE.z1 + SLEEPER_SILL.out, yaw, coat: Object.freeze({ fur, pale }),
+const sleeper = (id, k, yaw, fur, pale, mirror) => Object.freeze({
+  id, x: SIDE_RETURN_X(k), y: SLEEPER_SILL.y, z: TERRACE.z1 + SLEEPER_SILL.out, yaw, mirror, coat: Object.freeze({ fur, pale }),
 });
 export const ROOFS_SLEEPERS = Object.freeze([
-  sleeper('ginger', 8, 0.12, 0xc8783a, 0xeadbc0), // between the second plank and the third
-  sleeper('greyWhite', 3, -0.1, 0x8a8c90, 0xe8e6e0), // over the west yards
+  sleeper('ginger', 11, -0.12, 0xc8783a, 0xeadbc0, true), // over the east yards, by the corner shop, its head to the west
+  sleeper('greyWhite', 1, -0.1, 0x8a8c90, 0xe8e6e0, false), // over the west yards, by the end house, its head to the east
 ]);
 
 // The street below (R3): its pavements, three lamps, and the bus's route. The
@@ -679,8 +686,8 @@ export const ROOFS_LIFE_SHOTS = Object.freeze({
   smoke: lifeShot('-10,13.5,33,-10,9.6,7.5', 240),
   // the warehouse roof by the loft: the loft and its pigeon, the north parapet
   loft: lifeShot('-38.8,14.0,-40.8,-33.2,12.5,-46.2', 240),
-  // the grey-and-white cat asleep on its sill over the west yards
-  sleeper: lifeShot('-14.0,5.6,14.8,-15.75,4.4,12.2', 240),
+  // the grey-and-white cat asleep on its sill over the west yards, from the side return in front of it
+  sleeper: lifeShot('-25.3,5.4,15.2,-25.75,4.4,12.2', 240),
 });
 
 // ---------------------------------------------------------------------------

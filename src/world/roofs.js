@@ -1490,7 +1490,8 @@ function drawTerrace(group, M, win, ground, drawn) {
 // --- the two house cats asleep on their sills (Rooftops step 3, S1;
 // roofsplan.js ROOFS_SLEEPERS). Each is one mesh of its own in its coat's two
 // vertex colours, at most 320 triangles: a loaf of a body (flat underneath),
-// the head down on its front paws at the +x end, its face turned out to the
+// the head down on its front paws at the +x end (the -x end for a `mirror`
+// sleeper: its geometry mirrored, mirrorX), its face turned out to the
 // yards (+z), two ears, and the tail wrapped round the front to the paws. Its
 // origin is on the sill, so the life's breathing (scale.y) lifts its back and
 // never sinks it into the stone. Never merged (the life breathes it), casting
@@ -1559,9 +1560,29 @@ function tailGeometry() {
   return g;
 }
 
+// A geometry (non-indexed) mirrored in x: its positions and normals turned
+// over, and each triangle's winding swapped back, so its outside is still
+// the side a single-sided material shows (a negative scale on the mesh
+// would turn it inside out to the shadow and the light).
+function mirrorX(g) {
+  g.scale(-1, 1, 1);
+  for (const a of Object.values(g.attributes)) {
+    const n = a.itemSize;
+    const arr = a.array;
+    for (let t = 0; t < a.count; t += 3) {
+      for (let j = 0; j < n; j++) {
+        const [i1, i2] = [(t + 1) * n + j, (t + 2) * n + j];
+        [arr[i1], arr[i2]] = [arr[i2], arr[i1]];
+      }
+    }
+    a.needsUpdate = true;
+  }
+  return g;
+}
+
 // A sleeper's geometry in its coat: `fur` all over, `pale` on its chest, its
-// muzzle and its paws.
-function sleeperGeometry(coat) {
+// muzzle and its paws; its head toward -x where `mirror`.
+function sleeperGeometry(coat, mirror = false) {
   const S = SLEEPER;
   const fur = new THREE.Color(coat.fur);
   const pale = new THREE.Color(coat.pale);
@@ -1581,13 +1602,14 @@ function sleeperGeometry(coat) {
   ));
   const chest = (x, y, z) => (x > 0.04 && z > 0.03 && y < 0.13 ? pale : fur);
   const muzzle = (x, y, z) => ((x - h[0]) * fx + (z - h[2]) * fz > 0.035 && y - h[1] < 0.015 ? pale : fur);
-  return mergeGeometries([
+  const g = mergeGeometries([
     prep(body, { color: chest }),
     prep(head, { color: muzzle }),
     ...ears.map((e) => prep(e, { color: fur })),
     ...S.paws.map((at) => prep(ellipsoid(at, S.paw.r, S.paw.seg), { color: pale })),
     prep(tailGeometry(), { color: fur }),
   ]);
+  return mirror ? mirrorX(g) : g;
 }
 
 // The two sleepers, each its own mesh added to `group`; returned in
@@ -1595,7 +1617,7 @@ function sleeperGeometry(coat) {
 function drawSleepers(group) {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
   return ROOFS_SLEEPERS.map((s) => {
-    const m = finish(new THREE.Mesh(sleeperGeometry(s.coat), mat), true);
+    const m = finish(new THREE.Mesh(sleeperGeometry(s.coat, s.mirror), mat), true);
     m.name = `roofsSleeper:${s.id}`;
     m.userData.noMerge = true;
     m.position.set(s.x, s.y, s.z);

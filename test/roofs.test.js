@@ -31,7 +31,9 @@ const {
   ROOFS_TOURS, ROOFS_REGISTRATION, ALLEY_CLUTTER, ALLEY_CHANNEL, WASHING_POSTS, GARDEN, ALLEY_CRATES, PAVEMENT,
   SMOKE_POTS, downwind, ROOFS_SLEEPERS,
 } = await import('../src/world/roofsplan.js');
-const { CAT_RADIUS, isWalkableAt } = await import('../src/player.js');
+const { CAT_RADIUS, isWalkableAt, DEFAULT_PITCH } = await import('../src/player.js');
+const { cameraOffset } = await import('../src/catcam.js');
+const { ZOOM_STEPS, DEFAULT_ZOOM_STEP } = await import('../src/camzoom.js');
 const { createRoofsLife, EVENING_RAMP } = await import('../src/roofslife.js');
 const { STEP_MAX } = await import('../src/ground.js');
 const { findFadeOccluders } = await import('../src/treefade.js');
@@ -2201,7 +2203,8 @@ describe('the Rooftops drawn', () => {
     for (const [i, s] of ROOFS_SLEEPERS.entries()) {
       const m = area.sleepers[i];
       expect([m.castShadow, m.userData.noCast, m.userData.noMerge, m.material.vertexColors]).toEqual([false, true, true, true]);
-      expect([m.position.x, m.position.y, m.position.z, m.rotation.y]).toEqual([s.x, s.y, s.z, s.yaw]);
+      // (a mirrored cat is mirrored in its geometry, never by a negative scale)
+      expect([m.position.x, m.position.y, m.position.z, m.rotation.y, m.scale.x, m.scale.z]).toEqual([s.x, s.y, s.z, s.yaw, 1, 1]);
       const g = m.geometry;
       const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
       expect(tris, s.id).toBeLessThanOrEqual(320);
@@ -2238,6 +2241,117 @@ describe('the Rooftops drawn', () => {
     expect(kept).toHaveLength(2);
     for (const m of rec.sleepers) expect(kept).toContain(m);
     for (const m of kept) expect(m.castShadow).toBe(false);
+  });
+
+  // The owner's tweak (2026-11-21): the two cats lie different ways, and
+  // neither is hidden behind the washing.
+  // A sleeper's head (the middle of its head, under its ear tips, its
+  // highest points) and its body's middle, in the world.
+  const sleeperParts = (m) => {
+    const p = m.geometry.attributes.position;
+    let top = -Infinity;
+    for (let k = 0; k < p.count; k++) top = Math.max(top, p.getY(k));
+    const ears = new THREE.Vector3();
+    let n = 0;
+    for (let k = 0; k < p.count; k++) if (p.getY(k) > top - 1e-6) { ears.add(new THREE.Vector3().fromBufferAttribute(p, k)); n++; }
+    ears.multiplyScalar(1 / n);
+    m.updateMatrixWorld(true);
+    const head = ears.clone().setY(ears.y - 0.1).applyMatrix4(m.matrixWorld);
+    m.geometry.computeBoundingBox();
+    const body = m.geometry.boundingBox.getCenter(new THREE.Vector3()).applyMatrix4(m.matrixWorld);
+    return { head, body, earsLocal: ears };
+  };
+  it('the two cats lie different ways, one head to the west and one to the east, both facing out to the yards', () => {
+    const [a, b] = area.sleepers;
+    const sides = area.sleepers.map((m) => Math.sign(sleeperParts(m).head.x - m.position.x));
+    expect(sides.sort()).toEqual([-1, 1]);
+    expect(ROOFS_SLEEPERS.map((s) => !!s.mirror).sort()).toEqual([false, true]);
+    for (const [i, m] of area.sleepers.entries()) {
+      const id = ROOFS_SLEEPERS[i].id;
+      // a mirrored cat's head is toward -x
+      expect([id, Math.sign(sleeperParts(m).head.x - m.position.x)]).toEqual([id, ROOFS_SLEEPERS[i].mirror ? -1 : 1]);
+      // its pale front (chest, muzzle, paws) out toward the yards (+z), in the world
+      const g = m.geometry;
+      const col = g.attributes.color;
+      const pale = new THREE.Color(ROOFS_SLEEPERS[i].coat.pale);
+      const front = new THREE.Vector3();
+      let n = 0;
+      for (let k = 0; k < col.count; k++) {
+        if (Math.abs(col.getX(k) - pale.r) + Math.abs(col.getY(k) - pale.g) + Math.abs(col.getZ(k) - pale.b) < 1e-4) {
+          front.add(new THREE.Vector3().fromBufferAttribute(g.attributes.position, k).applyMatrix4(m.matrixWorld));
+          n++;
+        }
+      }
+      expect([id, front.multiplyScalar(1 / n).z - m.position.z > 0.03]).toEqual([id, true]);
+      // every triangle wound the way its normals face (a single-sided
+      // material shows its outside): mirroring kept them so
+      const p = g.attributes.position;
+      const nr = g.attributes.normal;
+      const [u, v, w, e1, e2, nn, nk] = [0, 0, 0, 0, 0, 0, 0].map(() => new THREE.Vector3());
+      let agree = 0;
+      for (let t = 0; t < p.count; t += 3) {
+        u.fromBufferAttribute(p, t);
+        v.fromBufferAttribute(p, t + 1);
+        w.fromBufferAttribute(p, t + 2);
+        nn.set(0, 0, 0);
+        for (let j = 0; j < 3; j++) nn.add(nk.fromBufferAttribute(nr, t + j));
+        if (e1.subVectors(v, u).cross(e2.subVectors(w, u)).dot(nn) > 0) agree++;
+      }
+      expect([id, agree / (p.count / 3) > 0.97]).toEqual([id, true]);
+    }
+    // the same cat, mirrored: each vertex of one is a vertex of the other with x turned over
+    const key = (x, y, z) => [x, y, z].map((n) => (Math.abs(n) < 5e-5 ? 0 : n).toFixed(4)).join(',');
+    const pa = a.geometry.attributes.position;
+    const pb = b.geometry.attributes.position;
+    expect(pa.count).toBe(pb.count);
+    const there = new Set();
+    for (let k = 0; k < pb.count; k++) there.add(key(pb.getX(k), pb.getY(k), pb.getZ(k)));
+    let missing = 0;
+    for (let k = 0; k < pa.count; k++) if (!there.has(key(-pa.getX(k), pa.getY(k), pa.getZ(k)))) missing++;
+    expect(missing).toBe(0);
+  });
+
+  // From where a child sees a sleeper: the walk's follow camera (catcam.js
+  // cameraOffset at the walk's first pitch and default zoom step, behind her
+  // and above) while she stands on ground she can walk to (every ability),
+  // in front of its wall (on the yards' side), 4 to 15 m from it and facing
+  // it. The lines from the camera to its head and to its body's middle miss
+  // all the washing (the two cloth meshes) from at least 90% of those spots.
+  it('neither sleeper is hidden behind the washing from where she sees it', { timeout: 60000 }, () => {
+    const cloth = meshes.filter((m) => m.geometry.attributes.aSway);
+    expect(cloth).toHaveLength(2);
+    const f = floodTraversal(area, { abilities: { longLeap: true, steady: true, climb: 2.2 } });
+    const got = f.reachable(f.regionAt(ROOFS_SPAWN.x, ROOFS_SPAWN.z));
+    const { dist, height } = ZOOM_STEPS[DEFAULT_ZOOM_STEP];
+    const ray = new THREE.Raycaster();
+    const off = new THREE.Vector3();
+    const dir = new THREE.Vector3();
+    const shares = [];
+    for (const [i, s] of ROOFS_SLEEPERS.entries()) {
+      const { head, body } = sleeperParts(area.sleepers[i]);
+      let spots = 0;
+      let clear = 0;
+      for (let x = s.x - 15; x <= s.x + 15 + 1e-9; x += 0.5) {
+        for (let z = s.z + 0.5; z <= s.z + 15 + 1e-9; z += 0.5) {
+          const d = Math.hypot(x - s.x, z - s.z);
+          if (d < 4 || d > 15 || !got.has(f.regionAt(x, z))) continue;
+          spots++;
+          // facing it: the camera behind her, on the far side from it
+          cameraOffset(Math.atan2(x - s.x, z - s.z), DEFAULT_PITCH, dist, height, off);
+          const cam = off.add(new THREE.Vector3(x, area.ground.y(x, z), z));
+          const seen = [head, body].every((t) => {
+            dir.subVectors(t, cam);
+            ray.set(cam, dir.clone().normalize());
+            ray.far = dir.length();
+            return ray.intersectObjects(cloth, false).length === 0;
+          });
+          if (seen) clear++;
+        }
+      }
+      expect([s.id, spots > 500]).toEqual([s.id, true]);
+      shares.push([s.id, +(clear / spots).toFixed(3)]);
+    }
+    expect(shares.filter(([, k]) => k < 0.9)).toEqual([]); // each cat's share, if under
   });
 
   it('every POI is in the walk region of the spawn', () => {
