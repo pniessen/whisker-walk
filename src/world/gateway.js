@@ -29,6 +29,16 @@
 //             noMerge (it moves after the build) and noCast (a thin swinging
 //             leaf is not worth a shadow draw).
 // Each look is at most 400 triangles over both meshes.
+//   gateSign  only on an end with `sign` (gateways.js; today town-roofs): a
+//             painted name board on the latch post, facing back into the
+//             area (local +z), its top at 2.12 m, with the place's name and
+//             an arrow pointing straight on. One thin box (12 triangles) with
+//             its own material and a small canvas texture; noMerge (its
+//             material is its own) and noCast. The words are
+//             phrase('gate.sign', name), where name is what walk.js's
+//             `nameFor(end)` gives (the place's shown name, placeName), read
+//             when the gate is built. Without a name, or without a document
+//             (node tests), it is the same board in plain paint.
 //
 // A 'none' look is for a door or a climb the area draws itself (the Old
 // House's front door, the Rooftops' fire escape): no mesh, no lane, no
@@ -43,6 +53,7 @@ import { endsFor, GATE_HALF, GATE_POST_R } from '../gateways.js';
 import { LAND } from '../territories.js';
 import { STREET_LAND, TOWN_LAND } from '../worldmap.js';
 import { FLAT_GROUND, seatOnGround } from '../ground.js';
+import { phrase } from '../clanphrases.js';
 
 const H = GATE_HALF;
 // rotation.y that turns local -z to point the way the end faces.
@@ -352,12 +363,86 @@ function wingColliders(end) {
 
 const LOOKS = { signpost, fairgate, farmgate, promenade, alleydoor };
 
+// The name board (an end's `sign`). Sizes in metres, in the gate's frame:
+// on the latch post (x = +H), in front of it on the inward side, its foot
+// over the post's cap so it reads as nailed to the post top.
+export const SIGN_W = 1.3;
+export const SIGN_H = 0.4;
+const SIGN_D = 0.03;
+const SIGN_Y = 1.92; // centre: top 2.12 m
+const SIGN_Z = 0.15; // in front of the post's cap (r 0.13)
+const SIGN_PAINT = 0xf3e6c4;
+const SIGN_INK = '#2a2420';
+const SIGN_PX = [256, 80];
+
+// The board's canvas: light paint, a dark frame, an arrow pointing up (on a
+// board facing her, up is "straight on, this way") and the name, bold, as big
+// as fits. Null without a document or a 2D context (node tests).
+function signTexture(text) {
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas?.getContext?.('2d');
+  if (!ctx) return null;
+  const [W, Hc] = SIGN_PX;
+  canvas.width = W;
+  canvas.height = Hc;
+  ctx.fillStyle = '#f3e6c4';
+  ctx.fillRect(0, 0, W, Hc);
+  ctx.strokeStyle = SIGN_INK;
+  ctx.lineWidth = 4;
+  ctx.strokeRect(7, 7, W - 14, Hc - 14);
+  ctx.fillStyle = SIGN_INK;
+  ctx.beginPath();
+  ctx.moveTo(38, 15);
+  ctx.lineTo(56, 38);
+  ctx.lineTo(20, 38);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillRect(31, 37, 14, 29);
+  const left = 66;
+  const room = W - left - 16;
+  const measure = (s, px) => {
+    ctx.font = `bold ${px}px Avenir, 'Trebuchet MS', sans-serif`;
+    const w = typeof ctx.measureText === 'function' ? ctx.measureText(s)?.width : undefined;
+    return Number.isFinite(w) && w > 0 ? w : s.length * px * 0.6;
+  };
+  let px = 46;
+  while (px > 18 && measure(text, px) > room) px -= 2;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, left + room / 2, Hc / 2 + 2);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// One thin box; only its inward face (+z) shows the painting: every other
+// face's UVs sit on the paint just outside the frame.
+function buildSign(text) {
+  const geo = new THREE.BoxGeometry(SIGN_W, SIGN_H, SIGN_D);
+  const uv = geo.attributes.uv;
+  const front = geo.groups[4]; // BoxGeometry's faces: +x, -x, +y, -y, +z, -z
+  const shown = new Set(Array.from({ length: front.count }, (_, k) => geo.index.getX(front.start + k)));
+  for (let i = 0; i < uv.count; i++) if (!shown.has(i)) uv.setXY(i, 0.012, 0.5);
+  geo.clearGroups(); // one material for every face
+  const tex = text ? signTexture(text) : null;
+  const mesh = new THREE.Mesh(geo, litMaterial(tex ? 0xffffff : SIGN_PAINT, tex ? { map: tex } : {}));
+  mesh.name = 'gateSign';
+  mesh.position.set(H, SIGN_Y, SIGN_Z);
+  mesh.userData.noMerge = true;
+  mesh.userData.noCast = true;
+  mesh.userData.text = text || null;
+  return mesh;
+}
+
 // One material per gate, shared by its body and its leaf: noMerge and noCast
 // are read off the mesh's userData, never off its material.
 const gateMaterial = () => litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('wood') });
 
 // The look for one end, or null for 'none'.
-export function buildGateLook(end, { ground = FLAT_GROUND } = {}) {
+// `nameFor(end)`, if given, is the shown name of the place the end leads to;
+// only an end with `sign` reads it, for its board.
+export function buildGateLook(end, { ground = FLAT_GROUND, nameFor = null } = {}) {
   const draw = LOOKS[end.look];
   if (!draw) return null;
   const body = kit();
@@ -384,6 +469,7 @@ export function buildGateLook(end, { ground = FLAT_GROUND } = {}) {
   leafMesh.userData.noMerge = true;
   hinge.add(leafMesh);
   g.add(hinge);
+  if (end.sign) g.add(buildSign(nameFor ? phrase('gate.sign', nameFor(end)) : null));
   return g;
 }
 
@@ -400,12 +486,12 @@ export const NO_GATES = Object.freeze({ colliders: Object.freeze([]), attach() {
 //              unknown ids are ignored; before attach it only records.
 //   dispose()  a no-op (the walk's scene sweep frees the meshes; kept so
 //              endWalk has one door to call).
-export function addGatewayDressing(scene, areaId, { ground = FLAT_GROUND, ends = endsFor(areaId), isOpen = () => false } = {}) {
+export function addGatewayDressing(scene, areaId, { ground = FLAT_GROUND, ends = endsFor(areaId), isOpen = () => false, nameFor = null } = {}) {
   const colliders = [];
   const gates = new Map(); // endId -> { hinge, blocks, open }
   let live = null;
   for (const end of ends) {
-    const look = buildGateLook(end, { ground });
+    const look = buildGateLook(end, { ground, nameFor });
     if (!look) continue;
     if (end.lane) {
       // A top-level child, so the grass mask and the corner map see it.

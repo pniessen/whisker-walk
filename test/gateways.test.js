@@ -67,6 +67,15 @@ describe('gateways', () => {
     expect(gatewayEnd({ ...ok, look: 'promenade', wings: [2, 3] }).wings).toEqual([2, 3]);
     expect(endById('docks-seaside').end.wings).toEqual([18.6, 16.7]);
   });
+  it('only the town\'s north signpost asks for a painted name board (sign)', () => {
+    const ok = { id: 'x', gateway: 'g', x: 0, z: 0, faces: 'east', to: 'park', twin: 'y', look: 'signpost' };
+    expect(gatewayEnd(ok).sign).toBe(false);
+    expect(gatewayEnd({ ...ok, sign: true }).sign).toBe(true);
+    expect(Object.isFrozen(gatewayEnd({ ...ok, sign: true }))).toBe(true);
+    const signed = Object.values(GATEWAY_ENDS).flat().filter((e) => e.sign);
+    expect(signed.map((e) => e.id)).toEqual(['town-roofs']);
+    for (const e of Object.values(GATEWAY_ENDS).flat()) expect(e.sign, e.id).toBe(e.id === 'town-roofs');
+  });
   it('lookups', () => {
     expect(endsFor('island')).toEqual([]); expect(endsFor('__proto__')).toEqual([]); expect(endsFor(7)).toEqual([]);
     expect(endById('park-farm')).toEqual({ areaId: 'park', end: GATEWAY_ENDS.park[2] });

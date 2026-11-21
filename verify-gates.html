@@ -67,10 +67,10 @@
     const cx = (i - (looks.length - 1) / 2) * SPACING;
     for (const [state, dx] of [['shut', -PAIR], ['open', PAIR]]) {
       const x = cx + dx;
-      ends.push(gatewayEnd({ id: `${look}-${state}`, gateway: look, x, z: 0, faces: 'north', to: real.to, twin: '-', look, lane: [x, 5, x, 0] }));
+      ends.push(gatewayEnd({ id: `${look}-${state}`, gateway: look, x, z: 0, faces: 'north', to: real.to, twin: '-', look, lane: [x, 5, x, 0], sign: look === 'signpost' }));
     }
   });
-  const gates = addGatewayDressing(scene, 'verify', { ends, isOpen: (e) => e.id.endsWith('-open') });
+  const gates = addGatewayDressing(scene, 'verify', { ends, isOpen: (e) => e.id.endsWith('-open'), nameFor: () => 'The Rooftops' }); // the signposts carry town-roofs' name board
   window.__gates = gates;
 
   const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 300);

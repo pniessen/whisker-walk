@@ -253,6 +253,7 @@
  "start.notReadyOffline": "That place needs the internet the first time. Try again when you’re online! 🐾",
  "start.notReadyReload": "Still not ready. Tap Explore once more and the game starts fresh. Everything you found is saved. 🐾",
  "critter.pigeon": "a cooing pigeon",
+ "gate.sign": "A",
  "colony.rankAfterName for every rank word": [
   "kit",
   "apprentice",

@@ -26,6 +26,11 @@ const { GATEWAY_ENDS, endById, gatewayEnd, GATE_HALF, GATE_POST_R } = await impo
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { LAND } = await import('../src/territories.js');
 const { STREET_LAND } = await import('../src/worldmap.js');
+const { phrase } = await import('../src/clanphrases.js');
+const { placeName } = await import('../src/edition.js');
+const { CATALOG } = await import('../src/progression.js');
+const { standInWords } = await import('./helpers/standinwords.js');
+const { addWordSet, removeWordSet, setSeriesMode, SERIES_ON } = await import('../src/wordset.js');
 
 // Does any vertex of `geo` carry `hex` (as Three stores it, linear), within 1/255?
 function hasColour(geo, hex) {
@@ -228,5 +233,95 @@ describe('addGatewayDressing', () => {
   it('NO_GATES does nothing', () => {
     expect(NO_GATES.colliders).toEqual([]);
     expect(() => { NO_GATES.attach([]); NO_GATES.setOpen('park-town', true); NO_GATES.dispose(); }).not.toThrow();
+  });
+});
+
+// Rooftops step 4: the town's gate to the Rooftops carries a painted name
+// board (end.sign), one mesh on the latch post, facing back down the street.
+describe('the name board on the town\'s north signpost', () => {
+  const roofsEnd = () => endById('town-roofs').end;
+  const nameFor = (e) => placeName(e.to, 'canon', CATALOG);
+  const signOf = (g) => { const out = []; g.traverse((o) => { if (o.name === 'gateSign') out.push(o); }); return out; };
+
+  it('town-roofs: exactly one gateSign mesh, out of the merge and the shadow pass', () => {
+    const signs = signOf(buildGateLook(roofsEnd()));
+    expect(signs).toHaveLength(1);
+    expect(signs[0].isMesh).toBe(true);
+    expect([signs[0].userData.noMerge, signs[0].userData.noCast]).toEqual([true, true]);
+  });
+
+  it('stands on the latch post, 1.7-2.4 m up, its face looking back down the street', () => {
+    const end = roofsEnd();
+    const scene = new THREE.Scene();
+    addGatewayDressing(scene, 'neighborhood', { ends: [end] });
+    scene.updateMatrixWorld(true);
+    const sign = scene.getObjectByName('gateSign');
+    const mid = new THREE.Box3().setFromObject(sign).getCenter(new THREE.Vector3());
+    // the latch post is at +GATE_HALF along the edge; for a north-facing end that is +x
+    const latch = { x: end.x + GATE_HALF, z: end.z };
+    const hinge = { x: end.x - GATE_HALF, z: end.z };
+    const d = (p) => Math.hypot(mid.x - p.x, mid.z - p.z);
+    expect(d(latch)).toBeLessThan(d(hinge));
+    expect(d(latch)).toBeLessThan(0.5);
+    expect(mid.y).toBeGreaterThan(1.7);
+    expect(mid.y).toBeLessThan(2.4);
+    // its face (local +z) points into the Neighborhood, back toward the cat walking north to it
+    const n = sign.getWorldDirection(new THREE.Vector3());
+    expect(n.z).toBeGreaterThan(0.99);
+    // and it stands in front of the post, on that inward side
+    expect(mid.z - end.z).toBeGreaterThan(GATE_POST_R * 0.5);
+  });
+
+  it('no other end has a name board, and town-roofs is still at most 400 + 12 triangles', () => {
+    for (const end of Object.values(GATEWAY_ENDS).flat()) {
+      const g = buildGateLook(end);
+      if (!g) continue;
+      expect(signOf(g).length, end.id).toBe(end.id === 'town-roofs' ? 1 : 0);
+    }
+    const meshes = []; buildGateLook(roofsEnd()).traverse((o) => { if (o.isMesh) meshes.push(o); });
+    expect(meshes.map((m) => m.name).sort()).toEqual(['gateBody', 'gateLeaf', 'gateSign']);
+    expect(meshes.reduce((n, m) => n + m.geometry.index.count / 3, 0)).toBeLessThanOrEqual(412);
+  });
+
+  it('survives the static-prop merge as its own mesh', () => {
+    const scene = new THREE.Scene();
+    addGatewayDressing(scene, 'neighborhood', { ends: [roofsEnd()] });
+    mergeStaticProps(scene);
+    expect(scene.getObjectByName('gateSign')).toBeDefined();
+  });
+
+  it("paints the place's shown name through the phrase table, read when the gate is built", () => {
+    const scene = new THREE.Scene();
+    addGatewayDressing(scene, 'neighborhood', { nameFor });
+    const sign = scene.getObjectByName('gateSign');
+    expect(sign.userData.text).toBe(phrase('gate.sign', placeName('roofs', 'canon', CATALOG)));
+    expect(sign.userData.text).toBe('Rooftops');
+    expect(sign.material.map).toBeTruthy();
+    // without a name it is still a board, just plain paint
+    const bare = new THREE.Scene();
+    addGatewayDressing(bare, 'neighborhood');
+    expect(bare.getObjectByName('gateSign').userData.text).toBeNull();
+    expect(bare.getObjectByName('gateSign').material.map).toBeNull();
+  });
+
+  it('the words follow the word set in use: the place name and the phrase', () => {
+    const words = standInWords();
+    for (const [id, set, want] of [
+      ['gate-sign-place', words, () => phrase('gate.sign', words.PLACE_WORDS.roofs)],
+      ['gate-sign-phrase', { ...words, PHRASES: { 'gate.sign': (n) => `To ${n}` } }, () => `To ${words.PLACE_WORDS.roofs}`],
+    ]) {
+      addWordSet(id, set);
+      try {
+        setSeriesMode(id);
+        const scene = new THREE.Scene();
+        addGatewayDressing(scene, 'neighborhood', { nameFor });
+        const text = scene.getObjectByName('gateSign').userData.text;
+        expect(text, id).toBe(want());
+        expect(text, id).not.toContain('Rooftops');
+      } finally {
+        setSeriesMode(SERIES_ON);
+        removeWordSet(id);
+      }
+    }
   });
 });

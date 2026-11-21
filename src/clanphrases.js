@@ -486,6 +486,9 @@ const LATER = Object.freeze({
   'start.notReadyReload': 'Still not ready. Tap Explore once more and the game starts fresh. Everything you found is saved. 🐾',
   // ---- Rooftops step 4 (2026-11-21) ----
   'critter.pigeon': 'a cooing pigeon',
+  // the name painted on a gate's board (world/gateway.js, an end with `sign`):
+  // the place's shown name without a leading "The ", so 'The Rooftops' -> 'Rooftops'
+  'gate.sign': (place) => String(place ?? '').replace(/^the\s+/i, ''),
 });
 
 // Every id of the first table, in table order.

@@ -20,6 +20,10 @@
 //                 on along the edge line from each post, so the gate stands
 //                 in something (world/gateway.js draws them, solid to her cat).
 //                 A 'promenade' look only: it is that look's railing, run on.
+//   sign          optional, default false: true hangs a painted board with
+//                 the place's name and an arrow on the latch post, facing
+//                 back into the area (world/gateway.js; the words come from
+//                 the phrase 'gate.sign'). Only town-roofs asks for one.
 //
 // A door or a climb (the Old House's front door, the Rooftops' fire escape) is
 // a row with placement 'inside', an explicit `arrive` and usually look 'none'
@@ -50,7 +54,7 @@ const THROUGH = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
 
 const own = (o, k) => o != null && Object.prototype.hasOwnProperty.call(o, k);
 
-export function gatewayEnd({ id, gateway, x, z, faces, to, twin, look, placement = 'edge', lane = null, arrive = null, wings = null }) {
+export function gatewayEnd({ id, gateway, x, z, faces, to, twin, look, placement = 'edge', lane = null, arrive = null, wings = null, sign = false }) {
   if (!FACINGS.includes(faces)) throw new Error(`gateway end ${id}: faces "${faces}" is not one of ${FACINGS.join(', ')}`);
   if (!GATE_LOOKS.includes(look)) throw new Error(`gateway end ${id}: look "${look}" is not one of ${GATE_LOOKS.join(', ')}`);
   if (!PLACEMENTS.includes(placement)) throw new Error(`gateway end ${id}: placement "${placement}" is not one of ${PLACEMENTS.join(', ')}`);
@@ -63,6 +67,7 @@ export function gatewayEnd({ id, gateway, x, z, faces, to, twin, look, placement
     lane: lane ? Object.freeze([...lane]) : null,
     arrive: arrive ? Object.freeze({ ...arrive }) : null,
     wings: wings ? Object.freeze([...wings]) : null,
+    sign: sign === true,
   });
 }
 const end = gatewayEnd;
@@ -71,7 +76,7 @@ export const GATEWAY_ENDS = Object.freeze({
   neighborhood: Object.freeze([
     end({ id: 'town-park', gateway: 'town-park', x: 52, z: 0, faces: 'east', to: 'park', twin: 'park-town', look: 'signpost' }),
     end({ id: 'town-docks', gateway: 'town-docks', x: 0, z: 52, faces: 'south', to: 'docks', twin: 'docks-town', look: 'signpost' }),
-    end({ id: 'town-roofs', gateway: 'town-roofs', x: 0, z: -52, faces: 'north', to: 'roofs', twin: 'roofs-town', look: 'signpost' }),
+    end({ id: 'town-roofs', gateway: 'town-roofs', x: 0, z: -52, faces: 'north', to: 'roofs', twin: 'roofs-town', look: 'signpost', sign: true }),
   ]),
   park: Object.freeze([
     end({ id: 'park-town', gateway: 'town-park', x: 0, z: 49, faces: 'south', to: 'neighborhood', twin: 'town-park', look: 'signpost' }),

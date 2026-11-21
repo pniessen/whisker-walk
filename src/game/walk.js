@@ -855,7 +855,8 @@ export function createWalkLifecycle({
     // every path. A gate is open where she can go now (gateStatus 'go'). Its
     // colliders join the live list below, beside the posts'.
     const gates = !isDen && isClanEdition(state)
-      ? addGatewayDressing(scene, areaId, { ground, ends: gateEnds, isOpen: (e) => gateStatus(e, state, CATALOG).kind === 'go' })
+      ? addGatewayDressing(scene, areaId, { ground, ends: gateEnds, isOpen: (e) => gateStatus(e, state, CATALOG).kind === 'go',
+        nameFor: (e) => placeName(e.to, state.edition, CATALOG) }) // a gate's name board (Rooftops step 4)
       : NO_GATES;
     // The fill light, added here rather than beside the sun because its ground
     // term is the AREA'S OWN dominant ground colour and only areaData knows it:
