@@ -24,14 +24,19 @@
 // nothing statically and touches no browser global, so a build script can
 // read AREA_ENTRY_MODULES in plain Node.
 
+// The five places with people carry the figure (src/people/) in their own
+// download, never in start-up.
+const withPeople = (id, world) => Promise.all([world, import('../people/index.js')])
+  .then(([w, p]) => ({ id, world: w, life: { createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } }));
+
 const own = (id, world) => ({ id, world, life: {} });
 
 export const AREA_LOADERS = Object.freeze({
-  neighborhood: () => import('./neighborhood.js').then((w) => own('neighborhood', w)),
-  park: () => import('./park.js').then((w) => own('park', w)),
-  seaside: () => import('./seaside.js').then((w) => own('seaside', w)),
+  neighborhood: () => withPeople('neighborhood', import('./neighborhood.js')),
+  park: () => withPeople('park', import('./park.js')),
+  seaside: () => withPeople('seaside', import('./seaside.js')),
   den: () => import('./den.js').then((w) => own('den', w)),
-  docks: () => import('./docks.js').then((w) => own('docks', w)),
+  docks: () => withPeople('docks', import('./docks.js')),
   woods: () => import('./woods.js').then((w) => own('woods', w)),
   river: () => import('./river.js').then((w) => own('river', w)),
   moor: () => import('./moor.js').then((w) => own('moor', w)),
@@ -41,23 +46,23 @@ export const AREA_LOADERS = Object.freeze({
   gorge: () => import('./gorge.js').then((w) => own('gorge', w)),
   farm: () => Promise.all([import('./farm.js'), import('../farmanimals.js')])
     .then(([world, a]) => ({ id: 'farm', world, life: { createFarmAnimals: a.createFarmAnimals } })),
-  fair: () => Promise.all([import('./fair.js'), import('../fairlive.js'), import('../fairshow.js')])
-    .then(([world, live, show]) => ({ id: 'fair', world, life: { createFairLive: live.createFairLive, createFairShow: show.createFairShow } })),
+  fair: () => Promise.all([import('./fair.js'), import('../fairlive.js'), import('../fairshow.js'), import('../people/index.js')])
+    .then(([world, live, show, p]) => ({ id: 'fair', world, life: { createFairLive: live.createFairLive, createFairShow: show.createFairShow, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } })),
   roofs: () => import('./roofs.js').then((w) => own('roofs', w)),
 });
 
 export const AREA_ENTRY_MODULES = Object.freeze({
-  neighborhood: Object.freeze(['src/world/neighborhood.js']),
-  park: Object.freeze(['src/world/park.js']),
-  seaside: Object.freeze(['src/world/seaside.js']),
+  neighborhood: Object.freeze(['src/world/neighborhood.js', 'src/people/index.js']),
+  park: Object.freeze(['src/world/park.js', 'src/people/index.js']),
+  seaside: Object.freeze(['src/world/seaside.js', 'src/people/index.js']),
   den: Object.freeze(['src/world/den.js']),
-  docks: Object.freeze(['src/world/docks.js']),
+  docks: Object.freeze(['src/world/docks.js', 'src/people/index.js']),
   woods: Object.freeze(['src/world/woods.js']),
   river: Object.freeze(['src/world/river.js']),
   moor: Object.freeze(['src/world/moor.js']),
   pines: Object.freeze(['src/world/pines.js', 'src/world/birthdaygathering.js']),
   gorge: Object.freeze(['src/world/gorge.js']),
   farm: Object.freeze(['src/world/farm.js', 'src/farmanimals.js']),
-  fair: Object.freeze(['src/world/fair.js', 'src/fairlive.js', 'src/fairshow.js']),
+  fair: Object.freeze(['src/world/fair.js', 'src/fairlive.js', 'src/fairshow.js', 'src/people/index.js']),
   roofs: Object.freeze(['src/world/roofs.js']),
 });

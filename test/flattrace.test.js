@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { closeDiffs } from './helpers/closeto.js';
 import {
-  traceAll, writeFixture, recordedGameplay, recordedRender, UUID_SEED,
+  traceAsRecorded, traceAll, writeFixture, recordedGameplay, recordedRender, UUID_SEED,
 } from './helpers/flattrace.js';
 
 // Gorge part 1, Task 1: today's world, pinned as a trace; split in two by
@@ -31,14 +31,21 @@ import {
 // shadows only (the cat's body, outline, ears, face and fur, and the Twolegs'
 // and plumed cats' shadow radii). Review S2 split it and re-recorded it ONCE,
 // checked field by field against the old file: no value in either part moved.
+// 2026-11-21 (lifelike people, Task 16: the old figure retired): the render
+// part re-recorded, checked field by field: only the villagers' contact
+// shadows moved (each now the person's, a pair's child with one of its own,
+// at the villager spots of the Neighborhood, the Park, Seaside and the
+// Docks); the paw prints, the knockables' decals and the other four maps did
+// not change, and the gameplay part did not move.
 
 describe('the flat trace', () => {
   let trace;
+  // (every map traced: ~4 s alone, far more under a loaded full suite)
   beforeAll(() => {
     trace = traceAll();
     const update = process.env.UPDATE_TRACE;
     if (update === 'gameplay' || update === 'render') writeFixture(update, trace[update]);
-  });
+  }, 90_000);
 
   it('gameplay: every moving thing on every shipped map is where it was (frozen)', () => {
     expect(closeDiffs(trace.gameplay, recordedGameplay())).toEqual([]);
@@ -58,5 +65,5 @@ describe('the flat trace', () => {
   it('gameplay does not read Math.random (THREE uuid draws move nothing)', () => {
     const other = traceAll({ uuidSeed: (UUID_SEED ^ 0x5eed5) >>> 0, pinMoorDraws: false });
     expect(closeDiffs(other.gameplay, recordedGameplay())).toEqual([]);
-  });
+  }, 90_000);
 });
