@@ -30,8 +30,8 @@ const pieces = (cat, id) => { const out = []; cat.traverse((o) => { if (isPieceO
 const cap = (id, slot, simple) => (slot === 'back' && isPack(id) ? (simple ? 600 : 1200) : simple ? 450 : 900);
 
 describe('gift outfits: the gate every outfit passes', () => {
-  it('the birthday\'s four, one in each of head, neck, back and collar', () => {
-    expect(IDS).toEqual([['partyhat', 'head'], ['bdayrosette', 'neck'], ['bdayballoon', 'back'], ['cakecharm', 'collar']]);
+  it('the birthday\'s five: two hats, a neck piece, a balloon and a collar', () => {
+    expect(IDS).toEqual([['partyhat', 'head'], ['bdayrosette', 'neck'], ['bdayballoon', 'back'], ['cakecharm', 'collar'], ['birthdayhat', 'head']]);
   });
   it.each(IDS)('%s (%s): an id the colony server takes, a name clean in both word sets', (id) => {
     expect(id).toMatch(/^[a-z]{3,16}$/);
@@ -90,6 +90,32 @@ describe('gift outfits: the catalog', () => {
   it('the menu draws them only once owned, as it does the found outfits', () => {
     const ids = thumbnailIds(CATALOG);
     for (const [id] of IDS) expect(ids).not.toContain(id);
-    expect(missingFoundThumbs({ accessories: {} }, ['partyhat', 'bell'], CATALOG)).toEqual(['partyhat']);
+    expect(missingFoundThumbs({ accessories: {} }, ['partyhat', 'bell', 'birthdayhat'], CATALOG)).toEqual(['partyhat', 'birthdayhat']);
+  });
+});
+
+describe('the Birthday Hat stands straight (the owner, 2026-11-21)', () => {
+  // The cone's axis, head-local: from the middle of its foot (its lowest
+  // vertices) to the middle of the pom-pom (its highest). The head's up is +y,
+  // its front -z, so a sideways lean shows in x and a rake in z.
+  const axisOf = (cat) => {
+    const hat = cat.userData.parts.head.children.find((o) => o.userData?.hat === 'birthdayhat');
+    const p = hat.geometry.attributes.position, V = [];
+    for (let i = 0; i < p.count; i++) V.push(new THREE.Vector3().fromBufferAttribute(p, i));
+    V.sort((a, b) => a.y - b.y);
+    const mid = (list) => list.reduce((s, v) => s.add(v), new THREE.Vector3()).divideScalar(list.length);
+    const minY = V[0].y, maxY = V[V.length - 1].y;
+    const foot = mid(V.filter((v) => v.y < minY + 0.012)), top = mid(V.filter((v) => v.y > maxY - 0.03));
+    return top.sub(foot).normalize();
+  };
+  it.each([...PRESETS, 'hagrid'])('%s: its axis is the head\'s up, no sideways lean, at most a slight rake back', (breed) => {
+    for (const simple of [false, true]) {
+      const a = axisOf(buildCat(breed, { ...BARE, head: 'birthdayhat' }, { simple }));
+      const side = Math.asin(Math.abs(a.x)) * 180 / Math.PI, rake = Math.asin(a.z) * 180 / Math.PI;
+      expect(side, `${breed} ${simple} sideways`).toBeLessThan(1.5);
+      expect(rake, `${breed} ${simple} rake`).toBeGreaterThan(-1.5);
+      expect(rake, `${breed} ${simple} rake`).toBeLessThan(6);
+      expect(a.y, `${breed} ${simple}`).toBeGreaterThan(Math.cos(6 * Math.PI / 180));
+    }
   });
 });

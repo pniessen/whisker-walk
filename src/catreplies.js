@@ -93,6 +93,14 @@ const REPLIES = {
     emote: ['✨', 'Mew!'],
     misc: ['What\'s THAT? Ooh!', 'Everything is new and amazing!'],
   },
+  ribbonkit: {
+    greeting: ['Hi! Is it a party?', 'Mew! Hello, hello!', 'Hi! I came out of a present!'],
+    play: ['Pounce! Did I get it?', 'Chase my bow! 🎀', 'Let\'s play, let\'s play!'],
+    compliment: ['Thank you! It\'s my birthday bow!', 'Yay! 😸', 'My patches say thank you too!'],
+    farewell: ['Bye bye! Mew!', 'See you soon!', 'Bye! Off to pounce!'],
+    emote: ['🎀', 'Mew!'],
+    misc: ['Everything is new!', 'Is that cake?'],
+  },
   hagrid: {
     greeting: ['Bwak?! 🐔', 'Bok bok!', 'Bwak bwak, hello!'],
     play: ['BWAK BWAK BWAK!', 'Flap flap!', 'Bok! Chase time!'],

@@ -25,6 +25,10 @@ function defaultishState() {
 }
 const count = (s, re) => (s.match(re) || []).length;
 
+// The cats in the picker: every catalog cat but a gift cat she does not own
+// yet (the birthday kitten, test/present.test.js).
+const PICKER_CATS = Object.keys(CATALOG.cats).filter((id) => !CATALOG.cats[id].code);
+
 describe('previewing a locked cat or trying something on', () => {
   it('only the cat she walks keeps the solid ring; the locked one on show is "looking"', () => {
     const h = renderDressingRoomHtml({ model: buildDressingModel(defaultishState(), CATALOG, { previewCat: 'hagrid' }), ui: {} });
@@ -62,7 +66,7 @@ describe('previewing a locked cat or trying something on', () => {
 describe('dressing-room model', () => {
   it('one portrait per catalog cat, in catalog order', () => {
     const m = buildDressingModel(defaultishState(), CATALOG);
-    expect(m.cats.map((c) => c.id)).toEqual(Object.keys(CATALOG.cats));
+    expect(m.cats.map((c) => c.id)).toEqual(PICKER_CATS);
   });
   it('slot count and wearing count come from the catalog and save', () => {
     const s = defaultishState(); s.equipped.collar = 'bell'; s.equipped.neck = 'bandana';
@@ -267,7 +271,7 @@ describe('dressing-room renderer', () => {
     expect(count(home, /data-dr-cat=/g)).toBe(owned);
     expect(count(home, /data-dr-slot=/g)).toBe(0);
     const open = render({ ui: { wardrobe: true, moreCats: true } });
-    expect(count(open, /data-dr-cat=/g)).toBe(Object.keys(CATALOG.cats).length);
+    expect(count(open, /data-dr-cat=/g)).toBe(PICKER_CATS.length);
     expect(count(open, /data-dr-slot=/g)).toBe(new Set(Object.values(CATALOG.accessories).map((a) => a.slot)).size);
     expect(home).not.toContain('data-dr-pill');
     expect(open).not.toContain('data-dr-pill');
@@ -650,7 +654,7 @@ describe('Launch A: the home screen (cat, place, go)', () => {
     model: buildDressingModel(state, CATALOG), startHtml: '<button id="start">GO</button>', ui, ...over,
   });
   const section = (html, cls) => html.slice(html.indexOf(`class="${cls}"`), html.indexOf('</section>', html.indexOf(`class="${cls}"`)));
-  const lockedN = Object.keys(CATALOG.cats).length - defaultishState().unlocked.cats.length;
+  const lockedN = PICKER_CATS.length - defaultishState().unlocked.cats.length;
 
   describe('the strip', () => {
     it('shows the owned cats, then ＋ Make, then a "🔒 N more" tile; the locked cats stay out of sight', () => {
@@ -665,7 +669,7 @@ describe('Launch A: the home screen (cat, place, go)', () => {
     });
     it('moreCats opens the locked cats (after Make) and the tile says Fewer', () => {
       const strip = section(home(defaultishState(), { moreCats: true }), 'dr-strip');
-      expect(count(strip, /data-dr-cat=/g)).toBe(Object.keys(CATALOG.cats).length);
+      expect(count(strip, /data-dr-cat=/g)).toBe(PICKER_CATS.length);
       expect(strip.indexOf('data-dr-make')).toBeLessThan(strip.indexOf('data-dr-cat="hagrid"'));
       expect(strip).toMatch(/data-dr-more-cats aria-expanded="true">Fewer</);
       expect(strip).not.toContain('more<');

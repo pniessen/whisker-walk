@@ -45,7 +45,7 @@ import { note } from '../diagnostics.js';
 import { line as tutorialLine } from '../tutorialwords.js';
 import { hintMax } from '../hints.js';
 import { nextThing, nextThingHtml, NEXT_ATTR } from './nextthing.js';
-import { createHomeParty, birthdayPartyOn, partyBannerText, partyCatName } from './party.js';
+import { createHomeParty, birthdayPartyOn, partyBannerText, partyCatName, presentDue } from './party.js';
 import { BIRTHDAY_EVENT, localDay } from '../giftevents.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
@@ -226,10 +226,43 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     document.addEventListener('pointerdown', onSongTap, true);
     document.addEventListener('keydown', onSongTap, true);
   }
+  // The present (ui/party.js presentDue): one tap opens it with a burst and
+  // the fanfare (muted, silent), and the birthday kitten is hers and on show.
+  // The kitten is hers the moment the box is tapped; she stays on the cat she
+  // was playing, and the kitten's new tile in the picker glows for a moment
+  // after the 0.9 s of unwrapping (newCatUntil, put back after each render).
+  let newCat = null;
+  let newCatUntil = 0;
+  function openPresentNow(box) {
+    const cat = progression.openPresent(BIRTHDAY_EVENT);
+    if (!cat) { box?.remove?.(); return; }
+    newCat = cat;
+    newCatUntil = Date.now() + 900 + 3600;
+    // the glow goes when its time is up, whatever renders there were
+    setTimeout(() => { try { root.querySelector('.party-new')?.classList.remove('party-new', 'still'); } catch { /* a nicety */ } }, 900 + 3600);
+    party.burst();
+    try { onCelebrate?.(); } catch (err) { console.warn('Whisker Walk: the present sound failed', err); note('audio', err); }
+    setTimeout(() => {
+      if (!homeVisible()) return; // a walk started: home shows her when it is back
+      render();
+      try { toast?.(phrase('present.opened', CATALOG.cats[cat].name)); } catch { /* a toast is never worth a crash */ }
+    }, reducedNow() ? 0 : 900);
+  }
   function syncParty() {
+    if (newCat && Date.now() < newCatUntil) {
+      try {
+        const tile = root.querySelector(`[data-dr-cat="${newCat}"]`);
+        if (tile && !tile.classList.contains('party-new')) {
+          tile.classList.add('party-new');
+          if (reducedNow()) tile.classList.add('still');
+          tile.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+        }
+      } catch { /* a nicety */ }
+    }
     const st = root.querySelector('#dr-stage');
     if (!st) return;
-    if (partyOn() && !dressing?.ui?.builder) party.mount(st, partyBannerText(partyCatName(progression.state, CATALOG)));
+    const present = presentDue(progression) && !dressing?.ui?.wardrobe ? { label: phrase('present.label'), onOpen: openPresentNow } : null;
+    if (partyOn() && !dressing?.ui?.builder) party.mount(st, partyBannerText(partyCatName(progression.state, CATALOG)), present);
     else party.unmount(st);
   }
 

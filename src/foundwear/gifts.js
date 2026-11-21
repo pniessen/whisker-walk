@@ -24,6 +24,9 @@ export const GIFT_WEAR = Object.freeze([
   Object.freeze({ id: 'bdayballoon', slot: 'back', emoji: '🎈', name: () => phrase('wear.bdayballoon.name') }),
   // a slice of cake hanging from the collar (src/cat/foundneck.js)
   Object.freeze({ id: 'cakecharm', slot: 'collar', emoji: '🍰', name: () => phrase('wear.cakecharm.name') }),
+  // hers alone: a polka-dot cone with a poofy pom-pom (src/cat/hats.js); the
+  // birthday event gives it, so a save that already had the event gains it
+  Object.freeze({ id: 'birthdayhat', slot: 'head', emoji: '🎉', name: () => phrase('wear.birthdayhat.name') }),
 ]);
 export const GIFT_WEAR_IDS = Object.freeze(GIFT_WEAR.map((r) => r.id));
 

@@ -19,7 +19,9 @@ function fakeStorage(initial = {}) {
 const KEY = 'whisker-walk-save';
 const H = 'ab'.repeat(32);
 const H2 = 'cd'.repeat(32);
-const BDAY_WEAR = ['partyhat', 'bdayrosette', 'bdayballoon', 'cakecharm'];
+// what her code lists, and what the event itself gives (the Birthday Hat too)
+const CODE_WEAR = ['partyhat', 'bdayrosette', 'bdayballoon', 'cakecharm'];
+const BDAY_WEAR = [...CODE_WEAR, 'birthdayhat'];
 const TEST_CODE = 'TEST-ONLY-CAKE-2Z9Q';
 
 describe('the event window', () => {
@@ -105,6 +107,22 @@ describe('the save keeps events, and hasEvent reads them', () => {
     for (const id of BDAY_WEAR) expect(q.isUnlocked('accessories', id)).toBe(true);
   });
 
+  it('a save that opened the code before the Birthday Hat existed gains it on load, unworn', () => {
+    const before = { ...p.state, events: [BIRTHDAY_EVENT], unlocked: { ...p.state.unlocked, accessories: ['bell', 'bandana', ...CODE_WEAR] } };
+    const q = createProgression(fakeStorage({ [KEY]: JSON.stringify(before) }));
+    expect(q.isUnlocked('accessories', 'birthdayhat')).toBe(true);
+    expect(q.state.equipped.head).toBe(null);
+    // and a save without the event never has it
+    const r = createProgression(fakeStorage({ [KEY]: JSON.stringify({ ...before, events: [] }) }));
+    expect(r.isUnlocked('accessories', 'birthdayhat')).toBe(false);
+  });
+
+  it('opening the event gives its own outfits at once and names them', () => {
+    const r = p.redeemCode(H, { points: 0, accessories: CODE_WEAR, cats: [], events: [BIRTHDAY_EVENT] });
+    expect(r.items.map((it) => it.id)).toEqual(BDAY_WEAR);
+    expect(p.isUnlocked('accessories', 'birthdayhat')).toBe(true);
+  });
+
   it('a cloud load keeps this device\'s events', () => {
     p.redeemCode(H, { events: [BIRTHDAY_EVENT] });
     const older = JSON.parse(JSON.stringify(p.state));
@@ -127,7 +145,7 @@ describe('the two birthday codes', () => {
   it('hers: the birthday, 50 paw points and the four outfits', () => {
     expect(her[0].events).toEqual([BIRTHDAY_EVENT]);
     expect(her[0].points).toBe(50);
-    expect([...her[0].accessories].sort()).toEqual([...BDAY_WEAR].sort());
+    expect([...her[0].accessories].sort()).toEqual([...CODE_WEAR].sort());
     expect(her[0].confetti).toBeFalsy();
   });
 
@@ -159,6 +177,7 @@ describe('the two birthday codes', () => {
     expect(s.events).toEqual([]);
     expect(q.hasEvent(BIRTHDAY_EVENT)).toBe(false);
     expect(q.isUnlocked('accessories', 'partyhat')).toBe(true);
+    expect(q.isUnlocked('accessories', 'birthdayhat')).toBe(false); // hers alone
     expect(redeemMessage(s, CATALOG)).toMatch(/Party time! 🎉/);
   });
 

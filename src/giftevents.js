@@ -12,14 +12,20 @@
 // Her birthday. The camp gathering (world/camp) reads this id through
 // progression.hasEvent; never rename it once a save holds it.
 export const BIRTHDAY_EVENT = 'bday-2026-11-21';
+// The birthday kitten (CATALOG.cats): what the birthday's present holds.
+export const BIRTHDAY_KITTEN = 'ribbonkit';
 
-// id -> { last: [year, month 1-12, day], wear: [accessory ids] }. An event is
+// id -> { last: [year, month 1-12, day], wear: [accessory ids], present: cat id }. An event is
 // on from the moment its code is opened until the end of its last day, local
 // time (a late evening the day after still counts).
 const EVENTS = Object.freeze({
   [BIRTHDAY_EVENT]: Object.freeze({
     last: Object.freeze([2026, 11, 22]),
-    wear: Object.freeze(['partyhat', 'bdayrosette', 'bdayballoon', 'cakecharm']),
+    // the Birthday Hat comes with the event only (no code lists it), so a
+    // save that opened the code before it existed gains it on its next load
+    wear: Object.freeze(['partyhat', 'bdayrosette', 'bdayballoon', 'cakecharm', 'birthdayhat']),
+    // the wrapped present on home (ui/party.js): opened once, it gives this cat
+    present: BIRTHDAY_KITTEN,
   }),
 });
 
@@ -54,6 +60,11 @@ export function eventWindowOpen(id, now = new Date()) {
 // The outfits an event gives, [] for anything else.
 export function eventWear(id) {
   return isEventId(id) ? EVENTS[id].wear : [];
+}
+
+// The cat an event's present holds, or null.
+export function eventPresent(id) {
+  return isEventId(id) ? EVENTS[id].present ?? null : null;
 }
 
 // 'YYYY-MM-DD' of `now` in local time: the key for "once a day".
