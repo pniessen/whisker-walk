@@ -27,7 +27,7 @@ vi.stubGlobal('document', {
 const { build } = await import('../src/world/fair.js');
 const { createFairSim } = await import('../src/fairsim.js');
 const { createFairGames, GAME, GAME_STATES, FAIR_GAME_IDS, FAIR_FIND_IDS } = await import('../src/fairgames.js');
-const { createFairVisitors, VISITOR, PAIR, visitorCount } = await import('../src/fairvisitors.js');
+const { createFairVisitors, VISITOR, PAIR, visitorCount, isChildSpot } = await import('../src/fairvisitors.js');
 const { spotKind } = await import('../src/people/look.js');
 const { createFairShow } = await import('../src/fairshow.js');
 const { createFairLive, NO_FAIR } = await import('../src/fairlive.js');
@@ -997,30 +997,31 @@ describe('the visitors', () => {
     expect(c.x > AREA.bounds.minX && c.x < AREA.bounds.maxX && c.z > AREA.bounds.minZ && c.z < AREA.bounds.maxZ, at).toBe(true);
     if (cat) expect(dist(c, cat), at).toBeGreaterThanOrEqual(VISITOR.KEEP - 1e-6);
     // and it is with its grown-up: never wandered off, never through it
-    expect(dist(c, p), at).toBeLessThan(1.6);
+    expect(dist(c, p), at).toBeLessThanOrEqual(PAIR.TRAIL + 1e-9);
     expect(dist(c, p), at).toBeGreaterThanOrEqual(PAIR.APART - 1e-9);
   };
   // How far each child moved this step, against its grown-up: a child never
-  // jumps further than the grown-up's own step and a small allowance (PAIR.CATCH)
-  // and, out of the way of a cat who runs at it, than she came.
+  // moves further in a step than its grown-up did and the grown-ups' own
+  // SIDE_SPEED (never a hop); and, with a cat within arm's length, never a
+  // step towards her.
   const moves = (v, cat = null) => {
     const last = new Map(pairs(v).map((p) => [p, { x: p.x, z: p.z, cx: p.childX, cz: p.childZ }]));
-    const was = cat ? { x: cat.x, z: cat.z } : null;
     let worst = -Infinity;
-    let hops = 0;
+    let towards = 0;
     return {
       check(dt) {
-        const came = cat ? Math.max(dist(cat, was), (cat.speed ?? 0) * dt) : 0;
         for (const [p, o] of last) {
-          const over = Math.hypot(p.childX - o.cx, p.childZ - o.cz) - Math.hypot(p.x - o.x, p.z - o.z) - PAIR.CATCH * dt - came;
+          const over = Math.hypot(p.childX - o.cx, p.childZ - o.cz) - Math.hypot(p.x - o.x, p.z - o.z) - VISITOR.SIDE_SPEED * dt;
           worst = Math.max(worst, over);
-          if (over > 1e-9) hops++;
+          if (cat) {
+            const gap = Math.hypot(o.cx - cat.x, o.cz - cat.z); // she has moved, it has not yet
+            if (gap < VISITOR.NEAR && Math.hypot(p.childX - cat.x, p.childZ - cat.z) < gap - 1e-6) towards++;
+          }
           o.x = p.x; o.z = p.z; o.cx = p.childX; o.cz = p.childZ;
         }
-        if (cat) { was.x = cat.x; was.z = cat.z; }
       },
       get worst() { return worst; },
-      get hops() { return hops; },
+      get towards() { return towards; },
     };
   };
 
@@ -1038,6 +1039,16 @@ describe('the visitors', () => {
         expect(['beside', 'behind', 'back']).toContain(p.childAt);
       } else expect(p.childX).toBe(null);
     }
+    // the simulation's own child-spot test is look.js's, spot for spot
+    for (let i = 0; i < 400; i++) {
+      const x = -60 + ((i * 37) % 120) + i * 0.013;
+      const z = 140 + ((i * 53) % 150) - i * 0.017;
+      expect(isChildSpot(x, z), `${x}, ${z}`).toBe(spotKind({ x, z }) === 'child');
+    }
+  });
+
+  it('every child starts on free ground by its grown-up, whatever the seed', () => {
+    for (let i = 0; i < 60; i++) for (const p of pairs(visitors(8, `start ${i}`))) childRules(p, null, 0);
   });
 
   it('are a handful: eight on the high tier, fewer on the lower ones, never none', () => {
@@ -1161,6 +1172,7 @@ describe('the visitors', () => {
     // nobody is stuck for good behind a cat who sits: every one still gets round
     for (const p of v.list) expect(p.walked, p.id).toBeGreaterThan(name.startsWith('sitting') ? 250 : 60);
     expect(mv.worst).toBeLessThanOrEqual(1e-9); // a child steps out of her way smoothly too
+    expect(mv.towards).toBe(0);
   }, 90_000);
 
   it('a cat who chases one visitor for five minutes never touches it, and it never comes after her', () => {
@@ -1210,13 +1222,9 @@ describe('the visitors', () => {
       for (const p of pairs(v)) childRules(p, cat, i * DT);
     }
     expect(nearest).toBeLessThan(1.2); // she did catch up with it
-    // Hunted, it runs from her as fast as she comes. Only where she gets
-    // between it and its grown-up, or pins it against a stall at the end of its
-    // reach, does it hop round her: rarely (measured: 3 steps in the 9,000),
-    // never further than it may be from its grown-up. (A grown-up's own step
-    // aside from a cat can be several metres.)
-    expect(mv.hops).toBeLessThanOrEqual(5);
-    expect(mv.worst).toBeLessThan(PAIR.FAR + PAIR.APART);
+    // hunted, it still never hops, and never steps towards her
+    expect(mv.worst).toBeLessThanOrEqual(1e-9);
+    expect(mv.towards).toBe(0);
   }, 90_000);
 
   // A stretch of the midway fenced in to a narrow way (posts either side, a
