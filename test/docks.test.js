@@ -417,8 +417,8 @@ describe('The Old Docks — catalog, unlock gating and walk counting', () => {
 describe('The Old Docks — the eleventh journal critter', () => {
   it('adds rat to the journal vocabulary and the catalog together', () => {
     expect(JOURNAL_TYPES).toContain('rat');
-    expect(JOURNAL_TYPES).toHaveLength(44); // 14, Appletree Farm's six animals, its four jobs and six finds, and the Fairground's five rides, three games and six finds
-    expect(CRITTER_INFO).toHaveLength(44);
+    expect(JOURNAL_TYPES).toHaveLength(50); // 14, Appletree Farm's six animals, its four jobs and six finds, the Fairground's five rides, three games and six finds, and the Rooftops' six finds
+    expect(CRITTER_INFO).toHaveLength(50);
     const rat = CRITTER_INFO.find((c) => c.id === 'rat');
     expect(rat).toBeTruthy();
     expect(rat.emoji).toBeTruthy();

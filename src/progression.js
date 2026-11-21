@@ -79,7 +79,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   // test/fairgames.test.js holds the two lists equal). A game's count is how
   // many times it has been won; a find's, on how many walks it was found.
   'gamecans', 'gameducks', 'gamebell',
-  'fairfortune', 'fairmusicbox', 'faircandyfloss', 'fairjuggler', 'fairballoon', 'fairlookout'];
+  'fairfortune', 'fairmusicbox', 'faircandyfloss', 'fairjuggler', 'fairballoon', 'fairlookout',
+  // The Rooftops' six finds (src/roofspages.js; walks each was found on).
+  'roofgarden', 'roofloft', 'roofvane', 'roofskylight', 'rooftelescope', 'roofchimney'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
