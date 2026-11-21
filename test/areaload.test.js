@@ -51,8 +51,9 @@ describe('the area loader', () => {
   });
   it('a late settlement of a timed-out load does not drop a newer load in flight', async () => {
     vi.useFakeTimers();
+    // Load #1 fails late (a late success would be cached, which hides the race).
     const releases = []; const packs = [{ id: 'a', n: 1 }, { id: 'a', n: 2 }];
-    const a = vi.fn(() => new Promise((r) => { const n = releases.length; releases.push(() => r(packs[n])); }));
+    const a = vi.fn(() => new Promise((r, rej) => { const n = releases.length; releases.push(n === 0 ? () => rej(new Error('late')) : () => r(packs[n])); }));
     const loader = createAreaLoader({ loaders: { a } });
     const p1 = loader.ensure('a').catch((e) => e);
     await vi.advanceTimersByTimeAsync(AREA_LOAD_TIMEOUT_MS);
@@ -62,7 +63,7 @@ describe('the area loader', () => {
     releases[0](); await vi.advanceTimersByTimeAsync(0);
     const p3 = loader.ensure('a');
     expect(a).toHaveBeenCalledTimes(2);
-    expect(loader.loaded('a')).toBe(packs[0]);
+    expect(loader.loaded('a')).toBeNull();
     releases[1](); await p2; await p3;
   });
   it('a timed-out load that later rejects leaves nothing unhandled, nothing loaded, and a retry', async () => {
