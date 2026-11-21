@@ -28,7 +28,7 @@
 // The five places with people carry the figure (src/people/) in their own
 // download, never in start-up.
 const withPeople = (id, world) => Promise.all([world, import('../people/index.js')])
-  .then(([w, p]) => ({ id, world: w, life: { createPeopleKit: p.createPeopleKit } }));
+  .then(([w, p]) => ({ id, world: w, life: { createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } }));
 
 const own = (id, world) => ({ id, world, life: {} });
 
@@ -46,7 +46,7 @@ export const AREA_LOADERS = Object.freeze({
   farm: () => Promise.all([import('./farm.js'), import('../farmanimals.js')])
     .then(([world, a]) => ({ id: 'farm', world, life: { createFarmAnimals: a.createFarmAnimals } })),
   fair: () => Promise.all([import('./fair.js'), import('../fairlive.js'), import('../fairshow.js'), import('../people/index.js')])
-    .then(([world, live, show, p]) => ({ id: 'fair', world, life: { createFairLive: live.createFairLive, createFairShow: show.createFairShow, createPeopleKit: p.createPeopleKit } })),
+    .then(([world, live, show, p]) => ({ id: 'fair', world, life: { createFairLive: live.createFairLive, createFairShow: show.createFairShow, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } })),
   roofs: () => import('./roofs.js').then((w) => own('roofs', w)),
 });
 

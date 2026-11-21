@@ -1185,7 +1185,7 @@ function init() {
       // flocks further out of step for no reason; nothing in the game reads a bird.
       if (session.slowmoTime > 0) session.slowmoTime -= dt;
       const wdt = session.slowmoTime > 0 ? dt * 0.35 : dt;
-      session.critters.update(wdt, t, session.cat.position, session.cat.position);
+      session.critters.update(wdt, t, session.cat.position, session.cat.position, session.cat);
       session.strayCats.update(wdt, t, session.cat.position, {
         stalking: player.stalking,
         catSpeed: player.speed,

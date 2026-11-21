@@ -6,6 +6,7 @@ import { mulberry32, seedFromCode } from './rng.js';
 import { standSpot } from './keepout.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { withLocalUuids } from './world/localuuids.js';
+import { waterClearance } from './world/builder.js';
 
 const mat = (color) => litMaterial(color);
 const box = (w, h, d, color) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
@@ -230,7 +231,76 @@ export function buildTwolegFigure(def) {
     return { figure, arm };
 }
 
-function buildCritter(type, def = {}) {
+// ---- People in town (lifelike people, Task 10) -------------------------------
+// With the people switch on, createCritters is handed the people kit's
+// factory (opts.people, from the place's pack: src/people never rides in
+// start-up) and a villager is a jointed person instead. A spot whose look says
+// "child" is a pair: the grown-up stands where today's figure stands (its
+// standOff) and the child is a second figure in the same group, beside them.
+// The group never moves, as today; every movement is a bone.
+
+// The child stands this far to the grown-up's side (m), on the side whose
+// spot is clear of the area's colliders and waters by the child's soft bump
+// (0.18 m) and 0.1 m more, else this far behind.
+export const PAIR_SIDE = 0.65;
+export const PAIR_BEHIND = 0.6;
+const CHILD_CLEAR = 0.18 + 0.1;
+// The head-scratch kneel lasts while she is within SCRATCH_STAY (m) and at
+// least SCRATCH_MIN (s); they stand SCRATCH_UP (s) after she leaves.
+export const SCRATCH_STAY = 2.5;
+export const SCRATCH_MIN = 2.5;
+export const SCRATCH_UP = 0.6;
+// The dismayed "oh!" lasts as long as the wave dismayNear starts.
+const DISMAY_TIME = 1.5;
+// Today's figure carries the quest marker at a fixed height; a person 0.35 m
+// above their own head.
+const QUEST_MARKER_FIXED = 2.1;
+const QUEST_MARKER_ABOVE = 0.35;
+
+// Where a villager's quest marker sits, in its figure's frame (m up).
+export function questMarkerY(c) {
+  return c.people ? c.people[0].look.height + QUEST_MARKER_ABOVE : QUEST_MARKER_FIXED;
+}
+
+function clearForChild(area, x, z) {
+  for (const k of area?.colliders ?? []) if (Math.hypot(x - k.x, z - k.z) - k.r < CHILD_CLEAR) return false;
+  return waterClearance(area?.waters, x, z) >= CHILD_CLEAR;
+}
+
+// The child's place, from the grown-up's (group frame, which is the world's
+// axes: a villager's group never turns). The side tried first comes from the
+// spot's hash, never a roll, so every device puts the child in one place.
+function childOffset(def, sx, sz, area) {
+  const ax = def.x + sx;
+  const az = def.z + sz;
+  const first = twolegHash(def.x, def.z, 41) < 0.5 ? 1 : -1;
+  for (const side of [first, -first]) {
+    if (clearForChild(area, ax + side * PAIR_SIDE, az)) return { x: side * PAIR_SIDE, z: 0 };
+  }
+  return { x: 0, z: PAIR_BEHIND }; // the figure faces -z: behind is +z
+}
+
+// A villager as people: the spot's person (or pair) from the kit, standing in
+// its rest pose (the walk registers the grown-up with the contact shadows
+// before the first pose, so the decal's size is the same on every device).
+function buildPeopleVillager(g, def, kit, area) {
+  const { people } = kit.buildSpot(def);
+  const sx = def.standOff?.x ?? 0;
+  const sz = def.standOff?.z ?? 0;
+  // (only x and z: each figure's floor is the group's, on the ground)
+  people[0].figure.position.x = sx;
+  people[0].figure.position.z = sz;
+  if (people[1]) {
+    const o = childOffset(def, sx, sz, area);
+    people[1].figure.position.x = sx + o.x;
+    people[1].figure.position.z = sz + o.z;
+  }
+  for (const p of people) g.add(p.figure);
+  g.userData.figure = people[0].figure;
+  g.userData.people = people;
+}
+
+function buildCritter(type, def = {}, kit = null, area = null) {
   const g = new THREE.Group();
   if (type === 'bird' || type === 'seagull') {
     const s = type === 'seagull' ? 1.6 : 1;
@@ -354,6 +424,8 @@ function buildCritter(type, def = {}) {
       claw.position.set(side * 0.14, 0.08, -0.06);
       g.add(claw);
     }
+  } else if (type === 'villager' && kit) {
+    buildPeopleVillager(g, def, kit, area);
   } else if (type === 'villager') {
     const { figure, arm } = buildTwolegFigure(def);
     g.add(figure);
@@ -373,6 +445,7 @@ export function villagerPos(c, out) {
 }
 
 const _vp = new THREE.Vector3();
+const _head = new THREE.Vector3();
 
 export function createCritters(scene, spawns, opts = {}) {
   const fleeScale = opts.fleeScale ?? 1;
@@ -420,8 +493,23 @@ export function createCritters(scene, spawns, opts = {}) {
   let clock = 0; // tracks critters.update's own `t` so pounceCatch can time the 20s catch cooldown without a caller-supplied clock
   const list = [];
 
+  // Lifelike people (Task 10): one kit per walk, from the factory the place's
+  // pack hands over (opts.people; null with the switch off, and then every
+  // villager is today's figure). camera: the walk's, for the LOD switch and
+  // the view test (none in a Node test: then everyone counts as in view).
+  // lodNear: the live rung's switch distance. One pose spec and one gaze
+  // options object for every person, every frame: nothing is made per frame.
+  const reducedMotion = !!opts.reducedMotion;
+  const kit = typeof opts.people === 'function'
+    ? opts.people({ camera: opts.camera, reducedMotion, lodNear: typeof opts.lodNear === 'function' ? opts.lodNear : undefined })
+    : null;
+  let kitDisposed = false;
+  const seeAll = !opts.camera;
+  const poseSpec = { mode: 'stand', t: 0, walked: 0, reducedMotion };
+  const gazeOpts = { target: null, reducedMotion };
+
   function spawn(def) {
-    const group = buildCritter(def.type, def);
+    const group = buildCritter(def.type, def, kit, opts.area);
     group.position.set(def.x, ground.y(def.x, def.z) + (def.type === 'butterfly' || def.type === 'firefly' ? 1 : 0), def.z);
     scene.add(group);
     const c = {
@@ -456,8 +544,44 @@ export function createCritters(scene, spawns, opts = {}) {
       // patrol keeps its own length and heading wherever the anchor goes.
       patrolSpan: new THREE.Vector3((def.x2 ?? def.x + 6) - def.x, 0, (def.z2 ?? def.z) - def.z),
     };
+    if (group.userData.people) {
+      c.people = group.userData.people; // the grown-up first: c.figure is theirs
+      c.gazes = c.people.map((p) => kit.createGaze(p.look));
+      c.dismayT = 0;
+      c.scratch = null; // the head-scratch kneel under way: { t, away }
+      c.poseMode = 'stand'; // what the grown-up was last given
+      c.childMode = 'stand'; // and the child
+    }
     list.push(c);
     return c;
+  }
+
+  // One villager's people, posed by the priority (the head-scratch kneel,
+  // the dismayed "oh!", the wave, standing), each change eased; then the
+  // look, on top, at her head. The child waves when the grown-up waves (it
+  // never kneels: the scratch is the grown-up's) and looks at her when the
+  // grown-up does. Only people in view are posed; the choice is made for all.
+  function posePeople(c, dt, t, waving, adultPos, catPos, herHead) {
+    const s = c.scratch;
+    if (s) {
+      s.t += dt;
+      s.away = adultPos.distanceTo(catPos) <= SCRATCH_STAY ? 0 : s.away + dt;
+      if (s.t >= SCRATCH_MIN && s.away >= SCRATCH_UP) c.scratch = null;
+    }
+    const mode = c.scratch ? 'kneel' : c.dismayT > 0 ? 'dismay' : waving ? 'wave' : 'stand';
+    c.poseMode = mode;
+    c.childMode = mode === 'kneel' ? (waving ? 'wave' : 'stand') : mode;
+    const people = c.people;
+    for (let i = 0; i < people.length; i++) {
+      const p = people[i];
+      if (!p.inView && !seeAll) continue;
+      poseSpec.mode = i === 0 ? mode : c.childMode;
+      poseSpec.t = t;
+      kit.pose(p, poseSpec);
+      kit.applyPose(p, dt);
+      gazeOpts.target = i === 0 || c.gazes[0].near ? herHead : null;
+      kit.stepGaze(p, c.gazes[i], dt, t, gazeOpts);
+    }
   }
 
   for (const def of spawns) spawn(def);
@@ -482,6 +606,7 @@ export function createCritters(scene, spawns, opts = {}) {
   function remove(c) {
     scene.remove(c.group);
     if (c.figure) c.figure.visible = false; // contactshadows drops the decal
+    if (c.people) for (const p of c.people) p.figure.visible = false;
     list.splice(list.indexOf(c), 1);
   }
 
@@ -551,8 +676,20 @@ export function createCritters(scene, spawns, opts = {}) {
     },
     dismayNear(pos, range) {
       for (const c of list) {
-        if (!c.hidden && c.type === 'villager' && villagerPos(c, _vp).distanceTo(pos) < range) c.meowWaveT = 1.5;
+        if (!c.hidden && c.type === 'villager' && villagerPos(c, _vp).distanceTo(pos) < range) {
+          c.meowWaveT = 1.5;
+          c.dismayT = DISMAY_TIME; // the people's "oh!" (the wave's timing is unchanged)
+        }
       }
+    },
+    // The head scratch she asked for (interactions.js, the 'scratch' prompt):
+    // the villager kneels at their own spot (see posePeople). Today's figure
+    // has no kneel, so with the switch off this does nothing. A fresh state
+    // per kneel; a hello while they already kneel keeps the kneel going.
+    scratchHello(c) {
+      if (!c?.people) return false;
+      if (!c.scratch) c.scratch = { t: 0, away: 0 };
+      return true;
     },
     // reactToMeow(pos, { far }) — someone meowed at `pos`. The villager wave
     // and the bird/seagull startle are unchanged and unconditional, so with
@@ -604,6 +741,12 @@ export function createCritters(scene, spawns, opts = {}) {
     },
     dispose() {
       for (const c of [...list]) remove(c);
+      // the people: both geometries of every person, the skeletons and their
+      // bone textures, the shared material (once, however often this runs)
+      if (kit && !kitDisposed) {
+        kitDisposed = true;
+        kit.dispose();
+      }
     },
     setFleeModifier(m) {
       fleeModifier = m;
@@ -647,8 +790,17 @@ export function createCritters(scene, spawns, opts = {}) {
       }
       return { type: best.type, wasStalked };
     },
-    update(dt, t, playerPos, catPos) {
+    // cat: the local cat's object (her head part is what the people look at);
+    // null for no look at all. A co-walker's cat is never passed.
+    update(dt, t, playerPos, catPos, cat = null) {
       clock = t;
+      // the people's LOD and view test, once a frame, and her head
+      let herHead = null;
+      if (kit && kit.people.length) {
+        if (!seeAll) kit.update();
+        const head = cat?.userData?.parts?.head;
+        if (head) herHead = head.getWorldPosition(_head);
+      }
       // R29: the cat's ground speed from its last two positions. Timed off
       // `t` (real time, like the cat's own movement) rather than `dt`, which
       // the slow-mo after a perfect sneak shrinks; `dt` only if `t` stalls.
@@ -807,17 +959,20 @@ export function createCritters(scene, spawns, opts = {}) {
         } else if (c.type === 'villager') {
           const arm = c.group.userData.arm;
           if (c.meowWaveT > 0) c.meowWaveT -= dt;
+          if (c.dismayT > 0) c.dismayT -= dt;
           const dWave = villagerPos(c, _vp).distanceTo(playerPos);
-          if (dWave < 5 || c.meowWaveT > 0) {
-            arm.rotation.z = 2.6 + Math.sin(t * 6) * 0.3; // wave
+          const waving = dWave < 5 || c.meowWaveT > 0;
+          if (waving) {
+            if (arm) arm.rotation.z = 2.6 + Math.sin(t * 6) * 0.3; // wave
             if (!c.waved && dWave < 5) {
               c.waved = true;
               bus.emit('villager:wave', { id: c.id });
             }
           } else {
-            arm.rotation.z = 0.4;
+            if (arm) arm.rotation.z = 0.4;
             if (dWave > 8) c.waved = false;
           }
+          if (c.people) posePeople(c, dt, t, waving, _vp, catPos, herHead);
         }
       }
     },

@@ -245,7 +245,7 @@ export function traceArea(areaId, world, motion = MOTION(areaId), { pinMoorDraws
     }
 
     player.update(DT, area.colliders, area.bounds, area.waters);
-    critters.update(DT, t, cat.position, cat.position);
+    critters.update(DT, t, cat.position, cat.position, cat);
     strays.update(DT, t, cat.position, { stalking: player.stalking, catSpeed: player.speed, toy });
     clan?.update(DT, t, cat.position);
     intruders?.update(DT, cat.position);

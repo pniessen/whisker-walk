@@ -1406,7 +1406,7 @@ describe('the whole branch stands on the ground', () => {
     'knockables.js': [['group'], 'liftFor measures a pose with the group at the origin, before it joins the scene'],
     'intruders.js': [['g'], 'measure() poses the visitor at the origin to read its fight dims (catDims), then puts it back where it stood'],
     'rivalcats.js': [['mesh'], 'the border patrol foe\'s measure() poses the warrior at the origin to read its fight dims (catDims), then puts it back where it stood'],
-    'game/walk.js': [['marker', 'questObject'], 'the quest marker is a child of the giver group; the quest object gets ground.y(t) added after its relative y'],
+    'game/walk.js': [['questObject'], 'the quest object gets ground.y(t) added after its relative y (the quest marker, a child of the giver\'s figure, takes questMarkerY now)'],
     'fairshow.js': [['built.wisp'], 'the wisp of candyfloss is a child of her head: an offset in the head\'s own frame'],
     'secrets.js': [['body', 'leg', 'neck', 'head', 'horn', 'tail', 'hat', 'dome', 'ufoState.group'], 'unicorn and gnome parts are local to their group (placed on ground.y); the UFO is a sky object (R14)'],
   };

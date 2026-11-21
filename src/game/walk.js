@@ -35,7 +35,7 @@ import { PAW } from '../ui/pawicon.js';
 import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
-import { createCritters, goatForDay } from '../critters.js';
+import { createCritters, goatForDay, questMarkerY } from '../critters.js';
 import { createStrayCats, strayStream } from '../straycats.js';
 import { createClanCats } from '../clancats.js';
 import { castFor, CLAN_COLOURS, clanCountFor, clanHomeFor, lonersFor, roamHomes, borderWarriorFor } from '../clancast.js';
@@ -647,7 +647,7 @@ export function createWalkLifecycle({
     const pack = areas.loaded(areaOverride ?? progression.state.area);
     if (!pack) throw new Error(`Whisker Walk: area "${areaOverride ?? progression.state.area}" is not loaded; start walks with startWalkWhenReady`);
     // The Farm's animals and the Fair's rides and games come with their place.
-    const { createFarmAnimals, createFairLive, createFairShow, createPeopleKit } = pack.life;
+    const { createFarmAnimals, createFairLive, createFairShow, createPeopleKit, lodNearFor } = pack.life;
     // A visit prize held for the tap (styles A and C) goes on FIRST, before
     // anything below reads state.equipped (the avatar, the collar/crown
     // perks). Style C never dims and A lets go after its reveal, so Start,
@@ -998,6 +998,9 @@ export function createWalkLifecycle({
 
     const critters = createCritters(scene, areaData.critterSpawns, {
       people: peopleOn() ? createPeopleKit : null,
+      camera,
+      reducedMotion,
+      lodNear: () => lodNearFor(qualityAdapter.status?.rung), // the live rung's switch
       fleeScale: equipped.collar === 'bell' ? 0.5 : 1,        // bell: birds tolerate you closer
       spawnFireflies: duskActive,                              // glow: dusk fireflies
       trailButterflies: equipped.head === 'crown',              // crown: butterflies trail the cat
@@ -1051,7 +1054,7 @@ export function createWalkLifecycle({
         litMaterial(0xf2c14e, { emissive: 0x6a5010 })
       );
       marker.rotation.x = Math.PI;
-      marker.position.y = 2.1;
+      marker.position.y = questMarkerY(giver);
       (giver.figure ?? giver.group).add(marker);
       questGiver.marker = marker;
       // quest object at the target, revealed on accept

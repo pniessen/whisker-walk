@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { withLocalUuids } from '../world/localuuids.js';
 import { LOW_RUNG } from '../render/quality.js';
 import { buildSpot } from './figure.js';
+import { pose, applyPose } from './pose.js';
+import { createGaze, stepGaze } from './gaze.js';
 
 export { personFor, pairFor, spotKind } from './look.js';
 export { pose, applyPose, strideFor, POSE_TIMES } from './pose.js';
@@ -46,6 +48,13 @@ export function createPeopleKit({ camera, reducedMotion = false, lodNear = () =>
     material,
     people: [],
     reducedMotion, // (for the callers: see above)
+    // The posing calls, on the kit for callers outside the place packs
+    // (critters.js is in start-up and imports nothing from src/people: it is
+    // handed the kit's factory and reaches these through the kit).
+    pose,
+    applyPose,
+    createGaze,
+    stepGaze,
     buildSpot(def) {
       const spot = buildSpot(def, { material });
       for (const p of spot.people) kit.people.push(p);
