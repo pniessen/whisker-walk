@@ -64,17 +64,27 @@ export function houseWorstSpot(measure, levelIds) {
 // knock-overs, the golden mice, the mice, the yarn ball at its first spot, and the
 // house life (the finds' parts are the build's; the life adds the sunbeams and the
 // dust motes), settled once. Call after the merge and dusk. Returns dispose().
-export async function houseWalkThings(scene, area, { dusk = false, open = false } = {}) {
+export async function houseWalkThings(scene, area, { dusk = false, open = false, cats = 1 } = {}) {
   const { createKnockables } = await import('../../src/knockables.js');
   const { createGoldMice } = await import('../../src/goldmice.js');
   const { createCritters } = await import('../../src/critters.js');
   const { HOUSE_FINDS } = await import('../../src/world/housethings.js');
   const { createToy } = await import('../../src/toy.js');
+  const { buildCat } = await import('../../src/cat/model.js');
   const ground = area.ground;
   const things = [];
   things.push(createKnockables(scene, area.knockables, { ground }));
   things.push(createGoldMice(scene, 'house', new Set(), { ground, list: area.goldMice, rng: () => 0.5 }));
   things.push(createCritters(scene, area.critterSpawns, { ground, hides: area.hides, rng: () => 0.5, motionRng: () => 0.5 }));
+  // the player's cat as walk.js builds it (tabby, nothing worn), at the spawn; the house is solo
+  // until step 4 (ruling S2-13), `cats: 2` is the co-walk's second cat, beside her
+  const catList = [];
+  for (let i = 0; i < cats; i++) {
+    const cat = buildCat('tabby', { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }, {});
+    cat.position.set(area.spawn.x + i, ground.y(area.spawn.x + i, area.spawn.z), area.spawn.z);
+    scene.add(cat);
+    catList.push(cat);
+  }
   const toy = createToy(scene, { ground });
   const spot = area.yarnSpots[0];
   toy.spot = { x: spot.x, z: spot.z };
@@ -91,6 +101,7 @@ export async function houseWalkThings(scene, area, { dusk = false, open = false 
   }
   return () => {
     life.dispose?.();
+    for (const c of catList) scene.remove(c);
     for (const t of things) t.dispose?.();
   };
 }

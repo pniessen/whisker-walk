@@ -10,6 +10,7 @@ const { HOUSE_LEVELS } = await import('../src/world/houseplan.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { applyDusk, createLampPools } = await import('../src/render/dusk.js');
 const { createSun, createFill, castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
+const { SECRET_OPEN_ROT_Y } = await import('../src/world/houseplan.js');
 const { measureHouse, houseWorstSpot, houseWalkThings } = await import('./helpers/housebudget.js');
 
 // =============================================================================
@@ -24,7 +25,7 @@ const ids = HOUSE_LEVELS.map((l) => l.id);
 
 // The scene as the walk renders it: the build, the prop merge, dusk, then the walk's own
 // things (knock-overs, golden mice, mice, the yarn ball) and the house life's air.
-async function renderedHouse(light, secret = 'shut') {
+async function renderedHouse(light, secret = 'shut', cats = 1) {
   const scene = new THREE.Scene();
   const area = build(scene);
   mergeStaticProps(scene); // walk.js's order: merge, then dusk
@@ -32,15 +33,17 @@ async function renderedHouse(light, secret = 'shut') {
     applyDusk({ scene, sun: createSun(), fill: createFill(area.groundBounce), areaData: area });
     createLampPools(scene);
   }
-  const dispose = await houseWalkThings(scene, area, { dusk: light === 'dusk', open: secret === 'open' });
-  return { scene, dispose };
+  const dispose = await houseWalkThings(scene, area, { dusk: light === 'dusk', open: secret === 'open', cats });
+  return { scene, dispose, area };
 }
-async function measured(light, secret) {
-  const { scene, dispose } = await renderedHouse(light, secret);
+async function measured(light, secret, cats = 1) {
+  const { scene, dispose, area } = await renderedHouse(light, secret, cats);
   const m = measureHouse(scene, rig);
-  const pointsDrawn = (() => { let n = 0; scene.traverse((o) => { if (o.isPoints) n++; }); return n; })();
+  const points = new Map(); // houseLevel -> Points drawn there
+  scene.traverse((o) => { if (o.isPoints) points.set(o.userData.houseLevel, (points.get(o.userData.houseLevel) ?? 0) + 1); });
+  const turn = area.house.secret.group.rotation.y;
   dispose();
-  return { m, pointsDrawn };
+  return { m, points, turn };
 }
 
 describe('the worst spot in the house', () => {
@@ -62,17 +65,17 @@ describe('the worst spot in the house', () => {
     }, 60_000);
   }
 
-  it('counts the motes and the walk\'s things: by day the life adds a Points per level and the fixed set grows, at dusk no air', async () => {
+  it('counts the motes and the walk\'s things: a Points on each lit level by day, none at dusk, and the fixed set grows', async () => {
     const bare = new THREE.Scene();
     build(bare);
     mergeStaticProps(bare);
     const base = measureHouse(bare, rig).fixed;
     const day = await measured('day', 'shut');
     const dusk = await measured('dusk', 'shut');
-    expect(day.pointsDrawn).toBeGreaterThan(0);
-    expect(dusk.pointsDrawn).toBe(0);
-    expect(day.m.fixed.meshes).toBeGreaterThan(base.meshes); // knock-overs, mice, golden mice and the ball are drawn
-    for (const id of ids) expect(day.m.at(id).meshes, id).toBeGreaterThan(dusk.m.at(id).meshes - 1);
+    for (const id of ['ground', 'upstairs', 'attic']) expect(day.points.get(id), id).toBeGreaterThanOrEqual(1);
+    expect(day.points.has('cellar')).toBe(false); // the cellar has no window
+    expect(dusk.points.size).toBe(0);
+    expect(day.m.fixed.meshes).toBeGreaterThan(base.meshes); // the cat, knock-overs, mice, golden mice and the ball are drawn
   }, 60_000);
 
   it('draws far levels simply: a stand-in costs less than the detail it stands for', async () => {
@@ -100,8 +103,12 @@ describe('the worst spot in the house', () => {
 
   it('opening the bookcase adds no draw', async () => {
     for (const light of ['day', 'dusk']) {
-      const shut = (await measured(light, 'shut')).m;
-      const open = (await measured(light, 'open')).m;
+      const shutRun = await measured(light, 'shut');
+      const openRun = await measured(light, 'open');
+      expect(shutRun.turn, light).toBeCloseTo(0, 9);
+      expect(openRun.turn, light).toBeCloseTo(SECRET_OPEN_ROT_Y, 6); // it really swung open
+      const shut = shutRun.m;
+      const open = openRun.m;
       for (const id of ids) expect(open.at(id), `${light} ${id}`).toEqual(shut.at(id));
     }
   }, 90_000);
