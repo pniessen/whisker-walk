@@ -216,6 +216,27 @@ describe('people gaze', () => {
     }
   });
 
+  // (final review, finding 6) the glance's side is chosen as it starts: her
+  // moving on mid-glance does not swing it to the other side
+  it('the glance keeps its side to its end', () => {
+    const r = rig((look) => look.seed < 0.5); // the hash's side: + (the figure's left)
+    const before = around(r, GAZE.LOOK_MAX - 0.35, 2.5); // room for the glance that side
+    const after = around(r, GAZE.LOOK_MAX - 0.1, 2.5); // and now not
+    const off = [], facing = [];
+    run(r, 8, (t) => (t < 4.4 ? before : after), {
+      each: (rr) => { off.push([rr.t, headFacing(rr) - yawTo(rr, rr.t < 4.4 ? before : after)]); facing.push([rr.t, headFacing(rr)]); },
+    });
+    const end = 4 + GAZE.GLANCE_FOR;
+    const g = off.filter(([t]) => t >= 4.1 && t < 4.4).map(([, d]) => d);
+    expect(Math.max(...g)).toBeGreaterThan(0.1); // glancing, to the + side
+    // she moves on 0.25 rad to his left mid-glance: the head goes on round to
+    // her left (the glance's side, as far as the turn goes), never back
+    const f = facing.filter(([t]) => t >= 4.4 && t < end).map(([, y]) => y);
+    for (let i = 1; i < f.length; i++) expect(f[i]).toBeGreaterThan(f[i - 1] - 1e-4);
+    for (const [t, d] of off) if (t >= 4.7 && t < end) expect(d).toBeGreaterThan(0.03);
+    expect(Math.max(...f)).toBeLessThan(GAZE.LOOK_MAX + 0.02); // the turn still stops at 75
+  });
+
   it('not behind: she is 120 degrees round, no turn; past 75 the turn stops at 75', () => {
     const r = rig();
     run(r, 3, around(r, (120 * Math.PI) / 180, 2));

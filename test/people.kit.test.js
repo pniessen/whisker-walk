@@ -84,6 +84,28 @@ describe('people kit', () => {
     kit.dispose();
   });
 
+  // (final review, finding 4) the walk moves people's groups and renders
+  // after update(): inView must not wait for the render to refresh matrices
+  it('in view from where the person is now, the caller not updating matrices', () => {
+    const kit = createPeopleKit({ camera: makeCamera() });
+    const [p] = kit.buildSpot(adultSpot).people;
+    place(p, 0, -6);
+    kit.update();
+    expect(p.inView).toBe(true);
+    p.figure.position.set(0, 0, 6); // behind the camera, no updateMatrixWorld
+    kit.update();
+    expect(p.inView).toBe(false);
+    p.figure.position.set(0, 0, -6);
+    kit.update();
+    expect(p.inView).toBe(true);
+    kit.dispose();
+  });
+
+  it('keeps reducedMotion for its callers (they pass it to pose and stepGaze)', () => {
+    expect(createPeopleKit({ camera: makeCamera() }).reducedMotion).toBe(false);
+    expect(createPeopleKit({ camera: makeCamera(), reducedMotion: true }).reducedMotion).toBe(true);
+  });
+
   it('out of view', () => {
     const kit = createPeopleKit({ camera: makeCamera() });
     const [p] = kit.buildSpot(adultSpot).people;

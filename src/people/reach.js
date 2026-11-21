@@ -323,7 +323,7 @@ const ARM = {
   reached: false,
   folded: false, // the solve wanted a tighter fold than the arm goes
 };
-let PERSON = null;
+let PERSON = null; // the person of the stepScratch call under way (armOf); let go at its end
 const _eul = new THREE.Euler(0, 0, 0, 'YXZ');
 const _qc = new THREE.Quaternion();
 const _qcw = new THREE.Quaternion();
@@ -629,8 +629,9 @@ const timeFor = (L, least) => Math.max(least, (PEAK * L * 1.05) / VMAX);
 
 // ---- the way in ----------------------------------------------------------------------
 // Through key places, as a Catmull-Rom curve walked by its length: from where
-// the hand is, (by way of the ready place in front of the chest, when the
-// straight way would pass her face), up and drawn in toward the shoulder,
+// the hand is, (by way of the ready place in front of the chest, for the
+// WAYS that go by it), up and drawn in toward the shoulder (as far as the way
+// has it),
 // over to the point ABOVE her head, and straight down to the touch. Plus the
 // rise the plan gives it to clear her (sc.plan, at WAY_N + 1 places along it).
 const KEYS = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
@@ -724,14 +725,17 @@ function vAt(a) {
 // the risen way's point at a (after measureWay)
 const wayAt = (plan, a, out) => riseAt(plan, vAt(a), out);
 
-// planWay(sc, touchYaw, vol) reads this frame's module state: _top (her
-// head's top), _T (the touch), _s0 (the unleaned shoulder) and _ready (the
-// ready place), and sc.palm / sc.yaw. It plans the way in as it would be
+// planWay(sc, touchYaw, vol) reads this frame's module state, set by
+// stepScratch before it: _top (her head's top), _T (the touch), _s0 (the
+// unleaned shoulder), _ready (the ready place), ARM and PERSON (armOf, for
+// the solves and the chest), HAND_K (1: no way in is planned during the
+// hand-off); and sc.palm / sc.yaw. It plans the way in as it would be
 // walked, frame by frame at 1/60 s with her still: the rise each stretch
 // needs to clear her (at most PLAN_RISE), then the time that keeps the palm
-// under VMAX, then every frame checked. The straight way first, then by way
-// of the ready place. False when neither is clear (no touch starts; it is
-// tried again after PLAN_RETRY).
+// under VMAX, then every frame checked. It tries the six WAYS in turn (drawn
+// in toward the shoulder less and less, each straight and then by way of the
+// ready place) and keeps the first that works (sc.via). False when none is
+// clear (no touch starts; it is tried again after PLAN_RETRY).
 const WAY_N = 12;
 const PLAN_RISE = 0.35;
 const PLAN_ROUNDS = 6;

@@ -22,6 +22,11 @@ const _m = new THREE.Matrix4();
 const _frustum = new THREE.Frustum();
 const _sphere = new THREE.Sphere();
 
+// reducedMotion is kept on the kit for its callers: the kit itself poses no
+// one, so the walk reads kit.reducedMotion and passes it on each frame to
+// pose() (spec.reducedMotion: no weight shift, breathing or wave swing) and
+// stepGaze() (opts.reducedMotion: no glance, turns twice as slow). The head
+// scratch has no reduced-motion form (its hand is slow and eased already).
 export function createPeopleKit({ camera, reducedMotion = false, lodNear = () => LOD.NEAR } = {}) {
   // one material for everyone, its uuid drawn locally (no real Math.random)
   const material = withLocalUuids('people-kit', () => new THREE.MeshStandardMaterial({
@@ -32,7 +37,7 @@ export function createPeopleKit({ camera, reducedMotion = false, lodNear = () =>
   const kit = {
     material,
     people: [],
-    reducedMotion,
+    reducedMotion, // (for the callers: see above)
     buildSpot(def) {
       const spot = buildSpot(def, { material });
       for (const p of spot.people) kit.people.push(p);
@@ -51,7 +56,10 @@ export function createPeopleKit({ camera, reducedMotion = false, lodNear = () =>
         const d = _pos.distanceTo(_cam);
         if (d >= farOut) { if (p.detail !== 'far') p.setDetail('far'); }
         else if (d <= nearIn) { if (p.detail !== 'near') p.setDetail('near'); }
-        _sphere.copy(p.mesh.boundingSphere).applyMatrix4(p.mesh.matrixWorld);
+        // (the figure's matrix, just refreshed by getWorldPosition; the
+        // mesh's own waits for the render, and its local transform is the
+        // identity)
+        _sphere.copy(p.mesh.boundingSphere).applyMatrix4(p.figure.matrixWorld);
         p.inView = _frustum.intersectsSphere(_sphere);
       }
     },

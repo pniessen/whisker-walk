@@ -405,6 +405,9 @@ function dismayed(r, look) {
     r[S.hand + 1] = -S.sd * Math.PI / 2; // the palm, which faces in at rest, to the front
     r[S.hand + 2] = S.sd * 0.3; // the fingers a little nearer upright
   }
+  // the chest 0.1 rad back from the person's own stoop (ruling R16): an older
+  // person's stoop is 0.15 forward, so they stay a little forward of upright
+  // (0.1 back from upright would throw the body back 0.25 rad at once)
   r[CHEST] = 0.1 - 0.15 * look.dims.stoop;
 }
 

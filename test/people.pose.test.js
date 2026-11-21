@@ -216,6 +216,22 @@ describe('people poses', () => {
     }
   });
 
+  // ruling R16: an older person's dismay leans the chest 0.1 rad back from
+  // their own stoop, not 0.1 back from upright (that would throw the body
+  // back 0.25 rad at once)
+  it('dismay, an older person: the chest 0.1 rad back from the stoop, not from upright', () => {
+    const p = personOf('older');
+    const tilt = () => { const up = axisWorld(p.bones.chest, 0, 1, 0); return Math.atan2(up.z, up.y); };
+    poseAt(p, { mode: 'stand', t: 2, reducedMotion: true }, 30);
+    const stoop = tilt();
+    expect(stoop).toBeLessThan(-0.12); // stooped forward
+    poseAt(p, { mode: 'dismay', t: 2, reducedMotion: true }, 30);
+    const back = tilt() - stoop;
+    expect(back).toBeGreaterThan(0.07);
+    expect(back).toBeLessThan(0.14);
+    expect(tilt()).toBeLessThan(0); // still a little forward of upright
+  });
+
   it('dismay: the hands stay out at the sides, 0.3 m from the head, whichever way it turns', () => {
     // ruling R8: a surprised "oh!" with the hands up by the shoulders and out
     // to the sides, never over the face, even with the head turned as far

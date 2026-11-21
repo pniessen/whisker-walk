@@ -438,8 +438,14 @@ describe('the head scratch', () => {
         }
       }
     }
-    console.info(`the scan: ${cells.length} cells, ${far.length} out of reach: ${far.join(', ')}`);
     expect(missed, `${cells.length} cells`).toEqual([]);
+    // out of reach (the arm and the chest's lean too short): the Hagrid's far
+    // cells only, the shorter the adult the nearer
+    expect(far).toEqual([
+      'hagrid 1.61 m at 0.9 m', 'hagrid 1.61 m at 0.95 m', 'hagrid 1.61 m at 1 m',
+      'hagrid 1.7 m at 0.95 m', 'hagrid 1.7 m at 1 m',
+      'hagrid 1.8 m at 1 m',
+    ]);
   }, 120000);
 
   it('no way in (a Maine Coon 1 m in front of a 1.61 m adult): the hand goes back to held out, not parked at the chest', () => {
@@ -451,7 +457,7 @@ describe('the head scratch', () => {
       expect(frame(r, cat)).toBe('held');
       expect(worstClearance(r.p, r.vol), `frame ${i}`).toBeGreaterThan(0.005);
     }
-    expect(r.sc.blocked).toBe(true); // not planned again till she moves
+    expect(r.sc.blocked).toBe(true); // no way in: tried again every 0.25 s (PLAN_RETRY), none found
     const l = local(r, palmPoint(r.p, new THREE.Vector3()));
     expect(-l.z).toBeGreaterThan(0.2); // held out toward her
     expect(-l.z).toBeLessThanOrEqual(REACH.HELD_MAX);

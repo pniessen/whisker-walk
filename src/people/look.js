@@ -20,12 +20,19 @@ export function spotKind(def = {}) {
 }
 
 // Children never stand alone: a child spot holds a grown-up and the child,
-// both from the same spot, so they share a hair colour.
+// both from the same spot, so they share a hair colour. The child's seed (the
+// idle's phase, the blinks, the glance's side) comes from another salt, so
+// the two never blink and glance in step.
+const CHILD_SEED_SALT = 15;
 export function pairFor(def = {}) {
   // an explicit kind wins: 'child' always pairs, 'adult'/'older' never do
   const child = def.kind === undefined ? spotKind(def) === 'child' : def.kind === 'child';
   if (!child) return null;
-  return { adult: personFor({ ...def, kind: 'adult' }), child: personFor({ ...def, kind: 'child' }) };
+  const kid = personFor({ ...def, kind: 'child' });
+  const x = Number.isFinite(def.x) ? def.x : 0;
+  const z = Number.isFinite(def.z) ? def.z : 0;
+  kid.seed = spotHash(x, z, 20 + CHILD_SEED_SALT);
+  return { adult: personFor({ ...def, kind: 'adult' }), child: kid };
 }
 
 // ---- palettes ---------------------------------------------------------------
@@ -91,7 +98,7 @@ export function personFor(def = {}) {
     shoes: def.shoes ?? shoes,
     hat: def.hat === undefined ? hat : def.hat,
     glasses: def.glasses ?? glasses,
-    seed: u(14), // the idle's own phase (never a roll)
+    seed: u(14), // the idle's own phase (never a roll; a pair's child: salt 20 + 15, see pairFor)
   };
   look.dims = bodyDims(look);
   return look;

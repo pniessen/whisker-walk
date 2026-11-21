@@ -74,6 +74,7 @@ export function createGaze(look) {
   return {
     seed: look.seed,
     side: look.seed < 0.5 ? 1 : -1, // the glance's side: + is the figure's left
+    glanceSide: 1, // the side of the glance under way (chosen as it starts)
     near: false,
     looking: false,
     lookT: 0, // seconds of looking since the last glance
@@ -161,7 +162,10 @@ export function stepGaze(person, gaze, dt, t, opts = NO_OPTS) {
   }
 
   // gaze shifts (she is looked at, she is let go, a glance, its end) start
-  // with a blink; the glance comes after GLANCE_AFTER of looking
+  // with a blink; the glance comes after GLANCE_AFTER of looking, to the
+  // spot's side unless there is no room that side, chosen as it starts and
+  // kept to its end
+  const turn = looking ? clamp(lookYaw, -GAZE.LOOK_MAX, GAZE.LOOK_MAX) : 0;
   if (looking !== g.looking) {
     g.looking = looking;
     g.lookT = 0;
@@ -173,17 +177,19 @@ export function stepGaze(person, gaze, dt, t, opts = NO_OPTS) {
       if (g.glanceT >= GAZE.GLANCE_FOR || reduced) { g.glanceT = -1; g.lookT = 0; g.shiftT = 0; }
     } else {
       g.lookT += dt;
-      if (g.lookT >= GAZE.GLANCE_AFTER && !reduced) { g.glanceT = 0; g.shiftT = 0; }
+      if (g.lookT >= GAZE.GLANCE_AFTER && !reduced) {
+        g.glanceT = 0;
+        g.shiftT = 0;
+        g.glanceSide = Math.abs(turn + g.side * GAZE.GLANCE_YAW) > GAZE.LOOK_MAX ? -g.side : g.side;
+      }
     }
   }
 
   // what the turn and the eyes go to
   let yawTo = 0, pitchTo = 0, gazeYaw = 0;
   if (looking) {
-    const turn = clamp(lookYaw, -GAZE.LOOK_MAX, GAZE.LOOK_MAX);
-    let glance = g.glanceT >= 0 ? g.side * GAZE.GLANCE_YAW : 0;
-    if (Math.abs(turn + glance) > GAZE.LOOK_MAX) glance = -glance; // no room that side
-    yawTo = turn + glance;
+    const glance = g.glanceT >= 0 ? g.glanceSide * GAZE.GLANCE_YAW : 0;
+    yawTo = clamp(turn + glance, -GAZE.LOOK_MAX, GAZE.LOOK_MAX); // (she may have moved on since)
     gazeYaw = lookYaw + glance;
     pitchTo = clamp(lookPitch, NOD_MIN, NOD_MAX);
   }
