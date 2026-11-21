@@ -48,9 +48,9 @@ export const FARM_GRASS = 0x62a24e;
 // The lane, the yard and the tracks: packed earth.
 export const FARM_PATH_STYLE = Object.freeze({ surface: 'sand', color: 0xb99a6e });
 
-// The lane's south end is at the map's edge (z 50) and runs on this far, out
-// through the hedge's field gate and in under the rising hills (the Park's
-// south walk does the same).
+// The lane's south end is at the map's edge (z 50) and runs on this far, in
+// under the hedge across its end and the rising hills (the Park's south walk
+// does the same).
 export const FARM_PATH_EXTEND = 17;
 
 // Just outside the gate, on the lane: the walk opens looking in under the
@@ -187,10 +187,10 @@ export const FARM_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 7, wavelength: 36,
   color: 0x86b874, salt: 71,
   nearColor: FARM_GRASS,
-  edge: Object.freeze({
-    half: 60, style: 'hedge',
-    gaps: Object.freeze([Object.freeze({ x: 0, z: 60.6, r: 2 })]),
-  }),
+  // The hedge runs right round, across the lane too (gateways placement
+  // round, 2026-11-21: its shut field gate read as one more gate that never
+  // opens, beside the real gate back to the Park).
+  edge: Object.freeze({ half: 60, style: 'hedge' }),
 });
 
 // Fence runs: [x1, z1, x2, z2]. Gateways are simply left out.
@@ -287,7 +287,7 @@ export function build(scene, { water = {}, wind } = {}) {
   lawn.updateMatrix();
   tintGround(lawn, farmGroundTint);
   scene.add(lawn);
-  // Rolling fields past a hedge, with a field gate where the lane runs out.
+  // Rolling fields past a hedge that runs right round.
   scene.add(b.horizonBand(FARM_HORIZON));
 
   const colliders = [];

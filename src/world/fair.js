@@ -223,10 +223,10 @@ export const FAIR_HORIZON = Object.freeze({
   // behind the gate, olive to the west
   sideTints: Object.freeze({ north: 0x8db0a0, east: 0xb4b872, south: 0x6f9f5e, west: 0x93a46a }),
   nearColor: FAIR_GRASS,
-  edge: Object.freeze({
-    half: 60, style: 'hedge',
-    gaps: Object.freeze([Object.freeze({ x: 0, z: 60.6, r: 2 })]),
-  }),
+  // The hedge runs right round, across the lane too (gateways placement
+  // round, 2026-11-21: its shut field gate read as one more gate that never
+  // opens, beside the real gate back to the Park).
+  edge: Object.freeze({ half: 60, style: 'hedge' }),
 });
 
 // Where the lawn's tufts do not grow (for render/grass.js, once registered):
