@@ -50,7 +50,7 @@ describe('the phrase table', () => {
   it('imports only the door to the word files, so anything may import it', () => {
     const specs = [...read('src/clanphrases.js').matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
     expect(specs).toEqual(['./wordset.js']);
-    expect(noComments(read('src/clanphrases.js'))).not.toMatch(/document|window|localStorage|THREE/);
+    expect(noComments(read('src/clanphrases.js'))).not.toMatch(/document|\bwindow\.[A-Za-z]|localStorage|THREE/); // (the attic window's lines say "window" in prose)
   });
 
   it('every phrase(...) call in src/ names an id the table has, and every id is used', () => {
@@ -133,5 +133,20 @@ describe('the eleven lines that were built inside closures say what they said', 
     expect(w.lost('Stoatfur', true)).toBe('Stoatfur won this time. That scratch will heal soon!');
     expect(w.lost('Stoatfur', false)).toBe('Stoatfur won this time. Try again soon!');
     expect(FIGHT_MOVES.map((m) => `${m.name} / ${m.short}`)).toEqual(['Rear-up Swat / Swat', 'Leap and Scratch / Leap', 'Pin / Pin', 'Rolling Tumble / Tumble']);
+  });
+});
+
+// Rooftops step 4 (2026-11-21): the painted name board on the town's gate to
+// the Rooftops (world/gateway.js) reads the place's shown name without a
+// leading "The ".
+describe('gate.sign, the name painted on a gate', () => {
+  it('drops a leading "The " (any case) and keeps every other name as it is', () => {
+    expect(hasPhrase('gate.sign')).toBe(true);
+    expect(phrase('gate.sign', 'The Rooftops')).toBe('Rooftops');
+    expect(phrase('gate.sign', 'the Rooftops')).toBe('Rooftops');
+    expect(phrase('gate.sign', 'THE Moor')).toBe('Moor');
+    expect(phrase('gate.sign', 'Seaside')).toBe('Seaside');
+    expect(phrase('gate.sign', 'Theatre Lane')).toBe('Theatre Lane');
+    expect(phrase('gate.sign', '')).toBe('');
   });
 });

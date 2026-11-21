@@ -1956,6 +1956,20 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       expect(h.prefetched).toEqual([]);
     });
 
+    // Rooftops step 4 (Review Focus 4): the Rooftops' alley door asks in a
+    // Clan walk, and a Legacy Rooftops walk has no door to ask at.
+    it("the Rooftops' alley door: 'Head to' the town in Clan Edition, nothing in Legacy", () => {
+      const clan = gateHarness({ areaId: 'roofs', walks: { fair: 2 }, owned: ['roofs'] });
+      clan.walkTo(14, 44.5);
+      expect(clan.session.prompt.kind).toBe('gate');
+      expect(clan.session.prompt.data.end.id).toBe('roofs-town');
+      const legacy = gateHarness({ areaId: 'roofs', walks: { fair: 2 }, owned: ['roofs'] });
+      legacy.progression.state.edition = 'legacy';
+      legacy.walkTo(14, 44.5);
+      expect(legacy.session.prompt).toBe(null);
+      expect(legacy.prefetched).toEqual([]);
+    });
+
     it('perched, swimming or fighting shows none', () => {
       const h = gateHarness({ owned: ['farm'] });
       h.session.perched = { x: 41, y: 0.6, z: 10 };

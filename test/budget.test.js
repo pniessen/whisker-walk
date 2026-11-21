@@ -521,7 +521,7 @@ const MERGED_AREAS = [
   ['gorge', buildGorge, 260, 205],
   ['farm', buildFarm, 200, 135], // measured 176 / 119
   ['fair', buildFair, 200, 140], // measured 178 / 124
-  ['roofs', buildRoofs, 64, 34], // measured 59 / 30 (57 / 30 before Rooftops step 3's two sleeping cats, Task 6, never merged; 56 / 30 before round two's lamp halo, Task G; 55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
+  ['roofs', buildRoofs, 64, 34], // measured 60 / 30 (59 / 30 before the Rooftops step 5 fix wave's vane, its own mesh so the tower view can fade it, never merged; 57 / 30 before Rooftops step 3's two sleeping cats, Task 6, never merged; 56 / 30 before round two's lamp halo, Task G; 55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
   ['market', buildMarket, 110, 27], // measured 98 / 24 after Task 6's rework and review (its clutter, the controller's ruling), +12%; 76 / 23 before
 ];
 
@@ -618,8 +618,14 @@ describe('with the Clan dressing', () => {
 // cliff lost the hidden bottom face (720 triangles), so
 //   seaside triangles   29,513 -> 28,793 bare, 29,125 dressed
 // ---------------------------------------------------------------------------
+// Rooftops step 4 added the town's third signpost (town-roofs) and the
+// Rooftops' alley door (roofs-town), inside the same ceilings.
 describe('with the gateways (world map step 3)', () => {
-  for (const [name, build, meshCeiling, casterCeiling, triangleCeiling] of AREAS.filter(([n]) => ['neighborhood', 'park', 'fair', 'farm', 'docks', 'seaside'].includes(n))) {
+  it('covers every place with a gate, the Rooftops and the town\'s three signposts among them', () => {
+    expect(endsFor('neighborhood').map((e) => [e.id, e.look])).toEqual([['town-park', 'signpost'], ['town-docks', 'signpost'], ['town-roofs', 'signpost']]);
+    expect(endsFor('roofs').map((e) => [e.id, e.look])).toEqual([['roofs-town', 'alleydoor']]);
+  });
+  for (const [name, build, meshCeiling, casterCeiling, triangleCeiling] of AREAS.filter(([n]) => ['neighborhood', 'park', 'fair', 'farm', 'docks', 'seaside', 'roofs'].includes(n))) {
     const merged = MERGED_AREAS.find(([n]) => n === name);
     it(`${name}: dressed, still under ${meshCeiling} / ${casterCeiling} / ${triangleCeiling}, merged under ${merged[2]} / ${merged[3]}`, () => {
       const scene = new THREE.Scene();

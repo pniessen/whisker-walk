@@ -205,7 +205,7 @@ function system(name, { props = {}, impl = {} } = {}) {
 const SYSTEMS = [
   'critters', 'strayCats', 'clanCats', 'intruders', 'areaLife', 'secrets', 'rival', 'dog', 'farm', 'fair',
   'fightCam', 'stripTiles', 'treeFade', 'rustle', 'kittenEnc', 'tippables', 'knockables', 'scent', 'fx',
-  'skyLife', 'water', 'waterDress', 'shadows', 'wind', 'grass', 'paws', 'clouds', 'ambient', 'splash', 'fish',
+  'skyLife', 'water', 'waterDress', 'shadows', 'wind', 'grass', 'paws', 'balloons', 'clouds', 'ambient', 'splash', 'fish',
   'chatBubbles', 'ghosts', 'denCats', 'decals', 'traversal',
 ];
 

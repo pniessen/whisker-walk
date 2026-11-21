@@ -15,7 +15,7 @@
 //
 // Not on the map: the den (home, a Menu tile), and the House (not
 // built yet), and today's border posts. The Rooftops is on it, inside the
-// town (TOWN_PLACES), coming soon until its catalog row exists.
+// town (TOWN_PLACES), a place like the others since its catalog row went in.
 //
 // One thing moves on the world map only: the Moor's camp (WORLD_CAMP_AT).
 // The world map's bigger words leave no room for it on the Moor's north edge
@@ -43,9 +43,8 @@ export const STREET_PLACES = freezeAll([
 export const STREET_LAND = Object.freeze({ park: '#b9dc8f', fair: '#e9b7c9', farm: '#e3cf7e', docks: '#b7b9bf', seaside: '#ecdca8' });
 
 // Places inside the town, drawn on top of it: the Rooftops, up the back
-// alley's fire escape (draft 2's "Rooftops"). Its name is read from the word
-// tables by id (placeName knows only catalog areas), so it shows before the
-// catalog has its row.
+// alley's fire escape (draft 2's "Rooftops"). Its name comes from the word tables
+// (placeName reads PLACE_WORDS.roofs).
 export const TOWN_PLACES = freezeAll([
   { id: 'roofs', areaId: 'roofs', x: 905, y: 458, r: 46 },
 ]);
@@ -68,6 +67,8 @@ export const GATEWAYS = Object.freeze([
   { id: 'park-farm', from: 'park', to: 'farm', road: [[1168, 450], [1210, 440], [1240, 430], [1235, 405]] },
   { id: 'town-docks', from: 'neighborhood', to: 'docks', road: [[860, 676], [870, 700], [885, 700], [892, 690]] },
   { id: 'docks-seaside', from: 'docks', to: 'seaside', road: [[980, 780], [1040, 790], [1110, 790], [1140, 765]] },
+  // The Rooftops' circle lies over the town's north rim: round the east side, in the open.
+  { id: 'town-roofs', from: 'neighborhood', to: 'roofs', road: [[946, 520], [980, 508], [984, 468], [951, 455]] },
 ].map((g) => Object.freeze({ ...g, road: pts(g.road) })));
 
 // A camp the world map draws somewhere other than CAMP_AT. The Moor's: on
@@ -104,7 +105,7 @@ export function worldMapModel(state, catalog, { touch = false } = {}) {
     ...TOWN_PLACES.map((p) => ({
       id: p.id, areaId: p.areaId, x: p.x, y: p.y, r: p.r,
       kind: 'town', name: words().PLACE_WORDS[p.id], status: catalog?.areas?.[p.areaId] ? 'built' : 'soon', camp: null,
-      ...placeState(state, catalog, p.areaId),
+      ...placeState(state, catalog, p.areaId, { touch }),
     })),
   ];
   return {

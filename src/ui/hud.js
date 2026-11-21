@@ -39,13 +39,16 @@ export function discoveryText({ type, label, repeat }) {
   // The Farm's jobs and finds say their own whole line (src/farmwords.js), as
   // does a found outfit's pouch (foundwear/play.js) and the Market's treats
   // and teamwork (src/marketwords.js).
-  if (type === 'intruder' || type === 'border' || type === 'farmjob' || type === 'farmfind' || type === 'fairgame' || type === 'fairfind' || type === 'pouch' || type === 'treat' || type === 'teamtreat') return label;
+  if (type === 'intruder' || type === 'border' || type === 'farmjob' || type === 'farmfind' || type === 'fairgame' || type === 'fairfind' || type === 'roofsfind' || type === 'pouch' || type === 'treat' || type === 'teamtreat') return label;
   if (type === 'goal') {
     return label.startsWith(GOAL_LEAD)
       ? `Goal complete: ${label.slice(GOAL_LEAD.length)}`
       : `You finished ${label}`;
   }
   if (type === 'jackpot' || type === 'duogoal') return capitalise(label);
+  // A pounce's label is its own sentence ("you pounce-tagged a sparrow!",
+  // game/avatar.js), so it never takes "You spotted" in front.
+  if (type === 'hunt') return repeat ? `Again — ${label}` : capitalise(label);
   return `${repeat ? 'Again — ' : 'You spotted '}${label}`;
 }
 

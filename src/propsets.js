@@ -384,6 +384,7 @@ const SETS = {
       { id: 'roofs-drink-1', kind: 'drink', x: -8, z: 42, mesh: true },   // a water bowl in the alley
       { id: 'roofs-eat-1', kind: 'eat', x: 22, z: 38, mesh: true },       // a dish at the alley's east end
       { id: 'roofs-nap-1', kind: 'nap', x: 14.5, z: 31.5, mesh: true },   // a cushion on the shed roof
+      { id: 'roofs-nap-2', kind: 'nap', x: -10, z: 7.5, mesh: false },   // the warm chimney stack: the bricks are the bed
     ],
     // Behind the bins, on the garage roof by the fire escape, at the tank's foot.
     hides: [{ x: 14.5, z: 37 }, { x: -24, z: 30.5 }, { x: -26, z: -31.3 }],

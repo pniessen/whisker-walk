@@ -142,6 +142,22 @@ const TABLE = Object.freeze({
   'landmark.river.warmPebble': 'a sun-warmed pebble on the low rock',
   'landmark.island.ring': 'the meeting ring under the old ash',
   'landmark.island.stoneFind': 'a bright beetle wing on a meeting stone',
+
+  // ---- her birthday (2026-11-21): the Gathering on the island ----------------
+  // the home screen's line above Explore while the event is on
+  'bday.home': () => `The ${groupWord()}s are gathering for your birthday! 🎂`,
+  // the leader on the rock; `name` is the name of the cat she is playing as
+  'bday.announce': (name) => `Cats of all the ${groupWord()}s, gather! Today is ${name}'s birthday!`,
+  // the cats' short cheers
+  'bday.cheer.one': 'Happy birthday!',
+  'bday.cheer.two': 'Hooray! 🎉',
+  'bday.cheer.three': 'Happy birthday! 🎂',
+  // the action prompt beside the cake, and the toast once the candles are out
+  'bday.prompt': 'E — Blow out the candles 🎂',
+  'bday.wish': 'Make a wish! 🎂',
+  // the photo the game takes for her Album after the candles, and its toast
+  'bday.photo': 'My birthday 2026',
+  'bday.photoSaved': '📸 Saved to your Album!',
 });
 
 // ---- lines added on 2026-11-18, for a set that says them differently ---------
@@ -408,6 +424,22 @@ const LATER = Object.freeze({
   'wear.haybalepack.name': 'Hay-bale Backpack',
   'wear.candyflosspuff.name': 'Candyfloss Puff',
   'wear.puddlewellies.name': 'Puddle Wellies',
+  // ---- the birthday (2026-11-21): the gift outfits and the home party ----
+  // The four outfits only a gift code gives (src/foundwear/gifts.js).
+  'wear.partyhat.name': 'Party Hat',
+  'wear.bdayrosette.name': 'Birthday Rosette',
+  'wear.bdayballoon.name': 'Birthday Balloon',
+  'wear.cakecharm.name': 'Cake Charm',
+  'wear.birthdayhat.name': 'Birthday Hat',
+  // the birthday kitten the present holds: "Ribbon" and the kit word of the set in use
+  'cat.ribbonkit.name': () => `Ribbon${words().RANK_SUFFIX.kit}`,
+  // the line when the present is opened
+  'present.label': 'A present for you! Tap to open it',
+  'present.opened': (name) => `${name} is yours! 🎀`,
+  // the home screen's banner while the birthday is on; the name is her cat's
+  'party.banner': (catName) => `Happy birthday, ${catName}! 🎂`,
+  // the line with the brother's code's confetti
+  'party.time': 'Party time! 🎉',
   'wear.card.title': 'You found something to wear! ✨',
   'wear.card.kept': 'It’s in the dress-up at home now, for good.',
   'wear.card.wear': 'Wear it',
@@ -452,6 +484,30 @@ const LATER = Object.freeze({
   'start.notReady': 'That place isn’t quite ready yet. Try again in a moment! 🐾',
   'start.notReadyOffline': 'That place needs the internet the first time. Try again when you’re online! 🐾',
   'start.notReadyReload': 'Still not ready. Tap Explore once more and the game starts fresh. Everything you found is saved. 🐾',
+  // ---- Rooftops step 4 (2026-11-21) ----
+  'critter.pigeon': 'a cooing pigeon',
+  // the name painted on a gate's board (world/gateway.js, an end with `sign`):
+  // the place's shown name without a leading "The ", so 'The Rooftops' -> 'Rooftops'
+  'gate.sign': (place) => String(place ?? '').replace(/^the\s+/i, ''),
+  // ---- Rooftops step 5 (2026-11-21) ----
+  'roofs.page.garden.name': 'Rooftop Garden',
+  'roofs.page.garden.hint': 'High up, someone grows tomatoes.',
+  'roofs.page.loft.name': 'Pigeon Loft',
+  'roofs.page.loft.hint': 'Where do the pigeons go home at night?',
+  'roofs.page.vane.name': 'Top of the Clock Tower',
+  'roofs.page.vane.hint': 'Climb as high as a cat can go.',
+  'roofs.page.skylight.name': 'The Attic Window',
+  'roofs.page.skylight.hint': 'One roof has a warm, glowing window in it.',
+  'roofs.page.telescope.name': 'The Telescope',
+  'roofs.page.telescope.hint': 'Someone looks at the sky from a roof.',
+  'roofs.page.chimney.name': 'Warm Chimney',
+  'roofs.page.chimney.hint': 'Find a warm spot up high and sit a while.',
+  'roofs.find.garden': 'A garden on the roof! Tomatoes and twinkly lights. 🍅',
+  'roofs.find.loft': 'The pigeon loft! Coo, coo. One pigeon wants to come with you. 🕊️',
+  'roofs.find.vane': 'The very top! You can see the whole town. 🌇',
+  'roofs.find.skylight': 'A peek in the attic window. Someone is reading a bedtime story. 📖',
+  'roofs.find.telescope': 'You look through the telescope. Hello, moon! 🌕',
+  'roofs.find.chimney': 'A warm chimney! Puff, a smoke ring. What a cosy spot. 💨',
 
   // ---- the Market Square (2026-11-20): its own words, the same in every set ----
   'market.treat.fishhead': 'a fish head',

@@ -40,11 +40,14 @@ export function areaInEdition(entry, edition) {
   return !(edition === 'legacy' && entry && entry.edition === 'canon');
 }
 
-// Own-property read so '__proto__' and friends are not areas.
+// Own-property read so '__proto__' and friends are not areas. A place whose
+// name is in the word tables by its own id (the Rooftops) takes it from there,
+// as the world map does, so a word set's name shows wherever the place is named.
 export function placeName(areaId, edition, catalog) {
   if (areaId === 'neighborhood' && edition !== 'legacy') return words().PLACE_WORDS.town;
   const areas = catalog && catalog.areas;
   if (!areas || !Object.hasOwn(areas, areaId)) return '';
+  if (Object.hasOwn(words().PLACE_WORDS, areaId)) return words().PLACE_WORDS[areaId];
   const name = areas[areaId].name;
   return typeof name === 'string' ? name : '';
 }

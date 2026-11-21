@@ -41,7 +41,7 @@ const { castsFromBox, isTransparentMat, SUN_POSITION } = await import('../src/re
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { ROOFS_BIRDS, perchIndex, roofsCritterSpawns } = await import('../src/world/roofsflock.js');
 const { clearSpot } = await import('../src/world/spots.js');
-const { BASE_ABILITIES } = await import('../src/traversal.js');
+const { BASE_ABILITIES, moveAbilities: T_moveAbilities } = await import('../src/traversal.js');
 const { floodTraversal } = await import('./helpers/traversalflood.js');
 const { WINDOW_CELLS, markMesh } = await import('../src/world/roofsparts.js');
 const { tileMetres } = await import('../src/render/materials.js');
@@ -138,8 +138,12 @@ const centreOf = (b) => {
 // a head 80, two ears 6, two paws 48, the tail 80), +628; their two deep sills
 // are the old sills' boxes deepened, in the stone bucket the terrace had, at no
 // cost -> 116 / 68 / 37,335 (merged 57 -> 59 / 30).
-const MEASURED_BUILT = { meshes: 116, casters: 68, triangles: 37335 };
-const MEASURED_MERGED = { meshes: 59, casters: 30, triangles: 37335 };
+// Rooftops step 5 fix wave (I1): the weathervane out of the north's gold
+// bucket into a mesh of its own (roofsVane: its own see-through gold, which
+// the tower view fades), casting nothing as before; its triangles moved, none
+// added, never merged: +1 mesh -> 117 / 68 / 37,335 (merged 59 -> 60 / 30).
+const MEASURED_BUILT = { meshes: 117, casters: 68, triangles: 37335 };
+const MEASURED_MERGED = { meshes: 60, casters: 30, triangles: 37335 };
 const MEASURED_DRAWS = 0;
 const TOWN_TRIANGLES = 4960; // the far town's one mesh (Task A: 3,992 before; 4,964 until round two, Task E: its back rows lower, so their fronts have room for three lit windows fewer; 4,958 until Task G: its back row's tallest 2 m higher again, one window more)
 
@@ -166,6 +170,19 @@ function budgetStats(s) {
 }
 
 describe('the Rooftops drawn', () => {
+  it('the record\'s evening lights are its own materials, at their built brightness', () => {
+    const L = area.eveningLights;
+    expect(Object.keys(L).sort()).toEqual(['bulbs', 'clock', 'windows']);
+    expect(L.windows.userData.glowBase).toBeCloseTo(1.1, 9);
+    expect(L.clock.userData.glowBase).toBeCloseTo(1.9, 9);
+    expect(L.bulbs.userData.glowBase).toBeCloseTo(1.5, 9);
+    const mats = new Set(meshes.map((m) => m.material));
+    for (const m of Object.values(L)) {
+      expect(mats.has(m)).toBe(true);
+      expect(m.userData.glowBase).toBe(m.emissiveIntensity);
+    }
+  });
+
   it('each block\'s top is drawn at its ground height', () => {
     const byId = new Map();
     for (const m of meshes) {
@@ -420,6 +437,40 @@ describe('the Rooftops drawn', () => {
     // it is its own top-level group, so the walk's prop merge keeps its mesh
     expect(body.obj.parent).toBe(scene);
   });
+
+  // Step 5 fix wave (I1): the tower view fades the vane, so it is a mesh of
+  // its own on its own gold, outside the kit, on the record as area.vane.
+  it('the vane is its own mesh on its own see-through gold, on the record', () => {
+    const v = area.vane;
+    expect(v?.isMesh).toBe(true);
+    expect(v.name).toBe('roofsVane');
+    expect(meshes.filter((m) => m.name === 'roofsVane')).toEqual([v]);
+    expect(v.material.transparent).toBe(true);
+    expect(v.material.opacity).toBe(1);
+    expect(v.material.depthWrite).toBe(true);
+    expect(v.castShadow).toBe(false); // as the kit's gold it was drawn with
+    expect(v.userData.noMerge).toBe(true); // the walk's prop merge keeps this very mesh
+    expect(meshes.filter((m) => m !== v && m.material === v.material)).toEqual([]);
+    const kitGold = meshes.find((m) => m.name === 'roofsNorth:gold');
+    expect(kitGold.material).not.toBe(v.material);
+    expect(kitGold.material.transparent).toBe(false);
+    // the mast, the letters and the arrow: from the tower top to the vane's tip, round its spot
+    const box = boxOf(v);
+    expect(box.max.y).toBeCloseTo(VANE_TIP, 2);
+    expect(box.min.y).toBeCloseTo(LEVELS.TOP, 2);
+    expect(Math.max(box.max.x - VANE.x, VANE.x - box.min.x, box.max.z - VANE.z, VANE.z - box.min.z)).toBeLessThan(1.1);
+  });
+
+  it('fifteen leaps open the lantern roof; fourteen do not', () => {
+    const { moveAbilities } = { moveAbilities: T_moveAbilities };
+    const reaches = (leaps) => {
+      const f = floodTraversal(area, { abilities: moveAbilities({ feats: { leap: leaps } }) });
+      const got = f.reachable(f.regionAt(ROOFS_SPAWN.x, ROOFS_SPAWN.z));
+      return got.has(f.regionAt(-19, -34, area.ground.y(-19, -34)));
+    };
+    expect(reaches(15)).toBe(true);
+    expect(reaches(14)).toBe(false);
+  }, 90000);
 
   it('the street below is outside every walk region and has its lamps and the bus', () => {
     const f = floodTraversal(area, { abilities: { longLeap: true, steady: true, climb: 2.2 } });
@@ -2489,8 +2540,8 @@ describe('the Rooftops drawn', () => {
 
 // =============================================================================
 // Task 10: every per-area list. ROOFS_REGISTRATION holds each row in its
-// table's own shape (test/fair.test.js is the model). The one row held back is
-// CATALOG.areas.roofs (R1): `catalog` is null until Task 11 and step 4.
+// table's own shape (test/fair.test.js is the model). The one row held back
+// until Rooftops step 4 (R1) was CATALOG.areas.roofs; step 4 copied it in.
 // =============================================================================
 describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () => {
   const { ROOFS_REGISTRATION: REG } = await import('../src/world/roofsplan.js');
@@ -2546,11 +2597,13 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
     expect((await import('../src/world/roofs.js')).GRASS_HOOKS).toBeUndefined();
   });
 
-  it('holds its row out of the catalog (R1); its view is the card shot', async () => {
+  it('has its row in the catalog, right after the Fairground (step 4); its view is the card shot', async () => {
     const { ROOFS_SHOTS } = await import('../src/world/roofsplan.js');
     expect(REG.catalog).toEqual({ name: 'The Rooftops', price: 100, requires: { area: 'fair', walks: 2 } });
     expect(REG.view).toBe(ROOFS_SHOTS.card);
-    expect(Object.hasOwn(CATALOG.areas, 'roofs')).toBe(false);
+    expect(CATALOG.areas.roofs).toEqual(REG.catalog);
+    const ids = Object.keys(CATALOG.areas);
+    expect(ids[ids.indexOf('fair') + 1]).toBe('roofs');
     expect(REG.marks).toBe(true);
   });
 
@@ -2560,8 +2613,11 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
     expect(set.knockables).toHaveLength(3);
     expect(set.markables).toHaveLength(3);
     expect(set.flaps.map((f) => f.kind)).toEqual(['flap']);
-    expect(set.rests.map((r) => r.kind).sort()).toEqual([...REST_KINDS].sort());
-    expect(set.rests.every((r) => r.mesh === true)).toBe(true);
+    // one of each drawn, and the warm chimney's nap with no mesh (Rooftops step 5, R6)
+    const drawnRests = set.rests.filter((r) => r.mesh !== false);
+    expect(drawnRests.map((r) => r.kind).sort()).toEqual([...REST_KINDS].sort());
+    expect(drawnRests.every((r) => r.mesh === true)).toBe(true);
+    expect(set.rests.filter((r) => r.mesh === false).map((r) => r.id)).toEqual(['roofs-nap-2']);
     expect(set.hides).toHaveLength(3);
     expect(set.dogYard).toBeNull();
     expect(set.keepSlots).toEqual([]);
@@ -2570,7 +2626,7 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
     for (const k of set.knockables) expect(KNOCK_KINDS).toContain(k.kind);
     for (const m of set.markables) expect(['post', 'tree', 'bollard']).toContain(m.kind);
     const looks = new Set(Object.values(REST_LOOKS).map((v) => v.look));
-    expect(Object.keys(REG.restLooks).sort()).toEqual(set.rests.map((r) => r.id).sort());
+    expect(Object.keys(REG.restLooks).sort()).toEqual(drawnRests.map((r) => r.id).sort());
     for (const v of Object.values(REG.restLooks)) expect(looks.has(v.look), v.look).toBe(true);
     // ids: well-formed, namespaced by area and kind, none shared with another area
     const mine = [];
@@ -2582,9 +2638,19 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
       }
     }
     expect(new Set(mine).size).toBe(mine.length);
-    expect(mine).toHaveLength(14);
+    expect(mine).toHaveLength(15);
     const taken = allPropIds();
     expect(new Set([...taken].filter((id) => id.startsWith('roofs-')))).toEqual(new Set(mine));
+  });
+
+  it('the warm chimney is a cosy place to nap: its rest row, on the stack at the anchor, no mesh (Rooftops step 5)', async () => {
+    const { ROOFS_DISCOVERIES } = await import('../src/world/roofsplan.js');
+    const c = ROOFS_DISCOVERIES.chimney;
+    const row = { id: 'roofs-nap-2', kind: 'nap', x: c.x, z: c.z, mesh: false };
+    expect(plain(set.rests.find((r) => r.id === 'roofs-nap-2'))).toEqual(row);
+    expect(propsFor('roofs').rests).toContainEqual(row);
+    // on the stack: her paws there are at the anchor's height
+    expect(area.ground.y(c.x, c.z)).toBeCloseTo(c.y, 6);
   });
 
   it('each prop sits on its own level, clear of colliders, reached without Long Leap', () => {
@@ -2687,6 +2753,50 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
       for (const f of set.flaps) expect(dist(p, f), `${at} vs ${f.id}`).toBeGreaterThanOrEqual(2.5);
       for (const q of anchors) expect(dist(p, q), `${at} vs ${q.x},${q.z}`).toBeGreaterThanOrEqual(2);
     }
+  });
+
+  it('three golden mice, each on one level, clear, reached without Long Leap', async () => {
+    const { GOLD_MICE } = await import('../src/goldmice.js');
+    const mice = REG.goldMice;
+    expect(mice.map((m) => m.id)).toEqual(['gm-roofs-1', 'gm-roofs-2', 'gm-roofs-3']);
+    const groundOf = [LEVELS.TANK, LEVELS.LANTERN, LEVELS.GROUND];
+    const crossEnds = ROOFS_TRAVERSAL.crossings.flatMap((c) => [c.points[0], c.points[c.points.length - 1]]);
+    const hopEnds = area.traversal.hops.flatMap((h) => [{ x: h.x0, z: h.z0 }, { x: h.x1, z: h.z1 }]);
+    // at least 1.5 m from every collectible and discovery anchor. A crossing's or hop's
+    // own ends are the climb or pipe she takes to the mouse (the tank's lid is only
+    // 2.6 m across, with the climb and the pipe both landing on it, so 1.5 m from those
+    // is not possible): 0.9 m, so no mouse sits on a take-off or landing mark.
+    const anchors = [...area.collectibles, ...Object.values(ROOFS_DISCOVERIES)];
+    mice.forEach((m, i) => {
+      expect(oneLevel(m.x, m.z), `${m.id} on one level`).toBe(true);
+      expect(clear(m), `${m.id} clear`).toBe(true);
+      expect(reachedAt(m.x, m.z), `${m.id} reached without Long Leap`).toBe(true);
+      expect(area.ground.y(m.x, m.z), `${m.id} level`).toBeCloseTo(groundOf[i], 6);
+      // a reached cell within 0.9 m whose ground is within 0.1 m of the mouse's
+      let found = false;
+      for (let r = 0; r <= 0.9 && !found; r += 0.3) {
+        for (let k = 0; k < 8 && !found; k++) {
+          const x = m.x + r * Math.cos((k * Math.PI) / 4);
+          const z = m.z + r * Math.sin((k * Math.PI) / 4);
+          if (reachedAt(x, z) && Math.abs(area.ground.y(x, z) - area.ground.y(m.x, m.z)) <= 0.1) found = true;
+        }
+      }
+      expect(found, `${m.id} findable`).toBe(true);
+      for (const q of anchors) expect(dist(m, q), `${m.id} vs ${q.x},${q.z}`).toBeGreaterThanOrEqual(1.5);
+      for (const q of [...crossEnds, ...hopEnds]) expect(dist(m, q), `${m.id} vs end ${q.x},${q.z}`).toBeGreaterThanOrEqual(0.9);
+    });
+  });
+
+  it('the gold rows are the registration\'s', async () => {
+    const { GOLD_MICE } = await import('../src/goldmice.js');
+    expect(GOLD_MICE.roofs).toEqual(plain(REG.goldMice));
+  });
+
+  it('the gold count is 39, and the Rooftops is in Legacy (21)', async () => {
+    const { GOLD_TOTAL, goldForEdition } = await import('../src/goldmice.js');
+    expect(GOLD_TOTAL).toBe(39);
+    expect(goldForEdition('canon', CATALOG).size).toBe(39);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(21);
   });
 
   it('an old save loads with walks.roofs 0 and marks.roofs []', () => {
@@ -2804,6 +2914,18 @@ describe('The Rooftops: the first roof, and the picture views', async () => {
     for (const [name, v] of Object.entries(ROOFS_SHOTS)) {
       const n = v.split(',').map(Number);
       expect([name, n.length, n.every(Number.isFinite)]).toEqual([name, 6, true]);
+    }
+  });
+
+  it('has its seven moment views, each six numbers and a walk second', async () => {
+    const { ROOFS_MOMENT_SHOTS, ROOFS_SHOTS: eight } = await import('../src/world/roofsplan.js');
+    expect(Object.isFrozen(ROOFS_MOMENT_SHOTS)).toBe(true);
+    expect(Object.keys(ROOFS_MOMENT_SHOTS)).toEqual(['garden', 'loft', 'vane', 'skylight', 'telescope', 'chimney', 'mice']);
+    for (const [name, shot] of Object.entries(ROOFS_MOMENT_SHOTS)) {
+      const n = shot.view.split(',').map(Number);
+      expect([name, n.length, n.every(Number.isFinite)]).toEqual([name, 6, true]);
+      expect([name, Number.isFinite(shot.t) && shot.t >= 0]).toEqual([name, true]);
+      expect(eight[name], `${name} is not also one of the eight`).toBeUndefined();
     }
   });
 

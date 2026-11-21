@@ -12,6 +12,7 @@ export const CAT_BLURBS = {
   robbie: 'Cow cat — maximum chaos, champion pouncer',
   d2: 'Gentle giant — big, fluffy, never in a hurry',
   digit: 'Kitten — all legs and ears, chases everything',
+  ribbonkit: 'Birthday kitten — pounces everything',
   hagrid: 'A chicken?! Birds trust Hagrid completely',
 };
 export const ACC_BLURBS = {

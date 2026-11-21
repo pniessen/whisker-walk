@@ -35,8 +35,12 @@ const fair = await import('../src/world/fair.js');
 const farm = await import('../src/world/farm.js');
 const docks = await import('../src/world/docks.js');
 const seaside = await import('../src/world/seaside.js');
+const roofsWorld = await import('../src/world/roofs.js');
+const { ROOFS_SPAWN, ROOFS_BOUNDS } = await import('../src/world/roofsplan.js');
+// The Rooftops' module names its spawn in its plan (roofsplan.js).
+const roofs = { build: roofsWorld.build, SPAWN: ROOFS_SPAWN };
 
-const MODS = { neighborhood, park, fair, farm, docks, seaside };
+const MODS = { neighborhood, park, fair, farm, docks, seaside, roofs };
 const IDS = Object.keys(MODS);
 const T = 60000;
 
@@ -76,11 +80,48 @@ const FENCE_LINE = { fair: fair.GATE_AT.z, farm: farm.GATE_AT.z };
 const edgeGap = (b, p) => Math.min(p.x - b.minX, b.maxX - p.x, p.z - b.minZ, b.maxZ - p.z);
 
 describe('gateways: where the gates stand', () => {
-  it('has ten ends, all on an edge, in six built areas', () => {
-    expect(allEnds).toHaveLength(10);
-    expect(edgeEnds).toHaveLength(10);
+  it('has twelve ends, eleven on an edge and one inside (the Rooftops\' alley door), in seven built areas', () => {
+    expect(IDS).toHaveLength(7);
+    expect(allEnds).toHaveLength(12);
+    expect(edgeEnds).toHaveLength(11);
+    expect(allEnds.filter(([, e]) => e.placement === 'inside').map(([a, e]) => `${a}/${e.id}`)).toEqual(['roofs/roofs-town']);
+    expect(edgeEnds.map(([a, e]) => `${a}/${e.id}`)).toContain('neighborhood/town-roofs');
     for (const id of IDS) expect(areas[id].colliders.length, id).toBeGreaterThan(10);
   });
+
+  // An 'inside' end is not on an edge, so G1 and G5 are not its rules. The
+  // Rooftops' door stands in the back alley's brick wall (roofs.js draws it
+  // at ROOFS_BOUNDS.maxZ): she walks up to it in the alley, and it stands
+  // clear of everything a walk puts there.
+  it("the Rooftops' alley door stands in the alley wall", () => {
+    const e = endById('roofs-town').end;
+    const area = areas.roofs;
+    expect(e.faces).toBe('south');
+    expect(Math.abs(ROOFS_BOUNDS.maxZ - e.z), 'in the wall line').toBeLessThanOrEqual(0.5);
+    expect(e.z).toBeLessThan(ROOFS_BOUNDS.maxZ);
+    // a spot she can stand on, reached on foot from the spawn, within reach of the door
+    const spots = [];
+    for (let dx = -GATE_REACH; dx <= GATE_REACH; dx += 0.1) {
+      for (let dz = -GATE_REACH; dz <= 0; dz += 0.1) {
+        const x = e.x + dx, z = e.z + dz;
+        if (Math.hypot(dx, dz) <= GATE_REACH - 0.05 && isWalkableAt(area, x, z) && flood('roofs').reaches(x, z)) spots.push([x, z]);
+      }
+    }
+    expect(spots.length, 'walkable spots within reach of the door').toBeGreaterThan(0);
+    for (const p of posts(e)) {
+      for (const c of area.colliders) {
+        expect(Math.hypot(p.x - c.x, p.z - c.z) - c.r, `door post (${p.x}, ${p.z}) vs collider (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(1.2);
+      }
+    }
+    const spawn = roofs.SPAWN;
+    expect(Math.hypot(e.x - spawn.x, e.z - spawn.z), 'vs the spawn').toBeGreaterThanOrEqual(3.0);
+    const things = [
+      ...(area.pois ?? []), ...(area.collectibles ?? []), ...(area.scenics ?? []), ...(area.perches ?? []),
+      ...(GOLD_MICE.roofs ?? []), ...propsFor('roofs').carryables,
+    ];
+    expect(things.length).toBeGreaterThan(10);
+    for (const t of things) expect(Math.hypot(e.x - t.x, e.z - t.z), `vs (${t.x}, ${t.z})`).toBeGreaterThanOrEqual(3.0);
+  }, T);
 
   it('G1 every edge end faces the side it is nearest', () => {
     for (const [a, e] of edgeEnds) expect(nearestSide(areas[a].bounds, e), `${a}/${e.id}`).toBe(e.faces);

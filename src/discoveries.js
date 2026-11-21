@@ -28,6 +28,8 @@ export const AWARDS = {
   // walk for each game; and one of its six finds, paid the first time ever.
   fairgame: 15,
   fairfind: 12,
+  // The Rooftops (2026-11-21): one of its six finds, paid the first time ever.
+  roofsfind: 12,
   // Found outfits (2026-11-19): the walk's find when everything hidden in the
   // place is already hers, the spec's "a small coin pouch instead (Claude's
   // call: 5 coins)" (the coins are 🐾). Once a walk (foundwear/play.js), and

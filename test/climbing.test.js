@@ -658,6 +658,11 @@ const SHIPPED_HOPS = {
   'gm-fair-1': 6, // the helter-skelter's gallery, 7.0: five landings 1.2 apart, then the gallery
   'gm-fair-2': 2, // the toffee apple stall's roof: counter 0.9 -> awning 2.32
   'gm-fair-3': 0, // hidden at ground level between the two tents
+  // the Rooftops' three stand on their own roof levels, reached by the traversal runtime
+  // (climbs and crossings), not by perch chains: no perches in this table's model
+  'gm-roofs-1': 0,
+  'gm-roofs-2': 0,
+  'gm-roofs-3': 0,
   'fair-5': 1,    // the bandstand's deck, 0.6: one hop from its steps
 };
 
@@ -679,7 +684,7 @@ describe('shipped golden mice and rooftop collectible — no skills', () => {
   it('no mouse is reachable without a perch except the three deliberately-hidden ground ones', () => {
     const table = hopTable(STATES.none);
     const ground = Object.entries(table).filter(([, hops]) => hops === 0).map(([id]) => id);
-    expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
+    expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-roofs-1', 'gm-roofs-2', 'gm-roofs-3', 'gm-sea-3', 'gm-woods-3']);
     for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
   });
 });
@@ -922,7 +927,7 @@ describe('Fence Runner — the shipped-content pin', () => {
     for (const state of Object.values(STATES)) {
       const table = hopTable(state, true);
       const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
-      expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
+      expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-roofs-1', 'gm-roofs-2', 'gm-roofs-3', 'gm-sea-3', 'gm-woods-3']);
       for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
     }
   });
@@ -1244,7 +1249,7 @@ describe('CF-9b — the gated perches short-circuit nothing', () => {
       for (const fenceRun of [false, true]) {
         const table = hopTable(state, fenceRun);
         const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
-        expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
+        expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-roofs-1', 'gm-roofs-2', 'gm-roofs-3', 'gm-sea-3', 'gm-woods-3']);
         for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
       }
     }

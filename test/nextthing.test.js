@@ -178,6 +178,13 @@ describe('nextThing: Legacy Edition never shows rules 4 to 6', () => {
     }
   });
 
+  it('7. the Fairground opens the Rooftops (Rooftops step 4), in both editions', () => {
+    for (const edition of ['canon', 'legacy']) {
+      const s = save({ edition, walks: { neighborhood: 3, woods: 1, park: 2, fair: 1 }, unlocked: { accessories: allWear, areas: ['neighborhood', 'woods', 'park', 'farm', 'fair', 'docks'] }, area: 'fair', clanPick: { mine: 'woods' } });
+      expect(nextThing(s), edition).toMatchObject({ rule: 7, id: 'home.opens', text: 'Explore here again to open the Rooftops!', action: null });
+    }
+  });
+
   it('no pick line, no camp line, no way line', () => {
     const ready = save({ walks: { neighborhood: 2 }, edition: 'legacy', unlocked: { accessories: allWear } });
     expect(nextThing(ready).rule).toBeGreaterThan(6);

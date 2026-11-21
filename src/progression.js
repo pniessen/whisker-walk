@@ -37,6 +37,8 @@ import { DEFAULT_EDITION, EDITIONS, sanitizeEdition, isClanEdition, areaInEditio
 import { latestMilestoneUpTo, milestoneIndex, styleFor, prizeFor, prizesWonBy } from './visits.js';
 import { FAIR_GAME_IDS, FAIR_PRIZES, gameJournalId, fairPrizesWonBy } from './fairprizes.js';
 import { FOUND_CATALOG } from './foundwear/index.js';
+import { GIFT_CATALOG } from './foundwear/gifts.js';
+import { sanitizeEvents, eventWear, eventWearOnOpen, isEventId, eventPresent } from './giftevents.js';
 // v21 Stream 3b: private per-area marks. marks.js is the pure rules half (its only
 // import is propsets.js, a zero-import leaf), so the edge is cycle-free. Every
 // write still happens here: marks.js computes, this module saves.
@@ -77,7 +79,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   // test/fairgames.test.js holds the two lists equal). A game's count is how
   // many times it has been won; a find's, on how many walks it was found.
   'gamecans', 'gameducks', 'gamebell',
-  'fairfortune', 'fairmusicbox', 'faircandyfloss', 'fairjuggler', 'fairballoon', 'fairlookout'];
+  'fairfortune', 'fairmusicbox', 'faircandyfloss', 'fairjuggler', 'fairballoon', 'fairlookout',
+  // The Rooftops' six finds (src/roofspages.js; walks each was found on).
+  'roofgarden', 'roofloft', 'roofvane', 'roofskylight', 'rooftelescope', 'roofchimney'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
@@ -128,10 +132,10 @@ const DEN_SPOT_IDS = new Set(DEN_SPOTS.map((s) => s.id));
 // duplicated here, so adding an ability or an award type can never leave
 // sanitizeState silently dropping a legitimate new key.
 const KNOWN_SKILL_IDS = new Set(SKILL_IDS);
-// v18 Task 1.4: two tallies that are NOT award types.
+// v18 Task 1.4 (and Rooftops step 5): four tallies that are NOT award types.
 //
 // state.feats' key vocabulary is normally exactly AWARDS' keys, because
-// recordFeat is driven by discoveries.js's pay(). These two are counted
+// recordFeat is driven by discoveries.js's pay(). The first two are counted
 // ALONGSIDE an existing award rather than by retyping one, because the
 // existing award type is load-bearing somewhere else and retyping it would
 // silently change live gameplay (the spec's non-goals forbid rebalancing):
@@ -147,14 +151,20 @@ const KNOWN_SKILL_IDS = new Set(SKILL_IDS);
 //             goal completions, so feats.goal hits 3 in one normal walk.
 //             Same treatment: unchanged award + a dedicated tally, which is
 //             what lets Long Zoomies mean "finish the race 3 times".
+//  - 'cross'  (Rooftops step 5) a crossing walked from end to end (the
+//             traversal's 'cross' event), read by Tightrope Tail.
+//  - 'leap'   (Rooftops step 5) a leap landed (a 'land' of kind 'leap'),
+//             read by Long Leap. Neither of these two pays an award at all:
+//             they are tallied straight from the traversal's events
+//             (traversallive.js traversalTally).
 //
 // They live in state.feats (rather than as two more top-level save fields)
 // because they are the same KIND of thing — a lifetime count of a player
 // action — and so inherit sanitizeFeats' coercion, cap and __proto__
-// handling for free. Neither name collides with an AWARDS key; the
+// handling for free. No name collides with an AWARDS key; the
 // assertion below makes that a build-time failure rather than a silent
 // double-count if a future award type ever takes one of these names.
-const EXTRA_FEAT_TYPES = ['perch', 'race'];
+const EXTRA_FEAT_TYPES = ['perch', 'race', 'cross', 'leap'];
 for (const t of EXTRA_FEAT_TYPES) {
   if (Object.prototype.hasOwnProperty.call(AWARDS, t)) {
     throw new Error(`progression: feat tally '${t}' collides with an AWARDS type`);
@@ -316,13 +326,19 @@ export const CATALOG = {
     d2: { name: 'D2', price: 40 },
     digit: { name: 'Digit', price: 40 },
     hagrid: { name: 'Hagrid', price: 60 },
+    // The birthday kitten (2026-11-21): the birthday's present gives her
+    // (openPresent), never the shop: `prize` keeps her out of it, `code` says
+    // a gift may give her. Her name is read from the phrase table when shown.
+    ribbonkit: { get name() { return phrase('cat.ribbonkit.name'); }, price: 0, prize: true, code: true },
   },
   // The hand-written ones (BASE_ACCESSORIES above), then the found outfits
   // (src/foundwear/): one hidden on every walk, found, never bought. `prize`
   // keeps them out of the shop, trades and codes as it keeps the visit and
   // fair prizes out; `find` names the place it is hidden in. The name is a
   // getter that reads the phrase table when shown.
-  accessories: accessoriesWithFound(BASE_ACCESSORIES, FOUND_CATALOG),
+  // The gift outfits (src/foundwear/gifts.js) sit between the two: a gift
+  // code gives them (`code`), nothing sells or hides them.
+  accessories: accessoriesWithFound(accessoriesWithFound(BASE_ACCESSORIES, GIFT_CATALOG), FOUND_CATALOG),
   areas: {
     neighborhood: { name: 'Cozy Neighborhood', price: 0 },
     park: { name: 'City Park', price: 50, requires: { area: 'neighborhood', walks: 2 } },
@@ -340,6 +356,12 @@ export const CATALOG = {
     // editions (no `edition`). The Park's home line names all three
     // (nextthing.js, rule 7).
     fair: { name: 'The Fairground', price: 75, requires: { area: 'park', walks: 2 } },
+    // The Rooftops (docs/superpowers/plans/2026-11-21-rooftops-step4-into-game.md,
+    // ruling T1): held back until co-walkers could see height (R1), now in.
+    // ROOFS_REGISTRATION.catalog is the same row; in both editions.
+    // `name` here is not what a child sees: the shown name comes from the word
+    // tables (PLACE_WORDS.roofs, read by placeName).
+    roofs: { name: 'The Rooftops', price: 100, requires: { area: 'fair', walks: 2 } },
     // The world map (docs/superpowers/specs/2026-11-19-world-map-design.md,
     // decision 5): the Seaside follows the Docks on the map, so it opens after
     // two Docks walks. It keeps its place in this list (the place cards'
@@ -468,7 +490,7 @@ function defaultState() {
     // The Woods joins them for the same reason: the first Woods walk on a save
     // with no 'woods' key would pin state.walks.woods at NaN forever. So does
     // the River: a save with no 'river' key would pin state.walks.river at NaN. And the Moor, the Pines and the Gorge: no 'moor', 'pines' or 'gorge' key, same NaN.
-    // And the Farm: a save from before it loads with farm: 0. And the Fairground: fair: 0. And the Rooftops (?roofs=1 only; not in CATALOG.areas until step 4): roofs: 0. And the Market Square (?market=1 only; not in CATALOG.areas until step 4): market: 0.
+    // And the Farm: a save from before it loads with farm: 0. And the Fairground: fair: 0. And the Rooftops (in CATALOG.areas since Rooftops step 4): roofs: 0. And the Market Square (?market=1 only; not in CATALOG.areas until step 4): market: 0.
     walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0 },
     // A COPY of STARTER_ACCESSORIES: buy() pushes into this array.
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: [...STARTER_ACCESSORIES], areas: ['neighborhood'] },
@@ -640,6 +662,11 @@ function defaultState() {
     // load, so a found outfit is never lost. Additive, so SAVE_VERSION stays
     // 4: an older save starts with none.
     foundWear: [],
+    // Gift events (src/giftevents.js): the ids of the parties a gift code has
+    // switched on, oldest first, kept as the accessories are. Each event's
+    // outfits are rebuilt into owned on every load. Additive, so SAVE_VERSION
+    // stays 4: an older save starts with none.
+    events: [],
   };
 }
 
@@ -1055,6 +1082,9 @@ function sanitizeState(parsed) {
   // And every found outfit: foundWear is the record, so it is owned.
   const foundWear = sanitizeFoundWear(parsed.foundWear);
   for (const id of foundWear) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);
+  // And every gift event's outfits: the event is the record, so they are owned.
+  const events = sanitizeEvents(parsed.events);
+  for (const ev of events) for (const id of eventWear(ev)) if (knownAcc.has(id) && !unlockedAcc.includes(id)) unlockedAcc.push(id);
 
   const equippedCat = typeof parsed.equipped?.cat === 'string' && unlockedCats.includes(parsed.equipped.cat)
     ? parsed.equipped.cat : d.equipped.cat;
@@ -1139,6 +1169,7 @@ function sanitizeState(parsed) {
     scars: sanitizeScars(parsed.scars, customCats),
     scarredIntruders: sanitizeScarredIntruders(parsed.scarredIntruders),
     foundWear,
+    events,
   };
   if (fm.added.length > 0) ADDED_MOVES.set(result, fm.added);
   return result;
@@ -1403,7 +1434,8 @@ export function createProgression(storage) {
         for (const id of new Set(ids)) {
           if (typeof id !== 'string' || !Object.hasOwn(CATALOG[kind], id)) continue;
           // Prizes are won by visiting only: no unlock, and no refund either.
-          if (CATALOG[kind][id].prize) continue;
+          // A gift outfit (`code`) is the one kind of prize a code may give.
+          if (CATALOG[kind][id].prize && !CATALOG[kind][id].code) continue;
           const owned = state.unlocked[kind].includes(id);
           const refund = owned ? CATALOG[kind][id].price : 0;
           if (!owned) state.unlocked[kind].push(id);
@@ -1411,10 +1443,56 @@ export function createProgression(storage) {
           items.push({ kind, id, name: CATALOG[kind][id].name, owned, refund });
         }
       }
+      // Gift events (src/giftevents.js): known ids only, each kept once. An
+      // event's own outfits are owned from now (and rebuilt on every load).
+      const events = Array.isArray(reward?.events) ? [...new Set(reward.events.filter(isEventId))] : [];
+      const opened = events.filter((ev) => !state.events.includes(ev));
+      if (events.length) state.events = sanitizeEvents([...state.events, ...events]);
+      for (const ev of events) {
+        for (const id of eventWear(ev)) {
+          if (!Object.hasOwn(CATALOG.accessories, id) || state.unlocked.accessories.includes(id)) continue;
+          state.unlocked.accessories.push(id);
+          items.push({ kind: 'accessories', id, name: CATALOG.accessories[id].name, owned: false, refund: 0 });
+        }
+      }
+      // An event opened by this code (not one the save already had) dresses
+      // the cat in its own outfit at once: her Birthday Hat goes straight on.
+      for (const ev of opened) {
+        const id = eventWearOnOpen(ev);
+        const item = id ? CATALOG.accessories[id] : null;
+        if (item && state.unlocked.accessories.includes(id)) state.equipped[item.slot] = id;
+      }
       state.points += points;
       state.redeemed = [...state.redeemed, hash].slice(-REDEEMED_MAX);
       save();
-      return { ok: true, items, points };
+      // events (when it switched any on) and confetti (a one-time burst on
+      // home, passed back, never kept) are there only when the code has them.
+      const out = { ok: true, items, points };
+      if (events.length) out.events = events;
+      if (reward?.confetti === true) out.confetti = true;
+      return out;
+    },
+    // hasEvent(id) -> true when a gift code has switched event `id` on for
+    // this save (the camp gathering reads the birthday through this).
+    // Whether its window is still open is giftevents.js eventWindowOpen's.
+    hasEvent(id) {
+      return isEventId(id) && state.events.includes(id);
+    },
+    // openPresent(eventId) -> the cat id it gave, or null. Event `eventId`'s
+    // present, once per save: the save must have the event and not own the
+    // cat yet. She owns the cat from now; the cat she plays as stays the same
+    // (the owner, 2026-11-21: the kitten joins her cats, nothing is swapped).
+    openPresent(eventId) {
+      const cat = api.hasEvent(eventId) ? eventPresent(eventId) : null;
+      if (!cat || !Object.hasOwn(CATALOG.cats, cat) || state.unlocked.cats.includes(cat)) return null;
+      state.unlocked.cats.push(cat);
+      save();
+      return cat;
+    },
+    // True while event `eventId`'s present is still wrapped for this save.
+    presentWaiting(eventId) {
+      const cat = api.hasEvent(eventId) ? eventPresent(eventId) : null;
+      return !!cat && Object.hasOwn(CATALOG.cats, cat) && !state.unlocked.cats.includes(cat);
     },
     // -------------------------------------------------------------------
     // deductPoints(n) → the number of points ACTUALLY deducted (0 if none).
@@ -1872,8 +1950,10 @@ export function createProgression(storage) {
     // merely requested dark. Defaulted so every pre-v18 call site
     // (completeWalk() / completeWalk(areaId)) keeps behaving exactly as
     // before, incrementing nothing new.
-    completeWalk(areaId = state.area, { dusk = false } = {}) {
-      state.walks[areaId] += 1;
+    // `countArea` false (her birthday visit to a place she has not opened,
+    // src/birthday.js) leaves that place's walk count as it was.
+    completeWalk(areaId = state.area, { dusk = false, countArea = true } = {}) {
+      if (countArea !== false) state.walks[areaId] += 1;
       // A walk on her home land: the first camp walk has happened.
       if (areaId === state.clanPick.mine) state.tutorial.camp = true;
       if (dusk && state.duskWalks < DUSK_WALKS_MAX) state.duskWalks += 1;
@@ -2003,7 +2083,7 @@ export function createProgression(storage) {
     // lastWalk guard is once per cat per walk), so those feats cannot be
     // farmed by holding one key down.
     //
-    // TWO call sites are NOT inside pay(): the feats.perch tally in
+    // Four tallies are NOT inside pay(): the feats.perch tally in
     // game/interactions.js and the feats.race tally in main.js, both of
     // which count something no award type means on its own. Neither gets the
     // cap for free — each must gate itself on its neighbouring awardOnce()
@@ -2012,8 +2092,16 @@ export function createProgression(storage) {
     // fired on every landing, so re-climbing one perch 100 times bought two
     // traversal abilities (fixed at the v18 final review; test/
     // interactions.test.js' "the perch tally is not farmable" drives the real
-    // doPounceOrClimb 100 times to hold that shut). If you add a third
-    // out-of-band tally, gate it the same way.
+    // doPounceOrClimb 100 times to hold that shut). If you add another
+    // out-of-band tally that buys something cheap to repeat, gate it the
+    // same way.
+    //
+    // The other two, feats.cross and feats.leap (Rooftops step 5, ruling
+    // R11, via traversallive.js traversalTally), are deliberately NOT gated:
+    // practice is the point (Tightrope Tail and Long Leap are earned by
+    // walking 20 crossings and landing 15 leaps, the same plank twenty times
+    // if she likes), nothing is paid for them, and a crossing or a leap takes
+    // seconds of the child's own play, so there is nothing to farm.
     //
     // Unknown types are ignored rather than stored: state.feats' key
     // vocabulary is exactly AWARDS' keys, so anything else would just be
@@ -2538,6 +2626,7 @@ export function createProgression(storage) {
     // found, this device's first, and each is owned again.
     replaceFromPayload(rawSaveObject) {
       const localFound = state.foundWear;
+      const localEvents = state.events;
       const localVisits = state.visits;
       const localSeen = state.visitPrizesSeen;
       const localCustomCats = state.customCats;
@@ -2572,6 +2661,11 @@ export function createProgression(storage) {
       state.foundWear = sanitizeFoundWear([...localFound, ...state.foundWear]);
       for (const id of state.foundWear) {
         if (!state.unlocked.accessories.includes(id)) state.unlocked.accessories.push(id);
+      }
+      // Gift events likewise: this device's are kept, and their outfits owned.
+      state.events = sanitizeEvents([...localEvents, ...state.events]);
+      for (const ev of state.events) {
+        for (const id of eventWear(ev)) if (!state.unlocked.accessories.includes(id)) state.unlocked.accessories.push(id);
       }
       // R3: fights won never go down and moves are never taken away.
       state.fightsWon = Math.max(localFights, state.fightsWon);

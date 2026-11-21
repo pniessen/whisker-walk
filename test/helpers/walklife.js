@@ -83,16 +83,18 @@ export function lifecycle({ collar = false, areas = createAreaLoader(), online =
   expect(progression.buy('accessories', 'glow')).toBe(true);
   if (collar) progression.equipAccessory('glow');
   const homebase = anything({ setGettingReady: (on) => rec.gettingReady.push(on) });
+  const hud = anything({ mapHost: fakeEl() });
   const log = realLog ? createDiscoveryLog(progression) : anything();
+  const player = anything();
   const overlay = anything({ classList: anything() });
   const w = createWalkLifecycle({
     // MP on, so a solo walk asks the cloud for friends who could visit as ghosts
     MP: true, pid: 'me', coarse: false, envMap: new THREE.Texture(), overlay, blockList,
     renderer: null, camera: new THREE.PerspectiveCamera(),
     composerRig: anything({ applyLighting: (_scene, o) => rec.lighting.push(o.dusk) }),
-    player: anything(), progression,
+    player, progression,
     settings: { get: (k) => (k === 'muted' ? true : null) },
-    hud: anything({ mapHost: fakeEl() }),
+    hud,
     audio: anything({ startAmbient: (areaId, o) => rec.sound.push({ areaId, ...o }), getContext: () => { rec.soundContexts++; } }),
     music: anything({ start: (_seed, mood) => rec.music.push(mood) }),
     log, touchUI: anything(), catVoice: () => {},
@@ -109,6 +111,6 @@ export function lifecycle({ collar = false, areas = createAreaLoader(), online =
     reloadPage: () => { rec.reloads++; },
     isOnline: online,
   });
-  return { w, rec, progression, areas, log, overlay, getSession: () => session, setPendingRoom: (r) => { pendingRoom = r; } };
+  return { w, rec, progression, hud, log, player, overlay, areas, getSession: () => session, setPendingRoom: (r) => { pendingRoom = r; } };
 }
 
