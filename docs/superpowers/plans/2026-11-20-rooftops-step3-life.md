@@ -8,7 +8,7 @@
 - **The flock's plan, pure:** `src/world/roofsflock.js`. The perches (every move's ends from `ROOFS_TRAVERSAL`, ridge points, peck spots, the loft, plus the spots `roofs.js` draws: pots, aerials, parapets, posts, walls), the flight links between them, the roster of fourteen birds, the guide's route, and the flight rules (`chooseFlight`, `flightPlan`, `flightPoint`). No THREE, no randomness.
 - **The flock drawn and driven:** `src/world/roofsbirds.js`. Two instanced meshes (bodies, wings) for every bird, made by the area's life. In a walk each bird is also an ordinary critter (`area.critterSpawns`, type `bird` or `seagull`), so tag, stalking, the bell, a meow, spotting and the journal are the game's own rules (`src/critters.js`). The life is the only thing that MOVES them: after `critters.update` it writes each critter's position, flies it perch to perch when critters has flagged it `fleeing`, and lands it by clearing the flag. The critters' own meshes are hidden.
 - **What the wind moves:** `src/world/roofsair.js`. The washing sways in a vertex shader on the existing cloth material (one uniform a frame); the smoke is one instanced mesh of puffs over three pots. One wind (`ROOFS_WIND` in `roofsplan.js`) for the vane, the washing and the smoke.
-- **In the game:** `src/roofslife.js` (the area life) makes the flock, the smoke and the washing's clock, and breathes the sleeping cats. One line of `src/game/walk.js` hands every area life the walk's `critters` and the place's `visits` (Task 1, the only shared change).
+- **In the game:** `src/roofslife.js` (the area life) makes the flock, the smoke and the washing's clock, and breathes the sleeping cats. One line of `src/game/walk.js` (`startWalk`'s `areaLife` call) hands every area life the walk's `critters` and the place's `visits` (Task 1, the only shared change).
 
 **Tech Stack:** Plain ES modules, Three.js 0.185 (`InstancedMesh`, `onBeforeCompile`), Vite 8, Vitest 4, Node 26, headless Chrome through `scripts/record-page.mjs`, ffmpeg.
 
@@ -29,8 +29,8 @@
 - **S5. Birds are critters for tag; the life moves them (and the one shared change).** Tag, stalking, the bell, a meow, Far Call's rules, spotting and the journal all live in `critters.js`, `game/avatar.js` and `game/interactions.js`. Putting the birds in `area.critterSpawns` gives every one of those for free.
   - Critters' own bird flight goes up into the sky (6 m/s up for 18 s), which the spec rules out. So the roofs life writes each roof bird's position every frame, after `critters.update` and before the avatar's pounce check (`main.js` order: critters at ~1188, the area life at ~1239, `updateAvatar` at ~1483).
   - The life reads three of critters' per-critter fields: `def.roofBird` (which bird), `fleeing` (flushed), and on landing writes `fleeing = false`, `cooldown = 0`, `anchor`, `anchorHome`.
-  - The life cannot reach the critters today: its context has no `critters`. Task 1 adds `critters` and `visits` to the one call in `walk.js`.
-  - Not `critters.js` itself: it is start-up code that another worktree (F6) is changing, and a new critter type would also touch `labels.js` and the word sets.
+  - The life cannot reach the critters today: its context has no `critters`. F6's context for `areaData.life?.(...)` still has no `critters` or `visits`; Task 1 adds them to that one call in `walk.js`.
+  - Not `critters.js` itself: it is start-up code, and a new critter type would also touch `labels.js` and the word sets.
   - Cost if wrong: a rename inside `critters.js` breaks the flock. Task 4's contract tests fail loudly on it, rather than birds flying into the sky.
 - **S6. Leading is the flight graph.** Every perch is linked to the far end of every move that starts there (a crossing's two ends, a gap's or climb's or drop's take-off and landing), and to perches 3–10 m away whose arc clears every roof between.
   - A flushed pigeon prefers a move link, then the homeward one (fewer flights to the loft). So chasing pigeons walks a child along the planks, ridges and leaps, up the place toward the warehouse and the loft.
@@ -57,12 +57,12 @@
 - **Work only in** `/Users/pniessen/CLAUDE-CODE/projects/cat-game/.claude/worktrees/rooftops-2`, branch `rooftops-2`. Never touch the main checkout. Never merge or push. No database, no `.env` file. Dispatch no subagents unless the controller does.
 - **Commits:** `git add <exact paths>`, never `-A` or `.`. Every message ends with exactly `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - **Tests:** run single files only (`npx vitest run test/<file>`), after checking `uptime` against `sysctl -n hw.ncpu`. Wait while the 1-minute load is above the core count. Another suite may be running. Always also run `test/roofs.test.js test/roofsplan.test.js test/roofslife.test.js test/budget.test.js` after a task that touches the Rooftops' files. The full suite runs once, in Task 7, by the controller.
-- **No start-up growth.** The start-up script is 896.2 of 900 kB gzipped (`scripts/buildjson.mjs`'s gate, printed by `npm run build`).
-  - All new code is in the Rooftops' lazily loaded chunk: files reachable only through `src/roofsflag.js`'s `import('./world/roofs.js')`. Those are `src/world/roofs.js`, `roofsparts.js`, `roofsplan.js`, `src/roofslife.js`, and the new `src/world/roofsflock.js`, `roofsbirds.js` and `roofsair.js`, which only they import.
+- **No start-up growth; a small chunk.** F6's gate (`scripts/buildjson.mjs`, printed by `npm run build`) caps the start-up scripts at `MAIN_GZIP_CEILING_KB = 700` and each place's own download at `AREA_GZIP_CEILING_KB = 100`. Step 3 adds nothing to start-up beyond Task 1's two fields. The Rooftops chunk is 35.57 kB gzipped before step 3; step 3's budget for it is at most 60 kB gzipped, well under the 100 kB ceiling. Never raise either constant.
+  - All new code is in the Rooftops' lazily loaded chunk: files reachable only through F6's loader in `src/world/areas.js` (`roofs: () => import('./roofs.js').then((w) => own('roofs', w))`, with `roofs: Object.freeze(['src/world/roofs.js'])` in `AREA_ENTRY_MODULES`). `src/roofsflag.js` now keeps only `roofsOn`, `setRoofs` and `resumableAreaIds`. The chunk's files are `src/world/roofs.js`, `roofsparts.js`, `roofsplan.js`, `src/roofslife.js`, and the new `src/world/roofsflock.js`, `roofsbirds.js` and `roofsair.js`, which only they import.
   - New Rooftops modules import only `three`, `three/examples/jsm/utils/BufferGeometryUtils.js`, each other, and modules the roofs chunk already imports: `src/world/localuuids.js`, `src/world/warehouselook.js` (`hash01`), `src/render/materials.js`, `src/ground.js`, `src/traversal.js`.
   - No start-up module ever imports Rooftops code.
-  - **The one shared change is Task 1** (one line of `src/game/walk.js`). After it, and again in Task 7, the gate must read at most 896.3 kB.
-  - If any other task seems to need `walk.js`, `main.js`, `critters.js`, `roofsflag.js`, area loading or `src/render/*`, STOP and report NEEDS_CONTEXT naming the file and why.
+  - **The one shared change is Task 1** (one line of `src/game/walk.js`). After it, and again in Task 7, the start-up figure must stay at or below what it was before the task (and under 700 kB), and the roofs chunk at most 60 kB.
+  - If any other task seems to need `walk.js`, `main.js`, `critters.js`, `roofsflag.js`, `src/world/areas.js`, area loading or `src/render/*`, STOP and report NEEDS_CONTEXT naming the file and why.
 - **Budget** (`test/budget.test.js` ceilings, never raised: 450 meshes / 380 casters / 70,000 triangles; merged 64 / 34).
   - **Built**, today 114 / 68 / 36,707, merged 57 / 30. Only Task 6 adds meshes, two sleepers that are never merged and cast nothing: at most 116 / 68 / 37,400, merged 59 / 30.
   - **The life** (made per walk, not in the build count): at most 3 meshes (flock, wings, smoke), no casters, at most 1,600 triangles (birds ≤ 64 per body and ≤ 4 per wing; puffs 20 each).
@@ -111,7 +111,7 @@
 
 | File | Status | Responsibility |
 |---|---|---|
-| `src/game/walk.js` | modify (Task 1 only, one line) | The area life's context gains `critters` and `visits`. |
+| `src/game/walk.js` | modify (Task 1 only, one line) | `startWalk`'s `areaLife` call: the area life's context gains `critters` and `visits`. |
 | `src/world/roofsflock.js` | create | Pure: perch list, flight links, home distances, roster, guide, flight choice and path (Task 2). |
 | `src/world/roofsbirds.js` | create | `createRoofsBirds`: the instanced flock; adopting the critters; flights, landing, the guide, the loft (Tasks 3–4). |
 | `src/world/roofsair.js` | create | The washing's shader sway and its CPU twin; the chimney smoke (Task 5). |
@@ -192,14 +192,14 @@ With no candidate it returns `null`: the bird flutters in place (0.8 s, up 0.4 m
 
 **Why shared:** the roofs life must reach the critters to move the roof birds (S5), and must know a first visit (S7). Nothing a lazily loaded file can reach holds either. One line of `src/game/walk.js`; nothing else shared changes in step 3.
 
-**F6 note:** the F6 lazy-loading worktree is changing `walk.js`. This hunk is the `areaLife` line alone. If `main` has moved it when this branch merges, carry the two fields to wherever `areaData.life?.(...)` is called. If that call no longer exists, STOP and report.
+**F6 has landed.** F6 moved area loading into `src/world/areas.js` (`areas.ensure` / `areas.loaded`) and `startWalk` (`src/game/walk.js`) reads the loaded pack (`const pack = areas.loaded(...)`, `areaData` built from `pack.world.build`). It did not change what the life is handed: the call is still `const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook }) ?? NO_AREA_LIFE;` (`walk.js` line 1727), with no `critters` or `visits`. So the addition is still needed. Both values are in scope there: `critters` is the `createCritters(...)` result made at line 998, and `state` / `areaId` are set at lines 729 and 733. Nothing else about loading needs to change for step 3.
 
 **Files:**
-- Modify: `src/game/walk.js` (~line 1656, `const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook }) ?? NO_AREA_LIFE;`, and one sentence in the comment above it)
+- Modify: `src/game/walk.js` (line 1727, in `startWalk`, `const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook }) ?? NO_AREA_LIFE;`, and one sentence in the comment above it)
 - Test: `test/roofslifectx.test.js` (create)
 
 **Interfaces:**
-- Produces: the life context gains `critters` (the walk's `createCritters` result, the object `session.critters` holds) and `visits` (`progression.state.walks[areaId] ?? 0`, the walks finished there before this one). The Gorge's life ignores both.
+- Produces: the life context gains `critters` (the walk's `createCritters` result, the object `session.critters` holds) and `visits` (`state.walks[areaId] ?? 0`, with `state` and `areaId` as `startWalk` already has them, the walks finished there before this one). The Gorge's life ignores both.
 
 - [ ] **Step 1: Write the failing test.** Mock `../src/world/roofs.js` with `importOriginal`, wrapping `build` so its record's `life` pushes each `ctx` into a hoisted `seen.ctx` list before calling the real life. The stubs are as in `test/roofswalk.test.js`.
 
@@ -220,7 +220,7 @@ it('the Rooftops\' life is handed the walk\'s critters and how many walks she ha
 - [ ] **Step 2: Run** `npx vitest run test/roofslifectx.test.js`. Expected: FAIL (`critters` undefined).
 - [ ] **Step 3: Implement** the two fields and the comment sentence ("The Rooftops' life also takes the walk's critters, to move its birds, and how many walks she has had there").
 - [ ] **Step 4: Run** `npx vitest run test/roofslifectx.test.js test/roofswalk.test.js test/gorgelife.test.js test/walkfreed.test.js`. Expected: PASS.
-- [ ] **Step 5: Gate.** Run `npm run build`. Expected: it passes, printing `main script X kB gzipped` with X ≤ 896.3. Put X and the roofs chunk's size in the report.
+- [ ] **Step 5: Gate.** Run `npm run build`. Expected: it passes, printing `start-up X kB gzipped (ceiling 700 kB)` and a `roofs` line under 100 kB (about 35.6 kB now). Put both in the report.
 - [ ] **Step 6: Commit** `src/game/walk.js test/roofslifectx.test.js`, with the message "Rooftops step 3: every area life is handed the walk's critters and how many walks she has had there (the Rooftops' birds need both)".
 
 ### Task 2: The flock's plan (pure)
@@ -532,7 +532,7 @@ it('the birds tour (the film): the guide is waiting at plank-3\'s far end before
   - Check against the step-3 budget (Global Constraints). If a shot is over, trim (fewer peck spots drawn near, smaller puffs) and re-shoot.
   - Look at every picture beside its before by eye, and note what changed.
 - [ ] **Step 4: The film.** Run `node scripts/record-page.mjs --url 'http://localhost:5177/verify-traversal.html?area=roofs&tour=birds&critters=1&drive=1&bare&size=1280x720' --out <scratchpad>/rooftops-step3/after/film --tour birds --size 1280x720`. Watch it: the guide flies ahead stop by stop and waits on ext-10; the washing moves; the smoke drifts. Stop vite.
-- [ ] **Step 5: The build.** Run `npm run build`. Expected: it passes, with the main script at most 896.3 kB gzipped. Report it and the roofs chunk's gzipped size (35.57 kB before step 3).
+- [ ] **Step 5: The build.** Run `npm run build`. Expected: it passes, with start-up no larger than after Task 1 (ceiling 700 kB) and the roofs chunk at most 60 kB gzipped (35.57 kB before step 3). Report both.
 - [ ] **Step 6: The full suite** (the controller, once). Check `uptime` against `sysctl -n hw.ncpu`, then run `npx vitest run`. Expected: all green. A failure that passes alone twice is load flake: note it, never edit it away.
 - [ ] **Step 7: Commit** `src/world/roofsplan.js verify-places.html verify-traversal.html test/roofs.test.js`, with the message "Rooftops step 3: the life's picture views and the birds film with real critters".
 - [ ] **Step 8: The report for the owner.** Give the pictures' and the film's paths, the before/after table, the built, merged and life counts, the gate's number, the five owner questions, and what waits for step 4: the pigeon's own name, the loft's cooing and its following pigeon, the warm chimney's ring, the skills, the golden mice, height, dusk polish.
