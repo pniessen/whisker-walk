@@ -211,12 +211,13 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
     // The first state puts a new co-walker straight where it is. Sliding it in
     // from the origin would carry it through any water on the way (the Moor's
     // river-west holds the origin), and it would dip there on arrival.
-    if (!entry.water.placed) entry.group.position.copy(entry.toPos);
+    entry.toH = liftOf(state);
+    // ...and at her height: first seen on a roof or a seat, she does not rise out of the ground
+    if (!entry.water.placed) { entry.group.position.copy(entry.toPos); entry.h = entry.toH; }
     entry.fromPos.copy(entry.group.position);
     entry.fromYaw = entry.group.rotation.y;
     entry.toYaw = state.yaw;
     entry.fromH = entry.h;
-    entry.toH = liftOf(state);
     const seat = seatOf(state);
     if (seat !== entry.seatId) {
       // onto a new seat (or off one): eased from where she is drawn now

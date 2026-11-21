@@ -228,6 +228,14 @@ describe('old and new builds in one room', () => {
     expect(old(last).y).toBe(0);
   });
 
+  it('draws her at her height from the first state: a partner first seen on a roof does not rise out of the ground', () => {
+    const remotes = createRemoteCats(new THREE.Scene());
+    remotes.upsert(PROFILE, 0);
+    remotes.applyState({ v: 1, id: 'her', pos: [3, 4], yaw: 0, pose: 'perch', speed: 0, h: 2.32 }, 0);
+    remotes.update(DT, DT, null, NO_FAIR);
+    expect(remotes.list[0].group.position.y).toBeCloseTo(2.32, 6);
+  });
+
   it('ignores a bad height or seat: out of range, not a number, not a seat it knows', () => {
     const remotes = createRemoteCats(new THREE.Scene());
     remotes.upsert(PROFILE, 0);
