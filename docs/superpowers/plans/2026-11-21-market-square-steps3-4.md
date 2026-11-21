@@ -41,7 +41,7 @@
   - **Start-up cost:** one line in `src/tippables.js`. A spot may carry `build: () => Group`, used in place of `buildTippable(kind)`.
   - **Why:** the spec says "a fruit that rolls if she bumps the crate". The tippable path already reaches the partner (`tipById`), so both screens tip the same crate. The apple paths are data, so both screens roll the same apples. The crate tips with the button, not by her walking into it: every tippable in the game works that way, and a bump would need a new send. No treat is added.
 - **V2. The flower stall: a bucket of flowers she knocks off.**
-  - **What:** a knockable `bucket` (`market-flowers-bucket-1`) stands on the flower stall's trestle top (y 0.75). She hops onto the trestle (a perch, V5) and knocks it off with the existing knock. Where it lands, about twelve petals scatter in a flat ring and stay.
+  - **What:** a knockable `bucket` (`market-bucket-1`) stands on the flower stall's trestle top (y 0.75). She hops onto the trestle (a perch, V5) and knocks it off with the existing knock. Where it lands, about twelve petals scatter in a flat ring and stay.
   - **Where the code lives:** the petals are drawn by the Market's life (chunk) when it sees that knockable land. There is no new knockable kind.
   - **Why:** it is "something she can do" at a stall with no treat. It reaches the partner by the existing knock event, and the landing spot is curated data (`fallTo`), so both screens show the same petals.
 - **V3. Both stalls have a hide.** The flower stall keeps its hide under its trestle. The fruit stall gets one under a trestle on the side away from the apple crate. Each stall gets its own `hideSide` (default 1; the fruit stall's is −1). The builder may move `stack-fruit` up to 1.5 m to make room. Neither hide joins `MARKET_KEEPOUT`, because neither stall is watched.
@@ -262,8 +262,8 @@
     - `{ id: 'market-drink-1', kind: 'drink', x: 0, z: 3.8, mesh: false }` (the fountain's south rim, on the collider's edge);
     - `{ id: 'market-nap-1', kind: 'nap', x: MARKET_ANCHORS.flourSacks.x, z: …z, mesh: false }`. The sacks are drawn already; their coordinates move into `marketplan.js` as `FLOUR_SACKS`, and `market.js` reads them from there.
   - `knockables`:
-    - `{ id: 'market-flowers-bucket-1', kind: 'bucket', x, z, y: 0.75, fallTo: { x, z, y: 0.01 } }` on the flower trestle's top, falling toward the cobbles in front of the trestle (V2);
-    - `{ id: 'market-cafe-cup-1', kind: 'cup', x, z, y: <table top>, fallTo }` on café table 2.
+    - `{ id: 'market-bucket-1', kind: 'bucket', x, z, y: 0.75, fallTo: { x, z, y: 0.01 } }` on the flower trestle's top, falling toward the cobbles in front of the trestle (V2);
+    - `{ id: 'market-cup-1', kind: 'cup', x, z, y: <table top>, fallTo }` on café table 2.
   - `markables`: two (a lamp post's foot, the noticeboard's post), in the Fair's row shape.
   - `carryables`: two (a paper bag by the barrow-w, a dropped glove by the bench-east), in the Fair's row shape.
 - `SETS.market` copies them. `MARKET_HIDES` gains the fruit's hide.
@@ -306,7 +306,7 @@
 - `marketlife.js`:
   - `createMarketLife(area, ctx) → { update(dt, t, catPos, camera, session), dispose() }`. It calls `setMarketDusk(area, ctx.dusk ? 1 : 0)` once, as `createMarketLook` did, and `createMarketLook` goes.
   - Each frame it watches `session.tippables.list` for the `applecrate` entry turning `tipped`, which starts the apples. The mouth's yaw is read from that entry's `group.rotation.y` (the same on both devices: `tippables.js` derives it from x, z).
-  - It watches `session.knockables` for `market-flowers-bucket-1` landing, which shows the petals.
+  - It watches `session.knockables` for `market-bucket-1` landing, which shows the petals.
   - No allocation per frame.
 
 - [ ] **Step 1: Write the failing tests**
