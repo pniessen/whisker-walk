@@ -2890,6 +2890,18 @@ describe('The Rooftops: the first roof, and the picture views', async () => {
     }
   });
 
+  it('has its seven moment views, each six numbers and a walk second', async () => {
+    const { ROOFS_MOMENT_SHOTS, ROOFS_SHOTS: eight } = await import('../src/world/roofsplan.js');
+    expect(Object.isFrozen(ROOFS_MOMENT_SHOTS)).toBe(true);
+    expect(Object.keys(ROOFS_MOMENT_SHOTS)).toEqual(['garden', 'loft', 'vane', 'skylight', 'telescope', 'chimney', 'mice']);
+    for (const [name, shot] of Object.entries(ROOFS_MOMENT_SHOTS)) {
+      const n = shot.view.split(',').map(Number);
+      expect([name, n.length, n.every(Number.isFinite)]).toEqual([name, 6, true]);
+      expect([name, Number.isFinite(shot.t) && shot.t >= 0]).toEqual([name, true]);
+      expect(eight[name], `${name} is not also one of the eight`).toBeUndefined();
+    }
+  });
+
   it('has its six life views, each six numbers and a walk second', async () => {
     const { ROOFS_LIFE_SHOTS } = await import('../src/world/roofsplan.js');
     expect(Object.isFrozen(ROOFS_LIFE_SHOTS)).toBe(true);

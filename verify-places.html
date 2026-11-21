@@ -37,7 +37,9 @@
   import * as farm from '/src/world/farm.js';
   import * as fair from '/src/world/fair.js';
   import * as roofs from '/src/world/roofs.js';
-  import { ROOFS_REGISTRATION, ROOFS_SHOTS, ROOFS_SHOT_T, ROOFS_LIFE_SHOTS } from '/src/world/roofsplan.js';
+  import { ROOFS_REGISTRATION, ROOFS_SHOTS, ROOFS_SHOT_T, ROOFS_LIFE_SHOTS, ROOFS_MOMENT_SHOTS, TELESCOPE_CRATE } from '/src/world/roofsplan.js';
+  import { createGoldMice } from '/src/goldmice.js';
+  import { groundOf } from '/src/ground.js';
   import { GUIDE, perchIndex } from '/src/world/roofsflock.js';
   import { applyDusk, duskEnv, createLampPools } from '/src/render/dusk.js';
   import { createFarmAnimals } from '/src/farmanimals.js';
@@ -366,7 +368,43 @@
   // What the harness does after a life view's t: plank-3's far end shows the
   // guide having led her there (it waits on plank-3:1).
   const LIFE_SETUP = { plank: { lead: true } };
-  const lifeShot = (name) => (id === 'roofs' ? (ROOFS_LIFE_SHOTS[name] && { ...ROOFS_LIFE_SHOTS[name], ...LIFE_SETUP[name] }) ?? LIFE_EXTRAS[name] ?? null : null);
+  // The moments (ROOFS_MOMENT_SHOTS, Rooftops step 5): a stand-in cat, drawn,
+  // at the discovery's anchor (on the telescope's crate, perched; still for
+  // the chimney's ring), and a stand-in session. The life is run to the
+  // shot's t with her far away, then `dwell` s with her there, so the moment
+  // has started (the moon in, the ring up, the camera eased round, the
+  // pigeon along). The names win over a life view of the same name.
+  const DWELL = { garden: 1, loft: 8, vane: 4, skylight: 1, telescope: 2, chimney: 3 };
+  const STAND_DZ = { skylight: -0.85 }; // on the frame's north edge, so the pane shows (still within the find's 1.0 m)
+  let momentCat = null;
+  let momentMice = null;
+  const clearMoment = () => {
+    if (momentCat) { scene.remove(momentCat); momentCat = null; }
+    if (momentMice) { momentMice.dispose?.(); momentMice = null; }
+  };
+  const stand = (name) => {
+    clearMoment();
+    if (name === 'mice') {
+      momentMice = createGoldMice(scene, 'roofs', new Set(), { ground: groundOf(area), rng: () => 0.25 });
+      momentMice.update(0);
+      return;
+    }
+    const a = area.anchors.discoveries[name];
+    const perched = name === 'telescope' ? { x: TELESCOPE_CRATE.x, z: TELESCOPE_CRATE.z, y: TELESCOPE_CRATE.s } : null;
+    const spot = { x: perched ? perched.x : a.x, y: a.y + (perched ? perched.y : 0), z: (perched ? perched.z : a.z) + (STAND_DZ[name] ?? 0) };
+    momentCat = buildCat('tabby');
+    momentCat.position.set(spot.x, spot.y, spot.z);
+    momentCat.rotation.y = name === 'vane' ? 0 : name === 'telescope' ? -2.6 : 0.8;
+    scene.add(momentCat);
+    lifeStirred = true; // the next shot starts the life again
+    const session = { perched, pounceTime: 0, traversal: { busy: false } };
+    for (let f = 0; f < DWELL[name] * 30; f++) {
+      life?.update(1 / 30, lifeT + 1 / 30, spot, camera, session);
+      lifeT += 1 / 30;
+    }
+    animateCat(momentCat, perched ? 'perch' : 'follow', lifeT, 0, false);
+  };
+  const lifeShot = (name) => (id === 'roofs' ? ROOFS_MOMENT_SHOTS[name] ?? (ROOFS_LIFE_SHOTS[name] && { ...ROOFS_LIFE_SHOTS[name], ...LIFE_SETUP[name] }) ?? LIFE_EXTRAS[name] ?? null : null);
   const stir = (s) => {
     if (s.lead) lead();
     for (const [birdId, k] of s.flush ?? []) window.__flush(birdId, k);
@@ -375,11 +413,18 @@
   window.__shot = (name) => {
     const ls = lifeShot(name);
     const v = name === 'view' ? (params.get('cam') || VIEWS[id]) : ls ? ls.view : SHOTS[name];
-    if (!v) throw new Error(`no shot "${name}" for ${id}; there are ${['view', ...Object.keys(SHOTS), ...Object.keys(ROOFS_LIFE_SHOTS), ...Object.keys(LIFE_EXTRAS)].join(', ')}`);
+    if (!v) throw new Error(`no shot "${name}" for ${id}; there are ${['view', ...Object.keys(SHOTS), ...Object.keys(ROOFS_LIFE_SHOTS), ...Object.keys(ROOFS_MOMENT_SHOTS), ...Object.keys(LIFE_EXTRAS)].join(', ')}`);
     window.__cam(...v.split(',').map(Number));
     if (id === 'roofs') {
       lifeTo(name === 'view' ? EVENING_T : ls ? ls.t : SHOT_T[name] ?? (evParam !== null ? EVENING_T : EVENING_DUSK));
       if (ls) stir(ls);
+      clearMoment();
+      if (id === 'roofs' && ROOFS_MOMENT_SHOTS[name]) {
+        window.__cam(...v.split(',').map(Number));
+        stand(name);
+        render(); // the vane's camera is where the life eased it: not put back
+        return name;
+      }
     }
     window.__cam(...v.split(',').map(Number));
     return name;

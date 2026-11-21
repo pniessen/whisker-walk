@@ -690,6 +690,29 @@ export const ROOFS_LIFE_SHOTS = Object.freeze({
   sleeper: lifeShot('-25.3,5.4,15.2,-25.75,4.4,12.2', 240),
 });
 
+// The picture views for the six discoveries' moments and the tank's golden
+// mouse (Rooftops step 5), { view, t } as ROOFS_LIFE_SHOTS'. verify-places.html's
+// __shot takes these names too: it puts a stand-in cat at the discovery's
+// anchor (perched on the crate for the telescope) and runs the life to t. The
+// vane's view is where the cat's follow camera starts; the life eases it round.
+const momentShot = (view, t = 240) => Object.freeze({ view, t });
+export const ROOFS_MOMENT_SHOTS = Object.freeze({
+  // the roof terrace at dusk: the bench, the pots and the string lights
+  garden: momentShot('20.6,8.4,13.2,16.4,6.9,9.2'),
+  // on the loft's roof, the loft pigeon that has come along and landed beside her
+  loft: momentShot('-24.6,15.0,-40.4,-30.6,12.4,-47.8'),
+  // the tower top: her follow camera, behind her; the life eases it round to the town
+  vane: momentShot('26,18.4,-20,26,17.4,-16.5'),
+  // the attic's pane from over the frame
+  skylight: momentShot('3.4,8.4,8.2,3.4,6.6,4.9'),
+  // on the telescope's crate, the moon over the screen
+  telescope: momentShot('38.8,11.4,5.8,35.8,10.2,8.2'),
+  // by the warm stack, the smoke ring
+  chimney: momentShot('-12.5,9.7,10.5,-10,9.2,7.5'),
+  // the gold mouse on the water tank's lid
+  mice: momentShot('-23.6,14.6,-30.4,-26.8,13.0,-33.6'),
+});
+
 // ---------------------------------------------------------------------------
 // WHAT THE SHARED TABLES HOLD (Task 10). Plain data in the shapes those tables
 // use, as FAIR_REGISTRATION is: each row is copied into its table, and
