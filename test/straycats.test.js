@@ -1253,55 +1253,13 @@ describe('createStrayCats — a legendary extra (v21 3b)', () => {
 describe('game/walk.js — where a legendary cat may appear', () => {
   const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
 
-  it('a walk with a non-partner never passes extras', () => {
-    const decide = src.indexOf('const legend = colonyWalk && !isDen ? legendaryFor(');
-    expect(decide).toBeGreaterThan(-1);
-    // One roll, and only inside that guard.
-    expect(src.split('legendaryRoll(').length - 1).toBe(1);
-    expect(src.indexOf('legendaryRoll(roomSeed)')).toBeGreaterThan(decide);
-    expect(src.indexOf('legendaryRoll(roomSeed)')).toBeLessThan(src.indexOf('\n', decide));
-    // Ruling R40: a room walk decides on shared data only.
-    expect(src.slice(decide, src.indexOf('\n', decide))).toContain('{ shared: roomSeed !== undefined }');
-    // The extra list is empty unless the legend or the wanderer is there,
-    // and the legend wins: the wanderer is the else-branch of that one expression.
-    expect(src).toContain('const extras = legend ? [');
-    const exStart = src.indexOf('const extras = legend ? [');
-    expect(src).toMatch(/const extras = legend \? \[\{[\s\S]*?\}\] : wanderSpot \? \[\{[\s\S]*?\}\] : \[\];/);
-    // ...and it is what createStrayCats is handed.
-    const call = src.indexOf('const strayCats = createStrayCats(');
-    expect(call).toBeGreaterThan(decide);
-    expect(src.slice(call, src.indexOf('});', call))).toMatch(/\n\s+extras,\n/);
-    // The wanderer comes only from walkWanderer, with no walkRng between it and the call.
-    const wander = src.indexOf('walkWanderer(state, areaId, {');
-    expect(wander).toBeGreaterThan(-1);
-    expect(wander).toBeLessThan(call);
-    expect(src.slice(wander, call)).not.toContain('walkRng');
-    // Its spot (ruling R3): clan ground, away from the camp, off the as-built map.
-    const spotLine = src.slice(src.indexOf('const wanderSpot = '), src.indexOf(';\n', src.indexOf('const wanderSpot = ')));
-    expect(spotLine).toContain('wanderSpotFor(');
-    expect(spotLine).toContain('clanWalkableFor(');
-    expect(spotLine).toContain('clearSpot(wanderStart(areaData.spawn)');
-    // Each extra's own rng: mulberry32 over its name and the room seed, never walkRng.
-    const ex = src.slice(exStart, call);
-    expect(ex).toContain('mulberry32((seedFromCode(legend) ^ (roomSeed ?? ');
-    expect(ex).toContain('mulberry32((seedFromCode(wanderName) ^ (roomSeed ?? ');
-    expect(ex).not.toContain('walkRng');
-    // Ruling R2 (amended): the wanderer takes an ordinary loner's slot, never
-    // a colony cat's, and only when it is passed.
-    const callText = src.slice(call, src.indexOf('});', call));
-    expect(callText).toContain('createStrayCats(scene, areaData, strayCount, strayStream(roomSeed ?? soloSeed)');
-    expect(src).toContain('const loners = isDen ? 0 : lonersFor(areaId, tier.strays, fedHere);');
-    // (On the lite rung, quality.js LITE, the loners are first raised to her
-    // colony's size here, so no fed cat is dropped; every other rung passes
-    // `loners` as it is.)
-    expect(src).toContain('const strayCount = wanderStrayCount(tier.keepFedCats ? Math.max(loners, fedHere) : loners, fedHere, !!wanderSpot);');
-    // Kittypets are kept out of a territory's ordinary cast on every walk.
-    const excl = src.slice(src.indexOf('const excludeNames = '), src.indexOf(';\n', src.indexOf('const excludeNames = ')));
-    expect(excl).toContain('territoryCastExcludes(areaId)');
-    // And none of it inside the rival's slice.
-    const slice = src.slice(src.indexOf("The rival's border and its patrol"), src.indexOf('session.rival = {'));
-    expect(slice).not.toMatch(/legend|wander/i);
-  });
+  // "a walk with a non-partner never passes extras" was a pin on walk.js's
+  // lines; it is behaviour now, on real walks: test/walkcast.test.js "the legend
+  // and the wanderer" (who is asked for the legend, the shared roll, the legend
+  // over the wanderer, the extras' own streams, the wanderer's spot, the rival
+  // untouched) and "how many strays a walk asks for" (the wanderer's slot, the
+  // lite rung's fed cats, the kittypets kept out).
+
 
   it('the arrival line: only when the wanderer was spawned, in Clan Edition, and not already in the colony', () => {
     // Final review, finding 2: the line is kept on the session, not toasted
