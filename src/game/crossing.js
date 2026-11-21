@@ -17,7 +17,7 @@ import { carryLabel } from '../carry.js';
 import { crossCardHtml, crossExtras, decideBorderCross, targetName, lower } from '../bordercross.js';
 import { gateStatus, gateCardHtml, gateBuyHtml } from '../gatecross.js';
 import { endById } from '../gateways.js';
-import { CONFIRM_DELAY_MS } from '../ui/colonypanel.js';
+import { deliberateTap } from '../ui/confirmcard.js';
 import { phrase } from '../clanphrases.js';
 import { pauseCardFor } from './walk.js';
 
@@ -114,8 +114,7 @@ export function createCrossing({
     const c = s?.crossing;
     if (!c || c.kind !== 'gate' || c.asking !== 'buy' || c.going) return;
     if (s.net && !s.net.isHost?.()) return;
-    if (typeof e?.detail === 'number' && e.detail > 1) return;
-    if (!(now() - c.shownAt >= CONFIRM_DELAY_MS)) return;
+    if (!deliberateTap({ detail: e?.detail, shownAt: c.shownAt, now: now() })) return;
     const end = endById(c.via)?.end ?? null;
     if (!end || !progression?.buy('areas', c.to)) {
       restoreCard(s);
