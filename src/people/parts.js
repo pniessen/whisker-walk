@@ -110,39 +110,83 @@ export function flareProfiles(look) {
   return out;
 }
 
-// How a flare's point (figure frame, as built) is bound (ruling R32): to
-// the pelvis at the waist and, going down to the hem (hemY), more and more
-// to the left thigh on its left half, at the front and the side (not the
-// back; at the front's middle half way). So it goes over the kneel's raised
-// (left) knee instead of the thigh going through it; standing, the thighs
-// are as built and it is as it was. Into `out`: [pelvis, thighL, thighR]
-// weights (they add to 1; the right thigh's is 0, fix round 1).
-export function drapeWeights(d, hemY, x, y, z, out) {
-  const width = d.hipX * 0.6;
-  const k = Math.min(1, Math.max(0, (d.waistY - y) / (d.waistY - hemY)));
-  const down = k * k * (3 - 2 * k);
-  const t = Math.min(1, Math.max(0, 0.5 + x / (2 * width))); // 0 the left (-x), 1 the right
-  const f0 = Math.min(1, Math.max(0, 0.9 - z / (2 * width))); // 1 in front (-z) and at the sides, 0 behind
-  const w = down * f0 * f0 * (3 - 2 * f0);
-  // (only the left thigh, the kneel's raised one: the right half stays with
-  // the pelvis, as it was, so a skirt never sweeps forward with the right
-  // foot's lift on the way down: Task 12 fix round 1)
-  out[0] = 1 - w * (1 - t); out[1] = w * (1 - t); out[2] = 0;
+// How a flare's point (figure frame, as built) is bound, so the whole skirt
+// swings with the stride and, in the kneel, lies over the raised knee as one
+// piece with its back hanging down (the owner, 2026-11-21: the raised thigh
+// showed as through a slit, a fold stood out behind, and only the left half
+// swung). From the pelvis at the waist, going down, more and more to the
+// thigh on its own side (the halves cross over smoothly at the middle):
+//  * round the flare the share eases from the front's to the sides' to the
+//    back's (DRAPE.FRONT, SIDE, BACK: [at the hips, at the hem]). The sides
+//    are the stride's pivot. In the kneel the front lies over the raised
+//    thigh and the side follows it nearly whole at the hips (where the
+//    thigh rises into the cloth); lower down both follow it in part, so the
+//    cloth beyond the thigh hangs down instead of standing out with it (a
+//    full share at the hem floated the cloth high over the knee, a flap
+//    seen from behind; less at the side's hem let the thigh through the
+//    cloth on the way down and up).
+//  * the left half's back, for a grown-up (who kneels on the right knee,
+//    the left raised), takes most of its share as the RIGHT thigh's swing
+//    the other way (a negative weight, DRAPE.MIRROR): in the stride the legs
+//    swing against each other, so it swings with its own (left) leg, while
+//    in the kneel, where the right thigh hangs about straight down, it hangs
+//    down calmly behind the raised left thigh.
+//  * below the knee (an older woman's longer skirt) a part of the thigh's
+//    share goes to the shin (DRAPE.SHIN at the hem), so a bent knee's calf
+//    stays inside it.
+// Into `out`: [pelvis, thighL, thighR, shin, side of that shin (0 the left,
+// 1 the right)]; the four weights add to 1.
+export const DRAPE = Object.freeze({
+  FRONT: [0.8, 0.85], SIDE: [0.9, 0.6], BACK: [0.3, 0.9],
+  ROUND: 0.6, // how far round from the front (or the back) the share eases to the side's (cos of the angle)
+  MIDDLE: 1.2, // the halves cross over within this many hipX of the middle
+  MIRROR: 0.7, // of the left half's back share: taken as the right thigh's swing the other way
+  SHIN: 0.6, // of a share at a hem below the knee: the shin's
+});
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+const smooth01 = (v) => { const c = clamp01(v); return c * c * (3 - 2 * c); };
+// a share down the flare: 0 at the waist, `hip` at the hips, `hem` at the hem
+const shareDown = (k, kHip, [hip, hem]) => (k <= kHip ? hip * smooth01(k / kHip) : hip + (hem - hip) * smooth01((k - kHip) / (1 - kHip)));
+export function drapeWeights(look, hemY, x, y, z, out) {
+  const d = look.dims;
+  const zn = z / 0.8; // the flares' depth over width
+  const h = Math.hypot(x, zn);
+  const c = h > 1e-9 ? zn / h : 0; // -1 at the front, 0 at a side, 1 behind
+  const k = clamp01((d.waistY - y) / (d.waistY - hemY));
+  const kHip = clamp01((d.waistY - d.hipY) / (d.waistY - hemY));
+  const side = shareDown(k, kHip, DRAPE.SIDE);
+  const front = smooth01(-c / DRAPE.ROUND);
+  const back = smooth01(c / DRAPE.ROUND);
+  const w = c < 0 ? side + (shareDown(k, kHip, DRAPE.FRONT) - side) * front : side + (shareDown(k, kHip, DRAPE.BACK) - side) * back;
+  const t = smooth01(0.5 + x / (2 * DRAPE.MIDDLE * d.hipX)); // 0 the left (-x), 1 the right
+  let wl = w * (1 - t);
+  let wr = w * t;
+  const mirror = look.kind === 'adult' ? wl * back * DRAPE.MIRROR : 0;
+  wl -= mirror; wr -= mirror;
+  // below the knee, part of the own side's thigh share goes to its shin
+  const right = t > 0.5;
+  const below = hemY < d.kneeY ? DRAPE.SHIN * smooth01((d.kneeY - y) / (d.kneeY - hemY)) : 0;
+  const shin = (right ? wr : wl) * below;
+  if (right) wr -= shin; else wl -= shin;
+  out[0] = 1 - wl - wr - shin; out[1] = wl; out[2] = wr; out[3] = shin; out[4] = right ? 1 : 0;
   return out;
 }
 
-const _dw = [0, 0, 0];
-function drape(geo, d, hemY) {
+const _dw = [0, 0, 0, 0, 0];
+function drape(geo, look, hemY) {
   const pos = geo.getAttribute('position');
   const si = geo.getAttribute('skinIndex');
   const sw = geo.getAttribute('skinWeight');
   for (let i = 0; i < pos.count; i++) {
-    drapeWeights(d, hemY, pos.getX(i), pos.getY(i), pos.getZ(i), _dw);
-    si.setXYZW(i, JOINT_INDEX.pelvis, JOINT_INDEX.thighL, JOINT_INDEX.thighR, 0);
-    sw.setXYZW(i, _dw[0], _dw[1], _dw[2], 0);
+    drapeWeights(look, hemY, pos.getX(i), pos.getY(i), pos.getZ(i), _dw);
+    si.setXYZW(i, JOINT_INDEX.pelvis, JOINT_INDEX.thighL, JOINT_INDEX.thighR, _dw[4] ? JOINT_INDEX.shinR : JOINT_INDEX.shinL);
+    sw.setXYZW(i, _dw[0], _dw[1], _dw[2], _dw[3]);
   }
   return geo;
 }
+
+// the near flare's rings between its hem and the hips (fractions of the way up)
+const FLARE_RINGS = [1 / 3, 2 / 3];
 
 // A vertex at +-x on a lathe of `segs` sides (see lathe()).
 const sidePhi = (segs) => (Math.PI / 2) % ((Math.PI * 2) / segs);
@@ -288,8 +332,12 @@ export function personParts(look, detail = 'near') {
 
   // ---- a coat's skirt, a dress or a skirt: a flare from the waist ----
   for (const f of flareProfiles(look)) {
-    add(lathe(near ? f.pts : f.pts.slice(0, 3), S.torso, 1, f.sz, sidePhi(S.torso)), f.color, 'pelvis', 'flare');
-    drape(out[out.length - 1].geo, d, f.pts[0][1]);
+    // near, two more rings between the hem and the hips (a third of the way
+    // each, where bumps.js samples the cloth), so the cloth can bend over a
+    // raised knee and follow a swinging thigh
+    const pts = near ? [f.pts[0], ...FLARE_RINGS.map((k) => [lerp(f.pts[0][0], f.pts[1][0], k), lerp(f.pts[0][1], f.pts[1][1], k)]), ...f.pts.slice(1)] : f.pts.slice(0, 3);
+    add(lathe(pts, S.torso, 1, f.sz, sidePhi(S.torso)), f.color, 'pelvis', 'flare');
+    drape(out[out.length - 1].geo, look, f.pts[0][1]);
   }
 
   // ---- arms and hands ----

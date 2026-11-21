@@ -539,9 +539,10 @@ export function kneelSpots(look, out = { kneeX: 0, kneeZ: 0, footX: 0, footZ: 0 
 
 // The legs' frames as a held pose (mode 'kneel', or an older person's 'bow')
 // has them, before grounding: the pelvis's offset [x, y, z] and the turns of
-// the pelvis and both thighs (XYZ Euler, as the bones take them), into `out`.
-// Read by bumps.js, to size a person's circles from their clothed kneel.
-export function legPose(look, mode, out = { pelvis: [0, 0, 0], pelvisRot: [0, 0, 0], thighL: [0, 0, 0], thighR: [0, 0, 0] }) {
+// the pelvis, both thighs and both shins (XYZ Euler, as the bones take them),
+// into `out`. Read by bumps.js, to size a person's circles from their
+// clothed kneel.
+export function legPose(look, mode, out = { pelvis: [0, 0, 0], pelvisRot: [0, 0, 0], thighL: [0, 0, 0], thighR: [0, 0, 0], shinL: [0, 0, 0], shinR: [0, 0, 0] }) {
   KS_ROT.fill(0); KS_PEL.fill(0);
   if (mode === 'bow') bowing(KS_ROT, look);
   else kneeling(KS_ROT, KS_PEL, look);
@@ -550,6 +551,8 @@ export function legPose(look, mode, out = { pelvis: [0, 0, 0], pelvisRot: [0, 0,
     out.pelvisRot[c] = KS_ROT[PELVIS + c];
     out.thighL[c] = KS_ROT[LEFT.thigh + c];
     out.thighR[c] = KS_ROT[RIGHT.thigh + c];
+    out.shinL[c] = KS_ROT[LEFT.shin + c];
+    out.shinR[c] = KS_ROT[RIGHT.shin + c];
   }
   return out;
 }
@@ -607,6 +610,7 @@ const KNEEL_R = 0.82;
 const KNEEL_DOWN = 0.82;
 const KNEEL_LIFT_R = 0.25; // rad: the right foot's lift (the hip and the knee bent) at the middle of its step
 const KNEEL_LIFT_L = 0.25; // and the left's
+const KNEEL_BACK_FROM = 0.55; // of the right foot's step: by then its lift is all back, none forward
 const KNEEL_SWING = 1; // of the kneel's knee turn: the squat's knee goes out that way
 const KNEEL_UP_FIRST = 0.2; // of its step: the foot comes up before it goes anywhere
 const ss = (x) => { const c = x < 0 ? 0 : x > 1 ? 1 : x; return c * c * (3 - 2 * c); };
@@ -664,7 +668,14 @@ function kneelLegs(cur, from, rot, s, into, look, kneelHipY) {
   const legLen = d.hipY - d.ankleY;
   const squat = 1.05 * Math.acos(Math.max(-1, 1 - Math.max(0, -kneelHipY) / legLen));
   const bendL = squat * ss(s / KNEEL_DOWN) * (1 - kL) + KNEEL_LIFT_L * Math.sin(Math.PI * uB);
-  const bendR = KNEEL_LIFT_R * Math.sin(Math.PI * uA);
+  // the right foot comes straight up off the ground (the hip and the knee
+  // bent, the foot kept under the hip), then, in the air, goes back (the hip
+  // straightened back, the knee bent more), so the thigh never swings the
+  // front of a skirt forward on the way down
+  const liftR = KNEEL_LIFT_R * Math.sin(Math.PI * uA);
+  const back = ss(uA / KNEEL_BACK_FROM);
+  const upR = liftR * (1 - back);
+  const backR = liftR * back;
   const toeR = KNEEL_TOE * Math.sin(Math.PI * uA);
   for (let i = 0; i < 2; i++) {
     const S = SIDES[i];
@@ -680,7 +691,7 @@ function kneelLegs(cur, from, rot, s, into, look, kneelHipY) {
   // a bend: the thigh forward, the knee back twice as far, the foot's pitch
   // kept; the left knee swings out toward where the kneel puts it
   bendLeg(cur, LEFT, bendL, KNEEL_SWING * kneeTurnOf(look));
-  cur[RIGHT.thigh] += bendR; cur[RIGHT.shin] -= 2 * bendR; cur[RIGHT.foot] += bendR + toeR;
+  cur[RIGHT.thigh] += upR - backR; cur[RIGHT.shin] -= 2 * (upR + backR); cur[RIGHT.foot] += upR + 3 * backR + toeR;
 }
 
 // ---- grounding -----------------------------------------------------------------
