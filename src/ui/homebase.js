@@ -45,6 +45,7 @@ import { note } from '../diagnostics.js';
 import { line as tutorialLine } from '../tutorialwords.js';
 import { hintMax } from '../hints.js';
 import { nextThing, nextThingHtml, NEXT_ATTR } from './nextthing.js';
+import { birthdayDue } from '../birthday.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -1784,7 +1785,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (roomState || dressing?.ui?.wardrobe) return '';
     let thing = null;
     try {
-      const ctx = () => ({ catalog: CATALOG, present: celebration.hasPresent(), toldNow, denVisitedToday: denVisitedToday(), guideName: s.tutorial?.guide ?? null, touch: !!getIsTouch() });
+      const ctx = () => ({ catalog: CATALOG, present: celebration.hasPresent(), toldNow, denVisitedToday: denVisitedToday(), guideName: s.tutorial?.guide ?? null, touch: !!getIsTouch(), birthday: birthdayDue(progression) });
       thing = nextThing(s, ctx());
       // Rule 8 counts the visits it has pointed at a thing, once a visit.
       if (thing?.rule === 8 && thing.thing && toldNow !== thing.thing) {

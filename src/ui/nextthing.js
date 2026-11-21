@@ -13,6 +13,7 @@ import { tamingProgress, denResidents, TAME_FEEDS } from '../colony.js';
 import { line } from '../tutorialwords.js';
 import { escapeHtml } from '../escapehtml.js';
 import { areaOffer } from '../areaoffer.js';
+import { phrase } from '../clanphrases.js';
 
 // How close "nearly enough" is (rule 10), and how many visits a thing to wear
 // is pointed at before the line moves on (rule 8).
@@ -40,7 +41,10 @@ const inSentence = (name) => String(name).replace(/^The /, 'the ');
 //   guideName        the guide cat's name, for a guided walk left half done
 //   now              epoch ms, for the colony's rules
 //   touch            a touch screen: its lines say Tap (a desktop's say Click)
-export function nextThing(state, { catalog = CATALOG, present = false, toldNow = null, denVisitedToday = false, guideName = null, now = Date.now(), touch = false } = {}) {
+//   birthday         her birthday Gathering is waiting (src/birthday.js
+//                    birthdayDue): the line says so and a tap is Explore,
+//                    which takes her to the bridge to the island
+export function nextThing(state, { catalog = CATALOG, present = false, toldNow = null, denVisitedToday = false, guideName = null, now = Date.now(), touch = false, birthday = false } = {}) {
   const s = state && typeof state === 'object' ? state : {};
   const edition = s.edition;
   const areas = catalog.areas;
@@ -54,6 +58,11 @@ export function nextThing(state, { catalog = CATALOG, present = false, toldNow =
 
   // 1. A present is waiting to be opened.
   if (present) return say(1, 'home.present', '🎁', {}, 'present');
+
+  // The birthday (2026-11-21, src/birthday.js): the Gathering is waiting. Rule
+  // 0, after a present: one small line, the home banner being the big thing.
+  // The words are the word set's (clanphrases 'bday.home').
+  if (birthday === true) return { rule: 0, id: 'bday.home', pic: '🎉', text: phrase('bday.home'), action: 'start' };
 
   // 2. No walk has ever been finished.
   if (!Object.values(walks).some((n) => count(n) > 0)) return say(2, 'home.first', '🐾', {}, 'start');

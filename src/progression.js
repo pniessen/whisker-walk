@@ -1872,8 +1872,10 @@ export function createProgression(storage) {
     // merely requested dark. Defaulted so every pre-v18 call site
     // (completeWalk() / completeWalk(areaId)) keeps behaving exactly as
     // before, incrementing nothing new.
-    completeWalk(areaId = state.area, { dusk = false } = {}) {
-      state.walks[areaId] += 1;
+    // `countArea` false (her birthday visit to a place she has not opened,
+    // src/birthday.js) leaves that place's walk count as it was.
+    completeWalk(areaId = state.area, { dusk = false, countArea = true } = {}) {
+      if (countArea !== false) state.walks[areaId] += 1;
       // A walk on her home land: the first camp walk has happened.
       if (areaId === state.clanPick.mine) state.tutorial.camp = true;
       if (dusk && state.duskWalks < DUSK_WALKS_MAX) state.duskWalks += 1;

@@ -142,6 +142,19 @@ const TABLE = Object.freeze({
   'landmark.river.warmPebble': 'a sun-warmed pebble on the low rock',
   'landmark.island.ring': 'the meeting ring under the old ash',
   'landmark.island.stoneFind': 'a bright beetle wing on a meeting stone',
+
+  // ---- her birthday (2026-11-21): the Gathering on the island ----------------
+  // the home screen's line above Explore while the event is on
+  'bday.home': () => `The ${groupWord()}s are gathering for your birthday! 🎂`,
+  // the leader on the rock; `name` is the name of the cat she is playing as
+  'bday.announce': (name) => `Cats of all the ${groupWord()}s, gather! Today is ${name}'s birthday!`,
+  // the cats' short cheers
+  'bday.cheer.one': 'Happy birthday!',
+  'bday.cheer.two': 'Hooray! 🎉',
+  'bday.cheer.three': 'Happy birthday! 🎂',
+  // the action prompt beside the cake, and the toast once the candles are out
+  'bday.prompt': 'E — Blow out the candles 🎂',
+  'bday.wish': 'Make a wish! 🎂',
 });
 
 // ---- lines added on 2026-11-18, for a set that says them differently ---------

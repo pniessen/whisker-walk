@@ -1225,6 +1225,7 @@ function init() {
         toy: session.toy,
       });
       session.clanCats.update(wdt, t, session.cat.position);
+      session.birthday?.update(wdt, t, session.cat.position);
       session.intruders.update(dt, session.cat.position);
       session.toy.update(dt, session.areaData.bounds);
       // THE YARN BALL FLOATS — v20.

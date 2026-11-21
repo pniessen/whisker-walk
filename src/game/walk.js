@@ -19,6 +19,7 @@ import * as THREE from 'three';
 // loaded pack. No area module is imported here.
 import { createAreaLoader } from './areaload.js';
 import { roofsOn } from '../roofsflag.js';
+import { birthdayDue, BDAY_AREA, BDAY_START, BRIDGE_ISLAND_END, speakerFor, birthdayCatName, noteCandlesBlown, bdayCountsWalk } from '../birthday.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
@@ -563,6 +564,13 @@ export function createWalkLifecycle({
   // walk has started, or not); a room start returns nothing.
   function beginWalkFromHomebase({ duskMode }) {
     if (roofsOn() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'roofs' });
+    // Her birthday (src/birthday.js): while the Gathering waits, a solo
+    // Explore starts in the Pines at the foot of the island bridge. An
+    // override only, never a setArea, and nothing is unlocked: the Pines stay
+    // as they were (and a walk there counts only if they are already hers).
+    if (!getPendingRoom() && birthdayDue(progression)) {
+      return startWalkWhenReady({ duskMode, areaOverride: progression.state.area === BDAY_AREA ? undefined : BDAY_AREA, birthday: true });
+    }
     const area = effectiveArea(progression.state, CATALOG);
     if (!getPendingRoom()) {
       return startWalkWhenReady(area === progression.state.area ? { duskMode } : { duskMode, areaOverride: area });
@@ -683,7 +691,7 @@ export function createWalkLifecycle({
   // wins over the arrival's yaw); the spawn still seeds the race pad, the
   // kitten, the wanderer and the guided walk, and no stream is drawn from
   // differently.
-  function startWalk({ duskMode = false, roomSeed, areaOverride, resume = null, arrive = null } = {}) {
+  function startWalk({ duskMode = false, roomSeed, areaOverride, resume = null, arrive = null, birthday = false } = {}) {
     walksStarted += 1;
     // The place's pack (F6), before anything touches the save: a start whose
     // place has not come is a mistake in the caller (every start goes
@@ -1339,8 +1347,17 @@ export function createWalkLifecycle({
       ? rivalForWalk(areaId, progression.state.edition, borderPicks)?.clan ?? null : null;
     const borderFoe = borderClan ? borderWarriorFor(borderClan, roomSeed ?? seedFromCode(walkStamp)) : null;
     const borderScars = borderFoe ? progression.intruderScars(borderFoe.id) : [];
+    // Her birthday Gathering (world/birthdaygathering.js, the Pines' own
+    // download): a solo Pines walk while the event is on and today's candles
+    // are lit. Its cats come from every clan; the Pines' own who go are not
+    // in their camp on this walk. Nothing here draws from any stream.
+    const bdayLife = pack.life.planGathering ? pack.life : null;
+    const bdayOn = !!bdayLife && roomSeed === undefined && !isDen && areaId === BDAY_AREA && birthdayDue(progression);
+    const bdaySpeaker = bdayOn ? speakerFor(state) : null;
+    const bdayPerClan = tier.strays >= 20 ? 3 : 2;
+    const bdayAway = bdayOn ? new Set([bdaySpeaker?.id, ...bdayLife.gatheringCast(bdaySpeaker, bdayPerClan).map((m) => m.id)]) : null;
     const clanCast = (isDen ? [] : castFor(areaId).slice(0, clanCountFor(tier.strays, fedHere)))
-      .filter((m) => m !== borderFoe);
+      .filter((m) => m !== borderFoe && !bdayAway?.has(m.id));
     // Task 6 (patrol together): set to interactions.js's endClanPatrol once
     // `session` exists below. The clan cats only call it from update, which
     // first runs after the session is built.
@@ -1370,7 +1387,7 @@ export function createWalkLifecycle({
     let lesson = null;
     if (lessonPlan?.kind === 'first') {
       lesson = buildFirstLesson(lessonPlan, { strayCats, areaData, goals: null, resume, pace });
-    } else if (lessonPlan?.kind === 'camp' && campAt) {
+    } else if (lessonPlan?.kind === 'camp' && campAt && !birthday) {
       const camp = { x: campAt.cx, z: campAt.cz, r: DISCS[areaId]?.r ?? 6 };
       // From where she starts: a walk picked up again, a walk walked on into
       // (Task 10: a border post's arrival), else the spawn.
@@ -1568,6 +1585,10 @@ export function createWalkLifecycle({
     // Bigger areas: a strip's own rest spots (areaData.rests) join the area's.
     rests.add(areaData.rests);
     for (const c of rests.colliders) areaData.colliders.push({ ...c });
+    // The birthday cake is solid: its collider joins the list once every
+    // prop's is in it, so its spot keeps clear of them all.
+    const bdayPlan = bdayOn ? bdayLife.planGathering(areaData, { speaker: bdaySpeaker, perClan: bdayPerClan }) : null;
+    if (bdayPlan) areaData.colliders.push({ x: bdayPlan.cake.x, z: bdayPlan.cake.z, r: bdayPlan.cake.r });
 
     // Appletree Farm's animals (farmanimals.js): cows, goats, hens and chicks,
     // the sheepdog and the ducklings. Built here, after every prop's collider
@@ -1955,6 +1976,19 @@ export function createWalkLifecycle({
       sniffTime: 0,
     });
     setSession(session);
+    // The birthday Gathering, now that the walk's fx and HUD are here. A
+    // birthday visit to a Pines she has not opened is not counted as a Pines
+    // walk (endWalk), so her progress stays as it was.
+    session.birthday = bdayPlan ? bdayLife.createBirthdayGathering(scene, bdayPlan, {
+      name: birthdayCatName(state),
+      showNames: isClanEdition(state),
+      reducedMotion,
+      ground,
+      burst: (p, colour, n, o) => session.fx?.burst?.(p, colour, n, o),
+      toast: (text) => hud.toast(text),
+      onBlown: () => noteCandlesBlown(),
+    }) : null;
+    session.birthdayVisit = (!!birthday || bdayOn) && !bdayCountsWalk(state, areaId);
 
     // golden mice: personal, position-static, award-local — no wire events,
     // so this is co-walk safe without touching walkRng or session.net at
@@ -2608,6 +2642,15 @@ export function createWalkLifecycle({
       player.setViewYaw(yaw);
       camera.position.copy(cat.position).add(cameraOffset(yaw, 0.18, startView.dist, startView.height));
       camera.lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
+    } else if (birthday && areaId === BDAY_AREA) {
+      // The birthday walk: at the foot of the island bridge, facing along it.
+      const spot = clearSpot({ ...BDAY_START }, areaData.colliders ?? [], areaData.bounds, areaData.waters ?? [], 0.6);
+      const yaw = headingToward(spot, BRIDGE_ISLAND_END);
+      cat.position.set(spot.x, ground.y(spot.x, spot.z), spot.z);
+      cat.rotation.y = yaw;
+      player.setViewYaw(yaw);
+      camera.position.copy(cat.position).add(cameraOffset(yaw, 0.18, startView.dist, startView.height));
+      camera.lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
     } else if (lesson?.kind === 'camp') {
       // The first walk on home land: the cat and the camera start facing the camp.
       cat.rotation.y = lesson.heading;
@@ -2719,7 +2762,7 @@ export function createWalkLifecycle({
     // show them: no guided walk starts by itself after it (the menu's "Play
     // the first walk again" still does).
     if (session.net && progression.state.tutorial?.first === null) progression.setTutorialFirst('skipped');
-    progression.completeWalk(session.areaId, { dusk: session.countsDusk });
+    progression.completeWalk(session.areaId, { dusk: session.countsDusk, countArea: !session.birthdayVisit });
     if (JSON.stringify(progression.catScars(scarKey(progression.state))) !== scarsBefore) onScarsChanged();
     // A crossing: this walk counted toward the gate above; now pick the place.
     let crossLines = [];
@@ -2905,6 +2948,8 @@ export function createWalkLifecycle({
     session.race.dispose();
     session.strayCats.dispose();
     session.clanCats.dispose();
+    session.birthday?.dispose();
+    session.birthday = null;
     session.intruders.dispose();
     session.remotes.dispose();
     session.ghosts.dispose();
