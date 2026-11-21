@@ -5,9 +5,19 @@
 // other level (userData.houseSimple). Each cost is test/budget.test.js's own count
 // (budgetOf: every mesh a draw, a caster by the walk's rule), over the scene as
 // walk.js renders it: measure after the build and mergeStaticProps (and dusk).
-import { budgetOf } from './growriver.js';
+import * as THREE from 'three';
+import { budgetOf as meshBudgetOf } from './growriver.js';
 import { fullLevels } from '../../src/houselevels.js';
 import { LEVEL_LINKS } from '../../src/world/houseplan.js';
+
+// budgetOf counts meshes; a THREE.Points (the dust motes) is a draw too, with no
+// triangles and no shadow (noCast, additive), so it adds one to `meshes` here.
+function budgetOf(children, rig) {
+  const b = meshBudgetOf(children, rig);
+  let points = 0;
+  for (const c of children) c.traverse((o) => { if (o.isPoints || o.isLine || o.isSprite) points++; });
+  return { ...b, meshes: b.meshes + points };
+}
 
 const ZERO = Object.freeze({ meshes: 0, casters: 0, triangles: 0 });
 const add = (a, b) => ({ meshes: a.meshes + b.meshes, casters: a.casters + b.casters, triangles: a.triangles + b.triangles });
@@ -48,4 +58,39 @@ export function houseWorstSpot(measure, levelIds) {
     if (!worst || s.triangles > worst.triangles) worst = { level: id, ...s };
   }
   return worst;
+}
+
+// What the walk adds to the scene on top of the build (game/walk.js, in its order): the
+// knock-overs, the golden mice, the mice, the yarn ball at its first spot, and the
+// house life (the finds' parts are the build's; the life adds the sunbeams and the
+// dust motes), settled once. Call after the merge and dusk. Returns dispose().
+export async function houseWalkThings(scene, area, { dusk = false, open = false } = {}) {
+  const { createKnockables } = await import('../../src/knockables.js');
+  const { createGoldMice } = await import('../../src/goldmice.js');
+  const { createCritters } = await import('../../src/critters.js');
+  const { HOUSE_FINDS } = await import('../../src/world/housethings.js');
+  const { createToy } = await import('../../src/toy.js');
+  const ground = area.ground;
+  const things = [];
+  things.push(createKnockables(scene, area.knockables, { ground }));
+  things.push(createGoldMice(scene, 'house', new Set(), { ground, list: area.goldMice, rng: () => 0.5 }));
+  things.push(createCritters(scene, area.critterSpawns, { ground, hides: area.hides, rng: () => 0.5, motionRng: () => 0.5 }));
+  const toy = createToy(scene, { ground });
+  const spot = area.yarnSpots[0];
+  toy.spot = { x: spot.x, z: spot.z };
+  toy.placeAt(spot);
+  toy.mesh.visible = true;
+  const life = area.life({ scene, reducedMotion: open, log: null, hud: null, audio: null, toy, dusk });
+  const cam = { position: new THREE.Vector3(area.spawn.x, 3, area.spawn.z + 4) };
+  life.settle(new THREE.Vector3(area.spawn.x, 0, area.spawn.z), cam);
+  if (open) {
+    // the bookcase opens the walk's own way: she holds still at its spot (reduced motion, so it swings at once)
+    const f = HOUSE_FINDS.find((x) => x.trigger === 'secret');
+    const cat = new THREE.Vector3(f.x, 0, f.z);
+    for (let i = 0; i < 4; i++) life.update(1, i, cat, cam);
+  }
+  return () => {
+    life.dispose?.();
+    for (const t of things) t.dispose?.();
+  };
 }
