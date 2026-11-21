@@ -150,5 +150,6 @@ export function bodyDims(look) {
     // a neck about 38 cm round on a man, 32 on a woman, 26 on a child of eight
     neckR: (child ? 0.056 : f ? 0.05 : 0.059) * s * Math.sqrt(g),
     stoop: look.kind === 'older' ? 1 : 0,
+    child, // the face's layout (a child's eyes sit lower) reads it
   };
 }
