@@ -492,6 +492,44 @@ describe('a house walk left in the middle', () => {
     expect(blockers(s.areaData.house.sections, s.areaLife.sink, makeView(cat, cam, CAT_LOOK_Y))).toEqual([]);
     again.w.endWalk();
   }, 90_000);
+
+  // Owner's fix C: the "Welcome back!" card showed her side-on, because the
+  // resume branch turned the view but never her. Before any frame, she faces
+  // the way the note looked, so the camera sees her from behind.
+  it('picked up again, the card shows her from behind: she faces away from the camera', async () => {
+    const life = lifecycleHere();
+    let snap = null;
+    houseWalk(life, false, { keep: (s) => { snap = snapshotWalk(s, { yaw: 0, now: Date.now() }); } });
+    setHouse(true);
+    // the attic looking west, the parlour looking east, the kitchen looking north
+    for (const [x, z, fx, fz] of [[-19, -10, -1, 0], [9, 7, 1, 0], [9, -3, 0, -1]]) {
+      const storage = memStorage();
+      writeResume(storage, { ...snap, x, z, yaw: behindYaw(fx, fz) });
+      const left = readResume(storage, { now: Date.now(), areaIds: ids() });
+      const again = lifecycleHere();
+      expect(await pickUpWalk({
+        storage, data: left.data, startWalkWhenReady: again.w.startWalkWhenReady, progression: again.progression,
+        getSession: again.getSession, reload: () => {},
+      })).toBe('started');
+      const s = again.getSession();
+      expect(s.resumed).toBe(true);
+      const cat = s.cat.position;
+      const cam = again.camera.position;
+      // her nose: rotation.y r faces (-sin r, -cos r) (traversal.js facingYaw)
+      const r = s.cat.rotation.y;
+      const nose = [-Math.sin(r), -Math.cos(r)];
+      const toCam = [cam.x - cat.x, cam.z - cat.z];
+      const len = Math.hypot(toCam[0], toCam[1]);
+      expect(len, `${x},${z}`).toBeGreaterThan(1);
+      // the camera is straight behind her: her nose points away from it, within 10 degrees
+      const cos = -(nose[0] * toCam[0] + nose[1] * toCam[1]) / len;
+      expect(cos, `${x},${z}: she is not facing away from the camera`).toBeGreaterThan(Math.cos((10 * Math.PI) / 180));
+      // and she faces the way the note looked
+      expect(nose[0] * fx + nose[1] * fz, `${x},${z}`).toBeGreaterThan(0.98);
+      expect(blockers(s.areaData.house.sections, s.areaLife.sink, makeView(cat, cam, CAT_LOOK_Y))).toEqual([]);
+      again.w.endWalk();
+    }
+  }, 90_000);
 });
 
 // The sound, through its own seam (as test/audio.test.js observes the den's):

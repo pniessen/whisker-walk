@@ -26,6 +26,8 @@
        drive=1              no rAF loop: window.__frame() drives
        size=WxH             the picture's size (default 960x540)
        bare                 no HUD (a tour's caption still shows)
+       resume=x,z,yaw       where the page's "resume" shot picks a walk up (default the attic,
+                            -19,-10, looking west), as game/walk.js's resume branch places her
      With no tour she starts at the front door: the arrows or W-A-S-D walk her,
      + / = zoom in and - zooms out (camzoom.js keyZoomDir).
      Window API:
@@ -34,7 +36,9 @@
                             "standins" (from the attic at Farther, back over the far levels'
                             stand-ins): a fresh walk at the shot's spot, facing, and zoom step,
                             settled at once as a walk's start is (game/walk.js), run
-                            SETTLE s in fixed 1/30 s steps with her standing, then rendered
+                            SETTLE s in fixed 1/30 s steps with her standing, then rendered;
+                            or "resume": a walk picked up again, as its "Welcome back!" card
+                            shows it (game/walk.js: placed, settled, no frame run)
        __tour(name) → name  starts a tour from its start, for __frame to drive
        __frame() → { done, caption }   one fixed 1/30 s step (the tour's pilot first, if
                             one is running) plus a render
@@ -70,7 +74,8 @@
   import { buildCat, CAT_LOOK_Y } from '/src/cat/model.js';
   import { animateCat } from '/src/cat/animator.js';
   import { createPlayer } from '/src/player.js';
-  import { keyZoomDir, clampZoomStep } from '/src/camzoom.js';
+  import { keyZoomDir, clampZoomStep, zoomView } from '/src/camzoom.js';
+  import { cameraOffset } from '/src/catcam.js';
   import { facingYaw, behindYaw } from '/src/traversal.js';
   import { build as buildHouse } from '/src/world/house.js';
   import { HOUSE_SHOTS, HOUSE_TOURS, createHousePilot } from '/src/world/housetour.js';
@@ -84,6 +89,7 @@
   const [W, H] = (params.get('size') || '960x540').split('x').map(Number);
   const DRIVE = params.get('drive') === '1';
   const BARE = params.has('bare');
+  const RESUME = (params.get('resume') || '-19,-10,' + behindYaw(-1, 0)).split(',').map(Number);
   const DT = 1 / 30; // the fixed step of shots, tours and __frame
   const SETTLE = 1.5; // s a shot runs with her standing: the sink, the fade and the shadow fit settle
   const TAIL = 1.0; // s of film after a tour ends
@@ -269,12 +275,39 @@
     render();
   }
   window.__shot = (name) => {
+    if (name === 'resume') { resumeAt(RESUME[0], RESUME[1], RESUME[2]); return name; }
     const s = SHOTS[name];
     if (!s) throw new Error(`no shot "${name}"; there are ${Object.keys(SHOTS).join(', ')}`);
     settleAt(name, s.at[0], s.at[1], s.face[0], s.face[1], s.zoom);
     return name;
   };
   window.__place = (x, z, fx, fz, zoom = 1) => { settleAt(`at ${x}, ${z}`, x, z, fx, fz, zoom); return info(); };
+
+  // A walk picked up again (the "resume" shot), placed as game/walk.js's resume
+  // branch places her: at the note's spot, she and the view turned to the
+  // note's yaw, the camera behind her at the start view, then the house life
+  // settled. The
+  // "Welcome back!" card is paused, so no frame runs before the picture.
+  function resumeAt(x, z, yaw, zoom = START_ZOOM) {
+    tour = null;
+    setCaption(null);
+    life?.dispose();
+    life = area.life({ scene, sun, fill, ground, reducedMotion: rm });
+    cat.position.set(x, ground.y(x, z), z);
+    cat.rotation.set(0, yaw, 0); // she faces the way the note looked (walk.js, owner's fix C)
+    player.setAvatar(cat, PACE);
+    player.setGround(ground);
+    player.setViewYaw(yaw);
+    player.setCameraZoom(zoom, { instant: true });
+    player.setTouchMove(null);
+    const v = zoomView(zoom);
+    camera.position.copy(cat.position).add(cameraOffset(yaw, 0.18, v.dist, v.height));
+    camera.lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
+    if (SINK_ON) life.settle(cat.position, camera);
+    else life.drawing.settle(cat.position.y);
+    shadows.update(ground.y(x, z), 1e3);
+    render();
+  }
 
   // ---- The tours ----
   let tour = null; // { name, pilot, ended } while one runs

@@ -2633,9 +2633,12 @@ export function createWalkLifecycle({
     // its levels are drawn for hers) settles it on this start view at once, so
     // the Ready and "Welcome back!" cards, which run no area life, show her and
     // not a wall. A walk picked up again gets its camera behind her first (the
-    // one above is still on the spawn). No other place's life has a settle.
+    // one above is still on the spawn), and she faces the way the note looked,
+    // as the arrive branch turns her, so the card shows her from behind and not
+    // side-on. No other place's life has a settle.
     if (session.areaLife.settle) {
       if (resume) {
+        cat.rotation.y = resume.yaw;
         camera.position.copy(cat.position).add(cameraOffset(resume.yaw, 0.18, startView.dist, startView.height));
         camera.lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
       }
