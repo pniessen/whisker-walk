@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { memoryStorage as memStorage } from './helpers/storage.js';
 
 // Clan Edition Task 8: a Legacy walk goes quiet. A Legacy kid whose chosen
 // place is the Woods walks the Neighborhood, solo or in a room, and keeps the
@@ -61,11 +62,6 @@ const { createAreaLoader } = await import('../src/game/areaload.js');
 // start runs startWalk in the same tick and its STOP comes straight out.
 const areas = createAreaLoader();
 beforeAll(() => areas.ensureAll(['neighborhood', 'woods', 'river', 'moor', 'pines', 'gorge']));
-
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 
 // No jsdom here: the same headless canvas stub as test/walk.visitprize.test.js.
 function fakeContext() {

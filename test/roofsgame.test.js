@@ -14,6 +14,7 @@ import * as offWords from '../src/offclanwords.js';
 import { ROOFS_COLLECTIBLES, ROOFS_SCENICS, ROOFS_PERCHES, ROOFS_REGISTRATION } from '../src/world/roofsplan.js';
 import { seriesFilter } from './helpers/serieswords.js';
 import { withStandInWords } from './helpers/standinwords.js';
+import { memoryStorage } from './helpers/storage.js';
 
 // =============================================================================
 // The Rooftops in the game (Rooftops step 2). Task 8: the evening look, and a
@@ -26,14 +27,7 @@ import { withStandInWords } from './helpers/standinwords.js';
 const ROOFS = { evening: true };
 const WOODS = {};
 
-function memStorage() {
-  const map = new Map();
-  return {
-    getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => map.set(k, String(v)),
-    removeItem: (k) => map.delete(k),
-  };
-}
+const memStorage = () => memoryStorage({}, { removeItem: true });
 
 // A solo walk as startWalk makes it: the Day or Dusk choice, her collar, the place.
 function start({ duskMode, collar, area }) {

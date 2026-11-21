@@ -8,6 +8,7 @@ import { createDiscoveryLog } from '../src/discoveries.js';
 import { FIND_KEY } from '../src/foundwear/spots/index.js';
 import { planFind, roomFindRoster, findsAgreed } from '../src/foundwear/rules.js';
 import { grantFind } from '../src/foundwear/play.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 // Found outfits step 1, Task 9: the find wired into the walk (walk.js plans
 // it at walk start and builds it, a resume puts it back, the walk's end
@@ -18,11 +19,6 @@ import { grantFind } from '../src/foundwear/play.js';
 
 const read = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
 const noComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-
-function fakeStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 
 describe('found outfits: the wiring', () => {
   it('walk.js plans the find from the room seed or the solo seed, never walkRng, and restores and disposes it', () => {

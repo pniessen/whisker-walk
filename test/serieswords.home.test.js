@@ -14,6 +14,7 @@
 // when the owner or the older playtester has asked for a wording change in
 // the "on" game:  UPDATE_SERIES_SNAPSHOT=1 npx vitest run test/serieswords
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { memoryStorage as memStorage } from './helpers/storage.js';
 
 // The home base's WebGL pieces cannot run in node: stub the thumbnails, the
 // hero stage and the dressing-room controller (its sheets are recorded from
@@ -44,11 +45,6 @@ const { withStandInWords, leaksIn, standInCount } = await import('./helpers/stan
 const FIXTURE = 'series-words-on-home.json';
 const CLANS = Object.keys(HOMES);
 const ME = 'player-me-000001';
-
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 
 function fakeEl(doc) {
   const el = {

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { memoryStorage } from './helpers/storage.js';
 
 // Child-safety pass on the home base's online bits: every name or breed that
 // came from another device (the room roster, a profiles row, a friend code) is
@@ -37,10 +38,7 @@ const HOSTILE = [
   'Snapchat Me',
 ];
 
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), map };
-}
+const memStorage = () => memoryStorage({}, { expose: 'map' });
 function fakeEl(doc) {
   const el = {
     ownerDocument: doc, className: '', innerHTML: '', textContent: '', id: '', type: '',

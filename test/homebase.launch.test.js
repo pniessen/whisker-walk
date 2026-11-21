@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { memoryStorage as memStorage } from './helpers/storage.js';
 
 // Launch A ("Cat, place, go"): the top bar, the Menu and Change place doors,
 // the clan moment, Enter-to-start and the Settings Advanced group, driven
@@ -30,11 +31,6 @@ const { MOMENT_SEEN_KEY, MOMENT_ATTR } = await import('../src/ui/clanpicker.js')
 const { PICK_ATTR } = await import('../src/ui/clanpicker.js');
 const { MENU_TILES, SHEET_NAME } = await import('../src/ui/dressingroom.js');
 const { SKILLS } = await import('../src/skills.js');
-
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 
 function fakeEl(doc) {
   const el = {

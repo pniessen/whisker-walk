@@ -9,6 +9,7 @@ import { diagnostics } from '../src/diagnostics.js';
 import { mulberry32 } from '../src/rng.js';
 import { rollWeather } from '../src/weather.js';
 import { NO_FIND } from '../src/foundwear/live.js';
+import { memoryStorage as memStorage } from './helpers/storage.js';
 
 // endWalk (src/game/walk.js) frees a walk by hand: a dispose() per rig, then
 // a sweep over the scene. Nothing else would notice a rig that forgot its
@@ -23,11 +24,6 @@ import { NO_FIND } from '../src/foundwear/live.js';
 // the strays, the find. So Math.random is a fixed stream and the clock a fixed
 // day, and each walk below pins the one seed it needs, or a leak would show
 // only on the runs whose seed happened to build the leaking part.
-
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 
 // No jsdom here: the headless canvas stub the world tests use (see
 // test/den.test.js), with measureText for the cats' name tags.

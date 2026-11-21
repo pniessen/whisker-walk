@@ -6,6 +6,7 @@ import { createProgression, CATALOG, JOURNAL_TYPES } from '../src/progression.js
 import { CRITTER_INFO } from '../src/journal.js';
 import { labelFor, hideToastFor } from '../src/game/labels.js';
 import { stubCanvasDocument } from './helpers/canvas.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 stubCanvasDocument();
 
@@ -24,14 +25,6 @@ const area = build(new THREE.Scene());
 // number stops matching and the Sea Legs block below stops proving anything,
 // so it should be updated deliberately rather than imported and forgotten.
 const CANAL_HALF = 3.5;
-
-function fakeStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return {
-    getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => map.set(k, String(v)),
-  };
-}
 
 // Can the cat physically stand at (x, z)? player.update pushes a GROUNDED cat
 // out to collider.r + CAT_RADIUS (0.35) and clamps it into bounds, so this is

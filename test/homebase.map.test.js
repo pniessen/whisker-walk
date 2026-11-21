@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { memoryStorage as memStorage } from './helpers/storage.js';
 
 // The home base's WebGL pieces can't run in node: stub the thumbnails, the hero
 // stage and the dressing-room controller. The controller stub keeps the
@@ -42,11 +43,6 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
 
 const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression } = await import('../src/progression.js');
-
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 
 // No jsdom here: a tiny element stand-in, enough for the home base.
 function fakeEl(doc) {

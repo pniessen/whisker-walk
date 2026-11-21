@@ -31,6 +31,7 @@ import { chaseAllowed } from '../src/rivalcats.js';
 import { bus } from '../src/events.js';
 import { createClanFight } from '../src/game/clanfight.js';
 import { onAnyDeck } from '../src/world/builder.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 // src/game/* had no test coverage at all before this file — the module carve-
 // out out of main.js was verified by mechanical diff and a browser smoke run.
@@ -42,11 +43,6 @@ import { onAnyDeck } from '../src/world/builder.js';
 // would have pinned the copy, not the game.
 
 const scene = { add() {}, remove() {} };
-
-function fakeStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 
 // A row of props along x, so the gaps between them ARE the distances the
 // cascade radius is measured against.

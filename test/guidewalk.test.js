@@ -21,10 +21,11 @@ import { SPAWN as RIVER } from '../src/world/river.js';
 import { SPAWN as MOOR } from '../src/world/moor.js';
 import { SPAWN as PINES } from '../src/world/pines.js';
 import { SPAWN as GORGE } from '../src/world/gorge.js';
+import { memoryStorage } from './helpers/storage.js';
 
 const fakeScene = () => ({ add() {}, remove() {} });
 const AREA = { bounds: { minX: -50, maxX: 50, minZ: -50, maxZ: 50 }, spawn: { x: 0, z: 45 }, colliders: [], waters: [], collectibles: [{ id: 'yarn-1', x: -14, z: 33.5, label: 'a red yarn ball' }] };
-const memStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const memStorage = () => memoryStorage({}, { removeItem: true });
 const newSave = () => ({ tutorial: { first: null, camp: false, hints: {}, told: { thing: null, visits: 0 } }, clanPick: { mine: null } });
 
 describe('which walk has a lesson', () => {

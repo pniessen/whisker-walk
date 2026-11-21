@@ -1,16 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createProgression, BACKUP_KEYS } from '../src/progression.js';
+import { memoryStorage } from './helpers/storage.js';
 
 const KEY = 'whisker-walk-save';
-function memStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return {
-    map,
-    getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => map.set(k, String(v)),
-    removeItem: (k) => map.delete(k),
-  };
-}
+const memStorage = (initial) => memoryStorage(initial, { removeItem: true, expose: 'map' });
 const backupRaw = (storage, kind) => {
   const w = storage.getItem(BACKUP_KEYS[kind]);
   return w === null ? null : JSON.parse(w).raw;

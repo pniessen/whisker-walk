@@ -16,6 +16,7 @@ import { clanPickerModel, renderClanMomentHtml } from '../src/ui/clanpicker.js';
 import { walkingNameIntro } from '../src/ui/walkingname.js';
 import { withOffWords } from './helpers/offwords.js';
 import { htmlText } from './helpers/serieswords.js';
+import { memoryStorage as mem } from './helpers/storage.js';
 
 // Run fn in the family's words, then in the everyday words.
 const inBothSets = (fn) => { fn('on'); withOffWords(() => fn('off')); };
@@ -36,10 +37,6 @@ const clan = base();
 const legacy = base({ edition: 'legacy' });
 
 const KEY = 'whisker-walk-save';
-const mem = (initial = {}) => {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-};
 const save = (fields = {}) => createProgression(mem({ [KEY]: JSON.stringify({ version: 4, ...fields }) })).state;
 
 describe('the "next thing" lines', () => {

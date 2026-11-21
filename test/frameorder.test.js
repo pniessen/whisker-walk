@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { WALK_ENDED_LINE, stuckNoticeHtml } from '../src/game/recovery.js';
+import { memoryStorage as sharedMemoryStorage } from './helpers/storage.js';
 
 // The walk's frame, run for real: src/main.js is booted headless and the
 // frame the renderer is handed (renderer.setAnimationLoop) is called by hand
@@ -148,10 +149,7 @@ for (const m of [
   'game/walkresume', 'fightcam',
 ]) vi.doMock(`../src/${m}.js`, () => h.stubModule());
 
-const memoryStorage = () => {
-  const m = new Map();
-  return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
-};
+const memoryStorage = () => sharedMemoryStorage({}, { removeItem: true });
 
 let elements;
 const element = (id) => {

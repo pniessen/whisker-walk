@@ -73,6 +73,7 @@ import { PERSONALITY_KEYS, replyFor } from '../src/catreplies.js';
 import { PHRASE_IDS, phrase } from '../src/clanphrases.js';
 import { checkAgainstFixture, htmlText, sorted, uniq, sortKeys, seriesFilter } from './helpers/serieswords.js';
 import { withStandInWords, leaksIn, standInCount } from './helpers/standinwords.js';
+import { memoryStorage as memStorage } from './helpers/storage.js';
 
 const FIXTURE = 'series-words-on.json';
 
@@ -88,11 +89,6 @@ const [A, B, C] = CAT_NAMES.filter((n) => !isKittypetName(n));
 const PET = KITTYPET_NAMES[0];
 
 // ---- saves ------------------------------------------------------------------
-
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 
 // A real default save, then only the fields a case is about.
 function save({ edition = 'canon', mine = null, partner = null, area = 'neighborhood', open = false, title = null, points = 0 } = {}) {

@@ -4,6 +4,7 @@ import { createNetEvents } from '../src/game/netevents.js';
 import { createMetPlayers } from '../src/metplayers.js';
 import { nowSec } from '../src/game/util.js';
 import { CAT_NAMES } from '../src/straynames.js';
+import { memoryStorage as memStorage } from './helpers/storage.js';
 
 // Child-safety pass on the walk's event handling: a boop-confirm only counts as
 // the answer to a boop this child asked for, and a hidden visitor's events show
@@ -12,11 +13,6 @@ import { CAT_NAMES } from '../src/straynames.js';
 const ME = 'me-0001';
 const ROBIN = 'robin-0002';
 const STRANGER = 'stranger-0003';
-
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 
 function harness({ blocked = [], partnerName = 'Robin' } = {}) {
   const toasts = [];

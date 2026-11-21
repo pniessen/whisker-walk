@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { canvasDocument, stubCanvasDocument } from './helpers/canvas.js';
+import { memoryStorage } from './helpers/storage.js';
 
 describe('canvasDocument', () => {
   const ctx = (opts) => canvasDocument(opts).createElement('canvas').getContext('2d');
@@ -52,5 +53,36 @@ describe('stubCanvasDocument', () => {
     const stub = stubCanvasDocument({ measureText: 10 });
     expect(globalThis.document).toBe(stub);
     expect(document.createElement('canvas').getContext('2d').measureText('a')).toEqual({ width: 10 });
+  });
+});
+
+describe('memoryStorage', () => {
+  it('reads back what it was seeded with, and null for a missing key', () => {
+    const s = memoryStorage({ a: '1' });
+    expect(s.getItem('a')).toBe('1');
+    expect(s.getItem('nope')).toBeNull();
+  });
+
+  it('starts empty with no seed, and stores values as strings', () => {
+    const s = memoryStorage();
+    expect(s.getItem('n')).toBeNull();
+    s.setItem('n', 3);
+    expect(s.getItem('n')).toBe('3');
+  });
+
+  it('has no removeItem unless asked, and then removes the key', () => {
+    expect(memoryStorage().removeItem).toBeUndefined();
+    const s = memoryStorage({ a: '1' }, { removeItem: true });
+    s.removeItem('a');
+    expect(s.getItem('a')).toBeNull();
+  });
+
+  it('exposes the Map it writes to under the asked name, and only then', () => {
+    const s = memoryStorage({}, { expose: 'map' });
+    s.setItem('k', 'v');
+    expect(s.map).toBeInstanceOf(Map);
+    expect(s.map.get('k')).toBe('v');
+    expect(memoryStorage({}, { expose: 'm' }).m).toBeInstanceOf(Map);
+    expect(memoryStorage().map).toBeUndefined();
   });
 });

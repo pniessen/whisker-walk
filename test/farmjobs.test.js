@@ -7,6 +7,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import { stubCanvasDocument } from './helpers/canvas.js';
+import { memoryStorage } from './helpers/storage.js';
 
 stubCanvasDocument();
 
@@ -38,10 +39,7 @@ const DT = 1 / 30;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const read = (p) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8');
 const code = (p) => read(p).split('\n').filter((l) => !l.trim().startsWith('//')).map((l) => l.replace(/\/\/.*$/, '')).join('\n');
-const mem = (initial = {}) => {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), map };
-};
+const mem = (initial) => memoryStorage(initial, { expose: 'map' });
 const inWater = (area, x, z, margin = 0) => area.waters.some((w) => Math.hypot(x - w.x, z - w.z) < w.r + margin);
 
 const AREA = build(new THREE.Scene());

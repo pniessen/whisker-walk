@@ -40,6 +40,7 @@ import { EMBLEMS } from '../src/clanwords.js';
 import { htmlText, readFixture, checkAgainstFixture, UPDATING_OFF } from './helpers/serieswords.js';
 import { OFF, withOffWords, bannedIn, bannedLeaks, BANNED } from './helpers/offwords.js';
 import { withStandInWords } from './helpers/standinwords.js';
+import { memoryStorage } from './helpers/storage.js';
 
 const read = (f) => readFileSync(f, 'utf8');
 const FILES = globSync('src/**/*.js').map((f) => f.split('\\').join('/'));
@@ -47,10 +48,7 @@ const STORED = [...CAT_NAMES, ...KIT_NAMES, ...LEGENDARY_NAMES];
 const CLANS = Object.keys(HOMES);
 const ME = 'player-me-000001';
 const KEY = 'whisker-walk-save';
-const mem = (initial = {}) => {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), map };
-};
+const mem = (initial) => memoryStorage(initial, { expose: 'map' });
 const flat = (v) => (typeof v === 'string' ? [v] : v instanceof Set ? [...v] : Object.values(v).flatMap(flat));
 
 afterEach(() => {

@@ -5,6 +5,7 @@ import { climbBudget, canReach, SURE_CLAWS_ID } from '../src/climbing.js';
 import { createProgression, CATALOG, JOURNAL_TYPES } from '../src/progression.js';
 import { areaInEdition } from '../src/edition.js';
 import { stubCanvasDocument } from './helpers/canvas.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 stubCanvasDocument();
 
@@ -39,14 +40,6 @@ const { mulberry32 } = await import('../src/rng.js');
 const scene = new THREE.Scene();
 const area = build(scene);
 const set = propsFor('farm');
-
-function fakeStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return {
-    getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => map.set(k, String(v)),
-  };
-}
 
 const dist = (a, c) => Math.hypot(a.x - c.x, a.z - c.z);
 // Can a grounded cat stand at (x, z)? Bounds, colliders and dry ground: the
