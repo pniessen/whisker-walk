@@ -491,8 +491,11 @@ const partnerNameOf = (partner) => (partner && partner.petName ? String(partner.
 // Start says which cat it really is ("Explore as Tabby 🐾"). The words were
 // "Start the walk" until 2026-11-19, a leftover from the first version where a
 // person took a cat for a walk; the owner asked for "Explore".
-export function renderStartButtonHtml(room, { as = null } = {}) {
+// gettingReady: a place's code is still loading (F6), so Start waits, disabled,
+// and says so. "Starting…" in a room still wins over it.
+export function renderStartButtonHtml(room, { as = null, gettingReady = false } = {}) {
   const who = typeof as === 'string' && as ? escapeHtml(as) : null;
+  if (gettingReady && !room?.starting) return `<button id="btn-start" class="primary" disabled>${escapeHtml(phrase('start.gettingReady'))}</button>`;
   if (!room) return `<button id="btn-start" class="primary">${who ? `Explore as ${who}` : 'Explore'} ${PAW}</button>`;
   if (room.starting) return '<button id="btn-start" class="primary" disabled>Starting…</button>';
   return `<button id="btn-start" class="primary">${who ? `Explore together as ${who}` : 'Explore together'} ${PAW}</button>`;

@@ -172,6 +172,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // for this session (home shows a moon while it stands), never saved. It
   // only counts while the Glow Collar is on.
   let duskWanted = false;
+  // A place's code is loading (F6): Start waits and says so. The walk lifecycle sets and clears it.
+  let gettingReady = false;
   // "Play the first walk again" was pressed on this visit: its one line shows.
   let replayNote = false;
   let shown = false; // between show() and hide()
@@ -1394,7 +1396,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
 
   // Start, with Play together beside it when multiplayer is on.
   function startRowHtml(roomState) {
-    return `<div class="dr-start-row">${playTogetherHtml(roomState)}${renderStartButtonHtml(roomState, { as: startAs() })}</div>`;
+    return `<div class="dr-start-row">${playTogetherHtml(roomState)}${renderStartButtonHtml(roomState, { as: startAs(), gettingReady })}</div>`;
   }
 
   // null (or anything not on offer) = back to the dressing room. Where a sheet's
@@ -1705,7 +1707,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         ${renderSheetBody(openSheet, s, colonyStatus, roomState)}
         ${dock === 'none' ? '' : `<footer class="hb-sheet-dock">
           <div class="where"><img src="${escapeHtml(PLACE_PICTURE(areaId))}" alt="" onerror="this.remove()">Going to <b>${escapeHtml(placeName(areaId, s.edition, CATALOG))}</b></div>
-          ${dock === 'full' ? startRowHtml(roomState) : `<div class="dr-start-row">${renderStartButtonHtml(roomState, { as: startAs() })}</div>`}
+          ${dock === 'full' ? startRowHtml(roomState) : `<div class="dr-start-row">${renderStartButtonHtml(roomState, { as: startAs(), gettingReady })}</div>`}
         </footer>`}
       </div>`;
       if (openSheet === 'places') {
@@ -2588,6 +2590,14 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   return {
     depth,
     back,
+    // Start reads "Getting ready…" (disabled) while a place's code loads.
+    // show() leaves it alone; whoever set it clears it.
+    setGettingReady(on) {
+      const next = !!on;
+      if (next === gettingReady) return;
+      gettingReady = next;
+      if (shown && !root.classList.contains('hidden')) render();
+    },
     // show({ sheet }): a border crossing that could not pick its place opens
     // Change place ('places'); one that picked it lands on the cat, like
     // every other walk.
