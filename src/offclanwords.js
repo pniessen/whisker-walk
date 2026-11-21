@@ -251,6 +251,10 @@ export const PHRASES = Object.freeze({
   // ---- the Woods' south strip (bigger areas, 2026-11-19; only seen with the
   // ?grow=1 switch on); builder's pick
   'woods.south.scenic': 'the sandy hollow',
+
+  // ---- her birthday (2026-11-21): plain words; builder's pick
+  'bday.home': 'Everyone is coming to the island for your birthday! 🎂',
+  'bday.announce': (name) => `Everyone, come and sit round! Today is ${name}'s birthday!`,
 });
 
 // Entries for tutorialwords.js ids (the guided walk, the hints, the home

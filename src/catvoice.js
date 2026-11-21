@@ -7,6 +7,7 @@ export const VOICES = {
   persian:   { pitch: 0.8,  rate: 0.7,  gain: 0.8 },  // lazy: low, slow, soft
   black:     { pitch: 0.92, rate: 1.0,  gain: 1.0 },
   calico:    { pitch: 1.1,  rate: 1.15, gain: 1.0 },
+  ribbonkit: { pitch: 1.35, rate: 1.3,  gain: 0.85 }, // the birthday kitten: a tiny mew
   mainecoon: { pitch: 0.72, rate: 0.85, gain: 1.1 },  // big cat, big voice
   zeetoo:    { pitch: 1.05, rate: 1.2,  gain: 1.0 },
   robbie:    { pitch: 0.85, rate: 1.05, gain: 1.05 },

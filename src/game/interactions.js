@@ -23,7 +23,7 @@ import { GIFT_LEAVE_RANGE } from '../gifts.js';
 import { friendRungCrossed, isGrudgeableStray } from '../straycats.js';
 import { isLegendaryName } from '../legendary.js';
 import { shouldTurnHostile, SCUFFLE_COST, SCUFFLE_FREEZE } from '../enemies.js';
-import { labelFor } from './labels.js';
+import { labelFor, critterLabel } from './labels.js';
 import { questTrailStep } from '../questscent.js';
 import { canFeed, outsideTag, feedsHere } from '../colony.js';
 import { CATALOG } from '../progression.js';
@@ -753,7 +753,7 @@ export function createInteractions({
       if (!c.spottable || (c.fleeing && !goat)) continue;
       const to = c.group.position.clone().sub(catP).setY(0);
       if (to.length() < (goat ? GOAT_SPOT : 6) && to.normalize().dot(player.forward()) > 0.5) {
-        if (log.awardOnce('critter', `spot-${c.id}`, labelFor(c.type)) > 0) progression.recordSighting(c.type);
+        if (log.awardOnce('critter', `spot-${c.id}`, critterLabel(c)) > 0) progression.recordSighting(c.type);
       }
     }
     // Appletree Farm's animals: met the same way (6 m, looking at one), the
@@ -848,6 +848,13 @@ export function createInteractions({
           ? 'Paws full! (carry limit reached)'
           : `E — pick up ${c.label}`);
       }
+    }
+    // Her birthday (world/birthdaygathering.js): beside the cake, anywhere
+    // round it, while its candles are lit. Right after 'collect', so a find
+    // lying at her paws still comes first; never from a perch.
+    if (!s.prompt && !s.perched && s.birthday?.promptAt(catP)) {
+      s.prompt = { kind: 'bday-candles' };
+      setPrompt(phrase('bday.prompt'));
     }
     // v21 3b Task 10 — knock it off the ledge. Right after 'collect': only
     // while perched, beside a thing still standing on a ledge at the cat's own
@@ -1705,7 +1712,9 @@ export function createInteractions({
     // first, so nothing is done by a cat still drawn asleep. The 'rest' prompt
     // itself never shows while a rest is on (restInReach).
     if (s.rest && s.prompt.kind !== 'rest') s.rest = null;
-    if (s.prompt.kind === 'carry') {
+    if (s.prompt.kind === 'bday-candles') {
+      s.birthday?.blow();
+    } else if (s.prompt.kind === 'carry') {
       pickUpCarryable(s, s.prompt.data);
     } else if (s.prompt.kind === 'yarn-pick') {
       pickUpYarn(s);

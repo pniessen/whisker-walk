@@ -56,6 +56,11 @@ const STYLE = {
   // tail stays long for him. The DEPTH is left alone too, on purpose: in the
   // stalk and the sit a standard cat's belly and rump are what touch the
   // ground, and a shallower torso would rest 2.4cm above it there — a hover.
+  // The birthday kitten (2026-11-21): a calico kit on Digit's young frame,
+  // smaller again, her head bigger and her tail shorter for her body as the
+  // lost kitten's are (kitten.js KITTEN_LOOK, gentler: `kit` [head, tail]),
+  // with a red ribbon bow on her head (bow: off under a hat).
+  ribbonkit: { base: 0xf0ead8, belly: 0xf8f4e8, accent: 0xd88030, scale: 0.74, patches: true, calicoMore: true, patch2: 0x2e2a2a, ears: 1.25, legLen: 1.1, body: [0.82, 1, 1], bow: true, kit: [1.15, 0.8] },
   digit:     { base: 0x7a6248, belly: 0xc8b090, accent: 0x2a2018, scale: 0.82, stripes: true, headStripes: true, socks: true, chin: true, ears: 1.25, legLen: 1.35, body: [0.8, 1, 1], tagCollar: true },
 };
 // Optional coat flags, all off unless a row sets them. They exist for the
@@ -103,7 +108,7 @@ const STYLE = {
 //                 black cat, a custom black cat and a black clan coat get it
 //                 and Robbie (white muzzle) does not.
 const INNER_EAR = 0xe8a0a8;
-const EYE_COLORS = { siamese: 0x68a8d8, black: 0xd8b830, zeetoo: 0x4e9440, robbie: 0xb8b040, d2: 0xa8b040, digit: 0xa0a048 };
+const EYE_COLORS = { siamese: 0x68a8d8, black: 0xd8b830, zeetoo: 0x4e9440, robbie: 0xb8b040, d2: 0xa8b040, digit: 0xa0a048, ribbonkit: 0x7ab8e0 };
 
 // Cat Couture: palette for the twelve new per-slot accessory items (plus the
 // four re-homed ones, which keep their original colors inline below).
@@ -517,6 +522,32 @@ function buildCollar(style, ringR, tubeR, charmPos) {
     tagFound([group], style);
   }
   return group;
+}
+
+// The birthday kitten's ribbon bow, head-local: two loops and a knot, tipped
+// forward on the skull beside the right ear, one vertex-coloured mesh.
+const KIT_BOW = 0xe0405a, KIT_BOW_DARK = 0xb02c44;
+function kitBow() {
+  const paint = (geo, hex) => {
+    const g = geo.index ? geo.toNonIndexed() : geo;
+    g.deleteAttribute('uv');
+    const c = new THREE.Color(hex), arr = new Float32Array(g.attributes.position.count * 3);
+    for (let i = 0; i < arr.length; i += 3) c.toArray(arr, i);
+    g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+    return g;
+  };
+  const parts = [];
+  for (const side of [-1, 1]) {
+    parts.push(paint(new THREE.ConeGeometry(0.03, 0.05, 6, 1).scale(1, 1, 0.45).rotateZ(side * Math.PI / 2).translate(side * 0.026, 0, 0), KIT_BOW));
+    parts.push(paint(new THREE.BoxGeometry(0.014, 0.034, 0.006).rotateZ(side * 0.35).translate(side * 0.012, -0.022, 0.002), KIT_BOW_DARK));
+  }
+  parts.push(paint(new THREE.SphereGeometry(0.013, 6, 4), KIT_BOW_DARK));
+  const bow = new THREE.Mesh(mergeGeometries(parts), litMaterial(0xffffff, { vertexColors: true }));
+  bow.name = 'kitBow';
+  bow.scale.setScalar(1.4);
+  bow.position.set(-0.1, 0.17, -0.06);
+  bow.rotation.set(-0.5, 0.35, 0.35);
+  return bow;
 }
 
 // Marks every mesh in `objs` (and under them) as found outfit `id`'s, so its
@@ -1885,6 +1916,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // accessories polish Task 1 — they used to float 4-5 cm over the head).
   const hat = buildHat(accessories.head, { simple: opts.simple });
   if (hat) head.add(hat);
+  // The birthday kitten's bow (STYLE `bow`): a red ribbon bow beside her right
+  // ear, one mesh; a hat takes its place.
+  if (s.bow && !hat) head.add(kitBow());
 
   // face: eye level — thick frames, a faint tinted lens and a glint, the
   // rims just in front of the eyes (glasses.js; polish-catlooks 2026-11-02:
@@ -2447,6 +2481,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   addCatRim(tailPivots.map((p) => p.children.find((c) => c.isMesh)?.material), { dark: darkFace(s), scale: RIM.tail });
 
   g.scale.setScalar(s.scale);
+  // A kit (STYLE `kit`): her head and tail scaled; the animator reads the
+  // head's scale for the neck and never writes either.
+  if (s.kit) { head.scale.multiplyScalar(s.kit[0]); tail.scale.multiplyScalar(s.kit[1]); }
   // Never merged. render/mergeprops.js welds a top-level child's leaves into
   // one mesh per material, and animator.js drives THIS rig by the references
   // in userData.parts — a merged leg is a leg the animator still holds a

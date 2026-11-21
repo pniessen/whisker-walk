@@ -701,8 +701,8 @@ const QUARTER = Math.PI / 2;
 const crate = (i) => ALLEY_CRATES[i];
 export const ROOFS_REGISTRATION = Object.freeze({
   id: 'roofs',
-  // src/progression.js CATALOG.areas: held back (R1). Task 11 fills it, and
-  // step 4 copies it into the catalog once co-walkers can see height.
+  // src/progression.js CATALOG.areas: held back (R1) until Rooftops step 4
+  // copied it into the catalog (ruling T1: co-walkers see height).
   catalog: Object.freeze({ name: 'The Rooftops', price: 100, requires: Object.freeze({ area: 'fair', walks: 2 }) }),
   // src/propsets.js SETS.roofs
   propSet: Object.freeze({

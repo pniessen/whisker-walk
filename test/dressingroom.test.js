@@ -25,6 +25,10 @@ function defaultishState() {
 }
 const count = (s, re) => (s.match(re) || []).length;
 
+// The cats in the picker: every catalog cat but a gift cat she does not own
+// yet (the birthday kitten, test/present.test.js).
+const PICKER_CATS = Object.keys(CATALOG.cats).filter((id) => !CATALOG.cats[id].code);
+
 describe('previewing a locked cat or trying something on', () => {
   it('only the cat she walks keeps the solid ring; the locked one on show is "looking"', () => {
     const h = renderDressingRoomHtml({ model: buildDressingModel(defaultishState(), CATALOG, { previewCat: 'hagrid' }), ui: {} });
@@ -62,7 +66,7 @@ describe('previewing a locked cat or trying something on', () => {
 describe('dressing-room model', () => {
   it('one portrait per catalog cat, in catalog order', () => {
     const m = buildDressingModel(defaultishState(), CATALOG);
-    expect(m.cats.map((c) => c.id)).toEqual(Object.keys(CATALOG.cats));
+    expect(m.cats.map((c) => c.id)).toEqual(PICKER_CATS);
   });
   it('slot count and wearing count come from the catalog and save', () => {
     const s = defaultishState(); s.equipped.collar = 'bell'; s.equipped.neck = 'bandana';
@@ -121,7 +125,9 @@ describe('slot picker', () => {
     // found (its area is in her edition and has find spots); the rest show.
     const state = defaultishState();
     const owned = state.unlocked.accessories;
+    // (a gift outfit not given is not shown at all)
     const want = Object.entries(CATALOG.accessories).filter(([id, a]) => a.slot === 'head'
+      && !(a.code && !owned.includes(id))
       && (!a.find || owned.includes(id)
         || (areaInEdition(CATALOG.areas?.[a.find], state.edition) && spotsIn(a.find).length > 0))).length;
     const html = renderSlotPickerHtml(state, CATALOG, 'head', null);
@@ -265,7 +271,7 @@ describe('dressing-room renderer', () => {
     expect(count(home, /data-dr-cat=/g)).toBe(owned);
     expect(count(home, /data-dr-slot=/g)).toBe(0);
     const open = render({ ui: { wardrobe: true, moreCats: true } });
-    expect(count(open, /data-dr-cat=/g)).toBe(Object.keys(CATALOG.cats).length);
+    expect(count(open, /data-dr-cat=/g)).toBe(PICKER_CATS.length);
     expect(count(open, /data-dr-slot=/g)).toBe(new Set(Object.values(CATALOG.accessories).map((a) => a.slot)).size);
     expect(home).not.toContain('data-dr-pill');
     expect(open).not.toContain('data-dr-pill');
@@ -408,29 +414,29 @@ describe('sheets and pictures', () => {
 });
 
 describe('dressing-room places by edition', () => {
-  it('Legacy lists today\'s six places and never the Woods', () => {
+  it('Legacy lists today\'s seven places and never the Woods', () => {
     const m = buildDressingModel({ ...defaultishState(), edition: 'legacy' }, CATALOG);
-    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'roofs', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth, the Rooftops after it (Rooftops step 4)
   });
-  it('Legacy lists today\'s six places and never the River', () => {
+  it('Legacy lists today\'s seven places and never the River', () => {
     const s = { ...defaultishState(), edition: 'legacy' };
     s.walks.woods = 5;
     const m = buildDressingModel(s, CATALOG);
-    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'roofs', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth, the Rooftops after it (Rooftops step 4)
     expect(m.places.map((p) => p.id)).not.toContain('river');
   });
-  it('Legacy lists today\'s six places and never the Moor', () => {
+  it('Legacy lists today\'s seven places and never the Moor', () => {
     const s = { ...defaultishState(), edition: 'legacy' };
     s.walks.woods = 5;
     const m = buildDressingModel(s, CATALOG);
-    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'roofs', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth, the Rooftops after it (Rooftops step 4)
     expect(m.places.map((p) => p.id)).not.toContain('moor');
   });
-  it('dressingroom: Legacy lists today\'s six places and never the Pines', () => {
+  it('dressingroom: Legacy lists today\'s seven places and never the Pines', () => {
     const s = { ...defaultishState(), edition: 'legacy' };
     s.walks.river = 5;
     const m = buildDressingModel(s, CATALOG);
-    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'roofs', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth, the Rooftops after it (Rooftops step 4)
     expect(m.places.map((p) => p.id)).not.toContain('pines');
   });
   it('Clan lists the Woods, locked behind two Twolegplace walks', () => {
@@ -470,7 +476,10 @@ describe('the world map in the dressing room', () => {
     expect(html).not.toContain('territory-map');
     expect(html).not.toContain('More places');
     expect(html).toMatch(/data-dr-place="neighborhood">[\s\S]*?Cozy Neighborhood/);
-    expect(count(html, /data-dr-place=/g)).toBe(6);
+    expect(count(html, /data-dr-place=/g)).toBe(7);
+    // the Rooftops among them, a picture card like the others (Review Focus 4)
+    expect(html).toContain('data-dr-place="roofs"');
+    for (const wild of ['woods', 'river', 'moor', 'pines', 'gorge']) expect(html).not.toContain(`data-dr-place="${wild}"`);
   });
 });
 
@@ -648,7 +657,7 @@ describe('Launch A: the home screen (cat, place, go)', () => {
     model: buildDressingModel(state, CATALOG), startHtml: '<button id="start">GO</button>', ui, ...over,
   });
   const section = (html, cls) => html.slice(html.indexOf(`class="${cls}"`), html.indexOf('</section>', html.indexOf(`class="${cls}"`)));
-  const lockedN = Object.keys(CATALOG.cats).length - defaultishState().unlocked.cats.length;
+  const lockedN = PICKER_CATS.length - defaultishState().unlocked.cats.length;
 
   describe('the strip', () => {
     it('shows the owned cats, then ＋ Make, then a "🔒 N more" tile; the locked cats stay out of sight', () => {
@@ -663,7 +672,7 @@ describe('Launch A: the home screen (cat, place, go)', () => {
     });
     it('moreCats opens the locked cats (after Make) and the tile says Fewer', () => {
       const strip = section(home(defaultishState(), { moreCats: true }), 'dr-strip');
-      expect(count(strip, /data-dr-cat=/g)).toBe(Object.keys(CATALOG.cats).length);
+      expect(count(strip, /data-dr-cat=/g)).toBe(PICKER_CATS.length);
       expect(strip.indexOf('data-dr-make')).toBeLessThan(strip.indexOf('data-dr-cat="hagrid"'));
       expect(strip).toMatch(/data-dr-more-cats aria-expanded="true">Fewer</);
       expect(strip).not.toContain('more<');

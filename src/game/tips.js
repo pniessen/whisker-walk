@@ -27,6 +27,7 @@ export const HINT_PICS = Object.freeze({
   look: '👀', creep: '🐾', jump: '🐾', hop: '🐾', photo: '📷', frame: '📷', yarn: '🧶', bat: '🧶', 'yarn-carry': '🧶', tkey: '🧶',
   call: '😺', sniff: '👃', box: '📦', help: '❗', hiss: '😾', dog: '🐶', swim: '💧', carry: '🐾',
   home: '🏠', chat: '💬', rival: '🐾', stranger: '🐾',
+  roofs: '🕊️',
   find: '✨', 'find-kept': '👕', map: '🗺️',
 });
 

@@ -17,7 +17,7 @@ import { henFightState } from '../cat/henfight.js';
 import { waterPose, applyWaterLook } from '../cat/waterlook.js';
 import { shakeProgress } from '../waterstate.js';
 import { tagState, groomTimer } from '../verbs.js';
-import { labelFor } from './labels.js';
+import { critterLabel } from './labels.js';
 import { nowSec } from './util.js';
 import { wirePose } from '../fightactions.js';
 import { uprightTag } from '../nametag.js';
@@ -405,7 +405,7 @@ export function createAvatarUpdater({
       const hunted = s.critters.pounceCatch(paws);
       if (hunted) {
         const bonus = hunted.wasStalked ? ' — a perfect sneak!' : '';
-        log.award('hunt', `hunt-${hunted.type}`, `you pounce-tagged ${labelFor(hunted.type)}!${bonus}`);
+        log.award('hunt', `hunt-${hunted.type}`, `you pounce-tagged ${critterLabel(hunted)}!${bonus}`);
         progression.recordSighting(hunted.type);
         if (hunted.wasStalked) { s.slowmoTime = 0.8; audio.fanfare(); }
       }

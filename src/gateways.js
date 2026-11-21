@@ -20,13 +20,20 @@
 //                 on along the edge line from each post, so the gate stands
 //                 in something (world/gateway.js draws them, solid to her cat).
 //                 A 'promenade' look only: it is that look's railing, run on.
+//   sign          optional, default false: true hangs a painted board with
+//                 the place's name and an arrow on the latch post, facing
+//                 back into the area (world/gateway.js; the words come from
+//                 the phrase 'gate.sign'). Only town-roofs asks for one.
 //
 // A door or a climb (the Old House's front door, the Rooftops' fire escape) is
 // a row with placement 'inside', an explicit `arrive` and usually look 'none'
-// (the area draws its own door). A row appears as a live gate only once its
-// place has a catalog row (liveEndsFor), so a place not built yet has no gate.
-// Rooftops step 4 adds the pair town-roofs / roofs-town and House step 4 the
-// pair town-house / house-town; each adds those two rows and nothing else.
+// (the area draws its own door). The Rooftops' back-alley door is the
+// exception: the 'alleydoor' look draws it, a door in a brick frame. A row
+// appears as a live gate only once its place has a catalog row (liveEndsFor),
+// so a place not built yet has no gate. The town and the Rooftops are joined
+// by the pair town-roofs (a signpost at the town's north street end) and
+// roofs-town (that door, in the alley's wall; Rooftops step 4). House step 4
+// adds the pair town-house / house-town: those two rows and nothing else.
 
 export const GATE_REACH = 1.6; // m, cat centre to gate centre
 // m: nearer than this to a gate she can go through or open, the place beyond
@@ -35,7 +42,7 @@ export const GATE_PREFETCH_REACH = 12;
 export const GATE_HALF = 1.4; // m, centre to each gate post along the edge
 export const GATE_POST_R = 0.15;
 export const ARRIVE_IN = GATE_REACH + 2;
-export const GATE_LOOKS = Object.freeze(['signpost', 'fairgate', 'farmgate', 'promenade', 'none']);
+export const GATE_LOOKS = Object.freeze(['signpost', 'fairgate', 'farmgate', 'promenade', 'alleydoor', 'none']);
 export const PLACEMENTS = Object.freeze(['edge', 'inside']);
 // The cat's rotation.y facing into the area (rotation 0 faces -z).
 export const INWARD_YAW = Object.freeze({ north: Math.PI, south: 0, east: Math.PI / 2, west: -Math.PI / 2 });
@@ -47,7 +54,7 @@ const THROUGH = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
 
 const own = (o, k) => o != null && Object.prototype.hasOwnProperty.call(o, k);
 
-export function gatewayEnd({ id, gateway, x, z, faces, to, twin, look, placement = 'edge', lane = null, arrive = null, wings = null }) {
+export function gatewayEnd({ id, gateway, x, z, faces, to, twin, look, placement = 'edge', lane = null, arrive = null, wings = null, sign = false }) {
   if (!FACINGS.includes(faces)) throw new Error(`gateway end ${id}: faces "${faces}" is not one of ${FACINGS.join(', ')}`);
   if (!GATE_LOOKS.includes(look)) throw new Error(`gateway end ${id}: look "${look}" is not one of ${GATE_LOOKS.join(', ')}`);
   if (!PLACEMENTS.includes(placement)) throw new Error(`gateway end ${id}: placement "${placement}" is not one of ${PLACEMENTS.join(', ')}`);
@@ -60,6 +67,7 @@ export function gatewayEnd({ id, gateway, x, z, faces, to, twin, look, placement
     lane: lane ? Object.freeze([...lane]) : null,
     arrive: arrive ? Object.freeze({ ...arrive }) : null,
     wings: wings ? Object.freeze([...wings]) : null,
+    sign: sign === true,
   });
 }
 const end = gatewayEnd;
@@ -68,6 +76,7 @@ export const GATEWAY_ENDS = Object.freeze({
   neighborhood: Object.freeze([
     end({ id: 'town-park', gateway: 'town-park', x: 52, z: 0, faces: 'east', to: 'park', twin: 'park-town', look: 'signpost' }),
     end({ id: 'town-docks', gateway: 'town-docks', x: 0, z: 52, faces: 'south', to: 'docks', twin: 'docks-town', look: 'signpost' }),
+    end({ id: 'town-roofs', gateway: 'town-roofs', x: 0, z: -52, faces: 'north', to: 'roofs', twin: 'roofs-town', look: 'signpost', sign: true }),
   ]),
   park: Object.freeze([
     end({ id: 'park-town', gateway: 'town-park', x: 0, z: 49, faces: 'south', to: 'neighborhood', twin: 'town-park', look: 'signpost' }),
@@ -93,6 +102,13 @@ export const GATEWAY_ENDS = Object.freeze({
   ]),
   seaside: Object.freeze([
     end({ id: 'seaside-docks', gateway: 'docks-seaside', x: 10, z: 45, faces: 'south', to: 'docks', twin: 'docks-seaside', look: 'promenade' }),
+  ]),
+  roofs: Object.freeze([
+    // A green door in the back alley's brick wall (roofs.js draws it at
+    // ROOFS_BOUNDS.maxZ, z 46): its dark doorway's back meets the wall face,
+    // so the wall needs no hole. She lands in the alley facing north, 3.65 m
+    // in front of it (GATE_REACH + 2 clear of it, as every arrival is).
+    end({ id: 'roofs-town', gateway: 'town-roofs', x: 14, z: 45.55, faces: 'south', to: 'neighborhood', twin: 'town-roofs', look: 'alleydoor', placement: 'inside', arrive: { x: 14, z: 41.9, yaw: 1.0 } }),
   ]),
 });
 
