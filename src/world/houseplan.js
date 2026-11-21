@@ -272,7 +272,8 @@ export function houseGroundSpec() {
 // bedroom). From WALL_FOOT out the camera stops clear of the wall's box and the house's 0.1 m
 // camera pad. Only the camera meets these strips: the walls' colliders keep her centre 0.53 m
 // from their lines, and a stair's side follows its slope and stops at its ends, so every
-// mouth keeps its own ramp.
+// mouth keeps its own ramp. So ground.y reads the upper floor's height within WALL_FOOT of a
+// raised wall's low side (on the lawn beside it): harmless, as nothing walks there.
 export const WALL_FOOT = 0.3;
 function wallFeet() {
   const out = [];
@@ -287,6 +288,7 @@ function wallFeet() {
       out.push({ x0: s.x0 - ux * WALL_FOOT, z0: s.z0 - uz * WALL_FOOT, x1: s.x1 + ux * WALL_FOOT, z1: s.z1 + uz * WALL_FOOT, width: 2 * WALL_FOOT, y: s.base });
       continue;
     }
+    if (s.kind !== 'stair') continue; // only walls and stair sides get a foot (step 2's attic beams hang overhead)
     // a stair's side: its slope along it (no further, so the stair's own mouths keep their ramp)
     const st = HOUSE_STAIRS.find((q) => q.id === s.owner);
     const sl = Math.hypot(st.x1 - st.x0, st.z1 - st.z0);

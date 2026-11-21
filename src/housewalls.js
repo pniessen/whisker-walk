@@ -89,6 +89,9 @@ function stubInLine(s, view) {
   return segmentMeetsSection(view.cam, view.paws, s, SINK.stubPad, s.stub) || segmentMeetsSection(view.cam, view.look, s, SINK.stubPad, s.stub);
 }
 
+// The sink: each section eases between full height (fraction 1) and its stub (stub / height),
+// down in downS, up in upS after holdS unwanted. A wall whose own stub stood in the line to her
+// (stubInLine) is latched to 0 instead, so its fraction can reach 0, until it rises (Task 6).
 export function createWallSink(sections, { reducedMotion = false } = {}) {
   const n = sections.length;
   const index = new Map();

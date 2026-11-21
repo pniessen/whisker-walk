@@ -388,7 +388,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
     1. `segmentMeetsSection(cam, look, s, linePad)` or `segmentMeetsSection(cam, paws, s, linePad)`, at full height;
     2. the camera is within `nearCamera` of the section's centreline horizontally and below `s.base + s.height + 0.5`;
     3. `view.cutaway` and the section's nearest point to the camera is nearer (horizontally) than the cat by more than `frontMargin`.
-  - `createWallSink(sections, { reducedMotion = false } = {}) → { update(dt, view), fraction(id), isDown(id) }`. `fraction` is in `[s.stub / s.height, 1]`.
+  - `createWallSink(sections, { reducedMotion = false } = {}) → { update(dt, view), fraction(id), isDown(id) }`. `fraction` is in `[s.stub / s.height, 1]` (Task 6: or 0 for a latched stub; see housewalls.js).
     - Down is linear over `downS`.
     - Up waits until unwanted for `holdS` in a row, then is linear over `upS`.
     - Reduced motion jumps instead of easing, and keeps the wait.

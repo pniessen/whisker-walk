@@ -102,10 +102,21 @@ describe('never lost behind a wall', () => {
     const corners = [];
     for (const r of HOUSE_ROOMS) {
       for (const [x, z] of [[r.minX + 0.6, r.minZ + 0.6], [r.maxX - 0.6, r.minZ + 0.6], [r.maxX - 0.6, r.maxZ - 0.6], [r.minX + 0.6, r.maxZ - 0.6]]) {
-        if (isWalkableAt(w.area, x, z) && flood.reachesWithin(x, z, 0.36)) corners.push([r.id, x, z]);
+        if (isWalkableAt(w.area, x, z) && flood.reachesWithin(x, z, 0.36)) {
+          corners.push([r.id, x, z]);
+          continue;
+        }
+        // furniture or a lamp in the way: the nearest spot she can reach, if within 1 m
+        let best = null;
+        for (const c of flood.cells) {
+          const d = Math.hypot(c.x - x, c.z - z);
+          if (d <= 1.0 && (!best || d < best.d)) best = { d, x: c.x, z: c.z };
+        }
+        if (best) corners.push([r.id, best.x, best.z]);
       }
     }
-    expect(corners.length).toBeGreaterThanOrEqual(14);
+    // 28 corners: 21 stood on, 3 moved to a reached spot within 1 m, 4 the flood never comes near
+    expect(corners.length).toBe(24);
     const bad = [];
     for (const [room, x, z] of corners) for (let k = 0; k < 16; k++) for (const zoom of ZOOMS) {
       for (const pitch of [-0.25, DEFAULT_PITCH, 0.85]) {
@@ -264,8 +275,11 @@ describe('the life hook', () => {
     const sunkPanes = onLine.flatMap((s) => panes.get(s.id) ?? []);
     expect(sunkPanes.length).toBeGreaterThan(0);
     for (const p of sunkPanes) expect(p.visible).toBe(false);
-    // the far wall of the hall stands, its panes too
-    expect(sectionMeshes.get('library-w-0').scale.y).toBe(1);
+    // the far wall of the hall (north, ahead of her) stands
+    const hallN = sections.filter((s) => s.id.startsWith('hall-n-'));
+    expect(hallN.length).toBeGreaterThan(0);
+    for (const s of hallN) expect(sectionMeshes.get(s.id).scale.y, s.id).toBe(1);
+    // every pane on a wall at or above paneHide shows
     for (const [id, list] of panes) if (life.sink.fraction(id) >= SINK.paneHide) for (const p of list) expect(p.visible, id).toBe(true);
     expect(life.drawing.current).toBe('ground');
 
