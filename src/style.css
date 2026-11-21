@@ -977,6 +977,9 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
 .summary-stats .stat-value { font-size: 1.6rem; font-weight: 700; color: #f2c14e;
   font-variant-numeric: tabular-nums; line-height: 1.15; }
 .summary-stats .stat-label { font-size: 0.8rem; color: #a8c0e0; }
+/* A Market walk's five tiles (screencards.js `five`): one row, a little closer. */
+.summary-stats.five { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.summary-stats.five .stat { padding-left: 2px; padding-right: 2px; }
 /* A landscape phone: one column (no cat-left split), a smaller cat, the
    tiles in one row; the panel scrolls inside itself if it must. */
 @media (max-height: 500px) {
@@ -1031,8 +1034,10 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
     overflow-y: auto; gap: 10px;
   }
   .summary-card h1 { font-size: 1.7rem; }
-  /* Two by two on a phone. */
+  /* Two by two on a phone; a Market walk's fifth tile (the goals) across the bottom. */
   .summary-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .summary-stats.five { grid-template-columns: 1fr 1fr; }
+  .summary-stats.five .stat:last-child { grid-column: 1 / -1; }
   .screen-panel.summary-panel { padding: 18px 16px; }
 }
 .chat-wheel { position: fixed; right: 16px; bottom: 96px; z-index: 5; }

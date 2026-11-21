@@ -4,8 +4,8 @@ import { marketRig, buildSquare } from './helpers/marketrig.js';
 
 // =============================================================================
 // The Market's life (step 2): the stallholders behind their counters, turning
-// to the back shelf in their own rhythm, the "busy" bubble over their heads
-// (Task 11). Task 12 adds everything a cat does; Tasks 13 and 14 the walk and
+// to the back shelf in their own rhythm, the "busy" bubble over each stall's
+// roof (Task 11). Task 12 adds everything a cat does; Tasks 13 and 14 the walk and
 // the film. Positions come from the plan (marketplan.js), the rhythm from the
 // rules (marketrules.js): nothing here is hard-coded.
 // =============================================================================
@@ -13,7 +13,7 @@ import { marketRig, buildSquare } from './helpers/marketrig.js';
 const { createMarketLive } = await import('../src/marketlive.js');
 const { twolegKeeper } = await import('../src/marketkeeper.js');
 const { TREAT_ITEM_PREFIX, treatItemId, treatStallOf, NO_MARKET } = await import('../src/marketnone.js');
-const { STALLS, TREAT_STALLS, stallById, toStall, fromStall, MARKET_SPAWN } = await import('../src/world/marketplan.js');
+const { STALLS, TREAT_STALLS, stallById, toStall, fromStall, MARKET_SPAWN, MARKET_REGISTRATION } = await import('../src/world/marketplan.js');
 const { MARKET, STALL_TIMES, stallOffsets, stallPhase, periodOf } = await import('../src/marketrules.js');
 const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
 const { TREAT_WORDS } = await import('../src/marketwords.js');
@@ -388,6 +388,19 @@ describe('the stallholders (Task 11)', () => {
       expect(m.castShadow, m.name).toBe(false);
       expect(m.userData.noCast, m.name).toBe(true);
     }
+    // and at most this much (today 30 meshes, 3,056 triangles, nothing cast): a
+    // heavier figure (U7, the lifelike people) must come in under these, and
+    // the square with its people under the Market's own ceilings (never raised)
+    const tri = (m) => (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
+    const people = { meshes: theirs.length, casters: theirs.filter((m) => m.castShadow).length, tris: theirs.reduce((n, m) => n + tri(m), 0) };
+    expect(people.meshes).toBeLessThanOrEqual(40);
+    expect(people.casters).toBe(0);
+    expect(people.tris).toBeLessThanOrEqual(6000);
+    const square = { meshes: 0, tris: 0 };
+    for (const o of before) o.traverse((m) => { if (m.isMesh) { square.meshes++; square.tris += tri(m); } });
+    const [maxMeshes, , maxTris] = MARKET_REGISTRATION.budget.built;
+    expect(square.meshes + people.meshes).toBeLessThanOrEqual(maxMeshes);
+    expect(square.tris + people.tris).toBeLessThanOrEqual(maxTris);
     // each person's contact shadow: the walk's decals follow live.groups
     const decals = createContactShadows(scene);
     const movers = decals.moverCount;
@@ -1045,7 +1058,7 @@ describe('the sneak (Task 12)', () => {
     }
   }, 60_000);
 
-  it('a snaffled treat is laid out again after REFILL_S, on this device only', () => {
+  it('a grabbed treat is laid out again after REFILL_S, on this device only', () => {
     const id = 'cheese';
     const a = marketRig();
     const b = marketRig();
@@ -1332,7 +1345,7 @@ describe('the sneak (Task 12)', () => {
     }
   }, 60_000);
 
-  it('a partner who leaves the walk mid-coo ends it, and the stall notices again', () => {
+  it('a partner who leaves the walk mid-coo ends it, and the stall notices again once it has turned back', () => {
     const id = 'fish';
     const s = S(id);
     const T = treatOf(id);
@@ -1346,15 +1359,122 @@ describe('the sneak (Task 12)', () => {
     r.removeRemote(ben);
     expect(() => r.step(DT)).not.toThrow();
     expect(st.cooing).toBeNull();
-    // and she, walking straight at the treat while it is watched, is shooed now
+    // and she, walking straight at the treat while it is watched, is shooed
+    // once the stallholder has turned back (COO_BACK_S), not before
     const p = r.local(id, s.w / 2 - 0.3, s.d / 2 + 3.0);
     r.place(p.x, p.z).step(DT);
     r.walk(T.x - p.x, T.z - p.z, 1.2);
-    expect(until(r, () => ofType(r, 'shoo').length > 0, 1)).toBeLessThan(0.2);
+    const tShoo = until(r, () => ofType(r, 'shoo').length > 0, 2) + DT;
+    expect(tShoo).toBeGreaterThanOrEqual(MARKET.COO_BACK_S - 2 * DT);
+    expect(tShoo).toBeLessThan(MARKET.COO_BACK_S + 0.2);
     expect(ofType(r, 'shoo')[0].who).toBe('me');
     expect(r.live.remotePick(ben, treatItemId(id))).toBe(false);
     r.live.dispose();
   });
+
+  it('a coo that ends turns the stallholder back noticing nobody for COO_BACK_S: a partner creeping in is not shooed in that second, and is after it', () => {
+    const id = 'baker';
+    const s = S(id);
+    const T = treatOf(id);
+    for (const ends of ['walks off', 'leaves']) {
+      const r = marketRig();
+      const st = r.stall(id);
+      r.setPhase(id, 'serve', 0);
+      // Ben stops off the counter's far side, in its zone: cooed at
+      const b = r.local(id, -s.w / 2 - 0.5, s.d / 2 + 1.2);
+      const ben = r.addRemote('ben', b.x, b.z);
+      expect(until(r, () => st.cooing, 2)).toBeLessThan(2);
+      expect(st.cooing.who).toBe('ben');
+      // she creeps in at the treat, crouched, while they coo at Ben
+      const p = r.local(id, s.w / 2 - 0.3, s.d / 2 + 1.55);
+      r.player.stalking = true;
+      r.place(p.x, p.z).step(DT);
+      r.walk(T.x - p.x, T.z - p.z, 0.4);
+      r.step(DT, 6);
+      expect(ofType(r, 'shoo')).toEqual([]);
+      // the coo ends with no shoo (Ben walks off, or leaves the walk); she keeps creeping
+      if (ends === 'walks off') r.walkRemote(ben, s.face.x, s.face.z, 1.0);
+      else r.removeRemote(ben);
+      expect(until(r, () => !st.cooing, 1), ends).toBeLessThan(0.2);
+      expect(st.look.watching, 'the rhythm is serving').toBe(true);
+      expect(st.watching, `${ends}: turning back, noticing nobody`).toBe(false);
+      const tShoo = until(r, () => ofType(r, 'shoo').length > 0, 3) + DT;
+      expect(tShoo, ends).toBeGreaterThanOrEqual(MARKET.COO_BACK_S - 2 * DT);
+      expect(tShoo, ends).toBeLessThan(MARKET.COO_BACK_S + 0.2);
+      expect(ofType(r, 'shoo'), ends).toEqual([{ type: 'shoo', stall: id, who: 'me', laugh: false, hopped: true }]);
+      r.live.dispose();
+    }
+    // and the button in that second is a grab, not a shoo: they are not looking
+    const r = marketRig();
+    const st = r.stall(id);
+    r.setPhase(id, 'serve', 0);
+    const b = r.local(id, -s.w / 2 - 0.5, s.d / 2 + 1.2);
+    const ben = r.addRemote('ben', b.x, b.z);
+    expect(until(r, () => st.cooing, 2)).toBeLessThan(2);
+    const q = reachSpot(id);
+    r.place(q.x, q.z).step(DT);
+    r.walkRemote(ben, s.face.x, s.face.z, 1.0);
+    expect(until(r, () => !st.cooing, 1)).toBeLessThan(0.2);
+    r.step(DT, Math.round(0.5 / DT));
+    expect(r.grab()).toBe(true);
+    expect(ofType(r, 'shoo')).toEqual([]);
+    r.live.dispose();
+  }, 60_000);
+
+  it('the hop rises and falls (session.hopLift, which avatar.js draws her at), and is 0 once she lands', () => {
+    const id = 'fish';
+    const r = marketRig();
+    r.setPhase(id, 'serve', 0.3);
+    const p = reachSpot(id);
+    r.place(p.x, p.z).step(DT);
+    expect(r.session.hopLift ?? 0).toBe(0);
+    expect(r.grab()).toBe(false);
+    const lifts = [];
+    for (let i = 0; i < Math.round(MARKET.HOP_S / DT) + 3; i++) { r.step(DT); lifts.push(r.session.hopLift); }
+    const top = Math.max(...lifts);
+    expect(top).toBeGreaterThan(0.15);
+    expect(top).toBeLessThanOrEqual(0.2 + 1e-9);
+    expect(lifts.indexOf(top)).toBeGreaterThan(0);
+    expect(lifts.indexOf(top)).toBeLessThan(lifts.length - 3);
+    expect(r.session.hopLift).toBe(0);
+    expect(r.session.landTime).toBe(0.12);
+    // a hop refused at its first step never lifts her
+    const q = marketRig({ isFree: () => false });
+    q.setPhase(id, 'serve', 0.3);
+    q.place(p.x, p.z).step(DT);
+    expect(q.grab()).toBe(false);
+    q.step(DT, Math.round(MARKET.HOP_S / DT) + 3);
+    expect(q.session.hopLift ?? 0).toBe(0);
+    r.live.dispose();
+    q.live.dispose();
+  });
+
+  it("a hop from against the treat's stand slides off it, never refused for touching it", () => {
+    for (const id of TREAT_STALLS) {
+      const s = S(id);
+      const r = marketRig();
+      r.setPhase(id, 'serve', 0.3);
+      // touching the stand (as the walk leaves her), a little nearer the counter
+      // than the treat, so a step straight back would brush the stand
+      const T = treatOf(id);
+      const t = toStall(s, T.x, T.z);
+      const phi = -3 * Math.PI / 180;
+      const k = 0.2 + CAT_RADIUS + 1e-6;
+      const p = fromStall(s, t.lx + k * Math.cos(phi), t.lz + k * Math.sin(phi));
+      expect(isWalkableAt(r.area, p.x, p.z), id).toBe(true);
+      expect(isWalkableAt(r.area, p.x + s.face.x * 0.05, p.z + s.face.z * 0.05), `${id}: straight back brushes the stand`).toBe(false);
+      r.place(p.x, p.z).step(DT);
+      expect(r.grab()).toBe(false);
+      expect(ofType(r, 'shoo'), id).toEqual([{ type: 'shoo', stall: id, who: 'me', laugh: false, hopped: true }]);
+      for (let i = 0; i < Math.round(MARKET.HOP_S / DT) + 3; i++) {
+        r.step(DT);
+        expect(isWalkableAt(r.area, r.cat.position.x, r.cat.position.z), id).toBe(true);
+      }
+      expect(along(s, p, pos(r.cat)), id).toBeGreaterThan(0.8 * MARKET.HOP_DIST);
+      expect(r.session.landTime).toBe(0.12);
+      r.live.dispose();
+    }
+  }, 60_000);
 
   it('a resumed walk sets the tally to the treats it already paid for', () => {
     const r = marketRig();
@@ -1465,8 +1585,7 @@ function scene0(scene) {
 // driven here headless through the rig with the page's own pilot.
 // =============================================================================
 
-const { MARKET_TOURS } = await import('../src/world/marketplan.js');
-const { createMarketPilot } = await import('../src/world/marketpilot.js');
+const { createMarketPilot, MARKET_TOURS } = await import('../src/world/marketpilot.js');
 const { handleMarketEvent, createMarketToasts } = await import('../src/game/marketplay.js');
 const { createDiscoveryLog } = await import('../src/discoveries.js');
 const { MARKET_LINES } = await import('../src/marketwords.js');

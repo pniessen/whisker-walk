@@ -88,8 +88,8 @@
   import { createWeather } from '/src/weather.js';
   import { createComposerRig } from '/src/game/composer.js';
   import * as market from '/src/world/market.js';
-  import { MARKET_SHOTS, MARKET_SPAWN, FOUNTAIN, MARKET_TOURS, TREAT_STALLS, stallById, fromStall } from '/src/world/marketplan.js';
-  import { createMarketPilot } from '/src/world/marketpilot.js';
+  import { MARKET_SHOTS, MARKET_SPAWN, FOUNTAIN, TREAT_STALLS, stallById, fromStall } from '/src/world/marketplan.js';
+  import { createMarketPilot, MARKET_TOURS } from '/src/world/marketpilot.js';
   import { createMarketLive } from '/src/marketlive.js';
   import { MARKET, STALL_TIMES, stallOffsets, periodOf } from '/src/marketrules.js';
   import { treatItemId } from '/src/marketnone.js';
@@ -432,7 +432,7 @@
       if (s.landTime > 0) s.landTime -= dt;
       if (s.sniffTime > 0) s.sniffTime -= dt;
       turnTo(cat, dt);
-      cat.position.y = gy(cat.position.x, cat.position.z);
+      cat.position.y = gy(cat.position.x, cat.position.z) + (s.hopLift || 0); // the shoo hop's lift, as avatar.js adds it
       animateCat(cat, pose, t, A.player.speed, false);
       if (partner) {
         turnTo(partnerCat, dt);

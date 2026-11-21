@@ -507,6 +507,12 @@ const YARN_SPOTS = {
     { x: -12, z: 37, where: 'in the back alley' },
     { x: -12, z: 31, where: 'on the garage roof' },
   ],
+  // The Market Square (?market=1): its goal line named nowhere without these
+  // ("The yarn ball is ."), found playing the real game in the fix wave.
+  market: [
+    { x: -5.2, z: 8, where: 'by the fountain bench' },
+    { x: 5.5, z: 19.6, where: 'by the noticeboard' },
+  ],
   woods: [
     { x: -2.5, z: 18, where: 'by the fallen log' },
     { x: 8.4, z: 23.4, where: 'by the big rock' },

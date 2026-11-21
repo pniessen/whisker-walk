@@ -17,7 +17,8 @@ const { GOLD_MICE } = await import('../src/goldmice.js');
 const { DISCS } = await import('../src/rivalclans.js');
 const { CATALOG } = await import('../src/progression.js');
 
-const AREAS = [...Object.keys(CATALOG.areas), 'den'];
+// and the Market Square, behind ?market=1 until its step 4 (no CATALOG row yet)
+const AREAS = [...Object.keys(CATALOG.areas), 'den', 'market'];
 const d2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const MARGIN = 0.3;     // propsets.test's clearance for anything a cat walks up to
 const PROMPT_GAP = 2.5; // propsets.test's gap between two walk-up props

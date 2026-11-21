@@ -209,6 +209,17 @@ describe('the plan of the Market Square', () => {
     }
     // and the lamps stand out of every zone too
     for (const l of MARKET_LAMPS) for (const s of treat) expect(inZone(s, l.x, l.z), `lamp ${l.x},${l.z} in ${s.id}'s zone`).toBe(false);
+    // and out of each counter's view lane: the chase camera sits behind her as
+    // she faces a counter, so nothing tall may stand in front of one (out to
+    // 9 m, across its width and 1.6 m either side). The final review found two
+    // posts 4.7 m in front of the baker's and the cheese counters.
+    for (const l of MARKET_LAMPS) {
+      for (const s of treat) {
+        const { lx, lz } = toStall(s, l.x, l.z);
+        const inLane = lz > s.d / 2 - 0.5 && lz < s.d / 2 + 9 && Math.abs(lx) < s.w / 2 + 1.6;
+        expect(inLane, `lamp ${l.x},${l.z} in front of ${s.id}'s counter`).toBe(false);
+      }
+    }
   });
 
   it('nothing offers it yet, and strays are allowed', () => {

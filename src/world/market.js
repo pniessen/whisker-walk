@@ -23,18 +23,9 @@ import {
 // packing up (cloths over two displays, more crates stacked, the baskets put
 // away), the lanterns glow, and the treats are still there (setMarketDusk).
 //
-//                         fruit
-//            baker                    cheese
-//                  lamp          lamp
-//     fish          (fountain + mast)       flowers
-//                  lamp          lamp
-//        café tables                    milk cart
-//          (crumbs)       ^ spawn
-//   shop fronts close the square just outside the bounds on all four sides;
-//   the south row has a 3.2 m gap at x = 0 for step 4's gateway (U3), with a
-//   tub of flowers either side of it. 42 x 44 m (Task 6's ruling), and the
-//   cobbles between the stalls dressed with marketplan.js's MARKET_CLUTTER:
-//   barrows, benches, tubs, crate stacks, a noticeboard, a parked bicycle.
+// The square's layout and its map are marketplan.js's (42 x 44 m, Task 6's
+// ruling): the six stalls, the café, the four lamp posts, the clutter, the
+// spawn and the south row's gap for step 4's gateway (U3).
 //
 // HOW IT IS BUILT. Everything is made inside withLocalUuids, so the build
 // draws nothing from Math.random (variation is hash01); the shared builders'

@@ -18,6 +18,8 @@ let stream = null;
 const areas = createAreaLoader();
 beforeAll(() => areas.ensureAll(['park', 'neighborhood', 'market']), 60_000);
 const life = (o = {}) => lifecycle({ areas, ...o });
+// a walk a test started is ended even when one of its expects fails
+const endIfWalking = (l) => { if (l.getSession()) l.w.endWalk(); };
 
 beforeEach(() => {
   globalThis.document = { body: fakeEl(), createElement: fakeEl, getElementById: () => null, addEventListener() {}, removeEventListener() {} };
@@ -54,18 +56,20 @@ describe('the flag', () => {
   it('starts a solo Market walk in Clan Edition', async () => {
     setMarket(true);
     const l = life();
-    expect(await l.w.beginWalkFromHomebase({ duskMode: false })).toBe('started');
-    expect(l.getSession().areaId).toBe('market');
-    l.w.endWalk();
+    try {
+      expect(await l.w.beginWalkFromHomebase({ duskMode: false })).toBe('started');
+      expect(l.getSession().areaId).toBe('market');
+    } finally { endIfWalking(l); }
   }, 90_000);
 
   it('starts nothing in Legacy: the save\'s own place', async () => {
     setMarket(true);
     const l = life();
-    l.progression.setEdition('legacy');
-    await l.w.beginWalkFromHomebase({ duskMode: false });
-    expect(l.getSession().areaId).toBe('neighborhood');
-    l.w.endWalk();
+    try {
+      l.progression.setEdition('legacy');
+      await l.w.beginWalkFromHomebase({ duskMode: false });
+      expect(l.getSession().areaId).toBe('neighborhood');
+    } finally { endIfWalking(l); }
   }, 90_000);
 
   it('never in a room', () => {
@@ -80,9 +84,10 @@ describe('the flag', () => {
   it('without the flag, Explore walks the save\'s own place', async () => {
     setMarket(false);
     const l = life();
-    await l.w.beginWalkFromHomebase({ duskMode: false });
-    expect(l.getSession().areaId).toBe('neighborhood');
-    l.w.endWalk();
+    try {
+      await l.w.beginWalkFromHomebase({ duskMode: false });
+      expect(l.getSession().areaId).toBe('neighborhood');
+    } finally { endIfWalking(l); }
   }, 90_000);
 });
 
@@ -141,18 +146,19 @@ describe('strays in the square', () => {
   it('never stand in a counter\'s zone', async () => {
     setMarket(true);
     const l = life();
-    await l.w.beginWalkFromHomebase({ duskMode: false });
-    const s = l.getSession();
-    expect(s.areaId).toBe('market');
-    const strays = s.strayCats.strays;
-    expect(strays.length).toBeGreaterThan(0);
-    const treat = TREAT_STALLS.map(stallById);
-    const check = () => {
-      for (const c of strays) for (const st of treat) expect(inZone(st, c.group.position)).toBe(false);
-    };
-    check();
-    for (let i = 0; i < 120; i++) s.strayCats.update(0.1, i * 0.1, { x: MARKET_SPAWN.x, y: 0, z: MARKET_SPAWN.z });
-    check();
-    l.w.endWalk();
+    try {
+      await l.w.beginWalkFromHomebase({ duskMode: false });
+      const s = l.getSession();
+      expect(s.areaId).toBe('market');
+      const strays = s.strayCats.strays;
+      expect(strays.length).toBeGreaterThan(0);
+      const treat = TREAT_STALLS.map(stallById);
+      const check = () => {
+        for (const c of strays) for (const st of treat) expect(inZone(st, c.group.position)).toBe(false);
+      };
+      check();
+      for (let i = 0; i < 120; i++) s.strayCats.update(0.1, i * 0.1, { x: MARKET_SPAWN.x, y: 0, z: MARKET_SPAWN.z });
+      check();
+    } finally { endIfWalking(l); }
   }, 90_000);
 });

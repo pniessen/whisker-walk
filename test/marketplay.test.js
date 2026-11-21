@@ -614,7 +614,11 @@ describe('in the walk (Task 13)', () => {
     const withTreats = summaryStatsHtml({ ...args, treats: 3 });
     expect(withTreats).toContain('3');
     expect(withTreats).toContain('treats');
-    expect(withTreats).toBe(TODAY.replace('<div class="stat"><span class="stat-emoji" aria-hidden="true">⭐', `${tileOf('😋', 3, 'treats')}<div class="stat"><span class="stat-emoji" aria-hidden="true">⭐`));
+    // and five tiles are marked `five` (style.css keeps them in one row)
+    expect(withTreats).toBe(TODAY.replace('<div class="stat"><span class="stat-emoji" aria-hidden="true">⭐', `${tileOf('😋', 3, 'treats')}<div class="stat"><span class="stat-emoji" aria-hidden="true">⭐`)
+      .replace('<div class="summary-stats">', '<div class="summary-stats five">'));
+    // a Market walk with no goals has four tiles: not marked
+    expect(summaryStatsHtml({ ...args, hasGoals: false, treats: 3 })).toMatch(/^<div class="summary-stats">/);
     expect(summaryStatsHtml({ ...args, treats: 0 })).toContain(tileOf('😋', 0, 'treats'));
     // a Market walk's summary has it, at 0 when nothing was eaten
     await inAWalk(async ({ l }) => {

@@ -151,10 +151,7 @@ export function marketMaterials() {
   return {
     stall: std(0xffffff, 0.9, { map: texture }), // painted boards and signs: the atlas's cells, tinted by white
     awning: std(0xffffff, 0.95, { map: texture, side: THREE.DoubleSide }),
-    cobble: std(0x8b8478, 0.98),
-    stone: std(0xc9c3b4, 0.9),
     metal: std(0x6f777c, 0.5, { metalness: 0.5 }),
-    glass: std(0xa9cfdc, 0.2, { transparent: true, opacity: 0.5, metalness: 0.1 }),
     lantern: std(0xffe3a8, 0.6, { emissive: 0xffb84a, emissiveIntensity: 0 }), // lit at dusk by the build
     cloth: std(0xe6dcc2, 1, { side: THREE.DoubleSide }),
   };

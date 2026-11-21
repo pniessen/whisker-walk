@@ -24,7 +24,7 @@ vi.stubGlobal('document', {
 const { build, setMarketDusk, createMarketLook, MARKET_COBBLE } = await import('../src/world/market.js');
 const {
   MARKET_BOUNDS, MARKET_SPAWN, MARKET_COLLIDERS, MARKET_KEEPOUT, MARKET_POIS, MARKET_COLLECTIBLES, STALLS, TREAT_STALLS, CAFE,
-  stallById, toStall,
+  stallById, toStall, MARKET_LAMPS,
 } = await import('../src/world/marketplan.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -386,8 +386,10 @@ describe('the Market Square drawn', () => {
     const found = findFadeOccluders(scene);
     expect(found).toHaveLength(4);
     for (const f of found) expect(f.obj.userData.lampGlobeY).toBeGreaterThan(0);
-    const spots = found.map((f) => [Math.round(f.x), Math.round(f.z)]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    expect(spots).toEqual([[-5, -5], [-5, 5], [5, -5], [5, 5]]);
+    // at the plan's posts (MARKET_LAMPS), none other
+    const key = (x, z) => `${x.toFixed(2)},${z.toFixed(2)}`;
+    const spots = found.map((f) => key(f.x, f.z)).sort();
+    expect(spots).toEqual(MARKET_LAMPS.map((l) => key(l.x, l.z)).sort());
   });
 
   it('the built counts are pinned, within the aim (180 / 110 / 45,000)', () => {

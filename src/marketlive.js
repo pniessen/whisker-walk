@@ -1,7 +1,7 @@
 // =============================================================================
 // The Market Square's life (step 2): the stallholders behind their counters,
-// turning to the back shelf in their own rhythm, the "busy" bubble over their
-// heads (Task 11), and everything a cat does here (Task 12: the grab and the
+// turning to the back shelf in their own rhythm, the "busy" bubble over each
+// stall's roof (Task 11), and everything a cat does here (Task 12: the grab and the
 // munch, the shoo and the hop, the coo, the refill); the walk (Task 13) makes
 // one through the Market's loader (world/areas.js `life.createMarketLive`) and
 // every other walk holds marketnone.js's NO_MARKET in its place.
@@ -29,7 +29,8 @@
 //                       for the café, which has no rhythm;
 //              phase    the rhythm's phase;
 //              watching noticing a sneaking cat now: the rhythm's watching,
-//                       and never while cooing (M5);
+//                       and never while cooing (M5) or turning back from a
+//                       coo (COO_BACK_S);
 //              bubble   the rhythm's bubble, down while cooing;
 //              facing   how far the figure is turned off front this frame
 //                       (0 front, 1 the back shelf), whatever turned it;
@@ -83,20 +84,32 @@
 // this frame and last (APPROACH). Each guarded stall, each frame:
 //   * cooing: nobody else is noticed. The coo ends after COO_S, when she
 //     leaves the zone (or hides, or goes up high), when she moves (over
-//     STILL_SPEED) or when she leaves the walk; if she moved toward the
-//     treat, she is shooed as it ends (the rhythm's watching or not).
-//   * waving the broom (shooT): nobody else is noticed.
+//     STILL_SPEED) or when she leaves the walk; if she walked at the treat
+//     (approaching, below), she is shooed as it ends (the rhythm's watching
+//     or not). Any other end: the stallholder turns back and notices nobody
+//     for COO_BACK_S (backT; controller's ruling on the final review), so a
+//     partner creeping in as a coo ends is not shooed with no warning, and
+//     the button then is a grab, not a shoo.
+//   * waving the broom (shooT), or turning back from a coo (backT): nobody
+//     else is noticed.
 //   * otherwise, a cat the stall sees (marketrules.js stallSees): still for
 //     STILL_S and not yet cooed at by it this stop (moving clears that) is
-//     cooed at; moving with her distance to the treat falling by more than
-//     APPROACH m/s, once the last shoo's SHOO_REST_S is over, is shooed.
+//     cooed at; one walking at the treat, once the last shoo's SHOO_REST_S
+//     is over, is shooed. Walking at the treat (approaching): her distance
+//     to it falls by more than APPROACH m/s AND she heads in toward the
+//     counter (about 30 degrees or more), so a pass along the front never
+//     counts.
 // The shoo: the broom up and waving over the counter for SHOO_S (its tip held
 // inside the stall's footprint, above the counters: BROOM_BOX), the
 // stallholder turned to the front. Her cat with an empty mouth hops back
 // HOP_DIST along the stall's face over HOP_S: one isFree-checked step a frame
 // added to wherever her own walk took her (nothing of the player is
-// touched, so the stick works throughout), stopping at the first refused
-// step; session.landTime = 0.12 when it lands. A cat with a treat is laughed
+// touched, so the stick works throughout). A step refused straight back
+// (her flank against the treat's stand) is tried turned up to HOP_TURNS
+// off the face, still away from the counter; she stops when every way is
+// refused. She rises and falls through it (session.hopLift, up to HOP_LIFT,
+// which game/avatar.js adds to the y she is drawn at, as a fight's lift);
+// session.landTime = 0.12 when it lands. A cat with a treat is laughed
 // at and keeps it; a partner's cat gets the broom only. Nobody leaves the
 // counter and nothing follows her.
 // The figure turns at TURN_RATE: to the cooed cat (at most COO_TURN off
@@ -104,7 +117,9 @@
 // rhythm has got to, then follows the rhythm exactly again. The bubble is
 // down while cooing.
 // The grab, per device: the treat in her mouth (marketparts.js's treat mesh at
-// her head, carryables.js placeInMouth) for HOLD_S, then the munch
+// her head, carryables.js placeInMouth) for HOLD_S, standing (her idle clock,
+// session.idleTime, held at 0 while she has it: no groom or sit with a treat
+// in her mouth), then the munch
 // (session.sniffTime = MUNCH_S, the treat shrinking away), and at
 // HOLD_S + MUNCH_S it is eaten (carry.js eatHeld), treats + 1, 'eat'. The cream
 // has no mouth mesh: it is lapped where it stands (M6), her head down
@@ -209,6 +224,8 @@ const BROOM_BOX = Object.freeze({ side: 0.15, back: 0.1, front: 0.2 });
 const IN_SHARE = 0.5;    // her step in toward a counter, as a share of her whole step (sin 30°): walking at its treat
 const MAX_STEP = 1;      // m: more than this toward a treat in one frame is a teleport, not a walk
 const LAND_S = 0.12;     // s, the landing squash after the hop (session.landTime)
+const HOP_LIFT = 0.2;    // m, how high she rises at the hop's middle (session.hopLift, game/avatar.js)
+const HOP_TURNS = Object.freeze([0, Math.PI / 6, Math.PI / 3]); // a refused hop step is tried turned this far off the face, either way
 const DOWN = new THREE.Vector3(0, -1, 0); // the broom's head end, in its own frame
 const _p = new THREE.Vector3();
 const _s = new THREE.Vector3();
@@ -350,7 +367,7 @@ export function createMarketLive(scene, area, opts = {}) {
     const row = {
       ...made[id], st, offset: offsets[id], serveS: STALL_TIMES[id].serve, plan: stallById(id), i: treatRows.length,
       // the sneak's own state (Task 12), all reused frame to frame
-      coo: { who: null, t: 0 }, cooRec: null, graceT: 0, graceWho: null, restT: 0,
+      coo: { who: null, t: 0 }, cooRec: null, graceT: 0, graceWho: null, restT: 0, backT: 0,
       shownYaw: made[id].yaw, held: made[id].yaw, chasing: false, armR: 0,
     };
     treatRows.push(row);
@@ -484,6 +501,7 @@ export function createMarketLive(scene, area, opts = {}) {
       if (st.shooT === 0) row.restT = MARKET.SHOO_REST_S;
     } else if (row.restT > 0) row.restT = Math.max(0, row.restT - dt);
     if (row.graceT > 0) row.graceT = Math.max(0, row.graceT - dt);
+    if (row.backT > 0) row.backT = Math.max(0, row.backT - dt);
     st.look.cooing = !!st.cooing;
     if (st.cooing) {
       // While cooing, the stall notices no other cat (M5).
@@ -497,7 +515,8 @@ export function createMarketLive(scene, area, opts = {}) {
       else if (st.cooing.t >= MARKET.COO_S) endCoo(row);
       return;
     }
-    if (st.shooT > 0) return; // waving the broom: no coo, no second shoo
+    // waving the broom: no coo, no second shoo; turning back from a coo: nobody
+    if (st.shooT > 0 || row.backT > 0) return;
     // her cat first, then each partner's
     if (consider(row, me, dt)) return;
     for (let k = 0; k < remoteRecs.length; k++) if (consider(row, remoteRecs[k], dt)) return;
@@ -533,11 +552,15 @@ export function createMarketLive(scene, area, opts = {}) {
     onEvent({ type: 'coo', stall: st.id, who: rec.who });
   }
 
+  // Every coo's end turns the stallholder back noticing nobody for COO_BACK_S;
+  // a shoo straight after it (the cooed cat walked at the treat, or pressed the
+  // button) takes that back (shoo zeroes backT).
   function endCoo(row) {
     const st = row.st;
     if (!st.cooing) return;
     row.graceWho = st.cooing.who;
     row.graceT = MARKET.TEAM_GRACE_S;
+    row.backT = MARKET.COO_BACK_S;
     st.cooing = null;
     st.look.cooing = false;
     row.cooRec = null;
@@ -553,6 +576,7 @@ export function createMarketLive(scene, area, opts = {}) {
     if (st.cooing) endCoo(row);
     if (!(st.shooT > 0)) st.shooT = MARKET.SHOO_S;
     row.restT = 0;
+    row.backT = 0;
     const laugh = rec.treat === true;
     const hopped = rec === me && !laugh ? startHop(row.plan) : false;
     onEvent({ type: 'shoo', stall: st.id, who: rec.who, laugh, hopped });
@@ -564,42 +588,62 @@ export function createMarketLive(scene, area, opts = {}) {
   // begins has moved her: one refused at that first step (her back to a crate)
   // is no hop at all, and the shoo says hopped: false (no landing thump). ------
   const HOP_FIRST = 0.05;
-  const hop = { active: false, t: 0, moved: 0, fx: 0, fz: 0 };
+  const hop = { active: false, t: 0, moved: 0, fx: 0, fz: 0, side: 1, session: null };
+  // One step of `len` along the stall's face, or, refused (her flank against
+  // the treat's stand: the walk leaves her touching it), turned HOP_TURNS off
+  // it, the side that worked last first. False when every way is refused.
+  function hopStep(cat, len) {
+    for (let j = 0; j < HOP_TURNS.length; j++) {
+      const a = HOP_TURNS[j];
+      for (let k = 0; k < (a === 0 ? 1 : 2); k++) {
+        const sg = k === 0 ? hop.side : -hop.side;
+        const c = Math.cos(a), sn = sg * Math.sin(a);
+        const nx = cat.position.x + (hop.fx * c - hop.fz * sn) * len;
+        const nz = cat.position.z + (hop.fx * sn + hop.fz * c) * len;
+        if (!isFree(nx, nz)) continue;
+        cat.position.x = nx;
+        cat.position.z = nz;
+        if (a !== 0) hop.side = sg;
+        return true;
+      }
+    }
+    return false;
+  }
   function startHop(plan) {
     const cat = seen.cat;
     if (hop.active || !cat) return false;
-    const nx = cat.position.x + plan.face.x * HOP_FIRST;
-    const nz = cat.position.z + plan.face.z * HOP_FIRST;
-    if (!isFree(nx, nz)) return false;
-    cat.position.x = nx;
-    cat.position.z = nz;
+    hop.fx = plan.face.x;
+    hop.fz = plan.face.z;
+    hop.side = 1;
+    if (!hopStep(cat, HOP_FIRST)) return false;
     hop.active = true;
     hop.t = 0;
     hop.moved = HOP_FIRST;
-    hop.fx = plan.face.x;
-    hop.fz = plan.face.z;
+    hop.session = seen.session;
     return true;
+  }
+  function endHop() {
+    hop.active = false;
+    if (hop.session) hop.session.hopLift = 0;
+    hop.session = null;
   }
   function stepHop(dt) {
     if (!hop.active) return;
     const cat = seen.cat;
-    if (!cat) { hop.active = false; return; }
+    if (!cat) { endHop(); return; }
     const step = Math.min(MARKET.HOP_DIST - hop.moved, (MARKET.HOP_DIST / MARKET.HOP_S) * dt);
     hop.t += dt;
     let done = false;
     if (step > 0) {
-      const nx = cat.position.x + hop.fx * step;
-      const nz = cat.position.z + hop.fz * step;
-      if (isFree(nx, nz)) {
-        cat.position.x = nx;
-        cat.position.z = nz;
-        hop.moved += step;
-      } else done = true; // something solid: she stops short of it
+      if (hopStep(cat, step)) hop.moved += step;
+      else done = true; // something solid every way: she stops short of it
     }
     if (hop.moved >= MARKET.HOP_DIST - 1e-9 || hop.t >= 2 * MARKET.HOP_S) done = true;
     if (done) {
-      hop.active = false;
+      endHop();
       if (seen.session) seen.session.landTime = LAND_S;
+    } else if (hop.session) {
+      hop.session.hopLift = HOP_LIFT * Math.sin(Math.PI * Math.min(1, hop.t / MARKET.HOP_S));
     }
   }
 
@@ -627,7 +671,7 @@ export function createMarketLive(scene, area, opts = {}) {
     row.shownYaw = yaw;
     k.group.rotation.y = yaw;
     st.phase = look.phase;
-    st.watching = look.watching && !st.cooing;
+    st.watching = look.watching && !st.cooing && !(row.backT > 0);
     st.bubble = look.bubble && !st.cooing;
     st.facing = Math.abs(wrap(yaw - row.yaw)) / Math.PI;
     row.bubble.visible = st.bubble;
@@ -726,6 +770,7 @@ export function createMarketLive(scene, area, opts = {}) {
     if (!munch.active) return;
     munch.t += dt;
     const s = munch.session;
+    if (s) s.idleTime = 0; // a treat in her mouth: she stands, no groom or sit
     if (!munch.sniffed && munch.t >= MARKET.HOLD_S) {
       munch.sniffed = true;
       if (munch.kind !== 'cream' && s) s.sniffTime = MARKET.MUNCH_S;
@@ -886,7 +931,7 @@ export function createMarketLive(scene, area, opts = {}) {
         _view.stalking = p?.stalking === true;
         _view.high = Math.max(cat.position.y - gy(_view.x, _view.z), perchUp) >= MARKET.HIGH_Y;
         st.look.cooing = !!st.cooing;
-        if (st.cooing?.who === 'me' || stallSees(plan, st.look, _view, MARKET_HIDES)) {
+        if (st.cooing?.who === 'me' || (!(row.backT > 0) && stallSees(plan, st.look, _view, MARKET_HIDES))) {
           if (!seen.cat) seen.cat = cat;
           if (!seen.session) seen.session = s;
           me.treat = false;
@@ -912,6 +957,7 @@ export function createMarketLive(scene, area, opts = {}) {
       munch.teamWith = teamWith;
       munch.sniffed = false;
       munch.session = s;
+      s.idleTime = 0;
       munch.mesh = t.kind === 'cream' ? null : meshFor(me, t.kind);
       if (munch.mesh) {
         scene.add(munch.mesh);
@@ -974,6 +1020,7 @@ export function createMarketLive(scene, area, opts = {}) {
       disposed = true;
       if (munch.mesh) munch.mesh.removeFromParent();
       munch.active = false;
+      if (hop.active) endHop();
       freeMeshes(me);
       for (const rec of remoteRecs) { endRemoteMunch(rec); freeMeshes(rec); }
       remoteRecs.length = 0;

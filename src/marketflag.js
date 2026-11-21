@@ -29,8 +29,3 @@ export function setMarket(value) {
 export function marketResumable(ids) {
   return ids.filter((id) => id !== 'market' || marketOn());
 }
-
-// The Market's drawing (world/market.js, with marketplan.js, marketparts.js
-// and the rest, which only it uses) is its own download, as every place's is:
-// world/areas.js's `market` pack, fetched by the one area loader. A child
-// without the switch never fetches it.

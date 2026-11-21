@@ -29,10 +29,12 @@ import { isWalkableAt } from '../player.js';
 import { stickTakesOff } from '../climbing.js';
 
 // The y the local cat is drawn at, before the water look: the ground under
-// it (Gorge part 1, R4), then perchY + hopY (where player.js drew it) and a
-// fight's lift. On flat ground it is exactly the old sum, with no ground term.
+// it (Gorge part 1, R4), then perchY + hopY (where player.js drew it), a
+// fight's lift and the Market's shoo hop (s.hopLift, marketlive.js; 0 or
+// unset everywhere else). On flat ground it is exactly the old sum, with no
+// ground term.
 export function avatarBaseY(ground, cat, player, s) {
-  const rel = player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0);
+  const rel = player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0) + (s.hopLift || 0);
   if (!ground || ground.flat) return rel;
   return ground.y(cat.position.x, cat.position.z) + rel;
 }
