@@ -2083,7 +2083,7 @@ export function createProgression(storage) {
     // lastWalk guard is once per cat per walk), so those feats cannot be
     // farmed by holding one key down.
     //
-    // FOUR call sites are NOT inside pay(): the feats.perch tally in
+    // Four tallies are NOT inside pay(): the feats.perch tally in
     // game/interactions.js and the feats.race tally in main.js, both of
     // which count something no award type means on its own. Neither gets the
     // cap for free — each must gate itself on its neighbouring awardOnce()

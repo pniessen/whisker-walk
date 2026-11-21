@@ -563,7 +563,7 @@ describe('the Rooftops\' moments: the ring, the view and the pane', () => {
       return Math.atan2(d.x, d.z);
     };
 
-    it('arriving 160 degrees off and standing still, the heading turns at most 45 degrees a second and the view is in within 6 s', async () => {
+    it('arriving 160 degrees off and standing still, the heading turns at most 45 degrees a second and the view is in within 8 s', async () => {
       for (const fps of [30, 20]) {
         for (const off of [160 * DEG, -160 * DEG]) {
           const { TOWER_TURN, side, camera, p, viewYaw, place, cap } = await rig(off);
@@ -572,7 +572,7 @@ describe('the Rooftops\' moments: the ring, the view and the pane', () => {
           const m = createRoofsMoments(area, { viewYaw });
           const check = bounds(camera, cap, dt);
           let inAt = null;
-          for (let i = 1; i <= 8 * fps; i++) {
+          for (let i = 1; i <= 10 * fps; i++) {
             place(cat);
             const ff = faceOf(camera);
             const before = p.yaw;
@@ -582,11 +582,68 @@ describe('the Rooftops\' moments: the ring, the view and the pane', () => {
             if (inAt === null && m.viewWeight === 1) inAt = i * dt;
           }
           expect(inAt, `${fps} fps, ${off / DEG}`).not.toBe(null);
-          expect(inAt).toBeLessThanOrEqual(6);
+          expect(inAt).toBeLessThanOrEqual(8);
           expect(Math.abs(wrap(p.yaw - side))).toBeLessThan(1e-6); // the follow camera is the view's way round
           m.dispose();
         }
       }
+    });
+
+    // Follow-up (a): the blend's own swing must not add to the heading's
+    // turn: from 160 degrees off the screen never turns faster than 100
+    // degrees a second, at 60, 30 or 20 frames a second.
+    it('from 160 degrees off the screen never turns faster than 100 degrees a second, and the view still comes in', async () => {
+      for (const fps of [60, 30, 20]) {
+        for (const off of [160 * DEG, -160 * DEG]) {
+          const { TOWER_TURN, camera, p, viewYaw, place } = await rig(off);
+          expect(TOWER_TURN.lined).toBeCloseTo(30 * DEG, 12);
+          const dt = 1 / fps;
+          const m = createRoofsMoments(area, { viewYaw });
+          let last = null;
+          let fastest = 0;
+          let inAt = null;
+          for (let i = 1; i <= 10 * fps; i++) {
+            place(cat);
+            m.update(dt, cat, camera, session());
+            const face = faceOf(camera); // what the screen shows this frame
+            if (last !== null) fastest = Math.max(fastest, Math.abs(wrap(face - last)) / dt);
+            last = face;
+            if (inAt === null && m.viewWeight === 1) inAt = i * dt;
+          }
+          expect(fastest, `${fps} fps, ${off / DEG}`).toBeLessThanOrEqual(100 * DEG);
+          expect(inAt, `${fps} fps, ${off / DEG}`).not.toBe(null);
+          expect(inAt).toBeLessThanOrEqual(8);
+          m.dispose();
+        }
+      }
+    });
+
+    // Follow-up (b): a slow drag (under the blend's 20 degrees a second) is
+    // still hers: it stops the turn, and holds it 1.5 s after.
+    it('a slow 10 degree a second drag while settled stops the turn and holds it 1.5 s after', async () => {
+      const { side, camera, p, viewYaw, place } = await rig(160 * DEG);
+      const dt = 1 / 30;
+      const m = createRoofsMoments(area, { viewYaw });
+      const frame = (stick = 0) => {
+        p.yaw += stick * dt;
+        place(cat);
+        m.update(dt, cat, camera, session());
+      };
+      for (let i = 0; i < 45; i++) frame(); // settled and turning round
+      expect(p.sets).toBeGreaterThan(0);
+      for (let i = 0; i < 30; i++) {
+        const before = p.yaw;
+        const sets = p.sets;
+        frame(-10 * DEG);
+        expect(p.sets, `frame ${i}`).toBe(sets);
+        expect(p.yaw).toBeCloseTo(before - 10 * DEG * dt, 12);
+      }
+      const held = p.yaw;
+      for (let i = 0; i < 44; i++) frame();
+      expect(p.yaw).toBe(held);
+      for (let i = 0; i < 30; i++) frame();
+      expect(Math.abs(wrap(p.yaw - side))).toBeLessThan(Math.abs(wrap(held - side)));
+      m.dispose();
     });
 
     it('nothing turns before she is settled, mid-hop, or under reduced motion', async () => {
@@ -635,7 +692,7 @@ describe('the Rooftops\' moments: the ring, the view and the pane', () => {
       expect(p.yaw).toBe(held);
       const check = bounds(camera, cap, dt);
       let inAt = null;
-      for (let i = 1; i <= 8 * 30; i++) {
+      for (let i = 1; i <= 10 * 30; i++) {
         place(cat);
         const ff = faceOf(camera);
         const before = p.yaw;
@@ -653,7 +710,7 @@ describe('the Rooftops\' moments: the ring, the view and the pane', () => {
     it('she moves or hops down: the view eases out and her heading is hers again', async () => {
       const { camera, p, viewYaw, place } = await rig(160 * DEG);
       const m = createRoofsMoments(area, { viewYaw });
-      for (let i = 0; i < 240; i++) { place(cat); m.update(1 / 30, cat, camera, session()); }
+      for (let i = 0; i < 300; i++) { place(cat); m.update(1 / 30, cat, camera, session()); }
       expect(m.viewWeight).toBe(1);
       const sets = p.sets;
       for (let i = 0; i < 120; i++) {

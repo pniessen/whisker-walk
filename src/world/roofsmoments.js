@@ -49,9 +49,12 @@
 //     player.viewYaw / setViewYaw) eases round to the view's at most
 //     TOWER_TURN.rate, so the follow camera comes round with the blend (the
 //     only way up ends climbing north, about 160 degrees from the view: fix
-//     wave, I2). A turn of hers while settled wins: the turn and the blend
-//     wait until she has left the camera alone TOWER_TURN.hold. Without a
-//     `viewYaw` (the picture pages) the blend alone swings round her.
+//     wave, I2). With a `viewYaw` the blend eases in only once her heading
+//     is within TOWER_TURN.lined of the view's, so the two never add up to a
+//     fast swing. A turn of hers while settled (any drag over
+//     TOWER_TURN.mine) wins: the turn and the blend wait until she has left
+//     the camera alone TOWER_TURN.hold. Without a `viewYaw` (the picture
+//     pages) the blend alone swings round her.
 //     While the view is in, the vane (area.vane) fades out (vaneFade): she
 //     stands just south of its mast, on the view's line of sight (fix wave,
 //     I1); it is whole again as the view eases out.
@@ -124,7 +127,17 @@ export const TOWER_BLEND = Object.freeze({
 //   rate  at most this, per second
 //   hold  after a turn of hers while settled, the seconds she must leave the
 //         camera alone before the turn (and the blend) go on
-export const TOWER_TURN = Object.freeze({ rate: (45 * Math.PI) / 180, hold: 1.5 });
+//   mine  any turn of hers faster than this (per second) is hers, however
+//         slow a drag: it stops the turn and starts the hold (follow-up b)
+//   lined with her heading turned, the blend eases in only once the heading
+//         is within this of the view's, so its own swing never adds to the
+//         turn (follow-up a: 45 + 150 degrees a second read as dizzy)
+export const TOWER_TURN = Object.freeze({
+  rate: (45 * Math.PI) / 180,
+  hold: 1.5,
+  mine: (2 * Math.PI) / 180,
+  lined: (30 * Math.PI) / 180,
+});
 
 // The vane's opacity for the view's weight w (fix wave, I1): whole at 0,
 // gone by 0.6. Pure.
@@ -545,16 +558,19 @@ export function createRoofsMoments(area, opts = {}) {
     // her own turn of the camera: with a turner, how far her view heading
     // moved from where the moments left it; else the follow camera's turn
     const yawNow = turner ? turner.get() : null;
-    const hers = Number.isFinite(yawNow) && ownYaw !== null ? wrapAngle(yawNow - ownYaw) : turnFace;
+    const known = Number.isFinite(yawNow) && ownYaw !== null;
+    const hers = known ? wrapAngle(yawNow - ownYaw) : turnFace;
     const steady = Math.abs(hers) <= TOWER_BLEND.steady * dt + 1e-9;
+    // with a turner, even a slow drag of hers counts as hers (TOWER_TURN.mine)
+    const turning = known ? Math.abs(hers) > TOWER_TURN.mine * dt + 1e-9 : !steady;
     // in only while she is settled there and not turning the camera (a turn
     // of hers while settled holds it off TOWER_TURN.hold); out whenever she
     // is not settled there
     const settled = !reducedMotion && onTop(p) && spot.still >= TOWER_VIEW.settle && !session?.traversal?.busy;
     if (!settled) calmFor = TOWER_TURN.hold;
-    else if (!steady) calmFor = 0;
+    else if (turning) calmFor = 0;
     else calmFor += dt;
-    const calm = settled && steady && calmFor >= TOWER_TURN.hold - 1e-9;
+    const calm = settled && steady && !turning && calmFor >= TOWER_TURN.hold - 1e-9;
     // her view heading eases round to the view's, so the follow camera comes round too
     if (turner && Number.isFinite(yawNow)) {
       ownYaw = yawNow;
@@ -563,7 +579,9 @@ export function createRoofsMoments(area, opts = {}) {
         if (ownYaw !== yawNow) turner.set(ownYaw);
       }
     } else ownYaw = null;
-    const want = calm ? 1 : 0;
+    // with a turner, in only once her heading is lined up with the view's
+    const lined = !turner || !Number.isFinite(yawNow) || Math.abs(wrapAngle(target.yaw - ownYaw)) <= TOWER_TURN.lined;
+    const want = calm && lined ? 1 : 0;
     let dw = (want - viewW) * Math.min(1, dt * TOWER_VIEW.rate);
     // the blend never turns faster than TOWER_BLEND.turn, however far apart the two are
     const span = Math.max(blend.span(follow, target), 1e-6);
