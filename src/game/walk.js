@@ -1790,8 +1790,9 @@ export function createWalkLifecycle({
     // and endWalk being able to dispose them. Its birds are noCast and cast no
     // shadow of their own (built after the caster sweep); the cave glow is a
     // PointLight with castShadow false, added here so shaders compile with it
-    // once. Draws on no rng.
-    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook }) ?? NO_AREA_LIFE;
+    // once. Draws on no rng. The Rooftops' life also takes the walk's critters,
+    // to move its birds, and how many walks she has had there.
+    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0 }) ?? NO_AREA_LIFE;
     const session = createSession({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       farm,

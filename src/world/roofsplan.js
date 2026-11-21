@@ -13,7 +13,7 @@
 //   z -13 |e+------------------------------------[  22..30 ]---+corner|n |
 //         |     THE STREET BELOW  -4  (walled, never entered)  | shop |e |
 //   z   3 +------+=== terrace, pitched: VOID 6.0 ==============| 9.6  |l |
-//         |west  | o    o    o[dormer]o[flat]  o  [roofT]o    o|      |sh|
+//         |west  | o    o    o[dormer]o[flat]o o  [roofT]o    o|      |sh|
 //   z  12 |garden| [e1][e2][e3] ... back extensions 3.6 ... [e12]+------+op|
 //         |      |   outriggers 5.1 on e2 e5 e7 e10             yard   |
 //   z  20 |      |   back yards 0, bunkers 1.2 at e1 e4 e8 e12          |
@@ -25,7 +25,8 @@
 // skills makes) and every drop falls 0.9-3.0 m. The way up: bin, shed,
 // garages; planks over the back yards; level leaps along the extensions;
 // climbs to the outriggers, the flat roofs and the chimney stacks; the ridges
-// from stack to stack; the corner shop, the warehouse, the tank, the loft and
+// from stack to stack (over slates only: the flat house is crossed on foot,
+// below); the corner shop, the warehouse, the tank, the loft and
 // the tower's stages. Every climb is mirrored by a drop, except shed ->
 // garages (0.8, under the 0.9 a drop falls; the bin bags and the alley stair
 // come down from the garages).
@@ -35,6 +36,12 @@
 // face. Its footprint is ground at VOID (6.0), 0.6 m under the flat roofs and
 // gutters next to it: a wall all round, and no move lands there. She walks its
 // ridge (stack to stack) and its back gutter as crossings, rails in the air.
+//
+// THE FLAT HOUSE HAS NO RIDGE (follow-up 3, the owner's "a beam in the
+// air"): a ridge rail runs only over slates and its own stacks. The flat house
+// (house 7) has a stack on each party wall, stack-0 and stack-5; no ridge runs
+// between them, and she crosses its roof on foot, climbing to either stack
+// from the felt (1.5 m) and dropping back. ridge-4 runs stack-5 -> stack-10.
 //
 // WHY THE STREET IS AT -4 (ruling R3): the streets below close the place. At
 // -4 they are walled on every side (the terrace's front, the warehouse, the
@@ -128,7 +135,9 @@ const OUT_WIDEN = 0.35; // m, toward the washing line's other end (header: shift
 const OUTRIGGERS = Object.freeze({ 2: [0, OUT_WIDEN], 5: [-OUT_WIDEN, 0], 7: [0, OUT_WIDEN], 10: [-OUT_WIDEN, 0] });
 const BUNKER_KS = Object.freeze([1, 4, 8, 12]);
 const BUNKER_SIZE = 1.4;
-const STACK_XS = Object.freeze([-30, -20, -10, 0, 10, 20, 29.4]);
+const FLAT_HOUSE_X = Object.freeze([0, 5]); // house 7, between two party walls
+// The chimney stacks, on every other party wall and on both of the flat house's.
+const STACK_XS = Object.freeze([-30, -20, -10, FLAT_HOUSE_X[0], FLAT_HOUSE_X[1], 10, 20, 29.4]);
 const STACK_Z = 7.5;
 const STACK_R = 0.6;
 const TERRACE = Object.freeze({ x0: -30, x1: 30, z0: 3, z1: 12 }); // eaves at z 3 and 12, the ridge along STACK_Z
@@ -174,7 +183,7 @@ export const BLOCKS = Object.freeze([
   ...Object.entries(OUTRIGGERS).map(([k, [w, e]]) => flat(`out-${k}`, EXT_X0(+k) + w, EXT_X1(+k) + e, EXT_Z.z0, OUT_Z1, L.OUTRIGGER)),
   // The terrace: pitched slates (VOID, R4), three flat roofs in it, the stacks on its party walls.
   Object.freeze({ id: 'terrace', kind: 'pitched', ...TERRACE, y: L.VOID, ridgeZ: STACK_Z, ridge: L.RIDGE }),
-  flat('flatHouse', 0, 5, 3, 12, L.FLAT, { house: 7 }),
+  flat('flatHouse', FLAT_HOUSE_X[0], FLAT_HOUSE_X[1], 3, 12, L.FLAT, { house: 7 }),
   flat('dormer', -10, -4.3, 8, 12, L.FLAT, { house: 5 }),
   flat('roofTerrace', 14.3, 20, 8, 12, L.FLAT, { house: 10 }),
   ...STACK_XS.map((x) => disc(`stack-${x}`, x, STACK_Z, STACK_R, L.RIDGE)),
@@ -240,8 +249,27 @@ export const ALLEY_CRATES = Object.freeze([
   { x: 9.4, z: 35.0, y: 0, s: 0.6, yaw: -0.3 },
 ].map(Object.freeze));
 
+// Beauty pass, Task D (drawn only, no colliders): the alley's clutter, under
+// the fire escape's high end. The ground there is the stair she walks over
+// (1.4 m and more up), and the west garden beside it is 0.4 m away or more, so
+// her body (CAT_RADIUS round a centre that reaches any wall's line) never
+// meets it; against a wall in the open alley it would (Task D's review).
+// Each { x, z } is its foot's middle; the bike runs along (ax, az), front
+// first; the pallet leans back from its foot onto the wall behind it, (nx, nz)
+// pointing out from that wall.
+export const ALLEY_CLUTTER = Object.freeze({
+  bike: Object.freeze({ x: -30.7, z: 32.42, ax: 0, az: 1 }), // parked under the stair, front to the alley
+  pallet: Object.freeze({ x: -30.45, z: 30.6, nx: -1, nz: 0 }), // leant on the garages' west end wall
+  tin: Object.freeze({ x: -30.95, z: 31.3 }), // a paint tin by the pallet
+});
+export const ALLEY_CHANNEL = Object.freeze({ z: 40, half: 0.3, x0: -45.7, x1: 45.7 });
+
 export const ROOFS_COLLIDERS = Object.freeze([
   ALLEY_LAMP, BIN_2, BIN_3, TELESCOPE, VANE_MAST,
+  // The alley crates are solid (owner's fix): a circle round each, as wide as
+  // the crate's half-diagonal, so she bumps round them or jumps onto them (the
+  // perches below). The stack's three overlap into one lump.
+  ...ALLEY_CRATES.map((c) => Object.freeze({ x: c.x, z: c.z, r: Math.ceil(c.s * Math.SQRT1_2 * 100) / 100 })),
   ...WASHING_POSTS.flatMap((p) => [p.z0, p.z1].map((z) => Object.freeze({ x: p.x, z, r: 0.12 }))),
 ]);
 
@@ -254,6 +282,20 @@ export const HOP_MARKS = Object.freeze({
   climb: Object.freeze(['bin', 'crate', 'pipe', 'sill']),
 });
 
+// Calmer marks (follow-up 2, the owner's): every hop keeps its `mark` kind
+// (the tests and step 3's birds read it), but where a real thing already
+// shows a child the spot, the hop names it as its `prop` and the drawing adds
+// only a soft glow there: the bin she climbs, the shed, a coal bunker, a
+// chimney stack, the tank, the loft, a tower stage (its railing open where
+// she goes over), the garages' end wall, an outrigger or a flat-roofed house
+// (the back window she climbs by), the corner shop and the warehouse (their
+// parapets open at the spot), the lantern, the bin bags. A prop is a block's
+// id, or 'binBags'. Only these kinds are still drawn as a small object of
+// their own, lying flush at a roof's edge where nothing else shows the spot.
+export const DRAWN_MARKS = Object.freeze(['lip', 'stub', 'gutter', 'skylight']);
+// The bin bags under the garages' back edge, which the drop from it lands on.
+export const BIN_BAGS = Object.freeze({ x: -10, z: 35.4, r: 0.75 });
+
 const P = (x, z, y) => ({ x, z, y });
 const S = (x, z) => ({ x, z });
 
@@ -262,18 +304,19 @@ const gaps = [];
 const climbs = [];
 const drops = [];
 
-// A climb from `low` up to `high`, and the drop that mirrors it.
-function upDown(id, low, high, climbMark, dropMark) {
-  climbs.push({ id: `${id}-up`, from: low, to: high, mark: climbMark });
-  if (dropMark) drops.push({ id: `${id}-down`, from: high, to: low, mark: dropMark });
+// A climb from `low` up to `high`, and the drop that mirrors it; each with
+// the real thing that shows its spot (its `prop`, above), if there is one.
+function upDown(id, low, high, climbMark, dropMark, upProp = null, downProp = upProp) {
+  climbs.push({ id: `${id}-up`, from: low, to: high, mark: climbMark, ...(upProp && { prop: upProp }) });
+  if (dropMark) drops.push({ id: `${id}-down`, from: high, to: low, mark: dropMark, ...(downProp && { prop: downProp }) });
 }
 
 // The alley: bin, shed, garages. Down by the bin bags, the shed's wall, the stair.
-upDown('bin', S(14.5, 36.6), S(14.5, 35.35), 'bin', 'wall');
-upDown('shed', S(14.5, 35.0), S(14.5, 33.4), 'bin', 'wall');
-upDown('garages', S(13.2, 31.5), S(11.4, 31.5), 'crate', null); // 0.8: no drop mirrors it
-drops.push({ id: 'shed-alley', from: S(16.6, 31.5), to: S(18.3, 31.5), mark: 'wall' });
-drops.push({ id: 'garages-bags', from: S(-10, 33.6), to: S(-10, 35.4), mark: 'bags' });
+upDown('bin', S(14.5, 36.6), S(14.5, 35.35), 'bin', 'wall', 'bin-1');
+upDown('shed', S(14.5, 35.0), S(14.5, 33.4), 'bin', 'wall', 'bin-1', 'shed');
+upDown('garages', S(13.2, 31.5), S(11.4, 31.5), 'crate', null, 'garages'); // 0.8: no drop mirrors it
+drops.push({ id: 'shed-alley', from: S(16.6, 31.5), to: S(18.3, 31.5), mark: 'wall', prop: 'shed' });
+drops.push({ id: 'garages-bags', from: S(BIN_BAGS.x, 33.6), to: S(BIN_BAGS.x, BIN_BAGS.z), mark: 'bags', prop: 'binBags' });
 
 // Planks over the back yards, left by the roofers: garages (and shed) to an extension.
 const plank = (id, x, y0, zFrom) => crossings.push({
@@ -294,17 +337,18 @@ for (let k = 1; k < 12; k++) {
 
 // Down from the extensions: onto a bunker, then the back yard.
 for (const k of BUNKER_KS) {
-  drops.push({ id: `ext-${k}-bunker`, from: S(EXT_CX(k), EXT_Z.z1 - 0.6), to: S(EXT_CX(k), EXT_Z.z1 + 0.75), mark: 'bunker' });
-  drops.push({ id: `bunker-${k}-yard`, from: S(EXT_CX(k), EXT_Z.z1 + 0.9), to: S(EXT_CX(k), EXT_Z.z1 + 2.6), mark: 'wall' });
+  drops.push({ id: `ext-${k}-bunker`, from: S(EXT_CX(k), EXT_Z.z1 - 0.6), to: S(EXT_CX(k), EXT_Z.z1 + 0.75), mark: 'bunker', prop: `bunker-${k}` });
+  drops.push({ id: `bunker-${k}-yard`, from: S(EXT_CX(k), EXT_Z.z1 + 0.9), to: S(EXT_CX(k), EXT_Z.z1 + 2.6), mark: 'wall', prop: `bunker-${k}` });
 }
 
-// Extension -> outrigger, by the drainpipe.
-for (const k of Object.keys(OUTRIGGERS)) upDown(`out-${k}`, S(EXT_CX(+k), 17.3), S(EXT_CX(+k), 15.4), 'pipe', 'gutter');
+// Extension -> outrigger, by the drainpipe. Up: the outrigger's wall and its
+// back window show the spot (its prop); down off its back edge: a gutter mark.
+for (const k of Object.keys(OUTRIGGERS)) upDown(`out-${k}`, S(EXT_CX(+k), 17.3), S(EXT_CX(+k), 15.4), 'pipe', 'gutter', `out-${k}`, null);
 
-// Outrigger -> flat roof, by a back window's sill.
-upDown('dormer', S(-8.0, 12.8), S(-8.0, 11.2), 'sill', 'gutter');
-upDown('flatHouse', S(2.0, 12.8), S(2.0, 11.2), 'sill', 'skylight');
-upDown('roofTerrace', S(17.0, 12.8), S(17.0, 11.2), 'sill', 'gutter');
+// Outrigger -> flat roof, by a back window's sill (the house's back wall).
+upDown('dormer', S(-8.0, 12.8), S(-8.0, 11.2), 'sill', 'gutter', 'dormer', null);
+upDown('flatHouse', S(2.0, 12.8), S(2.0, 11.2), 'sill', 'skylight', 'flatHouse', null);
+upDown('roofTerrace', S(17.0, 12.8), S(17.0, 11.2), 'sill', 'gutter', 'roofTerrace', null);
 
 // Washing lines between back windows, sagging 0.3 m.
 const line = (id, xa, xb) => {
@@ -319,35 +363,39 @@ crossings.push({ id: 'gutter-1', kind: 'gutter', points: [P(-4.7, 11.6, L.FLAT),
 crossings.push({ id: 'gutter-2', kind: 'gutter', points: [P(4.6, 11.6, L.FLAT), P(14.7, 11.6, L.FLAT)] });
 
 // Flat roof -> chimney stack.
-upDown('stack-0', S(1.5, STACK_Z), S(0.1, STACK_Z), 'pipe', 'gutter');
-upDown('stack--10', S(-8.6, 8.8), S(-9.9, 7.6), 'pipe', 'gutter');
-upDown('stack-20', S(18.6, 8.8), S(19.9, 7.6), 'pipe', 'gutter');
+upDown('stack-0', S(1.5, STACK_Z), S(0.1, STACK_Z), 'pipe', 'gutter', 'stack-0');
+upDown('stack-5', S(3.5, STACK_Z), S(4.9, STACK_Z), 'pipe', 'gutter', 'stack-5');
+upDown('stack--10', S(-8.6, 8.8), S(-9.9, 7.6), 'pipe', 'gutter', 'stack--10');
+upDown('stack-20', S(18.6, 8.8), S(19.9, 7.6), 'pipe', 'gutter', 'stack-20');
 
-// The ridges, stack to stack.
-for (let k = 1; k < STACK_XS.length; k++) {
-  crossings.push({ id: `ridge-${k}`, kind: 'ridge', points: [P(STACK_XS[k - 1] + 0.15, STACK_Z, L.RIDGE), P(STACK_XS[k] - 0.15, STACK_Z, L.RIDGE)] });
-}
+// The ridges, stack to stack over the slates: none over the flat house
+// (header), so ridge-4 runs stack-5 -> stack-10.
+const RIDGE_RUNS = STACK_XS.slice(1).map((x, i) => [STACK_XS[i], x])
+  .filter(([a, b]) => !(a >= FLAT_HOUSE_X[0] && b <= FLAT_HOUSE_X[1]));
+RIDGE_RUNS.forEach(([a, b], i) => {
+  crossings.push({ id: `ridge-${i + 1}`, kind: 'ridge', points: [P(a + 0.15, STACK_Z, L.RIDGE), P(b - 0.15, STACK_Z, L.RIDGE)] });
+});
 
 // The last stack -> the corner shop -> the warehouse.
-upDown('cornerShop', S(29.5, STACK_Z), S(30.8, STACK_Z), 'pipe', 'wall');
-upDown('warehouse', S(34, -12.2), S(34, -13.8), 'pipe', 'wall');
+upDown('cornerShop', S(29.5, STACK_Z), S(30.8, STACK_Z), 'pipe', 'wall', 'stack-29.4', 'cornerShop');
+upDown('warehouse', S(34, -12.2), S(34, -13.8), 'pipe', 'wall', 'warehouse');
 
 // On the warehouse: the tank, the loft, the pipe between, the lantern.
-upDown('tank', S(-26, -31.8), S(-26, -33.0), 'crate', 'wall');
-upDown('loft', S(-33, -41.6), S(-33, -43.5), 'crate', 'wall');
+upDown('tank', S(-26, -31.8), S(-26, -33.0), 'crate', 'wall', 'tank');
+upDown('loft', S(-33, -41.6), S(-33, -43.5), 'crate', 'wall', 'loft');
 crossings.push({ id: 'pipe-1', kind: 'pipe', points: [P(-26.2, -34.4, L.TANK), P(-30.5, -43.5, L.TANK)] });
-drops.push({ id: 'lantern-down', from: S(-19, -35.6), to: S(-19, -37.3), mark: 'skylight' });
+drops.push({ id: 'lantern-down', from: S(-19, -35.6), to: S(-19, -37.3), mark: 'skylight', prop: 'lantern' });
 
 // The clock tower, stage by stage, each on its own side.
-upDown('tower-1', S(20.6, -17), S(22.5, -17), 'sill', 'wall');
-upDown('belfry', S(26, -20.5), S(26, -19.5), 'sill', 'wall');
-upDown('lanternStage', S(28.5, -17), S(27.5, -17), 'sill', 'wall');
-upDown('towerTop', S(26, -15.4), S(26, -16.4), 'sill', 'wall');
+upDown('tower-1', S(20.6, -17), S(22.5, -17), 'sill', 'wall', 'tower-1');
+upDown('belfry', S(26, -20.5), S(26, -19.5), 'sill', 'wall', 'belfry');
+upDown('lanternStage', S(28.5, -17), S(27.5, -17), 'sill', 'wall', 'lanternStage');
+upDown('towerTop', S(26, -15.4), S(26, -16.4), 'sill', 'wall', 'towerTop');
 
 // Long Leap: the extra rooftop corner, and two short cuts to a stack that
 // is reached without it (dormer -> gutter-1 -> flatHouse -> stack-0;
 // roofTerrace -> stack-20 -> ridge-5 -> stack-10).
-gaps.push({ id: 'long-lantern', from: S(-25.0, -34), to: S(-20.65, -34), requires: LONG_LEAP_ID, mark: 'lip' });
+gaps.push({ id: 'long-lantern', from: S(-25.0, -34), to: S(-20.65, -34), requires: LONG_LEAP_ID, mark: 'lip', prop: 'tank' }); // off the tank's rim
 gaps.push({ id: 'long-dormer', from: S(-4.55, 8.4), to: S(-0.35, 7.6), requires: LONG_LEAP_ID, mark: 'stub' });
 gaps.push({ id: 'long-terrace', from: S(14.55, 8.4), to: S(10.35, 7.6), requires: LONG_LEAP_ID, mark: 'stub' });
 
@@ -478,6 +526,42 @@ export const ROOFS_DISCOVERIES = Object.freeze({
   chimney: Object.freeze({ x: -10, z: STACK_Z, y: L.RIDGE }), // F: on the warm stack
 });
 
+// The wind tonight (Rooftops step 3): `from` is the heading it blows from
+// (radians, x = cos, z = sin), the one the weathervane's arrow points along.
+// The washing leans and the smoke drifts the other way (downwind).
+export const ROOFS_WIND = Object.freeze({ from: 0.6 });
+export function downwind() {
+  return [-Math.cos(ROOFS_WIND.from), -Math.sin(ROOFS_WIND.from)];
+}
+// The three pots that smoke (roofs.js's drawn ids, roofsflock.js DRAWN_ID.pot):
+// the warm chimney's cowled pot (discovery F), and one on each of two other
+// stacks, on the yards' side (the alley sees them). No bird perches on them.
+export const SMOKE_POTS = Object.freeze([`pot:${ROOFS_DISCOVERIES.chimney.x}:-1`, 'pot:10:1', 'pot:-30:1']);
+
+// Two house cats asleep on warm back-window sills (Rooftops step 3, S1):
+// scenery only. No name, no label, no prompt, in no cat list; they never move
+// but breathe (roofslife.js). Each lies on the deep stone sill of the window
+// over a side return (roofs.js draws it lit, warm), 4.3 m up the terrace's
+// back wall, out of her reach: no ground she can walk is within 0.6 m beside
+// it or less than 1 m below it (test/roofs.test.js; out-2's west edge, its
+// roof 0.8 m above the sill, is 0.75 m from the grey-and-white cat's). `y`
+// is the sill's top, `z` SLEEPER_SILL.out from the wall (clear of the
+// window's glass); face out to the yards; head toward +x, or toward -x where
+// `mirror` (the owner's tweak, 2026-11-21: the two lie different ways, each
+// head toward the middle of the terrace); `coat` its two colours. Each is on
+// a side return no washing line runs in front of (the owner's tweak: from
+// the yards and the roofs she walks, the washing never hides one;
+// test/roofs.test.js measures it): at the terrace's two ends.
+const SIDE_RETURN_X = (k) => (EXT_X1(k) + EXT_X0(k + 1)) / 2; // the side return beside house k's extension
+export const SLEEPER_SILL = Object.freeze({ y: 4.3, depth: 0.32, out: 0.17 });
+const sleeper = (id, k, yaw, fur, pale, mirror) => Object.freeze({
+  id, x: SIDE_RETURN_X(k), y: SLEEPER_SILL.y, z: TERRACE.z1 + SLEEPER_SILL.out, yaw, mirror, coat: Object.freeze({ fur, pale }),
+});
+export const ROOFS_SLEEPERS = Object.freeze([
+  sleeper('ginger', 11, -0.12, 0xc8783a, 0xeadbc0, true), // over the east yards, by the corner shop, its head to the west
+  sleeper('greyWhite', 1, -0.1, 0x8a8c90, 0xe8e6e0, false), // over the west yards, by the end house, its head to the east
+]);
+
 // The street below (R3): its pavements, three lamps, and the bus's route. The
 // bus runs east along the near lane from x0 to x1 every `every` seconds,
 // taking `run` of them, and is seen while any of it is out in the street:
@@ -516,6 +600,9 @@ export function roofsArea() {
 //   firstRoof  from the spawn, up the bin, the shed and onto the garage roof:
 //              the spec's "A child gets onto the first roof within the first
 //              minute", in seconds.
+//   terrace    firstRoof, then on over plank-2 to the flat roof (below).
+//   birds      after the guide pigeon, over plank-3 (below; its test runs
+//              the flock and the walk's critters with it: test/roofsbirds.test.js).
 export const ROOFS_TOURS = deepFreeze({
   firstRoof: {
     start: { x: ROOFS_SPAWN.x, z: ROOFS_SPAWN.z, face: [0, -1] },
@@ -539,6 +626,22 @@ export const ROOFS_TOURS = deepFreeze({
       { say: 'Onto the flat roof' }, { walk: [2.0, 12.8] }, { jump: true }, { walk: [2.5, 8.0] },
     ],
   },
+  // Following the guide pigeon (step 3, the film): up to it in the alley
+  // (it waits 4.6 m in front of her, further than it lets her come), then
+  // firstRoof's way up the bin and onto the shed, which flushes it from the
+  // bin's lid and the shed's roof; along the shed to plank-3's near end,
+  // where it waits, and over the plank after it onto ext-10's roof. Not onto
+  // the garage roof: no drop leads back down from it to the shed.
+  birds: {
+    start: { x: ROOFS_SPAWN.x, z: ROOFS_SPAWN.z, face: [0, -1] },
+    steps: [
+      { say: 'A pigeon in the alley' }, { walk: [5.2, 38.4] },
+      { say: 'Up the bin' }, { walk: [14.5, 37.6] }, { walk: [14.5, 36.6] }, { jump: true },
+      { say: 'Onto the shed' }, { jump: true },
+      { say: 'After the pigeon, over the plank' }, { walk: [16, 29.3] }, { walk: [16, 19.0] },
+      { say: 'Onto the roof' }, { walk: [16, 17.6] },
+    ],
+  },
 });
 
 // The picture views, 'px,py,pz,lx,ly,lz' (verify-places.html's __shot and
@@ -560,6 +663,31 @@ export const ROOFS_SHOTS = Object.freeze({
   edge: '31.5,11.6,-9,0,-3,-6',
   // the card picture: from the alley, up at the terrace backs and the tower
   card: '18,4.2,45,12,6,4',
+});
+
+// The walk second (the evening's clock, src/roofslife.js) each picture is taken
+// at; a shot not named here is taken at full dusk (240 s on). The card is what
+// a walk starts with, at sunset, and the edge waits for the bus.
+export const ROOFS_SHOT_T = Object.freeze({ card: 0, edge: 276.4 });
+
+// The life's picture views (Rooftops step 3, for the owner): { view, t }, the
+// view as ROOFS_SHOTS' and the walk second the life is run to first
+// (verify-places.html's __shot takes these names too). Kept apart from
+// ROOFS_SHOTS, whose eight views are the place's own pictures.
+const lifeShot = (view, t) => Object.freeze({ view, t });
+export const ROOFS_LIFE_SHOTS = Object.freeze({
+  // the alley at sunset, the guide pigeon waiting in front of her spawn
+  guide: lifeShot('3.9,0.95,39.4,7.2,0.55,33.6', 0),
+  // from the shed, along plank-3 to ext-10's roof, a pigeon waiting at its far end
+  plank: lifeShot('15.4,3.1,29.0,16,3.5,19.4', 240),
+  // line-2 close, from over the yards: the washing downwind, a sill behind it
+  washing: lifeShot('9.6,5.4,19.2,9.0,4.7,13.0', 240.5),
+  // over the yards, across the ridges: the three smoking pots, the warm one in the middle
+  smoke: lifeShot('-10,13.5,33,-10,9.6,7.5', 240),
+  // the warehouse roof by the loft: the loft and its pigeon, the north parapet
+  loft: lifeShot('-38.8,14.0,-40.8,-33.2,12.5,-46.2', 240),
+  // the grey-and-white cat asleep on its sill over the west yards, from the side return in front of it
+  sleeper: lifeShot('-25.3,5.4,15.2,-25.75,4.4,12.2', 240),
 });
 
 // ---------------------------------------------------------------------------
@@ -632,7 +760,7 @@ export const ROOFS_REGISTRATION = Object.freeze({
   pawprints: Object.freeze({ ground: null, path: 'gravel', strip: null }),
   // The measured counts test/budget.test.js and test/roofs.test.js pin:
   // [meshes, casters, triangles] built, [meshes, casters] merged
-  budget: Object.freeze({ built: Object.freeze([113, 67, 32202]), merged: Object.freeze([57, 30]) }),
+  budget: Object.freeze({ built: Object.freeze([116, 68, 37335]), merged: Object.freeze([59, 30]) }),
   // verify-places.html VIEWS.roofs and the card picture (public/places/roofs.jpg)
   view: ROOFS_SHOTS.card,
   // src/marks.js MARK_AREAS and emptyMarks(): add 'roofs'

@@ -446,7 +446,29 @@ const AREAS = [
   // flagged to the owner and his to change.
   ['fair', buildFair, 250, 180, 75000],
   // The Rooftops (Rooftops step 2, 2026-11-20), measured 113 / 67 / 32,202
-  // (part one alone was 76 / 42 / 13,284). Held to the territories' ceilings,
+  // (part one alone was 76 / 42 / 13,284); 114 / 68 / 32,506 after
+  // follow-up 3 (stack-5 on the flat house, its ridge beam gone); 112 / 68 /
+  // 31,218 after follow-up 2 (calmer take-off marks); 113 / 68 / 32,382 after
+  // the beauty pass's Task A (the sky glow band, +1 mesh casting nothing, and
+  // the far town's lights and landmarks); 113 / 68 / 32,918 after Task B
+  // (houses that differ and real roof edges: no mesh or caster added, +536
+  // triangles in the buckets it had); 113 / 68 / 33,246 after Task C (windows
+  // and the tower: no mesh or caster added, +328 triangles in the buckets it
+  // had); 113 / 68 / 33,933 after Task D (readable hints and a lived-in
+  // alley: no mesh or caster added, +687 triangles in the buckets it had);
+  // 113 / 68 / 34,023 after round two's Task E (the shop's string courses
+  // and the garden bench's uprights, +96, in noCast buckets it had; the far
+  // town's lower back rows, -6: no mesh or caster added); 113 / 68 / 36,065
+  // after round two's Task F (what she walks on: the ridges in single tiles,
+  // the felt's drip edges, patches, flashing and outlets, the crates' slats
+  // and the bin bags' knots, +2,042 in noCast buckets it had: no mesh or
+  // caster added); 114 / 68 / 36,707 after round two's Task G (the street
+  // lit: the lamps' halo, +1 mesh casting nothing and never merged, 8
+  // triangles; the copings' joints, the road's lines, grates and covers, +632
+  // in noCast buckets it had; the far town's back row a little taller, +2);
+  // 116 / 68 / 37,335 after Rooftops step 3's Task 6 (two house cats asleep
+  // on warm sills: +2 meshes casting nothing and never merged, 314 triangles
+  // each). Held to the territories' ceilings,
   // never raised; the place aims for 300 / 120 / 60,000 (test/roofs.test.js
   // pins the exact numbers).
   ['roofs', buildRoofs, 450, 380, 70000],
@@ -494,7 +516,7 @@ const MERGED_AREAS = [
   ['gorge', buildGorge, 260, 205],
   ['farm', buildFarm, 200, 135], // measured 176 / 119
   ['fair', buildFair, 200, 140], // measured 178 / 124
-  ['roofs', buildRoofs, 64, 34], // measured 57 / 30, + 12%
+  ['roofs', buildRoofs, 64, 34], // measured 59 / 30 (57 / 30 before Rooftops step 3's two sleeping cats, Task 6, never merged; 56 / 30 before round two's lamp halo, Task G; 55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {
