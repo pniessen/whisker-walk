@@ -1,18 +1,28 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
+import { withLocalUuids } from '../src/world/localuuids.js';
 import {
-  createMarketAtlas, atlasCell, marketMaterials, PARTS, buildTreatMesh, createBubbleTexture, buildBroom, TREAT_KINDS,
+  createMarketAtlas, atlasCell, marketMaterials, createMarketParts, buildTreatMesh, createBubbleTexture, buildBroom, TREAT_KINDS,
 } from '../src/world/marketparts.js';
 
 const px = (tex, x, y) => { const i = (y * tex.image.width + x) * 4; return Array.from(tex.image.data.slice(i, i + 4)); };
 
+// a stubbed document whose createElement must never be called (node has none otherwise)
+function withDocumentSpy(fn) {
+  const had = Object.prototype.hasOwnProperty.call(globalThis, 'document');
+  const old = globalThis.document;
+  const createElement = vi.fn();
+  globalThis.document = { createElement };
+  try { fn(); } finally { if (had) globalThis.document = old; else delete globalThis.document; }
+  return createElement;
+}
+
 describe('marketparts', () => {
+  const PARTS = createMarketParts();
   it('the atlas is the same twice and paints no canvas', () => {
-    const spy = vi.spyOn(globalThis.document ?? { createElement() {} }, 'createElement');
-    const a = createMarketAtlas();
-    const b = createMarketAtlas();
+    let a; let b;
+    const spy = withDocumentSpy(() => { a = createMarketAtlas(); b = createMarketAtlas(); marketMaterials(); });
     expect(spy).not.toHaveBeenCalled();
-    spy.mockRestore();
     expect(a.size).toBe(128);
     expect(a.cells).toBe(16);
     expect(a.texture.isDataTexture).toBe(true);
@@ -92,18 +102,9 @@ describe('marketparts', () => {
   });
 
   it('the bubble and the broom are made without a canvas or a random number', () => {
-    const doc = vi.spyOn(globalThis.document ?? { createElement() {} }, 'createElement');
-    const t = createBubbleTexture();
-    const t2 = createBubbleTexture();
-    const broom = buildBroom();
+    let t; let t2; let broom;
+    const doc = withDocumentSpy(() => { t = createBubbleTexture(); t2 = createBubbleTexture(); broom = buildBroom(); });
     expect(doc).not.toHaveBeenCalled();
-    doc.mockRestore();
-    // no random number shapes them: two builds under different Math.random streams match
-    const real = Math.random;
-    Math.random = () => 0.123;
-    const t3 = createBubbleTexture();
-    Math.random = real;
-    expect(Array.from(t3.image.data)).toEqual(Array.from(t.image.data));
     expect(t.isDataTexture).toBe(true);
     expect(t.image.width).toBe(32);
     expect(t.image.height).toBe(32);
@@ -137,5 +138,38 @@ describe('marketparts', () => {
     expect(box.max.y).toBeGreaterThanOrEqual(-0.001);
     expect(box.max.y).toBeLessThan(0.12);
     broom.traverse((o) => { if (o.isMesh) expect(o.castShadow).toBe(false); });
+  });
+
+  it('every factory draws its uuids from the local stream and leaves the real Math.random alone', () => {
+    const real = Math.random;
+    const spy = vi.spyOn(Math, 'random');
+    const calls = () => spy.mock.calls.length;
+    // inside withLocalUuids Math.random is swapped, so the spy on the real one sees nothing
+    const first = withLocalUuids('x', () => {
+      const parts = createMarketParts();
+      parts.awningSheet(0);
+      createMarketAtlas(); marketMaterials(); createBubbleTexture(); buildBroom();
+      for (const k of TREAT_KINDS) buildTreatMesh(k);
+      return parts.box.uuid + parts.awningSheet(0).uuid;
+    });
+    expect(calls()).toBe(0);
+    expect(Math.random).toBe(spy); // restored to the spy we installed
+    // the same local stream gives the same uuids on every build
+    const second = withLocalUuids('x', () => { const parts = createMarketParts(); parts.awningSheet(0); return parts.box.uuid + parts.awningSheet(0).uuid; });
+    expect(second).toBe(first);
+    spy.mockRestore();
+    expect(Math.random).toBe(real);
+  });
+
+  it('each build gets its own geometries, and dispose frees them', () => {
+    const a = createMarketParts();
+    const b = createMarketParts();
+    expect(a.box).not.toBe(b.box);
+    expect(a.awningSheet(1)).not.toBe(b.awningSheet(1));
+    const onDispose = vi.fn();
+    a.crate.addEventListener('dispose', onDispose);
+    a.awningSheet(1).addEventListener('dispose', onDispose);
+    a.dispose();
+    expect(onDispose).toHaveBeenCalledTimes(2);
   });
 });

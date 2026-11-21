@@ -7,8 +7,9 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 // bubble and the broom. marketbuild.js builds the square from it.
 //
 // LOCAL UUIDS: nothing here is made at import. Materials come from
-// marketMaterials() (once per build); PARTS geometries are built on first use
-// and kept, so the uuids they draw fall inside the build's withLocalUuids.
+// marketMaterials() and the shared geometries from createMarketParts(), each
+// called once per build inside its withLocalUuids; the parts' dispose() is the
+// build's to call at teardown.
 // No canvas, no Math.random: every pixel comes from fixed tables below.
 // Pictures only, never letters (M12).
 // =============================================================================
@@ -95,8 +96,8 @@ function producePixel(i, x, y) {
   const inside = p.shape === 'long' ? inEllipse(x, y, cx, cy, p.r * 1.3, p.r * 0.8) : inCircle(x, y, cx, cy, p.r);
   if (!inside) return ground;
   const c = rgbOf(p.dots[k]);
-  const shine = (x - cx) + (y - cy) < -p.r * 0.9 ? 0.18 : 0; // a lit top-left... (y up: lower-left offset reads as light)
-  return mixc(c, [255, 255, 255], (cx - x) + (y - cy) > p.r * 0.9 ? 0.22 : shine);
+  // a small highlight on the upper-left of each piece (y is up)
+  return mixc(c, [255, 255, 255], (x - cx) + (cy - y) < -p.r * 0.9 ? 0.22 : 0);
 }
 
 function signPixel(i, x, y) {
@@ -160,14 +161,12 @@ export function marketMaterials() {
 }
 
 // ---------------------------------------------------------------------------
-// Shared geometries, built on first use and kept (see the header). All unit
+// Shared geometries, one set per build (see the header). All unit
 // sized with the base at y = 0 (a stall scales them), except where noted.
 // ---------------------------------------------------------------------------
 const based = (g) => { g.translate(0, 0.5, 0); return g; };
 const part = (g, x, y, z) => { g.translate(x, y, z); return g; };
 const boxAt = (w, h, d, x, y, z) => part(new THREE.BoxGeometry(w, h, d), x, y, z);
-const NAMES = ['box', 'post', 'counter', 'crate', 'basket', 'trestle', 'cafeTable', 'cafeChair', 'bulb', 'pennant'];
-let partsCache = null;
 function buildParts() {
   const trestle = mergeGeometries([ // a plank top (1 x 0.06 x 0.5) at 0.75 high on two splayed trestle ends; the unit is 1 m long
     boxAt(1, 0.06, 0.5, 0, 0.72, 0),
@@ -203,14 +202,11 @@ function buildParts() {
     pennant,
   };
 }
-const parts = () => (partsCache ??= buildParts());
-const sheets = new Map();
 // A gently sagging strip, 1 m wide (x) and 1 m deep (z, back at -0.5, front at +0.5), sloping down
 // to the front and dipping in the middle; its UVs run across one atlas cell, inset half a texel so
 // the cell's neighbours never bleed in. Stripes run down the slope (they change along u).
-function awningSheet(cell) {
+function makeAwningSheet(cell) {
   if (!Number.isInteger(cell) || cell < 0 || cell >= ATLAS_CELLS) throw new Error(`awningSheet: no atlas cell ${cell}`);
-  if (sheets.has(cell)) return sheets.get(cell);
   const NX = 8;
   const NZ = 2;
   const pad = 0.5 / ATLAS_SIZE;
@@ -239,11 +235,24 @@ function awningSheet(cell) {
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setIndex(idx);
   g.computeVertexNormals();
-  sheets.set(cell, g);
   return g;
 }
-export const PARTS = { awningSheet };
-for (const k of NAMES) Object.defineProperty(PARTS, k, { enumerable: true, get: () => parts()[k] });
+// One set per build: the shared geometries plus awningSheet(cell) (made once per cell, kept), and
+// dispose() to free them all at teardown. Call inside the build's withLocalUuids.
+export function createMarketParts() {
+  const PARTS = buildParts();
+  const sheets = new Map();
+  PARTS.awningSheet = (cell) => {
+    if (!sheets.has(cell)) sheets.set(cell, makeAwningSheet(cell));
+    return sheets.get(cell);
+  };
+  PARTS.dispose = () => {
+    for (const k of Object.keys(PARTS)) if (PARTS[k] && PARTS[k].isBufferGeometry) PARTS[k].dispose();
+    for (const g of sheets.values()) g.dispose();
+    sheets.clear();
+  };
+  return PARTS;
+}
 
 // ---------------------------------------------------------------------------
 // Treats (Task 11): each under 0.25 m, origin at its middle, casting nothing.
@@ -291,7 +300,6 @@ export function buildTreatMesh(kind) {
     case 'cream': { // a saucer with cream in it; the cream sits level with the rim, ready to be lapped
       treatPart(g, new THREE.CylinderGeometry(0.095, 0.07, 0.025, 12), treatMat(0xf2efe6, 0.4), 0, -0.01, 0);
       treatPart(g, new THREE.CylinderGeometry(0.075, 0.075, 0.006, 12), treatMat(0xfff7e2, 0.3), 0, 0.005, 0);
-      treatPart(g, new THREE.CylinderGeometry(0.095, 0.095, 0.004, 12), treatMat(0x6a8fb8, 0.5), 0, -0.0, 0).scale.set(1, 0.4, 1);
       break;
     }
     case 'crumbs': { // five flat pale bits of pastry scattered round a point
