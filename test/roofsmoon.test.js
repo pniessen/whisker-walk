@@ -18,7 +18,12 @@ const ground = () => ({ perched: null, rest: null, traversal: { busy: false } })
 const frames = (m, pos, s, n) => { for (let i = 0; i < n; i++) m.update(1 / 30, pos, null, s); };
 
 describe('the moon picture is on top of the game, under the HUD, and never catches a tap', () => {
-  it('a fixed, full-screen element with pointer-events none and z-index 1; dispose removes it', () => {
+  // Fix round 1: z-index 0, straight after #game. #hud (absolute, no z-index)
+  // makes no stacking context, so a z-index 1 overlay would cover its children
+  // that have none (the find toast); at 0, everything after it in the page
+  // paints over it. A stand-in page cannot show paint order: these tests pin
+  // the z-index and the place in the page that give it.
+  it('a fixed, full-screen element with pointer-events none and z-index 0; dispose removes it', () => {
     const page = fakePage();
     const moon = createMoonOverlay(page);
     const el = moon.el;
@@ -26,7 +31,7 @@ describe('the moon picture is on top of the game, under the HUD, and never catch
     expect(el.style.position).toBe('fixed');
     expect([el.style.top, el.style.left, el.style.width, el.style.height]).toEqual(['0', '0', '100%', '100%']);
     expect(el.style.pointerEvents).toBe('none');
-    expect(String(el.style.zIndex)).toBe('1');
+    expect(String(el.style.zIndex)).toBe('0');
     // never black: the eyepiece's edge is a deep blue, the moon pale; no image, no words
     expect(el.style.background).toContain('rgba(12, 18, 44, 0.88)');
     expect(el.style.background).not.toMatch(/url\(/);

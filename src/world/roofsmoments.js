@@ -39,10 +39,14 @@
 //     roofs-nap-2 is on the stack). Moving stops it.
 //   * The vane (R8): stood still TOWER_VIEW.settle on the tower top, not
 //     mid-hop, the camera eases round behind her to look out over the town
-//     (towerView), blended over the follow camera as fairlive.js blends a
-//     ride's: weight viewWeight eases toward 1 at TOWER_VIEW.rate per second,
-//     and back to 0 when she moves. Never more than maxPitch down, no roll, no
-//     lens change; none at all under reduced motion.
+//     (towerView), blended over the follow camera player.update placed:
+//     weight viewWeight eases toward 1 at TOWER_VIEW.rate per second, and
+//     back to 0 when she moves. The blend is in angles round her (yaw the
+//     short way, distance, height and pitch by lerp: viewBlend), never
+//     turning faster than TOWER_BLEND.turn, and it eases in only while the
+//     follow camera already faces within TOWER_BLEND.face of the view's way.
+//     Never more than max(the follow camera's own pitch, maxPitch) down, no
+//     roll, no lens change; none at all under reduced motion.
 //   * The garden and the loft have no extra look (their lights are the
 //     build's; the loft's pigeon is Task 6). The skylight's look is always
 //     there: the attic's painted pane under the glass (R9, createAtticPane),
@@ -87,6 +91,78 @@ export function towerView(cat, outPos, outLook) {
   return outPos;
 }
 
+// How the view takes over from the follow camera (fix round 1): in angles
+// round her, never in straight lines (which swing through her and look
+// steeply down when the two cameras are on different sides of her).
+//   face  the view eases in only while the follow camera already faces
+//         within this of the view's way (so the stick never fights the
+//         screen); it eases out whatever the angle
+//   turn  the most the blend turns the camera, per second, in or out
+export const TOWER_BLEND = Object.freeze({ face: (75 * Math.PI) / 180, turn: (150 * Math.PI) / 180 });
+
+const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+
+// A camera as seen from her paws: where it is round her (yaw, along-ground
+// distance r, height h over her paws) and which way it looks (face yaw,
+// pitch down). from() reads a camera; at() a spot and the point it looks at.
+function orbit() {
+  const d = new THREE.Vector3();
+  const o = {
+    yaw: 0, r: 0, h: 0, face: 0, pitch: 0,
+    set(px, py, pz, dx, dy, dz, p) {
+      o.yaw = Math.atan2(px - p.x, pz - p.z);
+      o.r = Math.hypot(px - p.x, pz - p.z);
+      o.h = py - p.y;
+      o.face = Math.atan2(dx, dz);
+      o.pitch = Math.atan2(-dy, Math.hypot(dx, dz));
+      return o;
+    },
+    from(camera, p) {
+      camera.getWorldDirection(d);
+      return o.set(camera.position.x, camera.position.y, camera.position.z, d.x, d.y, d.z, p);
+    },
+    at(pos, look, p) {
+      return o.set(pos.x, pos.y, pos.z, look.x - pos.x, look.y - pos.y, look.z - pos.z, p);
+    },
+  };
+  return o;
+}
+
+// The blend of two orbits by weight w: yaw round her and face yaw the short
+// way (kept the same way round from frame to frame, so two cameras on
+// opposite sides never flip), distance, height and pitch by lerp, the pitch
+// never more than the follow camera's own or maxPitch, whichever is more.
+// lookAt keeps the camera level (no roll); the lens is never touched.
+function viewBlend() {
+  let dYaw = null;
+  let dFace = null;
+  const keep = (d, prev) => (prev === null ? d : d + 2 * Math.PI * Math.round((prev - d) / (2 * Math.PI)));
+  const look = new THREE.Vector3();
+  const b = {
+    reset() { dYaw = null; dFace = null; },
+    // the larger of the two turns the whole blend makes (radians)
+    span(a, t) {
+      const y = keep(wrapAngle(t.yaw - a.yaw), dYaw);
+      const f = keep(wrapAngle(t.face - a.face), dFace);
+      return Math.max(Math.abs(y), Math.abs(f));
+    },
+    apply(a, t, w, p, camera) {
+      dYaw = keep(wrapAngle(t.yaw - a.yaw), dYaw);
+      dFace = keep(wrapAngle(t.face - a.face), dFace);
+      const yaw = a.yaw + dYaw * w;
+      const r = a.r + (t.r - a.r) * w;
+      const h = a.h + (t.h - a.h) * w;
+      const face = a.face + dFace * w;
+      const pitch = Math.min(a.pitch + (t.pitch - a.pitch) * w, Math.max(a.pitch, TOWER_VIEW.maxPitch));
+      camera.position.set(p.x + Math.sin(yaw) * r, p.y + h, p.z + Math.cos(yaw) * r);
+      const c = Math.cos(pitch);
+      look.set(Math.sin(face) * c, -Math.sin(pitch), Math.cos(face) * c).add(camera.position);
+      camera.lookAt(look);
+    },
+  };
+  return b;
+}
+
 // --- the moon through the telescope (R7) ------------------------------------
 
 export const MOON_VIEW = Object.freeze({ fadeIn: 0.8, hold: 6, fadeOut: 0.8 });
@@ -114,9 +190,11 @@ const MOON_FACE = [
 ].join(', ');
 
 // The moon over the screen, made on `doc` (null with none: headless): a
-// fixed, full-screen element just over the game's canvas, pointer-events
-// none and z-index 1, so the HUD and its toasts (2 and up, src/style.css)
-// stay over it and every tap goes through. show() starts it (again), hide()
+// fixed, full-screen element straight after the game's canvas, pointer-events
+// none and z-index 0 (fix round 1: #hud makes no stacking context, so its
+// children without a z-index, the find toast among them, would be under a
+// z-index 1 overlay; at 0 every later HUD element paints over it), so the HUD
+// and its toasts stay over it and every tap goes through. show() starts it (again), hide()
 // takes it out from wherever it is, update(dt) runs it; hidden (display
 // none) at 0.
 export function createMoonOverlay(doc, { reducedMotion = false } = {}) {
@@ -126,7 +204,7 @@ export function createMoonOverlay(doc, { reducedMotion = false } = {}) {
   if (!el?.style || !disc?.style || !el.appendChild) return null; // a stand-in page with no styles
   Object.assign(el.style, {
     position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
-    pointerEvents: 'none', zIndex: '1', display: 'none', opacity: '0', background: EYEPIECE, overflow: 'hidden',
+    pointerEvents: 'none', zIndex: '0', display: 'none', opacity: '0', background: EYEPIECE, overflow: 'hidden',
   });
   el.setAttribute?.('aria-hidden', 'true');
   Object.assign(disc.style, {
@@ -317,7 +395,9 @@ export function createRoofsMoments(area, opts = {}) {
   let viewW = 0;
   const viewPos = new THREE.Vector3();
   const viewLook = new THREE.Vector3();
-  const look = new THREE.Vector3();
+  const follow = orbit();
+  const target = orbit();
+  const blend = viewBlend();
 
   // A find's once-a-walk moment, the first time it is found this walk (Task 6).
   function start(_id) {}
@@ -359,21 +439,37 @@ export function createRoofsMoments(area, opts = {}) {
 
   const onTop = (p) => !!top && Math.hypot(p.x - top.x, p.z - top.z) <= TOWER_TOP.r && Math.abs(p.y - top.y) <= TOWER_TOP.dy;
 
-  // the vane: the view eases in over the follow camera player.update placed
+  // the vane: the view eases in over the follow camera player.update placed,
+  // blended in angles round her (viewBlend)
   function view(dt, p, camera, session) {
-    const want = camera && !reducedMotion && onTop(p) && spot.still >= TOWER_VIEW.settle && !session?.traversal?.busy ? 1 : 0;
-    viewW += (want - viewW) * Math.min(1, dt * TOWER_VIEW.rate);
+    if (!camera) {
+      viewW = 0;
+      blend.reset();
+      return;
+    }
+    towerView(p, viewPos, viewLook);
+    follow.from(camera, p);
+    target.at(viewPos, viewLook, p);
+    // in only while the screen already faces near the view's way, so the
+    // stick never fights the picture; out whenever she is not settled there
+    const settled = !reducedMotion && onTop(p) && spot.still >= TOWER_VIEW.settle && !session?.traversal?.busy;
+    const facing = Math.abs(wrapAngle(target.face - follow.face)) <= TOWER_BLEND.face;
+    const want = settled && facing ? 1 : 0;
+    let dw = (want - viewW) * Math.min(1, dt * TOWER_VIEW.rate);
+    // never turn faster than TOWER_BLEND.turn, however far apart the two are
+    const span = Math.max(Math.abs(blend.span(follow, target)), 1e-6);
+    const most = (TOWER_BLEND.turn * dt) / span;
+    if (Math.abs(dw) > most) dw = Math.sign(dw) * most;
+    viewW += dw;
     if (want === 0 && viewW < 0.002) viewW = 0;
     else if (want === 1 && viewW > 0.998) viewW = 1;
-    if (viewW === 0 || !camera) return;
-    // where the follow camera looks: along its own direction, as far off as she is
-    camera.getWorldDirection(look);
-    look.multiplyScalar(Math.max(0.5, camera.position.distanceTo(p))).add(camera.position);
-    towerView(p, viewPos, viewLook);
-    camera.position.lerp(viewPos, viewW);
-    look.lerp(viewLook, viewW);
-    camera.lookAt(look);
+    if (viewW === 0) {
+      blend.reset();
+      return;
+    }
+    blend.apply(follow, target, viewW, p, camera);
   }
+
 
   return {
     get viewWeight() { return viewW; },

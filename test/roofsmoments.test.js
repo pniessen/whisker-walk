@@ -301,6 +301,90 @@ describe('the Rooftops\' moments: the ring, the view and the pane', () => {
     expect(away.viewWeight).toBe(0);
   });
 
+  // Fix round 1: the blend is in angles round her. A follow camera 4 m back
+  // and 2 m up, `off` radians round her from the view's own side, looking at her.
+  describe('the tower view from a follow camera on another side of her', () => {
+    const DEG = Math.PI / 180;
+    const cat = new THREE.Vector3(V.x, V.y, V.z);
+    const setup = async () => {
+      const { TOWER_VIEW, towerView } = await import('../src/world/roofsmoments.js');
+      const vp = new THREE.Vector3();
+      towerView(cat, vp, new THREE.Vector3());
+      const side = Math.atan2(vp.x - cat.x, vp.z - cat.z);
+      const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 500);
+      const follow = (c, off) => {
+        camera.position.set(c.x + Math.sin(side + off) * 4, c.y + 2, c.z + Math.cos(side + off) * 4);
+        camera.lookAt(c.x, c.y + 0.3, c.z);
+      };
+      const followPitch = Math.atan2(2 - 0.3, 4);
+      const cap = Math.max(followPitch, TOWER_VIEW.maxPitch) + 1e-6;
+      return { camera, follow, cap };
+    };
+    // one frame: the follow camera, then the moments; the bounds checked on what they leave
+    const watch = (camera, cap) => {
+      let last = null;
+      const dir = new THREE.Vector3();
+      return (c) => {
+        camera.getWorldDirection(dir);
+        const pitch = Math.atan2(-dir.y, Math.hypot(dir.x, dir.z));
+        expect(pitch).toBeLessThanOrEqual(cap);
+        const face = Math.atan2(dir.x, dir.z);
+        if (last !== null) expect(Math.abs(Math.atan2(Math.sin(face - last), Math.cos(face - last)))).toBeLessThanOrEqual(6 * DEG);
+        last = face;
+        expect(camera.position.distanceTo(c)).toBeGreaterThanOrEqual(1.5);
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        expect(Math.abs(right.y)).toBeLessThan(1e-6);
+      };
+    };
+
+    it('at 90 and 180 degrees off it never eases in', async () => {
+      const { camera, follow } = await setup();
+      for (const off of [90 * DEG, -90 * DEG, 180 * DEG]) {
+        const m = createRoofsMoments(area, {});
+        for (let i = 0; i < 150; i++) { follow(cat, off); m.update(1 / 30, cat, camera, session()); }
+        expect(m.viewWeight, `${off / DEG} degrees`).toBe(0);
+        m.dispose();
+      }
+    });
+
+    it('at 0 and 60 degrees off it eases in and out within the bounds every frame', async () => {
+      const { camera, follow, cap } = await setup();
+      for (const off of [0, 60 * DEG, -60 * DEG]) {
+        const m = createRoofsMoments(area, {});
+        const check = watch(camera, cap);
+        for (let i = 0; i < 150; i++) { follow(cat, off); m.update(1 / 30, cat, camera, session()); check(cat); }
+        expect(m.viewWeight, `${off / DEG} degrees in`).toBeGreaterThan(0.95);
+        for (let i = 0; i < 120; i++) {
+          const c = new THREE.Vector3(V.x + (i % 2 ? 0.1 : -0.1), V.y, V.z);
+          follow(c, off);
+          m.update(1 / 30, c, camera, session());
+          check(c);
+        }
+        expect(m.viewWeight, `${off / DEG} degrees out`).toBeLessThan(0.05);
+        m.dispose();
+      }
+    });
+
+    it('easing out after it was fully in, with the follow camera moved 120 degrees away, keeps the same bounds', async () => {
+      const { camera, follow, cap } = await setup();
+      for (const turn of [120 * DEG, -120 * DEG]) {
+        const m = createRoofsMoments(area, {});
+        for (let i = 0; i < 150; i++) { follow(cat, 60 * DEG); m.update(1 / 30, cat, camera, session()); }
+        expect(m.viewWeight).toBe(1);
+        const check = watch(camera, cap);
+        check(cat); // the view's own picture, the frame before
+        for (let i = 0; i < 150; i++) {
+          const c = new THREE.Vector3(V.x + (i % 2 ? 0.1 : -0.1), V.y, V.z);
+          follow(c, 60 * DEG + turn);
+          m.update(1 / 30, c, camera, session());
+          check(c);
+        }
+        expect(m.viewWeight).toBe(0);
+        m.dispose();
+      }
+    });
+  });
+
   it('the moon: in over 0.8 s on the crate, held at most 6 s, out over 0.8 s, out at once when she hops down', async () => {
     const { MOON_VIEW, moonOpacity } = await import('../src/world/roofsmoments.js');
     expect(MOON_VIEW).toEqual({ fadeIn: 0.8, hold: 6, fadeOut: 0.8 });
@@ -345,14 +429,12 @@ describe('the Rooftops\' moments: the ring, the view and the pane', () => {
     expect(pane.material.toneMapped).toBe(false);
     expect(pane.material.map.image.width).toBe(128);
     expect(pane.material.map.image.height).toBe(160);
-    // painted once: warm all over first, and nothing in it is black
+    // painted: warm all over first, and nothing in it is black
     const fills = page.painted.filter((p) => p.call === 'fillRect' || p.call === 'fill');
     expect(fills.length).toBeGreaterThan(4);
     const styles = page.painted.filter((p) => p.set === 'fillStyle').map((p) => p.value).filter((v) => typeof v === 'string');
     for (const s of styles) expect(s.toLowerCase()).not.toMatch(/^(#000|#000000|black|rgb\(0, ?0, ?0\))$/);
-    const n0 = page.painted.length;
-    paintAttic(new Proxy({}, { get: () => () => ({ addColorStop() {} }), set: () => true }), 128, 160);
-    expect(page.painted.length).toBe(n0);
+    expect(typeof paintAttic).toBe('function');
     // headless: no pane
     expect(createAtticPane(new THREE.Scene(), area, undefined)).toBeNull();
     expect(createAtticPane(new THREE.Scene(), area, null)).toBeNull();
@@ -372,5 +454,19 @@ describe('the Rooftops\' moments: the ring, the view and the pane', () => {
     m.dispose();
     expect(scene.children).toEqual([]);
     expect(disposed.sort()).toEqual(['geometry', 'map', 'material']);
+  });
+
+  it('the attic is painted once a walk, however long she stays', async () => {
+    const { fakePage } = await import('./helpers/fakepage.js');
+    const page = fakePage();
+    const scene = new THREE.Scene();
+    const m = createRoofsMoments(area, { scene, doc: page });
+    const sky = ROOFS_DISCOVERIES.skylight;
+    run(m, new THREE.Vector3(sky.x, sky.y, sky.z), 300); // standing at the attic window
+    run(m, onLoft(), 300);
+    // paintAttic's one wall gradient, and its first fill, once
+    expect(page.painted.filter((p) => p.call === 'createLinearGradient')).toHaveLength(1);
+    expect(page.painted.filter((p) => p.call === 'fillRect' && p.args[0] === 0 && p.args[1] === 0 && p.args[2] === 128 && p.args[3] === 160)).toHaveLength(2); // the wall, and the lamp's glow over it
+    m.dispose();
   });
 });
