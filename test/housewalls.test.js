@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { SINK, makeView, segmentMeetsSection, wantsDown, createWallSink, blockers } from '../src/housewalls.js';
+import { SINK, makeView, segmentMeetsSection, segmentMeetsSlab, wantsDown, createWallSink, createCellarLid, blockers } from '../src/housewalls.js';
+import { HOUSE_CELLAR_LID } from '../src/world/houseplan.js';
 
 const wall = { id: 'w', kind: 'wall', x0: -2, z0: 0, x1: 2, z1: 0, base: 0, height: 2.8, stub: 0.25 };
 const cat = { x: 0, y: 0, z: -2 };
@@ -131,6 +132,58 @@ describe('settling at a walk\'s start', () => {
     sink.settle(behind);
     expect(sink.fraction('w')).toBeCloseTo(stubF, 12);
     expect(sink.fraction('u')).toBe(1);
+  });
+});
+
+// Owner's fix B: the cellar's lid (houseplan.js HOUSE_CELLAR_LID).
+describe('the cellar\'s lid', () => {
+  const [stair, flat] = HOUSE_CELLAR_LID.pieces;
+  it('a line meets a slab only where the slab is, along its slope', () => {
+    // straight down through the lean-to over the stair, at its middle: under it is 0.5 m to spare
+    const mx = (stair.x0 + stair.x1) / 2;
+    const underside = (stair.y0 + stair.y1) / 2;
+    expect(segmentMeetsSlab({ x: mx, y: 6, z: -5 }, { x: mx, y: -1, z: -5 }, stair)).toBe(true);
+    expect(segmentMeetsSlab({ x: mx, y: underside - 0.1, z: -5 }, { x: mx, y: -1, z: -5 }, stair)).toBe(false);
+    expect(segmentMeetsSlab({ x: mx, y: underside - 0.1, z: -5 }, { x: mx, y: -1, z: -5 }, stair, 0.25)).toBe(true);
+    // past its side, and past its ends
+    expect(segmentMeetsSlab({ x: mx, y: 6, z: -5 + stair.half + 0.05 }, { x: mx, y: -1, z: -5 + stair.half + 0.05 }, stair)).toBe(false);
+    expect(segmentMeetsSlab({ x: stair.x0 - 0.05, y: 6, z: -5 }, { x: stair.x0 - 0.05, y: -1, z: -5 }, stair)).toBe(false);
+    // a level line through the flat lid's thickness, and one just over it
+    expect(segmentMeetsSlab({ x: 18, y: flat.y0 + 0.05, z: -5 }, { x: 32, y: flat.y0 + 0.05, z: -5 }, flat)).toBe(true);
+    expect(segmentMeetsSlab({ x: 18, y: flat.y0 + flat.thick + 0.05, z: -5 }, { x: 32, y: flat.y0 + flat.thick + 0.05, z: -5 }, flat)).toBe(false);
+  });
+
+  it('hides at once when wanted, and comes back after the hold, once its walls stand', () => {
+    const sections = [
+      { id: 'c', owner: 'cellar', kind: 'wall', x0: 20, z0: 0, x1: 30, z1: 0, base: -1.8, height: 2.8, stub: 0.25 },
+      { id: 'k', owner: 'kitchen', kind: 'wall', x0: 4, z0: 2, x1: 14, z1: 2, base: 0, height: 2.8, stub: 0.25 },
+    ];
+    const lid = createCellarLid(HOUSE_CELLAR_LID, sections);
+    expect(lid.covers).toEqual(['c']);
+    const sink = createWallSink(sections, { covers: lid.covers });
+    // down there: wanted, off
+    const below = makeView({ x: 25, y: -1.8, z: -5 }, { x: 25, y: 1.5, z: 0 }, 0.74);
+    expect(lid.look(below)).toBe(true);
+    expect(below.lidOn).toBe(false);
+    sink.settle(below);
+    lid.settle(sink);
+    expect(lid.shown).toBe(false);
+    // in the kitchen with the camera far off to the south, the cellar wall in front of it: the
+    // cut-away would take it down, but the lid is wanted on, so it stands, and the lid waits holdS
+    const kitchen = makeView({ x: 9, y: 0, z: -3 }, { x: 22, y: 9, z: 9 }, 0.74);
+    expect(kitchen.cutaway).toBe(true);
+    expect(wantsDown(sections[0], kitchen)).toBe(true);
+    let t = 0;
+    while (!lid.shown && t < 3) {
+      lid.look(kitchen);
+      sink.update(DT, kitchen);
+      lid.update(DT, sink);
+      t += DT;
+    }
+    expect(kitchen.lidOn).toBe(true);
+    expect(t).toBeGreaterThanOrEqual(SINK.holdS - 1e-9);
+    expect(t).toBeLessThan(SINK.holdS + SINK.upS + 0.1);
+    expect(sink.fraction('c')).toBe(1);
   });
 });
 

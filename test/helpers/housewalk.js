@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { houseArea } from '../../src/world/houseplan.js';
 import { createPlayer, DEFAULT_PITCH } from '../../src/player.js';
-import { createWallSink, makeView, blockers as blockersOf } from '../../src/housewalls.js';
+import { createWallSink, createCellarLid, lidInLine, makeView, blockers as blockersOf } from '../../src/housewalls.js';
 import { CAT_LOOK_Y } from '../../src/cat/model.js';
 import { stickToWorld } from '../../src/traversal.js';
 
@@ -17,6 +17,10 @@ import { stickToWorld } from '../../src/traversal.js';
 // house life's settle). Settling does not depend on reduced motion: with
 // easing on, the first picture is just as clear.
 //
+// The cellar's lid (owner's fix B) runs as house life runs it: looked at
+// before the sink, updated after it. blockers() names it ('cellarLid') when it
+// is shown and the line to her look or paws meets it.
+//
 // The importing test file must stub `document` first (test/flattrace.test.js's
 // stub) and load this with `await import(...)`: createPlayer listens on it.
 export function createHouseWalk({ reducedMotion = true, pace = 3.5 } = {}) {
@@ -25,7 +29,8 @@ export function createHouseWalk({ reducedMotion = true, pace = 3.5 } = {}) {
   const camera = new THREE.PerspectiveCamera();
   const player = createPlayer(camera, { addEventListener() {} });
   player.setReducedMotion(reducedMotion);
-  let sink = createWallSink(area.sections, { reducedMotion });
+  let lid = createCellarLid(area.lid, area.sections);
+  let sink = createWallSink(area.sections, { reducedMotion, covers: lid.covers });
   const viewOut = {};
   const stick = { x: 0, z: 0 };
 
@@ -34,7 +39,10 @@ export function createHouseWalk({ reducedMotion = true, pace = 3.5 } = {}) {
   }
   function frame(dt = 1 / 60) {
     player.update(dt, area.colliders, area.bounds, []);
-    sink.update(dt, view());
+    const v = view();
+    lid.look(v);
+    sink.update(dt, v);
+    lid.update(dt, sink);
   }
 
   return {
@@ -43,6 +51,7 @@ export function createHouseWalk({ reducedMotion = true, pace = 3.5 } = {}) {
     cat,
     camera,
     get sink() { return sink; },
+    get lid() { return lid; },
     place(x, z, yaw, zoom, pitch = DEFAULT_PITCH) {
       cat.position.set(x, area.ground.y(x, z), z);
       cat.rotation.set(0, 0, 0);
@@ -52,9 +61,13 @@ export function createHouseWalk({ reducedMotion = true, pace = 3.5 } = {}) {
       player.setCameraZoom(zoom, { instant: true });
       player.addOrbit(0, (pitch - DEFAULT_PITCH) / 0.004);
       player.enable();
-      sink = createWallSink(area.sections, { reducedMotion });
+      lid = createCellarLid(area.lid, area.sections);
+      sink = createWallSink(area.sections, { reducedMotion, covers: lid.covers });
       player.update(1 / 60, area.colliders, area.bounds, []);
-      sink.settle(view());
+      const v = view();
+      lid.look(v);
+      sink.settle(v);
+      lid.settle(sink);
     },
     frame,
     run(seconds, dt = 1 / 60) {
@@ -63,7 +76,10 @@ export function createHouseWalk({ reducedMotion = true, pace = 3.5 } = {}) {
     },
     view,
     blockers() {
-      return blockersOf(area.sections, sink, view());
+      const v = view();
+      const out = blockersOf(area.sections, sink, v);
+      if (lid.shown && lidInLine(area.lid, v)) out.push('cellarLid');
+      return out;
     },
     // A WORLD direction, turned into a stick once with the yaw of the moment
     // and then held, as a child's thumb would be.

@@ -315,6 +315,51 @@ export function stairAt(x, z) {
   return null;
 }
 
+// ---- the cellar's lid (owner's fix B) ----
+
+// The cellar is sunk beside the house (split levels: no room above another), so
+// from outside it read as a walled pit in the garden. A turf lid covers it and its
+// stair: a flat one on the cellar's wall tops (1.0 m over the lawn) and a lean-to
+// down the stair's wall tops from the kitchen's outside face. It is not ground
+// (the lawn's hole and the walls' colliders stay as they were) and it is never in
+// the way: house life hides it while she is in the cellar or on its stair, or the
+// line to her meets it (housewalls.js createCellarLid). Each piece is a slab along
+// a centreline (x0, z0) -> (x1, z1), `half` wide either side, its underside rising
+// linearly from y0 to y1, `thick` deep. `owner` names the sections it caps (the
+// cellar's walls and its stair's).
+export const LID_T = 0.16;
+export const LID_OVER = 0.15; // past the walls' outer faces
+function cellarLid() {
+  const room = roomById('cellar');
+  const st = HOUSE_STAIRS.find((q) => q.to === 'cellar');
+  const h = WALL_T / 2;
+  const len = Math.hypot(st.x1 - st.x0, st.z1 - st.z0);
+  const ux = (st.x1 - st.x0) / len;
+  const uz = (st.z1 - st.z0) / len;
+  // the stair walls' tops (houseparts.js stairWall): a wall's height over the flight
+  const top = (d) => levelY(st.from) + (levelY(st.to) - levelY(st.from)) * Math.min(1, Math.max(0, d / len)) + WALL_H;
+  const d0 = h; // the kitchen wall's outside face
+  const d1 = len - h - LID_OVER; // where the cellar's flat lid begins
+  const cz = (room.minZ + room.maxZ) / 2;
+  const roof = levelY(room.level) + WALL_H;
+  return freeze({
+    owner: room.id,
+    pieces: frozenAll([
+      {
+        id: 'stair', x0: st.x0 + ux * d0, z0: st.z0 + uz * d0, x1: st.x0 + ux * d1, z1: st.z0 + uz * d1,
+        half: st.width / 2 + h + LID_OVER, y0: top(d0), y1: top(d1), thick: LID_T,
+      },
+      {
+        id: 'cellar', x0: room.minX - h - LID_OVER, z0: cz, x1: room.maxX + h + LID_OVER, z1: cz,
+        half: (room.maxZ - room.minZ) / 2 + h + LID_OVER, y0: roof, y1: roof, thick: LID_T,
+      },
+    ]),
+  });
+}
+export const HOUSE_CELLAR_LID = cellarLid();
+// She is "down there" (the lid out of the way): in the cellar or on its stair.
+export const underCellarLid = (x, z) => roomAt(x, z) === HOUSE_CELLAR_LID.owner || stairAt(x, z) === HOUSE_CELLAR_LID.owner;
+
 // ---- wall sections ----
 
 // Cut [lo, hi] into equal pieces no longer than SECTION_MAX.
@@ -474,5 +519,6 @@ export function houseArea() {
     rooms: HOUSE_ROOMS,
     stairs: HOUSE_STAIRS,
     sections: houseSections(),
+    lid: HOUSE_CELLAR_LID,
   };
 }

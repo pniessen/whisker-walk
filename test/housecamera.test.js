@@ -11,7 +11,8 @@ const { houseFlood } = await import('./helpers/houseflood.js');
 const { DEFAULT_PITCH, isWalkableAt } = await import('../src/player.js');
 const { maxZoomStep } = await import('../src/camzoom.js');
 const { SINK, makeView, createWallSink, blockers } = await import('../src/housewalls.js');
-const { WALL_T, STUB_H, WALL_H, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_LEVELS, HOUSE_SPAWN, roomAt } = await import('../src/world/houseplan.js');
+const { WALL_T, STUB_H, WALL_H, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_LEVELS, HOUSE_SPAWN, HOUSE_CELLAR_LID, roomAt, underCellarLid } = await import('../src/world/houseplan.js');
+const { HOUSE_SHOTS } = await import('../src/world/housetour.js');
 const { behindYaw } = await import('../src/traversal.js');
 const { cameraOffset } = await import('../src/catcam.js');
 const { build } = await import('../src/world/house.js');
@@ -352,4 +353,200 @@ describe('the life hook', () => {
     for (const s of withPane) expect(rel(s, panes.get(s.id)[0])).toEqual(rest.get(s.id));
   }, 60_000);
 
+});
+
+// =============================================================================
+// Owner's fix B: the cellar, sunk beside the house, read as a walled pit in the
+// garden. A turf lid covers it and its stair from outside, and is out of the way
+// whenever she is down there (houseplan.js HOUSE_CELLAR_LID, housewalls.js
+// createCellarLid). The helper's blockers() names the lid ('cellarLid') when it
+// is shown and in the line, so every sweep above checks it too.
+// =============================================================================
+
+const cellar = HOUSE_ROOMS.find((r) => r.id === 'cellar');
+const cellarStair = HOUSE_STAIRS.find((q) => q.to === 'cellar');
+// Is (x, z) under a lid piece's footprint (its centreline +- half, along its length)?
+function underPiece(p, x, z) {
+  const len = Math.hypot(p.x1 - p.x0, p.z1 - p.z0);
+  const ux = (p.x1 - p.x0) / len;
+  const uz = (p.z1 - p.z0) / len;
+  const u = (x - p.x0) * ux + (z - p.z0) * uz;
+  const v = -(x - p.x0) * uz + (z - p.z0) * ux;
+  return u >= -1e-9 && u <= len + 1e-9 && Math.abs(v) <= p.half + 1e-9;
+}
+// The cellar's inside and its stair's, as a point a ray may land on (below the wall tops).
+function insideCellar(pt) {
+  if (pt.x > cellar.minX + 0.1 && pt.x < cellar.maxX - 0.1 && pt.z > cellar.minZ + 0.1 && pt.z < cellar.maxZ - 0.1) return pt.y < levelY('cellar') + WALL_H - 0.01;
+  const hw = cellarStair.width / 2 - WALL_T / 2;
+  if (pt.x > cellarStair.x0 + 0.1 && pt.x < cellarStair.x1 && Math.abs(pt.z - cellarStair.z0) < hw) {
+    const d = (pt.x - cellarStair.x0) / (cellarStair.x1 - cellarStair.x0);
+    return pt.y < WALL_H + (levelY('cellar') - levelY('ground')) * d - 0.01;
+  }
+  return false;
+}
+const shown = (o) => { for (let q = o; q; q = q.parent) if (!q.visible) return false; return true; };
+// From inside the house she may look down the stair through its mouth, the kitchen's doorway
+// to it (as anyone may): the line crosses the kitchen's east wall inside that opening, under the lid.
+function throughMouth(from, to) {
+  const x = cellarStair.x0;
+  if ((from.x - x) * (to.x - x) >= 0) return false;
+  const f = (x - from.x) / (to.x - from.x);
+  const y = from.y + (to.y - from.y) * f;
+  const z = from.z + (to.z - from.z) * f;
+  return Math.abs(z - cellarStair.z0) < cellarStair.width / 2 && y < HOUSE_CELLAR_LID.pieces[0].y0;
+}
+
+describe('the cellar\'s lid', () => {
+  it('covers the cellar and its stair from above, and is not ground', () => {
+    const w = createHouseWalk();
+    for (let x = cellar.minX - 0.1; x <= cellar.maxX + 0.1; x += 0.5) {
+      for (let z = cellar.minZ - 0.1; z <= cellar.maxZ + 0.1; z += 0.5) {
+        expect(HOUSE_CELLAR_LID.pieces.some((p) => underPiece(p, x, z)), `${x},${z}`).toBe(true);
+      }
+    }
+    for (let x = cellarStair.x0 + WALL_T / 2; x <= cellarStair.x1; x += 0.25) {
+      for (const dz of [-1.3, 0, 1.3]) expect(HOUSE_CELLAR_LID.pieces.some((p) => underPiece(p, x, cellarStair.z0 + dz)), `${x}`).toBe(true);
+    }
+    // the floor under it is the cellar's, and the stair's slope (the lid is no ground)
+    expect(w.area.ground.y(25, -5)).toBeCloseTo(levelY('cellar'), 6);
+    expect(w.area.ground.y(17, -5)).toBeCloseTo(-0.9, 6);
+  });
+
+  it('is on from outside: every spot out of the cellar at every view step, but for a few kitchen views across it', () => {
+    const w = createHouseWalk();
+    const spots = gridOf(houseFlood(w.area).cells, 1.0).filter(([x, z]) => !underCellarLid(x, z));
+    expect(spots.length).toBeGreaterThan(400);
+    const off = [];
+    let kitchen = 0;
+    let kitchenOn = 0;
+    for (const [x, z] of spots) for (let k = 0; k < 8; k++) for (const zoom of ZOOMS) {
+      w.place(x, z, (k * Math.PI) / 4, zoom);
+      const inKitchen = roomAt(x, z) === 'kitchen';
+      if (inKitchen) { kitchen++; if (w.lid.shown) kitchenOn++; }
+      else if (!w.lid.shown) off.push(say(x, z, `yaw ${k} zoom ${zoom}`));
+      // a kitchen view with the lid off is one where it would stand in the line (or a wall under it is down)
+      if (inKitchen && !w.lid.shown && !w.lid.wanted) {
+        expect(w.area.sections.some((s) => s.owner === 'cellar' && w.sink.isDown(s.id)), say(x, z, `yaw ${k} zoom ${zoom}`)).toBe(true);
+      }
+    }
+    expect(off).toEqual([]);
+    expect(kitchenOn / kitchen).toBeGreaterThan(0.85);
+  }, 90_000);
+
+  it('is off whenever she is in the cellar or on its stair, at every view step', () => {
+    const w = createHouseWalk();
+    const spots = [...houseFlood(w.area).cells.map((c) => [c.x, c.z]), ...stairCells(0.5, w.area)].filter(([x, z]) => underCellarLid(x, z));
+    expect(spots.length).toBeGreaterThan(300);
+    const on = [];
+    for (const [x, z] of spots) for (let k = 0; k < 8; k++) for (const zoom of ZOOMS) {
+      w.place(x, z, (k * Math.PI) / 4, zoom);
+      if (w.lid.shown || !w.lid.wanted) on.push(say(x, z, `yaw ${k} zoom ${zoom}`));
+    }
+    expect(on).toEqual([]);
+  }, 90_000);
+
+  it('down the cellar stair and back up, eased: never in the way, off below, on again once she is back', () => {
+    const w = createHouseWalk({ reducedMotion: false });
+    for (const zoom of ZOOMS) {
+      w.place(10, -5, behindYaw(1, 0), zoom);
+      expect(w.lid.shown, `zoom ${zoom} in the kitchen`).toBe(true);
+      w.push(1, 0);
+      for (let i = 0; i < 6 * 60 && w.cat.position.x < 24; i++) {
+        w.frame();
+        const b = w.blockers();
+        expect(b, `zoom ${zoom} down at ${w.cat.position.x.toFixed(2)}`).toEqual([]);
+        if (underCellarLid(w.cat.position.x, w.cat.position.z)) expect(w.lid.shown).toBe(false);
+      }
+      expect(w.cat.position.x).toBeGreaterThanOrEqual(24);
+      w.push(-1, 0);
+      for (let i = 0; i < 8 * 60 && w.cat.position.x > 10; i++) {
+        w.frame();
+        expect(w.blockers(), `zoom ${zoom} up at ${w.cat.position.x.toFixed(2)}`).toEqual([]);
+        if (underCellarLid(w.cat.position.x, w.cat.position.z)) expect(w.lid.shown).toBe(false);
+      }
+      expect(w.cat.position.x).toBeLessThanOrEqual(10);
+      w.release();
+      w.run(2.5);
+      expect(w.lid.shown, `zoom ${zoom} back in the kitchen`).toBe(true);
+      for (const s of w.area.sections) if (s.owner === 'cellar') expect(w.sink.fraction(s.id), s.id).toBe(1);
+    }
+  }, 90_000);
+
+  it('hides the cellar from the shots outside it: every ray to its floor, shelves or stair meets the lid or a wall first', () => {
+    const scene = new THREE.Scene();
+    const area = build(scene);
+    const life = area.life({ scene, reducedMotion: true });
+    const w = createHouseWalk();
+    const lidMeshes = area.house.lidMeshes;
+    expect(lidMeshes.length).toBe(2);
+    // the points to hide: the cellar floor on a 1 m grid, the tops of its furniture, the stair's treads
+    const targets = [];
+    for (let x = cellar.minX + 0.5; x < cellar.maxX; x += 1) for (let z = cellar.minZ + 0.5; z < cellar.maxZ; z += 1) targets.push(new THREE.Vector3(x, levelY('cellar') + 0.02, z));
+    scene.updateMatrixWorld(true);
+    scene.traverse((o) => {
+      if (o.isMesh && o.userData.houseLevel === 'cellar') targets.push(new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3()));
+    });
+    for (let x = cellarStair.x0 + 0.5; x < cellarStair.x1; x += 0.5) targets.push(new THREE.Vector3(x, w.area.ground.y(x, cellarStair.z0) + 0.02, cellarStair.z0));
+    const ray = new THREE.Raycaster();
+    // the film's shots from outside the cellar, and two more at Farther looking its way
+    const names = ['dollhouse', 'dollhouse-far', 'levels', 'hall', 'parlour', 'library', 'bedroom', 'attic', 'stairs-up'];
+    const views = {
+      ...Object.fromEntries(names.map((n) => [n, HOUSE_SHOTS[n]])),
+      'kitchen north, Farther': { at: [11, 1], face: [0, -1], zoom: 3 },
+      'parlour north-east, Farther': { at: [13, 10], face: [1, -1], zoom: 3 },
+      'kitchen north-east, Far': { at: [8, 0], face: [1, -1], zoom: 2 },
+    };
+    const seen = [];
+    for (const [name, sh] of Object.entries(views)) {
+      w.place(sh.at[0], sh.at[1], behindYaw(sh.face[0], sh.face[1]), sh.zoom);
+      const cat = w.cat.position.clone();
+      life.settle(cat, w.camera);
+      life.update(1 / 60, 0, cat, w.camera);
+      expect(life.lid.shown, name).toBe(true);
+      for (const m of lidMeshes) expect(m.visible, `${name} ${m.name}`).toBe(true);
+      const from = w.camera.position;
+      for (const t of targets) {
+        const dir = t.clone().sub(from);
+        const dist = dir.length();
+        ray.set(from, dir.normalize());
+        ray.far = dist - 0.05;
+        const hit = ray.intersectObjects(scene.children, true).find((h) => shown(h.object));
+        // nothing on the way: the point itself is in sight
+        const p = hit ? hit.point : t;
+        if (insideCellar(p) && !throughMouth(from, p)) seen.push(`${name}: ${hit ? hit.object.name : 'in sight'} at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}`);
+      }
+    }
+    expect(seen).toEqual([]);
+    life.dispose();
+    for (const m of lidMeshes) expect(m.visible).toBe(true);
+  }, 90_000);
+
+  it('the life hook: the lid is drawn from the kitchen, gone in the cellar, the cut-away leaves the walls under it standing', () => {
+    const scene = new THREE.Scene();
+    const area = build(scene);
+    const life = area.life({ scene, reducedMotion: true });
+    const w = createHouseWalk();
+    const lidMeshes = area.house.lidMeshes;
+    const capped = area.house.sections.filter((s) => s.owner === 'cellar');
+    expect(capped.length).toBe(15);
+    // at Farther in the parlour, looking at the cellar's side: the walls under the lid all stand, and the lid is on
+    w.place(14, 9, behindYaw(1, -1), 3);
+    life.settle(w.cat.position, w.camera);
+    expect(life.lid.shown).toBe(true);
+    for (const s of capped) expect(area.house.sectionMeshes.get(s.id).scale.y, s.id).toBe(1);
+    // in the cellar: gone, and the walls do as they always did
+    w.place(25, -5, behindYaw(0, -1), 2);
+    life.settle(w.cat.position, w.camera);
+    expect(life.lid.shown).toBe(false);
+    for (const m of lidMeshes) expect(m.visible).toBe(false);
+    expect(capped.some((s) => area.house.sectionMeshes.get(s.id).scale.y < 1)).toBe(true);
+    // back in the kitchen: it waits half a second, and for its walls, then comes back
+    w.place(9, -3, behindYaw(0, -1), 1);
+    const cat = w.cat.position.clone();
+    for (let i = 0; i < 10; i++) life.update(1 / 60, 0, cat, w.camera);
+    for (const m of lidMeshes) expect(m.visible).toBe(false);
+    for (let i = 0; i < 60; i++) life.update(1 / 60, 0, cat, w.camera);
+    for (const m of lidMeshes) expect(m.visible).toBe(true);
+    life.dispose();
+  });
 });

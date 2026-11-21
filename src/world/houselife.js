@@ -15,8 +15,12 @@
 // so the first picture already has the walls between the camera and her down
 // and her own level drawn in full; nothing eases. The first update settles
 // too if nothing has (a backstop). update and settle allocate nothing.
+// The cellar's lid (owner's fix B, housewalls.js createCellarLid): looked at
+// before the sink each frame, so the cut-away leaves the walls under it standing
+// while it is on; drawn after it, hidden whenever she is down there or it would
+// stand between the camera and her.
 
-import { makeView, createWallSink, SINK } from '../housewalls.js';
+import { makeView, createWallSink, createCellarLid, SINK } from '../housewalls.js';
 import { createLevelDrawing } from '../houselevels.js';
 import { CAT_LOOK_Y } from '../cat/model.js';
 
@@ -24,7 +28,9 @@ const NO_PANES = Object.freeze([]);
 
 export function createHouseLife(scene, house, { reducedMotion = false } = {}) {
   const { sections, sectionMeshes, panes } = house;
-  const sink = createWallSink(sections, { reducedMotion });
+  const lid = house.lid ? createCellarLid(house.lid, sections) : null;
+  const lidMeshes = lid ? house.lidMeshes ?? [] : [];
+  const sink = createWallSink(sections, { reducedMotion, covers: lid ? lid.covers : null });
   const drawing = createLevelDrawing(scene, { levels: house.levels, links: house.links, start: house.start });
   const ids = sections.map((s) => s.id);
   const meshes = ids.map((id) => sectionMeshes.get(id) ?? null);
@@ -51,12 +57,15 @@ export function createHouseLife(scene, house, { reducedMotion = false } = {}) {
         p.position.y = bases[i] + (paneRest[i][k] - bases[i]) * f;
       }
     }
+    for (let i = 0; i < lidMeshes.length; i++) lidMeshes[i].visible = lid.shown;
   }
 
   function settle(catPos, camera) {
     settled = true;
     makeView(catPos, camera.position, CAT_LOOK_Y, view);
+    lid?.look(view);
     sink.settle(view);
+    lid?.settle(sink);
     write();
     drawing.settle(catPos.y);
   }
@@ -64,15 +73,19 @@ export function createHouseLife(scene, house, { reducedMotion = false } = {}) {
   return {
     sink,
     drawing,
+    lid,
     settle,
     update(dt, t, catPos, camera) {
       if (!settled) { settle(catPos, camera); return; }
       makeView(catPos, camera.position, CAT_LOOK_Y, view);
+      lid?.look(view);
       sink.update(dt, view);
+      lid?.update(dt, sink);
       write();
       drawing.update(catPos.y);
     },
     dispose() {
+      for (const m of lidMeshes) m.visible = true;
       for (const m of meshes) {
         if (!m) continue;
         m.scale.y = 1;

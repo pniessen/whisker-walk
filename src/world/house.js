@@ -14,7 +14,9 @@
 // its own room at the walls' inner faces (lampPoolClip): the light stays inside.
 // The furniture: a top-level group per tall piece and per room, and a stand-in per
 // level, all tagged for the level drawing (furnish, below). Outside: the lawn (a hole where the cellar and its stair go down), a hedge ring,
-// three neighbours' houses and four trees, all at least 8 m outside the bounds.
+// three neighbours' houses and four trees, all at least 8 m outside the bounds. The
+// cellar, sunk beside the house, wears a turf lid over it and its stair (owner's fix B),
+// so from outside it is garden; house life hides it whenever she is down there.
 //
 // No people, no resident cat, no strays (U12, U14): critterSpawns is empty and
 // strays is false. The front door is shut (U13): build takes the walk's gateEnds
@@ -30,11 +32,12 @@ import { withLocalUuids } from './localuuids.js';
 import { words } from '../wordset.js';
 import {
   HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_BOUNDS, HOUSE_FRONT_DOOR, HOUSE_LAMPS, HOUSE_FURNITURE, LEVEL_LINKS,
-  LAWN_Y, WALL_T, TALL_H, HOUSE_KITTEN_HOME, houseArea,
+  LAWN_Y, WALL_T, TALL_H, HOUSE_KITTEN_HOME, HOUSE_CELLAR_LID, houseArea,
 } from './houseplan.js';
 import {
   HOUSE_ATLAS_CELLS as CELL, createHouseAtlas, houseMaterial, sectionMesh, paneMesh, floorMesh, stairMesh,
   skirtMesh, lampGroup, partsKit, kitBox, kitFace, kitMesh, FRONT_DOOR_W, furnitureMesh, flatsMesh, standInMesh,
+  cellarLidMeshes,
 } from './houseparts.js';
 import { fullLevels } from '../houselevels.js';
 import { createHouseLife } from './houselife.js';
@@ -330,6 +333,9 @@ export function build(scene, { wind, gateEnds } = {}) {
     furnish(scene, material, START_LEVEL);
 
     drawLawn(scene);
+    // the cellar's turf lid: garden from outside, out of the way when she is down there (house life)
+    const lidMeshes = cellarLidMeshes(HOUSE_CELLAR_LID, material, litMaterial(LAWN_COLOR, { surface: 'grass', repeat: [1, 1] }), tileMetres('grass') || 4);
+    for (const m of lidMeshes) scene.add(m);
     drawHedge(scene);
     drawGarden(scene, material);
     drawNeighbours(scene);
@@ -362,6 +368,8 @@ export function build(scene, { wind, gateEnds } = {}) {
         start: START_LEVEL,
         sectionMeshes,
         panes,
+        lid: HOUSE_CELLAR_LID,
+        lidMeshes,
       },
     };
     // every frame: the walls between the camera and the cat sink, and the levels are drawn for hers

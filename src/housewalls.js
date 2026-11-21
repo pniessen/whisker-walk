@@ -1,6 +1,6 @@
 // Which walls sink between the camera and the cat, and how calmly they ease (Old House, H1/H2).
 // Pure and THREE-free: sections come from houseplan.js, the view is plain {x, y, z} points.
-import { WALL_T } from './world/houseplan.js';
+import { WALL_T, underCellarLid } from './world/houseplan.js';
 
 export const SINK = Object.freeze({
   downS: 0.2, holdS: 0.5, upS: 0.6, linePad: 0.25, nearCamera: 1.2,
@@ -67,12 +67,15 @@ function distToCentreline(s, px, pz) {
   return Math.hypot(px - (s.x0 + t * dx), pz - (s.z0 + t * dz));
 }
 
-export function wantsDown(s, view) {
+// `capped`: the section is under the cellar's lid while the lid is on (createCellarLid). The
+// cut-away leaves it standing then, so the lid never floats over sunk walls; the line and
+// the camera's nearness still take it down.
+export function wantsDown(s, view, capped = false) {
   const { cam, look, paws, cat } = view;
   if (segmentMeetsSection(cam, look, s, SINK.linePad) || segmentMeetsSection(cam, paws, s, SINK.linePad)) return true;
   const near = distToCentreline(s, cam.x, cam.z);
   if (near < SINK.nearCamera && cam.y < s.base + s.height + 0.5) return true;
-  if (view.cutaway) {
+  if (view.cutaway && !capped) {
     const catDist = Math.hypot(cam.x - cat.x, cam.z - cat.z);
     if (near < catDist - SINK.frontMargin) return true;
   }
@@ -95,9 +98,13 @@ function stubInLine(s, view) {
 // settle(view) is the start of a walk (final fix F1): every wanted wall is at its floor at once
 // (its stub, or 0 when that stub is in the line too), every other wall stands, no easing, so the
 // first picture is never of a wall. Allocates nothing.
-export function createWallSink(sections, { reducedMotion = false } = {}) {
+// `covers` (optional): the ids of the sections the cellar's lid caps; while view.lidOn they
+// are `capped` for wantsDown.
+export function createWallSink(sections, { reducedMotion = false, covers = null } = {}) {
   const n = sections.length;
   const index = new Map();
+  const capped = sections.map((s) => !!covers && covers.includes(s.id));
+  const wants = (i, view) => wantsDown(sections[i], view, view.lidOn === true && capped[i]);
   const frac = new Float64Array(n);
   const lo = new Float64Array(n);
   // the floor it is sinking to: its stub, or 0 once that stub itself was in the line (Task 6);
@@ -116,7 +123,7 @@ export function createWallSink(sections, { reducedMotion = false } = {}) {
     update(dt, view) {
       for (let i = 0; i < n; i++) {
         const span = 1 - lo[i];
-        if (wantsDown(sections[i], view)) {
+        if (wants(i, view)) {
           unwanted[i] = 0;
           if (floor[i] > 0 && stubInLine(sections[i], view)) floor[i] = 0;
           // never up while wanted (caught rising from below its stub, it holds there)
@@ -132,7 +139,7 @@ export function createWallSink(sections, { reducedMotion = false } = {}) {
     },
     settle(view) {
       for (let i = 0; i < n; i++) {
-        if (wantsDown(sections[i], view)) {
+        if (wants(i, view)) {
           unwanted[i] = 0;
           floor[i] = lo[i] > 0 && stubInLine(sections[i], view) ? 0 : lo[i];
           frac[i] = floor[i];
@@ -155,4 +162,86 @@ export function blockers(sections, sink, view) {
     if (segmentMeetsSection(view.cam, view.look, s, 0, h) || segmentMeetsSection(view.cam, view.paws, s, 0, h)) out.push(s.id);
   }
   return out;
+}
+
+// Does the segment a-b touch a lid piece (houseplan.js HOUSE_CELLAR_LID), padded by `pad` all
+// round? The piece is a slab: u along its centreline, v across it, and its height over its
+// underside (which rises linearly along u); each is a pair of planes (Liang-Barsky).
+export function segmentMeetsSlab(a, b, p, pad = 0) {
+  const dx = p.x1 - p.x0;
+  const dz = p.z1 - p.z0;
+  const len = Math.hypot(dx, dz);
+  if (len === 0) return false;
+  const ux = dx / len;
+  const uz = dz / len;
+  const k = (p.y1 - p.y0) / len;
+  const au = (a.x - p.x0) * ux + (a.z - p.z0) * uz;
+  const av = -(a.x - p.x0) * uz + (a.z - p.z0) * ux;
+  const bu = (b.x - p.x0) * ux + (b.z - p.z0) * uz;
+  const bv = -(b.x - p.x0) * uz + (b.z - p.z0) * ux;
+  let t0 = 0;
+  let t1 = 1;
+  for (let j = 0; j < 3; j++) {
+    let p0, p1, lo, hi;
+    if (j === 0) { p0 = au; p1 = bu; lo = -pad; hi = len + pad; }
+    else if (j === 1) { p0 = av; p1 = bv; lo = -p.half - pad; hi = p.half + pad; }
+    else { p0 = a.y - p.y0 - k * au; p1 = b.y - p.y0 - k * bu; lo = -pad; hi = p.thick + pad; }
+    const d = p1 - p0;
+    if (Math.abs(d) < 1e-12) {
+      if (p0 < lo || p0 > hi) return false;
+    } else {
+      let ta = (lo - p0) / d;
+      let tb = (hi - p0) / d;
+      if (ta > tb) { const t = ta; ta = tb; tb = t; }
+      if (ta > t0) t0 = ta;
+      if (tb < t1) t1 = tb;
+      if (t0 > t1) return false;
+    }
+  }
+  return true;
+}
+
+// Does the line from the camera to her look point or her paws meet the lid (padded)?
+export function lidInLine(lid, view, pad = 0) {
+  for (const p of lid.pieces) {
+    if (segmentMeetsSlab(view.cam, view.look, p, pad) || segmentMeetsSlab(view.cam, view.paws, p, pad)) return true;
+  }
+  return false;
+}
+
+// The cellar's lid (owner's fix B). It is wanted out of the way while she is in the cellar or
+// on its stair (houseplan.js underCellarLid), or while the line to her meets it (linePad, as a
+// wall's). Wanted, it hides at once, so it is never between the camera and her. It comes back
+// only after holdS unwanted, and only once every wall it caps stands at full height, so it never
+// floats over a sunk wall; while any of them is down it stays hidden. Each frame: look(view)
+// before the sink (it marks view.lidOn, so the cut-away leaves the capped walls standing while
+// the lid is on), then update(dt, sink) after it. settle(sink) is a walk's start. Allocates
+// nothing per frame.
+export function createCellarLid(lid, sections) {
+  const covers = sections.filter((s) => s.owner === lid.owner).map((s) => s.id);
+  let wanted = false;
+  let unwanted = SINK.holdS;
+  let shown = true;
+  const standing = (sink) => {
+    for (let i = 0; i < covers.length; i++) if (sink.fraction(covers[i]) < 1) return false;
+    return true;
+  };
+  return {
+    covers,
+    look(view) {
+      wanted = underCellarLid(view.cat.x, view.cat.z) || lidInLine(lid, view, SINK.linePad);
+      view.lidOn = !wanted;
+      return wanted;
+    },
+    update(dt, sink) {
+      unwanted = wanted ? 0 : unwanted + dt;
+      shown = !wanted && unwanted >= SINK.holdS - 1e-9 && standing(sink);
+    },
+    settle(sink) {
+      unwanted = wanted ? 0 : SINK.holdS;
+      shown = !wanted && standing(sink);
+    },
+    get wanted() { return wanted; },
+    get shown() { return shown; },
+  };
 }

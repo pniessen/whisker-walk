@@ -947,6 +947,52 @@ export function lampGroup(kind, x, y, z, material) {
 }
 
 // ---------------------------------------------------------------------------
+// The cellar's lid (owner's fix B)
+// ---------------------------------------------------------------------------
+
+// The turf lid over the cellar and its stair (houseplan.js HOUSE_CELLAR_LID), as two
+// top-level meshes: the grass top on `grass` (the lawn's look, x/z over `tile` m, so it
+// runs on as the lawn does; userData.duskTint, so the dusk tints it as the lawn) and the
+// rest on the atlas (dark wood edges, a plaster underside, seen from the kitchen down the
+// stair's mouth), each piece cut into 1 m lengths so the cells tile. House life shows and
+// hides both (houselife.js). Nothing casts; no footprint.
+export function cellarLidMeshes(lid, material, grass, tile) {
+  const top = new Kit();
+  const body = new Kit();
+  for (const p of lid.pieces) {
+    const len = Math.hypot(p.x1 - p.x0, p.z1 - p.z0);
+    const ux = (p.x1 - p.x0) / len;
+    const uz = (p.z1 - p.z0) / len;
+    const k = (p.y1 - p.y0) / len;
+    const at = (u, v, h) => [p.x0 + ux * u - uz * v, p.y0 + k * u + h, p.z0 + uz * u + ux * v];
+    const nl = Math.hypot(k, 1);
+    const up = [(-k * ux) / nl, 1 / nl, (-k * uz) / nl];
+    const H = p.half;
+    const T = p.thick;
+    const tp = [at(0, -H, T), at(len, -H, T), at(len, H, T), at(0, H, T)];
+    top.fan(tp, tp.map(([x, , z]) => [x / tile, z / tile]), up);
+    const n = Math.max(1, Math.round(len));
+    const face = (pts, cell, nrm) => body.fan(pts, [cellUV(cell, 0, 0), cellUV(cell, 1, 0), cellUV(cell, 1, 1), cellUV(cell, 0, 1)], nrm);
+    for (let i = 0; i < n; i++) {
+      const a = (len * i) / n;
+      const b = (len * (i + 1)) / n;
+      face([at(a, -H, 0), at(b, -H, 0), at(b, H, 0), at(a, H, 0)], C.plaster, up.map((c) => -c));
+      for (const sv of [-1, 1]) face([at(a, sv * H, 0), at(b, sv * H, 0), at(b, sv * H, T), at(a, sv * H, T)], C.darkWood, [-uz * sv, 0, ux * sv]);
+    }
+    for (const [u, su] of [[0, -1], [len, 1]]) face([at(u, -H, 0), at(u, H, 0), at(u, H, T), at(u, -H, T)], C.darkWood, [ux * su, 0, uz * su]);
+  }
+  const grassMesh = kitMesh(top, grass, 'houseCellarLid', { cast: false });
+  grassMesh.userData.duskTint = true;
+  const bodyMesh = kitMesh(body, material, 'houseCellarLidEdge', { cast: false });
+  for (const m of [grassMesh, bodyMesh]) {
+    m.userData.noContactShadow = true;
+    m.userData.noMerge = true;
+    m.userData.cellarLid = true;
+  }
+  return [grassMesh, bodyMesh];
+}
+
+// ---------------------------------------------------------------------------
 // Furniture (Task 5)
 // ---------------------------------------------------------------------------
 //
