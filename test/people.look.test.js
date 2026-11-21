@@ -61,4 +61,15 @@ describe('people look', () => {
     const street = [[-16, 12], [14, 34], [4, 27], [-8, -22], [18, 16], [32, -10], [14, 7], [-10, -8]];
     expect(street.filter(([x, z]) => pairFor({ x, z }) !== null)).toEqual([[14, 34], [-8, -22], [-10, -8]]);
   });
+
+  it('an explicit kind decides the pair, not the spot hash', () => {
+    const find = (kind) => { for (let x = 0; x < 200; x++) if (spotKind({ x, z: 4 }) === kind) return { x, z: 4 }; };
+    const a = find('adult');
+    const c = find('child');
+    const p = pairFor({ ...a, kind: 'child' });
+    expect(p.adult.kind).toBe('adult');
+    expect(p.child.kind).toBe('child');
+    expect(pairFor({ ...c, kind: 'adult' })).toBeNull();
+    expect(pairFor({ ...c, kind: 'older' })).toBeNull();
+  });
 });

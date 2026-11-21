@@ -103,4 +103,15 @@ describe('people figure', () => {
     expect(ss).toHaveBeenCalledTimes(1);
     expect(st).toHaveBeenCalledTimes(1);
   });
+
+  it('an explicit kind decides the pair, not the spot hash', () => {
+    const m = mat();
+    const cases = [[adultSpot, 'child', 2], [childSpot, 'adult', 1], [childSpot, 'older', 1]];
+    for (const [spot, kind, n] of cases) {
+      let r;
+      expect(countDraws(() => { r = buildSpot({ ...spot, kind }, { material: m }); })).toBe(36);
+      expect(r.people).toHaveLength(n);
+      expect(r.pair).toBe(n === 2);
+    }
+  });
 });

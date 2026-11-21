@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { withLocalUuids } from '../world/localuuids.js';
-import { pairFor, personFor, spotKind } from './look.js';
+import { pairFor, personFor } from './look.js';
 import { JOINTS, JOINT_PARENT, jointRest, personParts } from './parts.js';
 
 // The real Math.random draws a person's build takes. The figure it replaces
@@ -62,7 +62,6 @@ function buildPerson(look, material) {
   // fixed, so posing never recomputes it and a wave never culls the figure
   const H = look.height;
   mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, H / 2, 0), 0.75 * H);
-  mesh.boundingBox = null;
 
   const person = {
     figure, mesh, look, bones, skeleton,
@@ -86,7 +85,7 @@ function buildPerson(look, material) {
 }
 
 export function buildSpot(def, { material }) {
-  const pair = spotKind(def) === 'child' ? pairFor(def) : null;
+  const pair = pairFor(def);
   const looks = pair ? [pair.adult, pair.child] : [personFor(def)];
   const people = withLocalUuids('person', () => looks.map((l) => buildPerson(l, material)));
   for (let i = 0; i < PERSON_REAL_DRAWS; i++) Math.random();

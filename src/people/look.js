@@ -22,7 +22,9 @@ export function spotKind(def = {}) {
 // Children never stand alone: a child spot holds a grown-up and the child,
 // both from the same spot, so they share a hair colour.
 export function pairFor(def = {}) {
-  if (spotKind(def) !== 'child') return null;
+  // an explicit kind wins: 'child' always pairs, 'adult'/'older' never do
+  const child = def.kind === undefined ? spotKind(def) === 'child' : def.kind === 'child';
+  if (!child) return null;
   return { adult: personFor({ ...def, kind: 'adult' }), child: personFor({ ...def, kind: 'child' }) };
 }
 
