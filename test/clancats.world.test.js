@@ -1,25 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // Clan Life Part 1, Task 3: the clan's wander on the BUILT maps, with the
 // predicate walk.js hands it (clanWalkableFor on the frozen map). Review focus
 // 4: no clan cat ever stands in water, a wade band, the island's keep-out or
 // on the Pines' truce path. Same headless canvas stub as test/rivalworld.test.js.
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        if (key === 'measureText') return () => ({ width: 10 });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument({ measureText: 10 });
 
 const WORLDS = {
   woods: await import('../src/world/woods.js'),

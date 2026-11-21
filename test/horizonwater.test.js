@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // Polish 2, item 1: the horizon band where it meets water. The band drops the
 // cells whose centre is in a water footprint; before this the dry cells next
@@ -9,23 +10,7 @@ import * as THREE from 'three';
 // lake or river running out past the bounds meets hills further out instead of
 // leaving a notch of open sky in the horizon.
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        if (key === 'measureText') return () => ({ width: 10 });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument({ measureText: 10 });
 
 const AREAS = ['pines', 'moor', 'river', 'woods', 'seaside', 'park', 'neighborhood'];
 // The open sea is meant to run to the horizon; every other water closes.

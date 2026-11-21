@@ -1,26 +1,10 @@
 import * as THREE from 'three';
+import { canvasDocument } from './canvas.js';
 
 // Shared by the bigger-areas tests: the River built with the switch off or on,
 // counting the real Math.random draws its build takes, and a few measures.
 
-export const canvasStub = {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        if (key === 'measureText') return () => ({ width: 10 });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-  addEventListener() {},
-  pointerLockElement: null,
-  exitPointerLock() {},
-};
+export const canvasStub = canvasDocument({ measureText: 10, pointerLock: true });
 
 export function buildRiver(river, setGrow, on, opts) {
   setGrow(on);

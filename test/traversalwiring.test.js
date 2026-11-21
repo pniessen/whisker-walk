@@ -1,28 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
-// Headless document stub (test/traversallive.test.js's): createPlayer listens on it.
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        if (key === 'measureText') return () => ({ width: 10 });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-  addEventListener() {},
-  pointerLockElement: null,
-  exitPointerLock() {},
-});
+stubCanvasDocument({ measureText: 10, pointerLock: true });
 
 const { SESSION_FIELDS } = await import('../src/game/session.js');
 const { NO_TRAVERSAL } = await import('../src/traversallive.js');

@@ -1,28 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // polish-gorgeday2: the Gorge by day in colour. A clear walk repaints the
 // built canyon once (paintGorgeDay); dusk, rain and sunset keep the build's
 // colours and the rock's ROCK_SHADE program, unchanged.
 
-vi.stubGlobal('document', {
-  addEventListener() {},
-  pointerLockElement: null,
-  exitPointerLock() {},
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_t, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'measureText') return () => ({ width: 0 });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument({ measureText: 0, pointerLock: true });
 
 const gorge = await import('../src/world/gorge.js');
 const { patchRockMaterial, ROCK_FRAGMENT, ROCK_DAY_FRAGMENT } = await import('../src/world/rockshade.js');

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // polish-docks: the harbour dressing (src/world/docksdressing.js). Clusters of
 // crates, barrels, nets, rope and lobster pots along the map edges and tucked
@@ -8,23 +9,7 @@ import * as THREE from 'three';
 // uuid, and the flat trace seeds Math.random per area), add a record the game
 // reads, or stand on anything a cat needs to reach or walk along.
 
-// Same headless stub every world test uses (see test/docks.test.js).
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const WORLDS = {
   neighborhood: await import('../src/world/neighborhood.js'),

@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // The jump onto the Fairground's rides (fair-jumps, 2026-11-20). The owner's
 // playtest: "the jump onto carousel and roller coaster is a bit awkward
@@ -23,20 +24,7 @@ import * as THREE from 'three';
 // Boarding has no flight to miss: she is seated on the press, in the same
 // frame, so no seat outruns her.
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const { build } = await import('../src/world/fair.js');
 const { createFairSim, RIDE } = await import('../src/fairsim.js');

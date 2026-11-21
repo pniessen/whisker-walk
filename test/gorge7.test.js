@@ -1,32 +1,13 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // polish-gorge7 Task 2: the Gorge floor's wash (damp by the stream, faint
 // drift bands) lives in the ground plane's vertex colours, and its dusk
 // lawnTint keeps the floor warm. polish-gorgelight: the wall feet are darker
 // damp sand now (they were paler, a haze band), and the open middle warm ochre.
 
-// The same headless canvas stub every world test uses (see test/park.test.js).
-vi.stubGlobal('document', {
-  addEventListener() {},
-  pointerLockElement: null,
-  exitPointerLock() {},
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'measureText') return () => ({ width: 0 });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument({ measureText: 0, pointerLock: true });
 
 const gorge = await import('../src/world/gorge.js');
 const b = await import('../src/world/builder.js');

@@ -1,33 +1,17 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import { climbBudget, canReach, SURE_CLAWS_ID } from '../src/climbing.js';
 import { JOURNAL_TYPES, CATALOG, createProgression } from '../src/progression.js';
 import { areaInEdition } from '../src/edition.js';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // The Fairground: the place (docs/superpowers/specs/2026-11-18-fairground-design.md).
 // Step 1 built it as files only; step 2 copied FAIR_REGISTRATION's rows into
 // the shared per-area tables. Its rows are checked against the built area
 // below, and (last describe) against the tables they were copied into.
 
-// Same headless stub every world test uses: the only DOM the builders touch
-// is document.createElement('canvas') (the gate's sign, the surface tiles).
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const fair = await import('../src/world/fair.js');
 const { duskLook } = await import('../src/render/dusk.js');

@@ -3,24 +3,12 @@
 // their place in the save. The design's anti-goals are each held here: no job
 // has a timer or can be failed, nothing is caught, nothing frightens the cat,
 // and the goat with the hat never leaves the farm or goes near the water.
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const { build } = await import('../src/world/farm.js');
 const { createFarmSim, clearance, inRect, CAT_WALK, COW, CHICK } = await import('../src/farmsim.js');

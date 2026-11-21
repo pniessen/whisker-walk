@@ -1,18 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // polish-daylight: a clear walk grades the area's pale day sky; rain, sunset,
 // dusk, the den and the Gorge keep their looks.
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_t, key) => (key === 'createLinearGradient' ? () => ({ addColorStop: () => {} }) : () => {}),
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const { createWeather, clearDaySky, CLEAR_DAY_LOOK } = await import('../src/weather.js');
 const { applySky } = await import('../src/world/builder.js');

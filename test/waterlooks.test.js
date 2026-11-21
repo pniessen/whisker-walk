@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // Polish-water Task 2: the water's looks are option values and handle fields,
 // never new objects. Every THREE Object3D/geometry/material draws four
@@ -8,26 +9,7 @@ import * as THREE from 'three';
 // the critters after it. The per-area draw counts below were measured on the
 // code before this task and must stay equal.
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        if (key === 'measureText') return () => ({ width: 10 });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-  addEventListener() {},
-  pointerLockElement: null,
-  exitPointerLock() {},
-});
+stubCanvasDocument({ measureText: 10, pointerLock: true });
 
 const { createWater, waterRamp } = await import('../src/render/water.js');
 const WORLDS = {

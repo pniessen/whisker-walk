@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // Polish "edges": turning round at a spawn used to show the lawn stopping at a
 // hard line, a flat pale strip, then hills. horizonBand now takes `nearColor`
@@ -8,23 +9,7 @@ import * as THREE from 'three';
 // plus a sparse row of trees well outside it), drawn as one separate noCast
 // mesh, 'horizonEdge', a child of the band; the band itself is untouched.
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        if (key === 'measureText') return () => ({ width: 10 });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument({ measureText: 10 });
 
 const b = await import('../src/world/builder.js');
 const { assignShadowCasters } = await import('../src/render/rig.js');

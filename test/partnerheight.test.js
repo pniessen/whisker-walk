@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // A co-walker at her real height (partner-height, 2026-11-20). Until then the
 // 8 Hz state carried only [x, z], and the partner's screen drew her on the
@@ -12,21 +13,7 @@ import * as THREE from 'three';
 // the new message and draws her on the ground, and a message from an older
 // device has neither field and is drawn on the ground here.
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        if (key === 'measureText') return () => ({ width: 10 });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument({ measureText: 10 });
 
 const { build } = await import('../src/world/fair.js');
 const { RIDE } = await import('../src/fairsim.js');

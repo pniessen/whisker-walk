@@ -1,25 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
-// The headless canvas stub every world test uses (see test/park.test.js for
-// why getImageData and the gradients need real answers): the camp's materials
-// ask render/textures.js for surface tiles.
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const { campLayout, campDressing, addCamp, CAMP_TURN, campDiscs, LEDGE_CAMPS, CLUMP_R, RING_CLUMP_TRIS, caneTris, HIGHROCK_TRIS, HIGHROCK_BOULDER_TRIS } = await import('../src/world/camp.js');
 const { CAMP_DEN, WIDE_LEDGE_RECT, gorgeGround } = await import('../src/world/gorgeshape.js');

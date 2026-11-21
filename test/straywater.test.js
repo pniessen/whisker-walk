@@ -1,27 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { createStrayCats, strayStream } from '../src/straycats.js';
 import { CAT_RADIUS } from '../src/player.js';
 import { waterClearance } from '../src/world/builder.js';
 import { dryGroundPoint } from '../src/keepout.js';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
-// The area builders run headless (no jsdom): the same canvas stub
-// test/climbing.test.js uses, installed before the world modules import.
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        if (key === 'measureText') return () => ({ width: 10 });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument({ measureText: 10 });
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildPines } = await import('../src/world/pines.js');

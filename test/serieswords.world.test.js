@@ -8,24 +8,11 @@
 // See test/serieswords.test.js for what the snapshot is for. Re-record ONLY
 // when the owner or the older playtester has asked for a wording change in
 // the "on" game:  UPDATE_SERIES_SNAPSHOT=1 npx vitest run test/serieswords
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
-// The headless canvas every world test uses (see test/park.test.js).
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const builders = {
   woods: await import('../src/world/woods.js'),

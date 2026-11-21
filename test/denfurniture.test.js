@@ -3,28 +3,13 @@
 // pin den.build's live re-place API (areaData.furniture.place) against the
 // build-time path: a spot placed live must leave the room exactly as a fresh
 // build with that placement would.
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { DEN_ITEMS, DEN_SPOTS } from '../src/den.js';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
-// Same headless stub test/den.test.js installs (see the long comment there).
 // Must be installed before the world module imports.
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const { build } = await import('../src/world/den.js');
 
