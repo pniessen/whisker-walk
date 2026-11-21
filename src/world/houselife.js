@@ -35,6 +35,8 @@ import { toyStop } from './housethings.js';
 
 const NO_PANES = Object.freeze([]);
 const TELEPORT = 25; // m/s: no ball rolls this fast
+const OPEN = Object.freeze({ secretOpen: true });
+const SHUT = Object.freeze({ secretOpen: false });
 
 export function createHouseLife(scene, house, {
   reducedMotion = false, log = null, hud = null, audio = null, toy = null, colliders = [], now,
@@ -65,7 +67,7 @@ export function createHouseLife(scene, house, {
     if (!toy?.active || toy.held) { ballSeen = false; return; }
     const p = toy.mesh.position;
     if (ballSeen && Math.hypot(p.x - ballX, p.z - ballZ) <= TELEPORT * Math.max(dt, 1 / 60)) {
-      const stop = toyStop(ballX, ballZ, p.x, p.z, { secretOpen: finds.open });
+      const stop = toyStop(ballX, ballZ, p.x, p.z, finds.open ? OPEN : SHUT);
       if (stop) toy.setPosition({ x: stop.x, y: 0, z: stop.z });
     }
     ballSeen = true;

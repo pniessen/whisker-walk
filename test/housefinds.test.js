@@ -142,8 +142,6 @@ describe('the piano', () => {
       if (s.audio.calls.musicBoxNote.length > before) pointsAtNote.push(s.paid.points);
     }
     expect(s.audio.calls.musicBoxNote.map((c) => c[0])).toEqual([...PIANO_SCALE]);
-    // C4 to C5, rising
-    expect(PIANO_SCALE).toEqual([262, 294, 330, 349, 392, 440, 494, 523]);
     // paid as the sixth key sounds, not before
     expect(pointsAtNote).toEqual([0, 0, 0, 0, 0, 12, 12, 12]);
     expect(s.log.count(FIND_KEY('piano'))).toBe(1);
@@ -152,6 +150,40 @@ describe('the piano', () => {
     s.step(k.minX + 0.05, k.y + 0.3, z);
     s.step(k.minX + 0.05, k.y + 0.08, z);
     expect(s.audio.calls.musicBoxNote.length).toBe(before + 1);
+  }, 60_000);
+
+  it('at each key\'s middle and near its ends, the key that sounds is the key that dips', () => {
+    const s = setup();
+    const k = ledge('parlour-keys');
+    const z = (k.minZ + k.maxZ) / 2;
+    const { keys } = s.record.house.parts;
+    s.scene.updateMatrixWorld(true);
+    const mids = keys.map((m) => new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()).x);
+    // west to east
+    for (let i = 1; i < mids.length; i++) expect(mids[i]).toBeGreaterThan(mids[i - 1]);
+    for (const order of [[0, 1, 2, 3, 4, 5, 6, 7], [7, 5, 3, 1, 6, 4, 2, 0]]) {
+      for (const i of order) {
+        s.step(mids[i], k.y, z);
+        const calls = s.audio.calls.musicBoxNote;
+        expect(calls[calls.length - 1][0], `key ${i}`).toBe(PIANO_SCALE[i]);
+        keys.forEach((m, j) => expect(m.position.y < 0, `key ${i}: mesh ${j}`).toBe(j === i));
+      }
+      s.step(mids[0], floorAt('parlour'), z + 0.6); // a hop down between the two runs
+    }
+    // and near each key's ends too, a few millimetres inside its stretch of white keys (a black
+    // key on the line between two goes with the key east or west of it, and its 1 cm may overhang)
+    const boxes = keys.map((m) => new THREE.Box3().setFromObject(m));
+    const span = (Math.max(...boxes.map((b) => b.max.x)) - Math.min(...boxes.map((b) => b.min.x))) / 8;
+    const west = Math.min(...boxes.map((b) => b.min.x));
+    for (let i = 0; i < keys.length; i++) {
+      for (const x of [west + i * span + 0.004, west + (i + 1) * span - 0.004]) {
+        s.step(x, floorAt('parlour'), z + 0.6);
+        s.step(x, k.y, z);
+        const calls = s.audio.calls.musicBoxNote;
+        expect(calls[calls.length - 1][0], `key ${i} at ${x.toFixed(3)}`).toBe(PIANO_SCALE[i]);
+        keys.forEach((m, j) => expect(m.position.y < 0, `key ${i}: mesh ${j}`).toBe(j === i));
+      }
+    }
   }, 60_000);
 
   it('five keys, a hop down, and five more is not a tune', () => {

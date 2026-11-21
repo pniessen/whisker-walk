@@ -24,7 +24,7 @@
 import { phrase } from '../clanphrases.js';
 import { fadeEntryOf } from '../treefade.js';
 import { HOUSE_LEDGES, SECRET_BOOKCASE, SECRET_OPEN_ROT_Y } from './houseplan.js';
-import { LID_OPEN } from './houseparts.js';
+import { LID_OPEN, pianoKeyAt } from './houseparts.js';
 
 export const FIND_KEY = (id) => `house-find-${id}`;
 // The piano's eight keys, C4 to C5, west to east (Hz).
@@ -147,7 +147,7 @@ export function createHouseFinds({
       case 'along': {
         const l = s.ledge;
         if (!onLedge(l, p)) { key = -1; played = 0; return; }
-        const k = Math.min(7, Math.max(0, Math.floor(((p.x - l.minX) / (l.maxX - l.minX)) * 8)));
+        const k = pianoKeyAt(l.minX, l.maxX, p.x);
         if (k === key) return;
         key = k;
         audio?.musicBoxNote(PIANO_SCALE[k]);

@@ -13,7 +13,7 @@ const {
 } = await import('../src/world/houseplan.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { createLevelDrawing } = await import('../src/houselevels.js');
-const { HOUSE_ATLAS_CELLS, createHouseAtlas } = await import('../src/world/houseparts.js');
+const { HOUSE_ATLAS_CELLS, createHouseAtlas, furnitureMesh } = await import('../src/world/houseparts.js');
 const { findFadeOccluders } = await import('../src/treefade.js');
 const { applyDusk, duskLook, createLampPools, DUSK, LAMP_LOOK } = await import('../src/render/dusk.js');
 const { createSun, createFill } = await import('../src/render/rig.js');
@@ -375,6 +375,25 @@ describe('outside', () => {
 
 describe('the furniture', () => {
   const levelIds = HOUSE_LEVELS.map((l) => l.id);
+
+  // Step 2, Task 6: the clocks' faces are on their fronts, not inside the case or the chimney
+  // breast. Looked at straight on (in the piece's own frame, its front +z), the first thing at
+  // the face's middle is the face, in front of what it hangs on.
+  it('the grandfather clock\'s dial and the mantel clock\'s face are on their fronts', () => {
+    const material = new THREE.MeshBasicMaterial();
+    const ray = new THREE.Raycaster();
+    const frontAt = (id, y) => {
+      const mesh = furnitureMesh(HOUSE_FURNITURE.find((f) => f.id === id), material);
+      ray.set(new THREE.Vector3(0, y, 5), new THREE.Vector3(0, 0, -1));
+      return ray.intersectObject(mesh)[0].point.z;
+    };
+    // the grandfather clock: its hood's front is at d/2 - 0.02, the face's front 0.016 past it
+    const clock = HOUSE_FURNITURE.find((f) => f.id === 'hall-clock');
+    expect(frontAt('hall-clock', 1.65)).toBeCloseTo(clock.d / 2 - 0.02 + 0.016, 4);
+    // the mantel clock: its case's front is at -d/2 + 0.23, the face 0.006 past it
+    const fire = HOUSE_FURNITURE.find((f) => f.id === 'parlour-fire');
+    expect(frontAt('parlour-fire', 1.3 + 0.075)).toBeCloseTo(-fire.d / 2 + 0.23 + 0.006, 4);
+  });
   // every piece that fades: the tall ones (H8), and since step 2 the four low ledge pieces the
   // camera can come down inside (ruling S2-4: the piano, its keys, the library steps, the big books)
   const tall = HOUSE_FURNITURE.filter(fades);

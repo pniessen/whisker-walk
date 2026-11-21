@@ -1312,7 +1312,7 @@ const BUILDERS = {
     p.cyl(0.05, 0.05, -0.22, 0.22, 7, 'oak', 0.02, -hd + 0.23, (g) => { g.rotateY(0.15); alongX(g); g.translate(0, 0.24, 0); });
     const mz = -hd + 0.18;
     p.box(-0.1, 0.1, top, top + 0.13, mz - 0.05, mz + 0.05, 'darkWood', ['y-']);
-    p.cyl(0.045, 0.045, mz + 0.05, mz + 0.056, 12, 'white', 0, 0, (g) => { alongZ(g); g.translate(0, top + 0.075, 0); });
+    p.prim(new THREE.CylinderGeometry(0.045, 0.045, 0.006, 12), 'white', 0, top + 0.075, mz + 0.053, alongZ); // on the clock's front
     for (const s of [-1, 1]) {
       p.cyl(0.03, 0.02, top, top + 0.03, 8, 'gold', s * (hw - 0.25), mz);
       p.cyl(0.012, 0.015, top + 0.03, top + 0.07, 6, 'gold', s * (hw - 0.25), mz);
@@ -1340,10 +1340,10 @@ const BUILDERS = {
   // cheeks, the white keys and the black, their tops at the piece's height (she walks them)
   keys(p, { w, d, h }) {
     const hw = w / 2, hd = d / 2;
+    const k0 = -hw + KEY_INSET, k1 = hw - KEY_INSET;
     const bed = h - 0.03;
     p.box(-hw + 0.06, hw - 0.06, bed - 0.1, bed, -hd, hd - 0.02, 'darkWood', ['y+', 'z-']);
     for (const s of [-1, 1]) p.box(s > 0 ? hw - 0.06 : -hw, s > 0 ? hw : -hw + 0.06, bed - 0.12, h + 0.04, -hd, hd, 'darkWood', ['z-']);
-    const k0 = -hw + 0.06, k1 = hw - 0.06;
     // the white and black keys are the eight keys she plays, each its own mesh (findParts)
     p.box(k0, k1, bed - 0.1, h, hd - 0.04, hd - 0.02, 'darkWood', ['y-', 'z-', 'x-', 'x+']);
     for (const s of [-1, 1]) p.box(s * (hw - 0.05) - 0.025, s * (hw - 0.05) + 0.025, 0, bed - 0.1, hd - 0.07, hd - 0.02, 'darkWood', ['y-', 'y+']);
@@ -1802,6 +1802,13 @@ export function secretBookcaseGroup(material) {
 
 // ---- the finds' moving parts (step 2, Task 6: world/housefinds.js moves them) ----
 
+// The piano's keys span its keyboard inside its cheeks (KEY_INSET in from each end), in
+// eight equal keys. pianoKeyAt: which of them (0-7, west to east) is at world x over a
+// keyboard whose footprint runs minX..maxX; past either end, the end key. The meshes
+// (findParts) and the notes (housefinds.js) both use it, so the key that sounds dips.
+export const KEY_INSET = 0.06;
+export const pianoKeyAt = (minX, maxX, x) => Math.min(7, Math.max(0, Math.floor(((x - minX - KEY_INSET) / (maxX - minX - 2 * KEY_INSET)) * 8)));
+
 // How far the toy box's inside floor lies under its top: where the toys lie, the tallest
 // (0.09 m) under the shut lid.
 const TOYBOX_IN = 0.17;
@@ -1834,7 +1841,7 @@ export function findParts(f, material) {
   }
   if (f.kind === 'keys') {
     const h = f.h, bed = h - 0.03;
-    const k0 = -hw + 0.06, k1 = hw - 0.06;
+    const k0 = -hw + KEY_INSET, k1 = hw - KEY_INSET;
     const whites = 31;
     const kw = (k1 - k0) / whites;
     const span = (k1 - k0) / 8;
