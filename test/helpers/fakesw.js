@@ -62,11 +62,18 @@ class FakeCaches {
   }
 }
 
+// By path, as Pages serves them: a page is the scope or an .html file (any
+// query string); everything else by its extension.
 function contentType(u) {
-  if (u.endsWith('.js')) return 'text/javascript';
-  if (u.endsWith('.css')) return 'text/css';
-  if (u.endsWith('.json')) return 'application/json';
-  return 'text/html';
+  const path = new URL(u).pathname;
+  if (path.endsWith('/') || path.endsWith('.html')) return 'text/html';
+  if (path.endsWith('.js')) return 'text/javascript';
+  if (path.endsWith('.css')) return 'text/css';
+  if (path.endsWith('.json')) return 'application/json';
+  if (path.endsWith('.jpg')) return 'image/jpeg';
+  if (path.endsWith('.svg')) return 'image/svg+xml';
+  if (path.endsWith('.mp3')) return 'audio/mpeg';
+  return 'application/octet-stream';
 }
 
 /** One origin: the network (files by URL), its online switch, and the caches every worker shares. */

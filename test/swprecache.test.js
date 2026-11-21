@@ -287,6 +287,43 @@ describe('the start-up files the cached page names', () => {
     expect(await launchesOffline(env, w, '?from=home')).toBe(shell('4'));
   });
 
+  it('a page cached at a query string never pins its build: the prune drops it, and offline that URL gets the fresh index.html', async () => {
+    const env = makeEnv();
+    const w = startWorker(env);
+    const site = (b) => {
+      env.net.deploy(b, [`assets/index-${b}.js`, `assets/ground-${b}.js`, `assets/index-${b}.css`, `assets/woods-${b}.js`]);
+      env.net.serve('', shell(b));
+      env.net.serve('index.html', shell(b));
+    };
+    site('1');
+    await load(w);
+    // a page from build 1 sits in the cache under its query string
+    const old = await env.caches.open(CACHE);
+    await old.put(url('?roofs=1'), new Response(shell('1'), { headers: { 'content-type': 'text/html' } }));
+    for (const b of ['2', '3', '4']) {
+      site(b);
+      await load(w); // each online load tops up and prunes
+    }
+    expect(await has(env, '?roofs=1')).toBe(false);
+    for (const f of ['assets/index-1.js', 'assets/ground-1.js', 'assets/index-1.css']) expect(await has(env, f), f).toBe(false);
+    expect(await launchesOffline(env, w, '?roofs=1')).toBe(shell('4'));
+  });
+
+  it('only pages are dropped: pictures, sounds and the two shells stay', async () => {
+    const env = makeEnv();
+    env.net.deploy('1', files('1'));
+    env.net.serve('places/park.jpg');
+    env.net.serve('sounds/manifest.json', '{}');
+    env.net.serve('icon.svg', '<svg></svg>');
+    const w = await deployWorker(env);
+    for (const p of ['places/park.jpg', 'sounds/manifest.json', 'icon.svg']) await w.request(p);
+    env.net.serve('?grow=1', '<!doctype html><p>a page</p>');
+    expect((await w.navigate('?grow=1')).status).toBe(200);
+    await w.navigate();
+    for (const p of ['', 'index.html', 'places/park.jpg', 'sounds/manifest.json', 'icon.svg']) expect(await has(env, p), p).toBe(true);
+    expect(await has(env, '?grow=1')).toBe(false);
+  });
+
   it('a failed refresh keeps the index.html shell already cached', async () => {
     const env = makeEnv();
     env.net.deploy('1', files('1'));
