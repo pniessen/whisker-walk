@@ -28,7 +28,7 @@ import { CATALOG } from '../progression.js';
 import { carryLabel } from '../carry.js';
 import { crossCardHtml, crossExtras, decideBorderCross, targetName, lower } from '../bordercross.js';
 import {
-  gateStatus, gateCardHtml, gateBuyHtml, gateMomentHtml, nextRoomSeed, roomWalksOn,
+  gateStatus, gateCardHtml, gateBuyHtml, gateMomentHtml, nextRoomSeed, roomWalksOn, WALK_ON,
   decideWalkOn, decideWalkOnAsk, decideWalkOnHave, decideGateCross, decideHostThere,
 } from '../gatecross.js';
 import { safeRemoteName } from '../net.js';
@@ -97,14 +97,28 @@ export function createCrossing({
     return !(s.net && !s.net.isHost?.());
   }
 
-  function extrasFor(s) {
+  // Who "comes too": the drawn friends. A gate's crossing that ends the walk
+  // (a room with an older build) is followed only by this build (an older
+  // one's check wants a post), so that card lists the roster's members on
+  // this build, never a hidden one.
+  function togetherFor(s, { kind, endsHere }) {
+    if (!s.net) return [];
+    if (kind === 'gate' && endsHere) {
+      return rosterOf()
+        .filter((m) => m && m.walkOn === WALK_ON && m.playerId !== s.playerId && !hiddenIn(s, m.playerId))
+        .map((m) => petNameOf(s, m.playerId));
+    }
+    return (s.remotes?.list ?? []).map((r) => r.petName);
+  }
+
+  function extrasFor(s, card = {}) {
     const held = s.carry?.mouth?.held;
     return crossExtras({
       raceRunning: s.race?.state === 'running',
       questActive: s.quest?.state === 'active',
       carried: held ? carryLabel(held.kind) : null,
       buddyName: s.clanBuddy?.name ?? null,
-      together: s.net ? (s.remotes?.list ?? []).map((r) => r.petName) : [],
+      together: togetherFor(s, card),
     });
   }
 
@@ -117,7 +131,7 @@ export function createCrossing({
   function showCrossing(s, { to, name, via, kind }) {
     const endsHere = !!s.net && !roomWalksOn(getRoster());
     s.crossing = { to, name, via, kind, endsHere };
-    overlay.innerHTML = (endsHere ? crossCardHtml : gateCardHtml)({ name, extras: extrasFor(s) });
+    overlay.innerHTML = (endsHere ? crossCardHtml : gateCardHtml)({ name, extras: extrasFor(s, { kind, endsHere }) });
     releaseControl();
   }
 

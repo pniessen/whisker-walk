@@ -981,6 +981,31 @@ describe('walking on together', () => {
     expect(h.loads.asked).toEqual([]);
   });
 
+  // Fix 3: an older build does not follow a gate's crossing (its own check
+  // wants a post), so the gate's card lists only the friends who come: this
+  // build's, by the roster, and never a hidden one. A post's card lists every
+  // drawn friend, as the older build follows a post.
+  it("a gate's trip-ends-here card lists only the friends whose build follows a gate", () => {
+    const remotes = [{ playerId: 'b', petName: 'Pip' }, { playerId: 'c', petName: 'Moss' }, { playerId: 'd', petName: 'Fern' }];
+    const roster = [{ playerId: 'a', walkOn: 1 }, { playerId: 'b', petName: 'Pip' }, { playerId: 'c', petName: 'Moss', walkOn: 1 }, { playerId: 'd', petName: 'Fern', walkOn: 1 }, { playerId: 'e', petName: 'Sky', walkOn: 1 }];
+    const h = together({ remotes, roster });
+    h.s.isBlocked = (id) => id === 'e';
+    h.crossing.askGate(h.s, farmGo());
+    expect(h.s.crossing.endsHere).toBe(true);
+    expect(h.overlay.innerHTML).toContain('Moss and Fern come too.');
+    expect(h.overlay.innerHTML).not.toContain('Pip');
+    expect(h.overlay.innerHTML).not.toContain('Sky');
+    // only this build's, so nobody: no line at all
+    const old = together({ roster: [{ playerId: 'a', walkOn: 1 }, { playerId: 'b', petName: 'Pip' }] });
+    old.crossing.askGate(old.s, farmGo());
+    expect(old.overlay.innerHTML).toContain('Your trip ends here');
+    expect(old.overlay.innerHTML).not.toContain('too.');
+    // a post: the older build follows it, so it is listed
+    const post = together({ areaId: 'woods', roster: [{ playerId: 'a', walkOn: 1 }, { playerId: 'b', petName: 'Pip' }] });
+    post.crossing.ask(post.s, goData());
+    expect(post.overlay.innerHTML).toContain('Pip comes too.');
+  });
+
   // Ruling R16: the ending is decided once, when the card goes up, so what
   // happens is what the card said even if the room changes under it.
   it('a card that said she walks on still walks the room on when an older build joins before the yes', () => {
