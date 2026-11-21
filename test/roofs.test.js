@@ -166,6 +166,19 @@ function budgetStats(s) {
 }
 
 describe('the Rooftops drawn', () => {
+  it('the record\'s evening lights are its own materials, at their built brightness', () => {
+    const L = area.eveningLights;
+    expect(Object.keys(L).sort()).toEqual(['bulbs', 'clock', 'windows']);
+    expect(L.windows.userData.glowBase).toBeCloseTo(1.1, 9);
+    expect(L.clock.userData.glowBase).toBeCloseTo(1.9, 9);
+    expect(L.bulbs.userData.glowBase).toBeCloseTo(1.5, 9);
+    const mats = new Set(meshes.map((m) => m.material));
+    for (const m of Object.values(L)) {
+      expect(mats.has(m)).toBe(true);
+      expect(m.userData.glowBase).toBe(m.emissiveIntensity);
+    }
+  });
+
   it('each block\'s top is drawn at its ground height', () => {
     const byId = new Map();
     for (const m of meshes) {

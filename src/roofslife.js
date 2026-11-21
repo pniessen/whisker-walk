@@ -90,6 +90,10 @@ export const EVENING_RAMP = 240; // s, sunset to dusk
 export const EVENING_STEPS = 6; // the sky's rebuilds on the way
 export const SUNSET_SUN = 1.8; // x the dusk sun, at the start
 export const SUNSET_FILL = 1.3; // x the dusk fill, at the start
+// The lit windows, clock faces and garden bulbs: GLOW.sunset of their built
+// brightness at sunset, all of it at dusk (by eveningAt); the bulbs breathe
+// GLOW.breathe about it, a swell every 2pi / GLOW.rate s, still under reduced motion.
+export const GLOW = Object.freeze({ sunset: 0.55, breathe: 0.06, rate: 1.1 });
 export const BREATH = Object.freeze({ amp: 0.02, rate: 1.3 }); // the sleeping cats': under 3%, a breath every 4.8 s
 
 const smoothstep = (a, b, x) => {
@@ -140,6 +144,9 @@ export function createRoofsLife(area) {
     const marks = area.markGlow ?? null;
     const marksFrom = marks?.userData.glowOpacity.sunset;
     const marksTo = marks?.userData.glowOpacity.dusk;
+    const lights = area.eveningLights ?? null;
+    const lit = lights ? Object.values(lights).filter(Boolean) : [];
+    const bulbs = lights?.bulbs ?? null;
     const at = { x: 0, z: 0, visible: false };
     let walk = 0;
     let step = -1;
@@ -167,6 +174,13 @@ export function createRoofsLife(area) {
           glowFrom[1] + (glowTo[1] - glowFrom[1]) * e,
           glowFrom[2] + (glowTo[2] - glowFrom[2]) * e,
         );
+      }
+      if (lit.length) {
+        const k = GLOW.sunset + (1 - GLOW.sunset) * e;
+        for (let i = 0; i < lit.length; i++) {
+          const m = lit[i];
+          m.emissiveIntensity = m.userData.glowBase * (m === bulbs && !reducedMotion ? k * (1 + GLOW.breathe * Math.sin(GLOW.rate * walk)) : k);
+        }
       }
       if (marks) marks.material.opacity = marksFrom + (marksTo - marksFrom) * e;
       if (bus) {
@@ -227,6 +241,7 @@ export function createRoofsLife(area) {
         birds?.dispose();
         smoke?.dispose();
         for (const s of sleepers) s.scale.y = 1;
+        for (const m of lit) m.emissiveIntensity = m.userData.glowBase;
       },
     };
   };

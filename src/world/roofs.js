@@ -613,6 +613,9 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
       bus,
       skyGlow, // the band low round the sky; roofslife.js colours it
       markGlow, // the take-off glows; roofslife.js sets their opacity (Task D)
+      // the lit-from-inside materials, each at its built brightness (userData.glowBase);
+      // roofslife.js brings them up as the evening deepens (step 5, Task 8)
+      eveningLights: eveningLights(M),
       // where the birds perch: the plan's spots and the drawn ones (step 3),
       // less the pots that smoke and anything in their smoke (SMOKE_CLEAR)
       birdPerches: flockPerches({ traversal: ROOFS_TRAVERSAL, ground, drawn, smoking: SMOKE_POTS }),
@@ -634,6 +637,14 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     record.life = createRoofsLife(record);
     return record;
   });
+}
+
+// The windows', clock faces' and garden bulbs' own materials, each noting the
+// brightness it was built at, so the life scales from it and never compounds.
+function eveningLights(M) {
+  const lights = { windows: M.windows, clock: M.clock, bulbs: M.bulbs };
+  for (const m of Object.values(lights)) m.userData.glowBase = m.emissiveIntensity;
+  return lights;
 }
 
 // ---------------------------------------------------------------------------
