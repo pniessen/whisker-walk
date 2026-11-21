@@ -23,7 +23,8 @@
 //
 // A door or a climb (the Old House's front door, the Rooftops' fire escape) is
 // a row with placement 'inside', an explicit `arrive` and usually look 'none'
-// (the area draws its own door). A row appears as a live gate only once its
+// (the area draws its own door). The Rooftops' back-alley door is the
+// exception: the 'alleydoor' look draws it, a door in a brick frame. A row appears as a live gate only once its
 // place has a catalog row (liveEndsFor), so a place not built yet has no gate.
 // Rooftops step 4 adds the pair town-roofs / roofs-town and House step 4 the
 // pair town-house / house-town; each adds those two rows and nothing else.
@@ -35,7 +36,7 @@ export const GATE_PREFETCH_REACH = 12;
 export const GATE_HALF = 1.4; // m, centre to each gate post along the edge
 export const GATE_POST_R = 0.15;
 export const ARRIVE_IN = GATE_REACH + 2;
-export const GATE_LOOKS = Object.freeze(['signpost', 'fairgate', 'farmgate', 'promenade', 'none']);
+export const GATE_LOOKS = Object.freeze(['signpost', 'fairgate', 'farmgate', 'promenade', 'alleydoor', 'none']);
 export const PLACEMENTS = Object.freeze(['edge', 'inside']);
 // The cat's rotation.y facing into the area (rotation 0 faces -z).
 export const INWARD_YAW = Object.freeze({ north: Math.PI, south: 0, east: Math.PI / 2, west: -Math.PI / 2 });

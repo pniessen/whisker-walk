@@ -20,7 +20,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { buildGateLook, addGatewayDressing, NO_GATES, LEAF_BLOCKS, LEAF_R } = await import('../src/world/gateway.js');
+const { buildGateLook, addGatewayDressing, NO_GATES, LEAF_BLOCKS, LEAF_R, LEAF_OPEN, openAngle } = await import('../src/world/gateway.js');
 const { CAT_RADIUS } = await import('../src/player.js');
 const { GATEWAY_ENDS, endById, gatewayEnd, GATE_HALF, GATE_POST_R } = await import('../src/gateways.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -74,6 +74,50 @@ describe('gate looks', () => {
   it("a 'none' look is null", () => {
     const door = gatewayEnd({ id: 'd', gateway: 'g', x: 0, z: 0, faces: 'north', to: 'park', twin: 'e', look: 'none', placement: 'inside', arrive: { x: 0, z: 3, yaw: Math.PI } });
     expect(buildGateLook(door)).toBeNull();
+  });
+});
+
+const alley = () => gatewayEnd({ id: 'roofs-town', gateway: 'g', x: 14, z: 45.55, faces: 'south', to: 'neighborhood', twin: 't', look: 'alleydoor', placement: 'inside', arrive: { x: 14, z: 42, yaw: 0 } });
+
+describe('the alley door', () => {
+  it('the alley door: brick piers and a lintel, a dark doorway, a green door', () => {
+    const g = buildGateLook(alley());
+    expect(g.name).toBe('gateway');
+    const meshes = []; g.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    expect(meshes.map((m) => m.name).sort()).toEqual(['gateBody', 'gateLeaf']);
+    expect(meshes.reduce((n, m) => n + m.geometry.index.count / 3, 0)).toBeLessThanOrEqual(400);
+    const body = meshes.find((m) => m.name === 'gateBody');
+    body.geometry.computeBoundingBox();
+    const bb = body.geometry.boundingBox;
+    expect(bb.max.y - bb.min.y).toBeGreaterThanOrEqual(2.2);
+    expect(bb.min.x).toBeLessThanOrEqual(-GATE_HALF);
+    expect(bb.max.x).toBeGreaterThanOrEqual(GATE_HALF);
+  });
+
+  it('it opens into the place, not through the wall', () => {
+    expect(openAngle('alleydoor')).toBe(-LEAF_OPEN);
+    expect(openAngle('signpost')).toBe(LEAF_OPEN);
+    const end = alley();
+    const scene = new THREE.Scene();
+    const d = addGatewayDressing(scene, 'roofs', { ends: [end], isOpen: () => true });
+    const list = [];
+    d.attach(list);
+    expect(list).toHaveLength(0);
+    scene.updateMatrixWorld(true);
+    const leaf = scene.children.find((c) => c.userData.endId === end.id).getObjectByName('gateLeaf');
+    const mid = new THREE.Box3().setFromObject(leaf).getCenter(new THREE.Vector3());
+    expect(mid.z).toBeLessThan(end.z - 0.5);
+    d.setOpen(end.id, false);
+    expect(list).toHaveLength(LEAF_BLOCKS);
+  });
+
+  it('every other look still swings its open leaf out', () => {
+    for (const look of ['signpost', 'fairgate', 'farmgate', 'promenade']) {
+      const end = Object.values(GATEWAY_ENDS).flat().find((e) => e.look === look);
+      const scene = new THREE.Scene();
+      addGatewayDressing(scene, 'park', { ends: [end], isOpen: () => true });
+      expect(scene.children.find((c) => c.name === 'gateway').getObjectByName('gateLeaf').parent.rotation.y).toBe(LEAF_OPEN);
+    }
   });
 });
 

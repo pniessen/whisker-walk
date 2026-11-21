@@ -1,4 +1,4 @@
-// How the gates look: the four gate looks (src/gateways.js GATE_LOOKS), their
+// How the gates look: the five gate looks (src/gateways.js GATE_LOOKS), their
 // lanes and their posts' colliders. A shut gate must look shut and an open
 // one open, so each gate is a fixed body and a leaf that swings.
 //
@@ -23,13 +23,15 @@
 //   gateLeaf  the bar, doors or gate: a child of its own group at the hinge
 //             post, so turning that group swings it. Shut is 0; open is +pi/2,
 //             which swings the free end out of the area, the way `faces`
-//             points. noMerge (it moves after the build) and noCast (a thin
+//             points. The 'alleydoor' look turns the other way (openAngle):
+//             a wall stands just outside it, so its door opens inward. noMerge (it moves after the build) and noCast (a thin
 //             swinging leaf is not worth a shadow draw).
 // Each look is at most 400 triangles over both meshes.
 //
 // A 'none' look is for a door or a climb the area draws itself (the Old
 // House's front door, the Rooftops' fire escape): no mesh, no lane, no
-// collider.
+// collider. The Rooftops' back-alley door is not one: it is the 'alleydoor'
+// look, drawn here.
 import * as THREE from 'three';
 import { mergeVertices, mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
@@ -46,6 +48,9 @@ const OUT_YAW = { north: 0, south: Math.PI, east: -Math.PI / 2, west: Math.PI / 
 // World direction of local +x (along the edge, hinge post to latch post).
 const EDGE = { north: [1, 0], south: [-1, 0], east: [0, 1], west: [0, -1] };
 export const LEAF_OPEN = Math.PI / 2;
+// How far a look's leaf turns when open: out of the area, except the alley
+// door, which has a wall just outside it and so opens into the place.
+export const openAngle = (look) => (look === 'alleydoor' ? -LEAF_OPEN : LEAF_OPEN);
 const LANE_W = 2;
 // A shut leaf blocks (ruling R11): LEAF_BLOCKS circles of LEAF_R spaced
 // evenly across the gap between the posts. With the cat's CAT_RADIUS (0.35,
@@ -71,6 +76,12 @@ const GOLD = 0xe0b048;
 const TEAL = 0x3f8f8c;
 const CREAM = 0xf3e6c4;
 const IRON = 0x2f4a4a;
+const BRICK = 0x9a5a48;
+const BRICK_DARK = 0x7d4638;
+const DOOR_GREEN = 0x3f7a4e;
+const DOOR_GREEN_DARK = 0x2f5e3c;
+const DOORWAY = 0x0c0a0c;
+const BRASS = 0xd2a64a;
 const GLASS = 0xffe9a6;
 
 // Parts merged into one vertex-coloured indexed geometry (as builder.js's
@@ -256,6 +267,40 @@ function railing(kit, x0, x1, first) {
   kit.box(len, 0.05, 0.05, (x0 + x1) / 2, PROM_RAIL.mid, 0, WHITE);
 }
 
+// The Rooftops' back-alley door: two brick piers and a lintel set in the wall
+// (which stands just outside, local -z), a near-black doorway panel behind the
+// opening so an open door shows a dark passage, a small sign board in the
+// band's colour on the lintel; the leaf is a pair of green plank doors as one
+// leaf with two cross braces and a knob. It opens inward (openAngle).
+function alleydoor(body, leaf, band) {
+  const PIER = 0.36;
+  const TOP = 2.3;
+  const LINTEL_Y = 2.15;
+  for (const x of [-H, H]) {
+    body.box(PIER, TOP, PIER, x, TOP / 2, 0, BRICK);
+    body.box(PIER + 0.06, 0.1, PIER + 0.06, x, 0.05, 0, BRICK_DARK);
+    body.box(PIER + 0.06, 0.08, PIER + 0.06, x, 1.6, 0, BRICK_DARK);
+  }
+  body.box(2 * H + PIER + 0.1, 0.3, 0.5, 0, LINTEL_Y, -0.05, BRICK);
+  body.box(2 * H + PIER + 0.16, 0.06, 0.56, 0, TOP + 0.03, -0.05, BRICK_DARK);
+  // The dark doorway, filling the opening up to the lintel, just in front of the wall.
+  body.box(2 * H - PIER + 0.02, 2.02, 0.3, 0, 1.01, -0.3, DOORWAY);
+  body.box(2 * H - PIER, 0.04, 0.5, 0, 0.02, -0.2, BRICK_DARK); // the step
+  // The sign board on the lintel's inward face, in the neighbour's colour.
+  body.box(0.9, 0.2, 0.05, 0, LINTEL_Y, 0.23, band);
+  // The leaf: planks, two cross braces, a knob on the latch side.
+  const x0 = PIER / 2 + 0.02;
+  const x1 = 2 * H - PIER / 2 - 0.02;
+  const len = x1 - x0;
+  const h = 2.0;
+  const planks = 5;
+  for (let i = 0; i < planks; i++) {
+    leaf.box(len / planks - 0.02, h, 0.07, x0 + (i + 0.5) * (len / planks), h / 2, 0, i % 2 ? DOOR_GREEN : DOOR_GREEN_DARK);
+  }
+  for (const y of [0.4, 1.6]) leaf.box(len, 0.14, 0.05, x0 + len / 2, y, 0.06, DOOR_GREEN_DARK);
+  leaf.box(0.09, 0.09, 0.14, x1 - 0.2, 1.0, 0.06, BRASS);
+}
+
 // An end's `wings` (gateways.js): the promenade's railing run on from the end
 // of its own short run (PROM_RUN past each post) out to `wings` m past each
 // post, along the edge line. One mesh, 'gateWings', a top-level child of the
@@ -299,7 +344,7 @@ function wingColliders(end) {
   return out;
 }
 
-const LOOKS = { signpost, fairgate, farmgate, promenade };
+const LOOKS = { signpost, fairgate, farmgate, promenade, alleydoor };
 
 // One material per gate, shared by its body and its leaf: noMerge and noCast
 // are read off the mesh's userData, never off its material.
@@ -377,8 +422,8 @@ export function addGatewayDressing(scene, areaId, { ground = FLAT_GROUND, ends =
     }
     const hinge = look.getObjectByName('gateHinge');
     const open = !!isOpen(end);
-    hinge.rotation.y = open ? LEAF_OPEN : 0;
-    gates.set(end.id, { hinge, blocks, open });
+    hinge.rotation.y = open ? openAngle(end.look) : 0;
+    gates.set(end.id, { hinge, blocks, open, angle: openAngle(end.look) });
   }
   const unblock = (gate) => {
     for (const c of gate.blocks) {
@@ -399,7 +444,7 @@ export function addGatewayDressing(scene, areaId, { ground = FLAT_GROUND, ends =
       const gate = gates.get(endId);
       if (!gate) return;
       gate.open = !!open;
-      gate.hinge.rotation.y = gate.open ? LEAF_OPEN : 0;
+      gate.hinge.rotation.y = gate.open ? gate.angle : 0;
       if (live) (gate.open ? unblock : block)(gate);
     },
     dispose() {},

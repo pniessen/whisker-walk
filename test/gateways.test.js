@@ -30,7 +30,7 @@ describe('gateways', () => {
   it('the constants, frozen', () => {
     expect([GATE_REACH, GATE_HALF, GATE_POST_R]).toEqual([1.6, 1.4, 0.15]);
     expect(ARRIVE_IN).toBeCloseTo(3.6, 12);
-    expect(GATE_LOOKS).toEqual(['signpost', 'fairgate', 'farmgate', 'promenade', 'none']);
+    expect(GATE_LOOKS).toEqual(['signpost', 'fairgate', 'farmgate', 'promenade', 'alleydoor', 'none']);
     expect(PLACEMENTS).toEqual(['edge', 'inside']);
     expect(INWARD_YAW).toEqual({ north: Math.PI, south: 0, east: Math.PI / 2, west: -Math.PI / 2 });
     expect(Object.keys(GATEWAY_ENDS)).toEqual(['neighborhood', 'park', 'fair', 'farm', 'docks', 'seaside']);

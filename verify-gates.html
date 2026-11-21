@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gate looks</title>
 <!-- World map step 3 (dev only, like the other verify-*.html: the build reads
-     index.html alone). The four gate looks of src/world/gateway.js on a lawn,
+     index.html alone). The five gate looks of src/world/gateway.js on a lawn,
      each twice: shut on the left, open on the right. The area side is towards
      the camera (south); each gate faces north, so an open leaf swings away.
-     URL: ?look=signpost|fairgate|farmgate|promenade to show one. Drag to orbit.
+     URL: ?look=signpost|fairgate|farmgate|promenade|alleydoor to show one. Drag to orbit.
      For scripts/record-page.mjs: window.__shot(name), name one of
      gates-all (the row from the area side), gates-high (from above) and
      gates-cat (a cat's eye, 0.3 m up, in front of the first shut gate). -->
@@ -31,7 +31,7 @@
   import { addGatewayDressing } from '/src/world/gateway.js';
   import { GATEWAY_ENDS, gatewayEnd } from '/src/gateways.js';
 
-  const ALL = ['signpost', 'fairgate', 'farmgate', 'promenade'];
+  const ALL = ['signpost', 'fairgate', 'farmgate', 'promenade', 'alleydoor'];
   const want = new URLSearchParams(location.search).get('look');
   const looks = ALL.includes(want) ? [want] : ALL;
 
@@ -63,7 +63,7 @@
   const SPACING = 18, PAIR = 4.5;
   const ends = [];
   looks.forEach((look, i) => {
-    const real = Object.values(GATEWAY_ENDS).flat().find((e) => e.look === look);
+    const real = Object.values(GATEWAY_ENDS).flat().find((e) => e.look === look) || { to: 'neighborhood' }; // the alley door has no live end until Rooftops step 4 task 5
     const cx = (i - (looks.length - 1) / 2) * SPACING;
     for (const [state, dx] of [['shut', -PAIR], ['open', PAIR]]) {
       const x = cx + dx;
