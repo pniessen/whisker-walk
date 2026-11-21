@@ -452,6 +452,26 @@ const LATER = Object.freeze({
   'start.notReady': 'That place isn’t quite ready yet. Try again in a moment! 🐾',
   'start.notReadyOffline': 'That place needs the internet the first time. Try again when you’re online! 🐾',
   'start.notReadyReload': 'Still not ready. Tap Explore once more and the game starts fresh. Everything you found is saved. 🐾',
+
+  // ---- the Market Square (2026-11-20): its own words, the same in every set ----
+  'market.treat.fishhead': 'a fish head',
+  'market.treat.sausageroll': 'a sausage roll',
+  'market.treat.cheddar': 'a nibble of cheddar',
+  'market.treat.cream': 'a saucer of cream',
+  'market.treat.crumbs': 'some crumbs',
+  'market.grab.fishhead': 'E — grab the fish head',
+  'market.grab.sausageroll': 'E — grab the sausage roll',
+  'market.grab.cheddar': 'E — grab the cheddar',
+  'market.grab.cream': 'E — lap up the cream',
+  'market.grab.crumbs': 'E — grab the crumbs',
+  'market.eat.first': (treat) => `Yum! You grabbed ${treat}! 😋`,
+  'market.eat.again': (treat) => `Yum, ${treat} again! 😋`,
+  'market.shoo': 'Oi, you rascal! 🧹',
+  'market.laugh': 'Ha! You cheeky thing! 😄',
+  'market.coo': 'Aww, look at you! 💕',
+  'market.team.eater': (partner) => `Teamwork! ${partner} kept them busy 🐾`,
+  'market.team.distracter': (partner) => `Teamwork! You kept them busy while ${partner} grabbed a treat 🐾`,
+  'market.summary.treats': 'treats',
 });
 
 // Every id of the first table, in table order.
