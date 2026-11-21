@@ -414,6 +414,7 @@ const LATER = Object.freeze({
   'wear.bdayrosette.name': 'Birthday Rosette',
   'wear.bdayballoon.name': 'Birthday Balloon',
   'wear.cakecharm.name': 'Cake Charm',
+  'wear.birthdayhat.name': 'Birthday Hat',
   // the home screen's banner while the birthday is on; the name is her cat's
   'party.banner': (catName) => `Happy birthday, ${catName}! 🎂`,
   // the line with the brother's code's confetti

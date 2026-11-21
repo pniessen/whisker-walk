@@ -19,7 +19,9 @@ export const BIRTHDAY_EVENT = 'bday-2026-11-21';
 const EVENTS = Object.freeze({
   [BIRTHDAY_EVENT]: Object.freeze({
     last: Object.freeze([2026, 11, 22]),
-    wear: Object.freeze(['partyhat', 'bdayrosette', 'bdayballoon', 'cakecharm']),
+    // the Birthday Hat comes with the event only (no code lists it), so a
+    // save that opened the code before it existed gains it on its next load
+    wear: Object.freeze(['partyhat', 'bdayrosette', 'bdayballoon', 'cakecharm', 'birthdayhat']),
   }),
 });
 

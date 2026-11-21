@@ -30,8 +30,8 @@ const pieces = (cat, id) => { const out = []; cat.traverse((o) => { if (isPieceO
 const cap = (id, slot, simple) => (slot === 'back' && isPack(id) ? (simple ? 600 : 1200) : simple ? 450 : 900);
 
 describe('gift outfits: the gate every outfit passes', () => {
-  it('the birthday\'s four, one in each of head, neck, back and collar', () => {
-    expect(IDS).toEqual([['partyhat', 'head'], ['bdayrosette', 'neck'], ['bdayballoon', 'back'], ['cakecharm', 'collar']]);
+  it('the birthday\'s five: two hats, a neck piece, a balloon and a collar', () => {
+    expect(IDS).toEqual([['partyhat', 'head'], ['bdayrosette', 'neck'], ['bdayballoon', 'back'], ['cakecharm', 'collar'], ['birthdayhat', 'head']]);
   });
   it.each(IDS)('%s (%s): an id the colony server takes, a name clean in both word sets', (id) => {
     expect(id).toMatch(/^[a-z]{3,16}$/);
@@ -90,6 +90,6 @@ describe('gift outfits: the catalog', () => {
   it('the menu draws them only once owned, as it does the found outfits', () => {
     const ids = thumbnailIds(CATALOG);
     for (const [id] of IDS) expect(ids).not.toContain(id);
-    expect(missingFoundThumbs({ accessories: {} }, ['partyhat', 'bell'], CATALOG)).toEqual(['partyhat']);
+    expect(missingFoundThumbs({ accessories: {} }, ['partyhat', 'bell', 'birthdayhat'], CATALOG)).toEqual(['partyhat', 'birthdayhat']);
   });
 });

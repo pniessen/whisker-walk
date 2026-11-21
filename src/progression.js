@@ -1425,9 +1425,17 @@ export function createProgression(storage) {
           items.push({ kind, id, name: CATALOG[kind][id].name, owned, refund });
         }
       }
-      // Gift events (src/giftevents.js): known ids only, each kept once.
+      // Gift events (src/giftevents.js): known ids only, each kept once. An
+      // event's own outfits are owned from now (and rebuilt on every load).
       const events = Array.isArray(reward?.events) ? [...new Set(reward.events.filter(isEventId))] : [];
       if (events.length) state.events = sanitizeEvents([...state.events, ...events]);
+      for (const ev of events) {
+        for (const id of eventWear(ev)) {
+          if (!Object.hasOwn(CATALOG.accessories, id) || state.unlocked.accessories.includes(id)) continue;
+          state.unlocked.accessories.push(id);
+          items.push({ kind: 'accessories', id, name: CATALOG.accessories[id].name, owned: false, refund: 0 });
+        }
+      }
       state.points += points;
       state.redeemed = [...state.redeemed, hash].slice(-REDEEMED_MAX);
       save();

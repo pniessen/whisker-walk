@@ -16,6 +16,8 @@
        gifts               the gift outfits (src/foundwear/gifts.js, the
                            birthday's four) on three cats, then all four worn
                            together on three cats and Hagrid;
+       birthday-hat        the Birthday Hat on tabby, calico, black and D2,
+                           a close-up and Hagrid's;
        <area>-finds        a street area built, its outfits each at a real spot
                            (a spread of looks; one raised if it has any), four
                            views, verify-finds.html's spot() framing.
@@ -222,6 +224,34 @@
     $('title').textContent = 'gifts';
   }
 
+  // ---- the Birthday Hat: four cats, a close-up, Hagrid (a 3 x 2 grid) ----
+  function birthdayHatSheet() {
+    clearLabels();
+    newScene();
+    const lawn = new THREE.Mesh(new THREE.CircleGeometry(2.2, 40), litMaterial(0x6cb058));
+    lawn.rotation.x = -Math.PI / 2;
+    lawn.receiveShadow = true;
+    world.scene.add(lawn);
+    finishRig(0x6cb058, 4);
+    const tiles = ['tabby', 'calico', 'black', 'd2', 'close', 'hagrid'];
+    tiles.forEach((t, i) => {
+      const box = tileBox(i, 3, 2);
+      const breed = t === 'close' ? 'tabby' : t;
+      const cat = buildCat(breed, { ...BARE, head: 'birthdayhat' });
+      cat.rotation.y = t === 'close' ? -0.25 : -0.45;
+      world.scene.add(cat);
+      const k = cat.scale.x * (breed === 'd2' ? 1.1 : 1);
+      if (t === 'hagrid') { camera.position.set(0.7 * k, 1.05 * k, -1.2 * k); camera.lookAt(0, 0.82 * k, 0); }
+      else if (t === 'close') { camera.position.set(0.3 * k, 0.98 * k, -0.78 * k); camera.lookAt(0, 0.88 * k, -0.2 * k); }
+      else { camera.position.set(0.85 * k, 1.02 * k, -1.11 * k); camera.lookAt(0, 0.7 * k, -0.21 * k); }
+      renderTile(box);
+      world.scene.remove(cat);
+      cat.traverse((o) => { o.geometry?.dispose?.(); });
+      label(box, 'Birthday Hat', t === 'close' ? 'close-up · tabby' : t);
+    });
+    $('title').textContent = 'birthday-hat';
+  }
+
   // ---- the ground sheet: buildFindDisplay on grass ----
   function groundSheet() {
     clearLabels();
@@ -348,6 +378,7 @@
     else if (/^sit-/.test(name) && ['tabby', 'digit', 'mainecoon'].includes(name.slice(4))) catSheet(name, FOUND_WEAR, (w) => buildCat(name.slice(4), w), { sit: true, pull: name === 'sit-digit' ? 1.2 : 1 });
     else if (name === 'ground') groundSheet();
     else if (name === 'gifts') giftSheet();
+    else if (name === 'birthday-hat') birthdayHatSheet();
     else if (/-finds$/.test(name) && Object.hasOwn(AREA_BUILD, name.slice(0, -6))) areaSheet(name.slice(0, -6));
     else throw new Error(`no such sheet: ${name}`);
     return name;
