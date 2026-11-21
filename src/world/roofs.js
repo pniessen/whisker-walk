@@ -5,7 +5,7 @@ import { litMaterial, tileMetres } from '../render/materials.js';
 import { SUN_POSITION } from '../render/rig.js';
 import { withLocalUuids } from './localuuids.js';
 import { hash01 } from './warehouselook.js';
-import { roofsMaterials, addWindowQuads, windowCell, markMesh, ATLAS_SIZE, PLAIN_WARM, MARK_GLOW } from './roofsparts.js';
+import { roofsMaterials, addWindowQuads, windowCell, markMesh, markGlowMap, ATLAS_SIZE, PLAIN_WARM, MARK_GLOW } from './roofsparts.js';
 import {
   LEVELS as L, BLOCKS, GROUNDS, ROOFS_BOUNDS, ROOFS_SPAWN, ROOFS_COLLIDERS, ROOFS_TRAVERSAL, roofsArea,
   ALLEY_LAMP, BIN_2, BIN_3, BIN_BAGS, ALLEY_CRATES, ALLEY_CLUTTER, ALLEY_CHANNEL, YARD, YARD_WALLS, WASHING_POSTS,
@@ -545,6 +545,7 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     const lamp = b.lampPost(ALLEY_LAMP.x, ALLEY_LAMP.z);
     lamp.name = 'roofsAlleyLamp';
     scene.add(alley, terrace, moves, north, street, lamp);
+    drawLampHalos(scene); // round two, Task G: round every globe now in the scene
 
     const record = {
       name: 'The Rooftops',
@@ -595,7 +596,9 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
 const FELT = Object.freeze({
   stainY: 0.006, patchY: 0.008, flashY: 0.009, outletY: 0.011,
   clear: 0.6, // m from every take-off (its glow is 0.45 across)
-  patchR: Object.freeze([0.25, 0.5]), patchDark: 0x3a3936, patchLight: 0x57544e,
+  // Task G (Task F's review): the dark patches a little lighter (0x3a3936 read
+  // as holes in the felt), and fewer of them than the light ones (patchDarkShare, it was 0.6)
+  patchR: Object.freeze([0.25, 0.5]), patchDark: 0x45433f, patchLight: 0x57544e, patchDarkShare: 0.4,
   drip: Object.freeze({ h: 0.05, out: 0.008, color: 0x1c1d20 }),
   flash: Object.freeze({ w: 0.16, in: 0.005, color: 0x5d6368 }),
   outlet: Object.freeze({ r: 0.1, in: 0.24, color: 0x121315 }),
@@ -682,7 +685,7 @@ function feltPatches(put, roof, ground, extra = []) {
       placed.push({ x, z, r });
       const at = x * 3.1 + z;
       const n = 4 + Math.floor(3 * hash01(at, 1, 73));
-      const color = hash01(at, 2, 79) < 0.6 ? FELT.patchDark : FELT.patchLight;
+      const color = hash01(at, 2, 79) < FELT.patchDarkShare ? FELT.patchDark : FELT.patchLight;
       put(feltPolygon(x, z, roof.y + FELT.patchY, n, r, r * (0.55 + 0.4 * hash01(at, 3, 83)), Math.PI * hash01(at, 4, 89), at), color, { id: `feltPatch:${roof.id}:${placed.length}`, kind: 'feltPatch', roof: roof.id });
       break;
     }
@@ -1652,9 +1655,26 @@ function faceWindow(win, stone, x, y, z, nx, nz, w, h, cell) {
 
 // A parapet just outside a roof's edge (x0..x1, z0..z1 is its own
 // footprint, never over the roof she walks on), with a stone coping.
-function parapet(wall, stone, x0, x1, z0, z1, y, h = 0.45) {
+// Round two, Task G (critique finding 10): the coping was a smooth pale band
+// with no joints. With `joint` (a put for a flat piece and its item), a dark
+// line COPING.joint wide across its top about every COPING.every m, evenly
+// along the run, COPING.lift over the stone (flush quads, casting nothing).
+const COPING = Object.freeze({ h: 0.07, every: 0.9, joint: 0.015, lift: 0.002, color: 0x5e5850 });
+function parapet(wall, stone, x0, x1, z0, z1, y, h = 0.45, joint = null) {
   wall(box(x0, x1, y - 0.15, y + h, z0, z1));
-  stone(box(x0, x1, y + h, y + h + 0.07, z0, z1));
+  stone(box(x0, x1, y + h, y + h + COPING.h, z0, z1));
+  if (!joint) return;
+  const alongX = x1 - x0 >= z1 - z0;
+  const [a, c] = alongX ? [x0, x1] : [z0, z1];
+  const n = Math.round((c - a) / COPING.every);
+  const top = y + h + COPING.h + COPING.lift;
+  for (let k = 1; k < n; k++) {
+    const s = a + ((c - a) * k) / n;
+    const g = new THREE.PlaneGeometry(alongX ? COPING.joint : x1 - x0, alongX ? z1 - z0 : COPING.joint);
+    g.rotateX(-Math.PI / 2);
+    g.translate(alongX ? s : (x0 + x1) / 2, top, alongX ? (z0 + z1) / 2 : s);
+    joint(g, { id: `copingJoint:${x0.toFixed(2)},${z0.toFixed(2)}:${k}`, kind: 'copingJoint' });
+  }
 }
 
 // Splits [a, b] round each gap centre (half-width `half`): the runs left.
@@ -1727,9 +1747,10 @@ function drawShop(K, group, M, win, ground) {
   }
   // parapets: open on the terrace side where she climbs up from the last stack
   const up = climbTo('cornerShop');
-  for (const [z0, z1] of runsAround(S.z0, S.z1, [up.z], 0.7)) parapet(wall, stone, S.x0 - 0.25, S.x0, z0, z1, S.y);
-  parapet(wall, stone, S.x1, S.x1 + 0.25, S.z0, S.z1 + 0.25, S.y);
-  parapet(wall, stone, S.x0 - 0.25, S.x1, S.z1, S.z1 + 0.25, S.y);
+  const joint = (g, item) => K.put('paint', M.paint, g, { color: COPING.color, noCast: true, item }); // round two, Task G
+  for (const [z0, z1] of runsAround(S.z0, S.z1, [up.z], 0.7)) parapet(wall, stone, S.x0 - 0.25, S.x0, z0, z1, S.y, 0.45, joint);
+  parapet(wall, stone, S.x1, S.x1 + 0.25, S.z0, S.z1 + 0.25, S.y, 0.45, joint);
+  parapet(wall, stone, S.x0 - 0.25, S.x1, S.z1, S.z1 + 0.25, S.y, 0.45, joint);
 
   // over the street: the arch the bus goes under, the shopfront, three floors of windows
   const arch = { z0: BUS.z - BUS.width / 2 - 0.95, z1: BUS.z + BUS.width / 2 + 0.95, y1: L.STREET + BUS.height + 0.3 };
@@ -1823,10 +1844,11 @@ function drawWarehouse(K, group, M, win, upWin, ground) {
   // parapets: over the street (open where she climbs up from the corner shop), the side street, the north, the ginnel
   const tower = BLOCK['tower-1'];
   const up = climbTo('warehouse');
-  for (const [x0, x1] of [[W.x0 - 0.25, tower.x0], ...runsAround(tower.x1, W.x1 + 0.25, [up.x], 0.7)]) parapet(wall, stone, x0, x1, W.z1, W.z1 + 0.25, W.y, 0.5);
-  parapet(wall, stone, W.x0 - 0.25, W.x0, W.z0 - 0.25, W.z1, W.y, 0.5);
-  parapet(wall, stone, W.x0, W.x1 + 0.25, W.z0 - 0.25, W.z0, W.y, 0.5);
-  for (const [z0, z1] of [[W.z0, stairZ[0]], [stairZ[1], W.z1]]) parapet(wall, stone, W.x1, W.x1 + 0.25, z0, z1, W.y, 0.5);
+  const joint = (g, item) => K.put('paint', M.paint, g, { color: COPING.color, noCast: true, item }); // round two, Task G
+  for (const [x0, x1] of [[W.x0 - 0.25, tower.x0], ...runsAround(tower.x1, W.x1 + 0.25, [up.x], 0.7)]) parapet(wall, stone, x0, x1, W.z1, W.z1 + 0.25, W.y, 0.5, joint);
+  parapet(wall, stone, W.x0 - 0.25, W.x0, W.z0 - 0.25, W.z1, W.y, 0.5, joint);
+  parapet(wall, stone, W.x0, W.x1 + 0.25, W.z0 - 0.25, W.z0, W.y, 0.5, joint);
+  for (const [z0, z1] of [[W.z0, stairZ[0]], [stairZ[1], W.z1]]) parapet(wall, stone, W.x1, W.x1 + 0.25, z0, z1, W.y, 0.5, joint);
   // the ginnel's far wall and its end
   wall(box(ROOFS_BOUNDS.maxX, ROOFS_BOUNDS.maxX + 0.3, 0, 2.4, W.z0 - 0.3, W.z1), BRICK.red); stone(box(ROOFS_BOUNDS.maxX - 0.05, ROOFS_BOUNDS.maxX + 0.35, 2.4, 2.5, W.z0 - 0.3, W.z1));
   wall(box(W.x1, ROOFS_BOUNDS.maxX, 0, 2.4, W.z0 - 0.3, W.z0), BRICK.red); stone(box(W.x1, ROOFS_BOUNDS.maxX, 2.4, 2.5, W.z0 - 0.35, W.z0 + 0.05));
@@ -2277,6 +2299,7 @@ function drawStreet(scene, group, M, win) {
   // a dashed white line down the middle of the road
   const mid = (street.z0 + PAVEMENT + street.z1 - PAVEMENT) / 2;
   for (let x = street.x0 + 1; x < street.x1 - 2; x += 4) painted(box(x, x + 2, y, y + 0.012, mid - 0.06, mid + 0.06), 0xe8e4d8);
+  roadMarks(K, M, street, side, mid); // round two, Task G
   // the lamps, on the pavements
   for (const p of STREET_LAMPS) {
     const lamp = b.lampPost(p.x, p.z);
@@ -2303,6 +2326,54 @@ function drawStreet(scene, group, M, win) {
 
   // the bus: one mesh, one material; its windows and lights glow by an emissive map
   return drawBus(scene);
+}
+
+// Round two, Task G (critique finding 10): the road was a flat black void.
+// Double yellow lines along both kerbs of the street, a drain grate in the
+// gutter here and there (dark, three iron bars across) and two round iron
+// covers out in the lanes. All flush quads on the road (ROAD.y up, under the
+// pavements' 0.006 and the lamps' pools), in the street's noCast paint.
+const ROAD = Object.freeze({
+  y: 0.005, barY: 0.0065,
+  lines: Object.freeze([0.33, 0.47]), lineW: 0.08, lineColor: 0xd9a92a, // centres, from the kerb's face
+  grate: Object.freeze({ l: 0.5, w: 0.24, in: 0.02, bar: 0.05, color: 0x0b0c0e, barColor: 0x5a5d62 }),
+  grates: Object.freeze({ terrace: Object.freeze([-36, -9, 22]), warehouse: Object.freeze([-30, 6, 25]) }),
+  covers: Object.freeze([Object.freeze({ x: -16, dz: 1.6 }), Object.freeze({ x: 8, dz: -1.7 })]), // dz from the middle line
+  coverR: 0.35, coverColor: 0x4a4b50,
+});
+function roadMarks(K, M, street, side, mid) {
+  const put = (g, color, item) => K.put('paint', M.paint, g, { color, noCast: true, item });
+  const flat = (x0, x1, z0, z1, yy) => {
+    const g = new THREE.PlaneGeometry(x1 - x0, Math.abs(z1 - z0));
+    g.rotateX(-Math.PI / 2);
+    g.translate((x0 + x1) / 2, yy, (z0 + z1) / 2);
+    return g;
+  };
+  const y = L.STREET + ROAD.y;
+  const kerbs = [
+    { name: 'terrace', z: street.z1 - PAVEMENT - 0.15, dir: -1, x0: street.x0 + 0.2, x1: street.x1 - 0.2 },
+    { name: 'warehouse', z: street.z0 + PAVEMENT + 0.15, dir: 1, x0: side.x1 + 0.2, x1: street.x1 - 0.2 },
+  ];
+  for (const k of kerbs) {
+    ROAD.lines.forEach((d, i) => {
+      const z = k.z + k.dir * d;
+      put(flat(k.x0, k.x1, z - ROAD.lineW / 2, z + ROAD.lineW / 2, y), ROAD.lineColor, { id: `yellowLine:${k.name}:${i}`, kind: 'yellowLine' });
+    });
+    const G = ROAD.grate;
+    ROAD.grates[k.name].forEach((x, i) => {
+      const [za, zb] = [k.z + k.dir * G.in, k.z + k.dir * (G.in + G.w)];
+      const bars = [-0.15, 0, 0.15].map((u) => flat(x + u - G.bar / 2, x + u + G.bar / 2, za, zb, L.STREET + ROAD.barY));
+      const g = mergeGeometries([flat(x - G.l / 2, x + G.l / 2, za, zb, y), ...bars].map((q) => q.toNonIndexed()));
+      const [dark, iron] = [new THREE.Color(G.color), new THREE.Color(G.barColor)];
+      put(g, (_x, yy) => (yy > y + 0.0007 ? iron : dark), { id: `grate:${k.name}:${i}`, kind: 'grate' });
+    });
+  }
+  ROAD.covers.forEach((c, i) => {
+    const g = new THREE.CircleGeometry(ROAD.coverR, 8);
+    g.rotateX(-Math.PI / 2);
+    g.translate(c.x, y, mid + c.dz);
+    put(g, ROAD.coverColor, { id: `cover:${i}`, kind: 'cover' });
+  });
 }
 
 // The bus, built along +x round its own centre on the road, then put at the
@@ -2379,10 +2450,15 @@ function drawBus(scene) {
 // 6..12.5), so the skyline steps down into the haze and the glow shows over
 // it. The lights less blown, so they stay amber after the fog: windows
 // TOWN_LIGHT.window at k 2.8, roof lights small squares (TOWN_ROOF_LIGHT) at 2.6.
+// Round two, Task G (Task E's review): from the warehouse roof at her eye the
+// lowered town hid under the parapet, an empty pink band; the back row's
+// tallest are 2 m higher again (h up to 11.5, it was 9.5), so a few of its
+// roofs and roof lights show over the parapet, still hazed and still lower
+// than round one's 12.5.
 const TOWN_ROWS = Object.freeze([
   { s: 52.5, depth: 7, h: [2, 7] },
   { s: 66, depth: 9, h: [3.5, 8.5] },
-  { s: 84, depth: 12, h: [4.5, 9.5] },
+  { s: 84, depth: 12, h: [4.5, 11.5] }, // Task G: 9.5 hid it all under the warehouse's parapet
 ]);
 const TOWN_HAZE = Object.freeze([[52.5, 0], [66, 0.22], [84, 0.4]]); // [s, how far toward the horizon], linear between, held past the ends
 const TOWN_KEEP_OUT = Object.freeze([
@@ -2645,6 +2721,93 @@ function drawTown(scene) {
   mesh.userData.noCast = true;
   mesh.userData.townBand = true;
   scene.add(mesh);
+}
+
+// --- the lamps' halo (round two, Task G; critique finding 12). The globes
+// were flat white discs with nothing round them. One additive mesh: a soft
+// warm quad HALO.size across on every lamp globe in the scene (the alley's and
+// the three in the street), on the take-off glow's ringless texture
+// (roofsparts.js markGlowMap), writing no depth, so the globe in front of its
+// middle stays the bright part and the halo shows round it. Each quad turns to
+// face the camera before it is drawn (onBeforeRender rewrites its 16 vertices;
+// nothing is allocated): fixed crossed quads would show as bright streaks
+// through the globe wherever one stands edge-on. Its bounds are set once to
+// hold every globe and its quad, so it is drawn whenever one could show.
+// Top-level, noCast, noMerge; never a lamp to render/ambient.js or dusk.js
+// (no lampGlobeY on it).
+// size and opacity: the critique's 0.9 m at 0.5 showed only a thin rim, the
+// texture's tight falloff (FALLOFF 0.42 of its radius) being mostly inside the
+// 0.44 m globe; at 1.6 m and 0.55 the glow reaches about 0.4 m past it.
+const HALO = Object.freeze({ size: 1.6, color: 0xffb060, opacity: 0.55 });
+const HALO_CORNERS = Object.freeze([-1, -1, 1, -1, 1, 1, -1, 1]); // (right, up) of each corner, counter-clockwise from the camera
+function drawLampHalos(scene) {
+  const globes = [];
+  scene.traverse((o) => {
+    if (!(o.userData?.lampGlobeY > 0)) return;
+    const p = o.getWorldPosition(new THREE.Vector3());
+    p.y += o.userData.lampGlobeY;
+    globes.push(p);
+  });
+  if (!globes.length) return null;
+  const n = globes.length;
+  const pos = new Float32Array(n * 12);
+  const uv = new Float32Array(n * 8);
+  const index = [];
+  for (let i = 0; i < n; i++) {
+    uv.set([0, 0, 1, 0, 1, 1, 0, 1], i * 8);
+    index.push(i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3);
+  }
+  const geo = new THREE.BufferGeometry();
+  const attr = new THREE.BufferAttribute(pos, 3);
+  geo.setAttribute('position', attr);
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(index);
+  const right = new THREE.Vector3();
+  const up = new THREE.Vector3();
+  const toCam = new THREE.Vector3();
+  const half = HALO.size / 2;
+  // each quad square to the line from its globe to the eye at (ex, ey, ez)
+  const face = (ex, ey, ez) => {
+    for (let i = 0; i < n; i++) {
+      const g = globes[i];
+      toCam.set(ex - g.x, ey - g.y, ez - g.z);
+      if (toCam.lengthSq() < 1e-8) toCam.set(0, 0, 1);
+      toCam.normalize();
+      right.set(toCam.z, 0, -toCam.x); // world up x toCam
+      if (right.lengthSq() < 1e-8) right.set(1, 0, 0);
+      right.normalize().multiplyScalar(half);
+      up.crossVectors(toCam, right); // |up| = half
+      for (let k = 0; k < 4; k++) {
+        const sr = HALO_CORNERS[k * 2];
+        const su = HALO_CORNERS[k * 2 + 1];
+        const o = (i * 4 + k) * 3;
+        pos[o] = g.x + sr * right.x + su * up.x;
+        pos[o + 1] = g.y + sr * right.y + su * up.y;
+        pos[o + 2] = g.z + sr * right.z + su * up.z;
+      }
+    }
+    attr.needsUpdate = true;
+  };
+  face(globes[0].x, globes[0].y, globes[0].z + 1);
+  geo.computeBoundingSphere();
+  geo.boundingSphere.radius += HALO.size; // whichever way the quads turn
+  const mat = new THREE.MeshBasicMaterial({
+    color: HALO.color, map: markGlowMap(), transparent: true, opacity: HALO.opacity, blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.name = 'roofsLampHalo';
+  mesh.onBeforeRender = (_renderer, _scene, camera) => {
+    const e = camera.matrixWorld.elements;
+    face(e[12], e[13], e[14]);
+  };
+  mesh.renderOrder = 2;
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  mesh.userData.noCast = true;
+  mesh.userData.noMerge = true;
+  mesh.userData.lampHalo = true;
+  scene.add(mesh);
+  return mesh;
 }
 
 // --- the sky glow (beauty pass, Task A; critique finding 1). render/sky.js's

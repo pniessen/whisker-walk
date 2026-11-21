@@ -28,7 +28,7 @@ const { build, ALLEY_WEEDS } = await import('../src/world/roofs.js');
 const {
   BLOCKS, LEVELS, ROOFS_TRAVERSAL, ROOFS_COLLIDERS, YARD, STREETS, VANE, VANE_TIP, ROOFS_SPAWN,
   ROOFS_POIS, ROOFS_COLLECTIBLES, ROOFS_SCENICS, ROOFS_PERCHES, ROOFS_DISCOVERIES, BIN_BAGS,
-  ROOFS_TOURS, ROOFS_REGISTRATION, ALLEY_CLUTTER, ALLEY_CHANNEL, WASHING_POSTS, GARDEN, ALLEY_CRATES,
+  ROOFS_TOURS, ROOFS_REGISTRATION, ALLEY_CLUTTER, ALLEY_CHANNEL, WASHING_POSTS, GARDEN, ALLEY_CRATES, PAVEMENT,
 } = await import('../src/world/roofsplan.js');
 const { CAT_RADIUS, isWalkableAt } = await import('../src/player.js');
 const { createRoofsLife, EVENING_RAMP } = await import('../src/roofslife.js');
@@ -121,10 +121,18 @@ const centreOf = (b) => {
 // the crates' gaps and battens, 4 x 32 = +128; the bin bags' knots, +40, the
 // bags themselves reshaped at their 400; the alley's smaller setts cost
 // nothing) -> 113 / 68 / 36,065 (merged 56 / 30).
-const MEASURED_BUILT = { meshes: 113, casters: 68, triangles: 36065 };
-const MEASURED_MERGED = { meshes: 56, casters: 30, triangles: 36065 };
+// Round two, Task G (the street lit): +1 mesh, the lamps' halo (top-level,
+// additive, casting nothing, never merged: 4 quads facing the camera, 8
+// triangles); every other piece in a noCast paint bucket the place already
+// had: +634 triangles (the shop's and the warehouse's coping joints, 280 x 2
+// = +560; on the road, four yellow lines +8, six grates of a dark quad and
+// three bars +48, two eight-sided covers +16, +72; the far town's back row
+// up to 11.5 m again, so its fronts have room for one more lit window, +2;
+// the felt patches' shades cost nothing) -> 114 / 68 / 36,707 (merged 57 / 30).
+const MEASURED_BUILT = { meshes: 114, casters: 68, triangles: 36707 };
+const MEASURED_MERGED = { meshes: 57, casters: 30, triangles: 36707 };
 const MEASURED_DRAWS = 0;
-const TOWN_TRIANGLES = 4958; // the far town's one mesh (Task A: 3,992 before; 4,964 until round two, Task E: its back rows lower, so their fronts have room for three lit windows fewer)
+const TOWN_TRIANGLES = 4960; // the far town's one mesh (Task A: 3,992 before; 4,964 until round two, Task E: its back rows lower, so their fronts have room for three lit windows fewer; 4,958 until Task G: its back row's tallest 2 m higher again, one window more)
 
 let flood0 = null;
 const baseFlood = () => (flood0 ??= floodTraversal(area, { abilities: BASE_ABILITIES }));
@@ -600,8 +608,10 @@ describe('the Rooftops drawn', () => {
     expect(mean[1], mean.join(' ')).toBeGreaterThan(mean[0] * 1.15);
     expect(mean[2], mean.join(' ')).toBeGreaterThan(mean[1] * 1.15);
     // the back rows' highest walls and roofs no higher than the front row's plus a storey
+    // (round two, Task G: the back row's tallest 2 m higher again, so a few roofs show over
+    // the warehouse's parapet from her eye, below; +3 before)
     expect(sums[1].top).toBeLessThanOrEqual(sums[0].top + 2);
-    expect(sums[2].top).toBeLessThanOrEqual(sums[0].top + 3);
+    expect(sums[2].top).toBeLessThanOrEqual(sums[0].top + 5);
     // its lights stay amber after the fog: the windows' red well over their blue
     let warm = 0;
     let n = 0;
@@ -1467,6 +1477,257 @@ describe('the Rooftops drawn', () => {
         }
       }
     }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Round two, Task G (critique findings 10 and 12): the street lit. Looks
+  // only: the copings, the road and the lamps' halo are drawing; nothing she
+  // walks on moves.
+  // ---------------------------------------------------------------------------
+
+  // Critique finding 10: the coping she stands on was a jointless pale band.
+  it('the shop\'s and the warehouse\'s copings have a dark joint across their top about every 0.9 m, flush on the stone', () => {
+    const S = BLOCKS.find((q) => q.id === 'cornerShop');
+    const W = BLOCKS.find((q) => q.id === 'warehouse');
+    const stone = named('roofsNorth:stone');
+    expect(stone.length).toBeGreaterThan(0);
+    const joints = itemsOf('copingJoint');
+    expect(joints.length).toBeGreaterThan(100);
+    // every coping line: its block, its top, the line's fixed coordinate and which axis it runs along
+    const lines = [
+      { top: S.y + 0.45 + 0.07, along: 'z', at: S.x1 + 0.125, a: S.z0, b: S.z1 + 0.25 },
+      { top: S.y + 0.45 + 0.07, along: 'x', at: S.z1 + 0.125, a: S.x0 - 0.25, b: S.x1 },
+      { top: S.y + 0.45 + 0.07, along: 'z', at: S.x0 - 0.125, a: S.z0, b: S.z1 },
+      { top: W.y + 0.5 + 0.07, along: 'x', at: W.z1 + 0.125, a: W.x0 - 0.25, b: W.x1 + 0.25 },
+      { top: W.y + 0.5 + 0.07, along: 'z', at: W.x0 - 0.125, a: W.z0 - 0.25, b: W.z1 },
+      { top: W.y + 0.5 + 0.07, along: 'x', at: W.z0 - 0.125, a: W.x0, b: W.x1 + 0.25 },
+      { top: W.y + 0.5 + 0.07, along: 'z', at: W.x1 + 0.125, a: W.z0, b: W.z1 },
+    ];
+    const pt = (L, s) => (L.along === 'x' ? [s, L.at] : [L.at, s]);
+    const [mx, mz] = pt(lines[0], (lines[0].a + lines[0].b) / 2);
+    const copingLum = lum(colourAt(firstHit([mx, 20, mz], [0, -1, 0], stone)));
+    const onLine = new Map(lines.map((L) => [L, []]));
+    for (const it of joints) {
+      const vs = verticesOf(it);
+      const xs = vs.map((v) => v.x);
+      const zs = vs.map((v) => v.z);
+      const [cx, cz] = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...zs) + Math.max(...zs)) / 2];
+      const L = lines.find((q) => Math.abs((q.along === 'x' ? cz : cx) - q.at) < 0.01 && (q.along === 'x' ? cx : cz) > q.a - 0.01 && (q.along === 'x' ? cx : cz) < q.b + 0.01);
+      expect(L, `${it[1].id} at ${cx.toFixed(2)},${cz.toFixed(2)}`).toBeTruthy();
+      // across the whole coping (0.25 m), a thin line along it, just over its top
+      const across = L.along === 'x' ? Math.max(...zs) - Math.min(...zs) : Math.max(...xs) - Math.min(...xs);
+      const along = L.along === 'x' ? Math.max(...xs) - Math.min(...xs) : Math.max(...zs) - Math.min(...zs);
+      expect([it[1].id, across >= 0.24 && across <= 0.27, along >= 0.01 && along <= 0.025]).toEqual([it[1].id, true, true]);
+      for (const v of vs) expect(v.y - L.top, it[1].id).toBeGreaterThan(0.0005);
+      for (const v of vs) expect(v.y - L.top, it[1].id).toBeLessThan(0.003);
+      // the coping right under it, and the joint dark against it
+      const under = firstHit([cx, L.top + 1, cz], [0, -1, 0], stone);
+      expect(Math.abs(under.point.y - L.top), it[1].id).toBeLessThan(0.001);
+      const [m, r] = it;
+      const col = m.geometry.attributes.color;
+      const c = m.material.color.clone().multiply(new THREE.Color(col.getX(r.start), col.getY(r.start), col.getZ(r.start)));
+      expect(lum(c), it[1].id).toBeLessThan(0.5 * copingLum);
+      onLine.get(L).push(L.along === 'x' ? cx : cz);
+    }
+    // along every stretch of coping (rays down every 0.1 m), a joint or the
+    // stretch's end is never more than half a joint's spacing away, and the
+    // joints are not crowded
+    for (const L of lines) {
+      const js = onLine.get(L).sort((p, q) => p - q);
+      for (let i = 1; i < js.length; i++) expect(js[i] - js[i - 1], `${L.along} ${L.at}`).toBeGreaterThan(0.75);
+      const stretch = [];
+      const check = () => {
+        if (stretch.length < 12) return;
+        const [s0, s1] = [stretch[0], stretch[stretch.length - 1]];
+        for (const s of stretch) {
+          const near = Math.min(s - s0, s1 - s, ...js.map((j) => Math.abs(j - s)));
+          expect(near, `${L.along} ${L.at} at ${s.toFixed(1)}`).toBeLessThanOrEqual(0.55);
+        }
+      };
+      for (let s = L.a + 0.05; s < L.b; s += 0.1) {
+        const [x, z] = pt(L, s);
+        const hit = firstHit([x, L.top + 1, z], [0, -1, 0], stone);
+        if (hit && Math.abs(hit.point.y - L.top) < 0.001) stretch.push(s);
+        else { check(); stretch.length = 0; }
+      }
+      check();
+    }
+  });
+
+  // Critique finding 10: the road was a black void.
+  it('the road has double yellow lines along both kerbs, drain grates in the gutters and two round iron covers, all flush on it', () => {
+    const st = BLOCKS.find((q) => q.id === 'street');
+    const side = BLOCKS.find((q) => q.id === 'sideStreet');
+    const y = LEVELS.STREET;
+    const road = meshes.filter((m) => m.userData.block === 'street');
+    const paint = named('roofsStreet:paint');
+    const list = [...paint, ...road];
+    const pieces = itemsOf('yellowLine', 'grate', 'cover');
+    for (const it of pieces) {
+      for (const v of verticesOf(it)) {
+        const up = v.y - y;
+        expect([it[1].id, up > 0.003 && up < 0.009]).toEqual([it[1].id, true]);
+        expect([it[1].id, v.x > st.x0 && v.x < st.x1 && v.z > st.z0 + PAVEMENT && v.z < st.z1 - PAVEMENT]).toEqual([it[1].id, true]);
+      }
+    }
+    // the kerbs' faces, and which way the road lies from each
+    const kerbs = [
+      { z: st.z1 - PAVEMENT - 0.15, dir: -1, x0: st.x0, x1: st.x1 }, // by the terrace
+      { z: st.z0 + PAVEMENT + 0.15, dir: 1, x0: side.x1, x1: st.x1 }, // by the warehouse
+    ];
+    const yellow = (h) => {
+      if (itemHit(h)?.kind !== 'yellowLine') return false;
+      const c = colourAt(h);
+      return c.r > 0.4 && c.g > 0.2 && c.b < 0.15 * c.r;
+    };
+    for (const k of kerbs) {
+      // two yellow lines side by side, close to the kerb, all along it
+      for (let x = k.x0 + 1.5; x < k.x1 - 1; x += 3.7) {
+        const seq = [];
+        for (let d = 0.005; d < 0.8; d += 0.01) seq.push(yellow(firstHit([x, y + 1, k.z + k.dir * d], [0, -1, 0], list)) ? 'Y' : '.');
+        const runs = seq.join('').split(/\.+/).filter((s) => s.length);
+        expect([x, k.z, runs.length], seq.join('')).toEqual([x, k.z, 2]);
+      }
+    }
+    // the grates: six, in the gutters by the kerbs, dark, with three bars across
+    const grates = itemsOf('grate');
+    expect(grates).toHaveLength(6);
+    for (const k of kerbs) {
+      const here = grates.filter((g) => verticesOf(g).every((v) => Math.abs(v.z - k.z) < 0.3));
+      expect(here.length, `kerb ${k.z}`).toBe(3);
+      for (const g of here) {
+        const vs = verticesOf(g);
+        const xs = vs.map((v) => v.x);
+        const zs = vs.map((v) => v.z);
+        const [gx0, gx1] = [Math.min(...xs), Math.max(...xs)];
+        const gz = (Math.min(...zs) + Math.max(...zs)) / 2;
+        const seq = [];
+        for (let x = gx0 + 0.005; x < gx1; x += 0.01) {
+          const h = firstHit([x, y + 1, gz], [0, -1, 0], list);
+          expect(itemHit(h)?.kind).toBe('grate');
+          seq.push(lum(colourAt(h)) < 0.02 ? '.' : 'B');
+        }
+        expect(seq.join('').split(/\.+/).filter((s) => s.length), `${g[1].id} ${seq.join('')}`).toHaveLength(3);
+      }
+    }
+    // two iron covers out in the road: round (eight-sided), off the kerbs and the middle line
+    const covers = itemsOf('cover');
+    expect(covers).toHaveLength(2);
+    const mid = (st.z0 + PAVEMENT + st.z1 - PAVEMENT) / 2;
+    for (const c of covers) {
+      const vs = verticesOf(c);
+      expect(c[1].count / 3, c[1].id).toBe(8);
+      const cx = vs.reduce((s, v) => s + v.x, 0) / vs.length;
+      const cz = vs.reduce((s, v) => s + v.z, 0) / vs.length;
+      const r = Math.max(...vs.map((v) => Math.hypot(v.x - cx, v.z - cz)));
+      expect(r).toBeGreaterThan(0.25);
+      expect(r).toBeLessThan(0.45);
+      expect(Math.abs(cz - mid) - r).toBeGreaterThan(0.3);
+      for (const k of kerbs) expect(Math.abs(cz - k.z)).toBeGreaterThan(1.5);
+    }
+  });
+
+  // Critique finding 12: the lamps were white balls with nothing round them.
+  it('the four lamp globes have a soft warm halo: one additive mesh, casting nothing, never merged, a quad on each globe facing the camera', () => {
+    const halos = meshes.filter((m) => m.userData.lampHalo);
+    expect(halos).toHaveLength(1);
+    const h = halos[0];
+    expect(h.parent).toBe(scene);
+    expect([h.castShadow, h.receiveShadow, h.userData.noCast, h.userData.noMerge]).toEqual([false, false, true, true]);
+    const mat = h.material;
+    expect([mat.blending, mat.transparent, mat.depthWrite]).toEqual([THREE.AdditiveBlending, true, false]);
+    expect(mat.map).toBe(area.markGlow.material.map); // the take-off glow's ringless falloff
+    expect(mat.color.r > mat.color.g && mat.color.g > mat.color.b).toBe(true); // warm
+    expect(mat.opacity).toBeGreaterThan(0.3);
+    expect(mat.opacity).toBeLessThanOrEqual(0.6);
+    const globes = [];
+    scene.traverse((o) => { if (o.isMesh && o.userData.lampGlobe) globes.push(o.getWorldPosition(new THREE.Vector3())); });
+    expect(globes).toHaveLength(4);
+    // never culled while a globe's halo could show
+    expect(h.geometry.boundingSphere).toBeTruthy(); // what three culls by
+    const bs = h.geometry.boundingSphere.clone().applyMatrix4(h.matrixWorld);
+    for (const g of globes) expect(bs.distanceToPoint(g)).toBeLessThan(-0.45);
+    for (const at of [[4, 0.45, 41], [14, 12.9, -13.4], [-30, 20, 30]]) {
+      const cam = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 300);
+      cam.position.set(...at);
+      cam.lookAt(0, 0, 0);
+      cam.updateMatrixWorld();
+      h.onBeforeRender(null, scene, cam, h.geometry, h.material, null);
+      h.updateMatrixWorld(true);
+      const pos = h.geometry.attributes.position;
+      const idx = h.geometry.index;
+      expect(idx.count / 3).toBe(8); // four quads
+      const seen = new Set();
+      for (let q = 0; q < 4; q++) {
+        const v = [0, 1, 2, 3].map((k) => new THREE.Vector3().fromBufferAttribute(pos, idx.getX(q * 6 + [0, 1, 2, 5][k])).applyMatrix4(h.matrixWorld));
+        const c = v.reduce((s, p) => s.add(p), new THREE.Vector3()).divideScalar(4);
+        const gi = globes.findIndex((g) => g.distanceTo(c) < 0.001);
+        expect(gi, `${at} quad ${q}`).toBeGreaterThanOrEqual(0);
+        seen.add(gi);
+        const n = new THREE.Vector3().subVectors(v[1], v[0]).cross(new THREE.Vector3().subVectors(v[2], v[0])).normalize();
+        const toCam = new THREE.Vector3().subVectors(cam.position, c).normalize();
+        expect(Math.abs(n.dot(toCam)), `${at} quad ${q}`).toBeGreaterThan(0.999);
+        for (let k = 0; k < 4; k++) expect(v[k].distanceTo(c) * Math.SQRT2, `${at} quad ${q}`).toBeGreaterThan(0.85);
+      }
+      expect(seen.size).toBe(4);
+    }
+    // and after the walk's prop merge it is still its own mesh at the top
+    const ms = new THREE.Scene();
+    build(ms);
+    mergeStaticProps(ms);
+    const kept = [];
+    ms.traverse((o) => { if (o.isMesh && o.userData.lampHalo) kept.push(o); });
+    expect(kept).toHaveLength(1);
+    expect(kept[0].parent).toBe(ms);
+  });
+
+  // Task E's review: with the far town's back rows lowered, from the warehouse
+  // roof at cat height (the extra-warehouse-cat view) it hid below the
+  // parapet, an empty pink band. A few roofs and lights show over it again.
+  it('from the warehouse roof at cat height, a few far roofs and lit windows show over the parapet', () => {
+    const town = meshes.find((m) => m.userData.townBand);
+    const cam = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 300);
+    cam.position.set(-12, 11.45, -20);
+    cam.lookAt(-30, 11.2, -36);
+    cam.updateMatrixWorld();
+    cam.updateProjectionMatrix();
+    const solid = meshes.filter((m) => m !== town && !m.material.transparent && !m.userData.skyGlow);
+    const pos = town.geometry.attributes.position;
+    const col = town.geometry.attributes.color;
+    const rc = new THREE.Raycaster();
+    let lights = 0;
+    let roofs = 0;
+    for (let f = 0; f < pos.count / 3; f++) {
+      const c = new THREE.Vector3();
+      for (let k = 0; k < 3; k++) c.add(new THREE.Vector3().fromBufferAttribute(pos, f * 3 + k));
+      c.divideScalar(3);
+      if (c.y <= cam.position.y) continue; // under her eye: the parapet, over her eye, hides it
+      const p = c.clone().project(cam);
+      if (Math.abs(p.x) > 1 || Math.abs(p.y) > 1 || p.z > 1) continue;
+      const d = c.distanceTo(cam.position);
+      rc.set(cam.position, c.clone().sub(cam.position).normalize());
+      rc.far = d - 0.05;
+      if (rc.intersectObjects(solid, false).length) continue;
+      const [r, g] = [col.getX(f * 3), col.getY(f * 3)];
+      if (Math.max(r, g, col.getZ(f * 3)) <= 1) roofs++;
+      else if (g > 0.2 * r) lights++; // a lit window or roof light (not the chimney's red lamp)
+    }
+    expect(roofs, `${roofs} roof and wall faces, ${lights} lit window faces`).toBeGreaterThanOrEqual(20);
+    expect(lights, `${roofs} roof and wall faces, ${lights} lit window faces`).toBeGreaterThanOrEqual(4); // two of them
+  });
+
+  // Task F's review: the dark felt patches could read as holes.
+  it('the felt\'s repair patches are a shade off the felt, never near black, and fewer dark than light', () => {
+    const felt = lum(meshes.find((m) => m.userData.block === 'warehouse').material.color);
+    const shades = itemsOf('feltPatch').map(([m, r]) => {
+      const col = m.geometry.attributes.color;
+      return m.material.color.clone().multiply(new THREE.Color(col.getX(r.start), col.getY(r.start), col.getZ(r.start)));
+    });
+    expect(shades.length).toBeGreaterThan(40);
+    const dark = shades.filter((s) => lum(s) < 0.85 * felt);
+    for (const s of shades) expect(lum(s) / felt).toBeGreaterThan(0.55);
+    expect(dark.length).toBeGreaterThan(0);
+    expect(dark.length / shades.length).toBeLessThanOrEqual(0.5);
   });
 
   it('the tank shows its leap: a plank across its lid to the rim toward the lantern, and a bright hoop at the rim', () => {

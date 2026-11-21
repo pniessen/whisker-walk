@@ -359,6 +359,9 @@ function glowParts() {
   }
   return glowCache;
 }
+// The glow's texture (white, its alpha falling from the middle to 0 at the
+// disc's rim): the lamps' halo shares it (roofs.js, round two, Task G).
+export const markGlowMap = () => glowParts().material.map;
 let markMats = null;
 const defaultMats = () => (markMats ??= roofsMaterials());
 

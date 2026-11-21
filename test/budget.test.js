@@ -460,7 +460,11 @@ const AREAS = [
   // after round two's Task F (what she walks on: the ridges in single tiles,
   // the felt's drip edges, patches, flashing and outlets, the crates' slats
   // and the bin bags' knots, +2,042 in noCast buckets it had: no mesh or
-  // caster added). Held to the territories' ceilings,
+  // caster added); 114 / 68 / 36,707 after round two's Task G (the street
+  // lit: the lamps' halo, +1 mesh casting nothing and never merged, 8
+  // triangles; the copings' joints, the road's lines, grates and covers, +632
+  // in noCast buckets it had; the far town's back row a little taller, +2).
+  // Held to the territories' ceilings,
   // never raised; the place aims for 300 / 120 / 60,000 (test/roofs.test.js
   // pins the exact numbers).
   ['roofs', buildRoofs, 450, 380, 70000],
@@ -508,7 +512,7 @@ const MERGED_AREAS = [
   ['gorge', buildGorge, 260, 205],
   ['farm', buildFarm, 200, 135], // measured 176 / 119
   ['fair', buildFair, 200, 140], // measured 178 / 124
-  ['roofs', buildRoofs, 64, 34], // measured 56 / 30 (55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
+  ['roofs', buildRoofs, 64, 34], // measured 57 / 30 (56 / 30 before round two's lamp halo, Task G; 55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {
