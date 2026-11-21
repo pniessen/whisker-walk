@@ -338,6 +338,9 @@ export function scanFootprints(root, ground = FLAT_GROUND) {
   const out = [];
   const box = new THREE.Box3();
   for (const child of root.children) {
+    // A piece its own area marks as never grounded by a blob (the Old House's
+    // stairs, wall panes and room groups: a box there is no footprint).
+    if (child.userData?.noContactShadow) continue;
     // setFromObject updates the child's world matrices itself, so this is
     // correct even on a scene that has never been rendered — which is exactly
     // the case at build time, and the case a test runs in.

@@ -307,4 +307,46 @@ describe('the life hook', () => {
     });
   }, 60_000);
 
+  it('keeps a pane inside its window while the wall sinks and rises', () => {
+    const scene = new THREE.Scene();
+    const area = build(scene);
+    const { sectionMeshes, panes, sections } = area.house;
+    const life = area.life({ scene, reducedMotion: false });
+    const cat = new THREE.Vector3(HOUSE_SPAWN.x, 0, HOUSE_SPAWN.z);
+    const outside = new THREE.PerspectiveCamera();
+    outside.position.copy(cat).add(cameraOffset(0, DEFAULT_PITCH, 4.5, 2.2));
+    const inside = new THREE.PerspectiveCamera();
+    inside.position.set(HOUSE_SPAWN.x, 2, HOUSE_SPAWN.z - 4);
+    const withPane = sections.filter((s) => s.id.startsWith('hall-s-') && panes.has(s.id));
+    expect(withPane.length).toBeGreaterThan(0);
+    // where each pane sits in its wall, as a fraction of the wall's height (the wall scales about its base)
+    const box = new THREE.Box3();
+    const rel = (s, p) => {
+      box.setFromObject(p);
+      const h = sectionMeshes.get(s.id).scale.y * s.height;
+      return [(box.min.y - s.base) / h, (box.max.y - s.base) / h];
+    };
+    const rest = new Map(withPane.map((s) => [s.id, rel(s, panes.get(s.id)[0])]));
+    let seen = 0;
+    // down (the camera outside), then up (the camera inside), at the picture page's step
+    for (const cam of [outside, inside]) {
+      for (let k = 0; k < 60; k++) {
+        life.update(1 / 30, 0, cat, cam);
+        for (const s of withPane) {
+          const f = life.sink.fraction(s.id);
+          const p = panes.get(s.id)[0];
+          if (f > SINK.paneHide && f < 1) {
+            seen++;
+            const [lo, hi] = rel(s, p);
+            expect(lo, s.id).toBeCloseTo(rest.get(s.id)[0], 6);
+            expect(hi, s.id).toBeCloseTo(rest.get(s.id)[1], 6);
+          }
+        }
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
+    life.dispose();
+    for (const s of withPane) expect(rel(s, panes.get(s.id)[0])).toEqual(rest.get(s.id));
+  }, 60_000);
+
 });

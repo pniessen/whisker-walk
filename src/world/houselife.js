@@ -7,7 +7,9 @@
 // A section mesh's origin is at its base (houseparts.js sectionMesh), so scale.y is
 // its standing fraction. At 0 (a lintel sunk to nothing) the mesh is hidden: a
 // scale of 0 would leave a flat dark sheet over the doorway (ruling R11). A pane
-// shows only while its section stands at least SINK.paneHide (ruling H1).
+// shows only while its section stands at least SINK.paneHide (ruling H1), and
+// sinks with its wall (scaled about the wall's base, like the wall), so it never
+// hangs in the air above a wall on its way down or up.
 // update allocates nothing.
 
 import { makeView, createWallSink, SINK } from '../housewalls.js';
@@ -23,6 +25,8 @@ export function createHouseLife(scene, house, { reducedMotion = false } = {}) {
   const ids = sections.map((s) => s.id);
   const meshes = ids.map((id) => sectionMeshes.get(id) ?? null);
   const paneLists = ids.map((id) => panes.get(id) ?? NO_PANES);
+  const bases = sections.map((s) => s.base);
+  const paneRest = paneLists.map((list) => list.map((p) => p.position.y)); // each pane's standing height
   const view = {};
 
   return {
@@ -39,7 +43,12 @@ export function createHouseLife(scene, house, { reducedMotion = false } = {}) {
           m.visible = f > 0;
         }
         const list = paneLists[i];
-        for (let k = 0; k < list.length; k++) list[k].visible = f >= SINK.paneHide;
+        for (let k = 0; k < list.length; k++) {
+          const p = list[k];
+          p.visible = f >= SINK.paneHide;
+          p.scale.y = f;
+          p.position.y = bases[i] + (paneRest[i][k] - bases[i]) * f;
+        }
       }
       drawing.update(catPos.y);
     },
@@ -49,7 +58,11 @@ export function createHouseLife(scene, house, { reducedMotion = false } = {}) {
         m.scale.y = 1;
         m.visible = true;
       }
-      for (const list of paneLists) for (const p of list) p.visible = true;
+      paneLists.forEach((list, i) => list.forEach((p, k) => {
+        p.visible = true;
+        p.scale.y = 1;
+        p.position.y = paneRest[i][k];
+      }));
       scene.traverse((o) => {
         if (o.userData.houseDetail || o.userData.houseSimple) o.visible = true;
       });

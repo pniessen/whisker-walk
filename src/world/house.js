@@ -75,6 +75,12 @@ const LAWN_COLOR = 0x6f9a52;
 const HEDGE_COLOR = 0x4b7536;
 
 const levelY = (id) => HOUSE_LEVELS.find((l) => l.id === id).y;
+// No contact-shadow blob (render/contactshadows.js): a stair's box is a slope, a pane's
+// is a sliver in a wall, a room group's spans the room; none of them is a footprint.
+const noBlob = (o) => {
+  o.userData.noContactShadow = true;
+  return o;
+};
 
 // outer minus holes, as non-overlapping rectangles (houseplan.js's cut, for the drawn lawn)
 function rectMinus(outer, holes) {
@@ -262,7 +268,7 @@ function furnish(scene, material, start) {
       group.add(mesh);
     }
     if (flats.length) group.add(flatsMesh(flats, y, material, `houseFlats:${room.id}`));
-    scene.add(group);
+    scene.add(noBlob(group));
   }
   for (const l of HOUSE_LEVELS) {
     const solid = HOUSE_FURNITURE.filter((f) => f.level === l.id && f.r > 0);
@@ -299,14 +305,14 @@ export function build(scene, { wind, gateEnds } = {}) {
       if (s.window) panes.set(s.id, [paneMesh(s, s.window)]);
     }
     for (const g of groups.values()) scene.add(g);
-    for (const list of panes.values()) for (const p of list) scene.add(p);
+    for (const list of panes.values()) for (const p of list) scene.add(noBlob(p));
 
     for (const r of HOUSE_ROOMS) {
       scene.add(floorMesh(r, material));
       const skirt = skirtMesh(r, material);
       if (skirt) scene.add(skirt);
     }
-    for (const s of HOUSE_STAIRS) scene.add(stairMesh(s, material));
+    for (const s of HOUSE_STAIRS) scene.add(noBlob(stairMesh(s, material)));
 
     HOUSE_LAMPS.forEach((l, i) => {
       const room = HOUSE_ROOMS.find((r) => r.id === l.room);
