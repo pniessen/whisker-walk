@@ -156,7 +156,7 @@ export function stripedSlab(P, w, t, d, colors, x, y, z, o = {}) {
   const n = o.n ?? Math.max(2, Math.round(w / 0.45));
   const sub = [];
   for (let i = 0; i < n; i++) {
-    box(sub, w / n, t, d, -w / 2 + (i + 0.5) * (w / n), 0, 0, colors[i % colors.length]);
+    box(sub, w / n, t, d, -w / 2 + (i + 0.5) * (w / n), 0, 0, colors[i % colors.length], { shade: o.shade });
   }
   const m = matrixOf(x, y, z, o);
   for (const g of sub) { g.applyMatrix4(m); P.push(g); }

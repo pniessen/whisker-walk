@@ -89,6 +89,7 @@
   // The light: the walk's weather (day, sunset) or its dusk look.
   const rng = (() => { let s = 7; return () => ((s = (s * 16807) % 2147483647) / 2147483647); })();
   let look = null;
+  let weather = null;
   // walk.js's duskGround: the lawn, the paths and the horizon, darkened at dusk
   const groundOf = () => scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint || c.name === 'path' || c.name === 'horizonBand' || c.name === 'steppingStones'));
   if (MOOD === 'dusk') {
@@ -96,7 +97,7 @@
     scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
     fair.setFairGlow(area, 1);
   } else {
-    createWeather(scene, sun, MOOD === 'sunset' ? 'sunset' : 'clear', rng, true, undefined, { tier, fill, wet: [] });
+    weather = createWeather(scene, sun, MOOD === 'sunset' ? 'sunset' : 'clear', rng, true, undefined, { tier, fill, wet: [] });
     fair.setFairGlow(area, 0);
   }
   const shadows = createShadowFit(sun, camera, { radius: tier.shadowFitRadius, mapSize: tier.shadowMapSize });
@@ -114,6 +115,9 @@
   rig.ensure(tier.msaaSamples);
   rig.attachScene(scene);
   const frameSession = { useComposer: true, scene };
+  // walk.js's day grade (composer.js applyDayGrade): the weather's exposure
+  const BASE_EXPOSURE = renderer.toneMappingExposure;
+  renderer.toneMappingExposure = BASE_EXPOSURE * (weather?.exposureScale ?? 1);
 
   let t = 0;
   function step(dt) {
@@ -253,6 +257,7 @@
     fill.groundColor.copy(from.fillG).lerp(to.fillG, k);
     fill.intensity = from.fillI + (to.fillI - from.fillI) * k;
     scene.environmentIntensity = from.env + (to.env - from.env) * k;
+    renderer.toneMappingExposure = BASE_EXPOSURE * ((weather?.exposureScale ?? 1) * (1 - k) + k);
     fair.setFairGlow(area, Math.min(1, Math.max(0, (u - 0.3) / 0.5)));
     if (!tour.swapped && u >= 0.6) {
       // the dusk lawn and the lamps' pools land at the half-way mark

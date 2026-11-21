@@ -767,7 +767,7 @@ describe('gravel trail look (polish-park2)', async () => {
 
   // The Fairground's midway and plaza (fair beauty pass): trodden earth and sawdust.
   it('sawdust: registered, has every default key, emits its dark crumbs, its own program', () => {
-    const { SAWDUST_LOOK } = TRAIL_LOOKS.sawdust ? { SAWDUST_LOOK: TRAIL_LOOKS.sawdust } : {};
+    const SAWDUST_LOOK = TRAIL_LOOKS.sawdust;
     expect(SAWDUST_LOOK).toBeDefined();
     for (const k of Object.keys(TRAIL_LOOK)) expect(SAWDUST_LOOK).toHaveProperty(k);
     expect(SAWDUST_LOOK.edgeLine).toBeUndefined();

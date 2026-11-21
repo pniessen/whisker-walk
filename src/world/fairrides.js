@@ -406,7 +406,10 @@ export function merryGoRound(x, z, glow) {
     bulb(L, Math.cos(a) * (MGR.canopyR + 0.09), MGR.canopyY - 0.2, Math.sin(a) * (MGR.canopyR + 0.09), BULB_COLORS[(j % 3) + 1]);
   }
   ring(12, (a, i) => bulb(L, Math.cos(a) * (MGR.drumR + 0.2), 2.66, Math.sin(a) * (MGR.drumR + 0.2), BULB_COLORS[i % BULB_COLORS.length]));
-  turn.add(glowMesh(L, 'mgrBulbs', glow));
+  // (its mirrors are shaded by the canopy by day like the paint round them)
+  const lit = glowMesh(L, 'mgrBulbs', glow);
+  lit.receiveShadow = true;
+  turn.add(lit);
 
   const horses = [];
   for (const h of places) {
@@ -646,7 +649,7 @@ export function teacups(x, z, glow, yaw = 0) {
   const B = [];
   // (beauty pass: narrow kerb stripes and a blue top, not wide blue slabs under a white ring)
   stripes(B, baseR, 0, baseR - 0.05, 0.16, [PAINT.sky, PAINT.cream], 0, 0, 0, { sides: 64 });
-  stripes(B, baseR - 0.05, 0.16, r - 0.02, 0.16, [PAINT.sky], 0, 0, 0, { sides: 32 });
+  stripes(B, baseR - 0.05, 0.16, r - 0.02, 0.16, [PAINT.sky], 0, 0, 0, { sides: 64 }); // as many sides as the kerb: no slivers between them
   const POSTS = 18;
   for (let i = 0; i < POSTS; i++) {
     const a = Math.PI / 2 + 0.34 + (i / (POSTS - 1)) * (Math.PI * 2 - 0.68);
@@ -669,7 +672,7 @@ export function teacups(x, z, glow, yaw = 0) {
   lathe(P, [[r, deckY], [0, deckY]], 32, PAINT.cream, 0, 0, 0);
   // its skirt, panelled pink and cream like a china saucer's rim, under a gold edge
   stripes(P, r, 0.12, r, deckY - 0.035, [PAINT.pink, PAINT.cream], 0, 0, 0, { sides: 32 });
-  stripes(P, r + 0.012, deckY - 0.035, r + 0.012, deckY + 0.004, [PAINT.gold], 0, 0, 0, { sides: 32 });
+  stripes(P, r, deckY - 0.035, r, deckY + 0.004, [PAINT.gold], 0, 0, 0, { sides: 32 });
   // the floor, painted like a tablecloth in wedges
   stripes(P, r - 0.04, deckY + 0.004, 0, deckY + 0.004, [PAINT.pink, PAINT.cream, PAINT.mint, PAINT.cream], 0, 0, 0, { sides: 24 });
   // the big teapot in the middle
@@ -1089,7 +1092,7 @@ export function coasterStation(r, trackX, glow) {
   const d = r.maxZ - r.minZ;
   const P = [];
   // the platform's skirt, panelled blue and cream (beauty pass: it was one flat blue slab)
-  stripedSlab(P, d, deckY - 0.06, w, [PAINT.sky, PAINT.cream], cx, 0, cz, { yaw: Math.PI / 2, n: 13 });
+  stripedSlab(P, d, deckY - 0.06, w, [PAINT.sky, PAINT.cream], cx, 0, cz, { yaw: Math.PI / 2, n: 13, shade: 0.9 });
   box(P, w + 0.1, 0.06, d + 0.1, cx, deckY - 0.06, cz, PAINT.wood);
   box(P, 0.2, 0.02, d, r.maxX - 0.12, deckY, cz, PAINT.yellow);
   // two steps up from the west

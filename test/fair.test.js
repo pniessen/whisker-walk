@@ -1527,7 +1527,10 @@ describe('The Fairground: the beauty pass', () => {
     const out = new Set();
     for (let i = 0; i < pos.count; i++) {
       v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
-      if (keep(v)) out.add([col.getX(i), col.getY(i), col.getZ(i)].map((c) => c.toFixed(3)).join());
+      if (!keep(v)) continue;
+      // the hue, not the shade: stripes() lights each panel a little differently
+      const top = Math.max(col.getX(i), col.getY(i), col.getZ(i), 1e-6);
+      out.add([col.getX(i), col.getY(i), col.getZ(i)].map((c) => (c / top).toFixed(2)).join());
     }
     return out;
   };
@@ -1543,15 +1546,16 @@ describe('The Fairground: the beauty pass', () => {
     // the skirt's lower corners (the deck's top starts at deckY, the kerb is wider)
     const skirt = coloursWhere(deck, (p) => Math.abs(Math.hypot(p.x - at.x, p.z - at.z) - TEACUPS.r) < 0.02
       && Math.abs(p.y - 0.12) < 0.005);
-    expect(skirt.size).toBeGreaterThanOrEqual(2);
+    expect(skirt.size).toBe(2); // pink and cream
   });
 
   it('the coaster platform’s skirt is panelled in two colours', () => {
     const station = scene.getObjectByName('coasterStation');
-    // the skirt's west face, along its foot
-    const west = coloursWhere(station, (p) => Math.abs(p.x - STATION_DECK.minX) < 0.01
-      && Math.abs(p.y) < 0.005 && p.z > STATION_DECK.minZ && p.z < STATION_DECK.maxZ);
-    expect(west.size).toBeGreaterThanOrEqual(2);
+    // the skirt's west face, along its foot, away from the steps up to it
+    const cz = (STATION_DECK.minZ + STATION_DECK.maxZ) / 2;
+    const west = coloursWhere(station, (p) => Math.abs(p.x - STATION_DECK.minX) < 0.01 && Math.abs(p.y) < 0.005
+      && p.z > STATION_DECK.minZ + 0.01 && p.z < STATION_DECK.maxZ - 0.01 && Math.abs(p.z - cz) > STATION.stepW / 2 + 0.05);
+    expect(west.size).toBe(2); // blue and cream
   });
 
   it('the carousel’s mirrors and painted ovals are on the bulbs’ material, as steady panes', () => {
@@ -1599,8 +1603,8 @@ describe('The Fairground: the drawing budget', () => {
     // the faces lying on the ground; the four builder flower patches (48
     // meshes, 48 casters) became flower tubs in the props' mesh.
     // Beauty pass (2026-11-20): the teacups' painted skirt, gold edge and
-    // finer kerb stripes, the coaster platform's panelled skirt: +248.
-    expect(built).toEqual({ meshes: 174, casters: 109, triangles: 66940 });
+    // finer kerb stripes and its top, the coaster platform’s panelled skirt: +312.
+    expect(built).toEqual({ meshes: 174, casters: 109, triangles: 67004 });
     expect({ meshes: merged.meshes, casters: merged.casters }).toEqual({ meshes: 159, casters: 104 });
   });
 
