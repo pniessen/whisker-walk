@@ -587,7 +587,7 @@ describe('with the Clan dressing', () => {
 // with its gates, to the SAME ceilings, as built and as merged; no ceiling
 // rose. The Seaside, with about 490 triangles left of 30,000, paid first: its
 // cliff lost the hidden bottom face (720 triangles), so
-//   seaside bare triangles   29,29513 -> 28793 (see the test below)
+//   seaside triangles   29,513 -> 28,793 bare, 29,125 dressed
 // ---------------------------------------------------------------------------
 describe('with the gateways (world map step 3)', () => {
   for (const [name, build, meshCeiling, casterCeiling, triangleCeiling] of AREAS.filter(([n]) => ['neighborhood', 'park', 'fair', 'farm', 'docks', 'seaside'].includes(n))) {

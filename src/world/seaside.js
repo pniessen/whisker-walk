@@ -189,7 +189,14 @@ function dropBottomFace(geo) {
   kept.set(idx.subarray(0, g.start), 0);
   kept.set(idx.subarray(g.start + g.count), g.start);
   geo.setIndex(new THREE.BufferAttribute(kept, 1));
+  // Keep every group at its index (group 3 stays, empty) so code that reads
+  // geo.groups[4] for the seaward face (test/edges.test.js) still finds it.
+  const groups = geo.groups.map((q) => ({ ...q }));
   geo.clearGroups();
+  for (const q of groups) {
+    const start = q.start > g.start ? q.start - g.count : q.start;
+    geo.addGroup(start, q === groups[3] ? 0 : q.count, q.materialIndex);
+  }
   return geo;
 }
 function strata(geo, worldX, salt) {
