@@ -33,7 +33,8 @@ import { stickToWorld } from '../../src/traversal.js';
 // then the runtime's late(). placeOnLedge puts her on a ledge's top (and says so if
 // the spot is not on it), placeOnPerch on a knock-over perch as the jump button does
 // (game/interactions.js: perchY the perch's height, session.perched the perch), and
-// jump() presses the traversal's jump button. Without moves nothing changes.
+// jump() presses the traversal's jump button (a tour's pilot is handed `traversal` and
+// `ctx` to press it itself). Without moves nothing changes.
 //
 // The camera keeps out of the house's floors (houseFloorGround), not the furniture
 // tops, as the built house hands the walk (house.js areaData.cameraGround).
@@ -113,6 +114,7 @@ export function createHouseWalk({ reducedMotion = true, pace = 3.5, secretOpen =
     get lid() { return lid; },
     get traversal() { return traversal; },
     session,
+    ctx, // the traversal's context, for a pilot's jump (housetour.js createHousePilot)
     place(x, z, yaw, zoom, pitch = DEFAULT_PITCH) {
       cat.position.set(x, area.ground.y(x, z), z);
       session.perched = null;
