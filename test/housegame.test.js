@@ -22,6 +22,7 @@ import { createGoals, goalFits, GOAL_POOL } from '../src/goals.js';
 import { GOLD_MICE, goldForEdition } from '../src/goldmice.js';
 import { propsFor, yarnSpotFor } from '../src/propsets.js';
 import { buildMapLayer } from '../src/ui/minimap.js';
+import { createKnockables } from '../src/knockables.js';
 import { AWARDS } from '../src/discoveries.js';
 import { discoveryText } from '../src/ui/hud.js';
 
@@ -42,12 +43,20 @@ import { discoveryText } from '../src/ui/hud.js';
 // =============================================================================
 
 const seen = vi.hoisted(() => ({
-  houseLoads: 0, secrets: 0, skyLife: 0, goals: 0, legends: [], wanderers: [], strayCounts: [], zoom: [], savedZoom: null, hides: [],
+  houseLoads: 0, secrets: 0, skyLife: 0, goals: 0, legends: [], wanderers: [], strayCounts: [], zoom: [], savedZoom: null, hides: [], extraKnock: null,
 }));
 vi.mock('../src/world/house.js', async (importOriginal) => {
   seen.houseLoads++;
   // The house grows no hooked grass (the real module exports no GRASS_HOOKS); a mock refuses to answer for a name it lacks.
-  return { ...(await importOriginal()), GRASS_HOOKS: undefined };
+  const m = await importOriginal();
+  // A test may add one knock-over of its own to the record (seen.extraKnock): every house
+  // knock-over stands on the ground floor at world height 0, so one upstairs shows the ground is read.
+  const build = (...a) => {
+    const r = m.build(...a);
+    if (seen.extraKnock) r.knockables = [...r.knockables, seen.extraKnock];
+    return r;
+  };
+  return { ...m, build, GRASS_HOOKS: undefined };
 });
 vi.mock('../src/secrets.js', async (importOriginal) => {
   const m = await importOriginal();
@@ -374,6 +383,32 @@ describe('a walk in the house', () => {
     expect(got.spot).toEqual({ x: today.x, z: today.z });
   }, 90_000);
 
+  it('a knock-over stands on the ground under it: one by the bed upstairs is 2.4 m up', () => {
+    // the bed's perch (0.6 m) is upstairs; a cup on it, falling onto the bedroom floor
+    seen.extraKnock = { id: 'house-cup-9', kind: 'cup', x: 0.3, z: -11.6, y: 0.6, fallTo: { x: 0.3, z: -10.6 } };
+    try {
+      expect(roomAt(seen.extraKnock.x, seen.extraKnock.z)).toBe('bedroom');
+      // a knock-over's own lift over its ledge, from one on flat ground
+      const flat = createKnockables(new THREE.Scene(), [seen.extraKnock]);
+      const lift = flat.list[0].group.position.y - seen.extraKnock.y;
+      flat.dispose();
+      let ys = null;
+      houseWalk(lifecycleHere(), false, {
+        keep: (s) => {
+          ys = s.knockables.list.map((e) => {
+            const k = s.areaData.knockables.find((q) => q.id === e.id);
+            return { id: e.id, got: e.group.position.y, want: s.ground.y(k.x, k.z) + k.y + lift, floor: s.ground.y(k.x, k.z) };
+          });
+        },
+      });
+      expect(ys.map((e) => e.id)).toEqual([...HOUSE_KNOCKABLES.map((k) => k.id), 'house-cup-9']);
+      expect(ys.at(-1).floor).toBeCloseTo(2.4, 6);
+      for (const e of ys) expect(e.got, e.id).toBeCloseTo(e.want, 6);
+    } finally {
+      seen.extraKnock = null;
+    }
+  }, 90_000);
+
   it('the yarn goal\'s how-line says where the house\'s ball lies', () => {
     // walks of the house on one seed after another, until the day rolls the yarn goal
     let found = null;
@@ -445,8 +480,8 @@ describe('a walk in the house', () => {
     });
     records.park = got.record;
     for (const k of houseKeys) expect(Object.hasOwn(got.record, k), k).toBe(false);
-    // the park's goals come from its pool as before the house's list existed (goalFits below)
-    for (const id of got.goals) expect(GOAL_POOL.some((g) => g.id === id), id).toBe(true);
+    // the park's three goals on this seed, as before the house's list existed
+    expect(got.goals).toEqual(['tip-things', 'spot-critters', 'get-scratches']);
     expect(got.gold).toEqual(GOLD_MICE.park.map((m) => m.id));
     expect(got.knock).toEqual(propsFor('park').knockables.map((k) => k.id));
     expect(park.hides).toEqual([propsFor('park').hides]);

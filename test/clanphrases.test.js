@@ -17,6 +17,7 @@ const read = (f) => readFileSync(f, 'utf8');
 const noComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 // The source with its comments and its quoted and template text left out
 // (a template's ${...} is code, and kept).
+// Limit: it does not know regex literals, so a regex containing a quote or a backtick would be read as text.
 function codeOnly(src) {
   let out = '';
   let i = 0;

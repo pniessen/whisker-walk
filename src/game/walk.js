@@ -801,8 +801,10 @@ export function createWalkLifecycle({
     // but ghosts still visit and the kitten's home-stage still shows up.
     const isDen = areaId === 'den';
     // Indoors (indoor.js: the den and the Old House): no weather, secrets,
-    // strays, legend, goals, sky birds or corner map. Every other guard below
-    // stays the den's own (its zoom cap, its furniture, its cats, its shop).
+    // strays, legend or sky birds. Daily goals and the corner map are the den's
+    // own guards: the den has neither, the house has both (Old House D11, D12).
+    // Every other guard below stays the den's own (its zoom cap, its
+    // furniture, its cats, its shop).
     const indoor = isIndoor(areaId);
     // A walk picked up again keeps its stamp: the same border warrior, the same song.
     const walkStamp = resume?.stamp ?? 'walk-' + Date.now();
@@ -2645,8 +2647,9 @@ export function createWalkLifecycle({
     // below or a yard wall.
     if (roomSeed === undefined && MP && areaData.strays !== false) spawnGhosts(session);
 
-    // The corner map, outdoors only: the den is one small room and has no
-    // map, so session.minimap is null there and every use guards for it.
+    // The corner map, everywhere but the den: the den is one small room and
+    // has no map, so session.minimap is null there and every use guards for
+    // it. The Old House has one, its floor plan (D12).
     // scenicsVisited is filled by interactions.js's 4 m scenic check and
     // greys out the spots already visited this walk. A tap on the map flips
     // north-up / turning and remembers the choice in the save.
