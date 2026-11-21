@@ -310,8 +310,12 @@ function chaseBulbs(P) {
 
 // A strip swept along 3D points: at each point a cross-section `profile`
 // ([[across, up], ...]) set square to the path. One face per quad, wound for a
-// DoubleSide mesh. `closed` joins the last point to the first.
-export function sweep(P, pts, profile, hex, { closed = false, colors = null, sides = null } = {}) {
+// DoubleSide mesh. `closed` joins the last point to the first. `colors` paints
+// the profile's strips in turn (stripes running along the path); `bands`
+// ({ every, colors: [stripsA, stripsB, ...] }) paints it in bands across the
+// path instead, `every` quads long, each band's strips from the next list in
+// turn. The quads are the same either way: a band costs no triangle.
+export function sweep(P, pts, profile, hex, { closed = false, colors = null, sides = null, bands = null } = {}) {
   const n = pts.length;
   const frames = [];
   const up = new THREE.Vector3(0, 1, 0);
@@ -333,7 +337,8 @@ export function sweep(P, pts, profile, hex, { closed = false, colors = null, sid
   for (let i = 0; i < last; i++) {
     const j = (i + 1) % n;
     for (let k = 0; k < profile.length - 1; k++) {
-      sheet(P, [at(i, k), at(j, k), at(j, k + 1), at(i, k + 1)], colors ? colors[k % colors.length] : hex);
+      const strips = bands ? bands.colors[Math.floor(i / bands.every) % bands.colors.length] : colors;
+      sheet(P, [at(i, k), at(j, k), at(j, k + 1), at(i, k + 1)], strips ? strips[k % strips.length] : hex);
     }
   }
 }

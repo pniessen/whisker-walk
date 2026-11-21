@@ -784,6 +784,9 @@ export function helterSlidePath(step = 0.25) {
   return pts;
 }
 
+// The slide's bands, in its quads (each about a third of a metre down the slide).
+const HELTER_SLIDE_BAND = 2;
+
 export function helterSkelter(x, z, glow, yaw = 0) {
   const { baseR, topR, towerH, galleryR, roofY, apexY, doorHalf, doorH } = HELTER;
   const set = (o) => { o.position.set(x, 0, z); o.rotation.y = yaw; return o; };
@@ -854,11 +857,14 @@ export function helterSkelter(x, z, glow, yaw = 0) {
   });
   const stairs = set(meshOf(ST, 'helterStairs', { roughness: 0.8 }));
 
-  // The slide: a yellow chute with blue sides, on brackets, ending on a mat.
+  // The slide: a chute painted in bands down its whole length, a yellow bed
+  // and a red one in turn between blue sides, on brackets, ending on a mat.
   const path = helterSlidePath(0.3);
   const C = [];
   const h = HELTER.slide.half;
-  sweep(C, path, [[-h - 0.06, 0.3], [-h, 0], [h, 0], [h + 0.06, 0.3]], PAINT.yellow, { colors: [PAINT.blue, PAINT.yellow, PAINT.blue] });
+  sweep(C, path, [[-h - 0.06, 0.3], [-h, 0], [h, 0], [h + 0.06, 0.3]], PAINT.yellow, {
+    bands: { every: HELTER_SLIDE_BAND, colors: [[PAINT.blue, PAINT.yellow, PAINT.blue], [PAINT.blue, PAINT.red, PAINT.blue]] },
+  });
   const slide = set(canvasOf(C, 'helterSlide'));
   slide.material.roughness = 0.45;
   const BR = [];
