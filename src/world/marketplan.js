@@ -1,17 +1,22 @@
 // The plan of the Market Square (step 1), pure: where everything stands, with no
 // three.js and no rng, so the tests and the build read the same numbers.
 //
-//   north = -z, east = +x, metres.      Bounds x -30..30, z -30..32. Spawn (0, 29).
+//   north = -z, east = +x, metres.      Bounds x -21..21, z -21..23. Spawn (0, 20.5).
 //
 //                         fruit
-//            baker                       cheese
-//
-//     fish           (fountain)                  milk
-//
-//     flowers                                café tables
-//                              ^ spawn          (crumbs)
+//            baker                    cheese
+//                     lamp       lamp
+//     fish            (fountain)          flowers
+//                     lamp       lamp
+//        café tables                   milk
+//          (crumbs)       ^ spawn
 //   (town shop fronts close the square just outside the bounds, all four sides;
 //    the south row has a gap at x = 0 for step 4's gateway)
+//
+// THE SIZE (controller's ruling, Task 6, 2026-11-21): the first square was
+// 60 x 62 m and read as big and empty to a cat; it is now 42 x 44, everything
+// drawn in with it, the milk cart about 12 m from the spawn, and the cobbles
+// between the stalls dressed with clutter a cat weaves through (MARKET_CLUTTER).
 //
 // THE LOCAL FRAME of a stall: +z runs along `face` (the unit vector from the
 // stall toward the fountain; the fruit stall faces south), +x is the stall's
@@ -35,8 +40,8 @@
 const freeze = Object.freeze;
 const pt = (x, z) => freeze({ x, z });
 
-export const MARKET_BOUNDS = freeze({ minX: -30, maxX: 30, minZ: -30, maxZ: 32 });
-export const MARKET_SPAWN = freeze({ x: 0, z: 29 });
+export const MARKET_BOUNDS = freeze({ minX: -21, maxX: 21, minZ: -21, maxZ: 23 });
+export const MARKET_SPAWN = freeze({ x: 0, z: 20.5 });
 export const FOUNTAIN = freeze({ x: 0, z: 0, r: 3.2 });
 const FOUNTAIN_COLLIDER_R = 3.4;
 
@@ -44,8 +49,8 @@ const FOUNTAIN_COLLIDER_R = 3.4;
 // foot (r 0.2, a central pole), still under its top (r 0.4). Its hide is the
 // table itself.
 export const CAFE = freeze({
-  tables: freeze([pt(9, 19), pt(12.5, 21.5), pt(9.4, 24.2)]),
-  crumbs: pt(8.68, 19),
+  tables: freeze([pt(-6.3, 13.5), pt(-8.8, 15.3), pt(-6.6, 17.2)]),
+  crumbs: pt(-6.62, 13.5),
 });
 
 // How a treat is reached and where a hide sits, in a stall's local frame.
@@ -61,13 +66,13 @@ const unitToFountain = (x, z) => {
 
 // Raw table: id, kind, at, face, w, d, treat (kind, y), hasHide, serving keeper.
 const RAW = [
-  { id: 'fish', kind: 'treat', at: [-15, 4], w: 3.0, d: 2.0, treat: ['fishhead', 0.55], hide: true, keeper: true },
-  { id: 'baker', kind: 'treat', at: [-9, -15], w: 3.0, d: 2.0, treat: ['sausageroll', 0.6], hide: true, keeper: true },
-  { id: 'cheese', kind: 'treat', at: [9, -15], w: 2.6, d: 1.8, treat: ['cheddar', 0.55], hide: true, keeper: true },
-  { id: 'milk', kind: 'treat', at: [15, 4], w: 2.2, d: 1.4, treat: ['cream', 0.3], hide: true, keeper: true },
-  { id: 'flowers', kind: 'serve', at: [-15, 18], w: 2.6, d: 1.6, treat: null, hide: true, keeper: true },
-  { id: 'fruit', kind: 'serve', at: [0, -24], face: [0, 1], w: 3.0, d: 1.8, treat: null, hide: false, keeper: true },
-  { id: 'cafe', kind: 'cafe', at: [9, 19], w: 0, d: 0, treat: ['crumbs', 0], hide: false, keeper: false },
+  { id: 'fish', kind: 'treat', at: [-11, 2], w: 3.0, d: 2.0, treat: ['fishhead', 0.55], hide: true, keeper: true },
+  { id: 'baker', kind: 'treat', at: [-7, -10.5], w: 3.0, d: 2.0, treat: ['sausageroll', 0.6], hide: true, keeper: true },
+  { id: 'cheese', kind: 'treat', at: [7, -10.5], w: 2.6, d: 1.8, treat: ['cheddar', 0.55], hide: true, keeper: true },
+  { id: 'milk', kind: 'treat', at: [8, 11.5], w: 2.2, d: 1.4, treat: ['cream', 0.3], hide: true, keeper: true },
+  { id: 'flowers', kind: 'serve', at: [12, 0], w: 2.6, d: 1.6, treat: null, hide: true, keeper: true },
+  { id: 'fruit', kind: 'serve', at: [0, -17], face: [0, 1], w: 3.0, d: 1.8, treat: null, hide: false, keeper: true },
+  { id: 'cafe', kind: 'cafe', at: [-6.3, 13.5], w: 0, d: 0, treat: ['crumbs', 0], hide: false, keeper: false },
 ];
 
 export function toStall(stall, x, z) {
@@ -141,17 +146,67 @@ function stallColliders(s) {
 // apples at the fruit stall's end (step 3 rolls its fruit); the four lamp posts.
 export const STAND_R = 0.2;
 export const FRUIT_CRATE = freeze({ lx: stallById('fruit').w / 2 + 0.45, lz: 0.3, w: 0.5, h: 0.4, d: 0.4, r: 0.3 });
-export const MARKET_LAMPS = freeze([pt(-10, -10), pt(10, -10), pt(-10, 10), pt(10, 10)]);
+export const MARKET_LAMPS = freeze([pt(-5, -5), pt(5, -5), pt(-5, 5), pt(5, 5)]);
 const LAMP_R = 0.12;
+
+// THE CLUTTER (Task 6's ruling): things a cat weaves through and hides behind
+// on the cobbles between the stalls, morning-busy and calm. { id, kind, x, z,
+// yaw } (yaw turns the thing's own +x the way three.js's rotation.y does:
+// world (cos yaw, -sin yaw)), and `solid`: the small circles that stop a cat
+// walking through it. None stands in a treat counter's watch zone or across a
+// hide-to-treat line, and none in the gateway's lane (marketplan.test.js).
+//   barrow  a market handcart of produce, 1.4 x 0.8, two circles along it
+//   bench   she walks under its seat, so nothing solid; the one by the
+//           fountain is the step-3 anchor (MARKET_ANCHORS.bench in market.js)
+//   tub     a half-barrel of flowers, r 0.4
+//   stack   crates and sacks, r 0.5
+//   board   the noticeboard on two posts (she walks under the board)
+//   bicycle parked on the south row's foot, outside the bounds; its basket is
+//           the step-3 anchor
+const CLUTTER_RAW = [
+  ['tub-gate-w', 'tub', -2.5, 21.9, 0], ['tub-gate-e', 'tub', 2.5, 21.9, 0],
+  ['tub-nw', 'tub', -19.3, -19.3, 0], ['tub-ne', 'tub', 19.3, -19.3, 0],
+  ['tub-sw', 'tub', -19.3, 21.3, 0], ['tub-se', 'tub', 19.3, 21.3, 0],
+  ['barrow-w', 'barrow', -16.5, -8, 0.5], ['barrow-e', 'barrow', 16, -4.5, -0.4],
+  ['bench-fountain', 'bench', -4.5, 6, 0], ['bench-east', 'bench', 5.5, -2.5, 0],
+  ['stack-w', 'stack', -17.5, 12, 0.3], ['stack-e', 'stack', 16.5, 13, -0.2], ['stack-fruit', 'stack', 3.4, -18, 0.1],
+  ['board', 'board', 4.8, 21.9, Math.PI], // its face to the square (-z)
+  ['bicycle', 'bicycle', 9, 23.25, 0],
+];
+// a bench faces the fountain: its yaw turns its seat's front (+z) to (0, 0)
+const benchYaw = (x, z) => Math.atan2(FOUNTAIN.x - x, FOUNTAIN.z - z);
+function clutterSolid(kind, x, z, yaw) {
+  const along = (d) => ({ x: x + d * Math.cos(yaw), z: z - d * Math.sin(yaw) });
+  if (kind === 'barrow') return [-0.4, 0.4].map((d) => freeze({ ...along(d), r: 0.45 }));
+  if (kind === 'tub') return [freeze({ x, z, r: 0.4 })];
+  if (kind === 'stack') return [freeze({ x, z, r: 0.5 })];
+  if (kind === 'board') return [-0.55, 0.55].map((d) => freeze({ ...along(d), r: 0.1 }));
+  return [];
+}
+export const MARKET_CLUTTER = freeze(CLUTTER_RAW.map(([id, kind, x, z, y]) => {
+  const yaw = kind === 'bench' ? benchYaw(x, z) : y;
+  return freeze({ id, kind, x, z, yaw, solid: freeze(clutterSolid(kind, x, z, yaw)) });
+}));
+const clutterById = (id) => MARKET_CLUTTER.find((c) => c.id === id);
+export const BENCH_AT = clutterById('bench-fountain');
+export const BICYCLE_AT = clutterById('bicycle');
 const standColliders = (s) => (s.kind === 'treat' ? [freeze({ x: s.treat.x, z: s.treat.z, r: STAND_R })] : []);
 const FRUIT_CRATE_AT = fromStall(stallById('fruit'), FRUIT_CRATE.lx, FRUIT_CRATE.lz);
+// The milk cart's shafts (Task 6) lie out from its end away from the hide, down
+// to the cobbles (market.js draws them, `len` long from the cart's end, at the
+// cart body's middle depth): one circle over them, so a cat goes round them.
+const MILK = stallById('milk');
+export const MILK_SHAFTS = freeze({ lx: -HIDE_SIDE * (MILK.w / 2 + 0.5), lz: MILK.d / 2 - 0.4, len: 1.0, r: 0.5 });
+const MILK_SHAFTS_AT = fromStall(MILK, MILK_SHAFTS.lx, MILK_SHAFTS.lz);
 
 export const MARKET_COLLIDERS = freeze([
   freeze({ x: FOUNTAIN.x, z: FOUNTAIN.z, r: FOUNTAIN_COLLIDER_R }),
   ...STALLS.flatMap(stallColliders),
   ...STALLS.flatMap(standColliders),
   freeze({ x: FRUIT_CRATE_AT.x, z: FRUIT_CRATE_AT.z, r: FRUIT_CRATE.r }),
+  freeze({ x: MILK_SHAFTS_AT.x, z: MILK_SHAFTS_AT.z, r: MILK_SHAFTS.r }),
   ...MARKET_LAMPS.map((p) => freeze({ x: p.x, z: p.z, r: LAMP_R })),
+  ...MARKET_CLUTTER.flatMap((c) => c.solid),
 ]);
 
 export const MARKET_HIDES = freeze(STALLS.filter((s) => s.hide).map((s) => s.hide));
@@ -192,28 +247,29 @@ export function marketArea() {
 
 // Twelve places for the daily race and the quests, five golden finds. Plain
 // words, the same in both word sets. All on free cobbles, 3 m from every
-// collider; the south strip behind the spawn (about x 0, z 32) is kept free.
+// collider (the clutter's too) and off the café's tables; the south strip
+// behind the spawn (about x 0, z 23) is kept free.
 export const MARKET_POIS = freeze([
-  { x: 0, z: 22 }, // the south cobbles, by the spawn
-  { x: -8, z: 24 }, // the south-west cobbles
-  { x: -21, z: 12 }, // the west edge, by the flowers
-  { x: -22, z: -2 }, // the west edge, by the fish
-  { x: -22, z: -22 }, // the north-west corner
-  { x: 0, z: -14 }, // the north cobbles, under the fruit stall's row
-  { x: -4, z: 9 }, // the fountain's south side
-  { x: 5, z: -8 }, // the fountain's north side
-  { x: 22, z: -20 }, // the north-east corner
-  { x: 23, z: 0 }, // the east edge, past the milk cart
-  { x: 21, z: 15 }, // the east cobbles, by the café
-  { x: 18, z: 27 }, // the south-east corner
+  { x: 0, z: 18 }, // the south cobbles, by the spawn
+  { x: -12.5, z: 20 }, // the south-west corner, past the café
+  { x: -19.5, z: 1.5 }, // the west edge, behind the fish
+  { x: -19.5, z: -15.5 }, // the north-west corner
+  { x: -6.5, z: -19.5 }, // the north cobbles, behind the baker
+  { x: 15.5, z: -19.5 }, // the north-east corner
+  { x: 19.5, z: 8.5 }, // the east edge, past the flowers
+  { x: 17.5, z: 17.5 }, // the south-east corner
+  { x: -3, z: 8 }, // the fountain's south side, by the bench
+  { x: -1, z: -7 }, // the fountain's north side
+  { x: 9, z: -4 }, // between the fountain and the flowers
+  { x: -12.5, z: -7 }, // between the fish and the baker
 ].map(freeze));
 
 export const MARKET_COLLECTIBLES = freeze([
-  { id: 'market-1', x: -4, z: 18, label: 'a shiny button' },
-  { id: 'market-2', x: -25, z: 5, label: 'a dropped coin' },
-  { id: 'market-3', x: 4, z: -19, label: 'a red ribbon' },
-  { id: 'market-4', x: 26, z: -10, label: 'a paper ticket' },
-  { id: 'market-5', x: 17, z: 12, label: 'a little brass key' },
+  { id: 'market-1', x: -15, z: 9, label: 'a shiny button' },
+  { id: 'market-2', x: -7, z: -1.5, label: 'a dropped coin' },
+  { id: 'market-3', x: 7, z: -16, label: 'a red ribbon' },
+  { id: 'market-4', x: 18.5, z: 1, label: 'a paper ticket' },
+  { id: 'market-5', x: 4.5, z: 8.5, label: 'a little brass key' },
 ].map(freeze));
 
 // The picture views (verify-market.html's __shot, scripts/record-page.mjs
@@ -229,24 +285,24 @@ function counterShot(id) {
   const at = fromStall(s, 0, 0);
   return view(eye.x, COUNTER_EYE, eye.z, at.x, COUNTER_LOOK, at.z);
 }
-const SPAWN_VIEW = '0,2.2,33.5,0,0.4,29';
+const SPAWN_VIEW = '0,2.2,25,0,0.4,20.5';
 export const MARKET_SHOTS = Object.freeze({
   // the walk's own camera at the spawn (4.5 m behind her, 2.2 m up), up the square to the fountain
   spawn: SPAWN_VIEW,
-  fountain: '6,1.6,9,0,1.4,0',
+  fountain: '4.5,1.5,7,0,1.4,0',
   fish: counterShot('fish'),
   baker: counterShot('baker'),
   cheese: counterShot('cheese'),
   milk: counterShot('milk'),
   // from the fountain's side, the tables in front of the café's awning
-  cafe: '5,1.3,14.5,11,1.3,23',
+  cafe: '-2.5,1.3,9.5,-7.5,1.2,18',
   // high over the south-west corner, the whole square and all six stalls
-  overview: '-26,24,30,2,0,-2',
+  overview: '-17,17,21,1,0,-1',
   // the spawn view again, at 390 x 844
   phone: SPAWN_VIEW,
-  // the place card: from the café side, over the bunting to two stalls and the fountain
-  // (east of the café, by the milk cart: the cart, the fountain, the cheese and baker's stalls)
-  card: '20,4,11,5,1.8,-8',
+  // the place card: from the café side, under the bunting, to the milk cart, the flower
+  // stall and the fountain, the baker's, cheese and fruit stalls beyond
+  card: '-4,3.2,17,5,1.5,2',
 });
 
 export const MARKET_REGISTRATION = freeze({

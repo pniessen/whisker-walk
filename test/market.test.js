@@ -61,8 +61,11 @@ const clearOf = (x, z, colliders) => Math.min(...colliders.map((c) => Math.hypot
 // sacks, barrels and handcarts in buckets the square had: +5,892 triangles.
 // Task 6 (2026-11-21): the shop fronts cast nothing (market.js WHAT CASTS):
 // -4 casters, built and merged.
-const MEASURED_BUILT = { meshes: 79, casters: 26, triangles: 33005 };
-const MEASURED_MERGED = { meshes: 76, casters: 23, triangles: 33005 };
+// Task 6's rework (controller's ruling, 2026-11-21): the square drawn in to 42 x 44
+// m, the clutter (15 things, each its own child: +27 meshes, the noticeboard
+// the one caster), the milk cart on spoked wheels, finer cobbles: +3,292 triangles.
+const MEASURED_BUILT = { meshes: 106, casters: 27, triangles: 36297 };
+const MEASURED_MERGED = { meshes: 103, casters: 24, triangles: 36297 };
 const MEASURED_DRAWS = 0;
 
 function budgetStats(s) {
@@ -348,7 +351,7 @@ describe('the Market Square drawn', () => {
     expect(found).toHaveLength(4);
     for (const f of found) expect(f.obj.userData.lampGlobeY).toBeGreaterThan(0);
     const spots = found.map((f) => [Math.round(f.x), Math.round(f.z)]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    expect(spots).toEqual([[-10, -10], [-10, 10], [10, -10], [10, 10]]);
+    expect(spots).toEqual([[-5, -5], [-5, 5], [5, -5], [5, 5]]);
   });
 
   it('the built counts are pinned, within the aim (180 / 110 / 45,000)', () => {

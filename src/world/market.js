@@ -11,6 +11,7 @@ import {
 import {
   MARKET_BOUNDS, MARKET_SPAWN, FOUNTAIN, CAFE, STALLS, TREAT_STALLS, stallById, fromStall,
   MARKET_COLLIDERS, MARKET_KEEPOUT, MARKET_POIS, MARKET_COLLECTIBLES, FRUIT_CRATE, MARKET_LAMPS,
+  MARKET_CLUTTER, BENCH_AT, BICYCLE_AT, MILK_SHAFTS,
 } from './marketplan.js';
 
 // =============================================================================
@@ -23,14 +24,17 @@ import {
 // away), the lanterns glow, and the treats are still there (setMarketDusk).
 //
 //                         fruit
-//            baker                       cheese
-//                  lamp            lamp
-//     fish           (fountain + mast)           milk
-//                  lamp            lamp
-//     flowers                                café tables
-//                              ^ spawn          (crumbs)
+//            baker                    cheese
+//                  lamp          lamp
+//     fish          (fountain + mast)       flowers
+//                  lamp          lamp
+//        café tables                    milk cart
+//          (crumbs)       ^ spawn
 //   shop fronts close the square just outside the bounds on all four sides;
-//   the south row has a 3.2 m gap at x = 0 for step 4's gateway (U3)
+//   the south row has a 3.2 m gap at x = 0 for step 4's gateway (U3), with a
+//   tub of flowers either side of it. 42 x 44 m (Task 6's ruling), and the
+//   cobbles between the stalls dressed with marketplan.js's MARKET_CLUTTER:
+//   barrows, benches, tubs, crate stacks, a noticeboard, a parked bicycle.
 //
 // HOW IT IS BUILT. Everything is made inside withLocalUuids, so the build
 // draws nothing from Math.random (variation is hash01); the shared builders'
@@ -83,12 +87,19 @@ export const MARKET_SKY_DUSK = Object.freeze({ top: 0x2a3358, horizon: 0xa86e62 
 export const LANTERN_MAX = 1.6; // the lanterns' emissiveIntensity at full dusk
 export const WINDOW_GLOW = 1.0; // the lit shop and house windows' at full dusk
 const GROUND_SIZE = 96;
-const FLAG_RING = Object.freeze({ r0: 3.15, r1: 6.6, y: 0.012, color: 0x9a9284 });
+// The cobbles (Task 6): the shared 'cobble' surface tiled at 0.6 m, so its 4 x 4
+// setts are 15 cm stones (the shared tile's are 30 cm, which read as big even
+// tiles at a cat's height), and a gentle tone step per ground vertex (2 m
+// apart) on top of builder.ground's macro patches, so the fine tile never
+// reads as one even sheet.
+const COBBLE_TILE = 0.6;
+const COBBLE_TONE = 0.06; // ± this much value, vertex to vertex
+const FLAG_RING = Object.freeze({ r0: 3.15, r1: 5.4, y: 0.012, color: 0x9a9284 });
 
 // The far town, round the shop fronts: blocks hazed by the fog, some tall
 // enough to show over the roofs.
 export const MARKET_HORIZON = Object.freeze({
-  kind: 'skyline', inner: 40, outer: 100, height: 16, wavelength: 40, blocks: 56, color: 0x8f8584, salt: 67,
+  kind: 'skyline', inner: 32, outer: 92, height: 16, wavelength: 40, blocks: 56, color: 0x8f8584, salt: 67,
 });
 
 // The fountain: the Park's (r 2.65 at its plinth) scaled to the plan's r 3.2,
@@ -155,7 +166,11 @@ const GLASS = 0x34404c;
 const FRAME = 0xefe9dc;
 const DOORS = Object.freeze([0x4a3426, 0x2f4268, 0x3d6b4f, 0x7a2f35]);
 // the café's front, on the south row behind its tables
-const CAFE_FRONT = Object.freeze({ x0: 7.5, x1: 14, depth: 2.2, y: 2.75 });
+const CAFE_FRONT = Object.freeze({ x0: -10, x1: -5, depth: 2.2, y: 2.75 });
+
+// The clutter's shapes (marketplan.js MARKET_CLUTTER places them).
+const BENCH_SEAT_Y = 0.48;
+const BIKE = Object.freeze({ wheelR: 0.33, axle: 0.52, basketX: 0.62 });
 
 // The anchors for step 3: where things will be, { x, z, y } (y their top).
 const BAKER = stallById('baker');
@@ -165,16 +180,17 @@ export const MARKET_ANCHORS = Object.freeze({
   flourSacks: Object.freeze({ ...fromStall(BAKER, -(BAKER.w / 2 + 0.6), -BAKER.d / 2 + 0.5), y: 0.45 }),
   // the crate of apples at the fruit stall's end (step 3's rolling fruit; drawn here, solid in the plan)
   apples: Object.freeze({ ...fromStall(FRUIT, FRUIT_CRATE.lx, FRUIT_CRATE.lz), y: FRUIT_CRATE.h }),
-  // a bench facing the fountain (step 3 draws it): its seat
-  bench: Object.freeze({ x: -6.5, z: 8.5, y: 0.54 }),
-  // a bicycle parked by the south-west shop fronts (step 3): its basket
-  basket: Object.freeze({ x: -12, z: 30.6, y: 0.9 }),
+  // the bench facing the fountain (drawn here, MARKET_CLUTTER; step 3 makes it a perch): its seat
+  bench: Object.freeze({ x: BENCH_AT.x, z: BENCH_AT.z, y: BENCH_SEAT_Y }),
+  // the bicycle parked on the south row's foot (drawn here, outside the bounds): its basket,
+  // whose front lip is just inside them
+  basket: Object.freeze({ x: BICYCLE_AT.x + BIKE.basketX, z: MARKET_BOUNDS.maxZ - 0.05, y: 0.9 }),
 });
 
 const MARKET_SCENICS = Object.freeze([Object.freeze({ id: 'market-fountain', x: 0, z: 5.6, label: 'the fountain' })]);
 const MARKET_BIRDS = Object.freeze([
-  Object.freeze({ type: 'bird', x: -5, z: 15 }),
-  Object.freeze({ type: 'bird', x: 20, z: -12 }),
+  Object.freeze({ type: 'bird', x: -2.5, z: 12 }),
+  Object.freeze({ type: 'bird', x: 14, z: -14 }),
 ]);
 
 // ---------------------------------------------------------------------------
@@ -331,6 +347,7 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
     const paint = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 });
     const flags = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
     const barrel = new THREE.CylinderGeometry(0.5, 0.5, 1, 12).translate(0, 0.5, 0);
+    const wheel = new THREE.CylinderGeometry(0.5, 0.5, 1, 14).translate(0, 0.5, 0);
     const disc = new THREE.CircleGeometry(0.5, 10).rotateX(-Math.PI / 2);
     const quad = new THREE.PlaneGeometry(1, 1);
 
@@ -342,7 +359,7 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
     const packKit = makeKit('marketPacking');
     for (const s of STALLS) {
       if (s.w <= 0) continue;
-      scene.add(drawStall(s, { PARTS, M, paint, barrel, disc, quad, lanterns, poles, basketKit, packKit }));
+      scene.add(drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, poles, basketKit, packKit }));
     }
     drawCafe(scene, { PARTS, M, paint, lanterns });
     for (const { x, z } of MARKET_LAMPS) {
@@ -350,6 +367,11 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       lamp.name = `marketLamp:${x},${z}`;
       scene.add(lamp);
     }
+    // the clutter (Task 6): each thing its own top-level child, so the walk's
+    // contact shadows find each one and its merge keeps them apart
+    const tyre = new THREE.TorusGeometry(0.5, 0.07, 6, 20);
+    for (const c of MARKET_CLUTTER) scene.add(drawClutter(c, { PARTS, M, paint, barrel, wheel, tyre, disc, quad }));
+    tyre.dispose();
 
     // the treats on display, each its own top-level child
     const treatMeshes = {};
@@ -397,6 +419,7 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
     // nothing in the scene holds the kit's own geometries: they were cloned into place
     PARTS.dispose();
     barrel.dispose();
+    wheel.dispose();
     disc.dispose();
     quad.dispose();
 
@@ -449,6 +472,18 @@ function groupOf(name, kit) {
 // --- the cobbles and the flagstones round the fountain
 function drawGround(scene) {
   const ground = b.ground(GROUND_SIZE, MARKET_COBBLE, { surface: 'cobble' });
+  // finer setts (COBBLE_TILE), keeping builder.ground's macro patches (vertex colours)
+  const n = Math.round(GROUND_SIZE / COBBLE_TILE);
+  ground.material.dispose();
+  ground.material = litMaterial(MARKET_COBBLE, { surface: 'cobble', repeat: [n, n] });
+  ground.material.vertexColors = true;
+  const col = ground.geometry.attributes.color;
+  const gp = ground.geometry.attributes.position;
+  for (let i = 0; i < col.count; i++) {
+    const k = 1 + COBBLE_TONE * (2 * hash01(Math.round(gp.getX(i) * 10), Math.round(gp.getY(i) * 10), 57) - 1);
+    col.setXYZ(i, col.getX(i) * k, col.getY(i) * k, col.getZ(i) * k);
+  }
+  col.needsUpdate = true;
   ground.name = 'marketCobbles';
   scene.add(ground);
   const ring = new THREE.RingGeometry(FLAG_RING.r0, FLAG_RING.r1, 48, 1);
@@ -517,8 +552,22 @@ function awningGeom(s) {
   return { sx, sz, cz, z1, yAt };
 }
 
+// A cart's spoked wheel in a kit's frame: its centre at (x, r, z), its face
+// to `side` (+1 +z, -1 -z): a dark rim, a pale disc set in it, four spokes and
+// a hub. `wood` and `box` are the kit's painters, `wheel` the build's unit
+// cylinder (base at 0).
+function cartWheel(wood, box, wheel, x, z, side, r) {
+  const face = (dz, rr, t, color) => wood(wheel, mat4(x, r, z + side * dz, { pitch: Math.PI / 2, sx: 2 * rr, sy: t, sz: 2 * rr }).multiply(mat4(0, -0.5, 0)), color);
+  face(0, r, 0.06, WOOD_DARK); // the rim
+  face(0.012, r * 0.8, 0.06, 0xc9a26e); // the wheel's pale face, inside the rim
+  for (let k = 0; k < 4; k++) {
+    box(x, r - 0.02, z + side * 0.05, 2 * r * 0.78, 0.04, 0.02, WOOD_DARK, { roll: (k * Math.PI) / 4 });
+  }
+  face(0.05, 0.07, 0.06, WOOD_DARK); // the hub
+}
+
 // --- one stall, in its own group at its plan spot
-function drawStall(s, { PARTS, M, paint, barrel, disc, quad, lanterns, poles, basketKit, packKit }) {
+function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, poles, basketKit, packKit }) {
   const look = STALL_LOOK[s.id];
   const g = new THREE.Group();
   g.name = `marketStall:${s.id}`;
@@ -573,17 +622,35 @@ function drawStall(s, { PARTS, M, paint, barrel, disc, quad, lanterns, poles, ba
   }
 
   if (cart) {
-    // the milk cart: a body on two wheels, shafts out the back, churns on top
-    box(0, 0.4, D / 2 - cd / 2, W, 0.55, cd, look.paint);
-    box(0, 0.95, D / 2 - cd / 2, W + 0.04, 0.04, cd + 0.04, TOPBOARD);
-    for (const sx of [-1, 1]) {
-      wood(barrel, mat4(sx * (W / 2 + 0.05), 0.42, D / 2 - cd / 2, { roll: Math.PI / 2, sx: 0.84, sy: 0.07, sz: 0.84 }), WOOD_DARK);
-      box(sx * 0.5, 0.45, -D / 4 + 0.05, 0.06, 0.06, D / 2 + 0.1, WOOD);
+    // the milk cart, its long side to the square (Task 6: it must read as a
+    // cart from the front): a green body on four spoked wheels, two each
+    // side, the shafts lying out from the end away from the hide down to the
+    // cobbles (marketplan.js MILK_SHAFTS, solid), churns on top
+    const bz = D / 2 - cd / 2;
+    box(0, 0.42, bz, W, 0.53, cd, look.paint);
+    box(0, 0.42, bz, W + 0.04, 0.05, cd + 0.04, WOOD_DARK); // the chassis rail
+    box(0, 0.95, bz, W + 0.04, 0.04, cd + 0.04, TOPBOARD);
+    for (const side of [-1, 1]) {
+      const z = bz + side * (cd / 2 + 0.045);
+      for (const wx of [-1, 1]) cartWheel(wood, box, wheel, wx * (W / 2 - 0.42), z, side, 0.36);
+    }
+    {
+      // two poles, from the chassis at the cart's end (0.68 up) to their tips on the cobbles
+      const [xm] = pl(MILK_SHAFTS.lx, 0); // their middle, over the plan's circle
+      const rise = 0.62;
+      const tilt = Math.sign(xm) * -Math.atan2(rise, MILK_SHAFTS.len);
+      for (const dz of [-0.24, 0.24]) {
+        wood(PARTS.box, mat4(xm, 0.06 + rise / 2, bz + dz, { roll: tilt, sx: Math.hypot(MILK_SHAFTS.len, rise), sy: 0.05, sz: 0.05 }), WOOD);
+      }
+      // the swingle-bar across their tips
+      box(xm + Math.sign(xm) * (MILK_SHAFTS.len / 2 - 0.05), 0.02, bz, 0.05, 0.05, 0.6, WOOD_DARK);
     }
     for (let i = 0; i < 3; i++) {
       const x = -W / 2 + 0.45 + i * ((W - 0.9) / 2);
-      metal(barrel, mat4(x, 0.99, D / 2 - cd / 2, { sx: 0.3, sy: 0.5, sz: 0.3 }));
-      metal(barrel, mat4(x, 1.49, D / 2 - cd / 2, { sx: 0.2, sy: 0.08, sz: 0.2 }));
+      metal(barrel, mat4(x, 0.99, bz, { sx: 0.3, sy: 0.42, sz: 0.3 }));
+      metal(PARTS.bulb, mat4(x, 1.41, bz, { sx: 0.3, sy: 0.12, sz: 0.3 })); // the shoulder
+      metal(barrel, mat4(x, 1.44, bz, { sx: 0.16, sy: 0.1, sz: 0.16 })); // the neck
+      metal(barrel, mat4(x, 1.54, bz, { sx: 0.2, sy: 0.04, sz: 0.2 })); // the lid
     }
   } else {
     // the counter: a painted front with a board on top
@@ -689,6 +756,106 @@ function drawStall(s, { PARTS, M, paint, barrel, disc, quad, lanterns, poles, ba
 function basketAt(kit, PARTS, paint, M, disc, m, cell) {
   kit.put('wicker', paint, PARTS.basket, m.clone().multiply(mat4(0, 0, 0, { sx: 0.36, sy: 0.22, sz: 0.36 })), { color: WICKER, noCast: true });
   kit.put('produce', M.stall, disc, m.clone().multiply(mat4(0, 0.2, 0, { sx: 0.34, sz: 0.34 })), { cell, noCast: true });
+}
+
+// --- the clutter (marketplan.js MARKET_CLUTTER): one group a thing, turned by
+// its yaw, one mesh per material; everything under 1.3 m casts nothing, the
+// noticeboard (1.95 m) does.
+const BENCH_GREEN = 0x3d6b4f;
+const IRON = 0x34383c;
+const SACK = 0xc9b48a;
+const NOTES = Object.freeze([0xf3ead2, 0xe8d36a, 0xa9cfdc, 0xe7a5b5, 0xffffff]);
+function drawClutter(c, { PARTS, M, paint, barrel, wheel, tyre, disc, quad }) {
+  const g = new THREE.Group();
+  g.name = `marketClutter:${c.id}`;
+  g.userData.clutter = c.kind;
+  g.position.set(c.x, 0, c.z);
+  g.rotation.y = c.yaw;
+  const casts = c.kind === 'board';
+  const K = makeKit(`marketClutter:${c.id}`);
+  const wood = (geo, m, color = WOOD) => K.put('paint', paint, geo, m, { color, noCast: !casts });
+  const atlas = (geo, m, cell) => K.put('atlas', M.stall, geo, m, { cell, noCast: true });
+  const box = (x, y, z, w, h, d, color, extra = {}) => wood(PARTS.crate, mat4(x, y, z, { sx: w, sy: h, sz: d, ...extra }), color);
+  // a beam between two points in the x-y plane, at depth z
+  const tube = (ax, ay, bx, by, z, t, color) => wood(PARTS.box, mat4((ax + bx) / 2, (ay + by) / 2, z, { roll: Math.atan2(by - ay, bx - ax), sx: Math.hypot(bx - ax, by - ay), sy: t, sz: t }), color);
+  const crateOf = (x, y, z, cell, yaw = 0) => {
+    box(x, y, z, 0.5, 0.22, 0.42, CRATE, { yaw });
+    atlas(quad, mat4(x, y + 0.225, z, { yaw, pitch: -Math.PI / 2, sx: 0.46, sy: 0.38 }), cell);
+  };
+  if (c.kind === 'barrow') {
+    // a market handcart: a tray of crates on two wheels, legs at one end, handles at the other
+    box(0, 0.38, 0, 1.3, 0.05, 0.72, WOOD);
+    for (const sz of [-1, 1]) box(0, 0.43, sz * 0.36, 1.3, 0.22, 0.04, WOOD);
+    for (const sx of [-1, 1]) box(sx * 0.65, 0.43, 0, 0.04, 0.22, 0.72, WOOD);
+    for (const sz of [-1, 1]) {
+      cartWheel(wood, box, wheel, 0.2, sz * 0.43, sz, 0.3);
+      box(-0.55, 0, sz * 0.3, 0.05, 0.38, 0.05, WOOD_DARK);
+      box(0.95, 0.5, sz * 0.3, 0.62, 0.04, 0.04, WOOD_DARK);
+    }
+    crateOf(-0.32, 0.43, 0, 6, 0.06);
+    crateOf(0.3, 0.43, 0.02, 7, -0.05);
+    crateOf(-0.02, 0.65, 0, c.id.endsWith('w') ? 9 : 10, 0.1);
+  } else if (c.kind === 'bench') {
+    // a park bench, its front (+z) to the fountain: iron ends, green slats
+    for (const sx of [-1, 1]) {
+      box(sx * 0.7, 0, 0.13, 0.05, BENCH_SEAT_Y - 0.04, 0.05, IRON);
+      tube(sx * 0.7, 0, sx * 0.7, 0.95, -0.17, 0.05, IRON);
+      box(sx * 0.7, BENCH_SEAT_Y - 0.08, -0.02, 0.05, 0.04, 0.36, IRON);
+    }
+    for (const sz of [-0.12, 0, 0.12]) box(0, BENCH_SEAT_Y - 0.03, sz, 1.62, 0.03, 0.1, BENCH_GREEN);
+    for (const y of [0.62, 0.79]) box(0, y, -0.18, 1.62, 0.1, 0.03, BENCH_GREEN);
+  } else if (c.kind === 'tub') {
+    // a half-barrel of flowers: two iron hoops, a dome of blooms
+    wood(barrel, mat4(0, 0, 0, { sx: 0.76, sy: 0.45, sz: 0.76 }), WOOD);
+    for (const y of [0.07, 0.33]) wood(barrel, mat4(0, y, 0, { sx: 0.785, sy: 0.04, sz: 0.785 }), IRON);
+    atlas(PARTS.bulb, mat4(0, 0.43, 0, { sx: 0.68, sy: 0.42, sz: 0.68 }), 8);
+  } else if (c.kind === 'stack') {
+    // crates three high, one beside, two sacks and a basket of apples on top
+    box(-0.15, 0, 0, 0.5, 0.3, 0.42, CRATE);
+    box(-0.13, 0.3, 0.02, 0.48, 0.3, 0.4, CRATE, { yaw: 0.1 });
+    box(-0.16, 0.6, 0, 0.46, 0.28, 0.4, CRATE, { yaw: -0.08 });
+    box(0.33, 0, 0.08, 0.44, 0.3, 0.4, CRATE, { yaw: 0.25 });
+    wood(PARTS.bulb, mat4(0.3, 0.22, -0.32, { yaw: 0.4, sx: 0.36, sy: 0.46, sz: 0.3 }), SACK);
+    wood(PARTS.bulb, mat4(0.34, 0.48, 0.08, { yaw: -0.3, sx: 0.34, sy: 0.38, sz: 0.28 }), 0xbfa77a);
+    wood(PARTS.basket, mat4(-0.16, 0.88, 0, { sx: 0.32, sy: 0.18, sz: 0.32 }), WICKER);
+    atlas(disc, mat4(-0.16, 1.04, 0, { sx: 0.3, sz: 0.3 }), 6);
+  } else if (c.kind === 'board') {
+    // the noticeboard: two posts, a green frame, a cork face with notes, a little roof
+    for (const sx of [-1, 1]) box(sx * 0.55, 0, 0, 0.08, 1.95, 0.08, WOOD_DARK);
+    box(0, 0.95, 0, 1.3, 0.85, 0.05, BENCH_GREEN);
+    box(0, 1.0, 0.026, 1.16, 0.75, 0.01, 0xb98a5a);
+    NOTES.forEach((col, i) => {
+      const x = -0.42 + i * 0.21 + 0.03 * Math.sin(i * 2.1);
+      const y = 1.12 + 0.24 * ((i % 2) - 0.5) + 0.04 * Math.cos(i * 1.7);
+      box(x, y, 0.034, 0.17 + 0.04 * (i % 3), 0.22, 0.006, col, { roll: 0.12 * Math.sin(i * 3.3) });
+    });
+    box(0, 1.92, 0, 1.5, 0.05, 0.26, WOOD_DARK);
+  } else if (c.kind === 'bicycle') {
+    // a parked bicycle, leaning to the wall (+z), its basket over the front wheel
+    const fr = 0x2f5f5f;
+    const A = BIKE.axle;
+    const R = BIKE.wheelR;
+    for (const sx of [-1, 1]) {
+      wood(tyre, mat4(sx * A, R, 0, { sx: 2 * R / 1.07, sy: 2 * R / 1.07, sz: 0.6 }), 0x26282a);
+      wood(barrel, mat4(sx * A, R, -0.04, { pitch: Math.PI / 2, sx: 0.06, sy: 0.08, sz: 0.06 }), IRON);
+    }
+    const BB = [-0.06, 0.3], S = [-0.2, 0.8], H = [0.36, 0.84], Hb = [0.4, 0.64];
+    tube(-A, R, BB[0], BB[1], 0, 0.035, fr);
+    tube(-A, R, S[0], S[1], 0, 0.03, fr);
+    tube(BB[0], BB[1], S[0], S[1], 0, 0.04, fr);
+    tube(BB[0], BB[1], Hb[0], Hb[1], 0, 0.04, fr);
+    tube(S[0], S[1], H[0], H[1], 0, 0.035, fr);
+    tube(H[0], H[1], Hb[0], Hb[1], 0, 0.04, fr);
+    tube(Hb[0], Hb[1], A, R, 0, 0.03, fr);
+    box(S[0] - 0.03, S[1] + 0.02, 0, 0.24, 0.05, 0.1, 0x4a3426); // the saddle
+    tube(H[0], H[1], H[0] - 0.02, H[1] + 0.08, 0, 0.03, fr);
+    box(H[0] - 0.02, H[1] + 0.08, 0, 0.04, 0.035, 0.52, IRON); // the handlebar
+    wood(PARTS.basket, mat4(BIKE.basketX, 0.76, 0, { sx: 0.3, sy: 0.22, sz: 0.34 }), WICKER);
+    atlas(disc, mat4(BIKE.basketX, 0.95, 0, { sx: 0.26, sz: 0.3 }), 9);
+    g.rotation.x = 0.1;
+  }
+  for (const m of K.meshes()) g.add(m);
+  return g;
 }
 
 // --- the café: three tables with their chairs, and its front on the south row
@@ -806,6 +973,7 @@ function drawShopFront(side, { paint, winLit, litKit, barrel, sack }) {
   for (let u = side.u0 + 5 + 2 * hash01(si, 0, 73); u < side.u1 - 4; u += 4.5 + 3 * hash01(u, si, 74), i++) {
     if (side.gaps.some(([g0, g1]) => u > g0 - 2 && u < g1 + 2)) continue;
     if (cafeU && u > cafeU[0] - 1 && u < cafeU[1] + 1) continue;
+    if (side.id === 'south' && Math.abs(u + BICYCLE_AT.x) < 1.6) continue; // the parked bicycle
     const kind = (i + si) % 4;
     if (kind === 0) {
       // a tall stack and a short one beside it

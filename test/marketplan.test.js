@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   MARKET_BOUNDS, MARKET_SPAWN, FOUNTAIN, CAFE, STALLS, TREAT_STALLS, stallById, toStall, fromStall,
   MARKET_COLLIDERS, MARKET_HIDES, MARKET_KEEPOUT, marketArea, MARKET_REGISTRATION, MARKET_POIS, MARKET_COLLECTIBLES,
+  MARKET_CLUTTER, MARKET_LAMPS,
 } from '../src/world/marketplan.js';
 import { isWalkableAt } from '../src/player.js';
 import { keepOutPoint } from '../src/keepout.js';
@@ -18,10 +19,11 @@ const inZone = (s, x, z) => {
 };
 
 describe('the plan of the Market Square', () => {
-  it('is a calm square, about 60 by 60 metres', () => {
+  it('is a calm square, 40 to 46 metres each way', () => {
+    // controller's ruling (Task 6, 2026-11-21): 60 x 62 m read as big and empty to a cat
     const w = MARKET_BOUNDS.maxX - MARKET_BOUNDS.minX, h = MARKET_BOUNDS.maxZ - MARKET_BOUNDS.minZ;
-    expect(w).toBeGreaterThanOrEqual(55); expect(w).toBeLessThanOrEqual(65);
-    expect(h).toBeGreaterThanOrEqual(55); expect(h).toBeLessThanOrEqual(65);
+    expect(w).toBeGreaterThanOrEqual(40); expect(w).toBeLessThanOrEqual(46);
+    expect(h).toBeGreaterThanOrEqual(40); expect(h).toBeLessThanOrEqual(46);
     expect(isWalkableAt(a, MARKET_SPAWN.x, MARKET_SPAWN.z)).toBe(true);
   });
 
@@ -142,9 +144,55 @@ describe('the plan of the Market Square', () => {
       expect(isWalkableAt(a, p.x, p.z), JSON.stringify(p)).toBe(true);
       for (const c of MARKET_COLLIDERS) expect(Math.hypot(p.x - c.x, p.z - c.z) - c.r, JSON.stringify(p)).toBeGreaterThanOrEqual(3);
       // the strip behind the spawn is kept free for step 4's gateway
-      expect(Math.hypot(p.x, p.z - 32)).toBeGreaterThan(3);
+      expect(Math.hypot(p.x, p.z - MARKET_BOUNDS.maxZ)).toBeGreaterThan(3);
     }
     expect(new Set(MARKET_COLLECTIBLES.map((c) => c.id)).size).toBe(5);
+  });
+
+  it('a treat stall is close: the nearest about 12 m from the spawn', () => {
+    const near = Math.min(...TREAT_STALLS.map((id) => dist(stallById(id).at, MARKET_SPAWN)));
+    expect(near).toBeLessThanOrEqual(12.5);
+  });
+
+  it('lanes: 2.5 m of free cobbles between any two stalls, and between each stall and the fountain', () => {
+    // a stall's footprint is its counter's rectangle (the café has none)
+    const corners = (s) => [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => fromStall(s, (a * s.w) / 2, (b * s.d) / 2));
+    const drawn = STALLS.filter((s) => s.w > 0);
+    const gap = (s, o) => {
+      // the nearest two points of two rectangles, sampled along their edges
+      let m = Infinity;
+      const edge = (cs) => cs.flatMap((c, i) => { const n = cs[(i + 1) % 4]; return Array.from({ length: 21 }, (_, k) => ({ x: c.x + ((n.x - c.x) * k) / 20, z: c.z + ((n.z - c.z) * k) / 20 })); });
+      const ea = edge(corners(s)), eb = edge(corners(o));
+      for (const p of ea) for (const q of eb) m = Math.min(m, dist(p, q));
+      return m;
+    };
+    for (const s of drawn) {
+      for (const o of drawn) if (o !== s) expect(gap(s, o), `${s.id}/${o.id}`).toBeGreaterThanOrEqual(2.5);
+      expect(Math.min(...corners(s).map((c) => dist(c, FOUNTAIN))) - FOUNTAIN.r, s.id).toBeGreaterThanOrEqual(2.5);
+    }
+  });
+
+  it('the clutter stands clear of every watch zone, every hide, the fountain and the gateway\'s lane', () => {
+    expect(MARKET_CLUTTER.length).toBeGreaterThanOrEqual(10);
+    const treat = TREAT_STALLS.map(stallById);
+    for (const c of MARKET_CLUTTER) {
+      // its own spot and each solid circle's edge points
+      const pts = [{ x: c.x, z: c.z }, ...c.solid.flatMap((q) => Array.from({ length: 8 }, (_, k) => ({ x: q.x + q.r * Math.cos((k * Math.PI) / 4), z: q.z + q.r * Math.sin((k * Math.PI) / 4) })))];
+      for (const s of treat) {
+        for (const p of pts) expect(inZone(s, p.x, p.z), `${c.id} in ${s.id}'s zone`).toBe(false);
+        expect(dist(c, s.hide), `${c.id} by ${s.id}'s hide`).toBeGreaterThan(1.5);
+      }
+      expect(dist(c, FOUNTAIN) - FOUNTAIN.r, c.id).toBeGreaterThanOrEqual(2.5);
+      // the gateway's lane (U3): x within 1.6 of 0, behind the spawn
+      expect(Math.abs(c.x) > 1.6 + 0.5 || c.z < MARKET_SPAWN.z, c.id).toBe(true);
+      // inside the bounds, but for the bicycle on the south row's foot
+      if (c.kind !== 'bicycle') expect(c.x > MARKET_BOUNDS.minX && c.x < MARKET_BOUNDS.maxX && c.z > MARKET_BOUNDS.minZ && c.z < MARKET_BOUNDS.maxZ, c.id).toBe(true);
+      // what a cat would walk through is solid; the bench (she goes under it) and the bicycle (outside) are not
+      expect(c.solid.length > 0, c.id).toBe(!['bench', 'bicycle'].includes(c.kind));
+      for (const q of c.solid) expect(MARKET_COLLIDERS, c.id).toContainEqual(q);
+    }
+    // and the lamps stand out of every zone too
+    for (const l of MARKET_LAMPS) for (const s of treat) expect(inZone(s, l.x, l.z), `lamp ${l.x},${l.z} in ${s.id}'s zone`).toBe(false);
   });
 
   it('nothing offers it yet, and strays are allowed', () => {
