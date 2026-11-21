@@ -167,12 +167,13 @@ describe('territories', () => {
     expect(m.island).toMatchObject({ status: 'built', areaId: 'pines' });
     const html = renderWorldMapHtml(worldMapModel(clanState(), CATALOG));
     for (const r of m.regions) expect(regionHtml(html, r.id), r.id).toContain(`data-dr-map-place="${r.areaId}"`);
-    // Eleven places: her six (Twolegplace, the Woods, the River, the Moor, the
-    // Pines and the Gorge) and the five street places around them; the island
-    // is a twelfth way in, to the Pines.
+    // Twelve places: her six (Twolegplace, the Woods, the River, the Moor, the
+    // Pines and the Gorge) and the five street places around them, plus the
+    // Rooftops' coming-soon spot in the town; the island is a thirteenth way
+    // in, to the Pines.
     const places = [...html.matchAll(/data-dr-map-place="([a-z]+)"/g)].map(([, id]) => id);
-    expect(new Set(places).size).toBe(11);
-    expect(places).toHaveLength(12);
+    expect(new Set(places).size).toBe(12);
+    expect(places).toHaveLength(13);
   });
 
   it("the island's star is the Pines' way in, locked and opened with it", () => {
@@ -189,8 +190,8 @@ describe('territories', () => {
     expect(regionHtml(html, 'island')).toContain('in the Pines and Swamp');
     expect(regionHtml(html, 'island')).toContain('tm-hit');
     expect(html.lastIndexOf('data-region="island"')).toBeGreaterThan(html.lastIndexOf('data-region="pines"'));
-    // Her six places, the five street places, and the island leading to the Pines
-    expect((html.match(/data-dr-map-place=/g) || []).length).toBe(12);
+    // Her six places, the five street places, the Rooftops' coming-soon spot, and the island leading to the Pines
+    expect((html.match(/data-dr-map-place=/g) || []).length).toBe(13);
   });
 
   it('the island is always built and says where it is, in its title and under its name, from one string (Polish 3)', () => {
@@ -200,7 +201,8 @@ describe('territories', () => {
     const isl = regionHtml(html, 'island');
     expect(isl).toContain(`aria-label="The island, ${ISLAND_WHERE}: `);
     expect(isl).toContain(`>${ISLAND_WHERE}</text>`);
-    expect(html).not.toContain('coming soon');
+    // The island is never 'coming soon' (the Rooftops, elsewhere on the map, are)
+    expect(isl).not.toContain('coming soon');
   });
 
   it('the map has the lake, the island, the pond, the river, three paths and the bridge', () => {
