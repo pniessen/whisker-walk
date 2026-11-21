@@ -954,6 +954,7 @@ export function createWalkLifecycle({
     const pace = 2.2 + PERSONALITIES[active.breed].speed * 0.8;
     player.setAvatar(cat, pace);
     player.setGround(ground);
+    player.setCameraGround(areaData.cameraGround); // the house's floors without the furniture tops; elsewhere none
     // v18 CF-10b: without this, Long Zoomies did nothing in the running game —
     // player.js shipped the tuning and the state machine, but nothing ever
     // handed the player the save. Set AFTER setAvatar, which resets the charge

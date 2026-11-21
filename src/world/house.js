@@ -368,6 +368,7 @@ export function build(scene, { wind, gateEnds } = {}) {
     drawNeighbours(scene);
     drawTrees(scene, wind);
 
+    const floor = houseFloorGround();
     const areaData = {
       name: words().PLACE_WORDS.house,
       ground: plan.ground,
@@ -389,6 +390,9 @@ export function build(scene, { wind, gateEnds } = {}) {
       duskLight: HOUSE_DUSK_LIGHT,
       strays: false, // no strays, wanderer or ghosts indoors (U12)
       traversal: plan.traversal, // the climbs, drops, leaps and the plank up the furniture (step 2, D2)
+      // the camera keeps out of the floors, not the furniture tops (step 2, Task 3): a bookcase's
+      // end would snap the view in from metres out. Tall pieces fade; walls sink.
+      cameraGround: floor,
       house: {
         levels: plan.levels,
         links: plan.links,
@@ -401,7 +405,7 @@ export function build(scene, { wind, gateEnds } = {}) {
         // the secret bookcase and its two collider rows (`secret: true`): colliders holds the shut one
         secret: { group: secretGroup, shut: secretColliders(false), open: secretColliders(true) },
         // the ground without the ledges: the level drawing reads the floor under her (step 2, D3)
-        floor: houseFloorGround(),
+        floor,
       },
     };
     // every frame: the walls between the camera and the cat sink, and the levels are drawn for hers
