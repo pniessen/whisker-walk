@@ -50,6 +50,10 @@ export function createRooms({
   onlineAllowed = () => true,
   // A touch screen's toast says Tap, a desktop's Click (main.js's isTouch).
   getIsTouch = () => false,
+  // F6: every place is its own download (game/areaload.js). Each proposal the
+  // room gathers starts fetching its place, so it is likely here when the
+  // window closes. main.js passes the area loader's prefetch (never throws).
+  prefetchArea = () => {},
 }) {
   // Room state lives OUTSIDE the walk session — a room can be formed on the
   // home base screen (host/join) before anyone has clicked Start, and
@@ -62,6 +66,15 @@ export function createRooms({
   // starts. Dropped when any walk starts and whenever the room goes away
   // (leave, or endWalk's clear).
   let gathering = null;
+  // The gathered walk is starting and its place is still on its way (main.js's
+  // startWalk is walk.js's startWalkWhenReady, which waits for it). Home stays
+  // on "Starting…", and no second start opens meanwhile: not her own Start,
+  // nor one heard from the room. Held as the room the start was made in, so a
+  // room left (or torn down) during the wait never leaves the next room on
+  // "Starting…" or deaf to a proposal: starting() is true only while that
+  // room is still the pending one.
+  let startingWalk = null;
+  const starting = () => startingWalk !== null && startingWalk === pendingRoom;
   // host()/join() both check `pendingRoom` before doing anything async, but
   // pendingRoom itself is only set AFTER the await — a double-click (or
   // host+join fired back to back) would pass that guard twice and open two
@@ -139,23 +152,45 @@ export function createRooms({
   // my save; an unlocked one becomes my area, as it always has, unless the
   // edition says otherwise (roomAreaMove: a Legacy kid's Clan-only place is
   // never rewritten, and a Clan-only room place is never made theirs).
-  function startRoomWalk({ area, dusk, seed }) {
+  //
+  // F6: the start may wait for the place to load. A slow device stays on
+  // "Starting…" and joins the walk late; one whose place does not come
+  // ('failed': walk.js has said the gentle line), or whose start was dropped
+  // or busy, stays home and in the room, and its next Explore gets the usual
+  // "X is exploring" answer. A start that throws or rejects is noted, never
+  // thrown. setArea runs before startWalk: a place changed during the wait is
+  // how startWalkWhenReady knows to drop it.
+  async function startRoomWalk({ area, dusk, seed }) {
     clearGathering();
-    if (progression.isUnlocked('areas', area) && roomAreaMove(progression.state, CATALOG, area) === 'set') {
-      progression.setArea(area);
-      // setArea may refuse (it checks the edition itself); if it did, walk
-      // the room's place by override rather than whatever the save holds,
-      // so this device never builds a different place from its partner's.
-      if (progression.state.area === area) startWalk({ duskMode: dusk, roomSeed: seed });
-      else startWalk({ duskMode: dusk, roomSeed: seed, areaOverride: area });
-    } else {
-      startWalk({ duskMode: dusk, roomSeed: seed, areaOverride: area });
+    const room = pendingRoom;
+    startingWalk = room;
+    notifyRoomChange();
+    try {
+      let opts;
+      if (progression.isUnlocked('areas', area) && roomAreaMove(progression.state, CATALOG, area) === 'set') {
+        progression.setArea(area);
+        // setArea may refuse (it checks the edition itself); if it did, walk
+        // the room's place by override rather than whatever the save holds,
+        // so this device never builds a different place from its partner's.
+        if (progression.state.area === area) opts = { duskMode: dusk, roomSeed: seed };
+        else opts = { duskMode: dusk, roomSeed: seed, areaOverride: area };
+      } else {
+        opts = { duskMode: dusk, roomSeed: seed, areaOverride: area };
+      }
+      await Promise.resolve(startWalk(opts));
+    } catch (err) {
+      console.warn('Whisker Walk: a room walk did not start', err);
+      note('room', err);
+    } finally {
+      if (startingWalk === room) startingWalk = null; // a newer room's start is its own
+      notifyRoomChange();
     }
   }
 
   // Collect `proposal`, opening the gather window if none is open. When the
   // window closes, every device in the room starts the same proposal.
   function gather(proposal) {
+    prefetchArea(proposal.area);
     if (gathering) {
       gathering.proposals.push(proposal);
       return;
@@ -183,7 +218,7 @@ export function createRooms({
   // is no room, a walk is running, or a start is already being gathered: a
   // second press, or a press after someone else's Start was heard.
   function startRoomTogether({ area, dusk }) {
-    if (!pendingRoom || gathering || getSession()) return false;
+    if (!pendingRoom || gathering || starting() || getSession()) return false;
     const room = pendingRoom;
     // Someone in the room is already out walking: starting now would put us
     // in two different worlds in one room. Say so instead.
@@ -215,7 +250,8 @@ export function createRooms({
   // their walk — there's no separate "join the walk" click. The rules (whose
   // proposal counts, and when) are lobby.js's decideLobbyEvent.
   function handleLobbyEvent(ev) {
-    if (!pendingRoom) return;
+    // A start already on its way (its place loading) takes no other.
+    if (!pendingRoom || starting()) return;
     const d = decideLobbyEvent(ev, {
       roster: pendingRoom.roster,
       selfId: pid,
@@ -280,7 +316,7 @@ export function createRooms({
       if (!pendingRoom) return null;
       return {
         code: pendingRoom.code, roster: pendingRoom.roster, isHost: pendingRoom.net.isHost(),
-        pair: pendingRoom.pair, starting: !!gathering,
+        pair: pendingRoom.pair, starting: !!gathering || starting(),
         // This child tapped Host for this room (game/nearby.js: only such a
         // room is ever made findable nearby; isHost can move to a joiner).
         hosted: pendingRoom.hosted === true,

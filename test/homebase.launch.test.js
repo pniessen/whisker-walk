@@ -108,6 +108,20 @@ const PLAIN = { milestone: null, visits: 2 };
 // a Clan save whose Woods just opened, with no pick of her own
 const woodsOpened = (st) => { st.walks.neighborhood = 2; };
 
+describe('getting a place ready', () => {
+  it('Explore reads "Getting ready…" and is disabled while the flag is on, and Explore again when off', () => {
+    const { hb } = setup();
+    expect(html()).not.toContain('Getting ready');
+    hb.setGettingReady(true);
+    expect(html()).toMatch(/<button id="btn-start" class="primary" disabled>Getting ready…<\/button>/);
+    hb.show(); // coming home keeps it: the walk lifecycle clears it
+    expect(html()).toContain('Getting ready…');
+    hb.setGettingReady(false);
+    expect(html()).not.toContain('Getting ready');
+    expect(html()).toMatch(/<button id="btn-start" class="primary">Explore/);
+  });
+});
+
 describe('the top bar', () => {
   it('has the points pill, the rank pill, the visit pill and a Menu door, and no edition switch', () => {
     const { progression } = setup({ state: (st) => { st.points = 42; st.visits = 23; } });

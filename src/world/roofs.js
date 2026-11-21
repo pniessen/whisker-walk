@@ -185,18 +185,20 @@ function post(x, z, y0, h, rTop, rBot = rTop, seg = 8) {
   return g;
 }
 
-const _o = new THREE.Object3D();
+// Made at first use: an Object3D draws a UUID from Math.random, and importing the Rooftops must draw nothing.
+let _o = null;
 // The matrix that lays a thing made along +x from a to b ({ x, y, z }).
 function along(a, c) {
   const dx = c.x - a.x;
   const dy = c.y - a.y;
   const dz = c.z - a.z;
   const h = Math.hypot(dx, dz);
-  _o.position.set((a.x + c.x) / 2, (a.y + c.y) / 2, (a.z + c.z) / 2);
-  _o.rotation.set(0, -Math.atan2(dz, dx), Math.atan2(dy, h));
-  _o.scale.set(1, 1, 1);
-  _o.updateMatrix();
-  return { matrix: _o.matrix.clone(), len: Math.hypot(h, dy) };
+  const o = (_o ??= new THREE.Object3D());
+  o.position.set((a.x + c.x) / 2, (a.y + c.y) / 2, (a.z + c.z) / 2);
+  o.rotation.set(0, -Math.atan2(dz, dx), Math.atan2(dy, h));
+  o.scale.set(1, 1, 1);
+  o.updateMatrix();
+  return { matrix: o.matrix.clone(), len: Math.hypot(h, dy) };
 }
 // A board from a to b, its top on the line between them.
 function beam(a, c, width, thick) {

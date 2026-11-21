@@ -1624,12 +1624,11 @@ describe('The Fairground: registered everywhere a street area is', async () => {
   const { MARK_AREAS, emptyMarks } = await import('../src/marks.js');
   const { CLOUD_AREAS, AREA_SKY } = await import('../src/render/clouds.js');
   const { ambientKind } = await import('../src/render/ambient.js');
-  const { GRASS_STYLES, GROUND_TINTS, tuftAt } = await import('../src/render/grass.js');
+  const { GRASS_STYLES, grassStyle, tuftAt } = await import('../src/render/grass.js');
   const { COLONY_AREAS, feedsHere } = await import('../src/colony.js');
   const { LEGENDARY_BY_AREA } = await import('../src/legendary.js');
   const { DRESSED_AREAS } = await import('../src/render/waterdress.js');
   const { nextThing } = await import('../src/ui/nextthing.js');
-  const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
   const plain = (v) => JSON.parse(JSON.stringify(v));
   function fakeStorage(initial = {}) {
     const map = new Map(Object.entries(initial));
@@ -1710,12 +1709,6 @@ describe('The Fairground: registered everywhere a street area is', async () => {
     expect(p.state.marks.fair).toEqual([]);
   });
 
-  it('is in walk.js’s AREAS map, and its bulbs are lit by the walk’s dusk and by nothing else', () => {
-    expect(walkSrc).toMatch(/import \* as fair from '\.\.\/world\/fair\.js';/);
-    expect(walkSrc.match(/const AREAS = \{([^}]*)\}/)[1]).toContain('fair');
-    expect(walkSrc).toMatch(/if \(areaId === 'fair'\) fair\.setFairGlow\(areaData, duskLookNow \? 1 : 0\);/);
-  });
-
   it('holds the golden mice, the prop set and the rest looks exactly as its rows say', () => {
     expect(GOLD_MICE.fair).toEqual(plain(REG.goldMice));
     expect(GOLD_TOTAL).toBe(36);
@@ -1733,10 +1726,11 @@ describe('The Fairground: registered everywhere a street area is', async () => {
     expect(ambientKind('fair')).toBe(REG.ambient);
     expect(ambientKind('fair', { dusk: true })).toBe(REG.ambient);
     expect(AREA_RULES.fair).toEqual(plain(REG.pawprints));
-    expect(GROUND_TINTS.fair).toBe(fair[REG.grass.groundTint]);
-    expect(GRASS_STYLES.fair.bare).toBe(fair[REG.grass.bare]);
+    expect(fair.GRASS_HOOKS.tint).toBe(fair[REG.grass.groundTint]);
+    expect(fair.GRASS_HOOKS.bare).toBe(fair[REG.grass.bare]);
+    expect(GRASS_STYLES.fair.bare).toBeNull();
     // the Park's lawn in every other number
-    const { bare, ...rest } = GRASS_STYLES.fair;
+    const { bare, ...rest } = grassStyle('fair', fair.GRASS_HOOKS);
     expect(rest).toEqual({ ...GRASS_STYLES.park });
   });
 
@@ -1746,7 +1740,7 @@ describe('The Fairground: registered everywhere a street area is', async () => {
     const s = 0.3;
     for (let i = -150; i < 150; i++) {
       for (let j = -150; j < 150; j++) {
-        const t = tuftAt(i, j, s, GRASS_STYLES.fair);
+        const t = tuftAt(i, j, s, grassStyle('fair', fair.GRASS_HOOKS));
         const lawn = tuftAt(i, j, s, GRASS_STYLES.park);
         if (!t) { if (lawn) expect(fairBare(lawn.x, lawn.z)).toBe(true); continue; }
         expect(t).toEqual(lawn);
