@@ -390,6 +390,10 @@ function init() {
     // v21 Stream 2: who may show a live 'colony-feed' (display only).
     getPartner: () => progression.state.colony?.partner ?? null,
     onBorderCross: (s, ev) => crossing?.onRemote(s, ev),
+    // World map step 3: a room walks on together (src/game/crossing.js).
+    onWalkOn: (s, ev) => crossing?.onRemoteWalkOn(s, ev),
+    onWalkOnAsk: (s, ev) => crossing?.onWalkOnAsk(s, ev),
+    onWalkOnHave: (s, ev) => crossing?.onWalkOnHave(s, ev),
   });
 
   // Photo mode (src/game/photo.js). renderFrame/noteGoal are hoisted
@@ -436,6 +440,11 @@ function init() {
     player, progression, log, hud, audio, catVoice, snapPhoto,
     petNameFor, completeBoop, colonySync,
     askCrossing: (s, d) => crossing?.ask(s, d),
+    // World map step 3: a gate's cards, and the place beyond fetched as she
+    // nears a gate she can go through or open.
+    askGate: (s, d) => crossing?.askGate(s, d),
+    askGateBuy: (s, d) => crossing?.askGateBuy(s, d),
+    prefetchArea: (id) => areas.prefetch(id),
   });
 
   // Per-frame avatar/moment updates (src/game/avatar.js).
@@ -504,7 +513,7 @@ function init() {
   // startWalkWhenReady, which waits for its place with home up, and a place
   // that does not come is one gentle line on the home screen (cloudToast).
   const {
-    beginWalkFromHomebase, beginDenWalk, startWalkWhenReady, endWalk, takeCrossing,
+    beginWalkFromHomebase, beginDenWalk, startWalkWhenReady, endWalk, takeCrossing, walkOn,
   } = createWalkLifecycle({
     MP, pid, coarse, envMap, overlay, blockList,
     renderer, camera, composerRig,
@@ -526,6 +535,12 @@ function init() {
     buttonUses,
     areas,
     homeToast: cloudToast,
+    // World map step 3: a walk-on banks the walk without a summary, so what
+    // the summary would have said is toasted in the next walk, and the save
+    // goes up as the summary's Continue would send it. A walk-on that waits
+    // for its place pauses the walk as ⏸ does.
+    onWalkedOn: (lines) => { for (const l of lines) hud.toast(l); sync.autoSync(); },
+    releaseControl: () => handleTouchAction('pause'),
   });
   // resumeWalk is a hoisted function declaration, so it is safe to pass here.
   crossing = createCrossing({
@@ -537,6 +552,12 @@ function init() {
     getEdition: () => progression.state.edition,
     getSound: pauseSound,
     prefetchArea: (id) => areas.prefetch(id),
+    walkOn, progression,
+    // A room walks on together: who is in it (every member's room profile),
+    // its net, and the place load every device waits for before anyone moves.
+    getRoster: () => getPendingRoom()?.roster ?? [],
+    getRoomNet: () => getPendingRoom()?.net ?? null,
+    ensureArea: (id) => areas.ensure(id),
   });
   // Found outfits: the find card (src/game/findcard.js), Wear it / Later in
   // the pause overlay. Wear it dresses her cat in place, at the shadow trim
@@ -704,6 +725,12 @@ function init() {
   bus.on('purr:end', () => haptics.stopPurr());
   bus.on('player:lockchange', ({ locked }) => {
     if (!locked) haptics.stopPurr(); // paused: the purr stops with the walk
+    // A walk-on waiting for its place: the "Off to ..." moment stays up over
+    // the paused walk, and a re-lock gives control straight back.
+    if (locked && session?.walkingOn) {
+      handleTouchAction('pause');
+      return;
+    }
     if (session) overlay.classList.toggle('hidden', locked);
     // The first engage is the walk beginning: from here on the card behind
     // the walk is the "Paused" one (walk.js pauseCardFor), and a touch walk
@@ -744,6 +771,7 @@ function init() {
     }
   });
   function resumeWalk() {
+    if (session?.walkingOn) return; // the "Off to ..." moment: the place is on its way
     if (isTouch) player.setTouchEngaged(true);
     else Promise.resolve(canvas.requestPointerLock()).catch(() => {}); // refused without a click: the pause card stays
   }
@@ -792,6 +820,10 @@ function init() {
     if (e.target.id === SKIP_LESSON_ID && session) guideWalk.skip(session);
     if (e.target.id === 'btn-cross-yes') crossing.confirm();
     if (e.target.id === 'btn-cross-no') crossing.cancel();
+    // A gate's "Get it?" card (gatecross.js gateBuyHtml): Yes only from a
+    // deliberate tap (crossing.buyYes reads the click), Not now buys nothing.
+    if (e.target.id === 'confirm-card-yes') crossing.buyYes(e);
+    if (e.target.id === 'confirm-card-no') crossing.cancel();
     if (e.target.id === 'btn-find-wear') findCard.wear();
     if (e.target.id === 'btn-find-later') findCard.later();
     if (e.target.id === RELOAD_BUTTON_ID) window.location.reload();
@@ -816,6 +848,7 @@ function init() {
     const action = walkBackAction({
       summary: summaryUp(),
       walking: !!session,
+      walkingOn: !!session?.walkingOn,
       shopAsk: denShop.isAsking,
       shop: denShop.isOpen,
       findCard: !!session?.findCard,
@@ -1475,6 +1508,8 @@ function init() {
             toy: toyForState(session.toy),
             // her height on a perch or seat, and the seat (remotecats.js liftForState)
             ...liftForState(player.perchY, session.fair.riding),
+            // the place she is in: a co-walker elsewhere does not draw her
+            area: session.areaId,
           });
         }
       }

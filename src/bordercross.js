@@ -98,11 +98,12 @@ export function crossExtras({ raceRunning, questActive, carried, buddyName, toge
   return out;
 }
 
-// The end-of-walk half of a crossing. pickPlace is injected. touch: the
+// The end-of-walk half of a crossing. pick(id) is injected: truthy when the
+// place is now hers (a crossing never buys). touch: the
 // walk's device is a touch screen ("tap Explore"; a desktop "click").
-export function crossingOutcome({ crossTo, ledBy, together, clan, pickPlace, catalog, edition, touch = false } = {}) {
+export function crossingOutcome({ crossTo, ledBy, together, clan, pick, catalog, edition, touch = false } = {}) {
   const name = lower(targetName(crossTo, edition, catalog));
-  const picked = !!clan && typeof pickPlace === 'function' && !!pickPlace(crossTo);
+  const picked = !!clan && typeof pick === 'function' && !!pick(crossTo);
   const lines = [ledBy ? `${ledBy} led the way to ${name}! 🧭` : `Next stop: ${name}! 🧭`];
   if (picked) lines.push("It's picked on your map.");
   const mates = Array.isArray(together) ? together : [];

@@ -12,6 +12,7 @@ import * as rides from './fairrides.js';
 import * as edge from './fairedge.js';
 import { STALL, STALL_SIGN, SIGN_POST, TINS, BELL, FORTUNE, BANDSTAND, PICNIC, RIDGE_TENT, FAIR_PAINT, POOL } from './fairparts.js';
 import { MGR, FERRIS, TEACUPS, HELTER, COASTER, STATION, MUSIC_BOX } from './fairrides.js';
+import { cutForGates } from '../gateways.js';
 
 // =============================================================================
 // The Fairground (docs/superpowers/specs/2026-11-18-fairground-design.md),
@@ -222,10 +223,10 @@ export const FAIR_HORIZON = Object.freeze({
   // behind the gate, olive to the west
   sideTints: Object.freeze({ north: 0x8db0a0, east: 0xb4b872, south: 0x6f9f5e, west: 0x93a46a }),
   nearColor: FAIR_GRASS,
-  edge: Object.freeze({
-    half: 60, style: 'hedge',
-    gaps: Object.freeze([Object.freeze({ x: 0, z: 60.6, r: 2 })]),
-  }),
+  // The hedge runs right round, across the lane too (gateways placement
+  // round, 2026-11-21: its shut field gate read as one more gate that never
+  // opens, beside the real gate back to the Park).
+  edge: Object.freeze({ half: 60, style: 'hedge' }),
 });
 
 // Where the lawn's tufts do not grow (for render/grass.js, once registered):
@@ -589,7 +590,7 @@ export function cullGroundFaces(scene, names) {
   return dropped;
 }
 
-export function build(scene, { water = {}, wind } = {}) {
+export function build(scene, { water = {}, wind, gateEnds = [] } = {}) {
   // A bright fair day: a clear blue over a pale horizon.
   b.applySky(scene, 0x8fcbf0, 0xe4f1e2);
   const lawn = b.ground(120, FAIR_GRASS, { surface: 'grass' });
@@ -626,10 +627,14 @@ export function build(scene, { water = {}, wind } = {}) {
     const K = parts.lists();
 
     out.push(parts.gateArch(GATE_AT.x, GATE_AT.z, GATE_HALF, glow));
-    parts.fence(K, [
+    // The front fence, cut where a gate walk.js draws after the build is set
+    // into it (`gateEnds`: the gate ends this walk draws; a walk that draws no
+    // gates, and a bare build, keep the fence whole). Visual only:
+    // the fence has no collider, so nothing anyone shares depends on it.
+    parts.fence(K, cutForGates([
       { a: [-44, GATE_AT.z], b: [-GATE_HALF - 0.5, GATE_AT.z] },
       { a: [GATE_HALF + 0.5, GATE_AT.z], b: [44, GATE_AT.z] },
-    ]);
+    ], gateEnds));
     for (const s of [-1, 1]) parts.balloonBunch(K, s * (GATE_HALF + 0.3), 3.3, GATE_AT.z + 0.15, 4, s + 3);
 
     // the midway's stalls

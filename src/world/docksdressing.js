@@ -121,8 +121,8 @@ export const CLUSTERS = Object.freeze([
   { x: 22, z: -37, rot: 1.2, kind: 'net', s: 1.0, yard: true },
   { x: 33, z: -36.5, rot: -0.3, kind: 'pots', s: 1.1, yard: true },
   { x: 17, z: -25, rot: 0.9, kind: 'rope', s: 1.3, yard: true },
-  { x: 35, z: -23.5, rot: -1.1, kind: 'fishbox', s: 1.0, yard: true },
-  { x: 35.5, z: -18, rot: 0.4, kind: 'pots', s: 1.0, yard: true },
+  { x: 33.6, z: -25, rot: -1.1, kind: 'fishbox', s: 1.0, yard: true }, // these two stand clear of the Seaside gate's railing (x 35)
+  { x: 33.6, z: -15, rot: 0.4, kind: 'pots', s: 1.0, yard: true },
   { x: -34, z: -36, rot: -0.4, kind: 'pots', s: 1.05, yard: true },   // south-west yard
   { x: -25.5, z: -35, rot: 0.7, kind: 'fishbox', s: 1.0, yard: true },
   { x: -20, z: -28, rot: -0.9, kind: 'net', s: 1.0, yard: true },

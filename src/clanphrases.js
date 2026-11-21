@@ -159,6 +159,17 @@ const LATER = Object.freeze({
   // the small line under the Neighborhood's name for her first visits
   'place.townNote': 'the town',
 
+  // ---- world map step 3 (2026-11-21): what a gate says, the same in every set ----
+  'gate.shut': (walks, place, toGo) => `Opens after ${walks} ${walks === 1 ? 'walk' : 'walks'} in ${place}. ${toGo} to go!`,
+  'gate.short': (need) => `You need ${need} more 🐾. Keep exploring!`,
+  'gate.buyPrompt': (name, price) => `E — Open ${name} for ${price} 🐾?`,
+  'gate.keep': 'You keep everything you found.',
+  'gate.off': (place) => `Off to ${place}!`,
+  // a room guest's prompt at a gate her host may open (she reads, never chooses)
+  'gate.thisWay': (name) => `${name} is this way 🧭`,
+  // a room's host whose friend's game could not get the place ready (Task 9)
+  'gate.friendNotReady': (name) => `${name}'s game isn't ready for that place yet. Try again in a moment! 🐾`,
+
   // ---- Appletree Farm (2026-11-18): its own words, the same in every set -----
   // The animals' one-time lines (they were spelled in game/walk.js).
   'farm.toast.ride': 'You are riding a cow! 🐄',

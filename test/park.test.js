@@ -333,17 +333,20 @@ describe('City Park — the gravel trail (polish-park2)', async () => {
     expect(wet).toBeGreaterThan(0);
   });
 
-  it('runs the south walk out through the hedge gate, inside the gap', () => {
+  it('runs the south walk out under the hedge, no wider than the field gate that stood there', () => {
     const { scene } = built();
     const segs = scene.children.find((c) => c.name === 'pathTrail').userData.trail;
-    const [gate] = PARK_HORIZON.edge.gaps;
-    // The (0, 48) end runs on past the gate; the other ends are as authored
+    // Where the hedge's field gate stood until the gateways placement round
+    // (2026-11-21); the hedge runs across it now (test/edges.test.js).
+    const gate = { x: 0, z: 60.6, r: 2 };
+    expect(PARK_HORIZON.edge.gaps).toBeUndefined();
+    // The (0, 48) end runs on past the hedge; the other ends are as authored
     // (joined, or pulled back h at a dead end).
     expect(segs[0].x1).toBeCloseTo(0, 9);
     expect(segs[0].z1).toBeGreaterThan(gate.z + 2);
     expect(segs[0].z2).toBe(20);
     expect(trailField(segs, gate.x, gate.z, 'gravel').alpha).toBe(1);
-    // ... and stays inside the hedge's gap there.
+    // ... and no wider there than the gate was.
     for (const x of [-gate.r, gate.r]) {
       expect(trailField(segs, gate.x + x, gate.z, 'gravel').alpha).toBe(0);
     }

@@ -36,6 +36,9 @@ const { GOLD_MICE } = await import('../src/goldmice.js');
 const { DISCS } = await import('../src/rivalclans.js');
 const { keepOutPoint } = await import('../src/keepout.js');
 const { FRAMES } = await import('../src/world/lake.js');
+const borderposts = await import('../src/borderposts.js');
+const gatecross = await import('../src/gatecross.js');
+const gateways = await import('../src/gateways.js');
 
 // The Neighborhood's two roads are 5 m wide: [x1, z1, x2, z2] centrelines.
 const TOWN_ROADS = [[0, -50, 0, 50], [-50, 0, 50, 0]];
@@ -349,5 +352,79 @@ describe('border posts: the Gorge', () => {
     for (const p of BORDER_POSTS.gorge) {
       expect(gorge.GORGE_KEEP_CLEAR.some(([x, z]) => x === p.x && z === p.z), p.id).toBe(true);
     }
+  });
+});
+
+// World map step 3, Task 10: a post walks straight on, like a gate. She
+// arrives at the post the place beyond has back (POST_ARRIVE), ARRIVE_IN m
+// inside it and facing in, or at the spawn when it has none.
+describe('border posts: where she arrives (POST_ARRIVE)', () => {
+  const { POST_ARRIVE } = borderposts;
+  const { viaPlan } = gatecross;
+
+  it('names, for every post, the post she arrives at, or null for the spawn', () => {
+    expect(deepFrozen(POST_ARRIVE)).toBe(true);
+    expect(POST_ARRIVE).toEqual({
+      'town-woods': 'woods-town-short', 'town-moor': null, 'town-river': 'river-town-long',
+      'woods-town-short': 'town-woods', 'woods-town-long': 'town-river',
+      'woods-river-long': 'river-woods-long', 'woods-river-pond': 'river-woods-pond',
+      'woods-moor-path': 'moor-woods-path', 'woods-moor-river': 'moor-woods-river',
+      'river-woods-long': 'woods-river-long', 'river-town-long': 'town-river',
+      'river-woods-pond': 'woods-river-pond', 'river-pines-path': 'pines-river-path',
+      'moor-woods-path': 'woods-moor-path', 'moor-woods-river': 'woods-moor-river',
+      'moor-gorge': 'gorge-moor', 'moor-pines-trail': 'pines-moor-trail',
+      'pines-river-path': 'river-pines-path', 'pines-moor-trail': 'moor-pines-trail',
+      'gorge-moor': 'moor-gorge', 'gorge-town': null,
+    });
+    const ids = Object.values(BORDER_POSTS).flat().map((p) => p.id);
+    expect(Object.keys(POST_ARRIVE).sort()).toEqual([...ids].sort());
+  });
+
+  it('two arrivals land a step along the edge, where straight in is blocked; the rest straight in', () => {
+    const { POST_ARRIVE_AT } = borderposts;
+    const { inwardOf, INWARD_YAW } = gateways;
+    expect(deepFrozen(POST_ARRIVE_AT)).toBe(true);
+    expect(Object.keys(POST_ARRIVE_AT).sort()).toEqual(['moor-pines-trail', 'river-woods-pond']);
+    for (const p of Object.values(BORDER_POSTS).flat()) {
+      const twin = POST_ARRIVE[p.id] && postsFor(p.to).find((q) => q.id === POST_ARRIVE[p.id]);
+      if (!twin) continue;
+      const straight = inwardOf(twin);
+      const { arrive } = viaPlan(p.id);
+      expect(arrive.yaw, p.id).toBe(INWARD_YAW[twin.faces]);
+      if (!Object.hasOwn(POST_ARRIVE_AT, twin.id)) { expect(arrive, p.id).toEqual(straight); continue; }
+      // the same depth in, at most 2 m along the edge
+      const ew = twin.faces === 'east' || twin.faces === 'west';
+      expect(ew ? arrive.x : arrive.z, p.id).toBeCloseTo(ew ? straight.x : straight.z, 9);
+      expect(Math.hypot(arrive.x - straight.x, arrive.z - straight.z), p.id).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it('each arrival is a post of the place beyond', () => {
+    for (const p of Object.values(BORDER_POSTS).flat()) {
+      const at = POST_ARRIVE[p.id];
+      if (at === null) continue;
+      expect(postsFor(p.to).map((q) => q.id), p.id).toContain(at);
+    }
+  });
+
+  it('every arrival spot is one a cat can stand on, clear of everything and out of every post\'s reach', () => {
+    let checked = 0;
+    for (const [from, posts] of Object.entries(BORDER_POSTS)) {
+      for (const p of posts) {
+        const plan = viaPlan(p.id);
+        expect(plan, p.id).toMatchObject({ via: p.id, from, to: p.to });
+        if (POST_ARRIVE[p.id] === null) { expect(plan.arrive, p.id).toBeNull(); continue; }
+        const { x, z } = plan.arrive;
+        const { area } = maps[p.to];
+        const at = `${p.id} -> ${p.to} (${x}, ${z})`;
+        if (!area.ground) expect(isWalkableAt(area, x, z), at).toBe(true);
+        expect(reaches(p.to, x, z), at).toBe(true);
+        for (const c of area.colliders) expect(Math.hypot(x - c.x, z - c.z) - c.r, at).toBeGreaterThanOrEqual(1.2);
+        for (const w of area.waters ?? []) expect(waterGap(w, x, z), at).toBeGreaterThanOrEqual(2.0);
+        for (const q of postsFor(p.to)) expect(Math.hypot(x - q.x, z - q.z), `${at} vs ${q.id}`).toBeGreaterThanOrEqual(POST_REACH + 2 - 1e-9);
+        checked++;
+      }
+    }
+    expect(checked).toBe(19);
   });
 });
