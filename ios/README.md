@@ -187,6 +187,8 @@ What to know:
 
 - `npm run build:ios` builds the app's copy of the game into `ios/web/`
   (gitignored). The website build (`npm run build`) is unchanged.
+- Every place is its own file under `ios/web/assets/`, served by the bundle
+  scheme, so the app works offline with nothing extra to do.
 - `ios/WhiskerWalk.xcodeproj` is the app. `xcodebuild test -project
   ios/WhiskerWalk.xcodeproj -scheme WhiskerWalk -destination 'platform=iOS
   Simulator,name=iPhone 18 Pro' -derivedDataPath ios/build` runs its unit

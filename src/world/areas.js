@@ -3,13 +3,18 @@
 // An area is real once all of these are done:
 //   1. its builder module, src/world/<id>.js, exporting build(scene, opts)
 //      (and GRASS_HOOKS if it tints or bares the grass: the grass reads the
-//      area's own hooks, it imports no area);
+//      area's own hooks, it imports no area). Nothing outside the module and
+//      this file imports it; facts the rest of the game needs go in a leaf
+//      module;
 //   2. a line in AREA_LOADERS below (a literal import(), so the bundler makes
 //      the chunk) and a line in AREA_ENTRY_MODULES (the files that chunk
 //      is made of, which the size budget reads);
 //   3. the CATALOG.areas entry + state.walks key in progression.js, which
 //      give it a home-base card, a price and an unlock gate.
 // An area missing from AREA_LOADERS is a fully built world nothing can call.
+// Each area is its own download: `npm run build` prints its size (ceiling
+// AREA_GZIP_CEILING_KB in scripts/buildjson.mjs), and test/areas.test.js and
+// test/lazybuild.test.js fail if step 1 or 2 was missed.
 //
 // `roofs` is here so a walk can build it, and nowhere a child picks from:
 // every list a child sees comes from CATALOG.areas, which has no Rooftops row
