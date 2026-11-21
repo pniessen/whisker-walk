@@ -205,6 +205,7 @@ export const MARKET_LOOK = Object.freeze({
 // in from each end, `back` in from the back, at most `front` out past the
 // counter's front line (a cat's centre never comes closer than d/2 + 0.45).
 const BROOM_BOX = Object.freeze({ side: 0.15, back: 0.1, front: 0.2 });
+const IN_SHARE = 0.5;    // her step in toward a counter, as a share of her whole step (sin 30°): walking at its treat
 const MAX_STEP = 1;      // m: more than this toward a treat in one frame is a teleport, not a walk
 const LAND_S = 0.12;     // s, the landing squash after the hop (session.landTime)
 const DOWN = new THREE.Vector3(0, -1, 0); // the broom's head end, in its own frame
@@ -375,6 +376,9 @@ export function createMarketLive(scene, area, opts = {}) {
       cooed: new Uint8Array(N),          // cooed at by that stall this stop
       cur: new Float64Array(N).fill(NaN),  // distance to each guarded treat this frame
       last: new Float64Array(N).fill(NaN), // and last frame (APPROACH)
+      curLz: new Float64Array(N).fill(NaN),  // how far out from each counter's front this frame
+      lastLz: new Float64Array(N).fill(NaN), // and last frame (her heading in toward it)
+      x0: NaN, z0: NaN,                  // where she was last frame
       view: { x: 0, z: 0, stalking: false, high: false }, // what stallSees reads
       munch: { active: false, t: 0, kind: null, mesh: null }, // a partner's munch (remotePick)
       meshes: {},                        // treat kind → the mouth mesh, made on first use
@@ -401,9 +405,18 @@ export function createMarketLive(scene, area, opts = {}) {
     const v = rec.view;
     v.x = x; v.z = z; v.stalking = rec.stalking; v.high = rec.high;
     for (let i = 0; i < N; i++) {
-      const t = treatRows[i].plan.treat;
+      const plan = treatRows[i].plan;
+      const t = plan.treat;
       rec.cur[i] = Math.hypot(x - t.x, z - t.z);
+      rec.curLz[i] = (x - plan.at.x) * plan.face.x + (z - plan.at.z) * plan.face.z - plan.d / 2;
     }
+  }
+  // end of the frame: this frame's numbers become last frame's
+  function keepLast(rec) {
+    rec.last.set(rec.cur);
+    rec.lastLz.set(rec.curLz);
+    rec.x0 = rec.x;
+    rec.z0 = rec.z;
   }
 
   function readCats(dt) {
@@ -446,12 +459,20 @@ export function createMarketLive(scene, area, opts = {}) {
     freeMeshes(rec);
   }
 
-  // her distance to that stall's treat falls by more than APPROACH m/s (a jump
-  // of a metre or more in one frame is a teleport, not a walk)
+  // Walking at the treat (controller's ruling on the Task 12 review): her
+  // distance to that stall's treat falls by more than APPROACH m/s AND she is
+  // heading in toward the counter, her distance out from its front falling by
+  // at least IN_SHARE of how fast she really moved (about 30 degrees in, or
+  // more). A pass along the front, however close it comes to the treat's
+  // corner, never counts. A jump of a metre or more in one frame is a
+  // teleport, not a walk.
   function approaching(rec, i, dt) {
     if (!(dt > 0)) return false;
     const fall = rec.last[i] - rec.cur[i];
-    return Number.isFinite(fall) && fall < MAX_STEP && fall / dt > MARKET.APPROACH;
+    if (!Number.isFinite(fall) || fall >= MAX_STEP || fall / dt <= MARKET.APPROACH) return false;
+    const inward = rec.lastLz[i] - rec.curLz[i];
+    const moved = Math.hypot(rec.x - rec.x0, rec.z - rec.z0);
+    return Number.isFinite(inward) && moved > 0 && inward >= IN_SHARE * moved;
   }
 
   // ---- Noticing, the coo and the shoo, per guarded stall per frame. ----------
@@ -524,10 +545,12 @@ export function createMarketLive(scene, area, opts = {}) {
   // The broom goes up over the counter. Her cat with nothing in her mouth also
   // gets the short hop back; a cat with a treat is laughed at and keeps it; a
   // partner's cat gets the broom only.
+  // A shoo already waving (the button pressed again) keeps its broom where it
+  // is in its wave, and a hop already under way is not started again.
   function shoo(row, rec) {
     const st = row.st;
     if (st.cooing) endCoo(row);
-    st.shooT = MARKET.SHOO_S;
+    if (!(st.shooT > 0)) st.shooT = MARKET.SHOO_S;
     row.restT = 0;
     const laugh = rec.treat === true;
     const hopped = rec === me && !laugh ? startHop(row.plan) : false;
@@ -778,8 +801,8 @@ export function createMarketLive(scene, area, opts = {}) {
     stepMunch(dt);
     for (let k = 0; k < remoteRecs.length; k++) stepRemoteMunch(remoteRecs[k], dt);
     stepRefill(dt);
-    me.last.set(me.cur);
-    for (let k = 0; k < remoteRecs.length; k++) remoteRecs[k].last.set(remoteRecs[k].cur);
+    keepLast(me);
+    for (let k = 0; k < remoteRecs.length; k++) keepLast(remoteRecs[k]);
   }
 
   // the broom's length, grip to the tip of its head (its own drawing's lowest point)

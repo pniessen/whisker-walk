@@ -591,17 +591,50 @@ describe('the sneak (Task 12)', () => {
       expect(until(r, () => ofType(r, 'shoo').length > 0, 1.5), id).toBeLessThan(0.2);
       expect(ofType(r, 'shoo')[0]).toEqual({ type: 'shoo', stall: id, who: 'me', laugh: false, hopped: true });
       r.live.dispose();
-      // across the front, away from the treat's side
+      // across the whole front, from outside the zone on one side to outside it
+      // on the other, both ways, near and far, slow and quick, at several
+      // moments of the watching: never shooed (the review's ruling)
       const a = marketRig();
-      a.setPhase(id, 'serve', 0.2);
-      const q = a.local(id, s.w / 2 - 0.3, s.d / 2 + 1.5);
-      a.place(q.x, q.z).step(DT);
-      a.walk(s.face.z, -s.face.x, 1.2);
-      a.step(DT, Math.round(1.5 / DT));
-      expect(a.stall(id).look.watching).toBe(true);
-      expect(across(s, q, pos(a.cat)), 'she really walked across').toBeLessThan(-1.5);
-      expect(ofType(a, 'shoo')).toEqual([]);
+      const edge = s.w / 2 + MARKET.WATCH_SIDE + 0.4;
+      for (const dir of [1, -1]) {
+        for (const out of [1, 2, 3]) {
+          for (const speed of [0.8, 1.5, 3.5]) {
+            for (const into of [0, 1.5, 3.0]) {
+              a.setPhase(id, 'serve', into);
+              const q = a.local(id, -dir * edge, s.d / 2 + out);
+              a.place(q.x, q.z).step(DT);
+              a.walk(dir * -s.face.z, dir * s.face.x, speed);
+              let seenFrames = 0;
+              const n = Math.ceil((2 * edge) / speed / DT) + 2;
+              for (let i = 0; i < n; i++) {
+                a.step(DT);
+                const { lx, lz } = toStall(s, a.cat.position.x, a.cat.position.z);
+                if (a.stall(id).look.watching && Math.abs(lx) <= s.w / 2 + MARKET.WATCH_SIDE && lz >= s.d / 2) seenFrames++;
+              }
+              const label = `${id} way ${dir} ${out} m out at ${speed} m/s, ${into} s into serving`;
+              expect(dir * across(s, q, pos(a.cat)), `${label}: crossed the whole front`).toBeGreaterThan(2 * edge - 0.1);
+              expect(seenFrames, `${label}: watched as she crossed`).toBeGreaterThan(0);
+              expect(ofType(a, 'shoo'), label).toEqual([]);
+            }
+          }
+        }
+      }
       a.live.dispose();
+      // angling in toward the treat, 35 degrees in from along the front: shooed;
+      // 20 degrees in, a pass that drifts closer: not
+      for (const [deg, shooed] of [[35, true], [20, false]]) {
+        const g = marketRig();
+        g.setPhase(id, 'serve', 0.2);
+        const q = g.local(id, -s.w / 2, s.d / 2 + 2.6);
+        g.place(q.x, q.z).step(DT);
+        const k = (deg * Math.PI) / 180;
+        // along local +x (toward the treat's side) and in toward the counter (-face)
+        g.walk(Math.cos(k) * -s.face.z - Math.sin(k) * s.face.x, Math.cos(k) * s.face.x - Math.sin(k) * s.face.z, 1.5);
+        g.step(DT, Math.round(1.2 / DT));
+        expect(g.stall(id).look.watching).toBe(true);
+        expect(ofType(g, 'shoo').length > 0, `${id} ${deg} degrees in`).toBe(shooed);
+        g.live.dispose();
+      }
       // a partner walking at the treat gets the broom only
       const b = marketRig();
       b.setPhase(id, 'serve', 0.2);
@@ -921,11 +954,11 @@ describe('the sneak (Task 12)', () => {
       expect(r.grab()).toBe(false);
       expect(Math.abs(watchShoo(r, id) * DT - MARKET.SHOO_S)).toBeLessThanOrEqual(1.5 * DT);
       r.live.dispose();
-      // cooed at from the side, then walking at the treat: the stallholder turns back from her
+      // cooed at from off to the side, then walking in at the treat: the stallholder turns back from her
       const s = S(id);
       const c = marketRig();
       c.setPhase(id, 'serve', 0);
-      const q = c.local(id, s.w / 2 + 0.95, s.d / 2 + 0.6);
+      const q = c.local(id, s.w / 2 + 0.95, s.d / 2 + 1.4);
       c.place(q.x, q.z);
       expect(until(c, () => c.stall(id).cooing, 2)).toBeLessThan(2);
       c.step(DT, 10);
@@ -1157,6 +1190,118 @@ describe('the sneak (Task 12)', () => {
     expect(ofType(r, 'remote-eat')).toHaveLength(4);
     r.live.dispose();
   }, 60_000);
+
+  it('the button pressed again mid-shoo keeps the broom waving where it is, and one hop at a time', () => {
+    const id = 'fish';
+    const s = S(id);
+    const p = reachSpot(id);
+    const again = (r) => r.live.act({ kind: 'grab', stall: id, prompt: '' }, r.session, { dropHeld: r.dropHeld });
+    // the hop blocked at once (something solid behind her), so she is still in
+    // reach with the broom up: pressed again, the wave keeps its age, no snap
+    {
+      const r = marketRig({ isFree: () => false });
+      const st = r.stall(id);
+      const arm = r.live.keepers[id].arm;
+      r.setPhase(id, 'serve', 0.3);
+      r.place(p.x, p.z).step(DT);
+      expect(r.grab()).toBe(false);
+      r.step(DT, 8);
+      const shooT = st.shooT;
+      const armUp = arm.rotation.z;
+      expect(r.live.actionFor(r.session)?.stall).toBe(id);
+      expect(again(r)).toBe(false);
+      expect(st.shooT, 'the wave keeps its age').toBe(shooT);
+      expect(ofType(r, 'shoo')).toHaveLength(2);
+      r.step(DT);
+      expect(Math.abs(arm.rotation.z - armUp), 'no snap of the arm').toBeLessThan(0.2);
+      r.live.dispose();
+    }
+    // pressed again a frame into the hop: no second hop
+    {
+      const r = marketRig();
+      r.setPhase(id, 'serve', 0.3);
+      r.place(p.x, p.z).step(DT);
+      expect(r.grab()).toBe(false);
+      r.step(DT);
+      expect(r.live.actionFor(r.session)?.stall).toBe(id);
+      expect(again(r)).toBe(false);
+      expect(ofType(r, 'shoo')[1]).toEqual({ type: 'shoo', stall: id, who: 'me', laugh: false, hopped: false });
+      r.step(DT, Math.round(MARKET.HOP_S / DT) + 3);
+      expect(along(s, p, pos(r.cat)), 'one hop, not two').toBeCloseTo(MARKET.HOP_DIST, 6);
+      r.live.dispose();
+    }
+  });
+
+  it('the button while she is being cooed at is a shoo, even with the stallholder turned away underneath (M4)', () => {
+    const id = 'fish';
+    const r = marketRig();
+    const st = r.stall(id);
+    r.setPhase(id, 'serve', STALL_TIMES[id].serve - 1.2);
+    const p = reachSpot(id);
+    r.place(p.x, p.z);
+    expect(until(r, () => st.cooing, 2)).toBeLessThan(2);
+    r.step(DT, Math.round(2.5 / DT));
+    expect(st.cooing?.who).toBe('me');
+    expect(st.look.watching, 'turned away by the rhythm').toBe(false);
+    expect(r.grab()).toBe(false);
+    expect(ofType(r, 'shoo')).toEqual([{ type: 'shoo', stall: id, who: 'me', laugh: false, hopped: true }]);
+    expect(st.treatOut).toBe(true);
+    expect(r.session.carry.mouth.held).toBeNull();
+    expect(st.cooing).toBeNull();
+    r.live.dispose();
+  });
+
+  it("the eater's teamwork counts within TEAM_GRACE_S of the partner's coo ending, and not after", () => {
+    const id = 'baker';
+    const s = S(id);
+    for (const [wait, team] of [[0.5, 'ben'], [MARKET.TEAM_GRACE_S + 0.5, null]]) {
+      const r = marketRig();
+      const st = r.stall(id);
+      r.setPhase(id, 'serve', STALL_TIMES[id].serve - 1.2);
+      const b = r.local(id, 0, s.d / 2 + 1.5);
+      const ben = r.addRemote('ben', b.x, b.z);
+      expect(until(r, () => st.cooing, 2)).toBeLessThan(2);
+      expect(st.cooing.who).toBe('ben');
+      r.step(DT, Math.round(2.5 / DT)); // the rhythm has turned away underneath
+      r.walkRemote(ben, s.face.x, s.face.z, 1.0); // Ben walks off: the coo ends, no shoo
+      r.step(DT, 2);
+      expect(st.cooing).toBeNull();
+      r.walkRemote(ben, 0, 0, 0);
+      r.step(DT, Math.round(wait / DT));
+      expect(st.look.watching).toBe(false);
+      const p = reachSpot(id);
+      r.place(p.x, p.z);
+      expect(r.grab()).toBe(true);
+      r.step(DT, Math.round(2 / DT));
+      expect(ofType(r, 'eat'), `after ${wait} s`).toEqual([{ type: 'eat', stall: id, kind: 'sausageroll', teamWith: team }]);
+      expect(ofType(r, 'shoo')).toEqual([]);
+      r.live.dispose();
+    }
+  }, 60_000);
+
+  it('a partner who leaves the walk mid-coo ends it, and the stall notices again', () => {
+    const id = 'fish';
+    const s = S(id);
+    const T = treatOf(id);
+    const r = marketRig();
+    const st = r.stall(id);
+    r.setPhase(id, 'serve', 0);
+    const b = r.local(id, 0, s.d / 2 + 1.5);
+    const ben = r.addRemote('ben', b.x, b.z);
+    expect(until(r, () => st.cooing, 2)).toBeLessThan(2);
+    expect(st.cooing.who).toBe('ben');
+    r.removeRemote(ben);
+    expect(() => r.step(DT)).not.toThrow();
+    expect(st.cooing).toBeNull();
+    // and she, walking straight at the treat while it is watched, is shooed now
+    const p = r.local(id, s.w / 2 - 0.3, s.d / 2 + 3.0);
+    r.place(p.x, p.z).step(DT);
+    r.walk(T.x - p.x, T.z - p.z, 1.2);
+    expect(until(r, () => ofType(r, 'shoo').length > 0, 1)).toBeLessThan(0.2);
+    expect(ofType(r, 'shoo')[0].who).toBe('me');
+    expect(r.live.remotePick(ben, treatItemId(id))).toBe(false);
+    r.live.dispose();
+  });
 
   it('a resumed walk sets the tally to the treats it already paid for', () => {
     const r = marketRig();
