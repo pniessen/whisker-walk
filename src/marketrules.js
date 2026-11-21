@@ -1,14 +1,16 @@
 // The pure rules of the Market sneak (step 2): each stall's rhythm and its
 // "busy" tell, then (Task 9) who notices whom. No three.js; imports only the
-// rng, the dogs' one shared idea and the plan's pure data.
+// rng, the dogs' one shared idea, the plan's pure data and the shoo line's gap
+// (marketnone.js, which the walk's handler reads in the main graph).
 import { mulberry32 } from './rng.js';
 import { DOG_NOTICE_STALKED } from './dogs.js';
 import { TREAT_STALLS, toStall } from './world/marketplan.js';
+import { SHOO_TOAST_GAP } from './marketnone.js';
 
 export const MARKET = Object.freeze({
   BUSY_S: 1.6, TURN_S: 0.4, STILL_SPEED: 0.3, STILL_S: 1.0, APPROACH: 0.15, COO_S: 4.0,
   SHOO_S: 1.2, SHOO_REST_S: 2.0, HOP_DIST: 1.2, HOP_S: 0.3, TREAT_REACH: 0.8, HOLD_S: 1.0,
-  MUNCH_S: 0.8, REFILL_S: 25, HIGH_Y: 1.8, TEAM_GRACE_S: 1.5, SHOO_TOAST_GAP: 6,
+  MUNCH_S: 0.8, REFILL_S: 25, HIGH_Y: 1.8, TEAM_GRACE_S: 1.5, SHOO_TOAST_GAP,
   WATCH_DEPTH: 3.2, WATCH_SIDE: 1.0, STALK_SHARE: DOG_NOTICE_STALKED,
 });
 

@@ -68,7 +68,8 @@
 //   { type: 'eat', stall, kind, teamWith }   teamWith: the partner the stall was
 //            cooing at when she grabbed it (or within TEAM_GRACE_S), else null
 //   { type: 'shoo', stall, who, laugh, hopped }   laugh: that cat holds a treat
-//            (she keeps it); hopped: her cat's hop began
+//            (she keeps it); hopped: her cat's hop began and she moved (a
+//            hop refused at its first step is no hop: false, she stays put)
 //   { type: 'coo', stall, who }
 //   { type: 'remote-eat', stall, who }
 //   { type: 'team', stall, partner }
@@ -558,13 +559,23 @@ export function createMarketLive(scene, area, opts = {}) {
   }
 
   // ---- The hop: HOP_DIST along the stall's face over HOP_S, one isFree-checked
-  // step a frame, added to her own movement (the stick is never taken). --------
+  // step a frame, added to her own movement (the stick is never taken). It
+  // begins with a first small step (HOP_FIRST) taken at once, so a hop that
+  // begins has moved her: one refused at that first step (her back to a crate)
+  // is no hop at all, and the shoo says hopped: false (no landing thump). ------
+  const HOP_FIRST = 0.05;
   const hop = { active: false, t: 0, moved: 0, fx: 0, fz: 0 };
   function startHop(plan) {
-    if (hop.active || !seen.cat) return false;
+    const cat = seen.cat;
+    if (hop.active || !cat) return false;
+    const nx = cat.position.x + plan.face.x * HOP_FIRST;
+    const nz = cat.position.z + plan.face.z * HOP_FIRST;
+    if (!isFree(nx, nz)) return false;
+    cat.position.x = nx;
+    cat.position.z = nz;
     hop.active = true;
     hop.t = 0;
-    hop.moved = 0;
+    hop.moved = HOP_FIRST;
     hop.fx = plan.face.x;
     hop.fz = plan.face.z;
     return true;

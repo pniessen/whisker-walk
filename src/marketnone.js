@@ -10,6 +10,11 @@
 
 export const TREAT_ITEM_PREFIX = 'market-treat-';
 
+// The fewest seconds between two shoo (or laugh) lines on her screen
+// (game/marketplay.js). Here, in the main graph, so the walk's handler needs
+// nothing of the Market's chunk; marketrules.js's MARKET carries the same one.
+export const SHOO_TOAST_GAP = 6;
+
 // the stalls with a treat (marketplan.js TREAT_STALLS, and the café)
 const TREAT_STALL_IDS = Object.freeze(['fish', 'baker', 'cheese', 'milk', 'cafe']);
 

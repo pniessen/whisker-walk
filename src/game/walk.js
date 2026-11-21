@@ -1644,7 +1644,7 @@ export function createWalkLifecycle({
     // the walk's seed and the time of day; a partner's grab comes over the
     // existing carry-pick (netevents.js). What each event pays and says is
     // game/marketplay.js. NO_MARKET everywhere else.
-    const marketToasts = createMarketToasts({ hud, now: nowSec });
+    const marketToasts = areaId === 'market' ? createMarketToasts({ hud, now: nowSec }) : null;
     const market = areaId !== 'market' ? NO_MARKET : createMarketLive(scene, areaData, {
       seed: roomSeed ?? soloSeed, reducedMotion, ground, isFree: (x, z) => isWalkableAt(areaData, x, z),
       onEvent: (e) => handleMarketEvent(e, { hud, audio, log, session, ...marketToasts }),

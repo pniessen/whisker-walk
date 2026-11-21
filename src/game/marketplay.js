@@ -21,7 +21,7 @@
 // once a walk. A partner's shoo, coo and munch say nothing here.
 // =============================================================================
 import { TREAT_WORDS, MARKET_LINES } from '../marketwords.js';
-import { MARKET } from '../marketrules.js';
+import { SHOO_TOAST_GAP } from '../marketnone.js';
 import { safeRemoteName } from '../net.js';
 
 // A partner's name, as safe as any name off the wire, for a teamwork line.
@@ -79,7 +79,7 @@ export function handleMarketEvent(e, ctx) {
       break;
     case 'shoo':
       if (e.who !== 'me') break;
-      every('market-shoo', MARKET.SHOO_TOAST_GAP, e.laugh ? MARKET_LINES.laugh() : MARKET_LINES.shoo());
+      every('market-shoo', SHOO_TOAST_GAP, e.laugh ? MARKET_LINES.laugh() : MARKET_LINES.shoo());
       if (e.hopped) audio?.landThump?.();
       break;
     case 'coo':

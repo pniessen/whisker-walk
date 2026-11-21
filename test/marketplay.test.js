@@ -102,7 +102,7 @@ const { createProgression } = await import('../src/progression.js');
 const { createCarryables } = await import('../src/carryables.js');
 const { pick } = await import('../src/carry.js');
 const { createToy } = await import('../src/toy.js');
-const { NO_MARKET, treatItemId } = await import('../src/marketnone.js');
+const { NO_MARKET, treatItemId, SHOO_TOAST_GAP } = await import('../src/marketnone.js');
 const { MARKET } = await import('../src/marketrules.js');
 const { stallById, fromStall, MARKET_SPAWN } = await import('../src/world/marketplan.js');
 const { isWalkableAt } = await import('../src/player.js');
@@ -423,7 +423,8 @@ describe('in the walk (Task 13)', () => {
     shoo(8, { who: 'ben' }); // a partner's shoo: nothing at all
     shoo(12.1, { stall: 'milk' });
     expect(toasts).toEqual([MARKET_LINES.shoo(), MARKET_LINES.laugh(), MARKET_LINES.shoo()]);
-    expect(MARKET.SHOO_TOAST_GAP).toBe(6);
+    expect(SHOO_TOAST_GAP).toBe(6);
+    expect(MARKET.SHOO_TOAST_GAP).toBe(SHOO_TOAST_GAP); // one gap, read from the main graph
     // a thump for every hop that began, and only for those
     expect(sounds).toEqual(['thump', 'thump', 'thump', 'thump']);
 
@@ -444,6 +445,17 @@ describe('in the walk (Task 13)', () => {
     expect(g.awards).toEqual([]);
     expect(g.s.carry.mouth.held).toBe(null);
     g.r.live.dispose();
+
+    // her back to something solid, pressed again and again: one line, and no
+    // thump at all, since no hop ever begins
+    const b = game({ isFree: () => false });
+    b.r.setPhase('fish', 'serve', 0.3);
+    b.put(reachSpot('fish'));
+    for (let i = 0; i < 4; i++) { b.E(); b.frame(8); }
+    expect(ofType(b.r.events, 'shoo').map((e) => e.hopped)).toEqual([false, false, false, false]);
+    expect(b.toasts.filter((t) => t === MARKET_LINES.shoo())).toHaveLength(1);
+    expect(b.sounds.filter(([k]) => k === 'landThump')).toEqual([]);
+    b.r.live.dispose();
   }, 60_000);
 
   it('a full mouth sets down what it holds and takes the treat', () => {

@@ -561,8 +561,9 @@ describe('the sneak (Task 12)', () => {
       expect(r.area.treatMeshes[id].visible).toBe(true);
       expect(r.session.carry.mouth.held).toBeNull();
       expect(st.shooT).toBe(MARKET.SHOO_S);
-      // a short hop back, over HOP_S, then she lands
-      const p0 = pos(r.cat);
+      // a short hop back, over HOP_S, then she lands (from where she stood at
+      // the press: the hop's first small step is taken with it)
+      const p0 = { x: p.x, z: p.z };
       r.step(DT, Math.round(MARKET.HOP_S / 2 / DT));
       const half = along(s, p0, pos(r.cat));
       expect(half).toBeGreaterThan(0.3 * MARKET.HOP_DIST);
@@ -1188,6 +1189,38 @@ describe('the sneak (Task 12)', () => {
     r.live.remotePick(ben, treatItemId(id));
     expect(ofType(r, 'team')).toHaveLength(2);
     expect(ofType(r, 'remote-eat')).toHaveLength(4);
+    r.live.dispose();
+  }, 60_000);
+
+  it('a hop refused at its first step is no hop: she stays put, and the shoo says hopped: false', () => {
+    for (const id of TREAT_STALLS) {
+      // something solid right behind her (her back to a crate)
+      const r = marketRig({ isFree: () => false });
+      r.setPhase(id, 'serve', 0.3);
+      const p = reachSpot(id);
+      r.place(p.x, p.z).step(DT);
+      expect(r.grab()).toBe(false);
+      expect(ofType(r, 'shoo'), id).toEqual([{ type: 'shoo', stall: id, who: 'me', laugh: false, hopped: false }]);
+      r.step(DT, Math.round(MARKET.HOP_S / DT) + 3);
+      expect(pos(r.cat)).toEqual(p);
+      expect(r.session.landTime, 'no landing: she never left the ground').toBe(0);
+      // pressed again and again: still no hop
+      expect(r.grab()).toBe(false);
+      expect(ofType(r, 'shoo').map((e) => e.hopped)).toEqual([false, false]);
+      expect(r.stall(id).treatOut).toBe(true);
+      r.live.dispose();
+    }
+    // a hop that begins has moved her already, a little, along the stall's face
+    const id = 'fish';
+    const r = marketRig();
+    r.setPhase(id, 'serve', 0.3);
+    const p = reachSpot(id);
+    r.place(p.x, p.z).step(DT);
+    expect(r.grab()).toBe(false);
+    expect(ofType(r, 'shoo')[0].hopped).toBe(true);
+    const moved = along(S(id), p, pos(r.cat));
+    expect(moved).toBeGreaterThan(0);
+    expect(moved).toBeLessThan(0.1);
     r.live.dispose();
   }, 60_000);
 
