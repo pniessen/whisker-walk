@@ -562,6 +562,11 @@ export const ROOFS_SHOTS = Object.freeze({
   card: '18,4.2,45,12,6,4',
 });
 
+// The walk second (the evening's clock, src/roofslife.js) each picture is taken
+// at; a shot not named here is taken at full dusk (240 s on). The card is what
+// a walk starts with, at sunset, and the edge waits for the bus.
+export const ROOFS_SHOT_T = Object.freeze({ card: 0, edge: 276.4 });
+
 // ---------------------------------------------------------------------------
 // WHAT THE SHARED TABLES HOLD (Task 10). Plain data in the shapes those tables
 // use, as FAIR_REGISTRATION is: each row is copied into its table, and

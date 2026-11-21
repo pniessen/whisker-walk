@@ -18,7 +18,7 @@ vi.mock('../src/render/sky.js', async (importOriginal) => {
 
 const { skyBackground } = await import('../src/render/sky.js');
 const { createRoofsLife, eveningAt, busAt, EVENING_RAMP, EVENING_STEPS } = await import('../src/roofslife.js');
-const { BUS } = await import('../src/world/roofsplan.js');
+const { BUS, ROOFS_SHOT_T, ROOFS_SHOTS } = await import('../src/world/roofsplan.js');
 
 const SUNSET = { top: 0x4a5a8c, horizon: 0xe89a6a };
 const DUSK = { top: 0x1f2a52, horizon: 0x8a5a6a };
@@ -128,5 +128,23 @@ describe('the Rooftops’ evening', () => {
     // the fog and the light did move, on the same objects
     expect(fogColor.getHex()).not.toBe(SUNSET.horizon);
     w.life.dispose();
+  });
+});
+
+describe('the picture times', () => {
+  it('the card is taken at sunset, the edge at full dusk, every time names a shot', () => {
+    expect(Object.isFrozen(ROOFS_SHOT_T)).toBe(true);
+    for (const name of Object.keys(ROOFS_SHOT_T)) expect(ROOFS_SHOTS[name]).toBeDefined();
+    const at = (t) => { const w = walk(); run(w, t); return w; };
+    const card = at(ROOFS_SHOT_T.card);
+    expect(eveningAt(ROOFS_SHOT_T.card)).toBeLessThan(0.05);
+    expect(skyBackground).toHaveBeenLastCalledWith(SUNSET.top, SUNSET.horizon);
+    expect(card.scene.fog.color.getHex()).toBe(SUNSET.horizon);
+    expect(card.sun.intensity).toBeGreaterThan(0.8 * 1.7);
+    const edge = at(ROOFS_SHOT_T.edge);
+    expect(eveningAt(ROOFS_SHOT_T.edge)).toBe(1);
+    expect(skyBackground).toHaveBeenLastCalledWith(DUSK.top, DUSK.horizon);
+    expect(edge.scene.fog.color.getHex()).toBe(DUSK.horizon);
+    expect(edge.sun.intensity).toBeCloseTo(0.8, 6);
   });
 });
