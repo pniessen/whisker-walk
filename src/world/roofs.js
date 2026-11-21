@@ -564,7 +564,7 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     const NK = makeKit('roofsNorth');
     drawShop(NK, north, M, win, ground, drawn);
     drawWarehouse(NK, north, M, win, upWin, ground, drawn);
-    drawTower(NK, north, M, scene, drawn);
+    const vane = drawTower(NK, north, M, scene, drawn);
     drawDiscoveries(NK, north, M, upWin);
     for (const m of NK.meshes()) north.add(m);
     const street = new THREE.Group();
@@ -608,6 +608,8 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
       ground,
       traversal: plan.traversal, // the moves (src/traversal.js), from the plan
       anchors: { discoveries: ROOFS_DISCOVERIES },
+      // the weathervane's own mesh: the tower view fades it (roofsmoments.js)
+      vane,
       evening: true,
       strays: false,
       bus,
@@ -2257,7 +2259,6 @@ function drawTower(K, group, M, scene, drawn) {
   const stone = (g, color = TOWER.dressing) => K.put('stone', M.stone, g, { color });
   const painted = (g, color) => K.put('paint', M.paint, g, { color, noCast: true });
   const rail = (g) => K.put('ironSmall', M.iron, g, { noCast: true });
-  const gold = (g) => K.put('gold', M.gold, g, { noCast: true });
   const T1 = BLOCK['tower-1'];
   const BF = BLOCK.belfry;
   const LS = BLOCK.lanternStage;
@@ -2389,7 +2390,14 @@ function drawTower(K, group, M, scene, drawn) {
     railRun(rail, { x: TT.x + Math.cos(a) * rr, z: TT.z + Math.sin(a) * rr }, { x: TT.x + Math.cos(c) * rr, z: TT.z + Math.sin(c) * rr }, TT.y);
   }
 
-  // the weathervane (discovery C): a mast to VANE_TIP, the four letters, the arrow
+  // the weathervane (discovery C): a mast to VANE_TIP, the four letters, the
+  // arrow. Its own mesh (roofsVane) on its own gold, outside the kit, so the
+  // tower view (roofsmoments.js) can fade it while the view is in: she stands
+  // just south of the mast and the view looks south, so the mast and the
+  // letters would split the picture (step 5 fix wave, I1). It casts nothing,
+  // as the kit's gold never did.
+  const vanePieces = [];
+  const gold = (g) => vanePieces.push(g);
   const MAST = 0.05;
   const BALL = 0.1;
   gold(post(VANE.x, VANE.z, TT.y, VANE_TIP - 2 * BALL - TT.y, MAST * 0.7, MAST, 6));
@@ -2430,6 +2438,13 @@ function drawTower(K, group, M, scene, drawn) {
   for (const s of [-1, 1]) {
     gold(turnedBox(tail.x + ux * 0.1, tail.z + uz * 0.1, vy - 0.02 + s * 0.08 - (s < 0 ? 0.12 : 0), 0.3, 0.16, 0.012, -yaw));
   }
+  const vaneGold = M.gold.clone();
+  vaneGold.transparent = true;
+  vaneGold.opacity = 1;
+  // never merged: the life keeps this very mesh to fade
+  const vane = own('roofsVane', vaneGold, vanePieces, { noCast: true, tag: { vane: true, noMerge: true } });
+  group.add(vane);
+  return vane;
 }
 
 // --- the six discoveries' props: the garden (A), the skylight (D), the

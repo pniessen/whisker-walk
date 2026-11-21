@@ -44,9 +44,17 @@
 //     back to 0 when she moves. The blend is in angles round her (yaw the
 //     short way, distance, height and pitch by lerp: viewBlend), never
 //     turning faster than TOWER_BLEND.turn on top of the follow camera's own
-//     turn, and it eases in only while the follow camera already faces
-//     within TOWER_BLEND.face of the view's way and the stick is not turning
-//     it.
+//     turn, and it eases in only while the stick is not turning it.
+//     Settled there, her own view heading (the context's `viewYaw`, walk.js:
+//     player.viewYaw / setViewYaw) eases round to the view's at most
+//     TOWER_TURN.rate, so the follow camera comes round with the blend (the
+//     only way up ends climbing north, about 160 degrees from the view: fix
+//     wave, I2). A turn of hers while settled wins: the turn and the blend
+//     wait until she has left the camera alone TOWER_TURN.hold. Without a
+//     `viewYaw` (the picture pages) the blend alone swings round her.
+//     While the view is in, the vane (area.vane) fades out (vaneFade): she
+//     stands just south of its mast, on the view's line of sight (fix wave,
+//     I1); it is whole again as the view eases out.
 //     Never more than max(the follow camera's own pitch, maxPitch) down, no
 //     roll, no lens change; none at all under reduced motion.
 //   * The garden and the loft have no extra look (their lights are the
@@ -96,22 +104,34 @@ export function towerView(cat, outPos, outLook) {
 // How the view takes over from the follow camera (fix rounds 1 and 2): in
 // angles round her, never in straight lines (which swing through her and
 // look steeply down when the two cameras are on different sides of her).
-//   face    the view eases in only while the follow camera already faces
-//           within this of the view's way (so the stick never fights the
-//           screen); it eases out whatever the angle
-//   steady  and only while the follow camera is turning slower than this:
-//           the stick turning the camera lets the view go
+// (The fix wave dropped the facing gate, 75 degrees: her view heading now
+// turns round to the view, TOWER_TURN, so the blend eases in from any side.)
+//   steady  the view eases in only while she is turning the camera slower
+//           than this (her own turn: the follow camera's, less the moments'
+//           own TOWER_TURN): the stick turning the camera lets the view go
 //   turn    the most the blend itself turns the camera, per second, in or
 //           out, on top of the follow camera's own turn
 //   slack   how far past half a turn the two may drift apart before their
 //           difference is taken the short way again (so two cameras on
 //           opposite sides of her do not flip side every frame)
 export const TOWER_BLEND = Object.freeze({
-  face: (75 * Math.PI) / 180,
   steady: (20 * Math.PI) / 180,
   turn: (150 * Math.PI) / 180,
   slack: (15 * Math.PI) / 180,
 });
+
+// Her view heading turned round to the view's (fix wave, I2), on top of the blend:
+//   rate  at most this, per second
+//   hold  after a turn of hers while settled, the seconds she must leave the
+//         camera alone before the turn (and the blend) go on
+export const TOWER_TURN = Object.freeze({ rate: (45 * Math.PI) / 180, hold: 1.5 });
+
+// The vane's opacity for the view's weight w (fix wave, I1): whole at 0,
+// gone by 0.6. Pure.
+export function vaneFade(w) {
+  const k = Math.min(1, Math.max(0, (w - 0.15) / 0.45));
+  return 1 - k * k * (3 - 2 * k);
+}
 
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const clampAbs = (v, m) => (v > m ? m : v < -m ? -m : v);
@@ -411,14 +431,17 @@ function disposeAtticPane(scene, mesh) {
 
 // --- the moments -------------------------------------------------------------
 
-// createRoofsMoments(area, { log, progression, hud, birds, scene,
-// reducedMotion, doc, ring }) → { update(dt, catPos, camera, session),
-// viewWeight, dispose() }. Finding reads only the log and the progression.
+// createRoofsMoments(area, { log, progression, birds, scene, reducedMotion,
+// doc, ring, viewYaw }) → { update(dt, catPos, camera, session), viewWeight,
+// dispose() }. Finding reads only the log and the progression. `viewYaw`
+// ({ get(), set(v) }: her view heading) is the tower view's to turn; without
+// it the blend alone does the turning.
 // The ring is made where there is a scene and the place has its pots
 // (area.potTops); `ring` stands in for it (a test's). The moon and the pane
 // are made where there is a page (`doc`).
 export function createRoofsMoments(area, opts = {}) {
   const { log = null, progression = null, scene = null, reducedMotion = false, doc = null, birds = null } = opts;
+  const turner = typeof opts.viewYaw?.get === 'function' && typeof opts.viewYaw?.set === 'function' ? opts.viewYaw : null;
   const anchors = area?.anchors?.discoveries ?? null;
   const found = new Set(); // this walk's
   const spot = { x: 0, y: 0, z: 0, perched: null, still: 0 };
@@ -441,6 +464,17 @@ export function createRoofsMoments(area, opts = {}) {
   const target = orbit();
   const blend = viewBlend();
   const last = { yaw: 0, face: 0, set: false }; // the follow camera's yaws last frame
+  let ownYaw = null; // her view heading as the moments left it last frame (with a turner)
+  let calmFor = TOWER_TURN.hold; // seconds since she last turned the camera while settled
+  const vane = area?.vane?.material ? area.vane : null;
+  let vaneAt = 1;
+  function fadeVane(a) {
+    if (!vane || a === vaneAt) return;
+    vaneAt = a;
+    vane.material.opacity = a;
+    vane.material.depthWrite = a > 0.98;
+    vane.visible = a > 0.02;
+  }
 
   // A find's once-a-walk moment, the first time it is found this walk: at the
   // loft, one pigeon comes along with her for a while (Task 6, roofsbirds.js
@@ -461,18 +495,19 @@ export function createRoofsMoments(area, opts = {}) {
     }
   }
 
-  // the warm chimney: a ring as she settles, then one every RING.every
-  function chimney(dt, here) {
+  // the warm chimney: a ring as she settles, then one every RING.every, each
+  // tilted toward the camera where it is at the puff
+  function chimney(dt, here, camera) {
     if (here !== 'chimney') {
       ringClock = null;
       return;
     }
     if (ringClock === null) {
       ringClock = 0;
-      ring?.puff();
+      ring?.puff(camera?.position ?? null);
     } else if ((ringClock += dt) >= RING.every - 1e-9) {
       ringClock -= RING.every;
-      ring?.puff();
+      ring?.puff(camera?.position ?? null);
     }
   }
 
@@ -487,12 +522,15 @@ export function createRoofsMoments(area, opts = {}) {
   const onTop = (p) => !!top && Math.hypot(p.x - top.x, p.z - top.z) <= TOWER_TOP.r && Math.abs(p.y - top.y) <= TOWER_TOP.dy;
 
   // the vane: the view eases in over the follow camera player.update placed,
-  // blended in angles round her (viewBlend)
+  // blended in angles round her (viewBlend), her view heading turned round
+  // to the view's (TOWER_TURN), the vane faded while it is in (vaneFade)
   function view(dt, p, camera, session) {
     if (!camera) {
       viewW = 0;
       blend.reset();
       last.set = false;
+      ownYaw = null;
+      fadeVane(1);
       return;
     }
     towerView(p, viewPos, viewLook);
@@ -504,13 +542,28 @@ export function createRoofsMoments(area, opts = {}) {
     last.yaw = follow.yaw;
     last.face = follow.face;
     last.set = true;
-    // in only while the screen already faces near the view's way and the
-    // stick is not turning it, so the stick never fights the picture; out
-    // whenever she is not settled there
+    // her own turn of the camera: with a turner, how far her view heading
+    // moved from where the moments left it; else the follow camera's turn
+    const yawNow = turner ? turner.get() : null;
+    const hers = Number.isFinite(yawNow) && ownYaw !== null ? wrapAngle(yawNow - ownYaw) : turnFace;
+    const steady = Math.abs(hers) <= TOWER_BLEND.steady * dt + 1e-9;
+    // in only while she is settled there and not turning the camera (a turn
+    // of hers while settled holds it off TOWER_TURN.hold); out whenever she
+    // is not settled there
     const settled = !reducedMotion && onTop(p) && spot.still >= TOWER_VIEW.settle && !session?.traversal?.busy;
-    const facing = Math.abs(wrapAngle(target.face - follow.face)) <= TOWER_BLEND.face;
-    const steady = Math.abs(turnFace) <= TOWER_BLEND.steady * dt + 1e-9;
-    const want = settled && facing && steady ? 1 : 0;
+    if (!settled) calmFor = TOWER_TURN.hold;
+    else if (!steady) calmFor = 0;
+    else calmFor += dt;
+    const calm = settled && steady && calmFor >= TOWER_TURN.hold - 1e-9;
+    // her view heading eases round to the view's, so the follow camera comes round too
+    if (turner && Number.isFinite(yawNow)) {
+      ownYaw = yawNow;
+      if (calm) {
+        ownYaw = yawNow + clampAbs(wrapAngle(target.yaw - yawNow), TOWER_TURN.rate * dt);
+        if (ownYaw !== yawNow) turner.set(ownYaw);
+      }
+    } else ownYaw = null;
+    const want = calm ? 1 : 0;
     let dw = (want - viewW) * Math.min(1, dt * TOWER_VIEW.rate);
     // the blend never turns faster than TOWER_BLEND.turn, however far apart the two are
     const span = Math.max(blend.span(follow, target), 1e-6);
@@ -519,11 +572,10 @@ export function createRoofsMoments(area, opts = {}) {
     viewW += dw;
     if (want === 0 && viewW < 0.002) viewW = 0;
     else if (want === 1 && viewW > 0.998) viewW = 1;
+    fadeVane(vaneFade(viewW));
     if (viewW === 0 && !blend.on) return;
     blend.apply(follow, target, viewW, p, camera, dt, turnYaw, turnFace);
   }
-
-
 
   return {
     get viewWeight() { return viewW; },
@@ -537,7 +589,7 @@ export function createRoofsMoments(area, opts = {}) {
       spot.z = catPos.z;
       spot.perched = session?.perched ?? null;
       const here = findAt(anchors, spot);
-      chimney(dt, here);
+      chimney(dt, here, camera);
       telescope(here);
       view(dt, catPos, camera, session);
       if (!here || found.has(here)) return;
@@ -550,6 +602,8 @@ export function createRoofsMoments(area, opts = {}) {
       if (!opts.ring) ring?.dispose();
       moon?.dispose();
       if (pane) disposeAtticPane(scene, pane);
+      vaneAt = null;
+      fadeVane(1); // the vane whole again: opacity 1, depthWrite on, shown
     },
   };
 }

@@ -62,7 +62,7 @@
 //
 // THE SIX FINDS (Rooftops step 5, world/roofsmoments.js): where the place has
 // its discoveries (area.anchors.discoveries) the life makes the moments with
-// the walk's log, progression and hud (walk.js's context; a picture page has
+// the walk's log and progression (walk.js's context; a picture page has
 // none, and then nothing is noted), and hands them her spot, the camera and
 // her session every frame, after the flock: update's fifth argument (main.js).
 // An older caller's four arguments still work (no session: no perch).
@@ -129,10 +129,10 @@ export function busAt(t, out = {}) {
 // createRoofsLife(area) -> (ctx) => { update(dt, t, catPos, camera, session), dispose() }.
 // `area` is the built record (its skySunset, skyDusk, skyGlow, markGlow, bus,
 // birdPerches, washSway, smokePots, sleepers and anchors); ctx is walk.js's life context ({ scene, sun, fill,
-// critters, visits, reducedMotion, log, progression, hud, ... }), or a picture
+// critters, visits, reducedMotion, log, progression, viewYaw, ... }), or a picture
 // page's (which may add a `guideStore`).
 export function createRoofsLife(area) {
-  return ({ scene, sun, fill, critters, visits, reducedMotion, guideStore, log, progression, hud, doc, audio }) => {
+  return ({ scene, sun, fill, critters, visits, reducedMotion, guideStore, log, progression, doc, audio, viewYaw }) => {
     const from = area.skySunset;
     const to = area.skyDusk;
     const sunEnd = sun.intensity;
@@ -215,7 +215,7 @@ export function createRoofsLife(area) {
     // test's), else the game's own; headless there is none, and no pane.
     const page = doc !== undefined ? doc : (globalThis.document ?? null);
     const moments = area.anchors?.discoveries
-      ? createRoofsMoments(area, { log, progression, hud, birds, scene, reducedMotion: reducedMotion ?? false, doc: page })
+      ? createRoofsMoments(area, { log, progression, birds, scene, reducedMotion: reducedMotion ?? false, doc: page, viewYaw })
       : null;
 
     // The birds' sounds (world/roofssound.js): where there is a flock and the

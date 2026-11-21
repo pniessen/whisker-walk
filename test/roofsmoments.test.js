@@ -221,6 +221,22 @@ describe('the Rooftops\' moments: the ring, the view and the pane', () => {
     m.dispose();
   });
 
+  it('each puff is handed the camera\'s position at the puff (it tilts toward it), or nothing with no camera', () => {
+    const eyes = [];
+    const ring = { puff: (eye) => eyes.push(eye), update() {}, dispose() {} };
+    const m = createRoofsMoments(area, { ring });
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 500);
+    camera.position.set(C.x + 3, C.y + 2, C.z + 3);
+    const here = new THREE.Vector3(C.x, C.y, C.z);
+    for (let i = 0; i < 60; i++) m.update(1 / 30, here, camera, session());
+    expect(eyes).toEqual([camera.position]);
+    const bare = createRoofsMoments(area, { ring });
+    for (let i = 0; i < 60; i++) bare.update(1 / 30, here, null, session());
+    expect(eyes).toEqual([camera.position, null]);
+    m.dispose();
+    bare.dispose();
+  });
+
   it('the ring is the warm chimney pot\'s, made where the place has its pots, and taken away', async () => {
     const { SMOKE_POTS } = await import('../src/world/roofsplan.js');
     const scene = new THREE.Scene();
@@ -363,14 +379,23 @@ describe('the Rooftops\' moments: the ring, the view and the pane', () => {
       };
     };
 
-    it('at 90 and 180 degrees off it never eases in', async () => {
-      const { camera, follow } = await setup();
+    // Fix wave (I2): the 75 degree facing gate is gone. With no view heading
+    // to turn (the picture pages, an older caller), the blend alone swings
+    // round her from any side, within the same bounds every frame.
+    it('with no view heading to turn, from 90 and 180 degrees off it eases in round her within the bounds', async () => {
+      const { camera, follow, cap } = await setup();
       for (const off of [90 * DEG, -90 * DEG, 180 * DEG]) {
         const m = createRoofsMoments(area, {});
-        for (let i = 0; i < 150; i++) { follow(cat, off); m.update(1 / 30, cat, camera, session()); }
-        expect(m.viewWeight, `${off / DEG} degrees`).toBe(0);
+        const check = watch(camera, cap);
+        for (let i = 0; i < 180; i++) { follow(cat, off); m.update(1 / 30, cat, camera, session()); check(cat); }
+        expect(m.viewWeight, `${off / DEG} degrees`).toBe(1);
         m.dispose();
       }
+      // a viewYaw that is not one (no set) is no turner: nothing throws, the blend alone
+      const m = createRoofsMoments(area, { viewYaw: { get: () => 0 } });
+      for (let i = 0; i < 180; i++) { follow(cat, 180 * DEG); m.update(1 / 30, cat, camera, session()); }
+      expect(m.viewWeight).toBe(1);
+      m.dispose();
     });
 
     it('at 0 and 60 degrees off it eases in and out within the bounds every frame', async () => {
@@ -487,6 +512,220 @@ describe('the Rooftops\' moments: the ring, the view and the pane', () => {
         m.dispose();
       }
     });
+  });
+
+  // Fix wave (I2): the only way up ends climbing north, so she arrives with
+  // the follow camera about 160 degrees from the view. Settled, her own view
+  // heading (the context's viewYaw) turns round to the view's at most 45
+  // degrees a second, and the blend eases in as the follow camera comes round.
+  describe('the tower view turns her view heading round to it', () => {
+    const DEG = Math.PI / 180;
+    const cat = new THREE.Vector3(V.x, V.y, V.z);
+    const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+    // a player: her view heading, and player.update's follow camera from it
+    // (catcam.js cameraOffset: yaw is the camera's bearing round her)
+    const rig = async (yaw0) => {
+      const { TOWER_VIEW, TOWER_TURN, towerView } = await import('../src/world/roofsmoments.js');
+      const vp = new THREE.Vector3();
+      towerView(cat, vp, new THREE.Vector3());
+      const side = Math.atan2(vp.x - cat.x, vp.z - cat.z);
+      const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 500);
+      const p = { yaw: side + yaw0, sets: 0 };
+      const viewYaw = { get: () => p.yaw, set: (v) => { p.sets++; p.yaw = v; } };
+      const place = (c) => {
+        camera.position.set(c.x + Math.sin(p.yaw) * 4, c.y + 2, c.z + Math.cos(p.yaw) * 4);
+        camera.lookAt(c.x, c.y + 0.3, c.z);
+      };
+      const cap = Math.max(Math.atan2(2 - 0.3, 4), TOWER_VIEW.maxPitch) + 1e-6;
+      return { TOWER_TURN, side, camera, p, viewYaw, place, cap };
+    };
+    // the bounds every frame: pitch, distance, no roll, and the camera's
+    // turn at most the follow camera's own plus the blend's 150 degrees a second
+    const bounds = (camera, cap, dt) => {
+      const dir = new THREE.Vector3();
+      let last = null;
+      let lastFollow = null;
+      return (c, followFace) => {
+        camera.getWorldDirection(dir);
+        expect(Math.atan2(-dir.y, Math.hypot(dir.x, dir.z))).toBeLessThanOrEqual(cap);
+        const face = Math.atan2(dir.x, dir.z);
+        const own = lastFollow !== null ? Math.abs(wrap(followFace - lastFollow)) : 0;
+        if (last !== null) expect(Math.abs(wrap(face - last))).toBeLessThanOrEqual(own + 150 * DEG * dt + 0.2 * DEG);
+        last = face;
+        lastFollow = followFace;
+        expect(camera.position.distanceTo(c)).toBeGreaterThanOrEqual(1.5);
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        expect(Math.abs(right.y)).toBeLessThan(1e-6);
+      };
+    };
+    const faceOf = (camera) => {
+      const d = camera.getWorldDirection(new THREE.Vector3());
+      return Math.atan2(d.x, d.z);
+    };
+
+    it('arriving 160 degrees off and standing still, the heading turns at most 45 degrees a second and the view is in within 6 s', async () => {
+      for (const fps of [30, 20]) {
+        for (const off of [160 * DEG, -160 * DEG]) {
+          const { TOWER_TURN, side, camera, p, viewYaw, place, cap } = await rig(off);
+          expect(TOWER_TURN.rate).toBeCloseTo(45 * DEG, 12);
+          const dt = 1 / fps;
+          const m = createRoofsMoments(area, { viewYaw });
+          const check = bounds(camera, cap, dt);
+          let inAt = null;
+          for (let i = 1; i <= 8 * fps; i++) {
+            place(cat);
+            const ff = faceOf(camera);
+            const before = p.yaw;
+            m.update(dt, cat, camera, session());
+            check(cat, ff);
+            expect(Math.abs(wrap(p.yaw - before)), `${fps} fps, ${off / DEG}`).toBeLessThanOrEqual(TOWER_TURN.rate * dt + 1e-9);
+            if (inAt === null && m.viewWeight === 1) inAt = i * dt;
+          }
+          expect(inAt, `${fps} fps, ${off / DEG}`).not.toBe(null);
+          expect(inAt).toBeLessThanOrEqual(6);
+          expect(Math.abs(wrap(p.yaw - side))).toBeLessThan(1e-6); // the follow camera is the view's way round
+          m.dispose();
+        }
+      }
+    });
+
+    it('nothing turns before she is settled, mid-hop, or under reduced motion', async () => {
+      const { camera, p, viewYaw, place } = await rig(160 * DEG);
+      const m = createRoofsMoments(area, { viewYaw });
+      for (let i = 0; i < 23; i++) { place(cat); m.update(1 / 30, cat, camera, session()); } // 0.77 s
+      expect(p.sets).toBe(0);
+      m.dispose();
+      for (const [opts, s] of [[{ reducedMotion: true }, session()], [{}, { ...session(), traversal: { busy: true } }]]) {
+        const r = await rig(160 * DEG);
+        const y0 = r.p.yaw;
+        const q = createRoofsMoments(area, { ...opts, viewYaw: r.viewYaw });
+        for (let i = 0; i < 240; i++) { r.place(cat); q.update(1 / 30, cat, r.camera, s); }
+        expect(r.p.sets).toBe(0);
+        expect(r.p.yaw).toBe(y0);
+        expect(q.viewWeight).toBe(0);
+        q.dispose();
+      }
+    });
+
+    it('a stick turn while settled stops the turn (hers wins), and it goes on after 1.5 s left alone', async () => {
+      const { TOWER_TURN, side, camera, p, viewYaw, place, cap } = await rig(160 * DEG);
+      const dt = 1 / 30;
+      const m = createRoofsMoments(area, { viewYaw });
+      const frame = (stick = 0) => {
+        p.yaw += stick * dt; // player.update turns her heading by the stick, then places the camera
+        place(cat);
+        m.update(dt, cat, camera, session());
+      };
+      for (let i = 0; i < 45; i++) frame(); // 1.5 s: settled, turning round
+      const turned = Math.abs(wrap(p.yaw - side));
+      expect(turned).toBeLessThan(160 * DEG - 0.2);
+      // she turns the camera back the other way for a second: none of the moments' turn
+      const w0 = m.viewWeight;
+      for (let i = 0; i < 30; i++) {
+        const before = p.yaw;
+        const sets = p.sets;
+        frame(-90 * DEG);
+        expect(p.sets, `frame ${i}`).toBe(sets);
+        expect(p.yaw).toBe(before - 90 * DEG * dt + 0); // hers alone
+        expect(m.viewWeight).toBeLessThanOrEqual(w0 + 1e-12); // the view only lets go
+      }
+      // left alone: nothing for 1.5 s, then it turns round again and the view comes in
+      const held = p.yaw;
+      for (let i = 0; i < 44; i++) frame();
+      expect(p.yaw).toBe(held);
+      const check = bounds(camera, cap, dt);
+      let inAt = null;
+      for (let i = 1; i <= 8 * 30; i++) {
+        place(cat);
+        const ff = faceOf(camera);
+        const before = p.yaw;
+        m.update(dt, cat, camera, session());
+        check(cat, ff);
+        expect(Math.abs(wrap(p.yaw - before))).toBeLessThanOrEqual(TOWER_TURN.rate * dt + 1e-9);
+        if (inAt === null && m.viewWeight === 1) inAt = i * dt;
+      }
+      expect(Math.abs(wrap(p.yaw - held))).toBeGreaterThan(0.5);
+      expect(inAt).not.toBe(null);
+      expect(Math.abs(wrap(p.yaw - side))).toBeLessThan(1e-6);
+      m.dispose();
+    });
+
+    it('she moves or hops down: the view eases out and her heading is hers again', async () => {
+      const { camera, p, viewYaw, place } = await rig(160 * DEG);
+      const m = createRoofsMoments(area, { viewYaw });
+      for (let i = 0; i < 240; i++) { place(cat); m.update(1 / 30, cat, camera, session()); }
+      expect(m.viewWeight).toBe(1);
+      const sets = p.sets;
+      for (let i = 0; i < 120; i++) {
+        const c = new THREE.Vector3(V.x + (i % 2 ? 0.1 : -0.1), V.y, V.z);
+        place(c);
+        m.update(1 / 30, c, camera, session());
+      }
+      expect(m.viewWeight).toBe(0);
+      expect(p.sets).toBe(sets);
+      m.dispose();
+    });
+  });
+
+  // Fix wave (I1): she stands just south of the vane's mast and the view
+  // looks south, so the mast and the letters split the picture: the vane
+  // fades while the view is in.
+  it('the vane fades while the view is in: whole at 0, gone at 1, restored on dispose', async () => {
+    const { vaneFade, towerView } = await import('../src/world/roofsmoments.js');
+    expect(vaneFade(0)).toBe(1);
+    expect(vaneFade(0.15)).toBe(1);
+    expect(vaneFade(0.375)).toBeCloseTo(0.5, 9);
+    expect(vaneFade(0.6)).toBe(0);
+    expect(vaneFade(1)).toBe(0);
+    for (let w = 0; w < 1; w += 0.01) expect(vaneFade(w + 0.01)).toBeLessThanOrEqual(vaneFade(w) + 1e-12);
+    const vane = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2, 0.1), new THREE.MeshStandardMaterial({ transparent: true, opacity: 1 }));
+    const m = createRoofsMoments({ ...area, vane }, {});
+    const cat = new THREE.Vector3(V.x, V.y, V.z);
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 500);
+    const vp = new THREE.Vector3();
+    towerView(cat, vp, new THREE.Vector3());
+    const side = Math.atan2(vp.x - cat.x, vp.z - cat.z);
+    const follow = (c) => {
+      camera.position.set(c.x + Math.sin(side) * 4, c.y + 2, c.z + Math.cos(side) * 4);
+      camera.lookAt(c.x, c.y + 0.3, c.z);
+    };
+    for (let i = 0; i < 20; i++) { follow(cat); m.update(1 / 30, cat, camera, session()); }
+    expect(m.viewWeight).toBe(0);
+    expect([vane.material.opacity, vane.material.depthWrite, vane.visible]).toEqual([1, true, true]);
+    let seen = [];
+    for (let i = 0; i < 180; i++) {
+      follow(cat);
+      m.update(1 / 30, cat, camera, session());
+      seen.push([m.viewWeight, vane.material.opacity]);
+      expect(vane.material.opacity).toBeCloseTo(vaneFade(m.viewWeight), 12);
+      expect(vane.material.depthWrite).toBe(vane.material.opacity > 0.98);
+      expect(vane.visible).toBe(vane.material.opacity > 0.02);
+    }
+    expect(m.viewWeight).toBe(1);
+    expect([vane.material.opacity, vane.material.depthWrite, vane.visible]).toEqual([0, false, false]);
+    expect(seen.some(([, a]) => a > 0.02 && a < 0.98)).toBe(true); // it faded, it did not pop
+    // she moves: whole again as the view eases out
+    for (let i = 0; i < 120; i++) {
+      const c = new THREE.Vector3(V.x + (i % 2 ? 0.1 : -0.1), V.y, V.z);
+      follow(c);
+      m.update(1 / 30, c, camera, session());
+    }
+    expect(m.viewWeight).toBe(0);
+    expect([vane.material.opacity, vane.material.depthWrite, vane.visible]).toEqual([1, true, true]);
+    // gone mid-view, then the walk ends: whole again
+    for (let i = 0; i < 180; i++) { follow(cat); m.update(1 / 30, cat, camera, session()); }
+    expect(vane.visible).toBe(false);
+    m.dispose();
+    expect([vane.material.opacity, vane.material.depthWrite, vane.visible]).toEqual([1, true, true]);
+    // under reduced motion the view never comes, and the vane stays whole
+    const calm = createRoofsMoments({ ...area, vane }, { reducedMotion: true });
+    for (let i = 0; i < 180; i++) { follow(cat); calm.update(1 / 30, cat, camera, session()); }
+    expect([vane.material.opacity, vane.visible]).toEqual([1, true]);
+    calm.dispose();
+    // no vane on the record (an older area): nothing throws
+    const none = createRoofsMoments(area, {});
+    for (let i = 0; i < 180; i++) { follow(cat); none.update(1 / 30, cat, camera, session()); }
+    none.dispose();
   });
 
   it('the moon: in over 0.8 s on the crate, held at most 6 s, out over 0.8 s, out at once when she hops down', async () => {

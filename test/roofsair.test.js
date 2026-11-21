@@ -312,7 +312,7 @@ describe('the smoke ring', () => {
     }
   });
 
-  it('one mesh, at most 160 triangles, casting nothing, hidden between puffs', async () => {
+  it('one mesh, at most 320 triangles, casting nothing, hidden between puffs', async () => {
     const { createSmokeRing, RING } = await import('../src/world/roofsair.js');
     const scene = new THREE.Scene();
     const real = Math.random;
@@ -330,7 +330,9 @@ describe('the smoke ring', () => {
     expect(meshes).toEqual([ring.mesh]);
     const m = ring.mesh;
     const g = m.geometry;
-    expect((g.index ? g.index.count : g.attributes.position.count) / 3).toBeLessThanOrEqual(160);
+    // fix wave (M3): 8 x 20 sides, rounder than the 5 x 14 slab it was
+    expect((g.index ? g.index.count : g.attributes.position.count) / 3).toBeLessThanOrEqual(320);
+    expect([g.parameters.radius, g.parameters.tube, g.parameters.radialSegments, g.parameters.tubularSegments]).toEqual([0.16, 0.045, 8, 20]);
     expect(m.castShadow).toBe(false);
     expect(m.receiveShadow).toBe(false);
     expect(m.userData.noCast).toBe(true);
@@ -359,6 +361,34 @@ describe('the smoke ring', () => {
     ring.dispose();
     expect(scene.children).toEqual([]);
     expect(disposed.sort()).toEqual(['geometry', 'material']);
+  });
+
+  // Fix wave (M3): flat, the ring read as a slab from the follow camera.
+  // Each puff tilts it 35 degrees toward where the camera is at the puff.
+  it('each puff tilts it 35 degrees toward the camera, turned about the up axis to face it', async () => {
+    const { createSmokeRing, RING_TILT } = await import('../src/world/roofsair.js');
+    expect(RING_TILT).toBeCloseTo(35 * Math.PI / 180, 12);
+    const ring = createSmokeRing(new THREE.Scene(), pot, {});
+    const m = ring.mesh;
+    for (const eye of [{ x: pot.x + 4, y: pot.y + 2, z: pot.z }, { x: pot.x - 3, y: pot.y + 1, z: pot.z - 3 }, { x: pot.x, y: pot.y + 3, z: pot.z + 5 }]) {
+      ring.puff(eye);
+      ring.update(0.4);
+      m.updateMatrixWorld(true);
+      const axis = new THREE.Vector3(0, 0, 1).applyQuaternion(m.quaternion);
+      if (axis.y < 0) axis.negate(); // the hole's top side
+      expect(Math.acos(axis.y)).toBeCloseTo(35 * Math.PI / 180, 6);
+      // it leans toward the camera, in the camera's own bearing from the pot
+      const lean = Math.atan2(axis.x, axis.z);
+      expect(Math.abs(Math.atan2(Math.sin(lean - Math.atan2(eye.x - pot.x, eye.z - pot.z)), Math.cos(lean - Math.atan2(eye.x - pot.x, eye.z - pot.z))))).toBeLessThan(1e-6);
+      // so the camera sees more of the hole than it would of a flat ring
+      const toEye = new THREE.Vector3(eye.x - m.position.x, eye.y - m.position.y, eye.z - m.position.z).normalize();
+      expect(axis.dot(toEye)).toBeGreaterThan(toEye.y);
+    }
+    // no camera given: flat, as before
+    ring.puff();
+    const up = new THREE.Vector3(0, 0, 1).applyQuaternion(m.quaternion);
+    expect(Math.abs(up.y)).toBeCloseTo(1, 9);
+    ring.dispose();
   });
 
   it('half speed under reduced motion', async () => {

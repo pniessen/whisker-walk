@@ -52,13 +52,20 @@ describe('the area life\'s context', () => {
 });
 
 describe('the area life\'s context (Rooftops step 5)', () => {
-  it('the walk hands the life its log, progression and hud', () => {
+  it('the walk hands the life its log and progression, and her view heading to turn', () => {
     const life = lifecycle({ areas });
     life.w.startWalk({ duskMode: false, areaOverride: 'roofs' });
     const ctx = seen.ctx.at(-1);
     expect(ctx.log).toBe(life.log);
     expect(ctx.progression).toBe(life.progression);
-    expect(ctx.hud).toBe(life.hud);
+    expect('hud' in ctx).toBe(false); // the moments never used it (fix wave, M5)
+    // viewYaw reads and sets the player's own view heading (fix wave, I2)
+    let yaw = 0.4;
+    life.player.viewYaw = () => yaw;
+    life.player.setViewYaw = (v) => { yaw = v; };
+    expect(ctx.viewYaw.get()).toBe(0.4);
+    ctx.viewYaw.set(-1.25);
+    expect(yaw).toBe(-1.25);
     life.w.endWalk();
   }, 90_000);
 });

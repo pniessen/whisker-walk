@@ -138,8 +138,12 @@ const centreOf = (b) => {
 // a head 80, two ears 6, two paws 48, the tail 80), +628; their two deep sills
 // are the old sills' boxes deepened, in the stone bucket the terrace had, at no
 // cost -> 116 / 68 / 37,335 (merged 57 -> 59 / 30).
-const MEASURED_BUILT = { meshes: 116, casters: 68, triangles: 37335 };
-const MEASURED_MERGED = { meshes: 59, casters: 30, triangles: 37335 };
+// Rooftops step 5 fix wave (I1): the weathervane out of the north's gold
+// bucket into a mesh of its own (roofsVane: its own see-through gold, which
+// the tower view fades), casting nothing as before; its triangles moved, none
+// added, never merged: +1 mesh -> 117 / 68 / 37,335 (merged 59 -> 60 / 30).
+const MEASURED_BUILT = { meshes: 117, casters: 68, triangles: 37335 };
+const MEASURED_MERGED = { meshes: 60, casters: 30, triangles: 37335 };
 const MEASURED_DRAWS = 0;
 const TOWN_TRIANGLES = 4960; // the far town's one mesh (Task A: 3,992 before; 4,964 until round two, Task E: its back rows lower, so their fronts have room for three lit windows fewer; 4,958 until Task G: its back row's tallest 2 m higher again, one window more)
 
@@ -432,6 +436,29 @@ describe('the Rooftops drawn', () => {
     }
     // it is its own top-level group, so the walk's prop merge keeps its mesh
     expect(body.obj.parent).toBe(scene);
+  });
+
+  // Step 5 fix wave (I1): the tower view fades the vane, so it is a mesh of
+  // its own on its own gold, outside the kit, on the record as area.vane.
+  it('the vane is its own mesh on its own see-through gold, on the record', () => {
+    const v = area.vane;
+    expect(v?.isMesh).toBe(true);
+    expect(v.name).toBe('roofsVane');
+    expect(meshes.filter((m) => m.name === 'roofsVane')).toEqual([v]);
+    expect(v.material.transparent).toBe(true);
+    expect(v.material.opacity).toBe(1);
+    expect(v.material.depthWrite).toBe(true);
+    expect(v.castShadow).toBe(false); // as the kit's gold it was drawn with
+    expect(v.userData.noMerge).toBe(true); // the walk's prop merge keeps this very mesh
+    expect(meshes.filter((m) => m !== v && m.material === v.material)).toEqual([]);
+    const kitGold = meshes.find((m) => m.name === 'roofsNorth:gold');
+    expect(kitGold.material).not.toBe(v.material);
+    expect(kitGold.material.transparent).toBe(false);
+    // the mast, the letters and the arrow: from the tower top to the vane's tip, round its spot
+    const box = boxOf(v);
+    expect(box.max.y).toBeCloseTo(VANE_TIP, 2);
+    expect(box.min.y).toBeCloseTo(LEVELS.TOP, 2);
+    expect(Math.max(box.max.x - VANE.x, VANE.x - box.min.x, box.max.z - VANE.z, VANE.z - box.min.z)).toBeLessThan(1.1);
   });
 
   it('fifteen leaps open the lantern roof; fourteen do not', () => {

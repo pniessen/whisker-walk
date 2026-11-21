@@ -82,12 +82,13 @@ export function lifecycle({ collar = false, areas = createAreaLoader(), online =
   const homebase = anything({ setGettingReady: (on) => rec.gettingReady.push(on) });
   const hud = anything({ mapHost: fakeEl() });
   const log = anything();
+  const player = anything();
   const w = createWalkLifecycle({
     // MP on, so a solo walk asks the cloud for friends who could visit as ghosts
     MP: true, pid: 'me', coarse: false, envMap: new THREE.Texture(), overlay: anything({ classList: anything() }), blockList,
     renderer: null, camera: new THREE.PerspectiveCamera(),
     composerRig: anything({ applyLighting: (_scene, o) => rec.lighting.push(o.dusk) }),
-    player: anything(), progression,
+    player, progression,
     settings: { get: (k) => (k === 'muted' ? true : null) },
     hud,
     audio: anything({ startAmbient: (areaId, o) => rec.sound.push({ areaId, ...o }), getContext: () => { rec.soundContexts++; } }),
@@ -106,6 +107,6 @@ export function lifecycle({ collar = false, areas = createAreaLoader(), online =
     reloadPage: () => { rec.reloads++; },
     isOnline: online,
   });
-  return { w, rec, progression, hud, log, areas, getSession: () => session, setPendingRoom: (r) => { pendingRoom = r; } };
+  return { w, rec, progression, hud, log, player, areas, getSession: () => session, setPendingRoom: (r) => { pendingRoom = r; } };
 }
 
