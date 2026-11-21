@@ -270,7 +270,7 @@ export function createNet(transport, { now = defaultClock } = {}) {
       if (!next.has(id)) for (const b of Object.values(limits)) b.forget(id);
     }
     members = next;
-    for (const fn of rosterHandlers) fn(roster);
+    for (const fn of [...rosterHandlers]) fn(roster);
   }
 
   // A message from someone this device is not showing, or past its sender's
@@ -284,17 +284,17 @@ export function createNet(transport, { now = defaultClock } = {}) {
       if (!isValidStateMsg(payload)) return;
       if (payload.id === selfId) return; // echo suppression
       if (!admit('state', payload.id)) return;
-      for (const fn of stateHandlers) fn(payload);
+      for (const fn of [...stateHandlers]) fn(payload);
     } else if (kind === 'event') {
       if (!isValidEventMsg(payload)) return;
       if (payload.id === selfId) return; // echo suppression
       if (!admit(payload.type === 'meow' ? 'meow' : 'event', payload.id)) return;
-      for (const fn of eventHandlers) fn(payload);
+      for (const fn of [...eventHandlers]) fn(payload);
     } else if (kind === 'chat') {
       if (!isValidChatMsg(payload)) return;
       if (payload.id === selfId) return; // echo suppression
       if (!admit('chat', payload.id)) return;
-      for (const fn of chatHandlers) fn(payload);
+      for (const fn of [...chatHandlers]) fn(payload);
     }
   }
 
