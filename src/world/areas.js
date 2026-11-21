@@ -43,7 +43,8 @@ export const AREA_LOADERS = Object.freeze({
   fair: () => Promise.all([import('./fair.js'), import('../fairlive.js'), import('../fairshow.js')])
     .then(([world, live, show]) => ({ id: 'fair', world, life: { createFairLive: live.createFairLive, createFairShow: show.createFairShow } })),
   roofs: () => import('./roofs.js').then((w) => own('roofs', w)),
-  market: () => import('./market.js').then((w) => own('market', w)),
+  market: () => Promise.all([import('./market.js'), import('../marketlive.js')])
+    .then(([world, live]) => ({ id: 'market', world, life: { createMarketLive: live.createMarketLive } })),
 });
 
 export const AREA_ENTRY_MODULES = Object.freeze({
@@ -60,5 +61,5 @@ export const AREA_ENTRY_MODULES = Object.freeze({
   farm: Object.freeze(['src/world/farm.js', 'src/farmanimals.js']),
   fair: Object.freeze(['src/world/fair.js', 'src/fairlive.js', 'src/fairshow.js']),
   roofs: Object.freeze(['src/world/roofs.js']),
-  market: Object.freeze(['src/world/market.js']),
+  market: Object.freeze(['src/world/market.js', 'src/marketlive.js']),
 });
