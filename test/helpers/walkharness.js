@@ -76,7 +76,7 @@ function fakeOverlay() {
   };
 }
 
-// walkHarness(opts) -> { w, getSession, progression, overlay, storage, toasts, homeToasts, reloads }
+// walkHarness(opts) -> { w, getSession, progression, overlay, storage, toasts, homeToasts, reloads, camera }
 //   (toasts: the walk's hud lines; homeToasts: the home screen's; reloads():
 //   how many times the walk asked for a fresh start of the page)
 //   save(progression)  shapes the save before any walk
@@ -99,9 +99,10 @@ export function walkHarness({
   const toasts = [];
   const homeToasts = [];
   let reloads = 0;
+  const camera = new THREE.PerspectiveCamera();
   const w = createWalkLifecycle({
     MP: false, pid: 'me', coarse: false, envMap, overlay, blockList: new Set(),
-    renderer, camera: new THREE.PerspectiveCamera(), composerRig: anything(),
+    renderer, camera, composerRig: anything(),
     player: anything(), progression,
     settings: { get: (k) => (k === 'muted' ? true : null) },
     hud: anything({ mapHost: fakeEl(), toast: (t) => toasts.push(t) }),
@@ -122,5 +123,5 @@ export function walkHarness({
     reloadPage: () => { reloads += 1; },
     isOnline,
   });
-  return { w, getSession: () => session, progression, overlay, storage, toasts, homeToasts, reloads: () => reloads };
+  return { w, getSession: () => session, progression, overlay, storage, toasts, homeToasts, reloads: () => reloads, camera };
 }

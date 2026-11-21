@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
-import { walkHarness, areas, fakeDocument } from './helpers/walkharness.js';
+import { walkHarness, areas, fakeDocument, anything } from './helpers/walkharness.js';
 import { AreaLoadError } from '../src/game/areaload.js';
 import { GATE_MOMENT_MS } from '../src/gatecross.js';
 import { LEAF_OPEN, LEAF_R, LEAF_BLOCKS, NO_GATES } from '../src/world/gateway.js';
 import { phrase } from '../src/clanphrases.js';
 import { diagnostics } from '../src/diagnostics.js';
 import { mulberry32 } from '../src/rng.js';
+import { cameraOffset } from '../src/catcam.js';
+import { clampZoomStep, maxZoomStep, zoomView } from '../src/camzoom.js';
 
 // Walking on (world map step 3, Task 7): a cat walks through a gate at the
 // Park's edge, a short "Off to Appletree Farm!" moment shows, and the next walk
@@ -95,6 +97,30 @@ describe('walking on through a gate', () => {
     expect(Array.isArray(walked[0])).toBe(true);
     // the Farm's own Ready? card, not the moment
     expect(h.overlay.innerHTML).toContain('btn-resume');
+  }, WALK_MS);
+
+  it('back to the Neighbourhood through the Park\'s town gate: she arrives facing into the town, the camera behind her', async () => {
+    const h = walkHarness({ save: parkSave });
+    h.w.startWalk({});
+    expect(await h.w.walkOn({ via: 'park-town' })).toBe('walked');
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    const s = h.getSession();
+    expect(s.areaId).toBe('neighborhood');
+    expect(h.progression.state.area).toBe('neighborhood');
+    expect(s.arrivedVia).toBe('town-park');
+    // ARRIVE_IN (3.6 m) inside the town's east gate at (52, 0), facing west
+    expect(s.cat.position.x).toBeCloseTo(48.4, 9);
+    expect(s.cat.position.z).toBeCloseTo(0, 9);
+    expect(s.cat.rotation.y).toBe(Math.PI / 2);
+    // the camera placed behind her for that yaw, as the camp lesson places it
+    const view = zoomView(clampZoomStep(null, maxZoomStep(false)));
+    const want = s.cat.position.clone().add(cameraOffset(Math.PI / 2, 0.18, view.dist, view.height));
+    expect(h.camera.position.x).toBeCloseTo(want.x, 9);
+    expect(h.camera.position.y).toBeCloseTo(want.y, 9);
+    expect(h.camera.position.z).toBeCloseTo(want.z, 9);
+    // and not where a yaw of 0 would have put it
+    const atZero = s.cat.position.clone().add(cameraOffset(0, 0.18, view.dist, view.height));
+    expect(Math.hypot(h.camera.position.x - atZero.x, h.camera.position.z - atZero.z)).toBeGreaterThan(1);
   }, WALK_MS);
 
   it('nothing to resume once the moment is up, and the walk just left is saved', async () => {
@@ -307,6 +333,30 @@ describe('walking on to a place not here yet', () => {
     expect(h.reloads()).toBe(1);
   }, WALK_MS);
 
+  // Ruling R14: only her own solo walk-on counts (as F6: a start heard from
+  // the room never counts).
+  it('a guest\'s failed walk-on never counts toward a fresh start', async () => {
+    const h = walkHarness({ save: parkSave, areas: failingFarm() });
+    h.w.startWalk({});
+    expect(await h.w.walkOn({ via: 'park-farm', guest: true })).toBe('failed');
+    h.w.endWalk();
+    h.progression.setArea('farm');
+    expect(await h.w.startWalkWhenReady({})).toBe('failed');
+    expect(h.reloads()).toBe(0);
+  }, WALK_MS);
+
+  it('a failed walk-on in a room never counts toward a fresh start', async () => {
+    const h = walkHarness({ save: parkSave, areas: failingFarm(), pendingRoom: { net: anything(), roster: [] } });
+    h.w.startWalk({ roomSeed: 5 });
+    expect(h.getSession().net).toBeTruthy();
+    expect(await h.w.walkOn({ via: 'park-farm' })).toBe('failed');
+    expect(h.toasts).toEqual([phrase('start.notReady')]);
+    h.w.endWalk(); // leaves the room
+    h.progression.setArea('farm');
+    expect(await h.w.startWalkWhenReady({})).toBe('failed');
+    expect(h.reloads()).toBe(0);
+  }, WALK_MS);
+
   it('a place this build does not have never counts toward a fresh start', async () => {
     const h = walkHarness({ save: parkSave, areas: failingFarm('unknown') });
     h.w.startWalk({});
@@ -332,5 +382,55 @@ describe('walking on to a place not here yet', () => {
     expect(h.progression.state.area).toBe('park');
     expect(h.overlay.innerHTML).toContain('Home again!');
     expect(walked).toEqual([]);
+  }, WALK_MS);
+});
+
+// The lines a walk banks have one source (walk.js bankedLines): the summary
+// card wraps them in its HTML, a walk-on hands them to main.js as plain text.
+describe('the summary card', () => {
+  // A Park walk that is a new best, the day's first (a streak bonus), the walk
+  // Mochi followed her home on, with a pinecone in her mouth.
+  function bankedWalk(h) {
+    h.w.startWalk({});
+    const s = h.getSession();
+    h.progression.addPoints(40);
+    h.progression.setKittenStage(2);
+    s.carry.mouth.held = { id: 'park-pinecone-1', kind: 'pinecone' }; // one of the Park's own
+  }
+  const PAW_HTML = '<span class="paw" aria-hidden="true">🐾</span>';
+
+  it('ends a walk with the new best, the streak, Mochi and what came home, word for word', () => {
+    const h = walkHarness({ save: parkSave });
+    bankedWalk(h);
+    h.w.endWalk();
+    const html = h.overlay.innerHTML;
+    expect(html).toContain('<h1>Home again!</h1>');
+    expect(html).toContain('<div class="record-banner">NEW BEST! 🏆</div>');
+    expect(html).toContain(`<div class="best-line">🔥 day 1 streak — +5 bonus ${PAW_HTML}</div>`);
+    expect(html).toContain('<div class="best-line">Mochi the kitten followed you home! 🐱</div>');
+    expect(html).toContain("<div class=\"best-line\">You brought the pine cone home. It's in the den now.&nbsp;🏠</div>");
+  }, WALK_MS);
+
+  it('a walk-on hands the same lines on as text', async () => {
+    const walked = [];
+    const h = walkHarness({ save: parkSave, onWalkedOn: (l) => walked.push(l) });
+    bankedWalk(h);
+    await h.w.walkOn({ via: 'park-farm' });
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    expect(walked).toEqual([[
+      'NEW BEST! 🏆',
+      '🔥 day 1 streak — +5 bonus 🐾',
+      'Mochi the kitten followed you home! 🐱',
+      "You brought the pine cone home. It's in the den now.\u00a0🏠",
+    ]]);
+  }, WALK_MS);
+
+  it('a plain walk has none of them', async () => {
+    const walked = [];
+    const h = walkHarness({ save: (p) => { parkSave(p); p.state.streak = { last: '2026-11-21', count: 1 }; p.state.bestWalk = 9999; }, onWalkedOn: (l) => walked.push(l) });
+    h.w.startWalk({});
+    await h.w.walkOn({ via: 'park-farm' });
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    expect(walked).toEqual([[]]);
   }, WALK_MS);
 });

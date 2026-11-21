@@ -4254,11 +4254,10 @@ describe('endWalk: what the cat carried home', () => {
   const block = src.slice(a, b);
   const code = block.replace(/\/\/.*$/gm, '');
 
-  it('sits inside endWalk\'s bankWalk, after completeWalk and before the summary and the teardown', () => {
+  it('sits inside endWalk\'s bankWalk, after completeWalk and before the teardown', () => {
     expect(end).toBeGreaterThan(0);
     expect(a).toBeGreaterThan(src.indexOf('progression.completeWalk(', end));
     expect(b).toBeGreaterThan(a);
-    expect(b).toBeLessThan(src.indexOf('const summaryHtml', end));
     expect(b).toBeLessThan(src.indexOf('session.fx.dispose()', end));
   });
 
@@ -4284,10 +4283,8 @@ describe('endWalk: what the cat carried home', () => {
     expect(src.indexOf('session.rest = null', clearAt + 1)).toBe(-1); // once
   });
 
-  it('the summary names what came home, escaped', () => {
-    const tail = src.slice(b, src.indexOf('<button id="btn-summary-continue"', b));
-    expect(tail).toMatch(/You brought the \$\{escapeHtml\(carryLabel\([^`]*\)\)\} home\. It's in the den now\.&nbsp;🏠<\/div>/);
-  });
+  // The summary's line for what came home is pinned by behaviour now, with
+  // the card's other banked lines: test/walkon.test.js, 'the summary card'.
 });
 
 // ===========================================================================

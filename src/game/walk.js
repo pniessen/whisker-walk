@@ -320,6 +320,25 @@ export function chatHintLine(touch) {
   return touch ? 'Tap 💬 to chat' : 'Press 1–9 to chat · Enter for phrases';
 }
 
+// The summary's own lines for what a walk banked (bankWalk's numbers): the
+// one source of their words. Plain text by default, which a walk-on toasts
+// (walkOn's onWalkedOn); endWalk's summary card asks for its HTML pieces
+// (`html`: the item's name escaped, the light paw, a non-breaking space as
+// an entity) and wraps each line in its own tag. Every other character is a
+// literal or a number, so nothing else needs escaping. null where a line
+// does not apply.
+export function bankedLines({ isRecord, streak, mochiArrived, broughtHome }, { html = false } = {}) {
+  const name = html ? escapeHtml(carryLabel(broughtHome)) : carryLabel(broughtHome);
+  const paw = html ? PAW : '🐾';
+  const nbsp = html ? '&nbsp;' : '\u00a0';
+  return {
+    best: isRecord ? 'NEW BEST! 🏆' : null,
+    streak: streak.bonus > 0 ? `🔥 day ${streak.count} streak — +${streak.bonus} bonus ${paw}` : null,
+    mochi: mochiArrived ? 'Mochi the kitten followed you home! 🐱' : null,
+    brought: broughtHome ? `You brought the ${name} home. It's in the den now.${nbsp}🏠` : null,
+  };
+}
+
 function hintHtml(segs) {
   return segs.map((t) => `<span class="hint-seg">${escapeHtml(t)}</span>`).join(' · ');
 }
@@ -2896,7 +2915,9 @@ export function createWalkLifecycle({
     const session = getSession();
     if (!session) return;
     onWalkEnded();
-    const { earned, isRecord, streak, goalsDone, discoveries, friendsGreeted, walkedWith, mochiArrived, broughtHome, guideLines, firstLesson, crossLines } = bankWalk(session, { together, crossTo, ledBy });
+    const banked = bankWalk(session, { together, crossTo, ledBy });
+    const { earned, isRecord, goalsDone, discoveries, friendsGreeted, walkedWith, guideLines, firstLesson, crossLines } = banked;
+    const lines = bankedLines(banked, { html: true });
     const crossHtml = crossLines.map((l) => `<div class="best-line">${escapeHtml(l)}</div>`).join('');
     const guideHtml = guideLines.map((l) => `<div class="best-line guide-line">${escapeHtml(l)}</div>`).join('');
     // Read before the teardown below, like the numbers above.
@@ -2908,15 +2929,15 @@ export function createWalkLifecycle({
       ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
       <h1>Home again!</h1>
       <div class="summary-cheer">${escapeHtml(summaryCheer(earned, discoveries))}</div>
-      ${isRecord
-        ? '<div class="record-banner">NEW BEST! 🏆</div>'
+      ${lines.best
+        ? `<div class="record-banner">${lines.best}</div>`
         : `<div class="best-line">your best: ${progression.state.bestWalk} ${PAW}</div>`}
       ${summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDone, hasGoals: !!session.goals && !firstLesson })}
       ${guideHtml}
       ${walkedWith.length ? `<div class="best-line">explored with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
-      ${streak.bonus > 0 ? `<div class="best-line">🔥 day ${streak.count} streak — +${streak.bonus} bonus ${PAW}</div>` : ''}
-      ${mochiArrived ? '<div class="best-line">Mochi the kitten followed you home! 🐱</div>' : ''}
-      ${broughtHome ? `<div class="best-line">You brought the ${escapeHtml(carryLabel(broughtHome))} home. It's in the den now.&nbsp;🏠</div>` : ''}
+      ${lines.streak ? `<div class="best-line">${lines.streak}</div>` : ''}
+      ${lines.mochi ? `<div class="best-line">${lines.mochi}</div>` : ''}
+      ${lines.brought ? `<div class="best-line">${lines.brought}</div>` : ''}
       ${crossHtml}
       <button id="btn-summary-continue" class="primary">Continue</button>
       </div>
@@ -2929,16 +2950,12 @@ export function createWalkLifecycle({
     overlay.classList.remove('hidden');
   }
 
-  // The summary's own lines for what a walk walked on from banked, as plain
-  // text for main.js to toast (onWalkedOn): a new best, a streak bonus, the
-  // kitten, what she brought home. The words are the summary card's, above.
-  function arrivalLines({ isRecord, streak, mochiArrived, broughtHome }) {
-    return [
-      isRecord ? 'NEW BEST! 🏆' : null,
-      streak.bonus > 0 ? `🔥 day ${streak.count} streak — +${streak.bonus} bonus 🐾` : null,
-      mochiArrived ? 'Mochi the kitten followed you home! 🐱' : null,
-      broughtHome ? `You brought the ${carryLabel(broughtHome)} home. It's in the den now.\u00a0🏠` : null,
-    ].filter(Boolean);
+  // The summary's own lines for what a walk walked on from banked, for
+  // main.js to toast (onWalkedOn): a new best, a streak bonus, the kitten,
+  // what she brought home (bankedLines, the summary card's words).
+  function arrivalLines(banked) {
+    const { best, streak, mochi, brought } = bankedLines(banked);
+    return [best, streak, mochi, brought].filter(Boolean);
   }
 
   // walkOn({ via, ledBy, guest }) -> Promise of 'walked' | 'refused' |
@@ -2957,7 +2974,8 @@ export function createWalkLifecycle({
   //     when it first showed. When it does not, the pause card comes back
   //     with one line (hud.toast: she is still in her walk), nothing is banked
   //     and the page never reloads mid-walk, 'failed'; an online failure for a
-  //     place this build has counts toward startWalkWhenReady's fresh start.
+  //     place this build has counts toward startWalkWhenReady's fresh start,
+  //     on her own solo walk-on only (R14).
   //     A walk that ended (or changed) while it came: 'dropped'.
   // The moment's end starts the next walk with startWalk itself (its place is
   // here), only if no walk has started meanwhile, in the room's next seed
@@ -3017,7 +3035,10 @@ export function createWalkLifecycle({
         if (getSession() !== s || !s.walkingOn) return 'dropped';
         s.walkingOn = false;
         const online = isOnline();
-        if (online && err?.kind !== 'unknown') failures += 1;
+        // Ruling R14: only her own solo walk-on counts toward a fresh start
+        // (as F6: a start heard from the room never counts), never a guest's
+        // and never in a room.
+        if (online && err?.kind !== 'unknown' && !guest && !s.net) failures += 1;
         // Back in her walk: the pause card (no crossing is being asked now).
         s.crossing = null;
         overlay.innerHTML = pauseCardFor(s, getIsTouch(), pauseSoundOf(settings));
