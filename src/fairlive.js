@@ -33,24 +33,7 @@ import { CAT_LOOK_Y } from './cat/model.js';
 import { FLAT_GROUND } from './ground.js';
 import { setFairClock } from './world/fairkit.js';
 
-// What a walk that is not at the Fairground has.
-export const NO_FAIR = Object.freeze({
-  sim: null,
-  riding: null,
-  wobble: 0,
-  groundSpot() { return null; },
-  update() {},
-  late() {},
-  jump() { return false; },
-  canBoard() { return false; },
-  // step 3 (src/fairshow.js): no games, no finds, no visitors anywhere else
-  games: null,
-  show: null,
-  actionFor() { return null; },
-  act() { return false; },
-  meow() { return 0; },
-  dispose() {},
-});
+export { NO_FAIR } from './fairnone.js';
 
 // The time of day in seconds, to the sub-millisecond (Date.now() alone steps
 // in whole milliseconds, which shows as a shimmer on a fast ride).
@@ -234,6 +217,8 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
 
   function seatCat(seat, cat, player, session) {
     session.perched = seat;
+    // jumped on with the stick still held: it holds her until it is let go (climbing.js stickTakesOff)
+    session.perchHold = player.inputActive ? seat : null;
     player.perchY = seat.y;
     cat.position.set(seat.x, gy(seat.x, seat.z) + seat.y, seat.z);
     cat.rotation.y = seat.yaw;
@@ -264,8 +249,13 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
   // by the walk once it has made them. Run here, after the rides have moved her.
   let show = null;
 
+  // A co-walker's seat by its id (src/remotecats.js, partner-height): every
+  // seat but the helter-skelter's, which each device slides on its own clock.
+  const seatIds = new Map(sim.seats.filter((s) => s.rideId !== 'slide').map((s) => [s.id, s]));
+
   const api = {
     sim,
+    seatById(id) { return seatIds.get(id) ?? null; },
     get show() { return show; },
     get games() { return show ? show.games : null; },
     attach(s) { show = s ?? null; return api; },
@@ -293,11 +283,27 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
       return sim.jumpTarget(catAt(cat, player), session.perched ?? null, null)?.type === 'board';
     },
 
+    // pawKind(cat, player, session) → what the jump button would do on a ride
+    // now, for the paw's badge (game/tips.js): 'up' onto a seat (from the
+    // ground, a perch or another seat), 'down' off one (or down the slide),
+    // 'none' when it would do nothing (waiting on the boarding deck or the
+    // coaster's platform for the next one), null when it is not the rides'
+    // business. Asked with no slack: the jump reaches a little further
+    // (RIDE.JUMP_SLACK), so a press always finds the seat the paw promised.
+    pawKind(cat, player, session) {
+      if (hop.on) return 'none';
+      const t = sim.jumpTarget(catAt(cat, player), session.perched ?? null, lastSeat);
+      if (!t) return null;
+      if (t.type === 'board' || t.type === 'hop') return 'up';
+      if (t.type === 'stay') return 'none';
+      return 'down';
+    },
+
     // jump({ cat, player, session }) → true when a ride took the jump.
     jump({ cat, player, session }) {
       if (hop.on) return true; // in the air on the way down: nothing to do
       const from = session.perched ?? null;
-      const t = sim.jumpTarget(catAt(cat, player), from, lastSeat);
+      const t = sim.jumpTarget(catAt(cat, player), from, lastSeat, RIDE.JUMP_SLACK);
       if (!t) return false;
       if (t.type === 'board' || t.type === 'hop') {
         lastSeat = t.type === 'hop' ? riding : null;
@@ -324,6 +330,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
         // off a seat onto one of the area's own perches (the boarding deck)
         riding = null; lastSeat = null; rodeRide = null;
         session.perched = t.perch;
+        session.perchHold = player.inputActive ? t.perch : null;
         player.perchY = t.perch.y;
         cat.position.set(t.perch.x, gy(t.perch.x, t.perch.z) + t.perch.y, t.perch.z);
         player.halt?.();

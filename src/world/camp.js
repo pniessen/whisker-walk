@@ -21,150 +21,17 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial, surfaceProps, repeatFor } from '../render/materials.js';
 import { DISCS } from '../rivalclans.js';
-import { castFor } from '../clancast.js';
+import { campLayout, CAMP_TURN } from './camplayout.js';
 import { seatOnGround } from '../ground.js';
 import { seedFromCode, mulberry32 } from '../rng.js';
 import { withLocalUuids as localUuids } from './localuuids.js';
+import { wordRule } from '../wordset.js';
+
+export { campLayout, campDiscs, CAMP_TURN, LEDGE_CAMPS } from './camplayout.js';
+
+const frozen = (o) => Object.freeze(o);
 const withLocalUuids = (areaId, fn) => localUuids(`camp-uuids-${areaId}`, fn);
 
-// One turn per camp (radians): the direction from the camp's centre to the den.
-// Hand-probed against the built maps in 15-degree steps, starting from the
-// side away from the camp tree (so the den's door faces the centre with the
-// tree behind the centre) and alternating outwards, keeping the first turn
-// whose layout passes every check in test/camp.test.js and
-// test/rivalworld.test.js (den and rock clear every other collider by 0.4 m;
-// every ground seat on clan ground; eight roaming homes with their circles).
-// Woods, river and moor passed at the first step, the away side itself; the
-// Pines was turned south by the owner's choice (below). Clearances are
-// edge to edge, collider to collider, measured on the shipped maps; the camp
-// tree is the nearest collider to the camp in every territory:
-//   woods: camp tree (builder.tree, scale 1.09) at (3.44,-45.4), r 0.55. Den
-//     3.15 m clear of it, rock 0.96 m.
-//   river: the alder (builder.tree, scale 1.29) at (7.62,3.12), r 0.65. Den
-//     3.62 m, rock 1.26 m.
-//   moor: the lone thorn (builder.tree, scale 0.89) at (-1.58,-46.25), r 0.45.
-//     Den 3.75 m, rock 1.41 m.
-//   pines: owner's decisions 2026-11-04: "Pines camp: South", then "move the
-//     pine". The turn is 1.571 rad, due south (+z is south; the minimap draws
-//     north, -z, at the top): the den at (-38,43), the bramble ring's gap
-//     facing north, the Highrock at (-39.64,39.53) behind the den. It was
-//     2.583 (den and rock on the west and north sides, away from the pines).
-//     The east camp pine (builder.pine scale 1.66, r 0.66) stood in the
-//     clearing at (-35.92,43.2), 2.35 m from the new den and over it from the
-//     south and from the camp's high view; pines.js moves it (CAMP_PINE_TO) to
-//     (-33.2,47.6), 8.9 m from the centre and beyond the ring, still one of
-//     the swaying near pines, off the truce path (x -26) by 7 m and the spawn
-//     (-26,44) by 8 m. The one camp pine left is (-39.31,37.51) scale 1.69,
-//     r 0.68, behind the Highrock from the south. Collider to collider: den
-//     3.86 m from it (was 2.79) and 4.9 m from the moved pine (was 2.18 from
-//     the old spot); rock 0.77 m from it (was 0.86) and over 6 m from the moved
-//     one (was 3.43). The disc keeps 6 m off the truce path's centreline, so
-//     no seat is on truce ground, and the patrol ring (r 6) keeps 2.2 m off
-//     the moved trunk, so it stays clan ground with the usual room.
-export const CAMP_TURN = Object.freeze({
-  woods: 2.111,
-  river: -2.461,
-  moor: 1.394,
-  pines: 1.571,
-});
-
-// Ledge camps, authored whole: { den, rock, seats } in world coordinates, the
-// same shape campLayout turns for a disc camp. den.cave: the den is a cave in
-// the rock, its point the den's centre, with no dome and no collider (r 0).
-// A seat's `face` (the leader's, looking west out over the gorge) is the yaw
-// createClanCats gives it instead of facing the camp's centre. Kits 0 and 1,
-// and 2 and 3, are the hop pairs, as everywhere.
-const frozen = (o) => Object.freeze(o);
-export const LEDGE_CAMPS = frozen({
-  gorge: frozen({
-    den: frozen({ x: 23, z: 40, r: 0, h: 0, cave: true }),
-    rock: frozen({ x: 8.3, z: 41.5, r: 0.6, h: 0.8 }),
-    seats: frozen({
-      leader: frozen({ x: 8.3, z: 41.5, y: 0.8, face: Math.PI / 2 }),
-      deputy: frozen({ x: 9.5, z: 41.5 }),
-      elders: frozen([frozen({ x: 24.8, z: 38.4 }), frozen({ x: 24.8, z: 41.6 })]),
-      kits: frozen([
-        frozen({ x: 21.6, z: 38.8 }), frozen({ x: 22.6, z: 39.4 }),
-        frozen({ x: 22.6, z: 40.6 }), frozen({ x: 21.6, z: 41.2 }),
-      ]),
-    }),
-  }),
-});
-
-// A fresh, unfrozen copy of a ledge camp's record.
-function ledgeLayout(areaId) {
-  const { cx, cz } = DISCS[areaId];
-  const { den, rock, seats } = LEDGE_CAMPS[areaId];
-  return {
-    cx,
-    cz,
-    den: { ...den },
-    rock: { ...rock },
-    seats: {
-      leader: { ...seats.leader },
-      deputy: { ...seats.deputy },
-      elders: seats.elders.map((p) => ({ ...p })),
-      kits: seats.kits.map((p) => ({ ...p })),
-    },
-  };
-}
-
-const DEN = { d: 2.0, r: 1.1, h: 0.9 };
-const ROCK = { d: 2.2, turn: 2.3, r: 0.6, h: 0.8 };
-// Seat distances. Each ground seat stands 0.6 m or more off the den's and the
-// rock's edges (camp.test.js), which is a cat's radius and a little more.
-const DEPUTY_FROM_ROCK = 1.2;
-const ELDER_FROM_DEN = 1.7;
-const ELDER_TURN = 0.9;
-const KIT_FROM_DEN = 1.9;
-const KIT_TURNS = [-0.6, -0.2, 0.2, 0.6];
-
-/**
- * campLayout(areaId) -> { cx, cz, den, rock, seats } | null
- *
- * θ = CAMP_TURN[areaId], u(a) = (cos a, sin a):
- *   den at centre + 2.0·u(θ), its door facing the centre; rock at centre +
- *   2.2·u(θ + 2.3); the leader on the rock's top (y = rock.h); the deputy on
- *   the ground 1.2 m from the rock's centre, towards the camp's centre; the
- *   elders 1.7 m from the den's centre either side of it, at u(θ ± 0.9); the
- *   kits in an arc 1.9 m out in front of the den's door, at u(θ + π + k) for
- *   k = -0.6, -0.2, 0.2, 0.6. Seats are in slot order: elders[0] and
- *   kits[0..1] are the core cats', so a LOW device fills the same seats a HIGH
- *   one does, minus the extras. A fresh object every call.
- */
-export function campLayout(areaId) {
-  if (castFor(areaId).length === 0) return null;
-  if (Object.hasOwn(LEDGE_CAMPS, areaId)) return ledgeLayout(areaId);
-  if (!Object.hasOwn(CAMP_TURN, areaId)) return null;
-  const { cx, cz } = DISCS[areaId];
-  const th = CAMP_TURN[areaId];
-  const at = (ox, oz, d, a) => ({ x: ox + Math.cos(a) * d, z: oz + Math.sin(a) * d });
-  const den = { ...at(cx, cz, DEN.d, th), r: DEN.r, h: DEN.h };
-  const rock = { ...at(cx, cz, ROCK.d, th + ROCK.turn), r: ROCK.r, h: ROCK.h };
-  const toCentre = Math.atan2(cz - rock.z, cx - rock.x);
-  return {
-    cx,
-    cz,
-    den,
-    rock,
-    seats: {
-      leader: { x: rock.x, z: rock.z, y: rock.h },
-      deputy: at(rock.x, rock.z, DEPUTY_FROM_ROCK, toCentre),
-      elders: [at(den.x, den.z, ELDER_FROM_DEN, th + ELDER_TURN), at(den.x, den.z, ELDER_FROM_DEN, th - ELDER_TURN)],
-      kits: KIT_TURNS.map((k) => at(den.x, den.z, KIT_FROM_DEN, th + Math.PI + k)),
-    },
-  };
-}
-
-// campDiscs(areaId) -> [den, rock] as { x, z, r } (the colliders addCamp
-// pushes), or [] where there is no camp. A cave den is no collider, so a ledge
-// camp's is [rock]. walk.js keeps colony cats' saved spots out of them.
-export function campDiscs(areaId) {
-  const L = campLayout(areaId);
-  if (!L) return [];
-  const rock = { x: L.rock.x, z: L.rock.z, r: L.rock.r };
-  return L.den.cave ? [rock] : [{ x: L.den.x, z: L.den.z, r: L.den.r }, rock];
-}
 
 // ---------------------------------------------------------------------------
 // The camp's dressing (polish-camps): a bramble wall round the camp with
@@ -785,6 +652,58 @@ const HIGHROCK = {
 /** Triangles in the Highrock's main boulder (first in its geometry) and in all. */
 export const HIGHROCK_BOULDER_TRIS = (HIGHROCK.rings.length - 1) * 2 * HIGHROCK.sides + HIGHROCK.sides;
 export const HIGHROCK_TRIS = HIGHROCK_BOULDER_TRIS + HIGHROCK.stones.length * 20 * (HIGHROCK.stoneDetail + 1) ** 2;
+
+// The High Stone (series switch A3; V2 gave it character, from the owner's
+// look at the pictures): the leader's seat in the camps of a word set that
+// answers wordRule('stoneSeat'), where the family's camps have the Highrock.
+// An old meeting stone in the Highrock's place, inside its limits (HIGHROCK
+// reach, back, clearance; the same collider, top and seats), round the origin
+// in the same frame. No strata and no ledges:
+//  - upright, weathered facets: twelve columns straight up the stone (no
+//    half-side turn), each pushed in or out by up to 8 % (hash01) all the way
+//    up (the top ring inward only), so the sides read as worn faces;
+//  - a flared foot settled in the ground (r 0.6), a gentle waist (0.535 at
+//    0.44-0.56 m), then a worn, bevelled rim (its ring dipped up to 2.5 cm
+//    and drawn in up to 4 %, corner by corner) into a flat cap at exactly
+//    rock.h (0.8), every bend under HIGHROCK.crease so the rim shades round;
+//  - a lean of up to 4 cm at the top, mostly back from the camp;
+//  - a weathered crack: three more columns (two lips 0.07 rad either side of
+//    a seam) on the camp's side, away from the steps; the seam zigzags a
+//    little ring by ring, sinks in (a groove, deepest where it notches the
+//    rim) and is darkened from just above the foot to the top;
+//  - moss on its top in two or three patches (clan's moss at a patch's heart,
+//    olive at its ragged edge) that spill over the rim where the normal
+//    camera sees them; the middle, where the leader sits, is worn bare, and
+//    the sides keep the lichen only.
+// The Highrock's two step stones stay as they are (HIGHROCK.stones[1] and [2]:
+// the same place, salt and colour), so the climb still reads; its back stone
+// goes. Every hash takes the rock's spot, so no two camps' stones are alike.
+// HIGH_STONE_BOULDER_TRIS triangles first, then the steps.
+const HIGH_STONE = {
+  // [y, r]; y null: rock.h
+  rings: [[0, 0.6], [0.14, 0.58], [0.3, 0.55], [0.44, 0.535], [0.56, 0.535], [0.67, 0.49], [0.75, 0.44], [null, 0.37]],
+  sides: 12,      // the facets; the crack adds three columns
+  push: 0.08,
+  stepSide: 0.1,  // drawn in this share round the steps' side at the foot, none at the top
+  lean: 0.04,     // the top's offset, m
+  rimDip: 0.025,  // the worn rim's ring sinks up to this, ...
+  rimIn: 0.04,    // ... and is drawn in up to this share
+  crackLip: 0.07, // rad either side of the seam
+  crackZig: 0.05, // rad the seam moves ring by ring
+  // per ring, foot to top: how far the seam sinks (m) and its darkening
+  crackDepth: [0, 0.012, 0.022, 0.025, 0.025, 0.028, 0.035, 0.045],
+  crackDark: [1, 0.48, 0.42, 0.42, 0.42, 0.42, 0.4, 0.45],
+  lipDark: 0.88,
+  mossBare: [0.2, 0.3], // the top's middle, from its centre (m): bare, then moss may grow
+  mossUp: [0.4, 0.62],  // the soft normal's y: no moss below, full above
+  mossShade: 1.1,       // brighter than the Highrock's (0.74), so a patch shows from the camera
+  mossHeart: [0.25, 0.75], // and more of it the clan's moss than olive (the Highrock's: 0.55 to 1)
+  stones: [HIGHROCK.stones[1], HIGHROCK.stones[2]],
+};
+const HIGH_STONE_COLUMNS = HIGH_STONE.sides + 3;
+/** Triangles in the High Stone's stone (first in its geometry) and in all. */
+export const HIGH_STONE_BOULDER_TRIS = (HIGH_STONE.rings.length - 1) * 2 * HIGH_STONE_COLUMNS + HIGH_STONE_COLUMNS;
+export const HIGH_STONE_TRIS = HIGH_STONE_BOULDER_TRIS + HIGH_STONE.stones.length * 20 * (HIGHROCK.stoneDetail + 1) ** 2;
 const smooth = (a, b, x) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
@@ -869,6 +788,32 @@ function faceted(soft, pos, keep) {
   return out;
 }
 
+// The frame both leader's seats are built in (highrockGeometry,
+// highStoneGeometry): the rock's spot, `away` and the steps' side, and the
+// triangle list (with each face's tint and each corner's crack) that
+// rockStones adds to and rockFinish turns into the geometry.
+function rockFrame(rockSpot, away, opts) {
+  const ox = rockSpot.x;
+  const oz = rockSpot.z;
+  const bx = Math.cos(away);
+  const bz = Math.sin(away);
+  // the step side: away from the pile (side +1 is +90 degrees from `away`)
+  const k = opts.kill;
+  const side = k && (-bz * k.x + bx * k.z) > 0 ? -1 : 1;
+  const f = {
+    ox, oz, top: rockSpot.h, away, bx, bz, side,
+    // local (u out along away, v round the ring) to x, z
+    toXZ: (u, v) => [u * bx - v * bz, u * bz + v * bx],
+    pos: [],
+    tints: [],
+    tint: 1,
+    // crk: a crack's darkening at each corner (1: none)
+    crk: [],
+  };
+  f.tri = (p, q, r, c = [1, 1, 1]) => { f.pos.push(...p, ...q, ...r); f.tints.push(f.tint); f.crk.push(...c); };
+  return f;
+}
+
 /**
  * highrockGeometry(rockSpot, away, opts) -> BufferGeometry: the Highrock round
  * the origin. opts.kill: the fresh-kill pile's x, z from the rock (the steps
@@ -876,22 +821,8 @@ function faceted(soft, pos, keep) {
  * look.nest.moss (hex or THREE.Color; the woods' when absent).
  */
 function highrockGeometry(rockSpot, away, opts = {}) {
-  const ox = rockSpot.x;
-  const oz = rockSpot.z;
-  const top = rockSpot.h;
-  const bx = Math.cos(away);
-  const bz = Math.sin(away);
-  // the step side: away from the pile (side +1 is +90 degrees from `away`)
-  const k = opts.kill;
-  const side = k && (-bz * k.x + bx * k.z) > 0 ? -1 : 1;
-  // local (u out along away, v round the ring) to x, z
-  const toXZ = (u, v) => [u * bx - v * bz, u * bz + v * bx];
-  const pos = [];
-  const tints = [];
-  let tint = 1;
-  // crk: a crack's darkening at each corner (1: none)
-  const crk = [];
-  const tri = (p, q, r, c = [1, 1, 1]) => { pos.push(...p, ...q, ...r); tints.push(tint); crk.push(...c); };
+  const f = rockFrame(rockSpot, away, opts);
+  const { ox, oz, top, side, toXZ, tri } = f;
 
   // the main boulder
   const { sides } = HIGHROCK;
@@ -941,8 +872,101 @@ function highrockGeometry(rockSpot, away, opts = {}) {
   }
 
   // the back stone and the steps
-  for (const [turn, d, y, rOut, rAlong, rY, stoneTint, salt] of HIGHROCK.stones) {
-    tint = stoneTint;
+  rockStones(f, HIGHROCK.stones);
+  return rockFinish(f, opts, 0);
+}
+
+/**
+ * highStoneGeometry(rockSpot, away, opts) -> BufferGeometry: the High Stone
+ * round the origin (HIGH_STONE above); the same arguments as highrockGeometry,
+ * and like it no Math.random of its own (hash01 only).
+ */
+function highStoneGeometry(rockSpot, away, opts = {}) {
+  const f = rockFrame(rockSpot, away, opts);
+  const { ox, oz, top, side, toXZ, tri } = f;
+  const H = HIGH_STONE;
+  const { sides } = H;
+  const step = (Math.PI * 2) / sides;
+  // the crack: on the camp's side, turned away from the steps
+  const crackA = Math.PI - side * (0.35 + 0.3 * hash01(ox, 1, oz, 48));
+  // the lean: mostly back from the camp
+  const leanA = (hash01(ox, 2, oz, 48) - 0.5) * 1.2;
+  const lx = Math.cos(leanA) * H.lean;
+  const lz = Math.sin(leanA) * H.lean;
+  const facet = (j) => 1 + (hash01(ox + j, 0, oz, 47) * 2 - 1) * H.push;
+  const lipPush = (facet(sides - 1) + facet(0)) / 2;
+  const last = H.rings.length - 1;
+  const rim = last - 1;
+  const rings = H.rings.map(([y0, r], ri) => {
+    const seam = crackA + (hash01(ox, ri, oz, 51) * 2 - 1) * H.crackZig;
+    // the columns in turn round the stone: the crack's lips and seam, then the
+    // twelve facets, set symmetric about the crack (all in the local frame)
+    const cols = [
+      [seam - H.crackLip, lipPush, 0, H.lipDark],
+      [seam, lipPush, H.crackDepth[ri], H.crackDark[ri]],
+      [seam + H.crackLip, lipPush, 0, H.lipDark],
+    ];
+    for (let j = 0; j < sides; j++) cols.push([crackA + (j + 0.5) * step, facet(j), 0, 1]);
+    const k = (ri === 0 ? 0 : (H.rings[ri][0] ?? top) / top) ** 1.5;
+    return cols.map(([a, push, sink, dark], c) => {
+      let y = y0 ?? top;
+      let rr = r * (ri === last ? 1 - (push - 1 + H.push) / 2 : push);
+      if (ri === rim) {
+        y -= hash01(ox + c, 3, oz, 52) * H.rimDip;
+        rr *= 1 - hash01(ox + c, 4, oz, 52) * H.rimIn;
+      }
+      rr *= 1 - Math.max(0, Math.cos(a - side * 1.6)) ** 2 * H.stepSide * (1 - y / top);
+      rr -= sink;
+      const [x, z] = toXZ(Math.cos(a) * rr, Math.sin(a) * rr);
+      return { p: [x + lx * k, y, z + lz * k], dark: ri === 0 ? 1 : dark };
+    });
+  });
+  for (let ri = 0; ri < last; ri++) {
+    const lo = rings[ri];
+    const hi = rings[ri + 1];
+    for (let j = 0; j < HIGH_STONE_COLUMNS; j++) {
+      const n = (j + 1) % HIGH_STONE_COLUMNS;
+      tri(lo[j].p, hi[j].p, lo[n].p, [lo[j].dark, hi[j].dark, lo[n].dark]);
+      tri(lo[n].p, hi[j].p, hi[n].p, [lo[n].dark, hi[j].dark, hi[n].dark]);
+    }
+  }
+  const crown = rings[last];
+  const mid = [lx, top, lz];
+  for (let j = 0; j < HIGH_STONE_COLUMNS; j++) {
+    const n = (j + 1) % HIGH_STONE_COLUMNS;
+    tri(mid, crown[n].p, crown[j].p, [1, crown[n].dark, crown[j].dark]);
+  }
+  // the moss on its top: two or three patches round the rim, ragged
+  const count = 2 + (hash01(ox, 5, oz, 49) < 0.4 ? 1 : 0);
+  // the first patch on the camp's side, where the normal camera sees it
+  const a0 = Math.PI + (hash01(ox, 6, oz, 49) - 0.5) * 1.4;
+  const patches = [];
+  for (let i = 0; i < count; i++) {
+    patches.push([a0 + (i / count) * Math.PI * 2 + (hash01(ox, 7 + i, oz, 49) - 0.5) * 0.8, (count === 3 ? 0.5 : 0.65) + 0.2 * hash01(ox, 10 + i, oz, 49)]);
+  }
+  f.moss = (x, y, z, ny) => {
+    const dx = x - lx;
+    const dz = z - lz;
+    const th = Math.atan2(dz, dx) - away;
+    let p = 0;
+    for (const [pa, pw] of patches) {
+      const d = Math.abs(Math.atan2(Math.sin(th - pa), Math.cos(th - pa)));
+      p = Math.max(p, 1 - smooth(pw * 0.55, pw, d));
+    }
+    const rag = vnoise((x + ox) * 6, y * 6, (z + oz) * 6, 49);
+    return smooth(0.4, 0.7, p * (0.7 + 0.6 * rag)) * smooth(H.mossUp[0], H.mossUp[1], ny)
+      * smooth(H.mossBare[0], H.mossBare[1], Math.hypot(dx, dz));
+  };
+  rockStones(f, H.stones);
+  return rockFinish(f, opts, HIGH_STONE_BOULDER_TRIS);
+}
+
+// HIGHROCK's stones (rows of HIGHROCK.stones), hash-jittered icosahedra, into
+// the frame's triangles: the Highrock's three, the High Stone's two steps.
+function rockStones(f, stones) {
+  const { ox, oz, away, side, tri } = f;
+  for (const [turn, d, y, rOut, rAlong, rY, stoneTint, salt] of stones) {
+    f.tint = stoneTint;
     const a = away + turn * side;
     const cxs = Math.cos(a) * d;
     const czs = Math.sin(a) * d;
@@ -968,7 +992,14 @@ function highrockGeometry(rockSpot, away, opts = {}) {
     }
     ico.dispose();
   }
+}
 
+// The frame's triangles as the rock's geometry: held to HIGHROCK's limits
+// (reach, back, the leader's clearance), soft-shaded and coloured per corner.
+// Whatever faces down is darkened (the Highrock's joints, a stone's
+// underside), but not on the first `plain` triangles (the High Stone's own).
+function rockFinish(frame, opts, plain) {
+  const { ox, oz, top, bx, bz, pos, tints, crk } = frame;
   // the limits: reach, back, the leader's clearance
   for (let i = 0; i < pos.length; i += 3) {
     let x = pos[i];
@@ -1008,23 +1039,30 @@ function highrockGeometry(rockSpot, away, opts = {}) {
     const mottle = 1 + (vnoise(x * 4.5, y * 4.5, z * 4.5, 41) - 0.5) * HIGHROCK.mottle
       + (hash01(x, y, z, 38) - 0.5) * HIGHROCK.speck;
     let g = (HIGHROCK.base + (1 - HIGHROCK.base) * Math.min(1, Math.max(0, y / top))) * tints[f] * mottle;
-    g *= 1 - (1 - HIGHROCK.joint) * smooth(-0.05, -0.5, ny); // under a ledge
-    g *= crk[v / 3];
+    const own = f < plain; // the High Stone's own faces (its steps are as the Highrock's)
+    if (!own) g *= 1 - (1 - HIGHROCK.joint) * smooth(-0.05, -0.5, ny); // under a ledge
+    if (!own) g *= crk[v / 3];
     let rgb = [g, g, g];
     // lichen: pale patches on the sides
     const lw = smooth(0.7, 0.86, vnoise(x * 5, y * 5, z * 5, 42)) * smooth(-0.3, 0, ny) * (1 - smooth(0.3, 0.6, ny))
       * HIGHROCK.lichenMax;
     rgb = mix(rgb, lichen.map((c) => c * HIGHROCK.lichenShade * mottle), lw);
     // moss: where the rock faces up, in noisy patches, olive at their edges
-    // into the clan's moss in their hearts
+    // into the clan's moss in their hearts (the High Stone's: frame.moss)
     const up = smooth(HIGHROCK.mossUp[0], HIGHROCK.mossUp[1], ny);
     const nz = vnoise(x * 4.5, y * 4.5, z * 4.5, 43);
-    const mw = smooth(HIGHROCK.mossEdge[0], HIGHROCK.mossEdge[1], up * 0.5 + nz * 0.7) * up * HIGHROCK.mossMax;
+    // (not in the High Stone's crack itself: it stays a dark seam through a patch)
+    const mw = own && frame.moss
+      ? (crk[v / 3] > 0.6 ? frame.moss(pos[v], y, pos[v + 2], ny) * HIGHROCK.mossMax : 0)
+      : smooth(HIGHROCK.mossEdge[0], HIGHROCK.mossEdge[1], up * 0.5 + nz * 0.7) * up * HIGHROCK.mossMax;
     if (mw > 0) {
-      const heart = smooth(0.55, 1.0, mw / HIGHROCK.mossMax * (0.55 + 0.45 * vnoise(x * 7, y * 7, z * 7, 45)));
-      const shade = HIGHROCK.mossShade * (0.92 + 0.16 * hash01(x, y, z, 46));
+      const [h0, h1] = own ? HIGH_STONE.mossHeart : [0.55, 1.0];
+      const heart = smooth(h0, h1, mw / HIGHROCK.mossMax * (0.55 + 0.45 * vnoise(x * 7, y * 7, z * 7, 45)));
+      const shade = (own ? HIGH_STONE.mossShade : HIGHROCK.mossShade) * (0.92 + 0.16 * hash01(x, y, z, 46));
       rgb = mix(rgb, mix(olive, clan, heart).map((c) => c * shade), mw);
     }
+    // the High Stone's crack, over its lichen and moss too, so the seam stays dark
+    if (own) rgb = rgb.map((c) => c * crk[v / 3]);
     col[v] = rgb[0];
     col[v + 1] = rgb[1];
     col[v + 2] = rgb[2];
@@ -1724,11 +1762,17 @@ function killMesh(kill, groundY = () => 0) {
   return mesh;
 }
 
-// The Highrock's material: the clan's rock colour, shaded per face by the
+// The leader's seat of the word set in use, asked when the camp is built (so a
+// camp built after the words change shows that set's): the High Stone where
+// the set answers wordRule('stoneSeat'), else the Highrock. Both take the same
+// arguments and no Math.random draws.
+const leaderSeat = () => (wordRule('stoneSeat') ? highStoneGeometry : highrockGeometry);
+
+// The leader's rock material (either seat): the clan's rock colour, shaded per face by the
 // geometry's grey multipliers.
 const rockMaterial = (look) => litMaterial(look.rock, { ...surfaceProps('cobble'), vertexColors: true });
 
-// A ledge camp: three top-level meshes, the Highrock (highrockGeometry), the
+// A ledge camp: three top-level meshes, the leader's rock (leaderSeat: the Highrock or the High Stone), the
 // bedding (moss nests) and the fresh-kill pile, and one
 // collider, the rock (a cave den is the rock round it). They are separate
 // children of the scene, not a Group, because the contact-shadow scan boxes
@@ -1751,7 +1795,7 @@ function addLedgeCamp(scene, area, L) {
   const D = campDressing('gorge', area.colliders);
   const made = withLocalUuids('gorge', () => ({
     // the leader looks west, so the rock's back is +x (away 0), inland
-    rock: highrockGeometry(L.rock, 0, {
+    rock: leaderSeat()(L.rock, 0, {
       kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z }, rock: look.rock, moss: look.rockMoss ?? look.nest.moss,
     }),
     nests: nestsMesh(D.nests, look, groundY, 0.5, null), // the ledge's bedding keeps its old tone
@@ -1783,7 +1827,7 @@ function addLedgeCamp(scene, area, L) {
  *
  * Three top-level children of the scene for a flat camp:
  *  - `clanCamp`, a Group: the woven den (one vertex-coloured mesh with its
- *    strands and doorway arch), the dark doorway, the Highrock, the nests and
+ *    strands and doorway arch), the dark doorway, the leader's rock (leaderSeat: the Highrock or the High Stone), the nests and
  *    the fresh-kill pile. Five meshes, each one geometry already, so
  *    mergeStaticProps has nothing left to do; the doorway, nests and pile are
  *    noCast and noMerge (a merge would drop their noCast). Its box stays
@@ -1815,7 +1859,7 @@ export function addCamp(scene, area, areaId) {
   const made = withLocalUuids(areaId, () => ({
     den: denGeometry(L.den, out, look),
     door: doorGeometry(L.den, out),
-    rock: highrockGeometry(L.rock, Math.atan2(L.rock.z - L.cz, L.rock.x - L.cx), {
+    rock: leaderSeat()(L.rock, Math.atan2(L.rock.z - L.cz, L.rock.x - L.cx), {
       kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z }, rock: look.rock, moss: look.rockMoss ?? look.nest.moss,
     }).translate(L.rock.x, 0, L.rock.z),
     nests: nestsMesh(D.nests, look),

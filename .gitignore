@@ -27,8 +27,12 @@ verify-*.html
 !verify-finds.html
 # Found outfits step 2's picture sheets: imports src/render/rig.js, so kept where a rig change cannot leave it behind.
 !verify-wear.html
-# The lifelike people PROTOTYPE picture sheet (prototype/people-figure.js beside today's Twoleg): the design's pictures. Throwaway with the prototype.
+# The lifelike people picture sheet (src/people/): the owner judges the people from its pictures.
 !verify-people.html
+# The owner approves the everyday set's five badges from this page's pictures.
+!verify-badges.html
+# The owner approves the High Stone (the everyday set's leader's seat) from this page's pictures; it imports src/render/rig.js, so it is kept where a rig change cannot leave it behind.
+!verify-highstone.html
 
 # Brainstorming visual-companion scratch (mockups, server state)
 .superpowers/

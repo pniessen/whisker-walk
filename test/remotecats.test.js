@@ -540,3 +540,82 @@ describe('a co-walker rebuilt for a new look stays where it stood', () => {
     expect([next.group.position.x, next.group.position.z]).toEqual([9, 4]);
   });
 });
+
+// F6 (R16): a co-walker whose device is still loading its place has no state
+// yet. Its cat (and its name tag, a child of the cat) is not drawn until its
+// first state puts it somewhere, so it never stands frozen at the origin. It
+// is in the room all the while: the list, names and counts still have it.
+describe('a co-walker is drawn from its first state', () => {
+  const STATE = (pos) => ({ v: 1, id: 'aaa', pos, yaw: 0, pose: 'follow', speed: 0 });
+
+  it('a cat with no state yet is listed but not drawn, not on the map, and not reachable', () => {
+    withFakeDocument(() => {
+      const rc = createRemoteCats(fakeScene());
+      const entry = rc.upsert(PROFILE, 0);
+      expect(rc.list).toEqual([entry]); // still in the room
+      expect(entry.group.visible).toBe(false);
+      expect(entry.tag).toBeTruthy();
+      expect(rc.placed).toEqual([]); // what the corner map and the flaps are given
+      expect(rc.nearest(new THREE.Vector3(0, 0, 0), 5)).toBe(null); // no boop at the origin
+      rc.update(0.1, 0.1);
+      expect(entry.group.visible).toBe(false);
+    });
+  });
+
+  it('its first state shows it where it is, and then it behaves as before', () => {
+    const rc = createRemoteCats(fakeScene());
+    const entry = rc.upsert(PROFILE, 0);
+    rc.applyState(STATE([3, -2]), 0.5);
+    expect(entry.group.visible).toBe(true);
+    expect([entry.group.position.x, entry.group.position.z]).toEqual([3, -2]);
+    expect(rc.placed).toEqual([entry]);
+    expect(rc.nearest(new THREE.Vector3(3, 0, -2), 1)).toBe(entry);
+    rc.update(0.1, 0.6);
+    expect(entry.group.visible).toBe(true);
+  });
+
+  it('placed allocates nothing per read, and follows joins, firsts and leaves', () => {
+    const rc = createRemoteCats(fakeScene());
+    const none = rc.placed;
+    expect(rc.placed).toBe(none);
+    rc.upsert(PROFILE, 0);
+    const before = rc.placed;
+    expect(before).toEqual([]);
+    rc.applyState(STATE([1, 1]), 0.1);
+    const after = rc.placed;
+    expect(after).toHaveLength(1);
+    rc.applyState(STATE([2, 1]), 0.2); // a later state changes nothing in the list
+    expect(rc.placed).toBe(after);
+    rc.remove('aaa');
+    expect(rc.placed).toEqual([]);
+  });
+
+  it('a cat rebuilt for a new look stays shown, or stays hidden, as it was', () => {
+    const shown = createRemoteCats(fakeScene());
+    shown.upsert(PROFILE, 0);
+    shown.applyState(STATE([4, 4]), 0.1);
+    const again = shown.upsert({ ...PROFILE, accessories: { head: 'acorncap' } }, 0.2);
+    expect(again.group.visible).toBe(true);
+    expect(shown.placed).toEqual([again]);
+    const hidden = createRemoteCats(fakeScene());
+    hidden.upsert(PROFILE, 0);
+    const next = hidden.upsert({ ...PROFILE, accessories: { head: 'acorncap' } }, 0.1);
+    expect(next.group.visible).toBe(false);
+    expect(hidden.placed).toEqual([]);
+    hidden.applyState(STATE([9, 4]), 0.2);
+    expect(next.group.visible).toBe(true);
+  });
+
+  it('a cat that went quiet and is drawn again waits for its state again', () => {
+    const rc = createRemoteCats(fakeScene());
+    rc.upsert(PROFILE, 0);
+    rc.applyState(STATE([1, 1]), 0);
+    rc.update(0.1, 5.1); // the despawn timer is as it was
+    expect(rc.list).toEqual([]);
+    const back = rc.upsert(PROFILE, 6);
+    expect(back.group.visible).toBe(false);
+    rc.applyState(STATE([2, 2]), 6.1);
+    expect(back.group.visible).toBe(true);
+    expect([back.group.position.x, back.group.position.z]).toEqual([2, 2]);
+  });
+});

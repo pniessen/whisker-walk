@@ -32,7 +32,7 @@ const { canReach, BASE_CLIMB_BUDGET } = await import('../src/climbing.js');
 const { rainPuddleSpots } = await import('../src/weather.js');
 const { roamHomes } = await import('../src/clancast.js');
 const { clanWalkableFor } = await import('../src/world/clanground.js');
-const { buildGrassMask, flatFootprints, GROUND_TINTS } = await import('../src/render/grass.js');
+const { buildGrassMask, flatFootprints } = await import('../src/render/grass.js');
 const { buildMapLayer } = await import('../src/ui/minimap.js');
 const { mulberry32 } = await import('../src/rng.js');
 const { segDist } = await import('../src/segdist.js');
@@ -114,7 +114,7 @@ describe('with the switch on, the core did not move', () => {
     expect(inner).toBeGreaterThan(2000);
     expect(apron).toBeGreaterThan(50);
     // and the grass reads the same tint the core's ground does, up to the old edge
-    const tint = GROUND_TINTS.woods;
+    const tint = woods.GRASS_HOOKS.tint;
     for (const [x, z] of [[0, 0], [-30, 40], [44, 50], [10, -45]]) expect(tint(x, z)).toEqual(woods.woodsGroundTint(x, z));
   });
 

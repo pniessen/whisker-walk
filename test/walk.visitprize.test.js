@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 
 // A prize held for the tap (styles A and C) must be on the cat for a walk
 // that starts while its celebration is still up. walk.js's startWalk is the
@@ -23,6 +23,12 @@ vi.mock('../src/cat/model.js', async (orig) => {
 const { createWalkLifecycle } = await import('../src/game/walk.js');
 const { createProgression } = await import('../src/progression.js');
 const { resolveQuality } = await import('../src/render/quality.js');
+const { createAreaLoader } = await import('../src/game/areaload.js');
+
+// Every place is its own download (F6): the two this file walks are loaded
+// first, so a start runs startWalk in the same tick and its throw comes straight out.
+const areas = createAreaLoader();
+beforeAll(() => areas.ensureAll(['neighborhood', 'den']));
 
 function memStorage() {
   const map = new Map();
@@ -65,6 +71,7 @@ function lifecycle(progression, { pendingRoom = null, startRoomTogether = vi.fn(
     awardStrayGreet: () => {}, applyRemoteEvent: () => {},
     qualityAdapter: { beginWalk: () => ({ ...resolveQuality({ reducedMotion: true, override: 'low' }), postFx: false }) },
     denShop: null,
+    areas,
   });
 }
 
