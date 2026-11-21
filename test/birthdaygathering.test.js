@@ -242,3 +242,68 @@ describe('the bubble’s words', () => {
     for (const l of lines) expect(measure(l)).toBeLessThanOrEqual(570);
   });
 });
+
+describe('the show after the candles: fireworks, lanterns, the photo', () => {
+  const live = ({ scene = new THREE.Scene(), ...opts } = {}) => {
+    const calls = { booms: 0, photos: 0 };
+    const g = G.createBirthdayGathering(scene, plan, {
+      name: 'Moonpaw', boom: () => { calls.booms += 1; }, onPhoto: () => { calls.photos += 1; }, ...opts,
+    });
+    return { g, scene, calls };
+  };
+  const run = (g, secs, pos) => { for (let t = 0; t < secs; t += 0.05) g.update(0.05, t, pos); };
+  let pos;
+  beforeAll(() => { pos = new THREE.Vector3(plan.cake.x - 1.2, 0, plan.cake.z); });
+
+  it('a few bursts over about ten seconds over the lake, lanterns rising, then all gone', () => {
+    const { g, scene, calls } = live();
+    expect(g.show).toBeNull();
+    g.blow();
+    run(g, 3, pos);
+    expect(g.show).toBeTruthy();
+    const plan0 = g.show.bursts;
+    expect(plan0.length).toBeGreaterThanOrEqual(5);
+    expect(plan0.length).toBeLessThanOrEqual(9);
+    expect(Math.max(...plan0.map((b) => b.at))).toBeLessThanOrEqual(10);
+    for (const b of plan0) {
+      // over the water east of the island, high up
+      expect(Math.hypot(b.x - 28, b.z - 28)).toBeGreaterThan(13);
+      expect(b.y).toBeGreaterThan(4);
+    }
+    expect(g.show.lanterns).toBeGreaterThanOrEqual(8);
+    run(g, 12, pos);
+    expect(calls.booms).toBe(plan0.length);
+    expect(calls.photos).toBe(1);
+    run(g, 20, pos);
+    expect(g.show.done).toBe(true);
+    g.dispose();
+    expect(scene.children.length).toBe(0);
+  });
+
+  it('reduced motion: fewer, softer bursts', () => {
+    const a = live();
+    const b = live({ reducedMotion: true });
+    a.g.blow(); b.g.blow();
+    run(a.g, 3, pos); run(b.g, 3, pos);
+    expect(b.g.show.bursts.length).toBeLessThan(a.g.show.bursts.length);
+    expect(b.g.show.bursts.length).toBeGreaterThanOrEqual(2);
+    expect(b.g.show.sparks).toBeLessThan(a.g.show.sparks);
+    a.g.dispose(); b.g.dispose();
+  });
+
+  it('the same show every time, on its own stream: no Math.random, no walk dice', () => {
+    const scene = new THREE.Scene();
+    const spy = vi.spyOn(Math, 'random');
+    const a = live({ scene });
+    a.g.blow();
+    run(a.g, 14, pos);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+    const b = live();
+    b.g.blow();
+    run(b.g, 3, pos);
+    expect(b.g.show.bursts).toEqual(a.g.show.bursts);
+    a.g.dispose(); b.g.dispose();
+  });
+});
+

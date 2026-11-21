@@ -518,6 +518,7 @@ function init() {
     MP, pid, coarse, envMap, overlay, blockList,
     renderer, camera, composerRig,
     player, progression, settings, hud, audio, music, log, touchUI, catVoice,
+    album,
     getCloud,
     getSession: () => session,
     setSession: (next) => { session = next; },

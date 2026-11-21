@@ -19,7 +19,7 @@ import * as THREE from 'three';
 // loaded pack. No area module is imported here.
 import { createAreaLoader } from './areaload.js';
 import { roofsOn } from '../roofsflag.js';
-import { birthdayDue, BDAY_AREA, BDAY_START, BRIDGE_ISLAND_END, speakerFor, birthdayCatName, noteCandlesBlown, bdayCountsWalk } from '../birthday.js';
+import { birthdayDue, BDAY_AREA, BDAY_START, BRIDGE_ISLAND_END, speakerFor, birthdayCatName, noteCandlesBlown, bdayCountsWalk, saveBirthdayPhoto, BDAY_PHOTO_KEY } from '../birthday.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
@@ -352,6 +352,8 @@ export function createWalkLifecycle({
   MP, pid, coarse, envMap, overlay, blockList,
   renderer, camera, composerRig,
   player, progression, settings, hud, audio, music, log, touchUI, catVoice,
+  // the photo Album (album.js): her birthday photo goes in it. Optional.
+  album = null,
   getCloud, getSession, setSession, getIsTouch, getHomebase,
   getPendingRoom, clearPendingRoom, pushProfileNow,
   // game/rooms.js: the home base's Start in a room (v21 Play together).
@@ -1987,6 +1989,9 @@ export function createWalkLifecycle({
       burst: (p, colour, n, o) => session.fx?.burst?.(p, colour, n, o),
       toast: (text) => hud.toast(text),
       onBlown: () => noteCandlesBlown(),
+      boom: () => audio?.firework?.(),
+      onPhoto: () => takeBirthdayPhoto(session),
+      pixelRatio: renderer?.getPixelRatio?.() ?? 1,
     }) : null;
     session.birthdayVisit = (!!birthday || bdayOn) && !bdayCountsWalk(state, areaId);
 
@@ -2978,6 +2983,52 @@ export function createWalkLifecycle({
   }
 
   // (An Event passed by a stray onclick destructures to all-null: harmless.)
+  // Her birthday photo (once per save, birthday.js saveBirthdayPhoto): one
+  // frame drawn from a spot looking over the cake at the Watch Rock, so her
+  // cat, the cake, the leader and the ring are in it, set in a cream frame
+  // and put in her Album. The camera is put back at once; the walk's own
+  // frame follows. Skipped headless, with no Album, or once she has it.
+  function takeBirthdayPhoto(s) {
+    if (!album || album.has?.(BDAY_PHOTO_KEY) || !s?.birthday || !renderer?.domElement || typeof document === 'undefined') return;
+    const keepPos = camera.position.clone();
+    const keepRot = camera.quaternion.clone();
+    try {
+      const v = s.birthday.photoView(s.cat.position);
+      camera.position.set(v.from.x, v.from.y, v.from.z);
+      camera.lookAt(v.at.x, v.at.y, v.at.z);
+      camera.updateMatrixWorld();
+      composerRig?.renderFrame?.(s);
+      const W = 320, H = 240, PAD = 10, FOOT = 30;
+      const out = document.createElement('canvas');
+      out.width = W;
+      out.height = H;
+      const ctx = out.getContext('2d');
+      const src = renderer.domElement;
+      const iw = W - PAD * 2, ih = H - PAD - FOOT;
+      // the middle of the view, at the frame's shape
+      const sw = Math.min(src.width, src.height * (iw / ih));
+      const sh = sw * (ih / iw);
+      ctx.fillStyle = '#fff6e6';
+      ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(src, (src.width - sw) / 2, (src.height - sh) / 2, sw, sh, PAD, PAD, iw, ih);
+      ctx.fillStyle = '#7a4b2a';
+      ctx.font = 'bold 17px Avenir, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${phrase('bday.photo')} 🎂`, W / 2, H - FOOT / 2 - 1);
+      if (saveBirthdayPhoto(album, { thumb: out.toDataURL('image/jpeg', 0.72), area: s.areaData?.name ?? '' })) {
+        hud.toast(phrase('bday.photoSaved'));
+      }
+    } catch (err) {
+      console.warn('Whisker Walk: the birthday photo failed', err);
+      note('ui', err);
+    } finally {
+      camera.position.copy(keepPos);
+      camera.quaternion.copy(keepRot);
+      camera.updateMatrixWorld();
+    }
+  }
+
   function endWalk({ crossTo = null, ledBy = null, together = null } = {}) {
     const session = getSession();
     if (!session) return;

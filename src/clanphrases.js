@@ -155,6 +155,9 @@ const TABLE = Object.freeze({
   // the action prompt beside the cake, and the toast once the candles are out
   'bday.prompt': 'E — Blow out the candles 🎂',
   'bday.wish': 'Make a wish! 🎂',
+  // the photo the game takes for her Album after the candles, and its toast
+  'bday.photo': 'My birthday 2026',
+  'bday.photoSaved': '📸 Saved to your Album!',
 });
 
 // ---- lines added on 2026-11-18, for a set that says them differently ---------

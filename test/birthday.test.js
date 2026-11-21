@@ -135,3 +135,27 @@ describe('who and where', () => {
     expect(bdayCountsWalk(p.state, 'pines')).toBe(true);
   });
 });
+
+describe('the birthday photo', () => {
+  it('goes in the Album once per save, titled "My birthday 2026" in both word sets', async () => {
+    const { createAlbum } = await import('../src/album.js');
+    const { saveBirthdayPhoto, BDAY_PHOTO_KEY } = await import('../src/birthday.js');
+    const album = createAlbum(memStorage());
+    const thumb = 'data:image/jpeg;base64,AAAA';
+    expect(saveBirthdayPhoto(album, { thumb, area: 'The Pines and Swamp', now: at(2026, 11, 21, 15) })).toBe(true);
+    expect(album.has(BDAY_PHOTO_KEY)).toBe(true);
+    const photo = album.photos.find((p) => p.key === BDAY_PHOTO_KEY);
+    expect(photo).toMatchObject({ label: 'My birthday 2026', thumb, date: '2026-11-21' });
+    // once: a second blow-out (the next day) takes no second photo
+    expect(saveBirthdayPhoto(album, { thumb, area: 'x', now: at(2026, 11, 22, 10) })).toBe(false);
+    expect(album.photos.filter((p) => p.key === BDAY_PHOTO_KEY)).toHaveLength(1);
+    // a missing album or thumb takes nothing
+    expect(saveBirthdayPhoto(null, { thumb })).toBe(false);
+    expect(saveBirthdayPhoto(createAlbum(memStorage()), { thumb: null })).toBe(false);
+    expect(phrase('bday.photoSaved')).toBe('📸 Saved to your Album!');
+    withOffWords(() => {
+      expect(phrase('bday.photo')).toBe('My birthday 2026');
+      expect(phrase('bday.photoSaved')).toBe('📸 Saved to your Album!');
+    });
+  });
+});

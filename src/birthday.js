@@ -19,6 +19,7 @@ import { activeCat } from './customcats.js';
 import { validPetName } from './net.js';
 import { CATALOG } from './progression.js';
 import { RANK_KEYS } from './wordset.js';
+import { phrase } from './clanphrases.js';
 
 export const BDAY_EVENT = 'bday-2026-11-21';
 // Where the birthday walk goes: the Pines, for the island in its lake.
@@ -125,4 +126,15 @@ export function birthdayCatName(state) {
 // progress as it was (no walk counted there, nothing unlocked).
 export function bdayCountsWalk(state, areaId) {
   return Array.isArray(state?.unlocked?.areas) && state.unlocked.areas.includes(areaId);
+}
+
+// ---- the birthday photo ----------------------------------------------------------
+// After the candles the game takes one framed photo for her Album (album.js,
+// the camera's own store), titled in the words in use. Once per save: an
+// Album that already has it gets no second one. true when it was added.
+export const BDAY_PHOTO_KEY = 'birthday-2026';
+export function saveBirthdayPhoto(album, { thumb, area = '', now = Date.now() } = {}) {
+  if (!album || typeof thumb !== 'string' || !thumb.startsWith('data:image/')) return false;
+  if (album.has(BDAY_PHOTO_KEY)) return false;
+  return album.add({ key: BDAY_PHOTO_KEY, label: phrase('bday.photo'), area, thumb, date: localDay(now) }) === true;
 }

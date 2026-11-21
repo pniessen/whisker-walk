@@ -33,6 +33,7 @@ import { keepOutPoint } from '../keepout.js';
 import { ISLAND_LAND, ISLAND_PERCHES, ISLAND_KEEP_OUT, BRIDGE_DECK } from './island.js';
 import { segDist } from '../segdist.js';
 import { withLocalUuids } from './localuuids.js';
+import { mulberry32, seedFromCode } from '../rng.js';
 
 const K = RANK_KEYS;
 const freeze = (o) => Object.freeze(o);
@@ -314,10 +315,234 @@ function makeBubble(text, { big = false } = {}) {
   return sprite;
 }
 
+// ---- the show: fireworks over the lake, lanterns rising ---------------------------
+// After the candles: a few bursts over the lake east of the island in about
+// ten seconds, each a rocket and a ball of sparks, and paper lanterns floating
+// up off the island. Everything is drawn from the island's own salted stream
+// (FIREWORK_SALT, never walkRng or Math.random), so the show is the same every
+// time. All the sparks are ONE Points mesh (one draw) and the lanterns one
+// InstancedMesh. Reduced motion: fewer, smaller, slower bursts and fewer
+// lanterns. `boom` is the walk's sound (through the game's sound switch).
+export const FIREWORK_SALT = 0xb1d7f12e;
+const SHOW = freeze({
+  bursts: 7, sparks: 72, span: 9.2, rocket: 0.9, life: 2.2, speed: 6, gravity: 2, drag: 0.8, size: 1.5,
+  lanterns: 14, lanternRise: 0.45, lanternTop: 16, lanternFade: 14,
+});
+const SHOW_SOFT = freeze({ ...SHOW, bursts: 3, sparks: 40, span: 8, life: 2.8, speed: 3.8, gravity: 1.1, size: 1.1, lanterns: 6, lanternRise: 0.3 });
+const SPARK_COLOURS = [0xff5a7a, 0xffd24a, 0x6ab8ff, 0x8cf08c, 0xd29cff, 0xffffff, 0xff9a3c];
+const LANTERN_COLOUR = 0xffa64d;
+// where the lanterns rise: round the Watch Rock, beyond the cake from the
+// ring's open side, so none rises right in front of her camera
+const LANTERN_FROM = freeze({ x: 38.5, z: 28 });
+
+const SPARK_VERT = `
+uniform float uScale;
+attribute float aSize;
+attribute float aAlpha;
+attribute vec3 aColor;
+varying vec3 vColor;
+varying float vAlpha;
+void main() {
+  vColor = aColor;
+  vAlpha = aAlpha;
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  gl_PointSize = aSize * uScale * (320.0 / max(1.0, -mv.z));
+  gl_Position = projectionMatrix * mv;
+}`;
+const SPARK_FRAG = `
+varying vec3 vColor;
+varying float vAlpha;
+void main() {
+  float d = length(gl_PointCoord - vec2(0.5));
+  if (d > 0.5 || vAlpha <= 0.0) discard;
+  gl_FragColor = vec4(min(vec3(1.0), vColor * (1.25 - d)), vAlpha * (1.0 - smoothstep(0.25, 0.5, d)));
+  #include <colorspace_fragment>
+}`;
+
+// planShow(reducedMotion) -> { bursts: [{ at, x, y, z, colour, r }], lanterns: [{ x, z, at, sway }] }
+// Pure, from the salted stream alone. Bursts are over the lake east and
+// north-east of the island, 4.2-6.6 m up, so from the ring they rise behind the
+// Watch Rock. The lanterns rise from the ring round the cake.
+export function planShow(reducedMotion = false) {
+  const S = reducedMotion ? SHOW_SOFT : SHOW;
+  const rnd = mulberry32((seedFromCode('bday-island-show') ^ FIREWORK_SALT) >>> 0);
+  const bursts = [];
+  for (let i = 0; i < S.bursts; i++) {
+    const a = -0.35 + rnd() * 0.8;       // east, either side of the Watch Rock
+    const d = ISLAND_LAND.r + 4 + rnd() * 5;
+    bursts.push(freeze({
+      at: round(S.bursts === 1 ? 0 : (i / (S.bursts - 1)) * S.span * (0.85 + rnd() * 0.15)),
+      x: round(ISLAND_LAND.x + Math.cos(a) * d),
+      y: round(4.2 + rnd() * 2.4),
+      z: round(ISLAND_LAND.z + Math.sin(a) * d),
+      colour: SPARK_COLOURS[Math.floor(rnd() * SPARK_COLOURS.length)],
+      colour2: SPARK_COLOURS[Math.floor(rnd() * SPARK_COLOURS.length)],
+    }));
+  }
+  const lanterns = [];
+  for (let i = 0; i < S.lanterns; i++) {
+    const a = rnd() * Math.PI * 2;
+    const d = 1.4 + rnd() * 3.2;
+    const ox = LANTERN_FROM.x + Math.cos(a) * d, oz = LANTERN_FROM.z + Math.sin(a) * d;
+    lanterns.push(freeze({ x: round(ox), z: round(oz), at: round(rnd() * 3), sway: round(rnd() * 6.28) }));
+  }
+  return { bursts: freeze(bursts), lanterns: freeze(lanterns), S };
+}
+
+function createShow(scene, { reducedMotion = false, boom = () => {}, groundY = () => 0, pixelRatio = 1 } = {}) {
+  const { bursts, lanterns, S } = planShow(reducedMotion);
+  const rnd = mulberry32((seedFromCode('bday-island-sparks') ^ FIREWORK_SALT) >>> 0);
+  const per = S.sparks + 1; // the rocket, then its sparks
+  const n = bursts.length * per;
+  const pos = new Float32Array(n * 3);
+  const col = new Float32Array(n * 3);
+  const size = new Float32Array(n);
+  const alpha = new Float32Array(n);
+  const vel = new Float32Array(n * 3);
+  const c = new THREE.Color();
+  bursts.forEach((b, i) => {
+    for (let k = 0; k < S.sparks; k++) {
+      // an even ball of directions (golden spiral), a little jitter
+      const t = (k + 0.5) / S.sparks;
+      const incl = Math.acos(1 - 2 * t);
+      const az = Math.PI * (1 + Math.sqrt(5)) * k + rnd() * 0.3;
+      const sp = S.speed * (0.8 + rnd() * 0.4);
+      const j = i * per + 1 + k;
+      vel[j * 3] = Math.sin(incl) * Math.cos(az) * sp;
+      vel[j * 3 + 1] = Math.cos(incl) * sp;
+      vel[j * 3 + 2] = Math.sin(incl) * Math.sin(az) * sp;
+      c.set(k % 3 === 0 ? b.colour2 : b.colour);
+      col.set([c.r, c.g, c.b], j * 3);
+    }
+    c.set(0xfff2c0);
+    col.set([c.r, c.g, c.b], i * per * 3);
+  });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+  geo.setAttribute('aAlpha', new THREE.BufferAttribute(alpha, 1));
+  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(ISLAND_LAND.x + 20, 12, ISLAND_LAND.z), 60);
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: SPARK_VERT, fragmentShader: SPARK_FRAG,
+    // a point's size is in drawing-buffer pixels: scaled by the pixel ratio
+    uniforms: { uScale: { value: Number.isFinite(pixelRatio) && pixelRatio > 0 ? pixelRatio : 1 } },
+    transparent: true, depthWrite: false, blending: THREE.NormalBlending,
+  });
+  const sparks = new THREE.Points(geo, mat);
+  sparks.name = 'bday-fireworks';
+  sparks.frustumCulled = false;
+  sparks.renderOrder = 5;
+  sparks.userData.noCast = true;
+  scene.add(sparks);
+
+  // the lanterns: a warm paper box with a lit bottom, one InstancedMesh
+  const lg = new THREE.CylinderGeometry(0.13, 0.1, 0.26, 8);
+  {
+    // glowing from below: pale gold at the open foot, deep orange at the top
+    const lp = lg.attributes.position;
+    const lc = new Float32Array(lp.count * 3);
+    const lo = new THREE.Color(0xffe08a), hi = new THREE.Color(LANTERN_COLOUR);
+    for (let i = 0; i < lp.count; i++) {
+      const k = (lp.getY(i) + 0.13) / 0.26;
+      lc[i * 3] = lo.r + (hi.r - lo.r) * k; lc[i * 3 + 1] = lo.g + (hi.g - lo.g) * k; lc[i * 3 + 2] = lo.b + (hi.b - lo.b) * k;
+    }
+    lg.setAttribute('color', new THREE.BufferAttribute(lc, 3));
+  }
+  const lm = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
+  const lamps = new THREE.InstancedMesh(lg, lm, Math.max(1, lanterns.length));
+  lamps.count = lanterns.length;
+  lamps.name = 'bday-lanterns';
+  lamps.frustumCulled = false;
+  lamps.userData.noCast = true;
+  lamps.castShadow = false;
+  const m4 = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const one = new THREE.Vector3(1, 1, 1);
+  const p3 = new THREE.Vector3();
+  const s3 = new THREE.Vector3();
+  scene.add(lamps);
+
+  let clock = 0;
+  let boomed = 0;
+  let done = false;
+  const sparkEnd = Math.max(...bursts.map((b) => b.at)) + S.rocket + S.life + 0.2;
+  const lampEnd = Math.max(...lanterns.map((l) => l.at), 0) + S.lanternFade + 1.5;
+  const showLamps = (t) => {
+    lanterns.forEach((l, i) => {
+      const u = t - l.at;
+      const up = u <= 0 ? 0 : u * S.lanternRise;
+      const fade = u < S.lanternFade ? 1 : Math.max(0, 1 - (u - S.lanternFade));
+      const k = u <= 0 ? 0 : Math.min(1, u * 2) * fade;
+      const sway = reducedMotion ? 0 : Math.sin(u * 0.7 + l.sway) * 0.4;
+      p3.set(l.x + sway, groundY(l.x, l.z) + 0.6 + Math.min(up, S.lanternTop), l.z + Math.cos(u * 0.5 + l.sway) * 0.2);
+      s3.copy(one).multiplyScalar(Math.max(0.0001, k));
+      lamps.setMatrixAt(i, m4.compose(p3, q, s3));
+    });
+    lamps.instanceMatrix.needsUpdate = true;
+  };
+  showLamps(0);
+
+  return {
+    bursts,
+    get lanterns() { return lanterns.length; },
+    get sparks() { return bursts.length * S.sparks; },
+    get done() { return done; },
+    update(dt) {
+      if (done) return;
+      clock += Number.isFinite(dt) && dt > 0 ? dt : 0;
+      bursts.forEach((b, i) => {
+        const r = i * per;
+        const u = clock - b.at;
+        // the rocket climbs from the water to the burst
+        if (u >= 0 && u < S.rocket) {
+          const f = u / S.rocket;
+          pos.set([b.x, b.y - 7 * (1 - f) * (1 - f), b.z], r * 3);
+          size[r] = 0.35;
+          alpha[r] = 1;
+        } else {
+          alpha[r] = 0;
+        }
+        const v = u - S.rocket;
+        if (v >= 0 && boomed <= i) { boomed = i + 1; try { boom(i); } catch { /* sound is a nicety */ } }
+        for (let k = 1; k <= S.sparks; k++) {
+          const j = r + k;
+          if (v < 0 || v > S.life) { alpha[j] = 0; continue; }
+          const damp = (1 - Math.exp(-S.drag * v)) / S.drag;
+          pos[j * 3] = b.x + vel[j * 3] * damp;
+          pos[j * 3 + 1] = b.y + vel[j * 3 + 1] * damp - 0.5 * S.gravity * v * v;
+          pos[j * 3 + 2] = b.z + vel[j * 3 + 2] * damp;
+          const life = v / S.life;
+          alpha[j] = life < 0.7 ? 1 : Math.max(0, 1 - (life - 0.7) / 0.3);
+          size[j] = S.size * (1 - 0.4 * life) * (reducedMotion ? 1 : 1 + 0.25 * Math.sin(v * 30 + k));
+        }
+      });
+      geo.attributes.position.needsUpdate = true;
+      geo.attributes.aSize.needsUpdate = true;
+      geo.attributes.aAlpha.needsUpdate = true;
+      showLamps(clock);
+      if (clock > sparkEnd && clock > lampEnd) {
+        done = true;
+        sparks.visible = false;
+        lamps.visible = false;
+      }
+    },
+    dispose() {
+      scene.remove(sparks, lamps);
+      geo.dispose();
+      mat.dispose();
+      lg.dispose();
+      lm.dispose();
+      lamps.dispose?.();
+    },
+  };
+}
+
 // ---- the Gathering, live --------------------------------------------------------
 
 const ANNOUNCE_TIME = 7;      // seconds the leader speaks before the first cheer
 const CHEER_TIME = 3.2;
+const PHOTO_AT = 1.2;         // seconds into the second cheer
 const FLAME_STEP = 0.17;      // seconds between two candles going out
 const BUBBLE_LIFE = 8;
 const CHEER_BUBBLE_LIFE = 2.6;
@@ -339,6 +564,7 @@ const yawToward = (x, z, tx, tz) => Math.atan2(tx - x, tz - z) + Math.PI;
 export function createBirthdayGathering(scene, plan, {
   name = '', showNames = true, reducedMotion = false, ground = null,
   burst = () => {}, toast = () => {}, onBlown = () => {},
+  boom = () => {}, onPhoto = () => {}, pixelRatio = 1,
 } = {}) {
   const { rock, cake: spot, seats } = plan;
   const gy = (x, z) => (ground && !ground.flat && typeof ground.y === 'function' ? ground.y(x, z) : 0);
@@ -397,6 +623,8 @@ export function createBirthdayGathering(scene, plan, {
   }
 
   let phase = 'wait';
+  let show = null;
+  let photoTaken = false;
   let since = 0;      // seconds in this phase
   let clock = 0;
   let lit = CAKE.candles;
@@ -413,6 +641,31 @@ export function createBirthdayGathering(scene, plan, {
     get phase() { return phase; },
     get lit() { return lit; },
     get cats() { return cats; },
+    // Where the birthday photo is taken from: west of the cake (the ring's
+    // open side), up a little, looking over the cake at the rock, so her
+    // cat beside it, the leader and the ring are in the picture.
+    photoView(catPos) {
+      const ax = rock.x - spot.x, az = rock.z - spot.z;
+      const al = Math.hypot(ax, az) || 1;
+      const ux = ax / al, uz = az / al;
+      // her side of the cake, so she is in front of it rather than behind
+      const side = catPos ? Math.sign((catPos.x - spot.x) * -uz + (catPos.z - spot.z) * ux) || 1 : 1;
+      const back = 4.2, lift = 1.9, swing = 0.5 * side;
+      const bx = -ux * Math.cos(swing) + uz * Math.sin(swing);
+      const bz = -uz * Math.cos(swing) - ux * Math.sin(swing);
+      const g0 = gy(spot.x, spot.z);
+      // aimed between the cake and her cat (when she is near it), a little
+      // toward the rock, so she is in the middle of the picture
+      const near = catPos && Math.hypot(catPos.x - spot.x, catPos.z - spot.z) < 3;
+      const cx = near ? spot.x * 0.6 + catPos.x * 0.4 : spot.x;
+      const cz = near ? spot.z * 0.6 + catPos.z * 0.4 : spot.z;
+      return {
+        from: { x: cx + bx * back, y: g0 + lift, z: cz + bz * back },
+        at: { x: cx + ux * 0.6, y: g0 + 0.8, z: cz + uz * 0.6 },
+      };
+    },
+    // the fireworks and lanterns once the candles are out, else null
+    get show() { return show; },
     // She is beside the cake and its candles are lit.
     promptAt(pos) {
       if (lit < CAKE.candles || phase === 'blow' || !pos) return false;
@@ -449,8 +702,17 @@ export function createBirthdayGathering(scene, plan, {
           toast(phrase('bday.wish'));
           try { onBlown(); } catch { /* the day's note is a nicety */ }
           go('cheer2');
+          show = withLocalUuids('bday-show', () => createShow(scene, { reducedMotion, boom, groundY: gy, pixelRatio }));
         }
-      } else if (phase === 'cheer2' && since >= CHEER_TIME) {
+      }
+      // the photo, a beat into the cheer: the cats up on their paws, the
+      // first rocket climbing
+      if (phase === 'cheer2' && !photoTaken && since >= PHOTO_AT) {
+        photoTaken = true;
+        try { onPhoto(); } catch { /* the Album is a nicety */ }
+      }
+      show?.update(d);
+      if (phase === 'cheer2' && since >= CHEER_TIME) {
         go('after');
       }
       // the cheers' short bubbles, a beat apart
@@ -504,6 +766,8 @@ export function createBirthdayGathering(scene, plan, {
       for (let i = bubbles.length - 1; i >= 0; i--) drop(i);
       for (const c of cats) scene.remove(c.group);
       scene.remove(cake.group);
+      show?.dispose();
+      show = null;
       cake.body.geometry.dispose();
       cake.body.material.dispose();
       cake.flame.geometry.dispose();
