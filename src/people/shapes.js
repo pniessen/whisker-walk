@@ -118,6 +118,10 @@ export function faceLayout(d) {
     eyeH: eyeR * 1.22,
     eyeZr: eyeR * 0.55,                     // its depth (z radius)
     eyeIn: eyeR * 0.35,                     // its centre this far inside the face
+    // the imagined eyeball's centre, this far behind the dot's centre (a real
+    // eyeball is about 12 mm in radius): the eye joint turns about it, so the
+    // dot slides over the face (0.3 rad moves it about 4 mm)
+    eyeBall: d.headZr * (child ? 0.13 : 0.12),
     noseY: -d.headYr * (child ? 0.34 : 0.3),
     mouthY: -d.headYr * (child ? 0.55 : 0.52), // the smile's middle
     smileR,

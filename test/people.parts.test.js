@@ -97,33 +97,43 @@ describe('people parts', () => {
   });
 
   it('joint rest places', () => {
-    const look = personFor({ x: 1, z: 2, kind: 'adult', sex: 'm', height: 1.8 });
-    const d = look.dims;
-    const at = jointRest(d);
-    expect(Object.keys(at).sort()).toEqual([...JOINTS].sort());
-    for (const n of JOINTS) { expect(at[n].length).toBe(3); for (const v of at[n]) expect(Number.isFinite(v)).toBe(true); }
-    const nk = neckFrame(d);
-    expect(at.head[1]).toBeCloseTo(nk.topY, 9);
-    expect(at.head[2]).toBeCloseTo(nk.topZ, 9);
-    const parts = personParts(look, 'near');
-    for (const [L, sd] of [['L', -1], ['R', 1]]) {
-      const eye = tagged(parts, 'eye').find((p) => p.joint === `eye${L}`);
-      eye.geo.computeBoundingBox();
-      const b = eye.geo.boundingBox;
-      const c = b.getCenter(new THREE.Vector3());
-      expect(Math.sign(at[`eye${L}`][0])).toBe(sd);
-      expect(at[`eye${L}`][0]).toBeCloseTo(c.x, 6);
-      expect(at[`eye${L}`][1]).toBeCloseTo(c.y, 6);
-      // inside the face, behind the dot's front
-      expect(at[`eye${L}`][2]).toBeGreaterThan(b.min.z);
-      expect(at[`eye${L}`][2]).toBeLessThan(b.max.z);
+    for (const def of [{ kind: 'adult', sex: 'm', height: 1.8 }, { kind: 'adult', sex: 'f', height: 1.6 }, { kind: 'child', sex: 'f', height: 1.3 }]) {
+      const look = personFor({ x: 1, z: 2, ...def });
+      const d = look.dims;
+      const at = jointRest(d);
+      expect(Object.keys(at).sort()).toEqual([...JOINTS].sort());
+      for (const n of JOINTS) { expect(at[n].length).toBe(3); for (const v of at[n]) expect(Number.isFinite(v)).toBe(true); }
+      const nk = neckFrame(d);
+      expect(at.head[1]).toBeCloseTo(nk.topY, 9);
+      expect(at.head[2]).toBeCloseTo(nk.topZ, 9);
+      const parts = personParts(look, 'near');
+      for (const [L, sd] of [['L', -1], ['R', 1]]) {
+        const eye = tagged(parts, 'eye').find((p) => p.joint === `eye${L}`);
+        eye.geo.computeBoundingBox();
+        const b = eye.geo.boundingBox;
+        const c = b.getCenter(new THREE.Vector3());
+        expect(Math.sign(at[`eye${L}`][0])).toBe(sd);
+        expect(at[`eye${L}`][0]).toBeCloseTo(c.x, 6);
+        expect(at[`eye${L}`][1]).toBeCloseTo(c.y, 6);
+        // the eyeball's centre: behind the dot's back (front is -z)
+        const [px, , pz] = at[`eye${L}`];
+        expect(pz).toBeGreaterThan(b.max.z);
+        // a 0.3 rad turn about y slides the dot's centre at least 3 mm sideways
+        const rot = new THREE.Matrix4().makeTranslation(px, 0, pz)
+          .multiply(new THREE.Matrix4().makeRotationY(0.3))
+          .multiply(new THREE.Matrix4().makeTranslation(-px, 0, -pz));
+        const moved = eye.geo.clone().applyMatrix4(rot);
+        moved.computeBoundingBox();
+        const mc = moved.boundingBox.getCenter(new THREE.Vector3());
+        expect(Math.abs(mc.x - c.x), `${def.kind} eye${L}`).toBeGreaterThanOrEqual(0.003);
+      }
+      const mouth = tagged(parts, 'mouth')[0];
+      mouth.geo.computeBoundingBox();
+      const mc = mouth.geo.boundingBox.getCenter(new THREE.Vector3());
+      expect(at.mouth[0]).toBeCloseTo(0, 9);
+      expect(Math.abs(at.mouth[1] - mc.y)).toBeLessThan(0.002);
+      expect(Math.abs(at.mouth[2] - mc.z)).toBeLessThan(0.004);
     }
-    const mouth = tagged(parts, 'mouth')[0];
-    mouth.geo.computeBoundingBox();
-    const mc = mouth.geo.boundingBox.getCenter(new THREE.Vector3());
-    expect(at.mouth[0]).toBeCloseTo(0, 9);
-    expect(Math.abs(at.mouth[1] - mc.y)).toBeLessThan(0.002);
-    expect(Math.abs(at.mouth[2] - mc.z)).toBeLessThan(0.004);
   });
 
   it('a bigger smile, corners up, and warmer cheeks', () => {
@@ -261,7 +271,6 @@ describe('people parts', () => {
       }
     }
     add(personFor({ x: 311.5, z: 77.25, kind: 'adult', sex: 'm', top: { kind: 'tshirt' } }));
-    console.log(`[people] triangles near ${counts.near.join('-')}, far ${counts.far.join('-')}`);
     expect(counts.near[1]).toBeLessThanOrEqual(2800);
     expect(counts.far[1]).toBeLessThanOrEqual(600);
   }, 60000);

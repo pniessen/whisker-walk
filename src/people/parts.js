@@ -85,10 +85,10 @@ export function jointRest(d) {
     chest: [0, d.waistY, 0],
     neck: [0, nk.baseY + 0.03 * d.s, nk.baseZ],
     head: [0, nk.topY, nk.topZ],
-    // each eye turns about its eyeball's centre, 0.6 of the eye's depth
-    // inside the face behind the dot
-    eyeL: [-f.eyeX, nk.headCY + f.eyeY, nk.headCZ + onFace(d, -f.eyeX, f.eyeY, -0.6 * f.eyeZr)],
-    eyeR: [f.eyeX, nk.headCY + f.eyeY, nk.headCZ + onFace(d, f.eyeX, f.eyeY, -0.6 * f.eyeZr)],
+    // each eye turns about its eyeball's centre, well behind the dot, so the
+    // dot slides over the face as a real eye turns
+    eyeL: [-f.eyeX, nk.headCY + f.eyeY, nk.headCZ + onFace(d, -f.eyeX, f.eyeY, -f.eyeIn) + f.eyeBall],
+    eyeR: [f.eyeX, nk.headCY + f.eyeY, nk.headCZ + onFace(d, f.eyeX, f.eyeY, -f.eyeIn) + f.eyeBall],
     // the smile's middle (its line's centre at x = 0, halfway up its arc)
     mouth: [0, nk.headCY + f.mouthY, nk.headCZ + onFace(d, 0, f.mouthY, -f.smileIn)],
   };
