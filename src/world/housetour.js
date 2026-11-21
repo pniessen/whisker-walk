@@ -45,6 +45,12 @@ export const HOUSE_SHOTS = freeze({
 const SPAWN = freeze({ x: 0, z: 9.5, face: freeze([0, -1]) });
 const t = (x, z, caption) => (caption ? freeze({ to: freeze([x, z]), caption }) : freeze({ to: freeze([x, z]) }));
 const zoom = (z, hold, caption) => freeze({ zoom: z, hold, caption });
+// In the attic she has come in heading west, so the camera looks west, out
+// over the lawn. Before the zoom out she loops round (north, south, then east
+// across the rug), and the camera swings behind her, so at Farther it looks
+// east over the whole house: the attic, the bedroom below it, the ground floor
+// below that (final fix F2).
+const TURN_EAST = [t(-20.5, -8), t(-20.5, -12), t(-16, -12.5)];
 
 const GRAND_STEPS = [
   // the library and back
@@ -55,20 +61,23 @@ const GRAND_STEPS = [
   t(20, -5), t(14, -5, 'Back up'), t(12, -5), t(12, -1.5), t(9, 0.5), t(9, 2), t(9, 4), t(6, 7),
   // the hall, the big stairs, the bedroom, the back stairs, the attic
   t(4, 7), t(0, 6, 'The hall again'), t(0, 3, 'Up the big stairs'), t(0, -6), t(-1, -8, 'The bedroom'),
-  t(-5, -9), t(-8, -11, 'Up the back stairs'), t(-14, -11), t(-18, -10, 'The attic'),
+  t(-5, -9), t(-8, -11, 'Up the back stairs'), t(-14, -11), t(-18, -10, 'The attic'), ...TURN_EAST,
   // the whole house from far away, then back in close
   zoom(3, 3, 'The whole house'), zoom(1, 0.5),
 ];
 
 // The film: one sweep through every room in well under 45 s at real time. It
-// opens at the front door, where the camera hangs outside the south wall, so
-// that wall is sunk from the first frame. Then the library and back, up the big
+// opens at the front door, where the camera hangs outside the south wall; the
+// walk's start settles the sink on that first view (houselife.js settle, as
+// game/walk.js does in the game), so the wall is already down in the first
+// frame and the film opens on her. Then the library and back, up the big
 // stairs, the bedroom, up the back stairs, the attic, the whole house from far
-// away, and all the way down again to the kitchen and the cellar.
+// away (looking east over it), and all the way down again to the kitchen and
+// the cellar.
 const FILM_STEPS = [
   t(0, 7, 'Come in'), t(-4, 7), t(-8, 7, 'The library'), t(-4, 7), t(0, 6, 'The hall'),
   t(0, 3, 'Up the big stairs'), t(0, -6), t(-1, -8, 'The bedroom'),
-  t(-5, -9), t(-8, -11, 'Up the back stairs'), t(-14, -11), t(-18, -10, 'The attic'),
+  t(-5, -9), t(-8, -11, 'Up the back stairs'), t(-14, -11), t(-18, -10, 'The attic'), ...TURN_EAST,
   zoom(3, 3, 'The whole house'), zoom(1, 0),
   t(-14, -11, 'Back down'), t(-8, -11), t(-3, -8), t(0, -6), t(0, 3, 'Down the big stairs'),
   t(4, 7), t(7, 7, 'The parlour'), t(9, 4), t(9, 2), t(9, 0.5, 'The kitchen'),

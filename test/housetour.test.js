@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import { describe, it, expect, vi } from 'vitest';
 import { canvasStub } from './helpers/growriver.js';
 
@@ -19,7 +18,9 @@ const { MAX_ZOOM_STEP } = await import('../src/camzoom.js');
 const DT = 1 / 30; // the picture page steps 1/30 s per captured frame
 const ROOM_IDS = HOUSE_ROOMS.map((r) => r.id);
 const SERIES_WORDS = /twoleg|clan|thunder|shadow|river|wind|star|warrior|kittypet/i;
-const durations = {};
+// Each tour is walked once (it takes a while), and its tests share the result.
+const walked = {};
+const walkOnce = (name) => (walked[name] ??= walkTour(name));
 
 function walkTour(name) {
   const tour = HOUSE_TOURS[name];
@@ -33,11 +34,13 @@ function walkTour(name) {
   let run = 0;
   let worst = 0;
   let sunk = false;
+  const was = new Map(w.area.sections.map((sec) => [sec.id, w.sink.fraction(sec.id)]));
   let up = 0;
   let down = 0;
   let lastY = null;
   let high = -Infinity;
   let low = Infinity;
+  let farther = null; // the last frame at zoom step 3: where the camera looks from
   let t = 0;
   let result = { done: false, failed: null, caption: null };
   for (; t < 300; t += DT) {
@@ -51,7 +54,12 @@ function walkTour(name) {
     if (s) stairs.add(s);
     run = w.blockers().length ? run + 1 : 0;
     worst = Math.max(worst, run);
-    for (const sec of w.area.sections) if (w.sink.fraction(sec.id) < 0.5) sunk = true;
+    // a wall seen going down on the way (the start's own are settled down already)
+    for (const sec of w.area.sections) {
+      const f = w.sink.fraction(sec.id);
+      if (f < (was.get(sec.id) ?? 1) - 1e-6 && f < 0.5) sunk = true;
+      was.set(sec.id, f);
+    }
     if (s === 'main' && lastY !== null) {
       if (w.cat.position.y > lastY + 1e-4) up++;
       else if (w.cat.position.y < lastY - 1e-4) down++;
@@ -59,10 +67,9 @@ function walkTour(name) {
     lastY = w.cat.position.y;
     high = Math.max(high, w.cat.position.y);
     low = Math.min(low, w.cat.position.y);
+    if (w.player.cameraZoomStep === 3) farther = { cam: w.camera.position.clone(), cat: w.cat.position.clone(), room: r };
   }
-  durations[name] = t;
-  if (process.env.WW_TOUR_LOG) fs.appendFileSync(process.env.WW_TOUR_LOG, `${name} ${t.toFixed(2)} s\n`);
-  return { result, rooms, stairs, captions, worst, sunk, high, low, up, down, seconds: t };
+  return { result, rooms, stairs, captions, worst, sunk, high, low, up, down, seconds: t, farther };
 }
 
 describe('the shots', () => {
@@ -115,7 +122,7 @@ describe('the shots', () => {
 describe('the tours', () => {
   for (const name of ['grand', 'film']) {
     it(`walks the ${name} tour with the real player and the stick alone`, () => {
-      const r = walkTour(name);
+      const r = walkOnce(name);
       expect(r.result.done).toBe(true);
       expect(r.result.failed).toBe(null);
       expect([...r.rooms].sort()).toEqual([...ROOM_IDS].sort());
@@ -125,11 +132,22 @@ describe('the tours', () => {
         expect(c).not.toMatch(SERIES_WORDS);
       }
       expect(r.seconds).toBeGreaterThan(10);
+      expect(r.seconds).toBeLessThanOrEqual(45);
+    }, 90_000);
+
+    // Final fix F2: at Farther the camera looks east over the house from the
+    // attic's west end, not west over the lawn with the attic alone in view.
+    it(`zooms the ${name} tour out to Farther looking east over the house`, () => {
+      const { farther } = walkOnce(name);
+      expect(farther).not.toBe(null);
+      expect(farther.room).toBe('attic');
+      expect(farther.cam.x).toBeLessThan(farther.cat.x - 5); // the camera well west of her ...
+      expect(Math.abs(farther.cam.x - farther.cat.x)).toBeGreaterThan(Math.abs(farther.cam.z - farther.cat.z)); // ... mostly west
     }, 90_000);
   }
 
   it('the film is a stair up, a stair down, a wall sinking and the zoom to Farther in 30 to 45 s', () => {
-    const r = walkTour('film');
+    const r = walkOnce('film');
     expect(r.high).toBeGreaterThan(3.9); // up to the attic
     expect(r.low).toBeLessThan(-1.5); // down to the cellar
     expect(r.up).toBeGreaterThan(20); // up the big stairs ...
@@ -138,6 +156,5 @@ describe('the tours', () => {
     expect(r.seconds).toBeGreaterThanOrEqual(30);
     expect(r.seconds).toBeLessThanOrEqual(45);
     expect(HOUSE_TOURS.film.steps.some((s) => s.zoom === 3)).toBe(true);
-    expect(durations.film).toBeLessThanOrEqual(45);
   }, 90_000);
 });
