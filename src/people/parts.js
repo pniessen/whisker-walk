@@ -26,9 +26,14 @@ export const JOINT_PARENT = Object.freeze({
 });
 
 // Segment counts: near at most 2,800 triangles a person, far at most 600.
+// The far limbs are one band from end to end (ring 1: no middle ring, so no
+// bulge, which is a few millimetres and unseen beyond 12 m): 16 triangles a
+// limb, not 24, so the Fairground's twelve people fit the owner's 75,000
+// with room to spare (ruling R21; the hair, the shoes, the hands, the neck,
+// the collar and the eyes keep their shapes).
 export const SEGMENTS = Object.freeze({
   near: Object.freeze({ limb: 8, ring: 4, cap: 2, torso: 10, head: [12, 8], hair: [12, 8], hand: [6, 4], foot: [8, 5] }),
-  far: Object.freeze({ limb: 4, ring: 2, cap: 1, torso: 6, head: [6, 4], hair: [6, 4], hand: [4, 3], foot: [4, 3] }),
+  far: Object.freeze({ limb: 4, ring: 1, cap: 1, torso: 6, head: [6, 4], hair: [6, 4], hand: [4, 3], foot: [4, 3] }),
 });
 
 const EYE = 0x2a211c;

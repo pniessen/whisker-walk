@@ -30,6 +30,7 @@ const { createFairGames, GAME, GAME_STATES, FAIR_GAME_IDS, FAIR_FIND_IDS } = awa
 const { createFairVisitors, VISITOR, PAIR, visitorCount, isChildSpot } = await import('../src/fairvisitors.js');
 const { spotKind } = await import('../src/people/look.js');
 const { createFairShow } = await import('../src/fairshow.js');
+const { createPeopleKit } = await import('../src/people/index.js');
 const { createFairLive, NO_FAIR } = await import('../src/fairlive.js');
 const { FAIR_PRIZES, FAIR_PRIZE_IDS, FAIR_JOURNAL_TYPES, gameJournalId, fairFindJournalId, fairPrizesWonBy } = await import('../src/fairprizes.js');
 const {
@@ -1699,9 +1700,9 @@ describe('what it costs to draw', () => {
     }
     return { meshes, casters, triangles: Math.round(triangles) };
   }
-  const showFor = (strays) => {
+  const showFor = (strays, people = null) => {
     const made = builtFair();
-    const show = createFairShow(made.scene, made.area, { strays, seed: 'budget' });
+    const show = createFairShow(made.scene, made.area, { strays, seed: 'budget', people });
     return { ...made, show };
   };
 
@@ -1715,9 +1716,24 @@ describe('what it costs to draw', () => {
     expect(high).toEqual({ meshes: 31, casters: 0, triangles: MEASURED.high });
     expect(mid).toEqual({ meshes: 22, casters: 0, triangles: MEASURED.mid });
     expect(low).toEqual({ meshes: 16, casters: 0, triangles: MEASURED.low });
-    // the Farm's animals are 40-odd meshes and about 6,000 triangles; this is under that
+    // the Farm's animals are 40-odd meshes and about 6,000 triangles; the
+    // show's own cap rose to 8,000 with the lifelike people's pairs (spec,
+    // "The Fairground's test pins")
     expect(high.meshes).toBeLessThanOrEqual(34);
-    expect(high.triangles).toBeLessThanOrEqual(6000);
+    expect(high.triangles).toBeLessThanOrEqual(SHOW_CAP);
+  });
+
+  it('drawn as lifelike people: one mesh a person (a pair is two), built far, MEASURED_PEOPLE on each tier, under the show\'s cap', () => {
+    // Measured 2026-11-21. Eight visitors (three of them pairs: 11 people) and
+    // the juggler, each one skinned mesh at the far geometry (the kit's LOD
+    // swaps near within 12 m), the juggler's three balls and the balloon.
+    const high = stats(showFor(22, createPeopleKit).show.meshes);
+    const mid = stats(showFor(14, createPeopleKit).show.meshes);
+    const low = stats(showFor(8, createPeopleKit).show.meshes);
+    expect(high).toEqual({ meshes: 16, casters: 0, triangles: MEASURED_PEOPLE.high });
+    expect(mid).toEqual({ meshes: 12, casters: 0, triangles: MEASURED_PEOPLE.mid }); // five visitors, two of them pairs
+    expect(low).toEqual({ meshes: 8, casters: 0, triangles: MEASURED_PEOPLE.low }); // three visitors, no pair
+    expect(high.triangles).toBeLessThanOrEqual(SHOW_CAP);
   });
 
   it('with the place itself, stays inside the Fairground’s ceilings on the high tier', () => {
@@ -1730,6 +1746,18 @@ describe('what it costs to draw', () => {
     // the place alone (test/fair.test.js pins it) is what is left
     expect(all.meshes - added.meshes).toBe(175);
     expect(all.casters).toBe(109);
+    expect(all.triangles - added.triangles).toBe(68572);
+  });
+
+  it('as lifelike people with the place itself, stays inside the owner\'s 75,000 on the high tier, and under 74,500 (ruling R21)', () => {
+    const { scene, show } = showFor(22, createPeopleKit);
+    const all = stats(scene.children);
+    const added = stats(show.meshes);
+    expect(all.triangles).toBeLessThanOrEqual(75000);
+    expect(all.triangles).toBeLessThanOrEqual(74500); // room left for the Fairground's other builders
+    expect(all.meshes).toBeLessThanOrEqual(260);
+    expect(all.casters).toBe(109); // the people cast none
+    expect(all.meshes - added.meshes).toBe(175);
     expect(all.triangles - added.triangles).toBe(68572);
   });
 
@@ -1780,3 +1808,5 @@ describe('what it costs to draw', () => {
 });
 
 const MEASURED = { high: 4554, mid: 3158, low: 2278 };
+const MEASURED_PEOPLE = { high: 5706, mid: 3934, low: 2130 };
+const SHOW_CAP = 8000;

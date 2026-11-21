@@ -16,7 +16,8 @@
      renders, so the eases settle and the gaze turns complete.
      URL params:
        scene=sheet (default)   a lineup on a lawn: today's figure, then a man, a woman with a girl at her side (one spot: a pair), an older man, and a tabby for scale
-       scene=fair&fig=new|old  the real Fairground (world/fair.js) with its visitors (src/fairvisitors.js, run on 40 s) and the juggler
+       scene=fair&fig=new|old  the real Fairground (world/fair.js) with the game's own show (src/fairshow.js: its visitors,
+                               run on 40 s, and the juggler), drawn by the people kit (new) or today's figure (old)
        scene=neighborhood|park|docks|seaside
                                the street place built from its world module, its villagers made by the game's own
                                createCritters with the people kit (the head scratch, the bumps, the pairs, the gaze
@@ -31,7 +32,7 @@
               scratch-held-day scratch-older-day
               kneel-front-day kneel-left-day dress-scratch-day dress-scratch-side dress-scratch-front dress-kneel-back
               skirt-scratch-day skirt-scratch-side coat-scratch-side dress-stride-day skirt-stride-day
-       fair:  fair-day fair-dusk fair-close
+       fair:  fair-day fair-dusk fair-close fair-kneel fair-juggler
        place: wave wave-eye (a villager waving, the normal camera and her eye height, 0.3 m)
               pair pair-eye (the place's pair: the Neighborhood, the Park and the Docks)
      Tours (scripts/record-page.mjs --tour name): window.__tour(name), then window.__frame() steps 1/30 s
@@ -42,6 +43,7 @@
        place: slide (she walks into a villager and slides round, 5 s),
               scratch-town (she walks up, asks, is touched, walks away: the game's own head scratch, 11 s),
               scratch-town-side (the same, from the villager's right)
+       fair:  fair-walk (she sits on the midway, the visitors stroll by her, 6 s), fair-juggle (the juggler's hands, 3 s)
      window.__info() renders and returns { calls, triangles } (renderer.info, shadow passes included);
      window.__stats is the people's triangle counts. -->
 <style>
@@ -74,6 +76,7 @@
   const sceneId = params.get('scene') || 'sheet';
   const PLACES = ['neighborhood', 'park', 'docks', 'seaside'];
   let town = null; // a street place: { crit, player, cat, decals, clear }
+  let fairWorld = null; // the Fairground: { show, cat, decals, player, session }
   const figKind = params.get('fig') || 'new';
   const [W, H] = (params.get('size') || '1280x720').split('x').map(Number);
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -260,45 +263,39 @@
       && (area.perches ?? []).every((q) => Math.hypot(x - q.x, z - q.z) >= 1.0); // (a bench is a perch, not a collider)
     town = { crit, player, cat, decals, clear };
   } else {
-    // ---- the Fairground ----
+    // ---- the Fairground: the game's own show (src/fairshow.js), its visitors
+    // and juggler drawn by the people kit (fig=new, as walk.js with the switch
+    // on) or today's figure (fig=old), the walk's contact shadows ----
     const fair = await import('/src/world/fair.js');
-    const { createFairVisitors, visitorCount } = await import('/src/fairvisitors.js');
+    const { createFairShow } = await import('/src/fairshow.js');
     const { createFairSim } = await import('/src/fairsim.js');
+    const { createContactShadows } = await import('/src/render/contactshadows.js');
+    const { propsFor, frameColliders } = await import('/src/propsets.js');
     const wind = createWind({ reducedMotion: true });
     area = fair.build(scene, { water: { quality: { name: 'high' }, reducedMotion: true }, wind });
+    for (const f of propsFor('fair').flaps) for (const c of frameColliders(f)) area.colliders.push({ ...c });
     sky = { top: 0x8fcbf0, horizon: 0xe4f1e2 };
     skyDusk = area.skyDusk ?? skyDusk;
     fill = createFill(area.groundBounce);
     scene.add(fill);
     const sim = createFairSim(area);
-    const visitors = createFairVisitors(area, { count: visitorCount(22), swept: sim.swept, seed: 'people-proto' });
+    const decals = createContactShadows(scene);
+    const show = createFairShow(scene, area, {
+      people: figKind === 'old' ? null : createPeopleKit, swept: sim.swept, strays: 22, camera, seed: 'people-proto',
+    });
     const cat = buildCat('tabby');
     scene.add(cat);
     cats.push(cat);
-    // the cat waits on the midway's east side while the visitors stroll 40 s round her
-    const catAt = { x: 3.4, y: 0, z: 25.5, speed: 0, perched: false, inWater: false, pouncing: false };
-    for (let s = 0; s < 40; s += 1 / 30) visitors.step(1 / 30, catAt);
-    cat.position.set(catAt.x, 0, catAt.z);
-    cat.rotation.y = 0.15;
-    animateCat(cat, 'follow', 0.5, 0, false);
-    const A = area.anchors;
-    for (const v of visitors.list) {
-      // a pair: the grown-up 0.33 m to one side of the visitor's way, the child 0.33 m to the other
-      const it = figKind === 'old' ? oldItem(v.id, { x: v.look.x, z: v.look.z }) : spotItem(v.id, { x: v.look.x, z: v.look.z }, { gap: 0.66 });
-      it.v = v;
-      it.group.position.set(v.x, 0, v.z);
-      it.group.rotation.y = v.yaw + Math.PI;
-    }
-    const jg = figKind === 'old' ? oldItem('juggler', { x: 311.5, z: 77.25 }) : spotItem('juggler', { x: 311.5, z: 77.25, kind: 'adult', sex: 'm', top: { kind: 'tshirt', color: 0xe2433a } });
-    jg.juggler = true;
-    jg.group.position.set(A.juggler.x, 0, A.juggler.z);
-    jg.group.rotation.y = Math.atan2(A.jugglerWatch.x - A.juggler.x, A.jugglerWatch.z - A.juggler.z) + Math.PI;
+    decals.follow(cat);
+    for (const g of show.groups) decals.follow(g);
     shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
     sun.shadow.bias = SUN_BIAS;
     assignShadowCasters(scene);
-    // as the Fairground's visitors are today: no shadow pass for people
-    for (const it of items) it.group.traverse((m) => { if (m.isMesh) { m.castShadow = false; m.userData.noCast = true; } });
-    window.__visitors = visitors;
+    const fairPlayer = { speed: 0, inWater: false };
+    const fairSession = { perched: null, pounceTime: 0 };
+    fairWorld = { show, cat, decals, player: fairPlayer, session: fairSession, sim };
+    window.__visitors = show.visitors;
+    window.__show = show;
     dayLight();
   }
 
@@ -411,6 +408,7 @@
   function render() {
     scene.updateMatrixWorld(true);
     town?.decals.update();
+    fairWorld?.decals.update();
     shadows?.update();
     renderer.render(scene, camera);
   }
@@ -683,19 +681,108 @@
     return `[${m.scratchState}, palm ${(gap * 100).toFixed(1)} cm from its rest ${(REACH.CLEAR * 100).toFixed(0)} cm over her head (the stroke is +-2 cm), chest lean +${m.scratch.lean.toFixed(2)} rad]`;
   }
 
-  // the Fairground
-  const fairSpec = (it) => {
-    if (it.juggler) return { mode: 'juggle', noLook: true };
-    const v = it.v;
-    return { mode: v.moving ? 'walk' : 'stand', walked: v.walked, oldStride: v.walked * 3.4, tOff: v.index };
-  };
+  // the Fairground: the show runs as the walk runs it (her cat sitting where
+  // the shot puts her), the camera placed first so the kit's view test and
+  // near/far switch see what the picture sees
+  const MIDWAY = { x: 3.4, z: 25.5 };
+  let fairWarm = false;
+  function fairStep(dt) {
+    clock += dt;
+    const { show, cat, player, session } = fairWorld;
+    cat.updateMatrixWorld(true);
+    show.update(dt, clock, { cat, player, session });
+  }
+  function fairRun(seconds) { for (let s = 0; s < seconds; s += DT) fairStep(DT); }
+  // her cat sitting at (x, z), facing yaw (the visitors stroll 40 s round her the first time)
+  function fairSit(x, z, yaw) {
+    const cat = cats[0];
+    cat.position.set(x, 0, z);
+    cat.rotation.y = yaw;
+    animateCat(cat, 'follow', 0.5, 0, false);
+    if (!fairWarm) { fairWarm = true; fairRun(40); }
+  }
   const fairCam = () => { const c = cats[0].position; cam(c.x - 0.5, 2.5, c.z + 4.5, c.x - 1.9, 0.8, c.z - 10); };
   const who = () => (figKind === 'old' ? "today's figure" : 'the new figure');
+  const modes = () => (fairWorld.show.people.length
+    ? fairWorld.show.people.map((p) => `${p.juggler ? 'juggler' : p.v.id.replace('fair-visitor-', 'v') + (p.child ? 'c' : '')} ${p.mode}${p.gaze.looking ? ' (looks)' : ''}`).join(', ')
+    : '');
+  // the visitor nearest (x, z), from `list`
+  const nearestTo = (list, x, z) => list.reduce((b, p) => (Math.hypot(p.v.x - x, p.v.z - z) < Math.hypot(b.v.x - x, b.v.z - z) ? p : b));
   const FAIR = {
-    'fair-day': () => { dayLight(); fairCam(); settle(fairSpec, { which: () => true }); return `The Fairground with ${who()}: the walk's normal camera behind the cat on the midway, day.`; },
-    'fair-dusk': () => { sunsetLight(); fairCam(); settle(fairSpec, { which: () => true }); return `The Fairground at dusk, ${who()}.`; },
-    'fair-close': () => { dayLight(); cats[0].visible = false; const c = cats[0].position; cam(c.x, 0.3, c.z - 0.25, c.x - 1.4, 1.0, c.z - 8, 60); settle(fairSpec, { which: () => true }); return `The Fairground from the cat's eye height, ${who()}.`; },
+    'fair-day': () => { dayLight(); fairSit(MIDWAY.x, MIDWAY.z, 0.15); fairCam(); fairRun(2.5); return `The Fairground with ${who()}: the walk's normal camera behind the cat on the midway, day. [${modes()}]`; },
+    'fair-dusk': () => { sunsetLight(); fairSit(MIDWAY.x, MIDWAY.z, 0.15); fairCam(); fairRun(2.5); return `The Fairground at dusk, ${who()}: the walk's normal camera. [${modes()}]`; },
+    'fair-close': () => { dayLight(); fairSit(MIDWAY.x, MIDWAY.z, 0.15); cats[0].visible = false; const c = cats[0].position; cam(c.x, 0.3, c.z - 0.25, c.x - 1.4, 1.0, c.z - 8, 60); fairRun(2.5); return `The Fairground from the cat's eye height, ${who()}. [${modes()}]`; },
+    // she meows 1.2 m in front of a visitor who crouches today: the new figure kneels on one knee
+    'fair-kneel': () => {
+      dayLight();
+      fairSit(MIDWAY.x, MIDWAY.z, 0.15);
+      const list = fairWorld.show.people.length ? fairWorld.show.people.filter((p) => !p.child && !p.juggler && p.v.helloKind === 'crouch' && !p.v.pair) : [];
+      const v = list.length ? nearestTo(list, MIDWAY.x, MIDWAY.z).v : fairWorld.show.visitors.list.find((q) => q.helloKind === 'crouch' && !q.pair);
+      const x = v.x + Math.sin(v.yaw) * 1.2, z = v.z + Math.cos(v.yaw) * 1.2;
+      const yaw = Math.atan2(-(v.x - x), -(v.z - z));
+      const cat = cats[0];
+      cat.position.set(x, 0, z); cat.rotation.y = yaw;
+      cats[0].visible = false;
+      // her eyes, a little behind her head, looking at him
+      cam(x + Math.sin(yaw) * 0.15, 0.3, z + Math.cos(yaw) * 0.15, v.x, 0.75, v.z, 60);
+      fairStep(DT);
+      fairWorld.show.meow(cat.position);
+      fairRun(1.4);
+      cam(x + Math.sin(yaw) * 0.15, 0.3, z + Math.cos(yaw) * 0.15, v.x, 0.75, v.z, 60);
+      return `She meows 1.2 m in front of ${v.id}: the crouch hello, from her eye height (${who()}). [${modes()}]`;
+    },
+    'fair-juggler': () => {
+      dayLight();
+      const A = area.anchors;
+      const yaw = Math.atan2(-(A.juggler.x - A.jugglerWatch.x), -(A.juggler.z - A.jugglerWatch.z));
+      fairSit(A.jugglerWatch.x, A.jugglerWatch.z, yaw);
+      jugglerCam();
+      fairRun(2.5 + 0.37);
+      return `The juggler (${who()}), from her eye height at his watch spot. [${modes()}]`;
+    },
   };
+  // the juggler as she sees him from his watch spot: her eye height (0.3 m), a
+  // little to one side (the cascade peaks at his head's height, 0.3 m in
+  // front of his face: from below the balls go up over his head)
+  function jugglerCam() {
+    const A = area.anchors;
+    const fx = A.jugglerWatch.x - A.juggler.x, fz = A.jugglerWatch.z - A.juggler.z, d = Math.hypot(fx, fz) || 1;
+    const ux = fx / d, uz = fz / d; // the way he faces
+    cats[0].visible = false; // the camera is her eyes
+    cam(A.juggler.x + ux * d - uz * 0.5, 0.3, A.juggler.z + uz * d + ux * 0.5, A.juggler.x, 1.15, A.juggler.z, 55);
+  }
+  // A film of the juggler (3 s): his hands and the balls.
+  function jugglerTour() {
+    dayLight();
+    const A = area.anchors;
+    const yaw = Math.atan2(-(A.juggler.x - A.jugglerWatch.x), -(A.juggler.z - A.jugglerWatch.z));
+    fairSit(A.jugglerWatch.x, A.jugglerWatch.z, yaw);
+    jugglerCam();
+    tour = {
+      name: 'fair-juggle', t: 0, frames: 0, seconds: 3,
+      tick(dt) { jugglerCam(); fairStep(dt); },
+      frame() { return `The juggler (${who()}): each hand follows the nearest ball.`; },
+    };
+    labels(false);
+    return 'fair-juggle';
+  }
+  // A film of the midway: she sits on its east side, the visitors stroll by her.
+  function fairTour(name) {
+    if (name === 'fair-juggle') return jugglerTour();
+    if (name !== 'fair-walk') throw new Error(`no tour ${name}`);
+    dayLight();
+    fairSit(MIDWAY.x, MIDWAY.z, 0.15);
+    cats[0].visible = true;
+    const place = fairCam; // the walk's normal camera behind her
+    place();
+    tour = {
+      name, t: 0, frames: 0, seconds: 6,
+      tick(dt) { place(); fairStep(dt); },
+      frame() { return `The midway (${who()}): the visitors stroll, their strides from the metres they walk. [${modes()}]`; },
+    };
+    labels(false);
+    return name;
+  }
 
   // on the stride shots the girl walks a little behind the woman, so both strides show
   const girlBehind = () => byId('pair').members[1].person.figure.position.set(0, 0, 0.9);
@@ -985,6 +1072,7 @@
 
   window.__tour = (name) => {
     if (town) return townTour(name);
+    if (fairWorld) { clock = 0; return fairTour(name); }
     if (sceneId !== 'sheet') throw new Error('tours run on scene=sheet or a street place');
     const make = TOURS[name];
     if (!make) throw new Error(`no tour ${name}`);

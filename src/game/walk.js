@@ -1653,6 +1653,7 @@ export function createWalkLifecycle({
     }
     const fairShow = areaId !== 'fair' ? null : createFairShow(scene, areaData, {
       people: peopleOn() ? createPeopleKit : null,
+      lodNear: () => lodNearFor(qualityAdapter.status?.rung), // the live rung's switch
       swept: fairLive.sim.swept,
       strays: tier.strays,
       camera,

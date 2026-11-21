@@ -1174,8 +1174,10 @@ function init() {
       session.traversal.update(dt, t, moveCtx);
       // `waters` is v20's fourth argument: the area's water footprints, which
       // player.update blocks the cat out of unless Sea Legs is on. The den has
-      // none and passes undefined, which the default handles.
-      player.update(dt, session.areaData.colliders, session.areaData.bounds, session.areaData.waters, session.critters?.bumps);
+      // none and passes undefined, which the default handles. The fifth is
+      // the people's soft bumps: the Fairground show's visitors there, else
+      // the villagers'.
+      player.update(dt, session.areaData.colliders, session.areaData.bounds, session.areaData.waters, session.fair?.show?.bumps ?? session.critters?.bumps);
 
       // Zoomies FOV kick: ease toward a wider field of view while sprinting,
       // back to normal otherwise. updateProjectionMatrix is comparatively
