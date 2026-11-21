@@ -44,10 +44,6 @@ export const LED_DELAY_MS = 1500;
 // How long a room's host waits for every friend to have the place: a little
 // longer than one place load may take.
 export const WALK_ON_WAIT_MS = AREA_LOAD_TIMEOUT_MS + 1000;
-// How long a guest who said yes watches for the host's state from the new
-// place (ruling R15): the host sends none until it plays there, and it may
-// sit on that walk's Ready? card a while.
-export const WALK_ON_FOLLOW_MS = 60000;
 // A guest takes an ask heard again this soon for the host's resend.
 const ASK_SAME_MS = 1000;
 // The most answers the host keeps for one ask (each friend sends two).
@@ -313,6 +309,9 @@ export function createCrossing({
     if (last && last.via === d.via && (last.pending || now() - last.at < ASK_SAME_MS)) return;
     const answer = { via: d.via, at: now(), pending: true };
     s.walkOnAnswer = answer;
+    // A new ask is the one she follows now: the last one's watch comes off.
+    s.walkOnWatch?.();
+    s.walkOnWatch = null;
     const net = s.net;
     ensure(d.to)
       .then(() => true, () => false)
@@ -323,23 +322,27 @@ export function createCrossing({
         const have = { v: 1, id: s.playerId, type: 'walk-on-have', via: d.via, ok };
         net.sendEvent(have);
         setTimeout(() => { if (getSession() === s) net.sendEvent(have); }, CROSS_RESEND_MS);
-        if (ok) watchHost(s, net, { via: d.via, to: d.to, hostId: ev.id });
+        if (ok) watchHost(s, net, answer, { via: d.via, to: d.to, hostId: ev.id });
       });
   }
 
-  // Ruling R15: having said yes, a guest also follows the host when, within
-  // WALK_ON_FOLLOW_MS, a state from the host (by the roster) shows it in the
-  // place, so both walk-on copies lost do not split the room.
-  function watchHost(s, net, { via, to, hostId }) {
-    const since = now();
+  // Ruling R15: having said yes, a guest also follows the host when a state
+  // from the host (by the roster) shows it in the place, so both walk-on
+  // copies lost do not split the room. Ruling R18: the watch lasts until her
+  // walk ends (freeWalk takes it off with the walk's handlers; the host
+  // sends no state until it plays there, and may sit on that walk's Ready?
+  // card a long while), and it is for the via she was last asked about: a
+  // new ask takes it off (onWalkOnAsk), so she never follows an older way.
+  function watchHost(s, net, answer, { via, to, hostId }) {
+    if (s.walkOnAnswer !== answer) return; // a newer ask came meanwhile
     let off = () => {};
     off = keepOff(s, net.onState?.((state) => {
-      if (getSession() !== s || s.crossLed || now() - since > WALK_ON_FOLLOW_MS) { off(); return; }
+      if (getSession() !== s || s.crossLed) { off(); return; }
       if (!decideHostThere(state, { hostId, to, selfId: s.playerId, remoteIds: roomIdsOf(s) })) return;
       off();
       follow(s, { via, to, hostId });
     }));
-    setTimeout(() => off(), WALK_ON_FOLLOW_MS);
+    s.walkOnWatch = off;
   }
 
   // A guest walks on behind the host: once a walk, as a guest (nothing is

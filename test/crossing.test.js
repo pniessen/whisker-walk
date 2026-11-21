@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createCrossing, swallowsCanvasClick, CROSS_RESEND_MS, CROSS_END_MS, WALK_ON_WAIT_MS, WALK_ON_FOLLOW_MS } from '../src/game/crossing.js';
+import { createCrossing, swallowsCanvasClick, CROSS_RESEND_MS, CROSS_END_MS, WALK_ON_WAIT_MS } from '../src/game/crossing.js';
 import { AREA_LOAD_TIMEOUT_MS, AreaLoadError } from '../src/game/areaload.js';
 import { phrase } from '../src/clanphrases.js';
 import { pauseCardHtml, pauseCardFor } from '../src/game/walk.js';
@@ -1233,7 +1233,10 @@ describe('walking on together', () => {
       expect(h.handlers()).toBe(0);
     });
 
-    it('R15 only after a yes, only from the host, only within WALK_ON_FOLLOW_MS', async () => {
+    // Ruling R18: the watch lasts until her walk ends (the host may sit a
+    // long while on its Ready? card in the new place), and it is for the
+    // place of the via she was last asked about.
+    it('R15 only after a yes, only from the host, until her walk ends', async () => {
       const st = { v: 1, id: 'a', pos: [0, 0], yaw: 0, pose: 'idle', speed: 0, area: 'farm' };
       const no = guest();
       no.crossing.onWalkOnAsk(no.s, no.ask());
@@ -1242,23 +1245,15 @@ describe('walking on together', () => {
       no.hear(st);
       expect(no.walkOn).not.toHaveBeenCalled();
       expect(no.handlers()).toBe(0);
-      expect(WALK_ON_FOLLOW_MS).toBe(60000);
-      // the host may sit on its Ready? card in the Farm: still followed after the room's wait
+      // the host may sit on its Ready? card in the Farm a long while: still followed
       const slow = guest();
       slow.crossing.onWalkOnAsk(slow.s, slow.ask());
       slow.loads.come('farm');
-      await vi.advanceTimersByTimeAsync(WALK_ON_FOLLOW_MS - 1);
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
       expect(slow.handlers()).toBe(1);
       slow.hear(st);
       expect(slow.walkOn).toHaveBeenCalledTimes(1);
       expect(slow.handlers()).toBe(0);
-      const late = guest();
-      late.crossing.onWalkOnAsk(late.s, late.ask());
-      late.loads.come('farm');
-      await vi.advanceTimersByTimeAsync(WALK_ON_FOLLOW_MS + 1);
-      expect(late.handlers()).toBe(0);
-      late.hear(st);
-      expect(late.walkOn).not.toHaveBeenCalled();
       // her walk ended: the watch is taken off with it (netOffs) and never follows
       const gone = guest();
       gone.crossing.onWalkOnAsk(gone.s, gone.ask());
@@ -1277,6 +1272,33 @@ describe('walking on together', () => {
       moved.setRoster([{ playerId: '0' }, { playerId: 'a' }, { playerId: 'c' }]);
       moved.hear(st);
       expect(moved.walkOn).not.toHaveBeenCalled();
+    });
+
+    it('a later ask about another way replaces the watch: only that way\'s place leads her on', async () => {
+      const h = guest();
+      h.crossing.onWalkOnAsk(h.s, h.ask());
+      h.loads.come('farm');
+      await vi.advanceTimersByTimeAsync(5000); // the host stayed (another friend said no)
+      h.crossing.onWalkOnAsk(h.s, h.ask({ via: 'park-town' }));
+      h.loads.come('neighborhood');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.handlers()).toBe(1); // one watch, for the town
+      const st = (area) => ({ v: 1, id: 'a', pos: [0, 0], yaw: 0, pose: 'idle', speed: 0, area });
+      h.hear(st('farm'));
+      expect(h.walkOn).not.toHaveBeenCalled();
+      h.hear(st('neighborhood'));
+      expect(h.walkOn.mock.calls).toEqual([[{ via: 'park-town', ledBy: 'Pip', guest: true }]]);
+      // and a later ask she cannot answer yes to leaves no watch behind
+      const g = guest();
+      g.crossing.onWalkOnAsk(g.s, g.ask());
+      g.loads.come('farm');
+      await vi.advanceTimersByTimeAsync(5000);
+      g.crossing.onWalkOnAsk(g.s, g.ask({ via: 'park-town' }));
+      g.loads.fail('neighborhood');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(g.handlers()).toBe(0);
+      g.hear(st('farm'));
+      expect(g.walkOn).not.toHaveBeenCalled();
     });
 
     it('follows the host on, once: the toast, and a walk-on as a guest', () => {
