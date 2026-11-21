@@ -10,11 +10,12 @@ import {
   LEVELS as L, BLOCKS, GROUNDS, ROOFS_BOUNDS, ROOFS_SPAWN, ROOFS_COLLIDERS, ROOFS_TRAVERSAL, roofsArea,
   ALLEY_LAMP, BIN_2, BIN_3, BIN_BAGS, ALLEY_CRATES, ALLEY_CLUTTER, ALLEY_CHANNEL, YARD, YARD_WALLS, WASHING_POSTS,
   VANE, VANE_TIP, TELESCOPE, GARDEN, SKYLIGHT, TELESCOPE_CRATE, ROOFS_DISCOVERIES, STREETS, PAVEMENT, STREET_LAMPS, BUS,
-  ROOFS_PERCHES,
+  ROOFS_PERCHES, ROOFS_WIND, SMOKE_POTS,
 } from './roofsplan.js';
 import { STEP_MAX } from '../ground.js';
 import { createRoofsLife, mixHex } from '../roofslife.js';
 import { DRAWN_ID, ROOFS_BIRDS, flockPerches, perchIndex, roofsCritterSpawns } from './roofsflock.js';
+import { makeWashMaterial, swayAttribute, downwindSide } from './roofsair.js';
 
 // =============================================================================
 // THE ROOFTOPS, DRAWN (Rooftops step 2). Every position comes from
@@ -90,7 +91,16 @@ import { DRAWN_ID, ROOFS_BIRDS, flockPerches, perchIndex, roofsCritterSpawns } f
 // every 3 m (not over a street), tower-1's ring corners, the washing posts'
 // T-bars and the yard walls' copings are pushed as drawn spots, `{ id, kind,
 // x, y, z }` with roofsflock.js's DRAWN_ID ids; with the plan's own they are
-// the record's `birdPerches` (roofsflock.js flockPerches). Data only: no mesh.
+// the record's `birdPerches` (roofsflock.js flockPerches), less the pots that
+// smoke (roofsplan.js SMOKE_POTS). Data only: no mesh.
+//
+// THE WIND (Rooftops step 3, Task 5; roofsair.js): the vane points where it is
+// from (roofsplan.js ROOFS_WIND). The cloth material is the washing's sway
+// shader (record.washSway, its uniforms; the life sets its clock), and every
+// piece in a `cloth` bucket carries aSway: its drop under its line on the
+// line's downwind side for each thing hanging, zeros for the bicycle's tyres.
+// The record's `potTops` are every pot's top and `smokePots` the three that
+// smoke, for the life's smoke. No mesh: the build's counts are unchanged.
 //
 // THE BACK YARDS' WALLS are the plan's raised ground (roofsplan.js YARD_WALLS),
 // drawn inside it: one mesh, userData.yardWalls.
@@ -407,17 +417,24 @@ function merged(geos, name) {
   return g;
 }
 
+const STILL = Object.freeze({ lineY: 0, nx: 0, nz: 0, phase: 0 }); // a piece on the washing's material that never sways
+const washPhase = (x, z) => hash01(x, z, 53) * Math.PI * 2;
+
 function makeKit(prefix) {
   const buckets = new Map();
   return {
     // `mark`, if given ({ id, kind }), records the vertices this piece adds
     // `item`, if given ({ id, kind, ... }), likewise into userData.itemRanges
     // (the washing: each thing on a line, for the tests)
-    put(key, mat, geo, { noCast = false, color = null, tile = 0, mark = null, item = null } = {}) {
+    // `sway`, if given ({ lineY, nx, nz, phase }), is a thing on a line's
+    // (roofsair.js swayAttribute); every piece on the washing's material
+    // carries aSway, still (zeros) where none is given
+    put(key, mat, geo, { noCast = false, color = null, tile = 0, mark = null, item = null, sway = null } = {}) {
       const full = noCast ? `${key}` : `${key}:cast`;
       let k = buckets.get(full);
       if (!k) buckets.set(full, (k = { key, mat, noCast, geos: [], count: 0, ranges: [], items: [] }));
       const g = prep(geo, { color: color ?? mat.userData.vcBase ?? null, tile });
+      if (mat.userData.wash) swayAttribute(g, sway ?? STILL);
       const count = g.attributes.position.count;
       if (mark) k.ranges.push({ ...mark, start: k.count, count });
       if (item) k.items.push({ ...item, start: k.count, count });
@@ -456,6 +473,11 @@ function tinted(mat, base) {
   return mat;
 }
 
+function washing(mat) {
+  makeWashMaterial(mat);
+  return mat;
+}
+
 function buildMaterials() {
   const M = roofsMaterials();
   const tiled = (color, surface, extra = {}) => litMaterial(color, { surface, repeat: [1, 1], ...extra });
@@ -475,7 +497,8 @@ function buildMaterials() {
     stone: tinted(litMaterial(0xffffff, { roughness: 0.9, vertexColors: true }), 0xcdc4b2),
     iron: litMaterial(0x2b2e33, { roughness: 0.5 }),
     paint: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0 }),
-    cloth: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide }),
+    // the washing sways in the wind (roofsair.js: its shader patch, its uniforms on userData.wash)
+    cloth: washing(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide })),
     // part two
     road: tiled(0x3a3b40, 'gravel'),
     pavement: tiled(0x8a847a, 'flagstone'),
@@ -557,6 +580,7 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     lamp.name = 'roofsAlleyLamp';
     scene.add(alley, terrace, moves, north, street, lamp);
     drawLampHalos(scene); // round two, Task G: round every globe now in the scene
+    const potTops = Object.freeze(Object.fromEntries(drawn.filter((d) => d.kind === 'pot').map((d) => [d.id, Object.freeze({ x: d.x, y: d.y, z: d.z })])));
 
     const record = {
       name: 'The Rooftops',
@@ -587,9 +611,17 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
       bus,
       skyGlow, // the band low round the sky; roofslife.js colours it
       markGlow, // the take-off glows; roofslife.js sets their opacity (Task D)
-      // where the birds perch: the plan's spots and the drawn ones (step 3);
-      // Task 5 names the smoking pots
-      birdPerches: flockPerches({ traversal: ROOFS_TRAVERSAL, ground, drawn, smoking: [] }),
+      // where the birds perch: the plan's spots and the drawn ones (step 3),
+      // less the pots that smoke
+      birdPerches: flockPerches({ traversal: ROOFS_TRAVERSAL, ground, drawn, smoking: SMOKE_POTS }),
+      // every chimney pot's top, and the three that smoke (roofsair.js; the life makes the smoke)
+      potTops,
+      smokePots: SMOKE_POTS.map((id) => {
+        if (!potTops[id]) throw new Error(`roofs: no pot ${id} to smoke`);
+        return Object.freeze({ id, ...potTops[id] });
+      }),
+      // the washing's sway (roofsair.js): the cloth material's uniforms; the life sets its clock
+      washSway: M.cloth.userData.wash,
     };
     // the fourteen birds as the walk's critters (tag, the bell, a meow, the
     // journal: critters.js), each at its home; the life flies them
@@ -1109,6 +1141,7 @@ function drawYards(K, group, M, drawn) {
   YARD_WALLS.forEach((w, i) => drawn.push({ id: DRAWN_ID.wall(i), kind: 'wall', x: w.x, y: YARD.h + 0.08, z: (w.z0 + w.z1) / 2 }));
   group.add(own('yardWalls', M.wall, walls, { tile: TILE.brick, tag: { yardWalls: true } }));
   const lineGeos = [];
+  const [ynx, ynz] = downwindSide(0, 1); // the yards' lines run north-south
   WASHING_POSTS.forEach((p, i) => {
     for (const z of [p.z0, p.z1]) {
       K.put('ironSmall', M.iron, post(p.x, z, 0, 2.0, 0.04), { noCast: true });
@@ -1127,7 +1160,8 @@ function drawYards(K, group, M, drawn) {
       const g = washItem(kind, w, h, p.x, z);
       g.rotateY(Math.PI / 2);
       g.translate(p.x + (j % 2 ? 0.25 : -0.25), 1.92, z);
-      K.put('cloth', M.cloth, g, { noCast: true, color: CLOTHS[Math.floor(hash01(p.x, z, 11) * CLOTHS.length) % CLOTHS.length], item: { id: `wash:yard:${i}:${j}`, kind, line: 'yard' } });
+      const sway = { lineY: 1.92, nx: ynx, nz: ynz, phase: washPhase(p.x, z) };
+      K.put('cloth', M.cloth, g, { noCast: true, color: CLOTHS[Math.floor(hash01(p.x, z, 11) * CLOTHS.length) % CLOTHS.length], item: { id: `wash:yard:${i}:${j}`, kind, line: 'yard' }, sway });
     }
   });
   for (const g of lineGeos) K.put('paint', M.paint, g, { noCast: true, color: 0xe8e2d0 });
@@ -1541,7 +1575,9 @@ function drawCrossings(group, M) {
         const kind = washKind(cx, s.z);
         const g = washItem(kind, w, h, cx, s.z);
         g.translate(cx, cy - 0.01, s.z);
-        K.put('cloth', M.cloth, g, { noCast: true, color: CLOTHS[Math.floor(hash01(cx, s.z, 19) * CLOTHS.length) % CLOTHS.length], item: { id: `wash:${c.id}:${i}`, kind, line: c.id } });
+        const [nx, nz] = downwindSide(u.x - s.x, u.z - s.z);
+        const sway = { lineY: cy - 0.01, nx, nz, phase: washPhase(cx, s.z) };
+        K.put('cloth', M.cloth, g, { noCast: true, color: CLOTHS[Math.floor(hash01(cx, s.z, 19) * CLOTHS.length) % CLOTHS.length], item: { id: `wash:${c.id}:${i}`, kind, line: c.id }, sway });
       }
     } else if (c.kind === 'pipe') {
       // an iron pipe from the tank to the loft, its top the rail, on two
@@ -2219,7 +2255,7 @@ function drawTower(K, group, M, scene, drawn) {
     }
   }
   const vy = 19.35;
-  const yaw = 0.6; // where the wind is from tonight
+  const yaw = ROOFS_WIND.from; // where the wind is from tonight
   const [ux, uz] = [Math.cos(yaw), Math.sin(yaw)];
   const tip = { x: VANE.x + ux * 0.6, y: vy, z: VANE.z + uz * 0.6 };
   const tail = { x: VANE.x - ux * 0.55, y: vy, z: VANE.z - uz * 0.55 };

@@ -526,6 +526,18 @@ export const ROOFS_DISCOVERIES = Object.freeze({
   chimney: Object.freeze({ x: -10, z: STACK_Z, y: L.RIDGE }), // F: on the warm stack
 });
 
+// The wind tonight (Rooftops step 3): `from` is the heading it blows from
+// (radians, x = cos, z = sin), the one the weathervane's arrow points along.
+// The washing leans and the smoke drifts the other way (downwind).
+export const ROOFS_WIND = Object.freeze({ from: 0.6 });
+export function downwind() {
+  return [-Math.cos(ROOFS_WIND.from), -Math.sin(ROOFS_WIND.from)];
+}
+// The three pots that smoke (roofs.js's drawn ids, roofsflock.js DRAWN_ID.pot):
+// the warm chimney's cowled pot (discovery F), and one on each of two other
+// stacks, on the yards' side (the alley sees them). No bird perches on them.
+export const SMOKE_POTS = Object.freeze([`pot:${ROOFS_DISCOVERIES.chimney.x}:-1`, 'pot:10:1', 'pot:-30:1']);
+
 // The street below (R3): its pavements, three lamps, and the bus's route. The
 // bus runs east along the near lane from x0 to x1 every `every` seconds,
 // taking `run` of them, and is seen while any of it is out in the street:

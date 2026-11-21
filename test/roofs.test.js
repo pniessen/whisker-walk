@@ -29,6 +29,7 @@ const {
   BLOCKS, LEVELS, ROOFS_TRAVERSAL, ROOFS_COLLIDERS, YARD, STREETS, VANE, VANE_TIP, ROOFS_SPAWN,
   ROOFS_POIS, ROOFS_COLLECTIBLES, ROOFS_SCENICS, ROOFS_PERCHES, ROOFS_DISCOVERIES, BIN_BAGS,
   ROOFS_TOURS, ROOFS_REGISTRATION, ALLEY_CLUTTER, ALLEY_CHANNEL, WASHING_POSTS, GARDEN, ALLEY_CRATES, PAVEMENT,
+  SMOKE_POTS, downwind,
 } = await import('../src/world/roofsplan.js');
 const { CAT_RADIUS, isWalkableAt } = await import('../src/player.js');
 const { createRoofsLife, EVENING_RAMP } = await import('../src/roofslife.js');
@@ -886,10 +887,13 @@ describe('the Rooftops drawn', () => {
       expect(p.y, p.id).toBeGreaterThan(s.y + 0.4);
       expect(p.y, p.id).toBeLessThan(s.y + 0.8);
     }
-    // the warm chimney's pot (discovery F): on its cowl's top, over the other pots
-    const warm = of('pot').find((p) => p.id === `pot:${ROOFS_DISCOVERIES.chimney.x}:-1`);
+    // the warm chimney's pot (discovery F): its top on its cowl's, over the other pots
+    // (it smokes, Task 5, so it is in the drawn pot tops but no bird's perch)
+    const warmId = `pot:${ROOFS_DISCOVERIES.chimney.x}:-1`;
+    const warm = area.potTops[warmId];
     expect(warm).toBeDefined();
-    expect(warm.y).toBeGreaterThan(Math.max(...of('pot').filter((p) => p !== warm).map((p) => p.y)));
+    expect(of('pot').find((p) => p.id === warmId)).toBeUndefined();
+    expect(warm.y).toBeGreaterThan(Math.max(...Object.entries(area.potTops).filter(([id]) => id !== warmId).map(([, p]) => p.y)));
     // an aerial on each of the six stacks that carries one, high over its stack
     expect(of('aerial')).toHaveLength(6);
     for (const p of of('aerial')) {
@@ -2026,6 +2030,95 @@ describe('the Rooftops drawn', () => {
     }
     expect(swinging).toBeGreaterThanOrEqual(items.length / 2);
     expect(WASHING_POSTS.length).toBe(4);
+  });
+
+  // Rooftops step 3, Task 5: what the wind moves (roofsair.js).
+  it('every thing on a line sways from it; the tyres do not', () => {
+    const [wx, wz] = downwind();
+    const cloth = meshes.filter((m) => m.geometry.attributes.aSway);
+    expect(cloth.length).toBe(2); // the yards' washing (with the bicycle's tyres) and the lines'
+    let things = 0;
+    let tyres = 0;
+    for (const m of cloth) {
+      const pos = m.geometry.attributes.position;
+      const sway = m.geometry.attributes.aSway;
+      expect(sway.count).toBe(pos.count);
+      for (const r of m.userData.itemRanges) {
+        const len = (i) => Math.hypot(sway.getX(i), sway.getY(i));
+        if (r.id === 'clutter:bike') {
+          tyres++;
+          for (let i = r.start; i < r.start + r.count; i++) expect([r.id, len(i)]).toEqual([r.id, 0]);
+          continue;
+        }
+        expect(r.id.startsWith('wash:'), r.id).toBe(true);
+        things++;
+        let top = -Infinity;
+        for (let i = r.start; i < r.start + r.count; i++) top = Math.max(top, pos.getY(i));
+        let deepest = 0;
+        for (let i = r.start; i < r.start + r.count; i++) {
+          // its drop under the line, so 0 at its top and growing down it
+          expect([r.id, Math.abs(len(i) - (top - pos.getY(i))) < 1e-4]).toEqual([r.id, true]);
+          if (top - pos.getY(i) < 1e-4) expect([r.id, len(i) < 1e-4]).toEqual([r.id, true]);
+          // on the downwind side
+          expect([r.id, sway.getX(i) * wx + sway.getY(i) * wz >= -1e-9]).toEqual([r.id, true]);
+          deepest = Math.max(deepest, len(i));
+        }
+        expect([r.id, deepest > 0.2]).toEqual([r.id, true]);
+      }
+    }
+    expect(things).toBeGreaterThanOrEqual(20);
+    expect(tyres).toBe(2); // the bicycle's two tyres
+    // every cloth vertex in a mesh that sways has a phase, the same over one thing
+    for (const m of cloth) {
+      const sway = m.geometry.attributes.aSway;
+      for (const r of m.userData.itemRanges) {
+        if (r.id === 'clutter:bike') continue;
+        const phase = sway.getZ(r.start);
+        for (let i = r.start; i < r.start + r.count; i++) expect([r.id, sway.getZ(i)]).toEqual([r.id, phase]);
+      }
+    }
+    expect(area.washSway).toBe(cloth[0].material.userData.wash);
+  });
+
+  it('the washing keeps its own material through the walk\'s prop merge', () => {
+    const s = new THREE.Scene();
+    const rec = build(s);
+    mergeStaticProps(s);
+    const washing = [];
+    s.traverse((o) => { if (o.isMesh && o.material.userData.wash) washing.push(o); });
+    expect(washing).toHaveLength(2);
+    for (const m of washing) {
+      expect(m.material.userData.wash).toBe(rec.washSway);
+      expect(m.geometry.attributes.aSway).toBeDefined();
+      expect(m.userData.noCast).toBe(true);
+    }
+    expect(Object.keys(rec.washSway).sort()).toEqual(['uWashAmp', 'uWashRest', 'uWashT']);
+  });
+
+  it('three pots smoke, the warm chimney\'s among them, each a drawn pot, and no bird perches on one', () => {
+    expect(SMOKE_POTS).toHaveLength(3);
+    expect(SMOKE_POTS).toContain(`pot:${ROOFS_DISCOVERIES.chimney.x}:-1`);
+    // every pot the build draws has its top in potTops; the smoking three among them
+    const pots = area.birdPerches.filter((p) => p.kind === 'pot');
+    for (const p of pots) expect(area.potTops[p.id]).toEqual({ x: p.x, y: p.y, z: p.z });
+    expect(Object.keys(area.potTops)).toHaveLength(pots.length + SMOKE_POTS.length);
+    expect(area.smokePots).toHaveLength(3);
+    area.smokePots.forEach((q, k) => {
+      expect(q.id).toBe(SMOKE_POTS[k]);
+      expect(area.potTops[q.id], q.id).toBeDefined();
+      expect({ x: q.x, y: q.y, z: q.z }).toEqual(area.potTops[q.id]);
+    });
+    // on three different stacks
+    expect(new Set(SMOKE_POTS.map((id) => id.split(':')[1])).size).toBe(3);
+    // no bird perches on one, under any name, nor so near it a perch is the same spot
+    const index = perchIndex(area.birdPerches);
+    for (const q of area.smokePots) {
+      expect(index.has(q.id), q.id).toBe(false);
+      for (const p of area.birdPerches) {
+        expect([q.id, p.id, Math.hypot(p.x - q.x, p.z - q.z) < 0.5 && Math.abs(p.y - q.y) <= 0.3]).toEqual([q.id, p.id, false]);
+      }
+    }
+    for (const b of ROOFS_BIRDS) expect(SMOKE_POTS, b.id).not.toContain(b.home);
   });
 
   it('every POI is in the walk region of the spawn', () => {

@@ -47,10 +47,18 @@
 // else the device's (roofsbirds.js deviceGuideStore). update() runs after
 // critters.update (main.js), so the flock's spots are the critters' this
 // frame. A record without perches (older tests' fake areas) has no flock.
+//
+// THE WIND (Rooftops step 3, Task 5, world/roofsair.js): every frame the
+// washing's clock (area.washSway's uWashT) is set to walk seconds, and its
+// amplitude to WASH.amp, or 0 under reduced motion (a still downwind lean).
+// Where the place has smoking pots (area.smokePots) the life makes the smoke,
+// runs it on walk seconds (half speed under reduced motion: roofsair.js) and
+// takes it away at the walk's end.
 // =============================================================================
 import { skyBackground } from './render/sky.js';
 import { BUS } from './world/roofsplan.js';
 import { createRoofsBirds } from './world/roofsbirds.js';
+import { WASH, createRoofsSmoke } from './world/roofsair.js';
 
 export const EVENING_RAMP = 240; // s, sunset to dusk
 export const EVENING_STEPS = 6; // the sky's rebuilds on the way
@@ -88,8 +96,8 @@ export function busAt(t, out = {}) {
 }
 
 // createRoofsLife(area) -> (ctx) => { update(dt, t, catPos, camera), dispose() }.
-// `area` is the built record (its skySunset, skyDusk, skyGlow, markGlow, bus
-// and birdPerches); ctx is walk.js's life context ({ scene, sun, fill,
+// `area` is the built record (its skySunset, skyDusk, skyGlow, markGlow, bus,
+// birdPerches, washSway and smokePots); ctx is walk.js's life context ({ scene, sun, fill,
 // critters, visits, reducedMotion, ... }), or a picture page's (which may add
 // a `guideStore`).
 export function createRoofsLife(area) {
@@ -146,15 +154,29 @@ export function createRoofsLife(area) {
       ? createRoofsBirds(area, { scene, critters: critters ?? null, visits: visits ?? 0, reducedMotion: reducedMotion ?? false, guideStore })
       : null;
 
+    const wash = area.washSway ?? null;
+    const washAmp = reducedMotion ? 0 : WASH.amp;
+    const smoke = area.smokePots ? createRoofsSmoke(scene, area.smokePots, { reducedMotion: reducedMotion ?? false }) : null;
+    function wind() {
+      if (wash) {
+        wash.uWashT.value = walk;
+        wash.uWashAmp.value = washAmp;
+      }
+      smoke?.update(walk);
+    }
+
     apply(); // the first frame is already sunset
+    wind();
     return {
       update(dt, t, catPos = null, camera = null) {
         walk += dt;
         apply();
+        wind();
         birds?.update(dt, catPos, camera);
       },
       dispose() {
         birds?.dispose();
+        smoke?.dispose();
       },
     };
   };

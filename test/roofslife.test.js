@@ -280,3 +280,76 @@ describe('the Rooftops’ flock, in the life', () => {
     life.dispose();
   });
 });
+
+// Rooftops step 3, Task 5: the washing's clock and the smoke (roofsair.js).
+describe('what the wind moves, in the life', () => {
+  it('the washing swings with walk time, and holds its lean under reduced motion', async () => {
+    const { makeWashMaterial, WASH } = await import('../src/world/roofsair.js');
+    for (const reducedMotion of [false, true]) {
+      const w = walk();
+      const washSway = makeWashMaterial(new THREE.MeshStandardMaterial());
+      const life = createRoofsLife({ ...w.area, washSway })({ scene: w.scene, sun: w.sun, fill: w.fill, reducedMotion });
+      expect(washSway.uWashT.value).toBe(0);
+      let sum = 0;
+      for (const dt of [1 / 60, 1 / 30, 0.5, 1 / 24, 2]) {
+        life.update(dt, 5000 + sum); // the app's clock is not the walk's
+        sum += dt;
+        expect(washSway.uWashT.value).toBeCloseTo(sum, 12);
+        expect(washSway.uWashAmp.value).toBe(reducedMotion ? 0 : WASH.amp);
+        expect(washSway.uWashRest.value).toBe(WASH.rest);
+      }
+      life.dispose();
+    }
+  });
+
+  it('the life makes the smoke and takes it away', async () => {
+    const { SMOKE, puffAt } = await import('../src/world/roofsair.js');
+    const ground = createGround(ROOFS_GROUND);
+    const plain = perchIndex(flockPerches({ traversal: ROOFS_TRAVERSAL, ground }));
+    const drawn = ROOFS_BIRDS.filter((b) => !plain.has(b.home)).map((b, k) => ({
+      id: b.home, kind: b.home.split(':')[0], x: 30 + 3 * k, y: 11.67, z: -40,
+    }));
+    const smokePots = [{ id: 'pot:a', x: -10, y: 8.72, z: 6.95 }, { id: 'pot:b', x: 10, y: 8.57, z: 8.05 }, { id: 'pot:c', x: -29.75, y: 8.66, z: 8.05 }];
+    const scene = new THREE.Scene();
+    scene.background = { isTexture: true, dispose: vi.fn() };
+    scene.fog = new THREE.Fog(DUSK.horizon, 40, 140);
+    const area = { skySunset: { ...SUNSET }, skyDusk: { ...DUSK }, bus: new THREE.Object3D(), birdPerches: flockPerches({ traversal: ROOFS_TRAVERSAL, ground, drawn }), smokePots };
+    const before = [...scene.children];
+    const life = createRoofsLife(area)({ scene, sun: { intensity: 0.8 }, fill: { intensity: 0.5 }, critters: null, visits: 0, reducedMotion: false });
+    const mine = scene.children.filter((c) => !before.includes(c));
+    expect(mine.map((m) => m.name).sort()).toEqual(['roofsFlock', 'roofsFlockWings', 'roofsSmoke']);
+    // the life's totals: three meshes, no casters, under 1,600 triangles
+    let tris = 0;
+    for (const m of mine) {
+      expect(m.castShadow, m.name).toBe(false);
+      expect(m.userData.noCast, m.name).toBe(true);
+      const g = m.geometry;
+      tris += ((g.index ? g.index.count : g.attributes.position.count) / 3) * m.count;
+    }
+    expect(tris).toBeLessThan(1600);
+    // the smoke runs on walk time
+    const smoke = mine.find((m) => m.name === 'roofsSmoke');
+    expect(smoke.count).toBe(3 * SMOKE.perPot);
+    for (let k = 0; k < 30; k++) life.update(0.1, 900 + k);
+    const at = new THREE.Vector3();
+    const m4 = new THREE.Matrix4();
+    smoke.getMatrixAt(SMOKE.perPot + 2, m4);
+    at.setFromMatrixPosition(m4);
+    const want = puffAt(smokePots[1], 2, 3, {});
+    expect(at.x).toBeCloseTo(want.x, 4);
+    expect(at.y).toBeCloseTo(want.y, 4);
+    expect(at.z).toBeCloseTo(want.z, 4);
+    const disposed = new Set();
+    smoke.geometry.addEventListener('dispose', () => disposed.add('geometry'));
+    smoke.material.addEventListener('dispose', () => disposed.add('material'));
+    life.dispose();
+    expect(scene.children).toEqual(before);
+    expect(disposed.size).toBe(2);
+    // a place without smoking pots has no smoke
+    const s2 = new THREE.Scene();
+    s2.background = { isTexture: true, dispose: vi.fn() };
+    const life2 = createRoofsLife({ skySunset: { ...SUNSET }, skyDusk: { ...DUSK } })({ scene: s2, sun: { intensity: 0.8 }, fill: { intensity: 0.5 } });
+    expect(s2.children).toHaveLength(0);
+    life2.dispose();
+  });
+});
