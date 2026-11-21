@@ -32,7 +32,7 @@ import { withLocalUuids } from './localuuids.js';
 import { words } from '../wordset.js';
 import {
   HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_BOUNDS, HOUSE_FRONT_DOOR, HOUSE_LAMPS, HOUSE_FURNITURE, LEVEL_LINKS,
-  LAWN_Y, WALL_T, TALL_H, HOUSE_KITTEN_HOME, HOUSE_CELLAR_LID, houseArea, houseFloorGround, secretColliders, roomAt, levelAt,
+  LAWN_Y, WALL_T, fades, LEDGE_FADE_OVER, HOUSE_KITTEN_HOME, HOUSE_CELLAR_LID, houseArea, houseFloorGround, secretColliders, roomAt, levelAt,
 } from './houseplan.js';
 import { houseMovesArea } from './housemoves.js';
 import {
@@ -236,9 +236,11 @@ function drawTrees(scene, wind) {
 const START_LEVEL = 'ground';
 
 // The rooms furnished (houseplan.js HOUSE_FURNITURE, houseparts.js draws each piece).
-// A tall piece (TALL_H and up) is a top-level group of its own at its spot, turned
-// by rotY, with a fadeOccluder cylinder round its footprint, so the tree fade takes
-// it when it stands between the camera and the cat (ruling H8). The rest of a room
+// A piece that fades (houseplan.js fades: every tall piece, TALL_H and up, ruling H8, and
+// the low ledge pieces the camera can come down inside, ruling S2-4) is a top-level group
+// of its own at its spot, turned by rotY, with a fadeOccluder cylinder round its
+// footprint, so the tree fade takes it when it stands between the camera and the cat; a
+// ledge piece's cylinder reaches LEDGE_FADE_OVER above its top (houseplan.js). The rest of a room
 // is one top-level group the walk's prop merge makes one mesh of; its walked-over
 // pieces (rugs, the runner, cobwebs) are one more mesh in it, noMerge and noCast.
 // Every one is tagged houseDetail with its level, for the level drawing (H6); each
@@ -261,12 +263,12 @@ function furnish(scene, material, start, traversal) {
     for (const f of HOUSE_FURNITURE.filter((q) => q.room === room.id)) {
       if (f.r === 0) { flats.push(f); continue; }
       const mesh = furnitureMesh(f, material);
-      if (f.h >= TALL_H) {
+      if (fades(f)) {
         const tall = new THREE.Group();
-        tall.name = `houseTall:${f.id}`;
+        tall.name = `houseFade:${f.id}`;
         tall.position.set(f.x, y, f.z);
         tall.rotation.y = f.rotY;
-        tall.userData.fadeOccluder = [{ t: 'cyl', r: Math.hypot(f.w, f.d) / 2, y0: 0, y1: f.h }];
+        tall.userData.fadeOccluder = [{ t: 'cyl', r: Math.hypot(f.w, f.d) / 2, y0: 0, y1: f.h + (f.ledge ? LEDGE_FADE_OVER : 0) }];
         tag(tall, room.level);
         tall.add(mesh);
         scene.add(tall);

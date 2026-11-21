@@ -294,6 +294,17 @@ describe('the drawing', () => {
     }
   });
 
+  it('hands the camera the floor without the ledges, the same ground the levels are drawn for', () => {
+    expect(record.cameraGround).toBe(record.house.floor);
+    for (const l of HOUSE_LEDGES) expect(record.cameraGround.y(cx(l), cz(l)), l.id).toBe(levelY(l.level));
+    // and the stairs as the walk's ground has them
+    for (const s of HOUSE_STAIRS) {
+      const mx = (s.x0 + s.x1) / 2;
+      const mz = (s.z0 + s.z1) / 2;
+      expect(record.cameraGround.y(mx, mz), s.id).toBeCloseTo(record.ground.y(mx, mz), 9);
+    }
+  });
+
   it('marks every take-off faintly, one mesh per level, and lays the plank on its crossing', () => {
     const marks = scene.children.filter((c) => c.userData?.houseMarks);
     const levels = new Set(area.traversal.hops.map((h) => levelAt(h.x0, h.z0)));

@@ -294,6 +294,23 @@ describe('a walk in the house', () => {
     expect(park.ghostsAsked).toBe(1);
   }, 90_000);
 
+  it('hands the player the house\'s camera ground, the floors without the furniture tops; other places none', () => {
+    // a player that notes every camera ground the walk hands it (and does nothing else)
+    const calls = [];
+    const player = new Proxy({ setCameraGround: (g) => calls.push(g) }, {
+      get: (t, k) => (k in t ? t[k] : () => undefined),
+      set: (t, k, v) => { t[k] = v; return true; },
+    });
+    let record = null;
+    houseWalk(lifecycleHere({ player }), false, { keep: (s) => { record = s.areaData; } });
+    expect(calls.length).toBe(1);
+    expect(calls[0]).toBe(record.cameraGround);
+    expect(calls[0]).toBe(record.house.floor);
+    calls.length = 0;
+    parkWalk(lifecycleHere({ player }));
+    expect(calls).toEqual([undefined]);
+  }, 90_000);
+
   it('has no daily goals, no sky birds and no corner map', () => {
     const r = houseWalk(lifecycleHere());
     expect([r.goals, r.goalsRolled, r.skyLife, r.minimap]).toEqual([null, 0, 0, null]);

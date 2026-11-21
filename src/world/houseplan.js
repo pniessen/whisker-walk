@@ -171,6 +171,22 @@ const piece = (id, room, kind, x, z, rotY, w, d, h, r, look = null) => ({ id, ro
 // it is still drawn as a solid piece. A ledge backed by a wall is 0.6 m deep: the wall's
 // colliders keep her centre 0.55 m off its line, so a shallower top has nowhere to stand.
 const ledge = (...args) => ({ ...piece(...args), ledge: true });
+// A low ledge piece that fades like a tall one (ruling S2-4): the camera keeps out of the
+// floors, not the furniture tops (house.js cameraGround), so at its lowest it can come down
+// inside one behind her.
+const fadingLedge = (...args) => ({ ...ledge(...args), fade: true });
+// Whether a piece fades when it stands in the camera's way: every tall piece (ruling H8),
+// and the low ledge pieces marked to.
+export const fades = (f) => f.h >= TALL_H || f.fade === true;
+// How far a ledge piece's fade shape reaches above its top (house.js). The tree fade's line
+// runs from the camera to a point PAST_LOOK beyond her look point, level with it
+// (treefade.js), so near her it passes higher than the line to her look point: with her
+// beside a bookcase or the piano and the camera over it, the line to her head went up to
+// 0.36 m inside the piece's top while the fade's line cleared it, and the piece stood.
+// Standing on the piece, her look point is 0.74 m over its top, and the fade's line never
+// comes lower than that: 0.5 plus the fade's 0.15 m pad is 0.65, so this never fades the
+// piece under her (tested at every pitch). 0.4 still missed a line 0.05 m into the big books.
+export const LEDGE_FADE_OVER = 0.5;
 const WEB = 0.55; // a cobweb's arms along each wall from its corner
 export const HOUSE_FURNITURE = frozenAll([
   // the hall: a grandfather clock by the stair, a console table, a settle, umbrellas by the door, a runner
@@ -187,8 +203,8 @@ export const HOUSE_FURNITURE = frozenAll([
   ledge('library-books-n1', 'library', 'bookcase', -12.4, 2.4, FACE_S, 2.2, 0.6, 2.25, 0.21),
   ledge('library-books-n2', 'library', 'bookcase', -9.3, 2.4, FACE_S, 2.2, 0.6, 2.25, 0.21),
   piece('library-ladder', 'library', 'ladder', -7.85, 2.37, FACE_S, 0.5, 0.5, 2.05, 0.15),
-  ledge('library-steps', 'library', 'steps', -8.8, 3.0, FACE_S, 0.6, 0.6, 0.9, 0.3),
-  ledge('library-bigbooks', 'library', 'bigbooks', -13.55, 7.15, FACE_S, 0.7, 0.5, 1.0, 0.25),
+  fadingLedge('library-steps', 'library', 'steps', -8.8, 3.0, FACE_S, 0.6, 0.6, 0.9, 0.3),
+  fadingLedge('library-bigbooks', 'library', 'bigbooks', -13.55, 7.15, FACE_S, 0.7, 0.5, 1.0, 0.25),
   piece('library-chair', 'library', 'armchair', -11.6, 5.0, 0.92, 0.85, 0.85, 1.05, 0.42, 'library'),
   piece('library-desk', 'library', 'desk', -9.0, 11.55, FACE_N, 1.4, 0.7, 0.8, 0.35),
   piece('library-globe', 'library', 'globe', -5.2, 10.9, 0.4, 0.55, 0.55, 1.0, 0.26),
@@ -208,8 +224,8 @@ export const HOUSE_FURNITURE = frozenAll([
   piece('parlour-chair-b', 'parlour', 'armchair', 11.0, 8.5, 2.11, 0.85, 0.85, 1.05, 0.42, 'parlour'),
   piece('parlour-sidetable', 'parlour', 'sidetable', 10.5, 7.0, 0, 0.5, 0.5, 0.62, 0.25),
   // step 2 (D2): the piano's keyboard is a ledge in front of its case, and the case behind it one too
-  ledge('parlour-piano', 'parlour', 'piano', 8.7, 11.6, FACE_N, 1.5, 0.6, 1.3, 0.3),
-  ledge('parlour-keys', 'parlour', 'keys', 8.7, 11.15, FACE_N, 1.3, 0.3, 0.75, 0.15),
+  fadingLedge('parlour-piano', 'parlour', 'piano', 8.7, 11.6, FACE_N, 1.5, 0.6, 1.3, 0.3),
+  fadingLedge('parlour-keys', 'parlour', 'keys', 8.7, 11.15, FACE_N, 1.3, 0.3, 0.75, 0.15),
   piece('parlour-rug', 'parlour', 'rug', 11.2, 7.0, FACE_S, 2.4, 3.2, 0.012, 0, 'rugRed'),
   // the bedroom: a big bed, a wardrobe, a chest of drawers, a bedside table, a rug
   piece('bedroom-bed', 'bedroom', 'bed', 0.85, -12.0, FACE_W, 1.6, 2.1, 1.1, 0.75),

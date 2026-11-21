@@ -16,10 +16,10 @@ const { HOUSE_SHOTS } = await import('../src/world/housetour.js');
 const { behindYaw } = await import('../src/traversal.js');
 const { cameraOffset } = await import('../src/catcam.js');
 const { build } = await import('../src/world/house.js');
-const { HOUSE_LEDGES, houseFloorGround } = await import('../src/world/houseplan.js');
+const { HOUSE_LEDGES, TALL_H, houseFloorGround } = await import('../src/world/houseplan.js');
 const { HOUSE_PERCHES, HOUSE_ROUTES } = await import('../src/world/housemoves.js');
 const { facingYaw } = await import('../src/traversal.js');
-const { createTreeFade, findFadeOccluders } = await import('../src/treefade.js');
+const { createTreeFade, findFadeOccluders, segmentHitsBox } = await import('../src/treefade.js');
 const { CAT_LOOK_Y } = await import('../src/cat/model.js');
 
 // =============================================================================
@@ -390,6 +390,14 @@ const toLedge = (l, x, z) => Math.hypot(Math.max(l.minX - x, 0, x - l.maxX), Mat
 const floorGround = houseFloorGround();
 const onFloor = (area, x, z) => Math.abs(area.ground.y(x, z) - floorGround.y(x, z)) < 1e-6;
 
+// The ledge pieces that fade (their own top-level group, houseFade:<id>), with each one's box.
+function fadingLedges(scene) {
+  return HOUSE_LEDGES.map((l) => ({
+    l, g: scene.getObjectByName(`houseFade:${l.id}`),
+    box: { minX: l.minX, maxX: l.maxX, minY: levelY(l.level), maxY: l.y, minZ: l.minZ, maxZ: l.maxZ },
+  })).filter(({ g }) => g);
+}
+
 // Frame by frame, the camera's longest step and the longest run of frames she was lost.
 function watcher(w) {
   const prev = w.camera.position.clone();
@@ -503,12 +511,29 @@ describe('never lost on a climb', () => {
     const cells = flood.cells.filter((c) => onFloor(w.area, c.x, c.z)
       && HOUSE_LEDGES.some((l) => toLedge(l, c.x, c.z) > 0 && toLedge(l, c.x, c.z) <= 0.8 && Math.abs(w.area.ground.y(c.x, c.z) - levelY(l.level)) < 1e-6));
     expect(cells.length).toBeGreaterThan(150);
+    // the walls are out of the line (blockers), and so is any piece that fades: a fading
+    // piece the line to her look point passes through has faded (the tree fade, settled)
+    const scene = new THREE.Scene();
+    build(scene);
+    const fade = createTreeFade(findFadeOccluders(scene), { reducedMotion: true });
+    const fading = fadingLedges(scene);
+    const look = new THREE.Vector3();
     const bad = [];
+    let tallInLine = 0;
     for (const { x, z } of cells) for (let k = 0; k < 8; k++) for (const zoom of ZOOMS) {
       w.place(x, z, (k * Math.PI) / 4, zoom);
       const b = w.blockers();
       if (b.length) bad.push(say(x, z, `yaw ${k} zoom ${zoom}: ${b.join(' ')}`));
+      look.copy(w.cat.position).setY(w.cat.position.y + CAT_LOOK_Y);
+      fade.update(1 / 60, w.camera, look);
+      for (const { l, g, box } of fading) {
+        if (!segmentHitsBox(w.camera.position, look, box)) continue;
+        if (l.y - levelY(l.level) >= TALL_H) tallInLine++;
+        if (!fade.faded().has(g)) bad.push(say(x, z, `yaw ${k} zoom ${zoom}: ${l.id} in the line, not faded`));
+      }
     }
+    fade.dispose();
+    expect(tallInLine).toBeGreaterThan(50);
     expect(bad).toEqual([]);
     // along each open side of every ledge, 0.45 m out (her side brushing it), from 0.4 m
     // short of its one end to 0.4 m past the other, eased, every view yaw and step
@@ -579,22 +604,59 @@ describe('never lost on a climb', () => {
     expect(bad).toEqual([]);
   });
 
+  it('at the lowest pitch the camera is never inside a ledge piece that has not faded', () => {
+    // The camera keeps out of the floors, not the furniture tops (house.js cameraGround), so at
+    // pitch -0.25 it can come down inside a low piece behind her (the piano, its keys, the steps,
+    // the big books): those fade (ruling S2-4). Every 0.5 m flood cell within 3 m of a ledge on
+    // its level, and every ledge cell, 16 directions, every view step.
+    const scene = new THREE.Scene();
+    build(scene);
+    const fade = createTreeFade(findFadeOccluders(scene), { reducedMotion: true });
+    const w = createHouseWalk({ moves: true });
+    const groups = new Map(fadingLedges(scene).map(({ l, g }) => [l.id, g]));
+    const spots = houseFlood(w.area).cells.filter((c) => onFloor(w.area, c.x, c.z)
+      && HOUSE_LEDGES.some((l) => toLedge(l, c.x, c.z) <= 3 && Math.abs(w.area.ground.y(c.x, c.z) - levelY(l.level)) < 1e-6))
+      .map((c) => [c.x, c.z, null]);
+    for (const l of HOUSE_LEDGES) for (const [x, z] of ledgeCells(l, w.area)) spots.push([x, z, l.id]);
+    const look = new THREE.Vector3();
+    const bad = [];
+    let inside = 0;
+    for (const [x, z, on] of spots) for (let k = 0; k < 16; k++) for (const zoom of ZOOMS) {
+      if (on) w.placeOnLedge(on, x, z, (k * Math.PI) / 8, zoom, -0.25);
+      else w.place(x, z, (k * Math.PI) / 8, zoom, -0.25);
+      const c = w.camera.position;
+      const into = HOUSE_LEDGES.filter((l) => c.x > l.minX - 0.1 && c.x < l.maxX + 0.1 && c.z > l.minZ - 0.1 && c.z < l.maxZ + 0.1 && c.y < l.y + 0.1);
+      if (!into.length) continue;
+      inside++;
+      look.copy(w.cat.position).setY(w.cat.position.y + CAT_LOOK_Y);
+      fade.update(1 / 60, w.camera, look);
+      for (const l of into) if (!fade.faded().has(groups.get(l.id))) bad.push(say(x, z, `${on ?? 'floor'} yaw ${k}/16 zoom ${zoom}: inside ${l.id}`));
+    }
+    fade.dispose();
+    expect(inside).toBeGreaterThan(50);
+    expect(bad).toEqual([]);
+  }, 90_000);
+
   it('the piece she stands on never fades', () => {
     const scene = new THREE.Scene();
     build(scene);
     const fade = createTreeFade([...findFadeOccluders(scene)]);
     const w = createHouseWalk({ moves: true });
     const look = { x: 0, y: 0, z: 0 };
-    const tall = HOUSE_LEDGES.map((l) => [l, scene.getObjectByName(`houseTall:${l.id}`)]).filter(([, g]) => g);
-    // the bookcases, the wardrobe and the bedroom's bookshelf are tall pieces, which fade (ruling H8)
-    expect(tall.map(([l]) => l.id).sort()).toEqual(['bedroom-shelf', 'bedroom-wardrobe', 'library-books-n1', 'library-books-n2', 'library-books-w']);
+    const tall = fadingLedges(scene).map(({ l, g }) => [l, g]);
+    // the bookcases, the wardrobe and the bedroom's bookshelf are tall pieces, which fade (ruling H8);
+    // so do the piano, its keys, the library steps and the big books (ruling S2-4)
+    expect(tall.map(([l]) => l.id).sort()).toEqual([
+      'bedroom-shelf', 'bedroom-wardrobe', 'library-bigbooks', 'library-books-n1', 'library-books-n2', 'library-books-w',
+      'library-steps', 'parlour-keys', 'parlour-piano',
+    ]);
     const bad = [];
     for (const [l, g] of tall) {
       // the spot she stands on nearest the ledge's centre
       const [x, z] = ledgeCells(l, w.area).reduce((a, b) => (Math.hypot(b[0] - (l.minX + l.maxX) / 2, b[1] - (l.minZ + l.maxZ) / 2)
         < Math.hypot(a[0] - (l.minX + l.maxX) / 2, a[1] - (l.minZ + l.maxZ) / 2) ? b : a));
-      for (let k = 0; k < 8; k++) for (const zoom of ZOOMS) {
-        w.placeOnLedge(l.id, x, z, (k * Math.PI) / 4, zoom);
+      for (let k = 0; k < 8; k++) for (const zoom of ZOOMS) for (const pitch of [-0.25, DEFAULT_PITCH, 0.85]) {
+        w.placeOnLedge(l.id, x, z, (k * Math.PI) / 4, zoom, pitch);
         for (let i = 0; i < 60; i++) {
           w.frame(1 / 60);
           look.x = w.cat.position.x;
@@ -606,7 +668,7 @@ describe('never lost on a climb', () => {
         const faded = fade.faded().has(g);
         let solid = true;
         g.traverse((o) => { if (o.isMesh) for (const m of [].concat(o.material)) if (m.opacity !== 1) solid = false; });
-        if (faded || !solid) bad.push(`${l.id} yaw ${k} zoom ${zoom}`);
+        if (faded || !solid) bad.push(`${l.id} yaw ${k} zoom ${zoom} pitch ${pitch}`);
       }
     }
     fade.dispose();

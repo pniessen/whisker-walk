@@ -687,8 +687,11 @@ export function createPlayer(camera, canvas) {
       ground = g || FLAT_GROUND;
       camGround = ground;
     },
-    // The ground the camera keeps out of (placeCameraOnGround), after setGround;
-    // none: the walk's own.
+    // The ground the camera keeps out of (placeCameraOnGround): its rock pull,
+    // its floor under the camera and its ceiling. Call after setGround; none:
+    // the walk's own. It holds only until the next setGround or setAvatar,
+    // which both put the camera back on the walk's ground (so a walk in an
+    // area that names none never keeps an earlier walk's).
     setCameraGround(g) {
       camGround = g || ground;
     },

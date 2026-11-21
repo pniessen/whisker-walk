@@ -8,7 +8,7 @@ vi.stubGlobal('document', canvasStub);
 const { build, HOUSE_SKY_DUSK, HOUSE_DUSK_LIGHT, HOUSE_GROUND_BOUNCE } = await import('../src/world/house.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const {
-  HOUSE_BOUNDS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_LEVELS, HOUSE_FRONT_DOOR, HOUSE_FURNITURE, TALL_H, LAWN_Y, roomAt, levelAt, houseSections,
+  HOUSE_BOUNDS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_LEVELS, HOUSE_FRONT_DOOR, HOUSE_FURNITURE, fades, LEDGE_FADE_OVER, LAWN_Y, roomAt, levelAt, houseSections,
   houseColliders,
 } = await import('../src/world/houseplan.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -371,7 +371,9 @@ describe('outside', () => {
 
 describe('the furniture', () => {
   const levelIds = HOUSE_LEVELS.map((l) => l.id);
-  const tall = HOUSE_FURNITURE.filter((f) => f.h >= TALL_H);
+  // every piece that fades: the tall ones (H8), and since step 2 the four low ledge pieces the
+  // camera can come down inside (ruling S2-4: the piano, its keys, the library steps, the big books)
+  const tall = HOUSE_FURNITURE.filter(fades);
 
   it('makes every tall piece a fade occluder, and tags every detail object with a level', () => {
     const shapes = findFadeOccluders(scene).filter((e) => !e.box);
@@ -385,7 +387,8 @@ describe('the furniture', () => {
       expect(e.obj.userData.houseDetail).toBe(true);
       expect(e.obj.userData.houseLevel).toBe(f.level);
       const [cyl] = e.obj.userData.fadeOccluder;
-      expect(cyl).toEqual({ t: 'cyl', r: Math.hypot(f.w, f.d) / 2, y0: 0, y1: f.h });
+      // a ledge piece's reaches LEDGE_FADE_OVER above its top (step 2, ruling S2-4)
+      expect(cyl).toEqual({ t: 'cyl', r: Math.hypot(f.w, f.d) / 2, y0: 0, y1: f.h + (f.ledge ? LEDGE_FADE_OVER : 0) });
       expect(e.shapes[0].y0).toBeCloseTo(levelY(f.level), 6);
     }
     // every houseDetail object is top-level and has a level; one top-level furniture group per room
