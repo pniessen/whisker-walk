@@ -178,15 +178,40 @@ export const PARTS = {};
 for (const k of NAMES) Object.defineProperty(PARTS, k, { enumerable: true, get: () => parts()[k] });
 
 // ---------------------------------------------------------------------------
-// The take-off marks.
+// The take-off marks (follow-up 2, the owner's "calmer take-off marks"): a
+// soft glow at every take-off, and a small piece lying flush at the roof's
+// edge only where no real thing shows the spot (the hop's `prop`, roofsplan.js
+// DRAWN_MARKS). Never a loose brick.
 // ---------------------------------------------------------------------------
+
+// The glow: a disc 0.45 m across the take-off (it was 0.7), added warm light
+// at 0.28 at its middle fading to nothing at its rim (it was 0.35 all over),
+// so a row of extensions is not dotted and a spot still shows at dusk.
+export const MARK_GLOW = Object.freeze({ radius: 0.45, opacity: 0.28, color: 0xffd9a0 });
+const GLOW_PX = 32;
 let glowCache = null;
 function glowParts() {
   if (!glowCache) {
-    const geometry = new THREE.CircleGeometry(0.7, 16);
+    const geometry = new THREE.CircleGeometry(MARK_GLOW.radius, 20);
     geometry.rotateX(-Math.PI / 2);
+    // white, its alpha falling smoothly from the middle to 0 at the disc's rim
+    // (the disc's uv spans 0..1 across it)
+    const data = new Uint8Array(GLOW_PX * GLOW_PX * 4);
+    for (let j = 0; j < GLOW_PX; j++) {
+      for (let i = 0; i < GLOW_PX; i++) {
+        const d = Math.min(1, Math.hypot((i + 0.5) / GLOW_PX - 0.5, (j + 0.5) / GLOW_PX - 0.5) / 0.47);
+        const k = (j * GLOW_PX + i) * 4;
+        data[k] = data[k + 1] = data[k + 2] = 255;
+        data[k + 3] = Math.round(255 * (1 - d * d * (3 - 2 * d)));
+      }
+    }
+    const map = new THREE.DataTexture(data, GLOW_PX, GLOW_PX, THREE.RGBAFormat);
+    map.magFilter = THREE.LinearFilter;
+    map.minFilter = THREE.LinearFilter;
+    map.generateMipmaps = false;
+    map.needsUpdate = true;
     const material = new THREE.MeshBasicMaterial({
-      color: 0xffd9a0, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false,
+      color: MARK_GLOW.color, map, transparent: true, opacity: MARK_GLOW.opacity, blending: THREE.AdditiveBlending, depthWrite: false,
     });
     glowCache = { geometry, material };
   }
@@ -207,30 +232,31 @@ function piece(geo, mat, x, y, z, sx, sy, sz, ry = 0) {
 }
 
 // Builders return pieces in the mark's local frame: +z is the way the cat
-// leaps or drops (toward hop.to), y up from the take-off surface.
+// leaps or drops (toward hop.to), y up from the take-off surface; `e` is how
+// far ahead the roof's edge is. Each lies flush on the roof, its far side
+// just short of the edge (the stub 8 cm short: its leaps cross the edge
+// slantwise), no more than 5 cm proud of it.
 const MARKS = {
-  lip: (P, M) => [piece(P.box, M.brick, 0, 0.06, 0, 1.2, 0.12, 0.3), piece(P.box, M.brick, -0.35, 0.14, 0.02, 0.2, 0.08, 0.2, 0.4), piece(P.box, M.render, 0.3, 0.13, -0.02, 0.15, 0.06, 0.2, -0.3)],
-  stub: (P, M) => [piece(P.plank, M.wood, 0, 0.04, 0.15, 0.7, 1, 1), piece(P.plank, M.wood, 0.1, 0.09, 0.3, 0.5, 1, 1, 0.2)],
-  bags: (P, M) => [piece(P.box, M.slate, -0.2, 0.18, 0, 0.45, 0.35, 0.4, 0.3), piece(P.box, M.slate, 0.25, 0.15, 0.05, 0.4, 0.3, 0.38, -0.4)],
-  gutter: (P, M) => [piece(P.gutter, M.metal, 0, 0.05, 0, 1.2, 0.3, 0.3), piece(P.box, M.metal, -0.62, 0.06, 0, 0.04, 0.2, 0.3)],
-  wall: (P, M) => [piece(P.box, M.brick, 0, 0.2, 0, 1.4, 0.4, 0.25), piece(P.coping, M.render, 0, 0.42, 0, 1.4, 1, 0.7)],
-  skylight: (P, M) => [piece(P.box, M.wood, 0, 0.08, 0, 1.1, 0.16, 0.8), piece(P.box, M.glass, 0, 0.17, 0, 0.9, 0.04, 0.6)],
-  bunker: (P, M) => [piece(P.box, M.metal, 0, 0.15, 0, 1.0, 0.3, 0.8), piece(P.box, M.slate, 0, 0.32, 0, 1.05, 0.05, 0.85)],
-  bin: (P, M) => [piece(P.pot, M.metal, 0, 0, 0, 0.55, 0.6, 0.55), piece(P.pot, M.metal, 0, 0.6, 0, 0.6, 0.05, 0.6)],
-  crate: (P, M) => [piece(P.box, M.wood, -0.15, 0.2, 0, 0.45, 0.4, 0.45, 0.2), piece(P.box, M.wood, 0.3, 0.15, 0.1, 0.35, 0.3, 0.35, -0.3)],
-  pipe: (P, M) => [piece(P.box, M.metal, 0, 0.5, -0.05, 0.12, 1, 0.12), piece(P.box, M.metal, 0, 0.9, 0.06, 0.24, 0.05, 0.24)],
-  sill: (P, M) => [piece(P.box, M.render, 0, 0.05, 0, 1.0, 0.1, 0.3), piece(P.box, M.brick, 0, 0.12, -0.08, 0.9, 0.05, 0.15)],
+  // a chipped brick lip: the wall's top course showing along the edge, in the
+  // walls' own brick (the place's `wall`, when the caller has it), a chip out of one end
+  lip: (P, M, e) => [piece(P.box, M.wall ?? M.brick, -0.08, 0.0125, e - 0.06, 0.6, 0.025, 0.08), piece(P.box, M.wall ?? M.brick, 0.31, 0.008, e - 0.06, 0.1, 0.016, 0.08)],
+  // a plank stub: a short offcut lying along the leap, its end at the edge
+  stub: (P, M, e) => [piece(P.box, M.wood, 0.06, 0.015, e - 0.33, 0.18, 0.03, 0.5)],
+  // a lead gutter lip along the edge, an outlet at one end
+  gutter: (P, M, e) => [piece(P.box, M.metal, 0, 0.015, e - 0.07, 0.8, 0.03, 0.1), piece(P.box, M.metal, 0.33, 0.035, e - 0.07, 0.1, 0.03, 0.1)],
+  // a small roof light flush with the felt: a lead frame round a pane
+  skylight: (P, M, e) => [piece(P.box, M.metal, 0, 0.02, e - 0.3, 0.6, 0.04, 0.4), piece(P.box, M.glass, 0, 0.045, e - 0.3, 0.48, 0.01, 0.28)],
 };
 
 // A mark at a hop's take-off. `hop` has `mark`, `from` {x, z, y?} and `to`
 // {x, z} (or flat x0, z0, y0, x1, z1); the y of the take-off is from.y, else
-// hop.y0 / hop.y, else 0, so the caller may add it. `mats` defaults to a kept
-// set made on first use. Returns a Group: the pieces and one glow disc.
+// hop.y0 / hop.y, else 0, so the caller may add it. With `hop.prop` (a real
+// thing shows the spot) the mark is its glow alone; otherwise `kind` must be
+// one drawn (DRAWN_MARKS), its pieces at hop.edge ahead (default 0.4 m).
+// `mats` defaults to a kept set made on first use. Returns a Group.
 export function markMesh(kind, hop, mats) {
-  const build = MARKS[kind];
-  if (!build) throw new Error(`roofsparts: no mark called ${kind}`);
-  const P = parts();
-  const M = mats ?? defaultMats();
+  const build = hop.prop ? null : MARKS[kind];
+  if (!hop.prop && !build) throw new Error(`roofsparts: no mark object for ${kind}; its hop needs a prop`);
   const fx = hop.from?.x ?? hop.x0 ?? 0;
   const fz = hop.from?.z ?? hop.z0 ?? 0;
   const fy = hop.from?.y ?? hop.y0 ?? hop.y ?? 0;
@@ -240,7 +266,8 @@ export function markMesh(kind, hop, mats) {
   g.name = `mark-${kind}`;
   g.position.set(fx, fy, fz);
   g.rotation.y = Math.atan2(tx - fx, tz - fz);
-  for (const m of build(P, M)) g.add(m);
+  if (hop.prop) g.userData.prop = hop.prop;
+  else for (const m of build(parts(), mats ?? defaultMats(), hop.edge ?? 0.4)) g.add(m);
   const glow = glowParts();
   const disc = noCast(new THREE.Mesh(glow.geometry, glow.material));
   disc.receiveShadow = false;

@@ -445,7 +445,8 @@ const AREAS = [
   ['fair', buildFair, 250, 180, 75000],
   // The Rooftops (Rooftops step 2, 2026-11-20), measured 113 / 67 / 32,202
   // (part one alone was 76 / 42 / 13,284); 114 / 68 / 32,506 after
-  // follow-up 3 (stack-5 on the flat house, its ridge beam gone). Held to the territories' ceilings,
+  // follow-up 3 (stack-5 on the flat house, its ridge beam gone); 112 / 68 /
+  // 31,218 after follow-up 2 (calmer take-off marks). Held to the territories' ceilings,
   // never raised; the place aims for 300 / 120 / 60,000 (test/roofs.test.js
   // pins the exact numbers).
   ['roofs', buildRoofs, 450, 380, 70000],
@@ -493,7 +494,7 @@ const MERGED_AREAS = [
   ['gorge', buildGorge, 260, 205],
   ['farm', buildFarm, 200, 135], // measured 176 / 119
   ['fair', buildFair, 200, 140], // measured 178 / 124
-  ['roofs', buildRoofs, 64, 34], // measured 57 / 30, + 12%
+  ['roofs', buildRoofs, 64, 34], // measured 55 / 30 (57 / 30 before follow-up 2's calmer marks), ceiling unchanged
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {

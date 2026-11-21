@@ -263,6 +263,20 @@ export const HOP_MARKS = Object.freeze({
   climb: Object.freeze(['bin', 'crate', 'pipe', 'sill']),
 });
 
+// Calmer marks (follow-up 2, the owner's): every hop keeps its `mark` kind
+// (the tests and step 3's birds read it), but where a real thing already
+// shows a child the spot, the hop names it as its `prop` and the drawing adds
+// only a soft glow there: the bin she climbs, the shed, a coal bunker, a
+// chimney stack, the tank, the loft, a tower stage (its railing open where
+// she goes over), the garages' end wall, an outrigger or a flat-roofed house
+// (the back window she climbs by), the corner shop and the warehouse (their
+// parapets open at the spot), the lantern, the bin bags. A prop is a block's
+// id, or 'binBags'. Only these kinds are still drawn as a small object of
+// their own, lying flush at a roof's edge where nothing else shows the spot.
+export const DRAWN_MARKS = Object.freeze(['lip', 'stub', 'gutter', 'skylight']);
+// The bin bags under the garages' back edge, which the drop from it lands on.
+export const BIN_BAGS = Object.freeze({ x: -10, z: 35.4, r: 0.75 });
+
 const P = (x, z, y) => ({ x, z, y });
 const S = (x, z) => ({ x, z });
 
@@ -271,18 +285,19 @@ const gaps = [];
 const climbs = [];
 const drops = [];
 
-// A climb from `low` up to `high`, and the drop that mirrors it.
-function upDown(id, low, high, climbMark, dropMark) {
-  climbs.push({ id: `${id}-up`, from: low, to: high, mark: climbMark });
-  if (dropMark) drops.push({ id: `${id}-down`, from: high, to: low, mark: dropMark });
+// A climb from `low` up to `high`, and the drop that mirrors it; each with
+// the real thing that shows its spot (its `prop`, above), if there is one.
+function upDown(id, low, high, climbMark, dropMark, upProp = null, downProp = upProp) {
+  climbs.push({ id: `${id}-up`, from: low, to: high, mark: climbMark, ...(upProp && { prop: upProp }) });
+  if (dropMark) drops.push({ id: `${id}-down`, from: high, to: low, mark: dropMark, ...(downProp && { prop: downProp }) });
 }
 
 // The alley: bin, shed, garages. Down by the bin bags, the shed's wall, the stair.
-upDown('bin', S(14.5, 36.6), S(14.5, 35.35), 'bin', 'wall');
-upDown('shed', S(14.5, 35.0), S(14.5, 33.4), 'bin', 'wall');
-upDown('garages', S(13.2, 31.5), S(11.4, 31.5), 'crate', null); // 0.8: no drop mirrors it
-drops.push({ id: 'shed-alley', from: S(16.6, 31.5), to: S(18.3, 31.5), mark: 'wall' });
-drops.push({ id: 'garages-bags', from: S(-10, 33.6), to: S(-10, 35.4), mark: 'bags' });
+upDown('bin', S(14.5, 36.6), S(14.5, 35.35), 'bin', 'wall', 'bin-1');
+upDown('shed', S(14.5, 35.0), S(14.5, 33.4), 'bin', 'wall', 'bin-1', 'shed');
+upDown('garages', S(13.2, 31.5), S(11.4, 31.5), 'crate', null, 'garages'); // 0.8: no drop mirrors it
+drops.push({ id: 'shed-alley', from: S(16.6, 31.5), to: S(18.3, 31.5), mark: 'wall', prop: 'shed' });
+drops.push({ id: 'garages-bags', from: S(BIN_BAGS.x, 33.6), to: S(BIN_BAGS.x, BIN_BAGS.z), mark: 'bags', prop: 'binBags' });
 
 // Planks over the back yards, left by the roofers: garages (and shed) to an extension.
 const plank = (id, x, y0, zFrom) => crossings.push({
@@ -303,17 +318,18 @@ for (let k = 1; k < 12; k++) {
 
 // Down from the extensions: onto a bunker, then the back yard.
 for (const k of BUNKER_KS) {
-  drops.push({ id: `ext-${k}-bunker`, from: S(EXT_CX(k), EXT_Z.z1 - 0.6), to: S(EXT_CX(k), EXT_Z.z1 + 0.75), mark: 'bunker' });
-  drops.push({ id: `bunker-${k}-yard`, from: S(EXT_CX(k), EXT_Z.z1 + 0.9), to: S(EXT_CX(k), EXT_Z.z1 + 2.6), mark: 'wall' });
+  drops.push({ id: `ext-${k}-bunker`, from: S(EXT_CX(k), EXT_Z.z1 - 0.6), to: S(EXT_CX(k), EXT_Z.z1 + 0.75), mark: 'bunker', prop: `bunker-${k}` });
+  drops.push({ id: `bunker-${k}-yard`, from: S(EXT_CX(k), EXT_Z.z1 + 0.9), to: S(EXT_CX(k), EXT_Z.z1 + 2.6), mark: 'wall', prop: `bunker-${k}` });
 }
 
-// Extension -> outrigger, by the drainpipe.
-for (const k of Object.keys(OUTRIGGERS)) upDown(`out-${k}`, S(EXT_CX(+k), 17.3), S(EXT_CX(+k), 15.4), 'pipe', 'gutter');
+// Extension -> outrigger, by the drainpipe. Up: the outrigger's wall and its
+// back window show the spot (its prop); down off its back edge: a gutter mark.
+for (const k of Object.keys(OUTRIGGERS)) upDown(`out-${k}`, S(EXT_CX(+k), 17.3), S(EXT_CX(+k), 15.4), 'pipe', 'gutter', `out-${k}`, null);
 
-// Outrigger -> flat roof, by a back window's sill.
-upDown('dormer', S(-8.0, 12.8), S(-8.0, 11.2), 'sill', 'gutter');
-upDown('flatHouse', S(2.0, 12.8), S(2.0, 11.2), 'sill', 'skylight');
-upDown('roofTerrace', S(17.0, 12.8), S(17.0, 11.2), 'sill', 'gutter');
+// Outrigger -> flat roof, by a back window's sill (the house's back wall).
+upDown('dormer', S(-8.0, 12.8), S(-8.0, 11.2), 'sill', 'gutter', 'dormer', null);
+upDown('flatHouse', S(2.0, 12.8), S(2.0, 11.2), 'sill', 'skylight', 'flatHouse', null);
+upDown('roofTerrace', S(17.0, 12.8), S(17.0, 11.2), 'sill', 'gutter', 'roofTerrace', null);
 
 // Washing lines between back windows, sagging 0.3 m.
 const line = (id, xa, xb) => {
@@ -328,10 +344,10 @@ crossings.push({ id: 'gutter-1', kind: 'gutter', points: [P(-4.7, 11.6, L.FLAT),
 crossings.push({ id: 'gutter-2', kind: 'gutter', points: [P(4.6, 11.6, L.FLAT), P(14.7, 11.6, L.FLAT)] });
 
 // Flat roof -> chimney stack.
-upDown('stack-0', S(1.5, STACK_Z), S(0.1, STACK_Z), 'pipe', 'gutter');
-upDown('stack-5', S(3.5, STACK_Z), S(4.9, STACK_Z), 'pipe', 'gutter');
-upDown('stack--10', S(-8.6, 8.8), S(-9.9, 7.6), 'pipe', 'gutter');
-upDown('stack-20', S(18.6, 8.8), S(19.9, 7.6), 'pipe', 'gutter');
+upDown('stack-0', S(1.5, STACK_Z), S(0.1, STACK_Z), 'pipe', 'gutter', 'stack-0');
+upDown('stack-5', S(3.5, STACK_Z), S(4.9, STACK_Z), 'pipe', 'gutter', 'stack-5');
+upDown('stack--10', S(-8.6, 8.8), S(-9.9, 7.6), 'pipe', 'gutter', 'stack--10');
+upDown('stack-20', S(18.6, 8.8), S(19.9, 7.6), 'pipe', 'gutter', 'stack-20');
 
 // The ridges, stack to stack over the slates: none over the flat house
 // (header), so ridge-4 runs stack-5 -> stack-10.
@@ -342,25 +358,25 @@ RIDGE_RUNS.forEach(([a, b], i) => {
 });
 
 // The last stack -> the corner shop -> the warehouse.
-upDown('cornerShop', S(29.5, STACK_Z), S(30.8, STACK_Z), 'pipe', 'wall');
-upDown('warehouse', S(34, -12.2), S(34, -13.8), 'pipe', 'wall');
+upDown('cornerShop', S(29.5, STACK_Z), S(30.8, STACK_Z), 'pipe', 'wall', 'stack-29.4', 'cornerShop');
+upDown('warehouse', S(34, -12.2), S(34, -13.8), 'pipe', 'wall', 'warehouse');
 
 // On the warehouse: the tank, the loft, the pipe between, the lantern.
-upDown('tank', S(-26, -31.8), S(-26, -33.0), 'crate', 'wall');
-upDown('loft', S(-33, -41.6), S(-33, -43.5), 'crate', 'wall');
+upDown('tank', S(-26, -31.8), S(-26, -33.0), 'crate', 'wall', 'tank');
+upDown('loft', S(-33, -41.6), S(-33, -43.5), 'crate', 'wall', 'loft');
 crossings.push({ id: 'pipe-1', kind: 'pipe', points: [P(-26.2, -34.4, L.TANK), P(-30.5, -43.5, L.TANK)] });
-drops.push({ id: 'lantern-down', from: S(-19, -35.6), to: S(-19, -37.3), mark: 'skylight' });
+drops.push({ id: 'lantern-down', from: S(-19, -35.6), to: S(-19, -37.3), mark: 'skylight', prop: 'lantern' });
 
 // The clock tower, stage by stage, each on its own side.
-upDown('tower-1', S(20.6, -17), S(22.5, -17), 'sill', 'wall');
-upDown('belfry', S(26, -20.5), S(26, -19.5), 'sill', 'wall');
-upDown('lanternStage', S(28.5, -17), S(27.5, -17), 'sill', 'wall');
-upDown('towerTop', S(26, -15.4), S(26, -16.4), 'sill', 'wall');
+upDown('tower-1', S(20.6, -17), S(22.5, -17), 'sill', 'wall', 'tower-1');
+upDown('belfry', S(26, -20.5), S(26, -19.5), 'sill', 'wall', 'belfry');
+upDown('lanternStage', S(28.5, -17), S(27.5, -17), 'sill', 'wall', 'lanternStage');
+upDown('towerTop', S(26, -15.4), S(26, -16.4), 'sill', 'wall', 'towerTop');
 
 // Long Leap: the extra rooftop corner, and two short cuts to a stack that
 // is reached without it (dormer -> gutter-1 -> flatHouse -> stack-0;
 // roofTerrace -> stack-20 -> ridge-5 -> stack-10).
-gaps.push({ id: 'long-lantern', from: S(-25.0, -34), to: S(-20.65, -34), requires: LONG_LEAP_ID, mark: 'lip' });
+gaps.push({ id: 'long-lantern', from: S(-25.0, -34), to: S(-20.65, -34), requires: LONG_LEAP_ID, mark: 'lip', prop: 'tank' }); // off the tank's rim
 gaps.push({ id: 'long-dormer', from: S(-4.55, 8.4), to: S(-0.35, 7.6), requires: LONG_LEAP_ID, mark: 'stub' });
 gaps.push({ id: 'long-terrace', from: S(14.55, 8.4), to: S(10.35, 7.6), requires: LONG_LEAP_ID, mark: 'stub' });
 
@@ -650,7 +666,7 @@ export const ROOFS_REGISTRATION = Object.freeze({
   pawprints: Object.freeze({ ground: null, path: 'gravel', strip: null }),
   // The measured counts test/budget.test.js and test/roofs.test.js pin:
   // [meshes, casters, triangles] built, [meshes, casters] merged
-  budget: Object.freeze({ built: Object.freeze([114, 68, 32506]), merged: Object.freeze([57, 30]) }),
+  budget: Object.freeze({ built: Object.freeze([112, 68, 31218]), merged: Object.freeze([55, 30]) }),
   // verify-places.html VIEWS.roofs and the card picture (public/places/roofs.jpg)
   view: ROOFS_SHOTS.card,
   // src/marks.js MARK_AREAS and emptyMarks(): add 'roofs'

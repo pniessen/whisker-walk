@@ -153,6 +153,58 @@ describe('the plan of the Rooftops', () => {
     for (const h of kinds('drop')) expect([h.id, -h.dy >= 0.9 - EPS && -h.dy <= 3.0 + EPS]).toEqual([h.id, true]);
   });
 
+  it('stack-5 is climbed from the flat house without Long Leap, and dropped from back onto it', () => {
+    const base = flood(BASE);
+    const got = base.reachable(spawnOf(base));
+    const stackR = base.regionAt(5, 7.5, R.LEVELS.RIDGE);
+    const flatR = base.regionAt(...R.ROOFS_PLACES.flatHouse);
+    expect(stackR).toBeGreaterThanOrEqual(0);
+    expect(got.has(stackR)).toBe(true);
+    const hop = (id) => a.traversal.hops.find((h) => h.id === id);
+    const up = hop('stack-5-up');
+    const down = hop('stack-5-down');
+    expect([up?.id, down?.id]).toEqual(['stack-5-up', 'stack-5-down']);
+    // the climb takes off from the flat house's region and lands on the stack's
+    expect([base.regionAt(up.x0, up.z0, up.y0), base.regionAt(up.x1, up.z1, up.y1)]).toEqual([flatR, stackR]);
+    expect([base.regionAt(down.x0, down.z0, down.y0), base.regionAt(down.x1, down.z1, down.y1)]).toEqual([stackR, flatR]);
+    expect(base.edges.get(flatR).has(stackR)).toBe(true);
+    expect(base.edges.get(stackR).has(flatR)).toBe(true);
+  });
+
+  it('every hop is shown by a real thing beside its take-off, or is a kind still drawn as a small mark', () => {
+    // a hop's `prop` names the real thing that shows a child the spot: a block
+    // (the bin, the shed, a bunker, a stack, the tank...) or the bin bags
+    expect(R.DRAWN_MARKS).toEqual(['lip', 'stub', 'gutter', 'skylight']);
+    const footprint = (id) => (id === 'binBags' ? R.BIN_BAGS : R.BLOCKS.find((b) => b.id === id));
+    const away = (f, x, z) => (f.r != null
+      ? Math.max(0, Math.hypot(x - f.x, z - f.z) - f.r)
+      : Math.hypot(Math.max(f.x0 - x, 0, x - f.x1), Math.max(f.z0 - z, 0, z - f.z1)));
+    const T = R.ROOFS_TRAVERSAL;
+    const hops = [...T.gaps, ...T.climbs, ...T.drops];
+    const bad = [];
+    let props = 0;
+    for (const h of hops) {
+      if (h.prop == null) {
+        if (!R.DRAWN_MARKS.includes(h.mark)) bad.push([h.id, h.mark, 'no prop']);
+        continue;
+      }
+      props++;
+      const f = footprint(h.prop);
+      if (!f) { bad.push([h.id, h.prop, 'unknown']); continue; }
+      const d = away(f, h.from.x, h.from.z);
+      if (d > 1.5) bad.push([h.id, h.prop, +d.toFixed(2)]);
+    }
+    expect(bad).toEqual([]);
+    // the owner's bins and shed, the bunkers, the bags: a real thing each
+    for (const id of ['bin-up', 'shed-up', 'bin-down', 'shed-down', 'shed-alley', 'garages-bags', 'ext-4-bunker', 'bunker-4-yard']) {
+      expect([id, hops.find((h) => h.id === id).prop != null]).toEqual([id, true]);
+    }
+    expect(props).toBeGreaterThan(hops.length / 2);
+    // the bags the drop from the garages lands on
+    const bags = T.drops.find((d) => d.id === 'garages-bags');
+    expect(Math.hypot(bags.to.x - R.BIN_BAGS.x, bags.to.z - R.BIN_BAGS.z)).toBeLessThanOrEqual(0.05);
+  });
+
   it('every ridge rail lies over slates or its own stacks, never in the air over a flat roof', () => {
     // sampled every 0.25 m along each ridge: the ground under the rail is the
     // void under the slates, or a chimney stack's disc at the ridge

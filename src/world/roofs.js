@@ -7,7 +7,7 @@ import { hash01 } from './warehouselook.js';
 import { roofsMaterials, addWindowQuads, windowCell, markMesh, ATLAS_SIZE } from './roofsparts.js';
 import {
   LEVELS as L, BLOCKS, GROUNDS, ROOFS_BOUNDS, ROOFS_SPAWN, ROOFS_COLLIDERS, ROOFS_TRAVERSAL, roofsArea,
-  ALLEY_LAMP, BIN_2, BIN_3, ALLEY_CRATES, YARD, YARD_WALLS, WASHING_POSTS,
+  ALLEY_LAMP, BIN_2, BIN_3, BIN_BAGS, ALLEY_CRATES, YARD, YARD_WALLS, WASHING_POSTS,
   VANE, VANE_TIP, TELESCOPE, GARDEN, SKYLIGHT, TELESCOPE_CRATE, ROOFS_DISCOVERIES, STREETS, PAVEMENT, STREET_LAMPS, BUS,
 } from './roofsplan.js';
 import { STEP_MAX } from '../ground.js';
@@ -367,7 +367,7 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     const moves = new THREE.Group();
     moves.name = 'roofsMoves';
     drawCrossings(moves, M);
-    drawMarks(moves, M, traversal);
+    drawMarks(moves, M, traversal, ground);
 
     // part two: the north, the tower, the discoveries, the street, the town
     const north = new THREE.Group();
@@ -502,7 +502,7 @@ function drawAlley(K, group, M, ground) {
 
   // The crates, and the bin bags she drops onto from the garages.
   for (const c of ALLEY_CRATES) K.put('wood', M.wood, turnedBox(c.x, c.z, c.y, c.s, c.s, c.s, c.yaw), { noCast: true });
-  const bags = ROOFS_TRAVERSAL.drops.find((d) => d.id === 'garages-bags').to;
+  const bags = BIN_BAGS;
   [[-0.35, 0, 0.42], [0.3, 0.1, 0.38], [0, -0.3, 0.36], [0.05, 0.35, 0.33], [-0.1, 0.05, 0.3, 0.32]].forEach(([dx, dz, r, y = 0], i) => {
     const g = new THREE.IcosahedronGeometry(r, 1);
     g.scale(1, 0.75, 1);
@@ -859,8 +859,19 @@ function drawCrossings(group, M) {
 }
 
 // --- the take-off marks: every hop's mark (roofsparts.js), merged by
-// material, each mesh with the vertex ranges of every hop's mark in it.
-function drawMarks(group, M, traversal) {
+// material, each mesh with the vertex ranges of every hop's mark in it. A
+// hop with a `prop` (the plan's: a real thing shows the spot) gets its glow
+// only; the others a small piece at the roof's edge ahead, found here on the
+// ground.
+const PROP_OF = new Map([...ROOFS_TRAVERSAL.gaps, ...ROOFS_TRAVERSAL.climbs, ...ROOFS_TRAVERSAL.drops].map((h) => [h.id, h.prop ?? null]));
+function edgeAhead(ground, h) {
+  const dx = (h.x1 - h.x0) / h.dist;
+  const dz = (h.z1 - h.z0) / h.dist;
+  let s = 0;
+  while (s < h.dist && Math.abs(ground.y(h.x0 + dx * s, h.z0 + dz * s) - h.y0) < 0.05) s += 0.01;
+  return s;
+}
+function drawMarks(group, M, traversal, ground) {
   const K = makeKit('roofsMarks');
   const names = new Map(Object.entries(M).map(([k, v]) => [v, k]));
   const glows = [];
@@ -868,7 +879,8 @@ function drawMarks(group, M, traversal) {
   let glowCount = 0;
   let glowMat = null;
   for (const hop of traversal.hops) {
-    const g = markMesh(hop.mark, hop, M);
+    const prop = PROP_OF.get(hop.id);
+    const g = markMesh(hop.mark, prop ? { ...hop, prop } : { ...hop, edge: edgeAhead(ground, hop) }, M);
     g.updateMatrixWorld(true);
     const mark = { id: hop.id, kind: hop.mark };
     g.traverse((c) => {

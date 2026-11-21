@@ -27,7 +27,7 @@ vi.stubGlobal('document', {
 const { build } = await import('../src/world/roofs.js');
 const {
   BLOCKS, LEVELS, ROOFS_TRAVERSAL, ROOFS_COLLIDERS, YARD, STREETS, VANE, VANE_TIP, ROOFS_SPAWN,
-  ROOFS_POIS, ROOFS_COLLECTIBLES, ROOFS_SCENICS, ROOFS_PERCHES, ROOFS_DISCOVERIES,
+  ROOFS_POIS, ROOFS_COLLECTIBLES, ROOFS_SCENICS, ROOFS_PERCHES, ROOFS_DISCOVERIES, BIN_BAGS,
 } = await import('../src/world/roofsplan.js');
 const { STEP_MAX } = await import('../src/ground.js');
 const { findFadeOccluders } = await import('../src/treefade.js');
@@ -70,9 +70,11 @@ const centreOf = (b) => {
 // far town (3,992 triangles, one unlit mesh) and the discoveries. The build
 // runs inside withLocalUuids, so it draws nothing from Math.random.
 // Follow-up 3 (the flat house's ridge beam gone, stack-5 and its two hops
-// added): 113 / 67 / 32,202 -> 114 / 68 / 32,506.
-const MEASURED_BUILT = { meshes: 114, casters: 68, triangles: 32506 };
-const MEASURED_MERGED = { meshes: 57, casters: 30, triangles: 32506 };
+// added): 113 / 67 / 32,202 -> 114 / 68 / 32,506. Follow-up 2 (calmer
+// take-off marks: real things mark 48 of the 79 hops, the rest a small flush
+// piece; the render and slate marks gone): -> 112 / 68 / 31,218 (merged 57 -> 55).
+const MEASURED_BUILT = { meshes: 112, casters: 68, triangles: 31218 };
+const MEASURED_MERGED = { meshes: 55, casters: 30, triangles: 31218 };
 const MEASURED_DRAWS = 0;
 
 let flood0 = null;
@@ -175,19 +177,27 @@ describe('the Rooftops drawn', () => {
     expect(bad.slice(0, 4)).toEqual([]);
   });
 
-  it('each hop has its mark within 0.5 m of its take-off', () => {
-    // every merged mark mesh says which vertices each hop's mark put in it
-    const marked = meshes.filter((m) => m.userData.markRanges);
-    const glow = marked.find((m) => m.userData.markGlow);
+  // FU2 (owner: calmer take-off marks): a soft glow at every take-off; a
+  // small piece lying flush at the roof's edge only where no real thing (the
+  // hop's `prop`: the bin, the shed, a bunker, a stack...) shows the spot.
+  const GLOW_R_MAX = 0.5; // m; it was 0.7, flat
+  const GLOW_OPACITY_MAX = 0.3; // at its centre, fading to nothing at its rim; it was 0.35 all over
+  const propOf = new Map([...ROOFS_TRAVERSAL.gaps, ...ROOFS_TRAVERSAL.climbs, ...ROOFS_TRAVERSAL.drops].map((h) => [h.id, h.prop ?? null]));
+  const markedMeshes = () => meshes.filter((m) => m.userData.markRanges);
+  const glowMesh = () => markedMeshes().find((m) => m.userData.markGlow);
+  const vv = new THREE.Vector3();
+  const pointsOf = (m, r) => Array.from({ length: r.count }, (_, i) => vv.fromBufferAttribute(m.geometry.attributes.position, r.start + i).applyMatrix4(m.matrixWorld).clone());
+  const piecesOf = (id) => markedMeshes().filter((m) => !m.userData.markGlow)
+    .flatMap((m) => m.userData.markRanges.filter((r) => r.id === id).flatMap((r) => pointsOf(m, r)));
+
+  it('each hop has a soft glow at its take-off, smaller and fainter than before', () => {
+    const glow = glowMesh();
     expect(glow).toBeTruthy();
-    expect(marked.length).toBeGreaterThan(1);
-    const v = new THREE.Vector3();
-    const pointsOf = (m, r) => Array.from({ length: r.count }, (_, i) => v.fromBufferAttribute(m.geometry.attributes.position, r.start + i).applyMatrix4(m.matrixWorld).clone());
     const hops = area.traversal.hops;
     expect(hops).toHaveLength(ROOFS_TRAVERSAL.gaps.length + ROOFS_TRAVERSAL.climbs.length + ROOFS_TRAVERSAL.drops.length);
     expect(glow.userData.markRanges).toHaveLength(hops.length);
     for (const h of hops) {
-      // its glow disc: one per hop, centred on the take-off, just above it
+      // one disc per hop, centred on the take-off, just above it, no wider than the ceiling
       const g = glow.userData.markRanges.filter((r) => r.id === h.id);
       expect(g, h.id).toHaveLength(1);
       expect(g[0].kind, h.id).toBe(h.mark);
@@ -195,17 +205,77 @@ describe('the Rooftops drawn', () => {
       const c = disc.reduce((t, p) => t.add(p), new THREE.Vector3()).divideScalar(disc.length);
       expect(Math.hypot(c.x - h.x0, c.z - h.z0), `${h.id} glow centre`).toBeLessThanOrEqual(0.05);
       expect(Math.abs(c.y - h.y0 - 0.03), `${h.id} glow height`).toBeLessThanOrEqual(0.05);
-      // its pieces: their own vertices, within 0.5 m of the take-off across, standing on it
-      const box = new THREE.Box3();
-      for (const m of marked) {
-        if (m === glow) continue;
-        for (const r of m.userData.markRanges) if (r.id === h.id) for (const p of pointsOf(m, r)) box.expandByPoint(p);
-      }
-      expect(box.isEmpty(), `${h.id} pieces`).toBe(false);
-      const mid = box.getCenter(new THREE.Vector3());
-      expect(Math.hypot(mid.x - h.x0, mid.z - h.z0), `${h.id} pieces across`).toBeLessThanOrEqual(0.5);
-      expect(Math.abs(box.min.y - h.y0), `${h.id} pieces height`).toBeLessThanOrEqual(0.2);
+      const r = Math.max(...disc.map((p) => Math.hypot(p.x - h.x0, p.z - h.z0)));
+      expect(r, `${h.id} glow radius`).toBeLessThanOrEqual(GLOW_R_MAX + 0.01);
     }
+    // fainter: its opacity under the ceiling, and soft: its map fades from full
+    // at the middle to nothing at the rim (the disc's uv runs 0..1 across it)
+    const mat = glow.material;
+    expect(mat.opacity).toBeLessThanOrEqual(GLOW_OPACITY_MAX);
+    expect(mat.blending).toBe(THREE.AdditiveBlending);
+    const { data, width, height } = mat.map.image;
+    const alphaAt = (u, v) => data[(Math.min(height - 1, Math.floor(v * height)) * width + Math.min(width - 1, Math.floor(u * width))) * 4 + 3];
+    expect(alphaAt(0.5, 0.5)).toBeGreaterThanOrEqual(240);
+    for (const [u, v] of [[0, 0.5], [1, 0.5], [0.5, 0], [0.5, 1], [0, 0]]) expect(alphaAt(u, v), `${u},${v}`).toBe(0);
+  });
+
+  it('a hop shown by a real thing draws no mark object near its take-off', () => {
+    const hops = area.traversal.hops;
+    const withProp = hops.filter((h) => propOf.get(h.id));
+    expect(withProp.length).toBeGreaterThan(hops.length / 2);
+    const bad = [];
+    for (const h of withProp) if (piecesOf(h.id).length) bad.push([h.id, 'has pieces']);
+    // nor does any other hop's piece lie within 0.6 m of it
+    const all = markedMeshes().filter((m) => !m.userData.markGlow).flatMap((m) => m.userData.markRanges.flatMap((r) => pointsOf(m, r).map((p) => [r.id, p])));
+    for (const h of withProp) {
+      const near = all.find(([, p]) => Math.hypot(p.x - h.x0, p.z - h.z0) < 0.6 && Math.abs(p.y - h.y0) < 1);
+      if (near) bad.push([h.id, near[0]]);
+    }
+    expect(bad).toEqual([]);
+    // and the real thing is drawn: its block's own mesh, or the bin bags at their spot
+    for (const id of new Set(withProp.map((h) => propOf.get(h.id)))) {
+      if (id === 'binBags') {
+        const v = new THREE.Vector3();
+        const hit = meshes.some((m) => !m.userData.markRanges && (() => {
+          const pos = m.geometry.attributes.position;
+          for (let i = 0; i < pos.count; i++) {
+            v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+            if (Math.hypot(v.x - BIN_BAGS.x, v.z - BIN_BAGS.z) < BIN_BAGS.r && v.y > 0.3 && v.y < 0.9) return true;
+          }
+          return false;
+        })());
+        expect(hit, 'binBags drawn').toBe(true);
+      } else {
+        expect(meshes.some((m) => m.userData.block === id), id).toBe(true);
+      }
+    }
+  });
+
+  it('a mark object lies flush on the roof at its edge, never a loose brick', () => {
+    const bad = [];
+    let drawn = 0;
+    for (const h of area.traversal.hops) {
+      if (propOf.get(h.id)) continue;
+      drawn++;
+      const pts = piecesOf(h.id);
+      if (!pts.length) { bad.push([h.id, 'no pieces']); continue; }
+      for (const p of pts) {
+        const up = p.y - h.y0;
+        // on its own roof (nothing hangs over the edge or floats), at most 0.15 m proud of it
+        if (up < -0.01 || up > 0.15) { bad.push([h.id, 'height', +up.toFixed(3)]); break; }
+        if (Math.abs(area.ground.y(p.x, p.z) - h.y0) > 0.02) { bad.push([h.id, 'off the roof', +p.x.toFixed(2), +p.z.toFixed(2)]); break; }
+        if (Math.hypot(p.x - h.x0, p.z - h.z0) > 0.9) { bad.push([h.id, 'far', +p.x.toFixed(2), +p.z.toFixed(2)]); break; }
+      }
+      // at the edge she goes over: some of it within 0.15 m of where the roof ends ahead
+      const dx = (h.x1 - h.x0) / h.dist;
+      const dz = (h.z1 - h.z0) / h.dist;
+      const ahead = Math.max(...pts.map((p) => (p.x - h.x0) * dx + (p.z - h.z0) * dz));
+      let edge = 0;
+      while (edge < h.dist && Math.abs(area.ground.y(h.x0 + dx * edge, h.z0 + dz * edge) - h.y0) < 0.05) edge += 0.01;
+      if (Math.abs(edge - ahead) > 0.15) bad.push([h.id, 'not at the edge', +edge.toFixed(2), +ahead.toFixed(2)]);
+    }
+    expect(drawn).toBeGreaterThan(0);
+    expect(bad.slice(0, 6)).toEqual([]);
   });
 
   it('no chimney stack and no yard wall is drawn over ground she walks on', () => {
