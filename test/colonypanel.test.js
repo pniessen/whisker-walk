@@ -761,6 +761,15 @@ describe('walk together with your partner (Task 12)', () => {
     expect(renderStartButtonHtml(null, { as: null })).toContain(`Explore ${PAW}`);
     expect(renderStartButtonHtml(room({ starting: true }), { as: 'Tabby' })).toContain('Starting…');
   });
+  it('while a place loads, Explore reads "Getting ready…" and is disabled; "Starting…" still wins; no flag is today\'s button', () => {
+    const ready = renderStartButtonHtml(null, { gettingReady: true });
+    expect(ready).toContain('disabled');
+    expect(ready).toContain('Getting ready…');
+    expect(ready).toMatch(/id="btn-start"/);
+    expect(renderStartButtonHtml({ starting: true }, { gettingReady: true })).toBe('<button id="btn-start" class="primary" disabled>Starting…</button>');
+    expect(renderStartButtonHtml(null)).toBe(`<button id="btn-start" class="primary">Explore ${PAW}</button>`);
+    expect(renderStartButtonHtml(null, { gettingReady: false })).toBe(`<button id="btn-start" class="primary">Explore ${PAW}</button>`);
+  });
 
   it('a Start that is waiting for the host reads "Starting…" and cannot be pressed again', () => {
     const html = renderStartButtonHtml(room({ starting: true }));

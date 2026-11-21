@@ -4,7 +4,7 @@
 // Long Leap), climbs and drops in steps. x east, z south (north is -z),
 // metres. Levels: yard 0, LOW 1.5, HIGH 3.5.
 //
-// It is a test page, not an area: it is not in AREAS, and nothing in the game
+// It is a test page, not an area: it is not in the registry (areas.js), and nothing in the game
 // loads it. Three parts:
 //   * the DATA and yardArea() (no THREE objects; the headless tests walk it);
 //   * buildTraversalYard(scene), the yard drawn, simply and cheaply, with

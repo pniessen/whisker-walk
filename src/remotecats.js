@@ -103,6 +103,10 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
   // (Polish 3). A snapshot, not a live array: a holder of an older one (the
   // crossing's "who walks on with me") never sees it change underneath it.
   let listCache = null;
+  // F6 (R16): the cats that have had a first state, the ones drawn (the
+  // corner map's dots and the flaps they push read this). Cached like `list`,
+  // rebuilt when a cat joins, leaves or is first placed.
+  let placedCache = null;
 
   // Remote profiles arrive over the network from other players' clients,
   // which may not have enforced the same validation the local client does
@@ -137,6 +141,10 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
       tag.visible = true; // remote pets are always labeled, unlike strays
       group.add(tag);
     }
+    // F6 (R16): not drawn until its first state places it (applyState), so a
+    // co-walker still loading its place never stands frozen at the origin.
+    // Its name tag is a child of the group and hides with it.
+    group.visible = false;
     scene.add(group);
 
     const entry = {
@@ -197,9 +205,11 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
       entry.stateAt = existing.stateAt;
       entry.lastSeenAt = existing.lastSeenAt;
       entry.water = existing.water;
+      group.visible = existing.water.placed; // shown as it was
     }
     remotes.set(profile.playerId, entry);
     listCache = null;
+    placedCache = null;
     return entry;
   }
 
@@ -213,7 +223,12 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
     // river-west holds the origin), and it would dip there on arrival.
     entry.toH = liftOf(state);
     // ...and at her height: first seen on a roof or a seat, she does not rise out of the ground
-    if (!entry.water.placed) { entry.group.position.copy(entry.toPos); entry.h = entry.toH; }
+    if (!entry.water.placed) {
+      entry.group.position.copy(entry.toPos);
+      entry.h = entry.toH;
+      entry.group.visible = true;
+      placedCache = null;
+    }
     entry.fromPos.copy(entry.group.position);
     entry.fromYaw = entry.group.rotation.y;
     entry.toYaw = state.yaw;
@@ -246,6 +261,7 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
     disposeGroup(entry.group);
     remotes.delete(playerId);
     listCache = null;
+    placedCache = null;
   }
 
   // update(dt, now, waters, rides): `rides` is the walk's Fairground rides
@@ -307,6 +323,7 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
     let best = null;
     let bestD = maxDist;
     for (const entry of remotes.values()) {
+      if (!entry.water.placed) continue; // not drawn yet: nothing to reach
       const d = entry.group.position.distanceTo(pos);
       if (d < bestD) {
         bestD = d;
@@ -329,6 +346,9 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
     dispose,
     get list() {
       return (listCache ??= Array.from(remotes.values()));
+    },
+    get placed() {
+      return (placedCache ??= api.list.filter((e) => e.water.placed));
     },
   };
   return api;

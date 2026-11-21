@@ -51,7 +51,7 @@ const EXPECTED = {
   moor: { nearColor: 0x6f8044, style: 'wall' },
   pines: { nearColor: 0x56603e, style: 'pinescrub' },
   farm: { nearColor: 0x62a24e, style: 'hedge' }, // FARM_GRASS
-  fair: { nearColor: 0x62ac50, style: 'hedge' }, // FAIR_GRASS
+  fair: { nearColor: 0x5ea446, style: 'hedge' }, // FAIR_GRASS
 };
 
 // How far (x, z) lies outside a bounds box, Chebyshev: 0 or less is inside.

@@ -1298,7 +1298,7 @@ describe('in the walk: the real animals, the real prompt and E, a real save', ()
       expect(g.session.prompt?.kind === 'farm' ? g.session.prompt.data : null).toBe(null); // none offered again this walk
     }
     for (const id of FARM_JOB_IDS) expect(g.toasts.filter((t) => t === JOB_WORDS[id].start())).toHaveLength(1);
-  });
+  }, 90_000); // a whole walk of four jobs; ~9 s on a Mac, ~31 s on a loaded CI shard
 
   it('the scarecrow\'s hat goes onto her head and back; her own hat is put by meanwhile', () => {
     const g = game();

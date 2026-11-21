@@ -435,6 +435,12 @@ const LATER = Object.freeze({
   // above the friend-name box when My cats sent her there; save is
   // "tap Save" or "click Save" (walkingname.js picks it by the touch flag)
   'mycats.nameIntro': (save) => `You need a friend name before you can share your colony. Type one here and ${save}:`,
+
+  // ---- getting a place ready (2026-11-20): a place's code loads the first time, the same in every set ----
+  'start.gettingReady': 'Getting ready…',
+  'start.notReady': 'That place isn’t quite ready yet. Try again in a moment! 🐾',
+  'start.notReadyOffline': 'That place needs the internet the first time. Try again when you’re online! 🐾',
+  'start.notReadyReload': 'Still not ready. Tap Explore once more and the game starts fresh. Everything you found is saved. 🐾',
 });
 
 // Every id of the first table, in table order.

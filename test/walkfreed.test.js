@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { createWalkLifecycle } from '../src/game/walk.js';
+import { createAreaLoader } from '../src/game/areaload.js';
 import { createProgression } from '../src/progression.js';
 import { resolveQuality } from '../src/render/quality.js';
 import { contactShadowTexture } from '../src/render/contactshadows.js';
@@ -68,6 +69,11 @@ const anything = (values = {}) => new Proxy(values, {
 const envMap = new THREE.Texture();
 envMap.name = 'test env map';
 
+// Every place is its own download (F6): the two this file walks are loaded
+// first, so each walk starts in the same tick, as it does once its place is here.
+const areas = createAreaLoader();
+beforeAll(() => areas.ensureAll(['neighborhood', 'park']));
+
 function lifecycle({ renderer = null, save = () => {} } = {}) {
   let session = null;
   const progression = createProgression(memStorage());
@@ -88,6 +94,7 @@ function lifecycle({ renderer = null, save = () => {} } = {}) {
     // shadows); no post-processing, which needs a real renderer.
     qualityAdapter: { beginWalk: () => ({ ...resolveQuality({ override: 'high' }), postFx: false }) },
     denShop: null,
+    areas,
   });
   return { w, getSession: () => session, progression };
 }

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { onAnyDeck, waterClearance } from '../world/builder.js';
-import { wetness } from '../world/seaside.js';
+import { wetness } from '../world/seasidewet.js';
 import { FLAT_GROUND, groundOf } from '../ground.js';
 
 // ---------------------------------------------------------------------------

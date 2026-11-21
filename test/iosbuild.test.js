@@ -8,7 +8,8 @@ describe('vite config: the app build', () => {
     const web = config({ command: 'build', mode: 'production' });
     expect(web.base).toBe('/whisker-walk/');
     expect(web.build?.outDir).toBeUndefined(); // default dist/ untouched
-    expect(web.plugins).toBeUndefined();
+    // The website build lists its files for the service worker and stamps sw.js; it never prunes like the app.
+    expect(web.plugins.map((p) => p.name)).toEqual(['precache-list']);
   });
 
   it('builds the app version with a relative base into ios/web', () => {

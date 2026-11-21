@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { mulberry32 } from '../src/rng.js';
 import { rollWeather } from '../src/weather.js';
-import { setRoofs, loadRoofs, loadedRoofs } from '../src/roofsflag.js';
+import { setRoofs } from '../src/roofsflag.js';
+import { createAreaLoader } from '../src/game/areaload.js';
 import { NO_TRAVERSAL } from '../src/traversallive.js';
 import { lifecycle, fakeEl } from './helpers/walklife.js';
 
@@ -18,15 +19,19 @@ import { lifecycle, fakeEl } from './helpers/walklife.js';
 // look and the dusk tally, no weather on the roofs, the ?roofs=1 start, no
 // strays or wanderer, and (the final review's finding 1) no ghosts.
 //
-// The Rooftops' drawing is its own download (roofsflag.js loadRoofs, build
-// fix F2): the first describe below runs before anything here has loaded it,
-// and counts each time world/roofs.js is actually evaluated.
+// The Rooftops' drawing is its own download, as every place's is (F6: the
+// `roofs` pack in world/areas.js, fetched by game/areaload.js; build fix F2
+// first made it one): the first describe below runs before anything here has
+// loaded it, and counts each time world/roofs.js is actually evaluated. Every
+// walk here shares one area loader, with the Park and the Neighbourhood
+// already in it.
 // =============================================================================
 
 const seen = vi.hoisted(() => ({ ambient: [], clouds: [], secrets: [], critters: [], roofsLoads: 0 }));
 vi.mock('../src/world/roofs.js', async (importOriginal) => {
   seen.roofsLoads++;
-  return importOriginal();
+  // The Rooftops grow no hooked grass (the real module exports no GRASS_HOOKS); a mock refuses to answer for a name it lacks.
+  return { ...(await importOriginal()), GRASS_HOOKS: undefined };
 });
 vi.mock('../src/render/ambient.js', async (importOriginal) => {
   const m = await importOriginal();
@@ -84,6 +89,10 @@ function walk(life, start) {
   out.duskWalksAdded = life.progression.state.duskWalks - before;
   return out;
 }
+const areas = createAreaLoader();
+beforeAll(() => areas.ensureAll(['park', 'neighborhood']));
+const lifecycleHere = (o = {}) => lifecycle({ areas, ...o });
+
 const roofsWalk = (life, duskMode = false) => walk(life, (w) => w.startWalk({ duskMode, areaOverride: 'roofs' }));
 const parkWalk = (life, duskMode = false) => walk(life, (w) => w.startWalk({ duskMode, areaOverride: 'park' }));
 
@@ -105,35 +114,35 @@ afterEach(() => {
 describe('the Rooftops\' drawing is its own download', () => {
   it('without the switch nothing fetches it: a Park walk and Explore in her own place', () => {
     setRoofs(false);
-    expect(parkWalk(lifecycle()).areaId).toBe('park');
-    expect(walk(lifecycle(), (w) => w.beginWalkFromHomebase({ duskMode: false })).areaId).toBe('neighborhood');
+    expect(parkWalk(lifecycleHere()).areaId).toBe('park');
+    expect(walk(lifecycleHere(), (w) => w.beginWalkFromHomebase({ duskMode: false })).areaId).toBe('neighborhood');
     expect(seen.roofsLoads).toBe(0);
-    expect(loadedRoofs()).toBe(null);
+    expect(areas.loaded('roofs')).toBe(null);
   });
 
   it('with the switch, Explore before it has come waits for it, then walks the Rooftops', async () => {
     setRoofs(true);
-    const life = lifecycle();
+    const life = lifecycleHere();
     const started = life.w.beginWalkFromHomebase({ duskMode: false });
     expect(life.getSession()).toBe(null); // home stays up while it comes
-    await started;
+    expect(await started).toBe('started');
     const s = life.getSession();
     expect(s.areaId).toBe('roofs');
     expect(s.traversal).not.toBe(NO_TRAVERSAL); // the Rooftops' own build, with its moves
     expect(seen.roofsLoads).toBe(1);
     life.w.endWalk();
     // once it has come, Explore starts straight away, with no second fetch
-    expect(walk(lifecycle(), (w) => w.beginWalkFromHomebase({ duskMode: false })).areaId).toBe('roofs');
+    expect(walk(lifecycleHere(), (w) => w.beginWalkFromHomebase({ duskMode: false })).areaId).toBe('roofs');
     expect(seen.roofsLoads).toBe(1);
   });
 });
 
 describe('a walk on the Rooftops', () => {
-  beforeAll(() => loadRoofs());
+  beforeAll(() => areas.ensure('roofs'));
   const EVENING = { lighting: [true], ambient: [true], clouds: [true], sound: [true], music: ['dusk'] };
 
   it('the Day choice with the Glow Collar on: the evening look everywhere, and it counts as a dusk walk', () => {
-    const r = roofsWalk(lifecycle({ collar: true }));
+    const r = roofsWalk(lifecycleHere({ collar: true }));
     expect(r.areaId).toBe('roofs');
     expect(r.moves).toBe(true); // the Rooftops' own build, with its moves
     expect(r.look).toEqual(EVENING);
@@ -144,62 +153,62 @@ describe('a walk on the Rooftops', () => {
   });
 
   it('with no collar: the same look, and no dusk walk', () => {
-    const r = roofsWalk(lifecycle());
+    const r = roofsWalk(lifecycleHere());
     expect(r.look).toEqual(EVENING);
     expect(r.rest).toEqual({ secretsEveningLight: [false], fireflies: [false], duskActive: false });
     expect(r.duskWalksAdded).toBe(0);
     // the Dusk choice without the collar is no dusk walk there either
-    expect(roofsWalk(lifecycle(), true).duskWalksAdded).toBe(0);
+    expect(roofsWalk(lifecycleHere(), true).duskWalksAdded).toBe(0);
   });
 
   it('no weather on the roofs: a walk whose seed rolls rain is dry, and sounds and plays as evening', () => {
-    const r = roofsWalk(lifecycle());
+    const r = roofsWalk(lifecycleHere());
     expect([r.weather, r.rain]).toEqual(['clear', false]);
     // the same seed on the Park rains, so the seed is a rainy one
-    const park = parkWalk(lifecycle());
+    const park = parkWalk(lifecycleHere());
     expect([park.weather, park.rain]).toEqual(['rain', true]);
     expect(park.look).toEqual({ lighting: [false], ambient: [false], clouds: [false], sound: [false], music: ['rain'] });
   });
 
   it('no strays and no wanderer, on a day that has one', () => {
-    const r = roofsWalk(lifecycle());
+    const r = roofsWalk(lifecycleHere());
     expect(r.strays).toEqual([]);
     expect(r.arrivalLine).toBe(null);
     // the Park on the same day has its strays
-    expect(parkWalk(lifecycle()).strays.length).toBeGreaterThan(0);
+    expect(parkWalk(lifecycleHere()).strays.length).toBeGreaterThan(0);
   });
 
   it('no ghosts: a solo walk there never asks for friends to visit', () => {
-    expect(roofsWalk(lifecycle()).ghostsAsked).toBe(0);
+    expect(roofsWalk(lifecycleHere()).ghostsAsked).toBe(0);
     // a solo Park walk does
-    expect(parkWalk(lifecycle()).ghostsAsked).toBe(1);
+    expect(parkWalk(lifecycleHere()).ghostsAsked).toBe(1);
   });
 });
 
 describe('everywhere else, dusk is the Dusk choice and the Glow Collar', () => {
   it('a Park dusk walk in the collar: the look, the secrets\' evening roll, the fireflies, and the tally', () => {
-    const r = parkWalk(lifecycle({ collar: true }), true);
+    const r = parkWalk(lifecycleHere({ collar: true }), true);
     expect(r.look).toEqual({ lighting: [true], ambient: [true], clouds: [true], sound: [true], music: ['dusk'] });
     expect(r.rest).toEqual({ secretsEveningLight: [true], fireflies: [true], duskActive: true });
     expect(r.duskWalksAdded).toBe(1);
   });
 
   it('a Park day walk in the collar is no dusk walk', () => {
-    expect(parkWalk(lifecycle({ collar: true })).duskWalksAdded).toBe(0);
+    expect(parkWalk(lifecycleHere({ collar: true })).duskWalksAdded).toBe(0);
   });
 });
 
 describe('Explore with ?roofs=1', () => {
-  beforeAll(() => loadRoofs());
+  beforeAll(() => areas.ensure('roofs'));
   it('starts a solo Rooftops walk', () => {
     setRoofs(true);
-    const r = walk(lifecycle(), (w) => w.beginWalkFromHomebase({ duskMode: false }));
+    const r = walk(lifecycleHere(), (w) => w.beginWalkFromHomebase({ duskMode: false }));
     expect(r.areaId).toBe('roofs');
   });
 
   it('never in a room: in a room, Explore starts the room\'s walk in her own place', () => {
     setRoofs(true);
-    const life = lifecycle();
+    const life = lifecycleHere();
     life.setPendingRoom({ code: 'ABCD' });
     life.w.beginWalkFromHomebase({ duskMode: false });
     expect(life.getSession()).toBe(null);
@@ -208,7 +217,7 @@ describe('Explore with ?roofs=1', () => {
 
   it('without the flag, Explore walks her own place', () => {
     setRoofs(false);
-    const r = walk(lifecycle(), (w) => w.beginWalkFromHomebase({ duskMode: false }));
+    const r = walk(lifecycleHere(), (w) => w.beginWalkFromHomebase({ duskMode: false }));
     expect(r.areaId).toBe('neighborhood');
   });
 });
