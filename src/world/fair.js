@@ -537,7 +537,7 @@ export function setFairGlow(area, t) {
   const k = Math.min(1, Math.max(0, Number.isFinite(t) ? t : 0));
   if (area?.glow?.material) area.glow.material.emissiveIntensity = GLOW_MAX * k;
   // the stalls' counters and goods, lit from inside (fairkit.js LAMP_LOOK)
-  if (area?.glow?.lamp) area.glow.lamp.emissiveIntensity = LAMP_LOOK.max * k;
+  for (const m of area?.glow?.lamps ?? []) m.emissiveIntensity = LAMP_LOOK.max * k;
   if (area?.glow) area.glow.level = k;
   return k;
 }
@@ -838,8 +838,10 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) {
   const fortuneBall = world(FORTUNE_AT, WEST, FORTUNE.tableX, FORTUNE.tableZ);
   const candy = stallById('candyfloss');
   const tinStall = stallById('tinCans');
-  // the bulbs' one material, and the props' (its lamp-lit counters): setFairGlow drives both
-  const glowState = { material: made.glow, lamp: made.out.find((m) => m.name === 'fairProps')?.material ?? null, level: 0 };
+  // the bulbs' one material, and the lamp-lit ones (the props' counters and
+  // goods, and the tins on their shelf): setFairGlow drives them all
+  const lamps = [made.out.find((m) => m.name === 'fairProps')?.material, made.tins.userData.lamp].filter(Boolean);
+  const glowState = { material: made.glow, lamps, level: 0 };
   return {
     name: 'The Fairground',
     colliders,

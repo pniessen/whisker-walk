@@ -445,15 +445,21 @@ export function tinCans(spots) {
   const g = new THREE.Group();
   g.name = 'tinCans';
   g.userData.noMerge = true;
+  // the six share one material, lamp-lit at dusk like the shelf they stand on
+  // (fairkit.js LAMP_LOOK; g.userData.lamp is it, for setFairGlow)
+  let lamp = null;
   spots.forEach((s, i) => {
     const P = [];
     cyl(P, TINS.r, TINS.r, TINS.h, 0, 0, 0, C.steel, { sides: 10 });
     cyl(P, TINS.r + 0.004, TINS.r + 0.004, TINS.h * 0.55, 0, TINS.h * 0.22, 0, [C.red, C.blue, C.yellow, C.green, C.orange, C.purple][i % 6], { sides: 10, open: true });
+    lampLit(P, 0);
     const m = meshOf(P, 'tin' + i, { roughness: 0.35 });
+    if (lamp) { m.material.dispose(); m.material = lamp; } else lamp = lampMaterial(m.material);
     m.position.set(s.x, s.y, s.z);
     m.userData.home = { x: s.x, y: s.y, z: s.z };
     g.add(m);
   });
+  g.userData.lamp = lamp;
   return g;
 }
 
