@@ -795,7 +795,9 @@ export function build(scene, { water = {}, wind } = {}) {
       { type: 'butterfly', x: -14, z: 30 },
       { type: 'mouse', x: -22, z: 20, x2: -14, z2: 25 },
       { type: 'mouse', x: 10, z: 22, x2: 16, z2: 18 },
-      { type: 'villager', x: 18, z: 16 }, { type: 'villager', x: 32, z: -10 },
+      // (the first stands off its spot onto the boardwalk, whose west edge
+      // board runs through the spot: ruling R35; its group stays where it was)
+      { type: 'villager', x: 18, z: 16, standOff: { x: 0.45, z: 0 } }, { type: 'villager', x: 32, z: -10 },
     ],
     moments: [
       { id: 'gull-heist', label: 'a seagull stealing someone\'s sandwich!', x: 18, z: 14, from: { x: 30, z: -6 } },
