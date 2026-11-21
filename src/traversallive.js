@@ -78,7 +78,7 @@ const LAND_EVENT = Object.freeze({ water: false }); // one shared frozen payload
 // What a traversal event does in the game: the whoosh as she springs, and at
 // touchdown the dust, the thump and the 'pounce:land' that src/haptics.js taps
 // for. fx and audio may be missing (a stand-in, a headless walk).
-export function traversalEventEffects(e, { audio, fx, cat, bus } = {}) {
+export function traversalEventEffects(e, { audio, fx, cat, bus, tally } = {}) {
   switch (e?.type) {
     case 'leap':
     case 'climb':
@@ -89,10 +89,23 @@ export function traversalEventEffects(e, { audio, fx, cat, bus } = {}) {
       fx?.burst?.(cat.position, LAND_DUST, 8);
       audio?.landThump?.();
       bus?.emit('pounce:land', LAND_EVENT);
+      if (e.kind === 'leap') tally?.('leap');
+      break;
+    case 'cross':
+      tally?.('cross');
       break;
     default:
       break;
   }
+}
+
+// The lifetime counts behind Tightrope Tail and Long Leap: record the feat,
+// then check the skills so the card shows on the crossing or leap that earns it.
+export function traversalTally(progression, celebrate) {
+  return (type) => {
+    progression.recordFeat(type);
+    celebrate();
+  };
 }
 
 export const NO_TRAVERSAL = Object.freeze({

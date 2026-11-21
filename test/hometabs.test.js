@@ -117,7 +117,7 @@ describe('renderSkillsHtml', () => {
     // literal here is the point of the assertion, so it moves with the
     // catalog: eleven from the CF-12 descope, twelve since the v20 Sea Legs
     // reinstatement put the spec's full set back.
-    expect(html).toContain('Abilities earned: 1/12');
+    expect(html).toContain('Abilities earned: 1/14');
   });
 
   it('survives a hostile payload without leaking markup or NaN', () => {

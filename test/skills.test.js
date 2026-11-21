@@ -24,15 +24,15 @@ function expectBoundary(id, atCount) {
 const featState = (type) => (n) => ({ feats: { [type]: n } });
 
 describe('skills catalog', () => {
-  it('has the twelve shipped abilities across four families', () => {
+  it('has the fourteen shipped abilities across four families', () => {
     // Twelve — the spec's full set. Sea Legs was descoped in v18 (CF-12,
     // "water is already a walk-over surface, so swimming is a downgrade")
     // and reinstated in v20 once water went solid. It sits in TRAVERSAL, not
     // the spec's mischief: it changes where the cat can go and how fast it
     // gets there, which is what the other three traversal abilities do.
-    expect(SKILLS).toHaveLength(12);
+    expect(SKILLS).toHaveLength(14);
     expect(SKILL_IDS).toEqual([
-      'spring-paws', 'long-zoomies', 'fence-runner', 'sea-legs',
+      'spring-paws', 'long-zoomies', 'fence-runner', 'sea-legs', 'tightrope-tail', 'long-leap',
       'twitchy-nose', 'night-eyes', 'whisker-sense',
       'charmer', 'far-call', 'gift-paws',
       'sure-claws', 'big-swat',
@@ -91,7 +91,7 @@ describe('skills catalog', () => {
     // Skills tab actually needs is only that no section is empty or a lone
     // card, so that is what is asserted, alongside the exact shape.
     const sizes = SKILL_FAMILIES.map((f) => SKILLS.filter((s) => s.family === f.id).length);
-    expect(sizes).toEqual([4, 3, 3, 2]);
+    expect(sizes).toEqual([6, 3, 3, 2]);
     for (const n of sizes) expect(n).toBeGreaterThanOrEqual(2);
     expect(sizes.reduce((a, b) => a + b, 0)).toBe(SKILLS.length); // no orphan family
   });
@@ -119,6 +119,23 @@ describe('feat predicates at their boundaries', () => {
     expect(hasSkill({ feats: { scenic: 999 } }, 'spring-paws')).toBe(false);
     expect(hasSkill({ feats: { scenic: 999 } }, 'fence-runner')).toBe(false);
     expect(skillProgress({ feats: { scenic: 999, perch: 3 } }, 'spring-paws')).toEqual({ have: 3, need: 10 });
+  });
+
+  it('Tightrope Tail is earned by 20 crossings, Long Leap by 15 leaps', () => {
+    expectBoundary('tightrope-tail', featState('cross'));
+    expectBoundary('long-leap', featState('leap'));
+    for (const id of ['tightrope-tail', 'long-leap']) {
+      expect(SKILLS.find((s) => s.id === id).family).toBe('traversal');
+      expect(hasSkill({ feats: { perch: 999, mischief: 999 } }, id)).toBe(false);
+    }
+    expect(SKILLS.find((s) => s.id === 'tightrope-tail').feat).toBe('Walk 20 crossings from end to end');
+    expect(SKILLS.find((s) => s.id === 'long-leap').feat).toBe('Leap 15 gaps');
+  });
+
+  it('an old save has neither, at 0 of 20 and 0 of 15', () => {
+    expect(skillProgress({}, 'tightrope-tail')).toEqual({ have: 0, need: 20 });
+    expect(skillProgress({}, 'long-leap')).toEqual({ have: 0, need: 15 });
+    expect(skillProgress({ feats: { cross: '9e99' } }, 'tightrope-tail')).toEqual({ have: 0, need: 20 });
   });
 
   it('Sea Legs needs 5 seaside walks (walks.seaside)', () => {

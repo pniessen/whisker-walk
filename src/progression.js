@@ -156,7 +156,7 @@ const KNOWN_SKILL_IDS = new Set(SKILL_IDS);
 // handling for free. Neither name collides with an AWARDS key; the
 // assertion below makes that a build-time failure rather than a silent
 // double-count if a future award type ever takes one of these names.
-const EXTRA_FEAT_TYPES = ['perch', 'race'];
+const EXTRA_FEAT_TYPES = ['perch', 'race', 'cross', 'leap'];
 for (const t of EXTRA_FEAT_TYPES) {
   if (Object.prototype.hasOwnProperty.call(AWARDS, t)) {
     throw new Error(`progression: feat tally '${t}' collides with an AWARDS type`);

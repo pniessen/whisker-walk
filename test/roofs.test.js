@@ -41,7 +41,7 @@ const { castsFromBox, isTransparentMat, SUN_POSITION } = await import('../src/re
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { ROOFS_BIRDS, perchIndex, roofsCritterSpawns } = await import('../src/world/roofsflock.js');
 const { clearSpot } = await import('../src/world/spots.js');
-const { BASE_ABILITIES } = await import('../src/traversal.js');
+const { BASE_ABILITIES, moveAbilities: T_moveAbilities } = await import('../src/traversal.js');
 const { floodTraversal } = await import('./helpers/traversalflood.js');
 const { WINDOW_CELLS, markMesh } = await import('../src/world/roofsparts.js');
 const { tileMetres } = await import('../src/render/materials.js');
@@ -420,6 +420,17 @@ describe('the Rooftops drawn', () => {
     // it is its own top-level group, so the walk's prop merge keeps its mesh
     expect(body.obj.parent).toBe(scene);
   });
+
+  it('fifteen leaps open the lantern roof; fourteen do not', () => {
+    const { moveAbilities } = { moveAbilities: T_moveAbilities };
+    const reaches = (leaps) => {
+      const f = floodTraversal(area, { abilities: moveAbilities({ feats: { leap: leaps } }) });
+      const got = f.reachable(f.regionAt(ROOFS_SPAWN.x, ROOFS_SPAWN.z));
+      return got.has(f.regionAt(-19, -34, area.ground.y(-19, -34)));
+    };
+    expect(reaches(15)).toBe(true);
+    expect(reaches(14)).toBe(false);
+  }, 90000);
 
   it('the street below is outside every walk region and has its lamps and the bus', () => {
     const f = floodTraversal(area, { abilities: { longLeap: true, steady: true, climb: 2.2 } });
