@@ -2702,6 +2702,50 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
     }
   });
 
+  it('three golden mice, each on one level, clear, reached without Long Leap', async () => {
+    const { GOLD_MICE } = await import('../src/goldmice.js');
+    const mice = REG.goldMice;
+    expect(mice.map((m) => m.id)).toEqual(['gm-roofs-1', 'gm-roofs-2', 'gm-roofs-3']);
+    const groundOf = [LEVELS.TANK, LEVELS.LANTERN, LEVELS.GROUND];
+    const crossEnds = ROOFS_TRAVERSAL.crossings.flatMap((c) => [c.points[0], c.points[c.points.length - 1]]);
+    const hopEnds = area.traversal.hops.flatMap((h) => [{ x: h.x0, z: h.z0 }, { x: h.x1, z: h.z1 }]);
+    // at least 1.5 m from every collectible and discovery anchor. A crossing's or hop's
+    // own ends are the climb or pipe she takes to the mouse (the tank's lid is only
+    // 2.6 m across, with the climb and the pipe both landing on it, so 1.5 m from those
+    // is not possible): 0.9 m, so no mouse sits on a take-off or landing mark.
+    const anchors = [...area.collectibles, ...Object.values(ROOFS_DISCOVERIES)];
+    mice.forEach((m, i) => {
+      expect(oneLevel(m.x, m.z), `${m.id} on one level`).toBe(true);
+      expect(clear(m), `${m.id} clear`).toBe(true);
+      expect(reachedAt(m.x, m.z), `${m.id} reached without Long Leap`).toBe(true);
+      expect(area.ground.y(m.x, m.z), `${m.id} level`).toBeCloseTo(groundOf[i], 6);
+      // a reached cell within 0.9 m whose ground is within 0.1 m of the mouse's
+      let found = false;
+      for (let r = 0; r <= 0.9 && !found; r += 0.3) {
+        for (let k = 0; k < 8 && !found; k++) {
+          const x = m.x + r * Math.cos((k * Math.PI) / 4);
+          const z = m.z + r * Math.sin((k * Math.PI) / 4);
+          if (reachedAt(x, z) && Math.abs(area.ground.y(x, z) - area.ground.y(m.x, m.z)) <= 0.1) found = true;
+        }
+      }
+      expect(found, `${m.id} findable`).toBe(true);
+      for (const q of anchors) expect(dist(m, q), `${m.id} vs ${q.x},${q.z}`).toBeGreaterThanOrEqual(1.5);
+      for (const q of [...crossEnds, ...hopEnds]) expect(dist(m, q), `${m.id} vs end ${q.x},${q.z}`).toBeGreaterThanOrEqual(0.9);
+    });
+  });
+
+  it('the gold rows are the registration\'s', async () => {
+    const { GOLD_MICE } = await import('../src/goldmice.js');
+    expect(GOLD_MICE.roofs).toEqual(plain(REG.goldMice));
+  });
+
+  it('the gold count is 39, and the Rooftops is in Legacy (21)', async () => {
+    const { GOLD_TOTAL, goldForEdition } = await import('../src/goldmice.js');
+    expect(GOLD_TOTAL).toBe(39);
+    expect(goldForEdition('canon', CATALOG).size).toBe(39);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(21);
+  });
+
   it('an old save loads with walks.roofs 0 and marks.roofs []', () => {
     const map = new Map();
     const storage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };

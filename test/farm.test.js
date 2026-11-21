@@ -684,9 +684,9 @@ describe('Appletree Farm: the duck pond', () => {
 describe('Appletree Farm: golden mice', () => {
   it('adds three, for thirty-three in all and fifteen in the Legacy edition', () => {
     expect(GOLD_MICE.farm).toHaveLength(3);
-    expect(GOLD_TOTAL).toBe(36); // 33 until the Fairground added its three
-    expect(goldForEdition('canon', CATALOG).size).toBe(36);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(18);
+    expect(GOLD_TOTAL).toBe(39); // 36 until the Rooftops added its three, 33 until the Fairground added its
+    expect(goldForEdition('canon', CATALOG).size).toBe(39);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(21); // 18 until the Rooftops added its three
     expect(new Set(GOLD_MICE.farm.map((m) => m.id))).toEqual(new Set(['gm-farm-1', 'gm-farm-2', 'gm-farm-3']));
   });
 

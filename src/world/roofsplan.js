@@ -704,6 +704,12 @@ export const ROOFS_REGISTRATION = Object.freeze({
   // src/progression.js CATALOG.areas: held back (R1) until Rooftops step 4
   // copied it into the catalog (ruling T1: co-walkers see height).
   catalog: Object.freeze({ name: 'The Rooftops', price: 100, requires: Object.freeze({ area: 'fair', walks: 2 }) }),
+  // src/goldmice.js GOLD_MICE.roofs (`y` is metres above the ground under each)
+  goldMice: Object.freeze([
+    Object.freeze({ id: 'gm-roofs-1', x: -26.8, z: -33.6, y: 0 }), // on the water tank's lid, one climb up from the warehouse roof
+    Object.freeze({ id: 'gm-roofs-2', x: 27.6, z: -15.4, y: 0 }), // on the clock tower's lantern stage, a corner below the vane
+    Object.freeze({ id: 'gm-roofs-3', x: -14.3, z: 21.7, y: 0 }), // hidden in a back yard, in the nook between bunker-4 and the party wall
+  ]),
   // src/propsets.js SETS.roofs
   propSet: Object.freeze({
     carryables: Object.freeze([
