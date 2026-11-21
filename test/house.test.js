@@ -65,10 +65,14 @@ describe('the record', () => {
     expect(Object.keys(area)).toEqual(expect.arrayContaining(denKeys));
   });
 
-  it('is indoors and empty of life: no strays, no critters, no people, and named from the word tables', () => {
+  it('is indoors and empty of life but its mice: no strays, no people, and named from the word tables', () => {
     expect(area.strays).toBe(false);
-    expect(area.critterSpawns).toEqual([]);
-    for (const k of ['pois', 'collectibles', 'scenics', 'moments', 'puddles', 'boxes', 'tippables']) {
+    // step 2 (D18, ruling D10): mice in the kitchen and the cellar, and nothing else
+    expect(area.critterSpawns.length).toBeGreaterThan(0);
+    expect(area.critterSpawns.every((c) => c.type === 'mouse')).toBe(true);
+    // step 2 (D18, ruling D13): three special places
+    expect(area.scenics.map((c) => c.id)).toEqual(['clock', 'fireside', 'attic-window']);
+    for (const k of ['pois', 'collectibles', 'moments', 'puddles', 'boxes', 'tippables']) {
       expect(area[k], k).toEqual([]);
     }
     // step 2 (D18, ruling D4): the knock-over pieces' tops are perches

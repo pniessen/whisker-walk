@@ -18,9 +18,10 @@
 // cellar, sunk beside the house, wears a turf lid over it and its stair (owner's fix B),
 // so from outside it is garden; house life hides it whenever she is down there.
 //
-// No people, no resident cat, no strays (U12, U14): critterSpawns is empty and
-// strays is false. The front door is shut (U13): build takes the walk's gateEnds
-// and, in step 1, ignores them; step 4 opens the door when a house-town end comes.
+// No people, no resident cat, no strays (U12, U14): critterSpawns holds only the
+// house's mice (step 2, D10) and strays is false; step 2's finds are housethings.js's
+// data. The front door is shut (U13): build takes the walk's gateEnds and, in step 1,
+// ignores them; step 4 opens the door when a house-town end comes.
 // Everything is made inside one withLocalUuids, so the build draws nothing from
 // Math.random; variation is hash01.
 
@@ -42,6 +43,11 @@ import {
 } from './houseparts.js';
 import { fullLevels } from '../houselevels.js';
 import { createHouseLife } from './houselife.js';
+import {
+  HOUSE_GOLD_MICE, HOUSE_KNOCKABLES, HOUSE_HIDES, HOUSE_MICE, HOUSE_YARN_SPOTS, HOUSE_SCENICS, HOUSE_FINDS,
+  HOUSE_GOAL_TYPES, HOUSE_MAP_GROUND, houseMapShapes,
+} from './housethings.js';
+import { phrase } from '../clanphrases.js';
 
 const freeze = Object.freeze;
 
@@ -235,6 +241,17 @@ function drawTrees(scene, wind) {
 
 const START_LEVEL = 'ground';
 
+// The house's lines for its data's `words` ids (housethings.js), in the word set of the moment.
+function houseWords() {
+  return {
+    'house.scenic.clock': phrase('house.scenic.clock'),
+    'house.scenic.fireside': phrase('house.scenic.fireside'),
+    'house.scenic.attic-window': phrase('house.scenic.attic-window'),
+    'house.yarn.hall': phrase('house.yarn.hall'),
+    'house.yarn.kitchen': phrase('house.yarn.kitchen'),
+  };
+}
+
 // The rooms furnished (houseplan.js HOUSE_FURNITURE, houseparts.js draws each piece).
 // A piece that fades (houseplan.js fades: every tall piece, TALL_H and up, ruling H8, and
 // the low ledge pieces the camera can come down inside, ruling S2-4) is a top-level group
@@ -371,6 +388,7 @@ export function build(scene, { wind, gateEnds } = {}) {
     drawTrees(scene, wind);
 
     const floor = houseFloorGround();
+    const said = houseWords();
     const areaData = {
       name: words().PLACE_WORDS.house,
       ground: plan.ground,
@@ -380,8 +398,17 @@ export function build(scene, { wind, gateEnds } = {}) {
       kittenHome: { ...HOUSE_KITTEN_HOME }, // Mochi's circle: the hall's middle, clear of the door and the lamp
       pois: [],
       collectibles: [],
-      scenics: [],
-      critterSpawns: [], // no people and no resident cat in step 1 (U14)
+      // the grandfather clock, the fireside, the round attic window (step 2, D13)
+      scenics: HOUSE_SCENICS.map((c) => ({ id: c.id, x: c.x, z: c.z, label: said[c.words] })),
+      // mice in the pantry corner and the cellar, and nothing else: no people, no resident cat (U14, D10)
+      critterSpawns: HOUSE_MICE.map(({ room, ...m }) => m), // eslint-disable-line no-unused-vars
+      goldMice: HOUSE_GOLD_MICE, // outside GOLD_MICE (D5)
+      knockables: HOUSE_KNOCKABLES, // on the perches' pieces (D4)
+      hides: HOUSE_HIDES, // the mice's cover, each in its mouse's room (D10)
+      yarnSpots: HOUSE_YARN_SPOTS.map((s) => ({ x: s.x, z: s.z, where: said[s.words] })), // D14
+      goalTypes: HOUSE_GOAL_TYPES, // D11
+      mapShapes: houseMapShapes(), // the floor plan (D12)
+      mapGround: HOUSE_MAP_GROUND,
       moments: [],
       puddles: [],
       boxes: [],
@@ -408,6 +435,8 @@ export function build(scene, { wind, gateEnds } = {}) {
         secret: { group: secretGroup, shut: secretColliders(false), open: secretColliders(true) },
         // the ground without the ledges: the level drawing reads the floor under her (step 2, D3)
         floor,
+        // the six discoveries' spots (step 2, D6): house life runs them
+        finds: HOUSE_FINDS,
       },
     };
     // every frame: the walls between the camera and the cat sink, and the levels are drawn for hers

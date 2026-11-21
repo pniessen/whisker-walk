@@ -218,8 +218,12 @@ export const HOUSE_FURNITURE = frozenAll([
   piece('kitchen-table', 'kitchen', 'table', 9.0, -3.2, FACE_S, 1.5, 0.9, 0.76, 0.45),
   piece('kitchen-chair-a', 'kitchen', 'chair', 8.6, -4.0, FACE_S, 0.45, 0.45, 0.95, 0.23),
   piece('kitchen-chair-b', 'kitchen', 'chair', 9.4, -2.4, FACE_N, 0.45, 0.45, 0.95, 0.23),
+  // step 2 (D10): a tall pantry cupboard on the east wall, flour sacks beside it: the mice's corner
+  piece('kitchen-pantry', 'kitchen', 'pantry', 13.65, -1.6, FACE_W, 1.2, 0.5, 2.0, 0.25),
+  piece('kitchen-sacks', 'kitchen', 'sacks', 13.6, -0.35, FACE_W, 0.7, 0.5, 0.55, 0.25),
   // the parlour: the fireplace on the east wall, two armchairs at it, a side table, the piano, a rug
-  piece('parlour-fire', 'parlour', 'fireplace', 13.5, 7.0, FACE_W, 1.9, 0.8, 1.3, 0.28),
+  // its mantel is 1.3 m (step 2: the knock-over perch's top); the clock and candles on it reach 1.5
+  piece('parlour-fire', 'parlour', 'fireplace', 13.5, 7.0, FACE_W, 1.9, 0.8, 1.5, 0.28),
   piece('parlour-chair-a', 'parlour', 'armchair', 11.0, 5.5, 1.03, 0.85, 0.85, 1.05, 0.42, 'parlour'),
   piece('parlour-chair-b', 'parlour', 'armchair', 11.0, 8.5, 2.11, 0.85, 0.85, 1.05, 0.42, 'parlour'),
   piece('parlour-sidetable', 'parlour', 'sidetable', 10.5, 7.0, 0, 0.5, 0.5, 0.62, 0.25),
@@ -227,6 +231,8 @@ export const HOUSE_FURNITURE = frozenAll([
   fadingLedge('parlour-piano', 'parlour', 'piano', 8.7, 11.6, FACE_N, 1.5, 0.6, 1.3, 0.3),
   fadingLedge('parlour-keys', 'parlour', 'keys', 8.7, 11.15, FACE_N, 1.3, 0.3, 0.75, 0.15),
   piece('parlour-rug', 'parlour', 'rug', 11.2, 7.0, FACE_S, 2.4, 3.2, 0.012, 0, 'rugRed'),
+  // step 2 (D6): an old cushion on the hearth with a cat-shaped dent in it, walked over
+  piece('parlour-cushion', 'parlour', 'cushion', 12.7, 7.0, FACE_W, 0.7, 0.7, 0.08, 0),
   // the bedroom: a big bed, a wardrobe, a chest of drawers, a bedside table, a rug
   piece('bedroom-bed', 'bedroom', 'bed', 0.85, -12.0, FACE_W, 1.6, 2.1, 1.1, 0.75),
   piece('bedroom-bedside', 'bedroom', 'bedside', 1.62, -13.25, FACE_W, 0.45, 0.45, 0.62, 0.22),
@@ -243,6 +249,8 @@ export const HOUSE_FURNITURE = frozenAll([
   piece('attic-trunk', 'attic', 'trunk', -19.8, -15.58, FACE_S, 1.1, 0.64, 0.62, 0.32),
   piece('attic-chair', 'attic', 'chair', -21.9, -12.6, 1.2, 0.5, 0.7, 0.95, 0.3, 'rocking'),
   piece('attic-rug', 'attic', 'rug', -19.5, -12.2, FACE_S, 2.4, 1.8, 0.012, 0, 'rugBlue'),
+  // step 2 (D6): a box of old toys against the north wall
+  piece('attic-toybox', 'attic', 'toybox', -17.6, -15.65, FACE_S, 0.8, 0.5, 0.5, 0.25),
   // step 2 (D2): a window seat under the round window. 0.55 m, not 0.5: a climb or a drop must
   // change height by more than LEVEL_TOL (0.5, traversal.js), or it is no climb at all
   ledge('attic-seat', 'attic', 'seat', -23.6, -11.0, FACE_E, 1.6, 0.6, 0.55, 0.3),

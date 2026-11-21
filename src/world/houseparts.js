@@ -1100,7 +1100,8 @@ const BUILDERS = {
     for (const s of [-1, 1]) p.cyl(0.018, 0.026, 1.98, 2.08, 6, 'gold', s * (hw - 0.06), 0);
   },
 
-  // a hall console table on slim legs, a shelf low down, a china vase and a brass bowl on top
+  // a hall console table on slim legs, a shelf low down, a china vase on top (its brass
+  // bowl made way for the flowerpot she knocks off, step 2)
   console(p, { w, d, h }) {
     const hw = w / 2, hd = d / 2;
     p.box(-hw, hw, h - 0.04, h, -hd, hd, 'darkWood');
@@ -1108,7 +1109,6 @@ const BUILDERS = {
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) p.box(sx * (hw - 0.05) - 0.025, sx * (hw - 0.05) + 0.025, 0, h - 0.14, sz * (hd - 0.05) - 0.025, sz * (hd - 0.05) + 0.025, 'darkWood', ['y-', 'y+']);
     p.box(-hw + 0.07, hw - 0.07, 0.14, 0.17, -hd + 0.06, hd - 0.06, 'darkWood');
     p.cyl(0.05, 0.08, h, h + 0.2, 10, 'rugBlue', -hw + 0.25, 0);
-    p.cyl(0.11, 0.06, h, h + 0.05, 12, 'gold', hw - 0.3, 0.02);
   },
 
   // an oak settle: a boxed seat, a panelled back, arms at its ends, a long cushion
@@ -1293,21 +1293,24 @@ const BUILDERS = {
   },
 
   // a fireplace on the wall: a cream surround, a dark wood mantel, a grate with logs, a hearth, things on the mantel
+  // step 2: the mantel's top is 1.3 m, the knock-over perch's height (housemoves.js), and the
+  // things on it stand up to the piece's h
   fireplace(p, { w, d, h }) {
     const hw = w / 2, hd = d / 2;
     const sd = 0.36;
+    const top = 1.3;
+    const under = top - 0.06;
     p.box(-hw - 0.04, hw + 0.04, 0, 0.04, -hd, hd, 'stone', ['y-']);
-    for (const s of [-1, 1]) p.box(s > 0 ? hw - 0.28 : -hw, s > 0 ? hw : -hw + 0.28, 0.04, 1.1, -hd, -hd + sd, 'plaster', ['y-', 'y+']);
-    p.box(-hw + 0.28, hw - 0.28, 0.84, 1.1, -hd, -hd + sd - 0.02, 'plaster', ['y+']);
+    for (const s of [-1, 1]) p.box(s > 0 ? hw - 0.28 : -hw, s > 0 ? hw : -hw + 0.28, 0.04, under, -hd, -hd + sd, 'plaster', ['y-', 'y+']);
+    p.box(-hw + 0.28, hw - 0.28, 0.84, under, -hd, -hd + sd - 0.02, 'plaster', ['y+']);
     p.box(-hw + 0.28, hw - 0.28, 0.04, 0.84, -hd, -hd + 0.05, 'navy', ['y-', 'x-', 'x+']);
     for (const s of [-1, 1]) p.box(s > 0 ? hw - 0.3 : -hw + 0.28, s > 0 ? hw - 0.28 : -hw + 0.3, 0.04, 0.84, -hd + 0.05, -hd + sd - 0.02, 'navy', ['y-', 'y+']);
-    p.box(-hw - 0.05, hw + 0.05, 1.1, 1.16, -hd, -hd + sd + 0.08, 'darkWood');
+    p.box(-hw - 0.05, hw + 0.05, under, top, -hd, -hd + sd + 0.08, 'darkWood');
     p.box(-0.32, 0.32, 0.14, 0.17, -hd + 0.08, -hd + 0.3, 'navy');
     for (const s of [-1, 1]) p.box(s * 0.3 - 0.02, s * 0.3 + 0.02, 0.04, 0.14, -hd + 0.26, -hd + 0.3, 'navy', ['y-']);
     p.box(-0.24, 0.24, 0.17, 0.2, -hd + 0.1, -hd + 0.26, 'red', ['y-']);
     p.cyl(0.055, 0.055, -0.25, 0.25, 7, 'darkWood', 0, -hd + 0.15, (g) => { alongX(g); g.translate(0, 0.25, 0); });
     p.cyl(0.05, 0.05, -0.22, 0.22, 7, 'oak', 0.02, -hd + 0.23, (g) => { g.rotateY(0.15); alongX(g); g.translate(0, 0.24, 0); });
-    const top = 1.16;
     const mz = -hd + 0.18;
     p.box(-0.1, 0.1, top, top + 0.13, mz - 0.05, mz + 0.05, 'darkWood', ['y-']);
     p.cyl(0.045, 0.045, mz + 0.05, mz + 0.056, 12, 'white', 0, 0, (g) => { alongZ(g); g.translate(0, top + 0.075, 0); });
@@ -1586,6 +1589,41 @@ const BUILDERS = {
     p.box(0.14, 0.4, top + 0.04, h, -hd + 0.05, -hd + 0.08, 'sky');
   },
 
+  // a tall pantry cupboard (step 2): a plinth, two panelled doors with brass knobs, a cornice
+  pantry(p, { w, d, h }) {
+    const hw = w / 2, hd = d / 2;
+    p.box(-hw + 0.03, hw - 0.03, 0, 0.1, -hd + 0.03, hd - 0.05, 'darkWood', ['y-', 'y+']);
+    p.box(-hw, hw, 0.1, h - 0.1, -hd, hd - 0.02, 'pine', ['y-', 'y+']);
+    p.box(-hw - 0.03, hw + 0.03, h - 0.1, h, -hd, hd + 0.02, 'lightWood', ['y-']);
+    for (const s of [-1, 1]) {
+      const x0 = s > 0 ? 0.01 : -hw + 0.04, x1 = s > 0 ? hw - 0.04 : -0.01;
+      p.box(x0, x1, 0.16, h - 0.16, hd - 0.02, hd - 0.008, 'lightWood', ['z-', 'y-']);
+      for (const [y0, y1] of [[0.26, 0.86], [0.98, h - 0.26]]) p.box(x0 + 0.06, x1 - 0.06, y0, y1, hd - 0.008, hd - 0.002, 'pine', ['z-', 'y-', 'x-', 'x+', 'y+']);
+      p.box(s * 0.05 - 0.012, s * 0.05 + 0.012, 0.9, 0.96, hd - 0.008, hd + 0.008, 'gold', ['z-']);
+    }
+  },
+
+  // two flour sacks slumped against the wall (step 2), their necks tied with string
+  sacks(p, f) {
+    const { w, d, h } = f;
+    const r = Math.min(d / 2 - 0.02, w / 4);
+    for (const [i, x, hh] of [[0, -w / 4, h], [1, w / 4, h * 0.85]]) {
+      p.prim(new THREE.SphereGeometry(r, 9, 7), i ? 'tan' : 'white', x, hh * 0.42, 0, (g) => g.scale(1, (hh * 0.84) / (2 * r), 0.9));
+      p.cyl(r * 0.35, r * 0.5, hh * 0.78, hh, 7, i ? 'tan' : 'white', x, -0.02);
+      p.cyl(r * 0.38, r * 0.38, hh * 0.84, hh * 0.88, 7, 'brown', x, -0.02);
+    }
+  },
+
+  // an old painted toy box (step 2): a lid with a lip, iron corners, a name plate
+  toybox(p, { w, d, h }) {
+    const hw = w / 2, hd = d / 2;
+    p.box(-hw, hw, 0.02, h - 0.07, -hd, hd, 'rose', ['y-', 'y+']);
+    p.box(-hw - 0.015, hw + 0.015, h - 0.07, h, -hd - 0.015, hd + 0.015, 'lightWood', ['y-']);
+    for (const sx of [-1, 1]) p.box(sx * hw - (sx > 0 ? 0.04 : 0), sx * hw + (sx < 0 ? 0.04 : 0), 0.02, h - 0.07, hd, hd + 0.008, 'navy', ['z-', 'y-']);
+    p.box(-0.12, 0.12, h * 0.45, h * 0.62, hd, hd + 0.008, 'white', ['z-']);
+    p.box(-0.03, 0.03, h - 0.12, h - 0.07, hd, hd + 0.012, 'gold', ['z-']);
+  },
+
   // stacked boxes, no higher than the piece: two on the floor, two on top, a hatbox, tape on the lids
   boxes(p, { w, d, h }) {
     const hw = w / 2, hd = d / 2;
@@ -1680,6 +1718,17 @@ const FLAT_BUILDERS = {
     swFace(p.kit, 'x', -hw, -1, rect(-hd, hd, 0, h), brown);
   },
   runner(p, f) { FLAT_BUILDERS.rug(p, { ...f, look: f.look ?? 'rugBlue' }); },
+  // an old round cushion on the hearth (step 2) with a cat-shaped dent in it: a curled
+  // body, a head and a tail pressed in, as if someone else naps here too
+  cushion(p, { w, h }) {
+    const r = w / 2;
+    p.cyl(r, r * 0.94, 0, h, 16, 'sky', 0, 0);
+    p.cyl(r * 0.97, r * 0.97, h * 0.45, h * 0.6, 16, 'gold', 0, 0);
+    const dent = (rx, rz, x, z) => p.cyl(1, 1, h, h + 0.003, 12, 'blue', x, z, (g) => g.scale(rx, 1, rz));
+    dent(0.17, 0.12, 0.02, 0.02);
+    dent(0.07, 0.065, -0.17, -0.1);
+    dent(0.1, 0.035, 0.12, -0.15);
+  },
   // a web across a floor corner: from the corner seam (h up) to its two walls, five
   // radials and three rings of thin strands, both faces (no back-face material)
   cobweb(p, { w, d, h }) {
