@@ -95,7 +95,7 @@ describe('the alley door', () => {
   });
 
   it('it opens into the place, not through the wall', () => {
-    expect(openAngle('alleydoor')).toBe(-LEAF_OPEN);
+    expect(openAngle('alleydoor')).toBe(-(Math.PI - 0.12));
     expect(openAngle('signpost')).toBe(LEAF_OPEN);
     const end = alley();
     const scene = new THREE.Scene();
@@ -106,7 +106,14 @@ describe('the alley door', () => {
     scene.updateMatrixWorld(true);
     const leaf = scene.children.find((c) => c.userData.endId === end.id).getObjectByName('gateLeaf');
     const mid = new THREE.Box3().setFromObject(leaf).getCenter(new THREE.Vector3());
-    expect(mid.z).toBeLessThan(end.z - 0.5);
+    // folded back flat against the wall: inward side or on the edge line, the
+    // far end near the line, all of it beyond the hinge post away from the latch
+    const box = new THREE.Box3().setFromObject(leaf);
+    expect(box.max.z).toBeLessThanOrEqual(end.z + 0.01);
+    expect(box.min.z).toBeGreaterThanOrEqual(end.z - 0.5);
+    expect(mid.z).toBeLessThan(end.z + 0.01);
+    // south-facing: local +x is world -x, so the hinge post is at end.x + GATE_HALF
+    expect(box.min.x).toBeGreaterThanOrEqual(end.x + GATE_HALF - 0.01);
     d.setOpen(end.id, false);
     expect(list).toHaveLength(LEAF_BLOCKS);
   });

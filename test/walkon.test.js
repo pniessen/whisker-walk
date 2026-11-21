@@ -10,7 +10,7 @@ import { endById } from '../src/gateways.js';
 import { postsFor } from '../src/borderposts.js';
 import { postStatus } from '../src/bordercross.js';
 import { CATALOG } from '../src/progression.js';
-import { LEAF_OPEN, LEAF_R, LEAF_BLOCKS, NO_GATES } from '../src/world/gateway.js';
+import { openAngle, LEAF_OPEN, LEAF_R, LEAF_BLOCKS, NO_GATES } from '../src/world/gateway.js';
 import { phrase } from '../src/clanphrases.js';
 import { diagnostics } from '../src/diagnostics.js';
 import { mulberry32 } from '../src/rng.js';
@@ -338,7 +338,7 @@ describe('walking on between the town and the Rooftops', () => {
     // the door is drawn, open (the town is hers), its leaf turned into the alley
     const door = s.scene.children.find((c) => c.name === 'gateway' && c.userData.endId === 'roofs-town');
     expect(door).toBeTruthy();
-    expect(door.getObjectByName('gateHinge').rotation.y).toBe(-LEAF_OPEN);
+    expect(door.getObjectByName('gateHinge').rotation.y).toBe(openAngle('alleydoor'));
   }, WALK_MS);
 
   it('from the Rooftops through the alley door: the town walk starts just inside its north signpost, facing south', async () => {
