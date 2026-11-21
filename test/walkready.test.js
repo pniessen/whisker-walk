@@ -5,7 +5,8 @@ import { NO_FARM } from '../src/farmnone.js';
 import { NO_FAIR } from '../src/fairnone.js';
 import { createAreaLoader } from '../src/game/areaload.js';
 import { GETTING_READY_DELAY_MS, RELOAD_AFTER_FAILURES } from '../src/game/walk.js';
-import { lifecycle, controlledLoader, fakeEl } from './helpers/walklife.js';
+import { lifecycle, controlledLoader, fakeEl, memStorage } from './helpers/walklife.js';
+import { RESUME_KEY, pickUpWalk, readResume, snapshotWalk, writeResume } from '../src/game/walkresume.js';
 
 // =============================================================================
 // F6: a walk loads its place before it starts (walk.js startWalkWhenReady).
@@ -365,5 +366,129 @@ describe('what comes with each place', () => {
     expect(park.getSession().farm).toBe(NO_FARM);
     expect(park.getSession().fair).toBe(NO_FAIR);
     end(park);
+  });
+});
+
+// Mid-walk resume (walkresume.js pickUpWalk, main.js's boot): a walk picked up
+// again waits for its place like any start. A place that does not come keeps
+// her home with the note left, its try counted, for a later launch
+// (RESUME_MAX_TRIES settles it then). A build that throws, straight away or
+// once the place has come, settles the walk now: the note is forgotten, the
+// walk counts as walked, and a half-built walk starts the page again clean.
+describe('a walk picked up again waits for its place', () => {
+  // A real note, from a real Park walk.
+  async function parkNote() {
+    const ctl = controlledLoader();
+    await ctl.areas.ensure('park');
+    const life = lifecycle({ areas: ctl.areas });
+    life.w.startWalkWhenReady({ areaOverride: 'park' });
+    const data = snapshotWalk(life.getSession(), { yaw: 0.5, now: Date.now() });
+    end(life);
+    expect(data).toMatchObject({ areaId: 'park', tries: 0 });
+    return data;
+  }
+  const read = (storage) => readResume(storage, { now: Date.now(), areaIds: ['park'] });
+  function pickUp(life, storage, data) {
+    const rec = { reloads: 0 };
+    const p = pickUpWalk({
+      storage, data, progression: life.progression,
+      startWalkWhenReady: life.w.startWalkWhenReady,
+      getSession: life.getSession,
+      reload: () => { rec.reloads++; },
+    });
+    return { p, rec };
+  }
+
+  it('a place already here picks the walk up in the same tick', async () => {
+    const data = await parkNote();
+    const ctl = controlledLoader();
+    await ctl.areas.ensure('park');
+    const life = lifecycle({ areas: ctl.areas });
+    const storage = memStorage();
+    writeResume(storage, data);
+    const { p } = pickUp(life, storage, data);
+    expect(life.getSession()?.areaId).toBe('park');
+    expect(life.getSession().resumed).toBe(true);
+    expect(await p).toBe('started');
+    expect(read(storage).data.tries).toBe(1);
+    end(life);
+  });
+
+  it('a place that does not come keeps her home and the note, with its try counted', async () => {
+    const data = await parkNote();
+    const ctl = controlledLoader();
+    const park = ctl.hold('park');
+    const life = lifecycle({ areas: ctl.areas });
+    const storage = memStorage();
+    writeResume(storage, data);
+    const walked = life.progression.state.walks.park ?? 0;
+    const { p, rec } = pickUp(life, storage, data);
+    expect(read(storage).data.tries).toBe(1); // counted before the wait
+    park.fail();
+    expect(await p).toBe('failed');
+    expect(life.getSession()).toBe(null);
+    expect(life.rec.toasts).toEqual([phrase('start.notReady')]);
+    expect(read(storage)).toEqual({ kind: 'resume', data: { ...data, tries: 1 } });
+    expect(life.progression.state.walks.park ?? 0).toBe(walked); // not settled yet
+    expect(rec.reloads).toBe(0);
+  });
+
+  it('a build that throws once the place has come settles the walk, and never throws out', async () => {
+    const data = await parkNote();
+    const ctl = controlledLoader();
+    const park = ctl.hold('park');
+    const life = lifecycle({ areas: ctl.areas });
+    const storage = memStorage();
+    writeResume(storage, data);
+    const walked = life.progression.state.walks.park ?? 0;
+    vi.spyOn(life.progression, 'catScars').mockImplementation(() => { throw new Error('build broke'); });
+    const { p, rec } = pickUp(life, storage, data);
+    park.release();
+    expect(await p).toBe('settled');
+    expect(storage.getItem(RESUME_KEY)).toBe(null);
+    expect(read(storage)).toBe(null);
+    expect(life.progression.state.walks.park).toBe(walked + 1); // it counts as walked
+    expect(life.getSession()).toBe(null);
+    expect(rec.reloads).toBe(0); // nothing half-built: home is fine as it is
+  });
+
+  it('a build that throws in the same tick is settled the same way', async () => {
+    const data = await parkNote();
+    const ctl = controlledLoader();
+    await ctl.areas.ensure('park');
+    const life = lifecycle({ areas: ctl.areas });
+    const storage = memStorage();
+    writeResume(storage, data);
+    const walked = life.progression.state.walks.park ?? 0;
+    vi.spyOn(life.progression, 'catScars').mockImplementation(() => { throw new Error('build broke'); });
+    let picked;
+    expect(() => { picked = pickUp(life, storage, data); }).not.toThrow();
+    expect(await picked.p).toBe('settled');
+    expect(read(storage)).toBe(null);
+    expect(life.progression.state.walks.park).toBe(walked + 1);
+    expect(picked.rec.reloads).toBe(0);
+  });
+
+  it('a walk half-built when it threw starts the page again, once', async () => {
+    const data = await parkNote();
+    const ctl = controlledLoader();
+    const park = ctl.hold('park');
+    const life = lifecycle({ areas: ctl.areas });
+    const storage = memStorage();
+    writeResume(storage, data);
+    // marksIn is read before the session is set and again after: the second
+    // read throws, with the session already in place
+    const real = life.progression.marksIn.bind(life.progression);
+    let reads = 0;
+    vi.spyOn(life.progression, 'marksIn').mockImplementation((...a) => {
+      if (++reads === 2) throw new Error('late build broke');
+      return real(...a);
+    });
+    const { p, rec } = pickUp(life, storage, data);
+    park.release();
+    expect(await p).toBe('settled');
+    expect(life.getSession()).not.toBe(null);
+    expect(rec.reloads).toBe(1);
+    expect(read(storage)).toBe(null);
   });
 });
