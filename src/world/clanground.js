@@ -25,7 +25,7 @@
 // No rng, no state: both devices judge every point the same.
 import { isWalkableAt } from '../player.js';
 import { keepOutPoint } from '../keepout.js';
-import { TRUCE_PATH, BRIDGE_FOOT } from './pines.js';
+import { TRUCE_PATH, BRIDGE_FOOT } from './pinespaths.js';
 
 const PATH_HALF = 1.5;
 const TRUCE_CLEAR = 3;

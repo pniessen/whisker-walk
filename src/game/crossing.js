@@ -25,6 +25,11 @@ export function swallowsCanvasClick(s) {
 export function createCrossing({
   getSession, overlay, hud, releaseControl, resumeWalk, endWalk, getIsTouch, getEdition,
   getSound = () => null, catalog = CATALOG, setTimeout = globalThis.setTimeout,
+  // F6: the place over the border is its own download. A yes (or the host's
+  // lead) starts fetching it at once, so it is likely here by the time the
+  // summary's Continue starts the walk there. main.js passes the area
+  // loader's prefetch, which never throws.
+  prefetchArea = () => {},
 }) {
   function restoreCard(s) {
     overlay.innerHTML = pauseCardFor(s, getIsTouch(), getSound());
@@ -56,6 +61,7 @@ export function createCrossing({
     if (!s || !s.crossing) return;
     if (s.crossing.going) return; // a second click changes nothing
     const to = s.crossing.to;
+    prefetchArea(to);
     if (!s.net) {
       endWalk({ crossTo: to });
       return;
@@ -92,6 +98,7 @@ export function createCrossing({
       areaId: s.areaId, selfId: s.playerId, remoteIds: remotes.map((r) => r.playerId), catalog,
     });
     if (!d) return;
+    prefetchArea(d.to);
     s.crossLed = true;
     const together = remotes.map((r) => r.petName);
     const name = remotes.find((r) => r.playerId === ev.id)?.petName ?? 'A friend';

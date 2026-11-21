@@ -11,8 +11,9 @@ import { createClanFight } from '../src/game/clanfight.js';
 function setup({ session = {}, touch = false } = {}) {
   const overlay = { innerHTML: '' };
   const s = { welcome: 'Welcome home!', race: null, quest: null, carry: { mouth: { held: null } }, ...session };
-  const calls = { release: 0, resume: 0, endWalk: [] };
+  const calls = { release: 0, resume: 0, endWalk: [], prefetch: [] };
   const crossing = createCrossing({
+    prefetchArea: (id) => calls.prefetch.push(id),
     getSession: () => s,
     overlay,
     hud: { toast() {} },
@@ -40,6 +41,20 @@ describe('the crossing card', () => {
     expect(calls.release).toBe(1);
     crossing.confirm();
     expect(calls.endWalk).toEqual([{ crossTo: 'moor' }]);
+  });
+
+  // F6: the place over the border is its own download. A yes starts fetching
+  // it at once, so it is likely here by the time the summary's Continue asks.
+  it('a yes starts fetching the place over the border; asking alone, cancelling or a second yes does not', () => {
+    const { crossing, s, calls } = setup();
+    crossing.ask(s, goData());
+    crossing.cancel();
+    expect(calls.prefetch).toEqual([]);
+    crossing.confirm(); // no card up: nothing
+    expect(calls.prefetch).toEqual([]);
+    crossing.ask(s, goData());
+    crossing.confirm();
+    expect(calls.prefetch).toEqual(['moor']);
   });
 
   it('keep exploring restores the pause card and leaves the race running', () => {
@@ -167,13 +182,15 @@ describe('crossing together', () => {
       net: { isHost: () => host, sendEvent: (e) => sent.push(e) },
     };
     const endWalk = vi.fn();
+    const prefetched = [];
     let current = s;
     const crossing = createCrossing({
+      prefetchArea: (id) => prefetched.push(id),
       getSession: () => current, overlay, hud: { toast: (t) => toasts.push(t) },
       releaseControl() {}, resumeWalk() {}, endWalk, getIsTouch: () => false, getEdition: () => edition,
       catalog: CATALOG, setTimeout: globalThis.setTimeout,
     });
-    return { crossing, s, sent, toasts, endWalk, overlay, replace: (o) => { current = o; } };
+    return { crossing, s, sent, toasts, endWalk, overlay, prefetched, replace: (o) => { current = o; } };
   }
   const ev = (o = {}) => ({ v: 1, id: 'b', type: 'border-cross', from: 'woods', to: 'moor', ...o });
   const goData2 = () => goData();
@@ -192,6 +209,27 @@ describe('crossing together', () => {
     expect(endWalk).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(endWalk.mock.calls).toEqual([[{ crossTo: 'moor' }]]);
+  });
+
+  it("the host's yes fetches the place over the border, once", () => {
+    const { crossing, s, prefetched } = room();
+    crossing.ask(s, goData2());
+    crossing.confirm();
+    crossing.confirm();
+    expect(prefetched).toEqual(['moor']);
+    vi.advanceTimersByTime(1000);
+    expect(prefetched).toEqual(['moor']);
+  });
+
+  it('a guest led over the border fetches that place as soon as it hears, and a forged event fetches nothing', () => {
+    const { crossing, s, prefetched } = room({ selfId: 'c', remotes: [{ playerId: 'a', petName: 'Pip' }] });
+    crossing.onRemote(s, ev({ id: 'zzz' }));
+    crossing.onRemote(s, ev({ id: 'a', to: 'nowhere' }));
+    expect(prefetched).toEqual([]);
+    crossing.onRemote(s, ev({ id: 'a' }));
+    expect(prefetched).toEqual(['moor']);
+    crossing.onRemote(s, ev({ id: 'a' })); // a duplicate
+    expect(prefetched).toEqual(['moor']);
   });
 
   it('a second yes does not send or end twice', () => {

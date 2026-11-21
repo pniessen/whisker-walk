@@ -3,7 +3,10 @@ import * as b from './builder.js';
 import { addTrails } from './pathribbon.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
-import { ISLAND_BRIDGE_WOODS, fromWoods, fromWoodsDisc, islandBridgePlank } from './lake.js';
+import { fromWoodsDisc, islandBridgePlank } from './lake.js';
+import { PINES_PATHS, BRIDGE_FOOT } from './pinespaths.js';
+
+export { PINES_PATHS, TRUCE_PATH, BRIDGE_FOOT } from './pinespaths.js';
 import {
   ISLAND_LAND, BRIDGE_DECK, ISLAND_KEEP_OUT, LAKE_BOX, BAY_BOX,
   ISLAND_POIS, ISLAND_SCENICS, ISLAND_COLLECTIBLES, ISLAND_PERCHES, MEETING_STONES, ISLAND_BUSHES,
@@ -233,32 +236,9 @@ const WATER_LOOK = {
   'moor-mouth': { y: 0.045, shores: [], foamStrength: 0.22 },
 };
 
-// The paths, as [x1, z1, x2, z2] centreline segments, all 3 m wide. The truce
-// path comes in from the River (lined up with the River's own north path) and
-// winds east to the bridge foot; the pine path runs north from its bend up to
-// the log bridge (the bridge is the gap after its end); the east path leaves
-// it for the forest's east side; the swamp path goes from the truce path's
-// first bend up the swamp to the stepping stones (the gap after it); the two
-// deep-swamp paths meet in the corner, one from each crossing.
-export const PINES_PATHS = Object.freeze([
-  // the truce path
-  [-26, 50, -26, 34], [-26, 34, -10, 18], [-10, 18, -4, 2], [-4, 2, 10.6, 2.5],
-  // the pine path
-  [-4, 2, -8, -18], [-8, -18, -24, -30],
-  // the east path
-  [-8, -18, 18, -26], [18, -26, 40, -4],
-  // the swamp path
-  [-26, 34, -36, 6], [-36, 6, -42, -3],
-  // the deep-swamp paths
-  [-42, -14, -44, -36], [-35, -30, -44, -36],
-].map((s) => Object.freeze(s)));
 const PATH_W = 3;
 const PATH_STYLE = { surface: 'sand', color: 0x6a5640 };
 
-// The truce path on its own: from the River's border to 2.3 m short of the
-// bridge foot. Exported so a later plan's patrols can keep off it: crossing
-// Pines land to the bridge never starts a chase.
-export const TRUCE_PATH = Object.freeze(PINES_PATHS.slice(0, 4));
 
 // The island out on the lake: the one island every shore shows, moved into
 // this frame by lake.js. Here it is flat ground (ISLAND_LAND, island.js), cut
@@ -266,10 +246,6 @@ export const TRUCE_PATH = Object.freeze(PINES_PATHS.slice(0, 4));
 // neighbours paint it with.
 export const PINES_ISLAND = fromWoodsDisc('pines');
 
-// The island bridge, written once in Woods coordinates (lake.js) so no two
-// maps can disagree about it. Its shore end is the bridge foot, 0.2 m onto
-// the bay's north shore, where the truce path meets the deck.
-export const BRIDGE_FOOT = Object.freeze(fromWoods('pines', ...ISLAND_BRIDGE_WOODS[1]));
 
 // The two truce stones, standing either side of the bridge foot on dry land:
 // a mark that the path ends here and the lake begins. Each a collider, so a
@@ -711,7 +687,7 @@ export function pinesFloor() {
 // The Pines' ground multiplier (forestfloor.js pinesFloorTint): needle beds
 // under the pines, moss between, plain on the island and over the ground's
 // last 8 m. Built once; the ground is tinted with it and grass.js's tufts
-// read it (GROUND_TINTS).
+// read it (GRASS_HOOKS.tint).
 const ISLAND_PLAIN = Object.freeze({ x: ISLAND_LAND.x, z: ISLAND_LAND.z, r: ISLAND_LAND.r + 1 });
 export const PINES_ISLAND_PLAIN = ISLAND_PLAIN;
 const pinesTint = once(() => {
@@ -1108,3 +1084,6 @@ export function build(scene, { water = {}, wind } = {}) {
     ...(standFade ? { life: (ctx) => grow.createStandFade(scene, standFade, { reducedMotion: ctx?.reducedMotion }) } : {}),
   };
 }
+
+// What the grass asks this area for (render/grass.js grassStyle, createGrass).
+export const GRASS_HOOKS = Object.freeze({ tint: pinesGroundTint, bare: null });

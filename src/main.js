@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { bus } from './events.js';
 import { createPlayer } from './player.js';
 import { coatColor, CAT_LOOK_Y } from './cat/model.js';
-import { resumableAreaIds, roofsOn, loadRoofs } from './roofsflag.js';
+import { resumableAreaIds, roofsOn } from './roofsflag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { createProgression, rankFor, CATALOG } from './progression.js';
 import { colonyNews, tradeEffect } from './colony.js';
@@ -47,10 +47,13 @@ import { createGuideWalk } from './game/guidewalk.js';
 import { createGuideBubble } from './ui/guidebubble.js';
 import { createButtonUses } from './ui/buttonwords.js';
 import { tickAutoSniff } from './game/autosniff.js';
+import { createAreaLoader } from './game/areaload.js';
+import { effectiveArea } from './edition.js';
 import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode, SKIP_LESSON_ID, PAUSE_SOUND_ID, PAUSE_MUSIC_ID, PAUSE_VIEW_CLASS, pauseSoundOf } from './game/walk.js';
 import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
 import { shareYarn, toyForState } from './game/yarnshare.js';
+import { liftForState } from './remotecats.js';
 import { placeInMouth } from './carryables.js';
 import { hintMax } from './hints.js';
 import { line as tutorialLine } from './tutorialwords.js';
@@ -62,7 +65,7 @@ import { createCrossing, swallowsCanvasClick } from './game/crossing.js';
 import { createFindCard, shadowMinPartNow } from './game/findcard.js';
 import { findBusy, handleFindArrival } from './foundwear/play.js';
 import { tickFindNose } from './foundwear/live.js';
-import { readResume, writeResume, clearResume, markTried, snapshotWalk, settleAbandoned } from './game/walkresume.js';
+import { readResume, writeResume, clearResume, snapshotWalk, settleAbandoned, pickUpWalk } from './game/walkresume.js';
 import { sheetTopFrom } from './fightcam.js';
 import { diagnostics, note, listenForErrors } from './diagnostics.js';
 import { createFrameGuard, claimAutoReload, stuckNoticeHtml, WALK_ENDED_LINE, RELOAD_BUTTON_ID } from './game/recovery.js';
@@ -133,11 +136,6 @@ if (!renderer) {
 }
 
 function init() {
-  // ?roofs=1: fetch the Rooftops' drawing now, its own download, so it has
-  // come by the time Explore is pressed. Without the switch nothing fetches it.
-  // A failure here is quiet: Explore (walk.js) tries again and, failing,
-  // walks her own place.
-  if (roofsOn()) loadRoofs().catch(() => {});
   // coarse-pointer devices (phones/tablets) get a lower pixel-ratio cap here,
   // for the home base only. Walks no longer key off the pointer: each walk's
   // pixel ratio, shadows and stray count come from its quality rung, which
@@ -446,10 +444,16 @@ function init() {
     petNameFor, completeTag, noteBat,
   });
 
+  // F6: the place loader (game/areaload.js). Made before the rooms, which
+  // start fetching a gathered start's place (prefetchArea), and the walk
+  // lifecycle below, which waits for it.
+  const areas = createAreaLoader();
   // Co-walk room lobby + profile push (src/game/rooms.js). It owns
   // pendingRoom; the walk lifecycle reads it back through getPendingRoom /
-  // clearPendingRoom below. startWalk is passed as a thunk because it is
-  // declared further down — nothing can reach it before init() returns.
+  // clearPendingRoom below. Its startWalk is the walk's startWalkWhenReady
+  // (a room start waits for its place like any start), passed as a thunk
+  // because it is declared further down — nothing can reach it before init()
+  // returns.
   const {
     rooms, pushProfileNow, getPendingRoom, clearPendingRoom, startRoomTogether,
   } = createRooms({
@@ -459,7 +463,8 @@ function init() {
     progression, getCloud, getPsecret, colonySync, onlineAllowed: togetherAllowed,
     getIsTouch: () => isTouch,
     getSession: () => session,
-    startWalk: (opts) => startWalk(opts),
+    startWalk: (opts) => startWalkWhenReady(opts),
+    prefetchArea: (id) => areas.prefetch(id),
     toast: cloudToast,
   });
   // Nearby one-tap joining (src/game/nearby.js): in the app, the shell finds
@@ -493,8 +498,13 @@ function init() {
   // it — and hands the module accessors for it. getHomebase is a thunk
   // because homebase is created below (it takes beginWalkFromHomebase as its
   // Start handler), and nothing calls back into it before init() returns.
+  //
+  // F6: every place is its own download. `areas` (game/areaload.js, made
+  // above the rooms) fetches and keeps them; every walk start goes through
+  // startWalkWhenReady, which waits for its place with home up, and a place
+  // that does not come is one gentle line on the home screen (cloudToast).
   const {
-    beginWalkFromHomebase, beginDenWalk, startWalk, endWalk, takeCrossing,
+    beginWalkFromHomebase, beginDenWalk, startWalkWhenReady, endWalk, takeCrossing,
   } = createWalkLifecycle({
     MP, pid, coarse, envMap, overlay, blockList,
     renderer, camera, composerRig,
@@ -514,6 +524,8 @@ function init() {
     // purr outlive the walk it was in.
     onWalkEnded: () => { clearResume(window.localStorage); haptics.stopPurr(); tips.end(); },
     buttonUses,
+    areas,
+    homeToast: cloudToast,
   });
   // resumeWalk is a hoisted function declaration, so it is safe to pass here.
   crossing = createCrossing({
@@ -524,6 +536,7 @@ function init() {
     getIsTouch: () => isTouch,
     getEdition: () => progression.state.edition,
     getSound: pauseSound,
+    prefetchArea: (id) => areas.prefetch(id),
   });
   // Found outfits: the find card (src/game/findcard.js), Wear it / Later in
   // the pause overlay. Wear it dresses her cat in place, at the shadow trim
@@ -565,6 +578,13 @@ function init() {
   const resuming = leftWalk?.kind === 'resume';
   const visit = resuming ? { visits: progression.state.visits, milestone: null } : progression.recordVisit();
   homebase.show();
+  // F6: fetch her own place and the den now, so Explore and the den button
+  // usually find them already here. ?roofs=1 fetches the Rooftops too (her
+  // Explore goes there); without the switch nothing fetches it. A failure here
+  // is quiet: the start itself tries again, and says so if it cannot.
+  areas.prefetch(effectiveArea(progression.state, CATALOG));
+  areas.prefetch('den');
+  if (roofsOn()) areas.prefetch('roofs');
   // Rosa's one-time farewell goes up before the news (showNews yields while it is up).
   const showFarewell = () => {
     if (resuming) return; // kept for a launch that opens at home
@@ -971,36 +991,16 @@ function init() {
   // Mid-walk resume: pick up the walk the game was closed in. Last in init,
   // when everything a walk touches exists; the boot splash is still up, and
   // startWalk hides the home screen behind it (a visit celebration closes as
-  // it does for any walk). The try is counted BEFORE the build: a walk that
-  // cannot be rebuilt is settled on a later launch (RESUME_MAX_TRIES) rather
-  // than tried forever.
-  //
-  // A Rooftops walk (only noted with the switch on, resumableAreaIds) waits
-  // for its drawing to come. Home is up meanwhile; a fetch that fails leaves
-  // the note, already counted, for a later launch, and she stays home.
+  // it does for any walk). walkresume.js's pickUpWalk counts the try before
+  // the build, waits for the place like any start (home is up meanwhile; a
+  // place that does not come leaves the note for a later launch), and settles
+  // a build that throws, starting the page again if a session got half-built.
   if (resuming) {
-    const left = markTried(window.localStorage, leftWalk.data);
-    const pickUp = () => {
-      try {
-        startWalk({ duskMode: left.dusk, areaOverride: left.areaId, resume: left });
-      } catch (err) {
-        console.warn('Whisker Walk: could not pick the walk up', err);
-        note('resume', err);
-        // The walk counts as finished and is forgotten. If it got as far as a
-        // half-built session, start the page again clean: with the note gone
-        // that opens at home, once.
-        clearResume(window.localStorage);
-        settleAbandoned(progression, left);
-        if (session) window.location.reload();
-      }
-    };
-    if (left.areaId !== 'roofs') pickUp();
-    else {
-      loadRoofs().then(
-        () => { if (!session) pickUp(); },
-        (err) => { console.warn('Whisker Walk: the Rooftops did not load', err); note('roofs', err); },
-      );
-    }
+    pickUpWalk({
+      storage: window.localStorage, data: leftWalk.data, progression,
+      startWalkWhenReady, getSession: () => session,
+      reload: () => window.location.reload(), note,
+    });
   }
   // The frame guard (src/game/recovery.js holds the policy and its numbers).
   // A throw used to repeat on every frame with the game frozen. Now one is
@@ -1394,7 +1394,7 @@ function init() {
       // Clouds take the same absolute t and follow the camera, so after player.update too.
       session.clouds.update(t);
       session.ambient.update(t, session.weather.condition === 'rain' ? 1.7 : 1);
-      session.remotes.update(dt, nowSec(), session.areaData.waters);
+      session.remotes.update(dt, nowSec(), session.areaData.waters, session.fair);
       // Splashes, ripples and the wake for my cat, then each placed co-walker.
       session.splash.track(player.waterState, session.cat.position.x, session.cat.position.z, session.cat.rotation.y, player.speed, session.cat.scale.y, dt, player.hopY);
       for (const r of session.remotes.list) {
@@ -1408,7 +1408,8 @@ function init() {
       // makes a sound: a flap's soft thunk, a hedge's rustle.
       pushMovers.length = 0;
       pushMovers.push(session.cat.position);
-      for (const r of session.remotes.list) pushMovers.push(r.group.position);
+      // (only cats drawn yet: one still waiting for its first state pushes nothing)
+      for (const r of session.remotes.placed) pushMovers.push(r.group.position);
       for (const push of session.pushThroughs.update(dt, pushMovers)) {
         if (push.by === 0) (push.kind === 'gap' ? audio.zoomWind() : audio.landThump());
       }
@@ -1426,7 +1427,8 @@ function init() {
         mapFrame.camp = session.campMarker;
         mapFrame.posts = session.postMarkers;
         mapRemotes.length = 0;
-        for (const r of session.remotes.list) {
+        // a co-walker's dot from its first state, as its cat is drawn (remotecats.js)
+        for (const r of session.remotes.placed) {
           let dot = mapRemotePool[mapRemotes.length];
           if (!dot) { dot = { x: 0, z: 0, color: 0 }; mapRemotePool.push(dot); }
           dot.x = r.group.position.x;
@@ -1471,6 +1473,8 @@ function init() {
             pose: session.pose,
             speed: player.speed,
             toy: toyForState(session.toy),
+            // her height on a perch or seat, and the seat (remotecats.js liftForState)
+            ...liftForState(player.perchY, session.fair.riding),
           });
         }
       }

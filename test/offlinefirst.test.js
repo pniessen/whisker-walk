@@ -560,7 +560,11 @@ describe('where the network can start', () => {
     expect(main.match(/\bonlineAllowed\b/g)).toHaveLength(5); // a comment, the destructure, rooms, the nearby search, the pets list
     expect(main).toContain("getName: () => progression.state.petName,\n    onlineAllowed,\n  });");
     expect(main).toContain('sync.autoSync(); // fire-and-forget; no-op when unlinked/offline');
-    expect(main).not.toMatch(/fetch\(|createClient|getSupabaseClient|new WebSocket/);
+    // (main.js calling fetch() itself is test/frameorder.test.js's: it boots
+    // main.js headless with fetch stubbed, and the frame runs without it. Its
+    // text now holds areas.prefetch(), the area loader's, which this pin read
+    // as a fetch.)
+    expect(main).not.toMatch(/createClient|getSupabaseClient|new WebSocket/);
   });
   it('only cloudsync.js and rooms.js can make a cloud or a transport, and only net.js a client', () => {
     const files = ['main.js', 'game/walk.js', 'game/netevents.js', 'game/interactions.js', 'game/colonysync.js',

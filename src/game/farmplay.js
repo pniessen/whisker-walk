@@ -17,7 +17,7 @@
 // (walkresume.js `paid`): a finished job stays finished, and a find is not
 // paid or said twice.
 // =============================================================================
-import { FARM_JOB_IDS, FARM_HAT_ID, FARM_HAT_KIND, JOB, jobJournalId, findJournalId } from '../farmjobs.js';
+import { FARM_JOB_IDS, FARM_HAT_ID, FARM_HAT_KIND, JOB, jobJournalId, findJournalId } from '../farmjobids.js';
 import { JOB_WORDS, FIND_WORDS, ANIMAL_TOASTS, jobGoalLine } from '../farmwords.js';
 
 export const jobKey = (id) => `farm-job-${id}`;

@@ -32,22 +32,7 @@ import { withLocalUuids } from './world/localuuids.js';
 import { FLAT_GROUND } from './ground.js';
 
 export { FARM_ANIMAL_TYPES };
-
-// What a walk that is not at the Farm has.
-export const NO_FARM = Object.freeze({
-  sim: null,
-  jobs: null,
-  riding: null,
-  spottable: Object.freeze([]),
-  perches: Object.freeze([]),
-  groups: Object.freeze([]),
-  extras: Object.freeze([]),
-  update() {},
-  reactToMeow() { return null; },
-  actionFor() { return null; },
-  act() { return false; },
-  dispose() {},
-});
+export { NO_FARM } from './farmnone.js';
 
 // How big each model is drawn (the game's cat is a big cat: a collie drawn at
 // its modelled size would be no taller than she is).

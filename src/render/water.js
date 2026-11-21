@@ -1227,7 +1227,7 @@ export function waterRig(handles = []) {
 // 2. THREADING THE TIER. `build(scene)` has no options argument today except
 //    the den's. The cheapest honest change is to widen it the same way:
 //
-//      AREAS[areaId].build(scene, { water: { quality: tier, reducedMotion } })
+//      pack.world.build(scene, { water: { quality: tier, reducedMotion } })
 //
 //    with `tier` the resolveQuality() result (its .name is read) and
 //    `reducedMotion` settings.get('reducedMotion') — the same value walk.js
