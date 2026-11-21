@@ -72,12 +72,19 @@
 //     none headless), the moon over the screen from the telescope, and the
 //     view from the vane, which leans the camera player.update placed (so the
 //     moments run after it: main.js calls this after player.update).
+//
+// THE BIRDS' SOUNDS (Rooftops step 5, world/roofssound.js): where there is a
+// flock and the context has the game's `audio`, the life hears it every
+// frame after the flock (so a take-off or a landing is this frame's): the
+// loft's cooing, pigeons, sparrows, gulls and wings, by her distance. Silent
+// while the game is muted (audio.isMuted), and a picture page hands no audio.
 // =============================================================================
 import { skyBackground } from './render/sky.js';
 import { BUS } from './world/roofsplan.js';
 import { createRoofsBirds } from './world/roofsbirds.js';
 import { WASH, createRoofsSmoke } from './world/roofsair.js';
 import { createRoofsMoments } from './world/roofsmoments.js';
+import { createRoofsSound } from './world/roofssound.js';
 
 export const EVENING_RAMP = 240; // s, sunset to dusk
 export const EVENING_STEPS = 6; // the sky's rebuilds on the way
@@ -121,7 +128,7 @@ export function busAt(t, out = {}) {
 // critters, visits, reducedMotion, log, progression, hud, ... }), or a picture
 // page's (which may add a `guideStore`).
 export function createRoofsLife(area) {
-  return ({ scene, sun, fill, critters, visits, reducedMotion, guideStore, log, progression, hud, doc }) => {
+  return ({ scene, sun, fill, critters, visits, reducedMotion, guideStore, log, progression, hud, doc, audio }) => {
     const from = area.skySunset;
     const to = area.skyDusk;
     const sunEnd = sun.intensity;
@@ -197,6 +204,10 @@ export function createRoofsLife(area) {
       ? createRoofsMoments(area, { log, progression, hud, birds, scene, reducedMotion: reducedMotion ?? false, doc: page })
       : null;
 
+    // The birds' sounds (world/roofssound.js): where there is a flock and the
+    // walk's audio; silent while the game is muted.
+    const sound = birds && audio ? createRoofsSound(audio, { birds, loft: area.anchors?.discoveries?.loft ?? null }) : null;
+
     apply(); // the first frame is already sunset
     wind();
     breathe();
@@ -208,8 +219,10 @@ export function createRoofsLife(area) {
         breathe();
         birds?.update(dt, catPos, camera);
         moments?.update(dt, catPos, camera, session);
+        sound?.update(dt, catPos);
       },
       dispose() {
+        sound?.dispose();
         moments?.dispose();
         birds?.dispose();
         smoke?.dispose();
