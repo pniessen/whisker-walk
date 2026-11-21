@@ -13,8 +13,16 @@
 //
 // MUTED. While audio.isMuted?.() is anything but false, nothing plays and the
 // context is never asked for: an audio without isMuted (a stub, a test's) is
-// silent. Muted mid-walk, the next frame stops whatever is still sounding.
+// silent. Muted mid-walk, the next frame stops whatever is still sounding
+// (eased to silence over HUSH s, so it does not click).
 // The clocks run on while muted, so unmuting brings no burst of calls.
+//
+// NO CONTEXT TO PLAY ON. While the game's context is suspended (iOS before
+// her first tap) or closed, a due call makes nothing (its clock stands still,
+// so anything made would all sound at once when it resumes); it is skipped
+// and counted, as out of earshot. Where asking for the context, or making a
+// node, throws (no Web Audio), the rest of the walk is silent and it is never
+// asked again. An ended tone lets go of its nodes (disconnects them).
 //
 // THE CALLS (CALLS: each call's tones, `gain` its loudest, before the
 // master), each tone's gain x loudness(d, ear), d her distance from the bird
@@ -110,6 +118,7 @@ const BIRD_CALL = Object.freeze({ pigeon: 'pigeon', sparrow: 'sparrow', gull: 'g
 
 const QUIET = 0.0003; // a call quieter than this (before the master) is not made
 const FLOOR = 0.0001; // the envelope's silence (an exponential ramp needs > 0)
+const HUSH = 0.02; // s a tone still sounding takes to fall silent when hushed
 
 const dist = (a, b) => Math.hypot(a.x - b.x, (a.y ?? 0) - (b.y ?? 0), a.z - b.z);
 
@@ -122,7 +131,8 @@ export function createRoofsSound(audio, { birds, loft = null } = {}) {
   let walk = 0;
   let ac = null;
   let master = null;
-  const sounding = []; // { osc, end } in the context's time
+  let broken = false; // the context threw: silent for the rest of the walk
+  const sounding = []; // { osc, g, end } in the context's time
   // callers: 0 the loft, i + 1 bird i
   const count = new Array(list.length + 1).fill(0);
   const due = new Array(list.length + 1).fill(0);
@@ -136,12 +146,18 @@ export function createRoofsSound(audio, { birds, loft = null } = {}) {
 
   const muted = () => audio?.isMuted?.() !== false;
 
+  // Stops every tone still sounding: its gain eased to silence over HUSH s
+  // (no click), then the oscillator stopped.
   function hush() {
-    if (!ac) return;
+    if (!ac || sounding.length === 0) return;
     const now = ac.currentTime;
     for (const s of sounding) {
       try {
-        s.osc.stop(now);
+        const p = s.g.gain;
+        if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(now);
+        else p.cancelScheduledValues(now);
+        p.setTargetAtTime(FLOOR, now, HUSH / 4);
+        s.osc.stop(now + HUSH);
       } catch {
         // already stopped
       }
@@ -149,32 +165,64 @@ export function createRoofsSound(audio, { birds, loft = null } = {}) {
     sounding.length = 0;
   }
 
+  // The game's context and master, asked for once; null while there is none
+  // to play on (not made yet, suspended before her first tap, closed). A
+  // throw (no Web Audio at all) silences the rest of the walk.
+  function bus() {
+    if (broken) return null;
+    if (!ac) {
+      try {
+        ac = audio.getContext() ?? null;
+        master = ac ? audio.getMaster() ?? null : null;
+      } catch {
+        broken = true;
+        ac = null;
+        return null;
+      }
+    }
+    if (!ac || !master) return null;
+    // a suspended context's clock stands still: anything made now would
+    // all sound at once when it resumes
+    if (ac.state === 'suspended' || ac.state === 'closed') return null;
+    return ac;
+  }
+
   function play(call, l) {
     const amp = call.gain * l;
     if (amp < QUIET) return;
-    if (!ac) {
-      ac = audio.getContext();
-      master = audio.getMaster();
-    }
-    if (!ac || !master) return;
-    const now = ac.currentTime;
-    for (let i = sounding.length - 1; i >= 0; i--) if (sounding[i].end <= now) sounding.splice(i, 1);
-    for (const n of call.notes) {
-      const t0 = now + n.at;
-      const a = Math.max(amp * n.gain, FLOOR * 2);
-      const osc = ac.createOscillator();
-      const g = ac.createGain();
-      osc.type = n.type;
-      osc.frequency.setValueAtTime(n.f, t0);
-      osc.frequency.linearRampToValueAtTime(n.to, t0 + n.dur);
-      g.gain.value = FLOOR;
-      g.gain.setValueAtTime(FLOOR, t0);
-      g.gain.linearRampToValueAtTime(a, t0 + n.attack);
-      g.gain.exponentialRampToValueAtTime(FLOOR, t0 + n.dur);
-      osc.connect(g).connect(master);
-      osc.start(t0);
-      osc.stop(t0 + n.dur + 0.05);
-      sounding.push({ osc, end: t0 + n.dur + 0.05 });
+    const c = bus();
+    if (!c) return;
+    try {
+      const now = c.currentTime;
+      for (let i = sounding.length - 1; i >= 0; i--) if (sounding[i].end <= now) sounding.splice(i, 1);
+      for (const n of call.notes) {
+        const t0 = now + n.at;
+        const a = Math.max(amp * n.gain, FLOOR * 2);
+        const osc = c.createOscillator();
+        const g = c.createGain();
+        osc.type = n.type;
+        osc.frequency.setValueAtTime(n.f, t0);
+        osc.frequency.linearRampToValueAtTime(n.to, t0 + n.dur);
+        g.gain.value = FLOOR;
+        g.gain.setValueAtTime(FLOOR, t0);
+        g.gain.linearRampToValueAtTime(a, t0 + n.attack);
+        g.gain.exponentialRampToValueAtTime(FLOOR, t0 + n.dur);
+        osc.connect(g).connect(master);
+        // ended: let go of both nodes
+        osc.onended = () => {
+          try {
+            osc.disconnect();
+            g.disconnect();
+          } catch {
+            // already let go
+          }
+        };
+        osc.start(t0);
+        osc.stop(t0 + n.dur + 0.05);
+        sounding.push({ osc, g, end: t0 + n.dur + 0.05 });
+      }
+    } catch {
+      broken = true;
     }
   }
 
@@ -211,6 +259,10 @@ export function createRoofsSound(audio, { birds, loft = null } = {}) {
     },
     dispose() {
       hush();
+    },
+    // How many tones are sounding (or queued) now.
+    get playing() {
+      return sounding.length;
     },
   };
 }

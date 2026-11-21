@@ -11,16 +11,20 @@ function fakeParam(v = 1) {
     setValueAtTime(x, t) { p.events.push(['set', x, t]); },
     linearRampToValueAtTime(x, t) { p.events.push(['linear', x, t]); },
     exponentialRampToValueAtTime(x, t) { p.events.push(['exp', x, t]); },
+    setTargetAtTime(x, t, k) { p.events.push(['target', x, t, k]); },
+    cancelScheduledValues(t) { p.events.push(['cancel', null, t]); },
+    cancelAndHoldAtTime(t) { p.events.push(['hold', null, t]); },
   };
   return p;
 }
 function fakeNode(extra = {}) {
-  const n = { connections: [], stops: [], connect(t) { n.connections.push(t); return t; }, start(t) { n.startAt = t; }, stop(t) { n.stops.push(t); }, ...extra };
+  const n = { connections: [], stops: [], connect(t) { n.connections.push(t); return t; }, start(t) { n.startAt = t; }, stop(t) { n.stops.push(t); }, disconnected: false, disconnect() { n.disconnected = true; }, ...extra };
   return n;
 }
-function fakeAudio({ muted = false } = {}) {
+function fakeAudio({ muted = false, state = undefined } = {}) {
   const ctx = {
     currentTime: 0,
+    state,
     oscs: [],
     gains: [],
     createGain() { const n = fakeNode({ gain: fakeParam(1) }); ctx.gains.push(n); return n; },
@@ -109,16 +113,56 @@ describe('muted (Review Focus 2)', () => {
     expect(before).toBeGreaterThan(0);
     // muted between two frames, while a coo may still be sounding
     audio.setMuted(true);
-    const muteAt = audio.ctx.currentTime;
     audio.ctx.currentTime += 1 / 30;
+    const frame = audio.ctx.currentTime;
+    const still = audio.ctx.oscs.filter((o) => o.stops[0] > frame);
     sound.update(1 / 30, at(1));
-    for (const o of audio.ctx.oscs) {
-      const last = o.stops[o.stops.length - 1];
-      // stopped now, or it had already ended
-      expect(last === undefined || last <= muteAt + 1 / 30 + 1e-9).toBe(true);
+    // every tone still sounding stops by the end of its 20 ms ease to silence
+    for (const o of still) {
+      expect(o.stops[o.stops.length - 1]).toBeLessThanOrEqual(frame + 0.02 + 1e-9);
+      expect(o.connections[0].gain.events.some((e) => e[0] === 'target' && e[1] <= 0.0001 && e[2] === frame)).toBe(true);
     }
+    expect(sound.playing).toBe(0);
     walk(sound, audio, 40, at(1), (t) => { birds.birds[0].flying = Math.floor(t / 4) % 2 === 1; }, 20);
     expect(audio.ctx.oscs.length).toBe(before);
+  });
+
+  it('a suspended context makes nothing, and when it runs the calls come at their usual rate', () => {
+    const audio = fakeAudio({ state: 'suspended' });
+    const sound = createRoofsSound(audio, { birds: { birds: [], following: null }, loft: LOFT });
+    let most = 0;
+    walk(sound, audio, 60, at(1), () => { most = Math.max(most, sound.playing); });
+    expect(audio.ctx.oscs).toHaveLength(0);
+    expect(most).toBe(0);
+    // her tap: it runs, and the next second has at most one call (2 to 4 s apart)
+    audio.ctx.state = 'running';
+    walk(sound, audio, 1, at(1), null, 60);
+    expect(ofCall(audio, CALLS.loft).length).toBeLessThanOrEqual(1);
+    walk(sound, audio, 30, at(1), null, 61);
+    const coos = ofCall(audio, CALLS.loft).length;
+    expect(coos).toBeGreaterThanOrEqual(7);
+    expect(coos).toBeLessThanOrEqual(16);
+  });
+
+  it('a closed context makes nothing', () => {
+    const audio = fakeAudio({ state: 'closed' });
+    const sound = createRoofsSound(audio, { birds: { birds: [], following: null }, loft: LOFT });
+    walk(sound, audio, 30, at(1));
+    expect(audio.ctx.oscs).toHaveLength(0);
+  });
+
+  it('where getContext throws (no Web Audio), the walk goes on silent and asks once', () => {
+    let asked = 0;
+    const audio = {
+      isMuted: () => false,
+      getContext() { asked++; throw new ReferenceError('AudioContext is not defined'); },
+      getMaster() { asked++; throw new ReferenceError('AudioContext is not defined'); },
+    };
+    const b = bird('pigeon-7', 'pigeon', at(1));
+    const sound = createRoofsSound(audio, { birds: { birds: [b], following: null }, loft: LOFT });
+    expect(() => walk(sound, { ctx: { currentTime: 0 } }, 60, at(1), (t) => { b.flying = Math.floor(t / 3) % 2 === 1; })).not.toThrow();
+    expect(() => sound.dispose()).not.toThrow();
+    expect(asked).toBe(1);
   });
 
   it('an audio without isMuted plays nothing', () => {
@@ -238,6 +282,19 @@ describe('the birds she hears', () => {
     expect(spy).toHaveBeenCalledTimes(0);
   });
 
+  it('an ended tone lets go of its nodes', () => {
+    const audio = fakeAudio();
+    const sound = createRoofsSound(audio, { birds: { birds: [], following: null }, loft: LOFT });
+    walk(sound, audio, 10, at(1));
+    expect(audio.ctx.oscs.length).toBeGreaterThan(0);
+    for (const o of audio.ctx.oscs) {
+      expect(o.disconnected).toBe(false);
+      o.onended(); // the context's 'ended'
+      expect(o.disconnected).toBe(true);
+      expect(o.connections[0].disconnected).toBe(true);
+    }
+  });
+
   it('dispose stops anything still sounding', () => {
     const audio = fakeAudio();
     const sound = createRoofsSound(audio, { birds: { birds: [], following: null }, loft: LOFT });
@@ -250,9 +307,7 @@ describe('the birds she hears', () => {
     expect(audio.ctx.oscs.length).toBeGreaterThan(0);
     const now = audio.ctx.currentTime;
     sound.dispose();
-    for (const o of audio.ctx.oscs) {
-      const last = o.stops[o.stops.length - 1];
-      expect(last === undefined || last <= now + 1e-9).toBe(true);
-    }
+    for (const o of audio.ctx.oscs) expect(o.stops[o.stops.length - 1]).toBeLessThanOrEqual(now + 0.02 + 1e-9);
+    expect(sound.playing).toBe(0);
   });
 });
