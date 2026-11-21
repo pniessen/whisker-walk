@@ -15,7 +15,7 @@ const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { createLevelDrawing } = await import('../src/houselevels.js');
 const { HOUSE_ATLAS_CELLS, createHouseAtlas } = await import('../src/world/houseparts.js');
 const { findFadeOccluders } = await import('../src/treefade.js');
-const { applyDusk, duskLook, createLampPools, DUSK } = await import('../src/render/dusk.js');
+const { applyDusk, duskLook, createLampPools, DUSK, LAMP_LOOK } = await import('../src/render/dusk.js');
 const { createSun, createFill } = await import('../src/render/rig.js');
 const { words } = await import('../src/wordset.js');
 const clanWords = await import('../src/clanwords.js');
@@ -304,7 +304,7 @@ describe('the light', () => {
         const [x, y, z] = [pos.getX(i), pos.getY(i), pos.getZ(i)];
         const at = `${g.name}: (${x.toFixed(2)}, ${z.toFixed(2)})`;
         expect(x >= inner.minX - EPS && x <= inner.maxX + EPS && z >= inner.minZ - EPS && z <= inner.maxZ + EPS, at).toBe(true);
-        expect(y, at).toBeCloseTo(levelY(room.level) + 0.035, 3);
+        expect(y, at).toBeCloseTo(levelY(room.level) + LAMP_LOOK.poolLift, 3);
       }
       covered.add(room.id);
     }
@@ -320,7 +320,7 @@ describe('the light', () => {
       for (let j = 0; j < 3; j++) {
         v.fromBufferAttribute(pos, ix.getX(k + j));
         const r = HOUSE_ROOMS.find((q) => v.x >= q.minX && v.x <= q.maxX && v.z >= q.minZ && v.z <= q.maxZ
-          && Math.abs(v.y - levelY(q.level) - 0.035) < 1e-3);
+          && Math.abs(v.y - levelY(q.level) - LAMP_LOOK.poolLift) < 1e-3);
         expect(r, `(${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)})`).toBeTruthy();
         rooms.add(r.id);
       }

@@ -326,7 +326,8 @@ export function stairAt(x, z) {
 // line to her meets it (housewalls.js createCellarLid). Each piece is a slab along
 // a centreline (x0, z0) -> (x1, z1), `half` wide either side, its underside rising
 // linearly from y0 to y1, `thick` deep. `owner` names the sections it caps (the
-// cellar's walls and its stair's).
+// cellar's walls and its stair's); `under` is where she is "down there": the cellar's
+// rectangle and its stair's, made once (underCellarLid runs every frame).
 export const LID_T = 0.16;
 export const LID_OVER = 0.15; // past the walls' outer faces
 function cellarLid() {
@@ -342,8 +343,10 @@ function cellarLid() {
   const d1 = len - h - LID_OVER; // where the cellar's flat lid begins
   const cz = (room.minZ + room.maxZ) / 2;
   const roof = levelY(room.level) + WALL_H;
+  const { minX, maxX, minZ, maxZ } = room;
   return freeze({
     owner: room.id,
+    under: frozenAll([{ minX, maxX, minZ, maxZ }, stairRect(st)]),
     pieces: frozenAll([
       {
         id: 'stair', x0: st.x0 + ux * d0, z0: st.z0 + uz * d0, x1: st.x0 + ux * d1, z1: st.z0 + uz * d1,
@@ -357,8 +360,12 @@ function cellarLid() {
   });
 }
 export const HOUSE_CELLAR_LID = cellarLid();
-// She is "down there" (the lid out of the way): in the cellar or on its stair.
-export const underCellarLid = (x, z) => roomAt(x, z) === HOUSE_CELLAR_LID.owner || stairAt(x, z) === HOUSE_CELLAR_LID.owner;
+// She is "down there" (the lid out of the way): in the cellar or on its stair. Allocates nothing.
+export function underCellarLid(x, z) {
+  const under = HOUSE_CELLAR_LID.under;
+  for (let i = 0; i < under.length; i++) if (inRect(under[i], x, z)) return true;
+  return false;
+}
 
 // ---- wall sections ----
 

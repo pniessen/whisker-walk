@@ -203,7 +203,9 @@ export function segmentMeetsSlab(a, b, p, pad = 0) {
 
 // Does the line from the camera to her look point or her paws meet the lid (padded)?
 export function lidInLine(lid, view, pad = 0) {
-  for (const p of lid.pieces) {
+  const pieces = lid.pieces;
+  for (let i = 0; i < pieces.length; i++) {
+    const p = pieces[i];
     if (segmentMeetsSlab(view.cam, view.look, p, pad) || segmentMeetsSlab(view.cam, view.paws, p, pad)) return true;
   }
   return false;
