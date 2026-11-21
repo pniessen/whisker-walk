@@ -90,7 +90,7 @@ describe('series words: nothing in the word tables goes unrecorded', () => {
     const bare = [];
     for (const name of ['RANK_WORDS', 'OUTSIDE_WORDS', 'PLACE_WORDS']) {
       for (const [key, w] of Object.entries(words[name]).flatMap(([k, v]) => valuesOf(v).map((x) => [k, x]))) {
-        if (name === 'PLACE_WORDS' && key === 'roofs') continue; // plain words in both sets, shown as a bare name
+        if (name === 'PLACE_WORDS' && (key === 'roofs' || key === 'market')) continue; // plain words in both sets, shown as a bare name
         if (!recorded.some((s) => s.includes(w) && s !== w && /\s/.test(s.replace(w, '').trim()))) bare.push(`${name}: ${w}`);
       }
     }

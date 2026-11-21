@@ -3,6 +3,7 @@
 import { phrase } from './clanphrases.js';
 import { PAGE_WORDS } from './farmwords.js';
 import { ROOFS_PAGE_WORDS } from './roofspages.js';
+import { MARKET_PAGE_WORDS } from './marketpages.js';
 import { RIDE_PAGE_WORDS, FAIR_PAGE_WORDS } from './fairwords.js';
 
 // All content here is a fixed, static catalog (ids/emoji/names/hints are
@@ -71,6 +72,9 @@ export const CRITTER_INFO = [
   // The Rooftops' six finds (src/roofspages.js): the walks each was found on.
   ...[['roofgarden', '🍅'], ['roofloft', '🕊️'], ['roofvane', '🧭'], ['roofskylight', '📖'], ['rooftelescope', '🌕'], ['roofchimney', '💨']]
     .map(([id, emoji]) => ({ id, emoji, get name() { return ROOFS_PAGE_WORDS[id].name(); }, get hint() { return ROOFS_PAGE_WORDS[id].hint(); } })),
+  // The Market Square's six finds (src/marketpages.js): the walks each was found on.
+  ...[['marketfountain', '💧'], ['marketpigeons', '🕊️'], ['marketsacks', '🌾'], ['marketmusician', '🎻'], ['marketbasket', '🚲'], ['marketapples', '🍎']]
+    .map(([id, emoji]) => ({ id, emoji, get name() { return MARKET_PAGE_WORDS[id].name(); }, get hint() { return MARKET_PAGE_WORDS[id].hint(); } })),
 ];
 
 // renderJournalHtml(journal, goldenFound, goldenTotal) → HTML string.

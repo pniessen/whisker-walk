@@ -34,7 +34,7 @@ export function withOffWords(fn) {
 // 2), so it is no leak; any other place word both sets share still is.
 const esc = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const ALLOWED = new Set(['loner']);
-const SAME_IN_BOTH = new Set([on.PLACE_WORDS.roofs].filter((w) => w && w === off.PLACE_WORDS.roofs));
+const SAME_IN_BOTH = new Set([on.PLACE_WORDS.roofs, on.PLACE_WORDS.market].filter((w) => w && (w === off.PLACE_WORDS.roofs || w === off.PLACE_WORDS.market)));
 const tableWords = [...new Set([
   ...Object.values(on.RANK_WORDS), ...Object.values(on.OUTSIDE_WORDS), ...Object.values(on.PLACE_WORDS),
 ])].filter((w) => !ALLOWED.has(w) && !SAME_IN_BOTH.has(w));

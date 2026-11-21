@@ -528,6 +528,26 @@ const LATER = Object.freeze({
   'market.team.eater': (partner) => `Teamwork! ${partner} kept them busy 🐾`,
   'market.team.distracter': (partner) => `Teamwork! You kept them busy while ${partner} grabbed a treat 🐾`,
   'market.summary.treats': 'treats',
+
+  // ---- the Market Square, steps 3 and 4 (2026-11-21) ----
+  'market.page.fountain.name': 'The Market Fountain',
+  'market.page.fountain.hint': 'Where can a thirsty cat get a drink in the square?',
+  'market.page.pigeons.name': 'Pigeon Scatter',
+  'market.page.pigeons.hint': 'Some birds in the square peck at crumbs.',
+  'market.page.sacks.name': 'Warm Flour Sacks',
+  'market.page.sacks.hint': "The baker's sacks look soft and warm.",
+  'market.page.musician.name': 'The Street Musician',
+  'market.page.musician.hint': 'Somebody in the square plays a happy tune.',
+  'market.page.basket.name': 'Bicycle Basket',
+  'market.page.basket.hint': 'A bicycle is parked by the shops. Is there room for a cat?',
+  'market.page.apples.name': 'Rolling Apples',
+  'market.page.apples.hint': 'What happens if a cat paws the apple crate?',
+  'market.find.fountain': 'A cool drink from the fountain. Splish! 💧',
+  'market.find.pigeons': 'Whoosh! The pigeons flap off in a flurry. 🕊️',
+  'market.find.sacks': 'A nap on warm flour sacks. Soft and toasty. 😴',
+  'market.find.musician': (people) => `Music! One of the ${people} plays a fiddle just for you. 🎻`,
+  'market.find.basket': 'A bicycle basket! It rocks, and the bell goes ding ding! 🚲',
+  'market.find.apples': 'Oops! Apples everywhere, rolling over the cobbles. 🍎',
 });
 
 // Every id of the first table, in table order.

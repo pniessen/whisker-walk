@@ -57,7 +57,8 @@
     "town": "Peopleville",
     "island": "The Still Island",
     "seat": "High Stone",
-    "roofs": "The Rooftops"
+    "roofs": "The Rooftops",
+    "market": "The Market Square"
    },
    "placeNames": {
     "neighborhood": "Peopleville",
@@ -3275,6 +3276,7 @@
     "pines": "Pines Crew land",
     "gorge": "Gorge Crew land"
    },
+   "marketMusician": "Music! One of the townspeople plays a fiddle just for you. 🎻",
    "campOnTheMap": {
     "woods": "Forest Crew camp",
     "river": "River Crew camp",

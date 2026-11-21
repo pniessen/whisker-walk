@@ -63,11 +63,13 @@
     "met": "loner",
     "grudge": "rogue",
     "player": "kittypet",
-    "house": "kittypet"
+    "house": "kittypet",
+    "people": "Twolegs"
    },
    "placeWords": {
     "town": "Twolegplace",
-    "roofs": "The Rooftops"
+    "roofs": "The Rooftops",
+    "market": "The Market Square"
    },
    "placeNames": {
     "neighborhood": "Twolegplace",
@@ -3427,6 +3429,7 @@
     "pines": "DuskClan land",
     "gorge": "CliffClan land"
    },
+   "marketMusician": "Music! One of the Twolegs plays a fiddle just for you. 🎻",
    "campOnTheMap": {
     "woods": "StormClan camp",
     "river": "BrookClan camp",

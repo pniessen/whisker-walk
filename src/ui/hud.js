@@ -39,7 +39,7 @@ export function discoveryText({ type, label, repeat }) {
   // The Farm's jobs and finds say their own whole line (src/farmwords.js), as
   // does a found outfit's pouch (foundwear/play.js) and the Market's treats
   // and teamwork (src/marketwords.js).
-  if (type === 'intruder' || type === 'border' || type === 'farmjob' || type === 'farmfind' || type === 'fairgame' || type === 'fairfind' || type === 'roofsfind' || type === 'pouch' || type === 'treat' || type === 'teamtreat') return label;
+  if (type === 'intruder' || type === 'border' || type === 'farmjob' || type === 'farmfind' || type === 'fairgame' || type === 'fairfind' || type === 'roofsfind' || type === 'marketfind' || type === 'pouch' || type === 'treat' || type === 'teamtreat') return label;
   if (type === 'goal') {
     return label.startsWith(GOAL_LEAD)
       ? `Goal complete: ${label.slice(GOAL_LEAD.length)}`
