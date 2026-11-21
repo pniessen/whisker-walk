@@ -30,36 +30,55 @@ looks and movement only and changes no words.
    for distant people, so old iPads stay smooth. Each person gets age, height,
    clothes and hair from their spot, so crowds vary.
 
+After the first pictures (2026-11-20, "Needs changes"):
+
+3. **"The humans need necks."** In the first pictures the heads sat straight
+   on the shoulders. Every figure gets a visible neck, near and far: a proper
+   length for each age, a slight forward set, and collars that do not swallow
+   it; the head-to-body ratio and the shoulder slope are checked against real
+   proportions so the neck does not make the head look small or the shoulders
+   square. (Done in the prototype, v2: see "The neck and the proportions".)
+4. **The cat steps round people.** Each person gets a small soft bump she
+   slides round, like posts and benches. (See "The soft bump".)
+5. **Children appear only next to a grown-up**: beside an adult in town, and in
+   pairs at the Fairground. None stand alone. (See "Pairs".)
+
+Still open: whether a head scratch is a real touch, and whether the faces are
+right (he named only the neck). See "Questions for the owner".
+
 ## Pictures
 
 The prototype (commit `eb24235b` on branch `people`, marked PROTOTYPE) is a
 picture sheet, `verify-people.html`, drawing `prototype/people-figure.js` next
 to today's figure with the game's own sun, fill, image light, shadows and
 dusk. It is throwaway: nothing in the game imports it and no test covers it.
-The pictures are in the session scratchpad,
-`/private/tmp/claude-501/-Users-pniessen--claude-spares-spare-gcns3j/e37e3895-a9b0-4a89-9360-a15387ffb2e4/scratchpad/people/`.
+The pictures are in the session scratchpad: the first set in
+`/private/tmp/claude-501/-Users-pniessen--claude-spares-spare-gcns3j/e37e3895-a9b0-4a89-9360-a15387ffb2e4/scratchpad/people/`,
+the second (v2: necks, pairs) in its `v2/` folder.
 Re-make them with the dev server on 5398:
 
 ```
 npx vite --port 5398 --strictPort
-node scripts/record-page.mjs --url "http://localhost:5398/verify-people.html" --out <dir> --shots lineup-day,lineup-cateye-day,stride-day,wave-cateye-day,crouch-cateye-day,lineup-sunset,wave-cateye-sunset,stride-sunset,far-day,lod-close,faces-day,back-day,crowd-spots
+node scripts/record-page.mjs --url "http://localhost:5398/verify-people.html" --out <dir> --shots lineup-day,lineup-cateye-day,stride-day,wave-cateye-day,crouch-cateye-day,lineup-sunset,wave-cateye-sunset,stride-sunset,far-day,lod-close,faces-day,faces-front-day,neck-side-day,neck-far-day,back-day,crowd-spots
 node scripts/record-page.mjs --url "http://localhost:5398/verify-people.html?scene=fair&fig=new" --out <dir>/fair-new --shots fair-day,fair-dusk,fair-close
 node scripts/record-page.mjs --url "http://localhost:5398/verify-people.html?scene=fair&fig=old" --out <dir>/fair-old --shots fair-day,fair-dusk,fair-close
 ```
 
 | Picture | What it shows |
 |---|---|
-| `lineup-day.png` | Today's figure, then a man (1.80 m), a woman (1.66 m), a child (1.30 m) and an older man (1.70 m), at the walk's normal camera, a tabby for scale |
+| `lineup-day.png` | Today's figure, then a man (1.80 m), a woman (1.66 m) with a child (1.30 m) at her side, and an older man (1.70 m), at the walk's normal camera, a tabby for scale |
 | `lineup-cateye-day.png` | The same from her eye height (0.3 m); the people look down at her |
 | `stride-day.png`, `stride-sunset.png` | Mid-stride, both steps, three-quarter view |
 | `wave-cateye-day.png`, `wave-cateye-sunset.png` | The wave, from her eye height |
 | `crouch-cateye-day.png` | The Fairground's hello as a kneel (today's figure squashes) |
 | `lineup-sunset.png` | The walk's dusk light |
 | `far-day.png`, `lod-close.png` | The far build, at 14 m and side by side with the near build |
-| `faces-day.png` | Faces close up (closer than the game's camera comes) |
+| `faces-day.png` | Faces close up (closer than the game's camera comes), looking down at the cat |
+| `faces-front-day.png` (v2) | Faces straight on, looking at us: for judging the faces |
+| `neck-side-day.png`, `neck-far-day.png` (v2) | Side view: the neck from root to jaw, its forward set, the shoulders sloping up to it; near and far build |
 | `back-day.png` | From behind: hair, coats |
-| `crowd-spots.png` | Eight people dressed only from their spawn spots |
-| `fair-new/fair-day.png` vs `fair-old/fair-day.png` | The real Fairground midway with its visitors and the juggler, new figure and today's, day; also `fair-dusk.png` and `fair-close.png` (her eye height) |
+| `crowd-spots.png` | The eight street villager spots dressed only from their spots; in v2 three of them are a grown-up with a child |
+| `fair-new/fair-day.png` vs `fair-old/fair-day.png` | The real Fairground midway with its visitors and the juggler, new figure and today's, day; also `fair-dusk.png` and `fair-close.png` (her eye height). In v2 a child walks beside a grown-up on the left of the midway. |
 
 ## Recon: every person in the game today
 
@@ -189,9 +208,10 @@ yaw then a nod.
 
 Heights: man 1.72-1.85 m, woman 1.60-1.73 m, child 1.16-1.42 m, older man
 1.66-1.78 m, older woman 1.55-1.67 m; girth 0.94-1.08. Joints are fractions
-of height (adult: knee 0.285, hip 0.525, waist 0.615, shoulder 0.815, chin
-0.866; a child's head is a larger share, about one sixth of the height, and
-the eyes sit lower in the face). Limb girths are a real person's (a thigh
+of height (adult: knee 0.285, hip 0.525, waist 0.615, shoulder joint 0.818,
+neck root 0.845 (0.842 for women), chin 0.872; child: shoulder 0.785, neck
+root 0.808, chin 0.846; a child's eyes sit lower in the face). See "The neck
+and the proportions" for why. Limb girths are a real person's (a thigh
 about 55 cm round, a calf 37, an upper arm 30) plus a little for clothes:
 thinner read as spindly beside the cats (the first pictures showed it).
 Women are a little narrower at the shoulder and wider at the hip, with a
@@ -205,6 +225,51 @@ shoulders to the neck); small deltoids; a neck; mitten hands with a thumb
 (near build); rounded shoes, flat underneath; an egg-shaped head with a
 softer jaw and ears (near build). Sleeves and shorts are separate short tubes
 so their edges are crisp (vertex colours blur across a ring).
+
+### The neck and the proportions (owner's decision 3; prototype v2)
+
+What was wrong in v1: the neck was a thin stub (radius 4.6 cm on a 1.75 m
+man) centred under the head, and the head was an egg whose lower back reached
+down to chin height all round, so from every side the head sat on the
+shoulders. The shoulders also ran nearly flat into the head.
+
+What v2 does, checked against adult and child body measurements:
+
+| | v1 | v2 | Real (adult man about 1.75-1.80 m; a child of about eight) |
+|---|---|---|---|
+| Head height (chin to crown) | 0.134 H (1/7.5) | 0.128 H (1/7.8): 23 cm on a 1.80 m man; child 0.154 H (1/6.5): 20 cm at 1.30 m | 22-24 cm, 1/7.5-1/8; child about 1/6-1/6.5 |
+| Head width / height | 0.74 | 0.71 (child 0.77) | about 0.67; a touch wider here because hair sits on top, and narrower read as a small head once the neck showed |
+| Head depth / height | 0.86 | 0.85 | about 0.85 |
+| Neck girth (round) | 29 cm | 38 cm on a 1.80 m man, 30 on a 1.66 m woman, 26 on a 1.30 m child (with girth) | 37-40, 31-33, about 26 |
+| Neck, chin to the notch between the collarbones (front) | hidden | about 8 cm on a 1.80 m man, about 7 cm on a 1.30 m child | 8-9 cm; a child's is shorter |
+| Neck set | upright, under the head's middle | leans 0.23 rad (13 degrees) forward from its root; the head's middle sits 0.22 of its depth forward of the neck's top | the neck leans forward 10-15 degrees; the skull balances forward of the spine |
+| Shoulder slope (shoulder top to the neck's root) | about 9 degrees, with the arm's rounded top standing above it | about 20 degrees | 15-25 degrees |
+
+How it is built:
+
+- The neck is its own tube from inside the chest to inside the head behind the
+  jaw, leaning forward; one `neckFrame(d)` gives the neck's root, top and the
+  head's centre, shared by the parts and the joints (the neck and head bones
+  sit on it), so turning and nodding pivot where a real neck does.
+- The back of the skull is drawn in below the head's middle (`occiputTuck`),
+  the hair shell with it, so the neck shows behind the jaw from the side.
+- The chest's top slopes about 20 degrees from each shoulder up to the neck's
+  root (the trapezius), and its neckline dips at the front to the collarbone
+  notch (`necklineDip`), so the front of the neck runs longer than the sides,
+  as a real one does.
+- The upper arm's rounded top and the deltoid are lowered and flattened so the
+  shoulder line runs on from the neck into the arm instead of standing up in a
+  square bump.
+- Collars: a low crew collar (1.6 cm; a coat's 2 cm and a little fuller) at
+  the neck's root, dipping with the neckline. It never climbs the neck.
+- The far build keeps the neck, the collar and the slope (`neck-far-day.png`).
+- Older people's stoop brings the head forward on the same neck; their neck
+  reads a little shorter, as it does.
+
+Cost: the collar is the only new part. Per figure, near +80 triangles and far
++48 (measured on the four sheet figures and 200 spawn spots: the same +80 and
++48 on every one). The neck tube and the head moved, their segment counts did
+not.
 
 ### Clothes and hair
 
@@ -300,17 +365,85 @@ bright ones for children.
   100 frames of posing.
 - **The contact shadow** registers the figure in its rest pose (built standing,
   before the first `pose()`), so the decal's size is the same on every device.
-- **Shadows of children:** a child villager below 1.3 m does not pass
-  `castsFromBox` and casts no sun shadow; it keeps its contact shadow.
-  Accepted.
+- **Shadows of children:** a child is always in its adult's critter group, and
+  `castsFromBox` judges the whole group (tall enough), so a child casts a sun
+  shadow like its grown-up.
 - **The quest marker** sits 0.35 m above the giver's head
-  (`look.height + 0.35`), not at a fixed 2.1 m. The quest giver is always an
-  adult: if the first villager's spot gives a child, the giver is the first
-  adult villager (every street place has one today; a test checks).
+  (`look.height + 0.35`), not at a fixed 2.1 m. The giver is always a grown-up:
+  a pair's quest giver is its adult (children never stand alone, decision 5).
 - **The crowd mix** is whatever the hash gives on today's spots; a test pins
-  each street villager's kind and the Fairground's eight, so a change to the
-  hash is seen. No minimum variety is forced.
+  each street villager's kind (and which are pairs) and the Fairground's
+  eight, so a change to the hash is seen. No minimum variety is forced. On
+  today's spots the prototype's hash gives three pairs among the eight street
+  villagers ((14, 34) in the Neighborhood, (-8, -22) in the Park, (-10, -8) at
+  the Docks) and three among the Fairground's eight visitors.
 - **The journal's villager picture** is left alone.
+
+## The soft bump (owner's decision 4)
+
+Each person gets a small circle the cat is pushed out of, exactly as she is by
+a post or a bench (`player.js`'s collider push: she slides round it).
+
+- **Size (my call):** 0.22 m for an adult, 0.18 m for a child (a body and
+  arms' half width), plus the cat's own `CAT_RADIUS` 0.35 as for every collider:
+  her middle stays at least 0.57 m from an adult's middle.
+- **Its own list, not `area.colliders` (my call).** The bumps live in a
+  persistent array of `{ x, z, r }` (one per person, a pair's adult and child
+  each have one), passed to `player.update` as a new last argument and pushed
+  after the colliders, with the same perched-cat exemption. Nothing else reads
+  it: strays, clan cats, intruders, ghosts, the Fairground's own simulation
+  (which tests its visitors against `area.colliders` and would otherwise
+  collide with itself), `keepout.js`'s `standSpot`, gold mice and finds keep
+  seeing today's world. Villagers' bumps are fixed at the walk's start;
+  Fairground visitors' bumps are moved in place each frame from the
+  simulation (no allocation). Only the local cat is pushed; a co-walker's cat
+  is placed by her own device, which has the same bumps from the same spots.
+- **The Fairground:** visitors already keep 1.0 m from her middle (`KEEP`),
+  more than 0.57, so there the bump only matters if she runs into someone
+  faster than they give way.
+- **Gameplay trace impact.** `flat-trace.gameplay.json` traces the four street
+  places with villagers (Neighborhood, Park, Docks, Seaside; the Fairground is
+  not traced). Measured from the fixture: the scripted cat never comes nearer
+  than 13.4 m to any villager spot (Neighborhood 14.8, Park 13.4, Docks 28.1,
+  Seaside 18.2 m), against a bump reach of at most 0.57 m plus a pair's 0.66 m
+  offset. Because nothing else reads the bump list, no other traced system
+  can change either. So the fixture must not move, and it is not re-recorded:
+  `test/helpers/flattrace.js` passes the bumps to `player.update` (so the
+  trace runs the new code) and `test/flattrace.test.js` holds it to the
+  frozen file. If it moves, that is a bug to find, not a re-record.
+- **Placements (my call):** a test checks that every place a cat must reach
+  in the four street places (gold mice, find spots, yarn spots, quest targets,
+  pois, the spawn) is at least the bump's reach plus 0.1 m from every person.
+  Spots that fail move, not the people.
+
+## Pairs (owner's decision 5)
+
+Children appear only next to a grown-up.
+
+- **In town:** a villager spot whose hash says "child" is a pair. The critter
+  is still one villager (one id, one spawn, one group that never moves, one
+  quest giver, one wave): its figure is the adult, standing where today's
+  figure stands (`standOff` as today), and the child is a second figure in the
+  same group, 0.65 m to the adult's side. The side is the one clear of the
+  area's colliders by the child's bump, picked at build time from the spot
+  (never a roll). Ranges (wave, dismay, scratch, quest) still measure from the
+  adult (`villagerPos`). The child waves when the adult waves and looks at the
+  cat when the adult does.
+- **At the Fairground:** a visitor whose `look` spot says "child" is a pair: one
+  simulated visitor (the count, `visitorCount`, is unchanged) drawn as two.
+  `src/fairvisitors.js` gains a pair's width: its own radius becomes 0.65 m
+  and `KEEP` is measured to the nearer of the two, so neither comes within
+  1.0 m of her middle; the child's spot is stepped in the simulation (beside
+  the adult where the way is at least 1.6 m clear, a step behind where it is
+  not), so the rules are tested on both. The child takes its own stride from
+  the same metres walked (shorter legs, more steps). The Fairground is not in
+  the gameplay trace; its own tests change with this and are extended to the
+  child.
+- **Draws:** a pair is two people: +1 draw (+1 shadow draw in town).
+- **Math.random:** a pair's child is built inside the same `withLocalUuids`
+  call as its adult and takes no real draws; the critter still pays exactly 36
+  (the 41-draw test is unchanged, and gets a pair case).
+- No child is ever a separate critter, a separate visitor, or a quest giver.
 
 ## My calls (change freely)
 
@@ -323,8 +456,9 @@ bright ones for children.
   and below (`LOW_RUNG` in `src/render/quality.js`) the switch is at 7 m.
 - **My call: targets of at most 2,800 triangles near and 600 far, pinned by
   a test over every kind, sex, hair, hat, top and bottom (by override) and the
-  hand-dressed juggler.** The prototype measures 2,364-2,788 near and 700-860
-  far. The hair shell's collapsed rim makes zero-area triangles; dropping them
+  hand-dressed juggler.** The prototype measures (v2, with the collar) 2,444-
+  2,900 near and 748-908 far on the sheet's four, and at most 3,068 near and
+  976 far over 200 spawn spots (long hair and hats are the heaviest). The hair shell's collapsed rim makes zero-area triangles; dropping them
   is the builder's first trim, then fewer sides on the far head, hair and
   shoes. The far target is what keeps the Fairground's pins (below).
 - **My call: a person is built at its far geometry** and the near one is
@@ -333,8 +467,8 @@ bright ones for children.
 - **My call: one shared material per place** for all people (vertex colours),
   `MeshStandardMaterial`, roughness 0.86, smooth shading (today's figure is
   flat-shaded; smooth reads softer and nearer the cats).
-- **My call: no new collider, no change to who moves where.** Villagers stand,
-  visitors stroll, exactly as today.
+- **My call: no change to who moves where.** Villagers stand, visitors
+  stroll, exactly as today. (The owner's soft bump, decision 4, is below.)
 - **My call: villagers turn to look by bones only** (chest, neck, head). The
   figure child is never rotated and the critter group never moves, so neither
   trace fixture moves.
@@ -352,8 +486,9 @@ bright ones for children.
   changes.
 - **My call: older people do not kneel**; their hello is a bend at the waist
   with a hand out.
-- **My call: the mix.** About 18% children, 18% older people, the rest adults,
-  half men and half women; the Fairground's visitors and the juggler are
+- **My call: the mix.** A spot's hash picks child (about 18%), older (18%) or
+  adult, and half men and half women; a "child" spot is a pair (owner's
+  decision 5, see "Pairs"). The Fairground's visitors and the juggler are
   dressed from their `look` spots as today. The juggler may be dressed by hand
   (a bright t-shirt), since he is one fixed person.
 - **My call: skin tones** run through five shades from light to dark brown,
@@ -374,45 +509,51 @@ higher than the game's; the differences are what carry over.
 | | Draws (main + shadow) | Triangles |
 |---|---|---|
 | Today's figure | 3 + 3 (streets), 3 + 0 (Fairground) | 428-484 |
-| New, near (within 12 m) | 1 + 1 (streets), 1 + 0 (Fairground) | 2,364-2,788 |
-| New, far | same | 700-860 in the prototype; target at most 600 |
+| New, near (within 12 m) | 1 + 1 (streets), 1 + 0 (Fairground) | v1 2,364-2,788; v2 (collar) 2,444-2,900 (up to 3,068 over 200 spots); target at most 2,800 |
+| New, far | same | v1 700-860; v2 748-976; target at most 600 |
 
 ### Per place
 
 | Place | People | Today | New |
 |---|---|---|---|
-| Neighborhood, Park, Docks, Seaside | 2 villagers each | 12 draws, about 1,800 triangles (both passes) | 4 draws; at most about 11,000 triangles (both near, both passes), usually one far: about 7,000 |
-| Fairground, high tier | 8 visitors + juggler | up to 27 draws, about 4,100 triangles | up to 9 draws; 5,400 (all far, at the 600 target) to 25,200 (all near) triangles |
-| Fairground, lower tiers | 5, 3 or 2 visitors + juggler | 18, 12 or 9 draws | 6, 4 or 3 draws |
+| Neighborhood, Park, Docks, Seaside | 2 villagers each | 12 draws, about 1,800 triangles (both passes) | 4 draws, 6 with a pair (on today's spots: Neighborhood, Park and Docks have one pair each); at most about 17,000 triangles (a pair and a single, all near, both passes) |
+| Fairground, high tier | 8 visitors + juggler | up to 27 draws, about 4,100 triangles | 8 visitors (3 of them pairs on today's spots) + juggler = 12 people: up to 12 draws; 7,200 (all far, at the 600 target) to 34,600 (all near) triangles |
+| Fairground, lower tiers | 5, 3 or 2 visitors + juggler | 18, 12 or 9 draws | one draw a person, pairs counted as two |
 | Farm, Rooftops, territories, den | none | | |
 
 The Fairground's busiest view in the harness (the cat on the midway at
-(3.4, 25.5), the walk's normal camera, six people in view, four of them near):
+(3.4, 25.5), the walk's normal camera):
 
 | | Draws | Triangles |
 |---|---|---|
 | No people | 219 | 117,692 |
-| Today's figure | 237 (+18) | 120,476 (+2,784) |
-| New figure, LOD as planned | 225 (+6) | 126,044 (+8,352) |
-| New figure, all near | 225 | 133,108 (+15,416) |
-| New figure, all far | 225 | 122,332 (+4,640) |
+| Today's figure (6 people in view) | 237 (+18) | 120,476 (+2,784) |
+| v1 new figure, LOD as planned (6 in view) | 225 (+6) | 126,044 (+8,352) |
+| v1 new figure, all near / all far | 225 | 133,108 (+15,416) / 122,332 (+4,640) |
+| v2 (necks, pairs: 8 people in view), LOD as planned | 227 (+8) | 129,888 (+12,196) |
+| v2 all near / all far | 227 | 138,908 (+21,216) / 124,268 (+6,576) |
 
-From her eye height at the same spot: today 179 draws / 100,806 triangles, new
-167 / 106,374.
+From her eye height at the same spot: today 179 draws / 100,806 triangles, v1
+167 / 106,374, v2 169 / 110,218.
 
 Applied to the game's own worst-spot measure at the Fairground (152 draws,
-about 102k triangles): about 140 draws and 108k triangles, and about 123k in
-the worst case of all nine people near and in view. Draws fall, which is what
+about 102k triangles), v2: about 142 draws and about 114k triangles, about
+128k in the worst case of everyone near and in view. Draws still fall. Draws fall, which is what
 the scene is bound by. The CPU cost is 17 bone matrices and two foot checks a
 person a frame; people out of view skip posing.
 
 ### The Fairground's test pins
 
-People are built at the far geometry, so the show's static count is 9 people
-at no more than 600 triangles plus today's balls, balloon and wisp (406):
-at most 5,806, under the 6,000 cap; the place plus the show at most 72,498,
-under 75,000. No ceiling is raised. (At the prototype's 700-860 far, the show
-would be about 7,400 and break the 6,000 cap: hence the 600 target.)
+People are built at the far geometry, so the show's static count is 12 people
+on today's spots (8 visitors, 3 of them pairs, and the juggler) at no more
+than 600 triangles, plus today's balls, balloon and wisp (406): at most 7,606.
+The place plus the show is at most 74,298, under the Fairground's 75,000
+(the owner's ceiling, unchanged). **My call:** the show's own 6,000 cap in
+`test/fairgames.test.js` (a comparison with the Farm's animals, not one of
+the owner's budgets) rises to 8,000 because pairs add people; its mesh count
+falls (16 meshes against today's 31). (Before pairs, 9 people at 600 fitted
+under 6,000.) The prototype's far build is 748-976 triangles in v2, so the
+600 target stands and the hair shell's trim matters.
 
 ### Instancing and LOD plan
 
@@ -507,10 +648,14 @@ would be about 7,400 and break the 6,000 cap: hence the 600 target.)
    tests get switch-on copies; `test/helpers/flattrace.js` gains a run with the
    switch on and the people module passed, held to the same gameplay fixture
    (the render fixture may be re-recorded after checking why it moved).
+   The soft bumps (their own list into `player.update`) and the town pairs
+   land here, with the placement test and the flat trace run with bumps on.
    **Pictures:** each of the four street places from the normal camera, with a
-   villager waving, and one from her eye height.
+   villager waving, a pair, and one from her eye height; a short recording of
+   the cat sliding round a villager.
 3. **The Fairground.** `fairshow.js` poses visitors (stride from `walked`,
-   watching, the kneel hello) and the juggler. **Pictures:** the midway crowd
+   watching, the kneel hello) and the juggler; `fairvisitors.js` gains pairs
+   (the width, `KEEP` to both, the child's spot) and moves the visitors' bumps. **Pictures:** the midway crowd
    day and dusk, a kneel from her eye height, the juggler; and a short
    recording of the stride (`record-page.mjs --tour`), so the owner can judge
    the walk in motion.
@@ -571,23 +716,23 @@ and listed 39 questions. Sorted:
   75,000 pins (held by a 600-triangle far build counted at creation); the
   step 4 pass line; which tests are rewritten; the picture page and the
   prototype's removal; step 5 with no fallback left; the journal picture.
-- **Only the owner can answer:** the four questions below.
+- **Only the owner can answer:** four questions; he answered two on 2026-11-20 (decisions 4 and 5), two remain below.
 
 ## Questions for the owner
 
-1. **Walking through people.** Today the cat walks straight through a villager
-   (they have no collider). With real legs that will look wrong. Should she
-   step round them like a lamp post? That changes how the game plays and may
-   move the frozen gameplay trace, which needs his yes. Until he answers,
-   nothing changes.
-2. **Children on their own.** About one person in six is a child. May a child
-   be a villager standing alone, or stroll the Fairground without a grown-up
-   nearby? If not, children wait until a later "families" step, and this
-   build has adults and older people only.
-3. **A real head scratch?** When she asks for head scratches, should the
+Answered 2026-11-20 and recorded above as his decisions 3-5: necks, the cat
+stepping round people, children only next to a grown-up.
+
+Still open:
+
+1. **A real head scratch?** When she asks for head scratches, should the
    person's hand actually reach her head when she is close enough (they would
    kneel at their spot and she would be within arm's reach), or stay a kind
-   gesture from where they are? Today nothing moves.
-4. **The faces.** Dot eyes with a small catchlight, soft brows, a small nose
-   and a small closed smile (`faces-day.png`, `wave-cateye-day.png`). Right, or
-   plainer (no mouth, no nose), or more (eyelids, cheeks)?
+   gesture from where they are? Today nothing moves. With the soft bump she can
+   now come no nearer than about 0.6 m to a person's middle, which is within a
+   kneeling adult's reach.
+2. **The faces.** Dot eyes with a small catchlight, soft brows, a small nose
+   and a small closed smile, now on a real neck: `v2/faces-front-day.png`
+   (straight on), `v2/faces-day.png` (looking down at her),
+   `v2/wave-cateye-day.png` (from her eye height). Right, or plainer (no mouth,
+   no nose), or more (eyelids, cheeks)?
