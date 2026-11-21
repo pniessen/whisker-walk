@@ -26,7 +26,8 @@ import { lifecycle, fakeEl } from './helpers/walklife.js';
 const seen = vi.hoisted(() => ({ ambient: [], clouds: [], secrets: [], critters: [], roofsLoads: 0 }));
 vi.mock('../src/world/roofs.js', async (importOriginal) => {
   seen.roofsLoads++;
-  return importOriginal();
+  // The Rooftops grow no hooked grass (the real module exports no GRASS_HOOKS); a mock refuses to answer for a name it lacks.
+  return { ...(await importOriginal()), GRASS_HOOKS: undefined };
 });
 vi.mock('../src/render/ambient.js', async (importOriginal) => {
   const m = await importOriginal();
