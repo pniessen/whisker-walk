@@ -1,11 +1,12 @@
-// The crossing card: a border post's "Head to ...?" question. Opens over the
-// pause overlay (the walk is paused like ⏸), and either ends the walk with the
-// crossing or puts the pause card back. Pure wiring; the words live in
-// bordercross.js. In a room walk the host tells the room before it ends, and a
-// guest follows the host's event (onRemote).
+// The crossing card: a border post's or a gate's "Head to ...?" question.
+// Opens over the pause overlay (the walk is paused like ⏸), and either walks
+// her straight on (walk.js walkOn) or puts the pause card back. Pure wiring;
+// the words live in bordercross.js and gatecross.js. In a room with a member
+// on an older build a crossing still ends the walk: the host tells the room
+// before it ends, and a guest follows the host's event (onRemote).
 //
-// World map step 3: a gate's card (askGate) asks the same question, and its
-// yes walks her straight on (walk.js walkOn) instead of ending the walk. A
+// World map step 3: a gate's card (askGate) and, since Task 10, a post's
+// (ask) ask the same question, and one yes path serves both. A
 // gate to a place she can open but has not yet asks first through the usual
 // "Get it?" card (askGateBuy, buyYes): never spent by accident, and its yes
 // opens the place and puts the gate's card up. The words live in gatecross.js.
@@ -107,12 +108,16 @@ export function createCrossing({
     });
   }
 
+  // A border post she can go through now (Task 10): the gate's card, whose
+  // yes walks on as a gate's does. A room with a member on an older build
+  // still crosses as posts always have (the walk ends), so its card says so.
   function ask(s, data) {
-    if (!s || !data || !data.status || data.status.kind !== 'go') return;
+    if (!s || !data || !data.post || !data.status || data.status.kind !== 'go') return;
     if (!mayAsk(s)) return; // only a room's host crosses
     const { to, name } = data.status;
-    s.crossing = { to, name };
-    overlay.innerHTML = crossCardHtml({ name, extras: extrasFor(s) });
+    s.crossing = { to, name, via: data.post.id, kind: 'post' };
+    const endsHere = !!s.net && !roomWalksOn(getRoster());
+    overlay.innerHTML = (endsHere ? crossCardHtml : gateCardHtml)({ name, extras: extrasFor(s) });
     releaseControl();
   }
 
@@ -162,9 +167,10 @@ export function createCrossing({
     if (!s.crossing) { restoreCard(s); resumeWalk(); }
   }
 
-  // A gate's yes: walk on. walk.js shows the moment and, when the place
-  // cannot come, puts the pause card back with its line; this module clears
-  // the card's state whatever the answer, so s.crossing has one writer.
+  // A gate's yes, and a post's: walk on. walk.js shows the moment and, when
+  // the place cannot come, puts the pause card back with its line; this
+  // module clears the card's state whatever the answer, so s.crossing has
+  // one writer.
   function confirmGate(s) {
     const c = s.crossing;
     if (c.asking) return; // the "Get it?" card answers through buyYes
@@ -333,24 +339,19 @@ export function createCrossing({
     follow(s, { via: d.via, to: d.to, hostId: ev.id });
   }
 
+  // A gate's or a post's yes takes one path: solo, she walks on; a room's
+  // host asks the room and walks it on, or, in a room with an older build,
+  // crosses as posts always did (the walk ends).
   function confirm() {
     const s = getSession();
     if (!s || !s.crossing) return;
     if (s.crossing.going) return; // a second click changes nothing
-    if (s.crossing.kind === 'gate') { confirmGate(s); return; }
-    const to = s.crossing.to;
-    prefetchArea(to);
-    if (!s.net) {
-      endWalk({ crossTo: to });
-      return;
-    }
-    s.crossing.going = true;
-    crossRoom(s, to);
+    confirmGate(s);
   }
 
-  // A room's host crossing that ends the walk: tell the room (twice, in case
-  // one is lost), then end once the broadcast has left, since endWalk closes
-  // the room.
+  // A room's host crossing that ends the walk (a room with a member on an
+  // older build): tell the room (twice, in case one is lost), then end once
+  // the broadcast has left, since endWalk closes the room.
   function crossRoom(s, to) {
     const ev = { v: 1, id: s.playerId, type: 'border-cross', from: s.areaId, to };
     s.net.sendEvent(ev);
@@ -379,17 +380,15 @@ export function createCrossing({
   // leaving empties the remotes list before the timer fires.
   function onRemote(s, ev) {
     if (!s || !ev || s.crossLed) return;
-    const remotes = Array.isArray(s.remotes?.list) ? s.remotes.list : [];
-    // A border post's crossing (its room still read from the drawn cats until
-    // Task 10), or a gate's in a room with an older build, whose room and
-    // host are the roster's, as every gate room decision is.
-    const base = { areaId: s.areaId, selfId: s.playerId, catalog };
-    const d = decideBorderCross(ev, { ...base, remoteIds: remotes.map((r) => r.playerId) })
-      ?? decideGateCross(ev, { ...base, remoteIds: roomIdsOf(s) });
+    // A post's or a gate's crossing in a room with an older build. Its room
+    // and host are the roster's, as every room decision here is: a host
+    // reading its card sends no state, and the drawn cats drop it after 5 s.
+    const ctx = { areaId: s.areaId, selfId: s.playerId, catalog, remoteIds: roomIdsOf(s) };
+    const d = decideBorderCross(ev, ctx) ?? decideGateCross(ev, ctx);
     if (!d) return;
     prefetchArea(d.to);
     s.crossLed = true;
-    const together = remotes.map((r) => r.petName);
+    const together = remotesOf(s).map((r) => r.petName);
     const name = petNameOf(s, ev.id);
     hud.toast(phrase('cross.leading', name, lower(targetName(d.to, getEdition(), catalog))));
     setTimeout(() => { if (getSession() === s) endWalk({ crossTo: d.to, ledBy: name, together }); }, LED_DELAY_MS);

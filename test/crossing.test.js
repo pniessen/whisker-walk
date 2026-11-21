@@ -60,14 +60,34 @@ const goData = () => {
 };
 
 describe('the crossing card', () => {
-  it('ask then yes ends the walk with the crossing', () => {
+  // Task 10: a post walks straight on, as a gate does.
+  it('ask then yes walks on through the post, never ends the walk', () => {
     const { crossing, overlay, s, calls } = setup();
     crossing.ask(s, goData());
-    expect(s.crossing).toEqual({ to: 'moor', name: 'The Moor' });
+    expect(s.crossing).toEqual({ to: 'moor', name: 'The Moor', via: 'woods-moor-path', kind: 'post' });
     expect(overlay.innerHTML).toContain('Head to the Moor?');
+    expect(overlay.innerHTML).toContain('You keep everything you found.');
+    expect(overlay.innerHTML).not.toContain('Your trip ends here');
     expect(calls.release).toBe(1);
     crossing.confirm();
-    expect(calls.endWalk).toEqual([{ crossTo: 'moor' }]);
+    expect(calls.walkOn).toEqual([{ via: 'woods-moor-path' }]);
+    expect(calls.endWalk).toEqual([]);
+    crossing.confirm(); // a second yes
+    expect(calls.walkOn).toHaveLength(1);
+  });
+
+  it("a post's walk-on that failed or was refused leaves the card's state cleared", async () => {
+    const failed = setup({ walkOnSays: 'failed' });
+    failed.crossing.ask(failed.s, goData());
+    failed.crossing.confirm();
+    await flush();
+    expect(failed.s.crossing).toBeNull();
+    const refused = setup({ walkOnSays: 'refused' });
+    refused.crossing.ask(refused.s, goData());
+    refused.crossing.confirm();
+    await flush();
+    expect(refused.s.crossing).toBeNull();
+    expect(refused.overlay.innerHTML).toBe(pauseCardHtml({ welcome: 'Welcome home!', touch: false }));
   });
 
   // F6: the place over the border is its own download. A yes starts fetching
@@ -183,7 +203,7 @@ describe('the crossing card', () => {
     expect(calls.release).toBe(0);
     cf.abort();
     crossing.ask(s, goData());
-    expect(s.crossing).toEqual({ to: 'moor', name: 'The Moor' });
+    expect(s.crossing).toMatchObject({ to: 'moor', name: 'The Moor', kind: 'post' });
   });
 
   it('a room guest never opens the card; a host may', () => {
@@ -197,8 +217,14 @@ describe('the crossing card', () => {
   });
 });
 
-describe('crossing together', () => {
-  function room({ host = true, remotes = [{ playerId: 'b', petName: 'Pip' }], selfId = 'a', hostId = 'a', edition = 'canon' } = {}) {
+// A room with a member on an older build (no walkOn in its room profile):
+// a post's crossing is today's, the walk ends and the room closes. Who is in
+// the room is the roster's (live presence), never the drawn cats'.
+describe('crossing together in a room with an older build', () => {
+  function room({
+    host = true, remotes = [{ playerId: 'b', petName: 'Pip' }], selfId = 'a', hostId = 'a', edition = 'canon',
+    roster = [{ playerId: selfId }, ...remotes.map((r) => ({ playerId: r.playerId, petName: r.petName }))],
+  } = {}) {
     vi.useFakeTimers();
     const toasts = [];
     const sent = [];
@@ -215,7 +241,8 @@ describe('crossing together', () => {
       prefetchArea: (id) => prefetched.push(id),
       getSession: () => current, overlay, hud: { toast: (t) => toasts.push(t) },
       releaseControl() {}, resumeWalk() {}, endWalk, getIsTouch: () => false, getEdition: () => edition,
-      catalog: CATALOG, setTimeout: globalThis.setTimeout,
+      catalog: CATALOG, setTimeout: globalThis.setTimeout, getRoster: () => roster,
+      walkOn: () => { throw new Error('a room with an older build never walks on'); },
     });
     return { crossing, s, sent, toasts, endWalk, overlay, prefetched, replace: (o) => { current = o; } };
   }
@@ -227,6 +254,8 @@ describe('crossing together', () => {
     const { crossing, s, sent, endWalk, overlay } = room();
     crossing.ask(s, goData2());
     expect(overlay.innerHTML).toContain('Pip comes too.');
+    // the card says so: this trip ends here
+    expect(overlay.innerHTML).toContain('Your trip ends here, and you keep everything you found.');
     crossing.confirm();
     expect(sent).toEqual([{ v: 1, id: 'a', type: 'border-cross', from: 'woods', to: 'moor' }]);
     expect(overlay.innerHTML).toContain('<h1>Off we go! 🧭</h1>');
@@ -325,6 +354,25 @@ describe('crossing together', () => {
     expect(overlay.innerHTML).toContain('Off we go!');
     vi.advanceTimersByTime(1000);
     expect(endWalk).toHaveBeenCalledTimes(1);
+  });
+
+  // The border post's room is the roster's too: a host reading the card
+  // sends no state, and the guest's drawn-cat cache drops it after 5 s.
+  it("the host's cat dropped from the guest's screen: the guest still follows the post's crossing", () => {
+    const { crossing, s, toasts, endWalk } = room({ selfId: 'c', remotes: [{ playerId: 'a', petName: 'Pip' }] });
+    s.remotes.list.length = 0;
+    crossing.onRemote(s, ev({ id: 'a' }));
+    expect(toasts).toEqual(['Pip is leading the way to the Moor! 🧭']); // named from the roster
+    vi.advanceTimersByTime(1500);
+    expect(endWalk.mock.calls).toEqual([[{ crossTo: 'moor', ledBy: 'Pip', together: [] }]]);
+  });
+
+  it("a cat still drawn but gone from the room is not the post's host", () => {
+    const { crossing, s, toasts, endWalk } = room({ selfId: 'c', remotes: [{ playerId: 'a', petName: 'Pip' }], roster: [{ playerId: 'c' }] });
+    crossing.onRemote(s, ev({ id: 'a' }));
+    vi.advanceTimersByTime(5000);
+    expect(toasts).toEqual([]);
+    expect(endWalk).not.toHaveBeenCalled();
   });
 
   it('a forged or stale event is ignored', () => {
@@ -607,7 +655,7 @@ describe('walking on together', () => {
   function together({
     host = true, selfId = 'a', remotes = [{ playerId: 'b', petName: 'Pip' }],
     roster = [{ playerId: selfId, walkOn: 1 }, ...remotes.map((r) => ({ playerId: r.playerId, petName: r.petName, walkOn: 1 }))],
-    online = true, walkOnSays = 'walked',
+    online = true, walkOnSays = 'walked', areaId = 'park',
   } = {}) {
     vi.useFakeTimers();
     const sent = [];
@@ -624,7 +672,7 @@ describe('walking on together', () => {
     };
     const s = {
       welcome: 'Welcome home!', race: null, quest: null, carry: { mouth: { held: null } },
-      areaId: 'park', playerId: selfId, roomSeed: 7, remotes: { list: [...remotes] }, net, netOffs: [],
+      areaId, playerId: selfId, roomSeed: 7, remotes: { list: [...remotes] }, net, netOffs: [],
     };
     const loads = deferredLoads();
     const walkOn = vi.fn(() => Promise.resolve(walkOnSays));
@@ -640,11 +688,12 @@ describe('walking on together', () => {
       isOnline: () => online,
     });
     const yes = () => { crossing.askGate(s, farmGo()); crossing.confirm(); };
+    const postYes = () => { crossing.ask(s, goData()); crossing.confirm(); };
     const have = (o = {}) => ({ v: 1, id: 'b', type: 'walk-on-have', via: 'park-farm', ok: true, ...o });
     const ask = (o = {}) => ({ v: 1, id: 'a', type: 'walk-on-ask', from: 'park', via: 'park-farm', ...o });
     const ofType = (t) => sent.filter((e) => e.type === t);
     return {
-      crossing, s, sent, toasts, overlay, walkOn, endWalk, resume, loads, yes, have, ask, ofType,
+      crossing, s, sent, toasts, overlay, walkOn, endWalk, resume, loads, yes, postYes, have, ask, ofType,
       replace: (o) => { current = o; }, leaveRoom: () => { roomNet = null; },
       // the room's presence changes (a member left or came)
       setRoster: (list) => { roster = list; for (const fn of [...rosterFns]) fn(list); },
@@ -892,6 +941,67 @@ describe('walking on together', () => {
     vi.advanceTimersByTime(1500);
     expect(h.endWalk.mock.calls).toEqual([[{ crossTo: 'farm', ledBy: 'Pip', together: ['Pip'] }]]);
     expect(h.walkOn).not.toHaveBeenCalled();
+  });
+
+  // Task 10: a post's yes in a room takes the gate's path exactly.
+  describe('through a border post', () => {
+    const POST_SEED = nextRoomSeed(7, 'woods-moor-path');
+    const POST_WALK_ON = { v: 1, id: 'a', type: 'walk-on', from: 'woods', via: 'woods-moor-path', seed: POST_SEED };
+
+    it("the host's yes asks the room, and once everyone has the Moor, walks the room on", async () => {
+      const h = together({ areaId: 'woods' });
+      h.postYes();
+      expect(h.overlay.innerHTML).toContain('Off to the Moor!');
+      expect(h.s.crossing).toMatchObject({ kind: 'post', via: 'woods-moor-path', going: true });
+      expect(h.sent).toEqual([{ v: 1, id: 'a', type: 'walk-on-ask', from: 'woods', via: 'woods-moor-path' }]);
+      expect(h.loads.asked).toEqual(['moor']);
+      h.crossing.onWalkOnHave(h.s, h.have({ via: 'woods-moor-path' }));
+      h.loads.come('moor');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.ofType('walk-on')).toEqual([POST_WALK_ON]);
+      expect(h.walkOn.mock.calls).toEqual([[{ via: 'woods-moor-path' }]]);
+      expect(h.endWalk).not.toHaveBeenCalled();
+      expect(h.ofType('border-cross')).toEqual([]);
+    });
+
+    it("a friend who cannot have the Moor: the pause card, the friend's line, nobody moves", async () => {
+      const h = together({ areaId: 'woods' });
+      h.postYes();
+      h.loads.come('moor');
+      h.crossing.onWalkOnHave(h.s, h.have({ via: 'woods-moor-path', ok: false }));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.toasts).toEqual([phrase('gate.friendNotReady', 'Pip')]);
+      expect(h.overlay.innerHTML).toBe(pause(h.s));
+      expect(h.s.crossing).toBeNull();
+      expect(h.walkOn).not.toHaveBeenCalled();
+      expect(h.ofType('walk-on')).toEqual([]);
+    });
+
+    it('a room with an older build: the old card, then the walk ends with the crossing', () => {
+      const h = together({ areaId: 'woods', roster: [{ playerId: 'a', walkOn: 1 }, { playerId: 'b' }] });
+      h.crossing.ask(h.s, goData());
+      expect(h.overlay.innerHTML).toContain('Your trip ends here, and you keep everything you found.');
+      h.crossing.confirm();
+      expect(h.overlay.innerHTML).toContain('<h1>Off we go! 🧭</h1>');
+      expect(h.sent).toEqual([{ v: 1, id: 'a', type: 'border-cross', from: 'woods', to: 'moor' }]);
+      vi.advanceTimersByTime(CROSS_END_MS);
+      expect(h.endWalk.mock.calls).toEqual([[{ crossTo: 'moor' }]]);
+      expect(h.walkOn).not.toHaveBeenCalled();
+      expect(h.ofType('walk-on-ask')).toEqual([]);
+    });
+
+    it("a guest answers the host's ask about the post and follows its walk-on, as a guest", async () => {
+      const h = together({ areaId: 'woods', host: false, selfId: 'c', remotes: [{ playerId: 'a', petName: 'Pip' }] });
+      h.crossing.onWalkOnAsk(h.s, h.ask({ from: 'woods', via: 'woods-moor-path' }));
+      expect(h.loads.asked).toEqual(['moor']);
+      h.loads.come('moor');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.sent).toEqual([{ v: 1, id: 'c', type: 'walk-on-have', via: 'woods-moor-path', ok: true }]);
+      h.crossing.onRemoteWalkOn(h.s, POST_WALK_ON);
+      expect(h.walkOn.mock.calls).toEqual([[{ via: 'woods-moor-path', ledBy: 'Pip', guest: true }]]);
+      expect(h.toasts).toEqual(['Pip is leading the way to the Moor! 🧭']);
+      expect(h.endWalk).not.toHaveBeenCalled();
+    });
   });
 
   describe('a guest', () => {

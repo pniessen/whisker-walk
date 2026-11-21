@@ -11,7 +11,8 @@ import { confirmCardHtml, spendAsk } from './ui/confirmcard.js';
 import { escapeHtml } from './escapehtml.js';
 import { seedFromCode } from './rng.js';
 import { phrase } from './clanphrases.js';
-import { endById, liveEndsFor, arrivalFor } from './gateways.js';
+import { endById, liveEndsFor, arrivalFor, inwardOf, INWARD_YAW } from './gateways.js';
+import { postById, postArrival, postsFor, POST_ARRIVE_AT } from './borderposts.js';
 
 export const GATE_MOMENT_MS = 1200;
 // What a build that can walk on through a gate says about itself.
@@ -103,14 +104,29 @@ export function nextRoomSeed(roomSeed, via) {
   return seedFromCode(`${roomSeed >>> 0}>${via}`) >>> 0;
 }
 
-// The gate's plan: its two ends and where she lands. Border posts join later.
+// The way's plan: the place it leaves and the place beyond, and where she
+// lands. A gate end, or a border post (Task 10): a post lands her ARRIVE_IN m
+// inside the post the place beyond has back (POST_ARRIVE), facing in (or at
+// that post's POST_ARRIVE_AT spot), or at its spawn (`arrive` null) when it
+// has none.
 export function viaPlan(via, table) {
   const hit = endById(via, table);
-  if (!hit) return null;
+  if (!hit) return postPlan(via);
   const arrival = arrivalFor(via, table);
   if (!arrival) return null;
   const { x, z, yaw } = arrival;
   return { via, from: hit.areaId, to: hit.end.to, arrive: { x, z, yaw } };
+}
+
+function postPlan(via) {
+  const hit = postById(via);
+  if (!hit) return null;
+  const { post } = hit;
+  const twin = postsFor(post.to).find((p) => p.id === postArrival(via)) ?? null;
+  if (!twin) return { via, from: hit.areaId, to: post.to, arrive: null };
+  const at = Object.hasOwn(POST_ARRIVE_AT, twin.id) ? POST_ARRIVE_AT[twin.id] : null;
+  const arrive = at ? { x: at.x, z: at.z, yaw: INWARD_YAW[twin.faces] } : inwardOf(twin);
+  return { via, from: hit.areaId, to: post.to, arrive };
 }
 
 // The room's host sent it: `id` is a remote in the room and nobody in the
@@ -130,14 +146,19 @@ function isHostOf(selfId, remoteIds) {
   return !all.some((i) => i < selfId);
 }
 
-// One of this place's live gate ends, by id, else null.
+// One of this place's live ways on, by id, else null: a gate end, or a
+// border post (Task 10) to a place this build has a catalog row for. Either
+// has the `to` a walk-on reads.
 function liveEnd(areaId, via, catalog) {
   if (typeof via !== 'string') return null;
-  return liveEndsFor(areaId, catalog).find((e) => e.id === via) ?? null;
+  const end = liveEndsFor(areaId, catalog).find((e) => e.id === via);
+  if (end) return end;
+  const areas = catalog && catalog.areas;
+  return postsFor(areaId).find((p) => p.id === via && areas != null && Object.hasOwn(areas, p.to)) ?? null;
 }
 
 // A guest follows a walk-on only when it is well formed, for this walk's
-// area, through one of its live gates, from the room's host, with the seed
+// area, through one of its live gates or posts, from the room's host, with the seed
 // every device derives.
 export function decideWalkOn(ev, { areaId, selfId, remoteIds, catalog, roomSeed } = {}) {
   if (!isObj(ev) || ev.v !== 1 || ev.type !== 'walk-on' || ev.from !== areaId) return null;
@@ -163,7 +184,7 @@ export function decideWalkOnAsk(ev, { areaId, selfId, remoteIds, catalog } = {})
 // as soon as one friend still in the room says it cannot have the place;
 // { kind: 'go' } once the host has the place itself (`ready`) and every
 // friend still in the room has said it can; else { kind: 'wait', waiting }
-// (the friends not yet heard from). Only answers for this place's live gate
+// (the friends not yet heard from). Only answers for this place's live gate or post
 // `via`, from a remote in the room, to the room's host, count.
 export function decideWalkOnHave(haves, { areaId, via, selfId, remoteIds, catalog, ready = false } = {}) {
   const remotes = Array.isArray(remoteIds) ? remoteIds : [];

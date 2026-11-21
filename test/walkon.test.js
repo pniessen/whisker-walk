@@ -12,6 +12,10 @@ import { LEAF_OPEN, LEAF_R, LEAF_BLOCKS, NO_GATES } from '../src/world/gateway.j
 import { phrase } from '../src/clanphrases.js';
 import { diagnostics } from '../src/diagnostics.js';
 import { mulberry32 } from '../src/rng.js';
+import { headingToward } from '../src/game/guidewalk.js';
+import { DISCS } from '../src/rivalclans.js';
+import { SPAWN as MOOR_SPAWN } from '../src/world/moor.js';
+import { SPAWN as WOODS_SPAWN } from '../src/world/woods.js';
 import { cameraOffset } from '../src/catcam.js';
 import { clampZoomStep, maxZoomStep, zoomView } from '../src/camzoom.js';
 
@@ -26,7 +30,7 @@ import { clampZoomStep, maxZoomStep, zoomView } from '../src/camzoom.js';
 
 const WALK_MS = 90_000; // whole walks: an explicit timeout
 
-beforeAll(() => areas.ensureAll(['neighborhood', 'park', 'farm', 'fair']));
+beforeAll(() => areas.ensureAll(['neighborhood', 'park', 'farm', 'fair', 'woods', 'moor']));
 
 beforeEach(() => {
   globalThis.document = fakeDocument();
@@ -711,5 +715,100 @@ describe('two devices walk on together', () => {
     expect(parkB.remotes.list).toEqual([]);
     expect(guest.h.getRoom()).toBeTruthy();
     guest.h.w.endWalk();
+  }, WALK_MS);
+});
+
+// Task 10: a border post walks straight on, as a gate does: the "Off to ..."
+// moment, then the next walk just inside the post the place beyond has back,
+// or at its spawn when it has none.
+describe('walking on through a border post', () => {
+  // Clan Edition, the guided walk done, the Woods and the Moor hers.
+  function wildSave(area) {
+    return (p) => {
+      p.setTutorialFirst('done');
+      p.state.unlocked.areas.push('woods', 'moor');
+      p.state.walks.neighborhood = 2;
+      p.state.walks.woods = 2;
+      p.setArea(area);
+      expect(p.state.edition).not.toBe('legacy');
+      expect(p.state.area).toBe(area);
+    };
+  }
+
+  it('from the Woods through woods-moor-path: the moment, then the Moor walk just inside its post, facing in', async () => {
+    const walked = [];
+    const h = walkHarness({ save: wildSave('woods'), onWalkedOn: (l) => walked.push(l) });
+    h.w.startWalk({});
+    expect(h.getSession().areaId).toBe('woods');
+    expect(await h.w.walkOn({ via: 'moor-woods-path' })).toBe('refused'); // the Moor's post, not this walk's
+    expect(h.getSession().areaId).toBe('woods');
+    expect(await h.w.walkOn({ via: 'woods-moor-path' })).toBe('walked');
+    expect(h.getSession()).toBeNull();
+    expect(h.overlay.innerHTML).toContain('Off to the Moor!');
+    expect(h.progression.state.walks.woods).toBe(3);
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    const s = h.getSession();
+    expect(s.areaId).toBe('moor');
+    expect(h.progression.state.area).toBe('moor');
+    // ARRIVE_IN (3.6 m) inside moor-woods-path at (43.4, 47.5), facing north
+    expect(s.cat.position.x).toBeCloseTo(43.4, 9);
+    expect(s.cat.position.z).toBeCloseTo(43.9, 9);
+    expect(s.cat.rotation.y).toBe(0);
+    expect(s.arrivedVia).toBe('moor-woods-path');
+    expect(walked).toHaveLength(1);
+    expect(h.overlay.innerHTML).toContain('btn-resume');
+    expect(h.overlay.innerHTML).not.toContain('Home again!');
+  }, WALK_MS);
+
+  it('from the town through town-moor, which has no post back: the Moor walk starts at its spawn', async () => {
+    const h = walkHarness({ save: wildSave('neighborhood') });
+    h.w.startWalk({});
+    expect(h.getSession().areaId).toBe('neighborhood');
+    expect(await h.w.walkOn({ via: 'town-moor' })).toBe('walked');
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    const s = h.getSession();
+    expect(s.areaId).toBe('moor');
+    expect(s.cat.position.x).toBeCloseTo(MOOR_SPAWN.x, 9);
+    expect(s.cat.position.z).toBeCloseTo(MOOR_SPAWN.z, 9);
+    expect(s.arrivedVia).toBeNull();
+  }, WALK_MS);
+
+  it('Legacy Edition has no posts to walk on through', async () => {
+    const h = walkHarness({ save: (p) => { wildSave('neighborhood')(p); p.setEdition('legacy'); } });
+    h.w.startWalk({});
+    const s = h.getSession();
+    expect(s.areaId).toBe('neighborhood');
+    expect(await h.w.walkOn({ via: 'town-woods' })).toBe('refused');
+    expect(h.getSession()).toBe(s);
+    expect(h.progression.state.walks.neighborhood).toBe(2);
+  }, WALK_MS);
+
+  // The first walk on home land leads to the camp: walked on into it, the
+  // lesson's way and heading start where she arrives, and its heading wins
+  // over the post's.
+  it('the first camp walk, walked on into: the way and the heading start at the arrival', async () => {
+    const h = walkHarness({ save: (p) => { wildSave('moor')(p); expect(p.setClanPick('woods')).toBe(true); } });
+    h.w.startWalk({});
+    expect(h.getSession().areaId).toBe('moor');
+    expect(h.getSession().lesson).toBeNull(); // the Moor is not her home
+    expect(await h.w.walkOn({ via: 'moor-woods-path' })).toBe('walked');
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    const s = h.getSession();
+    expect(s.areaId).toBe('woods');
+    expect(s.lesson?.kind).toBe('camp');
+    // just inside woods-moor-path at (43.4, -47.5), far from the spawn
+    const arrive = { x: 43.4, z: -43.9 };
+    expect(s.cat.position.x).toBeCloseTo(arrive.x, 9);
+    expect(s.cat.position.z).toBeCloseTo(arrive.z, 9);
+    const camp = { x: DISCS.woods.cx, z: DISCS.woods.cz };
+    const heading = headingToward(arrive, camp);
+    expect(s.lesson.heading).toBeCloseTo(heading, 9);
+    expect(s.cat.rotation.y).toBeCloseTo(heading, 9); // not the post's yaw (Math.PI)
+    expect(Math.abs(heading - Math.PI)).toBeGreaterThan(0.5);
+    expect(Math.abs(heading - headingToward(WOODS_SPAWN, camp))).toBeGreaterThan(0.5);
+    // the cat who leads waits on the way from the arrival, not from the spawn
+    expect(s.lesson.cat).toBeTruthy();
+    const at = s.lesson.cat.group.position;
+    expect(Math.hypot(at.x - arrive.x, at.z - arrive.z)).toBeLessThan(Math.hypot(at.x - WOODS_SPAWN.x, at.z - WOODS_SPAWN.z));
   }, WALK_MS);
 });

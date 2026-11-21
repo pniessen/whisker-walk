@@ -7,6 +7,7 @@ import { endById } from '../src/gateways.js';
 import {
   gateStatus, gatePrompt, gateCardHtml, gateBuyHtml, gateMomentHtml, walkOnMove, pickOnCrossing,
   nextRoomSeed, decideWalkOn, decideWalkOnAsk, decideWalkOnHave, decideGateCross, decideHostThere, roomWalksOn, stateIsHere,
+  viaPlan,
 } from '../src/gatecross.js';
 
 function fakeStorage() {
@@ -157,5 +158,45 @@ describe('the room', () => {
     expect(stateIsHere({ area: 'park' }, 'park')).toBe(true);
     expect(stateIsHere({ area: 'farm' }, 'park')).toBe(false);
     expect(stateIsHere({}, 'park')).toBe(true);
+  });
+});
+
+// Task 10: a border post walks straight on too, through the same plan and
+// the same room checks as a gate.
+describe('border posts walk on', () => {
+  it("a post's plan: its two places, and she arrives ARRIVE_IN m inside the twin post, facing in", () => {
+    const plan = viaPlan('woods-moor-path');
+    expect(plan).toEqual({ via: 'woods-moor-path', from: 'woods', to: 'moor', arrive: { x: 43.4, z: expect.any(Number), yaw: 0 } });
+    // moor-woods-path stands on the Moor's south edge at (43.4, 47.5)
+    expect(plan.arrive.z).toBeCloseTo(43.9, 9);
+    expect(viaPlan('moor-woods-path').arrive).toMatchObject({ x: 43.4, yaw: Math.PI });
+    expect(viaPlan('moor-woods-path').arrive.z).toBeCloseTo(-43.9, 9);
+    expect(viaPlan('woods-town-short').arrive).toMatchObject({ z: 3.6, yaw: -Math.PI / 2 });
+    expect(viaPlan('woods-town-short').arrive.x).toBeCloseTo(-48.4, 9);
+  });
+  it('a one-way post, or one with no post back, arrives at the spawn', () => {
+    expect(viaPlan('town-moor')).toEqual({ via: 'town-moor', from: 'neighborhood', to: 'moor', arrive: null });
+    expect(viaPlan('gorge-town')).toEqual({ via: 'gorge-town', from: 'gorge', to: 'neighborhood', arrive: null });
+    expect(viaPlan('nope')).toBeNull();
+    expect(viaPlan('__proto__')).toBeNull();
+    expect(viaPlan(7)).toBeNull();
+  });
+  it("a guest follows a host's walk-on through a post of this place, and answers its ask", () => {
+    const ev = { v: 1, id: 'a', type: 'walk-on', from: 'woods', via: 'woods-moor-path', seed: nextRoomSeed(7, 'woods-moor-path') };
+    const ctx = { areaId: 'woods', selfId: 'b', remoteIds: ['a'], catalog: CATALOG, roomSeed: 7 };
+    expect(decideWalkOn(ev, ctx)).toEqual({ via: 'woods-moor-path', to: 'moor', seed: ev.seed });
+    for (const bad of [{ from: 'moor' }, { via: 'moor-woods-path' }, { seed: nextRoomSeed(7, 'woods-moor-river') }, { id: 'z' }]) {
+      expect(decideWalkOn({ ...ev, ...bad }, ctx), JSON.stringify(bad)).toBeNull();
+    }
+    // a post to a place this build has no catalog row for is not a way
+    const noMoor = { ...CATALOG, areas: Object.fromEntries(Object.entries(CATALOG.areas).filter(([k]) => k !== 'moor')) };
+    expect(decideWalkOn(ev, { ...ctx, catalog: noMoor })).toBeNull();
+    const ask = { v: 1, id: 'a', type: 'walk-on-ask', from: 'woods', via: 'woods-moor-path' };
+    expect(decideWalkOnAsk(ask, ctx)).toEqual({ via: 'woods-moor-path', to: 'moor' });
+    expect(decideWalkOnAsk({ ...ask, via: 'moor-woods-path' }, ctx)).toBeNull();
+    const have = (id) => ({ v: 1, id, type: 'walk-on-have', via: 'woods-moor-path', ok: true });
+    const hctx = { areaId: 'woods', via: 'woods-moor-path', selfId: 'a', remoteIds: ['b'], catalog: CATALOG, ready: true };
+    expect(decideWalkOnHave([have('b')], hctx)).toEqual({ kind: 'go' });
+    expect(decideWalkOnHave([have('b')], { ...hctx, areaId: 'moor' })).toEqual({ kind: 'wait', waiting: ['b'] });
   });
 });

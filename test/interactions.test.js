@@ -1826,6 +1826,43 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       expect(h.session.prompt.kind).toBe('border');
     });
 
+    // Task 10: a post walks straight on, so the place beyond starts
+    // downloading as she nears a post she can go through, as at a gate.
+    it('nearing a post she can go through fetches the place beyond, once per post per walk', () => {
+      const prefetched = [];
+      const h = postHarness({ prefetchArea: (id) => prefetched.push(id) });
+      h.walkTo(POST.x, POST.z + GATE_PREFETCH_REACH + 0.5);
+      expect(prefetched).toEqual([]);
+      h.walkTo(POST.x, POST.z + GATE_PREFETCH_REACH - 0.5);
+      expect(prefetched).toEqual(['moor']);
+      h.walkTo(POST.x, POST.z + 1);
+      h.walkTo(POST.x, POST.z + 30); // away
+      h.walkTo(POST.x, POST.z + 1); // and back
+      expect(prefetched).toEqual(['moor']);
+      // the next walk (a new session) fetches it again
+      const next = { ...h.session, prompt: null };
+      h.updateInteractions(next);
+      expect(prefetched).toEqual(['moor', 'moor']);
+      h.updateInteractions(next);
+      expect(prefetched).toEqual(['moor', 'moor']);
+    });
+
+    it('a post she cannot go through yet fetches nothing until she can; Legacy fetches nothing', () => {
+      const prefetched = [];
+      const h = promptHarness({ stray: null, areaId: 'moor', prefetchArea: (id) => prefetched.push(id) });
+      h.walkTo(47.5 - 8, -14); // the Gorge post, on a first Moor walk
+      expect(h.session.prompt).toBe(null);
+      expect(prefetched).toEqual([]);
+      h.progression.state.walks.moor = 1;
+      h.walkTo(47.5 - 8, -14);
+      expect(prefetched).toEqual(['gorge']);
+      const legacy = [];
+      const l = postHarness({ prefetchArea: (id) => legacy.push(id) });
+      l.progression.state.edition = 'legacy';
+      l.walkTo(POST.x, POST.z + 1);
+      expect(legacy).toEqual([]);
+    });
+
     it('the Gorge post on a first Moor walk says when it opens, and E calls nothing', () => {
       const h = promptHarness({ stray: null, areaId: 'moor', askCrossing: () => { throw new Error('no'); } });
       h.walkTo(47.5, -13);

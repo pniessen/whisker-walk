@@ -85,7 +85,7 @@ import { createBorderMarks } from '../render/bordermarks.js';
 import { addBorderDressing } from '../world/borderpost.js';
 import { addGatewayDressing, NO_GATES } from '../world/gateway.js';
 import { liveEndsFor, endById } from '../gateways.js';
-import { postsFor } from '../borderposts.js';
+import { postsFor, postById, postArrival } from '../borderposts.js';
 import { createFx } from '../fx.js';
 import { createSkyLife } from '../skylife.js';
 import { rollWeather, createWeather, rainPuddleSpots } from '../weather.js';
@@ -670,10 +670,13 @@ export function createWalkLifecycle({
   // `resume` is a walk picked up again (walkresume.js's note, main.js's boot):
   // the same seed and stamp build the same walk, then the cat, the treasures,
   // the goals and the tallies are put back. Solo only; never with a roomSeed.
-  // `arrive` ({ x, z, yaw }) is where a walk walked on through a gate begins
-  // (walkOn below): the cat starts there, facing in, instead of at the spawn.
-  // Nothing else moves: the spawn still seeds the race pad, the kitten, the
-  // wanderer and the lessons, and no stream is drawn from differently.
+  // `arrive` ({ x, z, yaw }) is where a walk walked on through a gate or a
+  // border post begins (walkOn below): the cat starts there, facing in,
+  // instead of at the spawn. Only the first camp walk's way and heading start
+  // there too (from where she stands, as from a resumed spot; its heading
+  // wins over the arrival's yaw); the spawn still seeds the race pad, the
+  // kitten, the wanderer and the guided walk, and no stream is drawn from
+  // differently.
   function startWalk({ duskMode = false, roomSeed, areaOverride, resume = null, arrive = null } = {}) {
     walksStarted += 1;
     // The place's pack (F6), before anything touches the save: a start whose
@@ -1359,13 +1362,16 @@ export function createWalkLifecycle({
       lesson = buildFirstLesson(lessonPlan, { strayCats, areaData, goals: null, resume, pace });
     } else if (lessonPlan?.kind === 'camp' && campAt) {
       const camp = { x: campAt.cx, z: campAt.cz, r: DISCS[areaId]?.r ?? 6 };
-      const from = resume ? { x: resume.x, z: resume.z } : areaData.spawn;
+      // From where she starts: a walk picked up again, a walk walked on into
+      // (Task 10: a border post's arrival), else the spawn.
+      const start = resume ?? arrive;
+      const from = start ? { x: start.x, z: start.z } : areaData.spawn;
       const canStep = ground.flat ? null : (ax, az, bx, bz) => ground.canStep(ax, az, bx, bz);
       const way = roomSeed === undefined ? findPath(clanWalkable, areaData.bounds, from, camp, { canStep }) : null;
       lesson = {
         kind: 'camp', camp, pace, open: false, room: roomSeed !== undefined, walkable: clanWalkable,
         cat: way ? placeCampGuide(clanCats, way, from) : null,
-        heading: headingToward(areaData.spawn, camp),
+        heading: headingToward(from, camp),
         heldGoals: null, finished: false, skipped: false,
       };
     }
@@ -2581,13 +2587,15 @@ export function createWalkLifecycle({
       cat.position.set(spot.x, ground.y(spot.x, spot.z), spot.z);
       player.setViewYaw(resume.yaw);
     } else if (arrive) {
-      // Walked on through a gate: she starts just inside the twin gate, facing
-      // in, the spot cleared the same way (the live list holds the gates now).
+      // Walked on through a gate or a post: she starts just inside the twin,
+      // facing in, the spot cleared the same way (the live list holds the
+      // gates now). On the first camp walk she faces the camp instead.
       const spot = clearSpot({ x: arrive.x, z: arrive.z }, areaData.colliders ?? [], areaData.bounds, areaData.waters ?? [], 0.6);
+      const yaw = lesson?.kind === 'camp' ? lesson.heading : arrive.yaw;
       cat.position.set(spot.x, ground.y(spot.x, spot.z), spot.z);
-      cat.rotation.y = arrive.yaw;
-      player.setViewYaw(arrive.yaw);
-      camera.position.copy(cat.position).add(cameraOffset(arrive.yaw, 0.18, startView.dist, startView.height));
+      cat.rotation.y = yaw;
+      player.setViewYaw(yaw);
+      camera.position.copy(cat.position).add(cameraOffset(yaw, 0.18, startView.dist, startView.height));
       camera.lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
     } else if (lesson?.kind === 'camp') {
       // The first walk on home land: the cat and the camera start facing the camp.
@@ -2962,11 +2970,13 @@ export function createWalkLifecycle({
   }
 
   // walkOn({ via, ledBy, guest }) -> Promise of 'walked' | 'refused' |
-  // 'failed' | 'dropped'. THE one way through a gate (world map step 3): the
-  // walk is banked quietly (no summary), a short "Off to the Farm!" moment
-  // shows, and the next walk starts by itself just inside the twin gate.
-  //   - 'refused': no walk, a gate this walk does not have (`via` names a gate
-  //     end of this walk's place), or a walk-on already under way.
+  // 'failed' | 'dropped'. THE one way through a gate (world map step 3) or a
+  // border post (Task 10): the walk is banked quietly (no summary), a short
+  // "Off to the Farm!" moment shows, and the next walk starts by itself just
+  // inside the twin gate or post, or at the spawn for a post with no twin.
+  //   - 'refused': no walk, a gate or post this walk does not have (`via`
+  //     names a gate end or a post of this walk's place; posts in Clan
+  //     Edition only), or a walk-on already under way.
   //   - The next place already here (the usual case: it is prefetched as she
   //     nears the gate): banked, freed and the moment up before this returns,
   //     so there is no session right after the call; 'walked'.
@@ -2990,8 +3000,11 @@ export function createWalkLifecycle({
     const s = getSession();
     const plan = typeof via === 'string' ? viaPlan(via) : null;
     if (!s || s.walkingOn || !plan || plan.from !== s.areaId) return Promise.resolve('refused');
+    // Border posts stand in Clan Edition only (Task 10): Legacy has none.
+    const post = postById(via);
+    if (post && !isClanEdition(progression.state)) return Promise.resolve('refused');
     const { to, arrive } = plan;
-    const twin = endById(via)?.end.twin ?? null;
+    const twin = post ? postArrival(via) : (endById(via)?.end.twin ?? null);
     const keepRoom = !!s.net;
     const roomSeed = keepRoom ? nextRoomSeed(s.roomSeed, via) : undefined;
     const duskMode = s.duskMode;

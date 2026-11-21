@@ -40,7 +40,7 @@ import { fairPromptText } from './fairplay.js';
 import { JOB_WORDS } from '../farmwords.js';
 import { knockNoun, propsFor } from '../propsets.js';
 import { markKey, borderMarkId } from '../marks.js';
-import { postNear } from '../borderposts.js';
+import { postNear, postsFor } from '../borderposts.js';
 import { postStatus, promptFor } from '../bordercross.js';
 import { gatewayNear, liveEndsFor, GATE_PREFETCH_REACH } from '../gateways.js';
 import { gateStatus, gatePrompt } from '../gatecross.js';
@@ -160,20 +160,28 @@ export function createInteractions({
   askGateBuy = () => {},
   prefetchArea = () => {},
 }) {
-  // The gate ends whose place beyond has been fetched, per walk (session).
+  // The gate ends and border posts whose place beyond has been fetched, per
+  // walk (session), by id.
   const gatesFetched = new WeakMap();
-  // Nearing a gate she can go through or open (gateStatus 'go' or 'buy'), the
-  // place beyond starts downloading, once per end per walk.
+  // Nearing a gate she can go through or open (gateStatus 'go' or 'buy'), or
+  // a border post she can go through (postStatus 'go', Task 10), the place
+  // beyond starts downloading, once per end or post per walk.
   function prefetchNearGates(s, catP) {
     let done = gatesFetched.get(s);
-    for (const end of liveEndsFor(s.areaId, CATALOG)) {
-      if (done?.has(end.id)) continue;
-      if (Math.hypot(end.x - catP.x, end.z - catP.z) > GATE_PREFETCH_REACH) continue;
-      const kind = gateStatus(end, progression.state, CATALOG).kind;
-      if (kind !== 'go' && kind !== 'buy') continue;
+    const fetch = (id, to) => {
       if (!done) { done = new Set(); gatesFetched.set(s, done); }
-      done.add(end.id);
-      prefetchArea(end.to);
+      done.add(id);
+      prefetchArea(to);
+    };
+    const near = (p) => Math.hypot(p.x - catP.x, p.z - catP.z) <= GATE_PREFETCH_REACH;
+    for (const end of liveEndsFor(s.areaId, CATALOG)) {
+      if (done?.has(end.id) || !near(end)) continue;
+      const kind = gateStatus(end, progression.state, CATALOG).kind;
+      if (kind === 'go' || kind === 'buy') fetch(end.id, end.to);
+    }
+    for (const post of postsFor(s.areaId)) {
+      if (done?.has(post.id) || !near(post)) continue;
+      if (postStatus(post, progression.state, CATALOG, s.areaId).kind === 'go') fetch(post.id, post.to);
     }
   }
   // Bodies extracted out of the keydown handlers below (pure move — same

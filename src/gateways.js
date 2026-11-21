@@ -112,6 +112,12 @@ export function arrivalFor(viaId, table = GATEWAY_ENDS) {
   if (!hit) return null;
   const { areaId, end: twin } = hit;
   if (twin.arrive) return { areaId, x: twin.arrive.x, z: twin.arrive.z, yaw: twin.arrive.yaw };
-  const [dx, dz] = THROUGH[twin.faces];
-  return { areaId, x: twin.x - dx * ARRIVE_IN, z: twin.z - dz * ARRIVE_IN, yaw: INWARD_YAW[twin.faces] };
+  return { areaId, ...inwardOf(twin) };
+}
+
+// { x, z, yaw }: ARRIVE_IN m inside something standing at (x, z) on an edge
+// it faces out of, facing in. A gate end, and a border post (Task 10).
+export function inwardOf({ x, z, faces }) {
+  const [dx, dz] = THROUGH[faces];
+  return { x: x - dx * ARRIVE_IN, z: z - dz * ARRIVE_IN, yaw: INWARD_YAW[faces] };
 }
