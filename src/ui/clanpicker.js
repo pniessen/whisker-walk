@@ -48,9 +48,11 @@ export function clanPickerModel(state, territories = TERRITORIES, homes = HOMES)
 }
 
 // The badge of a group, as a pick card and the line in Change place show it.
-// The drawings belong to the word set (EMBLEMS, whole <svg> strings). A set
-// without them shows no emblem; a set with badge WORDS (BADGE_WORDS) also names
-// the badge in a line of text on its cards.
+// The drawings belong to the word set (EMBLEMS, whole <svg> strings, each
+// aria-hidden: beside a name they are decoration). A set without them shows no
+// emblem. A set with badge WORDS (BADGE_WORDS) names the badge on its cards:
+// as the drawing's name when it has one (the drawing is then a picture,
+// role="img" with a <title>), else in a line of text.
 const badgeWordOf = (id) => {
   const badges = words().BADGE_WORDS;
   return badges && Object.hasOwn(badges, id) ? badges[id] : null;
@@ -59,6 +61,14 @@ export function emblemOf(id) {
   const emblems = words().EMBLEMS;
   return emblems && Object.hasOwn(emblems, id) ? emblems[id] : '';
 }
+const namedEmblem = (svg, word) => svg.replace(/^<svg([^>]*?) aria-hidden="true"([^>]*)>/,
+  (_m, a, b) => `<svg${a} role="img"${b}><title>${escapeHtml(word)}</title>`);
+const cardEmblem = (id) => {
+  const svg = emblemOf(id);
+  if (!svg) return '';
+  const word = badgeWordOf(id);
+  return `<span class="dr-home-emblem">${word ? namedEmblem(svg, word) : svg}</span>`;
+};
 
 export function renderClanPickerHtml(model, partnerName) {
   const mineCard = model.cards.find((c) => c.mine);
@@ -70,11 +80,11 @@ export function renderClanPickerHtml(model, partnerName) {
     : '<button class="dr-home dr-home-off" type="button" aria-disabled="true">');
   const buttons = model.cards.map((c) => open(c)
     + (c.pickable
-      ? `<span class="dr-home-name">${emblemOf(c.id) ? `<span class="dr-home-emblem">${emblemOf(c.id)}</span>` : ''}${escapeHtml(c.name)}</span>`
+      ? `<span class="dr-home-name">${cardEmblem(c.id)}${escapeHtml(c.name)}</span>`
       : `<span class="dr-home-name">${escapeHtml(c.name)}</span>`)
     + `<small>of ${escapeHtml(c.place)}</small>`
     + `<small>${escapeHtml(c.line)}</small>`
-    + (c.pickable && badgeWordOf(c.id) ? `<small class="dr-home-badge">${escapeHtml(phrase('pick.badge', badgeWordOf(c.id)))}</small>` : '')
+    + (c.pickable && badgeWordOf(c.id) && !emblemOf(c.id) ? `<small class="dr-home-badge">${escapeHtml(phrase('pick.badge', badgeWordOf(c.id)))}</small>` : '')
     + (c.soon && c.pickable ? `<small class="dr-home-soon">${phrase('pick.territorySoon')}</small>` : '')
     + (c.mine ? '<small class="dr-home-tag">✓ yours</small>' : '')
     + (c.partner ? `<small class="dr-home-tag">🤝 ${escapeHtml(partnerName)}'s</small>` : '')

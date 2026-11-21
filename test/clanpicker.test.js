@@ -4,7 +4,8 @@ import {
   clanPickerModel, renderClanPickerHtml, PICK_ATTR, emblemOf,
   MOMENT_SEEN_KEY, MOMENT_ATTR, woodsOpen, clanMomentDue, renderClanMomentHtml, clanLineHtml,
 } from '../src/ui/clanpicker.js';
-import { withOffWords } from './helpers/offwords.js';
+import { withOffWords, offWords } from './helpers/offwords.js';
+import { addWordSet, removeWordSet, setSeriesMode, SERIES_ON } from '../src/wordset.js';
 import { CATALOG } from '../src/progression.js';
 import { TERRITORIES } from '../src/territories.js';
 import { clanName, pickableClans, HOMES } from '../src/clanhomes.js';
@@ -347,10 +348,25 @@ describe('the emblems are the word set\'s', () => {
     expect(emblemOf('nowhere')).toBe('');
     expect(emblemOf('constructor')).toBe('');
   });
-  it('a set with no EMBLEMS shows none (the everyday set has none yet)', () => {
-    withOffWords(() => {
+  it('a set with no EMBLEMS shows none', () => {
+    const { EMBLEMS: _drawings, ...bare } = offWords;
+    addWordSet('no-drawings', bare);
+    try {
+      setSeriesMode('no-drawings');
       expect(emblemOf('woods')).toBe('');
-      expect(renderClanPickerHtml(clanPickerModel(save()), 'Robin')).not.toContain('dr-home-emblem');
+      const html = renderClanPickerHtml(clanPickerModel(save()), 'Robin');
+      expect(html).not.toContain('dr-home-emblem');
+      // with no drawing, a card that has a badge word names it in a line of text
+      expect(html).toContain('dr-home-badge');
+    } finally {
+      setSeriesMode(SERIES_ON);
+      removeWordSet('no-drawings');
+    }
+  });
+  it('the everyday set draws its own', () => {
+    withOffWords(() => {
+      expect(emblemOf('woods')).toBe(offWords.EMBLEMS.woods);
+      expect(emblemOf('woods')).not.toBe(EMBLEMS.woods);
     });
   });
 });

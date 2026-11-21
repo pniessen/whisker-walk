@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { withOffWords } from './helpers/offwords.js';
+import { withOffWords, offWords } from './helpers/offwords.js';
 import { CATALOG } from '../src/progression.js';
 import { SKILLS } from '../src/skills.js';
 import { CLAN_SUFFIX } from '../src/clanwords.js';
@@ -763,7 +763,7 @@ describe('Launch A: the home screen (cat, place, go)', () => {
       expect(t).toContain('The Woods');
       expect(t).toContain(`${clanName('woods')} land`);
     });
-    it('with the everyday words the today pill shows no family emblem', () => {
+    it('with the everyday words the today pill shows the everyday badge, never a family emblem', () => {
       const s = { ...defaultishState(), edition: 'canon', area: 'woods' };
       s.unlocked.areas.push('woods');
       const family = section(renderDressingRoomHtml({ model: buildDressingModel(s, CATALOG), ui: {} }), 'dr-today');
@@ -772,7 +772,9 @@ describe('Launch A: the home screen (cat, place, go)', () => {
         const t = section(renderDressingRoomHtml({ model: buildDressingModel(s, CATALOG), ui: {} }), 'dr-today');
         expect(t).not.toContain('M14.2 9.5L8.8 16.2h3.4L10.4 22.6l6.2-8h-3.5z');
         expect(t).not.toContain('M14.5 3.5a9 9 0 1 0 6 13.5');
-        expect(t).not.toContain('dr-today-emblem');
+        // the pill's badge is decoration: the place's name is said beside it
+        expect(t).toContain(`<span class="dr-today-emblem">${offWords.EMBLEMS.woods}</span>`);
+        expect(t).not.toMatch(/role="img"|<title>/);
       });
     });
     it('Legacy has no clan line, even with a Clan-only place chosen', () => {

@@ -35,7 +35,7 @@ import { FIGHT_MOVES } from '../src/fightmoves.js';
 import { validPetName } from '../src/net.js';
 import { renderColonyHtml } from '../src/ui/colonypanel.js';
 import { renderStarNamePicker } from '../src/ui/hometabs.js';
-import { clanPickerModel, renderClanPickerHtml, renderClanMomentHtml, clanLineHtml } from '../src/ui/clanpicker.js';
+import { clanPickerModel, renderClanPickerHtml, renderClanMomentHtml, clanLineHtml, emblemOf, PICK_ATTR } from '../src/ui/clanpicker.js';
 import { EMBLEMS } from '../src/clanwords.js';
 import { htmlText, readFixture, checkAgainstFixture, UPDATING_OFF } from './helpers/serieswords.js';
 import { OFF, withOffWords, bannedIn, bannedLeaks, BANNED } from './helpers/offwords.js';
@@ -378,18 +378,66 @@ describe('4. the player\'s cat has no label, and picking a group is choosing a h
     });
   });
 
-  it('a pick card names its badge in words and draws no emblem; the family\'s cards draw theirs', () => {
+  it('a pick card shows its badge as a named picture, not a line of words; the family\'s cards are as they were', () => {
     const emblems = (html) => html.split('dr-home-emblem').length - 1;
     const theirs = renderClanPickerHtml(clanPickerModel({}), 'Robin');
     expect(emblems(theirs)).toBe(Object.keys(EMBLEMS).length);
-    expect(theirs).not.toMatch(/dr-home-badge/);
+    expect(theirs).not.toMatch(/dr-home-badge|role="img"|<title>/);
     withOffWords(() => {
       const html = renderClanPickerHtml(clanPickerModel({}), 'Robin');
-      expect(emblems(html)).toBe(0);
-      expect(html).not.toMatch(/<svg/);
-      expect(htmlText(html).filter((t) => t.startsWith('badge: '))).toEqual(CLANS.map((id) => `badge: ${off.BADGE_WORDS[id]}`));
-      expect(clanLineHtml(clanPickerModel({ clanPick: { mine: 'woods' } }), 'Robin')).not.toMatch(/<svg|dr-home-emblem/);
+      expect(html).toContain('<title>oak leaf</title>');
+      expect(html).not.toMatch(/dr-home-badge/);
+      expect(emblems(html)).toBe(CLANS.length);
+      for (const id of CLANS) {
+        const card = html.split('<button').find((b) => b.includes(`${PICK_ATTR}="${id}"`));
+        const svg = card.slice(card.indexOf('<svg'), card.indexOf('</svg>') + 6);
+        expect(svg, id).toMatch(/^<svg [^>]*role="img"[^>]*><title>/);
+        expect(svg, id).toContain(`<title>${off.BADGE_WORDS[id]}</title>`);
+        expect(svg, id).not.toContain('aria-hidden');
+        expect(htmlText(card), id).not.toContain(`badge: ${off.BADGE_WORDS[id]}`);
+      }
+      // the Change-place line keeps the drawing as decoration: her group's name is said beside it
+      const line = clanLineHtml(clanPickerModel({ clanPick: { mine: 'woods' } }), 'Robin');
+      expect(line).toContain(off.EMBLEMS.woods);
+      expect(line).not.toMatch(/role="img"|<title>/);
     });
+  });
+});
+
+describe('the everyday badges (A2): five small drawings of their own', () => {
+  const COLOUR = { woods: '#2f5a33', moor: '#5c3f68', river: '#24516b', pines: '#353d68', gorge: '#6b4128' };
+  const CREAM = '#f1e0c2';
+  const HEAD = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">';
+  const ALLOWED = new Set(['path', 'circle', 'ellipse', 'g', 'rect', 'polygon']);
+
+  it('each everyday badge is a small safe drawing of its own', () => {
+    expect(Object.keys(off.EMBLEMS).sort()).toEqual([...CLANS].sort());
+    expect(Object.isFrozen(off.EMBLEMS)).toBe(true);
+    for (const id of CLANS) {
+      const svg = off.EMBLEMS[id];
+      expect(typeof svg, id).toBe('string');
+      expect(svg.startsWith(HEAD), id).toBe(true);
+      expect(svg.endsWith('</svg>'), id).toBe(true);
+      expect(svg.length, id).toBeLessThanOrEqual(700);
+      const inner = svg.slice(HEAD.length, -'</svg>'.length);
+      const tags = [...inner.matchAll(/<\/?\s*([A-Za-z][\w:-]*)/g)].map((m) => m[1]);
+      expect(tags.length, id).toBeGreaterThan(0);
+      for (const t of tags) expect(ALLOWED.has(t), `${id}: <${t}>`).toBe(true);
+      const paints = [...svg.matchAll(/\b(fill|stroke)\s*=\s*"([^"]*)"/g)].map((m) => m[2]);
+      expect(paints.length, id).toBeGreaterThan(0);
+      for (const v of paints) expect([COLOUR[id], CREAM, 'none'], `${id}: ${v}`).toContain(v);
+      expect(svg, id).not.toMatch(/style\s*=|color\s*=|<(text|image|script)|\son\w+\s*=|url\(|href/i);
+      expect(svg, id).toContain(COLOUR[id]);
+      expect(svg, id).not.toBe(on.EMBLEMS[id]);
+    }
+    expect(new Set(Object.values(off.EMBLEMS)).size).toBe(CLANS.length);
+  });
+
+  it('the everyday set\'s badge is the one drawn wherever a badge is drawn', () => {
+    withOffWords(() => {
+      for (const id of CLANS) expect(emblemOf(id), id).toBe(off.EMBLEMS[id]);
+    });
+    for (const id of CLANS) expect(emblemOf(id), id).toBe(EMBLEMS[id]);
   });
 });
 
