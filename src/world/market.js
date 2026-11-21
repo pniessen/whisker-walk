@@ -10,7 +10,7 @@ import {
 } from './parkfountain.js';
 import {
   MARKET_BOUNDS, MARKET_SPAWN, FOUNTAIN, CAFE, STALLS, TREAT_STALLS, stallById, fromStall,
-  MARKET_COLLIDERS, MARKET_KEEPOUT, MARKET_POIS, MARKET_COLLECTIBLES,
+  MARKET_COLLIDERS, MARKET_KEEPOUT, MARKET_POIS, MARKET_COLLECTIBLES, FRUIT_CRATE, MARKET_LAMPS,
 } from './marketplan.js';
 
 // =============================================================================
@@ -76,6 +76,7 @@ export const MARKET_COBBLE = 0x8b8478; // the cobbles, and the ground bounce
 export const MARKET_SKY = Object.freeze({ top: 0x8ec4ea, horizon: 0xe8e0cc }); // a clear, warm morning
 export const MARKET_SKY_DUSK = Object.freeze({ top: 0x2a3358, horizon: 0xa86e62 });
 export const LANTERN_MAX = 1.6; // the lanterns' emissiveIntensity at full dusk
+export const WINDOW_GLOW = 1.0; // the lit shop and house windows' at full dusk
 const GROUND_SIZE = 96;
 const FLAG_RING = Object.freeze({ r0: 3.15, r1: 6.6, y: 0.012, color: 0x9a9284 });
 
@@ -154,12 +155,11 @@ const CAFE_FRONT = Object.freeze({ x0: 7.5, x1: 14, depth: 2.2, y: 2.75 });
 // The anchors for step 3: where things will be, { x, z, y } (y their top).
 const BAKER = stallById('baker');
 const FRUIT = stallById('fruit');
-const APPLE_CRATE = Object.freeze({ lx: FRUIT.w / 2 + 0.45, lz: 0.3, w: 0.5, h: 0.4, d: 0.4 });
 export const MARKET_ANCHORS = Object.freeze({
   // the baker's warm flour sacks, beside the stall on the side away from its hide (step 3's nap)
   flourSacks: Object.freeze({ ...fromStall(BAKER, -(BAKER.w / 2 + 0.6), -BAKER.d / 2 + 0.5), y: 0.45 }),
-  // the crate of apples at the fruit stall's end (step 3's rolling fruit; drawn here)
-  apples: Object.freeze({ ...fromStall(FRUIT, APPLE_CRATE.lx, APPLE_CRATE.lz), y: APPLE_CRATE.h }),
+  // the crate of apples at the fruit stall's end (step 3's rolling fruit; drawn here, solid in the plan)
+  apples: Object.freeze({ ...fromStall(FRUIT, FRUIT_CRATE.lx, FRUIT_CRATE.lz), y: FRUIT_CRATE.h }),
   // a bench facing the fountain (step 3 draws it): its seat
   bench: Object.freeze({ x: -6.5, z: 8.5, y: 0.54 }),
   // a bicycle parked by the south-west shop fronts (step 3): its basket
@@ -300,6 +300,7 @@ export function setMarketDusk(area, k) {
   const look = area?.look;
   if (!look) return;
   look.lantern.emissiveIntensity = LANTERN_MAX * t;
+  look.windows.emissiveIntensity = WINDOW_GLOW * t;
   const packed = t > 0.5;
   look.packing.visible = packed;
   look.baskets.visible = !packed;
@@ -339,7 +340,7 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       scene.add(drawStall(s, { PARTS, M, paint, barrel, disc, quad, lanterns, poles, basketKit, packKit }));
     }
     drawCafe(scene, { PARTS, M, paint, lanterns });
-    for (const [x, z] of [[-10, -10], [10, -10], [-10, 10], [10, 10]]) {
+    for (const { x, z } of MARKET_LAMPS) {
       const lamp = own(`market-lamp-${x},${z}`, () => b.lampPost(x, z));
       lamp.name = `marketLamp:${x},${z}`;
       scene.add(lamp);
@@ -373,7 +374,16 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
     scene.add(baskets, packing);
 
     scene.add(drawBunting(PARTS, flags, poles));
-    for (const side of SIDES) scene.add(drawShopFront(side, paint));
+    // the shop fronts, and a share of their windows lit at dusk: one mesh for all four sides
+    const winLit = new THREE.MeshStandardMaterial({ color: GLASS, roughness: 0.85, metalness: 0, emissive: 0xffc070, emissiveIntensity: 0 });
+    const litKit = makeKit('marketWindowsLit');
+    const sack = new THREE.SphereGeometry(0.5, 8, 6);
+    for (const side of SIDES) scene.add(drawShopFront(side, { paint, winLit, litKit, barrel, sack }));
+    const windows = litKit.meshes()[0];
+    windows.name = 'marketWindowsLit';
+    windows.userData.shopWindows = true;
+    scene.add(windows);
+    sack.dispose();
     const band = own('market-band', () => b.horizonBand(MARKET_HORIZON));
     band.userData.noCast = true;
     band.castShadow = false;
@@ -411,7 +421,7 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       keepers: Object.fromEntries(STALLS.filter((s) => s.keeper).map((s) => [s.id, { x: s.keeper.x, z: s.keeper.z, yaw: yawOf(s) }])),
       anchors: Object.fromEntries(Object.entries(MARKET_ANCHORS).map(([k, v]) => [k, { ...v }])),
       // what setMarketDusk drives
-      look: { lantern: M.lantern, packing, baskets, level: 0 },
+      look: { lantern: M.lantern, windows: winLit, packing, baskets, level: 0 },
     };
     record.life = (ctx) => createMarketLook(record, ctx);
     return record;
@@ -452,7 +462,8 @@ function drawGround(scene) {
 
 // --- the fountain: the Park's, scaled, with a third bowl and the bunting's mast
 function drawFountain(scene, M, water) {
-  const stone = () => surfaceMaterialNoMap('cobble', FOUNTAIN_STONE.color, { roughness: FOUNTAIN_STONE.roughness });
+  const stoneMat = surfaceMaterialNoMap('cobble', FOUNTAIN_STONE.color, { roughness: FOUNTAIN_STONE.roughness });
+  const stone = () => stoneMat; // one material for the basin, the spire and the top bowl
   const f = new THREE.Group();
   f.name = 'marketFountain';
   const basin = new THREE.Mesh(latheGeometry(BASIN_PROFILE), stone());
@@ -637,9 +648,20 @@ function drawStall(s, { PARTS, M, paint, barrel, disc, quad, lanterns, poles, ba
   }
   // the apples' crate at the fruit stall's end (step 3 rolls its fruit)
   if (s.id === 'fruit') {
-    const [x, z] = pl(APPLE_CRATE.lx, APPLE_CRATE.lz);
-    box(x, 0, z, APPLE_CRATE.w, APPLE_CRATE.h - 0.02, APPLE_CRATE.d, CRATE);
-    atlas(quad, mat4(x, APPLE_CRATE.h - 0.01, z, { pitch: -Math.PI / 2, sx: APPLE_CRATE.w - 0.04, sy: APPLE_CRATE.d - 0.04 }), 6);
+    const [x, z] = pl(FRUIT_CRATE.lx, FRUIT_CRATE.lz);
+    box(x, 0, z, FRUIT_CRATE.w, FRUIT_CRATE.h - 0.02, FRUIT_CRATE.d, CRATE);
+    atlas(quad, mat4(x, FRUIT_CRATE.h - 0.01, z, { pitch: -Math.PI / 2, sx: FRUIT_CRATE.w - 0.04, sy: FRUIT_CRATE.d - 0.04 }), 6);
+  }
+
+  // morning-busy: crates stacked at the back corners, a sack on one, inside the
+  // plan's r 0.3 corner colliders (a crate's half-diagonal is 0.27)
+  {
+    const [x0, z0] = pl(-W / 2, -D / 2);
+    const n = 2 + Math.floor(hash01(s.at.x, s.at.z, 41) * 2);
+    for (let i = 0; i < n; i++) box(x0 + (i % 2 ? 0.02 : -0.01), i * 0.29, z0, 0.4, 0.28, 0.36, CRATE, { yaw: (i % 3) * 0.06 });
+    const [x1, z1] = pl(W / 2, -D / 2);
+    box(x1, 0, z1, 0.4, 0.28, 0.36, CRATE, { yaw: -0.05 });
+    wood(PARTS.bulb, mat4(x1, 0.28 + 0.21, z1, { yaw: 0.4, sx: 0.32, sy: 0.44, sz: 0.26 }), 0xc9b48a);
   }
 
   // packing up (dusk): cloths over two displays, crates stacked behind two counters
@@ -666,11 +688,10 @@ function basketAt(kit, PARTS, paint, M, disc, m, cell) {
 
 // --- the café: three tables with their chairs, and its front on the south row
 function drawCafe(scene, { PARTS, M, paint, lanterns }) {
-  // table 0 stands a little east of the crumbs' spot, so they lie under its
-  // top's edge and clear of its foot
+  // the crumbs (marketplan.js CAFE) lie under table 0's top's edge, clear of its foot
   const CHAIRS = [[0.6, 2.1, 3.4], [0.4, 2.4, 4.3], [1.1, 3.1, 5.0]];
   CAFE.tables.forEach((t, i) => {
-    const at = i === 0 ? { x: t.x + 0.32, z: t.z } : t;
+    const at = t;
     const g = new THREE.Group();
     g.name = `marketCafe:${i}`;
     g.userData.cafeTable = i;
@@ -748,10 +769,11 @@ function drawBunting(PARTS, flags, poles) {
 }
 
 // --- the shop fronts: one row of town buildings a side, one mesh
-function drawShopFront(side, paint) {
+function drawShopFront(side, { paint, winLit, litKit, barrel, sack }) {
   const K = makeKit(`marketShops:${side.id}`);
   const sideM = mat4(side.x, 0, side.z, { yaw: side.yaw });
   const put = (geo, m, color) => K.put('paint', paint, geo, sideM.clone().multiply(m), { color });
+  const lit = (geo, m) => litKit.put('glass', winLit, geo, sideM.clone().multiply(m), { noCast: true });
   const cube = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
   const plane = new THREE.PlaneGeometry(1, 1);
   const si = SIDES.indexOf(side);
@@ -766,17 +788,42 @@ function drawShopFront(side, paint) {
     while (u < r1 - 0.01) {
       let w = 5.2 + 2.6 * hash01(u, si, 71);
       if (r1 - (u + w) < 3) w = r1 - u;
-      house(put, cube, plane, u, w, k, si);
+      house(put, lit, cube, plane, u, w, k, si);
       u += w;
       k++;
     }
   }
-  // crates stacked against the fronts (outside the bounds: nobody walks into them)
-  for (let i = 0; i < 3; i++) {
-    const u = side.u0 + 9 + i * ((side.u1 - side.u0 - 18) / 2) + 3 * hash01(i, si, 73);
-    if (side.gaps.some(([g0, g1]) => u > g0 - 1.5 && u < g1 + 1.5)) continue;
-    const n = 1 + Math.floor(hash01(i, si, 75) * 3);
-    for (let j = 0; j < n; j++) put(cube, mat4(u + (j % 2) * 0.05, j * 0.31, 0.28, { yaw: 0.1 * (j % 3), sx: 0.5, sy: 0.3, sz: 0.42 }), CRATE);
+  // the foot of the fronts, a working market's: stacked crates, barrels,
+  // sacks and a handcart, all between the fronts and the bounds (v 0.05..0.75)
+  // so nobody walks into them; none in the gateway's gap or under the café's awning
+  const cafeU = side.id === 'south' ? [-CAFE_FRONT.x1, -CAFE_FRONT.x0] : null;
+  let i = 0;
+  for (let u = side.u0 + 5 + 2 * hash01(si, 0, 73); u < side.u1 - 4; u += 4.5 + 3 * hash01(u, si, 74), i++) {
+    if (side.gaps.some(([g0, g1]) => u > g0 - 2 && u < g1 + 2)) continue;
+    if (cafeU && u > cafeU[0] - 1 && u < cafeU[1] + 1) continue;
+    const kind = (i + si) % 4;
+    if (kind === 0) {
+      // a tall stack and a short one beside it
+      const n = 3 + Math.floor(hash01(u, si, 75) * 2);
+      for (let j = 0; j < n; j++) put(cube, mat4(u + (j % 2) * 0.05, j * 0.31, 0.3, { yaw: 0.1 * (j % 3), sx: 0.5, sy: 0.3, sz: 0.42 }), CRATE);
+      for (let j = 0; j < 2; j++) put(cube, mat4(u + 0.58, j * 0.31, 0.3, { yaw: -0.06 * j, sx: 0.48, sy: 0.3, sz: 0.4 }), CRATE);
+    } else if (kind === 1) {
+      // two barrels and a crate on its side
+      for (const du of [0, 0.58]) put(barrel, mat4(u + du, 0, 0.36, { sx: 0.52, sy: 0.78, sz: 0.52 }), 0x7a5a3c);
+      put(cube, mat4(u + 1.1, 0, 0.3, { yaw: 0.2, sx: 0.48, sy: 0.3, sz: 0.42 }), CRATE);
+    } else if (kind === 2) {
+      // sacks against a crate
+      put(cube, mat4(u, 0, 0.3, { sx: 0.5, sy: 0.3, sz: 0.42 }), CRATE);
+      put(sack, mat4(u, 0.52, 0.3, { sx: 0.36, sy: 0.46, sz: 0.3 }), 0xc9b48a);
+      for (const du of [0.45, 0.8]) put(sack, mat4(u + du, 0.22, 0.32, { yaw: du, sx: 0.36, sy: 0.46, sz: 0.3 }), 0xbfa77a);
+    } else {
+      // a handcart, its handles along the front
+      put(cube, mat4(u, 0.42, 0.4, { sx: 1.2, sy: 0.1, sz: 0.56 }), 0x8a6a48);
+      for (const dv of [0.14, 0.66]) put(cube, mat4(u, 0.52, dv, { sx: 1.2, sy: 0.16, sz: 0.04 }), 0x8a6a48);
+      for (const dv of [0.08, 0.66]) put(barrel, mat4(u - 0.2, 0.3, dv, { pitch: Math.PI / 2, sx: 0.6, sy: 0.05, sz: 0.6 }), 0x4a3a2c);
+      for (const dv of [0.2, 0.6]) put(cube, mat4(u + 0.95, 0.47, dv, { sx: 0.8, sy: 0.04, sz: 0.04 }), 0x6e5038);
+      put(cube, mat4(u - 0.1, 0.47, 0.4, { yaw: 0.1, sx: 0.44, sy: 0.28, sz: 0.38 }), CRATE);
+    }
   }
   cube.dispose();
   plane.dispose();
@@ -787,7 +834,7 @@ function drawShopFront(side, paint) {
 }
 
 // One town building: u..u+w along the row, its front at v 0 facing the square.
-function house(put, cube, plane, u, w, k, si) {
+function house(put, lit, cube, plane, u, w, k, si) {
   const h1 = hash01(u, si, 81);
   const upper = h1 < 0.45 ? 1 : 2;
   const h = 3.4 + 2.9 * upper + 0.4;
@@ -808,7 +855,8 @@ function house(put, cube, plane, u, w, k, si) {
   const winX0 = doorLeft ? u + 1.6 : u + 0.4;
   const winX1 = doorLeft ? u + w - 0.4 : u + w - 1.6;
   put(plane, mat4((winX0 + winX1) / 2, 1.5, 0.02, { sx: winX1 - winX0 + 0.16, sy: 1.96 }), FRAME);
-  put(plane, mat4((winX0 + winX1) / 2, 1.5, 0.03, { sx: winX1 - winX0, sy: 1.8 }), GLASS);
+  const shopPane = mat4((winX0 + winX1) / 2, 1.5, 0.03, { sx: winX1 - winX0, sy: 1.8 });
+  if (hash01(u, si, 96) < 0.55) lit(plane, shopPane); else put(plane, shopPane, GLASS);
   put(plane, mat4(dx, 1.1, 0.03, { sx: 1.0, sy: 2.2 }), door);
   put(plane, mat4(mid, 2.88, 0.04, { sx: w - 0.2, sy: 0.55 }), fascia);
   // the windows upstairs
@@ -818,7 +866,8 @@ function house(put, cube, plane, u, w, k, si) {
     for (let c = 0; c < cols; c++) {
       const x = u + (w * (c + 0.5)) / cols;
       put(plane, mat4(x, y, 0.02, { sx: 1.0, sy: 1.45 }), FRAME);
-      put(plane, mat4(x, y, 0.03, { sx: 0.82, sy: 1.25 }), GLASS);
+      const pane = mat4(x, y, 0.03, { sx: 0.82, sy: 1.25 });
+      if (hash01(x, f + 7 * si, 97) < 0.4) lit(plane, pane); else put(plane, pane, GLASS);
     }
   }
 }

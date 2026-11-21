@@ -30,7 +30,7 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { findFadeOccluders } = await import('../src/treefade.js');
 const { keepOutPoint } = await import('../src/keepout.js');
-const { isWalkableAt } = await import('../src/player.js');
+const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
 
 // =============================================================================
 // The Market Square drawn (step 1, Task 3): the square, day and dusk, inside
@@ -53,11 +53,13 @@ const clearOf = (x, z, colliders) => Math.min(...colliders.map((c) => Math.hypot
 // fountain 9 (5 casters: its stone, merged at walk time, and its mast), four
 // lamp posts 8 (8 casters), the five treats 17, the café 5 (its front's awning
 // casts), one mesh a side for the shop
-// fronts (4 casters), the lanterns, the bunting, the baskets 2, the packing-up
+// fronts (4 casters), the lit windows, the lanterns, the bunting, the baskets 2, the packing-up
 // 2, the cobbles, the flagstones and the far town (6,346 triangles of the
 // 27,113). The build runs inside withLocalUuids: no Math.random draw.
-const MEASURED_BUILT = { meshes: 78, casters: 30, triangles: 27113 };
-const MEASURED_MERGED = { meshes: 75, casters: 27, triangles: 27113 };
+// Fix round (2026-11-21): +1 mesh, the dusk-lit windows (noCast); the crates,
+// sacks, barrels and handcarts in buckets the square had: +5,892 triangles.
+const MEASURED_BUILT = { meshes: 79, casters: 30, triangles: 33005 };
+const MEASURED_MERGED = { meshes: 76, casters: 27, triangles: 33005 };
 const MEASURED_DRAWS = 0;
 
 function budgetStats(s) {
@@ -142,8 +144,21 @@ describe('the Market Square drawn', () => {
     }
   });
 
-  it('the colliders are the plan\'s', () => {
+  it("the colliders are the plan's: each treat's stand, the apples' crate and the lamp posts are solid", () => {
     expect(area.colliders).toEqual(MARKET_COLLIDERS);
+    for (const id of TREAT_STALLS) {
+      const t = stallById(id).treat;
+      const c = area.colliders.find((q) => Math.hypot(q.x - t.x, q.z - t.z) < 0.05);
+      expect(c, id).toBeTruthy();
+      // a cat's centre still comes within reach of the treat (TREAT_REACH 0.8)
+      expect(c.r + CAT_RADIUS, id).toBeLessThan(0.8);
+    }
+    const crate = area.colliders.find((q) => Math.hypot(q.x - area.anchors.apples.x, q.z - area.anchors.apples.z) < 0.05);
+    expect(crate).toBeTruthy();
+    for (const f of findFadeOccluders(scene)) {
+      const c = area.colliders.find((q) => Math.hypot(q.x - f.x, q.z - f.z) < 0.05);
+      expect(c?.r).toBeLessThanOrEqual(0.15);
+    }
   });
 
   it('every treat is drawn at its spot and casts nothing', () => {
@@ -180,7 +195,7 @@ describe('the Market Square drawn', () => {
     for (const t of tables) {
       const p = t.getWorldPosition(new THREE.Vector3());
       const plan = CAFE.tables[t.userData.cafeTable];
-      expect(Math.hypot(p.x - plan.x, p.z - plan.z)).toBeLessThan(0.4);
+      expect(Math.hypot(p.x - plan.x, p.z - plan.z)).toBeLessThan(0.05);
     }
   });
 
@@ -201,7 +216,8 @@ describe('the Market Square drawn', () => {
     for (const [k, a] of Object.entries(area.anchors)) {
       expect(Number.isFinite(a.x) && Number.isFinite(a.z) && Number.isFinite(a.y), k).toBe(true);
       expect(a.x > MARKET_BOUNDS.minX && a.x < MARKET_BOUNDS.maxX && a.z > MARKET_BOUNDS.minZ && a.z < MARKET_BOUNDS.maxZ, k).toBe(true);
-      expect(clearOf(a.x, a.z, area.colliders), k).toBeGreaterThan(0.3);
+      // the apples are on their crate, which is solid; the rest are free spots
+      if (k !== 'apples') expect(clearOf(a.x, a.z, area.colliders), k).toBeGreaterThan(0.3);
       expect(a.y, k).toBeGreaterThan(0.2);
       expect(a.y, k).toBeLessThan(1.2);
     }
@@ -218,6 +234,13 @@ describe('the Market Square drawn', () => {
     const lantern = scene.getObjectByName('marketLanterns');
     const packing = scene.getObjectByName('marketPacking');
     const baskets = scene.getObjectByName('marketBaskets');
+    const windows = scene.getObjectByName('marketWindowsLit');
+    expect(windows.isMesh).toBe(true);
+    expect(windows.parent).toBe(scene);
+    expect(windows.userData.noCast).toBe(true);
+    expect(windows.userData.window).toBeUndefined();
+    expect(windows.material.emissiveIntensity).toBe(0);
+    expect(windows.geometry.index.count / 6).toBeGreaterThan(40); // a good share of the panes
     expect(lantern.isMesh).toBe(true);
     expect(lantern.material.emissiveIntensity).toBe(0);
     expect(packing.visible).toBe(false);
@@ -226,6 +249,7 @@ describe('the Market Square drawn', () => {
     for (const o of [packing, baskets]) expect(o.userData.noMerge).toBe(true);
     setMarketDusk(area, 1);
     expect(lantern.material.emissiveIntensity).toBeCloseTo(1.6, 9);
+    expect(windows.material.emissiveIntensity).toBeGreaterThan(0.5);
     expect(packing.visible).toBe(true);
     expect(baskets.visible).toBe(false);
     for (const m of Object.values(area.treatMeshes)) expect(m.visible).toBe(true);
@@ -238,6 +262,7 @@ describe('the Market Square drawn', () => {
     expect(baskets.visible).toBe(true);
     setMarketDusk(area, 0);
     expect(lantern.material.emissiveIntensity).toBe(0);
+    expect(windows.material.emissiveIntensity).toBe(0);
     expect(packing.visible).toBe(false);
     expect(baskets.visible).toBe(true);
     for (const m of Object.values(area.treatMeshes)) expect(m.visible).toBe(true);

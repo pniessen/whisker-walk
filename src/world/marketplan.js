@@ -25,6 +25,8 @@
 // A treat sits at the counter's front corner on the hide's side; a hide is a
 // trestle table the cat walks under (no collider), a short dash from the treat.
 // The cafe has no keeper watching: its crumbs lie under table 0.
+// The treats' stands, the crate of apples and the lamp posts are small solid
+// circles too (MARKET_COLLIDERS), each well inside a cat's reach of its treat.
 //
 // STRAYS (U5) are allowed in the square. MARKET_KEEPOUT keeps them out of every
 // treat counter's watch zone and its hide, so they never blur a stallholder's
@@ -38,9 +40,12 @@ export const MARKET_SPAWN = freeze({ x: 0, z: 29 });
 export const FOUNTAIN = freeze({ x: 0, z: 0, r: 3.2 });
 const FOUNTAIN_COLLIDER_R = 3.4;
 
+// The crumbs lie under table 0's top, 0.32 m west of its centre: clear of its
+// foot (r 0.2, a central pole), still under its top (r 0.4). Its hide is the
+// table itself.
 export const CAFE = freeze({
   tables: freeze([pt(9, 19), pt(12.5, 21.5), pt(9.4, 24.2)]),
-  crumbs: pt(9, 19),
+  crumbs: pt(8.68, 19),
 });
 
 // How a treat is reached and where a hide sits, in a stall's local frame.
@@ -130,9 +135,23 @@ function stallColliders(s) {
   return out;
 }
 
+// The small solid things the square draws on the cobbles: each treat's stand
+// (an ice crate, a stool, a barrel, the cart's step) at its treat, r 0.2, so a
+// cat's centre stops 0.55 from the treat, inside TREAT_REACH; the crate of
+// apples at the fruit stall's end (step 3 rolls its fruit); the four lamp posts.
+export const STAND_R = 0.2;
+export const FRUIT_CRATE = freeze({ lx: stallById('fruit').w / 2 + 0.45, lz: 0.3, w: 0.5, h: 0.4, d: 0.4, r: 0.3 });
+export const MARKET_LAMPS = freeze([pt(-10, -10), pt(10, -10), pt(-10, 10), pt(10, 10)]);
+const LAMP_R = 0.12;
+const standColliders = (s) => (s.kind === 'treat' ? [freeze({ x: s.treat.x, z: s.treat.z, r: STAND_R })] : []);
+const FRUIT_CRATE_AT = fromStall(stallById('fruit'), FRUIT_CRATE.lx, FRUIT_CRATE.lz);
+
 export const MARKET_COLLIDERS = freeze([
   freeze({ x: FOUNTAIN.x, z: FOUNTAIN.z, r: FOUNTAIN_COLLIDER_R }),
   ...STALLS.flatMap(stallColliders),
+  ...STALLS.flatMap(standColliders),
+  freeze({ x: FRUIT_CRATE_AT.x, z: FRUIT_CRATE_AT.z, r: FRUIT_CRATE.r }),
+  ...MARKET_LAMPS.map((p) => freeze({ x: p.x, z: p.z, r: LAMP_R })),
 ]);
 
 export const MARKET_HIDES = freeze(STALLS.filter((s) => s.hide).map((s) => s.hide));
