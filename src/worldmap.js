@@ -15,7 +15,7 @@
 //
 // Not on the map: the den (home, a Menu tile), and the House (not
 // built yet), and today's border posts. The Rooftops is on it, inside the
-// town (TOWN_PLACES), coming soon until its catalog row exists.
+// town (TOWN_PLACES), a place like the others since its catalog row went in.
 //
 // One thing moves on the world map only: the Moor's camp (WORLD_CAMP_AT).
 // The world map's bigger words leave no room for it on the Moor's north edge
@@ -104,7 +104,7 @@ export function worldMapModel(state, catalog, { touch = false } = {}) {
     ...TOWN_PLACES.map((p) => ({
       id: p.id, areaId: p.areaId, x: p.x, y: p.y, r: p.r,
       kind: 'town', name: words().PLACE_WORDS[p.id], status: catalog?.areas?.[p.areaId] ? 'built' : 'soon', camp: null,
-      ...placeState(state, catalog, p.areaId),
+      ...placeState(state, catalog, p.areaId, { touch }),
     })),
   ];
   return {

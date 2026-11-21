@@ -340,6 +340,10 @@ export const CATALOG = {
     // editions (no `edition`). The Park's home line names all three
     // (nextthing.js, rule 7).
     fair: { name: 'The Fairground', price: 75, requires: { area: 'park', walks: 2 } },
+    // The Rooftops (docs/superpowers/plans/2026-11-21-rooftops-step4-into-game.md,
+    // ruling T1): held back until co-walkers could see height (R1), now in.
+    // ROOFS_REGISTRATION.catalog is the same row; in both editions.
+    roofs: { name: 'The Rooftops', price: 100, requires: { area: 'fair', walks: 2 } },
     // The world map (docs/superpowers/specs/2026-11-19-world-map-design.md,
     // decision 5): the Seaside follows the Docks on the map, so it opens after
     // two Docks walks. It keeps its place in this list (the place cards'
@@ -468,7 +472,7 @@ function defaultState() {
     // The Woods joins them for the same reason: the first Woods walk on a save
     // with no 'woods' key would pin state.walks.woods at NaN forever. So does
     // the River: a save with no 'river' key would pin state.walks.river at NaN. And the Moor, the Pines and the Gorge: no 'moor', 'pines' or 'gorge' key, same NaN.
-    // And the Farm: a save from before it loads with farm: 0. And the Fairground: fair: 0. And the Rooftops (?roofs=1 only; not in CATALOG.areas until step 4): roofs: 0.
+    // And the Farm: a save from before it loads with farm: 0. And the Fairground: fair: 0. And the Rooftops (in CATALOG.areas since Rooftops step 4): roofs: 0.
     walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0 },
     // A COPY of STARTER_ACCESSORIES: buy() pushes into this array.
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: [...STARTER_ACCESSORIES], areas: ['neighborhood'] },

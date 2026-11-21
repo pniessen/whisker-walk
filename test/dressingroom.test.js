@@ -408,29 +408,29 @@ describe('sheets and pictures', () => {
 });
 
 describe('dressing-room places by edition', () => {
-  it('Legacy lists today\'s six places and never the Woods', () => {
+  it('Legacy lists today\'s seven places and never the Woods', () => {
     const m = buildDressingModel({ ...defaultishState(), edition: 'legacy' }, CATALOG);
-    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'roofs', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth, the Rooftops after it (Rooftops step 4)
   });
-  it('Legacy lists today\'s six places and never the River', () => {
+  it('Legacy lists today\'s seven places and never the River', () => {
     const s = { ...defaultishState(), edition: 'legacy' };
     s.walks.woods = 5;
     const m = buildDressingModel(s, CATALOG);
-    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'roofs', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth, the Rooftops after it (Rooftops step 4)
     expect(m.places.map((p) => p.id)).not.toContain('river');
   });
-  it('Legacy lists today\'s six places and never the Moor', () => {
+  it('Legacy lists today\'s seven places and never the Moor', () => {
     const s = { ...defaultishState(), edition: 'legacy' };
     s.walks.woods = 5;
     const m = buildDressingModel(s, CATALOG);
-    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'roofs', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth, the Rooftops after it (Rooftops step 4)
     expect(m.places.map((p) => p.id)).not.toContain('moor');
   });
-  it('dressingroom: Legacy lists today\'s six places and never the Pines', () => {
+  it('dressingroom: Legacy lists today\'s seven places and never the Pines', () => {
     const s = { ...defaultishState(), edition: 'legacy' };
     s.walks.river = 5;
     const m = buildDressingModel(s, CATALOG);
-    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'roofs', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth, the Rooftops after it (Rooftops step 4)
     expect(m.places.map((p) => p.id)).not.toContain('pines');
   });
   it('Clan lists the Woods, locked behind two Twolegplace walks', () => {
@@ -470,7 +470,10 @@ describe('the world map in the dressing room', () => {
     expect(html).not.toContain('territory-map');
     expect(html).not.toContain('More places');
     expect(html).toMatch(/data-dr-place="neighborhood">[\s\S]*?Cozy Neighborhood/);
-    expect(count(html, /data-dr-place=/g)).toBe(6);
+    expect(count(html, /data-dr-place=/g)).toBe(7);
+    // the Rooftops among them, a picture card like the others (Review Focus 4)
+    expect(html).toContain('data-dr-place="roofs"');
+    for (const wild of ['woods', 'river', 'moor', 'pines', 'gorge']) expect(html).not.toContain(`data-dr-place="${wild}"`);
   });
 });
 

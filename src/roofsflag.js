@@ -1,8 +1,10 @@
-// The Rooftops switch (Rooftops step 2, ruling R1).
+// The Rooftops switch (Rooftops step 2, ruling R1; a developer shortcut since
+// Rooftops step 4, ruling T3).
 //
-// Off by default: the Rooftops is in no list a child sees (it has no
-// CATALOG.areas row until step 4). On (the address ends in ?roofs=1, or a test
-// calls setRoofs(true)), Explore starts a solo walk there: never in a room.
+// The Rooftops has its CATALOG.areas row now, so the switch gates nothing a
+// child sees: she unlocks the place like any other. On (the address ends in
+// ?roofs=1, or a test calls setRoofs(true)), Explore still starts a solo walk
+// there, never in a room, as the owner and the picture pages use it.
 //
 // Read at call time, never at import time, like grow.js.
 let forced = null;
@@ -24,10 +26,10 @@ export function setRoofs(value) {
 }
 
 // The places a walk note may name (main.js hands this to readResume): every
-// place in the save's walks, the Rooftops only while the switch is on, so a
-// Rooftops walk left without it is dropped rather than picked up.
+// place in the save's walks, the Rooftops among them (step 4: a Rooftops walk
+// note resumes with the switch or without).
 export function resumableAreaIds(walks) {
-  return Object.keys(walks).filter((id) => id !== 'roofs' || roofsOn());
+  return Object.keys(walks);
 }
 
 // The Rooftops' drawing (world/roofs.js, with roofsplan.js, roofsparts.js and

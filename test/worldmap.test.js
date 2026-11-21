@@ -66,7 +66,7 @@ describe('world map: the world as data', () => {
 
   it('every place in the catalog is on the map exactly once, inside the world', () => {
     const m = worldMapModel(fresh(), CATALOG);
-    expect(m.regions.map((r) => r.areaId).sort()).toEqual([...Object.keys(CATALOG.areas), 'roofs'].sort()); // the Rooftops is coming soon, not in the catalog
+    expect(m.regions.map((r) => r.areaId).sort()).toEqual(Object.keys(CATALOG.areas).sort()); // the Rooftops among them, a town place (Rooftops step 4)
     // Her Moor (620, 161, r 165) reaches 4 units above the top edge, on her
     // board and in draft 2 alike; her board is not moved, so that one overhang
     // is allowed, and pinned so no other place gets one.
@@ -230,7 +230,7 @@ describe('drawing the world', () => {
     const ids = [...html.matchAll(/data-dr-map-place="([a-z]+)"/g)].map(([, id]) => id);
     expect(new Set(ids).size).toBe(12);
     expect(ids).toHaveLength(13); // the island is a second way into the Pines
-    expect(new Set(ids)).toEqual(new Set([...Object.keys(CATALOG.areas), 'roofs']));
+    expect(new Set(ids)).toEqual(new Set(Object.keys(CATALOG.areas)));
     expect(html).not.toContain('data-dr-place=');
     expect(regionHtml(html, 'park')).toMatch(/role="button" tabindex="0" aria-label="City Park: opens after you explore Twolegplace 2 times · 0\/2"/);
     expect(regionHtml(html, 'park')).toContain('data-x="1080" data-y="470"');
@@ -354,22 +354,36 @@ describe('drawing the world', () => {
   });
 });
 
-// The Rooftops: a spot inside the town, "coming soon" until step 4 adds its
-// catalog row (R1).
+// The Rooftops: a spot inside the town, "coming soon" until Rooftops step 4
+// added its catalog row (R1, ruling T1); a place to unlock like the others now.
 describe('world map: the Rooftops inside the town', () => {
   // the topmost target whose circle holds the point (later targets draw on top)
   const hit = (t, x, y) => [...t].reverse().find((q) => dist(q.x, q.y, x, y) <= q.r);
   // the topmost target whose circle holds the point (later targets draw on top)
-  it('the Rooftops is on the map inside the town, coming soon', () => {
+  it('the Rooftops is on the map inside the town, and open to unlock', () => {
     expect(TOWN_PLACES).toEqual([{ id: 'roofs', areaId: 'roofs', x: 905, y: 458, r: 46 }]);
     expect(Object.isFrozen(TOWN_PLACES) && TOWN_PLACES.every((p) => Object.isFrozen(p))).toBe(true);
     const m = worldMapModel(fresh(), CATALOG);
     const town = regionOf(m, 'town');
     const roofs = regionOf(m, 'roofs');
-    expect(roofs).toMatchObject({ kind: 'town', areaId: 'roofs', name: 'The Rooftops', status: 'soon', x: 905, y: 458, r: 46, camp: null });
+    expect(roofs).toMatchObject({ kind: 'town', areaId: 'roofs', name: 'The Rooftops', status: 'built', x: 905, y: 458, r: 46, camp: null, locked: true, owned: false, price: 100 });
     expect(dist(roofs.x, roofs.y, town.x, town.y)).toBeLessThan(town.r + roofs.r - 20); // on the town's rim, straddling it
     expect(m.regions.at(-1).id).toBe('roofs');
     withOffWords(() => expect(regionOf(worldMapModel(fresh(), CATALOG), 'roofs').name).toBe('The Rooftops'));
+    // locked on a fresh save: the lock in its label, the Rooftops' icon
+    const label = regionHtml(renderWorldMapHtml(m), 'roofs');
+    expect(label).toContain('🔒');
+    expect(label).toContain('🕊️');
+    // an owned save's card goes there
+    const s = fresh();
+    const mine = worldMapModel({ ...s, walks: { ...s.walks, fair: 2 }, unlocked: { ...s.unlocked, areas: [...s.unlocked.areas, 'fair', 'roofs'] } }, CATALOG);
+    expect(placeCardFor(mine, 'roofs', 0)).toMatchObject({ action: 'go', label: 'Go here', locked: false });
+    // ...and with touch its line says Tap where a street place's would
+    for (const touch of [false, true]) {
+      const t = worldMapModel({ ...s, walks: { ...s.walks, park: 2, fair: 2 }, unlocked: { ...s.unlocked, areas: [...s.unlocked.areas, 'park', 'fair', 'roofs'] } }, CATALOG, { touch });
+      expect(regionOf(t, 'roofs').line, `touch ${touch}`).toBe(regionOf(t, 'park').line);
+      expect(regionOf(t, 'roofs').line).toBe(touch ? 'tap to go here' : 'click to go here');
+    }
   });
   it("a tap on it picks the Rooftops; a tap on the town's centre still picks the town", () => {
     const t = tapTargets(worldMapModel(fresh(), CATALOG));
@@ -389,15 +403,32 @@ describe('world map: the Rooftops inside the town', () => {
     // and it clears its neighbours' circles
     for (const id of ['woods', 'park', 'gorge']) expect(dist(roofs.x, roofs.y, regionOf(m, id).x, regionOf(m, id).y)).toBeGreaterThan(regionOf(m, id).r + roofs.r - 30);
   });
-  it('its card has no button', () => {
-    const m = worldMapModel({ ...fresh(), points: 500 }, CATALOG);
-    expect(placeCardFor(m, 'roofs', 500)).toMatchObject({ id: 'roofs', name: 'The Rooftops', action: null, label: null, line: 'coming soon' });
+  it('its card offers it for 100 🐾 once the Fairground walks are done', () => {
+    const s = fresh();
+    const early = worldMapModel({ ...s, points: 500, walks: { ...s.walks, fair: 1 } }, CATALOG);
+    expect(placeCardFor(early, 'roofs', 500)).toMatchObject({ id: 'roofs', name: 'The Rooftops', action: null, label: null, locked: true });
+    expect(placeCardFor(early, 'roofs', 500).line).toContain('1/2');
+    const open = worldMapModel({ ...s, points: 100, walks: { ...s.walks, fair: 2 } }, CATALOG);
+    expect(placeCardFor(open, 'roofs', 100)).toMatchObject({ id: 'roofs', action: 'open', label: 'Open for 100 🐾', locked: false });
   });
   it('with the catalog row (withRoofs) it is a place like the others', () => {
     const m = worldMapModel(fresh(), withRoofs(CATALOG));
     expect(regionOf(m, 'roofs')).toMatchObject({ status: 'built', price: 100, locked: true });
     const open = worldMapModel({ ...fresh(), points: 100, walks: { ...fresh().walks, fair: 2 } }, withRoofs(CATALOG));
     expect(placeCardFor(open, 'roofs', 100)).toMatchObject({ action: 'open', label: 'Open for 100 🐾' });
+  });
+  it('its label inside the town keeps to two short rows: the lock alone, or its price alone, never the whole wait', () => {
+    const s = fresh();
+    const label = (save) => regionHtml(renderWorldMapHtml(worldMapModel(save, CATALOG)), 'roofs').match(/<text class="tm-label"[\s\S]*?<\/text>/)[0];
+    const rows = (save) => [...label(save).matchAll(/<tspan class="tm-line[^"]*"[^>]*>([^<]*)<\/tspan>/g)].map((x) => x[1]);
+    expect(rows(s)).toEqual([]);                                                            // locked: 🔒 in its name, the wait on its card
+    expect(label(s)).toContain('🔒');
+    expect(label(s)).not.toContain('Fairground');
+    expect(rows({ ...s, points: 20, walks: { ...s.walks, fair: 2 } })).toEqual(['100 🐾']); // the paws still to find
+    expect(rows({ ...s, points: 100, walks: { ...s.walks, fair: 2 } })).toEqual(['Open for', '100 🐾']);
+    expect(rows({ ...s, unlocked: { ...s.unlocked, areas: ['neighborhood', 'roofs'] } })).toEqual(['click to', 'go here']);
+    // the aria-label still reads the whole line
+    expect(regionHtml(renderWorldMapHtml(worldMapModel(s, CATALOG)), 'roofs')).toContain('aria-label="The Rooftops: opens after you explore the Fairground 2 times · 0/2"');
   });
   it('the markup draws it as a button with its own land', () => {
     const h = renderWorldMapHtml(worldMapModel(fresh(), CATALOG));

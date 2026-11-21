@@ -2489,8 +2489,8 @@ describe('the Rooftops drawn', () => {
 
 // =============================================================================
 // Task 10: every per-area list. ROOFS_REGISTRATION holds each row in its
-// table's own shape (test/fair.test.js is the model). The one row held back is
-// CATALOG.areas.roofs (R1): `catalog` is null until Task 11 and step 4.
+// table's own shape (test/fair.test.js is the model). The one row held back
+// until Rooftops step 4 (R1) was CATALOG.areas.roofs; step 4 copied it in.
 // =============================================================================
 describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () => {
   const { ROOFS_REGISTRATION: REG } = await import('../src/world/roofsplan.js');
@@ -2546,11 +2546,13 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
     expect((await import('../src/world/roofs.js')).GRASS_HOOKS).toBeUndefined();
   });
 
-  it('holds its row out of the catalog (R1); its view is the card shot', async () => {
+  it('has its row in the catalog, right after the Fairground (step 4); its view is the card shot', async () => {
     const { ROOFS_SHOTS } = await import('../src/world/roofsplan.js');
     expect(REG.catalog).toEqual({ name: 'The Rooftops', price: 100, requires: { area: 'fair', walks: 2 } });
     expect(REG.view).toBe(ROOFS_SHOTS.card);
-    expect(Object.hasOwn(CATALOG.areas, 'roofs')).toBe(false);
+    expect(CATALOG.areas.roofs).toEqual(REG.catalog);
+    const ids = Object.keys(CATALOG.areas);
+    expect(ids[ids.indexOf('fair') + 1]).toBe('roofs');
     expect(REG.marks).toBe(true);
   });
 

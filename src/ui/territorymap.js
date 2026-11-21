@@ -84,7 +84,7 @@ const ICON = { town: '🏠', woods: '🌳', moor: '🌾', river: '🌿', pines: 
 // Where each name sits, nudged off her water and paths where they cross the centre.
 const LABEL_AT = { town: [862, 572], woods: [556, 540], moor: [655, 92], river: [205, 548], pines: [290, 172], gorge: [815, 300] };
 // The world map's street places: their icons, and where draft 2 puts their names.
-const STREET_ICON = { park: '⛲', fair: '🎡', farm: '🚜', docks: '⚓', seaside: '🏖️' };
+const STREET_ICON = { park: '⛲', fair: '🎡', farm: '🚜', docks: '⚓', seaside: '🏖️', roofs: '🕊️' };
 const STREET_LABEL_AT = { park: [1080, 478], fair: [1060, 236], farm: [1235, 326], docks: [900, 778], seaside: [1170, 688] };
 
 // A place's name: its icon, the lock, its name and its line, centred on its
@@ -96,7 +96,11 @@ function labelHtml(r, { small = false } = {}) {
   // name and line stay clear of the town's own label
   const tiny = r.kind === 'town';
   const name = wrap(`${r.locked ? '🔒 ' : ''}${r.name}`, tiny ? 8 : small ? 12 : 14);
-  const sub = wrap(r.mapLine ?? r.line, tiny ? 8 : small ? 20 : 22);
+  // ...and has room for a short line only (two short rows clear the town's
+  // icon): a locked one shows its lock alone, one she is still finding the
+  // paws for its price alone; its card has the whole line
+  const tinyLine = r.locked ? null : !r.owned && !r.selected && !r.canOpen && r.price > 0 ? `${r.price} 🐾` : r.mapLine ?? r.line;
+  const sub = tiny ? (tinyLine ? wrap(tinyLine, 8) : []) : wrap(r.mapLine ?? r.line, small ? 20 : 22);
   const nameSize = tiny ? 28 : small ? 36 : r.status === 'built' ? 44 : 38;
   const [lineFirst, lineNext] = tiny ? [26, 22] : small ? [32, 26] : [36, 30];
   const lineClass = small ? 'tm-line tm-line-small' : 'tm-line';
@@ -105,7 +109,7 @@ function labelHtml(r, { small = false } = {}) {
     ...name.map((t) => `<tspan class="tm-name" x="${lx}" dy="${nameSize}" font-size="${nameSize}">${escapeHtml(t)}</tspan>`),
     ...sub.map((t, i) => `<tspan class="${lineClass}" x="${lx}" dy="${i ? lineNext : lineFirst}">${escapeHtml(t)}</tspan>`),
   ];
-  const tall = 34 + name.length * nameSize + lineFirst + (sub.length - 1) * lineNext;
+  const tall = 34 + name.length * nameSize + (sub.length ? lineFirst + (sub.length - 1) * lineNext : 0);
   return `<text class="tm-label" x="${lx}" y="${n(ly - tall / 2 + 26)}" text-anchor="middle">${lines.join('')}</text>`;
 }
 
