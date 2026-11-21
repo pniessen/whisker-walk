@@ -49,6 +49,40 @@ describe('the area loader', () => {
     expect(await loader.ensure('a')).toBe(pack);
     expect(a).toHaveBeenCalledTimes(1);
   });
+  it('a late settlement of a timed-out load does not drop a newer load in flight', async () => {
+    vi.useFakeTimers();
+    const releases = []; const packs = [{ id: 'a', n: 1 }, { id: 'a', n: 2 }];
+    const a = vi.fn(() => new Promise((r) => { const n = releases.length; releases.push(() => r(packs[n])); }));
+    const loader = createAreaLoader({ loaders: { a } });
+    const p1 = loader.ensure('a').catch((e) => e);
+    await vi.advanceTimersByTimeAsync(AREA_LOAD_TIMEOUT_MS);
+    expect((await p1).kind).toBe('timeout');
+    const p2 = loader.ensure('a');
+    expect(a).toHaveBeenCalledTimes(2);
+    releases[0](); await vi.advanceTimersByTimeAsync(0);
+    const p3 = loader.ensure('a');
+    expect(a).toHaveBeenCalledTimes(2);
+    expect(loader.loaded('a')).toBe(packs[0]);
+    releases[1](); await p2; await p3;
+  });
+  it('a timed-out load that later rejects leaves nothing unhandled, nothing loaded, and a retry', async () => {
+    vi.useFakeTimers();
+    const unhandled = vi.fn(); process.on('unhandledRejection', unhandled);
+    try {
+      let fail; const pack = { id: 'a' };
+      const a = vi.fn().mockImplementationOnce(() => new Promise((_, rej) => { fail = rej; })).mockResolvedValueOnce(pack);
+      const loader = createAreaLoader({ loaders: { a } });
+      const p = loader.ensure('a').catch((e) => e);
+      await vi.advanceTimersByTimeAsync(AREA_LOAD_TIMEOUT_MS);
+      expect((await p).kind).toBe('timeout');
+      fail(new Error('late')); await vi.advanceTimersByTimeAsync(0);
+      vi.useRealTimers(); await new Promise((r) => setTimeout(r, 0));
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(loader.loaded('a')).toBeNull();
+      expect(await loader.ensure('a')).toBe(pack);
+      expect(a).toHaveBeenCalledTimes(2);
+    } finally { process.off('unhandledRejection', unhandled); }
+  });
   it('prefetch never throws and never rejects', async () => {
     const a = vi.fn().mockRejectedValue(new Error('offline'));
     const loader = createAreaLoader({ loaders: { a } });

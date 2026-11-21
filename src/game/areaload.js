@@ -29,21 +29,23 @@ export function createAreaLoader({ loaders = AREA_LOADERS, timeoutMs = AREA_LOAD
     try { load = Promise.resolve(loaders[id]()); } catch (err) { load = Promise.reject(err); }
     // The pack is kept the moment it arrives, even after a timeout.
     const kept = load.then((pack) => { packs.set(id, pack); return pack; });
-    const p = new Promise((resolve, reject) => {
+    let p;
+    const drop = () => { if (inflight.get(id) === p) inflight.delete(id); };
+    p = new Promise((resolve, reject) => {
       let done = false;
       const timer = setTimer(() => {
         if (done) return;
         done = true;
-        inflight.delete(id);
+        drop();
         reject(new AreaLoadError(id, 'timeout'));
       }, timeoutMs);
       kept.then((pack) => {
         clearTimer(timer);
-        inflight.delete(id);
+        drop();
         if (!done) { done = true; resolve(pack); }
       }, (err) => {
         clearTimer(timer);
-        inflight.delete(id);
+        drop();
         if (!done) { done = true; reject(new AreaLoadError(id, 'failed', err)); }
       });
     });
