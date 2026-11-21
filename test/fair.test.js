@@ -38,7 +38,7 @@ const {
 const { MGR, FERRIS, TEACUPS, HELTER, COASTER, STATION, trackPose, coasterTrackPoints } = await import('../src/world/fairrides.js');
 const { TINS, BELL, FORTUNE, STALL, PICNIC, BANDSTAND, STALL_SIGN, SIGN_POST } = await import('../src/world/fairparts.js');
 const { GLOW_MAX, GLOW_LOOK, LAMP_LOOK } = await import('../src/world/fairkit.js');
-const { SAWDUST_LOOK, TRAIL_LOOKS, fleckFade } = await import('../src/world/pathribbon.js');
+const { SAWDUST_LOOK, TRAIL_LOOKS, fleckFade, trailMaterial } = await import('../src/world/pathribbon.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { isWalkableAt, isWadeableAt, CAT_RADIUS } = await import('../src/player.js');
 const { inWater, waterClearance, shallowExcess } = await import('../src/world/builder.js');
@@ -1847,22 +1847,41 @@ describe('The Fairground: the finishing touches', () => {
   });
 
   it('fades the sawdust’s flecks with distance, so they never sparkle far down the midway', () => {
-    const [near, far] = SAWDUST_LOOK.fleckFade;
-    // the flecks round her paws show in full (the camera rides 4.5 m behind her)
-    expect(near).toBeGreaterThanOrEqual(6);
-    expect(far).toBeLessThanOrEqual(20);
-    expect(fleckFade(0, SAWDUST_LOOK)).toBe(1);
-    expect(fleckFade(near, SAWDUST_LOOK)).toBe(1);
-    expect(fleckFade(far, SAWDUST_LOOK)).toBe(0);
-    expect(fleckFade(60, SAWDUST_LOOK)).toBe(0);
+    // How much ground one screen pixel spans (the shader's length(fwidth(xz)))
+    // at `d` metres out along the ground from a camera `h` up, with the game's
+    // 70 degree view on a screen `rows` pixels tall: a pixel's width across,
+    // stretched along the ground by the grazing angle.
+    const pixel = (d, h, rows) => {
+      const m = (2 * Math.hypot(d, h) * Math.tan((35 * Math.PI) / 180)) / rows;
+      const sin = h / Math.hypot(d, h);
+      return m * Math.hypot(1, 1 / sin);
+    };
+    const { pebbleRMin: rMin, pebbleRMax: rMax } = SAWDUST_LOOK;
+    const IPAD = 1230; // an iPad's 820 points at the game's 1.5 pixel ratio
+    // round her paws the flecks show (the camera at zoom step 1, the game's
+    // own, 4.4 m back and 2.9 m up; at step 3, 10.8 m back and 8.3 m up),
+    // on an iPad and on a 720-row screen alike
+    for (const rows of [IPAD, 720]) expect(fleckFade(pixel(4.43, 2.92, rows), rMin, SAWDUST_LOOK), `${rows} rows`).toBeGreaterThan(0.9);
+    expect(fleckFade(pixel(10.8, 8.27, IPAD), rMin, SAWDUST_LOOK)).toBeGreaterThan(0.8);
+    // fewer and fewer further down the midway, and none, not even the biggest, by 20 m
     let last = 1;
-    for (let d = near; d <= far; d += 0.25) { const k = fleckFade(d, SAWDUST_LOOK); expect(k).toBeLessThanOrEqual(last); last = k; }
-    // the other looks keep their stones at every distance
-    for (const name of ['trail', 'gravel']) expect(fleckFade(60, TRAIL_LOOKS[name]), name).toBe(1);
-    // and the midway's shader does it, by the camera's distance
+    for (let d = 4; d <= 20; d += 0.5) {
+      const k = fleckFade(pixel(d, 2.92, IPAD), rMax, SAWDUST_LOOK);
+      expect(k).toBeLessThanOrEqual(last);
+      last = k;
+    }
+    expect(last).toBe(0);
+    // the other looks keep their stones however small a pixel's view of them
+    for (const name of ['trail', 'gravel']) expect(fleckFade(10, rMin, TRAIL_LOOKS[name]), name).toBe(1);
+    // and the midway's shader does it, on each fleck, by the pixel's span
     const trail = scene.children.find((o) => o.name === 'pathTrail');
     const frag = compiled(trail.material).fragmentShader;
-    expect(frag).toContain('length(vViewPosition)');
+    const [full, gone] = SAWDUST_LOOK.fleckFade.map((x) => x.toFixed(1));
+    expect(frag).toContain('float tPx = length(fwidth(tp));');
+    expect(frag).toContain(`* (1.0 - smoothstep(${full} * pr, ${gone} * pr, tPx));`);
+    // and only the midway's: a park's gravel walk draws as it always did
+    const gravel = trailMaterial(0xffffff, 'sand', [{ x1: 0, z1: 0, x2: 1, z2: 0, h: 1 }], 'gravel');
+    expect(compiled(gravel).fragmentShader).not.toContain('fwidth');
   });
 });
 
