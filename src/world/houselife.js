@@ -32,6 +32,10 @@ export function createHouseLife(scene, house, { reducedMotion = false } = {}) {
   const lidMeshes = lid ? house.lidMeshes ?? [] : [];
   const sink = createWallSink(sections, { reducedMotion, covers: lid ? lid.covers : null });
   const drawing = createLevelDrawing(scene, { levels: house.levels, links: house.links, start: house.start });
+  // step 2 (ruling D3): the levels are drawn for the floor under her, not her paws, so on
+  // the wardrobe (4.45 m, nearer the attic's 4.2 than the bedroom's 2.4) she is still upstairs
+  const floor = house.floor ?? null;
+  const floorY = (p) => (floor ? floor.y(p.x, p.z) : p.y);
   const ids = sections.map((s) => s.id);
   const meshes = ids.map((id) => sectionMeshes.get(id) ?? null);
   const paneLists = ids.map((id) => panes.get(id) ?? NO_PANES);
@@ -67,7 +71,7 @@ export function createHouseLife(scene, house, { reducedMotion = false } = {}) {
     sink.settle(view);
     lid?.settle(sink);
     write();
-    drawing.settle(catPos.y);
+    drawing.settle(floorY(catPos));
   }
 
   return {
@@ -82,7 +86,7 @@ export function createHouseLife(scene, house, { reducedMotion = false } = {}) {
       sink.update(dt, view);
       lid?.update(dt, sink);
       write();
-      drawing.update(catPos.y);
+      drawing.update(floorY(catPos));
     },
     dispose() {
       for (const m of lidMeshes) m.visible = true;

@@ -68,9 +68,11 @@ describe('the record', () => {
   it('is indoors and empty of life: no strays, no critters, no people, and named from the word tables', () => {
     expect(area.strays).toBe(false);
     expect(area.critterSpawns).toEqual([]);
-    for (const k of ['pois', 'collectibles', 'scenics', 'moments', 'puddles', 'boxes', 'perches', 'tippables']) {
+    for (const k of ['pois', 'collectibles', 'scenics', 'moments', 'puddles', 'boxes', 'tippables']) {
       expect(area[k], k).toEqual([]);
     }
+    // step 2 (D18, ruling D4): the knock-over pieces' tops are perches
+    expect(area.perches.map((p) => p.kind)).toEqual(Array(7).fill('furniture'));
     expect(typeof area.life).toBe('function'); // house life (Task 6): the walls sink and the levels are drawn
     expect(area.groundBounce).toBe(HOUSE_GROUND_BOUNCE);
     expect(area.skyDusk).toBe(HOUSE_SKY_DUSK);
@@ -412,7 +414,9 @@ describe('the furniture', () => {
     mergeStaticProps(s);
     expect(s.children.length).toBe(before);
     const tagged = s.children.filter((c) => c.userData?.houseDetail);
-    expect(tagged.length).toBe(tall.length + HOUSE_ROOMS.length + 1); // + the secret bookcase (step 2, D9)
+    // + the secret bookcase (step 2, D9) and the paw prints at the take-offs, one mesh per level with any (step 2, D2)
+    const marked = new Set(area.traversal.hops.map((h) => HOUSE_ROOMS.find((r) => r.id === roomAt(h.x0, h.z0)).level));
+    expect(tagged.length).toBe(tall.length + HOUSE_ROOMS.length + 1 + marked.size);
     for (const c of tagged) {
       expect(levelIds).toContain(c.userData.houseLevel);
       let meshes = 0;

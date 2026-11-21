@@ -1141,7 +1141,7 @@ const BUILDERS = {
     for (const s of [-1, 1]) p.box(s > 0 ? hw - t : -hw, s > 0 ? hw : -hw + t, 0.1, h - 0.08, -hd, hd, 'darkWood', ['y-', 'y+']);
     p.box(-hw - 0.03, hw + 0.03, h - 0.08, h, -hd, hd + 0.03, 'darkWood', ['y-']);
     p.box(-hw + t, hw - t, 0.1, h - 0.08, -hd, -hd + 0.02, 'darkWood', ['x-', 'x+', 'y-', 'y+', 'z-']);
-    const shelves = [0.1, 0.52, 0.94, 1.36, 1.78];
+    const shelves = [0.1, 0.52, 0.94, 1.36, 1.78].filter((y) => y < h - 0.3); // all five in a 2.25 m bookcase
     for (const y of shelves.slice(1)) p.box(-hw + t, hw - t, y - 0.025, y, -hd + 0.02, hd - 0.01, 'darkWood', ['x-', 'x+', 'z-']);
     shelves.forEach((y0, row) => {
       const top = (row + 1 < shelves.length ? shelves[row + 1] - 0.025 : h - 0.08) - 0.03;
@@ -1166,6 +1166,68 @@ const BUILDERS = {
   },
 
   // a library ladder leaning on the bookcase: two rails, rungs, brass hooks at the top, wheels at the foot
+  // library steps (step 2): a sturdy step box, a tread let into its front, a flat top she stands on
+  steps(p, { w, d, h }) {
+    const hw = w / 2, hd = d / 2;
+    const t = 0.04;
+    for (const s of [-1, 1]) p.box(s > 0 ? hw - t : -hw, s > 0 ? hw : -hw + t, 0, h - 0.04, -hd, hd, 'darkWood', ['y-', 'y+']);
+    p.box(-hw + t, hw - t, 0, h - 0.04, -hd, -hd + 0.03, 'darkWood', ['x-', 'x+', 'y-', 'y+']);
+    p.box(-hw - 0.01, hw + 0.01, h - 0.04, h, -hd - 0.01, hd + 0.01, 'oak', ['y-']);
+    p.box(-hw + t, hw - t, h / 2 - 0.03, h / 2, -hd + 0.03, hd, 'oak', ['x-', 'x+']);
+    p.box(-hw + t, hw - t, 0.04, h / 2 - 0.03, hd - 0.05, hd - 0.03, 'darkWood', ['x-', 'x+', 'y-', 'y+']);
+    p.box(-hw + t, hw - t, h / 2, h - 0.04, hd - 0.05, hd - 0.03, 'darkWood', ['x-', 'x+', 'y-', 'y+']);
+    p.box(-hw + 0.08, hw - 0.08, h, h + 0.003, -hd + 0.08, hd - 0.08, 'rugRed', ['y-']); // a leather top
+  },
+
+  // a stack of big old books on the floor (step 2): five, each a little turned out, the top one flat
+  bigbooks(p, f) {
+    const { w, d, h } = f;
+    const hw = w / 2, hd = d / 2;
+    const n = 5;
+    const th = h / n;
+    for (let i = 0; i < n; i++) {
+      const top = i === n - 1;
+      const inset = top ? 0 : 0.02 + 0.04 * hash01(f.x + i, f.z, 81);
+      const ox = top ? 0 : (hash01(f.x, f.z + i, 82) - 0.5) * 0.04;
+      const x0 = -hw + inset + ox, x1 = hw - inset + ox;
+      const z0 = -hd + inset, z1 = hd - inset * 0.5;
+      const y0 = i * th, y1 = (i + 1) * th;
+      const cover = pick(['red', 'navy', 'green', 'brown', 'ochre'], f, i, 83);
+      p.box(x0, x1, y0, y0 + 0.02, z0, z1, cover, ['y-']);
+      p.box(x0, x1, y1 - 0.02, y1, z0, z1, cover, ['y-']);
+      p.box(x0, x0 + 0.03, y0 + 0.02, y1 - 0.02, z0, z1, cover, ['y-', 'y+']);
+      p.box(x0 + 0.03, x1 - 0.01, y0 + 0.02, y1 - 0.02, z0 + 0.01, z1 - 0.01, 'white', ['x-', 'y-', 'y+']);
+    }
+  },
+
+  // a linen chest (step 2): a plain wooden box with a lid, brass corners, iron handles at its ends
+  chest(p, { w, d, h }) {
+    const hw = w / 2, hd = d / 2;
+    p.box(-hw + 0.02, hw - 0.02, 0, 0.05, -hd + 0.02, hd - 0.02, 'darkWood', ['y-', 'y+']);
+    p.box(-hw, hw, 0.05, h - 0.06, -hd, hd, 'oak', ['y-', 'y+']);
+    p.box(-hw - 0.015, hw + 0.015, h - 0.06, h, -hd - 0.015, hd + 0.015, 'darkWood', ['y-']);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const x = sx * (hw - 0.02), z = sz * (hd - 0.02);
+      p.box(x - 0.03, x + 0.03, 0.05, 0.13, z - 0.03, z + 0.03, 'gold', ['y-']);
+    }
+    p.box(-0.05, 0.05, h - 0.16, h - 0.07, hd, hd + 0.012, 'gold', ['z-']);
+    for (const s of [-1, 1]) p.box(s * hw - (s > 0 ? 0 : 0.02), s * hw + (s > 0 ? 0.02 : 0), h * 0.45, h * 0.55, -0.1, 0.1, 'navy');
+  },
+
+  // a window seat (step 2): a panelled wooden base and a long cushion, its top the seat
+  seat(p, { w, d, h }) {
+    const hw = w / 2, hd = d / 2;
+    const base = h - 0.1;
+    p.box(-hw, hw, 0, base, -hd, hd - 0.02, 'lightWood', ['y-']);
+    const n = Math.max(1, Math.round(w / 0.5));
+    for (let i = 0; i < n; i++) {
+      const x0 = -hw + (w * i) / n, x1 = -hw + (w * (i + 1)) / n;
+      p.box(x0 + 0.05, x1 - 0.05, 0.08, base - 0.06, hd - 0.02, hd - 0.008, 'darkWood', ['z-', 'y-']);
+    }
+    p.box(-hw + 0.02, hw - 0.02, base, h, -hd + 0.02, hd, 'rose', ['y-']);
+    for (const s of [-1, 1]) p.box(s * hw * 0.55 - 0.16, s * hw * 0.55 + 0.16, h, h + 0.1, -hd + 0.04, -hd + 0.16, 'rugBlue', ['y-']);
+  },
+
   ladder(p, { w, d, h }) {
     const hw = w / 2, hd = d / 2;
     const zFoot = hd - 0.04, zTop = -hd + 0.02;
@@ -1257,32 +1319,39 @@ const BUILDERS = {
     p.cyl(0.035, 0.05, top, top + 0.12, 8, 'rose', -0.45, mz);
   },
 
-  // an upright piano: its case, the keys (black and white), the music desk, candle sconces, pedals
+  // an upright piano's case (step 2: its keyboard is the keys piece in front of it, a ledge
+  // of its own): the case, the lid, the music desk, candle sconces, the pedals at its foot
   piano(p, { w, d, h }) {
     const hw = w / 2, hd = d / 2;
-    const back = -hd + 0.3;
-    p.box(-hw, hw, 0, h - 0.03, -hd, back, 'darkWood', ['y-']);
-    p.box(-hw - 0.02, hw + 0.02, h - 0.03, h, -hd - 0.01, back + 0.02, 'darkWood', ['y-']);
-    p.box(-hw + 0.06, hw - 0.06, 0.62, 0.72, back, hd - 0.05, 'darkWood', ['y+', 'z-']);
-    for (const s of [-1, 1]) p.box(s > 0 ? hw - 0.06 : -hw, s > 0 ? hw : -hw + 0.06, 0.6, 0.86, back, hd - 0.03, 'darkWood', ['z-']);
+    p.box(-hw, hw, 0, h - 0.03, -hd, hd, 'darkWood', ['y-']);
+    p.box(-hw - 0.02, hw + 0.02, h - 0.03, h, -hd - 0.01, hd + 0.02, 'darkWood', ['y-']);
+    p.box(-hw + 0.06, hw - 0.06, 0.86, 1.06, hd, hd + 0.03, 'darkWood', ['y-', 'z-']);
+    p.box(-0.3, 0.3, 0.86, 0.98, hd + 0.03, hd + 0.05, 'darkWood', ['y-', 'z-']);
+    for (const s of [-1, 1]) {
+      p.cyl(0.03, 0.02, 1.0, 1.03, 8, 'gold', s * (hw - 0.14), hd + 0.06);
+      p.cyl(0.012, 0.012, 1.03, 1.15, 6, 'white', s * (hw - 0.14), hd + 0.06);
+      p.box(s * 0.06 - 0.025, s * 0.06 + 0.025, 0.03, 0.05, hd, hd + 0.1, 'gold', ['y-', 'z-']);
+    }
+  },
+
+  // the piano's keyboard (step 2), in front of its case: the key bed on two legs, its
+  // cheeks, the white keys and the black, their tops at the piece's height (she walks them)
+  keys(p, { w, d, h }) {
+    const hw = w / 2, hd = d / 2;
+    const bed = h - 0.03;
+    p.box(-hw + 0.06, hw - 0.06, bed - 0.1, bed, -hd, hd - 0.02, 'darkWood', ['y+', 'z-']);
+    for (const s of [-1, 1]) p.box(s > 0 ? hw - 0.06 : -hw, s > 0 ? hw : -hw + 0.06, bed - 0.12, h + 0.04, -hd, hd, 'darkWood', ['z-']);
     const k0 = -hw + 0.06, k1 = hw - 0.06;
-    p.box(k0, k1, 0.72, 0.74, back, hd - 0.07, 'white', ['y-', 'z-', 'x-', 'x+']);
-    p.box(k0, k1, 0.62, 0.74, hd - 0.07, hd - 0.05, 'darkWood', ['y-', 'z-', 'x-', 'x+']);
-    const whites = 36;
+    p.box(k0, k1, bed, h, -hd, hd - 0.04, 'white', ['y-', 'z-', 'x-', 'x+']);
+    p.box(k0, k1, bed - 0.1, h, hd - 0.04, hd - 0.02, 'darkWood', ['y-', 'z-', 'x-', 'x+']);
+    const whites = 31;
     const kw = (k1 - k0) / whites;
     for (let i = 0; i < whites - 1; i++) {
       if ([2, 6].includes(i % 7)) continue; // no black key between E-F and B-C
       const x = k0 + (i + 1) * kw;
-      p.box(x - kw * 0.3, x + kw * 0.3, 0.74, 0.76, back, back + 0.09, 'navy', ['y-', 'z-']);
+      p.box(x - kw * 0.3, x + kw * 0.3, h, h + 0.015, -hd, -hd + 0.09, 'navy', ['y-', 'z-']);
     }
-    p.box(-hw + 0.06, hw - 0.06, 0.86, 1.06, back, back + 0.03, 'darkWood', ['y-']);
-    p.box(-0.3, 0.3, 0.86, 0.98, back + 0.03, back + 0.05, 'darkWood', ['y-']);
-    for (const s of [-1, 1]) {
-      p.box(s * (hw - 0.05) - 0.025, s * (hw - 0.05) + 0.025, 0, 0.62, hd - 0.1, hd - 0.05, 'darkWood', ['y-', 'y+']);
-      p.cyl(0.03, 0.02, 1.0, 1.03, 8, 'gold', s * (hw - 0.14), back + 0.06);
-      p.cyl(0.012, 0.012, 1.03, 1.15, 6, 'white', s * (hw - 0.14), back + 0.06);
-      p.box(s * 0.06 - 0.025, s * 0.06 + 0.025, 0.03, 0.05, back, back + 0.1, 'gold', ['y-', 'z-']);
-    }
+    for (const s of [-1, 1]) p.box(s * (hw - 0.05) - 0.025, s * (hw - 0.05) + 0.025, 0, bed - 0.1, hd - 0.07, hd - 0.02, 'darkWood', ['y-', 'y+']);
   },
 
   // a small round side table: a turned pedestal on a foot, a teacup on its saucer
@@ -1687,6 +1756,61 @@ export function secretBookcaseGroup(material) {
   g.userData.houseDetail = true;
   g.userData.houseLevel = 'ground';
   return g;
+}
+
+// ---- the moves (step 2): the plank, and the paw prints at the take-offs ----
+
+// A crossing's plank (housemoves.js), a board along its rail, its upper face the rail
+// she walks, reaching PLANK_OVER past each end onto the tops it lies on. In world space.
+const PLANK_T = 0.03;
+const PLANK_OVER = 0.1;
+export function plankMesh(crossing, material) {
+  const geos = crossing.segs.map((sg) => {
+    const len = sg.len + 2 * PLANK_OVER;
+    const g = new THREE.BoxGeometry(len, PLANK_T, crossing.width);
+    part(g, C.lightWood);
+    g.rotateZ(Math.atan(sg.grade));
+    g.rotateY(-Math.atan2(sg.dz, sg.dx));
+    g.translate(sg.x0 + sg.dx / 2, sg.y0 + sg.dy / 2 - PLANK_T / 2, sg.z0 + sg.dz / 2);
+    return g;
+  });
+  return kitMeshFrom(geos.length === 1 ? geos[0] : mergeGeometries(geos), material, `housePlank:${crossing.id}`, { cast: true });
+}
+
+// A faint pair of paw prints at each take-off (`spots`: { x, y, z, yaw }, the yaw the
+// hop's heading, atan2(dx, dz)), a hair over the ground she springs from: one mesh for a
+// level, on its own see-through material, cast-free and kept out of the prop merge. A
+// ledge-level detail for the level drawing. Pads: [x, z, rx, rz] of one print, toes ahead.
+export const PAW_LOOK = freeze({ color: 0x4a3426, opacity: 0.3, lift: 0.006 });
+const PADS = freeze([[0, -0.02, 0.042, 0.036], [-0.042, 0.035, 0.016, 0.018], [-0.015, 0.056, 0.016, 0.018], [0.015, 0.056, 0.016, 0.018], [0.042, 0.035, 0.016, 0.018]]);
+const PAW_APART = 0.065;
+export function pawMarksMesh(level, spots) {
+  const geos = [];
+  for (const sp of spots) {
+    for (const side of [-1, 1]) {
+      for (const [px, pz, rx, rz] of PADS) {
+        const g = new THREE.CircleGeometry(1, 10);
+        g.rotateX(-Math.PI / 2);
+        g.scale(rx, 1, rz);
+        g.translate(px + side * PAW_APART, 0, pz);
+        g.rotateY(sp.yaw);
+        g.translate(sp.x, sp.y + PAW_LOOK.lift, sp.z);
+        geos.push(g);
+      }
+    }
+  }
+  const material = new THREE.MeshStandardMaterial({
+    color: PAW_LOOK.color, roughness: 1, metalness: 0, transparent: true, opacity: PAW_LOOK.opacity,
+    depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  });
+  const m = kitMeshFrom(mergeGeometries(geos), material, `houseMarks:${level}`, { cast: false });
+  m.receiveShadow = false;
+  m.userData.noMerge = true;
+  m.userData.noContactShadow = true;
+  m.userData.houseMarks = true;
+  m.userData.houseDetail = true;
+  m.userData.houseLevel = level;
+  return m;
 }
 
 // The walked-over pieces of a room (its rugs, its runner, its cobwebs) as one mesh in

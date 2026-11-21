@@ -166,6 +166,11 @@ const FACE_N = Math.PI; // faces north: back to a south wall
 const FACE_E = Math.PI / 2; // faces east: back to a west wall
 const FACE_W = -Math.PI / 2; // faces west: back to an east wall
 const piece = (id, room, kind, x, z, rotY, w, d, h, r, look = null) => ({ id, room, level: roomById(room).level, kind, x, z, rotY, w, d, h, r, look });
+// step 2 (ruling D1): a piece whose top she stands on. Its top is ground (a ledge, below), so
+// it has no colliders: the cliff at its edge stops her, as a roof's does. It keeps its r, so
+// it is still drawn as a solid piece. A ledge backed by a wall is 0.6 m deep: the wall's
+// colliders keep her centre 0.55 m off its line, so a shallower top has nowhere to stand.
+const ledge = (...args) => ({ ...piece(...args), ledge: true });
 const WEB = 0.55; // a cobweb's arms along each wall from its corner
 export const HOUSE_FURNITURE = frozenAll([
   // the hall: a grandfather clock by the stair, a console table, a settle, umbrellas by the door, a runner
@@ -175,10 +180,15 @@ export const HOUSE_FURNITURE = frozenAll([
   piece('hall-umbrellas', 'hall', 'umbrellas', 1.0, 11.75, FACE_N, 0.3, 0.3, 0.85, 0.15),
   piece('hall-runner', 'hall', 'runner', 0, 6.9, FACE_S, 1.1, 8.6, 0.012, 0, 'rugBlue'),
   // the library: three bookcases, a rolling ladder at one, a wing chair, a desk, a globe, a rug
-  piece('library-books-w', 'library', 'bookcase', -13.69, 7.0, FACE_E, 2.2, 0.42, 2.25, 0.21),
-  piece('library-books-n1', 'library', 'bookcase', -12.4, 2.31, FACE_S, 2.2, 0.42, 2.25, 0.21),
-  piece('library-books-n2', 'library', 'bookcase', -9.3, 2.31, FACE_S, 2.2, 0.42, 2.25, 0.21),
-  piece('library-ladder', 'library', 'ladder', -8.8, 2.77, FACE_S, 0.5, 0.5, 2.05, 0.15),
+  // step 2 (D2): the three bookcases are ledges, the west one slid north between the windows
+  // for the corner leap; the ladder stands in the corner beside n2, and the steps and a stack
+  // of big books are new, the way up and the way down
+  ledge('library-books-w', 'library', 'bookcase', -13.6, 5.55, FACE_E, 2.2, 0.6, 2.25, 0.21),
+  ledge('library-books-n1', 'library', 'bookcase', -12.4, 2.4, FACE_S, 2.2, 0.6, 2.25, 0.21),
+  ledge('library-books-n2', 'library', 'bookcase', -9.3, 2.4, FACE_S, 2.2, 0.6, 2.25, 0.21),
+  piece('library-ladder', 'library', 'ladder', -7.85, 2.37, FACE_S, 0.5, 0.5, 2.05, 0.15),
+  ledge('library-steps', 'library', 'steps', -8.8, 3.0, FACE_S, 0.6, 0.6, 0.9, 0.3),
+  ledge('library-bigbooks', 'library', 'bigbooks', -13.55, 7.15, FACE_S, 0.7, 0.5, 1.0, 0.25),
   piece('library-chair', 'library', 'armchair', -11.6, 5.0, 0.92, 0.85, 0.85, 1.05, 0.42, 'library'),
   piece('library-desk', 'library', 'desk', -9.0, 11.55, FACE_N, 1.4, 0.7, 0.8, 0.35),
   piece('library-globe', 'library', 'globe', -5.2, 10.9, 0.4, 0.55, 0.55, 1.0, 0.26),
@@ -197,12 +207,17 @@ export const HOUSE_FURNITURE = frozenAll([
   piece('parlour-chair-a', 'parlour', 'armchair', 11.0, 5.5, 1.03, 0.85, 0.85, 1.05, 0.42, 'parlour'),
   piece('parlour-chair-b', 'parlour', 'armchair', 11.0, 8.5, 2.11, 0.85, 0.85, 1.05, 0.42, 'parlour'),
   piece('parlour-sidetable', 'parlour', 'sidetable', 10.5, 7.0, 0, 0.5, 0.5, 0.62, 0.25),
-  piece('parlour-piano', 'parlour', 'piano', 8.7, 11.6, FACE_N, 1.5, 0.6, 1.3, 0.3),
+  // step 2 (D2): the piano's keyboard is a ledge in front of its case, and the case behind it one too
+  ledge('parlour-piano', 'parlour', 'piano', 8.7, 11.6, FACE_N, 1.5, 0.6, 1.3, 0.3),
+  ledge('parlour-keys', 'parlour', 'keys', 8.7, 11.15, FACE_N, 1.3, 0.3, 0.75, 0.15),
   piece('parlour-rug', 'parlour', 'rug', 11.2, 7.0, FACE_S, 2.4, 3.2, 0.012, 0, 'rugRed'),
   // the bedroom: a big bed, a wardrobe, a chest of drawers, a bedside table, a rug
   piece('bedroom-bed', 'bedroom', 'bed', 0.85, -12.0, FACE_W, 1.6, 2.1, 1.1, 0.75),
   piece('bedroom-bedside', 'bedroom', 'bedside', 1.62, -13.25, FACE_W, 0.45, 0.45, 0.62, 0.22),
-  piece('bedroom-wardrobe', 'bedroom', 'wardrobe', -6.4, -15.6, FACE_S, 1.3, 0.6, 2.05, 0.3),
+  // step 2 (D2): up the chest to the new bookshelf, a leap to the wardrobe and back
+  ledge('bedroom-wardrobe', 'bedroom', 'wardrobe', -6.4, -15.6, FACE_S, 1.3, 0.6, 2.05, 0.3),
+  ledge('bedroom-chest', 'bedroom', 'chest', -5.3, -15.5, FACE_E, 0.8, 0.5, 0.6, 0.25),
+  ledge('bedroom-shelf', 'bedroom', 'bookcase', -4.2, -15.6, FACE_S, 0.9, 0.6, 1.6, 0.3),
   piece('bedroom-drawers', 'bedroom', 'drawers', -0.6, -15.65, FACE_S, 1.1, 0.5, 0.95, 0.25),
   piece('bedroom-rug', 'bedroom', 'rug', -2.6, -12.0, FACE_S, 2.4, 2.0, 0.012, 0, 'rugBlue'),
   // the attic: boxes stacked no higher than 1.4 m, an old trunk, an old rocking chair, a rug
@@ -211,6 +226,9 @@ export const HOUSE_FURNITURE = frozenAll([
   piece('attic-trunk', 'attic', 'trunk', -19.8, -15.58, FACE_S, 1.1, 0.64, 0.62, 0.32),
   piece('attic-chair', 'attic', 'chair', -21.9, -12.6, 1.2, 0.5, 0.7, 0.95, 0.3, 'rocking'),
   piece('attic-rug', 'attic', 'rug', -19.5, -12.2, FACE_S, 2.4, 1.8, 0.012, 0, 'rugBlue'),
+  // step 2 (D2): a window seat under the round window. 0.55 m, not 0.5: a climb or a drop must
+  // change height by more than LEVEL_TOL (0.5, traversal.js), or it is no climb at all
+  ledge('attic-seat', 'attic', 'seat', -23.6, -11.0, FACE_E, 1.6, 0.6, 0.55, 0.3),
   // the cellar: jar shelves, barrels, crates and cobwebs in its corners
   piece('cellar-shelf-a', 'cellar', 'jarshelf', 23.2, -9.68, FACE_S, 1.8, 0.44, 1.9, 0.22),
   piece('cellar-shelf-b', 'cellar', 'jarshelf', 25.6, -9.68, FACE_S, 1.8, 0.44, 1.9, 0.22),
@@ -225,7 +243,7 @@ export const HOUSE_FURNITURE = frozenAll([
 // A piece's colliders: circles of its r down the middle of its long side, no
 // further apart than r, the end ones r in from its ends (one circle if it is short).
 function furnitureColliders(f) {
-  if (!(f.r > 0)) return [];
+  if (!(f.r > 0) || f.ledge) return [];
   const wide = f.w >= f.d;
   const len = wide ? f.w : f.d;
   const ax = wide ? Math.cos(f.rotY) : Math.sin(f.rotY);
@@ -276,7 +294,22 @@ function stairRect(s) {
 }
 const stairAlongZ = (s) => Math.abs(s.z1 - s.z0) >= Math.abs(s.x1 - s.x0);
 
-export function houseGroundSpec() {
+// ---- ledges (step 2, ruling D1) ----
+
+// A piece's footprint as an axis-aligned rectangle (every rotY is a quarter turn).
+function footprint(f) {
+  const turned = Math.abs(Math.sin(f.rotY)) > 0.5;
+  const hx = (turned ? f.d : f.w) / 2;
+  const hz = (turned ? f.w : f.d) / 2;
+  return { minX: f.x - hx, maxX: f.x + hx, minZ: f.z - hz, maxZ: f.z + hz };
+}
+// Every ledge row's top: its footprint at its level's height plus its own.
+export const HOUSE_LEDGES = frozenAll(HOUSE_FURNITURE.filter((f) => f.ledge).map((f) => ({
+  id: f.id, room: f.room, level: f.level, ...footprint(f), y: levelY(f.level) + f.h,
+})));
+
+// `ledges: false` is the floor alone (houseFloorGround): what the level drawing reads (D3).
+function groundSpec({ ledges = true } = {}) {
   const strips = [];
   for (const r of HOUSE_ROOMS) {
     strips.push({ x0: r.minX, z0: (r.minZ + r.maxZ) / 2, x1: r.maxX, z1: (r.minZ + r.maxZ) / 2, width: r.maxZ - r.minZ, y: levelY(r.level) });
@@ -295,7 +328,21 @@ export function houseGroundSpec() {
     strips.push({ x0: r.minX, z0: z, x1: r.maxX, z1: z, width: r.maxZ - r.minZ, y: LAWN_Y });
   }
   strips.push(...wallFeet());
+  // a flat strip over each ledge's footprint, at its top (ground.js takes the highest)
+  if (ledges) {
+    for (const l of HOUSE_LEDGES) {
+      const z = (l.minZ + l.maxZ) / 2;
+      strips.push({ x0: l.minX, z0: z, x1: l.maxX, z1: z, width: l.maxZ - l.minZ, y: l.y });
+    }
+  }
   return { base: BASE_Y, strips, discs: [], ceilings: [] };
+}
+export function houseGroundSpec() {
+  return groundSpec();
+}
+// The house's ground without the ledges: the floor under her wherever she stands (D3).
+export function houseFloorGround() {
+  return createGround(groundSpec({ ledges: false }));
 }
 
 // Under every wall of a raised room or stair, its floor's ground reaches WALL_FOOT past the

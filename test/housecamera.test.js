@@ -116,7 +116,9 @@ describe('never lost behind a wall', () => {
         if (best) corners.push([r.id, best.x, best.z]);
       }
     }
-    // 28 corners: 21 stood on, 3 moved to a reached spot within 1 m, 4 the flood never comes near
+    // 28 corners: 23 stood on, 1 moved to a reached spot within 1 m, 4 the flood never comes near. Step 2
+    // took the ledge pieces' colliders away, so the library's north-west corner is stood on (bookcase n1's
+    // top, 2.25 m up) and the bedroom's north-west one beside the wardrobe; both were moved before
     expect(corners.length).toBe(24);
     const bad = [];
     for (const [room, x, z] of corners) for (let k = 0; k < 16; k++) for (const zoom of ZOOMS) {

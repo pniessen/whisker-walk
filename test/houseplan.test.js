@@ -311,6 +311,11 @@ describe('the furniture', () => {
     for (const f of HOUSE_FURNITURE) {
       const near = area.colliders.filter((c) => c.r === f.r && Math.hypot(c.x - f.x, c.z - f.z) <= Math.max(f.w, f.d) / 2 + 1e-6);
       if (f.r === 0) continue;
+      // step 2 (D18, ruling D1): a ledge piece has none; its top is ground at its height
+      if (f.ledge) {
+        expect(area.ground.y(f.x, f.z), f.id).toBeCloseTo(levelY(f.level) + f.h, 9);
+        continue;
+      }
       expect(near.length, f.id).toBeGreaterThanOrEqual(1);
       for (const c of near) expect(c.level, f.id).toBe(f.level);
       // a piece's own centre is never walkable

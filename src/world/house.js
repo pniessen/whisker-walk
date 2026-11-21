@@ -32,12 +32,13 @@ import { withLocalUuids } from './localuuids.js';
 import { words } from '../wordset.js';
 import {
   HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_BOUNDS, HOUSE_FRONT_DOOR, HOUSE_LAMPS, HOUSE_FURNITURE, LEVEL_LINKS,
-  LAWN_Y, WALL_T, TALL_H, HOUSE_KITTEN_HOME, HOUSE_CELLAR_LID, houseArea, secretColliders,
+  LAWN_Y, WALL_T, TALL_H, HOUSE_KITTEN_HOME, HOUSE_CELLAR_LID, houseArea, houseFloorGround, secretColliders, roomAt,
 } from './houseplan.js';
+import { houseMovesArea } from './housemoves.js';
 import {
   HOUSE_ATLAS_CELLS as CELL, createHouseAtlas, houseMaterial, sectionMesh, paneMesh, floorMesh, stairMesh,
   skirtMesh, lampGroup, partsKit, kitBox, kitFace, kitMesh, FRONT_DOOR_W, furnitureMesh, flatsMesh, standInMesh,
-  cellarLidMeshes, secretBookcaseGroup,
+  cellarLidMeshes, secretBookcaseGroup, plankMesh, pawMarksMesh,
 } from './houseparts.js';
 import { fullLevels } from '../houselevels.js';
 import { createHouseLife } from './houselife.js';
@@ -243,7 +244,7 @@ const START_LEVEL = 'ground';
 // Every one is tagged houseDetail with its level, for the level drawing (H6); each
 // level also has one plain stand-in (houseSimple) shown when it is far. The drawing
 // starts as on the ground level; house life (Task 6) keeps it up from there.
-function furnish(scene, material, start) {
+function furnish(scene, material, start, traversal) {
   const full = fullLevels(start, LEVEL_LINKS);
   const tag = (o, level) => {
     o.userData.houseDetail = true;
@@ -276,13 +277,33 @@ function furnish(scene, material, start) {
       group.add(mesh);
     }
     if (flats.length) group.add(flatsMesh(flats, y, material, `houseFlats:${room.id}`));
+    // step 2: a crossing's plank is its room's, lying on the two tops it joins
+    for (const c of traversal.crossings) if (roomAt(c.ends[0].x, c.ends[0].z) === room.id) group.add(plankMesh(c, material));
     scene.add(noBlob(group));
   }
+  // step 2: a ledge piece is drawn like any solid one, here as on its level's stand-in
   for (const l of HOUSE_LEVELS) {
-    const solid = HOUSE_FURNITURE.filter((f) => f.level === l.id && f.r > 0);
+    const solid = HOUSE_FURNITURE.filter((f) => f.level === l.id && (f.r > 0 || f.ledge));
     if (!solid.length) continue;
     const m = standInMesh(l.id, solid, l.y);
     m.visible = !full.has(l.id);
+    scene.add(m);
+  }
+}
+
+// Step 2: a faint pair of paw prints at every hop's take-off (housemoves.js), one mesh per
+// level, a level detail like the furniture, so the drawing shows only the levels in full.
+function drawMarks(scene, traversal, start) {
+  const full = fullLevels(start, LEVEL_LINKS);
+  const byLevel = new Map();
+  for (const h of traversal.hops) {
+    const level = HOUSE_ROOMS.find((r) => r.id === roomAt(h.x0, h.z0)).level;
+    if (!byLevel.has(level)) byLevel.set(level, []);
+    byLevel.get(level).push({ x: h.x0, y: h.y0, z: h.z0, yaw: Math.atan2(h.x1 - h.x0, h.z1 - h.z0) });
+  }
+  for (const [level, spots] of byLevel) {
+    const m = pawMarksMesh(level, spots);
+    m.visible = full.has(level);
     scene.add(m);
   }
 }
@@ -291,7 +312,8 @@ function furnish(scene, material, start) {
 export function build(scene, { wind, gateEnds } = {}) {
   // gateEnds: step 4 opens the front door when a house-town end comes in. Step 1 ignores it.
   return withLocalUuids('house', () => {
-    const plan = houseArea();
+    // the plan with its moves and perches (step 2): the furniture tops she stands on are ground
+    const plan = houseMovesArea(houseArea());
     applySky(scene, HOUSE_SKY.top, HOUSE_SKY.horizon);
     const material = houseMaterial(createHouseAtlas());
 
@@ -330,7 +352,8 @@ export function build(scene, { wind, gateEnds } = {}) {
       g.userData.lampPoolClip = lampPoolClip(room);
       scene.add(g);
     });
-    furnish(scene, material, START_LEVEL);
+    furnish(scene, material, START_LEVEL, plan.traversal);
+    drawMarks(scene, plan.traversal, START_LEVEL);
     // the secret stair's bookcase, shut in the library's north wall (step 2, ruling D9)
     const secretGroup = secretBookcaseGroup(material);
     secretGroup.visible = fullLevels(START_LEVEL, LEVEL_LINKS).has(secretGroup.userData.houseLevel);
@@ -359,12 +382,13 @@ export function build(scene, { wind, gateEnds } = {}) {
       moments: [],
       puddles: [],
       boxes: [],
-      perches: [],
+      perches: plan.perches.map((p) => ({ ...p })), // the knock-over pieces' tops (step 2, D4)
       tippables: [],
       groundBounce: HOUSE_GROUND_BOUNCE,
       skyDusk: HOUSE_SKY_DUSK,
       duskLight: HOUSE_DUSK_LIGHT,
       strays: false, // no strays, wanderer or ghosts indoors (U12)
+      traversal: plan.traversal, // the climbs, drops, leaps and the plank up the furniture (step 2, D2)
       house: {
         levels: plan.levels,
         links: plan.links,
@@ -376,6 +400,8 @@ export function build(scene, { wind, gateEnds } = {}) {
         lidMeshes,
         // the secret bookcase and its two collider rows (`secret: true`): colliders holds the shut one
         secret: { group: secretGroup, shut: secretColliders(false), open: secretColliders(true) },
+        // the ground without the ledges: the level drawing reads the floor under her (step 2, D3)
+        floor: houseFloorGround(),
       },
     };
     // every frame: the walls between the camera and the cat sink, and the levels are drawn for hers
