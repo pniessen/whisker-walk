@@ -1,0 +1,824 @@
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import * as b from './builder.js';
+import { litMaterial, surfaceMaterialNoMap, tileMetres } from '../render/materials.js';
+import { withLocalUuids } from './localuuids.js';
+import { hash01 } from './warehouselook.js';
+import { createMarketParts, marketMaterials, atlasCell, buildTreatMesh, ATLAS_SIZE } from './marketparts.js';
+import {
+  BASIN_PROFILE, SPIRE_PROFILE, BASIN_WATER, FOUNTAIN_STONE, fountainWaterMaterial, latheGeometry, dressFountain,
+} from './parkfountain.js';
+import {
+  MARKET_BOUNDS, MARKET_SPAWN, FOUNTAIN, CAFE, STALLS, TREAT_STALLS, stallById, fromStall,
+  MARKET_COLLIDERS, MARKET_KEEPOUT, MARKET_POIS, MARKET_COLLECTIBLES,
+} from './marketplan.js';
+
+// =============================================================================
+// THE MARKET SQUARE, DRAWN (Market step 1, Task 3). Every position comes from
+// marketplan.js; this file only draws it. Morning-busy and calm to look at:
+// striped awnings in warm colours, cobbles, bunting across the square from
+// every stall to a mast on the fountain, stacked crates and baskets of
+// produce, the town's shop fronts closing it in. At dusk the stalls start
+// packing up (cloths over two displays, more crates stacked, the baskets put
+// away), the lanterns glow, and the treats are still there (setMarketDusk).
+//
+//                         fruit
+//            baker                       cheese
+//                  lamp            lamp
+//     fish           (fountain + mast)           milk
+//                  lamp            lamp
+//     flowers                                café tables
+//                              ^ spawn          (crumbs)
+//   shop fronts close the square just outside the bounds on all four sides;
+//   the south row has a 3.2 m gap at x = 0 for step 4's gateway (U3)
+//
+// HOW IT IS BUILT. Everything is made inside withLocalUuids, so the build
+// draws nothing from Math.random (variation is hash01); the shared builders'
+// calls each on a stream of their own (own() below), so the square's own
+// models get the same uuids on every build. The kit's shared
+// geometries (marketparts.js createMarketParts, made once per build) are
+// cloned into place and merged by bucket, one mesh per material per stall
+// (roofs.js's way); the originals are disposed at the end of the build, as
+// nothing in the scene holds them.
+//
+// THE TOP-LEVEL CHILDREN, and why each is one:
+//   * the ground (cobbles) and the flagstone ring round the fountain: flat;
+//   * the fountain (the Park's basin, water and spire, scaled to the plan's
+//     r 3.2, with a third small bowl and the bunting's mast on top);
+//   * each of the six stalls, a group at its `at`, turned to its `face`
+//     (userData.stall = its id): paint (posts, counter, shelf, crates, the
+//     treat's stand, the trestle over its hide), awning, atlas (sign and
+//     produce), metal and cloth, one mesh each;
+//   * each café table with its chairs, and the café's front (awning, sign);
+//   * the four lamp posts (builder.lampPost), the only things that fade;
+//   * the five display treats (record.treatMeshes), each its own child,
+//     noMerge and casting nothing, so step 2 can hide and show them;
+//   * the lanterns: one mesh, one material, lit by setMarketDusk;
+//   * the baskets of produce (hidden at dusk) and the packing-up (shown at
+//     dusk): one group each, noMerge, casting nothing;
+//   * the bunting: one noCast mesh, every pennant and string;
+//   * the shop fronts, one vertex-coloured mesh a side;
+//   * the far town: builder.horizonBand's skyline, noCast.
+//
+// THE PLAN'S FRAME AND THREE'S. A stall group turned by yaw = atan2(fx, fz)
+// carries its local +z along `face`, as the plan's frame does, but three's
+// local +x is the plan's -x (the plan's +x is (-fz, fx)). So a plan-local
+// point (lx, lz) is the group-local point (-lx, lz): pl() below.
+//
+// WHAT CASTS. Stalls (their paint and awning), the fountain's stone and mast,
+// the shop fronts and the lamp posts. Everything else under 1.3 m (the café,
+// the treats, the baskets, the packing-up) and the high, thin bunting do not.
+//
+// NOTHING FADES but the four lamp posts: no mesh carries userData.window.
+// =============================================================================
+
+export const MARKET_COBBLE = 0x8b8478; // the cobbles, and the ground bounce
+export const MARKET_SKY = Object.freeze({ top: 0x8ec4ea, horizon: 0xe8e0cc }); // a clear, warm morning
+export const MARKET_SKY_DUSK = Object.freeze({ top: 0x2a3358, horizon: 0xa86e62 });
+export const LANTERN_MAX = 1.6; // the lanterns' emissiveIntensity at full dusk
+const GROUND_SIZE = 96;
+const FLAG_RING = Object.freeze({ r0: 3.15, r1: 6.6, y: 0.012, color: 0x9a9284 });
+
+// The far town, round the shop fronts: blocks hazed by the fog, some tall
+// enough to show over the roofs.
+export const MARKET_HORIZON = Object.freeze({
+  kind: 'skyline', inner: 40, outer: 100, height: 16, wavelength: 40, blocks: 56, color: 0x8f8584, salt: 67,
+});
+
+// The fountain: the Park's (r 2.65 at its plinth) scaled to the plan's r 3.2,
+// a small third bowl on its finial, and a mast for the bunting.
+const FOUNTAIN_SCALE = FOUNTAIN.r / BASIN_PROFILE[0][0];
+const MAST_TOP = 6.2;
+const TOP_BOWL_PROFILE = Object.freeze([
+  [0.05, 2.04], [0.14, 2.08], [0.25, 2.13], [0.32, 2.18], [0.33, 2.21], [0.3, 2.23],
+  [0.23, 2.2], [0.1, 2.19], [0.0, 2.19],
+]);
+
+// A stall's shape (the plan's w x d is its footprint: counter at the front,
+// the keeper behind it, the back shelf at the back).
+const COUNTER_H = 0.9;
+const AWNING = Object.freeze({ y: 2.35, rise: 2.5, over: 0.4, front: 0.45, back: 0.15 });
+const POLE_H = 4.7; // the bunting's pole, the stall's back post on the plan's -x side
+const BUNTING_SAG = 0.45;
+const PENNANT = Object.freeze({ w: 0.26, h: 0.32, every: 0.5 });
+const PENNANT_COLORS = Object.freeze([0xd2453b, 0xe8b92c, 0x3f6fb5, 0x4c9a52, 0xe58fb0, 0xf3ead2, 0xe0813a]);
+
+// Paint (vertex colours on one material).
+const WOOD = 0x8a6a48;
+const WOOD_DARK = 0x6e5038;
+const CRATE = 0xb08d5e;
+const TOPBOARD = 0x7a5a3c;
+const ICE = 0xdde9ee;
+const WICKER = 0xb08a52;
+
+// Each stall's own look: its awning cell, its sign's picture cell, the
+// painted counter front and what is on the counter.
+const STALL_LOOK = Object.freeze({
+  fish: { awning: 0, sign: 11, paint: 0x5d7fa8, goods: 'fish' },
+  baker: { awning: 1, sign: 12, paint: 0xa8524a, goods: [9] },
+  cheese: { awning: 2, sign: 13, paint: 0xc9a24a, goods: [10] },
+  milk: { awning: 3, sign: 14, paint: 0x5f8f5e, goods: 'churns' },
+  flowers: { awning: 4, sign: 8, paint: 0xc98aa0, goods: 'buckets' },
+  fruit: { awning: 0, sign: 6, paint: 0x6b8fb8, goods: [6, 7] },
+});
+// what sits in the baskets on each stall's trestle (produce cells)
+const TRESTLE_GOODS = Object.freeze({ fish: 7, baker: 9, cheese: 10, milk: 6, flowers: 8 });
+// the two displays the cloths go over at dusk, and the stalls whose crates are stacked
+const CLOTHED = Object.freeze(['flowers', 'fruit']);
+const STACKED = Object.freeze(['fish', 'baker', 'cheese']);
+const CAFE_CELL = 5;
+const CAFE_SIGN = 15;
+
+// The shop fronts: facade lines just outside the bounds, rows of town
+// buildings behind them, each side one mesh.
+const FRONT_DEPTH = 6;
+// U3: step 4's gateway goes through the south row behind the spawn, here
+export const GATEWAY_GAP = Object.freeze({ x: 0, z: MARKET_BOUNDS.maxZ + 0.8, w: 3.2 });
+const SIDES = Object.freeze([
+  { id: 'north', yaw: 0, x: 0, z: MARKET_BOUNDS.minZ - 0.8, u0: MARKET_BOUNDS.minX - 0.8, u1: MARKET_BOUNDS.maxX + 0.8, gaps: [] },
+  // world x = -u on this side, so the gateway's gap (U3) is u -1.6..1.6
+  { id: 'south', yaw: Math.PI, x: 0, z: MARKET_BOUNDS.maxZ + 0.8, u0: MARKET_BOUNDS.minX - 0.8, u1: MARKET_BOUNDS.maxX + 0.8, gaps: [[-GATEWAY_GAP.w / 2, GATEWAY_GAP.w / 2]] },
+  // world z = -u (west) and u (east); these rows run on past the corners
+  { id: 'west', yaw: Math.PI / 2, x: MARKET_BOUNDS.minX - 0.8, z: 0, u0: -(MARKET_BOUNDS.maxZ + 7), u1: -(MARKET_BOUNDS.minZ - 7), gaps: [] },
+  { id: 'east', yaw: -Math.PI / 2, x: MARKET_BOUNDS.maxX + 0.8, z: 0, u0: MARKET_BOUNDS.minZ - 7, u1: MARKET_BOUNDS.maxZ + 7, gaps: [] },
+].map((s) => Object.freeze(s)));
+const WALLS = Object.freeze([0xe8dcc0, 0xd9b26f, 0xc4775a, 0x9fb08c, 0xa9c0cc, 0xa65a44, 0xd9a3a0, 0xe3cfa4, 0xb9a38a]);
+const ROOFS = Object.freeze([0x5a5f6a, 0x6b6f78, 0xa0543c, 0x8a4a38, 0x4f545e]);
+const FASCIAS = Object.freeze([0x3d6b4f, 0x7a2f35, 0x2f4268, 0x5a3b26, 0x6b4d7a, 0x2f5f5f]);
+const GLASS = 0x34404c;
+const FRAME = 0xefe9dc;
+const DOORS = Object.freeze([0x4a3426, 0x2f4268, 0x3d6b4f, 0x7a2f35]);
+// the café's front, on the south row behind its tables
+const CAFE_FRONT = Object.freeze({ x0: 7.5, x1: 14, depth: 2.2, y: 2.75 });
+
+// The anchors for step 3: where things will be, { x, z, y } (y their top).
+const BAKER = stallById('baker');
+const FRUIT = stallById('fruit');
+const APPLE_CRATE = Object.freeze({ lx: FRUIT.w / 2 + 0.45, lz: 0.3, w: 0.5, h: 0.4, d: 0.4 });
+export const MARKET_ANCHORS = Object.freeze({
+  // the baker's warm flour sacks, beside the stall on the side away from its hide (step 3's nap)
+  flourSacks: Object.freeze({ ...fromStall(BAKER, -(BAKER.w / 2 + 0.6), -BAKER.d / 2 + 0.5), y: 0.45 }),
+  // the crate of apples at the fruit stall's end (step 3's rolling fruit; drawn here)
+  apples: Object.freeze({ ...fromStall(FRUIT, APPLE_CRATE.lx, APPLE_CRATE.lz), y: APPLE_CRATE.h }),
+  // a bench facing the fountain (step 3 draws it): its seat
+  bench: Object.freeze({ x: -6.5, z: 8.5, y: 0.54 }),
+  // a bicycle parked by the south-west shop fronts (step 3): its basket
+  basket: Object.freeze({ x: -12, z: 30.6, y: 0.9 }),
+});
+
+const MARKET_SCENICS = Object.freeze([Object.freeze({ id: 'market-fountain', x: 0, z: 5.6, label: 'the fountain' })]);
+const MARKET_BIRDS = Object.freeze([
+  Object.freeze({ type: 'bird', x: -5, z: 15 }),
+  Object.freeze({ type: 'bird', x: 20, z: -12 }),
+]);
+
+// ---------------------------------------------------------------------------
+// Small helpers
+// ---------------------------------------------------------------------------
+const yawOf = (s) => Math.atan2(s.face.x, s.face.z);
+const pl = (lx, lz) => [-lx, lz]; // plan-local -> group-local (the header)
+const _e = new THREE.Euler();
+const _q = new THREE.Quaternion();
+const _p = new THREE.Vector3();
+const _s = new THREE.Vector3();
+function mat4(x, y, z, { yaw = 0, pitch = 0, roll = 0, sx = 1, sy = 1, sz = 1 } = {}) {
+  _e.set(pitch, yaw, roll, 'YXZ');
+  return new THREE.Matrix4().compose(_p.set(x, y, z), _q.setFromEuler(_e), _s.set(sx, sy, sz));
+}
+const stallMatrix = (s) => mat4(s.at.x, 0, s.at.z, { yaw: yawOf(s) });
+
+// UVs squeezed into one atlas cell, inset half a texel so no neighbour bleeds in.
+function intoCell(g, cell) {
+  const { u0, v0, u1, v1 } = atlasCell(cell);
+  const pad = 0.5 / ATLAS_SIZE;
+  const uv = g.attributes.uv;
+  for (let i = 0; i < uv.count; i++) {
+    uv.setXY(i, u0 + pad + uv.getX(i) * (u1 - u0 - 2 * pad), v0 + pad + uv.getY(i) * (v1 - v0 - 2 * pad));
+  }
+  uv.needsUpdate = true;
+  return g;
+}
+
+const KEEP = ['position', 'normal', 'uv'];
+// A clone of `geo`, moved into place, with exactly the attributes a bucket
+// merges (position, normal, uv, and color for a vertex-coloured material).
+function prep(geo, matrix, { color = null, cell = null } = {}) {
+  const g = geo.clone();
+  for (const k of Object.keys(g.attributes)) if (!KEEP.includes(k)) g.deleteAttribute(k);
+  const n = g.attributes.position.count;
+  if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n * 2), 2));
+  if (!g.attributes.normal) g.computeVertexNormals();
+  if (!g.index) g.setIndex(Array.from({ length: n }, (_, i) => i));
+  g.clearGroups();
+  if (cell != null) intoCell(g, cell);
+  if (matrix) g.applyMatrix4(matrix);
+  if (color != null) {
+    const c = new THREE.Color(color);
+    const a = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(a, 3));
+  }
+  return g;
+}
+
+// The kit: pieces by bucket (a material and whether it casts), one merged mesh each.
+function makeKit(prefix) {
+  const buckets = new Map();
+  return {
+    put(key, mat, geo, matrix, { color = null, cell = null, noCast = false, tag = null } = {}) {
+      let k = buckets.get(key);
+      if (!k) buckets.set(key, (k = { mat, noCast, tag, geos: [] }));
+      k.geos.push(prep(geo, matrix, { color: mat.vertexColors ? (color ?? 0xffffff) : null, cell }));
+    },
+    meshes() {
+      return [...buckets.entries()].map(([key, k]) => {
+        const geo = k.geos.length === 1 ? k.geos[0] : mergeGeometries(k.geos, false);
+        if (!geo) throw new Error(`market: could not merge ${prefix}:${key}`);
+        if (k.geos.length > 1) for (const g of k.geos) g.dispose();
+        geo.computeBoundingSphere();
+        const m = new THREE.Mesh(geo, k.mat);
+        m.name = `${prefix}:${key}`;
+        m.castShadow = !k.noCast;
+        m.receiveShadow = true;
+        if (k.noCast) m.userData.noCast = true;
+        if (k.tag) Object.assign(m.userData, k.tag);
+        return m;
+      });
+    },
+  };
+}
+
+// A roof prism along x (0..w): eaves at y 0 over z `over` (front) and
+// -depth-over (back), the ridge at `rise` over z -depth/2. Flat faces.
+function roofPrism(w, depth, rise, over) {
+  const zf = over;
+  const zb = -depth - over;
+  const zr = -depth / 2;
+  const A = [0, 0, zf], B = [w, 0, zf], C = [w, rise, zr], D = [0, rise, zr], E = [0, 0, zb], F = [w, 0, zb];
+  const tris = [[A, B, C], [A, C, D], [F, E, D], [F, D, C], [A, D, E], [F, C, B]];
+  const pos = new Float32Array(tris.length * 9);
+  tris.forEach((t, i) => t.forEach((p, j) => pos.set(p, i * 9 + j * 3)));
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  return g;
+}
+
+// An awning's valance: the striped flap hanging from its front edge, so the
+// stripes read from a cat's height too. A strip across x (-sx/2..sx/2) at z,
+// its top following the sheet's sagging edge (yTop(x)), `h` deep, its stripes
+// (UVs across one cell) running down it; scalloped along the bottom.
+function valance(sx, z, yTop, h, n = 8) {
+  const pos = [];
+  const uv = [];
+  for (let i = 0; i <= n; i++) {
+    const s = i / n;
+    const x = (s - 0.5) * sx;
+    const y = yTop(x);
+    const scallop = i % 2 ? 0.05 : 0;
+    pos.push(x, y, z, x, y - h + scallop, z);
+    uv.push(s, 1, s, 0);
+  }
+  const idx = [];
+  for (let i = 0; i < n; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 2, a + 1, a + 3); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// setMarketDusk(area, k): k 0 (day) .. 1 (dusk). The lanterns' one material
+// glows LANTERN_MAX * k; past half way the stalls pack up (cloths over two
+// displays, crates stacked) and the baskets of produce are put away. The
+// treats stay. Idempotent.
+// ---------------------------------------------------------------------------
+export function setMarketDusk(area, k) {
+  const t = Math.min(1, Math.max(0, Number.isFinite(k) ? k : 0));
+  const look = area?.look;
+  if (!look) return;
+  look.lantern.emissiveIntensity = LANTERN_MAX * t;
+  const packed = t > 0.5;
+  look.packing.visible = packed;
+  look.baskets.visible = !packed;
+  look.level = t;
+}
+
+// The record's `life` (walk.js: areaData.life(ctx), ctx.dusk the walk's
+// evening look): sets the square's dusk once. Nothing per frame.
+const NO_LOOK_UPDATE = () => {};
+export function createMarketLook(area, { dusk } = {}) {
+  setMarketDusk(area, dusk ? 1 : 0);
+  return { update: NO_LOOK_UPDATE, dispose() {} };
+}
+
+// ---------------------------------------------------------------------------
+// The build
+// ---------------------------------------------------------------------------
+export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line no-unused-vars
+  return withLocalUuids('market-models', () => {
+    own('market-sky', () => b.applySky(scene, MARKET_SKY.top, MARKET_SKY.horizon));
+    const PARTS = createMarketParts();
+    const M = marketMaterials();
+    const paint = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 });
+    const flags = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
+    const barrel = new THREE.CylinderGeometry(0.5, 0.5, 1, 12).translate(0, 0.5, 0);
+    const disc = new THREE.CircleGeometry(0.5, 10).rotateX(-Math.PI / 2);
+    const quad = new THREE.PlaneGeometry(1, 1);
+
+    own('market-ground', () => drawGround(scene));
+    drawFountain(scene, M, water);
+    const lanterns = []; // world spots of every lantern bulb
+    const poles = []; // the bunting's pole tops, one per stall
+    const basketKit = makeKit('marketBaskets');
+    const packKit = makeKit('marketPacking');
+    for (const s of STALLS) {
+      if (s.w <= 0) continue;
+      scene.add(drawStall(s, { PARTS, M, paint, barrel, disc, quad, lanterns, poles, basketKit, packKit }));
+    }
+    drawCafe(scene, { PARTS, M, paint, lanterns });
+    for (const [x, z] of [[-10, -10], [10, -10], [-10, 10], [10, 10]]) {
+      const lamp = own(`market-lamp-${x},${z}`, () => b.lampPost(x, z));
+      lamp.name = `marketLamp:${x},${z}`;
+      scene.add(lamp);
+    }
+
+    // the treats on display, each its own top-level child
+    const treatMeshes = {};
+    for (const id of [...TREAT_STALLS, 'cafe']) {
+      const s = stallById(id);
+      const t = buildTreatMesh(s.treat.kind);
+      t.position.set(s.treat.x, s.treat.y, s.treat.z);
+      t.rotation.y = yawOf(s);
+      t.name = `marketTreat:${id}`;
+      t.userData.noMerge = true;
+      t.userData.treat = id;
+      scene.add(t);
+      treatMeshes[id] = t;
+    }
+
+    // the lanterns: one mesh, one material
+    const lk = makeKit('marketLanterns');
+    for (const p of lanterns) lk.put('lantern', M.lantern, PARTS.bulb, mat4(p.x, p.y, p.z, { sx: 0.16, sy: 0.19, sz: 0.16 }), { noCast: true });
+    const lanternMesh = lk.meshes()[0];
+    lanternMesh.name = 'marketLanterns';
+    scene.add(lanternMesh);
+
+    // the baskets of produce (put away at dusk) and the packing-up (out at dusk)
+    const baskets = groupOf('marketBaskets', basketKit);
+    const packing = groupOf('marketPacking', packKit);
+    packing.visible = false;
+    scene.add(baskets, packing);
+
+    scene.add(drawBunting(PARTS, flags, poles));
+    for (const side of SIDES) scene.add(drawShopFront(side, paint));
+    const band = own('market-band', () => b.horizonBand(MARKET_HORIZON));
+    band.userData.noCast = true;
+    band.castShadow = false;
+    scene.add(band);
+
+    // nothing in the scene holds the kit's own geometries: they were cloned into place
+    PARTS.dispose();
+    barrel.dispose();
+    disc.dispose();
+    quad.dispose();
+
+    const record = {
+      name: 'The Market Square',
+      colliders: MARKET_COLLIDERS.map((c) => ({ ...c })),
+      bounds: { ...MARKET_BOUNDS },
+      spawn: { x: MARKET_SPAWN.x, z: MARKET_SPAWN.z },
+      boxes: [],
+      waters: [],
+      waterFx: [],
+      pois: MARKET_POIS.map((p) => ({ ...p })),
+      collectibles: MARKET_COLLECTIBLES.map((c) => ({ ...c })),
+      scenics: MARKET_SCENICS.map((c) => ({ ...c })),
+      critterSpawns: MARKET_BIRDS.map((c) => ({ ...c })), // two birds; the pigeons are step 3
+      moments: [],
+      puddles: [],
+      groundBounce: MARKET_COBBLE,
+      skyDusk: { ...MARKET_SKY_DUSK },
+      tippables: [],
+      perches: [],
+      // U5: strays come as anywhere, kept off the counters' zones and the hides
+      keepOut: MARKET_KEEPOUT,
+      // one display treat per treat stall and the café (step 2 hides and shows them)
+      treatMeshes,
+      // where each stallholder stands, facing front (step 2 puts the people there)
+      keepers: Object.fromEntries(STALLS.filter((s) => s.keeper).map((s) => [s.id, { x: s.keeper.x, z: s.keeper.z, yaw: yawOf(s) }])),
+      anchors: Object.fromEntries(Object.entries(MARKET_ANCHORS).map(([k, v]) => [k, { ...v }])),
+      // what setMarketDusk drives
+      look: { lantern: M.lantern, packing, baskets, level: 0 },
+    };
+    record.life = (ctx) => createMarketLook(record, ctx);
+    return record;
+  });
+}
+
+// The shared builders (the sky, the ground's and the lamps' tiles, the far
+// town) each on a stream of their own: what they draw (a texture made on the
+// first build, memoised for the next) never moves the square's own uuids.
+const own = (key, fn) => withLocalUuids(key, fn);
+
+function groupOf(name, kit) {
+  const g = new THREE.Group();
+  g.name = name;
+  g.userData.noMerge = true;
+  for (const m of kit.meshes()) g.add(m);
+  return g;
+}
+
+// --- the cobbles and the flagstones round the fountain
+function drawGround(scene) {
+  const ground = b.ground(GROUND_SIZE, MARKET_COBBLE, { surface: 'cobble' });
+  ground.name = 'marketCobbles';
+  scene.add(ground);
+  const ring = new THREE.RingGeometry(FLAG_RING.r0, FLAG_RING.r1, 48, 1);
+  ring.rotateX(-Math.PI / 2);
+  const tile = tileMetres('flagstone') || 1;
+  const pos = ring.attributes.position;
+  const uv = ring.attributes.uv;
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / tile, pos.getZ(i) / tile);
+  const flags = new THREE.Mesh(ring, litMaterial(FLAG_RING.color, { surface: 'flagstone', repeat: [1, 1] }));
+  flags.position.set(FOUNTAIN.x, FLAG_RING.y, FOUNTAIN.z);
+  flags.name = 'marketFlagstones';
+  flags.userData.ground = true;
+  flags.receiveShadow = true;
+  scene.add(flags);
+}
+
+// --- the fountain: the Park's, scaled, with a third bowl and the bunting's mast
+function drawFountain(scene, M, water) {
+  const stone = () => surfaceMaterialNoMap('cobble', FOUNTAIN_STONE.color, { roughness: FOUNTAIN_STONE.roughness });
+  const f = new THREE.Group();
+  f.name = 'marketFountain';
+  const basin = new THREE.Mesh(latheGeometry(BASIN_PROFILE), stone());
+  basin.name = 'fountainBasin';
+  const pool = new THREE.Mesh(
+    new THREE.CylinderGeometry(BASIN_WATER.r, BASIN_WATER.r, BASIN_WATER.h, BASIN_WATER.segments),
+    fountainWaterMaterial());
+  pool.position.y = BASIN_WATER.top - BASIN_WATER.h / 2;
+  pool.name = 'fountainWater';
+  // flat in the basin: no shadow, and kept apart from the upper water so the
+  // walk's merge cannot drop its noCast
+  pool.castShadow = false;
+  pool.userData.noCast = true;
+  pool.userData.noMerge = true;
+  const spire = new THREE.Mesh(latheGeometry(SPIRE_PROFILE), stone());
+  spire.name = 'fountainSpire';
+  const bowl = new THREE.Mesh(latheGeometry(TOP_BOWL_PROFILE, 16), stone());
+  bowl.name = 'fountainTopBowl';
+  const mastH = MAST_TOP / FOUNTAIN_SCALE - 2.15;
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.036, mastH, 6), M.metal);
+  mast.position.y = 2.15 + mastH / 2;
+  mast.name = 'fountainMast';
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), M.metal);
+  knob.position.y = MAST_TOP / FOUNTAIN_SCALE + 0.03;
+  knob.name = 'fountainMastKnob';
+  f.add(basin, pool, spire, bowl, mast, knob);
+  dressFountain(f, { reducedMotion: !!water.reducedMotion });
+  f.scale.setScalar(FOUNTAIN_SCALE);
+  f.position.set(FOUNTAIN.x, 0, FOUNTAIN.z);
+  scene.add(f);
+}
+
+// The awning sheet's height at a group-local point (its sag and slope, as
+// marketparts.js makes it, scaled by AWNING.rise about AWNING.y).
+function awningGeom(s) {
+  const sx = s.w + AWNING.over;
+  const z0 = -s.d / 2 - AWNING.back;
+  const z1 = s.d / 2 + AWNING.front;
+  const sz = z1 - z0;
+  const cz = (z0 + z1) / 2;
+  const yAt = (x, z) => {
+    const t = Math.min(1, Math.max(0, (z - z0) / sz));
+    const u = Math.min(1, Math.max(0, x / sx + 0.5));
+    return AWNING.y + AWNING.rise * (0.12 * (0.5 - t) - 0.05 * Math.sin(Math.PI * u) * t);
+  };
+  return { sx, sz, cz, z1, yAt };
+}
+
+// --- one stall, in its own group at its plan spot
+function drawStall(s, { PARTS, M, paint, barrel, disc, quad, lanterns, poles, basketKit, packKit }) {
+  const look = STALL_LOOK[s.id];
+  const g = new THREE.Group();
+  g.name = `marketStall:${s.id}`;
+  g.userData.stall = s.id;
+  g.position.set(s.at.x, 0, s.at.z);
+  g.rotation.y = yawOf(s);
+  const K = makeKit(`marketStall:${s.id}`);
+  const wood = (geo, m, color = WOOD) => K.put('paint', paint, geo, m, { color });
+  const atlas = (geo, m, cell) => K.put('atlas', M.stall, geo, m, { cell, noCast: true });
+  const metal = (geo, m) => K.put('metal', M.metal, geo, m, { noCast: true });
+  const box = (x, y, z, w, h, d, color, extra = {}) => wood(PARTS.crate, mat4(x, y, z, { sx: w, sy: h, sz: d, ...extra }), color);
+  const W = s.w;
+  const D = s.d;
+  const cart = s.id === 'milk';
+  const cd = cart ? 0.8 : Math.min(0.7, D * 0.4);
+  const awn = awningGeom(s);
+  const toWorld = stallMatrix(s);
+
+  // posts: front and back at the footprint's corners; the plan's -x back post is the bunting's pole
+  for (const lxs of [-1, 1]) {
+    for (const lzs of [-1, 1]) {
+      const [x, z] = pl(lxs * W / 2, lzs * D / 2);
+      const pole = lzs < 0 && lxs < 0;
+      const h = pole ? POLE_H : awn.yAt(x, z) - 0.01;
+      wood(PARTS.post, mat4(x, 0, z, { sx: 0.1, sy: h, sz: 0.1 }), WOOD_DARK);
+      if (pole) poles.push({ ...new THREE.Vector3(x, POLE_H, z).applyMatrix4(toWorld) });
+    }
+  }
+  // the awning
+  K.put('awning', M.awning, PARTS.awningSheet(look.awning), mat4(0, AWNING.y, awn.cz, { sx: awn.sx, sy: AWNING.rise, sz: awn.sz }), { tag: { awning: true } });
+  {
+    const flap = valance(awn.sx, awn.z1, (x) => awn.yAt(x, awn.z1) + 0.01, 0.26);
+    K.put('awning', M.awning, flap, null, { cell: look.awning });
+    flap.dispose();
+  }
+  // the sign, standing on the awning's front edge, its picture both ways
+  {
+    const sz = awn.z1 - 0.25;
+    const sign = new THREE.BoxGeometry(0.7, 0.7, 0.05);
+    atlas(sign, mat4(0, awn.yAt(0, sz) + 0.38, sz), look.sign);
+    sign.dispose();
+  }
+  // the lanterns: a string along the awning's front edge (the treat stalls)
+  if (TREAT_STALLS.includes(s.id)) {
+    const n = 5;
+    for (let i = 0; i < n; i++) {
+      const lx = -W / 2 + 0.15 + (i * (W - 0.3)) / (n - 1);
+      const z = awn.z1 - 0.04;
+      const p = new THREE.Vector3(lx, awn.yAt(lx, z) - 0.16 - 0.06 * Math.sin((Math.PI * i) / (n - 1)), z).applyMatrix4(toWorld);
+      lanterns.push({ x: p.x, y: p.y, z: p.z });
+    }
+  }
+
+  if (cart) {
+    // the milk cart: a body on two wheels, shafts out the back, churns on top
+    box(0, 0.4, D / 2 - cd / 2, W, 0.55, cd, look.paint);
+    box(0, 0.95, D / 2 - cd / 2, W + 0.04, 0.04, cd + 0.04, TOPBOARD);
+    for (const sx of [-1, 1]) {
+      wood(barrel, mat4(sx * (W / 2 + 0.05), 0.42, D / 2 - cd / 2, { roll: Math.PI / 2, sx: 0.84, sy: 0.07, sz: 0.84 }), WOOD_DARK);
+      box(sx * 0.5, 0.45, -D / 4 + 0.05, 0.06, 0.06, D / 2 + 0.1, WOOD);
+    }
+    for (let i = 0; i < 3; i++) {
+      const x = -W / 2 + 0.45 + i * ((W - 0.9) / 2);
+      metal(barrel, mat4(x, 0.99, D / 2 - cd / 2, { sx: 0.3, sy: 0.5, sz: 0.3 }));
+      metal(barrel, mat4(x, 1.49, D / 2 - cd / 2, { sx: 0.2, sy: 0.08, sz: 0.2 }));
+    }
+  } else {
+    // the counter: a painted front with a board on top
+    box(0, 0, D / 2 - cd / 2, W, COUNTER_H - 0.05, cd, look.paint);
+    box(0, COUNTER_H - 0.05, D / 2 - cd / 2, W + 0.06, 0.05, cd + 0.06, TOPBOARD);
+    // the back shelf: two uprights, three boards, two crates on top
+    const sz = -D / 2 + 0.15;
+    for (const sx of [-1, 1]) box(sx * (W / 2 - 0.2), 0, sz, 0.06, 1.42, 0.3, WOOD);
+    for (const y of [0.45, 0.95, 1.4]) box(0, y, sz, W - 0.35, 0.04, 0.3, WOOD);
+    for (const sx of [-1, 1]) box(sx * (W / 4), 1.44, sz, 0.42, 0.28, 0.3, CRATE, { yaw: sx * 0.08 });
+  }
+
+  // what is on the counter
+  const top = cart ? 0.97 : COUNTER_H;
+  const cz = D / 2 - cd / 2;
+  if (Array.isArray(look.goods)) {
+    const n = Math.max(2, Math.floor((W - 0.3) / 0.6));
+    for (let i = 0; i < n; i++) {
+      const x = -W / 2 + 0.15 + 0.3 + (i * (W - 0.9)) / (n - 1);
+      const tilt = { yaw: 0, pitch: 0.28 };
+      box(x, top, cz, 0.5, 0.16, cd - 0.15, CRATE, tilt);
+      const m = mat4(x, top, cz, tilt).multiply(mat4(0, 0.15, 0, { pitch: -Math.PI / 2, sx: 0.46, sy: cd - 0.2 }));
+      atlas(quad, m, look.goods[i % look.goods.length]);
+    }
+  } else if (look.goods === 'fish') {
+    box(0, top, cz, W - 0.2, 0.05, cd - 0.1, ICE);
+    for (let i = 0; i < 4; i++) {
+      const x = -W / 2 + 0.5 + (i * (W - 1.0)) / 3;
+      wood(PARTS.bulb, mat4(x, top + 0.08, cz + (i % 2 ? 0.08 : -0.08), { yaw: 0.3 - i * 0.2, sx: 0.36, sy: 0.08, sz: 0.11 }), 0x9aaebb);
+    }
+  } else if (look.goods === 'buckets') {
+    const n = 4;
+    for (let i = 0; i < n; i++) {
+      const x = -W / 2 + 0.35 + (i * (W - 0.7)) / (n - 1);
+      metal(PARTS.basket, mat4(x, top, cz, { sx: 0.34, sy: 0.3, sz: 0.34 }));
+      atlas(disc, mat4(x, top + 0.29, cz, { sx: 0.4, sz: 0.4 }), 8);
+    }
+  }
+
+  // the treat's stand, at the counter's front corner on the hide's side
+  if (s.treat) {
+    const t = s.treat;
+    const [x, z] = pl(W / 2 - 0.3, D / 2 + 0.35);
+    if (t.kind === 'fishhead') {
+      box(x, 0, z, 0.42, t.y - 0.056 - 0.04, 0.42, CRATE);
+      box(x, t.y - 0.056 - 0.04, z, 0.46, 0.04, 0.46, ICE);
+    } else if (t.kind === 'sausageroll') {
+      box(x, 0, z, 0.36, t.y - 0.04 - 0.02, 0.36, WOOD);
+      metal(PARTS.crate, mat4(x, t.y - 0.04 - 0.02, z, { sx: 0.42, sy: 0.02, sz: 0.32 }));
+    } else if (t.kind === 'cheddar') {
+      wood(barrel, mat4(x, 0, z, { sx: 0.46, sy: t.y - 0.04 - 0.03, sz: 0.46 }), WOOD);
+      box(x, t.y - 0.04 - 0.03, z, 0.4, 0.03, 0.4, TOPBOARD);
+    } else if (t.kind === 'cream') {
+      box(x, 0, z, 0.5, t.y - 0.0225, 0.32, WOOD_DARK);
+    }
+  }
+
+  // the trestle over the hide, its cloth and its baskets
+  if (s.hide) {
+    const [x, z] = pl(W / 2 + 1.2, D / 2 - 0.3);
+    wood(PARTS.trestle, mat4(x, 0, z, { yaw: Math.PI / 2, sx: 1.4, sz: 1.8 }), WOOD);
+    K.put('cloth', M.cloth, PARTS.box, mat4(x, 0.765, z, { sx: 0.95, sy: 0.02, sz: 1.46 }), { noCast: true });
+    for (const dz of [-0.35, 0.35]) {
+      const m = mat4(x, 0.775, z + dz);
+      basketAt(basketKit, PARTS, paint, M, disc, toWorld.clone().multiply(m), TRESTLE_GOODS[s.id]);
+    }
+  }
+  // the apples' crate at the fruit stall's end (step 3 rolls its fruit)
+  if (s.id === 'fruit') {
+    const [x, z] = pl(APPLE_CRATE.lx, APPLE_CRATE.lz);
+    box(x, 0, z, APPLE_CRATE.w, APPLE_CRATE.h - 0.02, APPLE_CRATE.d, CRATE);
+    atlas(quad, mat4(x, APPLE_CRATE.h - 0.01, z, { pitch: -Math.PI / 2, sx: APPLE_CRATE.w - 0.04, sy: APPLE_CRATE.d - 0.04 }), 6);
+  }
+
+  // packing up (dusk): cloths over two displays, crates stacked behind two counters
+  if (CLOTHED.includes(s.id)) {
+    packKit.put('cloth', M.cloth, PARTS.box, toWorld.clone().multiply(mat4(0, top + 0.17, cz, { sx: W + 0.1, sy: 0.34, sz: cd + 0.1 })), { noCast: true });
+    packKit.put('cloth', M.cloth, quad, toWorld.clone().multiply(mat4(0, top - 0.1, D / 2 + 0.06, { sx: W + 0.1, sy: 0.6 })), { noCast: true });
+  }
+  if (STACKED.includes(s.id)) {
+    const [x, z] = pl(-(W / 2 - 0.32), -D / 2 + 0.55);
+    for (let i = 0; i < 4; i++) {
+      packKit.put('crates', paint, PARTS.crate, toWorld.clone().multiply(mat4(x + (i % 2 ? 0.03 : -0.02), i * 0.3, z, { yaw: (i % 3) * 0.07, sx: 0.44, sy: 0.29, sz: 0.36 })), { color: CRATE, noCast: true });
+    }
+  }
+
+  for (const m of K.meshes()) g.add(m);
+  return g;
+}
+
+// A basket of produce at `m` (world), into the baskets' kit: the wicker and its fill.
+function basketAt(kit, PARTS, paint, M, disc, m, cell) {
+  kit.put('wicker', paint, PARTS.basket, m.clone().multiply(mat4(0, 0, 0, { sx: 0.36, sy: 0.22, sz: 0.36 })), { color: WICKER, noCast: true });
+  kit.put('produce', M.stall, disc, m.clone().multiply(mat4(0, 0.2, 0, { sx: 0.34, sz: 0.34 })), { cell, noCast: true });
+}
+
+// --- the café: three tables with their chairs, and its front on the south row
+function drawCafe(scene, { PARTS, M, paint, lanterns }) {
+  // table 0 stands a little east of the crumbs' spot, so they lie under its
+  // top's edge and clear of its foot
+  const CHAIRS = [[0.6, 2.1, 3.4], [0.4, 2.4, 4.3], [1.1, 3.1, 5.0]];
+  CAFE.tables.forEach((t, i) => {
+    const at = i === 0 ? { x: t.x + 0.32, z: t.z } : t;
+    const g = new THREE.Group();
+    g.name = `marketCafe:${i}`;
+    g.userData.cafeTable = i;
+    g.position.set(at.x, 0, at.z);
+    const K = makeKit(`marketCafe:${i}`);
+    K.put('paint', paint, PARTS.cafeTable, null, { color: 0x3f4a3f, noCast: true });
+    for (const a of CHAIRS[i]) {
+      K.put('paint', paint, PARTS.cafeChair, mat4(Math.sin(a) * 0.62, 0, Math.cos(a) * 0.62, { yaw: a + Math.PI }), { color: 0x6b4d3a, noCast: true });
+    }
+    for (const m of K.meshes()) g.add(m);
+    scene.add(g);
+  });
+  // the café's striped awning and its cup sign on the south row's front
+  const F = CAFE_FRONT;
+  const zf = MARKET_BOUNDS.maxZ + 0.8;
+  const g = new THREE.Group();
+  g.name = 'marketCafeFront';
+  const K = makeKit('marketCafeFront');
+  const w = F.x1 - F.x0;
+  const cx = (F.x0 + F.x1) / 2;
+  K.put('awning', M.awning, PARTS.awningSheet(CAFE_CELL), mat4(cx, F.y, zf - F.depth / 2, { yaw: Math.PI, sx: w, sy: 2.5, sz: F.depth }), { tag: { awning: true } });
+  {
+    // the sheet's front edge in its own frame: y = F.y + 2.5 * (-0.06 - 0.05 sin(pi u))
+    const edge = (x) => F.y + 2.5 * (-0.06 - 0.05 * Math.sin(Math.PI * (x / w + 0.5))) + 0.01;
+    const flap = valance(w, F.depth / 2, edge, 0.3, 12);
+    K.put('awning', M.awning, flap, mat4(cx, 0, zf - F.depth / 2, { yaw: Math.PI }), { cell: CAFE_CELL });
+    flap.dispose();
+  }
+  const sign = new THREE.BoxGeometry(0.9, 0.9, 0.05);
+  K.put('atlas', M.stall, sign, mat4(cx, F.y + 0.9, zf - 0.05, { yaw: Math.PI }), { cell: CAFE_SIGN, noCast: true });
+  sign.dispose();
+  for (const m of K.meshes()) g.add(m);
+  scene.add(g);
+  const n = 7;
+  for (let i = 0; i < n; i++) {
+    const x = F.x0 + 0.3 + (i * (w - 0.6)) / (n - 1);
+    lanterns.push({ x, y: F.y - 0.3 - 0.1 - 0.12 * Math.sin((Math.PI * i) / (n - 1)), z: zf - F.depth + 0.05 });
+  }
+}
+
+// --- the bunting: six strings from the stalls' poles to the fountain's mast
+function drawBunting(PARTS, flags, poles) {
+  const K = makeKit('marketBunting');
+  const mast = new THREE.Vector3(FOUNTAIN.x, MAST_TOP, FOUNTAIN.z);
+  const string = new THREE.BoxGeometry(1, 0.014, 0.014);
+  const at = (a, t) => ({
+    x: a.x + (mast.x - a.x) * t,
+    y: a.y + (mast.y - a.y) * t - 4 * BUNTING_SAG * t * (1 - t),
+    z: a.z + (mast.z - a.z) * t,
+  });
+  poles.forEach((a, k) => {
+    const len = Math.hypot(mast.x - a.x, mast.z - a.z);
+    const yaw = -Math.atan2(mast.z - a.z, mast.x - a.x);
+    const segs = Math.max(6, Math.round(len / 1.5));
+    for (let i = 0; i < segs; i++) {
+      const p = at(a, i / segs);
+      const q = at(a, (i + 1) / segs);
+      const h = Math.hypot(q.x - p.x, q.z - p.z);
+      const roll = Math.atan2(q.y - p.y, h);
+      const l = Math.hypot(h, q.y - p.y);
+      K.put('flags', flags, string, mat4((p.x + q.x) / 2, (p.y + q.y) / 2, (p.z + q.z) / 2, { yaw, roll, sx: l }), { color: 0x3a3a3a, noCast: true });
+    }
+    const n = Math.floor(len / PENNANT.every);
+    for (let i = 1; i < n; i++) {
+      const p = at(a, i / n);
+      const c = PENNANT_COLORS[Math.floor(hash01(i, k, 31) * PENNANT_COLORS.length) % PENNANT_COLORS.length];
+      K.put('flags', flags, PARTS.pennant, mat4(p.x, p.y, p.z, { yaw, sx: PENNANT.w, sy: PENNANT.h }), { color: c, noCast: true });
+    }
+  });
+  string.dispose();
+  const m = K.meshes()[0];
+  m.name = 'marketBunting';
+  m.userData.bunting = true;
+  return m;
+}
+
+// --- the shop fronts: one row of town buildings a side, one mesh
+function drawShopFront(side, paint) {
+  const K = makeKit(`marketShops:${side.id}`);
+  const sideM = mat4(side.x, 0, side.z, { yaw: side.yaw });
+  const put = (geo, m, color) => K.put('paint', paint, geo, sideM.clone().multiply(m), { color });
+  const cube = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+  const plane = new THREE.PlaneGeometry(1, 1);
+  const si = SIDES.indexOf(side);
+  // the runs of the row between its gaps
+  const runs = [];
+  let from = side.u0;
+  for (const [g0, g1] of side.gaps) { runs.push([from, g0]); from = g1; }
+  runs.push([from, side.u1]);
+  let k = 0;
+  for (const [r0, r1] of runs) {
+    let u = r0;
+    while (u < r1 - 0.01) {
+      let w = 5.2 + 2.6 * hash01(u, si, 71);
+      if (r1 - (u + w) < 3) w = r1 - u;
+      house(put, cube, plane, u, w, k, si);
+      u += w;
+      k++;
+    }
+  }
+  // crates stacked against the fronts (outside the bounds: nobody walks into them)
+  for (let i = 0; i < 3; i++) {
+    const u = side.u0 + 9 + i * ((side.u1 - side.u0 - 18) / 2) + 3 * hash01(i, si, 73);
+    if (side.gaps.some(([g0, g1]) => u > g0 - 1.5 && u < g1 + 1.5)) continue;
+    const n = 1 + Math.floor(hash01(i, si, 75) * 3);
+    for (let j = 0; j < n; j++) put(cube, mat4(u + (j % 2) * 0.05, j * 0.31, 0.28, { yaw: 0.1 * (j % 3), sx: 0.5, sy: 0.3, sz: 0.42 }), CRATE);
+  }
+  cube.dispose();
+  plane.dispose();
+  const m = K.meshes()[0];
+  m.name = `marketShops:${side.id}`;
+  m.userData.shopFront = side.id;
+  return m;
+}
+
+// One town building: u..u+w along the row, its front at v 0 facing the square.
+function house(put, cube, plane, u, w, k, si) {
+  const h1 = hash01(u, si, 81);
+  const upper = h1 < 0.45 ? 1 : 2;
+  const h = 3.4 + 2.9 * upper + 0.4;
+  const wall = WALLS[Math.floor(hash01(u, si, 83) * WALLS.length) % WALLS.length];
+  const roof = ROOFS[Math.floor(hash01(u, si, 85) * ROOFS.length) % ROOFS.length];
+  const fascia = FASCIAS[Math.floor(hash01(u, si, 87) * FASCIAS.length) % FASCIAS.length];
+  const door = DOORS[k % DOORS.length];
+  const mid = u + w / 2;
+  put(cube, mat4(mid, 0, -FRONT_DEPTH / 2, { sx: w, sy: h, sz: FRONT_DEPTH }), wall);
+  const rise = 1.6 + 1.0 * hash01(u, si, 89);
+  const prism = roofPrism(w, FRONT_DEPTH, rise, 0.3);
+  put(prism, mat4(u, h, 0), roof);
+  prism.dispose();
+  if (hash01(u, si, 91) < 0.6) put(cube, mat4(u + w * (0.25 + 0.5 * hash01(u, si, 93)), h + rise * 0.55, -FRONT_DEPTH / 2, { sx: 0.5, sy: rise * 0.45 + 0.9, sz: 0.6 }), 0x7a4a3a);
+  // the shop: a window, a door, a painted fascia band (no letters)
+  const doorLeft = hash01(u, si, 95) < 0.5;
+  const dx = doorLeft ? u + 0.9 : u + w - 0.9;
+  const winX0 = doorLeft ? u + 1.6 : u + 0.4;
+  const winX1 = doorLeft ? u + w - 0.4 : u + w - 1.6;
+  put(plane, mat4((winX0 + winX1) / 2, 1.5, 0.02, { sx: winX1 - winX0 + 0.16, sy: 1.96 }), FRAME);
+  put(plane, mat4((winX0 + winX1) / 2, 1.5, 0.03, { sx: winX1 - winX0, sy: 1.8 }), GLASS);
+  put(plane, mat4(dx, 1.1, 0.03, { sx: 1.0, sy: 2.2 }), door);
+  put(plane, mat4(mid, 2.88, 0.04, { sx: w - 0.2, sy: 0.55 }), fascia);
+  // the windows upstairs
+  const cols = Math.max(2, Math.floor(w / 2.2));
+  for (let f = 0; f < upper; f++) {
+    const y = 3.4 + 2.9 * f + 1.45;
+    for (let c = 0; c < cols; c++) {
+      const x = u + (w * (c + 0.5)) / cols;
+      put(plane, mat4(x, y, 0.02, { sx: 1.0, sy: 1.45 }), FRAME);
+      put(plane, mat4(x, y, 0.03, { sx: 0.82, sy: 1.25 }), GLASS);
+    }
+  }
+}

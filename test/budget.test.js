@@ -37,6 +37,7 @@ const { build: buildGorge } = await import('../src/world/gorge.js');
 const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildFair } = await import('../src/world/fair.js');
 const { build: buildRoofs } = await import('../src/world/roofs.js');
+const { build: buildMarket } = await import('../src/world/market.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { addBorderDressing } = await import('../src/world/borderpost.js');
 const { addGatewayDressing } = await import('../src/world/gateway.js');
@@ -472,6 +473,10 @@ const AREAS = [
   // never raised; the place aims for 300 / 120 / 60,000 (test/roofs.test.js
   // pins the exact numbers).
   ['roofs', buildRoofs, 450, 380, 70000],
+  // The Market Square (Market step 1, 2026-11-21), measured 78 / 30 / 27,113
+  // (test/market.test.js pins the exact numbers). The Farm's ceilings (spec,
+  // 2026-11-20), never raised; the place aims for 180 / 110 / 45,000.
+  ['market', buildMarket, 280, 210, 62000],
 ];
 
 // ---------------------------------------------------------------------------
@@ -517,6 +522,7 @@ const MERGED_AREAS = [
   ['farm', buildFarm, 200, 135], // measured 176 / 119
   ['fair', buildFair, 200, 140], // measured 178 / 124
   ['roofs', buildRoofs, 64, 34], // measured 59 / 30 (57 / 30 before Rooftops step 3's two sleeping cats, Task 6, never merged; 56 / 30 before round two's lamp halo, Task G; 55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
+  ['market', buildMarket, 84, 31], // measured 75 / 27, +12%
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {
