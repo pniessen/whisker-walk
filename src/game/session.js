@@ -50,6 +50,7 @@ const FIELDS = [
   ['grass', 'lawn tufts, updated beside wind'],
   ['duskLawn', "the dusk tint on ground and grass (when the walk has a dusk look)"],
   ['paws', 'paw prints the cat leaves'],
+  ['balloons', 'the birthday balloons behind her cat (render/partyballoons.js)'],
   ['splash', 'water splashes'],
   ['fish', 'fish jumping in the water'],
   ['clouds', 'drifting sky clouds (render/clouds.js), per-area seed, never walkRng'],
