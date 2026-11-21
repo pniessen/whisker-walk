@@ -466,7 +466,7 @@ describe('the head scratch', () => {
   // slides a little round the circle and is touched, test/bumps.test.js).
   const TOUCH_BY = 2.4;
   const HELD_OUT = ['older siamese'];
-  const WORST_TOUCH = 2.35;
+  const WORST_TOUCH = 2.4; // (2.35 before R32: the woman's skirt's circles keep her 0.97 m off)
   it('touch within 2.4 s of the word to kneel: men, women, older people, a tabby and a siamese, from where the bump stops her', () => {
     let worst = 0;
     let worstAt = '';

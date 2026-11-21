@@ -537,6 +537,23 @@ export function kneelSpots(look, out = { kneeX: 0, kneeZ: 0, footX: 0, footZ: 0 
   return out;
 }
 
+// The legs' frames as a held pose (mode 'kneel', or an older person's 'bow')
+// has them, before grounding: the pelvis's offset [x, y, z] and the turns of
+// the pelvis and both thighs (XYZ Euler, as the bones take them), into `out`.
+// Read by bumps.js, to size a person's circles from their clothed kneel.
+export function legPose(look, mode, out = { pelvis: [0, 0, 0], pelvisRot: [0, 0, 0], thighL: [0, 0, 0], thighR: [0, 0, 0] }) {
+  KS_ROT.fill(0); KS_PEL.fill(0);
+  if (mode === 'bow') bowing(KS_ROT, look);
+  else kneeling(KS_ROT, KS_PEL, look);
+  for (let c = 0; c < 3; c++) {
+    out.pelvis[c] = KS_PEL[c];
+    out.pelvisRot[c] = KS_ROT[PELVIS + c];
+    out.thighL[c] = KS_ROT[LEFT.thigh + c];
+    out.thighR[c] = KS_ROT[RIGHT.thigh + c];
+  }
+  return out;
+}
+
 // ---- applyPose() ----------------------------------------------------------------
 const smooth = (k) => k * k * (3 - 2 * k);
 

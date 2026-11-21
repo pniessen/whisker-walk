@@ -70,6 +70,72 @@ function part(geo, color, joint, tag) {
 
 const SIDES = [[-1, 'L'], [1, 'R']]; // the figure's left is -x (it faces -z)
 
+// The flares a look wears (a skirt or a dress, then a coat's skirt), bottom
+// to top: [{ pts: [[r, y], ...] (the hem first), sz (depth over width),
+// color }]. Flares are sized from the thighs' outer edge, so a standing leg
+// never pokes through. (Also read by bumps.js: her soft bumps cover a
+// person's cloth as it hangs in their kneel, ruling R32.)
+export function flareProfiles(look) {
+  const d = look.dims;
+  const top = look.top;
+  const dress = top.kind === 'dress';
+  const skirt = look.bottom.kind === 'skirt' && !dress;
+  const out = [];
+  const legOut = d.hipX + d.thR[0] * 1.1;
+  const older = look.kind === 'older';
+  const skirtHem = older ? lerp(d.kneeY, d.ankleY, 0.35) : lerp(d.hipY, d.kneeY, 0.92);
+  const skirtHemR = legOut * (older ? 1.4 : 1.5);
+  if (skirt || dress) {
+    out.push({ pts: [[skirtHemR, skirtHem], [legOut * 1.1, d.hipY], [d.waistR * 1.02, d.waistY], [d.waistR, d.waistY + 0.02]], sz: 0.8,
+      color: dress ? top.color : look.bottom.color });
+  }
+  if (top.kind === 'coat') {
+    const hem = lerp(d.hipY, d.kneeY, 0.45);
+    let hemR = legOut * 1.28;
+    let hipR = legOut * 1.12;
+    let sz = 0.78;
+    if (skirt) {
+      // over a skirt, the coat stays outside it all the way down to its hem
+      hemR = Math.max(hemR, 1.06 * lerp(legOut * 1.1, skirtHemR, (d.hipY - hem) / (d.hipY - skirtHem)));
+      hipR = Math.max(hipR, 1.06 * legOut * 1.1);
+      sz = 0.8;
+    }
+    out.push({ pts: [[hemR, hem], [hipR, d.hipY], [d.waistR * 1.06, d.waistY], [d.waistR * 1.04, d.waistY + 0.03]], sz, color: top.color });
+  }
+  return out;
+}
+
+// How a flare's point (figure frame, as built) is bound (ruling R32): to
+// the pelvis at the waist and, going down to the hem (hemY), more and more
+// to the thigh on its side; at the front and the sides (not the back) and,
+// at the front's middle, to both thighs alike. So it goes over the kneel's
+// raised knee instead of the thigh going through it, and swings with the
+// stride; standing, the thighs are as built and it is as it was. Into
+// `out`: [pelvis, thighL, thighR] weights (they add to 1).
+export function drapeWeights(d, hemY, x, y, z, out) {
+  const width = d.hipX * 0.6;
+  const k = Math.min(1, Math.max(0, (d.waistY - y) / (d.waistY - hemY)));
+  const down = k * k * (3 - 2 * k);
+  const t = Math.min(1, Math.max(0, 0.5 + x / (2 * width))); // 0 the left (-x), 1 the right
+  const f0 = Math.min(1, Math.max(0, 0.9 - z / (2 * width))); // 1 in front (-z) and at the sides, 0 behind
+  const w = down * f0 * f0 * (3 - 2 * f0);
+  out[0] = 1 - w; out[1] = w * (1 - t); out[2] = w * t;
+  return out;
+}
+
+const _dw = [0, 0, 0];
+function drape(geo, d, hemY) {
+  const pos = geo.getAttribute('position');
+  const si = geo.getAttribute('skinIndex');
+  const sw = geo.getAttribute('skinWeight');
+  for (let i = 0; i < pos.count; i++) {
+    drapeWeights(d, hemY, pos.getX(i), pos.getY(i), pos.getZ(i), _dw);
+    si.setXYZW(i, JOINT_INDEX.pelvis, JOINT_INDEX.thighL, JOINT_INDEX.thighR, 0);
+    sw.setXYZW(i, _dw[0], _dw[1], _dw[2], 0);
+  }
+  return geo;
+}
+
 // A vertex at +-x on a lathe of `segs` sides (see lathe()).
 const sidePhi = (segs) => (Math.PI / 2) % ((Math.PI * 2) / segs);
 
@@ -115,7 +181,6 @@ export function personParts(look, detail = 'near') {
   const top = look.top;
   const bot = look.bottom;
   const dress = top.kind === 'dress';
-  const skirt = bot.kind === 'skirt' && !dress; // a dress is its own skirt
   const shorts = bot.kind === 'shorts' && !dress; // under a dress they never show
   const longSleeve = top.kind !== 'tshirt' && !dress;
   const legSkin = dress || bot.kind === 'skirt' || bot.kind === 'shorts';
@@ -214,29 +279,9 @@ export function personParts(look, detail = 'near') {
   }
 
   // ---- a coat's skirt, a dress or a skirt: a flare from the waist ----
-  // flares are sized from the thighs' outer edge, so a leg never pokes
-  // through; a vertex sits at each side so the width there is the profile's
-  const legOut = d.hipX + d.thR[0] * 1.1;
-  const flare = (pts, sz, color) => add(lathe(near ? pts : pts.slice(0, 3), S.torso, 1, sz, sidePhi(S.torso)), color, 'pelvis', 'flare');
-  const older = look.kind === 'older';
-  const skirtHem = older ? lerp(d.kneeY, d.ankleY, 0.35) : lerp(d.hipY, d.kneeY, 0.92);
-  const skirtHemR = legOut * (older ? 1.4 : 1.5);
-  if (skirt || dress) {
-    flare([[skirtHemR, skirtHem], [legOut * 1.1, d.hipY], [d.waistR * 1.02, d.waistY], [d.waistR, d.waistY + 0.02]], 0.8,
-      dress ? top.color : bot.color);
-  }
-  if (top.kind === 'coat') {
-    const hem = lerp(d.hipY, d.kneeY, 0.45);
-    let hemR = legOut * 1.28;
-    let hipR = legOut * 1.12;
-    let sz = 0.78;
-    if (skirt) {
-      // over a skirt, the coat stays outside it all the way down to its hem
-      hemR = Math.max(hemR, 1.06 * lerp(legOut * 1.1, skirtHemR, (d.hipY - hem) / (d.hipY - skirtHem)));
-      hipR = Math.max(hipR, 1.06 * legOut * 1.1);
-      sz = 0.8;
-    }
-    flare([[hemR, hem], [hipR, d.hipY], [d.waistR * 1.06, d.waistY], [d.waistR * 1.04, d.waistY + 0.03]], sz, top.color);
+  for (const f of flareProfiles(look)) {
+    add(lathe(near ? f.pts : f.pts.slice(0, 3), S.torso, 1, f.sz, sidePhi(S.torso)), f.color, 'pelvis', 'flare');
+    drape(out[out.length - 1].geo, d, f.pts[0][1]);
   }
 
   // ---- arms and hands ----

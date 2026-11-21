@@ -171,7 +171,9 @@ describe('the soft bumps', () => {
 
 describe('the circles of a person', () => {
   it('a grown-up has three: the body (a little behind their middle), the kneel\'s raised knee and its back foot, each from their own size', () => {
-    for (const def of [{ x: 3, z: 7, kind: 'adult', sex: 'm', height: 1.85, girth: 1.08 }, { x: 5, z: 7, kind: 'adult', sex: 'f', height: 1.6, girth: 0.94 }]) {
+    // (in trousers and a jumper: a skirt, a dress or a coat adds the cloth's, R32)
+    const plain = { top: { kind: 'jumper' }, bottom: { kind: 'trousers' } };
+    for (const def of [{ x: 3, z: 7, kind: 'adult', sex: 'm', height: 1.85, girth: 1.08, ...plain }, { x: 5, z: 7, kind: 'adult', sex: 'f', height: 1.6, girth: 0.94, ...plain }]) {
       const look = personFor(def);
       const c = bumpCircles(look);
       const k = kneelSpots(look);
@@ -186,8 +188,28 @@ describe('the circles of a person', () => {
     }
   });
 
+  it('cloth (R32): a skirt, a dress or a coat adds circles of its own, after the others, the same from the same look; none in trousers', () => {
+    for (const over of [{ kind: 'adult', sex: 'f', top: { kind: 'dress' } }, { kind: 'adult', sex: 'f', top: { kind: 'jumper' }, bottom: { kind: 'skirt' } },
+      { kind: 'adult', sex: 'm', top: { kind: 'coat' }, bottom: { kind: 'trousers' } }, { kind: 'older', sex: 'f', top: { kind: 'jumper' }, bottom: { kind: 'skirt' } }]) {
+      const look = personFor({ x: 2, z: 7, ...over });
+      const c = bumpCircles(look);
+      const base = over.kind === 'older' ? 1 : 3;
+      expect(c.length, JSON.stringify(over)).toBeGreaterThan(base);
+      for (const k of c.slice(base)) expect(k.r).toBeCloseTo(BUMP.CLOTH * look.dims.s * look.girth, 9);
+      expect(bumpCircles(personFor({ x: 2, z: 7, ...over }))).toEqual(c);
+    }
+    const draws = (() => {
+      const real = Math.random;
+      let n = 0;
+      Math.random = () => { n++; return real(); };
+      try { bumpCircles(personFor({ x: 2, z: 7, kind: 'adult', sex: 'f', top: { kind: 'dress' } })); } finally { Math.random = real; }
+      return n;
+    })();
+    expect(draws).toBe(0);
+  });
+
   it('older people and children (who never kneel for the scratch) have the body\'s only', () => {
-    const older = personFor({ x: 1, z: 7, kind: 'older' });
+    const older = personFor({ x: 1, z: 7, kind: 'older', top: { kind: 'jumper' }, bottom: { kind: 'trousers' } });
     expect(bumpCircles(older)).toEqual([{ x: 0, z: BUMP.BACK * older.dims.s, r: BUMP.OLDER * (older.dims.s * older.girth) }]);
     const child = pairFor({ x: 1, z: 7, kind: 'child' }).child;
     expect(bumpCircles(child)).toEqual([{ x: 0, z: BUMP.BACK * child.dims.s, r: BUMP.CHILD * (child.dims.s * child.girth) }]);
@@ -206,7 +228,10 @@ describe('the circles of a person', () => {
       }
     }
     expect(c.bumps).toHaveLength(want.length);
-    expect(c.bumps.length).toBe(3 + 3 + 1); // two grown-ups and a child
+    // two grown-ups (three each, and the cloth's: R32) and a child
+    const own = c.list.flatMap((v) => v.people.map((p) => bumpCircles(p.look).length));
+    expect(c.bumps.length).toBe(own.reduce((a, b) => a + b, 0));
+    expect(own[0]).toBeGreaterThanOrEqual(3);
     c.bumps.forEach((b, i) => {
       expect(b.x).toBeCloseTo(want[i].x, 6);
       expect(b.z).toBeCloseTo(want[i].z, 6);
@@ -300,6 +325,11 @@ const PEOPLE = [
   ['a small woman', { x: 0, z: 7, kind: 'adult', sex: 'f', height: 1.6, girth: 0.94, top: { kind: 'dress', color: 0 } }, 0, ['stand', 'kneel']],
   ['a big older man', { x: 0, z: 7, kind: 'older', sex: 'm', height: 1.78, girth: 1.08, top: { kind: 'coat', color: 0 }, bottom: { kind: 'skirt', color: 0 } }, 0, ['stand', 'bow']],
   ['a big child', { x: 0, z: 7, kind: 'child', sex: 'm', height: 1.42, girth: 1.08, top: { kind: 'coat', color: 0 }, bottom: { kind: 'skirt', color: 0 } }, 1, ['stand']],
+  // ruling R32: the cloth follows the kneel's raised thigh, and the circles
+  // cover it as it hangs (a skirt, a dress, a coat's skirt)
+  ['a small woman in a skirt', { x: 0, z: 7, kind: 'adult', sex: 'f', height: 1.6, girth: 0.94, top: { kind: 'jumper', color: 0 }, bottom: { kind: 'skirt', color: 0 } }, 0, ['stand', 'kneel']],
+  ['a big man in a coat', { x: 0, z: 7, kind: 'adult', sex: 'm', height: 1.85, girth: 1.08, top: { kind: 'coat', color: 0 }, bottom: { kind: 'trousers', color: 0 } }, 0, ['stand', 'kneel']],
+  ['a small older woman in a skirt', { x: 0, z: 7, kind: 'older', sex: 'f', height: 1.55, girth: 0.94, top: { kind: 'jumper', color: 0 }, bottom: { kind: 'skirt', color: 0 } }, 0, ['stand', 'bow']],
 ];
 
 describe('her head stays out (ruling R28)', () => {
@@ -397,6 +427,23 @@ describe('still touched (rulings R29, R30)', () => {
   for (const [who, kind, over] of [['a man', 'adult', { sex: 'm' }], ['a woman', 'adult', { sex: 'f' }], ['an older person', 'older', {}]]) {
     it(`${who}: a tabby and a siamese, head-on`, () => {
       const def = { ...spotOf(kind, 7), ...over };
+      for (const breed of ['tabby', 'siamese']) expect(touchFrom(def, breed, 0), breed).toBeLessThanOrEqual(TOUCH_BY);
+    }, 90000);
+  }
+
+  // in a skirt, a dress or a coat (ruling R32): the cloth follows the
+  // kneel's raised thigh and the person's circles cover it; head-on she is
+  // still touched (2.05-2.18 s; 45 degrees to their right a tabby 1.40-1.47
+  // s, a siamese held out by grown-ups; 45 to their left held out: report)
+  for (const [who, over] of [
+    ['a woman in a skirt', { kind: 'adult', sex: 'f', top: { kind: 'jumper' }, bottom: { kind: 'skirt' } }],
+    ['a woman in a dress', { kind: 'adult', sex: 'f', top: { kind: 'dress' } }],
+    ['a man in a coat', { kind: 'adult', sex: 'm', top: { kind: 'coat' }, bottom: { kind: 'trousers' } }],
+    ['a woman in a coat over a skirt', { kind: 'adult', sex: 'f', top: { kind: 'coat' }, bottom: { kind: 'skirt' } }],
+    ['an older woman in a skirt', { kind: 'older', sex: 'f', top: { kind: 'jumper' }, bottom: { kind: 'skirt' } }],
+  ]) {
+    it(`${who}: a tabby and a siamese, head-on (R32)`, () => {
+      const def = { ...spotOf(over.kind, 7), ...over };
       for (const breed of ['tabby', 'siamese']) expect(touchFrom(def, breed, 0), breed).toBeLessThanOrEqual(TOUCH_BY);
     }, 90000);
   }

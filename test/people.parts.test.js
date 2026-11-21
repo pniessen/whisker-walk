@@ -28,7 +28,7 @@ function hit(parts, origin, dir) {
 }
 
 describe('people parts', () => {
-  it('one joint per vertex', () => {
+  it('one joint per vertex (a flare: the pelvis and the thighs, R32)', () => {
     expect(JOINTS.length).toBe(20);
     expect(Object.isFrozen(JOINTS)).toBe(true);
     expect(JOINTS.slice(0, 8)).toEqual(['root', 'pelvis', 'chest', 'neck', 'head', 'eyeL', 'eyeR', 'mouth']);
@@ -48,6 +48,14 @@ describe('people parts', () => {
           const sw = g.getAttribute('skinWeight');
           for (let i = 0; i < si.count; i++) {
             expect(si.getX(i)).toBe(JOINT_INDEX[p.joint]);
+            if (p.tag === 'flare') {
+              // a flare (R32): the pelvis and, going down, the thighs; the weights add to 1
+              expect([si.getY(i), si.getZ(i), si.getW(i)]).toEqual([JOINT_INDEX.thighL, JOINT_INDEX.thighR, 0]);
+              expect(sw.getX(i) + sw.getY(i) + sw.getZ(i)).toBeCloseTo(1, 6);
+              expect(Math.min(sw.getX(i), sw.getY(i), sw.getZ(i))).toBeGreaterThanOrEqual(0);
+              expect(sw.getW(i)).toBe(0);
+              continue;
+            }
             expect([si.getY(i), si.getZ(i), si.getW(i)]).toEqual([0, 0, 0]);
             expect([sw.getX(i), sw.getY(i), sw.getZ(i), sw.getW(i)]).toEqual([1, 0, 0, 0]);
           }
