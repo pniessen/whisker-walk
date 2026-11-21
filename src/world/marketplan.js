@@ -535,8 +535,9 @@ const MARKET_GOLD = freeze([
 
 export const MARKET_REGISTRATION = freeze({
   id: 'market',
-  // src/progression.js CATALOG.areas: nothing offers the Market until step 4 (M1)
-  catalog: null,
+  // src/progression.js CATALOG.areas: held back (M1) until Market step 4
+  // copied it into the catalog, after the Rooftops, Clan Edition only (V15, V16)
+  catalog: freeze({ name: 'The Market Square', price: 150, requires: freeze({ area: 'neighborhood', walks: 2 }), edition: 'canon' }),
   // src/propsets.js SETS.market (test/market.test.js holds the two equal)
   propSet: freeze({
     carryables: freeze(PROP_ROWS.carryables),

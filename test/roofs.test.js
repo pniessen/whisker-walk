@@ -2604,6 +2604,7 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
     expect(CATALOG.areas.roofs).toEqual(REG.catalog);
     const ids = Object.keys(CATALOG.areas);
     expect(ids[ids.indexOf('fair') + 1]).toBe('roofs');
+    expect(ids[ids.indexOf('roofs') + 1]).toBe('market'); // the Market after it (Market step 4)
     expect(REG.marks).toBe(true);
   });
 
@@ -2796,7 +2797,7 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
     const { GOLD_TOTAL, goldForEdition } = await import('../src/goldmice.js');
     expect(GOLD_TOTAL).toBe(42); // 39 until the Market added its three
     expect(goldForEdition('canon', CATALOG).size).toBe(42); // 39 until the Market added its three
-    expect(goldForEdition('legacy', CATALOG).size).toBe(24); // 21 until the Market added its three, and 21 again once its catalog row (Clan Edition only, step 4) keeps them out of Legacy: an area not in the catalog yet is counted
+    expect(goldForEdition('legacy', CATALOG).size).toBe(21); // 24 while the Market had no catalog row (an area not in the catalog is counted); its Clan-only row (Market step 4) keeps its three out of Legacy
   });
 
   it('an old save loads with walks.roofs 0 and marks.roofs []', () => {

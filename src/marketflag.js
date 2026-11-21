@@ -1,9 +1,11 @@
-// The Market Square switch (Market step 1).
+// The Market Square switch (Market step 1; a developer shortcut since Market
+// step 4, ruling V17).
 //
-// Off by default: the Market is in no list a child sees (it has no
-// CATALOG.areas row and no map spot until step 4). On (the address ends in
-// ?market=1, or a test calls setMarket(true)), Explore starts a solo walk
-// there in Clan Edition: never in a room, never in Legacy.
+// The Market has its CATALOG.areas row and its world-map place now, so the
+// switch gates nothing a child sees: she unlocks the place like any other. On
+// (the address ends in ?market=1, or a test calls setMarket(true)), Explore
+// still starts a solo walk there in Clan Edition, never in a room, never in
+// Legacy, as the owner and the picture pages use it.
 //
 // Read at call time, never at import time, like roofsflag.js and grow.js.
 let forced = null;
@@ -24,8 +26,9 @@ export function setMarket(value) {
   forced = value === null || value === undefined ? null : !!value;
 }
 
-// The places a walk note may name (main.js passes its list through this): a
-// Market walk left without the switch is dropped rather than picked up.
+// The places a walk note may name (main.js passes its list through this):
+// every id, the Market among them (step 4: a Market walk note resumes with the
+// switch or without).
 export function marketResumable(ids) {
-  return ids.filter((id) => id !== 'market' || marketOn());
+  return ids;
 }

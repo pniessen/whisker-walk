@@ -29,7 +29,7 @@ describe('golden mice per edition', () => {
   it('Legacy counts only the mice in the places Legacy shows', () => {
     const set = goldForEdition('legacy', CATALOG);
     expect([...set].sort()).toEqual(idsIn(legacyAreas).sort());
-    expect(set.size).toBe(24); // 21 until the Market added its three (not in the catalog until its step 4, which makes it Clan Edition only: 21 again), 18 until the Rooftops added its three (the four street areas, the Farm, the Fairground and the Rooftops)
+    expect(set.size).toBe(21); // 24 while the Market had no catalog row; its Clan-only row (Market step 4) keeps its three out: 21 again. 18 until the Rooftops added its three (the four street areas, the Farm, the Fairground and the Rooftops)
     expect(set.size).toBeLessThan(GOLD_TOTAL);
     for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) {
       for (const m of GOLD_MICE[a]) expect(set.has(m.id)).toBe(false);

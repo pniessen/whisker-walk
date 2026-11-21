@@ -48,8 +48,12 @@ describe('gateways', () => {
   });
   it('every map road has one end on each side, and the two ends twin each other', () => {
     expect(GATEWAYS.map((g) => g.id)).toContain('town-roofs');
+    // The Market's road is on the map since Market step 4's Task 11; its two
+    // ends come in Task 12, which takes it off this list.
+    const endsLater = ['town-market'];
     for (const g of GATEWAYS) {
       const ends = Object.entries(GATEWAY_ENDS).flatMap(([a, es]) => es.filter((e) => e.gateway === g.id).map((e) => ({ a, e })));
+      if (endsLater.includes(g.id)) { expect(ends, g.id).toEqual([]); continue; }
       expect(ends.map(({ a, e }) => `${a}>${e.to}`).sort(), g.id).toEqual([`${g.from}>${g.to}`, `${g.to}>${g.from}`].sort());
       const [p, q] = ends.map(({ e }) => e);
       expect([p.twin, q.twin]).toEqual([q.id, p.id]);

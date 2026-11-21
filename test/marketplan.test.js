@@ -8,6 +8,7 @@ import {
 } from '../src/world/marketplan.js';
 import { MARKET_SPOTS } from '../src/foundwear/spots/market.js';
 import { MARKET } from '../src/marketrules.js';
+import { CATALOG } from '../src/progression.js';
 import { isWalkableAt, CAT_RADIUS } from '../src/player.js';
 import { keepOutPoint } from '../src/keepout.js';
 import { canReach, bestPerch, BASE_CLIMB_BUDGET } from '../src/climbing.js';
@@ -525,8 +526,11 @@ describe('the plan of the Market Square', () => {
     expect(dist(PIGEON_PATCH, MUSICIAN) - PIGEON_PATCH.r - MUSICIAN.r).toBeGreaterThanOrEqual(3);
   });
 
-  it('nothing offers it yet, and strays are allowed', () => {
-    expect(MARKET_REGISTRATION.catalog).toBeNull();
+  it("its catalog row is the registration's, and strays are allowed", () => {
+    // Market step 4 (V15, V16): Clan Edition only, 150 after 2 town walks
+    expect(MARKET_REGISTRATION.catalog).toEqual({ name: 'The Market Square', price: 150, requires: { area: 'neighborhood', walks: 2 }, edition: 'canon' });
+    expect(Object.isFrozen(MARKET_REGISTRATION.catalog) && Object.isFrozen(MARKET_REGISTRATION.catalog.requires)).toBe(true);
+    expect(CATALOG.areas.market).toEqual(MARKET_REGISTRATION.catalog);
     expect('strays' in MARKET_REGISTRATION).toBe(false);
     expect(MARKET_REGISTRATION.colony).toBe(false);
   });

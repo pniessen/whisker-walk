@@ -686,7 +686,7 @@ describe('Appletree Farm: golden mice', () => {
     expect(GOLD_MICE.farm).toHaveLength(3);
     expect(GOLD_TOTAL).toBe(42); // 39 until the Market added its three, 36 until the Rooftops added its three, 33 until the Fairground added its
     expect(goldForEdition('canon', CATALOG).size).toBe(42); // 39 until the Market added its three
-    expect(goldForEdition('legacy', CATALOG).size).toBe(24); // 21 until the Market added its three, and 21 again once its catalog row (Clan Edition only, step 4) keeps them out of Legacy: an area not in the catalog yet is counted; 18 until the Rooftops added its three
+    expect(goldForEdition('legacy', CATALOG).size).toBe(21); // 24 while the Market had no catalog row (an area not in the catalog is counted); its Clan-only row (Market step 4) keeps its three out of Legacy; 18 until the Rooftops added its three
     expect(new Set(GOLD_MICE.farm.map((m) => m.id))).toEqual(new Set(['gm-farm-1', 'gm-farm-2', 'gm-farm-3']));
   });
 
