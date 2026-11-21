@@ -35,7 +35,9 @@ export const AREA_LOADERS = Object.freeze({
   woods: () => import('./woods.js').then((w) => own('woods', w)),
   river: () => import('./river.js').then((w) => own('river', w)),
   moor: () => import('./moor.js').then((w) => own('moor', w)),
-  pines: () => import('./pines.js').then((w) => own('pines', w)),
+  // The Pines carry her birthday Gathering on the island (birthdaygathering.js).
+  pines: () => Promise.all([import('./pines.js'), import('./birthdaygathering.js')])
+    .then(([world, g]) => ({ id: 'pines', world, life: { planGathering: g.planGathering, gatheringCast: g.gatheringCast, createBirthdayGathering: g.createBirthdayGathering } })),
   gorge: () => import('./gorge.js').then((w) => own('gorge', w)),
   farm: () => Promise.all([import('./farm.js'), import('../farmanimals.js')])
     .then(([world, a]) => ({ id: 'farm', world, life: { createFarmAnimals: a.createFarmAnimals } })),
@@ -53,7 +55,7 @@ export const AREA_ENTRY_MODULES = Object.freeze({
   woods: Object.freeze(['src/world/woods.js']),
   river: Object.freeze(['src/world/river.js']),
   moor: Object.freeze(['src/world/moor.js']),
-  pines: Object.freeze(['src/world/pines.js']),
+  pines: Object.freeze(['src/world/pines.js', 'src/world/birthdaygathering.js']),
   gorge: Object.freeze(['src/world/gorge.js']),
   farm: Object.freeze(['src/world/farm.js', 'src/farmanimals.js']),
   fair: Object.freeze(['src/world/fair.js', 'src/fairlive.js', 'src/fairshow.js']),

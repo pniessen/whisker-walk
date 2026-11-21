@@ -9,6 +9,9 @@
 //   --acc ID       an accessory id from CATALOG (repeatable)
 //   --cat ID       a cat id from CATALOG (repeatable)
 //   --area ID      an area id from CATALOG, unlocked outright (repeatable)
+//   --event ID     a gift event id from src/giftevents.js (repeatable): the
+//                  party it switches on (the birthday: bday-2026-11-21)
+//   --confetti yes a one-time confetti burst on home when it is opened
 //   --label TEXT   your private note about the code (optional; it ships in the
 //                  table, so never put the code in it)
 //   --code TEXT    use your own code instead of an invented WORD-WORD-XXXX one
@@ -19,6 +22,7 @@ import { pathToFileURL } from 'node:url';
 import { normalizeCode, hashCode } from '../src/redeem.js';
 import { CATALOG, isPrizeAccessory } from '../src/progression.js';
 import { REDEEM_CODES } from '../src/redeemcodes.js';
+import { EVENT_IDS, isEventId } from '../src/giftevents.js';
 
 export const WORDS = [
   'TUNA', 'MOON', 'WHISKER', 'PAW', 'MITTEN', 'KITTEN', 'PURR', 'MEOW',
@@ -61,8 +65,8 @@ export function parseArgs(argv) {
   const out = { points: 0, accessories: [], cats: [], areas: [], label: '' };
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
-    if (!['--points', '--acc', '--cat', '--area', '--label', '--code'].includes(flag)) {
-      throw new Error(`Unknown option "${flag}". Try --points, --acc, --cat, --area, --label or --code.`);
+    if (!['--points', '--acc', '--cat', '--area', '--event', '--confetti', '--label', '--code'].includes(flag)) {
+      throw new Error(`Unknown option "${flag}". Try --points, --acc, --cat, --area, --event, --confetti, --label or --code.`);
     }
     const value = argv[++i];
     if (value === undefined) throw new Error(`${flag} needs a value.`);
@@ -72,6 +76,11 @@ export function parseArgs(argv) {
     } else if (flag === '--acc') out.accessories.push(value);
     else if (flag === '--cat') out.cats.push(value);
     else if (flag === '--area') out.areas.push(value);
+    else if (flag === '--event') (out.events ??= []).push(value);
+    else if (flag === '--confetti') {
+      if (value !== 'yes') throw new Error('--confetti takes "yes".');
+      out.confetti = true;
+    }
     else if (flag === '--label') out.label = value;
     else out.code = value;
   }
@@ -85,11 +94,12 @@ export function validateReward(reward) {
   const accessories = reward.accessories ?? [];
   const cats = reward.cats ?? [];
   const areas = reward.areas ?? [];
+  const events = reward.events ?? [];
   const points = reward.points ?? 0;
   for (const id of accessories) {
     if (!Object.hasOwn(CATALOG.accessories, id)) {
       messages.push(`Unknown accessory "${id}". Known: ${Object.keys(CATALOG.accessories).join(', ')}`);
-    } else if (isPrizeAccessory(id)) {
+    } else if (isPrizeAccessory(id) && !CATALOG.accessories[id].code) {
       messages.push(`"${id}" is a visit prize, so a code can't give it.`);
     }
   }
@@ -103,8 +113,11 @@ export function validateReward(reward) {
       messages.push(`Unknown area "${id}". Known: ${Object.keys(CATALOG.areas).join(', ')}`);
     }
   }
-  if (!(points > 0 || accessories.length || cats.length || areas.length)) {
-    messages.push('This code gives nothing. Add --points, --acc, --cat or --area.');
+  for (const id of events) {
+    if (!isEventId(id)) messages.push(`Unknown event "${id}". Known: ${EVENT_IDS.join(', ')}`);
+  }
+  if (!(points > 0 || accessories.length || cats.length || areas.length || events.length)) {
+    messages.push('This code gives nothing. Add --points, --acc, --cat, --area or --event.');
   }
   if ((reward.label ?? '').length > MAX_LABEL_LENGTH) {
     messages.push(`The label is too long (max ${MAX_LABEL_LENGTH} characters).`);
@@ -129,7 +142,9 @@ export function entryLine(hash, reward) {
   const list = (ids) => `[${ids.map((id) => JSON.stringify(id)).join(', ')}]`;
   return `  '${hash}': { label: ${JSON.stringify(reward.label ?? '')}, points: ${reward.points ?? 0}, `
     + `accessories: ${list(reward.accessories ?? [])}, cats: ${list(reward.cats ?? [])}`
-    + `${(reward.areas ?? []).length ? `, areas: ${list(reward.areas)}` : ''} },`;
+    + `${(reward.areas ?? []).length ? `, areas: ${list(reward.areas)}` : ''}`
+    + `${(reward.events ?? []).length ? `, events: ${list(reward.events)}` : ''}`
+    + `${reward.confetti === true ? ', confetti: true' : ''} },`;
 }
 
 async function main() {

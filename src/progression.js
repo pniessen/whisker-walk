@@ -37,6 +37,8 @@ import { DEFAULT_EDITION, EDITIONS, sanitizeEdition, isClanEdition, areaInEditio
 import { latestMilestoneUpTo, milestoneIndex, styleFor, prizeFor, prizesWonBy } from './visits.js';
 import { FAIR_GAME_IDS, FAIR_PRIZES, gameJournalId, fairPrizesWonBy } from './fairprizes.js';
 import { FOUND_CATALOG } from './foundwear/index.js';
+import { GIFT_CATALOG } from './foundwear/gifts.js';
+import { sanitizeEvents, eventWear, eventWearOnOpen, isEventId, eventPresent } from './giftevents.js';
 // v21 Stream 3b: private per-area marks. marks.js is the pure rules half (its only
 // import is propsets.js, a zero-import leaf), so the edge is cycle-free. Every
 // write still happens here: marks.js computes, this module saves.
@@ -316,13 +318,19 @@ export const CATALOG = {
     d2: { name: 'D2', price: 40 },
     digit: { name: 'Digit', price: 40 },
     hagrid: { name: 'Hagrid', price: 60 },
+    // The birthday kitten (2026-11-21): the birthday's present gives her
+    // (openPresent), never the shop: `prize` keeps her out of it, `code` says
+    // a gift may give her. Her name is read from the phrase table when shown.
+    ribbonkit: { get name() { return phrase('cat.ribbonkit.name'); }, price: 0, prize: true, code: true },
   },
   // The hand-written ones (BASE_ACCESSORIES above), then the found outfits
   // (src/foundwear/): one hidden on every walk, found, never bought. `prize`
   // keeps them out of the shop, trades and codes as it keeps the visit and
   // fair prizes out; `find` names the place it is hidden in. The name is a
   // getter that reads the phrase table when shown.
-  accessories: accessoriesWithFound(BASE_ACCESSORIES, FOUND_CATALOG),
+  // The gift outfits (src/foundwear/gifts.js) sit between the two: a gift
+  // code gives them (`code`), nothing sells or hides them.
+  accessories: accessoriesWithFound(accessoriesWithFound(BASE_ACCESSORIES, GIFT_CATALOG), FOUND_CATALOG),
   areas: {
     neighborhood: { name: 'Cozy Neighborhood', price: 0 },
     park: { name: 'City Park', price: 50, requires: { area: 'neighborhood', walks: 2 } },
@@ -646,6 +654,11 @@ function defaultState() {
     // load, so a found outfit is never lost. Additive, so SAVE_VERSION stays
     // 4: an older save starts with none.
     foundWear: [],
+    // Gift events (src/giftevents.js): the ids of the parties a gift code has
+    // switched on, oldest first, kept as the accessories are. Each event's
+    // outfits are rebuilt into owned on every load. Additive, so SAVE_VERSION
+    // stays 4: an older save starts with none.
+    events: [],
   };
 }
 
@@ -1061,6 +1074,9 @@ function sanitizeState(parsed) {
   // And every found outfit: foundWear is the record, so it is owned.
   const foundWear = sanitizeFoundWear(parsed.foundWear);
   for (const id of foundWear) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);
+  // And every gift event's outfits: the event is the record, so they are owned.
+  const events = sanitizeEvents(parsed.events);
+  for (const ev of events) for (const id of eventWear(ev)) if (knownAcc.has(id) && !unlockedAcc.includes(id)) unlockedAcc.push(id);
 
   const equippedCat = typeof parsed.equipped?.cat === 'string' && unlockedCats.includes(parsed.equipped.cat)
     ? parsed.equipped.cat : d.equipped.cat;
@@ -1145,6 +1161,7 @@ function sanitizeState(parsed) {
     scars: sanitizeScars(parsed.scars, customCats),
     scarredIntruders: sanitizeScarredIntruders(parsed.scarredIntruders),
     foundWear,
+    events,
   };
   if (fm.added.length > 0) ADDED_MOVES.set(result, fm.added);
   return result;
@@ -1409,7 +1426,8 @@ export function createProgression(storage) {
         for (const id of new Set(ids)) {
           if (typeof id !== 'string' || !Object.hasOwn(CATALOG[kind], id)) continue;
           // Prizes are won by visiting only: no unlock, and no refund either.
-          if (CATALOG[kind][id].prize) continue;
+          // A gift outfit (`code`) is the one kind of prize a code may give.
+          if (CATALOG[kind][id].prize && !CATALOG[kind][id].code) continue;
           const owned = state.unlocked[kind].includes(id);
           const refund = owned ? CATALOG[kind][id].price : 0;
           if (!owned) state.unlocked[kind].push(id);
@@ -1417,10 +1435,56 @@ export function createProgression(storage) {
           items.push({ kind, id, name: CATALOG[kind][id].name, owned, refund });
         }
       }
+      // Gift events (src/giftevents.js): known ids only, each kept once. An
+      // event's own outfits are owned from now (and rebuilt on every load).
+      const events = Array.isArray(reward?.events) ? [...new Set(reward.events.filter(isEventId))] : [];
+      const opened = events.filter((ev) => !state.events.includes(ev));
+      if (events.length) state.events = sanitizeEvents([...state.events, ...events]);
+      for (const ev of events) {
+        for (const id of eventWear(ev)) {
+          if (!Object.hasOwn(CATALOG.accessories, id) || state.unlocked.accessories.includes(id)) continue;
+          state.unlocked.accessories.push(id);
+          items.push({ kind: 'accessories', id, name: CATALOG.accessories[id].name, owned: false, refund: 0 });
+        }
+      }
+      // An event opened by this code (not one the save already had) dresses
+      // the cat in its own outfit at once: her Birthday Hat goes straight on.
+      for (const ev of opened) {
+        const id = eventWearOnOpen(ev);
+        const item = id ? CATALOG.accessories[id] : null;
+        if (item && state.unlocked.accessories.includes(id)) state.equipped[item.slot] = id;
+      }
       state.points += points;
       state.redeemed = [...state.redeemed, hash].slice(-REDEEMED_MAX);
       save();
-      return { ok: true, items, points };
+      // events (when it switched any on) and confetti (a one-time burst on
+      // home, passed back, never kept) are there only when the code has them.
+      const out = { ok: true, items, points };
+      if (events.length) out.events = events;
+      if (reward?.confetti === true) out.confetti = true;
+      return out;
+    },
+    // hasEvent(id) -> true when a gift code has switched event `id` on for
+    // this save (the camp gathering reads the birthday through this).
+    // Whether its window is still open is giftevents.js eventWindowOpen's.
+    hasEvent(id) {
+      return isEventId(id) && state.events.includes(id);
+    },
+    // openPresent(eventId) -> the cat id it gave, or null. Event `eventId`'s
+    // present, once per save: the save must have the event and not own the
+    // cat yet. She owns the cat from now; the cat she plays as stays the same
+    // (the owner, 2026-11-21: the kitten joins her cats, nothing is swapped).
+    openPresent(eventId) {
+      const cat = api.hasEvent(eventId) ? eventPresent(eventId) : null;
+      if (!cat || !Object.hasOwn(CATALOG.cats, cat) || state.unlocked.cats.includes(cat)) return null;
+      state.unlocked.cats.push(cat);
+      save();
+      return cat;
+    },
+    // True while event `eventId`'s present is still wrapped for this save.
+    presentWaiting(eventId) {
+      const cat = api.hasEvent(eventId) ? eventPresent(eventId) : null;
+      return !!cat && Object.hasOwn(CATALOG.cats, cat) && !state.unlocked.cats.includes(cat);
     },
     // -------------------------------------------------------------------
     // deductPoints(n) → the number of points ACTUALLY deducted (0 if none).
@@ -1878,8 +1942,10 @@ export function createProgression(storage) {
     // merely requested dark. Defaulted so every pre-v18 call site
     // (completeWalk() / completeWalk(areaId)) keeps behaving exactly as
     // before, incrementing nothing new.
-    completeWalk(areaId = state.area, { dusk = false } = {}) {
-      state.walks[areaId] += 1;
+    // `countArea` false (her birthday visit to a place she has not opened,
+    // src/birthday.js) leaves that place's walk count as it was.
+    completeWalk(areaId = state.area, { dusk = false, countArea = true } = {}) {
+      if (countArea !== false) state.walks[areaId] += 1;
       // A walk on her home land: the first camp walk has happened.
       if (areaId === state.clanPick.mine) state.tutorial.camp = true;
       if (dusk && state.duskWalks < DUSK_WALKS_MAX) state.duskWalks += 1;
@@ -2544,6 +2610,7 @@ export function createProgression(storage) {
     // found, this device's first, and each is owned again.
     replaceFromPayload(rawSaveObject) {
       const localFound = state.foundWear;
+      const localEvents = state.events;
       const localVisits = state.visits;
       const localSeen = state.visitPrizesSeen;
       const localCustomCats = state.customCats;
@@ -2578,6 +2645,11 @@ export function createProgression(storage) {
       state.foundWear = sanitizeFoundWear([...localFound, ...state.foundWear]);
       for (const id of state.foundWear) {
         if (!state.unlocked.accessories.includes(id)) state.unlocked.accessories.push(id);
+      }
+      // Gift events likewise: this device's are kept, and their outfits owned.
+      state.events = sanitizeEvents([...localEvents, ...state.events]);
+      for (const ev of state.events) {
+        for (const id of eventWear(ev)) if (!state.unlocked.accessories.includes(id)) state.unlocked.accessories.push(id);
       }
       // R3: fights won never go down and moves are never taken away.
       state.fightsWon = Math.max(localFights, state.fightsWon);
