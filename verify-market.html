@@ -74,6 +74,10 @@
   //     phone-<stall>-<phase>     her cat 3.6 m out in front of that counter, facing
   //                 it, the walk's camera behind her (load the page at 390 x 844)
   //     tour-<name>-<frame>       that tour run from its start to that frame
+  //     lookup-<stall>[-near]     her cat standing still in front of that counter
+  //                 until the stallholder coos at her, a second into the coo:
+  //                 she looks up at the face (Task 7, cat/headaim.js); seen
+  //                 from beside her (both of them in view), or -near, her face
   //   __events()    her device's events so far; __treats() her tally
   import * as THREE from 'three';
   import { buildEnvMap } from '/src/render/materials.js';
@@ -104,6 +108,7 @@
   import { summaryStatsHtml, summaryCheer } from '/src/ui/screencards.js';
   import { buildCat, CAT_LOOK_Y } from '/src/cat/model.js';
   import { animateCat } from '/src/cat/animator.js';
+  import { aimHead } from '/src/cat/headaim.js';
   import { FLAT_GROUND } from '/src/ground.js';
 
   const params = new URLSearchParams(location.search);
@@ -435,6 +440,7 @@
       turnTo(cat, dt);
       cat.position.y = gy(cat.position.x, cat.position.z) + (s.hopLift || 0); // the shoo hop's lift, as avatar.js adds it
       animateCat(cat, pose, t, A.player.speed, false);
+      aimHead(cat, s.lookAt, dt, pose, A.player.speed); // cooed at, she looks up (Task 7), as avatar.js does
       if (partner) {
         turnTo(partnerCat, dt);
         partnerCat.position.y = gy(partnerCat.position.x, partnerCat.position.z);
@@ -610,6 +616,40 @@
         placeCamera(0, true);
         render();
         showUi();
+        return name;
+      }
+      m = new RegExp(`^lookup-(${STALLS_RE})(-near)?$`).exec(name);
+      if (m) {
+        // still in front of the counter, a little to one side, facing it: the coo comes after STILL_S
+        const s = stallById(m[1]);
+        const p = fromStall(s, 0.5, s.d / 2 + 1.3);
+        reset(7, 36000, p.x, p.z, -s.face.x, -s.face.z);
+        setPhase(m[1], 'serve', 0.05);
+        let cooT = null;
+        for (let k = 0; k < Math.round(6 / DT); k++) {
+          liveFrame(DT);
+          const st = A.live.stalls.find((x) => x.id === m[1]);
+          if (cooT === null && st.cooing?.who === 'me') cooT = t;
+          if (cooT !== null && t - cooT >= 1.0) break;
+        }
+        if (cooT === null) throw new Error(`lookup-${m[1]}: no coo came`);
+        const k = A.live.keepers[m[1]].group.position;
+        const look = A.session.lookAt;
+        const fx = -s.face.x, fz = -s.face.z; // from her toward the counter
+        const sx = -fz, sz = fx;              // along the counter
+        if (m[2]) {
+          // her face, from in front of her and to her side, low
+          camera.position.set(cat.position.x + fx * 0.75 - sx * 1.0, 0.38, cat.position.z + fz * 0.75 - sz * 1.0);
+          camera.lookAt(cat.position.x + fx * 0.35, 0.62, cat.position.z + fz * 0.35);
+        } else {
+          // from beside, low: her cat at one side of the frame, the stallholder's face at the other
+          const mx = (cat.position.x + k.x) / 2, mz = (cat.position.z + k.z) / 2;
+          camera.position.set(mx + sx * 3.4 - fx * 0.6, 0.95, mz + sz * 3.4 - fz * 0.6);
+          camera.lookAt(mx, 0.95, mz);
+        }
+        render();
+        showUi();
+        window.__lookup = { look: look && { ...look }, head: cat.userData.parts.head.rotation.toArray().slice(0, 3) };
         return name;
       }
       m = /^tour-([a-z]+)-(\d+)(?:-([a-z]+))?$/.exec(name);

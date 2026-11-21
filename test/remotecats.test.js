@@ -619,3 +619,52 @@ describe('a co-walker is drawn from its first state', () => {
     expect([back.group.position.x, back.group.position.z]).toEqual([2, 2]);
   });
 });
+
+describe("a co-walker looks up at the Market's stallholder (Market step 3, Task 7)", () => {
+  it('a remote with lookAt looks up; one without poses as before', async () => {
+    const { wireLook } = await import('../src/customcats.js');
+    const { wireScars } = await import('../src/scars.js');
+    const { animateCat } = await import('../src/cat/animator.js');
+    const rc = createRemoteCats(fakeScene());
+    const a = rc.upsert({ ...PROFILE, playerId: 'aaa' }, 0);
+    const b = rc.upsert({ ...PROFILE, playerId: 'bbb' }, 0);
+    expect(a.lookAt).toBeNull();
+    expect(b.lookAt).toBeNull();
+    const yaw = 0.5;
+    rc.applyState({ v: 1, id: 'aaa', pos: [3, 4], yaw, pose: 'follow', speed: 0 }, 0);
+    rc.applyState({ v: 1, id: 'bbb', pos: [3, 4], yaw, pose: 'follow', speed: 0 }, 0);
+    // the same cat posed by animateCat alone, frame for frame
+    const ref = buildCat('tabby', {}, { simple: true, look: wireLook({}), scars: wireScars({}) });
+    let now = 0;
+    const frames = (n) => {
+      for (let i = 0; i < n; i++) {
+        now += 1 / 60;
+        rc.update(1 / 60, now);
+        animateCat(ref, 'follow', now, 0, false);
+      }
+    };
+    const eyeY = (g) => {
+      g.updateMatrixWorld(true);
+      return g.userData.parts.head.userData.eyes.eyes[0].getWorldPosition(new THREE.Vector3()).y;
+    };
+    frames(30);
+    const rest = eyeY(a.group);
+    expect(fingerprintCat(a.group).lines).toEqual(fingerprintCat(ref).lines);
+    // the stallholder's face, a step ahead of her and well above
+    a.lookAt = { x: 3 - Math.sin(yaw), y: 2.0, z: 4 - Math.cos(yaw) };
+    frames(30);
+    expect(eyeY(a.group), 'looking up').toBeGreaterThan(rest + 0.02);
+    expect(a.group.userData.parts.head.rotation.x).toBeCloseTo(0.55, 6);
+    expect(fingerprintCat(b.group).lines, 'the other poses exactly as before').toEqual(fingerprintCat(ref).lines);
+    expect(b.group.userData.headAim).toBeUndefined();
+    // the target cleared: eased back, and then exactly as before
+    a.lookAt = null;
+    frames(30);
+    expect(fingerprintCat(a.group).lines).toEqual(fingerprintCat(ref).lines);
+    // walking, she does not look
+    a.lookAt = { x: 3 - Math.sin(yaw), y: 2.0, z: 4 - Math.cos(yaw) };
+    rc.applyState({ v: 1, id: 'aaa', pos: [3, 4], yaw, pose: 'follow', speed: 1.5 }, now);
+    frames(10);
+    expect(a.group.userData.headAim.w).toBe(0);
+  });
+});

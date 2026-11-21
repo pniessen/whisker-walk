@@ -1770,6 +1770,137 @@ function playTour(name) {
   return { tour, A, B, res, frames };
 }
 
+describe('she looks up at the stallholder cooing at her (Market step 3, Task 7)', () => {
+  // the stallholder's face: over the keeper's spot, 0.92 of the way up its posed head
+  const faceOf = (r, id) => {
+    const g = r.live.keepers[id].group;
+    const top = new THREE.Box3().setFromObject(g).max.y;
+    return { x: g.position.x, y: g.position.y + (top - g.position.y) * 0.92, z: g.position.z };
+  };
+
+  it('while she is cooed at she looks up at the stallholder, and stops when the coo ends', () => {
+    const id = 'fish';
+    const s = S(id);
+    const r = marketRig();
+    const st = r.stall(id);
+    r.setPhase(id, 'serve', 0);
+    const p = r.local(id, 0.4, s.d / 2 + 1.5);
+    r.place(p.x, p.z);
+    r.step(DT);
+    expect(r.session.lookAt ?? null, 'nobody cooing: nothing to look at').toBeNull();
+    expect(until(r, () => st.cooing, 2)).toBeLessThan(2);
+    expect(st.cooing.who).toBe('me');
+    const look = r.session.lookAt;
+    expect(look, 'cooed at: a target').toBeTruthy();
+    const face = faceOf(r, id);
+    expect(look.x).toBeCloseTo(face.x, 6);
+    expect(look.z).toBeCloseTo(face.z, 6);
+    expect(Math.abs(look.y - face.y), 'at the face').toBeLessThan(0.03);
+    expect(look.y, 'up: above her').toBeGreaterThan(1.3);
+    // the same object every frame of the coo (reused, nothing made per frame)
+    for (let i = 0; i < 30; i++) {
+      r.step(DT);
+      if (!st.cooing) break;
+      expect(r.session.lookAt).toBe(look);
+    }
+    // the coo runs out: no more target, and the next stop's coo has it again
+    expect(until(r, () => !st.cooing, MARKET.COO_S + 1)).toBeLessThan(MARKET.COO_S + 1);
+    expect(r.session.lookAt).toBeNull();
+    r.step(DT, 30);
+    expect(r.session.lookAt).toBeNull();
+    // she walks off mid-coo: the look ends with it, that frame
+    r.walk(s.face.x, s.face.z, 1.0);
+    r.step(DT, 12);
+    r.walk(0, 0, 0);
+    expect(until(r, () => st.cooing, periodOf(id) + 2)).toBeLessThan(periodOf(id) + 2);
+    expect(r.session.lookAt).toBe(look);
+    r.walk(s.face.z, -s.face.x, 1.0);
+    r.step(DT);
+    expect(st.cooing).toBeNull();
+    expect(r.session.lookAt).toBeNull();
+    // and the shoo (the button while cooed at) ends it at once, too
+    r.walk(0, 0, 0);
+    const q = reachSpot(id);
+    r.place(q.x, q.z);
+    expect(until(r, () => st.cooing, periodOf(id) + 2)).toBeLessThan(periodOf(id) + 2);
+    expect(r.session.lookAt).toBe(look);
+    expect(r.grab()).toBe(false);
+    expect(ofType(r, 'shoo').length).toBeGreaterThan(0);
+    expect(r.session.lookAt).toBeNull();
+    // dispose leaves no target behind
+    r.step(DT, 60);
+    r.live.dispose();
+    expect(r.session.lookAt ?? null).toBeNull();
+    expect(r.session.net.sendEvent, 'nothing is sent').not.toHaveBeenCalled();
+  }, 60_000);
+
+  it('cooed, she stays standing: no groom or sit', () => {
+    const id = 'baker';
+    const s = S(id);
+    const r = marketRig();
+    const st = r.stall(id);
+    r.setPhase(id, 'serve', 0);
+    const p = r.local(id, 0, s.d / 2 + 1.4);
+    r.place(p.x, p.z);
+    r.session.idleTime = 0;
+    let most = 0;
+    let cooFrames = 0;
+    let ended = false;
+    for (let i = 0; i < Math.round((MARKET.STILL_S + MARKET.COO_S + 1) / DT); i++) {
+      r.session.idleTime += DT; // avatar.js counts it up after the life, every frame
+      r.step(DT);
+      if (st.cooing) {
+        cooFrames++;
+        most = Math.max(most, r.session.idleTime);
+      } else if (cooFrames > 0) ended = true;
+    }
+    expect(cooFrames * DT).toBeGreaterThan(MARKET.COO_S - 2 * DT);
+    expect(ended).toBe(true);
+    // a napper grooms after 3 s still and an easy-going cat after 6: held at 0, neither ever comes
+    expect(most, 'held at 0 the whole coo').toBeLessThanOrEqual(1e-9);
+    // after the coo her idle clock runs again (no hold without a coo)
+    const after = r.session.idleTime;
+    r.session.idleTime += DT;
+    r.step(DT);
+    expect(r.session.idleTime).toBeGreaterThan(after);
+    r.live.dispose();
+  }, 60_000);
+
+  it("the partner's cat cooed at on this screen looks up too", () => {
+    const id = 'fish';
+    const s = S(id);
+    const r = marketRig();
+    const st = r.stall(id);
+    r.setPhase(id, 'serve', 0);
+    const b = r.local(id, -0.3, s.d / 2 + 1.5);
+    const ben = r.addRemote('ben', b.x, b.z);
+    expect(until(r, () => st.cooing, 2)).toBeLessThan(2);
+    expect(st.cooing.who).toBe('ben');
+    const look = ben.lookAt;
+    expect(look, "the partner's cat has a target").toBeTruthy();
+    const face = faceOf(r, id);
+    expect(look.x).toBeCloseTo(face.x, 6);
+    expect(look.z).toBeCloseTo(face.z, 6);
+    expect(Math.abs(look.y - face.y)).toBeLessThan(0.03);
+    expect(r.session.lookAt ?? null, 'not me: my own cat looks nowhere').toBeNull();
+    r.step(DT, 10);
+    expect(ben.lookAt).toBe(look);
+    // she walks off: the coo ends and so does the look
+    r.walkRemote(ben, s.face.x, s.face.z, 1.0);
+    expect(until(r, () => !st.cooing, 1)).toBeLessThan(0.2);
+    expect(ben.lookAt).toBeNull();
+    // cooed again, then she leaves the walk: the look goes with her
+    r.walkRemote(ben, 0, 0, 0);
+    expect(until(r, () => st.cooing, periodOf(id) + 2)).toBeLessThan(periodOf(id) + 2);
+    expect(ben.lookAt).toBe(look);
+    r.removeRemote(ben);
+    r.step(DT);
+    expect(ben.lookAt).toBeNull();
+    expect(r.session.net.sendEvent, 'nothing is sent').not.toHaveBeenCalled();
+    r.live.dispose();
+  }, 60_000);
+});
+
 describe('the tours (Task 14)', () => {
   it('both tours finish and pay what the film shows', () => {
     const sneak = playTour('sneak');

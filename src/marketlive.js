@@ -64,6 +64,10 @@
 //            TEAM_GRACE_S). Never touches this device's treats or mouth.
 //   restore(log)  a resumed walk: treats = how many 'market-treat-' keys the
 //            walk's discovery log has paid (log.entries()).
+//   update also writes (Task 7): session.lookAt, one reused { x, y, z } at the
+//            face of the stallholder cooing at her cat (else null), with her
+//            idle clock held at 0 while it lasts; and the same on a partner's
+//            entry (its lookAt) while a stall here coos at that cat.
 //
 // EVENTS (onEvent), for the walk (Task 13) to turn into lines and pay:
 //   { type: 'grab', stall }
@@ -228,6 +232,7 @@ const MAX_STEP = 1;      // m: more than this toward a treat in one frame is a t
 const LAND_S = 0.12;     // s, the landing squash after the hop (session.landTime)
 const HOP_LIFT = 0.2;    // m, how high she rises at the hop's middle (session.hopLift, game/avatar.js)
 const HOP_TURNS = Object.freeze([0, Math.PI / 6, Math.PI / 3]); // a refused hop step is tried turned this far off the face, either way
+const FACE_SHARE = 0.92; // the cooing stallholder's face, as a share of the way up to its posed head's top (headY): where she looks (Task 7)
 const DOWN = new THREE.Vector3(0, -1, 0); // the broom's head end, in its own frame
 const _p = new THREE.Vector3();
 const _s = new THREE.Vector3();
@@ -401,6 +406,7 @@ export function createMarketLive(scene, area, opts = {}) {
       x0: NaN, z0: NaN,                  // where she was last frame
       view: { x: 0, z: 0, stalking: false, high: false }, // what stallSees reads
       munch: { active: false, t: 0, kind: null, mesh: null }, // a partner's munch (remotePick)
+      look: { x: 0, y: 0, z: 0 },        // the face of the stallholder cooing at her (Task 7: session.lookAt, a remote's lookAt)
       meshes: {},                        // treat kind → the mouth mesh, made on first use
     };
   }
@@ -560,6 +566,7 @@ export function createMarketLive(scene, area, opts = {}) {
   function endCoo(row) {
     const st = row.st;
     if (!st.cooing) return;
+    unlook(row.cooRec);
     row.graceWho = st.cooing.who;
     row.graceT = MARKET.TEAM_GRACE_S;
     row.backT = MARKET.COO_BACK_S;
@@ -739,6 +746,45 @@ export function createMarketLive(scene, area, opts = {}) {
     broom.quaternion.copy(_qArm).invert().multiply(_qW);
   }
 
+  // ---- She looks up at the stallholder cooing at her (Task 7, ruling V10). -----
+  // While a stall coos at her cat, session.lookAt is her record's `look` at
+  // that stallholder's face (the keeper's spot, ground + headY · FACE_SHARE)
+  // and her idle clock is held at 0, so no groom, sit or nap breaks into the
+  // look-up (avatar.js's aimHead turns her head to it). The same for a
+  // partner's cat cooed at on this screen: that entry's lookAt (remotecats.js
+  // aimHead). Each device works out its own coos: nothing is sent. Every coo's
+  // end puts it back to null (endCoo, unlook).
+  function lookUp() {
+    const s = seen.session;
+    const mine = cooingAt(me);
+    if (mine && s) {
+      s.lookAt = faceOf(mine, me.look);
+      s.idleTime = 0;
+    }
+    for (let k = 0; k < remoteRecs.length; k++) {
+      const rec = remoteRecs[k];
+      const row = cooingAt(rec);
+      if (row && rec.entry) rec.entry.lookAt = faceOf(row, rec.look);
+    }
+  }
+  function cooingAt(rec) {
+    for (let i = 0; i < N; i++) if (treatRows[i].st.cooing && treatRows[i].cooRec === rec) return treatRows[i];
+    return null;
+  }
+  function faceOf(row, out) {
+    const g = row.k.group.position;
+    out.x = g.x;
+    out.y = g.y + row.k.headY * FACE_SHARE;
+    out.z = g.z;
+    return out;
+  }
+  // only the target this life set is taken away
+  function unlook(rec) {
+    if (!rec) return;
+    if (rec === me) { if (seen.session?.lookAt === me.look) seen.session.lookAt = null; }
+    else if (rec.entry?.lookAt === rec.look) rec.entry.lookAt = null;
+  }
+
   // ---- The munch: in her mouth for HOLD_S, then the munch (MUNCH_S), eaten. --
   const munch = { active: false, t: 0, st: null, kind: null, mesh: null, teamWith: null, sniffed: false, session: null };
 
@@ -855,6 +901,7 @@ export function createMarketLive(scene, area, opts = {}) {
     readCats(dt);
     for (let i = 0; i < N; i++) think(treatRows[i], dt);
     for (let i = 0; i < N; i++) show(treatRows[i], dt, clock);
+    lookUp();
     stepHop(dt);
     stepMunch(dt);
     for (let k = 0; k < remoteRecs.length; k++) stepRemoteMunch(remoteRecs[k], dt);
@@ -1020,6 +1067,7 @@ export function createMarketLive(scene, area, opts = {}) {
     dispose() {
       if (disposed) return;
       disposed = true;
+      for (let i = 0; i < N; i++) endCoo(treatRows[i]); // no look left behind (Task 7)
       if (munch.mesh) munch.mesh.removeFromParent();
       munch.active = false;
       if (hop.active) endHop();
