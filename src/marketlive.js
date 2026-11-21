@@ -274,7 +274,7 @@ export function createMarketLive(scene, area, opts = {}) {
     STALLS.forEach((s, i) => {
       if (!s.keeper) return;
       const spot = spots[s.id];
-      const k = figure({ x: spot.x, z: spot.z, yaw: spot.yaw });
+      const k = figure({ x: spot.x, y: gy(spot.x, spot.z), z: spot.z, yaw: spot.yaw });
       owned.figures.push(k);
       k.group.position.set(spot.x, gy(spot.x, spot.z), spot.z);
       k.group.rotation.y = spot.yaw;

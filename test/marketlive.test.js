@@ -448,6 +448,26 @@ describe('the stallholders (Task 11)', () => {
     r.live.dispose();
   }, 60_000);
 
+  it('a stallholder stands on the ground it is given, and the life gives it the walk\'s', () => {
+    const k = twolegKeeper({ x: 1, y: 0.7, z: 2, yaw: 0 });
+    expect(k.group.position.y).toBe(0.7);
+    k.dispose();
+    const flat = twolegKeeper({ x: 1, z: 2, yaw: 0 }); // no y: the flat ground's
+    expect(flat.group.position.y).toBe(0);
+    flat.dispose();
+    const { scene, area } = buildSquare();
+    const seen = [];
+    const ground = { flat: false, y: (x, z) => 0.25 + 0.01 * (x + z), slide() {}, sameLevel: () => true };
+    const figure = (spot) => { seen.push(spot.y); return twolegKeeper(spot); };
+    const live = createMarketLive(scene, area, { seed: 1, now: () => 0, ground, figure });
+    KEEPER_IDS.forEach((id, i) => {
+      const { x, z } = area.keepers[id];
+      expect(seen[i], id).toBeCloseTo(ground.y(x, z), 12);
+      expect(live.keepers[id].group.position.y, id).toBeCloseTo(ground.y(x, z), 12);
+    });
+    live.dispose();
+  });
+
   it('creating the stallholders draws nothing from Math.random', () => {
     const { scene, area } = buildSquare();
     const ctx = { cat: new THREE.Group(), player: { speed: 0, stalking: false, perchY: 0 }, session: { remotes: { list: [] } } };

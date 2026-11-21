@@ -2,8 +2,10 @@
 // (src/critters.js buildTwolegFigure), wrapped so the lifelike people being
 // built on another branch replace this one file and nothing in the stall logic.
 //
-// twolegKeeper({ x, z, yaw }) → { group, arm, headY, hand, dispose() }
-//   group   a Group with its origin at the person's feet, at (x, 0, z), turned
+// twolegKeeper({ x, y, z, yaw }) → { group, arm, headY, hand, dispose() }
+//   y       the ground's height at (x, z), from the walk's ground (marketlive.js
+//           passes ground.y); without it, FLAT_GROUND's.
+//   group   a Group with its origin at the person's feet, at (x, y, z), turned
 //           by `yaw`. Its FRONT is its own local +z (the twoleg itself faces
 //           -z, so it stands turned by pi inside), so rotation.y = yaw faces it
 //           the way the stall's keeper spot faces (market.js keepers[id].yaw =
@@ -28,12 +30,13 @@
 import * as THREE from 'three';
 import { buildTwolegFigure } from './critters.js';
 import { withLocalUuids } from './world/localuuids.js';
+import { FLAT_GROUND } from './ground.js';
 
 // the twoleg's arm: a sleeve and a hand 0.49 m down from the shoulder, baked
 // 0.2 rad inward (critters.js twolegArm and buildTwolegFigure)
 const TWOLEG_HAND = Object.freeze(new THREE.Vector3(0, -0.49, 0).applyAxisAngle(new THREE.Vector3(0, 0, 1), -0.2));
 
-export function twolegKeeper({ x, z, yaw = 0 }) {
+export function twolegKeeper({ x, y, z, yaw = 0 }) {
   return withLocalUuids(`market-keeper:${x.toFixed(3)},${z.toFixed(3)}`, () => {
     const { figure, arm } = buildTwolegFigure({ x, z });
     figure.rotation.y = Math.PI;
@@ -41,7 +44,7 @@ export function twolegKeeper({ x, z, yaw = 0 }) {
     const group = new THREE.Group();
     group.name = 'marketKeeper';
     group.add(figure);
-    group.position.set(x, 0, z);
+    group.position.set(x, Number.isFinite(y) ? y : FLAT_GROUND.y(x, z), z);
     group.rotation.y = yaw;
     group.traverse((m) => {
       if (m.isMesh) { m.castShadow = false; m.receiveShadow = false; m.userData.noCast = true; }
