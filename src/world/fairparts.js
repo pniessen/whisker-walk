@@ -262,7 +262,7 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
   const hw = w / 2;
   const hd = d / 2;
   const [a, b] = colors;
-  // the back and half-depth sides, in the stall's colour with a pale dado
+  // the back and half-depth sides, in the stall's colour (the inside's dado is below)
   box(P, w, 2.1, 0.08, 0, 0, -hd + 0.04, a, { shade: 0.86 });
   // the inside of the back, a dado and a board over it, is on the glow list
   // (beauty round two): at dusk the stall's inside is softly lamp-lit, by day
