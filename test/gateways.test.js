@@ -59,7 +59,7 @@ describe('gateways', () => {
     expect(() => gatewayEnd({ ...ok, look: 'promenade', wings: [2] })).toThrow(/x.*wings/);
     expect(() => gatewayEnd({ ...ok, look: 'promenade', wings: [2, -1] })).toThrow(/x.*wings/);
     expect(gatewayEnd({ ...ok, look: 'promenade', wings: [2, 3] }).wings).toEqual([2, 3]);
-    expect(endById('docks-seaside').end.wings).toEqual([18.6, 8.4]);
+    expect(endById('docks-seaside').end.wings).toEqual([18.6, 16.7]);
   });
   it('lookups', () => {
     expect(endsFor('island')).toEqual([]); expect(endsFor('__proto__')).toEqual([]); expect(endsFor(7)).toEqual([]);

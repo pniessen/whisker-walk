@@ -23,7 +23,7 @@ const { GATEWAY_ENDS, GATE_HALF, GATE_POST_R, GATE_REACH, arrivalFor, endsFor, e
 const { BORDER_POSTS } = await import('../src/borderposts.js');
 const { floodFrom } = await import('./helpers/flood.js');
 const { waterGap } = await import('../src/world/builder.js');
-const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
+const { isWalkableAt, isWadeableAt, CAT_RADIUS } = await import('../src/player.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 const { propsFor } = await import('../src/propsets.js');
 const { addGatewayDressing } = await import('../src/world/gateway.js');
@@ -241,8 +241,9 @@ describe('P1: the Fair\'s and the Farm\'s gates to the Park are set into the fro
 
 // P2 (the owner, 2026-11-21): the Docks' gate to the Seaside stood alone in an
 // open yard. A railing now runs on from each of its posts along the edge line,
-// one way (-z) to the bounds and the other (+z) to the south quay's pavement,
-// so the gate reads as the way through it.
+// one way (-z) to the bounds and the other (+z) across the south quay to the
+// canal and on across the canal's wadeable rim (ruling R20), so the strip
+// behind it is sealed and the gate is the way through.
 describe('P2: the Docks\' gate to the Seaside stands in a railing', () => {
   const e = endById('docks-seaside').end;
   const area = areas.docks;
@@ -251,8 +252,13 @@ describe('P2: the Docks\' gate to the Seaside stands in a railing', () => {
   const gate = scene.children.find((o) => o.name === 'gateway' && o.userData.endId === e.id);
   const wings = scene.children.filter((o) => o.name === 'gateWings' && o.userData.endId === e.id);
   scene.updateMatrixWorld(true);
-  const PAVEMENT_Z = -9.6; // the south quay's pavement (docks.js: sidewalk at z -9, 1.2 wide)
   const HINGE_END = area.bounds.minZ; // the hinge side runs to the bounds
+  // The latch side runs to the canal (its quay edge, z -3.5) and on over the
+  // band a cat wades in (`shallow`), so nobody walks or wades round its end.
+  const canal = area.waters.find((w) => w.id === 'canal');
+  const CANAL_EDGE = canal.minZ;
+  const WADE_TO = canal.minZ + canal.shallow;
+  const LATCH_END = e.z + GATE_HALF + e.wings[1];
   // Along the line x 35: z from the bounds to just short of the pavement.
   const along = (z0, z1, step) => {
     const out = [];
@@ -273,13 +279,14 @@ describe('P2: the Docks\' gate to the Seaside stands in a railing', () => {
     // At the top rail's height, the railing is there everywhere from each
     // post out to the end of its run (the posts' own width included)...
     const miss = [];
-    for (const z of [...along(HINGE_END + 0.05, e.z - GATE_HALF, 0.1), ...along(e.z + GATE_HALF, PAVEMENT_Z - 0.75, 0.1)]) {
+    for (const z of [...along(HINGE_END + 0.05, e.z - GATE_HALF, 0.1), ...along(e.z + GATE_HALF, LATCH_END - 0.05, 0.1)]) {
       if (!hits(z, 0.9)) miss.push(+z.toFixed(2));
     }
     expect(miss, 'no rail across the line at these z').toEqual([]);
     // ... and nowhere past those ends, nor in the gate's opening (the leaf is
     // not the railing).
-    for (const z of [HINGE_END - 0.4, PAVEMENT_Z - 0.3, ...along(e.z - GATE_HALF + 0.2, e.z + GATE_HALF - 0.2, 0.1)]) {
+    expect(LATCH_END, 'the railing reaches over the wadeable rim').toBeGreaterThanOrEqual(WADE_TO);
+    for (const z of [HINGE_END - 0.4, LATCH_END + 0.3, ...along(e.z - GATE_HALF + 0.2, e.z + GATE_HALF - 0.2, 0.1)]) {
       expect(hits(z, 0.9), `rail at z ${z.toFixed(2)}`).toBe(false);
     }
   });
@@ -288,7 +295,7 @@ describe('P2: the Docks\' gate to the Seaside stands in a railing', () => {
     const blocked = (x, z) => gates.colliders.some((c) => Math.hypot(x - c.x, z - c.z) < c.r + CAT_RADIUS);
     const open = [];
     const shut = [];
-    for (const z of along(HINGE_END, PAVEMENT_Z - 0.75, 0.02)) {
+    for (const z of along(HINGE_END, WADE_TO + CAT_RADIUS, 0.02)) {
       const inOpening = Math.abs(z - e.z) < GATE_HALF;
       if (!inOpening && !blocked(e.x, z)) open.push(+z.toFixed(2));
       if (Math.abs(z - e.z) <= GATE_HALF - GATE_POST_R - CAT_RADIUS && blocked(e.x, z)) shut.push(+z.toFixed(2));
@@ -300,7 +307,7 @@ describe('P2: the Docks\' gate to the Seaside stands in a railing', () => {
   });
 
   it('stands clear of everything in the yard: colliders, points, perches, props and the dressing', () => {
-    const seg = [e.x, HINGE_END, e.x, PAVEMENT_Z - 0.6];
+    const seg = [e.x, HINGE_END, e.x, LATCH_END];
     for (const c of area.colliders) expect(segDist(c.x, c.z, seg) - c.r, `collider (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(0.5);
     const props = propsFor('docks');
     for (const t of [...(area.pois ?? []), ...(area.collectibles ?? []), ...(area.scenics ?? []), ...(area.perches ?? []), ...(GOLD_MICE.docks ?? []),
@@ -313,5 +320,24 @@ describe('P2: the Docks\' gate to the Seaside stands in a railing', () => {
     const arr = arrivalFor('seaside-docks');
     for (const c of gates.colliders) expect(Math.hypot(arr.x - c.x, arr.z - c.z) - c.r, 'the arrival spot vs the railing').toBeGreaterThanOrEqual(1.2);
   });
+
+  it('seals the strip behind it: from the yard, on foot or wading, she gets behind the railing only through the gate', () => {
+    const live = [];
+    const shut = addGatewayDressing(new THREE.Scene(), 'docks', { isOpen: () => false });
+    shut.attach(live);
+    const behind = [];
+    for (let x = e.x + 1; x <= area.bounds.maxX; x += 0.5) {
+      for (let z = area.bounds.minZ; z <= WADE_TO; z += 0.5) behind.push([x, z]);
+    }
+    const reachBehind = (colliders) => {
+      const a = { ...area, colliders: [...area.colliders, ...colliders] };
+      const f = floodFrom(a, arrivalFor('seaside-docks'), (x, z) => isWadeableAt(a, x, z));
+      return behind.filter(([x, z]) => f.reaches(x, z));
+    };
+    // shut: the posts, the railing and the leaf
+    expect(reachBehind([...shut.colliders, ...live]), 'behind the railing with the gate shut').toEqual([]);
+    // open (her own Seaside): the gate is the way through
+    expect(reachBehind(gates.colliders).length, 'behind the railing with the gate open').toBeGreaterThan(0);
+  }, T);
 });
 

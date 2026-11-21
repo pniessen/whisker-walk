@@ -84,10 +84,12 @@ export const GATEWAY_ENDS = Object.freeze({
   ]),
   docks: Object.freeze([
     end({ id: 'docks-town', gateway: 'town-docks', x: -10, z: -37, faces: 'north', to: 'neighborhood', twin: 'town-docks', look: 'signpost' }),
-    // Its railing runs on from the hinge post (z -21.4) to the bounds (z -40)
-    // and from the latch post (z -18.6) to just short of the south quay's
-    // pavement (z -9.6), so the gate is the way through it.
-    end({ id: 'docks-seaside', gateway: 'docks-seaside', x: 35, z: -20, faces: 'east', to: 'seaside', twin: 'seaside-docks', look: 'promenade', wings: [18.6, 8.4] }),
+    // Its railing runs on from the hinge post (z -21.4) to the bounds (z -40),
+    // and from the latch post (z -18.6) across the south quay to the canal
+    // (z -3.5) and on over the band every cat wades in (1.2 m, to z -2.3) to
+    // a last post in the water at z -1.9 (ruling R20): nobody walks or wades
+    // round it, so the gate is the way through.
+    end({ id: 'docks-seaside', gateway: 'docks-seaside', x: 35, z: -20, faces: 'east', to: 'seaside', twin: 'seaside-docks', look: 'promenade', wings: [18.6, 16.7] }),
   ]),
   seaside: Object.freeze([
     end({ id: 'seaside-docks', gateway: 'docks-seaside', x: 10, z: 45, faces: 'south', to: 'docks', twin: 'docks-seaside', look: 'promenade' }),
