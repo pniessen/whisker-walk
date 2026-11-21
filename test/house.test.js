@@ -8,7 +8,7 @@ vi.stubGlobal('document', canvasStub);
 const { build, HOUSE_SKY_DUSK, HOUSE_DUSK_LIGHT, HOUSE_GROUND_BOUNCE } = await import('../src/world/house.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const {
-  HOUSE_BOUNDS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_LEVELS, HOUSE_FRONT_DOOR, HOUSE_FURNITURE, TALL_H, LAWN_Y, roomAt, houseSections,
+  HOUSE_BOUNDS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_LEVELS, HOUSE_FRONT_DOOR, HOUSE_FURNITURE, TALL_H, LAWN_Y, roomAt, levelAt, houseSections,
   houseColliders,
 } = await import('../src/world/houseplan.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -415,7 +415,7 @@ describe('the furniture', () => {
     expect(s.children.length).toBe(before);
     const tagged = s.children.filter((c) => c.userData?.houseDetail);
     // + the secret bookcase (step 2, D9) and the paw prints at the take-offs, one mesh per level with any (step 2, D2)
-    const marked = new Set(area.traversal.hops.map((h) => HOUSE_ROOMS.find((r) => r.id === roomAt(h.x0, h.z0)).level));
+    const marked = new Set(area.traversal.hops.map((h) => levelAt(h.x0, h.z0)));
     expect(tagged.length).toBe(tall.length + HOUSE_ROOMS.length + 1 + marked.size);
     for (const c of tagged) {
       expect(levelIds).toContain(c.userData.houseLevel);

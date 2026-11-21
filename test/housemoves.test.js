@@ -6,9 +6,10 @@ import { canvasStub } from './helpers/growriver.js';
 // createPlayer listens on it, and the build draws on canvases.
 vi.stubGlobal('document', canvasStub);
 
-const { HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_LEDGES, HOUSE_FURNITURE, HOUSE_STAIRS, houseFloorGround, houseColliders, roomAt } = await import('../src/world/houseplan.js');
+const { HOUSE_LEVELS, HOUSE_LEDGES, HOUSE_FURNITURE, HOUSE_STAIRS, houseFloorGround, houseColliders, roomAt, levelAt } = await import('../src/world/houseplan.js');
 const { HOUSE_MOVES, HOUSE_PERCHES, HOUSE_ROUTES, houseMovesArea } = await import('../src/world/housemoves.js');
-const { validateTraversal, BASE_ABILITIES, stickToWorld } = await import('../src/traversal.js');
+const { validateTraversal, BASE_ABILITIES, stickToWorld, spotFor } = await import('../src/traversal.js');
+const { PAW_PADS, PAW_APART } = await import('../src/world/houseparts.js');
 const { canReach, BASE_CLIMB_BUDGET } = await import('../src/climbing.js');
 const { STEP_MAX } = await import('../src/ground.js');
 const { createPlayer, isWalkableAt } = await import('../src/player.js');
@@ -142,9 +143,35 @@ describe('the moves', () => {
       }
       expect(at, name).toBe(home);
     }
-    // every move is on some route but a way back down
+    // every move is on some route but the library's three ways back: off n2, off the steps, and the leap back to n1
     const named = new Set(Object.values(HOUSE_ROUTES).flat());
-    expect(named.size).toBeGreaterThanOrEqual(12);
+    const all = [...area.traversal.crossings, ...area.traversal.hops].map((m) => m.id);
+    expect(all.filter((id) => !named.has(id)).sort()).toEqual(['library-n2-steps', 'library-steps-floor', 'library-w-n1']);
+    expect([...named].every((id) => all.includes(id))).toBe(true);
+  });
+
+  it('the obvious jump: wherever a route\'s hop lands her, facing as she lands, a jump does its next hop', () => {
+    const hops = new Map(area.traversal.hops.map((h) => [h.id, h]));
+    const out = { hop: null, look: false };
+    const checked = [];
+    for (const [name, ids] of Object.entries(HOUSE_ROUTES)) {
+      for (let i = 1; i < ids.length; i++) {
+        const prev = hops.get(ids[i - 1]);
+        const next = hops.get(ids[i]);
+        if (!prev || !next) continue; // a crossing: she walks onto it (or off it to the next take-off)
+        const fx = (prev.x1 - prev.x0) / prev.dist;
+        const fz = (prev.z1 - prev.z0) / prev.dist;
+        const got = spotFor(area.traversal, prev.x1, prev.z1, prev.y1, fx, fz, BASE_ABILITIES, out);
+        expect(got?.hop.id, `${name}: after ${prev.id}`).toBe(next.id);
+        expect(got.look, `${name}: after ${prev.id}`).toBe(false);
+        checked.push(prev.id);
+      }
+    }
+    // every hop followed by a hop: the library's three (all but onto and off the plank), the bedroom's
+    // five, one each on the seat and the keys
+    expect(checked.length).toBe(10);
+    // a spot in no room is a mistake in the data, and says so
+    expect(() => levelAt(-8, -2)).toThrow(/no room/);
   });
 });
 
@@ -269,7 +296,7 @@ describe('the drawing', () => {
 
   it('marks every take-off faintly, one mesh per level, and lays the plank on its crossing', () => {
     const marks = scene.children.filter((c) => c.userData?.houseMarks);
-    const levels = new Set(area.traversal.hops.map((h) => levelOfSpot(h.x0, h.z0)));
+    const levels = new Set(area.traversal.hops.map((h) => levelAt(h.x0, h.z0)));
     expect(marks.map((m) => m.userData.houseLevel).sort()).toEqual([...levels].sort());
     for (const m of marks) {
       expect(m.isMesh, m.name).toBe(true);
@@ -279,17 +306,23 @@ describe('the drawing', () => {
       expect(m.castShadow, m.name).toBe(false);
       m.geometry.computeBoundingBox();
     }
-    // a mark lies at every take-off, a hair over the ground she springs from
+    // a mark lies at every take-off, a hair over the ground she springs from: straight down
+    // onto each print's main pad (local (+-PAW_APART, -0.02), turned by the hop's yaw), a hit
     const ray = new THREE.Raycaster();
+    const [padX, padZ] = PAW_PADS[0];
     for (const h of area.traversal.hops) {
-      ray.set(new THREE.Vector3(h.x0, h.y0 + 1, h.z0), new THREE.Vector3(0, -1, 0));
-      const hit = ray.intersectObjects(marks, false)[0];
-      const near = marks.some((m) => {
-        const b = m.geometry.boundingBox;
-        return h.x0 >= b.min.x - 0.3 && h.x0 <= b.max.x + 0.3 && h.z0 >= b.min.z - 0.3 && h.z0 <= b.max.z + 0.3;
-      });
-      expect(near, h.id).toBe(true);
-      if (hit) expect(hit.point.y - h.y0, h.id).toBeLessThan(0.03);
+      const yaw = Math.atan2(h.x1 - h.x0, h.z1 - h.z0);
+      for (const side of [-1, 1]) {
+        const lx = padX + side * PAW_APART;
+        const x = h.x0 + lx * Math.cos(yaw) + padZ * Math.sin(yaw);
+        const z = h.z0 - lx * Math.sin(yaw) + padZ * Math.cos(yaw);
+        ray.set(new THREE.Vector3(x, h.y0 + 1, z), new THREE.Vector3(0, -1, 0));
+        const hit = ray.intersectObjects(marks, false)[0];
+        expect(hit, `${h.id} ${side}`).toBeTruthy();
+        expect(hit.object.userData.houseLevel, h.id).toBe(levelAt(h.x0, h.z0));
+        expect(hit.point.y - h.y0, h.id).toBeGreaterThan(0);
+        expect(hit.point.y - h.y0, h.id).toBeLessThan(0.03);
+      }
     }
     // the plank: a board along the crossing, its top the rail she walks
     const plank = area.traversal.crossings[0];
@@ -358,8 +391,3 @@ describe('the drawing', () => {
     life.dispose();
   }, 60_000);
 });
-
-// The level of the room a spot is in.
-function levelOfSpot(x, z) {
-  return HOUSE_ROOMS.find((r) => r.id === roomAt(x, z)).level;
-}

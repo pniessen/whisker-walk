@@ -1782,13 +1782,13 @@ export function plankMesh(crossing, material) {
 // level, on its own see-through material, cast-free and kept out of the prop merge. A
 // ledge-level detail for the level drawing. Pads: [x, z, rx, rz] of one print, toes ahead.
 export const PAW_LOOK = freeze({ color: 0x4a3426, opacity: 0.3, lift: 0.006 });
-const PADS = freeze([[0, -0.02, 0.042, 0.036], [-0.042, 0.035, 0.016, 0.018], [-0.015, 0.056, 0.016, 0.018], [0.015, 0.056, 0.016, 0.018], [0.042, 0.035, 0.016, 0.018]]);
-const PAW_APART = 0.065;
+export const PAW_PADS = freeze([[0, -0.02, 0.042, 0.036], [-0.042, 0.035, 0.016, 0.018], [-0.015, 0.056, 0.016, 0.018], [0.015, 0.056, 0.016, 0.018], [0.042, 0.035, 0.016, 0.018]]);
+export const PAW_APART = 0.065;
 export function pawMarksMesh(level, spots) {
   const geos = [];
   for (const sp of spots) {
     for (const side of [-1, 1]) {
-      for (const [px, pz, rx, rz] of PADS) {
+      for (const [px, pz, rx, rz] of PAW_PADS) {
         const g = new THREE.CircleGeometry(1, 10);
         g.rotateX(-Math.PI / 2);
         g.scale(rx, 1, rz);

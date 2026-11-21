@@ -32,7 +32,7 @@ import { withLocalUuids } from './localuuids.js';
 import { words } from '../wordset.js';
 import {
   HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_BOUNDS, HOUSE_FRONT_DOOR, HOUSE_LAMPS, HOUSE_FURNITURE, LEVEL_LINKS,
-  LAWN_Y, WALL_T, TALL_H, HOUSE_KITTEN_HOME, HOUSE_CELLAR_LID, houseArea, houseFloorGround, secretColliders, roomAt,
+  LAWN_Y, WALL_T, TALL_H, HOUSE_KITTEN_HOME, HOUSE_CELLAR_LID, houseArea, houseFloorGround, secretColliders, roomAt, levelAt,
 } from './houseplan.js';
 import { houseMovesArea } from './housemoves.js';
 import {
@@ -297,7 +297,7 @@ function drawMarks(scene, traversal, start) {
   const full = fullLevels(start, LEVEL_LINKS);
   const byLevel = new Map();
   for (const h of traversal.hops) {
-    const level = HOUSE_ROOMS.find((r) => r.id === roomAt(h.x0, h.z0)).level;
+    const level = levelAt(h.x0, h.z0);
     if (!byLevel.has(level)) byLevel.set(level, []);
     byLevel.get(level).push({ x: h.x0, y: h.y0, z: h.z0, yaw: Math.atan2(h.x1 - h.x0, h.z1 - h.z0) });
   }

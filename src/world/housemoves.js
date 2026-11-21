@@ -11,15 +11,23 @@
 // keep her centre 0.55 m off it, traversal.js SPOT_BODY), and a floor take-off a
 // metre or more from the ledge it climbs to, so every spot can be walked to.
 //
+// THE OBVIOUS JUMP. A jump takes the hop whose take-off is nearest, less 0.4 m for
+// facing along it (traversal.js spotFor). So wherever a hop of a route lands her, the
+// route's next hop takes off right there, or points the way she is facing: a jump as
+// she lands always does the next step, never the way back. On every ledge with two
+// hops they point different ways (the bedroom's chest stands in front of the shelf,
+// so the shelf's drop goes south and its leap west).
+//
 //   library  floor -> steps (0.9) -> bookcase n2 (2.25), along the plank to n1,
 //            a leap across the corner to the west bookcase, a drop to the big
 //            books (1.0) and one to the floor
-//   bedroom  floor -> chest (0.6) -> bookshelf (1.6), a leap to the wardrobe
-//            (2.05) and back, then drops by the chest
+//   bedroom  floor -> chest (0.6, in front of the bookshelf) -> bookshelf (1.6),
+//            a leap to the wardrobe (2.05) and back, then drops by the chest
 //   attic    up onto the window seat (0.55) and down
 //   piano    up onto the keys (0.75) and down
 //
-// The ways back down (n2 to the steps, the steps to the floor) are on no route.
+// The library's ways back (n2 to the steps, the steps to the floor, the leap from the west
+// bookcase back to n1) are on no route.
 
 import { createTraversal } from '../traversal.js';
 import { houseArea } from './houseplan.js';
@@ -40,28 +48,29 @@ const crossings = [
 const climbs = [
   hop('library-floor-steps', S(-8.8, 4.3), S(-8.8, 3.05)),
   hop('library-steps-n2', S(-8.8, 3.05), S(-8.8, 2.6)),
-  hop('bedroom-floor-chest', S(-5.3, -14.15), S(-5.3, -15.4)),
-  hop('bedroom-chest-shelf', S(-5.2, -15.45), S(-4.45, -15.4)),
+  hop('bedroom-floor-chest', S(-4.2, -13.85), S(-4.45, -15.05)),
+  hop('bedroom-chest-shelf', S(-4.45, -15.05), S(-4.45, -15.4)),
   hop('attic-floor-seat', S(-22.3, -11.0), S(-23.4, -11.0)),
   hop('parlour-floor-keys', S(8.7, 10.0), S(8.7, 11.15)),
 ];
 
 const gaps = [
-  hop('library-n1-w', S(-13.1, 2.6), S(-13.4, 4.8)),
+  // she lands nearer the drop to the big books (ahead of her) than the leap back
+  hop('library-n1-w', S(-13.1, 2.6), S(-13.4, 5.3)),
   hop('library-w-n1', S(-13.4, 4.8), S(-13.1, 2.6)),
-  // the shelf's leap takes off from its east end, its drop to the chest from its west end:
-  // both go west, so the spot she stands nearer is the one the jump takes
-  hop('bedroom-shelf-wardrobe', S(-3.95, -15.4), S(-6.4, -15.4)),
-  hop('bedroom-wardrobe-shelf', S(-6.4, -15.4), S(-4.2, -15.4)),
+  // the shelf: the leap west from its west end, the drop south to the chest from its east
+  // end; each lands her on the other's take-off, the route's next step
+  hop('bedroom-shelf-wardrobe', S(-4.45, -15.4), S(-6.4, -15.4)),
+  hop('bedroom-wardrobe-shelf', S(-6.4, -15.4), S(-3.95, -15.4)),
 ];
 
 const drops = [
-  hop('library-w-bigbooks', S(-13.4, 6.3), S(-13.4, 7.15)),
+  hop('library-w-bigbooks', S(-13.4, 6.0), S(-13.4, 7.15)),
   hop('library-bigbooks-floor', S(-13.4, 7.15), S(-12.2, 7.15)),
   hop('library-n2-steps', S(-9.0, 2.6), S(-8.8, 3.05)),
   hop('library-steps-floor', S(-8.8, 3.05), S(-8.8, 4.3)),
-  hop('bedroom-shelf-chest', S(-4.45, -15.4), S(-5.3, -15.35)),
-  hop('bedroom-chest-floor', S(-5.3, -15.3), S(-5.3, -14.15)),
+  hop('bedroom-shelf-chest', S(-3.95, -15.4), S(-4.2, -14.95)),
+  hop('bedroom-chest-floor', S(-4.2, -14.95), S(-4.2, -13.85)),
   hop('attic-seat-floor', S(-23.4, -11.0), S(-22.3, -11.0)),
   hop('parlour-keys-floor', S(8.7, 11.15), S(8.7, 10.0)),
 ];

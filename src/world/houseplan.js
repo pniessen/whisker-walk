@@ -214,10 +214,11 @@ export const HOUSE_FURNITURE = frozenAll([
   // the bedroom: a big bed, a wardrobe, a chest of drawers, a bedside table, a rug
   piece('bedroom-bed', 'bedroom', 'bed', 0.85, -12.0, FACE_W, 1.6, 2.1, 1.1, 0.75),
   piece('bedroom-bedside', 'bedroom', 'bedside', 1.62, -13.25, FACE_W, 0.45, 0.45, 0.62, 0.22),
-  // step 2 (D2): up the chest to the new bookshelf, a leap to the wardrobe and back
+  // step 2 (D2): up the chest, standing in front of the new bookshelf, onto the shelf, and a
+  // leap from it to the wardrobe and back
   ledge('bedroom-wardrobe', 'bedroom', 'wardrobe', -6.4, -15.6, FACE_S, 1.3, 0.6, 2.05, 0.3),
-  ledge('bedroom-chest', 'bedroom', 'chest', -5.3, -15.5, FACE_E, 0.8, 0.5, 0.6, 0.25),
   ledge('bedroom-shelf', 'bedroom', 'bookcase', -4.2, -15.6, FACE_S, 0.9, 0.6, 1.6, 0.3),
+  ledge('bedroom-chest', 'bedroom', 'chest', -4.2, -15.05, FACE_S, 0.8, 0.5, 0.6, 0.25),
   piece('bedroom-drawers', 'bedroom', 'drawers', -0.6, -15.65, FACE_S, 1.1, 0.5, 0.95, 0.25),
   piece('bedroom-rug', 'bedroom', 'rug', -2.6, -12.0, FACE_S, 2.4, 2.0, 0.012, 0, 'rugBlue'),
   // the attic: boxes stacked no higher than 1.4 m, an old trunk, an old rocking chair, a rug
@@ -387,6 +388,12 @@ const inRect = (r, x, z) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.
 export function roomAt(x, z) {
   for (const r of HOUSE_ROOMS) if (inRect(r, x, z)) return r.id;
   return null;
+}
+// The level of the room a spot is in; a spot in no room is a mistake in the data.
+export function levelAt(x, z) {
+  const id = roomAt(x, z);
+  if (!id) throw new Error(`houseplan: (${x}, ${z}) is in no room`);
+  return roomById(id).level;
 }
 export function stairAt(x, z) {
   for (const s of HOUSE_STAIRS) if (inRect(stairRect(s), x, z)) return s.id;
