@@ -15,7 +15,7 @@ const CACHE = 'whisker-v2';
 // shell URLs from it (instead of hardcoded '/' paths) keeps this file
 // correct under either base path.
 const SCOPE = self.registration.scope;
-const SHELL = [SCOPE, new URL('index.html', SCOPE).href];
+const INDEX = new URL('index.html', SCOPE).href;
 // The build's own list of its files (scripts/precache.mjs): { build, files }.
 const PRECACHE_URL = new URL('precache.json', SCOPE).href;
 // Each build's list is kept in the cache under __builds/<build>, in the order
@@ -42,6 +42,24 @@ function assetsToPrune(urls, keepUrls) {
   const keep = new Set(keepUrls);
   return urls.filter((u) => new URL(u).pathname.includes('/assets/') && !keep.has(u));
 }
+// The /assets/ files a page names (Vite's index.html: the entry script's src,
+// each static import's modulepreload href, the stylesheet's href), as
+// absolute URLs on the page's own site. A cached page needs exactly these to
+// start, whatever build list precache.json gave.
+function htmlAssetUrls(html, base) {
+  if (typeof html !== 'string') return [];
+  const out = [];
+  for (const m of html.matchAll(/\b(?:src|href)\s*=\s*["']([^"']+)["']/gi)) {
+    let u;
+    try {
+      u = new URL(m[1], base);
+    } catch {
+      continue;
+    }
+    if (u.origin === new URL(base).origin && u.pathname.includes('/assets/')) out.push(u.href);
+  }
+  return out;
+}
 // prune:end
 
 // Stores a build's list unless it is already stored: re-storing would move it
@@ -58,10 +76,14 @@ function storeList(cache, list) {
 }
 
 // Caches the shell and every file the live build lists, one by one, skipping
-// ones already cached. A file that fails (offline, a 404 mid-deploy) leaves
-// the rest cached and is retried by the next top-up. The list is stored
-// before the files so a prune running meanwhile keeps them. Never rejects;
-// resolves true when the live build's list is stored.
+// ones already cached. The index.html shell is fetched again every time, not
+// skipped: it is the offline fallback for any page URL never cached (a query
+// string), and nothing else refreshes it (a page load refreshes only its own
+// URL); a refresh that fails keeps the one cached. A file that fails
+// (offline, a 404 mid-deploy) leaves the rest cached and is retried by the
+// next top-up. The list is stored before the files so a prune running
+// meanwhile keeps them. Never rejects; resolves true when the live build's
+// list is stored.
 function precache() {
   return fetch(PRECACHE_URL, { cache: 'no-store' })
     .then((r) => (r.ok ? r.json() : null))
@@ -71,7 +93,11 @@ function precache() {
         const files = precacheUrls(list, SCOPE);
         const listed = files.length ? storeList(cache, list).catch(() => false) : Promise.resolve(false);
         return listed.then((ok) =>
-          Promise.allSettled([...SHELL, ...files].map((u) => cache.match(u).then((hit) => hit || cache.add(u)))).then(() => ok)
+          Promise.allSettled([
+            // past the browser's HTTP cache too (Pages keeps a page 10 minutes)
+            cache.add(new Request(INDEX, { cache: 'no-cache' })),
+            ...[SCOPE, ...files].map((u) => cache.match(u).then((hit) => hit || cache.add(u))),
+          ]).then(() => ok)
         );
       })
     )
@@ -79,8 +105,12 @@ function precache() {
 }
 
 // Drops build lists beyond KEEP_BUILDS, then every /assets/ file outside the
-// kept lists. With no list (a build without precache.json) it prunes nothing;
-// if a kept list can't be read it prunes nothing rather than guess.
+// kept lists and not named by a cached page. The pages matter because Pages
+// can serve a fresh page with the previous precache.json for a while after a
+// deploy: the fresh page's start-up files (cached as it loaded them) are in no
+// stored list yet, and dropping them would leave an offline launch blank.
+// With no list (a build without precache.json) it prunes nothing; if a kept
+// list can't be read it prunes nothing rather than guess.
 function pruneAssets() {
   return caches
     .open(CACHE)
@@ -96,16 +126,32 @@ function pruneAssets() {
           .then((read) => {
             if (read.some((l) => !precacheUrls(l, SCOPE).length)) return;
             const keep = read.flatMap((l) => precacheUrls(l, SCOPE));
-            return Promise.all(assetsToPrune(urls, keep).map((u) => cache.delete(u)));
+            return pagesNamed(cache, urls).then((named) =>
+              Promise.all(assetsToPrune(urls, [...keep, ...named]).map((u) => cache.delete(u)))
+            );
           });
       })
     )
     .catch(() => {}); // pruning is housekeeping; never let it break the worker
 }
 
+// Every /assets/ URL the cached pages name: the SCOPE and index.html shells
+// and any other page cached by a page load (a URL with a query string).
+function pagesNamed(cache, urls) {
+  const pages = urls.filter((u) => !u.startsWith(BUILDS) && !new URL(u).pathname.includes('/assets/'));
+  return Promise.all(
+    pages.map((u) =>
+      cache.match(u).then((r) =>
+        r && (r.headers.get('content-type') || '').includes('text/html') ? r.text().then((html) => htmlAssetUrls(html, u)) : []
+      )
+    )
+  ).then((lists) => lists.flat());
+}
+
 // Pruning only follows a precache that stored the live build's list, so the
 // live build's files (some perhaps cached by the page, not by a precache) are
-// never pruned. A worker restarted between install and activate skips the
+// never pruned; and a page's start-up files are kept while a cached page names
+// them, even when precache.json was still the previous build's. A worker restarted between install and activate skips the
 // prune; the next page load's top-up does it.
 let installListed = false;
 
@@ -181,7 +227,7 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match(new URL('index.html', SCOPE).href)))
+        .catch(() => caches.match(request).then((cached) => cached || caches.match(INDEX)))
     );
     return;
   }

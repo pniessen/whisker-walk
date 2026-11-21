@@ -9,8 +9,8 @@ import { precacheManifest, stampServiceWorker } from '../scripts/precache.mjs';
 // covered by test/swprecache.test.js.
 const src = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
 const block = src.split('// prune:start')[1].split('// prune:end')[0];
-const { KEEP_BUILDS, precacheUrls, buildsToDrop, assetsToPrune } = new Function(
-  `${block}; return { KEEP_BUILDS, precacheUrls, buildsToDrop, assetsToPrune };`
+const { KEEP_BUILDS, precacheUrls, buildsToDrop, assetsToPrune, htmlAssetUrls } = new Function(
+  `${block}; return { KEEP_BUILDS, precacheUrls, buildsToDrop, assetsToPrune, htmlAssetUrls };`
 )();
 
 const SCOPE = 'https://x.test/whisker-walk/';
@@ -43,6 +43,36 @@ describe('service worker pruning', () => {
     for (const bad of [null, undefined, 'x', 42, {}, { files: 'assets/a.js' }, { files: [1, null, {}] }]) {
       expect(precacheUrls(bad, SCOPE)).toEqual([]);
     }
+  });
+});
+
+describe('the files a cached page names', () => {
+  // The markup Vite writes into dist/index.html for the start-up files.
+  const VITE = `<!doctype html>
+<html lang="en">
+  <head>
+    <link rel="icon" href="/whisker-walk/icon.svg">
+    <link rel="manifest" href="/whisker-walk/manifest.webmanifest">
+    <script type="module" crossorigin src="/whisker-walk/assets/index-BukdHk_-.js"></script>
+    <link rel="modulepreload" crossorigin href="/whisker-walk/assets/ground-ZvVVexJe.js">
+    <link rel="stylesheet" crossorigin href="/whisker-walk/assets/index-CSy_qVW7.css">
+  </head>
+  <body><a href="https://example.com/assets/x.js">x</a></body>
+</html>`;
+  it("finds the entry script, every modulepreload and the stylesheet, as absolute URLs", () => {
+    expect(htmlAssetUrls(VITE, SCOPE)).toEqual([
+      `${SCOPE}assets/index-BukdHk_-.js`,
+      `${SCOPE}assets/ground-ZvVVexJe.js`,
+      `${SCOPE}assets/index-CSy_qVW7.css`,
+    ]);
+  });
+  it('resolves relative paths against the page and ignores anything outside assets/ or off this site', () => {
+    expect(htmlAssetUrls(`<script src='./assets/a.js'></script><img src="places/p.png"><link href="//cdn.test/assets/b.css">`, `${SCOPE}index.html`)).toEqual([
+      `${SCOPE}assets/a.js`,
+    ]);
+  });
+  it('a page that is not text, or names nothing, gives no URLs', () => {
+    for (const bad of [null, undefined, 42, {}, '', 'not html', '<a href="http://[bad">x</a>']) expect(htmlAssetUrls(bad, SCOPE)).toEqual([]);
   });
 });
 

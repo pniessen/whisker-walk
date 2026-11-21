@@ -216,3 +216,84 @@ describe('what the worker leaves alone', () => {
     expect(await (await w.navigate()).text()).toBe('fresh page');
   });
 });
+
+// Vite's built index.html names the entry script, every static import (as
+// modulepreload) and the stylesheet. The page fetches those at runtime, so the
+// shell that names them must never outlive them in the cache, whatever list
+// precache.json happens to give (Pages can serve a fresh page with a stale
+// list for minutes after a deploy).
+describe('the start-up files the cached page names', () => {
+  const shell = (b) =>
+    `<!doctype html><html><head>\n    <script type="module" crossorigin src="/whisker-walk/assets/index-${b}.js"></script>\n` +
+    `    <link rel="modulepreload" crossorigin href="/whisker-walk/assets/ground-${b}.js">\n` +
+    `    <link rel="stylesheet" crossorigin href="/whisker-walk/assets/index-${b}.css">\n  </head><body></body></html>`;
+  const named = (html) => [...html.matchAll(/(?:src|href)="\/whisker-walk\/(assets\/[^"]+)"/g)].map((m) => m[1]);
+  // A deploy whose page is live but whose precache.json is still the previous one's.
+  function freshPageStaleList(env, b) {
+    env.net.serve('', shell(b));
+    env.net.serve('index.html', shell(b));
+    for (const f of [`assets/index-${b}.js`, `assets/ground-${b}.js`, `assets/index-${b}.css`]) env.net.serve(f);
+  }
+  // The page loads: its HTML, then the files it names (cached as they come).
+  async function load(w, path = '') {
+    const res = await w.navigate(path);
+    const html = await res.text();
+    for (const f of named(html)) expect((await w.request(f)).status, f).toBe(200);
+    return html;
+  }
+  // Offline, a launch at `path` gets a page whose every named file is here.
+  async function launchesOffline(env, w, path = '') {
+    env.net.online = false;
+    const html = await (await w.navigate(path)).text();
+    expect(named(html).length).toBeGreaterThan(0);
+    for (const f of named(html)) {
+      expect(await has(env, f), f).toBe(true);
+      expect((await w.request(f)).status, f).toBe(200);
+    }
+    return html;
+  }
+
+  it('a new worker activating with a stale list keeps the files the cached page names', async () => {
+    const env = makeEnv();
+    env.net.deploy('1', files('1'));
+    const w1 = await deployWorker(env);
+    freshPageStaleList(env, '2'); // build 2's page is live; precache.json is still build 1's
+    await load(w1);
+    const w2 = await deployWorker(env); // build 2's worker installs over the stale list and prunes
+    expect(await launchesOffline(env, w2)).toBe(shell('2'));
+  });
+
+  it('a top-up prune with a stale list keeps the files the cached page names', async () => {
+    const env = makeEnv();
+    env.net.deploy('1', files('1'));
+    const w = await deployWorker(env);
+    freshPageStaleList(env, '2');
+    await load(w);
+    await w.navigate(); // the next online page load tops up and prunes, the list still stale
+    expect(await launchesOffline(env, w)).toBe(shell('2'));
+  });
+
+  it('an online top-up refreshes the index.html shell, so an offline launch with a query string still starts', async () => {
+    const env = makeEnv();
+    const w = startWorker(env);
+    for (const b of ['1', '2', '3', '4']) {
+      env.net.deploy(b, [`assets/index-${b}.js`, `assets/ground-${b}.js`, `assets/index-${b}.css`, `assets/woods-${b}.js`]);
+      env.net.serve('', shell(b));
+      env.net.serve('index.html', shell(b));
+      await load(w); // the same worker sees each build only by page loads
+    }
+    expect(await (await env.caches.match(url('index.html'))).text()).toBe(shell('4'));
+    expect(await has(env, 'assets/index-1.js')).toBe(false); // build 1 is pruned
+    expect(await launchesOffline(env, w, '?from=home')).toBe(shell('4'));
+  });
+
+  it('a failed refresh keeps the index.html shell already cached', async () => {
+    const env = makeEnv();
+    env.net.deploy('1', files('1'));
+    env.net.serve('index.html', shell('1'));
+    const w = await deployWorker(env);
+    env.net.unserve('index.html'); // a 404 mid-deploy
+    await w.navigate();
+    expect(await (await env.caches.match(url('index.html'))).text()).toBe(shell('1'));
+  });
+});
