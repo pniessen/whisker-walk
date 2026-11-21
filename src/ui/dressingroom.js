@@ -10,7 +10,7 @@ import { opensAfterLine, lower, goHereLine } from '../territories.js';
 import { worldMapModel } from '../worldmap.js';
 import { renderWorldMapHtml } from './territorymap.js';
 import { placeCardFor, renderPlaceCardHtml } from './placecard.js';
-import { clanPickerModel, CLAN_EMBLEMS } from './clanpicker.js';
+import { clanPickerModel, emblemOf } from './clanpicker.js';
 import { clanName, isClanId } from '../clanhomes.js';
 import { SKILLS, hasSkill } from '../skills.js';
 import { prizeVisit } from '../visits.js';
@@ -448,7 +448,7 @@ function wearingHtml(m, ui, thumbs) {
 // card's top-left corner, beside the card, not inside it.
 function todayHtml(m, extrasHtml = '') {
   const p = m.currentPlace;
-  const emblem = p.clan && CLAN_EMBLEMS[p.clan] ? `<span class="dr-today-emblem">${CLAN_EMBLEMS[p.clan]}</span>` : '';
+  const emblem = p.clan && emblemOf(p.clan) ? `<span class="dr-today-emblem">${emblemOf(p.clan)}</span>` : '';
   const label = `Going to: ${p.name}. Change place`;
   return `<section class="dr-today">
     <p class="dr-label">Today’s place</p>
