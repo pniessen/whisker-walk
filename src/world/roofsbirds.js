@@ -6,7 +6,7 @@
 // TWO DRAWS (S12). Every bird is one instance of `roofsFlock` (body, head,
 // beak and tail in one low-poly, vertex-coloured geometry) and two of
 // `roofsFlockWings` (one wing, mirrored for the right): two InstancedMeshes,
-// coloured per kind by instanceColor (BIRD_LOOK), scaled by the kind's
+// coloured per kind by instanceColor (BIRD_LOOK; the guide white, GUIDE_LOOK), scaled by the kind's
 // BIRD_KINDS scale, casting nothing, never culled. Made inside
 // withLocalUuids, so making them draws nothing on Math.random.
 //
@@ -50,7 +50,11 @@
 // IN FLIGHT the wings beat (WINGBEAT: 8 Hz, 0.9 rad either way; 3 Hz, 0.4
 // under reduced motion), and the bird glides over a flight's last 30%.
 //
-// THE GUIDE (roofsflock.js GUIDE, the owner's answer of 2026-11-21): until
+// THE GUIDE (roofsflock.js GUIDE, the owner's answer of 2026-11-21): a white
+// pigeon (GUIDE_LOOK, its instance's colour, for the whole walk), so a child
+// spots it at phone size; while it waits on its route it bobs (GUIDE_BOB: a
+// small step in place, its nose nodding, every 2 s; not under reduced
+// motion), drawn only (its spot, `pos`, stays on its perch). Until
 // she has once walked plank-3 from end to end (GUIDE_CROSSING), the guide
 // pigeon waits in the alley on every walk (at GUIDE.start, guideStep 0) and,
 // each time she flushes it, flies on to its route's next stop; after the last
@@ -89,6 +93,16 @@ export const BIRD_LOOK = Object.freeze({
   sparrow: Object.freeze({ body: 0x8a6040, wing: 0x6e4a30 }),
   gull: Object.freeze({ body: 0xeceae4, wing: 0xb8bcc2 }),
 });
+
+// The guide pigeon (GUIDE.bird) is white, for the whole walk, retired or
+// not: the one a child learns to look for (the owner's tweak, 2026-11-21).
+// Its wings a touch greyer, so the folded wings still read.
+export const GUIDE_LOOK = Object.freeze({ body: 0xf1eee6, wing: 0xd9d6ce });
+// While it waits on its route (guideStep >= 0, perched) it bobs: a step in
+// place every `every` s (phased per bird), `time` s long, its body up to `up`
+// m off its perch and its nose nodding up to `nod` rad at `hz`. None under
+// reduced motion.
+export const GUIDE_BOB = Object.freeze({ up: 0.025, nod: 0.14, hz: 1.8, time: 0.55, every: 2 }); // one step in a bob (hz x time ~ 1)
 
 export const PECK = Object.freeze({ pitch: 0.35, time: 0.25, every: Object.freeze([1.5, 3]), kinds: Object.freeze(['pigeon', 'sparrow']) });
 // how far a sitting bird looks round from its rest heading (rad), how often
@@ -150,7 +164,7 @@ function graphOf(perches) {
   return g;
 }
 
-const SALT = Object.freeze({ rest: 41, look: 43, lookAt: 47, peck: 53, wing: 59 });
+const SALT = Object.freeze({ rest: 41, look: 43, lookAt: 47, peck: 53, wing: 59, bob: 61 });
 
 // ---------------------------------------------------------------------------
 // The shapes, a pigeon's size (the instances scale them): feet at the origin,
@@ -254,7 +268,7 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
     const rest = hash01(i, 1, SALT.rest) * Math.PI * 2;
     return {
       scale: BIRD_KINDS[b.kind].scale, rest, yaw: rest, look: 0, lookK: 0, lookAt: lookTime(i, 0), peckK: 0, peckAt: peckTime(i, 0, 0), pitch: 0,
-      wing: hash01(i, 2, SALT.wing) * Math.PI * 2, flight: null, from: null, dest: null, s: 0, flutterT: 0, restT: 0,
+      wing: hash01(i, 2, SALT.wing) * Math.PI * 2, bob: hash01(i, 3, SALT.bob) * GUIDE_BOB.every, lift: 0, flight: null, from: null, dest: null, s: 0, flutterT: 0, restT: 0,
       owed: false, ask: { index: i, kind: b.kind, at: b.at, flights: 0, guideStep: -1 },
       // its flight's plan (filled again on each take-off) and its guideStep on landing
       plan: { d: 0, h: 0, time: 0, shape: 'arc', top: 0 }, nextStep: -1,
@@ -290,8 +304,9 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
     const w = make('roofsFlockWings', wingGeometry(), birds.length * 2);
     const c = new THREE.Color();
     birds.forEach((b, i) => {
-      f.setColorAt(i, c.setHex(BIRD_LOOK[b.kind].body));
-      w.setColorAt(2 * i, c.setHex(BIRD_LOOK[b.kind].wing));
+      const look = b.id === GUIDE.bird ? GUIDE_LOOK : BIRD_LOOK[b.kind];
+      f.setColorAt(i, c.setHex(look.body));
+      w.setColorAt(2 * i, c.setHex(look.wing));
       w.setColorAt(2 * i + 1, c);
     });
     return { flock: f, wings: w };
@@ -314,7 +329,7 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
   function draw(i) {
     const b = birds[i];
     const s = idle[i];
-    at.set(b.pos.x, b.pos.y, b.pos.z);
+    at.set(b.pos.x, b.pos.y + (b.flying ? 0 : s.lift), b.pos.z);
     euler.set(s.pitch, s.yaw, 0);
     rot.setFromEuler(euler);
     size.setScalar(s.scale);
@@ -530,6 +545,17 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
     }
     const u = (walk - s.peckAt) / PECK.time;
     s.pitch = pecks && u >= 0 && u <= 1 ? PECK.pitch * Math.sin(Math.PI * u) : 0;
+    s.lift = 0;
+    // the guide waiting on its route: its bob, in place of a peck
+    if (b.guideStep >= 0 && !reducedMotion) {
+      const t = (walk + s.bob) % GUIDE_BOB.every;
+      if (t < GUIDE_BOB.time) {
+        const env = Math.sin((Math.PI * t) / GUIDE_BOB.time);
+        const w = 2 * Math.PI * GUIDE_BOB.hz * t;
+        s.lift = GUIDE_BOB.up * env * (0.5 - 0.5 * Math.cos(w));
+        s.pitch = GUIDE_BOB.nod * env * Math.sin(w);
+      } else s.pitch = 0;
+    }
   }
 
   for (let i = 0; i < birds.length; i++) draw(i);

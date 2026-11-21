@@ -25,7 +25,7 @@ vi.stubGlobal('document', {
 });
 
 const { build } = await import('../src/world/roofs.js');
-const { createRoofsBirds, BIRD_LOOK, WINGBEAT, FLUTTER, GUIDE_KEY, GUIDE_CROSSED, GUIDE_FLUSH, resetGuidePage } = await import('../src/world/roofsbirds.js');
+const { createRoofsBirds, BIRD_LOOK, GUIDE_LOOK, GUIDE_BOB, WINGBEAT, FLUTTER, GUIDE_KEY, GUIDE_CROSSED, GUIDE_FLUSH, resetGuidePage } = await import('../src/world/roofsbirds.js');
 const {
   BIRD_KINDS, ROOFS_BIRDS, GUIDE, FLIGHT, LOFT_REST, OUT_OF_SIGHT,
   flockPerches, perchIndex, flightGraph, flightPlan, flightPoint, chooseFlight, roofsCritterSpawns,
@@ -154,11 +154,13 @@ describe('the flock drawn, perched', () => {
       expect(p.y).toBeCloseTo(home.y, 4);
       expect(p.z).toBeCloseTo(home.z, 4);
       expect(p.scale).toBeCloseTo(BIRD_KINDS[r.kind].scale, 5);
+      // (the guide is white: its own test, below)
+      const look = r.id === GUIDE.bird ? GUIDE_LOOK : BIRD_LOOK[r.kind];
       flock.getColorAt(i, c);
-      expect(c.getHex(), r.id).toBe(new THREE.Color(BIRD_LOOK[r.kind].body).getHex());
+      expect(c.getHex(), r.id).toBe(new THREE.Color(look.body).getHex());
       for (const w of [2 * i, 2 * i + 1]) {
         wings.getColorAt(w, c);
-        expect(c.getHex(), r.id).toBe(new THREE.Color(BIRD_LOOK[r.kind].wing).getHex());
+        expect(c.getHex(), r.id).toBe(new THREE.Color(look.wing).getHex());
       }
     });
     // the wings folded: each lies along its own bird's body, one on either side
@@ -251,13 +253,15 @@ describe('the flock drawn, perched', () => {
       expect(turns).toBeGreaterThanOrEqual(3);
       expect(Math.max(...ys.map((y) => angle(y, ys[0])))).toBeLessThan(2);
     }
-    // near her (3 m off, within 6 m), each bird turns to face her, and none pecks
+    // near her (3 m off, within 6 m), each bird turns to face her, and none
+    // pecks (the guide, waiting on its route, only nods in its bob: below)
     f.birds.forEach((b, i) => {
       const cat = { x: b.pos.x + 2.4, y: b.pos.y, z: b.pos.z - 1.8 };
       run(f, 1.5, cat);
       const p = pose(flock, i);
       expect(angle(p.yaw, Math.atan2(cat.x - p.x, cat.z - p.z)), b.id).toBeLessThan(0.02);
-      run(f, 3, cat, dt, () => expect(Math.abs(pose(flock, i).pitch), b.id).toBeLessThan(1e-6));
+      const most = b.guideStep >= 0 ? GUIDE_BOB.nod + 1e-6 : 1e-6;
+      run(f, 3, cat, dt, () => expect(Math.abs(pose(flock, i).pitch), b.id).toBeLessThan(most));
     });
     f.dispose();
   });
@@ -280,6 +284,92 @@ describe('the flock drawn, perched', () => {
     // a frame with no time in it, or a long one, is fine
     expect(() => { f.update(0, null, null); f.update(2, cat, null); }).not.toThrow();
     f.dispose();
+  });
+
+  // The owner's tweak (2026-11-21): the guide is easy to spot, a white pigeon
+  // that bobs while it waits.
+  it('the guide pigeon is white, waiting or retired, and every other bird keeps its kind\'s colours', () => {
+    expect(GUIDE_LOOK).toEqual({ body: 0xf1eee6, wing: 0xd9d6ce });
+    const c = new THREE.Color();
+    for (const store of [memStore(), memStore(GUIDE_CROSSED)]) {
+      const f = createRoofsBirds(area, { scene: new THREE.Scene(), guideStore: store });
+      const [flock, wings] = f.meshes;
+      expect([flock.count, wings.count]).toEqual([14, 28]); // still the two meshes, no third
+      f.birds.forEach((b, i) => {
+        const look = b.id === GUIDE.bird ? GUIDE_LOOK : BIRD_LOOK[b.kind];
+        flock.getColorAt(i, c);
+        expect([b.id, c.getHex()]).toEqual([b.id, new THREE.Color(look.body).getHex()]);
+        for (const w of [2 * i, 2 * i + 1]) {
+          wings.getColorAt(w, c);
+          expect([b.id, c.getHex()]).toEqual([b.id, new THREE.Color(look.wing).getHex()]);
+        }
+      });
+      // and it stays white for the whole walk
+      run(f, 3, null);
+      const g = f.birds.findIndex((b) => b.id === GUIDE.bird);
+      flock.getColorAt(g, c);
+      expect(c.getHex()).toBe(new THREE.Color(GUIDE_LOOK.body).getHex());
+      f.dispose();
+    }
+  });
+
+  it('waiting on its route the guide bobs, a small step in place every few seconds; an ordinary pigeon does not, nor the guide under reduced motion', () => {
+    expect(GUIDE_BOB.up).toBeGreaterThanOrEqual(0.02);
+    expect(GUIDE_BOB.up).toBeLessThanOrEqual(0.03);
+    expect(GUIDE_BOB.hz).toBeGreaterThanOrEqual(1.5);
+    expect(GUIDE_BOB.hz).toBeLessThanOrEqual(2);
+    const dt = 1 / 60;
+    // what bird i's drawn pose does over `seconds`: its height's range over
+    // its perch, its pitch's largest, and how many separate bobs
+    const watch = (f, i, seconds) => {
+      const [flock] = f.meshes;
+      const rest = f.birds[i].pos.y;
+      let [lo, hi, nod, bobs, was] = [Infinity, -Infinity, 0, 0, false];
+      run(f, seconds, null, dt, () => {
+        const p = pose(flock, i);
+        lo = Math.min(lo, p.y - rest);
+        hi = Math.max(hi, p.y - rest);
+        nod = Math.max(nod, Math.abs(p.pitch));
+        const up = p.y - rest > 1e-4;
+        if (up && !was) bobs++;
+        was = up;
+      });
+      return { lo, hi, nod, bobs };
+    };
+    // the guide waiting in the alley (guideStep 0, no critters: never flushed)
+    const f = createRoofsBirds(area, { scene: new THREE.Scene(), guideStore: memStore() });
+    const g = f.birds.findIndex((b) => b.id === GUIDE.bird);
+    expect(f.birds[g].guideStep).toBe(0);
+    const w = watch(f, g, 8);
+    expect(w.lo).toBeGreaterThan(-1e-4); // never into its perch
+    expect(w.hi).toBeGreaterThan(0.015); // a bob you can see
+    expect(w.hi).toBeLessThanOrEqual(GUIDE_BOB.up + 1e-4); // and a small one
+    expect(w.nod).toBeGreaterThan(0.05); // its head nods
+    expect(w.nod).toBeLessThanOrEqual(GUIDE_BOB.nod + 1e-6);
+    expect(w.bobs).toBeGreaterThanOrEqual(3); // about every 2 s
+    expect(w.bobs).toBeLessThanOrEqual(5);
+    // where it stands: it bobs in place
+    const p = pose(f.meshes[0], g);
+    expect([p.x, p.z].map((n) => +n.toFixed(4))).toEqual([f.birds[g].pos.x, f.birds[g].pos.z].map((n) => +n.toFixed(4)));
+    // an ordinary pigeon, sitting on an aerial, keeps today's idle: never off its perch
+    const o = f.birds.findIndex((b) => b.kind === 'pigeon' && b.id !== GUIDE.bird && I.get(b.at).kind === 'aerial');
+    const ow = watch(f, o, 8);
+    expect([ow.lo, ow.hi, ow.nod].map((n) => Math.abs(n) < 1e-5)).toEqual([true, true, true]);
+    f.dispose();
+    // the guide retired (guideStep -1) does not bob
+    const r = createRoofsBirds(area, { scene: new THREE.Scene(), guideStore: memStore(GUIDE_CROSSED) });
+    const rg = r.birds.findIndex((b) => b.id === GUIDE.bird);
+    expect(r.birds[rg].guideStep).toBe(-1);
+    expect(watch(r, rg, 8).hi).toBeLessThan(1e-5);
+    r.dispose();
+    // under reduced motion, waiting, it does not bob (still white)
+    const rm = createRoofsBirds(area, { scene: new THREE.Scene(), guideStore: memStore(), reducedMotion: true });
+    const rw = watch(rm, g, 8);
+    expect([rw.lo, rw.hi, rw.nod].map((n) => Math.abs(n) < 1e-5)).toEqual([true, true, true]);
+    const c = new THREE.Color();
+    rm.meshes[0].getColorAt(g, c);
+    expect(c.getHex()).toBe(new THREE.Color(GUIDE_LOOK.body).getHex());
+    rm.dispose();
   });
 
   it('making the flock draws nothing on Math.random', () => {
