@@ -2840,3 +2840,65 @@ body.touch-mode .fight-key { display: none; }
      is a few letters wide here; it may use the screen */
   .visit-welcome { max-width: calc(100vw - 44px) !important; overflow-wrap: break-word; }
 }
+
+/* The birthday party (ui/party.js), while the birthday is on: a banner over
+   the hero cat, balloons bobbing round it, confetti over the whole screen.
+   None of it takes a tap. Pink is Start's alone: the banner is navy and gold;
+   the balloons and confetti may be every colour. Reduced motion: the
+   balloons stand still and the confetti only fades. */
+.party-layer { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.dr-stage.party-on .dr-spin-hint { display: none; }
+.party-banner {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  max-width: calc(100% - 24px); box-sizing: border-box; text-align: center;
+  background: rgba(20, 26, 38, .72); color: #f2c14e; border: 1.5px solid #f2c14e; border-radius: 999px;
+  padding: 6px 16px; font-weight: 800; font-size: 19px; line-height: 1.25; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0, 0, 0, .5);
+  animation: party-banner-in .6s ease-out both;
+}
+@media (max-width: 600px) { .party-banner { font-size: 15px; padding: 5px 12px; } }
+@keyframes party-banner-in { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.party-balloons { position: absolute; inset: 0; }
+.party-balloon {
+  position: absolute; width: calc(34px * var(--s, 1)); height: calc(42px * var(--s, 1));
+  border-radius: 50% 50% 48% 48% / 56% 56% 44% 44%;
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, .55) 0 12%, transparent 13%), var(--c);
+  box-shadow: inset -4px -6px 10px rgba(0, 0, 0, .18);
+  animation: party-bob var(--d, 6s) ease-in-out infinite;
+}
+.party-balloon::before { /* the knot */
+  content: ''; position: absolute; left: 50%; bottom: -4px; transform: translateX(-50%);
+  border-style: solid; border-width: 0 4px 6px; border-color: transparent transparent var(--c);
+}
+.party-balloon::after { /* the string */
+  content: ''; position: absolute; left: 50%; top: 100%; width: 1px; height: calc(46px * var(--s, 1));
+  background: rgba(241, 224, 194, .6); transform-origin: top; transform: rotate(4deg);
+}
+@keyframes party-bob {
+  0%, 100% { transform: translate(0, 0) rotate(-3deg); }
+  50% { transform: translate(4px, -12px) rotate(3deg); }
+}
+.party-balloons.still .party-balloon { animation: none; }
+.party-confetti { position: fixed; inset: 0; z-index: 30; pointer-events: none; overflow: hidden; }
+.party-bit {
+  position: absolute; top: -16px; width: 8px; height: 13px; border-radius: 2px; background: var(--c);
+  animation-name: party-fall; animation-timing-function: cubic-bezier(.3, .2, .6, 1); animation-fill-mode: both;
+}
+.party-bit.round { width: 9px; height: 9px; border-radius: 50%; }
+@keyframes party-fall {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translate(24px, 108vh) rotate(var(--spin, 360deg)); opacity: 0; }
+}
+.party-confetti.still .party-bit { animation-name: party-fade; animation-duration: 2.8s !important; animation-delay: 0s !important; }
+@keyframes party-fade { 0%, 60% { opacity: 1; } 100% { opacity: 0; } }
+.party-line {
+  position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%);
+  background: rgba(20, 26, 38, .82); color: #f2c14e; border: 2px solid #f2c14e; border-radius: 18px;
+  padding: 10px 22px; font: 800 26px/1.2 Avenir, Nunito, 'Trebuchet MS', sans-serif; white-space: nowrap;
+  animation: party-fade 3.6s ease-in both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .party-balloon, .party-banner { animation: none; }
+  .party-bit { animation-name: party-fade; animation-duration: 2.8s !important; animation-delay: 0s !important; }
+}

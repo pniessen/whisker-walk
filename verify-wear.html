@@ -13,6 +13,9 @@
        sit-tabby|digit|mainecoon       the dress-up's sit (defaultPoseCat);
        ground              every outfit's buildFindDisplay on grass, 1.2 m off,
                            at cat height, no twinkle;
+       gifts               the gift outfits (src/foundwear/gifts.js, the
+                           birthday's four) on three cats, then all four worn
+                           together on three cats and Hagrid;
        <area>-finds        a street area built, its outfits each at a real spot
                            (a spread of looks; one raised if it has any), four
                            views, verify-finds.html's spot() framing.
@@ -51,6 +54,7 @@
   import { createShadowFit } from '/src/render/shadowfit.js';
   import { groundOf } from '/src/ground.js';
   import { FOUND_WEAR, foundWearIn } from '/src/foundwear/index.js';
+  import { GIFT_WEAR } from '/src/foundwear/gifts.js';
   import { HEN_SLOTS } from '/src/foundwear/rules.js';
   import { spotsIn } from '/src/foundwear/spots/index.js';
   import { createFind } from '/src/foundwear/live.js';
@@ -186,6 +190,38 @@
     $('title').textContent = title;
   }
 
+  // ---- the gift sheet: the gift outfits, one by one on three cats, then all
+  // four together (a 4 x 4 grid) ----
+  function giftSheet() {
+    clearLabels();
+    newScene();
+    const lawn = new THREE.Mesh(new THREE.CircleGeometry(2.2, 40), litMaterial(0x6cb058));
+    lawn.rotation.x = -Math.PI / 2;
+    lawn.receiveShadow = true;
+    world.scene.add(lawn);
+    finishRig(0x6cb058, 4);
+    const all = Object.fromEntries(GIFT_WEAR.map((r) => [r.slot, r.id]));
+    const tiles = [];
+    for (const breed of ['tabby', 'black', 'mainecoon']) for (const rec of GIFT_WEAR) tiles.push({ breed, wear: { ...BARE, [rec.slot]: rec.id }, id: rec.id, title: rec.name(), sub: `${rec.slot} · ${breed}` });
+    for (const breed of ['tabby', 'calico', 'd2', 'hagrid']) tiles.push({ breed, wear: { ...BARE, ...all }, id: 'bdayballoon', title: 'All four', sub: breed, whole: true });
+    tiles.forEach((t, i) => {
+      const box = tileBox(i, 4, 4);
+      const cat = buildCat(t.breed, t.wear);
+      const { closeUp, rotY } = accessoryFraming(t.id);
+      cat.rotation.y = t.whole ? -0.6 : rotY;
+      world.scene.add(cat);
+      const k = cat.scale.x;
+      if (t.breed === 'hagrid') { camera.position.set(0.9 * k, 1.1 * k, -1.5 * k); camera.lookAt(0, 0.7 * k, 0); }
+      else if (closeUp && !t.whole) { camera.position.set(0.85 * k, 0.99 * k, -1.11 * k); camera.lookAt(0, 0.64 * k, -0.21 * k); }
+      else { camera.position.set(1.45 * k, 1.2 * k, -1.8 * k); camera.lookAt(0, 0.52 * k, 0); }
+      renderTile(box);
+      world.scene.remove(cat);
+      cat.traverse((o) => { o.geometry?.dispose?.(); });
+      label(box, t.title, t.sub);
+    });
+    $('title').textContent = 'gifts';
+  }
+
   // ---- the ground sheet: buildFindDisplay on grass ----
   function groundSheet() {
     clearLabels();
@@ -311,6 +347,7 @@
     else if (m === 'hagrid') catSheet(name, hagridRecs, HAGRID);
     else if (/^sit-/.test(name) && ['tabby', 'digit', 'mainecoon'].includes(name.slice(4))) catSheet(name, FOUND_WEAR, (w) => buildCat(name.slice(4), w), { sit: true, pull: name === 'sit-digit' ? 1.2 : 1 });
     else if (name === 'ground') groundSheet();
+    else if (name === 'gifts') giftSheet();
     else if (/-finds$/.test(name) && Object.hasOwn(AREA_BUILD, name.slice(0, -6))) areaSheet(name.slice(0, -6));
     else throw new Error(`no such sheet: ${name}`);
     return name;

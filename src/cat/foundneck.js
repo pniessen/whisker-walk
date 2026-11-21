@@ -345,11 +345,11 @@ function addTicketGarland(head, a) {
 const ROSETTE_RIBBON = 0x8a5cf0, ROSETTE_GOLD = 0xf5c518, ROSETTE_PINK = 0xf27ab0, ROSETTE_CREAM = 0xfff4e0;
 function addBirthdayRosette(head, a) {
   const { k } = a, tube = 0.011 * k, ringR = a.ringR + 0.004 * k;
-  const c = [0, -0.042 * k];
+  const c = [0, -0.03 * k];
   const at = (g, dz = 0) => g.translate(c[0], c[1], dz);
-  const pleats = at(fan(ringPoints(16, 0.044 * k, 0.035 * k), ROSETTE_PINK, [0, 0], 0.007 * k, (i) => (i % 2 ? ROSETTE_GOLD : ROSETTE_PINK), ROSETTE_PINK));
-  const middle = at(fan(ringPoints(10, 0.024 * k), ROSETTE_CREAM, [0, 0], 0.004 * k), 0.003 * k);
-  const button = at(colour(new THREE.SphereGeometry(0.011 * k, 6, 4).scale(1, 1, 0.55), (x, y) => (y > 0 ? 0xffe066 : ROSETTE_GOLD)), 0.008 * k);
+  const pleats = at(fan(ringPoints(16, 0.05 * k, 0.04 * k), ROSETTE_PINK, [0, 0], 0.007 * k, (i) => (i % 2 ? ROSETTE_GOLD : ROSETTE_PINK), ROSETTE_PINK));
+  const middle = at(fan(ringPoints(10, 0.028 * k), ROSETTE_CREAM, [0, 0], 0.005 * k), 0.004 * k);
+  const button = at(colour(new THREE.SphereGeometry(0.013 * k, 6, 4).scale(1, 1, 0.55), (x, y) => (y > 0 ? 0xffe066 : ROSETTE_GOLD)), 0.01 * k);
   const parts = [pleats, middle, button];
   for (const s of [-1, 1]) {
     const tail = new THREE.BoxGeometry(0.02 * k, 0.062 * k, 0.004 * k).translate(0, -0.031 * k, 0).rotateZ(s * 0.28).translate(s * 0.012 * k, c[1] - 0.03 * k, -0.002 * k);
@@ -357,9 +357,9 @@ function addBirthdayRosette(head, a) {
   }
   for (let i = 0; i < 5; i++) {
     const t = Math.PI / 2 + (i / 5) * Math.PI * 2;
-    parts.push(colour(new THREE.OctahedronGeometry(0.0065 * k).scale(1, 1.4, 0.6).translate(c[0] + Math.cos(t) * 0.05 * k, c[1] + Math.sin(t) * 0.05 * k, 0.004 * k), 0xffffff));
+    parts.push(colour(new THREE.OctahedronGeometry(0.007 * k).scale(1, 1.4, 0.6).translate(c[0] + Math.cos(t) * 0.043 * k, c[1] + Math.sin(t) * 0.043 * k, 0.008 * k), 0xffffff));
   }
-  const rosette = onRing(mergeGeometries(parts), -Math.PI / 2, ringR + tube * 0.7, 0.004 * k);
+  const rosette = onRing(mergeGeometries(parts), -Math.PI / 2, ringR + tube + 0.006 * k, 0);
   neckRing(head, { ...a, ringR }, paintedTorus(ringR, tube, 4, 16, (u, v) => (Math.abs(Math.sin(v)) > 0.85 ? ROSETTE_GOLD : ROSETTE_RIBBON)), painted(), [rosette], { side: THREE.DoubleSide });
 }
 
@@ -471,9 +471,9 @@ function dressAnchor(group, ring, { ringR, tubeR, charmPos }) {
 // and, at the throat, a slice of birthday cake facing -z, one mesh: a
 // wedge, point down, in layers (sponge, jam, sponge), white frosting along
 // its wide top, and a red cherry on the frosting.
-const CAKE_SPONGE = 0xf6dca0, CAKE_JAM = 0xd8607e, CAKE_FROSTING = 0xfff4e0, CAKE_CHERRY = 0xd8303c;
+const CAKE_SPONGE = 0xf2c46e, CAKE_JAM = 0xd8607e, CAKE_FROSTING = 0xfff4e0, CAKE_CHERRY = 0xd8303c;
 function dressCakeCharm(group, ring, { tubeR, charmPos }) {
-  const u = tubeR * 1.25, W = 1.5 * u, yTip = -0.95 * u, yTop = 0.55 * u, d = 0.42 * u;
+  const u = tubeR * 1.6, W = 1.5 * u, yTip = -0.95 * u, yTop = 0.55 * u, d = 0.42 * u;
   const half = (y) => (W / 2) * (y - yTip) / (yTop - yTip);
   const layer = (y0, y1, hex, grow = 0, deep = d) => {
     const pts = [[-half(y0) - grow, y0], [half(y0) + grow, y0], [half(y1) + grow, y1], [-half(y1) - grow, y1]];

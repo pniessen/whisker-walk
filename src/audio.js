@@ -555,6 +555,26 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       tone(freq, 0.5, { type: 'triangle', gain: 0.028 * v, attack: 0.004 });
       tone(freq * 2, 0.22, { gain: 0.008 * v, attack: 0.004 });
     },
+    // A short tune on the music box (the birthday song, src/birthdaysong.js):
+    // notes [{ at, freq, dur }], `at` seconds from now. Each is musicBoxNote's
+    // shape, a touch louder because it is the thing to hear. Muted, or at
+    // volume 0, nothing is made. Called from a tap, so a context the browser
+    // still holds suspended is asked to start.
+    playTune(notes, volume = 1) {
+      const v = Math.max(0, Math.min(1, Number(volume) || 0));
+      if (muted || v <= 0 || !Array.isArray(notes)) return 0;
+      const ac = ensure();
+      try { if (ac.state === 'suspended') ac.resume?.()?.catch?.(() => {}); } catch { /* it plays when it can */ }
+      let n = 0;
+      for (const note of notes) {
+        if (!note || !Number.isFinite(note.freq) || !Number.isFinite(note.at)) continue;
+        const dur = Number.isFinite(note.dur) ? note.dur : 0.5;
+        tone(note.freq, dur, { type: 'triangle', gain: 0.06 * v, attack: 0.004, delay: note.at });
+        tone(note.freq * 2, Math.min(0.25, dur), { gain: 0.016 * v, attack: 0.004, delay: note.at });
+        n++;
+      }
+      return n;
+    },
     bark() {
       tone(230, 0.12, { type: 'sawtooth', gain: 0.09, slideTo: 140 });
       tone(210, 0.12, { type: 'sawtooth', gain: 0.09, slideTo: 120, delay: 0.18 });
