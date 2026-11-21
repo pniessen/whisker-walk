@@ -638,7 +638,7 @@ function lookoutRockGeometry() {
 
 // The Woods' ground multiplier (forestfloor.js woodsFloorTint), plain at the
 // ground's edge. Built once; the ground is tinted with it and grass.js's
-// tufts read it (GROUND_TINTS).
+// tufts read it (GRASS_HOOKS.tint).
 const woodsTint = once(() => woodsFloorTint(woodsTreeSpots(), CLEARING, { edge: 60 }));
 // Bigger areas: with the switch on, past the old south edge the ground (and
 // the grass, which reads this too) wears the strip's own floor

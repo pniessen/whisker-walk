@@ -16,7 +16,7 @@ export const PARK_LAWN = 0x5c9e4e;
 // A slow mottle over a mown lawn: broad sunny patches a little warmer and
 // drier, broad shaded ones cooler and deeper, about 20 m across with a finer
 // 9 m wobble, so the lawn isn't one flat sheet. A multiplier on the ground's
-// vertex colour (tintGround) that grass.js's tufts follow too (GROUND_TINTS).
+// vertex colour (tintGround) that grass.js's tufts follow too (GRASS_HOOKS.tint).
 // Pure function of (x, z); hash-seeded fields, no draws. Shared with the
 // neighbourhood's lawn (its own salt).
 const LAWN_WARM = [1.07, 1.04, 0.86];

@@ -687,7 +687,7 @@ export function pinesFloor() {
 // The Pines' ground multiplier (forestfloor.js pinesFloorTint): needle beds
 // under the pines, moss between, plain on the island and over the ground's
 // last 8 m. Built once; the ground is tinted with it and grass.js's tufts
-// read it (GROUND_TINTS).
+// read it (GRASS_HOOKS.tint).
 const ISLAND_PLAIN = Object.freeze({ x: ISLAND_LAND.x, z: ISLAND_LAND.z, r: ISLAND_LAND.r + 1 });
 export const PINES_ISLAND_PLAIN = ISLAND_PLAIN;
 const pinesTint = once(() => {

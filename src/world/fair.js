@@ -444,7 +444,7 @@ export const FAIR_REGISTRATION = Object.freeze({
   // src/render/pawprints.js AREA_RULES.fair
   pawprints: Object.freeze({ ground: null, path: 'sand', strip: null }),
   // src/render/grass.js: GRASS_STYLES.fair is the mown LAWN (as the Park) with
-  // density 0 where fairBare(x, z); GROUND_TINTS.fair is fairGroundTint.
+  // density 0 where fairBare(x, z); GRASS_HOOKS.tint is fairGroundTint.
   grass: Object.freeze({ style: 'LAWN', bare: 'fairBare', groundTint: 'fairGroundTint' }),
   // src/marks.js MARK_AREAS and emptyMarks(): add 'fair'
   marks: true,
