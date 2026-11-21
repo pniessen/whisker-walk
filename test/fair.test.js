@@ -37,7 +37,8 @@ const {
 } = fair;
 const { MGR, FERRIS, TEACUPS, HELTER, COASTER, STATION, trackPose, coasterTrackPoints } = await import('../src/world/fairrides.js');
 const { TINS, BELL, FORTUNE, STALL, PICNIC, BANDSTAND, STALL_SIGN, SIGN_POST } = await import('../src/world/fairparts.js');
-const { GLOW_MAX, GLOW_LOOK } = await import('../src/world/fairkit.js');
+const { GLOW_MAX, GLOW_LOOK, LAMP_LOOK } = await import('../src/world/fairkit.js');
+const { SAWDUST_LOOK, TRAIL_LOOKS, fleckFade } = await import('../src/world/pathribbon.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { isWalkableAt, isWadeableAt, CAT_RADIUS } = await import('../src/player.js');
 const { inWater, waterClearance, shallowExcess } = await import('../src/world/builder.js');
@@ -1695,6 +1696,173 @@ describe('The Fairground: the beauty pass, round two', () => {
     for (const [x, z] of [[38.6, 38.4], [-40.4, 27.5], [25.2, -42.2]]) {
       expect(area.colliders.some((c) => Math.hypot(c.x - x, c.z - z) < 1.2), `${x},${z}`).toBe(true);
     }
+  });
+});
+
+// The finishing touches (2026-11-21), left by the beauty rounds until F6 gave
+// the Fairground its own download.
+describe('The Fairground: the finishing touches', () => {
+  const v = new THREE.Vector3();
+  // three's own standard shader, run through a material's onBeforeCompile
+  const compiled = (material) => {
+    const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
+    material.onBeforeCompile(shader);
+    return shader;
+  };
+  // a world point in a stall's own frame: lx across its front, lz out of it
+  const local = (s, p) => {
+    const dx = p.x - s.x, dz = p.z - s.z;
+    return { lx: dx * Math.cos(s.yaw) - dz * Math.sin(s.yaw), lz: dx * Math.sin(s.yaw) + dz * Math.cos(s.yaw), y: p.y };
+  };
+  const props = scene.getObjectByName('fairProps');
+  // every vertex of the props' mesh: where it is, its paint and how lamp-lit it is
+  const propVerts = (() => {
+    props.updateWorldMatrix(true, false);
+    const pos = props.geometry.getAttribute('position');
+    const col = props.geometry.getAttribute('color');
+    const lamp = props.geometry.getAttribute('fairLamp');
+    const out = [];
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(props.matrixWorld);
+      out.push({ x: v.x, y: v.y, z: v.z, c: [col.getX(i), col.getY(i), col.getZ(i)], lamp: lamp ? lamp.getX(i) : 0 });
+    }
+    return out;
+  })();
+  const inStall = (s, p, pad = 0.1) => {
+    const q = local(s, p);
+    return Math.abs(q.lx) < STALL.w / 2 + pad && q.lz > -STALL.d / 2 - pad && q.lz < STALL.counterZ + 0.4 + pad && q.y < STALL.roofY - 0.2;
+  };
+
+  it('lights every stall’s counter and what is on it from inside at dusk, and nothing out on the field', () => {
+    expect(props.geometry.getAttribute('fairLamp'), 'the props carry a lamp weight').toBeTruthy();
+    for (const s of STALLS) {
+      const mine = propVerts.filter((p) => inStall(s, p));
+      // the counter's board top, all of it
+      const top = mine.filter((p) => { const q = local(s, p); return Math.abs(p.y - STALL.counterY) < 0.004 && Math.abs(q.lz - STALL.counterZ) < 0.32; });
+      expect(top.length, s.id).toBeGreaterThan(0);
+      for (const p of top) expect(p.lamp, `${s.id} counter top`).toBeGreaterThan(0.5);
+      // the counter's front, facing the midway, a little less
+      const front = mine.filter((p) => { const q = local(s, p); return q.lz > STALL.counterZ + 0.24 && p.y > 0.2 && p.y < 0.7; });
+      expect(front.length, s.id).toBeGreaterThan(0);
+      for (const p of front) expect(p.lamp, `${s.id} counter front`).toBeGreaterThan(0.2);
+      // whatever stands on the counter, and the prizes on the back shelf
+      const goods = mine.filter((p) => { const q = local(s, p); return Math.abs(q.lx) < STALL.w / 2 - 0.1 && q.lz > -STALL.d / 2 + 0.1 && p.y > STALL.counterY + 0.02 && p.y < STALL.counterY + 0.9; });
+      expect(goods.length, s.id).toBeGreaterThan(0);
+      for (const p of goods) expect(p.lamp, `${s.id} goods`).toBeGreaterThan(0.5);
+    }
+    // the stalls' own walls and posts stay paint, and so does all the rest of the fair
+    const lit = propVerts.filter((p) => p.lamp > 0);
+    for (const p of lit) expect(STALLS.some((s) => inStall(s, p)), `lit at ${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)}`).toBe(true);
+    for (const s of STALLS) {
+      // the back wall and the painted panels on its outside
+      const back = propVerts.filter((p) => inStall(s, p) && local(s, p).lz < -STALL.d / 2 + 0.09 && p.y > 1.6);
+      const outside = propVerts.filter((p) => inStall(s, p) && local(s, p).lz < -STALL.d / 2);
+      // the side walls and the corner posts, above the counter
+      const sides = propVerts.filter((p) => inStall(s, p) && Math.abs(local(s, p).lx) > STALL.w / 2 - 0.11 && p.y > STALL.counterY + 0.2);
+      expect(outside.length, s.id).toBeGreaterThan(0);
+      expect(sides.length, s.id).toBeGreaterThan(0);
+      for (const p of [...back, ...outside, ...sides]) expect(p.lamp, `${s.id} wall`).toBe(0);
+    }
+  });
+
+  it('lights them warmly, never white, and under the bloom; by day they are plain paint', () => {
+    const m = props.material;
+    // the props' counters and goods, and the tins on the tin-can alley's shelf
+    const tins = area.rides.tinCans.map((t) => t.material);
+    expect(new Set(tins).size).toBe(1);
+    expect(area.glow.lamps).toEqual([m, tins[0]]);
+    expect(tins[0].emissive.getHex()).toBe(m.emissive.getHex());
+    for (const t of area.rides.tinCans) expect(t.geometry.getAttribute('fairLamp').getX(0)).toBe(1);
+    setFairGlow(area, 0);
+    expect(m.emissiveIntensity).toBe(0);
+    setFairGlow(area, 1);
+    expect(m.emissiveIntensity).toBeCloseTo(LAMP_LOOK.max, 9);
+    const e = m.emissive;
+    // a lamp's colour: red over green over blue, a long way from white
+    expect(e.r).toBeGreaterThan(e.g);
+    expect(e.g).toBeGreaterThan(e.b);
+    expect(e.b / e.r).toBeLessThan(0.5);
+    for (const p of propVerts.filter((q) => q.lamp > 0)) {
+      const glow = [p.c[0] * e.r, p.c[1] * e.g, p.c[2] * e.b].map((x) => x * m.emissiveIntensity * p.lamp);
+      expect(Math.max(...glow)).toBeLessThan(0.75);
+      // the white of a counter glows amber, never white
+      if (Math.min(...p.c) > 0.8) expect(glow[2] / glow[0]).toBeLessThan(0.5);
+    }
+    setFairGlow(area, 0.5);
+    for (const x of area.glow.lamps) expect(x.emissiveIntensity).toBeCloseTo(LAMP_LOOK.max / 2, 9);
+    setFairGlow(area, 0);
+    for (const x of area.glow.lamps) expect(x.emissiveIntensity).toBe(0);
+  });
+
+  it('glows each piece in its own paint, scaled by its lamp weight', () => {
+    const s = compiled(props.material);
+    for (const piece of ['attribute float fairLamp;', 'varying float vFairLamp;', 'vFairLamp = fairLamp;']) expect(s.vertexShader).toContain(piece);
+    expect(s.fragmentShader).toContain('varying float vFairLamp;');
+    expect(s.fragmentShader).toContain('totalEmissiveRadiance *= vColor.rgb * vFairLamp;');
+    // vColor is there to read: the props are painted per vertex
+    expect(props.material.vertexColors).toBe(true);
+    expect(THREE.ShaderChunk.color_pars_fragment).toContain('vColor');
+    expect(props.material.customProgramCacheKey()).toBe('fair-lamp-v1');
+    // it still casts and takes the sun's shadow, as before
+    expect(props.receiveShadow).toBe(true);
+    expect(props.userData.noCast).not.toBe(true);
+  });
+
+  it('stripes the helter-skelter’s slide in bands down its whole length', () => {
+    const slide = scene.getObjectByName('helterSlide');
+    slide.updateWorldMatrix(true, false);
+    const col = slide.geometry.getAttribute('color');
+    const ray = new THREE.Raycaster();
+    const down = new THREE.Vector3(0, -1, 0);
+    // walk down the centre line, reading the bed's paint every 5 cm
+    const s = HELTER_SLIDE;
+    const seen = [];
+    let along = 0;
+    for (let i = 1; i < s.length; i++) {
+      const len = Math.hypot(s[i].x - s[i - 1].x, s[i].y - s[i - 1].y, s[i].z - s[i - 1].z);
+      for (let u = 0; u < len; u += 0.05) {
+        const k = u / len;
+        const at = new THREE.Vector3(s[i - 1].x + (s[i].x - s[i - 1].x) * k, s[i - 1].y + (s[i].y - s[i - 1].y) * k + 0.2, s[i - 1].z + (s[i].z - s[i - 1].z) * k);
+        ray.set(at, down);
+        ray.far = 0.5;
+        const hit = ray.intersectObject(slide, false)[0];
+        if (hit) seen.push({ d: along + u, c: [col.getX(hit.face.a), col.getY(hit.face.a), col.getZ(hit.face.a)].map((x) => x.toFixed(3)).join() });
+      }
+      along += len;
+    }
+    expect(seen.length).toBeGreaterThan(along / 0.05 * 0.95);
+    // runs of one colour along the bed
+    const runs = [];
+    for (const p of seen) {
+      if (runs.length && runs[runs.length - 1].c === p.c) runs[runs.length - 1].to = p.d;
+      else runs.push({ c: p.c, from: p.d, to: p.d });
+    }
+    expect(new Set(runs.map((r) => r.c)).size).toBe(2);
+    expect(runs.length).toBeGreaterThan(along / 1.5);
+    // even bands, top to bottom (the first and last may be cut short)
+    for (const r of runs.slice(1, -1)) {
+      expect(r.to - r.from).toBeGreaterThan(0.45);
+      expect(r.to - r.from).toBeLessThan(1.4);
+    }
+  });
+
+  it('fades the sawdust’s flecks with distance, so they never sparkle far down the midway', () => {
+    const [near, far] = SAWDUST_LOOK.fleckFade;
+    // the flecks round her paws show in full (the camera rides 4.5 m behind her)
+    expect(near).toBeGreaterThanOrEqual(6);
+    expect(far).toBeLessThanOrEqual(20);
+    expect(fleckFade(0, SAWDUST_LOOK)).toBe(1);
+    expect(fleckFade(near, SAWDUST_LOOK)).toBe(1);
+    expect(fleckFade(far, SAWDUST_LOOK)).toBe(0);
+    expect(fleckFade(60, SAWDUST_LOOK)).toBe(0);
+    let last = 1;
+    for (let d = near; d <= far; d += 0.25) { const k = fleckFade(d, SAWDUST_LOOK); expect(k).toBeLessThanOrEqual(last); last = k; }
+    // the other looks keep their stones at every distance
+    for (const name of ['trail', 'gravel']) expect(fleckFade(60, TRAIL_LOOKS[name]), name).toBe(1);
+    // and the midway's shader does it, by the camera's distance
+    const trail = scene.children.find((o) => o.name === 'pathTrail');
+    const frag = compiled(trail.material).fragmentShader;
+    expect(frag).toContain('length(vViewPosition)');
   });
 });
 

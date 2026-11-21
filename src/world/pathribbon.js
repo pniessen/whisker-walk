@@ -76,7 +76,10 @@ export const GRAVEL_LOOK = {
 // sawdust strewn on it. Bigger, stronger blotches than a country trail (dry
 // and scuffed patches), a darker trodden margin where it meets the grass,
 // and dense small flecks: golden sawdust chips, a share of them dark crumbs
-// of earth. Same keys as GRAVEL_LOOK, no edging line.
+// of earth. Same keys as GRAVEL_LOOK, no edging line, and one only it has:
+//   fleckFade — [near, far] metres from the camera: the flecks show in full
+//     out to `near` and are gone by `far` (fleckFade() below), so far down
+//     the midway, where a fleck is smaller than a pixel, they never sparkle.
 export const SAWDUST_LOOK = {
   wobbleA1: 0.16, wobbleL1: 6.0,
   wobbleA2: 0.07, wobbleL2: 0.9,
@@ -88,6 +91,7 @@ export const SAWDUST_LOOK = {
   pebbleCell: 0.2, pebbleChance: 0.34, pebbleRMin: 0.02, pebbleRMax: 0.05,
   pebbleTint: [1.15, 1.07, 0.86], pebbleRim: 0.93, pebbleMinAlpha: 0.5,
   pebbleDark: [0.8, 0.7, 0.56], pebbleDarkShare: 0.35,
+  fleckFade: [7, 16],
 };
 
 export const TRAIL_LOOKS = { trail: TRAIL_LOOK, gravel: GRAVEL_LOOK, sawdust: SAWDUST_LOOK };
@@ -99,6 +103,16 @@ function lookOf(look) {
 function lookName(look) {
   if (typeof look === 'string') return TRAIL_LOOKS[look] ? look : 'trail';
   return Object.keys(TRAIL_LOOKS).find((k) => TRAIL_LOOKS[k] === (look ?? TRAIL_LOOK)) ?? 'custom';
+}
+
+// How much of a look's flecks (its pebbles) show at `d` metres from the
+// camera: 1 near, 0 far, a smoothstep between (the shader's own sum); 1 at
+// every distance for a look without fleckFade.
+export function fleckFade(d, look = TRAIL_LOOK) {
+  const F = lookOf(look).fleckFade;
+  if (!F) return 1;
+  const t = Math.min(1, Math.max(0, (d - F[0]) / (F[1] - F[0])));
+  return 1 - t * t * (3 - 2 * t);
 }
 
 const JOIN_SLACK = 0.05;
@@ -486,6 +500,10 @@ function fragBody(look = TRAIL_LOOK) {
   const pebbleTint = L.pebbleDark
     ? `(trailHash(tCell, 9.0) < ${f(L.pebbleDarkShare ?? 0.5)} ? ${v3(L.pebbleDark)} : ${v3(L.pebbleTint)})`
     : v3(L.pebbleTint);
+  // The flecks fade out with the camera's distance (fleckFade above).
+  const fleckFar = L.fleckFade
+    ? `\n      * (1.0 - smoothstep(${f(L.fleckFade[0])}, ${f(L.fleckFade[1])}, length(vViewPosition)))`
+    : '';
   const soft = L.edgeLineSoft ?? 0.02;
   const r4 = (x) => f(+x.toFixed(4));
   const edgeLine = L.edgeLine ? `
@@ -539,7 +557,7 @@ function fragBody(look = TRAIL_LOOK) {
     float pr = mix(${f(L.pebbleRMin)}, ${f(L.pebbleRMax)}, trailHash(tCell, 6.0));
     float q = length(tp - pc);
     float disk = (1.0 - smoothstep(pr - 0.01, pr, q))
-      * smoothstep(${f(L.pebbleMinAlpha)}, ${f(L.pebbleMinAlpha + 0.1)}, tAlpha);
+      * smoothstep(${f(L.pebbleMinAlpha)}, ${f(L.pebbleMinAlpha + 0.1)}, tAlpha)${fleckFar};
     vec3 pebble = ${pebbleTint} * mix(1.0, ${f(L.pebbleRim)}, smoothstep(0.55 * pr, pr, q));
     look = mix(look, pebble, disk);
   }${edgeLine}
