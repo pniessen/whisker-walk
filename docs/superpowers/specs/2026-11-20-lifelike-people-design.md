@@ -43,8 +43,18 @@ After the first pictures (2026-11-20, "Needs changes"):
 5. **Children appear only next to a grown-up**: beside an adult in town, and in
    pairs at the Fairground. None stand alone. (See "Pairs".)
 
-Still open: whether a head scratch is a real touch, and whether the faces are
-right (he named only the neck). See "Questions for the owner".
+After the v2 pictures (2026-11-20, v2 approved, and the build plan asked for):
+
+6. **Faces: more expression.** Bigger smiles, and eyes that follow the cat
+   when she is near: the head and eyes turn toward her within a few metres and
+   ease back. Keep it friendly, never staring or creepy. Blinks are welcome.
+   The details are left to the builder; the new faces are shown in the first
+   build step's pictures. (See "Expression".)
+7. **Head scratch: a real touch.** They kneel and the hand reaches her head
+   when she is within arm's reach; otherwise they hold the hand out and she can
+   come closer. The hand must never go through her head or body: it reaches to
+   her actual head position on the frame of the touch, and stays there while
+   she stays. (See "The head scratch".)
 
 ## Pictures
 
@@ -136,12 +146,15 @@ numbers, so this build does not move them.
 ## Anti-goals
 
 - **Nothing creepy.** No uncanny faces: no eye whites, no staring irises, no
-  teeth, no realistic noses or lips. Dark dot eyes, taller than wide, with one
-  small catchlight; soft brows whose outer ends dip a little; a small closed
-  smile. The far build drops everything but the eyes.
+  teeth, no realistic noses or lips, no open mouth. Dark dot eyes, taller than
+  wide, with one small catchlight; soft brows whose outer ends dip a little; a
+  closed smile. Eyes that follow her glance away and blink (decision 6), so
+  they never stare. The far build drops everything but the eyes.
 - **Nothing that scares a 9-year-old.** No sudden moves, no fast turns of the
-  head (turns ease over about half a second), no looming: a person never leans
-  over the cat or reaches over her. No frowns, no angry poses; "dismay" is a
+  head (turns ease over about half a second), no looming: a person's body
+  never leans over the cat. The one touch is the head scratch she asks for
+  (decision 7): only the hand comes to her, slowly, from in front and above,
+  and it rests on her head; it never passes through her. No frowns, no angry poses; "dismay" is a
   surprised "oh!", never a scold.
 - **No people at cat height crowding her.** People never stand where the cat
   is, never push her and never follow her (the Fairground's rule, kept). The
@@ -183,7 +196,7 @@ numbers, so this build does not move them.
 
 | | How | Trade-off | |
 |---|---|---|---|
-| **A** | **A jointed figure built in code: shaped rigid parts (lathed limbs with rounded ends that overlap at elbow and knee, a lathed torso, a shaped head), each bound wholly to one of 17 joints, drawn as ONE rigidly skinned mesh per person** | Like the cats: built in code, tunable, no art pipeline. One draw per person whatever the pose. Joints read clearly at elbow and knee. Needs a little care where parts meet (the seat and thighs, the shoulders). | **chosen** (owner, decision 2) |
+| **A** | **A jointed figure built in code: shaped rigid parts (lathed limbs with rounded ends that overlap at elbow and knee, a lathed torso, a shaped head), each bound wholly to one of 20 joints, drawn as ONE rigidly skinned mesh per person** | Like the cats: built in code, tunable, no art pipeline. One draw per person whatever the pose. Joints read clearly at elbow and knee. Needs a little care where parts meet (the seat and thighs, the shoulders). | **chosen** (owner, decision 2) |
 | B | A smooth skinned figure: one continuous skin with blended weights, modelled in a 3D tool or as a generated mesh, loaded as glTF | Smoothest bends; but a modelled asset and an import path the game has never had, weights to paint, larger downloads, and smooth, realistic humans are where the uncanny valley starts | not chosen |
 | C | Shape only: a better-proportioned static figure with today's three-mesh rig (one arm moves) | Cheapest; but no knees, no stride, no real wave, no turning to look. Fails decision 1. | not chosen |
 
@@ -200,8 +213,8 @@ How A is drawn was its own choice:
 ### Joints
 
 `root` (feet, the figure's origin), `pelvis`, `chest`, `neck`, `head`, and per
-side `upperArm`, `forearm`, `hand`, `thigh`, `shin`, `foot`: 17 bones, one
-`Skeleton`. Pelvis, chest, neck and head turn in `YXZ` order so a look is a
+side `upperArm`, `forearm`, `hand`, `thigh`, `shin`, `foot`; and on the head
+`eyeL`, `eyeR` and `mouth` (decision 6): 20 bones, one `Skeleton`. Pelvis, chest, neck and head turn in `YXZ` order so a look is a
 yaw then a nod.
 
 ### Body, by kind
@@ -285,9 +298,41 @@ bobble, flat cap, sun hat. Glasses for most older people.
 
 Near build: two dark eyes, taller than wide, each with a small white
 catchlight; soft brows in a darker shade of the hair; a small nose a shade
-darker than the skin; a small closed smile. Children's eyes are a little
-larger and lower. Far build: the two eyes only. No eye whites, irises, teeth
-or eyelids. Faces never change expression.
+darker than the skin; a smile (bigger since decision 6, see "Expression").
+Children's eyes are a little larger and lower. Far build: the two eyes only
+(they blink and follow her too). No eye whites, irises, teeth or eyelids.
+
+### Expression (owner's decision 6; the details are my calls)
+
+Three more joints, children of `head`: `eyeL`, `eyeR` (each pivots at its
+eyeball's centre, 0.6 of the eye's depth inside the face, so the dot slides
+over the face as a real eye turns) and `mouth`. 20 joints in all. Every
+vertex is still bound to one joint.
+
+- **A bigger smile.** The closed smile is 0.42 of the head's width (it was
+  0.34), its arc 0.8 of a half turn, its line 1.4 times as thick, the corners
+  turned up; the cheeks under the eyes are a shade warmer (vertex colour).
+  When she is near and looked at, the `mouth` joint widens it a further 15%
+  (scale x 1.15, y 1.1) over 0.4 s, and back as she goes. Still closed: no
+  teeth, no open mouth.
+- **Eyes and head follow her within a few metres.** She is "near" within 4 m
+  (my call), and stops being near beyond 5 m. When she comes near, the eyes
+  lead (they turn toward her over 0.15 s, up to 0.3 rad), and the head, neck
+  and chest follow over 0.6 s (the turn of "Movement", up to 75 degrees);
+  when she goes, the head eases back to ahead over 0.8 s and the eyes with it.
+  Beyond 110 degrees round, they do not turn.
+- **Never staring.** After 4 s of looking at her, a person glances away (the
+  eyes and a little of the head, 0.25 rad, to the side the hash picks) for
+  1.2 s and comes back. Gaze shifts start with a blink.
+- **Blinks.** Each eye joint scales to 0.1 in y and back over 0.12 s, every
+  2.5-5.5 s, the interval from the spot hash and the walk clock (never a
+  roll), and on every gaze shift. Both eyes together.
+- **Fairground visitors** follow her only when stopped (watching or saying
+  hello), as before.
+- **Reduced motion:** blinks stay; the glance away does not happen; turns ease
+  twice as slowly.
+- **Far build:** the eyes follow and blink (they are on the same joints); no
+  mouth.
 
 ### Palettes
 
@@ -301,9 +346,10 @@ bright ones for children.
   bigger for children, smaller for older people): the hips slide and tilt to
   the standing leg, the other knee softens, the chest counter-tilts; a
   breath; arms hang a little out and a little bent.
-- **Looking at the cat:** when she is within 8 m, the head (45%), neck (37%)
-  and chest (18%) share a turn of up to 75 degrees and a nod down toward her,
-  eased; beyond that they look ahead.
+- **Looking at the cat:** when she is within 4 m (decision 6; "Expression"),
+  the eyes lead and the head (45%), neck (37%) and chest (18%) share a turn of
+  up to 75 degrees and a nod down toward her, eased; beyond 5 m they look
+  ahead.
 - **Walking:** a stride driven by metres walked (one cycle is two steps of
   0.8 leg lengths, so feet do not skate); thighs swing 0.4 rad (0.3 for older
   people, 0.46 for children); the knee folds in the swing; feet roll heel to
@@ -339,18 +385,15 @@ bright ones for children.
   then dismay "oh!", then the wave, then standing; walking (Fairground) is its
   own branch, and a visitor's hello stops its stride first. The look turn adds
   on top of whatever pose is on.
-- **The head-scratch kneel** has its own timer: `critters.scratchHello(c)`
-  (new) sets `c.kneelT = 2.5`, called where `interactions.js` handles the
-  'scratch' prompt. The hand is held out at most 0.55 m in front of the
-  person's own middle, low (0.35 m), palm down; it never moves toward her and
-  never goes above her. Older people bow instead: the chest leans at most
-  0.35 rad and the hand stays inside their own toes' line.
+- **The head scratch** is a real touch (decision 7): see "The head scratch".
+  It starts through `critters.scratchHello(c)` (new), called where
+  `interactions.js` handles the 'scratch' prompt.
 - **Dismay** gets its own field, `c.dismayT = 1.5`, set beside `meowWaveT` in
   `dismayNear`; `meowWaveT` keeps its timing, so nothing that plays changes.
 - **The Fairground kneel** reaches at most 0.55 m in front of the visitor's
   middle; with `KEEP` 1.0 m the hand stays at least 0.45 m from her middle.
-- **Looking at her:** villagers look at the local cat when she is within 8 m
-  (never a co-walker's cat). The turn is clamped at 75 degrees; if she is more
+- **Looking at her:** villagers look at the local cat when she is within 4 m
+  (never a co-walker's cat; "Expression"). The turn is clamped at 75 degrees; if she is more
   than 110 degrees round, the head eases back to ahead. Fairground visitors
   look at her only when stopped (watching or saying hello), never while
   walking.
@@ -378,6 +421,43 @@ bright ones for children.
   villagers ((14, 34) in the Neighborhood, (-8, -22) in the Park, (-10, -8) at
   the Docks) and three among the Fairground's eight visitors.
 - **The journal's villager picture** is left alone.
+
+## The head scratch (owner's decision 7; the details are my calls)
+
+She asks with E at a villager ("E: get head scratches", within 2.2 m;
+`interactions.js` as today: the award, the purr and its haptic are unchanged).
+
+- **The kneel.** The villager kneels at their own spot (an adult on one knee;
+  an older person bends at the waist instead, chest at most 0.5 rad), turned
+  toward her by the body's own joints (the critter group and the figure child
+  never turn). The kneel lasts while she stays within 2.5 m, at least 2.5 s,
+  and they stand up 0.6 s after she leaves.
+- **Within arm's reach: the touch.** Each frame, the target is her head as it
+  is on that frame: the world position of her cat's head part
+  (`cat.userData.parts.head`, passed in by the walk) plus its top
+  (`headTopOffset`, from her cat's own head size), plus 0.01 m. The right arm
+  reaches it by a two-joint solve (shoulder and elbow) with the palm down;
+  "within reach" means the solve reaches the target with the chest leaning at
+  most 0.5 rad. The hand travels from held-out to the target over 0.7 s by way
+  of a point 0.12 m above her head (it comes from in front and above, never
+  through her), and while she stays it rests there, following her head each
+  frame, with a slow stroke (±0.02 m along her head's front-to-back line, 1.5
+  strokes a second) that keeps the clearance.
+- **Out of reach:** the hand is held out, palm down, low, toward her, at most
+  0.55 m in front of the person's middle, and she can come closer (the soft
+  bump lets her middle come to 0.57 m of theirs).
+- **She moves away** out of reach: the hand eases back to held-out over 0.4 s,
+  rising first.
+- **Never through her.** A test sweeps her head and body (spheres and a capsule
+  from her cat's own size, `catDims`) over a grid of positions and headings
+  inside and around the reach, for each cat shape, and holds every arm and
+  hand sample of the approach, the rest and the stroke at least 0.005 m clear
+  of them.
+- **Two players.** Only her own cat is touched on her screen; the partner sees
+  the person kneel and reach toward her partner's cat on their own screen
+  (each device poses its own villagers from its own cat).
+- **The Fairground** has no head scratch; its kneel hello holds the hand out
+  as before, and `KEEP` keeps her beyond reach.
 
 ## The soft bump (owner's decision 4)
 
@@ -476,10 +556,8 @@ Children appear only next to a grown-up.
   `motionRng` or any other stream.
 - **My call: shadows.** Villagers keep casting as today (now 1 shadow draw, not
   3); the Fairground's people still cast none.
-- **My call: a head scratch shows.** When she takes "E: get head scratches"
-  the villager kneels and holds a hand out low toward her for the purr's 2.5 s.
-  The hand does not reach her (she is up to 2.2 m away): it is a kind gesture,
-  not a touch (see the owner's question 3).
+- **A head scratch is a real touch** (the owner's decision 7; the details in
+  "The head scratch" are my calls).
 - **My call: dismay is a surprised "oh!"** (hands come up, palms out, a small
   lean back of the chest), not a wave, when something is knocked over near a
   villager. A meow still gets a wave. Same timers, so nothing that plays
@@ -539,7 +617,7 @@ From her eye height at the same spot: today 179 draws / 100,806 triangles, v1
 Applied to the game's own worst-spot measure at the Fairground (152 draws,
 about 102k triangles), v2: about 142 draws and about 114k triangles, about
 128k in the worst case of everyone near and in view. Draws still fall. Draws fall, which is what
-the scene is bound by. The CPU cost is 17 bone matrices and two foot checks a
+the scene is bound by. The CPU cost is 20 bone matrices and two foot checks a
 person a frame; people out of view skip posing.
 
 ### The Fairground's test pins
@@ -716,23 +794,10 @@ and listed 39 questions. Sorted:
   75,000 pins (held by a 600-triangle far build counted at creation); the
   step 4 pass line; which tests are rewritten; the picture page and the
   prototype's removal; step 5 with no fallback left; the journal picture.
-- **Only the owner can answer:** four questions; he answered two on 2026-11-20 (decisions 4 and 5), two remain below.
+- **Only the owner can answer:** four questions; he answered all four on 2026-11-20 (decisions 4-7).
 
 ## Questions for the owner
 
-Answered 2026-11-20 and recorded above as his decisions 3-5: necks, the cat
-stepping round people, children only next to a grown-up.
-
-Still open:
-
-1. **A real head scratch?** When she asks for head scratches, should the
-   person's hand actually reach her head when she is close enough (they would
-   kneel at their spot and she would be within arm's reach), or stay a kind
-   gesture from where they are? Today nothing moves. With the soft bump she can
-   now come no nearer than about 0.6 m to a person's middle, which is within a
-   kneeling adult's reach.
-2. **The faces.** Dot eyes with a small catchlight, soft brows, a small nose
-   and a small closed smile, now on a real neck: `v2/faces-front-day.png`
-   (straight on), `v2/faces-day.png` (looking down at her),
-   `v2/wave-cateye-day.png` (from her eye height). Right, or plainer (no mouth,
-   no nose), or more (eyelids, cheeks)?
+All answered on 2026-11-20 and recorded above as his decisions 3-7: necks,
+the cat stepping round people, children only next to a grown-up, more
+expression, and a real head scratch. None are open.
