@@ -2692,4 +2692,18 @@ describe('The Rooftops: the first roof, and the picture views', async () => {
       expect([name, n.length, n.every(Number.isFinite)]).toEqual([name, 6, true]);
     }
   });
+
+  it('has its six life views, each six numbers and a walk second', async () => {
+    const { ROOFS_LIFE_SHOTS } = await import('../src/world/roofsplan.js');
+    expect(Object.isFrozen(ROOFS_LIFE_SHOTS)).toBe(true);
+    expect(Object.keys(ROOFS_LIFE_SHOTS)).toEqual(['guide', 'plank', 'washing', 'smoke', 'loft', 'sleeper']);
+    for (const [name, shot] of Object.entries(ROOFS_LIFE_SHOTS)) {
+      const n = shot.view.split(',').map(Number);
+      expect([name, n.length, n.every(Number.isFinite)]).toEqual([name, 6, true]);
+      expect([name, Number.isFinite(shot.t) && shot.t >= 0]).toEqual([name, true]);
+      expect(ROOFS_SHOTS[name], `${name} is not also one of the eight`).toBeUndefined();
+    }
+    expect(ROOFS_LIFE_SHOTS.guide.t).toBe(0);
+    expect(ROOFS_LIFE_SHOTS.washing.t).toBe(240.5);
+  });
 });

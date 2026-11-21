@@ -663,6 +663,26 @@ export const ROOFS_SHOTS = Object.freeze({
 // a walk starts with, at sunset, and the edge waits for the bus.
 export const ROOFS_SHOT_T = Object.freeze({ card: 0, edge: 276.4 });
 
+// The life's picture views (Rooftops step 3, for the owner): { view, t }, the
+// view as ROOFS_SHOTS' and the walk second the life is run to first
+// (verify-places.html's __shot takes these names too). Kept apart from
+// ROOFS_SHOTS, whose eight views are the place's own pictures.
+const lifeShot = (view, t) => Object.freeze({ view, t });
+export const ROOFS_LIFE_SHOTS = Object.freeze({
+  // the alley at sunset, the guide pigeon waiting in front of her spawn
+  guide: lifeShot('3.9,0.95,39.4,7.2,0.55,33.6', 0),
+  // from the shed, along plank-3 to ext-10's roof, a pigeon waiting at its far end
+  plank: lifeShot('15.4,3.1,29.0,16,3.5,19.4', 240),
+  // line-2 close, from over the yards: the washing downwind, a sill behind it
+  washing: lifeShot('9.6,5.4,19.2,9.0,4.7,13.0', 240.5),
+  // over the yards, across the ridges: the three smoking pots, the warm one in the middle
+  smoke: lifeShot('-10,13.5,33,-10,9.6,7.5', 240),
+  // the warehouse roof by the loft: the loft and its pigeon, the north parapet
+  loft: lifeShot('-38.8,14.0,-40.8,-33.2,12.5,-46.2', 240),
+  // the grey-and-white cat asleep on its sill over the west yards
+  sleeper: lifeShot('-14.0,5.6,14.8,-15.75,4.4,12.2', 240),
+});
+
 // ---------------------------------------------------------------------------
 // WHAT THE SHARED TABLES HOLD (Task 10). Plain data in the shapes those tables
 // use, as FAIR_REGISTRATION is: each row is copied into its table, and
