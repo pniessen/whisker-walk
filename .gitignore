@@ -23,6 +23,8 @@ verify-*.html
 !verify-visits.html
 # This one draws the traversal test yard (src/world/traversalyard.js) with the real player and moves: the source of the Rooftops step-1 pictures and films (scripts/record-page.mjs).
 !verify-traversal.html
+# This one draws the Old House with the real player, the sinking walls and the levels: the source of the Old House step-1 pictures and films (scripts/record-page.mjs).
+!verify-house.html
 # This one draws the found outfits (the Acorn Cap on every cat, the find at every Park and Woods spot, the card, the dress-up and the Journal): found outfits step 1's sign-off record.
 !verify-finds.html
 # Found outfits step 2's picture sheets: imports src/render/rig.js, so kept where a rig change cannot leave it behind.
