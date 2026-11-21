@@ -1642,8 +1642,10 @@ describe('The Fairground: the beauty pass, round two', () => {
     }
   });
 
-  it('the field is deeper at dusk than a street’s lawn', () => {
+  it('the field is deeper at dusk than a street’s lawn, and the sawdust keeps a street’s warm dusk', () => {
     expect(duskLook(area).lawnTint.dark).toBeLessThan(duskLook({}).lawnTint.dark);
+    const trail = scene.children.find((o) => o.name === 'pathTrail');
+    expect({ ...duskLook(area).lawnTint, ...trail.userData.duskLawnTint }).toEqual(duskLook({}).lawnTint);
   });
 
   it('the ground round the rides is worn well out from them', () => {

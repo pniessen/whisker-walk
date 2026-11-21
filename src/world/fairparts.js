@@ -269,8 +269,8 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
   // lamp-lit, by day it is paint, shaded by the roof like the rest. A pane
   // glows as bright as its paint (fairkit.js GLOW_LOOK.pane), so these are
   // painted dim: a warm glow, not a white box
-  box(K.bulbs, w - 0.3, 0.9, 0.03, 0, 0.1, -hd + 0.1, b, { shade: 0.6 });
-  box(K.bulbs, w - 0.3, 0.86, 0.03, 0, 1.08, -hd + 0.1, b, { shade: 0.5 });
+  box(K.bulbs, w - 0.3, 0.9, 0.03, 0, 0.1, -hd + 0.1, b, { shade: 0.75 });
+  box(K.bulbs, w - 0.3, 0.86, 0.03, 0, 1.08, -hd + 0.1, b, { shade: 0.66 });
   for (const s of [-1, 1]) {
     box(P, 0.08, 2.1, 1.3, s * (hw - 0.04), 0, -hd + 0.65, a, { shade: 0.92 });
     for (const pz of [-hd + 0.05, hd - 0.05]) box(P, 0.1, 2.2, 0.1, s * (hw - 0.05), 0, pz, C.white);
@@ -324,7 +324,7 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
     }
     box(K.bulbs, 1.9, 0.5, 0.08, 0, roofY, hd + 0.2, C.gold, { shade: 0.74 }); // on the glow list: it lights at dusk
     box(P, 1.6, 0.3, 0.1, 0, roofY + 0.1, hd + 0.2, a);
-    for (let i = 0; i < 8; i++) bulb(K.bulbs, -hw + 0.1 + i * ((w - 0.2) / 7), roofY - 0.2, fz + 0.06, BULB_COLORS[(i + salt) % BULB_COLORS.length]);
+    for (let i = 0; i < 8; i++) bulb(K.bulbs, -hw + 0.1 + i * ((w - 0.2) / 7), roofY - 0.2, fz + 0.075, BULB_COLORS[(i + salt) % BULB_COLORS.length]);
   } else {
     stripes(K.canvas, 2.35, 2.2, 0, STALL.tentY, [a, b], 0, 0, 0, { sides: 12 });
     stripes(K.canvas, 2.36, 2.2, 2.36, 2.2, [b, a], 0, 0, 0, { sides: 12, scallop: 0.3 });

@@ -62,6 +62,7 @@ export const FAIR_GRASS = 0x5ea446;
 // margin, sawdust chips and crumbs of earth).
 export const FAIR_PATH_STYLE = Object.freeze({ surface: 'sand', color: 0xd3b98b, look: 'sawdust' });
 export const FAIR_PATH_EXTEND = 17;
+const FAIR_SAWDUST_DUSK = Object.freeze({ desat: 0.25, dark: 0.72, cool: Object.freeze([0.96, 1.0, 1.08]) });
 
 // Just outside the gate, on the lane: the walk opens looking in under the
 // fair's sign and up the midway to the merry-go-round.
@@ -601,8 +602,11 @@ export function build(scene, { water = {}, wind } = {}) {
   const addC = (x, z, r) => colliders.push({ x: r2(x), z: r2(z), r });
   const clawPerches = [];
 
-  addTrails(scene, FAIR_TRAILS.map((g) => ({ w: g.w, segs: g.segs })), FAIR_PATH_STYLE, 'fair',
+  const trails = addTrails(scene, FAIR_TRAILS.map((g) => ({ w: g.w, segs: g.segs })), FAIR_PATH_STYLE, 'fair',
     { waters: [DUCK_POOL], extend: FAIR_PATH_EXTEND });
+  // the sawdust keeps a street's dusk tint (render/dusk.js DUSK.lawnTint), warm
+  // under the lamps, while the field round it goes deeper and bluer (duskLight below)
+  if (trails.mesh) trails.mesh.userData.duskLawnTint = FAIR_SAWDUST_DUSK;
 
   // --- the duck pool's water -------------------------------------------------------
   const pool = createWater(DUCK_POOL, {
