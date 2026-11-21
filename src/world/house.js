@@ -39,7 +39,7 @@ import { houseMovesArea } from './housemoves.js';
 import {
   HOUSE_ATLAS_CELLS as CELL, createHouseAtlas, houseMaterial, sectionMesh, paneMesh, floorMesh, stairMesh,
   skirtMesh, lampGroup, partsKit, kitBox, kitFace, kitMesh, FRONT_DOOR_W, furnitureMesh, flatsMesh, standInMesh,
-  cellarLidMeshes, secretBookcaseGroup, plankMesh, pawMarksMesh,
+  cellarLidMeshes, secretBookcaseGroup, plankMesh, pawMarksMesh, findParts,
 } from './houseparts.js';
 import { fullLevels } from '../houselevels.js';
 import { createHouseLife } from './houselife.js';
@@ -48,6 +48,7 @@ import {
   HOUSE_GOAL_TYPES, HOUSE_MAP_GROUND, houseMapShapes,
 } from './housethings.js';
 import { phrase } from '../clanphrases.js';
+import { isWalkableAt } from '../player.js';
 
 const freeze = Object.freeze;
 
@@ -263,7 +264,11 @@ function houseWords() {
 // Every one is tagged houseDetail with its level, for the level drawing (H6); each
 // level also has one plain stand-in (houseSimple) shown when it is far. The drawing
 // starts as on the ground level; house life (Task 6) keeps it up from there.
+// Step 2 (Task 6): a find's moving parts (houseparts.js findParts: the clock's pendulum,
+// the piano's keys, the toy box's lid and toys) stand with their piece, kept out of the
+// prop merge; furnish hands them back by name for house life.
 function furnish(scene, material, start, traversal) {
+  const parts = {};
   const full = fullLevels(start, LEVEL_LINKS);
   const tag = (o, level) => {
     o.userData.houseDetail = true;
@@ -280,6 +285,8 @@ function furnish(scene, material, start, traversal) {
     for (const f of HOUSE_FURNITURE.filter((q) => q.room === room.id)) {
       if (f.r === 0) { flats.push(f); continue; }
       const mesh = furnitureMesh(f, material);
+      const moving = findParts(f, material);
+      if (moving) Object.assign(parts, moving.parts);
       if (fades(f)) {
         const tall = new THREE.Group();
         tall.name = `houseFade:${f.id}`;
@@ -288,12 +295,20 @@ function furnish(scene, material, start, traversal) {
         tall.userData.fadeOccluder = [{ t: 'cyl', r: Math.hypot(f.w, f.d) / 2, y0: 0, y1: f.h + (f.ledge ? LEDGE_FADE_OVER : 0) }];
         tag(tall, room.level);
         tall.add(mesh);
+        if (moving) tall.add(...moving.objects);
         scene.add(tall);
         continue;
       }
       mesh.position.set(f.x, y, f.z);
       mesh.rotation.y = f.rotY;
       group.add(mesh);
+      if (moving) {
+        const at = new THREE.Group();
+        at.position.copy(mesh.position);
+        at.rotation.y = f.rotY;
+        at.add(...moving.objects);
+        group.add(at);
+      }
     }
     if (flats.length) group.add(flatsMesh(flats, y, material, `houseFlats:${room.id}`));
     // step 2: a crossing's plank is its room's, lying on the two tops it joins
@@ -308,6 +323,7 @@ function furnish(scene, material, start, traversal) {
     m.visible = !full.has(l.id);
     scene.add(m);
   }
+  return parts;
 }
 
 // Step 2: a faint pair of paw prints at every hop's take-off (housemoves.js), one mesh per
@@ -371,7 +387,7 @@ export function build(scene, { wind, gateEnds } = {}) {
       g.userData.lampPoolClip = lampPoolClip(room);
       scene.add(g);
     });
-    furnish(scene, material, START_LEVEL, plan.traversal);
+    const parts = furnish(scene, material, START_LEVEL, plan.traversal);
     drawMarks(scene, plan.traversal, START_LEVEL);
     // the secret stair's bookcase, shut in the library's north wall (step 2, ruling D9)
     const secretGroup = secretBookcaseGroup(material);
@@ -435,12 +451,20 @@ export function build(scene, { wind, gateEnds } = {}) {
         secret: { group: secretGroup, shut: secretColliders(false), open: secretColliders(true) },
         // the ground without the ledges: the level drawing reads the floor under her (step 2, D3)
         floor,
-        // the six discoveries' spots (step 2, D6): house life runs them
+        // the six discoveries' spots (step 2, D6) and their moving parts: house life runs them
         finds: HOUSE_FINDS,
+        parts,
       },
     };
+    // A walk picked up again finds her where she was (Review Focus 5): a spot she can stand
+    // on is kept, a wardrobe top by the outer wall included; walk.js clears any other.
+    areaData.restSpot = (x, z) => (isWalkableAt(areaData, x, z) ? { x, z } : null);
     // every frame: the walls between the camera and the cat sink, and the levels are drawn for hers
-    areaData.life = ({ scene: lifeScene, reducedMotion }) => createHouseLife(lifeScene, areaData.house, { reducedMotion });
+    // and the six finds, and the yarn ball kept out of the walls (step 2, Task 6): the walk's
+    // log, HUD, sound and ball, and its live colliders (the bookcase's row swaps there)
+    areaData.life = ({ scene: lifeScene, reducedMotion, log, hud, audio, toy }) => createHouseLife(lifeScene, areaData.house, {
+      reducedMotion, log, hud, audio, toy, colliders: areaData.colliders,
+    });
     return areaData;
   });
 }

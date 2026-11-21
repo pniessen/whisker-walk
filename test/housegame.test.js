@@ -12,18 +12,19 @@ import { createAudio } from '../src/audio.js';
 import { MAX_ZOOM_STEP, DEN_MAX_ZOOM_STEP } from '../src/camzoom.js';
 import { cameraOffset } from '../src/catcam.js';
 import { words } from '../src/wordset.js';
-import { roomAt } from '../src/world/houseplan.js';
+import { roomAt, HOUSE_LEDGES, secretColliders } from '../src/world/houseplan.js';
 import { makeView, blockers } from '../src/housewalls.js';
 import { CAT_LOOK_Y } from '../src/cat/model.js';
 import { behindYaw } from '../src/traversal.js';
 import { lifecycle, fakeEl, memStorage } from './helpers/walklife.js';
-import { HOUSE_GOAL_TYPES, HOUSE_GOLD_MICE, HOUSE_KNOCKABLES, HOUSE_HIDES, HOUSE_MICE, HOUSE_YARN_SPOTS } from '../src/world/housethings.js';
+import { HOUSE_FINDS, HOUSE_GOAL_TYPES, HOUSE_GOLD_MICE, HOUSE_KNOCKABLES, HOUSE_HIDES, HOUSE_MICE, HOUSE_YARN_SPOTS } from '../src/world/housethings.js';
 import { createGoals, goalFits, GOAL_POOL } from '../src/goals.js';
 import { GOLD_MICE, goldForEdition } from '../src/goldmice.js';
 import { propsFor, yarnSpotFor } from '../src/propsets.js';
 import { buildMapLayer } from '../src/ui/minimap.js';
 import { createKnockables } from '../src/knockables.js';
-import { AWARDS } from '../src/discoveries.js';
+import { AWARDS, createDiscoveryLog } from '../src/discoveries.js';
+import { isWalkableAt } from '../src/player.js';
 import { discoveryText } from '../src/ui/hud.js';
 
 // =============================================================================
@@ -705,6 +706,85 @@ describe('a house walk left in the middle', () => {
     expect(Math.hypot(cam.x - cat.x, cam.z - cat.z)).toBeLessThan(6);
     expect(cam.x).toBeGreaterThan(cat.x); // east of her, as she looks west
     expect(blockers(s.areaData.house.sections, s.areaLife.sink, makeView(cat, cam, CAT_LOOK_Y))).toEqual([]);
+    again.w.endWalk();
+  }, 90_000);
+
+  // Review Focus 5 (Task 6): a walk picked up again on the wardrobe, after the bookcase
+  // opened and the clock struck. The discovery log is a real one, so its entries go into
+  // the note and come back on the walk picked up (walk.js log.restore).
+  it('a walk picked up again pays nothing twice, and finds her where she was', async () => {
+    const paid = { points: 0 };
+    const newLog = () => createDiscoveryLog({ addPoints: (n) => { paid.points += n; }, recordFeat() {} });
+    const DT = 1 / 60;
+    const clock = HOUSE_FINDS.find((f) => f.id === 'clock');
+    const wardrobe = HOUSE_LEDGES.find((l) => l.id === 'bedroom-wardrobe');
+    // a spot on the wardrobe's top she can stand on: its front half (the wall's colliders keep
+    // her centre 0.55 m off the wall's line behind it)
+    const top = { x: (wardrobe.minX + wardrobe.maxX) / 2, z: wardrobe.maxZ - 0.05 };
+    // frames of the house life with her at (x, y, z)
+    const frames = (s) => {
+      const camera = new THREE.PerspectiveCamera();
+      camera.position.set(0, 2, 14);
+      const cat = new THREE.Vector3();
+      let t = 0;
+      return (x, y, z, seconds) => {
+        for (let i = 0; i < Math.round(seconds / DT); i++) {
+          cat.set(x, y, z);
+          t += DT;
+          s.areaLife.update(DT, t, cat, camera);
+        }
+      };
+    };
+    const log = newLog();
+    const life = lifecycleHere({ log });
+    let snap = null;
+    houseWalk(life, false, {
+      keep: (s) => {
+        const stay = frames(s);
+        stay(-6, 0, 3, 0.8);
+        expect(s.areaLife.finds.open).toBe(true);
+        expect(s.areaData.colliders.filter((c) => c.secret)).toEqual(secretColliders(true));
+        stay(clock.x, 0, clock.z, 1.2);
+        expect(log.count('house-find-bookcase')).toBe(1);
+        expect(log.count('house-find-clock')).toBe(1);
+        expect(paid.points).toBe(24);
+        expect(isWalkableAt(s.areaData, top.x, top.z)).toBe(true);
+        expect(s.ground.y(top.x, top.z)).toBeCloseTo(wardrobe.y, 6);
+        snap = { ...snapshotWalk(s, { yaw: 0, now: Date.now(), paid: log.entries() }), x: top.x, z: top.z };
+      },
+    });
+    const storage = memStorage();
+    writeResume(storage, snap);
+    setHouse(true);
+    const left = readResume(storage, { now: Date.now(), areaIds: ids() });
+    const log2 = newLog();
+    const again = lifecycleHere({ log: log2 });
+    expect(await pickUpWalk({
+      storage, data: left.data, startWalkWhenReady: again.w.startWalkWhenReady, progression: again.progression,
+      getSession: again.getSession, reload: () => {},
+    })).toBe('started');
+    const s = again.getSession();
+    expect(s.resumed).toBe(true);
+    // she is on the wardrobe, upstairs drawn
+    const cat = s.cat.position;
+    expect(s.ground.y(cat.x, cat.z)).toBeCloseTo(wardrobe.y, 6);
+    expect(cat.y).toBeCloseTo(wardrobe.y, 6);
+    expect(s.areaLife.drawing.current).toBe('upstairs');
+    // what the first part of the walk paid is paid, and the clock pays nothing more
+    expect(log2.count('house-find-clock')).toBe(1);
+    expect(log2.count('house-find-bookcase')).toBe(1);
+    const before = paid.points;
+    const stay = frames(s);
+    stay(clock.x, 0, clock.z, 1.2);
+    expect(paid.points).toBe(before);
+    expect(log2.count('house-find-clock')).toBe(1);
+    // the bookcase is shut again, and opens for her, paying nothing
+    expect(s.areaLife.finds.open).toBe(false);
+    expect(s.areaData.colliders.filter((c) => c.secret)).toEqual(secretColliders(false));
+    stay(-6, 0, 3, 0.8);
+    expect(s.areaLife.finds.open).toBe(true);
+    expect(s.areaData.colliders.filter((c) => c.secret)).toEqual(secretColliders(true));
+    expect(paid.points).toBe(before);
     again.w.endWalk();
   }, 90_000);
 

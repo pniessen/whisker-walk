@@ -2658,9 +2658,11 @@ export function createWalkLifecycle({
     // its spot, looking the way it looked. The spot is cleared like any other
     // (it may have been a roof or mid-river): out of walls and water, onto
     // the ground. Everything that follows the cat catches up on its first frame.
+    // A place may keep a spot she can stand on as it is (areaData.restSpot: the Old
+    // House, whose furniture tops stand by its outer walls, inside the clear margin).
     if (resume) {
       restoreTallies(session, resume, { points: state.points });
-      const spot = clearSpot({ x: resume.x, z: resume.z }, areaData.colliders ?? [], areaData.bounds, areaData.waters ?? [], 0.6);
+      const spot = areaData.restSpot?.(resume.x, resume.z) ?? clearSpot({ x: resume.x, z: resume.z }, areaData.colliders ?? [], areaData.bounds, areaData.waters ?? [], 0.6);
       cat.position.set(spot.x, ground.y(spot.x, spot.z), spot.z);
       player.setViewYaw(resume.yaw);
     } else if (arrive) {

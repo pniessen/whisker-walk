@@ -73,12 +73,13 @@ export function controlledLoader() {
 // `storage`: the save's storage (a fresh one by default; a test may seed a
 // save in it first). `coarse`: the device's pointer. `tier`: the quality tier
 // every walk begins on (HIGH by default). `player`: the walk's player (no-ops by
-// default; a test may record what the walk hands it). The overlay is handed back so a
+// default; a test may record what the walk hands it). `log`: the discovery log (a
+// recorder by default; a test may hand a real one). The overlay is handed back so a
 // test can read the summary card a walk's end writes into it.
 export function lifecycle({
   collar = false, areas = createAreaLoader(), online = () => true, blockList = new Set(),
   storage = memStorage(), coarse = false, tier = resolveQuality({ override: 'high' }),
-  player = anything(),
+  player = anything(), log = anything(),
 } = {}) {
   let session = null;
   let pendingRoom = null;
@@ -101,7 +102,7 @@ export function lifecycle({
     hud: anything({ mapHost: fakeEl() }),
     audio: anything({ startAmbient: (areaId, o) => rec.sound.push({ areaId, ...o }), getContext: () => { rec.soundContexts++; } }),
     music: anything({ start: (_seed, mood) => rec.music.push(mood) }),
-    log: anything(), touchUI: anything(), catVoice: () => {},
+    log, touchUI: anything(), catVoice: () => {},
     getCloud: () => ({ fetchFriendships: async () => { rec.friendFetches++; return []; }, fetchProfiles: async () => [] }),
     getSession: () => session, setSession: (s) => { session = s; }, getIsTouch: () => false,
     getHomebase: () => homebase,

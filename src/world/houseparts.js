@@ -1090,13 +1090,12 @@ const BUILDERS = {
     p.box(-hw, hw, 1.92, 1.98, -hd, hd + 0.01, 'darkWood', ['y-']);
     p.box(-0.17, 0.17, 1.98, h, -hd + 0.04, hd - 0.03, 'darkWood', ['y-']);
     const fz = hd - 0.02;
-    p.cyl(0.165, 0.165, fz, fz + 0.01, 16, 'gold', 0, 0, (g) => { alongZ(g); g.translate(0, 1.7, 0); });
-    p.cyl(0.145, 0.145, fz + 0.01, fz + 0.016, 16, 'white', 0, 0, (g) => { alongZ(g); g.translate(0, 1.7, 0); });
+    // the dial and its face on the hood's front (step 2: they stood inside the hood)
+    p.prim(new THREE.CylinderGeometry(0.165, 0.165, 0.01, 16), 'gold', 0, 1.7, fz + 0.005, alongZ);
+    p.prim(new THREE.CylinderGeometry(0.145, 0.145, 0.006, 16), 'white', 0, 1.7, fz + 0.013, alongZ);
     p.box(-0.006, 0.006, 1.7, 1.81, fz + 0.016, fz + 0.022, 'navy');
     p.box(-0.006, 0.075, 1.694, 1.706, fz + 0.016, fz + 0.022, 'navy');
-    p.box(-0.11, 0.11, 0.62, 1.32, hd - 0.04, hd - 0.03, 'navy', ['z-']);
-    p.box(-0.008, 0.008, 0.95, 1.3, hd - 0.03, hd - 0.022, 'gold', ['z-']);
-    p.cyl(0.06, 0.06, hd - 0.03, hd - 0.018, 12, 'gold', 0, 0, (g) => { alongZ(g); g.translate(0, 0.9, 0); });
+    p.box(-0.11, 0.11, 0.62, 1.32, hd - 0.04, hd - 0.03, 'navy', ['z-']); // the pendulum's window (findParts)
     for (const s of [-1, 1]) p.cyl(0.018, 0.026, 1.98, 2.08, 6, 'gold', s * (hw - 0.06), 0);
   },
 
@@ -1345,15 +1344,8 @@ const BUILDERS = {
     p.box(-hw + 0.06, hw - 0.06, bed - 0.1, bed, -hd, hd - 0.02, 'darkWood', ['y+', 'z-']);
     for (const s of [-1, 1]) p.box(s > 0 ? hw - 0.06 : -hw, s > 0 ? hw : -hw + 0.06, bed - 0.12, h + 0.04, -hd, hd, 'darkWood', ['z-']);
     const k0 = -hw + 0.06, k1 = hw - 0.06;
-    p.box(k0, k1, bed, h, -hd, hd - 0.04, 'white', ['y-', 'z-', 'x-', 'x+']);
+    // the white and black keys are the eight keys she plays, each its own mesh (findParts)
     p.box(k0, k1, bed - 0.1, h, hd - 0.04, hd - 0.02, 'darkWood', ['y-', 'z-', 'x-', 'x+']);
-    const whites = 31;
-    const kw = (k1 - k0) / whites;
-    for (let i = 0; i < whites - 1; i++) {
-      if ([2, 6].includes(i % 7)) continue; // no black key between E-F and B-C
-      const x = k0 + (i + 1) * kw;
-      p.box(x - kw * 0.3, x + kw * 0.3, h, h + 0.015, -hd, -hd + 0.09, 'navy', ['y-', 'z-']);
-    }
     for (const s of [-1, 1]) p.box(s * (hw - 0.05) - 0.025, s * (hw - 0.05) + 0.025, 0, bed - 0.1, hd - 0.07, hd - 0.02, 'darkWood', ['y-', 'y+']);
   },
 
@@ -1618,7 +1610,7 @@ const BUILDERS = {
   toybox(p, { w, d, h }) {
     const hw = w / 2, hd = d / 2;
     p.box(-hw, hw, 0.02, h - 0.07, -hd, hd, 'rose', ['y-', 'y+']);
-    p.box(-hw - 0.015, hw + 0.015, h - 0.07, h, -hd - 0.015, hd + 0.015, 'lightWood', ['y-']);
+    p.box(-hw + 0.02, hw - 0.02, h - TOYBOX_IN - 0.01, h - TOYBOX_IN, -hd + 0.02, hd - 0.02, 'brown', ['y-', 'x-', 'x+', 'z-', 'z+']); // inside, under the lid (findParts)
     for (const sx of [-1, 1]) p.box(sx * hw - (sx > 0 ? 0.04 : 0), sx * hw + (sx < 0 ? 0.04 : 0), 0.02, h - 0.07, hd, hd + 0.008, 'navy', ['z-', 'y-']);
     p.box(-0.12, 0.12, h * 0.45, h * 0.62, hd, hd + 0.008, 'white', ['z-']);
     p.box(-0.03, 0.03, h - 0.12, h - 0.07, hd, hd + 0.012, 'gold', ['z-']);
@@ -1801,10 +1793,95 @@ export function secretBookcaseGroup(material) {
   g.add(leaf);
   g.userData.secretBookcase = true;
   g.userData.leaf = leaf;
+  g.userData.noMerge = true; // the leaf keeps its own mesh, and house life turns the group (housefinds.js)
   g.userData.noContactShadow = true;
   g.userData.houseDetail = true;
   g.userData.houseLevel = 'ground';
   return g;
+}
+
+// ---- the finds' moving parts (step 2, Task 6: world/housefinds.js moves them) ----
+
+// How far the toy box's inside floor lies under its top: where the toys lie, the tallest
+// (0.09 m) under the shut lid.
+const TOYBOX_IN = 0.17;
+// How far the toy box's lid tips back (rad about its back edge): a little short of upright,
+// clear of the wall behind it.
+export const LID_OPEN = -1.45;
+// A moving part: in its piece's own frame, kept out of the prop merge, casting no shadow.
+function movingMesh(p, material, name) {
+  const m = kitMeshFrom(p.geometry(), material, name, { cast: false });
+  m.userData.noMerge = true;
+  return m;
+}
+// The parts that move for a find, as { objects (to stand with the piece, in its frame),
+// parts (named for house life) }, or null for a piece with none:
+//   clock    pendulum: hung at the top of the trunk's window, swinging about z
+//   keys     keys: eight meshes, west to east in the world, each a stretch of the white
+//            keys and the black ones on it, dipped while her paws are on it
+//   toybox   lid: turning about its back edge (rotation.x, LID_OPEN tipped);
+//            toys: a wooden mouse, a block and a spinning top, each { mesh, from, rest, yaw }
+//            (lying in the box; on the floor in front of it, turned by yaw)
+export function findParts(f, material) {
+  const hw = f.w / 2, hd = f.d / 2;
+  if (f.kind === 'clock') {
+    const p = new Piece();
+    p.box(-0.008, 0.008, -0.35, 0, -0.004, 0.004, 'gold', ['y+']);
+    p.prim(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 12), 'gold', 0, -0.4, 0.003, alongZ);
+    const pendulum = movingMesh(p, material, `houseFind:${f.id}:pendulum`);
+    pendulum.position.set(0, 1.3, hd - 0.026);
+    return { objects: [pendulum], parts: { pendulum } };
+  }
+  if (f.kind === 'keys') {
+    const h = f.h, bed = h - 0.03;
+    const k0 = -hw + 0.06, k1 = hw - 0.06;
+    const whites = 31;
+    const kw = (k1 - k0) / whites;
+    const span = (k1 - k0) / 8;
+    const keys = [];
+    for (let j = 0; j < 8; j++) {
+      const a = k0 + j * span, b = a + span;
+      const p = new Piece();
+      p.box(a, b, bed, h, -hd, hd - 0.04, 'white', ['y-', 'z-']);
+      for (let i = 0; i < whites - 1; i++) {
+        if ([2, 6].includes(i % 7)) continue; // no black key between E-F and B-C
+        const x = k0 + (i + 1) * kw;
+        if (x < a || x >= b) continue;
+        p.box(x - kw * 0.3, x + kw * 0.3, h, h + 0.015, -hd, -hd + 0.09, 'navy', ['y-', 'z-']);
+      }
+      keys.push({ east: Math.cos(f.rotY) * (a + b), mesh: movingMesh(p, material, `houseFind:${f.id}:key`) });
+    }
+    keys.sort((u, v) => u.east - v.east);
+    return { objects: keys.map((k) => k.mesh), parts: { keys: keys.map((k) => k.mesh) } };
+  }
+  if (f.kind === 'toybox') {
+    const top = f.h - 0.07;
+    const lp = new Piece();
+    lp.box(-hw - 0.015, hw + 0.015, 0, 0.07, 0, f.d + 0.03, 'lightWood');
+    const lid = movingMesh(lp, material, `houseFind:${f.id}:lid`);
+    lid.position.set(0, top, -hd - 0.015);
+    const mouse = new Piece();
+    mouse.prim(new THREE.SphereGeometry(1, 9, 7), 'tan', 0, 0.035, 0, (g) => g.scale(0.045, 0.035, 0.075));
+    for (const s of [-1, 1]) mouse.prim(new THREE.CylinderGeometry(0.018, 0.018, 0.006, 8), 'rose', s * 0.025, 0.065, 0.035, alongZ);
+    mouse.box(-0.004, 0.004, 0.02, 0.028, -0.15, -0.07, 'brown');
+    const block = new Piece();
+    block.box(-0.04, 0.04, 0, 0.08, -0.04, 0.04, 'ochre', ['y-']);
+    const spin = new Piece();
+    spin.prim(new THREE.CylinderGeometry(0.05, 0.004, 0.06, 10), 'red', 0, 0.03, 0);
+    spin.cyl(0.008, 0.008, 0.06, 0.09, 6, 'navy', 0, 0);
+    const toys = [
+      [mouse, -0.2, 0.0, -0.25, hd + 0.3, 0.7],
+      [block, 0.0, 0.05, 0.05, hd + 0.45, -0.4],
+      [spin, 0.2, -0.05, 0.3, hd + 0.28, 1.1],
+    ].map(([piece, fx, fz, rx, rz, yaw], i) => {
+      const mesh = movingMesh(piece, material, `houseFind:${f.id}:toy:${i}`);
+      const from = new THREE.Vector3(fx, f.h - TOYBOX_IN, fz);
+      mesh.position.copy(from);
+      return { mesh, from, rest: new THREE.Vector3(rx, 0, rz), yaw };
+    });
+    return { objects: [lid, ...toys.map((q) => q.mesh)], parts: { lid, toys } };
+  }
+  return null;
 }
 
 // ---- the moves (step 2): the plank, and the paw prints at the take-offs ----

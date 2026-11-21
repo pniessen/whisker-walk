@@ -19,14 +19,26 @@
 // before the sink each frame, so the cut-away leaves the walls under it standing
 // while it is on; drawn after it, hidden whenever she is down there or it would
 // stand between the camera and her.
+// Step 2 (Task 6): the six discoveries (housefinds.js) run here, and then the yarn
+// ball is kept out of the walls (ruling D14): toy.update reads no colliders, so a
+// ball that crossed a wall line since last frame (housethings.js toyStop; the shut
+// bookcase is a wall, the open one is not) is put back at the wall, at rest. A step
+// longer than any roll (TELEPORT) is a jump the walk made (the roll home, a co-walk
+// handoff), never stopped. `colliders` is the walk's own live list (the bookcase's
+// row swaps in it); `log`, `hud`, `audio` and `toy` are the walk's.
 
 import { makeView, createWallSink, createCellarLid, SINK } from '../housewalls.js';
 import { createLevelDrawing } from '../houselevels.js';
 import { CAT_LOOK_Y } from '../cat/model.js';
+import { createHouseFinds } from './housefinds.js';
+import { toyStop } from './housethings.js';
 
 const NO_PANES = Object.freeze([]);
+const TELEPORT = 25; // m/s: no ball rolls this fast
 
-export function createHouseLife(scene, house, { reducedMotion = false } = {}) {
+export function createHouseLife(scene, house, {
+  reducedMotion = false, log = null, hud = null, audio = null, toy = null, colliders = [], now,
+} = {}) {
   const { sections, sectionMeshes, panes } = house;
   const lid = house.lid ? createCellarLid(house.lid, sections) : null;
   const lidMeshes = lid ? house.lidMeshes ?? [] : [];
@@ -43,6 +55,23 @@ export function createHouseLife(scene, house, { reducedMotion = false } = {}) {
   const paneRest = paneLists.map((list) => list.map((p) => p.position.y)); // each pane's standing height
   const view = {};
   let settled = false;
+  const finds = createHouseFinds({
+    finds: house.finds ?? [], secret: house.secret, colliders, parts: house.parts, log, hud, audio, reducedMotion, now,
+  });
+  let ballX = 0, ballZ = 0, ballSeen = false;
+
+  // The yarn ball, after toy.update (main.js): stopped at a wall it rolled into since last frame.
+  function keepBall(dt) {
+    if (!toy?.active || toy.held) { ballSeen = false; return; }
+    const p = toy.mesh.position;
+    if (ballSeen && Math.hypot(p.x - ballX, p.z - ballZ) <= TELEPORT * Math.max(dt, 1 / 60)) {
+      const stop = toyStop(ballX, ballZ, p.x, p.z, { secretOpen: finds.open });
+      if (stop) toy.setPosition({ x: stop.x, y: 0, z: stop.z });
+    }
+    ballSeen = true;
+    ballX = p.x;
+    ballZ = p.z;
+  }
 
   // The meshes and the panes, as the sink stands now.
   function write() {
@@ -78,6 +107,7 @@ export function createHouseLife(scene, house, { reducedMotion = false } = {}) {
     sink,
     drawing,
     lid,
+    finds,
     settle,
     update(dt, t, catPos, camera) {
       if (!settled) { settle(catPos, camera); return; }
@@ -87,8 +117,11 @@ export function createHouseLife(scene, house, { reducedMotion = false } = {}) {
       lid?.update(dt, sink);
       write();
       drawing.update(floorY(catPos));
+      finds.update(dt, t, catPos);
+      keepBall(dt);
     },
     dispose() {
+      finds.dispose();
       for (const m of lidMeshes) m.visible = true;
       for (const m of meshes) {
         if (!m) continue;

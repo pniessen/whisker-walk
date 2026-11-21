@@ -259,6 +259,12 @@
  "house.scenic.attic-window": "the round attic window",
  "house.yarn.hall": "on the hall runner",
  "house.yarn.kitchen": "by the kitchen table",
+ "house.find.clock": "The old clock bongs A times! 🕰️",
+ "house.find.piano": "You played a tune on the old piano! 🎵",
+ "house.find.window": "What a view over the rooftops from the round window!",
+ "house.find.bookcase": "The bookcase swings open… a secret stair! 🗝️",
+ "house.find.cushion": "A cat-shaped dent in the cushion… someone else naps here too 💤",
+ "house.find.toys": "A box of old toys! A wooden mouse rolls out 🧸",
  "colony.rankAfterName for every rank word": [
   "kit",
   "apprentice",
