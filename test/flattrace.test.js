@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { closeDiffs } from './helpers/closeto.js';
 import {
-  traceAll, writeFixture, recordedGameplay, recordedRender, UUID_SEED,
+  traceAsRecorded, traceAll, writeFixture, recordedGameplay, recordedRender, UUID_SEED,
 } from './helpers/flattrace.js';
 
 // Gorge part 1, Task 1: today's world, pinned as a trace; split in two by
@@ -59,4 +59,18 @@ describe('the flat trace', () => {
     const other = traceAll({ uuidSeed: (UUID_SEED ^ 0x5eed5) >>> 0, pinMoorDraws: false });
     expect(closeDiffs(other.gameplay, recordedGameplay())).toEqual([]);
   });
+
+  // The people switch on (soft bumps in play): the villagers are the new
+  // people and her walk is passed their bumps; the frozen fixture must hold.
+  // The scripted cat comes no nearer than 13 m to any villager.
+  it('gameplay with the people switch on is the same frozen fixture', () => {
+    const want = recordedGameplay();
+    const got = {};
+    const exp = {};
+    for (const areaId of ['neighborhood', 'park', 'docks', 'seaside']) {
+      got[areaId] = traceAsRecorded(areaId, { people: true, pinMoorDraws: false }).gameplay;
+      exp[areaId] = want[areaId];
+    }
+    expect(closeDiffs(got, exp)).toEqual([]);
+  }, 90000);
 });

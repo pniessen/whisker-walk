@@ -440,6 +440,11 @@ let nextId = 1;
 // Where a villager visibly stands: its figure (offset by the spawn's standOff)
 // when it has one, else the group. `out` is filled and returned. Interaction
 // ranges for villagers measure from here, never from group.position.
+// The soft bump of a person (m): a body and arms' half width. Her own
+// CAT_RADIUS is added by player.update, as for every collider.
+export const BUMP_ADULT = 0.22;
+export const BUMP_CHILD = 0.18;
+
 export function villagerPos(c, out) {
   return c.figure ? c.figure.getWorldPosition(out) : out.copy(c.group.position);
 }
@@ -492,6 +497,9 @@ export function createCritters(scene, spawns, opts = {}) {
   let fleeModifier = 1;
   let clock = 0; // tracks critters.update's own `t` so pounceCatch can time the 20s catch cooldown without a caller-supplied clock
   const list = [];
+  // The soft bumps (Task 11): { x, z, r } for each person, for player.update.
+  // Empty with the switch off (today's figure keeps today's world exactly).
+  const bumps = [];
 
   // Lifelike people (Task 10): one kit per walk, from the factory the place's
   // pack hands over (opts.people; null with the switch off, and then every
@@ -551,6 +559,15 @@ export function createCritters(scene, spawns, opts = {}) {
       c.scratch = null; // the head-scratch kneel under way: { t, away }
       c.poseMode = 'stand'; // what the grown-up was last given
       c.childMode = 'stand'; // and the child
+    }
+    if (c.people) {
+      // The soft bumps (Task 11): one fixed circle per person, from the spot
+      // (a villager's group never moves nor turns, so its world spot is the
+      // group's plus the figure's own). Made once, here, never again.
+      for (let i = 0; i < c.people.length; i++) {
+        const f = c.people[i].figure;
+        bumps.push({ x: group.position.x + f.position.x, z: group.position.z + f.position.z, r: i === 0 ? BUMP_ADULT : BUMP_CHILD });
+      }
     }
     list.push(c);
     return c;
@@ -642,6 +659,7 @@ export function createCritters(scene, spawns, opts = {}) {
 
   const api = {
     list,
+    bumps,
     nearest(pos, maxDist) {
       let best = null;
       let bestD = maxDist;

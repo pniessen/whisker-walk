@@ -16,6 +16,8 @@ import { underCeiling } from './caves.js';
 // follows behind/above with mouse-orbit, and the cat stays centered on screen.
 
 export const CAT_RADIUS = 0.35;
+// No soft bumps (people): the default, one frozen list shared.
+const NO_BUMPS = Object.freeze([]);
 // The camera's pitch at the start of a walk (radians).
 export const DEFAULT_PITCH = 0.18;
 // The highest the camera may be pitched up over the cat (radians).
@@ -828,7 +830,7 @@ export function createPlayer(camera, canvas) {
       hopTime = 0;
       if (document.pointerLockElement === canvas) document.exitPointerLock();
     },
-    update(dt, colliders = [], bounds = null, waters = []) {
+    update(dt, colliders = [], bounds = null, waters = [], bumps = NO_BUMPS) {
       if (!enabled || !avatar) return;
       // Water rules only apply to a cat with its paws on the ground, and only
       // in an area that has water — every other area takes the `wet` read as
@@ -954,6 +956,17 @@ export function createPlayer(camera, canvas) {
       // reaches perchY. A pouncing cat cannot pass through a wall.
       if (api.perchY === 0) {
         for (const c of colliders) {
+          const dx = avatar.position.x - c.x;
+          const dz = avatar.position.z - c.z;
+          const d = Math.hypot(dx, dz);
+          const min = c.r + CAT_RADIUS;
+          if (d < min && d > 0.0001) {
+            avatar.position.x = c.x + (dx / d) * min;
+            avatar.position.z = c.z + (dz / d) * min;
+          }
+        }
+        // The soft bumps (people): the same push, after the colliders.
+        for (const c of bumps) {
           const dx = avatar.position.x - c.x;
           const dz = avatar.position.z - c.z;
           const d = Math.hypot(dx, dz);
