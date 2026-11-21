@@ -92,6 +92,10 @@ export const HOUSE_FRONT_DOOR = freeze({
   arrive: freeze({ x: 0, z: 9.5, yaw: 0 }),
 });
 export const HOUSE_SPAWN = freeze({ x: HOUSE_FRONT_DOOR.arrive.x, z: HOUSE_FRONT_DOOR.arrive.z });
+// Where her kitten (Mochi, kitten stage 2) wanders, a 3 m circle round it
+// (kitten.js): the hall's middle. Round the spawn, by the front door, the
+// circle would cross the shut door and the hall lamp.
+export const HOUSE_KITTEN_HOME = freeze({ x: 0, z: 7.5 });
 
 const levelY = (id) => HOUSE_LEVELS.find((l) => l.id === id).y;
 const roomById = (id) => HOUSE_ROOMS.find((r) => r.id === id);

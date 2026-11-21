@@ -1,3 +1,5 @@
+import { isIndoor } from './indoor.js';
+
 // Swimming (Task 6): waterSplash(kind)'s three sounds. dur in seconds; the
 // bandpass sweeps from → to; flutter steps the gain on and off that many times.
 const WATER_SPLASHES = Object.freeze({
@@ -767,10 +769,12 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       api.stopAmbient();
       if (muted) return;
       const layers = [];
-      if (areaKey === 'den') {
-        // Indoor: just the fireplace, never crickets (dusk doesn't apply to
-        // the den — it never surfaces the dusk toggle — but this stays
-        // explicit rather than relying on the caller never passing dusk: true).
+      if (isIndoor(areaKey)) {
+        // Indoor (the den, the Old House; indoor.js): just the fireplace,
+        // never crickets. Dusk doesn't apply to the den (it never surfaces the
+        // dusk toggle), and a house dusk walk lights its lamps but stays
+        // indoors, so this stays explicit rather than relying on the caller
+        // never passing dusk: true.
         layers.push(crackleLayer());
       } else if (areaKey === 'seaside') {
         layers.push(wavesLayer());
@@ -840,7 +844,7 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         if (rain) layers.push(rainLayer());
         else if (!dusk) layers.push(birdsongLayer());
       }
-      if (dusk && areaKey !== 'den') layers.push(cricketLayer());
+      if (dusk && !isIndoor(areaKey)) layers.push(cricketLayer());
       if (ambientMix) for (const layer of layers) layer.mix?.(ambientMix);
       ambient = layers;
     },

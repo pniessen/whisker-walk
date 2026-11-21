@@ -3,6 +3,7 @@ import { bus } from './events.js';
 import { createPlayer } from './player.js';
 import { coatColor, CAT_LOOK_Y } from './cat/model.js';
 import { resumableAreaIds, roofsOn } from './roofsflag.js';
+import { houseOn, resumableHouseIds } from './houseflag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { createProgression, rankFor, CATALOG } from './progression.js';
 import { colonyNews, tradeEffect } from './colony.js';
@@ -588,7 +589,7 @@ function init() {
   // closed in the middle of. Read once, here. A walk left too long is settled
   // now, before the home screen draws its numbers; one still fresh is picked
   // up at the end of init (see "Mid-walk resume" above the render loop).
-  const leftWalk = readResume(window.localStorage, { now: Date.now(), areaIds: resumableAreaIds(progression.state.walks) });
+  const leftWalk = readResume(window.localStorage, { now: Date.now(), areaIds: resumableHouseIds(resumableAreaIds(progression.state.walks)) });
   if (leftWalk?.kind === 'stale') {
     clearResume(window.localStorage);
     settleAbandoned(progression, leftWalk.data);
@@ -601,11 +602,13 @@ function init() {
   homebase.show();
   // F6: fetch her own place and the den now, so Explore and the den button
   // usually find them already here. ?roofs=1 fetches the Rooftops too (her
-  // Explore goes there); without the switch nothing fetches it. A failure here
-  // is quiet: the start itself tries again, and says so if it cannot.
+  // Explore goes there), and ?house=1 the Old House; without a switch
+  // nothing fetches its place. A failure here is quiet: the start itself
+  // tries again, and says so if it cannot.
   areas.prefetch(effectiveArea(progression.state, CATALOG));
   areas.prefetch('den');
   if (roofsOn()) areas.prefetch('roofs');
+  if (houseOn()) areas.prefetch('house');
   // Rosa's one-time farewell goes up before the news (showNews yields while it is up).
   const showFarewell = () => {
     if (resuming) return; // kept for a launch that opens at home

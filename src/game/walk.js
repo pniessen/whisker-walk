@@ -19,6 +19,8 @@ import * as THREE from 'three';
 // loaded pack. No area module is imported here.
 import { createAreaLoader } from './areaload.js';
 import { roofsOn } from '../roofsflag.js';
+import { houseOn } from '../houseflag.js';
+import { isIndoor } from '../indoor.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
@@ -559,10 +561,16 @@ export function createWalkLifecycle({
   // home stays up while it comes, and a load that fails keeps her home with
   // the same gentle line as any place.
   //
+  // ?house=1: a solo Old House walk, in Clan Edition only (Legacy Edition does
+  // not get it) and never in a room (ruling H7); its drawing is its own
+  // download too, so it starts the same way. With both switches on, the
+  // Rooftops wins.
+  //
   // A solo start returns startWalkWhenReady's promise (it settles once the
   // walk has started, or not); a room start returns nothing.
   function beginWalkFromHomebase({ duskMode }) {
     if (roofsOn() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'roofs' });
+    if (houseOn() && isClanEdition(progression.state) && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'house' });
     const area = effectiveArea(progression.state, CATALOG);
     if (!getPendingRoom()) {
       return startWalkWhenReady(area === progression.state.area ? { duskMode } : { duskMode, areaOverride: area });
@@ -781,6 +789,10 @@ export function createWalkLifecycle({
     // — no weather/secrets/quest/strays/goals/race/goldMice/sky-life indoors,
     // but ghosts still visit and the kitten's home-stage still shows up.
     const isDen = areaId === 'den';
+    // Indoors (indoor.js: the den and the Old House): no weather, secrets,
+    // strays, legend, goals, sky birds or corner map. Every other guard below
+    // stays the den's own (its zoom cap, its furniture, its cats, its shop).
+    const indoor = isIndoor(areaId);
     // A walk picked up again keeps its stamp: the same border warrior, the same song.
     const walkStamp = resume?.stamp ?? 'walk-' + Date.now();
     const scene = new THREE.Scene();
@@ -1013,7 +1025,7 @@ export function createWalkLifecycle({
     const duskGround = duskLookNow ? scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint || c.name === 'path' || c.name === 'horizonBand' || c.name === 'steppingStones')) : [];
     let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {}, setSheltered() {}, tintWet() {}, dispose() {} };
     // No weather in an area that is always evening (no rain on the roofs).
-    if (!duskActive && !isDen && areaData.evening !== true) {
+    if (!duskActive && !indoor && areaData.evening !== true) {
       // The ground and paths in the scene right now (the area's own, before
       // anything else is added) are what the rain darkens; the fill is dimmed.
       const wet = scene.children.filter((c) => c.isMesh && (c.userData.ground || c.name === 'path'));
@@ -1050,13 +1062,13 @@ export function createWalkLifecycle({
 
     // Secrets (unicorn/UFO) are outdoor-only sight gags — skip them indoors
     // rather than have one spawn inside the den's 16x16 room.
-    const secrets = isDen
+    const secrets = indoor
       ? { list: [], update() {} }
       : createSecrets(scene, areaData, rollSecrets(walkRng, { eveningLight: duskActive || weather.condition === 'sunset' }), walkRng);
 
     const critters = createCritters(scene, areaData.critterSpawns, {
       fleeScale: equipped.collar === 'bell' ? 0.5 : 1,        // bell: birds tolerate you closer
-      spawnFireflies: duskActive,                              // glow: dusk fireflies
+      spawnFireflies: duskActive && !indoor,                   // glow: dusk fireflies, never in a room
       trailButterflies: equipped.head === 'crown',              // crown: butterflies trail the cat
       // v18 Task 1.4: the dusk fireflies are PLACED, so they belong on the
       // shared determinism stream like secrets/strays/scent above — they
@@ -1261,7 +1273,7 @@ export function createWalkLifecycle({
     // Solo the roll comes off the walk's own seed, so a walk picked up again
     // rolls the same visitor (its spot too: the extras' rng below).
     const soloLegendRoll = roomSeed === undefined ? mulberry32((soloSeed ^ 0x1e6e2d) >>> 0)() : 0;
-    const legend = colonyWalk && !isDen ? legendaryFor(state, areaId, roomSeed === undefined ? soloLegendRoll : legendaryRoll(roomSeed), { shared: roomSeed !== undefined }) : null;
+    const legend = colonyWalk && !indoor ? legendaryFor(state, areaId, roomSeed === undefined ? soloLegendRoll : legendaryRoll(roomSeed), { shared: roomSeed !== undefined }) : null;
     // Kittypets — now and then a kittypet wanders into the Woods, the River or
     // the Moor. housecats.js decides from the UTC day and the area (plus the
     // shared colony on a colony walk), so it draws nothing from walkRng or the
@@ -1295,7 +1307,7 @@ export function createWalkLifecycle({
     // cats already read for this area: empty off a colony walk, so a
     // non-partner co-walk gets 0 on both devices and the two agree.
     const fedHere = colonyCats.length;
-    const loners = isDen ? 0 : lonersFor(areaId, tier.strays, fedHere);
+    const loners = indoor ? 0 : lonersFor(areaId, tier.strays, fedHere);
     // The wanderer takes an ordinary loner's slot, never a colony cat's.
     // The lite rung's count is small enough to fall below her colony here
     // (createStrayCats counts fed cats inside the number and drops the ones
@@ -1757,7 +1769,7 @@ export function createWalkLifecycle({
     // consumer below (noteGoal's `!session?.goals` guard, hud.setGoals,
     // endWalk's goalsDone/summary) treats a null goals as "this walk has no
     // goal HUD" rather than crashing on it.
-    const goals = isDen ? null : createGoals(walkRng, areaData);
+    const goals = indoor ? null : createGoals(walkRng, areaData);
     if (resume) restoreGoals(goals, resume.goals, GOAL_POOL);
     // Co-walk duo goal (Task 6.2): both clients derive this from the SAME
     // seeded goal pool + walkRng draw, then deterministically overwrite
@@ -1897,7 +1909,7 @@ export function createWalkLifecycle({
       // its own frame dt — see main.js's slow-mo note).
       // Indoor den: no sky to animate — a no-op stub keeps the render loop's
       // unconditional session.skyLife.update()/dispose() calls safe.
-      skyLife: isDen ? { update() {}, dispose() {} } : createSkyLife(scene, {
+      skyLife: indoor ? { update() {}, dispose() {} } : createSkyLife(scene, {
         rng: mulberry32(((roomSeed ?? (Math.random() * 2 ** 31)) >>> 0) ^ 0x5eaf00d),
         reducedMotion,
         // the flock's height: the area's own (the Gorge flies it over its
@@ -2322,11 +2334,13 @@ export function createWalkLifecycle({
     // this device's own progression.state.kitten.stage. A no-op stub (same
     // shape as goldMice's above) covers every other case: co-walks, and
     // solo walks where kittenPlan has nothing to offer this stage/area.
+    // At home she circles the area's kitten spot (areaData.kittenHome: the
+    // Old House's hall, clear of its shut front door), else its spawn.
     const kittenPlanResult = roomSeed === undefined
       ? kittenPlan(progression.state.kitten.stage, areaId)
       : null;
     session.kittenEnc = kittenPlanResult
-      ? createKittenEncounter(scene, kittenPlanResult, areaData.spawn, { onMew: () => { if (!lessonOpen(session)) audio.trill(0.7, 1.5); }, ground })
+      ? createKittenEncounter(scene, kittenPlanResult, areaData.kittenHome ?? areaData.spawn, { onMew: () => { if (!lessonOpen(session)) audio.trill(0.7, 1.5); }, ground })
       : { group: null, update() {}, promptAt: () => null, interact: () => null, dispose() {} };
     // Fixed at walk start, from the SAME kittenPlanResult that built the
     // encounter above — handleInteract's 'kitten' branch dispatches on this,
@@ -2615,7 +2629,7 @@ export function createWalkLifecycle({
       camera.position.copy(cat.position).add(cameraOffset(lesson.heading, 0.18, startView.dist, startView.height));
       camera.lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
     }
-    session.minimap = isDen ? null : createMinimap(hud.mapHost, {
+    session.minimap = indoor ? null : createMinimap(hud.mapHost, {
       areaId,
       layer: buildMapLayer(areaData, scene),
       mode: progression.state.mapMode,

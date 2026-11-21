@@ -30,7 +30,7 @@ import { withLocalUuids } from './localuuids.js';
 import { words } from '../wordset.js';
 import {
   HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_BOUNDS, HOUSE_FRONT_DOOR, HOUSE_LAMPS, HOUSE_FURNITURE, LEVEL_LINKS,
-  LAWN_Y, WALL_T, TALL_H, houseArea,
+  LAWN_Y, WALL_T, TALL_H, HOUSE_KITTEN_HOME, houseArea,
 } from './houseplan.js';
 import {
   HOUSE_ATLAS_CELLS as CELL, createHouseAtlas, houseMaterial, sectionMesh, paneMesh, floorMesh, stairMesh,
@@ -328,6 +328,7 @@ export function build(scene, { wind, gateEnds } = {}) {
       colliders: plan.colliders, // the walls', the furniture's and the lamps' (houseColliders)
       bounds: { ...HOUSE_BOUNDS },
       spawn: { ...plan.spawn },
+      kittenHome: { ...HOUSE_KITTEN_HOME }, // Mochi's circle: the hall's middle, clear of the door and the lamp
       pois: [],
       collectibles: [],
       scenics: [],

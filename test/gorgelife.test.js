@@ -439,11 +439,12 @@ describe('gorge life: the caves', () => {
   });
 
   it('on any other area none of this exists', async () => {
-    // Only the Gorge, the River, the Rooftops and (with the bigger-areas
-    // switch on) the Pines hand walk.js a `life`, and only the Gorge's has a
-    // light: the River's (marshlife.js) is its mist and dragonflies, the
-    // Rooftops' (roofslife.js) its evening deepening, the Pines' its strips'
-    // stand fade (pinesstrips.js).
+    // Only the Gorge, the River, the Rooftops, the Old House and (with the
+    // bigger-areas switch on) the Pines hand walk.js a `life`, and only the
+    // Gorge's has a light: the River's (marshlife.js) is its mist and
+    // dragonflies, the Rooftops' (roofslife.js) its evening deepening, the Old
+    // House's (houselife.js) its walls sinking and its levels drawn, the
+    // Pines' its strips' stand fade (pinesstrips.js).
     // Every place a walk can build (world/areas.js), built headless as
     // walk.js builds it, with the bigger-areas switch off and on.
     const { readFileSync } = await import('node:fs');
@@ -462,8 +463,8 @@ describe('gorge life: the caves', () => {
         setGrow(null);
       }
     };
-    expect(withLife(false)).toEqual(['gorge', 'river', 'roofs']);
-    expect(withLife(true)).toEqual(['gorge', 'pines', 'river', 'roofs']);
+    expect(withLife(false)).toEqual(['gorge', 'house', 'river', 'roofs']);
+    expect(withLife(true)).toEqual(['gorge', 'house', 'pines', 'river', 'roofs']);
     expect(readFileSync(new URL('marshlife.js', dir), 'utf8')).not.toMatch(/Light\(/);
     const walk = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
     expect(walk).toMatch(/areaData\.life\?\.\(\{[^}]*\bweather\b[^}]*\}\) \?\? NO_AREA_LIFE/);
