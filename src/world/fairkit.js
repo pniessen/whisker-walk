@@ -151,7 +151,8 @@ export function stripes(P, r0, y0, r1, y1, colors, x, y, z, o = {}) {
   return g;
 }
 
-// A flat awning of stripes: w along x by d along z, its top face at y + t.
+// A slab of stripes (an awning, or a skirt stood on end): w along x by d
+// along z, its top face at y + t; o: n stripes, yaw/pitch/roll, shade.
 export function stripedSlab(P, w, t, d, colors, x, y, z, o = {}) {
   const n = o.n ?? Math.max(2, Math.round(w / 0.45));
   const sub = [];

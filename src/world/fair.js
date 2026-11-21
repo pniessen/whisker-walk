@@ -55,7 +55,7 @@ import { MGR, FERRIS, TEACUPS, HELTER, COASTER, STATION, MUSIC_BOX } from './fai
 // =============================================================================
 
 export const FAIR_GRASS = 0x62ac50;
-// The midway, the plaza and the paths: pale trodden earth and sawdust
+// The midway, the plaza and the paths: warm trodden earth and sawdust
 // (world/pathribbon.js SAWDUST_LOOK: scuffed patches, a darker trodden
 // margin, sawdust chips and crumbs of earth).
 export const FAIR_PATH_STYLE = Object.freeze({ surface: 'sand', color: 0xd3b98b, look: 'sawdust' });

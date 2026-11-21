@@ -406,7 +406,8 @@ export function merryGoRound(x, z, glow) {
     bulb(L, Math.cos(a) * (MGR.canopyR + 0.09), MGR.canopyY - 0.2, Math.sin(a) * (MGR.canopyR + 0.09), BULB_COLORS[(j % 3) + 1]);
   }
   ring(12, (a, i) => bulb(L, Math.cos(a) * (MGR.drumR + 0.2), 2.66, Math.sin(a) * (MGR.drumR + 0.2), BULB_COLORS[i % BULB_COLORS.length]));
-  // (its mirrors are shaded by the canopy by day like the paint round them)
+  // (by day its bulbs and mirrors take the canopy's shade like the paint round
+  // them; a shadow never dims the dusk glow, which is emissive)
   const lit = glowMesh(L, 'mgrBulbs', glow);
   lit.receiveShadow = true;
   turn.add(lit);
@@ -663,7 +664,7 @@ export function teacups(x, z, glow, yaw = 0) {
       bar(B, ['+x', '-x'], len, 0.06, 0.05, mx, 0.74, mz, PAINT.cream, { c: true, yaw: -Math.atan2(Math.sin(b) - Math.sin(a), Math.cos(b) - Math.cos(a)) });
     }
   }
-  g.add(meshOf(B, 'teacupsBase', { roughness: 0.82 }));
+  g.add(meshOf(B, 'teacupsBase', { roughness: 0.82 })); // matt paint: no white glare on the kerb top
 
   const turn = new THREE.Group();
   turn.name = 'teacupsTurn';
