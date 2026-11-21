@@ -91,6 +91,7 @@
   import { MARKET_SHOTS, MARKET_SPAWN, FOUNTAIN, TREAT_STALLS, stallById, fromStall } from '/src/world/marketplan.js';
   import { createMarketPilot, MARKET_TOURS } from '/src/world/marketpilot.js';
   import { createMarketLive } from '/src/marketlive.js';
+  import { createPeopleKit } from '/src/people/index.js';
   import { MARKET, STALL_TIMES, stallOffsets, periodOf } from '/src/marketrules.js';
   import { treatItemId } from '/src/marketnone.js';
   import { handleMarketEvent, createMarketToasts } from '/src/game/marketplay.js';
@@ -300,7 +301,7 @@
       };
       const marketToasts = createMarketToasts({ hud: dev.hud, now: () => dev.t });
       dev.live = createMarketLive(dev.scene, dev.scene === scene ? area : { ...area, treatMeshes: {} }, {
-        seed, now: () => clock, ground: FLAT_GROUND, isFree,
+        seed, now: () => clock, ground: FLAT_GROUND, isFree, people: createPeopleKit,
         onEvent: (e) => { dev.events.push(e); handleMarketEvent(e, { hud: dev.hud, audio: null, log: dev.log, session: dev.session, ...marketToasts }); },
       });
       if (dev.scene === scene) for (const g of dev.live.groups) decals.follow(g);

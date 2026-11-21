@@ -950,6 +950,29 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         expect(h.session.prompt?.kind).not.toBe('scratch');
       });
 
+      it('asking for head scratches tells the villagers: they kneel for it (the award and the purr as ever)', () => {
+        const h = carryHarness();
+        const villager = { type: 'villager', scratched: false, group: new THREE.Group() };
+        villager.group.position.set(1, 0, 0);
+        h.session.critters.list = [villager];
+        const hellos = [];
+        h.session.critters.scratchHello = (c) => hellos.push(c);
+        h.walkTo(0, 0);
+        expect(h.session.prompt?.kind).toBe('scratch');
+        h.press();
+        expect(hellos).toEqual([villager]);
+        expect(villager.scratched).toBe(true);
+        expect(h.purrs).toEqual([2.5]);
+        // a session whose villagers cannot kneel (no scratchHello) is as before
+        const h2 = carryHarness();
+        const v2 = { type: 'villager', scratched: false, group: new THREE.Group() };
+        v2.group.position.set(1, 0, 0);
+        h2.session.critters.list = [v2];
+        h2.walkTo(0, 0);
+        expect(() => h2.press()).not.toThrow();
+        expect(v2.scratched).toBe(true);
+      });
+
       it('carry still wins over scratching a mark into a post beside it', () => {
         const POST = propsFor('neighborhood').markables.find((m) => m.id === 'neighborhood-post-1');
         const at = { x: POST.x + 0.6, z: POST.z };

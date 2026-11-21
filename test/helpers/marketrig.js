@@ -42,7 +42,7 @@
 //
 // opts (all optional): seed (7), clock (1e9), reducedMotion (false),
 // isFree (default isWalkableAt on the area: the hop's check, Task 12),
-// figure (marketlive's default twolegKeeper), scene/area (a square already
+// figure (marketlive's default marketFigure), scene/area (a square already
 // built, to share one build across rigs), onEvent (also handed each event,
 // after `events` has it: the walk's handleMarketEvent, Task 13).
 import * as THREE from 'three';
@@ -71,6 +71,7 @@ vi.stubGlobal('document', {
 
 const { build } = await import('../../src/world/market.js');
 const { createMarketLive } = await import('../../src/marketlive.js');
+const { createPeopleKit } = await import('../../src/people/index.js');
 const { createMouth, drop } = await import('../../src/carry.js');
 const { stallOffsets, periodOf, STALL_TIMES, MARKET } = await import('../../src/marketrules.js');
 const { stallById, fromStall } = await import('../../src/world/marketplan.js');
@@ -116,6 +117,7 @@ export function marketRig({
 
   const free = typeof isFree === 'function' ? isFree : (x, z) => isWalkableAt(area, x, z);
   const live = createMarketLive(scene, area, {
+    people: createPeopleKit, // as the walk hands it over, from the market pack
     seed,
     now: () => now,
     reducedMotion,

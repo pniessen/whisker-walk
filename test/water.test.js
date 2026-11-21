@@ -444,7 +444,7 @@ describe('the seaside sea, and the pier that crosses it', () => {
 
   it('moved fish-1 out of open water onto the deck, keeping its id', () => {
     const fish = area.collectibles.find((c) => c.id === 'fish-1');
-    expect(fish).toMatchObject({ x: 33, z: -10.6 });
+    expect(fish).toMatchObject({ x: 34.6, z: -10.6 }); // (Task 11 fix 1c: along the deck, clear of the person on the pier)
     expect(onDeck(sea, fish.x, fish.z)).toBe(true);
     // the pickup gate is 1.6 horizontal, and the cat stands right on it
     expect(dry(area, fish.x, fish.z)).toBe(true);

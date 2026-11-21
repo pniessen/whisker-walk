@@ -36,7 +36,7 @@ import { PAW } from '../ui/pawicon.js';
 import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
-import { createCritters, goatForDay } from '../critters.js';
+import { createCritters, goatForDay, questMarkerY } from '../critters.js';
 import { createStrayCats, strayStream } from '../straycats.js';
 import { createClanCats } from '../clancats.js';
 import { castFor, CLAN_COLOURS, clanCountFor, clanHomeFor, lonersFor, roamHomes, borderWarriorFor } from '../clancast.js';
@@ -707,7 +707,7 @@ export function createWalkLifecycle({
     const pack = areas.loaded(areaOverride ?? progression.state.area);
     if (!pack) throw new Error(`Whisker Walk: area "${areaOverride ?? progression.state.area}" is not loaded; start walks with startWalkWhenReady`);
     // The Farm's animals and the Fair's rides and games come with their place.
-    const { createFarmAnimals, createFairLive, createFairShow, createMarketLive } = pack.life;
+    const { createFarmAnimals, createFairLive, createFairShow, createMarketLive, createPeopleKit, lodNearFor } = pack.life;
     // A visit prize held for the tap (styles A and C) goes on FIRST, before
     // anything below reads state.equipped (the avatar, the collar/crown
     // perks). Style C never dims and A lets go after its reveal, so Start,
@@ -1072,6 +1072,10 @@ export function createWalkLifecycle({
       : createSecrets(scene, areaData, rollSecrets(walkRng, { eveningLight: duskActive || weather.condition === 'sunset' }), walkRng);
 
     const critters = createCritters(scene, areaData.critterSpawns, {
+      people: createPeopleKit,
+      camera,
+      reducedMotion,
+      lodNear: () => lodNearFor(qualityAdapter.status?.rung), // the live rung's switch
       fleeScale: equipped.collar === 'bell' ? 0.5 : 1,        // bell: birds tolerate you closer
       spawnFireflies: duskActive,                              // glow: dusk fireflies
       trailButterflies: equipped.head === 'crown',              // crown: butterflies trail the cat
@@ -1125,7 +1129,7 @@ export function createWalkLifecycle({
         litMaterial(0xf2c14e, { emissive: 0x6a5010 })
       );
       marker.rotation.x = Math.PI;
-      marker.position.y = 2.1;
+      marker.position.y = questMarkerY(giver);
       (giver.figure ?? giver.group).add(marker);
       questGiver.marker = marker;
       // quest object at the target, revealed on accept
@@ -1652,6 +1656,8 @@ export function createWalkLifecycle({
       if (!fairToasted.has(key)) { fairToasted.add(key); hud.toast(text); }
     }
     const fairShow = areaId !== 'fair' ? null : createFairShow(scene, areaData, {
+      people: createPeopleKit,
+      lodNear: () => lodNearFor(qualityAdapter.status?.rung), // the live rung's switch
       swept: fairLive.sim.swept,
       strays: tier.strays,
       camera,
@@ -1672,6 +1678,7 @@ export function createWalkLifecycle({
     const marketToasts = areaId === 'market' ? createMarketToasts({ hud, now: nowSec }) : null;
     const market = areaId !== 'market' ? NO_MARKET : createMarketLive(scene, areaData, {
       seed: roomSeed ?? soloSeed, reducedMotion, ground, isFree: (x, z) => isWalkableAt(areaData, x, z),
+      people: createPeopleKit, // the stallholders, from the pack's people kit
       onEvent: (e) => handleMarketEvent(e, { hud, audio, log, session, ...marketToasts }),
     });
     // The balance walk, leaps, drops and climb-ups (traversallive.js) of an
@@ -1704,6 +1711,7 @@ export function createWalkLifecycle({
     for (const stray of strayCats.strays) decals.follow(stray.group);
     for (const c of clanCats.list) decals.follow(c.group);
     for (const critter of critters.list) decals.follow(critter.figure ?? critter.group);
+    for (const critter of critters.list) if (critter.people?.[1]) decals.follow(critter.people[1].figure); // a pair's child (R26)
     for (const g of farm.groups) decals.follow(g);
     if (fairShow) for (const g of fairShow.groups) decals.follow(g);
     for (const g of market.groups) decals.follow(g);

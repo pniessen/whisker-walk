@@ -11,7 +11,8 @@ import { marketRig, buildSquare } from './helpers/marketrig.js';
 // =============================================================================
 
 const { createMarketLive } = await import('../src/marketlive.js');
-const { twolegKeeper } = await import('../src/marketkeeper.js');
+const { marketFigure } = await import('../src/marketkeeper.js');
+const { createPeopleKit } = await import('../src/people/index.js');
 const { TREAT_ITEM_PREFIX, treatItemId, treatStallOf, NO_MARKET } = await import('../src/marketnone.js');
 const { STALLS, TREAT_STALLS, stallById, toStall, fromStall, MARKET_SPAWN, MARKET_REGISTRATION, stallClimb } = await import('../src/world/marketplan.js');
 const { MARKET, STALL_TIMES, stallOffsets, stallPhase, periodOf } = await import('../src/marketrules.js');
@@ -317,15 +318,15 @@ describe('the stallholders (Task 11)', () => {
     for (const id of ['fish', 'flowers']) {
       const keepers = { ...area.keepers };
       delete keepers[id];
-      expect(() => createMarketLive(scene, { ...area, keepers }, { seed: 1, now: () => 0 }), id).toThrow(id);
+      expect(() => createMarketLive(scene, { ...area, keepers }, { people: createPeopleKit, seed: 1, now: () => 0 }), id).toThrow(id);
     }
     // a guarded stall needs its roof's height for the bubble (a serve-only one has no bubble)
     for (const roof of [undefined, NaN, Infinity, '2.8']) {
       const keepers = { ...area.keepers, milk: { ...area.keepers.milk, roof } };
-      expect(() => createMarketLive(scene, { ...area, keepers }, { seed: 1, now: () => 0 }), String(roof)).toThrow('milk');
+      expect(() => createMarketLive(scene, { ...area, keepers }, { people: createPeopleKit, seed: 1, now: () => 0 }), String(roof)).toThrow('milk');
     }
     const keepers = { ...area.keepers, fruit: { ...area.keepers.fruit, roof: undefined } };
-    createMarketLive(scene, { ...area, keepers }, { seed: 1, now: () => 0 }).dispose();
+    createMarketLive(scene, { ...area, keepers }, { people: createPeopleKit, seed: 1, now: () => 0 }).dispose();
     expect(scene.children).toHaveLength(before);
   });
 
@@ -336,12 +337,12 @@ describe('the stallholders (Task 11)', () => {
     let n = 0;
     const figure = (spot) => {
       if (++n === 4) throw new Error('no fourth figure');
-      const k = twolegKeeper(spot);
+      const k = marketFigure({ ...spot, people: createPeopleKit });
       const dispose = vi.fn(k.dispose);
       made.push(dispose);
       return { ...k, dispose };
     };
-    expect(() => createMarketLive(scene, area, { seed: 1, now: () => 0, figure })).toThrow('no fourth figure');
+    expect(() => createMarketLive(scene, area, { people: createPeopleKit, seed: 1, now: () => 0, figure })).toThrow('no fourth figure');
     expect(scene.children).toHaveLength(before);
     expect(made).toHaveLength(3);
     for (const d of made) expect(d).toHaveBeenCalledTimes(1);
@@ -370,7 +371,7 @@ describe('the stallholders (Task 11)', () => {
     const before = new Set(scene.children);
     const count = () => { let n = 0; scene.traverse(() => n++); return n; };
     const nodes = count();
-    const live = createMarketLive(scene, area, { seed: 7, now: () => 1e9 });
+    const live = createMarketLive(scene, area, { people: createPeopleKit, seed: 7, now: () => 1e9 });
     live.update(DT, DT, { cat: new THREE.Group(), player: { speed: 0 }, session: { remotes: { list: [] } } });
     const added = scene.children.filter((o) => !before.has(o));
     // six people and four bubbles, nothing else; the build's own children are untouched
@@ -383,19 +384,22 @@ describe('the stallholders (Task 11)', () => {
     assignShadowCasters(scene);
     const theirs = [];
     for (const o of added) o.traverse((m) => { if (m.isMesh) theirs.push(m); });
-    expect(theirs.length).toBeGreaterThanOrEqual(6 * 3 + 4 * 3); // three meshes a person, a broom of three for each treat stall
+    expect(theirs.length).toBeGreaterThanOrEqual(6 * 1 + 4 * 3); // one skinned mesh a person, a broom of three for each treat stall
     for (const m of theirs) {
       expect(m.castShadow, m.name).toBe(false);
       expect(m.userData.noCast, m.name).toBe(true);
     }
-    // and at most this much (today 30 meshes, 3,056 triangles, nothing cast): a
-    // heavier figure (U7, the lifelike people) must come in under these, and
-    // the square with its people under the Market's own ceilings (never raised)
+    // and at most this much, the square with its people under the Market's own
+    // ceilings (never raised). Re-pinned for the lifelike people (U7, measured
+    // 2026-11-21: 18 meshes, 13,980 triangles, nothing cast; six people at the
+    // kit's near detail, about 2,300 each, and four brooms; the old blocky
+    // figure was 30 meshes and 3,056). With the square's 108 meshes and 38,341
+    // triangles that is 126 / 52,321 of the 280 / 62,000 ceilings.
     const tri = (m) => (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
     const people = { meshes: theirs.length, casters: theirs.filter((m) => m.castShadow).length, tris: theirs.reduce((n, m) => n + tri(m), 0) };
-    expect(people.meshes).toBeLessThanOrEqual(40);
+    expect(people.meshes).toBeLessThanOrEqual(20);
     expect(people.casters).toBe(0);
-    expect(people.tris).toBeLessThanOrEqual(6000);
+    expect(people.tris).toBeLessThanOrEqual(14000);
     const square = { meshes: 0, tris: 0 };
     for (const o of before) o.traverse((m) => { if (m.isMesh) { square.meshes++; square.tris += tri(m); } });
     const [maxMeshes, , maxTris] = MARKET_REGISTRATION.budget.built;
@@ -462,17 +466,17 @@ describe('the stallholders (Task 11)', () => {
   }, 60_000);
 
   it('a stallholder stands on the ground it is given, and the life gives it the walk\'s', () => {
-    const k = twolegKeeper({ x: 1, y: 0.7, z: 2, yaw: 0 });
+    const k = marketFigure({ x: 1, y: 0.7, z: 2, yaw: 0, people: createPeopleKit });
     expect(k.group.position.y).toBe(0.7);
     k.dispose();
-    const flat = twolegKeeper({ x: 1, z: 2, yaw: 0 }); // no y: the flat ground's
+    const flat = marketFigure({ x: 1, z: 2, yaw: 0, people: createPeopleKit }); // no y: the flat ground's
     expect(flat.group.position.y).toBe(0);
     flat.dispose();
     const { scene, area } = buildSquare();
     const seen = [];
     const ground = { flat: false, y: (x, z) => 0.25 + 0.01 * (x + z), slide() {}, sameLevel: () => true };
-    const figure = (spot) => { seen.push(spot.y); return twolegKeeper(spot); };
-    const live = createMarketLive(scene, area, { seed: 1, now: () => 0, ground, figure });
+    const figure = (spot) => { seen.push(spot.y); return marketFigure({ ...spot, people: createPeopleKit }); };
+    const live = createMarketLive(scene, area, { people: createPeopleKit, seed: 1, now: () => 0, ground, figure });
     KEEPER_IDS.forEach((id, i) => {
       const { x, z } = area.keepers[id];
       expect(seen[i], id).toBeCloseTo(ground.y(x, z), 12);
@@ -481,17 +485,42 @@ describe('the stallholders (Task 11)', () => {
     live.dispose();
   });
 
+  it('each stallholder is one grown-up from the people kit, its look from the spot, its feet on the ground', () => {
+    const { area } = buildSquare();
+    expect(() => marketFigure({ x: 1, z: 2 })).toThrow('people kit'); // the pack's kit, or nothing
+    for (const id of KEEPER_IDS) {
+      const spot = area.keepers[id];
+      const a = marketFigure({ ...spot, y: 0.3, people: createPeopleKit });
+      const b = marketFigure({ ...spot, y: 0.3, people: createPeopleKit });
+      const meshes = [];
+      a.group.traverse((m) => { if (m.isMesh) meshes.push(m); });
+      expect(meshes, id).toHaveLength(1);
+      expect(meshes[0].isSkinnedMesh, id).toBe(true);
+      expect(a.person.look.kind, id).not.toBe('child');
+      expect(b.person.look).toEqual(a.person.look); // the spot's look, every time
+      // the feet on the ground it was given, the head (and the bubble's floor) a person's height up
+      const box = new THREE.Box3().setFromObject(a.group);
+      expect(box.min.y, id).toBeCloseTo(0.3, 2);
+      expect(a.headY, id).toBeCloseTo(box.max.y - 0.3, 6);
+      expect(a.headY, id).toBeGreaterThan(1.4);
+      // the broom's grip is at the hand, a forearm and more down from the shoulder
+      expect(a.hand.y, id).toBeLessThan(-0.45);
+      a.dispose();
+      b.dispose();
+    }
+  });
+
   it('creating the stallholders draws nothing from Math.random', () => {
     const { scene, area } = buildSquare();
     const ctx = { cat: new THREE.Group(), player: { speed: 0, stalking: false, perchY: 0 }, session: { remotes: { list: [] } } };
     const random = vi.spyOn(Math, 'random');
     try {
       let clock = 1e9;
-      const live = createMarketLive(scene, area, { seed: 7, now: () => clock });
+      const live = createMarketLive(scene, area, { people: createPeopleKit, seed: 7, now: () => clock });
       for (let i = 0; i < 300; i++) { clock += DT; live.update(DT, i * DT, ctx); }
       live.dispose();
       // and the figure on its own
-      twolegKeeper({ x: 1, z: 2, yaw: 0.5 }).dispose();
+      marketFigure({ x: 1, z: 2, yaw: 0.5, people: createPeopleKit }).dispose();
       expect(random).not.toHaveBeenCalled();
     } finally {
       random.mockRestore();

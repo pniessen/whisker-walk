@@ -302,6 +302,18 @@ describe('the walk frame runs its systems in order', () => {
     expect(ran(['player.update', 'farm.update', 'fair.update'])).toEqual(['player.update', 'farm.update', 'fair.update']);
   });
 
+  it('the player is handed the people\'s soft bumps: the Fairground show\'s where there is one, else the villagers\'', () => {
+    const villagers = [{ x: 1, z: 2, r: 0.3 }];
+    const visitors = [{ x: 5, z: 6, r: 0.25 }];
+    session.critters = system('critters', { props: { bumps: villagers } });
+    frame(1020);
+    expect(argsOf('player.update')[4]).toBe(villagers);
+    h.log.length = 0;
+    session.fair = system('fair', { props: { show: { bumps: visitors } } });
+    frame(1040);
+    expect(argsOf('player.update')[4]).toBe(visitors);
+  });
+
   it('the fight places the cats after the rival and the dog, then the fight camera and the tree fade, then the shadows', () => {
     frame(1020);
     const order = ['rival.update', 'dog.update', 'clanFight.update', 'fightCam.update', 'treeFade.update', 'shadows.update'];

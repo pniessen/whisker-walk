@@ -13,9 +13,10 @@
 //          this throws before adding anything), and `treatMeshes` (the
 //          display treats: hidden when grabbed, shown again at the refill)
 //   opts   { seed, now = () => Date.now() / 1000, reducedMotion = false, ground = FLAT_GROUND,
-//            isFree = () => true, onEvent = () => {}, figure = twolegKeeper }
+//            isFree = () => true, onEvent = () => {}, figure = marketFigure, people }
 //          isFree(x, z): may her cat stand there (the hop's check; the walk
-//          passes isWalkableAt); onEvent(e): the events below.
+//          passes isWalkableAt); onEvent(e): the events below; people: the
+//          people kit's factory (the pack's createPeopleKit), handed to the figure.
 //
 // MarketLive: { stalls, keepers, groups, treats, actionFor(s), act(action, s, ctx),
 //               update(dt, t, { cat, player, session }), remotePick(remote, itemId),
@@ -138,8 +139,9 @@
 // faces front (`area.keepers[id].yaw`) turned by facing * pi: 0 serving, pi
 // turned to the back shelf, eased through the turn and the turn back.
 //
-// THE FIGURE (U7) is `opts.figure` (default marketkeeper.js's twolegKeeper),
-// { group, arm, headY, hand?, dispose() }. This file touches only the group's
+// THE FIGURE (U7) is `opts.figure` (default marketkeeper.js's marketFigure, a
+// person from the people kit), { group, arm, headY, hand?, dispose() }, called
+// with the spot and `opts.people` (the kit's factory, from the place's pack). This file touches only the group's
 // position and yaw, the arm's swing (rotation.z, from where it rests) and the
 // broom it parents to the arm at `hand`; the bubble never sits below headY.
 // No stall logic reads inside the figure, so a new figure replaces one file.
@@ -184,7 +186,7 @@ import { STALLS, TREAT_STALLS, MARKET_HIDES, fromStall, toStall, stallById } fro
 import { createBubbleTexture, buildBroom, buildTreatMesh } from './world/marketparts.js';
 import { withLocalUuids } from './world/localuuids.js';
 import { FLAT_GROUND } from './ground.js';
-import { twolegKeeper } from './marketkeeper.js';
+import { marketFigure } from './marketkeeper.js';
 import { treatItemId, treatStallOf, TREAT_ITEM_PREFIX } from './marketnone.js';
 import { pick, eatHeld } from './carry.js';
 import { placeInMouth } from './carryables.js';
@@ -253,7 +255,7 @@ const HAND = Object.freeze({ x: 0, y: -0.5, z: 0 }); // a figure with no `hand`:
 export function createMarketLive(scene, area, opts = {}) {
   const {
     seed = 0, now = () => Date.now() / 1000, reducedMotion = false, ground = FLAT_GROUND,
-    isFree = () => true, onEvent = () => {}, figure = twolegKeeper,
+    isFree = () => true, onEvent = () => {}, figure = marketFigure, people,
   } = opts;
   const offsets = stallOffsets(seed);
   const gy = (x, z) => (ground.flat ? 0 : ground.y(x, z));
@@ -291,7 +293,7 @@ export function createMarketLive(scene, area, opts = {}) {
     STALLS.forEach((s, i) => {
       if (!s.keeper) return;
       const spot = spots[s.id];
-      const k = figure({ x: spot.x, y: gy(spot.x, spot.z), z: spot.z, yaw: spot.yaw });
+      const k = figure({ x: spot.x, y: gy(spot.x, spot.z), z: spot.z, yaw: spot.yaw, people });
       owned.figures.push(k);
       k.group.position.set(spot.x, gy(spot.x, spot.z), spot.z);
       k.group.rotation.y = spot.yaw;
