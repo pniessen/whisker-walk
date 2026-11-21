@@ -1094,7 +1094,7 @@ export function createWalkLifecycle({
       // v21 3b Task 13: a mouse, rat or squirrel that notices the cat bolts
       // for this cover and stays hidden for the walk (the den has none). Local
       // to this device like every critter position; nothing rides the wire.
-      hides: propsFor(areaId).hides,
+      hides: areaData.hides ?? propsFor(areaId).hides,
       onHide: (c) => hud.toast(hideToastFor(c.type)),
       ground,
       // G7: the dusk fireflies' spots stand where a cat can (standSpot).
@@ -1498,7 +1498,7 @@ export function createWalkLifecycle({
     // 2026-11-19): picked by the day on a walk alone, by the room's seed on a
     // walk together, so both players find it in the same place. A hash, never
     // walkRng. It is nobody's until someone touches it (toy.js `claimed`).
-    const yarnSpot = yarnSpotFor(areaId, roomSeed ?? new Date().toISOString().slice(0, 10));
+    const yarnSpot = yarnSpotFor(areaId, roomSeed ?? new Date().toISOString().slice(0, 10), areaData.yarnSpots);
     if (yarnSpot) {
       toy.spot = { x: yarnSpot.x, z: yarnSpot.z };
       toy.placeAt(yarnSpot);
@@ -1549,7 +1549,7 @@ export function createWalkLifecycle({
     // below: a mover decal sits on the ground under its object, so a cup on a
     // car roof (or in mid-fall) would trail a shadow blob along the road.
     // knockables.js lays its own fixed decal under each one once it lands.
-    const knockables = createKnockables(scene, propsFor(areaId).knockables, { ground });
+    const knockables = createKnockables(scene, areaData.knockables ?? propsFor(areaId).knockables, { ground });
     // v21 3b — the things this player has left behind. In the den that is what
     // they carried home, laid out in front of the hearth; outdoors, the posts
     // they scratched, the holes they dug, the things they set down somewhere
@@ -1796,11 +1796,11 @@ export function createWalkLifecycle({
       keepOut: grassKeepOut, weather,
     });
 
-    // No goals in the den (Task 7.2) — session.goals stays null and every
+    // No goals in the den (Task 7.2; the Old House has its own, D11) — session.goals stays null and every
     // consumer below (noteGoal's `!session?.goals` guard, hud.setGoals,
     // endWalk's goalsDone/summary) treats a null goals as "this walk has no
     // goal HUD" rather than crashing on it.
-    const goals = indoor ? null : createGoals(walkRng, areaData);
+    const goals = isDen ? null : createGoals(walkRng, areaData);
     if (resume) restoreGoals(goals, resume.goals, GOAL_POOL);
     // Co-walk duo goal (Task 6.2): both clients derive this from the SAME
     // seeded goal pool + walkRng draw, then deterministically overwrite
@@ -1835,7 +1835,7 @@ export function createWalkLifecycle({
     // PointLight with castShadow false, added here so shaders compile with it
     // once. Draws on no rng. The Rooftops' life also takes the walk's critters,
     // to move its birds, and how many walks she has had there.
-    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0 }) ?? NO_AREA_LIFE;
+    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0, log, hud, toy }) ?? NO_AREA_LIFE;
     const session = createSession({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       farm,
@@ -2019,10 +2019,11 @@ export function createWalkLifecycle({
     // golden mice: personal, position-static, award-local — no wire events,
     // so this is co-walk safe without touching walkRng or session.net at
     // all. areas without an entry in GOLD_MICE (none currently, but future
-    // areas like the den) get an inert stub instead of a lookup throw.
-    session.goldMice = areaId in GOLD_MICE
+    // areas like the den) get an inert stub instead of a lookup throw. The
+    // Old House hands its own (areaData.goldMice, outside GOLD_MICE).
+    session.goldMice = (areaId in GOLD_MICE || areaData.goldMice)
       ? createGoldMice(scene, areaId, new Set(progression.state.golden), {
-        ground, rng: ownStream(roomSeed ?? soloSeed, GOLD_PHASE_SALT),
+        ground, rng: ownStream(roomSeed ?? soloSeed, GOLD_PHASE_SALT), list: areaData.goldMice,
       })
       : NO_GOLD_MICE;
 
@@ -2701,7 +2702,7 @@ export function createWalkLifecycle({
       }
       session.areaLife.settle(cat.position, camera);
     }
-    session.minimap = indoor ? null : createMinimap(hud.mapHost, {
+    session.minimap = isDen ? null : createMinimap(hud.mapHost, {
       areaId,
       layer: buildMapLayer(areaData, scene),
       mode: progression.state.mapMode,

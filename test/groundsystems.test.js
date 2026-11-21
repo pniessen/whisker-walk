@@ -359,7 +359,7 @@ describe('perches and finds sit on the ground under them', () => {
     k.dispose();
     flat.dispose();
     const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
-    expect(walkSrc).toContain('createKnockables(scene, propsFor(areaId).knockables, { ground })');
+    expect(walkSrc).toContain('createKnockables(scene, areaData.knockables ?? propsFor(areaId).knockables, { ground })'); // the Old House hands its own (step 2)
   });
 
   it('the perched collectible and knock prompts compare world heights', () => {

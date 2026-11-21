@@ -15,6 +15,40 @@ import { literalsIn } from './helpers/serieswords.js';
 const FILES = globSync('src/**/*.js').map((f) => f.split('\\').join('/'));
 const read = (f) => readFileSync(f, 'utf8');
 const noComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+// The source with its comments and its quoted and template text left out
+// (a template's ${...} is code, and kept).
+function codeOnly(src) {
+  let out = '';
+  let i = 0;
+  const quoted = (q) => { // i at the opening quote; returns past the closing one
+    for (i++; i < src.length && src[i] !== q && src[i] !== '\n'; i++) if (src[i] === '\\') i++;
+    i++;
+  };
+  const template = () => { // i past the opening backtick; returns past the closing one
+    while (i < src.length && src[i] !== '`') {
+      if (src[i] === '\\') i += 2;
+      else if (src[i] === '$' && src[i + 1] === '{') { i += 2; code(true); } else i++;
+    }
+    i++;
+  };
+  const code = (inExpr) => {
+    let depth = 0;
+    while (i < src.length) {
+      const c = src[i], n = src[i + 1];
+      if (c === '/' && n === '/') { while (i < src.length && src[i] !== '\n') i++; } else if (c === '/' && n === '*') {
+        const end = src.indexOf('*/', i + 2);
+        i = end < 0 ? src.length : end + 2;
+      } else if (c === "'" || c === '"') { quoted(c); out += ' '; } else if (c === '`') { i++; template(); out += ' '; } else {
+        if (c === '{') depth++;
+        if (c === '}') { if (inExpr && depth === 0) { i++; return; } depth--; }
+        out += c;
+        i++;
+      }
+    }
+  };
+  code(false);
+  return out;
+}
 
 describe('the phrase table', () => {
   it('is a plain lookup: a string for every id, the same one each time', () => {
@@ -50,7 +84,14 @@ describe('the phrase table', () => {
   it('imports only the door to the word files, so anything may import it', () => {
     const specs = [...read('src/clanphrases.js').matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
     expect(specs).toEqual(['./wordset.js']);
-    expect(noComments(read('src/clanphrases.js'))).not.toMatch(/document|window|localStorage|THREE/);
+    // the words a phrase says are not code: quoted and template text is left out (ruling S2-8)
+    const DOM = /document|window|localStorage|THREE/;
+    expect(codeOnly(read('src/clanphrases.js'))).not.toMatch(DOM);
+    expect(codeOnly(read('src/clanphrases.js'))).toMatch(/export function phrase\(id, \.\.\.args\)/); // the code itself is kept
+    // and the guard still sees a real reference, in code or inside a template's ${...}
+    expect(codeOnly("const a = 'the round window'; window.scrollTo(0, 0);")).toMatch(DOM);
+    expect(codeOnly('const b = `wide ${window.innerWidth}`;')).toMatch(DOM);
+    expect(codeOnly('const c = "a window" + `the ${\'window\'} seat`; // window\n/* document */')).not.toMatch(DOM);
   });
 
   it('every phrase(...) call in src/ names an id the table has, and every id is used', () => {

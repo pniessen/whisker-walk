@@ -528,12 +528,12 @@ export function yarnSpotsFor(areaId) {
   return list.map((p) => ({ ...p }));
 }
 
-// yarnSpotFor(areaId, key) -> today's spot, or null. `key` is the day
+// yarnSpotFor(areaId, key, spots) -> today's spot, or null. `key` is the day
 // ('2026-11-19') on a walk alone, or the room's seed on a walk together, so
 // two players in one room find it in the same place. A hash, never a draw
-// from the walk's seeded stream (that stream's draw count is shared).
-export function yarnSpotFor(areaId, key) {
-  const spots = yarnSpotsFor(areaId);
+// from the walk's seeded stream (that stream's draw count is shared). `spots`
+// is the area's own list when it hands one (the Old House), else this table's.
+export function yarnSpotFor(areaId, key, spots = yarnSpotsFor(areaId)) {
   if (!spots.length) return null;
   return spots[hashText(`${areaId}|${String(key)}`) % spots.length];
 }

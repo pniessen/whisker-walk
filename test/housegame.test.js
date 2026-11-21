@@ -17,6 +17,13 @@ import { makeView, blockers } from '../src/housewalls.js';
 import { CAT_LOOK_Y } from '../src/cat/model.js';
 import { behindYaw } from '../src/traversal.js';
 import { lifecycle, fakeEl, memStorage } from './helpers/walklife.js';
+import { HOUSE_GOAL_TYPES, HOUSE_GOLD_MICE, HOUSE_KNOCKABLES, HOUSE_HIDES, HOUSE_MICE, HOUSE_YARN_SPOTS } from '../src/world/housethings.js';
+import { createGoals, goalFits, GOAL_POOL } from '../src/goals.js';
+import { GOLD_MICE, goldForEdition } from '../src/goldmice.js';
+import { propsFor, yarnSpotFor } from '../src/propsets.js';
+import { buildMapLayer } from '../src/ui/minimap.js';
+import { AWARDS } from '../src/discoveries.js';
+import { discoveryText } from '../src/ui/hud.js';
 
 // =============================================================================
 // The Old House in the game (Old House step 1, Task 8; rulings H7, U9-U12).
@@ -35,7 +42,7 @@ import { lifecycle, fakeEl, memStorage } from './helpers/walklife.js';
 // =============================================================================
 
 const seen = vi.hoisted(() => ({
-  houseLoads: 0, secrets: 0, skyLife: 0, goals: 0, legends: [], wanderers: [], strayCounts: [], zoom: [], savedZoom: null,
+  houseLoads: 0, secrets: 0, skyLife: 0, goals: 0, legends: [], wanderers: [], strayCounts: [], zoom: [], savedZoom: null, hides: [],
 }));
 vi.mock('../src/world/house.js', async (importOriginal) => {
   seen.houseLoads++;
@@ -62,6 +69,11 @@ vi.mock('../src/legendary.js', async (importOriginal) => {
 vi.mock('../src/straycats.js', async (importOriginal) => {
   const m = await importOriginal();
   return { ...m, createStrayCats: (scene, area, count, ...rest) => { seen.strayCounts.push(count); return m.createStrayCats(scene, area, count, ...rest); } };
+});
+// The cover each walk handed its critters (a chased mouse runs to the nearest).
+vi.mock('../src/critters.js', async (importOriginal) => {
+  const m = await importOriginal();
+  return { ...m, createCritters: (scene, spawns, opts = {}, ...rest) => { seen.hides.push(opts.hides); return m.createCritters(scene, spawns, opts, ...rest); } };
 });
 // Every walk's day has a wanderer, so a walk that let one in would show it.
 vi.mock('../src/housecats.js', async (importOriginal) => {
@@ -97,6 +109,7 @@ function reset(life) {
   seen.wanderers.length = 0;
   seen.strayCounts.length = 0;
   seen.zoom.length = 0;
+  seen.hides.length = 0;
   for (const k of ['lighting', 'sound', 'music', 'toasts']) life.rec[k].length = 0;
   life.rec.friendFetches = 0;
 }
@@ -125,6 +138,7 @@ function walk(life, start, { keep = null } = {}) {
     goalsRolled: seen.goals,
     skyLife: seen.skyLife,
     minimap: s.minimap,
+    hides: [...seen.hides],
     zoom: [...seen.zoom],
     sound: life.rec.sound.map(({ areaId, dusk, rain }) => ({ areaId, dusk, rain })),
     grass: !!s.scene.getObjectByName('grass'),
@@ -311,14 +325,151 @@ describe('a walk in the house', () => {
     expect(calls).toEqual([undefined]);
   }, 90_000);
 
-  it('has no daily goals, no sky birds and no corner map', () => {
-    const r = houseWalk(lifecycleHere());
-    expect([r.goals, r.goalsRolled, r.skyLife, r.minimap]).toEqual([null, 0, 0, null]);
+  // Old House step 2 (D11, D12, D18): the house has daily goals and the corner map, like every other place.
+  it('has daily goals it can finish, the corner map, and no sky birds', () => {
+    let record = null;
+    const r = houseWalk(lifecycleHere(), false, { keep: (s) => { record = s.areaData; } });
+    expect(r.goalsRolled).toBe(1);
+    expect(r.goals.goals).toHaveLength(3);
+    for (const g of r.goals.goals) expect(HOUSE_GOAL_TYPES).toContain(g.type);
+    expect(r.minimap).not.toBe(null);
+    expect(r.skyLife).toBe(0);
+    // whatever the day rolls, only what the house can finish: three of the four, every time
+    expect(GOAL_POOL.filter((g) => goalFits(g, record)).map((g) => g.type)).toEqual([...HOUSE_GOAL_TYPES]);
+    for (let seed = 1; seed <= 40; seed++) {
+      const types = createGoals(mulberry32(seed), record).goals.map((g) => g.type);
+      expect(new Set(types).size, `seed ${seed}`).toBe(3);
+      for (const t of types) expect(HOUSE_GOAL_TYPES, `seed ${seed}`).toContain(t);
+    }
+    // the Park beside it as ever
     const park = parkWalk(lifecycleHere());
     expect(park.goals).not.toBe(null);
     expect([park.goalsRolled, park.skyLife]).toEqual([1, 1]);
     expect(park.minimap).not.toBe(null);
   }, 90_000);
+
+  it('lays out its golden mice, knock-overs, mice, their cover and the yarn ball from its own record', () => {
+    const life = lifecycleHere();
+    expect(life.progression.recordGolden('gm-house-2')).toBe(true); // found on an earlier walk
+    let got = null;
+    const r = houseWalk(life, false, {
+      keep: (s) => {
+        got = {
+          gold: s.goldMice.list.map((m) => m.id),
+          knock: s.knockables.list.map((k) => k.id),
+          mice: s.critters.list.map((c) => c.type),
+          spot: s.toy.spot,
+          record: s.areaData,
+        };
+      },
+    });
+    expect(got.gold).toEqual(['gm-house-1', 'gm-house-3']);
+    expect(got.knock).toEqual(HOUSE_KNOCKABLES.map((k) => k.id));
+    expect(got.mice).toEqual(HOUSE_MICE.map(() => 'mouse'));
+    expect(r.hides).toEqual([got.record.hides]);
+    expect(got.record.hides).toBe(HOUSE_HIDES);
+    // the yarn ball lies at one of the house's own two spots, today's by the day's hash
+    const today = yarnSpotFor('house', '2026-11-21', got.record.yarnSpots);
+    expect(HOUSE_YARN_SPOTS.some((p) => p.x === got.spot.x && p.z === got.spot.z)).toBe(true);
+    expect(got.spot).toEqual({ x: today.x, z: today.z });
+  }, 90_000);
+
+  it('the yarn goal\'s how-line says where the house\'s ball lies', () => {
+    // walks of the house on one seed after another, until the day rolls the yarn goal
+    let found = null;
+    for (let seed = 1; seed <= 30 && !found; seed++) {
+      const life = lifecycleHere();
+      reset(life);
+      queued.push((seed + 0.5) / 2 ** 31);
+      life.w.startWalk({ areaOverride: 'house' });
+      const s = life.getSession();
+      const yarn = s.goals.goals.find((g) => g.id === 'yarn-play');
+      if (yarn) found = { yarn, where: s.areaData.yarnSpots.find((p) => p.x === s.toy.spot.x && p.z === s.toy.spot.z).where };
+      life.w.endWalk();
+    }
+    expect(found).not.toBe(null);
+    expect(found.yarn.howSlots).toEqual({ place: found.where });
+    expect(HOUSE_YARN_SPOTS.length).toBe(2);
+  }, 90_000);
+
+  it('a golden mouse found in the house is saved, and the tally stays 36 until step 4', () => {
+    const life = lifecycleHere();
+    houseWalk(life, false, {
+      keep: (s) => {
+        // the walk's own golden mice find the cellar one at her paws
+        const m = HOUSE_GOLD_MICE.find((q) => q.id === 'gm-house-3');
+        const pawsY = s.ground.y(m.x, m.z);
+        expect(s.goldMice.checkFind({ x: m.x, y: pawsY, z: m.z }, pawsY)?.id).toBe('gm-house-3');
+      },
+    });
+    expect(life.progression.recordGolden('gm-house-1')).toBe(true);
+    expect(life.progression.recordGolden('gm-house-1')).toBe(false); // once
+    expect(life.progression.state.golden).toContain('gm-house-1');
+    expect(goldForEdition(life.progression.state.edition, CATALOG).size).toBe(36);
+    expect(Object.hasOwn(GOLD_MICE, 'house')).toBe(false);
+  }, 90_000);
+
+  it('draws the corner map as the house\'s floor plan on the lawn', () => {
+    houseWalk(lifecycleHere(), false, {
+      keep: (s) => {
+        const layer = buildMapLayer(s.areaData, s.scene);
+        expect(layer.ground).toBe('#6f9a52');
+        const ledges = layer.rock.filter((q) => q.tone === 'ledge');
+        expect(ledges.length).toBeGreaterThan(0);
+        expect(layer.rock.some((q) => q.tone === 'rock')).toBe(true);
+        // the cat's marker (the map's middle) sits in the hall at the spawn
+        const { x, z } = s.cat.position;
+        expect(roomAt(x, z)).toBe('hall');
+        expect(ledges.some((q) => x > q.minX && x < q.maxX && z > q.minZ && z < q.maxZ)).toBe(true);
+      },
+    });
+  }, 90_000);
+
+  it('every other place is as it was: the den has no goals or map; the park rolls the same goals, mice, knock-overs and yarn spot', () => {
+    const records = {};
+    const den = walk(lifecycleHere(), (w) => w.startWalk({ areaOverride: 'den' }), { keep: (s) => { records.den = s.areaData; } });
+    expect([den.goals, den.goalsRolled, den.minimap]).toEqual([null, 0, null]);
+    walk(lifecycleHere(), (w) => w.startWalk({ areaOverride: 'neighborhood' }), { keep: (s) => { records.neighborhood = s.areaData; } });
+    const houseKeys = ['goldMice', 'knockables', 'hides', 'yarnSpots', 'goalTypes', 'mapGround'];
+    let got = null;
+    const park = walk(lifecycleHere(), (w) => w.startWalk({ areaOverride: 'park' }), {
+      keep: (s) => {
+        got = {
+          record: s.areaData,
+          gold: s.goldMice.list.map((m) => m.id),
+          knock: s.knockables.list.map((k) => k.id),
+          spot: s.toy.spot,
+          goals: s.goals.goals.map((g) => g.id),
+        };
+      },
+    });
+    records.park = got.record;
+    for (const k of houseKeys) expect(Object.hasOwn(got.record, k), k).toBe(false);
+    // the park's goals come from its pool as before the house's list existed (goalFits below)
+    for (const id of got.goals) expect(GOAL_POOL.some((g) => g.id === id), id).toBe(true);
+    expect(got.gold).toEqual(GOLD_MICE.park.map((m) => m.id));
+    expect(got.knock).toEqual(propsFor('park').knockables.map((k) => k.id));
+    expect(park.hides).toEqual([propsFor('park').hides]);
+    const spot = yarnSpotFor('park', '2026-11-21');
+    expect(got.spot).toEqual({ x: spot.x, z: spot.z });
+    expect(buildMapLayer(got.record, new THREE.Scene()).ground).toBe('#' + (got.record.groundBounce ?? 0x6cb058).toString(16).padStart(6, '0'));
+    // goalFits for every place already built answers as it did with no list: tippables, boxes, a villager
+    const before = (g, a) => (g.type === 'mischief' ? (a.tippables?.length ?? 0) >= g.target
+      : g.type === 'sits' ? (a.boxes?.length ?? 0) >= g.target
+        : g.type === 'pet' ? (a.critterSpawns ?? []).some((c) => c.type === 'villager') : true);
+    for (const id of ['park', 'neighborhood', 'den']) {
+      const a = records[id];
+      expect(a, id).toBeTruthy();
+      for (const k of houseKeys) expect(Object.hasOwn(a, k), `${id} ${k}`).toBe(false);
+      for (const g of GOAL_POOL) expect(goalFits(g, a), `${id} ${g.id}`).toBe(before(g, a));
+    }
+  }, 90_000);
+
+  it('a house find\'s toast is its own line', () => {
+    expect(AWARDS.housefind).toBe(12);
+    expect(discoveryText({ type: 'housefind', label: 'The old clock bongs 3 times! 🕰️' })).toBe('The old clock bongs 3 times! 🕰️');
+    expect(discoveryText({ type: 'housefind', label: 'x', repeat: true })).toBe('x');
+  });
 
   it('keeps every view step: a device on step 3 stays on it in the house, and the den still caps it', () => {
     seen.savedZoom = 3;

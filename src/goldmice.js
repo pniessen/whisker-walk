@@ -225,9 +225,9 @@ function disposeMouse(mo) {
 // Review S2: `rng` draws each mouse's bob phase (Math.random by default). A
 // walk passes a per-walk stream of the gold mice's own (game/walk.js), never
 // walkRng; the bob is personal and local, so co-walkers need not agree on it.
-export function createGoldMice(scene, areaId, foundIds, { ground = FLAT_GROUND, rng = Math.random } = {}) {
+export function createGoldMice(scene, areaId, foundIds, { ground = FLAT_GROUND, rng = Math.random, list: own = null } = {}) {
   const list = [];
-  for (const m of GOLD_MICE[areaId] ?? []) {
+  for (const m of own ?? GOLD_MICE[areaId] ?? []) {
     if (foundIds.has(m.id)) continue;
     const { group, material } = buildMouse();
     const worldY = ground.flat ? m.y : ground.y(m.x, m.z) + m.y;

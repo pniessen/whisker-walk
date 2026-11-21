@@ -363,14 +363,12 @@ describe('the goals and the corner map (D11, D12)', () => {
     for (const r of HOUSE_ROOMS) {
       expect(ledges.some((s) => s.minX === r.minX && s.maxX === r.maxX && s.minZ === r.minZ && s.maxZ === r.maxZ), r.id).toBe(true);
     }
-    // the open stairs are drawn; the secret one stays a secret
-    for (const st of HOUSE_STAIRS.filter((q) => q.id !== 'secret')) {
+    // every stair is drawn, the secret one too (ruling S2-7)
+    for (const st of HOUSE_STAIRS) {
       const mx = (st.x0 + st.x1) / 2;
       const mz = (st.z0 + st.z1) / 2;
       expect(ledges.some((s) => inRect(s, mx, mz)), st.id).toBe(true);
     }
-    const sec = HOUSE_STAIRS.find((q) => q.id === 'secret');
-    expect(ledges.some((s) => inRect(s, sec.x0, (sec.z0 + sec.z1) / 2)), 'secret').toBe(false);
     // the walls are 0.5 m strips, ledges first so the walls lie over them
     const rocks = shapes.filter((s) => s.tone === 'rock');
     expect(rocks.length).toBeGreaterThan(80);
@@ -378,15 +376,24 @@ describe('the goals and the corner map (D11, D12)', () => {
     expect(shapes.findIndex((s) => s.tone === 'rock')).toBeGreaterThan(shapes.findLastIndex((s) => s.tone === 'ledge'));
     const strictlyIn = (s, x, z) => x > s.minX + 1e-9 && x < s.maxX - 1e-9 && z > s.minZ + 1e-9 && z < s.maxZ - 1e-9;
     for (const d of HOUSE_DOORWAYS) expect(rocks.some((s) => strictlyIn(s, d.x, d.z)), d.id).toBe(false);
-    // the open stairs' mouths are open; the secret stair's are walled over
+    // the stairs' mouths are open, but for the secret stair's in the library: the
+    // shut bookcase's line (z = 2, x -7.2..-4.8) is wall, so the bookcase stays a
+    // surprise; its bedroom end is a real way down and stays open (ruling S2-7)
+    const lib = { x: SECRET_BOOKCASE.x, z: SECRET_BOOKCASE.z };
     for (const st of HOUSE_STAIRS) {
       for (const [x, z] of [[st.x0, st.z0], [st.x1, st.z1]]) {
-        expect(rocks.some((s) => strictlyIn(s, x, z)), `${st.id} ${x},${z}`).toBe(st.id === 'secret');
+        const shut = st.id === 'secret' && x === lib.x && z === lib.z;
+        expect(rocks.some((s) => strictlyIn(s, x, z)), `${st.id} ${x},${z}`).toBe(shut);
       }
     }
-    // every wall section's middle is under a strip
+    const shutStrip = rocks.filter((s) => strictlyIn(s, lib.x, lib.z));
+    expect(shutStrip).toHaveLength(1);
+    expect(shutStrip[0].minX).toBeCloseTo(SECRET_BOOKCASE.x - SECRET_BOOKCASE.w / 2, 6);
+    expect(shutStrip[0].maxX).toBeCloseTo(SECRET_BOOKCASE.x + SECRET_BOOKCASE.w / 2, 6);
+    expect([shutStrip[0].minZ, shutStrip[0].maxZ]).toEqual([SECRET_BOOKCASE.z - 0.25, SECRET_BOOKCASE.z + 0.25]);
+    // every wall section's middle is under a strip, the secret stair's sides too
     for (const q of houseSections()) {
-      if (q.kind === 'lintel' || q.owner === 'secret') continue;
+      if (q.kind === 'lintel') continue;
       expect(rocks.some((s) => inRect(s, (q.x0 + q.x1) / 2, (q.z0 + q.z1) / 2)), q.id).toBe(true);
     }
   });

@@ -89,7 +89,6 @@ export const HOUSE_GOAL_TYPES = freeze(['mischief', 'photo', 'play', 'scenic']);
 // The lawn's green, under the floor plan.
 export const HOUSE_MAP_GROUND = 0x6f9a52;
 const WALL_STRIP = 0.5;
-const SECRET = 'secret';
 const stairRect = (s) => {
   const hw = s.width / 2;
   return Math.abs(s.z1 - s.z0) >= Math.abs(s.x1 - s.x0)
@@ -104,18 +103,16 @@ const strip = (x0, z0, x1, z1) => {
     : { minX: x0 - h, maxX: x0 + h, minZ: Math.min(z0, z1), maxZ: Math.max(z0, z1), tone: 'rock' };
 };
 // The rooms and the stairs as 'ledge', then the walls over them as 'rock' strips, the
-// doorways and stair mouths left open. The secret stair stays a secret: it is left
-// off, and its two mouths are drawn as wall.
+// doorways and stair mouths left open. The secret stair is drawn like the others, but
+// its library mouth, the shut bookcase's line, is drawn as wall, so the bookcase stays
+// a surprise; its bedroom end is a real way down and stays open (ruling S2-7).
 export function houseMapShapes() {
   const out = [];
   for (const r of HOUSE_ROOMS) out.push({ minX: r.minX, maxX: r.maxX, minZ: r.minZ, maxZ: r.maxZ, tone: 'ledge' });
-  for (const s of HOUSE_STAIRS) if (s.id !== SECRET) out.push({ ...stairRect(s), tone: 'ledge' });
-  for (const q of houseSections()) {
-    if (q.kind === 'lintel' || q.owner === SECRET) continue;
-    out.push(strip(q.x0, q.z0, q.x1, q.z1));
-  }
-  const s = HOUSE_STAIRS.find((q) => q.id === SECRET);
-  for (const z of [s.z0, s.z1]) out.push(strip(s.x0 - s.width / 2, z, s.x0 + s.width / 2, z));
+  for (const s of HOUSE_STAIRS) out.push({ ...stairRect(s), tone: 'ledge' });
+  for (const q of houseSections()) if (q.kind !== 'lintel') out.push(strip(q.x0, q.z0, q.x1, q.z1));
+  const b = SECRET_BOOKCASE;
+  out.push(strip(b.x - b.w / 2, b.z, b.x + b.w / 2, b.z));
   return out;
 }
 

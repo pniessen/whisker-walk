@@ -382,12 +382,14 @@ describe('the lessons at a walk\'s start', () => {
     expect(room.s.goals).toBe(room.goalsRolled[0]);
   }, 90_000);
 
-  it('no goals indoors', () => {
-    for (const areaOverride of ['den', 'house']) {
-      const r = startEnd(life(), { areaOverride });
-      expect(r.s.goals, areaOverride).toBe(null);
-      expect(r.goalsRolled, areaOverride).toEqual([]);
-    }
+  // Old House step 2 (D11, D18): the house rolls its goals like every other place; the den still has none.
+  it('no goals in the den; the house rolls its own', () => {
+    const den = startEnd(life(), { areaOverride: 'den' });
+    expect(den.s.goals).toBe(null);
+    expect(den.goalsRolled).toEqual([]);
+    const house = startEnd(life(), { areaOverride: 'house' });
+    expect(house.goalsRolled).toHaveLength(1);
+    expect(house.s.goals).toBe(house.goalsRolled[0]);
   }, 90_000);
 
   it('the summary shows the goals tile after an ordinary walk, and the guided walk\'s lines in its place', () => {

@@ -37,8 +37,8 @@ const capitalise = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 // on their own, capitalised ("A goal completed TOGETHER! 🤝").
 export function discoveryText({ type, label, repeat }) {
   // The Farm's jobs and finds say their own whole line (src/farmwords.js), as
-  // does a found outfit's pouch (foundwear/play.js).
-  if (type === 'intruder' || type === 'border' || type === 'farmjob' || type === 'farmfind' || type === 'fairgame' || type === 'fairfind' || type === 'pouch') return label;
+  // do the Old House's finds and a found outfit's pouch (foundwear/play.js).
+  if (type === 'intruder' || type === 'border' || type === 'farmjob' || type === 'farmfind' || type === 'fairgame' || type === 'fairfind' || type === 'housefind' || type === 'pouch') return label;
   if (type === 'goal') {
     return label.startsWith(GOAL_LEAD)
       ? `Goal complete: ${label.slice(GOAL_LEAD.length)}`

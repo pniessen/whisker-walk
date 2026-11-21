@@ -237,7 +237,7 @@ describe('createKnockables', () => {
 test('the walk wires knockables in, outside the rival slice, with no decal', () => {
   const walk = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
   const code = walk.replace(/\/\/.*$/gm, '');
-  expect(code.match(/createKnockables\(scene, propsFor\(areaId\)\.knockables(, \{ ground \})?\)/g)).toHaveLength(1);
+  expect(code.match(/createKnockables\(scene, (areaData\.knockables \?\? )?propsFor\(areaId\)\.knockables(, \{ ground \})?\)/g)).toHaveLength(1);
   expect(code).not.toMatch(/decals\.follow\([^)]*knock/);
   const rivalA = walk.indexOf("The rival's border and its patrol");
   const rivalB = walk.indexOf('session.rival = {', rivalA);

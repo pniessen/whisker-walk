@@ -490,10 +490,9 @@ const LATER = Object.freeze({
   // the place's shown name without a leading "The ", so 'The Rooftops' -> 'Rooftops'
   'gate.sign': (place) => String(place ?? '').replace(/^the\s+/i, ''),
   // ---- the Old House step 2 (2026-11-21): its special places and where the yarn ball lies ----
-  // (\u0077 is a w: this file must not spell the browser's global, test/clanphrases.test.js)
   'house.scenic.clock': 'the grandfather clock',
   'house.scenic.fireside': 'the fireside',
-  'house.scenic.attic-\u0077indow': 'the round attic \u0077indow',
+  'house.scenic.attic-window': 'the round attic window',
   'house.yarn.hall': 'on the hall runner',
   'house.yarn.kitchen': 'by the kitchen table',
 });
