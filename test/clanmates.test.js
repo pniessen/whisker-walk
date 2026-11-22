@@ -291,7 +291,7 @@ describe('patrol together (Clan Life Task 6)', () => {
     expect(h.kind()).toBe(null);
   });
 
-  it('award labels read after "You spotted ": touch noses, boop and patrol all start with "a "', () => {
+  it('award labels read after their lead (toast-verbs): touch noses, boop and patrol all start with "a "', () => {
     const h = harness({ count: 16 });
     const warrior = byRank(h, K.warrior);
     only(h, warrior);
