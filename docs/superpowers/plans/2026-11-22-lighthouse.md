@@ -94,6 +94,17 @@ Goal: a walkable, drawn Lighthouse Point, behind `?lighthouse=1`, with nothing a
 
 **Budget checks:** measured build against 280 / 210 / 62,000 and the aim 150 / 70 / 52,000; place chunk at most 55 kB gz; the Rooftops' and Seaside's measured numbers unchanged (a full `test/budget.test.js` run).
 
+**M2 as built (2026-11-22, branch lighthouse-design).** The owner approved the M1 pictures and the six answers. What is in: the stair (three `stair` flights, two ledges, the top ledge), the gallery's railing walk (a `pipe` crossing, 9 m, `follow: true` so a held thumb follows the curve), the lamp room (kerb, glass, roof, lens, lever), the lamp job, two leaps and two drops, two stacks. Where it differs from the text above:
+- The tower is no collider any more: its gallery disc is a 7.5 m wall to anyone on the plateau, and a flat circle would have shut the gallery's own floor. The lamp room's wall (23 circles, the door left open) and the lens (0.7) are the colliders.
+- The base leap is to a second stack, the Pinnacle (2.85 m, 4 m west of the lip), not cottage ridge to woodshed: the cottage roof is not walkable and there is no woodshed. The cottage plank and woodshed are not built; say so if you still want them. Long Leap's Gull Rock is 4.25 m. Each leap has its way back. The west sea has an island under each stack.
+- No climbs: nothing in the place needs one within 2.2 m. Two drops: the first ledge to the plateau (2.5 m) and the gallery's rim to the second ledge (2.5 m, through a gap in the handrail).
+- The lamp room's drum is a 0.45 m kerb: at 0.9 m the follow camera, which looks down 26 degrees, hid her inside.
+- The lever's prompt is the tippable's own line (`prompt` on a spot; the generic "paw it over" stands everywhere else). Its arm swings; the lever does not fall over.
+- The ship's line is a second toast (a `discovery` event of type `lighthouseship`, 0 paws); its horn is `lighthousesound.js` (silent while muted).
+- The place's words are a lazy file (`lighthousewords.js`, `addPhrases`), not rows in `LATER`: no start-up bytes. Milestone 3 can keep doing this.
+- The evening's stars and moon come from the shared dusk (`render/clouds.js`) on any `evening` area; its area row is milestone 4's.
+- At the default camera the lamp room is above the top edge of the arrival picture from every spot on the cove (the camera looks down 26 degrees; the lamp room is at 9.4 to 12.5 degrees from 60 to 73 m away). Spawn and facing cannot fix it; at "Far" the tower's stripes show and at the top of the stair she is up with the lamp. The lit lamp shows on the cove as a sweeping pool of light.
+
 ## M3: Life and things to do
 
 - Gulls and crabs (existing critters), the keeper's cat, the kitten job (three hiding spots from the room seed, the scent trail, the follow rules), the six discoveries and their rules, three golden mice, five collectibles, the yarn ball, the rests, moments, the fog bell, the echo, the cottage window, the ship, sounds.
