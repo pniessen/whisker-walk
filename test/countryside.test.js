@@ -247,9 +247,9 @@ describe('drawing the countryside', () => {
     // it takes no taps (a tap on the meadow reaches no place; a drag still pans)
     const css = fs.readFileSync('src/style.css', 'utf8');
     expect(css).toMatch(/\.world-map \.wm-country, \.world-map \.wm-rims \{ pointer-events: none; \}/);
-    // the tap targets are the places and the island's star, as before (twelve
-    // places with the Rooftops, coming soon inside the town)
-    expect(tapTargets(worldMapModel(base(), CATALOG))).toHaveLength(13);
+    // the tap targets are the places and the island's star, as before (thirteen
+    // places with the Rooftops and the Market inside the town)
+    expect(tapTargets(worldMapModel(base(), CATALOG))).toHaveLength(14);
   });
 
   it('a handful of paths drawn once: fields by tone, furrows, lanes, hedgerows, ponds, flowers, trees and the fade', () => {
@@ -272,10 +272,10 @@ describe('drawing the countryside', () => {
   it('every place gets a rim and a shadow', () => {
     const [shadow, rim] = [...rims.matchAll(/d="([^"]+)"/g)].map(([, d]) => d);
     expect(shadow).toBe(rim);
-    // one per place: eleven, and the Rooftops inside the town
+    // one per place: eleven, and the Rooftops and the Market inside the town
     const regions = worldMapModel(base(), CATALOG).regions;
-    expect(regions).toHaveLength(12);
-    expect(rim.match(/M/g)).toHaveLength(12);
+    expect(regions).toHaveLength(13);
+    expect(rim.match(/M/g)).toHaveLength(13);
     // the Rooftops' own: one of the rim's shapes is drawn round its spot
     const roofs = regions.find((r) => r.id === 'roofs');
     const centres = rim.split('M').filter(Boolean).map((part) => {

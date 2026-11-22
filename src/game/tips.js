@@ -28,6 +28,7 @@ export const HINT_PICS = Object.freeze({
   call: '😺', sniff: '👃', box: '📦', help: '❗', hiss: '😾', dog: '🐶', swim: '💧', carry: '🐾',
   home: '🏠', chat: '💬', rival: '🐾', stranger: '🐾',
   roofs: '🕊️',
+  market: '🧺',
   find: '✨', 'find-kept': '👕', map: '🗺️',
 });
 
@@ -112,7 +113,9 @@ export function walkFacts(session, { player, state }, f = {}) {
   f.camera = !!session.cameraMode;
   f.inWater = !!player.inWater;
   const held = session.carry?.mouth?.held;
-  f.carrying = !!held && !held.toy; // the yarn ball has a line of its own
+  // the yarn ball has a line of its own; a Market treat is eaten in a moment,
+  // never carried home (carry.js `treat`)
+  f.carrying = !!held && !held.toy && !held.treat;
   f.yarnHeld = !!session.toy?.held;
   // the yarn ball she has touched (a ball still lying where it was found is
   // nobody's yet, toy.js)

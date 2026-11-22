@@ -159,10 +159,18 @@ describe('the two birthday codes', () => {
   const byLabel = (label) => Object.values(REDEEM_CODES).filter((e) => e.label === label);
   const her = byLabel('Birthday 2026-11 (her)');
   const brother = byLabel('Birthday 2026-11 (brother)');
+  const spare = byLabel('Birthday 2026-11 (her, spare)');
 
   it('each is in the table once', () => {
     expect(her).toHaveLength(1);
     expect(brother).toHaveLength(1);
+    expect(spare).toHaveLength(1);
+  });
+
+  it('her spare gives exactly what hers gives', () => {
+    const { label: _a, ...mine } = her[0];
+    const { label: _b, ...theSpare } = spare[0];
+    expect(theSpare).toEqual(mine);
   });
 
   it('hers: the birthday, 50 paw points and the four outfits', () => {
@@ -205,6 +213,6 @@ describe('the two birthday codes', () => {
   });
 
   it('labels hold no code and no name', () => {
-    for (const e of [...her, ...brother]) expect(e.label).toMatch(/^Birthday 2026-11 \((her|brother)\)$/);
+    for (const e of [...her, ...brother, ...spare]) expect(e.label).toMatch(/^Birthday 2026-11 \((her|brother|her, spare)\)$/);
   });
 });

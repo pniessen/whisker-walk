@@ -122,6 +122,8 @@ describe('walkFacts', () => {
     expect(facts({ toy: { active: true, claimed: true }, batCount: 2 })).toMatchObject({ toy: true, bats: 2 });
     expect(facts({ cameraMode: true }).camera).toBe(true);
     expect(facts({ carry: { mouth: { held: { kind: 'stick' } } } }).carrying).toBe(true);
+    // a Market treat is eaten in a moment, never carried home: no "carry it home" line
+    expect(facts({ carry: { mouth: { held: { id: 'market-treat-fish', kind: 'fishhead', treat: true } } } }).carrying).toBe(false);
     expect(facts({}, { ...player, inWater: true }).inWater).toBe(true);
     expect(facts({ net: {}, remotes: { list: [{}] } }).room).toBe(true);
     expect(facts({ net: {}, remotes: { list: [] } }).room).toBe(false); // alone in a room: nobody to chat to

@@ -31,4 +31,7 @@ export const NECK_WEAR = Object.freeze([
   Object.freeze({ id: 'bottletopcollar', slot: 'collar', find: 'neighborhood', emoji: '🔘', name: () => phrase('wear.bottletopcollar.name') }),
   Object.freeze({ id: 'ropecollar', slot: 'collar', find: 'docks', emoji: '🪢', name: () => phrase('wear.ropecollar.name') }),
   Object.freeze({ id: 'anchorcharm', slot: 'collar', find: 'docks', emoji: '⚓', name: () => phrase('wear.anchorcharm.name') }),
+  // the Market Square (2026-11-21): the neckerchief in a string-bag weave, and an apple on the anchor's hang
+  Object.freeze({ id: 'stringbagscarf', slot: 'neck', find: 'market', emoji: '🛍️', name: () => phrase('wear.stringbagscarf.name') }),
+  Object.freeze({ id: 'applecharm', slot: 'collar', find: 'market', emoji: '🍎', name: () => phrase('wear.applecharm.name') }),
 ]);

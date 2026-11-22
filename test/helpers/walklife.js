@@ -11,6 +11,7 @@ import { createWalkLifecycle } from '../../src/game/walk.js';
 import { AREA_LOADERS } from '../../src/world/areas.js';
 import { createAreaLoader } from '../../src/game/areaload.js';
 import { createProgression } from '../../src/progression.js';
+import { createDiscoveryLog } from '../../src/discoveries.js';
 import { resolveQuality } from '../../src/render/quality.js';
 
 export function memStorage() {
@@ -74,12 +75,14 @@ export function controlledLoader() {
 // save in it first). `coarse`: the device's pointer. `tier`: the quality tier
 // every walk begins on (HIGH by default). `player`: the walk's player (no-ops by
 // default; a test may record what the walk hands it). `log`: the discovery log (a
-// recorder by default; a test may hand a real one). The overlay is handed back so a
+// recorder by default; a test may hand a real one). `realLog`: the walk gets a
+// real discovery log (discoveries.js, as main.js makes one) instead of a
+// recorder, so what it pays is kept and counted. The overlay is handed back so a
 // test can read the summary card a walk's end writes into it.
 export function lifecycle({
   collar = false, areas = createAreaLoader(), online = () => true, blockList = new Set(),
   storage = memStorage(), coarse = false, tier = resolveQuality({ override: 'high' }),
-  player = anything(), log = anything(),
+  player = anything(), log: givenLog = null, realLog = false,
 } = {}) {
   let session = null;
   let pendingRoom = null;
@@ -93,6 +96,7 @@ export function lifecycle({
   const camera = new THREE.PerspectiveCamera(); // the walk's camera, as walk.js places it at the start
   const overlay = anything({ classList: anything() });
   const hud = anything({ mapHost: fakeEl() });
+  const log = givenLog ?? (realLog ? createDiscoveryLog(progression) : anything());
   const w = createWalkLifecycle({
     // MP on, so a solo walk asks the cloud for friends who could visit as ghosts
     MP: true, pid: 'me', coarse, envMap: new THREE.Texture(), overlay, blockList,

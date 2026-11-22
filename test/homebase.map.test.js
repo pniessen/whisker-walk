@@ -187,7 +187,7 @@ describe('Change place: the world map on the home screen', () => {
     expect(opts.world).toEqual({ x: 0, y: -20, w: 1500, h: 900 });
     expect(opts.view).toBeNull();
     expect(opts.focus).toEqual([843, 566]);
-    expect(opts.targets).toHaveLength(13);
+    expect(opts.targets).toHaveLength(14); // the Market's place among them (Market step 4)
     expect(typeof opts.onView).toBe('function');
     expect(stub.restoreFocus).toHaveBeenCalledWith(doc.root, null);
   });

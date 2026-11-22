@@ -70,6 +70,17 @@ describe('nextThing: one test per rule', () => {
     expect(nextThing(further)).toMatchObject({ rule: 6, text: 'The way to your home starts in the Moor.', place: 'moor' });
   });
 
+  it('at 1 town walk the home line still names the Woods alone (Market step 4: the Market opens then too)', () => {
+    // the Market waits for the same 2 town walks as the Woods and the Park...
+    expect(CATALOG.areas.market.requires).toEqual({ area: 'neighborhood', walks: 2 });
+    // ...and the free Woods is still named first, and alone
+    const s = save({ walks: { neighborhood: 1 }, unlocked: { accessories: allWear } });
+    expect(nextThing(s)).toMatchObject({ rule: 7, id: 'home.opens', text: 'Explore here again to open the Woods!', action: null });
+    // Legacy has no Market: City Park alone, as before
+    const legacy = save({ walks: { neighborhood: 1 }, edition: 'legacy', unlocked: { accessories: allWear } });
+    expect(nextThing(legacy)).toMatchObject({ rule: 7, id: 'home.opens', text: 'Explore here again to open City Park!' });
+  });
+
   it('7. a new place opens after one more walk here', () => {
     const s = save({ walks: { neighborhood: 1 }, unlocked: { accessories: allWear } });
     expect(nextThing(s)).toMatchObject({ rule: 7, text: 'Explore here again to open the Woods!', action: null });

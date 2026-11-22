@@ -521,6 +521,57 @@ const LATER = Object.freeze({
   'roofs.find.skylight': 'A peek in the attic window. Someone is reading a bedtime story. 📖',
   'roofs.find.telescope': 'You look through the telescope. Hello, moon! 🌕',
   'roofs.find.chimney': 'A warm chimney! Puff, a smoke ring. What a cosy spot. 💨',
+
+  // ---- the Market Square (2026-11-20): its own words, the same in every set ----
+  'market.treat.fishhead': 'a fish head',
+  'market.treat.sausageroll': 'a sausage roll',
+  'market.treat.cheddar': 'a nibble of cheddar',
+  'market.treat.cream': 'a saucer of cream',
+  'market.treat.crumbs': 'some crumbs',
+  'market.grab.fishhead': 'E — grab the fish head',
+  'market.grab.sausageroll': 'E — grab the sausage roll',
+  'market.grab.cheddar': 'E — grab the cheddar',
+  'market.grab.cream': 'E — lap up the cream',
+  'market.grab.crumbs': 'E — grab the crumbs',
+  'market.eat.first': (treat) => `Yum! You grabbed ${treat}! 😋`,
+  'market.eat.again': (treat) => `Yum, ${treat} again! 😋`,
+  'market.shoo': 'Oi, you rascal! 🧹',
+  'market.laugh': 'Ha! You cheeky thing! 😄',
+  'market.coo': 'Aww, look at you! 💕',
+  'market.team.eater': (partner) => `Teamwork! ${partner} kept them busy 🐾`,
+  'market.team.distracter': (partner) => `Teamwork! You kept them busy while ${partner} grabbed a treat 🐾`,
+  'market.summary.treats': 'treats',
+
+  // ---- the Market Square, steps 3 and 4 (2026-11-21) ----
+  'market.page.fountain.name': 'The Market Fountain',
+  'market.page.fountain.hint': 'Where can a thirsty cat get a drink in the square?',
+  'market.page.pigeons.name': 'Pigeon Scatter',
+  'market.page.pigeons.hint': 'Some birds in the square peck at crumbs.',
+  'market.page.sacks.name': 'Warm Flour Sacks',
+  'market.page.sacks.hint': "The baker's sacks look soft and warm.",
+  'market.page.musician.name': 'The Street Musician',
+  'market.page.musician.hint': 'Somebody in the square plays a happy tune.',
+  'market.page.basket.name': 'Bicycle Basket',
+  'market.page.basket.hint': 'A bicycle is parked by the shops. Is there room for a cat?',
+  'market.page.apples.name': 'Rolling Apples',
+  'market.page.apples.hint': 'What happens if a cat paws the apple crate?',
+  'market.find.fountain': 'A cool drink from the fountain. Splish! 💧',
+  'market.find.pigeons': 'Whoosh! The pigeons flap off in a flurry. 🕊️',
+  'market.find.sacks': 'A nap on warm flour sacks. Soft and toasty. 😴',
+  'market.find.musician': (people) => `Music! One of the ${people} plays a fiddle just for you. 🎻`,
+  'market.find.basket': 'A bicycle basket! It rocks, and the bell goes ding ding! 🚲',
+  'market.find.apples': 'Oops! Apples everywhere, rolling over the cobbles. 🍎',
+  // the four treat stalls' awnings, lookouts she perches on (world/marketplan.js)
+  'market.perch.fish': 'the fish stall’s awning',
+  'market.perch.baker': 'the baker’s awning',
+  'market.perch.cheese': 'the cheese stall’s awning',
+  'market.perch.milk': 'the milk cart’s awning',
+  // the four found outfits hidden in the square (src/foundwear/): placeholder
+  // names the owner and his daughter will rename, the same in every set
+  'wear.tradercap.name': 'Market Trader’s Cap',
+  'wear.stringbagscarf.name': 'Shopping-Bag Scarf',
+  'wear.applecharm.name': 'Apple Charm',
+  'wear.flowerbasket.name': 'Flower Basket',
 });
 
 // Every id of the first table, in table order.

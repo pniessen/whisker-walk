@@ -76,7 +76,7 @@ describe('the golden mice (D5)', () => {
       expect(m.y, m.id).toBe(0);
     }
     expect(GOLD_MICE.house).toBeUndefined();
-    expect(GOLD_TOTAL).toBe(39); // the house adds none until step 4 (39: the Rooftops' three joined on main)
+    expect(GOLD_TOTAL).toBe(42); // the house adds none until step 4 (42: the Rooftops' three and the Market's three joined on main)
     const [one, two, three] = HOUSE_GOLD_MICE;
     for (const [m, id] of [[one, 'library-books-w'], [two, 'bedroom-wardrobe']]) {
       const l = ledgeById(id);

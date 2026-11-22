@@ -47,6 +47,29 @@ describe('createTippables', () => {
     expect(tp.tipById(target.id)).toBe(false); // already tipped
     expect(tp.tipById('no-such-id')).toBe(false); // unknown id
   });
+
+  // Market step 3 (V1): the apple crate brings its own model.
+  it('a spot may bring its own model', () => {
+    const added = [];
+    const sc = { add: (o) => added.push(o), remove() {} };
+    const own = new THREE.Group();
+    const tp = createTippables(sc, [{ x: 2, z: 3, kind: 'applecrate', build: () => own }, ...SPOTS]);
+    const e = tp.list[0];
+    expect(e.group).toBe(own);
+    expect(e.kind).toBe('applecrate');
+    expect(e.id).toBe('tip-0');
+    expect([own.position.x, own.position.y, own.position.z]).toEqual([2, 0, 3]);
+    expect(own.rotation.y).toBe((2 * 7 + 3 * 13) % 6);
+    expect(added).toContain(own);
+    // it tips like any other
+    expect(tp.tip(e)).toBe(true);
+    for (let i = 0; i < 20; i++) tp.update(0.05);
+    expect(own.rotation.z).toBeCloseTo(-1.75, 9);
+    // without `build` the old kinds build exactly as before
+    const shape = (g) => g.children.map((m) => [m.geometry.type, m.position.toArray(), m.material.color.getHex()]);
+    const plain = createTippables(scene, SPOTS);
+    for (let i = 0; i < SPOTS.length; i++) expect(shape(tp.list[i + 1].group)).toEqual(shape(plain.list[i].group));
+  });
 });
 
 // Task 1 (Stream 3b): ids are per call and by index, so two co-walkers who

@@ -81,7 +81,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   'gamecans', 'gameducks', 'gamebell',
   'fairfortune', 'fairmusicbox', 'faircandyfloss', 'fairjuggler', 'fairballoon', 'fairlookout',
   // The Rooftops' six finds (src/roofspages.js; walks each was found on).
-  'roofgarden', 'roofloft', 'roofvane', 'roofskylight', 'rooftelescope', 'roofchimney'];
+  'roofgarden', 'roofloft', 'roofvane', 'roofskylight', 'rooftelescope', 'roofchimney',
+  // The Market Square's six finds (src/marketpages.js; walks each was found on).
+  'marketfountain', 'marketpigeons', 'marketsacks', 'marketmusician', 'marketbasket', 'marketapples'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
@@ -362,6 +364,12 @@ export const CATALOG = {
     // `name` here is not what a child sees: the shown name comes from the word
     // tables (PLACE_WORDS.roofs, read by placeName).
     roofs: { name: 'The Rooftops', price: 100, requires: { area: 'fair', walks: 2 } },
+    // The Market Square (docs/superpowers/plans/2026-11-21-market-square-steps3-4.md,
+    // rulings V15 and V16): after the Rooftops in this list, Clan Edition only.
+    // Its gate is the town's, as the world map orders it (it sits on the
+    // town's rim). MARKET_REGISTRATION.catalog is the same row; the shown name
+    // comes from the word tables (PLACE_WORDS.market).
+    market: { name: 'The Market Square', price: 150, requires: { area: 'neighborhood', walks: 2 }, edition: 'canon' },
     // The world map (docs/superpowers/specs/2026-11-19-world-map-design.md,
     // decision 5): the Seaside follows the Docks on the map, so it opens after
     // two Docks walks. It keeps its place in this list (the place cards'
@@ -490,8 +498,8 @@ function defaultState() {
     // The Woods joins them for the same reason: the first Woods walk on a save
     // with no 'woods' key would pin state.walks.woods at NaN forever. So does
     // the River: a save with no 'river' key would pin state.walks.river at NaN. And the Moor, the Pines and the Gorge: no 'moor', 'pines' or 'gorge' key, same NaN.
-    // And the Farm: a save from before it loads with farm: 0. And the Fairground: fair: 0. And the Rooftops (in CATALOG.areas since Rooftops step 4): roofs: 0. And the Old House (?house=1 only; not in CATALOG.areas until its step 4): house: 0.
-    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, house: 0 },
+    // And the Farm: a save from before it loads with farm: 0. And the Fairground: fair: 0. And the Rooftops (in CATALOG.areas since Rooftops step 4): roofs: 0. And the Market Square (in CATALOG.areas since Market step 4): market: 0. And the Old House (?house=1 only; not in CATALOG.areas until its step 4): house: 0.
+    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0 },
     // A COPY of STARTER_ACCESSORIES: buy() pushes into this array.
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: [...STARTER_ACCESSORIES], areas: ['neighborhood'] },
     equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null },

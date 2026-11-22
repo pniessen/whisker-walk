@@ -439,6 +439,18 @@ describe('dressing-room places by edition', () => {
     expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'roofs', 'seaside', 'docks']); // the Farm is third in the street (owner, 2026-11-18), the Fairground fourth, the Rooftops after it (Rooftops step 4)
     expect(m.places.map((p) => p.id)).not.toContain('pines');
   });
+  it('Clan lists the Market after the Rooftops, locked behind two Twolegplace walks; Legacy never does (Market step 4)', () => {
+    const s = { ...defaultishState(), edition: 'canon' };
+    s.walks.neighborhood = 1;
+    const ids = buildDressingModel(s, CATALOG).places.map((p) => p.id);
+    expect(ids[ids.indexOf('roofs') + 1]).toBe('market');
+    const market = buildDressingModel(s, CATALOG).places.find((p) => p.id === 'market');
+    expect(market).toMatchObject({ name: 'The Market Square', locked: true, price: 150 });
+    expect(market.lockLine).toBe('opens after you explore Twolegplace 2 times · 1/2');
+    const legacy = { ...defaultishState(), edition: 'legacy' };
+    legacy.walks.neighborhood = 5;
+    expect(buildDressingModel(legacy, CATALOG).places.map((p) => p.id)).not.toContain('market');
+  });
   it('Clan lists the Woods, locked behind two Twolegplace walks', () => {
     const s = { ...defaultishState(), edition: 'canon' };
     s.walks.neighborhood = 1;
@@ -452,7 +464,7 @@ describe('the world map in the dressing room', () => {
   it('dressingroom: Clan shows every place on the world map, and no picture cards', () => {
     const s = { ...defaultishState(), edition: 'canon' };
     const m = buildDressingModel(s, CATALOG);
-    expect(m.worldMap.regions.map((r) => r.areaId)).toEqual(['neighborhood', 'woods', 'moor', 'river', 'pines', 'gorge', 'park', 'fair', 'farm', 'docks', 'seaside', 'roofs']);
+    expect(m.worldMap.regions.map((r) => r.areaId)).toEqual(['neighborhood', 'woods', 'moor', 'river', 'pines', 'gorge', 'park', 'fair', 'farm', 'docks', 'seaside', 'roofs', 'market']);
     expect(m).not.toHaveProperty('otherPlaces');
     expect(m).not.toHaveProperty('territoryMap');
     expect(m.worldMap.regions.find((r) => r.id === 'park').line).toBe('opens after you explore Twolegplace 2 times · 0/2');
@@ -462,7 +474,7 @@ describe('the world map in the dressing room', () => {
     expect(where).not.toContain('Other places');
     expect(where).not.toContain('dr-place');
     expect(where).not.toContain('data-dr-place=');
-    for (const id of ['park', 'seaside', 'docks', 'farm', 'fair', 'neighborhood', 'woods']) expect(where).toContain(`data-dr-map-place="${id}"`);
+    for (const id of ['park', 'seaside', 'docks', 'farm', 'fair', 'neighborhood', 'woods', 'roofs', 'market']) expect(where).toContain(`data-dr-map-place="${id}"`);
     expect(where).not.toContain('Cozy Neighborhood');
     expect(where).toContain('Twolegplace');
     expect(renderDressingRoomHtml({ model: m })).toContain('Going to <b>Twolegplace</b>');

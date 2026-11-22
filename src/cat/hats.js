@@ -19,7 +19,7 @@ import { SKULL } from './torso.js';
 // the cat's head slot builds these.
 
 export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown', 'acorncap',
-  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat'];
+  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap'];
 
 // Palette. The three shop hats' colours are model.js's own (it imports these
 // for Hagrid's hats); the prize colours are the same hexes as model.js's
@@ -977,15 +977,22 @@ const stripedboater = (simple) => brimHat('stripedboater', BRIM_HATS.stripedboat
 // front puffed forward over the peak, in eight tweed panels with darker seams
 // running up to a button on top, and a short stiff peak across the front only
 // (within 0.9 rad of straight ahead) with a stitched line near its edge.
+// The Market Trader's Cap (Market step 4) is the same cap in its own colours:
+// a brown-and-green check (`check`: the panel's colour also turns with each
+// row, three tones as a woven check makes them), no fleck.
 const PAPERBOY = { shell: 1.05, rimFront: 0.125, rimBack: 0.045, lipH: 0.016, puff: 0.2, peakLen: 0.052, peakSlope: 0.3, span: 0.9, button: 0.012 };
-const PAPERBOY_PANEL = [0x7d6b58, 0x6b5a48], PAPERBOY_PEAK = 0x4e4136, PAPERBOY_FLECK = 0x8c7a64, PAPERBOY_STITCH = 0xb8a68a;
+const CAP_LOOKS = {
+  paperboycap: { panel: [0x7d6b58, 0x6b5a48], peak: 0x4e4136, fleck: 0x8c7a64, stitch: 0xb8a68a },
+  tradercap: { panel: [0x7a4a2a, 0x3f8046, 0x7a4a2a], check: 1, peak: 0x4a3a26, stitch: 0xd8c08a },
+};
 const paperboyRim = (phi) => (PAPERBOY.rimFront + PAPERBOY.rimBack) / 2 + ((PAPERBOY.rimFront - PAPERBOY.rimBack) / 2) * Math.cos(phi);
-function paperboycap(simple) {
+function peakedCap(id, simple) {
+  const L = CAP_LOOKS[id], PEAK = L.peak;
   const segs = simple ? 16 : 32, rows = simple ? 5 : 8, per = segs / 8;
   const panel = (i, j) => {
-    if (!simple && i % per === 0 && j < rows - 1) return shade(PAPERBOY_PANEL[1], 0.72);  // a seam
-    if (!simple && (i * 7 + j * 3) % 5 === 0) return PAPERBOY_FLECK;                  // tweed fleck
-    return PAPERBOY_PANEL[Math.floor(((i + 0.5) * 8) / segs) % 2];
+    if (!simple && i % per === 0 && j < rows - 1) return shade(L.panel[1], 0.72);  // a seam
+    if (!simple && L.fleck && (i * 7 + j * 3) % 5 === 0) return L.fleck;          // tweed fleck
+    return L.panel[(Math.floor(((i + 0.5) * 8) / segs) % 2) + (L.check ? j % 2 : 0)];
   };
   const shell = grid(segs, rows, { wrapU: true }, (i, j) => {
     const phi = (i / segs) * Math.PI * 2;
@@ -1001,14 +1008,16 @@ function paperboycap(simple) {
   const lip = grid(segs, 3, { wrapU: true }, (i, j) => {
     const phi = (i / segs) * Math.PI * 2;
     const [p, n] = drape(ringPoint(phi, paperboyRim(phi) - j * PAPERBOY.lipH * 0.5), [0.010, 0.0085, 0.003][j]);
-    return { p, c: j === 1 ? shade(PAPERBOY_PEAK, 1.12) : PAPERBOY_PEAK, out: n };
+    return { p, c: j === 1 ? shade(PEAK, 1.12) : PEAK, out: n };
   });
-  const peak = frontPeak((th) => drape(ringPoint(th, paperboyRim(th)), 0.010)[0], PAPERBOY.span, PAPERBOY.peakLen, PAPERBOY.peakSlope, PAPERBOY_PEAK, simple ? 7 : 11,
-    (w) => (Math.abs(w - 0.8) < 0.01 ? PAPERBOY_STITCH : PAPERBOY_PEAK), simple ? [] : [0.84, 0.8, 0.76]);
+  const peak = frontPeak((th) => drape(ringPoint(th, paperboyRim(th)), 0.010)[0], PAPERBOY.span, PAPERBOY.peakLen, PAPERBOY.peakSlope, PEAK, simple ? 7 : 11,
+    (w) => (Math.abs(w - 0.8) < 0.01 ? L.stitch : PEAK), simple ? [] : [0.84, 0.8, 0.76]);
   const r = PAPERBOY.button;
-  const button = blob(r, simple ? 5 : 6, simple ? 3 : 4, new THREE.Vector3(0, SB * PAPERBOY.shell + r * 0.3, 0), [1, 0.7, 1], (uy) => (uy > 0.6 ? shade(PAPERBOY_PEAK, 1.3) : PAPERBOY_PEAK));
-  return finish('paperboycap', [shell, lip, peak, button]);
+  const button = blob(r, simple ? 5 : 6, simple ? 3 : 4, new THREE.Vector3(0, SB * PAPERBOY.shell + r * 0.3, 0), [1, 0.7, 1], (uy) => (uy > 0.6 ? shade(PEAK, 1.3) : PEAK));
+  return finish(id, [shell, lip, peak, button]);
 }
+const paperboycap = (simple) => peakedCap('paperboycap', simple);
+const tradercap = (simple) => peakedCap('tradercap', simple);
 
 // --- clips (found outfits step 2, lane H, Task 3; beauty pass) ---------------
 //
@@ -1207,7 +1216,7 @@ function birthdayhat(simple) {
   return finish('birthdayhat', parts);
 }
 
-const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat };
+const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap };
 
 // The clips' ground looks (src/foundwear/display.js): the clip as worn (the
 // simple build), turned so its face is up and propped toward -z, as if

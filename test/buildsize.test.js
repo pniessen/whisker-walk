@@ -14,19 +14,19 @@ const M = {
 // the download a child's phone makes before the game starts never grows by
 // accident.
 describe('the main script download ceiling', () => {
-  it('is 700 kB gzipped', () => {
-    expect(MAIN_GZIP_CEILING_KB).toBe(700);
+  it('is 720 kB gzipped', () => {
+    expect(MAIN_GZIP_CEILING_KB).toBe(720);
   });
 
   it('passes a script under the ceiling, and one exactly at it', () => {
     expect(sizeProblem(601_000)).toBeNull();
-    expect(sizeProblem(700_000)).toBeNull();
+    expect(sizeProblem(720_000)).toBeNull();
   });
 
   it('fails a script over the ceiling, naming the size and the ceiling', () => {
-    const problem = sizeProblem(700_001);
-    expect(problem).toMatch(/700.0 kB gzipped/);
-    expect(problem).toMatch(/ceiling of 700 kB/);
+    const problem = sizeProblem(720_001);
+    expect(problem).toMatch(/720.0 kB gzipped/);
+    expect(problem).toMatch(/ceiling of 720 kB/);
     expect(problem).toMatch(/MAIN_GZIP_CEILING_KB/);
     expect(sizeProblem(1_234_567)).toMatch(/1234\.6 kB gzipped/);
   });

@@ -30,9 +30,12 @@ export function pick(mouth, item) {
   // other and leaves no mark: not in the den, not where it was put down.
   // `toy`: the found yarn ball (controls review, 2026-11-19), the same: a
   // plaything, never a keepsake, and nothing on the save.
+  // `treat`: a Market stall's treat (ruling M6). Eaten, not kept: never a den
+  // keepsake, never slips in rain, no put-it-down prompt, no drop mark.
   mouth.held = item.job ? { id: item.id, kind: item.kind, job: true }
     : item.toy ? { id: item.id, kind: item.kind, toy: true }
-      : { id: item.id, kind: item.kind };
+      : item.treat ? { id: item.id, kind: item.kind, treat: true }
+        : { id: item.id, kind: item.kind };
   mouth.grip = 0;
   mouth.dropped.delete(item.id);
   return true;
@@ -44,10 +47,12 @@ export function pick(mouth, item) {
 export function drop(mouth, x, z, home) {
   const item = mouth.held;
   if (!item) return null;
-  if (item.job || item.toy) {
+  if (item.job || item.toy || item.treat) {
     mouth.held = null;
     mouth.grip = 0;
-    return item.job ? { id: item.id, kind: item.kind, job: true } : { id: item.id, kind: item.kind, toy: true };
+    return item.job ? { id: item.id, kind: item.kind, job: true }
+      : item.toy ? { id: item.id, kind: item.kind, toy: true }
+        : { id: item.id, kind: item.kind, treat: true };
   }
   const homeX = Number.isFinite(home?.x) ? home.x : x;
   const homeZ = Number.isFinite(home?.z) ? home.z : z;
@@ -60,11 +65,21 @@ export function drop(mouth, x, z, home) {
 // tickRain(mouth, dt, raining) → true exactly once, on the tick the grip
 // reaches RAIN_GRIP. Only a held item in falling rain loosens it.
 export function tickRain(mouth, dt, raining) {
-  if (!mouth.held || !raining) return false;
+  if (!mouth.held || mouth.held.treat || !raining) return false;
   if (!(dt > 0)) return false;
   const before = mouth.grip;
   mouth.grip = Math.min(RAIN_GRIP, before + dt);
   return before < RAIN_GRIP && mouth.grip >= RAIN_GRIP;
+}
+
+// eatHeld(mouth) → the {id, kind} eaten, or null. Clears a held treat (and only
+// a treat): the munch, a moment after the grab.
+export function eatHeld(mouth) {
+  const item = mouth.held;
+  if (!item || !item.treat) return null;
+  mouth.held = null;
+  mouth.grip = 0;
+  return { id: item.id, kind: item.kind };
 }
 
 // walkEndMarks(mouth, area, now) → [{ area, mark }]. A held item becomes a
@@ -72,7 +87,7 @@ export function tickRain(mouth, dt, raining) {
 // moved at least MOVED_MIN from its home becomes a 'drop' mark in `area`.
 export function walkEndMarks(mouth, area, now) {
   const out = [];
-  if (mouth.held && !mouth.held.job && !mouth.held.toy) {
+  if (mouth.held && !mouth.held.job && !mouth.held.toy && !mouth.held.treat) {
     out.push({
       area: 'den',
       mark: { kind: 'den', id: mouth.held.id, x: 0, z: 0, at: now, contested: false, item: mouth.held.kind },

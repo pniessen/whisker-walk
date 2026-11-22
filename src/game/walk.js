@@ -21,6 +21,7 @@ import { createAreaLoader } from './areaload.js';
 import { roofsOn } from '../roofsflag.js';
 import { houseOn } from '../houseflag.js';
 import { isIndoor } from '../indoor.js';
+import { marketOn } from '../marketflag.js';
 import { birthdayDue, BDAY_AREA, BDAY_START, BRIDGE_ISLAND_END, speakerFor, birthdayCatName, noteCandlesBlown, bdayCountsWalk, saveBirthdayPhoto, BDAY_PHOTO_KEY } from '../birthday.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
@@ -80,6 +81,8 @@ import { NO_FARM } from '../farmnone.js';
 import { handleFarmEvent, addFarmHat, restoreFarmJobs } from './farmplay.js';
 import { NO_FAIR } from '../fairnone.js';
 import { handleFairEvent, addBalloonRibbon, restoreFairGames } from './fairplay.js';
+import { NO_MARKET } from '../marketnone.js';
+import { handleMarketEvent, restoreMarket, createMarketToasts } from './marketplay.js';
 import { createTraversalLive, NO_TRAVERSAL, traversalEventEffects, traversalTally } from '../traversallive.js';
 import { moveAbilities } from '../traversal.js';
 import { groundOf } from '../ground.js';
@@ -574,6 +577,8 @@ export function createWalkLifecycle({
   // walk has started, or not); a room start returns nothing.
   function beginWalkFromHomebase({ duskMode }) {
     if (roofsOn() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'roofs' });
+    // ?market=1: a solo Market walk in Clan Edition, never in a room (Market step 1).
+    if (marketOn() && isClanEdition(progression.state) && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'market' });
     if (houseOn() && isClanEdition(progression.state) && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'house' });
     // Her birthday (src/birthday.js): while the Gathering waits, a solo
     // Explore starts in the Pines at the foot of the island bridge. An
@@ -710,7 +715,7 @@ export function createWalkLifecycle({
     const pack = areas.loaded(areaOverride ?? progression.state.area);
     if (!pack) throw new Error(`Whisker Walk: area "${areaOverride ?? progression.state.area}" is not loaded; start walks with startWalkWhenReady`);
     // The Farm's animals and the Fair's rides and games come with their place.
-    const { createFarmAnimals, createFairLive, createFairShow, createPeopleKit, lodNearFor } = pack.life;
+    const { createFarmAnimals, createFairLive, createFairShow, createMarketLive, createPeopleKit, lodNearFor } = pack.life;
     // A visit prize held for the tap (styles A and C) goes on FIRST, before
     // anything below reads state.equipped (the avatar, the collar/crown
     // perks). Style C never dims and A lets go after its reveal, so Start,
@@ -1681,6 +1686,17 @@ export function createWalkLifecycle({
       fairLive.attach(fairShow);
       addBalloonRibbon(carry, areaData);
     }
+    // The Market Square's stallholders and treats (marketlive.js), per device on
+    // the walk's seed and the time of day; a partner's grab comes over the
+    // existing carry-pick (netevents.js). What each event pays and says is
+    // game/marketplay.js. NO_MARKET everywhere else.
+    const marketToasts = areaId === 'market' ? createMarketToasts({ hud, now: nowSec }) : null;
+    const market = areaId !== 'market' ? NO_MARKET : createMarketLive(scene, areaData, {
+      seed: roomSeed ?? soloSeed, reducedMotion, ground, isFree: (x, z) => isWalkableAt(areaData, x, z),
+      people: createPeopleKit, // the stallholders, from the pack's people kit
+      lodNear: () => lodNearFor(qualityAdapter.status?.rung), // near or far by her distance, on the live rung's switch
+      onEvent: (e) => handleMarketEvent(e, { hud, audio, log, session, ...marketToasts }),
+    });
     // The balance walk, leaps, drops and climb-ups (traversallive.js) of an
     // area that returns `traversal`; NO_TRAVERSAL everywhere else (today,
     // every shipped area). Nothing is added to the scene and nothing rides the
@@ -1714,6 +1730,7 @@ export function createWalkLifecycle({
     for (const critter of critters.list) if (critter.people?.[1]) decals.follow(critter.people[1].figure); // a pair's child (R26)
     for (const g of farm.groups) decals.follow(g);
     if (fairShow) for (const g of fairShow.groups) decals.follow(g);
+    for (const g of market.groups) decals.follow(g);
     for (const dc of denCats.list) decals.follow(dc.group);
 
     // The shadow camera used to be nailed to the world origin at +/-70 so it
@@ -1846,12 +1863,15 @@ export function createWalkLifecycle({
     // once. Draws on no rng. The Rooftops' life also takes the walk's critters,
     // to move its birds, how many walks she has had there, the log and progression its finds are noted with,
     // her view heading (the tower view turns it), and the Old House's yarn toy.
+    // The Market's takes the pack's people factory (its street musician) and its rung's near distance.
     const lifeViewYaw = { get: () => player.viewYaw(), set: (v) => player.setViewYaw(v) };
-    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0, log, toy, progression, viewYaw: lifeViewYaw }) ?? NO_AREA_LIFE;
+    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0, log, toy, progression, viewYaw: lifeViewYaw, people: createPeopleKit, lodNear: () => lodNearFor?.(qualityAdapter.status?.rung) }) ?? NO_AREA_LIFE;
+    if (areaLife.musician) decals.follow(areaLife.musician.group); // the Market's street musician, a contact shadow like the stallholders'
     const session = createSession({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       farm,
       fair: fairLive,
+      market,
       traversal: traversalLive,
       // Clan Life Part 1: the territory's clan, a list apart from the strays.
       clanCats,
@@ -2738,6 +2758,8 @@ export function createWalkLifecycle({
     if (resume) restoreFarmJobs(farm, { log, carry, area: areaData });
     // ...and a runaway balloon it had caught is not there to catch again.
     if (resume) restoreFairGames(fairLive, { log });
+    // ...and the Market's tally starts at the treats it already paid for.
+    if (resume) restoreMarket(market, log);
     // ...and the find it had found is not on the ground.
     if (resume) restoreFind(session.find, { log });
     hud.show();
@@ -2999,6 +3021,7 @@ export function createWalkLifecycle({
     session.critters.dispose();
     session.farm?.dispose();
     session.fair?.dispose();
+    session.market?.dispose();
     session.traversal?.dispose();
     session.goldMice.dispose();
     session.find.dispose();
@@ -3105,7 +3128,7 @@ export function createWalkLifecycle({
       ${lines.best
         ? `<div class="record-banner">${lines.best}</div>`
         : `<div class="best-line">your best: ${progression.state.bestWalk} ${PAW}</div>`}
-      ${summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDone, hasGoals: !!session.goals && !firstLesson })}
+      ${summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDone, hasGoals: !!session.goals && !firstLesson, treats: session.market?.treats ?? undefined })}
       ${guideHtml}
       ${walkedWith.length ? `<div class="best-line">explored with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
       ${lines.streak ? `<div class="best-line">${lines.streak}</div>` : ''}

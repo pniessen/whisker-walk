@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   GATE_REACH, GATE_HALF, GATE_POST_R, ARRIVE_IN, GATE_LOOKS, PLACEMENTS, INWARD_YAW,
   GATEWAY_ENDS, gatewayEnd, endsFor, endById, liveEndsFor, gatewayNear, arrivalFor,
-  GATE_FENCE_GAP, cutForGates,
+  GATE_FENCE_GAP, cutForGates, LANE_LOOKS,
 } from '../src/gateways.js';
 import { GATEWAYS } from '../src/worldmap.js';
 import { CATALOG } from '../src/progression.js';
@@ -17,6 +17,7 @@ const TABLE = [
   ['neighborhood', 'town-park', 'town-park', 52, 0, 'east', 'park', 'park-town', 'signpost', null],
   ['neighborhood', 'town-docks', 'town-docks', 0, 52, 'south', 'docks', 'docks-town', 'signpost', null],
   ['neighborhood', 'town-roofs', 'town-roofs', 0, -52, 'north', 'roofs', 'roofs-town', 'signpost', null],
+  ['neighborhood', 'town-market', 'town-market', 30, 52, 'south', 'market', 'market-town', 'signpost', [2.6, 50.9, 31.7, 50.9]],
   ['park', 'park-town', 'town-park', 0, 49, 'south', 'neighborhood', 'town-park', 'signpost', null],
   ['park', 'park-fair', 'park-fair', 0, -47, 'north', 'fair', 'fair-park', 'fairgate', [4, -25.2, 0, -47]],
   ['park', 'park-farm', 'park-farm', 42, 10, 'east', 'farm', 'farm-park', 'farmgate', [16, 10, 42, 10]],
@@ -26,6 +27,7 @@ const TABLE = [
   ['docks', 'docks-seaside', 'docks-seaside', 35, -20, 'east', 'seaside', 'seaside-docks', 'promenade', null],
   ['seaside', 'seaside-docks', 'docks-seaside', 10, 45, 'south', 'docks', 'docks-seaside', 'promenade', null],
   ['roofs', 'roofs-town', 'town-roofs', 14, 45.55, 'south', 'neighborhood', 'town-roofs', 'alleydoor', null],
+  ['market', 'market-town', 'town-market', 0, 23.6, 'south', 'neighborhood', 'town-market', 'signpost', null],
 ];
 
 describe('gateways', () => {
@@ -35,19 +37,28 @@ describe('gateways', () => {
     expect(GATE_LOOKS).toEqual(['signpost', 'fairgate', 'farmgate', 'promenade', 'alleydoor', 'none']);
     expect(PLACEMENTS).toEqual(['edge', 'inside']);
     expect(INWARD_YAW).toEqual({ north: Math.PI, south: 0, east: Math.PI / 2, west: -Math.PI / 2 });
-    expect(Object.keys(GATEWAY_ENDS)).toEqual(['neighborhood', 'park', 'fair', 'farm', 'docks', 'seaside', 'roofs']);
+    expect(Object.keys(GATEWAY_ENDS)).toEqual(['neighborhood', 'park', 'fair', 'farm', 'docks', 'seaside', 'roofs', 'market']);
     expect(deepFrozen(GATEWAY_ENDS)).toBe(true);
     expect([GATE_LOOKS, PLACEMENTS, INWARD_YAW].every(Object.isFrozen)).toBe(true);
   });
-  it('the twelve ends stand where the table says', () => {
+  it('the fourteen ends stand where the table says', () => {
     const rows = Object.entries(GATEWAY_ENDS).flatMap(([a, ends]) => ends.map((e) => [a, e.id, e.gateway, e.x, e.z, e.faces, e.to, e.twin, e.look, e.lane]));
     expect(rows).toEqual(TABLE);
-    // only the Rooftops' alley door stands inside its place, with its own arrival
+    // the Park's lanes are gravel; the town's path to the Market is paved
+    expect(LANE_LOOKS).toEqual(['gravel', 'paving']);
+    expect(Object.values(GATEWAY_ENDS).flat().filter((e) => e.lane).map((e) => [e.id, e.laneLook]))
+      .toEqual([['town-market', 'paving'], ['park-fair', 'gravel'], ['park-farm', 'gravel']]);
+    // only the Rooftops' alley door and the Market's gate in the south row's
+    // gap stand inside their places, each with its own arrival
     const inside = Object.values(GATEWAY_ENDS).flat().filter((e) => e.placement === 'inside');
-    expect(inside.map((e) => [e.id, e.arrive])).toEqual([['roofs-town', { x: 14, z: 41.9, yaw: 1.0 }]]);
+    expect(inside.map((e) => [e.id, e.arrive])).toEqual([
+      ['roofs-town', { x: 14, z: 41.9, yaw: 1.0 }],
+      ['market-town', { x: 0, z: 19.9, yaw: 0 }],
+    ]);
   });
   it('every map road has one end on each side, and the two ends twin each other', () => {
     expect(GATEWAYS.map((g) => g.id)).toContain('town-roofs');
+    expect(GATEWAYS.map((g) => g.id)).toContain('town-market');
     for (const g of GATEWAYS) {
       const ends = Object.entries(GATEWAY_ENDS).flatMap(([a, es]) => es.filter((e) => e.gateway === g.id).map((e) => ({ a, e })));
       expect(ends.map(({ a, e }) => `${a}>${e.to}`).sort(), g.id).toEqual([`${g.from}>${g.to}`, `${g.to}>${g.from}`].sort());
@@ -60,6 +71,8 @@ describe('gateways', () => {
     expect(() => gatewayEnd({ ...ok, faces: 'nort' })).toThrow(/x.*nort/);
     expect(() => gatewayEnd({ ...ok, look: 'arch' })).toThrow(/x.*arch/);
     expect(() => gatewayEnd({ ...ok, placement: 'roof' })).toThrow(/x.*roof/);
+    expect(() => gatewayEnd({ ...ok, lane: [0, 0, 1, 0], laneLook: 'tarmac' })).toThrow(/x.*tarmac/);
+    expect(gatewayEnd(ok).laneLook).toBe('gravel');
     expect(() => gatewayEnd({ ...ok, placement: 'inside' })).toThrow(/x.*arrive/);
     expect(() => gatewayEnd({ ...ok, wings: [2, 2] })).toThrow(/x.*wings/); // a signpost has no railing
     expect(() => gatewayEnd({ ...ok, look: 'promenade', wings: [2] })).toThrow(/x.*wings/);
@@ -67,14 +80,14 @@ describe('gateways', () => {
     expect(gatewayEnd({ ...ok, look: 'promenade', wings: [2, 3] }).wings).toEqual([2, 3]);
     expect(endById('docks-seaside').end.wings).toEqual([18.6, 16.7]);
   });
-  it('only the town\'s north signpost asks for a painted name board (sign)', () => {
+  it('only the town\'s signposts to the Rooftops and the Market ask for a painted name board (sign)', () => {
     const ok = { id: 'x', gateway: 'g', x: 0, z: 0, faces: 'east', to: 'park', twin: 'y', look: 'signpost' };
     expect(gatewayEnd(ok).sign).toBe(false);
     expect(gatewayEnd({ ...ok, sign: true }).sign).toBe(true);
     expect(Object.isFrozen(gatewayEnd({ ...ok, sign: true }))).toBe(true);
     const signed = Object.values(GATEWAY_ENDS).flat().filter((e) => e.sign);
-    expect(signed.map((e) => e.id)).toEqual(['town-roofs']);
-    for (const e of Object.values(GATEWAY_ENDS).flat()) expect(e.sign, e.id).toBe(e.id === 'town-roofs');
+    expect(signed.map((e) => e.id)).toEqual(['town-roofs', 'town-market']);
+    for (const e of Object.values(GATEWAY_ENDS).flat()) expect(e.sign, e.id).toBe(e.id === 'town-roofs' || e.id === 'town-market');
   });
   it('lookups', () => {
     expect(endsFor('island')).toEqual([]); expect(endsFor('__proto__')).toEqual([]); expect(endsFor(7)).toEqual([]);
@@ -94,10 +107,15 @@ describe('gateways', () => {
     near(arrivalFor('town-docks'), { areaId: 'docks', x: -10, z: -33.4, yaw: Math.PI });
     near(arrivalFor('seaside-docks'), { areaId: 'docks', x: 31.4, z: -20, yaw: Math.PI / 2 });
     near(arrivalFor('roofs-town'), { areaId: 'neighborhood', x: 0, z: -48.4, yaw: Math.PI });
+    // the Market's gate home: 3.6 m inside the town's south-east signpost (30, 52), facing north
+    near(arrivalFor('market-town'), { areaId: 'neighborhood', x: 30, z: 48.4, yaw: 0 });
     expect(arrivalFor('nope')).toBeNull();
   });
   it("through the town's north signpost she lands in the Rooftops' alley, 3.65 m in front of its door, facing north", () => {
     expect(arrivalFor('town-roofs')).toEqual({ areaId: 'roofs', x: 14, z: 41.9, yaw: 1.0 });
+  });
+  it("through the town's south-east signpost she lands in the Market Square, 3.7 m in front of its gate, facing north into the square", () => {
+    expect(arrivalFor('town-market')).toEqual({ areaId: 'market', x: 0, z: 19.9, yaw: 0 });
   });
   it('arriving from the alley door she faces the white guide pigeon, within 20 degrees of straight ahead', () => {
     const arr = arrivalFor('town-roofs');

@@ -19,4 +19,6 @@ export const REDEEM_CODES = {
   // his gives the party hat and one confetti burst.
   '3be6a645c28d0ee8920718c5175950d6284937d7d9154f700a149b3928571ca0': { label: "Birthday 2026-11 (her)", points: 50, accessories: ["partyhat", "bdayrosette", "bdayballoon", "cakecharm"], cats: [], events: ["bday-2026-11-21"] },
   'bf57573848f85c67e300e7ef12f13208c96721e512b7d1fe98d5ff65655202e4': { label: "Birthday 2026-11 (brother)", points: 0, accessories: ["partyhat"], cats: [], confetti: true },
+  // A spare for her, in case the first won't open: the same reward exactly.
+  '75e4683e398e00d2e9e9c0d93fae4d8f5ea230be400cafe1a584f5353748d243': { label: "Birthday 2026-11 (her, spare)", points: 50, accessories: ["partyhat", "bdayrosette", "bdayballoon", "cakecharm"], cats: [], events: ["bday-2026-11-21"] },
 };

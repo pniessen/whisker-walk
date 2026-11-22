@@ -37,13 +37,14 @@ const { build: buildDen } = await import('../src/world/den.js');
 const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildFair } = await import('../src/world/fair.js');
 const { build: buildRoofs } = await import('../src/world/roofs.js');
+const { build: buildMarket } = await import('../src/world/market.js');
 const { createContactShadows } = await import('../src/render/contactshadows.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { assignShadowCasters } = await import('../src/render/rig.js');
 const { LADDER } = await import('../src/render/quality.js');
 
 const BUILDS = {
-  park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, den: buildDen, farm: buildFarm, fair: buildFair, roofs: buildRoofs,
+  park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, den: buildDen, farm: buildFarm, fair: buildFair, roofs: buildRoofs, market: buildMarket,
 };
 
 // walk.js's order: build, contact shadows, merge, casters, THEN ambient.
@@ -78,6 +79,7 @@ const VIEW = {
   farm: [0, 30], // on the lane, looking up to the yard
   fair: [0, 30], // on the midway, looking up to the merry-go-round
   roofs: [-3, 40], // in the back alley, under the lamp
+  market: [0, 22], // on the cobbles, south of the fountain
   den: [0, 0],
 };
 
@@ -126,7 +128,7 @@ describe('ambient kinds', () => {
   });
 
   it('builds one Points mesh per outdoor area, with no shadow draws', () => {
-    for (const areaId of ['park', 'neighborhood', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'gorge', 'farm', 'fair', 'roofs']) {
+    for (const areaId of ['park', 'neighborhood', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'gorge', 'farm', 'fair', 'roofs', 'market']) {
       const { scene, ambient } = make(areaId);
       const found = meshesNamed(scene, 'ambient');
       expect(found, areaId).toHaveLength(1);

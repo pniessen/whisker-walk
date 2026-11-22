@@ -15,7 +15,8 @@
 //
 // Not on the map: the den (home, a Menu tile), and the House (not
 // built yet), and today's border posts. The Rooftops is on it, inside the
-// town (TOWN_PLACES), a place like the others since its catalog row went in.
+// town (TOWN_PLACES), a place like the others since its catalog row went in;
+// so is the Market Square, on the town's south-east rim (Market step 4).
 //
 // One thing moves on the world map only: the Moor's camp (WORLD_CAMP_AT).
 // The world map's bigger words leave no room for it on the Moor's north edge
@@ -43,14 +44,18 @@ export const STREET_PLACES = freezeAll([
 export const STREET_LAND = Object.freeze({ park: '#b9dc8f', fair: '#e9b7c9', farm: '#e3cf7e', docks: '#b7b9bf', seaside: '#ecdca8' });
 
 // Places inside the town, drawn on top of it: the Rooftops, up the back
-// alley's fire escape (draft 2's "Rooftops"). Its name comes from the word tables
-// (placeName reads PLACE_WORDS.roofs).
+// alley's fire escape (draft 2's "Rooftops"), and the Market Square, on the
+// town's south-east rim (Market step 4, V19; r 46 as the Rooftops', not the
+// ruling's 42, so no tap target is under the island's 92 across, and moved 6
+// units off the Docks). Their names come from the word
+// tables (PLACE_WORDS.roofs, PLACE_WORDS.market).
 export const TOWN_PLACES = freezeAll([
   { id: 'roofs', areaId: 'roofs', x: 905, y: 458, r: 46 },
+  { id: 'market', areaId: 'market', x: 962, y: 642, r: 46 },
 ]);
 
-// A roof-slate land colour for them.
-export const TOWN_LAND = Object.freeze({ roofs: '#8e9bb0' });
+// Their land colours: roof slate, warm cobble.
+export const TOWN_LAND = Object.freeze({ roofs: '#8e9bb0', market: '#d8b48a' });
 
 // The coast, west edge of the sea: the points of a cubic chain,
 // M p0 C p1 p2 p3 C p4 p5 p6 C p7 p8 p9, closed along the world's east and
@@ -69,6 +74,9 @@ export const GATEWAYS = Object.freeze([
   { id: 'docks-seaside', from: 'docks', to: 'seaside', road: [[980, 780], [1040, 790], [1110, 790], [1140, 765]] },
   // The Rooftops' circle lies over the town's north rim: round the east side, in the open.
   { id: 'town-roofs', from: 'neighborhood', to: 'roofs', road: [[946, 520], [980, 508], [984, 468], [951, 455]] },
+  // The Market's circle lies over the town's south-east rim: a short road in
+  // the gap between the town, the Market and the Docks, clear of all three.
+  { id: 'town-market', from: 'neighborhood', to: 'market', road: [[898, 661], [910, 678], [926, 688], [939, 682]] },
 ].map((g) => Object.freeze({ ...g, road: pts(g.road) })));
 
 // A camp the world map draws somewhere other than CAMP_AT. The Moor's: on

@@ -7,6 +7,7 @@ import { escapeHtml } from '../game/util.js';
 import { PAW } from './pawicon.js';
 import { confettiHtml } from './visitcelebration.js';
 import { mulberry32, seedFromCode } from '../rng.js';
+import { MARKET_LINES } from '../marketwords.js';
 
 const CHEERS = ['What a trip!', 'Great exploring!', 'Happy paws!', 'You did it!', 'What fun!'];
 
@@ -70,11 +71,16 @@ function tile(emoji, value, label, suffix = '') {
 }
 
 // The stat tiles. A walk with no goals (the den) has no goals tile at all,
-// rather than a "0/3".
-export function summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDone, hasGoals }) {
-  return `<div class="summary-stats">${tile('🐾', earned, 'paw points')}`
+// rather than a "0/3". `treats` (the Market's tally, an integer on a Market
+// walk only) adds its tile after the cats greeted; without it, nothing changes.
+// Five tiles (a Market walk with goals) are marked `five`, so style.css keeps
+// them in one row instead of the goals tile wrapping alone.
+export function summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDone, hasGoals, treats }) {
+  const five = Number.isInteger(treats) && hasGoals;
+  return `<div class="summary-stats${five ? ' five' : ''}">${tile('🐾', earned, 'paw points')}`
     + `${tile('🔍', discoveries, 'discoveries')}`
     + `${tile('😺', friendsGreeted, 'cats greeted')}`
+    + `${Number.isInteger(treats) ? tile('😋', treats, MARKET_LINES.summaryTreats()) : ''}`
     + `${hasGoals ? tile('⭐', goalsDone, 'goals done', '/3') : ''}</div>`;
 }
 

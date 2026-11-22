@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Found outfits: picture sheets</title>
 <!-- Found outfits step 2: the owner's and his daughter's picture sheets. Each
-     sheet is one canvas with a 6 x 4 grid of tiles (setScissor/setViewport),
+     sheet is one canvas with a 6 x 5 grid of tiles (setScissor/setViewport),
      labelled in HTML over it (the outfit's name, its slot and its place):
-       cat-<preset>        the 24 outfits in FOUND_WEAR order on one cat, standing;
+       cat-<preset>        the 28 outfits in FOUND_WEAR order on one cat, standing;
        cat-builder-short|fluffy|long   the same on a builder cat (Task 1's looks);
        cat-hagrid          Hagrid's own (head, face, neck and collar outfits);
        sit-tabby|digit|mainecoon       the dress-up's sit (defaultPoseCat);
@@ -19,6 +19,10 @@
        birthday-hat        the Birthday Hat on tabby, calico, black and D2,
                            straight on from the front, from each side, the
                            play camera, a close-up and Hagrid's;
+       market-<id>         one of the Market Square's four outfits (Market step 4)
+                           on tabby, Robbie, D2 and Digit, at the shop's angle,
+                           from the front and from the side; on Hagrid from the
+                           front and the side where he wears it; and on the grass;
        <area>-finds        a street area built, its outfits each at a real spot
                            (a spread of looks; one raised if it has any), four
                            views, verify-finds.html's spot() framing.
@@ -82,7 +86,7 @@
 
   const $ = (id) => document.getElementById(id);
   const W = innerWidth, H = innerHeight;
-  const COLS = 6, ROWS = 4;
+  const COLS = 6, ROWS = 5;
 
   // ---- the game's renderer settings (main.js) ----
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -266,6 +270,58 @@
     $('title').textContent = 'birthday-hat';
   }
 
+  // ---- a Market outfit's sheet (a 4 x 4 grid): four cats at the shop's
+  // angle, front and side, then Hagrid's front and side, then the ground ----
+  function marketSheet(id) {
+    const rec = foundWearIn('market').find((r) => r.id === id);
+    if (!rec) throw new Error(`no Market outfit ${id}`);
+    clearLabels();
+    newScene();
+    const lawn = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), litMaterial(0x6cb058));
+    lawn.rotation.x = -Math.PI / 2;
+    lawn.receiveShadow = true;
+    world.scene.add(lawn);
+    finishRig(0x6cb058, 4);
+    // what to look at: a hat at the head, a neck piece or charm at the chest, a pack the whole cat
+    const at = { head: [0.85, 0.78], neck: [0.72, 0.6], collar: [0.72, 0.6], back: [1.05, 0.5] }[rec.slot];
+    const far = rec.slot === 'back' ? 1.7 : 1.25;
+    const { closeUp, rotY } = accessoryFraming(id);
+    const tiles = [];
+    for (const breed of ['tabby', 'robbie', 'd2', 'digit']) {
+      // the shop's angle: catSheet's (thumbnails.js) framing
+      tiles.push([breed, "the shop's angle", rotY, closeUp ? [0.85, 0.99, -1.11] : [1.35, 1.14, -1.7], closeUp ? [0, 0.64, -0.21] : [0, 0.44, 0]]);
+      tiles.push([breed, 'front', 0, [0, at[0], -far], [0, at[1], -0.3]]);
+      tiles.push([breed, 'side', 0, [far, at[0], -0.2], [0, at[1], -0.2]]);
+    }
+    if (HEN_SLOTS.includes(rec.slot)) {
+      tiles.push(['hagrid', 'front', 0, [0, 1.0, -1.4], [0, 0.82, 0]]);
+      tiles.push(['hagrid', 'side', 0, [1.4, 1.0, 0], [0, 0.82, 0]]);
+    }
+    tiles.forEach(([breed, view, rot, cam, look], i) => {
+      const box = tileBox(i, 4, 4);
+      const cat = buildCat(breed, { ...BARE, [rec.slot]: id });
+      cat.rotation.y = rot;
+      world.scene.add(cat);
+      const k = cat.scale.x * (breed === 'digit' ? 1.15 : 1);
+      camera.position.set(cam[0] * k, cam[1] * k, cam[2] * k);
+      camera.lookAt(look[0] * k, look[1] * k, look[2] * k);
+      renderTile(box);
+      world.scene.remove(cat);
+      cat.traverse((o) => { o.geometry?.dispose?.(); });
+      label(box, rec.name(), `${breed} · ${view}`);
+    });
+    const box = tileBox(tiles.length, 4, 4);
+    const find = buildFindDisplay({ kind: 'wear', id });
+    find.rotation.y = 0.5;
+    world.scene.add(find);
+    camera.position.set(1.2 * Math.sin(-0.4), 0.45, 1.2 * Math.cos(-0.4) * -1);
+    camera.lookAt(0, 0.1, 0);
+    renderTile(box);
+    world.scene.remove(find);
+    label(box, rec.name(), 'on the grass, as found (no twinkle)');
+    $('title').textContent = `market-${id}`;
+  }
+
   // ---- the ground sheet: buildFindDisplay on grass ----
   function groundSheet() {
     clearLabels();
@@ -393,6 +449,7 @@
     else if (name === 'ground') groundSheet();
     else if (name === 'gifts') giftSheet();
     else if (name === 'birthday-hat') birthdayHatSheet();
+    else if (/^market-[a-z]+$/.test(name)) marketSheet(name.slice(7));
     else if (/-finds$/.test(name) && Object.hasOwn(AREA_BUILD, name.slice(0, -6))) areaSheet(name.slice(0, -6));
     else throw new Error(`no such sheet: ${name}`);
     return name;

@@ -330,6 +330,44 @@ const SETS = {
     keepSlots: [],
   },
 
+  // The Market Square (src/world/marketplan.js MARKET_REGISTRATION.propSet; test/market.test.js
+  // holds the two equal). Step 3: a drink at the fountain's south rim, a nap on the
+  // baker's flour sacks (neither drawn), a bucket of flowers on the flower trestle
+  // and a cafe cup on its third table to knock off, a lamp post's foot and the
+  // noticeboard's post to mark, a paper bag's ribbon and a dropped glove to carry.
+  // The hides are one at each stall's back (MARKET_HIDES: critters flee to them too).
+  // No dog yard, no colony.
+  market: {
+    carryables: [
+      { id: 'market-bag-1', kind: 'ribbon', x: -16.2, z: -6.5 },  // a paper bag's ribbon by the west barrow
+      { id: 'market-glove-1', kind: 'glove', x: 6.5, z: -2.8 },   // a dropped glove by the east bench
+    ],
+    knockables: [
+      { id: 'market-bucket-1', kind: 'bucket', x: 11.5, z: -2.5, y: 0.775, fallTo: { x: 10.1, z: -2.5, y: 0.01 } },
+      { id: 'market-cup-1', kind: 'cup', x: -6.5, z: 17.3, y: 0.74, fallTo: { x: -5.6, z: 16.8 } },
+    ],
+    markables: [
+      { id: 'market-post-1', kind: 'post', x: -8, z: -4.4, nearBorder: false, mesh: false },   // a lamp post's foot
+      { id: 'market-post-2', kind: 'post', x: 5.35, z: 22.5, nearBorder: false, mesh: false }, // the noticeboard's post (its back, clear of the yarn ball by the board)
+    ],
+    flaps: [],
+    rests: [
+      { id: 'market-drink-1', kind: 'drink', x: 0, z: 3.8, mesh: false },        // the fountain's south rim
+      { id: 'market-nap-1', kind: 'nap', x: -5.53, z: -12.08, mesh: false },     // the baker's flour sacks
+    ],
+    hides: [
+      { x: -9.828300379790111, z: 4.531228950529762 },
+      { x: -8.858245657354518, z: -8.41987426415539 },
+      { x: 4.587054146420254, z: -11.387520313960367 },
+      { x: 9.65965616882718, z: 9.858189596429026 },
+      { x: 11.5, z: -2.5 },
+      { x: 2.7, z: -16.4 },
+      { x: -6.3, z: 13.5 },
+    ],
+    dogYard: null,
+    keepSlots: [],
+  },
+
   // The Rooftops (src/world/roofsplan.js ROOFS_REGISTRATION.propSet; test/roofs.test.js
   // holds the two equal). The street areas' counts; NO DOG YARD, no markable is
   // `nearBorder`, and no strays: nothing up here chases the cat. Every prop stands
@@ -485,6 +523,12 @@ const YARN_SPOTS = {
   roofs: [
     { x: -12, z: 37, where: 'in the back alley' },
     { x: -12, z: 31, where: 'on the garage roof' },
+  ],
+  // The Market Square (?market=1): its goal line named nowhere without these
+  // ("The yarn ball is ."), found playing the real game in the fix wave.
+  market: [
+    { x: -5.2, z: 8, where: 'by the fountain bench' },
+    { x: 5.5, z: 19.6, where: 'by the noticeboard' },
   ],
   woods: [
     { x: -2.5, z: 18, where: 'by the fallen log' },
