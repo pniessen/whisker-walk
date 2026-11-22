@@ -13,7 +13,7 @@ import {
 const freeze = Object.freeze;
 const frozenAll = (list) => freeze(list.map((o) => freeze(o)));
 
-// Three golden mice outside GOLD_MICE (D5): `y` is the height over the ground
+// The house's three golden mice (D5), held equal to GOLD_MICE.house (goldmice.js, where the walk lays them from; test/housethings.test.js): `y` is the height over the ground
 // there, so 0 on a ledge. One on the library's west bookcase (where the corner
 // leap lands her), one on the wardrobe (where the leap from the shelf lands
 // her), one on the cellar floor between the barrels and the crates.

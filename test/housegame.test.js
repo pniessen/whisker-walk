@@ -438,10 +438,11 @@ describe('a walk in the house', () => {
     expect(HOUSE_YARN_SPOTS.length).toBe(2);
   }, 90_000);
 
-  it('a golden mouse found in the house is saved, and the tally stays 42 until step 4', () => {
+  it('a golden mouse found in the house is saved and counts: Clan Edition reads 45, Legacy as before', () => {
     const life = lifecycleHere();
     houseWalk(life, false, {
       keep: (s) => {
+        expect(s.goldMice.list.map((q) => q.id)).toEqual(GOLD_MICE.house.map((q) => q.id)); // laid from GOLD_MICE
         // the walk's own golden mice find the cellar one at her paws
         const m = HOUSE_GOLD_MICE.find((q) => q.id === 'gm-house-3');
         const pawsY = s.ground.y(m.x, m.z);
@@ -451,8 +452,9 @@ describe('a walk in the house', () => {
     expect(life.progression.recordGolden('gm-house-1')).toBe(true);
     expect(life.progression.recordGolden('gm-house-1')).toBe(false); // once
     expect(life.progression.state.golden).toContain('gm-house-1');
-    expect(goldForEdition(life.progression.state.edition, CATALOG).size).toBe(42); // the Rooftops' three and the Market's three joined on main
-    expect(Object.hasOwn(GOLD_MICE, 'house')).toBe(false);
+    expect(goldForEdition('canon', CATALOG).size).toBe(45);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(21); // the house is Clan-only: Legacy's count is unmoved
+    expect(Object.hasOwn(GOLD_MICE, 'house')).toBe(true);
   }, 90_000);
 
   it('draws the corner map as the house\'s floor plan on the lawn', () => {

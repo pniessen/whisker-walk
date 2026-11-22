@@ -2793,10 +2793,10 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
     expect(GOLD_MICE.roofs).toEqual(plain(REG.goldMice));
   });
 
-  it('the gold count is 42, and the Rooftops is in Legacy', async () => {
+  it('the gold count is 45, and the Rooftops is in Legacy', async () => {
     const { GOLD_TOTAL, goldForEdition } = await import('../src/goldmice.js');
-    expect(GOLD_TOTAL).toBe(42); // 39 until the Market added its three
-    expect(goldForEdition('canon', CATALOG).size).toBe(42); // 39 until the Market added its three
+    expect(GOLD_TOTAL).toBe(45); // 42 until the Old House added its three, 39 until the Market added its three
+    expect(goldForEdition('canon', CATALOG).size).toBe(45); // 42 until the Old House added its three, 39 until the Market added its three
     expect(goldForEdition('legacy', CATALOG).size).toBe(21); // 24 while the Market had no catalog row (an area not in the catalog is counted); its Clan-only row (Market step 4) keeps its three out of Legacy
   });
 

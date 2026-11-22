@@ -2051,11 +2051,10 @@ export function createWalkLifecycle({
     // golden mice: personal, position-static, award-local — no wire events,
     // so this is co-walk safe without touching walkRng or session.net at
     // all. areas without an entry in GOLD_MICE (none currently, but future
-    // areas like the den) get an inert stub instead of a lookup throw. The
-    // Old House hands its own (areaData.goldMice, outside GOLD_MICE).
-    session.goldMice = (areaId in GOLD_MICE || areaData.goldMice)
+    // areas like the den) get an inert stub instead of a lookup throw.
+    session.goldMice = areaId in GOLD_MICE
       ? createGoldMice(scene, areaId, new Set(progression.state.golden), {
-        ground, rng: ownStream(roomSeed ?? soloSeed, GOLD_PHASE_SALT), list: areaData.goldMice,
+        ground, rng: ownStream(roomSeed ?? soloSeed, GOLD_PHASE_SALT),
       })
       : NO_GOLD_MICE;
 

@@ -180,10 +180,20 @@ export const GOLD_MICE = {
     // hidden low at the foot of the west shop fronts, tucked at the end of the handcart there
     { id: 'gm-market-3', x: -20.5, z: -4.3, y: 0 },
   ],
+  // The Old House (src/world/housethings.js HOUSE_GOLD_MICE; test/housethings.test.js
+  // holds the two lists equal). `y` is the height over the ground there, so 0 on a ledge.
+  house: [
+    // on the library's west bookcase, where the corner leap lands her
+    { id: 'gm-house-1', x: -13.6, z: 5.6, y: 0 },
+    // on the bedroom wardrobe, where the leap from the shelf lands her
+    { id: 'gm-house-2', x: -6.8, z: -15.6, y: 0 },
+    // on the cellar floor between the barrels and the crates
+    { id: 'gm-house-3', x: 27.0, z: -0.7, y: 0 },
+  ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 42 (thirteen areas x three, and the island's three)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 45 (fourteen areas x three, and the island's three; 42 until the Old House)
 
 // The golden mice a player of `edition` can reach: those in the areas the
 // edition shows (Legacy hides the Clan Edition territories; see edition.js).
@@ -246,9 +256,9 @@ function disposeMouse(mo) {
 // Review S2: `rng` draws each mouse's bob phase (Math.random by default). A
 // walk passes a per-walk stream of the gold mice's own (game/walk.js), never
 // walkRng; the bob is personal and local, so co-walkers need not agree on it.
-export function createGoldMice(scene, areaId, foundIds, { ground = FLAT_GROUND, rng = Math.random, list: own = null } = {}) {
+export function createGoldMice(scene, areaId, foundIds, { ground = FLAT_GROUND, rng = Math.random } = {}) {
   const list = [];
-  for (const m of own ?? GOLD_MICE[areaId] ?? []) {
+  for (const m of GOLD_MICE[areaId] ?? []) {
     if (foundIds.has(m.id)) continue;
     const { group, material } = buildMouse();
     const worldY = ground.flat ? m.y : ground.y(m.x, m.z) + m.y;

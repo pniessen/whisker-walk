@@ -44,7 +44,7 @@ import {
 import { fullLevels } from '../houselevels.js';
 import { createHouseLife } from './houselife.js';
 import {
-  HOUSE_GOLD_MICE, HOUSE_KNOCKABLES, HOUSE_HIDES, HOUSE_MICE, HOUSE_YARN_SPOTS, HOUSE_SCENICS, HOUSE_FINDS,
+  HOUSE_KNOCKABLES, HOUSE_HIDES, HOUSE_MICE, HOUSE_YARN_SPOTS, HOUSE_SCENICS, HOUSE_FINDS,
   HOUSE_GOAL_TYPES, HOUSE_MAP_GROUND, houseMapShapes,
 } from './housethings.js';
 import { phrase } from '../clanphrases.js';
@@ -427,7 +427,6 @@ export function build(scene, { wind, gateEnds } = {}) {
       scenics: HOUSE_SCENICS.map((c) => ({ id: c.id, x: c.x, z: c.z, label: said[c.words] })),
       // mice in the pantry corner and the cellar, and nothing else: no people, no resident cat (U14, D10)
       critterSpawns: HOUSE_MICE.map(({ room, ...m }) => m), // eslint-disable-line no-unused-vars
-      goldMice: HOUSE_GOLD_MICE, // outside GOLD_MICE (D5)
       knockables: HOUSE_KNOCKABLES, // on the perches' pieces (D4)
       hides: HOUSE_HIDES, // the mice's cover, each in its mouse's room (D10)
       yarnSpots: HOUSE_YARN_SPOTS.map((s) => ({ x: s.x, z: s.z, where: said[s.words] })), // D14

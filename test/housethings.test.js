@@ -69,14 +69,17 @@ const topAt = (x, z, fromY) => {
 };
 
 describe('the golden mice (D5)', () => {
-  it('three golden mice, two up a climb and one tucked away in the cellar, none in GOLD_MICE', () => {
+  it("the house's golden mice are GOLD_MICE.house", () => {
+    expect(GOLD_MICE.house).toEqual(HOUSE_GOLD_MICE);
+  });
+
+  it('three golden mice, two up a climb and one tucked away in the cellar', () => {
     expect(HOUSE_GOLD_MICE.map((m) => m.id)).toEqual(['gm-house-1', 'gm-house-2', 'gm-house-3']);
     for (const m of HOUSE_GOLD_MICE) {
       expect(m.id).toMatch(/^gm-[a-z]{1,24}-[1-9]$/);
       expect(m.y, m.id).toBe(0);
     }
-    expect(GOLD_MICE.house).toBeUndefined();
-    expect(GOLD_TOTAL).toBe(42); // the house adds none until step 4 (42: the Rooftops' three and the Market's three joined on main)
+    expect(GOLD_TOTAL).toBe(45); // 42 until the Old House's three joined the count
     const [one, two, three] = HOUSE_GOLD_MICE;
     for (const [m, id] of [[one, 'library-books-w'], [two, 'bedroom-wardrobe']]) {
       const l = ledgeById(id);
@@ -350,7 +353,7 @@ describe('the goals and the corner map (D11, D12)', () => {
     expect(HOUSE_YARN_SPOTS.length).toBe(2);
     expect(record.goalTypes).toBe(HOUSE_GOAL_TYPES);
     expect(record.knockables).toBe(HOUSE_KNOCKABLES);
-    expect(record.goldMice).toBe(HOUSE_GOLD_MICE);
+    expect(record.goldMice).toBeUndefined(); // the walk lays them from GOLD_MICE.house
   });
 
   it('the corner map\'s shapes are the rooms, the stairs and the walls, with the doorways open', () => {
