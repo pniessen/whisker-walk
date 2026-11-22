@@ -37,6 +37,7 @@ describe(DESCRIBE, () => {
   it('mesh counts: backpack 1, hay-bale pack 1, jetpack 1, wings 2', () => {
     expect(itemsOf(kitCat('tabby', 'backpack'))).toHaveLength(1);
     expect(itemsOf(kitCat('tabby', 'haybalepack'))).toHaveLength(1);
+    expect(itemsOf(kitCat('tabby', 'flowerbasket'))).toHaveLength(1);
     expect(itemsOf(kitCat('tabby', 'jetpack'))).toHaveLength(1);
     const wings = itemsOf(kitCat('tabby', 'wings'));
     expect(wings).toHaveLength(2);
@@ -49,7 +50,7 @@ describe(DESCRIBE, () => {
   });
 
   it('triangle budget: backpack <= 1200, jetpack <= 1400, wings <= 900 (simple half or less)', () => {
-    const BUDGET = { backpack: 1200, jetpack: 1400, wings: 900, haybalepack: 1000 };
+    const BUDGET = { backpack: 1200, jetpack: 1400, wings: 900, haybalepack: 1000, flowerbasket: 1200 };
     for (const id of BACK_ITEM_IDS) {
       for (const cover of ['fur', 'shell', 'cape']) {
         const full = meshTris(buildBackItem(id, { bodyScale: TORSO.SCALE, cover }));

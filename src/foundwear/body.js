@@ -31,4 +31,6 @@ export const BODY_WEAR = Object.freeze([
   Object.freeze({ id: 'kitetailribbon', slot: 'back', find: 'park', emoji: '🪁', name: () => phrase('wear.kitetailribbon.name') }),
   Object.freeze({ id: 'haybalepack', slot: 'back', find: 'farm', emoji: '🌾', name: () => phrase('wear.haybalepack.name') }),
   Object.freeze({ id: 'candyflosspuff', slot: 'back', find: 'fair', emoji: '🍭', name: () => phrase('wear.candyflosspuff.name') }),
+  // the Market Square (2026-11-21): the bale pack's shape as a wicker basket of blooms (backitems.js)
+  Object.freeze({ id: 'flowerbasket', slot: 'back', find: 'market', emoji: '🧺', name: () => phrase('wear.flowerbasket.name') }),
 ]);

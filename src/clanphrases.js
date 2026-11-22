@@ -548,6 +548,12 @@ const LATER = Object.freeze({
   'market.find.musician': (people) => `Music! One of the ${people} plays a fiddle just for you. 🎻`,
   'market.find.basket': 'A bicycle basket! It rocks, and the bell goes ding ding! 🚲',
   'market.find.apples': 'Oops! Apples everywhere, rolling over the cobbles. 🍎',
+  // the four found outfits hidden in the square (src/foundwear/): placeholder
+  // names the owner and his daughter will rename, the same in every set
+  'wear.tradercap.name': 'Market Trader’s Cap',
+  'wear.stringbagscarf.name': 'Shopping-Bag Scarf',
+  'wear.applecharm.name': 'Apple Charm',
+  'wear.flowerbasket.name': 'Flower Basket',
 });
 
 // Every id of the first table, in table order.
