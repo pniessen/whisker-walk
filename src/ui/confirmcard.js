@@ -84,7 +84,7 @@ export function createConfirmCard({ mount, blocked = () => false, onClosed = () 
     el = d().createElement('div');
     el.id = 'confirm-card';
     el.className = 'colony-news confirm-overlay';
-    el.setAttribute('data-pad-layer', '');
+    el.setAttribute?.('data-pad-layer', '');
     el.innerHTML = confirmCardHtml(opts);
     el.addEventListener('click', onClick);
     el.addEventListener('keydown', onKeydown);
