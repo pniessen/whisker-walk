@@ -215,6 +215,7 @@ export function createHouseLife(scene, house, {
       if (m) {
         m.scale.y = f;
         m.visible = f > 0;
+        if (m.userData.decoMat) m.userData.decoMat.visible = f > 0.95; // pictures and curtains would squash to strips
       }
       const list = paneLists[i];
       for (let k = 0; k < list.length; k++) {

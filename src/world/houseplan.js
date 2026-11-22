@@ -222,6 +222,8 @@ export const HOUSE_FURNITURE = frozenAll([
   piece('hall-bench', 'hall', 'bench', 3.69, 9.6, FACE_W, 1.4, 0.42, 0.9, 0.21),
   piece('hall-umbrellas', 'hall', 'umbrellas', 1.0, 11.75, FACE_N, 0.3, 0.3, 0.85, 0.15),
   piece('hall-runner', 'hall', 'runner', 0, 6.9, FACE_S, 1.1, 8.6, 0.012, 0, 'rugBlue'),
+  piece('hall-rug-w', 'hall', 'rug', -2.2, 8.6, FACE_S, 1.0, 1.5, 0.012, 0, 'rugGreen'),
+  piece('hall-rug-e', 'hall', 'rug', 2.1, 5.6, FACE_S, 1.1, 1.6, 0.012, 0, 'rugRed'),
   piece('hall-mat', 'hall', 'rug', 0, 11.55, FACE_S, 1.0, 0.55, 0.012, 0, 'rugGreen'), // a doormat
   // the library: three bookcases, a rolling ladder at one, a wing chair, a desk, a globe, a rug
   // step 2 (D2): the three bookcases are ledges, the west one slid north between the windows
@@ -299,6 +301,7 @@ export const HOUSE_FURNITURE = frozenAll([
   piece('attic-rug', 'attic', 'rug', -19.5, -12.2, FACE_S, 2.4, 1.8, 0.012, 0, 'rugBlue'),
   piece('attic-pile', 'attic', 'books', -21.4, -14.9, FACE_S, 0.4, 0.3, 0.14, 0),
   piece('attic-cushion', 'attic', 'cushion', -16.6, -8.2, FACE_W, 0.6, 0.6, 0.08, 0, 'rose'),
+  piece('attic-rug-mid', 'attic', 'rug', -16.8, -12.4, FACE_S, 1.8, 1.2, 0.012, 0, 'rugRed'),
   piece('attic-rug-seat', 'attic', 'rug', -22.0, -8.8, FACE_S, 1.6, 1.1, 0.012, 0, 'rugGreen'),
   // step 2 (D6): a box of old toys against the north wall
   piece('attic-toybox', 'attic', 'toybox', -17.6, -15.65, FACE_S, 0.8, 0.5, 0.5, 0.25),
@@ -306,6 +309,7 @@ export const HOUSE_FURNITURE = frozenAll([
   // change height by more than LEVEL_TOL (0.5, traversal.js), or it is no climb at all
   ledge('attic-seat', 'attic', 'seat', -23.6, -11.0, FACE_E, 1.6, 0.6, 0.55, 0.3),
   // the cellar: jar shelves, barrels, crates and cobwebs in its corners
+  piece('cellar-mat-b', 'cellar', 'rug', 27.0, -5.2, FACE_S, 1.4, 0.9, 0.012, 0, 'rugBlue'),
   piece('cellar-mat', 'cellar', 'rug', 24.8, -4.8, FACE_S, 1.8, 1.1, 0.012, 0, 'rugGreen'),
   piece('cellar-shelf-a', 'cellar', 'jarshelf', 23.2, -9.68, FACE_S, 1.8, 0.44, 1.9, 0.22),
   piece('cellar-shelf-b', 'cellar', 'jarshelf', 25.6, -9.68, FACE_S, 1.8, 0.44, 1.9, 0.22),

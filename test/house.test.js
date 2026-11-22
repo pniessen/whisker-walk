@@ -137,7 +137,7 @@ describe('determinism', () => {
     expect(fingerprint(gated).filter((f) => !was.has(f))).toHaveLength(4); // the two hall sections, and the two leaves
   });
 
-  it('builds the atlas the same every time: 512 x 512 RGBA, thirty-four named cells', () => {
+  it('builds the atlas the same every time: 512 x 512 RGBA, thirty-seven named cells', () => {
     const a = createHouseAtlas();
     const b = createHouseAtlas();
     expect(a.isDataTexture).toBe(true);
@@ -146,7 +146,7 @@ describe('determinism', () => {
     expect(a.image.data.length).toBe(512 * 512 * 4);
     expect(Buffer.from(a.image.data).equals(Buffer.from(b.image.data))).toBe(true);
     const ids = Object.values(HOUSE_ATLAS_CELLS);
-    expect(new Set(ids).size).toBe(34);
+    expect(new Set(ids).size).toBe(37);
     for (const r of HOUSE_ROOMS) expect(HOUSE_ATLAS_CELLS[r.id], r.id).toBeGreaterThanOrEqual(0);
     for (const k of ['brick', 'oak', 'pine', 'stone', 'lightWood', 'darkWood', 'plaster']) expect(ids).toContain(HOUSE_ATLAS_CELLS[k]);
   });
@@ -173,7 +173,7 @@ describe('the walls', () => {
 
   it('shares one atlas material across walls, floors, stairs and skirts', () => {
     const mats = new Set();
-    for (const m of area.house.sectionMeshes.values()) mats.add(m.material);
+    for (const m of area.house.sectionMeshes.values()) mats.add(Array.isArray(m.material) ? m.material[0] : m.material); // [wall, dressing clone]: the clone is hidden by the sink (houselife)
     for (const c of scene.children) if (c.isMesh && /^house(Floor|Stair|Skirt)/.test(c.name)) mats.add(c.material);
     expect(mats.size).toBe(1);
     const [mat] = mats;
@@ -247,7 +247,7 @@ describe('floors, stairs and the lawn', () => {
         const y = hitY(solid, x, z);
         const want = area.ground.y(x, z);
         // a tread is at most half a step from the ramp; steps are about 0.4 m
-        expect(Math.abs(y - want), `${s.id} ${t}`).toBeLessThanOrEqual((rise / Math.round(L / 0.4)) / 2 + 1e-3);
+        expect(Math.abs(y - want), `${s.id} ${t}`).toBeLessThanOrEqual((rise / Math.round(L / 0.4)) / 2 + 1e-3 + 0.004); // + the runner's lift (round 2)
       }
     }
   });
