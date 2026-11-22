@@ -257,6 +257,8 @@ export function createNet(transport, { now = defaultClock } = {}) {
   const eventHandlers = [];
   const chatHandlers = [];
   const rosterHandlers = [];
+  const sameCatHandlers = [];
+  let sameCatTold = false; // told once per stretch of "my cat is here twice"
   const limits = {
     state: createTokenBucket(RATE_LIMITS.state, now),
     meow: createTokenBucket(RATE_LIMITS.meow, now),
@@ -264,7 +266,16 @@ export function createNet(transport, { now = defaultClock } = {}) {
     chat: createTokenBucket(RATE_LIMITS.chat, now),
   };
 
+  // The same cat on two devices (cat login M4): presence keys carry a device tag, so both show up.
+  // The roster below keeps one (capRoster); the device is told once, so it can say so.
+  function noteSameCat(list) {
+    const twice = selfId != null && Array.isArray(list) && list.filter((p) => p && p.playerId === selfId).length > 1;
+    if (twice && !sameCatTold) for (const fn of [...sameCatHandlers]) fn();
+    sameCatTold = twice;
+  }
+
   function setRoster(list) {
+    noteSameCat(list);
     roster = capRoster(list, selfId);
     const next = new Set(roster.map((p) => p.playerId));
     for (const id of members) {
@@ -312,6 +323,7 @@ export function createNet(transport, { now = defaultClock } = {}) {
   async function leave() {
     await transport.leave();
     selfId = null;
+    sameCatTold = false;
     setRoster([]);
   }
 
@@ -366,6 +378,14 @@ export function createNet(transport, { now = defaultClock } = {}) {
   // at all. Firing immediately with the current roster (when non-empty)
   // makes onRoster safe to call at any time, not just before the roster
   // first populates.
+  // Like onRoster, safe to call late: a handler added while the cat is already here twice hears it at once
+  // (the join itself may have seen the other device before the caller got to register).
+  function onSameCat(fn) {
+    const off = addHandler(sameCatHandlers, fn);
+    if (sameCatTold) fn();
+    return off;
+  }
+
   function onRoster(fn) {
     const off = addHandler(rosterHandlers, fn);
     if (roster.length > 0) fn(roster);
@@ -376,7 +396,7 @@ export function createNet(transport, { now = defaultClock } = {}) {
     return roster.length > 0 && selfId != null && roster[0].playerId === selfId;
   }
 
-  return { join, leave, updateProfile, sendState, sendEvent, sendChat, onState, onEvent, onChat, onRoster, isHost };
+  return { join, leave, updateProfile, sendState, sendEvent, sendChat, onState, onEvent, onChat, onRoster, onSameCat, isHost };
 }
 
 /**
@@ -400,15 +420,17 @@ export function createFakeHub() {
     for (const entry of room.values()) entry.handlers.onRoster(roster);
   }
 
+  let endpoints = 0;
   function transport() {
     let code = null;
-    let playerId = null;
+    let playerId = null; // the room's key for this endpoint: the cat id and the endpoint (two devices, one cat)
     let joined = false;
+    const device = ++endpoints;
 
     return {
       async join(roomCode, profile, handlers) {
         code = roomCode;
-        playerId = profile.playerId;
+        playerId = presenceKey(profile.playerId, String(device));
         if (!rooms.has(code)) rooms.set(code, new Map());
         const room = rooms.get(code);
         room.set(playerId, { profile, handlers });
@@ -446,6 +468,16 @@ export function createFakeHub() {
   }
 
   return { transport };
+}
+
+// The presence key: the cat id and a short tag for the device, so one cat on two devices has two
+// keys (cat login M4). The id the roster and the messages use stays the cat id (it is in the profile).
+export const presenceKey = (playerId, tag) => `${playerId}:${tag}`;
+function deviceTag() {
+  const a = CODE_ALPHABET;
+  let bytes;
+  try { bytes = crypto.getRandomValues(new Uint8Array(4)); } catch { bytes = Array.from({ length: 4 }, () => Math.floor(Math.random() * 256)); }
+  return Array.from(bytes, (b) => a[b % a.length]).join('');
 }
 
 function flattenPresenceState(state) {
@@ -492,6 +524,7 @@ export function createSupabaseTransport(url, key) {
   let client = null;
   let channel = null;
   let current = null; // the profile to (re)track: join's, then any updateProfile
+  const tag = deviceTag(); // this device's short tag, kept for this transport's life (a reconnect keeps its key)
 
   return {
     async join(code, profile, handlers) {
@@ -500,7 +533,7 @@ export function createSupabaseTransport(url, key) {
       channel = client.channel('room:' + code, {
         config: {
           broadcast: { self: false },
-          presence: { key: profile.playerId },
+          presence: { key: presenceKey(profile.playerId, tag) },
         },
       });
 
