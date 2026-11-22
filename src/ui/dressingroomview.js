@@ -14,6 +14,8 @@ import { CONFIRM_DELAY_MS } from './colonypanel.js';
 import { phrase } from '../clanphrases.js';
 import { MORE_SLOTS_PRICE, lookKey } from '../customcats.js';
 import { buildDressingModel, renderDressingRoomHtml, renderSlotPickerHtml, renderPlacesSheetHtml, resolveSheet } from './dressingroom.js';
+import { tvState, tvHooks } from '../tvseam.js';
+import { validPetName } from '../net.js';
 import { newBuilder, editBuilder, reduceBuilder, isDirty, buildBuilderModel, renderBuilderHtml, doneLabel, DONE_WAIT_CLASS } from './catbuilder.js';
 
 // Launch A: home is the cat, Wearing and Today's walk; Dress up opens the
@@ -155,6 +157,24 @@ export function createDressingRoom({
   };
   const autoSync = () => { sync?.autoSync?.(); };
   const profileChanged = () => { onProfileChange?.(); };
+  // TV mode: a name is typed with the letter picker (src/tv/), never with a box a pad cannot reach.
+  const pickerOn = () => tvState.on && typeof tvHooks.picker === 'function';
+  const pickerLabel = (name) => (pickerOn() ? `${name || tvState.padLine?.('pad.picker.empty') || ''} ✏️` : '');
+  let pickerBusy = false;
+  async function openNamePicker() {
+    if (!ui.builder || pickerBusy || !pickerOn()) return;
+    pickerBusy = true;
+    let name = null;
+    try {
+      name = await tvHooks.picker({ initial: ui.builder.draft.name, valid: validPetName, titleId: 'pad.picker.title.cat' });
+    } catch { /* no picker: the box still works */ }
+    pickerBusy = false;
+    if (!ui.builder) return;
+    if (name != null) builderOp({ type: 'name', value: name });
+    focusAfter = '[data-cb-name-open]';
+    renderPending = false;
+    onChange(); // the held render, with the new name in it
+  }
   const builderOp = (action) => { if (ui.builder) dispatch({ type: 'builder', builder: reduceBuilder(ui.builder, action) }); };
 
   function model() {
@@ -241,7 +261,7 @@ export function createDressingRoom({
       return renderDressingRoomHtml({
         model: m, headerHtml, startHtml, extrasHtml, thumbs: t,
         ui: {
-          builderHtml: `<section class="cb" id="cb">${renderBuilderHtml(bm)}</section>`,
+          builderHtml: `<section class="cb" id="cb">${renderBuilderHtml({ ...bm, pickerLabel: pickerLabel(bm.name) })}</section>`,
           heroName: bm.name || YOUR_CAT, heroBlurb: bm.blurb,
           // no live cat (no WebGL, or no stage): a still picture cannot sit, so no toggle
           pose: stage && !stage.failed ? builderPose : null,
@@ -422,6 +442,7 @@ export function createDressingRoom({
   // reduced motion).
   let attentionTimer = null;
   function pointAtName(from) {
+    if (pickerOn() && tvState.input === 'pad') { openNamePicker(); return; }
     const box = from?.closest?.('.dr')?.querySelector?.('[data-cb-name]');
     if (!box) return;
     const still = !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
@@ -616,6 +637,7 @@ export function createDressingRoom({
     else if (d.drPose !== undefined) onPose(d.drPose);
     else if (d.cbPick !== undefined) builderOp({ type: 'pick', field: d.cbPick, value: d.cbValue });
     else if (d.cbPersonality !== undefined) builderOp({ type: 'personality', value: d.cbPersonality });
+    else if (d.cbNameOpen !== undefined) { focusAfter = null; openNamePicker(); return true; } // no render under the card
     else if (d.cbCancel !== undefined) onCancel();
     else if (d.cbLeave !== undefined) dispatch({ type: 'builder', builder: null });
     else if (d.cbStay !== undefined) builderStay();
@@ -711,6 +733,7 @@ export function createDressingRoom({
   // runs it once she leaves the box. A tap's own render always goes ahead.
   // true = skip this render.
   function deferRender(root) {
+    if (pickerBusy && ui.builder) { renderPending = true; return true; } // the letter picker is up: the held render runs when it closes
     const a = root?.ownerDocument?.activeElement;
     const typing = !!ui.builder && !inClick && !!a && a.dataset?.cbName !== undefined
       && (typeof root.contains !== 'function' || root.contains(a));

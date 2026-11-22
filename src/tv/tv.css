@@ -116,3 +116,10 @@ html.tv .lp-ok { background: #f2c14e; }
 html.tv .lp-ok.lp-dim { opacity: .5; }
 html.tv .lp-key:focus-visible, html.tv .lp-key:focus { outline: calc(6px * var(--tv-s, 1)) solid #fff; outline-offset: calc(3px * var(--tv-s, 1)); }
 html.tv .lp-hint { margin: 0; font-size: calc(26px * var(--tv-s, 1)); color: #a8c0e0; text-align: center; }
+
+/* The name as a big button that opens the letter picker (cat builder, friend name). */
+html.tv .cb-name-open, html.tv .wt-name-open {
+  display: block; width: 100%; box-sizing: border-box; min-height: calc(76px * var(--tv-s, 1)); margin-bottom: calc(10px * var(--tv-s, 1));
+  font: inherit; font-size: calc(36px * var(--tv-s, 1)) !important; font-weight: 800; text-align: center; cursor: pointer;
+  background: #fff; color: #1c2431; border: 0; border-radius: calc(16px * var(--tv-s, 1));
+}
