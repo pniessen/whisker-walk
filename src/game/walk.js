@@ -22,6 +22,7 @@ import { roofsOn } from '../roofsflag.js';
 import { houseOn } from '../houseflag.js';
 import { isIndoor } from '../indoor.js';
 import { marketOn } from '../marketflag.js';
+import { lighthouseOn } from '../lighthouseflag.js';
 import { birthdayDue, BDAY_AREA, BDAY_START, BRIDGE_ISLAND_END, speakerFor, birthdayCatName, noteCandlesBlown, bdayCountsWalk, saveBirthdayPhoto, BDAY_PHOTO_KEY } from '../birthday.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
@@ -586,6 +587,8 @@ export function createWalkLifecycle({
     // ?market=1: a solo Market walk in Clan Edition, never in a room (Market step 1).
     if (marketOn() && isClanEdition(progression.state) && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'market' });
     if (houseOn() && isClanEdition(progression.state) && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'house' });
+    // ?lighthouse=1: a solo Lighthouse Point walk, either edition, never in a room (Lighthouse milestone 1).
+    if (lighthouseOn() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'lighthouse' });
     // Her birthday (src/birthday.js): while the Gathering waits, a solo
     // Explore starts in the Pines at the foot of the island bridge. An
     // override only, never a setArea, and nothing is unlocked: the Pines stay

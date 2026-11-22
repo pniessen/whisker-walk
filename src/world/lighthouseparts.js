@@ -75,8 +75,10 @@ export const sp = (x, y, z, r, hex, { sx = 1, sy = 1, sz = 1, seg = 8, rings = 6
   return paint(g, hex);
 };
 // A box from a to b, `w` wide and `h` high, its length along the line.
-const _o = new THREE.Object3D();
+// (made on first use, inside the build's own uuid stream: an Object3D draws its uuid at creation)
+let _o = null;
 export const bm = (ax, ay, az, bx2, by, bz, w, h, hex) => {
+  _o ??= new THREE.Object3D();
   const len = Math.hypot(bx2 - ax, by - ay, bz - az);
   const g = new THREE.BoxGeometry(w, h, len);
   _o.position.set((ax + bx2) / 2, (ay + by) / 2, (az + bz) / 2);
