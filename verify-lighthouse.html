@@ -9,7 +9,9 @@
      real player and the real moves runtime, in main.js's frame order. NOT in the game:
      nothing reaches it from the app. scripts/record-page.mjs makes the pictures and
      films headless: __shot(name), __tour(name) + __frame(), __snap().
-     URL params: size=WxH (default 960x540), bare (no HUD), rm=1 (reduced motion).
+     URL params: size=WxH (default 960x540), bare (no HUD), rm=1 (reduced motion),
+     place=1 (milestone 1: the real Lighthouse Point, src/world/lighthouse.js, under the walk's own
+     dusk look (render/dusk.js applyDusk, the dusk tint, the base exposure 1.1) with its own shots).
      Free play: the arrows or W-A-S-D walk her (the stair needs "up" held). -->
 <style>
   html, body { margin: 0; background: #1c2431; overflow: hidden; font: 12px/1.35 Avenir, system-ui, sans-serif; color: #f1e0c2; }
@@ -66,7 +68,19 @@
   scene.add(sun);
   const fill = createFill(DEFAULT_GROUND_BOUNCE);
   scene.add(fill);
-  const area = buildLighthouseSpike(scene);
+  const PLACE = params.get('place') === '1';
+  let area;
+  if (PLACE) {
+    const { build } = await import('/src/world/lighthouse.js');
+    const { applyDusk, duskEnv, tintDuskLawn } = await import('/src/render/dusk.js');
+    area = build(scene, {});
+    const look = applyDusk({ scene, sun, fill, areaData: area });
+    tintDuskLawn({ ground: scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint)), grass: null, look });
+    scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
+    renderer.toneMappingExposure = 1.1;
+  } else {
+    area = buildLighthouseSpike(scene);
+  }
   const cat = buildCat('tabby');
   scene.add(cat);
   const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
@@ -109,6 +123,7 @@
   function frame(dt) {
     t += dt;
     if (pageJump > 0) pageJump -= dt;
+    for (const w of area.waterFx ?? []) w.update?.(dt);
     live.update(dt, t, ctx);
     player.update(dt, area.colliders, area.bounds, area.waters);
     player.speedFactor = 1;
@@ -198,8 +213,31 @@
     caveback: { at: [2, -19], face: [-1, 0], stick: [0, -1], secs: 4.6 },
     pool: { at: [POOL.x - POOL.r - 2.5, POOL.z], face: [1, 0], stick: [0, -1], secs: 1.7 },
   };
+  const PLACE_SHOTS = {
+    arrival: { at: [14, 36], face: [0, -1], secs: 0 },
+    pools: { at: [21, 32], face: [0, -1], secs: 0 },
+    wade: { at: [16, 29], face: [0, -1], stick: [0, -1], secs: 1.9 },
+    shore: { at: [28, 30], face: [1, -0.3], secs: 0 },
+    seawest: { at: [-34, 28], face: [-1, 0], secs: 0 },
+    pathfoot: { at: [4, 16], face: [-1, 0], secs: 0 },
+    pathclimb: { at: [-6, 16], face: [-1, 0], stick: [0, -1], secs: 3.0 },
+    landing: { at: [-18, 16], face: [-1, 0], stick: [0, -1], secs: 2.0 },
+    pathtop: { at: [-24.4, 11], face: [0, -1], stick: [0, -1], secs: 2.3 },
+    plateau: { at: [-24.4, 0], face: [0, -1], secs: 0 },
+    towerfoot: { at: [-12, -9], face: [-0.8, -0.6], secs: 0 },
+    cottage: { at: [-18, -4], face: [-1, -0.1], secs: 0 },
+    garden: { at: [-25, 1], face: [-1, 0.2], secs: 0 },
+    cavemouth: { at: [4, -19], face: [-1, 0], secs: 0 },
+    cavein: { at: [4, -19], face: [-1, 0], stick: [0, -1], secs: 3.5 },
+    caveback: { at: [4, -19], face: [-1, 0], stick: [0, -1], secs: 4.9 },
+    aerialsea: { at: [14, 36], face: [0, -1], secs: 0, cam: { pos: [66, 24, 34], look: [-14, 6, -12], fov: 52 } },
+    aerialtower: { at: [14, 36], face: [0, -1], secs: 0, cam: { pos: [18, 16, 0], look: [-22, 12, -20], fov: 55 } },
+    aerialpools: { at: [14, 36], face: [0, -1], secs: 0, cam: { pos: [33, 11, 44], look: [17, 0, 20], fov: 60 } },
+    aerialwest: { at: [14, 36], face: [0, -1], secs: 0, cam: { pos: [-72, 14, 0], look: [-30, 5, -22], fov: 55 } },
+    aerialcove: { at: [14, 36], face: [0, -1], secs: 0, cam: { pos: [34, 18, -38], look: [4, 3, -4], fov: 58 } },
+  };
   window.__shot = (name) => {
-    const s = SHOTS[name];
+    const s = (PLACE ? PLACE_SHOTS : SHOTS)[name];
     if (!s) throw new Error(`no shot "${name}"; there are ${Object.keys(SHOTS).join(', ')}`);
     pilot = null;
     setCaption(null);
@@ -207,6 +245,13 @@
     if (s.stick) stick(...s.stick);
     for (let k = 0; k < s.secs / DT; k++) frame(DT);
     stick(0, 0);
+    if (s.cam) {
+      camera.fov = s.cam.fov ?? camera.fov;
+      camera.updateProjectionMatrix();
+      camera.position.set(...s.cam.pos);
+      camera.lookAt(...s.cam.look);
+      cat.visible = false;
+    } else { cat.visible = true; camera.fov = 70; camera.updateProjectionMatrix(); }
     render();
     return name;
   };
@@ -215,7 +260,7 @@
   window.__events = events;
 
   document.addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.repeat) { e.preventDefault(); press(); } });
-  reset(-14, -8, -1, -0.9);
+  if (PLACE) reset(14, 36, 0, -1); else reset(-14, -8, -1, -0.9);
   render();
   window.__ready = true;
   if (params.get('drive') !== '1') {

@@ -25,11 +25,11 @@ export { LIGHTHOUSE_BOUNDS, LIGHTHOUSE_SPAWN } from './lighthouseplan.js';
 // The day sky is never seen (the place is always evening) but applySky wants a pair; the evening's own is
 // areaData.skyDusk: amber at the horizon, blue overhead.
 const SKY_DAY = Object.freeze({ top: 0x6f8fc0, horizon: 0xf0cfa0 });
-const SKY_EVENING = Object.freeze({ top: 0x5370b4, horizon: 0xf3a868 });
+const SKY_EVENING = Object.freeze({ top: 0x8499cc, horizon: 0xf5b472 });
 // A warm, low golden-hour sun over a softer dusk than the Rooftops' (render/dusk.js's keys).
 const DUSK_LIGHT = Object.freeze({
   sunColor: 0xffb066, sunIntensity: 1.2, hemiSky: 0xaab4dc, hemiIntensity: 0.62, groundDim: 0.8,
-  envScale: 0.55, fogNear: 55, fogFar: 190,
+  envScale: 0.55, fogNear: 45, fogFar: 160,
   lawnTint: Object.freeze({ desat: 0.1, dark: 0.9, cool: Object.freeze([1.0, 0.98, 0.95]) }),
 });
 export const SAND_DUSK_TINT = Object.freeze({ desat: 0.12, dark: 0.88, cool: Object.freeze([1.0, 0.98, 0.94]) });

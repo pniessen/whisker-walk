@@ -16,7 +16,7 @@ import * as P from './lighthouseplan.js';
 // they run a little cooler and greyer than they should read.
 export const COL = Object.freeze({
   sand: 0xdbc59a, wet: 0xb9a37e, shelf: 0x8a8880, shelfWet: 0x6f7570,
-  rock: Object.freeze([0x9d9488, 0x8c8479, 0xa59a8a, 0x7e776f]),
+  rock: Object.freeze([0xad9e86, 0x94836e, 0xb9a88e, 0x8a7a6b, 0x9c7458]),
   grass: Object.freeze([0x7d9a52, 0x88a35a, 0x6f8c4a, 0x93a85f]),
   earth: 0xc0a57a, post: 0x6e5236, rope: 0xd8c9a0, white: 0xf2eee4, red: 0xc2402f, slate: 0x4d5762,
   plaster: 0xd9ceb4, stone: 0xb7ad99, dark: 0x2a211b, warm: 0xffc878, glass: 0x35465a, brass: 0xc9a043,
@@ -143,6 +143,8 @@ export function lighthouseMaterials() {
     glow: new THREE.MeshStandardMaterial({ color: 0xffd9a0, roughness: 0.5, metalness: 0, emissive: 0xffb050, emissiveIntensity: 1.1 }),
     water: new THREE.MeshStandardMaterial({ color: COL.water, roughness: 0.15, metalness: 0, transparent: true, opacity: 0.88 }),
     glass: new THREE.MeshStandardMaterial({ color: COL.glass, roughness: 0.25, metalness: 0.1 }),
+    // a painted pool of lantern light on the floor: additive, no real light
+    patch: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }),
   };
 }
 
@@ -307,7 +309,7 @@ export function gable(x0, x1, z0, z1, y0, y1, o, hex) {
 
 export function drawHeadland(kit, M) {
   const { PLATEAU, CAVE, PLATEAU_Y } = P;
-  const NORTH_FAR = -80;
+  const NORTH_FAR = -68;
   const put = (g, noCast = false) => kit.put('cliff', M.stone, g, { noCast });
   // the east face (the cove's side): the north run, the cave's lintel, the south run
   put(cliffWall({ ax: PLATEAU.maxX, az: NORTH_FAR, bx: PLATEAU.maxX, bz: CAVE.minZ, y0: 0, y1: PLATEAU_Y, nx: 1, nz: 0, salt: 3 }));
@@ -317,12 +319,12 @@ export function drawHeadland(kit, M) {
   put(cliffWall({ ax: PLATEAU.minX, az: PLATEAU.maxZ, bx: PLATEAU.maxX, bz: PLATEAU.maxZ, y0: 0, y1: PLATEAU_Y, nx: 0, nz: 1, salt: 11 }));
   put(cliffWall({ ax: PLATEAU.minX, az: NORTH_FAR, bx: PLATEAU.minX, bz: PLATEAU.maxZ, y0: 0, y1: PLATEAU_Y, nx: -1, nz: 0, salt: 13, cell: 2.4 }));
   // the cave's inside: darker and warmer, no grass lip, little relief
-  const inside = { y0: 0, y1: CAVE.roof, lip: false, push: 0.35, tones: [0x8a7d6c, 0x7d7060, 0x948672], cell: 1.2, rowH: 0.65 };
+  const inside = { y0: 0, y1: CAVE.roof, lip: false, push: 0.35, tones: [0xb39c7c, 0xa28d70, 0xbea887], cell: 1.2, rowH: 0.65 };
   put(cliffWall({ ...inside, ax: CAVE.minX, az: CAVE.minZ, bx: CAVE.maxX, bz: CAVE.minZ, nx: 0, nz: 1, salt: 17 }));
   put(cliffWall({ ...inside, ax: CAVE.minX, az: CAVE.maxZ, bx: CAVE.maxX, bz: CAVE.maxZ, nx: 0, nz: -1, salt: 19 }));
   put(cliffWall({ ...inside, ax: CAVE.minX, az: CAVE.minZ, bx: CAVE.minX, bz: CAVE.maxZ, nx: 1, nz: 0, salt: 23 }));
   // the cave's roof seen from below, and its wet floor
-  put(flipWinding(flat(CAVE.minX, CAVE.maxX, CAVE.minZ, CAVE.maxZ, CAVE.roof, 0x6e6254)));
+  put(flipWinding(flat(CAVE.minX, CAVE.maxX, CAVE.minZ, CAVE.maxZ, CAVE.roof, 0x94826a)));
   kit.put('floor', M.stone, flat(CAVE.minX, CAVE.maxX, CAVE.minZ, CAVE.maxZ, 0.012, COL.wet), { noCast: true });
   // the grass on top of the plateau (the cave's roof is under it)
   kit.put('top', M.stone, grassCap(PLATEAU.minX, PLATEAU.maxX, NORTH_FAR, PLATEAU.maxZ, PLATEAU_Y, { salt: 21 }), { noCast: true });
@@ -641,6 +643,27 @@ export function drawCaveFittings(kit, M) {
   kit.put('glow', M.glow, sp(x, 1.95, z, 0.22, COL.warm, { seg: 8, rings: 6 }), { noCast: true });
   kit.put('paint', M.paint, cy(x, z, 2.14, 2.2, 0.14, 0.14, COL.dark, 8), { noCast: true });
   kit.put('paint', M.paint, cy(x, z, 1.7, 1.74, 0.14, 0.14, COL.dark, 8), { noCast: true });
+  // the lantern's light, painted: a soft disc on the floor, bright at its middle, black at its rim (additive)
+  const glowDisc = (r, y, hex) => {
+    const seg = 20;
+    const pos = [];
+    const col = [];
+    const mid = new THREE.Color(hex);
+    for (let i = 0; i < seg; i++) {
+      const a0 = (i / seg) * Math.PI * 2; const a1 = ((i + 1) / seg) * Math.PI * 2;
+      for (const [px, pz, k] of [[0, 0, 1], [Math.cos(a0) * r, Math.sin(a0) * r, 0], [Math.cos(a1) * r, Math.sin(a1) * r, 0]]) {
+        pos.push(x + px, y, z + pz);
+        col.push(mid.r * k, mid.g * k, mid.b * k);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(pos.map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+    return g;
+  };
+  kit.put('glowpatch', M.patch, glowDisc(2.7, 0.03, 0x70481c), { noCast: true });
   for (let i = 0; i < 12; i++) {
     const px = P.CAVE.minX + 1 + hash01(i, 1, 97) * 9; const pz = P.CAVE.minZ + 0.5 + hash01(i, 2, 97) * 5;
     const r = 0.06 + 0.1 * hash01(i, 3, 97);
