@@ -496,4 +496,13 @@ describe('the furniture', () => {
   it('hands the walk the plan\'s colliders, the furniture and the lamps among them', () => {
     expect(area.colliders).toEqual(houseColliders());
   });
+
+  // Step 4 (Task 9): the world map's place card shows the hall (verify-house.html?shot=card).
+  it('the card picture is shipped (a JPEG, about the size of the others)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const jpg = readFileSync(new URL('../public/places/house.jpg', import.meta.url));
+    expect([jpg[0], jpg[1]]).toEqual([0xff, 0xd8]);
+    expect(jpg.length).toBeGreaterThan(5000);
+    expect(jpg.length).toBeLessThan(60000);
+  });
 });

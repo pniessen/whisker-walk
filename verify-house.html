@@ -53,6 +53,13 @@
                             caption, or a find's toast when one paid while it settled)
        tour=…|climb|things|bookcase|cellar   (step 2) HOUSE_TOURS' climb and things, and this
                             page's own short bookcase clip and the cellar's lid and mice
+       partner=x,z          (step 4) a co-walk: a partner's cat (a stand-in profile, "Juniper",
+                            calico) sits waiting at x, z, at the house's ground there (its
+                            floor, or the top she stands on), made by createRemoteCats from one
+                            state as a co-walker is, and handed to the house life as the walk's
+                            session ({ remotes }), so her name tag draws over the walls; she
+                            stays through every shot and tour. tour=cowalk with partner=25,-5:
+                            her up the big stair to the bedroom, the partner in the cellar
      With no tour she starts at the front door: the arrows or W-A-S-D walk her,
      + / = zoom in and - zooms out (camzoom.js keyZoomDir). Space presses the jump
      button: a climb, drop or leap where there is one (the moves first, as the game asks
@@ -139,6 +146,7 @@
   import { createGoals } from '/src/goals.js';
   import { mulberry32 } from '/src/rng.js';
   import { createMinimap, buildMapLayer } from '/src/ui/minimap.js';
+  import { createRemoteCats } from '/src/remotecats.js';
 
   const params = new URLSearchParams(location.search);
   const DUSK = params.get('dusk') === '1';
@@ -154,6 +162,11 @@
   const SEED = params.has('seed') ? Number(params.get('seed')) >>> 0 : 20261121;
   const YARN = params.get('yarn') === '1' ? 1 : 0;
   const LABEL = params.get('label') !== '0';
+  // Step 4: a partner on a co-walk, sitting at x, z (null: none)
+  const PARTNER = (() => {
+    const v = (params.get('partner') || '').split(',').map(Number);
+    return v.length === 2 && v.every(Number.isFinite) ? v : null;
+  })();
   // The clock strikes by this, not the device's clock, so a film strikes the same count every
   // time: 3 o'clock (3 bongs) unless `now` gives an hour (0-23) or a date the browser reads.
   const NOW_AT = (() => {
@@ -269,6 +282,20 @@
   if (duskLook) scene.environmentIntensity = duskEnv(scene.environmentIntensity, duskLook);
   const duskGround = duskLook ? scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint || c.name === 'path' || c.name === 'horizonBand' || c.name === 'steppingStones')) : [];
   decals.follow(cat);
+  // Step 4: the partner, as a co-walker is drawn (src/remotecats.js): a stand-in profile and
+  // one state, kept fresh each frame (as the 8 Hz states would keep her) so she never times
+  // out. Her ground is the house's own, so she stands on the floor (or the top) at x, z. The
+  // walk's session hands her to the house life, which draws her tag over the walls.
+  const remotes = createRemoteCats(scene, { reducedMotion: rm, ground });
+  const PARTNER_ID = 'partner-1';
+  const partnerState = PARTNER ? { id: PARTNER_ID, pos: PARTNER, yaw: behindYaw(0, -1), pose: 'perch', speed: 0 } : null;
+  if (PARTNER) {
+    remotes.upsert({ playerId: PARTNER_ID, petName: 'Juniper', breed: 'calico', accessories: {} }, 0);
+    remotes.applyState(partnerState, 0);
+    remotes.update(0, 0);
+    decals.follow(remotes.list[0].group);
+  }
+  const lifeSession = { remotes };
   const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
   const shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
   sun.shadow.bias = SUN_BIAS;
@@ -416,7 +443,7 @@
   }
 
   function lifeStep(dt) {
-    if (SINK_ON) life.update(dt, t, cat.position, camera);
+    if (SINK_ON) life.update(dt, t, cat.position, camera, lifeSession);
     else life.drawing.update(cat.position.y); // the "before": the levels as ever, no wall sinks
   }
 
@@ -453,6 +480,8 @@
     live.update(dt, t, moveCtx);
     player.update(dt, area.colliders, area.bounds, area.waters ?? []);
     player.speedFactor = session.perched ? 0 : 1; // game/avatar.js writes it after player.update
+    if (partnerState) remotes.applyState(partnerState, t); // main.js: remotes.update after player.update
+    remotes.update(dt, t);
     things.critters.update(dt, t, cat.position, cat.position);
     toy.update(dt, area.bounds);
     lifeStep(dt);

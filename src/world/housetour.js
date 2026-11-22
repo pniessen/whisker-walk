@@ -31,6 +31,11 @@
 //                climb to the golden mouse, the bookcase opens and she goes up the
 //                secret stair, the bedroom leap to the wardrobe, up the back stair
 //                to the window seat, the box of old toys, and a zoom out to Far.
+//   cowalk       (step 4) a co-walk, 10 to 20 s: her from the hall up the main stair
+//                to the bedroom while her partner waits in the cellar (the picture
+//                page's partner=25,-5), whose name shows over the walls all the way.
+//   card         (step 4, a shot) the world map's place card: the hall and the
+//                big stair from just inside the front door, at Far.
 //
 // Captions are short plain words for a child; no series words.
 // =============================================================================
@@ -75,6 +80,11 @@ export const HOUSE_SHOTS = freeze({
   'gold-cellar': shot([26.0, -2.0], [0.5, 1], 0, 'A golden mouse in the cellar'),
   'climb-plank': shot([-8.6, 2.6], [-1, 0.25], 1, 'Along the plank', { ledge: 'library-books-n2' }),
   hud: shot([0, 6], [0, -1], 1, 'Goals and the map', { hud: true }),
+  // step 4: the world map's place card (public/places/house.jpg, shot at 640 x 360): just in
+  // at the front door, Far, looking up the hall's runner to the big stair, the library on the
+  // left and the parlour on the right (sips formatOptions 50: the boards' grain is busy, 80
+  // made 82 kB)
+  card: shot([0, 8], [0, -1], 2, 'The Old House'),
 });
 
 // ---- the routes, through doorway centres ----
@@ -157,11 +167,24 @@ const THINGS_STEPS = [
   zoom(2, 1.2, 'The attic from farther out'),
 ];
 
+// Step 4: a co-walk. Her partner waits in the cellar all the while (the picture page's
+// partner=25,-5), two floors down from the bedroom. She stands in the hall looking east,
+// the partner's name over the parlour, goes up the big stair and into the bedroom, then
+// walks back east across it, so the view turns to look toward the cellar again, and it
+// draws back to Farther: her upstairs, the partner's name over the house below.
+const COWALK_STEPS = [
+  zoom(2, 1.5, 'A friend waits in the cellar'),
+  t(0, 3.5, 'Up the big stairs'), t(0, -6), t(-1, -8, 'The bedroom'), t(-5, -10),
+  t(1, -9.5, 'Her friend is down below'),
+  zoom(3, 3, 'Upstairs, with a friend below'),
+];
+
 export const HOUSE_TOURS = freeze({
   grand: freeze({ start: SPAWN, steps: freeze(GRAND_STEPS) }),
   film: freeze({ start: SPAWN, steps: freeze(FILM_STEPS) }),
   climb: freeze({ start: freeze({ x: -3.6, z: 7, face: freeze([-1, 0]) }), steps: freeze(CLIMB_STEPS) }),
   things: freeze({ start: freeze({ x: -2.3, z: 4.0, face: freeze([-0.5, -1]) }), steps: freeze(THINGS_STEPS) }),
+  cowalk: freeze({ start: freeze({ x: 0, z: 7, face: freeze([1, -0.45]) }), steps: freeze(COWALK_STEPS) }),
 });
 
 // ---- the pilot ----
