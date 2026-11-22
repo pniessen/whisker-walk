@@ -137,16 +137,16 @@ describe('determinism', () => {
     expect(fingerprint(gated).filter((f) => !was.has(f))).toHaveLength(4); // the two hall sections, and the two leaves
   });
 
-  it('builds the atlas the same every time: 256 x 256 RGBA, sixteen named cells', () => {
+  it('builds the atlas the same every time: 512 x 512 RGBA, thirty-four named cells', () => {
     const a = createHouseAtlas();
     const b = createHouseAtlas();
     expect(a.isDataTexture).toBe(true);
-    expect(a.image.width).toBe(256);
-    expect(a.image.height).toBe(256);
-    expect(a.image.data.length).toBe(256 * 256 * 4);
+    expect(a.image.width).toBe(512);
+    expect(a.image.height).toBe(512);
+    expect(a.image.data.length).toBe(512 * 512 * 4);
     expect(Buffer.from(a.image.data).equals(Buffer.from(b.image.data))).toBe(true);
     const ids = Object.values(HOUSE_ATLAS_CELLS);
-    expect(new Set(ids).size).toBe(16);
+    expect(new Set(ids).size).toBe(34);
     for (const r of HOUSE_ROOMS) expect(HOUSE_ATLAS_CELLS[r.id], r.id).toBeGreaterThanOrEqual(0);
     for (const k of ['brick', 'oak', 'pine', 'stone', 'lightWood', 'darkWood', 'plaster']) expect(ids).toContain(HOUSE_ATLAS_CELLS[k]);
   });
@@ -457,7 +457,8 @@ describe('the furniture', () => {
     const tagged = s.children.filter((c) => c.userData?.houseDetail);
     // + the secret bookcase (step 2, D9) and the paw prints at the take-offs, one mesh per level with any (step 2, D2)
     const marked = new Set(area.traversal.hops.map((h) => levelAt(h.x0, h.z0)));
-    expect(tagged.length).toBe(tall.length + HOUSE_ROOMS.length + 1 + marked.size);
+    // + the beauty pass's warm glow, one mesh per level (house.js drawGlow)
+    expect(tagged.length).toBe(tall.length + HOUSE_ROOMS.length + 1 + marked.size + levelIds.length);
     for (const c of tagged) {
       expect(levelIds).toContain(c.userData.houseLevel);
       let meshes = 0;
