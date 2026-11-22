@@ -105,8 +105,9 @@ const clearOf = (x, z, colliders) => Math.min(...colliders.map((c) => Math.hypot
 // 2026-11-22 (the four new stalls, toys / plants / bric / butcher): +30 meshes, +8 casters, +7,339 triangles (was 111 / 27 / 39,495; merged 108 / 24)
 // 2026-11-22 (beauty pass, round 1, the four new stalls: painted counter fronts, scalloped valances, goods as little shapes, hanging baskets, chimes, price slates, counter lanterns): +746 triangles (marketlive's people test leaves only 808 of the 62,000 ceiling), no new mesh (was 141 / 35 / 46,834)
 // beauty pass round 2: the counter fronts get a texture of their own (sharp: +4 meshes built, one per stall), the lanterns the twenty-sided ball (-60 triangles each, every stall's): 45,108 triangles, 145 built (people-test total 59.5k of 62k)
-const MEASURED_BUILT = { meshes: 145, casters: 35, triangles: 45108 };
-const MEASURED_MERGED = { meshes: 142, casters: 32, triangles: 45108 };
+// 2026-11-22 (buildings round of the beauty pass, the town fronts: sky-glass, bars, sills, shutters, flower boxes, window goods, fascia bars, awnings, signs, door panels, courses, tile courses, dormers; the foot's sacks and barrels coarser, boxes without undersides): +2,436 triangles, no new mesh (marketlive's people test leaves about 100 of the 62,000 ceiling)
+const MEASURED_BUILT = { meshes: 145, casters: 35, triangles: 47544 };
+const MEASURED_MERGED = { meshes: 142, casters: 32, triangles: 47544 };
 const MEASURED_DRAWS = 0;
 
 function budgetStats(s) {
