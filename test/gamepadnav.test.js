@@ -99,6 +99,11 @@ describe('candidates', () => {
     const l = layer([el('button', { attrs: { tabindex: '-1' } }), el('a', { attrs: { href: '#', tabindex: '-1' } }), el('div', { attrs: { role: 'button', tabindex: '-1' } }), el('button', { attrs: { tabindex: '0' } })]);
     expect(candidates(l)).toHaveLength(1);
   });
+  it('drops a button CSS hides (display:none gives no boxes): the cat builder hides the Menu button, which was the entry control and ate every pad push', () => {
+    const gone = el('button'); gone.getClientRects = () => [];
+    const live = el('button'); live.getClientRects = () => [{ width: 10, height: 10 }];
+    expect(candidates(layer([gone, live]))).toEqual([live]);
+  });
   it('a disabled button flagged by the property alone is dropped', () => {
     const b = el('button'); b.disabled = true;
     expect(candidates(layer([b]))).toEqual([]);

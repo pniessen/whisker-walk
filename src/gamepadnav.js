@@ -11,6 +11,10 @@ const FOCUSABLE = 'button, a[href], [role=button], [tabindex], summary, input[ty
 const TEXTY = new Set(['input', 'textarea']);
 
 const shown = (el) => !el.closest(OFF);
+// CSS can hide what the class test cannot see (the cat builder hides the Menu
+// button with display:none): no boxes means focus() does nothing, so skip it.
+// Fake DOMs without getClientRects count as drawn.
+const drawn = (el) => typeof el.getClientRects !== 'function' || el.getClientRects().length > 0;
 
 // "Last in DOM order" is safe only because home cards exclude each other (root.after inserts at the front).
 // The last visible [data-pad-layer] in DOM order; else #overlay (the pause card
@@ -28,7 +32,7 @@ export function candidates(layer) {
   return [...layer.querySelectorAll(FOCUSABLE)].filter((el) => {
     const tag = el.tagName.toLowerCase();
     if (TEXTY.has(tag) && !/^(checkbox|radio|range)$/.test(el.type)) return false;
-    if (el.disabled || el.hasAttribute('disabled') || !shown(el)) return false;
+    if (el.disabled || el.hasAttribute('disabled') || !shown(el) || !drawn(el)) return false;
     const ti = el.getAttribute('tabindex');
     if (ti !== null && Number(ti) < 0) return false; // spec: tabindex >= 0
     return true;
