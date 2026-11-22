@@ -3,6 +3,7 @@ import { objectiveDistance } from '../questscent.js';
 import { PAW } from './pawicon.js';
 import { toastLifeMs } from './toastlife.js';
 import { bothForms, hasLine } from '../tutorialwords.js';
+import { tvState, padHtml, onTv } from '../tvseam.js';
 import { escapeHtml } from '../escapehtml.js';
 
 // Toasts (polish-hud2, R2/R3). At most two on screen: a burst of discoveries
@@ -60,8 +61,11 @@ export function discoveryText({ type, label, repeat }) {
 export function goalHowHtml(goal) {
   if (!goal || !hasLine(goal.how)) return '';
   const { touch, keys } = bothForms(goal.how, goal.howSlots ?? {});
-  const body = touch === keys ? escapeHtml(touch)
-    : `<span class="how-keys">${escapeHtml(keys)}</span><span class="how-touch">${escapeHtml(touch)}</span>`;
+  // TV mode adds the pad's own words (src/tv/padwords.js), drawn with button pictures; the page's data-input picks one.
+  const p = tvState.padLine?.(goal.how, goal.howSlots ?? {});
+  const pad = p && p !== keys ? padHtml(p) : '';
+  const body = touch === keys && !pad ? escapeHtml(touch)
+    : `<span class="how-keys">${escapeHtml(keys)}</span><span class="how-touch">${escapeHtml(touch)}</span>${pad ? `<span class="how-pad">${pad}</span>` : ''}`;
   return `<div class="goal-how">${body}</div>`;
 }
 
@@ -95,6 +99,12 @@ export function createHud() {
   const rankEl = root.querySelector('#hud-rank');
   const mapEl = root.querySelector('#hud-map');
   const toastsEl = root.querySelector('#hud-toasts');
+  // TV mode: the key strip becomes the pad's, with button pictures, while the pad is the input.
+  const stripEl = root.querySelector('#hud-controls');
+  onTv(() => {
+    const p = tvState.input === 'pad' && padHtml(tvState.padLine?.('pad.strip') ?? '');
+    if (p) stripEl.innerHTML = p; else stripEl.textContent = KEY_STRIP;
+  });
   const promptEl = root.querySelector('#hud-prompt');
   const promptTapHandlers = [];
   let lastPrompt = { text: null, tappable: null };
@@ -320,7 +330,10 @@ export function createHud() {
       const el = root.querySelector('#hud-hint');
       if (on) {
         root.querySelector('#hud-hint-pic').textContent = pic || '';
-        root.querySelector('#hud-hint-text').textContent = text;
+        // A pad line may carry ⟦tokens⟧ for button pictures (TV mode); anything else is text.
+        const t = root.querySelector('#hud-hint-text');
+        const h = text.includes('⟦') ? padHtml(text) : null;
+        if (h) t.innerHTML = h; else t.textContent = text.replace(/⟦\w+⟧/g, '');
       }
       el.classList.toggle('hidden', !on);
       root.classList.toggle('hinting', on);

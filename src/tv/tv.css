@@ -73,3 +73,9 @@ html.tv .hb-row { min-height: calc(64px * var(--tv-s, 1)); }
 html.tv .hb-pill, html.tv .hb-points { font-size: calc(26px * var(--tv-s, 1)) !important; }
 html.tv .dr-today-name { font-size: calc(30px * var(--tv-s, 1)) !important; }
 html.tv .pad-focus .settings-switch:has(input:focus) { outline-width: 5px !important; outline-offset: 4px !important; }
+
+/* The goals' "how" line and the key strip say the pad's words, with button pictures, while the pad is the input. */
+html.tv body[data-input="pad"] .goal-how .how-keys, html.tv body[data-input="pad"] .goal-how .how-touch { display: none !important; }
+html.tv body[data-input="pad"] .goal-how .how-pad { display: inline; }
+html.tv .pad-glyph { width: 1.25em; height: 1.25em; vertical-align: -0.28em; margin: 0 0.08em; color: inherit; }
+html.tv .pad-glyph.wide { width: 1.9em; }

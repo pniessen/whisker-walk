@@ -14,6 +14,7 @@
 // sets the result as text (textContent) or escapes it (escapeHtml), never as
 // HTML.
 import { words } from './wordset.js';
+import { tvState, padText } from './tvseam.js';
 
 const same = (s) => Object.freeze({ touch: s, keys: s });
 const two = (touch, keys) => Object.freeze({ touch, keys });
@@ -152,8 +153,17 @@ export function hasLine(id) {
 // A word set may carry lines of its own (LINES in wordset.js, keyed by these
 // ids, each with a touch and a keys form): that set's line is said in place of
 // this table's. The family's set has none, so every line is this table's.
-export function line(id, { touch = false, ...slots } = {}) {
+//
+// With TV mode on and the pad the last input, a line with a pad form says that
+// form (src/tv/padwords.js): button words, plain symbols by default. A caller
+// that can draw pictures (the hint pill) passes glyph: true and gets the
+// ⟦tokens⟧ to hand to padHtml().
+export function line(id, { touch = false, glyph = false, ...slots } = {}) {
   if (!hasLine(id)) return '';
+  if (tvState.input === 'pad' && tvState.padLine) {
+    const p = tvState.padLine(id, slots);
+    if (p) return glyph ? p : padText(p);
+  }
   const own = words().LINES;
   const entry = own && Object.hasOwn(own, id) ? own[id] : WORDS[id];
   const form = touch ? entry.touch : entry.keys;

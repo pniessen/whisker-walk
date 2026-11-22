@@ -15,6 +15,7 @@
 
 import { createHints } from '../hints.js';
 import { line } from '../tutorialwords.js';
+import { onTv } from '../tvseam.js';
 import { bus } from '../events.js';
 import { bestPerch, climbBudget, fenceRunning } from '../climbing.js';
 import { FLAT_GROUND } from '../ground.js';
@@ -178,6 +179,11 @@ export function createTips({ player, progression, settings, hud, getIsTouch, now
 
   const enabled = () => settings?.get?.('showTips') !== false;
 
+  // The hint on screen, so a change of input (TV mode: pad words or key words) says it again in the new words.
+  let shown = null;
+  const say = (e) => { shown = e; showLine(line(`hint.${e.id}`, { ...e.slots, touch: !!getIsTouch(), glyph: true }), HINT_PICS[e.id], e.ring); };
+  onTv(() => { if (shown && live?.engine.showing) say(shown); });
+
   bus.on('tip', (e) => {
     if (live && e && typeof e.id === 'string') live.engine.offer(e.id, e.name ? { name: e.name } : null);
   });
@@ -198,8 +204,8 @@ export function createTips({ player, progression, settings, hud, getIsTouch, now
         count: (id) => progression.state.tutorial.hints[id] ?? 0,
         countUp: (id) => progression.countHint(id),
         enabled,
-        show: ({ id, ring, slots }) => showLine(line(`hint.${id}`, { ...slots, touch: !!getIsTouch() }), HINT_PICS[id], ring),
-        hide: () => showLine(null),
+        show: say,
+        hide: () => { shown = null; showLine(null); },
       });
       session.hints = engine;
       live = {

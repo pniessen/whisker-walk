@@ -7,6 +7,7 @@ import { applyScale } from './scale.js';
 import { createInputTracker } from './input.js';
 import { glyphify, plainify, padKind } from './glyphs.js';
 import { setTv } from '../tvseam.js';
+import { padLine } from './padwords.js';
 
 /** Turns TV mode on for this page; returns { stop() } that puts everything back. */
 export async function start(ctx) {
@@ -16,7 +17,7 @@ export async function start(ctx) {
   // Button pictures follow the pad in use; the last input decides when they show.
   const kind = () => padKind(ctx.padInfo?.());
   const input = createInputTracker({ win, doc, setInput: (v) => setTv({ input: v }) });
-  setTv({ text: (s) => plainify(s, kind()), html: (s) => glyphify(s, kind()) });
+  setTv({ text: (s) => plainify(s, kind()), html: (s) => glyphify(s, kind()), padLine });
   return {
     stop() {
       doc.documentElement.classList.remove('tv');
