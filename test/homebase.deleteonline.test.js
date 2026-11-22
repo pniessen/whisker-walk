@@ -22,6 +22,8 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
 }));
 
 const { CONFIRM_DELAY_MS } = await import('../src/ui/colonypanel.js');
+await import('../src/ui/catlogin.js'); // the sheet's chunk, cached before the first test
+const { sheetDrawn } = await import('./helpers/catsheet.js');
 const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression } = await import('../src/progression.js');
 
@@ -71,7 +73,7 @@ const card = () => doc.body.children.find((c) => c.id === 'confirm-card');
 const click = (target) => doc.root.listeners.click({ target: { closest: () => null, dataset: {}, ...target }, detail: 1 });
 const html = () => doc.root.innerHTML;
 
-function setup({ code = null, result = { outcome: 'done', player: 'ok', save: 'ok' }, rooms = null, colonySync = null, onlineDelete, getIsTouch } = {}) {
+async function setup({ code = null, result = { outcome: 'done', player: 'ok', save: 'ok' }, rooms = null, colonySync = null, onlineDelete, getIsTouch } = {}) {
   let linked = code;
   const sync = { available: true, getCode: () => linked, unlink: () => { linked = null; } };
   let release;
@@ -85,6 +87,7 @@ function setup({ code = null, result = { outcome: 'done', player: 'ok', save: 'o
   const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync, onlineDelete: od, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync, myId: 'me', toast: () => {}, getIsTouch });
   hb.show();
   dressingMock.opts.onOpenSheet('sync');
+  await sheetDrawn(() => doc.root.innerHTML);
   return { od, sync, progression, hb, release: () => release() };
 }
 async function confirmYes() {
@@ -94,23 +97,23 @@ async function confirmYes() {
 }
 
 describe('the button on the Cloud save sheet', () => {
-  it('is there when the device is not linked, after the kept copies, as a danger button', () => {
-    setup();
+  it('is there when the device is not linked, after the kept copies, as a danger button', async () => {
+    await setup();
     expect(html()).toContain('<div class="sync-unlinked">');
     expect(html()).toContain(BUTTON);
     expect(html().indexOf('sync-delete')).toBeGreaterThan(html().indexOf('sync-unlinked'));
   });
-  it('is there when the device is linked', () => {
-    setup({ code: CODE });
+  it('is there when the device is linked', async () => {
+    await setup({ code: CODE });
     expect(html()).toContain('<div class="sync-linked">');
     expect(html()).toContain(BUTTON);
   });
-  it('is not drawn when the delete is not available', () => {
-    setup({ onlineDelete: { available: false, run: vi.fn() } });
+  it('is not drawn when the delete is not available', async () => {
+    await setup({ onlineDelete: { available: false, run: vi.fn() } });
     expect(html()).not.toContain('sync-delete-online');
   });
   it('waits, and says why, while a walk room is open or the colony is mid-pairing', async () => {
-    const inRoom = setup({ rooms: { available: true, getState: () => ({ code: 'ABCD', roster: [] }), onChange() {} } });
+    const inRoom = await setup({ rooms: { available: true, getState: () => ({ code: 'ABCD', roster: [] }), onChange() {} } });
     expect(html()).toContain('<button id="sync-delete-online" class="danger" disabled>Delete my online data</button>');
     expect(html()).toContain('Leave the room first, then you can delete.');
     await click({ id: 'sync-delete-online' });
@@ -119,19 +122,19 @@ describe('the button on the Cloud save sheet', () => {
 
     const future = new Date(Date.now() + 60_000).toISOString();
     for (const st of [{ mode: 'unpaired', invite: { code: 'ABCDEF', expiresAt: future }, joining: null }, { mode: 'unpaired', invite: null, joining: { inviterPetName: 'Biscuit' } }]) {
-      setup({ colonySync: { available: true, status: () => st, pull: () => Promise.resolve({}) } });
+      await setup({ colonySync: { available: true, status: () => st, pull: () => Promise.resolve({}) } });
       expect(html()).toContain('Colony sharing is in the middle of pairing. Try again once that’s finished.');
       expect(html()).toContain('id="sync-delete-online" class="danger" disabled');
     }
     // an invite that has run out doesn't hold it up
-    setup({ colonySync: { available: true, status: () => ({ mode: 'unpaired', invite: { code: 'ABCDEF', expiresAt: new Date(Date.now() - 1000).toISOString() }, joining: null }), pull: () => Promise.resolve({}) } });
+    await setup({ colonySync: { available: true, status: () => ({ mode: 'unpaired', invite: { code: 'ABCDEF', expiresAt: new Date(Date.now() - 1000).toISOString() }, joining: null }), pull: () => Promise.resolve({}) } });
     expect(html()).toContain(BUTTON);
   });
 });
 
 describe('the confirm card', () => {
   it('linked: says what goes, what stays, that it is final, and about the other device; Not now first', async () => {
-    setup({ code: CODE });
+    await setup({ code: CODE });
     await click({ id: 'sync-delete-online' });
     const h = card().innerHTML;
     expect(h).toContain('Delete this device’s online data?');
@@ -143,7 +146,7 @@ describe('the confirm card', () => {
     expect(h).toContain('class="colony-news-btn confirm-card-danger" id="confirm-card-yes" data-confirm="yes">Yes, delete it</button>');
   });
   it('unlinked: no save, no other-device line', async () => {
-    setup();
+    await setup();
     await click({ id: 'sync-delete-online' });
     const h = card().innerHTML;
     expect(h).toContain('Deletes this device’s cat profile, friends and colony sharing. The game on this device stays as it is');
@@ -151,7 +154,7 @@ describe('the confirm card', () => {
     expect(h).not.toContain('Another device');
   });
   it('Not now and Escape change nothing and call nothing', async () => {
-    const s = setup({ code: CODE });
+    const s = await setup({ code: CODE });
     await click({ id: 'sync-delete-online' });
     answer(card(), 'no');
     await click({ id: 'sync-delete-online' });
@@ -162,7 +165,7 @@ describe('the confirm card', () => {
     expect(s.progression.state.petName).toBe('Mittens');
   });
   it('Yes calls the delete once, disables the sheet while it runs, then says it is done', async () => {
-    const s = setup({ code: CODE });
+    const s = await setup({ code: CODE });
     await confirmYes();
     expect(s.od.run).toHaveBeenCalledTimes(1);
     expect(html()).toContain('<button id="sync-delete-online" class="danger" disabled>Deleting…</button>');
@@ -187,7 +190,7 @@ describe('the line after each answer', () => {
   ];
   for (const [result, line] of LINES) {
     it(`${result.outcome} (${result.player}/${result.save})`, async () => {
-      const s = setup({ code: CODE, result });
+      const s = await setup({ code: CODE, result });
       await confirmYes();
       s.release();
       await vi.waitFor(() => expect(html()).toContain(line));
@@ -195,7 +198,7 @@ describe('the line after each answer', () => {
     });
   }
   it('on a touch screen the half-done line says Tap', async () => {
-    const s = setup({ code: CODE, result: { outcome: 'partial', player: 'ok', save: 'offline' }, getIsTouch: () => true });
+    const s = await setup({ code: CODE, result: { outcome: 'partial', player: 'ok', save: 'offline' }, getIsTouch: () => true });
     await confirmYes();
     s.release();
     await vi.waitFor(() => expect(html()).toContain('isn’t yet. Tap Delete my online data again to finish.'));

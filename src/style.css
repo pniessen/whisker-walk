@@ -855,6 +855,21 @@ body.touch-mode:not(.left-handed) .hud-top {
 .sync-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 10px; }
 .sync-col h3 { font-size: 0.9rem; color: #a8c0e0; margin-bottom: 4px; font-weight: 700; }
 .sync-actions .danger { background: transparent; color: #d08080; }
+/* My cat sheet (cat login M3): code chips, the press-and-hold Show button, the hidden-code line */
+.sync-unlinked h3 { margin: 0; width: 100%; }
+.sync-unlinked .code-field { width: 100%; }
+.cat-chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 1.9rem; margin-top: 6px; }
+.cat-chip { border-radius: 999px; padding: 3px 10px; font-weight: 700; font-size: 1rem; border: 2px solid transparent; }
+.cat-chip.ok { background: #1f3d2a; color: #9fe3b0; border-color: #3f8f58; }
+.cat-chip.bad { background: #4a2020; color: #f2a0a0; border-color: #a04848; }
+.cat-chip.snap { background: #4a3d16; color: #f2d58a; border-color: #b8943a; cursor: pointer; font-family: inherit; }
+.catlogin-show { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 8px; }
+.catlogin-show .hold { position: relative; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.catlogin-show .hold::after { content: ''; position: absolute; left: 0; bottom: 0; height: 4px; width: 0; background: #f2c14e; }
+.catlogin-show .hold:active::after { width: 100%; transition: width 2s linear; }
+.catlogin-shown { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 8px; }
+.sync-code-big .link, .sync-unlinked .link { background: transparent; border: 0; color: inherit; text-decoration: underline; cursor: pointer; padding: 6px 2px; font: inherit; }
+@media (prefers-reduced-motion: reduce) { .catlogin-show .hold:active::after { transition: none; } }
 .sync-cloud .primary { background: #f2c14e; color: #3a2a10; }
 .sync-cloud .primary:hover { background: #f2c14e; filter: brightness(1.08); }
 .sync-cloud .primary:disabled { background: var(--btn-off-bg); color: var(--btn-off-fg); cursor: default; }

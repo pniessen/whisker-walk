@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { memoryStorage } from './helpers/storage.js';
-import { withOffWords } from './helpers/offwords.js';
+import { withOffWordsAsync } from './helpers/offwords.js';
 
 // Cat login M2: the Cloud save sheet's catch-up line, in both word sets. Same no-DOM
 // stand-in as test/homebase.catkey.test.js.
@@ -19,6 +19,8 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
   },
 }));
 
+await import('../src/ui/catlogin.js'); // the sheet's chunk, cached before the first test
+const { sheetDrawn } = await import('./helpers/catsheet.js');
 const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression } = await import('../src/progression.js');
 
@@ -67,7 +69,7 @@ const click = (target) => doc.root.listeners.click({ target: { closest: () => nu
 const html = () => doc.root.innerHTML;
 
 
-function setup(state = null) {
+async function setup(state = null) {
   const sync = {
     available: true, getCode: () => 'PLUM-OTTER-CROW-42',
     catStatus: vi.fn(() => (state ? { state, name: 'Mittens' } : null)),
@@ -79,6 +81,7 @@ function setup(state = null) {
   const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: (o) => starts.push(o), rooms: null, sync, onlineDelete: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {}, reload: () => {} });
   hb.show();
   dressingMock.opts.onOpenSheet('sync');
+  await sheetDrawn(() => doc.root.innerHTML);
   return { sync, hb, starts, set: (s) => { state = s; hb.refreshSync(); } };
 }
 const line = () => html().match(/<div class="tag catlogin-status"[^>]*>([^<]*)<\/div>/)?.[1] ?? null;
@@ -94,25 +97,25 @@ const EVERYDAY = { ...CLAN, caught: 'Mittens caught up. Paws, finds and outfits 
 
 describe('the catch-up line on the Cloud save sheet', () => {
   for (const [state, words] of Object.entries(CLAN)) {
-    it(`${state}: says "${words.slice(0, 28)}…" in the family's words`, () => {
-      setup(state);
+    it(`${state}: says "${words.slice(0, 28)}…" in the family's words`, async () => {
+      await setup(state);
       expect(line()).toBe(words);
     });
-    it(`${state}: and the everyday words`, () => {
-      withOffWords(() => {
-        setup(state);
+    it(`${state}: and the everyday words`, async () => {
+      await withOffWordsAsync(async () => {
+        await setup(state);
         expect(line()).toBe(EVERYDAY[state]);
       });
     });
   }
-  it('says nothing before the first catch-up, and nothing for a state it does not know', () => {
-    setup(null);
+  it('says nothing before the first catch-up, and nothing for a state it does not know', async () => {
+    await setup(null);
     expect(line()).toBe(null);
-    setup('who knows');
+    await setup('who knows');
     expect(line()).toBe(null);
   });
-  it('is drawn when the state changes while the sheet is open, and only then', () => {
-    const s = setup('catching');
+  it('is drawn when the state changes while the sheet is open, and only then', async () => {
+    const s = await setup('catching');
     expect(line()).toBe('Catching up…');
     s.set('saved');
     expect(line()).toBe('Mittens is safe');
@@ -122,12 +125,12 @@ describe('the catch-up line on the Cloud save sheet', () => {
     expect(html()).toBe(before);
   });
   it('no spinner blocks the Start button: catching up disables nothing, and Start still starts a walk', async () => {
-    const s = setup('catching');
+    const s = await setup('catching');
     expect(html()).not.toMatch(/spinner|disabled/i);
     await click({ id: 'btn-start' });
     expect(s.starts).toHaveLength(1);
   });
-  it('a hostile name cannot break the line', () => {
+  it('a hostile name cannot break the line', async () => {
     const sync = { available: true, getCode: () => 'X', catStatus: () => ({ state: 'saved', name: '<img src=x onerror=1>' }) };
     const progression = createProgression(memStorage());
     const settings = { get: () => null, set() {}, all: () => ({}) };

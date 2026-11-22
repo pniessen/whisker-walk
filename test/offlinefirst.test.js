@@ -629,9 +629,18 @@ describe('where the network can start', () => {
     // as a fetch.)
     expect(main).not.toMatch(/createClient|getSupabaseClient|new WebSocket/);
   });
+  it('the My cat sheet and the code words make no request of their own: no fetch, no socket, no cloud of their own, and nothing runs at import', () => {
+    for (const f of ['ui/catlogin.js', 'ui/catloginwords.js', 'catcodes.js', 'randomindex.js']) {
+      expect(read(f), f).not.toMatch(/\bfetch\(|XMLHttpRequest|WebSocket|sendBeacon|createCloud|createLiveCloud|supabase|from '\.\.?\/(cloud|net)\.js'/);
+    }
+    // the one place a tap on the sheet reaches the cloud is the sync object it is handed
+    expect([...new Set([...read('ui/catlogin.js').matchAll(/\bsync\.(\w+)\(/g)].map((m) => m[1]))].sort())
+      .toEqual(['changeCode', 'confirmLoad', 'getCode', 'previewLoad', 'saveToCloud', 'syncNow', 'unlink']);
+  });
   it('only cloudsync.js and rooms.js can make a cloud or a transport, and only net.js a client', () => {
     const files = ['main.js', 'game/walk.js', 'game/netevents.js', 'game/interactions.js', 'game/colonysync.js',
-      'game/onlinedelete.js', 'game/homebasecloud.js', 'ui/homebase.js', 'game/nearby.js', 'game/session.js'];
+      'game/onlinedelete.js', 'game/homebasecloud.js', 'ui/homebase.js', 'game/nearby.js', 'game/session.js',
+      'ui/catlogin.js', 'ui/catloginwords.js', 'catcodes.js', 'randomindex.js', 'savecode.js']; // (cat login M3: the sheet and the code words reach the cloud only through the sync handed to them)
     for (const f of files) {
       expect(read(f), f).not.toMatch(/createLiveCloud|createSupabaseTransport|getSupabaseClient|@supabase\/supabase-js/);
     }

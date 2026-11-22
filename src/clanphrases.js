@@ -615,10 +615,16 @@ const LATER = Object.freeze({
 // Every id of the first table, in table order.
 export const PHRASE_IDS = Object.freeze(Object.keys(TABLE));
 // Every id added later, in table order.
+// Lines a lazy chunk brings with it (the My cat sheet, src/ui/catloginwords.js): added when that
+// chunk arrives, so their words are not in the start-up download. They go through phrase() like
+// the rest, so a set's own PHRASES still overrides them.
+const ADDED = {};
+export function addPhrases(table) { Object.assign(ADDED, table); }
+
 export const LATER_PHRASE_IDS = Object.freeze(Object.keys(LATER));
 
 export function hasPhrase(id) {
-  return typeof id === 'string' && (Object.hasOwn(TABLE, id) || Object.hasOwn(LATER, id));
+  return typeof id === 'string' && (Object.hasOwn(TABLE, id) || Object.hasOwn(LATER, id) || Object.hasOwn(ADDED, id));
 }
 
 // phrase(id, ...args) → the text. An unknown id throws: every id is a literal
@@ -627,6 +633,6 @@ export function hasPhrase(id) {
 export function phrase(id, ...args) {
   if (!hasPhrase(id)) throw new Error(`Whisker Walk: no phrase "${id}"`);
   const own = words().PHRASES;
-  const entry = own && Object.hasOwn(own, id) ? own[id] : Object.hasOwn(TABLE, id) ? TABLE[id] : LATER[id];
+  const entry = own && Object.hasOwn(own, id) ? own[id] : Object.hasOwn(TABLE, id) ? TABLE[id] : Object.hasOwn(LATER, id) ? LATER[id] : ADDED[id];
   return typeof entry === 'function' ? entry(...args) : entry;
 }
