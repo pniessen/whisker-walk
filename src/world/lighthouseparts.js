@@ -772,6 +772,8 @@ export function drawStair(kit, M) {
   const dx = f0[1].x - f0[0].x; const dz = f0[1].z - f0[0].z;
   const l = Math.hypot(dx, dz);
   const foot = LANDINGS[0];
+  // a paving pad under the flat first metre, so the treads do not start on bare grass
+  put('stone', M.stone, cy((f0[0].x + f0[1].x) / 2, (f0[0].z + f0[1].z) / 2, Y0 - 0.2, Y0 + 0.012, 0.85, 0.85, shade(COL.stone, 0.95), 14), { noCast: true });
   const side = out(foot, 0.0);
   const bol = { x: side.x - (dz / l) * 0.85 + (dx / l) * 0.4, z: side.z + (dx / l) * 0.85 + (dz / l) * 0.4 };
   put('paint', M.paint, cy(bol.x, bol.z, Y0, Y0 + 0.36, 0.13, 0.13, COL.red, 10));
@@ -819,7 +821,7 @@ export function drawGallery(kit, M) {
   void T;
 }
 
-// The lamp room. A stone drum 0.9 m high, glass over it to the roof at 16.7, a door gap 1.4 m wide facing the stair,
+// The lamp room. A stone kerb 0.45 m high, glass over it to the roof at 16.7, a door gap 1.4 m wide facing the stair,
 // mullions, a red roof and a vane; inside, the lens (a dull brass drum of rings, which the life lights) on its pedestal
 // and the lever's housing. The glass and the roof are meshes of their own (the life fades them while she is inside).
 // Returns { glass, roof }.
@@ -830,7 +832,7 @@ export function drawLampRoom(kit, M) {
   const from = LR.door + half;
   const span = 360 - 2 * half;
   const topY = LR.roof;
-  const drumTop = Y1 + 0.9;
+  const drumTop = Y1 + 0.45; // a low kerb: the follow camera looks down 26 degrees, and a higher one would hide her inside
   // the drum and its sill, the door's jambs
   put('stone', M.stone, paint(arcCyl(LR.r + 0.12, LR.r + 0.12, Y1, drumTop, from, span, 28), COL.stone));
   put('stone', M.stone, paint(arcCyl(LR.r + 0.2, LR.r + 0.2, drumTop, drumTop + 0.1, from, span, 28), shade(COL.stone, 0.88)));

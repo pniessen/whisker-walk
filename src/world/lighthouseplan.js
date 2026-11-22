@@ -113,7 +113,7 @@ function railWalk() {
   return { id: 'rail-walk', kind: 'pipe', width: 0.25, follow: true, points: pts };
 }
 
-// The lamp room: a stone drum 0.9 m high with a glass room over it, radius 2.3, a door gap 1.4 m wide
+// The lamp room: a stone kerb 0.45 m high with a glass room over it, radius 2.3, a door gap 1.4 m wide
 // facing the stair; its roof (a ground ceiling, 3.2 m over the floor) is a square 3.2 m across, inside the
 // round roof. The lens stands on a pedestal in the middle (a collider of radius 0.7) and the lever by the
 // wall opposite the door. A 0.6 m ring of floor runs round the lens.

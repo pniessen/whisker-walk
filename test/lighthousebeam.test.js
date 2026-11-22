@@ -66,21 +66,26 @@ describe('the beam angle', () => {
 });
 
 describe('the lit lamp', () => {
-  it('the pool of light lies on low ground only: the sea and the cove, not the headland', () => {
+  it('the pool of light is on the sea and the cove all the way round (50 m out), and is not drawn over high ground', () => {
     const w = lit({ roomSeed: 1 });
     w.run(LIGHT_UP + 0.5);
-    let sawOn = 0;
-    let sawOff = 0;
     for (let i = 0; i < 18 * 30; i++) {
       w.life.update(1 / 30, 0, w.cat, new THREE.PerspectiveCamera(), w.session);
       const { x, z } = w.patch.position;
-      const low = w.patch.visible;
-      if (low) { sawOn++; expect(w.life.lit).toBe(true); expect(Math.abs(x - L.TOWER.x) + Math.abs(z - L.TOWER.z)).toBeGreaterThan(20); }
-      else sawOff++;
+      expect(w.patch.visible).toBe(true);
+      expect(Math.hypot(x - L.TOWER.x, z - L.TOWER.z)).toBeCloseTo(BEAM.patchDist, 6);
+      expect(w.session.ground ?? null).toBeNull();
     }
-    expect(sawOn).toBeGreaterThan(0);
-    expect(sawOff).toBeGreaterThan(0);
     w.life.dispose();
+    // over ground higher than the shore (a stand-in ground at 6 m) it is hidden
+    const scene = new THREE.Scene();
+    const placed = build(scene);
+    const high = placed.life({ scene, ground: { y: () => 6 }, audio: null, log: null, progression: {}, tier: { name: 'high' } });
+    const tip = createTippables(scene, placed.tippables, { ground: placed.ground });
+    tip.tipById(`tip-${placed.tippables.findIndex((t) => t.kind === 'lever')}`);
+    for (let i = 0; i < 90; i++) high.update(1 / 30, 0, { x: -23, y: 13.5, z: -20 }, new THREE.PerspectiveCamera(), { tippables: tip });
+    expect(scene.children.find((o) => o.isMesh && o.userData.noMerge && o.scale.x === BEAM.patchLen).visible).toBe(false);
+    high.dispose();
   });
 
   it('the low tier has no pool of light at all', () => {

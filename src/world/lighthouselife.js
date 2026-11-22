@@ -36,7 +36,7 @@ import { TOWER, GALLERY_Y, LAMP_ROOM, LEVER_KIND } from './lighthouseplan.js';
 // Draws no random number and reads no clock: every number is a constant here or a walk second.
 // =============================================================================
 
-export const BEAM = Object.freeze({ period: 18, length: 42, radius: 3.4, inner: 1.5, patchDist: 28, patchLen: 9, patchWid: 4.2, y: LAMP_ROOM.lensY + 0.3 });
+export const BEAM = Object.freeze({ period: 18, length: 64, radius: 5.2, inner: 2.2, patchDist: 50, patchLen: 11, patchWid: 5, y: LAMP_ROOM.lensY + 0.3 });
 export const LIGHT_BEAM_SALT = 0x1170b4;
 export const JOB_KEY = 'lighthouse-job-lamp';
 export const HORN_AFTER = 4; // walk seconds from the lamp lighting to the ship's answer
@@ -115,13 +115,13 @@ export function createLighthouseLife(ctx = {}) {
   let glassK = 1;
 
   const parts = withLocalUuids('lighthouse-life', () => {
-    const beam = new THREE.Mesh(coneGeometry(BEAM.length, BEAM.radius, 0xffd98a, 0.22), additive(0));
+    const beam = new THREE.Mesh(coneGeometry(BEAM.length, BEAM.radius, 0xffd98a, 0.07), additive(0));
     // the bright core: a narrower cone inside the wide one, merged into the same draw by being a second child
-    const core = new THREE.Mesh(coneGeometry(BEAM.length * 0.9, BEAM.inner, 0xfff0c4, 0.3), additive(0));
+    const core = new THREE.Mesh(coneGeometry(BEAM.length * 0.9, BEAM.inner, 0xfff0c4, 0.1), additive(0));
     beam.add(core);
-    const halo = new THREE.Mesh(glowDisc(2.3, 0xffd48a, 0.6, 'xy', 20), additive(0));
+    const halo = new THREE.Mesh(glowDisc(2.3, 0xffd48a, 0.3, 'xy', 20), additive(0));
     const glow = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 1.5, 18, 1, true), new THREE.MeshBasicMaterial({ color: 0xffe2a0, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0, fog: true }));
-    const patch = lowTier ? null : new THREE.Mesh(glowDisc(1, 0xffd490, 0.55, 'xz', 20), additive(0));
+    const patch = lowTier ? null : new THREE.Mesh(glowDisc(1, 0xffd490, 0.22, 'xz', 20), additive(0));
     if (patch) patch.scale.set(BEAM.patchLen, 1, BEAM.patchWid);
     const all = [beam, halo, glow, patch].filter(Boolean);
     for (const m of all) { m.visible = false; m.castShadow = false; m.receiveShadow = false; m.userData.noMerge = true; m.userData.noCast = true; m.frustumCulled = false; }
@@ -169,7 +169,7 @@ export function createLighthouseLife(ctx = {}) {
     if (camera) halo.quaternion.copy(camera.quaternion);
     halo.material.opacity = glowK * (0.8 + (ctx.reducedMotion ? 0 : 0.08 * Math.sin(t * 2.1)));
     glow.visible = glowK > 0;
-    glow.material.opacity = glowK * 0.5;
+    glow.material.opacity = glowK * 0.22;
     if (patch) {
       const px = TOWER.x + BEAM.patchDist * Math.cos(a);
       const pz = TOWER.z + BEAM.patchDist * Math.sin(a);

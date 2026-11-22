@@ -32,6 +32,7 @@ function measure(scene) {
   return { meshes, casters, triangles: Math.round(triangles), hash: hash.join('|') };
 }
 
+const await_merge = await import('../src/render/mergeprops.js');
 const scene1 = new THREE.Scene();
 const area = build(scene1);
 const m1 = measure(scene1);
@@ -115,6 +116,72 @@ describe('the drawing', () => {
       if (y > 0.5 && x > PLATEAU.maxX + 1e-6 && z > -80 && z < PLATEAU.maxZ && Math.abs(x - PLATEAU.maxX) < 0.01) outside++;
     }
     expect(outside).toBe(0);
+  });
+});
+
+describe('the climb, drawn (milestone 2)', () => {
+  const { mergeStaticProps } = await_merge;
+  it('the lamp room\'s glass and roof are two meshes of their own, never merged, see-through, with no random number', () => {
+    const glass = scene1.getObjectByName('lighthouse:glass');
+    const roof = scene1.getObjectByName('lighthouse:lamproof');
+    for (const m of [glass, roof]) {
+      expect(m.isMesh).toBe(true);
+      expect(m.userData.noMerge).toBe(true);
+      expect(m.material.transparent).toBe(true);
+    }
+    expect(glass.material.opacity).toBeLessThan(0.3);
+    expect(roof.material.opacity).toBe(1);
+    // the walk's own merge leaves both where they are
+    const scene = new THREE.Scene();
+    build(scene);
+    mergeStaticProps(scene);
+    expect(scene.getObjectByName('lighthouse:glass')).toBeTruthy();
+    expect(scene.getObjectByName('lighthouse:lamproof')).toBeTruthy();
+  });
+  it('the roof stands on the lamp room (its ceiling) and the glass is a wall with the door left open', () => {
+    const roof = scene1.getObjectByName('lighthouse:lamproof');
+    const box = new THREE.Box3().setFromObject(roof);
+    expect(box.min.y).toBeCloseTo(P.LAMP_ROOM.roof, 1);
+    expect(box.max.y).toBeGreaterThan(P.LAMP_ROOM.roof + 2);
+    const glass = scene1.getObjectByName('lighthouse:glass');
+    const p = glass.geometry.attributes.position;
+    // no glass vertex in the door's gap (within 0.6 m of the door's middle, on the wall's radius)
+    const dx = P.TOWER.x + P.LAMP_ROOM.r * Math.cos((P.LAMP_ROOM.door * Math.PI) / 180);
+    const dz = P.TOWER.z + P.LAMP_ROOM.r * Math.sin((P.LAMP_ROOM.door * Math.PI) / 180);
+    for (let i = 0; i < p.count; i++) expect(Math.hypot(p.getX(i) - dx, p.getZ(i) - dz)).toBeGreaterThan(0.55);
+  });
+  it('every take-off the plan places has its chalk ring on the ground beside it', () => {
+    const marks = scene1.getObjectByName('lighthouse:marks');
+    expect(marks).toBeTruthy();
+    const p = marks.geometry.attributes.position;
+    const centres = [];
+    for (let i = 0; i < p.count; i += 18 * 6) { // each ring is 18 quads of 6 vertices
+      let x = 0; let z = 0;
+      for (let k = 0; k < 18 * 6; k++) { x += p.getX(i + k); z += p.getZ(i + k); }
+      centres.push({ x: x / (18 * 6), z: z / (18 * 6) });
+    }
+    const wants = [...P.LIGHTHOUSE_TRAVERSAL.gaps, ...P.LIGHTHOUSE_TRAVERSAL.drops].map((h) => h.from);
+    for (const w of wants) expect(centres.some((c) => Math.hypot(c.x - w.x, c.z - w.z) < 0.05), `${w.x}, ${w.z}`).toBe(true);
+  });
+  it('the stair is drawn: treads on every flight\'s rail, nothing below the plateau', () => {
+    const wood = scene1.getObjectByName('lighthouse:wood');
+    const p = wood.geometry.attributes.position;
+    let nearRail = 0;
+    for (const c of P.LIGHTHOUSE_TRAVERSAL.crossings.filter((k) => k.kind === 'stair')) {
+      for (const pt of c.points) {
+        for (let i = 0; i < p.count; i++) if (Math.hypot(p.getX(i) - pt.x, p.getZ(i) - pt.z) < 0.6 && Math.abs(p.getY(i) - pt.y) < 0.12) { nearRail++; break; }
+      }
+    }
+    expect(nearRail).toBe(P.LIGHTHOUSE_TRAVERSAL.crossings.filter((k) => k.kind === 'stair').reduce((n, c) => n + c.points.length, 0));
+  });
+  it('the two stacks are drawn at least as wide as the ground on their tops', () => {
+    const cliff = scene1.getObjectByName('lighthouse:cliff');
+    const p = cliff.geometry.attributes.position;
+    for (const k of [P.GULL_ROCK, P.PINNACLE]) {
+      let widest = 0;
+      for (let i = 0; i < p.count; i++) if (p.getY(i) > 5.5 && Math.hypot(p.getX(i) - k.x, p.getZ(i) - k.z) < k.r + 2) widest = Math.max(widest, Math.hypot(p.getX(i) - k.x, p.getZ(i) - k.z));
+      expect(widest, 'a stack\'s rock').toBeGreaterThanOrEqual(k.land);
+    }
   });
 });
 
