@@ -3,12 +3,18 @@
 // nothing here may import src/tv/: the build fails if the chunk joins
 // start-up (scripts/buildjson.mjs). With TV mode off every function is
 // identity or a no-op, so touch, mouse and keyboard play is unchanged.
-export const tvState = { on: false, input: 'keys', text: null, padLine: null };
+export const tvState = { on: false, input: 'keys', text: null, html: null, padLine: null };
+
+// Pad events from gamepad.js; the chunk fills these in (null = nobody listens).
+export const tvHooks = { padUse: null, padConnect: null, padDisconnect: null };
 
 const listeners = new Set();
 
 /** Plain text or token text in, the same out until the chunk sets `text`. */
 export const padText = (s) => (tvState.text ? tvState.text(s) : s);
+
+/** Like padText but for a caller that sets HTML: the string with button pictures, or null when TV mode has none (keep the caller's own path). */
+export const padHtml = (s) => (tvState.html ? tvState.html(s) : null);
 
 /** Merge a change in; listeners hear about it once, and only if something changed. */
 export function setTv(partial) {
@@ -30,8 +36,9 @@ export function onTv(fn) {
 
 /** Back to the start (tests). */
 export function resetTv() {
-  Object.assign(tvState, { on: false, input: 'keys', text: null, padLine: null });
+  Object.assign(tvState, { on: false, input: 'keys', text: null, html: null, padLine: null });
   listeners.clear();
+  Object.assign(tvHooks, { padUse: null, padConnect: null, padDisconnect: null });
 }
 
 /** ?tv=1 turns TV mode on for this page load only, ?tv=0 off; never saved (like ?perf). */

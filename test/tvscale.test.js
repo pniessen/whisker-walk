@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { uiScale, applyScale, IDLE_CURSOR_MS } from '../src/tv/scale.js';
 import { start } from '../src/tv/index.js';
+import { padText, padHtml, tvState, resetTv } from '../src/tvseam.js';
 
 describe('uiScale', () => {
   it('is 1 up to 1920, grows to 2 at 3840 and stays there', () => {
@@ -67,11 +68,26 @@ describe('applyScale', () => {
 describe('the chunk start', () => {
   it('adds html.tv with the scale, and stop() takes everything away', async () => {
     const r = rig(2560);
-    const h = await start({ doc: r.doc, win: r.win });
+    const h = await start({ doc: r.doc, win: r.win, padInfo: () => null });
     expect(r.cls.has('tv')).toBe(true);
     expect(r.props['--tv-s']).toBe('1.333');
     h.stop();
     expect(r.cls.has('tv')).toBe(false);
     expect(r.props).toEqual({});
+  });
+
+  it('gives the seam its button pictures, by the pad in use, and takes them away on stop', async () => {
+    resetTv();
+    const r = rig();
+    let info = { id: 'DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)', vendor: '054c' };
+    const h = await start({ doc: r.doc, win: r.win, padInfo: () => info });
+    expect(padText('⟦jump⟧ go')).toBe('✕ go');
+    expect(padHtml('⟦jump⟧')).toMatch(/^<svg /);
+    info = { id: 'Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)', vendor: '045e' };
+    expect(padText('⟦jump⟧')).toBe('A');
+    h.stop();
+    expect(padText('⟦jump⟧')).toBe('⟦jump⟧');
+    expect(padHtml('x')).toBeNull();
+    expect(tvState.input).toBe('keys');
   });
 });

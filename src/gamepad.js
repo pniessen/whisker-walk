@@ -17,7 +17,7 @@ const SCROLL_PX_PER_SEC = 700;
 export function createGamepad({
   win = window, nav = navigator,
   getEngaged, getCameraMode, isFighting, isWalkingOn, canResume,
-  onMove, onOrbit, onAction, onResume, toast,
+  onMove, onOrbit, onAction, onResume, toast, onPadUse, onPadConnect, onPadDisconnect,
   menuNav: menuNavIn = null, menuNavFactory = null, padBack = null, doc = typeof document === 'undefined' ? null : document,
 }) {
   const supported = typeof nav?.getGamepads === 'function';
@@ -33,6 +33,8 @@ export function createGamepad({
   const ensureNav = () => { if (!menuNav && menuNavFactory) menuNav = menuNavFactory(); };
   let held = new Set(); // buttons down when the owner changed: ignored until let go
   let prevDown = new Set();
+  let lastUse = -Infinity; // clock of the last onPadUse, so a held stick tells once in a while, not every frame
+  const USE_EVERY_MS = 500;
 
   // The focus ring shows only after the pad was used, and goes on any other input.
   const setRing = (on) => { try { doc?.body?.classList?.[on ? 'add' : 'remove']('pad-focus'); } catch { /* no DOM */ } };
@@ -40,6 +42,9 @@ export function createGamepad({
   const ringOff = (e) => { if (e?.isTrusted === false) return; setRing(false); };
   const RING_OFF = ['pointerdown', 'keydown', 'touchstart'];
   for (const t of RING_OFF) win.addEventListener?.(t, ringOff, true);
+
+  // { id, vendor } of a pad: Chrome's id reads "... (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)", Firefox's "054c-0ce6-...".
+  const infoOf = (p) => ({ id: p.id, vendor: (/Vendor:\s*(\w{4})/i.exec(p.id) || /^(\w{4})-\w{4}-/.exec(p.id) || [])[1] ?? null });
 
   const pick = () => {
     let pads;
@@ -56,11 +61,13 @@ export function createGamepad({
     win.addEventListener?.('gamepadconnected', (e) => {
       if (e.gamepad?.mapping !== 'standard') return; // unknown layout: do nothing rather than guess
       if (activeIndex == null) { activeIndex = e.gamepad.index; state = createPadState(); }
+      onPadConnect?.(infoOf(e.gamepad));
       if (!announced) { announced = true; toast?.(line('pad.connected')); }
     });
     win.addEventListener?.('gamepaddisconnected', (e) => {
       if (e.gamepad?.index !== activeIndex) return;
       activeIndex = null;
+      onPadDisconnect?.(infoOf(e.gamepad));
       // Let go of the stick if it was held when the cable came out.
       if (state.moving) onMove?.(null);
       state = createPadState();
@@ -113,6 +120,13 @@ export function createGamepad({
 
   return {
     supported,
+    // The active pad's { id, vendor }, or null with none (TV mode picks its button pictures by it).
+    padInfo() {
+      if (!supported || activeIndex == null) return null;
+      let p;
+      try { p = nav.getGamepads()?.[activeIndex]; } catch { return null; }
+      return p?.connected ? infoOf(p) : null;
+    },
     destroy() { for (const t of RING_OFF) win.removeEventListener?.(t, ringOff, true); },
     // Called once per frame, whether or not a walk is live.
     poll(dt) {
@@ -136,6 +150,12 @@ export function createGamepad({
       }
       for (const i of [...held]) if (!raw[i]) held.delete(i);
       const buttons = raw.map((d, i) => d && !held.has(i));
+      // A real press or push (not a pad that only connected) tells TV mode the pad is the input now.
+      if (onPadUse && clock - lastUse >= USE_EVERY_MS
+        && (buttons.some(Boolean) || Math.hypot(pad.axes?.[0] || 0, pad.axes?.[1] || 0) > STICK_NAV || Math.hypot(pad.axes?.[2] || 0, pad.axes?.[3] || 0) > STICK_NAV)) {
+        lastUse = clock;
+        onPadUse(infoOf(pad));
+      }
       if (mode === 'none') return;
       if (mode === 'menu') {
         menuFrame(pad, buttons, dt);

@@ -29,7 +29,7 @@ import { voiceFor } from './catvoice.js';
 import { createAlbum } from './album.js';
 import { askToKeepSaves } from './savekeep.js';
 import { createSettings } from './settings.js';
-import { createTvLoader, tvWanted } from './tvseam.js';
+import { createTvLoader, tvWanted, tvHooks } from './tvseam.js';
 import { createBlockList } from './blocklist.js';
 import { phraseIdForDigit } from './chatkeys.js';
 import { createCloudToast, createCloudSync } from './game/cloudsync.js';
@@ -313,6 +313,9 @@ function init() {
     // No mouse to click for pointer lock, so a pad resumes the way touch does.
     onResume: () => player.setTouchEngaged(true),
     toast: (m) => hud.toast(m),
+    onPadUse: (i) => tvHooks.padUse?.(i),
+    onPadConnect: (i) => tvHooks.padConnect?.(i),
+    onPadDisconnect: (i) => tvHooks.padDisconnect?.(i),
   });
   // Pushes every live-tunable setting into the systems that read it — audio
   // volume/mute, camera invert-Y, touch-UI handedness — so a change applies
@@ -336,7 +339,7 @@ function init() {
   applySettings();
   // TV mode: its own lazy chunk (src/tv/), loaded only when the switch is on.
   // Nothing else in start-up may import src/tv/ (the build checks).
-  const tvContext = () => ({ doc: document, win: window, settings, toast: (m) => hud.toast(m) });
+  const tvContext = () => ({ doc: document, win: window, settings, toast: (m) => hud.toast(m), padInfo: () => gamepad.padInfo() });
   const tvLoader = createTvLoader({
     load: () => import('./tv/index.js'),
     ctx: tvContext,
