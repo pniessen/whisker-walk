@@ -53,10 +53,19 @@ export function chipsHtml(text, a) {
 }
 
 // How a hop (either side) stands, in kid words. Nothing here is a code or a secret.
-const HOP_LINES = { wrong: 'catlogin.hop.wrong', busy: 'catlogin.hop.busy', timeout: 'catlogin.hop.timeout', refused: 'catlogin.hop.refused' };
 function hopError(v, a) {
-  if (v.phase === 'error') return v.error === 'offline' ? a.phrase('catlogin.err.offline') : a.phrase(`catlogin.hop.err.${v.error}`);
-  return Object.hasOwn(HOP_LINES, v.phase) ? a.phrase(HOP_LINES[v.phase]) : '';
+  switch (v.phase) {
+    case 'wrong': return a.phrase('catlogin.hop.wrong');
+    case 'busy': return a.phrase('catlogin.hop.busy');
+    case 'timeout': return a.phrase('catlogin.hop.timeout');
+    case 'refused': return a.phrase('catlogin.hop.refused');
+    case 'error':
+      if (v.error === 'offline') return a.phrase('catlogin.err.offline');
+      if (v.error === 'unavailable') return a.phrase('catlogin.hop.err.unavailable');
+      if (v.error === 'denied') return a.phrase('catlogin.hop.err.denied');
+      return a.phrase('catlogin.hop.err.bad');
+    default: return '';
+  }
 }
 
 // Screen 3, the hop code half: six characters from the other device, then the wait for its OK.
