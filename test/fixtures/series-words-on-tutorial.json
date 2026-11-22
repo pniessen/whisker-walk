@@ -321,6 +321,18 @@
    "touch": "Controller connected 🎮",
    "keys": "Controller connected 🎮"
   },
+  "pad.settings.tv": {
+   "touch": "TV mode",
+   "keys": "TV mode"
+  },
+  "pad.settings.tv-note": {
+   "touch": "Big text for the sofa.",
+   "keys": "Big text for the sofa. Full screen: ⌃⌘F."
+  },
+  "pad.settings.tv-failed": {
+   "touch": "TV mode could not load. Try again later.",
+   "keys": "TV mode could not load. Try again later."
+  },
   "settings.save-failed": {
    "touch": "This device could not save. Free up space, then play again.",
    "keys": "This device could not save. Free up space, then play again."
@@ -655,6 +667,18 @@
   "pad.connected": {
    "touch": "Controller connected 🎮",
    "keys": "Controller connected 🎮"
+  },
+  "pad.settings.tv": {
+   "touch": "TV mode",
+   "keys": "TV mode"
+  },
+  "pad.settings.tv-note": {
+   "touch": "Big text for the sofa.",
+   "keys": "Big text for the sofa. Full screen: ⌃⌘F."
+  },
+  "pad.settings.tv-failed": {
+   "touch": "TV mode could not load. Try again later.",
+   "keys": "TV mode could not load. Try again later."
   },
   "settings.save-failed": {
    "touch": "This device could not save. Free up space, then play again.",
