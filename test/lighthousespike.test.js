@@ -44,3 +44,25 @@ describe('the Lighthouse spike data', () => {
     expect(g.canStep(-3, -19, -10, -19)).toBe(true); // the mouth
   });
 });
+
+import { floodTraversal } from './helpers/traversalflood.js';
+
+describe('never stuck, on the spike', () => {
+  const f = floodTraversal(area, { step: 0.5 });
+  const spawn = f.regionAt(L.SPIKE_SPAWN.x, L.SPIKE_SPAWN.z, 6);
+  const seen = f.reachable(spawn);
+  it('from the plateau she can reach every landing and the gallery', () => {
+    for (const p of L.LANDINGS) expect(seen.has(f.regionAt(p.x, p.z, p.y)), `landing ${p.y}`).toBe(true);
+    expect(seen.has(f.regionAt(L.TOWER.x + 4, L.TOWER.z, 13.5))).toBe(true);
+  });
+  it('and get back to the plateau from the gallery (the flights are two-way)', () => {
+    const back = f.reachable(f.regionAt(L.TOWER.x + 4, L.TOWER.z, 13.5));
+    expect(back.has(spawn)).toBe(true);
+  });
+  it('the cave floor is reached from the cove, not from the plateau by walking', () => {
+    const cave = f.regionAt(-10, -19, 0);
+    const cove = f.regionAt(10, 0, 0);
+    expect(cave).toBe(cove);
+    expect(f.regionAt(-10, -15, 6)).not.toBe(cave);
+  });
+});
