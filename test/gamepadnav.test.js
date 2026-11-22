@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { topLayer, candidates } from '../src/gamepadnav.js';
+import { describe, it, expect, vi } from 'vitest';
+import { topLayer, candidates, createNav, activate, nudgeRange, cycleSelect } from '../src/gamepadnav.js';
 
 // Fake DOM: just enough tree for layers and candidates (no jsdom in this project).
 function el(tag, { cls = [], attrs = {}, kids = [], type } = {}) {
@@ -102,5 +102,253 @@ describe('candidates', () => {
   it('a disabled button flagged by the property alone is dropped', () => {
     const b = el('button'); b.disabled = true;
     expect(candidates(layer([b]))).toEqual([]);
+  });
+});
+
+// ---- Navigator: move, press, sliders, selects, scroll ----
+class FakeEvent { constructor(type, init = {}) { this.type = type; Object.assign(this, init); } }
+function pad(tag, x, y, o = {}) {
+  const n = el(tag, { type: o.type, attrs: o.attrs, cls: o.cls, kids: o.kids });
+  n.rect = { left: x, top: y, width: 10, height: 10 };
+  n.getBoundingClientRect = () => n.rect;
+  n.scrollIntoView = vi.fn();
+  n.dispatchEvent = vi.fn();
+  n.focus = vi.fn(() => { n.ownerDocument.activeElement = n; });
+  if (o.click !== false) n.click = vi.fn();
+  return n;
+}
+function world(kidsOfTop, { under = [] } = {}) {
+  const top = layer(kidsOfTop);
+  const low = layer(under);
+  const body = el('body');
+  const doc = {
+    body, activeElement: body,
+    defaultView: { KeyboardEvent: FakeEvent, Event: FakeEvent },
+    querySelectorAll: (s) => (s === '[data-pad-layer]' ? [low, top] : []),
+    getElementById: () => null,
+  };
+  [...kidsOfTop, ...under].forEach((k) => { k.ownerDocument = doc; });
+  return { doc, top, low };
+}
+
+describe('createNav step', () => {
+  it('moves to the next candidate in the pushed direction, top layer only', () => {
+    const a = pad('button', 0, 0); const b = pad('button', 100, 0);
+    const under = pad('button', 30, 0);
+    const { doc } = world([a, b], { under: [under] });
+    const nav = createNav({ doc, back: () => false });
+    doc.activeElement = a;
+    expect(nav.step('right', 0)).toBe(true);
+    expect(doc.activeElement).toBe(b);
+    expect(under.focus).not.toHaveBeenCalled();
+    expect(nav.step('right', 1)).toBe(false); // edge: no wrap
+    expect(doc.activeElement).toBe(b);
+  });
+  it('scrolls the new focus into view once', () => {
+    const a = pad('button', 0, 0); const b = pad('button', 100, 0);
+    const { doc } = world([a, b]); doc.activeElement = a;
+    createNav({ doc, back: () => false }).step('right', 0);
+    expect(b.scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(b.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' });
+  });
+  it('null direction does nothing', () => {
+    const a = pad('button', 0, 0); const { doc } = world([a]); doc.activeElement = a;
+    expect(createNav({ doc, back: () => false }).step(null, 0)).toBe(false);
+    expect(a.focus).not.toHaveBeenCalled();
+  });
+  it('focus dropped to body: picks the candidate nearest the last centre, not candidate 0', () => {
+    const a = pad('button', 0, 0); const b = pad('button', 200, 0); const c = pad('button', 400, 0);
+    const { doc } = world([a, b, c]); doc.activeElement = c;
+    const nav = createNav({ doc, back: () => false });
+    nav.step('left', 0); // c -> b
+    expect(doc.activeElement).toBe(b);
+    doc.activeElement = doc.body; // re-render dropped focus; b is rebuilt a little to the right
+    const b2 = pad('button', 210, 0); b2.ownerDocument = doc; b2.parent = b.parent;
+    doc.querySelectorAll = (s) => (s === '[data-pad-layer]' ? [layer([a, b2, c])] : []);
+    nav.step('right', 1);
+    expect(doc.activeElement).toBe(b2);
+  });
+  it('focused element removed (activeElement outside the layer) recovers the same way', () => {
+    const a = pad('button', 0, 0); const b = pad('button', 200, 0);
+    const { doc } = world([a, b]); doc.activeElement = b;
+    const nav = createNav({ doc, back: () => false });
+    nav.step('left', 0); expect(doc.activeElement).toBe(a);
+    doc.activeElement = pad('button', 0, 0); // detached stranger
+    nav.step('down', 1);
+    expect(doc.activeElement).toBe(a);
+  });
+  it('empty layer: nothing happens', () => {
+    const { doc } = world([]);
+    const nav = createNav({ doc, back: () => false });
+    expect(nav.step('right', 0)).toBe(false);
+    expect(nav.press()).toBe(false);
+    expect(nav.enter()).toBe(false);
+  });
+  it('calls onActive when pad input is handled', () => {
+    const a = pad('button', 0, 0); const { doc } = world([a]);
+    const onActive = vi.fn();
+    createNav({ doc, back: () => false, onActive }).enter();
+    expect(onActive).toHaveBeenCalled();
+  });
+  it('caches candidates until the observer fires', () => {
+    const a = pad('button', 0, 0); const b = pad('button', 100, 0);
+    const { doc, top } = world([a]);
+    let fire; let made = 0;
+    doc.documentElement = el('html');
+    doc.defaultView.MutationObserver = class { constructor(cb) { fire = cb; made++; } observe() {} };
+    const nav = createNav({ doc, back: () => false });
+    const spy = vi.spyOn(top, 'querySelectorAll');
+    doc.activeElement = a;
+    nav.step('right', 0); nav.step('right', 1);
+    expect(made).toBe(1);
+    expect(spy).toHaveBeenCalledTimes(1);
+    top.kids.push(b); b.parent = top; b.ownerDocument = doc; fire();
+    nav.step('right', 2);
+    expect(doc.activeElement).toBe(b);
+  });
+  it('works without MutationObserver', () => {
+    const a = pad('button', 0, 0); const b = pad('button', 100, 0);
+    const { doc } = world([a, b]); doc.activeElement = a;
+    expect(createNav({ doc, back: () => false }).step('right', 0)).toBe(true);
+  });
+});
+
+describe('createNav enter (entry focus)', () => {
+  it('prefers data-pad-default, then a .primary, then the first candidate', () => {
+    const a = pad('button', 0, 0); const p = pad('button', 50, 0, { cls: ['primary'] });
+    const d = pad('button', 100, 0, { attrs: { 'data-pad-default': '' } });
+    let w = world([a, p, d]); createNav({ doc: w.doc, back: () => false }).enter();
+    expect(w.doc.activeElement).toBe(d);
+    const a2 = pad('button', 0, 0); const p2 = pad('button', 50, 0, { cls: ['primary'] });
+    w = world([a2, p2]); createNav({ doc: w.doc, back: () => false }).enter();
+    expect(w.doc.activeElement).toBe(p2);
+    const a3 = pad('button', 0, 0); const b3 = pad('button', 50, 0);
+    w = world([a3, b3]); createNav({ doc: w.doc, back: () => false }).enter();
+    expect(w.doc.activeElement).toBe(a3);
+  });
+  it('leaves an already focused candidate alone', () => {
+    const a = pad('button', 0, 0); const b = pad('button', 50, 0, { attrs: { 'data-pad-default': '' } });
+    const { doc } = world([a, b]); doc.activeElement = a;
+    expect(createNav({ doc, back: () => false }).enter()).toBe(false);
+    expect(b.focus).not.toHaveBeenCalled();
+  });
+  it('step with nothing focused and no memory falls back to entry focus', () => {
+    const a = pad('button', 0, 0); const b = pad('button', 50, 0);
+    const { doc } = world([a, b]);
+    createNav({ doc, back: () => false }).step('right', 0);
+    expect(doc.activeElement).toBe(a);
+  });
+});
+
+describe('press and activate', () => {
+  it('HTML button: click() exactly once, no key events', () => {
+    const a = pad('button', 0, 0); const { doc } = world([a]); doc.activeElement = a;
+    expect(createNav({ doc, back: () => false }).press()).toBe(true);
+    expect(a.click).toHaveBeenCalledTimes(1);
+    expect(a.dispatchEvent).not.toHaveBeenCalled();
+  });
+  it('SVG role=button without click(): Enter keydown then keyup, no click', () => {
+    const g = pad('g', 0, 0, { attrs: { role: 'button', tabindex: '0' }, click: false });
+    const { doc } = world([g]); doc.activeElement = g;
+    createNav({ doc, back: () => false }).press();
+    const evs = g.dispatchEvent.mock.calls.map((c) => c[0]);
+    expect(evs.map((e) => e.type)).toEqual(['keydown', 'keyup']);
+    expect(evs.every((e) => e.key === 'Enter' && e.bubbles)).toBe(true);
+  });
+  it('checkbox and radio toggle via click', () => {
+    const c = pad('input', 0, 0, { type: 'checkbox' }); const r = pad('input', 20, 0, { type: 'radio' });
+    activate(c); activate(r);
+    expect(c.click).toHaveBeenCalledTimes(1); expect(r.click).toHaveBeenCalledTimes(1);
+  });
+  it('select: press cycles instead of clicking', () => {
+    const s = pad('select', 0, 0); s.options = [{}, {}]; s.selectedIndex = 0;
+    s.ownerDocument = { defaultView: { Event: FakeEvent } };
+    activate(s);
+    expect(s.selectedIndex).toBe(1);
+    expect(s.click).not.toHaveBeenCalled();
+  });
+  it('press with no focus does nothing', () => {
+    const a = pad('button', 0, 0); const { doc } = world([a]);
+    expect(createNav({ doc, back: () => false }).press()).toBe(false);
+    expect(a.click).not.toHaveBeenCalled();
+  });
+  it('press on something under the top layer is ignored', () => {
+    const a = pad('button', 0, 0); const u = pad('button', 5, 5);
+    const { doc } = world([a], { under: [u] }); doc.activeElement = u;
+    expect(createNav({ doc, back: () => false }).press()).toBe(false);
+    expect(u.click).not.toHaveBeenCalled();
+  });
+});
+
+describe('sliders and selects', () => {
+  const range = (v, o = {}) => {
+    const r = pad('input', 0, 0, { type: 'range' });
+    Object.assign(r, { value: String(v), min: '0', max: '10', step: '2' }, o);
+    r.ownerDocument = { defaultView: { Event: FakeEvent } };
+    return r;
+  };
+  it('alt right/left changes by one step and fires input and change', () => {
+    const r = range(4);
+    expect(nudgeRange(r, 'right')).toBe(true);
+    expect(r.value).toBe('6');
+    expect(r.dispatchEvent.mock.calls.map((c) => c[0].type)).toEqual(['input', 'change']);
+    nudgeRange(r, 'left'); nudgeRange(r, 'left');
+    expect(r.value).toBe('2');
+  });
+  it('clamps at min and max, with no events when unchanged', () => {
+    const lo = range(0); const hi = range(10);
+    expect(nudgeRange(lo, 'left')).toBe(false); expect(lo.value).toBe('0');
+    expect(nudgeRange(hi, 'right')).toBe(false); expect(hi.value).toBe('10');
+    expect(lo.dispatchEvent).not.toHaveBeenCalled();
+    const odd = range(9); nudgeRange(odd, 'right'); expect(odd.value).toBe('10');
+  });
+  it('fractional steps stay clean', () => {
+    const r = range(0.1, { step: '0.1', max: '1' });
+    nudgeRange(r, 'right'); nudgeRange(r, 'right');
+    expect(r.value).toBe('0.3');
+  });
+  it('nav.alt works on a focused range, ignores other elements', () => {
+    const r = range(2); const b = pad('button', 50, 0);
+    const { doc } = world([r, b]); [r, b].forEach((k) => { k.ownerDocument = doc; });
+    doc.activeElement = r;
+    const nav = createNav({ doc, back: () => false });
+    expect(nav.alt('right')).toBe(true); expect(r.value).toBe('4');
+    doc.activeElement = b;
+    expect(nav.alt('right')).toBe(false);
+  });
+  it('cycleSelect goes to the next option, wraps, and fires change', () => {
+    const s = pad('select', 0, 0); s.options = [{}, {}, {}]; s.selectedIndex = 1;
+    s.ownerDocument = { defaultView: { Event: FakeEvent } };
+    expect(cycleSelect(s)).toBe(true); expect(s.selectedIndex).toBe(2);
+    cycleSelect(s); expect(s.selectedIndex).toBe(0);
+    expect(s.dispatchEvent.mock.calls.every((c) => c[0].type === 'change')).toBe(true);
+    expect(s.dispatchEvent).toHaveBeenCalledTimes(2);
+  });
+  it('select with one option: no change, no event', () => {
+    const s = pad('select', 0, 0); s.options = [{}]; s.selectedIndex = 0;
+    expect(cycleSelect(s)).toBe(false);
+    expect(s.dispatchEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe('scroll', () => {
+  it('scrolls the nearest scrollable ancestor of the focus by pixels', () => {
+    const a = pad('button', 0, 0);
+    const strip = pad('div', 0, 0, { kids: [a] });
+    Object.assign(strip, { scrollWidth: 500, clientWidth: 100, scrollHeight: 50, clientHeight: 50, scrollBy: vi.fn() });
+    strip.parentElement = null; a.parentElement = strip;
+    const { doc } = world([strip]); doc.activeElement = a;
+    expect(createNav({ doc, back: () => false }).scroll(30, 0)).toBe(true);
+    expect(strip.scrollBy).toHaveBeenCalledWith({ left: 30, top: 0 });
+  });
+  it('zero scroll reads no layout; nothing scrollable returns false', () => {
+    const a = pad('button', 0, 0); const wrap = pad('div', 0, 0, { kids: [a] });
+    let reads = 0;
+    Object.defineProperty(wrap, 'scrollHeight', { get() { reads++; return 10; } });
+    a.parentElement = wrap; wrap.parentElement = null; wrap.scrollBy = vi.fn();
+    const { doc } = world([wrap]); doc.activeElement = a;
+    const nav = createNav({ doc, back: () => false });
+    expect(nav.scroll(0, 0)).toBe(false); expect(reads).toBe(0);
+    expect(nav.scroll(0, 20)).toBe(false); expect(wrap.scrollBy).not.toHaveBeenCalled();
   });
 });
