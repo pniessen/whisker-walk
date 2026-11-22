@@ -152,7 +152,7 @@ html.tv {
   --tv-solid: #223047;
 }
 html.tv body { line-height: 1.4; word-spacing: .04em; }
-html.tv :is(.screen-panel, .join-moment-card, .hb-sheet, .lp-card, .ls-card) { font-weight: 500; line-height: 1.4; text-wrap: pretty; }
+html.tv :is(.screen-panel, .join-moment-card, .hb-sheet, .lp-card) { font-weight: 500; line-height: 1.4; text-wrap: pretty; }
 html.tv :is(.screen-panel, .join-moment-card) :is(h1, h2) { text-wrap: balance; letter-spacing: .01em; }
 
 /* A card hides the whole walking HUD behind it, and its scrim is solid enough to read on. */
