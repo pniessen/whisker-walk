@@ -401,3 +401,24 @@ describe('crossings that share an end', () => {
   });
   it('two crossings may share an end', () => expect(T.validateTraversal(sharedSpec, { ground: roof, bounds: { minX: -10, maxX: 10, minZ: -10, maxZ: 10 } })).toEqual([]));
 });
+
+describe('the stair kind (Lighthouse)', () => {
+  const stair = { id: 's', kind: 'stair', width: 1, points: [{ x: -2.4, z: 0, y: 3 }, { x: 2.4, z: 0, y: 3 }] };
+  const c = T.createTraversal({ crossings: [stair] }, level).crossings[0];
+  it('is a kind, after the five old ones, and validates like a rail', () => {
+    expect(T.CROSSING_KINDS).toEqual(['plank', 'ridge', 'gutter', 'line', 'pipe', 'stair']);
+    expect(T.validateTraversal({ crossings: [stair] }, ctx)).toEqual([]);
+  });
+  it('walks at the normal pace, with or without Tightrope Tail', () => {
+    for (const steady of [false, true]) {
+      const st = { u: 0.5, v: 0 };
+      for (let i = 0; i < 200; i++) { T.balanceStep(st, c, 1, 1 / 60, steady); if (st.u >= c.length) break; }
+      expect(st.v).toBeCloseTo(T.STAIR_SPEED, 2);
+    }
+    expect(T.STAIR_SPEED).toBe(2.4);
+  });
+  it('is not a crossing that counts toward Tightrope Tail', () => {
+    expect(T.countsAsCrossing(c)).toBe(false);
+    for (const k of ['plank', 'ridge', 'gutter', 'line', 'pipe']) expect(T.countsAsCrossing({ kind: k })).toBe(true);
+  });
+});

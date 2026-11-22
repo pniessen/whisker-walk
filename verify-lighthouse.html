@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lighthouse spike</title>
+<!-- Lighthouse milestone 0: the picture page for the tower stair, the cave and the pool
+     (src/world/lighthousespike.js, drawn by lighthousespikeview.js). The real cat, the
+     real player and the real moves runtime, in main.js's frame order. NOT in the game:
+     nothing reaches it from the app. scripts/record-page.mjs makes the pictures and
+     films headless: __shot(name), __tour(name) + __frame(), __snap().
+     URL params: size=WxH (default 960x540), bare (no HUD), rm=1 (reduced motion),
+     place=1 (milestone 1: the real Lighthouse Point, src/world/lighthouse.js, under the walk's own
+     dusk look (render/dusk.js applyDusk, the dusk tint, the base exposure 1.1) with its own shots;
+     milestone 2: its life too (the lamp: the lever's tippable, the beam, the halo), shots with "lit" in their
+     spec light the lamp first, and the tours "climb", "lamp" (up the stair, to the lever, light it) and
+     "railwalk" walk the real moves).
+     Free play: the arrows or W-A-S-D walk her (the stair needs "up" held). -->
+<style>
+  html, body { margin: 0; background: #1c2431; overflow: hidden; font: 12px/1.35 Avenir, system-ui, sans-serif; color: #f1e0c2; }
+  canvas { position: fixed; left: 0; top: 0; display: block; }
+  #hud { position: fixed; left: 0; top: 0; padding: 6px 10px; background: rgba(20, 26, 36, .72); white-space: pre; pointer-events: none; }
+  #caption { position: fixed; left: 0; right: 0; bottom: 18px; text-align: center; pointer-events: none; }
+  #caption span { display: inline-block; padding: 6px 16px; border-radius: 8px; background: rgba(20, 26, 36, .78); color: #fff6e6; font-size: 22px; font-weight: 600; }
+  #caption:empty { display: none; }
+</style>
+</head>
+<body>
+<div id="hud">loading…</div>
+<div id="caption"></div>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier } from '/src/render/textures.js';
+  import { createSun, createFill, DEFAULT_GROUND_BOUNCE, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { skyBackground } from '/src/render/sky.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { createPlayer, pounceArc, POUNCE_HOP_TIME } from '/src/player.js';
+  import { createTraversalLive } from '/src/traversallive.js';
+  import { BASE_ABILITIES, facingYaw, behindYaw, stickToWorld } from '/src/traversal.js';
+  import { createTippables } from '/src/tippables.js';
+  import { buildLighthouseSpike } from '/src/world/lighthousespikeview.js';
+  import { LANDINGS, POOL, SPIKE_TRAVERSAL } from '/src/world/lighthousespike.js';
+  import { LIGHTHOUSE_TRAVERSAL } from '/src/world/lighthouseplan.js';
+
+  const params = new URLSearchParams(location.search);
+  const rm = params.get('rm') === '1';
+  const [W, H] = (params.get('size') || '960x540').split('x').map(Number);
+  const BARE = params.has('bare');
+  const DT = 1 / 30;
+  const PACE = 3.5;
+  const SKY = { top: 0xf0b070, horizon: 0xf6d9a8 }; // a golden-hour stand-in, not the real look
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  document.body.prepend(renderer.domElement);
+  const tier = { name: 'high', envIntensity: 0.45 };
+  setTextureTier(tier);
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+  scene.background = skyBackground(SKY.top, SKY.horizon);
+  scene.fog = new THREE.Fog(SKY.horizon, 60, 160);
+  const sun = createSun();
+  sun.color.set(0xffd9a0);
+  scene.add(sun);
+  const fill = createFill(DEFAULT_GROUND_BOUNCE);
+  scene.add(fill);
+  const PLACE = params.get('place') === '1';
+  let area;
+  let tippables = null;
+  let lamp = null;
+  let lever = null;
+  const lifeSession = { tippables: null };
+  if (PLACE) {
+    const { build } = await import('/src/world/lighthouse.js');
+    const { applyDusk, duskEnv, tintDuskLawn } = await import('/src/render/dusk.js');
+    area = build(scene, {});
+    const look = applyDusk({ scene, sun, fill, areaData: area });
+    tintDuskLawn({ ground: scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint)), grass: null, look });
+    scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
+    renderer.toneMappingExposure = 1.1;
+    tippables = createTippables(scene, area.tippables, { ground: area.ground });
+    lifeSession.tippables = tippables;
+    lever = tippables.list.find((e) => e.kind === 'lever');
+  } else {
+    area = buildLighthouseSpike(scene);
+  }
+  const cat = buildCat('tabby');
+  scene.add(cat);
+  const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
+  const shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
+  sun.shadow.bias = SUN_BIAS;
+  assignShadowCasters(scene);
+  // the place's own life (the lamp), made after the caster sweep as the walk makes it; each shot makes a new one
+  function remakeLife() {
+    lamp?.dispose();
+    lamp = PLACE ? area.life({ scene, ground: area.ground, audio: null, log: null, progression: {}, reducedMotion: rm, tier: { name: 'high' }, roomSeed: undefined }) : null;
+    if (lever) { lever.tipped = false; lever.anim = 0; lever.group.rotation.z = 0; lever.group.position.y = lever.gy; lever.group.getObjectByName('lever-arm').rotation.z = 0; }
+  }
+  const pullLever = () => { if (lever && !lever.tipped) tippables.tip(lever); };
+  remakeLife();
+
+  const player = createPlayer(camera, renderer.domElement);
+  player.setReducedMotion(rm);
+  const session = { perched: null, fight: null, chasing: false, idleTime: 0 };
+  const ctx = { cat, player, session };
+  const events = [];
+  let live = null;
+  let t = 0;
+  let pageJump = 0;
+  const ARC = pounceArc(null, { reducedMotion: rm });
+
+  function reset(x, z, fx, fz, yawFrom = [fx, fz]) {
+    live?.dispose();
+    live = createTraversalLive(area.traversal, { ground: area.ground, reducedMotion: rm, abilities: () => BASE_ABILITIES, onEvent: (e) => events.push(e) });
+    events.length = 0;
+    session.idleTime = 0;
+    pageJump = 0;
+    cat.position.set(x, area.ground.y(x, z), z);
+    cat.rotation.set(0, facingYaw(fx, fz), 0);
+    player.setAvatar(cat, PACE);
+    player.setGround(area.ground);
+    player.setViewYaw(behindYaw(yawFrom[0], yawFrom[1]));
+    player.enable();
+    player.update(0, area.colliders, area.bounds, area.waters);
+    shadows.update(area.ground.y(x, z), 1e3);
+  }
+  const stick = (x, z) => player.setTouchMove(x === 0 && z === 0 ? null : { x, z, mag: 1 });
+  const _w = { x: 0, z: 0 };
+  // a held WORLD direction, as the thumb would (the camera is behind her; the stick is that direction turned by the view)
+  const push = (wx, wz) => { stickToWorld(wx, wz, -player.viewYaw(), _w); player.setTouchMove({ x: _w.x, z: _w.z, mag: 1 }); };
+  function press() {
+    if (live.jump(ctx)) return true;
+    player.pounce(ARC);
+    pageJump = POUNCE_HOP_TIME;
+    return false;
+  }
+  function frame(dt) {
+    t += dt;
+    if (pageJump > 0) pageJump -= dt;
+    for (const w of area.waterFx ?? []) w.update?.(dt);
+    tippables?.update(dt);
+    live.update(dt, t, ctx);
+    player.update(dt, area.colliders, area.bounds, area.waters);
+    player.speedFactor = 1;
+    animateCat(cat, pageJump > 0 ? 'pounce' : live.pose ?? 'follow', t, live.busy ? live.speed : player.speed, rm);
+    cat.rotation.x = 0;
+    cat.rotation.z = 0;
+    live.late(dt, t, ctx);
+    lamp?.update(dt, t, cat.position, camera, lifeSession);
+    shadows.update(area.ground.y(cat.position.x, cat.position.z), dt);
+    render();
+  }
+
+  const hud = document.getElementById('hud');
+  if (BARE) hud.remove();
+  const captionEl = document.getElementById('caption');
+  let caption = null;
+  function setCaption(text) {
+    if (text === caption) return;
+    caption = text;
+    captionEl.replaceChildren();
+    if (text) { const s = document.createElement('span'); s.textContent = text; captionEl.append(s); }
+  }
+  function render() {
+    renderer.render(scene, camera);
+    if (BARE) return;
+    const p = cat.position;
+    hud.textContent = [`at ${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)}`, `phase ${live.phase ?? '-'}${live.crossing ? ` on ${live.crossing.id}` : ''} · speed ${(live.busy ? live.speed : player.speed).toFixed(2)}`,
+      `events ${events.map((e) => e.type).join(' ')}`].join('\n');
+  }
+
+  // ---- Scripted walks: a list of steps { stick: [x, z], until: () => bool, max: s, caption } ----
+  const [F1, F2, F3] = SPIKE_TRAVERSAL.crossings;
+  const dir = (c, k) => [c.points[k + 1].x - c.points[k].x, c.points[k + 1].z - c.points[k].z];
+  const mounts = () => events.filter((e) => e.type === 'mount').length;
+  const atTop = () => mounts() >= 3 && !live.busy;
+  const hold = (s) => { let t0 = null; return () => { t0 ??= t; return t - t0 >= s; }; };
+  const TOURS = {
+    climb: { start: [LANDINGS[0].x, LANDINGS[0].z, ...dir(F1, 0)], steps: () => [
+      { caption: 'Up the stair', stick: [0, -1], until: atTop, max: 30 },
+      { caption: 'The gallery', stick: [0, 0], until: hold(1.5), max: 3 },
+    ] },
+    descend: { start: [LANDINGS[3].x, LANDINGS[3].z, ...dir(F3, F3.points.length - 2).map((v) => -v)], steps: () => [
+      { caption: 'And back down', stick: [0, 1], until: () => mounts() >= 3 && !live.busy, max: 30 },
+      { caption: '', stick: [0, 0], until: hold(1), max: 2 },
+    ], yawFrom: () => dir(F3, F3.points.length - 2) },
+    cave: { start: [2, -19, -1, 0], steps: () => [
+      { caption: 'Into the sea cave', stick: [0, -1], until: () => cat.position.x < -14.6, max: 12 },
+      { caption: 'The back of the cave', stick: [0, 0], until: hold(1.2), max: 3 },
+      { caption: 'And out again', stick: [0, 1], until: () => cat.position.x > 1, max: 14 },
+    ] },
+    pool: { start: [POOL.x - POOL.r - 2.5, POOL.z, 1, 0], steps: () => [
+      { caption: 'Wading a rock pool', stick: [0, -1], until: () => cat.position.x > POOL.x + POOL.r + 1.5, max: 12 },
+    ] },
+  };
+  if (PLACE) {
+    const T = (id) => LIGHTHOUSE_TRAVERSAL.crossings.find((c) => c.id === id);
+    const [S1] = [T('stair-1')];
+    const S3 = T('stair-3');
+    const lastDir = (c) => dir(c, c.points.length - 2);
+    const D = Math.PI / 180;
+    const TW = { x: -22, z: -20 };
+    const at = (deg, r) => ({ x: TW.x + r * Math.cos(deg * D), z: TW.z + r * Math.sin(deg * D) });
+    const door = at(21, 1.5);
+    const viaRing = at(21 + 90, 1.3);
+    const leverAt = { x: lever.group.position.x, z: lever.group.position.z };
+    const toward = (p, tol = 0.35) => ({ push: () => [p.x - cat.position.x, p.z - cat.position.z], until: () => Math.hypot(p.x - cat.position.x, p.z - cat.position.z) < tol, max: 8 });
+    const rail = T('rail-walk');
+    const climbTo = { caption: 'Up the stair', stick: [0, -1], until: atTop, max: 30 };
+    Object.assign(TOURS, {
+      climb: { start: [S1.points[0].x, S1.points[0].z, ...dir(S1, 0)], steps: () => [
+        climbTo,
+        { caption: 'The gallery', stick: [0, 0], until: hold(1.5), max: 3 },
+      ] },
+      lamp: { start: [S1.points[0].x, S1.points[0].z, ...dir(S1, 0)], steps: () => [
+        climbTo,
+        { caption: 'Into the lamp room', ...toward(door), until: toward(door).until, max: 8 },
+        { caption: 'Round to the lever', ...toward(viaRing), until: toward(viaRing).until, max: 6 },
+        { caption: '', ...toward(leverAt, 0.55), until: toward(leverAt, 0.55).until, max: 6 },
+        { caption: 'Paw the lever', stick: [0, 0], act: pullLever, until: hold(2.2), max: 4 },
+        { caption: 'The lamp is lit', stick: [0, 0], until: hold(5), max: 6 },
+      ] },
+      railwalk: { start: [rail.points[0].x, rail.points[0].z, ...dir(rail, 0)], steps: () => [
+        { caption: 'The railing walk', stick: [0, -1], until: () => live.crossing === null && events.some((e) => e.type === 'cross'), max: 30 },
+        { caption: '', stick: [0, 0], until: hold(1), max: 2 },
+      ] },
+    });
+    void S3; void lastDir; void viaRing;
+  }
+  let pilot = null;
+  window.__tour = (name) => {
+    const spec = TOURS[name];
+    if (!spec) throw new Error(`no tour "${name}"; there are ${Object.keys(TOURS).join(', ')}`);
+    const [x, z, fx, fz] = spec.start;
+    const y = spec.yawFrom?.() ?? [fx, fz];
+    reset(x, z, fx, fz, y);
+    remakeLife();
+    pilot = { steps: spec.steps(), i: 0, t0: t, acted: -1 };
+    render();
+    return name;
+  };
+  window.__frame = () => {
+    if (pilot) {
+      const s = pilot.steps[pilot.i];
+      if (!s) { stick(0, 0); frame(DT); return { done: true, caption }; }
+      setCaption(s.caption || null);
+      if (s.push) { const [wx, wz] = s.push(); push(wx, wz); } else stick(...s.stick);
+      if (s.act && pilot.acted !== pilot.i) { pilot.acted = pilot.i; s.act(); }
+      if (s.until() || t - pilot.t0 > s.max) { pilot.i++; pilot.t0 = t; }
+    }
+    frame(DT);
+    return { done: false, caption };
+  };
+
+  // ---- Shots: place her, walk `secs` with the stick, look ----
+  const SHOTS = {
+    arrival: { at: [-14, -8], face: [-1, -0.9], secs: 0 },
+    foot: { at: [LANDINGS[0].x, LANDINGS[0].z], face: dir(F1, 0), stick: [0, 0], secs: 0 },
+    stair1: { at: [LANDINGS[0].x, LANDINGS[0].z], face: dir(F1, 0), stick: [0, -1], secs: 3.5 },
+    stair2: { at: [LANDINGS[1].x, LANDINGS[1].z], face: dir(F2, 0), stick: [0, -1], secs: 4.5 },
+    stair3: { at: [LANDINGS[2].x, LANDINGS[2].z], face: dir(F3, 0), stick: [0, -1], secs: 4.2 },
+    landing: { at: [LANDINGS[1].x, LANDINGS[1].z], face: dir(F2, 0), stick: [0, 0], secs: 0.5 },
+    gallery: { at: [LANDINGS[3].x, LANDINGS[3].z], face: dir(F3, F3.points.length - 2).map((v) => -v), stick: [0, 0], secs: 0.5, yawFrom: dir(F3, F3.points.length - 2) },
+    cave: { at: [2, -19], face: [-1, 0], stick: [0, -1], secs: 3.2 },
+    caveback: { at: [2, -19], face: [-1, 0], stick: [0, -1], secs: 4.6 },
+    pool: { at: [POOL.x - POOL.r - 2.5, POOL.z], face: [1, 0], stick: [0, -1], secs: 1.7 },
+  };
+  const PLACE_SHOTS = {
+    arrival: { at: [14, 36], face: [0, -1], secs: 0 },
+    pools: { at: [21, 32], face: [0, -1], secs: 0 },
+    wade: { at: [16, 29], face: [0, -1], stick: [0, -1], secs: 1.9 },
+    shore: { at: [28, 30], face: [1, -0.3], secs: 0 },
+    seawest: { at: [-34, 28], face: [-1, 0], secs: 0 },
+    pathfoot: { at: [4, 16], face: [-1, 0], secs: 0 },
+    pathclimb: { at: [-6, 16], face: [-1, 0], stick: [0, -1], secs: 3.0 },
+    landing: { at: [-18, 16], face: [-1, 0], stick: [0, -1], secs: 2.0 },
+    pathtop: { at: [-24.4, 11], face: [0, -1], stick: [0, -1], secs: 2.3 },
+    plateau: { at: [-24.4, 0], face: [0, -1], secs: 0 },
+    towerfoot: { at: [-12, -9], face: [-0.8, -0.6], secs: 0 },
+    cottage: { at: [-18, -4], face: [-1, -0.1], secs: 0 },
+    garden: { at: [-25, 1], face: [-1, 0.2], secs: 0 },
+    cavemouth: { at: [4, -19], face: [-1, 0], secs: 0 },
+    cavein: { at: [4, -19], face: [-1, 0], stick: [0, -1], secs: 3.5 },
+    caveback: { at: [4, -19], face: [-1, 0], stick: [0, -1], secs: 4.9 },
+    aerialsea: { at: [14, 36], face: [0, -1], secs: 0, cam: { pos: [66, 24, 34], look: [-14, 6, -12], fov: 52 } },
+    aerialtower: { at: [14, 36], face: [0, -1], secs: 0, cam: { pos: [18, 16, 0], look: [-22, 12, -20], fov: 55 } },
+    aerialpools: { at: [14, 36], face: [0, -1], secs: 0, cam: { pos: [33, 11, 44], look: [17, 0, 20], fov: 60 } },
+    aerialwest: { at: [14, 36], face: [0, -1], secs: 0, cam: { pos: [-72, 14, 0], look: [-30, 5, -22], fov: 55 } },
+    aerialcove: { at: [14, 36], face: [0, -1], secs: 0, cam: { pos: [34, 18, -38], look: [4, 3, -4], fov: 58 } },
+  };
+  // milestone 2 (the climb and the lamp): `lit` pulls the lever first and runs on `warm` s; `t` (default 0) is the walk
+  // second the beam is shown at (the beam's angle is 20 degrees a second from the solo phase 0)
+  if (PLACE) {
+    const T0 = LIGHTHOUSE_TRAVERSAL.crossings;
+    const sf = (c, k) => [c.points[k].x, c.points[k].z];
+    const dr = (c, k) => dir(c, k);
+    const [A1, A2, A3, RW] = T0;
+    Object.assign(PLACE_SHOTS, {
+      arrivallit: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 2.9 },
+      arrivallit2: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 4.4 },
+      arrivalfar: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 2.9, zoom: 2 },
+      arrivalfarther: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 2.9, zoom: 3 },
+      cavelit: { at: [4, -19], face: [-1, 0], secs: 0, lit: true, warm: 3.0 },
+      stairfoot: { at: sf(A1, 0), face: dr(A1, 0), secs: 0 },
+      stairup: { at: sf(A1, 0), face: dr(A1, 0), stick: [0, -1], secs: 5.0 },
+      stair2: { at: sf(A2, 0), face: dr(A2, 0), stick: [0, -1], secs: 4.5 },
+      stair3: { at: sf(A3, 0), face: dr(A3, 0), stick: [0, -1], secs: 4.2 },
+      ledge: { at: sf(A2, 0), face: dr(A2, 0), secs: 0.5 },
+      gallery: { at: sf(A3, A3.points.length - 1), face: dr(A3, A3.points.length - 2).map((v) => -v), secs: 0.5, yawFrom: dr(A3, A3.points.length - 2) },
+      galleryside: { at: [-26.5, -16.6], face: [-0.7, 0.7], secs: 0 },
+      lampdoor: { at: [-18.2, -18.7], face: [-1, -0.3], secs: 0 },
+      lamproom: { at: [-22.675, -18.83], face: [-0.585, -1.65], secs: 0.3 },
+      atlever: { at: [-22.675, -18.83], face: [-0.585, -1.65], secs: 0.3, lit: false },
+      lamproomlit: { at: [-22.675, -18.83], face: [-0.585, -1.65], secs: 0, lit: true, warm: 3.5 },
+      lamproomfar: { at: [-22.675, -18.83], face: [-0.585, -1.65], secs: 0, lit: true, warm: 3.5, zoom: 2 },
+      lamplit: { at: [-18.2, -18.7], face: [-1, -0.3], secs: 0, lit: true, warm: 3.0 },
+      railwalk: { at: sf(RW, 0), face: dr(RW, 0), stick: [0, -1], secs: 4.0 },
+      pinnacle: { at: [-39.65, -12], face: [-1, 0], secs: 0 },
+      gullrock: { at: [-39.65, -30], face: [-1, 0], secs: 0 },
+      aerialtowerlit: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 2.0, cam: { pos: [14, 22, 30], look: [-22, 14, -20], fov: 60 } },
+      aerialbeam: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 2.6, cam: { pos: [16, 12, 30], look: [-8, 10, -6], fov: 70 } },
+      aerialnorth: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 1.5, cam: { pos: [10, 22, -46], look: [-22, 12, -20], fov: 60 } },
+      aerialstacks: { at: [14, 36], face: [0, -1], secs: 0, cam: { pos: [-70, 14, -22], look: [-42, 4, -20], fov: 55 } },
+      aerialstair: { at: [14, 36], face: [0, -1], secs: 0, cam: { pos: [-8, 17, -2], look: [-22, 10, -22], fov: 62 } },
+    });
+  }
+  window.__shot = (name) => {
+    const s = (PLACE ? PLACE_SHOTS : SHOTS)[name];
+    if (!s) throw new Error(`no shot "${name}"; there are ${Object.keys(SHOTS).join(', ')}`);
+    pilot = null;
+    setCaption(null);
+    player.setCameraZoom(s.zoom ?? 1, { instant: true });
+    reset(s.at[0], s.at[1], s.face[0], s.face[1], s.yawFrom ?? s.face);
+    remakeLife();
+    if (s.lit) pullLever();
+    if (s.stick) stick(...s.stick);
+    for (let k = 0; k < s.secs / DT; k++) frame(DT);
+    stick(0, 0);
+    // run the lamp's own clock on to the walk second the picture wants (the cat stands still)
+    for (let k = 0; k < (s.warm ?? 0) / DT; k++) frame(DT);
+    if (s.cam) {
+      camera.fov = s.cam.fov ?? camera.fov;
+      camera.updateProjectionMatrix();
+      camera.position.set(...s.cam.pos);
+      camera.lookAt(...s.cam.look);
+      cat.visible = false;
+    } else { cat.visible = true; camera.fov = 70; camera.updateProjectionMatrix(); }
+    render();
+    return name;
+  };
+  window.__snap = (q = 0.85) => { render(); return renderer.domElement.toDataURL('image/jpeg', q); };
+  window.__live = () => live;
+  window.__events = events;
+
+  document.addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.repeat) { e.preventDefault(); press(); } });
+  if (PLACE) reset(14, 36, 0, -1); else reset(-14, -8, -1, -0.9);
+  render();
+  window.__ready = true;
+  if (params.get('drive') !== '1') {
+    const clock = new THREE.Clock();
+    const loop = () => { requestAnimationFrame(loop); frame(Math.min(clock.getDelta(), 0.05)); };
+    requestAnimationFrame(loop);
+  }
+</script>
+</body>
+</html>

@@ -54,6 +54,8 @@ const loaders = {
   market: () => Promise.all([import('./market.js'), import('../marketlive.js'), import('../people/index.js')])
     .then(([world, live, p]) => ({ id: 'market', world, life: { createMarketLive: live.createMarketLive, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } })),
   house: () => import('./house.js').then((w) => own('house', w)),
+  // Lighthouse Point (?lighthouse=1 only until its milestone 4: no catalog row, no gate).
+  lighthouse: () => import('./lighthouse.js').then((w) => own('lighthouse', w)),
 };
 
 // The private family edition (vite --mode family) registers its one place here; in every other build
@@ -81,6 +83,7 @@ const entryModules = {
   roofs: Object.freeze(['src/world/roofs.js']),
   market: Object.freeze(['src/world/market.js', 'src/marketlive.js', 'src/people/index.js']),
   house: Object.freeze(['src/world/house.js']),
+  lighthouse: Object.freeze(['src/world/lighthouse.js']),
 };
 if (typeof __PRIVATE_FAMILY__ !== 'undefined' && __PRIVATE_FAMILY__) {
   entryModules.family = Object.freeze(['src/family/index.js']);

@@ -875,7 +875,7 @@ export function createInteractions({
       const gnome = s.secrets.list.find((e) => e.key === 'gnome');
       if (tippable) {
         s.prompt = { kind: 'tip', data: tippable };
-        setPrompt('E — paw it over');
+        setPrompt(tippable.prompt ?? 'E — paw it over'); // a spot's own line (Lighthouse Point's lever)
       } else if (gnome && !gnome.group.userData.tipped &&
           gnome.group.position.distanceTo(catP) < 1.3) {
         s.prompt = { kind: 'tip-gnome', data: gnome };

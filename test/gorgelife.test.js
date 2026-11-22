@@ -423,7 +423,7 @@ describe('gorge life: the caves', () => {
   });
 
   it('on any other area none of this exists', async () => {
-    // Only the Gorge, the River, the Rooftops, the Old House and (with the
+    // Only the Gorge, the River, the Rooftops, the Old House, Lighthouse Point (its lamp, milestone 2) and (with the
     // bigger-areas switch on) the Pines hand walk.js a `life`, and only the
     // Gorge's has a light: the River's (marshlife.js) is its mist and
     // dragonflies, the Rooftops' (roofslife.js) its evening deepening, the Old
@@ -447,8 +447,8 @@ describe('gorge life: the caves', () => {
         setGrow(null);
       }
     };
-    expect(withLife(false)).toEqual(['gorge', 'house', 'market', 'river', 'roofs']);
-    expect(withLife(true)).toEqual(['gorge', 'house', 'market', 'pines', 'river', 'roofs']);
+    expect(withLife(false)).toEqual(['gorge', 'house', 'lighthouse', 'market', 'river', 'roofs']);
+    expect(withLife(true)).toEqual(['gorge', 'house', 'lighthouse', 'market', 'pines', 'river', 'roofs']);
     expect(readFileSync(new URL('marshlife.js', dir), 'utf8')).not.toMatch(/Light\(/);
     const walk = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
     expect(walk).toMatch(/areaData\.life\?\.\(\{[^}]*\bweather\b[^}]*\}\) \?\? NO_AREA_LIFE/);

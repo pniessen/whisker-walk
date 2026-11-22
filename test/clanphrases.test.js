@@ -7,9 +7,11 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, globSync } from 'node:fs';
 import { PHRASE_IDS, phrase, hasPhrase, addPhrases } from '../src/clanphrases.js';
 import { LINES as CATLOGIN_LINES } from '../src/ui/catloginwords.js';
+import { LINES as LIGHTHOUSE_LINES } from '../src/world/lighthousewords.js';
 
 // the My cat sheet's lazy chunk adds its lines when it arrives; the scan below reads src/ for every id it uses
 addPhrases(CATLOGIN_LINES);
+addPhrases(LIGHTHOUSE_LINES); // (so does Lighthouse Point's chunk: src/world/lighthousewords.js adds its own on import)
 import { RANK_WORDS, OUTSIDE_WORDS, PLACE_WORDS, CLAN_SUFFIX } from '../src/clanwords.js';
 import { contestToast } from '../src/markcontest.js';
 import { BORDER_ASK, borderWords } from '../src/game/borderfight.js';

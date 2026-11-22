@@ -22,6 +22,7 @@ import { roofsOn } from '../roofsflag.js';
 import { houseOn } from '../houseflag.js';
 import { isIndoor } from '../indoor.js';
 import { marketOn } from '../marketflag.js';
+import { lighthouseOn } from '../lighthouseflag.js';
 import { birthdayDue, BDAY_AREA, BDAY_START, BRIDGE_ISLAND_END, speakerFor, birthdayCatName, noteCandlesBlown, bdayCountsWalk, saveBirthdayPhoto, BDAY_PHOTO_KEY } from '../birthday.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
@@ -586,6 +587,8 @@ export function createWalkLifecycle({
     // ?market=1: a solo Market walk in Clan Edition, never in a room (Market step 1).
     if (marketOn() && isClanEdition(progression.state) && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'market' });
     if (houseOn() && isClanEdition(progression.state) && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'house' });
+    // ?lighthouse=1: a solo Lighthouse Point walk, either edition, never in a room (Lighthouse milestone 1).
+    if (lighthouseOn() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'lighthouse' });
     // Her birthday (src/birthday.js): while the Gathering waits, a solo
     // Explore starts in the Pines at the foot of the island bridge. An
     // override only, never a setArea, and nothing is unlocked: the Pines stay
@@ -1871,7 +1874,7 @@ export function createWalkLifecycle({
     // her view heading (the tower view turns it), and the Old House's yarn toy.
     // The Market's takes the pack's people factory (its street musician) and its rung's near distance.
     const lifeViewYaw = { get: () => player.viewYaw(), set: (v) => player.setViewYaw(v) };
-    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0, log, toy, progression, viewYaw: lifeViewYaw, people: createPeopleKit, lodNear: () => lodNearFor?.(qualityAdapter.status?.rung) }) ?? NO_AREA_LIFE;
+    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0, log, toy, progression, tier, roomSeed, viewYaw: lifeViewYaw, people: createPeopleKit, lodNear: () => lodNearFor?.(qualityAdapter.status?.rung) }) ?? NO_AREA_LIFE;
     if (areaLife.musician) decals.follow(areaLife.musician.group); // the Market's street musician, a contact shadow like the stallholders'
     const session = createSession({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,

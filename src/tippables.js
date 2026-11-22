@@ -114,7 +114,7 @@ export function createTippables(scene, spots, opts = {}) {
     group.position.set(spot.x, gy, spot.z);
     group.rotation.y = (spot.x * 7 + spot.z * 13) % 6; // stable pseudo-random facing
     scene.add(group);
-    list.push({ id: `tip-${i}`, kind: spot.kind, group, tipped: false, anim: 0, gy });
+    list.push({ id: `tip-${i}`, kind: spot.kind, group, tipped: false, anim: 0, gy, prompt: spot.prompt ?? null });
   });
 
   // Breadth-first topple outward from an already-tipped entry, bounded by
