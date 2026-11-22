@@ -19,6 +19,8 @@ import { withLocalUuids } from './localuuids.js';
 import { createWater, WATER_TUNING } from '../render/water.js';
 import * as P from './lighthouseplan.js';
 import * as K from './lighthouseparts.js';
+import { createLighthouseLife } from './lighthouselife.js';
+import { phrase } from '../clanphrases.js';
 
 export { LIGHTHOUSE_BOUNDS, LIGHTHOUSE_SPAWN } from './lighthouseplan.js';
 
@@ -56,6 +58,9 @@ export function build(scene, { water = {}, wind } = {}) {
     K.drawHeadland(kit, M);
     K.drawCliffPath(kit, M);
     K.drawTower(kit, M);
+    K.drawStair(kit, M);
+    K.drawGallery(kit, M);
+    const lamp = K.drawLampRoom(kit, M);
     K.drawCottage(kit, M);
     K.drawGarden(kit, M);
     K.drawBell(kit, M);
@@ -67,9 +72,11 @@ export function build(scene, { water = {}, wind } = {}) {
     K.drawCoveDressing(kit, M);
     K.drawCaveFittings(kit, M);
     K.drawGullRock(kit, M);
+    K.drawMarks(kit, M, plan.ground);
     const place = new THREE.Group();
     place.name = 'lighthousePlace';
     for (const m of kit.meshes()) place.add(m);
+    place.add(lamp.glass, lamp.roof);
     scene.add(place);
 
     // the bench on the plateau (a perch), and the beach plants (marram and sea holly)
@@ -80,7 +87,7 @@ export function build(scene, { water = {}, wind } = {}) {
     for (const box of plan.boxes) scene.add(b.cardboardBox(box.x, box.z));
 
     // the record
-    const lookBuild = (spot) => (spot.look ? { ...spot, build: () => K.tippableLook(spot.look) } : spot);
+    const lookBuild = (spot) => (spot.look ? { ...spot, build: () => K.tippableLook(spot.look), ...(spot.look === 'lever' ? { prompt: phrase('lighthouse.lever.prompt') } : {}) } : spot);
     return {
       name: plan.name,
       bounds: plan.bounds,
@@ -104,6 +111,8 @@ export function build(scene, { water = {}, wind } = {}) {
       evening: true,
       ground: plan.ground,
       traversal: plan.traversal,
+      // the lamp: lit by the lever, a beam that turns, the ship's horn (world/lighthouselife.js)
+      life: (ctx) => createLighthouseLife(ctx),
     };
   });
 }

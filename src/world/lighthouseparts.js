@@ -143,6 +143,11 @@ export function lighthouseMaterials() {
     glow: new THREE.MeshStandardMaterial({ color: 0xffd9a0, roughness: 0.5, metalness: 0, emissive: 0xffb050, emissiveIntensity: 1.1 }),
     water: new THREE.MeshStandardMaterial({ color: COL.water, roughness: 0.15, metalness: 0, transparent: true, opacity: 0.88 }),
     glass: new THREE.MeshStandardMaterial({ color: COL.glass, roughness: 0.25, metalness: 0.1 }),
+    // the lamp room's glass (see-through, both sides), its roof (opaque until she is inside, then the life fades it) and the
+    // lens, dull until the lamp is lit (the life adds its glow over it)
+    glassWall: new THREE.MeshStandardMaterial({ color: 0xbcd9e8, roughness: 0.1, metalness: 0, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }),
+    roof: new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.62, transparent: true, opacity: 1 }),
+    lens: new THREE.MeshStandardMaterial({ color: 0xe6d79a, roughness: 0.35, metalness: 0.25, emissive: 0x3a2e10, emissiveIntensity: 0.3 }),
     // a painted pool of lantern light on the floor: additive, no real light
     patch: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }),
   };
@@ -378,7 +383,7 @@ export function drawCliffPath(kit, M) {
 }
 
 // -----------------------------------------------------------------------------
-// The tower, drawn to the gallery and a plain lantern above it (the lamp room is milestone 2's).
+// The tower, drawn to the gallery; the lamp room above it is drawLampRoom's (milestone 2).
 // -----------------------------------------------------------------------------
 
 export function drawTower(kit, M) {
@@ -419,13 +424,7 @@ export function drawTower(kit, M) {
     g.translate(T.x + rr * Math.cos(r), y, T.z + rr * Math.sin(r));
     put('glow', M.glow, paint(g, COL.warm), { noCast: true });
   }
-  // a plain lantern above the gallery (the lamp room, its glass, lens and lever are milestone 2's)
-  put('paint', M.paint, cy(T.x, T.z, Y1, Y1 + 0.5, 2.3, 2.15, COL.stone, 24));
-  put('paint', M.paint, cy(T.x, T.z, Y1 + 0.5, Y1 + 3.2, 2.1, 2.1, COL.glass, 20));
-  put('paint', M.paint, cy(T.x, T.z, Y1 + 3.2, Y1 + 3.45, 2.5, 2.5, COL.red, 24));
-  put('paint', M.paint, cy(T.x, T.z, Y1 + 3.45, Y1 + 4.9, 0.1, 2.4, COL.red, 24));
-  put('paint', M.paint, sp(T.x, Y1 + 5.05, T.z, 0.32, COL.brass));
-  put('wood', M.wood, bm(T.x, Y1 + 5.2, T.z, T.x, Y1 + 6.1, T.z, 0.07, 0.07, COL.dark));
+  // the lamp room above the gallery is drawLampRoom's (milestone 2)
 }
 
 // -----------------------------------------------------------------------------
@@ -676,11 +675,16 @@ export function drawCaveFittings(kit, M) {
 // -----------------------------------------------------------------------------
 
 export function drawGullRock(kit, M) {
-  const { GULL_ROCK: R, PLATEAU_Y: Y0 } = P;
-  const g = new THREE.CylinderGeometry(R.r * 0.8, R.r * 1.15, Y0 + 0.4, 14, 6, true);
+  for (const [R, salt] of [[P.GULL_ROCK, 131], [P.PINNACLE, 137]]) drawStack(kit, M, R, salt);
+}
+
+function drawStack(kit, M, R, salt) {
+  const { PLATEAU_Y: Y0 } = P;
+  // never narrower than the ground on top (its disc, R.land): a rock only grows where it is rough
+  const g = new THREE.CylinderGeometry(R.land + 0.15, (R.land + 0.15) * 1.3, Y0 + 0.4, 14, 6, true);
   const pos = g.attributes.position;
   for (let i = 0; i < pos.count; i++) {
-    const k = 0.85 + 0.3 * hash01(Math.round(pos.getX(i) * 9), Math.round(pos.getY(i) * 3), 131);
+    const k = 1 + 0.25 * hash01(Math.round(pos.getX(i) * 9), Math.round(pos.getY(i) * 3), salt);
     pos.setX(i, pos.getX(i) * k);
     pos.setZ(i, pos.getZ(i) * k);
   }
@@ -690,8 +694,207 @@ export function drawGullRock(kit, M) {
     const t = COL.rock[(Math.abs(band * 7 + 3)) % 4];
     return y > Y0 - 0.6 ? mix(t, COL.grass[1], smooth(Y0 - 0.6, Y0, y)) : shade(t, 0.8 + 0.2 * smooth(0, Y0, y));
   }));
-  kit.put('top', M.stone, cy(R.x, R.z, Y0 - 0.01, Y0, R.r * 0.85, R.r * 0.85, COL.grass[0], 14), { noCast: true });
-  for (const [dx, dz, rr] of [[2.6, 1.2, 0.8], [-2.2, -1.9, 0.6], [1.0, 3.0, 0.5]]) kit.put('rocks', M.stone, boulder(R.x + dx, 0, R.z + dz, rr, rr * 1.3, 140));
+  // the top is the ground she lands on: its disc, a little inside the drawn rock's rim
+  kit.put('top', M.stone, cy(R.x, R.z, Y0 - 0.01, Y0, R.land + 0.05, R.land + 0.05, COL.grass[0], 14), { noCast: true });
+  for (const [dx, dz, rr] of [[2.6, 1.2, 0.8], [-2.2, -1.9, 0.6], [1.0, 3.0, 0.5]]) kit.put('rocks', M.stone, boulder(R.x + dx * (R.r / 2.2), 0, R.z + dz * (R.r / 2.2), rr, rr * 1.3, salt + 9));
+}
+
+// -----------------------------------------------------------------------------
+// The climb (milestone 2): the stair, the gallery's railing, the lamp room, the chalk marks.
+// -----------------------------------------------------------------------------
+
+const rad = (d) => (d * Math.PI) / 180;
+const polar = (deg, r) => ({ x: P.TOWER.x + r * Math.cos(rad(deg)), z: P.TOWER.z + r * Math.sin(rad(deg)) });
+// A partial cylinder (a wall with a gap in it) from world angle `from` for `span` degrees round the tower (three's theta runs the other way).
+const arcCyl = (r0, r1, y0, y1, from, span, seg, open = false) => {
+  const g = new THREE.CylinderGeometry(r1, r0, y1 - y0, seg, 1, open, Math.PI / 2 - rad(from + span), rad(span));
+  g.translate(P.TOWER.x, (y0 + y1) / 2, P.TOWER.z);
+  return g;
+};
+
+// A flat painted triangle (an arrow) on the ground: apex at (x, z) + `len` along (dx, dz).
+function arrow(x, z, y, dx, dz, len, wid, hex) {
+  const l = Math.hypot(dx, dz);
+  const ux = dx / l; const uz = dz / l;
+  const nx = -uz; const nz = ux;
+  const pts = [[x + ux * len, z + uz * len], [x + nx * wid, z + nz * wid], [x - nx * wid, z - nz * wid]];
+  // a stem too: a thin quad behind the head
+  const stem = [[x + nx * wid * 0.3, z + nz * wid * 0.3], [x - nx * wid * 0.3, z - nz * wid * 0.3], [x - ux * len * 0.8 - nx * wid * 0.3, z - uz * len * 0.8 - nz * wid * 0.3], [x - ux * len * 0.8 + nx * wid * 0.3, z - uz * len * 0.8 + nz * wid * 0.3]];
+  const tri = (a, b, c) => [a, b, c].flatMap(([px, pz]) => [px, y, pz]);
+  const pos = [...tri(pts[0], pts[2], pts[1]), ...tri(stem[0], stem[2], stem[1]), ...tri(stem[0], stem[3], stem[2])];
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(pos.map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
+  return paint(g, hex);
+}
+
+// The stair: open treads along each flight's rail with cleats every 0.45 m, an outer handrail on posts, piers under
+// every other post, and a stone pier and slab under each ledge (the top ledge's pier too: it stands out past the gallery's rim).
+export function drawStair(kit, M) {
+  const { LANDINGS, STAIR, PLATEAU_Y: Y0 } = P;
+  const put = (key, mat, g, o) => kit.put(key, mat, g, o);
+  const flights = P.LIGHTHOUSE_TRAVERSAL.crossings.filter((c) => c.kind === 'stair');
+  const out = (p, d) => { const a = Math.atan2(p.z - P.TOWER.z, p.x - P.TOWER.x); return { x: p.x + d * Math.cos(a), z: p.z + d * Math.sin(a) }; };
+  for (const c of flights) {
+    const pts = c.points;
+    pts.forEach((p, k) => {
+      const o = out(p, 0.58);
+      if (k + 1 < pts.length) {
+        const q = pts[k + 1];
+        put('wood', M.wood, bm(p.x, p.y - 0.05, p.z, q.x, q.y - 0.05, q.z, 1.0, 0.1, COL.post));
+        // cleats across the tread, and the handrail along the outer edge
+        const len = Math.hypot(q.x - p.x, q.z - p.z);
+        const n = Math.max(1, Math.round(len / 0.45));
+        for (let i = 0; i < n; i++) {
+          const f = (i + 0.5) / n;
+          const x = p.x + (q.x - p.x) * f; const z = p.z + (q.z - p.z) * f; const y = p.y + (q.y - p.y) * f;
+          const a = out({ x, z }, -0.5); const b = out({ x, z }, 0.5);
+          put('wood', M.wood, bm(a.x, y + 0.01, a.z, b.x, y + 0.01, b.z, 0.12, 0.04, shade(COL.post, 1.25)), { noCast: true });
+        }
+        const o2 = out(q, 0.58);
+        put('wood', M.wood, bm(o.x, p.y + 0.95, o.z, o2.x, q.y + 0.95, o2.z, 0.06, 0.06, COL.dark), { noCast: true });
+        const i0 = out(p, -0.55); const i1 = out(q, -0.55);
+        put('wood', M.wood, bm(i0.x, p.y + 0.85, i0.z, i1.x, q.y + 0.85, i1.z, 0.035, 0.035, COL.rope), { noCast: true });
+      }
+      // a post at every point; a pier to the plateau under every other one (not under a ledge's own pier)
+      put('wood', M.wood, bx(o.x - 0.04, o.x + 0.04, p.y, p.y + 0.95, o.z - 0.04, o.z + 0.04, COL.dark), { noCast: true });
+      if (k % 2 === 1 && p.y - Y0 > 0.6) put('wood', M.wood, bx(o.x - 0.05, o.x + 0.05, Y0, p.y - 0.1, o.z - 0.05, o.z + 0.05, COL.post), { noCast: true });
+    });
+  }
+  // the ledges: a slab (the walkable disc) on a pier from the plateau
+  for (const p of LANDINGS.slice(1)) {
+    put('stone', M.stone, cy(p.x, p.z, Y0 - 0.1, p.y - 0.18, 0.5, 0.58, shade(COL.stone, 0.92), 12));
+    put('stone', M.stone, cy(p.x, p.z, p.y - 0.18, p.y, STAIR.ledge + 0.05, STAIR.ledge + 0.05, COL.stone, 14));
+    put('stone', M.stone, cy(p.x, p.z, p.y, p.y + 0.012, STAIR.ledge, STAIR.ledge, 0xb2a690, 14), { noCast: true });
+  }
+  // the foot: a striped bollard, a painted arrow up the first flight on the plinth, and a stone step
+  const f0 = flights[0].points;
+  const dx = f0[1].x - f0[0].x; const dz = f0[1].z - f0[0].z;
+  const l = Math.hypot(dx, dz);
+  const foot = LANDINGS[0];
+  const side = out(foot, 0.0);
+  const bol = { x: side.x - (dz / l) * 0.85 + (dx / l) * 0.4, z: side.z + (dx / l) * 0.85 + (dz / l) * 0.4 };
+  put('paint', M.paint, cy(bol.x, bol.z, Y0, Y0 + 0.36, 0.13, 0.13, COL.red, 10));
+  put('paint', M.paint, cy(bol.x, bol.z, Y0 + 0.36, Y0 + 0.72, 0.13, 0.13, COL.white, 10));
+  put('paint', M.paint, sp(bol.x, Y0 + 0.74, bol.z, 0.13, COL.red, { seg: 8, rings: 4 }));
+  put('paint', M.paint, arrow(foot.x - (dx / l) * 1.6, foot.z - (dz / l) * 1.6, Y0 + 0.02, dx, dz, 0.6, 0.3, COL.white), { noCast: true });
+}
+
+// The gallery's railing: balusters and a handrail round the rim, with a gate for the stair and a gap for the drop,
+// and the railing walk's own rail (the crossing's polyline, drawn: low at its ends, 0.8 m up between) on posts.
+export function drawGallery(kit, M) {
+  const { TOWER: T, GALLERY_Y: Y1, GALLERY_RAIL: GR, STAIR_TOP_DEG } = P;
+  const put = (key, mat, g, o) => kit.put(key, mat, g, o);
+  const R = 4.42;
+  const open = (deg) => {
+    const near = (c) => { let d = Math.abs(deg - c) % 360; if (d > 180) d = 360 - d; return d; };
+    return near(STAIR_TOP_DEG) < 15 || near(269) < 14;
+  };
+  const step = 7.5;
+  let prev = null;
+  for (let deg = 0; deg < 360; deg += step) {
+    const onWalk = deg > GR.from - 1 && deg < GR.to + 1;
+    const here = polar(deg, R);
+    if (!onWalk && !open(deg)) {
+      put('paint', M.paint, bx(here.x - 0.025, here.x + 0.025, Y1, Y1 + 1.0, here.z - 0.025, here.z + 0.025, COL.white), { noCast: true });
+      const next = polar(deg + step, R);
+      if (!open(deg + step) && !(deg + step > GR.from - 1 && deg + step < GR.to + 1)) put('paint', M.paint, bm(here.x, Y1 + 1.0, here.z, next.x, Y1 + 1.0, next.z, 0.06, 0.05, COL.red), { noCast: true });
+      else if (open(deg + step)) put('paint', M.paint, bx(next.x - 0.04, next.x + 0.04, Y1, Y1 + 1.05, next.z - 0.04, next.z + 0.04, COL.red), { noCast: true });
+    } else if (prev === 'gate') prev = null;
+  }
+  // the gate posts, a stouter pair at each end of the railing walk
+  for (const deg of [STAIR_TOP_DEG - 15, STAIR_TOP_DEG + 15, 255, 283]) {
+    const q = polar(deg, R);
+    put('paint', M.paint, bx(q.x - 0.045, q.x + 0.045, Y1, Y1 + 1.05, q.z - 0.045, q.z + 0.045, COL.red), { noCast: true });
+  }
+  // the railing walk's rail, on posts
+  const rail = P.LIGHTHOUSE_TRAVERSAL.crossings.find((c) => c.id === 'rail-walk');
+  rail.points.forEach((p, k) => {
+    if (k + 1 < rail.points.length) {
+      const q = rail.points[k + 1];
+      put('paint', M.paint, bm(p.x, p.y, p.z, q.x, q.y, q.z, 0.09, 0.09, COL.brass), { noCast: true });
+    }
+    if (p.y - Y1 > 0.05) put('paint', M.paint, bx(p.x - 0.025, p.x + 0.025, Y1, p.y - 0.04, p.z - 0.025, p.z + 0.025, COL.white), { noCast: true });
+  });
+  void T;
+}
+
+// The lamp room. A stone drum 0.9 m high, glass over it to the roof at 16.7, a door gap 1.4 m wide facing the stair,
+// mullions, a red roof and a vane; inside, the lens (a dull brass drum of rings, which the life lights) on its pedestal
+// and the lever's housing. The glass and the roof are meshes of their own (the life fades them while she is inside).
+// Returns { glass, roof }.
+export function drawLampRoom(kit, M) {
+  const { TOWER: T, GALLERY_Y: Y1, LAMP_ROOM: LR } = P;
+  const put = (key, mat, g, o) => kit.put(key, mat, g, o);
+  const half = (Math.asin(0.7 / LR.r) * 180) / Math.PI;
+  const from = LR.door + half;
+  const span = 360 - 2 * half;
+  const topY = LR.roof;
+  const drumTop = Y1 + 0.9;
+  // the drum and its sill, the door's jambs
+  put('stone', M.stone, paint(arcCyl(LR.r + 0.12, LR.r + 0.12, Y1, drumTop, from, span, 28), COL.stone));
+  put('stone', M.stone, paint(arcCyl(LR.r + 0.2, LR.r + 0.2, drumTop, drumTop + 0.1, from, span, 28), shade(COL.stone, 0.88)));
+  for (const sgn of [-1, 1]) {
+    const q = polar(LR.door + sgn * half, LR.r + 0.05);
+    put('paint', M.paint, bx(q.x - 0.1, q.x + 0.1, Y1, topY, q.z - 0.1, q.z + 0.1, COL.red));
+  }
+  const d = polar(LR.door, LR.r + 0.05);
+  const dn = { x: -Math.sin(rad(LR.door)), z: Math.cos(rad(LR.door)) };
+  put('paint', M.paint, bm(d.x - dn.x * 0.8, topY - 0.55, d.z - dn.z * 0.8, d.x + dn.x * 0.8, topY - 0.55, d.z + dn.z * 0.8, 0.22, 0.5, COL.red));
+  // mullions every 30 degrees (but not across the door)
+  for (let deg = 0; deg < 360; deg += 30) {
+    let dd = Math.abs(deg + 15 - LR.door) % 360;
+    if (dd > 180) dd = 360 - dd;
+    if (dd < half + 4) continue;
+    const q = polar(deg + 15, LR.r);
+    put('paint', M.paint, bx(q.x - 0.035, q.x + 0.035, drumTop, topY, q.z - 0.035, q.z + 0.035, COL.red), { noCast: true });
+  }
+  // the pedestal and the lens: five rings that narrow towards the top, a brass cap
+  put('stone', M.stone, cy(T.x, T.z, Y1, P.LAMP_ROOM.lensY - 0.5, 0.58, 0.5, shade(COL.stone, 0.9), 16));
+  for (let i = 0; i < 5; i++) {
+    const y0 = LR.lensY - 0.5 + i * 0.28;
+    const rr = 0.5 - Math.abs(i - 2) * 0.05;
+    put('lens', M.lens, cy(T.x, T.z, y0, y0 + 0.25, rr, rr, 0xe6d79a, 20), { noCast: true });
+    put('paint', M.paint, cy(T.x, T.z, y0 + 0.25, y0 + 0.28, rr + 0.03, rr + 0.03, COL.brass, 20), { noCast: true });
+  }
+  put('paint', M.paint, cy(T.x, T.z, LR.lensY + 1.0, LR.lensY + 1.12, 0.35, 0.1, COL.brass, 16), { noCast: true });
+  // the lever's housing: a small stone block by the wall opposite the door (the arm is the tippable's own look)
+  const lv = P.LEVER;
+  put('stone', M.stone, bx(lv.x - 0.2, lv.x + 0.2, Y1, Y1 + 0.3, lv.z - 0.2, lv.z + 0.2, shade(COL.stone, 0.85)), { noCast: true });
+  // the glass and the roof
+  const glass = new THREE.Mesh(arcCyl(LR.r, LR.r, drumTop + 0.1, topY, from, span, 28, true), M.glassWall);
+  glass.name = 'lighthouse:glass';
+  glass.castShadow = false;
+  glass.userData.noCast = true;
+  glass.userData.noMerge = true;
+  const roofGeo = mergeGeometries([
+    paint(new THREE.ConeGeometry(2.75, 1.7, 28).translate(T.x, topY + 0.85, T.z), COL.red),
+    paint(new THREE.CylinderGeometry(2.78, 2.78, 0.16, 28).translate(T.x, topY + 0.04, T.z), shade(COL.red, 0.8)),
+    paint(new THREE.SphereGeometry(0.2, 8, 6).translate(T.x, topY + 1.78, T.z), COL.brass),
+    paint(new THREE.CylinderGeometry(0.035, 0.035, 0.9, 6).translate(T.x, topY + 2.25, T.z), COL.dark),
+    paint(new THREE.ConeGeometry(0.13, 0.5, 4).rotateZ(-Math.PI / 2).translate(T.x + 0.3, topY + 2.6, T.z), COL.dark),
+  ]);
+  const roof = new THREE.Mesh(roofGeo, M.roof);
+  roof.name = 'lighthouse:lamproof';
+  roof.castShadow = true;
+  roof.receiveShadow = true;
+  roof.userData.noMerge = true;
+  return { glass, roof };
+}
+
+// The chalk marks at every take-off the plan places, a ring on the ground (a leap's, a drop's) and a ring at each end of the railing
+// walk: painted white, flat, 0.45 m across.
+export function drawMarks(kit, M, ground) {
+  const tr = P.LIGHTHOUSE_TRAVERSAL;
+  const spots = [...tr.gaps.map((h) => ({ ...h.from, y: ground.y(h.from.x, h.from.z) })), ...tr.drops.map((h) => ({ ...h.from, y: ground.y(h.from.x, h.from.z) }))];
+  const rail = tr.crossings.find((c) => c.id === 'rail-walk');
+  for (const e of [rail.points[0], rail.points[rail.points.length - 1]]) spots.push({ x: e.x, z: e.z, y: ground.y(e.x, e.z) });
+  for (const s of spots) {
+    const g = new THREE.RingGeometry(0.34, 0.46, 18);
+    g.rotateX(-Math.PI / 2);
+    g.translate(s.x, s.y + 0.025, s.z);
+    kit.put('marks', M.paint, paint(g, 0xf4efe0), { noCast: true });
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -713,6 +916,18 @@ export function tippableLook(look) {
   } else if (look === 'crate') {
     add(new THREE.BoxGeometry(0.55, 0.32, 0.4), 0x8b6a45, 0, 0.16);
     add(new THREE.BoxGeometry(0.5, 0.05, 0.36), 0x6e5236, 0, 0.33);
+  } else if (look === 'lever') {
+    // only the arm: the housing is part of the lamp room, so the arm can swing (world/lighthouselife.js
+    // turns `lever-arm` about its pivot, and the tippable's own tilt is not used)
+    const arm = new THREE.Group();
+    arm.name = 'lever-arm';
+    arm.position.y = 0.3;
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.6, 6), mat(0x4a4036));
+    rod.position.y = 0.3;
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), mat(COL.red));
+    knob.position.y = 0.62;
+    arm.add(rod, knob);
+    g.add(arm);
   } else {
     add(new THREE.CylinderGeometry(0.18, 0.15, 0.4, 8), 0x6e7a70, 0, 0.2);
     add(new THREE.CylinderGeometry(0.19, 0.19, 0.04, 8), 0x58645a, 0, 0.42);
