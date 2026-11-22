@@ -165,6 +165,7 @@ export const PLACE_WORDS = Object.freeze({
   seat: 'High Stone',
   roofs: 'The Rooftops',
   market: 'The Market Square',
+  house: 'The Old House',
 });
 
 // ---- what this set does differently ---------------------------------------------------

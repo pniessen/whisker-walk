@@ -492,3 +492,38 @@ describe('attachMapPan', () => {
     expect(() => pan.detach()).not.toThrow();
   });
 });
+
+describe('attachMapPan pad api', () => {
+  it('pan(40, 0) moves the view right by 40 px of board, and clamps to the world', () => {
+    const { pan, vb, onView } = attached();
+    const before = { ...pan.view };
+    const s = PHONE.w / before.w;
+    pan.pan(-40, 0);
+    expect(pan.view.x).toBeCloseTo(before.x - 40 / s, 6);
+    const mid = pan.view.x;
+    pan.pan(40, 0);
+    expect(pan.view.x).toBeCloseTo(mid + 40 / s, 6);
+    expect(vb().x).toBeCloseTo(pan.view.x, 0);
+    expect(onView).toHaveBeenCalled();
+    pan.pan(100000, 0);
+    expect(pan.view.x + pan.view.w).toBeCloseTo(WORLD_VIEW.x + WORLD_VIEW.w, 6);
+    pan.pan(-100000, -100000);
+    expect(pan.view.x).toBe(WORLD_VIEW.x ?? 0);
+    expect(pan.view.y).toBe(WORLD_VIEW.y);
+  });
+  it('zoom(in/out) equals the data-wm-zoom button', () => {
+    for (const dir of ['in', 'out']) {
+      const a = attached(); const b = attached();
+      a.pan.zoom('out'); a.pan.zoom('out'); // off the floor on a phone-sized box, so out can move too
+      b.pan.zoom('out'); b.pan.zoom('out');
+      a.pan.zoom(dir);
+      b.frame.fire('click', ev({ target: zoomBtn(dir) }));
+      expect(a.pan.view).toEqual(b.pan.view);
+    }
+    const c = attached(); const before = { ...c.pan.view };
+    c.pan.zoom('in');
+    expect(c.pan.view.w).toBeCloseTo(before.w / ZOOM_STEP, 6);
+    c.pan.zoom('sideways');
+    expect(c.pan.view.w).toBeCloseTo(before.w / ZOOM_STEP, 6);
+  });
+});

@@ -30,6 +30,11 @@ const SAVES = [
   base({ walks: { neighborhood: 4, woods: 3, park: 1 }, points: 30, unlocked: { cats: ['tabby'], accessories: [], areas: ['neighborhood', 'woods', 'park'] }, ...pick('woods', 'river') }),
   ...['woods', 'river', 'moor', 'pines', 'gorge'].map((c, i) => base({ points: 5000, unlocked: { cats: ['tabby'], accessories: [], areas: ALL }, area: ALL[(i * 3) % ALL.length], ...pick(c, i % 2 ? 'woods' : 'moor') })),
   ...ALL.map((area) => base({ points: 120, area, unlocked: { cats: ['tabby'], accessories: [], areas: ALL } })),
+  // the Old House's words in each state: open to buy, short, hers, and today's (Old House step 4)
+  base({ walks: { neighborhood: 2, market: 2 }, points: 150, unlocked: { cats: ['tabby'], accessories: [], areas: ['neighborhood', 'market'] } }),
+  base({ walks: { neighborhood: 2, market: 2 }, points: 20, unlocked: { cats: ['tabby'], accessories: [], areas: ['neighborhood', 'market'] } }),
+  base({ walks: { neighborhood: 2, market: 2 }, unlocked: { cats: ['tabby'], accessories: [], areas: ['neighborhood', 'market', 'house'] } }),
+  base({ walks: { neighborhood: 2, market: 2 }, area: 'house', unlocked: { cats: ['tabby'], accessories: [], areas: ['neighborhood', 'market', 'house'] } }),
 ];
 const draw = (s) => renderWorldMapHtml(worldMapModel(s, CATALOG));
 
@@ -247,9 +252,9 @@ describe('drawing the countryside', () => {
     // it takes no taps (a tap on the meadow reaches no place; a drag still pans)
     const css = fs.readFileSync('src/style.css', 'utf8');
     expect(css).toMatch(/\.world-map \.wm-country, \.world-map \.wm-rims \{ pointer-events: none; \}/);
-    // the tap targets are the places and the island's star, as before (thirteen
-    // places with the Rooftops and the Market inside the town)
-    expect(tapTargets(worldMapModel(base(), CATALOG))).toHaveLength(14);
+    // the tap targets are the places and the island's star, as before (fourteen
+    // places with the Rooftops, the Market and the Old House on the town)
+    expect(tapTargets(worldMapModel(base(), CATALOG))).toHaveLength(15);
   });
 
   it('a handful of paths drawn once: fields by tone, furrows, lanes, hedgerows, ponds, flowers, trees and the fade', () => {
@@ -272,10 +277,10 @@ describe('drawing the countryside', () => {
   it('every place gets a rim and a shadow', () => {
     const [shadow, rim] = [...rims.matchAll(/d="([^"]+)"/g)].map(([, d]) => d);
     expect(shadow).toBe(rim);
-    // one per place: eleven, and the Rooftops and the Market inside the town
+    // one per place: eleven, and the Rooftops, the Market and the Old House on the town
     const regions = worldMapModel(base(), CATALOG).regions;
-    expect(regions).toHaveLength(13);
-    expect(rim.match(/M/g)).toHaveLength(13);
+    expect(regions).toHaveLength(14);
+    expect(rim.match(/M/g)).toHaveLength(14);
     // the Rooftops' own: one of the rim's shapes is drawn round its spot
     const roofs = regions.find((r) => r.id === 'roofs');
     const centres = rim.split('M').filter(Boolean).map((part) => {

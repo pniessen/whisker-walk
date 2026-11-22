@@ -24,6 +24,8 @@ export const GOAL_POOL = [
 // still filter to the same pool. Missing areaData keeps every goal.
 export function goalFits(goal, areaData) {
   if (!areaData) return true;
+  // an area may list the goal types it can finish (the Old House, D11)
+  if (Array.isArray(areaData.goalTypes)) return areaData.goalTypes.includes(goal.type);
   if (goal.type === 'mischief') return (areaData.tippables?.length ?? 0) >= goal.target;
   if (goal.type === 'sits') return (areaData.boxes?.length ?? 0) >= goal.target;
   if (goal.type === 'pet') return (areaData.critterSpawns ?? []).some((c) => c.type === 'villager');

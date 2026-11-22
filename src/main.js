@@ -4,6 +4,7 @@ import { createPlayer } from './player.js';
 import { coatColor, CAT_LOOK_Y } from './cat/model.js';
 import { resumableAreaIds, roofsOn } from './roofsflag.js';
 import { marketOn, marketResumable } from './marketflag.js';
+import { housePrefetch, resumableHouseIds } from './houseflag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { createProgression, rankFor, CATALOG } from './progression.js';
 import { colonyNews, tradeEffect } from './colony.js';
@@ -17,6 +18,8 @@ import { createHomeBase } from './ui/homebase.js';
 import { whenSplashGone, startVisitGreeting } from './visitboot.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { attachBackStack, walkBackAction } from './ui/backstack.js';
+import { createGamepad } from './gamepad.js';
+import { createNav } from './gamepadnav.js';
 import { createZoomControl, createWheelStepper, keyZoomDir, zoomActionDir, clampZoomStep, maxZoomStep } from './camzoom.js';
 import { createAudio } from './audio.js';
 import { createMusic } from './music.js';
@@ -287,6 +290,29 @@ function init() {
     },
     onZoom: zoomBy,
   }, { leftHanded: settings.get('leftHanded') });
+  // Game controller (walk only, gamepad.js): feeds the same paths as touch —
+  // setTouchMove / addOrbit / handleTouchAction / zoomBy. Polled from walkFrame.
+  const gamepad = createGamepad({
+    getEngaged: () => !!session && player.engaged,
+    getCameraMode: () => !!session?.cameraMode,
+    isFighting: () => session?.clanFight?.uiShowing === 'fight',
+    isWalkingOn: () => !!session?.walkingOn,
+    // Menus: the pad moves focus through whatever layer is on top; B is Back
+    // (padBack, below), never a fake Escape. A walk keeps the pad otherwise.
+    menuNavFactory: () => createNav({ doc: document }),
+    padBack: () => padBack(),
+    canResume: () => !!session && !session.walkingOn && !!overlay.querySelector('#btn-resume'),
+    onMove: (v) => player.setTouchMove(v),
+    onOrbit: (dx, dy) => player.addOrbit(dx, dy),
+    onAction: (name) => {
+      const zoomDir = zoomActionDir(name);
+      if (zoomDir) zoomBy(zoomDir);
+      else handleTouchAction(name);
+    },
+    // No mouse to click for pointer lock, so a pad resumes the way touch does.
+    onResume: () => player.setTouchEngaged(true),
+    toast: (m) => hud.toast(m),
+  });
   // Pushes every live-tunable setting into the systems that read it — audio
   // volume/mute, camera invert-Y, touch-UI handedness — so a change applies
   // immediately with no reload or walk restart. Called once at boot (with
@@ -591,7 +617,7 @@ function init() {
   // closed in the middle of. Read once, here. A walk left too long is settled
   // now, before the home screen draws its numbers; one still fresh is picked
   // up at the end of init (see "Mid-walk resume" above the render loop).
-  const leftWalk = readResume(window.localStorage, { now: Date.now(), areaIds: marketResumable(resumableAreaIds(progression.state.walks)) });
+  const leftWalk = readResume(window.localStorage, { now: Date.now(), areaIds: resumableHouseIds(marketResumable(resumableAreaIds(progression.state.walks)), progression.state) });
   if (leftWalk?.kind === 'stale') {
     clearResume(window.localStorage);
     settleAbandoned(progression, leftWalk.data);
@@ -604,12 +630,15 @@ function init() {
   homebase.show();
   // F6: fetch her own place and the den now, so Explore and the den button
   // usually find them already here. ?roofs=1 fetches the Rooftops too (her
-  // Explore goes there); otherwise a Rooftops choice or the gate prefetch does. A failure here
-  // is quiet: the start itself tries again, and says so if it cannot.
+  // Explore goes there), and ?house=1 the Old House (in Clan Edition only,
+  // housePrefetch); otherwise a Rooftops
+  // choice or the gate prefetch does. A failure here is quiet: the start
+  // itself tries again, and says so if it cannot.
   areas.prefetch(effectiveArea(progression.state, CATALOG));
   areas.prefetch('den');
   if (roofsOn()) areas.prefetch('roofs');
   if (marketOn()) areas.prefetch('market');
+  if (housePrefetch(progression.state)) areas.prefetch('house');
   // Rosa's one-time farewell goes up before the news (showNews yields while it is up).
   const showFarewell = () => {
     if (resuming) return; // kept for a launch that opens at home
@@ -871,12 +900,17 @@ function init() {
     else if (action === 'pause') handleTouchAction('pause');
     else if (action === 'resume') resumeWalk();
   }
-  attachBackStack({
+  const backStack = attachBackStack({
     win: window,
     depth: () => homebase.depth() + (session || summaryUp() ? 1 : 0),
     closeTop: () => { if (!homebase.back()) walkBack(); },
     escape: () => homebase.back(),
   });
+  // The pad's B in a menu: the same one level up as the browser's Back.
+  function padBack() {
+    if (!homebase.back()) walkBack();
+    backStack?.sync?.();
+  }
   document.addEventListener('keydown', (e) => {
     // Clan Life Part 2: while the fight sheet is up, every key is the fight's
     // (1 / 2 / 3 answer): no E interact, no chat phrases, no Space pounce.
@@ -1157,6 +1191,7 @@ function init() {
     perfHud.frameStart(performance.now(), session);
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
+    gamepad.poll(dt);
     if (!session) { perfHud.frameEnd(null, performance.now()); return; }
     // The corner map shows only while the walk is being played: not behind
     // the Ready? and pause cards, which are exactly the times the player is

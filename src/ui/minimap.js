@@ -43,7 +43,7 @@ const TAP_MS = 300;
 // A strip counts as flat when it lies on the area's own ground (groundOf: the
 // Gorge's ledges and floor, FLAT_GROUND everywhere else).
 export function buildMapLayer(areaData, scene) {
-  const ground = '#' + (areaData.groundBounce ?? 0x6cb058).toString(16).padStart(6, '0');
+  const ground = '#' + (areaData.mapGround ?? areaData.groundBounce ?? 0x6cb058).toString(16).padStart(6, '0');
   return {
     ground,
     edge: areaData.bounds,

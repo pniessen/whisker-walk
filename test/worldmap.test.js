@@ -45,11 +45,39 @@ const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
 // The Market's road (Market step 4, V19): from the town's south-east rim to
 // the Market's circle, in the gap between the town, the Market and the Docks.
 const MARKET_ROAD = [[898, 661], [910, 678], [926, 688], [939, 682]];
+// The Old House's road (Old House step 4, W4): from the town's south rim,
+// beside the house's circle, to the house's east edge, in the open between
+// the town, the house and the Docks (picked from a map picture).
+const HOUSE_ROAD = [[834, 676], [830, 692], [810, 702], [794, 690]];
 // A cubic road's point at t.
 const roadAt = ([p0, p1, p2, p3], t) => {
   const u = 1 - t;
   return [0, 1].map((k) => u * u * u * p0[k] + 3 * u * u * t * p1[k] + 3 * u * t * t * p2[k] + t * t * t * p3[k]);
 };
+
+// Each row of a place's label boxed from its baseline (0.8 em up, 0.25 em
+// down) and its width in Chalkboard SE bold (the iPad's font; the advance
+// widths measured in a browser, an unlisted glyph 0.8 em, an emoji 1.1 em),
+// as the Market's words test (Review, Market Task 11) and the Old House's use.
+const EM = { a: 0.56, b: 0.58, c: 0.51, d: 0.6, e: 0.55, f: 0.45, g: 0.55, h: 0.57, i: 0.27, j: 0.41, k: 0.55, l: 0.32, m: 0.76, n: 0.53, o: 0.51, p: 0.55, q: 0.54, r: 0.46, s: 0.45, t: 0.48, u: 0.55, v: 0.49, w: 0.74, x: 0.58, y: 0.56, z: 0.56,
+  A: 0.67, B: 0.59, C: 0.61, D: 0.66, E: 0.57, F: 0.52, G: 0.69, H: 0.64, I: 0.47, J: 0.57, K: 0.61, L: 0.54, M: 0.85, N: 0.68, O: 0.75, P: 0.6, Q: 0.78, R: 0.65, S: 0.61, T: 0.59, U: 0.68, V: 0.67, W: 1.01, X: 0.68, Y: 0.61, Z: 0.68,
+  ' ': 0.41, "'": 0.24, '’': 0.3, '.': 0.34, ',': 0.3, ':': 0.33, '!': 0.3, '—': 0.68, '-': 0.52, '·': 0.38, '/': 0.59 };
+const em = (ch) => (/\p{Extended_Pictographic}/u.test(ch) ? 1.1 : /[0-9]/.test(ch) ? 0.61 : EM[ch] ?? 0.8);
+const SIZE = { 'tm-icon': 34, 'tm-line': 28, 'tm-line tm-line-small': 24 };
+function rowsOf(html, id) {
+  const text = regionHtml(html, id).match(/<text class="tm-label" x="[-\d.]+" y="([-\d.]+)"[^>]*>([\s\S]*?)<\/text>/);
+  let y = Number(text[1]);
+  const rows = [];
+  for (const [, cls, x, dy, fs, words] of text[2].matchAll(/<tspan class="([^"]+)" x="([-\d.]+)" dy="([-\d.]+)"(?: font-size="(\d+)")?>([^<]*)<\/tspan>/g)) {
+    y += Number(dy);
+    const size = fs ? Number(fs) : SIZE[cls];
+    const w = [...words.replace(/&[a-z#0-9]+;/g, 'x').replace(/\uFE0F/g, '')].reduce((sum, ch) => sum + em(ch) * size, 0);
+    if (w > 0) rows.push({ words, x0: Number(x) - w / 2, x1: Number(x) + w / 2, y0: y - 0.8 * size, y1: y + 0.25 * size });
+  }
+  expect(rows.length, id).toBeGreaterThan(0);
+  return rows;
+}
+const gap = (a, b) => Math.max(b.x0 - a.x1, a.x0 - b.x1, b.y0 - a.y1, a.y0 - b.y1);
 
 describe('world map: the world as data', () => {
   it('her board is untouched: every place, path, the river, the lake and the bridge as she drew them', () => {
@@ -99,11 +127,11 @@ describe('world map: the world as data', () => {
     }
   });
 
-  it('seven gateways join the places draft 2 joins, the Rooftops and the Market, edge to edge', () => {
+  it('eight gateways join the places draft 2 joins, the Rooftops, the Market and the Old House, edge to edge', () => {
     expect(GATEWAYS.map((g) => [g.id, g.from, g.to])).toEqual([
       ['town-park', 'neighborhood', 'park'], ['park-fair', 'park', 'fair'], ['park-farm', 'park', 'farm'],
       ['town-docks', 'neighborhood', 'docks'], ['docks-seaside', 'docks', 'seaside'], ['town-roofs', 'neighborhood', 'roofs'],
-      ['town-market', 'neighborhood', 'market']]);
+      ['town-market', 'neighborhood', 'market'], ['town-house', 'neighborhood', 'house']]);
     expect(GATEWAYS.map((g) => g.road)).toEqual([
       [[952, 570], [1000, 580], [1060, 590], [1080, 560]],
       [[1080, 380], [1080, 350], [1060, 340], [1060, 315]],
@@ -112,6 +140,7 @@ describe('world map: the world as data', () => {
       [[980, 780], [1040, 790], [1110, 790], [1140, 765]],
       [[946, 520], [980, 508], [984, 468], [951, 455]],
       MARKET_ROAD,
+      HOUSE_ROAD,
     ]);
     expect(Object.isFrozen(GATEWAYS) && GATEWAYS.every((g) => Object.isFrozen(g) && Object.isFrozen(g.road))).toBe(true);
     const m = worldMapModel(fresh(), CATALOG);
@@ -209,9 +238,9 @@ describe('world map: the world as data', () => {
     withOffWords(() => expect(worldMapModel(fresh(), CATALOG).regions.find((r) => r.id === 'town').name).toBe('Peopleville'));
   });
 
-  it('tap targets: every place and the island, the island the smallest at 92 across (the Rooftops and the Market as small, never smaller)', () => {
+  it('tap targets: every place and the island, the island the smallest at 92 across (the Rooftops, the Market and the Old House as small, never smaller)', () => {
     const t = tapTargets(worldMapModel(fresh(), CATALOG));
-    expect(t).toHaveLength(14);
+    expect(t).toHaveLength(15);
     expect(t.at(-1)).toEqual({ areaId: 'pines', x: 455, y: 314, r: 46 });
     expect(Math.min(...t.map((x) => 2 * x.r))).toBe(92);
   });
@@ -259,8 +288,8 @@ describe('drawing the world', () => {
 
   it('every place is a labelled keyboard button that opens its card', () => {
     const ids = [...html.matchAll(/data-dr-map-place="([a-z]+)"/g)].map(([, id]) => id);
-    expect(new Set(ids).size).toBe(13);
-    expect(ids).toHaveLength(14); // the island is a second way into the Pines
+    expect(new Set(ids).size).toBe(14);
+    expect(ids).toHaveLength(15); // the island is a second way into the Pines
     expect(new Set(ids)).toEqual(new Set(Object.keys(CATALOG.areas)));
     expect(html).not.toContain('data-dr-place=');
     expect(regionHtml(html, 'park')).toMatch(/role="button" tabindex="0" aria-label="City Park: opens after you explore Twolegplace 2 times · 0\/2"/);
@@ -277,12 +306,12 @@ describe('drawing the world', () => {
     expect(html.match(/<g class="tm-region[^>]*>(?=<title>)/)).toBeNull();
   });
 
-  it('her paths and bridge, seven roads and seven gate marks', () => {
+  it('her paths and bridge, eight roads and eight gate marks', () => {
     expect((html.match(/class="tm-path"/g) || []).length).toBe(3);
     expect(html).toContain('class="tm-bridge"');
     for (const cls of ['tm-lake', 'tm-island', 'tm-star', 'tm-pond', 'tm-river']) expect(html).toContain(`class="${cls}`);
-    expect((html.match(/class="wm-road"/g) || []).length).toBe(7);
-    expect((html.match(/class="wm-gate"/g) || []).length).toBe(7);
+    expect((html.match(/class="wm-road"/g) || []).length).toBe(8);
+    expect((html.match(/class="wm-gate"/g) || []).length).toBe(8);
     expect(html).toContain('<path class="wm-road" d="M952 570 C1000 580 1060 590 1080 560"/>');
     expect(html).toContain('<circle class="wm-gate" cx="1080" cy="560" r="8"/>');
     expect(html).toContain('<path class="wm-road" d="M980 780 C1040 790 1110 790 1140 765"/><circle class="wm-gate" cx="1140" cy="765" r="8"/>');
@@ -306,7 +335,7 @@ describe('drawing the world', () => {
       expect(html, id).toMatch(new RegExp(`<path class="tm-land street built locked" fill="${fill}" d="M`));
     }
     expect(html).toContain(`<path class="tm-land built locked" fill="${LAND.woods}" d="M`);
-    expect((html.match(/class="tm-land /g) || []).length).toBe(13);
+    expect((html.match(/class="tm-land /g) || []).length).toBe(14);
   });
 
   it('camps only on her board, only in Clan Edition', () => {
@@ -349,7 +378,7 @@ describe('drawing the world', () => {
   it('every place is there in the everyday words, the camp a home base', () => {
     withOffWords(() => {
       const h = draw(pick('woods'));
-      expect(new Set([...h.matchAll(/data-dr-map-place="([a-z]+)"/g)].map(([, id]) => id)).size).toBe(13);
+      expect(new Set([...h.matchAll(/data-dr-map-place="([a-z]+)"/g)].map(([, id]) => id)).size).toBe(14);
       expect(regionHtml(h, 'town')).toContain('aria-label="Peopleville: ');
       expect(regionHtml(h, 'woods')).toMatch(/<title>[^<]* home base<\/title>/);
     });
@@ -399,7 +428,7 @@ describe('world map: the Rooftops inside the town', () => {
     const roofs = regionOf(m, 'roofs');
     expect(roofs).toMatchObject({ kind: 'town', areaId: 'roofs', name: 'The Rooftops', status: 'built', x: 905, y: 458, r: 46, camp: null, locked: true, owned: false, price: 100 });
     expect(dist(roofs.x, roofs.y, town.x, town.y)).toBeLessThan(town.r + roofs.r - 20); // on the town's rim, straddling it
-    expect(m.regions.at(-2).id).toBe('roofs');
+    expect(m.regions.at(-3).id).toBe('roofs');
     withOffWords(() => expect(regionOf(worldMapModel(fresh(), CATALOG), 'roofs').name).toBe('The Rooftops'));
     // locked on a fresh save: the lock in its label, the Rooftops' icon
     const label = regionHtml(renderWorldMapHtml(m), 'roofs');
@@ -473,18 +502,18 @@ describe('world map: the Rooftops inside the town', () => {
 // V19), Clan Edition only (V16), open to unlock for 150 after 2 town walks.
 describe('world map: the Market on the town\'s rim', () => {
   it("the Market is on the map on the town's rim, open to unlock", () => {
-    expect(TOWN_PLACES).toEqual([
+    expect(TOWN_PLACES.slice(0, 2)).toEqual([
       { id: 'roofs', areaId: 'roofs', x: 905, y: 458, r: 46 },
       { id: 'market', areaId: 'market', x: 962, y: 642, r: 46 },
     ]);
     expect(Object.isFrozen(TOWN_PLACES) && TOWN_PLACES.every((p) => Object.isFrozen(p))).toBe(true);
-    expect(TOWN_LAND).toEqual({ roofs: '#8e9bb0', market: '#d8b48a' });
+    expect(TOWN_LAND).toEqual({ roofs: '#8e9bb0', market: '#d8b48a', house: '#a3876a' });
     const m = worldMapModel(fresh(), CATALOG);
     const town = regionOf(m, 'town');
     const market = regionOf(m, 'market');
     expect(market).toMatchObject({ kind: 'town', areaId: 'market', name: 'The Market Square', status: 'built', x: 962, y: 642, r: 46, camp: null, locked: true, owned: false, canOpen: false, price: 150 });
     expect(market.line).toBe('opens after you explore Twolegplace 2 times · 0/2');
-    expect(m.regions.at(-1).id).toBe('market');
+    expect(m.regions.at(-2).id).toBe('market');
     withOffWords(() => expect(regionOf(worldMapModel(fresh(), CATALOG), 'market').name).toBe('The Market Square'));
     // it straddles the town's rim: the rim runs through its circle
     const d = dist(market.x, market.y, town.x, town.y);
@@ -535,25 +564,6 @@ describe('world map: the Market on the town\'s rim', () => {
   // town's, the Docks', the Park's and the Seaside's labels and from its road's
   // gate mark, in every state, both word sets, click and tap.
   it("its words keep off the town's own name and line, and every neighbour's, in every state", () => {
-    const EM = { a: 0.56, b: 0.58, c: 0.51, d: 0.6, e: 0.55, f: 0.45, g: 0.55, h: 0.57, i: 0.27, j: 0.41, k: 0.55, l: 0.32, m: 0.76, n: 0.53, o: 0.51, p: 0.55, q: 0.54, r: 0.46, s: 0.45, t: 0.48, u: 0.55, v: 0.49, w: 0.74, x: 0.58, y: 0.56, z: 0.56,
-      A: 0.67, B: 0.59, C: 0.61, D: 0.66, E: 0.57, F: 0.52, G: 0.69, H: 0.64, I: 0.47, J: 0.57, K: 0.61, L: 0.54, M: 0.85, N: 0.68, O: 0.75, P: 0.6, Q: 0.78, R: 0.65, S: 0.61, T: 0.59, U: 0.68, V: 0.67, W: 1.01, X: 0.68, Y: 0.61, Z: 0.68,
-      ' ': 0.41, "'": 0.24, '’': 0.3, '.': 0.34, ',': 0.3, ':': 0.33, '!': 0.3, '—': 0.68, '-': 0.52, '·': 0.38, '/': 0.59 };
-    const em = (ch) => (/\p{Extended_Pictographic}/u.test(ch) ? 1.1 : /[0-9]/.test(ch) ? 0.61 : EM[ch] ?? 0.8);
-    const SIZE = { 'tm-icon': 34, 'tm-line': 28, 'tm-line tm-line-small': 24 };
-    const rowsOf = (html, id) => {
-      const text = regionHtml(html, id).match(/<text class="tm-label" x="[-\d.]+" y="([-\d.]+)"[^>]*>([\s\S]*?)<\/text>/);
-      let y = Number(text[1]);
-      const rows = [];
-      for (const [, cls, x, dy, fs, words] of text[2].matchAll(/<tspan class="([^"]+)" x="([-\d.]+)" dy="([-\d.]+)"(?: font-size="(\d+)")?>([^<]*)<\/tspan>/g)) {
-        y += Number(dy);
-        const size = fs ? Number(fs) : SIZE[cls];
-        const w = [...words.replace(/&[a-z#0-9]+;/g, 'x').replace(/\uFE0F/g, '')].reduce((sum, ch) => sum + em(ch) * size, 0);
-        if (w > 0) rows.push({ words, x0: Number(x) - w / 2, x1: Number(x) + w / 2, y0: y - 0.8 * size, y1: y + 0.25 * size });
-      }
-      expect(rows.length, id).toBeGreaterThan(0);
-      return rows;
-    };
-    const gap = (a, b) => Math.max(b.x0 - a.x1, a.x0 - b.x1, b.y0 - a.y1, a.y0 - b.y1);
     const s = fresh();
     const town2 = { ...s.walks, neighborhood: 2 };
     const saves = {
@@ -605,5 +615,157 @@ describe('world map: the Market on the town\'s rim', () => {
     }
     const h = renderWorldMapHtml(m);
     expect(h).toContain('<path class="wm-road" d="M898 661 C910 678 926 688 939 682"/><circle class="wm-gate" cx="939" cy="682" r="8"/>');
+  });
+});
+
+// The Old House: a place on the town's south-west rim (Old House step 4, W4),
+// Clan Edition only (W2), 150 🐾 after 2 Market Square walks (the owner's
+// change, 2026-11-21).
+describe("world map: the Old House on the town's rim", () => {
+  const hit = (t, x, y) => [...t].reverse().find((q) => dist(q.x, q.y, x, y) <= q.r);
+  // her save owns the Market, with `n` walks there
+  const inMarket = (n, extra = {}) => {
+    const s = fresh();
+    return { ...s, walks: { ...s.walks, neighborhood: 2, market: n }, unlocked: { ...s.unlocked, areas: [...s.unlocked.areas, 'market'] }, ...extra };
+  };
+
+  it("the Old House is on the map on the town's south-west rim, open to unlock", () => {
+    // W4's (768, 648), moved 24 units out off the town (14 west, 19 south) so
+    // its circle, which a tap opens, keeps off the town's own words
+    expect(TOWN_PLACES[2]).toEqual({ id: 'house', areaId: 'house', x: 754, y: 667, r: 46 });
+    expect(TOWN_LAND.house).toBe('#a3876a');
+    const m = worldMapModel(fresh(), CATALOG);
+    const town = regionOf(m, 'town');
+    const house = regionOf(m, 'house');
+    expect(house).toMatchObject({ kind: 'town', areaId: 'house', name: 'The Old Twoleg Nest', status: 'built', x: 754, y: 667, r: 46, camp: null, locked: true, owned: false, price: 150 });
+    expect(house.line).toBe('opens after you explore the Market Square 2 times · 0/2');
+    expect(m.regions.at(-1).id).toBe('house');
+    withOffWords(() => expect(regionOf(worldMapModel(fresh(), CATALOG), 'house').name).toBe('The Old House'));
+    // it straddles the town's rim
+    expect(dist(house.x, house.y, town.x, town.y)).toBeLessThan(town.r + house.r - 20);
+    expect(Math.abs(dist(house.x, house.y, town.x, town.y) - town.r)).toBeLessThan(house.r);
+    // it clears the Woods', the Docks', the Market's and the Rooftops' circles by 8
+    for (const id of ['woods', 'docks', 'market', 'roofs']) {
+      const o = regionOf(m, id);
+      expect(dist(house.x, house.y, o.x, o.y), id).toBeGreaterThan(house.r + o.r + 8);
+    }
+    // and every other road by 8
+    for (const g of GATEWAYS.filter((x) => x.id !== 'town-house')) {
+      for (let i = 0; i <= 40; i++) {
+        const [x, y] = roadAt(g.road, i / 40);
+        expect(dist(x, y, house.x, house.y), `${g.id} at ${i / 40}`).toBeGreaterThan(house.r + 8);
+      }
+    }
+    // a tap on it opens it (it draws over the town)
+    expect(hit(tapTargets(m), 754, 667).areaId).toBe('house');
+    expect(hit(tapTargets(m), 768, 648).areaId).toBe('house'); // W4's spot, still the house's
+    // locked on a fresh save: the lock in its label, the house's icon, its old-timber land
+    const html = renderWorldMapHtml(m);
+    const label = regionHtml(html, 'house');
+    expect(label).toContain('🔒');
+    expect(label).toContain('🕰️');
+    expect(label).toContain('data-dr-map-place="house"');
+    expect(html).toContain('<path class="tm-land street built locked" fill="#a3876a" d="M');
+  });
+
+  it('its card offers it for 150 🐾 once the Market walks are done', () => {
+    const early = worldMapModel(inMarket(1, { points: 500 }), CATALOG);
+    const card = placeCardFor(early, 'house', 500);
+    expect(card).toMatchObject({ id: 'house', name: 'The Old Twoleg Nest', action: null, label: null, locked: true });
+    expect(card.line).toContain('1/2');
+    expect(card.line).toBe('opens after you explore the Market Square 2 times · 1/2');
+    withOffWords(() => expect(placeCardFor(worldMapModel(inMarket(1), CATALOG), 'house', 0)).toMatchObject({
+      name: 'The Old House', line: 'opens after you explore the Market Square 2 times · 1/2' }));
+    const open = worldMapModel(inMarket(2, { points: 150 }), CATALOG);
+    expect(placeCardFor(open, 'house', 150)).toMatchObject({ id: 'house', action: 'open', label: 'Open for 150 🐾', locked: false });
+    const mine = inMarket(2, {});
+    mine.unlocked = { ...mine.unlocked, areas: [...mine.unlocked.areas, 'house'] };
+    expect(placeCardFor(worldMapModel(mine, CATALOG), 'house', 0)).toMatchObject({ id: 'house', action: 'go', label: 'Go here', locked: false });
+    // ...and with touch its line says Tap where a street place's would
+    for (const touch of [false, true]) {
+      const t = worldMapModel({ ...mine, walks: { ...mine.walks, park: 2 }, unlocked: { ...mine.unlocked, areas: [...mine.unlocked.areas, 'park'] } }, CATALOG, { touch });
+      expect(regionOf(t, 'house').line, `touch ${touch}`).toBe(regionOf(t, 'park').line);
+      expect(regionOf(t, 'house').line).toBe(touch ? 'tap to go here' : 'click to go here');
+    }
+  });
+
+  it("the town-house road runs from the town's edge to the house's", () => {
+    const m = worldMapModel(fresh(), CATALOG);
+    const [town, house, docks] = ['town', 'house', 'docks'].map((id) => regionOf(m, id));
+    const g = GATEWAYS.find((x) => x.id === 'town-house');
+    expect(g).toMatchObject({ from: 'neighborhood', to: 'house' });
+    expect(g.road).toEqual(HOUSE_ROAD);
+    const [p0, , , p3] = g.road;
+    // edge to edge (each within 2), each end in the open, clear of the other circle
+    expect(Math.abs(dist(p0[0], p0[1], town.x, town.y) - town.r)).toBeLessThanOrEqual(2);
+    expect(Math.abs(dist(p3[0], p3[1], house.x, house.y) - house.r)).toBeLessThanOrEqual(2);
+    expect(dist(p0[0], p0[1], house.x, house.y)).toBeGreaterThan(house.r + 8);
+    expect(dist(p3[0], p3[1], town.x, town.y)).toBeGreaterThan(town.r + 8);
+    for (let i = 1; i < 20; i++) {
+      const [x, y] = roadAt(g.road, i / 20);
+      // between its ends it runs in the open: outside the town and the house, and clear of the Docks
+      expect(dist(x, y, town.x, town.y), `town at ${i / 20}`).toBeGreaterThan(town.r);
+      expect(dist(x, y, house.x, house.y), `house at ${i / 20}`).toBeGreaterThan(house.r);
+      expect(dist(x, y, docks.x, docks.y), `docks at ${i / 20}`).toBeGreaterThan(docks.r + 8);
+      // and clear of every other road by 8
+      for (const o of GATEWAYS.filter((x) => x.id !== 'town-house')) {
+        for (let j = 0; j <= 20; j++) {
+          const [ox, oy] = roadAt(o.road, j / 20);
+          expect(dist(x, y, ox, oy), `${o.id}`).toBeGreaterThan(8);
+        }
+      }
+    }
+    const [a, b, c, d] = HOUSE_ROAD;
+    expect(renderWorldMapHtml(m)).toContain(`<path class="wm-road" d="M${a.join(' ')} C${b.join(' ')} ${c.join(' ')} ${d.join(' ')}"/><circle class="wm-gate" cx="${d[0]}" cy="${d[1]}" r="8"/>`);
+  });
+
+  // Its circle hangs off the town's south-west rim, so its words sit off it to
+  // the south-west, in the one gap that keeps them off the town's name and
+  // line, the Woods' land and words, her path, the Docks' words and every
+  // gate mark; and its circle (a tap there opens the house) keeps off the
+  // town's words. Every state, both word sets, click and tap.
+  it("its words and its circle keep off the town's own words, and every neighbour's, in every state", () => {
+    const s = fresh();
+    const m2 = (n, extra = {}) => ({ ...s, walks: { ...s.walks, neighborhood: 2, market: n }, unlocked: { ...s.unlocked, areas: ['neighborhood', 'market'] }, ...extra });
+    const mine = (extra = {}) => m2(2, { unlocked: { ...s.unlocked, areas: ['neighborhood', 'market', 'house'] }, ...extra });
+    const saves = {
+      locked: s, oneMore: m2(1), short: m2(2, { points: 20 }), canOpen: m2(2, { points: 150 }),
+      owned: mine(), today: mine({ area: 'house' }), ownedAway: mine({ area: 'market' }),
+      woodsHome: { ...mine({ area: 'woods', clanPick: { mine: 'woods' } }), walks: { ...s.walks, neighborhood: 3, woods: 1, market: 2 }, unlocked: { ...s.unlocked, areas: ['neighborhood', 'woods', 'market', 'house'] } },
+      docksOpen: mine({ walks: { ...s.walks, neighborhood: 2, market: 2, park: 2, docks: 2 }, points: 500, unlocked: { ...s.unlocked, areas: ['neighborhood', 'market', 'house', 'park', 'docks'] } }),
+    };
+    const gates = GATEWAYS.map((g) => g.road[3]).map(([x, y]) => ({ x0: x - 8, x1: x + 8, y0: y - 8, y1: y + 8 }));
+    const along = Object.values(PATHS).flatMap((p) => p.slice(1).flatMap((b, i) => Array.from({ length: 11 }, (_, k) => [0, 1].map((a) => p[i][a] + ((b[a] - p[i][a]) * k) / 10))));
+    const offCircle = (q, c) => Math.hypot(Math.max(q.x0 - c.x, 0, c.x - q.x1), Math.max(q.y0 - c.y, 0, c.y - q.y1)) - c.r;
+    let checked = 0;
+    for (const sets of [(f) => f(), withOffWords]) {
+      sets(() => {
+        for (const [name, save] of Object.entries(saves)) {
+          for (const touch of [false, true]) {
+            const m = worldMapModel(save, CATALOG, { touch });
+            const html = renderWorldMapHtml(m);
+            const house = rowsOf(html, 'house');
+            const at = regionOf(m, 'house');
+            for (const q of house) {
+              for (const g of gates) expect(gap(g, q), `${name}: ${q.words} / a gate mark`).toBeGreaterThanOrEqual(4);
+              for (const [x, y] of along) expect(gap({ x0: x - 3, x1: x + 3, y0: y - 3, y1: y + 3 }, q), `${name}: ${q.words} / her path`).toBeGreaterThanOrEqual(4);
+              for (const id of ['woods', 'docks']) expect(offCircle(q, regionOf(m, id)), `${name}: ${q.words} / ${id}'s land`).toBeGreaterThanOrEqual(4);
+            }
+            for (const id of ['town', 'woods', 'docks', 'market', 'park', 'roofs']) {
+              for (const r of rowsOf(html, id)) {
+                for (const q of house) { expect(gap(r, q), `${name} ${touch}: ${id} "${r.words}" / "${q.words}"`).toBeGreaterThanOrEqual(4); checked++; }
+              }
+            }
+            // the town's words are the town's to tap: the house's circle keeps off them
+            for (const r of rowsOf(html, 'town')) expect(offCircle(r, at), `${name}: town "${r.words}" / the house's circle`).toBeGreaterThanOrEqual(0);
+          }
+        }
+      });
+    }
+    expect(checked).toBeGreaterThan(500);
+  });
+
+  it('Legacy has no Old House on the map', () => {
+    expect(regionOf(worldMapModel({ ...fresh(), edition: 'legacy' }, CATALOG), 'house')).toBeUndefined();
   });
 });

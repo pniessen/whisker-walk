@@ -55,9 +55,11 @@ it('walk.js builds it only for an area that places moves, and disposes it', () =
   expect(walk.indexOf('session.traversal?.dispose();')).toBeGreaterThan(walk.indexOf('session.fair?.dispose();'));
 });
 
-it('only the Rooftops places moves', async () => {
+it('only the Rooftops and the Old House place moves', async () => {
   // Every place a walk can go (a fresh save's walks, the den included), each
-  // built as walk.js builds it: only the Rooftops' record has `traversal`.
+  // built as walk.js builds it: only the Rooftops' record and the house's have
+  // `traversal` (the house's climbs up the furniture: Old House step 2, ruling
+  // D2; ruling S2-5 records it here).
   const ids = Object.keys(createProgression({ getItem: () => null, setItem() {} }).state.walks);
   expect(ids.length).toBeGreaterThan(10);
   const withMoves = [];
@@ -66,7 +68,7 @@ it('only the Rooftops places moves', async () => {
     const record = build(new THREE.Scene());
     if (record.traversal !== undefined) withMoves.push(id);
   }
-  expect(withMoves).toEqual(['roofs']);
+  expect(withMoves).toEqual(['roofs', 'house']);
   // the plan's roofsArea(), that roofs.js builds from, places them too
   const { roofsArea } = await import('../src/world/roofsplan.js');
   expect(roofsArea().traversal.hops.length).toBeGreaterThan(0);

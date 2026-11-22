@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
+import * as THREE from 'three';
 import { walkHarness, areas, fakeDocument, anything } from './helpers/walkharness.js';
 import { AreaLoadError } from '../src/game/areaload.js';
 import { GATE_MOMENT_MS, nextRoomSeed, gateStatus } from '../src/gatecross.js';
@@ -23,6 +24,10 @@ import { DISCS } from '../src/rivalclans.js';
 import { SPAWN as MOOR_SPAWN } from '../src/world/moor.js';
 import { SPAWN as WOODS_SPAWN } from '../src/world/woods.js';
 import { cameraOffset } from '../src/catcam.js';
+import { makeView, blockers } from '../src/housewalls.js';
+import { CAT_LOOK_Y } from '../src/cat/model.js';
+import { OLD_HOUSE_FRONT } from '../src/world/oldhousefront.js';
+import { gatewayNear } from '../src/gateways.js';
 import { clampZoomStep, maxZoomStep, zoomView } from '../src/camzoom.js';
 
 // Walking on (world map step 3, Task 7): a cat walks through a gate at the
@@ -36,7 +41,7 @@ import { clampZoomStep, maxZoomStep, zoomView } from '../src/camzoom.js';
 
 const WALK_MS = 90_000; // whole walks: an explicit timeout
 
-beforeAll(() => areas.ensureAll(['neighborhood', 'park', 'farm', 'fair', 'woods', 'moor', 'roofs', 'market']));
+beforeAll(() => areas.ensureAll(['neighborhood', 'park', 'farm', 'fair', 'woods', 'moor', 'roofs', 'market', 'house']));
 
 beforeEach(() => {
   globalThis.document = fakeDocument();
@@ -454,6 +459,150 @@ describe('walking on between the town and the Market Square', () => {
     // nothing to ask at: the prompt (main.js's interactions) asks at a gate
     // only on a Clan walk; test/interactions.test.js walks her to (30, 51)
     // in both editions and sees the prompt in Clan and none in Legacy.
+  }, WALK_MS);
+});
+
+// Old House step 4 (W6, W7): the old house's door in the town (town-house,
+// drawn by the town's old house front) and the hall's front door
+// (house-town), walked through both ways. The owner's change (P-1): the house
+// opens after 2 Market Square walks, so these saves own the Market.
+describe('walking on between the town and the Old House', () => {
+  // Clan Edition: the Market walked twice and owned; the house bought, or not.
+  function houseSave(area, { owned = true, points = 0 } = {}) {
+    return (p) => {
+      p.setTutorialFirst('done');
+      p.state.unlocked.areas.push('market', ...(owned ? ['house'] : []));
+      p.state.walks.neighborhood = 2;
+      p.state.walks.market = 2;
+      p.state.points = points;
+      p.setArea(area);
+      expect(p.state.edition).not.toBe('legacy');
+      expect(p.state.area).toBe(area);
+    };
+  }
+  const forward = (yaw) => ({ x: -Math.sin(yaw), z: -Math.cos(yaw) }); // rotation.y 0 faces -z
+  // The house walk's first picture: nothing of the house stands between the
+  // camera and her (as housegame.test.js's 'opens on her, not the front wall').
+  function seenInTheHall(h) {
+    const s = h.getSession();
+    const view = makeView(s.cat.position, h.camera.position, CAT_LOOK_Y);
+    expect(blockers(s.areaData.house.sections, s.areaLife.sink, view)).toEqual([]);
+    for (const x of s.areaData.house.sections) {
+      const m = s.scene.getObjectByName(`houseWall:${x.id}`);
+      if (m) expect(m.scale.y, x.id).toBe(s.areaLife.sink.fraction(x.id));
+    }
+  }
+
+  it("from the town through the old house's door: the house walk starts in the hall, 3.65 m in from its front door, facing north", async () => {
+    const h = walkHarness({ save: houseSave('neighborhood') });
+    h.w.startWalk({});
+    const town = h.getSession();
+    expect(town.areaId).toBe('neighborhood');
+    // the old house's front stands in the town, and its door draws no gate of its own
+    expect(town.scene.getObjectByName('oldhousefront')).toBeTruthy();
+    const signs = town.scene.children.filter((c) => c.name === 'gateway').map((g) => g.userData.endId).sort();
+    expect(signs).toEqual(['town-docks', 'town-market', 'town-park', 'town-roofs']);
+    expect(await h.w.walkOn({ via: 'town-house' })).toBe('walked');
+    expect(h.overlay.innerHTML).toContain('Off to the Old Twoleg Nest!');
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    const s = h.getSession();
+    expect(s.areaId).toBe('house');
+    expect(h.progression.state.area).toBe('house');
+    expect(s.arrivedVia).toBe('house-town');
+    expect(s.cat.position.x).toBeCloseTo(0, 9);
+    expect(s.cat.position.z).toBeCloseTo(7.95, 9);
+    expect(s.cat.rotation.y).toBe(0);
+    // the hall's door is the opening kind on this walk, shut as she lands
+    expect(s.areaData.house.parts.frontDoor).toBeTruthy();
+    expect(s.areaLife.frontDoorOpen).toBe(false);
+    h.w.endWalk();
+  }, WALK_MS);
+
+  it("from the house through the hall's front door: the town walk starts on the lawn, 3.65 m out from the old house's door, facing east", async () => {
+    const h = walkHarness({ save: houseSave('house') });
+    h.w.startWalk({});
+    expect(h.getSession().areaId).toBe('house');
+    expect(await h.w.walkOn({ via: 'town-house' })).toBe('refused'); // the town's door, not this walk's
+    expect(await h.w.walkOn({ via: 'house-town' })).toBe('walked');
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    const s = h.getSession();
+    expect(s.areaId).toBe('neighborhood');
+    expect(s.arrivedVia).toBe('town-house');
+    expect(s.cat.position.x).toBeCloseTo(-39.9, 9);
+    expect(s.cat.position.z).toBeCloseTo(31, 9);
+    expect(s.cat.rotation.y).toBe(-Math.PI / 2);
+    h.w.endWalk();
+  }, WALK_MS);
+
+  // Review Focus 4: bought at the town's door, straight in, and straight back out.
+  it("in through the town's door and out through the hall's: she lands facing in, seen", async () => {
+    const h = walkHarness({ save: houseSave('neighborhood', { owned: false, points: 200 }) });
+    h.w.startWalk({});
+    const town = h.getSession();
+    const door = endById('town-house').end;
+    // at the door: the gate's buy (the "Get it?" card's yes, game/crossing.js buyYes)
+    expect(gatewayNear('neighborhood', door.x + 1, door.z, CATALOG)?.id).toBe('town-house');
+    expect(gateStatus(door, h.progression.state, CATALOG)).toMatchObject({ kind: 'buy', to: 'house', price: 150 });
+    expect(h.progression.buy('areas', 'house')).toBe(true);
+    town.gates.setOpen('town-house', true); // a door drawn by the town: nothing to swing
+    expect(h.progression.state.points).toBe(50);
+    expect(gateStatus(door, h.progression.state, CATALOG).kind).toBe('go');
+    // then the walk-on
+    expect(await h.w.walkOn({ via: 'town-house' })).toBe('walked');
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    const inside = h.getSession();
+    expect(inside.areaId).toBe('house');
+    expect(inside.cat.position.z).toBeCloseTo(7.95, 9);
+    expect(inside.cat.rotation.y).toBe(0);
+    // facing in: north, away from the front door behind her
+    expect(forward(inside.cat.rotation.y).z).toBeLessThan(-0.99);
+    seenInTheHall(h);
+    // and the first settled frame keeps it so
+    inside.areaLife.update(1 / 60, 1 / 60, inside.cat.position, h.camera);
+    seenInTheHall(h);
+
+    // straight back out
+    expect(await h.w.walkOn({ via: 'house-town' })).toBe('walked');
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    const out = h.getSession();
+    expect(out.areaId).toBe('neighborhood');
+    expect(out.scene.getObjectByName('oldhousefront')).toBeTruthy();
+    const cat = out.cat.position;
+    expect(cat.x).toBeCloseTo(-39.9, 9);
+    expect(cat.z).toBeCloseTo(31, 9);
+    // facing away from the front, its door behind her
+    const f = forward(out.cat.rotation.y);
+    expect(f.x).toBeGreaterThan(0.99);
+    const toDoor = { x: OLD_HOUSE_FRONT.door.x - cat.x, z: OLD_HOUSE_FRONT.door.z - cat.z };
+    expect(f.x * toDoor.x + f.z * toDoor.z).toBeLessThan(0);
+    // the camera hangs behind her, toward the front, and nothing of the front
+    // stands between it and her
+    expect(h.camera.position.x).toBeLessThan(cat.x);
+    const look = new THREE.Vector3(cat.x, cat.y + CAT_LOOK_Y, cat.z);
+    const ray = new THREE.Raycaster(h.camera.position.clone(), look.clone().sub(h.camera.position).normalize(), 0, h.camera.position.distanceTo(look));
+    const front = out.scene.getObjectByName('oldhousefront');
+    front.updateWorldMatrix(true, true);
+    expect(ray.intersectObject(front, true)).toEqual([]);
+    // and it is not inside the house: from her back to the camera, the
+    // front's outside faces are not met either
+    const back = new THREE.Raycaster(look.clone(), h.camera.position.clone().sub(look).normalize(), 0, h.camera.position.distanceTo(look));
+    expect(back.intersectObject(front, true)).toEqual([]);
+    h.w.endWalk();
+  }, WALK_MS);
+
+  // W2: the house is Clan Edition only; a Legacy town draws neither its front nor its door.
+  it('a Legacy town has no house door', () => {
+    const h = walkHarness({ save: (p) => { houseSave('neighborhood')(p); p.setEdition('legacy'); } });
+    h.w.startWalk({});
+    const s = h.getSession();
+    expect(s.areaId).toBe('neighborhood');
+    expect(s.gates).toBe(NO_GATES);
+    expect(s.scene.getObjectByName('oldhousefront')).toBeUndefined();
+    expect(s.areaData.colliders.filter((c) => Math.hypot(c.x - OLD_HOUSE_FRONT.door.x, c.z - OLD_HOUSE_FRONT.door.z) < 3)).toEqual([]);
+    // nothing to ask at (-42.5, 31): main.js's interactions ask at a gate only
+    // on a Clan walk; test/interactions.test.js walks her there in both editions
+    expect(h.progression.state.edition).toBe('legacy');
+    h.w.endWalk();
   }, WALK_MS);
 });
 

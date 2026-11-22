@@ -84,14 +84,17 @@ const ICON = { town: '🏠', woods: '🌳', moor: '🌾', river: '🌿', pines: 
 // Where each name sits, nudged off her water and paths where they cross the centre.
 const LABEL_AT = { town: [862, 572], woods: [556, 540], moor: [655, 92], river: [205, 548], pines: [290, 172], gorge: [815, 300] };
 // The world map's street places: their icons, and where draft 2 puts their names.
-const STREET_ICON = { park: '⛲', fair: '🎡', farm: '🚜', docks: '⚓', seaside: '🏖️', roofs: '🕊️', market: '🧺' };
+const STREET_ICON = { park: '⛲', fair: '🎡', farm: '🚜', docks: '⚓', seaside: '🏖️', roofs: '🕊️', market: '🧺', house: '🕰️' };
 const STREET_LABEL_AT = { park: [1080, 478], fair: [1060, 236], farm: [1235, 326], docks: [900, 778], seaside: [1170, 688] };
 // Places inside the town whose names sit off their centre: the Market's, just
 // east of its circle, in the one gap that keeps its icon, name and line off
 // the town's own name and line, the Docks', the Park's and the Seaside's
 // words in every state (Market step 4; measured in Chalkboard SE, the iPad's
-// font, about 9 units clear of each; test/worldmap.test.js).
-const TOWN_LABEL_AT = { market: [1019, 634] };
+// font, about 9 units clear of each; test/worldmap.test.js). The Old House's,
+// south-west of its circle, the one gap that keeps its words off the town's
+// name and line, the Woods, her path, the Docks and every gate mark (Old
+// House step 4; about 14 units clear of each).
+const TOWN_LABEL_AT = { market: [1019, 634], house: [716, 712] };
 
 // A place's name: its icon, the lock, its name and its line, centred on its
 // anchor. A small place (the world map's street places and the Gorge) gets

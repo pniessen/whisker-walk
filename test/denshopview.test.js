@@ -257,3 +257,11 @@ describe('den shop: buying asks first', () => {
     expect(t.progression.state.den.owned).toEqual([]);
   });
 });
+
+describe('pad layers: the den shop sheet', () => {
+  it('carries data-pad-layer (hidden until opened, so it only counts while shown)', () => {
+    const t = setup();
+    expect(t.sheet.attrs['data-pad-layer']).toBe('');
+    expect(t.sheet.cls.has('hidden')).toBe(true);
+  });
+});

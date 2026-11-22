@@ -2022,7 +2022,7 @@ describe('The Fairground: registered everywhere a street area is', async () => {
 
   it('is the fourth place, after the Farm and before the Rooftops', () => {
     const ids = Object.keys(CATALOG.areas);
-    expect(ids.slice(0, 7)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'roofs', 'market', 'seaside']); // the Market after the Rooftops (Market step 4)
+    expect(ids.slice(0, 8)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'roofs', 'market', 'house', 'seaside']); // the Market after the Rooftops (Market step 4), the Old House after it (Old House step 4)
     // and nothing else about the others moved
     expect(CATALOG.areas.farm).toEqual({ name: 'Appletree Farm', price: 75, requires: { area: 'park', walks: 2 } });
     expect(CATALOG.areas.seaside).toEqual({ name: 'Seaside', price: 200, requires: { area: 'docks', walks: 2 } });
@@ -2088,8 +2088,8 @@ describe('The Fairground: registered everywhere a street area is', async () => {
 
   it('holds the golden mice, the prop set and the rest looks exactly as its rows say', () => {
     expect(GOLD_MICE.fair).toEqual(plain(REG.goldMice));
-    expect(GOLD_TOTAL).toBe(42); // 39 until the Market added its three, 36 until the Rooftops added its three
-    expect(goldForEdition('canon', CATALOG).size).toBe(42); // 39 until the Market added its three
+    expect(GOLD_TOTAL).toBe(45); // 42 until the Old House added its three, 39 until the Market added its three, 36 until the Rooftops added its three
+    expect(goldForEdition('canon', CATALOG).size).toBe(45); // 42 until the Old House added its three, 39 until the Market added its three
     expect(goldForEdition('legacy', CATALOG).size).toBe(21); // 24 while the Market had no catalog row (an area not in the catalog is counted); its Clan-only row (Market step 4) keeps its three out of Legacy; 18 until the Rooftops added its three
     const live = propsFor('fair');
     for (const k of ['carryables', 'knockables', 'markables', 'flaps', 'rests', 'hides', 'keepSlots']) expect(plain(live[k]), k).toEqual(plain(set[k]));
