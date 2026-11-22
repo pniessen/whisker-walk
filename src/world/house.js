@@ -36,7 +36,7 @@ import {
   LAWN_Y, WALL_T, fades, LEDGE_FADE_OVER, HOUSE_KITTEN_HOME, HOUSE_CELLAR_LID, houseArea, houseFloorGround, secretColliders, roomAt,
   HOUSE_ZONES, zoneOfRoom, wingZoneAt, isWingZone, outdoorsAt, WING_JOINS, ZONE_NEAR, ZONE_LEAVE,
 } from './houseplan.js';
-import { boxStandInMesh } from './housewingparts.js';
+import { wingFarMesh } from './housewingfar.js';
 import { houseMovesArea } from './housemoves.js';
 import {
   HOUSE_ATLAS_CELLS as CELL, createHouseAtlas, houseMaterial, sectionMesh, paneMesh, floorMesh, stairMesh,
@@ -253,9 +253,6 @@ function drawTrees(scene, wind) {
 }
 
 const START_LEVEL = 'ground';
-const WING_BOX_H = 2.6; // a far wing room's box, a little under its walls
-const WING_BOX_BRICK = 0x8c4a38; // a far room's outside: the brick its walls are (houseparts.js)
-const WING_BOX_FLOOR = freeze({ livingroom: 0xb8935c, solarium: 0xa09c8e, kids: 0xd2b070, bath: 0xa8c4be });
 
 // The house's lines for its data's `words` ids (housethings.js), in the word set of the moment.
 function houseWords() {
@@ -358,17 +355,9 @@ function furnish(scene, material, start, traversal) {
       scene.add(far);
     }
   }
-  // the wing's zones: one plain box a room, at most 120 triangles a zone, no casters (houselevels.js)
+  // the wing's zones: one mesh a zone, dressed like its rooms (housewingfar.js), at most a few hundred triangles, no casters (houselevels.js)
   for (const z of HOUSE_ZONES.filter((q) => q.wing)) {
-    const boxes = HOUSE_ROOMS.filter((r) => r.zone === z.id).map((r) => ({
-      minX: r.minX - WALL_T / 2, maxX: r.maxX + WALL_T / 2, minZ: r.minZ - WALL_T / 2, maxZ: r.maxZ + WALL_T / 2,
-      y0: LAWN_Y, y1: levelY(r.level) + WING_BOX_H, floorY: levelY(r.level) + 0.01, // from the lawn: it stands where the brick skirt is hidden
-      color: WING_BOX_BRICK, floorColor: WING_BOX_FLOOR[r.id] ?? 0xb8935c,
-    }));
-    const wedges = HOUSE_STAIRS.filter((st) => st.id === 'wing' && z.id === 'sun').map((st) => ({
-      x0: st.x0, x1: st.x1, z: st.z0, width: st.width, y0: levelY(st.from), y1: levelY(st.to), base: LAWN_Y, color: WING_BOX_BRICK,
-    }));
-    const m = boxStandInMesh(z.id, boxes, wedges);
+    const m = wingFarMesh(z.id, material.map);
     m.visible = !full.has(z.id);
     scene.add(m);
   }
@@ -465,6 +454,7 @@ export function build(scene, { wind, gateEnds = [] } = {}) {
       g.name = `houseWalls:${z.id}`;
       g.userData.noMerge = true;
       g.userData.houseWalls = z.id;
+      if (z.wing) g.userData.noContactShadow = true; // a wing room's wall group is no footprint: the bathroom's box was one (a black blotch on its floor)
       if (z.wing) {
         g.userData.houseDetail = true;
         g.userData.houseLevel = z.id;

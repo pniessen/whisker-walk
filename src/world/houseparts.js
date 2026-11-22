@@ -409,6 +409,19 @@ export function createHouseAtlas() {
   return texture;
 }
 
+// The wing's far look (housewingfar.js) paints its rooms from the atlas's own pixels: one pixel of a cell
+// at (x, y) in the cell's 48 px pattern, wrapped (or clamped, for a picture), written to `out`.
+export function atlasRgb(atlas, cell, x, y, out) {
+  const picture = PICTURE.has(cell);
+  const fix = (v) => (picture ? Math.min(INNER_PX - 1, Math.max(0, Math.floor(v))) : ((Math.floor(v) % INNER_PX) + INNER_PX) % INNER_PX);
+  const i = (((Math.floor(cell / COLS) * CELL_PX + GUTTER_PX + fix(y)) * ATLAS_PX) + (cell % COLS) * CELL_PX + GUTTER_PX + fix(x)) * 4;
+  const d = atlas.image.data;
+  out[0] = d[i]; out[1] = d[i + 1]; out[2] = d[i + 2];
+  return out;
+}
+export const ATLAS_PATTERN_PX = INNER_PX;
+export { FLOOR_CELL as HOUSE_FLOOR_CELL, WAIN as HOUSE_WAIN, DADO_Y as HOUSE_DADO_Y, WAIN_TILE as HOUSE_WAIN_TILE, WAIN_TILES as HOUSE_WAIN_TILES, tileOf as houseCellTile };
+
 export function houseMaterial(atlas) {
   return litMaterial(0xffffff, { map: atlas });
 }

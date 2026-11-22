@@ -10,8 +10,6 @@
 // 5,400); a piece's comment gives its own rough share.
 
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { litMaterial } from '../render/materials.js';
 
 const alongX = (g) => g.rotateZ(Math.PI / 2); // a cylinder's axis along x
 const alongZ = (g) => g.rotateX(Math.PI / 2); // along z
@@ -238,56 +236,3 @@ export const WING_FLAT_BUILDERS = {
     p.box(-0.1, 0.1, 0, 0.05, 0, 0.1, 'gold'); // a torch lying on the floor
   },
 };
-
-// A zone's far look: one open box per room (walls and a floor, no roof) and one wedge per stair, 10 and 12 triangles, one mesh,
-// no shadows (at most 120 triangles in all). `boxes`: [{ minX, maxX, minZ, maxZ, y0, y1, color }];
-// `wedges`: a stair along x as a ramp over a solid, [{ x0, x1, z, width, y0, y1, base, color }]
-// (its top rises from y0 at x0 to y1 at x1, its underside at `base`).
-export function boxStandInMesh(zone, boxes, wedges = []) {
-  const withColor = (g, hex) => {
-    const n = g.attributes.position.count;
-    const col = new Float32Array(n * 3);
-    const c = new THREE.Color(hex);
-    for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
-    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    return g;
-  };
-  // a room: four walls (outward faces) and a floor, no roof, so a camera above or inside it sees an
-  // empty room, never a lid over the cat (10 triangles)
-  const geos = boxes.map((b) => {
-    const box = new THREE.BoxGeometry(b.maxX - b.minX, b.y1 - b.y0, b.maxZ - b.minZ);
-    const idx = box.index.array;
-    const keep = [];
-    for (const g of box.groups) if (g.materialIndex !== 2 && g.materialIndex !== 3) for (let i = g.start; i < g.start + g.count; i++) keep.push(idx[i]);
-    box.setIndex(keep);
-    box.clearGroups();
-    box.translate((b.minX + b.maxX) / 2, (b.y0 + b.y1) / 2, (b.minZ + b.maxZ) / 2);
-    box.deleteAttribute('uv');
-    const floor = new THREE.PlaneGeometry(b.maxX - b.minX, b.maxZ - b.minZ);
-    floor.rotateX(-Math.PI / 2);
-    floor.translate((b.minX + b.maxX) / 2, b.floorY ?? b.y0, (b.minZ + b.maxZ) / 2);
-    floor.deleteAttribute('uv');
-    return [withColor(box, b.color), withColor(floor, b.floorColor ?? b.color)];
-  }).flat();
-  for (const w of wedges) {
-    const za = w.z - w.width / 2;
-    const zb = w.z + w.width / 2;
-    const A = [w.x0, w.base, za], B = [w.x0, w.base, zb], C = [w.x0, w.y0, za], D = [w.x0, w.y0, zb];
-    const E = [w.x1, w.base, za], F = [w.x1, w.base, zb], G = [w.x1, w.y1, za], H = [w.x1, w.y1, zb];
-    // the ramp's top, its two sides, its foot, its end, its underside, each wound outward
-    const tris = [[C, D, H], [C, H, G], [A, C, G], [A, G, E], [B, F, H], [B, H, D], [A, B, D], [A, D, C], [E, G, H], [E, H, F], [A, E, F], [A, F, B]];
-    const pos = new Float32Array(tris.length * 9);
-    tris.forEach((t, i) => t.forEach((v, k) => pos.set(v, i * 9 + k * 3)));
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    g.computeVertexNormals();
-    geos.push(withColor(g, w.color));
-  }
-  const m = new THREE.Mesh(mergeGeometries(geos.map((g) => (g.index ? g.toNonIndexed() : g))), litMaterial(0xffffff, { vertexColors: true }));
-  m.castShadow = false;
-  m.receiveShadow = true;
-  m.userData.noCast = true;
-  m.userData.houseSimple = zone;
-  m.name = `houseStandIn:${zone}`;
-  return m;
-}

@@ -99,7 +99,7 @@ describe('the worst spot in the house', () => {
 
   // The aims are held with her cat alone; with Mochi too the figures are reported, not held
   // (BUDGET_LOG=1): she adds about 30 meshes and 8,800 triangles, no casters, on every level.
-  it('every level is near the aims with everything in it: 306 meshes, 200 casters, 59,500 triangles', async () => {
+  it('every level is near the aims with everything in it: 306 meshes, 200 casters, 60,000 triangles', async () => {
     for (const light of ['day', 'dusk']) {
       const { m } = await measured(light, 'shut');
       const { m: withMochi } = await measured(light, 'shut', 1, true);
@@ -107,7 +107,7 @@ describe('the worst spot in the house', () => {
         const s = m.at(id);
         expect(s.meshes, `${light} ${id}`).toBeLessThanOrEqual(306); // the east wing's re-pin, 300 -> 306: its four stand-ins, a box each (milestone 1)
         expect(s.casters, `${light} ${id}`).toBeLessThanOrEqual(200);
-        expect(s.triangles, `${light} ${id}`).toBeLessThanOrEqual(59500); // the beauty pass's deliberate re-pin: 55,000 -> 59,500 (cornice, wainscot, wall dressing, glow)
+        expect(s.triangles, `${light} ${id}`).toBeLessThanOrEqual(60000); // the beauty pass's deliberate re-pin: 55,000 -> 59,500 (cornice, wainscot, wall dressing, glow); the wing's far-room fix round, 59,500 -> 60,000 (the four far stand-ins dressed: 52 -> 302 triangles, in view from the hall)
         expect(withMochi.at(id).triangles, `${light} ${id}`).toBeGreaterThan(s.triangles); // she is drawn
       }
       if (process.env.BUDGET_LOG) console.log(light, 'with Mochi', JSON.stringify(houseWorstSpot(withMochi, ids)));
@@ -215,7 +215,7 @@ describe('the east wing\'s zones', () => {
   // the old house's worst spot before the wing, with Mochi (measured at the start of the wing's build, main 7a0e6f70)
   const OLD_WORST = { day: 67046, dusk: 67483 };
 
-  it('draws each wing zone in full within its limits, and its stand-in under 120 triangles with no casters', async () => {
+  it('draws each wing zone in full within its limits, and its stand-in (walls, floor, windows and the tallest pieces, dressed) under 120 triangles with no casters', async () => {
     const { m } = await measured('day', 'shut', 1, true);
     for (const z of WING) {
       const d = m.detail.get(z);
@@ -246,8 +246,8 @@ describe('the east wing\'s zones', () => {
     it(`the old house's worst spot barely grew, and the parlour at the new door is under the ceilings (${light})`, async () => {
       const { m } = await measured(light, 'shut', 1, true);
       const worst = houseWorstSpot(m, ids);
-      // four stand-in boxes, the parlour's east wall dressed on its new face and the wing's four knock-overs: 680 to 780 triangles
-      expect(worst.triangles).toBeLessThanOrEqual(OLD_WORST[light] + 800);
+      // four dressed stand-ins (302 triangles), the parlour's east wall dressed on its new face and the wing's four knock-overs: 930 to 1,030 triangles
+      expect(worst.triangles).toBeLessThanOrEqual(OLD_WORST[light] + 1100);
       expect(worst.triangles).toBeLessThanOrEqual(70000);
       // at the parlour's east door, the living room drawn beside her; her level alone (the stairs' levels step back)
       const door = m.atZone('ground', ['living']);
@@ -281,6 +281,13 @@ describe('the east wing\'s zones', () => {
     const walls = scene.children.filter((c) => c.userData?.houseWalls && WING.includes(c.userData.houseWalls));
     expect(walls.map((c) => c.userData.houseWalls).sort()).toEqual([...WING].sort());
     for (const w of walls) expect(w.userData.houseDetail).toBe(true);
+    for (const w of walls) expect(w.userData.noContactShadow, w.name).toBe(true); // no footprint blob under a whole room (the bathroom's was a black blotch on its floor)
+    for (const z of WING) { // the far look: one mesh, two materials (the baked sheet, the repeating brick), textured, no blob, no casters
+      const far = scene.children.find((c) => c.userData?.houseSimple === z);
+      expect(Array.isArray(far.material) && far.material.length === 2, z).toBe(true);
+      expect(far.material.every((mt) => mt.map), z).toBe(true);
+      expect(far.userData.noContactShadow, z).toBe(true);
+    }
     const panes = scene.children.filter((c) => c.userData?.paneZone);
     expect(panes.length).toBe(12); // living room 2, solarium 6, kids' room 3, bathroom 1
     for (const z of WING) expect(scene.children.some((c) => c.userData?.houseSimple === z)).toBe(true);
