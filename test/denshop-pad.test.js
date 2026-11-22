@@ -44,7 +44,7 @@ function rig() {
   const doc = { createElement: () => root, activeElement: null };
   const mounted = [];
   const click = (attr, value) => root.listeners.click({ target: { closest: () => ({ getAttribute: (a) => (a === attr ? value : null) }) } });
-  const open = (o = {}) => openList({ doc, mount: (e) => mounted.push(e), titleId: 'pad.spot.title', slots: { spot: 'Window' }, options: [{ value: '', label: 'nothing', current: true }, { value: 'rug', label: 'Rug' }], ...o });
+  const open = (o = {}) => openList({ doc, mount: (e) => mounted.push(e), titleId: 'pad.spot.title', slots: { name: 'Window' }, options: [{ value: '', label: 'nothing', current: true }, { value: 'rug', label: 'Rug' }], ...o });
   return { root, mounted, click, open };
 }
 

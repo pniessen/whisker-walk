@@ -97,7 +97,7 @@ export function createDenShopView({
       const none = tvState.padLine?.('pad.spot.none') ?? '';
       pick = await tvHooks.list({
         doc, mount: (el) => { el.classList?.add('ds-confirm'); el.addEventListener('keydown', (e) => e.stopPropagation()); mountRoot.appendChild(el); },
-        titleId: 'pad.spot.title', slots: { spot: SPOT_LABEL[spotId] ?? spotId },
+        titleId: 'pad.spot.title', slots: { name: SPOT_LABEL[spotId] ?? spotId },
         options: spotChoices(progression.state, DEN_ITEMS, DEN_SPOTS, spotId).map((o) => ({ ...o, label: o.label ?? none })),
       });
     } catch { /* no list: nothing changes */ }
