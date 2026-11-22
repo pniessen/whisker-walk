@@ -368,7 +368,7 @@ function packTrims(h, lift, simple, K) {
 // The Flower Basket (Market step 4) is the same bale as a little wicker
 // basket heaped with blooms: the pack's own size, its sides a basket weave
 // (light and dark withies in turn, a darker rim round the top), its top a
-// mound of leaves dotted with petals; the two bands are one wicker handle
+// mound of leaves dotted with petals; its one band is a wicker handle
 // arching over the blooms (bandX 0, raised `arch` over the top), and the
 // loose stalks are leaves poking up, with round blooms among them.
 const HAY = Object.freeze({ size: 1.2, straw: 0xd9b75a, dark: 0xb8963e, light: 0xecd27e, cut: 0xa8852e, twine: 0x8a5a2a, bandX: 0.42, bandW: 0.008, off: 0.003,
@@ -391,9 +391,10 @@ function basketColour(h) {
   };
 }
 // two twine bands round the bale's short way (in y-z), loose stalks out of its top and ends
+// (one band where bandX is 0: the basket's handle, over its middle)
 function hayTrims(h, lift, simple, L = HAY) {
   const around = simple ? 12 : 24;
-  const bands = [-1, 1].map((side) => grid(around, 2, { wrapU: true }, (i, j) => {
+  const bands = (L.bandX ? [-1, 1] : [1]).map((side) => grid(around, 2, { wrapU: true }, (i, j) => {
     const th = (2 * Math.PI * i) / around + Math.PI / 4;
     const dz = Math.cos(th), dy = Math.sin(th);
     const k = 1 / Math.max(Math.abs(dz) / h[2], Math.abs(dy) / h[1]);

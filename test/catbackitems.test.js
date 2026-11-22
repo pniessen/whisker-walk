@@ -62,6 +62,15 @@ describe(DESCRIBE, () => {
     }
   });
 
+  it("the Flower Basket's handle is one band: its two bands at bandX 0 were one drawn twice (final review)", () => {
+    // pinned 2026-11-21: 1,100 / 458 with the doubled handle, less one band of
+    // 24 (12 simple) twine quads; the hay bale keeps its two bands
+    for (const cover of ['fur', 'shell', 'cape']) {
+      expect(meshTris(buildBackItem('flowerbasket', { bodyScale: TORSO.SCALE, cover })), cover).toBe(1100 - 48);
+      expect(meshTris(buildBackItem('flowerbasket', { bodyScale: TORSO.SCALE, cover, simple: true })), cover).toBe(458 - 24);
+    }
+  });
+
   it('a found pack is shown from the rear quarter, as the shop packs are; the wings keep the front', () => {
     expect(accessoryFraming('haybalepack').rotY).toBe(-2.4);
     expect(accessoryFraming('wings').rotY).toBe(-0.45);
