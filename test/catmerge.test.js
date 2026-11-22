@@ -4,8 +4,13 @@ import { describe, it, expect } from 'vitest';
 import { mergeSaves, MERGE_RULES, trimBase, BASE_KEYS, useSaveTools } from '../src/catmerge.js';
 import { sanitizeSave, freshStateKeys, CATALOG, createProgression } from '../src/progression.js';
 import { memoryStorage } from './helpers/storage.js';
+import { mergeColony } from '../src/colony.js';
+import { mergeUsage } from '../src/usage.js';
+import { sanitizeMarks, MARK_AREAS } from '../src/marks.js';
+import { CUSTOM_IDS, CUSTOM_BASE, CUSTOM_MAX } from '../src/customcats.js';
+import { OUTFIT_IDS, sameWear } from '../src/outfits.js';
 
-useSaveTools({ CATALOG, sanitizeSave });
+useSaveTools({ CATALOG, sanitizeSave, mergeColony, mergeUsage, sanitizeMarks, MARK_AREAS, CUSTOM_IDS, CUSTOM_BASE, CUSTOM_MAX, OUTFIT_IDS, sameWear });
 const fresh = (over = {}) => sanitizeSave({ version: 4, ...over });
 const merge = (local, cloud, extra = {}) => mergeSaves({ local: fresh(local), cloud: fresh(cloud), ...extra });
 const starters = new Set(sanitizeSave({}).unlocked.accessories);

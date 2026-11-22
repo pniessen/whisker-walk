@@ -25,7 +25,6 @@
 // error: the merge then takes the larger of each counter.
 import { mergeSaves, trimBase, useSaveTools } from '../catmerge.js';
 import { phrase } from '../clanphrases.js';
-import { note } from '../diagnostics.js';
 
 export const SYNCBASE_KEY = 'whisker-walk-syncbase';
 export const CATCHUP_TIMEOUT_MS = 5000;
@@ -54,7 +53,7 @@ export function readBase(storage) {
 }
 
 function writeBase(storage, b) {
-  try { storage.setItem(SYNCBASE_KEY, JSON.stringify(b)); } catch (err) { note('cloud', err); }
+  try { storage.setItem(SYNCBASE_KEY, JSON.stringify(b)); } catch { /* a full device: the next catch-up starts from no base */ }
 }
 
 // What identifies a cloud payload without a revision (a server before v11).
@@ -66,7 +65,7 @@ const withTimeout = (p, ms) => Promise.race([p, timeoutAfter(ms)]);
 /**
  * createCatSync({ tools, storage, getCloud, readLink, progression, compose, atHome,
  *                 toast, onApplied, setStatus, now, timeoutMs })
- *   tools           { CATALOG, sanitizeSave } from progression.js (see catmerge.js for why it is handed in)
+ *   tools           { CATALOG, sanitizeSave, note } from the start-up code (see catmerge.js for why they are handed in)
  *   getCloud()      the cloud handle for this device's own save, or null
  *   readLink()      { code, secret } or null
  *   compose(opts)   the payload to send; { album: false } leaves the photos out
@@ -79,7 +78,7 @@ const withTimeout = (p, ms) => Promise.race([p, timeoutAfter(ms)]);
  */
 export function createCatSync({ tools, storage, getCloud, readLink, progression, compose, atHome = () => true, toast = () => {}, onApplied = () => {}, setStatus = () => {}, now = Date.now, timeoutMs = CATCHUP_TIMEOUT_MS }) {
   useSaveTools(tools);
-  const sanitizeSave = tools.sanitizeSave;
+  const { sanitizeSave, note } = tools;
   let running = null;
   let deniedShown = false;
 

@@ -15,6 +15,11 @@ import { toastLifeMs } from '../ui/toastlife.js';
 import { isPlayerId } from '../colony.js';
 import { snapshotKeyState, applyKeyState, backUpCatKey, catKeyFromPayload } from '../catkey.js';
 import { phrase } from '../clanphrases.js';
+import { mergeColony } from '../colony.js';
+import { mergeUsage } from '../usage.js';
+import { sanitizeMarks, MARK_AREAS } from '../marks.js';
+import { CUSTOM_IDS, CUSTOM_BASE, CUSTOM_MAX } from '../customcats.js';
+import { OUTFIT_IDS, sameWear } from '../outfits.js';
 
 // A toast surface that stays visible on the home base screen (unlike
 // #hud, which is display:none whenever no walk is in progress) — cloud
@@ -229,7 +234,7 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
   let catLoad = null;
   function runCat(kind) {
     catLoad ??= loadCatSync().then((m) => m.createCatSync({
-      tools: { CATALOG, sanitizeSave }, storage, getCloud: saveCloud, readLink: readCloudLink, progression,
+      tools: { CATALOG, sanitizeSave, note, mergeColony, mergeUsage, sanitizeMarks, MARK_AREAS, CUSTOM_IDS, CUSTOM_BASE, CUSTOM_MAX, OUTFIT_IDS, sameWear }, storage, getCloud: saveCloud, readLink: readCloudLink, progression,
       compose: composeCloudPayload, atHome, toast: cloudToast, onApplied,
       setStatus: (s) => { catState = s; try { onCatStatus(s); } catch { /* the sheet is only a view */ } },
     }));
@@ -377,13 +382,9 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
     async syncNow() {
       if (!readCloudLink()) return runSync();
       const r = await runCat('push').catch(() => null);
-      if (r === null || (r && r.legacy)) return runSync();
-      if (r === 'saved' || r === 'caught') return { ok: true, message: r === 'caught' ? phrase('catlogin.caughtup', savedName()) : 'Synced ✓' };
-      if (r === 'signedout') return { ok: false, message: phrase('catlogin.signedout', savedName()) };
-      if (r === 'too-big') return { ok: false, message: TOO_BIG_MESSAGE };
-      if (r === 'busy') return { ok: false, message: BUSY_MESSAGE };
-      if (r === 'deferred') return { ok: true, message: 'Synced ✓' };
-      return { ok: false, message: 'Could not reach the cloud — check your connection and try again.' };
+      if (r === null || r.legacy) return runSync();
+      const ok = r === 'saved' || r === 'caught' || r === 'deferred'; // (the toast already said what came in)
+      return { ok, message: ok ? 'Synced ✓' : r === 'signedout' ? phrase('catlogin.signedout', savedName()) : r === 'too-big' ? TOO_BIG_MESSAGE : r === 'busy' ? BUSY_MESSAGE : 'Could not reach the cloud — check your connection and try again.' };
     },
     // How the cat's catch-up stands, for the sheet: { state, name } or null before it has run.
     catStatus() {

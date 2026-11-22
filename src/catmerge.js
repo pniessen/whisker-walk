@@ -12,20 +12,17 @@
 //
 // Pure and DOM-free. It is a lazy chunk: nothing at start-up imports it.
 // The result goes through sanitizeSave, so the caps of every field hold.
-import { mergeColony } from './colony.js';
-import { mergeUsage } from './usage.js';
-import { sanitizeMarks, MARK_AREAS } from './marks.js';
-import { CUSTOM_IDS, CUSTOM_BASE, CUSTOM_MAX } from './customcats.js';
-import { OUTFIT_IDS, sameWear } from './outfits.js';
 
-// What the merge needs from progression.js (the item catalogue and the save
-// cleaner) is handed in by the caller, not imported: this file is a lazy chunk,
-// and a lazy chunk that imports progression.js makes the bundler split the
-// start-up code into twice as many files (about 3 kB gzipped more to download).
-let tools = null;
-export function useSaveTools(t) { tools = t; }
-const CATALOG = new Proxy({}, { get: (_t, k) => tools.CATALOG[k] });
-const sanitizeSave = (v) => tools.sanitizeSave(v);
+// What the merge needs from the rest of the game (the item catalogue, the save
+// cleaner, the colony, usage, marks, outfits and custom-cat helpers) is handed
+// in by the caller (cloudsync.js), not imported: this file is a lazy chunk, and
+// a lazy chunk that imports several start-up modules makes the bundler split
+// the start-up code into more files (about 1 kB gzipped more to download).
+let T = null;
+export function useSaveTools(t) { T = t; }
+const CATALOG = new Proxy({}, { get: (_t, k) => T.CATALOG[k] });
+const sanitizeSave = (v) => T.sanitizeSave(v);
+const sameWear = (a, b) => T.sameWear(a, b);
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0);
@@ -87,7 +84,7 @@ function balance(L, C, B) {
 function relocateCustom(L, C, B) {
   const cloudBy = new Map(C.customCats.map((x) => [x.id, x]));
   const baseBy = new Map((Array.isArray(B?.customCats) ? B.customCats : []).map((x) => [x.id, x]));
-  const slots = CUSTOM_IDS.slice(0, L.moreCatSlots || C.moreCatSlots ? CUSTOM_MAX : CUSTOM_BASE);
+  const slots = T.CUSTOM_IDS.slice(0, L.moreCatSlots || C.moreCatSlots ? T.CUSTOM_MAX : T.CUSTOM_BASE);
   const taken = new Map(); // slot -> cat
   for (const cc of C.customCats) taken.set(cc.id, cc);
   const movers = [];
@@ -121,10 +118,10 @@ function mergeOutfits(L, C) {
   const out = [...C.outfits];
   for (const o of L.outfits) {
     if (out.some((x) => sameWear(x.wear, o.wear))) continue;
-    const id = out.some((x) => x.id === o.id) ? OUTFIT_IDS.find((i) => !out.some((x) => x.id === i)) : o.id;
+    const id = out.some((x) => x.id === o.id) ? T.OUTFIT_IDS.find((i) => !out.some((x) => x.id === i)) : o.id;
     if (id) out.push({ ...o, id });
   }
-  return out.sort((a, b) => OUTFIT_IDS.indexOf(a.id) - OUTFIT_IDS.indexOf(b.id));
+  return out.sort((a, b) => T.OUTFIT_IDS.indexOf(a.id) - T.OUTFIT_IDS.indexOf(b.id));
 }
 
 // ---- the rules ---------------------------------------------------------------
@@ -144,10 +141,10 @@ export const MERGE_RULES = Object.freeze({
     areas: union(r.L.unlocked.areas, r.C.unlocked.areas),
   }),
   equipped: (r) => newer(r.L.equipped, r.C.equipped, r.B?.equipped, r.ctx),
-  customCats: (r) => CUSTOM_IDS.filter((id) => r.cats.has(id)).map((id) => r.cats.get(id)),
+  customCats: (r) => T.CUSTOM_IDS.filter((id) => r.cats.has(id)).map((id) => r.cats.get(id)),
   moreCatSlots: (r) => r.L.moreCatSlots || r.C.moreCatSlots,
   outfits: (r) => mergeOutfits(r.L, r.C),
-  usage: (r) => mergeUsage(r.L.usage, r.C.usage),
+  usage: (r) => T.mergeUsage(r.L.usage, r.C.usage),
   area: (r) => newer(r.L.area, r.C.area, r.B?.area, r.ctx),
   lifetimePoints: (r) => counter(r.L.lifetimePoints, r.C.lifetimePoints, r.B?.lifetimePoints),
   bestWalk: (r) => Math.max(num(r.L.bestWalk), num(r.C.bestWalk)),
@@ -185,7 +182,7 @@ export const MERGE_RULES = Object.freeze({
   grudges: (r) => union(r.L.grudges, r.C.grudges),
   colony: (r) => {
     const known = new Set(Object.keys(CATALOG.accessories));
-    const m = mergeColony(r.L.colony, r.C.colony, { knownItems: known });
+    const m = T.mergeColony(r.L.colony, r.C.colony, { knownItems: known });
     return {
       ...m,
       id: r.L.colony.id ?? m.id,
@@ -204,8 +201,8 @@ export const MERGE_RULES = Object.freeze({
   },
   marks: (r) => {
     const out = {};
-    for (const a of MARK_AREAS) out[a] = [...(r.C.marks[a] ?? []), ...(r.L.marks[a] ?? [])];
-    return sanitizeMarks(out);
+    for (const a of T.MARK_AREAS) out[a] = [...(r.C.marks[a] ?? []), ...(r.L.marks[a] ?? [])];
+    return T.sanitizeMarks(out);
   },
   retired: (r) => union(r.L.retired, r.C.retired),
   redeemed: (r) => union(r.L.redeemed, r.C.redeemed), // a union, so a gift code cannot be used twice
@@ -281,7 +278,7 @@ export function mergeSaves({ local, cloud, base = null, now = Date.now(), localA
   const { L, taken, sleepers } = relocateCustom(L0, C, B);
   const cats = taken;
   // sleeping cats: both sides', plus any that found no slot; one wakes into a free slot
-  const slots = CUSTOM_IDS.slice(0, L.moreCatSlots || C.moreCatSlots ? CUSTOM_MAX : CUSTOM_BASE);
+  const slots = T.CUSTOM_IDS.slice(0, L.moreCatSlots || C.moreCatSlots ? T.CUSTOM_MAX : T.CUSTOM_BASE);
   const sleeping = [];
   for (const s of [...L.sleepingCats, ...C.sleepingCats, ...sleepers]) {
     if ([...cats.values()].some((c) => content(c) === content(s)) || sleeping.some((x) => content(x) === content(s))) continue;
