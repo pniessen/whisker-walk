@@ -21,7 +21,7 @@
 // once a walk. A partner's shoo, coo and munch say nothing here.
 // =============================================================================
 import { TREAT_WORDS, MARKET_LINES } from '../marketwords.js';
-import { SHOO_TOAST_GAP } from '../marketnone.js';
+import { SHOO_TOAST_GAP, treatItemId } from '../marketnone.js';
 import { safeRemoteName } from '../net.js';
 
 // A partner's name, as safe as any name off the wire, for a teamwork line.
@@ -84,6 +84,11 @@ export function handleMarketEvent(e, ctx) {
       break;
     case 'coo':
       if (e.who === 'me') once('market-coo', MARKET_LINES.coo());
+      break;
+    case 'grab':
+      // A hop grab has no button press for interactions.js to follow with the carry-pick, so it goes out here
+      // (the same event, M7); the partner's device shows her munching and pays the team treat from it
+      if (e.hop && session?.net) session.net.sendEvent({ v: 1, id: session.playerId, type: 'carry-pick', itemId: treatItemId(e.stall) });
       break;
     default: // 'grab' pays when eaten; 'remote-eat' is the partner's own
       break;

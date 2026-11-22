@@ -14,6 +14,7 @@ const { isWalkableAt } = await import('../src/player.js');
 const { treatItemId } = await import('../src/marketnone.js');
 const { canReach, BASE_CLIMB_BUDGET } = await import('../src/climbing.js');
 const { TREAT_WORDS } = await import('../src/marketwords.js');
+const { handleMarketEvent } = await import('../src/game/marketplay.js');
 
 const DT = 1 / 30;
 const ID = 'butcher';
@@ -115,7 +116,7 @@ describe('the hop grab (the riskiest piece)', () => {
     expect(held(r)).toEqual({ id: treatItemId(ID), kind: 'sausages', treat: true });
     expect(r.stall(ID).treatOut).toBe(false);
     expect(r.area.treatMeshes[ID].visible).toBe(false);
-    expect(ofType(r, 'grab')).toEqual([{ type: 'grab', stall: ID }]);
+    expect(ofType(r, 'grab')).toEqual([{ type: 'grab', stall: ID, hop: true }]); // `hop`: the walk sends the carry-pick for it
     expect(r.stall(ID).refillT).toBeCloseTo(MARKET.REFILL_S - DT, 6); // set at the grab, one frame of refill since
     r.live.dispose();
   });
@@ -211,8 +212,13 @@ describe('the hop grab (the riskiest piece)', () => {
     r.live.dispose();
   });
 
-  it("(h) a partner's pick shows her munching on the other screen, and each child keeps her own string", () => {
-    const a = marketRig({ seed: 9 });
+  it("(h) a hop grab goes out as the carry-pick, and the partner's device then shows her munching", () => {
+    // the walk's own handler turns the life's events into the send (game/marketplay.js), as interactions.js does for the button
+    let aRig;
+    const hud = { toast() {} };
+    const log = { awardOnce: () => true };
+    const a = marketRig({ seed: 9, onEvent: (e) => handleMarketEvent(e, { hud, audio: null, log, session: aRig.session, once: () => {}, every: () => {} }) });
+    aRig = a;
     const b = marketRig({ seed: 9 });
     b.session.playerId = 'ben';
     a.setPhase(ID, 'away', 0.2);
@@ -225,8 +231,15 @@ describe('the hop grab (the riskiest piece)', () => {
     a.session.pounceTime = MARKET.POUNCE_S - 0.15;
     a.step(DT);
     expect(held(a)?.id).toBe(treatItemId(ID));
-    expect(b.live.remotePick(herOnB, treatItemId(ID))).toBe(true);
-    expect(b.stall(ID).treatOut).toBe(true);
+    const sent = a.session.net.sendEvent.mock.calls.map((c) => c[0]);
+    expect(sent).toEqual([{ v: 1, id: 'me', type: 'carry-pick', itemId: treatItemId(ID) }]);
+    // the partner's walk hands that very event to remotePick
+    expect(b.live.remotePick(herOnB, sent[0].itemId)).toBe(true);
+    b.step(DT, 5);
+    expect(b.scene.children.some((o) => o.name.startsWith('marketMouth:me:'))).toBe(true);
+    expect(ofType(b, 'remote-eat')).toHaveLength(1);
+    expect(b.stall(ID).treatOut).toBe(true); // each child keeps her own string
+    // the button path (the rail) sends nothing from here: interactions.js sends its own
     for (const r of [a, b]) r.live.dispose();
   });
 
@@ -257,12 +270,16 @@ describe('the hop grab (the riskiest piece)', () => {
     r.step(DT);
     expect(held(r)).toBeNull();
     r.live.dispose();
-    // mid-munch (a treat already in the mouth) the hop takes nothing more
+    // her mouth is full: the hop takes nothing and does not spend the pounce's one catch; once it is empty the same pounce lands
     const q = hopRig(0.15);
     q.session.carry.mouth.held = { id: 'market-treat-fish', kind: 'fishhead', treat: true };
     q.step(DT);
     expect(held(q).id).toBe('market-treat-fish');
     expect(q.stall(ID).treatOut).toBe(true);
+    expect(q.session.net.sendEvent).not.toHaveBeenCalled();
+    q.session.carry.mouth.held = null;
+    q.step(DT);
+    expect(held(q)?.id).toBe(treatItemId(ID));
     q.live.dispose();
   });
 });

@@ -893,6 +893,9 @@ export function createMarketLive(scene, area, opts = {}) {
       const t = plans[st.id].treat;
       if (!t?.hang || !st.treatOut) continue;
       if (Math.hypot(cat.position.x - t.x, cat.position.z - t.z) > MARKET.TREAT_REACH) continue;
+      // Her mouth is full: the button path puts the item down (the walk's own putDownCarried, which the
+      // life cannot reach), the hop does not take the string and does not spend the pounce's one catch.
+      if (s.carry?.mouth?.held || munch.active) continue;
       hopLatch = true;
       grab(st.id, s, null, true);
       return;
@@ -1073,7 +1076,7 @@ export function createMarketLive(scene, area, opts = {}) {
       scene.add(munch.mesh);
       showInMouth(munch.mesh, cat, 0);
     } else s.sniffTime = MARKET.HOLD_S + MARKET.MUNCH_S; // the cream: head down, lapping, the whole time
-    onEvent({ type: 'grab', stall: st.id });
+    onEvent(viaHop ? { type: 'grab', stall: st.id, hop: true } : { type: 'grab', stall: st.id });
     return true;
   
   }
