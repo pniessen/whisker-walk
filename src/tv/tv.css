@@ -1,0 +1,74 @@
+/* TV mode: loaded with the chunk (src/tv/index.js), never with start-up.
+   Every rule is under html.tv. fonts.css (generated) holds the 24 px floor;
+   the sizes below are the hand-set ones, and they load after it, so they win.
+   --tv-s is 1 up to a 1920 px window and 2 at 3840 (scale.js). */
+
+html.tv {
+  font-size: calc(24px * var(--tv-s, 1));
+  --map-size: calc(220px * var(--tv-s, 1));
+}
+html.tv body.touch-mode { --map-size: calc(220px * var(--tv-s, 1)); }
+
+/* Safe margins: nothing a child reads sits in the outer 5 % of the screen,
+   where a TV may crop. The HUD's own insets measure from this box. */
+html.tv #hud { inset: var(--tv-safe-y, 5vh) var(--tv-safe-x, 5vw); }
+html.tv #homebase, html.tv #overlay > * { box-sizing: border-box; padding: var(--tv-safe-y, 5vh) var(--tv-safe-x, 5vw); }
+html.tv .homebase-scroll { max-width: calc(1500px * var(--tv-s, 1)); }
+html.tv .dr { max-width: min(100%, calc(1700px * var(--tv-s, 1))); }
+
+/* No touch controls and no stray pointer on a TV. */
+html.tv .touch-ui, html.tv [class^="tui-"], html.tv [class*=" tui-"] { display: none !important; }
+html.tv body.tv-idle, html.tv body.tv-idle * { cursor: none !important; }
+
+/* The focus ring is readable from the sofa. */
+html.tv .pad-focus :focus, html.tv .pad-focus :focus-visible { outline-width: 5px !important; outline-offset: 4px !important; }
+html.tv .hb-grownups-door { opacity: 1; }
+
+/* ---- Walk HUD sizes (1080p; each grows with --tv-s) ------------------------ */
+html.tv .hud-top { font-size: calc(30px * var(--tv-s, 1)) !important; }
+html.tv .hud-points, html.tv .hud-rank { padding: calc(6px * var(--tv-s, 1)) calc(18px * var(--tv-s, 1)); }
+html.tv .hud-rank { font-size: calc(26px * var(--tv-s, 1)) !important; }
+html.tv .hud-objective { font-size: calc(28px * var(--tv-s, 1)) !important; top: calc(var(--tv-s, 1) * 76px); }
+html.tv .hud-goals {
+  font-size: calc(24px * var(--tv-s, 1)) !important; max-width: calc(520px * var(--tv-s, 1));
+  top: calc(var(--tv-s, 1) * 76px); gap: calc(5px * var(--tv-s, 1));
+}
+html.tv .hud-roster { top: calc(var(--map-size) + var(--tv-s, 1) * 62px); }
+html.tv .hud-map:not(:has(.hud-map-disc)) ~ .hud-roster { top: calc(var(--tv-s, 1) * 76px); }
+html.tv .hud-area { padding: calc(3px * var(--tv-s, 1)) calc(14px * var(--tv-s, 1)); }
+
+/* The bottom of the screen, centred: strip, hint, prompt, toasts. The offsets
+   the base styles set for small text are re-set for the bigger text. */
+html.tv .hud-controls { bottom: 0; font-size: calc(26px * var(--tv-s, 1)) !important; padding: calc(8px * var(--tv-s, 1)) calc(24px * var(--tv-s, 1)); }
+html.tv .hud-hint {
+  bottom: 0; font-size: calc(30px * var(--tv-s, 1)) !important; padding: calc(12px * var(--tv-s, 1)) calc(22px * var(--tv-s, 1));
+  max-width: min(calc(1000px * var(--tv-s, 1)), 100%); gap: calc(14px * var(--tv-s, 1)); border-radius: calc(22px * var(--tv-s, 1));
+}
+html.tv .hud-hint-pic { font-size: calc(34px * var(--tv-s, 1)) !important; }
+html.tv .hud-hint-more { font-size: calc(26px * var(--tv-s, 1)) !important; }
+html.tv .hud-hint-keys kbd, html.tv .hud-hint.chip .hud-hint-keys kbd {
+  min-width: calc(40px * var(--tv-s, 1)); height: calc(40px * var(--tv-s, 1)); font-size: calc(26px * var(--tv-s, 1)) !important; padding: 0 calc(9px * var(--tv-s, 1));
+}
+html.tv .hud-hint.chip { padding: calc(6px * var(--tv-s, 1)) calc(16px * var(--tv-s, 1)); font-size: calc(26px * var(--tv-s, 1)) !important; }
+html.tv .hud-prompt { bottom: calc(var(--tv-s, 1) * 72px); font-size: calc(30px * var(--tv-s, 1)) !important; padding: calc(10px * var(--tv-s, 1)) calc(24px * var(--tv-s, 1)); }
+html.tv .hud-prompt-btn { min-height: calc(56px * var(--tv-s, 1)); min-width: calc(56px * var(--tv-s, 1)); }
+html.tv .hud-toasts { bottom: calc(var(--tv-s, 1) * 160px); gap: calc(8px * var(--tv-s, 1)); }
+html.tv .toast { font-size: calc(28px * var(--tv-s, 1)) !important; padding: calc(10px * var(--tv-s, 1)) calc(24px * var(--tv-s, 1)); }
+html.tv body:not(.touch-mode) #hud.hinting:not(.lesson-on) .hud-hint { bottom: calc(var(--tv-s, 1) * 62px); }
+html.tv body:not(.touch-mode) #hud.hinting:not(.lesson-on):not(.fight-asking) .hud-prompt { bottom: calc(var(--tv-s, 1) * 150px); }
+html.tv body:not(.touch-mode) #hud.hinting:not(.fight-asking):not(.fighting) .hud-toasts { bottom: calc(var(--tv-s, 1) * 220px); }
+html.tv body:not(.touch-mode) #hud.hinting:not(.lesson-on):not(.fight-asking):not(.fighting) .hud-toasts { bottom: calc(var(--tv-s, 1) * 290px); }
+html.tv #hud.fight-asking .hud-toasts { bottom: calc(var(--tv-s, 1) * 300px); }
+html.tv .hud-viewfinder span { font-size: calc(26px * var(--tv-s, 1)) !important; padding: calc(6px * var(--tv-s, 1)) calc(18px * var(--tv-s, 1)); }
+html.tv .hud-crosshair { font-size: calc(40px * var(--tv-s, 1)) !important; }
+
+/* ---- Cards and settings --------------------------------------------------- */
+html.tv .pause-card h1, html.tv .summary-card h1 { font-size: calc(56px * var(--tv-s, 1)) !important; }
+html.tv .pause-card .primary, html.tv .pause-card .secondary,
+html.tv .summary-card .primary { font-size: calc(26px * var(--tv-s, 1)) !important; padding: calc(12px * var(--tv-s, 1)) calc(28px * var(--tv-s, 1)); }
+html.tv .settings-row { font-size: calc(26px * var(--tv-s, 1)) !important; }
+html.tv .settings-group { letter-spacing: .04em; }
+html.tv .settings-note { max-width: 52em; }
+html.tv .hb-row { min-height: calc(64px * var(--tv-s, 1)); }
+html.tv .hb-pill, html.tv .hb-points { font-size: calc(26px * var(--tv-s, 1)) !important; }
+html.tv .dr-today-name { font-size: calc(30px * var(--tv-s, 1)) !important; }
