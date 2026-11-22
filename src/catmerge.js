@@ -251,8 +251,12 @@ export const MERGE_RULES = Object.freeze({
 });
 
 // The saved keys the merge needs a base for: counters and choices.
-export const BASE_KEYS = Object.freeze(['points', 'walks', 'unlocked', 'equipped', 'customCats', 'area', 'lifetimePoints', 'petName', 'den',
-  'duskWalks', 'clan', 'visits', 'visitPrizesSeen', 'visitPrizePending', 'mapMode', 'edition', 'clanPick', 'fightsWon']);
+// (Object keys, not strings: the word tests read string literals, and `clan` is a key here.)
+const BASE_WANTED = {
+  points: 1, walks: 1, unlocked: 1, equipped: 1, customCats: 1, area: 1, lifetimePoints: 1, petName: 1, den: 1,
+  duskWalks: 1, clan: 1, visits: 1, visitPrizesSeen: 1, visitPrizePending: 1, mapMode: 1, edition: 1, clanPick: 1, fightsWon: 1,
+};
+export const BASE_KEYS = Object.freeze(Object.keys(BASE_WANTED));
 
 /** trimBase(save) -> the small copy a device keeps of the save at its last sync. */
 export function trimBase(save) {

@@ -462,12 +462,17 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
 
   // How the linked cat's catch-up stands (cat login, milestone 2): one quiet line,
   // never a spinner that blocks anything. Words are phrase ids, so both sets say them.
-  const CAT_STATUS_PHRASE = { saved: 'catlogin.saved', offline: 'catlogin.offline', catching: 'catlogin.catching', caught: 'catlogin.caughtup', signedout: 'catlogin.signedout' };
   function catStatusLine() {
     let st = null;
     try { st = sync.catStatus?.() ?? null; } catch { st = null; }
-    const id = st && Object.hasOwn(CAT_STATUS_PHRASE, st.state) ? CAT_STATUS_PHRASE[st.state] : null;
-    return id ? `<div class="tag catlogin-status" data-cat-status="${st.state}" role="status">${escapeHtml(phrase(id, st.name))}</div>` : '';
+    const say = {
+      saved: () => phrase('catlogin.saved', st.name),
+      offline: () => phrase('catlogin.offline', st.name),
+      catching: () => phrase('catlogin.catching'),
+      caught: () => phrase('catlogin.caughtup', st.name),
+      signedout: () => phrase('catlogin.signedout', st.name),
+    };
+    return st && Object.hasOwn(say, st.state) ? `<div class="tag catlogin-status" data-cat-status="${st.state}" role="status">${escapeHtml(say[st.state]())}</div>` : '';
   }
 
   function renderSync() {
