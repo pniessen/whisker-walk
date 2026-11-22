@@ -456,8 +456,9 @@ export function build(scene, { wind, gateEnds } = {}) {
         panes,
         lid: HOUSE_CELLAR_LID,
         lidMeshes,
-        // the secret bookcase and its two collider rows (`secret: true`): colliders holds the shut one
-        secret: { group: secretGroup, shut: secretColliders(false), open: secretColliders(true) },
+        // the secret bookcase and its collider rows (`secret: true`): colliders holds the shut one;
+        // open into the library (from the stair) or into the stair (from the library, rough edge 3)
+        secret: { group: secretGroup, shut: secretColliders(false), open: secretColliders(true), stair: secretColliders(true, 'stair') },
         // the ground without the ledges: the level drawing reads the floor under her (step 2, D3)
         floor,
         // the six discoveries' spots (step 2, D6) and their moving parts: house life runs them

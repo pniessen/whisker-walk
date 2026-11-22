@@ -9,11 +9,11 @@ vi.stubGlobal('document', canvasStub);
 const { createHouseFinds, FIND_KEY, PIANO_SCALE, STILL } = await import('../src/world/housefinds.js');
 const { HOUSE_FINDS } = await import('../src/world/housethings.js');
 const {
-  HOUSE_LEDGES, HOUSE_ROOMS, HOUSE_LEVELS, SECRET_BOOKCASE, SECRET_OPEN_ROT_Y, secretColliders, roomAt, stairAt, houseSections, HOUSE_STAIRS,
+  HOUSE_LEDGES, HOUSE_ROOMS, HOUSE_LEVELS, SECRET_BOOKCASE, SECRET_OPEN_ROT_Y, SECRET_STAIR_ROT_Y, secretColliders, secretPivot, roomAt, stairAt, houseSections, HOUSE_STAIRS,
 } = await import('../src/world/houseplan.js');
 const { createDiscoveryLog } = await import('../src/discoveries.js');
 const { createToy, TOY_RADIUS } = await import('../src/toy.js');
-const { isWalkableAt } = await import('../src/player.js');
+const { isWalkableAt, createPlayer, CAT_RADIUS } = await import('../src/player.js');
 const { phrase } = await import('../src/clanphrases.js');
 const { withOffWords } = await import('./helpers/offwords.js');
 const { bannedIn } = await import('./helpers/offwords.js');
@@ -250,25 +250,19 @@ describe('the secret bookcase', () => {
     // the camera up the stair, she in the library: it is in the way and fades
     expect(view(-6, 2.6, -2.5, -6, 4.5)).toBe(true);
     // she stands at it from the library, the camera behind her: it stands while she waits,
-    // and through most of its swing; it fades only while it sweeps across the line between
-    // the camera and her (it swings through her spot: D9's geometry)
-    let faded = 0;
+    // and through all of its swing, which goes away from her into the stair (rough edge 3;
+    // step 2 swung it into the library, through her spot, and it faded as it crossed her)
     let frames = 0;
     for (let i = 0; i < Math.round((b.holdS + b.openS + 0.2) / DT); i++) {
-      const was = s.f.open;
-      if (view(-6, 2.2, 7.3, -6, 2.8)) {
-        expect(was, 'faded while she waits').toBe(true);
-        faded++;
-      }
-      if (was) frames++;
+      expect(view(-6, 2.2, 7.3, -6, 2.8), `frame ${i}`).toBe(false);
+      if (s.f.open) frames++;
     }
     expect(s.f.open).toBe(true);
-    expect(faded).toBeGreaterThan(0);
-    expect(faded).toBeLessThan(frames / 2);
-    // open, along the library's side of the opening: a camera west of it looking at her east of it fades it
-    expect(view(-9, 1.6, 4.0, -5.6, 4.0)).toBe(true);
+    expect(frames).toBeGreaterThan(b.openS / DT);
+    // open, along the stair's west wall: a camera west of it, looking at her on the stair, fades it
+    expect(view(-9, 2.6, 0.6, -6, 0.6)).toBe(true);
     // and with the camera east of her, it stands again
-    expect(view(-2.5, 2.2, 5.0, -5.6, 4.0)).toBe(false);
+    expect(view(-3.2, 2.6, 0.6, -6, 0.6)).toBe(false);
     s.f.dispose();
     expect(leaf.userData.fadeHold).toBeFalsy();
     fade.dispose();
@@ -276,8 +270,14 @@ describe('the secret bookcase', () => {
 
   const hasCircle = (list, c) => list.some((q) => q.secret && Math.abs(q.x - c.x) < 1e-9 && Math.abs(q.z - c.z) < 1e-9 && q.r === c.r);
 
-  for (const [side, z] of [['the library', 3.0], ['the stair', 1.0]]) {
-    it(`swings open when she stands at it from ${side}, and stays open`, () => {
+  // rough edge 3: it swings away from her, into the stair from the library, into the library
+  // from the stair; its shut colliders hold her out of the swing until it has swung
+  const SIDES = [
+    ['the library', 3.0, 'stair', SECRET_STAIR_ROT_Y, secretColliders(true, 'stair')],
+    ['the stair', 1.0, 'library', SECRET_OPEN_ROT_Y, secretColliders(true)],
+  ];
+  for (const [side, z, into, ROT, row] of SIDES) {
+    it(`swings open away from her when she stands at it from ${side}, and stays open`, () => {
       const s = setup();
       const pivot = s.record.house.secret.group;
       const leaf = pivot.userData.leaf;
@@ -294,49 +294,133 @@ describe('the secret bookcase', () => {
       expect(s.f.open).toBe(true);
       expect(s.paid.points).toBe(12);
       expect(s.log.count(FIND_KEY('bookcase'))).toBe(1);
-      // the live colliders: the shut row out, the open row in, the rest untouched
-      // (the hinge's circle is in both rows)
-      for (const c of secretColliders(false)) expect(hasCircle(s.colliders, c)).toBe(hasCircle(secretColliders(true), c));
-      expect(s.colliders.filter((c) => c.secret)).toEqual(secretColliders(true));
-      for (const c of secretColliders(true)) expect(hasCircle(s.colliders, c)).toBe(true);
-      expect(s.colliders.length).toBe(len - secretColliders(false).length + secretColliders(true).length);
-      expect(isWalkableAt({ ...s.record, colliders: s.colliders }, -6, 2)).toBe(true);
+      // while it swings the shut row holds her out of its way
+      expect(s.colliders.filter((c) => c.secret)).toEqual(secretColliders(false));
       // it swings over openS: not there yet one frame early, there one frame late
       const start = pivot.rotation.y;
-      expect(Math.abs(start - SECRET_OPEN_ROT_Y)).toBeGreaterThan(0.1);
+      expect(Math.abs(start - ROT)).toBeGreaterThan(0.1);
       let frames = 0;
-      while (Math.abs(pivot.rotation.y - SECRET_OPEN_ROT_Y) > 1e-9 && frames < 1000) { s.step(-6, 0, z); frames++; }
+      while (Math.abs(pivot.rotation.y - ROT) > 1e-9 && frames < 1000) {
+        expect(s.colliders.filter((c) => c.secret), `frame ${frames}`).toEqual(secretColliders(false));
+        s.step(-6, 0, z);
+        frames++;
+      }
       expect(Math.abs(frames * DT - b.openS)).toBeLessThanOrEqual(2 * DT);
-      // the fade shape went with it: round the open leaf's middle, along z from the hinge
-      expect(entry.x).toBeCloseTo(b.hinge.x, 6);
-      expect(entry.z).toBeCloseTo(b.hinge.z + b.w / 2, 6);
+      // then the live colliders: the shut row out, the open row in, the rest untouched
+      expect(s.colliders.filter((c) => c.secret)).toEqual(row);
+      for (const c of row) expect(hasCircle(s.colliders, c)).toBe(true);
+      expect(s.colliders.length).toBe(len - secretColliders(false).length + row.length);
+      expect(isWalkableAt({ ...s.record, colliders: s.colliders }, -6, 2)).toBe(true);
+      // the fade shape went with it: round the open leaf's middle, along z from its pivot
+      const p = secretPivot(into);
+      const mid = into === 'stair' ? { x: p.x + b.d / 2, z: p.z - b.w / 2 } : { x: b.hinge.x, z: b.hinge.z + b.w / 2 };
+      expect(entry.x).toBeCloseTo(mid.x, 6);
+      expect(entry.z).toBeCloseTo(mid.z, 6);
       for (const sh of entry.shapes) {
         expect(sh.x).toBeCloseTo(entry.x, 9);
         expect(sh.z).toBeCloseTo(entry.z, 9);
       }
       // and the real tree fade takes it from there: a camera west of the open leaf, looking at her
-      // east of it, two metres off the shut leaf's middle
+      // east of it, level with its middle
       const fade = createTreeFade(entries, { reducedMotion: true });
       const camera = new THREE.PerspectiveCamera();
-      camera.position.set(-9, 1.6, 4.0);
-      fade.update(DT, camera, { x: -5.6, y: 0.4, z: 4.0 });
+      camera.position.set(-9, 1.6 + s.record.ground.y(-6, mid.z), mid.z);
+      fade.update(DT, camera, { x: -5.6, y: 0.4 + s.record.ground.y(-5.6, mid.z), z: mid.z });
       expect(fade.faded().has(leaf)).toBe(true);
       fade.dispose();
       // she walks off: it stays open and pays nothing more
       s.stay(0, 0, 9.5, 5);
       s.stay(-6, 0, z, 1);
       expect(s.f.open).toBe(true);
-      expect(pivot.rotation.y).toBe(SECRET_OPEN_ROT_Y);
+      expect(pivot.rotation.y).toBe(ROT);
       expect(s.paid.points).toBe(12);
-      expect(s.colliders.filter((c) => c.secret)).toHaveLength(secretColliders(true).length);
+      expect(s.colliders.filter((c) => c.secret)).toEqual(row);
+      // put away, it is shut again where it was built
+      s.f.dispose();
+      expect(pivot.rotation.y).toBe(0);
+      expect([pivot.position.x, pivot.position.z]).toEqual([expect.closeTo(b.hinge.x, 9), expect.closeTo(b.hinge.z, 9)]);
+      expect(s.colliders.filter((c) => c.secret)).toEqual(secretColliders(false));
     }, 60_000);
   }
+
+  // Rough edge 3 (owner: "swing it away from her, or hold her clear"): the real player held at
+  // every spot she can open it from, on a 0.1 m grid within its reach on either side, then
+  // again pushing on into the opening as it swings. Every frame, through the swing and a
+  // second after, her body circle (CAT_RADIUS) stays off the drawn leaf: its mesh's own box,
+  // turned and moved with it. Step 2's swing into the library went through every
+  // library-side spot.
+  it('never swings through her, from any spot that opens it, standing or pushing in', async () => {
+    const { stickToWorld } = await import('../src/traversal.js');
+    const scene = new THREE.Scene();
+    const record = build(scene);
+    const colliders = record.colliders;
+    const pivot = record.house.secret.group;
+    const mesh = pivot.userData.leaf.children.find((c) => c.isMesh);
+    mesh.geometry.computeBoundingBox();
+    const gb = mesh.geometry.boundingBox;
+    const inv = new THREE.Matrix4();
+    const v = new THREE.Vector3();
+    const gap = (p) => {
+      pivot.updateMatrixWorld(true);
+      inv.copy(mesh.matrixWorld).invert();
+      v.set(p.x, 0.5, p.z).applyMatrix4(inv);
+      return Math.hypot(Math.max(gb.min.x - v.x, 0, v.x - gb.max.x), Math.max(gb.min.z - v.z, 0, v.z - gb.max.z));
+    };
+    const spots = [];
+    for (let x = -7.1; x <= -4.9 + 1e-9; x += 0.1) {
+      for (let z = 0.8; z <= 3.2 + 1e-9; z += 0.1) {
+        if (Math.hypot(x + 6, z - 2) > b.reach - 0.02) continue;
+        if (!isWalkableAt({ ...record, colliders }, x, z)) continue;
+        spots.push([x, z]);
+      }
+    }
+    expect(spots.filter(([, z]) => z > b.z).length).toBeGreaterThan(30);
+    expect(spots.filter(([, z]) => z < b.z).length).toBeGreaterThan(30);
+    const camera = new THREE.PerspectiveCamera();
+    const player = createPlayer(camera, { addEventListener() {} });
+    const cat = new THREE.Group();
+    const st = { x: 0, z: 0 };
+    const bad = [];
+    let checked = 0;
+    for (const [x, z] of spots) {
+      for (const push of [false, true]) {
+        const f = createHouseFinds({ finds: record.house.finds, secret: record.house.secret, colliders, parts: record.house.parts });
+        cat.position.set(x, record.ground.y(x, z), z);
+        player.setAvatar(cat, 3.5);
+        player.setGround(record.ground);
+        player.enable();
+        player.setTouchMove(null);
+        let t = 0;
+        let after = -1;
+        for (let i = 0; i < Math.round((b.holdS + b.openS + 1.2) / DT); i++) {
+          if (push && f.open && after < 0) {
+            stickToWorld(0, z > b.z ? -1 : 1, -player.viewYaw(), st);
+            player.setTouchMove({ x: st.x, z: st.z, mag: 1 });
+          }
+          player.update(DT, colliders, record.bounds);
+          t += DT;
+          f.update(DT, t, cat.position);
+          if (f.open) {
+            checked++;
+            const g = gap(cat.position);
+            if (g < CAT_RADIUS - 1e-6) bad.push(`${x.toFixed(1)},${z.toFixed(1)}${push ? ' pushing' : ''} frame ${i}: ${g.toFixed(3)} m at ${cat.position.x.toFixed(2)},${cat.position.z.toFixed(2)}`);
+          }
+          if (after < 0 && f.open && Math.abs(Math.abs(pivot.rotation.y) - Math.PI / 2) < 1e-9) after = i;
+        }
+        expect(f.open, `${x},${z}`).toBe(true);
+        f.dispose();
+      }
+    }
+    expect(checked).toBeGreaterThan(spots.length * 2 * ((b.openS + 1) / DT));
+    expect(bad.slice(0, 6)).toEqual([]);
+  }, 90_000);
 
   it('opens at once under reduced motion', () => {
     const s = setup({ reducedMotion: true });
     s.stay(-6, 0, 3.0, 0.65);
     expect(s.f.open).toBe(true);
-    expect(s.record.house.secret.group.rotation.y).toBe(SECRET_OPEN_ROT_Y);
+    expect(s.record.house.secret.group.rotation.y).toBe(SECRET_STAIR_ROT_Y);
+    expect(s.colliders.filter((c) => c.secret)).toEqual(secretColliders(true, 'stair'));
   }, 60_000);
 
   it('is kept out of the prop merge with every moving part: each keeps its own mesh, in the scene', () => {
@@ -354,7 +438,7 @@ describe('the secret bookcase', () => {
     }
     // and they still move: the bookcase swings, the keys dip, after the merge
     s.stay(-6, 0, 3.0, 2);
-    expect(s.record.house.secret.group.rotation.y).toBe(SECRET_OPEN_ROT_Y);
+    expect(s.record.house.secret.group.rotation.y).toBe(SECRET_STAIR_ROT_Y);
     const k = ledge('parlour-keys');
     s.step(k.minX + 0.05, k.y, (k.minZ + k.maxZ) / 2);
     expect(keys[0].position.y).toBeLessThan(0);

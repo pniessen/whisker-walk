@@ -10,7 +10,7 @@ const { HOUSE_LEVELS } = await import('../src/world/houseplan.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { applyDusk, createLampPools } = await import('../src/render/dusk.js');
 const { createSun, createFill, castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
-const { SECRET_OPEN_ROT_Y } = await import('../src/world/houseplan.js');
+const { SECRET_STAIR_ROT_Y } = await import('../src/world/houseplan.js');
 const { measureHouse, houseWorstSpot, houseWalkThings } = await import('./helpers/housebudget.js');
 
 // =============================================================================
@@ -113,7 +113,7 @@ describe('the worst spot in the house', () => {
       const shutRun = await measured(light, 'shut');
       const openRun = await measured(light, 'open');
       expect(shutRun.turn, light).toBeCloseTo(0, 9);
-      expect(openRun.turn, light).toBeCloseTo(SECRET_OPEN_ROT_Y, 6); // it really swung open
+      expect(openRun.turn, light).toBeCloseTo(SECRET_STAIR_ROT_Y, 6); // it really swung open, away from her into the stair (rough edge 3)
       const shut = shutRun.m;
       const open = openRun.m;
       for (const id of ids) expect(open.at(id), `${light} ${id}`).toEqual(shut.at(id));

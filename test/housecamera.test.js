@@ -583,8 +583,10 @@ describe('never lost on a climb', () => {
         }
       }
     }
-    // 26 sides of the 11 ledges are open floor (the rest stand against a wall or another ledge)
-    expect(sides).toBe(26);
+    // 28 sides of the 11 ledges are open floor (the rest stand against a wall or another ledge).
+    // Rough edge 2 made the tall tops 0.9 m deep: n2's east end and the west bookcase's south
+    // end now reach out past the ladder and the big books (step 2 had 26)
+    expect(sides).toBe(28);
     expect(jumps).toEqual([]);
   }, 90_000);
 

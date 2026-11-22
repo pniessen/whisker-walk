@@ -202,7 +202,7 @@ describe('the ledges', () => {
     expect(size('bedroom-chest')).toEqual([0.8, 0.5, 0.6]);
     expect(size('parlour-keys')).toEqual([1.3, 0.3, 0.75]);
     expect(size('attic-seat').slice(0, 2)).toEqual([1.6, 0.6]);
-    expect(size('bedroom-shelf')[0]).toBe(0.9);
+    expect(size('bedroom-shelf')[0]).toBe(1.25); // rough edge 2: its rim leaves a 0.55 m run along it for its two take-offs
     expect(size('bedroom-shelf')[2]).toBe(1.6);
   });
 

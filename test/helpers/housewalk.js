@@ -6,6 +6,7 @@ import { createTraversalLive, NO_TRAVERSAL } from '../../src/traversallive.js';
 import { createWallSink, createCellarLid, lidInLine, makeView, blockers as blockersOf } from '../../src/housewalls.js';
 import { CAT_LOOK_Y } from '../../src/cat/model.js';
 import { stickToWorld } from '../../src/traversal.js';
+import { createLedgeGuards } from '../../src/world/houseguards.js';
 
 // The real player in the Old House (the plan's headless houseArea()), frame by
 // frame in main.js's order: player.update, then the walls' sink on this frame's
@@ -39,13 +40,22 @@ import { stickToWorld } from '../../src/traversal.js';
 // The camera keeps out of the house's floors (houseFloorGround), not the furniture
 // tops, as the built house hands the walk (house.js areaData.cameraGround).
 //
+// guards (rough edges 1 and 2, on by default): the ledges' guards (houseguards.js) as house
+// life keeps them in the walk's live colliders, set for her spot as she is placed and after
+// every frame's player.update. The live list (`live`) is the area's colliders plus the set
+// standing; area.colliders stays the plan's, for the tests' floods and spot checks.
+// secretOpen may name the side it opened to: true and 'library' (from the stair, step 2's
+// row) or 'stair' (from the library, rough edge 3).
+//
 // The importing test file must stub `document` first (test/flattrace.test.js's
 // stub) and load this with `await import(...)`: createPlayer listens on it.
-export function createHouseWalk({ reducedMotion = true, pace = 3.5, secretOpen = false, moves = false } = {}) {
+export function createHouseWalk({ reducedMotion = true, pace = 3.5, secretOpen = false, moves = false, guards: guarded = true } = {}) {
   const area = moves ? houseMovesArea() : houseArea();
-  if (secretOpen) area.colliders = [...area.colliders.filter((c) => !c.secret), ...secretColliders(true)];
+  if (secretOpen) area.colliders = [...area.colliders.filter((c) => !c.secret), ...secretColliders(true, secretOpen === 'stair' ? 'stair' : 'library')];
   // the camera keeps out of the floors, not the furniture tops, as the game's house hands it (house.js cameraGround)
   const cameraGround = houseFloorGround();
+  const live = [...area.colliders];
+  const guards = guarded ? createLedgeGuards(live, cameraGround) : null;
   const cat = new THREE.Group();
   const camera = new THREE.PerspectiveCamera();
   const player = createPlayer(camera, { addEventListener() {} });
@@ -70,7 +80,8 @@ export function createHouseWalk({ reducedMotion = true, pace = 3.5, secretOpen =
   function frame(dt = 1 / 60) {
     t += dt;
     if (moves) traversal.update(dt, t, ctx);
-    player.update(dt, area.colliders, area.bounds, []);
+    player.update(dt, live, area.bounds, []);
+    guards?.update(cat.position); // house life's part
     if (moves) {
       player.speedFactor = session.perched ? 0 : 1; // game/avatar.js, after player.update
       cat.rotation.x = 0;
@@ -98,7 +109,10 @@ export function createHouseWalk({ reducedMotion = true, pace = 3.5, secretOpen =
     freshTraversal();
     lid = createCellarLid(area.lid, area.sections);
     sink = createWallSink(area.sections, { reducedMotion, covers: lid.covers });
-    player.update(1 / 60, area.colliders, area.bounds, []);
+    guards?.dispose(); // a fresh walk's house life has none standing yet
+    guards?.update(cat.position);
+    player.update(1 / 60, live, area.bounds, []);
+    guards?.update(cat.position);
     const v = view();
     lid.look(v);
     sink.settle(v);
@@ -113,6 +127,8 @@ export function createHouseWalk({ reducedMotion = true, pace = 3.5, secretOpen =
     get sink() { return sink; },
     get lid() { return lid; },
     get traversal() { return traversal; },
+    guards,
+    live,
     session,
     ctx, // the traversal's context, for a pilot's jump (housetour.js createHousePilot)
     place(x, z, yaw, zoom, pitch = DEFAULT_PITCH) {

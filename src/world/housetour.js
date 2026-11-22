@@ -71,7 +71,7 @@ export const HOUSE_SHOTS = freeze({
   'mice-cellar': shot([23.4, -4.6], [0, -1], 0, 'Mice in the cellar'),
   // the golden mice, seen from the tops she leaps to them from (and the cellar floor)
   'gold-library': shot([-12.2, 2.6], [-0.3, 1], 1, 'A golden mouse on the bookcase', { ledge: 'library-books-n1' }),
-  'gold-wardrobe': shot([-4.45, -15.4], [-1, 0.15], 1, 'A golden mouse on the wardrobe', { ledge: 'bedroom-shelf' }),
+  'gold-wardrobe': shot([-4.6, -15.4], [-1, 0.15], 1, 'A golden mouse on the wardrobe', { ledge: 'bedroom-shelf' }),
   'gold-cellar': shot([26.0, -2.0], [0.5, 1], 0, 'A golden mouse in the cellar'),
   'climb-plank': shot([-8.6, 2.6], [-1, 0.25], 1, 'Along the plank', { ledge: 'library-books-n2' }),
   hud: shot([0, 6], [0, -1], 1, 'Goals and the map', { hud: true }),
@@ -130,7 +130,7 @@ const FILM_STEPS = [
 // down by the big books. Each jump is pressed where the last hop landed her, or at the
 // plank's far end: the obvious jump takes the route's next hop (housemoves.js).
 const LIBRARY_CLIMB = [
-  t(-8.8, 4.3, 'Up the library shelves'), jump(), jump(),
+  t(-8.8, 4.6, 'Up the library shelves'), jump(), jump(),
   t(-13.1, 2.6, 'Along the plank'), jump('Leap across the corner'),
   jump('Down in short steps'), jump(),
 ];
@@ -151,7 +151,7 @@ const THINGS_STEPS = [
   t(10.75, 7.68), t(4, 7), t(-4, 7, 'The library'),
   ...LIBRARY_CLIMB,
   t(-6.0, 2.8, 'A bookcase that opens'), wait(1.0), t(-6.0, -1, 'A secret stair!'), t(-6.0, -6.0),
-  t(-4.2, -13.85, 'Up to the wardrobe'), jump(), jump(), jump('Leap!'), jump(), jump(), jump(),
+  t(-4.2, -13.55, 'Up to the wardrobe'), jump(), jump(), jump('Leap!'), jump(), jump(), jump(),
   t(-8, -11, 'Up the back stairs'), t(-14, -11), t(-22.3, -11.0, 'The view from the attic'), jump(), wait(0.2), jump(),
   t(-17.6, -14.1, 'A box of old toys'), wait(0.7),
   zoom(2, 1.2, 'The attic from farther out'),

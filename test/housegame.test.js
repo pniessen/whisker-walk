@@ -718,9 +718,9 @@ describe('a house walk left in the middle', () => {
     const DT = 1 / 60;
     const clock = HOUSE_FINDS.find((f) => f.id === 'clock');
     const wardrobe = HOUSE_LEDGES.find((l) => l.id === 'bedroom-wardrobe');
-    // a spot on the wardrobe's top she can stand on: its front half (the wall's colliders keep
-    // her centre 0.55 m off the wall's line behind it)
-    const top = { x: (wardrobe.minX + wardrobe.maxX) / 2, z: wardrobe.maxZ - 0.05 };
+    // a spot on the wardrobe's top she can stand on: in its band (the wall's colliders keep her
+    // centre 0.55 m off the wall's line behind it, its rim 0.35 m in from its front: rough edge 2)
+    const top = { x: (wardrobe.minX + wardrobe.maxX) / 2, z: wardrobe.maxZ - 0.4 };
     // frames of the house life with her at (x, y, z)
     const frames = (s) => {
       const camera = new THREE.PerspectiveCamera();
@@ -743,12 +743,19 @@ describe('a house walk left in the middle', () => {
         const stay = frames(s);
         stay(-6, 0, 3, 0.8);
         expect(s.areaLife.finds.open).toBe(true);
-        expect(s.areaData.colliders.filter((c) => c.secret)).toEqual(secretColliders(true));
+        // from the library it swings away from her into the stair, the shut row holding her
+        // out of its way until it has swung (rough edge 3)
+        expect(s.areaData.colliders.filter((c) => c.secret)).toEqual(secretColliders(false));
+        stay(-6, 0, 3, 1.2);
+        expect(s.areaData.colliders.filter((c) => c.secret)).toEqual(secretColliders(true, 'stair'));
         stay(clock.x, 0, clock.z, 1.2);
         expect(log.count('house-find-bookcase')).toBe(1);
         expect(log.count('house-find-clock')).toBe(1);
         expect(paid.points).toBe(24);
-        expect(isWalkableAt(s.areaData, top.x, top.z)).toBe(true);
+        // (the walk keeps a spot she was on before the house life runs: the plan's colliders, not
+        // the feet round the ledges house life holds while she is on the floor, at the clock)
+        expect(isWalkableAt({ ...s.areaData, colliders: s.areaData.colliders.filter((c) => !c.guard) }, top.x, top.z)).toBe(true);
+        expect(s.areaData.colliders.some((c) => c.guard)).toBe(true);
         expect(s.ground.y(top.x, top.z)).toBeCloseTo(wardrobe.y, 6);
         snap = { ...snapshotWalk(s, { yaw: 0, now: Date.now(), paid: log.entries() }), x: top.x, z: top.z };
       },
@@ -781,9 +788,9 @@ describe('a house walk left in the middle', () => {
     // the bookcase is shut again, and opens for her, paying nothing
     expect(s.areaLife.finds.open).toBe(false);
     expect(s.areaData.colliders.filter((c) => c.secret)).toEqual(secretColliders(false));
-    stay(-6, 0, 3, 0.8);
+    stay(-6, 0, 3, 2.0);
     expect(s.areaLife.finds.open).toBe(true);
-    expect(s.areaData.colliders.filter((c) => c.secret)).toEqual(secretColliders(true));
+    expect(s.areaData.colliders.filter((c) => c.secret)).toEqual(secretColliders(true, 'stair'));
     expect(paid.points).toBe(before);
     again.w.endWalk();
   }, 90_000);

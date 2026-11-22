@@ -38,6 +38,8 @@
 // tree fade decides as before. The box test is the one that counts when she stands just off a
 // piece's corner and the line grazes it within HOLD_SHY of her (review). The secret bookcase's leaf,
 // which turns, is housefinds.js's.
+// Rough edges 1 and 2: the ledges' guards (houseguards.js) in the walk's live colliders, the feet
+// round every ledge piece while she is on the floor, a tall top's rim while she is on it.
 
 import { makeView, createWallSink, createCellarLid, SINK } from '../housewalls.js';
 import { createLevelDrawing } from '../houselevels.js';
@@ -48,6 +50,7 @@ import { toyStop, HOUSE_FINDS } from './housethings.js';
 import { HOUSE_WINDOWS, HOUSE_ROOMS, HOUSE_STAIRS } from './houseplan.js';
 import { createHouseSound } from './housesound.js';
 import { createHouseAir } from './houseair.js';
+import { createLedgeGuards } from './houseguards.js';
 
 const NO_PANES = Object.freeze([]);
 const NO_FADING = Object.freeze([]);
@@ -98,6 +101,7 @@ export function createHouseLife(scene, house, {
     attic: HOUSE_ROOMS.find((r) => r.id === 'attic'),
   });
   const air = createHouseAir(scene, { windows: HOUSE_WINDOWS, rooms: HOUSE_ROOMS, levels: house.levels, dusk: !!dusk, reducedMotion });
+  const guards = createLedgeGuards(colliders, floor);
   let ballX = 0, ballZ = 0, ballSeen = false;
   const fading = house.fading ?? NO_FADING;
 
@@ -162,6 +166,7 @@ export function createHouseLife(scene, house, {
     drawing.settle(floorY(catPos));
     air.update(0, 0, drawing.full);
     holdFades(catPos, camera.position);
+    guards.update(catPos);
   }
 
   return {
@@ -183,8 +188,11 @@ export function createHouseLife(scene, house, {
       holdFades(catPos, camera.position);
       sound.update(dt, t, catPos);
       keepBall(dt);
+      guards.update(catPos);
     },
+    guards,
     dispose() {
+      guards.dispose();
       finds.dispose();
       sound.dispose();
       air.dispose();

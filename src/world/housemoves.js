@@ -45,11 +45,14 @@ const crossings = [
   { id: 'library-plank', kind: 'plank', width: 0.28, points: [P(-9.9, 2.6, BOOK_TOP + PLANK_T), P(-11.8, 2.6, BOOK_TOP + PLANK_T)] },
 ];
 
+// Rough edges 1 and 2: a floor take-off or landing lies 0.95 m or more from its piece (the feet
+// hold her 0.75 m off it), and one on a tall top inside its rim (0.35 m in from its open edges,
+// the wall holding her 0.55 m off its line): the bookcase tops' band is z 2.55-2.65.
 const climbs = [
-  hop('library-floor-steps', S(-8.8, 4.3), S(-8.8, 3.05)),
-  hop('library-steps-n2', S(-8.8, 3.05), S(-8.8, 2.6)),
-  hop('bedroom-floor-chest', S(-4.2, -13.85), S(-4.45, -15.05)),
-  hop('bedroom-chest-shelf', S(-4.45, -15.05), S(-4.45, -15.4)),
+  hop('library-floor-steps', S(-8.8, 4.6), S(-8.8, 3.35)),
+  hop('library-steps-n2', S(-8.8, 3.35), S(-8.8, 2.6)),
+  hop('bedroom-floor-chest', S(-4.2, -13.55), S(-4.45, -14.75)),
+  hop('bedroom-chest-shelf', S(-4.45, -14.75), S(-4.6, -15.4)),
   hop('attic-floor-seat', S(-22.3, -11.0), S(-23.4, -11.0)),
   hop('parlour-floor-keys', S(8.7, 10.0), S(8.7, 11.15)),
 ];
@@ -57,20 +60,20 @@ const climbs = [
 const gaps = [
   // she lands nearer the drop to the big books (ahead of her) than the leap back
   hop('library-n1-w', S(-13.1, 2.6), S(-13.4, 5.3)),
-  hop('library-w-n1', S(-13.4, 4.8), S(-13.1, 2.6)),
+  hop('library-w-n1', S(-13.4, 4.85), S(-13.1, 2.6)),
   // the shelf: the leap west from its west end, the drop south to the chest from its east
   // end; each lands her on the other's take-off, the route's next step
-  hop('bedroom-shelf-wardrobe', S(-4.45, -15.4), S(-6.4, -15.4)),
-  hop('bedroom-wardrobe-shelf', S(-6.4, -15.4), S(-3.95, -15.4)),
+  hop('bedroom-shelf-wardrobe', S(-4.6, -15.4), S(-6.4, -15.4)),
+  hop('bedroom-wardrobe-shelf', S(-6.4, -15.4), S(-4.15, -15.4)),
 ];
 
 const drops = [
   hop('library-w-bigbooks', S(-13.4, 6.0), S(-13.4, 7.15)),
   hop('library-bigbooks-floor', S(-13.4, 7.15), S(-12.2, 7.15)),
-  hop('library-n2-steps', S(-9.0, 2.6), S(-8.8, 3.05)),
-  hop('library-steps-floor', S(-8.8, 3.05), S(-8.8, 4.3)),
-  hop('bedroom-shelf-chest', S(-3.95, -15.4), S(-4.2, -14.95)),
-  hop('bedroom-chest-floor', S(-4.2, -14.95), S(-4.2, -13.85)),
+  hop('library-n2-steps', S(-9.0, 2.6), S(-8.8, 3.35)),
+  hop('library-steps-floor', S(-8.8, 3.35), S(-8.8, 4.6)),
+  hop('bedroom-shelf-chest', S(-4.15, -15.4), S(-4.2, -14.65)),
+  hop('bedroom-chest-floor', S(-4.2, -14.65), S(-4.2, -13.55)),
   hop('attic-seat-floor', S(-23.4, -11.0), S(-22.3, -11.0)),
   hop('parlour-keys-floor', S(8.7, 11.15), S(8.7, 10.0)),
 ];

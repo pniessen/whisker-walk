@@ -97,19 +97,37 @@ export const HOUSE_BOUNDS = freeze({ minX: -24, maxX: 30, minZ: -16, maxZ: 12 })
 // she opens it by staying within reach of it for holdS, from either side (house life).
 export const SECRET_BOOKCASE = freeze({ x: -6, z: 2, w: 2.4, d: 0.42, h: 2.25, hinge: freeze({ x: -7.2, z: 2 }), openS: 1.2, reach: 1.1, holdS: 0.6 });
 export const SECRET_OPEN_ROT_Y = -Math.PI / 2;
+// Rough edge 3 (owner: "swing it away from her"): every spot she opens it from on the library
+// side lies inside the leaf's swing into the library, so from there it swings into the stair
+// instead, a quarter turn the other way, about its back west corner (on the stair's west
+// wall line, d/2 behind the hinge), and stands open flat along the stair's west wall, its
+// back inside the wall's inner half. From the stair it still swings into the library.
+// `into` names the side the leaf swings to: 'library' (from the stair) or 'stair'.
+export const SECRET_STAIR_ROT_Y = Math.PI / 2;
+export const secretPivot = (into) => (into === 'stair'
+  ? { x: SECRET_BOOKCASE.hinge.x, z: SECRET_BOOKCASE.hinge.z - SECRET_BOOKCASE.d / 2 }
+  : SECRET_BOOKCASE.hinge);
+// Its colliders reach past the leaf's front, so her body (r 0.35) never touches the leaf she
+// is held at, shut or open: its cornice stands 0.24 m in front of the centreline (houseparts.js),
+// and COLLIDER_R's 0.2 left her 4 cm inside it.
+export const SECRET_R = 0.26;
 
-// The bookcase's colliders, shut or open: COLLIDER_R circles every COLLIDER_STEP (or
-// less) down the leaf's centreline from the hinge, on the ground level, tagged
+// The bookcase's colliders, shut or open: SECRET_R circles every COLLIDER_STEP (or
+// less) down the leaf's centreline from its pivot, on the ground level, tagged
 // `secret` so the walk can swap one row for the other. houseColliders carries the shut row.
-export function secretColliders(open) {
+export function secretColliders(open, into = 'library') {
   const b = SECRET_BOOKCASE;
+  const stair = open && into === 'stair';
+  const p = open ? secretPivot(into) : b.hinge;
+  // open into the stair, the leaf's centreline runs north up the stair d/2 in from the wall line
+  const x0 = stair ? p.x + b.d / 2 : p.x;
   const ux = open ? 0 : 1;
-  const uz = open ? 1 : 0;
+  const uz = !open ? 0 : stair ? -1 : 1;
   const n = Math.max(1, Math.ceil(b.w / COLLIDER_STEP - 1e-9));
   const out = [];
   for (let i = 0; i <= n; i++) {
     const t = (b.w * i) / n;
-    out.push({ x: b.hinge.x + ux * t, z: b.hinge.z + uz * t, r: COLLIDER_R, level: 'ground', secret: true });
+    out.push({ x: x0 + ux * t, z: p.z + uz * t, r: SECRET_R, level: 'ground', secret: true });
   }
   return out;
 }
@@ -168,9 +186,15 @@ const FACE_W = -Math.PI / 2; // faces west: back to an east wall
 const piece = (id, room, kind, x, z, rotY, w, d, h, r, look = null) => ({ id, room, level: roomById(room).level, kind, x, z, rotY, w, d, h, r, look });
 // step 2 (ruling D1): a piece whose top she stands on. Its top is ground (a ledge, below), so
 // it has no colliders: the cliff at its edge stops her, as a roof's does. It keeps its r, so
-// it is still drawn as a solid piece. A ledge backed by a wall is 0.6 m deep: the wall's
-// colliders keep her centre 0.55 m off its line, so a shallower top has nowhere to stand.
+// it is still drawn as a solid piece. A ledge backed by a wall is 0.6 m deep (a tall one TOP_D,
+// below): the wall's colliders keep her centre 0.55 m off its line, so a shallower top has
+// nowhere to stand. Its guards (below) hold her off it from the floor and inside a tall top.
 const ledge = (...args) => ({ ...piece(...args), ledge: true });
+// Rough edge 2: a tall top she walks along is TOP_D deep, its back where it was, WALL_T / 2 off
+// the wall's line (so its middle 0.55 m off it). The wall holds her middle 0.55 m off its line,
+// 0.45 in from the top's back; her body (0.35) must stay over the top too (her rim, below), so
+// 0.6 left no room, and she hung over the front. 0.9 leaves her a 0.1 m band.
+const TOP_D = 0.9;
 // A low ledge piece that fades like a tall one (ruling S2-4): the camera keeps out of the
 // floors, not the furniture tops (house.js cameraGround), so at its lowest it can come down
 // inside one behind her.
@@ -199,11 +223,13 @@ export const HOUSE_FURNITURE = frozenAll([
   // step 2 (D2): the three bookcases are ledges, the west one slid north between the windows
   // for the corner leap; the ladder stands in the corner beside n2, and the steps and a stack
   // of big books are new, the way up and the way down
-  ledge('library-books-w', 'library', 'bookcase', -13.6, 5.55, FACE_E, 2.2, 0.6, 2.25, 0.21),
-  ledge('library-books-n1', 'library', 'bookcase', -12.4, 2.4, FACE_S, 2.2, 0.6, 2.25, 0.21),
-  ledge('library-books-n2', 'library', 'bookcase', -9.3, 2.4, FACE_S, 2.2, 0.6, 2.25, 0.21),
+  // rough edge 2: the three bookcases TOP_D deep, their backs where they were; the steps
+  // moved out with n2's front
+  ledge('library-books-w', 'library', 'bookcase', -13.45, 5.55, FACE_E, 2.2, TOP_D, 2.25, 0.21),
+  ledge('library-books-n1', 'library', 'bookcase', -12.4, 2.55, FACE_S, 2.2, TOP_D, 2.25, 0.21),
+  ledge('library-books-n2', 'library', 'bookcase', -9.3, 2.55, FACE_S, 2.2, TOP_D, 2.25, 0.21),
   piece('library-ladder', 'library', 'ladder', -7.85, 2.37, FACE_S, 0.5, 0.5, 2.05, 0.15),
-  fadingLedge('library-steps', 'library', 'steps', -8.8, 3.0, FACE_S, 0.6, 0.6, 0.9, 0.3),
+  fadingLedge('library-steps', 'library', 'steps', -8.8, 3.3, FACE_S, 0.6, 0.6, 0.9, 0.3),
   fadingLedge('library-bigbooks', 'library', 'bigbooks', -13.55, 7.15, FACE_S, 0.7, 0.5, 1.0, 0.25),
   piece('library-chair', 'library', 'armchair', -11.6, 5.0, 0.92, 0.85, 0.85, 1.05, 0.42, 'library'),
   piece('library-desk', 'library', 'desk', -9.0, 11.55, FACE_N, 1.4, 0.7, 0.8, 0.35),
@@ -237,10 +263,12 @@ export const HOUSE_FURNITURE = frozenAll([
   piece('bedroom-bed', 'bedroom', 'bed', 0.85, -12.0, FACE_W, 1.6, 2.1, 1.1, 0.75),
   piece('bedroom-bedside', 'bedroom', 'bedside', 1.62, -13.25, FACE_W, 0.45, 0.45, 0.62, 0.22),
   // step 2 (D2): up the chest, standing in front of the new bookshelf, onto the shelf, and a
-  // leap from it to the wardrobe and back
-  ledge('bedroom-wardrobe', 'bedroom', 'wardrobe', -6.4, -15.6, FACE_S, 1.3, 0.6, 2.05, 0.3),
-  ledge('bedroom-shelf', 'bedroom', 'bookcase', -4.2, -15.6, FACE_S, 0.9, 0.6, 1.6, 0.3),
-  ledge('bedroom-chest', 'bedroom', 'chest', -4.2, -15.05, FACE_S, 0.8, 0.5, 0.6, 0.25),
+  // leap from it to the wardrobe and back. Rough edge 2: the wardrobe and the shelf TOP_D deep,
+  // the shelf 1.25 wide (her rim leaves a 0.55 m run along it for its two take-offs), and the
+  // chest moved out with the shelf's front
+  ledge('bedroom-wardrobe', 'bedroom', 'wardrobe', -6.4, -15.45, FACE_S, 1.3, TOP_D, 2.05, 0.3),
+  ledge('bedroom-shelf', 'bedroom', 'bookcase', -4.375, -15.45, FACE_S, 1.25, TOP_D, 1.6, 0.3),
+  ledge('bedroom-chest', 'bedroom', 'chest', -4.2, -14.75, FACE_S, 0.8, 0.5, 0.6, 0.25),
   piece('bedroom-drawers', 'bedroom', 'drawers', -0.6, -15.65, FACE_S, 1.1, 0.5, 0.95, 0.25),
   piece('bedroom-rug', 'bedroom', 'rug', -2.6, -12.0, FACE_S, 2.4, 2.0, 0.012, 0, 'rugBlue'),
   // the attic: boxes stacked no higher than 1.4 m, an old trunk, an old rocking chair, a rug
@@ -332,6 +360,64 @@ function footprint(f) {
 export const HOUSE_LEDGES = frozenAll(HOUSE_FURNITURE.filter((f) => f.ledge).map((f) => ({
   id: f.id, room: f.room, level: f.level, ...footprint(f), y: levelY(f.level) + f.h,
 })));
+
+// ---- the ledges' guards (rough edges 1 and 2) ----
+
+// A ledge piece has no colliders (D1): circles have no height, so one would push her off its
+// top too. With only the cliff at its edge, she walked into a piece from the floor until her
+// middle was at its edge, her head and shoulders inside it; and on a top she walked to its
+// edge, her body hanging over the room. So the guards are collider sets that house life
+// (houseguards.js) keeps in the walk's live list only where they belong:
+//   feet  on the floor, a ring round every ledge piece that holds her middle LEDGE_STANDOFF
+//         off it: her head stays out of it (a scale-1 cat's head reaches 0.64 m ahead of her
+//         middle as she walks, D2's 1.15 0.74);
+//   rims  on a tall top, a row out past each edge the wall does not hold, that holds her
+//         middle LEDGE_RIM in from it: her body (CAT_RADIUS) stays over the top.
+// Each circle's r reaches its distance even between two circles GUARD_STEP apart. Tagged
+// `guard`; the feet skip a piece's sides against a wall and spots on another piece.
+export const LEDGE_STANDOFF = 0.75;
+export const LEDGE_RIM = 0.35;
+export const GUARD_BODY = 0.35; // = player.js CAT_RADIUS (tested; player.js is not THREE-free)
+const GUARD_STEP = COLLIDER_STEP;
+const RIM_OUT = 0.5; // m out past its edge a rim's circle stands
+const WALL_BACK = 0.15; // m: an edge this near its room's wall line is against the wall
+const onRect = (r, x, z, e = 1e-9) => x >= r.minX - e && x <= r.maxX + e && z >= r.minZ - e && z <= r.maxZ + e;
+// A rectangle's four edges, each as its two ends and its outward normal.
+const edgesOf = (r) => [
+  [r.minX, r.minZ, r.maxX, r.minZ, 0, -1], [r.maxX, r.minZ, r.maxX, r.maxZ, 1, 0],
+  [r.maxX, r.maxZ, r.minX, r.maxZ, 0, 1], [r.minX, r.maxZ, r.minX, r.minZ, -1, 0],
+];
+// Circles every GUARD_STEP (or less) along x0,z0 -> x1,z1 moved `out` along (nx, nz).
+function guardRow(out, [x0, z0, x1, z1, nx, nz], off, reach, level) {
+  const len = Math.hypot(x1 - x0, z1 - z0);
+  const n = Math.max(1, Math.ceil(len / GUARD_STEP - 1e-9));
+  const r = Math.hypot(off + reach, len / n / 2) - GUARD_BODY;
+  for (let i = 0; i <= n; i++) {
+    out.push({ x: x0 + ((x1 - x0) * i) / n + nx * off, z: z0 + ((z1 - z0) * i) / n + nz * off, r, level, guard: true });
+  }
+}
+let guardCache = null;
+export function houseLedgeGuards() {
+  if (guardCache) return guardCache;
+  const feet = [];
+  const rims = {};
+  for (const l of HOUSE_LEDGES) {
+    const room = roomById(l.room);
+    for (const e of edgesOf(l)) {
+      const at = e[4] ? e[0] : e[1]; // the edge's line
+      const wall = e[4] ? (e[4] < 0 ? room.minX : room.maxX) : (e[5] < 0 ? room.minZ : room.maxZ);
+      if (Math.abs(at - wall) <= WALL_BACK) continue;
+      const row = [];
+      guardRow(row, e, 0, LEDGE_STANDOFF, l.level);
+      feet.push(...row.filter((c) => !HOUSE_LEDGES.some((q) => q !== l && q.level === l.level && onRect(q, c.x, c.z, 1e-6))));
+      const f = HOUSE_FURNITURE.find((q) => q.id === l.id);
+      if (f.h >= TALL_H) guardRow(rims[l.id] || (rims[l.id] = []), e, RIM_OUT, LEDGE_RIM, l.level);
+    }
+  }
+  const one = (list) => freeze(list.filter((c, i) => !list.slice(0, i).some((q) => Math.abs(q.x - c.x) < 1e-9 && Math.abs(q.z - c.z) < 1e-9)).map((c) => freeze(c)));
+  guardCache = freeze({ feet: one(feet), rims: freeze(Object.fromEntries(Object.entries(rims).map(([id, list]) => [id, one(list)]))) });
+  return guardCache;
+}
 
 // `ledges: false` is the floor alone (houseFloorGround): what the level drawing reads (D3).
 function groundSpec({ ledges = true } = {}) {
@@ -567,6 +653,14 @@ function buildSections(stairs) {
         const c = edge.run === 'z' ? d.z : d.x;
         const seg = along(edge, c - d.width / 2, c + d.width / 2);
         sections.push(make({ id: `${room.id}-${side}-${k++}`, kind: 'lintel', level: room.level, owner: room.id, side, ...seg, base: y + DOOR_H, height: WALL_H - DOOR_H, stub: 0, outer: false }));
+      }
+      // rough edge 4: the wall over the shut bookcase in the secret stair's library mouth, from
+      // its top to the wall's, so the stair never shows through from across the library. A
+      // lintel: it sinks to nothing when the camera on the stair looks back at her.
+      const B = SECRET_BOOKCASE;
+      for (const [a, b] of stairOpenings(room, edge, stairs)) {
+        if (edge.run !== 'x' || Math.abs(edge.fixed - B.z) > 1e-9 || Math.abs(a - (B.x - B.w / 2)) > 1e-9 || Math.abs(b - (B.x + B.w / 2)) > 1e-9) continue;
+        sections.push(make({ id: `${room.id}-${side}-${k++}`, kind: 'lintel', level: room.level, owner: room.id, side, ...along(edge, a, b), base: y + B.h, height: WALL_H - B.h, stub: 0, outer: false }));
       }
     }
   });

@@ -9,9 +9,12 @@
 //   piano     her paws on the keys' ledge: each key she steps onto plays its note, C4
 //             to C5 west to east (D8); six different keys since she stepped up is a tune.
 //   window    her paws on the attic window seat's ledge.
-//   bookcase  she stays at the shut bookcase, from either side: it swings open on its
-//             hinge onto the secret stair (D9). Its colliders swap in the walk's own live
-//             list at the swing's start, and its fade shape (treefade.js) follows the leaf.
+//   bookcase  she stays at the shut bookcase, from either side: it swings open onto the
+//             secret stair (D9), away from her (rough edge 3): from the library into the
+//             stair, about its back west corner, from the stair into the library, about its
+//             hinge (houseplan.js secretPivot). Its shut colliders hold her out of the swing
+//             and swap for the open ones in the walk's own live list once it has swung (at
+//             once under reduced motion), and its fade shape (treefade.js) follows the leaf.
 //             It stays open; a walk picked up again finds it shut. Shut, swinging or
 //             open, it is held solid (treefade.js fadeHold) unless, seen from above, the
 //             line from the camera to her passes it: the tree fade's line runs on past
@@ -27,7 +30,7 @@
 
 import { phrase } from '../clanphrases.js';
 import { fadeEntryOf } from '../treefade.js';
-import { HOUSE_LEDGES, SECRET_BOOKCASE, SECRET_OPEN_ROT_Y } from './houseplan.js';
+import { HOUSE_LEDGES, SECRET_BOOKCASE, SECRET_OPEN_ROT_Y, SECRET_STAIR_ROT_Y, secretPivot } from './houseplan.js';
 import { LID_OPEN, pianoKeyAt } from './houseparts.js';
 
 export const FIND_KEY = (id) => `house-find-${id}`;
@@ -87,6 +90,7 @@ export function createHouseFinds({
   const pivot = secret?.group ?? null;
   const leaf = pivot?.userData.leaf ?? null;
   let open = false;
+  let into = 'library'; // the side it swings to: away from her (rough edge 3)
   let swing = -1; // seconds into the bookcase's swing while it swings, else -1
   let tipped = -1; // seconds into the toys' tumble while they tumble, else -1
   let key = -1; // the key under her paws
@@ -104,23 +108,37 @@ export function createHouseFinds({
     pay('clock', n);
   }
 
-  // The bookcase opens: the shut colliders out of the walk's live list, the open ones in.
-  function openBookcase() {
+  // The bookcase opens, swinging away from her: from the library side (her z past the wall
+  // line) into the stair, else into the library. The swing starts; its colliders wait for it.
+  function openBookcase(p) {
     open = true;
-    for (let i = colliders.length - 1; i >= 0; i--) if (colliders[i].secret) colliders.splice(i, 1);
-    for (const c of secret?.open ?? []) colliders.push({ ...c });
+    into = p.z >= B.z ? 'stair' : 'library';
     swing = reducedMotion ? B.openS : 0;
     pay('bookcase');
   }
+  // It has swung: the shut colliders out of the walk's live list, the open ones in.
+  function swapColliders(list) {
+    for (let i = colliders.length - 1; i >= 0; i--) if (colliders[i].secret) colliders.splice(i, 1);
+    for (const c of list ?? []) colliders.push({ ...c });
+  }
 
-  // The leaf at angle a: the pivot turned, and its fade shape round the leaf's middle.
+  // The leaf at angle a: the pivot turned about the side's own pivot (its group sits at the
+  // hinge, so about the back corner it moves too), and its fade shape round the leaf's middle.
+  const at = { x: 0, z: 0 };
   function turnTo(a) {
     if (!pivot) return;
+    const p = secretPivot(into);
+    const dx = B.hinge.x - p.x, dz = B.hinge.z - p.z;
+    const c = Math.cos(a), s = Math.sin(a);
+    at.x = p.x + dx * c + dz * s;
+    at.z = p.z - dx * s + dz * c;
     pivot.rotation.y = a;
+    pivot.position.x = at.x;
+    pivot.position.z = at.z;
     const e = leaf && fadeEntryOf.get(leaf);
     if (!e) return;
-    e.x = B.hinge.x + (B.w / 2) * Math.cos(a);
-    e.z = B.hinge.z - (B.w / 2) * Math.sin(a);
+    e.x = at.x + (B.w / 2) * c;
+    e.z = at.z - (B.w / 2) * s;
     for (const sh of e.shapes) { sh.x = e.x; sh.z = e.z; }
   }
 
@@ -157,7 +175,7 @@ export function createHouseFinds({
           pay('cushion');
         } else if (f.trigger === 'secret') {
           s.armed = false;
-          if (!open) openBookcase();
+          if (!open) openBookcase(p);
         } else if (!s.done) {
           s.done = true;
           tipped = reducedMotion ? TOYS_S : 0;
@@ -188,9 +206,10 @@ export function createHouseFinds({
   // Whether the leaf, at the pivot's angle, stands in the camera's line to her (from above).
   function leafInLine(cam, cat) {
     const a = pivot.rotation.y;
-    const tx = B.hinge.x + B.w * Math.cos(a);
-    const tz = B.hinge.z - B.w * Math.sin(a);
-    return segSeg(cam.x, cam.z, cat.x, cat.z, B.hinge.x, B.hinge.z, tx, tz) < B.d / 2 + HOLD_PAD;
+    const hx = pivot.position.x, hz = pivot.position.z;
+    const tx = hx + B.w * Math.cos(a);
+    const tz = hz - B.w * Math.sin(a);
+    return segSeg(cam.x, cam.z, cat.x, cat.z, hx, hz, tx, tz) < B.d / 2 + HOLD_PAD;
   }
 
   return {
@@ -209,8 +228,11 @@ export function createHouseFinds({
       if (pendulum) pendulum.rotation.z = reducedMotion ? 0 : SWING * Math.sin(2 * Math.PI * t);
       for (let i = 0; i < keys.length; i++) keys[i].position.y = i === key ? -DIP : 0;
       if (swing >= 0) {
-        turnTo(SECRET_OPEN_ROT_Y * ease(Math.min(1, swing / B.openS)));
-        swing = swing >= B.openS ? -1 : swing + dt; // there, it stays open
+        turnTo((into === 'stair' ? SECRET_STAIR_ROT_Y : SECRET_OPEN_ROT_Y) * ease(Math.min(1, swing / B.openS)));
+        if (swing >= B.openS) { // there, it stays open, and she may walk through
+          swing = -1;
+          swapColliders(into === 'stair' ? secret?.stair : secret?.open);
+        } else swing += dt;
       }
       if (tipped >= 0) {
         placeToys(Math.min(1, tipped / TOYS_S));
@@ -220,10 +242,7 @@ export function createHouseFinds({
     },
     // Everything back as it was built: the bookcase shut, its shut colliders back.
     dispose() {
-      if (open) {
-        for (let i = colliders.length - 1; i >= 0; i--) if (colliders[i].secret) colliders.splice(i, 1);
-        for (const c of secret?.shut ?? []) colliders.push({ ...c });
-      }
+      if (open) swapColliders(secret?.shut);
       turnTo(0);
       if (leaf) leaf.userData.fadeHold = false;
       if (pendulum) pendulum.rotation.z = 0;

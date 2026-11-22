@@ -189,8 +189,10 @@ function walkMoves(name) {
   const seen = new Set();
   const log = { awardOnce(type, key) { if (seen.has(key)) return 0; seen.add(key); paid.push({ type, key }); return 12; } };
   const finds = createHouseFinds({
-    finds: HOUSE_FINDS, secret: { group: null, shut: secretColliders(false), open: secretColliders(true) },
-    colliders: w.area.colliders, log, reducedMotion: false, now: () => new Date(2026, 10, 21, 15, 0),
+    // the walk's live colliders (the helper's: the plan's plus the ledges' guards), where the
+    // bookcase's rows swap, as house life hands them (rough edges 1-3)
+    finds: HOUSE_FINDS, secret: { group: null, shut: secretColliders(false), open: secretColliders(true), stair: secretColliders(true, 'stair') },
+    colliders: w.live, log, reducedMotion: false, now: () => new Date(2026, 10, 21, 15, 0),
   });
   const pilot = createHousePilot(tour);
   const ctx = { player: w.player, cat: w.cat, live: w.traversal, ctx: w.ctx };

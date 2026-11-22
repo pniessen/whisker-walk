@@ -7,7 +7,7 @@ import { canvasStub } from './helpers/growriver.js';
 vi.stubGlobal('document', canvasStub);
 
 const {
-  HOUSE_STAIRS, LEVEL_LINKS, SECRET_BOOKCASE, COLLIDER_R, COLLIDER_STEP, houseArea, houseSections, houseColliders, secretColliders,
+  HOUSE_STAIRS, LEVEL_LINKS, SECRET_BOOKCASE, SECRET_R, COLLIDER_STEP, WALL_H, houseArea, houseSections, houseColliders, secretColliders,
 } = await import('../src/world/houseplan.js');
 const { MAX_PATH_GRADE } = await import('../src/ground.js');
 const { isWalkableAt } = await import('../src/player.js');
@@ -51,8 +51,9 @@ describe('the secret stair', () => {
     const before = houseSections(HOUSE_STAIRS.filter((q) => q.id !== 'secret'));
     expect(before.some((q) => q.owner === 'secret')).toBe(false);
     const opened = (q) => (q.owner === 'library' && q.side === 'n') || (q.owner === 'bedroom' && q.side === 's');
-    // the two walls it passes through stand either side of it, never across it
-    const through = now.filter(opened);
+    // the two walls it passes through stand either side of it, never across it (rough edge 4:
+    // but for the lintel over the shut bookcase, above its top, which the next describe tests)
+    const through = now.filter((q) => opened(q) && q.kind !== 'lintel');
     expect(through.length).toBeGreaterThan(0);
     for (const q of through) {
       const lo = Math.min(q.x0, q.x1);
@@ -61,7 +62,7 @@ describe('the secret stair', () => {
     }
     // with the gap, each still runs its whole edge
     const run = (list) => list.reduce((a, q) => a + Math.abs(q.x1 - q.x0), 0);
-    expect(run(now.filter((q) => q.owner === 'library' && q.side === 'n'))).toBeCloseTo(10 - 2.4, 6);
+    expect(run(now.filter((q) => q.owner === 'library' && q.side === 'n' && q.kind !== 'lintel'))).toBeCloseTo(10 - 2.4, 6);
     expect(run(now.filter((q) => q.owner === 'bedroom' && q.side === 's'))).toBeCloseTo(10 - 3.0 - 2.4, 6);
     // every other section is the step-1 one: same id, same extent, same everything
     const keep = (list) => list.filter((q) => !opened(q) && q.owner !== 'secret');
@@ -92,7 +93,8 @@ describe('the secret stair', () => {
     for (const list of [shut, open]) {
       expect(list.length).toBe(Math.ceil(SECRET_BOOKCASE.w / COLLIDER_STEP - 1e-9) + 1);
       for (const c of list) {
-        expect(c).toEqual({ x: c.x, z: c.z, r: COLLIDER_R, level: 'ground', secret: true });
+        // rough edge 3: past the leaf's half depth, so her body never touches the leaf she is held at
+        expect(c).toEqual({ x: c.x, z: c.z, r: SECRET_R, level: 'ground', secret: true });
       }
       for (let i = 1; i < list.length; i++) expect(Math.hypot(list[i].x - list[i - 1].x, list[i].z - list[i - 1].z)).toBeLessThanOrEqual(COLLIDER_STEP + 1e-9);
     }
@@ -158,4 +160,73 @@ describe('the bookcase drawn', () => {
     expect(data.house.secret.open).toEqual(secretColliders(true));
     expect(data.colliders.filter((c) => c.secret)).toEqual(secretColliders(false));
   }, 60_000);
+});
+
+// =============================================================================
+// Rough edge 4: the 0.55 m between the shut bookcase's top and the wall's top showed
+// the secret stair from across the library. A lintel over the stair's library mouth
+// closes it, and sinks like every lintel when the camera on the stair looks back.
+// =============================================================================
+describe('the wall over the shut bookcase', () => {
+  const B = SECRET_BOOKCASE;
+
+  it('stands over the opening, from the bookcase\'s top to the wall\'s, and sinks to nothing', async () => {
+    const over = houseSections().filter((q) => q.owner === 'library' && q.side === 'n' && q.kind === 'lintel');
+    expect(over).toHaveLength(1);
+    const l = over[0];
+    expect(Math.min(l.x0, l.x1)).toBeCloseTo(B.x - B.w / 2, 9);
+    expect(Math.max(l.x0, l.x1)).toBeCloseTo(B.x + B.w / 2, 9);
+    expect(l.z0).toBeCloseTo(B.z, 9);
+    expect(l.z1).toBeCloseTo(B.z, 9);
+    expect(l.base).toBeCloseTo(B.h, 9);
+    expect(l.base + l.height).toBeCloseTo(WALL_H, 9);
+    expect(l.stub).toBe(0);
+    expect(l.level).toBe('ground');
+    // the camera up the stair looking back at her in the library: it goes down, all the way
+    const { createWallSink, makeView } = await import('../src/housewalls.js');
+    const sink = createWallSink(houseSections(), { reducedMotion: true });
+    sink.settle(makeView({ x: -6, y: 0, z: 3.4 }, { x: -6, y: 6, z: -1.2 }, 0.74, {})); // the line to her crosses it at 2.34 m
+    expect(sink.fraction(l.id)).toBe(0);
+    // no collider (she walks under it, up the stair), and it is no wall for the yarn ball
+    expect(houseColliders().filter((c) => !c.secret && Math.abs(c.z - B.z) < 1e-9 && c.x > B.x - B.w / 2 + 1e-6 && c.x < B.x + B.w / 2 - 1e-6)).toEqual([]);
+  });
+
+  it('from across the library, no line from the camera to the stair passes over the shut bookcase', async () => {
+    const { behindYaw } = await import('../src/traversal.js');
+    const w = createHouseWalk();
+    const s = HOUSE_STAIRS.find((q) => q.id === 'secret');
+    const stairPts = [];
+    for (let x = s.x0 - s.width / 2 + 0.2; x <= s.x0 + s.width / 2 - 0.2 + 1e-9; x += 0.25) {
+      for (let z = s.z1 + 0.2; z <= s.z0 - 0.2 + 1e-9; z += 0.4) {
+        const g = w.area.ground.y(x, z);
+        stairPts.push([x, g + 0.05, z], [x, g + 0.7, z]);
+      }
+    }
+    const solidAt = (x, y) => w.area.sections.some((q) => q.owner === 'library' && q.side === 'n'
+      && x >= Math.min(q.x0, q.x1) - 1e-9 && x <= Math.max(q.x0, q.x1) + 1e-9
+      && y >= q.base - 1e-9 && y <= q.base + q.height * w.sink.fraction(q.id) + 1e-9);
+    let through = 0;
+    const seen = [];
+    for (let z = 5; z <= 11 + 1e-9; z += 1) {
+      for (let x = -13; x <= -4.8 + 1e-9; x += 1) {
+        if (!isWalkableAt(w.area, x, z)) continue;
+        for (const fx of [-0.4, 0, 0.4]) for (const zoom of [0, 1, 2, 3]) for (const pitch of [-0.25, 0.18, 0.85]) {
+          w.place(x, z, behindYaw(fx, -1), zoom, pitch);
+          const c = w.camera.position;
+          if (!(c.z > B.z + 0.5)) continue; // the camera across the library, south of the wall
+          for (const [px, py, pz] of stairPts) {
+            const k = (B.z - c.z) / (pz - c.z); // where the line meets the wall's plane
+            if (!(k > 0 && k < 1)) continue;
+            const ax = c.x + (px - c.x) * k;
+            const ay = c.y + (py - c.y) * k;
+            if (ax <= B.x - B.w / 2 || ax >= B.x + B.w / 2 || ay <= B.h || ay >= WALL_H) continue;
+            through++;
+            if (!solidAt(ax, ay)) seen.push(`${x},${z} zoom ${zoom} pitch ${pitch}: (${px.toFixed(2)}, ${py.toFixed(2)}, ${pz.toFixed(2)}) at ${ax.toFixed(2)}, ${ay.toFixed(2)}`);
+          }
+        }
+      }
+    }
+    expect(through).toBeGreaterThan(1000); // the sweep does look through the gap's height
+    expect(seen.slice(0, 5)).toEqual([]);
+  }, 90_000);
 });
