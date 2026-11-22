@@ -33,6 +33,7 @@ import { createClanFight } from '../src/game/clanfight.js';
 import { onAnyDeck } from '../src/world/builder.js';
 import { memoryStorage as fakeStorage } from './helpers/storage.js';
 import { GATE_REACH, GATE_PREFETCH_REACH } from '../src/gateways.js';
+import { discoveryText } from '../src/ui/hud.js';
 
 // src/game/* had no test coverage at all before this file — the module carve-
 // out out of main.js was verified by mechanical diff and a browser smoke run.
@@ -1309,11 +1310,10 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       expect(h.progression.state.feats.mischief).toBe(1);
     });
 
-    // Ruling R19: the HUD toasts every discovery as "You spotted <label>"
-    // (ui/hud.js), so the label must be a noun phrase like the tip's.
-    it('the knock label reads well after "You spotted ", for every kind', () => {
-      const hud = readFileSync(new URL('../src/ui/hud.js', import.meta.url), 'utf8');
-      expect(hud).toContain("'You spotted '");
+    // Ruling R19 (lead words reworked 2026-11-22): the HUD leads a mischief
+    // label with "You made" (ui/hud.js discoveryText), so the label stays a
+    // noun phrase like the tip's.
+    it('the knock label reads well after its lead, for every kind', () => {
       const said = {};
       for (const kind of KNOCK_KINDS) {
         const h = knockHarness({ knockables: [{ ...CUP, id: `docks-${kind}-1`, kind }] });
@@ -1325,14 +1325,14 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         }
         expect(h.discoveries).toHaveLength(1);
         expect(h.discoveries[0].key).toBe(`knock-docks-${kind}-1`);
-        said[kind] = `You spotted ${h.discoveries[0].label}`;
+        said[kind] = discoveryText({ type: 'mischief', label: h.discoveries[0].label });
       }
       expect(said).toEqual({
-        cup: 'You spotted the cup go over the edge 😼',
-        flowerpot: 'You spotted the flowerpot go over the edge 😼',
-        can: 'You spotted the can go over the edge 😼',
-        book: 'You spotted the book go over the edge 😼',
-        bucket: 'You spotted the bucket go over the edge 😼',
+        cup: 'You made the cup go over the edge 😼',
+        flowerpot: 'You made the flowerpot go over the edge 😼',
+        can: 'You made the can go over the edge 😼',
+        book: 'You made the book go over the edge 😼',
+        bucket: 'You made the bucket go over the edge 😼',
       });
       // an unknown kind is still a sentence, never "the undefined"
       for (const kind of ['teapot', '__proto__', 'constructor']) {
@@ -1340,7 +1340,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         h.walkTo(LEDGE.x, LEDGE.z);
         h.press();
         h.off?.();
-        expect(`You spotted ${h.discoveries[0].label}`).toBe('You spotted the thing go over the edge 😼');
+        expect(discoveryText({ type: 'mischief', label: h.discoveries[0].label })).toBe('You made the thing go over the edge 😼');
       }
     });
 
