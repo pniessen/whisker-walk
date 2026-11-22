@@ -201,3 +201,24 @@ html.tv .splash-inner svg { width: calc(310px * var(--tv-s, 1)); }
 html.tv .splash-word { font-size: calc(75px * var(--tv-s, 1)); margin-top: calc(22px * var(--tv-s, 1)); white-space: nowrap; }
 html.tv .splash-edition { font-size: calc(30px * var(--tv-s, 1)); }
 html.tv body:has(#splash:not([style*="none"])) #overlay { visibility: hidden; }
+
+/* ======================================================================
+   Round 2 (owner photos of round 1): the clan pick, every yes/no dialog, Home again,
+   Change place, the home base. Same three sizes, same gaps; every size grows with --tv-s.
+   ====================================================================== */
+
+/* ---- The clan pick: five tiles in one row (3 + 2 on a narrow window), the name large and the place smaller. ---- */
+html.tv .join-moment { padding: var(--tv-safe-y, 5vh) var(--tv-safe-x, 5vw); box-sizing: border-box; background: rgba(14, 19, 29, 0.96); }
+html.tv .join-moment .join-moment-card { max-width: min(calc(1700px * var(--tv-s, 1)), 100%); padding: calc(28px * var(--tv-s, 1)) calc(36px * var(--tv-s, 1)); gap: var(--tv-gap-l); box-sizing: border-box; border-width: 3px; }
+html.tv .join-moment h2 { font-size: var(--tv-title); line-height: 1.15; margin: 0 0 var(--tv-gap); }
+html.tv .join-moment-paws { display: none; }
+html.tv .join-moment-ask { font-size: var(--tv-body); margin: 0 0 var(--tv-gap-l); }
+html.tv .join-moment .dr-homes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--tv-gap-l); }
+html.tv .join-moment .dr-home { min-height: 0; padding: calc(16px * var(--tv-s, 1)); font-size: var(--tv-small) !important; font-weight: 500; line-height: 1.4; text-align: left; align-items: flex-start; gap: calc(6px * var(--tv-s, 1)); overflow-wrap: anywhere; }
+html.tv .join-moment .dr-home .dr-home-name { font-size: var(--tv-body); font-weight: 700; line-height: 1.2; }
+html.tv .join-moment .dr-home small { font-size: var(--tv-small) !important; opacity: .92; }
+html.tv .join-moment-foot { margin-top: var(--tv-gap-l); gap: var(--tv-gap-l); }
+html.tv .join-moment-later { min-height: calc(64px * var(--tv-s, 1)); padding: 0 calc(32px * var(--tv-s, 1)); font-size: var(--tv-body); }
+html.tv .join-moment-note { font-size: var(--tv-small) !important; opacity: .9; }
+@media (max-width: 1500px) { html.tv .join-moment .dr-homes { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
