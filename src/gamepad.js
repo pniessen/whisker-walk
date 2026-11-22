@@ -13,11 +13,12 @@ import { line } from './tutorialwords.js';
 const DPAD = { 12: 'up', 13: 'down', 14: 'left', 15: 'right' };
 const STICK_NAV = 0.5; // a menu step needs a firm push
 const SCROLL_PX_PER_SEC = 700;
+const LOOK_RAD_PER_SEC = 3.2; // the hero cat's turn at full right-stick push
 
 export function createGamepad({
   win = window, nav = navigator,
   getEngaged, getCameraMode, isFighting, isWalkingOn, canResume,
-  onMove, onOrbit, onAction, onResume, toast, onPadUse, onPadConnect, onPadDisconnect, onMenuButton,
+  onMove, onOrbit, onAction, onResume, toast, onPadUse, onPadConnect, onPadDisconnect, onMenuButton, onLook,
   menuNav: menuNavIn = null, menuNavFactory = null, padBack = null, doc = typeof document === 'undefined' ? null : document,
 }) {
   const supported = typeof nav?.getGamepads === 'function';
@@ -107,7 +108,9 @@ export function createGamepad({
       if (slider) menuNav.alt(dir);
       else menuNav.step(dir, clock);
     }
-    if (sx || sy) menuNav.scroll(sx, sy);
+    // The right stick turns the cat on the home screen (and Dress up); anywhere else it scrolls.
+    const spun = rs.mag > 0 && !!onLook?.(rs.x * LOOK_RAD_PER_SEC * dt);
+    if ((sx || sy) && !spun) menuNav.scroll(sx, sy);
     if (edge(PAD_BUTTONS.A)) {
       // Keep exploring needs pointer lock, which a pad press cannot ask for: resume like Start does.
       if (doc?.activeElement?.id === 'btn-resume' && canResume?.()) onResume?.();

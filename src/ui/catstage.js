@@ -496,6 +496,13 @@ export function createCatStage({
   };
   Object.defineProperty(stage, 'pose', { get: () => pose, enumerable: true });
 
+  // The pad's right stick turns the cat the way a drag does (true when there is a live cat on show).
+  stage.spinBy = function spinBy(rad) {
+    if (!canvas || stage.failed || !visible) return false;
+    spin.nudge(rad);
+    schedule();
+    return true;
+  };
   stage.setVisible = function setVisible(v) {
     visible = !!v;
     if (!visible) { cancel(); lastFrame = 0; } else if (el && renderer) draw();
