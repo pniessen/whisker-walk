@@ -59,14 +59,23 @@ describe('the catalog has the Market, after the Rooftops, in Clan Edition only',
     const p = createProgression(memStorage());
     expect(JSON.stringify(nextThing(p.state, { catalog: CATALOG }) ?? null)).not.toMatch(/market/i);
   });
-  it('Legacy has no offer: locked away like every Clan-only place', () => {
-    const p = createProgression(memStorage());
-    p.setEdition('legacy');
-    p.completeWalk('neighborhood');
-    p.completeWalk('neighborhood');
-    p.addPoints(500);
-    expect(p.buy('areas', 'market')).toBe(false);
-    expect(p.state.unlocked.areas).not.toContain('market');
+  it('Legacy has no offer: locked away like every Clan-only place; Clan Edition with the same walks and points buys it', () => {
+    const save = (edition) => {
+      const p = createProgression(memStorage());
+      p.setEdition(edition);
+      p.completeWalk('neighborhood');
+      p.completeWalk('neighborhood');
+      p.addPoints(500);
+      return p;
+    };
+    const legacy = save('legacy');
+    expect(legacy.buy('areas', 'market')).toBe(false);
+    expect(legacy.state.unlocked.areas).not.toContain('market');
+    expect(legacy.state.points).toBe(500);
+    const clan = save('canon');
+    expect(clan.buy('areas', 'market')).toBe(true);
+    expect(clan.state.unlocked.areas).toContain('market');
+    expect(clan.state.points).toBe(350);
   });
 });
 
@@ -302,15 +311,21 @@ describe('the Market unlock in the real catalog', () => {
 });
 
 describe('two devices in one room see the same stallholders turn', () => {
-  it('two walks with one roomSeed: at one clock every stall\'s phase is equal', async () => {
+  it('two walks with one roomSeed: at one clock every stall\'s phase is equal (and another seed\'s differs)', async () => {
     const one = life();
     const two = life();
+    const other = life();
     try {
       one.w.startWalk({ duskMode: false, roomSeed: 4242, areaOverride: 'market' });
       const a = one.getSession();
       two.w.startWalk({ duskMode: false, roomSeed: 4242, areaOverride: 'market' });
       const b = two.getSession();
-      expect([a.areaId, b.areaId]).toEqual(['market', 'market']);
+      // the control: a room with another seed, at the same clock
+      other.w.startWalk({ duskMode: false, roomSeed: 777, areaOverride: 'market' });
+      const c = other.getSession();
+      expect([a.areaId, b.areaId, c.areaId]).toEqual(['market', 'market', 'market']);
+      const seqA = [];
+      const seqC = [];
       const player = { speed: 0, stalking: false, perchY: 0, swimming: false, inputActive: false };
       const DT = 0.25;
       let t = 0;
@@ -320,17 +335,24 @@ describe('two devices in one room see the same stallholders turn', () => {
         vi.setSystemTime(new Date(Date.UTC(2026, 10, 21, 15, 0) + i * 250));
         a.market.update(DT, t, { cat: a.cat, player, session: a });
         b.market.update(DT, t, { cat: b.cat, player, session: b });
+        c.market.update(DT, t, { cat: c.cat, player, session: c });
         const pa = a.market.stalls.filter((s) => s.look).map((s) => [s.id, s.phase]);
         const pb = b.market.stalls.filter((s) => s.look).map((s) => [s.id, s.phase]);
         expect(pa.length).toBe(4);
         expect(pb).toEqual(pa);
         for (const [, ph] of pa) seen.add(ph);
+        seqA.push(pa.map(([, ph]) => ph).join());
+        seqC.push(c.market.stalls.filter((s) => s.look).map((s) => s.phase).join());
       }
       // the minute walked through turns them: more than one phase was seen
       expect(seen.size).toBeGreaterThan(1);
+      // another seed turns them on another rhythm
+      expect(seqC).not.toEqual(seqA);
+      expect(seqC.filter((x, i) => x !== seqA[i]).length).toBeGreaterThan(seqA.length / 4);
     } finally {
       endIfWalking(one);
       endIfWalking(two);
+      endIfWalking(other);
     }
   }, 90_000);
 });

@@ -525,6 +525,67 @@ describe('world map: the Market on the town\'s rim', () => {
     expect(placeCardFor(open, 'market', 150)).toMatchObject({ id: 'market', action: 'open', label: 'Open for 150 🐾', locked: false });
   });
 
+  // Review (Task 11): its words once sat on the town's own line. Each row of
+  // every label is boxed from its baseline (0.8 em up, 0.25 em down) and its
+  // width in Chalkboard SE bold (the iPad's font; the advance widths measured
+  // in a browser, an unlisted glyph 0.8 em, an emoji 1.1 em). A flat 0.6 em
+  // per character is no bound here: it makes "you’re going here" 245 wide
+  // where the font draws 198, and "and Swamp" 238 where it draws 236. The
+  // Market's rows keep 4 units (the halo's half-width) from every row of the
+  // town's, the Docks', the Park's and the Seaside's labels and from its road's
+  // gate mark, in every state, both word sets, click and tap.
+  it("its words keep off the town's own name and line, and every neighbour's, in every state", () => {
+    const EM = { a: 0.56, b: 0.58, c: 0.51, d: 0.6, e: 0.55, f: 0.45, g: 0.55, h: 0.57, i: 0.27, j: 0.41, k: 0.55, l: 0.32, m: 0.76, n: 0.53, o: 0.51, p: 0.55, q: 0.54, r: 0.46, s: 0.45, t: 0.48, u: 0.55, v: 0.49, w: 0.74, x: 0.58, y: 0.56, z: 0.56,
+      A: 0.67, B: 0.59, C: 0.61, D: 0.66, E: 0.57, F: 0.52, G: 0.69, H: 0.64, I: 0.47, J: 0.57, K: 0.61, L: 0.54, M: 0.85, N: 0.68, O: 0.75, P: 0.6, Q: 0.78, R: 0.65, S: 0.61, T: 0.59, U: 0.68, V: 0.67, W: 1.01, X: 0.68, Y: 0.61, Z: 0.68,
+      ' ': 0.41, "'": 0.24, '’': 0.3, '.': 0.34, ',': 0.3, ':': 0.33, '!': 0.3, '—': 0.68, '-': 0.52, '·': 0.38, '/': 0.59 };
+    const em = (ch) => (/\p{Extended_Pictographic}/u.test(ch) ? 1.1 : /[0-9]/.test(ch) ? 0.61 : EM[ch] ?? 0.8);
+    const SIZE = { 'tm-icon': 34, 'tm-line': 28, 'tm-line tm-line-small': 24 };
+    const rowsOf = (html, id) => {
+      const text = regionHtml(html, id).match(/<text class="tm-label" x="[-\d.]+" y="([-\d.]+)"[^>]*>([\s\S]*?)<\/text>/);
+      let y = Number(text[1]);
+      const rows = [];
+      for (const [, cls, x, dy, fs, words] of text[2].matchAll(/<tspan class="([^"]+)" x="([-\d.]+)" dy="([-\d.]+)"(?: font-size="(\d+)")?>([^<]*)<\/tspan>/g)) {
+        y += Number(dy);
+        const size = fs ? Number(fs) : SIZE[cls];
+        const w = [...words.replace(/&[a-z#0-9]+;/g, 'x').replace(/\uFE0F/g, '')].reduce((sum, ch) => sum + em(ch) * size, 0);
+        if (w > 0) rows.push({ words, x0: Number(x) - w / 2, x1: Number(x) + w / 2, y0: y - 0.8 * size, y1: y + 0.25 * size });
+      }
+      expect(rows.length, id).toBeGreaterThan(0);
+      return rows;
+    };
+    const gap = (a, b) => Math.max(b.x0 - a.x1, a.x0 - b.x1, b.y0 - a.y1, a.y0 - b.y1);
+    const s = fresh();
+    const town2 = { ...s.walks, neighborhood: 2 };
+    const saves = {
+      locked: s,
+      short: { ...s, walks: town2, points: 20 },
+      canOpen: { ...s, walks: town2, points: 150 },
+      owned: { ...s, walks: town2, unlocked: { ...s.unlocked, areas: ['neighborhood', 'market'] } },
+      ownedAway: { ...s, walks: { ...town2, park: 2 }, unlocked: { ...s.unlocked, areas: ['neighborhood', 'park', 'market'] }, area: 'park' },
+      today: { ...s, walks: town2, unlocked: { ...s.unlocked, areas: ['neighborhood', 'market'] }, area: 'market' },
+      docksAndSeaside: { ...s, walks: { ...town2, park: 2, docks: 2 }, points: 500, unlocked: { ...s.unlocked, areas: ['neighborhood', 'park', 'docks', 'market'] } },
+    };
+    const GATE = { x0: 939 - 8, x1: 939 + 8, y0: 682 - 8, y1: 682 + 8 };
+    let checked = 0;
+    for (const sets of [(f) => f(), withOffWords]) {
+      sets(() => {
+        for (const [name, save] of Object.entries(saves)) {
+          for (const touch of [false, true]) {
+            const html = renderWorldMapHtml(worldMapModel(save, CATALOG, { touch }));
+            const market = rowsOf(html, 'market');
+            for (const q of market) expect(gap(GATE, q), `${name}: ${q.words} / the gate mark`).toBeGreaterThanOrEqual(4);
+            for (const id of ['town', 'docks', 'park', 'seaside', 'roofs']) {
+              for (const r of rowsOf(html, id)) {
+                for (const q of market) { expect(gap(r, q), `${name} ${touch}: ${id} "${r.words}" / "${q.words}"`).toBeGreaterThanOrEqual(4); checked++; }
+              }
+            }
+          }
+        }
+      });
+    }
+    expect(checked).toBeGreaterThan(500);
+  });
+
   it("the town-market road runs from the town's edge to the Market's", () => {
     const m = worldMapModel(fresh(), CATALOG);
     const [town, market, docks] = ['town', 'market', 'docks'].map((id) => regionOf(m, id));
