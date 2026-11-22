@@ -87,7 +87,7 @@ export const ATLAS_W = ATLAS_COLS * CELL_PX;
 export const ATLAS_H = ATLAS_ROWS * CELL_PX;
 export const ATLAS_CELLS = ATLAS_COLS * ATLAS_ROWS;
 
-export const TREAT_KINDS = Object.freeze(['fishhead', 'sausageroll', 'cheddar', 'cream', 'crumbs']);
+export const TREAT_KINDS = Object.freeze(['fishhead', 'sausageroll', 'cheddar', 'cream', 'crumbs', 'wool', 'sausages', 'catnip', 'sardines']);
 
 const CREAM = 0xf3ead2;
 // cells 0-5: the awning stripes, [stripe colour] on cream: blue, red, yellow, green, pink, café brown
@@ -113,10 +113,12 @@ const inTri = (x, y, [ax, ay], [bx, by], [qx, qy]) => {
 };
 
 // Each cell's pixel at (x, y) (y up from the bottom of the cell), [r, g, b].
+// cells 18-21 (2026-11-22): the toy stall's purple, the plant stall's teal, the bric-a-brac's orange, the butcher's maroon
+const STRIPES_NEW = Object.freeze([0x8a5cc2, 0x2f8f8a, 0xe08a2e, 0x9c2b3a]);
 function awningPixel(i, x) {
   // four px of stripe, four of cream, a faint fold shading across the cell
   const stripe = Math.floor(x / 4) % 2 === 0;
-  const base = rgbOf(stripe ? STRIPES[i] : CREAM);
+  const base = rgbOf(stripe ? (i >= 18 ? STRIPES_NEW[i - 18] : STRIPES[i]) : CREAM);
   return mixc(base, [0, 0, 0], 0.06 * (1 - Math.abs(((x % 4) - 1.5) / 1.5)));
 }
 
@@ -238,10 +240,62 @@ function windowBoardPixel(x, y) {
   return c;
 }
 
-// the atlas's unused cells (18-31): plain cream, never drawn
+// Cells 22-25 (2026-11-22): the four new stalls' signs, each a picture on the sign board
+// (a ball of wool, a string of sausages, a pot with a leaf, a teapot); 26-29: their goods
+// (toy blocks, red meat, green leaves, a jumble)
+const NEW_SIGNS = Object.freeze([
+  [ // wool: a ball with criss-cross strands and a loose end
+    [(x, y) => inCircle(x, y, 16, 16, 8), rgbOf(0xc04a8a)],
+    [(x, y) => inCircle(x, y, 16, 16, 8) && (Math.abs(x - y) < 1.1 || Math.abs(x + y - 32) < 1.1 || Math.abs(x - 16) < 0.9), rgbOf(0xefb2d4)],
+    [(x, y) => inRect(x, y, 21, 6, 29, 7.4), rgbOf(0xc04a8a)],
+  ],
+  [ // sausages: three links on a string
+    [(x, y) => inRect(x, y, 15.5, 22, 16.5, 29), rgbOf(0x5a3b26)],
+    [(x, y) => inEllipse(x, y, 16, 19, 4, 3.4) || inEllipse(x, y, 16, 12.4, 4, 3.4) || inEllipse(x, y, 16, 5.8, 4, 3.4), rgbOf(0xc0614a)],
+  ],
+  [ // plant: a clay pot with two leaves
+    [(x, y) => inTri(x, y, [9, 14], [23, 14], [20, 5]) || inRect(x, y, 9, 14, 23, 17), rgbOf(0xb5622f)],
+    [(x, y) => inEllipse(x, y, 11.5, 22, 3, 5.5) || inEllipse(x, y, 20.5, 22, 3, 5.5), rgbOf(0x3f8f4a)],
+    [(x, y) => Math.abs(x - 16) < 0.9 && y >= 17 && y <= 25, rgbOf(0x3f8f4a)],
+  ],
+  [ // teapot: a round pot, a spout, a handle and a lid
+    [(x, y) => inEllipse(x, y, 15, 14, 8, 6.2) || inTri(x, y, [22, 10], [28, 20], [23, 15]), rgbOf(0x4a7fb5)],
+    [(x, y) => inCircle(x, y, 7, 15, 3.4) && !inCircle(x, y, 7, 15, 1.8), rgbOf(0x4a7fb5)],
+    [(x, y) => inEllipse(x, y, 15, 20.4, 3.4, 1.4) || inCircle(x, y, 15, 22.4, 1), rgbOf(0xe9dcb9)],
+  ],
+]);
+const NEW_GOODS = Object.freeze([
+  { ground: 0xd8b072, dots: [0xd8433c, 0x4a86b8, 0xf2c94c, 0x4c9a52], r: 3.4, step: 8, shape: 'long' }, // toy blocks
+  { ground: 0xe6d6c6, dots: [0xc0504a, 0xa83a34], r: 3.4, step: 8, shape: 'long' }, // meat
+  { ground: 0x4c7a3c, dots: [0x2f6a30, 0x6aa84a], r: 3.0, step: 7, shape: 'round' }, // leaves
+  { ground: 0x7a5a3a, dots: [0xe9dcb9, 0x4a7fb5, 0xd8433c], r: 3.0, step: 8, shape: 'round' }, // a jumble
+]);
+function newGoodsPixel(i, x, y) {
+  const p = NEW_GOODS[i - 26];
+  const ground = rgbOf(p.ground);
+  const row = Math.floor(y / p.step);
+  const ox = (row % 2) * (p.step / 2);
+  const cx = Math.floor((x + ox) / p.step) * p.step + p.step / 2 - ox;
+  const cy = row * p.step + p.step / 2;
+  const k = (Math.floor((x + ox) / p.step) + row * 3) % p.dots.length;
+  const inside = p.shape === 'long' ? inEllipse(x, y, cx, cy, p.r * 1.3, p.r * 0.8) : inCircle(x, y, cx, cy, p.r);
+  return inside ? rgbOf(p.dots[k]) : ground;
+}
+function newSignPixel(i, x, y) {
+  if (x < 2 || y < 2 || x > 29 || y > 29) return SIGN_BOARD;
+  if (x < 4 || y < 4 || x > 27 || y > 27) return mixc(SIGN_BOARD, SIGN_FACE, 0.35);
+  let c = SIGN_FACE;
+  for (const [test, col] of NEW_SIGNS[i - 22]) if (test(x, y)) c = col;
+  return c;
+}
+
+// the atlas's unused cells (30, 31): plain cream, never drawn
 const SPARE = rgbOf(CREAM);
 
 function cellPixel(i, x, y) {
+  if (i >= 18 && i <= 21) return awningPixel(i, x);
+  if (i >= 22 && i <= 25) return newSignPixel(i, x, y);
+  if (i >= 26 && i <= 29) return newGoodsPixel(i, x, y);
   if (i < 6) return awningPixel(i, x);
   if (i < 11) return producePixel(i, x, y);
   if (i < 16) return signPixel(i, x, y);
@@ -529,6 +583,35 @@ export function buildTreatMesh(kind) {
     case 'crumbs': { // five flat pale bits of pastry scattered round a point
       const bits = [[0, 0, 0.03, 0.4], [0.07, 0.07, 0.022, 1.1], [-0.07, 0.05, 0.026, 2.0], [0.04, -0.08, 0.02, 2.8], [-0.06, -0.07, 0.024, 0.9]];
       for (const [x, z, s, r] of bits) treatPart(g, new THREE.BoxGeometry(s * 1.6, s * 0.5, s), treatMat(0xd9b27c, 0.9), x, 0, z, [0, r, 0]);
+      break;
+    }
+    case 'wool': { // a ball of wool with criss-cross strands and a loose end trailing on the cloth
+      treatPart(g, new THREE.SphereGeometry(0.07, 10, 8), treatMat(0xc04a8a, 0.95), 0, 0.02, 0);
+      const ring = (rot) => new THREE.TorusGeometry(0.071, 0.008, 4, 14).rotateX(rot[0]).rotateZ(rot[2]).translate(0, 0.02, 0);
+      treatPart(g, mergeGeometries([ring([Math.PI / 2.6, 0, 0]), ring([0.4, 0, 1.1])]), treatMat(0xefb2d4, 0.95), 0, 0, 0);
+      treatPart(g, new THREE.CylinderGeometry(0.006, 0.006, 0.08, 4), treatMat(0xc04a8a, 0.95), 0.085, -0.04, 0.02, [0, 0, Math.PI / 2.2]);
+      break;
+    }
+    case 'sausages': { // a string of three links, one over another (the cord to the rail is the stall's own: market.js), the middle link at the origin
+      const links = [-1, 0, 1].map((i) => new THREE.CylinderGeometry(0.036, 0.036, 0.15, 8).translate(0, i * 0.17, 0));
+      treatPart(g, mergeGeometries(links), treatMat(0xc0614a, 0.6), 0, 0, 0);
+      break;
+    }
+    case 'catnip': { // a sprig: a stem, five grey-green leaves and a little purple head
+      treatPart(g, new THREE.CylinderGeometry(0.006, 0.008, 0.16, 5), treatMat(0x5a8a4a, 0.9), 0, 0.02, 0);
+      const leaves = [0, 1, 2, 3, 4].map((k) => {
+        const a = (k / 5) * Math.PI * 2;
+        return new THREE.ConeGeometry(0.028, 0.08, 5).rotateX(Math.sin(a) * 1.2).rotateZ(-Math.cos(a) * 1.2).translate(0.045 * Math.cos(a), (k % 2) * 0.03, 0.045 * Math.sin(a));
+      });
+      treatPart(g, mergeGeometries(leaves), treatMat(0x8fb08a, 0.9), 0, 0, 0);
+      treatPart(g, new THREE.SphereGeometry(0.022, 6, 5), treatMat(0x9a63c9, 0.8), 0, 0.11, 0);
+      break;
+    }
+    case 'sardines': { // an opened tin: a silver tin, three sardines lying head to tail in the oil, its lid rolled back
+      treatPart(g, new THREE.CylinderGeometry(0.1, 0.1, 0.035, 12), treatMat(0xb9c2c8, 0.35), 0, -0.01, 0);
+      const fish = [0, 1, 2].map((k) => new THREE.SphereGeometry(0.03, 7, 5).scale(2.2, 0.55, 0.8).translate(-0.02, 0.025, (k - 1) * 0.045));
+      treatPart(g, mergeGeometries(fish), treatMat(0x8fa3ad, 0.3), 0, 0, 0);
+      treatPart(g, new THREE.CylinderGeometry(0.05, 0.05, 0.006, 8, 1, false, 0, Math.PI), treatMat(0x9aa4aa, 0.35), 0.09, 0.05, 0, [0, 0, 1.1]);
       break;
     }
     default:

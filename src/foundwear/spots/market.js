@@ -23,9 +23,9 @@ export const MARKET_SPOTS = Object.freeze([
   // behind the flower stall, between its back and the east shop fronts
   { id: 'fw-market-7', x: 14.8, z: 0.5, y: 0, look: 'grass' },
   // between the west barrow and the baker's stall
-  { id: 'fw-market-8', x: -14.5, z: -11.5, y: 0, look: 'post' },
+  { id: 'fw-market-8', x: -12.6, z: -13.4, y: 0, look: 'post' },
   // out on the east edge, between the flower stall and the milk cart
-  { id: 'fw-market-9', x: 17.5, z: 5.5, y: 0, look: 'post' },
+  { id: 'fw-market-9', x: 18.6, z: 10.6, y: 0, look: 'post' },
   // up on the flower stall's crates (0.95): one hop off the cobbles
   { id: 'fw-market-10', x: 12.2, z: 1.85, y: 0.95, look: 'perch' },
   // in the south-west corner, beside the tub of flowers there

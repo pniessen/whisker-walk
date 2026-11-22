@@ -198,13 +198,13 @@ describe('marketparts', () => {
   });
 
   it('there is a treat mesh for every treat kind, small and casting nothing', () => {
-    expect(TREAT_KINDS).toEqual(['fishhead', 'sausageroll', 'cheddar', 'cream', 'crumbs']);
+    expect(TREAT_KINDS).toEqual(['fishhead', 'sausageroll', 'cheddar', 'cream', 'crumbs', 'wool', 'sausages', 'catnip', 'sardines']);
     for (const kind of TREAT_KINDS) {
       const g = buildTreatMesh(kind);
       expect(g.isGroup, kind).toBe(true);
       const box = new THREE.Box3().setFromObject(g);
       const s = box.getSize(new THREE.Vector3());
-      expect(Math.max(s.x, s.y, s.z), kind).toBeLessThan(0.25);
+      expect(Math.max(s.x, s.y, s.z), kind).toBeLessThan(kind === 'sausages' ? 0.55 : 0.25); // (a string of three links)
       expect(Math.max(s.x, s.y, s.z), kind).toBeGreaterThan(0.04);
       const c = box.getCenter(new THREE.Vector3());
       expect(Math.hypot(c.x, c.y, c.z), kind).toBeLessThan(0.05);

@@ -71,10 +71,13 @@ describe('the plan of the Market Square', () => {
     expect(two.perches).toHaveLength(MARKET_PERCHES.length);
   });
 
-  it('has the seven stalls of the spec, four of them watched', () => {
-    expect(STALLS.map((s) => s.id)).toEqual(['fish', 'baker', 'cheese', 'milk', 'flowers', 'fruit', 'cafe']);
+  it('has the eleven stalls of the spec, eight of them watched', () => {
+    expect(STALLS.map((s) => s.id)).toEqual(['fish', 'baker', 'cheese', 'milk', 'flowers', 'fruit', 'toys', 'plants', 'bric', 'butcher', 'cafe']);
     expect(STALLS.filter((s) => s.kind === 'treat').map((s) => s.id)).toEqual(TREAT_STALLS);
-    expect(STALLS.filter((s) => s.treat).map((s) => s.treat.kind)).toEqual(['fishhead', 'sausageroll', 'cheddar', 'cream', 'crumbs']);
+    // the four of 2026-11-22 come after the old four, whose order (and so whose offsets) never moves
+    expect(TREAT_STALLS.slice(0, 4)).toEqual(['fish', 'baker', 'cheese', 'milk']);
+    expect(TREAT_STALLS.slice(4)).toEqual(['toys', 'plants', 'bric', 'butcher']);
+    expect(STALLS.filter((s) => s.treat).map((s) => s.treat.kind)).toEqual(['fishhead', 'sausageroll', 'cheddar', 'cream', 'wool', 'catnip', 'sardines', 'sausages', 'crumbs']);
   });
 
   it('the local frame round-trips', () => {
@@ -178,7 +181,7 @@ describe('the plan of the Market Square', () => {
       // her own cat is never kept out of a hide
       expect(isWalkableAt(a, s.hide.x, s.hide.z), id).toBe(true);
     }
-    expect(MARKET_KEEPOUT.capsules.length).toBe(8);
+    expect(MARKET_KEEPOUT.capsules.length).toBe(2 * TREAT_STALLS.length);
   });
 
   it('has 12 POIs and 5 collectibles on free cobbles, 3 m from every collider', () => {
@@ -320,7 +323,7 @@ describe('the plan of the Market Square', () => {
       }
       expect(found, r.id).toBe(true);
     }
-    expect(ps.knockables.map((k) => k.kind).sort()).toEqual(['bucket', 'cup']);
+    expect(ps.knockables.map((k) => k.kind).sort()).toEqual(['bucket', 'bucket', 'cup', 'cup', 'cup', 'cup', 'flowerpot', 'flowerpot', 'flowerpot']);
     const treat = TREAT_STALLS.map(stallById);
     for (const k of ps.knockables) {
       expect(k.fallTo, k.id).toBeDefined();
@@ -329,14 +332,14 @@ describe('the plan of the Market Square', () => {
       for (const s of treat) expect(inZone(s, k.fallTo.x, k.fallTo.z), `${k.id} lands in ${s.id}'s zone`).toBe(false);
       expect(dist(k, k.fallTo), k.id).toBeLessThan(3);
     }
-    const bucket = ps.knockables.find((k) => k.kind === 'bucket');
+    const bucket = ps.knockables.find((k) => k.id === 'market-bucket-1');
     expect(bucket.y).toBe(0.775); // on the trestle's cloth (its top 0.775, market.js)
     // the bucket stands on the flower trestle: over the flower stall's hide, falls toward the fountain side
     const f = stallById('flowers');
     expect(dist(bucket, f.hide)).toBeLessThan(0.3);
     expect(toStall(f, bucket.fallTo.x, bucket.fallTo.z).lz).toBeGreaterThan(toStall(f, bucket.x, bucket.z).lz);
     // the cup is on café table 2 (the third), its top about 0.74
-    const cup = ps.knockables.find((k) => k.kind === 'cup');
+    const cup = ps.knockables.find((k) => k.id === 'market-cup-1');
     expect(dist(cup, CAFE.tables[2])).toBeLessThan(0.4);
     expect(cup.y).toBeCloseTo(0.74, 2);
     // markables and carryables are on free cobbles
@@ -387,7 +390,7 @@ describe('the plan of the Market Square', () => {
         expect(roof.vantage, s.id).toBeUndefined();
       }
     }
-    expect(new Set(MARKET_PERCHES.filter((p) => p.label).map((p) => p.label)).size).toBe(4);
+    expect(new Set(MARKET_PERCHES.filter((p) => p.label).map((p) => p.label)).size).toBe(TREAT_STALLS.length);
   });
 
   it('from an awning the button takes her back to its crates, never down into a counter or onto a stallholder', () => {

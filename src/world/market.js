@@ -15,7 +15,7 @@ import {
   MARKET_BOUNDS, MARKET_SPAWN, FOUNTAIN, CAFE, STALLS, TREAT_STALLS, stallById, fromStall,
   MARKET_COLLIDERS, MARKET_KEEPOUT, MARKET_POIS, MARKET_COLLECTIBLES, FRUIT_CRATE, MARKET_LAMPS, FLOUR_SACKS,
   MARKET_CLUTTER, BENCH_AT, BICYCLE_AT, MILK_SHAFTS, AWNING, awningHeight, BIKE, BICYCLE_BASKET_AT, CLIMB_STACK, MARKET_PERCHES,
-  PIGEON_PATCH,
+  PIGEON_PATCH, STALL_PROPS, RAIL_STACK, toStall,
 } from './marketplan.js';
 
 // =============================================================================
@@ -146,9 +146,14 @@ const STALL_LOOK = Object.freeze({
   milk: { awning: 3, sign: 14, paint: 0x5f8f5e, goods: 'churns' },
   flowers: { awning: 4, sign: 8, paint: 0xc98aa0, goods: 'buckets' },
   fruit: { awning: 0, sign: 6, paint: 0x6b8fb8, goods: [6, 7] },
+  // 2026-11-22: atlas cells 18-21 (awnings), 22-25 (signs), 26-29 (goods)
+  toys: { awning: 18, sign: 22, paint: 0x7a5aa8, goods: 'toys' },
+  plants: { awning: 19, sign: 23, paint: 0x3f7a5a, goods: 'plants' },
+  bric: { awning: 20, sign: 24, paint: 0xb87a3a, goods: 'bric' },
+  butcher: { awning: 21, sign: 25, paint: 0xe6d6c6, goods: 'meat' },
 });
 // what sits in the baskets on each stall's trestle (produce cells)
-const TRESTLE_GOODS = Object.freeze({ fish: 7, baker: 9, cheese: 10, milk: 6, flowers: 8, fruit: 6 });
+const TRESTLE_GOODS = Object.freeze({ fish: 7, baker: 9, cheese: 10, milk: 6, flowers: 8, fruit: 6, toys: 26, plants: 28, bric: 29, butcher: 27 });
 // the two displays the cloths go over at dusk, and the stalls whose crates are stacked
 const CLOTHED = Object.freeze(['flowers', 'fruit']);
 const STACKED = Object.freeze(['fish', 'baker', 'cheese']);
@@ -760,6 +765,38 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
       const x = -W / 2 + 0.5 + (i * (W - 1.0)) / 3;
       wood(PARTS.bulb, mat4(x, top + 0.08, cz + (i % 2 ? 0.08 : -0.08), { yaw: 0.3 - i * 0.2, sx: 0.36, sy: 0.08, sz: 0.11 }), 0x9aaebb);
     }
+  } else if (look.goods === 'toys') {
+    // boxed toys and a row of wool balls on the counter
+    for (let i = 0; i < 3; i++) {
+      const x = -W / 2 + 0.55 + (i * (W - 1.1)) / 2;
+      box(x, top, cz, 0.42, 0.2, cd - 0.2, [0x4a86b8, 0xd8433c, 0xf2c94c][i]);
+      atlas(quad, mat4(x, top + 0.2, cz, { pitch: -Math.PI / 2 }).multiply(mat4(0, 0, 0, { sx: 0.34, sy: cd - 0.28 })), 26);
+    }
+    for (let i = 0; i < 5; i++) {
+      wood(PARTS.bulb, mat4(-W / 2 + 0.3 + (i * (W - 0.6)) / 4, top + 0.09, cz + (i % 2 ? 0.1 : -0.1), { sx: 0.17, sy: 0.17, sz: 0.17 }), [0xc04a8a, 0x4a86b8, 0xf2c94c, 0x4c9a52, 0xd8433c][i]);
+    }
+  } else if (look.goods === 'plants') {
+    // clay pots with leafy tops on the counter
+    for (let i = 0; i < 4; i++) {
+      const x = -W / 2 + 0.4 + (i * (W - 0.8)) / 3;
+      wood(barrel, mat4(x, top, cz, { sx: 0.24, sy: 0.2, sz: 0.24 }), 0xb5622f);
+      wood(PARTS.dome, mat4(x, top + 0.3, cz, { sx: 0.3 + (i % 2) * 0.06, sy: 0.26, sz: 0.3 }), i % 2 ? 0x3f8f4a : 0x2f6a30);
+    }
+  } else if (look.goods === 'bric') {
+    // a jumble: a teapot, a stack of plates, a framed picture, a lamp
+    wood(PARTS.bulb, mat4(-W / 2 + 0.5, top + 0.12, cz, { sx: 0.3, sy: 0.24, sz: 0.3 }), 0x4a7fb5);
+    wood(barrel, mat4(-W / 2 + 0.5, top + 0.22, cz, { sx: 0.1, sy: 0.05, sz: 0.1 }), 0xe9dcb9);
+    for (let i = 0; i < 4; i++) wood(barrel, mat4(0, top + i * 0.03, cz, { sx: 0.34, sy: 0.025, sz: 0.34 }), 0xf2efe6);
+    box(W / 2 - 0.55, top, cz, 0.42, 0.05, 0.1, WOOD);
+    atlas(quad, mat4(W / 2 - 0.55, top + 0.3, cz - 0.1, { pitch: -0.15 }).multiply(mat4(0, 0, 0, { sx: 0.4, sy: 0.4 })), 29);
+    wood(barrel, mat4(W / 2 - 0.2, top, cz + 0.12, { sx: 0.1, sy: 0.3, sz: 0.1 }), 0xd8b072);
+  } else if (look.goods === 'meat') {
+    box(0, top, cz, W - 0.2, 0.05, cd - 0.1, ICE);
+    for (let i = 0; i < 3; i++) {
+      const x = -W / 2 + 0.6 + (i * (W - 1.2)) / 2;
+      box(x, top + 0.05, cz + (i % 2 ? 0.05 : -0.05), 0.42, 0.12, 0.26, [0xc0504a, 0xa83a34, 0xd96a5a][i], { yaw: 0.2 - i * 0.2 });
+    }
+    atlas(quad, mat4(0, top + 0.4, -D / 2 + 0.31).multiply(mat4(0, 0, 0, { sx: W - 0.6, sy: 0.4 })), 27); // meats hanging at the back
   } else if (look.goods === 'buckets') {
     const n = 4;
     for (let i = 0; i < n; i++) {
@@ -772,7 +809,7 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
   // the treat's stand, at the counter's front corner on the hide's side
   if (s.treat) {
     const t = s.treat;
-    const [x, z] = pl(W / 2 - 0.3, D / 2 + 0.35);
+    const [x, z] = pl(s.hideSide * (W / 2 - 0.3), D / 2 + 0.35);
     if (t.kind === 'fishhead') {
       box(x, 0, z, 0.42, t.y - 0.056 - 0.04, 0.42, CRATE);
       box(x, t.y - 0.056 - 0.04, z, 0.46, 0.04, 0.46, ICE);
@@ -784,6 +821,26 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
       box(x, t.y - 0.04 - 0.03, z, 0.4, 0.03, 0.4, TOPBOARD);
     } else if (t.kind === 'cream') {
       box(x, 0, z, 0.5, t.y - 0.0225, 0.32, WOOD_DARK);
+    } else if (t.kind === 'wool') { // a basket of yarn on a crate
+      box(x, 0, z, 0.4, t.y - 0.04, 0.4, CRATE);
+      box(x, t.y - 0.04, z, 0.44, 0.03, 0.44, TOPBOARD);
+    } else if (t.kind === 'catnip') { // a clay planter of catnip at the end of the shelf
+      box(x, 0, z, 0.4, t.y - 0.05, 0.4, 0xb5622f);
+      box(x, t.y - 0.05, z, 0.46, 0.04, 0.46, 0xc9733a);
+    } else if (t.kind === 'sardines') { // a crate with a cloth over its lid
+      box(x, 0, z, 0.42, t.y - 0.03, 0.42, CRATE);
+      box(x, t.y - 0.03, z, 0.46, 0.02, 0.46, 0xe9dcb9);
+    } else if (t.kind === 'sausages') { // the butcher's block under the string, the hook rail over it
+      box(x, 0, z, 0.4, 0.42, 0.4, WOOD_DARK);
+      box(x, 0.42, z, 0.46, 0.05, 0.46, TOPBOARD);
+      const y = 2.05; // the rail: a bar from the awning's front edge, over the string, two short hangers
+      box(x, t.y + 0.3, z, 0.012, y - t.y - 0.3, 0.012, IRON); // the cord the string hangs from (the links are the treat's mesh)
+      box(x - 0.15, y, z, 1.2, 0.04, 0.04, IRON);
+      for (const dx of [-0.7, 0.4]) box(x + dx, y + 0.04, z, 0.03, 0.12, 0.03, IRON);
+      for (const dx of [-0.6, -0.4, 0.2]) {
+        wood(PARTS.bulb, mat4(x + dx, y - 0.34, z, { sx: 0.075, sy: 0.4, sz: 0.075 }), 0xc0614a); // a hung sausage on a hook
+        box(x + dx, y - 0.02, z, 0.015, 0.02, 0.015, IRON);
+      }
     }
   }
 
@@ -795,6 +852,41 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
     for (const dz of [-0.35, 0.35]) {
       const m = mat4(x, 0.775, z + dz);
       basketAt(basketKit, PARTS, paint, M, disc, toWorld.clone().multiply(m), TRESTLE_GOODS[s.id]);
+    }
+  }
+  // the four stalls of 2026-11-22: shelves, trunks, the chopping block and the rail's crates (plan: STALL_PROPS)
+  {
+    const P = STALL_PROPS[s.id];
+    const side = -s.hideSide;
+    const at = (out, lz) => pl(side * (W / 2 + out), lz);
+    if (s.id === 'plants') {
+      for (const [out, top] of [[P.lowOut, P.lowTop], [P.highOut, P.highTop]]) {
+        const [x, z] = at(out, P.lz);
+        for (const dz of [-0.5, 0.5]) box(x, 0, z + dz, 0.34, top - 0.05, 0.08, WOOD_DARK); // two trestle ends
+        box(x, top - 0.05, z, 0.4, 0.05, 1.2, TOPBOARD);
+      }
+      { // a leafy plant in a pot on the low tier, clear of its perch (the pots stand on the tiers: knockables)
+        const [x, z] = at(P.lowOut, P.lz - 0.4);
+        wood(barrel, mat4(x, P.lowTop, z, { sx: 0.2, sy: 0.16, sz: 0.2 }), 0xb5622f);
+        wood(PARTS.dome, mat4(x, P.lowTop + 0.26, z, { sx: 0.28, sy: 0.24, sz: 0.28 }), 0x3f8f4a);
+      }
+    } else if (s.id === 'bric') {
+      P.outs.forEach((out, i) => {
+        const [x, z] = at(out, P.lz);
+        const top = P.tops[i];
+        box(x, 0, z, 0.5, top - 0.04, 0.9, 0x6e4a33, { yaw: i * 0.05 }); // a travelling trunk
+        box(x, top * 0.35, z, 0.52, 0.04, 0.92, IRON, { yaw: i * 0.05 }); // its iron bands
+        box(x, top * 0.75, z, 0.52, 0.04, 0.92, IRON, { yaw: i * 0.05 });
+        box(x, top - 0.04, z, 0.54, 0.04, 0.94, TOPBOARD, { yaw: i * 0.05 });
+      });
+    } else if (s.id === 'butcher') {
+      const [x, z] = at(P.blockOut, P.lz);
+      box(x, 0, z, 0.5, P.blockTop - 0.06, 0.5, WOOD); // the chopping block the bucket stands on
+      box(x, P.blockTop - 0.06, z, 0.56, 0.06, 0.56, TOPBOARD);
+      // the crates under the sausage string: three, as the climb stacks
+      const rl = toStall(s, RAIL_STACK.x, RAIL_STACK.z);
+      const [rx, rz] = pl(rl.lx, rl.lz);
+      for (let i = 0; i < 3; i++) box(rx + (i % 2 ? 0.02 : -0.02), i * 0.317, rz, 0.5, 0.31, 0.5, CRATE, { yaw: i * 0.15 });
     }
   }
   // (the apples' crate at the fruit stall's end is a tippable since step 3:

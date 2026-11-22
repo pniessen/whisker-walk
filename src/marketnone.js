@@ -16,7 +16,7 @@ export const TREAT_ITEM_PREFIX = 'market-treat-';
 export const SHOO_TOAST_GAP = 6;
 
 // the stalls with a treat (marketplan.js TREAT_STALLS, and the café)
-const TREAT_STALL_IDS = Object.freeze(['fish', 'baker', 'cheese', 'milk', 'cafe']);
+const TREAT_STALL_IDS = Object.freeze(['fish', 'baker', 'cheese', 'milk', 'toys', 'plants', 'bric', 'butcher', 'cafe']);
 
 export const treatItemId = (stallId) => `${TREAT_ITEM_PREFIX}${stallId}`;
 

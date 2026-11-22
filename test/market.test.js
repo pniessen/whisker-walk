@@ -102,8 +102,9 @@ const clearOf = (x, z, colliders) => Math.min(...colliders.map((c) => Math.hypot
 // +2 meshes, no caster, +1,006 triangles; merged 108 / 24.
 // Step 3, Task 9 (2026-11-21, picture pass): the baker's two low flour sacks where the nap is
 // (the nap had nothing drawn at its spot), in the stall's own kit: +160 triangles.
-const MEASURED_BUILT = { meshes: 111, casters: 27, triangles: 39495 };
-const MEASURED_MERGED = { meshes: 108, casters: 24, triangles: 39495 };
+// 2026-11-22 (the four new stalls, toys / plants / bric / butcher): +30 meshes, +8 casters, +7,339 triangles (was 111 / 27 / 39,495; merged 108 / 24)
+const MEASURED_BUILT = { meshes: 141, casters: 35, triangles: 46834 };
+const MEASURED_MERGED = { meshes: 138, casters: 32, triangles: 46834 };
 const MEASURED_DRAWS = 0;
 
 function budgetStats(s) {
@@ -198,7 +199,8 @@ describe('the Market Square drawn', () => {
       // local frame of the group: x is across the counter (three's, mirrored from the plan's), z along its face
       expect(b.max.x - b.min.x, s.id).toBeGreaterThanOrEqual(s.w - 0.01);
       expect(b.max.z - b.min.z, s.id).toBeGreaterThanOrEqual(s.d - 0.01);
-      expect(b.max.z, s.id).toBeLessThan(s.d / 2 + 0.7);
+      // (the butcher's rail crates stand 1 m in front of the counter, under the sausage string)
+      expect(b.max.z, s.id).toBeLessThan(s.d / 2 + (s.id === 'butcher' ? 1.6 : 0.7));
       expect(b.min.z, s.id).toBeGreaterThan(-s.d / 2 - 0.5);
     }
   });
@@ -260,7 +262,7 @@ describe('the Market Square drawn', () => {
 
   it('the keepers stand where the plan puts them, facing front', () => {
     const withKeeper = STALLS.filter((s) => s.keeper);
-    expect(withKeeper).toHaveLength(6);
+    expect(withKeeper).toHaveLength(10);
     expect(Object.keys(area.keepers).sort()).toEqual(withKeeper.map((s) => s.id).sort());
     for (const s of withKeeper) {
       const k = area.keepers[s.id];
@@ -732,7 +734,7 @@ describe('the Market Square drawn', () => {
     expect(GOLD_MICE.market).toEqual(JSON.parse(JSON.stringify(MARKET_REGISTRATION.goldMice)));
   });
 
-  it('the built counts are pinned, within the aim (180 / 110 / 45,000)', () => {
+  it('the built counts are pinned, within the ceilings (280 / 210 / 62,000)', () => {
     const built = budgetStats(scene);
     const mergedScene = new THREE.Scene();
     build(mergedScene);
@@ -740,9 +742,10 @@ describe('the Market Square drawn', () => {
     const merged = budgetStats(mergedScene);
     expect(built).toEqual(MEASURED_BUILT);
     expect(merged).toEqual(MEASURED_MERGED);
-    expect(built.meshes).toBeLessThanOrEqual(180);
-    expect(built.casters).toBeLessThanOrEqual(110);
-    expect(built.triangles).toBeLessThanOrEqual(45000);
+    // (the old aim, 180 / 110 / 45,000, was the six stalls'; the four new ones are held to the ceilings, never raised)
+    expect(built.meshes).toBeLessThanOrEqual(280);
+    expect(built.casters).toBeLessThanOrEqual(210);
+    expect(built.triangles).toBeLessThanOrEqual(62000);
     // and the walk's merge keeps what step 2 and the dusk need, as they were
     for (const name of ['marketLanterns', 'marketPacking', 'marketBaskets', 'marketBunting']) {
       expect(mergedScene.getObjectByName(name), name).toBeTruthy();
@@ -816,9 +819,9 @@ describe('The Market: registered in every per-area list', async () => {
     expect(propsFor('market').hides.length).toBe(MARKET_HIDES_COUNT);
     // step 3's rows: two of each kind but the hides (seven now, the fruit stall's joins)
     const ps = propsFor('market');
-    expect(MARKET_HIDES_COUNT).toBe(7);
+    expect(MARKET_HIDES_COUNT).toBe(11);
     expect(ps.rests.map((r) => r.kind).sort()).toEqual(['drink', 'nap']);
-    expect(ps.knockables.map((k) => k.id).sort()).toEqual(['market-bucket-1', 'market-cup-1']);
+    expect(ps.knockables.map((k) => k.id).sort()).toEqual(['market-bones-1', 'market-bucket-1', 'market-crock-1', 'market-crock-2', 'market-crock-3', 'market-cup-1', 'market-pot-1', 'market-pot-2', 'market-pot-3']);
     for (const k of ps.knockables) expect(isPropId(k.id), k.id).toBe(true);
     expect(ps.markables).toHaveLength(2);
     expect(ps.carryables).toHaveLength(2);
@@ -850,7 +853,7 @@ describe('The Market: registered in every per-area list', async () => {
 // =============================================================================
 describe('The Market: its picture views', async () => {
   const { MARKET_SHOTS, MARKET_REGISTRATION: REG } = await import('../src/world/marketplan.js');
-  const NAMES = ['spawn', 'fountain', 'fish', 'baker', 'cheese', 'milk', 'cafe', 'overview', 'phone', 'card'];
+  const NAMES = ['spawn', 'fountain', 'fish', 'baker', 'cheese', 'milk', 'toys', 'plants', 'bric', 'butcher', 'cafe', 'overview', 'phone', 'card'];
   const inside = (x, z, m = 0) => x >= MARKET_BOUNDS.minX - m && x <= MARKET_BOUNDS.maxX + m && z >= MARKET_BOUNDS.minZ - m && z <= MARKET_BOUNDS.maxZ + m;
 
   it('every shot is inside the square, above the ground and looks at it', () => {

@@ -33,7 +33,7 @@ vi.stubGlobal('document', {
 const { build } = await import('../src/world/market.js');
 const area = build(new THREE.Scene());
 
-const KINDS = ['fishhead', 'sausageroll', 'cheddar', 'cream', 'crumbs'];
+const KINDS = ['fishhead', 'sausageroll', 'cheddar', 'cream', 'crumbs', 'wool', 'sausages', 'catnip', 'sardines'];
 
 const everyLine = () => ({
   treats: Object.fromEntries(KINDS.map((k) => [k, TREAT_WORDS[k] && { name: TREAT_WORDS[k].name, prompt: TREAT_WORDS[k].prompt }])),
@@ -52,7 +52,7 @@ const everyLine = () => ({
 describe('the market words', () => {
   it('every treat has its name and its prompt, and every prompt names its treat', () => {
     expect(Object.keys(TREAT_WORDS).sort()).toEqual([...KINDS].sort());
-    const nouns = { fishhead: 'fish head', sausageroll: 'sausage roll', cheddar: 'cheddar', cream: 'cream', crumbs: 'crumbs' };
+    const nouns = { fishhead: 'fish head', sausageroll: 'sausage roll', cheddar: 'cheddar', cream: 'cream', crumbs: 'crumbs', wool: 'wool', sausages: 'sausages', catnip: 'catnip', sardines: 'sardines' };
     for (const k of KINDS) {
       const { name, prompt } = TREAT_WORDS[k];
       expect(typeof name, k).toBe('string');
