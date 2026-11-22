@@ -321,3 +321,11 @@ describe('deliberateTap: the one rule for a "Get it?" Yes', () => {
     expect(deliberateTap({ detail: 1, shownAt: 1000, now: undefined })).toBe(false);
   });
 });
+
+describe('pad layers: the confirm card', () => {
+  it('carries data-pad-layer while open', () => {
+    const c = createConfirmCard({ mount: (el) => doc.body.appendChild(el), blocked: () => false, onClosed() {} });
+    c.ask({ text: 'Sure?', yes: 'Yes', onYes() {} });
+    expect(card().attrs['data-pad-layer']).toBe('');
+  });
+});

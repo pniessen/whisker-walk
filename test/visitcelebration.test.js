@@ -465,3 +465,19 @@ describe('style C follows the cat when the page scrolls', () => {
     }
   });
 });
+
+describe('pad layers: the celebration root', () => {
+  // It sits on body outside #homebase, so it must be a layer for the pad to reach its buttons.
+  it('every style is a layer, and stays one after the reveal while Done and Wear are on screen', () => {
+    for (const st of ['A', 'B', 'C']) {
+      const x = setup();
+      x.cel.show(ms(3, st));
+      expect(x.root().attrs['data-pad-layer']).toBe('');
+      if (st === 'A') {
+        click(x.root(), 'open');
+        expect(html(x.root())).toContain('data-vc="done"');
+        expect(x.root().attrs['data-pad-layer']).toBe('');
+      }
+    }
+  });
+});

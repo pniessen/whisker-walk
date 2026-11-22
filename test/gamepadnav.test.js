@@ -95,6 +95,10 @@ describe('candidates', () => {
     const live = el('button');
     expect(candidates(layer([wrapped, live]))).toEqual([live]);
   });
+  it('a button, link or role=button with tabindex=-1 is skipped (spec: tabindex >= 0)', () => {
+    const l = layer([el('button', { attrs: { tabindex: '-1' } }), el('a', { attrs: { href: '#', tabindex: '-1' } }), el('div', { attrs: { role: 'button', tabindex: '-1' } }), el('button', { attrs: { tabindex: '0' } })]);
+    expect(candidates(l)).toHaveLength(1);
+  });
   it('a disabled button flagged by the property alone is dropped', () => {
     const b = el('button'); b.disabled = true;
     expect(candidates(layer([b]))).toEqual([]);

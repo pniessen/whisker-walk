@@ -9,6 +9,7 @@ const TEXTY = new Set(['input', 'textarea']);
 
 const shown = (el) => !el.closest(OFF);
 
+// "Last in DOM order" is safe only because home cards exclude each other (root.after inserts at the front).
 // The last visible [data-pad-layer] in DOM order; else #overlay (the pause card
 // and walk summaries) when it holds something; else the home base root.
 export function topLayer(doc) {
@@ -25,7 +26,8 @@ export function candidates(layer) {
     const tag = el.tagName.toLowerCase();
     if (TEXTY.has(tag) && !/^(checkbox|radio|range)$/.test(el.type)) return false;
     if (el.disabled || el.hasAttribute('disabled') || !shown(el)) return false;
-    const plain = /^(button|a|summary|select|input)$/.test(tag) || el.getAttribute('role') === 'button';
-    return plain || Number(el.getAttribute('tabindex')) >= 0;
+    const ti = el.getAttribute('tabindex');
+    if (ti !== null && Number(ti) < 0) return false; // spec: tabindex >= 0
+    return true;
   });
 }
