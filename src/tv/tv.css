@@ -128,12 +128,13 @@ html.tv .cb-name-open, html.tv .wt-name-open {
 html.tv body[data-input="pad"] .hud-fight .fight-key { display: none; }
 html.tv .fight-ask-buttons .pad-glyph { margin-left: .3em; }
 
-/* The choose-one list card (den shop spots) and the spot button. */
-html.tv .ls-card { min-width: calc(640px * var(--tv-s, 1)); }
-html.tv .ls-list { display: flex; flex-direction: column; gap: calc(8px * var(--tv-s, 1)); max-height: 60vh; overflow-y: auto; width: 100%; }
-html.tv .ls-item, html.tv .ls-close { width: 100%; min-height: calc(76px * var(--tv-s, 1)); font-size: calc(32px * var(--tv-s, 1)) !important; text-align: center; }
-html.tv .ls-current { background: #f2c14e; }
-html.tv .ds-spot-open { min-height: calc(64px * var(--tv-s, 1)); font-size: calc(30px * var(--tv-s, 1)) !important; font-weight: 800; padding: 0 calc(20px * var(--tv-s, 1)); border-radius: calc(14px * var(--tv-s, 1)); border: 0; background: #fff; color: #1c2431; cursor: pointer; }
+/* The den panel's plan view: wide enough for five columns of 24 px labels, spots and tabs at least 96 and 64 px tall (1080p). */
+html.tv .den-shop { width: min(calc(1060px * var(--tv-s, 1)), 62vw); }
+html.tv .dp-plan { grid-template-rows: repeat(var(--dp-rows), minmax(calc(96px * var(--tv-s, 1)), auto)); gap: calc(8px * var(--tv-s, 1)); }
+html.tv .dp-spot { min-height: calc(96px * var(--tv-s, 1)); min-width: calc(96px * var(--tv-s, 1)); border-radius: calc(14px * var(--tv-s, 1)); }
+html.tv .dp-icon { font-size: calc(40px * var(--tv-s, 1)); }
+html.tv .dp-chip, html.tv .ds-tab, html.tv .ds-later, html.tv .ds-place-now { min-height: calc(64px * var(--tv-s, 1)); }
+html.tv .dp-grid { grid-template-columns: repeat(auto-fill, minmax(calc(220px * var(--tv-s, 1)), 1fr)); }
 
 /* ======================================================================
    The TV type system (owner photos, 2026-11-22: "fonts cluttered").

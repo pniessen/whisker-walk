@@ -288,40 +288,6 @@ describe('TV mode: the den walk\'s note', () => {
   });
 });
 
-// T13: with TV mode on and the list card loaded, a spot's button opens the list; nothing is placed until a choice.
-describe('den shop spot list (TV mode)', () => {
-  it('a press opens the list for that spot; a choice places once; Close places nothing', async () => {
-    const { setTv, tvHooks, resetTv } = await import('../src/tvseam.js');
-    const { DEN_ITEMS, DEN_SPOTS } = await import('../src/den.js');
-    const itemId = Object.keys(DEN_ITEMS)[0];
-    const spotId = DEN_SPOTS[0].id;
-    const placeDenItem = vi.fn(() => true);
-    const progression = { state: { points: 0, den: { owned: [itemId], placed: {} } }, placeDenItem };
-    const t = setup({ progression });
-    try {
-      setTv({ on: true, input: 'pad', padLine: (id) => id });
-      let answer = itemId;
-      const list = vi.fn(() => Promise.resolve(answer));
-      tvHooks.list = list;
-      t.view.setActive(true);
-      t.view.open();
-      const btn = new Node('button', t.sheet);
-      btn.attrs['data-den-spot-open'] = spotId;
-      btn.dataset.denSpotOpen = spotId;
-      dispatch(btn, 'click');
-      expect(list).toHaveBeenCalledTimes(1);
-      expect(list.mock.calls[0][0].options.map((o) => o.value)).toEqual(['', itemId]);
-      expect(placeDenItem).not.toHaveBeenCalled(); // not until a choice
-      await new Promise((r) => setTimeout(r, 0));
-      expect(placeDenItem).toHaveBeenCalledWith(spotId, itemId);
-      answer = null;
-      dispatch(btn, 'click');
-      await new Promise((r) => setTimeout(r, 0));
-      expect(placeDenItem).toHaveBeenCalledTimes(1); // Close: nothing placed
-    } finally { resetTv(); }
-  });
-});
-
 // Buy, then "Place it now": the sequence over the real progression.
 describe('den shop: buy then Place it now (M2)', () => {
   const wait = () => vi.advanceTimersByTime(CONFIRM_DELAY_MS);
@@ -385,7 +351,7 @@ describe('den shop: buy then Place it now (M2)', () => {
     t.tapAttr('data-den-place-now');
     expect(t.sheet.innerHTML).toContain('data-den-hand-spot');
     expect(t.sheet.innerHTML).toContain('Pick a spot for Donut Bed');
-    t.tapAttr('data-den-hand-spot', 'denHandSpot', 'corner-a');
+    t.tapAttr('data-den-plan-spot', 'denPlanSpot', 'corner-a');
     expect(t.progression.state.den.placed).toEqual({ 'corner-a': 'bed' });
     expect(t.applied).toEqual([['corner-a', 'bed']]);
     expect(t.view.isPlacing).toBe(false);
@@ -416,7 +382,147 @@ describe('den shop: buy then Place it now (M2)', () => {
     const t = flow();
     t.buy();
     t.tapAttr('data-den-later');
-    t.tapAttr('data-den-hand-spot', 'denHandSpot', 'corner-a');
+    t.tapAttr('data-den-plan-spot', 'denPlanSpot', 'corner-a');
     expect(t.progression.state.den.placed).toEqual({});
+  });
+});
+
+// Plan view: pick up, move, swap, put away (den shop UX M3). Real progression, tapped like a finger.
+describe('den shop: the plan view (M3)', () => {
+  function plan(owned = ['bed', 'lamp'], placed = {}) {
+    const map = new Map();
+    const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
+    progression.state.den.owned = [...owned];
+    progression.state.den.placed = { ...placed };
+    const applied = [];
+    const doc = new Node('document');
+    doc.body = new Node('body', doc);
+    const app = new Node('app', doc.body);
+    const canvas = new Node('canvas', app);
+    const hud = new Node('hud', app);
+    doc.createElement = (tag) => new Node(tag);
+    const view = createDenShopView({
+      progression, pause: vi.fn(), resume: vi.fn(), bus: createEmitter(), canvas, doc, hudRoot: hud, mountRoot: app,
+      applyDenSpot: (s, id, now) => applied.push([id, now]),
+    });
+    const sheet = app.children.find((c) => c.attrs.role === 'dialog');
+    view.setActive(true);
+    view.open();
+    const tap = (attr, key, value) => {
+      const b = new Node('button', sheet);
+      b.attrs[attr] = value ?? '';
+      if (key) b.dataset[key] = value;
+      const ev = dispatch(b, 'click');
+      b.remove();
+      return ev;
+    };
+    const spot = (id) => tap('data-den-plan-spot', 'denPlanSpot', id);
+    const chip = (id) => tap('data-den-hand-item', 'denHandItem', id);
+    const key = (target, code) => dispatch(target, 'keydown', { code });
+    return { progression, view, sheet, applied, tap, spot, chip, key, doc, app };
+  }
+  const den = (t) => t.progression.state.den;
+
+  it('opens on My things when she owns something; the tab strip switches and is remembered on this device only', () => {
+    const t = plan();
+    expect(t.sheet.innerHTML).toContain('data-den-plan-spot');
+    t.tap('data-den-tab', 'denTab', 'shop');
+    expect(t.sheet.innerHTML).toContain('data-den-item');
+    expect(t.sheet.innerHTML).not.toContain('data-den-plan-spot');
+    expect(Object.keys(den(t)).sort()).toEqual(['owned', 'placed']);
+  });
+
+  it('a shelf chip takes a piece in hand; a spot places it once, live; nothing else changes', () => {
+    const t = plan();
+    t.chip('lamp');
+    expect(t.view.isPlacing).toBe(true);
+    t.spot('window');
+    expect(den(t).placed).toEqual({ window: 'lamp' });
+    expect(t.applied).toEqual([['window', 'lamp']]);
+    expect(t.view.isPlacing).toBe(false);
+    expect(t.sheet.innerHTML).toContain('Looks cosy');
+  });
+
+  it('tapping a standing piece picks it up; another spot moves it (two live updates)', () => {
+    const t = plan(['bed'], { 'corner-a': 'bed' });
+    t.spot('corner-a');
+    expect(t.view.isPlacing).toBe(true);
+    expect(t.sheet.innerHTML).toContain('data-den-put-away');
+    t.spot('shelf');
+    expect(den(t).placed).toEqual({ shelf: 'bed' });
+    expect(t.applied).toEqual([['corner-a', null], ['shelf', 'bed']]);
+  });
+
+  it('dropping a picked-up piece on an occupied spot swaps the two', () => {
+    const t = plan(['bed', 'lamp'], { 'corner-a': 'bed', shelf: 'lamp' });
+    t.spot('corner-a');
+    t.spot('shelf');
+    expect(den(t).placed).toEqual({ 'corner-a': 'lamp', shelf: 'bed' });
+    expect(t.sheet.innerHTML).toContain('swapped');
+  });
+
+  it('a shelf piece dropped on an occupied spot puts the old one back on the shelf', () => {
+    const t = plan(['bed', 'lamp'], { shelf: 'lamp' });
+    t.chip('bed');
+    t.spot('shelf');
+    expect(den(t).placed).toEqual({ shelf: 'bed' });
+  });
+
+  it('Put away clears the spot and keeps the piece owned', () => {
+    const t = plan(['bed'], { 'corner-a': 'bed' });
+    t.spot('corner-a');
+    t.tap('data-den-put-away');
+    expect(den(t)).toEqual({ owned: ['bed'], placed: {} });
+    expect(t.applied).toEqual([['corner-a', null]]);
+    expect(t.view.isPlacing).toBe(false);
+  });
+
+  it('Later drops the hand and changes nothing; an empty spot with nothing in hand only says what to do', () => {
+    const t = plan(['bed'], { 'corner-a': 'bed' });
+    t.spot('corner-a');
+    t.tap('data-den-later');
+    expect(den(t).placed).toEqual({ 'corner-a': 'bed' });
+    t.spot('window');
+    expect(den(t).placed).toEqual({ 'corner-a': 'bed' });
+    expect(t.sheet.innerHTML).toContain('Pick a piece from Your things first');
+    expect(t.applied).toEqual([]);
+  });
+
+  it('keyboard: Delete on a focused standing piece puts it away; arrows move between tabs; keys stay in the sheet', () => {
+    const t = plan(['bed'], { 'corner-a': 'bed' });
+    const b = new Node('button', t.sheet);
+    b.attrs['data-den-plan-spot'] = 'corner-a';
+    b.dataset.denPlanSpot = 'corner-a';
+    const ev = t.key(b, 'Delete');
+    expect(ev.defaultPrevented).toBe(true);
+    expect(den(t).placed).toEqual({});
+    const tabBtn = new Node('button', t.sheet);
+    tabBtn.attrs['data-den-tab'] = 'things';
+    tabBtn.dataset.denTab = 'things';
+    t.key(tabBtn, 'ArrowLeft');
+    expect(t.sheet.innerHTML).toContain('data-den-item');
+  });
+
+  it('a piece she does not own cannot be taken in hand', () => {
+    const t = plan(['bed']);
+    t.chip('lamp');
+    expect(t.view.isPlacing).toBe(false);
+  });
+
+  it('Escape ladder: hand, then the panel', () => {
+    const t = plan(['bed']);
+    t.chip('bed');
+    dispatch(t.app, 'keydown', { code: 'Escape' });
+    expect(t.view.isPlacing).toBe(false);
+    expect(t.view.isOpen).toBe(true);
+    dispatch(t.app, 'keydown', { code: 'Escape' });
+    expect(t.view.isOpen).toBe(false);
+  });
+
+  it('the save keeps its two keys and only valid ids after every action', () => {
+    const t = plan(['bed', 'lamp']);
+    t.chip('bed'); t.spot('window'); t.spot('window'); t.spot('shelf'); t.tap('data-den-put-away');
+    expect(Object.keys(den(t)).sort()).toEqual(['owned', 'placed']);
+    for (const [s, i] of Object.entries(den(t).placed)) expect(den(t).owned).toContain(i);
   });
 });

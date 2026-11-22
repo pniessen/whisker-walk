@@ -9,7 +9,6 @@ import { glyphify, plainify, padKind } from './glyphs.js';
 import { escapeHtml } from '../escapehtml.js';
 import { setTv, tvHooks } from '../tvseam.js';
 import { openLetterPicker } from './letterpickerview.js';
-import { openList } from './spotlist.js';
 import { padLine, keysToPad } from './padwords.js';
 import { tvToastTiming } from './toasttime.js';
 export { offer } from './offer.js';
@@ -44,11 +43,9 @@ export async function start(ctx) {
   // The letter picker, for the cat builder's name and the walking name (their views call tvHooks.picker).
   const mount = (el) => { const home = doc.getElementById('homebase'); if (home?.after) home.after(el); else doc.body.appendChild(el); };
   tvHooks.picker = (opts) => openLetterPicker({ doc, mount, ...opts });
-  tvHooks.list = (opts) => openList({ doc, mount, ...opts }); // opts.mount (the caller's own) wins
   return {
     stop() {
       tvHooks.picker = null;
-      tvHooks.list = null;
       doc.documentElement.classList.remove('tv');
       input.destroy();
       scale.destroy();
