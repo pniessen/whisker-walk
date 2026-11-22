@@ -3,7 +3,7 @@
 // a stair, the brick skirt under a raised room, and the lamps. Every position
 // comes from houseplan.js; variation comes from hash01, never Math.random.
 //
-// THE ATLAS. One 256 x 256 DataTexture in sixteen 64 px cells (HOUSE_ATLAS_CELLS):
+// THE ATLAS. One 256 x 256 DataTexture in 64 px cells (HOUSE_ATLAS_CELLS):
 // a wallpaper per room, outside brick, oak, pine and stone floors, light and dark
 // wood, two rugs and plaster. A cell's pattern repeats every 48 px and the cell
 // carries 8 px of that same pattern round it, so a tile drawn from its middle 48
@@ -31,7 +31,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { hash01 } from './builder.js';
 import { litMaterial } from '../render/materials.js';
 import {
-  WALL_T, WALL_H, LAWN_Y, DOOR_H, HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_FRONT_DOOR, SECRET_BOOKCASE,
+  WALL_T, WALL_H, LAWN_Y, DOOR_H, HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_FRONT_DOOR, HOUSE_FURNITURE, HOUSE_LAMPS, SECRET_BOOKCASE,
   houseSections, roomAt, stairAt,
 } from './houseplan.js';
 
@@ -45,8 +45,9 @@ const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 // The atlas
 // ---------------------------------------------------------------------------
 
-export const ATLAS_PX = 256;
+export const ATLAS_PX = 512;
 const CELL_PX = 64;
+const COLS = ATLAS_PX / CELL_PX;
 const GUTTER_PX = 8;
 const INNER_PX = 48; // a cell's pattern period
 
@@ -55,12 +56,20 @@ const CELL_ORDER = [
   'bedroom', 'attic', 'cellar', 'brick',
   'oak', 'pine', 'stone', 'lightWood',
   'darkWood', 'rugRed', 'rugBlue', 'plaster',
+  // the beauty pass: painted and panelled wainscots, pictures, curtains, a green rug, brass
+  'wainSage', 'wainWood', 'wainRose', 'wainSky',
+  'wainPine', 'art1', 'art2', 'art3',
+  'art4', 'mirror', 'clockface', 'curtainRed',
+  'curtainGreen', 'curtainBlue', 'gingham', 'rugGreen',
+  'brass', 'flame',
+  // round 2: kitchen wainscot tiles, cellar slate, attic boards
+  'wainTile', 'slate', 'atticBoards',
 ];
 export const HOUSE_ATLAS_CELLS = freeze(Object.fromEntries(CELL_ORDER.map((k, i) => [k, i])));
 const C = HOUSE_ATLAS_CELLS;
 
 // Cells drawn once, not tiled (a rug is one picture): their gutter repeats the edge.
-const PICTURE = new Set([C.rugRed, C.rugBlue]);
+const PICTURE = new Set([C.rugRed, C.rugBlue, C.art1, C.art2, C.art3, C.art4, C.mirror, C.clockface, C.rugGreen]);
 
 const hex = (h) => [(h >> 16) & 255, (h >> 8) & 255, h & 255];
 const mul = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
@@ -125,7 +134,9 @@ const PATTERNS = {
     const bx = (x + (row % 2) * 12) % 24;
     if (bx === 0 || y % 16 === 0) return mul(hex(0xaaa496), grain(x, y, 7, 0.04));
     const id = Math.floor(((x + (row % 2) * 12) % 48) / 24);
-    return mul(hex(0xd9d3c5), grain(id, row, 71, 0.06) * grain(x, y, 7, 0.04));
+    const moss = row % 3 === 2 && hash01(id, row, 72) > 0.5 ? [0.86, 0.96, 0.82] : [1, 1, 1];
+    const c = mul(hex(0xd9d3c5), (0.88 + 0.2 * hash01(id, row, 73)) * grain(x, y, 7, 0.04));
+    return [c[0] * moss[0], c[1] * moss[1], c[2] * moss[2]];
   },
   // outside brick: running bond, 4 bricks and 8 courses to the period
   brick(x, y) {
@@ -198,13 +209,148 @@ const PATTERNS = {
   },
 };
 
+// ---- the beauty pass: wainscot boards, little pictures, curtain folds, a rag rug ----
+const bead = (base, salt) => (x, y) => {
+  const m = x % 6;
+  const k = m === 0 ? 0.7 : m === 1 ? 1.1 : 1;
+  return mul(hex(base), k * grain(x, y, salt, 0.025));
+};
+const inTri = (x, y, a, b, c) => {
+  const d = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
+  const u = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (y - c[1])) / d;
+  const v = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (y - c[1])) / d;
+  return u >= 0 && v >= 0 && u + v <= 1;
+};
+const ell = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 < 1;
+const lerpC = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+const fold = (base, salt) => (x, y) => mul(hex(base), (0.8 + 0.24 * (0.5 + 0.5 * wave(x, 8))) * (y > 44 ? 0.8 : 1) * grain(x, y, salt, 0.02));
+Object.assign(PATTERNS, {
+  wainSage: bead(0x9fb08e, 21),
+  wainWood: bead(0x5f3b25, 22),
+  wainRose: bead(0xb98480, 23),
+  wainSky: bead(0x93aec4, 24),
+  wainPine: bead(0xc99d62, 25),
+  // a landscape: pale sky, a low sun, two hills and a small red-roofed house
+  art1(x, y) {
+    let c = lerpC(hex(0xa4cbe2), hex(0xf2e2bc), clamp01(y / 30));
+    if (near(x, y, 34, 13) < 5) c = hex(0xf6d878);
+    const far = 27 + 3 * wave(x + 7, 48);
+    const fore = 36 + 2 * wave(x * 2 + 5, 48);
+    if (y > far) c = hex(0x86ae6a);
+    if (y > fore) c = hex(0x4a7640);
+    if (x > 11 && x < 18 && y > 27 && y < 33) c = hex(0xf0e4cc);
+    if (inTri(x, y, [10, 27], [19, 27], [14.5, 22])) c = hex(0xa8503c);
+    return mul(c, grain(x, y, 26, 0.03));
+  },
+  // a ginger cat in a dark frame, ears pricked
+  art2(x, y) {
+    let c = lerpC(hex(0x23394a), hex(0x3e5a68), 1 - Math.hypot(x - 24, y - 24) / 34);
+    if (ell(x, y, 24, 27, 13, 11) || inTri(x, y, [12, 24], [14, 11], [22, 17]) || inTri(x, y, [36, 24], [34, 11], [26, 17])) {
+      c = hex(0xd89048);
+      if ((x === 24 || x === 20 || x === 28) && y < 20) c = hex(0xa8602c);
+      if (ell(x, y, 24, 32, 6, 4)) c = hex(0xf0e4d0);
+      if (near(x, y, 18.5, 26) < 2.4) c = hex(0x9cc86a);
+      if (near(x, y, 29.5, 26) < 2.4) c = hex(0x9cc86a);
+      if (near(x, y, 18.5, 26) < 1 || near(x, y, 29.5, 26) < 1) c = hex(0x20201c);
+      if (near(x, y, 24, 30) < 1.5) c = hex(0xd88a86);
+    }
+    return mul(c, grain(x, y, 27, 0.03));
+  },
+  // a blue vase of flowers on a table, warm wall behind
+  art3(x, y) {
+    let c = hex(0xe8d3a4);
+    if (y > 35) c = hex(0x8a5a38);
+    if (ell(x, y, 24, 29, 6, 8)) c = hex(0x3f5f8f);
+    if (x > 22 && x < 26 && y < 22 && y > 14) c = hex(0x5c8a4c);
+    for (const [cx, cy, col] of [[24, 13, 0xc4463c], [17, 18, 0xf0c050], [31, 18, 0xe0809a], [20, 10, 0xf0e4d0]]) if (near(x, y, cx, cy) < 3.6) c = hex(col);
+    if (ell(x, y, 17, 24, 3.5, 1.6) || ell(x, y, 31, 24, 3.5, 1.6)) c = hex(0x5c8a4c);
+    return mul(c, grain(x, y, 28, 0.03));
+  },
+  // a sailing boat on a calm sea at sunset
+  art4(x, y) {
+    let c = lerpC(hex(0xf0c8a8), hex(0xf6e6cc), clamp01(y / 28));
+    if (y > 28) c = lerpC(hex(0x5a8aa4), hex(0x3a6a88), clamp01((y - 28) / 20)) ;
+    if (y > 28 && (y + Math.floor(x / 6)) % 5 === 0) c = hex(0x8ab0c0);
+    if (near(x, y, 36, 27) < 4 && y < 28) c = hex(0xf6c878);
+    if (inTri(x, y, [22, 14], [22, 30], [33, 30])) c = hex(0xf2ead8);
+    if (inTri(x, y, [20, 18], [20, 30], [13, 30])) c = hex(0xe4d4b4);
+    if (y >= 30 && y <= 34 && x >= 13 && x <= 34 - (y - 30)) c = hex(0x5a3a28);
+    return mul(c, grain(x, y, 29, 0.03));
+  },
+  // a mirror: cool glass with two soft glints
+  mirror(x, y) {
+    let c = lerpC(hex(0xb9d0da), hex(0xe6f0f0), clamp01((x + y) / 90));
+    const s = x + y;
+    if ((s > 26 && s < 31) || (s > 36 && s < 38)) c = lerpC(c, hex(0xffffff), 0.6);
+    return mul(c, grain(x, y, 30, 0.015));
+  },
+  // a clock face: cream, twelve ticks, ten past ten, in a dark case
+  clockface(x, y) {
+    const dx = x - 23.5;
+    const dy = y - 23.5;
+    const r = Math.hypot(dx, dy);
+    if (r > 22) return hex(0x6b432a);
+    if (r > 20) return hex(0xc9a14a);
+    let c = hex(0xf2e8cc);
+    const a = Math.atan2(dy, dx);
+    if (r > 16 && Math.abs(((a / (TAU / 12)) % 1 + 1) % 1 - 0.5) > 0.44) c = hex(0x3a2a20);
+    const hand = (ang, len) => {
+      const t = dx * Math.cos(ang) + dy * Math.sin(ang);
+      return t > 0 && t < len && Math.abs(-dx * Math.sin(ang) + dy * Math.cos(ang)) < 1.1;
+    };
+    if (hand(-Math.PI / 2 - 0.9, 10) || hand(-Math.PI / 2 + 0.5, 15) || r < 1.8) c = hex(0x2a1e18);
+    return mul(c, grain(x, y, 31, 0.025));
+  },
+  curtainRed: fold(0xa8483f, 32),
+  curtainGreen: fold(0x4f7a5a, 33),
+  curtainBlue: fold(0x5f7fa8, 34),
+  gingham(x, y) {
+    const a = Math.floor(x / 6) % 2;
+    const b = Math.floor(y / 6) % 2;
+    const c = a && b ? hex(0xc05a50) : a || b ? hex(0xe8b4ac) : hex(0xf6f0e6);
+    return mul(c, grain(x, y, 35, 0.02));
+  },
+  // a rag rug: concentric bands of green, cream, deep green and gold
+  rugGreen(x, y) {
+    const d = Math.min(x, y, 47 - x, 47 - y);
+    const cols = [0xe8dcc0, 0x5f8f6a, 0xe8dcc0, 0x3f6f58, 0xc9a151, 0x3f6f58];
+    return mul(hex(cols[Math.floor(d / 4) % cols.length]), grain(x, y, 36, 0.05));
+  },
+  // a band of deep teal subway tiles, white grout
+  wainTile(x, y) {
+    if (x % 12 === 0 || y % 6 === 0) return mul(hex(0xe4e8e0), grain(x, y, 39, 0.02));
+    const row = Math.floor(y / 6);
+    const k = 0.9 + 0.2 * hash01(Math.floor((x + (row % 2) * 6) / 12), row, 391);
+    return mul(hex(0x4f8d8a), k * grain(x, y, 39, 0.02));
+  },
+  // dark slate flags with mossy joints, four to the period, no two alike
+  slate(x, y) {
+    const id = Math.floor(x / 24) + 2 * Math.floor(y / 24);
+    if (x % 24 === 0 || y % 24 === 0) return mul(hex(hash01(id, 3, 401) > 0.5 ? 0x5f6a4c : 0x585248), grain(x, y, 40, 0.05));
+    const stain = 0.8 + 0.25 * hash01(id, 0, 402) + 0.1 * wave(x + id * 7, 24) * wave(y, 48);
+    return mul(hex(0x8d8f90), stain * (hash01(x, y, 403) > 0.95 ? 0.8 : 1) * grain(x, y, 40, 0.04));
+  },
+  // old wide attic boards, grey-brown, nail heads and a dark knot
+  atticBoards(x, y) {
+    const board = Math.floor(x / 24);
+    if (x % 24 === 0) return hex(0x5c4a36);
+    if (y === (board * 29 + 7) % 48) return hex(0x6e5a42);
+    const nail = (x % 24 === 4 || x % 24 === 20) && y % 24 === 6;
+    if (nail) return hex(0x3a3028);
+    const k = (0.82 + 0.2 * hash01(board, 1, 411)) * (1 + 0.06 * Math.sin((x % 24) * 0.9 + hash01(board, 0, 412) * 6));
+    return mul(hex(0xa38a68), k * grain(x, y, 41, 0.035));
+  },
+  brass(x, y) { return mul(hex(0xc9a14a), (1 + 0.1 * wave(x, 24)) * grain(x, y, 37, 0.03)); },
+  flame(x, y) { return mul(hex(0xfff0b0), grain(x, y, 38, 0.02)); },
+});
+
 // The atlas, the same bytes every call.
 export function createHouseAtlas() {
   const data = new Uint8Array(ATLAS_PX * ATLAS_PX * 4);
   CELL_ORDER.forEach((name, cell) => {
     const pattern = PATTERNS[name];
-    const ox = (cell % 4) * CELL_PX;
-    const oy = Math.floor(cell / 4) * CELL_PX;
+    const ox = (cell % COLS) * CELL_PX;
+    const oy = Math.floor(cell / COLS) * CELL_PX;
     const picture = PICTURE.has(cell);
     for (let py = 0; py < CELL_PX; py++) {
       for (let px = 0; px < CELL_PX; px++) {
@@ -235,8 +381,8 @@ export function houseMaterial(atlas) {
 
 // (fu, fv) in [0, 1] over a cell's middle 48 px -> atlas uv.
 export function cellUV(cell, fu, fv) {
-  const col = cell % 4;
-  const row = Math.floor(cell / 4);
+  const col = cell % COLS;
+  const row = Math.floor(cell / COLS);
   return [
     (col * CELL_PX + GUTTER_PX + clamp01(fu) * INNER_PX) / ATLAS_PX,
     (row * CELL_PX + GUTTER_PX + clamp01(fv) * INNER_PX) / ATLAS_PX,
@@ -249,8 +395,8 @@ const BRICK_TILE = freeze([0.9, 0.6]);
 const WOOD_TILE = freeze([1.0, 1.0]);
 const STONE_TILE = freeze([1.2, 1.2]);
 const PLASTER_TILE = freeze([1.0, 1.0]);
-const tileOf = (cell) => (cell === C.brick ? BRICK_TILE : cell === C.stone ? STONE_TILE
-  : cell === C.oak || cell === C.pine ? WOOD_TILE : cell === C.plaster ? PLASTER_TILE : PAPER_TILE);
+const tileOf = (cell) => (cell === C.brick ? BRICK_TILE : cell === C.stone || cell === C.slate ? STONE_TILE
+  : cell === C.oak || cell === C.pine || cell === C.atticBoards ? WOOD_TILE : cell === C.plaster ? PLASTER_TILE : PAPER_TILE);
 
 // ---------------------------------------------------------------------------
 // The kit: convex polygons into one indexed geometry, wound to their normals.
@@ -491,6 +637,9 @@ const ARCH_W = 0.07; // an architrave round a window or the door
 const SKIRT_H = 0.14;
 const DADO_Y = 0.8;
 const DADO_H = 0.05;
+const WAIN = freeze({ hall: 'wainSage', library: 'wainWood', parlour: 'wainRose', bedroom: 'wainSky', attic: 'wainPine', kitchen: 'wainTile' });
+const WAIN_TILE = freeze([0.8, 6]);
+const WAIN_TILES = freeze({ kitchen: freeze([0.8, 0.8]) }); // tiles have rows, so they keep their height phase (the kitchen floor is 0) // the boards run floor to rail, so only their width repeats
 
 // The section's holes: its window and its leaf of the front door.
 function wallHoles(s, W) {
@@ -506,6 +655,188 @@ function wallHoles(s, W) {
     if (l1 - l0 > EPS) out.push({ u0: l0, u1: l1, y0: s.base, y1: s.base + DOOR_H, kind: 'door' });
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Wall dressing (the beauty pass): a cornice, and pictures, mirrors, clocks, sconces,
+// curtains, shelves and bunting drawn into the wall section they hang on, so they sink
+// with it. [room, wall of the room, along the wall (world x for n and s, z for e and w),
+// height over the room's floor, kind, width, height, look]. An item is left out where it
+// would stand in a piece of furniture or a lamp, or reach past its section's solid wall.
+// ---------------------------------------------------------------------------
+
+const D = (room, side, at, y, kind, w = 0, h = 0, look = null) => freeze({ room, side, at, y, kind, w, h, look });
+const SIDE_LINE = freeze({ n: (r) => r.minZ, s: (r) => r.maxZ, w: (r) => r.minX, e: (r) => r.maxX });
+const SIDE_G = freeze({ n: 1, s: -1, w: 1, e: -1 });
+export const HOUSE_DECOR = freeze([
+  // the hall
+  D('hall', 'w', 4.2, 1.55, 'mirror', 0.7, 0.95), D('hall', 'w', 3.0, 1.75, 'sconce'), D('hall', 'w', 5.4, 1.75, 'sconce'),
+  D('hall', 'w', 10.2, 1.6, 'frame', 0.9, 0.65, 'art1'),
+  D('hall', 'e', 9.6, 1.5, 'frame', 0.6, 0.75, 'art2'), D('hall', 'e', 4.3, 1.55, 'frame', 0.9, 0.65, 'art4'), D('hall', 'e', 11.0, 1.75, 'sconce'),
+  D('hall', 'n', 2.9, 1.6, 'frame', 0.65, 0.8, 'art3'), D('hall', 'n', -1.95, 1.75, 'sconce'),
+  D('hall', 's', -2, 0, 'curtains', 0, 0, 'curtainRed'), D('hall', 's', 2, 0, 'curtains', 0, 0, 'curtainRed'), D('hall', 's', 0, 2.5, 'clock', 0.36),
+  // the library
+  D('library', 's', -9, 1.7, 'frame', 1.1, 0.75, 'art1'), D('library', 's', -12, 1.6, 'frame', 0.9, 0.7, 'art4'), D('library', 's', -5.6, 1.6, 'frame', 0.6, 0.75, 'art3'),
+  D('library', 's', -10.9, 1.75, 'sconce'), D('library', 's', -7.1, 1.75, 'sconce'),
+  D('library', 'w', 3.7, 0, 'curtains', 0, 0, 'curtainGreen'), D('library', 'w', 10.3, 0, 'curtains', 0, 0, 'curtainGreen'), D('library', 'w', 8.0, 1.6, 'frame', 0.65, 0.8, 'art2'),
+  D('library', 'e', 4.5, 1.85, 'clock', 0.4), D('library', 'e', 10.6, 1.6, 'frame', 0.7, 0.8, 'art3'), D('library', 'e', 9.0, 1.75, 'sconce'),
+  // the parlour
+  D('parlour', 'e', 7.0, 2.15, 'mirror', 1.1, 0.85), D('parlour', 'e', 5.2, 1.9, 'sconce'), D('parlour', 'e', 8.8, 1.9, 'sconce'),
+  D('parlour', 'e', 3.4, 1.6, 'frame', 0.8, 0.6, 'art1'), D('parlour', 'e', 10.7, 1.6, 'frame', 0.6, 0.8, 'art2'),
+  D('parlour', 's', 5.7, 0, 'curtains', 0, 0, 'curtainBlue'), D('parlour', 's', 12.3, 0, 'curtains', 0, 0, 'curtainBlue'),
+  D('parlour', 's', 8.7, 1.8, 'frame', 1.0, 0.7, 'art4'), D('parlour', 's', 7.5, 1.75, 'sconce'), D('parlour', 's', 10.0, 1.75, 'sconce'),
+  D('parlour', 'w', 4.0, 1.6, 'frame', 0.7, 0.8, 'art3'), D('parlour', 'w', 10.3, 1.6, 'frame', 0.6, 0.75, 'art2'),
+  D('parlour', 'n', 6.2, 1.7, 'frame', 0.9, 0.65, 'art1'), D('parlour', 'n', 12.0, 1.7, 'frame', 0.65, 0.8, 'art3'),
+  // the kitchen
+  D('kitchen', 'n', 5.7, 1.0, 'curtains', 0, 0, 'gingham'), D('kitchen', 'n', 12.3, 1.0, 'curtains', 0, 0, 'gingham'),
+  D('kitchen', 'n', 9.0, 2.3, 'clock', 0.4), D('kitchen', 'n', 9.0, 1.72, 'rack', 1.1), D('kitchen', 'n', 7.5, 1.55, 'shelf', 1.1), D('kitchen', 'n', 10.5, 1.55, 'shelf', 1.1),
+  D('kitchen', 's', 6.0, 1.7, 'frame', 0.7, 0.55, 'art4'), D('kitchen', 's', 12.0, 1.7, 'frame', 0.7, 0.55, 'art1'),
+  D('kitchen', 'w', -6.0, 1.7, 'frame', 0.6, 0.8, 'art3'), D('kitchen', 'w', -0.8, 1.7, 'frame', 0.6, 0.7, 'art2'),
+  D('kitchen', 'e', -7.1, 1.7, 'frame', 0.8, 0.6, 'art1'), D('kitchen', 'e', 0.9, 1.7, 'frame', 0.6, 0.7, 'art2'),
+  // the bedroom
+  D('bedroom', 'n', -3, 0, 'curtains', 0, 0, 'curtainRed'), D('bedroom', 'n', -0.6, 1.75, 'mirror', 0.6, 0.85), D('bedroom', 'n', 0.9, 1.7, 'sconce'),
+  D('bedroom', 'e', -12.0, 1.75, 'frame', 1.0, 0.7, 'art1'), D('bedroom', 'e', -10.6, 1.7, 'sconce'), D('bedroom', 'e', -14.6, 1.7, 'sconce'),
+  D('bedroom', 'w', -14.4, 1.6, 'frame', 0.6, 0.8, 'art3'), D('bedroom', 'w', -8.2, 1.6, 'mirror', 0.7, 1.1),
+  D('bedroom', 's', -3.2, 1.7, 'frame', 0.7, 0.55, 'art4'),
+  // the attic
+  D('attic', 'n', -22, 2.3, 'bunting', 6), D('attic', 'n', -19, 1.7, 'frame', 0.6, 0.8, 'art2'),
+  D('attic', 's', -20, 1.7, 'frame', 0.8, 0.6, 'art4'), D('attic', 's', -17, 1.5, 'mirror', 0.6, 1.0),
+  D('attic', 'e', -14.2, 1.6, 'frame', 0.6, 0.8, 'art3'), D('attic', 'e', -7.9, 1.6, 'frame', 0.8, 0.6, 'art1'),
+  D('attic', 'w', -13.6, 1.6, 'frame', 0.5, 0.65, 'art2'),
+  // the cellar
+  D('cellar', 'n', 27.0, 1.7, 'frame', 0.7, 0.55, 'art4'), D('cellar', 's', 26.7, 1.7, 'frame', 0.6, 0.75, 'art3'),
+  D('cellar', 's', 22.0, 1.9, 'sconce'), D('cellar', 'w', -8.0, 1.8, 'sconce'),
+]);
+
+// Where each sconce hangs, for house.js's warm glow: world x, y, z of its flame, the wall's inward normal.
+export function houseSconceSpots() {
+  return HOUSE_DECOR.filter((d) => d.kind === 'sconce').map((d) => {
+    const r = roomById(d.room);
+    const line = SIDE_LINE[d.side](r);
+    const g = SIDE_G[d.side];
+    const along = d.side === 'n' || d.side === 's';
+    const off = line + g * (WALL_T / 2 + 0.1);
+    return { level: r.level, x: along ? d.at : off, y: levelY(r.level) + d.y + 0.12, z: along ? off : d.at, nx: along ? 0 : g, nz: along ? g : 0 };
+  });
+}
+
+let CLEAR = null;
+function clearBoxes() {
+  if (CLEAR) return CLEAR;
+  CLEAR = [];
+  for (const f of HOUSE_FURNITURE) {
+    if (!(f.r > 0 || f.ledge)) continue;
+    const turned = Math.abs(Math.sin(f.rotY)) > 0.5;
+    const hx = (turned ? f.d : f.w) / 2;
+    const hz = (turned ? f.w : f.d) / 2;
+    const y = levelY(f.level);
+    CLEAR.push({ x0: f.x - hx, x1: f.x + hx, z0: f.z - hz, z1: f.z + hz, y0: y, y1: y + f.h });
+  }
+  for (const l of HOUSE_LAMPS) {
+    const y = levelY(roomById(l.room).level);
+    CLEAR.push({ x0: l.x - 0.35, x1: l.x + 0.35, z0: l.z - 0.35, z1: l.z + 0.35, y0: y, y1: y + 1.9 });
+  }
+  return CLEAR;
+}
+
+// A picture drawn once on a wall face: its top at the top of the cell, right as the viewer sees it.
+function artFace(kit, W, g, u0, u1, ya, yb, v, cell) {
+  const right = W.run === 'x' ? g : -g;
+  const pts = [[u0, ya], [u1, ya], [u1, yb], [u0, yb]];
+  kit.fan(pts.map(([u, y]) => W.pt(u, y, v)), pts.map(([u, y]) => cellUV(cell, right > 0 ? (u - u0) / (u1 - u0) : (u1 - u) / (u1 - u0), 1 - (y - ya) / (yb - ya))), W.normal(g));
+}
+
+function wallDressing(kit, W, s, side, [a, b], y0, y1, holes) {
+  const room = roomById(side.room);
+  const g = side.sign;
+  const h = WALL_T / 2;
+  const back = g > 0 ? 'v-' : 'v+';
+  const vs = (d0, d1) => (g > 0 ? [g * h + d0, g * h + d1] : [g * h - d1, g * h - d0]);
+  const box = (u0, u1, ya, yb, d0, d1, cell) => { const [va, vb] = vs(d0, d1); wallBox(kit, W, u0, u1, y0 + ya, y0 + yb, va, vb, cell, { skip: [back, 'y-'] }); };
+  // the cornice and a fine moulding under it, round the top of every room's wall
+  const [ca, cb] = vs(0, 0.045);
+  wallBox(kit, W, a, b, y1 - 0.12, y1, ca, cb, C.plaster, { skip: [back] });
+  const base = levelY(room.level);
+  const free = (u0, u1, ya, yb, depth) => {
+    if (u0 < a + 0.02 || u1 > b - 0.02) return false;
+    const [va, vb] = vs(0, depth);
+    const p = W.pt(u0, 0, va);
+    const q = W.pt(u1, 0, vb);
+    const x0 = Math.min(p[0], q[0]) - 0.03, x1 = Math.max(p[0], q[0]) + 0.03;
+    const z0 = Math.min(p[2], q[2]) - 0.03, z1 = Math.max(p[2], q[2]) + 0.03;
+    return !clearBoxes().some((f) => f.x0 < x1 && f.x1 > x0 && f.z0 < z1 && f.z1 > z0 && f.y0 < base + yb && f.y1 > base + ya);
+  };
+  for (const d of HOUSE_DECOR) {
+    if (d.room !== room.id || SIDE_G[d.side] !== g || (W.run === 'x') !== (d.side === 'n' || d.side === 's')) continue;
+    if (Math.abs(W.fixed - SIDE_LINE[d.side](room)) > EPS || (d.kind !== 'bunting' && (d.at < a || d.at > b))) continue;
+    const u = d.at;
+    if (d.kind === 'frame' || d.kind === 'mirror') {
+      const u0 = u - d.w / 2, u1 = u + d.w / 2, ya = d.y - d.h / 2, yb = d.y + d.h / 2;
+      if (!free(u0, u1, ya, yb, 0.05)) continue;
+      const rim = d.kind === 'mirror' || d.look === 'art2' || d.look === 'art4' ? C.brass : C.darkWood;
+      box(u0, u1, ya, yb, 0, 0.045, rim);
+      artFace(kit, W, g, u0 + 0.05, u1 - 0.05, y0 + ya + 0.05, y0 + yb - 0.05, vs(0.047, 0.047)[0], C[d.kind === 'mirror' ? 'mirror' : d.look]);
+    } else if (d.kind === 'clock') {
+      const u0 = u - d.w / 2, u1 = u + d.w / 2, ya = d.y - d.w / 2, yb = d.y + d.w / 2;
+      if (!free(u0, u1, ya, yb, 0.05)) continue;
+      box(u0, u1, ya, yb, 0, 0.045, C.darkWood);
+      artFace(kit, W, g, u0 + 0.01, u1 - 0.01, y0 + ya + 0.01, y0 + yb - 0.01, vs(0.047, 0.047)[0], C.clockface);
+    } else if (d.kind === 'sconce') {
+      if (!free(u - 0.08, u + 0.08, d.y - 0.14, d.y + 0.25, 0.14)) continue;
+      box(u - 0.05, u + 0.05, d.y - 0.12, d.y + 0.1, 0, 0.03, C.brass);
+      box(u - 0.015, u + 0.015, d.y - 0.02, d.y + 0.02, 0.03, 0.12, C.brass);
+      box(u - 0.025, u + 0.025, d.y + 0.02, d.y + 0.1, 0.07, 0.12, C.plaster);
+      box(u - 0.018, u + 0.018, d.y + 0.1, d.y + 0.16, 0.078, 0.112, C.flame);
+    } else if (d.kind === 'curtains') {
+      const o = holes.find((q) => q.kind === 'window' && Math.abs((q.u0 + q.u1) / 2 - u) < 1e-6);
+      if (!o) continue;
+      const bot = d.y || 0.05;
+      const top = o.y1 - y0 + 0.2;
+      const cell = C[d.look];
+      for (const [pa, pb] of [[o.u0 - 0.5, o.u0 - 0.08], [o.u1 + 0.08, o.u1 + 0.5]]) {
+        // blocked down to the floor (a shelf below): the curtain hangs short, above the piece
+        const lo = free(pa, pb, bot, top, 0.1) ? bot : 1.75;
+        if (lo === bot || free(pa, pb, lo, top, 0.1)) box(pa, pb, lo, top, 0.0, 0.08, cell);
+      }
+      if (free(o.u0 - 0.5, o.u1 + 0.5, top, top + 0.15, 0.12)) box(o.u0 - 0.5, o.u1 + 0.5, top, top + 0.15, 0.0, 0.1, cell);
+    } else if (d.kind === 'shelf') {
+      const u0 = u - d.w / 2, u1 = u + d.w / 2;
+      if (!free(u0, u1, d.y, d.y + 0.3, 0.2)) continue;
+      box(u0, u1, d.y, d.y + 0.03, 0, 0.18, C.darkWood);
+      box(u0 + 0.1, u0 + 0.14, d.y - 0.12, d.y, 0, 0.04, C.darkWood);
+      box(u1 - 0.14, u1 - 0.1, d.y - 0.12, d.y, 0, 0.04, C.darkWood);
+      [C.curtainRed, C.plaster, C.brass, C.curtainGreen, C.curtainBlue].forEach((cell, i) => {
+        const x = u0 + 0.1 + i * ((d.w - 0.2) / 4);
+        const tall = 0.1 + 0.07 * hash01(u + i, d.y, 71);
+        box(x - 0.045, x + 0.045, d.y + 0.03, d.y + 0.03 + tall, 0.05, 0.13, cell);
+      });
+    } else if (d.kind === 'rack') {
+      const u0 = u - d.w / 2, u1 = u + d.w / 2;
+      if (!free(u0, u1, d.y - 0.3, d.y + 0.03, 0.2)) continue;
+      box(u0, u1, d.y, d.y + 0.025, 0.02, 0.1, C.darkWood);
+      [C.brick, C.brass, C.brick, C.plaster].forEach((cell, i) => {
+        const x = u0 + 0.12 + i * ((d.w - 0.24) / 3);
+        const tall = 0.12 + 0.05 * hash01(u + i, d.y, 72);
+        box(x - 0.007, x + 0.007, d.y - 0.07, d.y, 0.05, 0.065, C.darkWood);
+        box(x - 0.055, x + 0.055, d.y - 0.07 - tall, d.y - 0.07, 0.03, 0.14, cell);
+      });
+    } else if (d.kind === 'bunting') {
+      // a string of flags along the wall, over as many sections as it crosses: each draws its own
+      const n = Math.round(d.w / 0.36);
+      const flags = [C.curtainRed, C.brass, C.curtainBlue, C.curtainGreen, C.wainRose];
+      const v = vs(0.02, 0.02)[0];
+      const lo = Math.max(u, a + 0.03);
+      const hi = Math.min(u + d.w, b - 0.03);
+      if (hi - lo > 0.1 && free(lo, hi, d.y - 0.35, d.y + 0.02, 0.06)) box(lo, hi, d.y, d.y + 0.012, 0, 0.012, C.darkWood);
+      for (let i = 0; i < n; i++) {
+        const fu = u + 0.1 + i * ((d.w - 0.3) / (n - 1));
+        if (fu < a + 0.03 || fu + 0.26 > b - 0.03 || !free(fu, fu + 0.26, d.y - 0.3, d.y, 0.06)) continue;
+        const uv0 = cellUV(flags[i % flags.length], 0.5, 0.5);
+        const pts = [W.pt(fu, y0 + d.y, v), W.pt(fu + 0.26, y0 + d.y, v), W.pt(fu + 0.13, y0 + d.y - 0.3, v)];
+        kit.fan(pts, pts.map(() => uv0), W.normal(g));
+      }
+    }
+  }
 }
 
 function flatWall(kit, s, sections, meta) {
@@ -531,7 +862,14 @@ function flatWall(kit, s, sections, meta) {
   cols.forEach((col, i) => {
     const { c0, c1 } = col;
     for (const [ya, yb] of col.solid) {
-      for (const side of sides) longFace(kit, W, side.sign * h, side.sign, rect(c0, c1, ya, yb), side.cell, tileOf(side.cell));
+      for (const side of sides) {
+        const wain = side.kind === 'room' ? WAIN[side.room] : null;
+        const yd = y0 + DADO_Y;
+        if (wain && ya < yd - EPS) { // the wainscot below the dado rail, boards that need no height phase
+          longFace(kit, W, side.sign * h, side.sign, rect(c0, c1, ya, Math.min(yb, yd)), C[wain], WAIN_TILES[side.room] ?? WAIN_TILE);
+          if (yb > yd + EPS) longFace(kit, W, side.sign * h, side.sign, rect(c0, c1, yd, yb), side.cell, tileOf(side.cell));
+        } else longFace(kit, W, side.sign * h, side.sign, rect(c0, c1, ya, yb), side.cell, tileOf(side.cell));
+      }
       if (yb >= y1 - EPS) flatFace(kit, W, yb, 1, c0, c1, -h, h, C.darkWood, WOOD_TILE); // the cap, seen when zoomed out
       else flatFace(kit, W, yb, 1, c0, c1, -h, h, C.plaster); // a sill's reveal
       if (ya > y0 + EPS || s.kind === 'lintel') flatFace(kit, W, ya, -1, c0, c1, -h, h, C.plaster); // a head's soffit
@@ -566,6 +904,8 @@ function flatWall(kit, s, sections, meta) {
       }
     }
   }
+
+  if (s.kind === 'wall') for (const side of sides) if (side.kind === 'room') wallDressing(meta.deco, W, s, side, [a, b], y0, y1, holes);
 
   for (const o of holes) {
     if (o.kind === 'window') windowDressing(kit, W, o, sides);
@@ -689,7 +1029,7 @@ function frontDoor(kit, W, o, sides, meta) {
 }
 
 // A stair's side wall: its top follows the flight, a full wall's height above it.
-function stairWall(kit, s, sections) {
+function stairWall(kit, s, sections, deco) {
   const W = wallFrame(s);
   const st = HOUSE_STAIRS.find((q) => q.id === s.owner);
   const yFrom = levelY(st.from);
@@ -710,6 +1050,32 @@ function stairWall(kit, s, sections) {
   kit.fan(cap, [cellUV(C.darkWood, 0, 0), cellUV(C.darkWood, 1, 0), cellUV(C.darkWood, 1, 1), cellUV(C.darkWood, 0, 1)]);
   endFace(kit, W, a, -1, -h, h, y0, ta, C.plaster, PLASTER_TILE);
   endFace(kit, W, b, 1, -h, h, y0, tb, C.plaster, PLASTER_TILE);
+  // pictures and sconces up the stairwell, hung level at the flight's height, in the hiding group
+  for (const sign of [-1, 1]) {
+    if (sideOf(s, W, sign).kind !== 'stair') continue;
+    const vs = (d0, d1) => (sign > 0 ? [sign * h + d0, sign * h + d1] : [sign * h - d1, sign * h - d0]);
+    const back = sign > 0 ? 'v-' : 'v+';
+    const bx = (u0, u1, ya, yb, d0, d1, cell) => { const [va, vb] = vs(d0, d1); wallBox(deco, W, u0, u1, ya, yb, va, vb, cell, { skip: [back, 'y-'] }); };
+    const flight = (u) => yFrom + (yTo - yFrom) * clamp01((u - sU0) / (sU1 - sU0));
+    const right = W.run === 'x' ? sign : -sign;
+    for (let i = 0, u = a + 0.9; u < b - 0.7; i++, u += 1.5) {
+      const yc = flight(u);
+      if (i % 2 === 1) {
+        if (st.id === 'cellar') continue;
+        bx(u - 0.05, u + 0.05, yc + 1.6, yc + 1.82, 0, 0.03, C.brass);
+        bx(u - 0.015, u + 0.015, yc + 1.7, yc + 1.74, 0.03, 0.11, C.brass);
+        bx(u - 0.025, u + 0.025, yc + 1.74, yc + 1.82, 0.07, 0.12, C.plaster);
+        bx(u - 0.018, u + 0.018, yc + 1.82, yc + 1.88, 0.078, 0.112, C.flame);
+      } else if (st.id !== 'secret') {
+        const w = 0.55, hh = 0.7;
+        const cell = [C.art1, C.art2, C.art3, C.art4][(i + (st.id === 'back' ? 2 : 0)) % 4];
+        bx(u - w / 2, u + w / 2, yc + 1.25, yc + 1.25 + hh, 0, 0.045, C.darkWood);
+        const [v] = vs(0.047, 0.047);
+        const pts = [[u - w / 2 + 0.05, yc + 1.3], [u + w / 2 - 0.05, yc + 1.3], [u + w / 2 - 0.05, yc + 1.2 + hh], [u - w / 2 + 0.05, yc + 1.2 + hh]];
+        deco.fan(pts.map(([uu, yy]) => W.pt(uu, yy, v)), pts.map(([uu, yy]) => cellUV(cell, right > 0 ? (uu - (u - w / 2 + 0.05)) / (w - 0.1) : ((u + w / 2 - 0.05) - uu) / (w - 0.1), 1 - (yy - (yc + 1.3)) / (hh - 0.1))), W.normal(sign));
+      }
+    }
+  }
 }
 
 // One wall section as one mesh: its base at local y 0, the mesh at the section's base.
@@ -717,13 +1083,17 @@ function stairWall(kit, s, sections) {
 // (userData.doorPivot, named houseFrontLeaf), turned about y by house life.
 export function sectionMesh(section, material, { sections = houseSections(), openDoor = false } = {}) {
   const kit = new Kit();
-  const meta = { openDoor };
-  if (section.kind === 'stair') stairWall(kit, section, sections);
+  const meta = { openDoor, deco: new Kit() }; // deco: the dressing, a second material group the sink hides (houselife)
+  if (section.kind === 'stair') stairWall(kit, section, sections, meta.deco);
   else flatWall(kit, section, sections, meta);
-  const geo = kit.geometry();
+  let geo = kit.geometry();
+  const dressed = !meta.deco.empty;
+  if (dressed) geo = mergeGeometries([geo, meta.deco.geometry()], true);
   geo.translate(0, -section.base, 0);
   geo.computeBoundingBox();
-  const mesh = new THREE.Mesh(geo, material);
+  const decoMat = dressed ? material.clone() : null;
+  const mesh = new THREE.Mesh(geo, dressed ? [material, decoMat] : material);
+  if (dressed) mesh.userData.decoMat = decoMat;
   mesh.position.y = section.base;
   if (meta.doorLeaf) mesh.userData.doorLeaf = meta.doorLeaf;
   if (meta.leafKit) {
@@ -772,7 +1142,7 @@ export function paneMesh(section, w) {
   return finish(mesh, { cast: false });
 }
 
-const FLOOR_CELL = freeze({ hall: 'oak', library: 'oak', parlour: 'oak', kitchen: 'stone', bedroom: 'pine', attic: 'pine', cellar: 'stone' });
+const FLOOR_CELL = freeze({ hall: 'oak', library: 'oak', parlour: 'oak', kitchen: 'stone', bedroom: 'pine', attic: 'atticBoards', cellar: 'slate' });
 
 export function floorMesh(room, material) {
   const kit = new Kit();
@@ -834,6 +1204,7 @@ const STAIR_LOOK = freeze({
   cellar: freeze({ tread: 'stone', riser: 'stone', side: 'cellar' }),
   secret: freeze({ tread: 'pine', riser: 'darkWood', side: 'darkWood' }), // a plain old back stair, behind the bookcase
 });
+const STAIR_RUNNER = freeze({ main: 'rugBlue', back: 'rugGreen' });
 
 // A flight as a solid wedge: treads level at the ramp's height at their middles (so
 // they straddle the walked slope), risers between, stepped sides inside its walls,
@@ -871,6 +1242,34 @@ export function stairMesh(stair, material) {
     if (Math.abs(after - before) < 1e-6) continue;
     const facing = after > before ? -dir : dir; // a riser faces down the flight
     kitFace(kit, runAxis, uAt(k * d), facing, rect(c - half, c + half, Math.min(before, after), Math.max(before, after)), riser, tileOf(riser));
+  }
+  // a runner down the middle of the flight, on each tread and up each riser, and a handrail on both walls
+  const rcell = C[STAIR_RUNNER[stair.id]];
+  const rw = half * 0.55;
+  const flatR = (ua, ub) => {
+    const lo = Math.min(ua, ub), hi = Math.max(ua, ub);
+    return alongZ ? rect(c - rw, c + rw, lo, hi) : rect(lo, hi, c - rw, c + rw);
+  };
+  if (rcell !== undefined) {
+    for (let k = 0; k < n; k++) kitFace(kit, 'y', hgt(k) + 0.003, 1, flatR(uAt(k * d), uAt((k + 1) * d)), rcell);
+    for (let k = 1; k < n; k++) {
+      const lo = hgt(k - 1), hi = hgt(k);
+      if (Math.abs(hi - lo) < 1e-6) continue;
+      kitFace(kit, runAxis, uAt(k * d) + (hi > lo ? -dir : dir) * 0.004, hi > lo ? -dir : dir, rect(c - rw, c + rw, Math.min(lo, hi), Math.max(lo, hi)), rcell);
+    }
+  }
+  if (stair.id !== 'cellar') {
+    for (const sign of [-1, 1]) {
+      const x = c + sign * (half - 0.03);
+      const pt = (u, y) => (alongZ ? [x, y, u] : [u, y, x]);
+      const ya = (u) => yFrom + (yTo - yFrom) * clamp01((u - u0) / (u1 - u0));
+      const n3 = alongZ ? [-sign, 0, 0] : [0, 0, -sign];
+      const rail = [pt(u0, ya(u0) + 0.92), pt(u1, ya(u1) + 0.92), pt(u1, ya(u1) + 0.98), pt(u0, ya(u0) + 0.98)];
+      kit.fan(rail, rail.map((_, i) => cellUV(C.darkWood, i % 3 ? 1 : 0, i < 2 ? 0 : 1)), n3);
+      const topR = [pt(u0, ya(u0) + 0.98), pt(u1, ya(u1) + 0.98)];
+      const out = (v) => (alongZ ? [v[0] + sign * 0.03, v[1], v[2]] : [v[0], v[1], v[2] + sign * 0.03]);
+      kit.fan([topR[0], topR[1], out(topR[1]), out(topR[0])], [[0, 0], [1, 0], [1, 1], [0, 1]].map(([a, b]) => cellUV(C.darkWood, a, b)), [0, 1, 0]);
+    }
   }
   for (const sign of [-1, 1]) {
     for (let k = 0; k < n; k++) {
@@ -1127,6 +1526,11 @@ const BUILDERS = {
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) p.box(sx * (hw - 0.05) - 0.025, sx * (hw - 0.05) + 0.025, 0, h - 0.14, sz * (hd - 0.05) - 0.025, sz * (hd - 0.05) + 0.025, 'darkWood', ['y-', 'y+']);
     p.box(-hw + 0.07, hw - 0.07, 0.14, 0.17, -hd + 0.06, hd - 0.06, 'darkWood');
     p.cyl(0.05, 0.08, h, h + 0.2, 10, 'rugBlue', -hw + 0.25, 0);
+    // a small pile of books and a candle in a brass stick
+    p.box(-0.1, 0.16, h, h + 0.045, -0.1, 0.1, 'red', ['y-']);
+    p.box(-0.07, 0.13, h + 0.045, h + 0.085, -0.09, 0.09, 'green', ['y-']);
+    p.cyl(0.03, 0.035, h, h + 0.02, 8, 'gold', -0.2, 0);
+    p.cyl(0.013, 0.013, h + 0.02, h + 0.14, 6, 'white', -0.2, 0);
   },
 
   // an oak settle: a boxed seat, a panelled back, arms at its ends, a long cushion
@@ -1277,6 +1681,7 @@ const BUILDERS = {
       p.cyl(0.075, 0.075, -hd + 0.04, hd - 0.03, 8, fab, x0 + 0.07, 0, (g) => { alongZ(g); g.translate(0, 0.62, 0); });
       p.box(x0, x0 + 0.12, 0.62, h - 0.08, -hd + 0.02, -hd + 0.34, fab, ['y-']);
     }
+    p.box(-0.15, 0.15, 0.5, 0.78, -hd + 0.2, -hd + 0.3, look === 'library' ? 'gold' : 'sky', ['y-']); // a scatter cushion against the back
   },
 
   // a writing desk: two pedestals of drawers with brass knobs, a green leather top, books and an inkwell
@@ -1329,6 +1734,7 @@ const BUILDERS = {
     p.box(-0.24, 0.24, 0.17, 0.2, -hd + 0.1, -hd + 0.26, 'red', ['y-']);
     p.cyl(0.055, 0.055, -0.25, 0.25, 7, 'darkWood', 0, -hd + 0.15, (g) => { alongX(g); g.translate(0, 0.25, 0); });
     p.cyl(0.05, 0.05, -0.22, 0.22, 7, 'oak', 0.02, -hd + 0.23, (g) => { g.rotateY(0.15); alongX(g); g.translate(0, 0.24, 0); });
+    for (const [x, hgt, look] of [[-0.14, 0.26, 'copper'], [0.0, 0.34, 'gold'], [0.15, 0.24, 'copper']]) p.prim(new THREE.CylinderGeometry(0, 0.07, hgt, 5), look, x, 0.2 + hgt / 2, -hd + 0.18);
     const mz = -hd + 0.18;
     p.box(-0.1, 0.1, top, top + 0.13, mz - 0.05, mz + 0.05, 'darkWood', ['y-']);
     p.prim(new THREE.CylinderGeometry(0.045, 0.045, 0.006, 12), 'white', 0, top + 0.075, mz + 0.053, alongZ); // on the clock's front
@@ -1425,6 +1831,11 @@ const BUILDERS = {
     p.cyl(0.075, 0.1, 0.895, 1.05, 10, 'copper', -0.28, 0.02);
     p.cyl(0.03, 0.05, 1.05, 1.08, 8, 'copper', -0.28, 0.02);
     p.box(-0.21, -0.1, 0.94, 0.97, 0.0, 0.04, 'copper');
+    // a white enamel kettle on the right ring
+    p.cyl(0.1, 0.12, 0.895, 1.0, 12, 'white', 0.28, 0.02);
+    p.cyl(0.04, 0.05, 1.0, 1.03, 8, 'white', 0.28, 0.02);
+    p.box(0.37, 0.47, 0.96, 0.99, 0.0, 0.04, 'white'); // the spout
+    p.box(0.2, 0.36, 1.03, 1.06, 0.0, 0.04, 'brown'); // the handle
   },
 
   // a white butler's sink on a cupboard, oak draining boards either side, brass taps
@@ -1559,6 +1970,7 @@ const BUILDERS = {
     p.cyl(0.045, 0.035, h, h + 0.02, 8, 'gold', -0.08, -0.05);
     p.cyl(0.012, 0.012, h + 0.02, h + 0.13, 6, 'white', -0.08, -0.05);
     p.box(0.0, 0.16, h, h + 0.035, -0.05, 0.14, 'navy', ['y-']);
+    p.box(0.01, 0.15, h + 0.035, h + 0.065, -0.04, 0.12, 'ochre', ['y-']);
   },
 
   // a tall wardrobe: two panelled doors, a drawer under them, a cornice, bun feet
@@ -1731,14 +2143,21 @@ const FLAT_BUILDERS = {
   runner(p, f) { FLAT_BUILDERS.rug(p, { ...f, look: f.look ?? 'rugBlue' }); },
   // an old round cushion on the hearth (step 2) with a cat-shaped dent in it: a curled
   // body, a head and a tail pressed in, as if someone else naps here too
-  cushion(p, { w, h }) {
+  cushion(p, { w, h, look }) {
     const r = w / 2;
-    p.cyl(r, r * 0.94, 0, h, 16, 'sky', 0, 0);
+    p.cyl(r, r * 0.94, 0, h, 16, look ?? 'sky', 0, 0);
     p.cyl(r * 0.97, r * 0.97, h * 0.45, h * 0.6, 16, 'gold', 0, 0);
     const dent = (rx, rz, x, z) => p.cyl(1, 1, h, h + 0.003, 12, 'blue', x, z, (g) => g.scale(rx, 1, rz));
     dent(0.17, 0.12, 0.02, 0.02);
     dent(0.07, 0.065, -0.17, -0.1);
     dent(0.1, 0.035, 0.12, -0.15);
+  },
+  // an old pile of books left on the floor: three, each a little turned
+  books(p, { w, d }) {
+    [['red', 0], ['green', 0.07], ['ochre', 0.12]].forEach(([look, y], i) => {
+      const hw = w * (0.5 - 0.08 * i) / 2, hd = d * (0.5 - 0.04 * i) / 2;
+      p.prim(new THREE.BoxGeometry(hw * 2, i === 2 ? 0.04 : 0.065, hd * 2), look, 0.02 * i, y + (i === 2 ? 0.02 : 0.033), 0.015 * i, (g) => g.rotateY(0.35 * i - 0.2));
+    });
   },
   // a web across a floor corner: from the corner seam (h up) to its two walls, five
   // radials and three rings of thin strands, both faces (no back-face material)

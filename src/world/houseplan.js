@@ -222,6 +222,9 @@ export const HOUSE_FURNITURE = frozenAll([
   piece('hall-bench', 'hall', 'bench', 3.69, 9.6, FACE_W, 1.4, 0.42, 0.9, 0.21),
   piece('hall-umbrellas', 'hall', 'umbrellas', 1.0, 11.75, FACE_N, 0.3, 0.3, 0.85, 0.15),
   piece('hall-runner', 'hall', 'runner', 0, 6.9, FACE_S, 1.1, 8.6, 0.012, 0, 'rugBlue'),
+  piece('hall-rug-w', 'hall', 'rug', -2.2, 8.6, FACE_S, 1.0, 1.5, 0.012, 0, 'rugGreen'),
+  piece('hall-rug-e', 'hall', 'rug', 2.1, 5.6, FACE_S, 1.1, 1.6, 0.012, 0, 'rugRed'),
+  piece('hall-mat', 'hall', 'rug', 0, 11.55, FACE_S, 1.0, 0.55, 0.012, 0, 'rugGreen'), // a doormat
   // the library: three bookcases, a rolling ladder at one, a wing chair, a desk, a globe, a rug
   // step 2 (D2): the three bookcases are ledges, the west one slid north between the windows
   // for the corner leap; the ladder stands in the corner beside n2, and the steps and a stack
@@ -241,12 +244,18 @@ export const HOUSE_FURNITURE = frozenAll([
   piece('library-desk', 'library', 'desk', -9.0, 11.55, FACE_N, 1.4, 0.7, 0.8, 0.35),
   piece('library-globe', 'library', 'globe', -5.2, 10.9, 0.4, 0.55, 0.55, 1.0, 0.26),
   piece('library-rug', 'library', 'rug', -9.2, 7.2, FACE_S, 3.6, 2.6, 0.012, 0, 'rugRed'),
+  piece('library-cushion', 'library', 'cushion', -12.3, 9.2, FACE_W, 0.6, 0.6, 0.08, 0, 'rose'),
+  piece('library-pile', 'library', 'books', -12.5, 6.9, FACE_S, 0.4, 0.3, 0.14, 0),
+  piece('library-rug-desk', 'library', 'rug', -9.0, 10.5, FACE_S, 1.8, 1.0, 0.012, 0, 'rugGreen'),
   // the kitchen: counters, a sink and a range on the north wall, a plate dresser, a table and two chairs
   piece('kitchen-sink', 'kitchen', 'sink', 5.7, -7.6, FACE_S, 1.1, 0.6, 1.05, 0.3),
   piece('kitchen-counter-a', 'kitchen', 'counter', 7.45, -7.6, FACE_S, 2.4, 0.6, 0.92, 0.3, 'a'),
   piece('kitchen-range', 'kitchen', 'range', 9.25, -7.6, FACE_S, 1.2, 0.6, 1.0, 0.3),
   piece('kitchen-counter-b', 'kitchen', 'counter', 10.9, -7.6, FACE_S, 2.1, 0.6, 0.92, 0.3, 'b'),
   piece('kitchen-dresser', 'kitchen', 'dresser', 4.33, -3.2, FACE_E, 1.6, 0.46, 2.05, 0.23),
+  piece('kitchen-cushion', 'kitchen', 'cushion', 12.8, -5.6, FACE_W, 0.55, 0.55, 0.08, 0, 'red'),
+  piece('kitchen-rug', 'kitchen', 'rug', 9.0, -3.2, FACE_S, 2.0, 2.6, 0.012, 0, 'rugGreen'),
+  piece('kitchen-runner', 'kitchen', 'rug', 8.4, -6.65, FACE_S, 3.2, 0.7, 0.012, 0, 'rugBlue'),
   piece('kitchen-table', 'kitchen', 'table', 9.0, -3.2, FACE_S, 1.5, 0.9, 0.76, 0.45),
   piece('kitchen-chair-a', 'kitchen', 'chair', 8.6, -4.0, FACE_S, 0.45, 0.45, 0.95, 0.23),
   piece('kitchen-chair-b', 'kitchen', 'chair', 9.4, -2.4, FACE_N, 0.45, 0.45, 0.95, 0.23),
@@ -265,6 +274,8 @@ export const HOUSE_FURNITURE = frozenAll([
   fadingLedge('parlour-piano', 'parlour', 'piano', 8.7, 11.6, FACE_N, 1.5, 0.6, 0.75 + HEAD_CLEAR, 0.3),
   fadingLedge('parlour-keys', 'parlour', 'keys', 8.7, 11.0, FACE_N, 1.3, 0.6, 0.75, 0.15),
   piece('parlour-rug', 'parlour', 'rug', 11.2, 7.0, FACE_S, 2.4, 3.2, 0.012, 0, 'rugRed'),
+  piece('parlour-pile', 'parlour', 'books', 9.9, 9.4, FACE_S, 0.4, 0.3, 0.14, 0),
+  piece('parlour-rug-piano', 'parlour', 'rug', 8.7, 9.7, FACE_S, 1.8, 1.1, 0.012, 0, 'rugGreen'),
   // step 2 (D6): an old cushion on the hearth with a cat-shaped dent in it, walked over
   piece('parlour-cushion', 'parlour', 'cushion', 12.7, 7.0, FACE_W, 0.7, 0.7, 0.08, 0),
   // the bedroom: a big bed, a wardrobe, a chest of drawers, a bedside table, a rug
@@ -279,18 +290,27 @@ export const HOUSE_FURNITURE = frozenAll([
   ledge('bedroom-chest', 'bedroom', 'chest', -4.2, -14.25, FACE_S, 0.8, 0.5, 0.6, 0.25),
   piece('bedroom-drawers', 'bedroom', 'drawers', -0.6, -15.65, FACE_S, 1.1, 0.5, 0.95, 0.25),
   piece('bedroom-rug', 'bedroom', 'rug', -2.6, -12.0, FACE_S, 2.4, 2.0, 0.012, 0, 'rugBlue'),
+  piece('bedroom-cushion', 'bedroom', 'cushion', -6.9, -9.3, FACE_W, 0.6, 0.6, 0.08, 0, 'sage'),
+  piece('bedroom-pile', 'bedroom', 'books', -3.5, -14.7, FACE_S, 0.4, 0.3, 0.14, 0),
+  piece('bedroom-rug-bed', 'bedroom', 'rug', -4.8, -9.0, FACE_S, 1.6, 1.2, 0.012, 0, 'rugRed'),
   // the attic: boxes stacked no higher than 1.4 m, an old trunk, an old rocking chair, a rug
   piece('attic-boxes-a', 'attic', 'boxes', -15.0, -15.3, FACE_S, 1.6, 1.0, 1.35, 0.5),
   piece('attic-boxes-b', 'attic', 'boxes', -23.2, -7.0, FACE_N, 1.2, 1.4, 1.1, 0.55),
   piece('attic-trunk', 'attic', 'trunk', -19.8, -15.58, FACE_S, 1.1, 0.64, 0.62, 0.32),
   piece('attic-chair', 'attic', 'chair', -21.9, -12.6, 1.2, 0.5, 0.7, 0.95, 0.3, 'rocking'),
   piece('attic-rug', 'attic', 'rug', -19.5, -12.2, FACE_S, 2.4, 1.8, 0.012, 0, 'rugBlue'),
+  piece('attic-pile', 'attic', 'books', -21.4, -14.9, FACE_S, 0.4, 0.3, 0.14, 0),
+  piece('attic-cushion', 'attic', 'cushion', -16.6, -8.2, FACE_W, 0.6, 0.6, 0.08, 0, 'rose'),
+  piece('attic-rug-mid', 'attic', 'rug', -16.8, -12.4, FACE_S, 1.8, 1.2, 0.012, 0, 'rugRed'),
+  piece('attic-rug-seat', 'attic', 'rug', -22.0, -8.8, FACE_S, 1.6, 1.1, 0.012, 0, 'rugGreen'),
   // step 2 (D6): a box of old toys against the north wall
   piece('attic-toybox', 'attic', 'toybox', -17.6, -15.65, FACE_S, 0.8, 0.5, 0.5, 0.25),
   // step 2 (D2): a window seat under the round window. 0.55 m, not 0.5: a climb or a drop must
   // change height by more than LEVEL_TOL (0.5, traversal.js), or it is no climb at all
   ledge('attic-seat', 'attic', 'seat', -23.6, -11.0, FACE_E, 1.6, 0.6, 0.55, 0.3),
   // the cellar: jar shelves, barrels, crates and cobwebs in its corners
+  piece('cellar-mat-b', 'cellar', 'rug', 27.0, -5.2, FACE_S, 1.4, 0.9, 0.012, 0, 'rugBlue'),
+  piece('cellar-mat', 'cellar', 'rug', 24.8, -4.8, FACE_S, 1.8, 1.1, 0.012, 0, 'rugGreen'),
   piece('cellar-shelf-a', 'cellar', 'jarshelf', 23.2, -9.68, FACE_S, 1.8, 0.44, 1.9, 0.22),
   piece('cellar-shelf-b', 'cellar', 'jarshelf', 25.6, -9.68, FACE_S, 1.8, 0.44, 1.9, 0.22),
   piece('cellar-barrels', 'cellar', 'barrels', 24.6, -0.52, FACE_N, 2.3, 0.84, 0.95, 0.4),

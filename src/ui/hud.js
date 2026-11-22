@@ -49,8 +49,51 @@ export function discoveryText({ type, label, repeat }) {
   // A pounce's label is its own sentence ("you pounce-tagged a sparrow!",
   // game/avatar.js), so it never takes "You spotted" in front.
   if (type === 'hunt') return repeat ? `Again — ${label}` : capitalise(label);
-  return `${repeat ? 'Again — ' : 'You spotted '}${label}`;
+  // Every other find reads with a lead that fits what happened (toast-verbs,
+  // 2026-11-22): "You spotted" only where she literally sees it. The leads
+  // are plain words, the same in both editions; a clan word reaches a toast
+  // only through the label itself, which its caller built from the word set.
+  if (repeat) return `Again — ${label}`;
+  // Whole-sentence labels that already name their own doer.
+  if (type === 'gift' && /brought you|found the gift/.test(label)) return capitalise(label);
+  if (type === 'mischief' && /bowled over/.test(label)) return capitalise(label);
+  if (type === 'nappile' || type === 'rally' || (type === 'friend' && /visited$/.test(label))) return capitalise(label);
+  const lead = LEADS[type];
+  if (!lead) return `You spotted ${label}`;
+  const words = typeof lead === 'function' ? lead(label) : lead;
+  return `${Array.isArray(words) ? words[stableHash(label) % words.length] : words}${label}`;
 }
+
+// A small stable hash, so a lead that rotates picks the same words for the
+// same label every time (tests and replays stay put; no Math.random).
+function stableHash(text) {
+  let h = 0;
+  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+// type -> the words before the label (a list rotates by the label's hash).
+const LEADS = {
+  mischief: (l) => (/^the /.test(l) ? 'You made ' : 'You pulled off '),
+  scenic: ['You found a view: ', 'Nice view: '],
+  gift: (l) => (/^a gift tucked/.test(l) ? 'You left ' : 'You found '),
+  friend: (l) => (/^a new /.test(l) ? 'You made ' : 'You shared '),
+  boop: 'You shared ',
+  groom: 'You shared ',
+  duet: 'You sang ',
+  tag: 'You played ',
+  patrol: 'You went on ',
+  pet: 'You got ',
+  collectible: ['You found ', 'You came across '],
+  critter: 'You spotted ',
+  treasure: 'You found ',
+  legend: (l) => (/GOLDEN/.test(l) ? 'You found ' : 'You spotted '),
+  sits: 'You nailed ',
+  play: 'You had ',
+  perk: (l) => (/catch/.test(l) ? 'You made ' : /masterclass/.test(l) ? 'You showed off ' : /wave/.test(l) ? 'You got ' : 'You had '),
+  rainbow: 'You saw ',
+  photo: 'You took ',
+};
 
 // A goal's "how" line, in both forms: the page's touch mode shows one (CSS,
 // like the viewfinder's two hints), so a device that turns out to be touch

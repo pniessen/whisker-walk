@@ -39,7 +39,7 @@ import { houseMovesArea } from './housemoves.js';
 import {
   HOUSE_ATLAS_CELLS as CELL, createHouseAtlas, houseMaterial, sectionMesh, paneMesh, floorMesh, stairMesh,
   skirtMesh, lampGroup, partsKit, kitBox, kitFace, kitMesh, FRONT_DOOR_W, furnitureMesh, flatsMesh, standInMesh,
-  cellarLidMeshes, secretBookcaseGroup, plankMesh, pawMarksMesh, findParts,
+  cellarLidMeshes, secretBookcaseGroup, plankMesh, pawMarksMesh, findParts, houseSconceSpots,
 } from './houseparts.js';
 import { fullLevels } from '../houselevels.js';
 import { createHouseLife } from './houselife.js';
@@ -352,6 +352,59 @@ function drawMarks(scene, traversal, start) {
   }
 }
 
+// The beauty pass's warm light, painted not lit: a faint additive pool under each lamp, a
+// spill on the floor before each wall sconce and one before the hearth, a mesh per level (a level detail
+// like the furniture). It reads by day too; at dusk it adds to the lamp pools.
+const GLOW = freeze({ lamp: 1.9, sconce: 1.1, fire: 1.7, warm: [1.0, 0.74, 0.42], fireWarm: [1.0, 0.5, 0.2], seg: 12 });
+function drawGlow(scene, start) {
+  const full = fullLevels(start, LEVEL_LINKS);
+  const pools = new Map(HOUSE_LEVELS.map((l) => [l.id, []]));
+  for (const l of HOUSE_LAMPS) {
+    const room = HOUSE_ROOMS.find((r) => r.id === l.room);
+    pools.get(room.level).push({ x: l.x, y: levelY(room.level) + 0.02, z: l.z, r: GLOW.lamp, k: 0.17, c: GLOW.warm, clip: lampPoolClip(room) });
+  }
+  pools.get('ground').push({ x: 12.4, y: 0.02, z: 7.0, r: GLOW.fire, k: 0.26, c: GLOW.fireWarm, clip: lampPoolClip(HOUSE_ROOMS.find((r) => r.id === 'parlour')) });
+  for (const sc of houseSconceSpots()) {
+    const room = HOUSE_ROOMS.find((r) => r.level === sc.level && roomAt(sc.x + sc.nx * 0.6, sc.z + sc.nz * 0.6) === r.id);
+    pools.get(sc.level).push({ x: sc.x + sc.nx * 0.5, y: levelY(sc.level) + 0.02, z: sc.z + sc.nz * 0.5, r: GLOW.sconce, k: 0.14, c: GLOW.warm, clip: lampPoolClip(room) });
+  }
+  const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  for (const [level, list] of pools) {
+    if (!list.length) continue;
+    const pos = [];
+    const col = [];
+    const index = [];
+    for (const p of list) {
+      const base = pos.length / 3;
+      pos.push(p.x, p.y, p.z);
+      col.push(p.c[0] * p.k, p.c[1] * p.k, p.c[2] * p.k);
+      for (let i = 0; i < GLOW.seg; i++) {
+        const a = (i / GLOW.seg) * Math.PI * 2;
+        const du = Math.cos(a) * p.r;
+        const dv = Math.sin(a) * p.r;
+        let x = p.x + du;
+        let z = p.z + dv;
+        if (p.clip) { x = Math.min(p.clip.maxX, Math.max(p.clip.minX, x)); z = Math.min(p.clip.maxZ, Math.max(p.clip.minZ, z)); }
+        pos.push(x, p.y, z);
+        col.push(0, 0, 0);
+        index.push(base, base + 1 + ((i + 1) % GLOW.seg), base + 1 + i);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    geo.setIndex(index);
+    geo.computeBoundingSphere();
+    const m = new THREE.Mesh(geo, mat);
+    m.name = `houseGlow:${level}`;
+    m.castShadow = false;
+    m.receiveShadow = false;
+    m.userData = { noCast: true, dressing: true, noMerge: true, noContactShadow: true, houseDetail: true, houseLevel: level };
+    m.visible = full.has(level);
+    scene.add(m);
+  }
+}
+
 export function build(scene, { wind, gateEnds = [] } = {}) {
   // gateEnds: the walk's gate ends; a house-town end makes the front door one that opens
   const openDoor = gateEnds.some((e) => e.id === 'house-town');
@@ -402,6 +455,7 @@ export function build(scene, { wind, gateEnds = [] } = {}) {
       .sort((a, b) => a.position.x - b.position.x);
     parts.frontDoor = pivots.length === 2 ? { left: pivots[0], right: pivots[1] } : null;
     drawMarks(scene, plan.traversal, START_LEVEL);
+    drawGlow(scene, START_LEVEL);
     // the secret stair's bookcase, shut in the library's north wall (step 2, ruling D9)
     const secretGroup = secretBookcaseGroup(material);
     secretGroup.visible = fullLevels(START_LEVEL, LEVEL_LINKS).has(secretGroup.userData.houseLevel);
