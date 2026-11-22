@@ -209,15 +209,17 @@ describe('owner', () => {
     expect(r.calls.padBack).not.toHaveBeenCalled();
     expect(r.menuNav.press).not.toHaveBeenCalled();
   });
-  it('the fight sheet keeps the walk owner', () => {
+  it('the fight sheet is a menu for the pad: A presses, B asks padBack, the walk gets nothing; the walk comes back after', () => {
     const r = rig();
+    r.flags.engaged = true;
     r.flags.fighting = true;
     r.frame(); r.frame([0, 0, 0, 0], A); r.frame(); r.frame([0, 0, 0, 0], B);
-    expect(r.menuNav.press).not.toHaveBeenCalled();
-    expect(r.calls.padBack).not.toHaveBeenCalled();
-    expect(r.calls.onAction).not.toHaveBeenCalled(); // dropped as today
-    r.flags.canResume = true; r.frame(); r.frame([0, 0, 0, 0], START);
-    expect(r.calls.onResume).toHaveBeenCalledTimes(1);
+    expect(r.menuNav.press).toHaveBeenCalledTimes(1);
+    expect(r.calls.padBack).toHaveBeenCalledTimes(1);
+    expect(r.calls.onAction).not.toHaveBeenCalled(); // no pounce or meow under the sheet
+    r.flags.fighting = false; r.frame(); r.frame();
+    r.frame([0, 0, 0, 0], A);
+    expect(r.calls.onAction.mock.calls).toEqual([['pounce']]); // the walk owns the pad again
   });
   it('walkingOn: no calls at all', () => {
     const r = rig();

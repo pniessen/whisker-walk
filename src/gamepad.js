@@ -1,9 +1,9 @@
 // Thin DOM glue for game controllers. Polls navigator.getGamepads() once per
 // frame from the game's own loop and decides who owns the pad:
-//   walk  (engaged, or the clan-fight sheet): gamepadinput.js's pure step,
+//   walk  (engaged): gamepadinput.js's pure step,
 //         sent down the SAME paths touch uses;
 //   none  (the "Off to ..." crossing): the pad does nothing;
-//   menu  (everything else): the menu navigator (gamepadnav.js).
+//   menu  (everything else, the clan-fight sheet included): the menu navigator (gamepadnav.js).
 // A button held across a switch is ignored until it is let go. Safe no-op
 // where the Gamepad API is missing (older iOS/Safari builds).
 import { createPadState, stepPad, applyDeadZone, isPressed, PAD_BUTTONS } from './gamepadinput.js';
@@ -77,7 +77,10 @@ export function createGamepad({
   const modeNow = () => {
     if (!menuNav) return 'walk';
     if (isWalkingOn?.()) return 'none';
-    return getEngaged?.() || isFighting?.() ? 'walk' : 'menu';
+    // The clan-fight sheet is a menu for the pad (its moves are buttons the navigator presses);
+    // pointer lock does not stop a button's click. Otherwise a live walk owns the pad.
+    if (isFighting?.()) return 'menu';
+    return getEngaged?.() ? 'walk' : 'menu';
   };
 
   // One frame in menu mode. `down` = the pad's buttons as booleans, armed ones only.

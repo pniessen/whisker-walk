@@ -123,3 +123,7 @@ html.tv .cb-name-open, html.tv .wt-name-open {
   font: inherit; font-size: calc(36px * var(--tv-s, 1)) !important; font-weight: 800; text-align: center; cursor: pointer;
   background: #fff; color: #1c2431; border: 0; border-radius: calc(16px * var(--tv-s, 1));
 }
+
+/* The fight: a pad answers with A on a move, so the keyboard digits on the buttons are noise. */
+html.tv body[data-input="pad"] .hud-fight .fight-key { display: none; }
+html.tv .fight-ask-buttons .pad-glyph { margin-left: .3em; }

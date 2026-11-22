@@ -147,6 +147,17 @@ export function walkBackAction({ summary = false, walking = false, walkingOn = f
   return started && touch ? 'resume' : null;
 }
 
+// The pad's B when no layer of the home base is up. It is the browser's Back with
+// three differences, so a pad never does by accident what only a keyboard did:
+// the fight sheet has no back (Back off is the pill's Circle), the summary is
+// left with A on Continue, and the Ready? and pause cards walk on, as Start does.
+// -> 'none' | 'resume' | 'back' (then the usual walkBack).
+export function padBackAction({ fight = false, summary = false, walking = false, walkingOn = false, cardUp = false, shopAsk = false, shop = false, findCard = false, crossing = false } = {}) {
+  if (fight || summary) return 'none';
+  if (walking && !walkingOn && cardUp && !shopAsk && !shop && !findCard && !crossing) return 'resume';
+  return 'back';
+}
+
 // Wires a stack to the page. Returns it (or a switched-off one).
 //   win       window
 //   depth, closeTop   as above

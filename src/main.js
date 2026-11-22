@@ -17,7 +17,7 @@ import { BUILD_STAMP } from './buildstamp.js';
 import { createHomeBase } from './ui/homebase.js';
 import { whenSplashGone, startVisitGreeting } from './visitboot.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
-import { attachBackStack, walkBackAction } from './ui/backstack.js';
+import { attachBackStack, walkBackAction, padBackAction } from './ui/backstack.js';
 import { createGamepad } from './gamepad.js';
 import { createNav } from './gamepadnav.js';
 import { createZoomControl, createWheelStepper, keyZoomDir, zoomActionDir, clampZoomStep, maxZoomStep } from './camzoom.js';
@@ -283,6 +283,11 @@ function init() {
     onMove: (v) => player.setTouchMove(v),
     onOrbit: (dx, dy) => player.addOrbit(dx, dy),
     onAction: (name) => {
+      // The challenge pill (Fight! / Back off) is E and Q on a keyboard: Square and Circle on a pad.
+      if (session?.clanFight?.uiShowing === 'challenge' && (name === 'interact' || name === 'meow')) {
+        session.clanFight.key(name === 'interact' ? 'e' : 'q');
+        return;
+      }
       const zoomDir = zoomActionDir(name);
       if (zoomDir) zoomBy(zoomDir);
       else {
@@ -933,8 +938,15 @@ function init() {
   });
   // The pad's B in a menu: the same one level up as the browser's Back.
   function padBack() {
-    if (tvHooks.back?.()) return; // a TV card (the offer) is the top layer
-    if (!homebase.back()) walkBack();
+    if (tvHooks.back?.()) return; // a TV card (the offer, the letter picker) is the top layer
+    if (homebase.back()) { backStack?.sync?.(); return; }
+    const act = padBackAction({
+      fight: session?.clanFight?.uiShowing === 'fight', summary: summaryUp(), walking: !!session, walkingOn: !!session?.walkingOn,
+      cardUp: !!overlay.querySelector('#btn-resume'), shopAsk: denShop.isAsking, shop: denShop.isOpen, findCard: !!session?.findCard, crossing: !!session?.crossing,
+    });
+    if (act === 'none') return;
+    if (act === 'resume') { player.setTouchEngaged(true); return; }
+    walkBack();
     backStack?.sync?.();
   }
   document.addEventListener('keydown', (e) => {
