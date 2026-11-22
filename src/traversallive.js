@@ -57,7 +57,7 @@
 // =============================================================================
 import {
   BASE_ABILITIES, ALONG_DEAD, SNAP_EASE, TURN_RATE, CAM_FOLLOW_RATE, CAM_TURN_MAX, LOOK_TIME,
-  crossingPoint, crossingToMount, balanceStep, spotFor, planHop, hopAt,
+  crossingPoint, crossingToMount, balanceStep, spotFor, planHop, hopAt, countsAsCrossing,
   stickToWorld, facingYaw, behindYaw, easeYawToward, wrapPi,
 } from './traversal.js';
 
@@ -130,7 +130,7 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
   const crossEvents = new Map();
   for (const c of trav.crossings) {
     mountEvents.set(c, Object.freeze({ type: 'mount', id: c.id }));
-    crossEvents.set(c, Object.freeze({ type: 'cross', id: c.id }));
+    crossEvents.set(c, Object.freeze({ type: countsAsCrossing(c) ? 'cross' : 'stairs', id: c.id }));
   }
   const springEvents = new Map();
   const landEvents = new Map();
@@ -270,7 +270,7 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
     //    while the camera swings round behind her.
     const active = player.inputActive;
     if (!active) controlYaw = null;
-    else if (controlYaw === null) controlYaw = player.viewYaw();
+    else if (controlYaw === null || c.kind === 'stair') controlYaw = player.viewYaw(); // a stair turns with the camera: up is up
     if (active) {
       player.stickInput(stick);
       stickToWorld(stick.x, stick.z, controlYaw, world);
@@ -326,7 +326,11 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
     // 6. The camera eases round behind her, gently; never by itself under
     //    reduced motion.
     if (!reducedMotion && Math.abs(st.v) > 0.1) {
-      player.setViewYaw(easeYawToward(player.viewYaw(), behindYaw(faceX, faceZ), dt, CAM_FOLLOW_RATE, CAM_TURN_MAX));
+      // On a stair the camera looks up it whichever way she walks, so "up" on the stick never flips.
+      const s = c.kind === 'stair' && c.ends[1].y < c.ends[0].y ? -1 : 1;
+      player.setViewYaw(c.kind === 'stair'
+        ? easeYawToward(player.viewYaw(), behindYaw(s * pt.tx, s * pt.tz), dt, CAM_FOLLOW_RATE, CAM_TURN_MAX)
+        : easeYawToward(player.viewYaw(), behindYaw(faceX, faceZ), dt, CAM_FOLLOW_RATE, CAM_TURN_MAX));
     }
     // 7. Hold the player, so player.update keeps her still this frame.
     player.halt();
@@ -390,7 +394,7 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
       return hop ? at.s : 0;
     },
     get pose() {
-      if (crossing) return 'stalk';
+      if (crossing) return crossing.kind === 'stair' ? null : 'stalk';
       if (hop) return at.phase === 'crouch' ? 'stalk' : at.phase === 'air' ? 'pounce' : 'land';
       return looking ? 'follow' : null;
     },
@@ -485,10 +489,11 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
       const parts = cat.userData?.parts;
       const own = parts && cat.userData.breed !== 'hagrid' ? parts : null;
       if (crossing) {
+        const stair = crossing.kind === 'stair'; // a walk: her own gait, tail and balance; only the pitch to the rail
         // The tail held out, swaying.
-        if (own?.tail) own.tail.rotation.x = TAIL_OUT.rootX;
+        if (!stair && own?.tail) own.tail.rotation.x = TAIL_OUT.rootX;
         const pivots = own?.tailPivots;
-        if (pivots) {
+        if (!stair && pivots) {
           for (let i = 0; i < pivots.length; i++) {
             pivots[i].rotation.y = reducedMotion ? 0 : TAIL_OUT.sway * Math.sin(TAIL_OUT.rate * onTime + i * 0.6);
           }
@@ -501,7 +506,7 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
         cat.rotation.order = 'YXZ';
         cat.rotation.x = pitch > RAIL_PITCH_MAX ? RAIL_PITCH_MAX : pitch < -RAIL_PITCH_MAX ? -RAIL_PITCH_MAX : pitch;
         // Now and then, a careful wobble.
-        if (!reducedMotion) {
+        if (!reducedMotion && !stair) {
           const p = onTime % WOBBLE.every;
           if (p < WOBBLE.len) {
             const k = steady ? WOBBLE.steady : 1;
