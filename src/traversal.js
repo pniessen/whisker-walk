@@ -80,7 +80,7 @@ const EPS = 1e-9;
 // ---------------------------------------------------------------------------
 // Building
 
-function buildCrossing({ id, kind, width = 0.3, points }) {
+function buildCrossing({ id, kind, width = 0.3, reach = 0, points }) {
   const segs = [];
   let u = 0;
   for (let i = 0; i + 1 < points.length; i++) {
@@ -104,7 +104,7 @@ function buildCrossing({ id, kind, width = 0.3, points }) {
     Object.freeze({ x: p0.x, z: p0.z, y: p0.y, inX: first.tx, inZ: first.tz }),
     Object.freeze({ x: p1.x, z: p1.z, y: p1.y, inX: -last.tx, inZ: -last.tz }),
   ]);
-  return Object.freeze({ id, kind, width, length: u, segs: Object.freeze(segs), ends });
+  return Object.freeze({ id, kind, width, reach, length: u, segs: Object.freeze(segs), ends });
 }
 
 function apexBase(hop) {
@@ -308,6 +308,8 @@ export function moveAbilities(state) {
 // (how well the push points along it) wins. The end (skipCrossing, skipEnd) is
 // never a candidate. `out` is { crossing, end, u }, with u the cat's place
 // along that end's own segment.
+// A crossing may reach further than MOUNT_R (its `reach`, extra metres, for an end in the
+// middle of a round roof, where a wandering stick meets the rim well off the end).
 export function crossingToMount(trav, x, z, groundY, dirX, dirZ, out, skipCrossing = null, skipEnd = -1) {
   const dl = Math.hypot(dirX, dirZ);
   if (dl < 0.2) return null;
@@ -318,7 +320,7 @@ export function crossingToMount(trav, x, z, groundY, dirX, dirZ, out, skipCrossi
     for (let k = 0; k < 2; k++) {
       const e = c.ends[k];
       const d = Math.hypot(x - e.x, z - e.z);
-      if (d > MOUNT_R) continue;
+      if (d > MOUNT_R + c.reach) continue;
       if (c === skipCrossing && k === skipEnd) continue;
       if (Math.abs(groundY - e.y) > LEVEL_TOL) continue;
       const dot = dirX * e.inX + dirZ * e.inZ;
@@ -346,13 +348,17 @@ export function balanceStep(st, crossing, along, dt, steady) {
   const target = Math.abs(along) < ALONG_DEAD ? 0 : along * max;
   st.v += (target - st.v) * (1 - Math.exp(-BALANCE_EASE * dt));
   st.u += st.v * dt;
+  // Edge grace: on a crossing with a `reach` a push off an end must be firmer
+  // than `reach` m/s (target is the push times the walk's speed) to step off,
+  // so a wandering stick that grazes the end does not do it (reach is 0 on
+  // every other crossing: any push off steps off).
   if (st.u <= 0) {
     st.u = 0;
-    if (target < 0) return 0;
+    if (target < -crossing.reach) return 0;
     st.v = 0;
   } else if (st.u >= crossing.length) {
     st.u = crossing.length;
-    if (target > 0) return 1;
+    if (target > crossing.reach) return 1;
     st.v = 0;
   }
   return null;
@@ -427,22 +433,15 @@ export function hopAt(plan, elapsed, out) {
     out.s = s;
     out.onGround = false;
     out.tau = w;
-  } else if (e < plan.total) {
-    out.x = hop.x1;
-    out.y = hop.y1;
-    out.z = hop.z1;
-    out.phase = 'land';
-    out.s = 1;
-    out.onGround = true;
-    out.tau = (e - plan.crouch - plan.air) / plan.land;
   } else {
+    const done = e >= plan.total;
     out.x = hop.x1;
     out.y = hop.y1;
     out.z = hop.z1;
-    out.phase = 'done';
+    out.phase = done ? 'done' : 'land';
     out.s = 1;
     out.onGround = true;
-    out.tau = 1;
+    out.tau = done ? 1 : (e - plan.crouch - plan.air) / plan.land;
   }
   return out;
 }
@@ -483,11 +482,7 @@ export function wrapPi(a) {
 // Turn `cur` toward `target` the short way: a share of the gap, at most
 // max rad/s.
 export function easeYawToward(cur, target, dt, rate, max) {
-  const TWO_PI = Math.PI * 2;
-  let d = (target - cur) % TWO_PI;
-  if (d > Math.PI) d -= TWO_PI;
-  else if (d < -Math.PI) d += TWO_PI;
-  let step = d * (1 - Math.exp(-rate * dt));
+  let step = wrapPi(target - cur) * (1 - Math.exp(-rate * dt));
   const cap = max * dt;
   if (step > cap) step = cap;
   else if (step < -cap) step = -cap;
