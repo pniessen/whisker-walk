@@ -352,3 +352,64 @@ describe('scroll', () => {
     expect(nav.scroll(0, 20)).toBe(false); expect(wrap.scrollBy).not.toHaveBeenCalled();
   });
 });
+
+describe('scroll: real scrollers only', () => {
+  const box = (o) => { const b = pad('div', 0, 0); Object.assign(b, { scrollWidth: 100, clientWidth: 100, scrollHeight: 50, clientHeight: 50, scrollBy: vi.fn(), parentElement: null }, o); return b; };
+  const setup = (chain, styles) => {
+    const a = pad('button', 0, 0);
+    let child = a;
+    chain.forEach((n) => { child.parentElement = n; child = n; });
+    const { doc } = world([a]); doc.activeElement = a;
+    doc.defaultView.getComputedStyle = (n) => styles.get(n) ?? { overflowX: 'visible', overflowY: 'visible' };
+    return { a, doc, nav: createNav({ doc, back: () => false }) };
+  };
+  it('overflow:visible with overflowing content is skipped for an auto ancestor above', () => {
+    const vis = box({ scrollHeight: 300 }); const auto = box({ scrollHeight: 300 });
+    const { nav } = setup([vis, auto], new Map([[auto, { overflowY: 'auto', overflowX: 'hidden' }]]));
+    expect(nav.scroll(0, 20)).toBe(true);
+    expect(vis.scrollBy).not.toHaveBeenCalled();
+    expect(auto.scrollBy).toHaveBeenCalledWith({ left: 0, top: 20 });
+  });
+  it('an auto ancestor with nothing to scroll is skipped', () => {
+    const flat = box({}); 
+    const { nav, doc } = setup([flat], new Map([[flat, { overflowY: 'auto', overflowX: 'auto' }]]));
+    doc.scrollingElement = null; doc.documentElement = null;
+    expect(nav.scroll(0, 20)).toBe(false);
+    expect(flat.scrollBy).not.toHaveBeenCalled();
+  });
+  it('falls back to the document scrolling element', () => {
+    const vis = box({ scrollHeight: 300 }); const root = box({ scrollHeight: 900, clientHeight: 400 });
+    const { nav, doc } = setup([vis], new Map());
+    doc.scrollingElement = root;
+    expect(nav.scroll(0, 20)).toBe(true);
+    expect(vis.scrollBy).not.toHaveBeenCalled();
+    expect(root.scrollBy).toHaveBeenCalledWith({ left: 0, top: 20 });
+  });
+  it('scroll calls onActive', () => {
+    const a = pad('button', 0, 0); const { doc } = world([a]);
+    const onActive = vi.fn(); createNav({ doc, back: () => false, onActive }).scroll(5, 0);
+    expect(onActive).toHaveBeenCalled();
+  });
+});
+
+describe('cycleSelect skips unusable options; observer hygiene', () => {
+  const sel = (opts, i) => { const s = pad('select', 0, 0); s.options = opts; s.selectedIndex = i; s.ownerDocument = { defaultView: { Event: FakeEvent } }; return s; };
+  it('skips disabled and hidden options, wrapping', () => {
+    const s = sel([{}, { disabled: true }, { hidden: true }, {}], 0);
+    expect(cycleSelect(s)).toBe(true); expect(s.selectedIndex).toBe(3);
+    cycleSelect(s); expect(s.selectedIndex).toBe(0);
+  });
+  it('a single enabled option: no change', () => {
+    const s = sel([{}, { disabled: true }], 0);
+    expect(cycleSelect(s)).toBe(false); expect(s.dispatchEvent).not.toHaveBeenCalled();
+  });
+  it('observer is filtered and destroy() disconnects it', () => {
+    const { doc } = world([pad('button', 0, 0)]);
+    doc.documentElement = el('html');
+    const seen = {};
+    doc.defaultView.MutationObserver = class { observe(r, o) { seen.o = o; } disconnect() { seen.off = true; } };
+    createNav({ doc, back: () => false }).destroy();
+    expect(seen.o.attributeFilter).toEqual(['class', 'hidden', 'inert', 'disabled', 'tabindex', 'style']);
+    expect(seen.off).toBe(true);
+  });
+});

@@ -58,10 +58,15 @@ export function nudgeRange(el, dir) {
 // Select: next option, wrapping; no native list opens.
 export function cycleSelect(el) {
   const n = el.options.length;
-  if (n < 2) return false;
-  el.selectedIndex = (el.selectedIndex + 1) % n;
-  fire(el, 'change');
-  return true;
+  for (let i = 1; i < n; i++) {
+    const at = (el.selectedIndex + i) % n;
+    const o = el.options[at];
+    if (o.disabled || o.hidden) continue;
+    el.selectedIndex = at;
+    fire(el, 'change');
+    return true;
+  }
+  return false;
 }
 
 // HTML elements click once; SVG / role=button nodes have no click(), so they
@@ -81,13 +86,14 @@ export function createNav({ doc, back, onActive }) {
   let last = null; // centre of the last focused element
   const MO = doc.defaultView?.MutationObserver ?? globalThis.MutationObserver;
   const root = doc.documentElement ?? doc.body;
-  if (MO && root) new MO(() => { cache = null; }).observe(root, { childList: true, subtree: true, attributes: true });
+  const mo = MO && root ? new MO(() => { cache = null; }) : null;
+  mo?.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'inert', 'disabled', 'tabindex', 'style'] });
 
   const view = () => {
     const layer = topLayer(doc);
     if (!layer) return { layer, list: [] };
     if (!cache || cache.layer !== layer) cache = { layer, list: candidates(layer) };
-    if (!MO) { const list = cache.list; cache = null; return { layer, list }; }
+    if (!mo) { const list = cache.list; cache = null; return { layer, list }; }
     return cache;
   };
   const focusEl = (el) => {
@@ -137,17 +143,28 @@ export function createNav({ doc, back, onActive }) {
       const { list } = view();
       return current(list) ? false : entry(list);
     },
+    destroy() { mo?.disconnect?.(); cache = null; },
     scroll(dx, dy) {
       if (!dx && !dy) return false;
+      onActive?.();
       const { layer, list } = view();
       const cur = current(list);
-      const cs = doc.defaultView?.getComputedStyle?.bind(doc.defaultView);
-      const free = (o) => !cs || !/hidden|clip/.test(o);
-      for (let n = cur ? cur.parentElement : layer; n; n = n.parentElement) {
+      const win = doc.defaultView;
+      const cs = win?.getComputedStyle?.bind(win);
+      const real = (o) => !cs || /auto|scroll/.test(o);
+      const test = (n) => {
         const st = cs ? cs(n) : {};
-        const x = dx && n.scrollWidth > n.clientWidth && free(st.overflowX || '');
-        const y = dy && n.scrollHeight > n.clientHeight && free(st.overflowY || '');
+        return { x: dx && n.scrollWidth > n.clientWidth && real(st.overflowX || ''), y: dy && n.scrollHeight > n.clientHeight && real(st.overflowY || '') };
+      };
+      for (let n = cur ? cur.parentElement : layer; n; n = n.parentElement) {
+        const { x, y } = test(n);
         if (x || y) { n.scrollBy({ left: x ? dx : 0, top: y ? dy : 0 }); return true; }
+      }
+      const root = doc.scrollingElement ?? doc.documentElement;
+      if (root) {
+        const x = dx && root.scrollWidth > root.clientWidth;
+        const y = dy && root.scrollHeight > root.clientHeight;
+        if (x || y) { (root.scrollBy ?? win.scrollBy).call(root.scrollBy ? root : win, { left: x ? dx : 0, top: y ? dy : 0 }); return true; }
       }
       return false;
     },
