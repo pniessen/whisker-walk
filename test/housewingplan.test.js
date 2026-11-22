@@ -166,8 +166,8 @@ describe('the east wing: zones', () => {
     expect(stairAt(34, 7)).toBe('wing');
   });
 
-  it('the joins sit on the openings, and a joined zone is drawn only within ZONE_NEAR (2 m)', () => {
-    expect(ZONE_NEAR).toBe(2);
+  it('the joins sit on the openings, and a joined zone is drawn only within ZONE_NEAR (5 m)', () => {
+    expect(ZONE_NEAR).toBe(5);
     expect(ZONE_LEAVE).toBeGreaterThan(ZONE_NEAR);
     expect(WING_JOINS.filter((j) => !j.outside).map((j) => [j.a, j.b])).toEqual([['ground', 'living'], ['living', 'sun'], ['sun', 'kids'], ['kids', 'bath']]);
     expect(WING_JOINS[0].keep).toEqual(['parlour']); // beside the wing, the old ground keeps only the parlour in full

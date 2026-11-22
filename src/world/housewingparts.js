@@ -239,7 +239,7 @@ export const WING_FLAT_BUILDERS = {
   },
 };
 
-// A zone's far look: one plain box per room and one wedge per stair, 12 and 8 triangles, one mesh,
+// A zone's far look: one open box per room (walls and a floor, no roof) and one wedge per stair, 10 and 12 triangles, one mesh,
 // no shadows (at most 120 triangles in all). `boxes`: [{ minX, maxX, minZ, maxZ, y0, y1, color }];
 // `wedges`: a stair along x as a ramp over a solid, [{ x0, x1, z, width, y0, y1, base, color }]
 // (its top rises from y0 at x0 to y1 at x1, its underside at `base`).
@@ -252,12 +252,23 @@ export function boxStandInMesh(zone, boxes, wedges = []) {
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     return g;
   };
+  // a room: four walls (outward faces) and a floor, no roof, so a camera above or inside it sees an
+  // empty room, never a lid over the cat (10 triangles)
   const geos = boxes.map((b) => {
-    const g = new THREE.BoxGeometry(b.maxX - b.minX, b.y1 - b.y0, b.maxZ - b.minZ);
-    g.translate((b.minX + b.maxX) / 2, (b.y0 + b.y1) / 2, (b.minZ + b.maxZ) / 2);
-    g.deleteAttribute('uv');
-    return withColor(g, b.color);
-  });
+    const box = new THREE.BoxGeometry(b.maxX - b.minX, b.y1 - b.y0, b.maxZ - b.minZ);
+    const idx = box.index.array;
+    const keep = [];
+    for (const g of box.groups) if (g.materialIndex !== 2 && g.materialIndex !== 3) for (let i = g.start; i < g.start + g.count; i++) keep.push(idx[i]);
+    box.setIndex(keep);
+    box.clearGroups();
+    box.translate((b.minX + b.maxX) / 2, (b.y0 + b.y1) / 2, (b.minZ + b.maxZ) / 2);
+    box.deleteAttribute('uv');
+    const floor = new THREE.PlaneGeometry(b.maxX - b.minX, b.maxZ - b.minZ);
+    floor.rotateX(-Math.PI / 2);
+    floor.translate((b.minX + b.maxX) / 2, b.floorY ?? b.y0, (b.minZ + b.maxZ) / 2);
+    floor.deleteAttribute('uv');
+    return [withColor(box, b.color), withColor(floor, b.floorColor ?? b.color)];
+  }).flat();
   for (const w of wedges) {
     const za = w.z - w.width / 2;
     const zb = w.z + w.width / 2;

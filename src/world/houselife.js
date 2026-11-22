@@ -235,7 +235,7 @@ export function createHouseLife(scene, house, {
     lid?.look(view);
     sink.settle(view);
     lid?.settle(sink);
-    drawing.settle(floorY(catPos), catPos.x, catPos.z);
+    drawing.settle(floorY(catPos), catPos.x, catPos.z, camera.position.x, camera.position.z);
     write();
     air.update(0, 0, drawing.full);
     holdFades(catPos, camera.position);
@@ -258,7 +258,7 @@ export function createHouseLife(scene, house, {
       lid?.look(view);
       sink.update(dt, view);
       lid?.update(dt, sink);
-      drawing.update(floorY(catPos), catPos.x, catPos.z);
+      drawing.update(floorY(catPos), catPos.x, catPos.z, camera.position.x, camera.position.z);
       write();
       air.update(dt, t, drawing.full);
       finds.update(dt, t, catPos, camera.position, partners); // after the camera's move: the bookcase's fade hold

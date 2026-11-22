@@ -131,11 +131,11 @@ export const WING_ZONES = freeze([
   freeze({ id: 'kids', level: 'upstairs', rooms: freeze(['kids']) }),
   freeze({ id: 'bath', level: 'upstairs', rooms: freeze(['bath']) }),
 ]);
-// A joined zone is drawn in full only while she is within ZONE_NEAR of the way into it (or in
-// it). The old worst spot has only 2.5k triangles of headroom (Task 1 of the plan), so 2 m,
-// not 5: the doorway, not the room beyond it.
-export const ZONE_NEAR = 2;
-export const ZONE_LEAVE = 2.6; // m: it stays drawn until she is this far (no flicker at the line)
+// A joined zone is drawn in full only while she (or the camera) is within ZONE_NEAR of the way into it,
+// or in it, the design's 5 m. With a zone a room and the old ground kept for just the parlour, the
+// worst spot with three zones drawn is still under the house's 70,000 (test/housebudget.test.js).
+export const ZONE_NEAR = 5;
+export const ZONE_LEAVE = 6; // m: it stays drawn until she is this far (no flicker at the line)
 export const OUT_NEAR = 5; // m: out on the lawn, a wing room is drawn within this of its walls
 export const OUT_LEAVE = 6;
 // Each join: the two zones, and the opening as a rectangle (centre, half-extents): a doorway, or the

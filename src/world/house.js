@@ -361,7 +361,7 @@ function furnish(scene, material, start, traversal) {
   for (const z of HOUSE_ZONES.filter((q) => q.wing)) {
     const boxes = HOUSE_ROOMS.filter((r) => r.zone === z.id).map((r) => ({
       minX: r.minX - WALL_T / 2, maxX: r.maxX + WALL_T / 2, minZ: r.minZ - WALL_T / 2, maxZ: r.maxZ + WALL_T / 2,
-      y0: LAWN_Y, y1: levelY(r.level) + WING_BOX_H, // from the lawn: it stands where the brick skirt is hidden color: WING_BOX_COLOR[r.id] ?? 0xcdb98e,
+      y0: LAWN_Y, y1: levelY(r.level) + WING_BOX_H, floorY: levelY(r.level) + 0.01, // from the lawn: it stands where the brick skirt is hidden color: WING_BOX_COLOR[r.id] ?? 0xcdb98e,
     }));
     const wedges = HOUSE_STAIRS.filter((st) => st.id === 'wing' && z.id === 'sun').map((st) => ({
       x0: st.x0, x1: st.x1, z: st.z0, width: st.width, y0: levelY(st.from), y1: levelY(st.to), base: LAWN_Y, color: 0xb0a090,

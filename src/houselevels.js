@@ -34,6 +34,7 @@ export function fullLevels(id, links) {
 }
 
 const EMPTY = new Set();
+const SWITCH = 1; // m: a nearer join takes over from the one on only when it is this much nearer
 
 // Metres from (x, z) to the rectangle centred (jx, jz), half-extents hx, hz (0 inside it).
 function distToJoin(j, x, z) {
@@ -47,7 +48,8 @@ function distToJoin(j, x, z) {
 // near, leave } and is optional: without it (or without a position) the drawing is the old one,
 // by her paws' height alone, byte for byte.
 //   - a wing zone she is in is drawn in full, and so is a zone joined to it while she is within
-//     `near` of the way in (it stays on until `leave`, so the line never flickers);
+//     `near` of the way in (it stays on until `leave`, so the line never flickers); the camera counts
+//     as her here, so a room the camera hangs in (the cut-away, Farther) is drawn, never a tray under it;
 //   - from an old level the only join is the parlour's east doorway: the wing zone beyond it is
 //     drawn while she is near it, and then only her own level (not the levels its stairs join),
 //     so the old house's worst spot never grows;
@@ -106,20 +108,31 @@ export function createLevelDrawing(scene, { levels, links, start, wing = null })
     for (const o of simples) o.visible = !full.has(o.userData.houseSimple) || partial.get(o.userData.houseSimple)?.length === 0;
     for (const o of fars) o.visible = (partial.get(o.userData.houseFar)?.length ?? 0) > 0;
   };
-  // which joins of zone `id` are near (a on-state stays until `leave`)
-  function nearJoins(id, x, z) {
-    let changed = false;
+  // The one join of zone `id` that is near: the nearest within `near` (or, for the one already on, within
+  // `leave`), and the one already on keeps it until another is SWITCH nearer. At most one zone beside hers
+  // is drawn (the budget: her room, the nearest room, the old parlour at most). Returns whether it changed.
+  function nearJoins(id, x, z, cx, cz) {
     const out = wing.outdoors ? wing.outdoors(x, z) : false;
+    let best = null;
+    let bestD = Infinity;
+    let cur = null;
+    let curD = Infinity;
     for (const j of wing.joins) {
       // an outside join counts only while she is out on the lawn
-      if ((j.a !== id && j.b !== id) || (j.outside && !out)) { if (on.delete(j.id)) changed = true; continue; }
-      const d = distToJoin(j, x, z);
-      if (on.has(j.id) ? d > (j.leave ?? wing.leave) : d <= (j.near ?? wing.near)) {
-        if (on.has(j.id)) on.delete(j.id); else on.add(j.id);
-        changed = true;
-      }
+      if ((j.a !== id && j.b !== id) || (j.outside && !out)) continue;
+      const d = hasCam(cx, cz) ? Math.min(distToJoin(j, x, z), distToJoin(j, cx, cz)) : distToJoin(j, x, z);
+      const was = on.has(j.id);
+      if (d > (was ? (j.leave ?? wing.leave) : (j.near ?? wing.near))) continue;
+      if (was && d < curD) { cur = j; curD = d; }
+      if (d < bestD) { best = j; bestD = d; }
     }
-    return changed;
+    const pick = cur && (!best || curD <= bestD + SWITCH) ? cur : best;
+    const was = on.size ? [...on][0] : null;
+    const now = pick ? pick.id : null;
+    if (was === now && on.size <= 1) return false;
+    on.clear();
+    if (now) on.add(now);
+    return true;
   }
   const nearest = (pawsY) => {
     let best = levels[0];
@@ -127,10 +140,11 @@ export function createLevelDrawing(scene, { levels, links, start, wing = null })
     return best.id;
   };
   const hasPos = (x, z) => wing && typeof x === 'number' && typeof z === 'number';
+  const hasCam = (cx, cz) => typeof cx === 'number' && typeof cz === 'number';
   apply(start);
 
   return {
-    update(pawsY, x, z) {
+    update(pawsY, x, z, cx, cz) {
       if (!hasPos(x, z)) {
         const id = nextLevel(current, pawsY, levels);
         if (id !== current) apply(id);
@@ -139,15 +153,15 @@ export function createLevelDrawing(scene, { levels, links, start, wing = null })
       const wz = wing.zoneAt(x, z);
       // out of the wing she is on the level her paws are on (they are at a floor's height)
       const id = wz ?? (wing.isWing(current) ? nearest(pawsY) : nextLevel(current, pawsY, levels));
-      const changed = nearJoins(id, x, z);
+      const changed = nearJoins(id, x, z, cx, cz);
       if (id !== current || changed) apply(id);
     },
     // The start of a walk (final fix F1): the level whose floor is nearest her paws, at once,
     // with no 0.3 m hold, so a walk picked up in the attic opens on the attic drawn in full.
-    settle(pawsY, x, z) {
+    settle(pawsY, x, z, cx, cz) {
       const wz = hasPos(x, z) ? wing.zoneAt(x, z) : null;
       const id = wz ?? nearest(pawsY);
-      const changed = hasPos(x, z) ? nearJoins(id, x, z) : false;
+      const changed = hasPos(x, z) ? nearJoins(id, x, z, cx, cz) : false;
       if (id !== current || changed) apply(id);
     },
     get current() { return current; },

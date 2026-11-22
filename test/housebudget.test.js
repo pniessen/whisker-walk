@@ -208,6 +208,8 @@ describe('the east wing\'s zones', () => {
     bath: { triangles: 2300, meshes: 17, casters: 10 },
   };
   // her zone and the zone joined to it that is near: the parlour's door, the living room's door to the solarium, the stair, the bathroom door
+  // (houselevels.js draws her zone and at most the one joined zone nearest her, so a spot is two rooms, the old ground kept for
+  // the parlour alone at the door, or the old ground kept for no room out on the lawn)
   const SPOTS = [['living', []], ['living', ['ground']], ['living', ['sun']], ['sun', []], ['sun', ['living']], ['sun', ['kids']],
     ['kids', []], ['kids', ['sun']], ['kids', ['bath']], ['bath', []], ['bath', ['kids']]];
   // the old house's worst spot before the wing, with Mochi (measured at the start of the wing's build, main 7a0e6f70)
@@ -236,7 +238,7 @@ describe('the east wing\'s zones', () => {
         const s = m.atZone(zone, near);
         if (process.env.BUDGET_LOG) console.log(light, 'wing spot', zone, near.join('+'), JSON.stringify(s));
         expect(s.triangles, `${zone}+${near}`).toBeLessThanOrEqual(63000);
-        expect(s.meshes, `${zone}+${near}`).toBeLessThanOrEqual(340); // the design said 330: two rooms' wall sections (a mesh each, so they can sink), air, glow and marks come to 333 to 335
+        expect(s.meshes, `${zone}+${near}`).toBeLessThanOrEqual(340); // the design said 330: each room's wall sections are a mesh each (so they can sink), and air, glow and marks come to 338 with two rooms
         expect(s.casters, `${zone}+${near}`).toBeLessThanOrEqual(190);
       }
     }, 60_000);
