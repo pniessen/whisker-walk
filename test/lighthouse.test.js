@@ -45,7 +45,7 @@ describe('the record', () => {
     expect(area.waters.map((w) => w.id)).toEqual(['sea', 'sea-west', 'pool-1', 'pool-2', 'pool-3', 'pool-4', 'pool-5', 'pool-6']);
     expect(area.evening).toBe(true);
     expect(area.ground.y(-20, -10)).toBe(6);
-    expect(area.traversal).toBeUndefined(); // no moves until milestone 2: the moves runtime stays out of the walk
+    expect(area.traversal.crossings).toHaveLength(4); // milestone 2: the stair's three flights and the railing walk
     expect(area.skyDusk.top).toBeTypeOf('number');
     expect(area.duskLight.fogFar).toBeGreaterThan(area.duskLight.fogNear);
   });
@@ -54,14 +54,15 @@ describe('the record', () => {
     expect(area.moments).toEqual([]);
   });
   it('the seas are drawn from the declared footprints', () => {
-    const slabs = area.waterFx.map((h) => h.mesh.geometry.parameters);
-    expect(slabs[0].width).toBe(P.SEA_EAST.maxX - P.SEA_EAST.minX);
-    expect(slabs[1].width).toBe(P.SEA_WEST.maxX - P.SEA_WEST.minX);
+    // (the west sea has an island under each stack, so its surface is a shape with holes, not a plain slab)
+    const widths = area.waterFx.map((h) => { h.mesh.geometry.computeBoundingBox(); const b = h.mesh.geometry.boundingBox; return b.max.x - b.min.x; });
+    expect(widths[0]).toBeCloseTo(P.SEA_EAST.maxX - P.SEA_EAST.minX, 6);
+    expect(widths[1]).toBeCloseTo(P.SEA_WEST.maxX - P.SEA_WEST.minX, 6);
     expect(area.waterFx[0].mesh.position.x).toBeCloseTo((P.SEA_EAST.minX + P.SEA_EAST.maxX) / 2, 6);
     expect(area.waterFx[1].mesh.position.x).toBeCloseTo((P.SEA_WEST.minX + P.SEA_WEST.maxX) / 2, 6);
   });
   it('each tippable carries its own look', () => {
-    expect(area.tippables).toHaveLength(5);
+    expect(area.tippables).toHaveLength(6); // two crab pots, a bucket, a crate, a bin and (milestone 2) the lamp lever
     for (const t of area.tippables) {
       expect(typeof t.build).toBe('function');
       expect(t.build().children.length).toBeGreaterThan(0);

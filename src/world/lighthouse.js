@@ -103,6 +103,7 @@ export function build(scene, { water = {}, wind } = {}) {
       duskLight: { ...DUSK_LIGHT },
       evening: true,
       ground: plan.ground,
+      traversal: plan.traversal,
     };
   });
 }

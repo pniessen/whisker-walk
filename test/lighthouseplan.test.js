@@ -101,9 +101,9 @@ describe('the spots', () => {
       }
     });
   }
-  it('five collectibles, three scenics, and ids that are unique', () => {
+  it('five collectibles, five scenics, and ids that are unique', () => {
     expect(area.collectibles).toHaveLength(5);
-    expect(area.scenics.map((s) => s.id)).toEqual(['lighthouse-cave', 'lighthouse-pools', 'lighthouse-cottage']);
+    expect(area.scenics.map((s) => s.id)).toEqual(['lighthouse-cave', 'lighthouse-pools', 'lighthouse-cottage', 'lighthouse-gallery', 'lighthouse-gullrock']);
     const ids = [...area.collectibles, ...area.scenics].map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -168,18 +168,21 @@ describe('walking it', () => {
     const { x, z } = L.TOWER;
     for (let a = 0; a < 360; a += 15) {
       const r = (d) => [x + d * Math.cos((a * Math.PI) / 180), z + d * Math.sin((a * Math.PI) / 180)];
-      // inside the shaft's collider she cannot be; in the skirt (r 3.95 to 4.6) the ground is the gallery, a wall
-      expect(area.ground.canStep(...r(5.2), ...r(4.3)), `${a} deg`).toBe(false);
+      // in the skirt (r 3.95 to 4.6) the ground is the gallery, a wall: nothing steps up to it from the plateau
+      // (milestone 2: but for the stair's top ledge, which stands at the gallery's own level)
       expect(area.ground.y(...r(4.3))).toBe(13.5);
-      expect(area.ground.y(...r(5.2))).toBe(6);
+      if (Math.abs(a - L.STAIR_TOP_DEG) < 20) continue;
+      expect(area.ground.canStep(...r(5.2), ...r(4.3)), `${a} deg`).toBe(false);
+      expect(area.ground.y(...r(5.2)), `${a} deg`).toBeLessThan(13);
     }
     // the stair's foot (milestone 2's, radius 5.2, 45 degrees from the tower) is open ground
     const foot = [x + 5.2 * Math.cos(Math.PI / 4), z + 5.2 * Math.sin(Math.PI / 4)];
     expect(standable(...foot)).toBe(true);
     expect(reached.near(...foot, 0.5)).toBe(true);
   });
-  it('the gallery is not reached in this milestone (the stair is milestone 2\'s)', () => {
+  it('the gallery is not reached on foot: the stair is a rail (milestone 2, test/lighthousestair.test.js)', () => {
     expect(reached.near(L.TOWER.x + 4.2, L.TOWER.z, 0.4)).toBe(false);
+    expect(reached.near(L.LANDINGS[3].x, L.LANDINGS[3].z, 0.4)).toBe(false);
   });
 });
 
@@ -207,6 +210,10 @@ describe('the data', () => {
     const { PLATEAU, CAVE } = L;
     expect(PLATEAU.minX).toBeGreaterThan(area.bounds.minX);
     expect(CAVE.minX).toBeGreaterThanOrEqual(PLATEAU.minX);
-    expect(shallowExcess(area.waters, L.GULL_ROCK.x, L.GULL_ROCK.z)).toBeGreaterThan(0);
+    // the stacks are islands in the west sea: dry on top, deep water all round (Long Leap and a base leap reach them)
+    for (const k of [L.GULL_ROCK, L.PINNACLE]) {
+      expect(inWater(area.waters, k.x, k.z)).toBe(false);
+      expect(shallowExcess(area.waters, k.x - k.land - 3, k.z)).toBeGreaterThan(0); // the open sea beyond
+    }
   });
 });

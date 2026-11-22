@@ -30,7 +30,9 @@ import { BASE_CLIMB_BUDGET, SPRING_PAWS_CLIMB, climbBudget } from './climbing.js
 import { hasSkill } from './skills.js';
 
 // 'stair' (Lighthouse): a flight of rail she WALKS (normal pace and pose, no balance, not a
-// feat), listed from its lower end up. Every other kind is a balance walk.
+// feat), listed from its lower end up. Every other kind is a balance walk. A crossing with `follow`
+// (a stair always; the gallery's curved railing walk) turns the held stick with the camera, so a thumb
+// held "up" follows the rail round; the Rooftops' straight crossings keep the world direction they were pushed in.
 export const CROSSING_KINDS = Object.freeze(['plank', 'ridge', 'gutter', 'line', 'pipe', 'stair']);
 export const STAIR_SPEED = 2.4; // m/s
 export const countsAsCrossing = (c) => c.kind !== 'stair';
@@ -84,7 +86,7 @@ const EPS = 1e-9;
 // ---------------------------------------------------------------------------
 // Building
 
-function buildCrossing({ id, kind, width = 0.3, reach = 0, points }) {
+function buildCrossing({ id, kind, width = 0.3, reach = 0, follow = false, points }) {
   const segs = [];
   let u = 0;
   for (let i = 0; i + 1 < points.length; i++) {
@@ -108,7 +110,7 @@ function buildCrossing({ id, kind, width = 0.3, reach = 0, points }) {
     Object.freeze({ x: p0.x, z: p0.z, y: p0.y, inX: first.tx, inZ: first.tz }),
     Object.freeze({ x: p1.x, z: p1.z, y: p1.y, inX: -last.tx, inZ: -last.tz }),
   ]);
-  return Object.freeze({ id, kind, width, reach, length: u, segs: Object.freeze(segs), ends });
+  return Object.freeze({ id, kind, width, reach, follow: follow || kind === 'stair', length: u, segs: Object.freeze(segs), ends });
 }
 
 function apexBase(hop) {

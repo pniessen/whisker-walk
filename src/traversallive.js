@@ -270,7 +270,7 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
     //    while the camera swings round behind her.
     const active = player.inputActive;
     if (!active) controlYaw = null;
-    else if (controlYaw === null || c.kind === 'stair') controlYaw = player.viewYaw(); // a stair turns with the camera: up is up
+    else if (controlYaw === null || c.follow) controlYaw = player.viewYaw(); // a stair turns with the camera: up is up
     if (active) {
       player.stickInput(stick);
       stickToWorld(stick.x, stick.z, controlYaw, world);

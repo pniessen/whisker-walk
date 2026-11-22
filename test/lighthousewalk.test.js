@@ -81,11 +81,11 @@ describe('the real player on Lighthouse Point', () => {
     expect(w.cat.position.y).toBe(6);
   });
 
-  it('cannot walk through the tower: walking at it stops at its collider, still on the plateau', () => {
+  it('cannot walk through the tower: walking at it stops at the gallery\'s wall, still on the plateau', () => {
     const w = walker([-22, -8], [0, -1]);
     w.step(8);
     const d = Math.hypot(w.cat.position.x - P.TOWER.x, w.cat.position.z - P.TOWER.z);
-    expect(d).toBeGreaterThanOrEqual(P.TOWER.collider + 0.3);
+    expect(d).toBeGreaterThanOrEqual(P.TOWER.gallery); // the 7.5 m rim of the gallery's disc
     expect(w.cat.position.y).toBe(6);
   });
 
