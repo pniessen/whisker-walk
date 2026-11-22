@@ -106,6 +106,18 @@ export function lazyProblems(manifest, entryModules = AREA_ENTRY_MODULES) {
   return out;
 }
 
+// TV mode (src/tv/) is one lazy chunk, loaded only when the TV switch is on.
+// It must never fold into start-up, and has its own ceiling.
+export const TV_ENTRY_MODULES = { tv: ['src/tv/index.js'] };
+export const TV_GZIP_CEILING_KB = 30;
+
+/** Files the TV chunk downloads on top of start-up: its scripts and its stylesheet. */
+export function tvDownloads(manifest) {
+  const files = new Set(areaDownloads(manifest, TV_ENTRY_MODULES).tv ?? []);
+  for (const m of TV_ENTRY_MODULES.tv) for (const c of manifest[m]?.css ?? []) files.add(c);
+  return [...files];
+}
+
 const gzipOf = (dir, file) => gzipSync(readFileSync(join(dir, file))).length;
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
@@ -114,7 +126,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   writeFileSync(join(dir, 'build.json'), JSON.stringify(buildInfo()) + '\n');
   console.log(`wrote ${dir}/build.json`);
   const manifest = JSON.parse(readFileSync(join(dir, '.vite', 'manifest.json'), 'utf8'));
-  const problems = lazyProblems(manifest);
+  const problems = [...lazyProblems(manifest), ...lazyProblems(manifest, TV_ENTRY_MODULES)];
   const start = startupFiles(manifest);
   const startBytes = start.reduce((n, f) => n + gzipOf(dir, f), 0);
   const startProblem = sizeProblem(startBytes);
@@ -122,8 +134,11 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   const kb = Object.fromEntries(Object.entries(areaDownloads(manifest))
     .map(([id, fs]) => [id, fs.reduce((n, f) => n + gzipOf(dir, f), 0) / 1000]));
   problems.push(...areaSizeProblems(kb));
+  const tvKb = tvDownloads(manifest).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000;
+  problems.push(...areaSizeProblems({ tv: tvKb }, TV_GZIP_CEILING_KB));
   console.log(`start-up ${(startBytes / 1000).toFixed(1)} kB gzipped (ceiling ${MAIN_GZIP_CEILING_KB} kB), ${start.length} files`);
   for (const [id, v] of Object.entries(kb)) console.log(`  ${id.padEnd(13)} ${v.toFixed(1)} kB gzipped (ceiling ${AREA_GZIP_CEILING_KB} kB)`);
+  console.log(`  tv chunk      ${tvKb.toFixed(1)} kB gzipped (ceiling ${TV_GZIP_CEILING_KB} kB)`);
   if (problems.length) {
     for (const p of problems) console.error(`\n✗ ${p}`);
     process.exit(1);

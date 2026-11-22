@@ -16,10 +16,11 @@
 // stood elsewhere. Every spot that changed is re-placed in the running den at
 // once (game/denlive.js), without restarting the walk.
 import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
-import { renderDenShopHtml, changedSpots, SPOT_LABEL } from './denshop.js';
+import { renderDenShopHtml, changedSpots, spotChoices, SPOT_LABEL } from './denshop.js';
 import { applyDenSpot } from '../game/denlive.js';
 import { bus as gameBus } from '../events.js';
 import { createConfirmCard, spendAsk } from './confirmcard.js';
+import { tvState, tvHooks, padHtml, onTv } from '../tvseam.js';
 
 /**
  * createDenShopView({ hud, progression, sync, player, getSession, pause, resume,
@@ -58,7 +59,12 @@ export function createDenShopView({
   const hint = doc.createElement('div');
   hint.setAttribute('id', 'den-shop-hint');
   hint.className = 'den-shop-hint';
-  hint.textContent = 'Press Esc, then 🛋️ Den shop to decorate';
+  const sayHint = () => {
+    const p = tvState.input === 'pad' && padHtml(tvState.padLine?.('pad.den.hint') ?? '');
+    if (p) hint.innerHTML = p; else hint.textContent = 'Press Esc, then 🛋️ Den shop to decorate';
+  };
+  sayHint();
+  onTv(sayHint); // TV mode: the pad's words while the pad is the input
   mountRoot.appendChild(hint);
 
   let active = false;
@@ -80,10 +86,30 @@ export function createDenShopView({
     blocked: () => !open,
   });
 
+  // TV mode: a spot's piece is chosen from a list card (src/tv/spotlist.js), never by cycling a select blind.
+  const listOn = () => tvState.on && typeof tvHooks.list === 'function';
+  let listBusy = false;
+  async function chooseForSpot(spotId) {
+    if (listBusy || !listOn()) return;
+    listBusy = true;
+    let pick = null;
+    try {
+      const none = tvState.padLine?.('pad.spot.none') ?? '';
+      pick = await tvHooks.list({
+        doc, mount: (el) => { el.classList?.add('ds-confirm'); el.addEventListener('keydown', (e) => e.stopPropagation()); mountRoot.appendChild(el); },
+        titleId: 'pad.spot.title', slots: { name: SPOT_LABEL[spotId] ?? spotId },
+        options: spotChoices(progression.state, DEN_ITEMS, DEN_SPOTS, spotId).map((o) => ({ ...o, label: o.label ?? none })),
+      });
+    } catch { /* no list: nothing changes */ }
+    listBusy = false;
+    if (pick != null && open) place(spotId, pick || null);
+    else if (open) sheet.querySelector?.(`[data-den-spot-open="${String(spotId).replace(/["\\]/g, '')}"]`)?.focus?.();
+  }
+
   function render() {
     const body = sheet.querySelector('.ds-body');
     const scroll = body ? body.scrollTop : 0;
-    sheet.innerHTML = renderDenShopHtml(progression.state, DEN_ITEMS, DEN_SPOTS, { note });
+    sheet.innerHTML = renderDenShopHtml(progression.state, DEN_ITEMS, DEN_SPOTS, { note, padSpots: listOn() ? { none: tvState.padLine?.('pad.spot.none') ?? '' } : null });
     const next = sheet.querySelector('.ds-body');
     if (next) next.scrollTop = scroll;
   }
@@ -153,6 +179,8 @@ export function createDenShopView({
     if (t.closest('[data-den-done]')) { hide(); return; }
     const buyBtn = t.closest('[data-den-buy]');
     if (buyBtn) askBuy(buyBtn.dataset.denBuy);
+    const spotBtn = t.closest('[data-den-spot-open]');
+    if (spotBtn) chooseForSpot(spotBtn.dataset.denSpotOpen);
   });
   sheet.addEventListener('change', (e) => {
     const spotId = e.target?.dataset?.denSpot;

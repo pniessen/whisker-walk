@@ -19,6 +19,7 @@ import { escapeHtml } from '../game/util.js';
 import { PAW, pawify } from './pawicon.js';
 import { FIGHT_MOVES, teachFor } from '../fightmoves.js';
 import { phrase } from '../clanphrases.js';
+import { tvState, padHtml } from '../tvseam.js';
 
 export const FIGHT_TEACH = 'Crouch → Dodge · Paw up → Pounce · Backs up → Swipe';
 export const FIGHT_READ = 'Read its move!';
@@ -29,13 +30,17 @@ export const FIGHT_LINES = Object.freeze({
 });
 const MOVE_LABELS = { pounce: 'Pounce', swipe: 'Swipe', dodge: 'Dodge' };
 
+// The key the pill names: the pad's button picture in TV mode with the pad as the input
+// (Square fights, Circle backs off), otherwise the keyboard letter.
+const keyHint = (token, key) => (tvState.input === 'pad' && padHtml(`⟦${token}⟧`)) || `<span class="fight-key">${key}</span>`;
+
 // `ask` and `off` (the border patrol, 2026-11-04) replace the pill's words;
 // without them it is today's pill exactly.
 export function renderChallengeHtml({ name, clan, ask = phrase('fight.homeAsk'), off = phrase('fight.homeOff') } = {}) {
   return `<span class="fight-ask-text">${phrase('fight.challenge', escapeHtml(name), escapeHtml(clanName(clan)), escapeHtml(ask))}</span>`
     + '<span class="fight-ask-buttons">'
-    + `<button type="button" class="hud-prompt-btn fight-ask-go" data-fight="go">Fight! ${PAW}<span class="fight-key">E</span></button>`
-    + `<button type="button" class="hud-prompt-btn fight-ask-off" data-fight="off">${escapeHtml(off)}<span class="fight-key">Q</span></button>`
+    + `<button type="button" class="hud-prompt-btn fight-ask-go" data-fight="go">Fight! ${PAW}${keyHint('interact', 'E')}</button>`
+    + `<button type="button" class="hud-prompt-btn fight-ask-off" data-fight="off">${escapeHtml(off)}${keyHint('meow', 'Q')}</button>`
     + '</span>';
 }
 
@@ -104,6 +109,14 @@ export function renderFightHtml({ phase, clue, wins, losses, line, specials = []
     + `<div class="fight-teach">${escapeHtml(FIGHT_TEACH + (sp.length ? teachFor(sp.map((m) => m.id)) : ''))}</div>`;
 }
 
+// The challenge pill answers the interact and meow buttons (Square / Circle on a pad, the touch
+// buttons): true when it took the press. Touch and the pad both route through this.
+export function answerChallenge(clanFight, name) {
+  if (clanFight?.uiShowing !== 'challenge' || (name !== 'interact' && name !== 'meow')) return false;
+  clanFight.key(name === 'interact' ? 'e' : 'q');
+  return true;
+}
+
 export function createFightUi(root, { onFight = () => {}, onBackOff = () => {}, onMove = () => {} } = {}) {
   let ask = null;
   let sheet = null;
@@ -165,6 +178,8 @@ export function createFightUi(root, { onFight = () => {}, onBackOff = () => {}, 
       if (!sheet) {
         sheet = document.createElement('div');
         sheet.className = 'hud-fight';
+        // The pad's menu navigator owns the sheet while it is up (gamepad.js): its buttons are pressable and A answers.
+        sheet.setAttribute?.('data-pad-layer', '');
         sheet.addEventListener('click', onClick);
         root.appendChild(sheet);
       }
@@ -175,6 +190,7 @@ export function createFightUi(root, { onFight = () => {}, onBackOff = () => {}, 
       if (html !== lastSheetHtml) {
         sheet.innerHTML = html;
         sheet.classList.toggle('has-specials', shownSpecials.length > 0);
+        sheet.querySelector?.('.fight-move')?.setAttribute?.('data-pad-default', '');
         lastSheetHtml = html;
       }
       // The fight toasts sit just above the sheet, whatever height it has:

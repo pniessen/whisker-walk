@@ -14,6 +14,7 @@
 // sets the result as text (textContent) or escapes it (escapeHtml), never as
 // HTML.
 import { words } from './wordset.js';
+import { tvState, padText, padFix } from './tvseam.js';
 
 const same = (s) => Object.freeze({ touch: s, keys: s });
 const two = (touch, keys) => Object.freeze({ touch, keys });
@@ -131,6 +132,12 @@ export const WORDS = Object.freeze({
   'settings.tips': same('Show tips'),
   // A game controller was plugged in (gamepad.js).
   'pad.connected': same('Controller connected 🎮'),
+  // TV mode (src/tv/): the Sound & controls switch is drawn before the chunk
+  // loads, so these three are the only TV words start-up carries. The rest are
+  // in the chunk (src/tv/padwords.js).
+  'pad.settings.tv': same('TV mode'),
+  'pad.settings.tv-note': two('Big text for the sofa.', 'Big text for the sofa. Full screen: ⌃⌘F.'),
+  'pad.settings.tv-failed': same('TV mode could not load. Try again later.'),
   // Shown only after a save write has failed; names no group or rank, so both sets share it.
   'settings.save-failed': same('This device could not save. Free up space, then play again.'),
 });
@@ -146,12 +153,24 @@ export function hasLine(id) {
 // A word set may carry lines of its own (LINES in wordset.js, keyed by these
 // ids, each with a touch and a keys form): that set's line is said in place of
 // this table's. The family's set has none, so every line is this table's.
-export function line(id, { touch = false, ...slots } = {}) {
+//
+// With TV mode on and the pad the last input, a line with a pad form says that
+// form (src/tv/padwords.js): button words, plain symbols by default. A caller
+// that can draw pictures (the hint pill) passes glyph: true and gets the
+// ⟦tokens⟧ to hand to padHtml().
+export function line(id, { touch = false, glyph = false, ...slots } = {}) {
   if (!hasLine(id)) return '';
+  if (tvState.input === 'pad' && tvState.padLine) {
+    const p = tvState.padLine(id, slots);
+    if (p) return glyph ? p : padText(p);
+  }
   const own = words().LINES;
   const entry = own && Object.hasOwn(own, id) ? own[id] : WORDS[id];
   const form = touch ? entry.touch : entry.keys;
-  return form.replace(/\{(\w+)\}/g, (_, k) => (Object.hasOwn(slots, k) && slots[k] != null ? String(slots[k]) : ''));
+  const out = form.replace(/\{(\w+)\}/g, (_, k) => (Object.hasOwn(slots, k) && slots[k] != null ? String(slots[k]) : ''));
+  // A pad is the input and this line has no pad form of its own: the net names its button for any key it says.
+  if (tvState.input === 'pad' && tvState.fix) { const f = padFix(out); return glyph ? f : padText(f); }
+  return out;
 }
 
 // Both forms at once, for a place that draws the two and lets the page's

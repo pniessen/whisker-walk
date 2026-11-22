@@ -17,8 +17,9 @@ import { BUILD_STAMP } from './buildstamp.js';
 import { createHomeBase } from './ui/homebase.js';
 import { whenSplashGone, startVisitGreeting } from './visitboot.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
-import { attachBackStack, walkBackAction } from './ui/backstack.js';
+import { attachBackStack, walkBackAction, padBackAction } from './ui/backstack.js';
 import { createGamepad } from './gamepad.js';
+import { answerChallenge } from './ui/fightui.js';
 import { createNav } from './gamepadnav.js';
 import { createZoomControl, createWheelStepper, keyZoomDir, zoomActionDir, clampZoomStep, maxZoomStep } from './camzoom.js';
 import { createAudio } from './audio.js';
@@ -29,6 +30,8 @@ import { voiceFor } from './catvoice.js';
 import { createAlbum } from './album.js';
 import { askToKeepSaves } from './savekeep.js';
 import { createSettings } from './settings.js';
+import { createTvLoader, tvWanted, tvHooks, watchForTv } from './tvseam.js';
+import { createConfirmCard } from './ui/confirmcard.js';
 import { createBlockList } from './blocklist.js';
 import { readCatKey } from './catkey.js';
 import { deviceMetPlayers } from './metplayers.js';
@@ -280,6 +283,8 @@ function init() {
     onMove: (v) => player.setTouchMove(v),
     onOrbit: (dx, dy) => player.addOrbit(dx, dy),
     onAction: (name) => {
+      // The challenge pill (Fight! / Back off) is E and Q on a keyboard: Square and Circle on a pad.
+      if (answerChallenge(session?.clanFight, name)) return;
       const zoomDir = zoomActionDir(name);
       if (zoomDir) zoomBy(zoomDir);
       else {
@@ -304,6 +309,8 @@ function init() {
     onMove: (v) => player.setTouchMove(v),
     onOrbit: (dx, dy) => player.addOrbit(dx, dy),
     onAction: (name) => {
+      // Square and Circle answer the challenge pill, same as the touch buttons (they used to fall through to a plain interact / meow).
+      if (answerChallenge(session?.clanFight, name)) return;
       const zoomDir = zoomActionDir(name);
       if (zoomDir) zoomBy(zoomDir);
       else handleTouchAction(name);
@@ -311,6 +318,10 @@ function init() {
     // No mouse to click for pointer lock, so a pad resumes the way touch does.
     onResume: () => player.setTouchEngaged(true),
     toast: (m) => hud.toast(m),
+    onPadUse: (i) => { if (tvHooks.padUse) tvHooks.padUse(i); else padHintsOn(i); tvOffer(); },
+    onPadConnect: (i) => tvHooks.padConnect?.(i),
+    onPadDisconnect: (i) => tvHooks.padDisconnect?.(i),
+    onMenuButton: (i) => tvHooks.button?.(i) ?? false,
   });
   // Pushes every live-tunable setting into the systems that read it — audio
   // volume/mute, camera invert-Y, touch-UI handedness — so a change applies
@@ -332,6 +343,32 @@ function init() {
     haptics.setEnabled(settings.get('haptics'));
   }
   applySettings();
+  // TV mode: its own lazy chunk (src/tv/), loaded only when the switch is on.
+  // Nothing else in start-up may import src/tv/ (the build checks).
+  // Bare home screen: no walk, no summary, no sheet or card, the visit celebration not up.
+  const homeClear = () => !session && !summaryUp() && homebase.depth() === 0 && !homebase.visitOpen() && !document.getElementById('homebase').classList.contains('hidden');
+  const tvContext = () => ({ doc: document, win: window, settings, toast: (m) => hud.toast(m), padInfo: () => gamepad.padInfo(), homeClear, createConfirmCard, enable: () => { tvLoader.apply(true); homebase.refresh(); } });
+  // A pad used full-screen on a big display, at home: offer TV mode, once per page load.
+  // A pad without TV mode: its first use loads the small hint translator (keys -> buttons), then says so again.
+  let padHintsLoading = false;
+  const padHintsOn = (i) => {
+    if (padHintsLoading) return;
+    padHintsLoading = true;
+    import('./tv/index.js').then((m) => { m.startLite(tvContext()); tvHooks.padUse?.(i); }).catch((err) => { padHintsLoading = false; note('tv', err); });
+  };
+  const tvOffer = watchForTv({ win: window, settings, homeClear, onOffer: () => import('./tv/index.js').then((m) => m.offer(tvContext())).catch((err) => note('tv', err)) });
+  const tvLoader = createTvLoader({
+    load: () => import('./tv/index.js'),
+    ctx: tvContext,
+    settings,
+    onFail: (err) => {
+      note('tv', err);
+      hud.toast(tutorialLine('pad.settings.tv-failed'));
+      homebase.refresh();
+    },
+  });
+  // ?tv=1 / ?tv=0 force it for this page load only, never saved (like ?perf).
+  tvLoader.apply(tvWanted(location.search, settings.get('tvMode')), /[?&]tv=[01]\b/.test(location.search));
   // The pause card's Sound and Music switches (walk.js pauseCardFor) change
   // the same settings as the Sound & controls sheet: Sound is "Mute all
   // sound" turned round, Music is the music volume at 0 or not. Music back on
@@ -607,7 +644,7 @@ function init() {
   const homebaseCloud = createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed: togetherAllowed, pushProfileNow, blockList });
   // "Delete my online data" on the Cloud save sheet (src/game/onlinedelete.js).
   const onlineDelete = createOnlineDelete({ MP, pid, getCloud: openCloud, getPsecret, sync, progression });
-  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onBirthdaySong: () => audio.playTune(birthdayTune(), settings.get('musicVolume')), onAudioWake: () => { const c = audio.getContext(); if (c.state === 'suspended') c.resume?.()?.catch?.(() => {}); }, onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
+  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onTvChange: (on) => tvLoader.apply(on), onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onBirthdaySong: () => audio.playTune(birthdayTune(), settings.get('musicVolume')), onAudioWake: () => { const c = audio.getContext(); if (c.state === 'suspended') c.resume?.()?.catch?.(() => {}); }, onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the
@@ -907,7 +944,15 @@ function init() {
   });
   // The pad's B in a menu: the same one level up as the browser's Back.
   function padBack() {
-    if (!homebase.back()) walkBack();
+    if (tvHooks.back?.()) return; // a TV card (the offer, the letter picker) is the top layer
+    if (homebase.back()) { backStack?.sync?.(); return; }
+    const act = padBackAction({
+      fight: session?.clanFight?.uiShowing === 'fight', summary: summaryUp(), walking: !!session, walkingOn: !!session?.walkingOn,
+      cardUp: !!overlay.querySelector('#btn-resume'), shopAsk: denShop.isAsking, shop: denShop.isOpen, findCard: !!session?.findCard, crossing: !!session?.crossing,
+    });
+    if (act === 'none') return;
+    if (act === 'resume') { player.setTouchEngaged(true); return; }
+    walkBack();
     backStack?.sync?.();
   }
   document.addEventListener('keydown', (e) => {

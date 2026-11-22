@@ -8,6 +8,7 @@
 // know 'soon' (drawn, not walkable yet) and 'later' (unexplored) for the next
 // one drawn before it is walkable.
 import { words } from './wordset.js';
+import { padText, padFix } from './tvseam.js';
 import { placeName, isClanEdition } from './edition.js';
 import { castFor, CLAN_COLOURS } from './clancast.js';
 import { picksOf, isClanId } from './clanhomes.js';
@@ -100,8 +101,8 @@ const SOON_LINE = { soon: 'coming soon', later: 'unexplored' };
 
 // The line of a place she can go to, and of a free one that is open: a
 // touch screen says tap, a desktop click. Exported for Legacy's picture cards.
-export const goHereLine = (touch) => (touch ? 'tap to go here' : 'click to go here');
-const exploreLine = (touch) => (touch ? 'Tap to explore' : 'Click to explore');
+export const goHereLine = (touch) => (touch ? 'tap to go here' : padText(padFix('click to go here')));
+const exploreLine = (touch) => (touch ? 'Tap to explore' : padText(padFix('Click to explore')));
 
 // What one place shows for this save, from its areaId: owned, selected
 // (today's place), locked, canOpen, price and the line under its name. Gate

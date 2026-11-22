@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MAIN_GZIP_CEILING_KB, mainScript, sizeProblem, startupFiles, areaDownloads, lazyProblems, areaSizeProblems } from '../scripts/buildjson.mjs';
+import { MAIN_GZIP_CEILING_KB, mainScript, sizeProblem, startupFiles, areaDownloads, lazyProblems, areaSizeProblems, TV_ENTRY_MODULES, TV_GZIP_CEILING_KB, tvDownloads } from '../scripts/buildjson.mjs';
 import { precacheManifest } from '../scripts/precache.mjs';
 
 const M = {
@@ -62,5 +62,26 @@ describe('start-up and places in a built manifest', () => {
     expect(precacheManifest(['assets/a.js', 'assets/b.js']).build).toBe(a.build);
     expect(precacheManifest(['assets/a.js', 'assets/b.js', 'assets/c.js']).build).not.toBe(a.build);
     expect(a.build).toMatch(/^[0-9a-f]{12}$/);
+  });
+});
+
+describe('the TV chunk guard', () => {
+  const tvM = {
+    ...M,
+    'src/tv/index.js': { file: 'assets/tv.js', isDynamicEntry: true, css: ['assets/tv.css'], imports: ['_three.js'] },
+  };
+  it('a tv chunk that is lazy passes', () => expect(lazyProblems(tvM, TV_ENTRY_MODULES)).toEqual([]));
+  it('names the tv module when start-up imports it statically', () => {
+    const bad = { ...tvM, 'index.html': { ...tvM['index.html'], imports: [...tvM['index.html'].imports, 'src/tv/index.js'] } };
+    expect(lazyProblems(bad, TV_ENTRY_MODULES)[0]).toMatch(/src\/tv\/index\.js/);
+  });
+  it('names the tv module when it is missing from the manifest', () => expect(lazyProblems(M, TV_ENTRY_MODULES)[0]).toMatch(/src\/tv\/index\.js/));
+  it('a tv chunk over its ceiling is reported', () => {
+    expect(TV_GZIP_CEILING_KB).toBe(30);
+    expect(areaSizeProblems({ tv: 30.1 }, TV_GZIP_CEILING_KB)[0]).toMatch(/tv.*30\.1 kB/);
+    expect(areaSizeProblems({ tv: 30 }, TV_GZIP_CEILING_KB)).toEqual([]);
+  });
+  it('the tv download is its scripts and its stylesheet, not start-up files', () => {
+    expect(tvDownloads(tvM).sort()).toEqual(['assets/tv.css', 'assets/tv.js']);
   });
 });

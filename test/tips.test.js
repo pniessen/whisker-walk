@@ -229,3 +229,30 @@ describe('createTips', () => {
     expect(r.up()).toBe(null);
   });
 });
+
+describe('TV mode: a hint on screen says itself again when the input changes', () => {
+  it('keys -> pad -> keys: the same hint in the new words, no raw token, counted once', async () => {
+    const tv = await import('../src/tvseam.js');
+    const { padLine } = await import('../src/tv/padwords.js');
+    const { plainify } = await import('../src/tv/glyphs.js');
+    tv.resetTv();
+    try {
+      const r = rig({ touch: false });
+      start(r, walk());
+      bus.emit('tip', { id: 'creep', name: 'Pepper' });
+      expect(r.up().text).toBe('Pepper is shy. Hold Shift to creep.');
+      tv.setTv({ on: true, padLine, text: (s) => plainify(s, 'ps') });
+      tv.setTv({ input: 'pad' });
+      expect(r.up().text).toBe('Pepper is shy. Push ⟦move⟧ gently to creep.'); // the HUD turns the token into a picture
+      tv.setTv({ input: 'keys' });
+      expect(r.up().text).toBe('Pepper is shy. Hold Shift to creep.');
+      expect(r.progression.state.tutorial.hints).toEqual({ creep: 1 });
+      r.t.end();
+      const n = r.lines.length;
+      tv.setTv({ input: 'pad' }); // nothing is up: nothing is said
+      expect(r.lines.length).toBe(n);
+    } finally {
+      tv.resetTv();
+    }
+  });
+});

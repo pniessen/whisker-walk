@@ -44,6 +44,7 @@ import { createConfirmCard, spendAsk } from './confirmcard.js';
 import { moveById } from '../fightmoves.js';
 import { note } from '../diagnostics.js';
 import { line as tutorialLine } from '../tutorialwords.js';
+import { tvState, tvHooks } from '../tvseam.js';
 import { hintMax } from '../hints.js';
 import { nextThing, nextThingHtml, NEXT_ATTR } from './nextthing.js';
 import { createHomeParty, birthdayPartyOn, partyBannerText, partyCatName, presentDue } from './party.js';
@@ -152,7 +153,7 @@ export function showEditionTitle(doc, edition) {
 //   nearby: game/nearby.js, the rooms the app found on the local network.
 //     Absent, or not available (Safari, desktop), nothing of it is drawn
 //   metPlayers: src/metplayers.js (the device's own list when absent)
-export function createHomeBase({ progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onBirthdaySong, onAudioWake, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null, getIsTouch = () => false, reload = () => globalThis.location?.reload?.() }) {
+export function createHomeBase({ progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onTvChange = null, onVisitDen, colonySync, myId, toast, onCelebrate, onBirthdaySong, onAudioWake, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null, getIsTouch = () => false, reload = () => globalThis.location?.reload?.() }) {
   const met = () => metPlayers ?? deviceMetPlayers();
   const root = document.getElementById('homebase');
   let petNameError = null;
@@ -436,6 +437,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       ${hasValidPetName ? '' : `<p class="wt-first${nameNeeded ? ' wt-name-needed' : ''}">${escapeHtml(walkingNameIntro(nameNeeded, { touch: !!getIsTouch() }))}</p>`}
       <div class="wt-petname">
         ${hasValidPetName ? `<label class="wt-name-label" for="wt-petname-input">${escapeHtml(WALKING_NAME)}</label>` : ''}
+        ${tvState.on && typeof tvHooks.picker === 'function' ? `<button type="button" id="wt-petname-open" class="wt-name-open">${escapeHtml(name || tvState.padLine?.('pad.picker.empty') || '')} ✏️</button>` : ''}
         <input type="text" id="wt-petname-input" maxlength="16" placeholder="Type a name" aria-label="${escapeHtml(WALKING_NAME)}" value="${escapeHtml(name)}" />
         <button id="wt-petname-save">Save</button>
         ${offered ? `<button type="button" id="wt-petname-use" class="wt-name-use">Use “${escapeHtml(offered)}”</button>` : ''}
@@ -656,6 +658,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           </label>
           ${settingsSwitchHtml('set-reduced-motion', !!s.reducedMotion, 'Reduced motion')}
           ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
+          ${settingsSwitchHtml('set-tv-mode', !!(tvState.on || tvState.pending), tutorialLine('pad.settings.tv'))}
+          <p class="settings-note" id="set-tv-note">${escapeHtml(tutorialLine('pad.settings.tv-note', { touch: !!getIsTouch() }))}</p>
         </div>
       </section>`;
   }
@@ -2155,6 +2159,20 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       render();
       return;
     }
+    // TV mode: the walking name is typed with the letter picker (same rule as Save).
+    if (e.target.id === 'wt-petname-open') {
+      Promise.resolve(tvHooks.picker?.({ initial: root.querySelector('#wt-petname-input')?.value ?? '', valid: goodNewPetName, titleId: 'pad.picker.title.walker' }))
+        .catch(() => null)
+        .then((picked) => {
+          if (picked != null && goodNewPetName(picked)) {
+            progression.setPetName(picked);
+            petNameError = null;
+            editingName = false;
+          }
+          render();
+        });
+      return;
+    }
     if (e.target.id === 'wt-petname-save') {
       const input = root.querySelector('#wt-petname-input');
       const name = (input?.value ?? '').trim();
@@ -2497,6 +2515,14 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (e.target.id === 'set-hide-chat') {
       settings.set('hideChat', e.target.checked);
       onSettingsChange?.();
+      render();
+      return;
+    }
+    // TV mode: the chunk loads (or leaves) live, no reload. A failed load puts
+    // the switch back off through refresh() (main.js).
+    if (e.target.id === 'set-tv-mode') {
+      settings.set('tvMode', e.target.checked);
+      onTvChange?.(!!e.target.checked);
       render();
       return;
     }

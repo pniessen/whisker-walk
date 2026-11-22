@@ -1,0 +1,133 @@
+// The start-up side of TV mode: a flag, the last input, and a hook for the
+// chunk (src/tv/*, loaded only when the TV switch is on). No imports, and
+// nothing here may import src/tv/: the build fails if the chunk joins
+// start-up (scripts/buildjson.mjs). With TV mode off every function is
+// identity or a no-op, so touch, mouse and keyboard play is unchanged.
+export const tvState = { on: false, pending: false, input: 'keys', text: null, html: null, padLine: null, fix: null, toastTiming: null };
+
+// Pad events from gamepad.js; the chunk fills these in (null = nobody listens).
+export const tvHooks = { padUse: null, padConnect: null, padDisconnect: null, back: null, button: null, picker: null, list: null }; // back(): the pad's B; button(i): another menu button, true if a TV card took it; picker(opts): the letter picker, a promise of the name or null; list(opts): a choose-one list card, a promise of the value or null
+
+const listeners = new Set();
+
+/** Plain text or token text in, the same out until the chunk sets `text`. */
+export const padText = (s) => (tvState.text ? tvState.text(s) : s);
+
+/** A plain line that names a key ("E — pet Mochi", "click Save") in the pad's words (tokens) while the pad is the input; the same line otherwise. */
+export const padFix = (s) => (tvState.input === 'pad' && tvState.fix ? tvState.fix(s) : s);
+
+/** Like padText but for a caller that sets HTML: the string with button pictures, or null when TV mode has none (keep the caller's own path). */
+export const padHtml = (s) => (tvState.html ? tvState.html(s) : null);
+
+/** Merge a change in; listeners hear about it once, and only if something changed. */
+export function setTv(partial) {
+  let changed = false;
+  for (const k of Object.keys(partial)) {
+    if (tvState[k] !== partial[k]) { tvState[k] = partial[k]; changed = true; }
+  }
+  if (!changed) return;
+  for (const fn of [...listeners]) {
+    try { fn(tvState); } catch { /* one listener must not stop the rest */ }
+  }
+}
+
+/** Hear about changes; returns the way to stop. */
+export function onTv(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+/** Back to the start (tests). */
+export function resetTv() {
+  Object.assign(tvState, { on: false, pending: false, input: 'keys', text: null, html: null, padLine: null, fix: null, toastTiming: null });
+  listeners.clear();
+  Object.assign(tvHooks, { padUse: null, padConnect: null, padDisconnect: null, back: null, button: null, picker: null, list: null });
+}
+
+/** ?tv=1 turns TV mode on for this page load only, ?tv=0 off; never saved (like ?perf). */
+export function tvWanted(search, saved) {
+  let v = null;
+  try { v = new URLSearchParams(search).get('tv'); } catch { /* no query */ }
+  return v === '1' ? true : v === '0' ? false : !!saved;
+}
+
+/**
+ * Loads and stops the chunk. `load` is () => import('./tv/index.js') (main.js
+ * owns that call, so this file never names the chunk); `ctx` builds what the
+ * chunk needs, only when it is asked for. A load that fails (offline, a stale
+ * cache) leaves the switch off and tells `onFail`.
+ */
+export function createTvLoader({ load, ctx, settings, onFail }) {
+  let handle = null;
+  let pending = null;
+  let want = false;
+  return {
+    // forced: this load's ?tv= said so; a failure then must not touch the saved choice.
+    apply(on, forced = false) {
+      want = !!on;
+      if (!want) {
+        if (handle) { try { handle.stop(); } catch { /* leaving anyway */ } }
+        handle = null;
+        setTv({ on: false, pending: false });
+        return Promise.resolve(false);
+      }
+      if (handle) return Promise.resolve(true);
+      if (pending) return pending;
+      setTv({ pending: true });
+      pending = (async () => (await load()).start(ctx()))()
+        .then((h) => {
+          pending = null;
+          if (!want) { try { h?.stop?.(); } catch { /* gone */ } setTv({ pending: false }); return false; }
+          handle = h ?? { stop() {} };
+          setTv({ on: true, pending: false });
+          return true;
+        })
+        .catch((err) => {
+          pending = null;
+          want = false;
+          if (!forced) settings.set('tvMode', false);
+          setTv({ on: false, pending: false });
+          onFail?.(err);
+          return false;
+        });
+      return pending;
+    },
+  };
+}
+
+/** A window that fills a big screen: 1900+ CSS px wide and full screen (or as big as the screen). */
+export function bigScreenFullscreen(win) {
+  const s = win.screen;
+  if (!s || !(win.innerWidth >= 1900)) return false;
+  return !!win.document?.fullscreenElement || (win.innerWidth >= s.width - 2 && win.innerHeight >= s.height - 2);
+}
+
+/** No touch screen to speak of: a phone or tablet is never offered TV mode. */
+const noTouch = (win) => !((win.navigator?.maxTouchPoints ?? 0) > 0) && !(win.matchMedia?.('(hover: none)')?.matches);
+
+/**
+ * A pad is in hand (this is only asked on a pad press) and the screen looks like a TV or a big monitor:
+ * a window of 1600 px or more on a screen of 1900 or more, or a 1920x1080 / 3840x2160 screen at a pixel ratio of 2 or less (a MacBook's own
+ * Retina display is neither). No fullscreen needed.
+ */
+export function padOnBigScreen(win) {
+  const s = win.screen;
+  const tvSized = !!s && ((s.width === 1920 && s.height === 1080) || (s.width === 3840 && s.height === 2160)) && (win.devicePixelRatio ?? 1) <= 2;
+  return (win.innerWidth >= 1600 && !!s && s.width >= 1900) || tvSized;
+}
+
+/**
+ * The offer to use TV mode: the returned check() is called when the pad is used
+ * (never on a mouse or key, never on connecting). It calls onOffer() once per
+ * page load, at home base with no card up, on a big full-screen window, if TV
+ * mode is off and "Not now" has not been said. In a walk it waits for home.
+ */
+export function watchForTv({ win, settings, homeClear, onOffer }) {
+  let asked = false;
+  return () => {
+    if (asked || tvState.on || settings.get('tvMode') || settings.get('tvOfferDeclined')) return;
+    if (!noTouch(win) || !(bigScreenFullscreen(win) || padOnBigScreen(win)) || !homeClear()) return;
+    asked = true;
+    onOffer();
+  };
+}

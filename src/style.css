@@ -103,6 +103,7 @@ body.touch-mode .hud-area { font-size: 0.82rem; padding: 2px 8px; }
    touch mode shows one. */
 .goal-how { padding: 0 5px 2px 22px; font-size: 13px; line-height: 1.3; opacity: 0.92; overflow-wrap: anywhere; }
 .goal-how .how-touch { display: none; }
+.goal-how .how-pad { display: none; }
 body.touch-mode .goal-how .how-keys { display: none; }
 body.touch-mode .goal-how .how-touch { display: inline; }
 /* The hint line (hud.setHint): one sentence, dark on cream, 18px, never a
