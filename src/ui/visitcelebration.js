@@ -248,7 +248,7 @@ export function createVisitCelebration(mount, {
       setCard('revealed');
       root.classList.add('revealed');
       // The dimmer no longer blocks (style.css), so A is not modal any more.
-      if (milestone.style === 'A') root.setAttribute?.('aria-modal', 'false');
+      if (milestone.style === 'A') { root.setAttribute?.('aria-modal', 'false'); root.removeAttribute?.('data-pad-layer'); }
       if (current.thumb && milestone.style !== 'C') {
         const burst = mount.ownerDocument.createElement('div');
         burst.innerHTML = confettiHtml(milestone.visit, rng, 30);
@@ -277,6 +277,7 @@ export function createVisitCelebration(mount, {
         root.setAttribute?.('role', 'dialog');
         // Only the unopened present is modal; a cycle-back A never blocks.
         root.setAttribute?.('aria-modal', isNew ? 'true' : 'false');
+        if (isNew) root.setAttribute?.('data-pad-layer', '');
         root.setAttribute?.('aria-label', `Visit ${m.visit}`);
       } else {
         root.setAttribute?.('role', 'status');

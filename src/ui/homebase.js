@@ -963,6 +963,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     newsEl = document.createElement('div');
     newsEl.id = 'colony-news';
     newsEl.className = 'colony-news';
+    newsEl.setAttribute('data-pad-layer', '');
     newsEl.innerHTML = html;
     newsEl.addEventListener('click', (e) => {
       if (e.target.id === 'colony-news-ok') closeNews(true);
@@ -994,6 +995,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     noticeEl = document.createElement('div');
     noticeEl.id = 'home-notice';
     noticeEl.className = 'colony-news';
+    noticeEl.setAttribute('data-pad-layer', '');
     const card = document.createElement('div');
     card.className = 'colony-news-card';
     const line = document.createElement('p');
@@ -1067,6 +1069,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     nearbyEl = document.createElement('div');
     nearbyEl.id = 'nearby-card';
     nearbyEl.className = 'colony-news nearby-card';
+    nearbyEl.setAttribute('data-pad-layer', '');
     const card = document.createElement('div');
     card.className = 'colony-news-card';
     card.setAttribute('role', 'dialog');
@@ -1215,6 +1218,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     momentEl = document.createElement('div');
     momentEl.id = 'clan-moment';
     momentEl.className = 'colony-news join-moment';
+    momentEl.setAttribute('data-pad-layer', '');
     momentEl.innerHTML = renderClanMomentHtml(clanPickerModel(s), typeof partner === 'string' && partner ? partner : 'your partner', { touch: !!getIsTouch() });
     momentEl.addEventListener('click', (e) => {
       const card = e.target.closest?.(`[${PICK_ATTR}]`);
