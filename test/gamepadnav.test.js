@@ -109,10 +109,14 @@ describe('candidates', () => {
     g.getClientRects = () => []; g.getBoundingClientRect = () => ({ width: 40, height: 40 });
     expect(candidates(layer([g]))).toEqual([g]);
   });
-  it('visibility:hidden controls are dropped; an opacity:0 switch with a box still qualifies', () => {
-    const hidden = el('button'); hidden.getClientRects = () => [{}]; hidden.checkVisibility = () => false;
-    const swtch = el('input', { type: 'checkbox' }); swtch.getClientRects = () => [{}]; swtch.checkVisibility = (o) => (o?.visibilityProperty ? true : true);
+  it('visibility:hidden controls are dropped; checkVisibility asks for visibilityProperty only (opacity:0 switches stay)', () => {
+    const calls = [];
+    const stub = (r) => (o) => { calls.push(o); return r; };
+    const hidden = el('button'); hidden.getClientRects = () => [{}]; hidden.checkVisibility = stub(false);
+    const swtch = el('input', { type: 'checkbox' }); swtch.getClientRects = () => [{}]; swtch.checkVisibility = stub(true);
     expect(candidates(layer([hidden, swtch]))).toEqual([swtch]);
+    expect(calls.length).toBeGreaterThan(0);
+    for (const o of calls) { expect(o).toEqual({ visibilityProperty: true }); expect(o).not.toHaveProperty('opacityProperty'); }
   });
   it('a disabled button flagged by the property alone is dropped', () => {
     const b = el('button'); b.disabled = true;

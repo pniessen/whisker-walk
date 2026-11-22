@@ -81,7 +81,7 @@ describe('world map pad hopping: the owner\'s screen readings', () => {
   ];
   const go = (id, dir) => pickNext(screen.find((b) => b.id === id).rect, screen.filter((b) => b.id !== id), dir);
   it('Market right is Seaside, not Park', () => expect(go('market', 'right')).toBe('seaside'));
-  it('Park down is Seaside or at least not Market', () => expect(go('park', 'down')).not.toBe('market'));
+  it('Park down is Seaside', () => expect(go('park', 'down')).toBe('seaside'));
   it('Docks up is Twolegplace', () => expect(go('docks', 'up')).toBe('town'));
   it('Docks right is Seaside, not Market', () => expect(go('docks', 'right')).toBe('seaside'));
   it('Seaside left returns somewhere', () => expect(go('seaside', 'left')).not.toBeNull());
