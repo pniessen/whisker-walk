@@ -643,10 +643,11 @@ describe('where the network can start', () => {
     expect(cs).toContain('function getCloud() {\n    return togetherAllowed() ? openCloud() : null;\n  }');
     expect(cs).toContain('function saveCloud() {\n    return onlineAllowed() ? openCloud() : null;\n  }');
     // inside the file: getCloud is defined and returned and never called;
-    // the save's handle is called twice (Sync, deleting the linked save),
-    // each straight after the link is read
+    // the save's handle is called three times (Sync, deleting the linked save,
+    // Change my cat code), each straight after the link is read
     expect(cs.match(/getCloud\(\)/g)).toHaveLength(1 + (cs.match(/\/\/.*getCloud\(\)/g) ?? []).length);
-    expect(cs.match(/= saveCloud\(\);/g)).toHaveLength(2);
+    expect(cs.match(/= saveCloud\(\);/g)).toHaveLength(3);
+    expect(cs).toContain('const link = readCloudLink();\n      const cloud = saveCloud();\n      if (!link || !cloud) return');
     expect(cs).toContain("if (!link) return { ok: false, message: 'Not linked to a cloud save.' };\n    const cloud = saveCloud();");
     expect(cs).toContain("if (!link) return 'not-linked';\n      const cloud = saveCloud();");
     expect(cs).toContain('return { getPsecret, getCloud, openCloud, onlineAllowed, togetherAllowed, sync };');

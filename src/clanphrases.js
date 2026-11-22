@@ -186,6 +186,13 @@ const LATER = Object.freeze({
   'catlogin.caughtup': (name) => `${name || 'Your cat'} caught up. Paws, finds and outfits from both devices are in camp.`,
   'catlogin.signedout': (name) => `This cat moved to a new cat code. Type the new one to bring ${name || 'your cat'} back.`,
 
+  // ---- cat login, milestone 3: the My cat sheet and changing the code (the same in every set) ----
+  'catlogin.err.changed': 'That didn’t work, so nothing was changed. Your old cat code is still the one to use.',
+  'catlogin.err.busy': 'The cloud is busy right now. Try again in a little while.',
+  'catlogin.err.notready': 'Changing the cat code is not ready yet. Your cat is still safe.',
+  'catlogin.err.offline': 'Connect to the internet and try again.',
+  'catlogin.err.nocode': 'That cat code didn’t work. Check the words and try again.',
+
   // ---- world map step 3 (2026-11-21): what a gate says, the same in every set ----
   'gate.shut': (walks, place, toGo) => `Opens after ${walks} ${walks === 1 ? 'walk' : 'walks'} in ${place}. ${toGo} to go!`,
   'gate.short': (need) => `You need ${need} more 🐾. Keep exploring!`,
