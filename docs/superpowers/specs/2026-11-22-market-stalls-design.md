@@ -143,4 +143,4 @@ The exact positions (the plan test decides), the timings, the goods' pictures, t
 2. **Butcher sausages: a real hop to reach.** The owner chose this over the recommended ordinary grab. The sausages hang above ground reach; a hop (the pounce) or the hook rail reaches them. See the Hop design. This is the riskiest piece of the feature.
 3. **Plant stall: three clay pots, each falls when pawed.** No clatter chain. Bric-a-brac's crockery uses the same one-at-a-time fall with a louder clatter if existing knockables allow it.
 4. **Positions: Butcher (14, -9), Plant stall (15, 6.5), Toy and yarn (-16, -3), Bric-a-brac (-9.5, 11).** The builder verifies lamp view lanes, hides and stray routes. A spot that fails moves along the nearest free edge, and the builder records that in its report.
-5. **Pay: assumed the same as the existing treats (6 paws plus 6 teamwork).** The owner was not asked; this is an assumption he can change.
+5. **Pay: the same as the existing treats, 6 paws plus 6 teamwork.** Confirmed by the owner in chat.
