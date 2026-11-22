@@ -2,6 +2,7 @@ import * as b from './builder.js';
 import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
 import { tintGround } from './dressing.js';
 import { lawnMottle } from './park.js';
+import { buildOldHouseFront } from './oldhousefront.js';
 
 // The lawn (polish-sheen): 0x7cb860 read as flat lime under the Pass 8 day
 // grade; about 11% darker and a touch bluer (hue 101 -> 105). Every copy of
@@ -65,7 +66,9 @@ export const NEIGHBORHOOD_HORIZON = Object.freeze({
   }),
 });
 
-export function build(scene, { water = {}, wind } = {}) { // `water`: see above
+// `gateEnds`: the gate ends this walk draws; the `town-house` end brings the
+// old house's front against the west hedge (world/oldhousefront.js).
+export function build(scene, { water = {}, wind, gateEnds = [] } = {}) { // `water`: see above
   b.applySky(scene, 0x9fd4e8, 0xcfe8f0);
   // The lawn, at last literally. 'grass' is a mottle-only tile at 3m, so at
   // 120m the derived repeat is 40x40 — coarse enough that a single patch is
@@ -328,6 +331,9 @@ export function build(scene, { water = {}, wind } = {}) { // `water`: see above
 
   // cardboard boxes
   for (const b2 of [[-6, -24], [16, 21], [-18, 8]]) scene.add(b.cardboardBox(b2[0], b2[1], b2[0] * 0.7));
+
+  // The Old House's front (Old House step 4, W5), only for a walk with its door.
+  if (gateEnds.some((e) => e.id === 'town-house')) colliders.push(...buildOldHouseFront(scene, { wind }).colliders);
 
   return {
     name: 'Cozy Neighborhood',
