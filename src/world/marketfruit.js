@@ -301,14 +301,14 @@ function petalMesh(pos, col, idx) {
 
 // createBucketBlooms() -> { mesh, dispose() }: six flowers on stems, in the
 // bucket's own frame (knockables.js's bucket: a tin 0.2 m high, 0.13 m round
-// at its mouth, its handle arching over it in x-y), their heads a hand over
-// the rim and inside its width, each leaning a little out. Under 300
-// triangles. The caller puts `mesh` in the bucket's group; dispose takes it
+// at its mouth, its handle arching over it in x-y), their heads 13-23 cm
+// over the rim, so they read from across the square, and about its width,
+// each leaning a little out. Under 300 triangles. The caller puts `mesh` in the bucket's group; dispose takes it
 // out and frees it.
 const BUCKET_BLOOMS = Object.freeze([
   // x, z, the head's height, the flower's size (m), a BLOOMS row
-  [-0.05, 0.035, 0.29, 0.085, 0], [0.05, 0.04, 0.3, 0.08, 2], [0.0, -0.045, 0.31, 0.09, 1],
-  [-0.06, -0.035, 0.27, 0.075, 3], [0.065, -0.03, 0.28, 0.08, 6], [0.0, 0.03, 0.35, 0.09, 4],
+  [-0.055, 0.04, 0.36, 0.11, 0], [0.055, 0.045, 0.37, 0.1, 2], [0.0, -0.05, 0.38, 0.11, 1],
+  [-0.065, -0.04, 0.33, 0.1, 3], [0.07, -0.035, 0.34, 0.1, 6], [0.0, 0.035, 0.43, 0.12, 4],
 ]);
 const BLOOM_STEM = 0x4f8f3e;
 const BLOOM_UP = new THREE.Vector3(0, 1, 0);
