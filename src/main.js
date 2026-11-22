@@ -29,6 +29,7 @@ import { voiceFor } from './catvoice.js';
 import { createAlbum } from './album.js';
 import { askToKeepSaves } from './savekeep.js';
 import { createSettings } from './settings.js';
+import { createTvLoader, tvWanted } from './tvseam.js';
 import { createBlockList } from './blocklist.js';
 import { phraseIdForDigit } from './chatkeys.js';
 import { createCloudToast, createCloudSync } from './game/cloudsync.js';
@@ -335,8 +336,19 @@ function init() {
   applySettings();
   // TV mode: its own lazy chunk (src/tv/), loaded only when the switch is on.
   // Nothing else in start-up may import src/tv/ (the build checks).
-  const tvContext = () => ({ doc: document, win: window, settings });
-  if (settings.get('tvMode')) import('./tv/index.js').then((m) => m.start(tvContext())).catch((err) => note('tv', err));
+  const tvContext = () => ({ doc: document, win: window, settings, toast: (m) => hud.toast(m) });
+  const tvLoader = createTvLoader({
+    load: () => import('./tv/index.js'),
+    ctx: tvContext,
+    settings,
+    onFail: (err) => {
+      note('tv', err);
+      hud.toast(tutorialLine('pad.settings.tv-failed'));
+      homebase.refresh();
+    },
+  });
+  // ?tv=1 / ?tv=0 force it for this page load only, never saved (like ?perf).
+  tvLoader.apply(tvWanted(location.search, settings.get('tvMode')));
   // The pause card's Sound and Music switches (walk.js pauseCardFor) change
   // the same settings as the Sound & controls sheet: Sound is "Mute all
   // sound" turned round, Music is the music volume at 0 or not. Music back on
@@ -612,7 +624,7 @@ function init() {
   const homebaseCloud = createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed: togetherAllowed, pushProfileNow, blockList });
   // "Delete my online data" on the Cloud save sheet (src/game/onlinedelete.js).
   const onlineDelete = createOnlineDelete({ MP, pid, getCloud: openCloud, getPsecret, sync, progression });
-  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onBirthdaySong: () => audio.playTune(birthdayTune(), settings.get('musicVolume')), onAudioWake: () => { const c = audio.getContext(); if (c.state === 'suspended') c.resume?.()?.catch?.(() => {}); }, onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
+  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onTvChange: (on) => tvLoader.apply(on), onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onBirthdaySong: () => audio.playTune(birthdayTune(), settings.get('musicVolume')), onAudioWake: () => { const c = audio.getContext(); if (c.state === 'suspended') c.resume?.()?.catch?.(() => {}); }, onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the

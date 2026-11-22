@@ -131,6 +131,12 @@ export const WORDS = Object.freeze({
   'settings.tips': same('Show tips'),
   // A game controller was plugged in (gamepad.js).
   'pad.connected': same('Controller connected 🎮'),
+  // TV mode (src/tv/): the Sound & controls switch is drawn before the chunk
+  // loads, so these three are the only TV words start-up carries. The rest are
+  // in the chunk (src/tv/padwords.js).
+  'pad.settings.tv': same('TV mode'),
+  'pad.settings.tv-note': two('Big text for the sofa.', 'Big text for the sofa. Full screen: ⌃⌘F.'),
+  'pad.settings.tv-failed': same('TV mode could not load. Try again later.'),
   // Shown only after a save write has failed; names no group or rank, so both sets share it.
   'settings.save-failed': same('This device could not save. Free up space, then play again.'),
 });

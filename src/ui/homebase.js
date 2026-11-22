@@ -152,7 +152,7 @@ export function showEditionTitle(doc, edition) {
 //   nearby: game/nearby.js, the rooms the app found on the local network.
 //     Absent, or not available (Safari, desktop), nothing of it is drawn
 //   metPlayers: src/metplayers.js (the device's own list when absent)
-export function createHomeBase({ progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onBirthdaySong, onAudioWake, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null, getIsTouch = () => false }) {
+export function createHomeBase({ progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onTvChange = null, onVisitDen, colonySync, myId, toast, onCelebrate, onBirthdaySong, onAudioWake, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null, getIsTouch = () => false }) {
   const met = () => metPlayers ?? deviceMetPlayers();
   const root = document.getElementById('homebase');
   let petNameError = null;
@@ -644,6 +644,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           </label>
           ${settingsSwitchHtml('set-reduced-motion', !!s.reducedMotion, 'Reduced motion')}
           ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
+          ${settingsSwitchHtml('set-tv-mode', !!s.tvMode, tutorialLine('pad.settings.tv'))}
+          <p class="settings-note" id="set-tv-note">${escapeHtml(tutorialLine('pad.settings.tv-note', { touch: !!getIsTouch() }))}</p>
         </div>
       </section>`;
   }
@@ -2482,6 +2484,14 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (e.target.id === 'set-hide-chat') {
       settings.set('hideChat', e.target.checked);
       onSettingsChange?.();
+      render();
+      return;
+    }
+    // TV mode: the chunk loads (or leaves) live, no reload. A failed load puts
+    // the switch back off through refresh() (main.js).
+    if (e.target.id === 'set-tv-mode') {
+      settings.set('tvMode', e.target.checked);
+      onTvChange?.(!!e.target.checked);
       render();
       return;
     }

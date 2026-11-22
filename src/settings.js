@@ -27,6 +27,12 @@ const DEFAULTS = {
   // left the walk screen for the pause card's View chips; this brings it back
   // for a child who cannot pinch. Off by default.
   zoomButtons: false,
+  // TV mode (src/tv/, 2026-11-22): big text and button pictures for a Mac on
+  // a TV with a pad. Off unless a grown-up turns it on or says yes to the
+  // offer; "Not now" to the offer is kept in tvOfferDeclined. Per device,
+  // like the rest of this file: neither is in the save or the cloud save.
+  tvMode: false,
+  tvOfferDeclined: false,
 };
 
 // Resolved into a render tier by src/render/quality.js (resolveQuality) —
@@ -73,6 +79,8 @@ function sanitize(raw) {
     haptics: typeof raw.haptics === 'boolean' ? raw.haptics : DEFAULTS.haptics,
     showTips: typeof raw.showTips === 'boolean' ? raw.showTips : DEFAULTS.showTips,
     zoomButtons: typeof raw.zoomButtons === 'boolean' ? raw.zoomButtons : DEFAULTS.zoomButtons,
+    tvMode: typeof raw.tvMode === 'boolean' ? raw.tvMode : DEFAULTS.tvMode,
+    tvOfferDeclined: typeof raw.tvOfferDeclined === 'boolean' ? raw.tvOfferDeclined : DEFAULTS.tvOfferDeclined,
   };
 }
 

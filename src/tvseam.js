@@ -33,3 +33,52 @@ export function resetTv() {
   Object.assign(tvState, { on: false, input: 'keys', text: null, padLine: null });
   listeners.clear();
 }
+
+/** ?tv=1 turns TV mode on for this page load only, ?tv=0 off; never saved (like ?perf). */
+export function tvWanted(search, saved) {
+  let v = null;
+  try { v = new URLSearchParams(search).get('tv'); } catch { /* no query */ }
+  return v === '1' ? true : v === '0' ? false : !!saved;
+}
+
+/**
+ * Loads and stops the chunk. `load` is () => import('./tv/index.js') (main.js
+ * owns that call, so this file never names the chunk); `ctx` builds what the
+ * chunk needs, only when it is asked for. A load that fails (offline, a stale
+ * cache) leaves the switch off and tells `onFail`.
+ */
+export function createTvLoader({ load, ctx, settings, onFail }) {
+  let handle = null;
+  let pending = null;
+  let want = false;
+  return {
+    apply(on) {
+      want = !!on;
+      if (!want) {
+        if (handle) { try { handle.stop(); } catch { /* leaving anyway */ } }
+        handle = null;
+        setTv({ on: false });
+        return Promise.resolve(false);
+      }
+      if (handle) return Promise.resolve(true);
+      if (pending) return pending;
+      pending = (async () => (await load()).start(ctx()))()
+        .then((h) => {
+          pending = null;
+          if (!want) { try { h?.stop?.(); } catch { /* gone */ } return false; }
+          handle = h ?? { stop() {} };
+          setTv({ on: true });
+          return true;
+        })
+        .catch((err) => {
+          pending = null;
+          want = false;
+          settings.set('tvMode', false);
+          setTv({ on: false });
+          onFail?.(err);
+          return false;
+        });
+      return pending;
+    },
+  };
+}

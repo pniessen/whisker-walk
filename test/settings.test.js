@@ -23,6 +23,8 @@ describe('createSettings', () => {
       haptics: true,
       showTips: true, // 2026-11-15, guided-first-walk design: the "Show tips" switch, on by default
       zoomButtons: false, // 2026-11-19, controls review: the + and − pair on screen, off by default
+      tvMode: false, // 2026-11-22, TV mode: off until a grown-up turns it on
+      tvOfferDeclined: false,
     });
     expect(settings.get('volume')).toBe(0.8);
   });
@@ -57,6 +59,8 @@ describe('createSettings', () => {
       haptics: true,
       showTips: true, // 2026-11-15, guided-first-walk design: the "Show tips" switch, on by default
       zoomButtons: false, // 2026-11-19, controls review: the + and − pair on screen, off by default
+      tvMode: false, // 2026-11-22, TV mode: off until a grown-up turns it on
+      tvOfferDeclined: false,
     });
   });
 
@@ -77,6 +81,8 @@ describe('createSettings', () => {
       haptics: true,
       showTips: true, // 2026-11-15, guided-first-walk design: the "Show tips" switch, on by default
       zoomButtons: false, // 2026-11-19, controls review: the + and − pair on screen, off by default
+      tvMode: false, // 2026-11-22, TV mode: off until a grown-up turns it on
+      tvOfferDeclined: false,
     });
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
@@ -182,5 +188,35 @@ describe('createSettings', () => {
     expect(createSettings(storage).get('showTips')).toBe(false);
     const junk = createSettings(fakeStorage({ 'whisker-walk-settings': JSON.stringify({ showTips: 'no' }) }));
     expect(junk.get('showTips')).toBe(true);
+  });
+
+  // 2026-11-22, TV mode: two device settings, never in the save.
+  it('tvMode and tvOfferDeclined are off by default, persist, and junk reads as off', () => {
+    const storage = fakeStorage();
+    const settings = createSettings(storage);
+    expect([settings.get('tvMode'), settings.get('tvOfferDeclined')]).toEqual([false, false]);
+    settings.set('tvMode', 1); // any truthy value stores true
+    settings.set('tvOfferDeclined', true);
+    const again = createSettings(storage);
+    expect([again.get('tvMode'), again.get('tvOfferDeclined')]).toEqual([true, true]);
+    const junk = createSettings(fakeStorage({ 'whisker-walk-settings': JSON.stringify({ tvMode: 'yes', tvOfferDeclined: 1 }) }));
+    expect([junk.get('tvMode'), junk.get('tvOfferDeclined')]).toEqual([false, false]);
+  });
+
+  it('settings written by an older build (no TV keys) load unchanged', () => {
+    const old = createSettings(fakeStorage({ 'whisker-walk-settings': JSON.stringify({ volume: 0.3, muted: true, showTips: false }) }));
+    expect(old.get('volume')).toBe(0.3);
+    expect(old.get('muted')).toBe(true);
+    expect(old.get('showTips')).toBe(false);
+    expect(old.get('tvMode')).toBe(false);
+    expect(Object.keys(old.all())).not.toContain('tvmode');
+  });
+
+  it('an unknown key is still dropped', () => {
+    const storage = fakeStorage();
+    const s = createSettings(storage);
+    s.set('tvmode', true);
+    expect(JSON.parse(storage.getItem('whisker-walk-settings') ?? '{}')).not.toHaveProperty('tvmode');
+    expect(s.get('tvmode')).toBeUndefined();
   });
 });
