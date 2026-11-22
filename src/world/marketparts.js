@@ -499,17 +499,56 @@ function butcherFront(x, y) {
   return c;
 }
 function slatePixel(x, y) {
-  if (x < 1 || y < 1 || x > 30 || y > 30) return rgbOf(0x8a6642);
-  let c = mixc(SLATE, CHALK.white, 0.05 * hash01(Math.floor(x / 3), Math.floor(y / 2), 153));
-  const rows = [24.5, 16, 7.5];
+  // a light price board: cream card in a wooden frame, a dark dot for the thing and gold coins (one, two, three) beside it
+  if (x < 2 || y < 2 || x > 29 || y > 29) return rgbOf(0x8a6642);
+  let c = rgbOf(0xf3e8c8);
+  if (x < 3.5 || y < 3.5 || x > 27.5 || y > 27.5) return rgbOf(0xc9a46a);
+  const rows = [24, 16, 8];
   rows.forEach((cy, k) => {
-    if (inCircle(x, y, 6.5, cy, 2.6)) c = CHALK.white;
+    if (inCircle(x, y, 7.5, cy, 3)) c = rgbOf(0x5a3b26);
     for (let j = 0; j <= k; j++) {
-      if (inCircle(x, y, 15 + j * 5.5, cy, 2.1) && !inCircle(x, y, 15 + j * 5.5, cy, 1.0)) c = CHALK.yellow;
+      const cx = 14 + j * 5.2;
+      if (inCircle(x, y, cx, cy, 2.7)) c = rgbOf(0x8a6a1c);
+      if (inCircle(x, y, cx, cy, 1.9)) c = rgbOf(0xf2c94c);
     }
   });
   return c;
 }
+// The counter fronts live in a texture of their own (the beauty pass, round 2): four 128 px cells in
+// 256 x 256, drawn at four times the atlas's density and magnified without smoothing, so the gingham,
+// planks and rug keep their edges from a cat's height. Cell i at column i % 2, row floor(i / 2).
+export const FRONT_CELLS = 4;
+const FRONT_PX = 128;
+export function createFrontsTexture() {
+  const data = new Uint8Array(256 * 256 * 4);
+  const fns = [toyFront, plantFront, bricFront, butcherFront];
+  for (let i = 0; i < FRONT_CELLS; i++) {
+    const ox = (i % 2) * FRONT_PX;
+    const oy = Math.floor(i / 2) * FRONT_PX;
+    for (let y = 0; y < FRONT_PX; y++) {
+      for (let x = 0; x < FRONT_PX; x++) {
+        const rgb = fns[i](x / 4, y / 4);
+        const j = ((oy + y) * 256 + ox + x) * 4;
+        data[j] = Math.round(rgb[0]); data[j + 1] = Math.round(rgb[1]); data[j + 2] = Math.round(rgb[2]); data[j + 3] = 255;
+      }
+    }
+  }
+  const texture = new THREE.DataTexture(data, 256, 256, THREE.RGBAFormat);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.generateMipmaps = true;
+  texture.needsUpdate = true;
+  return texture;
+}
+// the UV box of front cell i, inset a texel
+export function frontCell(i) {
+  const pad = 1 / 256;
+  const u0 = (i % 2) / 2;
+  const v0 = Math.floor(i / 2) / 2;
+  return { u0: u0 + pad, v0: v0 + pad, u1: u0 + 0.5 - pad, v1: v0 + 0.5 - pad };
+}
+
 // the valances: stripes (as the awning's) fading a little toward the hem, a piping line, a trim band
 // of rows 0-7 in the stall's accent with a row of cream dots
 const VALANCE_TRIM = Object.freeze([0xf2c94c, 0x1f5f5a, 0x6e4a33, 0xf3ead2]);
@@ -531,10 +570,6 @@ function valancePixel(i, x, y) {
 const SPARE = rgbOf(CREAM);
 
 function cellPixel(i, x, y) {
-  if (i === 32) return toyFront(x, y);
-  if (i === 33) return plantFront(x, y);
-  if (i === 34) return bricFront(x, y);
-  if (i === 35) return butcherFront(x, y);
   if (i === 36) return slatePixel(x, y);
   if (i >= 40 && i <= 43) return valancePixel(i, x, y);
   if (i === 38 || i === 39) return newGoodsPixel(i, x, y);
@@ -672,6 +707,7 @@ export function marketMaterials() {
     metal: std(0x6f777c, 0.5, { metalness: 0.5 }),
     lantern: std(0xffe3a8, 0.6, { emissive: 0xffb84a, emissiveIntensity: 0 }), // lit at dusk by the build
     cloth: std(0xe6dcc2, 1, { side: THREE.DoubleSide }),
+    front: std(0xffffff, 0.9, { map: createFrontsTexture() }), // the four new counter fronts, sharp
   };
 }
 

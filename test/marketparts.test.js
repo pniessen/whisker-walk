@@ -160,7 +160,7 @@ describe('marketparts', () => {
   it('the materials are one set: awning and stall carry the atlas, the lantern is dark until dusk', () => {
     const m = marketMaterials();
     // only what the square draws with (the ground and the fountain have their own)
-    expect(Object.keys(m).sort()).toEqual(['awning', 'cloth', 'lantern', 'metal', 'stall']);
+    expect(Object.keys(m).sort()).toEqual(['awning', 'cloth', 'front', 'lantern', 'metal', 'stall']);
     for (const k of Object.keys(m)) expect(m[k], k).toBeTruthy();
     expect(m.awning.map).toBeTruthy();
     expect(m.stall.map).toBe(m.awning.map);
