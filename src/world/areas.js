@@ -33,7 +33,7 @@ const withPeople = (id, world) => Promise.all([world, import('../people/index.js
 
 const own = (id, world) => ({ id, world, life: {} });
 
-export const AREA_LOADERS = Object.freeze({
+const loaders = {
   neighborhood: () => withPeople('neighborhood', import('./neighborhood.js')),
   park: () => withPeople('park', import('./park.js')),
   seaside: () => withPeople('seaside', import('./seaside.js')),
@@ -54,9 +54,18 @@ export const AREA_LOADERS = Object.freeze({
   market: () => Promise.all([import('./market.js'), import('../marketlive.js'), import('../people/index.js')])
     .then(([world, live, p]) => ({ id: 'market', world, life: { createMarketLive: live.createMarketLive, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } })),
   house: () => import('./house.js').then((w) => own('house', w)),
-});
+};
 
-export const AREA_ENTRY_MODULES = Object.freeze({
+// The private family edition (vite --mode family) registers its one place here; in every other build
+// the flag is a literal false, the branch is dropped and no family file is bundled. In plain Node
+// (build scripts) the flag does not exist, so it reads as false.
+if (typeof __PRIVATE_FAMILY__ !== 'undefined' && __PRIVATE_FAMILY__) {
+  loaders.family = () => import('../family/index.js').then((w) => own('family', w));
+}
+
+export const AREA_LOADERS = Object.freeze(loaders);
+
+const entryModules = {
   neighborhood: Object.freeze(['src/world/neighborhood.js', 'src/people/index.js']),
   park: Object.freeze(['src/world/park.js', 'src/people/index.js']),
   seaside: Object.freeze(['src/world/seaside.js', 'src/people/index.js']),
@@ -72,4 +81,8 @@ export const AREA_ENTRY_MODULES = Object.freeze({
   roofs: Object.freeze(['src/world/roofs.js']),
   market: Object.freeze(['src/world/market.js', 'src/marketlive.js', 'src/people/index.js']),
   house: Object.freeze(['src/world/house.js']),
-});
+};
+if (typeof __PRIVATE_FAMILY__ !== 'undefined' && __PRIVATE_FAMILY__) {
+  entryModules.family = Object.freeze(['src/family/index.js']);
+}
+export const AREA_ENTRY_MODULES = Object.freeze(entryModules);
