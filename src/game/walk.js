@@ -65,7 +65,7 @@ import { createQuest } from '../quests.js';
 import { QUEST_TRAIL_COLOR } from '../questscent.js';
 import { createGoals, GOAL_POOL } from '../goals.js';
 import { line as tutorialLine } from '../tutorialwords.js';
-import { tvState, padHtml } from '../tvseam.js';
+import { tvState, padHtml, padTag } from '../tvseam.js';
 import { rankFor, CATALOG } from '../progression.js';
 import { catsInArea, colonyWear, denResidents, denMoment } from '../colony.js';
 import { createDenCats } from '../dencats.js';
@@ -3140,7 +3140,7 @@ export function createWalkLifecycle({
       ${lines.mochi ? `<div class="best-line">${lines.mochi}</div>` : ''}
       ${lines.brought ? `<div class="best-line">${lines.brought}</div>` : ''}
       ${crossHtml}
-      <button id="btn-summary-continue" class="primary">Continue</button>
+      <button id="btn-summary-continue" class="primary">Continue${padTag('⟦confirm⟧')}</button>
       </div>
     </div>`;
 
