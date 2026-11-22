@@ -451,6 +451,7 @@ const LATER = Object.freeze({
   'wear.foundIn': (place) => `Found in ${place}`,
   'wear.notYet': 'Not found yet',
   // Dress up's "Remove all accessories", and the cat builder's slots 4 and 5.
+  'wear.removeAll': 'Remove all accessories',
   'slots.buy': (price) => `2 more cat slots — ${price}`,
   'slots.buyLabel': (price) => `Unlock 2 more cat slots for ${price} paw points`,
   'slots.save': (price) => `Save up ${price}`,

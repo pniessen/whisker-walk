@@ -1152,7 +1152,7 @@ describe("the world map's card", () => {
   });
 });
 
-describe('createDressingRoom: more cat slots', () => {
+describe('createDressingRoom: more cat slots and Remove all accessories', () => {
   function real(points = 0) {
     const map = new Map();
     const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
@@ -1192,5 +1192,34 @@ describe('createDressingRoom: more cat slots', () => {
     progression.buyMoreSlots();
     dr.handleClick(click({ drMake: '' }));
     expect(dr.ui.builder).toBeTruthy();
+  });
+  it('Remove all accessories takes everything off in one tap, tells friends once, and drops a try-on', () => {
+    const { dr, progression, sync, onProfileChange } = real(500);
+    for (const id of ['tophat', 'bowtie', 'sunglasses']) { progression.buy('accessories', id); progression.equipAccessory(id); }
+    progression.equipAccessory('bell');
+    expect(Object.values(progression.state.equipped).filter((v) => typeof v === 'string').length).toBeGreaterThan(3);
+    dr.handleClick(click({ drWardrobe: '' }));
+    dr.handleClick(click({ drAcc: 'bandana', drAct: 'try' }));
+    onProfileChange.mockClear();
+    expect(dr.handleClick(click({ drRemoveAll: '' }))).toBe(true);
+    const e = progression.state.equipped;
+    for (const slot of ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet']) expect(e[slot]).toBe(null);
+    expect(e.cat).toBe('tabby');
+    expect(dr.ui.tryOn).toBeNull();
+    expect(onProfileChange).toHaveBeenCalledTimes(1);
+    expect(sync.autoSync).toHaveBeenCalled();
+    onProfileChange.mockClear();
+    dr.handleClick(click({ drRemoveAll: '' })); // already bare: nothing to tell
+    expect(onProfileChange).not.toHaveBeenCalled();
+  });
+  it('a keyboard tap on Remove all lands focus on the Done button, since the button goes grey', () => {
+    const { dr } = real(0);
+    const seen = [];
+    const root = { querySelector: (sel) => { seen.push(sel); return { focus() {} }; } };
+    const t = { dataset: { drRemoveAll: '' }, ownerDocument: { activeElement: null } };
+    t.ownerDocument.activeElement = t;
+    dr.handleClick({ target: { closest: () => t } });
+    dr.restoreFocus(root, null);
+    expect(seen).toEqual(['[data-dr-wardrobe-done]']);
   });
 });

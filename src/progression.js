@@ -1789,6 +1789,11 @@ export function createProgression(storage) {
       state.equipped[slot] = null;
       save();
     },
+    // Every worn accessory off, in one save (Dress up's Remove all accessories).
+    unequipAll() {
+      for (const slot of OUTFIT_SLOTS) state.equipped[slot] = null;
+      save();
+    },
     // Saved outfits (src/outfits.js). saveOutfit() keeps what the cat has on
     // now → the new outfit's id, or null when there is nothing on, it is
     // already saved, or all five are used.

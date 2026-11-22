@@ -443,6 +443,7 @@ function wearingHtml(m, ui, thumbs) {
     return `<section class="dr-wearing dr-wardrobe-open" aria-label="Dress up">
     <div class="dr-wardrobe-head"><p class="dr-label">Dress up</p><button class="dr-done" data-dr-wardrobe-done>Done ✓</button></div>
     <div class="dr-slots">${m.slots.map((s) => slotHtml(s, openSlot, ui.pickerHtml, thumbs)).join('')}</div>
+    <button class="dr-remove-all" data-dr-remove-all ${m.wearingCount ? '' : 'disabled'}>${escapeHtml(phrase('wear.removeAll'))}</button>
     ${outfitsHtml(m, thumbs, ui.outfitAsk)}
   </section>`;
   }

@@ -95,7 +95,7 @@ export function reduceDressingUi(ui, action) {
 
 const DR_SELECTOR = '[data-dr-sheet],[data-dr-buy-cat],[data-dr-place-buy],[data-dr-cat],[data-dr-acc],[data-dr-slot],[data-dr-place],[data-dr-wardrobe],'
   + '[data-dr-wardrobe-done],[data-dr-more-cats],[data-dr-outfit],[data-dr-outfit-save],[data-dr-outfit-del],[data-dr-outfit-yes],[data-dr-outfit-keep],'
-  + '[data-dr-mine],[data-dr-make],[data-dr-buy-slots],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-done],[data-cb-leave],[data-cb-stay],'
+  + '[data-dr-mine],[data-dr-make],[data-dr-buy-slots],[data-dr-remove-all],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-done],[data-cb-leave],[data-cb-stay],'
   + '[data-dr-map-place],[data-dr-map-close]';
 // Opening the world map's card lands focus on its one button (or ✕ when it
 // has none), by keyboard or touch; a keyboard close goes back to the place on
@@ -398,6 +398,14 @@ export function createDressingRoom({
     });
   }
 
+  // Every worn accessory off in one tap; friends hear once, a try-on is dropped.
+  function onRemoveAll() {
+    const before = JSON.stringify(progression.state?.equipped ?? {});
+    progression.unequipAll();
+    dispatch({ type: 'try-on', slot: null, id: null });
+    if (JSON.stringify(progression.state?.equipped ?? {}) !== before) { autoSync(); profileChanged(); }
+  }
+
   function onEdit(id) {
     const cat = myCats().find((c) => c.id === id);
     if (cat && !ui.builder) dispatch({ type: 'builder', builder: editBuilder(cat) });
@@ -529,6 +537,7 @@ export function createDressingRoom({
     if (d.drCat !== undefined) return `[data-dr-cat="${q(d.drCat)}"]`;
     if (d.drMine !== undefined) return `[data-dr-mine="${q(d.drMine)}"]`;
     if (d.drAcc !== undefined) return `[data-dr-acc="${q(d.drAcc)}"]`;
+    if (d.drRemoveAll !== undefined) return '[data-dr-wardrobe-done]';
     if (d.drOutfit !== undefined) return `[data-dr-outfit="${q(d.drOutfit)}"]`;
     // ✕ opens the question: land on the safe answer. Keep it brings ✕ back;
     // saving disables the button and Yes removes the row: land on the save button's place.
@@ -602,6 +611,7 @@ export function createDressingRoom({
     else if (d.drMine !== undefined) onMine(d.drMine);
     else if (d.drMake !== undefined) onMake();
     else if (d.drBuySlots !== undefined) onBuySlots();
+    else if (d.drRemoveAll !== undefined) onRemoveAll();
     else if (d.drEdit !== undefined) onEdit(d.drEdit);
     else if (d.drPose !== undefined) onPose(d.drPose);
     else if (d.cbPick !== undefined) builderOp({ type: 'pick', field: d.cbPick, value: d.cbValue });

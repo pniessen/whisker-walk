@@ -366,3 +366,20 @@ describe('outfit pictures', async () => {
     expect(html).toContain('<span class="dr-outfit-more">+1</span>');
   });
 });
+
+describe('Remove all accessories button', async () => {
+  const { createDressingRoom } = await import('../src/ui/dressingroomview.js');
+  it('shows in the wardrobe above Saved outfits; enabled with something on, greyed when bare', () => {
+    const p = dressed();
+    const room = createDressingRoom({ progression: p, thumbs: { cats: {}, accessories: {} } });
+    expect(room.html()).not.toContain('data-dr-remove-all');
+    room.handleClick({ target: { closest: () => ({ dataset: { drWardrobe: '' }, ownerDocument: {} }) } });
+    wear(p, 'tophat');
+    let h = room.html();
+    expect(h).toMatch(/data-dr-remove-all\s*>Remove all accessories/);
+    expect(h.indexOf('data-dr-remove-all')).toBeLessThan(h.indexOf('Saved outfits'));
+    bare(p);
+    h = room.html();
+    expect(h).toMatch(/data-dr-remove-all disabled>Remove all accessories/);
+  });
+});
