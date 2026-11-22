@@ -73,6 +73,8 @@ export const RIDE = Object.freeze({
   // same 40 s as before, so the lap is 52.
   COASTER_LAP: 52,     // seconds from leaving the station to leaving it again
   COASTER_WAIT: 12,    // of which the train stands in the station this long
+  CLOCK_JUMP: 5,       // seconds: a bigger step than this in the clock is not a frame
+  COASTER_GO: 0.4,     // ...unless she sits down in it: then it leaves this long after (see departNow)
   COASTER_LIFT: 2.3,   // m/s up the hill, clanking
   COASTER_G: 3.4,      // how much of the hill's height comes back as speed (a real coaster's is 9.8)
   COASTER_TOP: 7.0,    // m/s, the fastest it is ever asked to go: about a cat's own run and a bit
@@ -372,13 +374,13 @@ export function createFairSim(area) {
     for (let i = 0; i <= N; i++) fastest = Math.max(fastest, v[i]);
     return {
       track: tr, length: L, stationS: g.stationS, cars, N, ds, v, at, scale: k, fastest, hillTop: top * ds,
-      platform: areaPerch(area.anchors.coasterPlatform), station: area.anchors.coasterStation ?? null, s: g.stationS, d: 0, speed: 0, waiting: true,
+      platform: areaPerch(area.anchors.coasterPlatform), station: area.anchors.coasterStation ?? null, s: g.stationS, d: 0, speed: 0, waiting: true, shift: 0,
     };
   })();
   seats.push(...coaster.cars);
 
   function setCoaster(T) {
-    const tau = ((T % RIDE.COASTER_LAP) + RIDE.COASTER_LAP) % RIDE.COASTER_LAP - RIDE.COASTER_WAIT;
+    const tau = (((T + coaster.shift) % RIDE.COASTER_LAP) + RIDE.COASTER_LAP) % RIDE.COASTER_LAP - RIDE.COASTER_WAIT;
     let d = 0;
     let speed = 0;
     if (tau > 0) {
@@ -414,6 +416,17 @@ export function createFairSim(area) {
     }
   }
 
+  // She has sat down in a car of the standing train: it does not make her wait
+  // out the stand. The train's own clock moves on so that it leaves
+  // COASTER_GO from now (never later than it would have). This is the one
+  // thing in the fair that is not a pure function of T: a walk's coaster is
+  // its own, and the shift is the whole of its memory.
+  function departNow() {
+    if (!coaster.waiting) return;
+    const tau = (((now + coaster.shift) % RIDE.COASTER_LAP) + RIDE.COASTER_LAP) % RIDE.COASTER_LAP - RIDE.COASTER_WAIT;
+    if (tau < -RIDE.COASTER_GO) { coaster.shift += -RIDE.COASTER_GO - tau; setCoaster(now); }
+  }
+
   // The camera that follows the train (numbers only; fairlive.js places the
   // real one). Behind the seat and above it, looking a little ahead of her.
   // Its direction, its place and what it looks at are each eased, so a bend
@@ -446,7 +459,10 @@ export function createFairSim(area) {
 
   let now = 0;
   function setTime(T) {
-    now = Number.isFinite(T) ? T : 0;
+    const t = Number.isFinite(T) ? T : 0;
+    // a jump in the clock (the tab was away, a new walk) forgets the train's early start
+    if (Math.abs(t - now) > RIDE.CLOCK_JUMP) coaster.shift = 0;
+    now = t;
     setMgr(now);
     setWheel(now);
     setCups(now);
@@ -690,6 +706,7 @@ export function createFairSim(area) {
     slide,
     startSlide,
     endSlide,
+    departNow,
     coaster,
     chaseCam,
     chase,

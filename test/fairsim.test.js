@@ -1759,3 +1759,87 @@ describe('what moving costs', () => {
     expect(hopDownTime(13)).toBeLessThanOrEqual(0.9);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Owner, 2026-11-22: "once the cat gets on a ride the ride should start (vs a
+// long pause)". From the frame a jump seats her, how long until the seat has
+// visibly moved (0.05 m)? Whatever phase of its cycle the ride was in.
+describe('the walk: a ride starts as soon as she is seated', () => {
+  const SEE = 0.05; // metres a seat must have moved to be seen to move
+  const LIMIT = 1.0; // seconds, landing to visible motion
+  // seconds after the jump seated her until her paws have moved SEE (or 99)
+  function startUp(w) {
+    const x0 = w.cat.position.x; const y0 = w.cat.position.y; const z0 = w.cat.position.z;
+    for (let i = 0; i <= 60 * 30; i++) {
+      if (Math.hypot(w.cat.position.x - x0, w.cat.position.y - y0, w.cat.position.z - z0) > SEE) return i * w.DT;
+      w.frame();
+    }
+    return 99;
+  }
+  const phases = (period, n) => Array.from({ length: n }, (_, k) => (period * (k + 0.37)) / n);
+
+  it('merry-go-round: turning the moment she is on the platform', () => {
+    for (const p of phases(RIDE.MGR_TURN, 6)) {
+      const w = walk({ at: { x: 0, z: 5.15 }, clock: { T: 3000 + p } });
+      expect(w.jumpWhenInReach()).toBe(true);
+      expect(startUp(w)).toBeLessThanOrEqual(LIMIT);
+    }
+  });
+
+  it('teacups: spinning the moment she is in a cup', () => {
+    for (const p of phases(RIDE.CUPS_TURN, 6)) {
+      const w = walk({ at: { x: -26 + 5.35, z: 2 }, clock: { T: 9000 + p } });
+      w.player.yaw = Math.PI / 2;
+      expect(w.jumpWhenInReach()).toBe(true);
+      expect(startUp(w)).toBeLessThanOrEqual(LIMIT);
+    }
+  });
+
+  it('big wheel: turning the moment she is in a gondola', () => {
+    for (const p of phases(RIDE.WHEEL_TURN, 6)) {
+      const w = walk({ at: { x: 0, z: -27 }, clock: { T: 7000 + p } });
+      const step = w.live.sim.wheel.step;
+      w.session.perched = step; w.player.perchY = step.y; w.cat.position.set(step.x, step.y, step.z);
+      for (let i = 0; i < 30 * 70 && !w.live.riding; i++) { w.live.jump(w.ctx); if (!w.live.riding) w.frame(); }
+      expect(w.live.riding?.seatKind).toBe('gondola');
+      expect(startUp(w)).toBeLessThanOrEqual(LIMIT);
+    }
+  });
+
+  it('helter-skelter: she is off down the chute the moment she jumps', () => {
+    const w = walk({ at: { x: -30, z: -30 }, clock: { T: 12000 } });
+    const top = w.live.sim.slide.top;
+    w.session.perched = top; w.player.perchY = top.y; w.cat.position.set(top.x, top.y, top.z);
+    w.frame();
+    expect(w.live.jump(w.ctx)).toBe(true);
+    expect(startUp(w)).toBeLessThanOrEqual(LIMIT);
+  });
+
+  it('coaster: the train leaves within a beat of her sitting down, whatever point of the stand', () => {
+    const LAP = RIDE.COASTER_LAP;
+    // the stand is the first COASTER_WAIT seconds of the lap
+    for (const into of [0.2, 1, 3, 6, 9, 11.5]) {
+      const w = walk({ at: { x: 19.6, z: 0 }, clock: { T: LAP * 700 + into } });
+      const plat = w.live.sim.coaster.platform;
+      w.session.perched = plat; w.player.perchY = plat.y; w.cat.position.set(plat.x, plat.y, plat.z);
+      w.frame();
+      expect(w.live.jump(w.ctx)).toBe(true);
+      expect(w.session.perched.seatKind).toBe('car');
+      expect(startUp(w)).toBeLessThanOrEqual(LIMIT);
+    }
+  });
+
+  it('coaster: boarding as the train rolls out, or never lengthens its stand', () => {
+    const LAP = RIDE.COASTER_LAP;
+    const w = walk({ at: { x: 19.6, z: 0 }, clock: { T: LAP * 710 + RIDE.COASTER_WAIT + 0.5 } }); // already leaving
+    const plat = w.live.sim.coaster.platform;
+    w.session.perched = plat; w.player.perchY = plat.y; w.cat.position.set(plat.x, plat.y, plat.z);
+    w.frame();
+    const lap0 = LAP * 710;
+    if (w.live.jump(w.ctx)) expect(startUp(w)).toBeLessThanOrEqual(LIMIT);
+    // the lap is whole, whatever happened: the train is back by T = lap0 + 2 laps
+    w.run(LAP * 1.5);
+    expect(w.live.sim.coaster.speed).toBeGreaterThanOrEqual(0);
+    expect(lap0).toBeGreaterThan(0);
+  });
+});

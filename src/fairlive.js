@@ -309,6 +309,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
         lastSeat = t.type === 'hop' ? riding : null;
         if (t.seat.rideId === 'cups') noteBoardSide(sim.cups.cx, sim.cups.cz);
         riding = t.seat;
+        if (t.seat.seatKind === 'car') sim.departNow(); // the train leaves a beat after she sits down
         seatCat(t.seat, cat, player, session);
         onEvent({ type: 'hop', ride: t.seat.rideId });
         // (a hook for step 3: the lookout at the top of the big wheel is discovery F)
