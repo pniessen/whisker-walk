@@ -98,8 +98,9 @@ describe('the golden mice (D5)', () => {
 
 describe('the knock-overs (D4)', () => {
   it('every knockable stands on a perch at its height and falls onto its own room\'s floor', () => {
-    expect(HOUSE_KNOCKABLES.map((k) => k.kind).sort()).toEqual(['book', 'book', 'can', 'cup', 'cup', 'flowerpot']);
-    expect(new Set(HOUSE_KNOCKABLES.map((k) => k.id)).size).toBe(6);
+    // six, and the east wing's four: a cup on the coffee table, a book on the kids' desk, a cup on the basin, a can on the cistern
+    expect(HOUSE_KNOCKABLES.map((k) => k.kind).sort()).toEqual(['book', 'book', 'book', 'can', 'can', 'cup', 'cup', 'cup', 'cup', 'flowerpot']);
+    expect(new Set(HOUSE_KNOCKABLES.map((k) => k.id)).size).toBe(10);
     for (const k of HOUSE_KNOCKABLES) {
       expect(isPropId(k.id) && KNOCK_KINDS.includes(k.kind), k.id).toBe(true);
       expect(k.id).toMatch(new RegExp(`^house-${k.kind}-[1-9]$`));
@@ -346,7 +347,7 @@ describe('the special places and the discoveries (D6, D13)', () => {
 
 describe('the goals and the corner map (D11, D12)', () => {
   it('each goal type has something to finish in the house', () => {
-    expect(HOUSE_GOAL_TYPES).toEqual(['mischief', 'photo', 'play', 'scenic']);
+    expect(HOUSE_GOAL_TYPES).toEqual(['mischief', 'photo', 'play', 'sits', 'scenic']); // `sits`: the wing's blanket fort and laundry basket
     expect(Object.isFrozen(HOUSE_GOAL_TYPES)).toBe(true);
     expect(HOUSE_KNOCKABLES.length).toBeGreaterThanOrEqual(3);
     expect(HOUSE_SCENICS.length).toBeGreaterThanOrEqual(2);

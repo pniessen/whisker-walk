@@ -30,6 +30,7 @@ export function measureHouse(scene, rig, links = LEVEL_LINKS) {
   for (const c of scene.children) {
     const u = c.userData ?? {};
     if (u.houseDetail) push(detailKids, u.houseLevel, c);
+    else if (u.paneZone) push(detailKids, u.paneZone, c); // a wing window's glass is drawn with its zone (houselife.js)
     else if (u.houseSimple) push(simpleKids, u.houseSimple, c);
     else fixedKids.push(c);
   }
@@ -42,10 +43,21 @@ export function measureHouse(scene, rig, links = LEVEL_LINKS) {
     detail,
     simple,
     at(levelId) {
-      const full = fullLevels(levelId, links);
+      return this.atFull(fullLevels(levelId, links));
+    },
+    // a set of zones drawn in full (houselevels.js): the rest are stand-ins
+    atFull(full) {
       let sum = fixed;
       for (const l of levels) sum = add(sum, (full.has(l) ? detail.get(l) : simple.get(l)) ?? ZERO);
       return sum;
+    },
+    // her zone `id` and the zones joined to it that are near: an old level's neighbours drop away
+    // while a wing zone is near it (houselevels.js), and a wing zone is drawn alone
+    atZone(id, near = []) {
+      const wing = id === 'east' || id === 'kids';
+      const own = wing || near.length ? new Set([id]) : fullLevels(id, links);
+      for (const n of near) own.add(n);
+      return this.atFull(own);
     },
   };
 }

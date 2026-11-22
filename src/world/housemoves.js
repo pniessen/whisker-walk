@@ -31,6 +31,7 @@
 
 import { createTraversal } from '../traversal.js';
 import { houseArea } from './houseplan.js';
+import { WING_CLIMBS, WING_DROPS, WING_ROUTES, WING_PERCHES } from './housewingmoves.js';
 
 const P = (x, z, y) => ({ x, z, y });
 const S = (x, z) => ({ x, z });
@@ -58,6 +59,7 @@ const climbs = [
   hop('bedroom-chest-shelf', S(-4.45, -14.04), S(-4.6, -15.4)),
   hop('attic-floor-seat', S(-22.3, -11.0), S(-23.4, -11.0)),
   hop('parlour-floor-keys', S(8.7, 9.7), S(8.7, 10.74)),
+  ...WING_CLIMBS, // the east wing's: the sofa, the bunks, the tub
 ];
 
 const gaps = [
@@ -79,6 +81,7 @@ const drops = [
   hop('bedroom-chest-floor', S(-4.2, -14.04), S(-4.2, -13.0)),
   hop('attic-seat-floor', S(-23.4, -11.0), S(-22.3, -11.0)),
   hop('parlour-keys-floor', S(8.7, 10.74), S(8.7, 9.7)),
+  ...WING_DROPS,
 ];
 
 const deepFreeze = (o) => {
@@ -97,6 +100,7 @@ export const HOUSE_ROUTES = deepFreeze({
   bedroom: ['bedroom-floor-chest', 'bedroom-chest-shelf', 'bedroom-shelf-wardrobe', 'bedroom-wardrobe-shelf', 'bedroom-shelf-chest', 'bedroom-chest-floor'],
   attic: ['attic-floor-seat', 'attic-seat-floor'],
   piano: ['parlour-floor-keys', 'parlour-keys-floor'],
+  ...WING_ROUTES, // the east wing's three: the sofa, the bunks, the tub
 });
 
 // The knock-over perches (D4): on top of each piece, `y` metres over its floor. The ids are
@@ -110,6 +114,7 @@ export const HOUSE_PERCHES = deepFreeze([
   perch('hall-console', -3.71, 4.2, 0.8),
   perch('library-desk', -9.0, 11.55, 0.8),
   perch('bedroom-bed', 0.3, -12.0, 0.6),
+  ...WING_PERCHES,
 ]);
 
 // The plan's area with its moves and perches, for the walk (house.js) and the tests.

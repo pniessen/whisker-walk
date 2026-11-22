@@ -35,6 +35,12 @@ export const HOUSE_KNOCKABLES = frozenAll([
   knock('house-book-1', 'book', 13.6, 7.4, 1.3, 12.65, 7.75), // the parlour mantel, onto the hearth
   knock('house-flowerpot-1', 'flowerpot', -3.71, 3.82, 0.8, -2.85, 3.9), // the hall console
   knock('house-book-2', 'book', -8.65, 11.43, 0.8, -8.6, 10.5), // the library desk
+  // the east wing's four (existing kinds only): the living room's coffee table, the kids' desk,
+  // the bathroom's basin and its cistern
+  knock('house-cup-3', 'cup', 18.4, 6.1, 0.42, 19.2, 6.9),
+  knock('house-book-3', 'book', 40.8, 11.45, 0.8, 41.5, 10.6),
+  knock('house-cup-4', 'cup', 42.1, -2.35, 0.85, 41.9, -1.5),
+  knock('house-can-2', 'can', 43.4, -2.74, 0.85, 42.9, -1.7),
 ]);
 
 // The mice's cover (D10): under the pantry and the dresser in the kitchen, behind
@@ -82,7 +88,14 @@ export const HOUSE_FINDS = frozenAll([
 ]);
 
 // What the daily goals may ask of the house (D11).
-export const HOUSE_GOAL_TYPES = freeze(['mischief', 'photo', 'play', 'scenic']);
+export const HOUSE_GOAL_TYPES = freeze(['mischief', 'photo', 'play', 'sits', 'scenic']);
+
+// The wing's boxes she can sit in (the `sits` goal counts them): the kids' blanket fort and the
+// bathroom's laundry basket.
+export const HOUSE_BOXES = frozenAll([
+  { x: 42.4, z: 4.7 },
+  { x: 43.2, z: 1.25 },
+]);
 
 // ---- the corner map (D12) ----
 

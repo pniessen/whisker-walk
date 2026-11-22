@@ -9,8 +9,10 @@ const { build, HOUSE_SKY_DUSK, HOUSE_DUSK_LIGHT, HOUSE_GROUND_BOUNCE } = await i
 const { build: buildDen } = await import('../src/world/den.js');
 const {
   HOUSE_BOUNDS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_LEVELS, HOUSE_FRONT_DOOR, HOUSE_FURNITURE, fades, LEDGE_FADE_OVER, LAWN_Y, roomAt, levelAt, houseSections,
-  houseColliders,
+  houseColliders, HOUSE_ZONES, HOUSE_LAMPS, zoneOfRoom,
 } = await import('../src/world/houseplan.js');
+// the zone a wall section is drawn with: the wing's rooms and stair name theirs, every old one is its level's
+const zoneOfSection = (s) => (s.owner === 'wing' ? 'east' : zoneOfRoom(HOUSE_ROOMS.find((r) => r.id === s.owner) ?? { level: s.level }));
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { createLevelDrawing } = await import('../src/houselevels.js');
 const { HOUSE_ATLAS_CELLS, createHouseAtlas, furnitureMesh } = await import('../src/world/houseparts.js');
@@ -72,11 +74,13 @@ describe('the record', () => {
     expect(area.critterSpawns.every((c) => c.type === 'mouse')).toBe(true);
     // step 2 (D18, ruling D13): three special places
     expect(area.scenics.map((c) => c.id)).toEqual(['clock', 'fireside', 'attic-window']);
-    for (const k of ['pois', 'collectibles', 'moments', 'puddles', 'boxes', 'tippables']) {
+    for (const k of ['pois', 'collectibles', 'moments', 'puddles', 'tippables']) {
       expect(area[k], k).toEqual([]);
     }
+    // the east wing's two boxes she can sit in: the kids' blanket fort and the bathroom's laundry basket
+    expect(area.boxes).toHaveLength(2);
     // step 2 (D18, ruling D4): the knock-over pieces' tops are perches
-    expect(area.perches.map((p) => p.kind)).toEqual(Array(7).fill('furniture'));
+    expect(area.perches.map((p) => p.kind)).toEqual(Array(11).fill('furniture')); // the old seven and the east wing's four
     expect(typeof area.life).toBe('function'); // house life (Task 6): the walls sink and the levels are drawn
     expect(area.groundBounce).toBe(HOUSE_GROUND_BOUNCE);
     expect(area.skyDusk).toBe(HOUSE_SKY_DUSK);
@@ -97,7 +101,7 @@ describe('the record', () => {
     const H = area.house;
     expect(H.start).toBe('ground');
     expect(H.levels.map((l) => l.id)).toEqual(HOUSE_LEVELS.map((l) => l.id));
-    expect(H.links.length).toBe(HOUSE_STAIRS.length);
+    expect(H.links.length).toBe(HOUSE_STAIRS.length - 1); // the wing's stair joins zones by position (houselevels.js), not a level link
     expect(H.sections).toEqual(houseSections());
     expect(H.sectionMeshes.size).toBe(H.sections.length);
     expect(H.panes).toBeInstanceOf(Map);
@@ -137,7 +141,7 @@ describe('determinism', () => {
     expect(fingerprint(gated).filter((f) => !was.has(f))).toHaveLength(4); // the two hall sections, and the two leaves
   });
 
-  it('builds the atlas the same every time: 512 x 512 RGBA, thirty-seven named cells', () => {
+  it('builds the atlas the same every time: 512 x 512 RGBA, forty-two named cells', () => {
     const a = createHouseAtlas();
     const b = createHouseAtlas();
     expect(a.isDataTexture).toBe(true);
@@ -146,7 +150,7 @@ describe('determinism', () => {
     expect(a.image.data.length).toBe(512 * 512 * 4);
     expect(Buffer.from(a.image.data).equals(Buffer.from(b.image.data))).toBe(true);
     const ids = Object.values(HOUSE_ATLAS_CELLS);
-    expect(new Set(ids).size).toBe(37);
+    expect(new Set(ids).size).toBe(42); // the east wing adds four wallpapers and a bathroom floor
     for (const r of HOUSE_ROOMS) expect(HOUSE_ATLAS_CELLS[r.id], r.id).toBeGreaterThanOrEqual(0);
     for (const k of ['brick', 'oak', 'pine', 'stone', 'lightWood', 'darkWood', 'plaster']) expect(ids).toContain(HOUSE_ATLAS_CELLS[k]);
   });
@@ -161,14 +165,14 @@ describe('the walls', () => {
       expect(m.userData.houseSection).toBe(s.id);
       expect(m.parent.parent).toBe(scene);
       expect(m.parent.userData.noMerge).toBe(true);
-      expect(m.parent.userData.houseWalls).toBe(s.level);
+      expect(m.parent.userData.houseWalls).toBe(zoneOfSection(s));
       m.geometry.computeBoundingBox();
       expect(m.geometry.boundingBox.min.y, s.id).toBeCloseTo(0, 6);
       expect(m.geometry.boundingBox.max.y, s.id).toBeLessThanOrEqual(s.height + 0.08);
       expect(m.position.y).toBe(s.base);
     }
     const groups = scene.children.filter((c) => c.userData?.houseWalls);
-    expect(groups.map((g) => g.userData.houseWalls).sort()).toEqual(HOUSE_LEVELS.map((l) => l.id).sort());
+    expect(groups.map((g) => g.userData.houseWalls).sort()).toEqual(HOUSE_ZONES.map((z) => z.id).sort());
   });
 
   it('shares one atlas material across walls, floors, stairs and skirts', () => {
@@ -280,7 +284,8 @@ describe('the light', () => {
       g.traverse((o) => { if (o.userData?.lampGlobe) { globes++; expect(o.userData.noMerge).toBe(true); } });
       expect(globes).toBe(1);
     }
-    for (const r of HOUSE_ROOMS) expect(per.get(r.id) ?? 0, r.id).toBeGreaterThanOrEqual(r.id === 'cellar' ? 2 : 1);
+    // the wing's raised rooms (kids, bath) are lit by sconces: a 3.4 m lamp pool needs a room 7 m wide
+    for (const r of HOUSE_ROOMS.filter((q) => q.id !== 'kids' && q.id !== 'bath')) expect(per.get(r.id) ?? 0, r.id).toBeGreaterThanOrEqual(r.id === 'cellar' ? 2 : 1);
 
     const s2 = new THREE.Scene();
     const a2 = build(s2);
@@ -291,7 +296,7 @@ describe('the light', () => {
       globes++;
       expect(o.material.emissive.getHex()).not.toBe(0);
     });
-    expect(globes).toBeGreaterThanOrEqual(HOUSE_ROOMS.length + 1);
+    expect(globes).toBeGreaterThanOrEqual(HOUSE_LAMPS.length);
     const pools = createLampPools(s2);
     expect(pools?.isMesh).toBe(true);
   });
@@ -306,7 +311,7 @@ describe('the light', () => {
     const own = new Map(); // lamp group → its pool, built alone
     s3.updateMatrixWorld(true);
     s3.traverse((o) => { if (o.userData?.lampGlobeY > 0) own.set(o, null); });
-    expect(own.size).toBe(HOUSE_ROOMS.length + 1);
+    expect(own.size).toBe(HOUSE_LAMPS.length);
     const EPS = 0.03;
     const covered = new Set();
     for (const g of own.keys()) {
@@ -328,7 +333,7 @@ describe('the light', () => {
       }
       covered.add(room.id);
     }
-    expect([...covered].sort()).toEqual(HOUSE_ROOMS.map((r) => r.id).sort());
+    expect([...covered].sort()).toEqual(HOUSE_ROOMS.filter((r) => HOUSE_LAMPS.some((l) => l.room === r.id)).map((r) => r.id).sort());
     // the walk's one mesh of every pool: each triangle in a single room, the light still bright under each lamp
     const pools = createLampPools(s3);
     const pos = pools.geometry.getAttribute('position');
@@ -388,7 +393,8 @@ describe('outside', () => {
 });
 
 describe('the furniture', () => {
-  const levelIds = HOUSE_LEVELS.map((l) => l.id);
+  const levelIds = HOUSE_ZONES.map((z) => z.id); // the old levels and the east wing's zones
+  const zoneOf = (id) => zoneOfRoom(HOUSE_ROOMS.find((r) => r.id === id));
 
   // Step 2, Task 6: the clocks' faces are on their fronts, not inside the case or the chimney
   // breast. Looked at straight on (in the piece's own frame, its front +z), the first thing at
@@ -422,7 +428,7 @@ describe('the furniture', () => {
       expect(e, f.id).toBeTruthy();
       expect(e.obj.parent).toBe(scene);
       expect(e.obj.userData.houseDetail).toBe(true);
-      expect(e.obj.userData.houseLevel).toBe(f.level);
+      expect(e.obj.userData.houseLevel).toBe(zoneOf(f.room));
       const [cyl] = e.obj.userData.fadeOccluder;
       // it reaches LEDGE_FADE_OVER above its top: a ledge piece's since step 2 (ruling S2-4),
       // every fading piece's since the Task 10 review (a line grazing a tall piece's top)
@@ -437,7 +443,7 @@ describe('the furniture', () => {
     for (const d of details) expect(levelIds, d.name).toContain(d.userData.houseLevel);
     const rooms = details.filter((d) => d.userData.houseRoom);
     expect(rooms.map((d) => d.userData.houseRoom).sort()).toEqual(HOUSE_ROOMS.map((r) => r.id).sort());
-    for (const d of rooms) expect(d.userData.houseLevel).toBe(HOUSE_ROOMS.find((r) => r.id === d.userData.houseRoom).level);
+    for (const d of rooms) expect(d.userData.houseLevel).toBe(zoneOf(d.userData.houseRoom));
     // exactly one stand-in mesh per level, cast-free
     const simples = scene.children.filter((c) => c.userData?.houseSimple);
     expect(simples.map((c) => c.userData.houseSimple).sort()).toEqual([...levelIds].sort());
@@ -456,9 +462,10 @@ describe('the furniture', () => {
     expect(s.children.length).toBe(before);
     const tagged = s.children.filter((c) => c.userData?.houseDetail);
     // + the secret bookcase (step 2, D9) and the paw prints at the take-offs, one mesh per level with any (step 2, D2)
-    const marked = new Set(area.traversal.hops.map((h) => levelAt(h.x0, h.z0)));
+    const marked = new Set(area.traversal.hops.map((h) => zoneOf(roomAt(h.x0, h.z0))));
     // + the beauty pass's warm glow, one mesh per level (house.js drawGlow)
-    expect(tagged.length).toBe(tall.length + HOUSE_ROOMS.length + 1 + marked.size + levelIds.length);
+    // + the wing's zone details: two wall groups, two lamps, four floors, two brick skirts and the stair
+    expect(tagged.length).toBe(tall.length + HOUSE_ROOMS.length + 1 + marked.size + levelIds.length + 2 + 2 + 4 + 2 + 1);
     for (const c of tagged) {
       expect(levelIds).toContain(c.userData.houseLevel);
       let meshes = 0;
@@ -477,8 +484,10 @@ describe('the furniture', () => {
     const drawing = createLevelDrawing(s, { levels: HOUSE_LEVELS, links: area.house.links, start: 'ground' });
     expect([...drawing.full].sort()).toEqual(['cellar', 'ground', 'upstairs']);
     for (const c of s.children) {
-      if (c.userData?.houseDetail) expect(c.visible, c.name).toBe(c.userData.houseLevel !== 'attic');
-      if (c.userData?.houseSimple) expect(c.visible, c.name).toBe(c.userData.houseSimple === 'attic');
+      // the east wing's zones are far from the ground (the hall): their walls and furniture hidden, their boxes shown
+      const far = (id) => id === 'attic' || id === 'east' || id === 'kids';
+      if (c.userData?.houseDetail) expect(c.visible, c.name).toBe(!far(c.userData.houseLevel));
+      if (c.userData?.houseSimple) expect(c.visible, c.name).toBe(far(c.userData.houseSimple));
     }
   });
 

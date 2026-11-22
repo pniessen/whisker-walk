@@ -80,6 +80,18 @@ export const HOUSE_SHOTS = freeze({
   'gold-cellar': shot([26.0, -2.0], [0.5, 1], 0, 'A golden mouse in the cellar'),
   'climb-plank': shot([-8.6, 2.6], [-1, 0.25], 1, 'Along the plank', { ledge: 'library-books-n2' }),
   hud: shot([0, 6], [0, -1], 1, 'Goals and the map', { hud: true }),
+  // the east wing (milestone 1): a shot for each of its four rooms (named by room id), the doorway
+  // she comes in by, the stair up, the sofa and the top bunk (their tops), the whole wing from the
+  // solarium and from the lawn behind the kitchen
+  livingroom: shot([16.2, 8.0], [1, -0.45], 1, 'The living room'),
+  solarium: shot([24.6, 8.4], [1, -0.5], 1, 'The glass room'),
+  kids: shot([41.0, 8.0], [1, -0.3], 1, 'The bunk room'),
+  bath: shot([42.0, 0.3], [-1, -0.5], 0, 'The bathroom'),
+  'wing-door': shot([11.6, 10.2], [1, 0], 1, 'A new door in the parlour'),
+  'wing-stair': shot([33.2, 7.0], [1, 0], 1, 'Up the wing stairs'),
+  'sofa-seat': shot([18.6, 3.1], [0, 1], 1, 'A sofa for a nap', { ledge: 'living-sofa' }),
+  'bunk-top': shot([47.4, 6.0], [-1, 0], 1, 'Top bunk!', { ledge: 'kids-bunk-top' }),
+  'wing-outside': shot([27.0, 7.0], [1, 0], 3, 'The new rooms, from outside'),
   // step 4: the world map's place card (public/places/house.jpg, shot at 640 x 360): just in
   // at the front door, Far, looking up the hall's runner to the big stair, the library on the
   // left and the parlour on the right (sips formatOptions 50: the boards' grain is busy, 80
@@ -179,7 +191,23 @@ const COWALK_STEPS = [
   zoom(3, 3, 'Upstairs, with a friend below'),
 ];
 
+// The east wing (milestone 1), about 45 s: in at the parlour's new east door, the living room and
+// its sofa (a hop on, a hop to the shelf, and down), the glass room, up the covered stair, the
+// kids' room and the bunks (the lower bunk, the top, and down), the bathroom and the tub, and the
+// whole wing from far away. Each jump is pressed where the last hop landed her.
+const WING_STEPS = [
+  t(12.5, 10.2, 'Out of the parlour'), t(14, 10.2), t(16.2, 9.0, 'A new room'),
+  t(19.25, 4.5, 'A sofa for a nap'), jump(), jump('Up on the shelf'), jump(), jump('Down again'),
+  t(21, 7, null, 0.5), t(24, 7, 'The glass room'), t(30.5, 7, 'Up the stairs'), t(38, 7),
+  t(40.5, 7.5, 'The bunk room'),
+  t(45.6, 8.3, 'Bunk beds'), jump(), jump('The top bunk!'), jump('Down again'), jump(),
+  t(41, 4, 'A door to the bathroom'), t(41, 0.5, 'The bathroom'),
+  t(40.9, -1.4, 'A tub for a cat'), jump(), jump(),
+  zoom(3, 3, 'The new rooms'),
+];
+
 export const HOUSE_TOURS = freeze({
+  wing: freeze({ start: freeze({ x: 11.6, z: 10.2, face: freeze([1, 0]) }), steps: freeze(WING_STEPS) }),
   grand: freeze({ start: SPAWN, steps: freeze(GRAND_STEPS) }),
   film: freeze({ start: SPAWN, steps: freeze(FILM_STEPS) }),
   climb: freeze({ start: freeze({ x: -3.6, z: 7, face: freeze([-1, 0]) }), steps: freeze(CLIMB_STEPS) }),

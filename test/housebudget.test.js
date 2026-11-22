@@ -99,13 +99,13 @@ describe('the worst spot in the house', () => {
 
   // The aims are held with her cat alone; with Mochi too the figures are reported, not held
   // (BUDGET_LOG=1): she adds about 30 meshes and 8,800 triangles, no casters, on every level.
-  it('every level is near the aims with everything in it: 300 meshes, 200 casters, 59,500 triangles', async () => {
+  it('every level is near the aims with everything in it: 304 meshes, 200 casters, 59,500 triangles', async () => {
     for (const light of ['day', 'dusk']) {
       const { m } = await measured(light, 'shut');
       const { m: withMochi } = await measured(light, 'shut', 1, true);
       for (const id of ids) {
         const s = m.at(id);
-        expect(s.meshes, `${light} ${id}`).toBeLessThanOrEqual(300);
+        expect(s.meshes, `${light} ${id}`).toBeLessThanOrEqual(304); // the east wing's re-pin, 300 -> 304: its two stand-ins (a box each) and two more meshes a level (milestone 1)
         expect(s.casters, `${light} ${id}`).toBeLessThanOrEqual(200);
         expect(s.triangles, `${light} ${id}`).toBeLessThanOrEqual(59500); // the beauty pass's deliberate re-pin: 55,000 -> 59,500 (cornice, wainscot, wall dressing, glow)
         expect(withMochi.at(id).triangles, `${light} ${id}`).toBeGreaterThan(s.triangles); // she is drawn

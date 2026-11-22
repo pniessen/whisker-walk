@@ -75,13 +75,13 @@ const TOP_D = 0.9; // a top backed by a wall: houseplan.js TOP_D
 export const WING_FURNITURE = freeze([
   // ---- the living room: a big old sofa against the north wall (its seat is a nap spot), a
   // low table, a bookshelf, a fish tank, a standard lamp, a plant, a rug, a basket of knitting
-  piece('living-sofaback', 'livingroom', 'sofaback', 18.0, 2.35, FACE_S, 2.6, 0.3, 0.95, 0.15),
-  ledge('living-sofa', 'livingroom', 'sofa', 18.0, 3.0, FACE_S, 2.4, 0.8, 0.55, 0.4),
-  ledge('living-shelf', 'livingroom', 'bookcase', 20.6, 2.55, FACE_S, 1.6, TOP_D, 1.45, 0.3),
+  piece('living-sofaback', 'livingroom', 'sofaback', 18.6, 2.35, FACE_S, 2.0, 0.3, 0.95, 0.15),
+  ledge('living-sofa', 'livingroom', 'sofa', 18.6, 3.0, FACE_S, 1.6, 0.8, 0.55, 0.4),
+  ledge('living-shelf', 'livingroom', 'bookcase', 20.95, 2.55, FACE_S, 1.1, TOP_D, 1.45, 0.3),
   piece('living-coffee', 'livingroom', 'coffeetable', 18.0, 6.0, FACE_S, 1.2, 0.6, 0.42, 0.3),
   piece('living-tank', 'livingroom', 'fishtank', 18.0, 11.675, FACE_N, 1.2, 0.45, 1.15, 0.25),
   piece('living-plant', 'livingroom', 'plant', 14.85, 2.75, FACE_S, 0.5, 0.5, 1.2, 0.25),
-  piece('living-basket', 'livingroom', 'basket', 15.2, 5.2, FACE_S, 0.55, 0.45, 0.4, 0.25),
+  piece('living-basket', 'livingroom', 'basket', 15.2, 5.2, FACE_S, 0.55, 0.45, 0.4, 0.25, 'knit'),
   piece('living-rug', 'livingroom', 'rug', 18.0, 6.4, FACE_S, 4.0, 2.8, 0.012, 0, 'rugBlue'),
   piece('living-cushion', 'livingroom', 'cushion', 20.6, 4.6, FACE_W, 0.6, 0.6, 0.08, 0, 'rose'),
 
@@ -96,11 +96,12 @@ export const WING_FURNITURE = freeze([
   piece('solarium-birdbath', 'solarium', 'birdbath', 27.9, 10.3, FACE_S, 0.6, 0.6, 0.9, 0.3),
   piece('solarium-rug', 'solarium', 'rug', 26.0, 6.4, FACE_S, 4.4, 3.2, 0.012, 0, 'rugGreen'),
 
-  // ---- the kids' room: bunk beds on the east wall between the windows (a lower bunk with its
-  // pillow end open, a top bunk over the north half of it), a low bed under the south window, a
-  // desk, a toy chest, a shelf, a rug and a blanket fort
-  ledge('kids-bunk-low', 'kids', 'bunklow', 47.4, 6.4, FACE_W, 2.4, 1.0, 0.55, 0.5),
-  ledge('kids-bunk-top', 'kids', 'bunktop', 47.4, 5.75, FACE_W, 1.1, 1.0, 1.6, 0.5),
+  // ---- the kids' room: bunk beds on the east wall between the windows (the top bunk, 1.6 m up, with the lower
+  // mattress under it drawn with it; the lower bunk, a trundle bed pulled out 0.95 m in front of it, a step she
+  // climbs from, the way the bedroom's chest stands off its shelf), a low bed under the south window, a desk,
+  // a toy chest, a shelf, a rug and a blanket fort
+  ledge('kids-bunk-low', 'kids', 'bunklow', 47.4, 8.35, FACE_W, 1.2, 1.0, 0.55, 0.5),
+  ledge('kids-bunk-top', 'kids', 'bunktop', 47.425, 6.05, FACE_W, 1.5, 0.95, 1.6, 0.5),
   piece('kids-bed', 'kids', 'kidbed', 43.2, 10.9, FACE_N, 0.9, 1.9, 0.5, 0.45),
   piece('kids-desk', 'kids', 'desk', 40.4, 11.55, FACE_N, 1.4, 0.7, 0.8, 0.35),
   piece('kids-chair', 'kids', 'chair', 40.4, 10.5, FACE_S, 0.45, 0.45, 0.95, 0.23),
@@ -111,10 +112,10 @@ export const WING_FURNITURE = freeze([
 
   // ---- the bathroom: a claw-foot bath along the west wall (its rim a top she walks), a basin
   // and a toilet on the north wall, a laundry basket, a mat
-  ledge('bath-tub', 'bath', 'tub', 39.0, -1.4, FACE_E, 2.2, 1.0, 0.6, 0.5),
+  ledge('bath-tub', 'bath', 'tub', 38.95, -1.4, FACE_E, 1.4, TOP_D, 0.6, 0.5),
   piece('bath-sink', 'bath', 'washbasin', 41.9, -2.55, FACE_S, 0.7, 0.5, 0.85, 0.25),
   piece('bath-toilet', 'bath', 'toilet', 43.4, -2.45, FACE_S, 0.5, 0.75, 0.85, 0.28),
-  piece('bath-basket', 'bath', 'basket', 43.2, 1.25, FACE_S, 0.6, 0.5, 0.55, 0.28),
+  piece('bath-basket', 'bath', 'laundrybasket', 43.2, 1.25, FACE_S, 0.7, 0.6, 0.5, 0), // a box she sits in: walked over, no collider
   piece('bath-mat', 'bath', 'rug', 41.0, 0.4, FACE_S, 1.4, 0.8, 0.012, 0, 'rugBlue'),
 ]);
 
