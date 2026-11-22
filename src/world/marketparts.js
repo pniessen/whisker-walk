@@ -79,9 +79,9 @@ export function bloomGeometry(petal, middle) {
   return g;
 }
 
-// 8 x 4 cells of 32 px (step 3, V11: it was 4 x 4; cells 0-15 keep their pictures)
+// 8 x 8 cells of 32 px (step 3, V11: it was 4 x 4, then 8 x 4; cells 0-15 keep their pictures)
 const ATLAS_COLS = 8;
-const ATLAS_ROWS = 4;
+const ATLAS_ROWS = 8; // 2026-11-22 beauty pass: 8 x 8 (cells 32-43 are the four new stalls' counter fronts, price slate, valances)
 const CELL_PX = 32;
 export const ATLAS_W = ATLAS_COLS * CELL_PX;
 export const ATLAS_H = ATLAS_ROWS * CELL_PX;
@@ -240,59 +240,304 @@ function windowBoardPixel(x, y) {
   return c;
 }
 
-// Cells 22-25 (2026-11-22): the four new stalls' signs, each a picture on the sign board
-// (a ball of wool, a string of sausages, a pot with a leaf, a teapot); 26-29: their goods
-// (toy blocks, red meat, green leaves, a jumble)
+// Cells 22-25 (2026-11-22, redrawn in the beauty pass): the four new stalls' signs, each an
+// outlined, shaded picture on a tinted face, drawn with 2 x 2 supersampling so the edges are
+// soft (a ball of wool on two needles, a rail of sausages, a leafy pot, a teapot); 26-29 and 38-39:
+// their goods (toy blocks from above, two hung-meat panels, leaves, a framed painting, a jumble);
+// 32-35 their counter fronts, 36 a price slate (coins, no words), 40-43 their awnings' valances.
+const rotLocal = (x, y, cx, cy, a) => {
+  const c = Math.cos(a); const s = Math.sin(a);
+  return [(x - cx) * c + (y - cy) * s, -(x - cx) * s + (y - cy) * c];
+};
+const inRotEllipse = (x, y, cx, cy, rx, ry, a) => { const [u, v] = rotLocal(x, y, cx, cy, a); return (u / rx) ** 2 + (v / ry) ** 2 <= 1; };
+const grow = (t, r = 1.05) => (x, y) => t(x, y) || t(x + r, y) || t(x - r, y) || t(x, y + r) || t(x, y - r);
+const lit = (c, x, y, cx, cy, r) => { // light from the upper left, shade to the lower right
+  const t = ((cx - x) + (y - cy)) / (2 * r);
+  return t > 0 ? mixc(c, [255, 255, 255], 0.3 * Math.min(1, t)) : mixc(c, [0, 0, 0], 0.28 * Math.min(1, -t));
+};
+// bg: [r,g,b] or fn; layers [[test, colour | fn]], later on top; 2 x 2 samples per pixel
+function paintLayers(bg, layers, x, y) {
+  const acc = [0, 0, 0];
+  for (const sy of [0.25, 0.75]) {
+    for (const sx of [0.25, 0.75]) {
+      const X = x + sx; const Y = y + sy;
+      let c = typeof bg === 'function' ? bg(X, Y) : bg;
+      for (const [test, col] of layers) if (test(X, Y)) c = typeof col === 'function' ? col(X, Y) : col;
+      acc[0] += c[0] / 4; acc[1] += c[1] / 4; acc[2] += c[2] / 4;
+    }
+  }
+  return acc;
+}
+const INK = Object.freeze({ plum: rgbOf(0x5a1f44), meat: rgbOf(0x6e2a20), pot: rgbOf(0x5a2c14), blue: rgbOf(0x1f3a5a), iron: rgbOf(0x34383c), wood: rgbOf(0x5a3b26) });
+const NEW_SIGN_FACE = Object.freeze([0xf0e0ec, 0xf3e4cf, 0xe3ecd0, 0xe9e3c8].map(rgbOf));
 const NEW_SIGNS = Object.freeze([
-  [ // wool: a ball with criss-cross strands and a loose end
-    [(x, y) => inCircle(x, y, 16, 16, 8), rgbOf(0xc04a8a)],
-    [(x, y) => inCircle(x, y, 16, 16, 8) && (Math.abs(x - y) < 1.1 || Math.abs(x + y - 32) < 1.1 || Math.abs(x - 16) < 0.9), rgbOf(0xefb2d4)],
-    [(x, y) => inRect(x, y, 21, 6, 29, 7.4), rgbOf(0xc04a8a)],
-  ],
-  [ // sausages: three links on a string
-    [(x, y) => inRect(x, y, 15.5, 22, 16.5, 29), rgbOf(0x5a3b26)],
-    [(x, y) => inEllipse(x, y, 16, 19, 4, 3.4) || inEllipse(x, y, 16, 12.4, 4, 3.4) || inEllipse(x, y, 16, 5.8, 4, 3.4), rgbOf(0xc0614a)],
-  ],
-  [ // plant: a clay pot with two leaves
-    [(x, y) => inTri(x, y, [9, 14], [23, 14], [20, 5]) || inRect(x, y, 9, 14, 23, 17), rgbOf(0xb5622f)],
-    [(x, y) => inEllipse(x, y, 11.5, 22, 3, 5.5) || inEllipse(x, y, 20.5, 22, 3, 5.5), rgbOf(0x3f8f4a)],
-    [(x, y) => Math.abs(x - 16) < 0.9 && y >= 17 && y <= 25, rgbOf(0x3f8f4a)],
-  ],
-  [ // teapot: a round pot, a spout, a handle and a lid
-    [(x, y) => inEllipse(x, y, 15, 14, 8, 6.2) || inTri(x, y, [22, 10], [28, 20], [23, 15]), rgbOf(0x4a7fb5)],
-    [(x, y) => inCircle(x, y, 7, 15, 3.4) && !inCircle(x, y, 7, 15, 1.8), rgbOf(0x4a7fb5)],
-    [(x, y) => inEllipse(x, y, 15, 20.4, 3.4, 1.4) || inCircle(x, y, 15, 22.4, 1), rgbOf(0xe9dcb9)],
-  ],
+  (() => { // wool: two needles, a shaded ball with criss-cross strands, a loose end
+    const ball = (x, y) => inCircle(x, y, 15.5, 15.5, 8.4);
+    const needle = (a, b) => (x, y) => Math.abs(x - y - a) < 1.1 && x > 5 && x < 27 || Math.abs(x + y - b) < 1.1 && x > 5 && x < 27;
+    const strand = (x, y) => ((x * 0.9 + y * 1.1 + 2.4 * Math.sin(x * 0.55)) % 4.2) < 0.95;
+    const strand2 = (x, y) => ((x * 1.1 - y * 0.9 + 2 * Math.sin(y * 0.5)) % 5) < 0.85;
+    return [
+      [needle(0.5, 31.5), rgbOf(0xd2a86a)],
+      [(x, y) => inCircle(x, y, 26.6, 26.6, 1.7) || inCircle(x, y, 26.6, 4.4, 1.7), rgbOf(0xb5622f)],
+      [grow(ball, 1.2), INK.plum],
+      [ball, (x, y) => lit(rgbOf(0xd95fa6), x, y, 15.5, 15.5, 8.4)],
+      [(x, y) => ball(x, y) && strand(x, y), rgbOf(0xf6b0d6)],
+      [(x, y) => ball(x, y) && strand2(x, y), rgbOf(0xa8407c)],
+      [(x, y) => inEllipse(x, y, 12.4, 19.4, 2.4, 1.4), rgbOf(0xf6c9e0)],
+      [(x, y) => x > 22 && x < 29.5 && Math.abs(y - (10 - (x - 22) * 0.5 + 1.5 * Math.sin((x - 22) * 1.3))) < 0.9, rgbOf(0xc04a8a)],
+    ];
+  })(),
+  (() => { // sausages: a rail, three links on strings, a knot above each
+    const link = (cx, cy) => (x, y) => inEllipse(x, y, cx, cy, 3.4, 8.3);
+    const cs = [[8.5, 13], [16, 11], [23.5, 13]];
+    return [
+      ...cs.flatMap(([cx, cy]) => [
+        [(x, y) => Math.abs(x - cx) < 0.5 && y > cy + 7 && y < 25.5, INK.wood],
+        [grow(link(cx, cy), 1.1), INK.meat],
+        [link(cx, cy), (x, y) => lit(rgbOf(0xc0614a), x, y, cx, cy, 6)],
+        [(x, y) => Math.abs(x - (cx - 1.4)) < 0.6 && y > cy - 4.5 && y < cy + 4.5, rgbOf(0xe8957c)],
+        [(x, y) => inCircle(x, y, cx, cy + 8.4, 1.2), INK.wood],
+      ]),
+      [(x, y) => x > 4 && x < 28 && y > 25 && y < 27.2, INK.iron],
+    ];
+  })(),
+  (() => { // plant: a clay pot with a rim, soil and three veined leaves
+    const potBody = (x, y) => y >= 4.5 && y <= 14 && x >= 9.5 + (14 - y) * 0.2 && x <= 22.5 - (14 - y) * 0.2;
+    const rim = (x, y) => x >= 8 && x <= 24 && y > 13.6 && y < 17;
+    const leaf = (cx, cy, rx, ry, a) => (x, y) => inRotEllipse(x, y, cx, cy, rx, ry, a);
+    const rib = (cx, cy, ry, a) => (x, y) => { const [u, v] = rotLocal(x, y, cx, cy, a); return Math.abs(u) < 0.45 && Math.abs(v) < ry * 0.8; };
+    const L = [[9.5, 22.5, 2.9, 6.2, -0.7, 0x3f8f4a], [22.5, 22.5, 2.9, 6.2, 0.7, 0x2f6a30], [16, 23.5, 2.8, 6.4, 0, 0x5fae52]];
+    return [
+      ...L.flatMap(([cx, cy, rx, ry, a, col]) => [
+        [grow(leaf(cx, cy, rx, ry, a), 1.0), rgbOf(0x1f4a22)],
+        [leaf(cx, cy, rx, ry, a), rgbOf(col)],
+        [rib(cx, cy, ry, a), rgbOf(0xa9d98f)],
+      ]),
+      [grow((x, y) => potBody(x, y) || rim(x, y), 1.0), INK.pot],
+      [potBody, (x, y) => lit(rgbOf(0xb5622f), x, y, 16, 9, 8)],
+      [rim, (x, y) => lit(rgbOf(0xc9733a), x, y, 16, 15, 8)],
+      [(x, y) => x > 10 && x < 22 && y > 16.4 && y < 17.6, rgbOf(0x4a3322)],
+      [(x, y) => Math.abs(y - 7.5) < 0.6 && x > 11 && x < 21, rgbOf(0xe7a77a)],
+    ];
+  })(),
+  (() => { // teapot: round body with a cream band and dots, spout, handle, lid and knob
+    const body = (x, y) => inEllipse(x, y, 14.5, 13.2, 8.6, 6.8);
+    const spout = (x, y) => inRotEllipse(x, y, 24.3, 15.6, 4.6, 1.6, 0.9);
+    const handle = (x, y) => inCircle(x, y, 6.3, 14, 4) && !inCircle(x, y, 6.3, 14, 2.2);
+    const lid = (x, y) => inEllipse(x, y, 14.5, 19.6, 4.4, 1.7) || inCircle(x, y, 14.5, 22.2, 1.4);
+    const all = (x, y) => body(x, y) || spout(x, y) || handle(x, y);
+    return [
+      [grow(all, 1.1), INK.blue],
+      [grow(lid, 1.0), INK.blue],
+      [handle, rgbOf(0x4a7fb5)],
+      [spout, rgbOf(0x4a7fb5)],
+      [body, (x, y) => lit(rgbOf(0x4a7fb5), x, y, 14.5, 13.2, 8)],
+      [(x, y) => body(x, y) && Math.abs(y - 13.6) < 1.1, rgbOf(0xf2efe6)],
+      [(x, y) => body(x, y) && y < 11 && y > 8.4 && [9, 12.5, 16, 19.5].some((cx) => inCircle(x, y, cx, 9.7, 0.85)), rgbOf(0xf2e9c8)],
+      [lid, rgbOf(0xf2e9c8)],
+    ];
+  })(),
 ]);
-const NEW_GOODS = Object.freeze([
-  { ground: 0xd8b072, dots: [0xd8433c, 0x4a86b8, 0xf2c94c, 0x4c9a52], r: 3.4, step: 8, shape: 'long' }, // toy blocks
-  { ground: 0xe6d6c6, dots: [0xc0504a, 0xa83a34], r: 3.4, step: 8, shape: 'long' }, // meat
-  { ground: 0x4c7a3c, dots: [0x2f6a30, 0x6aa84a], r: 3.0, step: 7, shape: 'round' }, // leaves
-  { ground: 0x7a5a3a, dots: [0xe9dcb9, 0x4a7fb5, 0xd8433c], r: 3.0, step: 8, shape: 'round' }, // a jumble
-]);
-function newGoodsPixel(i, x, y) {
-  const p = NEW_GOODS[i - 26];
-  const ground = rgbOf(p.ground);
+const ROSE = rgbOf(0xd9807a);
+// 26: toy blocks from above: 8 px squares, a pale dot on each, dark seams between
+function blocksPixel(x, y) {
+  const cols = [0xd8433c, 0x4a86b8, 0xf2c94c, 0x4c9a52];
+  const gx = Math.floor(x / 8); const gy = Math.floor(y / 8);
+  const lx = x % 8; const ly = y % 8;
+  if (lx < 1 || ly < 1) return rgbOf(0x7a5a3a);
+  let c = rgbOf(cols[(gx + gy * 2) % 4]);
+  if (lx < 2 || ly > 6) c = mixc(c, [255, 255, 255], 0.22);
+  if (inCircle(lx, ly, 4, 4, 1.7)) c = mixc(c, [255, 255, 255], 0.65);
+  return c;
+}
+// 27 / 38: a tiled back panel (cream, pale seams), a rail across the top and things hung from it
+const HOOK = rgbOf(0x34383c);
+const meatPanel = (variant) => {
+  const ham = (x, y) => inEllipse(x, y, 9, 13, 5.6, 8);
+  const links = (x, y) => [22, 15.5, 9].some((cy) => inEllipse(x, y, 22, cy, 2.6, 3.8));
+  const bacon = (x, y) => inRect(x, y, 5, 5, 12, 25);
+  const salami = (x, y) => inEllipse(x, y, 22, 14, 3.6, 10.5);
+  const first = variant === 0 ? ham : bacon;
+  const second = variant === 0 ? links : salami;
+  return [
+    [first, variant === 0 ? ROSE : (x, y) => (Math.floor(y / 2.4) % 2 ? rgbOf(0xf3ead2) : rgbOf(0xc0504a))],
+    [(x, y) => variant === 0 && grow(ham, 1.0)(x, y) && !ham(x, y), INK.meat],
+    [(x, y) => variant === 1 && grow(bacon, 1.0)(x, y) && !bacon(x, y), INK.meat],
+    [(x, y) => variant === 0 && inEllipse(x, y, 9, 13, 5.6, 8) && inEllipse(x, y, 7.6, 16, 2.2, 3), rgbOf(0xf0b4ac)],
+    [(x, y) => variant === 0 && inRect(x, y, 8, 5.5, 10, 8), rgbOf(0xf3ead2)],
+    [(x, y) => grow(second, 1.0)(x, y) && !second(x, y), INK.meat],
+    [second, variant === 0 ? rgbOf(0xc0614a) : rgbOf(0x8a3a2f)],
+    [(x, y) => variant === 1 && second(x, y) && (Math.floor(y / 3) + Math.floor(x / 2)) % 3 === 0, rgbOf(0xf3ead2)],
+    [(x, y) => inRect(x, y, 8.2, 25.5, 9.8, 28), HOOK],
+    [(x, y) => inRect(x, y, 21.2, 25.5, 22.8, 28), HOOK],
+    [(x, y) => inRect(x, y, 0, 28, 32, 30.4), HOOK],
+  ];
+};
+const tileBack = (x, y) => (x % 8 < 0.9 || y % 8 < 0.9 ? rgbOf(0xd9c9b5) : rgbOf(0xf0e4d4));
+// 28: leaves from above, a few pink buds
+function leavesPixel(x, y) {
+  let c = rgbOf(0x3f6a36);
+  for (let gy = -1; gy < 5; gy++) {
+    for (let gx = -1; gx < 5; gx++) {
+      const cx = gx * 8 + 4 + (hash01(gx, gy, 3) - 0.5) * 4;
+      const cy = gy * 8 + 4 + (hash01(gx, gy, 4) - 0.5) * 4;
+      const a = hash01(gx, gy, 5) * Math.PI;
+      if (inRotEllipse(x, y, cx, cy, 5, 2.6, a)) {
+        const [u] = rotLocal(x, y, cx, cy, a);
+        c = Math.abs(rotLocal(x, y, cx, cy, a)[1]) < 0.4 ? rgbOf(0xa9d98f) : mixc(rgbOf(hash01(gx, gy, 6) > 0.5 ? 0x4f9a48 : 0x2f6a30), [255, 255, 255], u > 0 ? 0.08 : 0);
+      }
+      if (hash01(gx, gy, 7) > 0.78 && inCircle(x, y, cx + 1, cy + 1, 1.5)) c = rgbOf(0xe85a8c);
+    }
+  }
+  return c;
+}
+// 29: a little painted landscape in a gilt frame: sky, sun, hills, a tree
+function paintingPixel(x, y) {
+  if (x < 3 || y < 3 || x > 28 || y > 28) return rgbOf(0xc9a040);
+  if (x < 4.5 || y < 4.5 || x > 26.5 || y > 26.5) return rgbOf(0x6e4a1c);
+  let c = mixc(rgbOf(0x8ec4ea), rgbOf(0xf3e4c0), 1 - (y - 5) / 22);
+  if (inCircle(x, y, 22, 22, 3.2)) c = rgbOf(0xf2c94c);
+  if (y < 12 + 2.5 * Math.sin(x / 4.5)) c = rgbOf(0x6aa84a);
+  if (y < 8 + 2 * Math.sin(x / 3 + 1.5)) c = rgbOf(0x4c8a3c);
+  if (inRect(x, y, 9, 10, 10.4, 16)) c = rgbOf(0x5a3b26);
+  if (inCircle(x, y, 9.7, 18, 3.6)) c = rgbOf(0x2f6a30);
+  return c;
+}
+const JUMBLE = Object.freeze({ ground: 0x7a5a3a, dots: [0xe9dcb9, 0x4a7fb5, 0xd8433c], r: 3.0, step: 8 });
+function jumblePixel(x, y) {
+  const p = JUMBLE;
   const row = Math.floor(y / p.step);
   const ox = (row % 2) * (p.step / 2);
   const cx = Math.floor((x + ox) / p.step) * p.step + p.step / 2 - ox;
   const cy = row * p.step + p.step / 2;
   const k = (Math.floor((x + ox) / p.step) + row * 3) % p.dots.length;
-  const inside = p.shape === 'long' ? inEllipse(x, y, cx, cy, p.r * 1.3, p.r * 0.8) : inCircle(x, y, cx, cy, p.r);
-  return inside ? rgbOf(p.dots[k]) : ground;
+  return inCircle(x, y, cx, cy, p.r) ? rgbOf(p.dots[k]) : rgbOf(p.ground);
+}
+function newGoodsPixel(i, x, y) {
+  if (i === 26) return blocksPixel(x, y);
+  if (i === 27 || i === 38) return paintLayers(tileBack, meatPanel(i === 27 ? 0 : 1), x, y);
+  if (i === 28) return leavesPixel(x, y);
+  if (i === 29) return paintingPixel(x, y);
+  return jumblePixel(x, y);
 }
 function newSignPixel(i, x, y) {
   if (x < 2 || y < 2 || x > 29 || y > 29) return SIGN_BOARD;
   if (x < 4 || y < 4 || x > 27 || y > 27) return mixc(SIGN_BOARD, SIGN_FACE, 0.35);
-  let c = SIGN_FACE;
-  for (const [test, col] of NEW_SIGNS[i - 22]) if (test(x, y)) c = col;
+  return paintLayers(NEW_SIGN_FACE[i - 22], NEW_SIGNS[i - 22], x, y);
+}
+
+// Cells 32-35: the counter fronts (one quad each half of the counter, 1.4 x 0.85 m, so a pixel
+// is about 4 x 2.7 cm), 36 a price slate, 40-43 the awnings' valances (stripes over a trim band).
+const noise = (x, y, k) => hash01(Math.floor(x), Math.floor(y), k);
+function toyFront(x, y) {
+  let c = rgbOf(0x7a5aa8);
+  c = mixc(c, [0, 0, 0], 0.07 * (1 + Math.cos(x * Math.PI / 4)) / 2); // cloth folds
+  if (y < 2) return rgbOf(0x5b4285);
+  if (y >= 10 && y < 14) c = rgbOf(0xf2c94c);
+  if (y >= 7 && y < 9) c = rgbOf(0xe58fb0);
+  // paw prints between the stripes and the trim
+  const px = (x % 8) - 4;
+  const row = y >= 15 && y < 23;
+  if (row) {
+    const cx = 0; const cy = 18.5;
+    if (inEllipse(px, y, cx, cy - 1, 2.6, 2.4) || inCircle(px, y, cx - 3.2, cy + 2.8, 1.5) || inCircle(px, y, cx, cy + 4.4, 1.5) || inCircle(px, y, cx + 3.2, cy + 2.8, 1.5)) c = rgbOf(0xd8c4f4);
+  }
+  // the cream trim with scallops hanging from it
+  const sc = ((x % 4) - 2);
+  if (y >= 27 || (y >= 24.5 && sc * sc + (y - 27) ** 2 <= 2.6 * 2.6)) c = mixc(rgbOf(0xf3ead2), rgbOf(0x7a5aa8), y < 26 ? 0.1 : 0);
+  else if (y >= 22.5 && y < 24.5 && sc * sc + (y - 27) ** 2 <= 4.6 * 4.6) c = mixc(c, [0, 0, 0], 0.25);
   return c;
+}
+function plantFront(x, y) {
+  const plank = Math.floor(y / 6);
+  const tone = 0.9 + 0.2 * hash01(plank, Math.floor(x / 11), 61);
+  let c = mixc(rgbOf(0x3f7a5a), [0, 0, 0], 1 - tone);
+  c = mixc(c, [255, 255, 255], 0.06 * Math.sin(x * 0.9 + plank * 3) + 0.04 * noise(x / 2, y, 62));
+  if (y % 6 < 1) c = mixc(c, [0, 0, 0], 0.4);
+  if (y % 6 >= 1 && y % 6 < 2) c = mixc(c, [255, 255, 255], 0.08);
+  if ((x < 2 || x >= 30) && Math.abs((y % 6) - 3) < 0.8) c = rgbOf(0x1f3f30);
+  if (y >= 28) c = y < 29 ? rgbOf(0x2a5a42) : rgbOf(0xe8e2c0);
+  if (y < 1.5) c = rgbOf(0x2a5a42);
+  // three painted leaves
+  for (const cx of [6, 16, 26]) {
+    const l = (px, py) => inRotEllipse(px, py, cx, 15, 3.0, 6.2, cx === 16 ? 0 : cx === 6 ? -0.9 : 0.9);
+    if (grow(l, 0.9)(x, y) && !l(x, y)) c = rgbOf(0x1f4a30);
+    else if (l(x, y)) { const [u] = rotLocal(x, y, cx, 15, cx === 16 ? 0 : cx === 6 ? -0.9 : 0.9); c = Math.abs(u) < 0.5 ? rgbOf(0xe8e2c0) : rgbOf(0x9fd18a); }
+  }
+  return c;
+}
+function bricFront(x, y) {
+  const board = Math.floor(x / 4);
+  let c = mixc(rgbOf(0xb87a3a), [0, 0, 0], 0.1 * hash01(board, 3, 71));
+  c = mixc(c, [255, 255, 255], 0.07 * Math.sin(y * 0.7 + board * 2));
+  if (x % 4 < 0.9) c = mixc(c, [0, 0, 0], 0.38);
+  if (y >= 28) c = rgbOf(0x6e4a33);
+  if (y < 2) c = rgbOf(0x6e4a33);
+  // a woven rug hung over the front: red with cream and blue diamonds, a fringe
+  if (y >= 9 && y < 23) {
+    c = rgbOf(0xa8363a);
+    const dx = Math.abs((x % 8) - 4); const dy = Math.abs(y - 16);
+    if (dx + dy < 3.6) c = rgbOf(0xf3ead2);
+    if (dx + dy < 2) c = rgbOf(0x3f6fb5);
+    if (y >= 22 || y < 10.5) c = y % 2 < 1 ? rgbOf(0xf3ead2) : rgbOf(0x7a2a2e);
+  }
+  if (y >= 5.5 && y < 9 && x % 2 < 1) c = rgbOf(0xefe2c4); // fringe threads
+  return c;
+}
+function butcherFront(x, y) {
+  if (y >= 25) { // white tiles under the top board, red line
+    if (y < 26.5) return rgbOf(0xb83a34);
+    return x % 8 < 0.8 || y >= 31 ? rgbOf(0xd9c9b5) : rgbOf(0xf3ead2);
+  }
+  if (y < 2) return rgbOf(0x8a2f2a);
+  // red gingham apron
+  const a = Math.floor(x / 4) % 2; const b = Math.floor(y / 3.4) % 2;
+  let c = a && b ? rgbOf(0xb83a34) : a || b ? rgbOf(0xe9a099) : rgbOf(0xf6ede0);
+  // a scalloped top edge on the apron
+  const sc = ((x % 4) - 2);
+  if (y > 21 && y < 25 && sc * sc + (y - 25) ** 2 > 2.6 * 2.6 && y > 22.5) c = rgbOf(0xf3ead2);
+  return c;
+}
+function slatePixel(x, y) {
+  if (x < 1 || y < 1 || x > 30 || y > 30) return rgbOf(0x8a6642);
+  let c = mixc(SLATE, CHALK.white, 0.05 * hash01(Math.floor(x / 3), Math.floor(y / 2), 153));
+  const rows = [24.5, 16, 7.5];
+  rows.forEach((cy, k) => {
+    if (inCircle(x, y, 6.5, cy, 2.6)) c = CHALK.white;
+    for (let j = 0; j <= k; j++) {
+      if (inCircle(x, y, 15 + j * 5.5, cy, 2.1) && !inCircle(x, y, 15 + j * 5.5, cy, 1.0)) c = CHALK.yellow;
+    }
+  });
+  return c;
+}
+// the valances: stripes (as the awning's) fading a little toward the hem, a piping line, a trim band
+// of rows 0-7 in the stall's accent with a row of cream dots
+const VALANCE_TRIM = Object.freeze([0xf2c94c, 0x1f5f5a, 0x6e4a33, 0xf3ead2]);
+function valancePixel(i, x, y) {
+  const k = i - 40;
+  const trim = rgbOf(VALANCE_TRIM[k]);
+  if (y < 8) {
+    let c = trim;
+    if (inCircle(x % 4, y, 2, 3.6, 1.1)) c = rgbOf(k === 3 ? 0xc0504a : 0xf3ead2);
+    if (y < 1.2) c = mixc(trim, [0, 0, 0], 0.3);
+    return c;
+  }
+  if (y < 9.3) return mixc(trim, [0, 0, 0], 0.4);
+  const base = awningPixel(18 + k, x);
+  return mixc(base, [0, 0, 0], 0.12 * (1 - (y - 9) / 23));
 }
 
 // the atlas's unused cells (30, 31): plain cream, never drawn
 const SPARE = rgbOf(CREAM);
 
 function cellPixel(i, x, y) {
+  if (i === 32) return toyFront(x, y);
+  if (i === 33) return plantFront(x, y);
+  if (i === 34) return bricFront(x, y);
+  if (i === 35) return butcherFront(x, y);
+  if (i === 36) return slatePixel(x, y);
+  if (i >= 40 && i <= 43) return valancePixel(i, x, y);
+  if (i === 38 || i === 39) return newGoodsPixel(i, x, y);
   if (i >= 18 && i <= 21) return awningPixel(i, x);
   if (i >= 22 && i <= 25) return newSignPixel(i, x, y);
   if (i >= 26 && i <= 29) return newGoodsPixel(i, x, y);
