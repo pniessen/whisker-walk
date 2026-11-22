@@ -1,0 +1,696 @@
+import { describe, it, expect, vi } from 'vitest';
+import * as THREE from 'three';
+import { canvasStub } from './helpers/growriver.js';
+
+// The headless document stub every world test uses (test/flattrace.test.js's):
+// the build draws on canvases.
+vi.stubGlobal('document', canvasStub);
+
+const { createHouseFinds, FIND_KEY, PIANO_SCALE, STILL } = await import('../src/world/housefinds.js');
+const { HOUSE_FINDS } = await import('../src/world/housethings.js');
+const {
+  HOUSE_LEDGES, HOUSE_ROOMS, HOUSE_LEVELS, SECRET_BOOKCASE, SECRET_OPEN_ROT_Y, SECRET_STAIR_ROT_Y, secretColliders, secretPivot, roomAt, stairAt, houseSections, HOUSE_STAIRS,
+} = await import('../src/world/houseplan.js');
+const { createDiscoveryLog } = await import('../src/discoveries.js');
+const { createToy, TOY_RADIUS } = await import('../src/toy.js');
+const { isWalkableAt, createPlayer, CAT_RADIUS } = await import('../src/player.js');
+const { phrase } = await import('../src/clanphrases.js');
+const { withOffWords } = await import('./helpers/offwords.js');
+const { bannedIn } = await import('./helpers/offwords.js');
+const { findFadeOccluders, createTreeFade } = await import('../src/treefade.js');
+const { mergeStaticProps } = await import('../src/render/mergeprops.js');
+const { build } = await import('../src/world/house.js');
+
+// =============================================================================
+// The Old House, step 2, Task 6 (rulings D6-D9, D14): the six discoveries at
+// run time, on a built house, paid through a real discovery log, with stand-in
+// sound and HUD that note their calls. The cat is a point moved frame by frame.
+// =============================================================================
+
+const DT = 1 / 60;
+const FIND = Object.fromEntries(HOUSE_FINDS.map((f) => [f.id, f]));
+const ledge = (id) => HOUSE_LEDGES.find((l) => l.id === id);
+const levelY = (id) => HOUSE_LEVELS.find((l) => l.id === id).y;
+const floorAt = (room) => levelY(HOUSE_ROOMS.find((r) => r.id === room).level);
+
+function recorder(names) {
+  const calls = Object.fromEntries(names.map((n) => [n, []]));
+  const o = { calls };
+  for (const n of names) o[n] = (...a) => { calls[n].push(a); };
+  return o;
+}
+
+// A built house and its finds, a fresh log and fresh recorders.
+function setup({ now = () => new Date(2026, 10, 21, 15, 0), reducedMotion = false } = {}) {
+  const scene = new THREE.Scene();
+  const record = build(scene);
+  const paid = { points: 0 };
+  const log = createDiscoveryLog({ addPoints: (n) => { paid.points += n; }, recordFeat() {} });
+  log.startWalk();
+  const audio = recorder(['playTune', 'musicBoxNote', 'purr']);
+  const hud = recorder(['toast']);
+  const colliders = record.colliders;
+  const f = createHouseFinds({
+    finds: record.house.finds, secret: record.house.secret, colliders, parts: record.house.parts, log, hud, audio, reducedMotion, now,
+  });
+  const cat = new THREE.Vector3();
+  let t = 0;
+  const step = (x, y, z) => {
+    cat.set(x, y, z);
+    t += DT;
+    f.update(DT, t, cat);
+  };
+  // she stands at (x, y, z) for `seconds`
+  const stay = (x, y, z, seconds) => { for (let i = 0; i < Math.round(seconds / DT); i++) step(x, y, z); };
+  // she walks in a line at `speed` m/s
+  const walkLine = (a, b, speed) => {
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    const n = Math.max(1, Math.round(len / speed / DT));
+    for (let i = 0; i <= n; i++) step(a.x + ((b.x - a.x) * i) / n, a.y ?? 0, a.z + ((b.z - a.z) * i) / n);
+  };
+  return { scene, record, f, log, audio, hud, paid, colliders, stay, step, walkLine, cat };
+}
+
+describe('the clock', () => {
+  it('strikes the hour when she stays at its foot, and pays once a walk', () => {
+    const s = setup({ now: () => new Date(2026, 10, 21, 15, 0) });
+    const c = FIND.clock;
+    s.stay(c.x, 0, c.z, 0.9);
+    expect(s.audio.calls.playTune).toHaveLength(0); // not yet: 1 s
+    s.stay(c.x, 0, c.z, 0.2);
+    expect(s.audio.calls.playTune).toHaveLength(1);
+    const notes = s.audio.calls.playTune[0][0];
+    expect(notes).toHaveLength(3); // 15:00 strikes 3
+    for (const [i, n] of notes.entries()) {
+      expect(n.freq).toBe(196);
+      expect(n.at).toBeCloseTo(i * 1.1, 9);
+    }
+    expect(s.log.count(FIND_KEY('clock'))).toBe(1);
+    expect(s.paid.points).toBe(12);
+    // staying on does not strike again
+    s.stay(c.x, 0, c.z, 3);
+    expect(s.audio.calls.playTune).toHaveLength(1);
+    // a step off, still within r + 1, and back: no strike
+    s.stay(c.x + c.r + 0.5, 0, c.z, 0.5);
+    s.stay(c.x, 0, c.z, 1.1);
+    expect(s.audio.calls.playTune).toHaveLength(1);
+    // walked off and come back: it strikes again, and pays nothing more
+    s.stay(c.x + 3, 0, c.z, 0.2);
+    s.stay(c.x, 0, c.z, 1.1);
+    expect(s.audio.calls.playTune).toHaveLength(2);
+    expect(s.paid.points).toBe(12);
+    expect(s.log.count(FIND_KEY('clock'))).toBe(1);
+  }, 60_000);
+
+  it('strikes 12 at midnight and once at one, and its pendulum swings at 1 Hz but stands still under reduced motion', () => {
+    for (const [h, n] of [[0, 12], [12, 12], [13, 1], [23, 11]]) {
+      const s = setup({ now: () => new Date(2026, 10, 21, h, 30) });
+      s.stay(FIND.clock.x, 0, FIND.clock.z, 1.1);
+      expect(s.audio.calls.playTune[0][0], `${h}:30`).toHaveLength(n);
+    }
+    const s = setup();
+    const p = s.record.house.parts.pendulum;
+    const seen = [];
+    for (let i = 0; i < 60; i++) { s.step(0, 0, 9.5); seen.push(p.rotation.z); }
+    expect(Math.max(...seen)).toBeGreaterThan(0.05);
+    expect(Math.min(...seen)).toBeLessThan(-0.05);
+    // a whole second later it is where it was (1 Hz)
+    const a = p.rotation.z;
+    for (let i = 0; i < 60; i++) s.step(0, 0, 9.5);
+    expect(p.rotation.z).toBeCloseTo(a, 6);
+    const still = setup({ reducedMotion: true });
+    for (let i = 0; i < 60; i++) { still.step(0, 0, 9.5); expect(still.record.house.parts.pendulum.rotation.z).toBe(0); }
+  }, 60_000);
+});
+
+describe('the piano', () => {
+  it('plays a note for each key she steps on, west to east, and a tune for six', () => {
+    const s = setup();
+    const k = ledge('parlour-keys');
+    const z = (k.minZ + k.maxZ) / 2;
+    // on the floor in front of it: nothing
+    s.walkLine({ x: k.minX + 0.02, y: floorAt('parlour'), z }, { x: k.maxX - 0.02, z }, 0.5);
+    expect(s.audio.calls.musicBoxNote).toHaveLength(0);
+    // up on the keys, west to east
+    const pointsAtNote = [];
+    const a = { x: k.minX + 0.02, y: k.y, z };
+    const b = { x: k.maxX - 0.02, z };
+    const n = Math.round(Math.hypot(b.x - a.x, 0) / 0.5 / DT);
+    for (let i = 0; i <= n; i++) {
+      const before = s.audio.calls.musicBoxNote.length;
+      s.step(a.x + ((b.x - a.x) * i) / n, k.y, z);
+      if (s.audio.calls.musicBoxNote.length > before) pointsAtNote.push(s.paid.points);
+    }
+    expect(s.audio.calls.musicBoxNote.map((c) => c[0])).toEqual([...PIANO_SCALE]);
+    // paid as the sixth key sounds, not before
+    expect(pointsAtNote).toEqual([0, 0, 0, 0, 0, 12, 12, 12]);
+    expect(s.log.count(FIND_KEY('piano'))).toBe(1);
+    // her paws a little over the keys (0.1 m) still play them; a jump higher does not
+    const before = s.audio.calls.musicBoxNote.length;
+    s.step(k.minX + 0.05, k.y + 0.3, z);
+    s.step(k.minX + 0.05, k.y + 0.08, z);
+    expect(s.audio.calls.musicBoxNote.length).toBe(before + 1);
+  }, 60_000);
+
+  it('at each key\'s middle and near its ends, the key that sounds is the key that dips', () => {
+    const s = setup();
+    const k = ledge('parlour-keys');
+    const z = (k.minZ + k.maxZ) / 2;
+    const { keys } = s.record.house.parts;
+    s.scene.updateMatrixWorld(true);
+    const mids = keys.map((m) => new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()).x);
+    // west to east
+    for (let i = 1; i < mids.length; i++) expect(mids[i]).toBeGreaterThan(mids[i - 1]);
+    for (const order of [[0, 1, 2, 3, 4, 5, 6, 7], [7, 5, 3, 1, 6, 4, 2, 0]]) {
+      for (const i of order) {
+        s.step(mids[i], k.y, z);
+        const calls = s.audio.calls.musicBoxNote;
+        expect(calls[calls.length - 1][0], `key ${i}`).toBe(PIANO_SCALE[i]);
+        keys.forEach((m, j) => expect(m.position.y < 0, `key ${i}: mesh ${j}`).toBe(j === i));
+      }
+      s.step(mids[0], floorAt('parlour'), z + 0.6); // a hop down between the two runs
+    }
+    // and near each key's ends too, a few millimetres inside its stretch of white keys (a black
+    // key on the line between two goes with the key east or west of it, and its 1 cm may overhang)
+    const boxes = keys.map((m) => new THREE.Box3().setFromObject(m));
+    const span = (Math.max(...boxes.map((b) => b.max.x)) - Math.min(...boxes.map((b) => b.min.x))) / 8;
+    const west = Math.min(...boxes.map((b) => b.min.x));
+    for (let i = 0; i < keys.length; i++) {
+      for (const x of [west + i * span + 0.004, west + (i + 1) * span - 0.004]) {
+        s.step(x, floorAt('parlour'), z + 0.6);
+        s.step(x, k.y, z);
+        const calls = s.audio.calls.musicBoxNote;
+        expect(calls[calls.length - 1][0], `key ${i} at ${x.toFixed(3)}`).toBe(PIANO_SCALE[i]);
+        keys.forEach((m, j) => expect(m.position.y < 0, `key ${i}: mesh ${j}`).toBe(j === i));
+      }
+    }
+  }, 60_000);
+
+  it('five keys, a hop down, and five more is not a tune', () => {
+    const s = setup();
+    const k = ledge('parlour-keys');
+    const z = (k.minZ + k.maxZ) / 2;
+    const w = (k.maxX - k.minX) / 8;
+    const keyX = (i) => k.minX + (i + 0.5) * w;
+    for (let i = 0; i < 5; i++) s.stay(keyX(i), k.y, z, 0.1);
+    s.stay(keyX(4), floorAt('parlour'), z + 0.6, 0.2);
+    for (let i = 3; i < 8; i++) s.stay(keyX(i), k.y, z, 0.1);
+    expect(s.audio.calls.musicBoxNote).toHaveLength(10);
+    expect(s.paid.points).toBe(0);
+    // the same key twice is one key
+    s.stay(keyX(4), floorAt('parlour'), z + 0.6, 0.2);
+    for (let i = 0; i < 20; i++) s.stay(keyX(i % 2), k.y, z, 0.05);
+    expect(s.audio.calls.musicBoxNote).toHaveLength(30);
+    expect(s.paid.points).toBe(0);
+  }, 60_000);
+});
+
+describe('the attic window', () => {
+  it('pays when she is up on the seat, not below it', () => {
+    const s = setup();
+    const l = ledge('attic-seat');
+    const x = (l.minX + l.maxX) / 2;
+    const z = (l.minZ + l.maxZ) / 2;
+    s.stay(x, floorAt('attic'), z, 1);
+    expect(s.paid.points).toBe(0);
+    s.stay(x, l.y, z, DT);
+    expect(s.paid.points).toBe(12);
+    expect(s.log.count(FIND_KEY('window'))).toBe(1);
+    s.stay(x, floorAt('attic'), z, 0.5);
+    s.stay(x, l.y, z, 0.5);
+    expect(s.paid.points).toBe(12);
+  }, 60_000);
+});
+
+describe('the secret bookcase', () => {
+  const b = SECRET_BOOKCASE;
+  // Task 10 (from the pictures): the tree fade's line runs on PAST_LOOK beyond her, so
+  // with the camera behind her the shut bookcase ahead of her faded away as she walked up
+  // to it, the stair showing through it, and it swung open unseen. It fades only when it
+  // stands between the camera and her.
+  it('stays solid unless it stands between the camera and her, shut, swinging or open', () => {
+    const s = setup();
+    const leaf = s.record.house.secret.group.userData.leaf;
+    const fade = createTreeFade(findFadeOccluders(s.scene), { reducedMotion: true });
+    const camera = new THREE.PerspectiveCamera();
+    const look = { x: 0, y: 0, z: 0 };
+    let t = 0;
+    const view = (cx, cy, cz, x, z) => {
+      camera.position.set(cx, cy, cz);
+      s.cat.set(x, 0, z);
+      t += DT;
+      s.f.update(DT, t, s.cat, camera.position);
+      look.x = x; look.y = 0.4; look.z = z;
+      fade.update(DT, camera, look);
+      return fade.faded().has(leaf);
+    };
+    // behind her in the library, the shut bookcase 1.3 m ahead of her: it stands
+    expect(view(-6, 2.2, 7.8, -6, 3.3)).toBe(false);
+    expect(s.f.open).toBe(false);
+    // the camera up the stair, she in the library: it is in the way and fades
+    expect(view(-6, 2.6, -2.5, -6, 4.5)).toBe(true);
+    // she stands at it from the library, the camera behind her: it stands while she waits,
+    // and through all of its swing, which goes away from her into the stair (rough edge 3;
+    // step 2 swung it into the library, through her spot, and it faded as it crossed her)
+    let frames = 0;
+    for (let i = 0; i < Math.round((b.holdS + b.openS + 0.2) / DT); i++) {
+      expect(view(-6, 2.2, 7.3, -6, 2.8), `frame ${i}`).toBe(false);
+      if (s.f.open) frames++;
+    }
+    expect(s.f.open).toBe(true);
+    expect(frames).toBeGreaterThan(b.openS / DT);
+    // open, along the stair's west wall: a camera west of it, looking at her on the stair, fades it
+    expect(view(-9, 2.6, 0.6, -6, 0.6)).toBe(true);
+    // and with the camera east of her, it stands again
+    expect(view(-3.2, 2.6, 0.6, -6, 0.6)).toBe(false);
+    s.f.dispose();
+    expect(leaf.userData.fadeHold).toBeFalsy();
+    fade.dispose();
+  });
+
+  const hasCircle = (list, c) => list.some((q) => q.secret && Math.abs(q.x - c.x) < 1e-9 && Math.abs(q.z - c.z) < 1e-9 && q.r === c.r);
+
+  // rough edge 3: it swings away from her, into the stair from the library, into the library
+  // from the stair; its shut colliders hold her out of the swing until it has swung
+  const SIDES = [
+    ['the library', 3.0, 'stair', SECRET_STAIR_ROT_Y, secretColliders(true, 'stair')],
+    ['the stair', 1.0, 'library', SECRET_OPEN_ROT_Y, secretColliders(true)],
+  ];
+  for (const [side, z, into, ROT, row] of SIDES) {
+    it(`swings open away from her when she stands at it from ${side}, and stays open`, () => {
+      const s = setup();
+      const pivot = s.record.house.secret.group;
+      const leaf = pivot.userData.leaf;
+      // the walk's tree fade reads the fade shapes once, before any frame
+      const entries = findFadeOccluders(s.scene);
+      const entry = entries.find((e) => e.obj === leaf);
+      expect([entry.x, entry.z]).toEqual([expect.closeTo(-6, 6), expect.closeTo(2, 6)]);
+      expect(s.f.open).toBe(false);
+      expect(isWalkableAt({ ...s.record, colliders: s.colliders }, -6, 2)).toBe(false);
+      const len = s.colliders.length;
+      let held = 0;
+      while (!s.f.open && held < 100) { s.step(-6, 0, z); held++; }
+      expect(Math.abs(held * DT - b.holdS)).toBeLessThanOrEqual(2 * DT);
+      expect(s.f.open).toBe(true);
+      expect(s.paid.points).toBe(12);
+      expect(s.log.count(FIND_KEY('bookcase'))).toBe(1);
+      // while it swings the shut row holds her out of its way
+      expect(s.colliders.filter((c) => c.secret)).toEqual(secretColliders(false));
+      // it swings over openS: not there yet one frame early, there one frame late
+      const start = pivot.rotation.y;
+      expect(Math.abs(start - ROT)).toBeGreaterThan(0.1);
+      let frames = 0;
+      while (Math.abs(pivot.rotation.y - ROT) > 1e-9 && frames < 1000) {
+        expect(s.colliders.filter((c) => c.secret), `frame ${frames}`).toEqual(secretColliders(false));
+        s.step(-6, 0, z);
+        frames++;
+      }
+      expect(Math.abs(frames * DT - b.openS)).toBeLessThanOrEqual(2 * DT);
+      // then the live colliders: the shut row out, the open row in, the rest untouched
+      expect(s.colliders.filter((c) => c.secret)).toEqual(row);
+      for (const c of row) expect(hasCircle(s.colliders, c)).toBe(true);
+      expect(s.colliders.length).toBe(len - secretColliders(false).length + row.length);
+      expect(isWalkableAt({ ...s.record, colliders: s.colliders }, -6, 2)).toBe(true);
+      // the fade shape went with it: round the open leaf's middle, along z from its pivot
+      const p = secretPivot(into);
+      const mid = into === 'stair' ? { x: p.x + b.d / 2, z: p.z - b.w / 2 } : { x: b.hinge.x, z: b.hinge.z + b.w / 2 };
+      expect(entry.x).toBeCloseTo(mid.x, 6);
+      expect(entry.z).toBeCloseTo(mid.z, 6);
+      for (const sh of entry.shapes) {
+        expect(sh.x).toBeCloseTo(entry.x, 9);
+        expect(sh.z).toBeCloseTo(entry.z, 9);
+      }
+      // and the real tree fade takes it from there: a camera west of the open leaf, looking at her
+      // east of it, level with its middle
+      const fade = createTreeFade(entries, { reducedMotion: true });
+      const camera = new THREE.PerspectiveCamera();
+      camera.position.set(-9, 1.6 + s.record.ground.y(-6, mid.z), mid.z);
+      fade.update(DT, camera, { x: -5.6, y: 0.4 + s.record.ground.y(-5.6, mid.z), z: mid.z });
+      expect(fade.faded().has(leaf)).toBe(true);
+      fade.dispose();
+      // she walks off: it stays open and pays nothing more
+      s.stay(0, 0, 9.5, 5);
+      s.stay(-6, 0, z, 1);
+      expect(s.f.open).toBe(true);
+      expect(pivot.rotation.y).toBe(ROT);
+      expect(s.paid.points).toBe(12);
+      expect(s.colliders.filter((c) => c.secret)).toEqual(row);
+      // put away, it is shut again where it was built
+      s.f.dispose();
+      expect(pivot.rotation.y).toBe(0);
+      expect([pivot.position.x, pivot.position.z]).toEqual([expect.closeTo(b.hinge.x, 9), expect.closeTo(b.hinge.z, 9)]);
+      expect(s.colliders.filter((c) => c.secret)).toEqual(secretColliders(false));
+    }, 60_000);
+  }
+
+  // Rough edge 3 (owner: "swing it away from her, or hold her clear"): the real player held at
+  // every spot she can open it from, on a 0.1 m grid within its reach on either side, then
+  // again pushing on into the opening as it swings. Every frame, through the swing and a
+  // second after, her body circle (CAT_RADIUS) stays off the drawn leaf: its mesh's own box,
+  // turned and moved with it. Step 2's swing into the library went through every
+  // library-side spot.
+  it('never swings through her, from any spot that opens it, standing or pushing in', async () => {
+    const { stickToWorld } = await import('../src/traversal.js');
+    const scene = new THREE.Scene();
+    const record = build(scene);
+    const colliders = record.colliders;
+    const pivot = record.house.secret.group;
+    const mesh = pivot.userData.leaf.children.find((c) => c.isMesh);
+    mesh.geometry.computeBoundingBox();
+    const gb = mesh.geometry.boundingBox;
+    const inv = new THREE.Matrix4();
+    const v = new THREE.Vector3();
+    const gap = (p) => {
+      pivot.updateMatrixWorld(true);
+      inv.copy(mesh.matrixWorld).invert();
+      v.set(p.x, 0.5, p.z).applyMatrix4(inv);
+      return Math.hypot(Math.max(gb.min.x - v.x, 0, v.x - gb.max.x), Math.max(gb.min.z - v.z, 0, v.z - gb.max.z));
+    };
+    const spots = [];
+    for (let x = -7.1; x <= -4.9 + 1e-9; x += 0.1) {
+      for (let z = 0.8; z <= 3.2 + 1e-9; z += 0.1) {
+        if (Math.hypot(x + 6, z - 2) > b.reach - 0.02) continue;
+        if (!isWalkableAt({ ...record, colliders }, x, z)) continue;
+        spots.push([x, z]);
+      }
+    }
+    expect(spots.filter(([, z]) => z > b.z).length).toBeGreaterThan(30);
+    expect(spots.filter(([, z]) => z < b.z).length).toBeGreaterThan(30);
+    const camera = new THREE.PerspectiveCamera();
+    const player = createPlayer(camera, { addEventListener() {} });
+    const cat = new THREE.Group();
+    const st = { x: 0, z: 0 };
+    const bad = [];
+    let checked = 0;
+    for (const [x, z] of spots) {
+      for (const push of [false, true]) {
+        const f = createHouseFinds({ finds: record.house.finds, secret: record.house.secret, colliders, parts: record.house.parts });
+        cat.position.set(x, record.ground.y(x, z), z);
+        player.setAvatar(cat, 3.5);
+        player.setGround(record.ground);
+        player.enable();
+        player.setTouchMove(null);
+        let t = 0;
+        let after = -1;
+        for (let i = 0; i < Math.round((b.holdS + b.openS + 1.2) / DT); i++) {
+          if (push && f.open && after < 0) {
+            stickToWorld(0, z > b.z ? -1 : 1, -player.viewYaw(), st);
+            player.setTouchMove({ x: st.x, z: st.z, mag: 1 });
+          }
+          player.update(DT, colliders, record.bounds);
+          t += DT;
+          f.update(DT, t, cat.position);
+          if (f.open) {
+            checked++;
+            const g = gap(cat.position);
+            if (g < CAT_RADIUS - 1e-6) bad.push(`${x.toFixed(1)},${z.toFixed(1)}${push ? ' pushing' : ''} frame ${i}: ${g.toFixed(3)} m at ${cat.position.x.toFixed(2)},${cat.position.z.toFixed(2)}`);
+          }
+          if (after < 0 && f.open && Math.abs(Math.abs(pivot.rotation.y) - Math.PI / 2) < 1e-9) after = i;
+        }
+        expect(f.open, `${x},${z}`).toBe(true);
+        f.dispose();
+      }
+    }
+    expect(checked).toBeGreaterThan(spots.length * 2 * ((b.openS + 1) / DT));
+    expect(bad.slice(0, 6)).toEqual([]);
+  }, 90_000);
+
+  it('opens at once under reduced motion', () => {
+    const s = setup({ reducedMotion: true });
+    s.stay(-6, 0, 3.0, 0.65);
+    expect(s.f.open).toBe(true);
+    expect(s.record.house.secret.group.rotation.y).toBe(SECRET_STAIR_ROT_Y);
+    expect(s.colliders.filter((c) => c.secret)).toEqual(secretColliders(true, 'stair'));
+  }, 60_000);
+
+  it('is kept out of the prop merge with every moving part: each keeps its own mesh, in the scene', () => {
+    const s = setup();
+    expect(s.record.house.secret.group.userData.noMerge).toBe(true);
+    mergeStaticProps(s.scene);
+    const inScene = (o) => { let a = o; while (a.parent) a = a.parent; return a === s.scene; };
+    const leaf = s.record.house.secret.group.userData.leaf;
+    expect(leaf.children.filter((c) => c.isMesh)).toHaveLength(1);
+    const { pendulum, keys, lid, toys } = s.record.house.parts;
+    expect(keys).toHaveLength(8);
+    for (const m of [leaf, pendulum, ...keys, lid, ...toys.map((q) => q.mesh)]) {
+      expect(inScene(m), m.name).toBe(true);
+      if (m !== leaf) expect(m.isMesh && m.castShadow, m.name).toBe(false);
+    }
+    // and they still move: the bookcase swings, the keys dip, after the merge
+    s.stay(-6, 0, 3.0, 2);
+    expect(s.record.house.secret.group.rotation.y).toBe(SECRET_STAIR_ROT_Y);
+    const k = ledge('parlour-keys');
+    s.step(k.minX + 0.05, k.y, (k.minZ + k.maxZ) / 2);
+    expect(keys[0].position.y).toBeLessThan(0);
+    expect(keys.slice(1).every((m) => m.position.y === 0)).toBe(true);
+  }, 60_000);
+});
+
+describe('the hearth cushion', () => {
+  it('pays only when she stays still on it', () => {
+    const s = setup();
+    const c = FIND.cushion;
+    const y = floorAt('parlour');
+    // trotting across it: nothing
+    s.walkLine({ x: c.x - 1.5, y, z: c.z }, { x: c.x + 1.5, z: c.z }, 1.5);
+    s.walkLine({ x: c.x + 1.5, y, z: c.z }, { x: c.x - 1.5, z: c.z }, 1.5);
+    expect(s.audio.calls.purr).toHaveLength(0);
+    expect(s.paid.points).toBe(0);
+    // still on it for 1.5 s: a purr and the pay
+    s.stay(c.x, y, c.z, 1.4);
+    expect(s.paid.points).toBe(0);
+    s.stay(c.x, y, c.z, 0.2);
+    expect(s.audio.calls.purr).toEqual([[1.2]]);
+    expect(s.paid.points).toBe(12);
+    // and creeping slower than STILL still counts as still (a second time, after leaving)
+    s.stay(c.x + 2, y, c.z, 0.2);
+    const n = Math.round(1.6 / DT);
+    for (let i = 0; i < n; i++) s.step(c.x + (i / n) * (STILL * 0.8 * 1.6) - 0.1, y, c.z);
+    expect(s.audio.calls.purr).toHaveLength(2);
+    expect(s.paid.points).toBe(12);
+  }, 60_000);
+});
+
+describe('the box of toys', () => {
+  it('tips out its toys when she noses at it', () => {
+    const s = setup();
+    const c = FIND.toys;
+    const { lid, toys } = s.record.house.parts;
+    expect(toys).toHaveLength(3);
+    const lid0 = lid.rotation.x;
+    const from = toys.map((q) => q.mesh.position.clone());
+    s.stay(c.x, floorAt('attic'), c.z, 0.45);
+    expect(lid.rotation.x).toBe(lid0);
+    s.stay(c.x, floorAt('attic'), c.z, 0.1);
+    expect(s.paid.points).toBe(12);
+    expect(s.log.count(FIND_KEY('toys'))).toBe(1);
+    s.stay(c.x, floorAt('attic'), c.z, 0.2);
+    expect(Math.abs(lid.rotation.x - lid0)).toBeGreaterThan(0.5); // tipping
+    expect(toys.some((q, i) => q.mesh.position.distanceTo(from[i]) > 0.05)).toBe(true); // tumbling
+    s.stay(c.x, floorAt('attic'), c.z, 0.7);
+    for (const q of toys) {
+      expect(q.mesh.position.x).toBeCloseTo(q.rest.x, 6);
+      expect(q.mesh.position.y).toBeCloseTo(q.rest.y, 6);
+      expect(q.mesh.position.z).toBeCloseTo(q.rest.z, 6);
+    }
+    // the toys rest on the attic floor in front of the box, within her reach
+    s.scene.updateMatrixWorld(true);
+    for (const q of toys) {
+      const w = q.mesh.getWorldPosition(new THREE.Vector3());
+      expect(roomAt(w.x, w.z)).toBe('attic');
+      expect(w.y).toBeGreaterThanOrEqual(floorAt('attic') - 1e-6);
+      expect(w.y).toBeLessThan(floorAt('attic') + 0.1);
+      expect(Math.hypot(w.x - c.x, w.z - c.z)).toBeLessThan(1);
+    }
+    expect(s.paid.points).toBe(12);
+  }, 60_000);
+
+  it('under reduced motion the toys are out at once', () => {
+    const s = setup({ reducedMotion: true });
+    const c = FIND.toys;
+    s.stay(c.x, floorAt('attic'), c.z, 0.55);
+    for (const q of s.record.house.parts.toys) expect(q.mesh.position.distanceTo(q.rest)).toBeLessThan(1e-9);
+  }, 60_000);
+});
+
+describe('the yarn ball', () => {
+  // the hall's west wall (the library beyond it), at its longest stretch of solid wall
+  const wall = houseSections().filter((q) => q.owner === 'hall' && q.kind === 'wall' && q.x0 === -4 && q.x1 === -4)
+    .sort((a, b) => Math.abs(b.z1 - b.z0) - Math.abs(a.z1 - a.z0))[0];
+  const wallZ = (wall.z0 + wall.z1) / 2;
+
+  // the ball batted from (x, z) along (dx, dz) at 6 m/s for 3 s, with or without house life:
+  // the regions it was in, and its height over the floor under it at its highest after the bat
+  const bat = (withLife, x, z, dx, dz) => {
+    const scene = new THREE.Scene();
+    const record = build(scene);
+    const toy = createToy(scene, { ground: record.ground, rng: () => 0.5 });
+    const life = withLife ? record.life({ scene, reducedMotion: true, toy, audio: recorder(['playTune', 'musicBoxNote', 'purr']) }) : null;
+    const camera = new THREE.PerspectiveCamera();
+    const cat = new THREE.Vector3(2, 0, 9.5);
+    camera.position.set(2, 2, 13);
+    let t = 0;
+    life?.update(DT, t, cat, camera); // the first frame settles
+    toy.placeAt({ x, z });
+    const y0 = record.house.floor.y(x, z);
+    toy.throwFrom(new THREE.Vector3(x, y0 + 0.3, z), new THREE.Vector3(dx, 0, dz).normalize(), 6);
+    const rooms = new Set();
+    let over = -Infinity;
+    for (let i = 0; i < 180; i++) {
+      t += DT;
+      toy.update(DT, record.bounds);
+      life?.update(DT, t, cat, camera);
+      const p = toy.mesh.position;
+      rooms.add(roomAt(p.x, p.z) ?? stairAt(p.x, p.z));
+      over = Math.max(over, p.y - record.house.floor.y(p.x, p.z));
+    }
+    life?.dispose();
+    return { rooms, toy, over };
+  };
+  const batAtWall = (withLife) => bat(withLife, -3, wallZ, -1, 0);
+  // thrown 0.3 m up at 4 m/s, the ball tops out about 1.1 m over the floor; never set down higher
+  const RISE = 1.3;
+
+  it('the life stops it at the wall: it stays in the hall', () => {
+    expect(wall).toBeTruthy();
+    const { rooms, toy, over } = batAtWall(true);
+    expect([...rooms]).toEqual(['hall']);
+    expect(toy.mesh.position.x).toBeGreaterThan(-4);
+    expect(over).toBeLessThan(RISE);
+  }, 60_000);
+
+  it('without the life it would have rolled through into the library', () => {
+    const { rooms } = batAtWall(false);
+    expect(rooms.has('library')).toBe(true);
+  }, 60_000);
+
+  // The ball rolled by hand along the floor across a wall line, as if a bat had sent it
+  // there: house life puts it back on the floor under it, 0.3 m inside the wall.
+  const rollOver = (x, z, dx, dz) => {
+    const scene = new THREE.Scene();
+    const record = build(scene);
+    const g = record.ground;
+    const toy = createToy(scene, { ground: g, rng: () => 0.5 });
+    const life = record.life({ scene, reducedMotion: true, toy, audio: null });
+    const camera = new THREE.PerspectiveCamera();
+    const cat = new THREE.Vector3(2, 0, 9.5);
+    camera.position.set(2, 2, 13);
+    let t = 0;
+    life.update(DT, t, cat, camera);
+    const p = toy.mesh.position;
+    toy.setPosition({ x, y: g.y(x, z), z });
+    const r0 = roomAt(x, z) ?? stairAt(x, z);
+    for (let i = 0; i < 90; i++) {
+      const nx = p.x + dx * 3 * DT, nz = p.z + dz * 3 * DT;
+      p.set(nx, g.y(nx, nz) + TOY_RADIUS, nz);
+      t += DT;
+      life.update(DT, t, cat, camera);
+      if (Math.hypot(p.x - nx, p.z - nz) > 1e-9) { // the life stopped it
+        const out = { region: roomAt(p.x, p.z) ?? stairAt(p.x, p.z), over: p.y - g.y(p.x, p.z), y: p.y, from: r0 };
+        life.dispose();
+        return out;
+      }
+    }
+    life.dispose();
+    return null;
+  };
+
+  it('in the cellar (1.8 m down) a wall stops it on the cellar floor, never up at the lawn\'s height', () => {
+    for (const [x, z, dx, dz] of [[28.5, -5, 1, 0], [25, -8.5, 0, -1], [25, -1.5, 0, 1]]) {
+      const s = rollOver(x, z, dx, dz);
+      expect(s, `${x},${z}`).not.toBe(null);
+      expect(s.region, `${x},${z}`).toBe('cellar');
+      expect(s.over, `${x},${z}`).toBeCloseTo(TOY_RADIUS, 6);
+      expect(s.y, `${x},${z}`).toBeLessThan(levelY('cellar') + 0.2);
+    }
+    // and batted for real (the toy's own rolling), it stays down there
+    const { rooms, over } = bat(true, 28.5, -5, 1, 0);
+    expect([...rooms]).toEqual(['cellar']);
+    expect(over).toBeLessThan(RISE);
+  }, 60_000);
+
+  it('on the cellar stair a side wall stops it on the steps, at their height', () => {
+    const st = HOUSE_STAIRS.find((q) => q.to === 'cellar');
+    for (const [x, side] of [[14.6, -1], [16, 1], [17.5, -1], [19, 1]]) {
+      const s = rollOver(x, st.z0 - side * 0.6, 0, side);
+      expect(s, `${x},${side}`).not.toBe(null);
+      expect(s.from, `${x},${side}`).toBe('cellar'); // the stair's region is named for the cellar
+      expect(s.region, `${x},${side}`).toBe('cellar');
+      expect(s.over, `${x},${side}`).toBeCloseTo(TOY_RADIUS, 6);
+    }
+    for (const [x, side] of [[16, -1], [17.5, 1]]) {
+      const { rooms, over } = bat(true, x, st.z0 - side * 0.6, 0, side);
+      expect([...rooms], `${x},${side}`).toEqual(['cellar']);
+      expect(over, `${x},${side}`).toBeLessThan(RISE);
+    }
+  }, 60_000);
+});
+
+describe('the words', () => {
+  const IDS = ['clock', 'piano', 'window', 'bookcase', 'cushion', 'toys'];
+  it('every find speaks from the word tables in both sets, with no series word in the everyday set', () => {
+    expect(HOUSE_FINDS.map((f) => f.id)).toEqual(IDS);
+    for (const id of IDS) {
+      const [on, off] = [phrase(`house.find.${id}`, 3), withOffWords(() => phrase(`house.find.${id}`, 3))];
+      for (const w of [on, off]) {
+        expect(typeof w, id).toBe('string');
+        expect(w.length, id).toBeGreaterThan(0);
+        expect(w, id).not.toMatch(/house\.find/);
+      }
+      expect(bannedIn(off), id).toBe(null);
+    }
+    expect(phrase('house.find.clock', 3)).toBe('The old clock bongs 3 times! 🕰️');
+    expect(phrase('house.find.clock', 1)).toBe('The old clock bongs 1 time! 🕰️');
+  });
+});
+
+// Task 10 (from the pictures): the tree fade's line runs on PAST_LOOK beyond her, so the
+// piano faded away while she stood on its keys, and a piece she faced from close by (the
+// clock as it struck) went see-through. House life holds every fading piece solid unless it
+// stands between the camera and her, seen from above; then the tree fade decides as before.
+describe('the furniture fades only when it is in the way', () => {
+  it('the piano stays while she plays it, the clock while it strikes; between the camera and her, they fade', () => {
+    const scene = new THREE.Scene();
+    const record = build(scene);
+    mergeStaticProps(scene);
+    const fade = createTreeFade(findFadeOccluders(scene), { reducedMotion: true });
+    const life = record.life({ scene, reducedMotion: true, log: null, audio: null, toy: null, dusk: false });
+    const camera = new THREE.PerspectiveCamera();
+    const cat = new THREE.Vector3();
+    const look = { x: 0, y: 0, z: 0 };
+    const piece = (id) => record.house.fading.find((p) => p.obj.name === `houseFade:${id}`).obj;
+    let t = 0;
+    const view = (cx, cy, cz, x, y, z) => {
+      camera.position.set(cx, cy, cz);
+      cat.set(x, y, z);
+      t += DT;
+      life.update(DT, t, cat, camera);
+      look.x = x; look.y = y + 0.4; look.z = z;
+      fade.update(DT, camera, look);
+      return fade.faded();
+    };
+    expect(record.house.fading.length).toBeGreaterThan(10);
+    const keys = ledge('parlour-keys');
+    // on the keys facing the piano, the camera behind her in the parlour (where the moves stand
+    // her: the keys' guards hold her body off the piano, the review of the rough edges)
+    let f = view(8.7, keys.y + 2.2, 7.0, 8.7, keys.y, 10.74);
+    expect(f.has(piece('parlour-piano'))).toBe(false);
+    expect(f.has(piece('parlour-keys'))).toBe(false);
+    // the same view with no hold (a piece the walk's life has not seen): the tree fade alone takes the piano
+    piece('parlour-piano').userData.fadeHold = false;
+    fade.update(DT, camera, look);
+    expect(fade.faded().has(piece('parlour-piano'))).toBe(true);
+    // at the clock's foot, facing it, the camera behind her
+    f = view(-2.9, 2.2, 7.6, -2.9, 0, 3.1);
+    expect(f.has(piece('hall-clock'))).toBe(false);
+    // the camera behind the clock, she in front of it: it is in the way and fades
+    f = view(-2.9, 1.6, 1.0, -2.9, 0, 4.5);
+    expect(f.has(piece('hall-clock'))).toBe(true);
+    // the camera low behind the big books, she on the library floor beyond them
+    f = view(-13.55, 0.8, 8.2, -12.0, 0, 5.0);
+    expect(f.has(piece('library-bigbooks'))).toBe(true);
+    life.dispose();
+    for (const p of record.house.fading) expect(p.obj.userData.fadeHold).toBe(false);
+    fade.dispose();
+  });
+});

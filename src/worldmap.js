@@ -13,16 +13,18 @@
 // small marks only; they are ready for step 3, which gives them gates and
 // states.
 //
-// Not on the map: the den (home, a Menu tile), and the House (not
-// built yet), and today's border posts. The Rooftops is on it, inside the
-// town (TOWN_PLACES), a place like the others since its catalog row went in;
-// so is the Market Square, on the town's south-east rim (Market step 4).
+// Not on the map: the den (home, a Menu tile), and today's border posts.
+// The Rooftops is on it, inside the town (TOWN_PLACES), a place like the
+// others since its catalog row went in; so is the Market Square, on the
+// town's south-east rim (Market step 4), and the Old House, on its south-west
+// rim (Old House step 4, W4). Those of Clan Edition only are not in a Legacy
+// save's model (W2).
 //
 // One thing moves on the world map only: the Moor's camp (WORLD_CAMP_AT).
 // The world map's bigger words leave no room for it on the Moor's north edge
 // beside the name, so it sits in the bend of her river instead. Her board's
 // CAMP_AT is kept.
-import { placeName } from './edition.js';
+import { placeName, areaInEdition } from './edition.js';
 import { words } from './wordset.js';
 import { STAR, territoryMapModel, placeState } from './territories.js';
 
@@ -47,15 +49,20 @@ export const STREET_LAND = Object.freeze({ park: '#b9dc8f', fair: '#e9b7c9', far
 // alley's fire escape (draft 2's "Rooftops"), and the Market Square, on the
 // town's south-east rim (Market step 4, V19; r 46 as the Rooftops', not the
 // ruling's 42, so no tap target is under the island's 92 across, and moved 6
-// units off the Docks). Their names come from the word
-// tables (PLACE_WORDS.roofs, PLACE_WORDS.market).
+// units off the Docks), and the Old House, on its south-west rim (Old House
+// step 4, docs/superpowers/plans/2026-11-21-old-house-step4-into-the-game.md,
+// W4), where its front stands in the town: W4's (768, 648) moved 24 units out
+// off the town, so its circle (a tap there opens it) keeps off the town's own
+// words, as test/worldmap.test.js checks. Their names come from the word
+// tables (PLACE_WORDS.roofs, PLACE_WORDS.market, PLACE_WORDS.house).
 export const TOWN_PLACES = freezeAll([
   { id: 'roofs', areaId: 'roofs', x: 905, y: 458, r: 46 },
   { id: 'market', areaId: 'market', x: 962, y: 642, r: 46 },
+  { id: 'house', areaId: 'house', x: 754, y: 667, r: 46 },
 ]);
 
-// Their land colours: roof slate, warm cobble.
-export const TOWN_LAND = Object.freeze({ roofs: '#8e9bb0', market: '#d8b48a' });
+// Their land colours: roof slate, warm cobble, old timber.
+export const TOWN_LAND = Object.freeze({ roofs: '#8e9bb0', market: '#d8b48a', house: '#a3876a' });
 
 // The coast, west edge of the sea: the points of a cubic chain,
 // M p0 C p1 p2 p3 C p4 p5 p6 C p7 p8 p9, closed along the world's east and
@@ -77,6 +84,10 @@ export const GATEWAYS = Object.freeze([
   // The Market's circle lies over the town's south-east rim: a short road in
   // the gap between the town, the Market and the Docks, clear of all three.
   { id: 'town-market', from: 'neighborhood', to: 'market', road: [[898, 661], [910, 678], [926, 688], [939, 682]] },
+  // The Old House's circle lies over the town's south-west rim (W4): from the
+  // town's south rim, beside it, to its east edge, in the open between the
+  // town, the house and the Docks (picked from a map picture).
+  { id: 'town-house', from: 'neighborhood', to: 'house', road: [[834, 676], [830, 692], [810, 702], [794, 690]] },
 ].map((g) => Object.freeze({ ...g, road: pts(g.road) })));
 
 // A camp the world map draws somewhere other than CAMP_AT. The Moor's: on
@@ -110,7 +121,7 @@ export function worldMapModel(state, catalog, { touch = false } = {}) {
       kind: 'street', name: placeName(p.areaId, edition, catalog), status: catalog?.areas?.[p.areaId] ? 'built' : 'soon', camp: null,
       ...placeState(state, catalog, p.areaId, { touch }),
     })),
-    ...TOWN_PLACES.map((p) => ({
+    ...TOWN_PLACES.filter((p) => areaInEdition(catalog?.areas?.[p.areaId], edition)).map((p) => ({
       id: p.id, areaId: p.areaId, x: p.x, y: p.y, r: p.r,
       kind: 'town', name: words().PLACE_WORDS[p.id], status: catalog?.areas?.[p.areaId] ? 'built' : 'soon', camp: null,
       ...placeState(state, catalog, p.areaId, { touch }),

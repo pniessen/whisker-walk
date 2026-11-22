@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { nextThing, nextThingHtml, NEXT_ATTR } from '../src/ui/nextthing.js';
 import { createProgression, CATALOG } from '../src/progression.js';
 import { PLACE_WORDS } from '../src/clanwords.js';
+import { withOffWords } from './helpers/offwords.js';
 
 const KEY = 'whisker-walk-save';
 function memStorage(initial = {}) {
@@ -79,6 +80,21 @@ describe('nextThing: one test per rule', () => {
     // Legacy has no Market: City Park alone, as before
     const legacy = save({ walks: { neighborhood: 1 }, edition: 'legacy', unlocked: { accessories: allWear } });
     expect(nextThing(legacy)).toMatchObject({ rule: 7, id: 'home.opens', text: 'Explore here again to open City Park!' });
+  });
+
+  it('the Old House is named in the Market, at 1 Market walk, in Clan Edition only (Old House step 4)', () => {
+    // the house waits for 2 Market walks, not town walks (the owner's change)...
+    expect(CATALOG.areas.house.requires).toEqual({ area: 'market', walks: 2 });
+    // ...so the town's line at 1 town walk is untouched (the test above), and
+    // in the Market, owning it, with 1 walk there, the home line names the house
+    const fields = { ...HOME, walks: { neighborhood: 3, woods: 1, market: 1 }, unlocked: { accessories: allWear, areas: ['neighborhood', 'woods', 'market'] }, area: 'market' };
+    expect(nextThing(save(fields))).toMatchObject({ rule: 7, id: 'home.opens', text: 'Explore here again to open the Old Twoleg Nest!', action: null });
+    withOffWords(() => expect(nextThing(save(fields))).toMatchObject({ rule: 7, id: 'home.opens', text: 'Explore here again to open the Old House!' }));
+    // at 0 or 2 Market walks it is not this line
+    for (const market of [0, 2]) expect(nextThing(save({ ...fields, walks: { ...fields.walks, market } })).text, String(market)).not.toContain('Old');
+    // Legacy never names the house (nor walks the Market: she is in the town)
+    const legacy = save({ ...fields, edition: 'legacy' });
+    expect(JSON.stringify(nextThing(legacy))).not.toMatch(/house|Twoleg Nest/i);
   });
 
   it('7. a new place opens after one more walk here', () => {

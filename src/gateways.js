@@ -42,8 +42,11 @@
 // town's south-east street end) and market-town (a signpost in the gap the
 // square's south row of shop fronts leaves behind its spawn, market.js
 // GATEWAY_GAP; 'inside', as an edge end there would stand on the spawn; Market
-// step 4). House step 4 adds the pair town-house / house-town: those two rows
-// and nothing else.
+// step 4). The town and the Old House are joined by the pair town-house (the
+// shut door of the old house's front against the town's west hedge, which the
+// town draws for it, world/oldhousefront.js) and house-town (just inside the
+// hall's front door, whose leaves swing open as she comes, houselife.js); both
+// 'inside' and look 'none' (Old House step 4).
 
 export const GATE_REACH = 1.6; // m, cat centre to gate centre
 // m: nearer than this to a gate she can go through or open, the place beyond
@@ -98,6 +101,9 @@ export const GATEWAY_ENDS = Object.freeze({
     // stopping short of the gate posts on z 52.
     end({ id: 'town-market', gateway: 'town-market', x: 30, z: 52, faces: 'south', to: 'market', twin: 'market-town', look: 'signpost', sign: true,
       lane: [2.6, 50.9, 31.7, 50.9], laneLook: 'paving' }),
+    // 0.45 m in front of the old house's door (oldhousefront.js OLD_HOUSE_FRONT.door);
+    // she lands 3.65 m out on the lawn, facing east, the house behind her.
+    end({ id: 'town-house', gateway: 'town-house', x: -43.55, z: 31, faces: 'west', to: 'house', twin: 'house-town', look: 'none', placement: 'inside', arrive: { x: -39.9, z: 31, yaw: -Math.PI / 2 } }),
   ]),
   park: Object.freeze([
     end({ id: 'park-town', gateway: 'town-park', x: 0, z: 49, faces: 'south', to: 'neighborhood', twin: 'town-park', look: 'signpost' }),
@@ -137,6 +143,11 @@ export const GATEWAY_ENDS = Object.freeze({
     // inside the gap. She lands on the cobbles facing north into the square,
     // 3.7 m in front of it (the spawn's view, with the gate behind her).
     end({ id: 'market-town', gateway: 'town-market', x: 0, z: 23.6, faces: 'south', to: 'neighborhood', twin: 'town-market', look: 'signpost', placement: 'inside', arrive: { x: 0, z: 19.9, yaw: 0 } }),
+  ]),
+  house: Object.freeze([
+    // Just inside the hall's front door (houseplan.js HOUSE_FRONT_DOOR, z 12); she
+    // lands 3.65 m in, facing north into the hall.
+    end({ id: 'house-town', gateway: 'town-house', x: 0, z: 11.6, faces: 'south', to: 'neighborhood', twin: 'town-house', look: 'none', placement: 'inside', arrive: { x: 0, z: 7.95, yaw: 0 } }),
   ]),
 });
 

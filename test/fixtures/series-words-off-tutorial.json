@@ -13,6 +13,10 @@
    "touch": "Wait till they turn around…",
    "keys": "Wait till they turn around…"
   },
+  "hint.house": {
+   "touch": "Explore every floor, from the attic to the cellar!",
+   "keys": "Explore every floor, from the attic to the cellar!"
+  },
   "hint.look": {
    "touch": "Drag here to look around.",
    "keys": "Move the mouse to look around."
@@ -339,6 +343,10 @@
   "hint.market": {
    "touch": "Wait till they turn around…",
    "keys": "Wait till they turn around…"
+  },
+  "hint.house": {
+   "touch": "Explore every floor, from the attic to the cellar!",
+   "keys": "Explore every floor, from the attic to the cellar!"
   },
   "hint.look": {
    "touch": "Drag here to look around.",
@@ -672,6 +680,7 @@
     "fair": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "roofs": "rule 7: Explore here again to open the Rooftops!",
     "market": "rule 7: Explore here again to open City Park and the Market Square!",
+    "house": "rule 7: Explore here again to open the Old House!",
     "seaside": "rule 7: Explore here again to open Seaside!",
     "docks": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "woods": "rule 7: Explore here again to open City Park and the Market Square!",
@@ -713,6 +722,7 @@
     "fair": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "roofs": "rule 7: Explore here again to open the Rooftops!",
     "market": "rule 7: Explore here again to open City Park!",
+    "house": "rule 12: 150 🐾 more to become a Yard Prowler.",
     "seaside": "rule 7: Explore here again to open Seaside!",
     "docks": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "woods": "rule 7: Explore here again to open City Park!",

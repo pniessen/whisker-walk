@@ -44,8 +44,14 @@ const { MARKET_SPAWN, MARKET_BOUNDS } = await import('../src/world/marketplan.js
 const { FIND_SPOTS } = await import('../src/foundwear/spots/index.js');
 // The Market's module names its spawn in its plan (marketplan.js).
 const market = { build: marketWorld.build, SPAWN: MARKET_SPAWN };
+const houseWorld = await import('../src/world/house.js');
+const { HOUSE_SPAWN, HOUSE_FRONT_DOOR } = await import('../src/world/houseplan.js');
+const { HOUSE_FINDS } = await import('../src/world/housethings.js');
+const { OLD_HOUSE_FRONT, buildOldHouseFront } = await import('../src/world/oldhousefront.js');
+// The Old House names its spawn in its plan (houseplan.js).
+const house = { build: houseWorld.build, SPAWN: HOUSE_SPAWN };
 
-const MODS = { neighborhood, park, fair, farm, docks, seaside, roofs, market };
+const MODS = { neighborhood, park, fair, farm, docks, seaside, roofs, market, house };
 const IDS = Object.keys(MODS);
 const T = 60000;
 
@@ -85,11 +91,12 @@ const FENCE_LINE = { fair: fair.GATE_AT.z, farm: farm.GATE_AT.z };
 const edgeGap = (b, p) => Math.min(p.x - b.minX, b.maxX - p.x, p.z - b.minZ, b.maxZ - p.z);
 
 describe('gateways: where the gates stand', () => {
-  it('has fourteen ends, twelve on an edge and two inside (the Rooftops\' alley door, the Market\'s gate in its south row), in eight built areas', () => {
-    expect(IDS).toHaveLength(8);
-    expect(allEnds).toHaveLength(14);
+  it('has sixteen ends, twelve on an edge and four inside (the Rooftops\' alley door, the Market\'s gate in its south row, the Old House\'s two doors), in nine built areas', () => {
+    expect(IDS).toHaveLength(9);
+    expect(allEnds).toHaveLength(16);
     expect(edgeEnds).toHaveLength(12);
-    expect(allEnds.filter(([, e]) => e.placement === 'inside').map(([a, e]) => `${a}/${e.id}`)).toEqual(['roofs/roofs-town', 'market/market-town']);
+    expect(allEnds.filter(([, e]) => e.placement === 'inside').map(([a, e]) => `${a}/${e.id}`).sort())
+      .toEqual(['roofs/roofs-town', 'market/market-town', 'neighborhood/town-house', 'house/house-town'].sort());
     expect(edgeEnds.map(([a, e]) => `${a}/${e.id}`)).toContain('neighborhood/town-roofs');
     expect(edgeEnds.map(([a, e]) => `${a}/${e.id}`)).toContain('neighborhood/town-market');
     for (const id of IDS) expect(areas[id].colliders.length, id).toBeGreaterThan(10);
@@ -181,6 +188,83 @@ describe('gateways: where the gates stand', () => {
     expect(vias).toContain('market-town');
     expect(arrivalFor('town-market')).toMatchObject({ areaId: 'market', x: 0, z: 19.9, yaw: 0 });
     expect(arrivalFor('market-town')).toMatchObject({ areaId: 'neighborhood', yaw: 0 });
+  });
+
+  // Old House step 4 (W6): the old house's door in town, 0.45 m in front of
+  // the front's door (oldhousefront.js), at the foot of its steps. Its posts
+  // stand by the front's own ring of colliders (they ring the footprint, and
+  // the steps): every other collider is 1.2 m clear.
+  it("the old house's door in town stands at its front", () => {
+    const e = endById('town-house').end;
+    const area = areas.neighborhood;
+    expect(e.faces).toBe('west');
+    expect(e.placement).toBe('inside');
+    expect(e.look).toBe('none');
+    expect(Math.abs(e.z - OLD_HOUSE_FRONT.door.z), 'level with the door').toBeLessThanOrEqual(0.01);
+    expect(e.x - OLD_HOUSE_FRONT.door.x, 'in front of the door').toBeCloseTo(0.45, 9);
+    // the front is drawn for this end, and its ring is in the town's colliders
+    expect(scenes.neighborhood.getObjectByName('oldhousefront')).toBeTruthy();
+    const own = buildOldHouseFront(new THREE.Scene()).colliders;
+    const isOwn = (c) => own.some((o) => o.x === c.x && o.z === c.z && o.r === c.r);
+    expect(area.colliders.filter(isOwn)).toHaveLength(own.length);
+    // a spot she can stand on, reached on foot from the spawn, within reach of the door
+    const spots = [];
+    for (let dx = 0; dx <= GATE_REACH; dx += 0.1) {
+      for (let dz = -GATE_REACH; dz <= GATE_REACH; dz += 0.1) {
+        const x = e.x + dx, z = e.z + dz;
+        if (Math.hypot(dx, dz) <= GATE_REACH - 0.05 && isWalkableAt(area, x, z) && flood('neighborhood').reaches(x, z)) spots.push([x, z]);
+      }
+    }
+    expect(spots.length, 'walkable spots within reach of the door').toBeGreaterThan(0);
+    for (const p of posts(e)) {
+      for (const c of area.colliders) {
+        if (isOwn(c)) continue;
+        expect(Math.hypot(p.x - c.x, p.z - c.z) - c.r, `door post (${p.x}, ${p.z}) vs collider (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(1.2);
+      }
+    }
+    expect(Math.hypot(e.x - neighborhood.SPAWN.x, e.z - neighborhood.SPAWN.z), 'vs the spawn').toBeGreaterThanOrEqual(3.0);
+    const things = [
+      ...(area.pois ?? []), ...(area.collectibles ?? []), ...(area.scenics ?? []), ...(area.perches ?? []),
+      ...(GOLD_MICE.neighborhood ?? []), ...(FIND_SPOTS.neighborhood ?? []),
+    ];
+    expect(things.length).toBeGreaterThan(10);
+    expect((FIND_SPOTS.neighborhood ?? []).length).toBeGreaterThan(0);
+    for (const t of things) expect(Math.hypot(e.x - t.x, e.z - t.z), `vs (${t.x}, ${t.z})`).toBeGreaterThanOrEqual(3.0);
+  }, T);
+
+  // Old House step 4 (W6, W7): the hall's door home stands just inside the
+  // hall's front door (HOUSE_FRONT_DOOR, in the south wall at z 12).
+  it("the hall's front door stands in the hall's south wall", () => {
+    const e = endById('house-town').end;
+    const area = areas.house;
+    expect(e.faces).toBe('south');
+    expect(e.placement).toBe('inside');
+    expect(e.look).toBe('none');
+    expect(e.x).toBe(HOUSE_FRONT_DOOR.x);
+    expect(Math.abs(e.z - HOUSE_FRONT_DOOR.z), 'by the wall line').toBeLessThanOrEqual(0.5);
+    expect(e.z).toBeLessThan(HOUSE_FRONT_DOOR.z);
+    const spots = [];
+    for (let dx = -GATE_REACH; dx <= GATE_REACH; dx += 0.1) {
+      for (let dz = -GATE_REACH; dz <= 0; dz += 0.1) {
+        const x = e.x + dx, z = e.z + dz;
+        if (Math.hypot(dx, dz) <= GATE_REACH - 0.05 && isWalkableAt(area, x, z) && flood('house').reaches(x, z)) spots.push([x, z]);
+      }
+    }
+    expect(spots.length, 'walkable spots within reach of the door').toBeGreaterThan(0);
+    const things = [
+      ...(area.pois ?? []), ...(area.collectibles ?? []), ...(area.scenics ?? []),
+      ...(GOLD_MICE.house ?? []), ...HOUSE_FINDS,
+    ];
+    expect(things.length).toBeGreaterThanOrEqual(HOUSE_FINDS.length + 3);
+    for (const t of things) expect(Math.hypot(e.x - t.x, e.z - t.z), `vs (${t.x}, ${t.z})`).toBeGreaterThanOrEqual(3.0);
+  }, T);
+
+  it('the arrival rule covers the two doors\' arrivals', () => {
+    const vias = allEnds.map(([, e]) => e.id);
+    expect(vias).toContain('town-house');
+    expect(vias).toContain('house-town');
+    expect(arrivalFor('town-house')).toEqual({ areaId: 'house', x: 0, z: 7.95, yaw: 0 });
+    expect(arrivalFor('house-town')).toEqual({ areaId: 'neighborhood', x: -39.9, z: 31, yaw: -Math.PI / 2 });
   });
 
   it('G1 every edge end faces the side it is nearest', () => {

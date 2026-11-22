@@ -489,6 +489,19 @@ const LATER = Object.freeze({
   // the name painted on a gate's board (world/gateway.js, an end with `sign`):
   // the place's shown name without a leading "The ", so 'The Rooftops' -> 'Rooftops'
   'gate.sign': (place) => String(place ?? '').replace(/^the\s+/i, ''),
+  // ---- the Old House step 2 (2026-11-21): its special places and where the yarn ball lies ----
+  'house.scenic.clock': 'the grandfather clock',
+  'house.scenic.fireside': 'the fireside',
+  'house.scenic.attic-window': 'the round attic window',
+  'house.yarn.hall': 'on the hall runner',
+  'house.yarn.kitchen': 'by the kitchen table',
+  // ---- the Old House step 2 (2026-11-21): its six discoveries, each paid once a walk ----
+  'house.find.clock': (n) => `The old clock bongs ${n} ${n === 1 ? 'time' : 'times'}! 🕰️`,
+  'house.find.piano': 'You played a tune on the old piano! 🎵',
+  'house.find.window': 'What a view over the rooftops from the round window!',
+  'house.find.bookcase': 'The bookcase swings open… a secret stair! 🗝️',
+  'house.find.cushion': 'A cat-shaped dent in the cushion… someone else naps here too 💤',
+  'house.find.toys': 'A box of old toys! A wooden mouse rolls out 🧸',
   // ---- Rooftops step 5 (2026-11-21) ----
   'roofs.page.garden.name': 'Rooftop Garden',
   'roofs.page.garden.hint': 'High up, someone grows tomatoes.',

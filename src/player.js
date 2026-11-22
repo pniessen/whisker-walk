@@ -537,8 +537,12 @@ export function createPlayer(camera, canvas) {
   let avatar = null;
   let pace = 3.5;
   // The walk's ground (src/ground.js). walk.js sets it once per walk, after
-  // setAvatar, which resets it to FLAT_GROUND.
+  // setAvatar, which resets it to FLAT_GROUND. camGround is what the camera
+  // keeps out of (placeCameraOnGround): the walk's ground unless the area hands
+  // the camera its own (the Old House: its floors without the furniture tops she
+  // stands on, so a bookcase's end never snaps the view in; its walls sink).
   let ground = FLAT_GROUND;
+  let camGround = FLAT_GROUND;
   const keys = new Set();
   const velocity = new THREE.Vector3();
   let touchMove = null; // {x, z, mag} | null — overrides keys when set
@@ -646,7 +650,7 @@ export function createPlayer(camera, canvas) {
     rockLook.y += CAT_LOOK_Y;
     rockWant.copy(avatar.position).add(camOff);
     const len = rockLook.distanceTo(rockWant);
-    const f = cameraClearFraction(rockLook, rockWant, ground);
+    const f = cameraClearFraction(rockLook, rockWant, camGround);
     rockFrac = stepRock(rockFrac, f, dt, Math.max(len, 1e-6));
     camera.position.copy(rockWant).sub(rockLook).multiplyScalar(rockFrac).add(rockLook);
     // Never nearer than MIN_CAM_DIST to the look point. Where the rock is
@@ -682,9 +686,9 @@ export function createPlayer(camera, canvas) {
     }
     const cx = camera.position.x;
     const cz = camera.position.z;
-    const lo = ground.y(cx, cz) + MIN_CAMERA_Y;
+    const lo = camGround.y(cx, cz) + MIN_CAMERA_Y;
     if (camera.position.y < lo) camera.position.y = lo;
-    const hi = ground.ceil(cx, cz) - CAM_CEIL_CLEAR;
+    const hi = camGround.ceil(cx, cz) - CAM_CEIL_CLEAR;
     if (camera.position.y > hi) camera.position.y = hi;
   }
   // Gorge part 3 (C4): 0 in the open, 1 under a ceiling; the zoom view eases
@@ -755,6 +759,7 @@ export function createPlayer(camera, canvas) {
       avatar = cat;
       pace = catPace;
       ground = FLAT_GROUND;
+      camGround = FLAT_GROUND;
       rockFrac = 1;
       rockHold = 0;
       snapRock = true;
@@ -787,8 +792,18 @@ export function createPlayer(camera, canvas) {
       inputYaw = Number.isFinite(v) ? v : null;
     },
     // Gorge part 1: the walk's ground. Call once per walk, after setAvatar.
+    // The camera keeps out of it too, until setCameraGround says otherwise.
     setGround(g) {
       ground = g || FLAT_GROUND;
+      camGround = ground;
+    },
+    // The ground the camera keeps out of (placeCameraOnGround): its rock pull,
+    // its floor under the camera and its ceiling. Call after setGround; none:
+    // the walk's own. It holds only until the next setGround or setAvatar,
+    // which both put the camera back on the walk's ground (so a walk in an
+    // area that names none never keeps an earlier walk's).
+    setCameraGround(g) {
+      camGround = g || ground;
     },
     forward() {
       return viewForward(yaw);

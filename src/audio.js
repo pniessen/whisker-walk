@@ -1,3 +1,5 @@
+import { isIndoor } from './indoor.js';
+
 // Swimming (Task 6): waterSplash(kind)'s three sounds. dur in seconds; the
 // bandpass sweeps from → to; flutter steps the gain on and off that many times.
 const WATER_SPLASHES = Object.freeze({
@@ -548,6 +550,15 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       tone(2600, 0.06, { gain: 0.03 * volume, slideTo: 3300 });
       tone(2800, 0.06, { gain: 0.025 * volume, slideTo: 3500, delay: 0.11 });
     },
+    // The Old House's quiet ambience (housesound.js): a clock's click, a stair's creak.
+    tick(volume = 1) {
+      const v = Math.max(0, Math.min(1, volume));
+      if (v > 0) tone(2200, 0.03, { gain: 0.012 * v });
+    },
+    creak(volume = 1) {
+      const v = Math.max(0, Math.min(1, volume));
+      if (v > 0) tone(170, 0.35, { type: 'sawtooth', gain: 0.018 * v, slideTo: 130 });
+    },
     // The Fairground's music box (fairlive.js): one small bright note, with a
     // softer octave above it. Quiet: it plays for as long as she is near.
     musicBoxNote(freq, volume = 1) {
@@ -805,10 +816,12 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       api.stopAmbient();
       if (muted) return;
       const layers = [];
-      if (areaKey === 'den') {
-        // Indoor: just the fireplace, never crickets (dusk doesn't apply to
-        // the den — it never surfaces the dusk toggle — but this stays
-        // explicit rather than relying on the caller never passing dusk: true).
+      if (isIndoor(areaKey)) {
+        // Indoor (the den, the Old House; indoor.js): just the fireplace,
+        // never crickets. Dusk doesn't apply to the den (it never surfaces the
+        // dusk toggle), and a house dusk walk lights its lamps but stays
+        // indoors, so this stays explicit rather than relying on the caller
+        // never passing dusk: true.
         layers.push(crackleLayer());
       } else if (areaKey === 'seaside') {
         layers.push(wavesLayer());
@@ -885,7 +898,7 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         if (rain) layers.push(rainLayer());
         else if (!dusk) layers.push(birdsongLayer());
       }
-      if (dusk && areaKey !== 'den') layers.push(cricketLayer());
+      if (dusk && !isIndoor(areaKey)) layers.push(cricketLayer());
       if (ambientMix) for (const layer of layers) layer.mix?.(ambientMix);
       ambient = layers;
     },

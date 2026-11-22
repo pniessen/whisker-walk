@@ -17,7 +17,8 @@
 // test/lazybuild.test.js fail if step 1 or 2 was missed.
 //
 // `roofs` has its own row in CATALOG.areas (Rooftops step 4), so the place
-// lists show it, and so has `market` (Market step 4, Clan Edition only).
+// lists show it, and so has `market` (Market step 4, Clan Edition only), and
+// so has `house` (the Old House, its step 4, Clan Edition only).
 // `den` is not in the catalog; it is built from home.
 //
 // An AreaPack is { id, world, life }: world is the builder module, life the
@@ -52,6 +53,7 @@ export const AREA_LOADERS = Object.freeze({
   roofs: () => import('./roofs.js').then((w) => own('roofs', w)),
   market: () => Promise.all([import('./market.js'), import('../marketlive.js'), import('../people/index.js')])
     .then(([world, live, p]) => ({ id: 'market', world, life: { createMarketLive: live.createMarketLive, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } })),
+  house: () => import('./house.js').then((w) => own('house', w)),
 });
 
 export const AREA_ENTRY_MODULES = Object.freeze({
@@ -69,4 +71,5 @@ export const AREA_ENTRY_MODULES = Object.freeze({
   fair: Object.freeze(['src/world/fair.js', 'src/fairlive.js', 'src/fairshow.js', 'src/people/index.js']),
   roofs: Object.freeze(['src/world/roofs.js']),
   market: Object.freeze(['src/world/market.js', 'src/marketlive.js', 'src/people/index.js']),
+  house: Object.freeze(['src/world/house.js']),
 });
