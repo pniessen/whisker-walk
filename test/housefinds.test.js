@@ -671,8 +671,9 @@ describe('the furniture fades only when it is in the way', () => {
     };
     expect(record.house.fading.length).toBeGreaterThan(10);
     const keys = ledge('parlour-keys');
-    // on the keys facing the piano, the camera behind her in the parlour
-    let f = view(8.7, keys.y + 2.2, 7.0, 8.7, keys.y, 11.15);
+    // on the keys facing the piano, the camera behind her in the parlour (where the moves stand
+    // her: the keys' guards hold her body off the piano, the review of the rough edges)
+    let f = view(8.7, keys.y + 2.2, 7.0, 8.7, keys.y, 10.74);
     expect(f.has(piece('parlour-piano'))).toBe(false);
     expect(f.has(piece('parlour-keys'))).toBe(false);
     // the same view with no hold (a piece the walk's life has not seen): the tree fade alone takes the piano

@@ -39,7 +39,8 @@
 // piece's corner and the line grazes it within HOLD_SHY of her (review). The secret bookcase's leaf,
 // which turns, is housefinds.js's.
 // Rough edges 1 and 2: the ledges' guards (houseguards.js) in the walk's live colliders, the feet
-// round every ledge piece while she is on the floor, a tall top's rim while she is on it.
+// round every ledge piece while she is on the floor, a top's own set while she is on it, built
+// for her cat's size once she is first seen (her cat is the scene's object at her position).
 
 import { makeView, createWallSink, createCellarLid, SINK } from '../housewalls.js';
 import { createLevelDrawing } from '../houselevels.js';
@@ -50,7 +51,7 @@ import { toyStop, HOUSE_FINDS } from './housethings.js';
 import { HOUSE_WINDOWS, HOUSE_ROOMS, HOUSE_STAIRS } from './houseplan.js';
 import { createHouseSound } from './housesound.js';
 import { createHouseAir } from './houseair.js';
-import { createLedgeGuards } from './houseguards.js';
+import { createLedgeGuards, catScale } from './houseguards.js';
 
 const NO_PANES = Object.freeze([]);
 const NO_FADING = Object.freeze([]);
@@ -102,6 +103,11 @@ export function createHouseLife(scene, house, {
   });
   const air = createHouseAir(scene, { windows: HOUSE_WINDOWS, rooms: HOUSE_ROOMS, levels: house.levels, dusk: !!dusk, reducedMotion });
   const guards = createLedgeGuards(colliders, floor);
+  let sized = false;
+  function guard(catPos) {
+    if (!sized) { sized = true; guards.scale(catScale(scene, catPos)); }
+    guards.update(catPos);
+  }
   let ballX = 0, ballZ = 0, ballSeen = false;
   const fading = house.fading ?? NO_FADING;
 
@@ -166,7 +172,7 @@ export function createHouseLife(scene, house, {
     drawing.settle(floorY(catPos));
     air.update(0, 0, drawing.full);
     holdFades(catPos, camera.position);
-    guards.update(catPos);
+    guard(catPos);
   }
 
   return {
@@ -188,7 +194,7 @@ export function createHouseLife(scene, house, {
       holdFades(catPos, camera.position);
       sound.update(dt, t, catPos);
       keepBall(dt);
-      guards.update(catPos);
+      guard(catPos);
     },
     guards,
     dispose() {

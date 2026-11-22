@@ -137,12 +137,14 @@ describe('never lost behind a wall', () => {
     expect(bad).toEqual([]);
   }, 90_000);
 
-  it('on every stair at every view step: never lost, and the camera eases', () => {
-    // the slowest and the fastest cat (walk.js: pace = 2.2 + breed speed * 0.8, speeds 1.2 to 2.8)
+  // Every stair (or the ones named) walked up and down at every view step, the slowest and the
+  // fastest cat (walk.js: pace = 2.2 + breed speed * 0.8, speeds 1.2 to 2.8), the secret stair's
+  // bookcase open (`open`: 'library', step 2's way from the stair, or 'stair', rough edge 3's way
+  // from the library, the leaf along the stair's west wall), so she can climb it from the library.
+  function stairSweep(open, stairs) {
     for (const pace of [2.2 + 1.2 * 0.8, 2.2 + 2.8 * 0.8]) {
-      // the secret stair's bookcase stands open, so she can climb it from the library
-      const w = createHouseWalk({ reducedMotion: false, pace, secretOpen: true });
-      for (const s of HOUSE_STAIRS) {
+      const w = createHouseWalk({ reducedMotion: false, pace, secretOpen: open });
+      for (const s of stairs) {
         const len = Math.hypot(s.x1 - s.x0, s.z1 - s.z0);
         const ux = (s.x1 - s.x0) / len;
         const uz = (s.z1 - s.z0) / len;
@@ -179,6 +181,15 @@ describe('never lost behind a wall', () => {
         }
       }
     }
+  }
+
+  it('on every stair at every view step: never lost, and the camera eases', () => {
+    stairSweep('library', HOUSE_STAIRS);
+  }, 90_000);
+
+  // rough edge 3: from the library the bookcase swings into the stair and stands along its west wall
+  it('up and down the secret stair with the bookcase open into it: never lost, and the camera eases', () => {
+    stairSweep('stair', HOUSE_STAIRS.filter((s) => s.id === 'secret'));
   }, 90_000);
 
   it('is a dollhouse zoomed out: the parlour\'s near walls go down, its far wall stands', () => {
@@ -583,10 +594,12 @@ describe('never lost on a climb', () => {
         }
       }
     }
-    // 28 sides of the 11 ledges are open floor (the rest stand against a wall or another ledge).
+    // 30 sides of the 11 ledges are open floor (the rest stand against a wall or another ledge).
     // Rough edge 2 made the tall tops 0.9 m deep: n2's east end and the west bookcase's south
-    // end now reach out past the ladder and the big books (step 2 had 26)
-    expect(sides).toBe(28);
+    // end now reach out past the ladder and the big books (step 2 had 26). Its review stood the
+    // big books and the chest off the taller pieces (their north sides, and the shelf's front, now
+    // face floor) and made the keys 0.6 m deep (the piano's front is theirs)
+    expect(sides).toBe(30);
     expect(jumps).toEqual([]);
   }, 90_000);
 

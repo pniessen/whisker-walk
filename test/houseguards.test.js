@@ -7,12 +7,13 @@ import { canvasStub } from './helpers/growriver.js';
 vi.stubGlobal('document', canvasStub);
 
 const {
-  HOUSE_LEDGES, HOUSE_FURNITURE, HOUSE_LEVELS, HOUSE_SPAWN, TALL_H, LEDGE_STANDOFF, LEDGE_RIM, GUARD_BODY,
-  houseArea, houseFloorGround, houseLedgeGuards, roomAt,
+  HOUSE_LEDGES, HOUSE_FURNITURE, HOUSE_LEVELS, HOUSE_SPAWN, TALL_H, LEDGE_STANDOFF, LEDGE_RIM, GUARD_BODY, LEDGE_ON,
+  HEAD_REACH, BODY_REACH, HEAD_CLEAR, CAT_SCALE_MAX, ledgeStandoff, houseArea, houseFloorGround, houseLedgeGuards, roomAt,
 } = await import('../src/world/houseplan.js');
+const { pianoKeyAt } = await import('../src/world/houseparts.js');
 const { HOUSE_MOVES } = await import('../src/world/housemoves.js');
 const { HOUSE_FINDS } = await import('../src/world/housethings.js');
-const { createLedgeGuards } = await import('../src/world/houseguards.js');
+const { createLedgeGuards, catScale } = await import('../src/world/houseguards.js');
 const { CAT_RADIUS, isWalkableAt } = await import('../src/player.js');
 const { createHouseWalk } = await import('./helpers/housewalk.js');
 const { houseFlood } = await import('./helpers/houseflood.js');
@@ -35,6 +36,12 @@ const piece = (id) => HOUSE_FURNITURE.find((f) => f.id === id);
 const tall = HOUSE_LEDGES.filter((l) => piece(l.id).h >= TALL_H);
 const area = houseArea();
 const guards = houseLedgeGuards();
+const big = houseLedgeGuards(CAT_SCALE_MAX); // a Maine Coon's: the largest
+// every cat she can walk as (cat/model.js), and the hen
+const BREEDS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'robbie', 'd2', 'ribbonkit', 'digit', 'hagrid'];
+// the low tops beside a taller piece, and the way from one to the other (the review of the rough edges)
+const PAIRS = [['parlour-keys', 'parlour-piano', 0, 1], ['library-steps', 'library-books-n2', 0, -1], ['bedroom-chest', 'bedroom-shelf', 0, -1], ['library-bigbooks', 'library-books-w', 0, -1]];
+const ledgeOf = (id) => HOUSE_LEDGES.find((l) => l.id === id);
 const reaches = (set, x, z) => set.some((c) => Math.hypot(x - c.x, z - c.z) < c.r + GUARD_BODY - 1e-6);
 const distToRect = (l, x, z) => Math.hypot(Math.max(l.minX - x, 0, x - l.maxX), Math.max(l.minZ - z, 0, z - l.maxZ));
 const onAnyLedge = (x, z, level) => HOUSE_LEDGES.some((q) => q.level === level && x >= q.minX && x <= q.maxX && z >= q.minZ && z <= q.maxZ);
@@ -56,8 +63,9 @@ describe('the guards\' circles', () => {
   it('are the player\'s body, tagged, on their ledge\'s level', () => {
     expect(GUARD_BODY).toBe(CAT_RADIUS);
     expect(guards.feet.length).toBeGreaterThan(100);
-    expect(Object.keys(guards.rims).sort()).toEqual(tall.map((l) => l.id).sort());
-    for (const c of [...guards.feet, ...Object.values(guards.rims).flat()]) {
+    // a set on every tall top (its rim) and every low top beside a taller piece
+    expect(Object.keys(guards.tops).sort()).toEqual([...tall.map((l) => l.id), ...PAIRS.map((q) => q[0])].sort());
+    for (const c of [...guards.feet, ...Object.values(guards.tops).flat(), ...big.feet, ...Object.values(big.tops).flat()]) {
       expect(c.guard).toBe(true);
       expect(c.r).toBeGreaterThan(0);
       expect(Object.isFrozen(c)).toBe(true);
@@ -66,10 +74,11 @@ describe('the guards\' circles', () => {
     expect(area.colliders.some((c) => c.guard)).toBe(false);
   });
 
-  it('feet: every floor spot nearer a ledge piece than the standoff is in their reach', () => {
+  it('feet: every floor spot nearer a ledge piece than the standoff is in their reach, for a small and the largest cat', () => {
     const bad = [];
     let n = 0;
-    for (const l of HOUSE_LEDGES) {
+    for (const [g, scale] of [[guards, 1], [big, CAT_SCALE_MAX]]) for (const l of HOUSE_LEDGES) {
+      const LEDGE_STANDOFF = ledgeStandoff(scale);
       const y = levelY(l.level);
       for (let x = l.minX - LEDGE_STANDOFF; x <= l.maxX + LEDGE_STANDOFF + 1e-9; x += 0.05) {
         for (let z = l.minZ - LEDGE_STANDOFF; z <= l.maxZ + LEDGE_STANDOFF + 1e-9; z += 0.05) {
@@ -77,11 +86,11 @@ describe('the guards\' circles', () => {
           if (d <= 0 || d > LEDGE_STANDOFF - 0.005) continue;
           if (roomAt(x, z) !== l.room || onAnyLedge(x, z, l.level) || Math.abs(area.ground.y(x, z) - y) > 1e-6 || !standable(x, z)) continue;
           n++;
-          if (!reaches(guards.feet, x, z)) bad.push(`${l.id} ${x.toFixed(2)},${z.toFixed(2)} (${d.toFixed(3)} m off it)`);
+          if (!reaches(g.feet, x, z)) bad.push(`${scale} ${l.id} ${x.toFixed(2)},${z.toFixed(2)} (${d.toFixed(3)} m off it)`);
         }
       }
     }
-    expect(n).toBeGreaterThan(1000);
+    expect(n).toBeGreaterThan(2000);
     expect(bad.slice(0, 5)).toEqual([]);
   });
 
@@ -95,7 +104,7 @@ describe('the guards\' circles', () => {
         for (let z = l.minZ; z <= l.maxZ + 1e-9; z += 0.02) {
           if (!standable(x, z)) continue; // the wall's own reach, behind
           const inside = Math.min(...edges.map((e) => inFromEdge(e, x, z)));
-          const held = reaches(guards.rims[l.id], x, z);
+          const held = reaches(guards.tops[l.id], x, z);
           if (inside < LEDGE_RIM - 0.005 && !held) bad.push(`${x.toFixed(2)},${z.toFixed(2)} ${inside.toFixed(3)} m in, not held`);
           if (inside > LEDGE_RIM + 0.005 && held) bad.push(`${x.toFixed(2)},${z.toFixed(2)} ${inside.toFixed(3)} m in, held`);
           if (!held) free++;
@@ -106,7 +115,7 @@ describe('the guards\' circles', () => {
     }
   });
 
-  it('every move takes off and lands clear of them, so a hop never lands her in their reach', () => {
+  it('every move takes off and lands clear of them, for every cat, so a hop never lands her in their reach', () => {
     const floor = houseFloorGround();
     const bad = [];
     const spots = [];
@@ -119,10 +128,12 @@ describe('the guards\' circles', () => {
         expect(g, id).toBeCloseTo(floor.y(p.x, p.z), 9);
         // on the floor: 0.1 m clear of the feet
         for (const l of HOUSE_LEDGES) {
-          if (Math.abs(levelY(l.level) - g) < 1e-6 && distToRect(l, p.x, p.z) < LEDGE_STANDOFF + 0.1) bad.push(`${id} ${p.x},${p.z} near ${l.id}`);
+          if (Math.abs(levelY(l.level) - g) < 1e-6 && distToRect(l, p.x, p.z) < ledgeStandoff(CAT_SCALE_MAX) + 0.05) bad.push(`${id} ${p.x},${p.z} near ${l.id}`);
         }
-        if (reaches(guards.feet, p.x, p.z)) bad.push(`${id} ${p.x},${p.z} in the feet`);
-      } else if (guards.rims[top.id] && reaches(guards.rims[top.id], p.x, p.z)) bad.push(`${id} ${p.x},${p.z} in ${top.id}'s rim`);
+        for (const set of [guards, big]) if (reaches(set.feet, p.x, p.z)) bad.push(`${id} ${p.x},${p.z} in the feet`);
+      } else {
+        for (const set of [guards, big]) if (set.tops[top.id] && reaches(set.tops[top.id], p.x, p.z)) bad.push(`${id} ${p.x},${p.z} in ${top.id}'s guards (${set.scale})`);
+      }
     }
     expect(bad).toEqual([]);
   });
@@ -139,12 +150,22 @@ describe('at run time', () => {
     expect(live.filter((c) => c.guard)).toEqual([...guards.feet]);
     const n2 = HOUSE_LEDGES.find((l) => l.id === 'library-books-n2');
     expect(at(-9.3, n2.y, 2.6)).toBe('library-books-n2');
-    expect(live.filter((c) => c.guard)).toEqual([...guards.rims['library-books-n2']]);
+    expect(live.filter((c) => c.guard)).toEqual([...guards.tops['library-books-n2']]);
     expect(at(-9.3, n2.y + 0.5, 2.6)).toBe(null); // in the air
     expect(live.length).toBe(n);
     const keys = HOUSE_LEDGES.find((l) => l.id === 'parlour-keys');
-    expect(at(8.7, keys.y, 11.15)).toBe(null); // a low top has no rim
+    expect(at(8.7, keys.y, 10.74)).toBe('parlour-keys'); // her body held off the piano
     expect(at(0, 0, 9.5)).toBe('floor');
+    expect(at(8.7, keys.y, 11.25)).toBe(null); // within its reach (a spot from before): it waits
+    const seat = HOUSE_LEDGES.find((l) => l.id === 'attic-seat');
+    expect(at(-23.6, seat.y, -11)).toBe(null); // a low top with nothing beside it has none
+    expect(at(0, 0, 9.5)).toBe('floor');
+    // sized for a Maine Coon: her own sets, none standing until the next update
+    g.scale(1.3);
+    expect(g.on).toBe(null);
+    expect(live.length).toBe(n);
+    expect(at(0, 0, 9.5)).toBe('floor');
+    expect(live.filter((c) => c.guard)).toEqual([...big.feet]);
     g.dispose();
     expect(live).toEqual(area.colliders);
   });
@@ -163,7 +184,7 @@ describe('at run time', () => {
   });
 
   it('cuts no floor off: every floor spot clear of the feet is reached from the spawn, with every find and take-off', () => {
-    const fenced = { ...area, colliders: [...area.colliders, ...guards.feet] };
+    const fenced = { ...area, colliders: [...area.colliders, ...big.feet] }; // the largest cat's
     // 0.125 m: the library's lamp stands 0.6 m off n1's front, and the way past it, between its
     // reach and the armchair's, is 0.27 m wide
     const before = houseFlood(area, HOUSE_SPAWN, 0.125);
@@ -210,11 +231,13 @@ function intrusion(box, v) {
 
 describe('rough edge 1: from the floor her body never enters a ledge piece', () => {
   // she walks into every side of every ledge piece she can reach from the floor, straight
-  // and slantwise, a scale-1 tabby and D2 (the family's own cat, scale 1.15)
-  for (const breed of ['tabby', 'd2']) {
+  // and slantwise: a scale-1 tabby, the Persian, D2 (the family's own cat, 1.15) and the
+  // Maine Coon (1.3), each with the guards for her size
+  for (const breed of ['tabby', 'persian', 'd2', 'mainecoon']) {
     it(`walking into every ledge piece, a ${breed}: her head and body stay out of it, and the camera never jumps`, () => {
       const model = buildCat(breed);
-      const w = createHouseWalk({ reducedMotion: false, moves: true });
+      const w = createHouseWalk({ reducedMotion: false, moves: true, catScale: model.scale.x });
+      const feet = houseLedgeGuards(model.scale.x).feet;
       const bad = [];
       let walks = 0;
       let worstJump = 0;
@@ -230,7 +253,7 @@ describe('rough edge 1: from the floor her body never enters a ledge piece', () 
             // 1.4 m out from the middle of the side, on her floor, where she can stand
             const sx = ex + nx * 1.4;
             const sz = ez + nz * 1.4;
-            if (roomAt(sx, sz) !== l.room || !isWalkableAt(area, sx, sz) || Math.abs(area.ground.y(sx, sz) - y0) > 1e-6 || reaches(guards.feet, sx, sz)) continue;
+            if (roomAt(sx, sz) !== l.room || !isWalkableAt(area, sx, sz) || Math.abs(area.ground.y(sx, sz) - y0) > 1e-6 || reaches(feet, sx, sz)) continue;
             const dx = -nx + slant * nz;
             const dz = -nz - slant * nx;
             w.place(sx, sz, behindYaw(dx, dz), 1);
@@ -250,7 +273,7 @@ describe('rough edge 1: from the floor her body never enters a ledge piece', () 
           }
         }
       }
-      expect(walks).toBeGreaterThan(40);
+      expect(walks).toBeGreaterThan(30);
       expect(bad).toEqual([]);
       expect(worstJump).toBeLessThan(0.25);
     }, 90_000);
@@ -266,7 +289,7 @@ describe('rough edge 2: on a tall top her body stays over it', () => {
       const spots = [];
       for (let x = l.minX + LEDGE_RIM; x <= l.maxX - LEDGE_RIM + 1e-9; x += 0.15) {
         for (let z = l.minZ + LEDGE_RIM; z <= l.maxZ - LEDGE_RIM + 1e-9; z += 0.03) {
-          if (standable(x, z) && !reaches(guards.rims[l.id], x, z)) spots.push([x, z]);
+          if (standable(x, z) && !reaches(guards.tops[l.id], x, z)) spots.push([x, z]);
         }
       }
       expect(spots.length, l.id).toBeGreaterThan(2);
@@ -291,4 +314,109 @@ describe('rough edge 2: on a tall top her body stays over it', () => {
     expect(pushes).toBeGreaterThan(200);
     expect(bad.slice(0, 8)).toEqual([]);
   }, 90_000);
+});
+
+// =============================================================================
+// The review of the rough edges: the guards for her cat's size, and her head into a taller
+// piece from a low top beside it (keys to the piano's case, steps to n2, chest to the
+// bedroom shelf, the big books to the west bookcase).
+// =============================================================================
+describe('for her cat\'s size', () => {
+  it('her reach ahead as she walks is within HEAD_REACH and BODY_REACH of her size, and her head passes HEAD_CLEAR, every breed', () => {
+    const bad = [];
+    for (const breed of BREEDS) {
+      const cat = buildCat(breed);
+      const s = Math.max(cat.scale.x, cat.scale.y, cat.scale.z);
+      expect(s, breed).toBeLessThanOrEqual(CAT_SCALE_MAX);
+      for (let i = 0; i < 120; i++) {
+        animateCat(cat, 'follow', i / 60, 1, false);
+        cat.updateMatrixWorld(true);
+        const v = catVolumes(cat);
+        const head = -v.head.center.z + v.head.radius;
+        const body = Math.max(-v.body.a.z, -v.body.b.z) + v.body.r;
+        const low = v.head.center.y - v.head.radius;
+        if (head > HEAD_REACH * s) bad.push(`${breed} head ${head.toFixed(3)}`);
+        if (body > BODY_REACH * s) bad.push(`${breed} body ${body.toFixed(3)}`);
+        if (low <= HEAD_CLEAR) bad.push(`${breed} head low ${low.toFixed(3)}`);
+      }
+    }
+    expect([...new Set(bad)].slice(0, 6)).toEqual([]);
+  });
+
+  it('house life finds her cat in the scene (the object at her position) and builds the guards for it', () => {
+    const scene = new THREE.Scene();
+    const cat = buildCat('mainecoon');
+    scene.add(new THREE.Group(), cat);
+    expect(catScale(scene, cat.position)).toBeCloseTo(1.3, 9);
+    expect(catScale(scene, new THREE.Vector3())).toBe(1);
+    expect(houseLedgeGuards(1.3)).toBe(big);
+    expect(houseLedgeGuards(1.26)).toBe(big); // rounded up to the next 0.05
+    expect(houseLedgeGuards(2)).toBe(big); // no cat is larger
+    expect(houseLedgeGuards(0.74)).not.toBe(guards);
+    expect(ledgeStandoff(1)).toBe(LEDGE_STANDOFF);
+  });
+
+  it('a low top beside a taller piece holds her back from it, with room to stand for the largest cat', () => {
+    for (const [lowId, tallId] of PAIRS) {
+      const l = ledgeOf(lowId);
+      const set = big.tops[lowId];
+      let free = 0;
+      for (let x = l.minX; x <= l.maxX + 1e-9; x += 0.02) for (let z = l.minZ; z <= l.maxZ + 1e-9; z += 0.01) if (standable(x, z) && !reaches(set, x, z)) free++;
+      expect(free, lowId).toBeGreaterThan(10);
+      expect(ledgeOf(tallId).y - l.y, tallId).toBeGreaterThan(0.3);
+    }
+  });
+});
+
+describe('the review of the rough edges: from a low top her body never enters the taller piece beside it', () => {
+  for (const breed of ['tabby', 'persian', 'd2', 'mainecoon']) {
+    it(`a ${breed}, from every low top toward the taller piece, and along the piano keys`, () => {
+      const model = buildCat(breed);
+      const s = model.scale.x;
+      const w = createHouseWalk({ reducedMotion: false, moves: true, catScale: s });
+      const bad = [];
+      for (const [lowId, tallId, dx, dz] of PAIRS) {
+        const l = ledgeOf(lowId);
+        const tl = ledgeOf(tallId);
+        const box = { minX: tl.minX, maxX: tl.maxX, minY: levelY(tl.level), maxY: tl.y, minZ: tl.minZ, maxZ: tl.maxZ };
+        // from where the moves stand her on it
+        const spots = [];
+        for (const list of [HOUSE_MOVES.climbs, HOUSE_MOVES.drops, HOUSE_MOVES.gaps]) for (const h of list) for (const p of [h.from, h.to]) {
+          if (p.x >= l.minX && p.x <= l.maxX && p.z >= l.minZ && p.z <= l.maxZ && Math.abs(area.ground.y(p.x, p.z) - l.y) < 1e-6) spots.push(p);
+        }
+        expect(spots.length, lowId).toBeGreaterThan(0);
+        for (const p of spots) for (const slant of [0, 0.6, -0.6]) {
+          const fx = dx + slant * dz;
+          const fz = dz - slant * dx;
+          w.placeOnLedge(lowId, p.x, p.z, behindYaw(fx, fz), 1);
+          w.push(fx, fz);
+          let t = 0;
+          for (let i = 0; i < 60; i++) {
+            w.frame(DT);
+            t += DT;
+            if (Math.abs(w.cat.position.y - l.y) > 1e-6) break; // stepped off its side: the floor's guards
+            const d = intrusion(box, bodyOf(model, w.cat, t));
+            if (d > 0.005) { bad.push(`${lowId} -> ${tallId} slant ${slant}: ${d.toFixed(3)} m in at frame ${i}`); break; }
+          }
+          w.release();
+        }
+      }
+      // along the keys, west then east: every key, each note of the tune
+      const k = ledgeOf('parlour-keys');
+      const played = new Set();
+      w.placeOnLedge('parlour-keys', 8.7, 10.74, behindYaw(-1, 0), 1);
+      for (const dir of [-1, 1]) {
+        w.push(dir, 0);
+        for (let i = 0; i < 70; i++) {
+          w.frame(DT);
+          const p = w.cat.position;
+          expect(p.y, 'on the keys').toBeCloseTo(k.y, 6);
+          played.add(pianoKeyAt(k.minX, k.maxX, p.x));
+        }
+        w.release();
+      }
+      expect(played.size).toBe(8);
+      expect(bad).toEqual([]);
+    }, 90_000);
+  }
 });

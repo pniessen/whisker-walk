@@ -43,19 +43,20 @@ import { createLedgeGuards } from '../../src/world/houseguards.js';
 // guards (rough edges 1 and 2, on by default): the ledges' guards (houseguards.js) as house
 // life keeps them in the walk's live colliders, set for her spot as she is placed and after
 // every frame's player.update. The live list (`live`) is the area's colliders plus the set
-// standing; area.colliders stays the plan's, for the tests' floods and spot checks.
+// standing; area.colliders stays the plan's, for the tests' floods and spot checks. catScale is
+// her cat's size, which the guards are built for (house life finds it on her cat).
 // secretOpen may name the side it opened to: true and 'library' (from the stair, step 2's
 // row) or 'stair' (from the library, rough edge 3).
 //
 // The importing test file must stub `document` first (test/flattrace.test.js's
 // stub) and load this with `await import(...)`: createPlayer listens on it.
-export function createHouseWalk({ reducedMotion = true, pace = 3.5, secretOpen = false, moves = false, guards: guarded = true } = {}) {
+export function createHouseWalk({ reducedMotion = true, pace = 3.5, secretOpen = false, moves = false, guards: guarded = true, catScale = 1 } = {}) {
   const area = moves ? houseMovesArea() : houseArea();
   if (secretOpen) area.colliders = [...area.colliders.filter((c) => !c.secret), ...secretColliders(true, secretOpen === 'stair' ? 'stair' : 'library')];
   // the camera keeps out of the floors, not the furniture tops, as the game's house hands it (house.js cameraGround)
   const cameraGround = houseFloorGround();
   const live = [...area.colliders];
-  const guards = guarded ? createLedgeGuards(live, cameraGround) : null;
+  const guards = guarded ? createLedgeGuards(live, cameraGround, catScale) : null;
   const cat = new THREE.Group();
   const camera = new THREE.PerspectiveCamera();
   const player = createPlayer(camera, { addEventListener() {} });

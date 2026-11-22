@@ -71,8 +71,9 @@
                             "knocked" (the cup mid-fall), "bookcase-swing" (the leaf as it
                             starts to swing), "bookcase-shut" and "bookcase-far" (the shut
                             bookcase, near and across the library), "yarn" (the ball in the
-                            hall), and the ledger's side views "overhang-n2", "clip-keys" and
-                            "clip-chest" (a thumb held off a top, or into a low piece);
+                            hall), and the ledger's side views "overhang-n2", "clip-keys",
+                            "clip-chest" and "keys-piano" (a thumb held off a top, into a low
+                            piece, or from the keys toward the piano);
                             or "resume": a walk picked up again, as its "Welcome back!" card
                             shows it (game/walk.js: placed, settled, no frame run)
        __tour(name) → name  starts a tour from its start, for __frame to drive
@@ -223,9 +224,12 @@
     // top (her body over its edge), and walking into the piano keys and the bedroom chest from
     // the floor (the cliff stops her middle at the edge); each seen from the side (`look`)
     'overhang-n2': f({ at: f([-9.3, 2.6]), face: f([0, 1]), zoom: 0, caption: 'At the front of a bookcase top', push: f([0, 1]), pushS: 0.8, look: f([1, 0]) }),
-    'clip-keys': f({ at: f([8.7, 10.2]), face: f([0, 1]), zoom: 0, caption: 'Walking into the piano keys', push: f([0, 1]), pushS: 1.0, look: f([1, 0]) }),
-    // (the chest stands 0.3 m further out since the rough edges: she starts as far from it as before)
-    'clip-chest': f({ at: f([-4.2, -13.6]), face: f([0, -1]), zoom: 0, caption: 'Walking into the chest', push: f([0, -1]), pushS: 1.0, look: f([-1, 0]) }),
+    'clip-keys': f({ at: f([8.7, 9.6]), face: f([0, 1]), zoom: 0, caption: 'Walking into the piano keys', push: f([0, 1]), pushS: 1.0, look: f([1, 0]) }),
+    // (the keys and the chest stand further out since the rough edges: she starts 1.1 m off them)
+    'clip-chest': f({ at: f([-4.2, -12.9]), face: f([0, -1]), zoom: 0, caption: 'Walking into the chest', push: f([0, -1]), pushS: 1.0, look: f([-1, 0]) }),
+    // the review of the rough edges: on the piano keys, a thumb held toward the piano (her head
+    // passes over its low case, her body is held off it)
+    'keys-piano': f({ at: f([8.7, 10.74]), face: f([0, 1]), zoom: 0, caption: 'On the keys, toward the piano', push: f([0, 1]), pushS: 1.0, look: f([1, 0]), ledge: 'parlour-keys' }),
     // the shut bookcase, from just out of its reach and from across the library
     'bookcase-shut': f({ at: f([-6.0, 3.3]), face: f([0, -1]), zoom: 1, caption: 'A bookcase in the wall' }),
     'bookcase-far': f({ at: f([-6.6, 7.0]), face: f([0.1, -1]), zoom: 1, caption: 'The library\'s north wall' }),

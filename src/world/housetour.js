@@ -58,7 +58,7 @@ export const HOUSE_SHOTS = freeze({
   // step 2: the things to do. A shot of a find stands her where it goes off as she
   // waits (the picture page settles each shot for a moment, the house life running).
   clock: shot([-2.3, 4.0], [-0.5, -1], 1, 'The clock strikes'),
-  piano: shot([8.4, 11.15], [0, 1], 1, 'On the piano keys', { ledge: 'parlour-keys' }),
+  piano: shot([8.4, 10.74], [0, 1], 1, 'On the piano keys', { ledge: 'parlour-keys' }),
   'attic-window': shot([-23.4, -11.0], [-1, 0], 1, 'The view from the attic', { ledge: 'attic-seat' }),
   'bookcase-open': shot([-6.0, 4.6], [0, -1], 1, 'The bookcase is open', { open: true }),
   'secret-stair': shot([-6.0, -2.0], [0, -1], 1, 'Up the secret stair', { open: true }),
@@ -130,7 +130,7 @@ const FILM_STEPS = [
 // down by the big books. Each jump is pressed where the last hop landed her, or at the
 // plank's far end: the obvious jump takes the route's next hop (housemoves.js).
 const LIBRARY_CLIMB = [
-  t(-8.8, 4.6, 'Up the library shelves'), jump(), jump(),
+  t(-8.8, 5.0, 'Up the library shelves'), jump(), jump(),
   t(-13.1, 2.6, 'Along the plank'), jump('Leap across the corner'),
   jump('Down in short steps'), jump(),
 ];
@@ -145,13 +145,13 @@ const CLIMB_STEPS = [...LIBRARY_CLIMB, t(-9.5, 7.5, 'Back on the floor')];
 // seat and down, the box of old toys, and the zoom out.
 const THINGS_STEPS = [
   wait(1.5, 'The clock strikes the hour'),
-  t(4, 7, 'Into the parlour'), t(8.7, 10.0), jump('A tune on the piano'),
-  t(8.12, 11.15, null, 0.06), t(8.92, 11.15, null, 0.06), jump(),
+  t(4, 7, 'Into the parlour'), t(8.7, 9.7), jump('A tune on the piano'),
+  t(8.12, 10.74, null, 0.06), t(8.92, 10.74, null, 0.06), jump(),
   t(12.0, 9.6, 'A dent in an old cushion'), t(12.68, 7.3, null, 0.1), wait(2.0),
   t(10.75, 7.68), t(4, 7), t(-4, 7, 'The library'),
   ...LIBRARY_CLIMB,
   t(-6.0, 2.8, 'A bookcase that opens'), wait(1.0), t(-6.0, -1, 'A secret stair!'), t(-6.0, -6.0),
-  t(-4.2, -13.55, 'Up to the wardrobe'), jump(), jump(), jump('Leap!'), jump(), jump(), jump(),
+  t(-4.2, -13.0, 'Up to the wardrobe'), jump(), jump(), jump('Leap!'), jump(), jump(), jump(),
   t(-8, -11, 'Up the back stairs'), t(-14, -11), t(-22.3, -11.0, 'The view from the attic'), jump(), wait(0.2), jump(),
   t(-17.6, -14.1, 'A box of old toys'), wait(0.7),
   zoom(2, 1.2, 'The attic from farther out'),

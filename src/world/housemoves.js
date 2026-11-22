@@ -45,16 +45,19 @@ const crossings = [
   { id: 'library-plank', kind: 'plank', width: 0.28, points: [P(-9.9, 2.6, BOOK_TOP + PLANK_T), P(-11.8, 2.6, BOOK_TOP + PLANK_T)] },
 ];
 
-// Rough edges 1 and 2: a floor take-off or landing lies 0.95 m or more from its piece (the feet
-// hold her 0.75 m off it), and one on a tall top inside its rim (0.35 m in from its open edges,
-// the wall holding her 0.55 m off its line): the bookcase tops' band is z 2.55-2.65.
+// Rough edges 1 and 2: a floor take-off or landing lies a metre from its piece (the feet hold
+// her up to 0.92 m off it, a Maine Coon), and one on a top inside its guards for every cat: on
+// a tall top inside its rim (0.35 m in from its open edges, the wall holding her 0.55 m off
+// its line: the bookcase tops' band is z 2.55-2.65), on a low top as far from the taller piece
+// beside it as a Maine Coon's head (body, on the keys) is held (the steps 3.92-4.0, the big
+// books 7.57-7.65, the chest -14.08 to -14.0, the keys 10.7-10.77).
 const climbs = [
-  hop('library-floor-steps', S(-8.8, 4.6), S(-8.8, 3.35)),
-  hop('library-steps-n2', S(-8.8, 3.35), S(-8.8, 2.6)),
-  hop('bedroom-floor-chest', S(-4.2, -13.55), S(-4.45, -14.75)),
-  hop('bedroom-chest-shelf', S(-4.45, -14.75), S(-4.6, -15.4)),
+  hop('library-floor-steps', S(-8.8, 5.0), S(-8.8, 3.96)),
+  hop('library-steps-n2', S(-8.8, 3.96), S(-8.8, 2.6)),
+  hop('bedroom-floor-chest', S(-4.2, -13.0), S(-4.45, -14.04)),
+  hop('bedroom-chest-shelf', S(-4.45, -14.04), S(-4.6, -15.4)),
   hop('attic-floor-seat', S(-22.3, -11.0), S(-23.4, -11.0)),
-  hop('parlour-floor-keys', S(8.7, 10.0), S(8.7, 11.15)),
+  hop('parlour-floor-keys', S(8.7, 9.7), S(8.7, 10.74)),
 ];
 
 const gaps = [
@@ -68,14 +71,14 @@ const gaps = [
 ];
 
 const drops = [
-  hop('library-w-bigbooks', S(-13.4, 6.0), S(-13.4, 7.15)),
-  hop('library-bigbooks-floor', S(-13.4, 7.15), S(-12.2, 7.15)),
-  hop('library-n2-steps', S(-9.0, 2.6), S(-8.8, 3.35)),
-  hop('library-steps-floor', S(-8.8, 3.35), S(-8.8, 4.6)),
-  hop('bedroom-shelf-chest', S(-4.15, -15.4), S(-4.2, -14.65)),
-  hop('bedroom-chest-floor', S(-4.2, -14.65), S(-4.2, -13.55)),
+  hop('library-w-bigbooks', S(-13.4, 6.0), S(-13.4, 7.6)),
+  hop('library-bigbooks-floor', S(-13.4, 7.6), S(-12.2, 7.6)),
+  hop('library-n2-steps', S(-9.0, 2.6), S(-8.8, 3.96)),
+  hop('library-steps-floor', S(-8.8, 3.96), S(-8.8, 5.0)),
+  hop('bedroom-shelf-chest', S(-4.15, -15.4), S(-4.2, -14.04)),
+  hop('bedroom-chest-floor', S(-4.2, -14.04), S(-4.2, -13.0)),
   hop('attic-seat-floor', S(-23.4, -11.0), S(-22.3, -11.0)),
-  hop('parlour-keys-floor', S(8.7, 11.15), S(8.7, 10.0)),
+  hop('parlour-keys-floor', S(8.7, 10.74), S(8.7, 9.7)),
 ];
 
 const deepFreeze = (o) => {

@@ -30,14 +30,13 @@
 
 import { phrase } from '../clanphrases.js';
 import { fadeEntryOf } from '../treefade.js';
-import { HOUSE_LEDGES, SECRET_BOOKCASE, SECRET_OPEN_ROT_Y, SECRET_STAIR_ROT_Y, secretPivot } from './houseplan.js';
+import { HOUSE_LEDGES, LEDGE_ON, SECRET_BOOKCASE, SECRET_OPEN_ROT_Y, SECRET_STAIR_ROT_Y, secretPivot } from './houseplan.js';
 import { LID_OPEN, pianoKeyAt } from './houseparts.js';
 
 export const FIND_KEY = (id) => `house-find-${id}`;
 // The piano's eight keys, C4 to C5, west to east (Hz).
 export const PIANO_SCALE = Object.freeze([262, 294, 330, 349, 392, 440, 494, 523]);
 export const STILL = 0.25; // m/s: slower than this is still (the cushion)
-const ON_LEDGE = 0.1; // m: her paws this near a ledge's top are on it
 const AWAY = 1; // m past its r she must go before the clock strikes again
 const TUNE = 6; // different keys
 const BONG_HZ = 196;
@@ -98,7 +97,7 @@ export function createHouseFinds({
   let lastX = 0, lastZ = 0, lastT = 0, seen = false;
 
   const pay = (id, ...a) => log?.awardOnce('housefind', FIND_KEY(id), SAY[id](...a));
-  const onLedge = (l, p) => p.x >= l.minX && p.x <= l.maxX && p.z >= l.minZ && p.z <= l.maxZ && Math.abs(p.y - l.y) <= ON_LEDGE;
+  const onLedge = (l, p) => p.x >= l.minX && p.x <= l.maxX && p.z >= l.minZ && p.z <= l.maxZ && Math.abs(p.y - l.y) <= LEDGE_ON;
 
   function strike() {
     const n = now().getHours() % 12 || 12;
@@ -125,9 +124,10 @@ export function createHouseFinds({
   // The leaf at angle a: the pivot turned about the side's own pivot (its group sits at the
   // hinge, so about the back corner it moves too), and its fade shape round the leaf's middle.
   const at = { x: 0, z: 0 };
+  const PIVOTS = { library: secretPivot('library'), stair: secretPivot('stair') };
   function turnTo(a) {
     if (!pivot) return;
-    const p = secretPivot(into);
+    const p = PIVOTS[into];
     const dx = B.hinge.x - p.x, dz = B.hinge.z - p.z;
     const c = Math.cos(a), s = Math.sin(a);
     at.x = p.x + dx * c + dz * s;

@@ -195,6 +195,9 @@ const ledge = (...args) => ({ ...piece(...args), ledge: true });
 // 0.45 in from the top's back; her body (0.35) must stay over the top too (her rim, below), so
 // 0.6 left no room, and she hung over the front. 0.9 leaves her a 0.1 m band.
 const TOP_D = 0.9;
+// m: every cat's head (its lowest, a kitten's) passes over a piece this little above her paws
+// (houseguards.test.js measures each breed); the piano's case stands this much over its keys
+export const HEAD_CLEAR = 0.33;
 // A low ledge piece that fades like a tall one (ruling S2-4): the camera keeps out of the
 // floors, not the furniture tops (house.js cameraGround), so at its lowest it can come down
 // inside one behind her.
@@ -229,8 +232,11 @@ export const HOUSE_FURNITURE = frozenAll([
   ledge('library-books-n1', 'library', 'bookcase', -12.4, 2.55, FACE_S, 2.2, TOP_D, 2.25, 0.21),
   ledge('library-books-n2', 'library', 'bookcase', -9.3, 2.55, FACE_S, 2.2, TOP_D, 2.25, 0.21),
   piece('library-ladder', 'library', 'ladder', -7.85, 2.37, FACE_S, 0.5, 0.5, 2.05, 0.15),
-  fadingLedge('library-steps', 'library', 'steps', -8.8, 3.3, FACE_S, 0.6, 0.6, 0.9, 0.3),
-  fadingLedge('library-bigbooks', 'library', 'bigbooks', -13.55, 7.15, FACE_S, 0.7, 0.5, 1.0, 0.25),
+  // the review of the rough edges: the steps and the big books stand off the taller bookcase
+  // beside them, so on their tops her head stays out of it (a top's guards; a Maine Coon's
+  // head reaches 0.9 m ahead of her)
+  fadingLedge('library-steps', 'library', 'steps', -8.8, 3.7, FACE_S, 0.6, 0.6, 0.9, 0.3),
+  fadingLedge('library-bigbooks', 'library', 'bigbooks', -13.55, 7.4, FACE_S, 0.7, 0.5, 1.0, 0.25),
   piece('library-chair', 'library', 'armchair', -11.6, 5.0, 0.92, 0.85, 0.85, 1.05, 0.42, 'library'),
   piece('library-desk', 'library', 'desk', -9.0, 11.55, FACE_N, 1.4, 0.7, 0.8, 0.35),
   piece('library-globe', 'library', 'globe', -5.2, 10.9, 0.4, 0.55, 0.55, 1.0, 0.26),
@@ -254,8 +260,10 @@ export const HOUSE_FURNITURE = frozenAll([
   piece('parlour-chair-b', 'parlour', 'armchair', 11.0, 8.5, 2.11, 0.85, 0.85, 1.05, 0.42, 'parlour'),
   piece('parlour-sidetable', 'parlour', 'sidetable', 10.5, 7.0, 0, 0.5, 0.5, 0.62, 0.25),
   // step 2 (D2): the piano's keyboard is a ledge in front of its case, and the case behind it one too
-  fadingLedge('parlour-piano', 'parlour', 'piano', 8.7, 11.6, FACE_N, 1.5, 0.6, 1.3, 0.3),
-  fadingLedge('parlour-keys', 'parlour', 'keys', 8.7, 11.15, FACE_N, 1.3, 0.3, 0.75, 0.15),
+  // the review of the rough edges: a low upright, its case HEAD_CLEAR over the keys, so on them
+  // her head passes over it and only her body is held back (a top's guards), on keys 0.6 deep
+  fadingLedge('parlour-piano', 'parlour', 'piano', 8.7, 11.6, FACE_N, 1.5, 0.6, 0.75 + HEAD_CLEAR, 0.3),
+  fadingLedge('parlour-keys', 'parlour', 'keys', 8.7, 11.0, FACE_N, 1.3, 0.6, 0.75, 0.15),
   piece('parlour-rug', 'parlour', 'rug', 11.2, 7.0, FACE_S, 2.4, 3.2, 0.012, 0, 'rugRed'),
   // step 2 (D6): an old cushion on the hearth with a cat-shaped dent in it, walked over
   piece('parlour-cushion', 'parlour', 'cushion', 12.7, 7.0, FACE_W, 0.7, 0.7, 0.08, 0),
@@ -265,10 +273,10 @@ export const HOUSE_FURNITURE = frozenAll([
   // step 2 (D2): up the chest, standing in front of the new bookshelf, onto the shelf, and a
   // leap from it to the wardrobe and back. Rough edge 2: the wardrobe and the shelf TOP_D deep,
   // the shelf 1.25 wide (her rim leaves a 0.55 m run along it for its two take-offs), and the
-  // chest moved out with the shelf's front
+  // chest moved out from the shelf's front (the review: 0.5 m, so on it her head stays out of the shelf)
   ledge('bedroom-wardrobe', 'bedroom', 'wardrobe', -6.4, -15.45, FACE_S, 1.3, TOP_D, 2.05, 0.3),
   ledge('bedroom-shelf', 'bedroom', 'bookcase', -4.375, -15.45, FACE_S, 1.25, TOP_D, 1.6, 0.3),
-  ledge('bedroom-chest', 'bedroom', 'chest', -4.2, -14.75, FACE_S, 0.8, 0.5, 0.6, 0.25),
+  ledge('bedroom-chest', 'bedroom', 'chest', -4.2, -14.25, FACE_S, 0.8, 0.5, 0.6, 0.25),
   piece('bedroom-drawers', 'bedroom', 'drawers', -0.6, -15.65, FACE_S, 1.1, 0.5, 0.95, 0.25),
   piece('bedroom-rug', 'bedroom', 'rug', -2.6, -12.0, FACE_S, 2.4, 2.0, 0.012, 0, 'rugBlue'),
   // the attic: boxes stacked no higher than 1.4 m, an old trunk, an old rocking chair, a rug
@@ -366,20 +374,31 @@ export const HOUSE_LEDGES = frozenAll(HOUSE_FURNITURE.filter((f) => f.ledge).map
 // A ledge piece has no colliders (D1): circles have no height, so one would push her off its
 // top too. With only the cliff at its edge, she walked into a piece from the floor until her
 // middle was at its edge, her head and shoulders inside it; and on a top she walked to its
-// edge, her body hanging over the room. So the guards are collider sets that house life
-// (houseguards.js) keeps in the walk's live list only where they belong:
-//   feet  on the floor, a ring round every ledge piece that holds her middle LEDGE_STANDOFF
-//         off it: her head stays out of it (a scale-1 cat's head reaches 0.64 m ahead of her
-//         middle as she walks, D2's 1.15 0.74);
-//   rims  on a tall top, a row out past each edge the wall does not hold, that holds her
-//         middle LEDGE_RIM in from it: her body (CAT_RADIUS) stays over the top.
-// Each circle's r reaches its distance even between two circles GUARD_STEP apart. Tagged
-// `guard`; the feet skip a piece's sides against a wall and spots on another piece.
-export const LEDGE_STANDOFF = 0.75;
+// edge, her body hanging over the room, or her head into the taller piece behind it. So the
+// guards are collider sets that house life (houseguards.js) keeps in the walk's live list only
+// where they belong, built for her cat's size (`scale`, the cat's own: 0.74 to 1.3):
+//   feet  on the floor, a ring round every ledge piece that holds her middle
+//         ledgeStandoff(scale) off it, so her head stays out of it;
+//   tops  on a top, a row out past each edge the wall does not hold of a tall top, holding
+//         her middle LEDGE_RIM in from it (her body, CAT_RADIUS, stays over the top), and a
+//         row out past each edge of any top that faces a taller piece, holding her middle
+//         far enough back that her head (or, where the piece rises no more than HEAD_CLEAR
+//         over her top and her head passes over it, her body) stays out of it.
+// Her reach ahead of her middle as she walks is a cat's size times HEAD_REACH (her head) or
+// BODY_REACH (her body), measured on every breed (houseguards.test.js). Each circle's r reaches
+// its distance even between two circles GUARD_STEP apart. Tagged `guard`; the feet skip a
+// piece's sides against a wall and spots on another piece.
+export const LEDGE_STANDOFF = 0.75; // m: the feet's least
 export const LEDGE_RIM = 0.35;
 export const GUARD_BODY = 0.35; // = player.js CAT_RADIUS (tested; player.js is not THREE-free)
+export const LEDGE_ON = 0.1; // m: her paws this near a top are on it (houseguards.js, housefinds.js)
+export const HEAD_REACH = 0.69; // m per unit of a cat's size
+export const BODY_REACH = 0.39;
+export const CAT_SCALE_MAX = 1.3; // the Maine Coon
+const REACH_PAD = 0.02;
+export const ledgeStandoff = (scale) => Math.max(LEDGE_STANDOFF, HEAD_REACH * scale + REACH_PAD);
 const GUARD_STEP = COLLIDER_STEP;
-const RIM_OUT = 0.5; // m out past its edge a rim's circle stands
+const RIM_OUT = 0.5; // m out past its edge a top's circle stands
 const WALL_BACK = 0.15; // m: an edge this near its room's wall line is against the wall
 const onRect = (r, x, z, e = 1e-9) => x >= r.minX - e && x <= r.maxX + e && z >= r.minZ - e && z <= r.maxZ + e;
 // A rectangle's four edges, each as its two ends and its outward normal.
@@ -387,7 +406,7 @@ const edgesOf = (r) => [
   [r.minX, r.minZ, r.maxX, r.minZ, 0, -1], [r.maxX, r.minZ, r.maxX, r.maxZ, 1, 0],
   [r.maxX, r.maxZ, r.minX, r.maxZ, 0, 1], [r.minX, r.maxZ, r.minX, r.minZ, -1, 0],
 ];
-// Circles every GUARD_STEP (or less) along x0,z0 -> x1,z1 moved `out` along (nx, nz).
+// Circles every GUARD_STEP (or less) along x0,z0 -> x1,z1 moved `off` along (nx, nz).
 function guardRow(out, [x0, z0, x1, z1, nx, nz], off, reach, level) {
   const len = Math.hypot(x1 - x0, z1 - z0);
   const n = Math.max(1, Math.ceil(len / GUARD_STEP - 1e-9));
@@ -396,27 +415,44 @@ function guardRow(out, [x0, z0, x1, z1, nx, nz], off, reach, level) {
     out.push({ x: x0 + ((x1 - x0) * i) / n + nx * off, z: z0 + ((z1 - z0) * i) / n + nz * off, r, level, guard: true });
   }
 }
-let guardCache = null;
-export function houseLedgeGuards() {
-  if (guardCache) return guardCache;
+// How far in from top l's edge e her middle must stay, so she stays out of the taller ledge t
+// beyond it: 0 when t is not beyond that edge, or too far off to reach.
+function faceReach(l, e, t, scale) {
+  const [x0, z0, x1, z1, nx, nz] = e;
+  const lo = nx ? Math.min(z0, z1) : Math.min(x0, x1);
+  const hi = nx ? Math.max(z0, z1) : Math.max(x0, x1);
+  const [tlo, thi] = nx ? [t.minZ, t.maxZ] : [t.minX, t.maxX];
+  if (Math.min(hi, thi) - Math.max(lo, tlo) <= 1e-9) return 0; // not across from it
+  const gap = nx > 0 ? t.minX - x0 : nx < 0 ? x0 - t.maxX : nz > 0 ? t.minZ - z0 : z0 - t.maxZ;
+  if (gap < -1e-9) return 0; // not beyond the edge
+  return (t.y - l.y > HEAD_CLEAR + 1e-9 ? HEAD_REACH : BODY_REACH) * scale + REACH_PAD - gap;
+}
+const guardCache = new Map();
+// The guards for a cat of `scale`, rounded up to the next 0.05 (and to CAT_SCALE_MAX at most).
+export function houseLedgeGuards(scale = 1) {
+  const key = Math.min(CAT_SCALE_MAX, Math.ceil(scale * 20 - 1e-9) / 20);
+  if (guardCache.has(key)) return guardCache.get(key);
   const feet = [];
-  const rims = {};
+  const tops = {};
   for (const l of HOUSE_LEDGES) {
     const room = roomById(l.room);
+    const tall = HOUSE_FURNITURE.find((q) => q.id === l.id).h >= TALL_H;
     for (const e of edgesOf(l)) {
       const at = e[4] ? e[0] : e[1]; // the edge's line
       const wall = e[4] ? (e[4] < 0 ? room.minX : room.maxX) : (e[5] < 0 ? room.minZ : room.maxZ);
       if (Math.abs(at - wall) <= WALL_BACK) continue;
       const row = [];
-      guardRow(row, e, 0, LEDGE_STANDOFF, l.level);
+      guardRow(row, e, 0, ledgeStandoff(key), l.level);
       feet.push(...row.filter((c) => !HOUSE_LEDGES.some((q) => q !== l && q.level === l.level && onRect(q, c.x, c.z, 1e-6))));
-      const f = HOUSE_FURNITURE.find((q) => q.id === l.id);
-      if (f.h >= TALL_H) guardRow(rims[l.id] || (rims[l.id] = []), e, RIM_OUT, LEDGE_RIM, l.level);
+      let reach = tall ? LEDGE_RIM : 0;
+      for (const t of HOUSE_LEDGES) if (t.level === l.level && t.y > l.y + 0.3) reach = Math.max(reach, faceReach(l, e, t, key));
+      if (reach > 0) guardRow(tops[l.id] || (tops[l.id] = []), e, RIM_OUT, reach, l.level);
     }
   }
   const one = (list) => freeze(list.filter((c, i) => !list.slice(0, i).some((q) => Math.abs(q.x - c.x) < 1e-9 && Math.abs(q.z - c.z) < 1e-9)).map((c) => freeze(c)));
-  guardCache = freeze({ feet: one(feet), rims: freeze(Object.fromEntries(Object.entries(rims).map(([id, list]) => [id, one(list)]))) });
-  return guardCache;
+  const g = freeze({ scale: key, feet: one(feet), tops: freeze(Object.fromEntries(Object.entries(tops).map(([id, list]) => [id, one(list)]))) });
+  guardCache.set(key, g);
+  return g;
 }
 
 // `ledges: false` is the floor alone (houseFloorGround): what the level drawing reads (D3).
