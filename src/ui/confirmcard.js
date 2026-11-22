@@ -62,10 +62,12 @@ export function createConfirmCard({ mount, blocked = () => false, onClosed = () 
   let el = null;
   let asked = null;
   let shownAt = 0;
+  let waitTimer = null;
 
   function finish(answer) {
     if (!el) return;
     const a = asked;
+    clearTimeout(waitTimer);
     el.remove();
     el = null;
     asked = null;
@@ -98,7 +100,21 @@ export function createConfirmCard({ mount, blocked = () => false, onClosed = () 
     if (answer === 'no') finish('no');
     // Yes counts only as a deliberate tap: never the tail of a double-tap on
     // the button that asked (the same rule as the colony's swap).
-    else if (answer === 'yes' && deliberateTap({ detail: e.detail, shownAt, now: now() })) finish('yes');
+    else if (answer === 'yes') {
+      if (deliberateTap({ detail: e.detail, shownAt, now: now() })) finish('yes');
+      else if (!(e.detail > 1)) wait(); // too early (a pad's A lands here): show it, do not confirm
+    }
+  }
+
+  // A Yes inside the delay is not lost silently: the card shows a short
+  // `confirm-wait` cue (class only, no text) until the delay is over; the next
+  // Yes after that confirms, once (finish() takes the card down).
+  function wait() {
+    if (!el) return;
+    el.classList?.add('confirm-wait');
+    clearTimeout(waitTimer);
+    const card = el;
+    waitTimer = setTimeout(() => { card.classList?.remove('confirm-wait'); }, Math.max(0, CONFIRM_DELAY_MS - (now() - shownAt)));
   }
 
   function onKeydown(e) {
@@ -121,6 +137,7 @@ export function createConfirmCard({ mount, blocked = () => false, onClosed = () 
     // Taken down without an answer (a walk is starting): nothing runs.
     close() {
       if (!el) return;
+      clearTimeout(waitTimer);
       el.remove();
       el = null;
       asked = null;

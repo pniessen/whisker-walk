@@ -329,3 +329,32 @@ describe('pad layers: the confirm card', () => {
     expect(card().attrs['data-pad-layer']).toBe('');
   });
 });
+
+describe('confirm wait (a pad A inside the delay)', () => {
+  it('an early synthetic Yes shows the wait class and does not confirm; the next one after the delay confirms once', () => {
+    const onYes = vi.fn();
+    const c = createConfirmCard({ mount: (el) => doc.body.appendChild(el) });
+    c.ask({ text: 'Sure?', yes: 'Yes', onYes });
+    answer(card(), 'yes', 0);
+    expect(card().classes.has('confirm-wait')).toBe(true);
+    expect(onYes).not.toHaveBeenCalled();
+    expect(c.isOpen()).toBe(true);
+    vi.advanceTimersByTime(CONFIRM_DELAY_MS);
+    expect(card().classes.has('confirm-wait')).toBe(false);
+    const el = card();
+    answer(el, 'yes', 0);
+    answer(el, 'yes', 0); // a rapid second A: the card is gone, nothing fires again
+    expect(onYes).toHaveBeenCalledTimes(1);
+  });
+  it('rapid double A inside the delay confirms nothing; a double-tap tail gets no cue', () => {
+    const onYes = vi.fn();
+    const c = createConfirmCard({ mount: (el) => doc.body.appendChild(el) });
+    c.ask({ text: 'Sure?', yes: 'Yes', onYes });
+    answer(card(), 'yes', 0); answer(card(), 'yes', 0);
+    expect(onYes).not.toHaveBeenCalled();
+    c.close();
+    c.ask({ text: 'Sure?', yes: 'Yes', onYes });
+    answer(card(), 'yes', 2);
+    expect(card().classes.has('confirm-wait')).toBe(false);
+  });
+});

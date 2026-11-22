@@ -12,6 +12,7 @@ import { renderFightMovesHtml, renderSkillsHtml, renderStarNamePicker, goldenFou
 import { HOME_SHEETS, MENU_TILES, GROWNUP_SHEETS, SHEET_ICON, SHEET_NAME, resolveSheet, PLACE_PICTURE, placeWhyLine } from './dressingroom.js';
 import { createDressingRoom } from './dressingroomview.js';
 import { attachMapPan } from './mappan.js';
+import { registerMap } from '../gamepadnav.js';
 import { WORLD_VIEW } from './territorymap.js';
 import { worldMapModel, tapTargets, focusOf } from '../worldmap.js';
 import { createCatStage } from './catstage.js';
@@ -1392,6 +1393,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   function dropMapPan() {
     const pan = mapPan;
     mapPan = null;
+    registerMap(null);
     try { pan?.detach?.(); } catch { /* the map is gone anyway */ }
   }
   function attachWorldMap(s) {
@@ -1405,6 +1407,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         onView: (v) => { mapView = v; },
       });
       if (mapPan?.view) mapView = mapPan.view;
+      registerMap(mapPan);
     } catch (err) {
       console.warn('Whisker Walk: the world map could not pan', err);
       note('ui', err);

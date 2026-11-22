@@ -192,6 +192,20 @@ describe('focus ring', () => {
     r.frame(); r.frame([0, 0, 0, 0], A);
     expect(r.classes.has('pad-focus')).toBe(false);
   });
+  it('a synthetic keydown (the pad\'s own Enter on a map place) leaves the ring; a real one removes it', () => {
+    const r = rig();
+    r.frame(); r.frame([0, 0, 0, 0], A);
+    (r.listeners.keydown || []).forEach((f) => f({ isTrusted: false }));
+    expect(r.classes.has('pad-focus')).toBe(true);
+    (r.listeners.keydown || []).forEach((f) => f({ isTrusted: true }));
+    expect(r.classes.has('pad-focus')).toBe(false);
+  });
+  it('L1 and R1 reach the map api through menuNav.zoom', () => {
+    const zoom = vi.fn();
+    const r = rig({ menuNav: { zoom: (d) => zoom(d) } });
+    r.frame(); r.frame([0, 0, 0, 0], L1); r.frame(); r.frame([0, 0, 0, 0], R1);
+    expect(zoom.mock.calls).toEqual([['out'], ['in']]);
+  });
   it.each(['pointerdown', 'keydown', 'touchstart'])('is removed on %s', (type) => {
     const r = rig();
     r.frame(); r.frame([0, 0, 0, 0], A);

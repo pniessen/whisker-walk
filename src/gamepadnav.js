@@ -78,6 +78,27 @@ export function activate(el) {
   return true;
 }
 
+// The world map (src/ui/mappan.js) registers its api while it is attached, so
+// the pad can pan and zoom it and recentre it on a place it hops to.
+let map = null;
+export function registerMap(api) { map = api || null; }
+
+const placeCentre = (el) => {
+  const x = Number(el.getAttribute?.('data-x'));
+  const y = Number(el.getAttribute?.('data-y'));
+  return el.hasAttribute?.('data-dr-map-place') && Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+};
+// A place off-screen after a pad hop: centre the view on it, through api.pan
+// (not onFocusIn, whose :focus-visible test a scripted focus() often fails).
+function recentre(api, el) {
+  const c = placeCentre(el);
+  const v = api.view;
+  if (!c || !v) return;
+  if (c.x >= v.x && c.x <= v.x + v.w && c.y >= v.y && c.y <= v.y + v.h) return;
+  const s = api.scale?.() ?? 1;
+  api.pan((c.x - (v.x + v.w / 2)) * s, (c.y - (v.y + v.h / 2)) * s);
+}
+
 const rectOf = (el) => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; };
 const middle = (r) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
 
@@ -100,6 +121,7 @@ export function createNav({ doc, back, onActive }) {
     el.focus({ preventScroll: true });
     el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     last = middle(rectOf(el));
+    if (map) recentre(map, el);
   };
   const entry = (list) => {
     const el = list.find((e) => e.hasAttribute('data-pad-default')) ?? list.find((e) => e.classList.contains('primary')) ?? list[0];
@@ -144,11 +166,18 @@ export function createNav({ doc, back, onActive }) {
       return current(list) ? false : entry(list);
     },
     destroy() { mo?.disconnect?.(); cache = null; },
+    zoom(dir) {
+      if (!map) return false;
+      onActive?.();
+      map.zoom(dir);
+      return true;
+    },
     scroll(dx, dy) {
       if (!dx && !dy) return false;
       onActive?.();
       const { layer, list } = view();
       const cur = current(list);
+      if (map && cur?.closest?.('.wm-frame')) { map.pan(dx, dy); return true; }
       const win = doc.defaultView;
       const cs = win?.getComputedStyle?.bind(win);
       const real = (o) => !cs || /auto|scroll/.test(o);

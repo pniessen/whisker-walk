@@ -32,7 +32,8 @@ export function createGamepad({
 
   // The focus ring shows only after the pad was used, and goes on any other input.
   const setRing = (on) => { try { doc?.body?.classList?.[on ? 'add' : 'remove']('pad-focus'); } catch { /* no DOM */ } };
-  const ringOff = () => setRing(false);
+  // The pad's own synthetic Enter on a map place must not clear the ring it just set.
+  const ringOff = (e) => { if (e?.isTrusted === false) return; setRing(false); };
   const RING_OFF = ['pointerdown', 'keydown', 'touchstart'];
   for (const t of RING_OFF) win.addEventListener?.(t, ringOff, true);
 

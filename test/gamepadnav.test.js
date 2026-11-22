@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { topLayer, candidates, createNav, activate, nudgeRange, cycleSelect } from '../src/gamepadnav.js';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { topLayer, candidates, createNav, registerMap, activate, nudgeRange, cycleSelect } from '../src/gamepadnav.js';
 
 // Fake DOM: just enough tree for layers and candidates (no jsdom in this project).
 function el(tag, { cls = [], attrs = {}, kids = [], type } = {}) {
@@ -411,5 +411,63 @@ describe('cycleSelect skips unusable options; observer hygiene', () => {
     createNav({ doc, back: () => false }).destroy();
     expect(seen.o.attributeFilter).toEqual(['class', 'hidden', 'inert', 'disabled', 'tabindex', 'style']);
     expect(seen.off).toBe(true);
+  });
+});
+
+// ---- the world map: hop recentre, scroll pans, zoom ----
+describe('map hooks', () => {
+  const mapApi = (view) => ({ view, pan: vi.fn(), zoom: vi.fn(), scale: () => 2 });
+  const placeG = (x, y, dx, dy) => pad('g', x, y, { attrs: { role: 'button', tabindex: '0', 'data-dr-map-place': '', 'data-x': String(dx), 'data-y': String(dy) }, click: false });
+  afterEach(() => registerMap(null));
+
+  it('hopping onto an off-screen place recentres through api.pan, with no :focus-visible involved', () => {
+    const a = placeG(0, 0, 100, 100); const b = placeG(100, 0, 700, 300);
+    const { doc } = world([a, b]);
+    const api = mapApi({ x: 0, y: 0, w: 400, h: 300 });
+    registerMap(api);
+    doc.activeElement = a;
+    expect(createNav({ doc, back: () => false }).step('right', 0)).toBe(true);
+    expect(api.pan).toHaveBeenCalledTimes(1);
+    expect(api.pan).toHaveBeenCalledWith((700 - 200) * 2, (300 - 150) * 2);
+  });
+  it('a place already on screen is left alone; no map registered is a no-op', () => {
+    const a = placeG(0, 0, 100, 100); const b = placeG(100, 0, 300, 200);
+    const { doc } = world([a, b]);
+    const api = mapApi({ x: 0, y: 0, w: 400, h: 300 });
+    registerMap(api);
+    doc.activeElement = a;
+    createNav({ doc, back: () => false }).step('right', 0);
+    expect(api.pan).not.toHaveBeenCalled();
+    registerMap(null);
+    doc.activeElement = a;
+    expect(() => createNav({ doc, back: () => false }).step('right', 0)).not.toThrow();
+  });
+  it('right-stick scroll pans the map when focus is inside its frame, scrolls normally otherwise', () => {
+    const a = placeG(0, 0, 100, 100);
+    a.closest = (sel) => (sel === '.wm-frame' ? {} : null);
+    const strip = pad('div', 0, 0); Object.assign(strip, { scrollWidth: 500, clientWidth: 100, scrollHeight: 50, clientHeight: 50, scrollBy: vi.fn() });
+    const out = pad('button', 50, 50); out.parentElement = strip; strip.parentElement = null;
+    const { doc } = world([a, out]);
+    const api = mapApi({ x: 0, y: 0, w: 400, h: 300 });
+    registerMap(api);
+    const nav = createNav({ doc, back: () => false });
+    doc.activeElement = a;
+    expect(nav.scroll(30, -10)).toBe(true);
+    expect(api.pan).toHaveBeenCalledWith(30, -10);
+    expect(strip.scrollBy).not.toHaveBeenCalled();
+    doc.activeElement = out;
+    expect(nav.scroll(30, 0)).toBe(true);
+    expect(api.pan).toHaveBeenCalledTimes(1);
+    expect(strip.scrollBy).toHaveBeenCalledWith({ left: 30, top: 0 });
+  });
+  it('zoom reaches the registered map; without one it does nothing', () => {
+    const { doc } = world([pad('button', 0, 0)]);
+    const nav = createNav({ doc, back: () => false });
+    expect(nav.zoom('in')).toBe(false);
+    const api = mapApi({ x: 0, y: 0, w: 1, h: 1 });
+    registerMap(api);
+    expect(nav.zoom('in')).toBe(true);
+    expect(nav.zoom('out')).toBe(true);
+    expect(api.zoom.mock.calls).toEqual([['in'], ['out']]);
   });
 });

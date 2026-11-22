@@ -226,15 +226,30 @@ export function attachMapPan(frame, { world = WORLD_VIEW, targets = [], focus = 
     change(zoomView(api.view, Math.exp(-dy * WHEEL_RATE), [e.clientX - b.left, e.clientY - b.top], b, world, minScale));
   }
 
-  function onFrameClick(e) {
-    const btn = e.target?.closest?.('[data-wm-zoom]');
-    if (!btn) return;
-    const dir = btn.dataset?.wmZoom ?? btn.getAttribute?.('data-wm-zoom');
+  // One zoom step about the box centre: the zoom buttons and the pad's L1/R1.
+  function zoomStep(dir) {
     if (dir !== 'in' && dir !== 'out') return;
     const b = readBox();
     if (!b) return;
     change(zoomView(api.view, dir === 'in' ? ZOOM_STEP : 1 / ZOOM_STEP, [b.w / 2, b.h / 2], b, world, minScale));
   }
+
+  function onFrameClick(e) {
+    const btn = e.target?.closest?.('[data-wm-zoom]');
+    if (!btn) return;
+    zoomStep(btn.dataset?.wmZoom ?? btn.getAttribute?.('data-wm-zoom'));
+  }
+
+  // The pad: scrollBy-like (a positive dx moves the view right), clamped to
+  // the world; scale() is screen px per board unit, for callers that think in
+  // board units.
+  api.pan = (dxPx, dyPx) => {
+    const b = readBox() ?? box;
+    const scale = b.w / api.view.w;
+    change(clampView({ x: api.view.x + dxPx / scale, y: api.view.y + dyPx / scale, w: api.view.w, h: api.view.h }, world));
+  };
+  api.zoom = zoomStep;
+  api.scale = () => (readBox() ?? box).w / api.view.w;
 
   // :focus-visible where the browser knows it; an older one that throws on
   // it counts every focus as visible.
