@@ -27,6 +27,7 @@ describe('save backups: keys', () => {
       cloud: 'whisker-walk-save.before-cloud',
       reset: 'whisker-walk-save.before-reset',
       restore: 'whisker-walk-save.before-restore',
+      merge: 'whisker-walk-save.before-merge',
     });
   });
 });

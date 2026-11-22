@@ -685,7 +685,17 @@ function defaultState() {
     // outfits are rebuilt into owned on every load. Additive, so SAVE_VERSION
     // stays 4: an older save starts with none.
     events: [],
+    // Her own cats that a cat-login merge had no free slot for (src/catmerge.js).
+    // Never deleted: one wakes into a slot when a slot is free. Additive, so
+    // SAVE_VERSION stays 4: an older save has none.
+    sleepingCats: [],
   };
+}
+
+// The top-level keys of a fresh save: the list the merge's completeness test
+// (test/catmerge.test.js) holds the merge rules to.
+export function freshStateKeys() {
+  return Object.keys(defaultState());
 }
 
 export const TUTORIAL_FIRST = Object.freeze([null, 'part', 'done', 'skipped', 'old']);
@@ -1072,6 +1082,21 @@ function sanitizeScars(raw, customCats) {
 // the time that happens, every subsequent boot crashes too. Every field is
 // therefore individually type-checked here and either kept or defaulted —
 // never merged in wholesale.
+const SLEEPING_MAX = 8;
+function sanitizeSleepingCats(v) {
+  const out = [];
+  if (!Array.isArray(v)) return out;
+  for (const c of v.slice(0, 32)) {
+    if (out.length >= SLEEPING_MAX) break;
+    const one = sanitizeCustomCats([c])[0];
+    if (one) out.push(one);
+  }
+  return out;
+}
+
+// Cleans any save-shaped object the way a load does (a merge result goes through it).
+export function sanitizeSave(parsed) { return sanitizeState(parsed); }
+
 function sanitizeState(parsed) {
   const d = defaultState();
   if (!isPlainObject(parsed)) return d;
@@ -1191,6 +1216,7 @@ function sanitizeState(parsed) {
     scarredIntruders: sanitizeScarredIntruders(parsed.scarredIntruders),
     foundWear,
     events,
+    sleepingCats: sanitizeSleepingCats(parsed.sleepingCats),
   };
   if (fm.added.length > 0) ADDED_MOVES.set(result, fm.added);
   return result;
@@ -1249,6 +1275,7 @@ export const BACKUP_KEYS = Object.freeze({
   cloud: 'whisker-walk-save.before-cloud', // what the last Load from cloud replaced
   reset: 'whisker-walk-save.before-reset', // what the last Start over erased
   restore: 'whisker-walk-save.before-restore', // what the last restore replaced
+  merge: 'whisker-walk-save.before-merge', // what the first catch-up of the day replaced
 });
 
 function parseOrNull(raw) {
@@ -2718,6 +2745,36 @@ export function createProgression(storage) {
       state.fightMoves = FIGHT_MOVE_IDS.filter((id) => localMoves.includes(id) || state.fightMoves.includes(id) || earned.includes(id));
       // A move this phone already had is not new to her.
       pendingMoves = pendingMoves.filter((id) => !localMoves.includes(id));
+      save();
+      return true;
+    },
+    // applyMerged(mergedSave) — a linked device's catch-up (src/catmerge.js):
+    // the merged save replaces this one, through the same loadState a boot
+    // uses. What was here is kept first as the 'merge' copy, once a day (the
+    // first catch-up of a day keeps the save the day started with). Nothing is
+    // applied over a newer version's save. Returns whether the save changed.
+    applyMerged(merged) {
+      if (keepMain || !isPlainObject(merged)) return false;
+      const before = readRaw(storage);
+      if (before) {
+        const kept = readBackup(storage, 'merge');
+        const day = (ms) => new Date(ms).toISOString().slice(0, 10);
+        if (!kept || kept.at === null || day(kept.at) !== day(Date.now())) writeBackup(storage, 'merge', before);
+      }
+      try {
+        storage.setItem(SAVE_KEY, JSON.stringify(merged));
+      } catch (err) {
+        console.warn('Whisker Walk: could not write merged save', err);
+        note('cloud', err);
+        return false;
+      }
+      const loaded = loadState(storage);
+      if (loaded.failed) {
+        try { if (before) storage.setItem(SAVE_KEY, before); } catch (err) { note('save', err); }
+        return false;
+      }
+      adopt(loaded);
+      settleRoles(state.colony);
       save();
       return true;
     },

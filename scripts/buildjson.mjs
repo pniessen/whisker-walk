@@ -118,6 +118,12 @@ export function tvDownloads(manifest) {
   return [...files];
 }
 
+// The cat login's catch-up (src/game/catsync.js and the merge it loads) is one
+// lazy chunk, fetched only by a device that has a cloud link. It must never
+// fold into start-up.
+export const CAT_ENTRY_MODULES = { catsync: ['src/game/catsync.js'], savecode: ['src/savecode.js'] };
+export const CAT_GZIP_CEILING_KB = 30;
+
 const gzipOf = (dir, file) => gzipSync(readFileSync(join(dir, file))).length;
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
@@ -126,7 +132,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   writeFileSync(join(dir, 'build.json'), JSON.stringify(buildInfo()) + '\n');
   console.log(`wrote ${dir}/build.json`);
   const manifest = JSON.parse(readFileSync(join(dir, '.vite', 'manifest.json'), 'utf8'));
-  const problems = [...lazyProblems(manifest), ...lazyProblems(manifest, TV_ENTRY_MODULES)];
+  const problems = [...lazyProblems(manifest), ...lazyProblems(manifest, TV_ENTRY_MODULES), ...lazyProblems(manifest, CAT_ENTRY_MODULES)];
   const start = startupFiles(manifest);
   const startBytes = start.reduce((n, f) => n + gzipOf(dir, f), 0);
   const startProblem = sizeProblem(startBytes);
@@ -139,6 +145,9 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   console.log(`start-up ${(startBytes / 1000).toFixed(1)} kB gzipped (ceiling ${MAIN_GZIP_CEILING_KB} kB), ${start.length} files`);
   for (const [id, v] of Object.entries(kb)) console.log(`  ${id.padEnd(13)} ${v.toFixed(1)} kB gzipped (ceiling ${AREA_GZIP_CEILING_KB} kB)`);
   console.log(`  tv chunk      ${tvKb.toFixed(1)} kB gzipped (ceiling ${TV_GZIP_CEILING_KB} kB)`);
+  const catKb = (areaDownloads(manifest, CAT_ENTRY_MODULES).catsync ?? []).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000;
+  problems.push(...areaSizeProblems({ catsync: catKb }, CAT_GZIP_CEILING_KB));
+  console.log(`  catch-up      ${catKb.toFixed(1)} kB gzipped (ceiling ${CAT_GZIP_CEILING_KB} kB)`);
   if (problems.length) {
     for (const p of problems) console.error(`\n✗ ${p}`);
     process.exit(1);

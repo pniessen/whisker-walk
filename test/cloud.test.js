@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
-  generateSaveCode, normalizeSaveCode, getOrCreateSecret, createCloud, randomIndex, isMissingRpc,
+  normalizeSaveCode, getOrCreateSecret, createCloud, isMissingRpc,
   CLOUD_SAVE_SEND_MAX_BYTES, payloadBytes,
 } from '../src/cloud.js';
+// the code maker is its own lazy file (src/savecode.js), so the start-up download does not carry the word list
+import { generateSaveCode, randomIndex } from '../src/savecode.js';
 
 // A crypto-shaped fake: getRandomValues fills from a fixed list of uint32s.
 function fakeCrypto(values) {
@@ -526,5 +528,42 @@ describe('deleteSave / deletePlayer ("Delete my online data", docs/supabase-v9-d
       expect(await c.deleteSave('C', 's')).toBe('bad');
       expect(await c.deletePlayer('p', 's')).toBe('bad');
     }
+  });
+});
+
+describe('peekSave / syncSave (docs/supabase-v11-cat-login.sql, step 1)', () => {
+  const rpcOf = (answer) => { const calls = []; return { calls, rpc: async (name, args) => { calls.push({ name, args }); const a = typeof answer === 'function' ? answer(name, args) : answer; if (a instanceof Error) throw a; return a; } }; };
+  const missingErr = Object.assign(new Error('Could not find the function public.peek_save'), { code: 'PGRST202' });
+
+  it('peekSave maps its arguments and passes a known answer through', async () => {
+    const f = rpcOf({ status: 'ok', rev: 4, lifetime: 9 });
+    const cloud = createCloud({ rpc: f.rpc, select: async () => [] });
+    expect(await cloud.peekSave('C', 'S')).toEqual({ status: 'ok', rev: 4, lifetime: 9 });
+    expect(f.calls).toEqual([{ name: 'peek_save', args: { p_code: 'C', p_secret: 'S' } }]);
+  });
+  it('syncSave maps its arguments, including the revision it was built on', async () => {
+    const f = rpcOf({ status: 'merge', rev: 7, payload: { save: {} } });
+    const cloud = createCloud({ rpc: f.rpc, select: async () => [] });
+    const r = await cloud.syncSave('C', 'S', 6, { save: {} }, 12);
+    expect(r.status).toBe('merge');
+    expect(f.calls[0]).toEqual({ name: 'sync_save', args: { p_code: 'C', p_secret: 'S', p_base_rev: 6, p_payload: { save: {} }, p_lifetime: 12 } });
+  });
+  it('a server without them answers missing, and is asked once', async () => {
+    const f = rpcOf(missingErr);
+    const cloud = createCloud({ rpc: f.rpc, select: async () => [] });
+    expect(await cloud.peekSave('C', 'S')).toEqual({ status: 'missing' });
+    expect(await cloud.peekSave('C', 'S')).toEqual({ status: 'missing' });
+    expect(f.calls).toHaveLength(1);
+  });
+  it('junk is bad; a real failure (offline) still throws', async () => {
+    expect(await createCloud({ rpc: rpcOf('what').rpc, select: async () => [] }).peekSave('C', 'S')).toEqual({ status: 'bad' });
+    expect(await createCloud({ rpc: rpcOf({ status: 'rm -rf' }).rpc, select: async () => [] }).peekSave('C', 'S')).toEqual({ status: 'bad' });
+    await expect(createCloud({ rpc: rpcOf(new Error('Failed to fetch')).rpc, select: async () => [] }).peekSave('C', 'S')).rejects.toThrow('Failed to fetch');
+  });
+  it('a save over the size cap is too-big without a round trip', async () => {
+    const f = rpcOf({ status: 'ok', rev: 1 });
+    const cloud = createCloud({ rpc: f.rpc, select: async () => [] });
+    expect(await cloud.syncSave('C', 'S', 0, { x: 'a'.repeat(1.8 * 1024 * 1024) }, 1)).toEqual({ status: 'too-big' });
+    expect(f.calls).toEqual([]);
   });
 });

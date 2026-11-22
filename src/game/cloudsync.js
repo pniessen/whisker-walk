@@ -8,12 +8,18 @@
 // Both are created by one factory so the "created lazily, only when MP" rule
 // is enforced in exactly one place — see the comments on each below.
 
-import { createLiveCloud, generateSaveCode, normalizeSaveCode, getOrCreateSecret } from '../cloud.js';
-import { summarizeSaveForPreview } from '../progression.js';
+import { createLiveCloud, normalizeSaveCode, getOrCreateSecret } from '../cloud.js';
+import { summarizeSaveForPreview, sanitizeSave, CATALOG } from '../progression.js';
 import { note } from '../diagnostics.js';
 import { toastLifeMs } from '../ui/toastlife.js';
 import { isPlayerId } from '../colony.js';
 import { snapshotKeyState, applyKeyState, backUpCatKey, catKeyFromPayload } from '../catkey.js';
+import { phrase } from '../clanphrases.js';
+import { mergeColony } from '../colony.js';
+import { mergeUsage } from '../usage.js';
+import { sanitizeMarks, MARK_AREAS } from '../marks.js';
+import { CUSTOM_IDS, CUSTOM_BASE, CUSTOM_MAX } from '../customcats.js';
+import { OUTFIT_IDS, sameWear } from '../outfits.js';
 
 // A toast surface that stays visible on the home base screen (unlike
 // #hud, which is display:none whenever no walk is in progress) — cloud
@@ -103,7 +109,10 @@ function addIds(list, ids) {
 // pid, met and blocked are optional (cat login, milestone 1): this device's cat
 // id and its two lists of other players' ids. Without them the payload is as it
 // was before and a load keeps whatever cat key the device has.
-export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, progression, album, cloudToast, makeCloud = createLiveCloud, pid = null, met = null, blocked = null }) {
+// atHome, onCatStatus and onApplied are optional (cat login, milestone 2): whether the
+// home screen is up (a catch-up never changes the save in a walk), and what to
+// do when the catch-up's state changes or its merge was applied.
+export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, progression, album, cloudToast, makeCloud = createLiveCloud, pid = null, met = null, blocked = null, atHome = () => true, onCatStatus = () => {}, onApplied = () => {}, loadCatSync = () => import('./catsync.js') }) {
   // the capability secret that authorizes profile/friendship writes (and, for
   // a freshly-created save row, doubles as that row's initial secret) —
   // memoized lazily via getPsecret() below, on first actual use, rather than
@@ -203,8 +212,11 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
   }
   // deep-cloned snapshot: composed once per RPC call so an in-flight
   // fire-and-forget send can't pick up a further mutation mid-flight.
-  function composeCloudPayload() {
-    const payload = { save: progression.state, album: album.serialize() };
+  function composeCloudPayload({ album: withAlbum = true } = {}) {
+    // savedAt says which side was saved later, for a choice both devices changed.
+    // The photos go up with a plain save; a catch-up leaves them where they are.
+    const payload = { save: progression.state, savedAt: Date.now() };
+    if (withAlbum) payload.album = album.serialize();
     // Which cat this is, so a device that loads the save can become that cat
     // (src/catkey.js). Ids only, never the secret: that comes with the row.
     if (isPlayerId(pid)) payload.cat = { id: pid };
@@ -216,7 +228,20 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
   // subsequent auto-sync, so it doesn't spam a toast after every walk.
   let deniedNotified = false;
 
-  async function runSync() {
+  // The catch-up (src/game/catsync.js): a lazy chunk, fetched only by a device
+  // that has a cloud link, and only when a catch-up is asked for.
+  let catState = null; // 'catching' | 'saved' | 'caught' | 'offline' | 'signedout' | null
+  let catLoad = null;
+  function runCat(kind) {
+    catLoad ??= loadCatSync().then((m) => m.createCatSync({
+      tools: { CATALOG, sanitizeSave, note, mergeColony, mergeUsage, sanitizeMarks, MARK_AREAS, CUSTOM_IDS, CUSTOM_BASE, CUSTOM_MAX, OUTFIT_IDS, sameWear }, storage, getCloud: saveCloud, readLink: readCloudLink, progression,
+      compose: composeCloudPayload, atHome, toast: cloudToast, onApplied,
+      setStatus: (s) => { catState = s; try { onCatStatus(s); } catch { /* the sheet is only a view */ } },
+    }));
+    return catLoad.then((cs) => cs[kind]());
+  }
+
+  async function runSync(retried = false) {
     const link = readCloudLink();
     if (!link) return { ok: false, message: 'Not linked to a cloud save.' };
     const cloud = saveCloud();
@@ -226,9 +251,16 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
       const result = await cloud.saveToCloud(link.code, link.secret, payload, payload.save.lifetimePoints ?? 0);
       if (result === 'created' || result === 'updated') {
         deniedNotified = false;
+        if (catLoad) catLoad.then((cs) => cs.pushed(payload)).catch(() => {}); // the catch-up's base moves with it
         return { ok: true, message: 'Synced ✓' };
       }
       if (result === 'stale') {
+        // Another device saved first: fetch it, merge, and send once more.
+        if (!retried) {
+          const pulled = await runCat('pull').catch(() => null);
+          if (pulled && pulled.legacy && pulled.push) return runSync(true);
+          if (pulled && pulled.legacy && pulled.push === false) return { ok: true, message: 'Synced ✓' };
+        }
         cloudToast('The cloud has newer progress. Open Cloud save.');
         return { ok: false, message: 'Cloud has newer progress than this device — use Load from cloud to pull it down.' };
       }
@@ -261,8 +293,9 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
     async saveToCloud() {
       const cloud = openCloud(); // the tap that opts in
       if (!cloud) return { ok: false, error: 'Cloud sync is not available.' };
-      const code = generateSaveCode();
       try {
+        // the word list is its own file, fetched by this tap (src/savecode.js)
+        const code = (await import('../savecode.js')).generateSaveCode();
         const payload = composeCloudPayload();
         const secret = getPsecret();
         const result = await cloud.saveToCloud(code, secret, payload, payload.save.lifetimePoints ?? 0);
@@ -347,7 +380,25 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
       return newKey.id !== before.id || newKey.secret !== before.secret ? { ok: true, reload: true } : { ok: true };
     },
     async syncNow() {
-      return runSync();
+      if (!readCloudLink()) return runSync();
+      const r = await runCat('push').catch(() => null);
+      if (r === null || r.legacy) return runSync();
+      const ok = r === 'saved' || r === 'caught' || r === 'deferred'; // (the toast already said what came in)
+      return { ok, message: ok ? 'Synced ✓' : r === 'signedout' ? phrase('catlogin.signedout', savedName()) : r === 'too-big' ? TOO_BIG_MESSAGE : r === 'busy' ? BUSY_MESSAGE : 'Could not reach the cloud — check your connection and try again.' };
+    },
+    // How the cat's catch-up stands, for the sheet: { state, name } or null before it has run.
+    catStatus() {
+      return catState ? { state: catState, name: savedName() } : null;
+    },
+    // Once, after the home screen is up: a linked device asks the cloud whether
+    // another device saved, and merges if so. Nothing at all for a device that
+    // never linked, and nothing when it is offline.
+    catchUp() {
+      if (!MP || !readCloudLink() || !onlineAllowed()) return Promise.resolve('none');
+      return runCat('open').then((r) => {
+        if (r && r.legacy && r.push) return runSync().then(() => 'saved');
+        return r;
+      }).catch(() => 'offline');
     },
     unlink() {
       clearCloudLink();
@@ -368,7 +419,7 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
     // buys) — never awaited by callers, never throws.
     autoSync() {
       if (!MP || !readCloudLink()) return;
-      runSync().catch(() => {});
+      runCat('push').then((r) => (r && r.legacy ? runSync() : r)).catch(() => runSync()).catch(() => {});
     },
   };
 

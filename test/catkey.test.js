@@ -106,7 +106,7 @@ describe('the cloud payload names the cat', () => {
       makeCloud: () => ({ saveToCloud: async (c, s, p) => { sent.push(p); return 'created'; } }),
     });
     await sync.sync.saveToCloud();
-    expect(Object.keys(sent[0]).sort()).toEqual(['album', 'save']);
+    expect(Object.keys(sent[0]).sort()).toEqual(['album', 'save', 'savedAt']);
   });
 
   it('a payload from an old build has neither and loads as before', async () => {

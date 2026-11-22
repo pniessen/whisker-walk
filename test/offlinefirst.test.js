@@ -36,6 +36,8 @@ vi.mock('@supabase/supabase-js', () => {
       const client = {
         rpc: async (name, args) => {
           spy.rpc.push({ name, args });
+          // A server that has not had docs/supabase-v11-cat-login.sql run on it: PostgREST says the function is not there.
+          if (/^(peek_save|sync_save)$/.test(name) && !(name in spy.answers)) return { data: null, error: { code: 'PGRST202', message: 'Could not find the function public.' + name } };
           const a = spy.answers[name];
           return { data: typeof a === 'function' ? a(args) : (a ?? null), error: null };
         },
@@ -76,6 +78,7 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
   },
 }));
 
+await import('../src/game/catsync.js'); // the catch-up's lazy chunk, already loaded: these tests count requests, not file fetches
 const { createCloudSync, onlineOptedIn, walkingNameSaved } = await import('../src/game/cloudsync.js');
 const { createNearby, NEARBY_OPTED_KEY } = await import('../src/game/nearby.js');
 const { createRooms } = await import('../src/game/rooms.js');
@@ -422,7 +425,7 @@ describe('a device already online behaves as before', () => {
     spy.answers.friendships_of = [];
     spy.answers.upsert_save = 'updated';
     await walkOnce(g);
-    expect(rpcNames()).toEqual(['upsert_save']);
+    expect(rpcNames()).toEqual(['sync_save', 'upsert_save']);
     expect(spy.selects).toEqual([]);
     expect(spy.channels).toEqual([]);
   });
@@ -431,6 +434,45 @@ describe('a device already online behaves as before', () => {
 // 2026-11-17: the friends lookup, and everything else about other players,
 // needs a walking name. Each call below is made the way its screen or the
 // walk makes it, on a device whose only step online is a linked cloud save.
+// Cat login, milestone 2: the catch-up. It asks nothing of a device that has not
+// linked, and a linked device asks only after the caller says the home screen is
+// up. A server without docs/supabase-v11-cat-login.sql answers 'function not
+// found' once (remembered), and the old requests follow.
+describe('the catch-up (cat login, milestone 2)', () => {
+  it('a device that never linked makes no request and creates no client, named or not', async () => {
+    const a = boot();
+    const b = boot({ petName: 'Mittens' });
+    expect(await a.sync.catchUp()).toBe('none');
+    expect(await b.sync.catchUp()).toBe('none');
+    a.sync.autoSync(); b.sync.autoSync();
+    await settle();
+    expect(spy.rpc).toEqual([]);
+    expect(spy.clients).toEqual([]);
+  });
+  it('a linked device on an unchanged server: the v11 question once, then the old pull (at most every six hours)', async () => {
+    const g = boot({ linked: true });
+    expect(spy.rpc).toEqual([]); // launching asks nothing: the caller asks once the home screen is up
+    await g.sync.catchUp();
+    expect(rpcNames()).toEqual(['peek_save', 'load_save']);
+    await g.sync.catchUp();
+    expect(rpcNames()).toEqual(['peek_save', 'load_save']); // the missing function is not asked again, and the pull waits
+    expect(spy.selects).toEqual([]);
+    expect(spy.channels).toEqual([]);
+  });
+  it('a linked device on a server with v11: one cheap question when nothing changed', async () => {
+    const g = boot({ linked: true });
+    spy.answers.peek_save = { status: 'ok', rev: 0, lifetime: 0 };
+    g.storage.setItem('whisker-walk-syncbase', JSON.stringify({ rev: 0, pending: false }));
+    await g.sync.catchUp();
+    expect(rpcNames()).toEqual(['peek_save']);
+  });
+  it('catching up without the home screen up merges nothing (the caller decides when)', async () => {
+    const g = boot({ linked: true, MP: false });
+    expect(await g.sync.catchUp()).toBe('none');
+    expect(spy.rpc).toEqual([]);
+  });
+});
+
 describe('a device with a linked cloud save and no walking name: its save, and nothing else', () => {
   const OTHER = 'bbbbbbbb-2222-4000-8000-000000000002';
   const linkedOnly = () => {
@@ -454,7 +496,7 @@ describe('a device with a linked cloud save and no walking name: its save, and n
     openSheet('together');
     await settle();
     await walkOnce(g);
-    expect(rpcNames()).toEqual(['upsert_save', 'upsert_save']);
+    expect(rpcNames()).toEqual(['sync_save', 'upsert_save', 'upsert_save']);
     expect(spy.selects).toEqual([]);     // no profile was read
     expect(spy.channels).toEqual([]);    // no room, no live connection
     expect(g.storage.getItem(SECRET_KEY)).toBe(null); // and no player secret was made up
@@ -499,7 +541,7 @@ describe('a device with a linked cloud save and no walking name: its save, and n
     spy.answers.delete_save = 'ok';
     expect(await g.sync.syncNow()).toEqual({ ok: true, message: 'Synced ✓' });
     await g.sync.deleteCloudSave();
-    expect(rpcNames()).toEqual(['upsert_save', 'delete_save']);
+    expect(rpcNames()).toEqual(['sync_save', 'upsert_save', 'delete_save']);
   });
   it('saving a walking name opens the rest at once: the next walk looks up friends', async () => {
     const g = linkedOnly();

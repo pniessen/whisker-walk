@@ -93,8 +93,9 @@ describe('the edition switch and the save', () => {
   });
   // 2026-11-15, guided-first-walk design (section 8): `tutorial` joins them.
     // 2026-11-19, found outfits: `foundWear` joins them; world map step 1: `keptOffers` too.
-    test('edition, clanPick, customCats, the fight keys, outfits, usage, tutorial, foundWear, keptOffers and events are the only new top-level keys', () => {
-      expect(Object.keys(load().state).sort()).toEqual([...KEYS_AT_FB6BA0F, 'edition', 'clanPick', 'customCats', 'moreCatSlots', 'fightsWon', 'fightMoves', 'scars', 'scarredIntruders', 'outfits', 'usage', 'tutorial', 'foundWear', 'keptOffers', 'events'].sort());
+    // 2026-11-22, cat login: `sleepingCats` (her own cats a merge had no slot for).
+    test('edition, clanPick, customCats, the fight keys, outfits, usage, tutorial, foundWear, keptOffers, events and sleepingCats are the only new top-level keys', () => {
+      expect(Object.keys(load().state).sort()).toEqual([...KEYS_AT_FB6BA0F, 'edition', 'clanPick', 'customCats', 'moreCatSlots', 'fightsWon', 'fightMoves', 'scars', 'scarredIntruders', 'outfits', 'usage', 'tutorial', 'foundWear', 'keptOffers', 'events', 'sleepingCats'].sort());
   });
   test('the caps are unchanged', () => {
     expect([COLONY_MAX, SOLO_MAX, colonyCap(1), colonyCap(2)]).toEqual([24, 12, 12, 24]);

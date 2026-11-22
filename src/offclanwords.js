@@ -253,6 +253,9 @@ export const PHRASES = Object.freeze({
   // ?grow=1 switch on); builder's pick
   'woods.south.scenic': 'the sandy hollow',
 
+  // ---- cat login, milestone 2 (2026-11-22): the only line of its set that differs; builder's pick
+  'catlogin.caughtup': (name) => `${name || 'Your cat'} caught up. Paws, finds and outfits from both devices are here.`,
+
   // ---- her birthday (2026-11-21): plain words; builder's pick
   'bday.home': 'Everyone is coming to the island for your birthday! 🎂',
   'bday.announce': (name) => `Everyone, come and sit round! Today is ${name}'s birthday!`,

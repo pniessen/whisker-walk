@@ -6,7 +6,8 @@
 // fresh setup twice -> colony -> v8): see the cloud-hardening report.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { createCloud, generateSaveCode, CLOUD_SAVE_MAX_BYTES, CLOUD_SAVE_SEND_MAX_BYTES } from '../src/cloud.js';
+import { createCloud, CLOUD_SAVE_MAX_BYTES, CLOUD_SAVE_SEND_MAX_BYTES } from '../src/cloud.js';
+import { generateSaveCode } from '../src/savecode.js';
 import { validPetName } from '../src/net.js';
 import { RANKS } from '../src/progression.js';
 import { PERSONALITIES } from '../src/cat/brain.js';

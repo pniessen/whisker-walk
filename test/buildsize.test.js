@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MAIN_GZIP_CEILING_KB, mainScript, sizeProblem, startupFiles, areaDownloads, lazyProblems, areaSizeProblems, TV_ENTRY_MODULES, TV_GZIP_CEILING_KB, tvDownloads } from '../scripts/buildjson.mjs';
+import { MAIN_GZIP_CEILING_KB, mainScript, sizeProblem, startupFiles, areaDownloads, lazyProblems, areaSizeProblems, TV_ENTRY_MODULES, TV_GZIP_CEILING_KB, tvDownloads, CAT_ENTRY_MODULES } from '../scripts/buildjson.mjs';
 import { precacheManifest } from '../scripts/precache.mjs';
 
 const M = {
@@ -84,4 +84,14 @@ describe('the TV chunk guard', () => {
   it('the tv download is its scripts and its stylesheet, not start-up files', () => {
     expect(tvDownloads(tvM).sort()).toEqual(['assets/tv.css', 'assets/tv.js']);
   });
+});
+
+describe('the cat login catch-up chunk guard', () => {
+  const catM = { ...M, 'src/game/catsync.js': { file: 'assets/catsync.js', isDynamicEntry: true, imports: ['_three.js'] }, 'src/savecode.js': { file: 'assets/savecode.js', isDynamicEntry: true } };
+  it('a catch-up chunk that is lazy passes', () => expect(lazyProblems(catM, CAT_ENTRY_MODULES)).toEqual([]));
+  it('names the module when start-up imports it statically', () => {
+    const bad = { ...catM, 'index.html': { ...catM['index.html'], imports: [...catM['index.html'].imports, 'src/game/catsync.js'] } };
+    expect(lazyProblems(bad, CAT_ENTRY_MODULES)[0]).toMatch(/src\/game\/catsync\.js/);
+  });
+  it('names the module when it is missing from the manifest', () => expect(lazyProblems(M, CAT_ENTRY_MODULES)[0]).toMatch(/src\/game\/catsync\.js/));
 });
