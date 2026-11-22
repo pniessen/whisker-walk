@@ -95,3 +95,16 @@ describe('the cat login catch-up chunk guard', () => {
   });
   it('names the module when it is missing from the manifest', () => expect(lazyProblems(M, CAT_ENTRY_MODULES)[0]).toMatch(/src\/game\/catsync\.js/));
 });
+
+describe('the layout profile stays tiny', () => {
+  it('src/profile.js and src/profilevalues.js are under 1.5 kB gzipped together (as written, comments and all)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { gzipSync } = await import('node:zlib');
+    const src = ['../src/profile.js', '../src/profilevalues.js'].map((f) => readFileSync(new URL(f, import.meta.url), 'utf8')).join('\n');
+    expect(gzipSync(src).length).toBeLessThanOrEqual(1500);
+  });
+  it('src/profile.js imports nothing', async () => {
+    const { readFileSync } = await import('node:fs');
+    expect(readFileSync(new URL('../src/profile.js', import.meta.url), 'utf8')).not.toMatch(/^\s*import\b/m);
+  });
+});

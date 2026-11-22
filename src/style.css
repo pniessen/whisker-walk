@@ -18,6 +18,10 @@ body { font-family: 'Avenir', 'Trebuchet MS', sans-serif; background: #1c2431; c
    Everything that has to clear the map reads this one value. */
 :root { --map-size: 150px; --btn-off-bg: rgba(231,169,160,.30); --btn-off-fg: #f6dcd7; }
 body.touch-mode { --map-size: 110px; }
+/* Layout profile values (src/profilevalues.js; test/profilevalues.test.js). Read by nothing yet. TV's are in tv/tv.css. */
+html.phone { --pv-map: 110; --pv-toasts: 2; --pv-cap: 1.5; }
+html.tablet { --pv-map: 110; --pv-toasts: 2; --pv-cap: 1.5; }
+html.laptop { --pv-map: 150; --pv-toasts: 2; --pv-cap: 2; }
 /* Points on the left, rank centred in what is left. The right edge stops
    short of the corner map, so the rank can never slide under it. */
 .hud-top {

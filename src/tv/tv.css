@@ -3,6 +3,7 @@
    the sizes below are the hand-set ones, and they load after it, so they win.
    --tv-s is 1 up to a 1920 px window and 2 at 3840 (scale.js). */
 
+html.tv { --pv-map: 220; --pv-toasts: 1; --pv-cap: 2; } /* profilevalues.js */
 html.tv {
   font-size: calc(24px * var(--tv-s, 1));
   --map-size: min(calc(220px * var(--tv-s, 1)), 36vw);
