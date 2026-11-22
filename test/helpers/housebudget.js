@@ -6,7 +6,7 @@
 // (budgetOf: every mesh a draw, a caster by the walk's rule), over the scene as
 // walk.js renders it: measure after the build and mergeStaticProps (and dusk).
 import * as THREE from 'three';
-import { budgetOf as meshBudgetOf } from './growriver.js';
+import { budgetOf as meshBudgetOf, trianglesOf } from './growriver.js';
 import { fullLevels } from '../../src/houselevels.js';
 import { LEVEL_LINKS } from '../../src/world/houseplan.js';
 
@@ -109,4 +109,49 @@ export async function houseWalkThings(scene, area, { dusk = false, open = false,
     mochi?.dispose();
     for (const t of things) t.dispose?.();
   };
+}
+
+// ---- Old House step 4, Task 8: two cats at the worst spot (ruling W15) ----
+
+const NO_WEAR = Object.freeze({ collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null });
+export const WEAR_SLOTS = Object.freeze(['head', 'face', 'neck', 'collar', 'back', 'body', 'feet']);
+
+// The shipped wearable with the most triangles in each slot, found by building each one on the
+// tabby (the same cat the walk builds), alone in its slot. Ties go to the first in catalog order.
+export async function heaviestWear() {
+  const { CATALOG } = await import('../../src/progression.js');
+  const { buildCat } = await import('../../src/cat/model.js');
+  const best = {};
+  const bestN = {};
+  for (const [id, a] of Object.entries(CATALOG.accessories)) {
+    if (!WEAR_SLOTS.includes(a.slot)) continue;
+    const cat = buildCat('tabby', { ...NO_WEAR, [a.slot]: id }, {});
+    const n = trianglesOf(cat);
+    if (!(a.slot in bestN) || n > bestN[a.slot]) { best[a.slot] = id; bestN[a.slot] = n; }
+  }
+  return best;
+}
+
+// Adds n cats beside the spawn, as the walk does (tabby; `dressed` puts the heaviest wearable of every
+// slot on each), and, with `tag`, her partner's name tag (one sprite) on each cat but the first. Returns
+// the objects added, for removal.
+export async function withCats(scene, n, { dressed = false, tag = false } = {}) {
+  const { buildCat } = await import('../../src/cat/model.js');
+  const { makeNameTag } = await import('../../src/nametag.js');
+  const wear = dressed ? { ...NO_WEAR, ...(await heaviestWear()) } : NO_WEAR;
+  const added = [];
+  for (let i = 0; i < n; i++) {
+    const cat = buildCat('tabby', wear, {});
+    cat.position.set(2 + i, 0, 2);
+    scene.add(cat);
+    added.push(cat);
+    if (tag && i > 0) {
+      const t = makeNameTag('Partner') ?? new THREE.Sprite(new THREE.SpriteMaterial());
+      t.visible = true;
+      t.position.add(cat.position);
+      scene.add(t);
+      added.push(t);
+    }
+  }
+  return added;
 }
