@@ -14,6 +14,10 @@
 //                 front fences, 5 m in) has its edge at that fence: an 'edge'
 //                 gate there is set into the fence (cutForGates below).
 //   lane          optional [x1, z1, x2, z2] path joining the end to the area's walks
+//   laneLook      how the lane is drawn (LANE_LOOKS): 'gravel' (default; the
+//                 Park's lanes) or 'paving' (the town's path to the Market's
+//                 signpost: the pavement's own slabs, carried round the
+//                 corner from the street, world/gateway.js)
 //   arrive        where a cat coming in through this end lands: { x, z, yaw }.
 //                 Without one she lands ARRIVE_IN m inside the end, facing in.
 //   wings         optional [hinge side, latch side]: metres of railing running
@@ -50,6 +54,7 @@ export const GATE_POST_R = 0.15;
 export const ARRIVE_IN = GATE_REACH + 2;
 export const GATE_LOOKS = Object.freeze(['signpost', 'fairgate', 'farmgate', 'promenade', 'alleydoor', 'none']);
 export const PLACEMENTS = Object.freeze(['edge', 'inside']);
+export const LANE_LOOKS = Object.freeze(['gravel', 'paving']);
 // The cat's rotation.y facing into the area (rotation 0 faces -z).
 export const INWARD_YAW = Object.freeze({ north: Math.PI, south: 0, east: Math.PI / 2, west: -Math.PI / 2 });
 
@@ -60,10 +65,11 @@ const THROUGH = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
 
 const own = (o, k) => o != null && Object.prototype.hasOwnProperty.call(o, k);
 
-export function gatewayEnd({ id, gateway, x, z, faces, to, twin, look, placement = 'edge', lane = null, arrive = null, wings = null, sign = false }) {
+export function gatewayEnd({ id, gateway, x, z, faces, to, twin, look, placement = 'edge', lane = null, laneLook = 'gravel', arrive = null, wings = null, sign = false }) {
   if (!FACINGS.includes(faces)) throw new Error(`gateway end ${id}: faces "${faces}" is not one of ${FACINGS.join(', ')}`);
   if (!GATE_LOOKS.includes(look)) throw new Error(`gateway end ${id}: look "${look}" is not one of ${GATE_LOOKS.join(', ')}`);
   if (!PLACEMENTS.includes(placement)) throw new Error(`gateway end ${id}: placement "${placement}" is not one of ${PLACEMENTS.join(', ')}`);
+  if (!LANE_LOOKS.includes(laneLook)) throw new Error(`gateway end ${id}: laneLook "${laneLook}" is not one of ${LANE_LOOKS.join(', ')}`);
   if (placement === 'inside' && !arrive) throw new Error(`gateway end ${id}: placement "inside" needs an arrive { x, z, yaw }`);
   if (wings && (look !== 'promenade' || wings.length !== 2 || !wings.every((w) => Number.isFinite(w) && w >= 0))) {
     throw new Error(`gateway end ${id}: wings must be [hinge side, latch side] metres on a 'promenade' look`);
@@ -71,6 +77,7 @@ export function gatewayEnd({ id, gateway, x, z, faces, to, twin, look, placement
   return Object.freeze({
     id, gateway, x, z, faces, to, twin, look, placement,
     lane: lane ? Object.freeze([...lane]) : null,
+    laneLook,
     arrive: arrive ? Object.freeze({ ...arrive }) : null,
     wings: wings ? Object.freeze([...wings]) : null,
     sign: sign === true,
@@ -83,7 +90,14 @@ export const GATEWAY_ENDS = Object.freeze({
     end({ id: 'town-park', gateway: 'town-park', x: 52, z: 0, faces: 'east', to: 'park', twin: 'park-town', look: 'signpost' }),
     end({ id: 'town-docks', gateway: 'town-docks', x: 0, z: 52, faces: 'south', to: 'docks', twin: 'docks-town', look: 'signpost' }),
     end({ id: 'town-roofs', gateway: 'town-roofs', x: 0, z: -52, faces: 'north', to: 'roofs', twin: 'roofs-town', look: 'signpost', sign: true }),
-    end({ id: 'town-market', gateway: 'town-market', x: 30, z: 52, faces: 'south', to: 'market', twin: 'market-town', look: 'signpost', sign: true }),
+    // Its path (the owner, 2026-11-21: so a child sees where to go): the
+    // east pavement's slabs carried on round the corner where the street
+    // runs out, from the pavement's end (x 2.6 to 3.8 at z 50) east along the
+    // lawn to just past the signpost. 1.8 m wide (six of the pavement's 30 cm
+    // slabs), so it runs from z 50, butting the pavement's end, to z 51.8,
+    // stopping short of the gate posts on z 52.
+    end({ id: 'town-market', gateway: 'town-market', x: 30, z: 52, faces: 'south', to: 'market', twin: 'market-town', look: 'signpost', sign: true,
+      lane: [2.6, 50.9, 31.7, 50.9], laneLook: 'paving' }),
   ]),
   park: Object.freeze([
     end({ id: 'park-town', gateway: 'town-park', x: 0, z: 49, faces: 'south', to: 'neighborhood', twin: 'town-park', look: 'signpost' }),

@@ -326,3 +326,86 @@ describe('the name board on the town\'s north signpost', () => {
     }
   });
 });
+
+// The owner, 2026-11-21: a short paved path from the street to the Market's
+// signpost (town-market, laneLook 'paving'), so a child sees where to go. It
+// is drawn with the gate (so the area build, and the flat trace that pins it,
+// never sees it) and is the east pavement carried round the corner.
+const { build: buildTown } = await import('../src/world/neighborhood.js');
+const { flatFootprints } = await import('../src/render/grass.js');
+const { endsFor } = await import('../src/gateways.js');
+describe("the town's paved path to the Market's signpost", () => {
+  const box = (o) => { o.updateMatrixWorld(true); return new THREE.Box3().setFromObject(o); };
+  const town = () => {
+    const scene = new THREE.Scene();
+    const area = buildTown(scene);
+    const own = new Set(scene.children);
+    const d = addGatewayDressing(scene, 'neighborhood', { ends: endsFor('neighborhood') });
+    return { scene, area, d, added: scene.children.filter((c) => !own.has(c)), own: [...own] };
+  };
+
+  it('is one flat, shadowless pavement strip, flush with the pavements, from the east pavement\'s end to just past the signpost', () => {
+    const { added, own } = town();
+    const lanes = added.filter((c) => c.userData.gateLane);
+    expect(lanes).toHaveLength(1);
+    const [lane] = lanes;
+    expect(lane.isMesh && lane.geometry.type).toBe('PlaneGeometry');
+    expect(lane.userData.noCast).toBe(true);
+    expect(lane.children).toHaveLength(0);
+    // a pavement, not a gravel 'path': rain and dusk leave it as they leave the pavements
+    expect(lane.name).not.toBe('path');
+    const b = box(lane);
+    for (const [got, want] of [[b.min.x, 2.6], [b.max.x, 31.7], [b.min.z, 50], [b.max.z, 51.8]]) expect(got).toBeCloseTo(want, 5);
+    // the town's own pavements: its 1.2 m strips (the four builder.sidewalk calls)
+    const pavements = own.filter((c) => c.isMesh && c.geometry?.type === 'PlaneGeometry' && c.geometry.parameters.width === 1.2);
+    expect(pavements).toHaveLength(4);
+    for (const p of pavements) {
+      expect(lane.position.y).toBe(p.position.y); // flush: the pavements' own height
+      expect(lane.material.color.getHex()).toBe(p.material.color.getHex());
+    }
+    expect(b.max.y - b.min.y).toBeLessThan(1e-6);
+    // it starts at the pavement nearest the signpost: the east pavement's end,
+    // butted against it across the pavement's whole width
+    const { end } = endById('town-market');
+    const gap = (p) => { const q = box(p); return Math.hypot(Math.max(q.min.x - end.x, 0, end.x - q.max.x), Math.max(q.min.z - end.z, 0, end.z - q.max.z)); };
+    const nearest = pavements.reduce((a, p) => (gap(p) < gap(a) ? p : a));
+    const nb = box(nearest);
+    expect(nb.max.z).toBeCloseTo(b.min.z, 5); // (float32 vertices)
+    expect(nb.min.x).toBeCloseTo(b.min.x, 5);
+    expect(nb.max.x).toBeLessThan(b.max.x);
+    // and runs on past the signpost's far post, short of both posts
+    expect(b.max.x).toBeGreaterThan(end.x + GATE_HALF + GATE_POST_R);
+    expect(b.max.z).toBeLessThan(end.z - GATE_POST_R);
+  });
+
+  it('overlaps no other strip on the ground (no z-fighting), and the grass mask keeps grass off it', () => {
+    const { scene } = town();
+    const strips = flatFootprints(scene).filter((f) => f.kind === 'strip');
+    const aabb = (f) => {
+      const ex = Math.abs(f.ux) * f.halfL + Math.abs(f.uz) * f.halfW;
+      const ez = Math.abs(f.uz) * f.halfL + Math.abs(f.ux) * f.halfW;
+      return [f.x - ex, f.x + ex, f.z - ez, f.z + ez];
+    };
+    const mine = strips.filter((f) => Math.abs(f.x - (2.6 + 31.7) / 2) < 1e-9 && Math.abs(f.z - 50.9) < 1e-9);
+    expect(mine).toHaveLength(1); // in the grass mask
+    const [ax0, ax1, az0, az1] = aabb(mine[0]);
+    for (const f of strips) {
+      if (f === mine[0]) continue;
+      // the town's strips all run along x or z, so their boxes are the strips
+      expect(Math.min(Math.abs(f.ux), Math.abs(f.uz))).toBeLessThan(1e-9);
+      const [bx0, bx1, bz0, bz1] = aabb(f);
+      const overlap = Math.max(0, Math.min(ax1, bx1) - Math.max(ax0, bx0)) * Math.max(0, Math.min(az1, bz1) - Math.max(az0, bz0));
+      expect(overlap, `vs the strip at (${f.x}, ${f.z})`).toBeLessThan(1e-9);
+    }
+  });
+
+  it('adds no collider and blocks nothing: the dressing\'s colliders are the same with the path or without it', () => {
+    const { d, area } = town();
+    const scene = new THREE.Scene();
+    const before = area.colliders.length;
+    const bare = addGatewayDressing(scene, 'neighborhood', { ends: endsFor('neighborhood').map((e) => gatewayEnd({ ...e, lane: null })) });
+    expect(d.colliders).toEqual(bare.colliders);
+    expect(area.colliders).toHaveLength(before);
+    expect(scene.children.filter((c) => c.userData.gateLane)).toHaveLength(0);
+  });
+});

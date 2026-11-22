@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   GATE_REACH, GATE_HALF, GATE_POST_R, ARRIVE_IN, GATE_LOOKS, PLACEMENTS, INWARD_YAW,
   GATEWAY_ENDS, gatewayEnd, endsFor, endById, liveEndsFor, gatewayNear, arrivalFor,
-  GATE_FENCE_GAP, cutForGates,
+  GATE_FENCE_GAP, cutForGates, LANE_LOOKS,
 } from '../src/gateways.js';
 import { GATEWAYS } from '../src/worldmap.js';
 import { CATALOG } from '../src/progression.js';
@@ -17,7 +17,7 @@ const TABLE = [
   ['neighborhood', 'town-park', 'town-park', 52, 0, 'east', 'park', 'park-town', 'signpost', null],
   ['neighborhood', 'town-docks', 'town-docks', 0, 52, 'south', 'docks', 'docks-town', 'signpost', null],
   ['neighborhood', 'town-roofs', 'town-roofs', 0, -52, 'north', 'roofs', 'roofs-town', 'signpost', null],
-  ['neighborhood', 'town-market', 'town-market', 30, 52, 'south', 'market', 'market-town', 'signpost', null],
+  ['neighborhood', 'town-market', 'town-market', 30, 52, 'south', 'market', 'market-town', 'signpost', [2.6, 50.9, 31.7, 50.9]],
   ['park', 'park-town', 'town-park', 0, 49, 'south', 'neighborhood', 'town-park', 'signpost', null],
   ['park', 'park-fair', 'park-fair', 0, -47, 'north', 'fair', 'fair-park', 'fairgate', [4, -25.2, 0, -47]],
   ['park', 'park-farm', 'park-farm', 42, 10, 'east', 'farm', 'farm-park', 'farmgate', [16, 10, 42, 10]],
@@ -44,6 +44,10 @@ describe('gateways', () => {
   it('the fourteen ends stand where the table says', () => {
     const rows = Object.entries(GATEWAY_ENDS).flatMap(([a, ends]) => ends.map((e) => [a, e.id, e.gateway, e.x, e.z, e.faces, e.to, e.twin, e.look, e.lane]));
     expect(rows).toEqual(TABLE);
+    // the Park's lanes are gravel; the town's path to the Market is paved
+    expect(LANE_LOOKS).toEqual(['gravel', 'paving']);
+    expect(Object.values(GATEWAY_ENDS).flat().filter((e) => e.lane).map((e) => [e.id, e.laneLook]))
+      .toEqual([['town-market', 'paving'], ['park-fair', 'gravel'], ['park-farm', 'gravel']]);
     // only the Rooftops' alley door and the Market's gate in the south row's
     // gap stand inside their places, each with its own arrival
     const inside = Object.values(GATEWAY_ENDS).flat().filter((e) => e.placement === 'inside');
@@ -67,6 +71,8 @@ describe('gateways', () => {
     expect(() => gatewayEnd({ ...ok, faces: 'nort' })).toThrow(/x.*nort/);
     expect(() => gatewayEnd({ ...ok, look: 'arch' })).toThrow(/x.*arch/);
     expect(() => gatewayEnd({ ...ok, placement: 'roof' })).toThrow(/x.*roof/);
+    expect(() => gatewayEnd({ ...ok, lane: [0, 0, 1, 0], laneLook: 'tarmac' })).toThrow(/x.*tarmac/);
+    expect(gatewayEnd(ok).laneLook).toBe('gravel');
     expect(() => gatewayEnd({ ...ok, placement: 'inside' })).toThrow(/x.*arrive/);
     expect(() => gatewayEnd({ ...ok, wings: [2, 2] })).toThrow(/x.*wings/); // a signpost has no railing
     expect(() => gatewayEnd({ ...ok, look: 'promenade', wings: [2] })).toThrow(/x.*wings/);

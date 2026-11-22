@@ -241,7 +241,7 @@ describe('gateways: where the gates stand', () => {
   it('every lane sample is clear and on the flood, and the lane joins the walks to its end', () => {
     for (const [a, e] of allEnds.filter(([, x]) => x.lane)) {
       const at = `${a}/${e.id}`;
-      expect(a, 'only the Park has lanes').toBe('park');
+      expect(['park', 'neighborhood'], 'only the Park and the town have lanes').toContain(a);
       const [x1, z1, x2, z2] = e.lane;
       const n = Math.max(1, Math.round(Math.hypot(x2 - x1, z2 - z1) / 0.5));
       for (let i = 0; i <= n; i++) {
@@ -250,6 +250,15 @@ describe('gateways: where the gates stand', () => {
           expect(Math.hypot(x - c.x, z - c.z) - c.r, `${at} lane (${x}, ${z}) vs collider (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(1.2);
         }
         expect(flood(a).reaches(x, z), `${at} lane (${x}, ${z}) on the flood`).toBe(true);
+      }
+      if (a === 'neighborhood') {
+        // The town's paved path to the Market (laneLook 'paving'): it starts
+        // at the east pavement's end (x 2.6 to 3.8, z 50) and runs along the
+        // gate's inner side to just past its far post.
+        expect(e.laneLook, at).toBe('paving');
+        expect([x1, z2], `${at} starts level with the pavement's west kerb`).toEqual([2.6, z1]);
+        expect(x2, `${at} runs on past the far post`).toBeGreaterThan(e.x + GATE_HALF);
+        continue;
       }
       const near = Math.min(...park.PARK_PATHS.map((s) => segDist(x1, z1, s)));
       expect(near, `${at} lane start vs PARK_PATHS`).toBeLessThanOrEqual(0.5);

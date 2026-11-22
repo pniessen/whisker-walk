@@ -401,6 +401,12 @@ describe('walking on between the town and the Market Square', () => {
     const townGate = town.scene.children.find((c) => c.name === 'gateway' && c.userData.endId === 'town-market');
     expect(townGate.getObjectByName('gateHinge').rotation.y).toBe(LEAF_OPEN);
     expect(townGate.getObjectByName('gateSign')).toBeTruthy();
+    // and its paved path from the street's end (the owner, 2026-11-21): one
+    // strip, drawn with the gate, on no collider list
+    const paths = town.scene.children.filter((c) => c.userData.gateLane);
+    expect(paths).toHaveLength(1);
+    expect(paths[0].position.x).toBeCloseTo((2.6 + 31.7) / 2, 9);
+    expect(paths[0].position.z).toBeCloseTo(50.9, 9);
     expect(await h.w.walkOn({ via: 'town-market' })).toBe('walked');
     expect(h.overlay.innerHTML).toContain('Off to the Market Square!');
     vi.advanceTimersByTime(GATE_MOMENT_MS);
@@ -442,6 +448,7 @@ describe('walking on between the town and the Market Square', () => {
     expect(s.areaId).toBe('neighborhood');
     expect(s.gates).toBe(NO_GATES);
     expect(s.scene.children.filter((c) => c.name === 'gateway')).toEqual([]);
+    expect(s.scene.children.filter((c) => c.userData.gateLane)).toEqual([]); // nor its path
     const gate = endById('town-market').end;
     expect(s.areaData.colliders.filter((c) => Math.hypot(c.x - gate.x, c.z - gate.z) < 2)).toEqual([]);
     // nothing to ask at: the prompt (main.js's interactions) asks at a gate
