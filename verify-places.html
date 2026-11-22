@@ -432,6 +432,11 @@
       }
     }
     window.__cam(...v.split(',').map(Number));
+    if (id === 'roofs' && clouds) { // the dressing of the stars, moon and clouds (made after the life) finds them; two renders for the clouds' first
+      for (let f = 0; f < 12; f++) lifeStep(1 / 60);
+      window.__cam(...v.split(',').map(Number));
+      window.__cam(...v.split(',').map(Number));
+    }
     return name;
   };
   // A short clip of a life extra (scripts/record-page.mjs --tour <name>):
