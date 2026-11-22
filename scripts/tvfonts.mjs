@@ -30,6 +30,11 @@ export const GROWNUP_20 = Object.freeze([
   '.tui-badge', '.tui-label',
 ]);
 
+// The map's SVG words are in user units of the map's own drawing, not screen px: the map is already
+// sized with the window (--tv-s would double them again on a 4K screen, and they would crowd each other).
+// tv.css sets them in plain user units, from the map's measured scale; the capture audit checks the result.
+export const SVG_UNITS = Object.freeze(['.territory-map .tm-line', '.territory-map .tm-icon', '.territory-map .tm-small', '.world-map .tm-line-small']);
+
 const strip = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
 
 // [{ sel, value }] for every font-size (and font: shorthand size) in a stylesheet, media rules included.
@@ -87,6 +92,7 @@ export function fontFloors(styleCss) {
   const grown = new Set(GROWNUP_20);
   const bySel = new Map();
   for (const { sel, value } of fontDeclarations(styleCss)) {
+    if (SVG_UNITS.includes(sel)) continue;
     const size = plainSize(value);
     if (!size) continue;
     const e = bySel.get(sel) ?? { max: 0, need: false };
