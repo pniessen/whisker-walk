@@ -7,7 +7,7 @@ export const STRIP_FADE_MS = 60000;
 
 /** Watches #hud; returns { stop() } that puts everything back. */
 export function watchStrip(doc, win, ms = STRIP_FADE_MS) {
-  const hud = doc.getElementById('hud');
+  const hud = doc.getElementById?.('hud');
   const body = doc.body;
   if (!hud || !body || typeof win.MutationObserver !== 'function') return { stop() {} };
   let timer = null;
