@@ -3,10 +3,10 @@
 // nothing here may import src/tv/: the build fails if the chunk joins
 // start-up (scripts/buildjson.mjs). With TV mode off every function is
 // identity or a no-op, so touch, mouse and keyboard play is unchanged.
-export const tvState = { on: false, input: 'keys', text: null, html: null, padLine: null };
+export const tvState = { on: false, pending: false, input: 'keys', text: null, html: null, padLine: null };
 
 // Pad events from gamepad.js; the chunk fills these in (null = nobody listens).
-export const tvHooks = { padUse: null, padConnect: null, padDisconnect: null };
+export const tvHooks = { padUse: null, padConnect: null, padDisconnect: null, back: null }; // back(): the pad's B; true if a TV card took it
 
 const listeners = new Set();
 
@@ -36,9 +36,9 @@ export function onTv(fn) {
 
 /** Back to the start (tests). */
 export function resetTv() {
-  Object.assign(tvState, { on: false, input: 'keys', text: null, html: null, padLine: null });
+  Object.assign(tvState, { on: false, pending: false, input: 'keys', text: null, html: null, padLine: null });
   listeners.clear();
-  Object.assign(tvHooks, { padUse: null, padConnect: null, padDisconnect: null });
+  Object.assign(tvHooks, { padUse: null, padConnect: null, padDisconnect: null, back: null });
 }
 
 /** ?tv=1 turns TV mode on for this page load only, ?tv=0 off; never saved (like ?perf). */
@@ -59,29 +59,31 @@ export function createTvLoader({ load, ctx, settings, onFail }) {
   let pending = null;
   let want = false;
   return {
-    apply(on) {
+    // forced: this load's ?tv= said so; a failure then must not touch the saved choice.
+    apply(on, forced = false) {
       want = !!on;
       if (!want) {
         if (handle) { try { handle.stop(); } catch { /* leaving anyway */ } }
         handle = null;
-        setTv({ on: false });
+        setTv({ on: false, pending: false });
         return Promise.resolve(false);
       }
       if (handle) return Promise.resolve(true);
       if (pending) return pending;
+      setTv({ pending: true });
       pending = (async () => (await load()).start(ctx()))()
         .then((h) => {
           pending = null;
-          if (!want) { try { h?.stop?.(); } catch { /* gone */ } return false; }
+          if (!want) { try { h?.stop?.(); } catch { /* gone */ } setTv({ pending: false }); return false; }
           handle = h ?? { stop() {} };
-          setTv({ on: true });
+          setTv({ on: true, pending: false });
           return true;
         })
         .catch((err) => {
           pending = null;
           want = false;
-          settings.set('tvMode', false);
-          setTv({ on: false });
+          if (!forced) settings.set('tvMode', false);
+          setTv({ on: false, pending: false });
           onFail?.(err);
           return false;
         });

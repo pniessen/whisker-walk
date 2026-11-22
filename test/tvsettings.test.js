@@ -99,6 +99,34 @@ describe('the TV chunk loader', () => {
   });
 });
 
+describe('a forced load and the switch', () => {
+  it('a failed ?tv=1 load does not wipe the saved choice', async () => {
+    const settings = createSettings(memStorage());
+    settings.set('tvMode', true);
+    const loader = createTvLoader({ load: async () => { throw new Error('offline'); }, ctx: () => ({}), settings, onFail() {} });
+    expect(await loader.apply(true, true)).toBe(false);
+    expect(settings.get('tvMode')).toBe(true);
+    // a failure from the switch itself does uncheck it
+    expect(await loader.apply(true, false)).toBe(false);
+    expect(settings.get('tvMode')).toBe(false);
+  });
+
+  it('the switch shows what is in force: pending counts as on, ?tv=0 with a saved on shows off', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../src/ui/homebase.js', import.meta.url), 'utf8');
+    expect(src).toMatch(/settingsSwitchHtml\('set-tv-mode', !!\(tvState\.on \|\| tvState\.pending\)/);
+    let release;
+    const loader = createTvLoader({ load: () => new Promise((r) => { release = () => r({ start: async () => ({ stop() {} }) }); }), ctx: () => ({}), settings: createSettings(memStorage()) });
+    const p = loader.apply(true);
+    expect(tvState.pending).toBe(true);
+    release();
+    await p;
+    expect([tvState.on, tvState.pending]).toEqual([true, false]);
+    await loader.apply(false);
+    expect([tvState.on, tvState.pending]).toEqual([false, false]);
+  });
+});
+
 describe('the TV words that start-up carries', () => {
   it('the switch label, its note and the failure line exist', () => {
     for (const id of ['pad.settings.tv', 'pad.settings.tv-note', 'pad.settings.tv-failed']) {
@@ -117,7 +145,7 @@ describe('the Sound & controls switch', () => {
   it('homebase draws set-tv-mode with its words, and wires it to onTvChange (source check)', async () => {
     const { readFileSync } = await import('node:fs');
     const src = readFileSync(new URL('../src/ui/homebase.js', import.meta.url), 'utf8');
-    expect(src).toMatch(/settingsSwitchHtml\('set-tv-mode', !!s\.tvMode, tutorialLine\('pad\.settings\.tv'\)\)/);
+    expect(src).toMatch(/settingsSwitchHtml\('set-tv-mode', !!\(tvState\.on \|\| tvState\.pending\), tutorialLine\('pad\.settings\.tv'\)\)/);
     expect(src).toMatch(/e\.target\.id === 'set-tv-mode'[\s\S]{0,200}onTvChange\?\.\(/);
     const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
     expect(main).toMatch(/onTvChange: \(on\) => tvLoader\.apply\(on\)/);

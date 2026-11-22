@@ -25,6 +25,16 @@ describe('padKind', () => {
   });
 });
 
+describe('a Nintendo pad (letters swapped)', () => {
+  it('is its own kind, and each token shows the letter at its own position', () => {
+    expect(padKind({ id: 'Pro Controller (STANDARD GAMEPAD Vendor: 057e Product: 2009)', vendor: '057e' })).toBe('nin');
+    expect(padKind({ id: '057e-2009-Pro Controller' })).toBe('nin');
+    expect(plainify('⟦jump⟧ ⟦meow⟧ ⟦interact⟧ ⟦photo⟧', 'nin')).toBe('B A Y X');
+    expect(glyphify('⟦jump⟧', 'nin')).toContain('>B<');
+    expect(Object.keys(TOKEN_GLYPH.nin).sort()).toEqual([...TOKENS].sort());
+  });
+});
+
 describe('the pictures', () => {
   it('every token has a picture on both kinds of pad', () => {
     for (const kind of ['ps', 'xbox']) {

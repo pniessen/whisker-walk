@@ -25,6 +25,18 @@ for (const mode of ['production', IOS_MODE]) {
       for (const marker of ['Bigger words, made for the sofa.', 'Keep exploring \u27e6confirm\u27e7', 'var(--ps-cross', 'html.tv']) {
         expect(start, marker).not.toContain(marker);
       }
+      // and no TV style in the start-up stylesheets (CSS assets have .source, not .code)
+      const startFiles = new Set(startupFiles(b.manifest));
+      const startCss = Object.values(b.manifest).filter((c) => startFiles.has(c.file)).flatMap((c) => c.css ?? []);
+      expect(startCss.length).toBeGreaterThan(0);
+      const css = (f) => String(b.files.get(f).source ?? '');
+      for (const f of startCss) {
+        expect(css(f), f).not.toContain('html.tv');
+        expect(css(f), f).not.toContain('--tv-s');
+      }
+      const tvCss = b.manifest['src/tv/index.js'].css ?? [];
+      expect(tvCss.length).toBeGreaterThan(0);
+      expect(tvCss.map(css).join('')).toContain('html.tv');
       expect(tv).toContain('Bigger words, made for the sofa.');
       expect(tv).toContain('var(--ps-cross');
     }, 300_000);

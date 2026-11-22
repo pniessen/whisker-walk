@@ -5,9 +5,9 @@
 
 html.tv {
   font-size: calc(24px * var(--tv-s, 1));
-  --map-size: calc(220px * var(--tv-s, 1));
+  --map-size: min(calc(220px * var(--tv-s, 1)), 36vw);
 }
-html.tv body.touch-mode { --map-size: calc(220px * var(--tv-s, 1)); }
+html.tv body.touch-mode { --map-size: min(calc(220px * var(--tv-s, 1)), 36vw); }
 
 /* Safe margins: nothing a child reads sits in the outer 5 % of the screen,
    where a TV may crop. The HUD's own insets measure from this box. */
@@ -16,8 +16,8 @@ html.tv #homebase, html.tv #overlay > * { box-sizing: border-box; padding: var(-
 html.tv .homebase-scroll { max-width: calc(1500px * var(--tv-s, 1)); }
 html.tv .dr { max-width: min(100%, calc(1700px * var(--tv-s, 1))); }
 
-/* No touch controls and no stray pointer on a TV. */
-html.tv .touch-ui, html.tv [class^="tui-"], html.tv [class*=" tui-"] { display: none !important; }
+/* No touch controls while the pad is the input (a touch brings them back), and no stray pointer on a TV. */
+html.tv body[data-input="pad"] .touch-ui, html.tv body[data-input="pad"] [class^="tui-"], html.tv body[data-input="pad"] [class*=" tui-"] { display: none !important; }
 html.tv body.tv-idle, html.tv body.tv-idle * { cursor: none !important; }
 
 /* The focus ring is readable from the sofa. */

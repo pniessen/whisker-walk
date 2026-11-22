@@ -111,8 +111,10 @@ describe('the TV stylesheet', () => {
 
   it('hides the touch controls and the idle cursor, and shows the corner map bigger', () => {
     const t = strip(TV);
-    expect(t).toMatch(/\.touch-ui[^{]*\{[^}]*display:\s*none/);
+    expect(t).toMatch(/body\[data-input="pad"\] \.touch-ui[^{]*\{[^}]*display:\s*none/);
+    // never unconditional: touch input shows the touch controls again
+    expect(t).not.toMatch(/html\.tv \.touch-ui|html\.tv \[class/);
     expect(t).toMatch(/tv-idle[^{]*\{[^}]*cursor:\s*none/);
-    expect(evalSize(/--map-size:\s*([^;]+);/.exec(t)[1], 1)).toBe(220);
+    expect(/--map-size:\s*min\(calc\(220px \* var\(--tv-s, 1\)\), 36vw\)/.test(t)).toBe(true); // 220 px, but never over a third of a narrow window
   });
 });

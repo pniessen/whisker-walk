@@ -7,6 +7,7 @@
 // The card's maker comes in with the context (ctx.createConfirmCard): importing
 // it here would pull its imports into a shared chunk and fatten start-up.
 import { padLine } from './padwords.js';
+import { tvHooks } from '../tvseam.js';
 
 const WATCH_MS = 500;
 
@@ -14,7 +15,7 @@ const WATCH_MS = 500;
 export function offer(ctx) {
   const { doc, win, settings, createConfirmCard } = ctx;
   let timer = null;
-  const stop = () => { if (timer != null) { win.clearInterval(timer); timer = null; } };
+  const stop = () => { if (timer != null) { win.clearInterval(timer); timer = null; } tvHooks.back = null; };
   const card = createConfirmCard({
     doc,
     mount: (el) => {
@@ -34,6 +35,8 @@ export function offer(ctx) {
     no: padLine('pad.offer.no'),
     onYes: () => { settings.set('tvMode', true); ctx.enable(); },
   });
+  // The pad's B (main.js padBack) answers it "Not now", like the card's own button.
+  if (up) tvHooks.back = () => (card.isOpen() ? (card.cancel(), true) : false);
   if (up) timer = win.setInterval(() => { if (!ctx.homeClear()) { stop(); card.close(); } }, WATCH_MS);
   return { card, up };
 }

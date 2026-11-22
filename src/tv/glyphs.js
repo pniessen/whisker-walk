@@ -47,7 +47,15 @@ export const GLYPHS = Object.freeze({
 
 // token id -> the picture on each kind of pad. This is the walk's own button map
 // (gamepadinput.js) and the menus' (A = press, B = back).
+const XBOX_TOKENS = Object.freeze({
+    confirm: 'a', jump: 'a', back: 'b', meow: 'b', interact: 'x', photo: 'y',
+    zoomOut: 'lb', zoomIn: 'rb', pause: 'menu', move: 'lstick', look: 'rstick', dpad: 'dpad',
+  });
 export const TOKEN_GLYPH = Object.freeze({
+  // A Nintendo pad (vendor 057e) is laid out like an Xbox one but labelled the other way round:
+  // the bottom button is B, the right one A, the left Y, the top X. Xbox pictures, each token
+  // showing the letter at its own position.
+  nin: Object.freeze({ ...XBOX_TOKENS, confirm: 'b', jump: 'b', back: 'a', meow: 'a', interact: 'y', photo: 'x' }),
   ps: Object.freeze({
     confirm: 'cross', jump: 'cross', back: 'circle', meow: 'circle', interact: 'square', photo: 'triangle',
     zoomOut: 'l1', zoomIn: 'r1', pause: 'options', move: 'lstick', look: 'rstick', dpad: 'dpad',
@@ -62,22 +70,24 @@ export const TOKENS = Object.freeze(Object.keys(TOKEN_GLYPH.ps));
 
 // Plain symbols for text that cannot hold a picture (a toast, a button label).
 const PLAIN = Object.freeze({
+  nin: { a: 'A', b: 'B', x: 'X', y: 'Y', lb: 'L', rb: 'R', menu: '+', view: '−', dpad: '✚', lstick: 'L', rstick: 'R' },
   ps: { cross: '✕', circle: '○', square: '□', triangle: '△', l1: 'L1', r1: 'R1', options: '☰', create: '▭', dpad: '✚', lstick: 'L', rstick: 'R' },
   xbox: { a: 'A', b: 'B', x: 'X', y: 'Y', lb: 'LB', rb: 'RB', menu: '☰', view: '▭', dpad: '✚', lstick: 'L', rstick: 'R' },
 });
 
-/** 'ps' for a Sony pad (vendor 054c, or a DualSense / DualShock / "Wireless Controller" id); 'xbox' for any other pad. No pad: 'ps'. */
+/** 'nin' for a Nintendo pad (letters swapped), 'ps' for a Sony pad (vendor 054c, or a DualSense / DualShock / "Wireless Controller" id); 'xbox' for any other pad. No pad: 'ps'. */
 export function padKind(info) {
   if (!info) return 'ps';
   const id = typeof info === 'string' ? info : String(info.id ?? '');
   const vendor = typeof info === 'string' ? '' : String(info.vendor ?? '');
+  if (/^057e$/i.test(vendor) || /\b057e\b|pro controller|nintendo/i.test(id)) return 'nin';
   if (/^045e$/i.test(vendor) || /\bxbox\b|\b045e\b/i.test(id)) return 'xbox';
   if (/^0?54c$/i.test(vendor) || /\b054c\b|dualsense|dualshock|wireless controller|playstation/i.test(id)) return 'ps';
   return 'xbox';
 }
 
 const TOKEN_RE = /⟦(\w+)⟧/g;
-const kindOf = (kind) => (kind === 'xbox' ? 'xbox' : 'ps');
+const kindOf = (kind) => (kind === 'xbox' || kind === 'nin' ? kind : 'ps');
 
 /** Text with ⟦tokens⟧ -> HTML: each token a picture, everything else escaped. An unknown token shows its plain name. */
 export function glyphify(text, kind = 'ps') {
@@ -88,7 +98,7 @@ export function glyphify(text, kind = 'ps') {
   for (const m of s.matchAll(TOKEN_RE)) {
     out += escapeHtml(s.slice(last, m.index));
     const g = TOKEN_GLYPH[k][m[1]];
-    out += g ? GLYPHS[k][g] : escapeHtml(m[1]);
+    out += g ? (GLYPHS[k] ?? GLYPHS.xbox)[g] : escapeHtml(m[1]);
     last = m.index + m[0].length;
   }
   return out + escapeHtml(s.slice(last));

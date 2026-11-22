@@ -356,7 +356,7 @@ function init() {
     },
   });
   // ?tv=1 / ?tv=0 force it for this page load only, never saved (like ?perf).
-  tvLoader.apply(tvWanted(location.search, settings.get('tvMode')));
+  tvLoader.apply(tvWanted(location.search, settings.get('tvMode')), /[?&]tv=[01]\b/.test(location.search));
   // The pause card's Sound and Music switches (walk.js pauseCardFor) change
   // the same settings as the Sound & controls sheet: Sound is "Mute all
   // sound" turned round, Music is the music volume at 0 or not. Music back on
@@ -932,6 +932,7 @@ function init() {
   });
   // The pad's B in a menu: the same one level up as the browser's Back.
   function padBack() {
+    if (tvHooks.back?.()) return; // a TV card (the offer) is the top layer
     if (!homebase.back()) walkBack();
     backStack?.sync?.();
   }

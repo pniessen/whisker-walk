@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { bigScreenFullscreen, watchForTv, setTv, resetTv } from '../src/tvseam.js';
+import { bigScreenFullscreen, watchForTv, setTv, resetTv, tvHooks } from '../src/tvseam.js';
+import { createGamepad } from '../src/gamepad.js';
 import { offer } from '../src/tv/offer.js';
 import { createSettings } from '../src/settings.js';
 import { CONFIRM_DELAY_MS } from '../src/ui/colonypanel.js';
@@ -166,6 +167,32 @@ describe('the offer card', () => {
     const { card } = offer(e.ctx);
     card.cancel();
     expect(e.settings.get('tvOfferDeclined')).toBe(true);
+  });
+
+  it('the pad\'s B, through the gamepad and main.js\'s padBack, answers "Not now" and it is remembered', () => {
+    const e = fakeEnv();
+    const { card } = offer(e.ctx);
+    // main.js's padBack, as written there: the TV card first, then the home base's own layers
+    const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+    expect(main).toMatch(/function padBack\(\) \{\s*if \(tvHooks\.back\?\.\(\)\) return;/);
+    const homeBack = vi.fn(() => false);
+    const padBack = () => { if (tvHooks.back?.()) return; homeBack(); };
+    let held = false;
+    const padObj = () => ({ index: 0, connected: true, mapping: 'standard', id: 'x', axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: held && i === 1, value: held && i === 1 ? 1 : 0 })) });
+    const g = createGamepad({
+      win: { addEventListener() {}, removeEventListener() {} }, nav: { getGamepads: () => [padObj()] }, doc: null,
+      menuNav: { enter() {}, step() {}, alt() {}, press() {}, scroll() {}, settle() {} }, getEngaged: () => false, padBack,
+    });
+    g.poll(0.016); // menu mode
+    held = true;
+    g.poll(0.016); // B pressed
+    expect(card.isOpen()).toBe(false);
+    expect(e.settings.get('tvOfferDeclined')).toBe(true);
+    expect(homeBack).not.toHaveBeenCalled();
+    expect(tvHooks.back).toBeNull();
+    // with no offer up, B falls through to the home base
+    held = false; g.poll(0.016); held = true; g.poll(0.016);
+    expect(homeBack).toHaveBeenCalledTimes(1);
   });
 
   it('it is not put up over a walk or another card', () => {

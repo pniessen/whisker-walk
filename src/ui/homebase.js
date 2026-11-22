@@ -44,6 +44,7 @@ import { createConfirmCard, spendAsk } from './confirmcard.js';
 import { moveById } from '../fightmoves.js';
 import { note } from '../diagnostics.js';
 import { line as tutorialLine } from '../tutorialwords.js';
+import { tvState } from '../tvseam.js';
 import { hintMax } from '../hints.js';
 import { nextThing, nextThingHtml, NEXT_ATTR } from './nextthing.js';
 import { createHomeParty, birthdayPartyOn, partyBannerText, partyCatName, presentDue } from './party.js';
@@ -644,7 +645,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           </label>
           ${settingsSwitchHtml('set-reduced-motion', !!s.reducedMotion, 'Reduced motion')}
           ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
-          ${settingsSwitchHtml('set-tv-mode', !!s.tvMode, tutorialLine('pad.settings.tv'))}
+          ${settingsSwitchHtml('set-tv-mode', !!(tvState.on || tvState.pending), tutorialLine('pad.settings.tv'))}
           <p class="settings-note" id="set-tv-note">${escapeHtml(tutorialLine('pad.settings.tv-note', { touch: !!getIsTouch() }))}</p>
         </div>
       </section>`;
