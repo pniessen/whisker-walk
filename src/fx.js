@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { tvState } from './tvseam.js';
 
 // Apple's 🐾 is near-black, so in a floater it vanished against the ground.
 // The canvas can't use the CSS paw mask, so the same five pads (the shapes in
@@ -71,6 +72,7 @@ function defaultMakeText(text) {
 // keep this much air between them (the text reads ~0.25 m tall).
 const POPUP_RISE_FROM = 1.03;
 const POPUP_GAP = 0.32;
+const TV_POPUP_ORDER = 11; // over the name tags (10)
 const POPUP_NEAR = 1.5; // m: only floaters this close (across the ground) stack
 
 // Reused across burst spawns to avoid per-call allocation of the velocity scratch vector.
@@ -217,6 +219,8 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
       effect = { obj, life: 0, ttl: 1.1, kind: 'popup', key, total: value, baseX: obj.scale.x, baseY: obj.scale.y };
       effects.push(effect);
     }
+    // On a TV the score is drawn over every name tag (renderOrder 10), so a tag it lands on never hides its digits.
+    if (tvState.on) effect.obj.renderOrder = TV_POPUP_ORDER;
     effect.obj.position.copy(position).add(_tmpVec.set(0, POPUP_RISE_FROM, 0));
     if (lastCamera) clampPopup(effect, lastCamera);
     // push the floaters above it up, lowest first, so each clears the last
