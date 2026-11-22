@@ -345,7 +345,7 @@ function valance(sx, z, yTop, h, n = 8) {
 // rows of vertices (top, the trim band's top, the hem) so the atlas cell's stripes run down it
 // and its accent band follows the scallops. UVs 0..1 (the cell squeezes them: valancePixel).
 function scallopValance(sx, z, yTop, h, n = 8) {
-  const SEG = 5;
+  const SEG = 2;
   const cols = n * SEG;
   const depth = 0.09;
   const bandH = 0.1;
@@ -709,7 +709,8 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
   const toWorld = stallMatrix(s);
   // small shapes for the beauty pass (the four new stalls): paint-coloured, in the stall's own kit
   const sz0 = -D / 2 + 0.15; // the back shelf's z
-  const bulb = (x, y, z, sx, sy, sz, color, extra = {}) => wood(PARTS.bulb, mat4(x, y, z, { sx, sy, sz, ...extra }), color);
+  // (a bulb is the kit's twenty-sided ball, 20 triangles, not the sphere's 80: the budget's)
+  const bulb = (x, y, z, sx, sy, sz, color, extra = {}) => wood(PARTS.dome, mat4(x, y, z, { sx, sy, sz, ...extra }), color);
   // (a drum is a six-sided post unless `round`: 24 triangles, not the barrel's 48; the budget's)
   const drum = (x, y, z, sx, sy, sz, color, extra = {}, round = false) => wood(round ? barrel : PARTS.post, mat4(x, y, z, { sx, sy, sz, ...extra }), color);
   const dome = (x, y, z, sx, sy, sz, color) => wood(PARTS.dome, mat4(x, y, z, { sx, sy, sz }), color);
@@ -751,10 +752,6 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
     const sign = new THREE.BoxGeometry(SIGN.size, SIGN.size, SIGN.thick);
     atlas(sign, mat4(0, awn.yAt(0, sz) + SIGN.lift, sz), look.sign);
     sign.dispose();
-    if (look.valance != null) { // a little wooden cap on the sign, like a lych-gate roof
-      wood(PARTS.crate, mat4(0, awn.yAt(0, sz) + SIGN.lift + SIGN.size / 2, sz, { sx: SIGN.size + 0.16, sy: 0.05, sz: 0.16 }), WOOD_DARK);
-      wood(PARTS.crate, mat4(0, awn.yAt(0, sz) + SIGN.lift + SIGN.size / 2 + 0.05, sz, { sx: SIGN.size + 0.08, sy: 0.04, sz: 0.1 }), WOOD);
-    }
   }
   // the lanterns: a string along the awning's front edge (the treat stalls)
   if (TREAT_STALLS.includes(s.id)) {
@@ -835,103 +832,72 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
     atlas(quad, mat4(-0.55, top + 0.052, cz, { pitch: -Math.PI / 2 }).multiply(mat4(0, 0, 0, { sx: 0.56, sy: cd - 0.2 })), 26);
     bulb(0.02, top + 0.14, cz, 0.26, 0.28, 0.22, 0xb8793c); // the teddy: body, head, ears, snout, a bow
     bulb(0.02, top + 0.35, cz + 0.02, 0.2, 0.19, 0.18, 0xc8894a);
-    for (const e of [-1, 1]) bulb(0.02 + e * 0.085, top + 0.46, cz + 0.02, 0.085, 0.085, 0.07, 0xb8793c);
     bulb(0.02, top + 0.33, cz + 0.12, 0.09, 0.07, 0.07, 0xf0dcb4);
     bulb(0.02, top + 0.255, cz + 0.1, 0.12, 0.05, 0.05, 0xd8433c);
     for (const [bx, by, bc, byaw] of [[0.5, 0, 0xd8433c, 0.2], [0.76, 0, 0x4a86b8, -0.15], [0.63, 0.19, 0xf2c94c, 0.1]]) box(bx, top + by, cz, 0.22, 0.19, 0.22, bc, { yaw: byaw });
     [[0.95, 0xc04a8a], [1.12, 0x4c9a52], [1.0, 0xf2c94c]].forEach(([bx, bc], i) => bulb(bx, top + 0.09 + (i === 2 ? 0.17 : 0), cz + (i === 2 ? 0 : (i ? -0.1 : 0.1)), 0.18, 0.18, 0.18, bc));
     slate(0.82, top, D / 2 - 0.12);
     glow(-W / 2 + 0.14, top, cz + 0.12);
-    glow(W / 2 - 0.1, top, cz - 0.1);
     // up on the shelf: a toy drum, a duck, a small bear
     drum(-0.7, 0.99, sz0, 0.26, 0.2, 0.26, 0xd8433c);
     drum(-0.7, 1.19, sz0, 0.28, 0.025, 0.28, 0xf3ead2);
-    bulb(0.7, 1.09, sz0, 0.2, 0.18, 0.16, 0xf2c94c);
-    bulb(0.77, 1.21, sz0 + 0.02, 0.12, 0.12, 0.11, 0xf2c94c);
-    bulb(0.84, 1.2, sz0 + 0.04, 0.06, 0.03, 0.04, 0xe0813a);
   } else if (look.goods === 'plants') {
     // pots of four sorts (leafy, flowering, a cactus, a tall one), a tray of seedlings
-    const pot = (x, h) => { drum(x, top, cz, 0.24, h, 0.24, 0xb5622f, {}, true); drum(x, top + h - 0.04, cz, 0.29, 0.05, 0.29, 0xc9733a, {}, true); };
+    const pot = (x, h) => { drum(x, top, cz, 0.24, h, 0.24, 0xb5622f, {}); drum(x, top + h - 0.04, cz, 0.29, 0.05, 0.29, 0xc9733a, {}); };
     pot(-1.0, 0.2);
     dome(-1.0, top + 0.34, cz, 0.3, 0.26, 0.3, 0x2f6a30);
     dome(-0.94, top + 0.42, cz + 0.02, 0.22, 0.2, 0.22, 0x3f8f4a);
     pot(-0.55, 0.18);
     dome(-0.55, top + 0.3, cz, 0.3, 0.2, 0.3, 0x3f8f4a);
-    for (const [fx, fz, fc] of [[-0.62, 0.05, 0xe85a8c], [-0.5, -0.04, 0xf5d142], [-0.55, 0.08, 0xe85a8c]]) bulb(-0.55 + fx + 0.55, top + 0.43, cz + fz, 0.09, 0.09, 0.09, fc);
     box(0.15, top, cz, 0.62, 0.05, cd - 0.15, WOOD_DARK);
     atlas(quad, mat4(0.15, top + 0.052, cz, { pitch: -Math.PI / 2 }).multiply(mat4(0, 0, 0, { sx: 0.58, sy: cd - 0.2 })), 28);
     pot(0.75, 0.16);
     drum(0.75, top + 0.16, cz, 0.15, 0.3, 0.15, 0x5a9a4a); // the cactus
-    for (const e of [-1, 1]) bulb(0.75 + e * 0.11, top + 0.34, cz, 0.08, 0.17, 0.08, 0x5a9a4a);
-    bulb(0.75, top + 0.5, cz, 0.07, 0.05, 0.07, 0xe85a8c);
     pot(1.05, 0.22);
-    for (const [dy, r] of [[0.32, 0.26], [0.5, 0.2], [0.65, 0.14]]) dome(1.05, top + dy, cz, r, r * 0.9, r, 0x2f6a30);
+    for (const [dy, r] of [[0.32, 0.26], [0.5, 0.2]]) dome(1.05, top + dy, cz, r, r * 0.9, r, 0x2f6a30);
     slate(-0.2, top, D / 2 - 0.12);
-    glow(-W / 2 + 0.12, top, cz - 0.1);
-    for (const hx of [-1, 1]) { // hanging baskets from the front corners' awning
+    for (const hx of [-1, 1]) { // a hanging basket at each front corner, on two cords
       const x = hx * (W / 2 - 0.25);
-      wood(PARTS.bulb, mat4(x, 1.75, D / 2 - 0.1, { sx: 0.3, sy: 0.18, sz: 0.3 }), WICKER);
-      dome(x, 1.9, D / 2 - 0.1, 0.34, 0.24, 0.34, 0x3f8f4a);
-      dome(x + hx * 0.12, 1.66, D / 2 - 0.05, 0.14, 0.14, 0.14, 0x2f6a30);
-      dome(x - hx * 0.1, 1.6, D / 2 - 0.12, 0.12, 0.12, 0.12, 0x3f8f4a);
-      bulb(x, 2.02, D / 2 - 0.1, 0.1, 0.1, 0.1, 0xe85a8c);
-      for (const dx of [-0.12, 0.12]) box(x + dx, 1.8, D / 2 - 0.1, 0.012, 0.42, 0.012, IRON); // two cords up to the awning's rail
-    }
-    for (const sx of [-1, 1]) { // a row of small pots on the shelf
-      for (let k = 0; k < 2; k++) { const x = sx * (0.35 + k * 0.45); drum(x, 0.99, sz0, 0.16, 0.12, 0.16, 0xb5622f); dome(x, 1.16, sz0, 0.2, 0.18, 0.2, k ? 0x3f8f4a : 0x2f6a30); }
+      wood(PARTS.dome, mat4(x, 1.78, D / 2 - 0.1, { sx: 0.3, sy: 0.16, sz: 0.3 }), WICKER);
+      dome(x, 1.92, D / 2 - 0.1, 0.34, 0.22, 0.34, 0x3f8f4a);
+      box(x, 1.9, D / 2 - 0.1, 0.012, 0.45, 0.012, IRON);
     }
   } else if (look.goods === 'bric') {
-    // a teapot, a stack of plates, a lamp, books, a vase, a clock and a painting; wind chimes over it
+    // a teapot, a stack of plates, a lamp, books, a vase and a painting
     bulb(-0.85, top + 0.13, cz, 0.3, 0.26, 0.3, 0x4a7fb5); // the teapot: body, lid, knob, spout, handle
     bulb(-0.85, top + 0.28, cz, 0.16, 0.06, 0.16, 0xe9dcb9);
-    bulb(-0.85, top + 0.32, cz, 0.05, 0.05, 0.05, 0xe9dcb9);
     bulb(-0.66, top + 0.17, cz, 0.15, 0.06, 0.06, 0x4a7fb5, { roll: 0.7 });
     drum(-1.04, top + 0.06, cz, 0.1, 0.16, 0.05, 0x4a7fb5);
     bulb(-0.85, top + 0.13, cz + 0.141, 0.3, 0.03, 0.01, 0xf2efe6);
-    for (let i = 0; i < 3; i++) drum(-0.3, top + i * 0.04, cz, 0.34 - i * 0.012, 0.035, 0.34 - i * 0.012, i % 2 ? 0xf2efe6 : 0xdfe9f2, {}, true);
+    for (let i = 0; i < 3; i++) drum(-0.3, top + i * 0.04, cz, 0.34 - i * 0.012, 0.035, 0.34 - i * 0.012, i % 2 ? 0xf2efe6 : 0xdfe9f2);
     drum(-0.3, top + 0.12, cz, 0.12, 0.012, 0.12, 0xc23b34);
     drum(0.15, top, cz, 0.1, 0.36, 0.1, 0xd8b072); // the lamp: a post, a shade
     drum(0.15, top, cz, 0.2, 0.025, 0.2, 0x6e4a33);
     wood(PARTS.dome, mat4(0.15, top + 0.4, cz, { sx: 0.34, sy: 0.22, sz: 0.34 }), 0xf2c94c);
-    for (const [bx, by, bc, bw] of [[0.62, 0, 0x3f6fb5, 0.3], [0.64, 0.05, 0xc23b34, 0.27], [0.6, 0.1, 0x4c9a52, 0.28]]) box(bx, top + by, cz, bw, 0.05, 0.2, bc, { yaw: bx - 0.62 });
+    for (const [bx, by, bc, bw] of [[0.62, 0, 0x3f6fb5, 0.3], [0.64, 0.05, 0xc23b34, 0.27]]) box(bx, top + by, cz, bw, 0.05, 0.2, bc, { yaw: bx - 0.62 });
     bulb(0.95, top + 0.16, cz, 0.2, 0.24, 0.2, 0xf2efe6); // a vase with a flower
     drum(0.95, top + 0.27, cz, 0.09, 0.1, 0.09, 0xf2efe6);
-    bulb(0.95, top + 0.46, cz, 0.1, 0.1, 0.1, 0xe85a8c);
-    drum(0.95, top + 0.3, cz, 0.012, 0.15, 0.012, 0x4f8f3e);
     box(1.1, top, cz - 0.1, 0.05, 0.04, 0.05, WOOD);
     // the painting, leaning on the shelf; a price slate; a lantern at each end
     box(-0.15, top + 0.5, sz0 + 0.2, 0.46, 0.46, 0.04, 0xc9a040, { pitch: -0.2 });
     atlas(quad, mat4(-0.15, top + 0.5, sz0 + 0.2, { pitch: -0.2 }).multiply(mat4(0, 0.23, 0.025, { sx: 0.4, sy: 0.4 })), 29);
     slate(0.4, top, D / 2 - 0.12);
     glow(-W / 2 + 0.12, top, cz + 0.12);
-    glow(W / 2 - 0.1, top, cz - 0.1);
-    for (const [x, y, c] of [[0.5, 1.15, 0x3f6fb5], [0.62, 1.15, 0xc23b34], [0.74, 1.15, 0x4c9a52], [-0.62, 1.15, 0xe9dcb9]]) box(x, y - 0.06, sz0, 0.1, 0.28, 0.2, c); // books on the shelf
-    for (let k = 0; k < 4; k++) { // wind chimes from the awning's front: tubes of four lengths on a ring
-      const x = -W / 2 + 0.6 + k * 0.28;
-      const z = D / 2 - 0.15;
-      const yt = awn.yAt(x, z) - 0.05;
-      const len = 0.28 + (k % 2) * 0.1 + (k === 2 ? 0.06 : 0);
-      wood(PARTS.post, mat4(x, yt - len, z, { sx: 0.035, sy: len, sz: 0.035 }), 0xc9d1d6);
-    }
+    for (const [x, y, c] of [[0.5, 1.15, 0x3f6fb5], [0.62, 1.15, 0xc23b34]]) box(x, y - 0.06, sz0, 0.1, 0.28, 0.2, c); // books on the shelf
   } else if (look.goods === 'meat') {
     box(0, top, cz, W - 0.2, 0.05, cd - 0.1, 0xf6efe4);
     // a ham on the bone, a pile of sausages, a pie, a tray of chops
     bulb(-1.0, top + 0.17, cz, 0.38, 0.24, 0.26, 0xe0877d);
-    bulb(-1.0, top + 0.21, cz + 0.07, 0.24, 0.12, 0.14, 0xf0b4ac);
     drum(-1.22, top + 0.16, cz, 0.05, 0.08, 0.05, 0xf3ead2);
-    for (const [dx, dy, dz, c] of [[-0.12, 0.05, -0.08, 0xc0614a], [0.12, 0.05, -0.04, 0xa83a34], [0, 0.05, 0.1, 0xc0614a], [0, 0.13, 0, 0xd96a5a], [-0.1, 0.05, 0.1, 0xa83a34]]) bulb(-0.5 + dx, top + dy, cz + dz, 0.32, 0.1, 0.1, c, { yaw: dz * 1.5 });
-    drum(0.05, top, cz, 0.34, 0.1, 0.34, 0xc8873c, {}, true); // the pie
+    for (const [dx, dy, dz, c] of [[-0.12, 0.05, -0.08, 0xc0614a], [0.12, 0.05, -0.04, 0xa83a34], [0, 0.05, 0.1, 0xc0614a], [0, 0.13, 0, 0xd96a5a], [-0.1, 0.05, 0.1, 0xa83a34]]) drum(-0.5 + dx - 0.16, top + dy - 0.05 + 0.0, cz + dz, 0.1, 0.32, 0.1, c, { roll: -Math.PI / 2, yaw: dz * 1.5 });
+    drum(0.05, top, cz, 0.34, 0.1, 0.34, 0xc8873c); // the pie
     wood(PARTS.dome, mat4(0.05, top + 0.09, cz, { sx: 0.32, sy: 0.12, sz: 0.32 }), 0xd9a050);
-    for (const dx of [-0.06, 0.06]) box(0.05 + dx, top + 0.15, cz, 0.025, 0.012, 0.28, 0xb5762f);
-    box(0.6, top + 0.05, cz, 0.4, 0.03, cd - 0.2, 0xe9dcb9);
-    for (const [dx, dz, c] of [[-0.09, 0.05, 0xe9a099], [0.1, -0.05, 0xe48b84]]) bulb(0.6 + dx, top + 0.1, cz + dz, 0.17, 0.07, 0.19, c, { yaw: 0.3 });
     slate(1.12, top, D / 2 - 0.12);
     glow(-W / 2 + 0.1, top, cz - 0.12);
-    glow(W / 2 - 0.12, top, cz + 0.05);
     for (let k = 0; k < 3; k++) { // three hung meat panels along the back, two pictures alternating
       atlas(quad, mat4((k - 1) * ((W - 0.6) / 3), top + 0.4, -D / 2 + 0.31).multiply(mat4(0, 0, 0, { sx: (W - 0.6) / 3 - 0.02, sy: 0.4 })), k === 1 ? 38 : 27);
     }
-    for (let k = 0; k < 5; k++) drum(-0.9 + k * 0.45, 0.99, sz0, 0.14, 0.16 + (k % 2) * 0.04, 0.14, [0xb83a34, 0xc9871a, 0x4c8a3c, 0xb83a34, 0xc9871a][k]); // jars of preserves
+    for (let k = 0; k < 3; k++) drum(-0.7 + k * 0.7, 0.99, sz0, 0.14, 0.16 + (k % 2) * 0.04, 0.14, [0xb83a34, 0xc9871a, 0x4c8a3c, 0xb83a34, 0xc9871a][k]); // jars of preserves
   } else if (look.goods === 'buckets') {
     const n = 4;
     for (let i = 0; i < n; i++) {
@@ -974,7 +940,7 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
       box(x - 0.15, y, z, 1.2, 0.05, 0.05, BRASS);
       for (const dx of [-0.7, 0.4]) box(x + dx, y + 0.04, z, 0.03, 0.12, 0.03, BRASS);
       for (const dx of [-0.6, -0.4, 0.2]) { // a hung string of two links on a hook
-        for (const [dy, c] of [[0.28, 0xc0614a], [0.08, 0xa83a34]]) wood(PARTS.bulb, mat4(x + dx, y - 0.4 + dy, z, { sx: 0.11, sy: 0.22, sz: 0.11 }), c);
+        for (const [dy, c] of [[0.28, 0xc0614a], [0.08, 0xa83a34]]) wood(PARTS.post, mat4(x + dx, y - 0.4 + dy - 0.11, z, { sx: 0.11, sy: 0.22, sz: 0.11 }), c);
         box(x + dx, y - 0.02, z, 0.015, 0.1, 0.015, BRASS);
       }
       { // a lantern on the rail's end: the warm spot over the crates
