@@ -32,12 +32,11 @@ import { litMaterial, tileMetres } from '../render/materials.js';
 import { withLocalUuids } from './localuuids.js';
 import { words } from '../wordset.js';
 import {
-  HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_BOUNDS, HOUSE_FRONT_DOOR, HOUSE_LAMPS, HOUSE_FURNITURE, LEVEL_LINKS,
-  LAWN_Y, WALL_T, fades, LEDGE_FADE_OVER, HOUSE_KITTEN_HOME, HOUSE_CELLAR_LID, houseArea, houseFloorGround, secretColliders, roomAt,
-  HOUSE_ZONES, zoneOfRoom, wingZoneAt, isWingZone, outdoorsAt, WING_JOINS, ZONE_NEAR, ZONE_LEAVE,
+  HOUSE_BOUNDS, HOUSE_FRONT_DOOR, LAWN_Y, WALL_T, fades, LEDGE_FADE_OVER, HOUSE_KITTEN_HOME, houseArea, houseFloorGround,
+  secretColliders, roomAt, zoneOfRoom, WING_JOINS, OLD_HOUSE_PLAN, planOf, withPlan, activePlan,
 } from './houseplan.js';
 import { wingFarMesh } from './housewingfar.js';
-import { houseMovesArea } from './housemoves.js';
+import { houseMovesArea, bareMovesArea } from './housemoves.js';
 import {
   HOUSE_ATLAS_CELLS as CELL, createHouseAtlas, houseMaterial, sectionMesh, paneMesh, floorMesh, stairMesh,
   skirtMesh, lampGroup, partsKit, kitBox, kitFace, kitMesh, FRONT_DOOR_W, furnitureMesh, flatsMesh, standInMesh,
@@ -89,12 +88,13 @@ const LAWN_OUT = 220; // past the dusk haze's far end, so the lawn never shows a
 const LAWN_COLOR = 0x6f9a52;
 const HEDGE_COLOR = 0x4b7536;
 
-const levelY = (id) => HOUSE_LEVELS.find((l) => l.id === id).y;
-const roomOf = (id) => HOUSE_ROOMS.find((r) => r.id === id);
+// The plan being built (houseplan.js withPlan): the Old House unless build() is handed another.
+const levelY = (id) => activePlan().levels.find((l) => l.id === id).y;
+const roomOf = (id) => activePlan().rooms.find((r) => r.id === id);
 // The zone a wall section is drawn with: the wing's rooms and its stair name theirs (houselevels.js),
 // every old section is its level's and always drawn.
 const sectionZone = (s) => {
-  if (s.owner === 'wing') return 'sun';
+  if (s.owner === 'wing' && activePlan().wing) return 'sun';
   const r = roomOf(s.owner);
   return r ? zoneOfRoom(r) : s.level;
 };
@@ -141,6 +141,8 @@ const stairRect = (s) => {
 // cover the ground rooms; the cellar and its stair are holes going down, cut to
 // their walls' outsides, where their pits' linings meet the lawn).
 function drawLawn(scene) {
+  const P = activePlan();
+  const HOUSE_BOUNDS = P.bounds;
   const tile = tileMetres('grass') || 4;
   const outer = {
     minX: HOUSE_BOUNDS.minX - LAWN_OUT, maxX: HOUSE_BOUNDS.maxX + LAWN_OUT,
@@ -149,9 +151,9 @@ function drawLawn(scene) {
   const h = WALL_T / 2;
   const sunk = (y) => y < LAWN_Y - 1e-9;
   const holes = [
-    ...HOUSE_ROOMS.map((r) => (sunk(levelY(r.level))
+    ...P.rooms.map((r) => (sunk(levelY(r.level))
       ? { minX: r.minX - h, maxX: r.maxX + h, minZ: r.minZ - h, maxZ: r.maxZ + h } : r)),
-    ...HOUSE_STAIRS.map((st) => {
+    ...P.stairs.map((st) => {
       const r = stairRect(st);
       if (!sunk(Math.min(levelY(st.from), levelY(st.to)))) return r;
       return Math.abs(st.z1 - st.z0) >= Math.abs(st.x1 - st.x0)
@@ -252,7 +254,7 @@ function drawTrees(scene, wind) {
   });
 }
 
-const START_LEVEL = 'ground';
+const DEFAULT_START = 'ground';
 
 // The house's lines for its data's `words` ids (housethings.js), in the word set of the moment.
 function houseWords() {
@@ -283,22 +285,23 @@ function houseWords() {
 // prop merge; furnish hands them back by name for house life. Task 10: it hands back
 // the fading pieces too, each group with its box, for house life's fade hold.
 function furnish(scene, material, start, traversal) {
+  const P = activePlan();
   const parts = {};
   const fading = [];
-  const full = fullLevels(start, LEVEL_LINKS);
+  const full = fullLevels(start, P.links);
   const tag = (o, level) => {
     o.userData.houseDetail = true;
     o.userData.houseLevel = level;
     o.visible = full.has(level);
   };
-  for (const room of HOUSE_ROOMS) {
+  for (const room of P.rooms) {
     const y = levelY(room.level);
     const group = new THREE.Group();
     group.name = `houseFurniture:${room.id}`;
     tag(group, zoneOfRoom(room));
     group.userData.houseRoom = room.id;
     const flats = [];
-    for (const f of HOUSE_FURNITURE.filter((q) => q.room === room.id)) {
+    for (const f of P.furniture.filter((q) => q.room === room.id)) {
       if (f.r === 0) { flats.push(f); continue; }
       const mesh = furnitureMesh(f, material);
       const moving = findParts(f, material);
@@ -338,8 +341,8 @@ function furnish(scene, material, start, traversal) {
     scene.add(noBlob(group));
   }
   // step 2: a ledge piece is drawn like any solid one, here as on its level's stand-in
-  for (const l of HOUSE_LEVELS) {
-    const solid = HOUSE_FURNITURE.filter((f) => f.level === l.id && !roomOf(f.room).zone && (f.r > 0 || f.ledge));
+  for (const l of P.levels) {
+    const solid = P.furniture.filter((f) => f.level === l.id && !roomOf(f.room).zone && (f.r > 0 || f.ledge));
     if (!solid.length) continue;
     const m = standInMesh(l.id, solid, l.y);
     m.visible = !full.has(l.id);
@@ -356,7 +359,7 @@ function furnish(scene, material, start, traversal) {
     }
   }
   // the wing's zones: one mesh a zone, dressed like its rooms (housewingfar.js), at most a few hundred triangles, no casters (houselevels.js)
-  for (const z of HOUSE_ZONES.filter((q) => q.wing)) {
+  for (const z of P.zones.filter((q) => q.wing)) {
     const m = wingFarMesh(z.id, material.map);
     m.visible = !full.has(z.id);
     scene.add(m);
@@ -367,7 +370,7 @@ function furnish(scene, material, start, traversal) {
 // Step 2: a faint pair of paw prints at every hop's take-off (housemoves.js), one mesh per
 // level, a level detail like the furniture, so the drawing shows only the levels in full.
 function drawMarks(scene, traversal, start) {
-  const full = fullLevels(start, LEVEL_LINKS);
+  const full = fullLevels(start, activePlan().links);
   const byLevel = new Map();
   for (const h of traversal.hops) {
     const level = zoneOfRoom(roomOf(roomAt(h.x0, h.z0)));
@@ -386,15 +389,16 @@ function drawMarks(scene, traversal, start) {
 // like the furniture). It reads by day too; at dusk it adds to the lamp pools.
 const GLOW = freeze({ lamp: 1.9, sconce: 1.1, fire: 1.7, warm: [1.0, 0.74, 0.42], fireWarm: [1.0, 0.5, 0.2], seg: 12 });
 function drawGlow(scene, start) {
-  const full = fullLevels(start, LEVEL_LINKS);
-  const pools = new Map(HOUSE_ZONES.map((z) => [z.id, []]));
-  for (const l of HOUSE_LAMPS) {
-    const room = HOUSE_ROOMS.find((r) => r.id === l.room);
+  const P = activePlan();
+  const full = fullLevels(start, P.links);
+  const pools = new Map(P.zones.map((z) => [z.id, []]));
+  for (const l of P.lamps) {
+    const room = P.rooms.find((r) => r.id === l.room);
     pools.get(zoneOfRoom(room)).push({ x: l.x, y: levelY(room.level) + 0.02, z: l.z, r: GLOW.lamp, k: 0.17, c: GLOW.warm, clip: lampPoolClip(room) });
   }
-  pools.get('ground').push({ x: 12.4, y: 0.02, z: 7.0, r: GLOW.fire, k: 0.26, c: GLOW.fireWarm, clip: lampPoolClip(HOUSE_ROOMS.find((r) => r.id === 'parlour')) });
-  for (const sc of houseSconceSpots()) {
-    const room = HOUSE_ROOMS.find((r) => r.level === sc.level && roomAt(sc.x + sc.nx * 0.6, sc.z + sc.nz * 0.6) === r.id);
+  if (P.dressing) pools.get('ground').push({ x: 12.4, y: 0.02, z: 7.0, r: GLOW.fire, k: 0.26, c: GLOW.fireWarm, clip: lampPoolClip(P.rooms.find((r) => r.id === 'parlour')) });
+  for (const sc of P.dressing ? houseSconceSpots() : []) {
+    const room = P.rooms.find((r) => r.level === sc.level && roomAt(sc.x + sc.nx * 0.6, sc.z + sc.nz * 0.6) === r.id);
     pools.get(zoneOfRoom(room)).push({ x: sc.x + sc.nx * 0.5, y: levelY(sc.level) + 0.02, z: sc.z + sc.nz * 0.5, r: GLOW.sconce, k: 0.14, c: GLOW.warm, clip: lampPoolClip(room) });
   }
   const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2 });
@@ -434,12 +438,33 @@ function drawGlow(scene, start) {
   }
 }
 
-export function build(scene, { wind, gateEnds = [] } = {}) {
+// What a plan with no dressing of its own has for the walk's things: none of the Old House's.
+const NO_THINGS = freeze({
+  knockables: freeze([]), hides: freeze([]), mice: freeze([]), yarnSpots: freeze([]), scenics: freeze([]), finds: freeze([]),
+  goalTypes: freeze([]), mapGround: HOUSE_MAP_GROUND, mapShapes: freeze([]), boxes: freeze([]),
+});
+
+// `plan` (default: the Old House, houseplan.js OLD_HOUSE_PLAN) is the house to build: the same walls, floors,
+// stairs, glass and level drawing, over its own rooms. A plan with `dressing` (the Old House) also gets
+// the garden, the hedge, the neighbours and the things she does there; any other plan brings its own
+// furniture, lamps and `things` (optional rows, houseplan.js) or has none.
+export function build(scene, { wind, gateEnds = [], plan: given = OLD_HOUSE_PLAN } = {}) {
+  const P = planOf(given);
+  return withPlan(P, () => buildPlan(scene, P, { wind, gateEnds }));
+}
+
+function buildPlan(scene, P, { wind, gateEnds }) {
   // gateEnds: the walk's gate ends; a house-town end makes the front door one that opens
   const openDoor = gateEnds.some((e) => e.id === 'house-town');
-  return withLocalUuids('house', () => {
+  const old = P === OLD_HOUSE_PLAN;
+  const START_LEVEL = P.start ?? DEFAULT_START;
+  const T = old ? {
+    knockables: HOUSE_KNOCKABLES, hides: HOUSE_HIDES, mice: HOUSE_MICE, yarnSpots: HOUSE_YARN_SPOTS, scenics: HOUSE_SCENICS, finds: HOUSE_FINDS,
+    goalTypes: HOUSE_GOAL_TYPES, mapGround: HOUSE_MAP_GROUND, mapShapes: houseMapShapes(), boxes: HOUSE_BOXES,
+  } : { ...NO_THINGS, ...(P.things ?? {}) };
+  return withLocalUuids(old ? 'house' : P.id, () => {
     // the plan with its moves and perches (step 2): the furniture tops she stands on are ground
-    const plan = houseMovesArea(houseArea());
+    const plan = old ? houseMovesArea(houseArea()) : bareMovesArea(houseArea(P));
     applySky(scene, HOUSE_SKY.top, HOUSE_SKY.horizon);
     const material = houseMaterial(createHouseAtlas());
 
@@ -449,7 +474,7 @@ export function build(scene, { wind, gateEnds = [] } = {}) {
     const groups = new Map();
     // one group per zone: the old levels' are always drawn; each wing zone's is a level detail
     // (houseDetail + houseLevel), drawn only while she is in the zone or near the way into it
-    for (const z of HOUSE_ZONES) {
+    for (const z of P.zones) {
       const g = new THREE.Group();
       g.name = `houseWalls:${z.id}`;
       g.userData.noMerge = true;
@@ -469,7 +494,7 @@ export function build(scene, { wind, gateEnds = [] } = {}) {
       sectionMeshes.set(s.id, m);
       if (s.window) {
         const pane = paneMesh(s, s.window);
-        if (isWingZone(zone)) pane.userData.paneZone = zone; // house life shows it with its zone and its wall
+        if (P.wing?.isWing(zone)) pane.userData.paneZone = zone; // house life shows it with its zone and its wall
         panes.set(s.id, [pane]);
       }
     }
@@ -489,14 +514,14 @@ export function build(scene, { wind, gateEnds = [] } = {}) {
       }
       return o;
     };
-    for (const r of HOUSE_ROOMS) {
+    for (const r of P.rooms) {
       scene.add(withZone(floorMesh(r, material), r));
       const skirt = skirtMesh(r, material);
       if (skirt) scene.add(withZone(skirt, r));
     }
-    for (const s of HOUSE_STAIRS) {
+    for (const s of P.stairs) {
       const m = noBlob(stairMesh(s, material));
-      if (s.id === 'wing') { // the wing stair is the east zone's detail, its far look a wedge in the zone's stand-in
+      if (s.id === 'wing' && P.wing) { // the wing stair is the east zone's detail, its far look a wedge in the zone's stand-in
         m.userData.houseDetail = true;
         m.userData.houseLevel = 'sun';
         m.visible = false;
@@ -504,8 +529,8 @@ export function build(scene, { wind, gateEnds = [] } = {}) {
       scene.add(m);
     }
 
-    HOUSE_LAMPS.forEach((l, i) => {
-      const room = HOUSE_ROOMS.find((r) => r.id === l.room);
+    P.lamps.forEach((l, i) => {
+      const room = P.rooms.find((r) => r.id === l.room);
       const g = lampGroup(l.kind, l.x, levelY(room.level), l.z, material);
       g.name = `houseLamp:${l.room}:${i}`;
       // its dusk pool stays in its room, cut at the walls' inner faces (render/dusk.js)
@@ -525,43 +550,47 @@ export function build(scene, { wind, gateEnds = [] } = {}) {
     drawMarks(scene, plan.traversal, START_LEVEL);
     drawGlow(scene, START_LEVEL);
     // the secret stair's bookcase, shut in the library's north wall (step 2, ruling D9)
-    const secretGroup = secretBookcaseGroup(material);
-    secretGroup.visible = fullLevels(START_LEVEL, LEVEL_LINKS).has(secretGroup.userData.houseLevel);
-    scene.add(secretGroup);
+    const secretGroup = P.secret ? secretBookcaseGroup(material) : null;
+    if (secretGroup) {
+      secretGroup.visible = fullLevels(START_LEVEL, P.links).has(secretGroup.userData.houseLevel);
+      scene.add(secretGroup);
+    }
 
     drawLawn(scene);
     // the cellar's turf lid: garden from outside, out of the way when she is down there (house life)
-    const lidMeshes = cellarLidMeshes(HOUSE_CELLAR_LID, material, litMaterial(LAWN_COLOR, { surface: 'grass', repeat: [1, 1] }), tileMetres('grass') || 4);
+    const lidMeshes = P.cellarLid ? cellarLidMeshes(P.cellarLid, material, litMaterial(LAWN_COLOR, { surface: 'grass', repeat: [1, 1] }), tileMetres('grass') || 4) : [];
     for (const m of lidMeshes) scene.add(m);
-    drawHedge(scene);
-    drawGarden(scene, material);
-    drawNeighbours(scene);
-    drawTrees(scene, wind);
+    if (P.dressing) {
+      drawHedge(scene);
+      drawGarden(scene, material);
+      drawNeighbours(scene);
+      drawTrees(scene, wind);
+    }
 
-    const floor = houseFloorGround();
-    const said = houseWords();
+    const floor = houseFloorGround(P);
+    const said = old ? houseWords() : {};
     const areaData = {
-      name: words().PLACE_WORDS.house,
+      name: old ? words().PLACE_WORDS.house : (P.name ?? P.id),
       ground: plan.ground,
       colliders: plan.colliders, // the walls', the furniture's, the lamps' and the shut bookcase's (houseColliders)
-      bounds: { ...HOUSE_BOUNDS },
+      bounds: { ...P.bounds },
       spawn: { ...plan.spawn },
-      kittenHome: { ...HOUSE_KITTEN_HOME }, // Mochi's circle: the hall's middle, clear of the door and the lamp
+      kittenHome: { ...(old ? HOUSE_KITTEN_HOME : P.kittenHome ?? P.spawn) }, // Mochi's circle: the hall's middle, clear of the door and the lamp
       pois: [],
       collectibles: [],
       // the grandfather clock, the fireside, the round attic window (step 2, D13)
-      scenics: HOUSE_SCENICS.map((c) => ({ id: c.id, x: c.x, z: c.z, label: c.label ?? said[c.words] })),
+      scenics: T.scenics.map((c) => ({ id: c.id, x: c.x, z: c.z, label: c.label ?? said[c.words] })),
       // mice in the pantry corner and the cellar, and nothing else: no people, no resident cat (U14, D10)
-      critterSpawns: HOUSE_MICE.map(({ room, ...m }) => m), // eslint-disable-line no-unused-vars
+      critterSpawns: T.mice.map(({ room, ...m }) => m), // eslint-disable-line no-unused-vars
       knockables: HOUSE_KNOCKABLES, // on the perches' pieces (D4)
       hides: HOUSE_HIDES, // the mice's cover, each in its mouse's room (D10)
-      yarnSpots: HOUSE_YARN_SPOTS.map((s) => ({ x: s.x, z: s.z, where: said[s.words] })), // D14
+      yarnSpots: T.yarnSpots.map((s) => ({ x: s.x, z: s.z, where: said[s.words] })), // D14
       goalTypes: HOUSE_GOAL_TYPES, // D11
       mapShapes: houseMapShapes(), // the floor plan (D12)
-      mapGround: HOUSE_MAP_GROUND,
+      mapGround: T.mapGround,
       moments: [],
       puddles: [],
-      boxes: HOUSE_BOXES, // the blanket fort and the laundry basket she can sit in (the `sits` goal)
+      boxes: T.boxes, // the blanket fort and the laundry basket she can sit in (the `sits` goal)
       perches: plan.perches.map((p) => ({ ...p })), // the knock-over pieces' tops (step 2, D4)
       tippables: [],
       groundBounce: HOUSE_GROUND_BOUNCE,
@@ -576,20 +605,21 @@ export function build(scene, { wind, gateEnds = [] } = {}) {
         levels: plan.levels,
         links: plan.links,
         // the east wing's zones (houselevels.js): her position names the wing zone she is in
-        wing: { zoneAt: wingZoneAt, isWing: isWingZone, outdoors: outdoorsAt, joins: WING_JOINS, near: ZONE_NEAR, leave: ZONE_LEAVE },
+        wing: P.wing,
         sections: plan.sections,
         start: START_LEVEL,
         sectionMeshes,
         panes,
-        lid: HOUSE_CELLAR_LID,
+        lid: P.cellarLid,
+        plan: P, // house life reads its windows, rooms, stairs and front door from it
         lidMeshes,
         // the secret bookcase and its collider rows (`secret: true`): colliders holds the shut one;
         // open into the library (from the stair) or into the stair (from the library, rough edge 3)
-        secret: { group: secretGroup, shut: secretColliders(false), open: secretColliders(true), stair: secretColliders(true, 'stair') },
+        secret: !P.secret ? null : { group: secretGroup, shut: secretColliders(false), open: secretColliders(true), stair: secretColliders(true, 'stair') },
         // the ground without the ledges: the level drawing reads the floor under her (step 2, D3)
         floor,
         // the six discoveries' spots (step 2, D6) and their moving parts: house life runs them
-        finds: HOUSE_FINDS,
+        finds: T.finds,
         parts,
         // the pieces that fade, with their boxes: house life holds each solid unless it
         // stands between the camera and her (Task 10)

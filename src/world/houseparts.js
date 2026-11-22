@@ -32,14 +32,15 @@ import { hash01 } from './builder.js';
 import { litMaterial } from '../render/materials.js';
 import { WING_BUILDERS, WING_FLAT_BUILDERS } from './housewingparts.js';
 import {
-  WALL_T, WALL_H, LAWN_Y, DOOR_H, HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_FRONT_DOOR, HOUSE_FURNITURE, HOUSE_LAMPS, SECRET_BOOKCASE,
-  houseSections, roomAt, stairAt,
+  WALL_T, WALL_H, LAWN_Y, DOOR_H, SECRET_BOOKCASE,
+  houseSections, roomAt, stairAt, activePlan,
 } from './houseplan.js';
 
 const freeze = Object.freeze;
 const EPS = 1e-9;
-const levelY = (id) => HOUSE_LEVELS.find((l) => l.id === id).y;
-const roomById = (id) => HOUSE_ROOMS.find((r) => r.id === id);
+// The plan being built (houseplan.js withPlan): the Old House unless a build says otherwise.
+const levelY = (id) => activePlan().levels.find((l) => l.id === id).y;
+const roomById = (id) => activePlan().rooms.find((r) => r.id === id);
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 // ---------------------------------------------------------------------------
@@ -695,7 +696,7 @@ function wallHoles(s, W) {
   if (w) {
     out.push({ u0: w.at - w.width / 2, u1: w.at + w.width / 2, y0: s.base + w.sill, y1: s.base + w.head, kind: w.round ? 'round' : 'window' });
   }
-  const d = HOUSE_FRONT_DOOR;
+  const d = activePlan().frontDoor;
   if (s.kind === 'wall' && W.run === 'x' && Math.abs(W.fixed - d.z) < EPS) {
     const l0 = Math.max(W.lo, d.x - FRONT_DOOR_W / 2);
     const l1 = Math.min(W.hi, d.x + FRONT_DOOR_W / 2);
@@ -783,11 +784,13 @@ export function houseSconceSpots() {
   });
 }
 
-let CLEAR = null;
+const CLEARS = new WeakMap(); // plan -> its furniture's boxes
 function clearBoxes() {
-  if (CLEAR) return CLEAR;
-  CLEAR = [];
-  for (const f of HOUSE_FURNITURE) {
+  const plan = activePlan();
+  if (CLEARS.has(plan)) return CLEARS.get(plan);
+  const CLEAR = [];
+  CLEARS.set(plan, CLEAR);
+  for (const f of activePlan().furniture) {
     if (!(f.r > 0 || f.ledge)) continue;
     const turned = Math.abs(Math.sin(f.rotY)) > 0.5;
     const hx = (turned ? f.d : f.w) / 2;
@@ -795,7 +798,7 @@ function clearBoxes() {
     const y = levelY(f.level);
     CLEAR.push({ x0: f.x - hx, x1: f.x + hx, z0: f.z - hz, z1: f.z + hz, y0: y, y1: y + f.h });
   }
-  for (const l of HOUSE_LAMPS) {
+  for (const l of activePlan().lamps) {
     const y = levelY(roomById(l.room).level);
     CLEAR.push({ x0: l.x - 0.35, x1: l.x + 0.35, z0: l.z - 0.35, z1: l.z + 0.35, y0: y, y1: y + 1.9 });
   }
@@ -1058,7 +1061,7 @@ function roundDressing(kit, W, o, sides) {
 // outer edge; the architrave and the doorstep stay in the wall.
 function frontDoor(kit, W, o, sides, meta) {
   const h = WALL_T / 2;
-  const d = HOUSE_FRONT_DOOR;
+  const d = activePlan().frontDoor;
   const { u0, u1, y0, y1 } = o;
   const meetAtLo = Math.abs(u0 - d.x) < EPS;
   const outerU = meetAtLo ? u1 : u0;
@@ -1094,7 +1097,7 @@ function frontDoor(kit, W, o, sides, meta) {
 // A stair's side wall: its top follows the flight, a full wall's height above it.
 function stairWall(kit, s, sections, deco) {
   const W = wallFrame(s);
-  const st = HOUSE_STAIRS.find((q) => q.id === s.owner);
+  const st = activePlan().stairs.find((q) => q.id === s.owner);
   const yFrom = levelY(st.from);
   const yTo = levelY(st.to);
   const sU0 = W.run === 'x' ? st.x0 : st.z0;
@@ -1160,7 +1163,7 @@ export function sectionMesh(section, material, { sections = houseSections(), ope
   mesh.position.y = section.base;
   if (meta.doorLeaf) mesh.userData.doorLeaf = meta.doorLeaf;
   if (meta.leafKit) {
-    const d = HOUSE_FRONT_DOOR;
+    const d = activePlan().frontDoor;
     const leafGeo = meta.leafKit.geometry();
     leafGeo.translate(-meta.hingeU, -section.base, -d.z);
     const pivot = new THREE.Object3D();
@@ -1240,7 +1243,7 @@ export function skirtMesh(room, material) {
   ];
   for (const [axis, at, facing, lo, hi, edge] of sides) {
     const openings = [];
-    for (const st of HOUSE_STAIRS) {
+    for (const st of activePlan().stairs) {
       if (st.from !== room.level && st.to !== room.level) continue;
       const r = stairBox(st);
       const line = room[edge];

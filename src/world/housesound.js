@@ -32,7 +32,7 @@ export function createHouseSound(audio, { clock, stairs, attic }) {
       px = x;
       pz = z;
 
-      const d = Math.hypot(x - clock.x, z - clock.z);
+      const d = clock ? Math.hypot(x - clock.x, z - clock.z) : Infinity; // a plan without a clock never ticks
       if (d < TICK_R) {
         if (tickIn <= 0) { audio.tick(0.6 * (1 - d / TICK_R)); tickIn += 1; }
         tickIn -= dt;
@@ -48,7 +48,7 @@ export function createHouseSound(audio, { clock, stairs, attic }) {
         if (stairM >= CREAK_EVERY_M) { audio.creak(0.5); stairM -= CREAK_EVERY_M; }
       } else stairM = 0;
 
-      if (x >= attic.minX && x <= attic.maxX && z >= attic.minZ && z <= attic.maxZ) {
+      if (attic && x >= attic.minX && x <= attic.maxX && z >= attic.minZ && z <= attic.maxZ) {
         if (moved / dt > WALKING) {
           atticS += dt;
           if (atticS >= ATTIC_CREAK_S) { audio.creak(0.35); atticS -= ATTIC_CREAK_S; }

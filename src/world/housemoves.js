@@ -121,3 +121,8 @@ export const HOUSE_PERCHES = deepFreeze([
 export function houseMovesArea(area = houseArea()) {
   return { ...area, traversal: createTraversal(HOUSE_MOVES, area.ground), perches: HOUSE_PERCHES };
 }
+
+// A plan with no moves of its own (houseplan.js): the traversal runtime sees no climbs, drops or perches.
+export function bareMovesArea(area) {
+  return { ...area, traversal: createTraversal({}, area.ground), perches: [] };
+}

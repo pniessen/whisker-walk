@@ -25,6 +25,8 @@ import {
 
 export { WING_JOINS, ZONE_NEAR, ZONE_LEAVE, OUT_NEAR, OUT_LEAVE };
 
+let active = null; // the plan a build is running against (withPlan, at the end of this file)
+
 export const HOUSE_ID = 'house';
 export const BASE_Y = -3;
 export const LAWN_Y = 0;
@@ -159,6 +161,16 @@ export const HOUSE_KITTEN_HOME = freeze({ x: 0, z: 7.5 });
 
 const levelY = (id) => HOUSE_LEVELS.find((l) => l.id === id).y;
 const roomById = (id) => HOUSE_ROOMS.find((r) => r.id === id);
+// The same lookups over any plan (the engine takes its plan as an argument; the Old House is the default).
+const levelYOf = (plan) => (plan === OLD_HOUSE_PLAN ? levelY : (id) => plan.levels.find((l) => l.id === id).y);
+const roomByIdOf = (plan) => (plan === OLD_HOUSE_PLAN ? roomById : (id) => plan.rooms.find((r) => r.id === id));
+const roomAtOf = (plan) => (plan === OLD_HOUSE_PLAN ? (x, z) => {
+  for (const r of HOUSE_ROOMS) if (inRect(r, x, z)) return r.id;
+  return null;
+} : (x, z) => {
+  for (const r of plan.rooms) if (inRect(r, x, z)) return r.id;
+  return null;
+});
 
 // ---- lamps ----
 
@@ -490,40 +502,46 @@ export function houseLedgeGuards(scale = 1) {
 }
 
 // `ledges: false` is the floor alone (houseFloorGround): what the level drawing reads (D3).
-function groundSpec({ ledges = true } = {}) {
+function groundSpec(plan, { ledges = true } = {}) {
+  const levelY = levelYOf(plan);
+  const roomById = roomByIdOf(plan);
   const strips = [];
-  for (const r of HOUSE_ROOMS) {
+  for (const r of plan.rooms) {
     strips.push({ x0: r.minX, z0: (r.minZ + r.maxZ) / 2, x1: r.maxX, z1: (r.minZ + r.maxZ) / 2, width: r.maxZ - r.minZ, y: levelY(r.level) });
   }
-  for (const s of HOUSE_STAIRS) {
+  for (const s of plan.stairs) {
     strips.push({ x0: s.x0, z0: s.z0, x1: s.x1, z1: s.z1, width: s.width, y0: levelY(s.from), y1: levelY(s.to) });
   }
   const outer = {
-    minX: HOUSE_BOUNDS.minX - LAWN_MARGIN, maxX: HOUSE_BOUNDS.maxX + LAWN_MARGIN,
-    minZ: HOUSE_BOUNDS.minZ - LAWN_MARGIN, maxZ: HOUSE_BOUNDS.maxZ + LAWN_MARGIN,
+    minX: plan.bounds.minX - LAWN_MARGIN, maxX: plan.bounds.maxX + LAWN_MARGIN,
+    minZ: plan.bounds.minZ - LAWN_MARGIN, maxZ: plan.bounds.maxZ + LAWN_MARGIN,
   };
-  // the lawn is cut out where the ground drops: the cellar and the stair down to it
-  const holes = [roomById('cellar'), stairRect(HOUSE_STAIRS.find((s) => s.to === 'cellar'))];
+  // the lawn is cut out where the ground drops: the sunk rooms (the Old House's cellar) and the stairs down to them
+  const sunk = (id) => levelY(id) < LAWN_Y - 1e-9;
+  const holes = [
+    ...plan.rooms.filter((r) => sunk(r.level)),
+    ...plan.stairs.filter((s) => sunk(s.from) || sunk(s.to)).map(stairRect),
+  ];
   for (const r of rectMinus(outer, holes)) {
     const z = (r.minZ + r.maxZ) / 2;
     strips.push({ x0: r.minX, z0: z, x1: r.maxX, z1: z, width: r.maxZ - r.minZ, y: LAWN_Y });
   }
-  strips.push(...wallFeet());
+  strips.push(...wallFeet(plan));
   // a flat strip over each ledge's footprint, at its top (ground.js takes the highest)
   if (ledges) {
-    for (const l of HOUSE_LEDGES) {
+    for (const l of plan.ledges ?? []) {
       const z = (l.minZ + l.maxZ) / 2;
       strips.push({ x0: l.minX, z0: z, x1: l.maxX, z1: z, width: l.maxZ - l.minZ, y: l.y });
     }
   }
   return { base: BASE_Y, strips, discs: [], ceilings: [] };
 }
-export function houseGroundSpec() {
-  return groundSpec();
+export function houseGroundSpec(plan = OLD_HOUSE_PLAN) {
+  return groundSpec(planOf(plan));
 }
 // The house's ground without the ledges: the floor under her wherever she stands (D3).
-export function houseFloorGround() {
-  return createGround(groundSpec({ ledges: false }));
+export function houseFloorGround(plan = OLD_HOUSE_PLAN) {
+  return createGround(groundSpec(planOf(plan), { ledges: false }));
 }
 
 // Under every wall of a raised room or stair, its floor's ground reaches WALL_FOOT past the
@@ -536,9 +554,10 @@ export function houseFloorGround() {
 // mouth keeps its own ramp. So ground.y reads the upper floor's height within WALL_FOOT of a
 // raised wall's low side (on the lawn beside it): harmless, as nothing walks there.
 export const WALL_FOOT = 0.3;
-function wallFeet() {
+function wallFeet(plan) {
+  const levelY = levelYOf(plan);
   const out = [];
-  for (const s of houseSections()) {
+  for (const s of houseSections(plan)) {
     if (s.kind === 'lintel') continue;
     const len = Math.hypot(s.x1 - s.x0, s.z1 - s.z0);
     const ux = (s.x1 - s.x0) / len;
@@ -551,7 +570,7 @@ function wallFeet() {
     }
     if (s.kind !== 'stair') continue; // only walls and stair sides get a foot (step 2's attic beams hang overhead)
     // a stair's side: its slope along it (no further, so the stair's own mouths keep their ramp)
-    const st = HOUSE_STAIRS.find((q) => q.id === s.owner);
+    const st = plan.stairs.find((q) => q.id === s.owner);
     const sl = Math.hypot(st.x1 - st.x0, st.z1 - st.z0);
     const at = (x, z) => ((x - st.x0) * (st.x1 - st.x0) + (z - st.z0) * (st.z1 - st.z0)) / (sl * sl);
     const ya = levelY(st.from) + (levelY(st.to) - levelY(st.from)) * at(s.x0, s.z0);
@@ -566,17 +585,17 @@ function wallFeet() {
 
 const inRect = (r, x, z) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ;
 export function roomAt(x, z) {
-  for (const r of HOUSE_ROOMS) if (inRect(r, x, z)) return r.id;
+  for (const r of (active ?? OLD_HOUSE_PLAN).rooms) if (inRect(r, x, z)) return r.id;
   return null;
 }
 // The level of the room a spot is in; a spot in no room is a mistake in the data.
 export function levelAt(x, z) {
   const id = roomAt(x, z);
   if (!id) throw new Error(`houseplan: (${x}, ${z}) is in no room`);
-  return roomById(id).level;
+  return roomByIdOf(active ?? OLD_HOUSE_PLAN)(id).level;
 }
 export function stairAt(x, z) {
-  for (const s of HOUSE_STAIRS) if (inRect(stairRect(s), x, z)) return s.id;
+  for (const s of (active ?? OLD_HOUSE_PLAN).stairs) if (inRect(stairRect(s), x, z)) return s.id;
   return null;
 }
 
@@ -712,8 +731,14 @@ function stairOpenings(room, edge, stairs) {
   return out;
 }
 
-let sectionCache = null;
-function buildSections(stairs) {
+const sectionCache = new WeakMap(); // plan -> its sections
+function buildSections(plan, stairs) {
+  const levelY = levelYOf(plan);
+  const roomById = roomByIdOf(plan);
+  const roomAt = roomAtOf(plan);
+  const HOUSE_ROOMS = plan.rooms;
+  const HOUSE_DOORWAYS = plan.doorways;
+  const HOUSE_WINDOWS = plan.windows;
   const sections = [];
   const make = (o) => freeze({ window: null, ...o });
   HOUSE_ROOMS.forEach((room, ri) => {
@@ -750,7 +775,7 @@ function buildSections(stairs) {
       // its top to the wall's, so the stair never shows through from across the library. A
       // lintel: it sinks to nothing when the camera on the stair looks back at her.
       const B = SECRET_BOOKCASE;
-      for (const [a, b] of stairOpenings(room, edge, stairs)) {
+      for (const [a, b] of plan.secret ? stairOpenings(room, edge, stairs) : []) {
         if (edge.run !== 'x' || Math.abs(edge.fixed - B.z) > 1e-9 || Math.abs(a - (B.x - B.w / 2)) > 1e-9 || Math.abs(b - (B.x + B.w / 2)) > 1e-9) continue;
         sections.push(make({ id: `${room.id}-${side}-${k++}`, kind: 'lintel', level: room.level, owner: room.id, side, ...along(edge, a, b), base: y + B.h, height: WALL_H - B.h, stub: 0, outer: false }));
       }
@@ -789,17 +814,25 @@ function buildSections(stairs) {
 
 // The house's wall sections. `stairs` is for tests only (the walls as they would
 // stand with a stair left out): any other list is built fresh, never cached.
-export function houseSections(stairs = HOUSE_STAIRS) {
-  if (stairs !== HOUSE_STAIRS) return buildSections(stairs);
-  if (!sectionCache) sectionCache = buildSections(HOUSE_STAIRS);
-  return sectionCache;
+// A plan (default: the Old House) names its own; an array is the Old House's walls with that stair list.
+export function houseSections(arg = active ?? OLD_HOUSE_PLAN) {
+  if (Array.isArray(arg) && arg !== HOUSE_STAIRS) return buildSections(OLD_HOUSE_PLAN, arg);
+  const plan = Array.isArray(arg) ? OLD_HOUSE_PLAN : planOf(arg);
+  let cached = sectionCache.get(plan);
+  if (!cached) {
+    cached = buildSections(plan, plan.stairs);
+    sectionCache.set(plan, cached);
+  }
+  return cached;
 }
 
 // ---- colliders ----
 
-export function houseColliders() {
+export function houseColliders(given = OLD_HOUSE_PLAN) {
+  const plan = planOf(given);
+  const roomById = roomByIdOf(plan);
   const out = [];
-  for (const s of houseSections()) {
+  for (const s of houseSections(plan)) {
     if (s.kind === 'lintel') continue;
     const len = Math.hypot(s.x1 - s.x0, s.z1 - s.z0);
     const n = Math.max(1, Math.ceil(len / COLLIDER_STEP - 1e-9));
@@ -808,23 +841,94 @@ export function houseColliders() {
       out.push({ x: s.x0 + (s.x1 - s.x0) * t, z: s.z0 + (s.z1 - s.z0) * t, r: COLLIDER_R, level: s.level });
     }
   }
-  for (const f of HOUSE_FURNITURE) out.push(...furnitureColliders(f));
-  for (const l of HOUSE_LAMPS) out.push({ x: l.x, z: l.z, r: LAMP_R, level: roomById(l.room).level });
-  out.push(...secretColliders(false)); // the bookcase shut (house life swaps in the open row)
+  for (const f of plan.furniture ?? []) out.push(...furnitureColliders(f));
+  for (const l of plan.lamps ?? []) out.push({ x: l.x, z: l.z, r: LAMP_R, level: roomById(l.room).level });
+  if (plan.secret) out.push(...secretColliders(false)); // the bookcase shut (house life swaps in the open row)
   return out;
 }
 
-export function houseArea() {
+export function houseArea(given = OLD_HOUSE_PLAN) {
+  const plan = planOf(given);
   return {
-    ground: createGround(houseGroundSpec()),
-    colliders: houseColliders(),
-    bounds: HOUSE_BOUNDS,
-    spawn: HOUSE_SPAWN,
-    levels: HOUSE_LEVELS,
-    links: LEVEL_LINKS,
-    rooms: HOUSE_ROOMS,
-    stairs: HOUSE_STAIRS,
-    sections: houseSections(),
-    lid: HOUSE_CELLAR_LID,
+    ground: createGround(groundSpec(plan)),
+    colliders: houseColliders(plan),
+    bounds: plan.bounds,
+    spawn: plan.spawn,
+    levels: plan.levels,
+    links: plan.links,
+    rooms: plan.rooms,
+    stairs: plan.stairs,
+    sections: houseSections(plan),
+    lid: plan.cellarLid ?? null,
   };
+}
+
+// ---- the plan, as one value ----
+
+// The engine (house.js, this file's section, collider and ground builders) takes its plan as an
+// argument. A plan is plain data: { id, levels, rooms, stairs, doorways, windows, bounds, spawn,
+// frontDoor, start } and, all optional, links, zones, furniture, lamps, ledges, secret (the
+// library's bookcase), cellarLid, wing (the east wing's zone lookups) and dressing (the Old
+// House's garden). Without the optional rows a plan has bare walls, floors and stairs. The
+// exports above stay, so no importer changes; this gathers them as the default plan.
+export const OLD_HOUSE_PLAN = freeze({
+  id: HOUSE_ID,
+  levels: HOUSE_LEVELS,
+  rooms: HOUSE_ROOMS,
+  stairs: HOUSE_STAIRS,
+  doorways: HOUSE_DOORWAYS,
+  windows: HOUSE_WINDOWS,
+  bounds: HOUSE_BOUNDS,
+  spawn: HOUSE_SPAWN,
+  frontDoor: HOUSE_FRONT_DOOR,
+  start: 'ground',
+  links: LEVEL_LINKS,
+  zones: HOUSE_ZONES,
+  furniture: HOUSE_FURNITURE,
+  lamps: HOUSE_LAMPS,
+  ledges: HOUSE_LEDGES,
+  secret: true,
+  cellarLid: HOUSE_CELLAR_LID,
+  wing: freeze({ zoneAt: wingZoneAt, isWing: isWingZone, outdoors: outdoorsAt, joins: WING_JOINS, near: ZONE_NEAR, leave: ZONE_LEAVE }),
+  dressing: true, // the Old House's own garden, hedge, neighbours and trees, its things and its life (house.js)
+});
+
+// What a plan's rows default to when it names none.
+const planned = new WeakMap();
+export function planOf(plan = OLD_HOUSE_PLAN) {
+  if (plan === OLD_HOUSE_PLAN) return plan;
+  if (planned.has(plan)) return planned.get(plan);
+  const levelIds = plan.levels.map((l) => l.id);
+  const full = freeze({
+    links: freeze(plan.stairs.map((s) => freeze([s.from, s.to]))),
+    zones: frozenAll(levelIds.map((id) => ({ id, level: id, wing: false }))),
+    spawn: freeze({ x: plan.frontDoor.arrive.x, z: plan.frontDoor.arrive.z }),
+    furniture: freeze([]),
+    lamps: freeze([]),
+    ledges: freeze([]),
+    secret: false,
+    cellarLid: null,
+    wing: null,
+    dressing: false,
+    ...plan,
+  });
+  planned.set(plan, full);
+  return full;
+}
+
+// ---- the plan being built ----
+
+// houseparts.js draws from module-level lookups (its stair walls, skirts, front door and the rest); a
+// build runs them against its plan through this. Synchronous only: house.js build() sets it for the
+// length of one build and puts the Old House back, so the walk's per-frame code (which is handed its
+// plan's rows, never reading this) and every test see the Old House as ever.
+export const activePlan = () => active ?? OLD_HOUSE_PLAN;
+export function withPlan(given, fn) {
+  const prev = active;
+  active = planOf(given);
+  try {
+    return fn(active);
+  } finally {
+    active = prev;
+  }
 }
