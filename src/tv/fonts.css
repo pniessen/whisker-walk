@@ -164,8 +164,10 @@ html.tv .join-moment .dr-home { font-size: calc(24px * var(--tv-s, 1)) !importan
 html.tv .ds-note { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .ds-body h3 { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .ds-hint { font-size: calc(24px * var(--tv-s, 1)) !important; }
-html.tv .ds-spot-name { font-size: calc(24px * var(--tv-s, 1)) !important; }
-html.tv .ds-spot select { font-size: calc(24px * var(--tv-s, 1)) !important; }
+html.tv .dp-edge { font-size: calc(24px * var(--tv-s, 1)) !important; }
+html.tv .dp-label { font-size: calc(24px * var(--tv-s, 1)) !important; }
+html.tv .dp-chip-name { font-size: calc(24px * var(--tv-s, 1)) !important; }
+html.tv .dp-chip-at { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .ds-name { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .ds-tag { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .style-b .visit-cel-btn { font-size: calc(24px * var(--tv-s, 1)) !important; }

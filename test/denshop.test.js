@@ -2,16 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { PAW } from '../src/ui/pawicon.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../src/den.js';
 import { renderDenShopHtml, SPOT_LABEL, changedSpots } from '../src/ui/denshop.js';
+import { PLAN_CELLS } from '../src/ui/denplan.js';
 
 const ITEM_IDS = Object.keys(DEN_ITEMS);
 const count = (html, re) => (html.match(re) ?? []).length;
 const st = (over = {}) => ({ points: 0, den: { owned: [], placed: {} }, ...over });
-
-// The <select> for one spot, as a string, so option checks stay per spot.
-function selectFor(html, spotId) {
-  const m = html.match(new RegExp(`<select[^>]*data-den-spot="${spotId}"[^>]*>([\\s\\S]*?)</select>`));
-  return m ? m[1] : null;
-}
 
 describe('SPOT_LABEL', () => {
   it('gives every DEN_SPOTS id a short friendly label, and nothing else', () => {
@@ -31,15 +26,19 @@ describe('SPOT_LABEL', () => {
 });
 
 describe('renderDenShopHtml', () => {
-  it('one card per DEN_ITEMS entry and one spot row per DEN_SPOTS entry', () => {
-    const html = renderDenShopHtml(st(), DEN_ITEMS, DEN_SPOTS);
-    expect(count(html, /class="ds-card[ "]/g)).toBe(ITEM_IDS.length);
-    expect(count(html, /class="ds-spot"/g)).toBe(DEN_SPOTS.length);
-    for (const id of ITEM_IDS) expect(html).toContain(DEN_ITEMS[id].name);
+  it('Shop tab: one card per DEN_ITEMS entry; My things tab: one plan button per DEN_SPOTS entry', () => {
+    const shop = renderDenShopHtml(st(), DEN_ITEMS, DEN_SPOTS, { tab: 'shop' });
+    expect(count(shop, /class="ds-card[ "]/g)).toBe(ITEM_IDS.length);
+    expect(shop).not.toContain('data-den-plan-spot');
+    for (const id of ITEM_IDS) expect(shop).toContain(DEN_ITEMS[id].name);
+    const things = renderDenShopHtml(st(), DEN_ITEMS, DEN_SPOTS, { tab: 'things' });
+    expect(count(things, /data-den-plan-spot=/g)).toBe(DEN_SPOTS.length);
+    expect(things).not.toContain('<select');
     for (const spot of DEN_SPOTS) {
-      expect(html).toContain(`data-den-spot="${spot.id}"`);
-      expect(html).toContain(SPOT_LABEL[spot.id]);
-      expect(html).not.toContain(`>${spot.id}<`);
+      expect(things).toContain(SPOT_LABEL[spot.id]);
+      expect(things).not.toContain(`>${spot.id}<`);
+      const c = PLAN_CELLS[spot.id];
+      expect(things).toContain(`grid-column:${c.col + 1};grid-row:${c.row + 1}`);
     }
   });
 
@@ -51,7 +50,7 @@ describe('renderDenShopHtml', () => {
     // enough for the cheap one, not for the dearest
     const points = DEN_ITEMS[dear].price - 1;
     expect(DEN_ITEMS[cheapId].price).toBeLessThanOrEqual(points);
-    const html = renderDenShopHtml(st({ points, den: { owned: [ownedId], placed: {} } }), DEN_ITEMS, DEN_SPOTS);
+    const html = renderDenShopHtml(st({ points, den: { owned: [ownedId], placed: {} } }), DEN_ITEMS, DEN_SPOTS, { tab: 'shop' });
     const card = (id) => html.match(new RegExp(`<div class="ds-card[^"]*" data-den-item="${id}">[\\s\\S]*?</div>\\s*</div>`))[0];
     expect(card(ownedId)).toContain('ds-card owned');
     expect(card(ownedId)).toContain('Yours');
@@ -66,28 +65,40 @@ describe('renderDenShopHtml', () => {
   it('a buy button appears exactly for each unowned item the points cover', () => {
     const points = 30;
     const owned = [ITEM_IDS[0]];
-    const html = renderDenShopHtml(st({ points, den: { owned, placed: {} } }), DEN_ITEMS, DEN_SPOTS);
+    const html = renderDenShopHtml(st({ points, den: { owned, placed: {} } }), DEN_ITEMS, DEN_SPOTS, { tab: 'shop' });
     const expected = ITEM_IDS.filter((id) => !owned.includes(id) && DEN_ITEMS[id].price <= points).length;
     expect(count(html, /data-den-buy="/g)).toBe(expected);
   });
 
-  it('each select offers empty plus every owned item, with the placed one selected', () => {
+  it('the plan shows each placed piece on its spot and "empty" on the rest; the shelf lists what she owns and where it stands', () => {
     const owned = ITEM_IDS.slice(0, 3);
     const [spotA, spotB] = DEN_SPOTS;
-    const html = renderDenShopHtml(
-      st({ den: { owned, placed: { [spotA.id]: owned[1] } } }), DEN_ITEMS, DEN_SPOTS,
-    );
-    for (const spot of DEN_SPOTS) {
-      const sel = selectFor(html, spot.id);
-      expect(sel).not.toBeNull();
-      expect(count(sel, /<option /g)).toBe(owned.length + 1);
-      expect(sel).toContain('<option value=""');
-      for (const id of owned) expect(sel).toContain(`value="${id}"`);
-    }
-    expect(selectFor(html, spotA.id)).toMatch(new RegExp(`value="${owned[1]}" selected`));
-    expect(selectFor(html, spotB.id)).toMatch(/value="" selected/);
-    // the piece standing elsewhere says where it is now, so a pick reads as a move
-    expect(selectFor(html, spotB.id)).toContain(SPOT_LABEL[spotA.id]);
+    const html = renderDenShopHtml(st({ den: { owned, placed: { [spotA.id]: owned[1] } } }), DEN_ITEMS, DEN_SPOTS, { tab: 'things' });
+    expect(html).toContain(`aria-label="${SPOT_LABEL[spotA.id]}: ${DEN_ITEMS[owned[1]].name}"`);
+    expect(html).toContain(`aria-label="${SPOT_LABEL[spotB.id]}: empty"`);
+    expect(count(html, /data-den-hand-item=/g)).toBe(owned.length);
+    expect(html).toContain(SPOT_LABEL[spotA.id]);
+    expect(html).toContain('not placed');
+  });
+
+  it('the labelled grid is the fallback: forced by ui.grid, or when a spot has no plan cell', () => {
+    const forced = renderDenShopHtml(st(), DEN_ITEMS, DEN_SPOTS, { tab: 'things', grid: true });
+    expect(forced).toContain('class="dp-grid"');
+    expect(forced).not.toContain('class="dp-plan"');
+    expect(count(forced, /data-den-plan-spot=/g)).toBe(DEN_SPOTS.length);
+    const extra = [...DEN_SPOTS, { id: 'future', x: 0, z: 0 }];
+    const fb = renderDenShopHtml(st(), DEN_ITEMS, extra, { tab: 'things' });
+    expect(fb).toContain('class="dp-grid"');
+    expect(count(fb, /data-den-plan-spot=/g)).toBe(extra.length);
+    expect(renderDenShopHtml(st(), DEN_ITEMS, DEN_SPOTS, { tab: 'things' })).toContain('class="dp-plan"');
+  });
+
+  it('tabs: a tablist with the current one selected; with nothing owned Shop is first, with something owned My things', () => {
+    const h = renderDenShopHtml(st(), DEN_ITEMS, DEN_SPOTS);
+    expect(h).toContain('role="tablist"');
+    expect(h).toMatch(/data-den-tab="shop" aria-selected="true"/);
+    const o = renderDenShopHtml(st({ den: { owned: [ITEM_IDS[0]], placed: {} } }), DEN_ITEMS, DEN_SPOTS);
+    expect(o).toMatch(/data-den-tab="things" aria-selected="true"/);
   });
 
   it('shows the points through asFiniteNonNeg and a big Done button', () => {
@@ -97,16 +108,16 @@ describe('renderDenShopHtml', () => {
     expect(html).toContain('data-den-done');
   });
 
-  it('nothing owned yet: a warm hint, and the shop comes first', () => {
+  it('nothing owned yet: a warm hint and the shop', () => {
     const html = renderDenShopHtml(st({ points: 100 }), DEN_ITEMS, DEN_SPOTS);
     expect(html).toContain('ds-hint');
-    expect(html.indexOf('ds-cards')).toBeLessThan(html.indexOf('ds-spots'));
+    expect(html).toContain('ds-cards');
   });
 
-  it('something owned: arranging comes first, no hint', () => {
+  it('something owned: opens on My things, no shop hint', () => {
     const html = renderDenShopHtml(st({ den: { owned: [ITEM_IDS[0]], placed: {} } }), DEN_ITEMS, DEN_SPOTS);
-    expect(html).not.toContain('ds-hint');
-    expect(html.indexOf('ds-spots')).toBeLessThan(html.indexOf('ds-cards'));
+    expect(html).not.toContain('Buy something you like');
+    expect(html).toContain('data-den-plan-spot');
   });
 
   it('a hostile state.den renders without throwing and drops what it does not know', () => {
@@ -116,12 +127,13 @@ describe('renderDenShopHtml', () => {
       { owned: [ITEM_IDS[0]], placed: { [DEN_SPOTS[0].id]: ITEM_IDS[1] } }, // placed but not owned
     ];
     for (const den of hostile) {
-      const html = renderDenShopHtml({ points: 'lots', den }, DEN_ITEMS, DEN_SPOTS);
+      const html = renderDenShopHtml({ points: 'lots', den }, DEN_ITEMS, DEN_SPOTS, { tab: 'shop' });
+      const things = renderDenShopHtml({ points: 'lots', den }, DEN_ITEMS, DEN_SPOTS, { tab: 'things' });
       expect(count(html, /class="ds-card[ "]/g)).toBe(ITEM_IDS.length);
-      expect(count(html, /class="ds-spot"/g)).toBe(DEN_SPOTS.length);
+      expect(count(things, /data-den-plan-spot=/g)).toBe(DEN_SPOTS.length);
       expect(html).not.toContain('<script>');
       expect(html).not.toContain('<b>');
-      expect(html).not.toContain('value="nope"');
+      expect(things).not.toContain('<script>');
     }
     expect(() => renderDenShopHtml(null, DEN_ITEMS, DEN_SPOTS)).not.toThrow();
     expect(() => renderDenShopHtml(undefined)).not.toThrow();
@@ -167,8 +179,9 @@ describe('Place it now (den shop UX M2)', () => {
     expect(none).not.toContain('data-den-place-now');
     const bad = renderDenShopHtml(owned(), DEN_ITEMS, DEN_SPOTS, { stage: { kind: 'hand', id: '<img>' } });
     expect(bad).not.toContain('data-den-hand-spot');
+    expect(bad).not.toContain('<img>');
   });
-  it('place mode: one button per spot, the piece named, Later available, no dropdowns', () => {
+  it('place mode: the plan with one button per spot, the piece named, Later available, no dropdowns', () => {
     const html = renderDenShopHtml(owned(), DEN_ITEMS, DEN_SPOTS, { stage: { kind: 'hand', id: 'bed' } });
     expect(count(html, /data-den-hand-spot=/g)).toBe(DEN_SPOTS.length);
     expect(html).toContain(`Pick a spot for ${DEN_ITEMS.bed.name}`);
@@ -176,7 +189,25 @@ describe('Place it now (den shop UX M2)', () => {
     expect(html).not.toContain('<select');
   });
   it('an owned piece with no spot says "not placed"; a placed one does not', () => {
-    expect(renderDenShopHtml(owned(), DEN_ITEMS, DEN_SPOTS)).toContain('✓ Yours · not placed');
-    expect(renderDenShopHtml(owned({ placed: { 'rug-spot': 'bed' } }), DEN_ITEMS, DEN_SPOTS)).not.toContain('not placed');
+    expect(renderDenShopHtml(owned(), DEN_ITEMS, DEN_SPOTS, { tab: 'shop' })).toContain('✓ Yours · not placed');
+    expect(renderDenShopHtml(owned({ placed: { 'rug-spot': 'bed' } }), DEN_ITEMS, DEN_SPOTS, { tab: 'shop' })).not.toContain('not placed');
+  });
+});
+
+describe('plan view in hand mode (den shop UX M3)', () => {
+  const placedBed = st({ points: 5, den: { owned: ['bed', 'lamp'], placed: { 'corner-a': 'bed' } } });
+  it('a piece picked up from a spot shows Put away and marks its old spot', () => {
+    const h = renderDenShopHtml(placedBed, DEN_ITEMS, DEN_SPOTS, { stage: { kind: 'hand', id: 'bed', from: 'corner-a' } });
+    expect(h).toContain('data-den-put-away');
+    expect(h).toMatch(/class="dp-spot filled from"[^>]*data-den-plan-spot="corner-a"/);
+    expect(h).toContain('Donut Bed is in your hand');
+  });
+  it('a piece from the shelf has no Put away; the "from" is checked against the save', () => {
+    expect(renderDenShopHtml(placedBed, DEN_ITEMS, DEN_SPOTS, { stage: { kind: 'hand', id: 'lamp', from: null } })).not.toContain('data-den-put-away');
+    expect(renderDenShopHtml(placedBed, DEN_ITEMS, DEN_SPOTS, { stage: { kind: 'hand', id: 'lamp', from: 'corner-a' } })).not.toContain('data-den-put-away');
+  });
+  it('empty spots pulse (open) only with something in hand', () => {
+    expect(renderDenShopHtml(placedBed, DEN_ITEMS, DEN_SPOTS, { tab: 'things' })).not.toContain('dp-spot empty open');
+    expect(renderDenShopHtml(placedBed, DEN_ITEMS, DEN_SPOTS, { stage: { kind: 'hand', id: 'lamp' } })).toContain('dp-spot empty open');
   });
 });

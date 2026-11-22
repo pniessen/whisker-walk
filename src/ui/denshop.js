@@ -10,6 +10,7 @@ import { asFiniteNonNeg } from '../progression.js';
 import { PAW } from './pawicon.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
 import { denWord } from './denwords.js';
+import { iconFor, cellFor, planOrderOk, PLAN_COLS, PLAN_ROWS } from './denplan.js';
 
 // A short, friendly name for each anchor spot, keyed by its DEN_SPOTS id (the
 // ids are save keys and read like code). "Left" and "right" are as seen from
@@ -76,45 +77,49 @@ function itemCard(id, item, owned, points, placedHere = true) {
     </div>`;
 }
 
-// What a spot can hold: "nothing" first, then every piece she owns (one that stands elsewhere says where).
-export function spotChoices(state, items = DEN_ITEMS, spots = DEN_SPOTS, spotId) {
-  const catalog = isObj(items) ? items : {};
-  const spotList = Array.isArray(spots) ? spots.filter((s) => s && typeof s.id === 'string') : [];
-  const { owned, placed } = readDen(state, catalog, spotList);
-  const current = placed[spotId] ?? '';
-  const where = {};
-  for (const [sid, itemId] of Object.entries(placed)) where[itemId] = sid;
-  return [{ value: '', label: null, current: current === '' }].concat(owned.map((id) => {
-    const elsewhere = where[id] && where[id] !== spotId ? ` (now: ${spotLabel(where[id])})` : '';
-    return { value: id, label: `${items[id]?.name ?? id}${elsewhere}`, current: id === current };
-  }));
+// A spot as a button: the piece standing there (its icon) or a dashed "+".
+// The label always reaches a screen reader (aria-label); on the plan it shows too, small.
+function spotButton(spot, placed, items, stage, mode, cell) {
+  const there = placed[spot.id];
+  const name = there ? (items[there]?.name ?? there) : '';
+  const label = spotLabel(spot.id);
+  const inHand = stage && stage.kind === 'hand';
+  const cls = ['dp-spot', there ? 'filled' : 'empty'];
+  if (inHand && stage.from === spot.id) cls.push('from');
+  if (inHand && !there) cls.push('open');
+  const aria = `${label}: ${there ? name : denWord('emptySpot')}`;
+  const act = inHand ? ` data-den-hand-spot="${escapeHtml(spot.id)}"` : '';
+  const pos = cell && mode === 'plan' ? ` style="grid-column:${cell.col + 1};grid-row:${cell.row + 1}"` : '';
+  return `<button type="button" class="${cls.join(' ')}" data-den-plan-spot="${escapeHtml(spot.id)}"${act}${pos} aria-label="${escapeHtml(aria)}">
+      <span class="dp-icon" aria-hidden="true">${there ? iconFor(there) : '+'}</span>
+      <span class="dp-label">${escapeHtml(label)}</span>
+    </button>`;
 }
 
-// padSpots ({ none }: TV mode with a letter-and-list card loaded): the spot is a button that opens a
-// list (a pad cycling a <select> blind changes the den at every step); the select stays, hidden, as the data.
-function spotRow(spot, owned, placed, items, padSpots) {
-  const current = placed[spot.id] ?? '';
+// The plan view (five columns, back wall on top), or the labelled grid when a
+// spot has no cell or the layout lies about the room (ui.grid forces it too).
+function planHtml(spotList, placed, items, stage, forceGrid) {
+  const mode = !forceGrid && planOrderOk(spotList) ? 'plan' : 'grid';
+  const buttons = spotList.map((spot) => spotButton(spot, placed, items, stage, mode, cellFor(spot.id))).join('');
+  const aria = escapeHtml(denWord('planLabel'));
+  if (mode === 'grid') return `<div class="dp-grid" role="group" aria-label="${aria}">${buttons}</div>`;
+  return `<div class="dp-wrap"><div class="dp-edge dp-back">${escapeHtml(denWord('backWall'))}</div>
+    <div class="dp-plan" role="group" aria-label="${aria}" style="--dp-cols:${PLAN_COLS};--dp-rows:${PLAN_ROWS}">${buttons}</div>
+    <div class="dp-edge dp-front">${escapeHtml(denWord('openFront'))}</div></div>`;
+}
+
+// Everything she owns as chips: tap one to take it in hand (a placed one says where it stands).
+function shelfHtml(owned, placed, items, stage) {
+  if (!owned.length) return `<p class="ds-hint">${escapeHtml(denWord('shelfEmpty'))}</p>`;
   const where = {};
   for (const [spotId, itemId] of Object.entries(placed)) where[itemId] = spotId;
-  const options = owned.map((id) => {
-    const elsewhere = where[id] && where[id] !== spot.id ? ` (now: ${spotLabel(where[id])})` : '';
-    return `<option value="${escapeHtml(id)}"${id === current ? ' selected' : ''}>${escapeHtml(items[id]?.name ?? id)}${escapeHtml(elsewhere)}</option>`;
+  const chips = owned.map((id) => {
+    const at = where[id] ? spotLabel(where[id]) : denWord('notPlaced');
+    const held = !!stage && stage.kind === 'hand' && stage.id === id;
+    return `<button type="button" class="dp-chip${held ? ' held' : ''}${where[id] ? '' : ' loose'}" data-den-hand-item="${escapeHtml(id)}" aria-pressed="${held}">
+      <span class="dp-icon" aria-hidden="true">${iconFor(id)}</span><span class="dp-chip-name">${escapeHtml(items[id]?.name ?? id)}</span><span class="dp-chip-at">${escapeHtml(at)}</span></button>`;
   }).join('');
-  const select = `<select data-den-spot="${escapeHtml(spot.id)}"${padSpots ? ' hidden' : ''}>
-          <option value=""${current === '' ? ' selected' : ''}>— nothing —</option>${options}
-        </select>`;
-  if (padSpots) {
-    const now = current ? (items[current]?.name ?? current) : padSpots.none;
-    return `<div class="ds-spot">
-        <span class="ds-spot-name">${escapeHtml(spotLabel(spot.id))}</span>
-        <button type="button" class="ds-spot-open" data-den-spot-open="${escapeHtml(spot.id)}">${escapeHtml(now)} ✏️</button>
-        ${select}
-      </div>`;
-  }
-  return `<label class="ds-spot">
-        <span class="ds-spot-name">${escapeHtml(spotLabel(spot.id))}</span>
-        ${select}
-      </label>`;
+  return `<h3>${escapeHtml(denWord('shelfTitle'))}</h3><div class="dp-shelf">${chips}</div>`;
 }
 
 /**
@@ -139,37 +144,31 @@ export function renderDenShopHtml(state, items = DEN_ITEMS, spots = DEN_SPOTS, u
       <div class="ds-yours-btns"><button type="button" class="ds-place-now" data-den-place-now data-pad-default>${escapeHtml(denWord('placeIt'))}</button>
       <button type="button" class="ds-later" data-den-later>${escapeHtml(denWord('later'))}</button></div>
     </div>` : '';
-  const handBar = stage && stage.kind === 'hand'
-    ? `<div class="ds-hand"><span class="ds-hand-line">${escapeHtml(denWord('handPlace', null, { name: catalog[stage.id]?.name ?? stage.id }))}</span>
-      <button type="button" class="ds-later" data-den-later>${escapeHtml(denWord('later'))}</button></div>` : '';
-  const handSpots = stage && stage.kind === 'hand'
-    ? `<div class="ds-spots ds-hand-spots">${spotList.map((spot) => {
-      const there = placed[spot.id];
-      const now = there ? ` · ${escapeHtml(catalog[there]?.name ?? there)}` : '';
-      return `<button type="button" class="ds-spot-pick${there === stage.id ? ' here' : ''}" data-den-hand-spot="${escapeHtml(spot.id)}">${escapeHtml(spotLabel(spot.id))}${now}</button>`;
-    }).join('')}</div>` : '';
-  const arrange = `<h3>Arrange your den</h3>
-      <div class="ds-spots">
-      ${spotList.map((spot) => spotRow(spot, owned, placed, catalog, ui?.padSpots)).join('')}
-      </div>`;
-  const shop = `<h3>Shop</h3>
-      <div class="ds-cards">
+  const hand = !!stage && stage.kind === 'hand';
+  const handName = hand ? (catalog[stage.id]?.name ?? stage.id) : '';
+  const fromId = hand && typeof stage.from === 'string' && placed[stage.from] === stage.id ? stage.from : null;
+  const putAway = fromId ? `<button type="button" class="ds-later ds-put-away" data-den-put-away>${escapeHtml(denWord('putAway'))}</button>` : '';
+  const handBar = hand
+    ? `<div class="ds-hand"><span class="ds-hand-line">${escapeHtml(denWord(fromId ? 'pickedUp' : 'handPlace', null, { name: handName }))}</span>
+      <button type="button" class="ds-later" data-den-later>${escapeHtml(denWord('later'))}</button>${putAway}</div>` : '';
+  // Two sections: the Shop (cards) and My things (the plan and the shelf). A piece in hand always shows the plan.
+  const tab = hand ? 'things' : (ui && (ui.tab === 'shop' || ui.tab === 'things') ? ui.tab : (owned.length ? 'things' : 'shop'));
+  const shop = `<div class="ds-cards">
       ${Object.entries(catalog).map(([id, item]) => itemCard(id, item, owned.includes(id), points, Object.values(placed).includes(id))).join('')}
       </div>`;
-  // Nothing to arrange yet: the shop comes first, with one line saying what
-  // to do. Once something is owned, arranging it is what the den is for.
-  const body = stage && stage.kind === 'hand'
-    ? handSpots
-    : owned.length
-    ? `${arrange}\n      ${shop}`
-    : `<p class="ds-hint">Buy something you like, then pick a spot for it!</p>\n      ${shop}\n      ${arrange}`;
+  const handState = hand ? { ...stage, from: fromId } : null;
+  const things = `${planHtml(spotList, placed, catalog, handState, !!(ui && ui.grid))}\n      ${shelfHtml(owned, placed, catalog, handState)}`;
+  const body = tab === 'things' ? things : (owned.length ? '' : '<p class="ds-hint">Buy something you like, then pick a spot for it!</p>\n      ') + shop;
+  const tabBtn = (id, word) => `<button type="button" role="tab" class="ds-tab${tab === id ? ' on' : ''}" id="ds-tab-${id}" data-den-tab="${id}" aria-selected="${tab === id}" tabindex="${tab === id ? 0 : -1}">${escapeHtml(denWord(word))}</button>`;
+  const tabs = `<div class="ds-tabs" role="tablist" aria-label="${escapeHtml(denWord('tablist'))}">${tabBtn('shop', 'tabShop')}${tabBtn('things', 'tabThings')}</div>`;
   return `<div class="ds-head">
       <h2>🛋️ Den shop</h2>
       <span class="ds-points" aria-label="${points} paw points">${PAW} ${points}</span>
       <button type="button" class="ds-done" data-den-done>Done</button>
     </div>
+    ${tabs}
     ${note}${yours}${handBar}
-    <div class="ds-body">
+    <div class="ds-body" role="tabpanel" aria-labelledby="ds-tab-${tab}">
       ${body}
     </div>`;
 }

@@ -67,10 +67,6 @@ export const PAD_WORDS = Object.freeze({
   'pad.offer.note': 'Bigger words, made for the sofa.',
   'pad.offer.yes': 'Yes, use it',
   'pad.offer.no': 'Not now',
-  // the den shop's list card
-  'pad.spot.none': '— nothing —',
-  'pad.spot.title': 'Choose for {name}',
-  'pad.list.close': 'Close',
   // the letter picker (a name typed with the pad or a finger)
   'pad.picker.title.cat': 'Name your cat',
   'pad.picker.title.walker': 'Pick a name',

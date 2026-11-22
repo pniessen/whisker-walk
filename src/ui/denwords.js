@@ -15,6 +15,20 @@ export const WORDS = Object.freeze({
   isYours: '{name} is yours!',
   needMore: 'Need {n} more 🐾',
   handPlace: 'Pick a spot for {name}',
+  tablist: 'Den sections',
+  planLabel: 'Your den from above',
+  backWall: 'Back wall, with the window',
+  openFront: 'Open front',
+  shelfTitle: 'Your things',
+  shelfEmpty: 'Nothing yet. Have a look in the Shop!',
+  emptySpot: 'empty',
+  notPlaced: 'not placed',
+  pickUp: 'Pick up',
+  pickedUp: '{name} is in your hand. Pick a new spot, or Put away.',
+  pickFirst: 'Pick a piece from Your things first.',
+  placedNote: '{name}: {spot}. Looks cosy!',
+  swapNote: '{name} and {other} swapped places.',
+  emptyNote: '{spot} is empty now.',
 });
 
 export const DEN_WORD_IDS = Object.freeze(Object.keys(WORDS));

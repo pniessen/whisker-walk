@@ -16,9 +16,9 @@
 // stood elsewhere. Every spot that changed is re-placed in the running den at
 // once (game/denlive.js), without restarting the walk.
 import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
-import { renderDenShopHtml, changedSpots, spotChoices, SPOT_LABEL } from './denshop.js';
+import { renderDenShopHtml, changedSpots, SPOT_LABEL } from './denshop.js';
 import { createConfirmCard, spendAsk } from './confirmcard.js';
-import { tvState, tvHooks, padHtml, onTv } from '../tvseam.js';
+import { tvState, padHtml, onTv } from '../tvseam.js';
 import { denWord } from './denwords.js';
 
 /**
@@ -89,30 +89,19 @@ export function createDenShopView({
     blocked: () => !open,
   });
 
-  // TV mode: a spot's piece is chosen from a list card (src/tv/spotlist.js), never by cycling a select blind.
-  const listOn = () => tvState.on && typeof tvHooks.list === 'function';
-  let listBusy = false;
-  async function chooseForSpot(spotId) {
-    if (listBusy || !listOn()) return;
-    listBusy = true;
-    let pick = null;
-    try {
-      const none = tvState.padLine?.('pad.spot.none') ?? '';
-      pick = await tvHooks.list({
-        doc, mount: (el) => { el.classList?.add('ds-confirm'); el.addEventListener('keydown', (e) => e.stopPropagation()); mountRoot.appendChild(el); },
-        titleId: 'pad.spot.title', slots: { name: SPOT_LABEL[spotId] ?? spotId },
-        options: spotChoices(progression.state, DEN_ITEMS, DEN_SPOTS, spotId).map((o) => ({ ...o, label: o.label ?? none })),
-      });
-    } catch { /* no list: nothing changes */ }
-    listBusy = false;
-    if (pick != null && open) place(spotId, pick || null);
-    else if (open) sheet.querySelector?.(`[data-den-spot-open="${String(spotId).replace(/["\\]/g, '')}"]`)?.focus?.();
-  }
+  // The last tab she used is kept on this device only (never in the save).
+  const TAB_KEY = 'whisker-walk-den-tab';
+  const readTab = () => { try { const v = globalThis.localStorage?.getItem(TAB_KEY); return v === 'shop' || v === 'things' ? v : null; } catch { return null; } };
+  const writeTab = (v) => { try { globalThis.localStorage?.setItem(TAB_KEY, v); } catch { /* a nicety */ } };
+  let tab = null;
+  const spotName = (id) => SPOT_LABEL[id] ?? id;
+  const itemName = (id) => DEN_ITEMS[id]?.name ?? id;
+  const q = (v) => String(v).replace(/["\\]/g, '');
 
   function render() {
     const body = sheet.querySelector('.ds-body');
     const scroll = body ? body.scrollTop : 0;
-    sheet.innerHTML = renderDenShopHtml(progression.state, DEN_ITEMS, DEN_SPOTS, { note, stage, padSpots: listOn() ? { none: tvState.padLine?.('pad.spot.none') ?? '' } : null });
+    sheet.innerHTML = renderDenShopHtml(progression.state, DEN_ITEMS, DEN_SPOTS, { note, stage, tab: tab ?? undefined });
     const next = sheet.querySelector('.ds-body');
     if (next) next.scrollTop = scroll;
   }
@@ -122,6 +111,7 @@ export function createDenShopView({
     open = true;
     note = '';
     stage = null;
+    tab = readTab();
     pause();
     doc.body.classList.add('den-shop-open');
     render();
@@ -143,7 +133,6 @@ export function createDenShopView({
     const item = DEN_ITEMS[id];
     const points = progression.state?.points;
     if (!item || progression.state?.den?.owned?.includes?.(id) || !(points >= item.price)) return;
-    const q = String(id).replace(/["\\]/g, '');
     confirm.ask({
       ...spendAsk({ name: item.name, price: item.price, points }),
       returnFocus: () => sheet.querySelector?.(`[data-den-buy="${q}"]`)?.focus?.(),
@@ -178,21 +167,73 @@ export function createDenShopView({
     sheet.querySelector?.('[data-den-hand-spot]')?.focus?.();
   }
 
-  function place(spotId, itemId) {
-    const before = { ...progression.state.den.placed };
-    if (!progression.placeDenItem(spotId, itemId)) {
-      render(); // a refused pick puts the select back
-      return;
-    }
+  // Moves the spot changes into the running den, once each.
+  function applyChanges(before) {
     for (const [sid, now] of changedSpots(before, progression.state.den.placed, DEN_SPOTS)) {
       applyDenSpot(getSession(), sid, now, { player });
     }
+  }
+
+  // The piece in hand goes to a spot. A piece already standing there trades places
+  // with it when the hand's piece came from a spot, and goes back on the shelf otherwise.
+  function place(spotId, itemId) {
+    const before = { ...progression.state.den.placed };
+    const there = before[spotId];
+    const from = stage?.kind === 'hand' && stage.id === itemId ? stage.from : null;
+    if (!progression.placeDenItem(spotId, itemId)) {
+      render();
+      return;
+    }
+    let swapped = null;
+    if (there && there !== itemId && from && before[from] === itemId && progression.placeDenItem(from, there)) swapped = there;
+    applyChanges(before);
     stage = null;
-    note = itemId
-      ? `${DEN_ITEMS[itemId]?.name ?? 'It'}: ${SPOT_LABEL[spotId] ?? 'placed'}. Looks cosy!`
-      : `${SPOT_LABEL[spotId] ?? 'That spot'} is empty now.`;
+    note = swapped ? denWord('swapNote', null, { name: itemName(itemId), other: itemName(swapped) })
+      : denWord('placedNote', null, { name: itemName(itemId), spot: spotName(spotId) });
     render();
-    sheet.querySelector?.('.ds-done')?.focus?.();
+    sheet.querySelector?.(`[data-den-plan-spot="${q(spotId)}"]`)?.focus?.();
+  }
+
+  // Clears a spot (the piece stays hers, on the shelf).
+  function putAway(spotId) {
+    const before = { ...progression.state.den.placed };
+    if (!before[spotId] || !progression.placeDenItem(spotId, null)) return;
+    applyChanges(before);
+    stage = null;
+    note = denWord('emptyNote', null, { spot: spotName(spotId) });
+    render();
+    sheet.querySelector?.(`[data-den-plan-spot="${q(spotId)}"]`)?.focus?.();
+  }
+
+  // Takes a piece in hand: from a spot (pick up) or from the shelf. Only what she owns.
+  function takeInHand(itemId) {
+    const den = progression.state?.den;
+    if (!den?.owned?.includes?.(itemId)) return;
+    const from = Object.keys(den.placed).find((sid) => den.placed[sid] === itemId) ?? null;
+    stage = { kind: 'hand', id: itemId, from };
+    note = '';
+    tab = 'things';
+    render();
+    sheet.querySelector?.(from ? `[data-den-plan-spot="${q(from)}"]` : '[data-den-hand-spot]')?.focus?.();
+  }
+
+  function planTap(spotId) {
+    if (stage?.kind === 'hand') { place(spotId, stage.id); return; }
+    const itemId = progression.state?.den?.placed?.[spotId];
+    if (itemId) { takeInHand(itemId); return; }
+    note = denWord('pickFirst');
+    render();
+    sheet.querySelector?.(`[data-den-plan-spot="${q(spotId)}"]`)?.focus?.();
+  }
+
+  function setTab(id) {
+    if (id !== 'shop' && id !== 'things') return;
+    tab = id;
+    writeTab(id);
+    stage = null;
+    note = '';
+    render();
+    sheet.querySelector?.(`[data-den-tab="${id}"]`)?.focus?.();
   }
 
   button.addEventListener('click', show);
@@ -202,16 +243,16 @@ export function createDenShopView({
     if (t.closest('[data-den-done]')) { hide(); return; }
     if (t.closest('[data-den-later]')) { stopPlacing(); return; }
     if (t.closest('[data-den-place-now]')) { startPlacing(); return; }
-    const handSpot = t.closest('[data-den-hand-spot]');
-    if (handSpot) { if (stage?.kind === 'hand') place(handSpot.dataset.denHandSpot, stage.id); return; }
+    const tabBtn = t.closest('[data-den-tab]');
+    if (tabBtn) { setTab(tabBtn.dataset.denTab); return; }
+    const away = t.closest('[data-den-put-away]');
+    if (away) { if (stage?.kind === 'hand' && stage.from) putAway(stage.from); return; }
+    const chip = t.closest('[data-den-hand-item]');
+    if (chip) { takeInHand(chip.dataset.denHandItem); return; }
+    const spot = t.closest('[data-den-plan-spot]');
+    if (spot) { planTap(spot.dataset.denPlanSpot); return; }
     const buyBtn = t.closest('[data-den-buy]');
     if (buyBtn) askBuy(buyBtn.dataset.denBuy);
-    const spotBtn = t.closest('[data-den-spot-open]');
-    if (spotBtn) chooseForSpot(spotBtn.dataset.denSpotOpen);
-  });
-  sheet.addEventListener('change', (e) => {
-    const spotId = e.target?.dataset?.denSpot;
-    if (spotId) place(spotId, e.target.value || null);
   });
   doc.addEventListener('keydown', (e) => {
     if (open && e.code === 'Escape') {
@@ -245,7 +286,21 @@ export function createDenShopView({
   //    pressing. Keys typed inside the sheet stop here and stay with the form
   //    control — except Escape, which bubbles on to close the sheet.
   sheet.addEventListener('keydown', (e) => {
-    if (e.code !== 'Escape') e.stopPropagation();
+    if (e.code === 'Escape') return;
+    e.stopPropagation();
+    const t = e.target;
+    const onTab = t?.closest?.('[data-den-tab]');
+    if (onTab && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
+      e.preventDefault?.();
+      setTab(e.code === 'ArrowLeft' ? 'shop' : 'things');
+      return;
+    }
+    // Delete or Backspace on a standing piece (nothing in hand) puts it away.
+    const onSpot = t?.closest?.('[data-den-plan-spot]');
+    if (onSpot && !stage && (e.code === 'Delete' || e.code === 'Backspace')) {
+      e.preventDefault?.();
+      putAway(onSpot.dataset.denPlanSpot);
+    }
   });
 
   return {
