@@ -268,3 +268,36 @@ html.tv .summary-stats .stat-value { font-size: calc(52px * var(--tv-s, 1)); lin
 html.tv .summary-stats .stat-label { font-size: var(--tv-small) !important; line-height: 1.2; white-space: nowrap; }
 html.tv .summary-card .primary { min-height: calc(76px * var(--tv-s, 1)); min-width: calc(360px * var(--tv-s, 1)); display: inline-flex; align-items: center; justify-content: center; gap: .3em; font-size: var(--tv-body) !important; }
 
+/* ---- Change place (the world map): a wide card, one header row, a pannable map with big zoom buttons, a fixed side panel for the
+   place that was picked (B closes it, so there is no X), and map words at the floor. Each place's own lines ("Press X to explore",
+   the lock hints) are the panel's job: the map keeps names only. ---- */
+html.tv .homebase-scroll.hb-sheet[data-sheet="places"] { max-width: min(calc(1760px * var(--tv-s, 1)), 100%); }
+html.tv .hb-sheet-map .hb-places > h2 { position: absolute; top: 0; left: 0; right: 0; margin: 0; text-align: center; line-height: calc(76px * var(--tv-s, 1)); font-size: var(--tv-title); pointer-events: none; }
+html.tv .hb-sheet-map { position: relative; }
+html.tv .hb-sheet .hb-back { margin-bottom: var(--tv-gap); }
+/* the Day / Dusk switch sits in the title row, at the right; the clan line and the hint share one row; the map takes everything else */
+html.tv .hb-sheet-map .hb-places > .hb-dusk { position: absolute; top: calc(8px * var(--tv-s, 1)); right: 0; margin: 0; display: flex; align-items: center; gap: var(--tv-gap); }
+html.tv .hb-places .dr-where { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto minmax(0, 1fr); column-gap: var(--tv-gap-l); align-content: stretch; }
+html.tv .hb-places .dr-where > .hb-pick-line, html.tv .hb-places .dr-where > .hb-pick-choose { width: auto; margin: 0 0 var(--tv-gap); box-sizing: border-box; min-height: calc(64px * var(--tv-s, 1)); font-size: var(--tv-body); align-self: stretch; }
+html.tv .hb-places .dr-where > .wm-hint { margin: 0 0 var(--tv-gap); display: flex; align-items: center; box-sizing: border-box; font-size: var(--tv-body); min-height: calc(64px * var(--tv-s, 1)); }
+html.tv .hb-places .dr-where > .wm-hint:first-child { grid-column: 1 / -1; }
+html.tv .hb-places .dr-where > .wm-frame { grid-column: 1 / -1; min-height: 0; }
+/* The map's words are in the map's own user units (not --tv-s: the map itself is already sized with the window), set so each reads at 24 px or more
+   at the map's fit scale (about 0.7 at 1080p and 1.4 at 2160p: 34 units read as 24 px and up). */
+html.tv .world-map .tm-line, html.tv .world-map .tm-line-small { display: none; } /* today's place has its ring, the picked place its panel */
+html.tv .world-map .tm-name[font-size="28"] { font-size: 34px; }
+html.tv .world-map .tm-small { font-size: 34px; }
+html.tv .world-map .tm-label { font-family: inherit; stroke-width: 10; }
+html.tv .wm-zoom { top: calc(12px * var(--tv-s, 1)); right: calc(12px * var(--tv-s, 1)); gap: var(--tv-gap); }
+html.tv .wm-frame .wm-zoom button { width: calc(76px * var(--tv-s, 1)); height: calc(76px * var(--tv-s, 1)); font-size: calc(40px * var(--tv-s, 1)); border-width: 2px; }
+/* The side panel: reserved while a place is picked; the map gives it the right third. */
+html.tv .wm-frame:has(.wm-card) .world-map { right: auto; width: 66%; }
+html.tv .wm-frame:has(.wm-card) .wm-zoom { right: calc(34% + 12px * var(--tv-s, 1)); }
+html.tv .wm-card { left: auto; right: 0; top: 0; bottom: 0; width: 32%; max-height: none; box-sizing: border-box; padding: 0 0 calc(24px * var(--tv-s, 1)); border-radius: calc(20px * var(--tv-s, 1)); display: flex; flex-direction: column; gap: var(--tv-gap); overflow: auto; }
+html.tv .wm-card-pic { border-radius: calc(20px * var(--tv-s, 1)) calc(20px * var(--tv-s, 1)) 0 0; max-height: 34%; }
+html.tv .wm-card h3 { margin: 0 calc(24px * var(--tv-s, 1)); font-size: var(--tv-title); line-height: 1.2; }
+html.tv .dr-town-note { margin: 0 calc(24px * var(--tv-s, 1)); font-size: var(--tv-small); }
+html.tv .wm-card-line { margin: 0 calc(24px * var(--tv-s, 1)); font-size: var(--tv-body); }
+html.tv .dr-where .wm-card .wm-card-go, html.tv .dr-where .wm-card .wm-card-buy { width: calc(100% - 2 * 24px * var(--tv-s, 1)); margin: auto calc(24px * var(--tv-s, 1)) 0; min-height: calc(84px * var(--tv-s, 1)); font-size: var(--tv-body); }
+html.tv .dr-where .wm-card .wm-card-close { display: none; }
+
