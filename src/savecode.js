@@ -1,5 +1,8 @@
-// Save codes: the word list and the code maker. A lazy chunk: only the tap that
-// makes a new code needs it, so the start-up download does not carry it.
+// Save codes in the OLD shape (3 words of 256 and 2 digits): the word list and the code maker.
+// A lazy chunk: only the tap that makes a new code needs it, so the start-up download does not
+// carry it. Cat login M3 makes new codes with src/catcodes.js (4 words of 1,024); this one is
+// kept for a server that has not had the v11 SQL step 2 yet and so only takes this shape.
+import { randomIndex, uint32Source } from './randomindex.js';
 
 // 256-word safe list for save codes: short (4-6 letter), friendly
 // nouns/animals/colors. No offensive or ambiguous words. ~30.6 bits of
@@ -40,30 +43,7 @@ const WORDLIST = [
   'CABIN', 'PORCH', 'QUILT', 'YARN', 'BUTTON', 'RIBBON', 'TASSEL', 'VELVET',
 ];
 
-// randomIndex(n, nextUint32) -> an integer in [0, n), with no modulo bias.
-// A plain `x % n` over 2^32 values favours the low results whenever n does
-// not divide 2^32 (it doesn't for the 100 two-digit suffixes), so draws at or
-// above the largest multiple of n are thrown away and redrawn. For n = 256
-// nothing is ever rejected; for n = 100 the chance is 96 in 2^32. The try cap
-// only matters for a broken source that never returns a usable value.
-export function randomIndex(n, nextUint32) {
-  const limit = Math.floor(2 ** 32 / n) * n;
-  let x = nextUint32();
-  for (let tries = 1; x >= limit && tries < 64; tries++) x = nextUint32();
-  return x % n;
-}
-
-// nextUint32 source for save codes: the platform CSPRNG. getRandomValues has
-// been in every browser since 2013 (WKWebView included, and unlike
-// randomUUID it doesn't need a secure context) and in Node since 15/19, so
-// the Math.random fallback only runs where `crypto` is missing entirely.
-function uint32Source(cryptoLike) {
-  if (cryptoLike && typeof cryptoLike.getRandomValues === 'function') {
-    const buf = new Uint32Array(1);
-    return () => { cryptoLike.getRandomValues(buf); return buf[0]; };
-  }
-  return () => Math.floor(Math.random() * 2 ** 32);
-}
+export { randomIndex };
 
 /**
  * generateSaveCode(cryptoLike?) -> "PLUM-OTTER-CROW-42" style: 3 wordlist

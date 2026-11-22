@@ -87,13 +87,21 @@ describe('the TV chunk guard', () => {
 });
 
 describe('the cat login catch-up chunk guard', () => {
-  const catM = { ...M, 'src/game/catsync.js': { file: 'assets/catsync.js', isDynamicEntry: true, imports: ['_three.js'] }, 'src/savecode.js': { file: 'assets/savecode.js', isDynamicEntry: true } };
+  const catM = { ...M, 'src/game/catsync.js': { file: 'assets/catsync.js', isDynamicEntry: true, imports: ['_three.js'] }, 'src/savecode.js': { file: 'assets/savecode.js', isDynamicEntry: true }, 'src/catcodes.js': { file: 'assets/catcodes.js', isDynamicEntry: true }, 'src/ui/catlogin.js': { file: 'assets/catlogin.js', isDynamicEntry: true, imports: ['_catcodes.js'] } };
   it('a catch-up chunk that is lazy passes', () => expect(lazyProblems(catM, CAT_ENTRY_MODULES)).toEqual([]));
   it('names the module when start-up imports it statically', () => {
     const bad = { ...catM, 'index.html': { ...catM['index.html'], imports: [...catM['index.html'].imports, 'src/game/catsync.js'] } };
     expect(lazyProblems(bad, CAT_ENTRY_MODULES)[0]).toMatch(/src\/game\/catsync\.js/);
   });
   it('names the module when it is missing from the manifest', () => expect(lazyProblems(M, CAT_ENTRY_MODULES)[0]).toMatch(/src\/game\/catsync\.js/));
+  it('guards the cat code words and the My cat sheet too (cat login M3): each must stay out of start-up', () => {
+    expect(CAT_ENTRY_MODULES.catcodes).toEqual(['src/catcodes.js']);
+    expect(CAT_ENTRY_MODULES.catlogin).toEqual(['src/ui/catlogin.js']);
+    for (const mod of ['src/catcodes.js', 'src/ui/catlogin.js']) {
+      const bad = { ...catM, 'index.html': { ...catM['index.html'], imports: [...catM['index.html'].imports, mod] } };
+      expect(lazyProblems(bad, CAT_ENTRY_MODULES).join('\n')).toContain(mod);
+    }
+  });
 });
 
 describe('the layout profile stays tiny', () => {

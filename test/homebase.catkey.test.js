@@ -21,6 +21,8 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
 }));
 
 const { CONFIRM_DELAY_MS } = await import('../src/ui/colonypanel.js');
+await import('../src/ui/catlogin.js'); // the sheet's chunk, cached before the first test
+const { sheetDrawn } = await import('./helpers/catsheet.js');
 const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression } = await import('../src/progression.js');
 
@@ -68,7 +70,7 @@ const card = () => doc.body.children.find((c) => c.id === 'confirm-card');
 const click = (target) => doc.root.listeners.click({ target: { closest: () => null, dataset: {}, ...target }, detail: 1 });
 const html = () => doc.root.innerHTML;
 
-function setup({ confirmResult = { ok: true, reload: true }, linked = null } = {}) {
+async function setup({ confirmResult = { ok: true, reload: true }, linked = null } = {}) {
   const reload = vi.fn();
   const sync = {
     available: true, getCode: () => linked,
@@ -82,9 +84,17 @@ function setup({ confirmResult = { ok: true, reload: true }, linked = null } = {
   const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: (o) => starts.push(o), rooms: null, sync, onlineDelete: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {}, reload });
   hb.show();
   dressingMock.opts.onOpenSheet('sync');
+  await sheetDrawn(() => doc.root.innerHTML);
   return { sync, progression, hb, reload, starts };
 }
+// the cat code typed into the box (four words from the list, as the chips would show them)
+const typeCode = (value = 'plum otter crow 42') => doc.root.listeners.input({ target: { id: 'sync-load-code', value } });
+async function openBring() {
+  await click({ id: 'catlogin-bring' });
+  typeCode();
+}
 async function loadAndConfirm() {
+  await openBring();
   await click({ id: 'sync-load' });
   await vi.waitFor(() => expect(html()).toContain('sync-confirm-load'));
   await click({ id: 'sync-confirm-load' });
@@ -92,7 +102,7 @@ async function loadAndConfirm() {
 
 describe('a load that changed the cat key', () => {
   it('shows "Bringing Mittens here…" and reloads once', async () => {
-    const s = setup();
+    const s = await setup();
     await loadAndConfirm();
     expect(html()).toContain('Bringing Mittens here…');
     expect(s.reload).not.toHaveBeenCalled(); // the words are up first
@@ -104,7 +114,7 @@ describe('a load that changed the cat key', () => {
 
   it('says the same under the everyday words', async () => {
     await withOffWords(async () => {
-      const s = setup();
+      const s = await setup();
       await loadAndConfirm();
       expect(html()).toContain('Bringing Mittens here…');
       vi.advanceTimersByTime(1000);
@@ -113,7 +123,7 @@ describe('a load that changed the cat key', () => {
   });
 
   it('no reload when the key did not change', async () => {
-    const s = setup({ confirmResult: { ok: true } });
+    const s = await setup({ confirmResult: { ok: true } });
     await loadAndConfirm();
     vi.advanceTimersByTime(5000);
     expect(s.reload).not.toHaveBeenCalled();
@@ -121,14 +131,15 @@ describe('a load that changed the cat key', () => {
   });
 
   it('no reload when the load failed', async () => {
-    const s = setup({ confirmResult: { ok: false, error: 'That didn’t work, so nothing was changed.' } });
+    const s = await setup({ confirmResult: { ok: false, error: 'That didn’t work, so nothing was changed.' } });
     await loadAndConfirm();
     vi.advanceTimersByTime(5000);
     expect(s.reload).not.toHaveBeenCalled();
   });
 
   it('a walk starting closes the home screen, so the load card cannot be confirmed in a walk', async () => {
-    const s = setup();
+    const s = await setup();
+    await openBring();
     await click({ id: 'sync-load' });
     await vi.waitFor(() => expect(html()).toContain('sync-confirm-load'));
     s.hb.hide();
@@ -140,7 +151,7 @@ describe('a load that changed the cat key', () => {
 
 describe('Undo of a cloud load that changed the key', () => {
   it('reloads once, with the same words', async () => {
-    const s = setup({ linked: 'PLUM-OTTER-CROW-42' });
+    const s = await setup({ linked: 'PLUM-OTTER-CROW-42' });
     vi.spyOn(s.progression, 'backupInfo').mockReturnValue([{ kind: 'cloud', at: 1, newer: false, restorable: true, points: 3, lifetimePoints: 3 }]);
     vi.spyOn(s.progression, 'restoreBackup').mockReturnValue(true);
     vi.spyOn(s.progression, 'takeKeyChanged').mockReturnValue(true);

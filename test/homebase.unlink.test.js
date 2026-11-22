@@ -21,6 +21,8 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
 }));
 
 const { CONFIRM_DELAY_MS } = await import('../src/ui/colonypanel.js');
+await import('../src/ui/catlogin.js'); // the sheet's chunk, cached before the first test
+const { sheetDrawn } = await import('./helpers/catsheet.js');
 const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression } = await import('../src/progression.js');
 
@@ -70,7 +72,7 @@ const card = () => doc.body.children.find((c) => c.id === 'confirm-card');
 const click = (target) => doc.root.listeners.click({ target: { closest: () => null, dataset: {}, ...target }, detail: 1 });
 const html = () => doc.root.innerHTML;
 
-function setup({ code = null, result = { outcome: 'done', player: 'ok', save: 'ok' }, rooms = null, colonySync = null, onlineDelete } = {}) {
+async function setup({ code = null, result = { outcome: 'done', player: 'ok', save: 'ok' }, rooms = null, colonySync = null, onlineDelete } = {}) {
   let linked = code;
   const sync = { available: true, getCode: () => linked, unlink: vi.fn(() => { linked = null; }), previewLoad: vi.fn(async (c) => ({ ok: true, preview: { code: c, secret: 's', payload: { save: {} }, local: { rank: 'Kitten', points: 1, lifetimePoints: 1, bestWalk: 1 }, cloud: { rank: 'Kitten', points: 2, lifetimePoints: 2, bestWalk: 2 } } })) };
   let release;
@@ -84,6 +86,7 @@ function setup({ code = null, result = { outcome: 'done', player: 'ok', save: 'o
   const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync, onlineDelete: od, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync, myId: 'me', toast: () => {} });
   hb.show();
   dressingMock.opts.onOpenSheet('sync');
+  await sheetDrawn(() => doc.root.innerHTML);
   return { od, sync, progression, hb, release: () => release() };
 }
 async function confirmYes() {
@@ -94,8 +97,8 @@ async function confirmYes() {
 
 
 describe('Unlink on the linked Cloud save sheet', () => {
-  it('sits on its own row, apart from Sync now, and keeps its id', () => {
-    setup({ code: CODE });
+  it('sits on its own row, apart from Sync now, and keeps its id', async () => {
+    await setup({ code: CODE });
     const h = html();
     expect(h).toContain('<div class="sync-unlink-row">');
     expect(h).toContain('<button id="sync-unlink" class="danger" >Unlink</button>');
@@ -104,18 +107,18 @@ describe('Unlink on the linked Cloud save sheet', () => {
     expect(actions).not.toContain('sync-unlink');
   });
   it('asks first: the code in the note, Keep saving first, nothing unlinked yet', async () => {
-    const s = setup({ code: CODE });
+    const s = await setup({ code: CODE });
     await click({ id: 'sync-unlink' });
     const h = card().innerHTML;
     expect(h).toContain('Stop saving to the cloud?');
-    expect(h).toContain(`Your save code is ${CODE}. Write it down. It’s the only way to get this save back.`);
+    expect(h).toContain('Your cat code is PLUM · OTTER · CROW · 42. Write it down. It’s the only way to get this cat back.');
     expect(h).toContain('id="confirm-card-no" data-confirm="no">Keep saving</button>');
     expect(h).toContain('>Yes, stop</button>');
     expect(h.indexOf('confirm-card-no')).toBeLessThan(h.indexOf('confirm-card-yes'));
     expect(s.sync.unlink).not.toHaveBeenCalled();
   });
   it('Keep saving and Escape leave it linked', async () => {
-    const s = setup({ code: CODE });
+    const s = await setup({ code: CODE });
     await click({ id: 'sync-unlink' });
     answer(card(), 'no');
     await click({ id: 'sync-unlink' });
@@ -125,7 +128,7 @@ describe('Unlink on the linked Cloud save sheet', () => {
     expect(s.sync.getCode()).toBe(CODE);
   });
   it('Yes, stop unlinks', async () => {
-    const s = setup({ code: CODE });
+    const s = await setup({ code: CODE });
     await click({ id: 'sync-unlink' });
     vi.advanceTimersByTime(CONFIRM_DELAY_MS);
     answer(card(), 'yes');
@@ -134,23 +137,26 @@ describe('Unlink on the linked Cloud save sheet', () => {
   });
 });
 
-describe('the save code box', () => {
-  it('has a visible label', () => {
-    setup();
-    expect(html()).toContain('<label class="code-label" for="sync-load-code">Save code from another device</label>');
+describe('the cat code box', () => {
+  it('has a visible label, once Bring my cat here is open', async () => {
+    await setup();
+    expect(html()).not.toContain('sync-load-code');
+    await click({ id: 'catlogin-bring' });
+    expect(html()).toContain('<label class="code-label" for="sync-load-code">Cat code from my other device</label>');
   });
 });
 
 describe('Load from cloud while linked', () => {
-  it('is drawn beside Sync now', () => {
-    setup({ code: CODE });
+  it('is drawn beside Sync now', async () => {
+    await setup({ code: CODE });
     expect(html()).toContain('<button id="sync-load-linked" >Load from cloud</button>');
   });
   it('previews the linked code through the same compare-first card', async () => {
-    const s = setup({ code: CODE });
+    const s = await setup({ code: CODE });
     await click({ id: 'sync-load-linked' });
     expect(s.sync.previewLoad).toHaveBeenCalledWith(CODE);
     await vi.waitFor(() => expect(html()).toContain('Confirm — overwrite this device'));
-    expect(html()).toContain(`Cloud save ${CODE}`);
+    expect(html()).toContain('In the cloud');
+    expect(html()).not.toContain(CODE); // the code is not drawn by a load: it is only shown by holding
   });
 });

@@ -1,19 +1,21 @@
--- Whisker Walk v11 — "log in to my cat": revisions, and the cheap question.
+-- Whisker Walk v11 — "log in to my cat": revisions, the cheap question, four-word codes
+-- and changing a code.
 --
 -- A cat played on two devices needs the two to catch up with each other
--- without one overwriting the other. This file gives each saved cat a
+-- without one overwriting the other. STEP 1 gives each saved cat a
 -- revision number, a one-line question ("what revision are you at?") and a
 -- write that says which revision it was built on. The game on the devices
 -- does the merging; the database only keeps the count honest.
+-- STEP 2 lets a cat code be four words (stronger) and lets a grown-up change a cat
+-- code that someone else saw.
 --
 -- Design: docs/superpowers/specs/2026-11-22-cat-login-design.md (section 6).
 -- Plan:   docs/superpowers/plans/2026-11-22-cat-login.md.
 --
 -- RUN BY THE OWNER, ONE STEP AT A TIME. Agents stay off the database. This
 -- file is text: nothing has run it, and no test has contacted a database.
--- This milestone (M2) writes STEP 1 only. Steps 2 and 3 (stronger codes and
--- changing a code; hop codes) come with milestones 3 and 4 and are added to
--- this file then.
+-- Milestone 2 wrote STEP 1, milestone 3 wrote STEP 2. Step 3 (hop codes) comes with
+-- milestone 4 and is added to this file then.
 --
 -- Running STEP 1 changes and deletes NO row of player data. It adds three
 -- columns to saves (every existing row gets rev 0, v 1), two functions and
@@ -42,10 +44,19 @@
 --      'stale' for a save that has been revised, and the kid gets the update
 --      at the next refresh. Nothing is lost either way.
 --
--- B. ORDER OF STEPS. "Run" on the whole file does step 1 and is safe to repeat.
+-- B. ORDER OF STEPS. Run ONE step at a time: select from its "══ STEP" line down to the
+--    line before the next "══ STEP", then Run. Each step is safe to repeat.
 --      STEP 1  revisions and the cheap question   adds columns, two functions, two limit rows
 --                                                 and replaces upsert_save (one added line)
---    Step 1 takes effect at once, on every device, with no new build.
+--      STEP 2  four-word codes and changing a code replaces upsert_save again (its code check takes
+--                                                 both shapes), adds rotate_cat_code, one limit row
+--    Each step takes effect at once, on every device, with no new build; the game works before
+--    and after each (a build that does not find a function carries on as it did).
+--    Run step 2 only after step 1 has run and both iPads and the Mac have the build with the
+--    My cat sheet (an older build can still type and use old-shape codes, and never sees the new
+--    ones). If you ever re-run step 1 by itself afterwards, run step 2 again straight after: step 1
+--    puts back upsert_save with the old code check, which refuses new four-word codes (the game
+--    then falls back to old-shape codes, nothing breaks).
 --
 -- C. HOW TO VERIFY — one at a time, after step 1.
 --
@@ -72,10 +83,38 @@
 --  V5. Every existing save is untouched: all at revision 0, version 1:
 --   select count(*) as saves, count(*) filter (where rev = 0 and v = 1) as untouched from public.saves;
 --
+--  After STEP 2 (one at a time):
+--
+--  V6. rotate_cat_code exists, and the public key can run it (one row, anon_can_run true):
+--   select p.proname as function_name, has_function_privilege('anon', p.oid, 'execute') as anon_can_run
+--     from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'rotate_cat_code';
+--
+--  V7. upsert_save now takes the four-word shape (expect true):
+--   select p.prosrc like '%[A-Z]{3,6}(-[A-Z]{3,6}){3}%' as upsert_save_takes_four_words
+--     from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'upsert_save';
+--
+--  V8. The limit for changing a code (one row: a day, 5 per visitor):
+--   select name as limit_name, window_secs as window_seconds, per_visitor as per_visitor, unknown as unknown_visitor, world as whole_world
+--     from public.ww_limits where name = 'rotate';
+--
+--  V9. Running step 2 changed no save: none is emptied (expect 0 until the first time a cat code is changed):
+--   select count(*) as saves, count(*) filter (where payload = '{}'::jsonb) as emptied_after_a_change from public.saves;
+--
+--  V10. Still no policy on saves (expect 0): the only way in is the functions:
+--   select count(*) as policies_on_saves from pg_policies where schemaname = 'public' and tablename = 'saves';
+--
 -- D. ROLLBACK: each step's text has its own "Rollback" lines. For step 1 it is
 --    a few statements and moves no data.
 --
 -- ═════════════════════════════ HOW IT WORKS ═════════════════════════════
+--
+--   rotate_cat_code(code, secret, new_code, new_secret)   (step 2)
+--      one function = one transaction: the cat moves to the new code with the new secret (rev + 1), the
+--      profile's secret follows (only for the cat the save names, only from the old secret), and the
+--      OLD code stays as an empty row with a secret nobody has. A device still on the old code is then
+--      answered 'denied' (it shows "this cat moved to a new cat code"), and nobody can claim the old
+--      code for a new save, because a stranger holding the old code gets an empty row, not the cat.
+--      answers: ok, denied, busy, bad. Needs the right secret; a wrong one counts as a load miss.
 --
 --   saves.rev        counts the writes made through sync_save; 0 until the first one
 --   saves.v          1 for a row only the old calls have written, 2 once sync_save has
@@ -225,6 +264,108 @@ revoke execute on function public.peek_save(text, text) from public, anon, authe
 revoke execute on function public.sync_save(text, text, integer, jsonb, integer) from public, anon, authenticated;
 grant execute on function public.peek_save(text, text) to anon;
 grant execute on function public.sync_save(text, text, integer, jsonb, integer) to anon;
+grant execute on function public.upsert_save to anon;
+
+notify pgrst, 'reload schema';
+
+-- ══ STEP 2 — four-word codes and changing a code ══════════════════════
+-- What: upsert_save is replaced by step 1's text with ONE line changed (a new code may be the old shape,
+--   WORD-WORD-WORD-00, or four words of 3 to 6 letters), rotate_cat_code is added, and one limit row.
+--   sync_save needs no change: it only looks a row up, it never makes one.
+-- Changes for players: new cat codes can be four words (40 bits instead of 30). Old codes keep working
+--   forever. "Change my cat code" starts to work (before this it says "not ready yet" and changes nothing).
+-- Safe to re-run: yes (functions are "create or replace", the limit row is "do nothing" on conflict).
+-- Rollback: put step 1's upsert_save back (run the STEP 1 part of this file again), then:
+--   drop function if exists public.rotate_cat_code(text, text, text, text);
+--   delete from public.ww_limits where name = 'rotate';
+--   (a cat code that was already changed stays changed: the new row is a normal save, and the old code
+--   stays as an empty row. Nothing is moved back by this rollback. The four-word codes already made
+--   keep working for loads and syncs; only making a NEW four-word code stops.)
+do $$
+begin
+  if to_regprocedure('public.peek_save(text,text)') is null or to_regprocedure('public.sync_save(text,text,integer,jsonb,integer)') is null then
+    raise exception 'Whisker Walk v11 step 2: step 1 of docs/supabase-v11-cat-login.sql has not been run. Run step 1 first.';
+  end if;
+end $$;
+
+insert into public.ww_limits (name, window_secs, per_visitor, unknown, world) values
+  ('rotate', 86400, 5, 20, 200)
+  on conflict (name, window_secs) do nothing;
+
+create or replace function public.upsert_save(
+  p_code text, p_secret text, p_payload jsonb, p_lifetime integer
+) returns text language plpgsql security definer set search_path = public, pg_temp as $$
+declare existing record;
+begin
+  if p_payload is null or jsonb_typeof(p_payload) <> 'object' or p_lifetime is null then
+    return 'bad';
+  end if;
+  if octet_length(p_payload::text) > 2097152 then return 'too-big'; end if;
+  select * into existing from saves where code = p_code;
+  if not found then
+    if p_code is null or (p_code !~ '^[A-Z]{4,6}-[A-Z]{4,6}-[A-Z]{4,6}-[0-9]{2}$' and p_code !~ '^[A-Z]{3,6}(-[A-Z]{3,6}){3}$')
+       or p_secret is null or length(p_secret) < 16 or length(p_secret) > 128
+       or p_lifetime < 0 then
+      return 'bad';
+    end if;
+    if pg_total_relation_size('public.saves') > 300 * 1024 * 1024 then return 'busy'; end if;
+    if not ww_hit('new-save') then return 'busy'; end if;
+    insert into saves (code, secret, payload, lifetime)
+      values (p_code, p_secret, p_payload, p_lifetime);
+    return 'created';
+  end if;
+  if existing.secret is distinct from p_secret then return 'denied'; end if;
+  -- v11: a row a new build has revised (sync_save) is never written by this old call, so an
+  -- old build cannot overwrite a merged save; it shows today's "cloud has newer progress" line.
+  if existing.v >= 2 then return 'stale'; end if;
+  if p_lifetime < existing.lifetime then return 'stale'; end if;
+  update saves set payload = p_payload, lifetime = p_lifetime, updated_at = now()
+    where code = p_code;
+  return 'updated';
+end $$;
+
+create or replace function public.rotate_cat_code(
+  p_code text, p_secret text, p_new_code text, p_new_secret text
+) returns text language plpgsql security definer set search_path = public, pg_temp as $$
+declare existing record; v_cat text;
+begin
+  if p_code is null or length(p_code) > 64 or p_secret is null or length(p_secret) > 128
+     or p_new_code is null or p_new_code = p_code
+     or (p_new_code !~ '^[A-Z]{4,6}-[A-Z]{4,6}-[A-Z]{4,6}-[0-9]{2}$' and p_new_code !~ '^[A-Z]{3,6}(-[A-Z]{3,6}){3}$')
+     or p_new_secret is null or length(p_new_secret) < 16 or length(p_new_secret) > 128 or p_new_secret = p_secret then
+    return 'bad';
+  end if;
+  if ww_over('load-miss') then return 'busy'; end if;
+  select * into existing from saves where code = p_code for update;
+  if not found then
+    perform ww_hit('load-miss');
+    return 'denied';
+  end if;
+  if existing.secret is distinct from p_secret then
+    perform ww_hit('load-miss');
+    return 'denied';
+  end if;
+  if not ww_hit('rotate') then return 'busy'; end if;
+  if exists (select 1 from saves where code = p_new_code) then return 'busy'; end if;
+  -- the cat the save names: only a real player id (a cat with no profile rotates the save alone)
+  v_cat := existing.payload -> 'cat' ->> 'id';
+  if v_cat is not null and v_cat !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    return 'bad';
+  end if;
+  insert into saves (code, secret, payload, lifetime, rev, v, last_seen)
+    values (p_new_code, p_new_secret, existing.payload, existing.lifetime, existing.rev + 1, 2, now());
+  update saves
+     set secret = 'moved-' || md5(random()::text || clock_timestamp()::text), payload = '{}'::jsonb,
+         rev = existing.rev + 1, v = 2, updated_at = now()
+   where code = p_code;
+  if v_cat is not null then
+    update profiles set secret = p_new_secret where player_id = v_cat and secret = p_secret;
+  end if;
+  return 'ok';
+end $$;
+
+revoke execute on function public.rotate_cat_code(text, text, text, text) from public, anon, authenticated;
+grant execute on function public.rotate_cat_code(text, text, text, text) to anon;
 grant execute on function public.upsert_save to anon;
 
 notify pgrst, 'reload schema';

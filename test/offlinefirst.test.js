@@ -629,9 +629,18 @@ describe('where the network can start', () => {
     // as a fetch.)
     expect(main).not.toMatch(/createClient|getSupabaseClient|new WebSocket/);
   });
+  it('the My cat sheet and the code words make no request of their own: no fetch, no socket, no cloud of their own, and nothing runs at import', () => {
+    for (const f of ['ui/catlogin.js', 'ui/catloginwords.js', 'catcodes.js', 'randomindex.js']) {
+      expect(read(f), f).not.toMatch(/\bfetch\(|XMLHttpRequest|WebSocket|sendBeacon|createCloud|createLiveCloud|supabase|from '\.\.?\/(cloud|net)\.js'/);
+    }
+    // the one place a tap on the sheet reaches the cloud is the sync object it is handed
+    expect([...new Set([...read('ui/catlogin.js').matchAll(/\bsync\.(\w+)\(/g)].map((m) => m[1]))].sort())
+      .toEqual(['changeCode', 'confirmLoad', 'getCode', 'previewLoad', 'saveToCloud', 'syncNow', 'unlink']);
+  });
   it('only cloudsync.js and rooms.js can make a cloud or a transport, and only net.js a client', () => {
     const files = ['main.js', 'game/walk.js', 'game/netevents.js', 'game/interactions.js', 'game/colonysync.js',
-      'game/onlinedelete.js', 'game/homebasecloud.js', 'ui/homebase.js', 'game/nearby.js', 'game/session.js'];
+      'game/onlinedelete.js', 'game/homebasecloud.js', 'ui/homebase.js', 'game/nearby.js', 'game/session.js',
+      'ui/catlogin.js', 'ui/catloginwords.js', 'catcodes.js', 'randomindex.js', 'savecode.js']; // (cat login M3: the sheet and the code words reach the cloud only through the sync handed to them)
     for (const f of files) {
       expect(read(f), f).not.toMatch(/createLiveCloud|createSupabaseTransport|getSupabaseClient|@supabase\/supabase-js/);
     }
@@ -643,10 +652,11 @@ describe('where the network can start', () => {
     expect(cs).toContain('function getCloud() {\n    return togetherAllowed() ? openCloud() : null;\n  }');
     expect(cs).toContain('function saveCloud() {\n    return onlineAllowed() ? openCloud() : null;\n  }');
     // inside the file: getCloud is defined and returned and never called;
-    // the save's handle is called twice (Sync, deleting the linked save),
-    // each straight after the link is read
+    // the save's handle is called three times (Sync, deleting the linked save,
+    // Change my cat code), each straight after the link is read
     expect(cs.match(/getCloud\(\)/g)).toHaveLength(1 + (cs.match(/\/\/.*getCloud\(\)/g) ?? []).length);
-    expect(cs.match(/= saveCloud\(\);/g)).toHaveLength(2);
+    expect(cs.match(/= saveCloud\(\);/g)).toHaveLength(3);
+    expect(cs).toContain('const link = readCloudLink();\n      const cloud = saveCloud();\n      if (!link || !cloud) return');
     expect(cs).toContain("if (!link) return { ok: false, message: 'Not linked to a cloud save.' };\n    const cloud = saveCloud();");
     expect(cs).toContain("if (!link) return 'not-linked';\n      const cloud = saveCloud();");
     expect(cs).toContain('return { getPsecret, getCloud, openCloud, onlineAllowed, togetherAllowed, sync };');
