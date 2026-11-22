@@ -21,6 +21,7 @@
 
 import { getSupabaseClient } from './net.js';
 import { note } from './diagnostics.js';
+import { IS_FAMILY } from './familyflag.js';
 
 // 256-word safe list for save codes: short (4-6 letter), friendly
 // nouns/animals/colors. No offensive or ambiguous words. ~30.6 bits of
@@ -387,6 +388,8 @@ async function realSelect(client, table, filterType, ...args) {
  * creating their own.
  */
 export function createLiveCloud(url, key, { getSecret } = {}) {
+  // The private family build never goes online: no client is made, every call answers as an empty server.
+  if (IS_FAMILY) return createCloud({ rpc: async () => null, select: async () => [], getSecret });
   return createCloud({
     rpc: async (name, args) => realRpc(await getSupabaseClient(url, key), name, args),
     select: async (table, filterType, ...args) => realSelect(await getSupabaseClient(url, key), table, filterType, ...args),
