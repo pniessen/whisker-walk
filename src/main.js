@@ -17,6 +17,7 @@ import { createHomeBase } from './ui/homebase.js';
 import { whenSplashGone, startVisitGreeting } from './visitboot.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { attachBackStack, walkBackAction } from './ui/backstack.js';
+import { createGamepad } from './gamepad.js';
 import { createZoomControl, createWheelStepper, keyZoomDir, zoomActionDir, clampZoomStep, maxZoomStep } from './camzoom.js';
 import { createAudio } from './audio.js';
 import { createMusic } from './music.js';
@@ -287,6 +288,24 @@ function init() {
     },
     onZoom: zoomBy,
   }, { leftHanded: settings.get('leftHanded') });
+  // Game controller (walk only, gamepad.js): feeds the same paths as touch —
+  // setTouchMove / addOrbit / handleTouchAction / zoomBy. Polled from walkFrame.
+  const gamepad = createGamepad({
+    getEngaged: () => !!session && player.engaged,
+    getCameraMode: () => !!session?.cameraMode,
+    isFighting: () => session?.clanFight?.uiShowing === 'fight',
+    canResume: () => !!session && !session.walkingOn && !!overlay.querySelector('#btn-resume'),
+    onMove: (v) => player.setTouchMove(v),
+    onOrbit: (dx, dy) => player.addOrbit(dx, dy),
+    onAction: (name) => {
+      const zoomDir = zoomActionDir(name);
+      if (zoomDir) zoomBy(zoomDir);
+      else handleTouchAction(name);
+    },
+    // No mouse to click for pointer lock, so a pad resumes the way touch does.
+    onResume: () => player.setTouchEngaged(true),
+    toast: (m) => hud.toast(m),
+  });
   // Pushes every live-tunable setting into the systems that read it — audio
   // volume/mute, camera invert-Y, touch-UI handedness — so a change applies
   // immediately with no reload or walk restart. Called once at boot (with
@@ -1157,6 +1176,7 @@ function init() {
     perfHud.frameStart(performance.now(), session);
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
+    gamepad.poll(dt);
     if (!session) { perfHud.frameEnd(null, performance.now()); return; }
     // The corner map shows only while the walk is being played: not behind
     // the Ready? and pause cards, which are exactly the times the player is
