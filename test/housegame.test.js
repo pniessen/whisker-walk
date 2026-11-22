@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vite
 import * as THREE from 'three';
 import { mulberry32 } from '../src/rng.js';
 import { rollWeather } from '../src/weather.js';
-import { houseOn, setHouse, resumableHouseIds } from '../src/houseflag.js';
+import { houseOn, setHouse, resumableHouseIds, housePrefetch } from '../src/houseflag.js';
 import { setRoofs, resumableAreaIds } from '../src/roofsflag.js';
 import { isIndoor } from '../src/indoor.js';
 import { createAreaLoader } from '../src/game/areaload.js';
@@ -16,7 +16,11 @@ import { roomAt, HOUSE_LEDGES, secretColliders } from '../src/world/houseplan.js
 import { makeView, blockers } from '../src/housewalls.js';
 import { CAT_LOOK_Y } from '../src/cat/model.js';
 import { behindYaw } from '../src/traversal.js';
-import { lifecycle, fakeEl, memStorage } from './helpers/walklife.js';
+import { lifecycle, fakeEl, memStorage, controlledLoader } from './helpers/walklife.js';
+import { areaInEdition } from '../src/edition.js';
+import { placeState, opensAfterLine } from '../src/territories.js';
+import { placeWhyLine } from '../src/ui/dressingroom.js';
+import { withOffWords } from './helpers/offwords.js';
 import { HOUSE_FINDS, HOUSE_GOAL_TYPES, HOUSE_GOLD_MICE, HOUSE_KNOCKABLES, HOUSE_HIDES, HOUSE_MICE, HOUSE_YARN_SPOTS } from '../src/world/housethings.js';
 import { createGoals, goalFits, GOAL_POOL } from '../src/goals.js';
 import { GOLD_MICE, goldForEdition } from '../src/goldmice.js';
@@ -203,8 +207,14 @@ describe('the switch', () => {
     expect(houseOn()).toBe(false);
   });
 
-  it('has no catalog row: nothing a child picks from offers the house', () => {
-    expect(Object.hasOwn(CATALOG.areas, 'house')).toBe(false);
+  // Old House step 4 (docs/superpowers/plans/2026-11-21-old-house-step4-into-the-game.md,
+  // W1, W2; the owner's change: after 2 Market Square walks, not 2 town walks).
+  it('the catalog has the house, after the Market, in Clan Edition only', () => {
+    expect(CATALOG.areas.house).toEqual({ name: 'The Old House', price: 150, requires: { area: 'market', walks: 2 }, edition: 'canon' });
+    const ids = Object.keys(CATALOG.areas);
+    expect(ids[ids.indexOf('market') + 1]).toBe('house');
+    expect(areaInEdition(CATALOG.areas.house, 'legacy')).toBe(false);
+    expect(areaInEdition(CATALOG.areas.house, 'canon')).toBe(true);
   });
 
   it('indoors is the den and the house, and nowhere else', () => {
@@ -618,28 +628,39 @@ describe('a walk in the house', () => {
 
 describe('a house walk left in the middle', () => {
   beforeAll(() => areas.ensure('house'));
-  const ids = () => resumableHouseIds(resumableAreaIds(createProgression(memStorage()).state.walks));
+  const ids = (state = createProgression(memStorage()).state) => resumableHouseIds(resumableAreaIds(state.walks), state);
 
-  it('its note is dropped without the switch and kept with it; every other place\'s is kept either way', () => {
+  it('a house walk note resumes in Clan Edition, with the switch or without; Legacy drops it; every other place\'s is kept either way', () => {
+    const clanState = createProgression(memStorage()).state;
+    const legacyState = { ...clanState, edition: 'legacy' };
+    for (const on of [false, true]) {
+      setHouse(on);
+      expect(resumableHouseIds(['park', 'house'], clanState), String(on)).toEqual(['park', 'house']);
+      expect(resumableHouseIds(['park', 'house'], legacyState), String(on)).toEqual(['park']);
+    }
+    setHouse(null);
     const now = Date.UTC(2026, 10, 21, 12);
     const note = { v: 1, at: now - 60_000, tries: 0, areaId: 'house', seed: 7, stamp: 'walk-1', x: 0, z: 9.5, yaw: 0, startPoints: 0 };
-    const read = (on, areaId = 'house') => {
+    const read = (on, state, areaId = 'house') => {
       const storage = memStorage();
       storage.setItem(RESUME_KEY, JSON.stringify({ ...note, areaId }));
       setHouse(on);
       try {
-        return { got: readResume(storage, { now, areaIds: ids() }), left: storage.getItem(RESUME_KEY) };
+        return { got: readResume(storage, { now, areaIds: ids(state) }), left: storage.getItem(RESUME_KEY) };
       } finally { setHouse(null); }
     };
-    expect(read(false)).toEqual({ got: null, left: null }); // dropped, and the note cleared
-    expect(read(true).got?.kind).toBe('resume');
-    expect(read(true).got?.data.areaId).toBe('house');
-    for (const on of [false, true]) expect(read(on, 'park').got?.kind).toBe('resume');
+    for (const on of [false, true]) {
+      expect(read(on, clanState).got?.kind, String(on)).toBe('resume');
+      expect(read(on, clanState).got?.data.areaId).toBe('house');
+      expect(read(on, legacyState)).toEqual({ got: null, left: null }); // dropped, and the note cleared
+      for (const state of [clanState, legacyState]) expect(read(on, state, 'park').got?.kind).toBe('resume');
+    }
     // the list is otherwise the walks' own, in order
-    setHouse(true);
-    expect(ids()).toEqual(resumableAreaIds(createProgression(memStorage()).state.walks));
-    setHouse(false);
-    expect(ids()).not.toContain('house');
+    for (const on of [false, true]) {
+      setHouse(on);
+      expect(ids(clanState)).toEqual(resumableAreaIds(clanState.walks));
+      expect(ids(legacyState)).toEqual(resumableAreaIds(clanState.walks).filter((id) => id !== 'house'));
+    }
   });
 
   it('picked up again with the switch on: the same house, and the Ready card names it', async () => {
@@ -884,5 +905,99 @@ describe('the house sounds like the den', () => {
     expect(probe('den', { dusk: true })).toEqual(den);
     // outdoors a dusk walk has its crickets (one setInterval) over the wind
     expect(probe('park', { dusk: true }).intervals).toBe(1);
+  });
+});
+
+// ---- Old House step 4 (Task 2): the house opens ----------------------------
+// docs/superpowers/plans/2026-11-21-old-house-step4-into-the-game.md, W1-W3;
+// the owner's change (2026-11-21): 150 🐾 after 2 Market Square walks.
+
+// Review Focus 5: a Legacy save never fetches the house's download nor keeps
+// its walk note, with the switch or without.
+describe('Legacy never fetches the house or keeps its note', () => {
+  it('housePrefetch: Clan Edition with the switch only', () => {
+    const clanState = createProgression(memStorage()).state;
+    const legacyState = { ...clanState, edition: 'legacy' };
+    setHouse(true);
+    expect(housePrefetch(legacyState)).toBe(false);
+    expect(housePrefetch(clanState)).toBe(true);
+    setHouse(false);
+    expect(housePrefetch(clanState)).toBe(false);
+    expect(housePrefetch(legacyState)).toBe(false);
+  });
+
+  it('a Legacy save whose place is the house walks her own place on Explore, and fetches no house pack', async () => {
+    setHouse(true);
+    const storage = memStorage();
+    storage.setItem('whisker-walk-save', JSON.stringify({
+      version: 4, edition: 'legacy', area: 'house', points: 0,
+      walks: { neighborhood: 4, market: 2, house: 3 },
+      unlocked: { areas: ['neighborhood', 'market', 'house'] },
+    }));
+    const c = controlledLoader();
+    const life = lifecycleHere({ areas: c.areas, storage });
+    expect(life.progression.state.edition).toBe('legacy');
+    // what main.js does at boot: her own place, the den, and the house only when housePrefetch says so
+    if (housePrefetch(life.progression.state)) c.areas.prefetch('house');
+    expect(await life.w.beginWalkFromHomebase({ duskMode: false })).toBe('started');
+    expect(life.getSession().areaId).not.toBe('house');
+    expect(life.getSession().areaId).toBe('neighborhood');
+    life.w.endWalk();
+    expect(c.calls.house).toBeUndefined();
+  }, 90_000);
+});
+
+describe('the Old House unlock in the real catalog', () => {
+  const fresh = () => createProgression(memStorage()).state;
+  const GATE = { area: 'market', walks: 2 };
+  // her save owns the Market (a real save that walked it does), with `marketWalks` there
+  const inMarket = (marketWalks, extra = {}) => {
+    const s = fresh();
+    return { ...s, walks: { ...s.walks, neighborhood: 2, market: marketWalks }, unlocked: { ...s.unlocked, areas: [...s.unlocked.areas, 'market'] }, ...extra };
+  };
+
+  it('opens 150 🐾 after 2 Market walks; its lock line names the Market Square in both word sets', () => {
+    const locked = placeState(inMarket(1, { points: 500 }), CATALOG, 'house');
+    expect(locked).toMatchObject({ locked: true, canOpen: false, owned: false, price: 150 });
+    expect(locked.line).toBe(opensAfterLine(GATE, 1, 'canon', CATALOG));
+    expect(locked.line).toBe('opens after you explore the Market Square 2 times · 1/2');
+    withOffWords(() => expect(placeState(inMarket(1), CATALOG, 'house').line).toBe('opens after you explore the Market Square 2 times · 1/2'));
+    expect(placeState(inMarket(2, { points: 150 }), CATALOG, 'house')).toMatchObject({ locked: false, canOpen: true, owned: false, price: 150, line: 'Open for 150 🐾' });
+  });
+
+  // Review Focus 1: a save that walked the house through ?house=1 before step
+  // 4 (walks.house 3, not owned, no points, no Market walks).
+  it('a save that walked the house with the switch keeps nothing it did not buy', () => {
+    const s = fresh();
+    const old = { ...s, walks: { ...s.walks, house: 3, market: 0 }, points: 0 };
+    const st = placeState(old, CATALOG, 'house');
+    expect(st).toMatchObject({ owned: false, locked: true, canOpen: false, price: 150 });
+    expect(st.line).toBe(opensAfterLine(GATE, 0, old.edition, CATALOG));
+    expect(st.line).toContain('0/2');
+    expect(old.unlocked.areas).not.toContain('house');
+    // offered at 150 once she has 2 Market walks (and owns the Market, as a real save would) and the points
+    const later = { ...old, walks: { ...old.walks, neighborhood: 2, market: 2 }, unlocked: { ...old.unlocked, areas: [...old.unlocked.areas, 'market'] }, points: 150 };
+    expect(placeState(later, CATALOG, 'house')).toMatchObject({ owned: false, locked: false, canOpen: true, line: 'Open for 150 🐾' });
+    // with 100 she is short by 50
+    const short = { ...later, points: 100 };
+    expect(placeState(short, CATALOG, 'house')).toMatchObject({ owned: false, locked: false, canOpen: false, line: '150 🐾 — keep exploring!' });
+    expect(placeWhyLine(short, CATALOG, 'house')).toBe('50 more 🐾 to go');
+    // a save loaded from it owns nothing more
+    const storage = memStorage();
+    storage.setItem('whisker-walk-save', JSON.stringify(old));
+    const q = createProgression(storage);
+    expect(q.state.walks.house).toBe(3);
+    expect(q.state.unlocked.areas).not.toContain('house');
+    expect(q.isUnlocked('areas', 'house')).toBe(false);
+  });
+
+  it('Legacy has no offer: locked away like every Clan-only place', () => {
+    const p = createProgression(memStorage());
+    p.setEdition('legacy');
+    p.addPoints(1000);
+    for (let i = 0; i < 2; i++) p.completeWalk('neighborhood');
+    for (let i = 0; i < 2; i++) p.completeWalk('market');
+    expect(p.buy('areas', 'house')).toBe(false);
+    expect(p.state.unlocked.areas).not.toContain('house');
   });
 });

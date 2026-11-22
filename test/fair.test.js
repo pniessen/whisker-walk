@@ -2022,7 +2022,7 @@ describe('The Fairground: registered everywhere a street area is', async () => {
 
   it('is the fourth place, after the Farm and before the Rooftops', () => {
     const ids = Object.keys(CATALOG.areas);
-    expect(ids.slice(0, 7)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'roofs', 'market', 'seaside']); // the Market after the Rooftops (Market step 4)
+    expect(ids.slice(0, 8)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'roofs', 'market', 'house', 'seaside']); // the Market after the Rooftops (Market step 4), the Old House after it (Old House step 4)
     // and nothing else about the others moved
     expect(CATALOG.areas.farm).toEqual({ name: 'Appletree Farm', price: 75, requires: { area: 'park', walks: 2 } });
     expect(CATALOG.areas.seaside).toEqual({ name: 'Seaside', price: 200, requires: { area: 'docks', walks: 2 } });

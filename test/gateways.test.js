@@ -59,8 +59,12 @@ describe('gateways', () => {
   it('every map road has one end on each side, and the two ends twin each other', () => {
     expect(GATEWAYS.map((g) => g.id)).toContain('town-roofs');
     expect(GATEWAYS.map((g) => g.id)).toContain('town-market');
+    // The Old House's road is on the map since its step 4's Task 2; its two
+    // ends come in Task 5, which removes this skip.
+    const endsLater = ['town-house'];
     for (const g of GATEWAYS) {
       const ends = Object.entries(GATEWAY_ENDS).flatMap(([a, es]) => es.filter((e) => e.gateway === g.id).map((e) => ({ a, e })));
+      if (endsLater.includes(g.id)) { expect(ends, g.id).toEqual([]); continue; }
       expect(ends.map(({ a, e }) => `${a}>${e.to}`).sort(), g.id).toEqual([`${g.from}>${g.to}`, `${g.to}>${g.from}`].sort());
       const [p, q] = ends.map(({ e }) => e);
       expect([p.twin, q.twin]).toEqual([q.id, p.id]);
@@ -143,13 +147,16 @@ describe('gateways', () => {
     expect(cutForGates(runs, [southGate])).toEqual([runs[0], runs[1], runs[2], r([3.8, 45], [7, 45])]);
     expect(cutForGates(runs, [])).toEqual(runs);
   });
-  it('a front door is data only (the Old House, later)', () => {
+  it('a front door is data only, and waits for the Old House\'s catalog row', () => {
     const table = {
       neighborhood: [gatewayEnd({ id: 'town-house', gateway: 'town-house', x: 20, z: -8, faces: 'north', to: 'house', twin: 'house-town', look: 'none', placement: 'inside', arrive: { x: 20, z: -5, yaw: Math.PI } })],
       house: [gatewayEnd({ id: 'house-town', gateway: 'town-house', x: 0, z: 10, faces: 'south', to: 'neighborhood', twin: 'town-house', look: 'none', placement: 'inside', arrive: { x: 0, z: 7, yaw: 0 } })],
     };
     const withHouse = { areas: { ...CATALOG.areas, house: { name: 'The Old House', price: 150 } } };
-    expect(liveEndsFor('neighborhood', CATALOG, table)).toEqual([]);
+    // the real catalog has the house since its step 4 (Task 2); without the row, no end is live
+    const noHouse = { areas: Object.fromEntries(Object.entries(CATALOG.areas).filter(([k]) => k !== 'house')) };
+    expect(liveEndsFor('neighborhood', noHouse, table)).toEqual([]);
+    expect(liveEndsFor('neighborhood', CATALOG, table).map((e) => e.id)).toEqual(['town-house']);
     expect(liveEndsFor('neighborhood', withHouse, table).map((e) => e.id)).toEqual(['town-house']);
     expect(gatewayNear('neighborhood', 20, -7, withHouse, { table }).id).toBe('town-house');
     expect(arrivalFor('town-house', table)).toEqual({ areaId: 'house', x: 0, z: 7, yaw: 0 });

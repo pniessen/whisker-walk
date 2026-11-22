@@ -17,9 +17,8 @@
 // test/lazybuild.test.js fail if step 1 or 2 was missed.
 //
 // `roofs` has its own row in CATALOG.areas (Rooftops step 4), so the place
-// lists show it, and so has `market` (Market step 4, Clan Edition only).
-// `house` (the Old House, ?house=1 only) is here so a walk can build it, and
-// nowhere a child picks from: it has no CATALOG.areas row until its step 4.
+// lists show it, and so has `market` (Market step 4, Clan Edition only), and
+// so has `house` (the Old House, its step 4, Clan Edition only).
 // `den` is not in the catalog; it is built from home.
 //
 // An AreaPack is { id, world, life }: world is the builder module, life the
