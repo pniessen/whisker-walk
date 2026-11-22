@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { budgetOf as meshBudgetOf, trianglesOf } from './growriver.js';
 import { fullLevels } from '../../src/houselevels.js';
-import { LEVEL_LINKS } from '../../src/world/houseplan.js';
+import { LEVEL_LINKS, WING_JOINS } from '../../src/world/houseplan.js';
 
 // budgetOf counts meshes; a THREE.Points (the dust motes) is a draw too, with no
 // triangles and no shadow (noCast, additive), so it adds one to `meshes` here.
@@ -22,30 +22,71 @@ function budgetOf(children, rig) {
 const ZERO = Object.freeze({ meshes: 0, casters: 0, triangles: 0 });
 const add = (a, b) => ({ meshes: a.meshes + b.meshes, casters: a.casters + b.casters, triangles: a.triangles + b.triangles });
 
+const sub = (a, b) => ({ meshes: a.meshes - b.meshes, casters: a.casters - b.casters, triangles: a.triangles - b.triangles });
+
 export function measureHouse(scene, rig, links = LEVEL_LINKS) {
   const fixedKids = [];
   const detailKids = new Map();
   const simpleKids = new Map();
+  const farKids = new Map(); // level -> the far stand-in shown while a wing join is near (houselevels.js)
+  const roomKids = new Map(); // `${level}/${room}` -> the level's details that belong to one room
   const push = (map, k, c) => { if (!map.has(k)) map.set(k, []); map.get(k).push(c); };
   for (const c of scene.children) {
     const u = c.userData ?? {};
-    if (u.houseDetail) push(detailKids, u.houseLevel, c);
+    if (u.houseFar) push(farKids, u.houseFar, c);
+    else if (u.houseDetail) {
+      push(detailKids, u.houseLevel, c);
+      const room = u.houseRoom ?? u.houseRoomOf;
+      if (room) push(roomKids, `${u.houseLevel}/${room}`, c);
+    } else if (u.paneZone) push(detailKids, u.paneZone, c); // a wing window's glass is drawn with its zone (houselife.js)
     else if (u.houseSimple) push(simpleKids, u.houseSimple, c);
     else fixedKids.push(c);
   }
   const fixed = budgetOf(fixedKids, rig);
   const detail = new Map([...detailKids].map(([k, v]) => [k, budgetOf(v, rig)]));
   const simple = new Map([...simpleKids].map(([k, v]) => [k, budgetOf(v, rig)]));
+  const far = new Map([...farKids].map(([k, v]) => [k, budgetOf(v, rig)]));
+  const rooms = new Map([...roomKids].map(([k, v]) => [k, budgetOf(v, rig)]));
   const levels = new Set([...detail.keys(), ...simple.keys()]);
+  // a level drawn only for the wing: just the `keep` rooms in full, the far stand-in (all but the parlour) for
+  // the rest, or, with none kept, the ordinary stand-in
+  const partialOf = (level, keep) => {
+    let d = detail.get(level) ?? ZERO;
+    for (const [key, b] of rooms) {
+      const [lv, room] = key.split('/');
+      if (lv === level && !keep.includes(room)) d = sub(d, b);
+    }
+    return add(d, keep.length ? far.get(level) ?? ZERO : simple.get(level) ?? ZERO);
+  };
   return {
     fixed,
     detail,
     simple,
+    far,
+    rooms,
     at(levelId) {
-      const full = fullLevels(levelId, links);
+      return this.atFull(fullLevels(levelId, links));
+    },
+    // a set of zones drawn in full (houselevels.js): the rest are stand-ins; `partial` names the old levels
+    // drawn only for the wing, which keep just their join's rooms
+    atFull(full, partial = new Map()) {
       let sum = fixed;
-      for (const l of levels) sum = add(sum, (full.has(l) ? detail.get(l) : simple.get(l)) ?? ZERO);
+      for (const l of levels) {
+        if (full.has(l)) sum = add(sum, partial.has(l) ? partialOf(l, partial.get(l)) : detail.get(l) ?? ZERO);
+        else sum = add(sum, simple.get(l) ?? ZERO);
+      }
       return sum;
+    },
+    // her zone `id` and the zones joined to it that are near, as houselevels.js draws them: a wing zone
+    // alone, an old level beside the wing alone (its stairs' levels step back), and the old level a wing
+    // zone is near keeps only its rooms: the parlour's at the door, none out on the lawn (`outside`)
+    atZone(id, near = [], { outside = false } = {}) {
+      const wing = WING_JOINS.some((j) => !j.outside && (j.b === id || (j.a === id && j.a !== 'ground')));
+      const own = wing || near.length ? new Set([id]) : fullLevels(id, links);
+      for (const n of near) own.add(n);
+      const partial = new Map();
+      if (own.size > 1) for (const l of own) if (WING_JOINS.some((j) => j.a === l && j.keep)) partial.set(l, outside ? [] : ['parlour']);
+      return this.atFull(own, partial);
     },
   };
 }

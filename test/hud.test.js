@@ -223,7 +223,7 @@ describe('discovery lead words (polish-hud2)', () => {
       .toBe('Again — you pounce-tagged a sparrow! — a perfect sneak!');
   });
   it('everything else still leads with "You spotted" / "Again —", and an intruder stands alone', () => {
-    expect(discoveryText({ type: 'treasure', label: 'a lost marble', repeat: false })).toBe('You spotted a lost marble');
+    expect(discoveryText({ type: 'treasure', label: 'a lost marble', repeat: false })).toBe('You found a lost marble');
     expect(discoveryText({ type: 'treasure', label: 'a lost marble', repeat: true })).toBe('Again — a lost marble');
     expect(discoveryText({ type: 'intruder', label: 'You chased off Mossjaw! 🛡️' })).toBe('You chased off Mossjaw! 🛡️');
   });
@@ -364,7 +364,7 @@ describe('toast cap and merge', () => {
     w.run(16000);
     expect(w.all.map((s) => s.text).slice(2)).toEqual([
       'You spotted 2 critters  +8 🐾',
-      'You spotted a lost marble  +8 🐾',
+      'You found a lost marble  +8 🐾',
       'You spotted a frog  +5 🐾',
     ]);
   });
@@ -415,7 +415,7 @@ describe('toast cap and merge', () => {
     critter('a songbird');
     critter('a squirrel');
     bus.emit('discovery', { type: 'treasure', key: 't', label: 'a lost marble', points: 8, repeat: false });
-    expect(texts()).toEqual(['You spotted 2 critters  +10 🐾', 'You spotted a lost marble  +8 🐾']);
+    expect(texts()).toEqual(['You spotted 2 critters  +10 🐾', 'You found a lost marble  +8 🐾']);
   });
 
   it('a critter after a non-critter toast starts a new toast', () => {
@@ -875,5 +875,68 @@ describe('the Market Square: its pay toasts', () => {
     expect(discoveryText({ type: 'teamtreat', label: kept, repeat: false })).toBe(kept);
     // never the "You spotted" lead, and never "Again —"
     expect(discoveryText({ type: 'treat', label: ate, repeat: true })).toBe(ate);
+  });
+});
+
+describe('TV mode: the strip, the goals and the hint say the pad\'s words', () => {
+  let tv;
+  beforeEach(async () => {
+    tv = await import('../src/tvseam.js');
+    tv.resetTv();
+  });
+  afterEach(() => tv.resetTv());
+  const pad = async () => {
+    const { padLine } = await import('../src/tv/padwords.js');
+    const { glyphify, plainify } = await import('../src/tv/glyphs.js');
+    tv.setTv({ on: true, padLine, text: (s) => plainify(s, 'ps'), html: (s) => glyphify(s, 'ps') });
+  };
+
+  it('with TV mode off the strip is KEY_STRIP exactly, and nothing else adds a pad span', () => {
+    const hud = createHud();
+    expect(byId.get('hud-controls')).toBeTruthy();
+    void hud;
+    const g = createGoals(() => 0.1).goals;
+    for (const goal of g) expect(goalHowHtml(goal)).not.toContain('how-pad');
+    expect(goalHowHtml({ ...GOAL_POOL.find((x) => x.id === 'yarn-play'), howSlots: { place: 'here' } })).toBe('<div class="goal-how">The yarn ball is here. Bat it 4 times.</div>');
+  });
+
+  it('the strip is the pad\'s, with pictures, while the pad is the input, and the keys again after', async () => {
+    const hud = createHud();
+    void hud;
+    await pad();
+    tv.setTv({ input: 'pad' });
+    const strip = byId.get('hud-controls');
+    expect(strip.innerHTML).toContain('<svg');
+    expect(strip.innerHTML).toContain('pause');
+    expect(strip.innerHTML).not.toContain('⟦');
+    tv.setTv({ input: 'keys' });
+    expect(strip.textContent).toBe(KEY_STRIP);
+  });
+
+  it('a goal\'s how line gets a third, pad form with pictures, next to the key and touch forms', async () => {
+    await pad();
+    const collect = GOAL_POOL.find((g) => g.id === 'collect');
+    const h = goalHowHtml(collect);
+    expect(h).toContain('<span class="how-keys">Find something shiny. Press E.</span>');
+    expect(h).toContain('<span class="how-touch">Find something shiny. Tap the button.</span>');
+    expect(h).toMatch(/<span class="how-pad">Find something shiny\. Press <svg [^]*<\/svg>\.<\/span>/);
+    expect(h).not.toContain('⟦');
+    // a line the same in every form, and with no pad form, stays one plain span
+    expect(goalHowHtml(GOAL_POOL.find((g) => g.id === 'box-sit'))).toBe('<div class="goal-how">Walk into a cardboard box and stop.</div>');
+  });
+
+  it('a hint with tokens is drawn with pictures; one with none is text; a stray token never shows raw', async () => {
+    const hud = createHud();
+    const el = byId.get('hud-hint-text');
+    const pic = byId.get('hud-hint-pic');
+    void pic;
+    await pad();
+    hud.setHint('Press ⟦jump⟧ to jump up.', '🐾');
+    expect(el.innerHTML).toContain('<svg');
+    hud.setHint('Follow the pigeon!', '🐦');
+    expect(el.textContent).toBe('Follow the pigeon!');
+    tv.resetTv(); // TV mode switched off while a pad hint is up, then a late token arrives
+    hud.setHint('Press ⟦jump⟧ now', '');
+    expect(el.textContent).toBe('Press  now');
   });
 });

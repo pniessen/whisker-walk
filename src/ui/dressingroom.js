@@ -3,6 +3,7 @@
 // stage goes in #dr-stage, and CSS grid places each region. Every control
 // renders exactly once. Nothing here writes state: ownership and
 // affordability mirror progression.isUnlocked/canBuy, purely from the save.
+import { tvState, padHtml } from '../tvseam.js';
 import { phrase } from '../clanphrases.js';
 import { asFiniteNonNeg } from '../progression.js';
 import { areaInEdition, isClanEdition, placeName, effectiveArea, accessoryName } from '../edition.js';
@@ -508,7 +509,7 @@ export function renderDressingRoomHtml({ model, headerHtml = '', startHtml = '',
     : rankTitle ? `<div class="dr-hero-rank">${escapeHtml(rankTitle)}</div>` : '';
   const heroHtml = `<section class="dr-hero">
     <div class="dr-stage" id="dr-stage">
-      <div class="dr-spin-hint">↔ drag to spin</div>
+      <div class="dr-spin-hint">${(tvState.input === 'pad' && padHtml('⟦look⟧ spin')) || '↔ drag to spin'}</div>
       <div class="dr-hero-text">${nameHtml}<div class="dr-hero-blurb">${escapeHtml(heroBlurb)}</div>${rank}${buy}</div>
     </div>`;
 

@@ -79,6 +79,8 @@
 // loft's cooing, pigeons, sparrows, gulls and wings, by her distance. Silent
 // while the game is muted (audio.isMuted), and a picture page hands no audio.
 // =============================================================================
+import { Vector3 } from 'three';
+import { createClockTicker } from './world/clockhands.js';
 import { skyBackground } from './render/sky.js';
 import { BUS } from './world/roofsplan.js';
 import { createRoofsBirds } from './world/roofsbirds.js';
@@ -132,7 +134,7 @@ export function busAt(t, out = {}) {
 // critters, visits, reducedMotion, log, progression, viewYaw, ... }), or a picture
 // page's (which may add a `guideStore`).
 export function createRoofsLife(area) {
-  return ({ scene, sun, fill, critters, visits, reducedMotion, guideStore, log, progression, doc, audio, viewYaw }) => {
+  return ({ scene, sun, fill, critters, visits, reducedMotion, guideStore, log, progression, doc, audio, viewYaw, now }) => {
     const from = area.skySunset;
     const to = area.skyDusk;
     const sunEnd = sun.intensity;
@@ -222,6 +224,23 @@ export function createRoofsLife(area) {
     // walk's audio; silent while the game is muted.
     const sound = birds && audio ? createRoofsSound(audio, { birds, loft: area.anchors?.discoveries?.loft ?? null }) : null;
 
+    // The tower's hands at the real local time (`now`, a Date's source, is a
+    // test's or a picture's to fake): redrawn when the minute moves and the
+    // faces are in view, looked at once a second.
+    const tower = area.clockTower ?? null;
+    const probe = new Vector3();
+    let seen = null;
+    const inView = () => {
+      if (!seen) return true; // no camera (a picture page): draw
+      probe.set(tower.focus.x, tower.focus.y, tower.focus.z).applyMatrix4(seen.matrixWorldInverse);
+      if (probe.z > 3) return false; // behind her
+      probe.applyMatrix4(seen.projectionMatrix);
+      return Math.abs(probe.x) < 1.4 && Math.abs(probe.y) < 1.4;
+    };
+    const clock = tower
+      ? createClockTicker({ now: now ?? (() => new Date()), visible: inView, apply: (m) => tower.redraw(m) })
+      : null;
+
     apply(); // the first frame is already sunset
     wind();
     breathe();
@@ -231,6 +250,10 @@ export function createRoofsLife(area) {
         apply();
         wind();
         breathe();
+        if (clock) {
+          seen = camera;
+          clock.update(dt);
+        }
         birds?.update(dt, catPos, camera);
         moments?.update(dt, catPos, camera, session);
         sound?.update(dt, catPos);

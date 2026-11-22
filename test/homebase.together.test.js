@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { memoryStorage as memStorage } from './helpers/storage.js';
+import { tvHooks, setTv, resetTv } from '../src/tvseam.js';
+import { padLine } from '../src/tv/padwords.js';
 
 // Menu review #8 (2026-11-20): Play together opens on two big choices, Start a
 // room and Join a room (Play now); the name box sits under Friends and only
@@ -359,5 +361,53 @@ describe('in a room', () => {
     expect(s).not.toContain('wt-choices');
     expect(s).not.toContain('>Play now</h3>');
     expect(s).not.toContain('>Friends</h3>');
+  });
+});
+
+// TV mode: the walking name is typed with the letter picker, same rule as Save.
+describe('the friend name with the letter picker (TV mode)', () => {
+  afterEach(() => resetTv());
+  const tvOn = () => { setTv({ on: true, input: 'pad', padLine }); };
+  const stub = () => { const calls = []; tvHooks.picker = vi.fn((o) => new Promise((resolve) => { calls.push({ o, resolve }); })); return calls; };
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+
+  it('with TV mode off there is no open button (the box is as it was)', () => {
+    setup();
+    openSheet('together');
+    expect(html()).not.toContain('wt-petname-open');
+    expect(html()).toContain('id="wt-petname-input"');
+  });
+  it('with TV mode on and the picker loaded: a button beside the box, with the words from the table', () => {
+    tvOn(); stub();
+    setup();
+    openSheet('together');
+    expect(html()).toContain(`id="wt-petname-open" class="wt-name-open">${padLine('pad.picker.empty')} ✏️</button>`);
+    expect(html()).toContain('id="wt-petname-input"');
+  });
+  it('pressing it opens the picker with the walker title; OK saves the name through the same rule', async () => {
+    tvOn(); const calls = stub();
+    const { progression } = setup();
+    openSheet('together');
+    boxes({ '#wt-petname-input': '' });
+    await tap({ id: 'wt-petname-open' });
+    expect(calls[0].o.titleId).toBe('pad.picker.title.walker');
+    calls[0].resolve('Leafpaw');
+    await tick();
+    expect(progression.state.petName).toBe('Leafpaw');
+    expect(text(sheet())).toContain('Your friend name: Leafpaw');
+  });
+  it('Cancel saves nothing; a name the rule refuses is not saved either', async () => {
+    tvOn(); const calls = stub();
+    const { progression } = setup();
+    openSheet('together');
+    boxes({ '#wt-petname-input': '' });
+    await tap({ id: 'wt-petname-open' });
+    calls[0].resolve(null);
+    await tick();
+    expect(progression.state.petName).toBe(null);
+    await tap({ id: 'wt-petname-open' });
+    calls[1].resolve('Discord');
+    await tick();
+    expect(progression.state.petName).toBe(null);
   });
 });

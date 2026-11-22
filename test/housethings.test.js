@@ -98,8 +98,9 @@ describe('the golden mice (D5)', () => {
 
 describe('the knock-overs (D4)', () => {
   it('every knockable stands on a perch at its height and falls onto its own room\'s floor', () => {
-    expect(HOUSE_KNOCKABLES.map((k) => k.kind).sort()).toEqual(['book', 'book', 'can', 'cup', 'cup', 'flowerpot']);
-    expect(new Set(HOUSE_KNOCKABLES.map((k) => k.id)).size).toBe(6);
+    // six, and the east wing's four: a cup on the coffee table, a book on the kids' desk, a cup on the basin, a can on the cistern
+    expect(HOUSE_KNOCKABLES.map((k) => k.kind).sort()).toEqual(['book', 'book', 'book', 'can', 'can', 'cup', 'cup', 'cup', 'cup', 'flowerpot']);
+    expect(new Set(HOUSE_KNOCKABLES.map((k) => k.id)).size).toBe(10);
     for (const k of HOUSE_KNOCKABLES) {
       expect(isPropId(k.id) && KNOCK_KINDS.includes(k.kind), k.id).toBe(true);
       expect(k.id).toMatch(new RegExp(`^house-${k.kind}-[1-9]$`));
@@ -285,14 +286,19 @@ describe('the yarn ball (D14)', () => {
 });
 
 describe('the special places and the discoveries (D6, D13)', () => {
-  it('three special places, named in both word sets', () => {
-    expect(HOUSE_SCENICS.map((s) => s.id)).toEqual(['clock', 'fireside', 'attic-window']);
-    expect(HOUSE_SCENICS.map((s) => roomAt(s.x, s.z))).toEqual(['hall', 'parlour', 'attic']);
-    for (const s of HOUSE_SCENICS) {
+  it('three special places, named in both word sets, and the east wing\'s two, in plain words', () => {
+    expect(HOUSE_SCENICS.map((s) => s.id)).toEqual(['clock', 'fireside', 'attic-window', 'sunroom', 'bunks']);
+    expect(HOUSE_SCENICS.map((s) => roomAt(s.x, s.z))).toEqual(['hall', 'parlour', 'attic', 'solarium', 'kids']);
+    for (const s of HOUSE_SCENICS.slice(0, 3)) {
       expect(s.words).toBe(`house.scenic.${s.id}`);
       for (const w of inEachWordSet(() => phrase(s.words))) expect(w.length).toBeGreaterThan(0);
     }
-    expect(record.scenics).toEqual(HOUSE_SCENICS.map((s) => ({ id: s.id, x: s.x, z: s.z, label: phrase(s.words) })));
+    for (const s of HOUSE_SCENICS.slice(3)) {
+      expect(s.words).toBeUndefined(); // no line in the phrase table: the start-up chunk is not touched
+      expect(s.label.length).toBeGreaterThan(0);
+      expect(s.label).not.toMatch(/twoleg|clan|thunder|shadow|river|wind|star|warrior|kittypet/i);
+    }
+    expect(record.scenics).toEqual(HOUSE_SCENICS.map((s) => ({ id: s.id, x: s.x, z: s.z, label: s.label ?? phrase(s.words) })));
   });
 
   it('every special place and find is on ground she can reach in its room', () => {
@@ -346,7 +352,7 @@ describe('the special places and the discoveries (D6, D13)', () => {
 
 describe('the goals and the corner map (D11, D12)', () => {
   it('each goal type has something to finish in the house', () => {
-    expect(HOUSE_GOAL_TYPES).toEqual(['mischief', 'photo', 'play', 'scenic']);
+    expect(HOUSE_GOAL_TYPES).toEqual(['mischief', 'photo', 'play', 'sits', 'scenic']); // `sits`: the wing's blanket fort and laundry basket
     expect(Object.isFrozen(HOUSE_GOAL_TYPES)).toBe(true);
     expect(HOUSE_KNOCKABLES.length).toBeGreaterThanOrEqual(3);
     expect(HOUSE_SCENICS.length).toBeGreaterThanOrEqual(2);

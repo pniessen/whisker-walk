@@ -25,6 +25,7 @@ import { createTutorial, guidedStart, STEP, AWAY_M } from '../tutorial.js';
 import { createLeader, yawToward, WALK_SPEED, TROT_SPEED } from '../leadwait.js';
 import { findPath, pointAlong, pathLength } from '../pathfind.js';
 import { line } from '../tutorialwords.js';
+import { tvState } from '../tvseam.js';
 import { isWalkableAt } from '../player.js';
 import { bus } from '../events.js';
 
@@ -369,16 +370,16 @@ export function createGuideWalk({
     if (rt.kind === 'first') {
       const v = rt.tut.view({ prompt: promptOf(rt.session) });
       bubble.guide(v ? {
-        text: line(v.id, { touch, name: rt.name }),
+        text: line(v.id, { touch, name: rt.name, glyph: true }),
         more: v.more ? line(v.more, { touch }) : null,
         pic: PICS[v.id] ?? '🐾',
-        keys: touch ? null : KEYS[v.id] ?? null,
+        keys: touch || tvState.input === 'pad' ? null : KEYS[v.id] ?? null,
         chip: v.chip, ring: v.ring, grow: v.grow, thumb: v.thumb,
       } : null);
     } else {
       const id = rt.arrived ? 'camp.here' : rt.name ? 'camp.follow' : 'camp.trail';
       bubble.guide(rt.done ? null : {
-        text: line(id, { touch, name: rt.name ?? '' }), pic: PICS[id], more: null, keys: null,
+        text: line(id, { touch, name: rt.name ?? '', glyph: true }), pic: PICS[id], more: null, keys: null,
         chip: rt.chip && !rt.arrived ? 'paw' : null, ring: null, grow: false, thumb: null,
       });
     }

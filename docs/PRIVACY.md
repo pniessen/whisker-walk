@@ -57,7 +57,7 @@ Whisker Walk is a small game about walking a cat. It is run by one person, a par
 | Your game, album and settings, on your device | From the first time you play | So the game remembers your progress | Until you remove it | **Start over** in Game settings, clear the site's data in the browser, or delete the app |
 | A random device id and a random secret, on your device | Made the first time the game opens | To tell devices apart without accounts | Until you remove it | Same as above |
 | A "does this device have friends?" question, sent to the database with the device id and secret | Only once you have saved a cat name or the device is linked to a cloud save: then at the start of every walk on your own, and when Play together is opened | To bring friends' cats into your walk | Not stored by the game. The database provider's own logs record the connection (see "Other services involved") | Nothing to delete in the game's tables |
-| Cloud save: your save and album, a save code, a secret, your total points, the time of the last upload | After you tap **Save to cloud**; then again after each walk and after some changes at home | So you can move your game to another device | Until you delete it. Never removed automatically | **Delete my online data**, or write to us |
+| Cloud save: your save (with its counts of screens opened) and album, a save code, a secret, your total points, the time of the last upload | After you tap **Save to cloud**; then again after each walk and after some changes at home | So you can move your game to another device | Until you delete it. Never removed automatically | **Delete my online data**, or write to us |
 | Cat profile: cat name, breed, look, what it wears, rank title, the device id and secret, when it was last seen | After you save a cat name; refreshed after walks and when the cat changes | So people you play with can see your cat | Until you delete it. Never removed automatically | **Delete my online data**, or write to us |
 | Friend links: two device ids, how many times they have greeted, the last time | When two players greet on a walk, or one adds the other by friend code | For the Friends list and friends' visits | Until one of the two deletes their online data | **Delete my online data**, or write to us |
 | Shared colony: the cats in it, who found, fed, tamed and dressed them, tradeable accessories, trade offers | Only after two players pair their colonies | So two players can look after one colony | Until both players delete their online data. See "What stays after that" | **Delete my online data** (your part), or write to us |
@@ -69,7 +69,7 @@ The game saves these in your browser's storage (or inside the app on an iPhone o
 
 - Your progress: points, walks, what your cat owns and wears, your journal, skills, den and colony.
 - Your album: small pictures the game takes of the game world. The game never uses your camera or your photo library.
-- Your settings, and a count of how often each screen has been opened. The count stays on the device.
+- Your settings, and a count of how often each screen has been opened (numbers only, no times of day). The count is part of your save. It stays on the device unless you use Cloud save: the save is uploaded as it is, so the counts go with it (see "Cloud save").
 - Backup copies of your save, kept so a mistake can be undone.
 - A random id and a random secret that the game makes up for this device the first time it opens. They do not come from your name, an account or the device's serial number.
 - If you use cloud save: the save code and its secret.
@@ -107,7 +107,7 @@ Nothing is stored from that question. As with any internet request, the database
 
 When you tap **Save to cloud**, the game makes up a code (three words and a number) and uploads a copy of your save and your album under that code. After that it uploads again at the end of each walk, and after some changes at home: buying something for the den, changing what your cat wears, picking a different place, and opening a gift code. Stored online:
 
-- the save and the album, exactly as they are on your device;
+- the save and the album, exactly as they are on your device. This includes the numbers in the save, such as the count of how often each screen was opened and how many walks were finished. They are numbers only: no names, no text you typed, no times of day;
 - the code, a secret that proves later uploads come from your device, your total points, and the time of the last upload.
 
 Anyone who has your code can load a copy of your save. Treat the code like a password, and do not post screenshots of the Cloud save screen. **Load from cloud** sends the code you type. **Unlink** stops further uploads from that device; it does not delete the copy already stored online. To delete it, see "Deleting your data".

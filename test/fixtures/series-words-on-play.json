@@ -4,117 +4,117 @@
   "clanmateAtHome": {
    "leader": [
     "prompt: E — touch noses with Badgerstar",
-    "award: You spotted a nose touch with Badgerstar",
+    "award: You shared a nose touch with Badgerstar",
     "prompt: E — boop Badgerstar 💕",
     "toast: 💕 boop with Badgerstar!",
-    "award: You spotted a nose boop with Badgerstar 💕"
+    "award: You shared a nose boop with Badgerstar 💕"
    ],
    "elder": [
     "prompt: E — touch noses with Barkleaf",
-    "award: You spotted a nose touch with Barkleaf",
+    "award: You shared a nose touch with Barkleaf",
     "prompt: E — boop Barkleaf 💕",
     "toast: 💕 boop with Barkleaf!",
-    "award: You spotted a nose boop with Barkleaf 💕"
+    "award: You shared a nose boop with Barkleaf 💕"
    ],
    "kit": [
     "prompt: E — touch noses with Bluejaykit",
-    "award: You spotted a nose touch with Bluejaykit",
+    "award: You shared a nose touch with Bluejaykit",
     "prompt: E — boop Bluejaykit 💕",
     "toast: 💕 boop with Bluejaykit!",
-    "award: You spotted a nose boop with Bluejaykit 💕"
+    "award: You shared a nose boop with Bluejaykit 💕"
    ],
    "warrior": [
     "prompt: E — touch noses with Conkerbelly",
-    "award: You spotted a nose touch with Conkerbelly",
+    "award: You shared a nose touch with Conkerbelly",
     "prompt: E — boop Conkerbelly 💕",
     "toast: 💕 boop with Conkerbelly!",
-    "award: You spotted a nose boop with Conkerbelly 💕",
+    "award: You shared a nose boop with Conkerbelly 💕",
     "prompt: E — patrol with Conkerbelly",
     "toast: Conkerbelly walks the border with you 🐾",
     "prompt: E — say goodbye to Conkerbelly",
     "toast: Conkerbelly heads back to camp. Good patrol!",
-    "award: You spotted a patrol with Conkerbelly"
+    "award: You went on a patrol with Conkerbelly"
    ],
    "apprentice": [
     "prompt: E — touch noses with Gladepaw",
-    "award: You spotted a nose touch with Gladepaw",
+    "award: You shared a nose touch with Gladepaw",
     "prompt: E — boop Gladepaw 💕",
     "toast: 💕 boop with Gladepaw!",
-    "award: You spotted a nose boop with Gladepaw 💕",
+    "award: You shared a nose boop with Gladepaw 💕",
     "prompt: E — patrol with Gladepaw",
     "toast: Gladepaw walks the border with you 🐾",
     "prompt: E — say goodbye to Gladepaw",
     "toast: Gladepaw heads back to camp. Good patrol!",
-    "award: You spotted a patrol with Gladepaw"
+    "award: You went on a patrol with Gladepaw"
    ],
    "deputy": [
     "prompt: E — touch noses with Thrushear",
-    "award: You spotted a nose touch with Thrushear",
+    "award: You shared a nose touch with Thrushear",
     "prompt: E — boop Thrushear 💕",
     "toast: 💕 boop with Thrushear!",
-    "award: You spotted a nose boop with Thrushear 💕"
+    "award: You shared a nose boop with Thrushear 💕"
    ]
   },
   "patrolWith": {
    "woods": [
     "prompt: E — touch noses with Conkerbelly",
-    "award: You spotted a nose touch with Conkerbelly",
+    "award: You shared a nose touch with Conkerbelly",
     "prompt: E — boop Conkerbelly 💕",
     "toast: 💕 boop with Conkerbelly!",
-    "award: You spotted a nose boop with Conkerbelly 💕",
+    "award: You shared a nose boop with Conkerbelly 💕",
     "prompt: E — patrol with Conkerbelly",
     "toast: Conkerbelly walks the border with you 🐾",
     "prompt: E — say goodbye to Conkerbelly",
     "toast: Conkerbelly heads back to camp. Good patrol!",
-    "award: You spotted a patrol with Conkerbelly"
+    "award: You went on a patrol with Conkerbelly"
    ],
    "river": [
     "prompt: E — touch noses with Volefur",
-    "award: You spotted a nose touch with Volefur",
+    "award: You shared a nose touch with Volefur",
     "prompt: E — boop Volefur 💕",
     "toast: 💕 boop with Volefur!",
-    "award: You spotted a nose boop with Volefur 💕",
+    "award: You shared a nose boop with Volefur 💕",
     "prompt: E — patrol with Volefur",
     "toast: Volefur walks the border with you 🐾",
     "prompt: E — say goodbye to Volefur",
     "toast: Volefur heads back to camp. Good patrol!",
-    "award: You spotted a patrol with Volefur"
+    "award: You went on a patrol with Volefur"
    ],
    "moor": [
     "prompt: E — touch noses with Cottontail",
-    "award: You spotted a nose touch with Cottontail",
+    "award: You shared a nose touch with Cottontail",
     "prompt: E — boop Cottontail 💕",
     "toast: 💕 boop with Cottontail!",
-    "award: You spotted a nose boop with Cottontail 💕",
+    "award: You shared a nose boop with Cottontail 💕",
     "prompt: E — patrol with Cottontail",
     "toast: Cottontail walks the border with you 🐾",
     "prompt: E — say goodbye to Cottontail",
     "toast: Cottontail heads back to camp. Good patrol!",
-    "award: You spotted a patrol with Cottontail"
+    "award: You went on a patrol with Cottontail"
    ],
    "pines": [
     "prompt: E — touch noses with Needlestripe",
-    "award: You spotted a nose touch with Needlestripe",
+    "award: You shared a nose touch with Needlestripe",
     "prompt: E — boop Needlestripe 💕",
     "toast: 💕 boop with Needlestripe!",
-    "award: You spotted a nose boop with Needlestripe 💕",
+    "award: You shared a nose boop with Needlestripe 💕",
     "prompt: E — patrol with Needlestripe",
     "toast: Needlestripe walks the border with you 🐾",
     "prompt: E — say goodbye to Needlestripe",
     "toast: Needlestripe heads back to camp. Good patrol!",
-    "award: You spotted a patrol with Needlestripe"
+    "award: You went on a patrol with Needlestripe"
    ],
    "gorge": [
     "prompt: E — touch noses with Flintbelly",
-    "award: You spotted a nose touch with Flintbelly",
+    "award: You shared a nose touch with Flintbelly",
     "prompt: E — boop Flintbelly 💕",
     "toast: 💕 boop with Flintbelly!",
-    "award: You spotted a nose boop with Flintbelly 💕",
+    "award: You shared a nose boop with Flintbelly 💕",
     "prompt: E — patrol with Flintbelly",
     "toast: Flintbelly walks the border with you 🐾",
     "prompt: E — say goodbye to Flintbelly",
     "toast: Flintbelly heads back to camp. Good patrol!",
-    "award: You spotted a patrol with Flintbelly"
+    "award: You went on a patrol with Flintbelly"
    ]
   },
   "patrolEnds": {
@@ -123,16 +123,16 @@
    ],
    "longEnough": [
     "toast: Conkerbelly heads back to camp. Good patrol!",
-    "award: You spotted a patrol with Conkerbelly"
+    "award: You went on a patrol with Conkerbelly"
    ],
    "outran": [
     "toast: Conkerbelly couldn't keep up!",
-    "award: You spotted a patrol with Conkerbelly"
+    "award: You went on a patrol with Conkerbelly"
    ]
   },
   "clanmateAwayFromHome": [
    "prompt: E — touch noses with Conkerbelly",
-   "award: You spotted a nose touch with Conkerbelly"
+   "award: You shared a nose touch with Conkerbelly"
   ],
   "stray": {
    "Pickles": [

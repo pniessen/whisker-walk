@@ -116,7 +116,9 @@ function rowBody(row, model) {
       `<button class="cb-pill" data-cb-personality="${e(o.id)}" aria-pressed="${o.id === row.value}">${e(o.label)}</button>`).join('')}</div>`
       + `<p class="cb-blurb">${e(model.blurb)}</p>`;
   }
-  return `<input type="text" data-cb-name value="${e(row.value)}" maxlength="${NAME_MAX}" autocomplete="off" autocapitalize="words" enterkeyhint="done" aria-label="Cat name">`
+  // TV mode: the name is a big button that opens the letter picker (a pad cannot type into a box); the box stays for a keyboard.
+  const open = model.pickerLabel ? `<button type="button" class="cb-name-open" data-cb-name-open>${e(model.pickerLabel)}</button>` : '';
+  return open + `<input type="text" data-cb-name value="${e(row.value)}" maxlength="${NAME_MAX}" autocomplete="off" autocapitalize="words" enterkeyhint="done" aria-label="Cat name">`
     + '<p class="cb-hint">Use 2 to 16 letters.</p>';
 }
 

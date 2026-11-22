@@ -700,6 +700,19 @@ describe('Settings in two halves', () => {
     expect(h).toContain('id="btn-start"');
     expect(h).not.toContain('id="dusk-toggle"');
   });
+  it('Sound & controls ends with the TV mode switch (a children\'s sheet, drawn before the chunk loads) and its note', () => {
+    setup();
+    openSheet('controls');
+    const h = html();
+    expect(h).toContain('id="set-tv-mode"');
+    expect(h).toContain('<span class="settings-label">TV mode</span>');
+    expect(h.indexOf('id="set-tv-mode"')).toBeGreaterThan(h.indexOf('id="set-hide-chat"'));
+    expect(h).toContain('id="set-tv-note"');
+    openSheet('menu');
+    openSheet('grownups');
+    openSheet('settings');
+    expect(html()).not.toContain('id="set-tv-mode"');
+  });
   it('Game settings, under For grown-ups, keeps the edition, graphics, the readout, and Start over last', () => {
     setup();
     openSheet('menu');

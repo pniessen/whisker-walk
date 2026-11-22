@@ -4,7 +4,7 @@ import * as THREE from 'three';
 vi.stubGlobal('document', { createElement: () => ({ getContext: () => null }) });
 
 const { createHouseAir, SUNBEAM } = await import('../src/world/houseair.js');
-const { HOUSE_ROOMS, HOUSE_LEVELS, HOUSE_WINDOWS } = await import('../src/world/houseplan.js');
+const { HOUSE_ROOMS, HOUSE_LEVELS, HOUSE_WINDOWS, HOUSE_ZONES } = await import('../src/world/houseplan.js');
 
 // The Old House, step 2, Task 7 (ruling D16): sunbeams and dust motes.
 const make = (over = {}) => {
@@ -12,9 +12,9 @@ const make = (over = {}) => {
   const air = createHouseAir(scene, { windows: HOUSE_WINDOWS, rooms: HOUSE_ROOMS, levels: HOUSE_LEVELS, dusk: false, reducedMotion: false, ...over });
   return { scene, air };
 };
-const all = new Set(HOUSE_LEVELS.map((l) => l.id));
+const all = new Set(HOUSE_ZONES.map((z) => z.id)); // the old levels and the east wing's zones: a beam is drawn with its zone
 const objects = (scene) => { const o = []; scene.traverse((c) => { if (c.isMesh || c.isPoints) o.push(c); }); return o; };
-const roomsWithSun = new Set(HOUSE_WINDOWS.map((w) => HOUSE_ROOMS.find((r) => r.id === w.room)).filter((r) => r.level !== 'cellar').map((r) => r.level));
+const roomsWithSun = new Set(HOUSE_WINDOWS.map((w) => HOUSE_ROOMS.find((r) => r.id === w.room)).filter((r) => r.level !== 'cellar').map((r) => r.zone ?? r.level));
 
 describe('the house air', () => {
   it('by day the windows throw sunbeams with motes in them; at dusk there are none', () => {

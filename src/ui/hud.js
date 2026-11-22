@@ -3,6 +3,7 @@ import { objectiveDistance } from '../questscent.js';
 import { PAW } from './pawicon.js';
 import { toastLifeMs } from './toastlife.js';
 import { bothForms, hasLine } from '../tutorialwords.js';
+import { tvState, padHtml, padText, padFix, onTv } from '../tvseam.js';
 import { escapeHtml } from '../escapehtml.js';
 
 // Toasts (polish-hud2, R2/R3). At most two on screen: a burst of discoveries
@@ -49,8 +50,51 @@ export function discoveryText({ type, label, repeat }) {
   // A pounce's label is its own sentence ("you pounce-tagged a sparrow!",
   // game/avatar.js), so it never takes "You spotted" in front.
   if (type === 'hunt') return repeat ? `Again — ${label}` : capitalise(label);
-  return `${repeat ? 'Again — ' : 'You spotted '}${label}`;
+  // Every other find reads with a lead that fits what happened (toast-verbs,
+  // 2026-11-22): "You spotted" only where she literally sees it. The leads
+  // are plain words, the same in both editions; a clan word reaches a toast
+  // only through the label itself, which its caller built from the word set.
+  if (repeat) return `Again — ${label}`;
+  // Whole-sentence labels that already name their own doer.
+  if (type === 'gift' && /brought you|found the gift/.test(label)) return capitalise(label);
+  if (type === 'mischief' && /bowled over/.test(label)) return capitalise(label);
+  if (type === 'nappile' || type === 'rally' || (type === 'friend' && /visited$/.test(label))) return capitalise(label);
+  const lead = LEADS[type];
+  if (!lead) return `You spotted ${label}`;
+  const words = typeof lead === 'function' ? lead(label) : lead;
+  return `${Array.isArray(words) ? words[stableHash(label) % words.length] : words}${label}`;
 }
+
+// A small stable hash, so a lead that rotates picks the same words for the
+// same label every time (tests and replays stay put; no Math.random).
+function stableHash(text) {
+  let h = 0;
+  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+// type -> the words before the label (a list rotates by the label's hash).
+const LEADS = {
+  mischief: (l) => (/^the /.test(l) ? 'You made ' : 'You pulled off '),
+  scenic: ['You found a view: ', 'Nice view: '],
+  gift: (l) => (/^a gift tucked/.test(l) ? 'You left ' : 'You found '),
+  friend: (l) => (/^a new /.test(l) ? 'You made ' : 'You shared '),
+  boop: 'You shared ',
+  groom: 'You shared ',
+  duet: 'You sang ',
+  tag: 'You played ',
+  patrol: 'You went on ',
+  pet: 'You got ',
+  collectible: ['You found ', 'You came across '],
+  critter: 'You spotted ',
+  treasure: 'You found ',
+  legend: (l) => (/GOLDEN/.test(l) ? 'You found ' : 'You spotted '),
+  sits: 'You nailed ',
+  play: 'You had ',
+  perk: (l) => (/catch/.test(l) ? 'You made ' : /masterclass/.test(l) ? 'You showed off ' : /wave/.test(l) ? 'You got ' : 'You had '),
+  rainbow: 'You saw ',
+  photo: 'You took ',
+};
 
 // A goal's "how" line, in both forms: the page's touch mode shows one (CSS,
 // like the viewfinder's two hints), so a device that turns out to be touch
@@ -60,13 +104,17 @@ export function discoveryText({ type, label, repeat }) {
 export function goalHowHtml(goal) {
   if (!goal || !hasLine(goal.how)) return '';
   const { touch, keys } = bothForms(goal.how, goal.howSlots ?? {});
-  const body = touch === keys ? escapeHtml(touch)
-    : `<span class="how-keys">${escapeHtml(keys)}</span><span class="how-touch">${escapeHtml(touch)}</span>`;
+  // TV mode adds the pad's own words (src/tv/padwords.js), drawn with button pictures; the page's data-input picks one.
+  const p = tvState.padLine?.(goal.how, goal.howSlots ?? {});
+  const pad = p && p !== keys ? padHtml(p) : '';
+  const body = touch === keys && !pad ? escapeHtml(touch)
+    : `<span class="how-keys">${escapeHtml(keys)}</span><span class="how-touch">${escapeHtml(touch)}</span>${pad ? `<span class="how-pad">${pad}</span>` : ''}`;
   return `<div class="goal-how">${body}</div>`;
 }
 
 // The desktop key strip (controls review, 2026-11-19): six things, the ones
 // a walk needs every minute. The full list is on the Paused card (walk.js).
+const VF_KEYS = '📷 click to snap · C to lower';
 export const KEY_STRIP = '←↑↓→/WASD move · Space jump · E do it · V meow · C photo · Esc pause';
 
 export function createHud() {
@@ -86,7 +134,7 @@ export function createHud() {
     <div class="hud-controls" id="hud-controls">${KEY_STRIP}</div>
     <div class="hud-crosshair hidden" id="hud-crosshair">·</div>
     <div class="hud-viewfinder hidden" id="hud-viewfinder">
-      <span class="vf-hint-desktop">📷 click to snap · C to lower</span>
+      <span id="hud-vf" class="vf-hint-desktop">${VF_KEYS}</span>
       <span class="vf-hint-touch">📷 tap to snap · 📷 button to lower</span>
     </div>
   `;
@@ -95,11 +143,22 @@ export function createHud() {
   const rankEl = root.querySelector('#hud-rank');
   const mapEl = root.querySelector('#hud-map');
   const toastsEl = root.querySelector('#hud-toasts');
+  // TV mode: the key strip becomes the pad's, with button pictures, while the pad is the input.
+  const stripEl = root.querySelector('#hud-controls');
+  const vfEl = root.querySelector('#hud-vf');
+  onTv(() => {
+    const p = tvState.input === 'pad' && padHtml(tvState.padLine?.('pad.strip') ?? '');
+    if (p) stripEl.innerHTML = p; else stripEl.textContent = KEY_STRIP;
+    const v = tvState.input === 'pad' && padHtml(tvState.padLine?.('pad.vf.hint') ?? '');
+    if (v) vfEl.innerHTML = v; else vfEl.textContent = VF_KEYS;
+    if (hintArgs) api.setHint(...hintArgs);
+  });
   const promptEl = root.querySelector('#hud-prompt');
   const promptTapHandlers = [];
   let lastPrompt = { text: null, tappable: null };
   let lastObjective = { text: null, dist: null };
   let lastHint = null;
+  let hintArgs = null; // the hint as the caller gave it, to say again in the other input's words
   // Shown toasts, oldest first; a toast leaves this list as it starts to
   // fade. Waiting lines (past the cap) queue up behind them, oldest first.
   const liveToasts = [];
@@ -121,7 +180,7 @@ export function createHud() {
   };
   const startToastLife = (t) => {
     clearTimeout(t.life);
-    t.life = setTimeout(() => retireToast(t), toastLifeMs(t.el.textContent));
+    t.life = setTimeout(() => retireToast(t), tvState.toastTiming ? tvState.toastTiming.life(t.el.textContent, toastQueue.length) : toastLifeMs(t.el.textContent));
   };
   // First tap: hold it (a fresh clock, and no early retiring). Second: let go.
   const tapToast = (t) => {
@@ -135,20 +194,20 @@ export function createHud() {
   const showToast = (item) => {
     const el = document.createElement('div');
     el.className = 'toast';
-    el.textContent = item.build(item.count, item.points);
+    el.textContent = padText(padFix(item.build(item.count, item.points)));
     toastsEl.appendChild(el);
     const t = { ...item, el, shownAt: Date.now(), ripe: false, held: false, life: null, ripeTimer: null, gone: null };
     el.addEventListener?.('click', () => tapToast(t));
     liveToasts.push(t);
     startToastLife(t);
     // Once read for MIN_SHOWN_MS it may give up its slot to a waiting line.
-    t.ripeTimer = setTimeout(() => { t.ripe = true; pumpToasts(); }, MIN_SHOWN_MS);
+    t.ripeTimer = setTimeout(() => { t.ripe = true; pumpToasts(); }, tvState.toastTiming ? tvState.toastTiming.ripe : MIN_SHOWN_MS);
   };
   // Fill free slots from the queue; when lines still wait and the screen is
   // full, the oldest unheld shown toast makes room once it has been up 2.5 s
   // (now if it already has, else its ripe timer calls back here then).
   const pumpToasts = () => {
-    while (liveToasts.length < toastCap && toastQueue.length) showToast(toastQueue.shift());
+    while (liveToasts.length < (tvState.toastTiming ? Math.min(toastCap, tvState.toastTiming.cap) : toastCap) && toastQueue.length) showToast(toastQueue.shift());
     const oldest = liveToasts.find((t) => !t.held);
     if (toastQueue.length && oldest?.ripe) retireToast(oldest);
   };
@@ -181,8 +240,11 @@ export function createHud() {
     // tappable} and no-op when unchanged so it isn't rebuilding a fresh
     // button node (and reattaching its click listener) 60 times a second.
     setPrompt(text, tappable) {
-      const next = { text: text || null, tappable: !!tappable };
+      // A pad player reads the pad's button where the line says E (padFix); text then has ⟦tokens⟧ for padHtml.
+      const shown = text && !tappable ? padFix(text) : text;
+      const next = { text: shown || null, tappable: !!tappable };
       if (lastPrompt.text === next.text && lastPrompt.tappable === next.tappable) return;
+      text = shown;
       lastPrompt = next;
       promptEl.classList.toggle('hidden', !text);
       if (!text) return;
@@ -198,7 +260,8 @@ export function createHud() {
         });
         promptEl.appendChild(btn);
       } else {
-        promptEl.textContent = text;
+        const h = text.includes('⟦') ? padHtml(text) : null;
+        if (h) promptEl.innerHTML = h; else promptEl.textContent = text;
       }
     },
     onPromptTap(fn) {
@@ -220,7 +283,7 @@ export function createHud() {
         if (newest && newest.key === key) {
           newest.count += 1;
           newest.points += points || 0;
-          newest.el.textContent = newest.build(newest.count, newest.points);
+          newest.el.textContent = padText(padFix(newest.build(newest.count, newest.points)));
           startToastLife(newest);
           return;
         }
@@ -313,14 +376,19 @@ export function createHud() {
     // while it is up, so the CSS can make room for it. The guided walk's
     // bubble (step 3 of the build) is this same element.
     setHint(text, pic) {
+      hintArgs = [text, pic];
+      if (typeof text === 'string') text = padFix(text);
       const on = typeof text === 'string' && text !== '';
-      const key = on ? `${pic || ''}|${text}` : null;
+      const key = on ? `${pic || ''}|${text}|${tvState.input}` : null;
       if (key === lastHint) return;
       lastHint = key;
       const el = root.querySelector('#hud-hint');
       if (on) {
         root.querySelector('#hud-hint-pic').textContent = pic || '';
-        root.querySelector('#hud-hint-text').textContent = text;
+        // A pad line may carry ⟦tokens⟧ for button pictures (TV mode); anything else is text.
+        const t = root.querySelector('#hud-hint-text');
+        const h = text.includes('⟦') ? padHtml(text) : null;
+        if (h) t.innerHTML = h; else t.textContent = text.replace(/⟦\w+⟧/g, '');
       }
       el.classList.toggle('hidden', !on);
       root.classList.toggle('hinting', on);

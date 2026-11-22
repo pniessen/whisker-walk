@@ -265,3 +265,59 @@ describe('pad layers: the den shop sheet', () => {
     expect(t.sheet.cls.has('hidden')).toBe(true);
   });
 });
+
+describe('TV mode: the den walk\'s note', () => {
+  it('says the keys with TV mode off, the pad\'s words (pictures) while the pad is the input, the keys again after', async () => {
+    const tv = await import('../src/tvseam.js');
+    const { padLine } = await import('../src/tv/padwords.js');
+    const { glyphify, plainify } = await import('../src/tv/glyphs.js');
+    tv.resetTv();
+    try {
+      const t = setup();
+      expect(t.hint.textContent).toBe('Press Esc, then 🛋️ Den shop to decorate');
+      tv.setTv({ on: true, padLine, text: (s) => plainify(s, 'ps'), html: (s) => glyphify(s, 'ps') });
+      tv.setTv({ input: 'pad' });
+      expect(t.hint.innerHTML).toContain('<svg');
+      expect(t.hint.innerHTML).toContain('Den shop to decorate');
+      expect(t.hint.innerHTML).not.toContain('Esc');
+      tv.setTv({ input: 'keys' });
+      expect(t.hint.textContent).toBe('Press Esc, then 🛋️ Den shop to decorate');
+    } finally {
+      tv.resetTv();
+    }
+  });
+});
+
+// T13: with TV mode on and the list card loaded, a spot's button opens the list; nothing is placed until a choice.
+describe('den shop spot list (TV mode)', () => {
+  it('a press opens the list for that spot; a choice places once; Close places nothing', async () => {
+    const { setTv, tvHooks, resetTv } = await import('../src/tvseam.js');
+    const { DEN_ITEMS, DEN_SPOTS } = await import('../src/den.js');
+    const itemId = Object.keys(DEN_ITEMS)[0];
+    const spotId = DEN_SPOTS[0].id;
+    const placeDenItem = vi.fn(() => true);
+    const progression = { state: { points: 0, den: { owned: [itemId], placed: {} } }, placeDenItem };
+    const t = setup({ progression });
+    try {
+      setTv({ on: true, input: 'pad', padLine: (id) => id });
+      let answer = itemId;
+      const list = vi.fn(() => Promise.resolve(answer));
+      tvHooks.list = list;
+      t.view.setActive(true);
+      t.view.open();
+      const btn = new Node('button', t.sheet);
+      btn.attrs['data-den-spot-open'] = spotId;
+      btn.dataset.denSpotOpen = spotId;
+      dispatch(btn, 'click');
+      expect(list).toHaveBeenCalledTimes(1);
+      expect(list.mock.calls[0][0].options.map((o) => o.value)).toEqual(['', itemId]);
+      expect(placeDenItem).not.toHaveBeenCalled(); // not until a choice
+      await new Promise((r) => setTimeout(r, 0));
+      expect(placeDenItem).toHaveBeenCalledWith(spotId, itemId);
+      answer = null;
+      dispatch(btn, 'click');
+      await new Promise((r) => setTimeout(r, 0));
+      expect(placeDenItem).toHaveBeenCalledTimes(1); // Close: nothing placed
+    } finally { resetTv(); }
+  });
+});

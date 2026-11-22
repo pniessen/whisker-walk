@@ -75,7 +75,23 @@ function itemCard(id, item, owned, points) {
     </div>`;
 }
 
-function spotRow(spot, owned, placed, items) {
+// What a spot can hold: "nothing" first, then every piece she owns (one that stands elsewhere says where).
+export function spotChoices(state, items = DEN_ITEMS, spots = DEN_SPOTS, spotId) {
+  const catalog = isObj(items) ? items : {};
+  const spotList = Array.isArray(spots) ? spots.filter((s) => s && typeof s.id === 'string') : [];
+  const { owned, placed } = readDen(state, catalog, spotList);
+  const current = placed[spotId] ?? '';
+  const where = {};
+  for (const [sid, itemId] of Object.entries(placed)) where[itemId] = sid;
+  return [{ value: '', label: null, current: current === '' }].concat(owned.map((id) => {
+    const elsewhere = where[id] && where[id] !== spotId ? ` (now: ${spotLabel(where[id])})` : '';
+    return { value: id, label: `${items[id]?.name ?? id}${elsewhere}`, current: id === current };
+  }));
+}
+
+// padSpots ({ none }: TV mode with a letter-and-list card loaded): the spot is a button that opens a
+// list (a pad cycling a <select> blind changes the den at every step); the select stays, hidden, as the data.
+function spotRow(spot, owned, placed, items, padSpots) {
   const current = placed[spot.id] ?? '';
   const where = {};
   for (const [spotId, itemId] of Object.entries(placed)) where[itemId] = spotId;
@@ -83,11 +99,20 @@ function spotRow(spot, owned, placed, items) {
     const elsewhere = where[id] && where[id] !== spot.id ? ` (now: ${spotLabel(where[id])})` : '';
     return `<option value="${escapeHtml(id)}"${id === current ? ' selected' : ''}>${escapeHtml(items[id]?.name ?? id)}${escapeHtml(elsewhere)}</option>`;
   }).join('');
+  const select = `<select data-den-spot="${escapeHtml(spot.id)}"${padSpots ? ' hidden' : ''}>
+          <option value=""${current === '' ? ' selected' : ''}>— nothing —</option>${options}
+        </select>`;
+  if (padSpots) {
+    const now = current ? (items[current]?.name ?? current) : padSpots.none;
+    return `<div class="ds-spot">
+        <span class="ds-spot-name">${escapeHtml(spotLabel(spot.id))}</span>
+        <button type="button" class="ds-spot-open" data-den-spot-open="${escapeHtml(spot.id)}">${escapeHtml(now)} ✏️</button>
+        ${select}
+      </div>`;
+  }
   return `<label class="ds-spot">
         <span class="ds-spot-name">${escapeHtml(spotLabel(spot.id))}</span>
-        <select data-den-spot="${escapeHtml(spot.id)}">
-          <option value=""${current === '' ? ' selected' : ''}>— nothing —</option>${options}
-        </select>
+        ${select}
       </label>`;
 }
 
@@ -104,7 +129,7 @@ export function renderDenShopHtml(state, items = DEN_ITEMS, spots = DEN_SPOTS, u
   const note = ui && typeof ui.note === 'string' && ui.note ? `<p class="ds-note">${escapeHtml(ui.note)}</p>` : '';
   const arrange = `<h3>Arrange your den</h3>
       <div class="ds-spots">
-      ${spotList.map((spot) => spotRow(spot, owned, placed, catalog)).join('')}
+      ${spotList.map((spot) => spotRow(spot, owned, placed, catalog, ui?.padSpots)).join('')}
       </div>`;
   const shop = `<h3>Shop</h3>
       <div class="ds-cards">

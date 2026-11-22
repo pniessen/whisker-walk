@@ -383,7 +383,8 @@ upDown('warehouse', S(34, -12.2), S(34, -13.8), 'pipe', 'wall', 'warehouse');
 // On the warehouse: the tank, the loft, the pipe between, the lantern.
 upDown('tank', S(-26, -31.8), S(-26, -33.0), 'crate', 'wall', 'tank');
 upDown('loft', S(-33, -41.6), S(-33, -43.5), 'crate', 'wall', 'loft');
-crossings.push({ id: 'pipe-1', kind: 'pipe', points: [P(-26.2, -34.4, L.TANK), P(-30.5, -43.5, L.TANK)] });
+// reach: 0.6 m more mount reach (and edge grace); the tank is a round lid with the pipe's end near its middle, so a wandering stick meets the rim well off that end
+crossings.push({ id: 'pipe-1', kind: 'pipe', reach: 0.6, points: [P(-26.2, -34.4, L.TANK), P(-30.5, -43.5, L.TANK)] });
 drops.push({ id: 'lantern-down', from: S(-19, -35.6), to: S(-19, -37.3), mark: 'skylight', prop: 'lantern' });
 
 // The clock tower, stage by stage, each on its own side.
