@@ -87,6 +87,7 @@ import { createRoofsBirds } from './world/roofsbirds.js';
 import { WASH, createRoofsSmoke } from './world/roofsair.js';
 import { createRoofsMoments } from './world/roofsmoments.js';
 import { createRoofsSound } from './world/roofssound.js';
+import { createRoofsSkyDress } from './world/roofssky.js';
 
 export const EVENING_RAMP = 240; // s, sunset to dusk
 export const EVENING_STEPS = 6; // the sky's rebuilds on the way
@@ -152,11 +153,18 @@ export function createRoofsLife(area) {
     const at = { x: 0, z: 0, visible: false };
     let walk = 0;
     let step = -1;
+    let dtLast = 0;
+    let camLast = null;
+    // The night sky's own dressing (world/roofssky.js): the sky canvas, the
+    // stars, the moon and the clouds' light. Headless it does nothing.
+    const dress = createRoofsSkyDress({ reducedMotion: reducedMotion ?? false });
 
     function sky(k) {
       const old = scene.background;
       const e = k / EVENING_STEPS;
-      scene.background = skyBackground(mixHex(from.top, to.top, e), mixHex(from.horizon, to.horizon, e));
+      const top = mixHex(from.top, to.top, e);
+      const horizon = mixHex(from.horizon, to.horizon, e);
+      scene.background = dress.skyTexture(top, horizon, e) ?? skyBackground(top, horizon);
       if (old && old !== scene.background && old.isTexture) old.dispose();
     }
 
@@ -184,6 +192,7 @@ export function createRoofsLife(area) {
           m.emissiveIntensity = m.userData.glowBase * (m === bulbs && !reducedMotion ? k * (1 + GLOW.breathe * Math.sin(GLOW.rate * walk)) : k);
         }
       }
+      dress.update(dtLast, walk, e, camLast, scene);
       if (marks) marks.material.opacity = marksFrom + (marksTo - marksFrom) * e;
       if (bus) {
         busAt(walk, at);
@@ -247,6 +256,8 @@ export function createRoofsLife(area) {
     return {
       update(dt, t, catPos = null, camera = null, session = null) {
         walk += dt;
+        dtLast = dt;
+        camLast = camera;
         apply();
         wind();
         breathe();
@@ -259,6 +270,7 @@ export function createRoofsLife(area) {
         sound?.update(dt, catPos);
       },
       dispose() {
+        dress.dispose();
         sound?.dispose();
         moments?.dispose();
         birds?.dispose();

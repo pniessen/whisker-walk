@@ -421,7 +421,7 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       scene.add(drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, poles, basketKit, packKit }));
     }
     // the shop fronts' windows lit at dusk, the café's among them: one mesh for all
-    const winLit = new THREE.MeshStandardMaterial({ color: GLASS, roughness: 0.85, metalness: 0, emissive: 0xffc070, emissiveIntensity: 0 });
+    const winLit = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0, emissive: 0xffc070, emissiveIntensity: 0 });
     const litKit = makeKit('marketWindowsLit');
     drawCafe(scene, { PARTS, M, paint, quad, lanterns, litKit, winLit });
     for (const { x, z } of MARKET_LAMPS) {
@@ -506,8 +506,10 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
 
     scene.add(drawBunting(PARTS, flags, poles));
     // the shop fronts, and a share of their windows lit at dusk (the lit kit above)
-    const sack = new THREE.SphereGeometry(0.5, 8, 6);
-    for (const side of SIDES) scene.add(drawShopFront(side, { paint, winLit, litKit, barrel, sack }));
+    const sack = new THREE.SphereGeometry(0.5, 6, 4);
+    const footBarrel = new THREE.CylinderGeometry(0.5, 0.5, 1, 8).translate(0, 0.5, 0); // eight sides: the foot's barrels are small and far
+    for (const side of SIDES) scene.add(drawShopFront(side, { paint, winLit, litKit, barrel: footBarrel, sack }));
+    footBarrel.dispose();
     const windows = litKit.meshes()[0];
     windows.name = 'marketWindowsLit';
     windows.userData.shopWindows = true;
@@ -1298,7 +1300,7 @@ function drawCafe(scene, { PARTS, M, paint, quad, lanterns, litKit, winLit }) {
     const wx = (x0 + x1) / 2;
     const ww = x1 - x0;
     paintBox(wx, 0.72, 0.12, ww, 1.72, 0.03, CAFE_LOOK.trim); // the frame
-    litKit.put('glass', winLit, quad, plane(wx, 1.58, 0.137, ww - 0.12, 1.6), { noCast: true });
+    litKit.put('glass', winLit, quad, plane(wx, 1.58, 0.137, ww - 0.12, 1.6), { color: GLASS, noCast: true });
     // café curtains on a brass rod across the lower half
     K.put('paint', paint, quad, plane(wx, 1.17, 0.142, ww - 0.14, 0.62), { color: CAFE_LOOK.curtain, noCast: true });
     paintBox(wx, 1.47, 0.145, ww - 0.1, 0.025, 0.02, CAFE_LOOK.brass);
@@ -1314,7 +1316,7 @@ function drawCafe(scene, { PARTS, M, paint, quad, lanterns, litKit, winLit }) {
   // the door: a frame, a wooden door with a glass top and a brass knob, a stone step
   paintBox(DOOR.x, 0, 0.12, DOOR.w + 0.1, DOOR.h + 0.08, 0.03, CAFE_LOOK.trim);
   paintBox(DOOR.x, 0, 0.135, DOOR.w, DOOR.h, 0.03, CAFE_LOOK.door);
-  litKit.put('glass', winLit, quad, plane(DOOR.x, 1.5, 0.152, DOOR.w - 0.24, 0.95), { noCast: true });
+  litKit.put('glass', winLit, quad, plane(DOOR.x, 1.5, 0.152, DOOR.w - 0.24, 0.95), { color: GLASS, noCast: true });
   paintBox(DOOR.x + DOOR.w / 2 - 0.12, 0.98, 0.16, 0.06, 0.06, 0.04, CAFE_LOOK.brass);
   paintBox(DOOR.x, 0, 0.3, DOOR.w + 0.4, 0.08, 0.34, CAFE_LOOK.step);
 
@@ -1421,10 +1423,17 @@ function drawBunting(PARTS, flags, poles) {
 function drawShopFront(side, { paint, winLit, litKit, barrel, sack }) {
   const K = makeKit(`marketShops:${side.id}`);
   const sideM = mat4(side.x, 0, side.z, { yaw: side.yaw });
-  const put = (geo, m, color) => K.put('paint', paint, geo, sideM.clone().multiply(m), { color, noCast: true }); // WHAT CASTS
-  const lit = (geo, m) => litKit.put('glass', winLit, geo, sideM.clone().multiply(m), { noCast: true });
+  const put = (geo, m, color, own = false) => K.put('paint', paint, geo, sideM.clone().multiply(m), { color, noCast: true, own }); // WHAT CASTS
+  const lit = (geo, m) => litKit.put('glass', winLit, geo, sideM.clone().multiply(m), { noCast: true, own: true });
   const cube = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+  cube.setIndex(Array.from(cube.index.array).filter((_, i) => i < 18 || i >= 24)); // no underside: it stands on something, or hangs too high to see
   const plane = new THREE.PlaneGeometry(1, 1);
+  // sky-glass, by day and lit; a flower box, wood below and leaves on top
+  const shapes = {
+    glass: gradientOf(new THREE.PlaneGeometry(1, 1), 0x26313c, 0x6d8ea6),
+    glassLit: gradientOf(new THREE.PlaneGeometry(1, 1), 0x26313c, 0x6d8ea6),
+    box: gradientOf(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), 0x6e4a32, 0x3f7a3a),
+  };
   const si = SIDES.indexOf(side);
   // the runs of the row between its gaps
   const runs = [];
@@ -1437,7 +1446,7 @@ function drawShopFront(side, { paint, winLit, litKit, barrel, sack }) {
     while (u < r1 - 0.01) {
       let w = 5.2 + 2.6 * hash01(u, si, 71);
       if (r1 - (u + w) < 3) w = r1 - u;
-      house(put, lit, cube, plane, u, w, k, si);
+      house(put, lit, cube, plane, u, w, k, si, shapes);
       u += w;
       k++;
     }
@@ -1477,14 +1486,58 @@ function drawShopFront(side, { paint, winLit, litKit, barrel, sack }) {
   }
   cube.dispose();
   plane.dispose();
+  for (const g of Object.values(shapes)) g.dispose();
   const m = K.meshes()[0];
   m.name = `marketShops:${side.id}`;
   m.userData.shopFront = side.id;
   return m;
 }
 
+// Market beauty pass, buildings round (2026-11-22): the town fronts get what the
+// flat planes lacked, all in vertex colours and thin planes (no new texture, no
+// new mesh): sky-glass gradients, mullions, sills, shutters, flower
+// boxes, a shop window's goods, a fascia's painted lettering bars (no letters),
+// hanging signs, striped awnings, door panels, pilasters, string courses,
+// tile courses and dormers.
+const SHUTTERS = Object.freeze([0x3d6b4f, 0x2f4268, 0x7a2f35, 0x4a7a8a, 0x6b4d7a]);
+const AWNINGS = Object.freeze([[0xb83a3a, 0xf0e8d8], [0x2f5f9a, 0xf0e8d8], [0x3d7a4f, 0xf0e8d8], [0xd08a2a, 0xf3ecdc], [0x7a4d8a, 0xf0e8d8]]);
+const GOODS = Object.freeze([
+  [0xc98a4a, 0xdba85a, 0xb06a38, 0xe8c27a], // a baker's loaves
+  [0xc4673c, 0x3d6b9a, 0xe0b24a, 0x9a4a30], // pots
+  [0xb83a3a, 0x2f5f9a, 0xe8c040, 0x3d7a4f], // toys
+  [0x7a2f35, 0x2f4268, 0x3d6b4f, 0xc9a040], // books
+  [0xe0a0b0, 0xc080a0, 0xf0d0c0, 0x9a70b0], // cloth and ribbons
+]);
+const SILL_BLOOMS = Object.freeze([0xf07a9a, 0xf5d24a, 0xffffff, 0xe8603a]);
+const STONE = 0xd9d1c0;
+const mixHex = (a, b, t) => new THREE.Color(a).lerp(new THREE.Color(b), t).getHex();
+const shade = (a, k) => new THREE.Color(a).multiplyScalar(k).getHex();
+
+// `geo` (a unit plane or box) with a colour per vertex running from `bottom` to `top` by height.
+function gradientOf(geo, bottom, top) {
+  geo.computeBoundingBox();
+  const { min, max } = geo.boundingBox;
+  const pos = geo.attributes.position;
+  const a = new Float32Array(pos.count * 3);
+  const cb = new THREE.Color(bottom), ct = new THREE.Color(top), c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    c.copy(cb).lerp(ct, (pos.getY(i) - min.y) / (max.y - min.y));
+    a.set([c.r, c.g, c.b], i * 3);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(a, 3));
+  return geo;
+}
+// a unit box (y 0..1) with no underside and no back: 8 triangles, not 12
+function wallBox(bottom, top) {
+  const g = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+  const idx = Array.from(g.index.array);
+  g.setIndex([...idx.slice(0, 18), ...idx.slice(24, 30)]);
+  return gradientOf(g, bottom, top);
+}
+
 // One town building: u..u+w along the row, its front at v 0 facing the square.
-function house(put, lit, cube, plane, u, w, k, si) {
+// `put(geo, matrix, color, own)` and `lit(geo, matrix)` are drawShopFront's; `K` its shared shapes.
+function house(put, lit, cube, plane, u, w, k, si, K) {
   const h1 = hash01(u, si, 81);
   const upper = h1 < 0.45 ? 1 : 2;
   const h = 3.4 + 2.9 * upper + 0.4;
@@ -1493,23 +1546,99 @@ function house(put, lit, cube, plane, u, w, k, si) {
   const fascia = FASCIAS[Math.floor(hash01(u, si, 87) * FASCIAS.length) % FASCIAS.length];
   const door = DOORS[k % DOORS.length];
   const mid = u + w / 2;
-  put(cube, mat4(mid, 0, -FRONT_DEPTH / 2, { sx: w, sy: h, sz: FRONT_DEPTH }), wall);
+  const light = mixHex(wall, 0xffffff, 0.32);
+  const dark = shade(wall, 0.62);
+  // the wall, shaded from a grimy foot to a sunlit top
+  const wb = wallBox(shade(wall, 0.8), shade(wall, 1.06));
+  put(wb, mat4(mid, 0, -FRONT_DEPTH / 2, { sx: w, sy: h, sz: FRONT_DEPTH }), wall, true);
+  wb.dispose();
   const rise = 1.6 + 1.0 * hash01(u, si, 89);
   const prism = roofPrism(w, FRONT_DEPTH, rise, 0.3);
   put(prism, mat4(u, h, 0), roof);
   prism.dispose();
+  // tile courses along the front slope
+  const slope = -Math.atan2(3.3, rise);
+  for (const t of [0.22, 0.5, 0.78]) put(plane, mat4(mid, h + rise * t + 0.05, 0.3 - 3.3 * t + 0.05 * rise / 3.3, { pitch: slope, sx: w, sy: 0.09 }), shade(roof, 0.8));
   if (hash01(u, si, 91) < 0.6) put(cube, mat4(u + w * (0.25 + 0.5 * hash01(u, si, 93)), h + rise * 0.55, -FRONT_DEPTH / 2, { sx: 0.5, sy: rise * 0.45 + 0.9, sz: 0.6 }), 0x7a4a3a);
-  // the shop: a window, a door, a painted fascia band (no letters)
+  // a dormer on some of the roofs, lit at dusk on half of them
+  if (hash01(u, si, 101) < 0.34) {
+    const dx = u + w * (0.3 + 0.4 * hash01(u, si, 103));
+    const y0 = h + rise * 0.364 - 0.1;
+    put(cube, mat4(dx, y0, -1.45, { sx: 1.3, sy: 1.0, sz: 1.1 }), wall);
+    const dp = roofPrism(1.6, 1.1, 0.5, 0.12);
+    put(dp, mat4(dx - 0.8, y0 + 1.0, -0.82), shade(roof, 1.12));
+    dp.dispose();
+    put(plane, mat4(dx, y0 + 0.5, -0.89, { sx: 0.72, sy: 0.78 }), FRAME);
+    const dpane = mat4(dx, y0 + 0.5, -0.88, { sx: 0.6, sy: 0.66 });
+    if (hash01(u, si, 105) < 0.5) lit(K.glassLit, dpane); else put(K.glass, dpane, null, true);
+  }
+  // the grounding and the courses: plinth, string courses, a cornice, corner pilasters
+  put(plane, mat4(mid, 0.22, 0.02, { sx: w, sy: 0.44 }), shade(wall, 0.55));
+  for (let f = 0; f <= upper; f++) put(plane, mat4(mid, 3.62 + 2.9 * f, 0.015, { sx: w, sy: 0.2 }), light);
+  put(plane, mat4(mid, h - 0.16, 0.03, { sx: w, sy: 0.3 }), light);
+  put(plane, mat4(mid, h - 0.38, 0.025, { sx: w, sy: 0.14 }), dark);
+  for (const px of [u + 0.14, u + w - 0.14]) put(plane, mat4(px, h / 2, 0.012, { sx: 0.28, sy: h }), light);
+  // the shop: a window, a door, a painted fascia band
   const doorLeft = hash01(u, si, 95) < 0.5;
   const dx = doorLeft ? u + 0.9 : u + w - 0.9;
   const winX0 = doorLeft ? u + 1.6 : u + 0.4;
   const winX1 = doorLeft ? u + w - 0.4 : u + w - 1.6;
-  put(plane, mat4((winX0 + winX1) / 2, 1.5, 0.02, { sx: winX1 - winX0 + 0.16, sy: 1.96 }), FRAME);
-  const shopPane = mat4((winX0 + winX1) / 2, 1.5, 0.03, { sx: winX1 - winX0, sy: 1.8 });
-  if (hash01(u, si, 96) < 0.55) lit(plane, shopPane); else put(plane, shopPane, GLASS);
+  const winW = winX1 - winX0, winM = (winX0 + winX1) / 2;
+  put(plane, mat4(winM, 1.5, 0.02, { sx: winW + 0.16, sy: 1.96 }), FRAME);
+  const shopPane = mat4(winM, 1.5, 0.03, { sx: winW, sy: 1.8 });
+  if (hash01(u, si, 96) < 0.55) lit(K.glassLit, shopPane); else put(K.glass, shopPane, null, true);
+  // goods in the window, on a shelf and on the floor
+  const goods = GOODS[Math.floor(hash01(u, si, 107) * GOODS.length)];
+  put(plane, mat4(winM, 1.12, 0.04, { sx: winW - 0.1, sy: 0.05 }), 0x6e4a32);
+  const n = Math.max(4, Math.floor(winW / 0.62));
+  for (let i = 0; i < n; i++) {
+    const gx = winX0 + (winW * (i + 0.5)) / n;
+    const gh = 0.18 + 0.26 * hash01(gx, si, 109);
+    const gw = 0.2 + 0.16 * hash01(gx, si, 111);
+    const col = goods[Math.floor(hash01(gx, si, 113) * goods.length)];
+    put(plane, mat4(gx, 1.14 + gh / 2, 0.04, { sx: gw, sy: gh }), col);
+    if (i % 2 === 0) put(plane, mat4(gx + 0.15, 0.6 + (gh + 0.12) / 2, 0.04, { sx: gw + 0.1, sy: gh + 0.12 }), goods[(i + 1) % goods.length]);
+  }
+  // the window's bars, its stall-riser under it
+  for (let i = 1; i < Math.round(winW / 1.5); i++) put(plane, mat4(winX0 + (winW * i) / Math.round(winW / 1.5), 1.5, 0.05, { sx: 0.05, sy: 1.8 }), FRAME);
+  put(plane, mat4(winM, 2.05, 0.05, { sx: winW, sy: 0.05 }), FRAME);
+  put(plane, mat4(winM, 0.52, 0.03, { sx: winW + 0.16, sy: 0.16 }), shade(wall, 0.7));
+  // the door: panels, a little glazing, a brass handle, a lintel
   put(plane, mat4(dx, 1.1, 0.03, { sx: 1.0, sy: 2.2 }), door);
+  put(plane, mat4(dx, 1.72, 0.045, { sx: 0.6, sy: 0.7 }), FRAME);
+  put(K.glass, mat4(dx, 1.72, 0.05, { sx: 0.5, sy: 0.6 }), null, true);
+  put(plane, mat4(dx, 0.7, 0.045, { sx: 0.66, sy: 0.7 }), shade(door, 0.78));
+  put(plane, mat4(dx + (doorLeft ? 0.34 : -0.34), 1.05, 0.055, { sx: 0.07, sy: 0.07 }), 0xc9a040);
+  put(plane, mat4(dx, 2.3, 0.035, { sx: 1.3, sy: 0.12 }), STONE);
   put(plane, mat4(mid, 2.88, 0.04, { sx: w - 0.2, sy: 0.55 }), fascia);
-  // the windows upstairs
+  // lettering-like bars (no letters) on the fascia, in cream or gold
+  const bars = 3 + Math.floor(hash01(u, si, 115) * 2);
+  const barCol = hash01(u, si, 117) < 0.5 ? 0xefe6cf : 0xe0b050;
+  let bw = 0;
+  const bwidths = Array.from({ length: bars }, (_, i) => { const v = 0.3 + 0.6 * hash01(u + i, si, 119); bw += v + 0.16; return v; });
+  let bx = mid - (bw - 0.16) / 2;
+  for (const v of bwidths) { put(plane, mat4(bx + v / 2, 2.88, 0.05, { sx: v, sy: 0.15 }), barCol); bx += v + 0.16; }
+  // an awning over the shop window on some
+  if (hash01(u, si, 121) < 0.4) {
+    const [c0, c1] = AWNINGS[Math.floor(hash01(u, si, 123) * AWNINGS.length)];
+    const ns = Math.max(4, Math.round(winW / 0.5));
+    const sw = winW / ns;
+    const pitch = -Math.atan2(0.75, 0.34);
+    for (let i = 0; i < ns; i++) {
+      const cx = winX0 + sw * (i + 0.5);
+      const col = i % 2 ? c1 : c0;
+      put(plane, mat4(cx, 2.45, 0.375, { pitch, sx: sw, sy: 0.82 }), col);
+      put(plane, mat4(cx, 2.2, 0.75, { sx: sw, sy: 0.17 }), col);
+    }
+    put(plane, mat4(winM, 2.45, 0.372, { pitch: Math.PI + pitch, sx: winW, sy: 0.82 }), shade(c1, 0.7));
+  } else if (hash01(u, si, 125) < 0.45) {
+    // else a hanging sign on an iron bracket at the end away from the door
+    const sx = doorLeft ? u + w - 0.12 : u + 0.12;
+    put(cube, mat4(sx, 2.2, 0.35, { sx: 0.05, sy: 0.55, sz: 0.5 }), hash01(u, si, 127) < 0.5 ? 0xe0b050 : 0xefe6cf);
+    put(cube, mat4(sx, 2.82, 0.32, { sx: 0.04, sy: 0.04, sz: 0.62 }), 0x2a2420);
+  }
+  // the windows upstairs: sky-glass, bars, a sill, shutters on some houses, flower boxes on some windows
+  const shutter = hash01(u, si, 129) < 0.5 ? SHUTTERS[Math.floor(hash01(u, si, 131) * SHUTTERS.length)] : null;
   const cols = Math.max(2, Math.floor(w / 2.2));
   for (let f = 0; f < upper; f++) {
     const y = 3.4 + 2.9 * f + 1.45;
@@ -1517,7 +1646,15 @@ function house(put, lit, cube, plane, u, w, k, si) {
       const x = u + (w * (c + 0.5)) / cols;
       put(plane, mat4(x, y, 0.02, { sx: 1.0, sy: 1.45 }), FRAME);
       const pane = mat4(x, y, 0.03, { sx: 0.82, sy: 1.25 });
-      if (hash01(x, f + 7 * si, 97) < 0.4) lit(plane, pane); else put(plane, pane, GLASS);
+      if (hash01(x, f + 7 * si, 97) < 0.4) lit(K.glassLit, pane); else put(K.glass, pane, null, true);
+      put(plane, mat4(x, y, 0.045, { sx: 0.045, sy: 1.25 }), FRAME);
+      put(plane, mat4(x, y + 0.12, 0.045, { sx: 0.82, sy: 0.045 }), FRAME);
+      put(plane, mat4(x, y - 0.8, 0.03, { sx: 1.2, sy: 0.1 }), STONE);
+      if (shutter != null) for (const sd of [-1, 1]) put(plane, mat4(x + sd * 0.7, y, 0.035, { sx: 0.4, sy: 1.4 }), shutter);
+      if (f === 0 && shutter == null && hash01(x, si, 135) < 0.3) {
+        put(K.box, mat4(x, y - 0.74, 0.12, { sx: 0.95, sy: 0.2, sz: 0.24 }), 0xffffff, true);
+        for (let b = 0; b < 3; b++) put(plane, mat4(x - 0.3 + 0.3 * b, y - 0.5, 0.25, { sx: 0.15, sy: 0.15 }), SILL_BLOOMS[(b + Math.floor(x)) & 3]);
+      }
     }
   }
 }
