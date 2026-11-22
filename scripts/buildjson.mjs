@@ -121,7 +121,7 @@ export function tvDownloads(manifest) {
 // The cat login's catch-up (src/game/catsync.js and the merge it loads) is one
 // lazy chunk, fetched only by a device that has a cloud link. It must never
 // fold into start-up.
-export const CAT_ENTRY_MODULES = { catsync: ['src/game/catsync.js'], savecode: ['src/savecode.js'], catcodes: ['src/catcodes.js'], catlogin: ['src/ui/catlogin.js'] };
+export const CAT_ENTRY_MODULES = { catsync: ['src/game/catsync.js'], savecode: ['src/savecode.js'], catcodes: ['src/catcodes.js'], catlogin: ['src/ui/catlogin.js'], hop: ['src/game/hop.js'] };
 export const CAT_GZIP_CEILING_KB = 30;
 
 const gzipOf = (dir, file) => gzipSync(readFileSync(join(dir, file))).length;
@@ -150,7 +150,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   problems.push(...areaSizeProblems(catAll, CAT_GZIP_CEILING_KB));
   const catKb = catAll.catsync;
   console.log(`  catch-up      ${catKb.toFixed(1)} kB gzipped (ceiling ${CAT_GZIP_CEILING_KB} kB)`);
-  console.log(`  cat codes     ${catAll.catcodes.toFixed(1)} kB gzipped, My cat sheet ${catAll.catlogin.toFixed(1)} kB, old codes ${catAll.savecode.toFixed(1)} kB (ceiling ${CAT_GZIP_CEILING_KB} kB each)`);
+  console.log(`  cat codes     ${catAll.catcodes.toFixed(1)} kB gzipped, My cat sheet ${catAll.catlogin.toFixed(1)} kB, old codes ${catAll.savecode.toFixed(1)} kB, hop codes ${catAll.hop.toFixed(1)} kB (ceiling ${CAT_GZIP_CEILING_KB} kB each)`);
   if (problems.length) {
     for (const p of problems) console.error(`\n✗ ${p}`);
     process.exit(1);

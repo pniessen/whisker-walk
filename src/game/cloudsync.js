@@ -418,6 +418,17 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
       deniedNotified = false;
       return kept ? { ok: true, code } : { ok: true, code, notKept: true };
     },
+    // Add a device with a hop code (src/game/hop.js, lazy): the two ends are handed the cloud on a tap.
+    // The device that has the cat: the cloud with the link's code and secret, or null when not linked.
+    hopHost() {
+      const link = readCloudLink();
+      const cloud = link ? saveCloud() : null;
+      return cloud ? { cloud, code: link.code, secret: link.secret } : null;
+    },
+    // The device that wants the cat: the cloud (the tap that opts in, as Load from cloud is).
+    hopCloud() {
+      return openCloud();
+    },
     // How the cat's catch-up stands, for the sheet: { state, name } or null before it has run.
     catStatus() {
       return catState ? { state: catState, name: savedName() } : null;
