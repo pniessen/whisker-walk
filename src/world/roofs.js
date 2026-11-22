@@ -1196,6 +1196,8 @@ function drawYards(K, group, M, drawn) {
 // STACK.inner will not do at full width, a square inside the disc. A quarter
 // with lower ground beside it than the eaves goes down to that ground.
 const STACK_HALF_X = 0.5;
+const COPING_PROUD = 0.003; // m, how far a cheek's coping reaches past its face toward the flat roof
+const STACK_PROUD = 0.006; // m, how far a quarter reaches past its party wall's plane (see drawTerrace); kept under the 7 mm the ground test samples at
 function stackQuarters(s, ground) {
   const ok = (x, z) => {
     const y = ground.y(x, z);
@@ -1327,7 +1329,8 @@ function drawTerrace(group, M, win, ground, drawn) {
     const cheek = full ? gable : [[f.z0, EAVE_Y - 0.05], [f.z0, slopeY(f.z0)], [T.z1, EAVE_Y], [T.z1, EAVE_Y - 0.05]];
     const top = full ? gable : [[f.z0, slopeY(f.z0)], [T.z1, EAVE_Y]];
     // each cheek's coping is flush with the flat roof's edge, never over it
-    for (const [x0, x1, cx] of [[f.x0 - 0.15, f.x0, f.x0 - 0.11], [f.x1, f.x1 + 0.15, f.x1 + 0.11]]) { wall(extrudeX(cheek, x0, x1), brickOf(houseAt(cx))); coping(cx, top, 0.22); }
+    // (a hair, COPING_PROUD, proud of it, so the coping's face is not coplanar with the cheek's: that pair shimmered)
+    for (const [x0, x1, cx, toward] of [[f.x0 - 0.15, f.x0, f.x0 - 0.11, 1], [f.x1, f.x1 + 0.15, f.x1 + 0.11, -1]]) { wall(extrudeX(cheek, x0, x1), brickOf(houseAt(cx))); coping(cx + toward * COPING_PROUD / 2, top, 0.22 + COPING_PROUD); }
     if (!full) {
       // the back wall where the slope rises behind the flat roof, with a window or a door
       wall(box(f.x0, f.x1, EAVE_Y - 0.05, slopeY(f.z0), f.z0 - 0.15, f.z0), brickOf(f.house));
@@ -1415,8 +1418,13 @@ function drawTerrace(group, M, win, ground, drawn) {
   for (const s of STACKS) {
     const quarters = stackQuarters(s, ground);
     const brick = stackBrick(s);
-    group.add(own(s.id, M.wall, quarters.map((q) => box(q.x0, q.x1, q.y0, s.y, q.z0, q.z1)), { tile: TILE.brick, color: brick, tag: { block: s.id } }));
-    for (const q of quarters) wall(box(q.x0 - 0.06, q.x1 + 0.06, s.y - 0.16, s.y - 0.06, q.z0 - 0.06, q.z1 + 0.06), brick); // the oversailing course
+    // Each quarter reaches STACK_PROUD past the party wall's plane (x = s.x): the cheeks, copings and
+    // flat roofs beside the stack have faces in that very plane, and a sooty brick face there fought
+    // them for the depth buffer (the stack's flicker). Only the inside of the stack and the wall's own
+    // thickness move; nothing a cat can reach (colliders are the plan's) or see changes.
+    const proud = (q) => (q.x0 === s.x ? [q.x0 - STACK_PROUD, q.x1] : [q.x0, q.x1 + STACK_PROUD]);
+    group.add(own(s.id, M.wall, quarters.map((q) => box(...proud(q), q.y0, s.y, q.z0, q.z1)), { tile: TILE.brick, color: brick, tag: { block: s.id } }));
+    for (const q of quarters) { const [x0, x1] = proud(q); wall(box(x0 - 0.06, x1 + 0.06, s.y - 0.16, s.y - 0.06, q.z0 - 0.06, q.z1 + 0.06), brick); } // the oversailing course
     const mast = AERIAL_STACKS.has(s.id) ? aerial(iron, s, quarters, ground) : null;
     if (mast) drawn.push({ id: DRAWN_ID.aerial(s.x), kind: 'aerial', ...mast });
     for (const side of [-1, 1]) {
