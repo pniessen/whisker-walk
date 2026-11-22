@@ -19,6 +19,7 @@ import { whenSplashGone, startVisitGreeting } from './visitboot.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { attachBackStack, walkBackAction, padBackAction } from './ui/backstack.js';
 import { createGamepad } from './gamepad.js';
+import { answerChallenge } from './ui/fightui.js';
 import { createNav } from './gamepadnav.js';
 import { createZoomControl, createWheelStepper, keyZoomDir, zoomActionDir, clampZoomStep, maxZoomStep } from './camzoom.js';
 import { createAudio } from './audio.js';
@@ -284,10 +285,7 @@ function init() {
     onOrbit: (dx, dy) => player.addOrbit(dx, dy),
     onAction: (name) => {
       // The challenge pill (Fight! / Back off) is E and Q on a keyboard: Square and Circle on a pad.
-      if (session?.clanFight?.uiShowing === 'challenge' && (name === 'interact' || name === 'meow')) {
-        session.clanFight.key(name === 'interact' ? 'e' : 'q');
-        return;
-      }
+      if (answerChallenge(session?.clanFight, name)) return;
       const zoomDir = zoomActionDir(name);
       if (zoomDir) zoomBy(zoomDir);
       else {
@@ -312,6 +310,8 @@ function init() {
     onMove: (v) => player.setTouchMove(v),
     onOrbit: (dx, dy) => player.addOrbit(dx, dy),
     onAction: (name) => {
+      // Square and Circle answer the challenge pill, same as the touch buttons (they used to fall through to a plain interact / meow).
+      if (answerChallenge(session?.clanFight, name)) return;
       const zoomDir = zoomActionDir(name);
       if (zoomDir) zoomBy(zoomDir);
       else handleTouchAction(name);

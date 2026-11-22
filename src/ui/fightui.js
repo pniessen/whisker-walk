@@ -109,6 +109,14 @@ export function renderFightHtml({ phase, clue, wins, losses, line, specials = []
     + `<div class="fight-teach">${escapeHtml(FIGHT_TEACH + (sp.length ? teachFor(sp.map((m) => m.id)) : ''))}</div>`;
 }
 
+// The challenge pill answers the interact and meow buttons (Square / Circle on a pad, the touch
+// buttons): true when it took the press. Touch and the pad both route through this.
+export function answerChallenge(clanFight, name) {
+  if (clanFight?.uiShowing !== 'challenge' || (name !== 'interact' && name !== 'meow')) return false;
+  clanFight.key(name === 'interact' ? 'e' : 'q');
+  return true;
+}
+
 export function createFightUi(root, { onFight = () => {}, onBackOff = () => {}, onMove = () => {} } = {}) {
   let ask = null;
   let sheet = null;
