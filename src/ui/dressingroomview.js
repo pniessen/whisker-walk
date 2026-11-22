@@ -97,7 +97,7 @@ export function reduceDressingUi(ui, action) {
 
 const DR_SELECTOR = '[data-dr-sheet],[data-dr-buy-cat],[data-dr-place-buy],[data-dr-cat],[data-dr-acc],[data-dr-slot],[data-dr-place],[data-dr-wardrobe],'
   + '[data-dr-wardrobe-done],[data-dr-more-cats],[data-dr-outfit],[data-dr-outfit-save],[data-dr-outfit-del],[data-dr-outfit-yes],[data-dr-outfit-keep],'
-  + '[data-dr-mine],[data-dr-make],[data-dr-buy-slots],[data-dr-remove-all],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-done],[data-cb-leave],[data-cb-stay],'
+  + '[data-dr-mine],[data-dr-make],[data-dr-buy-slots],[data-dr-remove-all],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-name-open],[data-cb-done],[data-cb-leave],[data-cb-stay],'
   + '[data-dr-map-place],[data-dr-map-close]';
 // Opening the world map's card lands focus on its one button (or ✕ when it
 // has none), by keyboard or touch; a keyboard close goes back to the place on

@@ -1,5 +1,6 @@
 // The cat builder's name with the letter picker (TV mode): a button opens the picker, OK writes the
 // name, Cancel leaves it, a render during the picker is held. With TV mode off nothing is different.
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createProgression } from '../src/progression.js';
 import { createDressingRoom } from '../src/ui/dressingroomview.js';
@@ -150,5 +151,12 @@ describe('using the picker', () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(dr.ui.builder).not.toBe(null);
     expect(tvState.on).toBe(true);
+  });
+});
+
+describe('the page wiring', () => {
+  it('the dressing room\'s click selector includes the name button (a real click on it reaches handleClick)', () => {
+    const src = readFileSync(new URL('../src/ui/dressingroomview.js', import.meta.url), 'utf8');
+    expect(src).toMatch(/DR_SELECTOR = [^;]*\[data-cb-name-open\]/);
   });
 });
