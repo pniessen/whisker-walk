@@ -104,6 +104,16 @@ describe('candidates', () => {
     const live = el('button'); live.getClientRects = () => [{ width: 10, height: 10 }];
     expect(candidates(layer([gone, live]))).toEqual([live]);
   });
+  it('an SVG role=button with no client rects but a real bounding box still counts (Safari)', () => {
+    const g = el('g', { attrs: { role: 'button', tabindex: '0' } });
+    g.getClientRects = () => []; g.getBoundingClientRect = () => ({ width: 40, height: 40 });
+    expect(candidates(layer([g]))).toEqual([g]);
+  });
+  it('visibility:hidden controls are dropped; an opacity:0 switch with a box still qualifies', () => {
+    const hidden = el('button'); hidden.getClientRects = () => [{}]; hidden.checkVisibility = () => false;
+    const swtch = el('input', { type: 'checkbox' }); swtch.getClientRects = () => [{}]; swtch.checkVisibility = (o) => (o?.visibilityProperty ? true : true);
+    expect(candidates(layer([hidden, swtch]))).toEqual([swtch]);
+  });
   it('a disabled button flagged by the property alone is dropped', () => {
     const b = el('button'); b.disabled = true;
     expect(candidates(layer([b]))).toEqual([]);
@@ -169,11 +179,12 @@ describe('the Den shop button while the pause card is the top layer', () => {
   });
 });
 
+const clock = () => { let t = 0; return () => (t += 1000); };
 describe('createNav settle: a screen that opens while the pad is in use', () => {
   it('focuses the primary button of a layer nobody has focus in, once', () => {
     const a = pad('button', 0, 0); const go = pad('button', 0, 50, { cls: ['primary'] });
     const { doc } = world([a, go]);
-    const nav = createNav({ doc, back: () => false });
+    const nav = createNav({ doc, back: () => false, now: clock() });
     expect(nav.settle()).toBe(true);
     expect(doc.activeElement).toBe(go);
     doc.activeElement = doc.body; // focus dropped; same screen
@@ -183,7 +194,7 @@ describe('createNav settle: a screen that opens while the pad is in use', () => 
   it('a second screen on top gets its own entry', () => {
     const a = pad('button', 0, 0);
     const w = world([a]);
-    const nav = createNav({ doc: w.doc, back: () => false });
+    const nav = createNav({ doc: w.doc, back: () => false, now: clock() });
     nav.settle();
     const b = pad('button', 0, 0, { cls: ['primary'] }); b.ownerDocument = w.doc;
     const top2 = layer([b]);
@@ -193,13 +204,63 @@ describe('createNav settle: a screen that opens while the pad is in use', () => 
   });
   it('does nothing while something in the layer already has focus, or a text box does', () => {
     const a = pad('button', 0, 0); const { doc } = world([a]);
-    const nav = createNav({ doc, back: () => false });
+    const nav = createNav({ doc, back: () => false, now: clock() });
     doc.activeElement = a;
     expect(nav.settle()).toBe(false);
     const t = pad('input', 0, 0, { type: 'text' });
     const w = world([pad('button', 0, 0)]);
     w.doc.activeElement = t;
-    expect(createNav({ doc: w.doc, back: () => false }).settle()).toBe(false);
+    expect(createNav({ doc: w.doc, back: () => false, now: clock() }).settle()).toBe(false);
+  });
+  it('a hidden #homebase (a walk is live) is not entered', () => {
+    const a = pad('button', 0, 0);
+    const home = el('div', { cls: ['hidden'], kids: [a] }); home.id = 'homebase';
+    const body = el('body');
+    const doc = { body, activeElement: body, defaultView: { KeyboardEvent: FakeEvent, Event: FakeEvent }, querySelectorAll: () => [], getElementById: (id) => (id === 'homebase' ? home : null) };
+    a.ownerDocument = doc;
+    const nav = createNav({ doc, back: () => false, now: clock() });
+    expect(nav.settle()).toBe(false);
+    expect(nav.enter()).toBe(false);
+    expect(a.focus).not.toHaveBeenCalled();
+  });
+  it('60 idle frames rebuild nothing (no layout reads); a mutation or a new layer runs one pass', () => {
+    class MO { constructor(cb) { this.cb = cb; MO.last = this; } observe() {} disconnect() {} }
+    const a = pad('button', 0, 0, { cls: ['primary'] });
+    let rects = 0; a.getClientRects = () => { rects++; return [{}]; };
+    const { doc, top, low } = world([a]);
+    doc.defaultView = { ...doc.defaultView, MutationObserver: MO };
+    const queries = vi.fn(doc.querySelectorAll); doc.querySelectorAll = queries;
+    const t = { v: 0 };
+    const nav = createNav({ doc, back: () => false, now: () => t.v });
+    t.v += 1000; expect(nav.settle()).toBe(true); // first pass: nothing seen yet
+    const r0 = rects; const q0 = queries.mock.calls.length;
+    doc.activeElement = doc.body;
+    for (let i = 0; i < 60; i++) { t.v += 16; nav.settle(); }
+    expect(rects).toBe(r0);
+    expect(queries.mock.calls.length).toBe(q0);
+    // a DOM change: one pass, and only one
+    MO.last.cb([]);
+    const b = pad('button', 0, 0, { cls: ['primary'] }); b.ownerDocument = doc;
+    const top2 = layer([b]);
+    doc.querySelectorAll = (s) => (s === '[data-pad-layer]' ? [low, top, top2] : []);
+    t.v += 1000; expect(nav.settle()).toBe(true);
+    expect(doc.activeElement).toBe(b);
+    const q1 = queries.mock.calls.length;
+    for (let i = 0; i < 60; i++) { t.v += 16; nav.settle(); }
+    expect(queries.mock.calls.length).toBe(q1);
+  });
+  it('without a MutationObserver, settle passes are throttled (~250 ms) instead', () => {
+    const a = pad('button', 0, 0);
+    let rects = 0; a.getClientRects = () => { rects++; return [{}]; };
+    const { doc } = world([a]);
+    const t = { v: 1000 };
+    const nav = createNav({ doc, back: () => false, now: () => t.v });
+    nav.settle(); doc.activeElement = doc.body;
+    const r0 = rects;
+    for (let i = 0; i < 15; i++) { t.v += 16; nav.settle(); }
+    expect(rects).toBe(r0);
+    t.v += 300; nav.settle();
+    expect(rects).toBeGreaterThan(r0);
   });
 });
 
@@ -626,5 +687,68 @@ describe('map hooks', () => {
     expect(nav.zoom('in')).toBe(true);
     expect(nav.zoom('out')).toBe(true);
     expect(api.zoom.mock.calls).toEqual([['in'], ['out']]);
+  });
+});
+
+// A re-render replaces the focused element: the pad finds its equivalent again.
+describe('focus survives a re-render of the same screen (cat builder picks)', () => {
+  const ctl = (tag, x, y, data, o = {}) => { const n = pad(tag, x, y, o); n.dataset = data; return n; };
+  function rig(make) {
+    const first = make();
+    const w = world(first);
+    const nav = createNav({ doc: w.doc, back: () => false, now: clock() });
+    const adopt = (kids) => { kids.forEach((k) => { k.ownerDocument = w.doc; k.parent = w.top; }); w.top.kids = kids; w.doc.activeElement = w.doc.body; return kids; };
+    return { ...w, nav, adopt, first };
+  }
+  const swatches = () => [ctl('button', 0, 0, { cbPick: 'coat', cbValue: 'red' }), ctl('button', 50, 0, { cbPick: 'coat', cbValue: 'blue' }), ctl('button', 100, 0, { cbPick: 'pattern', cbValue: 'socks' }), ctl('button', 200, 0, { drPose: 'sit' }, { cls: ['primary'] })];
+  it('a swatch keeps focus on its equivalent after the section is rebuilt', () => {
+    const r = rig(swatches);
+    r.doc.activeElement = r.first[0]; r.nav.step('right');
+    expect(r.doc.activeElement).toBe(r.first[1]);
+    r.nav.press();
+    const next = r.adopt(swatches());
+    expect(r.nav.settle()).toBe(true);
+    expect(r.doc.activeElement).toBe(next[1]);
+  });
+  it('a pill keeps focus even though its pressed state changed', () => {
+    const mk = (on) => () => { const p = ctl('button', 100, 0, { cbPick: 'pattern', cbValue: 'socks' }); p.attrs['aria-pressed'] = String(on); return [ctl('button', 0, 0, { drPose: 'sit' }, { cls: ['primary'] }), p]; };
+    const r = rig(mk(false));
+    r.doc.activeElement = r.first[0]; r.nav.step('right'); r.nav.press();
+    const next = r.adopt(mk(true)());
+    r.nav.step('down');
+    expect(r.doc.activeElement).toBe(next[1]);
+  });
+  it('the size slider keeps focus across a rebuild', () => {
+    const mk = () => [ctl('button', 0, 0, { drPose: 'sit' }, { cls: ['primary'] }), ctl('input', 100, 0, { cbSize: '' }, { type: 'range' })];
+    const r = rig(mk);
+    r.doc.activeElement = r.first[0]; r.nav.step('right');
+    const next = r.adopt(mk());
+    expect(r.nav.settle()).toBe(true);
+    expect(r.doc.activeElement).toBe(next[1]);
+  });
+  it('two controls with the same key: the same position among them wins', () => {
+    const mk = () => [ctl('button', 0, 0, { cbPick: 'coat', cbValue: 'red' }), ctl('button', 50, 0, { cbPick: 'coat', cbValue: 'red' }), ctl('button', 200, 0, { drPose: 'sit' }, { cls: ['primary'] })];
+    const r = rig(mk);
+    r.doc.activeElement = r.first[0]; r.nav.step('right');
+    expect(r.doc.activeElement).toBe(r.first[1]);
+    const next = r.adopt(mk());
+    r.nav.settle();
+    expect(r.doc.activeElement).toBe(next[1]);
+  });
+  it('a different screen (no equivalent control) goes to its entry control', () => {
+    const r = rig(swatches);
+    r.doc.activeElement = r.first[0]; r.nav.step('right');
+    const other = [ctl('button', 0, 0, { x: '1' }), ctl('button', 0, 50, { y: '1' }, { cls: ['primary'] })];
+    r.adopt(other);
+    expect(r.nav.settle()).toBe(true);
+    expect(r.doc.activeElement).toBe(other[1]);
+  });
+  it('a text box being typed in is left alone', () => {
+    const r = rig(swatches);
+    r.doc.activeElement = r.first[0]; r.nav.step('right');
+    const next = r.adopt(swatches());
+    const t = pad('input', 0, 0, { type: 'text' }); r.doc.activeElement = t;
+    expect(r.nav.settle()).toBe(false);
+    expect(next[1].focus).not.toHaveBeenCalled();
   });
 });

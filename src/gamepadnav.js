@@ -14,7 +14,14 @@ const shown = (el) => !el.closest(OFF);
 // CSS can hide what the class test cannot see (the cat builder hides the Menu
 // button with display:none): no boxes means focus() does nothing, so skip it.
 // Fake DOMs without getClientRects count as drawn.
-const drawn = (el) => typeof el.getClientRects !== 'function' || el.getClientRects().length > 0;
+// A bare SVG <g role=button> can report no client rect in Safari, so a real
+// bounding box counts too; visibility:hidden keeps its box but cannot be
+// focused (opacity:0 is fine: the Sound switch's real checkbox is opacity:0).
+const drawn = (el) => {
+  if (typeof el.getClientRects !== 'function') return true;
+  if (!(el.getClientRects().length > 0 || el.getBoundingClientRect?.().width > 0)) return false;
+  return el.checkVisibility?.({ visibilityProperty: true }) !== false;
+};
 
 // "Last in DOM order" is safe only because home cards exclude each other (root.after inserts at the front).
 // The last visible [data-pad-layer] in DOM order; else #overlay (the pause card
@@ -115,16 +122,32 @@ function recentre(api, el) {
   api.pan((c.x - (v.x + v.w / 2)) * s, (c.y - (v.y + v.h / 2)) * s);
 }
 
+// What a control IS, not which node it is: a rebuilt section replaces every
+// node, so the pad finds its place again by this key (id, then data-* pairs,
+// then aria-label, then tag and text). Read off the old, detached node.
+function keyOf(el) {
+  if (el.id) return `id:${el.id}`;
+  const d = Object.entries(el.dataset || {}).filter(([k]) => k !== 'padDefault');
+  const tag = el.tagName?.toLowerCase();
+  if (d.length) return `d:${tag}:${d.map(([k, v]) => `${k}=${v}`).sort().join('&')}`;
+  const label = el.getAttribute?.('aria-label');
+  if (label) return `a:${label}`;
+  const text = (el.textContent ?? '').trim();
+  return text ? `x:${tag}:${text}` : null; // nothing to tell it from its neighbours
+}
+
 const rectOf = (el) => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; };
 const middle = (r) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
 
-export function createNav({ doc, back, onActive }) {
+export function createNav({ doc, back, onActive, now = () => globalThis.performance?.now?.() ?? Date.now() }) {
   let cache = null; // { layer, list }
   let last = null; // centre of the last focused element
   let mem = null; // { layer, list, el } the pad last focused in
   const MO = doc.defaultView?.MutationObserver ?? globalThis.MutationObserver;
   const root = doc.documentElement ?? doc.body;
-  const mo = MO && root ? new MO(() => { cache = null; }) : null;
+  let dirty = true; // the DOM changed since the last settle pass
+  let passAt = -Infinity;
+  const mo = MO && root ? new MO(() => { cache = null; dirty = true; }) : null;
   mo?.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'inert', 'disabled', 'tabindex', 'style'] });
 
   const view = () => {
@@ -147,6 +170,17 @@ export function createNav({ doc, back, onActive }) {
     focusEl(el, layer, list);
     return true;
   };
+  // Focus was lost to a re-render of the SAME layer (a pick rebuilds the
+  // builder's section): the equivalent of the control the pad was on, by key,
+  // the same position among identical keys. null for a genuinely new screen.
+  const recover = (layer, list) => {
+    if (!mem || mem.layer !== layer || !mem.el || list.includes(mem.el)) return null;
+    const k = keyOf(mem.el);
+    if (!k) return null;
+    const idx = mem.list.filter((e) => keyOf(e) === k).indexOf(mem.el);
+    const same = list.filter((e) => keyOf(e) === k);
+    return same.length ? same[Math.min(Math.max(idx, 0), same.length - 1)] : null;
+  };
   const current = (list) => (list.includes(doc.activeElement) ? doc.activeElement : null);
   // Nothing focused: a different screen (new top layer, or the old controls all gone)
   // starts at its entry control; a re-render of the same screen keeps the place.
@@ -165,6 +199,8 @@ export function createNav({ doc, back, onActive }) {
       if (!list.length) return false;
       const cur = current(list);
       if (!cur) {
+        const back = recover(layer, list);
+        if (back) { focusEl(back, layer, list); return true; }
         if (!last || isNewScreen(layer, list)) return entry(layer, list);
         focusEl(list[nearestTo(last, list.map((e, id) => ({ id, rect: rectOf(e) })))], layer, list);
         return true;
@@ -178,7 +214,9 @@ export function createNav({ doc, back, onActive }) {
     },
     press() {
       onActive?.();
-      const cur = current(view().list);
+      const { layer, list } = view();
+      const cur = current(list);
+      if (cur && cur.tagName?.toLowerCase() !== 'select') mem = { layer, list, el: cur }; // the press may rebuild the screen
       return cur ? activate(cur) : false;
     },
     alt(dir) {
@@ -193,7 +231,10 @@ export function createNav({ doc, back, onActive }) {
       onActive?.();
       if (isText()) return false; // someone is typing a name or a code: do not steal it
       const { layer, list } = view();
+      if (layer?.id === 'homebase' && (!shown(layer) || !drawn(layer))) return false;
       if (current(list)) return false;
+      const back = recover(layer, list);
+      if (back) { focusEl(back, layer, list); return true; }
       if (last && !isNewScreen(layer, list)) {
         focusEl(list[nearestTo(last, list.map((e, id) => ({ id, rect: rectOf(e) })))], layer, list);
         return true;
@@ -205,9 +246,20 @@ export function createNav({ doc, back, onActive }) {
     // once. Same screen re-rendered, focus already in the layer, or a text box
     // being typed in: left alone.
     settle() {
+      // Cheap per frame: nothing is read unless the DOM changed, and then at most
+      // once per 250 ms (no observer: the throttle alone), so no layout per frame.
+      if (mo && !dirty) return false;
+      const t = now();
+      if (t - passAt < 250) return false;
+      passAt = t;
+      dirty = false;
       if (isText()) return false;
+      const layer0 = topLayer(doc);
+      if (layer0?.id === 'homebase' && (!shown(layer0) || !drawn(layer0))) return false; // a walk is live
       const { layer, list } = view();
       if (!list.length || current(list)) return false;
+      const back = recover(layer, list);
+      if (back) { focusEl(back, layer, list); return true; }
       if (!isNewScreen(layer, list)) return false;
       return entry(layer, list);
     },

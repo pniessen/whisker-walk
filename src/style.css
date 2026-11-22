@@ -769,8 +769,9 @@ body.touch-mode:not(.left-handed) .hud-top {
 /* Pad ring: the real checkbox is opacity:0, so its own outline is invisible;
    draw the ring on the whole row instead (pause card and Settings sheet). */
 .pad-focus .settings-switch input:focus { outline: none; box-shadow: none; }
-.pad-focus .settings-switch:has(input:focus) { outline: 3px solid #fff; outline-offset: 2px; border-radius: 999px; }
-.pad-focus .settings-grid .settings-switch:has(input:focus) { border-radius: 10px; }
+.pad-focus .settings-switch:has(input:focus) { outline: 3px solid #fff; outline-offset: 2px; }
+/* One ring only: the row's, not the sibling track's keyboard ring too. */
+.pad-focus .settings-switch input:focus-visible + .switch { outline: none; }
 @media (prefers-reduced-motion: reduce) {
   .settings-switch .switch, .settings-switch .switch::after { transition: none; }
 }

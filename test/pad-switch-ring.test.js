@@ -16,6 +16,12 @@ describe('pad ring on switch rows', () => {
   it('keeps the invisible input from drawing its own (invisible) ring', () => {
     expect(css).toMatch(/\.pad-focus \.settings-switch input:focus\s*\{[^}]*outline:\s*none/);
   });
+  it('keeps the row\'s own shape and shows one ring: no radius override, the track\'s keyboard ring is off under .pad-focus', () => {
+    const m = css.match(/\.pad-focus \.settings-switch:has\(input:focus\)\s*\{([^}]*)\}/);
+    expect(m[1]).not.toMatch(/border-radius/);
+    expect(css).not.toMatch(/\.pad-focus \.settings-grid \.settings-switch:has/);
+    expect(css).toMatch(/\.pad-focus \.settings-switch input:focus-visible \+ \.switch\s*\{[^}]*outline:\s*none/);
+  });
   it('the row is a positioning context, so the input covers just its row', () => {
     expect(css).toMatch(/\.settings-row \{\s*position: relative;/);
   });
