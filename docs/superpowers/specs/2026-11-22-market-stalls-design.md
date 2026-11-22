@@ -1,6 +1,6 @@
 # Market Square: four more stalls
 
-Date: 2026-11-22. Status: draft for the owner's answers. Branch `market-stalls`, from main c7ffb975. Builds on `2026-11-20-market-square-design.md`.
+Date: 2026-11-22. Status: owner's answers recorded (see Decisions). Branch `market-stalls`, from main c7ffb975. Builds on `2026-11-20-market-square-design.md`.
 
 ## Intent
 
@@ -14,10 +14,10 @@ The Market is live (69e8c6f4) with six stalls that have counters (fish, baker, c
 
 | Stall | Treat | Climb | Knock over |
 |---|---|---|---|
-| Butcher | string of sausages (a hop grabs the dangling end) | hanging hook rail | bucket of bones |
+| Butcher | string of sausages (hangs overhead: a real hop, or the hook rail, reaches it) | hanging hook rail | bucket of bones |
 | Toy and yarn | ball of wool that rolls when pushed | stack of toy crates | pyramid of yarn balls and a pull-along toy |
-| Plant stall | catnip sprig | tiered shelves | clay pots (clatter-and-roll chain) |
-| Bric-a-brac | saucer of milk from a tea set | tower of trunks | stacked crockery, a satisfying clatter |
+| Plant stall | catnip sprig | tiered shelves | three clay pots, each falls when pawed |
+| Bric-a-brac | opened sardine tin | tower of trunks | stacked crockery, one piece falls at a time, loud clatter |
 
 A sweet/toffee stall was passed over because toffee is a poor cat treat. The swap stays possible.
 
@@ -35,7 +35,7 @@ The six Market missions; strays walking through props; the beauty pass on the bu
 
 - **Over budget.** Triangles, meshes or kB past the numbers below, or any ceiling raised.
 - **Four stalls that play the same.** If swapping the sign changes nothing a child feels, we have built a re-skin, which the owner rejected.
-- **A treat she cannot reach.** The sausage string and the shelved catnip must be grabbable from the cobbles within `TREAT_REACH` (0.8 m, which the code measures sideways only) by the same button as every other treat.
+- **A treat she cannot reach.** The shelved catnip must be grabbable from the cobbles within `TREAT_REACH` (0.8 m, which the code measures sideways only) by the same button as every other treat. The sausage string must be reachable by a hop or from the hook rail, by buttons she already has, and must NOT be reachable flat-footed.
 - **A knock-over chain that never settles.** Every fall must end in a set rest pose, the same on both screens.
 - **A crowded square.** The new stalls must not block the spawn-to-fountain walk, any view lane, or the café crumbs.
 - **Breaking co-walk determinism**, or adding any key-only action.
@@ -44,7 +44,7 @@ The six Market missions; strays walking through props; the beauty pass on the bu
 
 - All text goes through the phrase table (`src/clanphrases.js`, the `LATER` table), read through `src/marketwords.js`. See Words.
 - No `Math.random`: seeded streams or `hash01` only. Stall cycles come from `stallOffsets(seed)`.
-- No new net message types. Treat grabs use the existing `carry-pick` event; knocks use the existing knock event.
+- No new net message types. The sausage hop uses the same event. Treat grabs use the existing `carry-pick` event; knocks use the existing knock event.
 - Do not edit `src/game/walk.js` or `src/world/areas.js`. Nothing here seems to need either.
 - Everything lives in the lazy Market chunk. Start-up gzip must not move (697.0 of 720 kB) and the chunk must stay under 100 kB (64.8 kB now). Never raise a ceiling.
 - Touch and controller: every new action is the existing grab, hop, paw or climb button.
@@ -80,15 +80,30 @@ What the kit already gives: counter, awning sheet and valance, sign board, crate
 ### Each stall's one special behaviour, on an existing mechanic
 
 - **Guarded treat (all four).** Add the ids to `TREAT_STALLS` (`marketplan.js`), after the existing four. `stallOffsets` takes one draw per stall in that order, so the existing four keep their offsets. Add `STALL_TIMES` rows (every pair of periods must differ by more than 0.3 s). `marketlive.js` already loops over `TREAT_STALLS` for rhythm, noticing, shoo, grab and pay (6 paws plus 6 teamwork, item id `market-treat-<stall>`). `TREAT_KINDS` (`marketparts.js`) and `TREAT_WORDS` (`marketwords.js`) gain four kinds.
-- **Butcher: the sausage string.** The treat is an ordinary grab at a dangling height (`y` 0.8 on the plan). The code reaches treats horizontally only, so the "hop" is flavour, not a new input: the grab prompt, a short hop animation on pick. A real "hop to reach" would be new logic in `marketlive.js`; I recommend against it. Climb: the hook rail is a `crates` stack variant with a perch under the rail. Knock: bucket of bones, an existing `bucket` knockable (`src/knockables.js`).
+- **Butcher: the sausage string (the one real hop; see Decisions 2 and the Hop design).** Climb: the hook rail is a `crates` stack variant whose top perch sits under the rail. Knock: bucket of bones, an existing `bucket` knockable (`src/knockables.js`).
 - **Toy and yarn: the rolling wool.** The treat is an ordinary grab. The roll maps onto `marketfruit.js`'s apple crate: a tippable with a `build` hook whose spilled items roll along data paths from the crate's yaw (`createApples`). A basket of wool balls is that crate with other parameters (count, radius, colour), so both screens roll the same paths. The pull-along toy is a second tippable. Climb: toy crates, the `crates` stack as now.
-- **Plant stall: catnip.** The treat is an ordinary grab on a shelf-end spot. Climb: tiered shelves, as a crate stack variant with two perches. Knock: three clay pots, as three `flowerpot` knockables. Each pot is its own curated one-shot fall (`knockables.js`). The code does not do chains: one paw topples one pot. The "clatter-and-roll" is three pots a paw apart, each falling when pawed. A pot that topples its neighbour would be new, and would need the Big Swat cascade (`tippables.js`), which is local-only. I recommend the three separate pots.
-- **Bric-a-brac: the milk saucer.** It plays exactly as the milk cart's `cream` treat: lapped at the table, no mouth mesh. `marketlive.js` tests `kind === 'cream'` in four places and `market.js` once. The builder should replace those with a flag on the treat kind. Climb: trunks stack. Knock: crockery as `cup` knockables.
+- **Plant stall: catnip.** The treat is an ordinary grab on a shelf-end spot. Climb: tiered shelves, as a crate stack variant with two perches. Knock: three clay pots, as three `flowerpot` knockables, each a curated one-shot fall (`knockables.js`). No chain.
+- **Bric-a-brac: the sardine tin.** An ordinary grab with its own mouth mesh and eat tell, like the fish and baker treats. The milk cart keeps its `cream` saucer, so the `kind === 'cream'` tests stay as they are and need no refactor. Climb: trunks stack. Knock: stacked crockery as `cup` knockables, one piece falling at a time with a louder clatter sound, if the existing knockables allow it. If the clatter needs a new sound or knockable kind, stop and ask (start-up bundle).
 - **Climbs.** `CLIMB_LZ`, `stallPerches` and `CLIMB_STACKS` in `marketplan.js` are already per stall. Each new stall gets a `CLIMB_LZ` entry and an awning perch with a `ROOF_LABELS` line.
+
+### Hop design (Butcher sausages): the riskiest piece of the feature
+
+What exists today. `pounce()` in `src/player.js` is a 0.3 s horizontal lunge plus a RENDER-ONLY lift (`hopOffset`: 0.35 m base, 0.9 m with Spring Paws, 0 under reduced motion). It never writes `perchY`; `avatar.position.y` carries the lift. Treat reach in `marketlive.js` (`actionFor`, `act`) is horizontal only and refuses a perched cat. Climbing is the perch chain (`bestPerch`/`canReach`, budget 1.6 m), driven from `src/game/interactions.js`. The treat grab is `pick(mouth, {id: 'market-treat-<stall>'})`, which sends the existing `carry-pick`.
+
+Design. The sausage treat is flagged `hang` with a height `hy` (about 0.9 m, a new field on the plan's treat row). It is reachable in exactly two ways, both ending in the same `act()` and the same item id:
+1. **Hop catch.** While a pounce is live (`session.pounceTime` between about 0.07 and 0.23 s of its 0.3 s) and the cat is within `TREAT_REACH` sideways, `marketlive.js`'s per-frame update calls `act()`. The check reads the pounce TIMER, not the rendered lift, so reduced motion (flat arc) and the baseline cat both still reach it. The pounce is the existing paw button, so touch and controller need nothing new. If the Butcher's tell says "eyes on you", the shoo rules apply as for any grab.
+2. **Hook rail.** A cat perched on the stall's rail perch (`perchY >= hy - 0.3`) within reach gets the normal grab prompt and button. `actionFor`/`act` accept `s.perched` only for a `hang` treat and only when that perch is the stall's own rail.
+A cat on the ground, not pouncing, gets no prompt and `act()` returns false.
+
+New code vs reused. New: a `hang` / `hy` field on the treat row; about 15 lines in `marketlive.js` (the hop-window check, the perched-on-rail allowance); a `railPerch` id on the stall's perch list. Reused: pounce, perch chain, `pick`, `carry-pick`, `market-treat-<stall>`, shoo, munch, pay, refill. No change to `player.js`, `interactions.js` or the net layer; both are only read. Co-walk: the grab is local and the partner sees the pick event as for any treat; the hop window is a function of the local timer, no randomness.
+
+Tests. (a) A cat on the ground within 0.1 m of the string, not pouncing, gets `actionFor` null and `act` false. (b) The same cat, pounce started, at 0.15 s: `act` succeeds and `carry-pick` carries `market-treat-butcher`. (c) The same with a flat arc (reduced motion) succeeds. (d) A pounce at 0.01 s or 0.29 s, or from 1.0 m away, fails. (e) A cat on the rail perch gets the prompt and `act` works; a cat on the lower crates does not. (f) A cat perched elsewhere gets nothing. (g) The treat refills and pays 6 + 6 as the others. (h) Two sessions: the partner's pick removes the string for both.
+
+Risks. Stuck in air: none new, as the hop stays render-only and `halt()` still clears it. Camera: no new motion, and the rail perch is an existing perch kind, so check that the follow camera copes with a perch under an awning. Shooing while airborne: a shoo during the pounce window must cancel the grab, not leave the string taken without the shoo (test it). Reaching from below through the counter: the counter collider keeps her about a body-length off, and sideways reach is 0.8 m, so a hop at the counter front is the intended case; a hop from BEHIND the stall (keeper side) must be checked against `hides` and the keeper's view. Pounce cooldown: a missed hop must not feel like a failed button, so the sausages get a tell (a swing) when a cat is within reach. Window timing: 0.16 s of grab window is tight on a slow tablet; the builder may widen it up to the whole pounce, and must tune by feel on an iPad.
 
 ### Budget
 
-The code contradicts the figures I was given. Market's build is measured at 111 meshes, 27 casters and 39,495 triangles (108 / 24 merged), against ceilings of 280 meshes, 210 casters and 62,000 triangles (`test/budget.test.js`, `test/market.test.js`). That leaves about 22.5k triangles and 170 meshes, not 10k. I would still keep to the stated target, so the extra room is margin.
+The hop adds only a few lines in the lazy chunk and no meshes beyond the sausage string and rail. The code contradicts the figures I was given. Market's build is measured at 111 meshes, 27 casters and 39,495 triangles (108 / 24 merged), against ceilings of 280 meshes, 210 casters and 62,000 triangles (`test/budget.test.js`, `test/market.test.js`). That leaves about 22.5k triangles and 170 meshes, not 10k. I would still keep to the stated target, so the extra room is margin.
 
 | | Triangles | Meshes (merged) |
 |---|---|---|
@@ -114,18 +129,18 @@ Every new id is recorded in the series-words snapshots, so those fixtures are re
 - `test/marketrules.test.js`: `STALL_TIMES` and offsets for the new ids (the old offsets must not change).
 - `test/market.test.js`, `test/budget.test.js`: the measured numbers.
 - `test/marketparts.test.js`, `test/fixtures/market-atlas-cells.json`: the atlas's new cells (old cells' sums must not change).
-- `test/marketlive.test.js`, `test/marketgame.test.js`, `test/marketcowalk.test.js`: the stalls in each loop.
+- `test/marketlive.test.js`, `test/marketgame.test.js`, `test/marketcowalk.test.js`: the stalls in each loop, plus the hop tests (a) to (h) above.
 - `test/fixtures/series-words-*.json`: the new phrase ids.
 - Not expected to move: `flat-trace.gameplay.json` and the other determinism traces. If one moves, stop.
 
 ## Left to the builder
 
-The exact positions (the plan test decides), the timings, the goods' pictures, the tell's look reused as it is, the hop animation, how many knockables each stall carries within budget, the golden-mice and found-outfit spots (untouched unless one lands in a new stall's zone).
+The exact positions (the plan test decides), the timings, the goods' pictures, the tell's look reused as it is, the hop window's exact bounds and the sausage height `hy` (tuned by feel), the rail perch height, how many knockables each stall carries within budget, the golden-mice and found-outfit spots (untouched unless one lands in a new stall's zone).
 
-## Open questions for the owner
+## Decisions (the owner's answers, 2026-11-22)
 
-1. **The milk saucer is the milk cart's cream again.** Keep it, or give Bric-a-brac a different treat (for example an opened sardine tin)? Recommend the sardine tin: a child will notice the repeat.
-2. **Should the sausage "hop" be a real reach?** Recommend no: an ordinary grab with a dangling look, so no new action and no extra input for touch or the controller.
-3. **Clatter chains.** Is three pots that each fall when pawed enough? Recommend yes: a pot that topples its neighbour needs new code, and no screen to keep in step.
-4. **Where does each stall go?** Recommend the placement above, with the Bric-a-brac at the south-west beside the café, moving a bench or tub if the plan test insists.
-5. **Treat pay.** Should the new treats pay the same 6 paws plus 6 teamwork as the old four? Recommend yes, so no stall is the "best" one.
+1. **Bric-a-brac treat: an opened sardine tin.** Not the milk saucer. The milk cart keeps its saucer of cream.
+2. **Butcher sausages: a real hop to reach.** The owner chose this over the recommended ordinary grab. The sausages hang above ground reach; a hop (the pounce) or the hook rail reaches them. See the Hop design. This is the riskiest piece of the feature.
+3. **Plant stall: three clay pots, each falls when pawed.** No clatter chain. Bric-a-brac's crockery uses the same one-at-a-time fall with a louder clatter if existing knockables allow it.
+4. **Positions: Butcher (14, -9), Plant stall (15, 6.5), Toy and yarn (-16, -3), Bric-a-brac (-9.5, 11).** The builder verifies lamp view lanes, hides and stray routes. A spot that fails moves along the nearest free edge, and the builder records that in its report.
+5. **Pay: assumed the same as the existing treats (6 paws plus 6 teamwork).** The owner was not asked; this is an assumption he can change.
