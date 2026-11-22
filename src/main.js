@@ -333,6 +333,10 @@ function init() {
     haptics.setEnabled(settings.get('haptics'));
   }
   applySettings();
+  // TV mode: its own lazy chunk (src/tv/), loaded only when the switch is on.
+  // Nothing else in start-up may import src/tv/ (the build checks).
+  const tvContext = () => ({ doc: document, win: window, settings });
+  if (settings.get('tvMode')) import('./tv/index.js').then((m) => m.start(tvContext())).catch((err) => note('tv', err));
   // The pause card's Sound and Music switches (walk.js pauseCardFor) change
   // the same settings as the Sound & controls sheet: Sound is "Mute all
   // sound" turned round, Music is the music volume at 0 or not. Music back on
