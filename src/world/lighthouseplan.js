@@ -84,14 +84,35 @@ export const LIGHTHOUSE_GROUND = Object.freeze({
 const c = (x, z, r) => Object.freeze({ x, z, r });
 // The tower's shaft; the keeper's cottage as three overlapping circles (7 x 5 m); the fog bell's
 // post and the flagpole; boulders on the plateau, on the lower shore and on the cove.
+// The garden's drystone walls (0.8 m thick): a north wall with a gate gap, a west and an east wall;
+// the plateau's south cliff closes it. Each gets a row of overlapping circles so she cannot walk
+// through them.
+export const GARDEN_WALLS = Object.freeze([
+  { x0: -37, z0: -2.2, x1: -34.2, z1: -2.2 },
+  { x0: -32.6, z0: -2.2, x1: -29, z1: -2.2 },
+  { x0: -37, z0: -2.2, x1: -37, z1: 3.6 },
+  { x0: -29, z0: -2.2, x1: -29, z1: 3.6 },
+].map(Object.freeze));
+const wallCircles = (s, r = 0.4, gap = 0.8) => {
+  const len = Math.hypot(s.x1 - s.x0, s.z1 - s.z0);
+  const n = Math.max(1, Math.ceil(len / gap));
+  return Array.from({ length: n + 1 }, (_, i) => c(s.x0 + ((s.x1 - s.x0) * i) / n, s.z0 + ((s.z1 - s.z0) * i) / n, r));
+};
+
+// Nine boulders (drawn big, each a collider): four on the plateau, three on the lower shore, two on the cove.
+export const BOULDERS = Object.freeze([
+  c(-30, -30, 1.3), c(-12, -36, 1.1), c(-37, -19, 1.2),
+  c(-18, 24, 1.2), c(-34, 30, 1.4), c(-10, 36, 1.2),
+  c(4, -26, 1.3), c(30, -34, 1.5), c(32, 4, 1.1),
+]);
+
 export const LIGHTHOUSE_COLLIDERS = Object.freeze([
   c(TOWER.x, TOWER.z, TOWER.collider),
   c(-35.1, -7, 2.2), c(-33, -7, 2.2), c(-30.9, -7, 2.2),
   c(-12, 0, 0.6),
   c(-9, -9, 0.3),
-  c(-30, -30, 1.3), c(-12, -36, 1.1), c(-37, -19, 1.2),
-  c(-18, 24, 1.2), c(-34, 30, 1.4), c(-10, 36, 1.2),
-  c(4, -26, 1.3), c(30, -34, 1.5), c(32, 4, 1.1),
+  ...BOULDERS,
+  ...GARDEN_WALLS.flatMap((w) => wallCircles(w)),
 ]);
 
 // The cottage and the garden's drawn places (lighthouse.js draws them from here).
