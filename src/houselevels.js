@@ -52,8 +52,10 @@ function distToJoin(j, x, z) {
 //     drawn while she is near it, and then only her own level (not the levels its stairs join),
 //     so the old house's worst spot never grows;
 //   - an old level drawn only because the wing is near (the parlour at the new door) keeps just the
-//     rooms the join names (`keep`: the parlour) in full: its other rooms' furniture (details with a
-//     houseRoom) is hidden and the level's far stand-in (houseFar) stands for them;
+//     rooms the join names (`keep`: the parlour; none, out on the lawn) in full: its other rooms' furniture
+//     (details with a houseRoom) is hidden and a stand-in stands for them (the level's far one, houseFar,
+//     for the rest of the house with the parlour kept, its ordinary one for all);
+//   - out on the lawn (no room, no stair) a wing room within OUT_NEAR of her is drawn in full too;
 //   - everything else is its stand-in.
 export function createLevelDrawing(scene, { levels, links, start, wing = null }) {
   const details = [];
@@ -88,23 +90,31 @@ export function createLevelDrawing(scene, { levels, links, start, wing = null })
     nearKey = [...on].join(',');
     // a level drawn only for the wing at its door keeps just the rooms the join names
     partial.clear();
-    if (wing) for (const j of wing.joins) if (on.has(j.id) && j.keep && full.has(j.a)) partial.set(j.a, j.keep);
+    if (wing) {
+      for (const j of wing.joins) {
+        if (!on.has(j.id) || !j.keep || !full.has(j.a)) continue;
+        partial.set(j.a, [...(partial.get(j.a) ?? []), ...j.keep]);
+      }
+    }
     for (const o of details) {
       const u = o.userData;
       const keep = partial.get(u.houseLevel);
       const room = u.houseRoom ?? u.houseRoomOf;
       o.visible = full.has(u.houseLevel) && !(keep && room && !keep.includes(room));
     }
-    for (const o of simples) o.visible = !full.has(o.userData.houseSimple);
-    for (const o of fars) o.visible = partial.has(o.userData.houseFar);
+    // a level kept in full for no room at all (out on the lawn by the wing) shows its ordinary stand-in
+    for (const o of simples) o.visible = !full.has(o.userData.houseSimple) || partial.get(o.userData.houseSimple)?.length === 0;
+    for (const o of fars) o.visible = (partial.get(o.userData.houseFar)?.length ?? 0) > 0;
   };
   // which joins of zone `id` are near (a on-state stays until `leave`)
   function nearJoins(id, x, z) {
     let changed = false;
+    const out = wing.outdoors ? wing.outdoors(x, z) : false;
     for (const j of wing.joins) {
-      if (j.a !== id && j.b !== id) { if (on.delete(j.id)) changed = true; continue; }
+      // an outside join counts only while she is out on the lawn
+      if ((j.a !== id && j.b !== id) || (j.outside && !out)) { if (on.delete(j.id)) changed = true; continue; }
       const d = distToJoin(j, x, z);
-      if (on.has(j.id) ? d > wing.leave : d <= wing.near) {
+      if (on.has(j.id) ? d > (j.leave ?? wing.leave) : d <= (j.near ?? wing.near)) {
         if (on.has(j.id)) on.delete(j.id); else on.add(j.id);
         changed = true;
       }

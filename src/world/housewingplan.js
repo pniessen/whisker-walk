@@ -136,6 +136,8 @@ export const WING_ZONES = freeze([
 // not 5: the doorway, not the room beyond it.
 export const ZONE_NEAR = 2;
 export const ZONE_LEAVE = 2.6; // m: it stays drawn until she is this far (no flicker at the line)
+export const OUT_NEAR = 5; // m: out on the lawn, a wing room is drawn within this of its walls
+export const OUT_LEAVE = 6;
 // Each join: the two zones, and the opening as a rectangle (centre, half-extents): a doorway, or the
 // stair's own rectangle (standing on the stair is standing in it). `keep`: from an old level, the
 // rooms of that level drawn in full while the join is near (the rest are the level's far stand-in).
@@ -144,4 +146,14 @@ export const WING_JOINS = freeze([
   freeze({ id: 'livingroom-solarium', a: 'living', b: 'sun', x: 22, z: 7, hx: 0.4, hz: 1.0 }),
   freeze({ id: 'wing', a: 'sun', b: 'kids', x: 34.2, z: 7, hx: 4.2, hz: 1.2 }),
   freeze({ id: 'kids-bath', a: 'kids', b: 'bath', x: 41, z: 2, hx: 1.0, hz: 0.4 }),
+  // Out on the lawn she sees each room's glass and walls from outside: a room is drawn in full while she is
+  // outdoors (in no room, on no stair) and within OUT_NEAR of it (OUT_LEAVE to leave). The old ground then
+  // keeps no room in full: furniture indoors is out of view from the lawn, and its far stand-in stands for it.
+  ...[
+    ['living', 18, 7, 4, 5],
+    ['sun', 26, 7, 4, 5],
+    ['sun', 34.2, 7, 4.2, 1.2], // the stair gallery, drawn with the solarium
+    ['kids', 43.2, 7, 4.8, 5],
+    ['bath', 41.2, -0.5, 2.8, 2.5],
+  ].map(([b, x, z, hx, hz], i) => freeze({ id: `outside-${b}${i === 2 ? '-stair' : ''}`, a: 'ground', b, x, z, hx, hz, keep: freeze([]), outside: true, near: OUT_NEAR, leave: OUT_LEAVE })),
 ]);

@@ -34,7 +34,7 @@ import { words } from '../wordset.js';
 import {
   HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_BOUNDS, HOUSE_FRONT_DOOR, HOUSE_LAMPS, HOUSE_FURNITURE, LEVEL_LINKS,
   LAWN_Y, WALL_T, fades, LEDGE_FADE_OVER, HOUSE_KITTEN_HOME, HOUSE_CELLAR_LID, houseArea, houseFloorGround, secretColliders, roomAt,
-  HOUSE_ZONES, zoneOfRoom, wingZoneAt, isWingZone, WING_JOINS, ZONE_NEAR, ZONE_LEAVE,
+  HOUSE_ZONES, zoneOfRoom, wingZoneAt, isWingZone, outdoorsAt, WING_JOINS, ZONE_NEAR, ZONE_LEAVE,
 } from './houseplan.js';
 import { boxStandInMesh } from './housewingparts.js';
 import { houseMovesArea } from './housemoves.js';
@@ -347,7 +347,7 @@ function furnish(scene, material, start, traversal) {
     m.visible = !full.has(l.id);
     scene.add(m);
     // the level's far look for while a wing join is near (houselevels.js keep): all but the kept rooms
-    for (const j of WING_JOINS) {
+    for (const j of WING_JOINS.filter((q) => q.id === 'parlour-livingroom')) { // the door's: all but the parlour (outside, none)
       if (j.a !== l.id || !j.keep) continue;
       const far = standInMesh(l.id, solid.filter((f) => !j.keep.includes(f.room)), l.y);
       far.name = `houseStandInFar:${l.id}`;
@@ -584,7 +584,7 @@ export function build(scene, { wind, gateEnds = [] } = {}) {
         levels: plan.levels,
         links: plan.links,
         // the east wing's zones (houselevels.js): her position names the wing zone she is in
-        wing: { zoneAt: wingZoneAt, isWing: isWingZone, joins: WING_JOINS, near: ZONE_NEAR, leave: ZONE_LEAVE },
+        wing: { zoneAt: wingZoneAt, isWing: isWingZone, outdoors: outdoorsAt, joins: WING_JOINS, near: ZONE_NEAR, leave: ZONE_LEAVE },
         sections: plan.sections,
         start: START_LEVEL,
         sectionMeshes,

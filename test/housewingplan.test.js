@@ -169,7 +169,7 @@ describe('the east wing: zones', () => {
   it('the joins sit on the openings, and a joined zone is drawn only within ZONE_NEAR (2 m)', () => {
     expect(ZONE_NEAR).toBe(2);
     expect(ZONE_LEAVE).toBeGreaterThan(ZONE_NEAR);
-    expect(WING_JOINS.map((j) => [j.a, j.b])).toEqual([['ground', 'living'], ['living', 'sun'], ['sun', 'kids'], ['kids', 'bath']]);
+    expect(WING_JOINS.filter((j) => !j.outside).map((j) => [j.a, j.b])).toEqual([['ground', 'living'], ['living', 'sun'], ['sun', 'kids'], ['kids', 'bath']]);
     expect(WING_JOINS[0].keep).toEqual(['parlour']); // beside the wing, the old ground keeps only the parlour in full
     const d1 = WING_JOINS[0];
     expect(d1).toMatchObject({ x: 14, z: 10.2 });

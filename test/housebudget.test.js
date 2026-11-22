@@ -260,6 +260,19 @@ describe('the east wing\'s zones', () => {
     }, 90_000);
   }
 
+  it('out on the lawn, a wing room drawn within 5 m beside the old ground (kept for no room) is as light as any wing spot', async () => {
+    for (const light of ['day', 'dusk']) {
+      const { m } = await measured(light, 'shut', 1, true);
+      for (const z of WING) {
+        const s = m.atZone('ground', [z], { outside: true });
+        if (process.env.BUDGET_LOG) console.log(light, 'on the lawn by', z, JSON.stringify(s));
+        expect(s.triangles, `${light} ${z}`).toBeLessThanOrEqual(63000);
+        expect(s.meshes, `${light} ${z}`).toBeLessThanOrEqual(340);
+        expect(s.casters, `${light} ${z}`).toBeLessThanOrEqual(190);
+      }
+    }
+  }, 60_000);
+
   it('keeps the wing\'s walls, floors, glass, lamps, stair and furniture with their zone, and a stand-in for each', async () => {
     const { scene, dispose } = await renderedHouse('day', 'shut', 1, false);
     dispose();

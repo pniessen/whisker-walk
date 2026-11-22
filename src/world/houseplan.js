@@ -20,10 +20,10 @@
 
 import { createGround } from '../ground.js';
 import {
-  WING_ROOMS, WING_STAIRS, WING_DOORWAYS, WING_WINDOWS, WING_LAMPS, WING_FURNITURE, WING_ZONES, WING_JOINS, ZONE_NEAR, ZONE_LEAVE,
+  WING_ROOMS, WING_STAIRS, WING_DOORWAYS, WING_WINDOWS, WING_LAMPS, WING_FURNITURE, WING_ZONES, WING_JOINS, ZONE_NEAR, ZONE_LEAVE, OUT_NEAR, OUT_LEAVE,
 } from './housewingplan.js';
 
-export { WING_JOINS, ZONE_NEAR, ZONE_LEAVE };
+export { WING_JOINS, ZONE_NEAR, ZONE_LEAVE, OUT_NEAR, OUT_LEAVE };
 
 export const HOUSE_ID = 'house';
 export const BASE_Y = -3;
@@ -594,6 +594,8 @@ const wingStair = HOUSE_STAIRS.find((s) => WING_STAIRS.some((w) => w.id === s.id
 // The wing zone she is in, by where she stands (not by her paws' height: the wing's floors share
 // heights with the old levels): a wing room's, or on the wing stair the zone of her half of it.
 // null anywhere else, and the old levels read their own height as they always did.
+// Out on the lawn: in no room and on no stair (the wing's outside joins, housewingplan.js, draw its rooms from here).
+export const outdoorsAt = (x, z) => roomAt(x, z) === null && stairAt(x, z) === null;
 export function wingZoneAt(x, z) {
   for (const r of HOUSE_ROOMS) if (r.zone && inRect(r, x, z)) return r.zone;
   if (inRect(stairRect(wingStair), x, z)) return x < (wingStair.x0 + wingStair.x1) / 2 ? 'sun' : 'kids';
