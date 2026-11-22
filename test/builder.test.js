@@ -1,26 +1,9 @@
 import { createHash } from 'node:crypto';
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
-// The same headless stub every world test uses — see test/docks.test.js for
-// why a blanket Proxy is not enough (the surface painters need real answers
-// from getImageData and create*Gradient).
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const b = await import('../src/world/builder.js');
 const { createWind } = await import('../src/render/wind.js');

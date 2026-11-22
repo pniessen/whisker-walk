@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
 import { createPlayer, isWadeableAt, SWIM_SPEED } from '../src/player.js';
 import { WADE_SPEED, SHAKE_PACE } from '../src/waterstate.js';
 import { inWater, shallowExcess, waterClearance } from '../src/world/builder.js';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // ---------------------------------------------------------------------------
 // Wading. Every cat walks into a shallow band at the shore and stops at its
@@ -12,25 +13,7 @@ import { inWater, shallowExcess, waterClearance } from '../src/world/builder.js'
 
 // Same stub as test/waterblock.test.js: createPlayer needs document's
 // listeners, the world builders need a canvas.
-vi.stubGlobal('document', {
-  addEventListener() {},
-  pointerLockElement: null,
-  exitPointerLock() {},
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument({ pointerLock: true });
 
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildRiver } = await import('../src/world/river.js');

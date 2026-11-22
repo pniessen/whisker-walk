@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { clearSpot } from '../src/world/spots.js';
 import { waterClearance } from '../src/world/builder.js';
 import * as neighborhood from '../src/world/neighborhood.js';
@@ -10,39 +10,9 @@ import * as river from '../src/world/river.js';
 import * as moor from '../src/world/moor.js';
 import * as pines from '../src/world/pines.js';
 import * as gorge from '../src/world/gorge.js';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
-// The area builders run headless here (no jsdom dep): the only DOM they
-// touch is document.createElement('canvas') for the billboard texture, so a
-// Proxy that swallows arbitrary 2D-context calls is enough. THREE's
-// CanvasTexture just stores the object; nothing renders in these tests.
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    // A blanket no-op Proxy is enough for the billboard's canvas, but not for
-    // render/textures.js's surface tiles, which the world builders now ask
-    // for. Two of their calls need a real answer rather than undefined:
-    //   * createLinear/RadialGradient — the painters add colour stops to
-    //     whatever comes back;
-    //   * getImageData — every tile ends with a getImageData/putImageData
-    //     readback (clampToFloor, the pass that GUARANTEES no texel falls
-    //     below the luminance floor). clampToFloor does guard the headless
-    //     path, but it guards it by asking whether getImageData is a
-    //     function, which a blanket Proxy always answers yes to.
-    // A zeroed buffer is the truthful answer here: nothing was ever actually
-    // rasterised into this canvas.
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const CLEARANCE = 1.6;
 

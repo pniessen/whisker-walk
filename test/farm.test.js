@@ -1,28 +1,13 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import { climbBudget, canReach, SURE_CLAWS_ID } from '../src/climbing.js';
 import { createProgression, CATALOG, JOURNAL_TYPES } from '../src/progression.js';
 import { areaInEdition } from '../src/edition.js';
+import { stubCanvasDocument } from './helpers/canvas.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
-// Same headless stub every world test uses: the only DOM the builders touch
-// is document.createElement('canvas') (the gate's sign, the surface tiles).
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const farm = await import('../src/world/farm.js');
 const { build, SPAWN, POND, JETTY, FARM_HIDES, WHEAT_FIELD, VEG_BEDS, PASTURE, GOAT_PADDOCK, HEN_RUN, APPLE_TREES, wheatGrowsAt, farmBare } = farm;
@@ -55,14 +40,6 @@ const { mulberry32 } = await import('../src/rng.js');
 const scene = new THREE.Scene();
 const area = build(scene);
 const set = propsFor('farm');
-
-function fakeStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return {
-    getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => map.set(k, String(v)),
-  };
-}
 
 const dist = (a, c) => Math.hypot(a.x - c.x, a.z - c.z);
 // Can a grounded cat stand at (x, z)? Bounds, colliders and dry ground: the

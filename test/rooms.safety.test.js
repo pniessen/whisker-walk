@@ -3,15 +3,12 @@ import { createRooms } from '../src/game/rooms.js';
 import { createFakeHub, createNet } from '../src/net.js';
 import { createProgression } from '../src/progression.js';
 import { START_GATHER_MS } from '../src/game/lobby.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 // Child-safety pass on the lobby (game/rooms.js): the "is on a walk" toast
 // never shows another device's name raw, the room list is capped, and a Start
 // from someone not in the room starts nothing.
 
-function fakeStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 function client(hub, pid, petName) {
   const progression = createProgression(fakeStorage());
   progression.setPetName(petName);

@@ -10,6 +10,7 @@ import { mulberry32 } from '../src/rng.js';
 import { clanCast } from '../src/clancast.js';
 import { RANK_KEYS } from '../src/clanwords.js';
 import { PATROL_MIN } from '../src/clancats.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 // Task 5 (Clan Life Part 1): touch noses and boop with clan cats. The fake
 // session mirrors the colony feed harness in interactions.test.js; the clan
@@ -17,11 +18,6 @@ import { PATROL_MIN } from '../src/clancats.js';
 
 const scene = { add() {}, remove() {} };
 const AREA = { bounds: { minX: -50, maxX: 50, minZ: -50, maxZ: 50 } };
-function fakeStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
-
 function fakeClanCats(members, at) {
   const list = members.map((m, i) => ({
     id: m.id, name: m.name, rank: m.rank, clan: m.clan,

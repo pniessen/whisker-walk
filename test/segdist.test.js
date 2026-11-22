@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { createHash } from 'node:crypto';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // Polish 3: the segment-distance helper the world files each kept a copy of
 // is one shared helper now (src/segdist.js), and the Pines places its pines
@@ -9,22 +10,7 @@ import { createHash } from 'node:crypto';
 // built area's colliders, perches and critters, and keepOutPoint on a grid,
 // so a single moved tree, reed or push changes them.
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const { segDist } = await import('../src/segdist.js');
 const pines = await import('../src/world/pines.js');

@@ -1,10 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createSettings } from '../src/settings.js';
-
-function fakeStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 describe('createSettings', () => {
   it('starts with the documented defaults when storage is empty', () => {

@@ -1,12 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { createProgression } from '../src/progression.js';
 import { unlockToast } from '../src/fightmoves.js';
+import { memoryStorage as mem } from './helpers/storage.js';
 
 const KEY = 'whisker-walk-save';
-function mem(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 const base = () => JSON.parse(JSON.stringify(createProgression(mem()).state));
 const withSave = (patch, raw = true) => {
   const s = raw ? { ...base(), ...patch } : patch;

@@ -23,15 +23,11 @@ import { renderJournalHtml } from '../src/journal.js';
 import { FLAT_GROUND } from '../src/ground.js';
 import { buildHeightFixture } from './fixtures/heightfield.js';
 import { bus } from '../src/events.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 const DT = 1 / 30;
 const RUN = 3;
 const SRC = readFileSync(new URL('../src/game/clanfight.js', import.meta.url), 'utf8');
-
-function fakeStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 

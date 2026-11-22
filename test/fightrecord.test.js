@@ -3,19 +3,13 @@ import { createFightRecord } from '../src/game/fightrecord.js';
 import { createProgression } from '../src/progression.js';
 import { castFor } from '../src/clancast.js';
 import { unlockToast } from '../src/fightmoves.js';
+import { memoryStorage } from './helpers/storage.js';
 
 // Fight moves and scars (Task 8): the only fight code that holds progression.
 // It turns the clan fight's onWon / onLost into exactly the allowed save
 // writes, and nothing else.
 
-function fakeStorage() {
-  const map = new Map();
-  return {
-    map,
-    getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => map.set(k, String(v)),
-  };
-}
+const fakeStorage = () => memoryStorage({}, { expose: 'map' });
 
 // The whole save, as JSON, whatever key it lives under.
 const saved = (storage) => Object.fromEntries([...storage.map].map(([k, v]) => [k, JSON.parse(v)]));

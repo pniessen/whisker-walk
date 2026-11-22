@@ -1,10 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { createMetPlayers, metOnly, MET_KEY } from '../src/metplayers.js';
+import { memoryStorage } from './helpers/storage.js';
 
-function memStorage(init = {}) {
-  const map = new Map(Object.entries(init));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), map };
-}
+const memStorage = (initial) => memoryStorage(initial, { expose: 'map' });
 
 describe('createMetPlayers', () => {
   it('remembers who was met, across a reload, and nothing else', () => {

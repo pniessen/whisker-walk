@@ -1,10 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createAlbum } from '../src/album.js';
-
-function fakeStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 describe('createAlbum', () => {
   it('starts empty and reports first-photo status from add()', () => {

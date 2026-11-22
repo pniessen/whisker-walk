@@ -1,34 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { FOUNTAIN_STONE, FOUNTAIN_WATER } from '../src/world/parkfountain.js';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
-// The same headless stub every world test uses. The world builders touch the
-// DOM in exactly two places — document.createElement('canvas') for the
-// billboard poster, and render/textures.js's tile painters — and the second
-// needs more than a blanket no-op Proxy:
-//   * createLinear/RadialGradient — the painters add colour stops to whatever
-//     comes back;
-//   * getImageData — every tile ends with a getImageData/putImageData readback
-//     (clampToFloor, the pass that guarantees no texel falls below the
-//     luminance floor). clampToFloor guards the headless path by asking
-//     whether getImageData is a function, which a blanket Proxy always answers
-//     yes to. A zeroed buffer is the truthful answer: nothing was rasterised.
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const { build } = await import('../src/world/park.js');
 const { tileMetres, surfaceProps } = await import('../src/render/materials.js');

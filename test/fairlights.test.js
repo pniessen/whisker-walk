@@ -4,23 +4,11 @@
 // zero-area triangles. The shaders themselves run on the GPU; here the
 // numbers they read, and that each injection found its place in three's
 // own shader source.
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const kit = await import('../src/world/fairkit.js');
 const { stripes, bunting, bulb, bulbString, canvasOf, glowMesh, glowMaterial, setFairClock, FAIR_CLOCK, GLOW_LOOK, FLUTTER, glowNearScale } = kit;

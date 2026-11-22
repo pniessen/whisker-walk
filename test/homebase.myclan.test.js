@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { memoryStorage as memStorage } from './helpers/storage.js';
 
 // Menu review #7 (2026-11-20): Colony becomes "My clan" ("My cats" in the
 // everyday words), and the cat friends live there: her stray friends (from the
@@ -30,10 +31,6 @@ const { words } = await import('../src/wordset.js');
 const { withOffWords } = await import('./helpers/offwords.js');
 const { renderColonyHtml, renderPairingHtml, pairingErrorLine, renderNewsHtml } = await import('../src/ui/colonypanel.js');
 
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 function fakeEl(doc) {
   const el = {
     ownerDocument: doc, className: '', innerHTML: '', textContent: '', id: '', type: '',

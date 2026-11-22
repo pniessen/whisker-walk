@@ -3,17 +3,11 @@ import {
   createProgression, CATALOG, STARTER_ACCESSORIES, isPrizeAccessory, isTradeableAccessory,
 } from '../src/progression.js';
 import { VISIT_PRIZES } from '../src/visits.js';
+import { memoryStorage as memStorage } from './helpers/storage.js';
 
 const KEY = 'whisker-walk-save';
 const hex = (n) => n.toString(16).padStart(64, '0');
 
-function memStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return {
-    getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => map.set(k, String(v)),
-  };
-}
 // A storage already holding a v4 save with these fields.
 function seeded(fields) {
   return memStorage({ [KEY]: JSON.stringify({ version: 4, ...fields }) });

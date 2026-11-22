@@ -1,28 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
-// render/contactshadows.js paints its gradient onto a canvas at first use, the
-// same way render/textures.js and render/sky.js do, so this file needs the
-// headless canvas stub the world tests use (see test/den.test.js for the long
-// version of why the Proxy has to answer createRadialGradient with something
-// that has addColorStop). Installed before the module is imported, because the
-// texture is memoised and the first call is the one that matters.
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'createRadialGradient' || key === 'createLinearGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+// render/contactshadows.js paints its gradient onto a canvas at first use.
+// Installed before the module is imported, because the texture is memoised
+// and the first call is the one that matters.
+stubCanvasDocument();
 
 const {
   MIN_HEIGHT, MAX_BASE_Y, MIN_SPAN, MAX_SPAN, MIN_HALF,

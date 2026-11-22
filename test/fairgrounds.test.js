@@ -1,25 +1,13 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // The Fairground's polish pass on the place itself (P3 "fair-grounds"): the
 // trodden ground, the strings raised clear of the camera, the dusk pools
 // under the poles, the faces nobody sees, the flower tubs, the puddles, the
 // squeeze gap's hay bales and the dressing round the edges (fairedge.js).
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const fair = await import('../src/world/fair.js');
 const {

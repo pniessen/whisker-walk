@@ -3,24 +3,13 @@
 // their place in the save. The design's anti-goals are each held here: no job
 // has a timer or can be failed, nothing is caught, nothing frightens the cat,
 // and the goat with the hat never leaves the farm or goes near the water.
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
+import { stubCanvasDocument } from './helpers/canvas.js';
+import { memoryStorage } from './helpers/storage.js';
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const { build } = await import('../src/world/farm.js');
 const { createFarmSim, clearance, inRect, CAT_WALK, COW, CHICK } = await import('../src/farmsim.js');
@@ -50,10 +39,7 @@ const DT = 1 / 30;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const read = (p) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8');
 const code = (p) => read(p).split('\n').filter((l) => !l.trim().startsWith('//')).map((l) => l.replace(/\/\/.*$/, '')).join('\n');
-const mem = (initial = {}) => {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), map };
-};
+const mem = (initial) => memoryStorage(initial, { expose: 'map' });
 const inWater = (area, x, z, margin = 0) => area.waters.some((w) => Math.hypot(x - w.x, z - w.z) < w.r + margin);
 
 const AREA = build(new THREE.Scene());

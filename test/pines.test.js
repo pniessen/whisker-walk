@@ -1,33 +1,14 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // The same headless canvas stub every world test uses (see test/park.test.js
 // for why getImageData and the gradients need real answers), plus the three
 // listener members createPlayer touches, so the fixed-stick drives below can
 // run the real player (the same shape as test/waterblock.test.js's).
-vi.stubGlobal('document', {
-  addEventListener() {},
-  pointerLockElement: null,
-  exitPointerLock() {},
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        // a stray's name tag measures its label (the keep-out drive below)
-        if (key === 'measureText') return () => ({ width: 0 });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument({ measureText: 0, pointerLock: true });
 
 const pines = await import('../src/world/pines.js');
 const { WOODS_WATERS } = await import('../src/world/woods.js');

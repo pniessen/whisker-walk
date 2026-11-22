@@ -1,28 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // polish-gorgelight: the Gorge's own clear-day grade (rain, sunset and dusk
 // keep their looks), and its colour-only leftovers: tors with lichen, warm
 // lip stones and scree, tunnels from the canyon's brown into the chamber.
 
-vi.stubGlobal('document', {
-  addEventListener() {},
-  pointerLockElement: null,
-  exitPointerLock() {},
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_t, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'measureText') return () => ({ width: 0 });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument({ measureText: 0, pointerLock: true });
 
 const gorge = await import('../src/world/gorge.js');
 const { createWeather, clearDaySky } = await import('../src/weather.js');

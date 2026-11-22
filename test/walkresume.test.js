@@ -9,15 +9,9 @@ import { createEnemyWalkLog } from '../src/enemies.js';
 import { createDiscoveryLog } from '../src/discoveries.js';
 import { createProgression } from '../src/progression.js';
 import { mulberry32 } from '../src/rng.js';
+import { memoryStorage } from './helpers/storage.js';
 
-function memStorage() {
-  const map = new Map();
-  return {
-    getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => map.set(k, String(v)),
-    removeItem: (k) => map.delete(k),
-  };
-}
+const memStorage = () => memoryStorage({}, { removeItem: true });
 
 const AREAS = ['neighborhood', 'woods', 'den'];
 const NOW = Date.UTC(2026, 10, 10, 23, 30); // 2026-11-10 23:30 UTC

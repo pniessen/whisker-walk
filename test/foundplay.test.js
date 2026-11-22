@@ -5,19 +5,12 @@ import { bus } from '../src/events.js';
 import { phrase } from '../src/clanphrases.js';
 import { FIND_LOG_KEY } from '../src/foundwear/rules.js';
 import { grantFind, restoreFind, findBusy, handleFindArrival, findCardHtml } from '../src/foundwear/play.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 // Found outfits step 1, Task 8: giving the find. Once a walk; an outfit she
 // does not own yet is hers (owned, not worn), and anything else is the pouch
 // of 5 🐾. A partner's arrival gives her the same thing, with a toast instead
 // of the card.
-
-function fakeStorage() {
-  const map = new Map();
-  return {
-    getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => map.set(k, String(v)),
-  };
-}
 
 const findOf = (item) => ({ item, taken: false, take: vi.fn(function () { this.taken = true; }) });
 

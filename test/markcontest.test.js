@@ -8,13 +8,9 @@ import { propsFor } from '../src/propsets.js';
 import { rivalFor } from '../src/rivalclans.js';
 import { clanName, patrolClanFor } from '../src/clanhomes.js';
 import { createProgression } from '../src/progression.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 // v21 3b Task 12 — the rival clan scents over your marks near its border.
-
-function fakeStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 
 const POST = propsFor('park').markables.find((m) => m.nearBorder);
 const { cx, cz, r } = rivalFor('park');

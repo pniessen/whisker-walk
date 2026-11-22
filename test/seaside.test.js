@@ -1,26 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
-// Same headless stub every world test uses: the only DOM the builders touch is
-// document.createElement('canvas') for the billboard texture and for
-// render/textures.js's surface tiles. See test/water.test.js for the long
-// version of why getImageData and createGradient need real answers.
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const { build, BEACH } = await import('../src/world/seaside.js');
 const { surfaceProps, tileMetres } = await import('../src/render/materials.js');

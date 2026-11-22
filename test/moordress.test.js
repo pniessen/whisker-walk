@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { createHash } from 'node:crypto';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // The Moor's dressing (polish-rivermoor Task 4): a rolling ground tint, two
 // sheep paths, clitter round the tors, scattered boulders, a rocky lake shore,
@@ -8,23 +9,7 @@ import { createHash } from 'node:crypto';
 // nothing here may move gameplay data, stand on a path or a find, or stand
 // taller than its class. The rules below are restated as plain distances.
 
-// The same headless canvas stub every world test uses (see test/budget.test.js).
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const moor = await import('../src/world/moor.js');
 const D = await import('../src/world/moordress.js');

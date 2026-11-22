@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { memoryStorage } from './helpers/storage.js';
 
 // The linked Cloud save sheet: Unlink asks first (the confirm card Start
 // over uses), sits apart from Sync now, and Load from cloud is there while
@@ -23,10 +24,7 @@ const { CONFIRM_DELAY_MS } = await import('../src/ui/colonypanel.js');
 const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression } = await import('../src/progression.js');
 
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
-}
+const memStorage = () => memoryStorage({}, { removeItem: true });
 function fakeEl(doc) {
   const el = {
     className: '', innerHTML: '', textContent: '', id: '', children: [], listeners: {}, attrs: {}, style: {}, removed: false,
