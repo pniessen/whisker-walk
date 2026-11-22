@@ -53,3 +53,10 @@ describe('the hint lines follow the last input, live', () => {
     expect(line('hint.home')).toMatch(/\bEsc\b/);
   });
 });
+
+describe('TV mode never takes the screen by itself', () => {
+  it('no source file calls requestFullscreen (the browser banner "press and hold esc" comes only from that call)', () => {
+    for (const f of walk('src')) expect(readFileSync(f, 'utf8'), f).not.toMatch(/requestFullscreen/i);
+    for (const f of readdirSync('src/tv')) expect(readFileSync(join('src/tv', f), 'utf8'), f).not.toMatch(/requestFullscreen/i);
+  });
+});

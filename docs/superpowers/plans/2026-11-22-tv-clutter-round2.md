@@ -54,3 +54,18 @@ Dress up, Change place map, Settings, Skills, Journal, Den shop: check the same 
 - 'Press X to go here' repeats on every unlocked place: say it once in a footer, keep place names only.
 - Check pad navigation (d-pad / stick jumps to the nearest place, A goes, B back) and a clearly visible focus ring on the selected place.
 - Cropped photos: measure edge clipping at 1920x1080 and 3840x2160 before changing any safe margin.
+
+## Home base (owner photo)
+- Cat slot row (round thumbnails about 40 px, '+ Make a cat', '8 more') and the caption 'Tabby / Curious - sniffs out hidden treasures' are small for the sofa; check how the pad moves between slots.
+- Big empty gap in the right column between the Today's place card and 'Feed Ramen again: 3 of 6.'
+- Header pills (title, paws, rank, Visit n) are small next to the huge Menu button.
+- Copy the Change place card's clear focus-ring style to every focus ring.
+- 'drag to spin' is mouse wording with the pad as the input (round 1 keyboard audit item; the pad's right stick should spin the cat: unverified).
+
+## Change place: unlock flow (owner photo)
+- 'Open The Old Docks for 100 paws?' confirm is a small box in the middle of the map: awkward title wrap, 'Yes, open it' wraps to two lines, text under the floor, covers labels. Make it the same TV dialog as the fight prompt (yellow card, big buttons with glyphs: X yes, Circle not now, visible ring). Default focus on a paid action stays on the safe choice.
+- The place preview card (photo, 'You have 905', 'Open for 100') floats at the lower right and covers the map's right side; it has a tiny close X. Reserve a fixed side panel (map about 65% left, panel about 30% right); B closes; no close X.
+- Map labels still wrap and cluster ('The Market Square press X to go here' in four lines, 'The Old Twoleg Nest').
+
+## 'Home again!' zero counters (investigated in round 1)
+- bankWalk reads session.discoveryCount, session.catsGreeted, session.goals and state.points - session.startPoints before the teardown; a resumed walk restores them (walkresume.js). I found no path that resets them early. A summary of 0/0/0/0-of-3 matches a walk that was just begun (Ready? card then Head home), whose own counters are zero while 'your best' is the save's. Not reproduced as a bug; ask which path she took (Fairground trip -> Continue -> new walk -> Head home?).

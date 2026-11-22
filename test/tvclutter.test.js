@@ -33,7 +33,7 @@ describe('the pause card on a TV', () => {
   });
   it('a card hides every walking-HUD layer behind it, with a solid scrim', () => {
     const rule = TV.slice(TV.indexOf('html.tv body:has(#overlay:not(.hidden)'));
-    for (const c of ['.hud-controls', '.hud-hint', '.hud-prompt', '.hud-toasts', '.hud-goals', '.hud-objective']) expect(rule.slice(0, rule.indexOf('}'))).toContain(c);
+    for (const c of ['.hud-controls', '.hud-hint', '.hud-prompt', '.hud-toasts', '.hud-goals', '.hud-objective', '.hud-top', '.hud-map']) expect(rule.slice(0, rule.indexOf('}'))).toContain(c);
     expect(block('html.tv .pause-card, html.tv .summary-card')).toMatch(/rgba\(14, 19, 29, 0\.88\)/);
   });
   it('the key strip gives way to a tip, a toast and a context pill', () => {

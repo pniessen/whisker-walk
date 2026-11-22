@@ -155,7 +155,7 @@ html.tv :is(.screen-panel, .join-moment-card, .hb-sheet, .lp-card, .ls-card) { f
 html.tv :is(.screen-panel, .join-moment-card) :is(h1, h2) { text-wrap: balance; letter-spacing: .01em; }
 
 /* A card hides the whole walking HUD behind it, and its scrim is solid enough to read on. */
-html.tv body:has(#overlay:not(.hidden) :is(.pause-card, .summary-card)) #hud :is(.hud-controls, .hud-hint, .hud-prompt, .hud-toasts, .hud-goals, .hud-objective, .hud-roster, .hud-viewfinder, .hud-crosshair) { visibility: hidden; }
+html.tv body:has(#overlay:not(.hidden) :is(.pause-card, .summary-card)) #hud :is(.hud-controls, .hud-hint, .hud-prompt, .hud-toasts, .hud-goals, .hud-objective, .hud-roster, .hud-viewfinder, .hud-crosshair, .hud-top, .hud-map, .hud-area) { visibility: hidden; }
 html.tv .pause-card, html.tv .summary-card { background: rgba(14, 19, 29, 0.88); }
 /* The key strip yields to a tip: never both at once. */
 html.tv #hud.hinting .hud-controls { display: none; }
