@@ -115,12 +115,26 @@ describe('determinism', () => {
     expect(fingerprint(sceneA)).toEqual(fingerprint(sceneB));
   });
 
-  it('ignores the gate ends in step 1: the door stays shut and the scene is the same', () => {
+  // Step 4 (W7): only a house-town end changes the door. Its two leaves are then
+  // their own meshes on pivots in the two sections (houselife.js swings them):
+  // the same triangles, two more meshes, and the rest of the scene as it was.
+  it('only a house-town gate end changes the scene: the front door\'s leaves come out of the wall onto pivots', () => {
     const plain = new THREE.Scene();
-    const gated = new THREE.Scene();
     build(plain);
-    build(gated, { gateEnds: [{ id: 'house-town', area: 'house' }] });
-    expect(fingerprint(gated)).toEqual(fingerprint(plain));
+    for (const gateEnds of [[], [{ id: 'town-house', area: 'neighborhood' }]]) {
+      const other = new THREE.Scene();
+      const r = build(other, { gateEnds });
+      expect(fingerprint(other)).toEqual(fingerprint(plain));
+      expect(r.house.parts.frontDoor).toBeNull();
+    }
+    const gated = new THREE.Scene();
+    const r = build(gated, { gateEnds: [{ id: 'house-town', area: 'house' }] });
+    expect(r.house.parts.frontDoor).toBeTruthy();
+    expect(trianglesOf(gated)).toBe(trianglesOf(plain));
+    const meshes = (sc) => { let n = 0; sc.traverse((o) => { if (o.isMesh) n++; }); return n; };
+    expect(meshes(gated)).toBe(meshes(plain) + 2);
+    const was = new Set(fingerprint(plain));
+    expect(fingerprint(gated).filter((f) => !was.has(f))).toHaveLength(4); // the two hall sections, and the two leaves
   });
 
   it('builds the atlas the same every time: 256 x 256 RGBA, sixteen named cells', () => {

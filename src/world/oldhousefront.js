@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial, repeatFor, surfaceProps } from '../render/materials.js';
 import { pieceKit } from './builder.js';
 import { withLocalUuids } from './localuuids.js';
@@ -19,22 +20,25 @@ import { withLocalUuids } from './localuuids.js';
 // town exactly as before. The door stays shut (W7): walking up to it is the
 // gate, and the gate's own prompt and moment carry her in.
 //
-// Four meshes: the brick (walls, both side gables and the door's gable), the
-// slate roof, the trim (every stone, frame, sill, step, door, chimney and pot,
-// vertex-coloured, as builder.house()'s houseTrim) and the glass (every pane,
-// the fanlight, the round window and the lanterns, userData.window, so
-// render/dusk.js lights them as it lights the town's houses and treefade.js
-// fades the house when the camera is behind it). The glass casts no shadow.
+// Two meshes, so the town stays inside its merged-mesh guard (the merge never
+// joins two top-level children, so the front's own count is what it adds):
+// the body, every wall, slate, stone, frame, sill, step, door, chimney and pot
+// on the brick-textured material, coloured per piece by vertex colours; and the
+// glass (every pane, the fanlight, the round window and the lanterns,
+// userData.window, so render/dusk.js lights them as it lights the town's houses
+// and treefade.js fades the house when the camera is behind it). The walls
+// carry the town's brick UVs; the roof the same texture at a slate's size, so it
+// reads as courses of slates; every other piece one fixed spot inside a brick,
+// so it is flat colour. The glass casts no shadow.
 //
 // THE RULES builder.house() keeps, kept here:
 //   * No Math.random. Everything is made inside withLocalUuids, so the build's
 //     draw count does not move with the end handed in or not.
-//   * The brick and the roof reuse the lots' texture variants exactly. Their
-//     materials ask for repeatFor('brick', 5, 3) and repeatFor('shingle', 11,
-//     4.4), the repeats the town's brick houses and roofs already made (they
-//     are built first), and the UVs here count metres / 5, / 3 and / 11, / 4.4
-//     so the bricks and slates are the town's size. So no new texture variant
-//     is made (or cached) under the local uuids.
+//   * The body reuses the lots' brick texture variant exactly: its material
+//     asks for repeatFor('brick', 5, 3), the repeat the town's brick houses
+//     already made (they are built first), and the walls' UVs count metres / 5
+//     and / 3 so the bricks are the town's size. So no new texture variant is
+//     made (or cached) under the local uuids.
 //
 // Laid out in a local frame with the front facing +z (as builder.house()),
 // x across the front, then turned a quarter so the front faces east (+x).
@@ -50,7 +54,11 @@ const CZ = (OLD_HOUSE_FRONT.z0 + OLD_HOUSE_FRONT.z1) / 2; // 31
 const BRICK = 0xa8604c; // warm, old red brick
 const TRIM = 0xf1e8d4; // cream stone and paint
 const STONE = 0xb9ae9f; // the plinth and the steps
-const SLATE = 0x56606e;
+// The walls and the slates carry the brick tile (its mean is 0.948), so their
+// colours are lifted by 1 / 0.948, as builder.house() lifts a brick body:
+// 0xa8604c and 0x56606e land as typed.
+const WALL = 0xb16550;
+const SLATE = 0x5b6574;
 const RIDGE = 0x464d58;
 const DOOR = 0x2e6a55; // a deep green door
 const PANEL = 0x3a7a63;
@@ -114,10 +122,21 @@ function brickGeometry() {
   face([[-BAY, 0, BAY_FRONT], [BAY, 0, BAY_FRONT], [BAY, EAVE, BAY_FRONT], [0, GABLE_PEAK, BAY_FRONT], [-BAY, EAVE, BAY_FRONT]], byX);
   face([[BAY, 0, BAY_FRONT], [BAY, 0, FRONT], [BAY, EAVE, FRONT], [BAY, EAVE, BAY_FRONT]], byZ);
   face([[-BAY, 0, FRONT], [-BAY, 0, BAY_FRONT], [-BAY, EAVE, BAY_FRONT], [-BAY, EAVE, FRONT]], byZ);
+  return bodyPart(pos, uv, WALL);
+}
+
+// A body part from its positions and UVs, all one colour.
+function bodyPart(pos, uv, hex) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   geo.computeVertexNormals();
+  return paint(geo, hex);
+}
+function paint(geo, hex) {
+  const c = new THREE.Color(hex), n = geo.attributes.position.count, col = new Float32Array(n * 3);
+  for (let i = 0; i < n * 3; i += 3) { col[i] = c.r; col[i + 1] = c.g; col[i + 2] = c.b; }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return geo;
 }
 
@@ -125,12 +144,14 @@ function brickGeometry() {
 function roofGeometry() {
   const pos = [], uv = [];
   const slope = Math.hypot(1, PITCH);
-  // A quad [a, b, c, d]; u = metres along the eave / 11, v = metres up the slope / 4.4.
+  // A quad [a, b, c, d], both faces (the eaves' undersides): the brick tile at a
+  // slate's size, 0.3 m across the eave by 0.2 m up the slope (u, v by
+  // SLATE_U, SLATE_V against the walls' / 5, / 3), so its courses read as slates.
   const quad = (pts, u, up) => {
-    for (const t of [[0, 1, 2], [0, 2, 3]]) {
+    for (const t of [[0, 1, 2], [0, 2, 3], [0, 2, 1], [0, 3, 2]]) {
       for (const i of t) {
         pos.push(...pts[i]);
-        uv.push(u(pts[i]) / 11, (up(pts[i]) * slope) / 4.4);
+        uv.push(u(pts[i]) / SLATE_U, (up(pts[i]) * slope) / SLATE_V);
       }
     }
   };
@@ -146,12 +167,10 @@ function roofGeometry() {
     const pts = [[s * GX, GY, gF], [0, GABLE_PEAK, gF], [0, GABLE_PEAK, valleyZ(GABLE_PEAK)], [s * GX, GY, valleyZ(GY)]];
     quad(s < 0 ? pts : [pts[1], pts[0], pts[3], pts[2]], (p) => p[2], (p) => GX - Math.abs(p[0]));
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  geo.computeVertexNormals();
-  return geo;
+  return bodyPart(pos, uv, SLATE);
 }
+const SLATE_U = 3.6; // metres per u and per v on the roof (the walls' are 5 and 3)
+const SLATE_V = 2.4;
 
 // A box from point a to point b (its length), `w` wide in the plane whose
 // normal is `n`, `d` deep along n.
@@ -309,7 +328,15 @@ function trimAndGlass() {
     k.solid(new THREE.CylinderGeometry(0.24, 0.18, 0.44, 8), s * 1.7, 0.22, z + 0.62, POT);
     k.solid(new THREE.IcosahedronGeometry(0.34, 0), s * 1.7, 0.74, z + 0.62, BAY_TREE);
   }
-  return { trim: k.merged(), glass: glass.merged() };
+  // every trim piece reads the texture at one spot inside a brick (the tile's
+  // x 1/8, y 3/8, a brick in either course), so it is its own flat colour; its
+  // colour is lifted by that brick face's darkening (0.925, linear 0.84)
+  const trim = k.merged();
+  const n = trim.attributes.position.count, uv = new Float32Array(n * 2), col = trim.attributes.color.array;
+  for (let i = 0; i < n * 2; i += 2) { uv[i] = 0.125; uv[i + 1] = 0.375; }
+  for (let i = 0; i < n * 3; i++) col[i] /= 0.84;
+  trim.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  return { trim, glass: glass.merged() };
 }
 
 // The colliders: circles of r 0.7 at most 0.95 m apart, round the walls, the
@@ -346,21 +373,15 @@ export function buildOldHouseFront(scene, { wind } = {}) { // eslint-disable-lin
   const group = withLocalUuids('oldhousefront', () => {
     const g = new THREE.Group();
     g.name = 'oldhousefront';
-    const brick = new THREE.Mesh(brickGeometry(), litMaterial(lift(BRICK, 1 / 0.948),
-      { surface: 'brick', repeat: repeatFor('brick', 5, 3) }));
-    brick.name = 'oldHouseBrick';
-    const roofMat = litMaterial(SLATE, { surface: 'shingle', repeat: repeatFor('shingle', 11, 4.4) });
-    roofMat.side = THREE.DoubleSide; // the eaves' undersides
-    const roof = new THREE.Mesh(roofGeometry(), roofMat);
-    roof.name = 'oldHouseRoof';
-    const { trim: trimGeo, glass: glassGeo } = trimAndGlass();
-    const trim = new THREE.Mesh(trimGeo, litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('wood') }));
-    trim.name = 'oldHouseTrim';
+    const { trim, glass: glassGeo } = trimAndGlass();
+    const body = new THREE.Mesh(mergeGeometries([brickGeometry(), roofGeometry(), trim]),
+      litMaterial(0xffffff, { surface: 'brick', repeat: repeatFor('brick', 5, 3), vertexColors: true }));
+    body.name = 'oldHouseBody';
     const glass = new THREE.Mesh(glassGeo, litMaterial(GLASS, surfaceProps('glass')));
     glass.name = 'oldHouseGlass';
     glass.userData.window = true;
     glass.userData.noCast = true;
-    g.add(brick, roof, trim, glass);
+    g.add(body, glass);
     g.rotation.y = Math.PI / 2; // the front (+z) faces east (+x)
     g.position.set(CX, 0, CZ);
     return g;
@@ -369,9 +390,3 @@ export function buildOldHouseFront(scene, { wind } = {}) { // eslint-disable-lin
   return { group, colliders: colliders() };
 }
 
-// Brick's luminance compensation, as builder.house() applies it (the brick
-// tile's mean is 0.948), so the wall lands on the colour typed above.
-function lift(hex, factor) {
-  const ch = (shift) => Math.min(255, Math.round(((hex >> shift) & 0xff) * factor));
-  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
-}

@@ -30,6 +30,12 @@ import { createKnockables } from '../src/knockables.js';
 import { AWARDS, createDiscoveryLog } from '../src/discoveries.js';
 import { isWalkableAt } from '../src/player.js';
 import { discoveryText } from '../src/ui/hud.js';
+import { gatewayNear } from '../src/gateways.js';
+import { gateStatus, gatePrompt } from '../src/gatecross.js';
+import { NO_GATES } from '../src/world/gateway.js';
+import { phrase } from '../src/clanphrases.js';
+import { placeName } from '../src/edition.js';
+import { lower } from '../src/territories.js';
 
 // =============================================================================
 // The Old House in the game (Old House step 1, Task 8; rulings H7, U9-U12).
@@ -1002,4 +1008,45 @@ describe('the Old House unlock in the real catalog', () => {
     expect(p.buy('areas', 'house')).toBe(false);
     expect(p.state.unlocked.areas).not.toContain('house');
   });
+});
+
+// Old House step 4, Task 5 (the controller's P-3, from Task 4; Review Focus 5):
+// through a real walk, the town draws the old house's front only for a Clan
+// Edition walk, which hands it the door's gate end (walk.js gateEnds).
+describe('the old house front on a town walk', () => {
+  const townWalk = (life, o) => walk(life, (w) => w.startWalk({ duskMode: false, areaOverride: 'neighborhood' }), o);
+
+  it('a Legacy town has no old house front', () => {
+    const life = lifecycleHere();
+    life.progression.setEdition('legacy');
+    let front = 'not looked';
+    const r = townWalk(life, { keep: (s) => {
+      front = s.scene.getObjectByName('oldhousefront');
+      expect(s.gates).toBe(NO_GATES);
+    } });
+    expect(r.areaId).toBe('neighborhood');
+    expect(front).toBeUndefined();
+  }, 90_000);
+
+  it('a Clan Edition town walk owning nothing has one, and its door asks', () => {
+    const life = lifecycleHere();
+    expect(life.progression.state.edition).not.toBe('legacy');
+    expect(life.progression.state.unlocked.areas).not.toContain('house');
+    let seenFront = null;
+    const r = townWalk(life, { keep: (s) => {
+      seenFront = s.scene.getObjectByName('oldhousefront') ?? null;
+      expect(s.gates).not.toBe(NO_GATES);
+      // its ring is in the walk's colliders, 1.25 m from the door's end at the nearest
+      const end = gatewayNear('neighborhood', -42.5, 31, CATALOG);
+      expect(end?.id).toBe('town-house');
+      const near = Math.min(...s.areaData.colliders.map((c) => Math.hypot(c.x - end.x, c.z - end.z)));
+      expect(near).toBeGreaterThanOrEqual(1.2);
+      expect(near).toBeLessThan(1.5);
+      // the prompt at its door: shut, and how many Market Square walks are left
+      const line = gatePrompt(gateStatus(end, life.progression.state, CATALOG));
+      expect(line).toEqual({ kind: 'gate-info', text: phrase('gate.shut', 2, lower(placeName('market', 'canon', CATALOG)), 2) });
+    } });
+    expect(r.areaId).toBe('neighborhood');
+    expect(seenFront).toBeTruthy();
+  }, 90_000);
 });

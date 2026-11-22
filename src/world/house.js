@@ -20,8 +20,8 @@
 //
 // No people, no resident cat, no strays (U12, U14): critterSpawns holds only the
 // house's mice (step 2, D10) and strays is false; step 2's finds are housethings.js's
-// data. The front door is shut (U13): build takes the walk's gateEnds and, in step 1,
-// ignores them; step 4 opens the door when a house-town end comes.
+// data. The front door is shut (U13) unless the walk hands build a house-town gate end
+// (step 4, W7): then its two leaves are pivots (house.parts.frontDoor) house life swings.
 // Everything is made inside one withLocalUuids, so the build draws nothing from
 // Math.random; variation is hash01.
 
@@ -352,9 +352,9 @@ function drawMarks(scene, traversal, start) {
   }
 }
 
-// eslint-disable-next-line no-unused-vars
-export function build(scene, { wind, gateEnds } = {}) {
-  // gateEnds: step 4 opens the front door when a house-town end comes in. Step 1 ignores it.
+export function build(scene, { wind, gateEnds = [] } = {}) {
+  // gateEnds: the walk's gate ends; a house-town end makes the front door one that opens
+  const openDoor = gateEnds.some((e) => e.id === 'house-town');
   return withLocalUuids('house', () => {
     // the plan with its moves and perches (step 2): the furniture tops she stands on are ground
     const plan = houseMovesArea(houseArea());
@@ -373,7 +373,7 @@ export function build(scene, { wind, gateEnds } = {}) {
       groups.set(l.id, g);
     }
     for (const s of plan.sections) {
-      const m = sectionMesh(s, material, { sections: plan.sections });
+      const m = sectionMesh(s, material, { sections: plan.sections, openDoor });
       groups.get(s.level).add(m);
       sectionMeshes.set(s.id, m);
       if (s.window) panes.set(s.id, [paneMesh(s, s.window)]);
@@ -397,6 +397,10 @@ export function build(scene, { wind, gateEnds } = {}) {
       scene.add(g);
     });
     const { parts, fading } = furnish(scene, material, START_LEVEL, plan.traversal);
+    // the front door's two leaves, each a pivot at its hinge (west, east), or null when shut for good
+    const pivots = [...sectionMeshes.values()].map((m) => m.userData.doorPivot).filter(Boolean)
+      .sort((a, b) => a.position.x - b.position.x);
+    parts.frontDoor = pivots.length === 2 ? { left: pivots[0], right: pivots[1] } : null;
     drawMarks(scene, plan.traversal, START_LEVEL);
     // the secret stair's bookcase, shut in the library's north wall (step 2, ruling D9)
     const secretGroup = secretBookcaseGroup(material);

@@ -22,7 +22,9 @@
 // its pane is its own top-level mesh (paneMesh), because the tree fade takes any
 // group holding a window for a building and dusk swaps a pane's material.
 // The front door (HOUSE_FRONT_DOOR, ruling R7) is a double door: its x lies on
-// the boundary of two sections, so each holds one leaf and sinks with it.
+// the boundary of two sections, so each holds one leaf and sinks with it. For a
+// walk with the door home (step 4, `openDoor`) each leaf is its own mesh on a
+// pivot at its hinge, the section mesh's child, so house life can swing it.
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -568,7 +570,7 @@ function flatWall(kit, s, sections, meta) {
   for (const o of holes) {
     if (o.kind === 'window') windowDressing(kit, W, o, sides);
     else if (o.kind === 'round') roundDressing(kit, W, o, sides);
-    else meta.doorLeaf = frontDoor(kit, W, o, sides);
+    else meta.doorLeaf = frontDoor(kit, W, o, sides, meta);
   }
 }
 
@@ -648,15 +650,19 @@ function roundDressing(kit, W, o, sides) {
 }
 
 // One leaf of the shut front door, with its panels, knob, architrave and doorstep.
-// Step 4 opens it (a house-town gateway end); in step 1 it is always shut.
-function frontDoor(kit, W, o, sides) {
+// With meta.openDoor (step 4: a house-town gateway end) the leaf, its panels and
+// its knob go in their own kit (meta.leafKit), hinged at meta.hingeU, the leaf's
+// outer edge; the architrave and the doorstep stay in the wall.
+function frontDoor(kit, W, o, sides, meta) {
   const h = WALL_T / 2;
   const d = HOUSE_FRONT_DOOR;
   const { u0, u1, y0, y1 } = o;
   const meetAtLo = Math.abs(u0 - d.x) < EPS;
   const outerU = meetAtLo ? u1 : u0;
   const t = 0.03;
-  wallBox(kit, W, u0, u1, y0, y1, -t, t, C.darkWood);
+  const lk = meta.openDoor ? new Kit() : kit;
+  if (meta.openDoor) { meta.leafKit = lk; meta.hingeU = outerU; }
+  wallBox(lk, W, u0, u1, y0, y1, -t, t, C.darkWood);
   const pa = Math.min(u0, u1) + 0.1;
   const pb = Math.max(u0, u1) - 0.1;
   const knobU = meetAtLo ? u0 + 0.12 : u1 - 0.12;
@@ -665,10 +671,10 @@ function frontDoor(kit, W, o, sides) {
     const vv = (d0, d1) => (g > 0 ? [d0, d1] : [-d1, -d0]);
     const back = g > 0 ? 'v-' : 'v+';
     const [pv0, pv1] = vv(t, t + 0.015);
-    wallBox(kit, W, pa, pb, y0 + 1.15, y0 + 2.0, pv0, pv1, C.darkWood, { skip: [back] });
-    wallBox(kit, W, pa, pb, y0 + 0.2, y0 + 1.0, pv0, pv1, C.darkWood, { skip: [back] });
+    wallBox(lk, W, pa, pb, y0 + 1.15, y0 + 2.0, pv0, pv1, C.darkWood, { skip: [back] });
+    wallBox(lk, W, pa, pb, y0 + 0.2, y0 + 1.0, pv0, pv1, C.darkWood, { skip: [back] });
     const [kv0, kv1] = vv(t, t + 0.06);
-    wallBox(kit, W, knobU - 0.025, knobU + 0.025, y0 + 0.98, y0 + 1.03, kv0, kv1, C.lightWood, { skip: [back] });
+    wallBox(lk, W, knobU - 0.025, knobU + 0.025, y0 + 0.98, y0 + 1.03, kv0, kv1, C.lightWood, { skip: [back] });
     const [av0, av1] = vv(h, h + 0.025);
     const archLo = meetAtLo ? u0 : outerU - ARCH_W;
     const archHi = meetAtLo ? outerU + ARCH_W : u1;
@@ -707,9 +713,11 @@ function stairWall(kit, s, sections) {
 }
 
 // One wall section as one mesh: its base at local y 0, the mesh at the section's base.
-export function sectionMesh(section, material, { sections = houseSections() } = {}) {
+// openDoor: a front-door leaf in it is its own mesh on a pivot at its hinge
+// (userData.doorPivot, named houseFrontLeaf), turned about y by house life.
+export function sectionMesh(section, material, { sections = houseSections(), openDoor = false } = {}) {
   const kit = new Kit();
-  const meta = {};
+  const meta = { openDoor };
   if (section.kind === 'stair') stairWall(kit, section, sections);
   else flatWall(kit, section, sections, meta);
   const geo = kit.geometry();
@@ -718,6 +726,17 @@ export function sectionMesh(section, material, { sections = houseSections() } = 
   const mesh = new THREE.Mesh(geo, material);
   mesh.position.y = section.base;
   if (meta.doorLeaf) mesh.userData.doorLeaf = meta.doorLeaf;
+  if (meta.leafKit) {
+    const d = HOUSE_FRONT_DOOR;
+    const leafGeo = meta.leafKit.geometry();
+    leafGeo.translate(-meta.hingeU, -section.base, -d.z);
+    const pivot = new THREE.Object3D();
+    pivot.name = 'houseFrontLeaf';
+    pivot.position.set(meta.hingeU, 0, d.z);
+    pivot.add(finish(new THREE.Mesh(leafGeo, material)));
+    mesh.add(pivot);
+    mesh.userData.doorPivot = pivot;
+  }
   mesh.name = `houseWall:${section.id}`;
   mesh.userData.houseSection = section.id;
   return finish(mesh);

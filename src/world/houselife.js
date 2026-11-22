@@ -41,6 +41,11 @@
 // Rough edges 1 and 2: the ledges' guards (houseguards.js) in the walk's live colliders, the feet
 // round every ledge piece while she is on the floor, a top's own set while she is on it, built
 // for her cat's size once she is first seen (her cat is the scene's object at her position).
+// Step 4 (W7): on a walk with the door home (house.parts.frontDoor), the front door's two
+// leaves swing out onto the lawn by FRONT_DOOR_OPEN over FRONT_DOOR_S (at once under reduced
+// motion) once she is within FRONT_DOOR_NEAR of it, and shut once she is past FRONT_DOOR_FAR.
+// They swing beyond the house's bounds, so never through her: no collider. A local look:
+// nothing sent, no stream. settle (a walk's start) sets it as she stands, with no swing.
 
 import { makeView, createWallSink, createCellarLid, SINK } from '../housewalls.js';
 import { createLevelDrawing } from '../houselevels.js';
@@ -48,7 +53,7 @@ import { CAT_LOOK_Y } from '../cat/model.js';
 import { createHouseFinds, HOLD_PAD } from './housefinds.js';
 import { segmentHitsBox } from '../treefade.js';
 import { toyStop, HOUSE_FINDS } from './housethings.js';
-import { HOUSE_WINDOWS, HOUSE_ROOMS, HOUSE_STAIRS } from './houseplan.js';
+import { HOUSE_WINDOWS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_FRONT_DOOR } from './houseplan.js';
 import { createHouseSound } from './housesound.js';
 import { createHouseAir } from './houseair.js';
 import { createLedgeGuards, catScale } from './houseguards.js';
@@ -69,6 +74,39 @@ export function segmentNearRect(ax, az, bx, bz, r, pad) {
   };
   return clip(-dx, ax - (r.minX - pad)) && clip(dx, r.maxX + pad - ax)
     && clip(-dz, az - (r.minZ - pad)) && clip(dz, r.maxZ + pad - az) && t0 <= t1;
+}
+export const FRONT_DOOR_NEAR = 2.4; // m from the door: it opens
+export const FRONT_DOOR_FAR = 2.9; // m: it shuts once she is further
+export const FRONT_DOOR_OPEN = 1.2; // rad each leaf turns, out onto the lawn
+export const FRONT_DOOR_S = 0.4; // s to swing
+
+// The front door's swing (null pivots: a door that never opens).
+function createFrontDoor(door, reducedMotion) {
+  let open = false;
+  let k = 0; // 0 shut .. 1 open
+  const turn = () => {
+    if (!door) return;
+    const a = FRONT_DOOR_OPEN * k * k * (3 - 2 * k); // eased
+    door.left.rotation.y = -a; // the west leaf's meeting edge swings south
+    door.right.rotation.y = a;
+  };
+  const near = (p) => {
+    if (!door) return;
+    const d = Math.hypot(p.x - HOUSE_FRONT_DOOR.x, p.z - HOUSE_FRONT_DOOR.z);
+    if (d <= FRONT_DOOR_NEAR) open = true;
+    else if (d > FRONT_DOOR_FAR) open = false;
+  };
+  return {
+    get open() { return open; },
+    settle(p) { near(p); k = open ? 1 : 0; turn(); },
+    update(dt, p) {
+      near(p);
+      const step = reducedMotion ? 1 : dt / FRONT_DOOR_S;
+      k = open ? Math.min(1, k + step) : Math.max(0, k - step);
+      turn();
+    },
+    dispose() { k = 0; turn(); },
+  };
 }
 const TELEPORT = 25; // m/s: no ball rolls this fast
 const OPEN = Object.freeze({ secretOpen: true });
@@ -103,6 +141,7 @@ export function createHouseLife(scene, house, {
   });
   const air = createHouseAir(scene, { windows: HOUSE_WINDOWS, rooms: HOUSE_ROOMS, levels: house.levels, dusk: !!dusk, reducedMotion });
   const guards = createLedgeGuards(colliders, floor);
+  const frontDoor = createFrontDoor(house.parts?.frontDoor ?? null, reducedMotion);
   let sized = false;
   function guard(catPos) {
     if (!sized) { sized = true; guards.scale(catScale(scene, catPos)); }
@@ -173,6 +212,7 @@ export function createHouseLife(scene, house, {
     air.update(0, 0, drawing.full);
     holdFades(catPos, camera.position);
     guard(catPos);
+    frontDoor.settle(catPos);
   }
 
   return {
@@ -181,6 +221,7 @@ export function createHouseLife(scene, house, {
     lid,
     finds,
     settle,
+    get frontDoorOpen() { return frontDoor.open; },
     update(dt, t, catPos, camera) {
       if (!settled) { settle(catPos, camera); return; }
       makeView(catPos, camera.position, CAT_LOOK_Y, view);
@@ -195,9 +236,11 @@ export function createHouseLife(scene, house, {
       sound.update(dt, t, catPos);
       keepBall(dt);
       guard(catPos);
+      frontDoor.update(dt, catPos);
     },
     guards,
     dispose() {
+      frontDoor.dispose();
       guards.dispose();
       finds.dispose();
       sound.dispose();

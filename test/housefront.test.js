@@ -65,7 +65,7 @@ describe('the old house front', () => {
     expect(frontOf(none.scene)).toBeUndefined();
     expect(records(none.area)).toEqual(records(bare.area));
     // another end (a signpost) does not bring it either
-    expect(frontOf(built({ gateEnds: endsFor('neighborhood') }).scene)).toBeUndefined();
+    expect(frontOf(built({ gateEnds: endsFor('neighborhood').filter((e) => e.id !== 'town-house') }).scene)).toBeUndefined();
 
     const withDoor = built({ gateEnds: [END] });
     const front = frontOf(withDoor.scene);
@@ -164,6 +164,10 @@ describe('the old house front', () => {
     mergeStaticProps(scene);
     const own = budgetOf([frontOf(scene)], rig);
     expect(own.meshes).toBeLessThanOrEqual(6);
+    // one body and its glass (P-8): the merge never joins two top-level
+    // children, so these two are all the front adds to the town's merged count
+    expect(frontOf(scene).children.map((m) => m.name)).toEqual(['oldHouseBody', 'oldHouseGlass']);
+    expect(own.meshes).toBe(2);
     expect(own.casters).toBeLessThanOrEqual(4);
     expect(own.triangles).toBeLessThanOrEqual(2500);
     if (process.env.BUDGET_LOG) console.log('front', JSON.stringify(own));
