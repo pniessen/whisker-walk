@@ -592,7 +592,7 @@ export function drawBeach(kit, M) {
     placed++;
   }
   // the plateau's stones
-  for (let i = 0; i < 40 && i < 14; i++) {
+  for (let i = 0; i < 14; i++) {
     const x = -38 + hash01(i, 5, 93) * 30; const z = -42 + hash01(i, 6, 93) * 44;
     if (Math.hypot(x - P.TOWER.x, z - P.TOWER.z) < 6.5 || (x > -17 && z > -23 && z < -15) || !P.LIGHTHOUSE_COLLIDERS.every((q) => Math.hypot(x - q.x, z - q.z) > q.r + 0.7)) continue;
     const r = 0.16 + 0.22 * hash01(i, 7, 93);

@@ -19,7 +19,6 @@
 // =============================================================================
 
 import { createGround } from '../ground.js';
-import { createTraversal } from '../traversal.js';
 import { SURE_CLAWS_ID } from '../climbing.js';
 
 export const LIGHTHOUSE_BOUNDS = Object.freeze({ minX: -48, maxX: 38, minZ: -44, maxZ: 44 });
@@ -176,7 +175,7 @@ export const LIGHTHOUSE_BOXES = Object.freeze([{ x: 18, z: 38 }, { x: -20, z: 10
 
 export const LIGHTHOUSE_NAME = 'Lighthouse Point';
 
-// The ground and the moves (none yet: the stair, the railing walk and the leaps are milestone 2's).
+// The ground (and no moves yet).
 export function lighthouseGround() {
   return createGround(LIGHTHOUSE_GROUND);
 }
@@ -196,6 +195,7 @@ export function lighthouseArea() {
     tippables: LIGHTHOUSE_TIPPABLES.map((k) => ({ ...k })),
     boxes: LIGHTHOUSE_BOXES.map((k) => ({ ...k })),
     ground,
-    traversal: createTraversal({ crossings: [], gaps: [], climbs: [], drops: [] }, ground),
+    // no `traversal` yet: the stair, the railing walk and the leaps are milestone 2's, and a record that has
+    // none keeps the moves runtime out of the walk (test/traversalwiring.test.js)
   };
 }

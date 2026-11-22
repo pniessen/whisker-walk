@@ -45,7 +45,7 @@ describe('the record', () => {
     expect(area.waters.map((w) => w.id)).toEqual(['sea', 'sea-west', 'pool-1', 'pool-2', 'pool-3', 'pool-4', 'pool-5', 'pool-6']);
     expect(area.evening).toBe(true);
     expect(area.ground.y(-20, -10)).toBe(6);
-    expect(area.traversal.crossings).toEqual([]);
+    expect(area.traversal).toBeUndefined(); // no moves until milestone 2: the moves runtime stays out of the walk
     expect(area.skyDusk.top).toBeTypeOf('number');
     expect(area.duskLight.fogFar).toBeGreaterThan(area.duskLight.fogNear);
   });
