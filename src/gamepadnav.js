@@ -39,6 +39,17 @@ export function candidates(layer) {
   });
 }
 
+// The pause card's one neighbour: the den walk's HUD "Den shop" button sits
+// outside #overlay (z-index over it) yet is what the card's hint points at.
+// While the card is the top layer it joins the card's controls.
+export function layerControls(doc, layer) {
+  const list = candidates(layer);
+  if (layer?.id !== 'overlay') return list;
+  const shop = doc.getElementById('btn-den-shop');
+  if (shop && !list.includes(shop) && candidates({ querySelectorAll: () => [shop] }).length) list.push(shop);
+  return list;
+}
+
 const fire = (el, type, init) => {
   const view = el.ownerDocument?.defaultView ?? globalThis;
   el.dispatchEvent(new view[init ? 'KeyboardEvent' : 'Event'](type, { bubbles: true, ...init }));
@@ -119,7 +130,7 @@ export function createNav({ doc, back, onActive }) {
   const view = () => {
     const layer = topLayer(doc);
     if (!layer) return { layer, list: [] };
-    if (!cache || cache.layer !== layer) cache = { layer, list: candidates(layer) };
+    if (!cache || cache.layer !== layer) cache = { layer, list: layerControls(doc, layer) };
     if (!mo) { const list = cache.list; cache = null; return { layer, list }; }
     return cache;
   };
@@ -187,6 +198,17 @@ export function createNav({ doc, back, onActive }) {
         focusEl(list[nearestTo(last, list.map((e, id) => ({ id, rect: rectOf(e) })))], layer, list);
         return true;
       }
+      return entry(layer, list);
+    },
+    // Called each idle frame while the ring is on (the pad was the last input):
+    // a screen or card that opened under the pad gets its entry control focused
+    // once. Same screen re-rendered, focus already in the layer, or a text box
+    // being typed in: left alone.
+    settle() {
+      if (isText()) return false;
+      const { layer, list } = view();
+      if (!list.length || current(list)) return false;
+      if (!isNewScreen(layer, list)) return false;
       return entry(layer, list);
     },
     destroy() { mo?.disconnect?.(); cache = null; },

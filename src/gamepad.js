@@ -107,6 +107,8 @@ export function createGamepad({
     if (edge(PAD_BUTTONS.L1)) menuNav.zoom?.('out');
     if (edge(PAD_BUTTONS.R1)) menuNav.zoom?.('in');
     if (edge(PAD_BUTTONS.START) && canResume?.()) onResume?.();
+    // A card or screen that opened while the pad is the active input starts ringed.
+    if (doc?.body?.classList?.contains?.('pad-focus')) menuNav.settle?.();
   }
 
   return {

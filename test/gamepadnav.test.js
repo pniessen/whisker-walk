@@ -136,6 +136,73 @@ function world(kidsOfTop, { under = [] } = {}) {
   return { doc, top, low };
 }
 
+describe('the Den shop button while the pause card is the top layer', () => {
+  function paused({ shopCls = [] } = {}) {
+    const keep = pad('button', 0, 0); const home = pad('button', 0, 100);
+    const overlay = el('div', { kids: [keep, home] }); overlay.id = 'overlay';
+    const shop = pad('button', 200, 100, { cls: shopCls });
+    const body = el('body');
+    const doc = {
+      body, activeElement: body,
+      defaultView: { KeyboardEvent: FakeEvent, Event: FakeEvent },
+      querySelectorAll: () => [],
+      getElementById: (id) => (id === 'overlay' ? overlay : id === 'btn-den-shop' ? shop : null),
+    };
+    [keep, home, shop].forEach((k) => { k.ownerDocument = doc; });
+    return { doc, keep, home, shop };
+  }
+  it('is reachable from the card by a push toward it, and pressing it clicks', () => {
+    const { doc, home, shop } = paused();
+    const nav = createNav({ doc, back: () => false });
+    doc.activeElement = home;
+    expect(nav.step('right', 0)).toBe(true);
+    expect(doc.activeElement).toBe(shop);
+    expect(nav.press()).toBe(true);
+    expect(shop.click).toHaveBeenCalled();
+  });
+  it('a hidden Den shop button (no den walk) is not offered', () => {
+    const { doc, home, shop } = paused({ shopCls: ['hidden'] });
+    const nav = createNav({ doc, back: () => false });
+    doc.activeElement = home;
+    expect(nav.step('right', 0)).toBe(false);
+    expect(shop.focus).not.toHaveBeenCalled();
+  });
+});
+
+describe('createNav settle: a screen that opens while the pad is in use', () => {
+  it('focuses the primary button of a layer nobody has focus in, once', () => {
+    const a = pad('button', 0, 0); const go = pad('button', 0, 50, { cls: ['primary'] });
+    const { doc } = world([a, go]);
+    const nav = createNav({ doc, back: () => false });
+    expect(nav.settle()).toBe(true);
+    expect(doc.activeElement).toBe(go);
+    doc.activeElement = doc.body; // focus dropped; same screen
+    expect(nav.settle()).toBe(false);
+    expect(doc.activeElement).toBe(doc.body);
+  });
+  it('a second screen on top gets its own entry', () => {
+    const a = pad('button', 0, 0);
+    const w = world([a]);
+    const nav = createNav({ doc: w.doc, back: () => false });
+    nav.settle();
+    const b = pad('button', 0, 0, { cls: ['primary'] }); b.ownerDocument = w.doc;
+    const top2 = layer([b]);
+    w.doc.querySelectorAll = (s) => (s === '[data-pad-layer]' ? [w.low, w.top, top2] : []);
+    expect(nav.settle()).toBe(true);
+    expect(w.doc.activeElement).toBe(b);
+  });
+  it('does nothing while something in the layer already has focus, or a text box does', () => {
+    const a = pad('button', 0, 0); const { doc } = world([a]);
+    const nav = createNav({ doc, back: () => false });
+    doc.activeElement = a;
+    expect(nav.settle()).toBe(false);
+    const t = pad('input', 0, 0, { type: 'text' });
+    const w = world([pad('button', 0, 0)]);
+    w.doc.activeElement = t;
+    expect(createNav({ doc: w.doc, back: () => false }).settle()).toBe(false);
+  });
+});
+
 describe('createNav step', () => {
   it('moves to the next candidate in the pushed direction, top layer only', () => {
     const a = pad('button', 0, 0); const b = pad('button', 100, 0);

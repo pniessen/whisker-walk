@@ -18,7 +18,7 @@ function rig(over = {}) {
   };
   const doc = { body: { classList: { add: (c) => classes.add(c), remove: (c) => classes.delete(c), contains: (c) => classes.has(c) } }, activeElement: null, dispatchEvent: vi.fn() };
   const flags = { engaged: false, fighting: false, walkingOn: false, canResume: false };
-  const menuNav = { step: vi.fn(), press: vi.fn(), alt: vi.fn(), enter: vi.fn(), scroll: vi.fn(), ...(over.menuNav || {}) };
+  const menuNav = { step: vi.fn(), press: vi.fn(), alt: vi.fn(), enter: vi.fn(), settle: vi.fn(), scroll: vi.fn(), ...(over.menuNav || {}) };
   const calls = { onAction: vi.fn(), onResume: vi.fn(), onMove: vi.fn(), padBack: vi.fn(), toast: vi.fn() };
   const g = createGamepad({
     win, doc, nav: { getGamepads: () => [current] },
@@ -35,6 +35,24 @@ function rig(over = {}) {
     frame: (axes, ...down) => { current = mk(axes, ...down); g.poll(0.016); },
   };
 }
+
+describe('menu mode: a new screen under an active pad', () => {
+  it('asks the navigator to settle each idle frame once the ring is on, never with the ring off', () => {
+    const r = rig();
+    r.frame();
+    expect(r.menuNav.settle).not.toHaveBeenCalled(); // ring off: a mouse or keyboard player
+    r.frame([0, 0.9, 0, 0]); // a stick push turns the ring on
+    r.frame();
+    expect(r.menuNav.settle).toHaveBeenCalled();
+  });
+  it('does not settle while a walk owns the pad', () => {
+    const r = rig();
+    r.frame([0, 0.9, 0, 0]); r.menuNav.settle.mockClear();
+    r.flags.engaged = true;
+    r.frame(); r.frame();
+    expect(r.menuNav.settle).not.toHaveBeenCalled();
+  });
+});
 
 describe('menu mode', () => {
   it('A presses once per press, not per frame', () => {
