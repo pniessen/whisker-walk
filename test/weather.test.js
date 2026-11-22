@@ -1,24 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // Headless canvas stub, same one test/builder.test.js and test/sky.test.js
 // use — createWeather now routes its background swaps through
 // render/sky.js's skyBackground(), which needs a `document` to paint a real
 // gradient onto. Stubbed once, for the whole file: the rollWeather/
 // createRainSchedule tests below never touch it.
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'createLinearGradient') return () => ({ addColorStop: () => {} });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const { rollWeather, createRainSchedule, createWeather, rainDropCount, RAIN_LOOK, streakShape } = await import('../src/weather.js');
 const { mulberry32 } = await import('../src/rng.js');

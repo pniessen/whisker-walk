@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
 import { createPlayer, canSwim, SWIM_SPEED, isWadeableAt, isWalkableAt } from '../src/player.js';
 import { inWater, onDeck, waterClearance, nearestDry, shallowExcess, waterGap } from '../src/world/builder.js';
 import { clearSpot } from '../src/world/spots.js';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // ---------------------------------------------------------------------------
 // v20 — WATER IS SOLID.
@@ -26,25 +27,7 @@ import { clearSpot } from '../src/world/spots.js';
 // listeners on `document` at construction (same shape as pounce.test.js's
 // withFakeDocument), and the world builders ask it for a canvas (same shape as
 // water.test.js's).
-vi.stubGlobal('document', {
-  addEventListener() {},
-  pointerLockElement: null,
-  exitPointerLock() {},
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument({ pointerLock: true });
 
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');

@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // polish-pines2 Task 1: pines stop being three flat cones. Tiered, jagged,
 // drooping boughs, darker under each tier and lighter at the tips, a small
@@ -7,23 +8,7 @@ import * as THREE from 'three';
 // chase camera keeps out of (test/pines.test.js) and the fight camera's
 // PINE_OCCLUDER, with the same uuid draws and fade-friendly stand layout.
 
-// The same headless stub every world test uses (see test/docks.test.js).
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const b = await import('../src/world/builder.js');
 const { PINE_CONES, PINE_TRUNK, PINE_OCCLUDER } = b;

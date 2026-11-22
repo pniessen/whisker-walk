@@ -21,15 +21,11 @@ import { CAT_NAMES, KITTYPET_NAMES, LEGENDARY_NAMES, isKittypetName } from '../s
 import { discoveryText } from '../src/ui/hud.js';
 import { checkAgainstFixture } from './helpers/serieswords.js';
 import { withStandInWords, leaksIn, standInCount } from './helpers/standinwords.js';
+import { memoryStorage as memStorage } from './helpers/storage.js';
 
 const FIXTURE = 'series-words-on-play.json';
 const CLANS = Object.keys(HOMES);
 const ME = 'player-me-000001';
-
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 
 // Group cats shaped like clancats.js's, standing in a row in front of her.
 function fakeClanCats(members) {

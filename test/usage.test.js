@@ -3,12 +3,10 @@ import { USAGE_IDS, USAGE_NAME, USAGE_MAX, sanitizeUsage, bumpUsage, mergeUsage,
 import { HOME_SHEETS } from '../src/ui/dressingroom.js';
 import { createProgression } from '../src/progression.js';
 import { withOffWords } from './helpers/offwords.js';
+import { memoryStorage } from './helpers/storage.js';
 
 const SAVE = 'whisker-walk-save';
-function fakeStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), map };
-}
+const fakeStorage = (initial) => memoryStorage(initial, { expose: 'map' });
 
 describe('usage counts: the pure helpers', () => {
   test('every home sheet is counted, plus Dress up and the builder, each with a name', () => {

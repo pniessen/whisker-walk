@@ -1,14 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { OUTFIT_MAX, sanitizeOutfits, wornNow, sameWear, canSaveOutfit, nextOutfitId } from '../src/outfits.js';
 import { createProgression, CATALOG } from '../src/progression.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
-function fakeStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return {
-    getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => map.set(k, String(v)),
-  };
-}
 const SAVE_KEY = 'whisker-walk-save';
 
 // A cat that owns a hat, glasses and a bow tie on top of the starters.

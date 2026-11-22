@@ -1,12 +1,10 @@
 // What the guided first walk keeps on the save (src/progression.js; design section 8).
 import { describe, it, expect } from 'vitest';
 import { createProgression, sanitizeTutorial, TUTORIAL_GIFT } from '../src/progression.js';
+import { memoryStorage } from './helpers/storage.js';
 
 const KEY = 'whisker-walk-save';
-function memStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
-}
+const memStorage = (initial) => memoryStorage(initial, { removeItem: true });
 const EMPTY = { first: null, camp: false, hints: {}, told: { thing: null, visits: 0 } };
 
 describe('the guide and the gift on the save', () => {

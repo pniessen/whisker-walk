@@ -1,22 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // gm-park-2 sat on the oak branch perch's own (x, z) — the trunk's axis — at
 // y 2.1: inside the trunk and the canopy, hidden from every side. It now sits
 // out on a low limb on the far side from the bench (where a villager stands),
 // under the canopy, and a cat on the branch perch still catches it.
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_t, k) => (k === 'getImageData'
-        ? (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) })
-        : (k === 'createLinearGradient' || k === 'createRadialGradient') ? () => ({ addColorStop() {} }) : () => {}),
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 const { build } = await import('../src/world/park.js');
 const { GOLD_MICE, createGoldMice } = await import('../src/goldmice.js');
 

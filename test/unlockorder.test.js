@@ -8,15 +8,9 @@ import { placeWhyLine, buildDressingModel } from '../src/ui/dressingroom.js';
 import { createDressingRoom } from '../src/ui/dressingroomview.js';
 import { postStatus } from '../src/bordercross.js';
 import { areaOffer } from '../src/areaoffer.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 const KEY = 'whisker-walk-save';
-function fakeStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return {
-    getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => map.set(k, String(v)),
-  };
-}
 // A stored v4 save run through createProgression, as test/nextthing.test.js's save() does.
 const save = (fields) => createProgression(fakeStorage({ [KEY]: JSON.stringify({ version: 4, ...fields }) })).state;
 const allWear = Object.keys(CATALOG.accessories);

@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // Gorge part 1: every system that stands on the ground reads ground.y(x, z).
 // Proven on the test-only height fixture (test/fixtures/heightfield.js); the
@@ -9,26 +10,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 // Task 3: her cat stands on the ground, stops at rims and climbs a little
 // slower. The headless player is the flat trace's recipe.
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        if (key === 'measureText') return () => ({ width: 10 });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-  addEventListener() {},
-  pointerLockElement: null,
-  exitPointerLock() {},
-});
+stubCanvasDocument({ measureText: 10, pointerLock: true });
 
 const { buildHeightFixture } = await import('./fixtures/heightfield.js');
 const { createGround, FLAT_GROUND } = await import('../src/ground.js');

@@ -4,6 +4,7 @@ import {
   NEARBY_EVENT, NEARBY_HANDLER, NEARBY_OPTED_KEY, MAX_NEARBY,
 } from '../src/game/nearby.js';
 import { TYPED_CODE } from '../src/game/rooms.js';
+import { memoryStorage } from './helpers/storage.js';
 
 // Nearby one-tap joining: the page's half. The shell (ios/WhiskerWalk/
 // Nearby.swift) finds rooms on the local network and reports them; this
@@ -11,10 +12,7 @@ import { TYPED_CODE } from '../src/game/rooms.js';
 // reports is believed. Everything is handed in, so nothing here needs a
 // phone, a network or a DOM.
 
-function memStorage(init = {}) {
-  const map = new Map(Object.entries(init));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), map };
-}
+const memStorage = (initial) => memoryStorage(initial, { expose: 'map' });
 
 // A stand-in for game/rooms.js's `rooms`: getState() and onChange().
 function fakeRooms() {

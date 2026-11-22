@@ -3,25 +3,11 @@
 // whole barn vanish. The barn's solid block is made of circles, so at the doors
 // the cat's middle comes a hand's width inside the barn's box, and the rule
 // "the line from the camera to the cat meets the box" then held.
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
-// Same headless stub every world test uses: the only DOM the builders touch
-// is document.createElement('canvas').
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const { build } = await import('../src/world/farm.js');
 const { createTreeFade, findFadeOccluders } = await import('../src/treefade.js');

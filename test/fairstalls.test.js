@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // The Fairground's stalls and small structures (P4 of the polish pass, world/fairparts.js):
 // stall backs, sides and counters painted, rounder goods at fewer triangles, balloons
@@ -7,20 +8,7 @@ import * as THREE from 'three';
 // windows, the crystal ball's lamps), the off-white fence with its end posts, and the
 // gate's smooth arch.
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const { build, STALLS, FAIR_BOUNDS, GATE_AT, GATE_HALF, FORTUNE_AT } = await import('../src/world/fair.js');
 const parts = await import('../src/world/fairparts.js');

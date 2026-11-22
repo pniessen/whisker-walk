@@ -1,28 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // polish-docks2 Task 1: the warehouses' masonry, window trim and downpipes are
 // baked into meshes warehouse() already makes. These pins hold the costs that
 // a world build is measured by — mesh count, Math.random draws, merged draws —
 // at their shipped values, and bound the triangles.
 
-// Same headless stub every world test uses (see test/docks.test.js).
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const { warehouse, roundedBox, PARAPET } = await import('../src/world/builder.js');
 const { build: buildDocks } = await import('../src/world/docks.js');

@@ -1,21 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
-// Headless canvas, as test/straywater.test.js stubs it, before builder loads.
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        if (key === 'measureText') return () => ({ width: 10 });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument({ measureText: 10 });
 const { plankBridge } = await import('../src/world/builder.js');
 const { repeatFor, tileMetres } = await import('../src/render/materials.js');
 const { BRIDGE_PLANK } = await import('../src/world/lake.js');

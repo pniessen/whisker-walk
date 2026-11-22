@@ -5,11 +5,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createCloudSync, createCloudToast, CLOUD_TOAST_FADE_MS } from '../src/game/cloudsync.js';
 import { toastLifeMs } from '../src/ui/toastlife.js';
+import { memoryStorage } from './helpers/storage.js';
 
-function fakeStorage() {
-  const m = new Map();
-  return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
-}
+const fakeStorage = () => memoryStorage({}, { removeItem: true });
 
 function setup(answer) {
   const storage = fakeStorage();
