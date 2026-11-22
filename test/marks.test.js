@@ -15,7 +15,7 @@ const border = (at, id = 'park-border-3') => ({ kind: 'border', id, x: 5, z: 6, 
 test('the vocabulary is pinned', () => {
   expect(MARK_KINDS).toEqual(['scratch', 'dig', 'drop', 'border', 'den']);
   expect(MARKS_PER_AREA).toBe(8);
-  expect(MARK_AREAS).toEqual(['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'gorge', 'farm', 'fair', 'roofs', 'den']);
+  expect(MARK_AREAS).toEqual(['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'gorge', 'farm', 'fair', 'roofs', 'market', 'den']);
 });
 
 test('every border-mark id the rings can mint is a prop id, even the longest area name', () => {

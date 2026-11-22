@@ -10,7 +10,8 @@ import { goldenFound, renderGoldenTallyHtml } from '../src/ui/hometabs.js';
 // `golden` list is untouched, and a mouse found in Clan Edition still counts
 // when the player switches back.
 
-const legacyAreas = Object.keys(CATALOG.areas).filter((id) => CATALOG.areas[id].edition !== 'canon');
+// (an area not in the catalog yet, as the Market until its step 4, is counted: goldmice.js goldForEdition)
+const legacyAreas = Object.keys(GOLD_MICE).filter((id) => !Object.hasOwn(CATALOG.areas, id) || CATALOG.areas[id].edition !== 'canon');
 const idsIn = (areas) => areas.flatMap((a) => (GOLD_MICE[a] ?? []).map((m) => m.id));
 
 describe('golden mice per edition', () => {
@@ -18,7 +19,7 @@ describe('golden mice per edition', () => {
     const set = goldForEdition('canon', CATALOG);
     expect([...set].sort()).toEqual([...KNOWN_GOLD].sort());
     expect(set.size).toBe(GOLD_TOTAL);
-    expect(set.size).toBe(39); // 36 until the Rooftops added its three
+    expect(set.size).toBe(42); // 39 until the Market added its three, 36 until the Rooftops added its three
   });
 
   it('a missing edition is Clan Edition', () => {
@@ -28,7 +29,7 @@ describe('golden mice per edition', () => {
   it('Legacy counts only the mice in the places Legacy shows', () => {
     const set = goldForEdition('legacy', CATALOG);
     expect([...set].sort()).toEqual(idsIn(legacyAreas).sort());
-    expect(set.size).toBe(21); // 18 until the Rooftops added its three (the four street areas, the Farm, the Fairground and the Rooftops)
+    expect(set.size).toBe(21); // 24 while the Market had no catalog row; its Clan-only row (Market step 4) keeps its three out: 21 again. 18 until the Rooftops added its three (the four street areas, the Farm, the Fairground and the Rooftops)
     expect(set.size).toBeLessThan(GOLD_TOTAL);
     for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) {
       for (const m of GOLD_MICE[a]) expect(set.has(m.id)).toBe(false);

@@ -13,7 +13,7 @@ import { createPlayerMarks } from '../src/render/playermarks.js';
 import { createBorderMarks } from '../src/render/bordermarks.js';
 import { markKey } from '../src/marks.js';
 import { KNOCK_KINDS, propsFor } from '../src/propsets.js';
-import { createMouth, RAIN_GRIP } from '../src/carry.js';
+import { createMouth, RAIN_GRIP, pick as pickInMouth } from '../src/carry.js';
 import { createDiscoveryLog, AWARDS } from '../src/discoveries.js';
 import { OUTSIDE_WORDS } from '../src/clanwords.js';
 import { createProgression, CATALOG } from '../src/progression.js';
@@ -587,6 +587,16 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       expect(h.toasts.at(-1)).toBe('Slippery paws! You dropped the yarn ball. 💧');
       for (let i = 0; i < 20; i++) h.session.toy.update(1 / 60, null);
       expect(Math.hypot(h.session.toy.mesh.position.x - at.x, h.session.toy.mesh.position.z - at.z)).toBeLessThan(0.05);
+    });
+
+    it('no put-it-down prompt for a treat in the mouth (Market step 2)', () => {
+      const h = yarnHarness();
+      h.walkTo(10, 10);
+      pickInMouth(h.session.carry.mouth, { id: 'market-treat-fish', kind: 'fishhead', treat: true });
+      h.walkTo(10, 10.5);
+      expect(h.session.prompt?.kind).not.toBe('drop');
+      expect(h.prompts.at(-1) ?? null).toBe(null);
+      expect(h.session.carry.mouth.held.treat).toBe(true);
     });
 
     it('a stick lying beside it is offered first; a ball is never picked up from a perch', () => {
@@ -1979,6 +1989,21 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       const legacy = gateHarness({ areaId: 'roofs', walks: { fair: 2 }, owned: ['roofs'] });
       legacy.progression.state.edition = 'legacy';
       legacy.walkTo(14, 44.5);
+      expect(legacy.session.prompt).toBe(null);
+      expect(legacy.prefetched).toEqual([]);
+    });
+
+    // Market step 4 (V16): the town's south-east signpost asks in a Clan
+    // walk, and a Legacy town walk has no Market gate to ask at.
+    it("the town's Market gate: 'Head to' the Market Square in Clan Edition, nothing in Legacy at (30, 51)", () => {
+      const clan = gateHarness({ areaId: 'neighborhood', walks: { neighborhood: 2 }, owned: ['market'] });
+      clan.walkTo(30, 51);
+      expect(clan.session.prompt.kind).toBe('gate');
+      expect(clan.session.prompt.data.end.id).toBe('town-market');
+      expect(clan.prompts.at(-1)).toBe('E — Head to the Market Square?');
+      const legacy = gateHarness({ areaId: 'neighborhood', walks: { neighborhood: 2 }, owned: ['market'] });
+      legacy.progression.state.edition = 'legacy';
+      legacy.walkTo(30, 51);
       expect(legacy.session.prompt).toBe(null);
       expect(legacy.prefetched).toEqual([]);
     });

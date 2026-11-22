@@ -24,7 +24,7 @@ import { CAPE, CAPE_SIT } from './cape.js';
 // confetti dots). Straps are drawn straight on the surface, a few mm out. One
 // vertex-coloured mesh per item (two for the wings, which flutter).
 
-export const BACK_ITEM_IDS = ['backpack', 'jetpack', 'wings', 'haybalepack'];
+export const BACK_ITEM_IDS = ['backpack', 'jetpack', 'wings', 'haybalepack', 'flowerbasket'];
 
 // Palette (the old items' colours, and the brief's new ones).
 export const PACK_BLUE = 0x3a6ea5;
@@ -364,7 +364,17 @@ function packTrims(h, lift, simple, K) {
 // vertex along a streak shares one), its two ends are the cut stalks, darker
 // and speckled; two twine bands round it, and loose stalks poke out of its top
 // and ends.
-const HAY = Object.freeze({ size: 1.2, straw: 0xd9b75a, dark: 0xb8963e, light: 0xecd27e, cut: 0xa8852e, twine: 0x8a5a2a, bandX: 0.42, bandW: 0.008, off: 0.003 });
+//
+// The Flower Basket (Market step 4) is the same bale as a little wicker
+// basket heaped with blooms: the pack's own size, its sides a basket weave
+// (light and dark withies in turn, a darker rim round the top), its top a
+// mound of leaves dotted with petals; its one band is a wicker handle
+// arching over the blooms (bandX 0, raised `arch` over the top), and the
+// loose stalks are leaves poking up, with round blooms among them.
+const HAY = Object.freeze({ size: 1.2, straw: 0xd9b75a, dark: 0xb8963e, light: 0xecd27e, cut: 0xa8852e, twine: 0x8a5a2a, bandX: 0.42, bandW: 0.008, off: 0.003,
+  stalks: [0xecd27e, 0xd9b75a, 0xb8963e] });
+const BASKET = Object.freeze({ size: 1, light: 0xc8935a, dark: 0x96643a, rim: 0x7a4e2c, twine: 0x8a5a32, bandX: 0, bandW: 0.007, off: 0.003, arch: 0.07,
+  stalks: [0x4f9a3a, 0x3f7e30, 0x6cb04a], leaf: [0x4f9a3a, 0x3f7e30], petals: [0xf2a0c0, 0xf2e04e, 0xfdfaf2, 0xe0607a, 0xb48ae0] });
 function hayColour(h) {
   return (x, y, z) => {
     if (y < -h[1] + 0.012) return shade(HAY.dark, 0.85);
@@ -372,37 +382,53 @@ function hayColour(h) {
     return [HAY.straw, HAY.light, HAY.dark][(((Math.round(y * 70) + 2 * Math.round(z * 55)) % 3) + 3) % 3];
   };
 }
+function basketColour(h) {
+  const B = BASKET;
+  return (x, y, z) => {
+    if (y > h[1] - 0.008) return (Math.round(x * 90) + 3 * Math.round(z * 90)) % 4 ? B.leaf[Math.round(x * 50 + z * 30) & 1] : B.petals[(((Math.round(x * 45) + 2 * Math.round(z * 45)) % 5) + 5) % 5];
+    if (y > h[1] - 0.02) return B.rim;
+    return (Math.round(y * 110) + Math.round((x + z) * 60)) & 1 ? B.light : B.dark;
+  };
+}
 // two twine bands round the bale's short way (in y-z), loose stalks out of its top and ends
-function hayTrims(h, lift, simple) {
+// (one band where bandX is 0: the basket's handle, over its middle)
+function hayTrims(h, lift, simple, L = HAY) {
   const around = simple ? 12 : 24;
-  const bands = [-1, 1].map((side) => grid(around, 2, { wrapU: true }, (i, j) => {
+  const bands = (L.bandX ? [-1, 1] : [1]).map((side) => grid(around, 2, { wrapU: true }, (i, j) => {
     const th = (2 * Math.PI * i) / around + Math.PI / 4;
     const dz = Math.cos(th), dy = Math.sin(th);
     const k = 1 / Math.max(Math.abs(dz) / h[2], Math.abs(dy) / h[1]);
-    const x = side * HAY.bandX * h[0] + (j ? 1 : -1) * HAY.bandW;
-    const [p, n] = rbPoint(new THREE.Vector3(x, dy * k, dz * k), h, PACK.r, HAY.off);
-    return { p: p.add(new THREE.Vector3(0, lift, 0)), c: HAY.twine, out: n };
+    const x = side * L.bandX * h[0] + (j ? 1 : -1) * L.bandW;
+    const [p, n] = rbPoint(new THREE.Vector3(x, dy * k, dz * k), h, PACK.r, L.off);
+    return { p: p.add(new THREE.Vector3(0, lift + (L.arch ?? 0) * Math.max(0, dy), 0)), c: L.twine, out: n };
   }));
   // [x share of the half-length, z, lean about z, lean about x, on an end]
   const STALKS = [[-0.4, 0.02, 0.4, 0.2], [0.3, -0.03, -0.5, -0.1], [0.7, 0.04, 0.3, 0.3], [-0.75, -0.02, -0.3, -0.25], [0.05, 0.05, 0.15, 0.5],
     [-1, 0.01, 1.3, 0.2, 1], [1, -0.02, -1.25, -0.1, 1], [1, 0.03, -1.45, 0.3, 1]];
   const strands = (simple ? STALKS.slice(0, 3) : STALKS).map(([x, z, lean, tip, end], i) => {
-    const g = paint(new THREE.ConeGeometry(0.0035, 0.042, 3, 1), [HAY.light, HAY.straw, HAY.dark][i % 3]);
+    const g = paint(new THREE.ConeGeometry(L.petals ? 0.006 : 0.0035, 0.042, 3, 1), L.stalks[i % 3]);
     g.deleteAttribute('uv');
     g.rotateX(tip).rotateZ(lean);
     g.translate(x * (h[0] - (end ? 0.004 : 0.03)), lift + (end ? 0.004 : h[1] + 0.012), z);
     return g;
   });
-  return [...bands, ...strands];
+  // the basket's blooms: round heads in the petals' colours on the mound
+  const blooms = (L.petals ? STALKS.slice(0, simple ? 4 : 8) : []).map(([x, z], i) => {
+    const g = paint(new THREE.SphereGeometry(0.017, 5, 3), L.petals[i % 5]);
+    g.deleteAttribute('uv');
+    return g.translate(x * 0.8 * h[0], lift + h[1] + 0.014, z * 1.6);
+  });
+  return [...bands, ...strands, ...blooms];
 }
 
-function backpack({ bodyScale, cover, simple, fx }, hay = false) {
-  const sz = hay ? HAY.size : 1;
+// `hay`: HAY (the bale) or BASKET (the Flower Basket), or nothing (the Tiny Backpack)
+function backpack({ bodyScale, cover, simple, fx }, hay = null) {
+  const sz = hay ? hay.size : 1;
   const h = [PACK.size[0] / 2 * fx * sz, PACK.size[1] / 2 * sz, PACK.size[2] / 2 * sz], K = PACK.k;
   const lift = h[1];   // the item frame's origin is on the surface; the pack stands on it
-  const body = roundedBox(h, PACK.r, simple ? (hay ? [5, 2, 4] : [4, 2, 3]) : hay ? [9, 4, 7] : [7, 4, 6], hay ? hayColour(h) : (x, y, z) => (y < -h[1] + 0.012 * K ? shade(PACK_BLUE, 0.85) : PACK_BLUE));
+  const body = roundedBox(h, PACK.r, simple ? (hay ? [5, 2, 4] : [4, 2, 3]) : hay ? [9, 4, 7] : [7, 4, 6], hay ? (hay === HAY ? hayColour : basketColour)(h) : (x, y, z) => (y < -h[1] + 0.012 * K ? shade(PACK_BLUE, 0.85) : PACK_BLUE));
   body.translate(0, lift, 0);
-  const parts = hay ? [body, ...hayTrims(h, lift, simple)] : [body, ...packTrims(h, lift, simple, K)];
+  const parts = hay ? [body, ...hayTrims(h, lift, simple, hay)] : [body, ...packTrims(h, lift, simple, K)];
   // soft: the top domes up to PACK.puff in the middle and the sides belly out
   // (x × 1 + PACK.belly at mid-height); then the whole pack bends to the back
   const free = (v, hv) => Math.max(0, 1 - (v / hv) ** 2);
@@ -590,7 +616,7 @@ export function buildBackItem(id, { bodyScale = TORSO.SCALE, cover = 'fur', simp
   const fx = bodyScale[0] / TORSO.SCALE[0];
   const opts = { bodyScale, cover, simple, fx };
   if (id === 'backpack') return backpack(opts).map((g) => mesh(id, g));
-  if (id === 'haybalepack') return backpack(opts, true).map((g) => mesh(id, g));
+  if (id === 'haybalepack' || id === 'flowerbasket') return backpack(opts, id === 'haybalepack' ? HAY : BASKET).map((g) => mesh(id, g));
   if (id === 'jetpack') return jetpack(opts).map((g) => mesh(id, g));
   if (id === 'wings') {
     return [-1, 1].map((side) => {

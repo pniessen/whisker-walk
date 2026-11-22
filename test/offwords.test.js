@@ -163,10 +163,10 @@ describe('nothing in the everyday set is a word of the family\'s set', () => {
   });
 
   it('no table of the set holds one', () => {
-    expect(bannedLeaks(off, [...IDS, /^PHRASES\./, /^PLACE_WORDS\.roofs$/])).toEqual([]);
+    expect(bannedLeaks(off, [...IDS, /^PHRASES\./, /^PLACE_WORDS\.(roofs|market)$/])).toEqual([]);
     // and no word is shared with the family's rank, outside or place words, bar the one
-    const theirs = new Set([...flat(on.RANK_WORDS), ...flat(on.OUTSIDE_WORDS), ...flat({ ...on.PLACE_WORDS, roofs: [] }), on.CLAN_SUFFIX].map((w) => w.toLowerCase()));
-    const shared = [...flat(off.RANK_WORDS), ...flat(off.OUTSIDE_WORDS), ...flat({ ...off.PLACE_WORDS, roofs: [] }), off.CLAN_SUFFIX].filter((w) => theirs.has(w.toLowerCase()));
+    const theirs = new Set([...flat(on.RANK_WORDS), ...flat(on.OUTSIDE_WORDS), ...flat({ ...on.PLACE_WORDS, roofs: [], market: [] }), on.CLAN_SUFFIX].map((w) => w.toLowerCase()));
+    const shared = [...flat(off.RANK_WORDS), ...flat(off.OUTSIDE_WORDS), ...flat({ ...off.PLACE_WORDS, roofs: [], market: [] }), off.CLAN_SUFFIX].filter((w) => theirs.has(w.toLowerCase()));
     expect(shared).toEqual(['loner']);
     expect(flat(off.RANK_WORDS)).not.toContain('elder');
     // no title word, group word or home-base name is a GROUP word of the family's set

@@ -459,6 +459,10 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
     if (!items || typeof ev.itemId !== 'string') return;
     const remote = s.remotes?.list.find((r) => r.playerId === ev.id);
     if (!remote) return;
+    // The Market's treats (M7): a partner's grab comes as this same pick with
+    // the id 'market-treat-<stall>', for the Market's life (marketlive.js
+    // remotePick); a walk without it (NO_MARKET, none) goes on as before.
+    if (ev.type === 'carry-pick' && s.market?.remotePick(remote, ev.itemId)) return;
     const item = items.list.find((it) => it.id === ev.itemId);
     if (!item || s.carry.mouth?.held?.id === item.id) return;
     if (ev.type === 'carry-pick') {

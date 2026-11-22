@@ -30,4 +30,6 @@ export const HEAD_WEAR = Object.freeze([
   Object.freeze({ id: 'stripedboater', slot: 'head', find: 'fair', emoji: '🎪', name: () => phrase('wear.stripedboater.name') }),
   Object.freeze({ id: 'starfishclip', slot: 'head', find: 'seaside', emoji: '⭐', name: () => phrase('wear.starfishclip.name') }),
   Object.freeze({ id: 'featherplume', slot: 'head', find: 'farm', emoji: '🪶', name: () => phrase('wear.featherplume.name') }),
+  // the Market Square (2026-11-21): the Paperboy Cap's shape in a brown-and-green check
+  Object.freeze({ id: 'tradercap', slot: 'head', find: 'market', emoji: '🧢', name: () => phrase('wear.tradercap.name') }),
 ]);

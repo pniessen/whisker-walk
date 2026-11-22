@@ -110,6 +110,8 @@ export const AREA_RULES = Object.freeze({
   fair: Object.freeze({ ground: null, path: 'sand', strip: null }),
   // The Rooftops' alley cobbles, slates and flat roofs take gravel-grey prints; no grass.
   roofs: Object.freeze({ ground: null, path: 'gravel', strip: null }),
+  // The Market's cobbles take gravel-grey prints (no 'cobble' look exists; gravel is nearest); no grass.
+  market: Object.freeze({ ground: null, path: 'gravel', strip: null }),
 });
 
 // THE BIRTHDAY'S GLITTER (2026-11-21; src/ui/party.js birthdayPartyOn). While

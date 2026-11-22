@@ -29,7 +29,7 @@
 //             noMerge (it moves after the build) and noCast (a thin swinging
 //             leaf is not worth a shadow draw).
 // Each look is at most 400 triangles over both meshes.
-//   gateSign  only on an end with `sign` (gateways.js; today town-roofs): a
+//   gateSign  only on an end with `sign` (gateways.js; today town-roofs and town-market): a
 //             painted name board on the latch post, facing back into the
 //             area (local +z), its top at 2.12 m, with the place's name and
 //             an arrow pointing straight on. One thin box (12 triangles) with
@@ -47,7 +47,7 @@
 import * as THREE from 'three';
 import { mergeVertices, mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
-import { path } from './builder.js';
+import { path, sidewalk } from './builder.js';
 import { clothKey } from './borderpost.js';
 import { endsFor, GATE_HALF, GATE_POST_R } from '../gateways.js';
 import { LAND } from '../territories.js';
@@ -68,6 +68,16 @@ export const LEAF_OPEN = Math.PI / 2;
 export const ALLEY_OPEN = -(Math.PI - 0.12);
 export const openAngle = (look) => (look === 'alleydoor' ? ALLEY_OPEN : LEAF_OPEN);
 const LANE_W = 2;
+// The town's paved path to the Market's signpost (laneLook 'paving',
+// gateways.js): builder.sidewalk's strip with the pavement's own 'cobble'
+// slabs, so it reads as the pavement carried on round the corner. Six 30 cm
+// slabs across (1.5 of the cobble tile), at the pavement's own 0.008 m, butted
+// against its end rather than laid over it (two strips stacked 2 mm apart
+// would z-fight). Not named 'path': the rain and the dusk leave the
+// pavements as they are, so they leave this as it is too, and no paw prints
+// land on it (pawprints.js: the town's strips take none). One flat mesh, no
+// collider, noCast.
+export const PAVING_W = 1.8;
 // A shut leaf blocks (ruling R11): LEAF_BLOCKS circles of LEAF_R spaced
 // evenly across the gap between the posts. With the cat's CAT_RADIUS (0.35,
 // player.js) each circle keeps her 0.65 m off its centre, and the circles are
@@ -495,10 +505,14 @@ export function addGatewayDressing(scene, areaId, { ground = FLAT_GROUND, ends =
     if (!look) continue;
     if (end.lane) {
       // A top-level child, so the grass mask and the corner map see it.
-      const lane = seatOnGround(path(...end.lane, LANE_W, { surface: 'gravel' }), ground);
-      // Named 'path' (ruling R12): the wet and dusk tints and the paw prints
-      // find path strips by that name. The flag tells a gate's lane apart.
+      // Gravel is named 'path' (ruling R12): the wet and dusk tints and the
+      // paw prints find path strips by that name. Paving is a pavement strip
+      // (PAVING_W above). The flag tells a gate's lane apart.
+      const lane = seatOnGround(end.laneLook === 'paving'
+        ? sidewalk(...end.lane, PAVING_W, { surface: 'cobble' })
+        : path(...end.lane, LANE_W, { surface: 'gravel' }), ground);
       lane.userData.gateLane = true;
+      lane.userData.noCast = true;
       scene.add(lane);
     }
     scene.add(look);

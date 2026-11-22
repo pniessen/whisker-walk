@@ -23,12 +23,15 @@
 // ignores the gap for it (every other rule still applies, and it still
 // starts the gap again for the hints after it).
 //
-// A PLACE'S OWN HINT (the Rooftops' is the first row): add a row
+// A PLACE'S OWN HINT (the Rooftops' is the first row, the Market's the
+// second): add a row
 //   { id: '<place>', max: 1, ring: null, when: (f) => f.place === '<area id>' }
 // its `hint.<id>` line in tutorialwords.js, and its picture in game/tips.js
 // HINT_PICS. f.place is the walk's area id. Put it FIRST in HINTS: the table
 // is walked in order and the first due hint wins, and a place's own hint
 // should go up at the walk's first check, ahead of any other that is due then.
+// Both place hints lead the table (roofs, then market) for that reason; one
+// walk is in one place, so the two are never due together.
 //
 // `ring` names the control the line is about, for the guided walk's ring
 // (step 3 of the build); nothing here draws it.
@@ -44,6 +47,7 @@ const later = (f) => f.walkNo >= 2;
 // A hint refused during the 60 s gap is not counted; it comes back later (intended).
 export const HINTS = Object.freeze([
   { id: 'roofs', max: 1, ring: null, when: (f) => f.place === 'roofs' },
+  { id: 'market', max: 1, ring: null, when: (f) => f.place === 'market' },
   { id: 'look', max: 2, ring: 'look', when: (f) => later(f) && f.t >= 15 && !f.looked, until: (f) => f.looked },
   { id: 'creep', max: 2, ring: 'move', until: (f) => f.stalking },
   { id: 'jump', max: 2, ring: 'pounce', when: (f) => f.canJump && !f.perched, until: (f) => f.perched },

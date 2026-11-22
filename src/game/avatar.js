@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import { PERSONALITIES } from '../cat/brain.js';
 import { animateCat } from '../cat/animator.js';
+import { aimHead } from '../cat/headaim.js';
 import { henFightState } from '../cat/henfight.js';
 import { waterPose, applyWaterLook } from '../cat/waterlook.js';
 import { shakeProgress } from '../waterstate.js';
@@ -29,10 +30,12 @@ import { isWalkableAt } from '../player.js';
 import { stickTakesOff } from '../climbing.js';
 
 // The y the local cat is drawn at, before the water look: the ground under
-// it (Gorge part 1, R4), then perchY + hopY (where player.js drew it) and a
-// fight's lift. On flat ground it is exactly the old sum, with no ground term.
+// it (Gorge part 1, R4), then perchY + hopY (where player.js drew it), a
+// fight's lift and the Market's shoo hop (s.hopLift, marketlive.js; 0 or
+// unset everywhere else). On flat ground it is exactly the old sum, with no
+// ground term.
 export function avatarBaseY(ground, cat, player, s) {
-  const rel = player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0);
+  const rel = player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0) + (s.hopLift || 0);
   if (!ground || ground.flat) return rel;
   return ground.y(cat.position.x, cat.position.z) + rel;
 }
@@ -272,6 +275,8 @@ export function createAvatarUpdater({
     // Hagrid draws a fight's states as his hen ones (cat/henfight.js); the wire
     // pose above is untouched, so every other build sees the usual fight states.
     animateCat(cat, s.fight && cat.userData.breed === 'hagrid' ? henFightState(drawn) : drawn, t, speed, reducedMotion, amount);
+    // Her head turned to look (the Market's coo sets s.lookAt): opt-in, nothing without a target (cat/headaim.js).
+    aimHead(cat, s.lookAt, dt, drawn, speed);
     // Sets y outright: ground + perchY + hopY (where player.js drew it) − sink + bob.
     // A fight (game/clanfight.js) lifts, pitches and rolls the cat through
     // s.fightLift / s.fightPitch / s.fightRoll; applyWaterLook sets them. The

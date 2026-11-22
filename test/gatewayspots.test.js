@@ -26,7 +26,7 @@ const { waterGap } = await import('../src/world/builder.js');
 const { isWalkableAt, isWadeableAt, CAT_RADIUS } = await import('../src/player.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 const { propsFor } = await import('../src/propsets.js');
-const { addGatewayDressing } = await import('../src/world/gateway.js');
+const { addGatewayDressing, LEAF_R } = await import('../src/world/gateway.js');
 const { itemsOf: docksItems } = await import('../src/world/docksdressing.js');
 const { setGrow } = await import('../src/grow.js');
 const neighborhood = await import('../src/world/neighborhood.js');
@@ -39,8 +39,13 @@ const roofsWorld = await import('../src/world/roofs.js');
 const { ROOFS_SPAWN, ROOFS_BOUNDS } = await import('../src/world/roofsplan.js');
 // The Rooftops' module names its spawn in its plan (roofsplan.js).
 const roofs = { build: roofsWorld.build, SPAWN: ROOFS_SPAWN };
+const marketWorld = await import('../src/world/market.js');
+const { MARKET_SPAWN, MARKET_BOUNDS } = await import('../src/world/marketplan.js');
+const { FIND_SPOTS } = await import('../src/foundwear/spots/index.js');
+// The Market's module names its spawn in its plan (marketplan.js).
+const market = { build: marketWorld.build, SPAWN: MARKET_SPAWN };
 
-const MODS = { neighborhood, park, fair, farm, docks, seaside, roofs };
+const MODS = { neighborhood, park, fair, farm, docks, seaside, roofs, market };
 const IDS = Object.keys(MODS);
 const T = 60000;
 
@@ -80,12 +85,13 @@ const FENCE_LINE = { fair: fair.GATE_AT.z, farm: farm.GATE_AT.z };
 const edgeGap = (b, p) => Math.min(p.x - b.minX, b.maxX - p.x, p.z - b.minZ, b.maxZ - p.z);
 
 describe('gateways: where the gates stand', () => {
-  it('has twelve ends, eleven on an edge and one inside (the Rooftops\' alley door), in seven built areas', () => {
-    expect(IDS).toHaveLength(7);
-    expect(allEnds).toHaveLength(12);
-    expect(edgeEnds).toHaveLength(11);
-    expect(allEnds.filter(([, e]) => e.placement === 'inside').map(([a, e]) => `${a}/${e.id}`)).toEqual(['roofs/roofs-town']);
+  it('has fourteen ends, twelve on an edge and two inside (the Rooftops\' alley door, the Market\'s gate in its south row), in eight built areas', () => {
+    expect(IDS).toHaveLength(8);
+    expect(allEnds).toHaveLength(14);
+    expect(edgeEnds).toHaveLength(12);
+    expect(allEnds.filter(([, e]) => e.placement === 'inside').map(([a, e]) => `${a}/${e.id}`)).toEqual(['roofs/roofs-town', 'market/market-town']);
     expect(edgeEnds.map(([a, e]) => `${a}/${e.id}`)).toContain('neighborhood/town-roofs');
+    expect(edgeEnds.map(([a, e]) => `${a}/${e.id}`)).toContain('neighborhood/town-market');
     for (const id of IDS) expect(areas[id].colliders.length, id).toBeGreaterThan(10);
   });
 
@@ -122,6 +128,60 @@ describe('gateways: where the gates stand', () => {
     expect(things.length).toBeGreaterThan(10);
     for (const t of things) expect(Math.hypot(e.x - t.x, e.z - t.z), `vs (${t.x}, ${t.z})`).toBeGreaterThanOrEqual(3.0);
   }, T);
+
+  // Market step 4 (Review Focus 5): the square's gate home stands in the
+  // 3.2 m gap the south row of shop fronts leaves behind the spawn
+  // (market.js GATEWAY_GAP), both its posts inside the gap, reached from the
+  // cobbles, and clear of everything a walk puts in the square.
+  it("the square's gate stands in the south row's gap", () => {
+    const e = endById('market-town').end;
+    const area = areas.market;
+    expect(e.faces).toBe('south');
+    expect(e.placement).toBe('inside');
+    expect(Math.abs(e.x - marketWorld.GATEWAY_GAP.x), 'centred in the gap').toBeLessThanOrEqual(0.01);
+    expect(Math.abs(e.z - marketWorld.GATEWAY_GAP.z), 'on the shop fronts\' line').toBeLessThanOrEqual(0.3);
+    expect(e.z, 'past the cobbles\' edge').toBeGreaterThan(MARKET_BOUNDS.maxZ);
+    // nothing of it stands on the cobbles (its posts, and a shut bar's
+    // circles, all past the bounds she walks in), so it sits in no watch
+    // zone, hide or treat's way, and never on the spawn
+    expect(e.z - Math.max(GATE_POST_R, LEAF_R), 'the whole gate past the cobbles').toBeGreaterThan(MARKET_BOUNDS.maxZ);
+    // both posts, their whole width, inside the gap
+    for (const p of posts(e)) {
+      expect(Math.abs(p.x - marketWorld.GATEWAY_GAP.x) + GATE_POST_R, `post at x ${p.x} inside the gap`).toBeLessThanOrEqual(marketWorld.GATEWAY_GAP.w / 2);
+    }
+    expect(GATE_HALF + GATE_POST_R).toBeLessThanOrEqual(marketWorld.GATEWAY_GAP.w / 2);
+    // a spot she can stand on, reached on foot from the spawn, within reach of the gate
+    const spots = [];
+    for (let dx = -GATE_REACH; dx <= GATE_REACH; dx += 0.1) {
+      for (let dz = -GATE_REACH; dz <= 0; dz += 0.1) {
+        const x = e.x + dx, z = e.z + dz;
+        if (Math.hypot(dx, dz) <= GATE_REACH - 0.05 && isWalkableAt(area, x, z) && flood('market').reaches(x, z)) spots.push([x, z]);
+      }
+    }
+    expect(spots.length, 'walkable spots within reach of the gate').toBeGreaterThan(0);
+    for (const p of posts(e)) {
+      for (const c of area.colliders) {
+        expect(Math.hypot(p.x - c.x, p.z - c.z) - c.r, `gate post (${p.x}, ${p.z}) vs collider (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(1.2);
+      }
+    }
+    expect(Math.hypot(e.x - MARKET_SPAWN.x, e.z - MARKET_SPAWN.z), 'vs the spawn').toBeGreaterThanOrEqual(3.0);
+    const props = propsFor('market');
+    const things = [
+      ...(area.pois ?? []), ...(area.collectibles ?? []), ...(area.scenics ?? []), ...(area.perches ?? []),
+      ...(GOLD_MICE.market ?? []), ...(FIND_SPOTS.market ?? []), ...props.carryables,
+    ];
+    expect(things.length).toBeGreaterThan(10);
+    expect((FIND_SPOTS.market ?? []).length).toBeGreaterThanOrEqual(10);
+    for (const t of things) expect(Math.hypot(e.x - t.x, e.z - t.z), `vs (${t.x}, ${t.z})`).toBeGreaterThanOrEqual(3.0);
+  }, T);
+
+  it('the arrival rule covers both new arrivals', () => {
+    const vias = allEnds.map(([, e]) => e.id);
+    expect(vias).toContain('town-market');
+    expect(vias).toContain('market-town');
+    expect(arrivalFor('town-market')).toMatchObject({ areaId: 'market', x: 0, z: 19.9, yaw: 0 });
+    expect(arrivalFor('market-town')).toMatchObject({ areaId: 'neighborhood', yaw: 0 });
+  });
 
   it('G1 every edge end faces the side it is nearest', () => {
     for (const [a, e] of edgeEnds) expect(nearestSide(areas[a].bounds, e), `${a}/${e.id}`).toBe(e.faces);
@@ -181,7 +241,7 @@ describe('gateways: where the gates stand', () => {
   it('every lane sample is clear and on the flood, and the lane joins the walks to its end', () => {
     for (const [a, e] of allEnds.filter(([, x]) => x.lane)) {
       const at = `${a}/${e.id}`;
-      expect(a, 'only the Park has lanes').toBe('park');
+      expect(['park', 'neighborhood'], 'only the Park and the town have lanes').toContain(a);
       const [x1, z1, x2, z2] = e.lane;
       const n = Math.max(1, Math.round(Math.hypot(x2 - x1, z2 - z1) / 0.5));
       for (let i = 0; i <= n; i++) {
@@ -190,6 +250,15 @@ describe('gateways: where the gates stand', () => {
           expect(Math.hypot(x - c.x, z - c.z) - c.r, `${at} lane (${x}, ${z}) vs collider (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(1.2);
         }
         expect(flood(a).reaches(x, z), `${at} lane (${x}, ${z}) on the flood`).toBe(true);
+      }
+      if (a === 'neighborhood') {
+        // The town's paved path to the Market (laneLook 'paving'): it starts
+        // at the east pavement's end (x 2.6 to 3.8, z 50) and runs along the
+        // gate's inner side to just past its far post.
+        expect(e.laneLook, at).toBe('paving');
+        expect([x1, z2], `${at} starts level with the pavement's west kerb`).toEqual([2.6, z1]);
+        expect(x2, `${at} runs on past the far post`).toBeGreaterThan(e.x + GATE_HALF);
+        continue;
       }
       const near = Math.min(...park.PARK_PATHS.map((s) => segDist(x1, z1, s)));
       expect(near, `${at} lane start vs PARK_PATHS`).toBeLessThanOrEqual(0.5);

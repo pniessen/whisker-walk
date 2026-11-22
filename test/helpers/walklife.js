@@ -11,6 +11,7 @@ import { createWalkLifecycle } from '../../src/game/walk.js';
 import { AREA_LOADERS } from '../../src/world/areas.js';
 import { createAreaLoader } from '../../src/game/areaload.js';
 import { createProgression } from '../../src/progression.js';
+import { createDiscoveryLog } from '../../src/discoveries.js';
 import { resolveQuality } from '../../src/render/quality.js';
 
 export function memStorage() {
@@ -70,7 +71,9 @@ export function controlledLoader() {
 // when `collar` says so. `areas` is the walk's area loader (a fresh one, with
 // nothing loaded, by default); `online` answers isOnline.
 // `blockList`: the hidden visitors (src/blocklist.js), a Set of player ids.
-export function lifecycle({ collar = false, areas = createAreaLoader(), online = () => true, blockList = new Set() } = {}) {
+// `realLog`: the walk gets a real discovery log (discoveries.js, as main.js
+// makes one) instead of a recorder, so what it pays is kept and counted.
+export function lifecycle({ collar = false, areas = createAreaLoader(), online = () => true, blockList = new Set(), realLog = false } = {}) {
   let session = null;
   let pendingRoom = null;
   const rec = { lighting: [], sound: [], music: [], roomStarts: [], friendFetches: 0, gettingReady: [], toasts: [], reloads: 0, soundContexts: 0 };
@@ -81,11 +84,12 @@ export function lifecycle({ collar = false, areas = createAreaLoader(), online =
   if (collar) progression.equipAccessory('glow');
   const homebase = anything({ setGettingReady: (on) => rec.gettingReady.push(on) });
   const hud = anything({ mapHost: fakeEl() });
-  const log = anything();
+  const log = realLog ? createDiscoveryLog(progression) : anything();
   const player = anything();
+  const overlay = anything({ classList: anything() });
   const w = createWalkLifecycle({
     // MP on, so a solo walk asks the cloud for friends who could visit as ghosts
-    MP: true, pid: 'me', coarse: false, envMap: new THREE.Texture(), overlay: anything({ classList: anything() }), blockList,
+    MP: true, pid: 'me', coarse: false, envMap: new THREE.Texture(), overlay, blockList,
     renderer: null, camera: new THREE.PerspectiveCamera(),
     composerRig: anything({ applyLighting: (_scene, o) => rec.lighting.push(o.dusk) }),
     player, progression,
@@ -107,6 +111,6 @@ export function lifecycle({ collar = false, areas = createAreaLoader(), online =
     reloadPage: () => { rec.reloads++; },
     isOnline: online,
   });
-  return { w, rec, progression, hud, log, player, areas, getSession: () => session, setPendingRoom: (r) => { pendingRoom = r; } };
+  return { w, rec, progression, hud, log, player, overlay, areas, getSession: () => session, setPendingRoom: (r) => { pendingRoom = r; } };
 }
 

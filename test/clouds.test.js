@@ -43,10 +43,11 @@ const { build: buildDen } = await import('../src/world/den.js');
 const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildFair } = await import('../src/world/fair.js');
 const { build: buildRoofs } = await import('../src/world/roofs.js');
+const { build: buildMarket } = await import('../src/world/market.js');
 const grassSrc = await import('node:fs').then((fs) => fs.readFileSync(new URL('../src/render/grass.js', import.meta.url), 'utf8'));
 
 const BUILDS = {
-  neighborhood: buildNeighborhood, park: buildPark, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, den: buildDen, farm: buildFarm, fair: buildFair, roofs: buildRoofs,
+  neighborhood: buildNeighborhood, park: buildPark, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, den: buildDen, farm: buildFarm, fair: buildFair, roofs: buildRoofs, market: buildMarket,
 };
 // main.js's game camera: PerspectiveCamera(70, aspect, 0.1, 300).
 const GAME_FAR = 300;

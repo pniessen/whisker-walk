@@ -3,6 +3,7 @@ import { buildCat } from './cat/model.js';
 import { wireLook } from './customcats.js';
 import { wireScars } from './scars.js';
 import { animateCat } from './cat/animator.js';
+import { aimHead } from './cat/headaim.js';
 import { makeNameTag } from './nametag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { safeRemoteName } from './net.js';
@@ -168,6 +169,7 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
       seatFrom: { x: 0, z: 0, h: 0, yaw: 0 }, // where she was drawn then
       pose: 'follow',
       speed: 0,
+      lookAt: null, // where her head turns to look, or null (set by this device's Market, marketlive.js; never sent)
       stateAt: now,
       lastSeenAt: now,
       // Not placed until its first state: until then the group sits at the
@@ -295,6 +297,7 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
       }
       if (!entry.water.placed) {
         animateCat(entry.group, entry.pose, now, entry.speed, rm);
+        aimHead(entry.group, entry.lookAt, dt, entry.pose, entry.speed);
         continue;
       }
       const { x, z } = entry.group.position;
@@ -304,6 +307,7 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
       const amount = Math.sin(Math.PI * shakeProgress(entry.water));
       const drawn = waterPose(entry.pose, entry.water, { hagrid: entry.breed === 'hagrid', reducedMotion: rm });
       animateCat(entry.group, drawn, now, entry.speed, rm, amount);
+      aimHead(entry.group, entry.lookAt, dt, drawn, entry.speed);
       applyWaterLook(entry.group, entry.water, now, dt, rm, ground.y(x, z) + entry.h, amount, null, ground.flat || up ? null : leanOf(entry, x, z, dt));
     }
   }

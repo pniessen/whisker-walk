@@ -106,7 +106,18 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(ids('farm')).toEqual(['strawhat', 'featherplume', 'neckerchief', 'haybalepack']);
     expect(ids('fair')).toEqual(['stripedboater', 'heartglasses', 'ticketgarland', 'candyflosspuff']);
     for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) expect(ids(a)).toEqual([]);   // Legacy's retirement first
-    expect(FOUND_WEAR).toHaveLength(24);
+    expect(FOUND_WEAR).toHaveLength(28);   // the street places' 24 and the Market's four
+  });
+  // Market step 4 (2026-11-21): a hat, a neck piece, a collar charm and a
+  // back item, the names placeholders the owner and his daughter will rename
+  it('the Market hides four outfits, one per slot group it uses', () => {
+    expect(foundWearIn('market').map((r) => r.id)).toEqual(['tradercap', 'stringbagscarf', 'applecharm', 'flowerbasket']);
+    expect(foundWearIn('market').map((r) => r.slot)).toEqual(['head', 'neck', 'collar', 'back']);
+    expect(foundWearIn('market').map((r) => r.name())).toEqual(['Market Trader’s Cap', 'Shopping-Bag Scarf', 'Apple Charm', 'Flower Basket']);
+    expect(withOffWords(() => foundWearIn('market').map((r) => r.name()))).toEqual(['Market Trader’s Cap', 'Shopping-Bag Scarf', 'Apple Charm', 'Flower Basket']);
+    expect(validateFoundWear({ head: HEAD_WEAR, face: FACE_WEAR, neck: NECK_WEAR, body: BODY_WEAR, feet: FEET_WEAR },
+      { areaIds: Object.keys(CATALOG.areas), takenIds: BASE_ACCESSORY_IDS })).toEqual([]);
+    for (const id of ['tradercap', 'stringbagscarf', 'applecharm', 'flowerbasket']) expect(CATALOG.accessories[id]?.find, id).toBe('market');
   });
   it('step 2: every street place has its find spots, and only the Woods of the territories', () => {
     for (const a of ['neighborhood', 'park', 'seaside', 'docks', 'farm', 'fair']) {

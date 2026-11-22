@@ -190,6 +190,10 @@ describe('her cat stands on the ground', () => {
     // flat ground: exactly today's sum
     expect(avatarBaseY(FLAT_GROUND, cat, player, { fight: { }, fightLift: 0.25 }))
       .toBe(player.perchY + player.hopY + 0.25);
+    // the Market's shoo hop (marketlive.js session.hopLift) lifts her the same
+    // way; unset, as on every other walk, it adds nothing
+    expect(avatarBaseY(FLAT_GROUND, cat, player, { fight: null, hopLift: 0.2 })).toBe(player.perchY + player.hopY + 0.2);
+    expect(avatarBaseY(FLAT_GROUND, cat, player, { fight: null })).toBe(player.perchY + player.hopY);
   });
 
   it('a rival chase never lands her across a rim', () => {
