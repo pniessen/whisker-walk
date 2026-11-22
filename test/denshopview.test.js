@@ -321,3 +321,102 @@ describe('den shop spot list (TV mode)', () => {
     } finally { resetTv(); }
   });
 });
+
+// Buy, then "Place it now": the sequence over the real progression.
+describe('den shop: buy then Place it now (M2)', () => {
+  const wait = () => vi.advanceTimersByTime(CONFIRM_DELAY_MS);
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  function flow(points = 40) {
+    const map = new Map();
+    const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
+    progression.state.points = points;
+    const applied = [];
+    const doc = new Node('document');
+    doc.body = new Node('body', doc);
+    const app = new Node('app', doc.body);
+    const canvas = new Node('canvas', app);
+    const hud = new Node('hud', app);
+    doc.createElement = (tag) => new Node(tag);
+    const view = createDenShopView({
+      progression, pause: vi.fn(), resume: vi.fn(), bus: createEmitter(), canvas, doc, hudRoot: hud, mountRoot: app,
+      applyDenSpot: (s, id, now) => applied.push([id, now]),
+    });
+    const sheet = app.children.find((c) => c.attrs.role === 'dialog');
+    view.setActive(true);
+    view.open();
+    const tapAttr = (attr, key, value) => {
+      const b = new Node('button', sheet);
+      b.attrs[attr] = value ?? '';
+      if (key) b.dataset[key] = value;
+      dispatch(b, 'click');
+      b.remove();
+    };
+    const buy = (id = 'bed') => {
+      tapAttr('data-den-buy', 'denBuy', id);
+      const card = app.children.find((c) => c.id === 'confirm-card');
+      wait();
+      const y = new Node('button', card);
+      y.closest = (sel) => (sel === '[data-confirm]' ? { getAttribute: () => 'yes' } : null);
+      dispatch(y, 'click', { detail: 1 });
+    };
+    return { progression, view, sheet, applied, buy, tapAttr, doc };
+  }
+
+  it('Yes buys and shows "is yours" with Place it now; Back is Later, the piece stays hers and unplaced', () => {
+    const t = flow();
+    t.buy();
+    expect(t.progression.state.den.owned).toEqual(['bed']);
+    expect(t.sheet.innerHTML).toContain('Donut Bed is yours!');
+    expect(t.view.isPlacing).toBe(true);
+    t.view.stopPlacing();
+    expect(t.view.isPlacing).toBe(false);
+    expect(t.view.isOpen).toBe(true);
+    expect(t.sheet.innerHTML).not.toContain('data-den-place-now');
+    expect(t.sheet.innerHTML).toContain('not placed');
+    expect(t.progression.state.den.placed).toEqual({});
+    expect(t.applied).toEqual([]);
+  });
+
+  it('Place it now puts the piece in hand; a spot places it once, live, and ends place mode', () => {
+    const t = flow();
+    t.buy();
+    t.tapAttr('data-den-place-now');
+    expect(t.sheet.innerHTML).toContain('data-den-hand-spot');
+    expect(t.sheet.innerHTML).toContain('Pick a spot for Donut Bed');
+    t.tapAttr('data-den-hand-spot', 'denHandSpot', 'corner-a');
+    expect(t.progression.state.den.placed).toEqual({ 'corner-a': 'bed' });
+    expect(t.applied).toEqual([['corner-a', 'bed']]);
+    expect(t.view.isPlacing).toBe(false);
+    expect(Object.keys(t.progression.state.den).sort()).toEqual(['owned', 'placed']);
+  });
+
+  it('Escape in place mode is Later, not close; a second Escape closes the shop', () => {
+    const t = flow();
+    t.buy();
+    t.tapAttr('data-den-place-now');
+    dispatch(t.doc.body.children[0], 'keydown', { code: 'Escape' });
+    expect(t.view.isPlacing).toBe(false);
+    expect(t.view.isOpen).toBe(true);
+    dispatch(t.doc.body.children[0], 'keydown', { code: 'Escape' });
+    expect(t.view.isOpen).toBe(false);
+  });
+
+  it('closing the shop in place mode drops the hand; nothing is lost or placed', () => {
+    const t = flow();
+    t.buy();
+    t.tapAttr('data-den-place-now');
+    t.view.close();
+    expect(t.view.isPlacing).toBe(false);
+    expect(t.progression.state.den).toEqual({ owned: ['bed'], placed: {} });
+  });
+
+  it('a stray spot tap with nothing in hand places nothing', () => {
+    const t = flow();
+    t.buy();
+    t.tapAttr('data-den-later');
+    t.tapAttr('data-den-hand-spot', 'denHandSpot', 'corner-a');
+    expect(t.progression.state.den.placed).toEqual({});
+  });
+});

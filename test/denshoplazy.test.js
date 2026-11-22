@@ -102,3 +102,17 @@ describe('start-up modules do not import the den shop statically', () => {
     expect(view).not.toMatch(/from '\.\.\/events\.js'/);
   });
 });
+
+describe('the stub passes the placing state on (M2)', () => {
+  it('is not placing before the chunk loads, and forwards stopPlacing after', async () => {
+    const stop = vi.fn();
+    const stub = createLazyDenShop({}, () => Promise.resolve({ createDenShopView: () => ({ setActive() {}, isPlacing: true, stopPlacing: stop }) }));
+    expect(stub.isPlacing).toBe(false);
+    stub.stopPlacing(); // nothing loaded: no throw
+    stub.setActive(true);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(stub.isPlacing).toBe(true);
+    stub.stopPlacing();
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+});

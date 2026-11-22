@@ -2273,6 +2273,15 @@ body.den-shop-open .chat-wheel { display: none !important; }
 .ds-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding-bottom: 4px; }
 .ds-body h3 { font-size: 0.95rem; color: #a8c0e0; margin: 10px 0 8px; }
 .ds-hint { color: #c0ccdd; font-size: 0.9rem; margin: 0 0 8px; }
+.ds-yours, .ds-hand { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; background: rgba(242,193,78,0.12); border: 2px solid #f2c14e; border-radius: 12px; padding: 10px 12px; }
+.ds-yours-line, .ds-hand-line { flex: 1 1 100%; margin: 0; font-weight: 700; color: #f2c14e; }
+.ds-hand-line { flex: 1 1 0; }
+.ds-yours-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.ds-place-now, .ds-later, .ds-spot-pick { min-height: 44px; padding: 8px 16px; border-radius: 10px; border: 0; font: inherit; font-weight: 700; cursor: pointer; background: #4a6a9f; color: #fff; }
+.ds-place-now { background: #f2c14e; color: #2a2008; }
+.ds-hand-spots { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.ds-spot-pick { text-align: left; background: rgba(255,255,255,0.1); }
+.ds-spot-pick.here { outline: 2px solid #f2c14e; }
 .ds-spots { display: flex; flex-direction: column; gap: 6px; }
 .ds-spot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .ds-spot-name { font-size: 0.95rem; color: #e0e8f2; }

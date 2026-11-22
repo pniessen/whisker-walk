@@ -152,3 +152,31 @@ describe('changedSpots', () => {
     expect(changedSpots({}, {}, null)).toEqual([]);
   });
 });
+
+describe('Place it now (den shop UX M2)', () => {
+  const owned = (extra = {}) => st({ points: 5, den: { owned: ['bed'], placed: {}, ...extra } });
+  it('the "is yours" card has Place it now (the default) and Later, and no stage means no card', () => {
+    const html = renderDenShopHtml(owned(), DEN_ITEMS, DEN_SPOTS, { stage: { kind: 'yours', id: 'bed' } });
+    expect(html).toContain(`${DEN_ITEMS.bed.name} is yours!`);
+    expect(html).toMatch(/data-den-place-now data-pad-default/);
+    expect(html).toContain('data-den-later');
+    expect(renderDenShopHtml(owned(), DEN_ITEMS, DEN_SPOTS, {})).not.toContain('data-den-place-now');
+  });
+  it('a stage for a piece she does not own, or a made-up id, draws nothing', () => {
+    const none = renderDenShopHtml(st(), DEN_ITEMS, DEN_SPOTS, { stage: { kind: 'yours', id: 'bed' } });
+    expect(none).not.toContain('data-den-place-now');
+    const bad = renderDenShopHtml(owned(), DEN_ITEMS, DEN_SPOTS, { stage: { kind: 'hand', id: '<img>' } });
+    expect(bad).not.toContain('data-den-hand-spot');
+  });
+  it('place mode: one button per spot, the piece named, Later available, no dropdowns', () => {
+    const html = renderDenShopHtml(owned(), DEN_ITEMS, DEN_SPOTS, { stage: { kind: 'hand', id: 'bed' } });
+    expect(count(html, /data-den-hand-spot=/g)).toBe(DEN_SPOTS.length);
+    expect(html).toContain(`Pick a spot for ${DEN_ITEMS.bed.name}`);
+    expect(html).toContain('data-den-later');
+    expect(html).not.toContain('<select');
+  });
+  it('an owned piece with no spot says "not placed"; a placed one does not', () => {
+    expect(renderDenShopHtml(owned(), DEN_ITEMS, DEN_SPOTS)).toContain('✓ Yours · not placed');
+    expect(renderDenShopHtml(owned({ placed: { 'rug-spot': 'bed' } }), DEN_ITEMS, DEN_SPOTS)).not.toContain('not placed');
+  });
+});
