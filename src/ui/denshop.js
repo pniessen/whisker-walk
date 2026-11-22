@@ -9,6 +9,7 @@
 import { asFiniteNonNeg } from '../progression.js';
 import { PAW } from './pawicon.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
+import { denWord } from './denwords.js';
 
 // A short, friendly name for each anchor spot, keyed by its DEN_SPOTS id (the
 // ids are save keys and read like code). "Left" and "right" are as seen from
@@ -57,12 +58,12 @@ function readDen(state, items, spots) {
   return { owned, placed };
 }
 
-function itemCard(id, item, owned, points) {
+function itemCard(id, item, owned, points, placedHere = true) {
   const name = escapeHtml(item?.name ?? id);
   const price = asFiniteNonNeg(item?.price, 0);
   if (owned) {
     return `<div class="ds-card owned" data-den-item="${escapeHtml(id)}">
-      <div class="ds-name">${name}</div><div class="ds-act"><span class="ds-tag">✓ Yours</span></div>
+      <div class="ds-name">${name}</div><div class="ds-act"><span class="ds-tag">✓ Yours${placedHere ? '' : ' · not placed'}</span></div>
     </div>`;
   }
   if (points >= price) {
@@ -127,17 +128,39 @@ export function renderDenShopHtml(state, items = DEN_ITEMS, spots = DEN_SPOTS, u
   const points = asFiniteNonNeg(isObj(state) ? state.points : undefined, 0);
   const { owned, placed } = readDen(state, catalog, spotList);
   const note = ui && typeof ui.note === 'string' && ui.note ? `<p class="ds-note">${escapeHtml(ui.note)}</p>` : '';
+  // After a buy ("is yours": Place it now / Later) and while a piece is in hand
+  // (a button per spot, in place of the dropdown rows; the plan view replaces
+  // this in the next step). Both read the id from ui.stage, never from the save.
+  const stage = isObj(ui?.stage) && has(catalog, ui.stage.id) && owned.includes(ui.stage.id) ? ui.stage : null;
+  const stageName = stage ? escapeHtml(catalog[stage.id]?.name ?? stage.id) : '';
+  const yours = stage && stage.kind === 'yours'
+    ? `<div class="ds-yours" role="group" aria-label="${stageName}">
+      <p class="ds-yours-line">${escapeHtml(denWord('isYours', null, { name: catalog[stage.id]?.name ?? stage.id }))}</p>
+      <div class="ds-yours-btns"><button type="button" class="ds-place-now" data-den-place-now data-pad-default>${escapeHtml(denWord('placeIt'))}</button>
+      <button type="button" class="ds-later" data-den-later>${escapeHtml(denWord('later'))}</button></div>
+    </div>` : '';
+  const handBar = stage && stage.kind === 'hand'
+    ? `<div class="ds-hand"><span class="ds-hand-line">${escapeHtml(denWord('handPlace', null, { name: catalog[stage.id]?.name ?? stage.id }))}</span>
+      <button type="button" class="ds-later" data-den-later>${escapeHtml(denWord('later'))}</button></div>` : '';
+  const handSpots = stage && stage.kind === 'hand'
+    ? `<div class="ds-spots ds-hand-spots">${spotList.map((spot) => {
+      const there = placed[spot.id];
+      const now = there ? ` · ${escapeHtml(catalog[there]?.name ?? there)}` : '';
+      return `<button type="button" class="ds-spot-pick${there === stage.id ? ' here' : ''}" data-den-hand-spot="${escapeHtml(spot.id)}">${escapeHtml(spotLabel(spot.id))}${now}</button>`;
+    }).join('')}</div>` : '';
   const arrange = `<h3>Arrange your den</h3>
       <div class="ds-spots">
       ${spotList.map((spot) => spotRow(spot, owned, placed, catalog, ui?.padSpots)).join('')}
       </div>`;
   const shop = `<h3>Shop</h3>
       <div class="ds-cards">
-      ${Object.entries(catalog).map(([id, item]) => itemCard(id, item, owned.includes(id), points)).join('')}
+      ${Object.entries(catalog).map(([id, item]) => itemCard(id, item, owned.includes(id), points, Object.values(placed).includes(id))).join('')}
       </div>`;
   // Nothing to arrange yet: the shop comes first, with one line saying what
   // to do. Once something is owned, arranging it is what the den is for.
-  const body = owned.length
+  const body = stage && stage.kind === 'hand'
+    ? handSpots
+    : owned.length
     ? `${arrange}\n      ${shop}`
     : `<p class="ds-hint">Buy something you like, then pick a spot for it!</p>\n      ${shop}\n      ${arrange}`;
   return `<div class="ds-head">
@@ -145,7 +168,7 @@ export function renderDenShopHtml(state, items = DEN_ITEMS, spots = DEN_SPOTS, u
       <span class="ds-points" aria-label="${points} paw points">${PAW} ${points}</span>
       <button type="button" class="ds-done" data-den-done>Done</button>
     </div>
-    ${note}
+    ${note}${yours}${handBar}
     <div class="ds-body">
       ${body}
     </div>`;

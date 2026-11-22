@@ -51,6 +51,8 @@ export function createLazyDenShop(opts = {}, load = defaultLoad) {
     close(arg) { if (view) view.close(arg); else wantOpen = false; },
     get isOpen() { return !!view && view.isOpen; },
     get isAsking() { return !!view && view.isAsking; },
+    get isPlacing() { return !!view && view.isPlacing; },
+    stopPlacing() { if (view) view.stopPlacing(); },
     notNow() { if (view) view.notNow(); },
   };
 }

@@ -123,6 +123,7 @@ export function createBackStack({ hist, depth, closeTop, later = () => null, can
 //   walking     a walk is on (session)
 //   walkingOn   a walk-on is waiting for its place (the "Off to ..." moment)
 //   shopAsk     the den shop's "Get it?" card is up
+//   placing     a bought piece's "Place it now?" card, or a piece in hand
 //   shop        the den shop is open
 //   findCard    the find card ("You found something to wear!") is up
 //   crossing    a crossing card is up: a border post's or a gate's, or the
@@ -131,12 +132,13 @@ export function createBackStack({ hist, depth, closeTop, later = () => null, can
 //   photo       photo mode is on
 //   started     the walk has begun (the card behind it is "Paused", not "Ready?")
 //   touch       a touch walk (a paused one can walk on without a click)
-export function walkBackAction({ summary = false, walking = false, walkingOn = false, shopAsk = false, shop = false, findCard = false, crossing = false, engaged = false, photo = false, started = false, touch = false } = {}) {
+export function walkBackAction({ summary = false, walking = false, walkingOn = false, shopAsk = false, placing = false, shop = false, findCard = false, crossing = false, engaged = false, photo = false, started = false, touch = false } = {}) {
   if (!walking) return summary ? 'continue' : null;
   // A walk-on waiting for its place (walk.js session.walkingOn): the "Off to
   // ..." moment stays up and the walk stays paused until the place comes.
   if (walkingOn) return null;
   if (shopAsk) return 'shop-not-now';
+  if (placing) return 'shop-later';
   if (shop) return 'shop-done';
   if (findCard) return 'find-later';
   if (crossing) return 'cross-no';
@@ -152,9 +154,9 @@ export function walkBackAction({ summary = false, walking = false, walkingOn = f
 // the fight sheet has no back (Back off is the pill's Circle), the summary is
 // left with A on Continue, and the Ready? and pause cards walk on, as Start does.
 // -> 'none' | 'resume' | 'back' (then the usual walkBack).
-export function padBackAction({ fight = false, summary = false, walking = false, walkingOn = false, cardUp = false, shopAsk = false, shop = false, findCard = false, crossing = false } = {}) {
+export function padBackAction({ fight = false, summary = false, walking = false, walkingOn = false, cardUp = false, shopAsk = false, placing = false, shop = false, findCard = false, crossing = false } = {}) {
   if (fight || summary) return 'none';
-  if (walking && !walkingOn && cardUp && !shopAsk && !shop && !findCard && !crossing) return 'resume';
+  if (walking && !walkingOn && cardUp && !shopAsk && !placing && !shop && !findCard && !crossing) return 'resume';
   return 'back';
 }
 

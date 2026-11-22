@@ -929,6 +929,7 @@ function init() {
       walking: !!session,
       walkingOn: !!session?.walkingOn,
       shopAsk: denShop.isAsking,
+      placing: denShop.isPlacing,
       shop: denShop.isOpen,
       findCard: !!session?.findCard,
       crossing: !!session?.crossing,
@@ -939,6 +940,7 @@ function init() {
     });
     if (action === 'continue') overlay.querySelector('#btn-summary-continue')?.click();
     else if (action === 'shop-not-now') denShop.notNow();
+    else if (action === 'shop-later') denShop.stopPlacing();
     else if (action === 'shop-done') denShop.close();
     else if (action === 'find-later') findCard.later();
     else if (action === 'cross-no') crossing?.cancel();
@@ -958,7 +960,7 @@ function init() {
     if (homebase.back()) { backStack?.sync?.(); return; }
     const act = padBackAction({
       fight: session?.clanFight?.uiShowing === 'fight', summary: summaryUp(), walking: !!session, walkingOn: !!session?.walkingOn,
-      cardUp: !!overlay.querySelector('#btn-resume'), shopAsk: denShop.isAsking, shop: denShop.isOpen, findCard: !!session?.findCard, crossing: !!session?.crossing,
+      cardUp: !!overlay.querySelector('#btn-resume'), shopAsk: denShop.isAsking, placing: denShop.isPlacing, shop: denShop.isOpen, findCard: !!session?.findCard, crossing: !!session?.crossing,
     });
     if (act === 'none') return;
     if (act === 'resume') { player.setTouchEngaged(true); return; }
