@@ -305,3 +305,28 @@ html.tv .dr-where .wm-card .wm-card-close { display: none; }
 html.tv .hud-controls { transition: opacity 1.2s ease; }
 html.tv body.tv-strip-off .hud-controls { opacity: 0; pointer-events: none; }
 
+/* ---- Home base: header pills as tall as the Menu button, big cat slots, no empty gap in the right column. ---- */
+html.tv .dr-top { gap: var(--tv-gap); }
+html.tv .dr-top :is(.hb-pill, .hb-points, .hb-menu-btn, .dr-title) { font-size: var(--tv-body) !important; line-height: 1.2; }
+html.tv .dr-top :is(.hb-pill, .hb-points, .hb-menu-btn) { box-sizing: border-box; min-height: calc(64px * var(--tv-s, 1)); display: inline-flex; align-items: center; gap: .4em; padding: 0 calc(26px * var(--tv-s, 1)); }
+html.tv .dr-top .hb-pill.dr-visit { opacity: 1; }
+html.tv .dr .hb-menu-btn { border-width: 2px; }
+html.tv .dr-strip { gap: var(--tv-gap); margin-top: var(--tv-gap); padding: calc(8px * var(--tv-s, 1)) calc(6px * var(--tv-s, 1)); }
+html.tv .dr .dr-portrait { width: calc(84px * var(--tv-s, 1)); height: calc(84px * var(--tv-s, 1)); border-radius: calc(18px * var(--tv-s, 1)); }
+html.tv .dr .dr-portrait.dr-make, html.tv .dr .dr-portrait.dr-more-cats { width: auto; padding: 0 calc(26px * var(--tv-s, 1)); font-size: var(--tv-body) !important; font-weight: 700; }
+html.tv .dr-portrait.sel, html.tv .dr-portrait.looking { outline-width: calc(4px * var(--tv-s, 1)); outline-offset: calc(2px * var(--tv-s, 1)); }
+html.tv .dr-portrait.locked::after { font-size: calc(24px * var(--tv-s, 1)); }
+html.tv .dr-hero-name { font-size: calc(36px * var(--tv-s, 1)); }
+html.tv .dr-hero-blurb { font-size: var(--tv-body) !important; opacity: .9; }
+html.tv .dr-spin-hint { opacity: .8; top: calc(14px * var(--tv-s, 1)); right: calc(18px * var(--tv-s, 1)); }
+/* Today's place takes the room between Dress up and the Explore button (it used to leave a hole). */
+html.tv .dr:not(.dr-view-wardrobe):not(.dr-building) { grid-template-rows: auto auto minmax(0, 1fr) auto; grid-template-areas: "header header" "hero wearing" "hero today" "hero dock"; }
+html.tv .dr-view-home .dr-today { display: flex; flex-direction: column; min-height: 0; }
+html.tv .dr-view-home .dr-today-frame { flex: 1 1 0; min-height: calc(200px * var(--tv-s, 1)); }
+html.tv .dr-view-home .dr-today-frame .dr-today-card { position: absolute; inset: 0; width: auto; height: auto; aspect-ratio: auto; max-height: none; min-height: 0; }
+html.tv .dr-today-name { font-size: calc(36px * var(--tv-s, 1)) !important; }
+html.tv .dr-today-card .cap small { font-size: var(--tv-body) !important; }
+html.tv .dr-change { font-size: var(--tv-body) !important; padding: calc(8px * var(--tv-s, 1)) calc(22px * var(--tv-s, 1)); }
+/* One focus ring for every control, the Change place map's: a thick white ring with a dark halo, scaled with the screen. */
+html.tv .pad-focus :focus:not([tabindex="-1"]), html.tv .pad-focus :focus-visible:not([tabindex="-1"]) { outline: calc(5px * var(--tv-s, 1)) solid #fff !important; outline-offset: calc(4px * var(--tv-s, 1)) !important; box-shadow: 0 0 0 calc(10px * var(--tv-s, 1)) rgba(20, 16, 30, 0.7); }
+html.tv .pad-focus .world-map .tm-region:focus, html.tv .pad-focus .world-map .tm-region:focus-visible { outline: none !important; box-shadow: none; }
