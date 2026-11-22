@@ -102,6 +102,20 @@ export function bigScreenFullscreen(win) {
   return !!win.document?.fullscreenElement || (win.innerWidth >= s.width - 2 && win.innerHeight >= s.height - 2);
 }
 
+/** No touch screen to speak of: a phone or tablet is never offered TV mode. */
+const noTouch = (win) => !((win.navigator?.maxTouchPoints ?? 0) > 0) && !(win.matchMedia?.('(hover: none)')?.matches);
+
+/**
+ * A pad is in hand (this is only asked on a pad press) and the screen looks like a TV or a big monitor:
+ * a window of 1600 px or more on a screen of 1900 or more, or a 1920x1080 / 3840x2160 screen at a pixel ratio of 2 or less (a MacBook's own
+ * Retina display is neither). No fullscreen needed.
+ */
+export function padOnBigScreen(win) {
+  const s = win.screen;
+  const tvSized = !!s && ((s.width === 1920 && s.height === 1080) || (s.width === 3840 && s.height === 2160)) && (win.devicePixelRatio ?? 1) <= 2;
+  return (win.innerWidth >= 1600 && !!s && s.width >= 1900) || tvSized;
+}
+
 /**
  * The offer to use TV mode: the returned check() is called when the pad is used
  * (never on a mouse or key, never on connecting). It calls onOffer() once per
@@ -112,7 +126,7 @@ export function watchForTv({ win, settings, homeClear, onOffer }) {
   let asked = false;
   return () => {
     if (asked || tvState.on || settings.get('tvMode') || settings.get('tvOfferDeclined')) return;
-    if (!bigScreenFullscreen(win) || !homeClear()) return;
+    if (!noTouch(win) || !(bigScreenFullscreen(win) || padOnBigScreen(win)) || !homeClear()) return;
     asked = true;
     onOffer();
   };

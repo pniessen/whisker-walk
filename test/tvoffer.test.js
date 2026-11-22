@@ -63,7 +63,7 @@ describe('when the offer is made', () => {
     const laptop = rig({ win: win({ screen: { width: 1728, height: 1117 }, innerWidth: 1728, innerHeight: 1117 }) });
     laptop.check();
     expect(laptop.onOffer).not.toHaveBeenCalled();
-    const windowed = rig({ win: win({ screen: { width: 2560, height: 1440 }, innerWidth: 1920, innerHeight: 1000 }) });
+    const windowed = rig({ win: win({ screen: { width: 2560, height: 1440 }, innerWidth: 1500, innerHeight: 1000 }) }); // too small a window, and not full screen
     windowed.check();
     expect(windowed.onOffer).not.toHaveBeenCalled();
     const declined = rig();
@@ -211,5 +211,31 @@ describe('the offer card', () => {
     expect(e.added[0].removed).toBe(true);
     expect(e.settings.get('tvOfferDeclined')).toBe(false);
     expect(e.settings.get('tvMode')).toBe(false);
+  });
+});
+
+describe('the offer with a pad in hand (no fullscreen needed)', () => {
+  const offered = (w) => { const onOffer = vi.fn(); const check = watchForTv({ win: w, settings: createSettings(memStorage()), homeClear: () => true, onOffer }); check(); return onOffer.mock.calls.length; };
+  it('fires on a large window that is not full screen', () => {
+    expect(offered(win({ screen: { width: 2560, height: 1440 }, innerWidth: 1700, innerHeight: 900 }))).toBe(1);
+  });
+  it('fires on a 1920x1080 or 3840x2160 screen even in a small window; not on a laptop\'s own screen', () => {
+    expect(offered(win({ screen: { width: 1920, height: 1080 }, innerWidth: 1200, innerHeight: 800, devicePixelRatio: 1 }))).toBe(1);
+    expect(offered(win({ screen: { width: 3840, height: 2160 }, innerWidth: 1200, innerHeight: 800, devicePixelRatio: 2 }))).toBe(1);
+    expect(offered(win({ screen: { width: 1728, height: 1117 }, innerWidth: 1200, innerHeight: 800, devicePixelRatio: 2 }))).toBe(0);
+  });
+  it('not with a small window on a small screen', () => {
+    expect(offered(win({ screen: { width: 1440, height: 900 }, innerWidth: 1000, innerHeight: 700 }))).toBe(0);
+  });
+  it('never on a touch device', () => {
+    expect(offered(win({ navigator: { maxTouchPoints: 5 } }))).toBe(0);
+    expect(offered(win({ screen: { width: 2560, height: 1440 }, innerWidth: 1700, navigator: { maxTouchPoints: 0 }, matchMedia: () => ({ matches: true }) }))).toBe(0);
+  });
+  it('not again after Not now', () => {
+    const settings = createSettings(memStorage());
+    settings.set('tvOfferDeclined', true);
+    const onOffer = vi.fn();
+    watchForTv({ win: win({ innerWidth: 1700 }), settings, homeClear: () => true, onOffer })();
+    expect(onOffer).not.toHaveBeenCalled();
   });
 });
