@@ -56,7 +56,7 @@ describe('when the offer is made', () => {
     expect(r.onOffer).not.toHaveBeenCalled();
     const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
     expect(main.match(/tvOffer\(\)/g)).toHaveLength(1);
-    expect(main).toMatch(/onPadUse: \(i\) => \{ tvHooks\.padUse\?\.\(i\); tvOffer\(\); \}/);
+    expect(main).toMatch(/onPadUse: \(i\) => \{ if \(tvHooks\.padUse\) tvHooks\.padUse\(i\); else padHintsOn\(i\); tvOffer\(\); \}/);
   });
 
   it('not on a laptop, not in a window that is not full, not when declined, not when already on', () => {

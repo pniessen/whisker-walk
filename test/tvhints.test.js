@@ -31,7 +31,9 @@ describe('the Ready? and pause cards', () => {
     const h = pauseCardHtml({ welcome: null, touch: false, mode: 'paused' });
     const hint = h.slice(h.indexOf('<p class="controls-hint">'));
     expect(hint).toContain('<svg');
-    expect(hint).toContain('jump/climb/pounce');
+    expect(hint).toMatch(/<\/svg> jump<\/span>/);
+    expect(hint).not.toContain(' · '); // a grid of glyph + word pairs, no dots
+    expect(hint.match(/hint-seg/g)).toHaveLength(7); // walk look jump do-it meow photo zoom; pause is the card you are on
     expect(hint).not.toMatch(/WASD|Shift|Space|Esc|⟦/);
     expect(h).toMatch(/<button id="btn-resume" class="primary">Keep exploring <svg [^]*<\/svg><\/button>/);
     expect(h).not.toContain('(click)');

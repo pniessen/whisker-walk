@@ -6,7 +6,7 @@
 import { tvHooks } from '../tvseam.js';
 
 /** setInput(v) is told every change; returns { destroy } which gives the hooks back. */
-export function createInputTracker({ win, doc, setInput, hooks = tvHooks }) {
+export function createInputTracker({ win, doc, setInput, hooks = tvHooks, initial = null }) {
   const body = doc.body;
   let current = null;
   const set = (v) => {
@@ -23,7 +23,8 @@ export function createInputTracker({ win, doc, setInput, hooks = tvHooks }) {
   win.addEventListener('touchstart', onTouch, true);
   win.addEventListener('pointerdown', onPointer, true);
   hooks.padUse = () => set('pad');
-  set(body?.classList?.contains?.('touch-mode') ? 'touch' : 'keys');
+  // TV mode starts on the pad's words (a sofa player has not touched a key yet); a real key, touch or mouse click takes it back.
+  set(initial ?? (body?.classList?.contains?.('touch-mode') ? 'touch' : 'keys'));
   return {
     destroy() {
       win.removeEventListener('keydown', onKey, true);

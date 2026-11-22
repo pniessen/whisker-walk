@@ -180,7 +180,7 @@ export function createHud() {
   };
   const startToastLife = (t) => {
     clearTimeout(t.life);
-    t.life = setTimeout(() => retireToast(t), toastLifeMs(t.el.textContent));
+    t.life = setTimeout(() => retireToast(t), tvState.toastTiming ? tvState.toastTiming.life(t.el.textContent, toastQueue.length) : toastLifeMs(t.el.textContent));
   };
   // First tap: hold it (a fresh clock, and no early retiring). Second: let go.
   const tapToast = (t) => {
@@ -201,13 +201,13 @@ export function createHud() {
     liveToasts.push(t);
     startToastLife(t);
     // Once read for MIN_SHOWN_MS it may give up its slot to a waiting line.
-    t.ripeTimer = setTimeout(() => { t.ripe = true; pumpToasts(); }, MIN_SHOWN_MS);
+    t.ripeTimer = setTimeout(() => { t.ripe = true; pumpToasts(); }, tvState.toastTiming ? tvState.toastTiming.ripe : MIN_SHOWN_MS);
   };
   // Fill free slots from the queue; when lines still wait and the screen is
   // full, the oldest unheld shown toast makes room once it has been up 2.5 s
   // (now if it already has, else its ripe timer calls back here then).
   const pumpToasts = () => {
-    while (liveToasts.length < toastCap && toastQueue.length) showToast(toastQueue.shift());
+    while (liveToasts.length < (tvState.toastTiming ? Math.min(toastCap, tvState.toastTiming.cap) : toastCap) && toastQueue.length) showToast(toastQueue.shift());
     const oldest = liveToasts.find((t) => !t.held);
     if (toastQueue.length && oldest?.ripe) retireToast(oldest);
   };

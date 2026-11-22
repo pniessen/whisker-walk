@@ -300,7 +300,7 @@ export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready',
   return `<div class="pause-card"><div class="screen-panel">
     ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
     <div class="screen-body"><h1>${CARD_TITLE[mode] ?? CARD_TITLE.ready}</h1>
-    ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}${note ? `
+    ${welcome ? `<p class="home-welcome">${escapeHtml(tvState.on && mode === 'back' ? welcome.replace(/^Welcome back!\s*/, '') : welcome)}</p>` : ''}${note ? `
     <p class="pause-note" role="status">${escapeHtml(note)}</p>` : ''}
     <div class="screen-actions">
       <button id="btn-resume" class="primary">${(go && padHtml(go)) || resumeLabel(mode, touch)}</button>${sound && mode !== 'ready' ? pauseSoundHtml(sound, view) : ''}
@@ -356,7 +356,8 @@ export function bankedLines({ isRecord, streak, mochiArrived, broughtHome }, { h
 }
 
 function hintHtml(segs) {
-  return segs.map((t) => `<span class="hint-seg">${padHtml(t) ?? escapeHtml(t)}</span>`).join(' · ');
+  // TV mode lays the pieces out as a grid of pairs: no dots between them.
+  return segs.map((t) => `<span class="hint-seg">${padHtml(t) ?? escapeHtml(t)}</span>`).join(tvState.on ? '' : ' · ');
 }
 
 export function createWalkLifecycle({

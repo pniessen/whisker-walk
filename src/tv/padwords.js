@@ -49,9 +49,9 @@ export const PAD_WORDS = Object.freeze({
 
   // TV-only lines
   // the walk's key strip, in place of KEY_STRIP
-  'pad.strip': '⟦move⟧ move · ⟦jump⟧ jump · ⟦interact⟧ do it · ⟦meow⟧ meow · ⟦photo⟧ photo · ⟦pause⟧ pause',
+  'pad.strip': '⟦move⟧ walk · ⟦jump⟧ jump · ⟦interact⟧ do it · ⟦meow⟧ meow · ⟦photo⟧ photo · ⟦pause⟧ pause',
   // the pause and Ready? card's list, in place of KEYS_HINT (one piece per control, split on " · ")
-  'pad.pause.controls': '⟦move⟧ walk · ⟦look⟧ look · ⟦jump⟧ jump/climb/pounce · ⟦interact⟧ do it/sniff · ⟦meow⟧ meow · ⟦photo⟧ photo · ⟦zoomOut⟧⟦zoomIn⟧ zoom · ⟦pause⟧ pause',
+  'pad.pause.controls': '⟦move⟧ walk · ⟦look⟧ look · ⟦jump⟧ jump · ⟦interact⟧ do it · ⟦meow⟧ meow · ⟦photo⟧ photo · ⟦zoomOut⟧⟦zoomIn⟧ zoom',
   // the Ready? and pause cards' button
   'pad.go': 'Start exploring ⟦confirm⟧',
   'pad.keep': 'Keep exploring ⟦confirm⟧',

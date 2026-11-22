@@ -3,7 +3,7 @@
 // nothing here may import src/tv/: the build fails if the chunk joins
 // start-up (scripts/buildjson.mjs). With TV mode off every function is
 // identity or a no-op, so touch, mouse and keyboard play is unchanged.
-export const tvState = { on: false, pending: false, input: 'keys', text: null, html: null, padLine: null, fix: null };
+export const tvState = { on: false, pending: false, input: 'keys', text: null, html: null, padLine: null, fix: null, toastTiming: null };
 
 // Pad events from gamepad.js; the chunk fills these in (null = nobody listens).
 export const tvHooks = { padUse: null, padConnect: null, padDisconnect: null, back: null, button: null, picker: null, list: null }; // back(): the pad's B; button(i): another menu button, true if a TV card took it; picker(opts): the letter picker, a promise of the name or null; list(opts): a choose-one list card, a promise of the value or null
@@ -39,7 +39,7 @@ export function onTv(fn) {
 
 /** Back to the start (tests). */
 export function resetTv() {
-  Object.assign(tvState, { on: false, pending: false, input: 'keys', text: null, html: null, padLine: null, fix: null });
+  Object.assign(tvState, { on: false, pending: false, input: 'keys', text: null, html: null, padLine: null, fix: null, toastTiming: null });
   listeners.clear();
   Object.assign(tvHooks, { padUse: null, padConnect: null, padDisconnect: null, back: null, button: null, picker: null, list: null });
 }

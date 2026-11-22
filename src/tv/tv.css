@@ -75,9 +75,8 @@ html.tv .dr-today-name { font-size: calc(30px * var(--tv-s, 1)) !important; }
 html.tv .pad-focus .settings-switch:has(input:focus) { outline-width: 5px !important; outline-offset: 4px !important; }
 
 /* The goals' "how" line and the key strip say the pad's words, with button pictures, while the pad is the input. */
-html.tv body[data-input="pad"] .goal-how .how-keys, html.tv body[data-input="pad"] .goal-how .how-touch,
-html.padhints body[data-input="pad"] .goal-how .how-keys, html.padhints body[data-input="pad"] .goal-how .how-touch { display: none !important; }
-html.tv body[data-input="pad"] .goal-how .how-pad, html.padhints body[data-input="pad"] .goal-how .how-pad { display: inline; }
+html.tv body[data-input="pad"] .goal-how .how-keys, html.tv body[data-input="pad"] .goal-how .how-touch { display: none !important; }
+html.tv body[data-input="pad"] .goal-how .how-pad { display: inline; }
 html.tv .pad-glyph { width: 1.25em; height: 1.25em; vertical-align: -0.28em; margin: 0 0.08em; color: inherit; }
 html.tv .pad-glyph.wide { width: 1.9em; }
 
@@ -135,3 +134,70 @@ html.tv .ls-list { display: flex; flex-direction: column; gap: calc(8px * var(--
 html.tv .ls-item, html.tv .ls-close { width: 100%; min-height: calc(76px * var(--tv-s, 1)); font-size: calc(32px * var(--tv-s, 1)) !important; text-align: center; }
 html.tv .ls-current { background: #f2c14e; }
 html.tv .ds-spot-open { min-height: calc(64px * var(--tv-s, 1)); font-size: calc(30px * var(--tv-s, 1)) !important; font-weight: 800; padding: 0 calc(20px * var(--tv-s, 1)); border-radius: calc(14px * var(--tv-s, 1)); border: 0; background: #fff; color: #1c2431; cursor: pointer; }
+
+/* ======================================================================
+   The TV type system (owner photos, 2026-11-22: "fonts cluttered").
+   Three sizes, one weight pair, one rhythm:
+     --tv-title  title            --tv-body  words a child reads   --tv-small  labels, notes
+     weights 500 (words) and 700 (titles and buttons); line-height 1.4;
+     gaps 12 / 20 px (x --tv-s). Chips and buttons are as wide as their text.
+   ====================================================================== */
+html.tv {
+  --tv-title: calc(52px * var(--tv-s, 1));
+  --tv-body: calc(28px * var(--tv-s, 1));
+  --tv-small: calc(24px * var(--tv-s, 1));
+  --tv-gap: calc(12px * var(--tv-s, 1));
+  --tv-gap-l: calc(20px * var(--tv-s, 1));
+  --tv-solid: #223047;
+}
+html.tv body { line-height: 1.4; word-spacing: .04em; }
+html.tv :is(.screen-panel, .join-moment-card, .hb-sheet, .lp-card, .ls-card) { font-weight: 500; line-height: 1.4; text-wrap: pretty; }
+html.tv :is(.screen-panel, .join-moment-card) :is(h1, h2) { text-wrap: balance; letter-spacing: .01em; }
+
+/* A card hides the whole walking HUD behind it, and its scrim is solid enough to read on. */
+html.tv body:has(#overlay:not(.hidden) :is(.pause-card, .summary-card)) #hud :is(.hud-controls, .hud-hint, .hud-prompt, .hud-toasts, .hud-goals, .hud-objective, .hud-roster, .hud-viewfinder, .hud-crosshair) { visibility: hidden; }
+html.tv .pause-card, html.tv .summary-card { background: rgba(14, 19, 29, 0.88); }
+/* The key strip yields to a tip: never both at once. */
+html.tv #hud.hinting .hud-controls { display: none; }
+
+/* The pause / Ready? card: wide, three sizes, chips that fit. */
+html.tv .pause-card .screen-panel { width: min(calc(980px * var(--tv-s, 1)), 90vw); padding: calc(28px * var(--tv-s, 1)) calc(40px * var(--tv-s, 1)); gap: var(--tv-gap-l); }
+html.tv .screen-panel { max-height: calc(100vh - 2 * var(--tv-safe-y, 5vh)); }
+html.tv .home-welcome { font-size: calc(28px * var(--tv-s, 1)) !important; font-weight: 500; line-height: 1.4; max-width: 32em; margin: 0; text-wrap: balance; }
+html.tv .pause-card .screen-body, html.tv .pause-card .screen-actions { gap: var(--tv-gap-l); width: 100%; }
+html.tv .pause-card h1, html.tv .summary-card h1 { font-size: calc(52px * var(--tv-s, 1)) !important; line-height: 1.15; }
+html.tv .pause-card :is(.primary, .secondary) { font-size: calc(28px * var(--tv-s, 1)) !important; font-weight: 700; min-width: calc(320px * var(--tv-s, 1)); }
+html.tv .pause-card .secondary, html.tv .screen-actions button.quiet { font-weight: 500; }
+html.tv .screen-actions button.quiet { font-size: calc(24px * var(--tv-s, 1)) !important; opacity: .9; }
+html.tv .pause-sound { width: 100%; max-width: calc(640px * var(--tv-s, 1)); gap: var(--tv-gap); }
+html.tv .pause-sound .settings-row { min-height: calc(64px * var(--tv-s, 1)); font-size: calc(28px * var(--tv-s, 1)) !important; font-weight: 500; }
+html.tv .pause-view { width: 100%; max-width: calc(860px * var(--tv-s, 1)); gap: var(--tv-gap); }
+html.tv .pause-view-label { font-size: calc(24px * var(--tv-s, 1)) !important; opacity: .85; }
+html.tv .pause-view-chips { grid-template-columns: repeat(4, max-content); justify-content: center; gap: var(--tv-gap); }
+html.tv .pause-view-chip { white-space: nowrap; min-height: calc(60px * var(--tv-s, 1)); padding: 0 calc(26px * var(--tv-s, 1)); font-size: calc(28px * var(--tv-s, 1)) !important; font-weight: 500; }
+html.tv .pause-view-chip[aria-pressed="true"] { font-weight: 700; }
+/* The pad's list: glyph + word pairs, two to a row, real spacing, no dots. */
+html.tv .screen-panel .controls-hint { width: 100%; box-sizing: border-box; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: calc(24px * var(--tv-s, 1)); line-height: 1.4; text-align: left; padding: var(--tv-gap-l) calc(28px * var(--tv-s, 1)); border-radius: calc(16px * var(--tv-s, 1)); }
+html.tv .screen-panel .controls-hint .hint-seg { box-sizing: border-box; padding: calc(6px * var(--tv-s, 1)) 0; font-size: calc(28px * var(--tv-s, 1)); line-height: 1.4; white-space: normal; }
+html.tv .screen-panel .controls-hint .pad-glyph { margin-right: .35em; }
+
+/* The summary card. */
+html.tv .summary-card :is(.stat-label, .best-line, .summary-cheer) { font-size: calc(24px * var(--tv-s, 1)) !important; }
+html.tv .summary-stats { gap: var(--tv-gap); }
+
+/* Home base and its sheets keep inside the safe margins. */
+html.tv #homebase { overflow-x: hidden; }
+html.tv .homebase-scroll { box-sizing: border-box; max-width: min(calc(1500px * var(--tv-s, 1)), 100%); }
+html.tv .goal-how { line-height: 1.4; }
+html.tv .hud-goals { line-height: 1.4; gap: calc(8px * var(--tv-s, 1)); padding: calc(10px * var(--tv-s, 1)) calc(16px * var(--tv-s, 1)); background: rgba(20, 26, 38, 0.88); }
+
+/* One line at the bottom at a time: the key strip steps aside for a toast or a context pill. */
+html.tv #hud:has(.toast, .hud-prompt:not(.hidden)) .hud-controls { display: none; }
+
+/* The boot splash, for the sofa: the logo is about a third of the width at 1080p and 2160p (75 px words x --tv-s; the cat and words scale together), the edition line is at least 24 px, and
+   the Welcome back card waits until the splash is gone, so the two never show over each other. */
+html.tv .splash-inner { max-width: 90vw; }
+html.tv .splash-inner svg { width: calc(310px * var(--tv-s, 1)); }
+html.tv .splash-word { font-size: calc(75px * var(--tv-s, 1)); margin-top: calc(22px * var(--tv-s, 1)); white-space: nowrap; }
+html.tv .splash-edition { font-size: calc(30px * var(--tv-s, 1)); }
+html.tv body:has(#splash:not([style*="none"])) #overlay { visibility: hidden; }
