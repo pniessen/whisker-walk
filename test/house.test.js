@@ -73,7 +73,7 @@ describe('the record', () => {
     expect(area.critterSpawns.length).toBeGreaterThan(0);
     expect(area.critterSpawns.every((c) => c.type === 'mouse')).toBe(true);
     // step 2 (D18, ruling D13): three special places
-    expect(area.scenics.map((c) => c.id)).toEqual(['clock', 'fireside', 'attic-window']);
+    expect(area.scenics.map((c) => c.id)).toEqual(['clock', 'fireside', 'attic-window', 'sunroom', 'bunks']); // + the east wing's two
     for (const k of ['pois', 'collectibles', 'moments', 'puddles', 'tippables']) {
       expect(area[k], k).toEqual([]);
     }

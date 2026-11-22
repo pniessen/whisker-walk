@@ -1,5 +1,26 @@
 # The Old House's East Wing: Implementation Plan
 
+> **Milestone 1 build log (2026-11-22, Sonnet, branch `house-wing`).** Task 1 baselines, taken after `git merge main`
+> (main 7a0e6f70: the house-beauty rounds 1 and 2, the discovery-toast leads), before any wing code:
+>
+> | Thing | Baseline S0 / H0 / worst | Ceiling | After milestone 1 |
+> |---|---|---|---|
+> | Start-up chunk | S0 705.2 kB gz | 720, never raised | 705.2 (no start-up change at all) |
+> | House chunk | H0 40.2 to 40.4 kB gz | 100 (cap H0 + 18, under 55) | 46.0 |
+> | Worst spot with Mochi, dusk (ground) | 67,483 tris, 309 meshes, 171 casters | 70,000 / 450 / 380 | 68,263 dusk, 67,732 day (the wing adds 780 to the old worst spot) |
+> | Her cat alone, day (ground) | 58,280 tris, 282 meshes | aims 59,500 / 300 / 200 | 58,438 / 285 (upstairs 306 meshes: aim re-pinned 300 to 306) |
+> | "Fixed" set (dusk, Mochi) | 49,561 tris | | 50.4k (4 stand-ins, the parlour's east wall dressed both sides, 4 knock-overs) |
+>
+> Headroom was 2,517 triangles (under 4,000), so the wing is drawn by zone. Deviations from the spec, all measured and
+> pinned in the tests (what changed and why is in the final report): a zone a ROOM (`living`, `sun` with the stair gallery,
+> `kids`, `bath`) instead of `east` and `kids`, because two rooms at once cost 8,600 and 7,200 triangles; `ZONE_NEAR` 5 m
+> (the design's), with at most the one joined zone nearest her drawn, the camera counted as her, and, beside the wing, the old
+> ground kept in full for the parlour alone (a far stand-in for the rest); a wing room is also drawn from the lawn within
+> 5 m; far zones are open brick trays, not lids; the lower bunk is a trundle pulled out 0.95 m from the top bunk (a ledge
+> beside a taller ledge must be 0.92 m off it, the guards' rule); the tub is a flat top (towels to the rim); wing spot
+> limits 63,000 tris / 340 meshes / 190 casters (the design said 330 meshes); zone totals as measured (living 3,776,
+> solarium with its stair 4,856, kids 4,980, bath 2,244).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development (or superpowers:executing-plans). Steps use checkbox syntax. Read `docs/superpowers/specs/2026-11-22-old-house-wing-design.md` first; this plan builds exactly that, and the spec wins where they differ.
 
 **Goal:** Five new rooms in the Old House (living room, solarium, bathroom, kids' room, and a secret wonder room), in a new east wing, with 13 new discoveries, 2 golden mice, sunny slots and sofa naps, a cat tree and a crinkly tunnel, all inside the budget, in three mergeable milestones.

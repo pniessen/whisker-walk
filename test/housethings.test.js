@@ -286,14 +286,19 @@ describe('the yarn ball (D14)', () => {
 });
 
 describe('the special places and the discoveries (D6, D13)', () => {
-  it('three special places, named in both word sets', () => {
-    expect(HOUSE_SCENICS.map((s) => s.id)).toEqual(['clock', 'fireside', 'attic-window']);
-    expect(HOUSE_SCENICS.map((s) => roomAt(s.x, s.z))).toEqual(['hall', 'parlour', 'attic']);
-    for (const s of HOUSE_SCENICS) {
+  it('three special places, named in both word sets, and the east wing\'s two, in plain words', () => {
+    expect(HOUSE_SCENICS.map((s) => s.id)).toEqual(['clock', 'fireside', 'attic-window', 'sunroom', 'bunks']);
+    expect(HOUSE_SCENICS.map((s) => roomAt(s.x, s.z))).toEqual(['hall', 'parlour', 'attic', 'solarium', 'kids']);
+    for (const s of HOUSE_SCENICS.slice(0, 3)) {
       expect(s.words).toBe(`house.scenic.${s.id}`);
       for (const w of inEachWordSet(() => phrase(s.words))) expect(w.length).toBeGreaterThan(0);
     }
-    expect(record.scenics).toEqual(HOUSE_SCENICS.map((s) => ({ id: s.id, x: s.x, z: s.z, label: phrase(s.words) })));
+    for (const s of HOUSE_SCENICS.slice(3)) {
+      expect(s.words).toBeUndefined(); // no line in the phrase table: the start-up chunk is not touched
+      expect(s.label.length).toBeGreaterThan(0);
+      expect(s.label).not.toMatch(/twoleg|clan|thunder|shadow|river|wind|star|warrior|kittypet/i);
+    }
+    expect(record.scenics).toEqual(HOUSE_SCENICS.map((s) => ({ id: s.id, x: s.x, z: s.z, label: s.label ?? phrase(s.words) })));
   });
 
   it('every special place and find is on ground she can reach in its room', () => {

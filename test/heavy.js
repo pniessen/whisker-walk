@@ -46,7 +46,7 @@ export const HEAVY_COST = [
   ['catmodel.test.js', 28],
   // the Old House's never-lost sweeps (every reachable spot, view step and pitch, the climbs and
   // the ledges' guards): 28 s alone with another worktree's run going, 2026-11-21
-  ['housecamera.test.js', 28],
+  ['housecamera.test.js', 55], // 28 before the east wing's rooms and ledges joined its sweeps (measured 53 s, 2026-11-22)
   ['farmlife.test.js', 27],
   ['straycats.test.js', 23],
   ['dencats-den.test.js', 22],

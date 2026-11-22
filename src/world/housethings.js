@@ -72,6 +72,10 @@ export const HOUSE_SCENICS = frozenAll([
   { id: 'clock', x: -2.6, z: 3.6, words: 'house.scenic.clock' },
   { id: 'fireside', x: 12.0, z: 7.0, words: 'house.scenic.fireside' },
   { id: 'attic-window', x: -22.3, z: -11.0, words: 'house.scenic.attic-window' },
+  // the east wing's two (plain words, no table line: the wing adds none to the start-up chunk): the conservatory's middle
+  // and the kids' room's far corner, by the low bed
+  { id: 'sunroom', x: 26.0, z: 7.0, label: 'The sunny conservatory' },
+  { id: 'bunks', x: 45.0, z: 10.8, label: 'The bunk room' },
 ]);
 
 // The six discoveries' spots (D6). She pays one when, within r of (x, z):

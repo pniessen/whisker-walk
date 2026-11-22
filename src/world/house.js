@@ -560,7 +560,7 @@ export function build(scene, { wind, gateEnds = [] } = {}) {
       pois: [],
       collectibles: [],
       // the grandfather clock, the fireside, the round attic window (step 2, D13)
-      scenics: HOUSE_SCENICS.map((c) => ({ id: c.id, x: c.x, z: c.z, label: said[c.words] })),
+      scenics: HOUSE_SCENICS.map((c) => ({ id: c.id, x: c.x, z: c.z, label: c.label ?? said[c.words] })),
       // mice in the pantry corner and the cellar, and nothing else: no people, no resident cat (U14, D10)
       critterSpawns: HOUSE_MICE.map(({ room, ...m }) => m), // eslint-disable-line no-unused-vars
       knockables: HOUSE_KNOCKABLES, // on the perches' pieces (D4)
