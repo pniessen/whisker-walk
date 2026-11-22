@@ -10,6 +10,7 @@ import { isShy, TAME_FEEDS, COLONY_MAX, SOLO_MAX } from '../src/colony.js';
 import { CAT_NAMES } from '../src/straynames.js';
 import { clanTitleFor, prefixFor } from '../src/clannames.js';
 import { PREFIXES } from '../src/clanwords.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 const ME = 'aaaaaaaa-1111', SIB = 'bbbbbbbb-2222';
 const COLONY = 'c0ffee00c0ffee00';
@@ -19,11 +20,6 @@ const SECRET = 'psecret-1';
 const BOLD = CAT_NAMES.filter((n) => !isShy(n));
 const CAT = BOLD[0];
 const NO_RESULT = { appliedTrades: [], rewards: [], settled: [] };
-
-function fakeStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 
 const CLOUD_METHODS = ['colonySync', 'colonyFeed', 'colonyDress', 'colonyInviteOpen', 'colonyInviteJoin',
   'colonyInviteAnswer', 'colonyTradeOffer', 'colonyTradeAnswer', 'colonyTradeCancel', 'fetchProfiles'];

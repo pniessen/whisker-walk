@@ -1,31 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // Polish-water Task 3: the water dressing (src/render/waterdress.js) — a soft
 // wet-earth band and foam line along the REAL shore, a few half-sunk stones.
 // Each case builds the real area into a fresh scene, exactly as walk.js does,
 // then dresses it.
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        if (key === 'measureText') return () => ({ width: 10 });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-  addEventListener() {},
-  pointerLockElement: null,
-  exitPointerLock() {},
-});
+stubCanvasDocument({ measureText: 10, pointerLock: true });
 
 const { createWaterDressing, FILL_LIFT, bankWobble, DRESSED_AREAS, BANK_FILLETS, isStream, bankBite, BITE_CIRCLES, BITE_MAX, BITE_MIN } = await import('../src/render/waterdress.js');
 const { fishSpots } = await import('../src/render/fishjump.js');

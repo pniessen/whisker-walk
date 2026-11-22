@@ -450,6 +450,14 @@ const LATER = Object.freeze({
   'wear.pouch.partner': (partnerName) => `${partnerName} found it, and there was a little pouch of 🐾 for you too!`,
   'wear.foundIn': (place) => `Found in ${place}`,
   'wear.notYet': 'Not found yet',
+  // Dress up's "Remove all accessories", and the cat builder's slots 4 and 5.
+  'wear.removeAll': 'Remove all accessories',
+  'slots.buy': (price) => `2 more cat slots — ${price}`,
+  'slots.buyLabel': (price) => `Unlock 2 more cat slots for ${price} paw points`,
+  'slots.save': (price) => `Save up ${price}`,
+  'slots.saveEnd': 'to unlock them',
+  'slots.name': '2 more cat slots',
+  'slots.full': (n) => `${n} of ${n} — change one of yours for a new look`,
   'wear.journal.title': 'Things to wear',
 
   // ---- Menu review #7 (2026-11-20) ----------------------------------------------

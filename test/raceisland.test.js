@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // Polish 2, item 5: the Pines race put a ring on the island (or its bridge)
 // 20 days in 21, because 8 of the Pines' 17 POIs are the island's. The cap of
@@ -7,20 +8,7 @@ import * as THREE from 'three';
 // the days. The course is still a pure function of (date, area): both
 // co-walkers' devices draw the same one, and walkRng is never touched.
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_t, k) => {
-        if (k === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (k === 'createLinearGradient' || k === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const { raceCourse } = await import('../src/race.js');
 const { seedFromCode, mulberry32 } = await import('../src/rng.js');

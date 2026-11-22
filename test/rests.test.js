@@ -1,27 +1,10 @@
-import { test, expect, vi } from 'vitest';
+import { test, expect } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // createPlayer registers key / pointer-lock listeners on `document`, and the
 // world builders ask it for a canvas (test/pushthrough.test.js's stub).
-vi.stubGlobal('document', {
-  addEventListener() {},
-  pointerLockElement: null,
-  exitPointerLock() {},
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument({ pointerLock: true });
 
 const { createRests, startRest, tickRest, REST_SIP, NAP_PURR_EVERY, REST_LOOKS } = await import('../src/rests.js');
 const { propsFor, REST_KINDS } = await import('../src/propsets.js');

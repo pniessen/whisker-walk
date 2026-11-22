@@ -1,11 +1,7 @@
 // The touch buttons' small words go by use (src/ui/buttonwords.js; design section 4).
 import { describe, it, expect } from 'vitest';
 import { createButtonUses, buttonWords, countButtonUse, sanitizeButtonUses, BUTTON_USES_KEY, USES_TO_KNOW } from '../src/ui/buttonwords.js';
-
-function mem(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
+import { memoryStorage as mem } from './helpers/storage.js';
 
 describe('button words by use', () => {
   it('every button shows its word until it has been used twice', () => {

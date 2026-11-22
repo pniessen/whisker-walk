@@ -767,6 +767,7 @@ describe('createProgression', () => {
         unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
         equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null },
         customCats: [],
+        moreCatSlots: false,
         outfits: [],
         usage: {},
         area: 'neighborhood', lifetimePoints: 0, bestWalk: 0, friends: {}, petName: null,
@@ -2401,7 +2402,7 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, clanPick, customCats, outfits, usage, fightsWon, fightMoves, scars, scarredIntruders, tutorial, foundWear, events, keptOffers, ...rest } = p.state;
+    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, clanPick, customCats, moreCatSlots, outfits, usage, fightsWon, fightMoves, scars, scarredIntruders, tutorial, foundWear, events, keptOffers, ...rest } = p.state;
     // World map step 1: 2 Park walks and no Seaside, so this old save keeps the old offer (after the Park, for 100).
     expect(keptOffers).toEqual(['seaside']);
     // 2026-11-15, guided-first-walk design (section 8): this save has points, so it is an existing player's.
@@ -2411,6 +2412,7 @@ describe('the colony save key', () => {
     expect(events).toEqual([]);
     expect(edition).toBe('canon');
     expect(customCats).toEqual([]);
+    expect(moreCatSlots).toBe(false);
     expect(outfits).toEqual([]);
     expect(usage).toEqual({});
     expect(clanPick).toEqual({ mine: null, partner: null, partnerId: null });

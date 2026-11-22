@@ -8,17 +8,10 @@ import { FEET_WEAR } from '../src/foundwear/feet.js';
 import { validateFoundWear, foundWearIn, foundRecord, FOUND_WEAR, FOUND_WEAR_IDS } from '../src/foundwear/index.js';
 import { spotsIn } from '../src/foundwear/spots/index.js';
 import { withOffWords } from './helpers/offwords.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 // Found outfits (step 1): one find-only outfit hidden on every walk. These
 // are the records' own checks, the catalog entry they make, and its name.
-
-function fakeStorage() {
-  const map = new Map();
-  return {
-    getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => map.set(k, String(v)),
-  };
-}
 
 describe('found outfits: the records', () => {
   it('the registry passes its own checks', () => {

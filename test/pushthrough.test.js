@@ -1,6 +1,7 @@
-import { describe, test, expect, vi } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // v21 3b Task 14 — cat flaps in garden gates and gaps in hedges. A cat that
 // pushes through swings the flap (or rustles the hedge) the way it went, and
@@ -10,25 +11,7 @@ import { readFileSync } from 'node:fs';
 
 // createPlayer registers key / pointer-lock listeners on `document`, and the
 // world builders ask it for a canvas (the same stub test/waterblock.test.js uses).
-vi.stubGlobal('document', {
-  addEventListener() {},
-  pointerLockElement: null,
-  exitPointerLock() {},
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument({ pointerLock: true });
 
 const { createPushThroughs, OPEN_H, ARCH_Y } = await import('../src/pushthrough.js');
 const { buildCat } = await import('../src/cat/model.js');

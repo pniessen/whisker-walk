@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PAW } from '../src/ui/pawicon.js';
+import { memoryStorage as memStorage } from './helpers/storage.js';
 
 // The home base's WebGL pieces can't run in node: stub the thumbnails, the hero
 // stage and the dressing-room controller so createHomeBase can be driven.
@@ -27,11 +28,6 @@ const { createProgression } = await import('../src/progression.js');
 const { welcomeLine } = await import('../src/visits.js');
 
 const KEY = 'whisker-walk-save';
-function memStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
-
 // No jsdom here: a tiny element stand-in, enough for the home base's cards.
 function fakeEl(doc) {
   const el = {

@@ -5,11 +5,9 @@ import { HINT_IDS } from '../src/hints.js';
 import { createProgression } from '../src/progression.js';
 import { bus } from '../src/events.js';
 import { NO_FIND } from '../src/foundwear/live.js';
+import { memoryStorage } from './helpers/storage.js';
 
-function memStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
-}
+const memStorage = (initial) => memoryStorage(initial, { removeItem: true });
 const at = (x, z) => ({ group: { position: { x, y: 0, z } } });
 function walk(over = {}) {
   return {

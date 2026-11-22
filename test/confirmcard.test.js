@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
+import { memoryStorage } from './helpers/storage.js';
 
 // The home base's WebGL pieces can't run in node (as in homebase.visits.test.js).
 vi.mock('../src/thumbnails.js', () => ({ fillFoundThumbs: () => {}, menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
@@ -23,10 +24,7 @@ const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression, BACKUP_KEYS } = await import('../src/progression.js');
 
 const KEY = 'whisker-walk-save';
-function memStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
-}
+const memStorage = (initial) => memoryStorage(initial, { removeItem: true });
 
 function fakeEl(doc) {
   const el = {

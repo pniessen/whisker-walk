@@ -1,17 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { createProgression } from '../src/progression.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 // Found outfits (step 1): `foundWear` is the durable record of every outfit
 // she has found. It rebuilds them into her wardrobe on every load, so a found
 // outfit is never lost, and a Load from cloud keeps what either side found.
-
-function fakeStorage() {
-  const map = new Map();
-  return {
-    getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => map.set(k, String(v)),
-  };
-}
 
 describe('found outfits: the record in the save', () => {
   it('a new save and an old save start with none', () => {

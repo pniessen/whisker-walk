@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { memoryStorage } from './helpers/storage.js';
 
 // Offline first (2026-11-16): a device that has not been put online makes no
 // request and creates no Supabase client; a device that has behaves as before.
@@ -90,10 +91,7 @@ const SECRET_KEY = 'whisker-walk-secret';
 const CODE_KEY = 'whisker-walk-cloudcode';
 const CODE_SECRET_KEY = 'whisker-walk-cloudsecret';
 
-function memStorage() {
-  const m = new Map();
-  return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k), m };
-}
+const memStorage = () => memoryStorage({}, { removeItem: true, expose: 'm' });
 function fakeEl(doc) {
   const el = {
     ownerDocument: doc, className: '', innerHTML: '', textContent: '', id: '', type: '',

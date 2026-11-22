@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
+import { memoryStorage as memStorage } from './helpers/storage.js';
 
 // A prize held for the tap (styles A and C) must be on the cat for a walk
 // that starts while its celebration is still up. walk.js's startWalk is the
@@ -29,11 +30,6 @@ const { createAreaLoader } = await import('../src/game/areaload.js');
 // first, so a start runs startWalk in the same tick and its throw comes straight out.
 const areas = createAreaLoader();
 beforeAll(() => areas.ensureAll(['neighborhood', 'den']));
-
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 
 // No jsdom here. walk.js mounts its skill-unlock card on document.body, and
 // the world builders paint their texture tiles on canvases: the same headless

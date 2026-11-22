@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { memoryStorage as memStorage } from './helpers/storage.js';
 
 // Menu review #6 and #14 (2026-11-20): the Menu's doors. Six kid tiles (the
 // last is My den, which says "go now"), then Sound & controls as a slim row,
@@ -29,10 +30,6 @@ const { createProgression } = await import('../src/progression.js');
 const { SHEET_NAME, SHEET_ICON, GROWNUP_SHEETS, HOME_SHEETS, resolveSheet } = await import('../src/ui/dressingroom.js');
 const { line: tutorialLine } = await import('../src/tutorialwords.js');
 
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 function fakeEl(doc) {
   const el = {
     ownerDocument: doc, className: '', innerHTML: '', textContent: '', id: '', type: '',

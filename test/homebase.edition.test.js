@@ -20,11 +20,6 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
 const { createHomeBase, showEditionTitle } = await import('../src/ui/homebase.js');
 const { createProgression } = await import('../src/progression.js');
 
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
-
 // No jsdom here: a tiny element stand-in, enough for the home base.
 function fakeEl(doc) {
   const el = {
@@ -68,6 +63,7 @@ import { readFileSync } from 'node:fs';
 import { CLAN_SUFFIX } from '../src/clanwords.js';
 import { clanPickerModel, renderClanPickerHtml } from '../src/ui/clanpicker.js';
 import { clanName } from '../src/clanhomes.js';
+import { memoryStorage as memStorage } from './helpers/storage.js';
 
 // A rooms stand-in that is available with no room open, so the Play together
 // sheet shows the pet-name row and the star-name picker.

@@ -5,15 +5,11 @@ import { buildCat } from '../src/cat/model.js';
 import { wirePose } from '../src/fightactions.js';
 import { createProgression } from '../src/progression.js';
 import { createWaterState, stepWaterState } from '../src/waterstate.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 // Swimming (Task 6): the local cat's look and sounds in the water, driven
 // through the real updateAvatar with a stand-in session (the
 // test/interactions.test.js restHarness pattern) and a real tabby.
-
-function fakeStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 
 // A pond at the origin: deep in the middle, wadeable from r 3.8 to 5.
 const POND = [{ id: 'p', kind: 'circle', x: 0, z: 0, r: 5, shallow: 1.2 }];

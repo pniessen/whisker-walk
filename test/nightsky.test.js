@@ -1,23 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
-// The same headless canvas stub the world tests use (see test/waterlooks.test.js):
-// a context whose every method is a no-op, so the moon's canvas can be drawn.
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const {
   STAR_RADIUS, MOON_RADIUS, STAR_COUNT, MOON_SIZE, MOON_DISC, layoutStars, starFade, moonDirection, createNightSky,

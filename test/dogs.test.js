@@ -1,26 +1,9 @@
-import { test, expect, describe, vi } from 'vitest';
+import { test, expect, describe } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import * as THREE from 'three';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
-// The headless stub every world test uses (rivalworld.test.js): the only DOM
-// the builders touch is document.createElement('canvas').
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'measureText') return () => ({ width: 0 }); // the strays' name tags
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument({ measureText: 0 });
 
 const {
   inYard, dogNotices, dogLanding, isFearless,

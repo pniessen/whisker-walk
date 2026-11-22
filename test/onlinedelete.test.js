@@ -7,16 +7,14 @@ import { createOnlineDelete } from '../src/game/onlinedelete.js';
 import { createCloudSync } from '../src/game/cloudsync.js';
 import { createColonySync } from '../src/game/colonysync.js';
 import { createProgression } from '../src/progression.js';
+import { memoryStorage } from './helpers/storage.js';
 
 const PID = 'aaaaaaaa-1111-4000-8000-000000000001';
 const PSECRET = 'psecret-1';
 const CODE = 'PLUM-OTTER-CROW-42';
 const ROW_SECRET = 'row-secret-1';
 
-function fakeStorage() {
-  const m = new Map();
-  return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k), m };
-}
+const fakeStorage = () => memoryStorage({}, { removeItem: true, expose: 'm' });
 
 // answers.player / answers.save: a word, a list of words (one per call), or a function.
 function setup({ linked = true, petName = 'Mittens', paired = true, answers = {}, MP = true } = {}) {

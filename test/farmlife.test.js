@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { appendFileSync } from 'node:fs';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // How the Farm's animals live (src/farmlife.js) and how farmanimals.js turns
 // their parts by it: every cosmetic output deterministic, bounded and free of
@@ -8,20 +9,7 @@ import { appendFileSync } from 'node:fs';
 // level under a riding or napping cat; the farmer's hat on the goat's mouth;
 // reduced motion stilling the idle movements.
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const L = await import('../src/farmlife.js');
 const { build } = await import('../src/world/farm.js');

@@ -2,17 +2,13 @@ import { describe, test, expect } from 'vitest';
 import { createProgression } from '../src/progression.js';
 import { sanitizeColony, mergeColony, emptyColony, COLONY_MAX, SOLO_MAX, colonyCap } from '../src/colony.js';
 import { CAT_NAMES } from '../src/straynames.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 // The save holds two kids' real tamed cats. These pin the clan spec's section 8
 // invariants across the edition switch: nothing un-tames, nothing is dropped,
 // an old save still loads, and the colony caps have not moved.
 
 const SAVE = 'whisker-walk-save';
-function fakeStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
-
 const ME = 'aaaaaaaa-1111';
 const [TAMED_NAME, OTHER_NAME, UNTAMED_NAME, FOURTH_NAME] = CAT_NAMES;
 const TAMED_CAT = { name: TAMED_NAME, finder: ME, area: 'park', x: 1, z: 2, wear: null, tamedBy: ME, tamedWalk: 'walk-100' };
@@ -98,7 +94,7 @@ describe('the edition switch and the save', () => {
   // 2026-11-15, guided-first-walk design (section 8): `tutorial` joins them.
     // 2026-11-19, found outfits: `foundWear` joins them; world map step 1: `keptOffers` too.
     test('edition, clanPick, customCats, the fight keys, outfits, usage, tutorial, foundWear, keptOffers and events are the only new top-level keys', () => {
-      expect(Object.keys(load().state).sort()).toEqual([...KEYS_AT_FB6BA0F, 'edition', 'clanPick', 'customCats', 'fightsWon', 'fightMoves', 'scars', 'scarredIntruders', 'outfits', 'usage', 'tutorial', 'foundWear', 'keptOffers', 'events'].sort());
+      expect(Object.keys(load().state).sort()).toEqual([...KEYS_AT_FB6BA0F, 'edition', 'clanPick', 'customCats', 'moreCatSlots', 'fightsWon', 'fightMoves', 'scars', 'scarredIntruders', 'outfits', 'usage', 'tutorial', 'foundWear', 'keptOffers', 'events'].sort());
   });
   test('the caps are unchanged', () => {
     expect([COLONY_MAX, SOLO_MAX, colonyCap(1), colonyCap(2)]).toEqual([24, 12, 12, 24]);

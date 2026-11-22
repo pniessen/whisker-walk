@@ -3,16 +3,10 @@
 import { describe, it, expect } from 'vitest';
 import { createProgression, sanitizeTutorial, TUTORIAL_FIRST, CATALOG } from '../src/progression.js';
 import { HINT_IDS } from '../src/hints.js';
+import { memoryStorage } from './helpers/storage.js';
 
 const KEY = 'whisker-walk-save';
-function memStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return {
-    getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => map.set(k, String(v)),
-    removeItem: (k) => map.delete(k),
-  };
-}
+const memStorage = (initial) => memoryStorage(initial, { removeItem: true });
 const seeded = (fields) => memStorage({ [KEY]: JSON.stringify({ version: 4, ...fields }) });
 const saved = (s) => JSON.parse(s.getItem(KEY));
 const EMPTY = { first: null, camp: false, hints: {}, told: { thing: null, visits: 0 } };

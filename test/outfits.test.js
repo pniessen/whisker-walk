@@ -1,14 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { OUTFIT_MAX, sanitizeOutfits, wornNow, sameWear, canSaveOutfit, nextOutfitId } from '../src/outfits.js';
 import { createProgression, CATALOG } from '../src/progression.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
-function fakeStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return {
-    getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => map.set(k, String(v)),
-  };
-}
 const SAVE_KEY = 'whisker-walk-save';
 
 // A cat that owns a hat, glasses and a bow tie on top of the starters.
@@ -364,5 +358,22 @@ describe('outfit pictures', async () => {
     const html = room.html();
     expect((html.match(/class="dr-outfit-pic /g) || []).length).toBe(3);
     expect(html).toContain('<span class="dr-outfit-more">+1</span>');
+  });
+});
+
+describe('Remove all accessories button', async () => {
+  const { createDressingRoom } = await import('../src/ui/dressingroomview.js');
+  it('shows in the wardrobe above Saved outfits; enabled with something on, greyed when bare', () => {
+    const p = dressed();
+    const room = createDressingRoom({ progression: p, thumbs: { cats: {}, accessories: {} } });
+    expect(room.html()).not.toContain('data-dr-remove-all');
+    room.handleClick({ target: { closest: () => ({ dataset: { drWardrobe: '' }, ownerDocument: {} }) } });
+    wear(p, 'tophat');
+    let h = room.html();
+    expect(h).toMatch(/data-dr-remove-all\s*>Remove all accessories/);
+    expect(h.indexOf('data-dr-remove-all')).toBeLessThan(h.indexOf('Saved outfits'));
+    bare(p);
+    h = room.html();
+    expect(h).toMatch(/data-dr-remove-all disabled>Remove all accessories/);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { sanitizeLook, sanitizeCustomCats, lookToStyle, lookKey, activeCat, ownTagName, wireLook, catProfileFields, scarKey, presetFor,
-  DEFAULT_LOOK, CUSTOM_PERSONALITIES, COATS, MARKS, EYES, PATTERNS, FURS, SIZE } from '../src/customcats.js';
+  DEFAULT_LOOK, CUSTOM_MAX, CUSTOM_BASE, MORE_SLOTS_PRICE, CUSTOM_PERSONALITIES, COATS, MARKS, EYES, PATTERNS, FURS, SIZE } from '../src/customcats.js';
 import { PERSONALITIES } from '../src/cat/brain.js';
 import { readFileSync, globSync } from 'node:fs';
 
@@ -30,12 +30,15 @@ describe('sanitizeCustomCats', () => {
     for (const junk of [null, 'x', {}, 7]) expect(sanitizeCustomCats(junk)).toEqual([]);
     expect(sanitizeCustomCats([null, 5, 'a', []])).toEqual([]);
   });
-  it('keeps at most three, in order', () => {
-    const many = ['mine1', 'mine2', 'mine3'].map((id) => cat({ id }));
-    expect(sanitizeCustomCats([...many, cat({ id: 'mine1', name: 'Extra' })]).map((c) => c.id)).toEqual(['mine1', 'mine2', 'mine3']);
+  it('keeps at most five, in order', () => {
+    const many = ['mine1', 'mine2', 'mine3', 'mine4', 'mine5'].map((id) => cat({ id }));
+    expect(sanitizeCustomCats([...many, cat({ id: 'mine1', name: 'Extra' })]).map((c) => c.id)).toEqual(['mine1', 'mine2', 'mine3', 'mine4', 'mine5']);
+    expect(CUSTOM_MAX).toBe(5);
+    expect(CUSTOM_BASE).toBe(3);
+    expect(MORE_SLOTS_PRICE).toBe(30);
   });
   it('drops duplicate and unknown ids, keeping the first', () => {
-    const out = sanitizeCustomCats([cat(), cat({ name: 'Dupe' }), cat({ id: 'mine4' }), cat({ id: '__proto__' }), cat({ id: 'mine2' })]);
+    const out = sanitizeCustomCats([cat(), cat({ name: 'Dupe' }), cat({ id: 'mine6' }), cat({ id: '__proto__' }), cat({ id: 'mine2' })]);
     expect(out.map((c) => [c.id, c.name])).toEqual([['mine1', 'Ember'], ['mine2', 'Ember']]);
   });
   it('repairs a bad field rather than dropping the cat', () => {

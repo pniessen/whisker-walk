@@ -5,6 +5,7 @@ import { createFakeHub, createNet } from '../src/net.js';
 import { createProgression } from '../src/progression.js';
 import { FIND_KEY } from '../src/foundwear/spots/index.js';
 import { diagnostics } from '../src/diagnostics.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 // v21 Stream 2, Task 12 — pair walks. Two siblings in a colony start a walk
 // together with no room code. Anyone in a room can press Start: it proposes a
@@ -17,11 +18,6 @@ import { diagnostics } from '../src/diagnostics.js';
 const HOST = 'aaaa-host-0001';   // the smaller playerId: createNet's host
 const KID = 'bbbb-kid-00002';
 const COLONY_ID = '0123456789abcdef';
-
-function fakeStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 
 // `waits`: startWalk is main.js's startWalkWhenReady, which may wait for the
 // place to load. Each start then hands back a deferred the test settles with

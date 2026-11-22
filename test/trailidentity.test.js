@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { createHash } from 'node:crypto';
+import { stubCanvasDocument } from './helpers/canvas.js';
 
 // polish-park2: the Park's paths got a new 'gravel' trail look in
 // pathribbon.js. Every OTHER map's trail must come out byte-identical to what
@@ -8,26 +9,7 @@ import { createHash } from 'node:crypto';
 // same generated shader text and the same program cache key. These hashes
 // were recorded on 1a3abad before pathribbon.js was touched.
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        if (key === 'measureText') return () => ({ width: 10 });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-  addEventListener() {},
-  pointerLockElement: null,
-  exitPointerLock() {},
-});
+stubCanvasDocument({ measureText: 10, pointerLock: true });
 
 const AREAS = ['woods', 'river', 'moor', 'pines', 'gorge'];
 

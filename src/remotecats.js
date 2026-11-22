@@ -139,6 +139,7 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
     const group = buildCat(profile.breed, profile.accessories, { simple: true, look: profile.look, scars: wireScars(profile.accessories) });
     const tag = makeNameTag(profile.petName);
     if (tag) {
+      tag.userData.partner = true; // bigger on a phone (nametag.js)
       tag.visible = true; // remote pets are always labeled, unlike strays
       group.add(tag);
     }

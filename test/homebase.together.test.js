@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { memoryStorage as memStorage } from './helpers/storage.js';
 
 // Menu review #8 (2026-11-20): Play together opens on two big choices, Start a
 // room and Join a room (Play now); the name box sits under Friends and only
@@ -26,10 +27,6 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
 const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression } = await import('../src/progression.js');
 
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
-}
 function fakeEl(doc) {
   const el = {
     ownerDocument: doc, className: '', innerHTML: '', textContent: '', id: '', type: '',

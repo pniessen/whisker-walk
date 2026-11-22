@@ -8,18 +8,11 @@ import { buildCat } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
 import { LADDER } from '../src/render/quality.js';
 import { createFindCard, redressSessionCat, shadowMinPartNow } from '../src/game/findcard.js';
+import { memoryStorage as fakeStorage } from './helpers/storage.js';
 
 // Found outfits step 1, Task 8: the find card. "You found something to
 // wear!", the outfit on her cat, Wear it and Later. It pauses the walk as
 // the crossing card does; Back, or taking the pointer again, is Later.
-
-function fakeStorage() {
-  const map = new Map();
-  return {
-    getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => map.set(k, String(v)),
-  };
-}
 
 function setup({ catalog, own = ['acorncap'], equipCat = null, touch = false } = {}) {
   const progression = createProgression(fakeStorage());

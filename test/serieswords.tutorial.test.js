@@ -27,6 +27,7 @@ import { clanCast } from '../src/clancast.js';
 import { CAT_NAMES, isKittypetName } from '../src/straynames.js';
 import { checkAgainstFixture } from './helpers/serieswords.js';
 import { withStandInWords, leaksIn, standInCount } from './helpers/standinwords.js';
+import { memoryStorage } from './helpers/storage.js';
 
 const FIXTURE = 'series-words-on-tutorial.json';
 const CLANS = Object.keys(HOMES);
@@ -34,10 +35,7 @@ const KEY = 'whisker-walk-save';
 const ME = '11111111-1111-4111-8111-111111111111';
 const STRAY = CAT_NAMES.find((n) => !isKittypetName(n));
 
-function memStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
-}
+const memStorage = (initial) => memoryStorage(initial, { removeItem: true });
 // A cleaned save with these fields over a new one (as test/nextthing.test.js builds them).
 const save = (fields = {}) => createProgression(memStorage({ [KEY]: JSON.stringify({ version: 4, ...fields }) })).state;
 const allWear = Object.keys(CATALOG.accessories);

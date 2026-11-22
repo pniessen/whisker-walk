@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { memoryStorage } from './helpers/storage.js';
 
 // Nearby one-tap joining on the home base: the rows in Play together, the
 // card over home and its place among the other cards, the Join route with and
@@ -26,10 +27,7 @@ const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression } = await import('../src/progression.js');
 const { createNearby, NEARBY_OPTED_KEY } = await import('../src/game/nearby.js');
 
-function memStorage(init = {}) {
-  const map = new Map(Object.entries(init));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), map };
-}
+const memStorage = (initial) => memoryStorage(initial, { expose: 'map' });
 
 function fakeEl(doc) {
   const el = {

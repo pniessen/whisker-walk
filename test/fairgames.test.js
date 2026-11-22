@@ -5,24 +5,13 @@
 // design's anti-goals are each held here: no game has a timer or can be lost,
 // nothing costs coins, nothing chases or frightens the cat, and a visitor is
 // never where the cat is.
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
+import { stubCanvasDocument } from './helpers/canvas.js';
+import { memoryStorage } from './helpers/storage.js';
 
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+stubCanvasDocument();
 
 const { build } = await import('../src/world/fair.js');
 const { createFairSim } = await import('../src/fairsim.js');
@@ -58,10 +47,7 @@ const DT = 1 / 30;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const read = (p) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8');
 const code = (p) => read(p).split('\n').filter((l) => !l.trim().startsWith('//')).map((l) => l.replace(/\/\/.*$/, '')).join('\n');
-const mem = (initial = {}) => {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), map };
-};
+const mem = (initial) => memoryStorage(initial, { expose: 'map' });
 
 // One built Fairground as the walk has it (the flaps' frames are solid too).
 function builtFair() {

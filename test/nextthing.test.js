@@ -4,13 +4,11 @@ import { describe, it, expect } from 'vitest';
 import { nextThing, nextThingHtml, NEXT_ATTR } from '../src/ui/nextthing.js';
 import { createProgression, CATALOG } from '../src/progression.js';
 import { PLACE_WORDS } from '../src/clanwords.js';
+import { memoryStorage } from './helpers/storage.js';
 import { withOffWords } from './helpers/offwords.js';
 
 const KEY = 'whisker-walk-save';
-function memStorage(initial = {}) {
-  const map = new Map(Object.entries(initial));
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
-}
+const memStorage = (initial) => memoryStorage(initial, { removeItem: true });
 // A cleaned save with these fields over a new one.
 const save = (fields = {}) => createProgression(memStorage({ [KEY]: JSON.stringify({ version: 4, ...fields }) })).state;
 const ME = '11111111-1111-4111-8111-111111111111';

@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { readFileSync } from 'node:fs';
 import {
   makeNameTag, fitTagToView, fitBubbleOnRender, TAG_PX_MIN, TAG_PX_MAX, TAG_EDGE_PX, SUB_PX_AT_CAP,
-  TAG_PULL_M, TAG_PULL_SHARE,
+  TAG_PULL_M, TAG_PULL_SHARE, PARTNER_TAG_PX_MIN, PARTNER_TAG_PHONE_PX,
 } from '../src/nametag.js';
 
 // A name tag keeps a readable, capped size on screen whatever its distance,
@@ -365,5 +366,29 @@ describe('the pull toward the camera', () => {
     expect(Number.isFinite(tag.userData.fitTop)).toBe(true);
     tag.onBeforeRender(renderer, null, cam);
     expect(Number.isFinite(tag.userData.fitTop)).toBe(false);
+  });
+});
+
+describe('a partner tag on a phone', () => {
+  const far = (w, h, partner) => {
+    const tag = catWithTag(0, -14);
+    if (partner) tag.userData.partner = true;
+    const cam = camAt([0, 3, 4], [0, 1, -14], { w, h });
+    fitTagToView(tag, cam, w, h);
+    return onScreen(tag, cam, { w, h }).lineH;
+  };
+  it('a far partner tag reads PARTNER_TAG_PX_MIN tall on a phone screen, a plain tag the old minimum', () => {
+    expect(far(390, 844, false)).toBeCloseTo(TAG_PX_MIN, 3);
+    expect(far(390, 844, true)).toBeCloseTo(PARTNER_TAG_PX_MIN, 3);
+    expect(far(844, 390, true)).toBeCloseTo(PARTNER_TAG_PX_MIN, 3);
+  });
+  it('on a desktop screen the partner tag keeps the old look', () => {
+    expect(far(1280, 720, true)).toBeCloseTo(TAG_PX_MIN, 3);
+  });
+  it('the constants are sane, and the co-walk partner tag is the marked one', () => {
+    expect(PARTNER_TAG_PX_MIN).toBeGreaterThan(TAG_PX_MIN);
+    expect(PARTNER_TAG_PX_MIN).toBeLessThanOrEqual(TAG_PX_MAX);
+    expect(PARTNER_TAG_PHONE_PX).toBeGreaterThan(500);
+    expect(readFileSync('src/remotecats.js', 'utf8')).toMatch(/const tag = makeNameTag\(profile\.petName\);\s*if \(tag\) \{\s*tag\.userData\.partner = true;/);
   });
 });
