@@ -27,6 +27,14 @@
 // Speed is measured from her position between frames, as critters.js measures it.
 // update allocates only when something happens (a strike's notes, a find's line).
 // Draws on no stream (D19).
+// Step 4 (W13): on a co-walk the finds watch every cat on the walk, hers first and each
+// partner (a remotecats.js entry, at entry.group.position) after: each its own holds, arming,
+// speed and piano keys, made when the entry is first seen and dropped once a new list no
+// longer holds it (an unchanged list allocates nothing). A find a partner makes pays this
+// child too (awardOnce); the bookcase swings away from the cat whose hold completed; the
+// clock strikes only when it is not striking (n bongs and a second more), so two cats at its
+// foot hear one strike; a partner's cushion purrs at 0.6. A once-only find (the toys, the
+// window) is done for every cat once one has found it. No message, no field.
 
 import { phrase } from '../clanphrases.js';
 import { fadeEntryOf } from '../treefade.js';
@@ -41,6 +49,7 @@ const AWAY = 1; // m past its r she must go before the clock strikes again
 const TUNE = 6; // different keys
 const BONG_HZ = 196;
 const BONG_GAP = 1.1; // s between bongs
+const NONE = Object.freeze([]);
 const SWING = 0.12; // rad: the pendulum's swing, 1 Hz
 const TOYS_S = 0.8;
 const LID_SHARE = 0.4; // of TOYS_S, the lid's tip
@@ -84,7 +93,31 @@ export function createHouseFinds({
   finds, secret = null, colliders = [], parts = {}, log = null, audio = null, reducedMotion = false, now = () => new Date(),
 }) {
   const B = SECRET_BOOKCASE;
-  const state = finds.map((f) => ({ f, hold: 0, armed: true, done: false, ledge: f.ledge ? HOUSE_LEDGES.find((l) => l.id === f.ledge) : null }));
+  const state = finds.map((f) => ({ f, done: false, ledge: f.ledge ? HOUSE_LEDGES.find((l) => l.id === f.ledge) : null }));
+  // a cat watched: its hold and arming at each find, its piano key and keys played (as bits),
+  // where it was last frame (its speed), and how loud its purr is
+  let made = 0;
+  const watcher = (purr) => {
+    made++;
+    return { hold: finds.map(() => 0), armed: finds.map(() => true), key: -1, played: 0, x: 0, z: 0, t: 0, seen: false, purr };
+  };
+  const mine = watcher(1.2);
+  let list = NONE; // the partners' list last seen
+  let theirs = []; // their watchers, in list order
+  let byEntry = new Map();
+  function watch(next) {
+    if (next === list) return;
+    list = next;
+    const was = byEntry;
+    byEntry = new Map();
+    theirs = [];
+    for (const e of next) {
+      const w = was.get(e) ?? watcher(0.6);
+      byEntry.set(e, w);
+      theirs.push(w);
+    }
+  }
+  let strikeLeft = 0; // s the strike now sounding has still to run
   const { pendulum = null, keys = [], lid = null, toys = [] } = parts;
   const pivot = secret?.group ?? null;
   const leaf = pivot?.userData.leaf ?? null;
@@ -92,15 +125,15 @@ export function createHouseFinds({
   let into = 'library'; // the side it swings to: away from her (rough edge 3)
   let swing = -1; // seconds into the bookcase's swing while it swings, else -1
   let tipped = -1; // seconds into the toys' tumble while they tumble, else -1
-  let key = -1; // the key under her paws
-  let played = 0; // the keys played since she stepped up, as bits
-  let lastX = 0, lastZ = 0, lastT = 0, seen = false;
+  let down = 0; // the keys under a cat's paws, as bits
 
   const pay = (id, ...a) => log?.awardOnce('housefind', FIND_KEY(id), SAY[id](...a));
   const onLedge = (l, p) => p.x >= l.minX && p.x <= l.maxX && p.z >= l.minZ && p.z <= l.maxZ && Math.abs(p.y - l.y) <= LEDGE_ON;
 
   function strike() {
+    if (strikeLeft > 0) return;
     const n = now().getHours() % 12 || 12;
+    strikeLeft = n * BONG_GAP + 1.0;
     const notes = [];
     for (let i = 0; i < n; i++) notes.push({ at: i * BONG_GAP, freq: BONG_HZ, dur: 1.0 });
     audio?.playTune(notes);
@@ -153,7 +186,8 @@ export function createHouseFinds({
     }
   }
 
-  function trigger(s, p, dt, speed) {
+  function trigger(i, w, p, dt, speed) {
+    const s = state[i];
     const f = s.f;
     const d = Math.hypot(p.x - f.x, p.z - f.z);
     switch (f.trigger) {
@@ -161,20 +195,20 @@ export function createHouseFinds({
       case 'still':
       case 'secret': {
         if (d > f.r) {
-          s.hold = 0;
-          if (d > f.r + (f.id === 'clock' ? AWAY : 0)) s.armed = true;
+          w.hold[i] = 0;
+          if (d > f.r + (f.id === 'clock' ? AWAY : 0)) w.armed[i] = true;
           return;
         }
-        if (!s.armed || (f.trigger === 'still' && speed >= STILL)) { s.hold = 0; return; }
-        s.hold += dt;
-        if (s.hold < f.holdS) return;
-        s.hold = 0;
-        if (f.id === 'clock') { s.armed = false; strike(); } else if (f.id === 'cushion') {
-          s.armed = false;
-          audio?.purr(1.2);
+        if (!w.armed[i] || (f.trigger === 'still' && speed >= STILL)) { w.hold[i] = 0; return; }
+        w.hold[i] += dt;
+        if (w.hold[i] < f.holdS) return;
+        w.hold[i] = 0;
+        if (f.id === 'clock') { w.armed[i] = false; strike(); } else if (f.id === 'cushion') {
+          w.armed[i] = false;
+          audio?.purr(w.purr);
           pay('cushion');
         } else if (f.trigger === 'secret') {
-          s.armed = false;
+          w.armed[i] = false;
           if (!open) openBookcase(p);
         } else if (!s.done) {
           s.done = true;
@@ -188,14 +222,15 @@ export function createHouseFinds({
         return;
       case 'along': {
         const l = s.ledge;
-        if (!onLedge(l, p)) { key = -1; played = 0; return; }
+        if (!onLedge(l, p)) { w.key = -1; w.played = 0; return; }
         const k = pianoKeyAt(l.minX, l.maxX, p.x);
-        if (k === key) return;
-        key = k;
+        down |= 1 << k;
+        if (k === w.key) return;
+        w.key = k;
         audio?.musicBoxNote(PIANO_SCALE[k]);
-        played |= 1 << k;
+        w.played |= 1 << k;
         let n = 0;
-        for (let b = played; b; b >>= 1) n += b & 1;
+        for (let b = w.played; b; b >>= 1) n += b & 1;
         if (n >= TUNE) pay('piano');
         return;
       }
@@ -212,21 +247,36 @@ export function createHouseFinds({
     return segSeg(cam.x, cam.z, cat.x, cat.z, hx, hz, tx, tz) < B.d / 2 + HOLD_PAD;
   }
 
+  // One cat's frame at every find: its speed from where it was last frame, then the triggers.
+  function look(w, p, dt, t) {
+    let speed = 0;
+    if (w.seen) {
+      const span = t > w.t ? t - w.t : dt;
+      if (span > 0) speed = Math.hypot(p.x - w.x, p.z - w.z) / span;
+    }
+    w.seen = true;
+    w.x = p.x; w.z = p.z; w.t = t;
+    for (let i = 0; i < state.length; i++) trigger(i, w, p, dt, speed);
+  }
+
   return {
     get open() { return open; },
+    get striking() { return strikeLeft > 0; },
+    get watching() { return 1 + theirs.length; },
+    get watchersMade() { return made; }, // every watcher ever made, hers included (a test's count)
     // camPos: the camera, after player.update (house life hands it); without it the leaf's
-    // fade is left to the tree fade alone.
-    update(dt, t, catPos, camPos = null) {
-      let speed = 0;
-      if (seen) {
-        const span = t > lastT ? t - lastT : dt;
-        if (span > 0) speed = Math.hypot(catPos.x - lastX, catPos.z - lastZ) / span;
+    // fade is left to the tree fade alone. partners: the co-walkers (remotecats.js entries).
+    update(dt, t, catPos, camPos = null, partners = NONE) {
+      watch(partners);
+      if (strikeLeft > 0) strikeLeft -= dt;
+      down = 0;
+      look(mine, catPos, dt, t);
+      for (let i = 0; i < list.length; i++) {
+        const e = list[i];
+        if (e.water?.placed !== false) look(theirs[i], e.group.position, dt, t); // not drawn yet: not there
       }
-      seen = true;
-      lastX = catPos.x; lastZ = catPos.z; lastT = t;
-      for (let i = 0; i < state.length; i++) trigger(state[i], catPos, dt, speed);
       if (pendulum) pendulum.rotation.z = reducedMotion ? 0 : SWING * Math.sin(2 * Math.PI * t);
-      for (let i = 0; i < keys.length; i++) keys[i].position.y = i === key ? -DIP : 0;
+      for (let i = 0; i < keys.length; i++) keys[i].position.y = (down >> i) & 1 ? -DIP : 0;
       if (swing >= 0) {
         turnTo((into === 'stair' ? SECRET_STAIR_ROT_Y : SECRET_OPEN_ROT_Y) * ease(Math.min(1, swing / B.openS)));
         if (swing >= B.openS) { // there, it stays open, and she may walk through

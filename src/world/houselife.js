@@ -46,6 +46,11 @@
 // motion) once she is within FRONT_DOOR_NEAR of it, and shut once she is past FRONT_DOOR_FAR.
 // They swing beyond the house's bounds, so never through her: no collider. A local look:
 // nothing sent, no stream. settle (a walk's start) sets it as she stands, with no swing.
+// Task 6 (W12, W13): update's fifth argument is the walk's session (main.js); on a co-walk its
+// partners (session.remotes.list) are watched by the finds and the front door too, and each
+// frame every partner's name tag draws over the walls (no depth test, at HOUSE_TAG_ORDER), so
+// she is seen wherever she is in the house. dispose puts back what each tag had. The walls
+// still sink, and the levels are drawn, for this child's cat alone.
 
 import { makeView, createWallSink, createCellarLid, SINK } from '../housewalls.js';
 import { createLevelDrawing } from '../houselevels.js';
@@ -60,6 +65,8 @@ import { createLedgeGuards, catScale } from './houseguards.js';
 
 const NO_PANES = Object.freeze([]);
 const NO_FADING = Object.freeze([]);
+const NONE = Object.freeze([]);
+export const HOUSE_TAG_ORDER = 20; // a partner's name tag: drawn after the house, over its walls
 export const HOLD_SHY = 0.3; // m: the line stops this short of her middle (her body), toward the camera
 
 // Whether the segment a-b, seen from above, meets the rectangle grown by pad (slab clipping).
@@ -90,17 +97,20 @@ function createFrontDoor(door, reducedMotion) {
     door.left.rotation.y = -a; // the west leaf's meeting edge swings south
     door.right.rotation.y = a;
   };
-  const near = (p) => {
+  const from = (p) => Math.hypot(p.x - HOUSE_FRONT_DOOR.x, p.z - HOUSE_FRONT_DOOR.z);
+  // the nearest cat: hers, or a partner's
+  const near = (p, partners = NONE) => {
     if (!door) return;
-    const d = Math.hypot(p.x - HOUSE_FRONT_DOOR.x, p.z - HOUSE_FRONT_DOOR.z);
+    let d = from(p);
+    for (let i = 0; i < partners.length; i++) d = Math.min(d, from(partners[i].group.position));
     if (d <= FRONT_DOOR_NEAR) open = true;
     else if (d > FRONT_DOOR_FAR) open = false;
   };
   return {
     get open() { return open; },
     settle(p) { near(p); k = open ? 1 : 0; turn(); },
-    update(dt, p) {
-      near(p);
+    update(dt, p, partners) {
+      near(p, partners);
       const step = reducedMotion ? 1 : dt / FRONT_DOOR_S;
       k = open ? Math.min(1, k + step) : Math.max(0, k - step);
       turn();
@@ -148,6 +158,19 @@ export function createHouseLife(scene, house, {
     guards.update(catPos);
   }
   let ballX = 0, ballZ = 0, ballSeen = false;
+  // the partners' name tags, over the walls; what each had first, for dispose
+  const tagRest = new Map();
+  let tagList = NONE;
+  function tags(list) {
+    if (list !== tagList) {
+      tagList = list;
+      for (const e of list) if (e.tag && !tagRest.has(e.tag)) tagRest.set(e.tag, [e.tag.material.depthTest, e.tag.renderOrder]);
+    }
+    for (let i = 0; i < list.length; i++) {
+      const g = list[i].tag;
+      if (g) { g.material.depthTest = false; g.renderOrder = HOUSE_TAG_ORDER; }
+    }
+  }
   const fading = house.fading ?? NO_FADING;
 
   // Each fading piece held solid unless it stands in the camera's line to her (see the top).
@@ -222,7 +245,9 @@ export function createHouseLife(scene, house, {
     finds,
     settle,
     get frontDoorOpen() { return frontDoor.open; },
-    update(dt, t, catPos, camera) {
+    update(dt, t, catPos, camera, session) {
+      const partners = session?.remotes?.list ?? NONE;
+      tags(partners);
       if (!settled) { settle(catPos, camera); return; }
       makeView(catPos, camera.position, CAT_LOOK_Y, view);
       lid?.look(view);
@@ -231,15 +256,16 @@ export function createHouseLife(scene, house, {
       write();
       drawing.update(floorY(catPos));
       air.update(dt, t, drawing.full);
-      finds.update(dt, t, catPos, camera.position); // after the camera's move: the bookcase's fade hold
+      finds.update(dt, t, catPos, camera.position, partners); // after the camera's move: the bookcase's fade hold
       holdFades(catPos, camera.position);
       sound.update(dt, t, catPos);
       keepBall(dt);
       guard(catPos);
-      frontDoor.update(dt, catPos);
+      frontDoor.update(dt, catPos, partners);
     },
     guards,
     dispose() {
+      tagRest.forEach((r, g) => { g.material.depthTest = r[0]; g.renderOrder = r[1]; });
       frontDoor.dispose();
       guards.dispose();
       finds.dispose();
