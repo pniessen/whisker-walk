@@ -232,7 +232,7 @@ describe('the plan of the house', () => {
     expect(isWalkableAt(area, door.arrive.x, door.arrive.z)).toBe(true);
     expect(f.reaches(door.arrive.x, door.arrive.z)).toBe(true);
     expect(roomAt(door.arrive.x, door.arrive.z)).toBe('hall');
-    expect(HOUSE_BOUNDS).toEqual({ minX: -24, maxX: 30, minZ: -16, maxZ: 12 });
+    expect(HOUSE_BOUNDS).toEqual({ minX: -24, maxX: 50, minZ: -16, maxZ: 12 }); // east wing: the kids' room reaches x 48
   });
 });
 
@@ -350,7 +350,8 @@ describe('the furniture', () => {
 
 describe('the lamps', () => {
   it('stands every lamp in its room, its collider in the plan\'s colliders', () => {
-    for (const r of HOUSE_ROOMS) expect(HOUSE_LAMPS.filter((l) => l.room === r.id).length, r.id).toBeGreaterThanOrEqual(r.id === 'cellar' ? 2 : 1);
+    // the wing's raised rooms (kids, bath) are lit by sconces: a 3.4 m lamp pool needs a room 7 m wide
+    for (const r of HOUSE_ROOMS.filter((q) => q.id !== 'kids' && q.id !== 'bath')) expect(HOUSE_LAMPS.filter((l) => l.room === r.id).length, r.id).toBeGreaterThanOrEqual(r.id === 'cellar' ? 2 : 1);
     for (const l of HOUSE_LAMPS) {
       expect(roomAt(l.x, l.z), `${l.room} lamp`).toBe(l.room);
       const c = houseColliders().find((q) => q.x === l.x && q.z === l.z && q.r === LAMP_R);

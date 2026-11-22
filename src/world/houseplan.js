@@ -19,6 +19,11 @@
 // can never drop below the drawn grass (ruling H4).
 
 import { createGround } from '../ground.js';
+import {
+  WING_ROOMS, WING_STAIRS, WING_DOORWAYS, WING_WINDOWS, WING_LAMPS, WING_FURNITURE, WING_ZONES, WING_JOINS, ZONE_NEAR, ZONE_LEAVE,
+} from './housewingplan.js';
+
+export { WING_JOINS, ZONE_NEAR, ZONE_LEAVE };
 
 export const HOUSE_ID = 'house';
 export const BASE_Y = -3;
@@ -52,6 +57,7 @@ export const HOUSE_ROOMS = frozenAll([
   { id: 'bedroom', level: 'upstairs', minX: -8, maxX: 2, minZ: -16, maxZ: -6.4 },
   { id: 'attic', level: 'attic', minX: -24, maxX: -14, minZ: -16, maxZ: -6 },
   { id: 'cellar', level: 'cellar', minX: 20, maxX: 30, minZ: -10, maxZ: 0 },
+  ...WING_ROOMS, // the east wing (housewingplan.js): two rooms on the ground, two upstairs, over the lawn
 ]);
 
 export const HOUSE_STAIRS = frozenAll([
@@ -61,15 +67,19 @@ export const HOUSE_STAIRS = frozenAll([
   // step 2 (ruling D9): the hidden passage, from behind the library's shut bookcase up through
   // the courtyard to the bedroom, 5 m from the back stair's foot. 2.4 m over 8.4 m (0.286).
   { id: 'secret', from: 'ground', to: 'upstairs', x0: -6, z0: 2, x1: -6, z1: -6.4, width: 2.4 },
+  ...WING_STAIRS, // from the solarium up to the kids' room, 8.4 m, 0.286
 ]);
 
-export const LEVEL_LINKS = freeze(HOUSE_STAIRS.map((s) => freeze([s.from, s.to])));
+// The old levels' links (the level drawing's neighbours). The wing's stair is not one: its zones
+// join the old house by position (zoneAt, WING_JOINS), so the old levels draw exactly as before.
+export const LEVEL_LINKS = freeze(HOUSE_STAIRS.filter((s) => !WING_STAIRS.some((w) => w.id === s.id)).map((s) => freeze([s.from, s.to])));
 
 // `axis` is the wall line's fixed coordinate: 'x' means the wall runs along z at x.
 export const HOUSE_DOORWAYS = frozenAll([
   { id: 'hall-library', rooms: freeze(['hall', 'library']), x: -4, z: 7, axis: 'x', width: DOOR_W },
   { id: 'hall-parlour', rooms: freeze(['hall', 'parlour']), x: 4, z: 7, axis: 'x', width: DOOR_W },
   { id: 'parlour-kitchen', rooms: freeze(['parlour', 'kitchen']), x: 9, z: 2, axis: 'z', width: DOOR_W },
+  ...WING_DOORWAYS, // D1 cut in the parlour's east wall, D2 living room to solarium, D4 kids' room to bathroom
 ]);
 
 // `at` is the window's centre along its wall (x for n and s, z for e and w).
@@ -82,9 +92,10 @@ export const HOUSE_WINDOWS = frozenAll([
   win('bedroom', 'n', -3),
   win('attic', 'w', -11, 1.0, 1.2, 2.2, true),
   win('cellar', 'e', -5, 0.8, 1.6, 2.1),
+  ...WING_WINDOWS,
 ]);
 
-export const HOUSE_BOUNDS = freeze({ minX: -24, maxX: 30, minZ: -16, maxZ: 12 });
+export const HOUSE_BOUNDS = freeze({ minX: -24, maxX: 50, minZ: -16, maxZ: 12 });
 
 // ---- the secret bookcase (step 2, ruling D9) ----
 
@@ -165,6 +176,7 @@ export const HOUSE_LAMPS = frozenAll([
   { room: 'attic', kind: 'lantern', x: -18.0, z: -9.6 },
   { room: 'cellar', kind: 'lantern', x: 21.6, z: -1.6 },
   { room: 'cellar', kind: 'lantern', x: 28.4, z: -8.4 },
+  ...WING_LAMPS,
 ]);
 export const LAMP_R = 0.22; // a lamp's collider
 
@@ -319,6 +331,8 @@ export const HOUSE_FURNITURE = frozenAll([
   piece('cellar-web-ne', 'cellar', 'cobweb', 29.9 - WEB / 2, -9.9 + WEB / 2, -Math.PI / 2, WEB, WEB, 0.5, 0),
   piece('cellar-web-se', 'cellar', 'cobweb', 29.9 - WEB / 2, -0.1 - WEB / 2, Math.PI, WEB, WEB, 0.5, 0),
   piece('cellar-web-sw', 'cellar', 'cobweb', 20.1 + WEB / 2, -0.1 - WEB / 2, Math.PI / 2, WEB, WEB, 0.5, 0),
+  // the east wing's pieces (housewingplan.js rows, their level from their room)
+  ...WING_FURNITURE.map((f) => ({ ...f, level: roomById(f.room).level })),
 ]);
 
 // A piece's colliders: circles of its r down the middle of its long side, no
@@ -563,6 +577,26 @@ export function levelAt(x, z) {
 }
 export function stairAt(x, z) {
   for (const s of HOUSE_STAIRS) if (inRect(stairRect(s), x, z)) return s.id;
+  return null;
+}
+
+// ---- zones (the east wing's drawing, houselevels.js) ----
+
+// A room's zone: the wing's rooms name theirs, every old room is its level's.
+export const zoneOfRoom = (r) => r.zone ?? r.level;
+export const HOUSE_ZONES = frozenAll([
+  ...HOUSE_LEVELS.map((l) => ({ id: l.id, level: l.id, wing: false })),
+  ...WING_ZONES.map((z) => ({ id: z.id, level: z.level, wing: true })),
+]);
+const WING_ZONE_IDS = new Set(WING_ZONES.map((z) => z.id));
+export const isWingZone = (id) => WING_ZONE_IDS.has(id);
+const wingStair = HOUSE_STAIRS.find((s) => WING_STAIRS.some((w) => w.id === s.id));
+// The wing zone she is in, by where she stands (not by her paws' height: the wing's floors share
+// heights with the old levels): a wing room's, or on the wing stair the zone of her half of it.
+// null anywhere else, and the old levels read their own height as they always did.
+export function wingZoneAt(x, z) {
+  for (const r of HOUSE_ROOMS) if (r.zone && inRect(r, x, z)) return r.zone;
+  if (inRect(stairRect(wingStair), x, z)) return x < (wingStair.x0 + wingStair.x1) / 2 ? 'east' : 'kids';
   return null;
 }
 
