@@ -1,6 +1,7 @@
 import { DEN_ITEMS, DEN_SPOTS } from './den.js';
 import { isPlainObject } from './plainobject.js';
 import { note } from './diagnostics.js';
+import { useCatKeyBackup, dropCatKeyBackup, applyKeyState } from './catkey.js';
 import { sanitizeCustomCats, sanitizeLook, CUSTOM_IDS, CUSTOM_MAX, CUSTOM_BASE, MORE_SLOTS_PRICE, CUSTOM_PERSONALITIES } from './customcats.js';
 import { sanitizeOutfits, wornNow, canSaveOutfit, nextOutfitId, OUTFIT_SLOTS } from './outfits.js';
 import { sanitizeUsage, bumpUsage, mergeUsage } from './usage.js';
@@ -1351,6 +1352,7 @@ export function createProgression(storage) {
   let state;
   // The farewell line waits here until the UI asks for it (takeFarewell).
   let pendingFarewell = null;
+  let keyChanged = false; // an Undo changed the cat key: see takeKeyChanged
   // Moves the sanitiser added on load wait here for takeNewMoves (R18).
   let pendingMoves = [];
   // A newer version's save is on the main key: leave it be (see loadState).
@@ -2682,6 +2684,7 @@ export function createProgression(storage) {
       } catch (err) {
         console.warn('Whisker Walk: could not write cloud save', err);
         note('cloud', err);
+        return false; // the save on this device is as it was
       }
       adopt(loadState(storage));
       state.visits = Math.max(localVisits, state.visits);
@@ -2716,6 +2719,7 @@ export function createProgression(storage) {
       // A move this phone already had is not new to her.
       pendingMoves = pendingMoves.filter((id) => !localMoves.includes(id));
       save();
+      return true;
     },
     // The backups that exist, for the Cloud save sheet: [{ kind, at, newer,
     // restorable, points, lifetimePoints }]. `at` is ms or null; the numbers
@@ -2745,11 +2749,17 @@ export function createProgression(storage) {
       if (!b || !readableSave(parseOrNull(b.raw))) return false;
       const before = readRaw(storage);
       if (before && before !== b.raw && !writeBackup(storage, 'restore', before)) return false;
+      // Undoing a Load from cloud puts the cat key and the cloud link back with
+      // the save, or none of them (catkey.js). Other kinds leave the key alone.
+      const key = kind === 'cloud' ? useCatKeyBackup(storage) : { ok: true, changed: false, undo: null };
+      if (!key.ok) return false;
+      const putKeyBack = () => { if (key.undo) applyKeyState(storage, key.undo); };
       try {
         storage.setItem(SAVE_KEY, b.raw);
       } catch (err) {
         console.warn('Whisker Walk: could not restore save backup', err);
         note('save', err);
+        putKeyBack();
         return false;
       }
       const loaded = loadState(storage);
@@ -2760,11 +2770,21 @@ export function createProgression(storage) {
           console.warn('Whisker Walk: could not put the save back', err);
           note('save', err);
         }
+        putKeyBack();
         return false;
       }
       if (kind !== 'restore') removeBackup(storage, kind);
+      if (kind === 'cloud') dropCatKeyBackup(storage);
+      if (key.changed) keyChanged = true;
       adopt(loaded);
       return true;
+    },
+    // True once after an Undo that changed this device's cat id or secret: the
+    // page reads both at boot, so the caller reloads. Then false.
+    takeKeyChanged() {
+      const was = keyChanged;
+      keyChanged = false;
+      return was;
     },
     // The one-time gentle line after a retired cat was equipped, then null.
     takeFarewell() {
