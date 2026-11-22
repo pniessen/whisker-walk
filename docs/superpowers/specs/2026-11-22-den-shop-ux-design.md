@@ -145,8 +145,8 @@ Phone fit: the plan fills the top of the sheet (about 320 x 250 px incl. labels)
 
 | Action | Touch | Keyboard | Pad (Standard layout) | TV mode |
 |---|---|---|---|---|
-| Find the Den (home) | tap "🏠 My den" | Tab / click, or `D` hint key? (no: Tab only, no new global key) | d-pad to the button, A | same; glyph hints from `padHtml` |
-| Open shop inside the den | tap "🛋️ Den" HUD button | Esc then... NO: Enter/click on the HUD button via Tab, plus `B` key? Recommend plain key **E**? Not adopted: avoid new keys. HUD button focusable; Esc still pauses as today | **Y/Triangle** on a den walk only | same; `pad.den.hint` becomes "Press ⟦photo⟧ for the 🛋️ Den" via padwords |
+| Find the Den (home) | tap "🏠 My den" | Tab to the button, Enter (no new global key) | d-pad to the button, A | same; glyph hints from `padHtml` |
+| Open shop inside the den | tap "🛋️ Den" HUD button | Tab to the HUD button, Enter (no new key; Esc still pauses as today) | **Y/Triangle** on a den walk only | same; `pad.den.hint` becomes "Press ⟦photo⟧ for the 🛋️ Den" via padwords |
 | Switch Shop / My things tab | tap tab | Left/Right on tab strip, Tab | L1/R1 (tab strip is a `role=tablist`), or d-pad | L1/R1 glyphs |
 | Buy | tap Buy, then Yes | Enter, Enter | A, A | A, A (existing confirm card, already pad-ready) |
 | "Place it now" | tap | Enter (default focus) | A (default focus) | A |
@@ -156,7 +156,7 @@ Phone fit: the plan fills the top of the sheet (about 320 x 250 px incl. labels)
 | Cancel placing (keep piece owned) | tap "Later"/outside | Esc | B | B (`tvHooks.back`, already used by spotlist) |
 | Close panel / walk on | Done | Esc or Done | B on the tabs level, or Start | B |
 
-Pad rules that must hold (from the gamepad-menus design): the panel carries `data-pad-layer`; first focus uses `data-pad-default`; B closes one layer at a time (confirm card, then place mode, then panel) using the same `walkBackAction` ladder (`shopAsk` then `shop`; add a `placing` step); Start still means pause in the walk, and with the panel open it closes the panel (as B). Y inside the den: today Y is `camera` (photo mode); on a den walk with the panel closed Y opens the Den panel and photo mode moves to... the touch/keyboard photo button only. This is an owner decision (question 3).
+Pad rules that must hold (from the gamepad-menus design): the panel carries `data-pad-layer`; first focus uses `data-pad-default`; B closes one layer at a time (confirm card, then place mode, then panel) using the same `walkBackAction` ladder (`shopAsk` then `shop`; add a `placing` step); Start still means pause in the walk, and with the panel open it closes the panel (as B). Y inside the den: today Y is `camera` (photo mode); on a den walk with the panel closed Y opens the Den panel and photo mode stays on the touch and keyboard photo buttons only. This is an owner decision (question 3).
 
 TV mode: the existing `spotlist.js` list card and `padSpots` select-hiding branch are deleted, not extended, because the spot map is plain buttons that already work with spatial pad navigation; `tv.css` only needs sizes for `.dn-spot` (min 96 px at 1080p safe area).
 
