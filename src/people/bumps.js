@@ -43,9 +43,9 @@ export function bumpCircles(look, out = []) {
   return clothCircles(look, 'kneel', out);
 }
 
-// Ruling R32: a skirt, a dress or a coat's skirt follows the kneel's raised
-// thigh (parts.js drapeWeights), so it hangs out past the body's and the
-// knee's circles. Its points as they hang in the person's held pose (the
+// Ruling R32: a skirt, a dress or a coat's skirt follows the thighs (and,
+// below the knee, the shins: parts.js drapeWeights), so in the kneel it
+// hangs out past the body's and the knee's circles over the raised thigh. Its points as they hang in the person's held pose (the
 // kneel; an older person's bow) are sampled round and down the flare; any
 // not CLOTH_IN inside a circle gets one of its own (radius CLOTH x s): the
 // farthest from the body first, its circle set in toward the body so the
@@ -53,31 +53,39 @@ export function bumpCircles(look, out = []) {
 // from the look alone, so co-walkers have the same.
 const ROUND = 32; // samples round a flare
 const DOWN = 3; // samples down each stretch of its profile
-const _q = { pelvis: new THREE.Quaternion(), thighL: new THREE.Quaternion(), thighR: new THREE.Quaternion() };
+const _q = { pelvis: new THREE.Quaternion(), thighL: new THREE.Quaternion(), thighR: new THREE.Quaternion(), shinL: new THREE.Quaternion(), shinR: new THREE.Quaternion() };
 const _e = new THREE.Euler();
 const _v = new THREE.Vector3();
 const _a = new THREE.Vector3();
-const _w = [0, 0, 0];
+const _w = [0, 0, 0, 0, 0];
 function clothCircles(look, mode, out) {
   const flares = flareProfiles(look);
   if (!flares.length) return out;
   const d = look.dims;
   const s = d.s * look.girth;
   const leg = legPose(look, mode);
-  _q.pelvis.setFromEuler(_e.set(leg.pelvisRot[0], leg.pelvisRot[1], leg.pelvisRot[2], 'XYZ'));
-  _q.thighL.setFromEuler(_e.set(leg.thighL[0], leg.thighL[1], leg.thighL[2], 'XYZ'));
-  _q.thighR.setFromEuler(_e.set(leg.thighR[0], leg.thighR[1], leg.thighR[2], 'XYZ'));
+  for (const j of ['pelvisRot', 'thighL', 'thighR', 'shinL', 'shinR']) {
+    _q[j === 'pelvisRot' ? 'pelvis' : j].setFromEuler(_e.set(leg[j][0], leg[j][1], leg[j][2], 'XYZ'));
+  }
   // a point as built, where the held pose puts it (figure frame, x and z):
-  // the pelvis's turn about the hips' middle, each thigh's about its hip
+  // the pelvis's turn about the hips' middle, each thigh's about its hip, a
+  // shin's about its knee (on its thigh)
   const pts = [];
   const place = (x, y, z, hemY) => {
-    drapeWeights(d, hemY, x, y, z, _w);
+    drapeWeights(look, hemY, x, y, z, _w);
     let px = 0, pz = 0;
-    for (let j = 0; j < 3; j++) {
-      if (_w[j] <= 0) continue;
-      const hx = j === 0 ? 0 : j === 1 ? -d.hipX : d.hipX;
+    for (let j = 0; j < 4; j++) {
+      if (_w[j] === 0) continue;
+      const sd = j === 1 ? -1 : j === 2 ? 1 : _w[4] ? 1 : -1;
+      const hx = j === 0 ? 0 : sd * d.hipX;
       _v.set(x - hx, y - d.hipY, z);
-      if (j > 0) _v.applyQuaternion(j === 1 ? _q.thighL : _q.thighR);
+      if (j === 3) {
+        // the shin: about the knee, then the knee carried by the thigh
+        _v.y = y - d.kneeY;
+        _v.applyQuaternion(sd < 0 ? _q.shinL : _q.shinR);
+        _v.y += d.kneeY - d.hipY;
+      }
+      if (j > 0) _v.applyQuaternion(sd < 0 ? _q.thighL : _q.thighR);
       _v.x += hx;
       _v.applyQuaternion(_q.pelvis);
       px += _w[j] * (_v.x + leg.pelvis[0]);

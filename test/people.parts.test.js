@@ -49,11 +49,22 @@ describe('people parts', () => {
           for (let i = 0; i < si.count; i++) {
             expect(si.getX(i)).toBe(JOINT_INDEX[p.joint]);
             if (p.tag === 'flare') {
-              // a flare (R32): the pelvis and, going down, the thighs; the weights add to 1
-              expect([si.getY(i), si.getZ(i), si.getW(i)]).toEqual([JOINT_INDEX.thighL, JOINT_INDEX.thighR, 0]);
-              expect(sw.getX(i) + sw.getY(i) + sw.getZ(i)).toBeCloseTo(1, 6);
-              expect(Math.min(sw.getX(i), sw.getY(i), sw.getZ(i))).toBeGreaterThanOrEqual(0);
-              expect(sw.getW(i)).toBe(0);
+              // a flare (the dress and skirt follow-up): the pelvis, the
+              // thighs and the shin on the point's own side; the weights add
+              // to 1. Only the right thigh's may be below 0, and only on a
+              // grown-up's left half behind (it swings there with the left
+              // leg as the right thigh's swing the other way: parts.js DRAPE)
+              const x = g.getAttribute('position').getX(i);
+              const z = g.getAttribute('position').getZ(i);
+              expect([si.getY(i), si.getZ(i)]).toEqual([JOINT_INDEX.thighL, JOINT_INDEX.thighR]);
+              expect(si.getW(i)).toBe(x > 0 ? JOINT_INDEX.shinR : JOINT_INDEX.shinL);
+              expect(sw.getX(i) + sw.getY(i) + sw.getZ(i) + sw.getW(i)).toBeCloseTo(1, 6);
+              expect(Math.min(sw.getX(i), sw.getY(i), sw.getW(i))).toBeGreaterThanOrEqual(0);
+              if (sw.getZ(i) < 0) {
+                expect(look.kind, `${p.tag} ${x} ${z}`).toBe('adult');
+                expect(x).toBeLessThan(0);
+                expect(z).toBeGreaterThan(0);
+              }
               continue;
             }
             expect([si.getY(i), si.getZ(i), si.getW(i)]).toEqual([0, 0, 0]);
