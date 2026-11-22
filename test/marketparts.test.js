@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { withLocalUuids } from '../src/world/localuuids.js';
 import {
   createMarketAtlas, atlasCell, marketMaterials, createMarketParts, buildTreatMesh, createBubbleTexture, buildBroom, TREAT_KINDS,
-  createCobbleTexture,
+  createCobbleTexture, painted, bloomGeometry, BLOOMS,
 } from '../src/world/marketparts.js';
 import OLD_CELLS from './fixtures/market-atlas-cells.json';
 
@@ -286,5 +286,39 @@ describe('marketparts', () => {
     a.awningSheet(1).addEventListener('dispose', onDispose);
     a.dispose();
     expect(onDispose).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("marketparts' shared drawing helpers (the final review's dedupe)", () => {
+  it('painted(geo, hex): one colour on every vertex, unindexed, the indexed original freed', () => {
+    const box = new THREE.BoxGeometry(1, 1, 1);
+    const freed = vi.fn();
+    box.addEventListener('dispose', freed);
+    const g = painted(box, 0x336699);
+    expect(g).not.toBe(box);
+    expect(g.index).toBeNull();
+    expect(freed).toHaveBeenCalledTimes(1);
+    const c = new THREE.Color(0x336699);
+    const col = g.attributes.color;
+    expect(col.count).toBe(g.attributes.position.count);
+    for (let i = 0; i < col.count; i++) {
+      expect(col.getX(i)).toBeCloseTo(c.r, 6);
+      expect(col.getY(i)).toBeCloseTo(c.g, 6);
+      expect(col.getZ(i)).toBeCloseTo(c.b, 6);
+    }
+    // an unindexed geometry is painted in place
+    const flat = new THREE.BoxGeometry(1, 1, 1).toNonIndexed();
+    expect(painted(flat, 0xffffff)).toBe(flat);
+  });
+
+  it("bloomGeometry: one flower facing up, 20 triangles, in its own colours", () => {
+    expect(BLOOMS.length).toBeGreaterThanOrEqual(5);
+    const [petal, middle] = BLOOMS[0];
+    const g = bloomGeometry(petal, middle);
+    expect(g.attributes.position.count / 3).toBe(20);
+    g.computeBoundingBox();
+    expect(g.boundingBox.max.x).toBeCloseTo(0.5, 6);
+    expect(g.attributes.color).toBeTruthy();
+    expect(g.attributes.normal).toBeTruthy();
   });
 });

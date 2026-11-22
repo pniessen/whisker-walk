@@ -33,6 +33,11 @@
 // curated fallTo, propsets.js), about twelve flat petals lie in a ring round
 // it. One merged mesh, hidden until shown, casting nothing.
 //
+// THE BUCKET'S BLOOMS (createBucketBlooms). A bunch of six flowers on short
+// stems (marketparts.js's bloomGeometry, the tubs' own flower) standing in the
+// flower stall's bucket. One mesh the life puts in the knockable's own group,
+// so it falls with the bucket and lies where it lies; casting nothing.
+//
 // No Math.random, no clock: everything here is hash01 and walk seconds.
 // =============================================================================
 import * as THREE from 'three';
@@ -41,6 +46,7 @@ import { hash01 } from './warehouselook.js';
 import { isWalkableAt } from '../player.js';
 import { withLocalUuids } from './localuuids.js';
 import { FRUIT_CRATE } from './marketplan.js';
+import { painted, bloomGeometry, BLOOMS } from './marketparts.js';
 
 export const MARKET_APPLE_SALT = 113;
 export const MARKET_PETAL_SALT = 127;
@@ -61,16 +67,6 @@ const POST_WOOD = 0x8a6238;
 const APPLE_REDS = Object.freeze([0xc8322a, 0xd9452e, 0xb02a24, 0x9fbf3a, 0xd23c2c, 0xa8c040]);
 
 const _c = new THREE.Color();
-function painted(geo, hex) {
-  const g = geo.index ? geo.toNonIndexed() : geo;
-  if (g !== geo) geo.dispose();
-  _c.setHex(hex);
-  const n = g.attributes.position.count;
-  const col = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) col.set([_c.r, _c.g, _c.b], i * 3);
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  return g;
-}
 const boxAt = (w, h, d, x, y, z, hex) => painted(new THREE.BoxGeometry(w, h, d).translate(x, y, z), hex);
 
 // buildAppleCrate() -> THREE.Group: a slatted crate heaped with apples, one
@@ -242,7 +238,7 @@ export function createApples(scene, paths, { reducedMotion = false } = {}) {
 // createPetals(scene, at) -> { show(), mesh, dispose() }: about twelve flat
 // petals in a ring round `at` (x, z, and the height of what it lies on, y),
 // r <= 0.6, none under the thing itself. One merged mesh, hidden until shown.
-const PETALS = Object.freeze({ n: 12, inner: 0.22, outer: 0.54, len: 0.075, wide: 0.045 });
+const PETALS = Object.freeze({ n: 12, inner: 0.24, outer: 0.52, len: 0.13, wide: 0.08 }); // outer + len / 2 <= 0.6
 const PETAL_COLOURS = Object.freeze([0xf2a0c0, 0xfff6ee, 0xf6d04d, 0xd8433c, 0xb48ad8]);
 export function createPetals(scene, at) {
   const { n, inner, outer, len, wide } = PETALS;
@@ -301,4 +297,59 @@ function petalMesh(pos, col, idx) {
   mesh.userData.noCast = true;
   mesh.visible = false;
   return { geo, mat, mesh };
+}
+
+// createBucketBlooms() -> { mesh, dispose() }: six flowers on stems, in the
+// bucket's own frame (knockables.js's bucket: a tin 0.2 m high, 0.13 m round
+// at its mouth, its handle arching over it in x-y), their heads a hand over
+// the rim and inside its width, each leaning a little out. Under 300
+// triangles. The caller puts `mesh` in the bucket's group; dispose takes it
+// out and frees it.
+const BUCKET_BLOOMS = Object.freeze([
+  // x, z, the head's height, the flower's size (m), a BLOOMS row
+  [-0.05, 0.035, 0.29, 0.085, 0], [0.05, 0.04, 0.3, 0.08, 2], [0.0, -0.045, 0.31, 0.09, 1],
+  [-0.06, -0.035, 0.27, 0.075, 3], [0.065, -0.03, 0.28, 0.08, 6], [0.0, 0.03, 0.35, 0.09, 4],
+]);
+const BLOOM_STEM = 0x4f8f3e;
+const BLOOM_UP = new THREE.Vector3(0, 1, 0);
+export function createBucketBlooms() {
+  return withLocalUuids('market-bucket-blooms', () => {
+    const parts = [];
+    const q = new THREE.Quaternion();
+    const sc = new THREE.Vector3();
+    const m = new THREE.Matrix4();
+    for (const [x, z, y, size, row] of BUCKET_BLOOMS) {
+      const head = new THREE.Vector3(x, y, z);
+      const foot = new THREE.Vector3(x * 0.4, 0.1, z * 0.4);
+      const dir = head.clone().sub(foot);
+      const stem = painted(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), BLOOM_STEM);
+      stem.deleteAttribute('uv');
+      stem.applyMatrix4(m.compose(foot, q.setFromUnitVectors(BLOOM_UP, dir.clone().normalize()), sc.set(0.008, dir.length(), 0.008)));
+      parts.push(stem);
+      const face = new THREE.Vector3(x * 3, 1, z * 3).normalize();
+      const [petal, middle] = BLOOMS[row % BLOOMS.length];
+      const bloom = bloomGeometry(petal, middle);
+      bloom.applyMatrix4(m.compose(head, q.setFromUnitVectors(BLOOM_UP, face), sc.set(size, size, size)));
+      parts.push(bloom);
+    }
+    const geo = mergeGeometries(parts);
+    for (const g of parts) g.dispose();
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.name = 'marketBucketBlooms';
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    mesh.userData.noCast = true;
+    let gone = false;
+    return {
+      mesh,
+      dispose() {
+        if (gone) return;
+        gone = true;
+        mesh.removeFromParent();
+        geo.dispose();
+        mat.dispose();
+      },
+    };
+  });
 }

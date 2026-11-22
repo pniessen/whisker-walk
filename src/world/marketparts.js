@@ -15,6 +15,70 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 // Pictures only, never letters (M12).
 // =============================================================================
 
+// ---------------------------------------------------------------------------
+// Shared drawing helpers for the Market chunk's own meshes (marketfruit.js,
+// marketfolk.js, market.js, marketlife.js).
+// painted(geo, hex) -> geo's unindexed form (an indexed geo is freed) with one
+// vertex colour, hex, on every vertex.
+const _paint = new THREE.Color();
+export function painted(geo, hex) {
+  const g = geo.index ? geo.toNonIndexed() : geo;
+  if (g !== geo) geo.dispose();
+  _paint.setHex(hex);
+  const n = g.attributes.position.count;
+  const col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    col[i * 3] = _paint.r;
+    col[i * 3 + 1] = _paint.g;
+    col[i * 3 + 2] = _paint.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+// The square's flowers (step 3, V11: the tubs' blooms; the flower stall's
+// bucket carries a bunch too), [petals, middle].
+export const BLOOMS = Object.freeze([
+  [0xe8528a, 0xf7d64a], [0xf5cf3a, 0xe07a1c], [0xf8f4ea, 0xf2c230], [0x9a5fd0, 0xf6e7a0],
+  [0xdc3a33, 0x3a2a24], [0xf28a26, 0xf8dc5a], [0xf0a6d2, 0xfff4d0],
+]);
+const SEPAL_GREEN = 0x3f7a35;
+// One flower, 1 across, facing +y, its own colours: five petals round a cup
+// (a ring of tips and notches), the middle sunk a little; under it a green
+// sepal narrowing to the stem. Flat faces, 20 triangles.
+export function bloomGeometry(petal, middle) {
+  const P = new THREE.Color(petal);
+  const Pd = P.clone().multiplyScalar(0.78);
+  const Mi = new THREE.Color(middle);
+  const G = new THREE.Color(SEPAL_GREEN);
+  const ring = Array.from({ length: 10 }, (_, j) => {
+    const a = (j * Math.PI) / 5;
+    const r = j % 2 ? 0.25 : 0.5;
+    return new THREE.Vector3(r * Math.cos(a), j % 2 ? 0 : 0.08, r * Math.sin(a));
+  });
+  const mid = new THREE.Vector3(0, -0.05, 0);
+  const base = new THREE.Vector3(0, -0.3, 0);
+  const pos = [];
+  const col = [];
+  const tri = (a, ca, b, cb, c, cc, up) => {
+    // wound so the face looks up (the petals' tops) or out (their undersides)
+    const n = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a));
+    const out = up ? n.y > 0 : n.dot(new THREE.Vector3(a.x + b.x + c.x, 0, a.z + b.z + c.z)) > 0;
+    const v = out ? [[a, ca], [b, cb], [c, cc]] : [[a, ca], [c, cc], [b, cb]];
+    for (const [p, q] of v) { pos.push(p.x, p.y, p.z); col.push(q.r, q.g, q.b); }
+  };
+  for (let j = 0; j < 10; j++) {
+    const a = ring[j];
+    const b = ring[(j + 1) % 10];
+    tri(mid, Mi, a, P, b, P, true);
+    tri(base, G, a, Pd, b, Pd, false);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  return g;
+}
+
 // 8 x 4 cells of 32 px (step 3, V11: it was 4 x 4; cells 0-15 keep their pictures)
 const ATLAS_COLS = 8;
 const ATLAS_ROWS = 4;

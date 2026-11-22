@@ -19,13 +19,17 @@
 // THE PETALS (V2). It watches session.knockables for the flower stall's
 // bucket (MARKET_BUCKET_ID) to land (down, its fall played out), on either
 // screen, and then shows the petals, made at the start, hidden, round the
-// bucket's curated landing spot. Once.
+// bucket's curated landing spot. Once. The bucket holds a bunch of blooms
+// (marketfruit.js createBucketBlooms), put in the knockable's own group the
+// first frame it sees it, so they fall with it.
 //
 // THE STREET MUSICIAN (V7, world/marketfolk.js). When the walk hands it the
 // people factory (ctx.people, the pack's createPeopleKit), it stands one
 // person at the plan's pitch (MUSICIAN), built through the one figure
 // function the stallholders use, bowing a fiddle on the walk's seconds. They
-// never move. No factory (the picture pages, the plain tests): nobody.
+// never move. No factory (the picture pages, the plain tests): nobody. Each
+// frame they are near or far detail by her distance (ctx.lodNear, the live
+// rung's near distance, comes with the factory; the figure's switch).
 //
 // THE SOUNDS (V9, world/marketsound.js). When the walk hands it the game's
 // audio (ctx.audio), the tune by the musician, the pigeons' coos (the walk's
@@ -35,9 +39,9 @@
 // game is muted.
 //
 // THE SIX FINDS (V6, world/marketfinds.js findAt). Every frame it fills one
-// spot from her paws (catPos), the session (rest, perched, the cat's heading,
-// the player's speed: session.player?.speed, else her paws' own speed over
-// the frame, a perch snap or a respawn not counted), how long she has stood
+// spot from her paws (catPos), the session (rest, perched, the cat's heading),
+// her paws' own speed over the frame (a perch snap or a respawn not counted:
+// the walk's session holds no player, so this is the speed), how long she has stood
 // still, a pigeon taking off near her this frame, and the apple crate going
 // over this frame, and asks findAt which of the six she is at. A find not yet
 // seen this walk is noted on her save (noteMarketFind: the first time ever
@@ -73,7 +77,7 @@
 // =============================================================================
 import { setMarketDusk } from './market.js';
 import { MARKET_REGISTRATION, marketArea, MUSICIAN, PIGEON_PATCH, TREAT_STALLS, stallById } from './marketplan.js';
-import { applePaths, createApples, createPetals } from './marketfruit.js';
+import { applePaths, createApples, createPetals, createBucketBlooms } from './marketfruit.js';
 import { createMusician } from './marketfolk.js';
 import { createMarketSound, BELL } from './marketsound.js';
 import { loudness } from './roofssound.js';
@@ -117,6 +121,8 @@ export function createMarketLife(area, ctx = {}) {
   const crateAt = area?.anchors?.apples ?? null;
   const bucketRow = MARKET_REGISTRATION.propSet.knockables.find((k) => k.id === MARKET_BUCKET_ID);
   let petals = scene && bucketRow ? createPetals(scene, bucketRow.fallTo) : null;
+  let blooms = scene && bucketRow ? createBucketBlooms() : null;
+  let bloomsIn = false;
   let apples = null;
   let crate = null;
   let bucket = null;
@@ -124,7 +130,7 @@ export function createMarketLife(area, ctx = {}) {
   let disposed = false;
   const people = typeof ctx.people === 'function' ? ctx.people : null;
   let musician = scene && people
-    ? createMusician(scene, MUSICIAN, { people, reducedMotion, y: ctx.ground?.y?.(MUSICIAN.x, MUSICIAN.z) })
+    ? createMusician(scene, MUSICIAN, { people, lodNear: ctx.lodNear, reducedMotion, y: ctx.ground?.y?.(MUSICIAN.x, MUSICIAN.z) })
     : null;
   // the walk's pigeons (critters.js): birds whose spawn reads as a pigeon
   const pigeons = (ctx.critters?.list ?? []).filter((c) => c?.type === 'bird' && c.def?.labelAs === 'pigeon');
@@ -149,7 +155,9 @@ export function createMarketLife(area, ctx = {}) {
   const rockFrom = bicycle ? bicycle.rotation.x : 0;
   let rockT = -1; // seconds into a rock, or -1
   let inBasket = false;
-  const partnersIn = new Set(); // remotes' entries in the basket now
+  const partnersIn = new Set(); // remotes' entries in the basket now (a partner who left is dropped)
+  let listNow = null; // the remotes' list this frame, for dropGone
+  const dropGone = (e) => { if (!listNow || !listNow.includes(e)) partnersIn.delete(e); };
 
   function stillness(dt, p, resting) {
     const moved = !restAt.set || Math.hypot(p.x - restAt.x, p.y - restAt.y, p.z - restAt.z) >= STILL_EPS;
@@ -165,9 +173,8 @@ export function createMarketLife(area, ctx = {}) {
     restWas = resting;
   }
 
-  // her speed: the player's, or her paws' over the frame (a snap keeps the last)
-  function speedOf(dt, p, session) {
-    const given = session?.player?.speed;
+  // her speed: her paws' over the frame (a snap keeps the last)
+  function speedOf(dt, p) {
     if (last.set && dt > 0) {
       const v = Math.hypot(p.x - last.x, p.z - last.z) / dt;
       if (v <= SNAP_SPEED) last.speed = v;
@@ -175,7 +182,7 @@ export function createMarketLife(area, ctx = {}) {
     last.x = p.x;
     last.z = p.z;
     last.set = true;
-    return Number.isFinite(given) ? given : last.speed;
+    return last.speed;
   }
 
   // the nearest pigeon that took off this frame, within 3 m or not (findAt judges)
@@ -226,6 +233,8 @@ export function createMarketLife(area, ctx = {}) {
     }
     inBasket = now;
     const list = session?.remotes?.list;
+    listNow = Array.isArray(list) ? list : null;
+    if (partnersIn.size) partnersIn.forEach(dropGone); // gone from the room: no longer in it
     if (!list) return;
     for (let i = 0; i < list.length; i++) {
       const e = list[i];
@@ -245,6 +254,7 @@ export function createMarketLife(area, ctx = {}) {
     update(dt, t, catPos = null, camera = null, session = null) {
       if (disposed) return;
       musician?.update(t);
+      if (musician && catPos) musician.detail(Math.hypot(catPos.x - MUSICIAN.x, catPos.z - MUSICIAN.z));
       sound?.update(dt, catPos, t);
       crate ??= findBy(session?.tippables?.list, 'kind', CRATE_KIND);
       const tippedNow = !!crate?.tipped;
@@ -259,7 +269,7 @@ export function createMarketLife(area, ctx = {}) {
         spot.x = catPos.x;
         spot.y = catPos.y;
         spot.z = catPos.z;
-        spot.speed = speedOf(dt, catPos, session);
+        spot.speed = speedOf(dt, catPos);
         spot.perched = session?.perched ?? null;
         spot.rest = session?.rest ?? null;
         spot.yaw = session?.cat?.rotation?.y ?? null;
@@ -278,6 +288,13 @@ export function createMarketLife(area, ctx = {}) {
         }
       }
       apples?.update(dt);
+      if (blooms && !bloomsIn) {
+        bucket ??= findBy(session?.knockables?.list, 'id', MARKET_BUCKET_ID);
+        if (bucket?.group) {
+          bucket.group.add(blooms.mesh);
+          bloomsIn = true;
+        }
+      }
       if (petals && !shown) {
         bucket ??= findBy(session?.knockables?.list, 'id', MARKET_BUCKET_ID);
         if (bucket?.down && bucket.anim <= 0) {
@@ -293,10 +310,12 @@ export function createMarketLife(area, ctx = {}) {
       if (bicycle) bicycle.rotation.x = rockFrom;
       apples?.dispose();
       petals?.dispose();
+      blooms?.dispose();
       musician?.dispose();
       sound?.dispose();
       apples = null;
       petals = null;
+      blooms = null;
       musician = null;
       sound = null;
     },

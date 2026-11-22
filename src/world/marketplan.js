@@ -57,6 +57,7 @@
 // treat counter's watch zone and its hide, so they never blur a stallholder's
 // rhythm; her own cat ignores keepOut (isWalkableAt does not read it).
 
+import { phrase } from '../clanphrases.js';
 const freeze = Object.freeze;
 const pt = (x, z) => freeze({ x, z });
 
@@ -224,7 +225,7 @@ const CLUTTER_RAW = [
   ['stack-w', 'stack', -17.5, 12, 0.3], ['stack-e', 'stack', 16.5, 13, -0.2], ['stack-fruit', 'stack', 3.4, -18, 0.1],
   ['board', 'board', 4.8, 21.9, Math.PI], // its face to the square (-z)
   ['bicycle', 'bicycle', 9, 22.72, 0],
-  ['chalkboard', 'chalkboard', -6.45, 22.55, Math.PI - 0.35], // its face to the square, turned toward the spawn
+  ['chalkboard', 'chalkboard', -6.9, 22.55, Math.PI - 0.35], // its face to the square, turned toward the spawn; beside the east window board, not in front of it
   ['barrow-mid', 'barrow', 3.6, 13.6, 0.9], ['stack-mid', 'stack', -3.6, 10.4, 0.2],
   ['bench-sw', 'bench', -9.2, 9.6, 0], ['stack-sw', 'stack', -14, 7.6, -0.3], ['tub-sw-mid', 'tub', -11.6, 12.4, 0],
 ];
@@ -345,7 +346,7 @@ export function marketArea() {
     spawn: MARKET_SPAWN,
     colliders: MARKET_COLLIDERS,
     waters: [],
-    perches: MARKET_PERCHES,
+    perches: MARKET_PERCHES.map((p) => ({ ...p })),
     pois: MARKET_POIS,
     collectibles: MARKET_COLLECTIBLES,
     keepOut: MARKET_KEEPOUT,
@@ -473,9 +474,13 @@ const PROP_ROWS = {
 // stack's middle, so a bare hop down sets her outside it), then the awning, at the
 // sheet's own height over the counter's end by the crates (0.3 m in from the end,
 // about 0.95 m from the crates: in reach both ways, so from the awning the button
-// is the crates again, and clear of the stallholder under it). The four treat stalls' awnings are lookouts, plainly named.
+// is the crates again, and clear of the stallholder under it). The four treat stalls' awnings are lookouts, plainly named:
+// each name from the phrase table (src/clanphrases.js, the same in both word sets), read when it is shown.
 const ROOF_LABELS = freeze({
-  fish: 'the fish stall’s awning', baker: 'the baker’s awning', cheese: 'the cheese stall’s awning', milk: 'the milk cart’s awning',
+  fish: () => phrase('market.perch.fish'),
+  baker: () => phrase('market.perch.baker'),
+  cheese: () => phrase('market.perch.cheese'),
+  milk: () => phrase('market.perch.milk'),
 });
 function stallPerches(s) {
   const side = -s.hideSide;
@@ -485,10 +490,15 @@ function stallPerches(s) {
   const rlz = Math.max(lz, -s.d / 2 - AWNING.back + 0.25); // on the sheet (the milk cart's crates stand behind it)
   const roof = fromStall(s, rlx, rlz);
   const label = ROOF_LABELS[s.id];
+  const top = { x: r2(roof.x), z: r2(roof.z), y: r2(awningHeight(s, rlx, rlz)), kind: 'roof' };
+  if (label) {
+    Object.defineProperty(top, 'label', { enumerable: true, get: label });
+    top.vantage = true;
+  }
   return {
     stack: CLIMB_STACKS.find((c) => c.stall === s.id),
     crate: freeze({ x: r2(crate.x), z: r2(crate.z), y: CLIMB_STACK.h, kind: 'crate' }),
-    roof: freeze({ x: r2(roof.x), z: r2(roof.z), y: r2(awningHeight(s, rlx, rlz)), kind: 'roof', ...(label ? { label, vantage: true } : {}) }),
+    roof: freeze(top),
   };
 }
 const CLIMBS = Object.fromEntries(STALLS.filter((s) => s.w > 0).map((s) => [s.id, freeze(stallPerches(s))]));

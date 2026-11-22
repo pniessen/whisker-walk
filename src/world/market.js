@@ -5,7 +5,7 @@ import { litMaterial, surfaceMaterialNoMap, tileMetres } from '../render/materia
 import { getTextureAnisotropy } from '../render/textures.js';
 import { withLocalUuids } from './localuuids.js';
 import { hash01 } from './warehouselook.js';
-import { createMarketParts, marketMaterials, atlasCell, buildTreatMesh, createCobbleTexture, ATLAS_W, ATLAS_H } from './marketparts.js';
+import { createMarketParts, marketMaterials, atlasCell, buildTreatMesh, createCobbleTexture, bloomGeometry, BLOOMS, ATLAS_W, ATLAS_H } from './marketparts.js';
 import { buildAppleCrate } from './marketfruit.js';
 import { createMarketLife } from './marketlife.js';
 import {
@@ -194,7 +194,7 @@ export const MARKET_ANCHORS = Object.freeze({
   // the crate of apples at the fruit stall's end: a tippable (the record's row, drawn by
   // marketfruit.js), solid in the plan; y the drawn crate's height
   apples: Object.freeze({ ...fromStall(FRUIT, FRUIT_CRATE.lx, FRUIT_CRATE.lz), y: FRUIT_CRATE.h }),
-  // the bench facing the fountain (drawn here, MARKET_CLUTTER; step 3 makes it a perch): its seat
+  // the bench facing the fountain (drawn here, MARKET_CLUTTER; not a perch: she walks under its seat): its seat
   bench: Object.freeze({ x: BENCH_AT.x, z: BENCH_AT.z, y: BENCH_SEAT_Y }),
   // the bicycle on its stand by the south row (drawn here, MARKET_CLUTTER): the centre of
   // its basket, as drawn (its yaw is 0: the basket is basketX east of it, leaning to the
@@ -508,7 +508,7 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       tippables: [{ x: MARKET_ANCHORS.apples.x, z: MARKET_ANCHORS.apples.z, kind: 'applecrate', build: buildAppleCrate }],
       // V5 (step 3): up the crates onto every awning, the flower trestle, the bicycle's
       // basket, the two crate stacks' tops and the café tables (marketplan.js)
-      perches: MARKET_PERCHES,
+      perches: MARKET_PERCHES.map((p) => ({ ...p })), // the walk's own copy (walk.js may push into it), as roofs.js gives
       // U5: strays come as anywhere, kept off the counters' zones and the hides
       keepOut: MARKET_KEEPOUT,
       // one display treat per treat stall and the café (step 2 hides and shows them)
@@ -852,50 +852,11 @@ const NOTES = Object.freeze([0xf3ead2, 0xe8d36a, 0xa9cfdc, 0xe7a5b5, 0xffffff]);
 // The flower tubs' blooms (step 3, V11): 5-7 a tub, [petals, middle], and their stems.
 const TUB_BLOOMS = Object.freeze({ min: 5, max: 7 });
 const TUB_SALT = 173;
-const BLOOMS = Object.freeze([
-  [0xe8528a, 0xf7d64a], [0xf5cf3a, 0xe07a1c], [0xf8f4ea, 0xf2c230], [0x9a5fd0, 0xf6e7a0],
-  [0xdc3a33, 0x3a2a24], [0xf28a26, 0xf8dc5a], [0xf0a6d2, 0xfff4d0],
-]);
 const STEM_GREEN = 0x4f8f3e;
 const LEAF_GREEN = 0x2f5e2c;
-const SEPAL_GREEN = 0x3f7a35;
 const UP = new THREE.Vector3(0, 1, 0);
-// One flower, 1 across, facing +y, its own colours: five petals round a cup
-// (a ring of tips and notches), the middle sunk a little; under it a green
-// sepal narrowing to the stem. Flat faces, 20 triangles.
-function bloomGeometry(petal, middle) {
-  const P = new THREE.Color(petal);
-  const Pd = P.clone().multiplyScalar(0.78);
-  const Mi = new THREE.Color(middle);
-  const G = new THREE.Color(SEPAL_GREEN);
-  const ring = Array.from({ length: 10 }, (_, j) => {
-    const a = (j * Math.PI) / 5;
-    const r = j % 2 ? 0.25 : 0.5;
-    return new THREE.Vector3(r * Math.cos(a), j % 2 ? 0 : 0.08, r * Math.sin(a));
-  });
-  const mid = new THREE.Vector3(0, -0.05, 0);
-  const base = new THREE.Vector3(0, -0.3, 0);
-  const pos = [];
-  const col = [];
-  const tri = (a, ca, b, cb, c, cc, up) => {
-    // wound so the face looks up (the petals' tops) or out (their undersides)
-    const n = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a));
-    const out = up ? n.y > 0 : n.dot(new THREE.Vector3(a.x + b.x + c.x, 0, a.z + b.z + c.z)) > 0;
-    const v = out ? [[a, ca], [b, cb], [c, cc]] : [[a, ca], [c, cc], [b, cb]];
-    for (const [p, q] of v) { pos.push(p.x, p.y, p.z); col.push(q.r, q.g, q.b); }
-  };
-  for (let j = 0; j < 10; j++) {
-    const a = ring[j];
-    const b = ring[(j + 1) % 10];
-    tri(mid, Mi, a, P, b, P, true);
-    tri(base, G, a, Pd, b, Pd, false);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.computeVertexNormals();
-  return g;
-}
+// (the flowers themselves, bloomGeometry and BLOOMS, are marketparts.js's: the flower stall's
+// bucket in marketlife.js carries a bunch of them too)
 // The café's A-frame chalkboard: `h` high at its hinge, `w` wide, each board
 // `tilt` off upright; its slate is atlas cell 16 (marketparts.js).
 const CHALKBOARD = Object.freeze({ h: 0.86, w: 0.52, tilt: 0.24, cell: 16 });

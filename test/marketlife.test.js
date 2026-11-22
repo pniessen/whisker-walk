@@ -4,7 +4,7 @@ import * as THREE from 'three';
 // =============================================================================
 // The Market's life finds the six (Market step 3, Task 6): a built square, a
 // stand-in for the walk's session (what the life reads: rest, perched, the
-// player's speed, the cat's heading, the tippables, the knockables, the
+// cat's heading, the tippables, the knockables, the
 // remotes) and the walk's own critters (critters.js, the square's spawns).
 // Each find is noted on her own save the first time it is found on a walk;
 // the bicycle rocks and rings its bell when she lands in its basket.
@@ -20,7 +20,8 @@ const { createKnockables } = await import('../src/knockables.js');
 const { createCritters } = await import('../src/critters.js');
 const { createProgression } = await import('../src/progression.js');
 const { createDiscoveryLog } = await import('../src/discoveries.js');
-const { createPeopleKit } = await import('../src/people/index.js');
+const { createPeopleKit, LOD, lodNearFor } = await import('../src/people/index.js');
+const { LOW_RUNG } = await import('../src/render/quality.js');
 const { mulberry32 } = await import('../src/rng.js');
 const { bus } = await import('../src/events.js');
 const { createRests, REST_REACH } = await import('../src/rests.js');
@@ -73,7 +74,7 @@ const peakOf = (o) => Math.max(0, ...o.connections[0].gain.events.map((e) => (Nu
 // One device's walk in the square: the build, the session the life reads,
 // the walk's critters (the square's own spawns, on a seeded stream) and the
 // life made the way walk.js makes it (area.life(ctx)).
-function square({ log = null, progression = null, people = null, audio = null, reducedMotion = false, critters: withCritters = true } = {}) {
+function square({ log = null, progression = null, people = null, audio = null, reducedMotion = false, critters: withCritters = true, lodNear } = {}) {
   const scene = new THREE.Scene();
   const area = build(scene);
   const cat = new THREE.Object3D();
@@ -81,13 +82,12 @@ function square({ log = null, progression = null, people = null, audio = null, r
     cat,
     rest: null,
     perched: null,
-    player: { speed: 0 },
     tippables: createTippables(scene, area.tippables),
     knockables: createKnockables(scene, MARKET_REGISTRATION.propSet.knockables),
     remotes: { list: [] },
   };
   const critters = withCritters ? createCritters(scene, area.critterSpawns, { rng: mulberry32(7), motionRng: mulberry32(11) }) : null;
-  const life = area.life({ scene, critters, log, progression, people, audio, reducedMotion });
+  const life = area.life({ scene, critters, log, progression, people, audio, reducedMotion, ...(lodNear ? { lodNear } : {}) });
   const w = { scene, area, cat, session, critters, life, t: 0 };
   w.at = (x, z, yaw = cat.rotation.y) => { cat.position.set(x, 0, z); cat.rotation.y = yaw; };
   // n frames: `each(w)` first (move her), then what main.js runs before the life
@@ -114,6 +114,30 @@ function drinkAt(w, p, yaw) {
 }
 const DRINK = { x: A.fountain.x, z: A.fountain.z + 0.4 };
 const LISTEN = { x: MUSICIAN.x + 0.9, z: MUSICIAN.z + 1.2 };
+
+describe("the musician's detail by her distance (the final review's LOD switch)", () => {
+  it('far from the spawn, near when she listens, and the switch follows the rung', () => {
+    for (const [lodNear, at9] of [[undefined, 'near'], [() => lodNearFor(0), 'near'], [() => lodNearFor(LOW_RUNG), 'far']]) {
+      const w = square({ people: createPeopleKit, critters: false, lodNear });
+      const person = w.life.musician.figure.person;
+      w.at(w.area.spawn.x, w.area.spawn.z);
+      w.frames(1);
+      expect(Math.hypot(w.area.spawn.x - MUSICIAN.x, w.area.spawn.z - MUSICIAN.z)).toBeGreaterThan(LOD.NEAR + LOD.HYSTERESIS);
+      expect(person.detail).toBe('far');
+      w.at(LISTEN.x, LISTEN.z);
+      w.frames(1);
+      expect(person.detail).toBe('near');
+      // 9 m off: in the high rung's near reach, out of a low rung's
+      w.at(MUSICIAN.x, MUSICIAN.z + 9);
+      w.frames(1);
+      expect(person.detail, String(lodNear)).toBe(at9);
+      w.at(w.area.spawn.x, w.area.spawn.z);
+      w.frames(1);
+      expect(person.detail).toBe('far');
+      w.life.dispose();
+    }
+  });
+});
 
 describe('the Market life finds the six', () => {
   it('drinking at the fountain writes its page once a walk', () => {
@@ -191,12 +215,11 @@ describe('the Market life finds the six', () => {
 
   it('running at the pigeons scatters them and finds them', () => {
     const pigeonsOf = (w) => w.critters.list.filter((c) => c.def.labelAs === 'pigeon');
-    // from 6 m west of their patch, east toward it: running (2 m/s), walking (1 m/s),
-    // and running with no player in the session (her speed from her paws)
-    for (const [speed, player, finds] of [[2, true, true], [1, true, false], [2, false, true]]) {
+    // from 6 m west of their patch, east toward it: running (2 m/s), walking (1 m/s);
+    // her speed is her paws' (the walk's session holds no player)
+    for (const [speed, finds] of [[2, true], [1, false]]) {
       const s = save();
       const w = square(s);
-      if (!player) delete w.session.player;
       const pigeons = pigeonsOf(w);
       expect(pigeons).toHaveLength(5);
       w.at(PIGEON_PATCH.x - 6, PIGEON_PATCH.z, faceTo({ x: 0, z: 0 }, { x: 1, z: 0 }));
@@ -204,10 +227,9 @@ describe('the Market life finds the six', () => {
       expect(pigeons.some((p) => p.fleeing), `${speed}`).toBe(false);
       w.secs(5.2 / speed, (ww) => { // 5.2 m on: about a metre short of the patch's middle
         ww.cat.position.x += speed * DT;
-        if (player) ww.session.player.speed = speed;
       });
       expect(pigeons.some((p) => p.fleeing), `${speed} scattered`).toBe(true);
-      expect(s.progression.state.journal.marketpigeons ?? 0, `${speed} ${player}`).toBe(finds ? 1 : 0);
+      expect(s.progression.state.journal.marketpigeons ?? 0, `${speed}`).toBe(finds ? 1 : 0);
       w.life.dispose();
     }
   });
@@ -343,6 +365,23 @@ describe('the Market life finds the six', () => {
     expect(peaks[2]).toBe(0);
   });
 
+  it('a partner who leaves the room in the basket and comes back in it rocks it again', () => {
+    const w = square();
+    const bike = w.area.bicycle;
+    const partner = { group: new THREE.Object3D(), h: BICYCLE_BASKET.y };
+    partner.group.position.set(BICYCLE_BASKET.x, 0, BICYCLE_BASKET.z);
+    w.at(BICYCLE_BASKET.x - 2, BICYCLE_BASKET.z + 0.6, 0);
+    const rockOf = () => { let most = 0; w.secs(1, () => { most = Math.max(most, Math.abs(bike.rotation.x)); }); return most; };
+    w.session.remotes.list.push(partner);
+    expect(rockOf()).toBeGreaterThan(0.01);
+    w.secs(1); // settled
+    w.session.remotes.list.length = 0; // gone (remotecats.js drops the entry)
+    w.frames(3);
+    w.session.remotes.list.push(partner); // back, in the basket
+    expect(rockOf(), 'a landing again').toBeGreaterThan(0.01);
+    w.life.dispose();
+  });
+
   it('no log, no progression: nothing is noted and nothing throws', () => {
     const spy = vi.spyOn(bus, 'emit');
     const w = square();
@@ -358,7 +397,7 @@ describe('the Market life finds the six', () => {
     w.session.tippables.tip(w.session.tippables.list[0]);
     w.secs(1);
     w.at(PIGEON_PATCH.x - 6, PIGEON_PATCH.z, 0);
-    w.secs(2.6, (ww) => { ww.cat.position.x += 2 * DT; ww.session.player.speed = 2; });
+    w.secs(2.6, (ww) => { ww.cat.position.x += 2 * DT; });
     w.at(BICYCLE_BASKET.x, BICYCLE_BASKET.z);
     w.session.perched = { ...BICYCLE_BASKET };
     let rocked = 0;
@@ -392,7 +431,6 @@ describe('the Market life finds the six', () => {
       cat: new THREE.Object3D(),
       rest: null,
       perched: null,
-      player: { speed: 0 },
       tippables: createTippables(scene, area.tippables),
       knockables: createKnockables(scene, MARKET_REGISTRATION.propSet.knockables),
       remotes: { list: [] },

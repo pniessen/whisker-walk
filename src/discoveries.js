@@ -30,6 +30,8 @@ export const AWARDS = {
   fairfind: 12,
   // The Rooftops (2026-11-21): one of its six finds, paid the first time ever.
   roofsfind: 12,
+  // The Market Square (2026-11-21): one of its six finds, paid the first time
+  // ever (world/marketfinds.js noteMarketFind).
   marketfind: 12,
   // Found outfits (2026-11-19): the walk's find when everything hidden in the
   // place is already hers, the spec's "a small coin pouch instead (Claude's

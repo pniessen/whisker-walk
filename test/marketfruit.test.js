@@ -348,6 +348,59 @@ describe('the market life', () => {
     expect(scene.getObjectByName('marketPetals')).toBeUndefined();
   });
 
+  it('the petals are petals, not confetti: about 13 cm long and 8 cm wide', () => {
+    const scene = new THREE.Scene();
+    const petals = createPetals(scene, BUCKET.fallTo);
+    const p = petals.mesh.geometry.attributes.position;
+    const v = (i) => new THREE.Vector3().fromBufferAttribute(p, i);
+    expect(p.count % 4).toBe(0);
+    for (let q = 0; q < p.count; q += 4) {
+      // tip, side, back, side
+      expect(v(q).distanceTo(v(q + 2))).toBeCloseTo(0.13, 6);
+      expect(v(q + 1).distanceTo(v(q + 3))).toBeCloseTo(0.08, 6);
+    }
+    petals.dispose();
+  });
+
+  it("the bucket holds a bunch of blooms that falls with it (the life's, cast nothing, freed on dispose)", () => {
+    const scene = new THREE.Scene();
+    const session = standIn(scene);
+    const life = createMarketLife(LIFE_AREA, { scene, dusk: false, reducedMotion: false });
+    const entry = session.knockables.list.find((k) => k.id === 'market-bucket-1');
+    frames(life, session, 1);
+    const bunch = scene.getObjectByName('marketBucketBlooms');
+    expect(bunch?.isMesh).toBe(true);
+    expect(bunch.parent).toBe(entry.group); // in the bucket: it falls with it
+    expect(bunch.castShadow).toBe(false);
+    expect(bunch.userData.noCast).toBe(true);
+    expect(bunch.material.vertexColors).toBe(true);
+    const tris = trianglesOf(bunch);
+    expect(tris).toBeGreaterThanOrEqual(5 * 20); // five flowers or more, their stems
+    expect(tris).toBeLessThanOrEqual(300);
+    // standing: the blooms over the bucket's rim, inside its mouth
+    scene.updateMatrixWorld(true);
+    const standing = new THREE.Box3().setFromObject(bunch);
+    const tin = new THREE.Box3().setFromObject(entry.group.children[0]);
+    expect(standing.max.y).toBeGreaterThan(tin.max.y + 0.04);
+    expect(standing.min.y).toBeGreaterThan(tin.min.y);
+    expect(Math.max(standing.max.x - standing.min.x, standing.max.z - standing.min.z)).toBeLessThan(0.3);
+    // knocked: down on the cobbles with the bucket, above the ground
+    session.knockables.knockById('market-bucket-1');
+    frames(life, session, 40);
+    scene.updateMatrixWorld(true);
+    const lying = new THREE.Box3().setFromObject(bunch);
+    expect(lying.max.y).toBeLessThan(0.4);
+    expect(lying.min.y).toBeGreaterThan(-0.005);
+    expect(Math.hypot((lying.min.x + lying.max.x) / 2 - BUCKET.fallTo.x, (lying.min.z + lying.max.z) / 2 - BUCKET.fallTo.z)).toBeLessThan(0.45);
+    // freed on dispose, and gone from the bucket
+    const freed = vi.fn();
+    bunch.geometry.addEventListener('dispose', freed);
+    life.dispose();
+    expect(freed).toHaveBeenCalledTimes(1);
+    expect(bunch.parent).toBeNull();
+    expect(scene.getObjectByName('marketBucketBlooms')).toBeUndefined();
+  });
+
   it('the crate, the apples and the petals cast nothing; the life adds at most 3 meshes for them', () => {
     const scene = new THREE.Scene();
     const session = standIn(scene);

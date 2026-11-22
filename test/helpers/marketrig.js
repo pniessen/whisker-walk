@@ -42,7 +42,9 @@
 //
 // opts (all optional): seed (7), clock (1e9), reducedMotion (false),
 // isFree (default isWalkableAt on the area: the hop's check, Task 12),
-// figure (marketlive's default marketFigure), scene/area (a square already
+// figure (marketlive's default marketFigure), lodNear (the people's near
+// distance, the walk's lodNearFor(rung); marketlive's default without it),
+// scene/area (a square already
 // built, to share one build across rigs), onEvent (also handed each event,
 // after `events` has it: the walk's handleMarketEvent, Task 13).
 import * as THREE from 'three';
@@ -86,7 +88,7 @@ export function buildSquare() {
 }
 
 export function marketRig({
-  seed = 7, clock = 1e9, reducedMotion = false, isFree, figure, scene: givenScene, area: givenArea, onEvent,
+  seed = 7, clock = 1e9, reducedMotion = false, isFree, figure, lodNear, scene: givenScene, area: givenArea, onEvent,
 } = {}) {
   const made = givenScene && givenArea ? { scene: givenScene, area: givenArea } : buildSquare();
   const { scene, area } = made;
@@ -124,6 +126,7 @@ export function marketRig({
     isFree: free,
     onEvent: (e) => { events.push(e); onEvent?.(e); },
     ...(figure ? { figure } : {}),
+    ...(lodNear ? { lodNear } : {}),
   });
 
   // her walk: a unit direction and a speed, or none

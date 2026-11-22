@@ -13,10 +13,12 @@
 //          this throws before adding anything), and `treatMeshes` (the
 //          display treats: hidden when grabbed, shown again at the refill)
 //   opts   { seed, now = () => Date.now() / 1000, reducedMotion = false, ground = FLAT_GROUND,
-//            isFree = () => true, onEvent = () => {}, figure = marketFigure, people }
+//            isFree = () => true, onEvent = () => {}, figure = marketFigure, people, lodNear }
 //          isFree(x, z): may her cat stand there (the hop's check; the walk
 //          passes isWalkableAt); onEvent(e): the events below; people: the
-//          people kit's factory (the pack's createPeopleKit), handed to the figure.
+//          people kit's factory (the pack's createPeopleKit), handed to the
+//          figure, and lodNear () → the people's near distance on the live
+//          rung (the walk's lodNearFor(rung), from the same pack), handed to it too.
 //
 // MarketLive: { stalls, keepers, groups, treats, actionFor(s), act(action, s, ctx),
 //               update(dt, t, { cat, player, session }), remotePick(remote, itemId),
@@ -144,10 +146,13 @@
 // turned to the back shelf, eased through the turn and the turn back.
 //
 // THE FIGURE (U7) is `opts.figure` (default marketkeeper.js's marketFigure, a
-// person from the people kit), { group, arm, headY, hand?, dispose() }, called
-// with the spot and `opts.people` (the kit's factory, from the place's pack). This file touches only the group's
+// person from the people kit), { group, arm, headY, hand?, detail?(d), dispose() },
+// called with the spot, `opts.people` (the kit's factory, from the place's
+// pack) and `opts.lodNear`. This file touches only the group's
 // position and yaw, the arm's swing (rotation.z, from where it rests) and the
 // broom it parents to the arm at `hand`; the bubble never sits below headY.
+// Each frame it hands each figure her cat's distance (detail(d), the figure's
+// own near/far switch: from the spawn all six are far).
 // No stall logic reads inside the figure, so a new figure replaces one file.
 //
 // THE BUBBLE: one Sprite per guarded stall, one shared transparent material on
@@ -260,7 +265,7 @@ const HAND = Object.freeze({ x: 0, y: -0.5, z: 0 }); // a figure with no `hand`:
 export function createMarketLive(scene, area, opts = {}) {
   const {
     seed = 0, now = () => Date.now() / 1000, reducedMotion = false, ground = FLAT_GROUND,
-    isFree = () => true, onEvent = () => {}, figure = marketFigure, people,
+    isFree = () => true, onEvent = () => {}, figure = marketFigure, people, lodNear,
   } = opts;
   const offsets = stallOffsets(seed);
   const gy = (x, z) => (ground.flat ? 0 : ground.y(x, z));
@@ -298,7 +303,7 @@ export function createMarketLive(scene, area, opts = {}) {
     STALLS.forEach((s, i) => {
       if (!s.keeper) return;
       const spot = spots[s.id];
-      const k = figure({ x: spot.x, y: gy(spot.x, spot.z), z: spot.z, yaw: spot.yaw, people });
+      const k = figure({ x: spot.x, y: gy(spot.x, spot.z), z: spot.z, yaw: spot.yaw, people, ...(lodNear ? { lodNear } : {}) });
       owned.figures.push(k);
       k.group.position.set(spot.x, gy(spot.x, spot.z), spot.z);
       k.group.rotation.y = spot.yaw;
@@ -906,9 +911,21 @@ export function createMarketLive(scene, area, opts = {}) {
     }
   }
 
+  // each figure near or far by her cat's distance (the figure's own switch)
+  function detail() {
+    const cat = seen.cat;
+    if (!cat) return;
+    const figs = owned.figures;
+    for (let i = 0; i < figs.length; i++) {
+      const p = figs[i].group.position;
+      figs[i].detail?.(Math.hypot(cat.position.x - p.x, cat.position.z - p.z));
+    }
+  }
+
   function frame(dt, clock) {
     rhythm(clock);
     readCats(dt);
+    detail();
     for (let i = 0; i < N; i++) think(treatRows[i], dt);
     for (let i = 0; i < N; i++) show(treatRows[i], dt, clock);
     lookUp(dt);

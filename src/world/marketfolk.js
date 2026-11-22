@@ -3,8 +3,8 @@
 // only by world/marketlife.js, which stands them at the plan's pitch (MUSICIAN,
 // marketplan.js) once a walk, when the walk hands it the people factory.
 //
-// createMusician(scene, spot, { figure = marketFigure, people, reducedMotion, y })
-//   → { group, figure, fiddle, bow, rest, update(t), dispose() }
+// createMusician(scene, spot, { figure = marketFigure, people, lodNear, reducedMotion, y })
+//   → { group, figure, fiddle, bow, rest, update(t), detail(d), dispose() }
 //   spot    { x, z, yaw } (the plan's MUSICIAN): where they stand and which way
 //           they face; y the ground's height there (FLAT_GROUND's without it)
 //   figure  THE one figure function the stallholders are built through
@@ -15,7 +15,8 @@
 //           once (FIDDLER): the left hand up and out in front at the
 //           fiddle's scroll, the right elbow out with the bow. Nobody poses
 //           the person again.
-//   people  the people factory (the pack's createPeopleKit), handed on to it.
+//   people  the people factory (the pack's createPeopleKit), handed on to it,
+//           with lodNear (the live rung's near distance, the walk's).
 //   group   the figure's own group, renamed 'marketMusician', in the scene. It
 //           is placed once, by the figure, and never moved: they never step
 //           toward her, never turn to her, never follow her (anti-goal
@@ -29,6 +30,7 @@
 //   update(t)  t the walk's seconds: arm.rotation.z = rest + swing x
 //           sin(rate x t) (MUSICIAN_BOW; `still`'s smaller swing under reduced
 //           motion). Nothing else moves.
+//   detail(d)  d her cat's distance: the figure's near/far switch (marketkeeper.js)
 //   dispose takes it all out of the scene and frees what it made (the figure
 //           frees its own person). Twice is harmless.
 // The fiddle, its case and the bow are under 200 triangles, cast nothing (the
@@ -37,13 +39,13 @@
 // =============================================================================
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { marketFigure } from '../marketkeeper.js';
+import { marketFigure, HAND_MID } from '../marketkeeper.js';
 import { withLocalUuids } from './localuuids.js';
+import { painted } from './marketparts.js';
 
 // The bowing: rad of the arm's swing out from its rest, and how fast (rad/s)
 export const MUSICIAN_BOW = Object.freeze({ swing: 0.25, still: 0.08, rate: 2.4 });
 
-const HAND_MID = 0.46; // a hand's grip, down the hand from the wrist (hand lengths: marketkeeper.js's)
 // The fiddler's arms (each joint's rotation, rad, the people's XYZ joints),
 // set once over the juggling pose: the left upper arm forward and up, its
 // forearm bent so the hand is at the shoulder's height half a metre out in
@@ -65,17 +67,6 @@ const HAIR = 0xe9e2cf;
 const CASE = 0x3b2a26;
 const VELVET = 0x8c2230;
 
-const _c = new THREE.Color();
-function painted(geo, hex) {
-  const g = geo.index ? geo.toNonIndexed() : geo;
-  if (g !== geo) geo.dispose();
-  _c.setHex(hex);
-  const n = g.attributes.position.count;
-  const col = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) col.set([_c.r, _c.g, _c.b], i * 3);
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  return g;
-}
 const box = (w, h, d, x, y, z, hex) => painted(new THREE.BoxGeometry(w, h, d).translate(x, y, z), hex);
 // a flat round bout, `r` across, FIDDLE.thick deep, its middle at z
 const bout = (r, z) => painted(new THREE.CylinderGeometry(r, r, FIDDLE.thick, 10).translate(0, 0, z), VARNISH);
@@ -130,8 +121,8 @@ const _m = new THREE.Matrix4();
 const UP = new THREE.Vector3(0, 1, 0);
 const X = new THREE.Vector3(1, 0, 0);
 
-export function createMusician(scene, spot, { figure = marketFigure, people, reducedMotion = false, y } = {}) {
-  const k = figure({ x: spot.x, y, z: spot.z, yaw: spot.yaw, people, mode: 'juggle' });
+export function createMusician(scene, spot, { figure = marketFigure, people, lodNear, reducedMotion = false, y } = {}) {
+  const k = figure({ x: spot.x, y, z: spot.z, yaw: spot.yaw, people, mode: 'juggle', ...(lodNear ? { lodNear } : {}) });
   const group = k.group;
   group.name = 'marketMusician';
   scene.add(group);
@@ -212,6 +203,9 @@ export function createMusician(scene, spot, { figure = marketFigure, people, red
     update(t) {
       if (gone || !Number.isFinite(t)) return;
       arm.rotation.z = rest + swing * Math.sin(MUSICIAN_BOW.rate * t);
+    },
+    detail(d) {
+      if (!gone) k.detail?.(d);
     },
     dispose() {
       if (gone) return;

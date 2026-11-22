@@ -1679,6 +1679,7 @@ export function createWalkLifecycle({
     const market = areaId !== 'market' ? NO_MARKET : createMarketLive(scene, areaData, {
       seed: roomSeed ?? soloSeed, reducedMotion, ground, isFree: (x, z) => isWalkableAt(areaData, x, z),
       people: createPeopleKit, // the stallholders, from the pack's people kit
+      lodNear: () => lodNearFor(qualityAdapter.status?.rung), // near or far by her distance, on the live rung's switch
       onEvent: (e) => handleMarketEvent(e, { hud, audio, log, session, ...marketToasts }),
     });
     // The balance walk, leaps, drops and climb-ups (traversallive.js) of an
@@ -1846,9 +1847,9 @@ export function createWalkLifecycle({
     // PointLight with castShadow false, added here so shaders compile with it
     // once. Draws on no rng. The Rooftops' life also takes the walk's critters,
     // to move its birds, how many walks she has had there, the log and progression its finds are noted with, and her view heading (the tower view turns it).
-    // The Market's takes the pack's people factory (its street musician).
+    // The Market's takes the pack's people factory (its street musician) and its rung's near distance.
     const lifeViewYaw = { get: () => player.viewYaw(), set: (v) => player.setViewYaw(v) };
-    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0, log, progression, viewYaw: lifeViewYaw, people: createPeopleKit }) ?? NO_AREA_LIFE;
+    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0, log, progression, viewYaw: lifeViewYaw, people: createPeopleKit, lodNear: () => lodNearFor?.(qualityAdapter.status?.rung) }) ?? NO_AREA_LIFE;
     if (areaLife.musician) decals.follow(areaLife.musician.group); // the Market's street musician, a contact shadow like the stallholders'
     const session = createSession({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,

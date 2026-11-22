@@ -143,6 +143,10 @@ describe('the Market Square drawn', () => {
     expect(area.waterFx).toEqual([]);
     expect(area.moments).toEqual([]);
     expect(area.perches).toEqual(MARKET_PERCHES);
+    // the walk's own copy (walk.js pushes into areaData.perches on some places), as roofs.js gives
+    expect(area.perches).not.toBe(MARKET_PERCHES);
+    expect(Object.isFrozen(area.perches)).toBe(false);
+    area.perches.forEach((p, i) => expect(p, `perch ${i}`).not.toBe(MARKET_PERCHES[i]));
     for (const k of ['boxes', 'pois', 'collectibles', 'scenics', 'puddles', 'tippables', 'perches', 'colliders', 'critterSpawns']) {
       expect(Array.isArray(area[k]), k).toBe(true);
     }
@@ -377,8 +381,6 @@ describe('the Market Square drawn', () => {
     for (let i = 0; i < 50; i++) dusk.update(0.016);
     expect(scene.children.length).toBe(before);
     dusk.dispose();
-    // the hook is the market's life now (step 3): the look's own hook is gone
-    expect(marketModule.createMarketLook).toBeUndefined();
     const again = createMarketLife(area, { scene, dusk: false });
     expect(lantern.material.emissiveIntensity).toBe(0);
     expect(packing.visible).toBe(false);
@@ -559,6 +561,18 @@ describe('the Market Square drawn', () => {
       expect(q.y).toBeGreaterThanOrEqual(0);
       expect(q.y).toBeLessThan(0.8);
       expect(q.z).toBeGreaterThan(MARKET_BOUNDS.maxZ);
+    }
+    // the chalkboard (below) stands beside the window boards, never in front of one:
+    // it covers at most 0.2 m of any board's width (the final review: it hid half of one)
+    const chalkAt = MARKET_CLUTTER.find((c) => c.kind === 'chalkboard');
+    const xs = boards.map((q) => q.x).sort((p, q) => p - q);
+    const spans = [[xs[0], xs[0]]];
+    for (const x of xs) { const last = spans[spans.length - 1]; if (x - last[1] > 0.9) spans.push([x, x]); else last[1] = x; }
+    expect(spans.length).toBeGreaterThanOrEqual(2);
+    const half = 0.28; // its half-width across (marketplan.js CLUTTER_HALF.chalkboard)
+    for (const [x0, x1] of spans) {
+      const covered = Math.max(0, Math.min(x1, chalkAt.x + half) - Math.max(x0, chalkAt.x - half));
+      expect(covered, `the chalkboard at x ${chalkAt.x} covers ${covered.toFixed(2)} m of the board ${x0.toFixed(2)}..${x1.toFixed(2)}`).toBeLessThanOrEqual(0.2);
     }
     // the chalkboard: an A-frame on the cobbles by the café's door, solid, out of every
     // counter's view lane, its board the chalk pictures' cell (no letters: M12)

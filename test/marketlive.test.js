@@ -12,7 +12,8 @@ import { marketRig, buildSquare } from './helpers/marketrig.js';
 
 const { createMarketLive } = await import('../src/marketlive.js');
 const { marketFigure, personKeeper } = await import('../src/marketkeeper.js');
-const { createPeopleKit } = await import('../src/people/index.js');
+const { createPeopleKit, LOD, lodNearFor } = await import('../src/people/index.js');
+const { LOW_RUNG } = await import('../src/render/quality.js');
 const { TREAT_ITEM_PREFIX, treatItemId, treatStallOf, NO_MARKET } = await import('../src/marketnone.js');
 const { STALLS, TREAT_STALLS, stallById, toStall, fromStall, MARKET_SPAWN, MARKET_REGISTRATION, stallClimb } = await import('../src/world/marketplan.js');
 const { MARKET, STALL_TIMES, stallOffsets, stallPhase, periodOf } = await import('../src/marketrules.js');
@@ -371,7 +372,9 @@ describe('the stallholders (Task 11)', () => {
     const before = new Set(scene.children);
     const count = () => { let n = 0; scene.traverse(() => n++); return n; };
     const nodes = count();
-    const live = createMarketLive(scene, area, { people: createPeopleKit, seed: 7, now: () => 1e9 });
+    // every one held at near detail, the most they can ever draw (none switches)
+    const allNear = (spot) => { const k = marketFigure(spot); k.detail(0); return { ...k, detail: undefined }; };
+    const live = createMarketLive(scene, area, { people: createPeopleKit, seed: 7, now: () => 1e9, figure: allNear });
     live.update(DT, DT, { cat: new THREE.Group(), player: { speed: 0 }, session: { remotes: { list: [] } } });
     const added = scene.children.filter((o) => !before.has(o));
     // six people and four bubbles, nothing else; the build's own children are untouched
@@ -392,7 +395,8 @@ describe('the stallholders (Task 11)', () => {
     // and at most this much, the square with its people under the Market's own
     // ceilings (never raised). Re-pinned for the lifelike people (U7, measured
     // 2026-11-21: 18 meshes, 13,980 triangles, nothing cast; six people at the
-    // kit's near detail, about 2,300 each, and four brooms; the old blocky
+    // kit's near detail, about 2,300 each, and four brooms: the most there can
+    // be, as each is far a metre past the near distance from her; the old blocky
     // figure was 30 meshes and 3,056). With the square's 108 meshes and 38,341
     // triangles that is 126 / 52,321 of the 280 / 62,000 ceilings.
     const tri = (m) => (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
@@ -582,6 +586,96 @@ function until(r, fn, max) {
 const angleFromFace = (s, dx, dz) => Math.atan2(dx * -s.face.z + dz * s.face.x, dx * s.face.x + dz * s.face.z);
 // the highest counter top (the milk cart's bed, 0.97 m; the counters are 0.9 m)
 const COUNTER_TOP = 0.97;
+
+describe("the people's detail by her distance (the final review's LOD switch)", () => {
+  // the triangles the figure draws now (its one skinned mesh)
+  const drawn = (k) => {
+    let n = 0;
+    k.group.traverse((m) => { if (m.isMesh) n += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3; });
+    return n;
+  };
+  const NEAR_IN = LOD.NEAR - LOD.HYSTERESIS;
+  const FAR_OUT = LOD.NEAR + LOD.HYSTERESIS;
+
+  it('a figure starts far, turns near inside the near distance less a metre, and far past it plus a metre', () => {
+    let near = LOD.NEAR;
+    const k = marketFigure({ x: 1, z: 2, yaw: 0, people: createPeopleKit, lodNear: () => near });
+    expect(k.person.detail).toBe('far');
+    const farTris = drawn(k);
+    expect(k.detail(FAR_OUT + 10)).toBe('far');
+    expect(k.detail(LOD.NEAR - 0.5)).toBe('far'); // in the band: as it was
+    expect(k.detail(NEAR_IN)).toBe('near');
+    expect(k.person.detail).toBe('near');
+    expect(drawn(k)).toBeGreaterThan(3 * farTris);
+    expect(k.detail(LOD.NEAR + 0.5)).toBe('near'); // the band again: no flicker
+    expect(k.detail(FAR_OUT)).toBe('far');
+    expect(drawn(k)).toBe(farTris);
+    expect(k.detail(NaN)).toBe('far'); // no distance: left as it is
+    // the switch follows the rung: a low rung's people turn near only at 6 m
+    near = lodNearFor(LOW_RUNG);
+    expect(k.detail(9)).toBe('far');
+    expect(k.detail(LOD.NEAR_LOW - 0.5)).toBe('far');
+    expect(k.detail(LOD.NEAR_LOW - LOD.HYSTERESIS)).toBe('near');
+    expect(k.detail(LOD.NEAR_LOW + LOD.HYSTERESIS)).toBe('far');
+    k.dispose();
+    // no lodNear handed over: the people kit's own 12 m
+    const plain = marketFigure({ x: 1, z: 2, yaw: 0, people: createPeopleKit });
+    expect(plain.detail(NEAR_IN)).toBe('near');
+    expect(plain.detail(FAR_OUT)).toBe('far');
+    plain.dispose();
+  });
+
+  it('the head height and the grip are the near figure\'s, whatever the detail', () => {
+    const a = marketFigure({ x: 1, z: 2, yaw: 0, people: createPeopleKit });
+    const b = marketFigure({ x: 1, z: 2, yaw: 0, people: createPeopleKit });
+    b.detail(0);
+    expect(a.headY).toBe(b.headY);
+    expect(a.hand).toEqual(b.hand);
+    a.dispose();
+    b.dispose();
+  });
+
+  it('from the spawn every stallholder is far; at a counter that one turns near; the switch follows the rung', () => {
+    const { scene, area } = buildSquare();
+    const made = [];
+    const figure = (spot) => { const k = marketFigure(spot); made.push(k); return k; };
+    const r = marketRig({ figure, scene, area });
+    r.step(DT);
+    expect(made).toHaveLength(6);
+    expect(made.map((k) => k.person.detail)).toEqual(KEEPER_IDS.map(() => 'far'));
+    const at = (id) => made[KEEPER_IDS.indexOf(id)];
+    const distTo = (k) => Math.hypot(r.cat.position.x - k.group.position.x, r.cat.position.z - k.group.position.z);
+    for (const id of TREAT_STALLS) {
+      const s = stallById(id);
+      const p = r.local(id, 0, s.d / 2 + 1.5); // in front of the counter, where she grabs
+      r.place(p.x, p.z).step(DT);
+      expect(at(id).person.detail, id).toBe('near');
+      for (const k of made) {
+        const d = distTo(k);
+        if (d >= FAR_OUT) expect(k.person.detail, `${id}: ${d.toFixed(1)} m`).toBe('far');
+        if (d <= NEAR_IN) expect(k.person.detail, `${id}: ${d.toFixed(1)} m`).toBe('near');
+      }
+    }
+    // back at the spawn: every one a metre past the near distance is far again
+    // (one stallholder is about 12 m off, in the band: it stays as it was)
+    r.place(area.spawn.x, area.spawn.z).step(DT);
+    for (const k of made) if (distTo(k) >= FAR_OUT) expect(k.person.detail).toBe('far');
+    expect(made.filter((k) => distTo(k) >= FAR_OUT).length).toBeGreaterThanOrEqual(5);
+    r.live.dispose();
+    // 9 m out in front of the fish stallholder: near on the high rung, far on a low one
+    const nine = (k, s) => ({ x: k.group.position.x + s.face.x * 9, z: k.group.position.z + s.face.z * 9 });
+    const fish = stallById('fish');
+    for (const [lodNear, want] of [[() => lodNearFor(0), 'near'], [() => lodNearFor(LOW_RUNG), 'far']]) {
+      const mine = [];
+      const g = marketRig({ figure: (spot) => { const k = marketFigure(spot); mine.push(k); return k; }, lodNear, scene, area });
+      const k = mine[KEEPER_IDS.indexOf('fish')];
+      const p = nine(k, fish);
+      g.place(p.x, p.z).step(DT);
+      expect(k.person.detail, want).toBe(want);
+      g.live.dispose();
+    }
+  }, 60_000);
+});
 
 describe('the sneak (Task 12)', () => {
   it('a treat is taken while the stallholder is turned away, in the mouth, then eaten within two seconds', () => {

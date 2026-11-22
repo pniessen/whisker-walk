@@ -12,6 +12,7 @@ import { CATALOG } from '../src/progression.js';
 import { isWalkableAt, CAT_RADIUS } from '../src/player.js';
 import { keepOutPoint } from '../src/keepout.js';
 import { canReach, bestPerch, BASE_CLIMB_BUDGET } from '../src/climbing.js';
+import { phrase, LATER_PHRASE_IDS } from '../src/clanphrases.js';
 
 const a = marketArea();
 const TREAT_REACH = 0.8;
@@ -58,6 +59,16 @@ describe('the plan of the Market Square', () => {
     expect(w).toBeGreaterThanOrEqual(40); expect(w).toBeLessThanOrEqual(46);
     expect(h).toBeGreaterThanOrEqual(40); expect(h).toBeLessThanOrEqual(46);
     expect(isWalkableAt(a, MARKET_SPAWN.x, MARKET_SPAWN.z)).toBe(true);
+  });
+
+  it("marketArea() hands out its own perches, never the plan's frozen list", () => {
+    const one = marketArea();
+    const two = marketArea();
+    expect(one.perches).toEqual(MARKET_PERCHES);
+    expect(one.perches).not.toBe(MARKET_PERCHES);
+    expect(one.perches).not.toBe(two.perches);
+    one.perches.push({ x: 0, z: 0, y: 1, kind: 'crate' });
+    expect(two.perches).toHaveLength(MARKET_PERCHES.length);
   });
 
   it('has the seven stalls of the spec, four of them watched', () => {
@@ -367,6 +378,10 @@ describe('the plan of the Market Square', () => {
       if (TREAT_STALLS.includes(s.id)) {
         expect(roof.vantage, s.id).toBe(true);
         expect(roof.label, s.id).toMatch(/^the [a-z’ ]+ awning$/);
+        // its words from the phrase table (the later table: the same in both sets)
+        expect(LATER_PHRASE_IDS, s.id).toContain(`market.perch.${s.id}`);
+        expect(roof.label, s.id).toBe(phrase(`market.perch.${s.id}`));
+        expect(marketArea().perches.find((p) => p.x === roof.x && p.z === roof.z && p.y === roof.y).label, s.id).toBe(roof.label);
       } else {
         expect(roof.label, s.id).toBeUndefined();
         expect(roof.vantage, s.id).toBeUndefined();
@@ -383,10 +398,10 @@ describe('the plan of the Market Square', () => {
       expect(bestPerch(MARKET_PERCHES, roof, roof.y, roof), s.id).toBe(crate);
       expect(bestPerch(MARKET_PERCHES, crate, crate.y, crate), s.id).toBe(roof);
     }
-    // from every other perch a bare hop down lands her where the player's push puts her:
-    // on free cobbles, never inside a counter
-    const roofs = new Set(DRAWN.map((s) => stallClimb(s.id).roof));
-    for (const p of MARKET_PERCHES.filter((q) => !roofs.has(q))) {
+    // from every perch, the awnings too (should she drop straight down from one), a bare
+    // hop down lands her where the player's push puts her: on free cobbles, never inside a counter
+    expect(MARKET_PERCHES.filter((q) => q.kind === 'roof')).toHaveLength(DRAWN.length);
+    for (const p of MARKET_PERCHES) {
       const at = pushOut(p.x, p.z);
       // (the push sets her exactly c.r + CAT_RADIUS off: within a hair of it is free)
       const free = a.colliders.every((c) => Math.hypot(at.x - c.x, at.z - c.z) >= c.r + CAT_RADIUS - 1e-6);
