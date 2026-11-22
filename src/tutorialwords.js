@@ -128,6 +128,8 @@ export const WORDS = Object.freeze({
 
   // ---- Settings -------------------------------------------------------------
   'settings.tips': same('Show tips'),
+  // A game controller was plugged in (gamepad.js).
+  'pad.connected': same('Controller connected 🎮'),
   // Shown only after a save write has failed; names no group or rank, so both sets share it.
   'settings.save-failed': same('This device could not save. Free up space, then play again.'),
 });

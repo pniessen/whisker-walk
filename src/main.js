@@ -18,6 +18,7 @@ import { whenSplashGone, startVisitGreeting } from './visitboot.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { attachBackStack, walkBackAction } from './ui/backstack.js';
 import { createGamepad } from './gamepad.js';
+import { createNav } from './gamepadnav.js';
 import { createZoomControl, createWheelStepper, keyZoomDir, zoomActionDir, clampZoomStep, maxZoomStep } from './camzoom.js';
 import { createAudio } from './audio.js';
 import { createMusic } from './music.js';
@@ -294,6 +295,11 @@ function init() {
     getEngaged: () => !!session && player.engaged,
     getCameraMode: () => !!session?.cameraMode,
     isFighting: () => session?.clanFight?.uiShowing === 'fight',
+    isWalkingOn: () => !!session?.walkingOn,
+    // Menus: the pad moves focus through whatever layer is on top; B is Back
+    // (padBack, below), never a fake Escape. A walk keeps the pad otherwise.
+    menuNav: createNav({ doc: document }),
+    padBack: () => padBack(),
     canResume: () => !!session && !session.walkingOn && !!overlay.querySelector('#btn-resume'),
     onMove: (v) => player.setTouchMove(v),
     onOrbit: (dx, dy) => player.addOrbit(dx, dy),
@@ -890,12 +896,17 @@ function init() {
     else if (action === 'pause') handleTouchAction('pause');
     else if (action === 'resume') resumeWalk();
   }
-  attachBackStack({
+  const backStack = attachBackStack({
     win: window,
     depth: () => homebase.depth() + (session || summaryUp() ? 1 : 0),
     closeTop: () => { if (!homebase.back()) walkBack(); },
     escape: () => homebase.back(),
   });
+  // The pad's B in a menu: the same one level up as the browser's Back.
+  function padBack() {
+    if (!homebase.back()) walkBack();
+    backStack?.sync?.();
+  }
   document.addEventListener('keydown', (e) => {
     // Clan Life Part 2: while the fight sheet is up, every key is the fight's
     // (1 / 2 / 3 answer): no E interact, no chat phrases, no Space pounce.

@@ -1844,6 +1844,17 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .world-map .tm-region:focus .tm-hit { stroke: #fff; stroke-width: 10; }
 .world-map .tm-region:focus:not(:focus-visible) .tm-hit { stroke: none; }
 .world-map .tm-region.sel:focus:not(:focus-visible) .tm-hit { stroke: var(--gold, #f2c14e); stroke-width: 9; }
+/* the controller's ring (body.pad-focus, set by gamepad.js on the first pad
+   input, cleared by any tap, click or key): whatever the pad has focused gets
+   a white ring with a dark halo, so it shows on a cream card and a dark one.
+   It beats the :not(:focus-visible) rules above, since a pad's focus() call
+   is not always focus-visible. */
+.pad-focus :focus { outline: 3px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 2px rgba(20, 16, 30, 0.7); }
+.pad-focus .world-map .tm-region:focus { outline: none; box-shadow: none; }
+.pad-focus .world-map .tm-region:focus .tm-hit,
+.pad-focus .world-map .tm-region:focus:not(:focus-visible) .tm-hit,
+.pad-focus .world-map .tm-region.sel:focus:not(:focus-visible) .tm-hit { stroke: #fff; stroke-width: 10; }
+.pad-focus svg [role="button"]:focus { outline: 3px solid #fff; outline-offset: 2px; }
 .world-map .tm-sea { fill: #a9d3e3; }
 .world-map .tm-sea, .world-map .wm-roads { pointer-events: none; }
 .world-map .wm-road { fill: none; stroke: #b04a2e; stroke-width: 4; stroke-linecap: round; stroke-dasharray: 3 9; }

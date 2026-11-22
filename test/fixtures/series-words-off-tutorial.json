@@ -313,6 +313,10 @@
    "touch": "Show tips",
    "keys": "Show tips"
   },
+  "pad.connected": {
+   "touch": "Controller connected 🎮",
+   "keys": "Controller connected 🎮"
+  },
   "settings.save-failed": {
    "touch": "This device could not save. Free up space, then play again.",
    "keys": "This device could not save. Free up space, then play again."
@@ -639,6 +643,10 @@
   "settings.tips": {
    "touch": "Show tips",
    "keys": "Show tips"
+  },
+  "pad.connected": {
+   "touch": "Controller connected 🎮",
+   "keys": "Controller connected 🎮"
   },
   "settings.save-failed": {
    "touch": "This device could not save. Free up space, then play again.",
