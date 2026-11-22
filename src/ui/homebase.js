@@ -152,7 +152,7 @@ export function showEditionTitle(doc, edition) {
 //   nearby: game/nearby.js, the rooms the app found on the local network.
 //     Absent, or not available (Safari, desktop), nothing of it is drawn
 //   metPlayers: src/metplayers.js (the device's own list when absent)
-export function createHomeBase({ progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onBirthdaySong, onAudioWake, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null, getIsTouch = () => false }) {
+export function createHomeBase({ progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onBirthdaySong, onAudioWake, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null, getIsTouch = () => false, reload = () => globalThis.location?.reload?.() }) {
   const met = () => metPlayers ?? deviceMetPlayers();
   const root = document.getElementById('homebase');
   let petNameError = null;
@@ -321,6 +321,17 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   let cloudStatus = null; // inline result text after a manual "Sync now"
   let cloudJustLinked = false; // show the big "write this down" code once, right after linking
   let cloudPreview = null; // pending { code, secret, payload, local, cloud } from previewLoad
+  // Set while a loaded cat's key is adopted: the page reloads once (it reads the
+  // cat's id at boot), and this is what the sheet says meanwhile.
+  let bringing = null;
+  const RELOAD_AFTER_MS = 800; // long enough to read the words
+  function bringHere() {
+    bringing = { name: progression.state.petName || '' };
+    render();
+    setTimeout(() => { try { reload(); } catch (err) { note('save', err); } }, RELOAD_AFTER_MS);
+    // if the page did not reload after all, the sheet comes back rather than stick
+    setTimeout(() => { if (bringing) { bringing = null; render(); } }, RELOAD_AFTER_MS + 5000);
+  }
   let backupMsg = null; // the result line after putting a kept copy back
   let deleteMsg = null; // the result line after "Delete my online data"
   let deleting = false; // that delete is on its way (cloudBusy is set too)
@@ -449,6 +460,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
 
   function renderSync() {
     if (!sync || !sync.available) return '';
+    if (bringing) return `<div class="sync-bringing" role="status">${escapeHtml(phrase('catlogin.bringing', bringing.name))}</div>`;
     let body;
     if (cloudPreview) {
       const fmt = (s) => `${s.rank} · ${s.points} 🐾 (lifetime ${s.lifetimePoints}) · best ever ${s.bestWalk}`;
@@ -2106,6 +2118,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           try { ok = progression.restoreBackup(kind); } catch (err) { console.warn('Whisker Walk: restore failed', err); note('save', err); }
           if (ok) dressing?.clearPreview();
           backupMsg = ok ? 'Done! Your earlier progress is back.' : 'That didn’t work, so nothing was changed.';
+          // an Undo that put an earlier cat's key back needs the same one reload
+          if (ok && progression.takeKeyChanged?.()) { bringHere(); return; }
           render();
           // a copy from before Rosa's retirement says her farewell, as a cloud load does
           if (ok) {
@@ -2363,6 +2377,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       cloudPreview = null;
       backupMsg = null;
       if (!res.ok) cloudError = res.error;
+      if (res.ok && res.reload) { bringHere(); return; }
       render();
       // A pre-update cloud save with Rosa equipped queued her farewell while
       // loading; say it now, over the freshly drawn home base. While a visit
