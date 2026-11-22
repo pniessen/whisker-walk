@@ -87,7 +87,7 @@ export function isMissingRpc(err) {
 const DELETE_ANSWERS = new Set(['ok', 'none', 'denied', 'busy']);
 // What rotate_cat_code can answer (docs/supabase-v11-cat-login.sql, step 2).
 const ROTATE_ANSWERS = new Set(['ok', 'denied', 'busy', 'bad']);
-const V11_ANSWERS = new Set(['ok', 'merge', 'denied', 'busy', 'none', 'bad', 'too-big']);
+const V11_ANSWERS = new Set(['ok', 'merge', 'denied', 'busy', 'none', 'bad', 'too-big', 'wait']);
 
 // profiles_by_ids takes at most this many ids per call (the SQL's cap).
 const PROFILE_IDS_PER_CALL = 100;
@@ -309,8 +309,35 @@ export function createCloud({ rpc, select, getSecret }) {
     }
   }
 
+  // Hop codes (v11 step 3, docs/supabase-v11-cat-login.sql): add a device. Each answers one object
+  // { status } ('ok' | 'wait' | 'denied' | 'busy' | 'none' | 'bad'), plus 'unavailable' when the server
+  // does not have the function yet (asked once) and 'offline' when there was no answer. Never throws.
+  async function hopCall(name, args) {
+    try {
+      const r = await v11(name, args);
+      return r.status === 'missing' ? { status: 'unavailable' } : r;
+    } catch (err) {
+      note('cloud', err);
+      return { status: 'offline' };
+    }
+  }
+  const hopOpen = (code, secret) => hopCall('hop_open', { p_code: code, p_secret: secret });
+  const hopJoin = (hop) => hopCall('hop_join', { p_hop: hop });
+  const hopPoll = (ticket) => hopCall('hop_poll', { p_ticket: ticket });
+  // The first device's answer; the server's one word ('ok' | 'none' | 'denied' | 'busy' | 'bad').
+  async function hopAnswer(code, secret, accept) {
+    try {
+      const r = await rpc('hop_answer', { p_code: code, p_secret: secret, p_accept: !!accept });
+      return ROTATE_ANSWERS.has(r) || r === 'none' ? r : 'bad';
+    } catch (err) {
+      if (isMissingRpc(err)) return 'unavailable';
+      note('cloud', err);
+      return 'offline';
+    }
+  }
+
   return {
-    saveToCloud, loadFromCloud, peekSave, syncSave, rotateCatCode, pushProfile, recordGreet, fetchProfiles, findByFriendCode, fetchFriendships,
+    saveToCloud, loadFromCloud, peekSave, syncSave, rotateCatCode, hopOpen, hopJoin, hopPoll, hopAnswer, pushProfile, recordGreet, fetchProfiles, findByFriendCode, fetchFriendships,
     addFriendByCode,
     colonyInviteOpen, colonyInviteJoin, colonyInviteAnswer, colonySync, colonyFeed, colonyDress,
     colonyTradeOffer, colonyTradeAnswer, colonyTradeCancel,

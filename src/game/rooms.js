@@ -279,6 +279,11 @@ export function createRooms({
       notifyRoomChange();
     });
     net.onEvent(handleLobbyEvent);
+    // The same cat is here on another device (cat login M4): the roster shows it once, and this says so.
+    net.onSameCat?.(() => {
+      const name = roomProfile().petName;
+      try { toast?.(`${name || 'Your cat'} is already here on another device.`); } catch { /* a toast is never worth a crash */ }
+    });
   }
 
   // host() mints a code; join(code) and walkWithPartner() join a known one.

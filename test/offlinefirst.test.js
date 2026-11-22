@@ -630,17 +630,26 @@ describe('where the network can start', () => {
     expect(main).not.toMatch(/createClient|getSupabaseClient|new WebSocket/);
   });
   it('the My cat sheet and the code words make no request of their own: no fetch, no socket, no cloud of their own, and nothing runs at import', () => {
-    for (const f of ['ui/catlogin.js', 'ui/catloginwords.js', 'catcodes.js', 'randomindex.js']) {
+    for (const f of ['ui/catlogin.js', 'ui/catloginwords.js', 'catcodes.js', 'randomindex.js', 'game/hop.js']) {
       expect(read(f), f).not.toMatch(/\bfetch\(|XMLHttpRequest|WebSocket|sendBeacon|createCloud|createLiveCloud|supabase|from '\.\.?\/(cloud|net)\.js'/);
     }
     // the one place a tap on the sheet reaches the cloud is the sync object it is handed
     expect([...new Set([...read('ui/catlogin.js').matchAll(/\bsync\.(\w+)\(/g)].map((m) => m[1]))].sort())
       .toEqual(['changeCode', 'confirmLoad', 'getCode', 'previewLoad', 'saveToCloud', 'syncNow', 'unlink']);
   });
+  it('the hop client (cat login M4) has no import and makes no request: it asks only through the cloud it is handed, and only after start() or join()', () => {
+    const hop = read('game/hop.js');
+    expect(hop).not.toMatch(/^import /m);
+    // its only calls on the cloud are the four hop calls, and each sits inside start/allow/deny/cancel/join/poll
+    expect([...new Set([...hop.matchAll(/\bcloud\.(\w+)\(/g)].map((m) => m[1]))].sort()).toEqual(['hopAnswer', 'hopJoin', 'hopOpen', 'hopPoll']);
+    // the sheet reaches the cloud for a hop only on a tap, through the two hand-over calls of the sync
+    const sheet = read('ui/catlogin.js');
+    expect([...new Set([...sheet.matchAll(/sync\.(hop\w+)\??\./g)].map((m) => m[1]))].sort()).toEqual(['hopCloud', 'hopHost']);
+  });
   it('only cloudsync.js and rooms.js can make a cloud or a transport, and only net.js a client', () => {
     const files = ['main.js', 'game/walk.js', 'game/netevents.js', 'game/interactions.js', 'game/colonysync.js',
       'game/onlinedelete.js', 'game/homebasecloud.js', 'ui/homebase.js', 'game/nearby.js', 'game/session.js',
-      'ui/catlogin.js', 'ui/catloginwords.js', 'catcodes.js', 'randomindex.js', 'savecode.js']; // (cat login M3: the sheet and the code words reach the cloud only through the sync handed to them)
+      'ui/catlogin.js', 'ui/catloginwords.js', 'catcodes.js', 'randomindex.js', 'savecode.js', 'game/hop.js']; // (cat login M3: the sheet and the code words reach the cloud only through the sync handed to them)
     for (const f of files) {
       expect(read(f), f).not.toMatch(/createLiveCloud|createSupabaseTransport|getSupabaseClient|@supabase\/supabase-js/);
     }

@@ -326,6 +326,16 @@ describe('anyone can press Start, and it starts everyone', () => {
     expect(kid.toasts).toEqual(['Mittens is exploring. Tap Explore when they’re back.']);
   });
 
+  it('the same cat arriving on a second device says so, once, and the room still shows one cat (cat login M4)', async () => {
+    const first = client(hub, { pid: KID, petName: 'Robin', partner: { pid: HOST, petName: 'Mittens' } });
+    const second = client(hub, { pid: KID, petName: 'Robin', partner: { pid: HOST, petName: 'Mittens' } });
+    await first.rooms.walkWithPartner();
+    await second.rooms.walkWithPartner();
+    expect(first.toasts).toEqual(['Robin is already here on another device.']);
+    expect(second.toasts).toEqual(['Robin is already here on another device.']);
+    expect(first.rooms.getState().roster.filter((p) => p.playerId === KID)).toHaveLength(1);
+  });
+
   it("never starts a second world beside a sister who's already walking", async () => {
     const kid = client(hub, { pid: KID, petName: 'Robin', partner: { pid: HOST, petName: 'Mittens' } });
     const walkingHost = createNet(hub.transport());

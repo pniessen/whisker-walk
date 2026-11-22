@@ -5,6 +5,8 @@ import { withOffWordsAsync } from './helpers/offwords.js';
 import { setTv, resetTv } from '../src/tvseam.js';
 import { CAT_WORDS } from '../src/catcodes.js';
 import { CONFIRM_DELAY_MS } from '../src/ui/colonypanel.js';
+import { createCloud } from '../src/cloud.js';
+import { createFakeHopServer } from './helpers/fakehop.js';
 
 // Cat login M3: the My cat sheet (src/ui/catlogin.js), through the home base. Same no-DOM
 // stand-in as test/homebase.catkey.test.js.
@@ -24,6 +26,7 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
 }));
 
 await import('../src/ui/catlogin.js'); // the sheet's chunk, cached before the first test
+await import('../src/game/hop.js'); // and the hop client's, so a tap does not wait for it
 const { sheetDrawn } = await import('./helpers/catsheet.js');
 const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression } = await import('../src/progression.js');
@@ -78,7 +81,7 @@ const tick = async () => { for (let i = 0; i < 50; i++) await Promise.resolve();
 const CODE = [CAT_WORDS[10], CAT_WORDS[200], CAT_WORDS[300], CAT_WORDS[400]].join('-');
 const WORDS = CODE.split('-').join(' · ');
 
-async function setup({ linked = null, save, change, preview, state = null } = {}) {
+async function setup({ linked = null, save, change, preview, state = null, extra = {} } = {}) {
   let code = linked;
   const sync = {
     available: true, getCode: () => code,
@@ -87,6 +90,7 @@ async function setup({ linked = null, save, change, preview, state = null } = {}
     changeCode: vi.fn(change ?? (async () => { code = [CAT_WORDS[1], CAT_WORDS[2], CAT_WORDS[3], CAT_WORDS[4]].join('-'); return { ok: true, code }; })),
     previewLoad: vi.fn(preview ?? (async (c) => ({ ok: true, preview: { code: c, secret: 's', payload: { save: {} }, local: { rank: 'Kitten', points: 1, lifetimePoints: 1, bestWalk: 1 }, cloud: { rank: 'Kitten', points: 2, lifetimePoints: 2, bestWalk: 2 } } }))),
     unlink: vi.fn(() => { code = null; }), syncNow: vi.fn(async () => ({ ok: true, message: 'Synced ✓' })),
+    ...extra,
   };
   const progression = createProgression(memStorage());
   progression.setPetName('Mittens');
@@ -401,5 +405,196 @@ describe('the sheet is reachable by pad and keyboard', () => {
     await setup({ linked: CODE });
     await click({ id: 'catlogin-change' });
     expect(card().id).toBe('confirm-card');
+  });
+});
+
+// ── add a device (cat login M4) ────────────────────────────────────
+describe('Add a device: the hop code', () => {
+  const SECRET = 'k'.repeat(32);
+  let server;
+  let cloud;
+  const flush = async (ms = 0) => { await vi.advanceTimersByTimeAsync(ms); };
+  const hopExtra = (over = {}) => {
+    server = createFakeHopServer({ cats: { [CODE]: SECRET } });
+    cloud = createCloud({ rpc: server.rpc, select: async () => [] });
+    return { hopHost: vi.fn(() => ({ cloud, code: CODE, secret: SECRET })), hopCloud: vi.fn(() => cloud), ...over };
+  };
+  const hopOf = () => html().match(/data-hop-code>([A-Z0-9]{6})</)?.[1];
+
+  it('the linked sheet has an Add a device button, and nothing is asked until it is tapped', async () => {
+    const s = await setup({ linked: CODE, extra: hopExtra() });
+    expect(html()).toContain('<button id="catlogin-hop-add" >Add a device</button>');
+    await flush(10000);
+    expect(server.calls).toHaveLength(0);
+    expect(s.sync.hopHost).not.toHaveBeenCalled();
+  });
+  it('the tap shows six characters, how long they last, how to use them and Cancel, never the cat code', async () => {
+    await setup({ linked: CODE, extra: hopExtra() });
+    await click({ id: 'catlogin-hop-add' });
+    expect(hopOf()).toMatch(/^[A-Z0-9]{6}$/);
+    const h = html();
+    expect(h).toContain('On the other device tap Bring my cat here, then I have a hop code. Type:');
+    expect(h).toContain('Good for 10 minutes.');
+    expect(h).toContain('id="catlogin-hop-cancel"');
+    expect(h).not.toContain(WORDS);
+  });
+  it('a device types the code: the question comes within one poll, Yes hands the cat over', async () => {
+    await setup({ linked: CODE, state: 'saved', extra: hopExtra() });
+    await click({ id: 'catlogin-hop-add' });
+    const join = await cloud.hopJoin(hopOf());
+    expect(join.status).toBe('ok');
+    await flush(3000);
+    expect(html()).toContain('A device wants to bring Mittens. Is that you?');
+    await click({ id: 'catlogin-hop-yes' });
+    expect(html()).toContain('Done. Your cat is going to the other device.');
+    expect((await cloud.hopPoll(join.ticket)).status).toBe('ok');
+  });
+  it('No tells the other device no and says the hop is closed', async () => {
+    await setup({ linked: CODE, extra: hopExtra() });
+    await click({ id: 'catlogin-hop-add' });
+    const join = await cloud.hopJoin(hopOf());
+    await flush(3000);
+    await click({ id: 'catlogin-hop-no' });
+    expect(html()).toContain('The other device was told no. That hop code is closed.');
+    expect((await cloud.hopPoll(join.ticket)).status).toBe('denied');
+  });
+  it('Cancel closes the hop and the button comes back', async () => {
+    await setup({ linked: CODE, extra: hopExtra() });
+    await click({ id: 'catlogin-hop-add' });
+    await click({ id: 'catlogin-hop-cancel' });
+    expect(html()).toContain('id="catlogin-hop-add"');
+    expect((await cloud.hopJoin('ABCDEF')).status).toBe('none');
+  });
+  it('polling stops when the sheet is closed', async () => {
+    await setup({ linked: CODE, extra: hopExtra() });
+    await click({ id: 'catlogin-hop-add' });
+    await flush(3000);
+    const n = server.calls.length;
+    dressingMock.opts.onOpenSheet(null);
+    await flush(30000);
+    expect(server.calls.length).toBe(n);
+  });
+  it('a server without step 3 says it is not ready, and the sheet still works', async () => {
+    await setup({ linked: CODE, extra: hopExtra() });
+    server = createFakeHopServer({ cats: { [CODE]: SECRET }, missing: true });
+    cloud = createCloud({ rpc: server.rpc, select: async () => [] });
+    await click({ id: 'catlogin-hop-add' });
+    await vi.waitFor(() => expect(html()).toContain('Adding a device is not ready yet. Use your cat code for now.'));
+    expect(html()).toContain('catlogin-change');
+  });
+  it('no network says the plain offline line', async () => {
+    await setup({ linked: CODE, extra: hopExtra() });
+    server = createFakeHopServer({ cats: { [CODE]: SECRET }, offline: true });
+    cloud = createCloud({ rpc: server.rpc, select: async () => [] });
+    await click({ id: 'catlogin-hop-add' });
+    await vi.waitFor(() => expect(html()).toContain('Connect to the internet and try again.'));
+  });
+
+  it('on the other device: Bring my cat here offers I have a hop code, and it asks for nothing yet', async () => {
+    const s = await setup({ extra: hopExtra() });
+    await click({ id: 'catlogin-bring' });
+    expect(html()).toContain('<button id="catlogin-hop-have" >I have a hop code</button>');
+    await click({ id: 'catlogin-hop-have' });
+    expect(html()).toContain('Hop code from my other device');
+    expect(html()).toContain('id="catlogin-hop-code"');
+    type('catlogin-hop-code', 'abc');
+    await flush(10000);
+    expect(server.calls).toHaveLength(0);
+    expect(s.sync.hopCloud).not.toHaveBeenCalled();
+  });
+  it('Go joins, waits for the OK with a line and a Cancel, then the normal Is-this-your-cat card', async () => {
+    const s = await setup({ extra: hopExtra() });
+    const opened = await cloud.hopOpen(CODE, SECRET);
+    await click({ id: 'catlogin-bring' });
+    await click({ id: 'catlogin-hop-have' });
+    type('catlogin-hop-code', opened.hop.toLowerCase());
+    await click({ id: 'catlogin-hop-go' });
+    expect(html()).toContain('Waiting for your other device to say OK…');
+    expect(html()).toContain('id="catlogin-hop-cancel"');
+    await flush(3000);
+    expect(s.sync.previewLoad).not.toHaveBeenCalled();
+    await cloud.hopAnswer(CODE, SECRET, true);
+    await flush(3000);
+    await vi.waitFor(() => expect(s.sync.previewLoad).toHaveBeenCalledWith(CODE));
+    await vi.waitFor(() => expect(html()).toContain('Confirm — overwrite this device'));
+  });
+  it('a wrong code says it did not work; too many tries say wait', async () => {
+    await setup({ extra: hopExtra() });
+    await click({ id: 'catlogin-bring' });
+    await click({ id: 'catlogin-hop-have' });
+    type('catlogin-hop-code', 'QQQQQQ');
+    await click({ id: 'catlogin-hop-go' });
+    expect(html()).toContain('That code didn’t work.');
+    for (let i = 0; i < 10; i++) await click({ id: 'catlogin-hop-go' });
+    expect(html()).toContain('Too many tries. Wait a little while and try again.');
+  });
+  it('the first device saying no is told to the joiner in kid words', async () => {
+    await setup({ extra: hopExtra() });
+    const opened = await cloud.hopOpen(CODE, SECRET);
+    await click({ id: 'catlogin-bring' });
+    await click({ id: 'catlogin-hop-have' });
+    type('catlogin-hop-code', opened.hop);
+    await click({ id: 'catlogin-hop-go' });
+    await cloud.hopAnswer(CODE, SECRET, false);
+    await flush(3000);
+    expect(html()).toContain('Your other device said no.');
+  });
+  it('Cancel while waiting stops the polling; I have my cat code goes back to the four words', async () => {
+    await setup({ extra: hopExtra() });
+    const opened = await cloud.hopOpen(CODE, SECRET);
+    await click({ id: 'catlogin-bring' });
+    await click({ id: 'catlogin-hop-have' });
+    type('catlogin-hop-code', opened.hop);
+    await click({ id: 'catlogin-hop-go' });
+    await click({ id: 'catlogin-hop-cancel' });
+    const n = server.calls.length;
+    await flush(15000);
+    expect(server.calls.length).toBe(n);
+    await click({ id: 'catlogin-hop-back' });
+    expect(html()).toContain('id="sync-load-code"');
+  });
+  it('an old server (no hop functions) says so and the cat code way is still there', async () => {
+    await setup({ extra: hopExtra() });
+    server = createFakeHopServer({ cats: {}, missing: true });
+    cloud = createCloud({ rpc: server.rpc, select: async () => [] });
+    await click({ id: 'catlogin-bring' });
+    await click({ id: 'catlogin-hop-have' });
+    type('catlogin-hop-code', 'ABCDEF');
+    await click({ id: 'catlogin-hop-go' });
+    expect(html()).toContain('Adding a device is not ready yet. Use your cat code for now.');
+    await click({ id: 'catlogin-hop-back' });
+    expect(html()).toContain('id="sync-load-code"');
+  });
+  it('a sync without the hop calls (an older build of the home screen) is not ready, not a crash', async () => {
+    await setup({ linked: CODE });
+    await click({ id: 'catlogin-hop-add' });
+    expect(html()).toContain('Adding a device is not ready yet. Use your cat code for now.');
+  });
+
+  it('every new line says something under both word sets, and the hop screens name no series word', async () => {
+    const { phrase, addPhrases } = await import('../src/clanphrases.js');
+    const { LINES } = await import('../src/ui/catloginwords.js');
+    addPhrases(LINES);
+    const ids = Object.keys(LINES).filter((k) => k.startsWith('catlogin.hop.'));
+    expect(ids.length).toBeGreaterThan(20);
+    const say = (id) => String(phrase(id, 'Mittens'));
+    for (const id of ids) expect(say(id).length, id).toBeGreaterThan(1);
+    await withOffWordsAsync(async () => {
+      for (const id of ids) {
+        expect(say(id).length, id).toBeGreaterThan(1);
+        for (const w of ['Twoleg', 'StarClan', 'clan', 'Clan', 'camp', 'warrior']) expect(say(id), id).not.toContain(w);
+      }
+      await setup({ linked: CODE, extra: hopExtra() });
+      await click({ id: 'catlogin-hop-add' });
+      expect(html()).toContain('Good for 10 minutes.');
+    });
+  });
+  it('the new controls are real buttons and a text box', async () => {
+    await setup({ extra: hopExtra() });
+    await click({ id: 'catlogin-bring' });
+    await click({ id: 'catlogin-hop-have' });
+    const h = html();
+    for (const id of ['catlogin-hop-go', 'catlogin-hop-back']) expect(h).toMatch(new RegExp(`<button id="${id}"`));
+    expect(h).toMatch(/<input type="text" id="catlogin-hop-code"/);
   });
 });

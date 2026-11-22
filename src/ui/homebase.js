@@ -478,6 +478,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   const catApi = {
     sync, escapeHtml, phrase, addPhrases, tvState, root, get confirmCard() { return confirmCard; },
     render: () => render(), afterConfirm: (res) => afterCloudConfirm(res),
+    sheetOpen: () => openSheet === 'sync',
   };
   function loadCatlogin() {
     return (catloginP ??= import('./catlogin.js').then((m) => {

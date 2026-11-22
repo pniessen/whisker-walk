@@ -52,10 +52,75 @@ export function chipsHtml(text, a) {
   }).join(' ');
 }
 
+// How a hop (either side) stands, in kid words. Nothing here is a code or a secret.
+function hopError(v, a) {
+  switch (v.phase) {
+    case 'wrong': return a.phrase('catlogin.hop.wrong');
+    case 'busy': return a.phrase('catlogin.hop.busy');
+    case 'timeout': return a.phrase('catlogin.hop.timeout');
+    case 'refused': return a.phrase('catlogin.hop.refused');
+    case 'error':
+      if (v.error === 'offline') return a.phrase('catlogin.err.offline');
+      if (v.error === 'unavailable') return a.phrase('catlogin.hop.err.unavailable');
+      if (v.error === 'denied') return a.phrase('catlogin.hop.err.denied');
+      return a.phrase('catlogin.hop.err.bad');
+    default: return '';
+  }
+}
+
+// Screen 3, the hop code half: six characters from the other device, then the wait for its OK.
+function hopEntryHtml(cl, a) {
+  const e = a.escapeHtml;
+  const v = cl.hop?.kind === 'join' ? cl.hop.view : null;
+  const waiting = !!v && (v.phase === 'joining' || v.phase === 'waiting');
+  const err = v ? hopError(v, a) : '';
+  return `
+          <div class="code-field hop-entry">
+            <label class="code-label" for="catlogin-hop-code">${e(a.phrase('catlogin.hop.label'))}</label>
+            <div class="sync-load-row">
+              <input type="text" id="catlogin-hop-code" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="${e(a.phrase('catlogin.hop.placeholder'))}" value="${e(cl.hopTyped ?? '')}" class="wt-code-input sync-code-input" />
+              <button id="catlogin-hop-go" ${waiting || cl.busy ? 'disabled' : ''}>${e(a.phrase('catlogin.hop.go'))}</button>
+            </div>
+            ${waiting ? `<div class="tag" role="status" data-hop="waiting">${e(a.phrase('catlogin.hop.waiting'))}</div><button id="catlogin-hop-cancel">${e(a.phrase('catlogin.hop.cancel'))}</button>` : ''}
+            ${err ? `<div class="tag error" role="status" data-hop="${e(v.phase)}">${e(err)}</div>` : ''}
+            <button id="catlogin-hop-back" class="link">${e(a.phrase('catlogin.hop.back'))}</button>
+          </div>`;
+}
+
+// Screen 6: the device that has the cat shows the six characters and waits for a device to type them.
+function hopHostHtml(cl, a) {
+  const e = a.escapeHtml;
+  const v = cl.hop.view;
+  const name = a.sync.catStatus?.()?.name ?? '';
+  const done = (line) => `<div class="tag" role="status" data-hop="${e(v.phase)}">${e(line)}</div><button id="catlogin-hop-done">${e(a.phrase('catlogin.hop.done'))}</button>`;
+  let body;
+  if (v.phase === 'opening') body = `<div class="tag" role="status">${e(a.phrase('catlogin.hop.opening'))}</div>`;
+  else if (v.phase === 'code') {
+    body = `<div class="tag">${e(a.phrase('catlogin.hop.steps'))}</div>
+            <div class="sync-code-value hop-code" data-hop-code>${e(v.hop)}</div>
+            <div class="tag">${e(a.phrase('catlogin.hop.life'))}</div>
+            <button id="catlogin-hop-cancel">${e(a.phrase('catlogin.hop.cancel'))}</button>`;
+  } else if (v.phase === 'asked') {
+    body = `<div class="tag" role="status" data-hop="asked">${e(a.phrase('catlogin.hop.asked', name))}</div>
+            <div class="sync-actions"><button id="catlogin-hop-no">${e(a.phrase('catlogin.hop.no'))}</button><button id="catlogin-hop-yes" class="primary">${e(a.phrase('catlogin.hop.yes'))}</button></div>`;
+  } else if (v.phase === 'allowed') body = done(a.phrase('catlogin.hop.allowed'));
+  else if (v.phase === 'closed') body = done(a.phrase('catlogin.hop.closed'));
+  else if (v.phase === 'error') body = done(hopError(v, a));
+  else body = done(a.phrase('catlogin.hop.over'));
+  return `
+          <div class="sync-hop hop-host">
+            <h3>${e(a.phrase('catlogin.hop.add'))}</h3>
+            ${body}
+          </div>`;
+}
+
 function bringHtml(cl, a) {
   const e = a.escapeHtml;
   const busy = cl.busy ? 'disabled' : '';
+  if (cl.hopEntry) return hopEntryHtml(cl, a);
   return `
+          <button id="catlogin-hop-have" ${busy}>${e(a.phrase('catlogin.hop.have'))}</button>
+          <div class="tag">${e(a.phrase('catlogin.hop.havehint'))}</div>
           <div class="code-field">
             <label class="code-label" for="sync-load-code">${e(a.phrase('catlogin.bring.label'))}</label>
             <div class="sync-load-row">
@@ -106,6 +171,7 @@ function linkedHtml(cl, a, code) {
               <button id="sync-now" ${busy}>${cl.busy ? 'Syncing…' : 'Sync now'}</button>
               <button id="sync-load-linked" ${busy}>Load from cloud</button>
             </div>
+            ${cl.hop?.kind === 'host' ? hopHostHtml(cl, a) : `<div class="sync-actions"><button id="catlogin-hop-add" ${busy}>${e(a.phrase('catlogin.hop.add'))}</button></div>`}
             ${showHtml(cl, a, code)}
             <div class="sync-actions">
               <button id="catlogin-change" ${busy}>${e(a.phrase('catlogin.change'))}</button>
@@ -174,6 +240,10 @@ export function typing(target, cl, a) {
     if (chips) chips.innerHTML = chipsHtml(cl.typed, a);
     return true;
   }
+  if (target?.id === 'catlogin-hop-code') {
+    cl.hopTyped = String(target.value ?? '');
+    return true;
+  }
   if (target?.id === 'catlogin-check') {
     cl.checkText = String(target.value ?? '');
     const want = lastWord(a.sync.getCode());
@@ -222,6 +292,85 @@ export function wire(root, cl, a) {
   root.addEventListener('keyup', (e) => { if (isShowButton(e.target)) stop(); });
 }
 
+// ── add a device ───────────────────────────────────────────────────
+
+// The hop client (src/game/hop.js) is its own lazy chunk, fetched by the first tap that needs it.
+let hopMod = null;
+const loadHop = async () => (hopMod ??= await import('../game/hop.js'));
+function stopHop(cl) {
+  try { cl.hop?.run?.cancel?.(); } catch { /* a hop that cannot be cancelled is already over */ }
+  cl.hop = null;
+}
+// Every change of a hop's view lands here. A view is redrawn on the sheet; the sheet closing ('left')
+// just forgets the hop.
+function hopChanged(kind, run, cl, a) {
+  return (view) => {
+    if (cl.hop?.run !== run) return; // an older hop's late answer
+    if (view.phase === 'left') { cl.hop = null; return; }
+    cl.hop = { kind, run, view };
+    if (kind === 'join' && view.phase === 'arrived') { arrived(view.code, cl, a); return; }
+    a.render();
+  };
+}
+// The first device said OK: the cat code is in hand, and the normal Is-this-your-cat card comes next.
+async function arrived(code, cl, a) {
+  cl.hop = null; cl.hopEntry = false; cl.hopTyped = '';
+  cl.busy = true; cl.error = null; a.render();
+  const res = await a.sync.previewLoad(code);
+  cl.busy = false;
+  if (res.ok) cl.preview = res.preview; else cl.error = res.error;
+  a.render();
+}
+async function hopClick(id, e, cl, a) {
+  const sync = a.sync;
+  switch (id) {
+    case 'catlogin-hop-add': {
+      if (cl.busy) return true;
+      const h = sync.hopHost?.();
+      if (!h) { cl.error = a.phrase('catlogin.hop.err.unavailable'); a.render(); return true; }
+      const m = await loadHop();
+      stopHop(cl);
+      const run = m.createHost({ ...h, isOpen: a.sheetOpen, onChange: (v) => hopChanged('host', run, cl, a)(v) });
+      cl.hop = { kind: 'host', run, view: run.view() };
+      cl.error = null;
+      a.render();
+      await run.start();
+      return true;
+    }
+    case 'catlogin-hop-yes': await cl.hop?.run?.allow?.(); return true;
+    case 'catlogin-hop-no': await cl.hop?.run?.deny?.(); return true;
+    case 'catlogin-hop-cancel':
+      stopHop(cl); a.render();
+      return true;
+    case 'catlogin-hop-done':
+      cl.hop = null; a.render();
+      return true;
+    case 'catlogin-hop-have':
+      cl.hopEntry = true; cl.error = null; a.render();
+      a.root.querySelector?.('#catlogin-hop-code')?.focus?.();
+      return true;
+    case 'catlogin-hop-back':
+      stopHop(cl); cl.hopEntry = false; a.render();
+      return true;
+    case 'catlogin-hop-go': {
+      if (cl.busy) return true;
+      const box = a.root.querySelector?.('#catlogin-hop-code');
+      const typed = String(box?.value ?? cl.hopTyped ?? '');
+      const cloud = sync.hopCloud?.();
+      if (!cloud) { cl.hop = { kind: 'join', run: null, view: { phase: 'error', error: 'unavailable' } }; a.render(); return true; }
+      const m = await loadHop();
+      stopHop(cl);
+      cl.hopTyped = typed;
+      const run = m.createJoiner({ cloud, isOpen: a.sheetOpen, onChange: (v) => hopChanged('join', run, cl, a)(v) });
+      cl.hop = { kind: 'join', run, view: run.view() };
+      await run.join(typed);
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
 // ── taps ───────────────────────────────────────────────────────────
 
 /**
@@ -246,6 +395,7 @@ export async function click(e, cl, a) {
     return true;
   }
   const sync = a.sync;
+  if (id.startsWith('catlogin-hop-')) return hopClick(id, e, cl, a);
   switch (id) {
     case 'sync-save': {
       cl.busy = true; cl.error = null; a.render();
@@ -337,6 +487,7 @@ export async function click(e, cl, a) {
         returnFocus: () => a.root.querySelector?.('#sync-unlink')?.focus?.({ preventScroll: true }),
         onYes: () => {
           sync.unlink();
+          stopHop(cl);
           cl.status = null; cl.error = null; cl.justLinked = false; cl.showUntil = 0; cl.bringOpen = false;
           a.render();
         },
