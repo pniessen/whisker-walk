@@ -16,7 +16,8 @@ export function yardWalk({ at, face, viewYaw, abilities = () => BASE_ABILITIES, 
   const [x, z] = at;
   cat.position.set(x, area.ground.y(x, z), z);
   if (face) cat.rotation.y = facingYaw(face[0], face[1]);
-  const player = createPlayer(new THREE.PerspectiveCamera(), { addEventListener() {} });
+  const camera = new THREE.PerspectiveCamera();
+  const player = createPlayer(camera, { addEventListener() {} });
   player.setAvatar(cat, 3.5);
   player.setGround(area.ground);
   player.setReducedMotion(reducedMotion);
@@ -43,6 +44,7 @@ export function yardWalk({ at, face, viewYaw, abilities = () => BASE_ABILITIES, 
 
   return {
     area,
+    camera,
     player,
     cat,
     live,

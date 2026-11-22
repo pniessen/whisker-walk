@@ -82,6 +82,28 @@ describe('the flag', () => {
     }, 90_000);
   }
 
+  it('the walk makes the moves runtime and the lamp\'s life, and the lever pays 25 paws once through the real discovery log', async () => {
+    setLighthouse(true);
+    const l = life({ realLog: true });
+    try {
+      expect(await l.w.beginWalkFromHomebase({ duskMode: false })).toBe('started');
+      const s = l.getSession();
+      expect(s.traversal.crossings?.length ?? s.traversal).toBeTruthy(); // not NO_TRAVERSAL
+      expect(typeof s.areaLife.update).toBe('function');
+      expect(s.areaLife.lit).toBe(false);
+      const lever = s.tippables.list.find((e) => e.kind === 'lever');
+      expect(lever.prompt).toBe('E — pull the lamp lever');
+      const before = l.progression.state.points;
+      expect(s.tippables.tip(lever)).toBe(true);
+      for (let i = 0; i < 10; i++) s.areaLife.update(1 / 30, 0, s.cat.position, null, s);
+      expect(s.areaLife.lit).toBe(true);
+      expect(l.progression.state.points - before).toBe(25);
+      expect(l.progression.state.feats.lighthousejob).toBe(1);
+      for (let i = 0; i < 300; i++) s.areaLife.update(1 / 30, 0, s.cat.position, null, s);
+      expect(l.progression.state.points - before).toBe(25);
+    } finally { endIfWalking(l); }
+  }, 90_000);
+
   it('never in a room', () => {
     setLighthouse(true);
     const l = life();

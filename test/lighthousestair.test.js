@@ -174,6 +174,36 @@ describe('the gallery and the lamp room', () => {
   });
 });
 
+describe('the camera keeps clear of the lamp room\'s roof and the gallery\'s edge', () => {
+  it('with her inside the lamp room, at every zoom step, the camera is under any ceiling it is beneath and never below the floor', () => {
+    const { ground } = area;
+    for (const step of [0, 1, 2, 3]) {
+      const w = yardWalk({ area, at: [-22.675, -18.83], face: [-0.585, -1.65], colliders: area.colliders });
+      w.player.setCameraZoom(step, { instant: true });
+      for (let i = 0; i < 120; i++) {
+        w.frame();
+        const { x, y, z } = w.camera.position;
+        expect(y, `zoom ${step}: under the ceiling`).toBeLessThanOrEqual(ground.ceil(x, z) - 0.3 + 1e-6);
+        expect(y, `zoom ${step}: over the floor`).toBeGreaterThanOrEqual(ground.y(x, z) + 0.4);
+      }
+      w.live.dispose();
+    }
+  });
+  it('walking round the gallery at the default zoom, the camera is never below the gallery\'s floor', () => {
+    const { ground } = area;
+    const top = L.LANDINGS[3];
+    const w = yardWalk({ area, at: [top.x, top.z], face: [L.TOWER.x - top.x, L.TOWER.z - top.z], colliders: area.colliders });
+    // walk the ring: toward a point on the rail side, all the way round in 8 legs
+    for (let leg = 0; leg < 8; leg++) {
+      const a = ((L.STAIR_TOP_DEG + 45 * (leg + 1)) * Math.PI) / 180;
+      const p = { x: L.TOWER.x + 3.8 * Math.cos(a), z: L.TOWER.z + 3.8 * Math.sin(a) };
+      for (let i = 0; i < 60 * 4 && Math.hypot(p.x - w.cat.position.x, p.z - w.cat.position.z) > 0.4; i++) { w.push(p.x - w.cat.position.x, p.z - w.cat.position.z); w.frame(); const c = w.camera.position; expect(c.y).toBeGreaterThanOrEqual(ground.y(c.x, c.z) + 0.4 - 1e-6); }
+    }
+    expect(w.cat.position.y).toBeCloseTo(13.5, 6);
+    w.live.dispose();
+  }, 60000);
+});
+
 describe('never stuck', () => {
   const flood = floodTraversal(area);
   const home = flood.regionAt(area.spawn.x, area.spawn.z);
