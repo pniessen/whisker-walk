@@ -3,7 +3,7 @@
 // nothing here may import src/tv/: the build fails if the chunk joins
 // start-up (scripts/buildjson.mjs). With TV mode off every function is
 // identity or a no-op, so touch, mouse and keyboard play is unchanged.
-export const tvState = { on: false, pending: false, input: 'keys', text: null, html: null, padLine: null };
+export const tvState = { on: false, pending: false, input: 'keys', text: null, html: null, padLine: null, fix: null };
 
 // Pad events from gamepad.js; the chunk fills these in (null = nobody listens).
 export const tvHooks = { padUse: null, padConnect: null, padDisconnect: null, back: null, button: null, picker: null, list: null }; // back(): the pad's B; button(i): another menu button, true if a TV card took it; picker(opts): the letter picker, a promise of the name or null; list(opts): a choose-one list card, a promise of the value or null
@@ -12,6 +12,9 @@ const listeners = new Set();
 
 /** Plain text or token text in, the same out until the chunk sets `text`. */
 export const padText = (s) => (tvState.text ? tvState.text(s) : s);
+
+/** A plain line that names a key ("E — pet Mochi", "click Save") in the pad's words (tokens) while the pad is the input; the same line otherwise. */
+export const padFix = (s) => (tvState.input === 'pad' && tvState.fix ? tvState.fix(s) : s);
 
 /** Like padText but for a caller that sets HTML: the string with button pictures, or null when TV mode has none (keep the caller's own path). */
 export const padHtml = (s) => (tvState.html ? tvState.html(s) : null);
@@ -36,7 +39,7 @@ export function onTv(fn) {
 
 /** Back to the start (tests). */
 export function resetTv() {
-  Object.assign(tvState, { on: false, pending: false, input: 'keys', text: null, html: null, padLine: null });
+  Object.assign(tvState, { on: false, pending: false, input: 'keys', text: null, html: null, padLine: null, fix: null });
   listeners.clear();
   Object.assign(tvHooks, { padUse: null, padConnect: null, padDisconnect: null, back: null, button: null, picker: null, list: null });
 }

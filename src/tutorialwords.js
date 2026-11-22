@@ -14,7 +14,7 @@
 // sets the result as text (textContent) or escapes it (escapeHtml), never as
 // HTML.
 import { words } from './wordset.js';
-import { tvState, padText } from './tvseam.js';
+import { tvState, padText, padFix } from './tvseam.js';
 
 const same = (s) => Object.freeze({ touch: s, keys: s });
 const two = (touch, keys) => Object.freeze({ touch, keys });
@@ -167,7 +167,10 @@ export function line(id, { touch = false, glyph = false, ...slots } = {}) {
   const own = words().LINES;
   const entry = own && Object.hasOwn(own, id) ? own[id] : WORDS[id];
   const form = touch ? entry.touch : entry.keys;
-  return form.replace(/\{(\w+)\}/g, (_, k) => (Object.hasOwn(slots, k) && slots[k] != null ? String(slots[k]) : ''));
+  const out = form.replace(/\{(\w+)\}/g, (_, k) => (Object.hasOwn(slots, k) && slots[k] != null ? String(slots[k]) : ''));
+  // A pad is the input and this line has no pad form of its own: the net names its button for any key it says.
+  if (tvState.input === 'pad' && tvState.fix) { const f = padFix(out); return glyph ? f : padText(f); }
+  return out;
 }
 
 // Both forms at once, for a place that draws the two and lets the page's

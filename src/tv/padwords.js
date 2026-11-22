@@ -102,3 +102,19 @@ export function padLine(id, slots = {}) {
   }
   return text.replace(/\{(\w+)\}/g, (_, k) => (Object.hasOwn(slots, k) && slots[k] != null ? String(slots[k]) : ''));
 }
+
+// The keyboard's words in a plain line -> the pad's tokens, for the many lines
+// that hard-code a key ("E — pet Mochi", "press Esc"). A line with a pad form of
+// its own (PAD_WORDS) is better; this is the net under every line that has none.
+// Only whole key words match, so "Escape" and "Eat" are left alone.
+const KEY_TOKEN = { E: 'interact', Space: 'jump', Esc: 'pause', V: 'meow', C: 'photo', Enter: 'confirm', M: 'pause' };
+export function keysToPad(text) {
+  if (typeof text !== 'string' || text === '') return text;
+  return text
+    .replace(/^E\s+—\s+/, '⟦interact⟧ — ')
+    .replace(/\b(press|Press|hit|Hit)\s+(E|Space|Esc|V|C|Enter)\b/g, (_, v, k) => `${v} ⟦${KEY_TOKEN[k]}⟧`)
+    .replace(/←↑↓→\/WASD|Arrows\/WASD|arrow keys|Arrow keys/g, '⟦move⟧')
+    .replace(/\b(Esc|Space)\b/g, (k) => `⟦${KEY_TOKEN[k]}⟧`)
+    .replace(/\b([Cc])lick to\b/g, (_, c) => `${c === 'C' ? 'Press' : 'press'} ⟦confirm⟧ to`)
+    .replace(/\b([Cc])lick\b/g, (_, c) => `${c === 'C' ? 'Press' : 'press'} ⟦confirm⟧ on`);
+}

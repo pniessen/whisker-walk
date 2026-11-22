@@ -6,21 +6,40 @@ import './tv.css';
 import { applyScale } from './scale.js';
 import { createInputTracker } from './input.js';
 import { glyphify, plainify, padKind } from './glyphs.js';
+import { escapeHtml } from '../escapehtml.js';
 import { setTv, tvHooks } from '../tvseam.js';
 import { openLetterPicker } from './letterpickerview.js';
 import { openList } from './spotlist.js';
-import { padLine } from './padwords.js';
+import { padLine, keysToPad } from './padwords.js';
 export { offer } from './offer.js';
+
+let lite = null;
+
+/**
+ * Pad hints without TV mode: the last input is tracked, and every line that names a key
+ * says the pad's button instead (plain symbols, no pictures, no TV styling). A page that
+ * turns TV mode on later goes through start(), which takes over from this.
+ */
+export function startLite(ctx) {
+  const { doc, win } = ctx;
+  if (lite || doc.documentElement.classList.contains('tv')) return lite;
+  const kind = () => padKind(ctx.padInfo?.());
+  const input = createInputTracker({ win, doc, setInput: (v) => { doc.documentElement.classList.toggle('padhints', v === 'pad'); setTv({ input: v }); } });
+  setTv({ text: (s) => plainify(s, kind()), html: (s) => escapeHtml(plainify(s, kind())), padLine, fix: keysToPad });
+  lite = { stop() { lite = null; doc.documentElement.classList.remove('padhints'); input.destroy(); setTv({ input: 'keys', text: null, html: null, padLine: null, fix: null }); } };
+  return lite;
+}
 
 /** Turns TV mode on for this page; returns { stop() } that puts everything back. */
 export async function start(ctx) {
   const { doc, win } = ctx;
+  lite?.stop();
   const scale = applyScale(doc, win);
   doc.documentElement.classList.add('tv');
   // Button pictures follow the pad in use; the last input decides when they show.
   const kind = () => padKind(ctx.padInfo?.());
   const input = createInputTracker({ win, doc, setInput: (v) => setTv({ input: v }) });
-  setTv({ text: (s) => plainify(s, kind()), html: (s) => glyphify(s, kind()), padLine });
+  setTv({ text: (s) => plainify(s, kind()), html: (s) => glyphify(s, kind()), padLine, fix: keysToPad });
   // The letter picker, for the cat builder's name and the walking name (their views call tvHooks.picker).
   const mount = (el) => { const home = doc.getElementById('homebase'); if (home?.after) home.after(el); else doc.body.appendChild(el); };
   tvHooks.picker = (opts) => openLetterPicker({ doc, mount, ...opts });
@@ -32,7 +51,7 @@ export async function start(ctx) {
       doc.documentElement.classList.remove('tv');
       input.destroy();
       scale.destroy();
-      setTv({ input: 'keys', text: null, html: null, padLine: null });
+      setTv({ input: 'keys', text: null, html: null, padLine: null, fix: null });
     },
   };
 }

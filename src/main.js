@@ -319,7 +319,7 @@ function init() {
     // No mouse to click for pointer lock, so a pad resumes the way touch does.
     onResume: () => player.setTouchEngaged(true),
     toast: (m) => hud.toast(m),
-    onPadUse: (i) => { tvHooks.padUse?.(i); tvOffer(); },
+    onPadUse: (i) => { if (tvHooks.padUse) tvHooks.padUse(i); else padHintsOn(i); tvOffer(); },
     onPadConnect: (i) => tvHooks.padConnect?.(i),
     onPadDisconnect: (i) => tvHooks.padDisconnect?.(i),
     onMenuButton: (i) => tvHooks.button?.(i) ?? false,
@@ -350,6 +350,13 @@ function init() {
   const homeClear = () => !session && !summaryUp() && homebase.depth() === 0 && !homebase.visitOpen() && !document.getElementById('homebase').classList.contains('hidden');
   const tvContext = () => ({ doc: document, win: window, settings, toast: (m) => hud.toast(m), padInfo: () => gamepad.padInfo(), homeClear, createConfirmCard, enable: () => { tvLoader.apply(true); homebase.refresh(); } });
   // A pad used full-screen on a big display, at home: offer TV mode, once per page load.
+  // A pad without TV mode: its first use loads the small hint translator (keys -> buttons), then says so again.
+  let padHintsLoading = false;
+  const padHintsOn = (i) => {
+    if (padHintsLoading) return;
+    padHintsLoading = true;
+    import('./tv/index.js').then((m) => { m.startLite(tvContext()); tvHooks.padUse?.(i); }).catch((err) => { padHintsLoading = false; note('tv', err); });
+  };
   const tvOffer = watchForTv({ win: window, settings, homeClear, onOffer: () => import('./tv/index.js').then((m) => m.offer(tvContext())).catch((err) => note('tv', err)) });
   const tvLoader = createTvLoader({
     load: () => import('./tv/index.js'),

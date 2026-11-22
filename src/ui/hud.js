@@ -3,7 +3,7 @@ import { objectiveDistance } from '../questscent.js';
 import { PAW } from './pawicon.js';
 import { toastLifeMs } from './toastlife.js';
 import { bothForms, hasLine } from '../tutorialwords.js';
-import { tvState, padHtml, onTv } from '../tvseam.js';
+import { tvState, padHtml, padText, padFix, onTv } from '../tvseam.js';
 import { escapeHtml } from '../escapehtml.js';
 
 // Toasts (polish-hud2, R2/R3). At most two on screen: a burst of discoveries
@@ -151,12 +151,14 @@ export function createHud() {
     if (p) stripEl.innerHTML = p; else stripEl.textContent = KEY_STRIP;
     const v = tvState.input === 'pad' && padHtml(tvState.padLine?.('pad.vf.hint') ?? '');
     if (v) vfEl.innerHTML = v; else vfEl.textContent = VF_KEYS;
+    if (hintArgs) api.setHint(...hintArgs);
   });
   const promptEl = root.querySelector('#hud-prompt');
   const promptTapHandlers = [];
   let lastPrompt = { text: null, tappable: null };
   let lastObjective = { text: null, dist: null };
   let lastHint = null;
+  let hintArgs = null; // the hint as the caller gave it, to say again in the other input's words
   // Shown toasts, oldest first; a toast leaves this list as it starts to
   // fade. Waiting lines (past the cap) queue up behind them, oldest first.
   const liveToasts = [];
@@ -192,7 +194,7 @@ export function createHud() {
   const showToast = (item) => {
     const el = document.createElement('div');
     el.className = 'toast';
-    el.textContent = item.build(item.count, item.points);
+    el.textContent = padText(padFix(item.build(item.count, item.points)));
     toastsEl.appendChild(el);
     const t = { ...item, el, shownAt: Date.now(), ripe: false, held: false, life: null, ripeTimer: null, gone: null };
     el.addEventListener?.('click', () => tapToast(t));
@@ -238,8 +240,11 @@ export function createHud() {
     // tappable} and no-op when unchanged so it isn't rebuilding a fresh
     // button node (and reattaching its click listener) 60 times a second.
     setPrompt(text, tappable) {
-      const next = { text: text || null, tappable: !!tappable };
+      // A pad player reads the pad's button where the line says E (padFix); text then has ⟦tokens⟧ for padHtml.
+      const shown = text && !tappable ? padFix(text) : text;
+      const next = { text: shown || null, tappable: !!tappable };
       if (lastPrompt.text === next.text && lastPrompt.tappable === next.tappable) return;
+      text = shown;
       lastPrompt = next;
       promptEl.classList.toggle('hidden', !text);
       if (!text) return;
@@ -255,7 +260,8 @@ export function createHud() {
         });
         promptEl.appendChild(btn);
       } else {
-        promptEl.textContent = text;
+        const h = text.includes('⟦') ? padHtml(text) : null;
+        if (h) promptEl.innerHTML = h; else promptEl.textContent = text;
       }
     },
     onPromptTap(fn) {
@@ -277,7 +283,7 @@ export function createHud() {
         if (newest && newest.key === key) {
           newest.count += 1;
           newest.points += points || 0;
-          newest.el.textContent = newest.build(newest.count, newest.points);
+          newest.el.textContent = padText(padFix(newest.build(newest.count, newest.points)));
           startToastLife(newest);
           return;
         }
@@ -370,8 +376,10 @@ export function createHud() {
     // while it is up, so the CSS can make room for it. The guided walk's
     // bubble (step 3 of the build) is this same element.
     setHint(text, pic) {
+      hintArgs = [text, pic];
+      if (typeof text === 'string') text = padFix(text);
       const on = typeof text === 'string' && text !== '';
-      const key = on ? `${pic || ''}|${text}` : null;
+      const key = on ? `${pic || ''}|${text}|${tvState.input}` : null;
       if (key === lastHint) return;
       lastHint = key;
       const el = root.querySelector('#hud-hint');
