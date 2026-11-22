@@ -30,6 +30,8 @@ import { createAlbum } from './album.js';
 import { askToKeepSaves } from './savekeep.js';
 import { createSettings } from './settings.js';
 import { createBlockList } from './blocklist.js';
+import { readCatKey } from './catkey.js';
+import { deviceMetPlayers } from './metplayers.js';
 import { phraseIdForDigit } from './chatkeys.js';
 import { createCloudToast, createCloudSync } from './game/cloudsync.js';
 import { createColonySync } from './game/colonysync.js';
@@ -83,16 +85,10 @@ listenForErrors(window);
 
 // stable per-browser identity for co-walk rooms — generated once and cached,
 // survives reloads so a mid-walk refresh doesn't orphan a room membership.
-let pid;
-try {
-  pid = window.localStorage.getItem('whisker-walk-player');
-  if (!pid) {
-    pid = crypto.randomUUID();
-    window.localStorage.setItem('whisker-walk-player', pid);
-  }
-} catch {
-  pid = crypto.randomUUID(); // storage unavailable (private mode, quota) — still usable this session
-}
+// Read through readCatKey (src/catkey.js): a cat loaded from the cloud brings its
+// own id, and the page reloads once so everything below sees that id. Storage
+// that is unavailable (private mode, quota) still gives an id for this session.
+const pid = readCatKey(window.localStorage).id;
 
 // multiplayer is entirely env-gated: absent keys hide the 👫 Play together
 // button and sheet, and nothing else about solo play changes.
@@ -237,6 +233,9 @@ function init() {
     progression,
     album,
     cloudToast,
+    pid,
+    met: deviceMetPlayers(),
+    blocked: blockList,
   });
 
   const hud = createHud();

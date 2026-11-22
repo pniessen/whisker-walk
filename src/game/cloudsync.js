@@ -12,6 +12,8 @@ import { createLiveCloud, generateSaveCode, normalizeSaveCode, getOrCreateSecret
 import { summarizeSaveForPreview } from '../progression.js';
 import { note } from '../diagnostics.js';
 import { toastLifeMs } from '../ui/toastlife.js';
+import { isPlayerId } from '../colony.js';
+import { snapshotKeyState, applyKeyState, backUpCatKey, catKeyFromPayload } from '../catkey.js';
 
 // A toast surface that stays visible on the home base screen (unlike
 // #hud, which is display:none whenever no walk is in progress) — cloud
@@ -84,7 +86,24 @@ export function walkingNameSaved({ petName = null } = {}) {
 }
 
 // makeCloud is injectable for tests; the game always uses createLiveCloud.
-export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, progression, album, cloudToast, makeCloud = createLiveCloud }) {
+const SOCIAL_MAX = 500; // ids per list; the same cap the met list keeps
+function idList(list) {
+  try { return (list?.all?.() ?? []).filter(isPlayerId).slice(0, SOCIAL_MAX); } catch { return []; }
+}
+function addIds(list, ids) {
+  if (!list || !Array.isArray(ids)) return;
+  try {
+    let n = idList(list).length;
+    for (const id of ids) {
+      if (n >= SOCIAL_MAX) break;
+      if (isPlayerId(id) && !list.has(id)) { list.add(id); n += 1; }
+    }
+  } catch { /* a list that cannot be written to just stays as it is */ }
+}
+// pid, met and blocked are optional (cat login, milestone 1): this device's cat
+// id and its two lists of other players' ids. Without them the payload is as it
+// was before and a load keeps whatever cat key the device has.
+export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, progression, album, cloudToast, makeCloud = createLiveCloud, pid = null, met = null, blocked = null }) {
   // the capability secret that authorizes profile/friendship writes (and, for
   // a freshly-created save row, doubles as that row's initial secret) —
   // memoized lazily via getPsecret() below, on first actual use, rather than
@@ -185,7 +204,12 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
   // deep-cloned snapshot: composed once per RPC call so an in-flight
   // fire-and-forget send can't pick up a further mutation mid-flight.
   function composeCloudPayload() {
-    return JSON.parse(JSON.stringify({ save: progression.state, album: album.serialize() }));
+    const payload = { save: progression.state, album: album.serialize() };
+    // Which cat this is, so a device that loads the save can become that cat
+    // (src/catkey.js). Ids only, never the secret: that comes with the row.
+    if (isPlayerId(pid)) payload.cat = { id: pid };
+    if (met || blocked) payload.social = { met: idList(met), blocked: idList(blocked) };
+    return JSON.parse(JSON.stringify(payload));
   }
   // 'denied' means this code/secret pair no longer authorizes writes
   // (e.g. re-linked elsewhere) — surfaced once per link, not on every
@@ -291,11 +315,36 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
     // calls from this device must use.
     async confirmLoad(preview) {
       if (!preview) return { ok: false, error: 'Nothing to load.' };
-      progression.replaceFromPayload(preview.payload.save);
+      const FAILED = { ok: false, error: 'That didn’t work, so nothing was changed.' };
+      // The cat that comes with the save (src/catkey.js): its id and the row
+      // secret become this device's key, so the profile, friends, colony and
+      // group name are the same cat here. Null: an older save, which keeps this
+      // device's own key as before.
+      const newKey = catKeyFromPayload(preview.payload, preview.secret);
+      let before;
+      try { before = snapshotKeyState(storage); } catch { return FAILED; }
+      // Order: the old key is kept first (with the save's own before-cloud copy,
+      // which replaceFromPayload writes), then the key and link change together,
+      // then the save. If any step fails the old four are put back.
+      if (!backUpCatKey(storage)) return FAILED;
+      const next = { ...before, code: preview.code, linkSecret: preview.secret };
+      if (newKey) { next.id = newKey.id; next.secret = newKey.secret; }
+      if (!applyKeyState(storage, next)) return FAILED;
+      let replaced = false;
+      try { replaced = progression.replaceFromPayload(preview.payload.save) !== false; } catch (err) { note('cloud', err); }
+      if (!replaced) {
+        applyKeyState(storage, before);
+        return FAILED;
+      }
       album.replaceFromPayload(preview.payload.album ?? { version: 1, photos: [] });
-      writeCloudLink(preview.code, preview.secret);
+      // The friends the cat had met, and the visitors it hid, join this device's.
+      addIds(met, preview.payload.social?.met);
+      addIds(blocked, preview.payload.social?.blocked);
+      psecretCache = null; // read again from storage if it changed
       deniedNotified = false;
-      return { ok: true };
+      if (!newKey) return { ok: true, keptKey: true };
+      // The page reads the id once, at boot: a different cat needs a reload.
+      return newKey.id !== before.id || newKey.secret !== before.secret ? { ok: true, reload: true } : { ok: true };
     },
     async syncNow() {
       return runSync();

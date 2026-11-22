@@ -85,6 +85,7 @@ const { createHomebaseCloud } = await import('../src/game/homebasecloud.js');
 const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression } = await import('../src/progression.js');
 const { createBlockList } = await import('../src/blocklist.js');
+const { createMetPlayers } = await import('../src/metplayers.js');
 
 const PID = 'aaaaaaaa-1111-4000-8000-000000000001';
 const SECRET_KEY = 'whisker-walk-secret';
@@ -161,8 +162,10 @@ function boot({ petName = null, linked = false, MP = true, nearbyOpted = false }
   if (petName) progression.setPetName(petName);
   // a url of its own, so net.js's per-url client cache never hides a create
   const url = `https://test-${++seq}.invalid`;
+  const blockList = createBlockList(memStorage());
   const { getPsecret, getCloud, openCloud, onlineAllowed, togetherAllowed, sync } = createCloudSync({
     MP, supabaseUrl: url, supabaseAnonKey: 'anon', storage, progression,
+    pid: PID, met: createMetPlayers(memStorage()), blocked: blockList, // cat login M1: the cat's id and its two lists, as main.js passes them
     album: { serialize: () => ({ version: 1, photos: [] }), replaceFromPayload() {}, photos: [] }, cloudToast: () => {},
   });
   let pushProfileNow = () => Promise.resolve();
@@ -185,7 +188,6 @@ function boot({ petName = null, linked = false, MP = true, nearbyOpted = false }
     getName: () => progression.state.petName,
     onlineAllowed,
   });
-  const blockList = createBlockList(memStorage());
   const homebaseCloud = createHomebaseCloud({ MP, pid: PID, getCloud, getPsecret, onlineAllowed: togetherAllowed, pushProfileNow, blockList });
   const onlineDelete = createOnlineDelete({ MP, pid: PID, getCloud: openCloud, getPsecret, sync, progression });
   const homebase = createHomeBase({
@@ -295,6 +297,27 @@ describe('a fresh device: launch, home, a walk, home again', () => {
     await expect(g.homebaseCloud.findByFriendCode('3fa85f64')).rejects.toThrow('cloud unavailable');
     await expect(g.homebaseCloud.addFriendByCode('bbbbbbbb-2222-4000-8000-000000000002')).rejects.toThrow('cloud unavailable');
     expectSilent(g);
+  });
+});
+
+describe('cat login M1: bringing a cat here asks for nothing extra', () => {
+  it('a device that never linked sends no payload, even with the cat id and lists wired in', async () => {
+    const g = boot();
+    g.sync.autoSync();
+    await settle();
+    expectSilent(g);
+  });
+  it('Load from cloud with a named cat makes the one load_save call, and adopting its key makes no other', async () => {
+    const g = boot();
+    const CAT = 'dddddddd-4444-4000-8000-000000000004';
+    spy.answers.load_save = { secret: 'row-secret-9', payload: { save: g.progression.state, album: { version: 1, photos: [] }, cat: { id: CAT }, social: { met: [], blocked: [] } } };
+    const res = await g.sync.previewLoad('plum-otter-crow-42');
+    const out = await g.sync.confirmLoad(res.preview);
+    await settle();
+    expect(out).toEqual({ ok: true, reload: true });
+    expect(rpcNames()).toEqual(['load_save']);
+    expect(g.storage.getItem('whisker-walk-player')).toBe(CAT);
+    expect(g.storage.getItem(SECRET_KEY)).toBe('row-secret-9');
   });
 });
 

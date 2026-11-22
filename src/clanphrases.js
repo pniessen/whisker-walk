@@ -175,6 +175,10 @@ const LATER = Object.freeze({
   // the small line under the Neighborhood's name for her first visits
   'place.townNote': 'the town',
 
+  // ---- cat login, milestone 1 (2026-11-22): the same in every set ----
+  // shown while a loaded cat's key is adopted and the page reloads once
+  'catlogin.bringing': (name) => (name ? `Bringing ${name} here…` : 'Bringing your cat here…'),
+
   // ---- world map step 3 (2026-11-21): what a gate says, the same in every set ----
   'gate.shut': (walks, place, toGo) => `Opens after ${walks} ${walks === 1 ? 'walk' : 'walks'} in ${place}. ${toGo} to go!`,
   'gate.short': (need) => `You need ${need} more 🐾. Keep exploring!`,
