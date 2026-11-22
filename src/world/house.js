@@ -254,7 +254,8 @@ function drawTrees(scene, wind) {
 
 const START_LEVEL = 'ground';
 const WING_BOX_H = 2.6; // a far wing room's box, a little under its walls
-const WING_BOX_COLOR = freeze({ livingroom: 0xc8b48a, solarium: 0xbcd6cc, kids: 0xe0c880, bath: 0xc4dcd8 });
+const WING_BOX_BRICK = 0x8c4a38; // a far room's outside: the brick its walls are (houseparts.js)
+const WING_BOX_FLOOR = freeze({ livingroom: 0xb8935c, solarium: 0xa09c8e, kids: 0xd2b070, bath: 0xa8c4be });
 
 // The house's lines for its data's `words` ids (housethings.js), in the word set of the moment.
 function houseWords() {
@@ -361,10 +362,11 @@ function furnish(scene, material, start, traversal) {
   for (const z of HOUSE_ZONES.filter((q) => q.wing)) {
     const boxes = HOUSE_ROOMS.filter((r) => r.zone === z.id).map((r) => ({
       minX: r.minX - WALL_T / 2, maxX: r.maxX + WALL_T / 2, minZ: r.minZ - WALL_T / 2, maxZ: r.maxZ + WALL_T / 2,
-      y0: LAWN_Y, y1: levelY(r.level) + WING_BOX_H, floorY: levelY(r.level) + 0.01, // from the lawn: it stands where the brick skirt is hidden color: WING_BOX_COLOR[r.id] ?? 0xcdb98e,
+      y0: LAWN_Y, y1: levelY(r.level) + WING_BOX_H, floorY: levelY(r.level) + 0.01, // from the lawn: it stands where the brick skirt is hidden
+      color: WING_BOX_BRICK, floorColor: WING_BOX_FLOOR[r.id] ?? 0xb8935c,
     }));
     const wedges = HOUSE_STAIRS.filter((st) => st.id === 'wing' && z.id === 'sun').map((st) => ({
-      x0: st.x0, x1: st.x1, z: st.z0, width: st.width, y0: levelY(st.from), y1: levelY(st.to), base: LAWN_Y, color: 0xb0a090,
+      x0: st.x0, x1: st.x1, z: st.z0, width: st.width, y0: levelY(st.from), y1: levelY(st.to), base: LAWN_Y, color: WING_BOX_BRICK,
     }));
     const m = boxStandInMesh(z.id, boxes, wedges);
     m.visible = !full.has(z.id);

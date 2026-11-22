@@ -12,7 +12,7 @@ const {
   houseColliders, HOUSE_ZONES, HOUSE_LAMPS, zoneOfRoom,
 } = await import('../src/world/houseplan.js');
 // the zone a wall section is drawn with: the wing's rooms and stair name theirs, every old one is its level's
-const zoneOfSection = (s) => (s.owner === 'wing' ? 'east' : zoneOfRoom(HOUSE_ROOMS.find((r) => r.id === s.owner) ?? { level: s.level }));
+const zoneOfSection = (s) => (s.owner === 'wing' ? 'sun' : zoneOfRoom(HOUSE_ROOMS.find((r) => r.id === s.owner) ?? { level: s.level }));
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { createLevelDrawing } = await import('../src/houselevels.js');
 const { HOUSE_ATLAS_CELLS, createHouseAtlas, furnitureMesh } = await import('../src/world/houseparts.js');
@@ -464,8 +464,8 @@ describe('the furniture', () => {
     // + the secret bookcase (step 2, D9) and the paw prints at the take-offs, one mesh per level with any (step 2, D2)
     const marked = new Set(area.traversal.hops.map((h) => zoneOf(roomAt(h.x0, h.z0))));
     // + the beauty pass's warm glow, one mesh per level (house.js drawGlow)
-    // + the wing's zone details: two wall groups, two lamps, four floors, two brick skirts and the stair
-    expect(tagged.length).toBe(tall.length + HOUSE_ROOMS.length + 1 + marked.size + levelIds.length + 2 + 2 + 4 + 2 + 1);
+    // + the wing's zone details: four wall groups, two lamps, four floors, two brick skirts and the stair
+    expect(tagged.length).toBe(tall.length + HOUSE_ROOMS.length + 1 + marked.size + levelIds.length + 4 + 2 + 4 + 2 + 1);
     for (const c of tagged) {
       expect(levelIds).toContain(c.userData.houseLevel);
       let meshes = 0;
