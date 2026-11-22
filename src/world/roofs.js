@@ -15,6 +15,7 @@ import {
 import { STEP_MAX } from '../ground.js';
 import { createRoofsLife, mixHex } from '../roofslife.js';
 import { DRAWN_ID, ROOFS_BIRDS, flockPerches, perchIndex, roofsCritterSpawns } from './roofsflock.js';
+import { handAngles } from './clockhands.js';
 import { makeWashMaterial, swayAttribute, downwindSide } from './roofsair.js';
 
 // =============================================================================
@@ -439,8 +440,10 @@ function makeKit(prefix) {
       const count = g.attributes.position.count;
       if (mark) k.ranges.push({ ...mark, start: k.count, count });
       if (item) k.items.push({ ...item, start: k.count, count });
+      const start = k.count;
       k.count += count;
       k.geos.push(g);
+      return { bucket: full, start, count };
     },
     meshes() {
       return [...buckets.values()].map((k) => {
@@ -564,7 +567,8 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     const NK = makeKit('roofsNorth');
     drawShop(NK, north, M, win, ground, drawn);
     drawWarehouse(NK, north, M, win, upWin, ground, drawn);
-    const vane = drawTower(NK, north, M, scene, drawn);
+    const clockHands = [];
+    const vane = drawTower(NK, north, M, scene, drawn, clockHands);
     drawDiscoveries(NK, north, M, upWin);
     for (const m of NK.meshes()) north.add(m);
     const street = new THREE.Group();
@@ -608,6 +612,8 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
       ground,
       traversal: plan.traversal, // the moves (src/traversal.js), from the plan
       anchors: { discoveries: ROOFS_DISCOVERIES },
+      // the tower's hands, redrawn in place at the real time (clockhands.js; the life calls it)
+      clockTower: clockTower(north, clockHands),
       // the weathervane's own mesh: the tower view fades it (roofsmoments.js)
       vane,
       evening: true,
@@ -638,6 +644,34 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     // the evening deepening over the walk, and the bus (roofslife.js)
     record.life = createRoofsLife(record);
     return record;
+  });
+}
+
+// The tower's clock hands: redraw(minutes) rewrites each hand's vertices in the
+// kit's merged paint mesh (same count, same order: no triangle is added).
+function clockTower(group, hands) {
+  const mesh = group.children.find((m) => m.name === `roofsNorth:${hands[0].bucket}`);
+  if (!mesh) throw new Error('roofs: no mesh for the clock hands');
+  return Object.freeze({
+    focus: hands.focus,
+    redraw(minutes) {
+      const a = handAngles(minutes);
+      const pos = mesh.geometry.attributes.position;
+      const nor = mesh.geometry.attributes.normal;
+      for (const h of hands) {
+        const g = prep(h.make(h.which === 'hour' ? a.hour : a.minute));
+        const p = g.attributes.position;
+        const n = g.attributes.normal;
+        if (p.count !== h.count) throw new Error('roofs: a clock hand changed size');
+        for (let i = 0; i < p.count; i++) {
+          pos.setXYZ(h.start + i, p.getX(i), p.getY(i), p.getZ(i));
+          nor.setXYZ(h.start + i, n.getX(i), n.getY(i), n.getZ(i));
+        }
+        g.dispose();
+      }
+      pos.needsUpdate = true;
+      nor.needsUpdate = true;
+    },
   });
 }
 
@@ -2263,7 +2297,7 @@ function climbedFace(r, x, z, nx, nz) {
 }
 const LOUVRE = Object.freeze({ dy: [-0.3, -0.02, 0.26], len: 1.0, depth: 0.1, thick: 0.03, tilt: 0.6, out: 0.05 });
 const PINNACLE = Object.freeze({ off: 0.12, half: 0.09, y0: -0.45, y1: 0.42, cap: 0.45 }); // y from the belfry's top
-function drawTower(K, group, M, scene, drawn) {
+function drawTower(K, group, M, scene, drawn, hands) {
   const stone = (g, color = TOWER.dressing) => K.put('stone', M.stone, g, { color });
   const painted = (g, color) => K.put('paint', M.paint, g, { color, noCast: true });
   const rail = (g) => K.put('ironSmall', M.iron, g, { noCast: true });
@@ -2334,6 +2368,7 @@ function drawTower(K, group, M, scene, drawn) {
   const CY = CLOCK.y;
   const R = CLOCK.r;
   const P = CLOCK.proud;
+  hands.focus = Object.freeze({ x: cx, y: CLOCK.y, z: cz }); // the faces' middle, for the life's in-view test
   const faces = [];
   const sides = [[BF.x0, cz, -1, 0], [BF.x1, cz, 1, 0], [cx, BF.z0, 0, -1], [cx, BF.z1, 0, 1]];
   for (const [x, z, nx, nz] of sides) {
@@ -2373,8 +2408,11 @@ function drawTower(K, group, M, scene, drawn) {
     const centre = at(0, 0);
     const hour = ((7 + 10 / 60) / 12) * Math.PI * 2;
     const minute = (10 / 60) * Math.PI * 2;
-    painted(press(rod(centre, at(hour, 0.35 * k), 0.035, 5)), TOWER.hands);
-    painted(press(rod(centre, at(minute, 0.52 * k), 0.024, 5)), TOWER.hands);
+    // each hand keeps how to redraw itself (clockhands.js moves it with the real time)
+    for (const [len, r, which] of [[0.35, 0.035, 'hour'], [0.52, 0.024, 'minute']]) {
+      const make = (theta) => press(rod(centre, at(theta, len * k), r, 5));
+      hands.push({ ...painted(make(which === 'hour' ? hour : minute), TOWER.hands), which, make });
+    }
     for (let i = 0; i < 12; i++) painted(press(rod(at((i / 12) * Math.PI * 2, 0.5 * k, P + 0.02), at((i / 12) * Math.PI * 2, 0.59 * k, P + 0.02), i % 3 ? 0.014 : 0.026, 4)), TOWER.ticks);
   }
   group.add(own('roofsClockFaces', M.clock, faces, { noCast: true, tag: { clockFaces: true } }));
