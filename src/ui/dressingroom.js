@@ -15,7 +15,7 @@ import { clanName, isClanId } from '../clanhomes.js';
 import { SKILLS, hasSkill } from '../skills.js';
 import { prizeVisit } from '../visits.js';
 import { CAT_BLURBS } from './catblurbs.js';
-import { sanitizeCustomCats, presetFor, lookKey, COATS, CUSTOM_MAX } from '../customcats.js';
+import { sanitizeCustomCats, presetFor, lookKey, COATS, CUSTOM_MAX, CUSTOM_BASE, MORE_SLOTS_PRICE } from '../customcats.js';
 import { PAW } from './pawicon.js';
 import { sanitizeOutfits, wornNow, sameWear, canSaveOutfit, OUTFIT_SLOTS, OUTFIT_MAX } from '../outfits.js';
 import { escapeHtml } from '../escapehtml.js';
@@ -226,8 +226,14 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard,
   const walkName = myCat ? myCat.name : catalog.cats[selectedCat]?.name ?? '';
   const walkingAs = hero.looking || (t && !ownedAcc.includes(t.id)) ? walkName : null;
 
+  // Three cat slots, five once slots 4 and 5 are bought. The buy tile shows
+  // only when the three are full and the pair is not hers yet.
+  const bought = state?.moreCatSlots === true || mine.length > CUSTOM_BASE;
+  const slotsHers = bought ? CUSTOM_MAX : CUSTOM_BASE;
+  const slotBuy = !bought && mine.length >= CUSTOM_BASE ? { price: MORE_SLOTS_PRICE, canBuy: points >= MORE_SLOTS_PRICE } : null;
+
   return {
-    hero, cats, mine, walkingAs, canMake: mine.length < CUSTOM_MAX, slots, wearingCount, slotCount: slotIds.length, places, ...clanPlaces,
+    hero, cats, mine, walkingAs, canMake: mine.length < slotsHers, slotBuy, slots, wearingCount, slotCount: slotIds.length, places, ...clanPlaces,
     // 'ok' | 'empty' | 'saved' | 'full': whether the look she has on can be saved.
     outfits, outfitSave: canSaveOutfit(savedOutfits, wearNow),
     currentPlace: {
@@ -318,9 +324,14 @@ function mineHtml(c, thumbs) {
     : `<span class="dr-mine-dot" style="--sw:${escapeHtml(c.coatHex)}">${escapeHtml(c.name.charAt(0))}</span>`;
   return `<button class="dr-portrait dr-mine ${c.selected ? 'sel' : ''}" data-dr-mine="${escapeHtml(c.id)}" aria-pressed="${c.selected}" title="${escapeHtml(c.name)}">${face}</button>`;
 }
-function makeHtml(canMake) {
-  return canMake ? '<button class="dr-portrait dr-make" data-dr-make aria-label="Make a cat">＋ Make<span class="dr-make-more" aria-hidden="true"> a cat</span></button>'
-    : '<div class="dr-portrait dr-make full" aria-disabled="true">3 of 3 — change one of yours for a new look</div>';
+function makeHtml(m) {
+  if (m.canMake) return '<button class="dr-portrait dr-make" data-dr-make aria-label="Make a cat">＋ Make<span class="dr-make-more" aria-hidden="true"> a cat</span></button>';
+  const b = m.slotBuy;
+  if (!b) return `<div class="dr-portrait dr-make full" aria-disabled="true">${escapeHtml(phrase('slots.full', m.mine.length))}</div>`;
+  const words = `${escapeHtml(phrase('slots.buy', b.price))} ${PAW}`;
+  return b.canBuy
+    ? `<button class="dr-portrait dr-make dr-buy-slots" data-dr-buy-slots aria-label="${escapeHtml(phrase('slots.buyLabel', b.price))}">${words}</button>`
+    : `<div class="dr-portrait dr-make dr-buy-slots full" aria-disabled="true">${words}<br>${escapeHtml(phrase('slots.save', b.price))} ${PAW} ${escapeHtml(phrase('slots.saveEnd'))}</div>`;
 }
 
 function slotHtml(s, openSlot, picker, thumbs) {
@@ -372,7 +383,7 @@ function stripHtml(m, ui, thumbs) {
     : '';
   return owned.map((c) => portraitHtml(c, thumbs)).join('')
     + (m.mine ?? []).map((c) => mineHtml(c, thumbs)).join('')
-    + (m.canMake === undefined ? '' : makeHtml(m.canMake))
+    + (m.canMake === undefined ? '' : makeHtml(m))
     + shownLocked.map((c) => portraitHtml(c, thumbs)).join('')
     + more;
 }

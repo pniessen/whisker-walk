@@ -2422,6 +2422,8 @@ body.den-shop-open .chat-wheel { display: none !important; }
   color: var(--navy); text-shadow: 0 0 3px #fff; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .35); }
 .dr .dr-portrait.dr-make { width: auto; padding: 0 12px; background: var(--panel); border: 1.5px dashed var(--cream);
   font-size: 13px; font-weight: 700; white-space: nowrap; }
+.dr .dr-portrait.dr-buy-slots { width: auto; max-width: 190px; white-space: normal; line-height: 1.2; text-align: center; border-style: solid; border-color: var(--pink); }
+.dr .dr-portrait.dr-buy-slots.full { border-style: dashed; border-color: var(--muted); }
 .dr .dr-portrait.dr-make.full { width: 170px; padding: 0 8px; border-color: var(--muted); opacity: .6; cursor: default;
   display: flex; align-items: center; justify-content: center; text-align: center;
   white-space: normal; font-size: 11px; font-weight: 400; line-height: 1.2; }

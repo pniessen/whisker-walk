@@ -41,6 +41,7 @@ const SPEND_WORDS = {
   cat: { verb: 'Get', yes: 'Yes, get it' },
   place: { verb: 'Open', yes: 'Yes, open it' },
   move: { verb: 'Learn', yes: 'Yes, learn it' },
+  slots: { verb: 'Unlock', yes: 'Yes, unlock them' },
 };
 const whole = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.floor(Number(v)) : 0);
 export function spendAsk({ kind = 'item', name = '', price = 0, points = 0 } = {}) {

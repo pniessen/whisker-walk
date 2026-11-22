@@ -1151,3 +1151,46 @@ describe("the world map's card", () => {
     expect(reduceDressingUi(open, { type: 'clear-preview' }).mapCard).toBeNull();
   });
 });
+
+describe('createDressingRoom: more cat slots', () => {
+  function real(points = 0) {
+    const map = new Map();
+    const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
+    progression.addPoints(points);
+    const sync = { autoSync: vi.fn() };
+    const onChange = vi.fn();
+    const onProfileChange = vi.fn();
+    const asks = [];
+    const dr = createDressingRoom({ progression, sync, onChange, onProfileChange, thumbs: { cats: {}, accessories: {}, mine: {} }, confirmSpend: (o) => { asks.push(o); return true; } });
+    return { dr, progression, sync, onChange, onProfileChange, asks };
+  }
+  const look = { coat: 'black', marks: 'white', pattern: 'socks', fur: 'long', eyes: 'gold', size: 0.9 };
+
+  it('the buy tap asks first (30 paws, both slots) and only Yes buys', () => {
+    const { dr, progression, sync, asks } = real(40);
+    dr.handleClick(click({ drBuySlots: '' }));
+    expect(asks).toHaveLength(1);
+    expect(asks[0].text).toContain('30');
+    expect(asks[0].text).toMatch(/2 more cat slots/);
+    expect(progression.state.moreCatSlots).toBe(false);
+    asks[0].onYes();
+    expect(progression.state.moreCatSlots).toBe(true);
+    expect(progression.state.points).toBe(10);
+    expect(sync.autoSync).toHaveBeenCalled();
+  });
+  it('too few points: no card, nothing bought', () => {
+    const { dr, progression, asks } = real(5);
+    dr.handleClick(click({ drBuySlots: '' }));
+    expect(asks).toHaveLength(0);
+    expect(progression.state.moreCatSlots).toBe(false);
+  });
+  it('Make opens the builder for a fourth cat only after the purchase', () => {
+    const { dr, progression } = real(30);
+    for (const n of ['Ember', 'Ash', 'Fern']) progression.createCustomCat({ name: n, personality: 'steady', look });
+    dr.handleClick(click({ drMake: '' }));
+    expect(dr.ui.builder).toBeFalsy();
+    progression.buyMoreSlots();
+    dr.handleClick(click({ drMake: '' }));
+    expect(dr.ui.builder).toBeTruthy();
+  });
+});

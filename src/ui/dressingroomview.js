@@ -11,7 +11,8 @@ import { spendAsk } from './confirmcard.js';
 import { areaOffer } from '../areaoffer.js';
 import { menuThumbnails, fillFoundThumbs, customThumbnails, accessoryFraming } from '../thumbnails.js';
 import { CONFIRM_DELAY_MS } from './colonypanel.js';
-import { CUSTOM_MAX, lookKey } from '../customcats.js';
+import { phrase } from '../clanphrases.js';
+import { MORE_SLOTS_PRICE, lookKey } from '../customcats.js';
 import { buildDressingModel, renderDressingRoomHtml, renderSlotPickerHtml, renderPlacesSheetHtml, resolveSheet } from './dressingroom.js';
 import { newBuilder, editBuilder, reduceBuilder, isDirty, buildBuilderModel, renderBuilderHtml, doneLabel, DONE_WAIT_CLASS } from './catbuilder.js';
 
@@ -94,7 +95,7 @@ export function reduceDressingUi(ui, action) {
 
 const DR_SELECTOR = '[data-dr-sheet],[data-dr-buy-cat],[data-dr-place-buy],[data-dr-cat],[data-dr-acc],[data-dr-slot],[data-dr-place],[data-dr-wardrobe],'
   + '[data-dr-wardrobe-done],[data-dr-more-cats],[data-dr-outfit],[data-dr-outfit-save],[data-dr-outfit-del],[data-dr-outfit-yes],[data-dr-outfit-keep],'
-  + '[data-dr-mine],[data-dr-make],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-done],[data-cb-leave],[data-cb-stay],'
+  + '[data-dr-mine],[data-dr-make],[data-dr-buy-slots],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-done],[data-cb-leave],[data-cb-stay],'
   + '[data-dr-map-place],[data-dr-map-close]';
 // Opening the world map's card lands focus on its one button (or ✕ when it
 // has none), by keyboard or touch; a keyboard close goes back to the place on
@@ -384,8 +385,17 @@ export function createDressingRoom({
   }
 
   function onMake() {
-    if (ui.builder || myCats().length >= CUSTOM_MAX) return;
+    if (ui.builder || myCats().length >= progression.catSlots()) return;
     dispatch({ type: 'builder', builder: newBuilder() });
+  }
+
+  // Slots 4 and 5: one ask, one price, both slots.
+  function onBuySlots() {
+    if (ui.builder || !progression.canBuyMoreSlots()) return;
+    askSpend('slots', phrase('slots.name'), MORE_SLOTS_PRICE, '[data-dr-buy-slots]', '[data-dr-make]', () => {
+      if (!progression.buyMoreSlots()) return;
+      autoSync();
+    });
   }
 
   function onEdit(id) {
@@ -591,6 +601,7 @@ export function createDressingRoom({
     else if (d.drOutfit !== undefined) onOutfit(d.drOutfit);
     else if (d.drMine !== undefined) onMine(d.drMine);
     else if (d.drMake !== undefined) onMake();
+    else if (d.drBuySlots !== undefined) onBuySlots();
     else if (d.drEdit !== undefined) onEdit(d.drEdit);
     else if (d.drPose !== undefined) onPose(d.drPose);
     else if (d.cbPick !== undefined) builderOp({ type: 'pick', field: d.cbPick, value: d.cbValue });

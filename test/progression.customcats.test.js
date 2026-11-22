@@ -30,7 +30,7 @@ describe('custom cats in the save', () => {
     expect(again.state.equipped.custom).toBe('mine1');
     expect(again.state.equipped.cat).toBe('tabby');
   });
-  it('refuses a fourth cat, a bad name and a family personality', () => {
+  it('refuses a fourth cat (until slots 4 and 5 are bought), a bad name and a family personality', () => {
     const p = createProgression(fakeStorage());
     for (const n of ['Ember', 'Ash', 'Fern']) expect(p.createCustomCat({ name: n, personality: 'steady', look })).not.toBe(null);
     expect(p.createCustomCat({ name: 'Moss', personality: 'steady', look })).toBe(null);
@@ -98,5 +98,63 @@ describe('cloud restore', () => {
     p.createCustomCat({ name: 'Ember', personality: 'chaser', look });
     p.replaceFromPayload({ ...p.state, customCats: [] });
     expect(p.state.customCats).toEqual([]);
+  });
+});
+
+describe('slots 4 and 5 (bought together, once)', () => {
+  const mk = (p, n) => { for (let i = 0; i < n; i++) expect(p.createCustomCat({ name: `Cat${'abcde'[i]}`, personality: 'steady', look })).not.toBe(null); };
+  it('a new save has three slots and the flag off; a fourth cat is refused', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.state.moreCatSlots).toBe(false);
+    expect(p.catSlots()).toBe(3);
+    mk(p, 3);
+    expect(p.createCustomCat({ name: 'Moss', personality: 'steady', look })).toBe(null);
+  });
+  it('30 points buys both at once, once; unaffordable and repeat buys change nothing', () => {
+    const p = createProgression(fakeStorage());
+    p.addPoints(29);
+    expect(p.canBuyMoreSlots()).toBe(false);
+    expect(p.buyMoreSlots()).toBe(false);
+    expect(p.state.points).toBe(29);
+    p.addPoints(1);
+    expect(p.canBuyMoreSlots()).toBe(true);
+    expect(p.buyMoreSlots()).toBe(true);
+    expect(p.state.points).toBe(0);
+    expect(p.catSlots()).toBe(5);
+    p.addPoints(100);
+    expect(p.canBuyMoreSlots()).toBe(false);
+    expect(p.buyMoreSlots()).toBe(false);
+    expect(p.state.points).toBe(100);
+  });
+  it('after buying, five cats can be made, ids mine4 and mine5, and it survives a reload', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    p.addPoints(30); p.buyMoreSlots();
+    mk(p, 5);
+    expect(p.state.customCats.map((c) => c.id)).toEqual(['mine1', 'mine2', 'mine3', 'mine4', 'mine5']);
+    expect(p.createCustomCat({ name: 'Moss', personality: 'steady', look })).toBe(null);
+    const again = createProgression(storage);
+    expect(again.state.moreCatSlots).toBe(true);
+    expect(again.state.customCats).toHaveLength(5);
+  });
+  it('old saves load unchanged; junk flags are false; cats in 4 or 5 imply the purchase', () => {
+    const { moreCatSlots, ...old } = createProgression(fakeStorage()).state;
+    const loaded = createProgression(fakeStorage({ [SAVE_KEY]: JSON.stringify(old) }));
+    expect(loaded.state.moreCatSlots).toBe(false);
+    for (const junk of ['yes', 1, null, {}]) expect(withSave({ moreCatSlots: junk }).state.moreCatSlots).toBe(false);
+    const cats = [{ id: 'mine1', name: 'Ember', personality: 'chaser', look }, { id: 'mine4', name: 'Ash', personality: 'chaser', look }];
+    const s = withSave({ customCats: cats }).state;
+    expect(s.customCats).toHaveLength(2);
+    expect(s.moreCatSlots).toBe(true);
+  });
+  it('a cloud payload keeps the purchase if either side has it', () => {
+    const p = createProgression(fakeStorage());
+    p.addPoints(30); p.buyMoreSlots();
+    const { moreCatSlots, ...older } = p.state;
+    p.replaceFromPayload({ ...older, points: 5 });
+    expect(p.state.moreCatSlots).toBe(true);
+    const q = createProgression(fakeStorage());
+    q.replaceFromPayload({ ...q.state, moreCatSlots: true });
+    expect(q.state.moreCatSlots).toBe(true);
   });
 });
