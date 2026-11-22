@@ -3,7 +3,7 @@
 // by anyone, and an agent never runs it.
 //
 // Milestone 2 wrote step 1 (revisions and the cheap question), milestone 3 step 2
-// (four-word codes and changing a code). Later steps add their own checks.
+// (four-word codes and changing a code), milestone 4 step 3 (hop codes).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 
@@ -11,7 +11,9 @@ const read = (f) => readFileSync(new URL(`../docs/${f}`, import.meta.url), 'utf8
 const v11all = read('supabase-v11-cat-login.sql');
 const STEP2 = v11all.indexOf('\n-- ══ STEP 2 — ');
 const v11 = v11all.slice(0, STEP2 < 0 ? undefined : STEP2); // step 1 is what the first block of tests is about
-const v11step2 = STEP2 < 0 ? '' : v11all.slice(STEP2);
+const STEP3 = v11all.indexOf('\n-- ══ STEP 3 — ');
+const v11step2 = STEP2 < 0 ? '' : v11all.slice(STEP2, STEP3 < 0 ? undefined : STEP3);
+const v11step3 = STEP3 < 0 ? '' : v11all.slice(STEP3);
 const v10 = read('supabase-v10-limits.sql');
 const code = (sql) => sql.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--[^\n]*/g, '');
 const fn = (sql, name) => sql.match(new RegExp(`create or replace function public\\.${name}\\(([^)]*)\\)[\\s\\S]*?\\nend \\$\\$;\\n`, 'i'));
@@ -228,5 +230,116 @@ describe('supabase-v11-cat-login.sql, step 2 (static)', () => {
     const asked = runbookQueries().join('\n');
     expect(asked).toMatch(/rotate_cat_code/);
     expect(asked).toMatch(/\{3,6\}/);
+  });
+});
+
+describe('supabase-v11-cat-login.sql, step 3 (static): hop codes', () => {
+  const three = code(v11step3);
+  const f = (name) => fn(v11step3, name)?.[0] ?? '';
+  const NAMES = ['hop_open', 'hop_join', 'hop_answer', 'hop_poll'];
+  const SIGS = { hop_open: 'text, text', hop_join: 'text', hop_answer: 'text, text, boolean', hop_poll: 'text' };
+  it('is its own step in the runbook, run by the owner, after step 1, and says what it changes', () => {
+    expect(v11step3).toMatch(/^\n-- ══ STEP 3 — hop codes/);
+    expect(v11all).toMatch(/STEP 3 {2}hop codes/); // the runbook's order of steps
+    expect(three).toMatch(/to_regprocedure\('public\.peek_save\(text,text\)'\) is null/);
+    expect(three).toMatch(/raise exception 'Whisker Walk v11 step 3: step 1 /);
+    expect(v11step3).toMatch(/\n-- Rollback: /);
+    expect(v11step3).toMatch(/\n-- Safe to re-run: yes/);
+  });
+  it('the hops table has row-level security on, no policy and no grant; the other columns are the ones the design names', () => {
+    expect(three).toMatch(/create table if not exists public\.hops\(/);
+    expect(three).toMatch(/alter table public\.hops enable row level security;/);
+    expect(three).toMatch(/revoke all on public\.hops from public, anon, authenticated;/);
+    expect(three).not.toMatch(/create policy|drop policy/i);
+    expect(three).not.toMatch(/grant (select|insert|update|delete|all)/i);
+    const table = three.match(/create table if not exists public\.hops\(([\s\S]*?)\);/)[1];
+    for (const col of ['hop text primary key', 'code text not null unique', 'expires_at timestamptz not null', 'joiner_ticket text', 'answer text', 'handoff jsonb']) expect(table).toContain(col);
+  });
+  it('four functions, each security definer with a fixed search_path, and only these four', () => {
+    const defs = three.match(/create or replace function public\.[a-z_]+\([^)]*\)[\s\S]*? as \$\$/g);
+    expect(defs).toHaveLength(4);
+    for (const name of NAMES) {
+      const head = f(name).split(' as $$')[0].replace(/\s+/g, ' ');
+      expect(head, name).toMatch(/security definer set search_path = public, pg_temp$/);
+    }
+    expect(three).not.toMatch(/create or replace function public\.(?!hop_)/);
+  });
+  it('grants execute to the public key on the four functions only, after revoking it from everyone', () => {
+    for (const name of NAMES) {
+      expect(three).toContain(`revoke execute on function public.${name}(${SIGS[name]}) from public, anon, authenticated;`);
+      expect(three).toContain(`grant execute on function public.${name}(${SIGS[name]}) to anon;`);
+    }
+  });
+  it('a hop lives ten minutes, there is one open hop per cat, and expired rows are removed at every call', () => {
+    expect(f('hop_open')).toMatch(/now\(\) \+ interval '10 minutes'/);
+    expect(three).toMatch(/code text not null unique/);
+    for (const name of NAMES) expect(f(name), name).toMatch(/delete from hops where expires_at <= now\(\);/);
+  });
+  it('hop_open checks the cat\'s own secret first, counts a wrong one as a load miss, and counts only a NEW hop as hop-open (a poll is free)', () => {
+    const b = f('hop_open');
+    expect(b.indexOf('is distinct from p_secret')).toBeGreaterThan(-1);
+    expect(b.indexOf('is distinct from p_secret')).toBeLessThan(b.indexOf('insert into hops'));
+    expect((b.match(/perform ww_hit\('load-miss'\)/g) ?? []).length).toBe(2);
+    expect(b).toMatch(/if ww_over\('load-miss'\) then return jsonb_build_object\('status', 'busy'\)/);
+    expect(b.indexOf("ww_hit('hop-open')")).toBeGreaterThan(b.indexOf('select x.hop'));
+    expect(b.indexOf("ww_hit('hop-open')")).toBeLessThan(b.indexOf('insert into hops'));
+    expect(b).toMatch(/for update;/);
+    expect(b).toContain("'ABCDEFGHJKMNPQRSTUVWXYZ23456789'"); // the one code alphabet
+  });
+  it('hop_join stores only a random ticket, counts a wrong or already-joined hop as hop-miss, and refuses a code of the wrong shape', () => {
+    const b = f('hop_join');
+    expect(b).toMatch(/v_hop !~ '\^\[ABCDEFGHJKMNPQRSTUVWXYZ23456789\]\{6\}\$'/);
+    expect(b).toMatch(/if ww_over\('hop-miss'\) then return jsonb_build_object\('status', 'busy'\)/);
+    expect((b.match(/perform ww_hit\('hop-miss'\)/g) ?? []).length).toBe(2); // wrong shape, unknown or taken
+    expect(b).toMatch(/update hops set joiner_ticket = v_ticket where hop = v_hop;/);
+    expect(b).toMatch(/gen_random_uuid\(\)/);
+    expect(b).not.toMatch(/handoff/);
+  });
+  it('hop_answer checks the cat\'s own secret, hands the cat code and secret over only on Yes with a joiner waiting, and shortens the row\'s life', () => {
+    const b = f('hop_answer');
+    expect(b.indexOf('is distinct from p_secret')).toBeLessThan(b.indexOf('update hops'));
+    expect(b).toMatch(/if not coalesce\(p_accept, false\) then/);
+    expect(b).toMatch(/handoff = jsonb_build_object\('code', p_code, 'secret', p_secret\)/);
+    expect(b.match(/handoff = jsonb_build_object/g)).toHaveLength(1);
+    expect(b).toMatch(/expires_at = least\(expires_at, now\(\) \+ interval '2 minutes'\)/);
+    expect(b).toMatch(/if v_ticket is null then return 'none'/);
+    const words = [...b.matchAll(/return '([a-z-]+)'/g)].map((m) => m[1]);
+    expect(new Set(words)).toEqual(new Set(['bad', 'busy', 'denied', 'none', 'ok']));
+  });
+  it('hop_poll deletes the row when it delivers (the handoff is read once) and when it says no; only the matching ticket gets the code', () => {
+    const b = f('hop_poll');
+    expect(b).toMatch(/p_ticket !~ '\^\[0-9a-f\]\{64\}\$'/);
+    expect(b).toMatch(/where joiner_ticket = p_ticket/);
+    const yes = b.slice(b.indexOf("= 'yes'"));
+    expect(yes.indexOf('delete from hops')).toBeGreaterThan(-1);
+    expect(yes.indexOf('delete from hops')).toBeLessThan(yes.indexOf("'ok'"));
+    expect(b).toMatch(/'status', 'denied'/);
+    expect(b).toMatch(/'status', 'wait'/);
+  });
+  it('no function returns a cat code or a secret except hop_poll, to the matching ticket', () => {
+    for (const name of ['hop_open', 'hop_join']) expect(f(name), name).not.toMatch(/'secret',\s*(v_|existing|h\.)|jsonb_build_object\([^)]*'code'/);
+    expect(f('hop_poll')).toMatch(/'code', v_code, 'secret', v_secret/);
+    expect(three.match(/'secret',\s/g)?.length ?? 0).toBeLessThanOrEqual(2); // hop_answer writes it, hop_poll reads it
+  });
+  it('has limits rows for hop-open and hop-miss, "do nothing" on conflict, with the design\'s numbers', () => {
+    const rows = [...three.matchAll(/\('(hop-open|hop-miss)',\s+(\d+),\s+(\d+),\s+(\d+),\s+(\d+)\)/g)].map((m) => [m[1], ...m.slice(2).map(Number)]);
+    expect(rows).toEqual([['hop-open', 3600, 12, 60, 600], ['hop-miss', 600, 10, 50, 300], ['hop-miss', 86400, 40, 3600, 36000]]);
+    expect(three).toMatch(/on conflict \(name, window_secs\) do nothing;/);
+  });
+  it('rollback drops the four functions, the table and the two limit names', () => {
+    for (const name of NAMES) expect(v11step3).toContain(`drop function if exists public.${name}(${SIGS[name]});`);
+    expect(v11step3).toContain('drop table if exists public.hops;');
+    expect(v11step3).toContain("delete from public.ww_limits where name in ('hop-open', 'hop-miss');");
+  });
+  it('changes no function of steps 1 or 2, no saves row and no profile', () => {
+    expect(three).not.toMatch(/\b(update|insert into|delete from)\s+(public\.)?(saves|profiles|friendships|ww_limits_)/);
+    expect(three).not.toMatch(/function public\.(upsert_save|sync_save|peek_save|rotate_cat_code|load_save)/);
+  });
+  it('the runbook\'s queries still start with select, and step 3 adds verification queries after it', () => {
+    const qs = runbookQueries();
+    expect(qs.length).toBeGreaterThan(10);
+    for (const q of qs) expect(q).toMatch(/^select /);
+    expect(qs.join('\n')).toMatch(/hop_open/);
+    expect(qs.join('\n')).toMatch(/hop-miss/);
   });
 });
