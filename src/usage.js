@@ -6,7 +6,8 @@
 //     last  the visit number (state.visits) of the latest open
 //
 // It lives in the save and nowhere else: nothing is sent anywhere new (the
-// counts travel with a cloud save only because the whole save does). An id
+// counts travel with a cloud save only because the whole save does; the
+// privacy page and the readout below say so, and test/usage.test.js pins it). An id
 // never opened has no entry. Pure helpers; progression.js owns the save and
 // the one verb (noteUse).
 
@@ -83,7 +84,7 @@ export function usageHtml(usage, { visits = 0, walks = 0 } = {}) {
   return `
         <details class="hb-usage" id="hb-usage">
           <summary>What gets used</summary>
-          <p class="settings-note">Counted on this device since this was added. ${v} ${v === 1 ? 'visit' : 'visits'} and ${whole(walks)} finished ${whole(walks) === 1 ? 'walk' : 'walks'} so far. Nothing is sent anywhere.</p>
+          <p class="settings-note">Counted on this device since this was added. ${v} ${v === 1 ? 'visit' : 'visits'} and ${whole(walks)} finished ${whole(walks) === 1 ? 'walk' : 'walks'} so far. They are part of your save: they are not sent anywhere unless you use Cloud save, which stores them with the save (numbers only, no names).</p>
           <table class="hb-usage-table">
             <thead><tr><th scope="col">Screen</th><th scope="col">Opened</th><th scope="col">Last opened</th></tr></thead>
             <tbody>${rows}
