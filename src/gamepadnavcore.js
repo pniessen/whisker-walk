@@ -8,9 +8,14 @@ function centre(rect) {
   return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
 }
 
+// The empty space between two intervals [a, a+la] and [b, b+lb]; 0 if they overlap.
+const gap = (a, la, b, lb) => Math.max(0, Math.max(a, b) - Math.min(a + la, b + lb));
+
 // Candidate whose centre lies in the pushed half-plane from `from`'s centre,
-// minimising distance + 2 x off-axis offset. Returns its id, or null at an
-// edge (no wrap).
+// minimising centre distance + 2 x the gap between the two rects on the other
+// axis (0 when they overlap there, so a wide row under a narrow button counts as
+// straight below it). Ties go to the earlier candidate. Returns its id, or null
+// at an edge (no wrap).
 export function pickNext(from, candidates, dir) {
   const c = centre(from);
   let best = null;
@@ -21,13 +26,16 @@ export function pickNext(from, candidates, dir) {
     const dy = p.y - c.y;
     let along;
     let off;
-    if (dir === 'right') { along = dx; off = dy; }
-    else if (dir === 'left') { along = -dx; off = dy; }
-    else if (dir === 'down') { along = dy; off = dx; }
-    else if (dir === 'up') { along = -dy; off = dx; }
+    const r = cand.rect;
+    const xGap = gap(from.x, from.w, r.x, r.w);
+    const yGap = gap(from.y, from.h, r.y, r.h);
+    if (dir === 'right') { along = dx; off = yGap; }
+    else if (dir === 'left') { along = -dx; off = yGap; }
+    else if (dir === 'down') { along = dy; off = xGap; }
+    else if (dir === 'up') { along = -dy; off = xGap; }
     else return null;
     if (along <= 0) continue;
-    const score = Math.hypot(dx, dy) + OFF_AXIS_WEIGHT * Math.abs(off);
+    const score = Math.hypot(dx, dy) + OFF_AXIS_WEIGHT * off;
     if (score < bestScore) {
       bestScore = score;
       best = cand.id;

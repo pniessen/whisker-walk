@@ -23,11 +23,27 @@ describe('pickNext', () => {
     expect(pickNext(from, c, 'down')).toBe('down');
   });
   it('off-axis penalty: a far aligned control beats a near but offset one', () => {
+    // Gap rule (changed from centre offset): the penalty is the empty space between the
+    // two rows' y-intervals, so the offset control sits a full row lower (gap 80, not 60).
     const c = [
-      { id: 'offset', rect: r(160, 160) }, // dx 60, off 60 -> big penalty
-      { id: 'aligned', rect: r(300, 100) }, // dx 200, off 0
+      { id: 'offset', rect: r(160, 200) }, // dx 60, y-gap 80 -> big penalty
+      { id: 'aligned', rect: r(300, 100) }, // dx 200, gap 0
     ];
     expect(pickNext(from, c, 'right')).toBe('aligned');
+  });
+  it('a wide row under a narrow button is reachable by Down (x-intervals overlap, gap 0)', () => {
+    const narrow = r(300, 100, 40, 20);
+    const c = [
+      { id: 'wide', rect: r(0, 140, 400, 20) }, // centre 200 is 120 left of the narrow button's centre
+      { id: 'near', rect: r(340, 260, 40, 20) }, // a small button further down, nearly aligned
+    ];
+    expect(pickNext(narrow, c, 'down')).toBe('wide');
+    // and Up from the wide row's left end still finds the narrow one above it
+    expect(pickNext(r(0, 140, 400, 20), [{ id: 'narrow', rect: narrow }], 'up')).toBe('narrow');
+  });
+  it('a candidate that overlaps on the cross axis ties deterministically: the earlier one wins', () => {
+    const c = [{ id: 'a', rect: r(100, 160) }, { id: 'b', rect: r(100, 160) }];
+    expect(pickNext(from, c, 'down')).toBe('a');
   });
   it('returns null at an edge (no wrap)', () => {
     const c = [{ id: 'left', rect: r(0, 100) }];

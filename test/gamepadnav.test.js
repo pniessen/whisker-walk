@@ -158,13 +158,13 @@ describe('createNav step', () => {
   });
   it('focus dropped to body: picks the candidate nearest the last centre, not candidate 0', () => {
     const a = pad('button', 0, 0); const b = pad('button', 200, 0); const c = pad('button', 400, 0);
-    const { doc } = world([a, b, c]); doc.activeElement = c;
+    const { doc, top } = world([a, b, c]); doc.activeElement = c;
     const nav = createNav({ doc, back: () => false });
     nav.step('left', 0); // c -> b
     expect(doc.activeElement).toBe(b);
     doc.activeElement = doc.body; // re-render dropped focus; b is rebuilt a little to the right
-    const b2 = pad('button', 210, 0); b2.ownerDocument = doc; b2.parent = b.parent;
-    doc.querySelectorAll = (s) => (s === '[data-pad-layer]' ? [layer([a, b2, c])] : []);
+    const b2 = pad('button', 210, 0); b2.ownerDocument = doc; b2.parent = top;
+    top.kids.splice(1, 1, b2); // same layer element, one child rebuilt (a rebuilt layer is a new screen)
     nav.step('right', 1);
     expect(doc.activeElement).toBe(b2);
   });
@@ -210,6 +210,60 @@ describe('createNav step', () => {
     const a = pad('button', 0, 0); const b = pad('button', 100, 0);
     const { doc } = world([a, b]); doc.activeElement = a;
     expect(createNav({ doc, back: () => false }).step('right', 0)).toBe(true);
+  });
+});
+
+describe('entry focus after a screen change', () => {
+  const swapLayer = (doc, kids) => { const l = layer(kids); kids.forEach((k) => { k.ownerDocument = doc; k.parent = l; }); doc.querySelectorAll = (s) => (s === '[data-pad-layer]' ? [l] : []); return l; };
+  it('a new top layer with nothing focused gets entry focus, not the control nearest the stale rect', () => {
+    const a = pad('button', 0, 0); const b = pad('button', 200, 0);
+    const { doc } = world([a, b]); doc.activeElement = b;
+    const nav = createNav({ doc, back: () => false });
+    nav.step('left', 0); // remembers a layer and a centre
+    expect(doc.activeElement).toBe(a);
+    doc.activeElement = doc.body; // A pressed: the old card went, a new one is up
+    const near = pad('button', 5, 0); const def = pad('button', 300, 0, { attrs: { 'data-pad-default': '' } });
+    swapLayer(doc, [near, def]);
+    nav.step('down', 1);
+    expect(doc.activeElement).toBe(def);
+    expect(near.focus).not.toHaveBeenCalled();
+  });
+  it('same layer, but the focused element is gone and none of the old controls survive: entry focus', () => {
+    const a = pad('button', 0, 0); const b = pad('button', 200, 0);
+    const { doc, top } = world([a, b]); doc.activeElement = b;
+    const nav = createNav({ doc, back: () => false });
+    nav.step('left', 0);
+    doc.activeElement = doc.body;
+    const n1 = pad('button', 190, 0); const n2 = pad('button', 400, 0, { cls: ['primary'] });
+    [n1, n2].forEach((k) => { k.ownerDocument = doc; k.parent = top; });
+    top.kids.splice(0, top.kids.length, n1, n2); // the card's content was replaced in place
+    nav.step('down', 1);
+    expect(doc.activeElement).toBe(n2);
+  });
+  it('same-screen re-render where most siblings survive keeps the nearest-to-last rule', () => {
+    const a = pad('button', 0, 0); const b = pad('button', 200, 0); const c = pad('button', 400, 0);
+    const { doc, top } = world([a, b, c]); doc.activeElement = c;
+    const nav = createNav({ doc, back: () => false });
+    nav.step('left', 0); expect(doc.activeElement).toBe(b);
+    doc.activeElement = doc.body;
+    const b2 = pad('button', 205, 0); b2.ownerDocument = doc; b2.parent = top;
+    top.kids.splice(1, 1, b2); // only b is rebuilt
+    nav.step('right', 1);
+    expect(doc.activeElement).toBe(b2);
+  });
+});
+
+describe('enter leaves a text field alone', () => {
+  it('a focused text input or textarea is not stolen; a checkbox focus is not a text field', () => {
+    for (const [tag, type] of [['input', 'text'], ['textarea', undefined], ['input', 'search']]) {
+      const t = pad(tag, 0, 0, { type }); const b = pad('button', 50, 0);
+      const { doc } = world([b]); t.ownerDocument = doc; doc.activeElement = t;
+      expect(createNav({ doc, back: () => false }).enter()).toBe(false);
+      expect(b.focus).not.toHaveBeenCalled();
+    }
+    const cb = pad('input', 0, 0, { type: 'checkbox' }); const b = pad('button', 50, 0);
+    const { doc } = world([b]); doc.activeElement = cb;
+    expect(createNav({ doc, back: () => false }).enter()).toBe(true);
   });
 });
 
@@ -324,6 +378,24 @@ describe('sliders and selects', () => {
     expect(s.dispatchEvent.mock.calls.every((c) => c[0].type === 'change')).toBe(true);
     expect(s.dispatchEvent).toHaveBeenCalledTimes(2);
   });
+  it('cycleSelect(el, -1) goes backwards, wraps, skips disabled and hidden options', () => {
+    const s = pad('select', 0, 0); s.options = [{}, { disabled: true }, { hidden: true }, {}, {}]; s.selectedIndex = 3;
+    s.ownerDocument = { defaultView: { Event: FakeEvent } };
+    expect(cycleSelect(s, -1)).toBe(true); expect(s.selectedIndex).toBe(0); // 2 and 1 skipped
+    cycleSelect(s, -1); expect(s.selectedIndex).toBe(4); // wraps
+    cycleSelect(s); expect(s.selectedIndex).toBe(0); // default stays forward
+    expect(s.dispatchEvent).toHaveBeenCalledTimes(3);
+  });
+  it('alt(left/right) on a focused select cycles it backward/forward; A (press) still cycles forward', () => {
+    const s = pad('select', 0, 0); s.options = [{}, {}, {}]; s.selectedIndex = 1;
+    const { doc } = world([s]); doc.activeElement = s;
+    s.ownerDocument = doc;
+    const nav = createNav({ doc, back: () => false });
+    expect(nav.alt('left')).toBe(true); expect(s.selectedIndex).toBe(0);
+    expect(nav.alt('left')).toBe(true); expect(s.selectedIndex).toBe(2);
+    expect(nav.alt('right')).toBe(true); expect(s.selectedIndex).toBe(0);
+    nav.press(); expect(s.selectedIndex).toBe(1);
+  });
   it('select with one option: no change, no event', () => {
     const s = pad('select', 0, 0); s.options = [{}]; s.selectedIndex = 0;
     expect(cycleSelect(s)).toBe(false);
@@ -419,6 +491,19 @@ describe('map hooks', () => {
   const mapApi = (view) => ({ view, pan: vi.fn(), zoom: vi.fn(), scale: () => 2 });
   const placeG = (x, y, dx, dy) => pad('g', x, y, { attrs: { role: 'button', tabindex: '0', 'data-dr-map-place': '', 'data-x': String(dx), 'data-y': String(dy) }, click: false });
   afterEach(() => registerMap(null));
+
+  it('a map registered before the navigator exists is still used (registerMap is module-level)', () => {
+    const a = placeG(0, 0, 100, 100); const b = placeG(100, 0, 700, 300);
+    const { doc } = world([a, b]);
+    const api = mapApi({ x: 0, y: 0, w: 400, h: 300 });
+    registerMap(api); // attached while no nav exists yet
+    const nav = createNav({ doc, back: () => false }); // built later (first pad)
+    doc.activeElement = a;
+    expect(nav.step('right', 0)).toBe(true);
+    expect(api.pan).toHaveBeenCalledTimes(1);
+    expect(nav.zoom('in')).toBe(true);
+    expect(api.zoom).toHaveBeenCalledWith('in');
+  });
 
   it('hopping onto an off-screen place recentres through api.pan, with no :focus-visible involved', () => {
     const a = placeG(0, 0, 100, 100); const b = placeG(100, 0, 700, 300);

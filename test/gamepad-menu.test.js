@@ -73,6 +73,41 @@ describe('menu mode', () => {
     expect(r.calls.onResume).toHaveBeenCalledTimes(1);
     expect(r.calls.onAction).not.toHaveBeenCalled();
   });
+  it('A on the focused Keep exploring button resumes through onResume instead of pressing', () => {
+    const r = rig();
+    r.flags.canResume = true;
+    r.doc.activeElement = { id: 'btn-resume' };
+    r.frame(); r.frame([0, 0, 0, 0], A);
+    expect(r.calls.onResume).toHaveBeenCalledTimes(1);
+    expect(r.menuNav.press).not.toHaveBeenCalled();
+    // not resumable (e.g. the walk is not paused): the ordinary press
+    r.flags.canResume = false;
+    r.frame(); r.frame([0, 0, 0, 0], A);
+    expect(r.menuNav.press).toHaveBeenCalledTimes(1);
+    // any other button: the ordinary press
+    r.flags.canResume = true; r.doc.activeElement = { id: 'other' };
+    r.frame(); r.frame([0, 0, 0, 0], A);
+    expect(r.menuNav.press).toHaveBeenCalledTimes(2);
+    expect(r.calls.onResume).toHaveBeenCalledTimes(1);
+  });
+  it('left/right on a focused select goes to alt, like a slider', () => {
+    const r = rig();
+    r.doc.activeElement = { tagName: 'SELECT' };
+    r.frame(); r.frame([0, 0, 0, 0], 14);
+    expect(r.menuNav.alt).toHaveBeenCalledWith('left');
+  });
+  it('a change of direction steps at once, not after the 400 ms repeat wait', () => {
+    const r = rig();
+    r.frame();
+    r.frame([0, 0, 0, 0], DOWN);
+    r.frame([0, 0, 0, 0], DOWN); // held: gated
+    expect(r.menuNav.step).toHaveBeenCalledTimes(1);
+    r.frame([0, 0, 0, 0], RIGHT); // new direction, no release in between
+    expect(r.menuNav.step).toHaveBeenCalledTimes(2);
+    expect(r.menuNav.step.mock.calls[1][0]).toBe('right');
+    r.frame([0, 0, 0, 0], RIGHT);
+    expect(r.menuNav.step).toHaveBeenCalledTimes(2); // same direction: gated again
+  });
   it('stick repeat obeys the gate: at once, 400 ms, then every 140 ms', () => {
     const r = rig();
     r.frame();
@@ -116,6 +151,34 @@ describe('menu mode', () => {
     const r2 = rig({ menuNav: { zoom } });
     r2.frame(); r2.frame([0, 0, 0, 0], L1); r2.frame(); r2.frame([0, 0, 0, 0], R1);
     expect(zoom.mock.calls).toEqual([['out'], ['in']]);
+  });
+});
+
+describe('lazy navigator', () => {
+  it('menuNavFactory is not called until a pad is found, then once; no pad means no navigator', () => {
+    let pads = [];
+    const factory = vi.fn(() => ({ step: vi.fn(), press: vi.fn(), alt: vi.fn(), enter: vi.fn(), scroll: vi.fn() }));
+    const g = createGamepad({
+      win: { addEventListener() {}, removeEventListener() {} }, nav: { getGamepads: () => pads },
+      doc: { body: { classList: { add() {}, remove() {} } }, activeElement: null },
+      getEngaged: () => false, menuNavFactory: factory, padBack: () => {},
+    });
+    g.poll(0.016); g.poll(0.016);
+    expect(factory).not.toHaveBeenCalled();
+    pads = [mk()];
+    g.poll(0.016); g.poll(0.016);
+    expect(factory).toHaveBeenCalledTimes(1);
+    const nav = factory.mock.results[0].value;
+    expect(nav.enter).toHaveBeenCalledTimes(1); // the first poll with a pad already runs in menu mode
+  });
+  it('with no navigator and no factory the pad is the walk owner as before', () => {
+    const onAction = vi.fn();
+    const g = createGamepad({
+      win: { addEventListener() {} }, nav: { getGamepads: () => [mk()] }, doc: null,
+      getEngaged: () => false, onAction,
+    });
+    g.poll(0.016);
+    expect(() => g.poll(0.016)).not.toThrow();
   });
 });
 

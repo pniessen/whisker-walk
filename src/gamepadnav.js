@@ -55,11 +55,12 @@ export function nudgeRange(el, dir) {
   return true;
 }
 
-// Select: next option, wrapping; no native list opens.
-export function cycleSelect(el) {
+// Select: next option (dir 1) or previous (dir -1), wrapping, skipping disabled
+// and hidden ones; no native list opens.
+export function cycleSelect(el, dir = 1) {
   const n = el.options.length;
   for (let i = 1; i < n; i++) {
-    const at = (el.selectedIndex + i) % n;
+    const at = (((el.selectedIndex + dir * i) % n) + n) % n;
     const o = el.options[at];
     if (o.disabled || o.hidden) continue;
     el.selectedIndex = at;
@@ -105,6 +106,7 @@ const middle = (r) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
 export function createNav({ doc, back, onActive }) {
   let cache = null; // { layer, list }
   let last = null; // centre of the last focused element
+  let mem = null; // { layer, list, el } the pad last focused in
   const MO = doc.defaultView?.MutationObserver ?? globalThis.MutationObserver;
   const root = doc.documentElement ?? doc.body;
   const mo = MO && root ? new MO(() => { cache = null; }) : null;
@@ -117,37 +119,46 @@ export function createNav({ doc, back, onActive }) {
     if (!mo) { const list = cache.list; cache = null; return { layer, list }; }
     return cache;
   };
-  const focusEl = (el) => {
+  const focusEl = (el, layer, list) => {
     el.focus({ preventScroll: true });
+    mem = { layer, list, el };
     el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     last = middle(rectOf(el));
     if (map) recentre(map, el);
   };
-  const entry = (list) => {
+  const entry = (layer, list) => {
     const el = list.find((e) => e.hasAttribute('data-pad-default')) ?? list.find((e) => e.classList.contains('primary')) ?? list[0];
     if (!el) return false;
-    focusEl(el);
+    focusEl(el, layer, list);
     return true;
   };
   const current = (list) => (list.includes(doc.activeElement) ? doc.activeElement : null);
+  // Nothing focused: a different screen (new top layer, or the old controls all gone)
+  // starts at its entry control; a re-render of the same screen keeps the place.
+  const isNewScreen = (layer, list) => !mem || mem.layer !== layer || (!list.includes(mem.el) && !mem.list.some((e) => list.includes(e)));
+  const isText = () => {
+    const a = doc.activeElement;
+    const tag = a?.tagName?.toLowerCase();
+    return !!a && (tag === 'textarea' || (tag === 'input' && !/^(checkbox|radio|range|button|submit)$/.test(a.type)));
+  };
 
   return {
     step(dir) {
       if (!dir) return false;
       onActive?.();
-      const { list } = view();
+      const { layer, list } = view();
       if (!list.length) return false;
       const cur = current(list);
       if (!cur) {
-        if (!last) return entry(list);
-        focusEl(list[nearestTo(last, list.map((e, id) => ({ id, rect: rectOf(e) })))]);
+        if (!last || isNewScreen(layer, list)) return entry(layer, list);
+        focusEl(list[nearestTo(last, list.map((e, id) => ({ id, rect: rectOf(e) })))], layer, list);
         return true;
       }
       const from = rectOf(cur);
       last = middle(from);
       const id = pickNext(from, list.map((e, i) => ({ id: i, rect: rectOf(e) })), dir);
       if (id === null) return false;
-      focusEl(list[id]);
+      focusEl(list[id], layer, list);
       return true;
     },
     press() {
@@ -158,12 +169,21 @@ export function createNav({ doc, back, onActive }) {
     alt(dir) {
       onActive?.();
       const cur = current(view().list);
-      return cur && cur.type === 'range' ? nudgeRange(cur, dir) : false;
+      if (!cur) return false;
+      if (cur.type === 'range') return nudgeRange(cur, dir);
+      if (cur.tagName?.toLowerCase() === 'select') return cycleSelect(cur, dir === 'left' ? -1 : 1);
+      return false;
     },
     enter() {
       onActive?.();
-      const { list } = view();
-      return current(list) ? false : entry(list);
+      if (isText()) return false; // someone is typing a name or a code: do not steal it
+      const { layer, list } = view();
+      if (current(list)) return false;
+      if (last && !isNewScreen(layer, list)) {
+        focusEl(list[nearestTo(last, list.map((e, id) => ({ id, rect: rectOf(e) })))], layer, list);
+        return true;
+      }
+      return entry(layer, list);
     },
     destroy() { mo?.disconnect?.(); cache = null; },
     zoom(dir) {

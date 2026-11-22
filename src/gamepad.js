@@ -18,7 +18,7 @@ export function createGamepad({
   win = window, nav = navigator,
   getEngaged, getCameraMode, isFighting, isWalkingOn, canResume,
   onMove, onOrbit, onAction, onResume, toast,
-  menuNav = null, padBack = null, doc = typeof document === 'undefined' ? null : document,
+  menuNav: menuNavIn = null, menuNavFactory = null, padBack = null, doc = typeof document === 'undefined' ? null : document,
 }) {
   const supported = typeof nav?.getGamepads === 'function';
   let activeIndex = null;
@@ -27,6 +27,10 @@ export function createGamepad({
   let mode = 'walk';
   let clock = 0;
   let gate = null;
+  let prevDir = null;
+  // The navigator (a DOM observer and all) is built when the first pad shows up.
+  let menuNav = menuNavIn;
+  const ensureNav = () => { if (!menuNav && menuNavFactory) menuNav = menuNavFactory(); };
   let held = new Set(); // buttons down when the owner changed: ignored until let go
   let prevDown = new Set();
 
@@ -79,6 +83,8 @@ export function createGamepad({
       const x = axes[0] || 0, y = axes[1] || 0;
       if (Math.hypot(x, y) > STICK_NAV) dir = Math.abs(x) >= Math.abs(y) ? (x < 0 ? 'left' : 'right') : (y < 0 ? 'up' : 'down');
     }
+    if (dir !== prevDir) gate = null; // a new direction steps at once
+    prevDir = dir;
     const r = repeatGate(gate, clock, !!dir);
     gate = r.state;
     const rs = applyDeadZone(axes[2], axes[3]);
@@ -92,7 +98,11 @@ export function createGamepad({
       else menuNav.step(dir, clock);
     }
     if (sx || sy) menuNav.scroll(sx, sy);
-    if (edge(PAD_BUTTONS.A)) menuNav.press();
+    if (edge(PAD_BUTTONS.A)) {
+      // Keep exploring needs pointer lock, which a pad press cannot ask for: resume like Start does.
+      if (doc?.activeElement?.id === 'btn-resume' && canResume?.()) onResume?.();
+      else menuNav.press();
+    }
     if (edge(PAD_BUTTONS.B)) padBack?.();
     if (edge(PAD_BUTTONS.L1)) menuNav.zoom?.('out');
     if (edge(PAD_BUTTONS.R1)) menuNav.zoom?.('in');
@@ -107,6 +117,7 @@ export function createGamepad({
       if (!supported) return;
       const pad = pick();
       if (!pad) return;
+      ensureNav();
       clock += dt * 1000;
       const next = modeNow();
       const raw = (pad.buttons ?? []).map(isPressed);

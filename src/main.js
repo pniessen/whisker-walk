@@ -298,7 +298,7 @@ function init() {
     isWalkingOn: () => !!session?.walkingOn,
     // Menus: the pad moves focus through whatever layer is on top; B is Back
     // (padBack, below), never a fake Escape. A walk keeps the pad otherwise.
-    menuNav: createNav({ doc: document }),
+    menuNavFactory: () => createNav({ doc: document }),
     padBack: () => padBack(),
     canResume: () => !!session && !session.walkingOn && !!overlay.querySelector('#btn-resume'),
     onMove: (v) => player.setTouchMove(v),
