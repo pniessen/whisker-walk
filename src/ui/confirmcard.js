@@ -6,6 +6,7 @@
 // one is open.
 import { CONFIRM_DELAY_MS } from './colonypanel.js';
 import { escapeHtml as esc } from '../escapehtml.js';
+import { padTag } from '../tvseam.js';
 
 export const CONFIRM_ATTR = 'data-confirm';
 
@@ -27,8 +28,8 @@ export function confirmCardHtml({ text, note = '', yes, no = 'Not now', danger =
     + `<p class="colony-notice-line" id="confirm-card-line">${esc(text)}</p>`
     + (note ? `<p class="colony-news-sub" id="confirm-card-note">${esc(note)}</p>` : '')
     + '<div class="nearby-card-btns">'
-    + `<button type="button" class="nearby-card-later" id="confirm-card-no" ${CONFIRM_ATTR}="no">${esc(no)}</button>`
-    + `<button type="button" class="colony-news-btn${danger ? ' confirm-card-danger' : ''}" id="confirm-card-yes" ${CONFIRM_ATTR}="yes">${esc(yes)}</button>`
+    + `<button type="button" class="nearby-card-later" id="confirm-card-no" ${CONFIRM_ATTR}="no">${esc(no)}${padTag('⟦back⟧')}</button>`
+    + `<button type="button" class="colony-news-btn${danger ? ' confirm-card-danger' : ''}" id="confirm-card-yes" ${CONFIRM_ATTR}="yes">${esc(yes)}${padTag('⟦confirm⟧')}</button>`
     + '</div></div>';
 }
 

@@ -222,3 +222,37 @@ html.tv .join-moment-later { min-height: calc(64px * var(--tv-s, 1)); padding: 0
 html.tv .join-moment-note { font-size: var(--tv-small) !important; opacity: .9; }
 @media (max-width: 1500px) { html.tv .join-moment .dr-homes { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
+/* ---- Yes / no dialogs: one card for all of them (the confirm card: place change, unlock, delete, the TV offer; the crossing card:
+   gateway and border; the fight ask). A scrim, a rounded yellow-edged face, big buttons with their pad glyph, inside the safe margins. ---- */
+html.tv button .pad-glyph { pointer-events: none; }
+html.tv .colony-news { box-sizing: border-box; padding: var(--tv-safe-y, 5vh) var(--tv-safe-x, 5vw); background: rgba(14, 19, 29, 0.92); }
+html.tv .colony-news-card { box-sizing: border-box; max-width: min(calc(1000px * var(--tv-s, 1)), 100%); padding: calc(32px * var(--tv-s, 1)) calc(44px * var(--tv-s, 1)); gap: var(--tv-gap-l); border-width: 3px; border-radius: calc(26px * var(--tv-s, 1)); font-weight: 500; line-height: 1.4; }
+html.tv .confirm-card { max-width: min(calc(1000px * var(--tv-s, 1)), 100%); }
+html.tv .colony-notice-line { font-size: var(--tv-title); font-weight: 700; line-height: 1.2; text-wrap: balance; }
+html.tv .colony-news-sub { font-size: var(--tv-body) !important; color: #c9d8ee; }
+html.tv .nearby-card-btns { flex-wrap: nowrap; gap: var(--tv-gap-l); margin-top: var(--tv-gap); }
+html.tv :is(.nearby-card-btns button, .colony-news-btn, .nearby-card-later, .cross-card button) {
+  box-sizing: border-box; flex: 1 1 0; min-width: 0; min-height: calc(84px * var(--tv-s, 1)); padding: 0 calc(32px * var(--tv-s, 1)); border-radius: calc(20px * var(--tv-s, 1));
+  font-size: var(--tv-body) !important; font-weight: 700; line-height: 1.2; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: .3em;
+}
+html.tv .nearby-card-later, html.tv .cross-card #btn-cross-no { border: 2px solid #8c9bb4; background: transparent; color: #f1e0c2; }
+html.tv .cross-card.gate-buy .nearby-card-btns button { font-size: var(--tv-body); min-height: calc(84px * var(--tv-s, 1)); }
+html.tv .cross-card.gate-buy .nearby-card-btns .nearby-card-later { font-size: var(--tv-body); }
+/* The crossing card (gateway "Head to ...?", border): the same face as the confirm card, its two buttons side by side. */
+html.tv .pause-card.cross-card:not(.gate-moment):not(.gate-buy) {
+  display: grid; grid-template-columns: repeat(2, minmax(0, calc(490px * var(--tv-s, 1)))); grid-auto-flow: row dense; grid-auto-rows: min-content; align-content: center; justify-content: center; justify-items: stretch; gap: var(--tv-gap-l);
+  background: rgba(14, 19, 29, 0.92); text-align: center; font-weight: 500;
+}
+html.tv .cross-card > h2 { grid-column: 1 / -1; font-size: var(--tv-title); line-height: 1.2; margin: 0; color: #f2c14e; text-wrap: balance; }
+html.tv .cross-card > p { grid-column: 1 / -1; margin: 0; font-size: var(--tv-body); }
+html.tv .cross-card #btn-cross-yes { grid-column: 2; border: 0; background: #f2c14e; color: #1c2431; }
+html.tv .cross-card #btn-cross-no { grid-column: 1; }
+html.tv .cross-card.gate-buy .confirm-card { margin: 0 auto; width: min(calc(1000px * var(--tv-s, 1)), 100%); }
+html.tv .confirm-card-danger { background: #e98a8a; }
+/* A scrim behind the crossing card hides the key strip and the prompt (they ran off both edges, owner photo). */
+html.tv body:has(#overlay:not(.hidden) .cross-card) #hud :is(.hud-controls, .hud-hint, .hud-toasts, .hud-prompt, .hud-goals, .hud-objective) { visibility: hidden; }
+/* The fight ask: bigger buttons, as wide as their words. */
+html.tv .hud-fight-ask { font-size: var(--tv-body) !important; padding: calc(14px * var(--tv-s, 1)) calc(28px * var(--tv-s, 1)); gap: var(--tv-gap); max-width: min(calc(1100px * var(--tv-s, 1)), 100%); }
+html.tv .fight-ask-buttons { gap: var(--tv-gap-l); }
+html.tv .fight-ask-go, html.tv .fight-ask-off { min-height: calc(72px * var(--tv-s, 1)); padding: 0 calc(32px * var(--tv-s, 1)); font-size: var(--tv-body) !important; font-weight: 700; white-space: nowrap; }
+

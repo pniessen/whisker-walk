@@ -7,6 +7,7 @@ import { placeName, isClanEdition } from './edition.js';
 import { TERRITORIES, opensAfterLine, lower } from './territories.js';
 import { postsFor } from './borderposts.js';
 import { escapeHtml } from './escapehtml.js';
+import { padTag } from './tvseam.js';
 import { areaOffer } from './areaoffer.js';
 
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
@@ -75,8 +76,8 @@ export function crossCardHtml({ name, extras = [] }) {
       <h2>${escapeHtml(headTo(name))}</h2>
       <p>Your trip ends here, and you keep everything you found.</p>
       ${lines}
-      <button id="btn-cross-yes" class="btn" type="button">Yes, let's go!</button>
-      <button id="btn-cross-no" class="btn" type="button">Keep exploring</button>
+      <button id="btn-cross-yes" class="btn" type="button">Yes, let's go!${padTag('⟦confirm⟧')}</button>
+      <button id="btn-cross-no" class="btn" type="button">Keep exploring${padTag('⟦back⟧')}</button>
     </div>`;
 }
 

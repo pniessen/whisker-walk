@@ -16,6 +16,9 @@ export const padText = (s) => (tvState.text ? tvState.text(s) : s);
 /** A plain line that names a key ("E — pet Mochi", "click Save") in the pad's words (tokens) while the pad is the input; the same line otherwise. */
 export const padFix = (s) => (tvState.input === 'pad' && tvState.fix ? tvState.fix(s) : s);
 
+/** A button picture for a card's button (" ⟦back⟧" -> a space and the picture) while the pad is the input on a TV; '' otherwise, so every other label is untouched. */
+export const padTag = (tok) => (tvState.input === 'pad' && tvState.html ? ` ${tvState.html(tok)}` : '');
+
 /** Like padText but for a caller that sets HTML: the string with button pictures, or null when TV mode has none (keep the caller's own path). */
 export const padHtml = (s) => (tvState.html ? tvState.html(s) : null);
 
