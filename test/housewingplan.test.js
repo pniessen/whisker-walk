@@ -150,17 +150,17 @@ describe('the east wing: the plan', () => {
 
 describe('the east wing: zones', () => {
   it('names the old four levels and the two wing zones; wingZoneAt reads position, not height', () => {
-    expect(HOUSE_ZONES.map((z) => z.id)).toEqual(['cellar', 'ground', 'upstairs', 'attic', 'east', 'kids']);
-    expect(WING_ZONES.map((z) => z.id)).toEqual(['east', 'kids']);
-    expect(wingZoneAt(18, 6)).toBe('east'); // the living room
-    expect(wingZoneAt(26, 6)).toBe('east'); // the solarium
+    expect(HOUSE_ZONES.map((z) => z.id)).toEqual(['cellar', 'ground', 'upstairs', 'attic', 'living', 'sun', 'kids', 'bath']);
+    expect(WING_ZONES.map((z) => z.id)).toEqual(['living', 'sun', 'kids', 'bath']); // a zone a room, the stair with the solarium
+    expect(wingZoneAt(18, 6)).toBe('living');
+    expect(wingZoneAt(26, 6)).toBe('sun'); // the solarium
     expect(wingZoneAt(43, 7)).toBe('kids');
-    expect(wingZoneAt(41, 0)).toBe('kids'); // the bathroom
+    expect(wingZoneAt(41, 0)).toBe('bath');
     expect(wingZoneAt(0, 8)).toBeNull(); // the hall: an old level
     expect(wingZoneAt(11, 8)).toBeNull(); // the parlour
-    expect(wingZoneAt(31, 7)).toBe('east'); // the foot of the wing stair
+    expect(wingZoneAt(31, 7)).toBe('sun'); // the foot of the wing stair, drawn with the solarium
     expect(wingZoneAt(37, 7)).toBe('kids'); // its top half
-    expect(isWingZone('east')).toBe(true);
+    expect(isWingZone('living')).toBe(true);
     expect(isWingZone('ground')).toBe(false);
     expect(roomAt(18, 6)).toBe('livingroom');
     expect(stairAt(34, 7)).toBe('wing');
@@ -169,7 +169,8 @@ describe('the east wing: zones', () => {
   it('the joins sit on the openings, and a joined zone is drawn only within ZONE_NEAR (2 m)', () => {
     expect(ZONE_NEAR).toBe(2);
     expect(ZONE_LEAVE).toBeGreaterThan(ZONE_NEAR);
-    expect(WING_JOINS.map((j) => [j.a, j.b])).toEqual([['ground', 'east'], ['east', 'kids']]);
+    expect(WING_JOINS.map((j) => [j.a, j.b])).toEqual([['ground', 'living'], ['living', 'sun'], ['sun', 'kids'], ['kids', 'bath']]);
+    expect(WING_JOINS[0].keep).toEqual(['parlour']); // beside the wing, the old ground keeps only the parlour in full
     const d1 = WING_JOINS[0];
     expect(d1).toMatchObject({ x: 14, z: 10.2 });
   });

@@ -25,11 +25,11 @@
 const freeze = Object.freeze;
 
 export const WING_ROOMS = freeze([
-  freeze({ id: 'livingroom', level: 'ground', zone: 'east', minX: 14, maxX: 22, minZ: 2, maxZ: 12 }),
-  freeze({ id: 'solarium', level: 'ground', zone: 'east', minX: 22, maxX: 30, minZ: 2, maxZ: 12 }),
+  freeze({ id: 'livingroom', level: 'ground', zone: 'living', minX: 14, maxX: 22, minZ: 2, maxZ: 12 }),
+  freeze({ id: 'solarium', level: 'ground', zone: 'sun', minX: 22, maxX: 30, minZ: 2, maxZ: 12 }),
   // the kids' room is listed before the bathroom: the wall they share is the kids' room's to draw
   freeze({ id: 'kids', level: 'upstairs', zone: 'kids', minX: 38.4, maxX: 48, minZ: 2, maxZ: 12 }),
-  freeze({ id: 'bath', level: 'upstairs', zone: 'kids', minX: 38.4, maxX: 44, minZ: -3, maxZ: 2 }),
+  freeze({ id: 'bath', level: 'upstairs', zone: 'bath', minX: 38.4, maxX: 44, minZ: -3, maxZ: 2 }),
 ]);
 
 // The wing stair: from the solarium's east wall up to the kids' room's west wall, 8.4 m, 0.286.
@@ -119,22 +119,29 @@ export const WING_FURNITURE = freeze([
   piece('bath-mat', 'bath', 'rug', 41.0, 0.4, FACE_S, 1.4, 0.8, 0.012, 0, 'rugBlue'),
 ]);
 
-// What the wing's zones are (houselevels.js): `rooms` are drawn together; `level` is the floor
-// height's name (the zone reads her position, not her paws, because a wing floor shares its
-// height with an old level). `near` names the openings that join a zone to a neighbour: the
-// parlour's east doorway D1 joins `ground` and `east`, the wing stair joins `east` and `kids`.
+// What the wing's zones are (houselevels.js): one a room, the wing stair drawn with the solarium (`sun`),
+// so only the room she is in and the rooms within 2 m of the way into them are drawn in full. (The
+// design's two zones, east and kids, drew 8,600 and 7,200 triangles at once; a room alone is 3,000 to
+// 4,700, which is what keeps the wing's worst spot, standing at a door with its two rooms drawn, under
+// the house's 70,000.) `level` is the floor height's name (the zone reads her position, not her paws,
+// because a wing floor shares its height with an old level).
 export const WING_ZONES = freeze([
-  freeze({ id: 'east', level: 'ground', rooms: freeze(['livingroom', 'solarium']) }),
-  freeze({ id: 'kids', level: 'upstairs', rooms: freeze(['kids', 'bath']) }),
+  freeze({ id: 'living', level: 'ground', rooms: freeze(['livingroom']) }),
+  freeze({ id: 'sun', level: 'ground', rooms: freeze(['solarium']), stairs: freeze(['wing']) }),
+  freeze({ id: 'kids', level: 'upstairs', rooms: freeze(['kids']) }),
+  freeze({ id: 'bath', level: 'upstairs', rooms: freeze(['bath']) }),
 ]);
 // A joined zone is drawn in full only while she is within ZONE_NEAR of the way into it (or in
 // it). The old worst spot has only 2.5k triangles of headroom (Task 1 of the plan), so 2 m,
 // not 5: the doorway, not the room beyond it.
 export const ZONE_NEAR = 2;
 export const ZONE_LEAVE = 2.6; // m: it stays drawn until she is this far (no flicker at the line)
-// Each join: the two zones, and the opening's centre and half-extent along its wall (a point
-// for a doorway, the stair's own rectangle for a stair).
+// Each join: the two zones, and the opening as a rectangle (centre, half-extents): a doorway, or the
+// stair's own rectangle (standing on the stair is standing in it). `keep`: from an old level, the
+// rooms of that level drawn in full while the join is near (the rest are the level's far stand-in).
 export const WING_JOINS = freeze([
-  freeze({ id: 'parlour-livingroom', a: 'ground', b: 'east', x: 14, z: 10.2, hx: 0.4, hz: 1.0 }),
-  freeze({ id: 'wing', a: 'east', b: 'kids', x: 34.2, z: 7, hx: 4.2, hz: 1.2 }),
+  freeze({ id: 'parlour-livingroom', a: 'ground', b: 'living', x: 14, z: 10.2, hx: 0.4, hz: 1.0, keep: freeze(['parlour']) }),
+  freeze({ id: 'livingroom-solarium', a: 'living', b: 'sun', x: 22, z: 7, hx: 0.4, hz: 1.0 }),
+  freeze({ id: 'wing', a: 'sun', b: 'kids', x: 34.2, z: 7, hx: 4.2, hz: 1.2 }),
+  freeze({ id: 'kids-bath', a: 'kids', b: 'bath', x: 41, z: 2, hx: 1.0, hz: 0.4 }),
 ]);

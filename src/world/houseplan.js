@@ -596,7 +596,7 @@ const wingStair = HOUSE_STAIRS.find((s) => WING_STAIRS.some((w) => w.id === s.id
 // null anywhere else, and the old levels read their own height as they always did.
 export function wingZoneAt(x, z) {
   for (const r of HOUSE_ROOMS) if (r.zone && inRect(r, x, z)) return r.zone;
-  if (inRect(stairRect(wingStair), x, z)) return x < (wingStair.x0 + wingStair.x1) / 2 ? 'east' : 'kids';
+  if (inRect(stairRect(wingStair), x, z)) return x < (wingStair.x0 + wingStair.x1) / 2 ? 'sun' : 'kids';
   return null;
 }
 

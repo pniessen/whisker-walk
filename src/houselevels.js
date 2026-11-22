@@ -51,14 +51,19 @@ function distToJoin(j, x, z) {
 //   - from an old level the only join is the parlour's east doorway: the wing zone beyond it is
 //     drawn while she is near it, and then only her own level (not the levels its stairs join),
 //     so the old house's worst spot never grows;
+//   - an old level drawn only because the wing is near (the parlour at the new door) keeps just the
+//     rooms the join names (`keep`: the parlour) in full: its other rooms' furniture (details with a
+//     houseRoom) is hidden and the level's far stand-in (houseFar) stands for them;
 //   - everything else is its stand-in.
 export function createLevelDrawing(scene, { levels, links, start, wing = null }) {
   const details = [];
   const simples = [];
+  const fars = [];
   const walk = (o) => {
     const u = o.userData;
     if (u && u.houseDetail) details.push(o);
     else if (u && u.houseSimple) simples.push(o);
+    else if (u && u.houseFar) fars.push(o);
     const kids = o.children;
     if (kids) for (let i = 0; i < kids.length; i++) walk(kids[i]);
   };
@@ -68,6 +73,7 @@ export function createLevelDrawing(scene, { levels, links, start, wing = null })
   let full = null;
   let nearKey = '';
   const on = new Set(); // join ids that are near, with hysteresis
+  const partial = new Map(); // old level id -> the rooms kept in full (the join's keep), while a wing join is near
   const apply = (id) => {
     current = id;
     full = wing && wing.isWing(id) ? new Set([id]) : fullLevels(id, links);
@@ -80,8 +86,17 @@ export function createLevelDrawing(scene, { levels, links, start, wing = null })
       }
     }
     nearKey = [...on].join(',');
-    for (const o of details) o.visible = full.has(o.userData.houseLevel);
+    // a level drawn only for the wing at its door keeps just the rooms the join names
+    partial.clear();
+    if (wing) for (const j of wing.joins) if (on.has(j.id) && j.keep && full.has(j.a)) partial.set(j.a, j.keep);
+    for (const o of details) {
+      const u = o.userData;
+      const keep = partial.get(u.houseLevel);
+      const room = u.houseRoom ?? u.houseRoomOf;
+      o.visible = full.has(u.houseLevel) && !(keep && room && !keep.includes(room));
+    }
     for (const o of simples) o.visible = !full.has(o.userData.houseSimple);
+    for (const o of fars) o.visible = partial.has(o.userData.houseFar);
   };
   // which joins of zone `id` are near (a on-state stays until `leave`)
   function nearJoins(id, x, z) {

@@ -94,7 +94,7 @@ const roomOf = (id) => HOUSE_ROOMS.find((r) => r.id === id);
 // The zone a wall section is drawn with: the wing's rooms and its stair name theirs (houselevels.js),
 // every old section is its level's and always drawn.
 const sectionZone = (s) => {
-  if (s.owner === 'wing') return 'east';
+  if (s.owner === 'wing') return 'sun';
   const r = roomOf(s.owner);
   return r ? zoneOfRoom(r) : s.level;
 };
@@ -308,6 +308,7 @@ function furnish(scene, material, start, traversal) {
       if (fades(f)) {
         const tall = new THREE.Group();
         tall.name = `houseFade:${f.id}`;
+        tall.userData.houseRoomOf = room.id; // the level drawing's partial draw (houselevels.js) reads it
         tall.position.set(f.x, y, f.z);
         tall.rotation.y = f.rotY;
         tall.userData.fadeOccluder = [{ t: 'cyl', r: Math.hypot(f.w, f.d) / 2, y0: 0, y1: f.h + LEDGE_FADE_OVER }];
@@ -345,6 +346,16 @@ function furnish(scene, material, start, traversal) {
     const m = standInMesh(l.id, solid, l.y);
     m.visible = !full.has(l.id);
     scene.add(m);
+    // the level's far look for while a wing join is near (houselevels.js keep): all but the kept rooms
+    for (const j of WING_JOINS) {
+      if (j.a !== l.id || !j.keep) continue;
+      const far = standInMesh(l.id, solid.filter((f) => !j.keep.includes(f.room)), l.y);
+      far.name = `houseStandInFar:${l.id}`;
+      delete far.userData.houseSimple;
+      far.userData.houseFar = l.id;
+      far.visible = false;
+      scene.add(far);
+    }
   }
   // the wing's zones: one plain box a room, at most 120 triangles a zone, no casters (houselevels.js)
   for (const z of HOUSE_ZONES.filter((q) => q.wing)) {
@@ -352,7 +363,7 @@ function furnish(scene, material, start, traversal) {
       minX: r.minX - WALL_T / 2, maxX: r.maxX + WALL_T / 2, minZ: r.minZ - WALL_T / 2, maxZ: r.maxZ + WALL_T / 2,
       y0: LAWN_Y, y1: levelY(r.level) + WING_BOX_H, // from the lawn: it stands where the brick skirt is hidden color: WING_BOX_COLOR[r.id] ?? 0xcdb98e,
     }));
-    const wedges = HOUSE_STAIRS.filter((st) => st.id === 'wing' && z.id === 'east').map((st) => ({
+    const wedges = HOUSE_STAIRS.filter((st) => st.id === 'wing' && z.id === 'sun').map((st) => ({
       x0: st.x0, x1: st.x1, z: st.z0, width: st.width, y0: levelY(st.from), y1: levelY(st.to), base: LAWN_Y, color: 0xb0a090,
     }));
     const m = boxStandInMesh(z.id, boxes, wedges);
@@ -495,7 +506,7 @@ export function build(scene, { wind, gateEnds = [] } = {}) {
       const m = noBlob(stairMesh(s, material));
       if (s.id === 'wing') { // the wing stair is the east zone's detail, its far look a wedge in the zone's stand-in
         m.userData.houseDetail = true;
-        m.userData.houseLevel = 'east';
+        m.userData.houseLevel = 'sun';
         m.visible = false;
       }
       scene.add(m);

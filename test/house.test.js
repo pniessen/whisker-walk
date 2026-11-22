@@ -485,7 +485,7 @@ describe('the furniture', () => {
     expect([...drawing.full].sort()).toEqual(['cellar', 'ground', 'upstairs']);
     for (const c of s.children) {
       // the east wing's zones are far from the ground (the hall): their walls and furniture hidden, their boxes shown
-      const far = (id) => id === 'attic' || id === 'east' || id === 'kids';
+      const far = (id) => id === 'attic' || HOUSE_ZONES.find((z) => z.id === id).wing;
       if (c.userData?.houseDetail) expect(c.visible, c.name).toBe(!far(c.userData.houseLevel));
       if (c.userData?.houseSimple) expect(c.visible, c.name).toBe(far(c.userData.houseSimple));
     }
