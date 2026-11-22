@@ -48,6 +48,10 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      # The private family edition must never reach the public site: stop the deploy if any
+      # built file carries its marker (test/privateedition.test.js checks the same in a test).
+      - name: Refuse a bundle that holds the private edition
+        run: if grep -rl "ww-private-family" dist; then echo "private edition token in the public build" && exit 1; fi
       - uses: actions/configure-pages@v5
         with:
           enablement: true
