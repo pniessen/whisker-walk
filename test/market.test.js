@@ -103,8 +103,9 @@ const clearOf = (x, z, colliders) => Math.min(...colliders.map((c) => Math.hypot
 // Step 3, Task 9 (2026-11-21, picture pass): the baker's two low flour sacks where the nap is
 // (the nap had nothing drawn at its spot), in the stall's own kit: +160 triangles.
 // 2026-11-22 (the four new stalls, toys / plants / bric / butcher): +30 meshes, +8 casters, +7,339 triangles (was 111 / 27 / 39,495; merged 108 / 24)
-const MEASURED_BUILT = { meshes: 141, casters: 35, triangles: 46834 };
-const MEASURED_MERGED = { meshes: 138, casters: 32, triangles: 46834 };
+// 2026-11-22 (beauty pass, round 1, the four new stalls: painted counter fronts, scalloped valances, goods as little shapes, hanging baskets, chimes, price slates, counter lanterns): +5,378 triangles, no new mesh (was 141 / 35 / 46,834)
+const MEASURED_BUILT = { meshes: 141, casters: 35, triangles: 52212 };
+const MEASURED_MERGED = { meshes: 138, casters: 32, triangles: 52212 };
 const MEASURED_DRAWS = 0;
 
 function budgetStats(s) {

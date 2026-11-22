@@ -75,6 +75,8 @@ describe('the four new stalls: ids, cycles, words', () => {
     };
     const cream = sums(31);
     for (let c = 18; c <= 29; c++) expect(sums(c), `cell ${c}`).not.toEqual(cream);
+    // the beauty pass's cells: counter fronts, price slate, the second meat panel, the jumble, the valances
+    for (const c of [32, 33, 34, 35, 36, 38, 39, 40, 41, 42, 43]) expect(sums(c), `cell ${c}`).not.toEqual(cream);
   });
 
   it('each new treat builds a mesh that is small, casting nothing', () => {
