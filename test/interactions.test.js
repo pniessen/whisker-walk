@@ -2008,6 +2008,28 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       expect(legacy.prefetched).toEqual([]);
     });
 
+    // Old House step 4 (W2, W6): the old house's door in town asks in a Clan
+    // walk (shut until 2 Market Square walks, the owner's change), and a
+    // Legacy town walk has no door to ask at.
+    it("the town's old house door: its line in Clan Edition, nothing in Legacy at (-42.5, 31)", () => {
+      const shut = gateHarness({ areaId: 'neighborhood', walks: { neighborhood: 2, market: 1 }, owned: ['market'], points: 500 });
+      shut.walkTo(-42.5, 31);
+      expect(shut.session.prompt.kind).toBe('gate-info');
+      expect(shut.session.prompt.data.end.id).toBe('town-house');
+      expect(shut.prompts.at(-1)).toBe('Opens after 2 walks in the Market Square. 1 to go!');
+      const buy = gateHarness({ areaId: 'neighborhood', walks: { neighborhood: 2, market: 2 }, owned: ['market'], points: 150 });
+      buy.walkTo(-42.5, 31);
+      expect(buy.session.prompt.kind).toBe('gate-buy');
+      buy.press();
+      expect(buy.bought).toHaveLength(1);
+      expect(buy.bought[0].end.id).toBe('town-house');
+      const legacy = gateHarness({ areaId: 'neighborhood', walks: { neighborhood: 2, market: 2 }, owned: ['market', 'house'] });
+      legacy.progression.state.edition = 'legacy';
+      legacy.walkTo(-42.5, 31);
+      expect(legacy.session.prompt).toBe(null);
+      expect(legacy.prefetched).toEqual([]);
+    });
+
     it('perched, swimming or fighting shows none', () => {
       const h = gateHarness({ owned: ['farm'] });
       h.session.perched = { x: 41, y: 0.6, z: 10 };

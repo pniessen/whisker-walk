@@ -29,6 +29,7 @@ export const WORDS = Object.freeze({
   // ---- Hints (design section 4), keyed hint.<id>; src/hints.js has the rules
   'hint.roofs': same('Follow the white pigeon up onto the roofs!'),
   'hint.market': same('Wait till they turn around…'),
+  'hint.house': same('Explore every floor, from the attic to the cellar!'),
   'hint.look': two('Drag here to look around.', 'Move the mouse to look around.'),
   'hint.creep': two('{name} is shy. Push the circle gently to creep.', '{name} is shy. Hold Shift to creep.'),
   'hint.jump': two('Tap the paw to jump up.', 'Press Space to jump up.'),

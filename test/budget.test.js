@@ -38,6 +38,9 @@ const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildFair } = await import('../src/world/fair.js');
 const { build: buildRoofs } = await import('../src/world/roofs.js');
 const { build: buildMarket } = await import('../src/world/market.js');
+const { build: buildHouse } = await import('../src/world/house.js');
+const { HOUSE_LEVELS } = await import('../src/world/houseplan.js');
+const { measureHouse } = await import('./helpers/housebudget.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { addBorderDressing } = await import('../src/world/borderpost.js');
 const { addGatewayDressing } = await import('../src/world/gateway.js');
@@ -622,12 +625,43 @@ describe('with the Clan dressing', () => {
 // Rooftops step 4 added the town's third signpost (town-roofs) and the
 // Rooftops' alley door (roofs-town), inside the same ceilings. Market step 4
 // added the town's fourth (town-market) and the square's gate in its south
-// row (market-town), inside the same ceilings too.
+// row (market-town), inside the same ceilings too. Old House step 4 added the
+// old house's door in town (town-house, look 'none': the town draws the old
+// house's front for it, world/oldhousefront.js) and the hall's front door
+// (house-town, look 'none': the house draws its opening leaves): the town with
+// its four signposts and the front, and the house at every level, inside the
+// same ceilings, built and merged.
 describe('with the gateways (world map step 3)', () => {
-  it('covers every place with a gate, the Rooftops, the Market and the town\'s four signposts among them', () => {
-    expect(endsFor('neighborhood').map((e) => [e.id, e.look])).toEqual([['town-park', 'signpost'], ['town-docks', 'signpost'], ['town-roofs', 'signpost'], ['town-market', 'signpost']]);
+  it('covers every place with a gate, the Rooftops, the Market, the Old House and the town\'s four signposts among them', () => {
+    expect(endsFor('neighborhood').map((e) => [e.id, e.look])).toEqual([['town-park', 'signpost'], ['town-docks', 'signpost'], ['town-roofs', 'signpost'], ['town-market', 'signpost'], ['town-house', 'none']]);
     expect(endsFor('roofs').map((e) => [e.id, e.look])).toEqual([['roofs-town', 'alleydoor']]);
     expect(endsFor('market').map((e) => [e.id, e.look])).toEqual([['market-town', 'signpost']]);
+    expect(endsFor('house').map((e) => [e.id, e.look])).toEqual([['house-town', 'none']]);
+  });
+  it('the town draws the old house\'s front for its door', () => {
+    const scene = new THREE.Scene();
+    buildNeighborhood(scene, { gateEnds: endsFor('neighborhood') });
+    expect(scene.getObjectByName('oldhousefront')).toBeTruthy();
+  });
+  it('the house with its door home: every level under 450 / 380 / 70,000, built and merged', () => {
+    const scene = new THREE.Scene();
+    const area = buildHouse(scene, { gateEnds: endsFor('house') });
+    expect(area.house.parts.frontDoor).toBeTruthy();
+    addGatewayDressing(scene, 'house');
+    const rig = { castsFromBox, isTransparentMat };
+    const check = (tag) => {
+      const m = measureHouse(scene, rig);
+      for (const l of HOUSE_LEVELS) {
+        const at = m.at(l.id);
+        if (process.env.BUDGET_LOG) console.log('house', tag, l.id, JSON.stringify(at));
+        expect(at.meshes, `${tag} ${l.id}`).toBeLessThanOrEqual(450);
+        expect(at.casters, `${tag} ${l.id}`).toBeLessThanOrEqual(380);
+        expect(at.triangles, `${tag} ${l.id}`).toBeLessThanOrEqual(70000);
+      }
+    };
+    check('built');
+    mergeStaticProps(scene);
+    check('merged');
   });
   for (const [name, build, meshCeiling, casterCeiling, triangleCeiling] of AREAS.filter(([n]) => ['neighborhood', 'park', 'fair', 'farm', 'docks', 'seaside', 'roofs', 'market'].includes(n))) {
     const merged = MERGED_AREAS.find(([n]) => n === name);

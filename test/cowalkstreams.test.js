@@ -64,17 +64,8 @@ describe('strays and the shared walkRng', () => {
     expect(args).toContain('strayStream(roomSeed ?? soloSeed)'); // solo: the walk's own seed (mid-walk resume)
     expect(args).not.toContain('walkRng');
   });
-  it('walk.js takes the stray count from the tier, not the pointer', () => {
-    const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
-    const start = src.indexOf('createStrayCats(scene');
-    const args = src.slice(start, src.indexOf('});', start));
-    // Clan Life Part 1: the tier's count, less the clan in a territory with a camp.
-    // Kittypets (ruling R2, amended): a wanderer takes an ordinary loner's slot.
-    expect(args).toContain('createStrayCats(scene, areaData, strayCount, strayStream(roomSeed ?? soloSeed)');
-    expect(src).toContain('const loners = isDen ? 0 : lonersFor(areaId, tier.strays, fedHere);');
-    // The lite rung (quality.js LITE) keeps her fed cats when its count is
-    // smaller than her colony here: a longer prefix of the same cast.
-    expect(src).toContain('const strayCount = wanderStrayCount(tier.keepFedCats ? Math.max(loners, fedHere) : loners, fedHere, !!wanderSpot);');
-    expect(src).not.toContain('coarse ? 14 : 22');
-  });
+  // "walk.js takes the stray count from the tier, not the pointer" was a pin on
+  // walk.js's lines; it is behaviour now, on real walks: test/walkcast.test.js
+  // "how many strays a walk asks for" (the tier's count on every rung and either
+  // pointer, the clan's slots, the lite rung's fed cats, the wanderer's slot).
 });

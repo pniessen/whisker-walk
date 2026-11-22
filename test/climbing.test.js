@@ -588,11 +588,19 @@ const STATES = {
   both: { skills: ['spring-paws', SURE_CLAWS_ID] },
 };
 
+// The house's three golden mice are left out of every table here: the climbing
+// system (world perch arrays, canReach) does not model indoors. They are
+// reached by the house's own ledge climbs, pinned in test/housethings.test.js
+// and test/housegame.test.js. Only the house is skipped, by name, so any other
+// area missing from AREAS still fails loudly.
+const NOT_MODELLED = new Set(['house']);
+const CLIMB_MICE = Object.entries(GOLD_MICE).filter(([area]) => !NOT_MODELLED.has(area));
+
 function hopTable(state, fenceRun = false) {
   const budget = climbBudget(state);
   const out = {};
   const seen = (area) => visiblePerches(AREAS[area].perches, state);
-  for (const [area, mice] of Object.entries(GOLD_MICE)) {
+  for (const [area, mice] of CLIMB_MICE) {
     for (const m of mice) out[m.id] = minHops(m, seen(area), budget, fenceRun);
   }
   for (const c of ELEVATED) {
@@ -1095,7 +1103,7 @@ describe('CF-9b — the gated perches themselves', () => {
     // each of the six stalls' crates and awning, the flower trestle, the bicycle basket,
     // the two crate stacks' tops and the three café tables
     expect(UNGATED.market).toHaveLength(19);
-    for (const [area, mice] of Object.entries(GOLD_MICE)) {
+    for (const [area, mice] of CLIMB_MICE) {
       for (const m of mice.filter((x) => x.y > 0)) {
         const stand = UNGATED[area].find(
           (p) => Math.hypot(p.x - m.x, p.z - m.z) < 1.0 && Math.abs(p.y - m.y) < 0.9,
@@ -1223,7 +1231,7 @@ describe('CF-9b — the gated perches short-circuit nothing', () => {
     const stripped = (state, fenceRun) => {
       const budget = climbBudget(state);
       const out = {};
-      for (const [area, mice] of Object.entries(GOLD_MICE)) {
+      for (const [area, mice] of CLIMB_MICE) {
         for (const m of mice) out[m.id] = minHops(m, UNGATED[area], budget, fenceRun);
       }
       for (const c of ELEVATED) {
@@ -1245,7 +1253,7 @@ describe('CF-9b — the gated perches short-circuit nothing', () => {
     // Belt and braces on the hop table: a gated perch standing where a chain
     // top stands would not change the hop COUNT, but it would let the ability
     // hand the player a mouse that the chain is supposed to be the price of.
-    const targets = Object.entries(GOLD_MICE).flatMap(([area, mice]) =>
+    const targets = CLIMB_MICE.flatMap(([area, mice]) =>
       mice.filter((m) => m.y > 0).map((m) => ({ area, ...m })))
       .concat(ELEVATED.map((c) => ({ area: c.area, id: c.id, x: c.x, z: c.z, y: c.y })));
     for (const t of targets) {

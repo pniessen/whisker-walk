@@ -1,0 +1,774 @@
+// THE OLD HOUSE, THE PLAN (Old House step 1). The pure data of the place: its
+// split levels, rooms, stairs, doorways and windows, the ground they make, the
+// wall sections that sink when the camera needs the view, and the collider
+// chains that stop the cat. No THREE, no randomness, no clock: the headless
+// tests walk it, and house.js draws it. Sibling of roofsplan.js.
+//
+// x east, z south (north is -z), metres. Split levels (spec): no two rooms or
+// stairs on different levels share any floor, so the cat's x, z names her level.
+//
+//   z -16 +--------+--------+ ...
+//         | attic  |back st.| bedroom   (upstairs 2.4, attic 4.2)
+//   z  -6 +--------+--------+----+
+//                         main stair  (ground 0 -> upstairs 2.4, 8.4 m)
+//   z   2 +-----------+----+-----+------+  kitchen [4,14] x [-8,2] --cellar
+//         | library   |hall|parlour     |  stair east to the cellar (-1.8)
+//   z  12 +-----------+--*-+------------+  * = spawn, front door on the south
+//
+// The lawn around it is ground at 0, so the camera beside the sunken cellar
+// can never drop below the drawn grass (ruling H4).
+
+import { createGround } from '../ground.js';
+
+export const HOUSE_ID = 'house';
+export const BASE_Y = -3;
+export const LAWN_Y = 0;
+export const WALL_H = 2.8;
+export const WALL_T = 0.2;
+export const STUB_H = 0.25;
+export const DOOR_W = 2.0;
+export const DOOR_H = 2.2;
+export const SECTION_MAX = 4.0;
+export const COLLIDER_R = 0.2;
+export const COLLIDER_STEP = 0.25;
+export const TALL_H = 1.6;
+const LAWN_MARGIN = 12;
+
+const freeze = Object.freeze;
+const frozenAll = (list) => freeze(list.map((o) => freeze(o)));
+
+export const HOUSE_LEVELS = frozenAll([
+  { id: 'cellar', y: -1.8 },
+  { id: 'ground', y: 0 },
+  { id: 'upstairs', y: 2.4 },
+  { id: 'attic', y: 4.2 },
+]);
+
+export const HOUSE_ROOMS = frozenAll([
+  { id: 'hall', level: 'ground', minX: -4, maxX: 4, minZ: 2, maxZ: 12 },
+  { id: 'library', level: 'ground', minX: -14, maxX: -4, minZ: 2, maxZ: 12 },
+  { id: 'parlour', level: 'ground', minX: 4, maxX: 14, minZ: 2, maxZ: 12 },
+  { id: 'kitchen', level: 'ground', minX: 4, maxX: 14, minZ: -8, maxZ: 2 },
+  { id: 'bedroom', level: 'upstairs', minX: -8, maxX: 2, minZ: -16, maxZ: -6.4 },
+  { id: 'attic', level: 'attic', minX: -24, maxX: -14, minZ: -16, maxZ: -6 },
+  { id: 'cellar', level: 'cellar', minX: 20, maxX: 30, minZ: -10, maxZ: 0 },
+]);
+
+export const HOUSE_STAIRS = frozenAll([
+  { id: 'main', from: 'ground', to: 'upstairs', x0: 0, z0: 2, x1: 0, z1: -6.4, width: 3.0 },
+  { id: 'back', from: 'upstairs', to: 'attic', x0: -8, z0: -11, x1: -14, z1: -11, width: 2.4 },
+  { id: 'cellar', from: 'ground', to: 'cellar', x0: 14, z0: -5, x1: 20, z1: -5, width: 2.4 },
+  // step 2 (ruling D9): the hidden passage, from behind the library's shut bookcase up through
+  // the courtyard to the bedroom, 5 m from the back stair's foot. 2.4 m over 8.4 m (0.286).
+  { id: 'secret', from: 'ground', to: 'upstairs', x0: -6, z0: 2, x1: -6, z1: -6.4, width: 2.4 },
+]);
+
+export const LEVEL_LINKS = freeze(HOUSE_STAIRS.map((s) => freeze([s.from, s.to])));
+
+// `axis` is the wall line's fixed coordinate: 'x' means the wall runs along z at x.
+export const HOUSE_DOORWAYS = frozenAll([
+  { id: 'hall-library', rooms: freeze(['hall', 'library']), x: -4, z: 7, axis: 'x', width: DOOR_W },
+  { id: 'hall-parlour', rooms: freeze(['hall', 'parlour']), x: 4, z: 7, axis: 'x', width: DOOR_W },
+  { id: 'parlour-kitchen', rooms: freeze(['parlour', 'kitchen']), x: 9, z: 2, axis: 'z', width: DOOR_W },
+]);
+
+// `at` is the window's centre along its wall (x for n and s, z for e and w).
+const win = (room, side, at, width = 1.2, sill = 0.9, head = 2.0, round = false) => ({ room, side, at, width, sill, head, round });
+export const HOUSE_WINDOWS = frozenAll([
+  win('hall', 's', -2), win('hall', 's', 2),
+  win('library', 'w', 3.7), win('library', 'w', 10.3),
+  win('parlour', 's', 5.7), win('parlour', 's', 12.3),
+  win('kitchen', 'n', 5.7), win('kitchen', 'n', 12.3),
+  win('bedroom', 'n', -3),
+  win('attic', 'w', -11, 1.0, 1.2, 2.2, true),
+  win('cellar', 'e', -5, 0.8, 1.6, 2.1),
+]);
+
+export const HOUSE_BOUNDS = freeze({ minX: -24, maxX: 30, minZ: -16, maxZ: 12 });
+
+// ---- the secret bookcase (step 2, ruling D9) ----
+
+// A bookcase stands shut in the secret stair's mouth in the library's north wall: its
+// leaf spans the opening, x [-7.2, -4.8], centred on the wall line, books facing the
+// library. It swings a quarter turn on its west hinge into the library (a vertical
+// hinge at the opening's west jamb), standing open along z from 2 to 4.4, books
+// facing west. In three.js terms the open leaf is the shut one turned by rotation.y
+// = -PI/2 about the hinge (+x to +z). openS: the swing's seconds; reach and holdS:
+// she opens it by staying within reach of it for holdS, from either side (house life).
+export const SECRET_BOOKCASE = freeze({ x: -6, z: 2, w: 2.4, d: 0.42, h: 2.25, hinge: freeze({ x: -7.2, z: 2 }), openS: 1.2, reach: 1.1, holdS: 0.6 });
+export const SECRET_OPEN_ROT_Y = -Math.PI / 2;
+// Rough edge 3 (owner: "swing it away from her"): every spot she opens it from on the library
+// side lies inside the leaf's swing into the library, so from there it swings into the stair
+// instead, a quarter turn the other way, about its back west corner (on the stair's west
+// wall line, d/2 behind the hinge), and stands open flat along the stair's west wall, its
+// back inside the wall's inner half. From the stair it still swings into the library.
+// `into` names the side the leaf swings to: 'library' (from the stair) or 'stair'.
+export const SECRET_STAIR_ROT_Y = Math.PI / 2;
+export const secretPivot = (into) => (into === 'stair'
+  ? { x: SECRET_BOOKCASE.hinge.x, z: SECRET_BOOKCASE.hinge.z - SECRET_BOOKCASE.d / 2 }
+  : SECRET_BOOKCASE.hinge);
+// Its colliders reach past the leaf's front, so her body (r 0.35) never touches the leaf she
+// is held at, shut or open: its cornice stands 0.24 m in front of the centreline (houseparts.js),
+// and COLLIDER_R's 0.2 left her 4 cm inside it.
+export const SECRET_R = 0.26;
+
+// The bookcase's colliders, shut or open: SECRET_R circles every COLLIDER_STEP (or
+// less) down the leaf's centreline from its pivot, on the ground level, tagged
+// `secret` so the walk can swap one row for the other. houseColliders carries the shut row.
+export function secretColliders(open, into = 'library') {
+  const b = SECRET_BOOKCASE;
+  const stair = open && into === 'stair';
+  const p = open ? secretPivot(into) : b.hinge;
+  // open into the stair, the leaf's centreline runs north up the stair d/2 in from the wall line
+  const x0 = stair ? p.x + b.d / 2 : p.x;
+  const ux = open ? 0 : 1;
+  const uz = !open ? 0 : stair ? -1 : 1;
+  const n = Math.max(1, Math.ceil(b.w / COLLIDER_STEP - 1e-9));
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const t = (b.w * i) / n;
+    out.push({ x: x0 + ux * t, z: p.z + uz * t, r: SECRET_R, level: 'ground', secret: true });
+  }
+  return out;
+}
+
+// The shut front door on the hall's south wall, and where she lands coming in
+// (yaw 0 faces -z). Data only in step 1; step 4 opens it.
+export const HOUSE_FRONT_DOOR = freeze({
+  x: 0,
+  z: 12,
+  faces: 'south',
+  arrive: freeze({ x: 0, z: 9.5, yaw: 0 }),
+});
+export const HOUSE_SPAWN = freeze({ x: HOUSE_FRONT_DOOR.arrive.x, z: HOUSE_FRONT_DOOR.arrive.z });
+// Where her kitten (Mochi, kitten stage 2) wanders, a 3 m circle round it
+// (kitten.js): the hall's middle. Round the spawn, by the front door, the
+// circle would cross the shut door and the hall lamp.
+export const HOUSE_KITTEN_HOME = freeze({ x: 0, z: 7.5 });
+
+const levelY = (id) => HOUSE_LEVELS.find((l) => l.id === id).y;
+const roomById = (id) => HOUSE_ROOMS.find((r) => r.id === id);
+
+// ---- lamps ----
+
+// One lamp per room, two in the cellar, clear of the doors and stairs. At dusk
+// the walk paints a pool round each on its floor (render/dusk.js createLampPools,
+// LAMP_LOOK.poolRadius 3.4 m, a radius), cut to its own room at the walls' inner
+// faces (house.js lampPoolClip), so no light spills onto the lawn or the next
+// room. house.js draws them; their colliders are in houseColliders.
+export const HOUSE_LAMPS = frozenAll([
+  { room: 'hall', kind: 'table', x: -2.9, z: 10.6 },
+  { room: 'library', kind: 'standard', x: -12.4, z: 3.6 },
+  { room: 'parlour', kind: 'standard', x: 12.4, z: 10.4 },
+  { room: 'kitchen', kind: 'table', x: 5.6, z: 0.4 },
+  { room: 'bedroom', kind: 'standard', x: -1.5, z: -10.0 },
+  { room: 'attic', kind: 'lantern', x: -18.0, z: -9.6 },
+  { room: 'cellar', kind: 'lantern', x: 21.6, z: -1.6 },
+  { room: 'cellar', kind: 'lantern', x: 28.4, z: -8.4 },
+]);
+export const LAMP_R = 0.22; // a lamp's collider
+
+// ---- furniture ----
+
+// Warm, old, cosy furniture (house.js draws it from houseparts.js). Each piece:
+// its room and level, its kind, the centre of its footprint (x, z), rotY (its
+// front is local +z turned by rotY: 0 faces south, PI north, PI/2 east, -PI/2
+// west), the footprint w (across its front) by d (deep), its height h, and r, the
+// radius of its colliders (a row of them down its long side), or 0 for anything
+// walked over (rugs, the runner, cobwebs). A piece TALL_H or taller stands with
+// its back to a wall, never in front of a window, and fades (ruling H8).
+// Footprints keep clear of every doorway, stair mouth and the front door's
+// arrival spot (houseplan.test.js walks them).
+const FACE_S = 0; // faces south: back to a north wall
+const FACE_N = Math.PI; // faces north: back to a south wall
+const FACE_E = Math.PI / 2; // faces east: back to a west wall
+const FACE_W = -Math.PI / 2; // faces west: back to an east wall
+const piece = (id, room, kind, x, z, rotY, w, d, h, r, look = null) => ({ id, room, level: roomById(room).level, kind, x, z, rotY, w, d, h, r, look });
+// step 2 (ruling D1): a piece whose top she stands on. Its top is ground (a ledge, below), so
+// it has no colliders: the cliff at its edge stops her, as a roof's does. It keeps its r, so
+// it is still drawn as a solid piece. A ledge backed by a wall is 0.6 m deep (a tall one TOP_D,
+// below): the wall's colliders keep her centre 0.55 m off its line, so a shallower top has
+// nowhere to stand. Its guards (below) hold her off it from the floor and inside a tall top.
+const ledge = (...args) => ({ ...piece(...args), ledge: true });
+// Rough edge 2: a tall top she walks along is TOP_D deep, its back where it was, WALL_T / 2 off
+// the wall's line (so its middle 0.55 m off it). The wall holds her middle 0.55 m off its line,
+// 0.45 in from the top's back; her body (0.35) must stay over the top too (her rim, below), so
+// 0.6 left no room, and she hung over the front. 0.9 leaves her a 0.1 m band.
+const TOP_D = 0.9;
+// m: every cat's head (its lowest, a kitten's) passes over a piece this little above her paws
+// (houseguards.test.js measures each breed); the piano's case stands this much over its keys
+export const HEAD_CLEAR = 0.33;
+// A low ledge piece that fades like a tall one (ruling S2-4): the camera keeps out of the
+// floors, not the furniture tops (house.js cameraGround), so at its lowest it can come down
+// inside one behind her.
+const fadingLedge = (...args) => ({ ...ledge(...args), fade: true });
+// Whether a piece fades when it stands in the camera's way: every tall piece (ruling H8),
+// and the low ledge pieces marked to.
+export const fades = (f) => f.h >= TALL_H || f.fade === true;
+// How far a ledge piece's fade shape reaches above its top (house.js). The tree fade's line
+// runs from the camera to a point PAST_LOOK beyond her look point, level with it
+// (treefade.js), so near her it passes higher than the line to her look point: with her
+// beside a bookcase or the piano and the camera over it, the line to her head went up to
+// 0.36 m inside the piece's top while the fade's line cleared it, and the piece stood.
+// Standing on the piece, her look point is 0.74 m over its top, and the fade's line never
+// comes lower than that: 0.5 plus the fade's 0.15 m pad is 0.65, so this never fades the
+// piece under her (tested at every pitch). 0.4 still missed a line 0.05 m into the big books.
+export const LEDGE_FADE_OVER = 0.5;
+const WEB = 0.55; // a cobweb's arms along each wall from its corner
+export const HOUSE_FURNITURE = frozenAll([
+  // the hall: a grandfather clock by the stair, a console table, a settle, umbrellas by the door, a runner
+  piece('hall-clock', 'hall', 'clock', -2.9, 2.27, FACE_S, 0.56, 0.34, 2.1, 0.3),
+  piece('hall-console', 'hall', 'console', -3.71, 4.2, FACE_E, 1.2, 0.38, 0.8, 0.19),
+  piece('hall-bench', 'hall', 'bench', 3.69, 9.6, FACE_W, 1.4, 0.42, 0.9, 0.21),
+  piece('hall-umbrellas', 'hall', 'umbrellas', 1.0, 11.75, FACE_N, 0.3, 0.3, 0.85, 0.15),
+  piece('hall-runner', 'hall', 'runner', 0, 6.9, FACE_S, 1.1, 8.6, 0.012, 0, 'rugBlue'),
+  // the library: three bookcases, a rolling ladder at one, a wing chair, a desk, a globe, a rug
+  // step 2 (D2): the three bookcases are ledges, the west one slid north between the windows
+  // for the corner leap; the ladder stands in the corner beside n2, and the steps and a stack
+  // of big books are new, the way up and the way down
+  // rough edge 2: the three bookcases TOP_D deep, their backs where they were; the steps
+  // moved out with n2's front
+  ledge('library-books-w', 'library', 'bookcase', -13.45, 5.55, FACE_E, 2.2, TOP_D, 2.25, 0.21),
+  ledge('library-books-n1', 'library', 'bookcase', -12.4, 2.55, FACE_S, 2.2, TOP_D, 2.25, 0.21),
+  ledge('library-books-n2', 'library', 'bookcase', -9.3, 2.55, FACE_S, 2.2, TOP_D, 2.25, 0.21),
+  piece('library-ladder', 'library', 'ladder', -7.85, 2.37, FACE_S, 0.5, 0.5, 2.05, 0.15),
+  // the review of the rough edges: the steps and the big books stand off the taller bookcase
+  // beside them, so on their tops her head stays out of it (a top's guards; a Maine Coon's
+  // head reaches 0.9 m ahead of her)
+  fadingLedge('library-steps', 'library', 'steps', -8.8, 3.7, FACE_S, 0.6, 0.6, 0.9, 0.3),
+  fadingLedge('library-bigbooks', 'library', 'bigbooks', -13.55, 7.4, FACE_S, 0.7, 0.5, 1.0, 0.25),
+  piece('library-chair', 'library', 'armchair', -11.6, 5.0, 0.92, 0.85, 0.85, 1.05, 0.42, 'library'),
+  piece('library-desk', 'library', 'desk', -9.0, 11.55, FACE_N, 1.4, 0.7, 0.8, 0.35),
+  piece('library-globe', 'library', 'globe', -5.2, 10.9, 0.4, 0.55, 0.55, 1.0, 0.26),
+  piece('library-rug', 'library', 'rug', -9.2, 7.2, FACE_S, 3.6, 2.6, 0.012, 0, 'rugRed'),
+  // the kitchen: counters, a sink and a range on the north wall, a plate dresser, a table and two chairs
+  piece('kitchen-sink', 'kitchen', 'sink', 5.7, -7.6, FACE_S, 1.1, 0.6, 1.05, 0.3),
+  piece('kitchen-counter-a', 'kitchen', 'counter', 7.45, -7.6, FACE_S, 2.4, 0.6, 0.92, 0.3, 'a'),
+  piece('kitchen-range', 'kitchen', 'range', 9.25, -7.6, FACE_S, 1.2, 0.6, 1.0, 0.3),
+  piece('kitchen-counter-b', 'kitchen', 'counter', 10.9, -7.6, FACE_S, 2.1, 0.6, 0.92, 0.3, 'b'),
+  piece('kitchen-dresser', 'kitchen', 'dresser', 4.33, -3.2, FACE_E, 1.6, 0.46, 2.05, 0.23),
+  piece('kitchen-table', 'kitchen', 'table', 9.0, -3.2, FACE_S, 1.5, 0.9, 0.76, 0.45),
+  piece('kitchen-chair-a', 'kitchen', 'chair', 8.6, -4.0, FACE_S, 0.45, 0.45, 0.95, 0.23),
+  piece('kitchen-chair-b', 'kitchen', 'chair', 9.4, -2.4, FACE_N, 0.45, 0.45, 0.95, 0.23),
+  // step 2 (D10): a tall pantry cupboard on the east wall, flour sacks beside it: the mice's corner
+  piece('kitchen-pantry', 'kitchen', 'pantry', 13.65, -1.6, FACE_W, 1.2, 0.5, 2.0, 0.25),
+  piece('kitchen-sacks', 'kitchen', 'sacks', 13.6, -0.35, FACE_W, 0.7, 0.5, 0.55, 0.25),
+  // the parlour: the fireplace on the east wall, two armchairs at it, a side table, the piano, a rug
+  // its mantel is 1.3 m (step 2: the knock-over perch's top); the clock and candles on it reach 1.5
+  piece('parlour-fire', 'parlour', 'fireplace', 13.5, 7.0, FACE_W, 1.9, 0.8, 1.5, 0.28),
+  piece('parlour-chair-a', 'parlour', 'armchair', 11.0, 5.5, 1.03, 0.85, 0.85, 1.05, 0.42, 'parlour'),
+  piece('parlour-chair-b', 'parlour', 'armchair', 11.0, 8.5, 2.11, 0.85, 0.85, 1.05, 0.42, 'parlour'),
+  piece('parlour-sidetable', 'parlour', 'sidetable', 10.5, 7.0, 0, 0.5, 0.5, 0.62, 0.25),
+  // step 2 (D2): the piano's keyboard is a ledge in front of its case, and the case behind it one too
+  // the review of the rough edges: a low upright, its case HEAD_CLEAR over the keys, so on them
+  // her head passes over it and only her body is held back (a top's guards), on keys 0.6 deep
+  fadingLedge('parlour-piano', 'parlour', 'piano', 8.7, 11.6, FACE_N, 1.5, 0.6, 0.75 + HEAD_CLEAR, 0.3),
+  fadingLedge('parlour-keys', 'parlour', 'keys', 8.7, 11.0, FACE_N, 1.3, 0.6, 0.75, 0.15),
+  piece('parlour-rug', 'parlour', 'rug', 11.2, 7.0, FACE_S, 2.4, 3.2, 0.012, 0, 'rugRed'),
+  // step 2 (D6): an old cushion on the hearth with a cat-shaped dent in it, walked over
+  piece('parlour-cushion', 'parlour', 'cushion', 12.7, 7.0, FACE_W, 0.7, 0.7, 0.08, 0),
+  // the bedroom: a big bed, a wardrobe, a chest of drawers, a bedside table, a rug
+  piece('bedroom-bed', 'bedroom', 'bed', 0.85, -12.0, FACE_W, 1.6, 2.1, 1.1, 0.75),
+  piece('bedroom-bedside', 'bedroom', 'bedside', 1.62, -13.25, FACE_W, 0.45, 0.45, 0.62, 0.22),
+  // step 2 (D2): up the chest, standing in front of the new bookshelf, onto the shelf, and a
+  // leap from it to the wardrobe and back. Rough edge 2: the wardrobe and the shelf TOP_D deep,
+  // the shelf 1.25 wide (her rim leaves a 0.55 m run along it for its two take-offs), and the
+  // chest moved out from the shelf's front (the review: 0.5 m, so on it her head stays out of the shelf)
+  ledge('bedroom-wardrobe', 'bedroom', 'wardrobe', -6.4, -15.45, FACE_S, 1.3, TOP_D, 2.05, 0.3),
+  ledge('bedroom-shelf', 'bedroom', 'bookcase', -4.375, -15.45, FACE_S, 1.25, TOP_D, 1.6, 0.3),
+  ledge('bedroom-chest', 'bedroom', 'chest', -4.2, -14.25, FACE_S, 0.8, 0.5, 0.6, 0.25),
+  piece('bedroom-drawers', 'bedroom', 'drawers', -0.6, -15.65, FACE_S, 1.1, 0.5, 0.95, 0.25),
+  piece('bedroom-rug', 'bedroom', 'rug', -2.6, -12.0, FACE_S, 2.4, 2.0, 0.012, 0, 'rugBlue'),
+  // the attic: boxes stacked no higher than 1.4 m, an old trunk, an old rocking chair, a rug
+  piece('attic-boxes-a', 'attic', 'boxes', -15.0, -15.3, FACE_S, 1.6, 1.0, 1.35, 0.5),
+  piece('attic-boxes-b', 'attic', 'boxes', -23.2, -7.0, FACE_N, 1.2, 1.4, 1.1, 0.55),
+  piece('attic-trunk', 'attic', 'trunk', -19.8, -15.58, FACE_S, 1.1, 0.64, 0.62, 0.32),
+  piece('attic-chair', 'attic', 'chair', -21.9, -12.6, 1.2, 0.5, 0.7, 0.95, 0.3, 'rocking'),
+  piece('attic-rug', 'attic', 'rug', -19.5, -12.2, FACE_S, 2.4, 1.8, 0.012, 0, 'rugBlue'),
+  // step 2 (D6): a box of old toys against the north wall
+  piece('attic-toybox', 'attic', 'toybox', -17.6, -15.65, FACE_S, 0.8, 0.5, 0.5, 0.25),
+  // step 2 (D2): a window seat under the round window. 0.55 m, not 0.5: a climb or a drop must
+  // change height by more than LEVEL_TOL (0.5, traversal.js), or it is no climb at all
+  ledge('attic-seat', 'attic', 'seat', -23.6, -11.0, FACE_E, 1.6, 0.6, 0.55, 0.3),
+  // the cellar: jar shelves, barrels, crates and cobwebs in its corners
+  piece('cellar-shelf-a', 'cellar', 'jarshelf', 23.2, -9.68, FACE_S, 1.8, 0.44, 1.9, 0.22),
+  piece('cellar-shelf-b', 'cellar', 'jarshelf', 25.6, -9.68, FACE_S, 1.8, 0.44, 1.9, 0.22),
+  piece('cellar-barrels', 'cellar', 'barrels', 24.6, -0.52, FACE_N, 2.3, 0.84, 0.95, 0.4),
+  piece('cellar-crates', 'cellar', 'crates', 28.95, -0.85, FACE_N, 1.5, 1.3, 1.25, 0.6),
+  piece('cellar-web-nw', 'cellar', 'cobweb', 20.1 + WEB / 2, -9.9 + WEB / 2, 0, WEB, WEB, 0.5, 0),
+  piece('cellar-web-ne', 'cellar', 'cobweb', 29.9 - WEB / 2, -9.9 + WEB / 2, -Math.PI / 2, WEB, WEB, 0.5, 0),
+  piece('cellar-web-se', 'cellar', 'cobweb', 29.9 - WEB / 2, -0.1 - WEB / 2, Math.PI, WEB, WEB, 0.5, 0),
+  piece('cellar-web-sw', 'cellar', 'cobweb', 20.1 + WEB / 2, -0.1 - WEB / 2, Math.PI / 2, WEB, WEB, 0.5, 0),
+]);
+
+// A piece's colliders: circles of its r down the middle of its long side, no
+// further apart than r, the end ones r in from its ends (one circle if it is short).
+function furnitureColliders(f) {
+  if (!(f.r > 0) || f.ledge) return [];
+  const wide = f.w >= f.d;
+  const len = wide ? f.w : f.d;
+  const ax = wide ? Math.cos(f.rotY) : Math.sin(f.rotY);
+  const az = wide ? -Math.sin(f.rotY) : Math.cos(f.rotY);
+  const half = Math.max(0, len / 2 - f.r);
+  const n = half > 1e-9 ? Math.ceil((2 * half) / f.r - 1e-9) : 0;
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const t = n === 0 ? 0 : -half + (2 * half * i) / n;
+    out.push({ x: f.x + ax * t, z: f.z + az * t, r: f.r, level: f.level });
+  }
+  return out;
+}
+
+// ---- ground ----
+
+// outer minus holes, as non-overlapping rectangles: cut on the holes' edge
+// coordinates, keep each cell no hole covers, and join a row's neighbours.
+function rectMinus(outer, holes) {
+  const xs = [...new Set([outer.minX, outer.maxX, ...holes.flatMap((h) => [h.minX, h.maxX])])]
+    .filter((v) => v >= outer.minX && v <= outer.maxX).sort((a, b) => a - b);
+  const zs = [...new Set([outer.minZ, outer.maxZ, ...holes.flatMap((h) => [h.minZ, h.maxZ])])]
+    .filter((v) => v >= outer.minZ && v <= outer.maxZ).sort((a, b) => a - b);
+  const out = [];
+  for (let j = 0; j + 1 < zs.length; j++) {
+    let run = null;
+    for (let i = 0; i + 1 < xs.length; i++) {
+      const mx = (xs[i] + xs[i + 1]) / 2;
+      const mz = (zs[j] + zs[j + 1]) / 2;
+      const covered = holes.some((h) => mx > h.minX && mx < h.maxX && mz > h.minZ && mz < h.maxZ);
+      if (covered) {
+        if (run) out.push(run);
+        run = null;
+      } else if (run) run.maxX = xs[i + 1];
+      else run = { minX: xs[i], maxX: xs[i + 1], minZ: zs[j], maxZ: zs[j + 1] };
+    }
+    if (run) out.push(run);
+  }
+  return out;
+}
+
+// A stair as its axis-aligned rectangle (the centreline, +- width/2 across it).
+function stairRect(s) {
+  const hw = s.width / 2;
+  return stairAlongZ(s)
+    ? { minX: s.x0 - hw, maxX: s.x0 + hw, minZ: Math.min(s.z0, s.z1), maxZ: Math.max(s.z0, s.z1) }
+    : { minX: Math.min(s.x0, s.x1), maxX: Math.max(s.x0, s.x1), minZ: s.z0 - hw, maxZ: s.z0 + hw };
+}
+const stairAlongZ = (s) => Math.abs(s.z1 - s.z0) >= Math.abs(s.x1 - s.x0);
+
+// ---- ledges (step 2, ruling D1) ----
+
+// A piece's footprint as an axis-aligned rectangle (every rotY is a quarter turn).
+function footprint(f) {
+  const turned = Math.abs(Math.sin(f.rotY)) > 0.5;
+  const hx = (turned ? f.d : f.w) / 2;
+  const hz = (turned ? f.w : f.d) / 2;
+  return { minX: f.x - hx, maxX: f.x + hx, minZ: f.z - hz, maxZ: f.z + hz };
+}
+// Every ledge row's top: its footprint at its level's height plus its own.
+export const HOUSE_LEDGES = frozenAll(HOUSE_FURNITURE.filter((f) => f.ledge).map((f) => ({
+  id: f.id, room: f.room, level: f.level, ...footprint(f), y: levelY(f.level) + f.h,
+})));
+
+// ---- the ledges' guards (rough edges 1 and 2) ----
+
+// A ledge piece has no colliders (D1): circles have no height, so one would push her off its
+// top too. With only the cliff at its edge, she walked into a piece from the floor until her
+// middle was at its edge, her head and shoulders inside it; and on a top she walked to its
+// edge, her body hanging over the room, or her head into the taller piece behind it. So the
+// guards are collider sets that house life (houseguards.js) keeps in the walk's live list only
+// where they belong, built for her cat's size (`scale`, the cat's own: 0.74 to 1.3):
+//   feet  on the floor, a ring round every ledge piece that holds her middle
+//         ledgeStandoff(scale) off it, so her head stays out of it;
+//   tops  on a top, a row out past each edge the wall does not hold of a tall top, holding
+//         her middle LEDGE_RIM in from it (her body, CAT_RADIUS, stays over the top), and a
+//         row out past each edge of any top that faces a taller piece, holding her middle
+//         far enough back that her head (or, where the piece rises no more than HEAD_CLEAR
+//         over her top and her head passes over it, her body) stays out of it.
+// Her reach ahead of her middle as she walks is a cat's size times HEAD_REACH (her head) or
+// BODY_REACH (her body), measured on every breed (houseguards.test.js). Each circle's r reaches
+// its distance even between two circles GUARD_STEP apart. Tagged `guard`; the feet skip a
+// piece's sides against a wall and spots on another piece.
+export const LEDGE_STANDOFF = 0.75; // m: the feet's least
+export const LEDGE_RIM = 0.35;
+export const GUARD_BODY = 0.35; // = player.js CAT_RADIUS (tested; player.js is not THREE-free)
+export const LEDGE_ON = 0.1; // m: her paws this near a top are on it (houseguards.js, housefinds.js)
+export const HEAD_REACH = 0.69; // m per unit of a cat's size
+export const BODY_REACH = 0.39;
+export const CAT_SCALE_MAX = 1.3; // the Maine Coon
+const REACH_PAD = 0.02;
+export const ledgeStandoff = (scale) => Math.max(LEDGE_STANDOFF, HEAD_REACH * scale + REACH_PAD);
+const GUARD_STEP = COLLIDER_STEP;
+const RIM_OUT = 0.5; // m out past its edge a top's circle stands
+const WALL_BACK = 0.15; // m: an edge this near its room's wall line is against the wall
+const onRect = (r, x, z, e = 1e-9) => x >= r.minX - e && x <= r.maxX + e && z >= r.minZ - e && z <= r.maxZ + e;
+// A rectangle's four edges, each as its two ends and its outward normal.
+const edgesOf = (r) => [
+  [r.minX, r.minZ, r.maxX, r.minZ, 0, -1], [r.maxX, r.minZ, r.maxX, r.maxZ, 1, 0],
+  [r.maxX, r.maxZ, r.minX, r.maxZ, 0, 1], [r.minX, r.maxZ, r.minX, r.minZ, -1, 0],
+];
+// Circles every GUARD_STEP (or less) along x0,z0 -> x1,z1 moved `off` along (nx, nz).
+function guardRow(out, [x0, z0, x1, z1, nx, nz], off, reach, level) {
+  const len = Math.hypot(x1 - x0, z1 - z0);
+  const n = Math.max(1, Math.ceil(len / GUARD_STEP - 1e-9));
+  const r = Math.hypot(off + reach, len / n / 2) - GUARD_BODY;
+  for (let i = 0; i <= n; i++) {
+    out.push({ x: x0 + ((x1 - x0) * i) / n + nx * off, z: z0 + ((z1 - z0) * i) / n + nz * off, r, level, guard: true });
+  }
+}
+// How far in from top l's edge e her middle must stay, so she stays out of the taller ledge t
+// beyond it: 0 when t is not beyond that edge, or too far off to reach.
+function faceReach(l, e, t, scale) {
+  const [x0, z0, x1, z1, nx, nz] = e;
+  const lo = nx ? Math.min(z0, z1) : Math.min(x0, x1);
+  const hi = nx ? Math.max(z0, z1) : Math.max(x0, x1);
+  const [tlo, thi] = nx ? [t.minZ, t.maxZ] : [t.minX, t.maxX];
+  if (Math.min(hi, thi) - Math.max(lo, tlo) <= 1e-9) return 0; // not across from it
+  const gap = nx > 0 ? t.minX - x0 : nx < 0 ? x0 - t.maxX : nz > 0 ? t.minZ - z0 : z0 - t.maxZ;
+  if (gap < -1e-9) return 0; // not beyond the edge
+  return (t.y - l.y > HEAD_CLEAR + 1e-9 ? HEAD_REACH : BODY_REACH) * scale + REACH_PAD - gap;
+}
+const guardCache = new Map();
+// The guards for a cat of `scale`, rounded up to the next 0.05 (and to CAT_SCALE_MAX at most).
+export function houseLedgeGuards(scale = 1) {
+  const key = Math.min(CAT_SCALE_MAX, Math.ceil(scale * 20 - 1e-9) / 20);
+  if (guardCache.has(key)) return guardCache.get(key);
+  const feet = [];
+  const tops = {};
+  for (const l of HOUSE_LEDGES) {
+    const room = roomById(l.room);
+    const tall = HOUSE_FURNITURE.find((q) => q.id === l.id).h >= TALL_H;
+    for (const e of edgesOf(l)) {
+      const at = e[4] ? e[0] : e[1]; // the edge's line
+      const wall = e[4] ? (e[4] < 0 ? room.minX : room.maxX) : (e[5] < 0 ? room.minZ : room.maxZ);
+      if (Math.abs(at - wall) <= WALL_BACK) continue;
+      const row = [];
+      guardRow(row, e, 0, ledgeStandoff(key), l.level);
+      feet.push(...row.filter((c) => !HOUSE_LEDGES.some((q) => q !== l && q.level === l.level && onRect(q, c.x, c.z, 1e-6))));
+      let reach = tall ? LEDGE_RIM : 0;
+      for (const t of HOUSE_LEDGES) if (t.level === l.level && t.y > l.y + 0.3) reach = Math.max(reach, faceReach(l, e, t, key));
+      if (reach > 0) guardRow(tops[l.id] || (tops[l.id] = []), e, RIM_OUT, reach, l.level);
+    }
+  }
+  const one = (list) => freeze(list.filter((c, i) => !list.slice(0, i).some((q) => Math.abs(q.x - c.x) < 1e-9 && Math.abs(q.z - c.z) < 1e-9)).map((c) => freeze(c)));
+  const g = freeze({ scale: key, feet: one(feet), tops: freeze(Object.fromEntries(Object.entries(tops).map(([id, list]) => [id, one(list)]))) });
+  guardCache.set(key, g);
+  return g;
+}
+
+// `ledges: false` is the floor alone (houseFloorGround): what the level drawing reads (D3).
+function groundSpec({ ledges = true } = {}) {
+  const strips = [];
+  for (const r of HOUSE_ROOMS) {
+    strips.push({ x0: r.minX, z0: (r.minZ + r.maxZ) / 2, x1: r.maxX, z1: (r.minZ + r.maxZ) / 2, width: r.maxZ - r.minZ, y: levelY(r.level) });
+  }
+  for (const s of HOUSE_STAIRS) {
+    strips.push({ x0: s.x0, z0: s.z0, x1: s.x1, z1: s.z1, width: s.width, y0: levelY(s.from), y1: levelY(s.to) });
+  }
+  const outer = {
+    minX: HOUSE_BOUNDS.minX - LAWN_MARGIN, maxX: HOUSE_BOUNDS.maxX + LAWN_MARGIN,
+    minZ: HOUSE_BOUNDS.minZ - LAWN_MARGIN, maxZ: HOUSE_BOUNDS.maxZ + LAWN_MARGIN,
+  };
+  // the lawn is cut out where the ground drops: the cellar and the stair down to it
+  const holes = [roomById('cellar'), stairRect(HOUSE_STAIRS.find((s) => s.to === 'cellar'))];
+  for (const r of rectMinus(outer, holes)) {
+    const z = (r.minZ + r.maxZ) / 2;
+    strips.push({ x0: r.minX, z0: z, x1: r.maxX, z1: z, width: r.maxZ - r.minZ, y: LAWN_Y });
+  }
+  strips.push(...wallFeet());
+  // a flat strip over each ledge's footprint, at its top (ground.js takes the highest)
+  if (ledges) {
+    for (const l of HOUSE_LEDGES) {
+      const z = (l.minZ + l.maxZ) / 2;
+      strips.push({ x0: l.minX, z0: z, x1: l.maxX, z1: z, width: l.maxZ - l.minZ, y: l.y });
+    }
+  }
+  return { base: BASE_Y, strips, discs: [], ceilings: [] };
+}
+export function houseGroundSpec() {
+  return groundSpec();
+}
+// The house's ground without the ledges: the floor under her wherever she stands (D3).
+export function houseFloorGround() {
+  return createGround(groundSpec({ ledges: false }));
+}
+
+// Under every wall of a raised room or stair, its floor's ground reaches WALL_FOOT past the
+// wall's line (Task 6). Why: the camera's rock rule (camzoom.js cameraClearFraction) stops a low
+// camera, coming from the lawn, where raised ground starts. Ending at the wall's line, that left
+// the camera inside the outer half of the wall and its skirt (the kitchen looking at the
+// bedroom). From WALL_FOOT out the camera stops clear of the wall's box and the house's 0.1 m
+// camera pad. Only the camera meets these strips: the walls' colliders keep her centre 0.53 m
+// from their lines, and a stair's side follows its slope and stops at its ends, so every
+// mouth keeps its own ramp. So ground.y reads the upper floor's height within WALL_FOOT of a
+// raised wall's low side (on the lawn beside it): harmless, as nothing walks there.
+export const WALL_FOOT = 0.3;
+function wallFeet() {
+  const out = [];
+  for (const s of houseSections()) {
+    if (s.kind === 'lintel') continue;
+    const len = Math.hypot(s.x1 - s.x0, s.z1 - s.z0);
+    const ux = (s.x1 - s.x0) / len;
+    const uz = (s.z1 - s.z0) / len;
+    if (s.kind === 'wall') {
+      if (!(s.base > LAWN_Y + 1e-9)) continue;
+      // past each end too, to cover its corners
+      out.push({ x0: s.x0 - ux * WALL_FOOT, z0: s.z0 - uz * WALL_FOOT, x1: s.x1 + ux * WALL_FOOT, z1: s.z1 + uz * WALL_FOOT, width: 2 * WALL_FOOT, y: s.base });
+      continue;
+    }
+    if (s.kind !== 'stair') continue; // only walls and stair sides get a foot (step 2's attic beams hang overhead)
+    // a stair's side: its slope along it (no further, so the stair's own mouths keep their ramp)
+    const st = HOUSE_STAIRS.find((q) => q.id === s.owner);
+    const sl = Math.hypot(st.x1 - st.x0, st.z1 - st.z0);
+    const at = (x, z) => ((x - st.x0) * (st.x1 - st.x0) + (z - st.z0) * (st.z1 - st.z0)) / (sl * sl);
+    const ya = levelY(st.from) + (levelY(st.to) - levelY(st.from)) * at(s.x0, s.z0);
+    const yb = levelY(st.from) + (levelY(st.to) - levelY(st.from)) * at(s.x1, s.z1);
+    if (!(Math.max(ya, yb) > LAWN_Y + 1e-9)) continue;
+    out.push({ x0: s.x0, z0: s.z0, x1: s.x1, z1: s.z1, width: 2 * WALL_FOOT, y0: ya, y1: yb });
+  }
+  return out;
+}
+
+// ---- lookups ----
+
+const inRect = (r, x, z) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ;
+export function roomAt(x, z) {
+  for (const r of HOUSE_ROOMS) if (inRect(r, x, z)) return r.id;
+  return null;
+}
+// The level of the room a spot is in; a spot in no room is a mistake in the data.
+export function levelAt(x, z) {
+  const id = roomAt(x, z);
+  if (!id) throw new Error(`houseplan: (${x}, ${z}) is in no room`);
+  return roomById(id).level;
+}
+export function stairAt(x, z) {
+  for (const s of HOUSE_STAIRS) if (inRect(stairRect(s), x, z)) return s.id;
+  return null;
+}
+
+// ---- the cellar's lid (owner's fix B) ----
+
+// The cellar is sunk beside the house (split levels: no room above another), so
+// from outside it read as a walled pit in the garden. A turf lid covers it and its
+// stair: a flat one on the cellar's wall tops (1.0 m over the lawn) and a lean-to
+// down the stair's wall tops from the kitchen's outside face. It is not ground
+// (the lawn's hole and the walls' colliders stay as they were) and it is never in
+// the way: house life hides it while she is in the cellar or on its stair, or the
+// line to her meets it (housewalls.js createCellarLid). Each piece is a slab along
+// a centreline (x0, z0) -> (x1, z1), `half` wide either side, its underside rising
+// linearly from y0 to y1, `thick` deep. `owner` names the sections it caps (the
+// cellar's walls and its stair's); `under` is where she is "down there": the cellar's
+// rectangle and its stair's, made once (underCellarLid runs every frame).
+export const LID_T = 0.16;
+export const LID_OVER = 0.15; // past the walls' outer faces
+function cellarLid() {
+  const room = roomById('cellar');
+  const st = HOUSE_STAIRS.find((q) => q.to === 'cellar');
+  const h = WALL_T / 2;
+  const len = Math.hypot(st.x1 - st.x0, st.z1 - st.z0);
+  const ux = (st.x1 - st.x0) / len;
+  const uz = (st.z1 - st.z0) / len;
+  // the stair walls' tops (houseparts.js stairWall): a wall's height over the flight
+  const top = (d) => levelY(st.from) + (levelY(st.to) - levelY(st.from)) * Math.min(1, Math.max(0, d / len)) + WALL_H;
+  const d0 = h; // the kitchen wall's outside face
+  const d1 = len - h - LID_OVER; // where the cellar's flat lid begins
+  const cz = (room.minZ + room.maxZ) / 2;
+  const roof = levelY(room.level) + WALL_H;
+  const { minX, maxX, minZ, maxZ } = room;
+  return freeze({
+    owner: room.id,
+    under: frozenAll([{ minX, maxX, minZ, maxZ }, stairRect(st)]),
+    pieces: frozenAll([
+      {
+        id: 'stair', x0: st.x0 + ux * d0, z0: st.z0 + uz * d0, x1: st.x0 + ux * d1, z1: st.z0 + uz * d1,
+        half: st.width / 2 + h + LID_OVER, y0: top(d0), y1: top(d1), thick: LID_T,
+      },
+      {
+        id: 'cellar', x0: room.minX - h - LID_OVER, z0: cz, x1: room.maxX + h + LID_OVER, z1: cz,
+        half: (room.maxZ - room.minZ) / 2 + h + LID_OVER, y0: roof, y1: roof, thick: LID_T,
+      },
+    ]),
+  });
+}
+export const HOUSE_CELLAR_LID = cellarLid();
+// She is "down there" (the lid out of the way): in the cellar or on its stair. Allocates nothing.
+export function underCellarLid(x, z) {
+  const under = HOUSE_CELLAR_LID.under;
+  for (let i = 0; i < under.length; i++) if (inRect(under[i], x, z)) return true;
+  return false;
+}
+
+// ---- wall sections ----
+
+// Cut [lo, hi] into equal pieces no longer than SECTION_MAX.
+function pieces(lo, hi) {
+  const n = Math.max(1, Math.ceil((hi - lo) / SECTION_MAX - 1e-9));
+  const out = [];
+  for (let k = 0; k < n; k++) out.push([lo + ((hi - lo) * k) / n, lo + ((hi - lo) * (k + 1)) / n]);
+  return out;
+}
+
+// The solid runs left of [lo, hi] once the openings ([a, b] pairs) are taken out.
+function solidRuns(lo, hi, openings) {
+  const sorted = [...openings].sort((p, q) => p[0] - q[0]);
+  const runs = [];
+  let at = lo;
+  for (const [a, b] of sorted) {
+    if (a - at > 1e-9) runs.push([at, a]);
+    at = Math.max(at, b);
+  }
+  if (hi - at > 1e-9) runs.push([at, hi]);
+  return runs;
+}
+
+const EDGES = ['n', 's', 'w', 'e'];
+// A room's edge: `fixed` is the wall line's coordinate, [lo, hi] runs along it.
+function edgeOf(r, side) {
+  if (side === 'n') return { fixed: r.minZ, run: 'x', lo: r.minX, hi: r.maxX };
+  if (side === 's') return { fixed: r.maxZ, run: 'x', lo: r.minX, hi: r.maxX };
+  if (side === 'w') return { fixed: r.minX, run: 'z', lo: r.minZ, hi: r.maxZ };
+  return { fixed: r.maxX, run: 'z', lo: r.minZ, hi: r.maxZ };
+}
+// A section along an edge from `a` to `b` (coordinates along its run).
+function along(edge, a, b) {
+  return edge.run === 'x'
+    ? { x0: a, z0: edge.fixed, x1: b, z1: edge.fixed }
+    : { x0: edge.fixed, z0: a, x1: edge.fixed, z1: b };
+}
+
+// Which of the stair's two ends meets this room's edge, as an opening [a, b].
+function stairOpenings(room, edge, stairs) {
+  const out = [];
+  for (const s of stairs) {
+    const ends = [[s.x0, s.z0, s.from], [s.x1, s.z1, s.to]];
+    for (const [px, pz, level] of ends) {
+      if (level !== room.level) continue;
+      // the stair must run across this edge, not along it
+      if (edge.run === 'x' ? stairAlongZ(s) : !stairAlongZ(s)) {
+        const fixedAt = edge.run === 'x' ? pz : px;
+        const alongAt = edge.run === 'x' ? px : pz;
+        if (Math.abs(fixedAt - edge.fixed) < 1e-9 && alongAt > edge.lo && alongAt < edge.hi) {
+          out.push([alongAt - s.width / 2, alongAt + s.width / 2]);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+let sectionCache = null;
+function buildSections(stairs) {
+  const sections = [];
+  const make = (o) => freeze({ window: null, ...o });
+  HOUSE_ROOMS.forEach((room, ri) => {
+    const y = levelY(room.level);
+    for (const side of EDGES) {
+      const edge = edgeOf(room, side);
+      // an edge shared with an earlier room on this level is that room's to draw
+      const shared = HOUSE_ROOMS.slice(0, ri).some((q) => q.level === room.level && EDGES.some((sd) => {
+        const o = edgeOf(q, sd);
+        return o.run === edge.run && Math.abs(o.fixed - edge.fixed) < 1e-9 && Math.min(o.hi, edge.hi) - Math.max(o.lo, edge.lo) > 1e-9;
+      }));
+      if (shared) continue;
+      const doors = HOUSE_DOORWAYS.filter((d) => d.rooms.includes(room.id) && (edge.run === 'z' ? d.axis === 'x' && Math.abs(d.x - edge.fixed) < 1e-9 : d.axis === 'z' && Math.abs(d.z - edge.fixed) < 1e-9));
+      const doorSpans = doors.map((d) => { const c = edge.run === 'z' ? d.z : d.x; return [c - d.width / 2, c + d.width / 2]; });
+      const openings = [...doorSpans, ...stairOpenings(room, edge, stairs)];
+      let k = 0;
+      for (const [a, b] of solidRuns(edge.lo, edge.hi, openings)) {
+        for (const [pa, pb] of pieces(a, b)) {
+          const seg = along(edge, pa, pb);
+          const probe = side === 'n' ? [(seg.x0 + seg.x1) / 2, seg.z0 - 0.5] : side === 's' ? [(seg.x0 + seg.x1) / 2, seg.z0 + 0.5]
+            : side === 'w' ? [seg.x0 - 0.5, (seg.z0 + seg.z1) / 2] : [seg.x0 + 0.5, (seg.z0 + seg.z1) / 2];
+          const farRoom = roomAt(probe[0], probe[1]);
+          const outer = !(farRoom && roomById(farRoom).level === room.level);
+          const window = HOUSE_WINDOWS.find((w) => w.room === room.id && w.side === side && w.at - w.width / 2 >= pa - 1e-9 && w.at + w.width / 2 <= pb + 1e-9) ?? null;
+          sections.push(make({ id: `${room.id}-${side}-${k++}`, kind: 'wall', level: room.level, owner: room.id, side, ...seg, base: y, height: WALL_H, stub: STUB_H, outer, window }));
+        }
+      }
+      for (const d of doors) {
+        const c = edge.run === 'z' ? d.z : d.x;
+        const seg = along(edge, c - d.width / 2, c + d.width / 2);
+        sections.push(make({ id: `${room.id}-${side}-${k++}`, kind: 'lintel', level: room.level, owner: room.id, side, ...seg, base: y + DOOR_H, height: WALL_H - DOOR_H, stub: 0, outer: false }));
+      }
+      // rough edge 4: the wall over the shut bookcase in the secret stair's library mouth, from
+      // its top to the wall's, so the stair never shows through from across the library. A
+      // lintel: it sinks to nothing when the camera on the stair looks back at her.
+      const B = SECRET_BOOKCASE;
+      for (const [a, b] of stairOpenings(room, edge, stairs)) {
+        if (edge.run !== 'x' || Math.abs(edge.fixed - B.z) > 1e-9 || Math.abs(a - (B.x - B.w / 2)) > 1e-9 || Math.abs(b - (B.x + B.w / 2)) > 1e-9) continue;
+        sections.push(make({ id: `${room.id}-${side}-${k++}`, kind: 'lintel', level: room.level, owner: room.id, side, ...along(edge, a, b), base: y + B.h, height: WALL_H - B.h, stub: 0, outer: false }));
+      }
+    }
+  });
+  for (const s of stairs) {
+    const y0 = levelY(s.from);
+    const y1 = levelY(s.to);
+    const hw = s.width / 2;
+    const alongZ = stairAlongZ(s);
+    // a stair named like a room (the cellar stair) gets its own id stem
+    const stem = roomById(s.id) ? `${s.id}stair` : s.id;
+    // the two long edges, named by the side they face
+    const edges = alongZ
+      ? [['w', s.x0 - hw, -1], ['e', s.x0 + hw, 1]]
+      : [['n', s.z0 - hw, -1], ['s', s.z0 + hw, 1]];
+    for (const [side, fixed, dir] of edges) {
+      const n = Math.max(1, Math.ceil(Math.hypot(s.x1 - s.x0, s.z1 - s.z0) / SECTION_MAX - 1e-9));
+      for (let k = 0; k < n; k++) {
+        const t0 = k / n;
+        const t1 = (k + 1) / n;
+        const lerp = (a, b, t) => a + (b - a) * t;
+        const seg = alongZ
+          ? { x0: fixed, z0: lerp(s.z0, s.z1, t0), x1: fixed, z1: lerp(s.z0, s.z1, t1) }
+          : { x0: lerp(s.x0, s.x1, t0), z0: fixed, x1: lerp(s.x0, s.x1, t1), z1: fixed };
+        const mx = (seg.x0 + seg.x1) / 2 + (alongZ ? dir * 0.5 : 0);
+        const mz = (seg.z0 + seg.z1) / 2 + (alongZ ? 0 : dir * 0.5);
+        const far = roomAt(mx, mz);
+        const outer = !(far && roomById(far).level === s.from);
+        sections.push(make({ id: `${stem}-${side}-${k}`, kind: 'stair', level: s.from, owner: s.id, side, ...seg, base: Math.min(y0, y1), height: Math.abs(y1 - y0) + WALL_H, stub: STUB_H, outer }));
+      }
+    }
+  }
+  return freeze(sections);
+}
+
+// The house's wall sections. `stairs` is for tests only (the walls as they would
+// stand with a stair left out): any other list is built fresh, never cached.
+export function houseSections(stairs = HOUSE_STAIRS) {
+  if (stairs !== HOUSE_STAIRS) return buildSections(stairs);
+  if (!sectionCache) sectionCache = buildSections(HOUSE_STAIRS);
+  return sectionCache;
+}
+
+// ---- colliders ----
+
+export function houseColliders() {
+  const out = [];
+  for (const s of houseSections()) {
+    if (s.kind === 'lintel') continue;
+    const len = Math.hypot(s.x1 - s.x0, s.z1 - s.z0);
+    const n = Math.max(1, Math.ceil(len / COLLIDER_STEP - 1e-9));
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      out.push({ x: s.x0 + (s.x1 - s.x0) * t, z: s.z0 + (s.z1 - s.z0) * t, r: COLLIDER_R, level: s.level });
+    }
+  }
+  for (const f of HOUSE_FURNITURE) out.push(...furnitureColliders(f));
+  for (const l of HOUSE_LAMPS) out.push({ x: l.x, z: l.z, r: LAMP_R, level: roomById(l.room).level });
+  out.push(...secretColliders(false)); // the bookcase shut (house life swaps in the open row)
+  return out;
+}
+
+export function houseArea() {
+  return {
+    ground: createGround(houseGroundSpec()),
+    colliders: houseColliders(),
+    bounds: HOUSE_BOUNDS,
+    spawn: HOUSE_SPAWN,
+    levels: HOUSE_LEVELS,
+    links: LEVEL_LINKS,
+    rooms: HOUSE_ROOMS,
+    stairs: HOUSE_STAIRS,
+    sections: houseSections(),
+    lid: HOUSE_CELLAR_LID,
+  };
+}

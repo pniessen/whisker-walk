@@ -451,6 +451,25 @@ describe('dressing-room places by edition', () => {
     legacy.walks.neighborhood = 5;
     expect(buildDressingModel(legacy, CATALOG).places.map((p) => p.id)).not.toContain('market');
   });
+  it('Clan lists the Old House after the Market, locked behind two Market Square walks, with its picture; Legacy never does (Old House step 4)', () => {
+    const s = { ...defaultishState(), edition: 'canon' };
+    s.walks = { ...s.walks, neighborhood: 2, market: 1 };
+    s.unlocked = { ...s.unlocked, areas: ['neighborhood', 'market'] };
+    const ids = buildDressingModel(s, CATALOG).places.map((p) => p.id);
+    expect(ids[ids.indexOf('market') + 1]).toBe('house');
+    const house = buildDressingModel(s, CATALOG).places.find((p) => p.id === 'house');
+    expect(house).toMatchObject({ name: 'The Old Twoleg Nest', locked: true, price: 150 });
+    expect(house.lockLine).toBe('opens after you explore the Market Square 2 times · 1/2');
+    // once hers and today's place, the card shows its picture
+    const mine = { ...s, area: 'house', unlocked: { ...s.unlocked, areas: ['neighborhood', 'market', 'house'] } };
+    const m = buildDressingModel(mine, CATALOG);
+    expect(m.places.find((p) => p.id === 'house')).toMatchObject({ owned: true, selected: true });
+    expect(renderDressingRoomHtml({ model: m, ui: {} })).toContain(PLACE_PICTURE('house'));
+    expect(PLACE_PICTURE('house')).toBe('/places/house.jpg');
+    const legacy = { ...defaultishState(), edition: 'legacy' };
+    legacy.walks = { ...legacy.walks, neighborhood: 5, market: 5 };
+    expect(buildDressingModel(legacy, CATALOG).places.map((p) => p.id)).not.toContain('house');
+  });
   it('Clan lists the Woods, locked behind two Twolegplace walks', () => {
     const s = { ...defaultishState(), edition: 'canon' };
     s.walks.neighborhood = 1;
@@ -464,7 +483,7 @@ describe('the world map in the dressing room', () => {
   it('dressingroom: Clan shows every place on the world map, and no picture cards', () => {
     const s = { ...defaultishState(), edition: 'canon' };
     const m = buildDressingModel(s, CATALOG);
-    expect(m.worldMap.regions.map((r) => r.areaId)).toEqual(['neighborhood', 'woods', 'moor', 'river', 'pines', 'gorge', 'park', 'fair', 'farm', 'docks', 'seaside', 'roofs', 'market']);
+    expect(m.worldMap.regions.map((r) => r.areaId)).toEqual(['neighborhood', 'woods', 'moor', 'river', 'pines', 'gorge', 'park', 'fair', 'farm', 'docks', 'seaside', 'roofs', 'market', 'house']);
     expect(m).not.toHaveProperty('otherPlaces');
     expect(m).not.toHaveProperty('territoryMap');
     expect(m.worldMap.regions.find((r) => r.id === 'park').line).toBe('opens after you explore Twolegplace 2 times · 0/2');
@@ -474,7 +493,7 @@ describe('the world map in the dressing room', () => {
     expect(where).not.toContain('Other places');
     expect(where).not.toContain('dr-place');
     expect(where).not.toContain('data-dr-place=');
-    for (const id of ['park', 'seaside', 'docks', 'farm', 'fair', 'neighborhood', 'woods', 'roofs', 'market']) expect(where).toContain(`data-dr-map-place="${id}"`);
+    for (const id of ['park', 'seaside', 'docks', 'farm', 'fair', 'neighborhood', 'woods', 'roofs', 'market', 'house']) expect(where).toContain(`data-dr-map-place="${id}"`);
     expect(where).not.toContain('Cozy Neighborhood');
     expect(where).toContain('Twolegplace');
     expect(renderDressingRoomHtml({ model: m })).toContain('Going to <b>Twolegplace</b>');
