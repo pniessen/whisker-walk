@@ -395,7 +395,8 @@ describe('the Market Square drawn', () => {
   });
 
   it('the apple crate is a tippable, still solid, and no longer in the fruit stall\'s own mesh', () => {
-    expect(area.tippables).toHaveLength(1);
+    // (2026-11-22: the toy stall's yarn basket and pull-along toy come after the crate, which stays tip-0)
+    expect(area.tippables.map((q) => q.kind)).toEqual(['applecrate', 'yarnbasket', 'pulltoy']);
     const [t] = area.tippables;
     expect(t.kind).toBe('applecrate');
     expect(t.x).toBe(area.anchors.apples.x);

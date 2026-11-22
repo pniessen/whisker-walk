@@ -6,7 +6,7 @@ import { getTextureAnisotropy } from '../render/textures.js';
 import { withLocalUuids } from './localuuids.js';
 import { hash01 } from './warehouselook.js';
 import { createMarketParts, marketMaterials, atlasCell, buildTreatMesh, createCobbleTexture, bloomGeometry, BLOOMS, ATLAS_W, ATLAS_H } from './marketparts.js';
-import { buildAppleCrate } from './marketfruit.js';
+import { buildAppleCrate, buildYarnBasket, buildPullToy } from './marketfruit.js';
 import { createMarketLife } from './marketlife.js';
 import {
   BASIN_PROFILE, SPIRE_PROFILE, BASIN_WATER, FOUNTAIN_STONE, fountainWaterMaterial, latheGeometry, dressFountain,
@@ -15,7 +15,7 @@ import {
   MARKET_BOUNDS, MARKET_SPAWN, FOUNTAIN, CAFE, STALLS, TREAT_STALLS, stallById, fromStall,
   MARKET_COLLIDERS, MARKET_KEEPOUT, MARKET_POIS, MARKET_COLLECTIBLES, FRUIT_CRATE, MARKET_LAMPS, FLOUR_SACKS,
   MARKET_CLUTTER, BENCH_AT, BICYCLE_AT, MILK_SHAFTS, AWNING, awningHeight, BIKE, BICYCLE_BASKET_AT, CLIMB_STACK, MARKET_PERCHES,
-  PIGEON_PATCH, STALL_PROPS, RAIL_STACK, toStall,
+  PIGEON_PATCH, STALL_PROPS, RAIL_STACK, toStall, TOY_TIPS,
 } from './marketplan.js';
 
 // =============================================================================
@@ -510,7 +510,12 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       skyDusk: { ...MARKET_SKY_DUSK },
       // V1 (step 3): the fruit stall's apple crate, paw it over and its apples
       // roll (marketfruit.js, marketlife.js); still solid in MARKET_COLLIDERS
-      tippables: [{ x: MARKET_ANCHORS.apples.x, z: MARKET_ANCHORS.apples.z, kind: 'applecrate', build: buildAppleCrate }],
+      // (2026-11-22: the toy stall's yarn basket and pull-along toy come after it, so the crate stays tip-0)
+      tippables: [
+        { x: MARKET_ANCHORS.apples.x, z: MARKET_ANCHORS.apples.z, kind: 'applecrate', build: buildAppleCrate },
+        { x: TOY_TIPS.basket.x, z: TOY_TIPS.basket.z, kind: 'yarnbasket', build: buildYarnBasket },
+        { x: TOY_TIPS.toy.x, z: TOY_TIPS.toy.z, kind: 'pulltoy', build: buildPullToy },
+      ],
       // V5 (step 3): up the crates onto every awning, the flower trestle, the bicycle's
       // basket, the two crate stacks' tops and the café tables (marketplan.js)
       perches: MARKET_PERCHES.map((p) => ({ ...p })), // the walk's own copy (walk.js may push into it), as roofs.js gives

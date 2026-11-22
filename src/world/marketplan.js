@@ -306,8 +306,17 @@ export const STALL_PROPS = freeze({
   butcher: freeze({ lz: CLIMB_LZ.butcher, blockOut: 1.3, blockTop: 0.75, blockR: 0.3, railFront: 1.0 }),
 });
 const outAt = (s, out, lz) => fromStall(s, -s.hideSide * (s.w / 2 + out), lz);
+// The toy stall's two tippables (marketfruit.js: the yarn basket, whose wool rolls, and the pull-along toy),
+// on the cobbles past its crates, behind its counter's front line; each solid, r as marketfruit.js's own.
+// Their spots are the walk's tippables (market.js's record row, after the apple crate).
+const TOYS_AT = stallById('toys');
+export const TOY_TIPS = freeze({
+  basket: freeze({ ...(({ x, z }) => ({ x: r2(x), z: r2(z) }))(fromStall(TOYS_AT, -TOYS_AT.hideSide * (TOYS_AT.w / 2 + 2.3), CLIMB_LZ.toys - 0.55)), r: 0.4 }),
+  toy: freeze({ ...(({ x, z }) => ({ x: r2(x), z: r2(z) }))(fromStall(TOYS_AT, -TOYS_AT.hideSide * (TOYS_AT.w / 2 + 2.3), CLIMB_LZ.toys + 0.5)), r: 0.4 }),
+});
 function extraSolids(s) {
   const P = STALL_PROPS[s.id];
+  if (s.id === 'toys') return [freeze({ x: TOY_TIPS.basket.x, z: TOY_TIPS.basket.z, r: TOY_TIPS.basket.r }), freeze({ x: TOY_TIPS.toy.x, z: TOY_TIPS.toy.z, r: TOY_TIPS.toy.r })];
   if (!P) return [];
   const lzc = CLIMB_LZ[s.id];
   if (s.id === 'plants') return [-P.half, 0, P.half].map((d) => freeze({ ...outAt(s, P.colliderOut, lzc + d), r: P.colliderR }));
