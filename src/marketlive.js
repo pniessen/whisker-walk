@@ -52,6 +52,10 @@
 //   actionFor(s)  { kind: 'grab', stall, prompt } for the nearest treat out within
 //            TREAT_REACH of her cat (s.cat), from the ground (not perched, not
 //            swimming) with no treat in her mouth and none being munched; else
+//            (2026-11-22) the butcher's string, which hangs, is offered only to a cat
+//            perched on its own hook rail (a perch tagged `rail: 'butcher'`), and is
+//            otherwise taken by the pounce's catching window (stepHopCatch, marketrules.js
+//            inHopWindow), never flat-footed; else
 //            null. One action object per stall, reused; `prompt` is
 //            TREAT_WORDS[kind].prompt (a string).
 //   act(action, s, { dropHeld })  the action button on a grab. Seen now (M4,

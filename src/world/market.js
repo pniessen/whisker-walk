@@ -148,9 +148,9 @@ const STALL_LOOK = Object.freeze({
   fruit: { awning: 0, sign: 6, paint: 0x6b8fb8, goods: [6, 7] },
   // 2026-11-22: atlas cells 18-21 (awnings), 22-25 (signs), 26-29 (goods)
   toys: { awning: 18, sign: 22, paint: 0x7a5aa8, goods: 'toys' },
-  plants: { awning: 19, sign: 23, paint: 0x3f7a5a, goods: 'plants' },
-  bric: { awning: 20, sign: 24, paint: 0xb87a3a, goods: 'bric' },
-  butcher: { awning: 21, sign: 25, paint: 0xe6d6c6, goods: 'meat' },
+  plants: { awning: 19, sign: 24, paint: 0x3f7a5a, goods: 'plants' },
+  bric: { awning: 20, sign: 25, paint: 0xb87a3a, goods: 'bric' },
+  butcher: { awning: 21, sign: 23, paint: 0xe6d6c6, goods: 'meat' },
 });
 // what sits in the baskets on each stall's trestle (produce cells)
 const TRESTLE_GOODS = Object.freeze({ fish: 7, baker: 9, cheese: 10, milk: 6, flowers: 8, fruit: 6, toys: 26, plants: 28, bric: 29, butcher: 27 });
