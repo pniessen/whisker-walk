@@ -7,12 +7,13 @@
 // tree clumps and bushes, two ponds and three short lanes. It is decoration
 // only: nothing here is on or touches a place's land, its words, its camp, a
 // gateway road or its mark, the island or the river, and the Rooftops' spot
-// on the town's rim (905, 458) stays clear (test/countryside.test.js checks
-// every shape against the drawn map). Fields carry on a little past the
+// on the town's rim (905, 458) and the Old House's place and words stay
+// clear (test/countryside.test.js checks every shape against the drawn map,
+// in every save state). Fields carry on a little past the
 // world's edge, as the paper does, and the map's fade (ui/countryside.js)
 // softens them toward the frame.
 import { TERRITORIES, CAMP_AT, RIVER, LAKE, POND } from './territories.js';
-import { STREET_PLACES, COAST, GATEWAYS, WORLD_CAMP_AT } from './worldmap.js';
+import { STREET_PLACES, TOWN_PLACES, COAST, GATEWAYS, WORLD_CAMP_AT } from './worldmap.js';
 
 // A whole-number hash in [0, 1): the jitter and the choices, never random.
 function rand(...keys) {
@@ -34,7 +35,9 @@ const r1 = (v) => Math.round(v * 10) / 10;
 // (ui/territorymap.js placeRimsHtml) adds 8 more, and a strip of plain
 // meadow round every place keeps it the thing to tap.
 const PLACE_CLEAR = 24;
-const PLACES = [...TERRITORIES, ...STREET_PLACES].map(({ id, x, y, r }) => ({ id, x, y, r: r * 1.09 }));
+// The places on the town's rim (TOWN_PLACES) are kept clear like the others
+// (the Old House's circle reaches out past the town, Old House step 4).
+const PLACES = [...TERRITORIES, ...STREET_PLACES, ...TOWN_PLACES].map(({ id, x, y, r }) => ({ id, x, y, r: r * 1.09 }));
 // The Rooftops (branch rooftops-2): a place on the town's rim, kept clear.
 export const ROOFTOPS_SPOT = Object.freeze({ x: 905, y: 458, r: 60 });
 // The room every place's words can take, in every save state (her lock
@@ -46,6 +49,8 @@ const LABEL_ROOM = [
   [733, 495, 991, 636], [382, 412, 729, 655], [494, -36, 816, 207], [28, 398, 382, 685], [112, 22, 468, 309],
   [671, 184, 957, 403], [944, 362, 1216, 581], [925, 102, 1195, 357], [1097, 192, 1371, 447], [765, 644, 1035, 899],
   [1047, 572, 1291, 791], [377, 234, 545, 297], [301, 310, 621, 373],
+  // the Old House's, south-west of its circle on the town's rim (Old House step 4)
+  [664, 624, 768, 798],
 ];
 // Points along a cubic, for the gateway roads and the coast.
 function cubicPoints([p0, p1, p2, p3], steps = 16) {

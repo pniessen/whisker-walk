@@ -4,6 +4,7 @@ import { createHud, discoveryText, goalHowHtml, MAX_TOASTS, MIN_SHOWN_MS, MAX_QU
 import { createGoals, GOAL_POOL } from '../src/goals.js';
 import { toastLifeMs } from '../src/ui/toastlife.js';
 import { bus } from '../src/events.js';
+import { MARKET_LINES } from '../src/marketwords.js';
 
 // The project has no DOM environment (no jsdom/happy-dom); like den.test.js and
 // nametag.test.js this installs a small recording fake `document`. It models
@@ -215,6 +216,11 @@ describe('discovery lead words (polish-hud2)', () => {
     expect(discoveryText({ type: 'goal', label: 'the climb to the clifftop' })).toBe('You finished the climb to the clifftop');
     expect(discoveryText({ type: 'jackpot', label: 'ALL GOALS COMPLETE! 🎯' })).toBe('ALL GOALS COMPLETE! 🎯');
     expect(discoveryText({ type: 'duogoal', label: 'a goal completed TOGETHER! 🤝' })).toBe('A goal completed TOGETHER! 🤝');
+  });
+  it('a pounce says its own line, never "You spotted you pounce-tagged"', () => {
+    expect(discoveryText({ type: 'hunt', label: 'you pounce-tagged a sparrow!', repeat: false })).toBe('You pounce-tagged a sparrow!');
+    expect(discoveryText({ type: 'hunt', label: 'you pounce-tagged a sparrow! — a perfect sneak!', repeat: true }))
+      .toBe('Again — you pounce-tagged a sparrow! — a perfect sneak!');
   });
   it('everything else still leads with "You spotted" / "Again —", and an intruder stands alone', () => {
     expect(discoveryText({ type: 'treasure', label: 'a lost marble', repeat: false })).toBe('You spotted a lost marble');
@@ -858,5 +864,16 @@ describe('found outfits: the pouch toast', () => {
     expect(discoveryText({ type: 'pouch', label: 'You found a little pouch of 🐾!' })).toBe('You found a little pouch of 🐾!');
     expect(discoveryText({ type: 'pouch', label: 'Robin found it, and there was a little pouch of 🐾 for you too!', repeat: false }))
       .toBe('Robin found it, and there was a little pouch of 🐾 for you too!');
+  });
+});
+
+describe('the Market Square: its pay toasts', () => {
+  it('a treat and teamwork say their own line', () => {
+    const ate = MARKET_LINES.eatFirst('a fish head');
+    const kept = MARKET_LINES.teamDistracter('Robin');
+    expect(discoveryText({ type: 'treat', label: ate, repeat: false })).toBe(ate);
+    expect(discoveryText({ type: 'teamtreat', label: kept, repeat: false })).toBe(kept);
+    // never the "You spotted" lead, and never "Again —"
+    expect(discoveryText({ type: 'treat', label: ate, repeat: true })).toBe(ate);
   });
 });

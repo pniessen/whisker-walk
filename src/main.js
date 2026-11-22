@@ -3,6 +3,8 @@ import { bus } from './events.js';
 import { createPlayer } from './player.js';
 import { coatColor, CAT_LOOK_Y } from './cat/model.js';
 import { resumableAreaIds, roofsOn } from './roofsflag.js';
+import { marketOn, marketResumable } from './marketflag.js';
+import { housePrefetch, resumableHouseIds } from './houseflag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { createProgression, rankFor, CATALOG } from './progression.js';
 import { colonyNews, tradeEffect } from './colony.js';
@@ -16,9 +18,12 @@ import { createHomeBase } from './ui/homebase.js';
 import { whenSplashGone, startVisitGreeting } from './visitboot.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { attachBackStack, walkBackAction } from './ui/backstack.js';
+import { createGamepad } from './gamepad.js';
+import { createNav } from './gamepadnav.js';
 import { createZoomControl, createWheelStepper, keyZoomDir, zoomActionDir, clampZoomStep, maxZoomStep } from './camzoom.js';
 import { createAudio } from './audio.js';
 import { createMusic } from './music.js';
+import { birthdayTune } from './birthdaysong.js';
 import { createSamples } from './samples.js';
 import { voiceFor } from './catvoice.js';
 import { createAlbum } from './album.js';
@@ -285,6 +290,29 @@ function init() {
     },
     onZoom: zoomBy,
   }, { leftHanded: settings.get('leftHanded') });
+  // Game controller (walk only, gamepad.js): feeds the same paths as touch —
+  // setTouchMove / addOrbit / handleTouchAction / zoomBy. Polled from walkFrame.
+  const gamepad = createGamepad({
+    getEngaged: () => !!session && player.engaged,
+    getCameraMode: () => !!session?.cameraMode,
+    isFighting: () => session?.clanFight?.uiShowing === 'fight',
+    isWalkingOn: () => !!session?.walkingOn,
+    // Menus: the pad moves focus through whatever layer is on top; B is Back
+    // (padBack, below), never a fake Escape. A walk keeps the pad otherwise.
+    menuNavFactory: () => createNav({ doc: document }),
+    padBack: () => padBack(),
+    canResume: () => !!session && !session.walkingOn && !!overlay.querySelector('#btn-resume'),
+    onMove: (v) => player.setTouchMove(v),
+    onOrbit: (dx, dy) => player.addOrbit(dx, dy),
+    onAction: (name) => {
+      const zoomDir = zoomActionDir(name);
+      if (zoomDir) zoomBy(zoomDir);
+      else handleTouchAction(name);
+    },
+    // No mouse to click for pointer lock, so a pad resumes the way touch does.
+    onResume: () => player.setTouchEngaged(true),
+    toast: (m) => hud.toast(m),
+  });
   // Pushes every live-tunable setting into the systems that read it — audio
   // volume/mute, camera invert-Y, touch-UI handedness — so a change applies
   // immediately with no reload or walk restart. Called once at boot (with
@@ -390,6 +418,10 @@ function init() {
     // v21 Stream 2: who may show a live 'colony-feed' (display only).
     getPartner: () => progression.state.colony?.partner ?? null,
     onBorderCross: (s, ev) => crossing?.onRemote(s, ev),
+    // World map step 3: a room walks on together (src/game/crossing.js).
+    onWalkOn: (s, ev) => crossing?.onRemoteWalkOn(s, ev),
+    onWalkOnAsk: (s, ev) => crossing?.onWalkOnAsk(s, ev),
+    onWalkOnHave: (s, ev) => crossing?.onWalkOnHave(s, ev),
   });
 
   // Photo mode (src/game/photo.js). renderFrame/noteGoal are hoisted
@@ -436,6 +468,11 @@ function init() {
     player, progression, log, hud, audio, catVoice, snapPhoto,
     petNameFor, completeBoop, colonySync,
     askCrossing: (s, d) => crossing?.ask(s, d),
+    // World map step 3: a gate's cards, and the place beyond fetched as she
+    // nears a gate she can go through or open.
+    askGate: (s, d) => crossing?.askGate(s, d),
+    askGateBuy: (s, d) => crossing?.askGateBuy(s, d),
+    prefetchArea: (id) => areas.prefetch(id),
   });
 
   // Per-frame avatar/moment updates (src/game/avatar.js).
@@ -504,11 +541,12 @@ function init() {
   // startWalkWhenReady, which waits for its place with home up, and a place
   // that does not come is one gentle line on the home screen (cloudToast).
   const {
-    beginWalkFromHomebase, beginDenWalk, startWalkWhenReady, endWalk, takeCrossing,
+    beginWalkFromHomebase, beginDenWalk, startWalkWhenReady, endWalk, takeCrossing, walkOn,
   } = createWalkLifecycle({
     MP, pid, coarse, envMap, overlay, blockList,
     renderer, camera, composerRig,
     player, progression, settings, hud, audio, music, log, touchUI, catVoice,
+    album,
     getCloud,
     getSession: () => session,
     setSession: (next) => { session = next; },
@@ -526,6 +564,12 @@ function init() {
     buttonUses,
     areas,
     homeToast: cloudToast,
+    // World map step 3: a walk-on banks the walk without a summary, so what
+    // the summary would have said is toasted in the next walk, and the save
+    // goes up as the summary's Continue would send it. A walk-on that waits
+    // for its place pauses the walk as ⏸ does.
+    onWalkedOn: (lines) => { for (const l of lines) hud.toast(l); sync.autoSync(); },
+    releaseControl: () => handleTouchAction('pause'),
   });
   // resumeWalk is a hoisted function declaration, so it is safe to pass here.
   crossing = createCrossing({
@@ -537,6 +581,12 @@ function init() {
     getEdition: () => progression.state.edition,
     getSound: pauseSound,
     prefetchArea: (id) => areas.prefetch(id),
+    walkOn, progression,
+    // A room walks on together: who is in it (every member's room profile),
+    // its net, and the place load every device waits for before anyone moves.
+    getRoster: () => getPendingRoom()?.roster ?? [],
+    getRoomNet: () => getPendingRoom()?.net ?? null,
+    ensureArea: (id) => areas.ensure(id),
   });
   // Found outfits: the find card (src/game/findcard.js), Wear it / Later in
   // the pause overlay. Wear it dresses her cat in place, at the shadow trim
@@ -558,7 +608,7 @@ function init() {
   const homebaseCloud = createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed: togetherAllowed, pushProfileNow, blockList });
   // "Delete my online data" on the Cloud save sheet (src/game/onlinedelete.js).
   const onlineDelete = createOnlineDelete({ MP, pid, getCloud: openCloud, getPsecret, sync, progression });
-  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
+  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onBirthdaySong: () => audio.playTune(birthdayTune(), settings.get('musicVolume')), onAudioWake: () => { const c = audio.getContext(); if (c.state === 'suspended') c.resume?.()?.catch?.(() => {}); }, onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the
@@ -567,7 +617,7 @@ function init() {
   // closed in the middle of. Read once, here. A walk left too long is settled
   // now, before the home screen draws its numbers; one still fresh is picked
   // up at the end of init (see "Mid-walk resume" above the render loop).
-  const leftWalk = readResume(window.localStorage, { now: Date.now(), areaIds: resumableAreaIds(progression.state.walks) });
+  const leftWalk = readResume(window.localStorage, { now: Date.now(), areaIds: resumableHouseIds(marketResumable(resumableAreaIds(progression.state.walks)), progression.state) });
   if (leftWalk?.kind === 'stale') {
     clearResume(window.localStorage);
     settleAbandoned(progression, leftWalk.data);
@@ -580,11 +630,15 @@ function init() {
   homebase.show();
   // F6: fetch her own place and the den now, so Explore and the den button
   // usually find them already here. ?roofs=1 fetches the Rooftops too (her
-  // Explore goes there); without the switch nothing fetches it. A failure here
-  // is quiet: the start itself tries again, and says so if it cannot.
+  // Explore goes there), and ?house=1 the Old House (in Clan Edition only,
+  // housePrefetch); otherwise a Rooftops
+  // choice or the gate prefetch does. A failure here is quiet: the start
+  // itself tries again, and says so if it cannot.
   areas.prefetch(effectiveArea(progression.state, CATALOG));
   areas.prefetch('den');
   if (roofsOn()) areas.prefetch('roofs');
+  if (marketOn()) areas.prefetch('market');
+  if (housePrefetch(progression.state)) areas.prefetch('house');
   // Rosa's one-time farewell goes up before the news (showNews yields while it is up).
   const showFarewell = () => {
     if (resuming) return; // kept for a launch that opens at home
@@ -704,6 +758,12 @@ function init() {
   bus.on('purr:end', () => haptics.stopPurr());
   bus.on('player:lockchange', ({ locked }) => {
     if (!locked) haptics.stopPurr(); // paused: the purr stops with the walk
+    // A walk-on waiting for its place: the "Off to ..." moment stays up over
+    // the paused walk, and a re-lock gives control straight back.
+    if (locked && session?.walkingOn) {
+      handleTouchAction('pause');
+      return;
+    }
     if (session) overlay.classList.toggle('hidden', locked);
     // The first engage is the walk beginning: from here on the card behind
     // the walk is the "Paused" one (walk.js pauseCardFor), and a touch walk
@@ -744,6 +804,7 @@ function init() {
     }
   });
   function resumeWalk() {
+    if (session?.walkingOn) return; // the "Off to ..." moment: the place is on its way
     if (isTouch) player.setTouchEngaged(true);
     else Promise.resolve(canvas.requestPointerLock()).catch(() => {}); // refused without a click: the pause card stays
   }
@@ -792,6 +853,10 @@ function init() {
     if (e.target.id === SKIP_LESSON_ID && session) guideWalk.skip(session);
     if (e.target.id === 'btn-cross-yes') crossing.confirm();
     if (e.target.id === 'btn-cross-no') crossing.cancel();
+    // A gate's "Get it?" card (gatecross.js gateBuyHtml): Yes only from a
+    // deliberate tap (crossing.buyYes reads the click), Not now buys nothing.
+    if (e.target.id === 'confirm-card-yes') crossing.buyYes(e);
+    if (e.target.id === 'confirm-card-no') crossing.cancel();
     if (e.target.id === 'btn-find-wear') findCard.wear();
     if (e.target.id === 'btn-find-later') findCard.later();
     if (e.target.id === RELOAD_BUTTON_ID) window.location.reload();
@@ -816,6 +881,7 @@ function init() {
     const action = walkBackAction({
       summary: summaryUp(),
       walking: !!session,
+      walkingOn: !!session?.walkingOn,
       shopAsk: denShop.isAsking,
       shop: denShop.isOpen,
       findCard: !!session?.findCard,
@@ -834,12 +900,17 @@ function init() {
     else if (action === 'pause') handleTouchAction('pause');
     else if (action === 'resume') resumeWalk();
   }
-  attachBackStack({
+  const backStack = attachBackStack({
     win: window,
     depth: () => homebase.depth() + (session || summaryUp() ? 1 : 0),
     closeTop: () => { if (!homebase.back()) walkBack(); },
     escape: () => homebase.back(),
   });
+  // The pad's B in a menu: the same one level up as the browser's Back.
+  function padBack() {
+    if (!homebase.back()) walkBack();
+    backStack?.sync?.();
+  }
   document.addEventListener('keydown', (e) => {
     // Clan Life Part 2: while the fight sheet is up, every key is the fight's
     // (1 / 2 / 3 answer): no E interact, no chat phrases, no Space pounce.
@@ -973,6 +1044,8 @@ function init() {
   // The cat's paws for paws.update, mutated every frame rather than rebuilt
   // (pawprints.js reads the fields and keeps no reference).
   const pawState = { x: 0, z: 0, grounded: false };
+  // ...and her pose for the birthday balloons (render/partyballoons.js).
+  const balloonPose = { x: 0, y: 0, z: 0, yaw: 0, hidden: false };
   // The find's inputs (foundwear/live.js update), mutated every frame rather
   // than rebuilt.
   const findFrame = { x: 0, z: 0, pawsY: 0, camera, remotes: null, busy: false };
@@ -1118,6 +1191,7 @@ function init() {
     perfHud.frameStart(performance.now(), session);
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
+    gamepad.poll(dt);
     if (!session) { perfHud.frameEnd(null, performance.now()); return; }
     // The corner map shows only while the walk is being played: not behind
     // the Ready? and pause cards, which are exactly the times the player is
@@ -1137,8 +1211,10 @@ function init() {
       session.traversal.update(dt, t, moveCtx);
       // `waters` is v20's fourth argument: the area's water footprints, which
       // player.update blocks the cat out of unless Sea Legs is on. The den has
-      // none and passes undefined, which the default handles.
-      player.update(dt, session.areaData.colliders, session.areaData.bounds, session.areaData.waters);
+      // none and passes undefined, which the default handles. The fifth is
+      // the people's soft bumps: the Fairground show's visitors there, else
+      // the villagers'.
+      player.update(dt, session.areaData.colliders, session.areaData.bounds, session.areaData.waters, session.fair?.show?.bumps ?? session.critters?.bumps);
 
       // Zoomies FOV kick: ease toward a wider field of view while sprinting,
       // back to normal otherwise. updateProjectionMatrix is comparatively
@@ -1185,13 +1261,14 @@ function init() {
       // flocks further out of step for no reason; nothing in the game reads a bird.
       if (session.slowmoTime > 0) session.slowmoTime -= dt;
       const wdt = session.slowmoTime > 0 ? dt * 0.35 : dt;
-      session.critters.update(wdt, t, session.cat.position, session.cat.position);
+      session.critters.update(wdt, t, session.cat.position, session.cat.position, session.cat);
       session.strayCats.update(wdt, t, session.cat.position, {
         stalking: player.stalking,
         catSpeed: player.speed,
         toy: session.toy,
       });
       session.clanCats.update(wdt, t, session.cat.position);
+      session.birthday?.update(wdt, t, session.cat.position);
       session.intruders.update(dt, session.cat.position);
       session.toy.update(dt, session.areaData.bounds);
       // THE YARN BALL FLOATS — v20.
@@ -1236,7 +1313,7 @@ function init() {
       }
       session.weather.update(dt, camera.position, camera);
       // After the weather: a rainbow's sun write becomes the base the Gorge shades.
-      session.areaLife.update(dt, t, session.cat.position, camera);
+      session.areaLife.update(dt, t, session.cat.position, camera, session);
       session.secrets.update(dt, t, session.cat.position, player.speed);
       session.goldMice.update(t);
       // After player.update: a chase scamper overrides the cat's position.
@@ -1250,6 +1327,10 @@ function init() {
       // The Fairground's rides, likewise: they turn, and a cat on a seat is
       // carried by it from here (fairlive.js). They also place the camera.
       session.fair.update(dt, t, { cat: session.cat, player, session });
+      // The Market Square's stallholders and its treats (marketlive.js): the
+      // rhythm, the coo and the shoo read where she is now; the hop is added
+      // to her own walk (NO_MARKET elsewhere).
+      session.market?.update(dt, t, { cat: session.cat, player, session });
       // Clan Life Part 2: the clan fight, after everything that can move the
       // cat (player.update, a chase): it writes the fighting cat's spot.
       session.clanFight.update(dt, session);
@@ -1391,6 +1472,13 @@ function init() {
       pawState.z = session.cat.position.z;
       pawState.grounded = !session.perched && player.perchY === 0 && !(player.hopY > 0) && !player.inWater;
       session.paws.update(dt, pawState);
+      // The birthday balloons: away while she swims or rides.
+      balloonPose.x = pawState.x;
+      balloonPose.y = session.cat.position.y;
+      balloonPose.z = pawState.z;
+      balloonPose.yaw = session.cat.rotation.y;
+      balloonPose.hidden = player.inWater || !!session.fair?.riding;
+      session.balloons.update(dt, t, balloonPose);
       // Clouds take the same absolute t and follow the camera, so after player.update too.
       session.clouds.update(t);
       session.ambient.update(t, session.weather.condition === 'rain' ? 1.7 : 1);
@@ -1475,6 +1563,8 @@ function init() {
             toy: toyForState(session.toy),
             // her height on a perch or seat, and the seat (remotecats.js liftForState)
             ...liftForState(player.perchY, session.fair.riding),
+            // the place she is in: a co-walker elsewhere does not draw her
+            area: session.areaId,
           });
         }
       }

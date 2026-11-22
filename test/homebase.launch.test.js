@@ -1150,3 +1150,22 @@ describe('the next-thing line and the first pick', () => {
     expect(store.get('whisker-walk-den-day')).toBe(new Date().toISOString().slice(0, 10));
   });
 });
+
+describe('pad layers: the cards carry data-pad-layer', () => {
+  const byId = (id) => doc.body.children.find((c) => c.id === id);
+  it('the news card', () => {
+    const { hb } = setup({ state: woodsOpened });
+    expect(hb.showNews('<button id="colony-news-ok">ok</button>', null)).toBe(true);
+    expect(byId('colony-news').attrs['data-pad-layer']).toBe('');
+  });
+  it('the notice card', () => {
+    const { hb } = setup({ state: woodsOpened });
+    expect(hb.showNotice('Bye Rosa')).toBe(true);
+    expect(byId('home-notice').attrs['data-pad-layer']).toBe('');
+  });
+  it('the clan moment', () => {
+    const { hb } = setup({ state: woodsOpened });
+    hb.showVisit(PLAIN);
+    expect(moment().attrs['data-pad-layer']).toBe('');
+  });
+});

@@ -76,7 +76,13 @@ export const GRAVEL_LOOK = {
 // sawdust strewn on it. Bigger, stronger blotches than a country trail (dry
 // and scuffed patches), a darker trodden margin where it meets the grass,
 // and dense small flecks: golden sawdust chips, a share of them dark crumbs
-// of earth. Same keys as GRAVEL_LOOK, no edging line.
+// of earth. Same keys as GRAVEL_LOOK, no edging line, and one only it has:
+//   fleckFade — [full, gone], in fleck radii: a fleck shows in full while a
+//     screen pixel spans less ground than `full` of its radii, and is gone
+//     once a pixel spans `gone` (fleckFade() below). So the flecks fade with
+//     distance (and from a higher, steeper zoom later, and on a smaller
+//     screen sooner): far down the midway, where a fleck would be smaller
+//     than a pixel, they never sparkle.
 export const SAWDUST_LOOK = {
   wobbleA1: 0.16, wobbleL1: 6.0,
   wobbleA2: 0.07, wobbleL2: 0.9,
@@ -88,6 +94,7 @@ export const SAWDUST_LOOK = {
   pebbleCell: 0.2, pebbleChance: 0.34, pebbleRMin: 0.02, pebbleRMax: 0.05,
   pebbleTint: [1.15, 1.07, 0.86], pebbleRim: 0.93, pebbleMinAlpha: 0.5,
   pebbleDark: [0.8, 0.7, 0.56], pebbleDarkShare: 0.35,
+  fleckFade: [1, 3],
 };
 
 export const TRAIL_LOOKS = { trail: TRAIL_LOOK, gravel: GRAVEL_LOOK, sawdust: SAWDUST_LOOK };
@@ -99,6 +106,18 @@ function lookOf(look) {
 function lookName(look) {
   if (typeof look === 'string') return TRAIL_LOOKS[look] ? look : 'trail';
   return Object.keys(TRAIL_LOOKS).find((k) => TRAIL_LOOKS[k] === (look ?? TRAIL_LOOK)) ?? 'custom';
+}
+
+// How much of a fleck (a look's pebble) of radius `r` shows where one screen
+// pixel spans `px` metres of ground (the shader's length(fwidth(xz))): 1
+// while the pixel is small beside it, 0 once it is too small to draw, a
+// smoothstep between (the shader's own sum); 1 always for a look without
+// fleckFade.
+export function fleckFade(px, r, look = TRAIL_LOOK) {
+  const F = lookOf(look).fleckFade;
+  if (!F) return 1;
+  const t = Math.min(1, Math.max(0, (px - F[0] * r) / ((F[1] - F[0]) * r)));
+  return 1 - t * t * (3 - 2 * t);
 }
 
 const JOIN_SLACK = 0.05;
@@ -486,6 +505,13 @@ function fragBody(look = TRAIL_LOOK) {
   const pebbleTint = L.pebbleDark
     ? `(trailHash(tCell, 9.0) < ${f(L.pebbleDarkShare ?? 0.5)} ? ${v3(L.pebbleDark)} : ${v3(L.pebbleTint)})`
     : v3(L.pebbleTint);
+  // The flecks fade out as a pixel grows beside them (fleckFade above). The
+  // pixel's ground span is taken at the top, before any discard or branch,
+  // where a derivative is always defined.
+  const fleckPx = L.fleckFade ? '\n  float tPx = length(fwidth(tp));' : '';
+  const fleckFar = L.fleckFade
+    ? `\n      * (1.0 - smoothstep(${f(L.fleckFade[0])} * pr, ${f(L.fleckFade[1])} * pr, tPx))`
+    : '';
   const soft = L.edgeLineSoft ?? 0.02;
   const r4 = (x) => f(+x.toFixed(4));
   const edgeLine = L.edgeLine ? `
@@ -495,7 +521,7 @@ function fragBody(look = TRAIL_LOOK) {
   look *= mix(vec3(1.0), ${v3(L.edgeLineTint ?? [0.6, 0.6, 0.6])}, tLine);` : '';
   return `
 {
-  vec2 tp = vTrailXZ;
+  vec2 tp = vTrailXZ;${fleckPx}
   // Ownership. Quads overlap at joins, and blending one pixel twice would
   // darken the feather there. A hard "am I the nearest?" test does not work:
   // two quads interpolate the same pixel's world (x, z) differently by
@@ -539,7 +565,7 @@ function fragBody(look = TRAIL_LOOK) {
     float pr = mix(${f(L.pebbleRMin)}, ${f(L.pebbleRMax)}, trailHash(tCell, 6.0));
     float q = length(tp - pc);
     float disk = (1.0 - smoothstep(pr - 0.01, pr, q))
-      * smoothstep(${f(L.pebbleMinAlpha)}, ${f(L.pebbleMinAlpha + 0.1)}, tAlpha);
+      * smoothstep(${f(L.pebbleMinAlpha)}, ${f(L.pebbleMinAlpha + 0.1)}, tAlpha)${fleckFar};
     vec3 pebble = ${pebbleTint} * mix(1.0, ${f(L.pebbleRim)}, smoothstep(0.55 * pr, pr, q));
     look = mix(look, pebble, disk);
   }${edgeLine}

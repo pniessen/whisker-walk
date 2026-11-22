@@ -87,7 +87,7 @@ Linux in CI, so float fixtures should compare with a tolerance.
 
 - **Start-up** is `index.html`'s module script plus every chunk it imports
   statically. `npm run build` prints its gzipped size against
-  `MAIN_GZIP_CEILING_KB = 700` (the owner's choice, 2026-11-20) and each place
+  `MAIN_GZIP_CEILING_KB = 720` (the owner's choice: 700 on 2026-11-20, raised to 720 on 2026-11-21 for the Market and the Old House) and each place
   against `AREA_GZIP_CEILING_KB = 100`, both in `scripts/buildjson.mjs`. Start-up
   was 896.3 kB before F6 and is about 667 kB after.
 - **Every walk starts through `startWalkWhenReady`** (`walk.js`), which loads

@@ -1,3 +1,5 @@
+import { isIndoor } from './indoor.js';
+
 // Swimming (Task 6): waterSplash(kind)'s three sounds. dur in seconds; the
 // bandpass sweeps from → to; flutter steps the gain on and off that many times.
 const WATER_SPLASHES = Object.freeze({
@@ -467,6 +469,7 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       muted = !!v;
       if (muted) api.stopAmbient();
     },
+    isMuted: () => muted,
     // 0..1 master factor applied live at the master gain node — affects
     // every currently-playing and future sound immediately, including
     // long-lived ambient loops.
@@ -547,6 +550,15 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       tone(2600, 0.06, { gain: 0.03 * volume, slideTo: 3300 });
       tone(2800, 0.06, { gain: 0.025 * volume, slideTo: 3500, delay: 0.11 });
     },
+    // The Old House's quiet ambience (housesound.js): a clock's click, a stair's creak.
+    tick(volume = 1) {
+      const v = Math.max(0, Math.min(1, volume));
+      if (v > 0) tone(2200, 0.03, { gain: 0.012 * v });
+    },
+    creak(volume = 1) {
+      const v = Math.max(0, Math.min(1, volume));
+      if (v > 0) tone(170, 0.35, { type: 'sawtooth', gain: 0.018 * v, slideTo: 130 });
+    },
     // The Fairground's music box (fairlive.js): one small bright note, with a
     // softer octave above it. Quiet: it plays for as long as she is near.
     musicBoxNote(freq, volume = 1) {
@@ -554,6 +566,34 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       if (v <= 0) return;
       tone(freq, 0.5, { type: 'triangle', gain: 0.028 * v, attack: 0.004 });
       tone(freq * 2, 0.22, { gain: 0.008 * v, attack: 0.004 });
+    },
+    // A short tune on the music box (the birthday song, src/birthdaysong.js):
+    // notes [{ at, freq, dur }], `at` seconds from now. Each is musicBoxNote's
+    // shape, a touch louder because it is the thing to hear. Muted, or at
+    // volume 0, nothing is made. Called from a tap: a context the browser
+    // still holds (suspended, or iOS's interrupted) is asked to start, and
+    // the notes are laid down once it runs, never queued to burst out later.
+    // Returns how many notes it plays.
+    playTune(notes, volume = 1) {
+      const v = Math.max(0, Math.min(1, Number(volume) || 0));
+      if (muted || v <= 0 || !Array.isArray(notes)) return 0;
+      const good = notes.filter((n) => n && Number.isFinite(n.freq) && Number.isFinite(n.at));
+      const ac = ensure();
+      const lay = () => {
+        if (muted) return;
+        for (const note of good) {
+          const dur = Number.isFinite(note.dur) ? note.dur : 0.5;
+          tone(note.freq, dur, { type: 'triangle', gain: 0.06 * v, attack: 0.004, delay: note.at });
+          tone(note.freq * 2, Math.min(0.25, dur), { gain: 0.016 * v, attack: 0.004, delay: note.at });
+        }
+      };
+      if (ac.state === undefined || ac.state === 'running') { lay(); return good.length; }
+      try {
+        const p = ac.resume?.();
+        if (!p || typeof p.then !== 'function') return 0;
+        p.then(() => { if (ac.state === 'running') lay(); }, () => {});
+      } catch { return 0; }
+      return good.length;
     },
     bark() {
       tone(230, 0.12, { type: 'sawtooth', gain: 0.09, slideTo: 140 });
@@ -714,6 +754,15 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       src.start(t0);
       src.stop(t0 + dur);
     },
+    // Her birthday fireworks (world/birthdaygathering.js): a soft, far-off
+    // boom and a little crackle. Through the master, so the sound switch
+    // and the volume hold it like every other sound.
+    firework() {
+      tone(70, 0.45, { type: 'sine', gain: 0.07, slideTo: 38 });
+      tone(1800, 0.05, { gain: 0.012, delay: 0.12 });
+      tone(2300, 0.04, { gain: 0.01, delay: 0.2 });
+      tone(1500, 0.05, { gain: 0.01, delay: 0.29 });
+    },
     // Low thud on landing after a pounce.
     landThump() {
       tone(90, 0.1, { type: 'sine', gain: 0.08, slideTo: 55 });
@@ -767,10 +816,12 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       api.stopAmbient();
       if (muted) return;
       const layers = [];
-      if (areaKey === 'den') {
-        // Indoor: just the fireplace, never crickets (dusk doesn't apply to
-        // the den — it never surfaces the dusk toggle — but this stays
-        // explicit rather than relying on the caller never passing dusk: true).
+      if (isIndoor(areaKey)) {
+        // Indoor (the den, the Old House; indoor.js): just the fireplace,
+        // never crickets. Dusk doesn't apply to the den (it never surfaces the
+        // dusk toggle), and a house dusk walk lights its lamps but stays
+        // indoors, so this stays explicit rather than relying on the caller
+        // never passing dusk: true.
         layers.push(crackleLayer());
       } else if (areaKey === 'seaside') {
         layers.push(wavesLayer());
@@ -827,6 +878,13 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         // at dusk come from the shared line below.
         layers.push(windLayer({ gain: 0.022, cutoff: 160 }));
         if (rain) layers.push(rainLayer());
+      } else if (areaKey === 'market') {
+        // The Market Square: the town's hum (a low wind layer) and the
+        // fountain's running water, and never birdsong at any hour. Rain gets
+        // its wash; crickets at dusk come from the shared line below.
+        layers.push(windLayer({ gain: 0.022, cutoff: 160 }));
+        layers.push(waterLapLayer());
+        if (rain) layers.push(rainLayer());
       } else if (areaKey === 'pines') {
         // The Pines and Swamp: a low hush of wind and the bog frogs, never
         // birdsong at any hour. Crickets at dusk come from the shared line.
@@ -840,7 +898,7 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         if (rain) layers.push(rainLayer());
         else if (!dusk) layers.push(birdsongLayer());
       }
-      if (dusk && areaKey !== 'den') layers.push(cricketLayer());
+      if (dusk && !isIndoor(areaKey)) layers.push(cricketLayer());
       if (ambientMix) for (const layer of layers) layer.mix?.(ambientMix);
       ambient = layers;
     },

@@ -769,7 +769,8 @@ function gableRoofGeometry(roof) {
 // for one mergeGeometries call. `turn` spins a piece about the house's y axis
 // after it is placed, so a front-wall layout can be reused on a side wall.
 // Call only inside withLocalUuids: every piece is a fresh geometry.
-function pieceKit(colored) {
+// (Also the old house's front in the town, world/oldhousefront.js.)
+export function pieceKit(colored) {
   const parts = [];
   const add = (geo, hex, turn) => {
     if (geo.index) geo = geo.toNonIndexed();

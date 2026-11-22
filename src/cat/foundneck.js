@@ -256,19 +256,27 @@ function subdivide(geo, levels) {
 
 // Gingham: three tones, as the weave makes them: red where a red stripe
 // crosses a red one, pink where it crosses white, white where white crosses
-// white.
-const GINGHAM = [0xf7f2ea, 0xe87a78, 0xd8403a];
-const ginghamAt = (u, v, cell) => GINGHAM[(Math.floor(u / cell) & 1) + (Math.floor(v / cell) & 1)];
+// white. A look's `cloth` is its three tones. A `net` cloth (the Market's
+// Shopping-Bag Scarf) is a string bag's mesh instead, cut one level finer
+// (its cone open at the base, hidden at the throat): subdivide cuts each
+// triangle into three corners and a turned-over middle, so every middle is a
+// gap (cloth[0]) and the corners, joined all over the cloth, are the string
+// (cloth[1]); the tied ends are string too.
+const KERCHIEFS = {
+  neckerchief: { cloth: [0xf7f2ea, 0xe87a78, 0xd8403a], band: [0xd8403a, 0xc0302a], knot: [0xe85a50, 0xc0302a] },
+  stringbagscarf: { cloth: [0x245a48, 0x8fd0ac], net: 1, band: [0xf0ead0, 0x6fb894], knot: [0x9fd4b4, 0x4f9a7a] },
+};
+const ginghamAt = (L, u, v, cell) => (L.net ? L.cloth[1] : L.cloth[(Math.floor(u / cell) & 1) + (Math.floor(v / cell) & 1)]);
 
 // The bandana's cone (three sides, point down), flattened onto the chest and
 // cut into small triangles, each painted by where its centre falls on the
 // gingham.
-function ginghamCone(radius, height, cell) {
-  const g = subdivide(new THREE.ConeGeometry(radius, height, 3, 1).toNonIndexed(), 2);
+function ginghamCone(L, radius, height, cell) {
+  const g = subdivide(new THREE.ConeGeometry(radius, height, 3, 1, !!L.net).toNonIndexed(), L.net ? 3 : 2);
   const p = g.attributes.position, cols = new Float32Array(p.count * 3), c = new THREE.Color();
   for (let i = 0; i < p.count; i += 3) {
     const x = (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3, yy = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2)) / 3;
-    c.set(ginghamAt(x + radius, yy + height, cell));
+    c.set(L.net ? L.cloth[i % 12 === 9 ? 0 : 1] : ginghamAt(L, x + radius, yy + height, cell));
     for (let j = 0; j < 3; j++) c.toArray(cols, (i + j) * 3);
   }
   g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
@@ -277,18 +285,19 @@ function ginghamCone(radius, height, cell) {
 
 // A gingham triangle tied at the throat by a red band round the neck, its
 // point down the chest, laid like the bandana's and flattened onto it; a knot
-// at the throat and two short tied ends either side of it.
-function addNeckerchief(head, a) {
-  const { k, y, z, ringR } = a;
-  neckRing(head, a, paintedTorus(ringR, 0.012 * k, 4, 14, (u) => (((u * 14 / Math.PI) | 0) % 2 ? 0xd8403a : 0xc0302a)), painted());
+// at the throat and two short tied ends either side of it. `id` picks the
+// look (KERCHIEFS): its cloth, the band's two tones and the knot's.
+const kerchief = (id) => (head, a) => {
+  const L = KERCHIEFS[id], { k, y, z, ringR } = a, [B0, B1] = L.band;
+  neckRing(head, a, paintedTorus(ringR, 0.012 * k, 4, 14, (u) => (((u * 14 / Math.PI) | 0) % 2 ? B0 : B1)), painted());
   const cat = k === 1, R = cat ? 0.145 : 0.125, H = cat ? 0.175 : 0.155;
-  const cloth = ginghamCone(R, H, 0.021 * k);
+  const cloth = ginghamCone(L, R, H, 0.021 * k);
   cloth.scale(1, 1, 0.85);
   // the knot and its two ends, at the cone's base (y = -H / 2: the throat, once
   // turned point down), on its front (-z: the face away from the neck)
   const knotAt = [0, -H / 2 + 0.006 * k, -R * 0.56];
-  const knot = colour(new THREE.SphereGeometry(0.02 * k, 6, 4).scale(1.2, 0.9, 0.8).translate(...knotAt), (x, yy) => (yy < knotAt[1] ? 0xe85a50 : 0xc0302a));
-  const ends = [-1, 1].map((s) => colour(new THREE.ConeGeometry(0.015 * k, 0.042 * k, 4, 1).rotateZ(s * 0.9).translate(knotAt[0] + s * 0.026 * k, knotAt[1] + 0.012 * k, knotAt[2]), (x) => ginghamAt(x * 4 + 1, 0.5, 0.025)));
+  const knot = colour(new THREE.SphereGeometry(0.02 * k, 6, 4).scale(1.2, 0.9, 0.8).translate(...knotAt), (x, yy) => L.knot[yy < knotAt[1] ? 0 : 1]);
+  const ends = [-1, 1].map((s) => colour(new THREE.ConeGeometry(0.015 * k, 0.042 * k, 4, 1).rotateZ(s * 0.9).translate(knotAt[0] + s * 0.026 * k, knotAt[1] + 0.012 * k, knotAt[2]), (x) => ginghamAt(L, x * 4 + 1, 0.5, 0.025)));
   const tri = new THREE.Mesh(mergeGeometries([cloth, knot, ...ends]), painted());
   if (cat) {
     tri.rotation.set(Math.PI, Math.PI, 0);
@@ -298,7 +307,7 @@ function addNeckerchief(head, a) {
     tri.position.set(0, -0.21, henNeckFrontZ(-0.135) - 0.066); // the bandana's, on his neck
   }
   head.add(tri);
-}
+};
 
 // ---- Ticket-stub Garland --------------------------------------------------
 
@@ -336,12 +345,41 @@ function addTicketGarland(head, a) {
   neckRing(head, a, paintedTorus(ringR, tube, 3, 18, (u) => (((u * 18 / Math.PI) | 0) % 2 ? 0xf5f5f5 : 0xe2433a)), painted(), stubs, { side: THREE.DoubleSide });
 }
 
+// ---- Birthday Rosette (a gift outfit, src/foundwear/gifts.js) --------------
+
+// A purple ribbon round the neck with a gold edge, and at the throat a
+// pleated rosette: sixteen pleats in pink and gold round a cream middle, a
+// gold button, five white sparkles round its rim and two ribbon tails, teal
+// and purple, hanging under it. The ribbon is one mesh, the rosette another.
+const ROSETTE_RIBBON = 0x8a5cf0, ROSETTE_GOLD = 0xf5c518, ROSETTE_PINK = 0xf27ab0, ROSETTE_CREAM = 0xfff4e0;
+function addBirthdayRosette(head, a) {
+  const { k } = a, tube = 0.011 * k, ringR = a.ringR + 0.004 * k;
+  const c = [0, -0.03 * k];
+  const at = (g, dz = 0) => g.translate(c[0], c[1], dz);
+  const pleats = at(fan(ringPoints(16, 0.05 * k, 0.04 * k), ROSETTE_PINK, [0, 0], 0.007 * k, (i) => (i % 2 ? ROSETTE_GOLD : ROSETTE_PINK), ROSETTE_PINK));
+  const middle = at(fan(ringPoints(10, 0.028 * k), ROSETTE_CREAM, [0, 0], 0.005 * k), 0.004 * k);
+  const button = at(colour(new THREE.SphereGeometry(0.013 * k, 6, 4).scale(1, 1, 0.55), (x, y) => (y > 0 ? 0xffe066 : ROSETTE_GOLD)), 0.01 * k);
+  const parts = [pleats, middle, button];
+  for (const s of [-1, 1]) {
+    const tail = new THREE.BoxGeometry(0.02 * k, 0.062 * k, 0.004 * k).translate(0, -0.031 * k, 0).rotateZ(s * 0.28).translate(s * 0.012 * k, c[1] - 0.03 * k, -0.002 * k);
+    parts.push(colour(tail, s < 0 ? 0x4ec9d4 : ROSETTE_RIBBON));
+  }
+  for (let i = 0; i < 5; i++) {
+    const t = Math.PI / 2 + (i / 5) * Math.PI * 2;
+    parts.push(colour(new THREE.OctahedronGeometry(0.007 * k).scale(1, 1.4, 0.6).translate(c[0] + Math.cos(t) * 0.043 * k, c[1] + Math.sin(t) * 0.043 * k, 0.008 * k), 0xffffff));
+  }
+  const rosette = onRing(mergeGeometries(parts), -Math.PI / 2, ringR + tube + 0.006 * k, 0);
+  neckRing(head, { ...a, ringR }, paintedTorus(ringR, tube, 4, 16, (u, v) => (Math.abs(Math.sin(v)) > 0.85 ? ROSETTE_GOLD : ROSETTE_RIBBON)), painted(), [rosette], { side: THREE.DoubleSide });
+}
+
 export const FOUND_NECKS = Object.freeze({
   daisychain: addDaisyChain,
   gardenglovescarf: addGardenGloveScarf,
   shellnecklace: addShellNecklace,
-  neckerchief: addNeckerchief,
+  neckerchief: kerchief('neckerchief'),
   ticketgarland: addTicketGarland,
+  bdayrosette: addBirthdayRosette,
+  stringbagscarf: kerchief('stringbagscarf'),
 });
 // ---- Collars --------------------------------------------------------------
 
@@ -417,32 +455,73 @@ function dressRope(group, ring, { ringR, tubeR, charmPos }) {
   group.add(knot);
 }
 
+// A charm's hang: the band in `band[0]` piped `band[1]` along both edges,
+// and at the throat one mesh, `parts(u)` (u: the charm's unit, from the
+// band's thickness), facing -z, its hanging ring at the top.
+const charm = (band, parts) => (group, ring, { ringR, tubeR, charmPos }) => {
+  ring.geometry = paintedTorus(ringR, tubeR, 8, 12, (u, v) => band[Math.abs(Math.sin(v)) > 0.9 ? 1 : 0]);
+  ring.material = painted();
+  const piece = new THREE.Mesh(mergeGeometries(parts(tubeR * 1.25)), painted());
+  piece.position.copy(charmPos);
+  group.add(piece);
+};
+
 // Anchor Charm: a navy band piped white along both edges, and a gold
 // anchor at the throat, facing -z, one mesh: a ring at the top, a stock
 // across with round ends, the shank, and two curved arms rising to arrow-head
 // flukes.
 const ANCHOR_GOLD = 0xf2c14e, ANCHOR_SHADE = 0xc8952a;
-function dressAnchor(group, ring, { ringR, tubeR, charmPos }) {
-  ring.geometry = paintedTorus(ringR, tubeR, 8, 12, (u, v) => (Math.abs(Math.sin(v)) > 0.9 ? 0xf5f5f0 : 0x24365c));
-  ring.material = painted();
-  const u = tubeR * 1.25, gold = (x, y, z) => (z < -0.1 * u ? ANCHOR_GOLD : ANCHOR_SHADE);
+const gold = (u) => (x, y, z) => (z < -0.1 * u ? ANCHOR_GOLD : ANCHOR_SHADE);
+const dressAnchor = charm([0x24365c, 0xf5f5f0], (u) => [
+  colour(new THREE.TorusGeometry(0.3 * u, 0.1 * u, 4, 8).translate(0, 1.45 * u, 0), gold(u)),
+  colour(new THREE.CylinderGeometry(0.13 * u, 0.13 * u, 2.3 * u, 5, 1).translate(0, 0.05 * u, 0), gold(u)),
+  colour(new THREE.CylinderGeometry(0.1 * u, 0.1 * u, 1.3 * u, 5, 1).rotateZ(Math.PI / 2).translate(0, 0.85 * u, 0), gold(u)),
+  ...[-1, 1].map((s) => colour(new THREE.SphereGeometry(0.14 * u, 5, 3).translate(s * 0.68 * u, 0.85 * u, 0), gold(u))),
+  colour(new THREE.TorusGeometry(0.85 * u, 0.12 * u, 4, 9, Math.PI * 0.8).rotateZ(Math.PI * 1.1).translate(0, -0.25 * u, 0), gold(u)),
+  ...[-1, 1].map((s) => colour(new THREE.ConeGeometry(0.22 * u, 0.42 * u, 4, 1).rotateZ(s * 0.5).translate(s * 0.8 * u, -0.12 * u, 0), gold(u))),
+]);
+
+// Apple Charm (the Market Square): the anchor's hang on a brown leather band
+// piped cream, and from the same gold ring a small red apple, a paler shine
+// on its upper left and a darker blush below, a brown stalk and one green leaf.
+const dressApple = charm([0x8a5a32, 0xf2e6c8], (u) => [
+  colour(new THREE.TorusGeometry(0.3 * u, 0.1 * u, 4, 8).translate(0, 1.45 * u, 0), gold(u)),
+  colour(new THREE.SphereGeometry(0.6 * u, 8, 6).scale(1, 0.9, 0.8).translate(0, 0.45 * u, 0), (x, y, z) => (y > 0.6 * u && x < 0 ? 0xf27060 : y < 0.15 * u ? 0xa8222a : 0xd8303c)),
+  colour(new THREE.CylinderGeometry(0.05 * u, 0.07 * u, 0.4 * u, 4, 1).rotateZ(-0.2).translate(0.03 * u, 1.1 * u, 0), 0x5a3a1c),
+  colour(new THREE.SphereGeometry(0.24 * u, 5, 3).scale(1.7, 0.6, 0.4).rotateZ(0.4).translate(0.36 * u, 1.04 * u, -0.08 * u), (x, y) => (y > 1.04 * u ? 0x7cc04e : 0x3f8a32)),
+]);
+
+// Cake Charm (a gift outfit, src/foundwear/gifts.js): a pink ribbon collar
+// and, at the throat, a slice of birthday cake facing -z, one mesh: a
+// wedge, point down, in layers (sponge, jam, sponge), white frosting along
+// its wide top, and a red cherry on the frosting.
+const CAKE_SPONGE = 0xf2c46e, CAKE_JAM = 0xd8607e, CAKE_FROSTING = 0xfff4e0, CAKE_CHERRY = 0xd8303c;
+function dressCakeCharm(group, ring, { tubeR, charmPos }) {
+  const u = tubeR * 1.6, W = 1.5 * u, yTip = -0.95 * u, yTop = 0.55 * u, d = 0.42 * u;
+  const half = (y) => (W / 2) * (y - yTip) / (yTop - yTip);
+  const layer = (y0, y1, hex, grow = 0, deep = d) => {
+    const pts = [[-half(y0) - grow, y0], [half(y0) + grow, y0], [half(y1) + grow, y1], [-half(y1) - grow, y1]];
+    const shape = new THREE.Shape((y0 <= yTip ? [pts[0], pts[2], pts[3]] : pts).map(([x, y]) => new THREE.Vector2(x, y)));
+    return colour(new THREE.ExtrudeGeometry(shape, { depth: deep, bevelEnabled: false, curveSegments: 1 }).translate(0, 0, -deep / 2), hex);
+  };
   const parts = [
-    colour(new THREE.TorusGeometry(0.3 * u, 0.1 * u, 4, 8).translate(0, 1.45 * u, 0), gold),
-    colour(new THREE.CylinderGeometry(0.13 * u, 0.13 * u, 2.3 * u, 5, 1).translate(0, 0.05 * u, 0), gold),
-    colour(new THREE.CylinderGeometry(0.1 * u, 0.1 * u, 1.3 * u, 5, 1).rotateZ(Math.PI / 2).translate(0, 0.85 * u, 0), gold),
-    ...[-1, 1].map((s) => colour(new THREE.SphereGeometry(0.14 * u, 5, 3).translate(s * 0.68 * u, 0.85 * u, 0), gold)),
-    colour(new THREE.TorusGeometry(0.85 * u, 0.12 * u, 4, 9, Math.PI * 0.8).rotateZ(Math.PI * 1.1).translate(0, -0.25 * u, 0), gold),
-    ...[-1, 1].map((s) => colour(new THREE.ConeGeometry(0.22 * u, 0.42 * u, 4, 1).rotateZ(s * 0.5).translate(s * 0.8 * u, -0.12 * u, 0), gold)),
+    layer(yTip, -0.15 * u, CAKE_SPONGE),
+    layer(-0.15 * u, 0.02 * u, CAKE_JAM),
+    layer(0.02 * u, 0.4 * u, CAKE_SPONGE),
+    layer(0.4 * u, yTop + 0.12 * u, CAKE_FROSTING, 0.05 * u, d * 1.15),
+    colour(new THREE.SphereGeometry(0.2 * u, 6, 4).translate(0.05 * u, yTop + 0.3 * u, -0.05 * u), (x, y) => (y > yTop + 0.38 * u ? 0xf06a6a : CAKE_CHERRY)),
   ];
-  const anchor = new THREE.Mesh(mergeGeometries(parts), painted());
-  anchor.position.copy(charmPos);
-  group.add(anchor);
+  const cake = new THREE.Mesh(mergeGeometries(parts), painted());
+  cake.position.copy(charmPos);
+  group.add(cake);
 }
 
 export const FOUND_COLLARS = Object.freeze({
   bottletopcollar: Object.freeze({ ring: 0x3a3a42, charmed: false, dress: dressBottleTops }),
   ropecollar: Object.freeze({ ring: 0xc8a46a, charmed: true, dress: dressRope }),
   anchorcharm: Object.freeze({ ring: 0x24365c, charmed: true, dress: dressAnchor }),
+  cakecharm: Object.freeze({ ring: 0xf2a0c0, charmed: true, dress: dressCakeCharm }),
+  applecharm: Object.freeze({ ring: 0x8a5a32, charmed: true, dress: dressApple }),
 });
 
 // The found neck piece, if `id` is one; nothing otherwise.

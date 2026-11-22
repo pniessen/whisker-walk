@@ -168,7 +168,7 @@ test.each(AREAS)('%s: every id is unique, well-formed and namespaced by area', (
     }
   }
   // No repeats anywhere: across lists, areas and the den.
-  const everywhere = [...AREAS, 'farm', 'fair', 'roofs', 'gorge', 'den'].flatMap((x) => idsOf(propsFor(x)));
+  const everywhere = [...AREAS, 'farm', 'fair', 'roofs', 'market', 'gorge', 'den'].flatMap((x) => idsOf(propsFor(x)));
   expect(new Set(everywhere).size).toBe(everywhere.length);
   expect([...all].sort()).toEqual([...everywhere].sort());
 });
@@ -440,7 +440,7 @@ test('the Moor: three warren burrows as hides, and nothing else yet', () => {
   expect(s.dogYard).toBeNull();
   // the Moor adds no prop with an id: allPropIds is exactly the ids of the
   // other sets
-  const others = ['neighborhood', 'park', 'seaside', 'docks', 'farm', 'fair', 'roofs', 'gorge', 'den'].flatMap((a) => idsOf(propsFor(a)));
+  const others = ['neighborhood', 'park', 'seaside', 'docks', 'farm', 'fair', 'roofs', 'market', 'gorge', 'den'].flatMap((a) => idsOf(propsFor(a)));
   expect(new Set(others).size).toBe(others.length);
   expect([...allPropIds()].sort()).toEqual([...others].sort());
 });
@@ -452,7 +452,7 @@ test('the Pines: three frog hides, and nothing else yet', () => {
   for (const k of ['carryables', 'knockables', 'markables', 'flaps', 'rests', 'keepSlots']) expect(s[k], k).toEqual([]);
   expect(s.dogYard).toBeNull();
   // the Pines adds no prop with an id
-  const others = ['neighborhood', 'park', 'seaside', 'docks', 'farm', 'fair', 'roofs', 'gorge', 'den'].flatMap((a) => idsOf(propsFor(a)));
+  const others = ['neighborhood', 'park', 'seaside', 'docks', 'farm', 'fair', 'roofs', 'market', 'gorge', 'den'].flatMap((a) => idsOf(propsFor(a)));
   expect([...allPropIds()].sort()).toEqual([...others].sort());
 });
 

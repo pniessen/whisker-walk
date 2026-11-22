@@ -70,7 +70,7 @@ export const HOP = Object.freeze({
 });
 
 export const LOOK_TIME = 1.4; // s
-export const TIGHTROPE_TAIL_ID = 'tightrope-tail'; // step 4's catalog ids
+export const TIGHTROPE_TAIL_ID = 'tightrope-tail'; // step 5's catalog ids (skills.js)
 export const LONG_LEAP_ID = 'long-leap';
 export const BASE_ABILITIES = Object.freeze({ steady: false, longLeap: false, climb: BASE_CLIMB_BUDGET.climb });
 

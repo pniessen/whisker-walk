@@ -24,4 +24,31 @@ describe('the area registry', () => {
     expect(fair.createFairLive).toBe((await import('../src/fairlive.js')).createFairLive);
     expect(fair.createFairShow).toBe((await import('../src/fairshow.js')).createFairShow);
   });
+  it('the five places with people carry the figure in their life, and it names its module', async () => {
+    const { createPeopleKit, lodNearFor } = await import('../src/people/index.js');
+    for (const id of ['neighborhood', 'park', 'docks', 'seaside', 'fair']) {
+      expect((await AREA_LOADERS[id]()).life.createPeopleKit, id).toBe(createPeopleKit);
+      expect((await AREA_LOADERS[id]()).life.lodNearFor, id).toBe(lodNearFor); // the LOD switch's rung rule
+      expect(AREA_ENTRY_MODULES[id], id).toContain('src/people/index.js');
+    }
+    for (const id of ['den', 'woods', 'river', 'moor', 'pines', 'gorge', 'farm', 'roofs']) {
+      expect((await AREA_LOADERS[id]()).life.createPeopleKit, id).toBeUndefined();
+    }
+  });
+  // A villager handed no people is its group alone (src/critters.js): nothing
+  // to see, though it still waves, takes a head-scratch prompt and can give a
+  // quest. So every place whose world spawns a villager must carry the people
+  // in its pack: built here through the pack, as the walk builds it.
+  it('every place whose world spawns a villager carries the people in its pack', async () => {
+    const { Scene } = await import('three');
+    const withVillagers = [];
+    for (const id of Object.keys(AREA_LOADERS)) {
+      const pack = await AREA_LOADERS[id]();
+      const area = pack.world.build(new Scene());
+      if (!(area.critterSpawns ?? []).some((c) => c.type === 'villager')) continue;
+      withVillagers.push(id);
+      expect(typeof pack.life?.createPeopleKit, id).toBe('function');
+    }
+    expect(withVillagers.length).toBeGreaterThan(0); // (the street places have them)
+  }, 90_000);
 });

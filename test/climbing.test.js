@@ -35,6 +35,7 @@ const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildFair } = await import('../src/world/fair.js');
 const { build: buildRoofs } = await import('../src/world/roofs.js');
+const { build: buildMarket } = await import('../src/world/market.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor, moorTrees } = await import('../src/world/moor.js');
@@ -512,6 +513,7 @@ const AREAS = {
   farm: buildFarm(new THREE.Scene()),
   fair: buildFair(new THREE.Scene()),
   roofs: buildRoofs(new THREE.Scene()),
+  market: buildMarket(new THREE.Scene()),
 };
 // Every ELEVATED collectible in the game (y > 0), each named explicitly.
 //
@@ -556,11 +558,19 @@ const STATES = {
   both: { skills: ['spring-paws', SURE_CLAWS_ID] },
 };
 
+// The house's three golden mice are left out of every table here: the climbing
+// system (world perch arrays, canReach) does not model indoors. They are
+// reached by the house's own ledge climbs, pinned in test/housethings.test.js
+// and test/housegame.test.js. Only the house is skipped, by name, so any other
+// area missing from AREAS still fails loudly.
+const NOT_MODELLED = new Set(['house']);
+const CLIMB_MICE = Object.entries(GOLD_MICE).filter(([area]) => !NOT_MODELLED.has(area));
+
 function hopTable(state, fenceRun = false) {
   const budget = climbBudget(state);
   const out = {};
   const seen = (area) => visiblePerches(AREAS[area].perches, state);
-  for (const [area, mice] of Object.entries(GOLD_MICE)) {
+  for (const [area, mice] of CLIMB_MICE) {
     for (const m of mice) out[m.id] = minHops(m, seen(area), budget, fenceRun);
   }
   for (const c of ELEVATED) {
@@ -628,6 +638,16 @@ const SHIPPED_HOPS = {
   'gm-fair-1': 6, // the helter-skelter's gallery, 7.0: five landings 1.2 apart, then the gallery
   'gm-fair-2': 2, // the toffee apple stall's roof: counter 0.9 -> awning 2.32
   'gm-fair-3': 0, // hidden at ground level between the two tents
+  // the Rooftops' three stand on their own roof levels, reached by the traversal runtime
+  // (climbs and crossings), not by perch chains: no perches in this table's model
+  'gm-roofs-1': 0,
+  'gm-roofs-2': 0,
+  'gm-roofs-3': 0,
+  // The Market Square: the cheese stall's awning (crates 0.95 -> awning 2.3), a crate
+  // stack's top (1.04, one hop off the cobbles) and one hidden low by the west shop fronts
+  'gm-market-1': 2,
+  'gm-market-2': 1,
+  'gm-market-3': 0,
   'fair-5': 1,    // the bandstand's deck, 0.6: one hop from its steps
 };
 
@@ -649,7 +669,7 @@ describe('shipped golden mice and rooftop collectible — no skills', () => {
   it('no mouse is reachable without a perch except the three deliberately-hidden ground ones', () => {
     const table = hopTable(STATES.none);
     const ground = Object.entries(table).filter(([, hops]) => hops === 0).map(([id]) => id);
-    expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
+    expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-market-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-roofs-1', 'gm-roofs-2', 'gm-roofs-3', 'gm-sea-3', 'gm-woods-3']);
     for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
   });
 });
@@ -892,7 +912,7 @@ describe('Fence Runner — the shipped-content pin', () => {
     for (const state of Object.values(STATES)) {
       const table = hopTable(state, true);
       const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
-      expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
+      expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-market-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-roofs-1', 'gm-roofs-2', 'gm-roofs-3', 'gm-sea-3', 'gm-woods-3']);
       for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
     }
   });
@@ -1009,6 +1029,8 @@ describe('CF-9b — the gated perches themselves', () => {
     expect(GATED.fair).toHaveLength(14);
     // Rooftops: nothing. Its perches are crates and a bench, and its trees are far off.
     expect(GATED.roofs).toEqual([]);
+    // the Market Square: nothing. Its perches are crates, awnings, a basket and café tables.
+    expect(GATED.market).toEqual([]);
   });
 
   it('gates every one of them on Sure Claws and nothing else', () => {
@@ -1048,7 +1070,10 @@ describe('CF-9b — the gated perches themselves', () => {
     expect(UNGATED.fair).toHaveLength(24);
     // the four alley crates, the garden bench and the telescope crate
     expect(UNGATED.roofs).toHaveLength(6);
-    for (const [area, mice] of Object.entries(GOLD_MICE)) {
+    // each of the six stalls' crates and awning, the flower trestle, the bicycle basket,
+    // the two crate stacks' tops and the three café tables
+    expect(UNGATED.market).toHaveLength(19);
+    for (const [area, mice] of CLIMB_MICE) {
       for (const m of mice.filter((x) => x.y > 0)) {
         const stand = UNGATED[area].find(
           (p) => Math.hypot(p.x - m.x, p.z - m.z) < 1.0 && Math.abs(p.y - m.y) < 0.9,
@@ -1176,7 +1201,7 @@ describe('CF-9b — the gated perches short-circuit nothing', () => {
     const stripped = (state, fenceRun) => {
       const budget = climbBudget(state);
       const out = {};
-      for (const [area, mice] of Object.entries(GOLD_MICE)) {
+      for (const [area, mice] of CLIMB_MICE) {
         for (const m of mice) out[m.id] = minHops(m, UNGATED[area], budget, fenceRun);
       }
       for (const c of ELEVATED) {
@@ -1198,7 +1223,7 @@ describe('CF-9b — the gated perches short-circuit nothing', () => {
     // Belt and braces on the hop table: a gated perch standing where a chain
     // top stands would not change the hop COUNT, but it would let the ability
     // hand the player a mouse that the chain is supposed to be the price of.
-    const targets = Object.entries(GOLD_MICE).flatMap(([area, mice]) =>
+    const targets = CLIMB_MICE.flatMap(([area, mice]) =>
       mice.filter((m) => m.y > 0).map((m) => ({ area, ...m })))
       .concat(ELEVATED.map((c) => ({ area: c.area, id: c.id, x: c.x, z: c.z, y: c.y })));
     for (const t of targets) {
@@ -1214,7 +1239,7 @@ describe('CF-9b — the gated perches short-circuit nothing', () => {
       for (const fenceRun of [false, true]) {
         const table = hopTable(state, fenceRun);
         const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
-        expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
+        expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-market-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-roofs-1', 'gm-roofs-2', 'gm-roofs-3', 'gm-sea-3', 'gm-woods-3']);
         for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
       }
     }

@@ -9,6 +9,17 @@ import { escapeHtml as esc } from '../escapehtml.js';
 
 export const CONFIRM_ATTR = 'data-confirm';
 
+// A Yes counts only as a deliberate tap: never the tail of a double-tap
+// (`detail` > 1; a keyboard's Enter has detail 0) and never within
+// CONFIRM_DELAY_MS of the card going up. The one rule for every "Get it?"
+// card (this one, and a gate's in game/crossing.js). Fails closed on a
+// missing or odd time.
+export function deliberateTap({ detail, shownAt, now } = {}) {
+  if (typeof detail === 'number' && detail > 1) return false;
+  if (typeof shownAt !== 'number' || typeof now !== 'number' || !Number.isFinite(shownAt) || !Number.isFinite(now)) return false;
+  return now - shownAt >= CONFIRM_DELAY_MS;
+}
+
 // The card's markup. "Not now" comes first and takes focus: the safe answer
 // is the one an Enter or a stray tap reaches.
 export function confirmCardHtml({ text, note = '', yes, no = 'Not now', danger = false } = {}) {
@@ -51,10 +62,12 @@ export function createConfirmCard({ mount, blocked = () => false, onClosed = () 
   let el = null;
   let asked = null;
   let shownAt = 0;
+  let waitTimer = null;
 
   function finish(answer) {
     if (!el) return;
     const a = asked;
+    clearTimeout(waitTimer);
     el.remove();
     el = null;
     asked = null;
@@ -73,6 +86,7 @@ export function createConfirmCard({ mount, blocked = () => false, onClosed = () 
     el = d().createElement('div');
     el.id = 'confirm-card';
     el.className = 'colony-news confirm-overlay';
+    el.setAttribute?.('data-pad-layer', '');
     el.innerHTML = confirmCardHtml(opts);
     el.addEventListener('click', onClick);
     el.addEventListener('keydown', onKeydown);
@@ -86,7 +100,21 @@ export function createConfirmCard({ mount, blocked = () => false, onClosed = () 
     if (answer === 'no') finish('no');
     // Yes counts only as a deliberate tap: never the tail of a double-tap on
     // the button that asked (the same rule as the colony's swap).
-    else if (answer === 'yes' && !(typeof e.detail === 'number' && e.detail > 1) && now() - shownAt >= CONFIRM_DELAY_MS) finish('yes');
+    else if (answer === 'yes') {
+      if (deliberateTap({ detail: e.detail, shownAt, now: now() })) finish('yes');
+      else if (!(e.detail > 1)) wait(); // too early (a pad's A lands here): show it, do not confirm
+    }
+  }
+
+  // A Yes inside the delay is not lost silently: the card shows a short
+  // `confirm-wait` cue (class only, no text) until the delay is over; the next
+  // Yes after that confirms, once (finish() takes the card down).
+  function wait() {
+    if (!el) return;
+    el.classList?.add('confirm-wait');
+    clearTimeout(waitTimer);
+    const card = el;
+    waitTimer = setTimeout(() => { card.classList?.remove('confirm-wait'); }, Math.max(0, CONFIRM_DELAY_MS - (now() - shownAt)));
   }
 
   function onKeydown(e) {
@@ -109,6 +137,7 @@ export function createConfirmCard({ mount, blocked = () => false, onClosed = () 
     // Taken down without an answer (a walk is starting): nothing runs.
     close() {
       if (!el) return;
+      clearTimeout(waitTimer);
       el.remove();
       el = null;
       asked = null;

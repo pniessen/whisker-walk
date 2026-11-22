@@ -368,8 +368,8 @@ function lines() {
         open: promptFor(go).text,
         openForAGuest: promptFor(go, { inRoom: true, isHost: false }).text,
         card: htmlText(crossCardHtml({ name: go.name })),
-        after: crossingOutcome({ crossTo: post.to, clan: true, pickPlace: () => true, catalog: CATALOG, edition: 'canon' }).lines,
-        afterLed: crossingOutcome({ crossTo: post.to, ledBy: PARTNER_NAME, together: [PARTNER_NAME], clan: true, pickPlace: () => false, catalog: CATALOG, edition: 'canon' }).lines,
+        after: crossingOutcome({ crossTo: post.to, clan: true, pick: () => true, catalog: CATALOG, edition: 'canon' }).lines,
+        afterLed: crossingOutcome({ crossTo: post.to, ledBy: PARTNER_NAME, together: [PARTNER_NAME], clan: true, pick: () => false, catalog: CATALOG, edition: 'canon' }).lines,
       };
     }
   }
@@ -394,6 +394,7 @@ function lines() {
     homeWelcome: Object.fromEntries(CLANS.map((id) => [id, homeWelcome(id, save({ mine: id }))])),
     homeWelcomeElsewhere: homeWelcome('moor', save({ mine: 'woods' })),
     landOfTodaysWalk: Object.fromEntries(AREAS.map((id) => [id, buildDressingModel(save({ open: true, area: id }), CATALOG).currentPlace.line])),
+    marketMusician: phrase('market.find.musician', words().OUTSIDE_WORDS.people), // the one Market line that takes a set's word
     campOnTheMap: Object.fromEntries(CLANS.map((id) => [id, `${clanName(id)} camp`])),
     scentedOverYourMark: Object.fromEntries(groupNames.map((n) => [n, { scratch: contestToast(n, 'scratch'), dig: contestToast(n, 'dig'), drop: contestToast(n, 'drop') }])),
     wandererStays: Object.fromEntries(AREAS.map((id) => [id, wanderStayLine(PET, placeName(id, 'canon', CATALOG))])),
@@ -626,6 +627,7 @@ function phraseSamples() {
     'pick.both': [group],
     'pick.lineBoth': [group],
     'home.welcome': [group],
+    'bday.announce': [mate],
     'map.camp': [group],
     'place.groupLand': [group],
     'patrol.prompt': [mate],
@@ -742,7 +744,7 @@ const OFF_IGNORE = [
   /^clanEdition\.lines\.campOnTheMap\./,   // typed out in lines(); what the map really says is in screens.map and phrases['map.camp']
   /^legacyEdition\.patrols\./,             // '(no patrol)' is this file's own note
   /^legacyEdition\.mapModelCamps\[/,       // 'camp' / 'no camp' is this file's own note
-  /^clanEdition\.vocabulary\.placeWords\.roofs$/, // 'The Rooftops' is plain words, the same in both sets (Rooftops step 2)
+  /^clanEdition\.vocabulary\.placeWords\.(roofs|market)$/, // 'The Rooftops' and 'The Market Square' are plain words, the same in both sets
 ];
 describe('everyday words: the tables, names, tags, lines and screens', () => {
   it('shows exactly the recorded everyday words', () => {

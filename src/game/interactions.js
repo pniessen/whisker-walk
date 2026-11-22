@@ -23,7 +23,7 @@ import { GIFT_LEAVE_RANGE } from '../gifts.js';
 import { friendRungCrossed, isGrudgeableStray } from '../straycats.js';
 import { isLegendaryName } from '../legendary.js';
 import { shouldTurnHostile, SCUFFLE_COST, SCUFFLE_FREEZE } from '../enemies.js';
-import { labelFor } from './labels.js';
+import { labelFor, critterLabel } from './labels.js';
 import { questTrailStep } from '../questscent.js';
 import { canFeed, outsideTag, feedsHere } from '../colony.js';
 import { CATALOG } from '../progression.js';
@@ -37,15 +37,18 @@ import { nowSec } from './util.js';
 import { pick as pickUp, drop as putDown, tickRain, carryLabel } from '../carry.js';
 import { farmPromptText, farmObjective, hatAtDoor } from './farmplay.js';
 import { fairPromptText } from './fairplay.js';
+import { treatItemId } from '../marketnone.js';
 import { JOB_WORDS } from '../farmwords.js';
 import { knockNoun, propsFor } from '../propsets.js';
 import { markKey, borderMarkId } from '../marks.js';
-import { postNear } from '../borderposts.js';
+import { postNear, postsFor } from '../borderposts.js';
 import { postStatus, promptFor } from '../bordercross.js';
+import { gatewayNear, liveEndsFor, GATE_PREFETCH_REACH } from '../gateways.js';
+import { gateStatus, gatePrompt } from '../gatecross.js';
 import { phrase } from '../clanphrases.js';
 import * as THREE from 'three';
 import { villagerPos } from '../critters.js';
-import { startRest, REST_PROMPTS, REST_TOASTS, NAP_PURR_LEN } from '../rests.js';
+import { startRest, REST_PROMPTS, REST_TOASTS, NAP_PURR_LEN, REST_REACH } from '../rests.js';
 import { bus } from '../events.js';
 import { note } from '../diagnostics.js';
 
@@ -102,9 +105,9 @@ const MARK_REACH = 1.2;
 // v21 3b Task 12: how close the cat must be to one of a rival's border decals
 // to scent over it.
 const BORDER_MARK_REACH = 1.0;
-// v21 3b Task 15: how close the cat must be to a bowl, a dish or a cushion to
-// drink, eat or nap there.
-const REST_REACH = 1.2;
+// v21 3b Task 15: REST_REACH, how close the cat must be to a bowl, a dish or a
+// cushion to drink, eat or nap there, is rests.js's (imported above; the
+// Market's fountain and flour-sack finds read the same one).
 
 // v21 3b ruling R42 — is the cat, or the thing in its mouth, over a raised
 // deck (the seaside pier, the Docks bridges)? A drop is placed at ground
@@ -151,7 +154,37 @@ export function createInteractions({
   colonySync,
   // Border crossings: the crossing card's opener (game/crossing.js). Optional.
   askCrossing = () => {},
+  // World map step 3: a gate's crossing card and its "Get it?" card
+  // (game/crossing.js askGate / askGateBuy), and the place loader's prefetch
+  // (main.js: areas.prefetch, which never throws). Optional.
+  askGate = () => {},
+  askGateBuy = () => {},
+  prefetchArea = () => {},
 }) {
+  // The gate ends and border posts whose place beyond has been fetched, per
+  // walk (session), by id.
+  const gatesFetched = new WeakMap();
+  // Nearing a gate she can go through or open (gateStatus 'go' or 'buy'), or
+  // a border post she can go through (postStatus 'go', Task 10), the place
+  // beyond starts downloading, once per end or post per walk.
+  function prefetchNearGates(s, catP) {
+    let done = gatesFetched.get(s);
+    const fetch = (id, to) => {
+      if (!done) { done = new Set(); gatesFetched.set(s, done); }
+      done.add(id);
+      prefetchArea(to);
+    };
+    const near = (p) => Math.hypot(p.x - catP.x, p.z - catP.z) <= GATE_PREFETCH_REACH;
+    for (const end of liveEndsFor(s.areaId, CATALOG)) {
+      if (done?.has(end.id) || !near(end)) continue;
+      const kind = gateStatus(end, progression.state, CATALOG).kind;
+      if (kind === 'go' || kind === 'buy') fetch(end.id, end.to);
+    }
+    for (const post of postsFor(s.areaId)) {
+      if (done?.has(post.id) || !near(post)) continue;
+      if (postStatus(post, progression.state, CATALOG, s.areaId).kind === 'go') fetch(post.id, post.to);
+    }
+  }
   // Bodies extracted out of the keydown handlers below (pure move — same
   // logic, no behavior change) so both the keyboard path and the touch
   // action-button path can invoke them. Callers are responsible for the
@@ -721,7 +754,7 @@ export function createInteractions({
       if (!c.spottable || (c.fleeing && !goat)) continue;
       const to = c.group.position.clone().sub(catP).setY(0);
       if (to.length() < (goat ? GOAT_SPOT : 6) && to.normalize().dot(player.forward()) > 0.5) {
-        if (log.awardOnce('critter', `spot-${c.id}`, labelFor(c.type)) > 0) progression.recordSighting(c.type);
+        if (log.awardOnce('critter', `spot-${c.id}`, critterLabel(c)) > 0) progression.recordSighting(c.type);
       }
     }
     // Appletree Farm's animals: met the same way (6 m, looking at one), the
@@ -817,6 +850,13 @@ export function createInteractions({
           : `E — pick up ${c.label}`);
       }
     }
+    // Her birthday (world/birthdaygathering.js): beside the cake, anywhere
+    // round it, while its candles are lit. Right after 'collect', so a find
+    // lying at her paws still comes first; never from a perch.
+    if (!s.prompt && !s.perched && s.birthday?.promptAt(catP)) {
+      s.prompt = { kind: 'bday-candles' };
+      setPrompt(phrase('bday.prompt'));
+    }
     // v21 3b Task 10 — knock it off the ledge. Right after 'collect': only
     // while perched, beside a thing still standing on a ledge at the cat's own
     // height (knockables.nearest checks the height). Carry is never offered
@@ -883,6 +923,16 @@ export function createInteractions({
       if (text) {
         s.prompt = { kind: 'fair', data: action };
         setPrompt(text);
+      }
+    }
+    // The Market Square's treats (marketlive.js): a treat out within reach,
+    // from the ground, with no treat already in her mouth. NO_MARKET (every
+    // other place) offers nothing; a stand-in session without one, nothing.
+    if (!s.prompt && s.market) {
+      const action = s.market.actionFor(s);
+      if (action) {
+        s.prompt = { kind: 'market', data: action };
+        setPrompt(action.prompt);
       }
     }
     if (!s.prompt) {
@@ -1179,10 +1229,24 @@ export function createInteractions({
         setPrompt(REST_PROMPTS[spot.kind]);
       }
     }
+    // World map step 3: a gate, just before the posts and on the same terms.
+    // Its sign, or "Head to ...?", or the "Get it?" question for a place she
+    // can open now; a room's guest reads the sign only (gatePrompt).
+    const clanWalk = isClanEdition(progression.state);
+    if (clanWalk) prefetchNearGates(s, catP);
+    if (!s.prompt && clanWalk && !s.perched && !player.swimming && !s.fight && !s.clanFight?.uiShowing) {
+      const end = gatewayNear(s.areaId, catP.x, catP.z, CATALOG);
+      if (end) {
+        const status = gateStatus(end, progression.state, CATALOG);
+        const line = gatePrompt(status, { inRoom: !!s.net, isHost: !!s.net?.isHost?.() });
+        s.prompt = { kind: line.kind, data: { end, status } };
+        setPrompt(line.text);
+      }
+    }
     // Border crossings: a waymark post, Clan Edition only. After the rest (so
     // anything a kid walked up to comes first) and before gift-leave and the
     // drop (so a held thing never hides a post). Never mid-fight.
-    if (!s.prompt && isClanEdition(progression.state) && !s.perched && !player.swimming && !s.fight && !s.clanFight?.uiShowing) {
+    if (!s.prompt && clanWalk && !s.perched && !player.swimming && !s.fight && !s.clanFight?.uiShowing) {
       const post = postNear(s.areaId, catP.x, catP.z);
       if (post) {
         const status = postStatus(post, progression.state, CATALOG, s.areaId);
@@ -1209,7 +1273,7 @@ export function createInteractions({
     // could land somewhere the cat cannot reach. Nor on a raised deck (the
     // pier, the Docks bridges; ruling R42): a drop is placed at ground height,
     // under the boards, where it cannot be seen. The cat just keeps holding it.
-    if (!s.prompt && carry?.mouth.held && !s.perched && !player.inWater && !overDeck(s)) {
+    if (!s.prompt && carry?.mouth.held && !carry.mouth.held.treat && !s.perched && !player.inWater && !overDeck(s)) {
       s.prompt = { kind: 'drop' };
       setPrompt(carry.mouth.held.job ? JOB_WORDS.goat.putPrompt() : `E — put the ${carryLabel(carry.mouth.held.kind)} down`);
     }
@@ -1659,7 +1723,9 @@ export function createInteractions({
     // first, so nothing is done by a cat still drawn asleep. The 'rest' prompt
     // itself never shows while a rest is on (restInReach).
     if (s.rest && s.prompt.kind !== 'rest') s.rest = null;
-    if (s.prompt.kind === 'carry') {
+    if (s.prompt.kind === 'bday-candles') {
+      s.birthday?.blow();
+    } else if (s.prompt.kind === 'carry') {
       pickUpCarryable(s, s.prompt.data);
     } else if (s.prompt.kind === 'yarn-pick') {
       pickUpYarn(s);
@@ -1749,6 +1815,13 @@ export function createInteractions({
         // she turns to the shelf to bat at the tins
         const tin = s.areaData?.anchors?.tinCans?.[1];
         if (tin) s.cat.rotation.y = Math.atan2(-(tin.x - s.cat.position.x), -(tin.z - s.cat.position.z));
+      }
+    } else if (s.prompt.kind === 'market') {
+      // A treat grabbed (anything in her mouth set down first), or, seen, a
+      // shoo. What it pays and says comes with the events (game/marketplay.js);
+      // a grab goes out as the existing carry-pick, nothing new (M7).
+      if (s.market.act(s.prompt.data, s, { dropHeld: () => putDownCarried(s, { kick: false }) }) && s.net) {
+        s.net.sendEvent({ v: 1, id: s.playerId, type: 'carry-pick', itemId: treatItemId(s.prompt.data.stall) });
       }
     } else if (s.prompt.kind === 'quest-accept') {
       s.quest.accept();
@@ -1953,6 +2026,12 @@ export function createInteractions({
       askCrossing(s, s.prompt.data);
     } else if (s.prompt.kind === 'border-info') {
       // Says which way; nothing to do.
+    } else if (s.prompt.kind === 'gate') {
+      askGate(s, s.prompt.data);
+    } else if (s.prompt.kind === 'gate-buy') {
+      askGateBuy(s, s.prompt.data);
+    } else if (s.prompt.kind === 'gate-info') {
+      // A gate's sign; nothing to do.
     } else if (s.prompt.kind === 'rest') {
       // v21 3b Task 15 — for nothing but the fun of it: no award, no feat, no
       // goal, no discovery, nothing saved, nothing on the wire (ruling P1).
@@ -1966,6 +2045,7 @@ export function createInteractions({
       if (rest.kind === 'nap') { audio.purr?.(NAP_PURR_LEN); bus.emit('purr', { seconds: NAP_PURR_LEN }); }
     } else if (s.prompt.kind === 'scratch') {
       s.prompt.data.scratched = true;
+      s.critters.scratchHello?.(s.prompt.data); // they kneel for it (lifelike people)
       log.award('pet', 'pet', 'blissful head scratches');
       audio.purr(2.5);
       bus.emit('purr', { seconds: 2.5 }); // the haptic purr, as long as the sound

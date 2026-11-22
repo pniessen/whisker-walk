@@ -83,14 +83,17 @@ describe('the Rooftops’ evening in the walk', () => {
   });
 });
 
-// ---- Task 9: into the game, behind ?roofs=1 --------------------------------
+// ---- Task 9: into the game; Rooftops step 4 opens it (ruling T1), and ------
+// ?roofs=1 stays as a developer shortcut only (ruling T3)
 
-describe('the Rooftops behind ?roofs=1', () => {
-  it('the catalog does not have the Rooftops until step 4', () => {
-    // Ruling R1: no CATALOG.areas.roofs row. Every card, home line, Get it?,
-    // gift and room reads CATALOG.areas, so a missing row is how nothing can
-    // offer the place before two-player height (step 4 copies the row in).
-    expect(Object.hasOwn(CATALOG.areas, 'roofs')).toBe(false);
+describe('the Rooftops in the game, and ?roofs=1 a developer shortcut', () => {
+  it('the catalog has the Rooftops, after the Fairground', () => {
+    // Rooftops step 4, ruling T1: two-player height is on main, so the row
+    // R1 held back is in. Every card, home line, Get it?, gift and room reads
+    // CATALOG.areas, so the row is what opens the place to all of them.
+    expect(CATALOG.areas.roofs).toEqual({ name: 'The Rooftops', price: 100, requires: { area: 'fair', walks: 2 } });
+    const ids = Object.keys(CATALOG.areas);
+    expect(ids[ids.indexOf('fair') + 1]).toBe('roofs');
   });
 
   // Explore with the flag on starts a solo Rooftops walk, never in a room:
@@ -106,7 +109,7 @@ describe('the Rooftops behind ?roofs=1', () => {
     } finally { setRoofs(null); }
   });
 
-  it('a Rooftops walk note is dropped without the flag', () => {
+  it('a Rooftops walk note resumes, with the flag or without', () => {
     const now = Date.UTC(2026, 10, 20, 12);
     const note = { v: 1, at: now - 60_000, tries: 0, areaId: 'roofs', seed: 7, stamp: 'walk-1', x: 4, z: 41, yaw: 0, startPoints: 0 };
     // the real game's ids: a fresh save's walks, through the helper main.js
@@ -120,8 +123,10 @@ describe('the Rooftops behind ?roofs=1', () => {
         return { got: readResume(storage, { now, areaIds: resumableAreaIds(walks) }), left: storage.getItem(RESUME_KEY) };
       } finally { setRoofs(null); }
     };
-    expect(read(false)).toEqual({ got: null, left: null });          // dropped, and the note cleared
-    expect(read(true).got?.kind).toBe('resume');                      // the flag on: picked up
+    // the switch gates nothing now (T3): every walk id resumes
+    expect(resumableAreaIds(walks)).toEqual(Object.keys(walks));
+    expect(read(false).got?.kind).toBe('resume');                     // the flag off: picked up
+    expect(read(true).got?.kind).toBe('resume');                      // the flag on: the same
     // every other place's note is kept either way
     const park = memStorage();
     park.setItem(RESUME_KEY, JSON.stringify({ ...note, areaId: 'park' }));
@@ -138,10 +143,9 @@ describe('the Rooftops behind ?roofs=1', () => {
     expect(p.state.walks.roofs).toBe(0);
     p.completeWalk('roofs');
     expect(p.state.walks.roofs).toBe(1);
-    expect(Object.hasOwn(CATALOG.areas, 'roofs')).toBe(false); // R1 still holds
   });
 
-  describe('a room never walks the Rooftops', () => {
+  describe('a room walks the Rooftops like any place', () => {
     afterEach(() => { vi.useRealTimers(); });
 
     // Two players in a code room on net.js's in-memory hub (as
@@ -161,7 +165,7 @@ describe('the Rooftops behind ?roofs=1', () => {
       return { rooms, walks };
     }
 
-    it('a proposal that names the Rooftops starts no walk; one that names the Park does', async () => {
+    it('a proposal that names the Rooftops starts the walk on both, as one naming the Park does', async () => {
       vi.useFakeTimers();
       const hub = createFakeHub();
       const a = memberIn(hub, 'aaaa-host-0001');
@@ -172,18 +176,30 @@ describe('the Rooftops behind ?roofs=1', () => {
       await proposer.join('ABCD', { playerId: '0000-first-01', petName: 'Pip' });
       proposer.sendEvent({ v: 1, id: '0000-first-01', type: 'walk-config', area: 'roofs', dusk: false, seed: 5 });
       vi.advanceTimersByTime(MEMBER_GATHER_MS * 3);
-      expect([a.walks, b.walks]).toEqual([[], []]);
+      for (const m of [a, b]) expect(m.walks).toEqual([{ duskMode: false, roomSeed: 5, areaOverride: 'roofs' }]);
+    });
+
+    it('...and the same proposal naming the Park starts the same walk there', async () => {
+      vi.useFakeTimers();
+      const hub = createFakeHub();
+      const a = memberIn(hub, 'aaaa-host-0001');
+      const b = memberIn(hub, 'bbbb-kid-00002');
+      await a.rooms.join('ABCD');
+      await b.rooms.join('ABCD');
+      const proposer = createNet(hub.transport());
+      await proposer.join('ABCD', { playerId: '0000-first-01', petName: 'Pip' });
       proposer.sendEvent({ v: 1, id: '0000-first-01', type: 'walk-config', area: 'park', dusk: false, seed: 5 });
       vi.advanceTimersByTime(MEMBER_GATHER_MS * 3);
       for (const m of [a, b]) expect(m.walks).toEqual([{ duskMode: false, roomSeed: 5, areaOverride: 'park' }]);
     });
   });
 
-  it('the lobby\'s rule: a walk config or request naming the Rooftops is ignored', () => {
+  it('the lobby\'s rule: a walk config or request naming the Rooftops is honoured as for the Park', () => {
     const ctx = { roster: [{ playerId: 'host' }, { playerId: 'kid' }], selfId: 'host', inWalk: false, knownAreas: Object.keys(CATALOG.areas), unlockedAreas: [] };
-    expect(decideLobbyEvent({ type: 'walk-config', id: 'kid', area: 'roofs', seed: 1 }, ctx)).toBeNull();
-    expect(decideLobbyEvent({ type: 'walk-request', id: 'kid', area: 'roofs' }, ctx)).toBeNull();
-    expect(decideLobbyEvent({ type: 'walk-config', id: 'kid', area: 'park', seed: 1 }, ctx)).not.toBeNull();
+    for (const area of ['roofs', 'park']) {
+      expect(decideLobbyEvent({ type: 'walk-config', id: 'kid', area, seed: 1 }, ctx), area).toEqual({ kind: 'propose', from: 'kid', area, dusk: false, seed: 1, override: true });
+      expect(decideLobbyEvent({ type: 'walk-request', id: 'kid', area }, ctx), area).toEqual({ kind: 'config', area, dusk: false });
+    }
   });
 
   it('no strays, no wanderer on the Rooftops', () => {
@@ -198,10 +214,10 @@ describe('the Rooftops behind ?roofs=1', () => {
 // =============================================================================
 // Task 11: the unlock, written and tested on a copy of the catalog, not live.
 // =============================================================================
-describe('the Rooftops unlock (held back from the real catalog, R1)', async () => {
+describe('the Rooftops unlock (in the real catalog since step 4)', async () => {
   const { areaOffer, KEPT_OFFERS } = await import('../src/areaoffer.js');
   const { nextThing } = await import('../src/ui/nextthing.js');
-  const { placeState } = await import('../src/territories.js');
+  const { placeState, opensAfterLine } = await import('../src/territories.js');
   const { withRoofs } = await import('./helpers/withroofs.js');
   const fresh = () => createProgression(memStorage()).state;
   const atFair = (fairWalks, extra = {}) => {
@@ -222,7 +238,13 @@ describe('the Rooftops unlock (held back from the real catalog, R1)', async () =
     const ids = Object.keys(withRoofs(CATALOG).areas);
     expect(ids[ids.indexOf('fair') + 1]).toBe('roofs');
     expect(JSON.stringify(CATALOG.areas)).toBe(frozen);
-    expect(Object.hasOwn(CATALOG.areas, 'roofs')).toBe(false);
+    // the real catalog has the row already: an equal copy, in the same order
+    expect(withRoofs(CATALOG).areas).toEqual(CATALOG.areas);
+    expect(ids).toEqual(Object.keys(CATALOG.areas));
+    // a catalog without it gets it after the Fairground
+    const { roofs: _, ...rest } = CATALOG.areas;
+    const added = Object.keys(withRoofs({ ...CATALOG, areas: rest }).areas);
+    expect(added[added.indexOf('fair') + 1]).toBe('roofs');
   });
 
   it('the Fairground’s home line names it', () => {
@@ -244,12 +266,26 @@ describe('the Rooftops unlock (held back from the real catalog, R1)', async () =
     expect(bought).toMatchObject({ owned: true, locked: false, canOpen: false });
   });
 
-  it('nothing in the real catalog offers it', () => {
-    for (const walks of [0, 1, 2, 5]) {
-      const line = nextThing({ ...atFair(walks), points: 9999 }, { catalog: CATALOG });
-      expect(JSON.stringify(line)).not.toMatch(/Rooftops|roofs/);
-    }
-    expect(placeState(atFair(2), CATALOG, 'roofs').line).toBe('coming soon');
+  it('the real catalog offers it as the world map orders it', () => {
+    const locked = placeState(atFair(1), CATALOG, 'roofs');
+    expect(locked).toMatchObject({ locked: true, canOpen: false, owned: false, price: 100 });
+    expect(locked.line).toBe(opensAfterLine({ area: 'fair', walks: 2 }, 1, 'legacy', CATALOG));
+    expect(placeState({ ...atFair(2), points: 100 }, CATALOG, 'roofs')).toMatchObject({ locked: false, canOpen: true, owned: false, price: 100 });
+    expect(nextThing(atFair(1), { catalog: CATALOG })).toMatchObject({ rule: 7, id: 'home.opens', text: 'Explore here again to open the Rooftops!' });
+  });
+
+  // Review Focus 1: a save that walked the Rooftops through ?roofs=1 before
+  // step 4 (walks.roofs 2, not owned, no points).
+  it('a save that walked the Rooftops with the switch keeps nothing it did not buy', () => {
+    const s = fresh();
+    const old = { ...s, walks: { ...s.walks, roofs: 2, fair: 0 } };
+    const st = placeState(old, CATALOG, 'roofs');
+    expect(st).toMatchObject({ owned: false, locked: true, canOpen: false, price: 100 });
+    expect(st.line).toBe(opensAfterLine({ area: 'fair', walks: 2 }, 0, old.edition, CATALOG));
+    expect(st.line).toContain('0/2');
+    // its card offers it for 100 once she has 2 Fairground walks (and the points)
+    const later = { ...old, walks: { ...old.walks, fair: 2 }, points: 100 };
+    expect(placeState(later, CATALOG, 'roofs')).toMatchObject({ owned: false, locked: false, canOpen: true, line: 'Open for 100 🐾' });
   });
 });
 

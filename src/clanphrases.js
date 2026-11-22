@@ -142,6 +142,22 @@ const TABLE = Object.freeze({
   'landmark.river.warmPebble': 'a sun-warmed pebble on the low rock',
   'landmark.island.ring': 'the meeting ring under the old ash',
   'landmark.island.stoneFind': 'a bright beetle wing on a meeting stone',
+
+  // ---- her birthday (2026-11-21): the Gathering on the island ----------------
+  // the home screen's line above Explore while the event is on
+  'bday.home': () => `The ${groupWord()}s are gathering for your birthday! 🎂`,
+  // the leader on the rock; `name` is the name of the cat she is playing as
+  'bday.announce': (name) => `Cats of all the ${groupWord()}s, gather! Today is ${name}'s birthday!`,
+  // the cats' short cheers
+  'bday.cheer.one': 'Happy birthday!',
+  'bday.cheer.two': 'Hooray! 🎉',
+  'bday.cheer.three': 'Happy birthday! 🎂',
+  // the action prompt beside the cake, and the toast once the candles are out
+  'bday.prompt': 'E — Blow out the candles 🎂',
+  'bday.wish': 'Make a wish! 🎂',
+  // the photo the game takes for her Album after the candles, and its toast
+  'bday.photo': 'My birthday 2026',
+  'bday.photoSaved': '📸 Saved to your Album!',
 });
 
 // ---- lines added on 2026-11-18, for a set that says them differently ---------
@@ -158,6 +174,17 @@ const LATER = Object.freeze({
   'pick.badge': (badgeWord) => `badge: ${badgeWord}`,
   // the small line under the Neighborhood's name for her first visits
   'place.townNote': 'the town',
+
+  // ---- world map step 3 (2026-11-21): what a gate says, the same in every set ----
+  'gate.shut': (walks, place, toGo) => `Opens after ${walks} ${walks === 1 ? 'walk' : 'walks'} in ${place}. ${toGo} to go!`,
+  'gate.short': (need) => `You need ${need} more 🐾. Keep exploring!`,
+  'gate.buyPrompt': (name, price) => `E — Open ${name} for ${price} 🐾?`,
+  'gate.keep': 'You keep everything you found.',
+  'gate.off': (place) => `Off to ${place}!`,
+  // a room guest's prompt at a gate her host may open (she reads, never chooses)
+  'gate.thisWay': (name) => `${name} is this way 🧭`,
+  // a room's host whose friend's game could not get the place ready (Task 9)
+  'gate.friendNotReady': (name) => `${name}'s game isn't ready for that place yet. Try again in a moment! 🐾`,
 
   // ---- Appletree Farm (2026-11-18): its own words, the same in every set -----
   // The animals' one-time lines (they were spelled in game/walk.js).
@@ -397,6 +424,22 @@ const LATER = Object.freeze({
   'wear.haybalepack.name': 'Hay-bale Backpack',
   'wear.candyflosspuff.name': 'Candyfloss Puff',
   'wear.puddlewellies.name': 'Puddle Wellies',
+  // ---- the birthday (2026-11-21): the gift outfits and the home party ----
+  // The four outfits only a gift code gives (src/foundwear/gifts.js).
+  'wear.partyhat.name': 'Party Hat',
+  'wear.bdayrosette.name': 'Birthday Rosette',
+  'wear.bdayballoon.name': 'Birthday Balloon',
+  'wear.cakecharm.name': 'Cake Charm',
+  'wear.birthdayhat.name': 'Birthday Hat',
+  // the birthday kitten the present holds: "Ribbon" and the kit word of the set in use
+  'cat.ribbonkit.name': () => `Ribbon${words().RANK_SUFFIX.kit}`,
+  // the line when the present is opened
+  'present.label': 'A present for you! Tap to open it',
+  'present.opened': (name) => `${name} is yours! 🎀`,
+  // the home screen's banner while the birthday is on; the name is her cat's
+  'party.banner': (catName) => `Happy birthday, ${catName}! 🎂`,
+  // the line with the brother's code's confetti
+  'party.time': 'Party time! 🎉',
   'wear.card.title': 'You found something to wear! ✨',
   'wear.card.kept': 'It’s in the dress-up at home now, for good.',
   'wear.card.wear': 'Wear it',
@@ -441,6 +484,94 @@ const LATER = Object.freeze({
   'start.notReady': 'That place isn’t quite ready yet. Try again in a moment! 🐾',
   'start.notReadyOffline': 'That place needs the internet the first time. Try again when you’re online! 🐾',
   'start.notReadyReload': 'Still not ready. Tap Explore once more and the game starts fresh. Everything you found is saved. 🐾',
+  // ---- Rooftops step 4 (2026-11-21) ----
+  'critter.pigeon': 'a cooing pigeon',
+  // the name painted on a gate's board (world/gateway.js, an end with `sign`):
+  // the place's shown name without a leading "The ", so 'The Rooftops' -> 'Rooftops'
+  'gate.sign': (place) => String(place ?? '').replace(/^the\s+/i, ''),
+  // ---- the Old House step 2 (2026-11-21): its special places and where the yarn ball lies ----
+  'house.scenic.clock': 'the grandfather clock',
+  'house.scenic.fireside': 'the fireside',
+  'house.scenic.attic-window': 'the round attic window',
+  'house.yarn.hall': 'on the hall runner',
+  'house.yarn.kitchen': 'by the kitchen table',
+  // ---- the Old House step 2 (2026-11-21): its six discoveries, each paid once a walk ----
+  'house.find.clock': (n) => `The old clock bongs ${n} ${n === 1 ? 'time' : 'times'}! 🕰️`,
+  'house.find.piano': 'You played a tune on the old piano! 🎵',
+  'house.find.window': 'What a view over the rooftops from the round window!',
+  'house.find.bookcase': 'The bookcase swings open… a secret stair! 🗝️',
+  'house.find.cushion': 'A cat-shaped dent in the cushion… someone else naps here too 💤',
+  'house.find.toys': 'A box of old toys! A wooden mouse rolls out 🧸',
+  // ---- Rooftops step 5 (2026-11-21) ----
+  'roofs.page.garden.name': 'Rooftop Garden',
+  'roofs.page.garden.hint': 'High up, someone grows tomatoes.',
+  'roofs.page.loft.name': 'Pigeon Loft',
+  'roofs.page.loft.hint': 'Where do the pigeons go home at night?',
+  'roofs.page.vane.name': 'Top of the Clock Tower',
+  'roofs.page.vane.hint': 'Climb as high as a cat can go.',
+  'roofs.page.skylight.name': 'The Attic Window',
+  'roofs.page.skylight.hint': 'One roof has a warm, glowing window in it.',
+  'roofs.page.telescope.name': 'The Telescope',
+  'roofs.page.telescope.hint': 'Someone looks at the sky from a roof.',
+  'roofs.page.chimney.name': 'Warm Chimney',
+  'roofs.page.chimney.hint': 'Find a warm spot up high and sit a while.',
+  'roofs.find.garden': 'A garden on the roof! Tomatoes and twinkly lights. 🍅',
+  'roofs.find.loft': 'The pigeon loft! Coo, coo. One pigeon wants to come with you. 🕊️',
+  'roofs.find.vane': 'The very top! You can see the whole town. 🌇',
+  'roofs.find.skylight': 'A peek in the attic window. Someone is reading a bedtime story. 📖',
+  'roofs.find.telescope': 'You look through the telescope. Hello, moon! 🌕',
+  'roofs.find.chimney': 'A warm chimney! Puff, a smoke ring. What a cosy spot. 💨',
+
+  // ---- the Market Square (2026-11-20): its own words, the same in every set ----
+  'market.treat.fishhead': 'a fish head',
+  'market.treat.sausageroll': 'a sausage roll',
+  'market.treat.cheddar': 'a nibble of cheddar',
+  'market.treat.cream': 'a saucer of cream',
+  'market.treat.crumbs': 'some crumbs',
+  'market.grab.fishhead': 'E — grab the fish head',
+  'market.grab.sausageroll': 'E — grab the sausage roll',
+  'market.grab.cheddar': 'E — grab the cheddar',
+  'market.grab.cream': 'E — lap up the cream',
+  'market.grab.crumbs': 'E — grab the crumbs',
+  'market.eat.first': (treat) => `Yum! You grabbed ${treat}! 😋`,
+  'market.eat.again': (treat) => `Yum, ${treat} again! 😋`,
+  'market.shoo': 'Oi, you rascal! 🧹',
+  'market.laugh': 'Ha! You cheeky thing! 😄',
+  'market.coo': 'Aww, look at you! 💕',
+  'market.team.eater': (partner) => `Teamwork! ${partner} kept them busy 🐾`,
+  'market.team.distracter': (partner) => `Teamwork! You kept them busy while ${partner} grabbed a treat 🐾`,
+  'market.summary.treats': 'treats',
+
+  // ---- the Market Square, steps 3 and 4 (2026-11-21) ----
+  'market.page.fountain.name': 'The Market Fountain',
+  'market.page.fountain.hint': 'Where can a thirsty cat get a drink in the square?',
+  'market.page.pigeons.name': 'Pigeon Scatter',
+  'market.page.pigeons.hint': 'Some birds in the square peck at crumbs.',
+  'market.page.sacks.name': 'Warm Flour Sacks',
+  'market.page.sacks.hint': "The baker's sacks look soft and warm.",
+  'market.page.musician.name': 'The Street Musician',
+  'market.page.musician.hint': 'Somebody in the square plays a happy tune.',
+  'market.page.basket.name': 'Bicycle Basket',
+  'market.page.basket.hint': 'A bicycle is parked by the shops. Is there room for a cat?',
+  'market.page.apples.name': 'Rolling Apples',
+  'market.page.apples.hint': 'What happens if a cat paws the apple crate?',
+  'market.find.fountain': 'A cool drink from the fountain. Splish! 💧',
+  'market.find.pigeons': 'Whoosh! The pigeons flap off in a flurry. 🕊️',
+  'market.find.sacks': 'A nap on warm flour sacks. Soft and toasty. 😴',
+  'market.find.musician': (people) => `Music! One of the ${people} plays a fiddle just for you. 🎻`,
+  'market.find.basket': 'A bicycle basket! It rocks, and the bell goes ding ding! 🚲',
+  'market.find.apples': 'Oops! Apples everywhere, rolling over the cobbles. 🍎',
+  // the four treat stalls' awnings, lookouts she perches on (world/marketplan.js)
+  'market.perch.fish': 'the fish stall’s awning',
+  'market.perch.baker': 'the baker’s awning',
+  'market.perch.cheese': 'the cheese stall’s awning',
+  'market.perch.milk': 'the milk cart’s awning',
+  // the four found outfits hidden in the square (src/foundwear/): placeholder
+  // names the owner and his daughter will rename, the same in every set
+  'wear.tradercap.name': 'Market Trader’s Cap',
+  'wear.stringbagscarf.name': 'Shopping-Bag Scarf',
+  'wear.applecharm.name': 'Apple Charm',
+  'wear.flowerbasket.name': 'Flower Basket',
 });
 
 // Every id of the first table, in table order.

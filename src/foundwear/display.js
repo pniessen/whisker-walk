@@ -119,6 +119,8 @@ export function buildLyingHayBale(id = 'haybalepack') {
 export const DISPLAY_BY_ID = Object.freeze({
   fishermansjumper: buildFoldedJumper,
   haybalepack: buildLyingHayBale,
+  // the Market's Flower Basket is the bale's shape: it lies the same way, without its straps
+  flowerbasket: buildLyingHayBale,
   // the two clips lie face up, as dropped (a hat stands on its brim)
   starfishclip: lyingClip,
   featherplume: lyingClip,

@@ -5,6 +5,18 @@
    "touch": "Push the circle to walk. Drag to look around.",
    "keys": "Push the circle to walk. Drag to look around."
   },
+  "hint.roofs": {
+   "touch": "Follow the white pigeon up onto the roofs!",
+   "keys": "Follow the white pigeon up onto the roofs!"
+  },
+  "hint.market": {
+   "touch": "Wait till they turn around…",
+   "keys": "Wait till they turn around…"
+  },
+  "hint.house": {
+   "touch": "Explore every floor, from the attic to the cellar!",
+   "keys": "Explore every floor, from the attic to the cellar!"
+  },
   "hint.look": {
    "touch": "Drag here to look around.",
    "keys": "Move the mouse to look around."
@@ -305,6 +317,10 @@
    "touch": "Show tips",
    "keys": "Show tips"
   },
+  "pad.connected": {
+   "touch": "Controller connected 🎮",
+   "keys": "Controller connected 🎮"
+  },
   "settings.save-failed": {
    "touch": "This device could not save. Free up space, then play again.",
    "keys": "This device could not save. Free up space, then play again."
@@ -323,6 +339,18 @@
   "start.touch": {
    "touch": "Push the circle to walk. Drag to look around.",
    "keys": "Push the circle to walk. Drag to look around."
+  },
+  "hint.roofs": {
+   "touch": "Follow the white pigeon up onto the roofs!",
+   "keys": "Follow the white pigeon up onto the roofs!"
+  },
+  "hint.market": {
+   "touch": "Wait till they turn around…",
+   "keys": "Wait till they turn around…"
+  },
+  "hint.house": {
+   "touch": "Explore every floor, from the attic to the cellar!",
+   "keys": "Explore every floor, from the attic to the cellar!"
   },
   "hint.look": {
    "touch": "Drag here to look around.",
@@ -624,6 +652,10 @@
    "touch": "Show tips",
    "keys": "Show tips"
   },
+  "pad.connected": {
+   "touch": "Controller connected 🎮",
+   "keys": "Controller connected 🎮"
+  },
   "settings.save-failed": {
    "touch": "This device could not save. Free up space, then play again.",
    "keys": "This device could not save. Free up space, then play again."
@@ -651,12 +683,15 @@
     "gorge": "rule 6: The way to your home starts in the Woods."
    },
    "opensNext": {
-    "park": "rule 7: Explore here again to open City Park!",
+    "park": "rule 7: Explore here again to open City Park and the Market Square!",
     "farm": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "fair": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
+    "roofs": "rule 7: Explore here again to open the Rooftops!",
+    "market": "rule 7: Explore here again to open City Park and the Market Square!",
+    "house": "rule 7: Explore here again to open the Old House!",
     "seaside": "rule 7: Explore here again to open Seaside!",
     "docks": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
-    "woods": "rule 7: Explore here again to open City Park!",
+    "woods": "rule 7: Explore here again to open City Park and the Market Square!",
     "river": "rule 7: Explore here again to open the River and Marshes!",
     "moor": "rule 7: Explore here again to open the River and Marshes!",
     "pines": "rule 7: Explore here again to open the Pines and Swamp!",
@@ -693,6 +728,9 @@
     "park": "rule 7: Explore here again to open City Park!",
     "farm": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "fair": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
+    "roofs": "rule 7: Explore here again to open the Rooftops!",
+    "market": "rule 7: Explore here again to open City Park!",
+    "house": "rule 12: 150 🐾 more to become a Yard Prowler.",
     "seaside": "rule 7: Explore here again to open Seaside!",
     "docks": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "woods": "rule 7: Explore here again to open City Park!",

@@ -18,7 +18,7 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
   },
 }));
 
-const { confirmCardHtml, createConfirmCard, spendAsk } = await import('../src/ui/confirmcard.js');
+const { confirmCardHtml, createConfirmCard, spendAsk, deliberateTap } = await import('../src/ui/confirmcard.js');
 const { CONFIRM_DELAY_MS } = await import('../src/ui/colonypanel.js');
 const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression, BACKUP_KEYS } = await import('../src/progression.js');
@@ -301,5 +301,58 @@ describe('the home base uses it', () => {
     const btn = { getAttribute: () => '__proto__' };
     await click({ closest: (sel) => (sel === '[data-backup-restore]' ? btn : null) });
     expect(card()).toBeUndefined();
+  });
+});
+
+describe('deliberateTap: the one rule for a "Get it?" Yes', () => {
+  it('a single click or an Enter, once the card has been up long enough', () => {
+    expect(deliberateTap({ detail: 1, shownAt: 1000, now: 1000 + CONFIRM_DELAY_MS })).toBe(true);
+    expect(deliberateTap({ detail: 0, shownAt: 1000, now: 1000 + CONFIRM_DELAY_MS })).toBe(true);
+  });
+  it('never too soon, never the tail of a double-tap', () => {
+    expect(deliberateTap({ detail: 1, shownAt: 1000, now: 1000 + CONFIRM_DELAY_MS - 1 })).toBe(false);
+    expect(deliberateTap({ detail: 2, shownAt: 1000, now: 9000 })).toBe(false);
+  });
+  it('fails closed on a missing or odd time', () => {
+    expect(deliberateTap()).toBe(false);
+    expect(deliberateTap({ detail: 1, shownAt: NaN, now: 9000 })).toBe(false);
+    expect(deliberateTap({ detail: 1, shownAt: 1000, now: undefined })).toBe(false);
+  });
+});
+
+describe('pad layers: the confirm card', () => {
+  it('carries data-pad-layer while open', () => {
+    const c = createConfirmCard({ mount: (el) => doc.body.appendChild(el), blocked: () => false, onClosed() {} });
+    c.ask({ text: 'Sure?', yes: 'Yes', onYes() {} });
+    expect(card().attrs['data-pad-layer']).toBe('');
+  });
+});
+
+describe('confirm wait (a pad A inside the delay)', () => {
+  it('an early synthetic Yes shows the wait class and does not confirm; the next one after the delay confirms once', () => {
+    const onYes = vi.fn();
+    const c = createConfirmCard({ mount: (el) => doc.body.appendChild(el) });
+    c.ask({ text: 'Sure?', yes: 'Yes', onYes });
+    answer(card(), 'yes', 0);
+    expect(card().classes.has('confirm-wait')).toBe(true);
+    expect(onYes).not.toHaveBeenCalled();
+    expect(c.isOpen()).toBe(true);
+    vi.advanceTimersByTime(CONFIRM_DELAY_MS);
+    expect(card().classes.has('confirm-wait')).toBe(false);
+    const el = card();
+    answer(el, 'yes', 0);
+    answer(el, 'yes', 0); // a rapid second A: the card is gone, nothing fires again
+    expect(onYes).toHaveBeenCalledTimes(1);
+  });
+  it('rapid double A inside the delay confirms nothing; a double-tap tail gets no cue', () => {
+    const onYes = vi.fn();
+    const c = createConfirmCard({ mount: (el) => doc.body.appendChild(el) });
+    c.ask({ text: 'Sure?', yes: 'Yes', onYes });
+    answer(card(), 'yes', 0); answer(card(), 'yes', 0);
+    expect(onYes).not.toHaveBeenCalled();
+    c.close();
+    c.ask({ text: 'Sure?', yes: 'Yes', onYes });
+    answer(card(), 'yes', 2);
+    expect(card().classes.has('confirm-wait')).toBe(false);
   });
 });

@@ -2,14 +2,16 @@
 // JOURNAL_TYPES ids tracked in progression.js's state.journal.
 import { phrase } from './clanphrases.js';
 import { PAGE_WORDS } from './farmwords.js';
+import { ROOFS_PAGE_WORDS } from './roofspages.js';
+import { MARKET_PAGE_WORDS } from './marketpages.js';
 import { RIDE_PAGE_WORDS, FAIR_PAGE_WORDS } from './fairwords.js';
 
 // All content here is a fixed, static catalog (ids/emoji/names/hints are
 // never user- or network-supplied), so none of it needs HTML-escaping.
-// The neighbour as a dressed Twoleg (matches the in-game villager: trouser
-// legs, shoes, a coat flaring at the hips, a scarf, a round head, a bobble
-// hat, one arm waving). Static, no ids/text/links; the silhouette filter
-// darkens it like an emoji.
+// The neighbour as a dressed Twoleg, drawn after the box-and-ball villager
+// the game had before the lifelike people (trouser legs, shoes, a coat
+// flaring at the hips, a scarf, a round head, a bobble hat, one arm waving).
+// Static, no ids/text/links; the silhouette filter darkens it like an emoji.
 const TWOLEG_ART = '<svg viewBox="0 0 24 32" width="0.9em" height="1.2em" aria-hidden="true">'
   + '<rect x="7.5" y="24" width="3.6" height="6" fill="#4a5468"/>'
   + '<rect x="12.9" y="24" width="3.6" height="6" fill="#4a5468"/>'
@@ -67,6 +69,12 @@ export const CRITTER_INFO = [
   ...[['gamecans', '🥫'], ['gameducks', '🦆'], ['gamebell', '🔔'],
     ['fairfortune', '🔮'], ['fairmusicbox', '🎶'], ['faircandyfloss', '🍭'], ['fairjuggler', '🤹'], ['fairballoon', '🎈'], ['fairlookout', '🔭']]
     .map(([id, emoji]) => ({ id, emoji, get name() { return FAIR_PAGE_WORDS[id].name(); }, get hint() { return FAIR_PAGE_WORDS[id].hint(); } })),
+  // The Rooftops' six finds (src/roofspages.js): the walks each was found on.
+  ...[['roofgarden', '🍅'], ['roofloft', '🕊️'], ['roofvane', '🧭'], ['roofskylight', '📖'], ['rooftelescope', '🌕'], ['roofchimney', '💨']]
+    .map(([id, emoji]) => ({ id, emoji, get name() { return ROOFS_PAGE_WORDS[id].name(); }, get hint() { return ROOFS_PAGE_WORDS[id].hint(); } })),
+  // The Market Square's six finds (src/marketpages.js): the walks each was found on.
+  ...[['marketfountain', '💧'], ['marketpigeons', '🕊️'], ['marketsacks', '🌾'], ['marketmusician', '🎻'], ['marketbasket', '🚲'], ['marketapples', '🍎']]
+    .map(([id, emoji]) => ({ id, emoji, get name() { return MARKET_PAGE_WORDS[id].name(); }, get hint() { return MARKET_PAGE_WORDS[id].hint(); } })),
 ];
 
 // renderJournalHtml(journal, goldenFound, goldenTotal) → HTML string.

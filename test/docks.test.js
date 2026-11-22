@@ -279,9 +279,9 @@ describe('The Old Docks — perch chains', () => {
 });
 
 describe('The Old Docks — golden mice', () => {
-  it('adds three, keeping the three-per-area shape (the total is 36 since the Fairground)', () => {
+  it('adds three, keeping the three-per-area shape (the total is 45 since the Old House)', () => {
     expect(GOLD_MICE.docks).toHaveLength(3);
-    expect(GOLD_TOTAL).toBe(36); // 30 until Appletree Farm added its three, 33 until the Fairground added its
+    expect(GOLD_TOTAL).toBe(45); // 42 until the Old House added its three, 39 until the Market added its three, 36 until the Rooftops added its three, 30 until Appletree Farm added its three, 33 until the Fairground added its
   });
 
   it('sits two on real shipped perch coordinates and hides one at ground level', () => {
@@ -382,8 +382,8 @@ describe('The Old Docks — catalog, unlock gating and walk counting', () => {
 describe('The Old Docks — the eleventh journal critter', () => {
   it('adds rat to the journal vocabulary and the catalog together', () => {
     expect(JOURNAL_TYPES).toContain('rat');
-    expect(JOURNAL_TYPES).toHaveLength(44); // 14, Appletree Farm's six animals, its four jobs and six finds, and the Fairground's five rides, three games and six finds
-    expect(CRITTER_INFO).toHaveLength(44);
+    expect(JOURNAL_TYPES).toHaveLength(56); // 14, Appletree Farm's six animals, its four jobs and six finds, the Fairground's five rides, three games and six finds, the Rooftops' six finds, and the Market Square's six finds
+    expect(CRITTER_INFO).toHaveLength(56);
     const rat = CRITTER_INFO.find((c) => c.id === 'rat');
     expect(rat).toBeTruthy();
     expect(rat.emoji).toBeTruthy();
@@ -566,7 +566,7 @@ describe('the surface wave is actually wired up', () => {
   });
 
   it('threads the tier and reducedMotion into the area builders', () => {
-    expect(walkSrc).toMatch(/build\(scene, \{ water: \{ quality: tier, reducedMotion \}, wind \}\)/);
+    expect(walkSrc).toMatch(/build\(scene, \{ water: \{ quality: tier, reducedMotion \}, wind, gateEnds \}\)/);
   });
 
   it('disposes both alongside the other per-walk systems', () => {

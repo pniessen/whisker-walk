@@ -40,6 +40,9 @@ const DELTA = {
   kitetailribbon: 0, haybalepack: 0, candyflosspuff: 0,
   // lane P: the wellies (Hagrid wears no feet item)
   puddlewellies: 0,
+  // the Market Square (2026-11-21): the trader's cap (the cat's own, carried onto his skull); the
+  // string-bag scarf's ring + cloth (the neckerchief's); ring + apple (the anchor's hang); no back item
+  tradercap: 1, stringbagscarf: 2, applecharm: 2, flowerbasket: 0,
 };
 
 const hen = (acc = BARE) => {
@@ -410,7 +413,7 @@ describe('Hagrid rebuilt (Task 8)', () => {
     // above his skull there is hat.
     const HEN_R = [0.13, 0.1365, 0.13];
     const henRho = (v) => Math.hypot(v.x / HEN_R[0], v.y / HEN_R[1], v.z / HEN_R[2]);
-    it.each(['acorncap', 'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater'])('the %s sits on his head with the comb inside it', (id) => {
+    it.each(['acorncap', 'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'tradercap'])('the %s sits on his head with the comb inside it', (id) => {
       const { pts: combPts } = comb();
       const c = hen({ ...BARE, head: id });
       const { head } = c.userData.parts;
@@ -511,7 +514,7 @@ describe('Hagrid rebuilt (Task 8)', () => {
     });
 
     it('the found neck pieces ring his neck', () => {
-      const NECKS = ['daisychain', 'gardenglovescarf', 'shellnecklace', 'neckerchief', 'ticketgarland'];
+      const NECKS = ['daisychain', 'gardenglovescarf', 'shellnecklace', 'neckerchief', 'ticketgarland', 'stringbagscarf'];
       const { P0, P1, P2 } = hen().userData.parts.head.children[0].geometry.userData.neck;
       const curve = new THREE.QuadraticBezierCurve3(...[P0, P1, P2].map((a) => new THREE.Vector3().fromArray(a)));
       const line = curve.getPoint(0.45); // HEN_SCARF_U (model.js), where the streamer scarf's band rings the neck

@@ -1,0 +1,831 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Market pictures</title>
+<style>
+  body { margin: 0; background: #1c2431; font: 12px Avenir, sans-serif; color: #f1e0c2; overflow: hidden; }
+  #hud { position: absolute; left: 0; top: 0; padding: 6px 10px; white-space: pre; }
+  /* the live square (?live=1): the walk's own toasts (the HUD's pill, in the
+     top corner so they never cover her cat or a stall's bubble in the film;
+     the walk puts them above the prompt) and its prompt where the HUD puts it (style.css .hud-prompt), the
+     partner's screen in a corner, and the film's narration under everything */
+  .live-ui { position: fixed; pointer-events: none; font-family: Avenir, system-ui, sans-serif; }
+  #toasts { right: 12px; top: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: min(440px, 60vw); }
+  .toast { background: rgba(20, 26, 38, .75); color: #fff; padding: 8px 18px; border-radius: 999px; font-size: 17px; text-align: center; }
+  #prompt { left: 50%; bottom: 96px; transform: translateX(-50%); background: rgba(242, 193, 78, .92); color: #3a2a10; font-weight: 700; font-size: 16px; padding: 10px 18px; border-radius: 10px; white-space: nowrap; }
+  #partner { left: 12px; top: 12px; max-width: min(300px, 46vw); display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+  #partner .who { font-size: 12px; color: #f2c14e; background: rgba(20, 26, 38, .7); padding: 3px 9px; border-radius: 6px; }
+  #partner .toast { font-size: 14px; padding: 6px 13px; border-radius: 14px; text-align: left; }
+  #caption { left: 0; right: 0; bottom: 18px; text-align: center; }
+  #caption span { display: inline-block; max-width: calc(100vw - 32px); padding: 6px 16px; border-radius: 8px; background: rgba(250, 240, 220, .9); color: #2b2118; font-size: 20px; font-weight: 600; }
+  .live-ui:empty { display: none; }
+</style>
+<div id="hud">loading…</div>
+<script type="module">
+  // The Market Square as a walk shows it, for looking at (Market step 1, Task
+  // 6: the owner's pictures and the worst spots; step 2, Task 14: the
+  // stallholders' life, the two tours' films, the stills). Not part of the
+  // game's build.
+  //
+  //   verify-market.html[?dusk=1][&bare][&cam=px,py,pz,lx,ly,lz]
+  //   verify-market.html?live=1[&drive=1][&tour=sneak|team][&debug]
+  //   verify-market.html?summary=3        the walk's summary card with a treats tally
+  //
+  // Builds the square with verify-places.html's rig in walk.js's order (sun,
+  // build, fill, contact shadows, prop merge, shadow fit, caster sweep),
+  // renders through the game's own bloom rig (high tier). By day the walk's
+  // clear weather; ?dusk=1 its dusk look (applyDusk, the image light dimmed,
+  // the cobbles tinted, the lamps' pools) and the square's own
+  // (setMarketDusk(area, 1): the lanterns and windows lit, the stalls packing up).
+  //
+  //   __shot(name)  frames MARKET_SHOTS[name] (scripts/record-page.mjs --shots)
+  //                 and answers the name; 'spawn' and 'phone' show her cat at
+  //                 the spawn, at the walk's 70 degrees; the rest at 55, no cat
+  //   __info()      renderer.info.render { calls, triangles } of one plain frame
+  //                 (the shadow pass and the main pass; the bloom's own passes
+  //                 are not counted), as verify-places.html's __info measures it
+  //
+  // ?live=1: the stallholders' life (src/marketlive.js createMarketLive) on the
+  // built square, as the walk makes it (after the build, the caster sweep and
+  // the merge; their contact shadows following them), on a clock that the
+  // page's fixed 1/30 s step drives from a fixed start (a tour's own `clock`,
+  // else 36000 s, ten in the morning) and seed (a tour's, else 7). Her cat
+  // (buildCat, posed with animateCat as game/avatar.js picks the pose: land,
+  // sniff while munching, stalk while creeping) walks the way
+  // test/helpers/marketrig.js walks its stand-in (speed * dt along her way, a
+  // step into anything solid not taken: player.js isWalkableAt), and the walk's
+  // chase camera (catcam.js cameraOffset at the default zoom step, DEFAULT_PITCH)
+  // follows her. The events go through the walk's own handleMarketEvent
+  // (game/marketplay.js) with a real discovery log, so the toasts are the
+  // game's lines; her prompt (live.actionFor) shows as the HUD's does.
+  // A tour with a partner (MARKET_TOURS.team) has her cat as a second cat on
+  // session.remotes.list, and the partner's own device run beside it (its own
+  // life, seed and clock, unseen, in a scene of its own): each cat walks the
+  // same on both, as the wire shows it, her grab reaches the partner's device
+  // as the existing carry-pick does (remotePick), and what that device says
+  // shows in the corner as "<name>'s screen".
+  //   __tour(name)  starts MARKET_TOURS[name] (driven by world/marketpilot.js's
+  //                 createMarketPilot, the pilot test/marketlive.test.js drives
+  //                 headless) and answers its name
+  //   __frame()     → { done, caption }: one fixed step (the pilot first) and a
+  //                 render; caption is the narration, then each toast up (' | ')
+  //   __shot(name), live, as well as the views above:
+  //     <stall>-<phase>[-<pct>]   that stall's counter view, its stallholder in that
+  //                 phase (serve, busy, turn, away, back), pct% of the way through (50)
+  //     phone-<stall>-<phase>     her cat 3.6 m out in front of that counter, facing
+  //                 it, the walk's camera behind her (load the page at 390 x 844)
+  //     tour-<name>-<frame>       that tour run from its start to that frame
+  //     lookup-<stall>[-near]     her cat standing still in front of that counter
+  //                 until the stallholder coos at her, a second into the coo:
+  //                 she looks up at the face (Task 7, cat/headaim.js); seen
+  //                 from beside her (both of them in view), or -near, her face
+  //   __events()    her device's events so far; __treats() her tally
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier, setTextureAnisotropy } from '/src/render/textures.js';
+  import { createWind } from '/src/render/wind.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { createContactShadows } from '/src/render/contactshadows.js';
+  import { mergeStaticProps } from '/src/render/mergeprops.js';
+  import { LADDER } from '/src/render/quality.js';
+  import { applyDusk, duskEnv, createLampPools, tintDuskLawn } from '/src/render/dusk.js';
+  import { createWeather } from '/src/weather.js';
+  import { createComposerRig } from '/src/game/composer.js';
+  import * as market from '/src/world/market.js';
+  import { MARKET_SHOTS, MARKET_MOMENT_SHOTS, MARKET_REGISTRATION, MARKET_SPAWN, FOUNTAIN, TREAT_STALLS, stallById, fromStall } from '/src/world/marketplan.js';
+  import { createMarketPilot, MARKET_TOURS } from '/src/world/marketpilot.js';
+  import { createMarketLive } from '/src/marketlive.js';
+  import { createPeopleKit } from '/src/people/index.js';
+  import { MARKET, STALL_TIMES, stallOffsets, periodOf } from '/src/marketrules.js';
+  import { treatItemId } from '/src/marketnone.js';
+  import { handleMarketEvent, createMarketToasts } from '/src/game/marketplay.js';
+  import { createDiscoveryLog } from '/src/discoveries.js';
+  import { createMouth } from '/src/carry.js';
+  import { isWalkableAt, DEFAULT_PITCH } from '/src/player.js';
+  import { cameraOffset } from '/src/catcam.js';
+  import { ZOOM_STEPS, DEFAULT_ZOOM_STEP, MIN_CAMERA_Y } from '/src/camzoom.js';
+  import { toastLifeMs } from '/src/ui/toastlife.js';
+  import { summaryStatsHtml, summaryCheer } from '/src/ui/screencards.js';
+  import { buildCat, CAT_LOOK_Y } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { aimHead } from '/src/cat/headaim.js';
+  import { FLAT_GROUND } from '/src/ground.js';
+  import { createTippables } from '/src/tippables.js';
+  import { createKnockables } from '/src/knockables.js';
+  import { createCritters } from '/src/critters.js';
+  import { createGoldMice, GOLD_MICE } from '/src/goldmice.js';
+  import { mulberry32 } from '/src/rng.js';
+
+  const params = new URLSearchParams(location.search);
+  if (params.has('summary')) summaryPage();
+  else squarePage();
+
+  // ---- ?summary=N: the walk's summary card (walk.js's markup, the real tiles) ----
+  function summaryPage() {
+    const treats = Number(params.get('summary'));
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/src/style.css';
+    document.head.append(link);
+    document.getElementById('hud').remove();
+    const earned = 6 * treats;
+    const overlay = document.createElement('div');
+    overlay.id = 'overlay';
+    overlay.innerHTML = `<div class="summary-card"><div class="screen-panel summary-panel">
+      <h1>Home again!</h1>
+      <div class="summary-cheer">${summaryCheer(earned, treats)}</div>
+      ${summaryStatsHtml({ earned, discoveries: treats, friendsGreeted: 0, goalsDone: 1, hasGoals: true, treats })}
+      <button id="btn-summary-continue" class="primary">Continue</button>
+      </div></div>`;
+    document.body.append(overlay);
+    window.__shot = (name) => name;
+    link.onload = () => { window.__ready = true; };
+  }
+
+  function squarePage() {
+  const DUSK = params.get('dusk') === '1';
+  const LIVE = params.get('live') === '1';
+  const DRIVE = params.get('drive') === '1';
+  const DT = 1 / 30;
+  const W = window.innerWidth, H = window.innerHeight;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  setTextureAnisotropy(Math.min(4, renderer.capabilities.getMaxAnisotropy()));
+  document.body.appendChild(renderer.domElement);
+
+  const tier = LADDER[0];
+  setTextureTier(tier);
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+  const sun = createSun();
+  scene.add(sun);
+  const wind = createWind({ reducedMotion: true });
+  const area = market.build(scene, { water: { quality: tier, reducedMotion: true }, wind });
+  const fill = createFill(area.groundBounce);
+  scene.add(fill);
+  const decals = createContactShadows(scene);
+  mergeStaticProps(scene);
+
+  const camera = new THREE.PerspectiveCamera(55, W / H, 0.1, 300);
+  // her cat at the spawn, facing the fountain (the spawn and phone shots)
+  const cat = buildCat(params.get('breed') || 'tabby', {});
+  cat.position.set(MARKET_SPAWN.x, 0, MARKET_SPAWN.z);
+  cat.rotation.y = Math.atan2(-(FOUNTAIN.x - MARKET_SPAWN.x), -(FOUNTAIN.z - MARKET_SPAWN.z)); // her model faces -z
+  scene.add(cat);
+  animateCat(cat, 'follow', 1, 0, false);
+  // a partner's cat (?live=1, the teamwork tour), out of sight until a tour has one
+  const partnerCat = LIVE ? buildCat('calico', {}) : null;
+  if (partnerCat) { partnerCat.visible = false; scene.add(partnerCat); animateCat(partnerCat, 'follow', 1, 0, false); }
+
+  // The light: the walk's clear day, or its dusk look and the square's.
+  const rng = (() => { let s = 7; return () => ((s = (s * 16807) % 2147483647) / 2147483647); })();
+  let look = null;
+  let weather = null;
+  const groundOf = () => scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint || c.name === 'path' || c.name === 'horizonBand' || c.name === 'steppingStones'));
+  if (DUSK) {
+    look = applyDusk({ scene, sun, fill, areaData: area });
+    scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
+  } else {
+    weather = createWeather(scene, sun, 'clear', rng, true, undefined, { tier, fill, wet: [] });
+  }
+  market.setMarketDusk(area, DUSK ? 1 : 0);
+  const shadows = createShadowFit(sun, camera, { radius: tier.shadowFitRadius, mapSize: tier.shadowMapSize });
+  sun.shadow.bias = SUN_BIAS;
+  assignShadowCasters(scene);
+  if (DUSK) { tintDuskLawn({ ground: groundOf(), grass: null, look }); createLampPools(scene); }
+
+  const rig = createComposerRig(renderer, camera);
+  rig.ensure(tier.msaaSamples);
+  rig.attachScene(scene);
+  const frameSession = { useComposer: true, scene };
+  renderer.toneMappingExposure *= weather?.exposureScale ?? 1;
+
+  function render() {
+    shadows.update();
+    rig.renderFrame(frameSession);
+  }
+  window.__info = () => {
+    shadows.update();
+    renderer.render(scene, camera);
+    const { calls, triangles } = renderer.info.render;
+    render();
+    return { calls, triangles };
+  };
+
+  const CAT_SHOTS = new Set(['spawn', 'phone']);
+  const frame = (name, v) => {
+    const c = v.split(',').map(Number);
+    cat.visible = CAT_SHOTS.has(name);
+    if (partnerCat) partnerCat.visible = false;
+    camera.fov = cat.visible ? 70 : 55;
+    camera.updateProjectionMatrix();
+    camera.position.set(c[0], c[1], c[2]);
+    camera.lookAt(c[3], c[4], c[5]);
+    render();
+    const hud = document.getElementById('hud');
+    if (hud) hud.textContent = `${DUSK ? 'dusk' : 'day'} · ${name} · ${v}`;
+    return name;
+  };
+  const plainShot = (name) => {
+    if (name.startsWith('moment-')) return momentShot(name.slice(7));
+    takeDownMoment(); // a moment shot's props and life go, and her cat is at the spawn again
+    if (CAT_SHOTS.has(name)) {
+      cat.position.set(MARKET_SPAWN.x, 0, MARKET_SPAWN.z);
+      cat.rotation.set(0, Math.atan2(-(FOUNTAIN.x - MARKET_SPAWN.x), -(FOUNTAIN.z - MARKET_SPAWN.z)), 0);
+      animateCat(cat, 'follow', 1, 0, false);
+    }
+    const v = name === 'view' ? params.get('cam') : MARKET_SHOTS[name];
+    if (!v) throw new Error(`no shot "${name}"; there are ${Object.keys(MARKET_SHOTS).join(', ')}${params.has('cam') ? ', view' : ''}`);
+    return frame(name, v);
+  };
+  // ---- the step 3 moments (__shot('moment-<name>'), MARKET_MOMENT_SHOTS) ----
+  // Each call builds the moment afresh (the crate standing, the bucket on its
+  // trestle, the life, the pigeons), puts her cat at its spot, runs the game's
+  // own modules (tippables, knockables, the square's life, the critters) on
+  // walk seconds to the moment's `t`, and frames its view. Page only.
+  const MOMENT_CAT = { // where her cat stands, which way she faces (a point), her pose
+    fruit: { at: [-0.7, 0, -15.3], face: [-1.95, -16.7], pose: 'follow' },
+    apples: { at: [-0.7, 0, -15.3], face: [-1.95, -16.7], pose: 'follow' },
+    flowers: { at: [12.1, 0.775, -2.5], face: [10, -2.5], pose: 'perch' },
+    petals: { at: [12.1, 0.775, -2.5], face: [10, -2.5], pose: 'perch' },
+    awning: { at: [7.83, 2.34, -9.95], face: [4, -6], pose: 'perch' },
+    mice: { at: [8.62, 0.95, -9.42], face: [7.29, -10.31], pose: 'follow' },
+    fountain: { at: [0, 0, 3.9], face: [0, 0], pose: 'sniff' },
+    sacks: { at: [-5.53, 0, -12.08], face: [-5.5, -9], pose: 'nap' },
+    musician: { at: [0.4, 0, 5.7], face: [1.9, 3.3], pose: 'follow' },
+    basket: { at: [9.62, 0.87, 22.76], face: [9.6, 18], pose: 'perch' },
+    pigeons: { at: [-2.8, 0, 9.3], face: [-2.8, 5.3], pose: 'follow' },
+  };
+  let moment = null; // what the last moment shot built, to take down
+  function takeDownMoment() {
+    if (!moment) return;
+    moment.life?.dispose();
+    for (const g of moment.groups) { g.parent?.remove(g); }
+    moment.knock?.list.forEach((k) => { k.group.parent?.remove(k.group); k.decal?.parent?.remove(k.decal); });
+    moment.mice?.dispose();
+    moment.crit?.list.forEach((c) => c.group.parent?.remove(c.group));
+    moment = null;
+  }
+  function momentShot(name) {
+    const m = MARKET_MOMENT_SHOTS[name];
+    if (!m) throw new Error(`no moment "${name}"; there are ${Object.keys(MARKET_MOMENT_SHOTS).join(', ')}`);
+    takeDownMoment();
+    const v = m.view.split(',').map(Number);
+    const c = MOMENT_CAT[name];
+    const frameIt = (showCat) => {
+      cat.visible = showCat;
+      if (partnerCat) partnerCat.visible = false;
+      camera.fov = 60;
+      camera.updateProjectionMatrix();
+      camera.position.set(v[0], v[1], v[2]);
+      camera.lookAt(v[3], v[4], v[5]);
+      render();
+      const hud = document.getElementById('hud');
+      if (hud) hud.textContent = `${DUSK ? 'dusk' : 'day'} · moment-${name} · ${m.view} · t ${m.t}`;
+      return `moment-${name}`;
+    };
+    if (name === 'lookup') {
+      if (!LIVE) throw new Error('moment-lookup needs ?live=1');
+      window.__shot('lookup-cheese');
+      return 'moment-lookup';
+    }
+    if (!c) return frameIt(false); // cafe, tubs, cobbles: the square as it stands
+    const before = new Set(scene.children);
+    const session = { tippables: null, knockables: null, perched: null, rest: null, cat, player: { speed: 0 }, remotes: { list: [] } };
+    const tip = createTippables(scene, area.tippables);
+    session.tippables = tip;
+    const knock = createKnockables(scene, MARKET_REGISTRATION.propSet.knockables);
+    session.knockables = knock;
+    const hasPigeons = name === 'pigeons';
+    const crit = hasPigeons
+      ? createCritters(scene, area.critterSpawns.filter((d) => d.labelAs === 'pigeon'), { ground: FLAT_GROUND, area, rng: mulberry32(7), motionRng: mulberry32(11) })
+      : null;
+    const life = area.life({ scene, dusk: DUSK, reducedMotion: false, people: createPeopleKit, ground: FLAT_GROUND, critters: crit ?? { list: [] } });
+    const mice = name === 'mice' ? createGoldMice(scene, 'market', new Set(), { rng: () => 0.25 }) : null;
+    assignShadowCasters(scene);
+    moment = { life, groups: [], knock, mice, crit };
+    // her cat
+    const [cx, cy, cz] = c.at;
+    cat.position.set(cx, cy, cz);
+    cat.rotation.set(0, Math.atan2(-(c.face[0] - cx), -(c.face[1] - cz)), 0);
+    if (c.pose === 'perch') session.perched = { x: cx, z: cz };
+    const pose = (t, speed = 0) => animateCat(cat, c.pose, t, speed, false);
+    let t = 0;
+    const step = (dt) => {
+      t += dt;
+      life.update(dt, t, cat.position, camera, session);
+      tip.update(dt);
+      knock.update?.(dt);
+      mice?.update(t);
+      pose(t);
+    };
+    const run = (secs) => { for (let k = 0; k < Math.round(secs / DT); k++) step(DT); };
+    run(0.2); // the life finds the crate and the bucket standing
+    if (name === 'apples') { tip.tip(tip.list[0]); run(m.t); }
+    else if (name === 'petals') { knock.knock(knock.list.find((k) => k.id === 'market-bucket-1')); run(m.t + 1.3); }
+    else if (name === 'pigeons') {
+      // she walks in at the patch till one takes off, then `t` more
+      let up = null;
+      let tt = 0;
+      for (let k = 0; k < Math.round(8 / DT) && up === null; k++) {
+        tt += DT;
+        cat.position.z -= 2.6 * DT;
+        crit.update(DT, tt, cat.position, cat.position, cat);
+        life.update(DT, tt, cat.position, camera, session);
+        pose(tt, 2.6);
+        if (crit.list.some((p) => p.fleeing)) up = tt;
+      }
+      for (let k = 0; k < Math.round(m.t / DT); k++) {
+        tt += DT;
+        crit.update(DT, tt, cat.position, cat.position, cat);
+        life.update(DT, tt, cat.position, camera, session);
+        pose(tt, 0);
+      }
+      window.__moment = { took: up };
+    } else run(m.t);
+    for (const o of scene.children) if (!before.has(o)) moment.groups.push(o);
+    return frameIt(true);
+  }
+  window.__shot = plainShot;
+  window.__cam = (...c) => frame('view', c.join(','));
+
+  window.__scene = scene;
+  window.__area = area;
+  if (params.has('bare') || (LIVE && !params.has('debug'))) document.getElementById('hud').remove();
+
+  if (LIVE) startLivePage();
+  else window.__shot(params.has('cam') ? 'view' : 'spawn');
+  window.__ready = true;
+
+  // ===========================================================================
+  // ?live=1
+  function startLivePage() {
+    const ui = (id) => { const el = document.createElement('div'); el.id = id; el.className = 'live-ui'; document.body.append(el); return el; };
+    const toastsEl = ui('toasts');
+    const promptEl = ui('prompt');
+    const partnerEl = ui('partner');
+    const captionEl = ui('caption');
+    const hudEl = document.getElementById('hud');
+    const ZOOM = ZOOM_STEPS[DEFAULT_ZOOM_STEP];
+    const isFree = (x, z) => isWalkableAt(area, x, z);
+    const gy = (x, z) => FLAT_GROUND.y(x, z); // the cobbles are flat (market.js)
+    const TAIL = 0.5; // s of film after a tour ends
+    const TURN = 12; // rad/s, how fast her drawn heading follows her way (the walk's own is instant)
+    const CAM_TURN = 2.2; // 1/s, how fast the camera swings round behind her or to a stall
+
+    // One device: its session, player, toasts and life. `who` is the device's
+    // own cat; `scene` where its life draws (the partner's device draws unseen).
+    function device(own, sceneOf, name) {
+      const toasts = [];
+      const hud = {
+        toast: (text, points) => toasts.push({ text: points ? `${text}  +${points} 🐾` : text, at: dev.t }),
+      };
+      const log = createDiscoveryLog({ addPoints: (p) => { dev.points += p; } });
+      log.startWalk();
+      // the HUD shows an award's line as its toast (hud.js discoveryText: a treat's
+      // and the teamwork's labels are their own lines); the log's bus is the game's,
+      // shared by both devices here, so each device's log says its own
+      const awardOnce = log.awardOnce;
+      log.awardOnce = (type, key, label) => {
+        const points = awardOnce(type, key, label);
+        if (points) hud.toast(label, points);
+        return points;
+      };
+      const dev = {
+        name, own, scene: sceneOf, toasts, hud, log, points: 0, t: 0, events: [], live: null,
+        player: { speed: 0, stalking: false, perchY: 0, inputActive: false },
+        session: null,
+      };
+      return dev;
+    }
+    const A = device(cat, scene, null);
+    let B = null; // the partner's device, for a tour with a partner
+    let partner = null; // the partner's cat on her device: a remotecats.js-shaped entry
+    let meOnB = null; // her cat on the partner's device
+    let clock = 36000;
+    let t = 0;
+    let tour = null; // { name, spec, pilot, result, ended }
+    let liveSeed = null;
+    const going = new Map(); // a body → { x, z, speed, crouch }
+
+    function makeLife(dev, seed) {
+      dev.live?.dispose();
+      dev.events = [];
+      dev.toasts.length = 0;
+      dev.points = 0;
+      dev.log.startWalk();
+      dev.session = {
+        cat: dev.own, carry: { mouth: createMouth() }, remotes: { list: [] }, playerId: 'me',
+        perched: null, net: null, landTime: 0, sniffTime: 0,
+      };
+      const marketToasts = createMarketToasts({ hud: dev.hud, now: () => dev.t });
+      dev.live = createMarketLive(dev.scene, dev.scene === scene ? area : { ...area, treatMeshes: {} }, {
+        seed, now: () => clock, ground: FLAT_GROUND, isFree, people: createPeopleKit,
+        onEvent: (e) => { dev.events.push(e); handleMarketEvent(e, { hud: dev.hud, audio: null, log: dev.log, session: dev.session, ...marketToasts }); },
+      });
+      if (dev.scene === scene) for (const g of dev.live.groups) decals.follow(g);
+    }
+
+    // A fresh walk on the square: her life (seed), the clock, her cat at (x, z) facing (fx, fz).
+    let followed = false;
+    function reset(seed, clock0, x, z, fx, fz) {
+      clock = clock0;
+      t = 0;
+      A.t = 0;
+      makeLife(A, seed);
+      liveSeed = seed;
+      B?.live?.dispose();
+      B = null;
+      partner = null;
+      meOnB = null;
+      going.clear();
+      partnerCat.visible = false;
+      cat.visible = true;
+      cat.position.set(x, gy(x, z), z);
+      cat.rotation.set(0, Math.atan2(-fx, -fz), 0);
+      cat.userData.wantYaw = cat.rotation.y;
+      Object.assign(A.player, { speed: 0, stalking: false, inputActive: false });
+      if (!followed) { decals.follow(cat); decals.follow(partnerCat); followed = true; }
+      camYaw = null;
+      eased = false;
+    }
+
+    // The partner (MARKET_TOURS[name].partner): her cat on my device, and her own device.
+    function addPartner(spec, tourSpec) {
+      const p = spec.partner;
+      partnerCat.visible = true;
+      partnerCat.position.set(p.start.x, gy(p.start.x, p.start.z), p.start.z);
+      partnerCat.rotation.set(0, cat.rotation.y, 0);
+      partnerCat.userData.wantYaw = partnerCat.rotation.y;
+      partner = { playerId: p.id, petName: p.name, group: partnerCat, speed: 0, pose: 'follow' };
+      A.session.remotes.list.push(partner);
+      // the partner's device: her own cat and mine, unseen, in a scene of its own
+      const sceneB = new THREE.Scene();
+      const body = (x, z) => {
+        const g = new THREE.Group();
+        const head = new THREE.Group();
+        head.position.set(0, 0.3, -0.2);
+        g.add(head);
+        g.userData.parts = { head };
+        g.position.set(x, gy(x, z), z);
+        sceneB.add(g);
+        return g;
+      };
+      B = device(body(p.start.x, p.start.z), sceneB, p.name);
+      B.t = 0;
+      makeLife(B, tourSpec.seed);
+      B.session.playerId = p.id;
+      meOnB = { playerId: tourSpec.me.id, petName: tourSpec.me.name, group: body(cat.position.x, cat.position.z), speed: 0, pose: 'follow' };
+      B.session.remotes.list.push(meOnB);
+    }
+
+    // ---- The walk: each cat as the rig walks its stand-in. ----
+    // One walking step of `obj` along its way: the speed it really went this frame.
+    function stepWalk(obj, dt) {
+      const g = going.get(obj);
+      if (!g || !(g.speed > 0)) return 0;
+      const nx = obj.position.x + g.x * g.speed * dt;
+      const nz = obj.position.z + g.z * g.speed * dt;
+      if (!isFree(nx, nz)) return 0;
+      obj.position.x = nx;
+      obj.position.z = nz;
+      return g.speed;
+    }
+    const driver = {
+      get events() { return A.events; },
+      pos: (who) => (who === 'me' ? cat.position : partnerCat.position),
+      move(who, dx, dz, speed, crouch) {
+        const obj = who === 'me' ? cat : partnerCat;
+        const len = Math.hypot(dx, dz);
+        const g = { x: len > 0 ? dx / len : 0, z: len > 0 ? dz / len : 0, speed: len > 0 ? speed : 0, crouch };
+        going.set(obj, g);
+        if (len > 0) obj.userData.wantYaw = Math.atan2(-g.x, -g.z); // player.js faces her along her motion
+        if (who === 'me') {
+          A.player.stalking = crouch;
+          A.player.inputActive = g.speed > 0;
+        } else partner.pose = crouch ? 'stalk' : 'follow';
+      },
+      stall: (id) => A.live.stalls.find((s) => s.id === id) ?? null,
+      reach: () => A.live.actionFor(A.session)?.stall ?? null,
+      press() {
+        const stall = driver.reach();
+        const took = A.live.act(A.live.actionFor(A.session), A.session, { dropHeld: () => {} });
+        // her grab goes out as the existing carry-pick; the partner's device hears it
+        if (took === true && B) B.live.remotePick(meOnB, treatItemId(stall));
+        return took;
+      },
+    };
+
+    const turnTo = (obj, dt) => {
+      const want = obj.userData.wantYaw ?? obj.rotation.y;
+      const d = Math.atan2(Math.sin(want - obj.rotation.y), Math.cos(want - obj.rotation.y));
+      const most = TURN * dt;
+      obj.rotation.y += Math.max(-most, Math.min(most, d));
+    };
+
+    // One frame, in main.js's order: the pilot, her walk, the clock, the life,
+    // then her pose (game/avatar.js, after the life), the camera and the render.
+    function liveFrame(dt) {
+      if (tour && !tour.result.done) tour.result = tour.pilot.step(dt, driver);
+      A.player.speed = stepWalk(cat, dt);
+      if (partner) partner.speed = stepWalk(partnerCat, dt);
+      clock += dt;
+      t += dt;
+      A.t = t;
+      A.live.update(dt, t, { cat, player: A.player, session: A.session });
+      if (B) {
+        // each cat on the partner's device is where (and as fast as) the wire says
+        B.t = t;
+        B.own.position.set(partnerCat.position.x, partnerCat.position.y, partnerCat.position.z);
+        Object.assign(B.player, { speed: partner.speed, stalking: partner.pose === 'stalk', inputActive: partner.speed > 0 });
+        meOnB.group.position.copy(cat.position);
+        meOnB.speed = A.player.speed;
+        meOnB.pose = A.player.stalking && A.player.speed > 0.3 ? 'stalk' : 'follow';
+        B.live.update(dt, t, { cat: B.own, player: B.player, session: B.session });
+      }
+      // her pose, as game/avatar.js picks it (its timers count down after the life)
+      const s = A.session;
+      let pose = 'follow';
+      if (s.landTime > 0) pose = 'land';
+      else if (s.sniffTime > 0) pose = 'sniff';
+      else if (A.player.speed > 0.3 && A.player.stalking) pose = 'stalk';
+      if (s.landTime > 0) s.landTime -= dt;
+      if (s.sniffTime > 0) s.sniffTime -= dt;
+      turnTo(cat, dt);
+      cat.position.y = gy(cat.position.x, cat.position.z) + (s.hopLift || 0); // the shoo hop's lift, as avatar.js adds it
+      animateCat(cat, pose, t, A.player.speed, false);
+      aimHead(cat, s.lookAt, dt, pose, A.player.speed); // cooed at, she looks up (Task 7), as avatar.js does
+      if (partner) {
+        turnTo(partnerCat, dt);
+        partnerCat.position.y = gy(partnerCat.position.x, partnerCat.position.z);
+        animateCat(partnerCat, partner.speed > 0.3 && partner.pose === 'stalk' ? 'stalk' : 'follow', t, partner.speed, false);
+      }
+      placeCamera(dt);
+      decals.update();
+      render();
+      showUi();
+    }
+
+    // ---- The camera: the walk's chase camera at its default step, swung
+    // behind her ('follow'), or a stall's own view ({ stall }, below).
+    let camYaw = null;
+    const camOff = new THREE.Vector3();
+    const camYawFor = () => cat.rotation.y; // yaw 0 is the camera at +z of her, and her model faces -z
+    // A stall's own view ({ stall }, { stall, wide }): out in front of its
+    // counter on the hide's side, so the stallholder faces the camera while
+    // serving and turns their back to it, and her cat is in the same frame
+    // (the look leans a third of the way to her). Eased, so a cut is a glide.
+    const camEye = new THREE.Vector3();
+    const camAt = new THREE.Vector3();
+    const wantEye = new THREE.Vector3();
+    const wantAt = new THREE.Vector3();
+    let eased = false;
+    function stallView(view) {
+      const s = stallById(view.stall);
+      // the tour may set the eye and the look, in the stall's own frame: { eye: [lx, lz, y], at: [lx, lz] }
+      const e = view.eye ?? (view.wide ? [s.w / 2 + 2.6, s.d / 2 + 6.2, 2.6] : [s.w / 2 + 1.6, s.d / 2 + 5.2, 2.1]);
+      const a = view.at ?? [s.w / 4, s.d / 2];
+      const eye = fromStall(s, e[0], e[1]);
+      const at = fromStall(s, a[0], a[1]);
+      const lean = view.lean ?? (view.wide ? 0.2 : 0.35);
+      wantEye.set(eye.x, e[2], eye.z);
+      wantAt.set(at.x + (cat.position.x - at.x) * lean, 0.9, at.z + (cat.position.z - at.z) * lean);
+    }
+    function placeCamera(dt, snap = false) {
+      const view = tour?.result.view ?? 'follow';
+      camera.fov = 70;
+      camera.updateProjectionMatrix();
+      if (view && typeof view === 'object' && view.stall) {
+        stallView(view);
+        const k = snap || !eased ? 1 : 1 - Math.exp(-CAM_TURN * dt);
+        camEye.lerp(wantEye, k);
+        camAt.lerp(wantAt, k);
+        eased = true;
+        camera.position.copy(camEye);
+        camera.lookAt(camAt);
+        camYaw = Math.atan2(camEye.x - cat.position.x, camEye.z - cat.position.z);
+        return;
+      }
+      const want = camYawFor();
+      if (camYaw === null || snap) camYaw = want;
+      else {
+        const d = Math.atan2(Math.sin(want - camYaw), Math.cos(want - camYaw));
+        camYaw += d * (1 - Math.exp(-CAM_TURN * dt));
+      }
+      cameraOffset(camYaw, DEFAULT_PITCH, ZOOM.dist, ZOOM.height, camOff);
+      wantEye.copy(cat.position).add(camOff);
+      if (wantEye.y < MIN_CAMERA_Y) wantEye.y = MIN_CAMERA_Y;
+      wantAt.set(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
+      // from a stall's view back to her chase camera: a glide, then held on her
+      const k = snap || !eased ? 1 : 1 - Math.exp(-CAM_TURN * 1.5 * dt);
+      camEye.lerp(wantEye, k);
+      camAt.lerp(wantAt, k);
+      eased = true;
+      camera.position.copy(camEye);
+      camera.lookAt(camAt);
+    }
+
+    // ---- What the screen says: her toasts and prompt, the partner's, the narration.
+    const upNow = (list) => list.filter((x) => t - x.at < toastLifeMs(x.text) / 1000).slice(-3);
+    const pill = (text) => { const el = document.createElement('div'); el.className = 'toast'; el.textContent = text; return el; };
+    let narration = null;
+    function showUi() {
+      const mine = upNow(A.toasts);
+      toastsEl.replaceChildren(...mine.map((x) => pill(x.text)));
+      const action = A.live.actionFor(A.session);
+      promptEl.textContent = action ? action.prompt : '';
+      const theirs = B ? upNow(B.toasts) : [];
+      partnerEl.replaceChildren(...(theirs.length ? [Object.assign(document.createElement('div'), { className: 'who', textContent: `${B.name}'s screen` }), ...theirs.map((x) => pill(x.text))] : []));
+      let text = tour?.result.caption ?? null;
+      if (text && tour.result.tally) text = `${text} 😋 ${A.live.treats}`;
+      narration = text;
+      captionEl.replaceChildren();
+      if (text) { const span = document.createElement('span'); span.textContent = text; captionEl.append(span); }
+      if (hudEl) {
+        hudEl.textContent = [`t ${t.toFixed(2)} clock ${clock.toFixed(2)} treats ${A.live.treats}`,
+          ...A.live.stalls.filter((s) => s.phase).map((s) => `${s.id} ${s.phase} ${s.watching ? 'watching' : ''} ${s.bubble ? 'bubble' : ''} ${s.cooing ? `cooing ${s.cooing.who}` : ''}`),
+          `last ${JSON.stringify(A.events[A.events.length - 1] ?? null)}`].join('\n');
+      }
+      return [narration, ...mine.map((x) => x.text), ...theirs.map((x) => `${B.name}'s screen: ${x.text}`)].filter(Boolean).join(' | ') || null;
+    }
+
+    // ---- The tours ----
+    window.__tour = (name) => {
+      const spec = MARKET_TOURS[name];
+      if (!spec) throw new Error(`no tour "${name}"; there are ${Object.keys(MARKET_TOURS).join(', ')}`);
+      reset(spec.seed, spec.clock, spec.start.x, spec.start.z, spec.start.face[0], spec.start.face[1]);
+      if (spec.partner) addPartner(spec, spec);
+      tour = { name, spec, pilot: createMarketPilot(spec), result: { done: false, failed: null, caption: null, tally: false, view: null }, ended: null };
+      A.live.update(0, 0, { cat, player: A.player, session: A.session });
+      placeCamera(0, true);
+      render();
+      showUi();
+      return name;
+    };
+    window.__frame = () => {
+      liveFrame(DT);
+      let caption = showUi();
+      if (!tour) return { done: false, caption };
+      if (tour.result.done && tour.result.failed !== null) {
+        console.error(`tour ${tour.name}: the pilot gave up on step ${tour.result.failed}`);
+        captionEl.replaceChildren(Object.assign(document.createElement('span'), { textContent: `The tour stopped here (step ${tour.result.failed})` }));
+        return { done: true, caption: `failed at step ${tour.result.failed}` };
+      }
+      if (tour.result.done && tour.ended === null) tour.ended = t;
+      return { done: tour.ended !== null && t - tour.ended >= TAIL - 1e-9, caption };
+    };
+    window.__events = () => A.events.slice();
+    window.__partnerEvents = () => (B ? B.events.slice() : []);
+    window.__treats = () => A.live.treats;
+    window.__points = () => ({ mine: A.points, partner: B ? B.points : null });
+
+    // ---- The live shots ----
+    // the clock put `pct`% into that stall's phase (marketrig.js setPhase's sum)
+    function setPhase(id, phase, share) {
+      const ts = STALL_TIMES[id];
+      const len = { serve: ts.serve, busy: MARKET.BUSY_S, turn: MARKET.TURN_S, away: ts.away, back: MARKET.TURN_S };
+      const starts = { serve: 0, busy: ts.serve, turn: ts.serve + MARKET.BUSY_S };
+      starts.away = starts.turn + MARKET.TURN_S;
+      starts.back = starts.away + ts.away;
+      const P = periodOf(id);
+      const off = stallOffsets(liveSeed)[id];
+      const u = starts[phase] + share * len[phase];
+      clock = 36000 + ((((u - off - 36000) % P) + P) % P);
+    }
+    // the stills' own cameras (tour-<name>-<frame>-<still>): her face, the
+    // baker's counter for the shoo, the cheese counter for the coo
+    const STILLS = {
+      near: 'near',
+      shoo: { stall: 'baker', eye: [-4.6, 0.4, 1.6], at: [-1.0, 2.0], lean: 0 },
+      coo: { stall: 'cheese', eye: [-0.2, stallById('cheese').d / 2 + 4.6, 1.5], at: [-0.5, stallById('cheese').d / 2 - 0.2], lean: 0 },
+    };
+    const PHASES = 'serve|busy|turn|away|back';
+    const STALLS_RE = TREAT_STALLS.join('|');
+    window.__shot = (name) => {
+      let m = new RegExp(`^(${STALLS_RE})-(${PHASES})(?:-(\\d+))?$`).exec(name);
+      if (m) {
+        // her cat waiting under the stall's trestle, the film's view of that stall
+        const s = stallById(m[1]);
+        reset(7, 36000, s.hide.x, s.hide.z, -s.face.x, -s.face.z);
+        // a little nearer than the film's view of it, at a child's eye (the bubble still in)
+        const view = { stall: m[1], eye: [s.w / 2 + 0.9, s.d / 2 + 3.4, 1.5], at: [s.w / 4 - 0.3, s.d / 2] };
+        tour = { result: { done: false, failed: null, caption: null, tally: false, view } };
+        setPhase(m[1], m[2], m[3] ? Number(m[3]) / 100 : 0.5);
+        A.live.update(DT, t, { cat, player: A.player, session: A.session });
+        animateCat(cat, 'follow', 1, 0, false);
+        placeCamera(0, true);
+        render();
+        showUi();
+        tour = null;
+        return name;
+      }
+      m = new RegExp(`^phone-(${STALLS_RE})-(${PHASES})$`).exec(name);
+      if (m) {
+        const s = stallById(m[1]);
+        const p = fromStall(s, 0.4, s.d / 2 + 3.6);
+        reset(7, 36000, p.x, p.z, -s.face.x, -s.face.z);
+        setPhase(m[1], m[2], 0.5);
+        A.live.update(DT, t, { cat, player: A.player, session: A.session });
+        animateCat(cat, 'follow', 1, 0, false);
+        placeCamera(0, true);
+        render();
+        showUi();
+        return name;
+      }
+      m = new RegExp(`^lookup-(${STALLS_RE})(-near)?$`).exec(name);
+      if (m) {
+        // still in front of the counter, a little to one side, facing it: the coo comes after STILL_S
+        const s = stallById(m[1]);
+        const p = fromStall(s, 0.5, s.d / 2 + 1.3);
+        reset(7, 36000, p.x, p.z, -s.face.x, -s.face.z);
+        setPhase(m[1], 'serve', 0.05);
+        let cooT = null;
+        for (let k = 0; k < Math.round(6 / DT); k++) {
+          liveFrame(DT);
+          const st = A.live.stalls.find((x) => x.id === m[1]);
+          if (cooT === null && st.cooing?.who === 'me') cooT = t;
+          if (cooT !== null && t - cooT >= 1.0) break;
+        }
+        if (cooT === null) throw new Error(`lookup-${m[1]}: no coo came`);
+        const k = A.live.keepers[m[1]].group.position;
+        const look = A.session.lookAt;
+        const fx = -s.face.x, fz = -s.face.z; // from her toward the counter
+        const sx = -fz, sz = fx;              // along the counter
+        if (m[2]) {
+          // her face, from in front of her and to her side, low
+          camera.position.set(cat.position.x + fx * 0.75 - sx * 1.0, 0.38, cat.position.z + fz * 0.75 - sz * 1.0);
+          camera.lookAt(cat.position.x + fx * 0.35, 0.62, cat.position.z + fz * 0.35);
+        } else {
+          // from beside, low: her cat at one side of the frame, the stallholder's face at the other
+          const mx = (cat.position.x + k.x) / 2, mz = (cat.position.z + k.z) / 2;
+          camera.position.set(mx + sx * 3.4 - fx * 0.6, 0.95, mz + sz * 3.4 - fz * 0.6);
+          camera.lookAt(mx, 0.95, mz);
+        }
+        render();
+        showUi();
+        window.__lookup = { look: look && { ...look }, head: cat.userData.parts.head.rotation.toArray().slice(0, 3) };
+        return name;
+      }
+      m = /^tour-([a-z]+)-(\d+)(?:-([a-z]+))?$/.exec(name);
+      if (m) {
+        window.__tour(m[1]);
+        for (let k = 0; k < Number(m[2]); k++) window.__frame();
+        if (m[3]) {
+          // a still's own camera at that moment (STILLS), the film's left as it was
+          const still = STILLS[m[3]];
+          if (!still) throw new Error(`no still camera "${m[3]}"; there are ${Object.keys(STILLS).join(', ')}`);
+          if (still.over) {
+            // over her shoulder at that stallholder
+            const k = area.keepers[still.over];
+            let dx = k.x - cat.position.x, dz = k.z - cat.position.z;
+            const d = Math.hypot(dx, dz);
+            dx /= d; dz /= d;
+            camera.position.set(cat.position.x - dx * 1.9 - dz * 0.7, 1.15, cat.position.z - dz * 1.9 + dx * 0.7);
+            camera.lookAt(cat.position.x + dx * d * 0.7, 1.2, cat.position.z + dz * d * 0.7);
+          } else if (still === 'near') {
+            // in front of her face, a little to her side, at a cat's height
+            const fx = -Math.sin(cat.rotation.y), fz = -Math.cos(cat.rotation.y);
+            camera.position.set(cat.position.x + fx * 1.5 - fz * 0.5, 0.55, cat.position.z + fz * 1.5 + fx * 0.5);
+            camera.lookAt(cat.position.x + fx * 0.25, 0.3, cat.position.z + fz * 0.25);
+          } else {
+            stallView(still);
+            camera.position.copy(wantEye);
+            camera.lookAt(wantAt);
+          }
+          render();
+        }
+        return name;
+      }
+      return plainShot(name);
+    };
+
+    // with no tour: the square's life at the spawn, her cat standing
+    const first = params.get('tour');
+    if (first) window.__tour(first);
+    else {
+      reset(7, 36000, MARKET_SPAWN.x, MARKET_SPAWN.z, 0, -1);
+      A.live.update(0, 0, { cat, player: A.player, session: A.session });
+      placeCamera(0, true);
+      render();
+      showUi();
+    }
+    if (!DRIVE) {
+      let owed = 0;
+      let last = performance.now();
+      const loop = (now) => {
+        requestAnimationFrame(loop);
+        owed += Math.min(0.1, (now - last) / 1000);
+        last = now;
+        while (owed >= DT) { owed -= DT; if (window.__frame().done && tour) { tour = null; } }
+      };
+      requestAnimationFrame(loop);
+    }
+  }
+  } // squarePage
+</script>

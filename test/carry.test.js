@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { RAIN_GRIP, MOVED_MIN, createMouth, pick, drop, tickRain, walkEndMarks, carryLabel } from '../src/carry.js';
+import { RAIN_GRIP, MOVED_MIN, createMouth, pick, drop, tickRain, walkEndMarks, carryLabel, eatHeld } from '../src/carry.js';
 import { CARRY_KINDS, propsFor } from '../src/propsets.js';
 import { sanitizeMarks } from '../src/marks.js';
 
@@ -134,5 +134,38 @@ describe('carryLabel', () => {
     for (const k of ['rock', '', '__proto__', 'constructor', 'toString', null, undefined, 7, {}]) {
       expect(carryLabel(k)).toBe('thing');
     }
+  });
+  // Market step 2 (ruling M6): a treat is its own kind of thing in the mouth.
+  it('a treat is never a keepsake, never slips and is never put down by hand', () => {
+    const m = createMouth();
+    expect(pick(m, { id: 'market-treat-fish', kind: 'fishhead', treat: true })).toBe(true);
+    expect(m.held).toEqual({ id: 'market-treat-fish', kind: 'fishhead', treat: true });
+    for (let i = 0; i < 100; i++) expect(tickRain(m, 0.1, true)).toBe(false);
+    expect(m.grip).toBe(0);
+    expect(walkEndMarks(m, 'market', 1)).toEqual([]);
+    expect(pick(m, { id: 'park-stick-1', kind: 'stick' })).toBe(false); // still refuses when full
+    expect(eatHeld(m)).toEqual({ id: 'market-treat-fish', kind: 'fishhead' });
+    expect(m.held).toBeNull();
+    expect(eatHeld(m)).toBeNull();
+  });
+
+  it('eatHeld leaves anything that is not a treat alone', () => {
+    const m = createMouth();
+    pick(m, { id: 'park-sock-1', kind: 'sock' });
+    expect(eatHeld(m)).toBeNull();
+    expect(m.held).toEqual({ id: 'park-sock-1', kind: 'sock' });
+    const j = createMouth();
+    pick(j, { id: 'hat', kind: 'hat', job: true });
+    expect(eatHeld(j)).toBeNull();
+    expect(j.held).not.toBeNull();
+  });
+
+  it('a treat set down leaves no drop mark', () => {
+    const m = createMouth();
+    pick(m, { id: 'market-treat-fish', kind: 'fishhead', treat: true });
+    expect(drop(m, 30, 30, { x: 0, z: 0 })).toEqual({ id: 'market-treat-fish', kind: 'fishhead', treat: true });
+    expect(m.held).toBeNull();
+    expect(m.dropped.size).toBe(0);
+    expect(walkEndMarks(m, 'market', 1)).toEqual([]);
   });
 });

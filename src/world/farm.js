@@ -8,6 +8,7 @@ import { withLocalUuids } from './localuuids.js';
 import { seedFromCode } from '../rng.js';
 import * as parts from './farmparts.js';
 import { BARN, BALE, TRACTOR, STAND, SCARECROW, GRAIN_STORE, FARM_COLORS } from './farmparts.js';
+import { cutForGates } from '../gateways.js';
 
 // =============================================================================
 // Appletree Farm (docs/superpowers/specs/2026-11-18-farm-design.md), step 1:
@@ -47,9 +48,9 @@ export const FARM_GRASS = 0x62a24e;
 // The lane, the yard and the tracks: packed earth.
 export const FARM_PATH_STYLE = Object.freeze({ surface: 'sand', color: 0xb99a6e });
 
-// The lane's south end is at the map's edge (z 50) and runs on this far, out
-// through the hedge's field gate and in under the rising hills (the Park's
-// south walk does the same).
+// The lane's south end is at the map's edge (z 50) and runs on this far, in
+// under the hedge across its end and the rising hills (the Park's south walk
+// does the same).
 export const FARM_PATH_EXTEND = 17;
 
 // Just outside the gate, on the lane: the walk opens looking in under the
@@ -186,10 +187,10 @@ export const FARM_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 7, wavelength: 36,
   color: 0x86b874, salt: 71,
   nearColor: FARM_GRASS,
-  edge: Object.freeze({
-    half: 60, style: 'hedge',
-    gaps: Object.freeze([Object.freeze({ x: 0, z: 60.6, r: 2 })]),
-  }),
+  // The hedge runs right round, across the lane too (gateways placement
+  // round, 2026-11-21: its shut field gate read as one more gate that never
+  // opens, beside the real gate back to the Park).
+  edge: Object.freeze({ half: 60, style: 'hedge' }),
 });
 
 // Fence runs: [x1, z1, x2, z2]. Gateways are simply left out.
@@ -213,6 +214,11 @@ const FENCE_RUNS = Object.freeze([
   ...ring(PASTURE, { side: 'w', from: PASTURE_GATE.z - 1.4, to: PASTURE_GATE.z + 1.4 }).map(([x1, z1, x2, z2]) => ({ a: [x1, z1], b: [x2, z2], style: 'rail' })),
   ...ring(GOAT_PADDOCK, { side: 'e', from: GOAT_GATE.z - 1.7, to: GOAT_GATE.z + 1.7 }).map(([x1, z1, x2, z2]) => ({ a: [x1, z1], b: [x2, z2], style: 'rail' })),
   ...ring(HEN_RUN, { side: 'e', from: COOP_AT.z - 0.8, to: COOP_AT.z + 0.8 }).map(([x1, z1, x2, z2]) => ({ a: [x1, z1], b: [x2, z2], style: 'wire' })),
+]);
+// The front fence. build() cuts it where a gate walk.js draws is set into it
+// (`gateEnds`: the gate ends this walk draws; a walk that draws no gates, and
+// a bare build, keep it whole). Visual only: no fence here has a collider.
+const FRONT_RUNS = Object.freeze([
   { a: [-44, GATE_AT.z], b: [-2.6, GATE_AT.z], style: 'picket' },
   { a: [2.6, GATE_AT.z], b: [44, GATE_AT.z], style: 'picket' },
 ]);
@@ -275,14 +281,14 @@ export const FARM_HIDES = Object.freeze([
   pt(6.5, 21.5),                                  // under the bush at the orchard's corner
 ]);
 
-export function build(scene, { water = {}, wind } = {}) {
+export function build(scene, { water = {}, wind, gateEnds = [] } = {}) {
   // A bright farm morning: a clear blue over a pale, hazy horizon.
   b.applySky(scene, 0x9ad0ee, 0xdcefe4);
   const lawn = b.ground(120, FARM_GRASS, { surface: 'grass' });
   lawn.updateMatrix();
   tintGround(lawn, farmGroundTint);
   scene.add(lawn);
-  // Rolling fields past a hedge, with a field gate where the lane runs out.
+  // Rolling fields past a hedge that runs right round.
   scene.add(b.horizonBand(FARM_HORIZON));
 
   const colliders = [];
@@ -331,7 +337,7 @@ export function build(scene, { water = {}, wind } = {}) {
     kennel: parts.kennel(KENNEL_AT.x, KENNEL_AT.z, EAST),
     tractor: parts.tractor(TRACTOR_AT.x, TRACTOR_AT.z, WEST),
     bales: parts.hayBales([...BARN_BALES, ...ROUND_BALES]),
-    fences: parts.fences(FENCE_RUNS, GATES),
+    fences: parts.fences([...FENCE_RUNS, ...cutForGates(FRONT_RUNS, gateEnds)], GATES),
     gate: parts.gateArch(GATE_AT.x, GATE_AT.z, 2.6),
     scarecrow: parts.scarecrow(SCARECROW_AT.x, SCARECROW_AT.z, 0.5),
     scarecrowHat: parts.scarecrowHat(SCARECROW_AT.x, SCARECROW_AT.z, 0.5),

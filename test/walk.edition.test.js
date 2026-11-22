@@ -310,23 +310,10 @@ describe('a Legacy walk', () => {
 describe('the clan in the walk (source pins)', () => {
   const src = () => readFileSync('src/game/walk.js', 'utf8');
 
-  it('spawns the loners, not tier.strays, and counts the fed cats first', () => {
-    const s = src();
-    // Kittypets (ruling R2, amended): the wanderer takes an ordinary loner's slot.
-    const strays = s.indexOf('const loners = isDen ? 0 : lonersFor(areaId, tier.strays, fedHere);');
-    expect(s.indexOf('createStrayCats(scene, areaData, strayCount, strayStream(roomSeed ?? soloSeed)')).toBeGreaterThan(strays);
-    const clan = s.indexOf('castFor(areaId).slice(0, clanCountFor(tier.strays, fedHere))');
-    const fed = s.indexOf('const fedHere = colonyCats.length;');
-    expect(strays).toBeGreaterThan(-1);
-    expect(clan).toBeGreaterThan(-1);
-    expect(fed).toBeGreaterThan(-1);
-    expect(fed).toBeLessThan(strays);
-    expect(fed).toBeLessThan(clan);
-    expect(s.match(/lonersFor\(/g)).toHaveLength(1);   // the one count createStrayCats is handed
-    for (const call of s.match(/createStrayCats\([^)]*\)/g) ?? []) {
-      expect(call.replace('lonersFor(areaId, tier.strays', '')).not.toContain('tier.strays');
-    }
-  });
+  // "spawns the loners, not tier.strays, and counts the fed cats first" was a
+  // pin on walk.js's lines; it is behaviour now, on real walks:
+  // test/walkcast.test.js "in a territory with a camp the clan stands in for
+  // strays, and her fed cats are counted first" (and the Park's tier.strays).
 
   it('names the clan cats only in Clan Edition', () => {
     const s = src();
@@ -406,10 +393,10 @@ describe('the clan in the walk (source pins)', () => {
     expect(line).toContain('isGround: clanWalkable');
     expect(line).not.toContain('progression');
     const abort = s.indexOf('session.clanFight.abort()');
-    expect(abort).toBeGreaterThan(s.indexOf('function endWalk('));
+    expect(abort).toBeGreaterThan(s.indexOf('function freeWalk(')); // endWalk's teardown
     expect(abort).toBeLessThan(s.indexOf('session.intruders.dispose()'));
     // its intruder-done goes out while the room is still joined: before leave()
-    const leave = s.indexOf('net.leave()', s.indexOf('function endWalk('));
+    const leave = s.indexOf('net.leave()', s.indexOf('function freeWalk('));
     expect(leave).toBeGreaterThan(-1);
     expect(abort).toBeLessThan(leave);
     expect(s.split('session.clanFight.abort()')).toHaveLength(2);
@@ -593,7 +580,7 @@ describe('fights teach moves and leave scars (source pins)', () => {
 
   it('endWalk re-pushes the profile when the fade changed her rendered scars', () => {
     const s = src();
-    const end = s.indexOf('function endWalk(');
+    const end = s.indexOf('function bankWalk('); // endWalk's first half
     const before = s.indexOf('const scarsBefore = JSON.stringify(progression.catScars(scarKey(progression.state)));', end);
     const done = s.indexOf('progression.completeWalk(', end);
     const after = s.indexOf('if (JSON.stringify(progression.catScars(scarKey(progression.state))) !== scarsBefore) onScarsChanged();', end);

@@ -17,8 +17,14 @@ const { build: buildGorge } = await import('../src/world/gorge.js');
 const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildFair } = await import('../src/world/fair.js');
 const { build: buildRoofs } = await import('../src/world/roofs.js');
+const { build: buildMarket } = await import('../src/world/market.js');
+const { build: buildHouse } = await import('../src/world/house.js');
+const { HOUSE_LEVELS } = await import('../src/world/houseplan.js');
+const { measureHouse } = await import('./helpers/housebudget.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { addBorderDressing } = await import('../src/world/borderpost.js');
+const { addGatewayDressing } = await import('../src/world/gateway.js');
+const { endsFor } = await import('../src/gateways.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 
 // ---------------------------------------------------------------------------
@@ -424,10 +430,37 @@ const AREAS = [
   // flagged to the owner and his to change.
   ['fair', buildFair, 250, 180, 75000],
   // The Rooftops (Rooftops step 2, 2026-11-20), measured 113 / 67 / 32,202
-  // (part one alone was 76 / 42 / 13,284). Held to the territories' ceilings,
+  // (part one alone was 76 / 42 / 13,284); 114 / 68 / 32,506 after
+  // follow-up 3 (stack-5 on the flat house, its ridge beam gone); 112 / 68 /
+  // 31,218 after follow-up 2 (calmer take-off marks); 113 / 68 / 32,382 after
+  // the beauty pass's Task A (the sky glow band, +1 mesh casting nothing, and
+  // the far town's lights and landmarks); 113 / 68 / 32,918 after Task B
+  // (houses that differ and real roof edges: no mesh or caster added, +536
+  // triangles in the buckets it had); 113 / 68 / 33,246 after Task C (windows
+  // and the tower: no mesh or caster added, +328 triangles in the buckets it
+  // had); 113 / 68 / 33,933 after Task D (readable hints and a lived-in
+  // alley: no mesh or caster added, +687 triangles in the buckets it had);
+  // 113 / 68 / 34,023 after round two's Task E (the shop's string courses
+  // and the garden bench's uprights, +96, in noCast buckets it had; the far
+  // town's lower back rows, -6: no mesh or caster added); 113 / 68 / 36,065
+  // after round two's Task F (what she walks on: the ridges in single tiles,
+  // the felt's drip edges, patches, flashing and outlets, the crates' slats
+  // and the bin bags' knots, +2,042 in noCast buckets it had: no mesh or
+  // caster added); 114 / 68 / 36,707 after round two's Task G (the street
+  // lit: the lamps' halo, +1 mesh casting nothing and never merged, 8
+  // triangles; the copings' joints, the road's lines, grates and covers, +632
+  // in noCast buckets it had; the far town's back row a little taller, +2);
+  // 116 / 68 / 37,335 after Rooftops step 3's Task 6 (two house cats asleep
+  // on warm sills: +2 meshes casting nothing and never merged, 314 triangles
+  // each). Held to the territories' ceilings,
   // never raised; the place aims for 300 / 120 / 60,000 (test/roofs.test.js
   // pins the exact numbers).
   ['roofs', buildRoofs, 450, 380, 70000],
+  // The Market Square (Market step 1, 2026-11-21), measured 101 / 27 / 37,943 after Task 6's rework and its review (the square drawn in, its clutter in one kit; 79 / 26 / 33,005 before, 79 / 30 before the shop fronts stopped casting);
+  // 111 / 27 / 39,335 after step 3's Task 8 (the café front, the flower tubs' blooms, the chalkboard; 109 / 27 / 38,329 before it)
+  // (test/market.test.js pins the exact numbers). The Farm's ceilings (spec,
+  // 2026-11-20), never raised; the place aims for 180 / 110 / 45,000.
+  ['market', buildMarket, 280, 210, 62000],
 ];
 
 // ---------------------------------------------------------------------------
@@ -472,7 +505,8 @@ const MERGED_AREAS = [
   ['gorge', buildGorge, 260, 205],
   ['farm', buildFarm, 200, 135], // measured 176 / 119
   ['fair', buildFair, 200, 140], // measured 178 / 124
-  ['roofs', buildRoofs, 64, 34], // measured 57 / 30, + 12%
+  ['roofs', buildRoofs, 64, 34], // measured 60 / 30 (59 / 30 before the Rooftops step 5 fix wave's vane, its own mesh so the tower view can fade it, never merged; 57 / 30 before Rooftops step 3's two sleeping cats, Task 6, never merged; 56 / 30 before round two's lamp halo, Task G; 55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
+  ['market', buildMarket, 123, 27], // measured 98 / 24 after Task 6's rework and review (its clutter, the controller's ruling), +12%; 76 / 23 before; 108 / 24 after step 3's Task 8 (the café front's paint and its chalkboard's contact-shadow box), ceiling unchanged; 110 / 25 with step 4's gate (its body and its bar), re-pinned at +12% (the same ruling)
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {
@@ -557,6 +591,87 @@ describe('with the Clan dressing', () => {
       if (process.env.BUDGET_LOG) console.log(name, JSON.stringify({ before, after }));
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// World map step 3 (gateways): a street place's gates are added by walk.js
+// after the build, like the border posts, so the bare rows above stay as they
+// are. Each gate is at most 400 triangles. This holds every gated place, built
+// with its gates, to the SAME ceilings, as built and as merged; no ceiling
+// rose. The Seaside, with about 490 triangles left of 30,000, paid first: its
+// cliff lost the hidden bottom face (720 triangles), so
+//   seaside triangles   29,513 -> 28,793 bare, 29,125 dressed
+// ---------------------------------------------------------------------------
+// Rooftops step 4 added the town's third signpost (town-roofs) and the
+// Rooftops' alley door (roofs-town), inside the same ceilings. Market step 4
+// added the town's fourth (town-market) and the square's gate in its south
+// row (market-town), inside the same ceilings too. Old House step 4 added the
+// old house's door in town (town-house, look 'none': the town draws the old
+// house's front for it, world/oldhousefront.js) and the hall's front door
+// (house-town, look 'none': the house draws its opening leaves): the town with
+// its four signposts and the front, and the house at every level, inside the
+// same ceilings, built and merged.
+describe('with the gateways (world map step 3)', () => {
+  it('covers every place with a gate, the Rooftops, the Market, the Old House and the town\'s four signposts among them', () => {
+    expect(endsFor('neighborhood').map((e) => [e.id, e.look])).toEqual([['town-park', 'signpost'], ['town-docks', 'signpost'], ['town-roofs', 'signpost'], ['town-market', 'signpost'], ['town-house', 'none']]);
+    expect(endsFor('roofs').map((e) => [e.id, e.look])).toEqual([['roofs-town', 'alleydoor']]);
+    expect(endsFor('market').map((e) => [e.id, e.look])).toEqual([['market-town', 'signpost']]);
+    expect(endsFor('house').map((e) => [e.id, e.look])).toEqual([['house-town', 'none']]);
+  });
+  it('the town draws the old house\'s front for its door', () => {
+    const scene = new THREE.Scene();
+    buildNeighborhood(scene, { gateEnds: endsFor('neighborhood') });
+    expect(scene.getObjectByName('oldhousefront')).toBeTruthy();
+  });
+  it('the house with its door home: every level under 450 / 380 / 70,000, built and merged', () => {
+    const scene = new THREE.Scene();
+    const area = buildHouse(scene, { gateEnds: endsFor('house') });
+    expect(area.house.parts.frontDoor).toBeTruthy();
+    addGatewayDressing(scene, 'house');
+    const rig = { castsFromBox, isTransparentMat };
+    const check = (tag) => {
+      const m = measureHouse(scene, rig);
+      for (const l of HOUSE_LEVELS) {
+        const at = m.at(l.id);
+        if (process.env.BUDGET_LOG) console.log('house', tag, l.id, JSON.stringify(at));
+        expect(at.meshes, `${tag} ${l.id}`).toBeLessThanOrEqual(450);
+        expect(at.casters, `${tag} ${l.id}`).toBeLessThanOrEqual(380);
+        expect(at.triangles, `${tag} ${l.id}`).toBeLessThanOrEqual(70000);
+      }
+    };
+    check('built');
+    mergeStaticProps(scene);
+    check('merged');
+  });
+  for (const [name, build, meshCeiling, casterCeiling, triangleCeiling] of AREAS.filter(([n]) => ['neighborhood', 'park', 'fair', 'farm', 'docks', 'seaside', 'roofs', 'market'].includes(n))) {
+    const merged = MERGED_AREAS.find(([n]) => n === name);
+    it(`${name}: dressed, still under ${meshCeiling} / ${casterCeiling} / ${triangleCeiling}, merged under ${merged[2]} / ${merged[3]}`, () => {
+      const scene = new THREE.Scene();
+      // as walk.js builds a Clan walk: the gate ends go to the builder too
+      // (the Fair and the Farm cut their front fences for them)
+      build(scene, { gateEnds: endsFor(name) });
+      if (name === 'neighborhood') addBorderDressing(scene, name);
+      addGatewayDressing(scene, name);
+      const before = budgetStats(scene);
+      if (process.env.BUDGET_LOG) console.log(name, JSON.stringify(before));
+      expect(before.meshes).toBeLessThanOrEqual(meshCeiling);
+      expect(before.casters).toBeLessThanOrEqual(casterCeiling);
+      expect(before.triangles).toBeLessThanOrEqual(triangleCeiling);
+      mergeStaticProps(scene);
+      const after = budgetStats(scene);
+      if (process.env.BUDGET_LOG) console.log(name, 'merged', JSON.stringify(after));
+      expect(after.meshes).toBeLessThanOrEqual(merged[2]);
+      expect(after.casters).toBeLessThanOrEqual(merged[3]);
+    });
+  }
+  it('the Seaside paid for its gate first: 28793 bare, and dressed it is at or under the 29513 it had before the trim', () => {
+    const scene = new THREE.Scene();
+    buildSeaside(scene);
+    expect(budgetStats(scene).triangles).toBe(28793);
+    addGatewayDressing(scene, 'seaside');
+    if (process.env.BUDGET_LOG) console.log('seaside dressed', JSON.stringify(budgetStats(scene)));
+    expect(budgetStats(scene).triangles).toBeLessThanOrEqual(29513);
+  });
 });
 
 // ---------------------------------------------------------------------------

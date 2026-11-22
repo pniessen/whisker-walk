@@ -330,3 +330,22 @@ describe('Seaside — the dunes’ edge and the boardwalk’s end', () => {
       .toBe('de2eb599e0d9674d809f13617caac4e30d644e80ee04e1ae752eb164f3040ef0');
   });
 });
+
+describe('Seaside — the cliff', () => {
+  it('has no bottom face (it lies under the sand and is never seen)', () => {
+    const scene = new THREE.Scene();
+    build(scene);
+    const cliff = scene.children.find((c) => c.isMesh && c.position.x === -10 && c.position.y === 4 && c.position.z === -46);
+    expect(cliff).toBeTruthy();
+    const pos = cliff.geometry.attributes.position;
+    const idx = cliff.geometry.index;
+    const bottom = cliff.geometry.boundingBox ?? (cliff.geometry.computeBoundingBox(), cliff.geometry.boundingBox);
+    let flat = 0;
+    for (let i = 0; i < idx.count; i += 3) {
+      const ys = [0, 1, 2].map((k) => pos.getY(idx.getX(i + k)));
+      if (ys.every((y) => Math.abs(y - (-4)) < 1e-4)) flat++;
+    }
+    expect(bottom.min.y).toBeCloseTo(-4, 3);
+    expect(flat).toBe(0);
+  });
+});

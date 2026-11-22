@@ -609,3 +609,11 @@ describe('the card never stacks, and always gives way', () => {
     expect(start.click).not.toHaveBeenCalled();
   });
 });
+
+describe('pad layers: the nearby card', () => {
+  it('carries data-pad-layer', () => {
+    const { nearby } = setup();
+    nearby.receive(found(['WXYZ', 'Robin']));
+    expect(card().attrs['data-pad-layer']).toBe('');
+  });
+});

@@ -28,9 +28,11 @@ export function buildInfo(env = process.env, now = new Date()) {
 // a child's phone downloads before the game can start. It grew from 632 kB to
 // 801 kB in nine days (Nov 2026) with nothing watching. Owner's choice
 // 2026-11-20: lowered from 900 to 700 once lazy loading landed, with each
-// place its own download under AREA_GZIP_CEILING_KB (100). Raise either on
-// purpose, in the same change, rather than to make a build pass.
-export const MAIN_GZIP_CEILING_KB = 700;
+// place its own download under AREA_GZIP_CEILING_KB (100). Owner's choice
+// 2026-11-21: raised to 720 for Market Square and the Old House (start-up
+// reached 697 with the Market). Raise either on purpose, in the same change,
+// rather than to make a build pass.
+export const MAIN_GZIP_CEILING_KB = 720;
 
 /** The main script's path from the built index.html (its module entry). */
 export function mainScript(html) {

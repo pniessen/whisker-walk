@@ -236,6 +236,28 @@ describe('scanFootprints', () => {
     scene.add(house);
     expect(scanFootprints(scene)).toHaveLength(1);
   });
+
+  // userData.noContactShadow (the Old House's stairs, panes and rooms): the
+  // flagged child gets no footprint, its unflagged twin beside it still does.
+  it('skips a child flagged noContactShadow, and only that child', () => {
+    const scene = new THREE.Scene();
+    const crate = (x) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
+      m.position.set(x, 0.5, 2);
+      scene.add(m);
+      return m;
+    };
+    const flagged = crate(-3);
+    crate(4);
+    expect(qualifies(new THREE.Box3().setFromObject(flagged))).toBe(true); // a footprint but for the flag
+    flagged.userData.noContactShadow = true;
+    const found = scanFootprints(scene);
+    expect(found).toHaveLength(1);
+    expect(found[0].x).toBeCloseTo(4, 6);
+    expect(found[0].z).toBeCloseTo(2, 6);
+    flagged.userData.noContactShadow = false;
+    expect(scanFootprints(scene)).toHaveLength(2);
+  });
 });
 
 describe('createContactShadows', () => {

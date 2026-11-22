@@ -652,6 +652,41 @@ describe('the leap and the drop', () => {
     }).not.toThrow();
     expect(calls).toEqual([['emit', 'pounce:land', { water: false }]]);
   });
+
+  it('tallies a crossing and a leap landed, and nothing else', () => {
+    const tallies = [];
+    const cat = new THREE.Group();
+    const deps = { cat, tally: (t) => tallies.push(t) };
+    traversalEventEffects({ type: 'cross', id: 'x' }, deps);
+    expect(tallies).toEqual(['cross']);
+    tallies.length = 0;
+    traversalEventEffects({ type: 'land', kind: 'leap', id: 'x' }, deps);
+    expect(tallies).toEqual(['leap']);
+    tallies.length = 0;
+    traversalEventEffects({ type: 'land', kind: 'drop', id: 'x' }, deps);
+    traversalEventEffects({ type: 'land', kind: 'climb', id: 'x' }, deps);
+    traversalEventEffects({ type: 'mount', id: 'x' }, deps);
+    traversalEventEffects({ type: 'look', id: 'x' }, deps);
+    traversalEventEffects({ type: 'leap', id: 'x' }, deps);
+    expect(tallies).toEqual([]);
+  });
+
+  it('traversalTally records the feat and then checks the skills', async () => {
+    const { traversalTally } = await import('../src/traversallive.js');
+    const { createProgression } = await import('../src/progression.js');
+    const { hasSkill } = await import('../src/skills.js');
+    const mem = new Map();
+    const storage = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) };
+    const progression = createProgression(storage);
+    let celebrated = 0;
+    const tally = traversalTally(progression, () => { celebrated++; });
+    for (let i = 0; i < 19; i++) tally('cross');
+    expect(hasSkill(progression.state, 'tightrope-tail')).toBe(false);
+    tally('cross');
+    expect(progression.state.feats.cross).toBe(20);
+    expect(celebrated).toBe(20);
+    expect(hasSkill(progression.state, 'tightrope-tail')).toBe(true);
+  });
 });
 
 const { buildCat } = await import('../src/cat/model.js');

@@ -16,6 +16,7 @@ const { GOLD_MICE } = await import('../src/goldmice.js');
 const { CHICK_SPOT_SETS, goatRoute } = await import('../src/farmjobs.js');
 const { FARM_HIDES } = await import('../src/world/farm.js');
 const { FAIR_HIDES } = await import('../src/world/fair.js');
+const { STALLS: MARKET_STALLS, MARKET_HIDES } = await import('../src/world/marketplan.js');
 
 // Scripted job points per area: a find never sits where a job's animal or
 // object is placed (PICKUP is 1 m, so a find that close doubles up with it).
@@ -25,6 +26,8 @@ const FAIR_JOB_ANCHORS = ['tinCanPlay', 'tinCanCounter', 'tinCans', 'duckPool', 
 const JOB_POINTS = {
   farm: (area) => [...CHICK_SPOT_SETS.flat(), ...goatRoute(area.anchors), ...FARM_HIDES],
   fair: (area) => [...FAIR_JOB_ANCHORS.flatMap((k) => area.anchors[k]), ...FAIR_HIDES],
+  // the Market's: every treat (the sneak's) and every hide, the apple crate and where the bucket lands
+  market: (area) => [...MARKET_STALLS.filter((s) => s.treat).map((s) => s.treat), ...MARKET_HIDES, area.anchors.apples, propsFor('market').knockables[0].fallTo],
 };
 
 const YARN_CLEAR = 3;
@@ -36,7 +39,7 @@ const ALL_BUILDERS = {
   neighborhood: '../src/world/neighborhood.js', park: '../src/world/park.js', seaside: '../src/world/seaside.js',
   docks: '../src/world/docks.js', woods: '../src/world/woods.js', river: '../src/world/river.js',
   moor: '../src/world/moor.js', pines: '../src/world/pines.js', gorge: '../src/world/gorge.js',
-  farm: '../src/world/farm.js', fair: '../src/world/fair.js',
+  farm: '../src/world/farm.js', fair: '../src/world/fair.js', market: '../src/world/market.js',
 };
 const BUILDERS = Object.fromEntries(Object.entries(ALL_BUILDERS).filter(([id]) => spotsIn(id).length > 0));
 it('every area with spots has a builder here', () => {

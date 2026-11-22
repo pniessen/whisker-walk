@@ -1,4 +1,4 @@
-// v18 "Cat Skills" — the static catalog of the twelve earned abilities and
+// v18 "Cat Skills" — the static catalog of the fourteen earned abilities and
 // the feat predicates that unlock them.
 //
 // This module is deliberately PURE and has ZERO imports: no THREE, no DOM,
@@ -14,8 +14,8 @@
 //     unconditionally cycle-free.
 //
 // Abilities are permanent and always-on: no loadout, no respec, no
-// prerequisites. Twelve flat unlocks across four families — the spec's full
-// twelve. Sea Legs shipped one wave late: v18 descoped it (CF-12) and v20
+// prerequisites. Fourteen flat unlocks across four families — the spec's
+// twelve, then Tightrope Tail and Long Leap (Rooftops step 5). Sea Legs shipped one wave late: v18 descoped it (CF-12) and v20
 // reinstated it once water became solid; the history is on its entry below,
 // with a pointer at the end of SKILLS where the descope note used to sit.
 
@@ -134,7 +134,7 @@ export function friendRungs(charmer = false) {
 // `need`) so the UI can decide whether to show "27/25" or clamp it, and so
 // tests can distinguish need-1 / need / need+1.
 //
-// FEAT SOURCE MAPPING. Every one of the twelve feats now reads a counter
+// FEAT SOURCE MAPPING. Every one of the first twelve feats now reads a counter
 // that faithfully means what the feat says, and the note on each entry says
 // which counter and why. Four of them (Spring Paws, Long Zoomies, Fence
 // Runner, Night Eyes) originally shipped reading a PROXY, because the action
@@ -302,6 +302,31 @@ export const SKILLS = [
     // discovery of the next walk (or at its end), exactly like the other
     // retroactive abilities Whisker Sense, Charmer and Far Call.
     progress: (state) => ({ have: walkTally(state, 'seaside'), need: 5 }),
+  },
+
+  {
+    id: 'tightrope-tail',
+    family: 'traversal',
+    name: 'Tightrope Tail',
+    effect: 'You walk planks, ridges and washing lines quicker and steadier.',
+    // Says where (fix wave, M4). "the roofs", not the place's name: "The
+    // Rooftops" is a word-table word (clanwords.js PLACE_WORDS), and this
+    // file imports nothing.
+    feat: 'Walk 20 crossings on the roofs',
+    // Reads the dedicated feats.cross counter: one per crossing walked from
+    // end to end (the traversal's 'cross' event), on any walk, lifetime.
+    progress: (state) => ({ have: featTally(state, 'cross'), need: 20 }),
+  },
+  {
+    id: 'long-leap',
+    family: 'traversal',
+    name: 'Long Leap',
+    effect: 'You can leap the wider gaps between the roofs.',
+    feat: 'Leap 15 gaps on the roofs',
+    // Reads the dedicated feats.leap counter: one per leap landed (a 'land'
+    // event of kind 'leap', Long Leaps included; climbs and drops are not
+    // leaps), lifetime.
+    progress: (state) => ({ have: featTally(state, 'leap'), need: 15 }),
   },
 
   // --- Senses ------------------------------------------------------------

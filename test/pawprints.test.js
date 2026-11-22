@@ -20,13 +20,14 @@ const { build: buildGorge } = await import('../src/world/gorge.js');
 const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildFair } = await import('../src/world/fair.js');
 const { build: buildRoofs } = await import('../src/world/roofs.js');
+const { build: buildMarket } = await import('../src/world/market.js');
 const { createContactShadows } = await import('../src/render/contactshadows.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { assignShadowCasters } = await import('../src/render/rig.js');
 const { LADDER } = await import('../src/render/quality.js');
 const { inWater } = await import('../src/world/builder.js');
 
-const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, farm: buildFarm, fair: buildFair, roofs: buildRoofs };
+const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, farm: buildFarm, fair: buildFair, roofs: buildRoofs, market: buildMarket };
 
 // walk.js's order: build, contact shadows, merge, casters, THEN prints.
 function walkScene(areaId) {
@@ -206,6 +207,10 @@ describe('paw print surfaces', () => {
 
   it('the Rooftops take prints on their gravel and slate, and none on grass (there is none)', () => {
     expect(AREA_RULES.roofs).toEqual({ ground: null, path: 'gravel', strip: null });
+  });
+
+  it('the Market takes prints on its cobbles (gravel, the nearest path look: there is no cobble one), and none on grass (there is none)', () => {
+    expect(AREA_RULES.market).toEqual({ ground: null, path: 'gravel', strip: null });
   });
 
   it('the Fairground takes prints on its trodden midway, plaza and paths, and none on the lawn', () => {

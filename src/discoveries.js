@@ -23,16 +23,29 @@ export const AWARDS = {
   // first time ever. Their feat tallies are the lifetime counts of both.
   farmjob: 25,
   farmfind: 12,
+  // The Old House (step 2, D6): one of its six finds, once a walk.
+  housefind: 12,
   // The Fairground (2026-11-18): one of its three games won on a later walk
   // than its first win ever (that one gives a prize to wear instead), once a
   // walk for each game; and one of its six finds, paid the first time ever.
   fairgame: 15,
   fairfind: 12,
+  // The Rooftops (2026-11-21): one of its six finds, paid the first time ever.
+  roofsfind: 12,
+  // The Market Square (2026-11-21): one of its six finds, paid the first time
+  // ever (world/marketfinds.js noteMarketFind).
+  marketfind: 12,
   // Found outfits (2026-11-19): the walk's find when everything hidden in the
   // place is already hers, the spec's "a small coin pouch instead (Claude's
   // call: 5 coins)" (the coins are 🐾). Once a walk (foundwear/play.js), and
   // the same number as foundwear/rules.js POUCH_COINS.
   pouch: 5,
+  // The Market Square (step 2, M9): a treat eaten, once per stall per walk
+  // (game/marketplay.js, key 'market-treat-<stall>'), and teamwork, paid on
+  // the distracter's own device when her partner grabs the treat at the stall
+  // cooing at her (once per stall per walk, 'market-team-<stall>').
+  treat: 6,
+  teamtreat: 6,
 };
 
 export function createDiscoveryLog(progression) {

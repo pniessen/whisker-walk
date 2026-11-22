@@ -3,7 +3,7 @@ import { litMaterial } from './render/materials.js';
 import { areaInEdition } from './edition.js';
 import { FLAT_GROUND } from './ground.js';
 
-// Thirty-six hidden golden mice: three in each of eleven areas, and three more on
+// Forty-two hidden golden mice: three in each of thirteen areas, and three more on
 // the island in the Pines' lake, which is part of the Pines walk. Placed at parkour
 // destinations using the perch coordinates that actually ship in
 // src/world/*.js (see task-4.2-report.md for the chain math) rather than the v11 spec's
@@ -159,10 +159,41 @@ export const GOLD_MICE = {
     // hidden at ground level between the two tents behind the stalls
     { id: 'gm-fair-3', x: 11.2, z: 20.2, y: 0 },
   ],
+  // The Rooftops (src/world/roofsplan.js ROOFS_REGISTRATION.goldMice; test/roofs.test.js
+  // holds the two lists equal). `y` is metres above the ground under each mouse,
+  // and none needs Long Leap: two up climbs, one hidden low.
+  roofs: [
+    // on the water tank's lid: one climb up from the warehouse roof, on the tank's west side
+    { id: 'gm-roofs-1', x: -26.8, z: -33.6, y: 0 },
+    // on the clock tower's lantern stage, a corner below the vane: up the tower's climbs
+    { id: 'gm-roofs-2', x: 27.6, z: -15.4, y: 0 },
+    // hidden in a back yard, in the nook between bunker-4 and the party wall west of it
+    { id: 'gm-roofs-3', x: -14.3, z: 21.7, y: 0 },
+  ],
+  // The Market Square (src/world/marketplan.js MARKET_REGISTRATION.goldMice; test/market.test.js
+  // holds the two lists equal): one up on an awning, one on a crate stack's top, one hidden low.
+  market: [
+    // on the cheese stall's awning, by its middle: up its crates (0.95), then onto the awning (2 hops)
+    { id: 'gm-market-1', x: 7.29, z: -10.31, y: 2.32 },
+    // on the apples on top of stack-e, the east crate stack: one hop off the cobbles
+    { id: 'gm-market-2', x: 16.34, z: 12.97, y: 1.04 },
+    // hidden low at the foot of the west shop fronts, tucked at the end of the handcart there
+    { id: 'gm-market-3', x: -20.5, z: -4.3, y: 0 },
+  ],
+  // The Old House (src/world/housethings.js HOUSE_GOLD_MICE; test/housethings.test.js
+  // holds the two lists equal). `y` is the height over the ground there, so 0 on a ledge.
+  house: [
+    // on the library's west bookcase, where the corner leap lands her
+    { id: 'gm-house-1', x: -13.6, z: 5.6, y: 0 },
+    // on the bedroom wardrobe, where the leap from the shelf lands her
+    { id: 'gm-house-2', x: -6.8, z: -15.6, y: 0 },
+    // on the cellar floor between the barrels and the crates
+    { id: 'gm-house-3', x: 27.0, z: -0.7, y: 0 },
+  ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 36 (eleven areas x three, and the island's three)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 45 (fourteen areas x three, and the island's three; 42 until the Old House)
 
 // The golden mice a player of `edition` can reach: those in the areas the
 // edition shows (Legacy hides the Clan Edition territories; see edition.js).

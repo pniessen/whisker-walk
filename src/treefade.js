@@ -116,6 +116,11 @@ export function segmentHitsBox(a, b, box) {
   return true;
 }
 
+// A tagged shape's entry by its object, for an owner that moves the object after
+// the walk has read it (the Old House's secret bookcase swings open: world/housefinds.js
+// re-places its entry's x, z and shapes).
+export const fadeEntryOf = new WeakMap();
+
 // Fade-only entries for the walk camera: tagged shapes (userData.fadeOccluder)
 // and window-bearing building groups. Same entry shape as findOccluders.
 export function findFadeOccluders(scene) {
@@ -132,7 +137,9 @@ export function findFadeOccluders(scene) {
       : { t: 'ell', x: px, y: py + sh.y * s, z: pz, r: sh.r * s, ry: sh.ry * s, p: 0 }));
     const R = Math.max(...placed.map((q) => q.r));
     const top = Math.max(...placed.map((q) => (q.t === 'cyl' ? q.y1 : q.y + q.ry)));
-    out.push({ obj: o, x: px, z: pz, R, top, shapes: placed, near: NEAR_POLE });
+    const entry = { obj: o, x: px, z: pz, R, top, shapes: placed, near: NEAR_POLE };
+    fadeEntryOf.set(o, entry);
+    out.push(entry);
   });
   for (const child of scene.children) {
     if (child.isMesh || child.userData?.occluder || child.userData?.occluderStand || child.userData?.fadeOccluder) continue;

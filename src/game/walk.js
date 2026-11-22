@@ -19,6 +19,10 @@ import * as THREE from 'three';
 // loaded pack. No area module is imported here.
 import { createAreaLoader } from './areaload.js';
 import { roofsOn } from '../roofsflag.js';
+import { houseOn } from '../houseflag.js';
+import { isIndoor } from '../indoor.js';
+import { marketOn } from '../marketflag.js';
+import { birthdayDue, BDAY_AREA, BDAY_START, BRIDGE_ISLAND_END, speakerFor, birthdayCatName, noteCandlesBlown, bdayCountsWalk, saveBirthdayPhoto, BDAY_PHOTO_KEY } from '../birthday.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
@@ -34,7 +38,7 @@ import { PAW } from '../ui/pawicon.js';
 import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
-import { createCritters, goatForDay } from '../critters.js';
+import { createCritters, goatForDay, questMarkerY } from '../critters.js';
 import { createStrayCats, strayStream } from '../straycats.js';
 import { createClanCats } from '../clancats.js';
 import { castFor, CLAN_COLOURS, clanCountFor, clanHomeFor, lonersFor, roamHomes, borderWarriorFor } from '../clancast.js';
@@ -77,13 +81,17 @@ import { NO_FARM } from '../farmnone.js';
 import { handleFarmEvent, addFarmHat, restoreFarmJobs } from './farmplay.js';
 import { NO_FAIR } from '../fairnone.js';
 import { handleFairEvent, addBalloonRibbon, restoreFairGames } from './fairplay.js';
-import { createTraversalLive, NO_TRAVERSAL, traversalEventEffects } from '../traversallive.js';
+import { NO_MARKET } from '../marketnone.js';
+import { handleMarketEvent, restoreMarket, createMarketToasts } from './marketplay.js';
+import { createTraversalLive, NO_TRAVERSAL, traversalEventEffects, traversalTally } from '../traversallive.js';
 import { moveAbilities } from '../traversal.js';
 import { groundOf } from '../ground.js';
 import { isFearless } from '../dogs.js';
 import { createBorderMarks } from '../render/bordermarks.js';
 import { addBorderDressing } from '../world/borderpost.js';
-import { postsFor } from '../borderposts.js';
+import { addGatewayDressing, NO_GATES } from '../world/gateway.js';
+import { liveEndsFor, endById } from '../gateways.js';
+import { postsFor, postById, postArrival } from '../borderposts.js';
 import { createFx } from '../fx.js';
 import { createSkyLife } from '../skylife.js';
 import { rollWeather, createWeather, rainPuddleSpots } from '../weather.js';
@@ -94,6 +102,7 @@ import { createFind, NO_FIND } from '../foundwear/live.js';
 import { restoreFind } from '../foundwear/play.js';
 import { foundWearIn } from '../foundwear/index.js';
 import { crossingOutcome } from '../bordercross.js';
+import { pickOnCrossing, gateStatus, viaPlan, walkOnMove, GATE_MOMENT_MS, gateMomentHtml, nextRoomSeed, stateIsHere } from '../gatecross.js';
 import { rivalForWalk, placeName, effectiveArea, isClanEdition } from '../edition.js';
 import { picksOf, homeWelcome } from '../clanhomes.js';
 import { phrase } from '../clanphrases.js';
@@ -130,6 +139,8 @@ import { mergeStaticProps } from '../render/mergeprops.js';
 import { createStripTiles } from '../render/striptiles.js';
 import { createGrass, groundFinds } from '../render/grass.js';
 import { createPawPrints } from '../render/pawprints.js';
+import { createPartyBalloons } from '../render/partyballoons.js';
+import { birthdayPartyOn } from '../ui/party.js';
 import { createSplash } from '../render/splash.js';
 import { createClouds } from '../render/clouds.js';
 import { createAmbient } from '../render/ambient.js';
@@ -172,8 +183,7 @@ import { walkDusk } from './session.js'; // its own line: test/session.test.js p
 // The recipe for a new area (builder, AREA_LOADERS line, catalog row) is in src/world/areas.js.
 // A walk builds from its place's pack (areas.loaded(id): { id, world, life }),
 // which startWalkWhenReady fetches first. The Rooftops (`roofs`) is a pack like
-// any other, and in no list a child picks from: every such list comes from
-// CATALOG.areas, which has no Rooftops row until step 4.
+// any other, with its own row in CATALOG.areas (Rooftops step 4).
 //
 // startWalkWhenReady's two numbers (F6): how long a wait goes before the
 // Explore button says "Getting ready…" (a quicker load never shows it), and
@@ -245,7 +255,10 @@ export function cardMode(s) {
 // and this is where the view is picked now. The den stops at Middle
 // (camzoom.js), so Far and Farther are greyed there. In a walk together the
 // key list adds the chat keys.
-export function pauseCardFor(s, touch, sound = null) {
+// `note`: one line why she is back on the card (a walk-on that could not
+// go). A toast would sit under the card, so the card carries it; it is drawn
+// only when passed, so the next time the card is drawn it is gone.
+export function pauseCardFor(s, touch, sound = null, note = null) {
   const mode = cardMode(s);
   const L = s.lesson;
   const max = maxZoomStep(s.areaId === 'den');
@@ -254,7 +267,7 @@ export function pauseCardFor(s, touch, sound = null) {
     welcome: mode === 'paused' ? null : s.welcome, touch, portrait: s.portrait, mode,
     skip: !!L && !L.finished && !L.skipped,
     oneLine: mode === 'ready' && !touch && L?.kind === 'first' && !L.skipped,
-    sound, view, room: !!s.net,
+    sound, view, room: !!s.net, note,
   });
 }
 // The switches' state from settings: Sound is "Mute all sound" turned round,
@@ -278,11 +291,12 @@ function pauseViewHtml({ step, max }) {
   return `
       <div class="pause-view" role="group" aria-label="View"><span class="pause-view-label">👀 View</span><div class="pause-view-chips">${chips}</div></div>`;
 }
-export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false, sound = null, view = null, room = false }) {
+export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false, sound = null, view = null, room = false, note = null }) {
   return `<div class="pause-card"><div class="screen-panel">
     ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
     <div class="screen-body"><h1>${CARD_TITLE[mode] ?? CARD_TITLE.ready}</h1>
-    ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}
+    ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}${note ? `
+    <p class="pause-note" role="status">${escapeHtml(note)}</p>` : ''}
     <div class="screen-actions">
       <button id="btn-resume" class="primary">${resumeLabel(mode, touch)}</button>${sound && mode !== 'ready' ? pauseSoundHtml(sound, view) : ''}
       <button id="btn-end" class="secondary">Head home</button>${skip ? `
@@ -317,6 +331,25 @@ export function chatHintLine(touch) {
   return touch ? 'Tap 💬 to chat' : 'Press 1–9 to chat · Enter for phrases';
 }
 
+// The summary's own lines for what a walk banked (bankWalk's numbers): the
+// one source of their words. Plain text by default, which a walk-on toasts
+// (walkOn's onWalkedOn); endWalk's summary card asks for its HTML pieces
+// (`html`: the item's name escaped, the light paw, a non-breaking space as
+// an entity) and wraps each line in its own tag. Every other character is a
+// literal or a number, so nothing else needs escaping. null where a line
+// does not apply.
+export function bankedLines({ isRecord, streak, mochiArrived, broughtHome }, { html = false } = {}) {
+  const name = html ? escapeHtml(carryLabel(broughtHome)) : carryLabel(broughtHome);
+  const paw = html ? PAW : '🐾';
+  const nbsp = html ? '&nbsp;' : '\u00a0';
+  return {
+    best: isRecord ? 'NEW BEST! 🏆' : null,
+    streak: streak.bonus > 0 ? `🔥 day ${streak.count} streak — +${streak.bonus} bonus ${paw}` : null,
+    mochi: mochiArrived ? 'Mochi the kitten followed you home! 🐱' : null,
+    brought: broughtHome ? `You brought the ${name} home. It's in the den now.${nbsp}🏠` : null,
+  };
+}
+
 function hintHtml(segs) {
   return segs.map((t) => `<span class="hint-seg">${escapeHtml(t)}</span>`).join(' · ');
 }
@@ -325,6 +358,8 @@ export function createWalkLifecycle({
   MP, pid, coarse, envMap, overlay, blockList,
   renderer, camera, composerRig,
   player, progression, settings, hud, audio, music, log, touchUI, catVoice,
+  // the photo Album (album.js): her birthday photo goes in it. Optional.
+  album = null,
   getCloud, getSession, setSession, getIsTouch, getHomebase,
   getPendingRoom, clearPendingRoom, pushProfileNow,
   // game/rooms.js: the home base's Start in a room (v21 Play together).
@@ -354,6 +389,14 @@ export function createWalkLifecycle({
   homeToast = () => {},
   reloadPage = () => window.location.reload(),
   isOnline = () => navigator.onLine !== false,
+  // World map step 3: a walk walked on through a gate has started in the next
+  // place; `lines` are the walk just left's own lines (a new best, a streak
+  // bonus, the kitten, what she brought home) for main.js to toast now. A
+  // walk not yet begun (a desktop's Ready? card) keeps them in its
+  // startLines for the first engage instead, and `lines` is empty. And the
+  // walk's pause (main.js: the ⏸ action), for a walk-on that waits for its place.
+  onWalkedOn = () => {},
+  releaseControl = () => {},
 }) {
   // ------------------------------------------------------------------
   // v18 Task 2.7 — the in-walk skill-unlock celebration.
@@ -525,10 +568,25 @@ export function createWalkLifecycle({
   // home stays up while it comes, and a load that fails keeps her home with
   // the same gentle line as any place.
   //
+  // ?house=1: a solo Old House walk, in Clan Edition only (Legacy Edition does
+  // not get it) and never in a room (ruling H7); its drawing is its own
+  // download too, so it starts the same way. With both switches on, the
+  // Rooftops wins.
+  //
   // A solo start returns startWalkWhenReady's promise (it settles once the
   // walk has started, or not); a room start returns nothing.
   function beginWalkFromHomebase({ duskMode }) {
     if (roofsOn() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'roofs' });
+    // ?market=1: a solo Market walk in Clan Edition, never in a room (Market step 1).
+    if (marketOn() && isClanEdition(progression.state) && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'market' });
+    if (houseOn() && isClanEdition(progression.state) && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'house' });
+    // Her birthday (src/birthday.js): while the Gathering waits, a solo
+    // Explore starts in the Pines at the foot of the island bridge. An
+    // override only, never a setArea, and nothing is unlocked: the Pines stay
+    // as they were (and a walk there counts only if they are already hers).
+    if (!getPendingRoom() && birthdayDue(progression)) {
+      return startWalkWhenReady({ duskMode, areaOverride: progression.state.area === BDAY_AREA ? undefined : BDAY_AREA, birthday: true });
+    }
     const area = effectiveArea(progression.state, CATALOG);
     if (!getPendingRoom()) {
       return startWalkWhenReady(area === progression.state.area ? { duskMode } : { duskMode, areaOverride: area });
@@ -581,6 +639,9 @@ export function createWalkLifecycle({
   // Resolves to 'started' | 'busy' | 'failed' | 'dropped'; a build throw on the
   // waiting path rejects it.
   let waiting = null; // the token of the start now waiting, else null
+  // Every startWalk counts itself, so a walk-on's moment can tell whether a
+  // walk began some other way while it showed.
+  let walksStarted = 0;
   let waitTokens = 0;
   let failures = 0;
   function startWalkWhenReady(opts = {}) {
@@ -639,14 +700,22 @@ export function createWalkLifecycle({
   // `resume` is a walk picked up again (walkresume.js's note, main.js's boot):
   // the same seed and stamp build the same walk, then the cat, the treasures,
   // the goals and the tallies are put back. Solo only; never with a roomSeed.
-  function startWalk({ duskMode = false, roomSeed, areaOverride, resume = null } = {}) {
+  // `arrive` ({ x, z, yaw }) is where a walk walked on through a gate or a
+  // border post begins (walkOn below): the cat starts there, facing in,
+  // instead of at the spawn. Only the first camp walk's way and heading start
+  // there too (from where she stands, as from a resumed spot; its heading
+  // wins over the arrival's yaw); the spawn still seeds the race pad, the
+  // kitten, the wanderer and the guided walk, and no stream is drawn from
+  // differently.
+  function startWalk({ duskMode = false, roomSeed, areaOverride, resume = null, arrive = null, birthday = false } = {}) {
+    walksStarted += 1;
     // The place's pack (F6), before anything touches the save: a start whose
     // place has not come is a mistake in the caller (every start goes
     // through startWalkWhenReady), and it must leave nothing half-done.
     const pack = areas.loaded(areaOverride ?? progression.state.area);
     if (!pack) throw new Error(`Whisker Walk: area "${areaOverride ?? progression.state.area}" is not loaded; start walks with startWalkWhenReady`);
     // The Farm's animals and the Fair's rides and games come with their place.
-    const { createFarmAnimals, createFairLive, createFairShow } = pack.life;
+    const { createFarmAnimals, createFairLive, createFairShow, createMarketLive, createPeopleKit, lodNearFor } = pack.life;
     // A visit prize held for the tap (styles A and C) goes on FIRST, before
     // anything below reads state.equipped (the avatar, the collar/crown
     // perks). Style C never dims and A lets go after its reveal, so Start,
@@ -736,6 +805,12 @@ export function createWalkLifecycle({
     // — no weather/secrets/quest/strays/goals/race/goldMice/sky-life indoors,
     // but ghosts still visit and the kitten's home-stage still shows up.
     const isDen = areaId === 'den';
+    // Indoors (indoor.js: the den and the Old House): no weather, secrets,
+    // strays, legend or sky birds. Daily goals and the corner map are the den's
+    // own guards: the den has neither, the house has both (Old House D11, D12).
+    // Every other guard below stays the den's own (its zoom cap, its
+    // furniture, its cats, its shop).
+    const indoor = isIndoor(areaId);
     // A walk picked up again keeps its stamp: the same border warrior, the same song.
     const walkStamp = resume?.stamp ?? 'walk-' + Date.now();
     const scene = new THREE.Scene();
@@ -773,9 +848,13 @@ export function createWalkLifecycle({
     // fence run at z ~ -18 — and that garden is the one thing in the room a
     // breeze should reach. It gets no `water` because it has none. Passing an
     // extra key is inert until den.js asks for it.
+    // The gates this walk draws (world map step 3: Clan Edition only, see
+    // `gates` below). The Fair and the Farm cut their front fences for exactly
+    // these, so a Legacy walk (none) keeps its fence whole, as it always was.
+    const gateEnds = !isDen && isClanEdition(state) ? liveEndsFor(areaId, CATALOG) : [];
     const areaData = isDen
       ? pack.world.build(scene, { placed: progression.state.den.placed, wind })
-      : pack.world.build(scene, { water: { quality: tier, reducedMotion }, wind });
+      : pack.world.build(scene, { water: { quality: tier, reducedMotion }, wind, gateEnds });
     // Gorge part 1: the area's walkable height, FLAT_GROUND on every map today.
     const ground = groundOf(areaData);
     // Gorge G9: the goat comes on about half the days. On a no-goat day it and
@@ -787,6 +866,17 @@ export function createWalkLifecycle({
     // shadows and the static-prop merge so they get all three; their colliders
     // join the live list below, beside the scratch posts'.
     const dressing = !isDen && isClanEdition(state) ? addBorderDressing(scene, areaId, { ground }) : null;
+    // The gateways (world map step 3), on the same terms and for the same
+    // reasons as the posts: Clan Edition only, local to this screen, drawn here
+    // so they get the fill light, contact shadows and the merge. Each lane is a
+    // top-level mesh named 'path' (R12), added before the dusk and wet lists
+    // below collect the paths, so a lane darkens in rain and tints at dusk like
+    // every path. A gate is open where she can go now (gateStatus 'go'). Its
+    // colliders join the live list below, beside the posts'.
+    const gates = !isDen && isClanEdition(state)
+      ? addGatewayDressing(scene, areaId, { ground, ends: gateEnds, isOpen: (e) => gateStatus(e, state, CATALOG).kind === 'go',
+        nameFor: (e) => placeName(e.to, state.edition, CATALOG) }) // a gate's name board (Rooftops step 4)
+      : NO_GATES;
     // The fill light, added here rather than beside the sun because its ground
     // term is the AREA'S OWN dominant ground colour and only areaData knows it:
     // a green bounce under the park's lawn, sand at Seaside, wet grey stone at
@@ -871,6 +961,7 @@ export function createWalkLifecycle({
     const pace = 2.2 + PERSONALITIES[active.breed].speed * 0.8;
     player.setAvatar(cat, pace);
     player.setGround(ground);
+    player.setCameraGround(areaData.cameraGround); // the house's floors without the furniture tops; elsewhere none
     // v18 CF-10b: without this, Long Zoomies did nothing in the running game —
     // player.js shipped the tuning and the state machine, but nothing ever
     // handed the player the save. Set AFTER setAvatar, which resets the charge
@@ -954,7 +1045,7 @@ export function createWalkLifecycle({
     const duskGround = duskLookNow ? scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint || c.name === 'path' || c.name === 'horizonBand' || c.name === 'steppingStones')) : [];
     let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {}, setSheltered() {}, tintWet() {}, dispose() {} };
     // No weather in an area that is always evening (no rain on the roofs).
-    if (!duskActive && !isDen && areaData.evening !== true) {
+    if (!duskActive && !indoor && areaData.evening !== true) {
       // The ground and paths in the scene right now (the area's own, before
       // anything else is added) are what the rain darkens; the fill is dimmed.
       const wet = scene.children.filter((c) => c.isMesh && (c.userData.ground || c.name === 'path'));
@@ -991,13 +1082,17 @@ export function createWalkLifecycle({
 
     // Secrets (unicorn/UFO) are outdoor-only sight gags — skip them indoors
     // rather than have one spawn inside the den's 16x16 room.
-    const secrets = isDen
+    const secrets = indoor
       ? { list: [], update() {} }
       : createSecrets(scene, areaData, rollSecrets(walkRng, { eveningLight: duskActive || weather.condition === 'sunset' }), walkRng);
 
     const critters = createCritters(scene, areaData.critterSpawns, {
+      people: createPeopleKit,
+      camera,
+      reducedMotion,
+      lodNear: () => lodNearFor(qualityAdapter.status?.rung), // the live rung's switch
       fleeScale: equipped.collar === 'bell' ? 0.5 : 1,        // bell: birds tolerate you closer
-      spawnFireflies: duskActive,                              // glow: dusk fireflies
+      spawnFireflies: duskActive && !indoor,                   // glow: dusk fireflies, never in a room
       trailButterflies: equipped.head === 'crown',              // crown: butterflies trail the cat
       // v18 Task 1.4: the dusk fireflies are PLACED, so they belong on the
       // shared determinism stream like secrets/strays/scent above — they
@@ -1010,7 +1105,7 @@ export function createWalkLifecycle({
       // v21 3b Task 13: a mouse, rat or squirrel that notices the cat bolts
       // for this cover and stays hidden for the walk (the den has none). Local
       // to this device like every critter position; nothing rides the wire.
-      hides: propsFor(areaId).hides,
+      hides: areaData.hides ?? propsFor(areaId).hides,
       onHide: (c) => hud.toast(hideToastFor(c.type)),
       ground,
       // G7: the dusk fireflies' spots stand where a cat can (standSpot).
@@ -1049,7 +1144,7 @@ export function createWalkLifecycle({
         litMaterial(0xf2c14e, { emissive: 0x6a5010 })
       );
       marker.rotation.x = Math.PI;
-      marker.position.y = 2.1;
+      marker.position.y = questMarkerY(giver);
       (giver.figure ?? giver.group).add(marker);
       questGiver.marker = marker;
       // quest object at the target, revealed on accept
@@ -1202,7 +1297,7 @@ export function createWalkLifecycle({
     // Solo the roll comes off the walk's own seed, so a walk picked up again
     // rolls the same visitor (its spot too: the extras' rng below).
     const soloLegendRoll = roomSeed === undefined ? mulberry32((soloSeed ^ 0x1e6e2d) >>> 0)() : 0;
-    const legend = colonyWalk && !isDen ? legendaryFor(state, areaId, roomSeed === undefined ? soloLegendRoll : legendaryRoll(roomSeed), { shared: roomSeed !== undefined }) : null;
+    const legend = colonyWalk && !indoor ? legendaryFor(state, areaId, roomSeed === undefined ? soloLegendRoll : legendaryRoll(roomSeed), { shared: roomSeed !== undefined }) : null;
     // Kittypets — now and then a kittypet wanders into the Woods, the River or
     // the Moor. housecats.js decides from the UTC day and the area (plus the
     // shared colony on a colony walk), so it draws nothing from walkRng or the
@@ -1236,7 +1331,7 @@ export function createWalkLifecycle({
     // cats already read for this area: empty off a colony walk, so a
     // non-partner co-walk gets 0 on both devices and the two agree.
     const fedHere = colonyCats.length;
-    const loners = isDen ? 0 : lonersFor(areaId, tier.strays, fedHere);
+    const loners = indoor ? 0 : lonersFor(areaId, tier.strays, fedHere);
     // The wanderer takes an ordinary loner's slot, never a colony cat's.
     // The lite rung's count is small enough to fall below her colony here
     // (createStrayCats counts fed cats inside the number and drops the ones
@@ -1280,8 +1375,17 @@ export function createWalkLifecycle({
       ? rivalForWalk(areaId, progression.state.edition, borderPicks)?.clan ?? null : null;
     const borderFoe = borderClan ? borderWarriorFor(borderClan, roomSeed ?? seedFromCode(walkStamp)) : null;
     const borderScars = borderFoe ? progression.intruderScars(borderFoe.id) : [];
+    // Her birthday Gathering (world/birthdaygathering.js, the Pines' own
+    // download): a solo Pines walk while the event is on and today's candles
+    // are lit. Its cats come from every clan; the Pines' own who go are not
+    // in their camp on this walk. Nothing here draws from any stream.
+    const bdayLife = pack.life.planGathering ? pack.life : null;
+    const bdayOn = !!bdayLife && roomSeed === undefined && !isDen && areaId === BDAY_AREA && birthdayDue(progression);
+    const bdaySpeaker = bdayOn ? speakerFor(state) : null;
+    const bdayPerClan = tier.strays >= 20 ? 3 : 2;
+    const bdayAway = bdayOn ? new Set([bdaySpeaker?.id, ...bdayLife.gatheringCast(bdaySpeaker, bdayPerClan).map((m) => m.id)]) : null;
     const clanCast = (isDen ? [] : castFor(areaId).slice(0, clanCountFor(tier.strays, fedHere)))
-      .filter((m) => m !== borderFoe);
+      .filter((m) => m !== borderFoe && !bdayAway?.has(m.id));
     // Task 6 (patrol together): set to interactions.js's endClanPatrol once
     // `session` exists below. The clan cats only call it from update, which
     // first runs after the session is built.
@@ -1311,15 +1415,18 @@ export function createWalkLifecycle({
     let lesson = null;
     if (lessonPlan?.kind === 'first') {
       lesson = buildFirstLesson(lessonPlan, { strayCats, areaData, goals: null, resume, pace });
-    } else if (lessonPlan?.kind === 'camp' && campAt) {
+    } else if (lessonPlan?.kind === 'camp' && campAt && !birthday) {
       const camp = { x: campAt.cx, z: campAt.cz, r: DISCS[areaId]?.r ?? 6 };
-      const from = resume ? { x: resume.x, z: resume.z } : areaData.spawn;
+      // From where she starts: a walk picked up again, a walk walked on into
+      // (Task 10: a border post's arrival), else the spawn.
+      const start = resume ?? arrive;
+      const from = start ? { x: start.x, z: start.z } : areaData.spawn;
       const canStep = ground.flat ? null : (ax, az, bx, bz) => ground.canStep(ax, az, bx, bz);
       const way = roomSeed === undefined ? findPath(clanWalkable, areaData.bounds, from, camp, { canStep }) : null;
       lesson = {
         kind: 'camp', camp, pace, open: false, room: roomSeed !== undefined, walkable: clanWalkable,
         cat: way ? placeCampGuide(clanCats, way, from) : null,
-        heading: headingToward(areaData.spawn, camp),
+        heading: headingToward(from, camp),
         heldGoals: null, finished: false, skipped: false,
       };
     }
@@ -1402,7 +1509,7 @@ export function createWalkLifecycle({
     // 2026-11-19): picked by the day on a walk alone, by the room's seed on a
     // walk together, so both players find it in the same place. A hash, never
     // walkRng. It is nobody's until someone touches it (toy.js `claimed`).
-    const yarnSpot = yarnSpotFor(areaId, roomSeed ?? new Date().toISOString().slice(0, 10));
+    const yarnSpot = yarnSpotFor(areaId, roomSeed ?? new Date().toISOString().slice(0, 10), areaData.yarnSpots);
     if (yarnSpot) {
       toy.spot = { x: yarnSpot.x, z: yarnSpot.z };
       toy.placeAt(yarnSpot);
@@ -1453,7 +1560,7 @@ export function createWalkLifecycle({
     // below: a mover decal sits on the ground under its object, so a cup on a
     // car roof (or in mid-fall) would trail a shadow blob along the road.
     // knockables.js lays its own fixed decal under each one once it lands.
-    const knockables = createKnockables(scene, propsFor(areaId).knockables, { ground });
+    const knockables = createKnockables(scene, areaData.knockables ?? propsFor(areaId).knockables, { ground });
     // v21 3b — the things this player has left behind. In the den that is what
     // they carried home, laid out in front of the hearth; outdoors, the posts
     // they scratched, the holes they dug, the things they set down somewhere
@@ -1479,6 +1586,11 @@ export function createWalkLifecycle({
     // The border posts' colliders (R13): live list only, after clearSpot, the clan's
     // frozen copy and the scent, so shared systems never see them.
     for (const c of dressing?.colliders ?? []) areaData.colliders.push({ ...c });
+    // The gates' posts beside them, and (R11) the leaf circles of every gate
+    // shut now: attach() keeps the list, so a gate opened mid-walk takes its
+    // circles off it again.
+    for (const c of gates.colliders) areaData.colliders.push({ ...c });
+    gates.attach(areaData.colliders);
     // v21 3b Task 14 — the cat flaps in garden gates and the gaps in hedges. A
     // cat that walks through one swings it the way it went, and it keeps a
     // gentle sway for the rest of the walk. Its frame is solid and its opening
@@ -1501,6 +1613,10 @@ export function createWalkLifecycle({
     // Bigger areas: a strip's own rest spots (areaData.rests) join the area's.
     rests.add(areaData.rests);
     for (const c of rests.colliders) areaData.colliders.push({ ...c });
+    // The birthday cake is solid: its collider joins the list once every
+    // prop's is in it, so its spot keeps clear of them all.
+    const bdayPlan = bdayOn ? bdayLife.planGathering(areaData, { speaker: bdaySpeaker, perClan: bdayPerClan }) : null;
+    if (bdayPlan) areaData.colliders.push({ x: bdayPlan.cake.x, z: bdayPlan.cake.z, r: bdayPlan.cake.r });
 
     // Appletree Farm's animals (farmanimals.js): cows, goats, hens and chicks,
     // the sheepdog and the ducklings. Built here, after every prop's collider
@@ -1555,6 +1671,8 @@ export function createWalkLifecycle({
       if (!fairToasted.has(key)) { fairToasted.add(key); hud.toast(text); }
     }
     const fairShow = areaId !== 'fair' ? null : createFairShow(scene, areaData, {
+      people: createPeopleKit,
+      lodNear: () => lodNearFor(qualityAdapter.status?.rung), // the live rung's switch
       swept: fairLive.sim.swept,
       strays: tier.strays,
       camera,
@@ -1568,6 +1686,17 @@ export function createWalkLifecycle({
       fairLive.attach(fairShow);
       addBalloonRibbon(carry, areaData);
     }
+    // The Market Square's stallholders and treats (marketlive.js), per device on
+    // the walk's seed and the time of day; a partner's grab comes over the
+    // existing carry-pick (netevents.js). What each event pays and says is
+    // game/marketplay.js. NO_MARKET everywhere else.
+    const marketToasts = areaId === 'market' ? createMarketToasts({ hud, now: nowSec }) : null;
+    const market = areaId !== 'market' ? NO_MARKET : createMarketLive(scene, areaData, {
+      seed: roomSeed ?? soloSeed, reducedMotion, ground, isFree: (x, z) => isWalkableAt(areaData, x, z),
+      people: createPeopleKit, // the stallholders, from the pack's people kit
+      lodNear: () => lodNearFor(qualityAdapter.status?.rung), // near or far by her distance, on the live rung's switch
+      onEvent: (e) => handleMarketEvent(e, { hud, audio, log, session, ...marketToasts }),
+    });
     // The balance walk, leaps, drops and climb-ups (traversallive.js) of an
     // area that returns `traversal`; NO_TRAVERSAL everywhere else (today,
     // every shipped area). Nothing is added to the scene and nothing rides the
@@ -1575,7 +1704,8 @@ export function createWalkLifecycle({
     // per walk and disposed in endWalk, so a held stick never outlives it.
     // The abilities are read live off the save at each use, like the climb
     // budget. `session.fx` is read when an event fires, after `session` exists.
-    const traversalLive = areaData.traversal ? createTraversalLive(areaData.traversal, { ground, reducedMotion, abilities: () => moveAbilities(progression.state), onEvent: (e) => traversalEventEffects(e, { audio, fx: session.fx, cat, bus }) }) : NO_TRAVERSAL;
+    const tallyTraversal = traversalTally(progression, celebrateNewSkills);
+    const traversalLive = areaData.traversal ? createTraversalLive(areaData.traversal, { ground, reducedMotion, abilities: () => moveAbilities(progression.state), onEvent: (e) => traversalEventEffects(e, { audio, fx: session.fx, cat, bus, tally: tallyTraversal }) }) : NO_TRAVERSAL;
 
     // Live contact decals for everything that moves, registered now that the
     // movers exist. The cat first and by name: it is on screen 100% of the
@@ -1597,8 +1727,10 @@ export function createWalkLifecycle({
     for (const stray of strayCats.strays) decals.follow(stray.group);
     for (const c of clanCats.list) decals.follow(c.group);
     for (const critter of critters.list) decals.follow(critter.figure ?? critter.group);
+    for (const critter of critters.list) if (critter.people?.[1]) decals.follow(critter.people[1].figure); // a pair's child (R26)
     for (const g of farm.groups) decals.follow(g);
     if (fairShow) for (const g of fairShow.groups) decals.follow(g);
+    for (const g of market.groups) decals.follow(g);
     for (const dc of denCats.list) decals.follow(dc.group);
 
     // The shadow camera used to be nailed to the world origin at +/-70 so it
@@ -1650,7 +1782,12 @@ export function createWalkLifecycle({
     // Stream 4 round four — paw prints (render/pawprints.js). After the same
     // scans as the grass, for the same reason (1 main-pass draw, 0 shadow).
     // Purely local: no wire event, and never walkRng. The den gets the stub.
-    const paws = createPawPrints(scene, { areaId, areaData, tier });
+    // The birthday (ui/party.js): while this save's party is on, the prints
+    // glitter and two balloons follow her (render/partyballoons.js: 2 draws,
+    // 0 shadow). This device only: nothing goes on the wire.
+    const partyWalk = birthdayPartyOn(progression);
+    const paws = createPawPrints(scene, { areaId, areaData, tier, glitter: partyWalk, reducedMotion });
+    const balloons = createPartyBalloons(scene, { on: partyWalk, areaId, areaData, ground, reducedMotion, dusk: !!duskLookNow });
     // Swimming's splashes, ripples, wake and shake spray (render/splash.js):
     // two pooled draws, 0 while no cat is in water; the den gets NO_SPLASH.
     const splash = createSplash(scene, { areaData, tier, reducedMotion });
@@ -1686,7 +1823,7 @@ export function createWalkLifecycle({
       keepOut: grassKeepOut, weather,
     });
 
-    // No goals in the den (Task 7.2) — session.goals stays null and every
+    // No goals in the den (Task 7.2; the Old House has its own, D11) — session.goals stays null and every
     // consumer below (noteGoal's `!session?.goals` guard, hud.setGoals,
     // endWalk's goalsDone/summary) treats a null goals as "this walk has no
     // goal HUD" rather than crashing on it.
@@ -1723,18 +1860,33 @@ export function createWalkLifecycle({
     // and endWalk being able to dispose them. Its birds are noCast and cast no
     // shadow of their own (built after the caster sweep); the cave glow is a
     // PointLight with castShadow false, added here so shaders compile with it
-    // once. Draws on no rng.
-    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook }) ?? NO_AREA_LIFE;
+    // once. Draws on no rng. The Rooftops' life also takes the walk's critters,
+    // to move its birds, how many walks she has had there, the log and progression its finds are noted with,
+    // her view heading (the tower view turns it), and the Old House's yarn toy.
+    // The Market's takes the pack's people factory (its street musician) and its rung's near distance.
+    const lifeViewYaw = { get: () => player.viewYaw(), set: (v) => player.setViewYaw(v) };
+    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0, log, toy, progression, viewYaw: lifeViewYaw, people: createPeopleKit, lodNear: () => lodNearFor?.(qualityAdapter.status?.rung) }) ?? NO_AREA_LIFE;
+    if (areaLife.musician) decals.follow(areaLife.musician.group); // the Market's street musician, a contact shadow like the stallholders'
     const session = createSession({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       farm,
       fair: fairLive,
+      market,
       traversal: traversalLive,
       // Clan Life Part 1: the territory's clan, a list apart from the strays.
       clanCats,
       campMarker,
       // Border posts for the corner map: null in the den and in Legacy.
       postMarkers: dressing ? postsFor(areaId).map(({ x, z, faces }) => ({ x, z, faces })) : null,
+      // World map step 3: the gates (or NO_GATES), the gate she came in by
+      // (walkOn sets it), and no walk-on under way yet.
+      gates,
+      arrivedVia: null,
+      walkingOn: false,
+      // The room walk's seed (undefined solo), which a walk-on derives the
+      // next room walk's from, and the removers of this walk's net handlers.
+      roomSeed,
+      netOffs: [],
       // Per-walk pay caps for the clan verbs (interactions.js CLAN_PAY_CAP).
       clanPaid: { friend: 0, boop: 0, patrol: 0 },
       // Task 6: the clanmate on patrol with me, or null (interactions.js).
@@ -1787,6 +1939,7 @@ export function createWalkLifecycle({
       grass,
       duskLawn,
       paws,
+      balloons,
       splash,
       fish,
       // Stream 4 round four — drifting sky clouds (render/clouds.js), same
@@ -1820,7 +1973,7 @@ export function createWalkLifecycle({
       // its own frame dt — see main.js's slow-mo note).
       // Indoor den: no sky to animate — a no-op stub keeps the render loop's
       // unconditional session.skyLife.update()/dispose() calls safe.
-      skyLife: isDen ? { update() {}, dispose() {} } : createSkyLife(scene, {
+      skyLife: indoor ? { update() {}, dispose() {} } : createSkyLife(scene, {
         rng: mulberry32(((roomSeed ?? (Math.random() * 2 ** 31)) >>> 0) ^ 0x5eaf00d),
         reducedMotion,
         // the flock's height: the area's own (the Gorge flies it over its
@@ -1878,6 +2031,22 @@ export function createWalkLifecycle({
       sniffTime: 0,
     });
     setSession(session);
+    // The birthday Gathering, now that the walk's fx and HUD are here. A
+    // birthday visit to a Pines she has not opened is not counted as a Pines
+    // walk (endWalk), so her progress stays as it was.
+    session.birthday = bdayPlan ? bdayLife.createBirthdayGathering(scene, bdayPlan, {
+      name: birthdayCatName(state),
+      showNames: isClanEdition(state),
+      reducedMotion,
+      ground,
+      burst: (p, colour, n, o) => session.fx?.burst?.(p, colour, n, o),
+      toast: (text) => hud.toast(text),
+      onBlown: () => noteCandlesBlown(),
+      boom: () => audio?.firework?.(),
+      onPhoto: () => takeBirthdayPhoto(session),
+      pixelRatio: renderer?.getPixelRatio?.() ?? 1,
+    }) : null;
+    session.birthdayVisit = (!!birthday || bdayOn) && !bdayCountsWalk(state, areaId);
 
     // golden mice: personal, position-static, award-local — no wire events,
     // so this is co-walk safe without touching walkRng or session.net at
@@ -2245,11 +2414,13 @@ export function createWalkLifecycle({
     // this device's own progression.state.kitten.stage. A no-op stub (same
     // shape as goldMice's above) covers every other case: co-walks, and
     // solo walks where kittenPlan has nothing to offer this stage/area.
+    // At home she circles the area's kitten spot (areaData.kittenHome: the
+    // Old House's hall, clear of its shut front door), else its spawn.
     const kittenPlanResult = roomSeed === undefined
       ? kittenPlan(progression.state.kitten.stage, areaId)
       : null;
     session.kittenEnc = kittenPlanResult
-      ? createKittenEncounter(scene, kittenPlanResult, areaData.spawn, { onMew: () => { if (!lessonOpen(session)) audio.trill(0.7, 1.5); }, ground })
+      ? createKittenEncounter(scene, kittenPlanResult, areaData.kittenHome ?? areaData.spawn, { onMew: () => { if (!lessonOpen(session)) audio.trill(0.7, 1.5); }, ground })
       : { group: null, update() {}, promptAt: () => null, interact: () => null, dispose() {} };
     // Fixed at walk start, from the SAME kittenPlanResult that built the
     // encounter above — handleInteract's 'kitten' branch dispatches on this,
@@ -2413,7 +2584,10 @@ export function createWalkLifecycle({
       // The roster as last heard (net.onRoster replays it at once), for a
       // co-walker drawn again by its state below.
       let rosterNow = [];
-      net.onRoster((roster) => {
+      // Every handler's remover is kept (session.netOffs): freeWalk takes them
+      // all off, so a room kept for a walk-on hands nothing to this walk.
+      const keep = (off) => { if (typeof off === 'function') session.netOffs.push(off); };
+      keep(net.onRoster((roster) => {
         const session = getSession();
         if (!session) return; // presence sync can land after endWalk tore the session down
         rosterNow = Array.isArray(roster) ? roster : [];
@@ -2442,11 +2616,14 @@ export function createWalkLifecycle({
         }
         hud.setRoster(remotes.list.map((r) => r.petName));
         session.chatWheel?.refresh();
-      });
-      net.onState((state) => {
+      }));
+      keep(net.onState((state) => {
         const session = getSession();
         if (!session) return; // a state can land after endWalk tore the session down
         if (state.id === session.playerId) return; // explicit self-filter; applyState is a no-op for us anyway
+        // World map step 3: a co-walker in another place (a walk-on a moment
+        // ahead or behind) is not drawn here. An older build sends no area.
+        if (!stateIsHere(state, session.areaId)) return;
         // F6: a co-walker whose device was still loading its place sent no
         // state, so its cat went after remotecats' DESPAWN_AFTER, and its
         // presence never changed, so no roster sync brings it back. Its first
@@ -2472,9 +2649,9 @@ export function createWalkLifecycle({
         } else if (session.remoteToy && session.remoteToy.ownerId === state.id) {
           session.remoteToy = null;
         }
-      });
-      net.onEvent((ev) => applyRemoteEvent(getSession(), ev));
-      net.onChat((msg) => {
+      }));
+      keep(net.onEvent((ev) => applyRemoteEvent(getSession(), ev)));
+      keep(net.onChat((msg) => {
         if (!shouldShowIncomingChat(msg.id, {
           hideChat: settings.get('hideChat'),
           isMuted: (id) => mutedIds.has(id),
@@ -2485,7 +2662,7 @@ export function createWalkLifecycle({
         if (!p) return;
         const entry = getSession().remotes.list.find((r) => r.playerId === msg.id);
         if (entry) chatBubbles.show(entry.group, p.text);
-      });
+      }));
     }
 
     // Ghost visits (Task 4): cross-walk friends occasionally show up as a
@@ -2499,8 +2676,9 @@ export function createWalkLifecycle({
     // below or a yard wall.
     if (roomSeed === undefined && MP && areaData.strays !== false) spawnGhosts(session);
 
-    // The corner map, outdoors only: the den is one small room and has no
-    // map, so session.minimap is null there and every use guards for it.
+    // The corner map, everywhere but the den: the den is one small room and
+    // has no map, so session.minimap is null there and every use guards for
+    // it. The Old House has one, its floor plan (D12).
     // scenicsVisited is filled by interactions.js's 4 m scenic check and
     // greys out the spots already visited this walk. A tap on the map flips
     // north-up / turning and remembers the choice in the save.
@@ -2509,17 +2687,54 @@ export function createWalkLifecycle({
     // its spot, looking the way it looked. The spot is cleared like any other
     // (it may have been a roof or mid-river): out of walls and water, onto
     // the ground. Everything that follows the cat catches up on its first frame.
+    // A place may keep a spot she can stand on as it is (areaData.restSpot: the Old
+    // House, whose furniture tops stand by its outer walls, inside the clear margin).
     if (resume) {
       restoreTallies(session, resume, { points: state.points });
-      const spot = clearSpot({ x: resume.x, z: resume.z }, areaData.colliders ?? [], areaData.bounds, areaData.waters ?? [], 0.6);
+      const spot = areaData.restSpot?.(resume.x, resume.z) ?? clearSpot({ x: resume.x, z: resume.z }, areaData.colliders ?? [], areaData.bounds, areaData.waters ?? [], 0.6);
       cat.position.set(spot.x, ground.y(spot.x, spot.z), spot.z);
       player.setViewYaw(resume.yaw);
+    } else if (arrive) {
+      // Walked on through a gate or a post: she starts just inside the twin,
+      // facing in, the spot cleared the same way (the live list holds the
+      // gates now). On the first camp walk she faces the camp instead.
+      const spot = clearSpot({ x: arrive.x, z: arrive.z }, areaData.colliders ?? [], areaData.bounds, areaData.waters ?? [], 0.6);
+      const yaw = lesson?.kind === 'camp' ? lesson.heading : arrive.yaw;
+      cat.position.set(spot.x, ground.y(spot.x, spot.z), spot.z);
+      cat.rotation.y = yaw;
+      player.setViewYaw(yaw);
+      camera.position.copy(cat.position).add(cameraOffset(yaw, 0.18, startView.dist, startView.height));
+      camera.lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
+    } else if (birthday && areaId === BDAY_AREA) {
+      // The birthday walk: at the foot of the island bridge, facing along it.
+      const spot = clearSpot({ ...BDAY_START }, areaData.colliders ?? [], areaData.bounds, areaData.waters ?? [], 0.6);
+      const yaw = headingToward(spot, BRIDGE_ISLAND_END);
+      cat.position.set(spot.x, ground.y(spot.x, spot.z), spot.z);
+      cat.rotation.y = yaw;
+      player.setViewYaw(yaw);
+      camera.position.copy(cat.position).add(cameraOffset(yaw, 0.18, startView.dist, startView.height));
+      camera.lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
     } else if (lesson?.kind === 'camp') {
       // The first walk on home land: the cat and the camera start facing the camp.
       cat.rotation.y = lesson.heading;
       player.setViewYaw(lesson.heading);
       camera.position.copy(cat.position).add(cameraOffset(lesson.heading, 0.18, startView.dist, startView.height));
       camera.lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
+    }
+    // A place whose life keeps the view clear (the Old House: its walls sink and
+    // its levels are drawn for hers) settles it on this start view at once, so
+    // the Ready and "Welcome back!" cards, which run no area life, show her and
+    // not a wall. A walk picked up again gets its camera behind her first (the
+    // one above is still on the spawn), and she faces the way the note looked,
+    // as the arrive branch turns her, so the card shows her from behind and not
+    // side-on. No other place's life has a settle.
+    if (session.areaLife.settle) {
+      if (resume) {
+        cat.rotation.y = resume.yaw;
+        camera.position.copy(cat.position).add(cameraOffset(resume.yaw, 0.18, startView.dist, startView.height));
+        camera.lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
+      }
+      session.areaLife.settle(cat.position, camera);
     }
     session.minimap = isDen ? null : createMinimap(hud.mapHost, {
       areaId,
@@ -2542,6 +2757,8 @@ export function createWalkLifecycle({
     if (resume) restoreFarmJobs(farm, { log, carry, area: areaData });
     // ...and a runaway balloon it had caught is not there to catch again.
     if (resume) restoreFairGames(fairLive, { log });
+    // ...and the Market's tally starts at the treats it already paid for.
+    if (resume) restoreMarket(market, log);
     // ...and the find it had found is not on the ground.
     if (resume) restoreFind(session.find, { log });
     hud.show();
@@ -2602,11 +2819,16 @@ export function createWalkLifecycle({
     return c;
   }
 
-  // (An Event passed by a stray onclick destructures to all-null: harmless.)
-  function endWalk({ crossTo = null, ledBy = null, together = null } = {}) {
-    const session = getSession();
-    if (!session) return;
-    onWalkEnded();
+  // The walk's end, in two halves (world map step 3): bankWalk keeps what the
+  // walk earned, freeWalk takes the walk down. endWalk is the two with the
+  // summary card between; walkOn below is the two with the gate's moment.
+  //
+  // bankWalk(session, { together, crossTo, ledBy }) -> what the summary shows.
+  // Everything a walk's end does before the teardown, in this order: the walk
+  // counted, scars, a crossing's pick, skills, the streak, the profile push,
+  // the record, the kitten, what the cat carried home. The session is still
+  // live throughout.
+  function bankWalk(session, { together = null, crossTo = null, ledBy = null } = {}) {
     // Who was here, read before the teardown below drops the room.
     const walkedWithNames = session.net ? session.remotes.list.map((r) => r.petName) : [];
     // session.areaId is the area actually walked (set in startWalk from
@@ -2620,14 +2842,14 @@ export function createWalkLifecycle({
     // show them: no guided walk starts by itself after it (the menu's "Play
     // the first walk again" still does).
     if (session.net && progression.state.tutorial?.first === null) progression.setTutorialFirst('skipped');
-    progression.completeWalk(session.areaId, { dusk: session.countsDusk });
+    progression.completeWalk(session.areaId, { dusk: session.countsDusk, countArea: !session.birthdayVisit });
     if (JSON.stringify(progression.catScars(scarKey(progression.state))) !== scarsBefore) onScarsChanged();
     // A crossing: this walk counted toward the gate above; now pick the place.
     let crossLines = [];
     lastCrossing = null;
     if (crossTo) {
       const clan = isClanEdition(progression.state);
-      const out = crossingOutcome({ crossTo, ledBy, together: together ?? walkedWithNames, clan, pickPlace: (id) => progression.pickPlace(id), catalog: CATALOG, edition: progression.state.edition, touch: !!getIsTouch() });
+      const out = crossingOutcome({ crossTo, ledBy, together: together ?? walkedWithNames, clan, pick: (id) => pickOnCrossing(progression, CATALOG, id, { guest: !!ledBy }), catalog: CATALOG, edition: progression.state.edition, touch: !!getIsTouch() });
       crossLines = out.lines;
       lastCrossing = { to: crossTo, picked: out.picked, clan };
     }
@@ -2680,7 +2902,6 @@ export function createWalkLifecycle({
       if (progression.addMark(area, mark) && mark.kind === 'den') broughtHome = mark.item;
     }
     // (end of what the cat carried home)
-    const crossHtml = crossLines.map((l) => `<div class="best-line">${escapeHtml(l)}</div>`).join('');
     // The guided first walk's own lines, in place of the goals tile: the walk
     // had a lesson, not goals. The guide's name goes in as text.
     const firstLesson = session.lesson?.kind === 'first' && !session.lesson.skipped ? session.lesson : null;
@@ -2690,30 +2911,13 @@ export function createWalkLifecycle({
       firstLesson.tutorial.did.hello ? tutorialLine('guide.summary-friend', { name: guideName }) : null,
       firstLesson.gift > 0 ? tutorialLine('guide.summary-gift', { name: guideName }) : null,
     ].filter(Boolean) : [];
-    const guideHtml = guideLines.map((l) => `<div class="best-line guide-line">${escapeHtml(l)}</div>`).join('');
-    // Read before the teardown below, like the numbers above.
-    const portrait = session.portrait;
-    const reduced = prefersReducedMotion(settings);
-    const summaryHtml = `<div class="summary-card">
-      ${isRecord ? bestWalkConfetti(earned, { reduced }) : ''}
-      <div class="screen-panel summary-panel">
-      ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
-      <h1>Home again!</h1>
-      <div class="summary-cheer">${escapeHtml(summaryCheer(earned, discoveries))}</div>
-      ${isRecord
-        ? '<div class="record-banner">NEW BEST! 🏆</div>'
-        : `<div class="best-line">your best: ${progression.state.bestWalk} ${PAW}</div>`}
-      ${summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDone, hasGoals: !!session.goals && !firstLesson })}
-      ${guideHtml}
-      ${walkedWith.length ? `<div class="best-line">explored with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
-      ${streak.bonus > 0 ? `<div class="best-line">🔥 day ${streak.count} streak — +${streak.bonus} bonus ${PAW}</div>` : ''}
-      ${mochiArrived ? '<div class="best-line">Mochi the kitten followed you home! 🐱</div>' : ''}
-      ${broughtHome ? `<div class="best-line">You brought the ${escapeHtml(carryLabel(broughtHome))} home. It's in the den now.&nbsp;🏠</div>` : ''}
-      ${crossHtml}
-      <button id="btn-summary-continue" class="primary">Continue</button>
-      </div>
-    </div>`;
+    return { earned, isRecord, streak, goalsDone, discoveries, friendsGreeted, walkedWith, mochiArrived, broughtHome, guideLines, firstLesson, crossLines };
+  }
 
+  // freeWalk(session, { keepRoom }): the whole teardown, in this order. Every
+  // way a walk ends comes through here. Without keepRoom the room is left too;
+  // a walk-on in a room keeps it for the next walk.
+  function freeWalk(session, { keepRoom = false } = {}) {
     // co-walk rooms are per-walk: leaving here means the footer's "Host a
     // walk"/"Join" flow is available again next time everyone's back on the
     // home base screen. Fire-and-forget: endWalk must finish tearing down
@@ -2734,7 +2938,11 @@ export function createWalkLifecycle({
     session.stripTiles?.dispose();
     session.treeFade?.dispose();
 
-    if (session.net) {
+    // This walk's net handlers come off (session.netOffs). A walk-on in a room
+    // keeps the room (keepRoom) for the next walk, which wires its own.
+    for (const off of session.netOffs ?? []) off();
+    session.netOffs = [];
+    if (session.net && !keepRoom) {
       const net = session.net;
       clearPendingRoom();
       Promise.resolve(net.leave()).catch(() => {});
@@ -2765,6 +2973,7 @@ export function createWalkLifecycle({
     // geometry and material once.
     session.grass.dispose();
     session.paws.dispose();
+    session.balloons.dispose();
     session.splash.dispose();
     session.fish.dispose();
     session.clouds.dispose();
@@ -2811,6 +3020,7 @@ export function createWalkLifecycle({
     session.critters.dispose();
     session.farm?.dispose();
     session.fair?.dispose();
+    session.market?.dispose();
     session.traversal?.dispose();
     session.goldMice.dispose();
     session.find.dispose();
@@ -2820,6 +3030,8 @@ export function createWalkLifecycle({
     session.race.dispose();
     session.strayCats.dispose();
     session.clanCats.dispose();
+    session.birthday?.dispose();
+    session.birthday = null;
     session.intruders.dispose();
     session.remotes.dispose();
     session.ghosts.dispose();
@@ -2840,9 +3052,6 @@ export function createWalkLifecycle({
     hud.setLesson?.(false);
     hud.setRoster(null);
 
-    overlay.innerHTML = summaryHtml;
-    countUp(overlay, { reduced });
-    overlay.classList.remove('hidden');
     audio.stopAmbient();
     music.stop();
     // Last, after the teardown: what the GPU still holds once the walk is
@@ -2850,5 +3059,228 @@ export function createWalkLifecycle({
     if (renderer) noteMemory(renderer.info);
   }
 
-  return { beginWalkFromHomebase, beginDenWalk, startWalk, startWalkWhenReady, endWalk, takeCrossing };
+  // (An Event passed by a stray onclick destructures to all-null: harmless.)
+  // Her birthday photo (once per save, birthday.js saveBirthdayPhoto): one
+  // frame drawn from a spot looking over the cake at the Watch Rock, so her
+  // cat, the cake, the leader and the ring are in it, set in a cream frame
+  // and put in her Album. The camera is put back at once; the walk's own
+  // frame follows. Skipped headless, with no Album, or once she has it.
+  function takeBirthdayPhoto(s) {
+    if (!album || album.has?.(BDAY_PHOTO_KEY) || !s?.birthday || !renderer?.domElement || typeof document === 'undefined') return;
+    const keepPos = camera.position.clone();
+    const keepRot = camera.quaternion.clone();
+    try {
+      const v = s.birthday.photoView(s.cat.position);
+      camera.position.set(v.from.x, v.from.y, v.from.z);
+      camera.lookAt(v.at.x, v.at.y, v.at.z);
+      camera.updateMatrixWorld();
+      composerRig?.renderFrame?.(s);
+      const W = 320, H = 240, PAD = 10, FOOT = 30;
+      const out = document.createElement('canvas');
+      out.width = W;
+      out.height = H;
+      const ctx = out.getContext('2d');
+      const src = renderer.domElement;
+      const iw = W - PAD * 2, ih = H - PAD - FOOT;
+      // the middle of the view, at the frame's shape
+      const sw = Math.min(src.width, src.height * (iw / ih));
+      const sh = sw * (ih / iw);
+      ctx.fillStyle = '#fff6e6';
+      ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(src, (src.width - sw) / 2, (src.height - sh) / 2, sw, sh, PAD, PAD, iw, ih);
+      ctx.fillStyle = '#7a4b2a';
+      ctx.font = 'bold 17px Avenir, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${phrase('bday.photo')} 🎂`, W / 2, H - FOOT / 2 - 1);
+      if (saveBirthdayPhoto(album, { thumb: out.toDataURL('image/jpeg', 0.72), area: s.areaData?.name ?? '' })) {
+        hud.toast(phrase('bday.photoSaved'));
+      }
+    } catch (err) {
+      console.warn('Whisker Walk: the birthday photo failed', err);
+      note('ui', err);
+    } finally {
+      camera.position.copy(keepPos);
+      camera.quaternion.copy(keepRot);
+      camera.updateMatrixWorld();
+    }
+  }
+
+  function endWalk({ crossTo = null, ledBy = null, together = null } = {}) {
+    const session = getSession();
+    if (!session) return;
+    onWalkEnded();
+    const banked = bankWalk(session, { together, crossTo, ledBy });
+    const { earned, isRecord, goalsDone, discoveries, friendsGreeted, walkedWith, guideLines, firstLesson, crossLines } = banked;
+    const lines = bankedLines(banked, { html: true });
+    const crossHtml = crossLines.map((l) => `<div class="best-line">${escapeHtml(l)}</div>`).join('');
+    const guideHtml = guideLines.map((l) => `<div class="best-line guide-line">${escapeHtml(l)}</div>`).join('');
+    // Read before the teardown below, like the numbers above.
+    const portrait = session.portrait;
+    const reduced = prefersReducedMotion(settings);
+    const summaryHtml = `<div class="summary-card">
+      ${isRecord ? bestWalkConfetti(earned, { reduced }) : ''}
+      <div class="screen-panel summary-panel">
+      ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
+      <h1>Home again!</h1>
+      <div class="summary-cheer">${escapeHtml(summaryCheer(earned, discoveries))}</div>
+      ${lines.best
+        ? `<div class="record-banner">${lines.best}</div>`
+        : `<div class="best-line">your best: ${progression.state.bestWalk} ${PAW}</div>`}
+      ${summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDone, hasGoals: !!session.goals && !firstLesson, treats: session.market?.treats ?? undefined })}
+      ${guideHtml}
+      ${walkedWith.length ? `<div class="best-line">explored with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
+      ${lines.streak ? `<div class="best-line">${lines.streak}</div>` : ''}
+      ${lines.mochi ? `<div class="best-line">${lines.mochi}</div>` : ''}
+      ${lines.brought ? `<div class="best-line">${lines.brought}</div>` : ''}
+      ${crossHtml}
+      <button id="btn-summary-continue" class="primary">Continue</button>
+      </div>
+    </div>`;
+
+    freeWalk(session);
+
+    overlay.innerHTML = summaryHtml;
+    countUp(overlay, { reduced });
+    overlay.classList.remove('hidden');
+  }
+
+  // The summary's own lines for what a walk walked on from banked, for
+  // main.js to toast (onWalkedOn): a new best, a streak bonus, the kitten,
+  // what she brought home (bankedLines, the summary card's words).
+  function arrivalLines(banked) {
+    const { best, streak, mochi, brought } = bankedLines(banked);
+    return [best, streak, mochi, brought].filter(Boolean);
+  }
+
+  // The next walk of a walk-on could not be built (a throw in startWalk at
+  // the moment's end): "Off to ..." must not stay up with no way on. As a
+  // start whose place did not come, she goes home with the gentle line (the
+  // walk just left is already banked, so the save still goes up); a walk
+  // left half-built starts the page fresh, as a walk picked up again does
+  // (walkresume.js pickUpWalk).
+  function cannotStart(err) {
+    note('walk', err);
+    console.warn('Whisker Walk: the walk-on could not start the next walk', err);
+    if (getSession()) { reloadPage(); return; }
+    overlay.innerHTML = '';
+    overlay.classList.add('hidden');
+    try { getHomebase()?.show?.(); } catch (homeErr) { note('walk', homeErr); }
+    homeToast(phrase(isOnline() ? 'start.notReady' : 'start.notReadyOffline'));
+    onWalkedOn([]);
+  }
+
+  // walkOn({ via, ledBy, guest }) -> Promise of 'walked' | 'refused' |
+  // 'failed' | 'dropped'. THE one way through a gate (world map step 3) or a
+  // border post (Task 10): the walk is banked quietly (no summary), a short
+  // "Off to the Farm!" moment shows, and the next walk starts by itself just
+  // inside the twin gate or post, or at the spawn for a post with no twin.
+  //   - 'refused': no walk, a gate or post this walk does not have (`via`
+  //     names a gate end or a post of this walk's place; her own post in
+  //     Clan Edition only, a guest's in either), or a walk-on already under way.
+  //   - The next place already here (the usual case: it is prefetched as she
+  //     nears the gate): banked, freed and the moment up before this returns,
+  //     so there is no session right after the call; 'walked'.
+  //   - Not here: the walk stays live and paused, the moment shows over it,
+  //     and session.walkingOn turns a second walkOn away while the place
+  //     comes. When it comes (and the walk is still this one) the walk is
+  //     banked and freed, 'walked'; the moment's GATE_MOMENT_MS count from
+  //     when it first showed. When it does not, the pause card comes back
+  //     with one line (hud.toast: she is still in her walk), nothing is banked
+  //     and the page never reloads mid-walk, 'failed'; an online failure for a
+  //     place this build has counts toward startWalkWhenReady's fresh start,
+  //     on her own solo walk-on only (R14).
+  //     A walk that ended (or changed) while it came: 'dropped'.
+  // The moment's end starts the next walk with startWalk itself (its place is
+  // here), only if no walk has started meanwhile, in the room's next seed
+  // when it was a room walk (nextRoomSeed: the same on every device, drawing
+  // nothing). A place she owns becomes her place, a free open one is taken
+  // (price 0, solo only), and anything else is walked this once
+  // (gatecross.js walkOnMove: a walk-on never buys).
+  function walkOn({ via, ledBy = null, guest = false } = {}) {
+    const s = getSession();
+    const plan = typeof via === 'string' ? viaPlan(via) : null;
+    if (!s || s.walkingOn || !plan || plan.from !== s.areaId) return Promise.resolve('refused');
+    // Border posts stand in Clan Edition only (Task 10): Legacy has none of
+    // its own. A guest is never turned away for her edition: a Legacy guest
+    // in a Clan host's room follows the host through its post, or the room
+    // would split (she already said she has the place).
+    const post = postById(via);
+    if (post && !guest && !isClanEdition(progression.state)) return Promise.resolve('refused');
+    const { to, arrive } = plan;
+    const twin = post ? postArrival(via) : (endById(via)?.end.twin ?? null);
+    const keepRoom = !!s.net;
+    const roomSeed = keepRoom ? nextRoomSeed(s.roomSeed, via) : undefined;
+    const duskMode = s.duskMode;
+    const momentHtml = gateMomentHtml({ name: placeName(to, progression.state.edition, CATALOG), ledBy });
+    const shownAt = Date.now();
+    const showMoment = () => {
+      overlay.innerHTML = momentHtml;
+      overlay.classList.remove('hidden');
+    };
+    const go = () => {
+      onWalkEnded();
+      const lines = arrivalLines(bankWalk(s));
+      const move = walkOnMove(progression.state, CATALOG, to, { guest });
+      if (move === 'set') progression.setArea(to);
+      else if (move === 'take' && progression.buy('areas', to)) progression.setArea(to);
+      freeWalk(s, { keepRoom });
+      showMoment();
+      const startsAtMoment = walksStarted;
+      setTimeout(() => {
+        if (getSession() || walksStarted !== startsAtMoment) return;
+        try {
+          startWalk({ duskMode, roomSeed, areaOverride: progression.state.area === to ? undefined : to, arrive });
+        } catch (err) {
+          cannotStart(err);
+          return;
+        }
+        failures = 0;
+        const next = getSession();
+        if (next) next.arrivedVia = twin;
+        // A touch walk has begun at once (its engage toasted its start
+        // lines): the lines are toasted now. A desktop walk waits on its
+        // Ready? card, which covers toasts, so they wait with its start
+        // lines for the first engage (main.js takeStartLines).
+        if (next && !next.started && lines.length) {
+          next.startLines = [...(Array.isArray(next.startLines) ? next.startLines : []), ...lines];
+          onWalkedOn([]);
+        } else onWalkedOn(lines);
+      }, Math.max(0, GATE_MOMENT_MS - (Date.now() - shownAt)));
+    };
+    if (areas.loaded(to)) {
+      go();
+      return Promise.resolve('walked');
+    }
+    s.walkingOn = true;
+    showMoment();
+    releaseControl();
+    return areas.ensure(to).then(
+      () => {
+        if (getSession() !== s || !s.walkingOn) return 'dropped';
+        s.walkingOn = false;
+        go();
+        return 'walked';
+      },
+      (err) => {
+        note('area', err);
+        if (getSession() !== s || !s.walkingOn) return 'dropped';
+        s.walkingOn = false;
+        const online = isOnline();
+        // Ruling R14: only her own solo walk-on counts toward a fresh start
+        // (as F6: a start heard from the room never counts), never a guest's
+        // and never in a room.
+        if (online && err?.kind !== 'unknown' && !guest && !s.net) failures += 1;
+        // Back in her walk: the pause card. The crossing card's state is
+        // crossing.js's own, cleared there on this answer.
+        const line = phrase(online ? 'start.notReady' : 'start.notReadyOffline');
+        overlay.innerHTML = pauseCardFor(s, getIsTouch(), pauseSoundOf(settings), line);
+        overlay.classList.remove('hidden');
+        hud.toast(line);
+        return 'failed';
+      },
+    );
+  }
+
+  return { beginWalkFromHomebase, beginDenWalk, startWalk, startWalkWhenReady, endWalk, walkOn, takeCrossing };
 }

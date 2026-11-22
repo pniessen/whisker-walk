@@ -12,8 +12,9 @@
 export const DOCKS_SPOTS = Object.freeze([
   // behind the market stall at (-25, -19), on the south-west quay
   { id: 'fw-docks-1', x: -26.6, z: -20.2, y: 0, look: 'post' },
-  // beside the stall at (-13.2, -9.4), under the crane yard's lamp
-  { id: 'fw-docks-2', x: -11.4, z: -8.2, y: 0, look: 'post' },
+  // beside the stall at (-13.2, -9.4), under the crane yard's lamp (Task 11
+  // fix 1c: 0.6 m further west, clear of the people's soft bumps at (-10, -8))
+  { id: 'fw-docks-2', x: -12.0, z: -8.0, y: 0, look: 'post' },
   // behind the stall at (-8.6, -13.2), in the south yard
   { id: 'fw-docks-3', x: -8.6, z: -15.5, y: 0, look: 'post' },
   // in the corner of the stalls at (-3, -9), a short way from the south bank

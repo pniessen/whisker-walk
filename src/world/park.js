@@ -130,8 +130,9 @@ export const PARK_PATHS = Object.freeze([
 // gravel tile, in a pale warm stone a shade lighter than path()'s 0xcbb8a0.
 export const PARK_PATH_STYLE = Object.freeze({ surface: 'gravel', color: 0xd6c6a8, look: 'gravel' });
 // The south walk's (0, 48) end counts as a map edge (edge: 48) and runs on
-// PARK_PATH_EXTEND metres, out through the hedge's field gate at z = 60.6
-// (PARK_HORIZON.edge.gaps) instead of stopping square in the lawn. 19, not
+// PARK_PATH_EXTEND metres, in under the hedge at z = 60.6 (which had a field
+// gate there until the gateways placement round, 2026-11-21) instead of
+// stopping square in the lawn. 19, not
 // the plan's ~13: the horizon band lies flat (y -0.03) out to z ~66 and only
 // then rises, so a 13 m run left the round tip on show 2 m past the gate; at
 // 19 the walk runs on to z 67 and its tip goes in under the rising band
@@ -141,15 +142,16 @@ export const PARK_PATH_EXTEND = 19;
 
 // The horizon band (see the note at its scene.add in build). Polish "edges":
 // the strip past the lawn's edge is the lawn's own colour, and a clipped
-// hedge runs round the edge with a field gate where the gravel path from the
-// south gate (3 m wide, on x = 0) runs out.
+// hedge runs right round the edge. (It had a field gate where the gravel path
+// from the south gate runs out, until the gateways placement round,
+// 2026-11-21: a shut gate right behind the signpost to the town read as one
+// more gate that never opens.)
 export const PARK_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 8, wavelength: 40,
   color: 0x7fb678, salt: 23,
   nearColor: PARK_LAWN,
   edge: Object.freeze({
     half: 60, style: 'hedge', avoid: Object.freeze([POND]),
-    gaps: Object.freeze([Object.freeze({ x: 0, z: 60.6, r: 2 })]),
   }),
 });
 

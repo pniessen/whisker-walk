@@ -203,7 +203,7 @@ function system(name, { props = {}, impl = {} } = {}) {
 const SYSTEMS = [
   'critters', 'strayCats', 'clanCats', 'intruders', 'areaLife', 'secrets', 'rival', 'dog', 'farm', 'fair',
   'fightCam', 'stripTiles', 'treeFade', 'rustle', 'kittenEnc', 'tippables', 'knockables', 'scent', 'fx',
-  'skyLife', 'water', 'waterDress', 'shadows', 'wind', 'grass', 'paws', 'clouds', 'ambient', 'splash', 'fish',
+  'skyLife', 'water', 'waterDress', 'shadows', 'wind', 'grass', 'paws', 'balloons', 'clouds', 'ambient', 'splash', 'fish',
   'chatBubbles', 'ghosts', 'denCats', 'decals', 'traversal',
 ];
 
@@ -298,6 +298,18 @@ describe('the walk frame runs its systems in order', () => {
   it('the farm and the fair carry her after the player has moved her', () => {
     frame(1020);
     expect(ran(['player.update', 'farm.update', 'fair.update'])).toEqual(['player.update', 'farm.update', 'fair.update']);
+  });
+
+  it('the player is handed the people\'s soft bumps: the Fairground show\'s where there is one, else the villagers\'', () => {
+    const villagers = [{ x: 1, z: 2, r: 0.3 }];
+    const visitors = [{ x: 5, z: 6, r: 0.25 }];
+    session.critters = system('critters', { props: { bumps: villagers } });
+    frame(1020);
+    expect(argsOf('player.update')[4]).toBe(villagers);
+    h.log.length = 0;
+    session.fair = system('fair', { props: { show: { bumps: visitors } } });
+    frame(1040);
+    expect(argsOf('player.update')[4]).toBe(visitors);
   });
 
   it('the fight places the cats after the rival and the dog, then the fight camera and the tree fade, then the shadows', () => {

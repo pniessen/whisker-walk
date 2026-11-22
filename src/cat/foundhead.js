@@ -73,6 +73,10 @@ export const FOUND_HEN_HEADS = Object.freeze({
   stripedboater: henHat('stripedboater', CROWN),
   starfishclip: henHat('starfishclip'),
   featherplume: henHat('featherplume'),
+  tradercap: henHat('tradercap', CAP, true),
+  // a gift outfit (src/foundwear/gifts.js), worn as the found hats are
+  partyhat: henHat('partyhat', CROWN),
+  birthdayhat: henHat('birthdayhat', CROWN),
 });
 
 // Hagrid's found hat, if `id` is one; nothing otherwise.

@@ -2,6 +2,7 @@ import * as b from './builder.js';
 import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
 import { tintGround } from './dressing.js';
 import { lawnMottle } from './park.js';
+import { buildOldHouseFront } from './oldhousefront.js';
 
 // The lawn (polish-sheen): 0x7cb860 read as flat lime under the Pass 8 day
 // grade; about 11% darker and a touch bluer (hue 101 -> 105). Every copy of
@@ -52,22 +53,22 @@ export const SPAWN = Object.freeze({ x: 0, z: 45 });
 
 // The horizon band (see the note at its scene.add in build). Polish "edges":
 // the strip past the lawn's edge is the lawn's own colour, and a clipped
-// hedge runs round the edge with a field gate where each street runs out
-// (the streets are 5 m wide on the axes, so each gap is 2.5 + 0.5 across).
+// hedge runs right round the edge. (It had a field gate where each street
+// runs out, until the gateways placement round, 2026-11-21: the shut ones
+// right behind the signposts to the Park and the Docks read as more gates
+// that never open, and all four went, so no street end is different.)
 export const NEIGHBORHOOD_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 7, wavelength: 34,
   color: 0x88b07d, salt: 11,
   nearColor: NEIGHBORHOOD_LAWN,
   edge: Object.freeze({
     half: 60, style: 'hedge',
-    gaps: Object.freeze([
-      Object.freeze({ x: 0, z: -60.6, r: 3 }), Object.freeze({ x: 0, z: 60.6, r: 3 }),
-      Object.freeze({ x: -60.6, z: 0, r: 3 }), Object.freeze({ x: 60.6, z: 0, r: 3 }),
-    ]),
   }),
 });
 
-export function build(scene, { water = {}, wind } = {}) { // `water`: see above
+// `gateEnds`: the gate ends this walk draws; the `town-house` end brings the
+// old house's front against the west hedge (world/oldhousefront.js).
+export function build(scene, { water = {}, wind, gateEnds = [] } = {}) { // `water`: see above
   b.applySky(scene, 0x9fd4e8, 0xcfe8f0);
   // The lawn, at last literally. 'grass' is a mottle-only tile at 3m, so at
   // 120m the derived repeat is 40x40 — coarse enough that a single patch is
@@ -330,6 +331,9 @@ export function build(scene, { water = {}, wind } = {}) { // `water`: see above
 
   // cardboard boxes
   for (const b2 of [[-6, -24], [16, 21], [-18, 8]]) scene.add(b.cardboardBox(b2[0], b2[1], b2[0] * 0.7));
+
+  // The Old House's front (Old House step 4, W5), only for a walk with its door.
+  if (gateEnds.some((e) => e.id === 'town-house')) colliders.push(...buildOldHouseFront(scene, { wind }).colliders);
 
   return {
     name: 'Cozy Neighborhood',

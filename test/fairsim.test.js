@@ -1687,7 +1687,8 @@ describe('the first ride: one friendly line and a journal page', () => {
     }
     expect(Object.keys(RIDE_PAGE)).toEqual(['mgr', 'wheel', 'cups', 'slide', 'coaster']);
     // (step 3 appended the three games' and six finds' pages after them: test/fairgames.test.js)
-    expect(JOURNAL_TYPES.slice(-14, -9)).toEqual(Object.values(RIDE_PAGE));
+    const rides = JOURNAL_TYPES.indexOf('ridemgr');
+    expect(JOURNAL_TYPES.slice(rides, rides + 5)).toEqual(Object.values(RIDE_PAGE));
   });
 
   it('shows the line the first time ever, fills the page once a walk, and pays nothing', () => {

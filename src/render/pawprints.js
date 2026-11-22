@@ -110,7 +110,20 @@ export const AREA_RULES = Object.freeze({
   fair: Object.freeze({ ground: null, path: 'sand', strip: null }),
   // The Rooftops' alley cobbles, slates and flat roofs take gravel-grey prints; no grass.
   roofs: Object.freeze({ ground: null, path: 'gravel', strip: null }),
+  // The Market's cobbles take gravel-grey prints (no 'cobble' look exists; gravel is nearest); no grass.
+  market: Object.freeze({ ground: null, path: 'gravel', strip: null }),
 });
+
+// THE BIRTHDAY'S GLITTER (2026-11-21; src/ui/party.js birthdayPartyOn). While
+// the party is on, the same ring lays glittering prints on any dry ground in
+// any place, the den too, in place of the ordinary ones: party colours that
+// glow a little, with twinkling specks, fading after a few seconds. Still the
+// one mesh and draw. Own device only, like every print.
+export const GLITTER_PRINTS = 36; // the ring: ~15m of trot, longer than a print lives
+export const GLITTER_LIFE = 4; // seconds
+const GLITTER_Y = 0.045; // over the sidewalks and the boardwalk (0.03), among the tuft roots
+const GLITTER_COLORS = [0xf2c14e, 0xf27ab0, 0x4ec9d4, 0xa45ce8, 0xffe9a8];
+const GLITTER = Object.freeze({ alpha: 0.95, rim: 0, life: 1 });
 
 // Where the Seaside's wet band takes over from dry sand: wetness() is 0 on
 // dry beach and 1 at the waterline, and the band reads as wet from about here.
@@ -154,6 +167,18 @@ export function groundStrips(scene, ground = FLAT_GROUND) {
   return out;
 }
 
+// wetAt(areaData, x, z) — water, a deck over water, or a puddle: no print.
+export function wetAt(areaData, x, z) {
+  const waters = areaData?.waters;
+  if (waters?.length && (onAnyDeck(waters, x, z) || waterClearance(waters, x, z) < 0)) return true;
+  // a puddle on another level (a ledge over the floor) doesn't wet this paw
+  const ground = groundOf(areaData);
+  for (const p of areaData?.puddles ?? []) {
+    if ((x - p.x) ** 2 + (z - p.z) ** 2 < p.r * p.r && ground.sameLevel(x, z, p.x, p.z)) return true;
+  }
+  return false;
+}
+
 function inStrip(s, x, z) {
   const dx = x - s.x;
   const dz = z - s.z;
@@ -165,17 +190,7 @@ function inStrip(s, x, z) {
 // the Docks' bridges) and puddles always take none.
 export function surfaceAt(areaId, areaData, strips, x, z) {
   const rule = AREA_RULES[areaId];
-  if (!rule) return null;
-  const waters = areaData?.waters;
-  if (waters?.length) {
-    if (onAnyDeck(waters, x, z)) return null;
-    if (waterClearance(waters, x, z) < 0) return null;
-  }
-  // a puddle on another level (a ledge over the floor) doesn't wet this paw
-  const ground = groundOf(areaData);
-  for (const p of areaData?.puddles ?? []) {
-    if ((x - p.x) ** 2 + (z - p.z) ** 2 < p.r * p.r && ground.sameLevel(x, z, p.x, p.z)) return null;
-  }
+  if (!rule || wetAt(areaData, x, z)) return null;
   // A non-path strip (a sidewalk, the boardwalk) sits ON TOP of any path it
   // crosses, so it wins; among paths any one will do.
   let onPath = false;
@@ -296,10 +311,14 @@ const NO_PRINTS = Object.freeze({ mesh: null, capacity: 0, count: 0, update() {}
 // scanned the scene (walk.js does, beside createGrass), so none of them sees
 // the mesh. A no-op stub for an area with no printable ground (the den) or a
 // tier with prints off.
-export function createPawPrints(scene, { areaId, areaData, tier } = {}) {
-  const capacity = Math.floor(tier?.pawPrints ?? 0);
-  const life = tier?.pawFade ?? 0;
-  if (!AREA_RULES[areaId] || !(capacity > 0) || !(life > 0)) return NO_PRINTS;
+// With `glitter` (the birthday) the ring is GLITTER_PRINTS on every tier and
+// place; `reducedMotion` then means fewer specks, twinkling slowly.
+export function createPawPrints(scene, { areaId, areaData, tier, glitter = false, reducedMotion = false } = {}) {
+  const capacity = glitter ? GLITTER_PRINTS : Math.floor(tier?.pawPrints ?? 0);
+  const life = glitter ? GLITTER_LIFE : tier?.pawFade ?? 0;
+  if ((!glitter && !AREA_RULES[areaId]) || !(capacity > 0) || !(life > 0)) return NO_PRINTS;
+  // [share of the specks lit, twinkle rate]
+  const sparkle = reducedMotion ? { density: 0.2, rate: 0.7 } : { density: 0.42, rate: 5 };
 
   const ground = groundOf(areaData);
   const strips = groundStrips(scene, ground);
@@ -324,6 +343,7 @@ export function createPawPrints(scene, { areaId, areaData, tier } = {}) {
     // Pale dry sand, a step lighter than the beach: the ridge round a deep
     // print catches the sun.
     uRimColor: { value: new THREE.Color(RIM_COLOR) },
+    uSparkle: { value: new THREE.Vector2(sparkle.density, sparkle.rate) },
   };
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
@@ -337,10 +357,12 @@ uniform float uHead;
 uniform float uCap;
 varying vec2 vPawUv;
 varying float vPawAlpha;
-varying float vPawRim;`)
+varying float vPawRim;
+varying float vPawSeed;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 {
   vPawUv = uv;
+  vPawSeed = aPrint.y;
   float life = uLife * aPrint.z;
   float u = clamp((uTime - aPrint.x - ${HOLD.toFixed(2)} * life) / (${(1 - HOLD).toFixed(2)} * life), 0.0, 1.0);
   float ageFade = 1.0 - u * u * (3.0 - 2.0 * u);
@@ -355,7 +377,10 @@ varying float vPawRim;`)
 varying vec2 vPawUv;
 varying float vPawAlpha;
 varying float vPawRim;
+varying float vPawSeed;
 uniform vec3 uRimColor;
+uniform float uTime;
+uniform vec2 uSparkle;
 float pawEllipse(vec2 p, vec2 c, vec2 r) {
   vec2 q = (p - c) / r;
   return (length(q) - 1.0) * min(r.x, r.y);
@@ -381,10 +406,18 @@ float pawDist(vec2 p) {
   float rim = vPawRim * (1.0 - smoothstep(0.0, 0.05, d)) * (1.0 - inside);
   diffuseColor.rgb = mix(diffuseColor.rgb, uRimColor, rim / max(rim + inside, 1e-3));
   diffuseColor.a *= (inside + rim) * vPawAlpha;
-  if (diffuseColor.a < 0.004) discard;
+  if (diffuseColor.a < 0.004) discard;${glitter ? `
+  // Glitter: the paw glows softly in its colour, and a share of the specks
+  // on a grid over it twinkle white.
+  vec2 g = vPawUv * 9.0;
+  float h = fract(sin(dot(floor(g) + vPawSeed * 0.37, vec2(12.9898, 78.233))) * 43758.5453);
+  float tw = 0.5 + 0.5 * sin(uTime * uSparkle.y + h * 40.0);
+  float glint = step(1.0 - uSparkle.x, h) * (1.0 - smoothstep(0.08, 0.38, length(fract(g) - 0.5))) * (0.3 + 1.7 * tw * tw * tw * tw);
+  totalEmissiveRadiance += diffuseColor.rgb * 0.8 + glint;
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), min(1.0, glint * 0.6));` : ''}
 }`);
   };
-  material.customProgramCacheKey = () => 'whisker-pawprints';
+  material.customProgramCacheKey = () => (glitter ? 'whisker-pawprints-glitter' : 'whisker-pawprints');
 
   const geometry = printGeometry();
   // Per-slot [laidAt, seq, lifeScale, rim] and the surface's strength in its
@@ -438,10 +471,10 @@ float pawDist(vec2 p) {
 
   // lay(print, kind) — write one print into the next ring slot.
   function lay(pr, kind) {
-    const s = SURFACES[kind];
+    const s = glitter ? GLITTER : SURFACES[kind];
     const slot = laid % capacity;
     q.setFromAxisAngle(up, pr.yaw);
-    p3.set(pr.x, PRINT_Y, pr.z);
+    p3.set(pr.x, glitter ? GLITTER_Y : PRINT_Y, pr.z);
     if (!ground.flat) {
       p3.y += ground.y(pr.x, pr.z);
       ground.gradient(pr.x, pr.z, gn);
@@ -449,10 +482,11 @@ float pawDist(vec2 p) {
     }
     // The paw is symmetric, so left and right need no mirroring (a negative
     // scale would also flip the quad's winding and cull it).
-    s3.set(PRINT_SIZE * 0.9, 1, PRINT_SIZE);
+    const big = glitter ? 1.35 : 1; // glitter reads through the lawn tufts
+    s3.set(PRINT_SIZE * 0.9 * big, 1, PRINT_SIZE * big);
     m4.compose(p3, q, s3);
     mesh.setMatrixAt(slot, m4);
-    mesh.setColorAt(slot, c.copy(colors[kind]));
+    mesh.setColorAt(slot, glitter ? c.setHex(GLITTER_COLORS[laid % GLITTER_COLORS.length]) : c.copy(colors[kind]));
     printData[slot * 4] = now;
     printData[slot * 4 + 1] = laid;
     printData[slot * 4 + 2] = s.life;
@@ -478,7 +512,9 @@ float pawDist(vec2 p) {
     uniforms.uTime.value = now;
     if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
     if (!trail.step(x, z, grounded, dt, print)) return null;
-    const kind = surfaceAt(areaId, areaData, strips, print.x, print.z);
+    const kind = glitter
+      ? (wetAt(areaData, print.x, print.z) ? null : 'glitter')
+      : surfaceAt(areaId, areaData, strips, print.x, print.z);
     if (!kind) return null;
     print.kind = kind;
     lay(print, kind);
@@ -493,7 +529,7 @@ float pawDist(vec2 p) {
   }
 
   return {
-    mesh, capacity, strips,
+    mesh, capacity, strips, glitter, sparkle,
     get count() { return mesh.count; },
     get laid() { return laid; },
     update, dispose,

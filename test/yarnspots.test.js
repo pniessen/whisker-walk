@@ -17,7 +17,10 @@ const { GOLD_MICE } = await import('../src/goldmice.js');
 const { DISCS } = await import('../src/rivalclans.js');
 const { CATALOG } = await import('../src/progression.js');
 
-const AREAS = [...Object.keys(CATALOG.areas), 'den'];
+// (the Market Square among the catalog's since its step 4). The Old House is
+// in the catalog since its step 4, but its yarn spots are its own
+// (HOUSE_YARN_SPOTS, handed to the walk with its build; test/housethings.test.js).
+const AREAS = [...Object.keys(CATALOG.areas).filter((a) => a !== 'house'), 'den'];
 const d2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const MARGIN = 0.3;     // propsets.test's clearance for anything a cat walks up to
 const PROMPT_GAP = 2.5; // propsets.test's gap between two walk-up props

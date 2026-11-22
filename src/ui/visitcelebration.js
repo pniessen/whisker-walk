@@ -273,6 +273,8 @@ export function createVisitCelebration(mount, {
       current = { milestone: m, petName, thumb, anchor, opened: false, locked: false, hold: null };
       root = doc.createElement('div');
       root.className = `visit-cel style-${style.toLowerCase()}${isNew ? '' : ' cycle'}`;
+      // Every style shows buttons (open, Wear, Yay), and this root sits on body outside #homebase: the pad can only reach them if it is a layer.
+      root.setAttribute?.('data-pad-layer', '');
       if (style === 'A') {
         root.setAttribute?.('role', 'dialog');
         // Only the unopened present is modal; a cycle-back A never blocks.

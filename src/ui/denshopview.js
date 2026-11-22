@@ -47,6 +47,7 @@ export function createDenShopView({
   const sheet = doc.createElement('div');
   sheet.id = 'den-shop';
   sheet.className = 'den-shop hidden';
+  sheet.setAttribute?.('data-pad-layer', '');
   sheet.setAttribute('role', 'dialog');
   sheet.setAttribute('aria-label', 'Den shop');
   mountRoot.appendChild(sheet);

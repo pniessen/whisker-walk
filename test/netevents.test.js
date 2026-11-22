@@ -10,6 +10,7 @@ import { onAnyDeck } from '../src/world/builder.js';
 import { createRemoteCats } from '../src/remotecats.js';
 import { createKnockables } from '../src/knockables.js';
 import { createToy } from '../src/toy.js';
+import { NO_MARKET, treatItemId, treatStallOf } from '../src/marketnone.js';
 
 // v21 Stream 2, Task 12 — the receiving side of the live 'colony-feed' event
 // (game/interactions.js's feedStray sends it). netevents.js imports THREE but
@@ -174,7 +175,7 @@ describe('applyRemoteEvent: carry-pick and carry-drop', () => {
   const BOUNDS = { minX: -30, maxX: 30, minZ: -30, maxZ: 30 };
   const ROBIN = { playerId: PARTNER, petName: 'Robin', breed: 'tabby', accessories: {} };
 
-  function carryHarness() {
+  function carryHarness({ extra = [] } = {}) {
     const storage = fakeStorage();
     const progression = createProgression(storage);
     const toasts = [];
@@ -193,7 +194,7 @@ describe('applyRemoteEvent: carry-pick and carry-drop', () => {
     cat.add(head);
     cat.userData = { parts: { head } };
     scene.add(cat);
-    const items = createCarryables(scene, [STICK, LEAF]);
+    const items = createCarryables(scene, [STICK, LEAF, ...extra]);
     const remotes = createRemoteCats(scene);
     takeHeldItemsWithRemotes(remotes, items, cat);
     remotes.upsert(ROBIN, 0);
@@ -223,6 +224,52 @@ describe('applyRemoteEvent: carry-pick and carry-drop', () => {
 
   const pickEv = (o = {}) => ({ v: 1, id: PARTNER, type: 'carry-pick', itemId: STICK.id, ...o });
   const dropEv = (o = {}) => ({ v: 1, id: PARTNER, type: 'carry-drop', itemId: STICK.id, pos: [12, -7], ...o });
+
+  // The Market Square (step 2, M7): a partner's treat grab comes as this same
+  // carry-pick with the id 'market-treat-<stall>', for the Market's life.
+  it('a treat pick on a walk without the Market changes nothing', () => {
+    for (const market of [NO_MARKET, undefined]) {
+      const h = carryHarness();
+      h.s.market = market;
+      for (const stall of ['fish', 'baker', 'cheese', 'milk', 'cafe']) {
+        expect(() => h.apply(pickEv({ itemId: treatItemId(stall) }))).not.toThrow();
+      }
+      expect(() => h.frame()).not.toThrow();
+      expect(h.s.carry.mouth.held).toBe(null);
+      for (const it of h.items.list) {
+        expect(it.onGround, it.id).toBe(true);
+        expect(it.holder, it.id).toBe(null);
+      }
+      expect(h.toasts).toEqual([]);
+      expect(h.saveUntouched()).toBe(true);
+    }
+  });
+
+  it('a treat pick goes to the Market before the carryables', () => {
+    // a stand-in carryable that happens to have a treat's id
+    const h = carryHarness({ extra: [{ id: treatItemId('fish'), kind: 'stick', x: 2, z: 2 }] });
+    // as the live one: true for a treat's id, false for anything else
+    const remotePick = vi.fn((_remote, id) => treatStallOf(id) !== null);
+    h.s.market = { remotePick };
+    h.apply(pickEv({ itemId: treatItemId('fish') }));
+    expect(remotePick).toHaveBeenCalledTimes(1);
+    const robin = h.remotes.list.find((r) => r.playerId === PARTNER);
+    expect(remotePick).toHaveBeenCalledWith(robin, treatItemId('fish'));
+    const stand = h.item(treatItemId('fish'));
+    expect(stand.onGround).toBe(true);
+    expect(stand.holder).toBe(null);
+    // a drop is never the Market's
+    h.apply(dropEv({ itemId: treatItemId('fish') }));
+    expect(remotePick).toHaveBeenCalledTimes(1);
+    // nor is a pick from someone not in this walk
+    h.apply(pickEv({ id: STRANGER, itemId: treatItemId('fish') }));
+    expect(remotePick).toHaveBeenCalledTimes(1);
+    // the stick, not a treat, is still picked up the old way
+    h.apply(pickEv());
+    expect(remotePick).toHaveBeenCalledTimes(2);
+    expect(h.item(STICK.id).holder).toBe(h.partnerGroup());
+    expect(h.saveUntouched()).toBe(true);
+  });
 
   it('a partner pick takes the item off my ground and into their mouth', () => {
     const h = carryHarness();
@@ -812,6 +859,56 @@ describe('applyRemoteEvent: border-cross', () => {
       samples: {}, catVoice() {}, applyGoalResult() {},
     });
     expect(() => applyRemoteEvent({}, { type: 'border-cross' })).not.toThrow();
+  });
+});
+
+// World map step 3, Task 9: the room's walk-on, its ask and its answers.
+describe('applyRemoteEvent: walk-on, walk-on-ask and walk-on-have', () => {
+  function make() {
+    const calls = [];
+    const { applyRemoteEvent } = createNetEvents({
+      MP: 1, getCloud: () => null, getPsecret: () => null,
+      log: {}, hud: { toast() {} }, audio: {}, samples: { has: () => false },
+      catVoice() {}, applyGoalResult() {},
+      onBorderCross: (s, ev) => calls.push(['border-cross', s, ev]),
+      onWalkOn: (s, ev) => calls.push(['walk-on', s, ev]),
+      onWalkOnAsk: (s, ev) => calls.push(['ask', s, ev]),
+      onWalkOnHave: (s, ev) => calls.push(['have', s, ev]),
+    });
+    return { applyRemoteEvent, calls };
+  }
+  it('each reaches its own handler with (s, ev)', () => {
+    const { applyRemoteEvent, calls } = make();
+    const s = {};
+    const on = { type: 'walk-on', id: 'a' };
+    const ask = { type: 'walk-on-ask', id: 'a' };
+    const have = { type: 'walk-on-have', id: 'b' };
+    applyRemoteEvent(s, on);
+    applyRemoteEvent(s, ask);
+    applyRemoteEvent(s, have);
+    expect(calls).toEqual([['walk-on', s, on], ['ask', s, ask], ['have', s, have]]);
+  });
+  it('a hidden visitor\'s walk-on and ask reach nothing', () => {
+    const { applyRemoteEvent, calls } = make();
+    const s = { isBlocked: (id) => id === 'a' };
+    for (const type of ['walk-on', 'walk-on-ask']) applyRemoteEvent(s, { type, id: 'a' });
+    expect(calls).toEqual([]);
+  });
+  // Ruling R17: an answer is protocol only (it draws and names nothing), so
+  // a room with a hidden member can still walk on.
+  it("a hidden visitor's answer still reaches the host's crossing, unchanged", () => {
+    const { applyRemoteEvent, calls } = make();
+    const s = { isBlocked: (id) => id === 'a' };
+    const have = { v: 1, type: 'walk-on-have', id: 'a', via: 'park-farm', ok: true };
+    applyRemoteEvent(s, have);
+    expect(calls).toEqual([['have', s, have]]);
+  });
+  it('works with none of the deps', () => {
+    const { applyRemoteEvent } = createNetEvents({
+      MP: 1, getCloud: () => null, getPsecret: () => null, log: {}, hud: {}, audio: {},
+      samples: {}, catVoice() {}, applyGoalResult() {},
+    });
+    for (const type of ['walk-on', 'walk-on-ask', 'walk-on-have']) expect(() => applyRemoteEvent({}, { type })).not.toThrow();
   });
 });
 

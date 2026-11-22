@@ -27,6 +27,17 @@ describe('the real website build is split into start-up and places', () => {
     expect(areaSizeProblems(kb)).toEqual([]);
   });
 
+  it('the people figure is in place chunks only, never in start-up', () => {
+    const start = new Set(startupFiles(b.manifest));
+    const own = Object.entries(b.manifest).filter(([k]) => k.startsWith('src/people/'));
+    expect(own.length).toBeGreaterThan(0);
+    for (const [, e] of own) expect(start.has(e.file), e.file).toBe(false);
+    const dl = areaDownloads(b.manifest);
+    for (const id of ['neighborhood', 'park', 'docks', 'seaside', 'fair']) {
+      expect(own.some(([, e]) => dl[id].includes(e.file)), id).toBe(true);
+    }
+  });
+
   it('precache.json lists every emitted file under assets/', () => {
     const p = b.files.get('precache.json');
     expect(p).toBeTruthy();

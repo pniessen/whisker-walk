@@ -113,6 +113,11 @@ export function applyDusk({ scene, sun, fill, areaData }) {
 // triangles per lamp (centre fan + annulus). Created after the caster sweep,
 // the contact-shadow scan and the prop merge (game/walk.js), so it is never
 // merged, decaled or cast: +1 main-pass draw, 0 shadow.
+//
+// Indoors a lamp's light stays in its room (the Old House): a lamp whose
+// userData.lampPoolClip is a world rectangle { minX, maxX, minZ, maxZ } has its
+// pool's triangles cut to it (clipPools). No street lamp sets one, and a map
+// with none builds its pools exactly as before.
 export function createLampPools(scene) {
   const lamps = [];
   const p = new THREE.Vector3();
@@ -120,7 +125,7 @@ export function createLampPools(scene) {
   scene.traverse((o) => {
     if (!(o.userData?.lampGlobeY > 0)) return;
     o.getWorldPosition(p);
-    lamps.push({ x: p.x, y: p.y, z: p.z });
+    lamps.push({ x: p.x, y: p.y, z: p.z, clip: o.userData.lampPoolClip ?? null });
   });
   if (!lamps.length) return null;
   const S = LAMP_LOOK.poolSegments;
@@ -157,10 +162,11 @@ export function createLampPools(scene) {
       index.push(i0, i1, o1, i0, o1, o0);
     }
   });
+  const cut = lamps.some((l) => l.clip) ? clipPools(pos, col, index, lamps, 3 * S) : { pos, col, index };
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  geo.setIndex(index);
+  geo.setAttribute('position', new THREE.BufferAttribute(cut.pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(cut.col, 3));
+  geo.setIndex(cut.index);
   geo.computeBoundingSphere();
   const mat = new THREE.MeshBasicMaterial({
     vertexColors: true,
@@ -178,6 +184,51 @@ export function createLampPools(scene) {
   mesh.receiveShadow = false;
   scene.add(mesh);
   return mesh;
+}
+
+// Each clipped lamp's triangles cut to its rectangle (Sutherland-Hodgman, one
+// side at a time) and fanned back into triangles, wound as before. A cut edge's
+// new vertex takes the colour the GPU would blend there, so the pool looks the
+// same, only stopped at the wall. Other lamps' triangles are copied as they are.
+function clipPools(pos, col, index, lamps, triPer) {
+  const P = [];
+  const C = [];
+  const I = [];
+  const vert = (k) => [pos[k * 3], pos[k * 3 + 1], pos[k * 3 + 2], col[k * 3], col[k * 3 + 1], col[k * 3 + 2]];
+  const add = (v) => { P.push(v[0], v[1], v[2]); C.push(v[3], v[4], v[5]); return P.length / 3 - 1; };
+  lamps.forEach((l, i) => {
+    const sides = l.clip ? [[0, l.clip.minX, 1], [0, l.clip.maxX, -1], [2, l.clip.minZ, 1], [2, l.clip.maxZ, -1]] : [];
+    for (let t = i * triPer * 3; t < (i + 1) * triPer * 3; t += 3) {
+      let poly = [vert(index[t]), vert(index[t + 1]), vert(index[t + 2])];
+      for (const [axis, lim, sign] of sides) poly = cutPoly(poly, axis, lim, sign);
+      if (poly.length < 3) continue;
+      const first = add(poly[0]);
+      let prev = add(poly[1]);
+      for (let k = 2; k < poly.length; k++) {
+        const cur = add(poly[k]);
+        I.push(first, prev, cur);
+        prev = cur;
+      }
+    }
+  });
+  return { pos: new Float32Array(P), col: new Float32Array(C), index: I };
+}
+
+// The part of a convex polygon on the kept side of a line (sign × (v[axis] - lim) >= 0).
+function cutPoly(poly, axis, lim, sign) {
+  const out = [];
+  for (let k = 0; k < poly.length; k++) {
+    const a = poly[k];
+    const b = poly[(k + 1) % poly.length];
+    const da = (a[axis] - lim) * sign;
+    const db = (b[axis] - lim) * sign;
+    if (da >= 0) out.push(a);
+    if ((da >= 0) !== (db >= 0)) {
+      const f = da / (da - db);
+      out.push(a.map((v, j) => v + (b[j] - v) * f));
+    }
+  }
+  return out;
 }
 
 export function duskEnv(envIntensity, look) {

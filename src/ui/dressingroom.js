@@ -131,7 +131,8 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard,
   const ownedAcc = ownedList(state, 'accessories');
   const ownedAreas = ownedList(state, 'areas');
 
-  const catIds = Object.keys(catalog.cats);
+  // A gift cat (`code`, the birthday kitten) is not in the picker until hers.
+  const catIds = Object.keys(catalog.cats).filter((id) => !catalog.cats[id].code || ownedCats.includes(id));
   const selectedCat = typeof equippedCat === 'string' && has(catalog.cats, equippedCat) ? equippedCat : catIds[0];
   // Her own cats (the builder's): walking one means no ready-made portrait is selected.
   const customCats = sanitizeCustomCats(state?.customCats);
@@ -278,6 +279,9 @@ export function renderSlotPickerHtml(state, catalog, slot, tryOn, thumbs) {
       return `<div class="dr-pick locked found-silhouette" role="group" aria-label="${escapeHtml(phrase('wear.notYet'))}">`
         + `<span class="found-shape" aria-hidden="true">${escapeHtml(a.emoji ?? '')}</span><span>${escapeHtml(where)}</span></div>`;
     }
+    // A gift outfit (src/foundwear/gifts.js) not given: not shown at all, so
+    // nothing hints at a surprise only a code brings.
+    if (a.code && !owned) return '';
     // An unwon prize stays a surprise: no data-dr-acc (the controller ignores
     // it), no price, no try-on.
     if (a.prize && !owned) {
