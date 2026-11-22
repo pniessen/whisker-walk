@@ -12,6 +12,7 @@ import { openLetterPicker } from './letterpickerview.js';
 import { openList } from './spotlist.js';
 import { padLine, keysToPad } from './padwords.js';
 import { tvToastTiming } from './toasttime.js';
+import { watchStrip } from './stripfade.js';
 export { offer } from './offer.js';
 
 let lite = null;
@@ -36,6 +37,7 @@ export async function start(ctx) {
   const { doc, win } = ctx;
   lite?.stop();
   const scale = applyScale(doc, win);
+  const strip = watchStrip(doc, win);
   doc.documentElement.classList.add('tv');
   // Button pictures follow the pad in use; the last input decides when they show.
   const kind = () => padKind(ctx.padInfo?.());
@@ -52,6 +54,7 @@ export async function start(ctx) {
       doc.documentElement.classList.remove('tv');
       input.destroy();
       scale.destroy();
+      strip.stop();
       setTv({ input: 'keys', text: null, html: null, padLine: null, fix: null, toastTiming: null });
     },
   };

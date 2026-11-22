@@ -301,3 +301,7 @@ html.tv .wm-card-line { margin: 0 calc(24px * var(--tv-s, 1)); font-size: var(--
 html.tv .dr-where .wm-card .wm-card-go, html.tv .dr-where .wm-card .wm-card-buy { width: calc(100% - 2 * 24px * var(--tv-s, 1)); margin: auto calc(24px * var(--tv-s, 1)) 0; min-height: calc(84px * var(--tv-s, 1)); font-size: var(--tv-body); }
 html.tv .dr-where .wm-card .wm-card-close { display: none; }
 
+/* The key strip is for the first minute of a walk (src/tv/stripfade.js sets body.tv-strip-off after that). */
+html.tv .hud-controls { transition: opacity 1.2s ease; }
+html.tv body.tv-strip-off .hud-controls { opacity: 0; pointer-events: none; }
+
