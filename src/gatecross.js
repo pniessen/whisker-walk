@@ -7,6 +7,7 @@ import { placeState, lower } from './territories.js';
 import { placeName, roomAreaMove } from './edition.js';
 import { areaOffer } from './areaoffer.js';
 import { headTo } from './bordercross.js';
+import { padTag } from './tvseam.js';
 import { confirmCardHtml, spendAsk } from './ui/confirmcard.js';
 import { escapeHtml } from './escapehtml.js';
 import { seedFromCode } from './rng.js';
@@ -64,8 +65,8 @@ export function gateCardHtml({ name, extras = [] }) {
       <h2>${escapeHtml(headTo(name))}</h2>
       <p>${escapeHtml(phrase('gate.keep'))}</p>
       ${lines}
-      <button id="btn-cross-yes" class="btn" type="button">Yes, let's go!</button>
-      <button id="btn-cross-no" class="btn" type="button">Keep exploring</button>
+      <button id="btn-cross-yes" class="btn" type="button">Yes, let's go!${padTag('⟦confirm⟧')}</button>
+      <button id="btn-cross-no" class="btn" type="button">Keep exploring${padTag('⟦back⟧')}</button>
     </div>`;
 }
 

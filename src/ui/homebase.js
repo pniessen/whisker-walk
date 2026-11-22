@@ -2825,5 +2825,9 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     refreshSync() {
       if (shown && openSheet === 'sync' && !root.classList.contains('hidden')) render();
     },
+    // The pad's right stick turns the hero cat while the home screen shows it (true when it did).
+    spinHero(rad) {
+      return !root.classList.contains('hidden') && !!stage && !!heroStage() && stage.spinBy(rad);
+    },
   };
 }

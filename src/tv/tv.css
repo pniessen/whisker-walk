@@ -202,3 +202,132 @@ html.tv .splash-inner svg { width: calc(310px * var(--tv-s, 1)); }
 html.tv .splash-word { font-size: calc(75px * var(--tv-s, 1)); margin-top: calc(22px * var(--tv-s, 1)); white-space: nowrap; }
 html.tv .splash-edition { font-size: calc(30px * var(--tv-s, 1)); }
 html.tv body:has(#splash:not([style*="none"])) #overlay { visibility: hidden; }
+
+/* ======================================================================
+   Round 2 (owner photos of round 1): the clan pick, every yes/no dialog, Home again,
+   Change place, the home base. Same three sizes, same gaps; every size grows with --tv-s.
+   ====================================================================== */
+
+/* ---- The clan pick: five tiles in one row (3 + 2 on a narrow window), the name large and the place smaller. ---- */
+html.tv .join-moment { padding: var(--tv-safe-y, 5vh) var(--tv-safe-x, 5vw); box-sizing: border-box; background: rgba(14, 19, 29, 0.96); }
+html.tv .join-moment .join-moment-card { max-width: min(calc(1700px * var(--tv-s, 1)), 100%); padding: calc(28px * var(--tv-s, 1)) calc(36px * var(--tv-s, 1)); gap: var(--tv-gap-l); box-sizing: border-box; border-width: 3px; }
+html.tv .join-moment h2 { font-size: var(--tv-title); line-height: 1.15; margin: 0 0 var(--tv-gap); }
+html.tv .join-moment-paws { display: none; }
+html.tv .join-moment-ask { font-size: var(--tv-body); margin: 0 0 var(--tv-gap-l); }
+html.tv .join-moment .dr-homes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--tv-gap-l); }
+html.tv .join-moment .dr-home { min-height: 0; padding: calc(16px * var(--tv-s, 1)); font-size: var(--tv-small) !important; font-weight: 500; line-height: 1.4; text-align: left; align-items: flex-start; gap: calc(6px * var(--tv-s, 1)); overflow-wrap: anywhere; }
+html.tv .join-moment .dr-home .dr-home-name { font-size: var(--tv-body); font-weight: 700; line-height: 1.2; }
+html.tv .join-moment .dr-home small { font-size: var(--tv-small) !important; opacity: .92; }
+html.tv .join-moment-foot { margin-top: var(--tv-gap-l); gap: var(--tv-gap-l); }
+html.tv .join-moment-later { min-height: calc(64px * var(--tv-s, 1)); padding: 0 calc(32px * var(--tv-s, 1)); font-size: var(--tv-body); }
+html.tv .join-moment-note { font-size: var(--tv-small) !important; opacity: .9; }
+@media (max-width: 1500px) { html.tv .join-moment .dr-homes { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* ---- Yes / no dialogs: one card for all of them (the confirm card: place change, unlock, delete, the TV offer; the crossing card:
+   gateway and border; the fight ask). A scrim, a rounded yellow-edged face, big buttons with their pad glyph, inside the safe margins. ---- */
+html.tv button .pad-glyph { pointer-events: none; }
+html.tv .colony-news { box-sizing: border-box; padding: var(--tv-safe-y, 5vh) var(--tv-safe-x, 5vw); background: rgba(14, 19, 29, 0.92); }
+html.tv .colony-news-card { box-sizing: border-box; max-width: min(calc(1000px * var(--tv-s, 1)), 100%); padding: calc(32px * var(--tv-s, 1)) calc(44px * var(--tv-s, 1)); gap: var(--tv-gap-l); border-width: 3px; border-radius: calc(26px * var(--tv-s, 1)); font-weight: 500; line-height: 1.4; }
+html.tv .confirm-card { max-width: min(calc(1000px * var(--tv-s, 1)), 100%); }
+html.tv .colony-notice-line { font-size: var(--tv-title); font-weight: 700; line-height: 1.2; text-wrap: balance; }
+html.tv .colony-news-sub { font-size: var(--tv-body) !important; color: #c9d8ee; }
+html.tv .nearby-card-btns { flex-wrap: nowrap; gap: var(--tv-gap-l); margin-top: var(--tv-gap); }
+html.tv :is(.nearby-card-btns button, .colony-news-btn, .nearby-card-later, .cross-card button) {
+  box-sizing: border-box; flex: 1 1 0; min-width: 0; min-height: calc(84px * var(--tv-s, 1)); padding: 0 calc(32px * var(--tv-s, 1)); border-radius: calc(20px * var(--tv-s, 1));
+  font-size: var(--tv-body) !important; font-weight: 700; line-height: 1.2; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: .3em;
+}
+html.tv .nearby-card-later, html.tv .cross-card #btn-cross-no { border: 2px solid #8c9bb4; background: transparent; color: #f1e0c2; }
+html.tv .cross-card.gate-buy .nearby-card-btns button { font-size: var(--tv-body); min-height: calc(84px * var(--tv-s, 1)); }
+html.tv .cross-card.gate-buy .nearby-card-btns .nearby-card-later { font-size: var(--tv-body); }
+/* The crossing card (gateway "Head to ...?", border): the same face as the confirm card, its two buttons side by side. */
+html.tv .pause-card.cross-card:not(.gate-moment):not(.gate-buy) {
+  display: grid; grid-template-columns: repeat(2, minmax(0, calc(490px * var(--tv-s, 1)))); grid-auto-flow: row dense; grid-auto-rows: min-content; align-content: center; justify-content: center; justify-items: stretch; gap: var(--tv-gap-l);
+  background: rgba(14, 19, 29, 0.92); text-align: center; font-weight: 500;
+}
+html.tv .cross-card > h2 { grid-column: 1 / -1; font-size: var(--tv-title); line-height: 1.2; margin: 0; color: #f2c14e; text-wrap: balance; }
+html.tv .cross-card > p { grid-column: 1 / -1; margin: 0; font-size: var(--tv-body); }
+html.tv .cross-card #btn-cross-yes { grid-column: 2; border: 0; background: #f2c14e; color: #1c2431; }
+html.tv .cross-card #btn-cross-no { grid-column: 1; }
+html.tv .cross-card.gate-buy .confirm-card { margin: 0 auto; width: min(calc(1000px * var(--tv-s, 1)), 100%); }
+html.tv .confirm-card-danger { background: #e98a8a; }
+/* A scrim behind the crossing card hides the key strip and the prompt (they ran off both edges, owner photo). */
+html.tv body:has(#overlay:not(.hidden) .cross-card) #hud :is(.hud-controls, .hud-hint, .hud-toasts, .hud-prompt, .hud-goals, .hud-objective) { visibility: hidden; }
+/* The fight ask: bigger buttons, as wide as their words. */
+html.tv .hud-fight-ask { font-size: var(--tv-body) !important; padding: calc(14px * var(--tv-s, 1)) calc(28px * var(--tv-s, 1)); gap: var(--tv-gap); max-width: min(calc(1100px * var(--tv-s, 1)), 100%); }
+html.tv .fight-ask-buttons { gap: var(--tv-gap-l); }
+html.tv .fight-ask-go, html.tv .fight-ask-off { min-height: calc(72px * var(--tv-s, 1)); padding: 0 calc(32px * var(--tv-s, 1)); font-size: var(--tv-body) !important; font-weight: 700; white-space: nowrap; }
+
+/* ---- Home again!: one wide card, four equal tiles in a row, two sizes of text under the title. ---- */
+html.tv .summary-card .screen-panel.summary-panel { width: min(calc(1180px * var(--tv-s, 1)), 90vw); padding: calc(28px * var(--tv-s, 1)) calc(40px * var(--tv-s, 1)); gap: var(--tv-gap-l); }
+html.tv .summary-card .summary-cheer, html.tv .summary-card .best-line, html.tv .summary-card .record-banner { font-size: var(--tv-body) !important; font-weight: 500; line-height: 1.4; margin: 0; }
+html.tv .summary-card .summary-cheer { font-weight: 700; color: #f1e0c2; }
+html.tv .summary-card .record-banner { font-weight: 700; padding: calc(8px * var(--tv-s, 1)) calc(24px * var(--tv-s, 1)); }
+html.tv .summary-stats, html.tv .summary-stats.five { display: grid; grid-template-columns: repeat(auto-fit, minmax(calc(180px * var(--tv-s, 1)), 1fr)); grid-auto-rows: 1fr; gap: var(--tv-gap-l); margin: 0; }
+html.tv .summary-stats .stat { box-sizing: border-box; justify-content: center; gap: calc(4px * var(--tv-s, 1)); padding: calc(16px * var(--tv-s, 1)) calc(10px * var(--tv-s, 1)); border-radius: calc(18px * var(--tv-s, 1)); min-width: 0; }
+html.tv .summary-stats .stat-emoji { font-size: calc(36px * var(--tv-s, 1)); line-height: 1.2; }
+html.tv .summary-stats .stat-value { font-size: calc(52px * var(--tv-s, 1)); line-height: 1.1; }
+html.tv .summary-stats .stat-label { font-size: var(--tv-small) !important; line-height: 1.2; white-space: nowrap; }
+html.tv .summary-card .primary { min-height: calc(76px * var(--tv-s, 1)); min-width: calc(360px * var(--tv-s, 1)); display: inline-flex; align-items: center; justify-content: center; gap: .3em; font-size: var(--tv-body) !important; }
+
+/* ---- Change place (the world map): a wide card, one header row, a pannable map with big zoom buttons, a fixed side panel for the
+   place that was picked (B closes it, so there is no X), and map words at the floor. Each place's own lines ("Press X to explore",
+   the lock hints) are the panel's job: the map keeps names only. ---- */
+html.tv .homebase-scroll.hb-sheet[data-sheet="places"] { max-width: min(calc(1760px * var(--tv-s, 1)), 100%); }
+html.tv .hb-sheet-map .hb-places > h2 { position: absolute; top: 0; left: 0; right: 0; margin: 0; text-align: center; line-height: calc(76px * var(--tv-s, 1)); font-size: var(--tv-title); pointer-events: none; }
+html.tv .hb-sheet-map { position: relative; }
+html.tv .hb-sheet .hb-back { margin-bottom: var(--tv-gap); }
+/* the Day / Dusk switch sits in the title row, at the right; the clan line and the hint share one row; the map takes everything else */
+html.tv .hb-sheet-map .hb-places > .hb-dusk { position: absolute; top: calc(8px * var(--tv-s, 1)); right: 0; margin: 0; display: flex; align-items: center; gap: var(--tv-gap); }
+html.tv .hb-places .dr-where { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto minmax(0, 1fr); column-gap: var(--tv-gap-l); align-content: stretch; }
+html.tv .hb-places .dr-where > .hb-pick-line, html.tv .hb-places .dr-where > .hb-pick-choose { width: auto; margin: 0 0 var(--tv-gap); box-sizing: border-box; min-height: calc(64px * var(--tv-s, 1)); font-size: var(--tv-body); align-self: stretch; }
+html.tv .hb-places .dr-where > .wm-hint { margin: 0 0 var(--tv-gap); display: flex; align-items: center; box-sizing: border-box; font-size: var(--tv-body); min-height: calc(64px * var(--tv-s, 1)); }
+html.tv .hb-places .dr-where > .wm-hint:first-child { grid-column: 1 / -1; }
+html.tv .hb-places .dr-where > .wm-frame { grid-column: 1 / -1; min-height: 0; }
+/* The map's words are in the map's own user units (not --tv-s: the map itself is already sized with the window), set so each reads at 24 px or more
+   at the map's fit scale (about 0.7 at 1080p and 1.4 at 2160p: 34 units read as 24 px and up). */
+html.tv .world-map .tm-line, html.tv .world-map .tm-line-small { display: none; } /* today's place has its ring, the picked place its panel */
+html.tv .world-map .tm-name[font-size="28"] { font-size: 34px; }
+html.tv .world-map .tm-small { font-size: 34px; }
+html.tv .world-map .tm-label { font-family: inherit; stroke-width: 10; }
+html.tv .wm-zoom { top: calc(12px * var(--tv-s, 1)); right: calc(12px * var(--tv-s, 1)); gap: var(--tv-gap); }
+html.tv .wm-frame .wm-zoom button { width: calc(76px * var(--tv-s, 1)); height: calc(76px * var(--tv-s, 1)); font-size: calc(40px * var(--tv-s, 1)); border-width: 2px; }
+/* The side panel: reserved while a place is picked; the map gives it the right third. */
+html.tv .wm-frame:has(.wm-card) .world-map { right: auto; width: 66%; }
+html.tv .wm-frame:has(.wm-card) .wm-zoom { right: calc(34% + 12px * var(--tv-s, 1)); }
+html.tv .wm-card { left: auto; right: 0; top: 0; bottom: 0; width: 32%; max-height: none; box-sizing: border-box; padding: 0 0 calc(24px * var(--tv-s, 1)); border-radius: calc(20px * var(--tv-s, 1)); display: flex; flex-direction: column; gap: var(--tv-gap); overflow: auto; }
+html.tv .wm-card-pic { border-radius: calc(20px * var(--tv-s, 1)) calc(20px * var(--tv-s, 1)) 0 0; max-height: 34%; }
+html.tv .wm-card h3 { margin: 0 calc(24px * var(--tv-s, 1)); font-size: var(--tv-title); line-height: 1.2; }
+html.tv .dr-town-note { margin: 0 calc(24px * var(--tv-s, 1)); font-size: var(--tv-small); }
+html.tv .wm-card-line { margin: 0 calc(24px * var(--tv-s, 1)); font-size: var(--tv-body); }
+html.tv .dr-where .wm-card .wm-card-go, html.tv .dr-where .wm-card .wm-card-buy { width: calc(100% - 2 * 24px * var(--tv-s, 1)); margin: auto calc(24px * var(--tv-s, 1)) 0; min-height: calc(84px * var(--tv-s, 1)); font-size: var(--tv-body); }
+html.tv .dr-where .wm-card .wm-card-close { display: none; }
+
+/* The key strip is for the first minute of a walk (src/tv/stripfade.js sets body.tv-strip-off after that). */
+html.tv .hud-controls { transition: opacity 1.2s ease; }
+html.tv body.tv-strip-off .hud-controls { opacity: 0; pointer-events: none; }
+
+/* ---- Home base: header pills as tall as the Menu button, big cat slots, no empty gap in the right column. ---- */
+html.tv .dr-top { gap: var(--tv-gap); }
+html.tv .dr-top :is(.hb-pill, .hb-points, .hb-menu-btn, .dr-title) { font-size: var(--tv-body) !important; line-height: 1.2; }
+html.tv .dr-top :is(.hb-pill, .hb-points, .hb-menu-btn) { box-sizing: border-box; min-height: calc(64px * var(--tv-s, 1)); display: inline-flex; align-items: center; gap: .4em; padding: 0 calc(26px * var(--tv-s, 1)); }
+html.tv .dr-top .hb-pill.dr-visit { opacity: 1; }
+html.tv .dr .hb-menu-btn { border-width: 2px; }
+html.tv .dr-strip { gap: var(--tv-gap); margin-top: var(--tv-gap); padding: calc(8px * var(--tv-s, 1)) calc(6px * var(--tv-s, 1)); }
+html.tv .dr .dr-portrait { width: calc(84px * var(--tv-s, 1)); height: calc(84px * var(--tv-s, 1)); border-radius: calc(18px * var(--tv-s, 1)); }
+html.tv .dr .dr-portrait.dr-make, html.tv .dr .dr-portrait.dr-more-cats { width: auto; padding: 0 calc(26px * var(--tv-s, 1)); font-size: var(--tv-body) !important; font-weight: 700; }
+html.tv .dr-portrait.sel, html.tv .dr-portrait.looking { outline-width: calc(4px * var(--tv-s, 1)); outline-offset: calc(2px * var(--tv-s, 1)); }
+html.tv .dr-portrait.locked::after { font-size: calc(24px * var(--tv-s, 1)); }
+html.tv .dr-hero-name { font-size: calc(36px * var(--tv-s, 1)); }
+html.tv .dr-hero-blurb { font-size: var(--tv-body) !important; opacity: .9; }
+html.tv .dr-spin-hint { opacity: .8; top: calc(14px * var(--tv-s, 1)); right: calc(18px * var(--tv-s, 1)); }
+/* Today's place takes the room between Dress up and the Explore button (it used to leave a hole). */
+html.tv .dr:not(.dr-view-wardrobe):not(.dr-building) { grid-template-rows: auto auto minmax(0, 1fr) auto; grid-template-areas: "header header" "hero wearing" "hero today" "hero dock"; }
+html.tv .dr-view-home .dr-today { display: flex; flex-direction: column; min-height: 0; }
+html.tv .dr-view-home .dr-today-frame { flex: 1 1 0; min-height: calc(200px * var(--tv-s, 1)); }
+html.tv .dr-view-home .dr-today-frame .dr-today-card { position: absolute; inset: 0; width: auto; height: auto; aspect-ratio: auto; max-height: none; min-height: 0; }
+html.tv .dr-today-name { font-size: calc(36px * var(--tv-s, 1)) !important; }
+html.tv .dr-today-card .cap small { font-size: var(--tv-body) !important; }
+html.tv .dr-change { font-size: var(--tv-body) !important; padding: calc(8px * var(--tv-s, 1)) calc(22px * var(--tv-s, 1)); }
+/* One focus ring for every control, the Change place map's: a thick white ring with a dark halo, scaled with the screen. */
+html.tv .pad-focus :focus:not([tabindex="-1"]), html.tv .pad-focus :focus-visible:not([tabindex="-1"]) { outline: calc(5px * var(--tv-s, 1)) solid #fff !important; outline-offset: calc(4px * var(--tv-s, 1)) !important; box-shadow: 0 0 0 calc(10px * var(--tv-s, 1)) rgba(20, 16, 30, 0.7); }
+html.tv .pad-focus .world-map .tm-region:focus, html.tv .pad-focus .world-map .tm-region:focus-visible { outline: none !important; box-shadow: none; }

@@ -330,6 +330,7 @@ function init() {
     onPadConnect: (i) => tvHooks.padConnect?.(i),
     onPadDisconnect: (i) => tvHooks.padDisconnect?.(i),
     onMenuButton: (i) => tvHooks.button?.(i) ?? false,
+    onLook: (rad) => homebase.spinHero(rad),
   });
   // Pushes every live-tunable setting into the systems that read it — audio
   // volume/mute, camera invert-Y, touch-UI handedness — so a change applies

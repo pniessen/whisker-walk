@@ -190,7 +190,7 @@ describe('walk summary markup (walk.js source)', () => {
     expect(tpl).toMatch(/portrait \? `<img class="screen-cat" src="\$\{escapeHtml\(portrait\)\}" alt="">`/);
     expect(tpl).toContain('<div class="summary-cheer">${escapeHtml(summaryCheer(earned, discoveries))}</div>');
     expect(tpl).toContain('summaryStatsHtml(');
-    expect(tpl).toContain('<button id="btn-summary-continue" class="primary">Continue</button>');
+    expect(tpl).toContain('<button id="btn-summary-continue" class="primary">Continue${padTag(\'⟦confirm⟧\')}</button>');
     expect(tpl.indexOf('bestWalkConfetti')).toBeLessThan(tpl.indexOf('screen-panel'));
     expect(s).toMatch(/overlay\.innerHTML = summaryHtml;\s*countUp\(overlay, \{ reduced \}\);/);
     expect(s).toContain('const reduced = prefersReducedMotion(settings);');
