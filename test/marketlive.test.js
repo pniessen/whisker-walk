@@ -398,12 +398,14 @@ describe('the stallholders (Task 11)', () => {
     // kit's near detail, about 2,300 each, and four brooms: the most there can
     // be, as each is far a metre past the near distance from her; the old blocky
     // figure was 30 meshes and 3,056). With the square's 108 meshes and 38,341
-    // triangles that is 126 / 52,321 of the 280 / 62,000 ceilings.
+    // triangles that is 126 / 52,321 of the 280 / 62,000 ceilings. Merging main's
+    // dress and skirt (people-dress, 2026-11-21: the whole skirt swings) took the
+    // six people to 14,100 triangles (+120, the same 18 meshes): 126 / 52,441.
     const tri = (m) => (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
     const people = { meshes: theirs.length, casters: theirs.filter((m) => m.castShadow).length, tris: theirs.reduce((n, m) => n + tri(m), 0) };
     expect(people.meshes).toBeLessThanOrEqual(20);
     expect(people.casters).toBe(0);
-    expect(people.tris).toBeLessThanOrEqual(14000);
+    expect(people.tris).toBeLessThanOrEqual(14120);
     const square = { meshes: 0, tris: 0 };
     for (const o of before) o.traverse((m) => { if (m.isMesh) { square.meshes++; square.tris += tri(m); } });
     const [maxMeshes, , maxTris] = MARKET_REGISTRATION.budget.built;

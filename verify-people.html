@@ -31,6 +31,8 @@
               scratch-held-day scratch-older-day
               kneel-front-day kneel-left-day dress-scratch-day dress-scratch-side dress-scratch-front dress-kneel-back
               skirt-scratch-day skirt-scratch-side coat-scratch-side dress-stride-day skirt-stride-day
+              dress-stride-a dress-stride-b skirt-stride-a skirt-stride-b skirt-stride-side-a skirt-stride-side-b
+              skirt-kneel-back dress-kneel-back-close dress-kneel-side-close skirt-kneel-side-close
        fair:  fair-day fair-dusk fair-close fair-kneel fair-juggler
        place: wave wave-eye (a villager waving, the normal camera and her eye height, 0.3 m)
               pair pair-eye (the place's pair: the Neighborhood, the Park and the Docks)
@@ -38,7 +40,8 @@
      (two 1/60 s steps) and renders, and answers { done, caption }.
        sheet: gaze (she walks past the lineup 3 m away, 8 s), walk (a man, a woman and a pair walk past, 6 s),
               scratch (she walks up to the kneeling man from 2 m, is touched, turns away, 7.5 s),
-              kneel (the man kneels and stands again, from his left side, 3 s)
+              kneel (the man kneels and stands again, from his left side, 3 s),
+              skirt-walk (a woman in a skirt walks past, 4 s), skirt-kneel (she kneels and stands again, from her left, 3 s)
        place: slide (she walks into a villager and slides round, 5 s),
               scratch-town (she walks up, asks, is touched, walks away: the game's own head scratch, 11 s),
               scratch-town-side (the same, from the villager's right)
@@ -610,6 +613,18 @@
     'coat-scratch-side': () => { dayLight(); scratchScene('coat', 0.85); cam(2.4, 0.85, 0.7, 0, 0.55, 0.3, 40); settle(SCRATCH, { which: only('coat'), seconds: 4 }); return `A man in a coat kneeling, from his left (the raised knee's side). ${touchNote('coat')}`; },
     'dress-stride-day': () => strideOf('dress', 'A woman in a dress mid-stride, three-quarter view: the skirt over the stride.'),
     'skirt-stride-day': () => strideOf('skirt', 'A woman in a skirt mid-stride, three-quarter view.'),
+    // two phases of the stride, half a cycle apart: her left heel landing
+    // (the left leg forward), then her right (the dress and skirt follow-up)
+    'dress-stride-a': () => strideOf('dress', 'A woman in a dress, her left heel landing: the skirt over both legs.', 0),
+    'dress-stride-b': () => strideOf('dress', 'A woman in a dress, her right heel landing: the skirt over both legs.', Math.PI),
+    'skirt-stride-a': () => strideOf('skirt', 'A woman in a skirt, her left heel landing: the skirt over both legs.', 0),
+    'skirt-stride-b': () => strideOf('skirt', 'A woman in a skirt, her right heel landing: the skirt over both legs.', Math.PI),
+    'skirt-stride-side-a': () => strideOf('skirt', 'A woman in a skirt from her right side, her left heel landing.', 0, true),
+    'skirt-stride-side-b': () => strideOf('skirt', 'A woman in a skirt from her right side, her right heel landing.', Math.PI, true),
+    'skirt-kneel-back': () => { dayLight(); scratchScene('skirt', 0.85); cam(-1.2, 1.2, -2.4, 0, 0.5, 0.2, 40); settle(SCRATCH, { which: only('skirt'), seconds: 4 }); return `The skirt over the kneel from behind her. ${touchNote('skirt')}`; },
+    'dress-kneel-side-close': () => { dayLight(); scratchScene('dress', 0.85); cats[0].visible = false; cam(1.9, 0.75, 0.0, 0, 0.45, 0.05, 36); settle(SCRATCH, { which: only('dress'), seconds: 4 }); return 'The dress over the kneel from straight beside her left (the raised knee\'s side; the cat hidden): no leg through the cloth.'; },
+    'skirt-kneel-side-close': () => { dayLight(); scratchScene('skirt', 0.85); cats[0].visible = false; cam(1.9, 0.75, 0.0, 0, 0.45, 0.05, 36); settle(SCRATCH, { which: only('skirt'), seconds: 4 }); return 'The skirt over the kneel from straight beside her left (the raised knee\'s side; the cat hidden): no leg through the cloth.'; },
+    'dress-kneel-back-close': () => { dayLight(); scratchScene('dress', 0.85); cats[0].visible = false; cam(0, 0.9, -2.0, 0, 0.45, 0, 34); settle(SCRATCH, { which: only('dress'), seconds: 4 }); return 'The dress over the kneel from straight behind her (the cat hidden): the back of the cloth.'; },
     'crowd-spots': () => {
       dayLight();
       SPOTS.forEach((_, i) => { const it = byId(`spot${i}`); it.group.position.set(-5.6 + i * 1.6, 0, -2.6); it.group.rotation.y = Math.PI; });
@@ -619,15 +634,19 @@
     },
   };
   // one of the extra cast walking, alone, three-quarter view (she sits off to the right)
-  function strideOf(id, text) {
+  // (phase: the stride's phase in radians, 0 her left heel landing; side:
+  // from straight beside her, she hidden)
+  function strideOf(id, text, phase = 1.25, side = false) {
     dayLight();
     const it = byId(id);
     it.group.position.set(0, 0, 0);
-    it.group.rotation.y = Math.PI / 2 + 0.35;
+    it.group.rotation.y = side ? Math.PI / 2 : Math.PI / 2 + 0.35;
     cats[0].position.set(-1.4, 0, 1.2); cats[0].rotation.y = 0.6;
+    cats[0].visible = !side;
     animateCat(cats[0], 'follow', 0.5, 0, false);
-    cam(0.9, 1.45, 4.0, 0, 0.8, 0, 40);
-    settle({ mode: 'walk', walked: (m) => 1.25 / strideFor(m.person, 1) }, { which: only(id) });
+    if (side) cam(0.35, 0.85, 3.8, 0.35, 0.8, 0, 36);
+    else cam(0.9, 1.45, 4.0, 0, 0.8, 0, 40);
+    settle({ mode: 'walk', walked: (m) => phase / strideFor(m.person, 1) }, { which: only(id) });
     return text;
   }
   // the scratch shots: one person at the middle facing us, she `dist` m in
@@ -1034,6 +1053,55 @@
       frame() {
         cam(2.4, 0.6, 0.35, 0, 0.45, 0.1, 38);
         return `He kneels (from 0.3 s, 0.7 s down) and stands again (from 1.6 s), from his left: the feet [${tt > 0.3 && tt < 1.6 ? 'kneel' : 'stand'}].`;
+      },
+    };
+  };
+
+  // The woman in a skirt walks across in front of us, three-quarter view, 4 s.
+  TOURS['skirt-walk'] = () => {
+    sheetDefaults('skirt-walk');
+    cats[0].visible = false;
+    const w = byId('skirt');
+    for (const it of items) {
+      it.group.visible = it.id === 'skirt';
+      for (const m of it.members) { m.gaze = createGaze(m.person.look); m.scratch = null; }
+    }
+    w.group.rotation.y = -Math.PI / 2; // walking toward +x
+    const x0 = -2.6, speed = 1.25;
+    let tt = 0;
+    w.group.position.set(x0, 0, 0);
+    current = { spec: () => ({ mode: 'walk', walked: speed * tt, noLook: true }), detail: null };
+    return {
+      seconds: 4,
+      tick(dt) { tt += dt; w.group.position.set(x0 + speed * tt, 0, 0); step(dt); },
+      frame() {
+        const x = w.group.position.x;
+        cam(x + 1.0, 1.0, 3.2, x, 0.7, 0, 40); // the camera keeps her in view
+        return 'A woman in a skirt walks past: the skirt swings with both legs.';
+      },
+    };
+  };
+  // The woman in a skirt kneels at 0.3 s and stands again at 1.6 s, from her
+  // left (the raised knee's side): the cloth over the knee on the way.
+  TOURS['skirt-kneel'] = () => {
+    sheetDefaults('skirt-kneel');
+    cats[0].visible = false;
+    const w = byId('skirt');
+    for (const it of items) {
+      it.group.visible = it.id === 'skirt';
+      for (const m of it.members) { m.gaze = createGaze(m.person.look); m.scratch = null; }
+    }
+    w.group.position.set(0, 0, 0);
+    w.group.rotation.y = Math.PI;
+    let tt = 0;
+    current = { spec: () => ({ mode: tt > 0.3 && tt < 1.6 ? 'kneel' : 'stand', noLook: true }), detail: null };
+    for (let i = 0; i < 60; i++) step(DT);
+    return {
+      seconds: 3,
+      tick(dt) { tt += dt; step(dt); },
+      frame() {
+        cam(2.3, 0.85, 0.15, 0, 0.55, 0.05, 40);
+        return `She kneels (from 0.3 s, 0.7 s down) and stands again (from 1.6 s), from her left: the skirt over the raised knee [${tt > 0.3 && tt < 1.6 ? 'kneel' : 'stand'}].`;
       },
     };
   };
