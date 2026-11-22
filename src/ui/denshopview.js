@@ -19,6 +19,7 @@ import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
 import { renderDenShopHtml, changedSpots, spotChoices, SPOT_LABEL } from './denshop.js';
 import { createConfirmCard, spendAsk } from './confirmcard.js';
 import { tvState, tvHooks, padHtml, onTv } from '../tvseam.js';
+import { denWord } from './denwords.js';
 
 /**
  * createDenShopView({ hud, progression, sync, player, getSession, pause, resume,
@@ -69,6 +70,9 @@ export function createDenShopView({
   let active = false;
   let open = false;
   let note = '';
+  // After a buy: { kind: 'yours', id } (Place it now / Later). Place mode: { kind: 'hand', id }.
+  // UI state only, never saved.
+  let stage = null;
 
   // Buy only asks ("Get the Sunbeam Rug for 25 🐾?"): the walk is already
   // paused under the sheet. The card sits over the sheet (style.css
@@ -108,7 +112,7 @@ export function createDenShopView({
   function render() {
     const body = sheet.querySelector('.ds-body');
     const scroll = body ? body.scrollTop : 0;
-    sheet.innerHTML = renderDenShopHtml(progression.state, DEN_ITEMS, DEN_SPOTS, { note, padSpots: listOn() ? { none: tvState.padLine?.('pad.spot.none') ?? '' } : null });
+    sheet.innerHTML = renderDenShopHtml(progression.state, DEN_ITEMS, DEN_SPOTS, { note, stage, padSpots: listOn() ? { none: tvState.padLine?.('pad.spot.none') ?? '' } : null });
     const next = sheet.querySelector('.ds-body');
     if (next) next.scrollTop = scroll;
   }
@@ -117,6 +121,7 @@ export function createDenShopView({
     if (!active || open) return;
     open = true;
     note = '';
+    stage = null;
     pause();
     doc.body.classList.add('den-shop-open');
     render();
@@ -127,6 +132,7 @@ export function createDenShopView({
   function hide({ walkOn = true } = {}) {
     if (!open) return;
     confirm.close(); // unanswered: nothing is bought
+    stage = null; // a piece in hand goes back on the shelf (still hers)
     open = false;
     sheet.classList.add('hidden');
     doc.body.classList.remove('den-shop-open');
@@ -142,8 +148,7 @@ export function createDenShopView({
       ...spendAsk({ name: item.name, price: item.price, points }),
       returnFocus: () => sheet.querySelector?.(`[data-den-buy="${q}"]`)?.focus?.(),
       onYes: () => {
-        buy(id);
-        sheet.querySelector?.('.ds-done')?.focus?.(); // its button is gone once bought
+        buy(id); // focus lands on "Place it now"
       },
     });
   }
@@ -152,8 +157,25 @@ export function createDenShopView({
     if (!progression.buyDenItem(id)) return; // she can no longer afford it: nothing changes
     sync?.autoSync?.();
     hud?.setPoints?.(progression.state.points);
-    note = `${DEN_ITEMS[id]?.name ?? 'It'} is yours! Now pick a spot for it.`;
+    note = '';
+    stage = { kind: 'yours', id };
     render();
+    sheet.querySelector?.('[data-den-place-now]')?.focus?.();
+  }
+
+  // Later / Back / Esc: the piece stays hers, unplaced.
+  function stopPlacing() {
+    if (!stage) return;
+    stage = null;
+    note = '';
+    render();
+    sheet.querySelector?.('.ds-done')?.focus?.();
+  }
+  function startPlacing() {
+    if (!stage) return;
+    stage = { kind: 'hand', id: stage.id };
+    render();
+    sheet.querySelector?.('[data-den-hand-spot]')?.focus?.();
   }
 
   function place(spotId, itemId) {
@@ -165,10 +187,12 @@ export function createDenShopView({
     for (const [sid, now] of changedSpots(before, progression.state.den.placed, DEN_SPOTS)) {
       applyDenSpot(getSession(), sid, now, { player });
     }
+    stage = null;
     note = itemId
       ? `${DEN_ITEMS[itemId]?.name ?? 'It'}: ${SPOT_LABEL[spotId] ?? 'placed'}. Looks cosy!`
       : `${SPOT_LABEL[spotId] ?? 'That spot'} is empty now.`;
     render();
+    sheet.querySelector?.('.ds-done')?.focus?.();
   }
 
   button.addEventListener('click', show);
@@ -176,6 +200,10 @@ export function createDenShopView({
     const t = e.target;
     if (!t || !t.closest) return;
     if (t.closest('[data-den-done]')) { hide(); return; }
+    if (t.closest('[data-den-later]')) { stopPlacing(); return; }
+    if (t.closest('[data-den-place-now]')) { startPlacing(); return; }
+    const handSpot = t.closest('[data-den-hand-spot]');
+    if (handSpot) { if (stage?.kind === 'hand') place(handSpot.dataset.denHandSpot, stage.id); return; }
     const buyBtn = t.closest('[data-den-buy]');
     if (buyBtn) askBuy(buyBtn.dataset.denBuy);
     const spotBtn = t.closest('[data-den-spot-open]');
@@ -188,7 +216,7 @@ export function createDenShopView({
   doc.addEventListener('keydown', (e) => {
     if (open && e.code === 'Escape') {
       e.preventDefault();
-      hide();
+      if (stage) stopPlacing(); else hide();
     }
   });
 
@@ -235,6 +263,9 @@ export function createDenShopView({
     // The browser's Back (ui/backstack.js): the question first ("Not now"),
     // then the shop (close, as Done does).
     get isAsking() { return confirm.isOpen(); },
+    // Then the piece in hand or the "is yours" card (Later), then the shop.
+    get isPlacing() { return !!stage; },
+    stopPlacing,
     notNow() { confirm.cancel(); },
   };
 }

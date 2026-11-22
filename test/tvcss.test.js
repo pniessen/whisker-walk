@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-  fontDeclarations, splitSelectors, buildFontsCss, GROWNUP_20, ROOT_PX, FLOOR_PX, GROWNUP_FLOOR_PX,
+  fontDeclarations, splitSelectors, buildFontsCss, GROWNUP_20, SVG_UNITS, ROOT_PX, FLOOR_PX, GROWNUP_FLOOR_PX,
 } from '../scripts/tvfonts.mjs';
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
@@ -12,8 +12,11 @@ const strip = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
 
 // Evaluates a font-size value at ui scale s: px, rem (TV root is 24 px x s), em and %
 // (against that root, where simple), calc, max, min and var(--tv-s).
+// The TV type-system sizes (--tv-title, --tv-body, --tv-small) are custom properties in tv.css; a font-size that names one is read through it.
+const TV_VARS = Object.fromEntries([...TV.matchAll(/--tv-(title|body|small):\s*(calc\([^;]+\));/g)].map((m) => [m[1], m[2]]));
 function evalSize(value, s) {
   let v = String(value).replace(/\s*!important$/, '').trim();
+  v = v.replace(/var\(--tv-(title|body|small)\)/g, (_, k) => TV_VARS[k] ?? 'NaN');
   v = v.replace(/var\(--tv-s(?:,\s*[\d.]+)?\)/g, `(${s})`);
   v = v.replace(/(\d*\.?\d+)px/g, '($1)').replace(/(\d*\.?\d+)rem/g, `($1*${ROOT_PX}*${s})`)
     .replace(/(\d*\.?\d+)em/g, `($1*${ROOT_PX}*${s})`).replace(/(\d*\.?\d+)%/g, `($1/100*${ROOT_PX}*${s})`);
@@ -71,6 +74,7 @@ describe('every font-size on a TV is at least 24 px at 1080p (20 on the allow-li
     it(`at ui scale ${s}`, () => {
       const bad = [];
       for (const { sel, value } of decls) {
+        if (SVG_UNITS.includes(sel)) continue; // the map's own units (checked by the map's rules in test/tvclutter2.test.js)
         const size = evalSize(overrideFor(overrides, sel) ?? value, s);
         const floor = (GROWNUP_20.includes(sel) ? GROWNUP_FLOOR_PX : FLOOR_PX) * s;
         // a size that is neither px, rem, em nor % is a font shorthand with its own size: fonts.css has its rule
@@ -90,7 +94,8 @@ describe('the TV stylesheet', () => {
   it('every rule is under html.tv', () => {
     for (const css of [TV, FONTS]) {
       const rules = strip(css).split('}').map((r) => r.split('{')[0].trim()).filter(Boolean);
-      for (const sel of rules) for (const one of splitSelectors(sel)) expect(one, one).toMatch(/^html\.tv\b/);
+      // (a media rule's own head is not a selector; its rules are checked in test/tvclutter2.test.js)
+      for (const sel of rules.filter((r) => !r.startsWith('@media'))) for (const one of splitSelectors(sel)) expect(one, one).toMatch(/^html\.tv\b/);
     }
   });
 

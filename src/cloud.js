@@ -85,6 +85,8 @@ export function isMissingRpc(err) {
 
 // What delete_save / delete_player can answer (docs/supabase-v9-delete.sql).
 const DELETE_ANSWERS = new Set(['ok', 'none', 'denied', 'busy']);
+// What rotate_cat_code can answer (docs/supabase-v11-cat-login.sql, step 2).
+const ROTATE_ANSWERS = new Set(['ok', 'denied', 'busy', 'bad']);
 const V11_ANSWERS = new Set(['ok', 'merge', 'denied', 'busy', 'none', 'bad', 'too-big']);
 
 // profiles_by_ids takes at most this many ids per call (the SQL's cap).
@@ -293,8 +295,22 @@ export function createCloud({ rpc, select, getSecret }) {
     return deleteCall('delete_player', { p_player_id: id, p_secret: secret });
   }
 
+  // "Change my cat code" (v11 step 2): moves the cat to a new code and a new secret. Never throws:
+  // 'ok' | 'denied' | 'busy' | 'bad' are the server's; 'unavailable' means the function is not on the
+  // server yet (the owner has not run step 2), 'offline' that there was no answer.
+  async function rotateCatCode(code, secret, newCode, newSecret) {
+    try {
+      const r = await rpc('rotate_cat_code', { p_code: code, p_secret: secret, p_new_code: newCode, p_new_secret: newSecret });
+      return ROTATE_ANSWERS.has(r) ? r : 'bad';
+    } catch (err) {
+      if (isMissingRpc(err)) return 'unavailable';
+      note('cloud', err);
+      return 'offline';
+    }
+  }
+
   return {
-    saveToCloud, loadFromCloud, peekSave, syncSave, pushProfile, recordGreet, fetchProfiles, findByFriendCode, fetchFriendships,
+    saveToCloud, loadFromCloud, peekSave, syncSave, rotateCatCode, pushProfile, recordGreet, fetchProfiles, findByFriendCode, fetchFriendships,
     addFriendByCode,
     colonyInviteOpen, colonyInviteJoin, colonyInviteAnswer, colonySync, colonyFeed, colonyDress,
     colonyTradeOffer, colonyTradeAnswer, colonyTradeCancel,

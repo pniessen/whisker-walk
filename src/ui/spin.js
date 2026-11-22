@@ -48,6 +48,8 @@ export function createSpin({ radPerPx = 0.012, friction = 4, rest = -0.45 } = {}
       }
       samples = [];
     },
+    // The pad's right stick: turn by this much, no coast.
+    nudge(da) { angle += da; },
     step(dt) {
       if (holding || Math.abs(velocity) < STOP_SPEED) {
         if (!holding) velocity = 0;

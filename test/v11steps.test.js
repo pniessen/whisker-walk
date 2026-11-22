@@ -2,18 +2,21 @@
 // reads its file). Nothing here can reach a database: the file has not been run
 // by anyone, and an agent never runs it.
 //
-// Milestone 2 writes step 1 only (revisions and the cheap question). The later
-// steps add their own checks to this file when they are written.
+// Milestone 2 wrote step 1 (revisions and the cheap question), milestone 3 step 2
+// (four-word codes and changing a code). Later steps add their own checks.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 const read = (f) => readFileSync(new URL(`../docs/${f}`, import.meta.url), 'utf8');
-const v11 = read('supabase-v11-cat-login.sql');
+const v11all = read('supabase-v11-cat-login.sql');
+const STEP2 = v11all.indexOf('\n-- ══ STEP 2 — ');
+const v11 = v11all.slice(0, STEP2 < 0 ? undefined : STEP2); // step 1 is what the first block of tests is about
+const v11step2 = STEP2 < 0 ? '' : v11all.slice(STEP2);
 const v10 = read('supabase-v10-limits.sql');
 const code = (sql) => sql.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--[^\n]*/g, '');
 const fn = (sql, name) => sql.match(new RegExp(`create or replace function public\\.${name}\\(([^)]*)\\)[\\s\\S]*?\\nend \\$\\$;\\n`, 'i'));
 const runbookQueries = () => {
-  const book = v11.slice(0, v11.indexOf('HOW IT WORKS')).replace(/^-- ?/gm, '');
+  const book = v11all.slice(0, v11all.indexOf('HOW IT WORKS')).replace(/^-- ?/gm, '');
   return [...book.matchAll(/^ {2}(select[\s\S]*?;)$/gm)].map((m) => m[1]);
 };
 
@@ -118,5 +121,112 @@ describe('supabase-v11-cat-login.sql, step 1 (static)', () => {
       expect(q, q).not.toMatch(/\b(insert|update|delete|drop|alter|create|grant|revoke)\b/i);
       expect(q, q).not.toMatch(/\b(secret|code)\b(?!_)/i); // never a secret or a save code in a result
     }
+  });
+});
+
+describe('supabase-v11-cat-login.sql, step 2 (static)', () => {
+  const two = code(v11step2);
+  const rot = () => fn(v11step2, 'rotate_cat_code')[0];
+  const ups = () => fn(v11step2, 'upsert_save')[0];
+  it('is its own step in the runbook, run by the owner, after step 1', () => {
+    expect(v11step2).toMatch(/^\n-- ══ STEP 2 — four-word codes and changing a code/);
+    expect(v11all).toMatch(/STEP 2 {2}four-word codes and changing a code/); // listed in the runbook's order of steps
+    expect(two).toMatch(/to_regprocedure\('public\.peek_save\(text,text\)'\) is null/);
+    expect(two).toMatch(/raise exception 'Whisker Walk v11 step 2: step 1 /);
+  });
+  it('upsert_save accepts both code shapes, and is step 1\'s text with only the code check changed', () => {
+    const one = fn(v11, 'upsert_save')[0];
+    const body = ups();
+    expect(body).toContain("'^[A-Z]{4,6}-[A-Z]{4,6}-[A-Z]{4,6}-[0-9]{2}$'");
+    expect(body).toContain("'^[A-Z]{3,6}(-[A-Z]{3,6}){3}$'");
+    const added = body.split('\n').filter((l) => !one.split('\n').includes(l)).filter((l) => !/^\s*--/.test(l));
+    const removed = one.split('\n').filter((l) => !body.split('\n').includes(l));
+    expect(removed).toHaveLength(1);
+    expect(removed[0]).toMatch(/p_code !~ '\^\[A-Z\]\{4,6\}/);
+    expect(added.join('\n')).toMatch(/p_code !~ '\^\[A-Z\]\{4,6\}.*and p_code !~ '\^\[A-Z\]\{3,6\}\(-\[A-Z\]\{3,6\}\)\{3\}\$'/s);
+    expect(added.length).toBeLessThanOrEqual(2);
+    // the secret check, the stale line and the size cap are all still there, in the same order
+    for (const keep of ["is distinct from p_secret", "existing.v >= 2", "octet_length(p_payload::text) > 2097152"]) expect(body).toContain(keep);
+  });
+  it('sync_save needs no new code check: it only looks a row up and never makes one', () => {
+    expect(two).not.toMatch(/create or replace function public\.sync_save/);
+    expect(fn(v11, 'sync_save')[0]).not.toMatch(/insert into saves/);
+  });
+  it('rotate_cat_code runs as its owner with the search_path pinned, and is one function, so one transaction', () => {
+    const head = rot().split(' as $$')[0].replace(/\s+/g, ' ');
+    expect(head).toMatch(/security definer set search_path = public, pg_temp$/);
+    expect(head).toMatch(/\(\s*p_code text, p_secret text, p_new_code text, p_new_secret text\s*\) returns text/);
+    expect(two).not.toMatch(/\b(begin transaction|commit;|rollback;|savepoint)\b/i);
+  });
+  it('checks the code, the new code and both secrets before anything else, and answers one word', () => {
+    const body = rot();
+    expect(body).toMatch(/p_new_code = p_code/);
+    expect(body).toMatch(/p_new_secret = p_secret/);
+    expect(body).toMatch(/length\(p_new_secret\) < 16/);
+    expect(body.indexOf("p_new_code !~ '^[A-Z]{4,6}")).toBeGreaterThan(-1);
+    expect(body).toContain("'^[A-Z]{3,6}(-[A-Z]{3,6}){3}$'");
+    const words = [...body.matchAll(/return '([a-z-]+)'/g)].map((m) => m[1]);
+    expect(new Set(words)).toEqual(new Set(['bad', 'busy', 'denied', 'ok']));
+    expect(body).not.toMatch(/return jsonb|raise exception/);
+  });
+  it('looks at the secret before it changes or tells anything, counts a wrong one as a load miss, and a right one as a rotation', () => {
+    const body = rot();
+    expect(body.indexOf('is distinct from p_secret')).toBeGreaterThan(-1);
+    expect(body.indexOf('is distinct from p_secret')).toBeLessThan(body.indexOf('insert into saves'));
+    expect((body.match(/perform ww_hit\('load-miss'\)/g) ?? []).length).toBe(2); // unknown code, wrong secret
+    expect(body).toMatch(/if ww_over\('load-miss'\) then return 'busy'/);
+    expect(body).toMatch(/if not ww_hit\('rotate'\) then return 'busy'/);
+    expect(body).toMatch(/select \* into existing from saves where code = p_code for update;/);
+  });
+  it('refuses a cat id that is not a UUID, and moves the profile secret only for that cat and only from the old secret', () => {
+    const body = rot();
+    expect(body).toMatch(/v_cat := existing\.payload -> 'cat' ->> 'id';/);
+    expect(body).toMatch(/v_cat !~ '\^\[0-9a-f\]\{8\}-\[0-9a-f\]\{4\}-\[0-9a-f\]\{4\}-\[0-9a-f\]\{4\}-\[0-9a-f\]\{12\}\$'/);
+    const upd = body.match(/update profiles set secret = p_new_secret where ([^;]*);/);
+    expect(upd).not.toBeNull();
+    expect(upd[1]).toBe('player_id = v_cat and secret = p_secret');
+    expect(body.match(/update profiles/g)).toHaveLength(1);
+  });
+  it('writes the new row first and leaves the old code as an empty row with a secret nobody has (so another device is denied, not told "none", and nothing can claim the old code with a new save)', () => {
+    const body = rot();
+    expect(body.indexOf('insert into saves')).toBeLessThan(body.indexOf('update saves'));
+    expect(body).toMatch(/insert into saves \(code, secret, payload, lifetime, rev, v, last_seen\)/);
+    expect(body).toMatch(/existing\.rev \+ 1, 2, now\(\)/);
+    const old = body.match(/update saves\s+set ([^;]*?)\s+where code = p_code;/s);
+    expect(old).not.toBeNull();
+    expect(old[1]).toMatch(/secret = 'moved-' \|\| md5\(random\(\)::text \|\| clock_timestamp\(\)::text\)/);
+    expect(old[1]).toMatch(/payload = '\{\}'::jsonb/);
+    expect(body).toMatch(/if exists \(select 1 from saves where code = p_new_code\) then return 'busy'/);
+    expect(body).not.toMatch(/delete from/i);
+  });
+  it('has limits rows for rotate, "do nothing" on conflict', () => {
+    const rows = [...two.matchAll(/\('rotate',\s+(\d+),\s+(\d+),\s+(\d+),\s+(\d+)\)/g)].map((m) => m.slice(1).map(Number));
+    expect(rows).toEqual([[86400, 5, 20, 200]]);
+    expect(two).toMatch(/on conflict \(name, window_secs\) do nothing;/);
+  });
+  it('revokes everything, then grants execute to anon on the new function and on upsert_save only', () => {
+    expect(two).toMatch(/revoke execute on function public\.rotate_cat_code\(text, text, text, text\) from public, anon, authenticated;/);
+    expect(two).toMatch(/grant execute on function public\.rotate_cat_code\(text, text, text, text\) to anon;/);
+    const grants = [...two.matchAll(/grant execute on function public\.([a-z_]+)/g)].map((m) => m[1]).sort();
+    expect(grants).toEqual(['rotate_cat_code', 'upsert_save']);
+    expect(two).not.toMatch(/\bto (public|authenticated)\b/i);
+    expect(two).not.toMatch(/create policy|create table|grant (select|insert|update|delete|all)/i);
+  });
+  it('touches no friendships or colony table, never makes dynamic sql, and deletes nothing', () => {
+    expect(two).not.toMatch(/\b(friendships|colonies|colony_[a-z]+)\b/);
+    expect(two).not.toMatch(/\b(delete\s+from|truncate|drop\s+(table|column|policy))\b/i);
+    expect(two).not.toMatch(/\bexecute\s+(format|'|\$|[a-z_]+\s*\|\|)/i);
+  });
+  it('says how to undo the step, and warns that re-running step 1 alone puts the old code check back', () => {
+    expect(v11step2).toMatch(/\n-- Rollback: /);
+    expect(v11step2).toContain('drop function if exists public.rotate_cat_code(text, text, text, text);');
+    expect(v11step2).toContain("delete from public.ww_limits where name = 'rotate';");
+    expect(v11all).toMatch(/re-run(ning)? (of )?step 1/i);
+  });
+  it('the runbook has check queries for step 2: read-only, every column aliased, no code or secret in a result', () => {
+    expect(runbookQueries().length).toBeGreaterThanOrEqual(10);
+    const asked = runbookQueries().join('\n');
+    expect(asked).toMatch(/rotate_cat_code/);
+    expect(asked).toMatch(/\{3,6\}/);
   });
 });

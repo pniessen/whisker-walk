@@ -227,6 +227,7 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
   // (e.g. re-linked elsewhere) — surfaced once per link, not on every
   // subsequent auto-sync, so it doesn't spam a toast after every walk.
   let deniedNotified = false;
+  let newShapeRefused = false; // the server took no 4-word code: v11 step 2 has not run
 
   // The catch-up (src/game/catsync.js): a lazy chunk, fetched only by a device
   // that has a cloud link, and only when a catch-up is asked for.
@@ -294,11 +295,18 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
       const cloud = openCloud(); // the tap that opts in
       if (!cloud) return { ok: false, error: 'Cloud sync is not available.' };
       try {
-        // the word list is its own file, fetched by this tap (src/savecode.js)
-        const code = (await import('../savecode.js')).generateSaveCode();
+        // the word lists are their own files, fetched by this tap: the new 4-word code
+        // (src/catcodes.js) first, and the old shape (src/savecode.js) when the server has
+        // not had the v11 step 2 yet and answers 'bad' (asked once; then not again this session)
+        let code = newShapeRefused ? (await import('../savecode.js')).generateSaveCode() : (await import('../catcodes.js')).generateCatCode();
         const payload = composeCloudPayload();
         const secret = getPsecret();
-        const result = await cloud.saveToCloud(code, secret, payload, payload.save.lifetimePoints ?? 0);
+        let result = await cloud.saveToCloud(code, secret, payload, payload.save.lifetimePoints ?? 0);
+        if (result === 'bad' && !newShapeRefused) {
+          newShapeRefused = true;
+          code = (await import('../savecode.js')).generateSaveCode();
+          result = await cloud.saveToCloud(code, secret, payload, payload.save.lifetimePoints ?? 0);
+        }
         if (result === 'too-big') return { ok: false, error: TOO_BIG_MESSAGE };
         if (result === 'busy') return { ok: false, error: BUSY_MESSAGE };
         if (result !== 'created') {
@@ -385,6 +393,30 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
       if (r === null || r.legacy) return runSync();
       const ok = r === 'saved' || r === 'caught' || r === 'deferred'; // (the toast already said what came in)
       return { ok, message: ok ? 'Synced ✓' : r === 'signedout' ? phrase('catlogin.signedout', savedName()) : r === 'too-big' ? TOO_BIG_MESSAGE : r === 'busy' ? BUSY_MESSAGE : 'Could not reach the cloud — check your connection and try again.' };
+    },
+    // "Change my cat code" (v11 step 2): a new code and a new secret, moved by one call; then the
+    // link and the cat key change together (all four values, or none). -> { ok, code, notKept? } or
+    // { ok: false, error } in kid words. The device secret follows only when it was the row secret
+    // (an older link keeps its own, so the profile and colony still answer).
+    async changeCode() {
+      const link = readCloudLink();
+      const cloud = saveCloud();
+      if (!link || !cloud) return { ok: false, error: phrase('catlogin.err.changed') };
+      let before;
+      try { before = snapshotKeyState(storage); } catch { return { ok: false, error: phrase('catlogin.err.changed') }; }
+      const code = (await import('../catcodes.js')).generateCatCode();
+      const secret = crypto.randomUUID() + crypto.randomUUID();
+      const answer = await cloud.rotateCatCode(link.code, link.secret, code, secret);
+      if (answer !== 'ok') {
+        const error = { busy: phrase('catlogin.err.busy'), unavailable: phrase('catlogin.err.notready'), offline: phrase('catlogin.err.offline') }[answer] ?? phrase('catlogin.err.changed');
+        return { ok: false, error };
+      }
+      const next = { ...before, code, linkSecret: secret };
+      if (before.secret === link.secret) next.secret = secret;
+      const kept = applyKeyState(storage, next);
+      psecretCache = null; // read again from storage
+      deniedNotified = false;
+      return kept ? { ok: true, code } : { ok: true, code, notKept: true };
     },
     // How the cat's catch-up stands, for the sheet: { state, name } or null before it has run.
     catStatus() {

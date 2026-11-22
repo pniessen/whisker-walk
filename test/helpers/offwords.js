@@ -24,6 +24,19 @@ export function withOffWords(fn) {
   }
 }
 
+// Like withOffWords, for a fn that awaits: the everyday words stay in use until its promise is done.
+export async function withOffWordsAsync(fn) {
+  if (seriesMode() !== SERIES_ON) throw new Error('withOffWordsAsync: already inside another word set');
+  addWordSet(OFF, off);
+  try {
+    setSeriesMode(OFF);
+    return await fn();
+  } finally {
+    setSeriesMode(SERIES_ON);
+    removeWordSet(OFF);
+  }
+}
+
 // ---- the words the everyday game never shows ----------------------------------
 //
 // Each entry: [what it is, a pattern]. Read from the family's tables where a

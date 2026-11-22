@@ -31,6 +31,7 @@ import { voiceFor } from './catvoice.js';
 import { createAlbum } from './album.js';
 import { askToKeepSaves } from './savekeep.js';
 import { createSettings } from './settings.js';
+import { startProfile, markTouch } from './profile.js';
 import { createTvLoader, tvWanted, tvHooks, watchForTv } from './tvseam.js';
 import { createConfirmCard } from './ui/confirmcard.js';
 import { createBlockList } from './blocklist.js';
@@ -186,12 +187,13 @@ function init() {
   // only reveals itself via a real touch event, so without this the desktop
   // .hud-controls bar would keep showing alongside the touch UI after an
   // onFirstTouch upgrade.
-  if (isTouch) document.body.classList.add('touch-mode');
   const progression = createProgression(window.localStorage);
   // Fire and forget: asks the browser not to clear the save under storage pressure.
   askToKeepSaves();
   const album = createAlbum(window.localStorage);
   const settings = createSettings(window.localStorage);
+  // The layout profile writes html.<profile> and body.touch-mode (the one writer, src/profile.js).
+  startProfile(window, document, () => settings.get('profileOverride'));
   // Adaptive Auto quality: every device starts a walk on the high rung and
   // steps down live if its frames stay slow; the step is remembered per
   // device in localStorage['whisker-walk-adapt'] (never the save).
@@ -329,6 +331,7 @@ function init() {
     onPadConnect: (i) => tvHooks.padConnect?.(i),
     onPadDisconnect: (i) => tvHooks.padDisconnect?.(i),
     onMenuButton: (i) => tvHooks.button?.(i) ?? false,
+    onLook: (rad) => homebase.spinHero(rad),
   });
   // Pushes every live-tunable setting into the systems that read it — audio
   // volume/mute, camera invert-Y, touch-UI handedness — so a change applies
@@ -411,7 +414,7 @@ function init() {
     if (isTouch) return;
     isTouch = true;
     player.setTouchMode(true);
-    document.body.classList.add('touch-mode');
+    markTouch();
     if (session) touchUI.setVisible(true);
     // the pause overlay may already be showing stale desktop copy from
     // before this upgrade — refresh the resume label so it isn't stale.
@@ -931,6 +934,7 @@ function init() {
       walking: !!session,
       walkingOn: !!session?.walkingOn,
       shopAsk: denShop.isAsking,
+      placing: denShop.isPlacing,
       shop: denShop.isOpen,
       findCard: !!session?.findCard,
       crossing: !!session?.crossing,
@@ -941,6 +945,7 @@ function init() {
     });
     if (action === 'continue') overlay.querySelector('#btn-summary-continue')?.click();
     else if (action === 'shop-not-now') denShop.notNow();
+    else if (action === 'shop-later') denShop.stopPlacing();
     else if (action === 'shop-done') denShop.close();
     else if (action === 'find-later') findCard.later();
     else if (action === 'cross-no') crossing?.cancel();
@@ -960,7 +965,7 @@ function init() {
     if (homebase.back()) { backStack?.sync?.(); return; }
     const act = padBackAction({
       fight: session?.clanFight?.uiShowing === 'fight', summary: summaryUp(), walking: !!session, walkingOn: !!session?.walkingOn,
-      cardUp: !!overlay.querySelector('#btn-resume'), shopAsk: denShop.isAsking, shop: denShop.isOpen, findCard: !!session?.findCard, crossing: !!session?.crossing,
+      cardUp: !!overlay.querySelector('#btn-resume'), shopAsk: denShop.isAsking, placing: denShop.isPlacing, shop: denShop.isOpen, findCard: !!session?.findCard, crossing: !!session?.crossing,
     });
     if (act === 'none') return;
     if (act === 'resume') { player.setTouchEngaged(true); return; }

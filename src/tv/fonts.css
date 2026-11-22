@@ -131,11 +131,7 @@ html.tv .dr-where .dr-place-buy { font-size: calc(24px * var(--tv-s, 1)) !import
 html.tv .dr-den-roof { font-size: calc(38px * var(--tv-s, 1)) !important; }
 html.tv .dr-home { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .dr-home small { font-size: calc(24px * var(--tv-s, 1)) !important; }
-html.tv .territory-map .tm-line { font-size: calc(28px * var(--tv-s, 1)) !important; }
-html.tv .territory-map .tm-icon { font-size: calc(34px * var(--tv-s, 1)) !important; }
-html.tv .territory-map .tm-small { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .wm-hint { font-size: calc(24px * var(--tv-s, 1)) !important; }
-html.tv .world-map .tm-line-small { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .wm-frame .wm-zoom button { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .dr-town-note { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .wm-card-line { font-size: calc(24px * var(--tv-s, 1)) !important; }

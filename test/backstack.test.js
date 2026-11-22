@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { createBackStack, walkBackAction, posOf, BACK_KEY, attachBackStack } from '../src/ui/backstack.js';
+import { createBackStack, walkBackAction, padBackAction, posOf, BACK_KEY, attachBackStack } from '../src/ui/backstack.js';
 
 // A tab's history: entries with a state, a cursor, and popstate delivered
 // only when flush() is called (as a browser delivers it later, not inside go()).
@@ -368,5 +368,17 @@ describe('found outfits: Back and the find card', () => {
     expect(walkBackAction({ walking: true, shop: true, findCard: true })).toBe('shop-done');
     expect(walkBackAction({ walking: true, findCard: true, crossing: true })).toBe('find-later');
     expect(walkBackAction({ walking: false, findCard: true })).toBe(null);
+  });
+});
+
+describe('Back with a piece to place (den shop UX M2)', () => {
+  it('Place it now / a piece in hand: Back is Later, after the question and before the shop', () => {
+    expect(walkBackAction({ walking: true, shop: true, placing: true })).toBe('shop-later');
+    expect(walkBackAction({ walking: true, shop: true, placing: true, shopAsk: true })).toBe('shop-not-now');
+    expect(walkBackAction({ walking: true, shop: true })).toBe('shop-done');
+  });
+  it('the pad does not walk on from the pause card behind a piece in hand', () => {
+    expect(padBackAction({ walking: true, cardUp: true, placing: true })).toBe('back');
+    expect(padBackAction({ walking: true, cardUp: true })).toBe('resume');
   });
 });

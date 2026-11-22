@@ -33,7 +33,11 @@ const DEFAULTS = {
   // like the rest of this file: neither is in the save or the cloud save.
   tvMode: false,
   tvOfferDeclined: false,
+  // "Screen layout" (src/profile.js): auto reads the device. Per device, like the rest of this file.
+  profileOverride: 'auto',
 };
+
+const PROFILE_OVERRIDE = ['auto', 'phone', 'tablet', 'laptop', 'tv'];
 
 // Resolved into a render tier by src/render/quality.js (resolveQuality) —
 // 'auto' starts every device on the high rung and adapts to its frame times
@@ -81,6 +85,7 @@ function sanitize(raw) {
     zoomButtons: typeof raw.zoomButtons === 'boolean' ? raw.zoomButtons : DEFAULTS.zoomButtons,
     tvMode: typeof raw.tvMode === 'boolean' ? raw.tvMode : DEFAULTS.tvMode,
     tvOfferDeclined: typeof raw.tvOfferDeclined === 'boolean' ? raw.tvOfferDeclined : DEFAULTS.tvOfferDeclined,
+    profileOverride: clampEnum(raw.profileOverride, PROFILE_OVERRIDE, DEFAULTS.profileOverride),
   };
 }
 
@@ -123,6 +128,7 @@ export function createSettings(storage) {
       if (key === 'volume') state = { ...state, volume: clampVolume(val, state.volume) };
       else if (key === 'musicVolume') state = { ...state, musicVolume: clampVolume(val, state.musicVolume) };
       else if (key === 'quality') state = { ...state, quality: clampEnum(val, QUALITY, state.quality) };
+      else if (key === 'profileOverride') state = { ...state, profileOverride: clampEnum(val, PROFILE_OVERRIDE, state.profileOverride) };
       else if (key === 'cameraZoom') state = { ...state, cameraZoom: zoomStep(val, state.cameraZoom) };
       else state = { ...state, [key]: !!val };
       save();

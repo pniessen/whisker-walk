@@ -46,7 +46,8 @@ describe('cloud sync: a save the cloud refuses', () => {
     const res = await s.sync.saveToCloud();
     expect(res.ok).toBe(true);
     expect(s.sync.getCode()).toBe(res.code);
-    expect(res.code).toMatch(/^[A-Z]{4,6}-[A-Z]{4,6}-[A-Z]{4,6}-\d{2}$/);
+    // a new code is four words of the list (cat login M3); the old shape is only for a server that refuses it
+    expect(res.code).toMatch(/^[A-Z]{3,6}(-[A-Z]{3,6}){3}$/);
   });
 
   it('Sync now on a linked device: too-big and busy are messages, never toasts', async () => {

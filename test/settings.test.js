@@ -21,6 +21,7 @@ describe('createSettings', () => {
       zoomButtons: false, // 2026-11-19, controls review: the + and − pair on screen, off by default
       tvMode: false, // 2026-11-22, TV mode: off until a grown-up turns it on
       tvOfferDeclined: false,
+      profileOverride: 'auto',
     });
     expect(settings.get('volume')).toBe(0.8);
   });
@@ -57,6 +58,7 @@ describe('createSettings', () => {
       zoomButtons: false, // 2026-11-19, controls review: the + and − pair on screen, off by default
       tvMode: false, // 2026-11-22, TV mode: off until a grown-up turns it on
       tvOfferDeclined: false,
+      profileOverride: 'auto',
     });
   });
 
@@ -79,6 +81,7 @@ describe('createSettings', () => {
       zoomButtons: false, // 2026-11-19, controls review: the + and − pair on screen, off by default
       tvMode: false, // 2026-11-22, TV mode: off until a grown-up turns it on
       tvOfferDeclined: false,
+      profileOverride: 'auto',
     });
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
@@ -214,5 +217,17 @@ describe('createSettings', () => {
     s.set('tvmode', true);
     expect(JSON.parse(storage.getItem('whisker-walk-settings') ?? '{}')).not.toHaveProperty('tvmode');
     expect(s.get('tvmode')).toBeUndefined();
+  });
+
+  it('profileOverride is auto by default, takes the five layouts, persists, and junk reads as auto', () => {
+    const storage = fakeStorage();
+    const settings = createSettings(storage);
+    expect(settings.get('profileOverride')).toBe('auto');
+    settings.set('profileOverride', 'tablet');
+    expect(createSettings(storage).get('profileOverride')).toBe('tablet');
+    settings.set('profileOverride', 'bogus');
+    expect(settings.get('profileOverride')).toBe('tablet');
+    const junk = createSettings(fakeStorage({ 'whisker-walk-settings': JSON.stringify({ profileOverride: 7 }) }));
+    expect(junk.get('profileOverride')).toBe('auto');
   });
 });

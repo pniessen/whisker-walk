@@ -186,6 +186,13 @@ const LATER = Object.freeze({
   'catlogin.caughtup': (name) => `${name || 'Your cat'} caught up. Paws, finds and outfits from both devices are in camp.`,
   'catlogin.signedout': (name) => `This cat moved to a new cat code. Type the new one to bring ${name || 'your cat'} back.`,
 
+  // ---- cat login, milestone 3: the My cat sheet and changing the code (the same in every set) ----
+  'catlogin.err.changed': 'That didn’t work, so nothing was changed. Your old cat code is still the one to use.',
+  'catlogin.err.busy': 'The cloud is busy right now. Try again in a little while.',
+  'catlogin.err.notready': 'Changing the cat code is not ready yet. Your cat is still safe.',
+  'catlogin.err.offline': 'Connect to the internet and try again.',
+  'catlogin.err.nocode': 'That cat code didn’t work. Check the words and try again.',
+
   // ---- world map step 3 (2026-11-21): what a gate says, the same in every set ----
   'gate.shut': (walks, place, toGo) => `Opens after ${walks} ${walks === 1 ? 'walk' : 'walks'} in ${place}. ${toGo} to go!`,
   'gate.short': (need) => `You need ${need} more 🐾. Keep exploring!`,
@@ -608,10 +615,16 @@ const LATER = Object.freeze({
 // Every id of the first table, in table order.
 export const PHRASE_IDS = Object.freeze(Object.keys(TABLE));
 // Every id added later, in table order.
+// Lines a lazy chunk brings with it (the My cat sheet, src/ui/catloginwords.js): added when that
+// chunk arrives, so their words are not in the start-up download. They go through phrase() like
+// the rest, so a set's own PHRASES still overrides them.
+const ADDED = {};
+export function addPhrases(table) { Object.assign(ADDED, table); }
+
 export const LATER_PHRASE_IDS = Object.freeze(Object.keys(LATER));
 
 export function hasPhrase(id) {
-  return typeof id === 'string' && (Object.hasOwn(TABLE, id) || Object.hasOwn(LATER, id));
+  return typeof id === 'string' && (Object.hasOwn(TABLE, id) || Object.hasOwn(LATER, id) || Object.hasOwn(ADDED, id));
 }
 
 // phrase(id, ...args) → the text. An unknown id throws: every id is a literal
@@ -620,6 +633,6 @@ export function hasPhrase(id) {
 export function phrase(id, ...args) {
   if (!hasPhrase(id)) throw new Error(`Whisker Walk: no phrase "${id}"`);
   const own = words().PHRASES;
-  const entry = own && Object.hasOwn(own, id) ? own[id] : Object.hasOwn(TABLE, id) ? TABLE[id] : LATER[id];
+  const entry = own && Object.hasOwn(own, id) ? own[id] : Object.hasOwn(TABLE, id) ? TABLE[id] : Object.hasOwn(LATER, id) ? LATER[id] : ADDED[id];
   return typeof entry === 'function' ? entry(...args) : entry;
 }

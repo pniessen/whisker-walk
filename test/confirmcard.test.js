@@ -20,6 +20,8 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
 
 const { confirmCardHtml, createConfirmCard, spendAsk, deliberateTap } = await import('../src/ui/confirmcard.js');
 const { CONFIRM_DELAY_MS } = await import('../src/ui/colonypanel.js');
+await import('../src/ui/catlogin.js'); // the Cloud sheet's chunk, cached before the first test
+const { sheetDrawn } = await import('./helpers/catsheet.js');
 const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression, BACKUP_KEYS } = await import('../src/progression.js');
 
@@ -269,9 +271,11 @@ describe('the home base uses it', () => {
     const storage = memStorage({ [KEY]: withPoints(120) });
     const { progression } = setup({ storage, sync });
     dressingMock.opts.onOpenSheet('sync');
+    await sheetDrawn(() => doc.root.innerHTML);
     expect(doc.root.innerHTML).not.toContain('data-backup-restore');
     progression.replaceFromPayload({ version: 4, points: 3 });
     dressingMock.opts.onOpenSheet('sync');
+    await sheetDrawn(() => doc.root.innerHTML);
     expect(doc.root.innerHTML).toContain('<button data-backup-restore="cloud">Undo the last cloud load <small class="sync-backup-pts">(120 🐾)</small></button>');
     const btn = { getAttribute: () => 'cloud' };
     await click({ closest: (sel) => (sel === '[data-backup-restore]' ? btn : null) });
@@ -283,15 +287,17 @@ describe('the home base uses it', () => {
     expect(doc.root.innerHTML).not.toContain('data-backup-restore="cloud"');
   });
 
-  it('a kept unreadable save is named in Cloud save; one from a newer version has no button', () => {
+  it('a kept unreadable save is named in Cloud save; one from a newer version has no button', async () => {
     const sync = { available: true, getCode: () => null };
     const storage = memStorage({ [KEY]: JSON.stringify({ version: 9, points: 1 }) });
     setup({ storage, sync });
     dressingMock.opts.onOpenSheet('sync');
+    await sheetDrawn(() => doc.root.innerHTML);
     expect(doc.root.innerHTML).toContain('This device has a save from a newer version of the game.');
     expect(doc.root.innerHTML).not.toContain('data-backup-restore="unreadable"');
     storage.setItem(BACKUP_KEYS.unreadable, JSON.stringify({ at: 1, raw: withPoints(4) }));
     dressingMock.opts.onOpenSheet('sync');
+    await sheetDrawn(() => doc.root.innerHTML);
     expect(doc.root.innerHTML).toContain('<button data-backup-restore="unreadable">Try to restore');
   });
 

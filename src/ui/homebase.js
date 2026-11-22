@@ -19,7 +19,7 @@ import { createCatStage } from './catstage.js';
 import { buildCat } from '../cat/model.js';
 import { candidateStarNames } from '../clannames.js';
 import { ownClanTitle, alliesName } from '../clanhomes.js';
-import { phrase } from '../clanphrases.js';
+import { phrase, addPhrases } from '../clanphrases.js';
 import {
   PICK_ATTR, MOMENT_ATTR, MOMENT_SEEN_KEY, clanPickerModel, clanMomentDue, renderClanMomentHtml, clanLineHtml, woodsOpen,
 } from './clanpicker.js';
@@ -292,7 +292,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // Player pets 🐾🐾 (Task 3) — render() is synchronous and re-runs its
   // entire innerHTML on nearly every interaction (buy/equip/room changes),
   // so this section can't hold fetched data as component state the way
-  // cloudPreview etc. do above: render() always emits a fresh "loading…"
+  // the Cloud sheet's state (cl) above: render() always emits a fresh "loading…"
   // placeholder with a stable id, and a separate async function fills it
   // in afterward. `playerPetsToken` guards re-entrancy — if render() (and
   // therefore loadPlayerPets()) runs again before an in-flight fetch
@@ -316,26 +316,22 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   let friendCodeCandidate = null; // { playerId, petName, breed } | null
   let friendCodeSuccess = null; // short "Added X!" line shown once after confirm
 
-  // Sync ☁️ section state — mirrors the wt-*/joinError pattern above.
-  let cloudBusy = false;
-  let cloudError = null;
-  let cloudStatus = null; // inline result text after a manual "Sync now"
-  let cloudJustLinked = false; // show the big "write this down" code once, right after linking
-  let cloudPreview = null; // pending { code, secret, payload, local, cloud } from previewLoad
-  // Set while a loaded cat's key is adopted: the page reloads once (it reads the
-  // cat's id at boot), and this is what the sheet says meanwhile.
-  let bringing = null;
+  // Sync ☁️ section state: the sheet's state, drawn and changed by the lazy chunk
+  // src/ui/catlogin.js (busy, error, status, justLinked, preview, bringing, ...).
+  const cl = { busy: false, error: null, status: null, justLinked: false, preview: null, bringing: null };
   const RELOAD_AFTER_MS = 800; // long enough to read the words
+  // Set while a loaded cat's key is adopted: the page reloads once (it reads the
+  // cat's id at boot), and the sheet says "Bringing ... here" meanwhile.
   function bringHere() {
-    bringing = { name: progression.state.petName || '' };
+    cl.bringing = { name: progression.state.petName || '' };
     render();
     setTimeout(() => { try { reload(); } catch (err) { note('save', err); } }, RELOAD_AFTER_MS);
     // if the page did not reload after all, the sheet comes back rather than stick
-    setTimeout(() => { if (bringing) { bringing = null; render(); } }, RELOAD_AFTER_MS + 5000);
+    setTimeout(() => { if (cl.bringing) { cl.bringing = null; render(); } }, RELOAD_AFTER_MS + 5000);
   }
   let backupMsg = null; // the result line after putting a kept copy back
   let deleteMsg = null; // the result line after "Delete my online data"
-  let deleting = false; // that delete is on its way (cloudBusy is set too)
+  let deleting = false; // that delete is on its way (cl.busy is set too)
 
   // The cats in the room this child can see: a hidden visitor (src/blocklist.js)
   // is not listed or named.
@@ -460,85 +456,45 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       + `<button class="primary wt-nearby-join" data-nearby-code="${escapeHtml(r.code)}">Join</button></div>`).join('');
   }
 
-  // How the linked cat's catch-up stands (cat login, milestone 2): one quiet line,
-  // never a spinner that blocks anything. Words are phrase ids, so both sets say them.
-  function catStatusLine() {
-    let st = null;
-    try { st = sync.catStatus?.() ?? null; } catch { st = null; }
-    const say = {
-      saved: () => phrase('catlogin.saved', st.name),
-      offline: () => phrase('catlogin.offline', st.name),
-      catching: () => phrase('catlogin.catching'),
-      caught: () => phrase('catlogin.caughtup', st.name),
-      signedout: () => phrase('catlogin.signedout', st.name),
-    };
-    return st && Object.hasOwn(say, st.state) ? `<div class="tag catlogin-status" data-cat-status="${st.state}" role="status">${escapeHtml(say[st.state]())}</div>` : '';
+  // What follows a confirmed load: the key changed (one reload), or the home base is drawn again.
+  function afterCloudConfirm(res) {
+    backupMsg = null;
+    if (!res.ok) cl.error = res.error;
+    if (res.ok && res.reload) { bringHere(); return; }
+    render();
+    // A pre-update cloud save with Rosa equipped queued her farewell while
+    // loading; say it now, over the freshly drawn home base. While a visit
+    // celebration is up the notice would be refused, so leave it queued:
+    // the celebration's close (visitboot's afterCards) shows it.
+    if (res.ok && !visitOpen()) {
+      const farewell = progression.takeFarewell();
+      if (farewell) showNotice(farewell);
+    }
   }
 
+  // The sheet itself is a lazy chunk (cat login M3): drawn and handled there; this is the door.
+  let catlogin = null;
+  let catloginP = null;
+  const catApi = {
+    sync, escapeHtml, phrase, addPhrases, tvState, root, get confirmCard() { return confirmCard; },
+    render: () => render(), afterConfirm: (res) => afterCloudConfirm(res),
+  };
+  function loadCatlogin() {
+    return (catloginP ??= import('./catlogin.js').then((m) => {
+      catlogin = m;
+      m.wire(root, cl, catApi);
+      return m;
+    }).catch((err) => { catloginP = null; note('cloud', err); return null; }));
+  }
+  function catloginReady() {
+    if (!catlogin) loadCatlogin().then(() => { try { if (catlogin && openSheet === 'sync') render(); } catch (err) { note('cloud', err); } });
+    return !!catlogin;
+  }
   function renderSync() {
     if (!sync || !sync.available) return '';
-    if (bringing) return `<div class="sync-bringing" role="status">${escapeHtml(phrase('catlogin.bringing', bringing.name))}</div>`;
-    let body;
-    if (cloudPreview) {
-      const fmt = (s) => `${s.rank} · ${s.points} 🐾 (lifetime ${s.lifetimePoints}) · best ever ${s.bestWalk}`;
-      // Defense in depth: main.js's summarizeSaveForPreview already coerces
-      // every numeric field of a cloud-loaded (untrusted) save, so `s.rank`
-      // is always one of RANKS' own titles and the numbers are always plain
-      // finite numbers — but this fires BEFORE the user confirms anything,
-      // so escape the rendered text here too rather than trust that upstream
-      // sanitation never regresses.
-      body = `
-        <div class="sync-preview">
-          <div class="sync-compare">
-            <div class="sync-col"><h3>This device</h3><div>${escapeHtml(fmt(cloudPreview.local))}</div></div>
-            <div class="sync-col"><h3>Cloud save ${escapeHtml(cloudPreview.code)}</h3><div>${escapeHtml(fmt(cloudPreview.cloud))}</div></div>
-          </div>
-          <div class="tag error">Loading will overwrite everything on this device. You can undo it here afterwards, but photos won’t come back.</div>
-          <div class="sync-actions">
-            <button id="sync-confirm-load" class="primary" ${cloudBusy ? 'disabled' : ''}>Confirm — overwrite this device</button>
-            <button id="sync-cancel-load" ${cloudBusy ? 'disabled' : ''}>Cancel</button>
-          </div>
-        </div>`;
-    } else if (sync.getCode()) {
-      const code = sync.getCode();
-      if (cloudJustLinked) {
-        body = `
-          <div class="sync-code-big">
-            <div class="sync-code-value">${escapeHtml(code)}</div>
-            <div class="tag error">Write this down! It's the only way to find this save again.</div>
-            <button id="sync-got-it" class="primary">Got it</button>
-          </div>`;
-      } else {
-        body = `
-          <div class="sync-linked">
-            <div class="tag on">☁️ synced as ${escapeHtml(code)} · after every trip</div>
-            ${catStatusLine()}
-            ${cloudStatus ? `<div class="tag">${escapeHtml(cloudStatus)}</div>` : ''}
-            <div class="sync-actions">
-              <button id="sync-now" ${cloudBusy ? 'disabled' : ''}>${cloudBusy ? 'Syncing…' : 'Sync now'}</button>
-              <button id="sync-load-linked" ${cloudBusy ? 'disabled' : ''}>Load from cloud</button>
-            </div>
-            ${cloudError ? `<div class="tag error">${escapeHtml(cloudError)}</div>` : ''}
-            <div class="sync-unlink-row">
-              <button id="sync-unlink" class="danger" ${cloudBusy ? 'disabled' : ''}>Unlink</button>
-            </div>
-          </div>`;
-      }
-    } else {
-      body = `
-        <div class="sync-unlinked">
-          <button id="sync-save" ${cloudBusy ? 'disabled' : ''}>${cloudBusy ? 'Saving…' : 'Save to cloud'}</button>
-          <div class="code-field">
-            <label class="code-label" for="sync-load-code">Save code from another device</label>
-            <div class="sync-load-row">
-              <input type="text" id="sync-load-code" maxlength="24" placeholder="WORD-WORD-WORD-00" class="wt-code-input sync-code-input" />
-              <button id="sync-load" ${cloudBusy ? 'disabled' : ''}>Load from cloud</button>
-            </div>
-          </div>
-          ${cloudError ? `<div class="tag error">${escapeHtml(cloudError)}</div>` : ''}
-        </div>`;
-    }
-    return cloudPreview || (cloudJustLinked && sync.getCode()) ? body : body + renderBackups() + renderOnlineDelete();
+    if (!catloginReady()) return '<div class="sync-loading" aria-busy="true"></div>';
+    const body = catlogin.sheetHtml(cl, catApi);
+    return catlogin.isBare(cl, catApi) ? body : body + renderBackups() + renderOnlineDelete();
   }
 
   // "Delete my online data": drawn whether or not this device is linked (a
@@ -560,7 +516,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     const blocked = onlineDeleteBlocked();
     return `
       <div class="sync-delete">
-        <button id="sync-delete-online" class="danger" ${cloudBusy || blocked ? 'disabled' : ''}>${deleting ? 'Deleting…' : 'Delete my online data'}</button>
+        <button id="sync-delete-online" class="danger" ${cl.busy || blocked ? 'disabled' : ''}>${deleting ? 'Deleting…' : 'Delete my online data'}</button>
         ${blocked ? `<div class="tag">${escapeHtml(blocked)}</div>` : ''}
         ${deleteMsg ? `<div class="tag">${escapeHtml(deleteMsg)}</div>` : ''}
       </div>`;
@@ -1965,6 +1921,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // Enter's keydown). They are swallowed.
   root.addEventListener('keydown', (e) => {
     if (e.repeat && e.key === 'Enter' && e.target?.closest?.('.wm-card')) { e.preventDefault?.(); return; }
+    if (catlogin?.keydown(e, cl, catApi)) return;
     dressing?.handleKeydown?.(e);
   });
 
@@ -2383,72 +2340,16 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       render();
       return;
     }
-    if (e.target.id === 'sync-save') {
-      cloudBusy = true; cloudError = null; render();
-      const res = await sync.saveToCloud();
-      cloudBusy = false;
-      if (res.ok) cloudJustLinked = true;
-      else cloudError = res.error;
-      render();
-      return;
-    }
-    // Load from cloud: the typed code, or (linked) this device's own code.
-    // Either way it is the same preview, which compares before it overwrites.
-    if (e.target.id === 'sync-load' || e.target.id === 'sync-load-linked') {
-      const code = e.target.id === 'sync-load' ? (root.querySelector('#sync-load-code')?.value ?? '') : (sync.getCode() ?? '');
-      cloudBusy = true; cloudError = null; render();
-      const res = await sync.previewLoad(code);
-      cloudBusy = false;
-      if (res.ok) cloudPreview = res.preview;
-      else cloudError = res.error;
-      render();
-      return;
-    }
-    if (e.target.id === 'sync-confirm-load') {
-      cloudBusy = true; render();
-      const res = await sync.confirmLoad(cloudPreview);
-      cloudBusy = false;
-      cloudPreview = null;
-      backupMsg = null;
-      if (!res.ok) cloudError = res.error;
-      if (res.ok && res.reload) { bringHere(); return; }
-      render();
-      // A pre-update cloud save with Rosa equipped queued her farewell while
-      // loading; say it now, over the freshly drawn home base. While a visit
-      // celebration is up the notice would be refused, so leave it queued:
-      // the celebration's close (visitboot's afterCards) shows it.
-      if (res.ok && !visitOpen()) {
-        const farewell = progression.takeFarewell();
-        if (farewell) showNotice(farewell);
-      }
-      return;
-    }
-    if (e.target.id === 'sync-cancel-load') {
-      cloudPreview = null;
-      render();
-      return;
-    }
-    if (e.target.id === 'sync-got-it') {
-      cloudJustLinked = false;
-      render();
-      return;
-    }
-    if (e.target.id === 'sync-now') {
-      cloudBusy = true; cloudStatus = null; render();
-      const res = await sync.syncNow();
-      cloudBusy = false;
-      cloudStatus = res.message;
-      render();
-      return;
-    }
+    // The Cloud save sheet's own taps are handled by its lazy chunk (src/ui/catlogin.js).
+    if (/^(sync|catlogin)-(?!delete)/.test(e.target.id) && await (await loadCatlogin())?.click(e, cl, catApi)) return;
     if (e.target.id === 'sync-delete-online') {
-      if (!onlineDelete?.available || cloudBusy || onlineDeleteBlocked()) return;
+      if (!onlineDelete?.available || cl.busy || onlineDeleteBlocked()) return;
       confirmCard.ask({
         ...onlineDeleteAsk(sync?.getCode?.() ?? null),
         returnFocus: () => root.querySelector('#sync-delete-online')?.focus?.({ preventScroll: true }),
         onYes: async () => {
-          if (cloudBusy) return;
-          cloudBusy = true; deleting = true; deleteMsg = null; cloudStatus = null; cloudError = null; render();
+          if (cl.busy) return;
+          cl.busy = true; deleting = true; deleteMsg = null; cl.status = null; cl.error = null; render();
           let res;
           try {
             res = await onlineDelete.run();
@@ -2456,30 +2357,9 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             note('cloud', err);
             res = { outcome: 'offline' };
           }
-          cloudBusy = false; deleting = false;
-          if (res.outcome === 'done' || res.save === 'ok' || res.save === 'none') cloudJustLinked = false;
+          cl.busy = false; deleting = false;
+          if (res.outcome === 'done' || res.save === 'ok' || res.save === 'none') cl.justLinked = false;
           deleteMsg = onlineDeleteMessage(res);
-          render();
-        },
-      });
-      return;
-    }
-    // Unlink asks first: afterwards this device no longer shows the code.
-    if (e.target.id === 'sync-unlink') {
-      const code = sync.getCode();
-      if (cloudBusy || !code) return;
-      confirmCard.ask({
-        text: 'Stop saving to the cloud?',
-        note: `Your save code is ${code}. Write it down. It’s the only way to get this save back.`,
-        no: 'Keep saving',
-        yes: 'Yes, stop',
-        danger: true,
-        returnFocus: () => root.querySelector('#sync-unlink')?.focus?.({ preventScroll: true }),
-        onYes: () => {
-          sync.unlink();
-          cloudStatus = null;
-          cloudError = null;
-          cloudJustLinked = false;
           render();
         },
       });
@@ -2592,6 +2472,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // tick, which fights native drag handling.
   root.addEventListener('input', (e) => {
     if (dressing?.handleInput(e)) return;
+    if (catlogin?.typing(e.target, cl, catApi)) return;
     if (e.target.id === 'redeem-input') {
       redeemText = e.target.value;
       return;
@@ -2824,6 +2705,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     // one open, so nothing else on the home screen is redrawn under a child's finger.
     refreshSync() {
       if (shown && openSheet === 'sync' && !root.classList.contains('hidden')) render();
+    },
+    // The pad's right stick turns the hero cat while the home screen shows it (true when it did).
+    spinHero(rad) {
+      return !root.classList.contains('hidden') && !!stage && !!heroStage() && stage.spinBy(rad);
     },
   };
 }
