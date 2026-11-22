@@ -23,7 +23,8 @@
 //   sign          optional, default false: true hangs a painted board with
 //                 the place's name and an arrow on the latch post, facing
 //                 back into the area (world/gateway.js; the words come from
-//                 the phrase 'gate.sign'). Only town-roofs asks for one.
+//                 the phrase 'gate.sign'). Only town-roofs and town-market
+//                 ask for one.
 //
 // A door or a climb (the Old House's front door, the Rooftops' fire escape) is
 // a row with placement 'inside', an explicit `arrive` and usually look 'none'
@@ -32,8 +33,13 @@
 // appears as a live gate only once its place has a catalog row (liveEndsFor),
 // so a place not built yet has no gate. The town and the Rooftops are joined
 // by the pair town-roofs (a signpost at the town's north street end) and
-// roofs-town (that door, in the alley's wall; Rooftops step 4). House step 4
-// adds the pair town-house / house-town: those two rows and nothing else.
+// roofs-town (that door, in the alley's wall; Rooftops step 4). The town and
+// the Market Square are joined by the pair town-market (a signpost at the
+// town's south-east street end) and market-town (a signpost in the gap the
+// square's south row of shop fronts leaves behind its spawn, market.js
+// GATEWAY_GAP; 'inside', as an edge end there would stand on the spawn; Market
+// step 4). House step 4 adds the pair town-house / house-town: those two rows
+// and nothing else.
 
 export const GATE_REACH = 1.6; // m, cat centre to gate centre
 // m: nearer than this to a gate she can go through or open, the place beyond
@@ -77,6 +83,7 @@ export const GATEWAY_ENDS = Object.freeze({
     end({ id: 'town-park', gateway: 'town-park', x: 52, z: 0, faces: 'east', to: 'park', twin: 'park-town', look: 'signpost' }),
     end({ id: 'town-docks', gateway: 'town-docks', x: 0, z: 52, faces: 'south', to: 'docks', twin: 'docks-town', look: 'signpost' }),
     end({ id: 'town-roofs', gateway: 'town-roofs', x: 0, z: -52, faces: 'north', to: 'roofs', twin: 'roofs-town', look: 'signpost', sign: true }),
+    end({ id: 'town-market', gateway: 'town-market', x: 30, z: 52, faces: 'south', to: 'market', twin: 'market-town', look: 'signpost', sign: true }),
   ]),
   park: Object.freeze([
     end({ id: 'park-town', gateway: 'town-park', x: 0, z: 49, faces: 'south', to: 'neighborhood', twin: 'town-park', look: 'signpost' }),
@@ -109,6 +116,13 @@ export const GATEWAY_ENDS = Object.freeze({
     // so the wall needs no hole. She lands in the alley facing north, 3.65 m
     // in front of it (GATE_REACH + 2 clear of it, as every arrival is).
     end({ id: 'roofs-town', gateway: 'town-roofs', x: 14, z: 45.55, faces: 'south', to: 'neighborhood', twin: 'town-roofs', look: 'alleydoor', placement: 'inside', arrive: { x: 14, z: 41.9, yaw: 1.0 } }),
+  ]),
+  market: Object.freeze([
+    // In the 3.2 m gap of the south row of shop fronts (market.js GATEWAY_GAP,
+    // z 23.8), just past the cobbles' edge (z 23): its posts at x +/-1.4 stand
+    // inside the gap. She lands on the cobbles facing north into the square,
+    // 3.7 m in front of it (the spawn's view, with the gate behind her).
+    end({ id: 'market-town', gateway: 'town-market', x: 0, z: 23.6, faces: 'south', to: 'neighborhood', twin: 'town-market', look: 'signpost', placement: 'inside', arrive: { x: 0, z: 19.9, yaw: 0 } }),
   ]),
 });
 

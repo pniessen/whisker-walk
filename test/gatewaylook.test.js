@@ -272,11 +272,12 @@ describe('the name board on the town\'s north signpost', () => {
     expect(mid.z - end.z).toBeGreaterThan(GATE_POST_R * 0.5);
   });
 
-  it('no other end has a name board, and town-roofs is still at most 400 + 12 triangles', () => {
+  it('no other end has a name board (only town-roofs and, since Market step 4, town-market), and town-roofs is still at most 400 + 12 triangles', () => {
+    const signed = ['town-roofs', 'town-market'];
     for (const end of Object.values(GATEWAY_ENDS).flat()) {
       const g = buildGateLook(end);
       if (!g) continue;
-      expect(signOf(g).length, end.id).toBe(end.id === 'town-roofs' ? 1 : 0);
+      expect(signOf(g).length, end.id).toBe(signed.includes(end.id) ? 1 : 0);
     }
     const meshes = []; buildGateLook(roofsEnd()).traverse((o) => { if (o.isMesh) meshes.push(o); });
     expect(meshes.map((m) => m.name).sort()).toEqual(['gateBody', 'gateLeaf', 'gateSign']);

@@ -1993,6 +1993,21 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       expect(legacy.prefetched).toEqual([]);
     });
 
+    // Market step 4 (V16): the town's south-east signpost asks in a Clan
+    // walk, and a Legacy town walk has no Market gate to ask at.
+    it("the town's Market gate: 'Head to' the Market Square in Clan Edition, nothing in Legacy at (30, 51)", () => {
+      const clan = gateHarness({ areaId: 'neighborhood', walks: { neighborhood: 2 }, owned: ['market'] });
+      clan.walkTo(30, 51);
+      expect(clan.session.prompt.kind).toBe('gate');
+      expect(clan.session.prompt.data.end.id).toBe('town-market');
+      expect(clan.prompts.at(-1)).toBe('E — Head to the Market Square?');
+      const legacy = gateHarness({ areaId: 'neighborhood', walks: { neighborhood: 2 }, owned: ['market'] });
+      legacy.progression.state.edition = 'legacy';
+      legacy.walkTo(30, 51);
+      expect(legacy.session.prompt).toBe(null);
+      expect(legacy.prefetched).toEqual([]);
+    });
+
     it('perched, swimming or fighting shows none', () => {
       const h = gateHarness({ owned: ['farm'] });
       h.session.perched = { x: 41, y: 0.6, z: 10 };

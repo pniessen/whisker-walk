@@ -63,6 +63,24 @@ describe('gateStatus and gatePrompt', () => {
       expect(gateStatus(door, st, CATALOG)).toMatchObject({ kind: 'go', to: 'neighborhood' });
     }
   });
+  // Market step 4: the town's south-east signpost and the square's gate home.
+  it("the town's Market gate: shut, open to buy, short, owned; the square's gate is always open", () => {
+    const town = endById('town-market').end;
+    const at = (o) => save({ area: 'neighborhood', points: 0, ...o });
+    const shut = gateStatus(town, at({ walks: { neighborhood: 1 }, points: 500 }), CATALOG);
+    expect(shut).toMatchObject({ kind: 'shut', to: 'market' });
+    expect(shut.line).toMatch(/^Opens after 2 walks in .+\. 1 to go!$/);
+    expect(gateStatus(town, at({ walks: { neighborhood: 2 }, points: 150 }), CATALOG))
+      .toMatchObject({ kind: 'buy', to: 'market', price: 150, name: 'The Market Square' });
+    expect(gateStatus(town, at({ walks: { neighborhood: 2 }, points: 100 }), CATALOG))
+      .toMatchObject({ kind: 'short', need: 50, line: 'You need 50 more 🐾. Keep exploring!' });
+    expect(gateStatus(town, at({ walks: { neighborhood: 2 }, unlocked: { areas: ['neighborhood', 'market'] } }), CATALOG))
+      .toMatchObject({ kind: 'go', to: 'market', name: 'The Market Square' });
+    const square = endById('market-town').end;
+    for (const st of [at({ area: 'market' }), at({ area: 'market', walks: {}, unlocked: { areas: ['neighborhood'] } }), at({ area: 'market', edition: 'legacy' })]) {
+      expect(gateStatus(square, st, CATALOG)).toMatchObject({ kind: 'go', to: 'neighborhood' });
+    }
+  });
   it('the town gate names the town in the word set in use', () => {
     const back = gateStatus(endById('park-town').end, save(), CATALOG);
     expect(back).toMatchObject({ kind: 'go', name: PLACE_WORDS.town });
@@ -80,6 +98,8 @@ describe('the cards', () => {
     expect(ask.indexOf('confirm-card-no')).toBeLessThan(ask.indexOf('confirm-card-yes'));
     expect(gateMomentHtml({ name: 'The Fairground' })).toContain('<h1>Off to the Fairground!</h1>');
     expect(gateMomentHtml({ name: 'The Rooftops' })).toContain('<h1>Off to the Rooftops!</h1>');
+    expect(gateMomentHtml({ name: 'The Market Square' })).toContain(`<h1>${phrase('gate.off', 'the Market Square')}</h1>`);
+    expect(gateMomentHtml({ name: 'The Market Square' })).toContain('<h1>Off to the Market Square!</h1>');
     // Fix 9: "The" mid-sentence is lower case, as in every other gate line.
     // The shared Get it? card (spendAsk) keeps the name as given, as the
     // map's own card does; the gate's two lines lower it.
@@ -154,6 +174,9 @@ describe('the room', () => {
     // the town's Rooftops gate and the alley door, each from its own place
     expect(decideWalkOnAsk({ ...ev, from: 'neighborhood', via: 'town-roofs' }, { ...ctx, areaId: 'neighborhood' })).toEqual({ via: 'town-roofs', to: 'roofs' });
     expect(decideWalkOnAsk({ ...ev, from: 'roofs', via: 'roofs-town' }, { ...ctx, areaId: 'roofs' })).toEqual({ via: 'roofs-town', to: 'neighborhood' });
+    // the town's Market gate and the square's gate home, each from its own place
+    expect(decideWalkOnAsk({ ...ev, from: 'neighborhood', via: 'town-market' }, { ...ctx, areaId: 'neighborhood' })).toEqual({ via: 'town-market', to: 'market' });
+    expect(decideWalkOnAsk({ ...ev, from: 'market', via: 'market-town' }, { ...ctx, areaId: 'market' })).toEqual({ via: 'market-town', to: 'neighborhood' });
   });
   it("the host goes only when it has the place and every friend still in the room said yes", () => {
     const have = (id, ok = true, o = {}) => ({ v: 1, id, type: 'walk-on-have', via: 'park-farm', ok, ...o });

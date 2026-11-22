@@ -36,7 +36,7 @@ import { clampZoomStep, maxZoomStep, zoomView } from '../src/camzoom.js';
 
 const WALK_MS = 90_000; // whole walks: an explicit timeout
 
-beforeAll(() => areas.ensureAll(['neighborhood', 'park', 'farm', 'fair', 'woods', 'moor', 'roofs']));
+beforeAll(() => areas.ensureAll(['neighborhood', 'park', 'farm', 'fair', 'woods', 'moor', 'roofs', 'market']));
 
 beforeEach(() => {
   globalThis.document = fakeDocument();
@@ -324,7 +324,8 @@ describe('walking on between the town and the Rooftops', () => {
     const town = h.getSession();
     expect(town.areaId).toBe('neighborhood');
     const signs = town.scene.children.filter((c) => c.name === 'gateway').map((g) => g.userData.endId).sort();
-    expect(signs).toEqual(['town-docks', 'town-park', 'town-roofs']);
+    // (the Market's, Market step 4, stands there too, shut: the Market is not hers)
+    expect(signs).toEqual(['town-docks', 'town-market', 'town-park', 'town-roofs']);
     expect(await h.w.walkOn({ via: 'town-roofs' })).toBe('walked');
     expect(h.overlay.innerHTML).toContain('Off to the Rooftops!');
     vi.advanceTimersByTime(GATE_MOMENT_MS);
@@ -370,6 +371,82 @@ describe('walking on between the town and the Rooftops', () => {
     const atDoor = s.areaData.colliders.filter((c) => Math.hypot(c.x - door.x, c.z - door.z) < 2);
     expect(atDoor).toEqual([]);
     expect(s.scene.getObjectByName('roofsAlley')).toBeTruthy();
+  }, WALK_MS);
+});
+
+// Market step 4: the town's south-east signpost (town-market) and the gate in
+// the gap of the square's south row of shop fronts (market-town), walked
+// through both ways.
+describe('walking on between the town and the Market Square', () => {
+  // Clan Edition: the town walked twice and the Market bought.
+  function marketSave(area) {
+    return (p) => {
+      p.setTutorialFirst('done');
+      p.state.unlocked.areas.push('market');
+      p.state.walks.neighborhood = 2;
+      p.setArea(area);
+      expect(p.state.edition).not.toBe('legacy');
+      expect(p.state.area).toBe(area);
+    };
+  }
+
+  it('from the town through its south-east signpost: the Market walk starts inside the square, in front of its gate, facing north', async () => {
+    const h = walkHarness({ save: marketSave('neighborhood') });
+    h.w.startWalk({});
+    const town = h.getSession();
+    expect(town.areaId).toBe('neighborhood');
+    const signs = town.scene.children.filter((c) => c.name === 'gateway').map((g) => g.userData.endId).sort();
+    expect(signs).toEqual(['town-docks', 'town-market', 'town-park', 'town-roofs']);
+    // the town's gate to the Market is open (the Market is hers)
+    const townGate = town.scene.children.find((c) => c.name === 'gateway' && c.userData.endId === 'town-market');
+    expect(townGate.getObjectByName('gateHinge').rotation.y).toBe(LEAF_OPEN);
+    expect(townGate.getObjectByName('gateSign')).toBeTruthy();
+    expect(await h.w.walkOn({ via: 'town-market' })).toBe('walked');
+    expect(h.overlay.innerHTML).toContain('Off to the Market Square!');
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    const s = h.getSession();
+    expect(s.areaId).toBe('market');
+    expect(h.progression.state.area).toBe('market');
+    expect(s.arrivedVia).toBe('market-town');
+    expect(s.cat.position.x).toBeCloseTo(0, 9);
+    expect(s.cat.position.z).toBeCloseTo(19.9, 9);
+    expect(s.cat.rotation.y).toBe(0);
+    // inside the square's cobbles, its gate behind her
+    expect(s.cat.position.z).toBeLessThan(s.areaData.bounds.maxZ);
+    const gate = s.scene.children.find((c) => c.name === 'gateway' && c.userData.endId === 'market-town');
+    expect(gate).toBeTruthy();
+    expect(gate.position.z).toBeGreaterThan(s.cat.position.z);
+    expect(gate.getObjectByName('gateHinge').rotation.y).toBe(LEAF_OPEN);
+  }, WALK_MS);
+
+  it("from the Market through the square's gate: the town walk starts 3.6 m inside its south-east signpost, facing north", async () => {
+    const h = walkHarness({ save: marketSave('market') });
+    h.w.startWalk({});
+    expect(h.getSession().areaId).toBe('market');
+    expect(await h.w.walkOn({ via: 'town-market' })).toBe('refused'); // the town's gate, not this walk's
+    expect(await h.w.walkOn({ via: 'market-town' })).toBe('walked');
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    const s = h.getSession();
+    expect(s.areaId).toBe('neighborhood');
+    expect(s.arrivedVia).toBe('town-market');
+    expect(s.cat.position.x).toBeCloseTo(30, 9);
+    expect(s.cat.position.z).toBeCloseTo(48.4, 9);
+    expect(s.cat.rotation.y).toBe(0);
+  }, WALK_MS);
+
+  // V16: the Market is Clan Edition only; a Legacy walk draws no gates at all.
+  it('a Legacy town has no Market gate', () => {
+    const h = walkHarness({ save: (p) => { marketSave('neighborhood')(p); p.setEdition('legacy'); } });
+    h.w.startWalk({});
+    const s = h.getSession();
+    expect(s.areaId).toBe('neighborhood');
+    expect(s.gates).toBe(NO_GATES);
+    expect(s.scene.children.filter((c) => c.name === 'gateway')).toEqual([]);
+    const gate = endById('town-market').end;
+    expect(s.areaData.colliders.filter((c) => Math.hypot(c.x - gate.x, c.z - gate.z) < 2)).toEqual([]);
+    // nothing to ask at: the prompt (main.js's interactions) asks at a gate
+    // only on a Clan walk; test/interactions.test.js walks her to (30, 51)
+    // in both editions and sees the prompt in Clan and none in Legacy.
   }, WALK_MS);
 });
 

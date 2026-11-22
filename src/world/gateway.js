@@ -29,7 +29,7 @@
 //             noMerge (it moves after the build) and noCast (a thin swinging
 //             leaf is not worth a shadow draw).
 // Each look is at most 400 triangles over both meshes.
-//   gateSign  only on an end with `sign` (gateways.js; today town-roofs): a
+//   gateSign  only on an end with `sign` (gateways.js; today town-roofs and town-market): a
 //             painted name board on the latch post, facing back into the
 //             area (local +z), its top at 2.12 m, with the place's name and
 //             an arrow pointing straight on. One thin box (12 triangles) with
