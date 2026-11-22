@@ -71,6 +71,7 @@ export function goalHowHtml(goal) {
 
 // The desktop key strip (controls review, 2026-11-19): six things, the ones
 // a walk needs every minute. The full list is on the Paused card (walk.js).
+const VF_KEYS = '📷 click to snap · C to lower';
 export const KEY_STRIP = '←↑↓→/WASD move · Space jump · E do it · V meow · C photo · Esc pause';
 
 export function createHud() {
@@ -90,7 +91,7 @@ export function createHud() {
     <div class="hud-controls" id="hud-controls">${KEY_STRIP}</div>
     <div class="hud-crosshair hidden" id="hud-crosshair">·</div>
     <div class="hud-viewfinder hidden" id="hud-viewfinder">
-      <span class="vf-hint-desktop">📷 click to snap · C to lower</span>
+      <span id="hud-vf" class="vf-hint-desktop">${VF_KEYS}</span>
       <span class="vf-hint-touch">📷 tap to snap · 📷 button to lower</span>
     </div>
   `;
@@ -101,9 +102,12 @@ export function createHud() {
   const toastsEl = root.querySelector('#hud-toasts');
   // TV mode: the key strip becomes the pad's, with button pictures, while the pad is the input.
   const stripEl = root.querySelector('#hud-controls');
+  const vfEl = root.querySelector('#hud-vf');
   onTv(() => {
     const p = tvState.input === 'pad' && padHtml(tvState.padLine?.('pad.strip') ?? '');
     if (p) stripEl.innerHTML = p; else stripEl.textContent = KEY_STRIP;
+    const v = tvState.input === 'pad' && padHtml(tvState.padLine?.('pad.vf.hint') ?? '');
+    if (v) vfEl.innerHTML = v; else vfEl.textContent = VF_KEYS;
   });
   const promptEl = root.querySelector('#hud-prompt');
   const promptTapHandlers = [];

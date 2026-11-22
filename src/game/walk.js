@@ -65,6 +65,7 @@ import { createQuest } from '../quests.js';
 import { QUEST_TRAIL_COLOR } from '../questscent.js';
 import { createGoals, GOAL_POOL } from '../goals.js';
 import { line as tutorialLine } from '../tutorialwords.js';
+import { tvState, padHtml } from '../tvseam.js';
 import { rankFor, CATALOG } from '../progression.js';
 import { catsInArea, colonyWear, denResidents, denMoment } from '../colony.js';
 import { createDenCats } from '../dencats.js';
@@ -292,17 +293,21 @@ function pauseViewHtml({ step, max }) {
       <div class="pause-view" role="group" aria-label="View"><span class="pause-view-label">👀 View</span><div class="pause-view-chips">${chips}</div></div>`;
 }
 export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false, sound = null, view = null, room = false, note = null }) {
+  // TV mode with the pad as the input: the pad's words, with button pictures (src/tv/padwords.js).
+  const pad = (id) => (tvState.input === 'pad' ? tvState.padLine?.(id) : null);
+  const padSegs = pad(oneLine ? 'ready.keys' : 'pad.pause.controls')?.split(' · ');
+  const go = pad(mode === 'ready' ? 'pad.go' : 'pad.keep');
   return `<div class="pause-card"><div class="screen-panel">
     ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
     <div class="screen-body"><h1>${CARD_TITLE[mode] ?? CARD_TITLE.ready}</h1>
     ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}${note ? `
     <p class="pause-note" role="status">${escapeHtml(note)}</p>` : ''}
     <div class="screen-actions">
-      <button id="btn-resume" class="primary">${resumeLabel(mode, touch)}</button>${sound && mode !== 'ready' ? pauseSoundHtml(sound, view) : ''}
+      <button id="btn-resume" class="primary">${(go && padHtml(go)) || resumeLabel(mode, touch)}</button>${sound && mode !== 'ready' ? pauseSoundHtml(sound, view) : ''}
       <button id="btn-end" class="secondary">Head home</button>${skip ? `
       <button id="${SKIP_LESSON_ID}" class="quiet">${escapeHtml(tutorialLine('guide.skip'))}</button>` : ''}
     </div>
-    <p class="controls-hint">${hintHtml(oneLine ? [tutorialLine('ready.keys')] : touch ? TOUCH_HINT : room ? [...KEYS_HINT, ...ROOM_KEYS_HINT] : KEYS_HINT)}</p></div></div></div>`;
+    <p class="controls-hint">${hintHtml(padSegs ?? (oneLine ? [tutorialLine('ready.keys')] : touch ? TOUCH_HINT : room ? [...KEYS_HINT, ...ROOM_KEYS_HINT] : KEYS_HINT))}</p></div></div></div>`;
 }
 export const SKIP_LESSON_ID = 'btn-skip-lesson';
 
@@ -351,7 +356,7 @@ export function bankedLines({ isRecord, streak, mochiArrived, broughtHome }, { h
 }
 
 function hintHtml(segs) {
-  return segs.map((t) => `<span class="hint-seg">${escapeHtml(t)}</span>`).join(' · ');
+  return segs.map((t) => `<span class="hint-seg">${padHtml(t) ?? escapeHtml(t)}</span>`).join(' · ');
 }
 
 export function createWalkLifecycle({

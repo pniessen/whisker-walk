@@ -265,3 +265,25 @@ describe('pad layers: the den shop sheet', () => {
     expect(t.sheet.cls.has('hidden')).toBe(true);
   });
 });
+
+describe('TV mode: the den walk\'s note', () => {
+  it('says the keys with TV mode off, the pad\'s words (pictures) while the pad is the input, the keys again after', async () => {
+    const tv = await import('../src/tvseam.js');
+    const { padLine } = await import('../src/tv/padwords.js');
+    const { glyphify, plainify } = await import('../src/tv/glyphs.js');
+    tv.resetTv();
+    try {
+      const t = setup();
+      expect(t.hint.textContent).toBe('Press Esc, then 🛋️ Den shop to decorate');
+      tv.setTv({ on: true, padLine, text: (s) => plainify(s, 'ps'), html: (s) => glyphify(s, 'ps') });
+      tv.setTv({ input: 'pad' });
+      expect(t.hint.innerHTML).toContain('<svg');
+      expect(t.hint.innerHTML).toContain('Den shop to decorate');
+      expect(t.hint.innerHTML).not.toContain('Esc');
+      tv.setTv({ input: 'keys' });
+      expect(t.hint.textContent).toBe('Press Esc, then 🛋️ Den shop to decorate');
+    } finally {
+      tv.resetTv();
+    }
+  });
+});

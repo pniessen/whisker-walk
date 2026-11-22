@@ -20,6 +20,7 @@ import { renderDenShopHtml, changedSpots, SPOT_LABEL } from './denshop.js';
 import { applyDenSpot } from '../game/denlive.js';
 import { bus as gameBus } from '../events.js';
 import { createConfirmCard, spendAsk } from './confirmcard.js';
+import { tvState, padHtml, onTv } from '../tvseam.js';
 
 /**
  * createDenShopView({ hud, progression, sync, player, getSession, pause, resume,
@@ -58,7 +59,12 @@ export function createDenShopView({
   const hint = doc.createElement('div');
   hint.setAttribute('id', 'den-shop-hint');
   hint.className = 'den-shop-hint';
-  hint.textContent = 'Press Esc, then 🛋️ Den shop to decorate';
+  const sayHint = () => {
+    const p = tvState.input === 'pad' && padHtml(tvState.padLine?.('pad.den.hint') ?? '');
+    if (p) hint.innerHTML = p; else hint.textContent = 'Press Esc, then 🛋️ Den shop to decorate';
+  };
+  sayHint();
+  onTv(sayHint); // TV mode: the pad's words while the pad is the input
   mountRoot.appendChild(hint);
 
   let active = false;

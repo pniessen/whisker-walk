@@ -174,7 +174,7 @@ describe('the guide cat is one of the walk\'s own strays, moved', () => {
 
 // A walk small enough to hold in a test: real strays, the real script, fakes
 // for the screen and the sound.
-function harness({ first = null, gift = false } = {}) {
+function harness({ first = null, gift = false, touch = true } = {}) {
   const storage = memStorage();
   if (first !== null || gift) storage.setItem('whisker-walk-save', JSON.stringify({ version: 4, walks: { neighborhood: 2 }, tutorial: { first, camp: false, hints: {}, told: { thing: null, visits: 0 }, ...(gift ? { gift: true } : {}) } }));
   const progression = createProgression(storage);
@@ -200,7 +200,7 @@ function harness({ first = null, gift = false } = {}) {
   const guideWalk = createGuideWalk({
     player, progression, settings: { get: () => false }, hud, bubble, touchUI: { restAgain() {} },
     audio: { trill() {}, unlockFanfare: () => { calls.fanfare += 1; }, chime() {} },
-    getIsTouch: () => true, canFeedStray: () => true, onLessonChange: () => { calls.changed += 1; },
+    getIsTouch: () => touch, canFeedStray: () => true, onLessonChange: () => { calls.changed += 1; },
   });
   const tick = (secs, speed = 0) => { player.speed = speed; for (let t = 0; t < secs; t += 0.1) { strayCats.update(0.1, t, session.cat.position, { stalking: false, catSpeed: speed, toy: null }); guideWalk.update(session, 0.1); } };
   const line = () => calls.guide.at(-1);
@@ -507,3 +507,25 @@ describe('the first camp walk, played', () => {
 // with someone else marks the lesson skipped, the camp cat moved only solo, the
 // goals held aside and the summary's tile) was pinned on walk.js's lines; it is
 // behaviour now, on real walks: test/walkcast.test.js "the lessons at a walk's start".
+
+describe('a guided first walk with the pad as the input (TV mode)', () => {
+  it('keyboard: key shapes under the line; pad: the pad\'s words with picture tokens and no key shapes', async () => {
+    const tv = await import('../src/tvseam.js');
+    const { padLine } = await import('../src/tv/padwords.js');
+    const { plainify } = await import('../src/tv/glyphs.js');
+    tv.resetTv();
+    try {
+      const h = harness({ touch: false });
+      h.guideWalk.begin(h.session);
+      expect(h.line()).toMatchObject({ text: 'Press the arrow keys to walk.', keys: ['←', '↑', '↓', '→'] });
+      tv.setTv({ on: true, input: 'pad', padLine, text: (s) => plainify(s, 'ps') });
+      h.tick(0.3);
+      const v = h.line();
+      expect(v.text).toBe('Push ⟦move⟧ to walk.'); // tokens: the bubble draws them as pictures
+      expect(v.keys).toBeNull();
+      expect(v.more ?? '').not.toContain('⟦');
+    } finally {
+      tv.resetTv();
+    }
+  });
+});
