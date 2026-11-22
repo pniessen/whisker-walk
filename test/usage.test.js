@@ -84,3 +84,18 @@ describe('usage counts in the save', () => {
     expect(p.state.usage.journal.n).toBe(6);
   });
 });
+
+describe('privacy wording matches what is uploaded', () => {
+  test('the readout says the counts go to the cloud only with Cloud save', () => {
+    const html = usageHtml({}, { visits: 1, walks: 1 });
+    expect(html).toContain('not sent anywhere unless you use Cloud save');
+    expect(html).not.toContain('Nothing is sent anywhere');
+  });
+  test('PRIVACY.md says the counts travel with the cloud save', async () => {
+    const { readFileSync } = await import('node:fs');
+    const md = readFileSync(new URL('../docs/PRIVACY.md', import.meta.url), 'utf8');
+    expect(md).not.toContain('The count stays on the device.');
+    expect(md).toContain('the counts go with it');
+    expect(md).toContain('how often each screen was opened');
+  });
+});
