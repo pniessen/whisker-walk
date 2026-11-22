@@ -6,7 +6,7 @@
 > | Thing | Baseline S0 / H0 / worst | Ceiling | After milestone 1 |
 > |---|---|---|---|
 > | Start-up chunk | S0 705.2 kB gz | 720, never raised | 705.2 (no start-up change at all) |
-> | House chunk | H0 40.2 to 40.4 kB gz | 100 (cap H0 + 18, under 55) | 46.0 |
+> | House chunk | H0 40.2 to 40.4 kB gz | 100 (cap H0 + 18, under 55) | 46.5 |
 > | Worst spot with Mochi, dusk (ground) | 67,483 tris, 309 meshes, 171 casters | 70,000 / 450 / 380 | 68,263 dusk, 67,732 day (the wing adds 780 to the old worst spot) |
 > | Her cat alone, day (ground) | 58,280 tris, 282 meshes | aims 59,500 / 300 / 200 | 58,438 / 285 (upstairs 306 meshes: aim re-pinned 300 to 306) |
 > | "Fixed" set (dusk, Mochi) | 49,561 tris | | 50.4k (4 stand-ins, the parlour's east wall dressed both sides, 4 knock-overs) |
