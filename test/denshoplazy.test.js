@@ -93,4 +93,12 @@ describe('start-up modules do not import the den shop statically', () => {
     expect(stub).not.toMatch(/^import .*denshop/m);
     expect(stub).toMatch(/import\('\.\/denshopview\.js'\)/);
   });
+
+  it('main.js hands the lazy shop the live-placement function and the bus (so the chunk imports neither)', () => {
+    const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+    expect(main).toMatch(/createLazyDenShop\(\{[^}]*applyDenSpot[^}]*bus/s);
+    const view = readFileSync(new URL('../src/ui/denshopview.js', import.meta.url), 'utf8');
+    expect(view).not.toMatch(/from '\.\.\/game\/denlive\.js'/);
+    expect(view).not.toMatch(/from '\.\.\/events\.js'/);
+  });
 });

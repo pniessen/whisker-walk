@@ -17,8 +17,6 @@
 // once (game/denlive.js), without restarting the walk.
 import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
 import { renderDenShopHtml, changedSpots, spotChoices, SPOT_LABEL } from './denshop.js';
-import { applyDenSpot } from '../game/denlive.js';
-import { bus as gameBus } from '../events.js';
 import { createConfirmCard, spendAsk } from './confirmcard.js';
 import { tvState, tvHooks, padHtml, onTv } from '../tvseam.js';
 
@@ -35,7 +33,8 @@ export function createDenShopView({
   hudRoot = document.getElementById('hud'),
   mountRoot = document.getElementById('app') ?? document.body,
   canvas = document.getElementById('game'),
-  bus = gameBus,
+  bus = null,
+  applyDenSpot = () => {},
   doc = document,
 } = {}) {
   const button = doc.createElement('button');

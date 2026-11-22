@@ -60,6 +60,7 @@ import { tickAutoSniff } from './game/autosniff.js';
 import { createAreaLoader } from './game/areaload.js';
 import { effectiveArea } from './edition.js';
 import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode, SKIP_LESSON_ID, PAUSE_SOUND_ID, PAUSE_MUSIC_ID, PAUSE_VIEW_CLASS, pauseSoundOf } from './game/walk.js';
+import { applyDenSpot } from './game/denlive.js';
 import { createLazyDenShop } from './ui/denshoplazy.js';
 import { nowSec } from './game/util.js';
 import { shareYarn, toyForState } from './game/yarnshare.js';
@@ -565,7 +566,7 @@ function init() {
   // The den shop, inside the den (src/ui/denshopview.js): pauses like ⏸ and
   // walks on like the pause card's explore button.
   const denShop = createLazyDenShop({
-    hud, progression, sync, player,
+    hud, progression, sync, player, applyDenSpot, bus,
     getSession: () => session,
     pause: () => handleTouchAction('pause'),
     resume: () => resumeWalk(),
