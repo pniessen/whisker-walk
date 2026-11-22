@@ -353,6 +353,15 @@ const RING = [
 ];
 const R = 0.7;
 const GAP = 0.95;
+// The camera's backstops (P-11). The posts are too small for the camera's
+// pull (camzoom.js pulls in only for r >= BIG_COLLIDER_R, 1.9), so at Middle
+// or Far zoom the camera went inside the front. These circles of r 1.9 sit
+// wholly inside the ring's reach (no ground she could walk is blocked), each
+// pushed out to the walls as far as that allows: [x, z either side of the
+// door's line]. The camera stops 0.4 m short of them, so it stays on the lawn
+// before a face; only a ray grazing a corner, where a big circle cannot reach
+// into the ring's rounded end, may end up to about 0.5 m inside it.
+const STOPS = [[-47.3, 4.82], [-47.01, 2.4], [-46.09, 0], [-52.6, 4.83], [-50.7, 4.84], [-48.8, 4.84]];
 function colliders() {
   const out = [];
   for (let i = 0; i < RING.length; i++) {
@@ -363,6 +372,7 @@ function colliders() {
       out.push({ x: Math.round((ax + (bx - ax) * t) * 1000) / 1000, z: Math.round((az + (bz - az) * t) * 1000) / 1000, r: R });
     }
   }
+  for (const [x, d] of STOPS) for (const z of new Set([CZ - d, CZ + d])) out.push({ x, z, r: 1.9 });
   return out;
 }
 

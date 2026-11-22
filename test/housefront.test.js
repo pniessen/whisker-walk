@@ -1,33 +1,22 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
+import { canvasStub } from './helpers/growriver.js';
 
 // The Old House step 4, Task 4 (plan ruling W5): the old house's front in the
 // town, against the west hedge, drawn only when a walk hands the Neighborhood
 // the `town-house` gate end. Tested through build() only (the controller's
 // P-3): the walk hands that end in Task 5.
 
-// The same headless canvas stub every world test uses (test/flattrace.test.js).
-vi.stubGlobal('document', {
-  createElement: () => ({
-    width: 0,
-    height: 0,
-    getContext: () => new Proxy({}, {
-      get: (_target, key) => {
-        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
-          return () => ({ addColorStop: () => {} });
-        }
-        return () => {};
-      },
-      set: () => true,
-    }),
-  }),
-});
+// The same headless canvas stub every world test uses (test/flattrace.test.js);
+// createPlayer listens on it too (the camera test below).
+vi.stubGlobal('document', canvasStub);
 
 const { build, SPAWN } = await import('../src/world/neighborhood.js');
 const { OLD_HOUSE_FRONT, buildOldHouseFront } = await import('../src/world/oldhousefront.js');
 const { house } = await import('../src/world/builder.js');
-const { isWalkableAt } = await import('../src/player.js');
+const { isWalkableAt, createPlayer } = await import('../src/player.js');
+const { BIG_COLLIDER_R, ZOOM_STEPS } = await import('../src/camzoom.js');
+const { cameraOffset } = await import('../src/catcam.js');
 const { floodFrom } = await import('./helpers/flood.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 const { spotsIn } = await import('../src/foundwear/spots/index.js');
@@ -35,7 +24,7 @@ const { postsFor, TOWN_FOOTPATH, FOOTPATH_W } = await import('../src/borderposts
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { addBorderDressing } = await import('../src/world/borderpost.js');
 const { addGatewayDressing } = await import('../src/world/gateway.js');
-const { endsFor } = await import('../src/gateways.js');
+const { endsFor, endById } = await import('../src/gateways.js');
 const { applyDusk } = await import('../src/render/dusk.js');
 const { budgetOf } = await import('./helpers/growriver.js');
 const rig = await import('../src/render/rig.js');
@@ -85,9 +74,15 @@ describe('the old house front', () => {
     expect(F).toEqual({ x0: -54, x1: -44, z0: 24, z1: 38, door: { x: -44, z: 31 } });
     const { group, colliders } = buildOldHouseFront(new THREE.Scene());
     expect(group.name).toBe(NAME);
-    expect(colliders.length).toBeGreaterThan(20);
-    for (const c of colliders) {
-      expect(c.r).toBeLessThanOrEqual(0.7);
+    // two named groups and nothing else: the ring of small posts that keeps her
+    // out, and the big camera backstops inside it (P-11)
+    const ring = colliders.filter((c) => c.r <= 0.7);
+    const stops = colliders.filter((c) => c.r >= BIG_COLLIDER_R);
+    expect(ring.length + stops.length).toBe(colliders.length);
+    expect(colliders.slice(0, ring.length)).toEqual(ring); // the ring first, in its order
+    expect(ring.length).toBeGreaterThan(20);
+    const endEdge = (c) => Math.hypot(c.x - (F.door.x + 0.45), c.z - F.door.z) - c.r;
+    for (const c of ring) {
       expect(c.r).toBeGreaterThan(0);
       // round the footprint: on it, inside it, or a hand's width past its back (the hedge side)
       expect(toRect(c.x, c.z)).toBeLessThanOrEqual(0.3);
@@ -95,15 +90,44 @@ describe('the old house front', () => {
       expect(Math.hypot(c.x - (F.door.x + 0.45), c.z - F.door.z)).toBeGreaterThanOrEqual(1.2);
     }
     // a closed ring, each circle at most 1.0 m from the next
-    for (let i = 0; i < colliders.length; i++) {
-      const a = colliders[i], b = colliders[(i + 1) % colliders.length];
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], b = ring[(i + 1) % ring.length];
       expect(Math.hypot(a.x - b.x, a.z - b.z), `${i}`).toBeLessThanOrEqual(1.0);
+    }
+    // The backstops: few, big enough for the camera's pull, and wholly inside
+    // the ring's reach (every point of each is inside the ring or under one of
+    // its posts), so they block no ground the ring left open; no nearer the
+    // door's end than the ring's own posts.
+    expect(stops.length).toBeGreaterThanOrEqual(1);
+    expect(stops.length).toBeLessThanOrEqual(12);
+    const inRing = (x, z) => {
+      let inside = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const a = ring[i], b = ring[j];
+        if ((a.z > z) !== (b.z > z) && x < ((b.x - a.x) * (z - a.z)) / (b.z - a.z) + a.x) inside = !inside;
+      }
+      return inside || ring.some((c) => Math.hypot(x - c.x, z - c.z) <= c.r + 1e-9);
+    };
+    const ringEnd = Math.min(...ring.map(endEdge));
+    for (const c of stops) {
+      for (let i = 0; i < 720; i++) {
+        const a = (i / 720) * 2 * Math.PI;
+        expect(inRing(c.x + c.r * Math.cos(a), c.z + c.r * Math.sin(a)), `${c.x},${c.z} at ${i / 2}°`).toBe(true);
+      }
+      expect(endEdge(c)).toBeGreaterThanOrEqual(ringEnd);
     }
     // nobody walks into it: no spot 1 m inside the footprint is reachable from the lawn
     const area = built({ gateEnds: [END] }).area;
     const flood = floodFrom(area, SPAWN, (x, z) => isWalkableAt(area, x, z));
     for (let x = F.x0 + 1; x <= F.x1 - 1; x += 0.5) {
       for (let z = F.z0 + 1; z <= F.z1 - 1; z += 0.5) expect(flood.reaches(x, z), `${x},${z}`).toBe(false);
+    }
+    // and the backstops take no ground: without them the flood reaches no more
+    const ringOnly = { ...area, colliders: area.colliders.filter((c) => !(c.r >= BIG_COLLIDER_R && toRect(c.x, c.z) === 0)) };
+    expect(ringOnly.colliders.length).toBe(area.colliders.length - stops.length);
+    const open = floodFrom(ringOnly, SPAWN, (x, z) => isWalkableAt(ringOnly, x, z));
+    for (let x = F.x0 - 2; x <= F.x1 + 8; x += 0.5) {
+      for (let z = F.z0 - 6; z <= F.z1 + 6; z += 0.5) expect(flood.reaches(x, z), `${x},${z}`).toBe(open.reaches(x, z));
     }
   });
 
@@ -157,6 +181,72 @@ describe('the old house front', () => {
     expect(after.reaches(F.door.x + 1.2, F.door.z)).toBe(true);
     // (and where Task 5's end and arrival will be)
     expect(after.reaches(-39.9, 31)).toBe(true);
+  });
+
+  // P-11: at Middle or Far zoom the camera went inside the front (milky glass
+  // and frame lines over the whole screen), worst when she came out of the
+  // hall's door onto the lawn. The real player, the town as a walk with the
+  // door builds it, and the camera straight back at the front from the lawn
+  // before each of its three faces she can walk to (the west one is the hedge).
+  it('at Middle and Far zoom the camera stays out of the front', () => {
+    const { area } = built({ gateEnds: [END] });
+    const camera = new THREE.PerspectiveCamera();
+    const player = createPlayer(camera, { addEventListener() {} });
+    const cat = new THREE.Object3D();
+    player.setAvatar(cat, 3);
+    player.setReducedMotion(true); // the camera goes straight to where it settles
+    player.enable();
+    const cameraAt = (x, z, yaw, step) => {
+      cat.position.set(x, 0, z);
+      player.setViewYaw(yaw);
+      player.setCameraZoom(step, { instant: true });
+      player.update(1 / 60, area.colliders, area.bounds);
+      expect(cat.position.x).toBeCloseTo(x, 6); // she stood where she was put
+      expect(cat.position.z).toBeCloseTo(z, 6);
+      return { x: camera.position.x, z: camera.position.z };
+    };
+    // The front's walls as it lays them out: the body (z 24.1..37.9, its front
+    // wall at x -45.5) and the middle bay with the door, 0.5 m prouder. East of
+    // them, to the footprint's x1, is the lawn strip with the steps and pots.
+    const WALLS = [{ x0: -53.8, x1: -45.5, z0: 24.1, z1: 37.9 }, { x0: -45.5, x1: -45.0, z0: 28.4, z1: 33.6 }];
+    const depth = (p) => Math.max(0, ...WALLS.map((w) => Math.min(p.x - w.x0, w.x1 - p.x, p.z - w.z0, w.z1 - p.z)));
+    // [x, z, yaw, true when she stands before a face's middle (1 m or more from a corner)]
+    const approaches = [];
+    for (let z = 23.5; z <= 38.5; z += 0.25) approaches.push([-39.9, z, -Math.PI / 2, z >= 25 && z <= 37]); // east, the arrival's line
+    for (let x = -54.5; x <= -45; x += 0.25) {
+      const mid = x >= -53.5 && x <= -46.5;
+      approaches.push([x, 19.5, 0, mid], [x, 42.5, Math.PI, mid]); // north and south
+    }
+    let worstMid = 0, worstCorner = 0;
+    for (const [x, z, yaw, mid] of approaches) {
+      expect(isWalkableAt(area, x, z), `${x},${z}`).toBe(true);
+      for (const step of [2, 3]) {
+        const d = depth(cameraAt(x, z, yaw, step));
+        if (mid) worstMid = Math.max(worstMid, d);
+        else worstCorner = Math.max(worstCorner, d);
+      }
+    }
+    // Before a face the camera stays on the lawn: at worst on the wall's own
+    // plane, in a scallop of the ring it may not go past. At a corner a big
+    // circle cannot reach into the ring's rounded end, so a camera ray that
+    // grazes the corner may end up to 0.45 m inside it.
+    if (process.env.BUDGET_LOG) console.log('front camera', worstMid.toFixed(3), worstCorner.toFixed(3));
+    expect(worstMid).toBeLessThanOrEqual(0.02);
+    expect(worstCorner).toBeLessThanOrEqual(0.45);
+
+    // At the arrival spot, facing east as she comes out of the hall: Middle and
+    // Far hold the camera where Close puts it (the pull never comes nearer than
+    // Close), over the steps and in front of the bay's wall.
+    const { arrive } = endById('town-house').end;
+    expect(arrive).toEqual({ x: -39.9, z: 31, yaw: -Math.PI / 2 });
+    const close = cameraAt(arrive.x, arrive.z, arrive.yaw, 1);
+    expect(close.x).toBeCloseTo(arrive.x + cameraOffset(arrive.yaw, 0.18, ZOOM_STEPS[1].dist, ZOOM_STEPS[1].height).x, 6);
+    for (const step of [2, 3]) {
+      const cam = cameraAt(arrive.x, arrive.z, arrive.yaw, step);
+      expect(cam.x, `step ${step}`).toBeCloseTo(close.x, 3);
+      expect(cam.z, `step ${step}`).toBeCloseTo(arrive.z, 6);
+      expect(depth(cam)).toBe(0);
+    }
   });
 
   it('it is cheap', () => {
