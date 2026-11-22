@@ -46,10 +46,13 @@ import { sanitizeEvents, eventWear, eventWearOnOpen, isEventId, eventPresent } f
 import { emptyMarks, sanitizeMarks, addMark as addMarkTo, contestMark as contestMarkIn, MARK_AREAS } from './marks.js';
 
 import { HINT_IDS, HINT_COUNT_MAX } from './hints.js';
+import { IS_FAMILY } from './familyflag.js';
 // World map step 1: the offer a place makes this save (a pure leaf; the
 // catalog is passed in, so the edge is cycle-free).
 import { areaOffer, keptOffersOnLoad } from './areaoffer.js';
-const SAVE_KEY = 'whisker-walk-save';
+// The family build keeps its own save beside nothing else: another key, so a public save is never read
+// by it and the reverse (private edition; src/familyflag.js).
+export const SAVE_KEY = IS_FAMILY ? 'whisker-walk-family-save' : 'whisker-walk-save';
 // v4: per-slot cosmetic accessories. STILL 4 in v18 — `skills` and `feats`
 // are ADDITIVE fields sanitized independently with a default, exactly like
 // v15's journal/golden/streak/kitten, so a payload predating them loads
@@ -1271,11 +1274,11 @@ function retireCats(parsed) {
 // its numbers go through summarizeSaveForPreview, and a restore goes through
 // loadState like any boot.
 export const BACKUP_KEYS = Object.freeze({
-  unreadable: 'whisker-walk-save.bak', // a save this build could not read
-  cloud: 'whisker-walk-save.before-cloud', // what the last Load from cloud replaced
-  reset: 'whisker-walk-save.before-reset', // what the last Start over erased
-  restore: 'whisker-walk-save.before-restore', // what the last restore replaced
-  merge: 'whisker-walk-save.before-merge', // what the first catch-up of the day replaced
+  unreadable: `${SAVE_KEY}.bak`, // a save this build could not read
+  cloud: `${SAVE_KEY}.before-cloud`, // what the last Load from cloud replaced
+  reset: `${SAVE_KEY}.before-reset`, // what the last Start over erased
+  restore: `${SAVE_KEY}.before-restore`, // what the last restore replaced
+  merge: `${SAVE_KEY}.before-merge`, // what the first catch-up of the day replaced
 });
 
 function parseOrNull(raw) {

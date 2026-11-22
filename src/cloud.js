@@ -21,6 +21,7 @@
 
 import { getSupabaseClient } from './net.js';
 import { note } from './diagnostics.js';
+import { IS_FAMILY } from './familyflag.js';
 
 // The server refuses a save bigger than 2 MiB of jsonb text (upsert_save in
 // docs/supabase-v8-hardening.sql, which has the arithmetic). The client
@@ -334,6 +335,8 @@ async function realSelect(client, table, filterType, ...args) {
  * creating their own.
  */
 export function createLiveCloud(url, key, { getSecret } = {}) {
+  // The private family build never goes online: no client is made, every call answers as an empty server.
+  if (IS_FAMILY) return createCloud({ rpc: async () => null, select: async () => [], getSecret });
   return createCloud({
     rpc: async (name, args) => realRpc(await getSupabaseClient(url, key), name, args),
     select: async (table, filterType, ...args) => realSelect(await getSupabaseClient(url, key), table, filterType, ...args),

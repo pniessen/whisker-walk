@@ -16,6 +16,13 @@ export const IOS_OUT_DIR = 'ios/web';
 // registers it in the app).
 const IOS_PRUNE = ['sw.js', '.vite'];
 
+// The private family edition (docs/superpowers/specs/2026-11-22-family-home-design.md) is a separate
+// build of the same game: `npm run build:family` builds with this mode into dist-family/, with a relative
+// base (it is opened from a folder or a private host, never /whisker-walk/) and `__PRIVATE_FAMILY__`
+// true. Every other mode defines it false, so the public bundle drops everything behind it.
+export const FAMILY_MODE = 'family';
+export const FAMILY_OUT_DIR = 'dist-family';
+
 // Lists every file under assets/ for the service worker (website build only),
 // and ships sw.js stamped with the same build id so every deploy installs a
 // new worker. Vite copies public/ into the out dir before the bundle is
@@ -36,11 +43,11 @@ function precacheList() {
   };
 }
 
-function iosPrune() {
+function iosPrune(outDir = IOS_OUT_DIR, name = 'ios-prune') {
   return {
-    name: 'ios-prune',
+    name,
     closeBundle() {
-      for (const file of IOS_PRUNE) rmSync(join(IOS_OUT_DIR, file), { force: true, recursive: true });
+      for (const file of IOS_PRUNE) rmSync(join(outDir, file), { force: true, recursive: true });
     },
   };
 }
@@ -65,11 +72,17 @@ export function buildStamp(now = new Date()) {
 // GitHub Pages serves the app from /whisker-walk/, so production builds need
 // that base path; dev stays at / so localhost play is unaffected.
 export default defineConfig(({ command, mode }) => ({
-  define: { __BUILD_STAMP__: JSON.stringify(buildStamp()) },
-  base: mode === IOS_MODE ? './' : command === 'build' ? '/whisker-walk/' : '/',
+  define: { __BUILD_STAMP__: JSON.stringify(buildStamp()), __PRIVATE_FAMILY__: JSON.stringify(mode === FAMILY_MODE) },
+  base: mode === IOS_MODE || mode === FAMILY_MODE ? './' : command === 'build' ? '/whisker-walk/' : '/',
   // The manifest is how scripts/buildjson.mjs and the tests tell start-up from places.
-  build: { manifest: true, ...(mode === IOS_MODE && { outDir: IOS_OUT_DIR, emptyOutDir: true }) },
-  plugins: mode === IOS_MODE ? [iosPrune()] : [precacheList()],
+  build: {
+    manifest: true,
+    ...(mode === IOS_MODE && { outDir: IOS_OUT_DIR, emptyOutDir: true }),
+    ...(mode === FAMILY_MODE && { outDir: FAMILY_OUT_DIR, emptyOutDir: true }),
+  },
+  // The app and the family build do not use the offline service worker (the family build is private
+  // and never precached).
+  plugins: mode === IOS_MODE ? [iosPrune()] : mode === FAMILY_MODE ? [iosPrune(FAMILY_OUT_DIR, 'family-prune')] : [precacheList()],
   test: {
     // Without this a bare `npm test` also collects the copies of tests inside
     // .worktrees/ and .claude/worktrees/.

@@ -1,6 +1,8 @@
 .DS_Store
 node_modules/
 dist/
+dist-family/
+private-denylist.local.txt
 * 2.*
 .env.local
 .claude/worktrees/

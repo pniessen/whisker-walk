@@ -58,7 +58,7 @@ import { CAT_LOOK_Y } from '../cat/model.js';
 import { createHouseFinds, HOLD_PAD } from './housefinds.js';
 import { segmentHitsBox } from '../treefade.js';
 import { toyStop, HOUSE_FINDS } from './housethings.js';
-import { HOUSE_WINDOWS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_FRONT_DOOR } from './houseplan.js';
+import { OLD_HOUSE_PLAN } from './houseplan.js';
 import { createHouseSound } from './housesound.js';
 import { createHouseAir } from './houseair.js';
 import { createLedgeGuards, catScale } from './houseguards.js';
@@ -91,7 +91,7 @@ export const FRONT_DOOR_OPEN = 1.2; // rad each leaf turns, out onto the lawn
 export const FRONT_DOOR_S = 0.4; // s to swing
 
 // The front door's swing (null pivots: a door that never opens).
-function createFrontDoor(door, reducedMotion) {
+function createFrontDoor(door, reducedMotion, HOUSE_FRONT_DOOR) {
   let open = false;
   let k = 0; // 0 shut .. 1 open
   const turn = () => {
@@ -129,6 +129,7 @@ export function createHouseLife(scene, house, {
   reducedMotion = false, log = null, audio = null, toy = null, colliders = [], now, dusk = false,
 } = {}) {
   const { sections, sectionMeshes, panes } = house;
+  const P = house.plan ?? OLD_HOUSE_PLAN; // the plan this house was built from (house.js)
   const lid = house.lid ? createCellarLid(house.lid, sections) : null;
   const lidMeshes = lid ? house.lidMeshes ?? [] : [];
   const sink = createWallSink(sections, { reducedMotion, covers: lid ? lid.covers : null });
@@ -149,13 +150,13 @@ export function createHouseLife(scene, house, {
     finds: house.finds ?? [], secret: house.secret, colliders, parts: house.parts, log, audio, reducedMotion, now,
   });
   const sound = createHouseSound(audio, {
-    clock: HOUSE_FINDS.find((f) => f.id === 'clock'),
-    stairs: HOUSE_STAIRS,
-    attic: HOUSE_ROOMS.find((r) => r.id === 'attic'),
+    clock: (P === OLD_HOUSE_PLAN ? HOUSE_FINDS : house.finds ?? []).find((f) => f.id === 'clock') ?? null,
+    stairs: P.stairs,
+    attic: P.rooms.find((r) => r.id === 'attic') ?? null,
   });
-  const air = createHouseAir(scene, { windows: HOUSE_WINDOWS, rooms: HOUSE_ROOMS, levels: house.levels, dusk: !!dusk, reducedMotion });
+  const air = createHouseAir(scene, { windows: P.windows, rooms: P.rooms, levels: house.levels, dusk: !!dusk, reducedMotion });
   const guards = createLedgeGuards(colliders, floor);
-  const frontDoor = createFrontDoor(house.parts?.frontDoor ?? null, reducedMotion);
+  const frontDoor = createFrontDoor(house.parts?.frontDoor ?? null, reducedMotion, P.frontDoor);
   let sized = false;
   function guard(catPos) {
     if (!sized) { sized = true; guards.scale(catScale(scene, catPos)); }

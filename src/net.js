@@ -13,6 +13,7 @@ import { isValidChatMsg } from './chat.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { CODE_ALPHABET } from './codealphabet.js';
 import { note } from './diagnostics.js';
+import { IS_FAMILY } from './familyflag.js';
 
 const ROOM_CODE_ALPHABET = CODE_ALPHABET; // no I/O/0/1
 const MAX_MESSAGE_BYTES = 2048;
@@ -468,6 +469,7 @@ function flattenPresenceState(state) {
 const clientCache = new Map();
 
 export async function getSupabaseClient(url, key) {
+  if (IS_FAMILY) return null; // the private family build never creates a client
   const cacheKey = url + '|' + key;
   if (!clientCache.has(cacheKey)) {
     const { createClient } = await import('@supabase/supabase-js');
