@@ -217,7 +217,7 @@ function sashWindow(k, glass, x, y, w, h, z) {
   k.box(w + 2 * f + 0.2, 0.16, 0.08, x, y + h / 2 + f + 0.08, z + 0.04, TRIM);
 }
 
-function trimAndGlass() {
+function trimAndGlass(rep) {
   const k = pieceKit(true);
   const glass = pieceKit(false);
 
@@ -330,10 +330,13 @@ function trimAndGlass() {
   }
   // every trim piece reads the texture at one spot inside a brick (the tile's
   // x 1/8, y 3/8, a brick in either course), so it is its own flat colour; its
-  // colour is lifted by that brick face's darkening (0.925, linear 0.84)
+  // colour is lifted by that brick face's darkening (0.925, linear 0.84). The
+  // material repeats the tile `rep` times, so the UV is the tile spot / rep (a
+  // bare 0.125, 0.375 would land, times rep, on a mortar joint)
   const trim = k.merged();
   const n = trim.attributes.position.count, uv = new Float32Array(n * 2), col = trim.attributes.color.array;
-  for (let i = 0; i < n * 2; i += 2) { uv[i] = 0.125; uv[i + 1] = 0.375; }
+  const u = 0.125 / rep[0], v = 0.375 / rep[1];
+  for (let i = 0; i < n * 2; i += 2) { uv[i] = u; uv[i + 1] = v; }
   for (let i = 0; i < n * 3; i++) col[i] /= 0.84;
   trim.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   return { trim, glass: glass.merged() };
@@ -383,9 +386,10 @@ export function buildOldHouseFront(scene, { wind } = {}) { // eslint-disable-lin
   const group = withLocalUuids('oldhousefront', () => {
     const g = new THREE.Group();
     g.name = 'oldhousefront';
-    const { trim, glass: glassGeo } = trimAndGlass();
+    const rep = repeatFor('brick', 5, 3);
+    const { trim, glass: glassGeo } = trimAndGlass(rep);
     const body = new THREE.Mesh(mergeGeometries([brickGeometry(), roofGeometry(), trim]),
-      litMaterial(0xffffff, { surface: 'brick', repeat: repeatFor('brick', 5, 3), vertexColors: true }));
+      litMaterial(0xffffff, { surface: 'brick', repeat: rep, vertexColors: true }));
     body.name = 'oldHouseBody';
     const glass = new THREE.Mesh(glassGeo, litMaterial(GLASS, surfaceProps('glass')));
     glass.name = 'oldHouseGlass';

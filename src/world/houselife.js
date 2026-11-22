@@ -66,7 +66,10 @@ import { createLedgeGuards, catScale } from './houseguards.js';
 const NO_PANES = Object.freeze([]);
 const NO_FADING = Object.freeze([]);
 const NONE = Object.freeze([]);
-export const HOUSE_TAG_ORDER = 20; // a partner's name tag: drawn after the house, over its walls
+// A partner's name tag: drawn after everything see-through in the house (panes and faded
+// furniture 0, dust 2, slash 5), over its walls, but before chat bubbles (order 10):
+// fitBubbleOnRender (nametag.js) reads the tag's matrixWorld, so the tag must draw first.
+export const HOUSE_TAG_ORDER = 9;
 export const HOLD_SHY = 0.3; // m: the line stops this short of her middle (her body), toward the camera
 
 // Whether the segment a-b, seen from above, meets the rectangle grown by pad (slab clipping).

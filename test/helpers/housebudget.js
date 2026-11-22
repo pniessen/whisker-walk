@@ -75,7 +75,7 @@ export async function houseWalkThings(scene, area, { dusk = false, open = false,
   const ground = area.ground;
   const things = [];
   things.push(createKnockables(scene, area.knockables, { ground }));
-  things.push(createGoldMice(scene, 'house', new Set(), { ground, list: area.goldMice, rng: () => 0.5 }));
+  things.push(createGoldMice(scene, 'house', new Set(), { ground, rng: () => 0.5 }));
   things.push(createCritters(scene, area.critterSpawns, { ground, hides: area.hides, rng: () => 0.5, motionRng: () => 0.5 }));
   // the player's cat as walk.js builds it (tabby, nothing worn), at the spawn; the house is solo
   // until step 4 (ruling S2-13), `cats: 2` is the co-walk's second cat, beside her

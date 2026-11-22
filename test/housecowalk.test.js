@@ -83,8 +83,11 @@ function setup({ now = () => new Date(2026, 10, 21, 15, 0), partners = 1, sessio
 const paidFor = (s, id) => s.awards.filter((a) => a[1] === FIND_KEY(id)).length;
 
 describe('the house on a co-walk', () => {
-  it('the number', () => {
-    expect(HOUSE_TAG_ORDER).toBe(20);
+  it('the tag draws above everything see-through in the house and below chat bubbles', () => {
+    // below 10: chat bubbles (chatbubble.js) fit themselves to the tag as drawn this frame;
+    // above 5: the slash (5), dust (2) and panes / faded furniture (0)
+    expect(HOUSE_TAG_ORDER).toBeLessThan(10);
+    expect(HOUSE_TAG_ORDER).toBeGreaterThan(5);
   });
 
   it('a partner standing at the bookcase opens it on this screen too, swinging away from her', () => {
