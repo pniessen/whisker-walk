@@ -30,12 +30,12 @@ describe('the hint table', () => {
   // and T's line for a keyboard (a toast, counted here, never polled).
   it('is the design\'s twenty and the yarn pair, in order, with its limits', () => {
     expect(HINTS.map((h) => [h.id, h.max])).toEqual([
-      ['roofs', 1], ['market', 1], ['look', 2], ['creep', 2], ['jump', 2], ['hop', 1], ['find', 1], ['photo', 2], ['frame', 2], ['yarn', 1], ['bat', 1],
+      ['roofs', 1], ['market', 1], ['house', 1], ['look', 2], ['creep', 2], ['jump', 2], ['hop', 1], ['find', 1], ['photo', 2], ['frame', 2], ['yarn', 1], ['bat', 1],
       ['yarn-carry', 1], ['find-kept', 1], ['map', 1],
       ['call', 1], ['sniff', 2], ['box', 1], ['help', 1], ['hiss', 1], ['dog', 1], ['swim', 1], ['carry', 1],
       ['home', 2], ['chat', 1], ['rival', 1], ['stranger', 1], ['tkey', 3],
     ]);
-    expect(new Set(HINT_IDS).size).toBe(27);
+    expect(new Set(HINT_IDS).size).toBe(28);
     expect(HINTS.find((h) => h.id === 'yarn').ring).toBeNull(); // no button to point at
     expect(HINTS.find((h) => h.id === 'tkey').when).toBeUndefined();
     for (const h of HINTS) expect(h.max).toBeLessThanOrEqual(HINT_COUNT_MAX);
@@ -314,5 +314,28 @@ describe('the Market hint', () => {
   it('is the second row, one hint', () => {
     expect(HINT_IDS.slice(0, 2)).toEqual(['roofs', 'market']);
     expect(hintMax('market')).toBe(1);
+  });
+});
+
+describe('the house hint', () => {
+  it('the house\'s hint goes up on a house walk, once ever', () => {
+    const a = rig();
+    a.h.update(0.25, quiet({ place: 'house', walkNo: 5, t: 0 }));
+    expect(a.up()).toBe('house');
+    const b = rig({ counts: { house: 1 } });
+    b.h.update(0.25, quiet({ place: 'house', walkNo: 5, t: 0 }));
+    expect(b.shown.length).toBe(0);
+    const c = rig();
+    c.h.update(0.25, quiet({ place: 'park', walkNo: 5, t: 0 }));
+    expect(c.shown.length).toBe(0);
+  });
+  it('it wins over any other hint due then', () => {
+    const a = rig();
+    a.h.update(0.25, quiet({ place: 'house', canJump: true, perched: false, walkNo: 5, t: 0 }));
+    expect(a.shown[0].id).toBe('house');
+  });
+  it('is the third row, one hint', () => {
+    expect(HINT_IDS.slice(0, 3)).toEqual(['roofs', 'market', 'house']);
+    expect(hintMax('house')).toBe(1);
   });
 });

@@ -13,6 +13,10 @@
    "touch": "Wait till they turn around…",
    "keys": "Wait till they turn around…"
   },
+  "hint.house": {
+   "touch": "Explore every floor, from the attic to the cellar!",
+   "keys": "Explore every floor, from the attic to the cellar!"
+  },
   "hint.look": {
    "touch": "Drag here to look around.",
    "keys": "Move the mouse to look around."
@@ -339,6 +343,10 @@
   "hint.market": {
    "touch": "Wait till they turn around…",
    "keys": "Wait till they turn around…"
+  },
+  "hint.house": {
+   "touch": "Explore every floor, from the attic to the cellar!",
+   "keys": "Explore every floor, from the attic to the cellar!"
   },
   "hint.look": {
    "touch": "Drag here to look around.",
