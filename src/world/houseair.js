@@ -27,6 +27,7 @@ export function createHouseAir(scene, { windows, rooms, levels, dusk = false, re
     const [ix, iz] = SIDE[w.side];
     const alongX = iz !== 0; // a north or south wall runs along x
     const edge = w.side === 'n' ? room.minZ : w.side === 's' ? room.maxZ : w.side === 'w' ? room.minX : room.maxX;
+    const zone = room.zone ?? room.level; // the wing's rooms are drawn with their zone
     const ly = levelY.get(room.level);
     const y0 = ly + (w.sill + w.head) / 2;
     const y1 = Math.max(ly + 0.03, y0 - SUNBEAM.drop);
@@ -42,13 +43,13 @@ export function createHouseAir(scene, { windows, rooms, levels, dusk = false, re
     };
     const corners = [at(a, -1), at(a, 1), at(b, -1), at(b, 1)];
     const box = {
-      level: room.level, w, at,
+      level: zone, w, at,
       min: [0, 1, 2].map((i) => Math.min(...corners.map((c) => c[i]))),
       max: [0, 1, 2].map((i) => Math.max(...corners.map((c) => c[i]))),
     };
     beams.push(box);
-    if (!byLevel.has(room.level)) byLevel.set(room.level, []);
-    byLevel.get(room.level).push(box);
+    if (!byLevel.has(zone)) byLevel.set(zone, []);
+    byLevel.get(zone).push(box);
   }
 
   const tag = (o, level) => {

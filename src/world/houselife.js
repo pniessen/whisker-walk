@@ -132,7 +132,7 @@ export function createHouseLife(scene, house, {
   const lid = house.lid ? createCellarLid(house.lid, sections) : null;
   const lidMeshes = lid ? house.lidMeshes ?? [] : [];
   const sink = createWallSink(sections, { reducedMotion, covers: lid ? lid.covers : null });
-  const drawing = createLevelDrawing(scene, { levels: house.levels, links: house.links, start: house.start });
+  const drawing = createLevelDrawing(scene, { levels: house.levels, links: house.links, start: house.start, wing: house.wing ?? null });
   // step 2 (ruling D3): the levels are drawn for the floor under her, not her paws, so on
   // the wardrobe (4.45 m, nearer the attic's 4.2 than the bedroom's 2.4) she is still upstairs
   const floor = house.floor;
@@ -142,6 +142,7 @@ export function createHouseLife(scene, house, {
   const paneLists = ids.map((id) => panes.get(id) ?? NO_PANES);
   const bases = sections.map((s) => s.base);
   const paneRest = paneLists.map((list) => list.map((p) => p.position.y)); // each pane's standing height
+  const paneZone = paneLists.map((list) => list.map((p) => p.userData.paneZone ?? null)); // a wing pane is shown with its zone
   const view = {};
   let settled = false;
   const finds = createHouseFinds({
@@ -220,7 +221,7 @@ export function createHouseLife(scene, house, {
       const list = paneLists[i];
       for (let k = 0; k < list.length; k++) {
         const p = list[k];
-        p.visible = f >= SINK.paneHide;
+        p.visible = f >= SINK.paneHide && (paneZone[i][k] === null || drawing.full.has(paneZone[i][k]));
         p.scale.y = f;
         p.position.y = bases[i] + (paneRest[i][k] - bases[i]) * f;
       }
@@ -234,8 +235,8 @@ export function createHouseLife(scene, house, {
     lid?.look(view);
     sink.settle(view);
     lid?.settle(sink);
+    drawing.settle(floorY(catPos), catPos.x, catPos.z, camera.position.x, camera.position.z);
     write();
-    drawing.settle(floorY(catPos));
     air.update(0, 0, drawing.full);
     holdFades(catPos, camera.position);
     guard(catPos);
@@ -257,8 +258,8 @@ export function createHouseLife(scene, house, {
       lid?.look(view);
       sink.update(dt, view);
       lid?.update(dt, sink);
+      drawing.update(floorY(catPos), catPos.x, catPos.z, camera.position.x, camera.position.z);
       write();
-      drawing.update(floorY(catPos));
       air.update(dt, t, drawing.full);
       finds.update(dt, t, catPos, camera.position, partners); // after the camera's move: the bookcase's fade hold
       holdFades(catPos, camera.position);

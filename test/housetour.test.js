@@ -21,6 +21,7 @@ const { createHouseFinds, FIND_KEY } = await import('../src/world/housefinds.js'
 
 const DT = 1 / 30; // the picture page steps 1/30 s per captured frame
 const ROOM_IDS = HOUSE_ROOMS.map((r) => r.id);
+const OLD_ROOM_IDS = HOUSE_ROOMS.filter((r) => !r.zone).map((r) => r.id); // the grand tour and the film are the old house's; the wing has its own tour
 const SERIES_WORDS = /twoleg|clan|thunder|shadow|river|wind|star|warrior|kittypet/i;
 // Each tour is walked once (it takes a while), and its tests share the result.
 const walked = {};
@@ -131,7 +132,7 @@ describe('the tours', () => {
       const r = walkOnce(name);
       expect(r.result.done).toBe(true);
       expect(r.result.failed).toBe(null);
-      expect([...r.rooms].sort()).toEqual([...ROOM_IDS].sort());
+      expect([...r.rooms].sort()).toEqual([...OLD_ROOM_IDS].sort());
       expect(r.worst).toBeLessThanOrEqual(8);
       for (const c of r.captions) {
         expect(c.length).toBeLessThan(40);
@@ -199,6 +200,7 @@ function walkMoves(name) {
   const gold = new Set();
   let run = 0;
   let worst = 0;
+  const rooms = new Set();
   const tops = new Set(); // the ledges she stood on, her paws at their tops, between moves
   let secretHigh = false; // she passed z -2 on the secret stair
   let t = 0;
@@ -209,6 +211,8 @@ function walkMoves(name) {
     w.frame(DT);
     finds.update(DT, t, w.cat.position);
     const p = w.cat.position;
+    const here = roomAt(p.x, p.z);
+    if (here) rooms.add(here);
     run = w.blockers().length ? run + 1 : 0;
     worst = Math.max(worst, run);
     if (!w.traversal.busy) {
@@ -223,7 +227,7 @@ function walkMoves(name) {
     }
   }
   finds.dispose();
-  return { w, result, worst, tops, secretHigh, paid, gold, seconds: t, end: w.cat.position.clone() };
+  return { w, result, worst, tops, rooms, secretHigh, paid, gold, seconds: t, end: w.cat.position.clone() };
 }
 
 describe('step 2: the shots of the things to do', () => {
@@ -315,5 +319,43 @@ describe('step 2: the climb and the things film', () => {
       }
     }
     expect(HOUSE_TOURS.things.steps.at(-1).zoom).toBe(2);
+  }, 90_000);
+});
+
+describe('the east wing: the shots and the tour', () => {
+  it('has a shot of each wing room, its doorway, its stair and its two tops', () => {
+    for (const id of ['livingroom', 'solarium', 'kids', 'bath']) expect(roomAt(...HOUSE_SHOTS[id].at), id).toBe(id);
+    expect(roomAt(...HOUSE_SHOTS['wing-door'].at)).toBe('parlour');
+    expect(stairAt(...HOUSE_SHOTS['wing-stair'].at)).toBe('wing');
+    expect(HOUSE_SHOTS['sofa-seat'].ledge).toBe('living-sofa');
+    expect(HOUSE_SHOTS['bunk-top'].ledge).toBe('kids-bunk-top');
+    expect(HOUSE_SHOTS['wing-outside'].zoom).toBe(3);
+    const w = createHouseWalk({ moves: true });
+    for (const name of ['wing-door', 'wing-stair', 'sofa-seat', 'bunk-top', 'wing-outside']) {
+      const s = HOUSE_SHOTS[name];
+      expect(s.caption, name).not.toMatch(SERIES_WORDS);
+      const yaw = behindYaw(s.face[0], s.face[1]);
+      if (s.ledge) w.placeOnLedge(s.ledge, s.at[0], s.at[1], yaw, s.zoom);
+      else w.place(s.at[0], s.at[1], yaw, s.zoom);
+      expect(w.blockers(), name).toEqual([]);
+    }
+  });
+
+  it('walks the wing tour with the real player, the stick and the jump button alone, through all four rooms and every top', () => {
+    const r = walkMoves('wing');
+    expect(r.result.done).toBe(true);
+    expect(r.result.failed).toBe(null);
+    for (const id of ['livingroom', 'solarium', 'kids', 'bath', 'parlour']) expect(r.rooms.has(id), id).toBe(true);
+    for (const id of ['living-sofa', 'living-shelf', 'kids-bunk-low', 'kids-bunk-top', 'bath-tub']) expect(r.tops.has(id), id).toBe(true);
+    expect(r.worst).toBeLessThanOrEqual(8); // the camera never loses her for more than a few frames
+    expect(r.seconds).toBeGreaterThanOrEqual(30);
+    expect(r.seconds).toBeLessThanOrEqual(57);
+    for (const s of HOUSE_TOURS.wing.steps) {
+      if (s.caption) {
+        expect(s.caption.length).toBeLessThan(40);
+        expect(s.caption).not.toMatch(SERIES_WORDS);
+      }
+    }
+    expect(HOUSE_TOURS.wing.steps.at(-1).zoom).toBe(3);
   }, 90_000);
 });

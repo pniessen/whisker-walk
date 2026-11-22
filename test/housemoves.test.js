@@ -6,7 +6,7 @@ import { canvasStub } from './helpers/growriver.js';
 // createPlayer listens on it, and the build draws on canvases.
 vi.stubGlobal('document', canvasStub);
 
-const { HOUSE_LEVELS, HOUSE_LEDGES, HOUSE_FURNITURE, HOUSE_STAIRS, houseFloorGround, houseColliders, roomAt, levelAt } = await import('../src/world/houseplan.js');
+const { HOUSE_LEVELS, HOUSE_LEDGES, HOUSE_FURNITURE, HOUSE_STAIRS, HOUSE_ROOMS, houseFloorGround, houseColliders, roomAt, levelAt } = await import('../src/world/houseplan.js');
 const { HOUSE_MOVES, HOUSE_PERCHES, HOUSE_ROUTES, houseMovesArea } = await import('../src/world/housemoves.js');
 const { validateTraversal, BASE_ABILITIES, stickToWorld, spotFor } = await import('../src/traversal.js');
 const { PAW_PADS, PAW_APART } = await import('../src/world/houseparts.js');
@@ -110,10 +110,11 @@ describe('the moves', () => {
     const f = floodTraversal(area, { abilities: BASE_ABILITIES });
     const home = f.regionAt(area.spawn.x, area.spawn.z);
     const ledges = ledgesWithMoves();
-    // the two routes' eight ledges and the two short climbs; the piano's body has no move onto it
+    // the two routes' eight ledges and the two short climbs; the piano's body has no move onto it;
+    // and the east wing's five: the sofa, the shelf, the two bunks and the tub
     expect(ledges.map((l) => l.id).sort()).toEqual([
-      'attic-seat', 'bedroom-chest', 'bedroom-shelf', 'bedroom-wardrobe', 'library-bigbooks', 'library-books-n1',
-      'library-books-n2', 'library-books-w', 'library-steps', 'parlour-keys',
+      'attic-seat', 'bath-tub', 'bedroom-chest', 'bedroom-shelf', 'bedroom-wardrobe', 'kids-bunk-low', 'kids-bunk-top', 'library-bigbooks',
+      'library-books-n1', 'library-books-n2', 'library-books-w', 'library-steps', 'living-shelf', 'living-sofa', 'parlour-keys',
     ]);
     for (const l of ledges) {
       const r = f.regionAt(cx(l), cz(l), l.y);
@@ -132,7 +133,7 @@ describe('the moves', () => {
       const [a, b] = c.ends.map((e) => f.regionAt(e.x, e.z, e.y));
       byId.set(c.id, { from: a, to: b });
     }
-    expect(Object.keys(HOUSE_ROUTES).sort()).toEqual(['attic', 'bedroom', 'library', 'piano']);
+    expect(Object.keys(HOUSE_ROUTES).sort()).toEqual(['attic', 'bath', 'bedroom', 'bunk', 'library', 'living', 'piano']);
     for (const [name, ids] of Object.entries(HOUSE_ROUTES)) {
       let at = home;
       for (const id of ids) {
@@ -168,8 +169,8 @@ describe('the moves', () => {
       }
     }
     // every hop followed by a hop: the library's three (all but onto and off the plank), the bedroom's
-    // five, one each on the seat and the keys
-    expect(checked.length).toBe(10);
+    // five, one each on the seat and the keys, and the east wing's seven (the sofa 3, the bunks 3, the tub 1)
+    expect(checked.length).toBe(17);
     // a spot in no room is a mistake in the data, and says so
     expect(() => levelAt(-8, -2)).toThrow(/no room/);
   });
@@ -179,8 +180,8 @@ describe('the ledges', () => {
   it('makes a ledge of every climbable top, the furniture\'s footprint at its height', () => {
     const ids = HOUSE_FURNITURE.filter((f) => f.ledge).map((f) => f.id).sort();
     expect(ids).toEqual([
-      'attic-seat', 'bedroom-chest', 'bedroom-shelf', 'bedroom-wardrobe', 'library-bigbooks', 'library-books-n1', 'library-books-n2',
-      'library-books-w', 'library-steps', 'parlour-keys', 'parlour-piano',
+      'attic-seat', 'bath-tub', 'bedroom-chest', 'bedroom-shelf', 'bedroom-wardrobe', 'kids-bunk-low', 'kids-bunk-top', 'library-bigbooks',
+      'library-books-n1', 'library-books-n2', 'library-books-w', 'library-steps', 'living-shelf', 'living-sofa', 'parlour-keys', 'parlour-piano',
     ]);
     expect(HOUSE_LEDGES.map((l) => l.id).sort()).toEqual(ids);
     for (const l of HOUSE_LEDGES) {
@@ -263,9 +264,13 @@ describe('the ledges', () => {
 describe('the perches', () => {
   it('every knock-over perch is one jump from the floor', () => {
     expect(HOUSE_PERCHES.map((p) => p.id).sort()).toEqual([
-      'bedroom-bed', 'hall-console', 'kitchen-counter-a', 'kitchen-counter-b', 'kitchen-table', 'library-desk', 'parlour-fire',
+      'bath-sink', 'bath-toilet', 'bedroom-bed', 'hall-console', 'kids-desk', 'kitchen-counter-a', 'kitchen-counter-b', 'kitchen-table',
+      'library-desk', 'living-coffee', 'parlour-fire',
     ]);
-    const tops = { 'kitchen-counter-a': 0.92, 'kitchen-counter-b': 0.92, 'kitchen-table': 0.76, 'parlour-fire': 1.3, 'hall-console': 0.8, 'library-desk': 0.8, 'bedroom-bed': 0.6 };
+    const tops = {
+      'kitchen-counter-a': 0.92, 'kitchen-counter-b': 0.92, 'kitchen-table': 0.76, 'parlour-fire': 1.3, 'hall-console': 0.8, 'library-desk': 0.8, 'bedroom-bed': 0.6,
+      'living-coffee': 0.42, 'kids-desk': 0.8, 'bath-sink': 0.85, 'bath-toilet': 0.85, // the east wing's four
+    };
     for (const p of HOUSE_PERCHES) {
       expect(p.kind, p.id).toBe('furniture');
       expect(p.y, p.id).toBe(tops[p.id]);
@@ -307,7 +312,8 @@ describe('the drawing', () => {
 
   it('marks every take-off faintly, one mesh per level, and lays the plank on its crossing', () => {
     const marks = scene.children.filter((c) => c.userData?.houseMarks);
-    const levels = new Set(area.traversal.hops.map((h) => levelAt(h.x0, h.z0)));
+    const zoneOf = (x, z) => HOUSE_ROOMS.find((r) => r.id === roomAt(x, z)).zone ?? levelAt(x, z); // the wing's marks are its zone's
+    const levels = new Set(area.traversal.hops.map((h) => zoneOf(h.x0, h.z0)));
     expect(marks.map((m) => m.userData.houseLevel).sort()).toEqual([...levels].sort());
     for (const m of marks) {
       expect(m.isMesh, m.name).toBe(true);
@@ -330,7 +336,7 @@ describe('the drawing', () => {
         ray.set(new THREE.Vector3(x, h.y0 + 1, z), new THREE.Vector3(0, -1, 0));
         const hit = ray.intersectObjects(marks, false)[0];
         expect(hit, `${h.id} ${side}`).toBeTruthy();
-        expect(hit.object.userData.houseLevel, h.id).toBe(levelAt(h.x0, h.z0));
+        expect(hit.object.userData.houseLevel, h.id).toBe(zoneOf(h.x0, h.z0));
         expect(hit.point.y - h.y0, h.id).toBeGreaterThan(0);
         expect(hit.point.y - h.y0, h.id).toBeLessThan(0.03);
       }
@@ -355,10 +361,11 @@ describe('the drawing', () => {
     }
     for (const l of HOUSE_LEVELS) {
       const m = scene.children.find((c) => c.userData?.houseSimple === l.id);
-      const pieces = HOUSE_FURNITURE.filter((f) => f.level === l.id && f.ledge);
+      const own = (f) => f.level === l.id && !HOUSE_ROOMS.find((r) => r.id === f.room).zone; // the wing's pieces have their zone's box
+      const pieces = HOUSE_FURNITURE.filter((f) => own(f) && f.ledge);
       if (!pieces.length) continue;
       m.geometry.computeBoundingBox();
-      const top = Math.max(...HOUSE_FURNITURE.filter((f) => f.level === l.id && (f.r > 0 || f.ledge)).map((f) => f.h));
+      const top = Math.max(...HOUSE_FURNITURE.filter((f) => own(f) && (f.r > 0 || f.ledge)).map((f) => f.h));
       expect(m.geometry.boundingBox.max.y + m.position.y, l.id).toBeCloseTo(levelY(l.id) + 0.9 * top, 3);
     }
   });

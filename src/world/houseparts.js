@@ -30,6 +30,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hash01 } from './builder.js';
 import { litMaterial } from '../render/materials.js';
+import { WING_BUILDERS, WING_FLAT_BUILDERS } from './housewingparts.js';
 import {
   WALL_T, WALL_H, LAWN_Y, DOOR_H, HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_FRONT_DOOR, HOUSE_FURNITURE, HOUSE_LAMPS, SECRET_BOOKCASE,
   houseSections, roomAt, stairAt,
@@ -64,6 +65,8 @@ const CELL_ORDER = [
   'brass', 'flame',
   // round 2: kitchen wainscot tiles, cellar slate, attic boards
   'wainTile', 'slate', 'atticBoards',
+  // the east wing: a wallpaper for each new room, a bathroom's checked floor
+  'livingroom', 'solarium', 'kids', 'bath', 'bathFloor',
 ];
 export const HOUSE_ATLAS_CELLS = freeze(Object.fromEntries(CELL_ORDER.map((k, i) => [k, i])));
 const C = HOUSE_ATLAS_CELLS;
@@ -340,6 +343,37 @@ Object.assign(PATTERNS, {
     const k = (0.82 + 0.2 * hash01(board, 1, 411)) * (1 + 0.06 * Math.sin((x % 24) * 0.9 + hash01(board, 0, 412) * 6));
     return mul(hex(0xa38a68), k * grain(x, y, 41, 0.035));
   },
+  // the living room: warm cream with olive vine stripes and small amber blossoms
+  livingroom(x, y) {
+    let c = hex(0xe4d6b0);
+    const m = x % 24;
+    if (m < 3 || m === 4) c = hex(0x8fa06a);
+    else if (near(x, y, 12, 12) < 2.6 || near(x, y, 12, 36) < 2.6) c = hex(0xc08a4e);
+    return mul(c, grain(x, y, 43, 0.03));
+  },
+  // the solarium: pale lime-washed plaster in faint horizontal boards
+  solarium(x, y) {
+    const c = y % 16 === 0 ? hex(0xd2cfb4) : hex(0xeeebd2);
+    return mul(c, grain(x, y, 44, 0.025));
+  },
+  // the kids' room: sunny yellow with blue stars and a few pink dots
+  kids(x, y) {
+    let c = hex(0xf4dc8a);
+    if (near(x, y, 12, 12) < 2.6 || near(x, y, 36, 36) < 2.6) c = hex(0x6fa6d4);
+    else if (near(x, y, 36, 12) < 1.6 || near(x, y, 12, 36) < 1.6) c = hex(0xe89aa4);
+    return mul(c, grain(x, y, 45, 0.03));
+  },
+  // the bathroom: white with thin pale-aqua stripes
+  bath(x, y) {
+    const c = x % 8 === 0 ? hex(0xb8d8d2) : hex(0xf0f6f2);
+    return mul(c, grain(x, y, 46, 0.02));
+  },
+  // the bathroom floor: small teal and white checks, pale grout
+  bathFloor(x, y) {
+    if (x % 12 === 0 || y % 12 === 0) return mul(hex(0xd6dcd6), grain(x, y, 47, 0.02));
+    const c = (Math.floor(x / 12) + Math.floor(y / 12)) % 2 ? hex(0xeef2ec) : hex(0x5f9d9a);
+    return mul(c, grain(x, y, 47, 0.02));
+  },
   brass(x, y) { return mul(hex(0xc9a14a), (1 + 0.1 * wave(x, 24)) * grain(x, y, 37, 0.03)); },
   flame(x, y) { return mul(hex(0xfff0b0), grain(x, y, 38, 0.02)); },
 });
@@ -374,6 +408,19 @@ export function createHouseAtlas() {
   texture.needsUpdate = true;
   return texture;
 }
+
+// The wing's far look (housewingfar.js) paints its rooms from the atlas's own pixels: one pixel of a cell
+// at (x, y) in the cell's 48 px pattern, wrapped (or clamped, for a picture), written to `out`.
+export function atlasRgb(atlas, cell, x, y, out) {
+  const picture = PICTURE.has(cell);
+  const fix = (v) => (picture ? Math.min(INNER_PX - 1, Math.max(0, Math.floor(v))) : ((Math.floor(v) % INNER_PX) + INNER_PX) % INNER_PX);
+  const i = (((Math.floor(cell / COLS) * CELL_PX + GUTTER_PX + fix(y)) * ATLAS_PX) + (cell % COLS) * CELL_PX + GUTTER_PX + fix(x)) * 4;
+  const d = atlas.image.data;
+  out[0] = d[i]; out[1] = d[i + 1]; out[2] = d[i + 2];
+  return out;
+}
+export const ATLAS_PATTERN_PX = INNER_PX;
+export { FLOOR_CELL as HOUSE_FLOOR_CELL, WAIN as HOUSE_WAIN, DADO_Y as HOUSE_DADO_Y, WAIN_TILE as HOUSE_WAIN_TILE, WAIN_TILES as HOUSE_WAIN_TILES, tileOf as houseCellTile };
 
 export function houseMaterial(atlas) {
   return litMaterial(0xffffff, { map: atlas });
@@ -604,7 +651,7 @@ function wallSpan(s, sections) {
 }
 
 // What a side of the section faces: a room (its wallpaper), a stairwell, or outside (brick).
-const STAIR_PAPER = freeze({ main: 'hall', back: 'attic', cellar: 'cellar' });
+const STAIR_PAPER = freeze({ main: 'hall', back: 'attic', cellar: 'cellar', wing: 'livingroom' });
 function sideOf(s, W, sign) {
   const [px, , pz] = W.pt((W.lo + W.hi) / 2, 0, sign * 0.5);
   if (s.kind === 'stair') {
@@ -637,9 +684,9 @@ const ARCH_W = 0.07; // an architrave round a window or the door
 const SKIRT_H = 0.14;
 const DADO_Y = 0.8;
 const DADO_H = 0.05;
-const WAIN = freeze({ hall: 'wainSage', library: 'wainWood', parlour: 'wainRose', bedroom: 'wainSky', attic: 'wainPine', kitchen: 'wainTile' });
+const WAIN = freeze({ hall: 'wainSage', library: 'wainWood', parlour: 'wainRose', bedroom: 'wainSky', attic: 'wainPine', kitchen: 'wainTile', livingroom: 'wainWood', kids: 'wainSage', bath: 'wainTile' });
 const WAIN_TILE = freeze([0.8, 6]);
-const WAIN_TILES = freeze({ kitchen: freeze([0.8, 0.8]) }); // tiles have rows, so they keep their height phase (the kitchen floor is 0) // the boards run floor to rail, so only their width repeats
+const WAIN_TILES = freeze({ kitchen: freeze([0.8, 0.8]), bath: freeze([0.8, 0.8]) }); // tiles have rows, so they keep their height phase (the kitchen floor is 0) // the boards run floor to rail, so only their width repeats
 
 // The section's holes: its window and its leaf of the front door.
 function wallHoles(s, W) {
@@ -706,6 +753,22 @@ export const HOUSE_DECOR = freeze([
   // the cellar
   D('cellar', 'n', 27.0, 1.7, 'frame', 0.7, 0.55, 'art4'), D('cellar', 's', 26.7, 1.7, 'frame', 0.6, 0.75, 'art3'),
   D('cellar', 's', 22.0, 1.9, 'sconce'), D('cellar', 'w', -8.0, 1.8, 'sconce'),
+  // the east wing: the living room, the kids' room and the bathroom dressed like the old rooms (the
+  // solarium is glass: its walls are windows, so it has only a lamp)
+  D('livingroom', 'n', 18.0, 1.65, 'frame', 1.4, 0.8, 'art2'), D('livingroom', 'n', 16.0, 1.75, 'sconce'),
+  D('livingroom', 's', 16, 0, 'curtains', 0, 0, 'curtainBlue'), D('livingroom', 's', 20, 0, 'curtains', 0, 0, 'curtainBlue'),
+  D('livingroom', 's', 18.3, 1.8, 'frame', 1.0, 0.6, 'art4'),
+  // (its west wall is the parlour's east wall, always drawn: it carries only the cornice and a mirror, to spare the old ground's budget)
+  D('livingroom', 'w', 6.0, 1.9, 'mirror', 0.8, 1.0),
+  D('livingroom', 'e', 4.0, 1.7, 'frame', 0.7, 0.8, 'art1'), D('livingroom', 'e', 10.0, 1.7, 'frame', 0.8, 0.6, 'art2'), D('livingroom', 'e', 11.2, 1.8, 'sconce'),
+  D('kids', 'w', 3.5, 1.95, 'frame', 0.8, 0.6, 'art1'), D('kids', 'w', 10.4, 1.7, 'frame', 0.7, 0.8, 'art2'),
+  D('kids', 'w', 5.0, 1.75, 'sconce'), D('kids', 'w', 9.2, 1.75, 'sconce'),
+  D('kids', 'n', 44.6, 1.7, 'frame', 0.9, 0.65, 'art4'), D('kids', 'n', 39.2, 1.75, 'sconce'),
+  D('kids', 'e', 3.7, 0, 'curtains', 0, 0, 'curtainRed'), D('kids', 'e', 10.3, 0, 'curtains', 0, 0, 'curtainRed'),
+  D('kids', 's', 43.2, 0, 'curtains', 0, 0, 'gingham'), D('kids', 's', 40.4, 1.7, 'frame', 0.9, 0.6, 'art1'), D('kids', 's', 46.2, 1.75, 'sconce'),
+  D('bath', 'n', 41.9, 1.65, 'mirror', 0.6, 0.8), D('bath', 'n', 41.0, 1.8, 'sconce'), D('bath', 'n', 42.8, 1.8, 'sconce'),
+  D('bath', 'w', -1.4, 1.6, 'frame', 0.8, 0.6, 'art3'), D('bath', 'e', -0.5, 1.7, 'frame', 0.6, 0.8, 'art2'),
+  D('bath', 's', 39.2, 1.7, 'frame', 0.6, 0.7, 'art1'), D('bath', 's', 43.0, 1.7, 'frame', 0.6, 0.7, 'art3'),
 ]);
 
 // Where each sconce hangs, for house.js's warm glow: world x, y, z of its flame, the wall's inward normal.
@@ -1142,7 +1205,7 @@ export function paneMesh(section, w) {
   return finish(mesh, { cast: false });
 }
 
-const FLOOR_CELL = freeze({ hall: 'oak', library: 'oak', parlour: 'oak', kitchen: 'stone', bedroom: 'pine', attic: 'atticBoards', cellar: 'slate' });
+const FLOOR_CELL = freeze({ hall: 'oak', library: 'oak', parlour: 'oak', kitchen: 'stone', bedroom: 'pine', attic: 'atticBoards', cellar: 'slate', livingroom: 'oak', solarium: 'stone', kids: 'pine', bath: 'bathFloor' });
 
 export function floorMesh(room, material) {
   const kit = new Kit();
@@ -2186,7 +2249,7 @@ const FLAT_BUILDERS = {
 
 // A piece's geometry in its own frame (the middle of its footprint on the floor, front +z).
 export function furnitureGeometry(f) {
-  const make = BUILDERS[f.kind] ?? FLAT_BUILDERS[f.kind];
+  const make = BUILDERS[f.kind] ?? FLAT_BUILDERS[f.kind] ?? WING_BUILDERS[f.kind] ?? WING_FLAT_BUILDERS[f.kind];
   if (!make) throw new Error(`no builder for furniture kind ${f.kind}`);
   const p = new Piece();
   make(p, f);

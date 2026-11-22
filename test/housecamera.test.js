@@ -124,7 +124,9 @@ describe('never lost behind a wall', () => {
     // 28 corners: 23 stood on, 1 moved to a reached spot within 1 m, 4 the flood never comes near. Step 2
     // took the ledge pieces' colliders away, so the library's north-west corner is stood on (bookcase n1's
     // top, 2.25 m up) and the bedroom's north-west one beside the wardrobe; both were moved before
-    expect(corners.length).toBe(24);
+    // the east wing's four rooms add 11 more (the solarium's glass corners, the kids' room's and the bathroom's; the
+    // living room's, the bunk's and a plant's are beside a piece and moved)
+    expect(corners.length).toBe(35);
     const bad = [];
     for (const [room, x, z] of corners) for (let k = 0; k < 16; k++) for (const zoom of ZOOMS) {
       for (const pitch of [-0.25, DEFAULT_PITCH, 0.85]) {
@@ -300,7 +302,8 @@ describe('the life hook', () => {
     expect(hallN.length).toBeGreaterThan(0);
     for (const s of hallN) expect(sectionMeshes.get(s.id).scale.y, s.id).toBe(1);
     // every pane on a wall at or above paneHide shows
-    for (const [id, list] of panes) if (life.sink.fraction(id) >= SINK.paneHide) for (const p of list) expect(p.visible, id).toBe(true);
+    // (a wing window's glass shows only with its zone, which is a stand-in from the hall)
+    for (const [id, list] of panes) if (life.sink.fraction(id) >= SINK.paneHide) for (const p of list) expect(p.visible, id).toBe(!p.userData.paneZone || life.drawing.full.has(p.userData.paneZone));
     expect(life.drawing.current).toBe('ground');
 
     // a lintel on the line sinks to nothing and is hidden (ruling R11: scale 0 would leave a sheet)
@@ -599,7 +602,8 @@ describe('never lost on a climb', () => {
     // end now reach out past the ladder and the big books (step 2 had 26). Its review stood the
     // big books and the chest off the taller pieces (their north sides, and the shelf's front, now
     // face floor) and made the keys 0.6 m deep (the piano's front is theirs)
-    expect(sides).toBe(30);
+    // the east wing's ledges add 13 more sides of open floor: the sofa's and the shelf's, the bunks' and the tub's
+    expect(sides).toBe(43);
     expect(jumps).toEqual([]);
   }, 90_000);
 
@@ -713,9 +717,9 @@ describe('never lost on a climb', () => {
     // the bookcases, the wardrobe and the bedroom's bookshelf are tall pieces, which fade (ruling H8);
     // so do the piano, its keys, the library steps and the big books (ruling S2-4)
     expect(tall.map(([l]) => l.id).sort()).toEqual([
-      'bedroom-shelf', 'bedroom-wardrobe', 'library-bigbooks', 'library-books-n1', 'library-books-n2', 'library-books-w',
-      'library-steps', 'parlour-keys', 'parlour-piano',
-    ]);
+      'bath-tub', 'bedroom-shelf', 'bedroom-wardrobe', 'kids-bunk-low', 'kids-bunk-top', 'library-bigbooks', 'library-books-n1', 'library-books-n2',
+      'library-books-w', 'library-steps', 'living-shelf', 'living-sofa', 'parlour-keys', 'parlour-piano',
+    ]); // + the wing's: the tub, both bunks, the living room's shelf and sofa
     const bad = [];
     for (const [l, g] of tall) {
       // the spot she stands on nearest the ledge's centre
