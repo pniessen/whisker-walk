@@ -12,12 +12,20 @@
 //
 // Pure and DOM-free. It is a lazy chunk: nothing at start-up imports it.
 // The result goes through sanitizeSave, so the caps of every field hold.
-import { CATALOG, sanitizeSave } from './progression.js';
 import { mergeColony } from './colony.js';
 import { mergeUsage } from './usage.js';
 import { sanitizeMarks, MARK_AREAS } from './marks.js';
 import { CUSTOM_IDS, CUSTOM_BASE, CUSTOM_MAX } from './customcats.js';
 import { OUTFIT_IDS, sameWear } from './outfits.js';
+
+// What the merge needs from progression.js (the item catalogue and the save
+// cleaner) is handed in by the caller, not imported: this file is a lazy chunk,
+// and a lazy chunk that imports progression.js makes the bundler split the
+// start-up code into twice as many files (about 3 kB gzipped more to download).
+let tools = null;
+export function useSaveTools(t) { tools = t; }
+const CATALOG = new Proxy({}, { get: (_t, k) => tools.CATALOG[k] });
+const sanitizeSave = (v) => tools.sanitizeSave(v);
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0);

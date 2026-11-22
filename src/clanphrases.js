@@ -178,6 +178,13 @@ const LATER = Object.freeze({
   // ---- cat login, milestone 1 (2026-11-22): the same in every set ----
   // shown while a loaded cat's key is adopted and the page reloads once
   'catlogin.bringing': (name) => (name ? `Bringing ${name} here…` : 'Bringing your cat here…'),
+  // ---- cat login, milestone 2: how a linked cat's catch-up reads on the sheet ----
+  'catlogin.saved': (name) => `${name || 'Your cat'} is safe`,
+  'catlogin.offline': (name) => `No internet. ${name || 'Your cat'} is safe on this device. It will catch up later.`,
+  'catlogin.catching': 'Catching up…',
+  // the one line that differs by set: where the things come to
+  'catlogin.caughtup': (name) => `${name || 'Your cat'} caught up. Paws, finds and outfits from both devices are in camp.`,
+  'catlogin.signedout': (name) => `This cat moved to a new cat code. Type the new one to bring ${name || 'your cat'} back.`,
 
   // ---- world map step 3 (2026-11-21): what a gate says, the same in every set ----
   'gate.shut': (walks, place, toGo) => `Opens after ${walks} ${walks === 1 ? 'walk' : 'walks'} in ${place}. ${toGo} to go!`,

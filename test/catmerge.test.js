@@ -1,10 +1,11 @@
 // "Log in to my cat", milestone 2: the three-way merge of two saves of one cat.
 // Pure functions, no storage and no network.
 import { describe, it, expect } from 'vitest';
-import { mergeSaves, MERGE_RULES, trimBase, BASE_KEYS } from '../src/catmerge.js';
+import { mergeSaves, MERGE_RULES, trimBase, BASE_KEYS, useSaveTools } from '../src/catmerge.js';
 import { sanitizeSave, freshStateKeys, CATALOG, createProgression } from '../src/progression.js';
 import { memoryStorage } from './helpers/storage.js';
 
+useSaveTools({ CATALOG, sanitizeSave });
 const fresh = (over = {}) => sanitizeSave({ version: 4, ...over });
 const merge = (local, cloud, extra = {}) => mergeSaves({ local: fresh(local), cloud: fresh(cloud), ...extra });
 const starters = new Set(sanitizeSave({}).unlocked.accessories);

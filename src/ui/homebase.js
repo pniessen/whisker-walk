@@ -460,6 +460,16 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       + `<button class="primary wt-nearby-join" data-nearby-code="${escapeHtml(r.code)}">Join</button></div>`).join('');
   }
 
+  // How the linked cat's catch-up stands (cat login, milestone 2): one quiet line,
+  // never a spinner that blocks anything. Words are phrase ids, so both sets say them.
+  const CAT_STATUS_PHRASE = { saved: 'catlogin.saved', offline: 'catlogin.offline', catching: 'catlogin.catching', caught: 'catlogin.caughtup', signedout: 'catlogin.signedout' };
+  function catStatusLine() {
+    let st = null;
+    try { st = sync.catStatus?.() ?? null; } catch { st = null; }
+    const id = st && Object.hasOwn(CAT_STATUS_PHRASE, st.state) ? CAT_STATUS_PHRASE[st.state] : null;
+    return id ? `<div class="tag catlogin-status" data-cat-status="${st.state}" role="status">${escapeHtml(phrase(id, st.name))}</div>` : '';
+  }
+
   function renderSync() {
     if (!sync || !sync.available) return '';
     if (bringing) return `<div class="sync-bringing" role="status">${escapeHtml(phrase('catlogin.bringing', bringing.name))}</div>`;
@@ -497,6 +507,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         body = `
           <div class="sync-linked">
             <div class="tag on">☁️ synced as ${escapeHtml(code)} · after every trip</div>
+            ${catStatusLine()}
             ${cloudStatus ? `<div class="tag">${escapeHtml(cloudStatus)}</div>` : ''}
             <div class="sync-actions">
               <button id="sync-now" ${cloudBusy ? 'disabled' : ''}>${cloudBusy ? 'Syncing…' : 'Sync now'}</button>
@@ -2803,6 +2814,11 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     // the single source of truth; this just reflects it into the DOM).
     refresh() {
       if (!root.classList.contains('hidden')) render();
+    },
+    // The catch-up's line changed: draw it only if the Cloud save sheet is the
+    // one open, so nothing else on the home screen is redrawn under a child's finger.
+    refreshSync() {
+      if (shown && openSheet === 'sync' && !root.classList.contains('hidden')) render();
     },
   };
 }

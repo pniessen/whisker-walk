@@ -239,6 +239,11 @@ function init() {
     pid,
     met: deviceMetPlayers(),
     blocked: blockList,
+    // cat login, milestone 2: a catch-up changes the save only on the home screen
+    // (never in a walk), and tells the Cloud save sheet when it has something to say
+    atHome: () => !session,
+    onCatStatus: () => { try { homebase.refreshSync(); } catch { /* the home screen is not built yet */ } },
+    onApplied: () => { try { homebase.refresh(); } catch { /* the home screen is not built yet */ } },
   });
 
   const hud = createHud();
@@ -664,6 +669,10 @@ function init() {
   const resuming = leftWalk?.kind === 'resume';
   const visit = resuming ? { visits: progression.state.visits, milestone: null } : progression.recordVisit();
   homebase.show();
+  // A linked device asks the cloud once, now that the home screen is up, whether
+  // another device saved (src/game/catsync.js). Nothing for a device that never
+  // linked, and never over a walk picked up again.
+  if (!resuming) sync.catchUp().catch(() => {});
   // F6: fetch her own place and the den now, so Explore and the den button
   // usually find them already here. ?roofs=1 fetches the Rooftops too (her
   // Explore goes there), and ?house=1 the Old House (in Clan Edition only,
