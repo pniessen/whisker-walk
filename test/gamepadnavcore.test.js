@@ -100,3 +100,36 @@ describe('repeatGate', () => {
     expect(g.fire).toBe(false);
   });
 });
+
+// T14: Sound & controls is a stack of full-width rows under a narrow Back button; Down must visit every
+// row in order and never skip a switch (the owner's hand-check gap 2). Rects mimic the sheet at 1080p.
+describe('a settings-like stack of wide rows', () => {
+  const rows = [
+    { id: 'back', rect: { x: 40, y: 20, w: 160, h: 64 } },
+    { id: 'volume', rect: { x: 40, y: 120, w: 1100, h: 72 } },
+    { id: 'music', rect: { x: 40, y: 200, w: 1100, h: 72 } },
+    { id: 'mute', rect: { x: 40, y: 280, w: 1100, h: 64 } },
+    { id: 'haptics', rect: { x: 40, y: 352, w: 1100, h: 64 } },
+    { id: 'tips', rect: { x: 40, y: 424, w: 1100, h: 64 } },
+    { id: 'map', rect: { x: 40, y: 496, w: 1100, h: 72 } },
+    { id: 'explore', rect: { x: 40, y: 580, w: 520, h: 72 } },
+  ];
+  it('Down from Back walks every row in order, and Up walks them back', () => {
+    const seen = ['back'];
+    for (let cur = 'back'; ;) {
+      const next = pickNext(rows.find((r) => r.id === cur).rect, rows.filter((r) => r.id !== cur), 'down');
+      if (!next) break;
+      seen.push(next);
+      cur = next;
+    }
+    expect(seen).toEqual(rows.map((r) => r.id));
+    const up = ['explore'];
+    for (let cur = 'explore'; ;) {
+      const next = pickNext(rows.find((r) => r.id === cur).rect, rows.filter((r) => r.id !== cur), 'up');
+      if (!next) break;
+      up.push(next);
+      cur = next;
+    }
+    expect(up).toEqual([...rows].reverse().map((r) => r.id));
+  });
+});

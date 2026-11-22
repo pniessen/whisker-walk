@@ -6,7 +6,7 @@
 export const tvState = { on: false, pending: false, input: 'keys', text: null, html: null, padLine: null };
 
 // Pad events from gamepad.js; the chunk fills these in (null = nobody listens).
-export const tvHooks = { padUse: null, padConnect: null, padDisconnect: null, back: null, button: null, picker: null }; // back(): the pad's B; button(i): another menu button, true if a TV card took it; picker(opts): the letter picker, a promise of the name or null
+export const tvHooks = { padUse: null, padConnect: null, padDisconnect: null, back: null, button: null, picker: null, list: null }; // back(): the pad's B; button(i): another menu button, true if a TV card took it; picker(opts): the letter picker, a promise of the name or null; list(opts): a choose-one list card, a promise of the value or null
 
 const listeners = new Set();
 
@@ -38,7 +38,7 @@ export function onTv(fn) {
 export function resetTv() {
   Object.assign(tvState, { on: false, pending: false, input: 'keys', text: null, html: null, padLine: null });
   listeners.clear();
-  Object.assign(tvHooks, { padUse: null, padConnect: null, padDisconnect: null, back: null, button: null, picker: null });
+  Object.assign(tvHooks, { padUse: null, padConnect: null, padDisconnect: null, back: null, button: null, picker: null, list: null });
 }
 
 /** ?tv=1 turns TV mode on for this page load only, ?tv=0 off; never saved (like ?perf). */
