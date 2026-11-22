@@ -79,3 +79,40 @@ html.tv body[data-input="pad"] .goal-how .how-keys, html.tv body[data-input="pad
 html.tv body[data-input="pad"] .goal-how .how-pad { display: inline; }
 html.tv .pad-glyph { width: 1.25em; height: 1.25em; vertical-align: -0.28em; margin: 0 0.08em; color: inherit; }
 html.tv .pad-glyph.wide { width: 1.9em; }
+
+/* ---- The letter picker (src/tv/letterpickerview.js) ----------------------- */
+html.tv .lp-overlay {
+  position: fixed; inset: 0; z-index: 22; display: grid; place-items: center;
+  box-sizing: border-box; padding: var(--tv-safe-y, 5vh) var(--tv-safe-x, 5vw);
+  background: rgba(14, 19, 29, 0.86);
+}
+html.tv .lp-card {
+  display: flex; flex-direction: column; align-items: center; gap: calc(14px * var(--tv-s, 1));
+  background: #2a3550; border: 3px solid #f2c14e; border-radius: calc(24px * var(--tv-s, 1));
+  padding: calc(22px * var(--tv-s, 1)) calc(28px * var(--tv-s, 1)); box-shadow: 0 10px 40px rgba(0,0,0,.45);
+  max-width: 100%; max-height: 100%; box-sizing: border-box; overflow: hidden;
+}
+html.tv .lp-title { margin: 0; font-size: calc(40px * var(--tv-s, 1)); color: #f2c14e; }
+html.tv .lp-preview {
+  min-width: calc(520px * var(--tv-s, 1)); min-height: calc(84px * var(--tv-s, 1)); box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center; padding: 0 calc(24px * var(--tv-s, 1));
+  background: #fff; color: #1c2431; border-radius: calc(16px * var(--tv-s, 1));
+  font-size: calc(56px * var(--tv-s, 1)); font-weight: 800; letter-spacing: .04em;
+}
+html.tv .lp-caret { width: calc(5px * var(--tv-s, 1)); height: 1.1em; margin-left: .08em; background: #1c2431; }
+html.tv .lp-msg { margin: 0; min-height: 1.3em; font-size: calc(28px * var(--tv-s, 1)); color: #ffd7a8; }
+html.tv .lp-grid {
+  display: grid; grid-template-columns: repeat(9, calc(80px * var(--tv-s, 1))); grid-auto-rows: calc(80px * var(--tv-s, 1));
+  gap: calc(8px * var(--tv-s, 1));
+}
+html.tv .lp-key {
+  font: inherit; font-size: calc(38px * var(--tv-s, 1)); font-weight: 800; cursor: pointer; border: 0;
+  border-radius: calc(14px * var(--tv-s, 1)); background: #f0e7d6; color: #1c2431; padding: 0; min-width: 0;
+}
+html.tv .lp-lower .lp-letter { text-transform: lowercase; }
+html.tv .lp-func { background: #a8c0e0; font-size: calc(28px * var(--tv-s, 1)); }
+html.tv .lp-key[aria-pressed="true"] { background: #f2c14e; }
+html.tv .lp-ok { background: #f2c14e; }
+html.tv .lp-ok.lp-dim { opacity: .5; }
+html.tv .lp-key:focus-visible, html.tv .lp-key:focus { outline: calc(6px * var(--tv-s, 1)) solid #fff; outline-offset: calc(3px * var(--tv-s, 1)); }
+html.tv .lp-hint { margin: 0; font-size: calc(26px * var(--tv-s, 1)); color: #a8c0e0; text-align: center; }

@@ -17,7 +17,7 @@ const SCROLL_PX_PER_SEC = 700;
 export function createGamepad({
   win = window, nav = navigator,
   getEngaged, getCameraMode, isFighting, isWalkingOn, canResume,
-  onMove, onOrbit, onAction, onResume, toast, onPadUse, onPadConnect, onPadDisconnect,
+  onMove, onOrbit, onAction, onResume, toast, onPadUse, onPadConnect, onPadDisconnect, onMenuButton,
   menuNav: menuNavIn = null, menuNavFactory = null, padBack = null, doc = typeof document === 'undefined' ? null : document,
 }) {
   const supported = typeof nav?.getGamepads === 'function';
@@ -111,9 +111,12 @@ export function createGamepad({
       else menuNav.press();
     }
     if (edge(PAD_BUTTONS.B)) padBack?.();
-    if (edge(PAD_BUTTONS.L1)) menuNav.zoom?.('out');
-    if (edge(PAD_BUTTONS.R1)) menuNav.zoom?.('in');
-    if (edge(PAD_BUTTONS.START) && canResume?.()) onResume?.();
+    // A TV card (the letter picker) may take L1, R1, Square or Start for itself (true = taken).
+    const taken = (i) => edge(i) && !!onMenuButton?.(i);
+    taken(PAD_BUTTONS.X);
+    if (edge(PAD_BUTTONS.L1) && !taken(PAD_BUTTONS.L1)) menuNav.zoom?.('out');
+    if (edge(PAD_BUTTONS.R1) && !taken(PAD_BUTTONS.R1)) menuNav.zoom?.('in');
+    if (edge(PAD_BUTTONS.START) && !taken(PAD_BUTTONS.START) && canResume?.()) onResume?.();
     // A card or screen that opened while the pad is the active input starts ringed.
     if (doc?.body?.classList?.contains?.('pad-focus')) menuNav.settle?.();
   }

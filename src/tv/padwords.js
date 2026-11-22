@@ -67,6 +67,18 @@ export const PAD_WORDS = Object.freeze({
   'pad.offer.note': 'Bigger words, made for the sofa.',
   'pad.offer.yes': 'Yes, use it',
   'pad.offer.no': 'Not now',
+  // the letter picker (a name typed with the pad or a finger)
+  'pad.picker.title.cat': 'Name your cat',
+  'pad.picker.title.walker': 'Pick a name',
+  'pad.picker.empty': 'Press to type a name',
+  'pad.picker.shift': '⇧ Shift',
+  'pad.picker.space': 'Space',
+  'pad.picker.back': '⌫',
+  'pad.picker.cancel': 'Cancel',
+  'pad.picker.ok': 'OK',
+  'pad.picker.hint': '⟦zoomOut⟧ Shift · ⟦zoomIn⟧ Space · ⟦interact⟧ Delete · ⟦pause⟧ OK · ⟦back⟧ Cancel',
+  'pad.picker.short': 'Use 2 to 16 letters.',
+  'pad.picker.blocked': 'Please pick a different name.',
 });
 
 let busy = false;
