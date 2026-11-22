@@ -5,8 +5,8 @@ import { litMaterial, surfaceMaterialNoMap, tileMetres } from '../render/materia
 import { getTextureAnisotropy } from '../render/textures.js';
 import { withLocalUuids } from './localuuids.js';
 import { hash01 } from './warehouselook.js';
-import { createMarketParts, marketMaterials, atlasCell, buildTreatMesh, createCobbleTexture, bloomGeometry, BLOOMS, ATLAS_W, ATLAS_H } from './marketparts.js';
-import { buildAppleCrate } from './marketfruit.js';
+import { createMarketParts, marketMaterials, atlasCell, frontCell, buildTreatMesh, createCobbleTexture, bloomGeometry, BLOOMS, ATLAS_W, ATLAS_H } from './marketparts.js';
+import { buildAppleCrate, buildYarnBasket, buildPullToy } from './marketfruit.js';
 import { createMarketLife } from './marketlife.js';
 import {
   BASIN_PROFILE, SPIRE_PROFILE, BASIN_WATER, FOUNTAIN_STONE, fountainWaterMaterial, latheGeometry, dressFountain,
@@ -15,7 +15,7 @@ import {
   MARKET_BOUNDS, MARKET_SPAWN, FOUNTAIN, CAFE, STALLS, TREAT_STALLS, stallById, fromStall,
   MARKET_COLLIDERS, MARKET_KEEPOUT, MARKET_POIS, MARKET_COLLECTIBLES, FRUIT_CRATE, MARKET_LAMPS, FLOUR_SACKS,
   MARKET_CLUTTER, BENCH_AT, BICYCLE_AT, MILK_SHAFTS, AWNING, awningHeight, BIKE, BICYCLE_BASKET_AT, CLIMB_STACK, MARKET_PERCHES,
-  PIGEON_PATCH,
+  PIGEON_PATCH, STALL_PROPS, RAIL_STACK, toStall, TOY_TIPS,
 } from './marketplan.js';
 
 // =============================================================================
@@ -146,9 +146,14 @@ const STALL_LOOK = Object.freeze({
   milk: { awning: 3, sign: 14, paint: 0x5f8f5e, goods: 'churns' },
   flowers: { awning: 4, sign: 8, paint: 0xc98aa0, goods: 'buckets' },
   fruit: { awning: 0, sign: 6, paint: 0x6b8fb8, goods: [6, 7] },
+  // 2026-11-22: atlas cells 18-21 (awnings), 22-25 (signs), 26-29 (goods)
+  toys: { awning: 18, sign: 22, paint: 0x7a5aa8, goods: 'toys', front: 0, valance: 40 },
+  plants: { awning: 19, sign: 24, paint: 0x3f7a5a, goods: 'plants', front: 1, valance: 41 },
+  bric: { awning: 20, sign: 25, paint: 0xb87a3a, goods: 'bric', front: 2, valance: 42 },
+  butcher: { awning: 21, sign: 23, paint: 0xe6d6c6, goods: 'meat', front: 3, valance: 43 },
 });
 // what sits in the baskets on each stall's trestle (produce cells)
-const TRESTLE_GOODS = Object.freeze({ fish: 7, baker: 9, cheese: 10, milk: 6, flowers: 8, fruit: 6 });
+const TRESTLE_GOODS = Object.freeze({ fish: 7, baker: 9, cheese: 10, milk: 6, flowers: 8, fruit: 6, toys: 26, plants: 28, bric: 39, butcher: 27 });
 // the two displays the cloths go over at dusk, and the stalls whose crates are stacked
 const CLOTHED = Object.freeze(['flowers', 'fruit']);
 const STACKED = Object.freeze(['fish', 'baker', 'cheese']);
@@ -335,6 +340,39 @@ function valance(sx, z, yTop, h, n = 8) {
   return g;
 }
 
+// The beauty pass's valance (the four new stalls): a flap `h` deep with a real scalloped hem, one
+// scallop to each stripe (n of them, 4 segments each); its top follows the sheet's edge, three
+// rows of vertices (top, the trim band's top, the hem) so the atlas cell's stripes run down it
+// and its accent band follows the scallops. UVs 0..1 (the cell squeezes them: valancePixel).
+function scallopValance(sx, z, yTop, h, n = 8) {
+  const SEG = 4;
+  const cols = n * SEG;
+  const depth = 0.09;
+  const bandH = 0.1;
+  const pos = [];
+  const uv = [];
+  for (let i = 0; i <= cols; i++) {
+    const f = i / cols;
+    const x = (f - 0.5) * sx;
+    const k = i / SEG;
+    const l = i === cols ? 1 : k - Math.floor(k);
+    const arc = Math.sqrt(Math.max(0, 1 - (2 * l - 1) ** 2));
+    const yb = yTop(x) - h + depth * (1 - arc);
+    pos.push(x, yTop(x), z, x, yb + bandH, z, x, yb, z);
+    uv.push(f, 1, f, 0.28, f, 0);
+  }
+  const idx = [];
+  for (let i = 0; i < cols; i++) {
+    for (let r = 0; r < 2; r++) { const a = i * 3 + r; idx.push(a, a + 1, a + 3, a + 3, a + 1, a + 4); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
 // ---------------------------------------------------------------------------
 // setMarketDusk(area, k): k 0 (day) .. 1 (dusk). The lanterns' one material
 // glows LANTERN_MAX * k; past half way the stalls pack up (cloths over two
@@ -455,7 +493,7 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
 
     // the lanterns: one mesh, one material
     const lk = makeKit('marketLanterns');
-    for (const p of lanterns) lk.put('lantern', M.lantern, PARTS.bulb, mat4(p.x, p.y, p.z, { sx: 0.16, sy: 0.19, sz: 0.16 }), { noCast: true });
+    for (const p of lanterns) lk.put('lantern', M.lantern, PARTS.dome, mat4(p.x, p.y, p.z, { sx: 0.16, sy: 0.19, sz: 0.16 }), { noCast: true });
     const lanternMesh = lk.meshes()[0];
     lanternMesh.name = 'marketLanterns';
     scene.add(lanternMesh);
@@ -505,7 +543,12 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       skyDusk: { ...MARKET_SKY_DUSK },
       // V1 (step 3): the fruit stall's apple crate, paw it over and its apples
       // roll (marketfruit.js, marketlife.js); still solid in MARKET_COLLIDERS
-      tippables: [{ x: MARKET_ANCHORS.apples.x, z: MARKET_ANCHORS.apples.z, kind: 'applecrate', build: buildAppleCrate }],
+      // (2026-11-22: the toy stall's yarn basket and pull-along toy come after it, so the crate stays tip-0)
+      tippables: [
+        { x: MARKET_ANCHORS.apples.x, z: MARKET_ANCHORS.apples.z, kind: 'applecrate', build: buildAppleCrate },
+        { x: TOY_TIPS.basket.x, z: TOY_TIPS.basket.z, kind: 'yarnbasket', build: buildYarnBasket },
+        { x: TOY_TIPS.toy.x, z: TOY_TIPS.toy.z, kind: 'pulltoy', build: buildPullToy },
+      ],
       // V5 (step 3): up the crates onto every awning, the flower trestle, the bicycle's
       // basket, the two crate stacks' tops and the café tables (marketplan.js)
       perches: MARKET_PERCHES.map((p) => ({ ...p })), // the walk's own copy (walk.js may push into it), as roofs.js gives
@@ -664,6 +707,25 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
   const cd = cart ? 0.8 : Math.min(0.7, D * 0.4);
   const awn = awningGeom(s);
   const toWorld = stallMatrix(s);
+  // small shapes for the beauty pass (the four new stalls): paint-coloured, in the stall's own kit
+  const sz0 = -D / 2 + 0.15; // the back shelf's z
+  // (a bulb is the kit's twenty-sided ball, 20 triangles, not the sphere's 80: the budget's)
+  const bulb = (x, y, z, sx, sy, sz, color, extra = {}) => wood(PARTS.dome, mat4(x, y, z, { sx, sy, sz, ...extra }), color);
+  // (a drum is a six-sided post unless `round`: 24 triangles, not the barrel's 48; the budget's)
+  const drum = (x, y, z, sx, sy, sz, color, extra = {}, round = false) => wood(round ? barrel : PARTS.post, mat4(x, y, z, { sx, sy, sz, ...extra }), color);
+  const dome = (x, y, z, sx, sy, sz, color) => wood(PARTS.dome, mat4(x, y, z, { sx, sy, sz }), color);
+  // a price slate (coins, no words) leaning back on the counter's front edge at x
+  const slate = (x, y, z) => {
+    const base = mat4(x, y, z, { pitch: -0.3 });
+    wood(PARTS.crate, base.clone().multiply(mat4(0, 0, 0, { sx: 0.31, sy: 0.25, sz: 0.03 })), WOOD);
+    atlas(quad, base.clone().multiply(mat4(0, 0.125, 0.018, { sx: 0.28, sy: 0.22 })), 36);
+  };
+  // a counter lantern: a dark foot and a bulb that glows at dusk (the lantern mesh is shared)
+  const glow = (x, y, z) => {
+    box(x, y, z, 0.12, 0.04, 0.12, WOOD_DARK);
+    const p = new THREE.Vector3(x, y + 0.14, z).applyMatrix4(toWorld);
+    lanterns.push({ x: p.x, y: p.y, z: p.z });
+  };
 
   // posts: front and back at the footprint's corners; the plan's -x back post is the bunting's pole
   for (const lxs of [-1, 1]) {
@@ -678,8 +740,10 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
   // the awning
   K.put('awning', M.awning, PARTS.awningSheet(look.awning), mat4(0, AWNING.y, awn.cz, { sx: awn.sx, sy: AWNING.rise, sz: awn.sz }), { tag: { awning: true } });
   {
-    const flap = valance(awn.sx, awn.z1, (x) => awn.yAt(x, awn.z1) + 0.01, 0.26);
-    K.put('awning', M.awning, flap, null, { cell: look.awning });
+    const flap = look.valance != null
+      ? scallopValance(awn.sx, awn.z1, (x) => awn.yAt(x, awn.z1) + 0.01, 0.32)
+      : valance(awn.sx, awn.z1, (x) => awn.yAt(x, awn.z1) + 0.01, 0.26);
+    K.put('awning', M.awning, flap, null, { cell: look.valance ?? look.awning });
     flap.dispose();
   }
   // the sign, standing on the awning's front edge, its picture both ways
@@ -735,6 +799,17 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
     // the counter: a painted front with a board on top
     box(0, 0, D / 2 - cd / 2, W, COUNTER_H - 0.05, cd, look.paint);
     box(0, COUNTER_H - 0.05, D / 2 - cd / 2, W + 0.06, 0.05, cd + 0.06, TOPBOARD);
+    // the beauty pass: a painted front (planks, rug, apron or cloth) in two halves of the atlas cell
+    if (look.front != null) {
+      const { u0, v0, u1, v1 } = frontCell(look.front);
+      for (const hx of [-1, 1]) {
+        const q = quad.clone();
+        const uv = q.attributes.uv;
+        for (let i = 0; i < uv.count; i++) uv.setXY(i, u0 + uv.getX(i) * (u1 - u0), v0 + uv.getY(i) * (v1 - v0));
+        K.put('front', M.front, q, mat4(hx * W / 4, (COUNTER_H - 0.05) / 2, D / 2 + 0.006, { sx: W / 2, sy: COUNTER_H - 0.05 }), { noCast: true });
+        q.dispose();
+      }
+    }
     // the back shelf: two uprights, three boards, two crates on top
     const sz = -D / 2 + 0.15;
     for (const sx of [-1, 1]) box(sx * (W / 2 - 0.2), 0, sz, 0.06, 1.42, 0.3, WOOD);
@@ -760,6 +835,89 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
       const x = -W / 2 + 0.5 + (i * (W - 1.0)) / 3;
       wood(PARTS.bulb, mat4(x, top + 0.08, cz + (i % 2 ? 0.08 : -0.08), { yaw: 0.3 - i * 0.2, sx: 0.36, sy: 0.08, sz: 0.11 }), 0x9aaebb);
     }
+  } else if (look.goods === 'toys') {
+    // a tray of toy blocks, a teddy, a pyramid of blocks, wool balls
+    box(-0.55, top, cz, 0.6, 0.05, cd - 0.15, WOOD_DARK);
+    atlas(quad, mat4(-0.55, top + 0.052, cz, { pitch: -Math.PI / 2 }).multiply(mat4(0, 0, 0, { sx: 0.56, sy: cd - 0.2 })), 26);
+    bulb(0.02, top + 0.14, cz, 0.26, 0.28, 0.22, 0xb8793c); // the teddy: body, head, ears, snout, a bow
+    bulb(0.02, top + 0.35, cz + 0.02, 0.2, 0.19, 0.18, 0xc8894a);
+    for (const e of [-1, 1]) bulb(0.02 + e * 0.085, top + 0.46, cz + 0.02, 0.085, 0.085, 0.07, 0xb8793c);
+    bulb(0.02, top + 0.33, cz + 0.12, 0.09, 0.07, 0.07, 0xf0dcb4);
+    bulb(0.02, top + 0.255, cz + 0.1, 0.12, 0.05, 0.05, 0xd8433c);
+    for (const [bx, by, bc, byaw] of [[0.5, 0, 0xd8433c, 0.2], [0.76, 0, 0x4a86b8, -0.15], [0.63, 0.19, 0xf2c94c, 0.1]]) box(bx, top + by, cz, 0.22, 0.19, 0.22, bc, { yaw: byaw });
+    [[0.95, 0xc04a8a], [1.12, 0x4c9a52], [1.0, 0xf2c94c]].forEach(([bx, bc], i) => bulb(bx, top + 0.09 + (i === 2 ? 0.17 : 0), cz + (i === 2 ? 0 : (i ? -0.1 : 0.1)), 0.18, 0.18, 0.18, bc));
+    slate(0.82, top, D / 2 - 0.12);
+    glow(-W / 2 + 0.14, top, cz + 0.12);
+    // up on the shelf: a toy drum, a duck, a small bear
+    drum(-0.7, 0.99, sz0, 0.26, 0.2, 0.26, 0xd8433c);
+    drum(-0.7, 1.19, sz0, 0.28, 0.025, 0.28, 0xf3ead2);
+  } else if (look.goods === 'plants') {
+    // pots of four sorts (leafy, flowering, a cactus, a tall one), a tray of seedlings
+    const pot = (x, h) => { drum(x, top, cz, 0.24, h, 0.24, 0xb5622f, {}); drum(x, top + h - 0.04, cz, 0.29, 0.05, 0.29, 0xc9733a, {}); };
+    pot(-1.0, 0.2);
+    dome(-1.0, top + 0.34, cz, 0.3, 0.26, 0.3, 0x2f6a30);
+    dome(-0.94, top + 0.42, cz + 0.02, 0.22, 0.2, 0.22, 0x3f8f4a);
+    pot(-0.55, 0.18);
+    dome(-0.55, top + 0.3, cz, 0.3, 0.2, 0.3, 0x3f8f4a);
+    for (const [fx, fz, fc] of [[-0.07, 0.05, 0xe85a8c], [0.05, -0.04, 0xf5d142], [0, 0.08, 0xe85a8c]]) bulb(-0.55 + fx, top + 0.43, cz + fz, 0.09, 0.09, 0.09, fc);
+    box(0.15, top, cz, 0.62, 0.05, cd - 0.15, WOOD_DARK);
+    atlas(quad, mat4(0.15, top + 0.052, cz, { pitch: -Math.PI / 2 }).multiply(mat4(0, 0, 0, { sx: 0.58, sy: cd - 0.2 })), 28);
+    pot(0.75, 0.16);
+    drum(0.75, top + 0.16, cz, 0.15, 0.3, 0.15, 0x5a9a4a); // the cactus
+    for (const e of [-1, 1]) bulb(0.75 + e * 0.11, top + 0.34, cz, 0.08, 0.17, 0.08, 0x5a9a4a);
+    bulb(0.75, top + 0.5, cz, 0.07, 0.05, 0.07, 0xe85a8c);
+    pot(1.05, 0.22);
+    for (const [dy, r] of [[0.32, 0.26], [0.5, 0.2], [0.65, 0.14]]) dome(1.05, top + dy, cz, r, r * 0.9, r, 0x2f6a30);
+    slate(-0.2, top, D / 2 - 0.12);
+    glow(-W / 2 + 0.12, top, cz - 0.1);
+    // a hook rail across the front under the valance, and a basket on two chains at each corner
+    box(0, 1.98, D / 2 - 0.1, W - 0.1, 0.04, 0.04, WOOD_DARK);
+    for (const hx of [-1, 1]) {
+      const x = hx * (W / 2 - 0.3);
+      wood(PARTS.dome, mat4(x, 1.58, D / 2 - 0.1, { sx: 0.3, sy: 0.16, sz: 0.3 }), WICKER);
+      dome(x, 1.72, D / 2 - 0.1, 0.34, 0.22, 0.34, 0x3f8f4a);
+      for (const dx of [-0.1, 0.1]) box(x + dx, 1.66, D / 2 - 0.1, 0.02, 0.34, 0.02, IRON);
+    }
+  } else if (look.goods === 'bric') {
+    // a teapot, a stack of plates, a lamp, books, a vase and a painting
+    bulb(-0.85, top + 0.13, cz, 0.3, 0.26, 0.3, 0x4a7fb5); // the teapot: body, lid, knob, spout, handle
+    bulb(-0.85, top + 0.28, cz, 0.16, 0.06, 0.16, 0xe9dcb9);
+    bulb(-0.85, top + 0.32, cz, 0.05, 0.05, 0.05, 0xe9dcb9);
+    bulb(-0.66, top + 0.17, cz, 0.15, 0.06, 0.06, 0x4a7fb5, { roll: 0.7 });
+    drum(-1.04, top + 0.06, cz, 0.1, 0.16, 0.05, 0x4a7fb5);
+    bulb(-0.85, top + 0.13, cz + 0.141, 0.3, 0.03, 0.01, 0xf2efe6);
+    for (let i = 0; i < 3; i++) drum(-0.3, top + i * 0.04, cz, 0.34 - i * 0.012, 0.035, 0.34 - i * 0.012, i % 2 ? 0xf2efe6 : 0xdfe9f2);
+    drum(-0.3, top + 0.12, cz, 0.12, 0.012, 0.12, 0xc23b34);
+    drum(0.15, top, cz, 0.1, 0.36, 0.1, 0xd8b072); // the lamp: a post, a shade
+    drum(0.15, top, cz, 0.2, 0.025, 0.2, 0x6e4a33);
+    wood(PARTS.dome, mat4(0.15, top + 0.4, cz, { sx: 0.34, sy: 0.22, sz: 0.34 }), 0xf2c94c);
+    for (const [bx, by, bc, bw] of [[0.62, 0, 0x3f6fb5, 0.3], [0.64, 0.05, 0xc23b34, 0.27]]) box(bx, top + by, cz, bw, 0.05, 0.2, bc, { yaw: bx - 0.62 });
+    bulb(0.95, top + 0.16, cz, 0.2, 0.24, 0.2, 0xf2efe6); // a vase with a flower
+    drum(0.95, top + 0.27, cz, 0.09, 0.1, 0.09, 0xf2efe6);
+    bulb(0.95, top + 0.46, cz, 0.1, 0.1, 0.1, 0xe85a8c);
+    drum(0.95, top + 0.3, cz, 0.012, 0.15, 0.012, 0x4f8f3e);
+    box(1.1, top, cz - 0.1, 0.05, 0.04, 0.05, WOOD);
+    // the painting, leaning on the shelf; a price slate; a lantern at each end
+    box(-0.15, top + 0.5, sz0 + 0.2, 0.46, 0.46, 0.04, 0xc9a040, { pitch: -0.2 });
+    atlas(quad, mat4(-0.15, top + 0.5, sz0 + 0.2, { pitch: -0.2 }).multiply(mat4(0, 0.23, 0.025, { sx: 0.4, sy: 0.4 })), 29);
+    slate(0.4, top, D / 2 - 0.12);
+    glow(-W / 2 + 0.12, top, cz + 0.12);
+    for (const [x, y, c] of [[0.5, 1.15, 0x3f6fb5], [0.62, 1.15, 0xc23b34]]) box(x, y - 0.06, sz0, 0.1, 0.28, 0.2, c); // books on the shelf
+  } else if (look.goods === 'meat') {
+    box(0, top, cz, W - 0.2, 0.05, cd - 0.1, 0xf6efe4);
+    // a ham on the bone, a pile of sausages, a pie, a tray of chops
+    bulb(-1.0, top + 0.17, cz, 0.38, 0.24, 0.26, 0xe0877d);
+    bulb(-1.0, top + 0.21, cz + 0.07, 0.24, 0.12, 0.14, 0xf0b4ac);
+    drum(-1.22, top + 0.16, cz, 0.05, 0.08, 0.05, 0xf3ead2);
+    for (const [dx, dy, dz, c] of [[-0.12, 0.05, -0.08, 0xc0614a], [0.12, 0.05, -0.04, 0xa83a34], [0, 0.05, 0.1, 0xc0614a], [0, 0.13, 0, 0xd96a5a], [-0.1, 0.05, 0.1, 0xa83a34]]) drum(-0.5 + dx - 0.16, top + dy - 0.05 + 0.0, cz + dz, 0.1, 0.32, 0.1, c, { roll: -Math.PI / 2, yaw: dz * 1.5 });
+    drum(0.05, top, cz, 0.34, 0.1, 0.34, 0xc8873c); // the pie
+    wood(PARTS.dome, mat4(0.05, top + 0.09, cz, { sx: 0.32, sy: 0.12, sz: 0.32 }), 0xd9a050);
+    slate(1.12, top, D / 2 - 0.12);
+    glow(-W / 2 + 0.1, top, cz - 0.12);
+    for (let k = 0; k < 3; k++) { // three hung meat panels along the back, two pictures alternating
+      atlas(quad, mat4((k - 1) * ((W - 0.6) / 3), top + 0.4, -D / 2 + 0.31).multiply(mat4(0, 0, 0, { sx: (W - 0.6) / 3 - 0.02, sy: 0.4 })), k === 1 ? 38 : 27);
+    }
+    for (let k = 0; k < 3; k++) drum(-0.7 + k * 0.7, 0.99, sz0, 0.14, 0.16 + (k % 2) * 0.04, 0.14, [0xb83a34, 0xc9871a, 0x4c8a3c, 0xb83a34, 0xc9871a][k]); // jars of preserves
   } else if (look.goods === 'buckets') {
     const n = 4;
     for (let i = 0; i < n; i++) {
@@ -772,7 +930,7 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
   // the treat's stand, at the counter's front corner on the hide's side
   if (s.treat) {
     const t = s.treat;
-    const [x, z] = pl(W / 2 - 0.3, D / 2 + 0.35);
+    const [x, z] = pl(s.hideSide * (W / 2 - 0.3), D / 2 + 0.35);
     if (t.kind === 'fishhead') {
       box(x, 0, z, 0.42, t.y - 0.056 - 0.04, 0.42, CRATE);
       box(x, t.y - 0.056 - 0.04, z, 0.46, 0.04, 0.46, ICE);
@@ -784,6 +942,32 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
       box(x, t.y - 0.04 - 0.03, z, 0.4, 0.03, 0.4, TOPBOARD);
     } else if (t.kind === 'cream') {
       box(x, 0, z, 0.5, t.y - 0.0225, 0.32, WOOD_DARK);
+    } else if (t.kind === 'wool') { // a basket of yarn on a crate
+      box(x, 0, z, 0.4, t.y - 0.04, 0.4, CRATE);
+      box(x, t.y - 0.04, z, 0.44, 0.03, 0.44, TOPBOARD);
+    } else if (t.kind === 'catnip') { // a clay planter of catnip at the end of the shelf
+      box(x, 0, z, 0.4, t.y - 0.05, 0.4, 0xb5622f);
+      box(x, t.y - 0.05, z, 0.46, 0.04, 0.46, 0xc9733a);
+    } else if (t.kind === 'sardines') { // a crate with a cloth over its lid
+      box(x, 0, z, 0.42, t.y - 0.03, 0.42, CRATE);
+      box(x, t.y - 0.03, z, 0.46, 0.02, 0.46, 0xe9dcb9);
+    } else if (t.kind === 'sausages') { // the butcher's block under the string, the hook rail over it
+      box(x, 0, z, 0.4, 0.42, 0.4, WOOD_DARK);
+      box(x, 0.42, z, 0.46, 0.05, 0.46, TOPBOARD);
+      const y = 2.05; // the rail: a bar from the awning's front edge, over the string, two short hangers
+      const BRASS = 0xb98a3a; // brass, so it reads against the pink houses
+      box(x, t.y + 0.3, z, 0.012, y - t.y - 0.3, 0.012, IRON); // the cord the string hangs from (the links are the treat's mesh)
+      box(x - 0.15, y, z, 1.2, 0.05, 0.05, BRASS);
+      for (const dx of [-0.7, 0.4]) box(x + dx, y + 0.04, z, 0.03, 0.12, 0.03, BRASS);
+      for (const dx of [-0.6, -0.4, 0.2]) { // a hung string of two links on a hook
+        for (const [dy, c] of [[0.28, 0xc0614a], [0.08, 0xa83a34]]) wood(PARTS.post, mat4(x + dx, y - 0.4 + dy - 0.11, z, { sx: 0.11, sy: 0.22, sz: 0.11 }), c);
+        box(x + dx, y - 0.02, z, 0.015, 0.1, 0.015, BRASS);
+      }
+      { // a lantern on the rail's end: the warm spot over the crates
+        const p = new THREE.Vector3(x + 0.38, y - 0.24, z).applyMatrix4(toWorld);
+        box(x + 0.38, y - 0.07, z, 0.012, 0.07, 0.012, BRASS);
+        lanterns.push({ x: p.x, y: p.y, z: p.z });
+      }
     }
   }
 
@@ -795,6 +979,41 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
     for (const dz of [-0.35, 0.35]) {
       const m = mat4(x, 0.775, z + dz);
       basketAt(basketKit, PARTS, paint, M, disc, toWorld.clone().multiply(m), TRESTLE_GOODS[s.id]);
+    }
+  }
+  // the four stalls of 2026-11-22: shelves, trunks, the chopping block and the rail's crates (plan: STALL_PROPS)
+  {
+    const P = STALL_PROPS[s.id];
+    const side = -s.hideSide;
+    const at = (out, lz) => pl(side * (W / 2 + out), lz);
+    if (s.id === 'plants') {
+      for (const [out, top] of [[P.lowOut, P.lowTop], [P.highOut, P.highTop]]) {
+        const [x, z] = at(out, P.lz);
+        for (const dz of [-0.5, 0.5]) box(x, 0, z + dz, 0.34, top - 0.05, 0.08, WOOD_DARK); // two trestle ends
+        box(x, top - 0.05, z, 0.4, 0.05, 1.2, TOPBOARD);
+      }
+      { // a leafy plant in a pot on the low tier, clear of its perch (the pots stand on the tiers: knockables)
+        const [x, z] = at(P.lowOut, P.lz - 0.4);
+        wood(barrel, mat4(x, P.lowTop, z, { sx: 0.2, sy: 0.16, sz: 0.2 }), 0xb5622f);
+        wood(PARTS.dome, mat4(x, P.lowTop + 0.26, z, { sx: 0.28, sy: 0.24, sz: 0.28 }), 0x3f8f4a);
+      }
+    } else if (s.id === 'bric') {
+      P.outs.forEach((out, i) => {
+        const [x, z] = at(out, P.lz);
+        const top = P.tops[i];
+        box(x, 0, z, 0.5, top - 0.04, 0.9, 0x6e4a33, { yaw: i * 0.05 }); // a travelling trunk
+        box(x, top * 0.35, z, 0.52, 0.04, 0.92, IRON, { yaw: i * 0.05 }); // its iron bands
+        box(x, top * 0.75, z, 0.52, 0.04, 0.92, IRON, { yaw: i * 0.05 });
+        box(x, top - 0.04, z, 0.54, 0.04, 0.94, TOPBOARD, { yaw: i * 0.05 });
+      });
+    } else if (s.id === 'butcher') {
+      const [x, z] = at(P.blockOut, P.lz);
+      box(x, 0, z, 0.5, P.blockTop - 0.06, 0.5, WOOD); // the chopping block the bucket stands on
+      box(x, P.blockTop - 0.06, z, 0.56, 0.06, 0.56, TOPBOARD);
+      // the crates under the sausage string: three, as the climb stacks
+      const rl = toStall(s, RAIL_STACK.x, RAIL_STACK.z);
+      const [rx, rz] = pl(rl.lx, rl.lz);
+      for (let i = 0; i < 3; i++) box(rx + (i % 2 ? 0.02 : -0.02), i * 0.317, rz, 0.5, 0.31, 0.5, CRATE, { yaw: i * 0.15 });
     }
   }
   // (the apples' crate at the fruit stall's end is a tippable since step 3:

@@ -77,7 +77,8 @@
 // =============================================================================
 import { setMarketDusk } from './market.js';
 import { MARKET_REGISTRATION, marketArea, MUSICIAN, PIGEON_PATCH, TREAT_STALLS, stallById } from './marketplan.js';
-import { applePaths, createApples, createPetals, createBucketBlooms } from './marketfruit.js';
+import { applePaths, createApples, createPetals, createBucketBlooms, rollPaths, createRollers, WOOL, WOOL_COLOURS, MARKET_WOOL_SALT } from './marketfruit.js';
+import { inWatchZone } from '../marketrules.js';
 import { createMusician } from './marketfolk.js';
 import { createMarketSound, BELL } from './marketsound.js';
 import { loudness } from './roofssound.js';
@@ -85,6 +86,7 @@ import { findAt, noteMarketFind, MARKET_FIND_ANCHORS } from './marketfinds.js';
 
 export const MARKET_BUCKET_ID = 'market-bucket-1';
 const CRATE_KIND = 'applecrate';
+const BASKET_KIND = 'yarnbasket';
 // The apples roll once the crate is nearly over: its tip animation (0.5 s,
 // tippables.js) has this much left. Both screens play the same anim.
 const ROLL_AT = 0.25;
@@ -92,6 +94,20 @@ const ROLL_AT = 0.25;
 // walk adds this device's own colliders to it (scratch posts, gate frames,
 // rests, a birthday cake), which differ between screens (walk.js).
 const PLAN_AREA = marketArea();
+// The wool rolls only across calm cobbles: out of every treat stall's watch zone (a metre of margin
+// round it, in its own frame) and off each hide's dash to its treat, so a ball never lands where a stallholder looks
+const DASH_CLEAR = 0.6;
+function woolAvoid(x, z) {
+  for (const id of TREAT_STALLS) {
+    const s = stallById(id);
+    if (inWatchZone(s, x, z, false)) return true;
+    const ax = s.hide.x, az = s.hide.z, bx = s.treat.x, bz = s.treat.z;
+    const L2 = (bx - ax) ** 2 + (bz - az) ** 2;
+    const t = Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (z - az) * (bz - az)) / L2));
+    if (Math.hypot(x - (ax + (bx - ax) * t), z - (az + (bz - az) * t)) < DASH_CLEAR) return true;
+  }
+  return false;
+}
 // still: her paws within this of where she came to rest (roofsmoments.js's)
 export const STILL_EPS = 0.05; // m
 // a step over this speed is a perch snap or a respawn, not her running
@@ -125,6 +141,8 @@ export function createMarketLife(area, ctx = {}) {
   let bloomsIn = false;
   let apples = null;
   let crate = null;
+  let wool = null;
+  let basketEntry = null;
   let bucket = null;
   let shown = false;
   let disposed = false;
@@ -288,6 +306,16 @@ export function createMarketLife(area, ctx = {}) {
         }
       }
       apples?.update(dt);
+      // the yarn basket: the wool rolls once it is nearly over, the same on both screens
+      basketEntry ??= findBy(session?.tippables?.list, 'kind', BASKET_KIND);
+      if (!wool && scene && basketEntry?.tipped && basketEntry.anim <= ROLL_AT) {
+        const at = basketEntry.group.position;
+        wool = createRollers(scene, rollPaths(PLAN_AREA, at, basketEntry.group.rotation.y, WOOL, MARKET_WOOL_SALT, woolAvoid), {
+          reducedMotion, spec: WOOL, salt: MARKET_WOOL_SALT, colours: WOOL_COLOURS, name: 'marketWool',
+        });
+        wool.start();
+      }
+      wool?.update(dt);
       if (blooms && !bloomsIn) {
         bucket ??= findBy(session?.knockables?.list, 'id', MARKET_BUCKET_ID);
         if (bucket?.group) {
@@ -309,11 +337,13 @@ export function createMarketLife(area, ctx = {}) {
       partnersIn.clear();
       if (bicycle) bicycle.rotation.x = rockFrom;
       apples?.dispose();
+      wool?.dispose();
       petals?.dispose();
       blooms?.dispose();
       musician?.dispose();
       sound?.dispose();
       apples = null;
+      wool = null;
       petals = null;
       blooms = null;
       musician = null;

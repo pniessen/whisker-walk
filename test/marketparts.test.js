@@ -40,9 +40,9 @@ describe('marketparts', () => {
     let a; let b;
     const spy = withDocumentSpy(() => { a = createMarketAtlas(); b = createMarketAtlas(); marketMaterials(); });
     expect(spy).not.toHaveBeenCalled();
-    // Step 3 (V11): 8 x 4 cells of 32 px
-    expect([a.w, a.h, a.cells]).toEqual([256, 128, 32]);
-    expect([a.texture.image.width, a.texture.image.height]).toEqual([256, 128]);
+    // Step 3 (V11): 8 x 4 cells of 32 px; the beauty pass (2026-11-22) grew it to 8 x 8 (cells 32-43 are the new stalls')
+    expect([a.w, a.h, a.cells]).toEqual([256, 256, 64]);
+    expect([a.texture.image.width, a.texture.image.height]).toEqual([256, 256]);
     expect(a.texture.isDataTexture).toBe(true);
     expect(a.texture.magFilter).toBe(THREE.LinearFilter);
     expect(Array.from(a.texture.image.data)).toEqual(Array.from(b.texture.image.data));
@@ -95,12 +95,13 @@ describe('marketparts', () => {
     expect(wb.some((p) => lumOf(p) < 0.3)).toBe(true);
   });
 
-  it('atlasCell gives each cell its own eighth-column, quarter-row box', () => {
-    expect(atlasCell(0)).toEqual({ u0: 0, v0: 0, u1: 0.125, v1: 0.25 });
-    expect(atlasCell(5)).toEqual({ u0: 0.625, v0: 0, u1: 0.75, v1: 0.25 });
-    expect(atlasCell(15)).toEqual({ u0: 0.875, v0: 0.25, u1: 1, v1: 0.5 });
-    expect(atlasCell(16)).toEqual({ u0: 0, v0: 0.5, u1: 0.125, v1: 0.75 });
-    expect(atlasCell(31)).toEqual({ u0: 0.875, v0: 0.75, u1: 1, v1: 1 });
+  it('atlasCell gives each cell its own eighth-column, eighth-row box', () => {
+    expect(atlasCell(0)).toEqual({ u0: 0, v0: 0, u1: 0.125, v1: 0.125 });
+    expect(atlasCell(5)).toEqual({ u0: 0.625, v0: 0, u1: 0.75, v1: 0.125 });
+    expect(atlasCell(15)).toEqual({ u0: 0.875, v0: 0.125, u1: 1, v1: 0.25 });
+    expect(atlasCell(16)).toEqual({ u0: 0, v0: 0.25, u1: 0.125, v1: 0.375 });
+    expect(atlasCell(31)).toEqual({ u0: 0.875, v0: 0.375, u1: 1, v1: 0.5 });
+    expect(atlasCell(63)).toEqual({ u0: 0.875, v0: 0.875, u1: 1, v1: 1 });
   });
 
   it('the cobble texture: rows offset, stones varied, the same twice, no canvas', () => {
@@ -159,7 +160,7 @@ describe('marketparts', () => {
   it('the materials are one set: awning and stall carry the atlas, the lantern is dark until dusk', () => {
     const m = marketMaterials();
     // only what the square draws with (the ground and the fountain have their own)
-    expect(Object.keys(m).sort()).toEqual(['awning', 'cloth', 'lantern', 'metal', 'stall']);
+    expect(Object.keys(m).sort()).toEqual(['awning', 'cloth', 'front', 'lantern', 'metal', 'stall']);
     for (const k of Object.keys(m)) expect(m[k], k).toBeTruthy();
     expect(m.awning.map).toBeTruthy();
     expect(m.stall.map).toBe(m.awning.map);
@@ -198,13 +199,13 @@ describe('marketparts', () => {
   });
 
   it('there is a treat mesh for every treat kind, small and casting nothing', () => {
-    expect(TREAT_KINDS).toEqual(['fishhead', 'sausageroll', 'cheddar', 'cream', 'crumbs']);
+    expect(TREAT_KINDS).toEqual(['fishhead', 'sausageroll', 'cheddar', 'cream', 'crumbs', 'wool', 'sausages', 'catnip', 'sardines']);
     for (const kind of TREAT_KINDS) {
       const g = buildTreatMesh(kind);
       expect(g.isGroup, kind).toBe(true);
       const box = new THREE.Box3().setFromObject(g);
       const s = box.getSize(new THREE.Vector3());
-      expect(Math.max(s.x, s.y, s.z), kind).toBeLessThan(0.25);
+      expect(Math.max(s.x, s.y, s.z), kind).toBeLessThan(kind === 'sausages' ? 0.55 : 0.25); // (a string of three links)
       expect(Math.max(s.x, s.y, s.z), kind).toBeGreaterThan(0.04);
       const c = box.getCenter(new THREE.Vector3());
       expect(Math.hypot(c.x, c.y, c.z), kind).toBeLessThan(0.05);

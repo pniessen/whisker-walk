@@ -1,7 +1,7 @@
 import { DEN_ITEMS, DEN_SPOTS } from './den.js';
 import { isPlainObject } from './plainobject.js';
 import { note } from './diagnostics.js';
-import { sanitizeCustomCats, sanitizeLook, CUSTOM_IDS, CUSTOM_MAX, CUSTOM_PERSONALITIES } from './customcats.js';
+import { sanitizeCustomCats, sanitizeLook, CUSTOM_IDS, CUSTOM_MAX, CUSTOM_BASE, MORE_SLOTS_PRICE, CUSTOM_PERSONALITIES } from './customcats.js';
 import { sanitizeOutfits, wornNow, canSaveOutfit, nextOutfitId, OUTFIT_SLOTS } from './outfits.js';
 import { sanitizeUsage, bumpUsage, mergeUsage } from './usage.js';
 import { validPetName } from './net.js';
@@ -512,6 +512,9 @@ function defaultState() {
     // Cat builder: up to three cats she made herself. Additive, so SAVE_VERSION
     // stays 4 (equipped.custom is the same). equipped.cat always stays a preset.
     customCats: [],
+    // Slots 4 and 5 for her own cats, bought together once (30 paw points).
+    // Additive; an older save has no key and loads false.
+    moreCatSlots: false,
     // Saved outfits (src/outfits.js): up to five accessory combinations she
     // can put back on. Additive, so SAVE_VERSION stays 4.
     outfits: [],
@@ -1119,6 +1122,8 @@ function sanitizeState(parsed) {
   // Cat builder: additive, so SAVE_VERSION stays 4. equipped.custom survives only
   // if it names a custom cat that survived sanitising.
   const customCats = sanitizeCustomCats(parsed.customCats);
+  // Cats in slot 4 or 5 could only come from the purchase, so they imply it.
+  const moreCatSlots = parsed.moreCatSlots === true || customCats.some((c) => CUSTOM_IDS.indexOf(c.id) >= CUSTOM_BASE);
   const wantCustom = parsed.equipped?.custom;
   const equippedCustom = typeof wantCustom === 'string' && customCats.some((c) => c.id === wantCustom) ? wantCustom : null;
 
@@ -1141,6 +1146,7 @@ function sanitizeState(parsed) {
     unlocked: { cats: unlockedCats, accessories: unlockedAcc, areas: unlockedAreas },
     equipped: { cat: equippedCat, collar: equippedCollar, ...equippedSlots, custom: equippedCustom },
     customCats,
+    moreCatSlots,
     outfits: sanitizeOutfits(parsed.outfits, CATALOG),
     usage: sanitizeUsage(parsed.usage),
     area,
@@ -1681,15 +1687,29 @@ export function createProgression(storage) {
     // Cat builder. A custom cat is a name, a personality (one of the six
     // CUSTOM_PERSONALITIES) and a look; ids come from CUSTOM_IDS in order.
     createCustomCat({ name, personality, look } = {}) {
-      if (state.customCats.length >= CUSTOM_MAX) return null;
+      if (state.customCats.length >= api.catSlots()) return null;
       if (!validPetName(name) || !Object.hasOwn(CUSTOM_PERSONALITIES, personality)) return null;
-      const id = CUSTOM_IDS.find((i) => !state.customCats.some((c) => c.id === i));
+      const id = CUSTOM_IDS.slice(0, api.catSlots()).find((i) => !state.customCats.some((c) => c.id === i));
       if (!id) return null;
       state.customCats.push({ id, name, personality, look: sanitizeLook(look) });
       // A new cat on a reused id starts clean (R17); editing keeps scars.
       delete state.scars[id];
       save();
       return id;
+    },
+    // 3 slots, or 5 once slots 4 and 5 are bought (one purchase, both slots).
+    catSlots() {
+      return state.moreCatSlots ? CUSTOM_MAX : CUSTOM_BASE;
+    },
+    canBuyMoreSlots() {
+      return !state.moreCatSlots && state.points >= MORE_SLOTS_PRICE;
+    },
+    buyMoreSlots() {
+      if (!api.canBuyMoreSlots()) return false;
+      state.points -= MORE_SLOTS_PRICE;
+      state.moreCatSlots = true;
+      save();
+      return true;
     },
     updateCustomCat(id, { name, personality, look } = {}) {
       const cat = state.customCats.find((c) => c.id === id);
@@ -1767,6 +1787,11 @@ export function createProgression(storage) {
     },
     unequip(slot) {
       state.equipped[slot] = null;
+      save();
+    },
+    // Every worn accessory off, in one save (Dress up's Remove all accessories).
+    unequipAll() {
+      for (const slot of OUTFIT_SLOTS) state.equipped[slot] = null;
       save();
     },
     // Saved outfits (src/outfits.js). saveOutfit() keeps what the cat has on
@@ -2644,6 +2669,7 @@ export function createProgression(storage) {
       const localVisits = state.visits;
       const localSeen = state.visitPrizesSeen;
       const localCustomCats = state.customCats;
+      const localMoreSlots = state.moreCatSlots;
       const localOutfits = state.outfits;
       const localUsage = state.usage;
       const localFights = state.fightsWon;
@@ -2665,6 +2691,8 @@ export function createProgression(storage) {
         state.customCats = localCustomCats;
         state.equipped.custom = null;
       }
+      // Slots she paid for stay paid for, whichever side bought them.
+      state.moreCatSlots = localMoreSlots || state.moreCatSlots;
       // The same for saved outfits: an older build's payload has none to give.
       if (!(isPlainObject(rawSaveObject) && Object.hasOwn(rawSaveObject, 'outfits'))) state.outfits = localOutfits;
       // Usage counts never go down: the larger of this device's and the save's.

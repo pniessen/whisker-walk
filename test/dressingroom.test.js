@@ -634,11 +634,30 @@ describe('her own cats in the dressing room', () => {
     expect(h.indexOf('data-dr-mine="mine1"')).toBeLessThan(h.indexOf('data-dr-make'));
     expect(h).toContain('aria-label="Make a cat">＋ Make');
   });
-  it('at three cats the tile is greyed with the agreed words and nothing deletes', () => {
-    const h = renderDressingRoomHtml({ model: buildDressingModel(withMine(3), CATALOG) });
-    expect(h).toContain('3 of 3 — change one of yours for a new look');
+  it('at three cats the tile offers slots 4 and 5 with the price, and nothing deletes', () => {
+    const h = renderDressingRoomHtml({ model: buildDressingModel({ ...withMine(3), points: 50 }, CATALOG), });
+    expect(h).toMatch(/<button[^>]*data-dr-buy-slots/);
+    expect(h).toContain('2 more cat slots — 30');
     expect(h).not.toMatch(/<button[^>]*data-dr-make/);
     expect(h).not.toMatch(/delete|remove|let this cat go/i);
+  });
+  it('at three cats with too few points the buy tile is greyed and says how many are needed', () => {
+    const m = buildDressingModel({ ...withMine(3), points: 10 }, CATALOG);
+    expect(m.slotBuy).toEqual({ price: 30, canBuy: false });
+    const h = renderDressingRoomHtml({ model: m });
+    expect(h).not.toMatch(/<button[^>]*data-dr-buy-slots/);
+    expect(h).toContain('aria-disabled="true"');
+    expect(h).toContain('Save up 30');
+  });
+  it('after the purchase the Make tile stays for cats 4 and 5, and at five the tile says so', () => {
+    const four = buildDressingModel({ ...withMine(3), moreCatSlots: true, customCats: [...withMine(3).customCats, { id: 'mine4', name: 'Moss', personality: 'fearless', look: LOOK }] }, CATALOG);
+    expect(four.canMake).toBe(true);
+    expect(four.slotBuy).toBe(null);
+    const five = buildDressingModel({ ...withMine(3), moreCatSlots: true, customCats: ['mine1', 'mine2', 'mine3', 'mine4', 'mine5'].map((id) => ({ id, name: 'Moss', personality: 'fearless', look: LOOK })) }, CATALOG);
+    expect(five.canMake).toBe(false);
+    const h = renderDressingRoomHtml({ model: five });
+    expect(h).toContain('5 of 5 — change one of yours for a new look');
+    expect(h).not.toMatch(/data-dr-buy-slots/);
   });
   it('walking a custom cat: her tile is selected, no preset is, the hero is hers with Change my cat', () => {
     const m = buildDressingModel(withMine(2, 'mine2'), CATALOG);

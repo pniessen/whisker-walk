@@ -440,3 +440,92 @@ describe('the market life', () => {
     }
   });
 });
+
+// ---- 2026-11-22, the toy and yarn stall: the yarn basket's wool and the pull-along toy -----------------
+
+describe('the yarn basket and the pull-along toy', () => {
+  const F = () => import('../src/world/marketfruit.js');
+  const hideLines = () => TREAT_STALLS.map(stallById).map((s) => [s.hide, s.treat]);
+  const inZone = (s, x, z) => {
+    const { lx, lz } = toStall(s, x, z);
+    return Math.abs(lx) <= s.w / 2 + 1 && lz >= s.d / 2 && lz <= s.d / 2 + 3.2;
+  };
+  // the same avoid the life uses (marketlife.js woolAvoid), through the real thing: tip the basket in a life and read the wool
+  async function tipBasket(reducedMotion = false) {
+    const scene = new THREE.Scene();
+    const tp = createTippables(scene, AREA_RECORD.tippables);
+    const life = createMarketLife(LIFE_AREA, { scene, reducedMotion });
+    const basket = tp.list.find((e) => e.kind === 'yarnbasket');
+    tp.tip(basket);
+    for (let i = 0; i < 12; i++) { tp.update(0.05); life.update(0.05, i * 0.05, null, null, { tippables: tp }); }
+    return { scene, tp, life, basket };
+  }
+  const AREA_RECORD = { tippables: null };
+  it('the tippable rows end with the two new kinds and the apple crate is still index 0', async () => {
+    const { build } = await import('../src/world/market.js');
+    const rec = build(new THREE.Scene());
+    AREA_RECORD.tippables = rec.tippables;
+    expect(rec.tippables.map((t) => t.kind)).toEqual(['applecrate', 'yarnbasket', 'pulltoy']);
+    const tp = createTippables(new THREE.Scene(), rec.tippables);
+    expect(tp.list.map((e) => e.id)).toEqual(['tip-0', 'tip-1', 'tip-2']);
+    expect(tp.list[0].kind).toBe('applecrate');
+  });
+
+  it('applePaths is the generalised walk with the apples\' own numbers: the same paths as before', async () => {
+    const { rollPaths, MARKET_APPLE_SALT: S } = await F();
+    for (const yaw of [0, 1.1, 2.9, 4.5]) expect(applePaths(AREA, CRATE, yaw)).toEqual(rollPaths(AREA, CRATE, yaw, APPLES, S));
+    // recorded before the change: yaw 1.1 (the crate's own)
+    const p = applePaths(AREA, CRATE, 1.1);
+    expect(p).toHaveLength(6);
+    for (const q of p) for (const k of ['x0', 'z0', 'x1', 'z1']) expect(Number.isFinite(q[k])).toBe(true);
+  });
+
+  it('wool paths: n of them, every point walkable, none in a watch zone or on a way to a treat, the same twice', async () => {
+    const { rollPaths, WOOL, MARKET_WOOL_SALT } = await F();
+    const avoid = (x, z) => TREAT_STALLS.map(stallById).some((s) => inZone(s, x, z)) || hideLines().some(([h, t]) => segDist({ x, z }, h, t) < 0.6);
+    const basket = (await import('../src/world/marketplan.js')).TOY_TIPS.basket;
+    for (let k = 0; k < 24; k++) {
+      const yaw = (k / 24) * Math.PI * 2;
+      const a = rollPaths(AREA, basket, yaw, WOOL, MARKET_WOOL_SALT, avoid);
+      const b = rollPaths(AREA, basket, yaw, WOOL, MARKET_WOOL_SALT, avoid);
+      expect(a).toHaveLength(WOOL.n);
+      expect(closeDiffs(a, b)).toEqual([]);
+      for (const q of a) {
+        for (const [x, z] of [[q.x0, q.z0], [q.x1, q.z1]]) {
+          expect(isWalkableAt(AREA, x, z), `yaw ${yaw.toFixed(2)}`).toBe(true);
+          expect(avoid(x, z), `yaw ${yaw.toFixed(2)}`).toBe(false);
+        }
+      }
+    }
+    expect(MARKET_WOOL_SALT).not.toBe(MARKET_APPLE_SALT);
+  });
+
+  it('tipping the basket rolls the wool; reduced motion puts every ball at its end at once', async () => {
+    const full = await tipBasket();
+    const wool = full.scene.getObjectByName('marketWool');
+    expect(wool?.isInstancedMesh).toBe(true);
+    expect(wool.visible).toBe(true);
+    const still = await tipBasket(true);
+    const w2 = still.scene.getObjectByName('marketWool');
+    expect(w2).toBeTruthy();
+    const m = new THREE.Matrix4();
+    const at = new THREE.Vector3();
+    for (let i = 0; i < w2.count; i++) { w2.getMatrixAt(i, m); at.setFromMatrixPosition(m); expect(at.y).toBeCloseTo(0.05, 6); }
+    for (const t of [full, still]) { t.life.dispose(); t.tp.dispose?.(); }
+  });
+
+  it('the basket and the toy are small, one mesh each, casting nothing, standing inside their solid circles', async () => {
+    const { buildYarnBasket, buildPullToy, YARN_BASKET, PULL_TOY } = await F();
+    for (const [build, spec] of [[buildYarnBasket, YARN_BASKET], [buildPullToy, PULL_TOY]]) {
+      const g = build();
+      expect(meshesOf(g)).toHaveLength(1);
+      expect(trianglesOf(g)).toBeLessThan(300);
+      for (const m of meshesOf(g)) { expect(m.castShadow).toBe(false); expect(m.userData.noCast).toBe(true); }
+      const box = new THREE.Box3().setFromObject(g);
+      expect(box.min.y).toBeCloseTo(0, 3);
+      let far = 0;
+      for (const m of meshesOf(g)) { const p = m.geometry.attributes.position; const v = new THREE.Vector3(); for (let i = 0; i < p.count; i++) far = Math.max(far, Math.hypot(v.fromBufferAttribute(p, i).x, v.z)); }
+      expect(far, g.name).toBeLessThanOrEqual(spec.r);
+    }
+  });
+});

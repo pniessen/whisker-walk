@@ -80,7 +80,7 @@ describe('the stallholders (Task 11)', () => {
     const r = marketRig();
     r.step(DT);
     expect(Object.keys(r.live.keepers).sort()).toEqual([...KEEPER_IDS].sort());
-    expect(KEEPER_IDS).toHaveLength(6);
+    expect(KEEPER_IDS).toHaveLength(10);
     expect(r.live.keepers.cafe).toBeUndefined(); // nobody watches the café's crumbs
     for (const id of KEEPER_IDS) {
       const s = stallById(id);
@@ -377,17 +377,17 @@ describe('the stallholders (Task 11)', () => {
     const live = createMarketLive(scene, area, { people: createPeopleKit, seed: 7, now: () => 1e9, figure: allNear });
     live.update(DT, DT, { cat: new THREE.Group(), player: { speed: 0 }, session: { remotes: { list: [] } } });
     const added = scene.children.filter((o) => !before.has(o));
-    // six people and four bubbles, nothing else; the build's own children are untouched
-    expect(added).toHaveLength(10);
-    expect(added.filter((o) => o.isSprite)).toHaveLength(4);
+    // ten people and eight bubbles, nothing else; the build's own children are untouched
+    expect(added).toHaveLength(18);
+    expect(added.filter((o) => o.isSprite)).toHaveLength(8);
     expect([...before].every((o) => o.parent === scene)).toBe(true);
-    expect(live.groups).toHaveLength(6);
+    expect(live.groups).toHaveLength(10);
     for (const g of live.groups) expect(added).toContain(g);
     // the walk's caster sweep runs after the life is made: it must not make them cast
     assignShadowCasters(scene);
     const theirs = [];
     for (const o of added) o.traverse((m) => { if (m.isMesh) theirs.push(m); });
-    expect(theirs.length).toBeGreaterThanOrEqual(6 * 1 + 4 * 3); // one skinned mesh a person, a broom of three for each treat stall
+    expect(theirs.length).toBeGreaterThanOrEqual(10 * 1 + 8 * 3); // one skinned mesh a person, a broom of three for each treat stall
     for (const m of theirs) {
       expect(m.castShadow, m.name).toBe(false);
       expect(m.userData.noCast, m.name).toBe(true);
@@ -403,19 +403,36 @@ describe('the stallholders (Task 11)', () => {
     // six people to 14,100 triangles (+120, the same 18 meshes): 126 / 52,441.
     const tri = (m) => (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
     const people = { meshes: theirs.length, casters: theirs.filter((m) => m.castShadow).length, tris: theirs.reduce((n, m) => n + tri(m), 0) };
-    expect(people.meshes).toBeLessThanOrEqual(20);
+    // Ten people (the four new stalls of 2026-11-22: measured 34 meshes, 23,632 triangles, all at near
+    // detail, brooms and all). Never all ten at once: the near detail is 12 m (people/index.js LOD.NEAR),
+    // and no point of the square has more than six stallholders within 13 m (its hysteresis) of it (the plan
+    // puts them 11-17 m out round the fountain), so the bound the square is held to is that many near and the
+    // rest far (the far figure measured below). The all-near sum is kept as the worst the kit can draw, not a ceiling it is held to.
+    expect(people.meshes).toBeLessThanOrEqual(34);
     expect(people.casters).toBe(0);
-    expect(people.tris).toBeLessThanOrEqual(14120);
+    expect(people.tris).toBeLessThanOrEqual(23640);
+    const far = buildSquare();
+    const farLive = createMarketLive(far.scene, far.area, { people: createPeopleKit, seed: 7, now: () => 1e9 });
+    farLive.update(DT, DT, { cat: new THREE.Group(), player: { speed: 0 }, session: { remotes: { list: [] } } });
+    let farTris = 0;
+    for (const g of farLive.groups) g.traverse((m) => { if (m.isMesh) farTris += tri(m); });
+    const keepers = Object.values(area.keepers);
+    let mostNear = 0;
+    for (let x = -21; x <= 21; x += 0.5) for (let z = -21; z <= 23; z += 0.5) mostNear = Math.max(mostNear, keepers.filter((k) => Math.hypot(k.x - x, k.z - z) <= 13).length); // near within 11, and kept near out to 13 (the switch's hysteresis)
+    expect(mostNear).toBeLessThanOrEqual(6);
+    const nearTris = people.tris / live.groups.length, farEach = farTris / farLive.groups.length;
+    const worstPeople = mostNear * nearTris + (live.groups.length - mostNear) * farEach;
+    farLive.dispose();
     const square = { meshes: 0, tris: 0 };
     for (const o of before) o.traverse((m) => { if (m.isMesh) { square.meshes++; square.tris += tri(m); } });
     const [maxMeshes, , maxTris] = MARKET_REGISTRATION.budget.built;
     expect(square.meshes + people.meshes).toBeLessThanOrEqual(maxMeshes);
-    expect(square.tris + people.tris).toBeLessThanOrEqual(maxTris);
+    expect(square.tris + worstPeople).toBeLessThanOrEqual(maxTris);
     // each person's contact shadow: the walk's decals follow live.groups
     const decals = createContactShadows(scene);
     const movers = decals.moverCount;
     for (const g of live.groups) decals.follow(g);
-    expect(decals.moverCount - movers).toBe(6);
+    expect(decals.moverCount - movers).toBe(10);
     decals.dispose();
     // the brooms are in the people's hands, hidden until a shoo
     for (const id of TREAT_STALLS) {
@@ -570,7 +587,9 @@ const treatOf = (id) => S(id).treat;
 const kindOf = (id) => S(id).treat.kind;
 // a spot in reach of a stall's treat, straight out in front of it (her centre
 // stops 0.55 m from the treat at its stand; this is 0.6)
-const reachSpot = (id) => fromStall(S(id), S(id).w / 2 - 0.3, S(id).d / 2 + 0.95);
+const reachSpot = (id) => fromStall(S(id), S(id).hideSide * (S(id).w / 2 - 0.3), S(id).d / 2 + 0.95);
+// the stalls whose treat is taken from the ground; the butcher's string hangs (test/marketlive-hop.test.js)
+const GROUND_STALLS = TREAT_STALLS.filter((id) => !stallById(id).treat.hang);
 const ofType = (r, type) => r.events.filter((e) => e.type === type);
 const pos = (o) => ({ x: o.position.x, z: o.position.z });
 // displacement along the stall's face (away from the counter) and along its local +x
@@ -643,7 +662,7 @@ describe("the people's detail by her distance (the final review's LOD switch)", 
     const figure = (spot) => { const k = marketFigure(spot); made.push(k); return k; };
     const r = marketRig({ figure, scene, area });
     r.step(DT);
-    expect(made).toHaveLength(6);
+    expect(made).toHaveLength(10);
     expect(made.map((k) => k.person.detail)).toEqual(KEEPER_IDS.map(() => 'far'));
     const at = (id) => made[KEEPER_IDS.indexOf(id)];
     const distTo = (k) => Math.hypot(r.cat.position.x - k.group.position.x, r.cat.position.z - k.group.position.z);
@@ -681,7 +700,7 @@ describe("the people's detail by her distance (the final review's LOD switch)", 
 
 describe('the sneak (Task 12)', () => {
   it('a treat is taken while the stallholder is turned away, in the mouth, then eaten within two seconds', () => {
-    for (const id of TREAT_STALLS) {
+    for (const id of GROUND_STALLS) {
       const r = marketRig();
       const kind = kindOf(id);
       const st = r.stall(id);
@@ -730,7 +749,7 @@ describe('the sneak (Task 12)', () => {
   }, 60_000);
 
   it('the action button while watched is a shoo and a hop back, and the treat stays out', () => {
-    for (const id of TREAT_STALLS) {
+    for (const id of GROUND_STALLS) {
       const s = S(id);
       const r = marketRig();
       const st = r.stall(id);
@@ -765,7 +784,7 @@ describe('the sneak (Task 12)', () => {
   }, 60_000);
 
   it('a cat walking toward the treat while watched is shooed; one walking across the front is not', () => {
-    for (const id of TREAT_STALLS) {
+    for (const id of GROUND_STALLS) {
       const s = S(id);
       const T = treatOf(id);
       // straight at the treat
@@ -837,7 +856,7 @@ describe('the sneak (Task 12)', () => {
 
   it('a crouched cat is shooed only within half the distance', () => {
     const half = MARKET.WATCH_DEPTH * MARKET.STALK_SHARE;
-    for (const id of TREAT_STALLS) {
+    for (const id of GROUND_STALLS) {
       const s = S(id);
       const T = treatOf(id);
       for (const stalking of [true, false]) {
@@ -1130,7 +1149,7 @@ describe('the sneak (Task 12)', () => {
       expect(broom.visible, 'hidden again after the shoo').toBe(false);
       return shown;
     };
-    for (const id of TREAT_STALLS) {
+    for (const id of GROUND_STALLS) {
       // the action button while watched
       const r = marketRig();
       r.setPhase(id, 'serve', 0.3);
@@ -1144,7 +1163,7 @@ describe('the sneak (Task 12)', () => {
       const s = S(id);
       const c = marketRig();
       c.setPhase(id, 'serve', 0);
-      const q = c.local(id, s.w / 2 + 0.95, s.d / 2 + 1.4);
+      const q = c.local(id, s.hideSide * (s.w / 2 + 0.95), s.d / 2 + 1.4);
       c.place(q.x, q.z);
       expect(until(c, () => c.stall(id).cooing, 2)).toBeLessThan(2);
       c.step(DT, 10);
@@ -1159,14 +1178,14 @@ describe('the sneak (Task 12)', () => {
   }, 60_000);
 
   it('under a trestle or on an awning she is never shooed', () => {
-    for (const id of TREAT_STALLS) {
+    for (const id of GROUND_STALLS) {
       const s = S(id);
       const T = treatOf(id);
       const h = s.hide;
       // under the trestle, in the corner of the zone it covers
       const r = marketRig();
       r.setPhase(id, 'serve', 0.2);
-      const p = r.local(id, s.w / 2 + 0.95, s.d / 2 + 0.15);
+      const p = r.local(id, s.hideSide * (s.w / 2 + 0.95), s.d / 2 + 0.15);
       expect(Math.hypot(p.x - h.x, p.z - h.z)).toBeLessThan(h.r - 0.05);
       r.place(p.x, p.z).step(DT);
       r.walk(T.x - p.x, T.z - p.z, 0.5);
@@ -1214,7 +1233,7 @@ describe('the sneak (Task 12)', () => {
   // height, while the stall watches: across the whole zone below, then at the
   // treat, then still.
   it('perched on a real awning she is never shooed and never cooed at', () => {
-    for (const id of TREAT_STALLS) {
+    for (const id of GROUND_STALLS) {
       const s = S(id);
       const T = treatOf(id);
       const { roof } = stallClimb(id);
@@ -1306,13 +1325,13 @@ describe('the sneak (Task 12)', () => {
 
   it("a cat waiting at a stall's hide gets a safe window to its treat within one cycle", () => {
     const square = buildSquare();
-    for (const id of TREAT_STALLS) {
+    for (const id of GROUND_STALLS) {
       const s = S(id);
       const T = s.treat;
       const h = s.hide;
       const P = periodOf(id);
       // out in front of the counter's corner post, then at the treat
-      const p1 = fromStall(s, s.w / 2 + 0.5, s.d / 2 + 0.6);
+      const p1 = fromStall(s, s.hideSide * (s.w / 2 + 0.5), s.d / 2 + 0.6);
       expect(isWalkableAt(square.area, h.x, h.z), id).toBe(true);
       expect(isWalkableAt(square.area, p1.x, p1.z), id).toBe(true);
       for (let seed = 1; seed <= 20; seed++) {
@@ -1409,7 +1428,7 @@ describe('the sneak (Task 12)', () => {
   }, 60_000);
 
   it('a hop refused at its first step is no hop: she stays put, and the shoo says hopped: false', () => {
-    for (const id of TREAT_STALLS) {
+    for (const id of GROUND_STALLS) {
       // something solid right behind her (her back to a crate)
       const r = marketRig({ isFree: () => false });
       r.setPhase(id, 'serve', 0.3);
@@ -1655,7 +1674,7 @@ describe('the sneak (Task 12)', () => {
   });
 
   it("a hop from against the treat's stand slides off it, never refused for touching it", () => {
-    for (const id of TREAT_STALLS) {
+    for (const id of GROUND_STALLS) {
       const s = S(id);
       const r = marketRig();
       r.setPhase(id, 'serve', 0.3);
@@ -1665,7 +1684,7 @@ describe('the sneak (Task 12)', () => {
       const t = toStall(s, T.x, T.z);
       const phi = -3 * Math.PI / 180;
       const k = 0.2 + CAT_RADIUS + 1e-6;
-      const p = fromStall(s, t.lx + k * Math.cos(phi), t.lz + k * Math.sin(phi));
+      const p = fromStall(s, t.lx + s.hideSide * k * Math.cos(phi), t.lz + k * Math.sin(phi));
       expect(isWalkableAt(r.area, p.x, p.z), id).toBe(true);
       expect(isWalkableAt(r.area, p.x + s.face.x * 0.05, p.z + s.face.z * 0.05), `${id}: straight back brushes the stand`).toBe(false);
       r.place(p.x, p.z).step(DT);

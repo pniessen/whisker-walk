@@ -506,7 +506,7 @@ const MERGED_AREAS = [
   ['farm', buildFarm, 200, 135], // measured 176 / 119
   ['fair', buildFair, 200, 140], // measured 178 / 124
   ['roofs', buildRoofs, 64, 34], // measured 60 / 30 (59 / 30 before the Rooftops step 5 fix wave's vane, its own mesh so the tower view can fade it, never merged; 57 / 30 before Rooftops step 3's two sleeping cats, Task 6, never merged; 56 / 30 before round two's lamp halo, Task G; 55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
-  ['market', buildMarket, 123, 27], // measured 98 / 24 after Task 6's rework and review (its clutter, the controller's ruling), +12%; 76 / 23 before; 108 / 24 after step 3's Task 8 (the café front's paint and its chalkboard's contact-shadow box), ceiling unchanged; 110 / 25 with step 4's gate (its body and its bar), re-pinned at +12% (the same ruling)
+  ['market', buildMarket, 156, 36], // 2026-11-22: re-measured on purpose for the four new stalls (toys, plants, bric-a-brac, butcher): 139 / 32 merged, +12% (the same ruling); ceilings 280 / 210 / 62000 unchanged. Earlier: measured 98 / 24 after Task 6's rework and review (its clutter, the controller's ruling), +12%; 76 / 23 before; 108 / 24 after step 3's Task 8 (the café front's paint and its chalkboard's contact-shadow box), ceiling unchanged; 110 / 25 with step 4's gate (its body and its bar), re-pinned at +12% (the same ruling)
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {

@@ -258,6 +258,12 @@ export const SUB_PX_AT_CAP = 13;
 export const TAG_PX_MIN = 18;
 export const TAG_PX_MAX = 34;
 export const TAG_EDGE_PX = 6;
+// A co-walk partner's tag (userData.partner) on a phone (the screen's short
+// side under PARTNER_TAG_PHONE_PX CSS px) is held at PARTNER_TAG_PX_MIN: its
+// capitals were about 7 px at TAG_PX_MIN, now about 11-12. Its lower edge
+// stays put, so it grows upward, away from the cat.
+export const PARTNER_TAG_PX_MIN = 30;
+export const PARTNER_TAG_PHONE_PX = 600;
 
 const _pos = new THREE.Vector3();
 const _size = new THREE.Vector2();
@@ -294,7 +300,8 @@ export function fitTagToView(tag, camera, viewW, viewH, minBottomY = -Infinity, 
   // (a one-line tag's is TAG_PX_MAX, as it always was).
   const subPx = tag.userData?.sub ? tag.userData.subPx : 0;
   const max = subPx > 0 ? Math.max(TAG_PX_MAX, (SUB_PX_AT_CAP * TAG_H) / subPx) : TAG_PX_MAX;
-  const target = lineH < TAG_PX_MIN ? TAG_PX_MIN : lineH > max ? max : lineH;
+  const pxMin = tag.userData?.partner && Math.min(viewW, viewH) < PARTNER_TAG_PHONE_PX ? PARTNER_TAG_PX_MIN : TAG_PX_MIN;
+  const target = lineH < pxMin ? pxMin : lineH > max ? max : lineH;
   const f = target / lineH;
   const nsx = sx * f;
   const nsy = sy * f;

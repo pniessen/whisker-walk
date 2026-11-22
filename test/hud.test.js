@@ -223,7 +223,7 @@ describe('discovery lead words (polish-hud2)', () => {
       .toBe('Again — you pounce-tagged a sparrow! — a perfect sneak!');
   });
   it('everything else still leads with "You spotted" / "Again —", and an intruder stands alone', () => {
-    expect(discoveryText({ type: 'treasure', label: 'a lost marble', repeat: false })).toBe('You spotted a lost marble');
+    expect(discoveryText({ type: 'treasure', label: 'a lost marble', repeat: false })).toBe('You found a lost marble');
     expect(discoveryText({ type: 'treasure', label: 'a lost marble', repeat: true })).toBe('Again — a lost marble');
     expect(discoveryText({ type: 'intruder', label: 'You chased off Mossjaw! 🛡️' })).toBe('You chased off Mossjaw! 🛡️');
   });
@@ -364,7 +364,7 @@ describe('toast cap and merge', () => {
     w.run(16000);
     expect(w.all.map((s) => s.text).slice(2)).toEqual([
       'You spotted 2 critters  +8 🐾',
-      'You spotted a lost marble  +8 🐾',
+      'You found a lost marble  +8 🐾',
       'You spotted a frog  +5 🐾',
     ]);
   });
@@ -415,7 +415,7 @@ describe('toast cap and merge', () => {
     critter('a songbird');
     critter('a squirrel');
     bus.emit('discovery', { type: 'treasure', key: 't', label: 'a lost marble', points: 8, repeat: false });
-    expect(texts()).toEqual(['You spotted 2 critters  +10 🐾', 'You spotted a lost marble  +8 🐾']);
+    expect(texts()).toEqual(['You spotted 2 critters  +10 🐾', 'You found a lost marble  +8 🐾']);
   });
 
   it('a critter after a non-critter toast starts a new toast', () => {

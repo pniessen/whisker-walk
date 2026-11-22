@@ -50,10 +50,14 @@ import { painted, bloomGeometry, BLOOMS } from './marketparts.js';
 
 export const MARKET_APPLE_SALT = 113;
 export const MARKET_PETAL_SALT = 127;
+export const MARKET_WOOL_SALT = 139;
 
 // n apples of radius r; each rolls roll.min..roll.max m past the mouth over
 // `time` s; `spread` rad is the fan's whole width about the mouth's line.
 export const APPLES = Object.freeze({ n: 6, r: 0.045, roll: Object.freeze({ min: 0.8, max: 2.2 }), time: 1.4, spread: 0.9 });
+// the toy stall's wool: five balls, rolling a shorter way than the apples (the stall's pocket is tighter)
+export const WOOL = Object.freeze({ n: 5, r: 0.05, roll: Object.freeze({ min: 0.6, max: 1.6 }), time: 1.3, spread: 1.0 });
+export const WOOL_COLOURS = Object.freeze([0xc04a8a, 0x4a86b8, 0xf2c94c, 0x4c9a52, 0xd8433c]);
 const STEP = 0.05; // m: the walkability samples along a ray
 const MOUTH = 0.35; // m from the crate's spot: just past its mouth once over
 const TUMBLE = 0.3; // m: an apple starts this far behind its path, at the mouth
@@ -104,6 +108,54 @@ function drawAppleCrate() {
   return g;
 }
 
+// THE YARN BASKET and THE PULL-ALONG TOY (2026-11-22, the toy and yarn stall): two more tippables,
+// appended after the apple crate in the record's row so the crate keeps tip-0. Each is drawn about its
+// base on the edge it tips over, as the crate is (x -w..0). The basket's wool rolls out of it like the apples.
+export const YARN_BASKET = Object.freeze({ w: 0.34, h: 0.26, d: 0.34, r: 0.4 });
+export const PULL_TOY = Object.freeze({ w: 0.36, h: 0.3, d: 0.2, r: 0.4 });
+export function buildYarnBasket() {
+  return withLocalUuids('market-yarn-basket', () => {
+    const { w, h, d } = YARN_BASKET;
+    const cx = -w / 2;
+    const parts = [boxAt(w, 0.02, d, cx, 0.01, 0, 0xb08a52)];
+    for (const sz of [-1, 1]) parts.push(boxAt(w, h, 0.02, cx, h / 2, sz * (d / 2 - 0.01), 0xb08a52));
+    for (const sx of [-1, 1]) parts.push(boxAt(0.02, h, d - 0.04, cx + sx * (w / 2 - 0.01), h / 2, 0, 0xa07a46));
+    WOOL_COLOURS.forEach((hex, i) => {
+      const a = (i / WOOL_COLOURS.length) * Math.PI * 2;
+      parts.push(painted(new THREE.IcosahedronGeometry(WOOL.r, 0).translate(cx + 0.09 * Math.cos(a), h - 0.01 + (i % 2) * 0.012, 0.09 * Math.sin(a)), hex));
+    });
+    return oneMesh(parts, 'marketYarnBasket');
+  });
+}
+export function buildPullToy() {
+  return withLocalUuids('market-pull-toy', () => {
+    const { w, h, d } = PULL_TOY;
+    const cx = -w / 2;
+    const parts = [
+      boxAt(w, 0.1, d, cx, 0.1, 0, 0xd8433c), // the body, a little red cart
+      boxAt(0.12, 0.16, d - 0.04, cx + 0.12, 0.23, 0, 0xf2c94c), // the head of the toy dog
+      boxAt(0.05, 0.05, 0.05, cx + 0.2, 0.27, 0, 0x34383c), // its nose
+      boxAt(0.1, 0.02, 0.02, cx - 0.14, 0.06, 0, 0x6e4a33), // the pull-string's handle end
+    ];
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) parts.push(painted(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 8).rotateX(Math.PI / 2).translate(cx + sx * (w / 2 - 0.07), 0.05, sz * (d / 2)), 0x4a86b8));
+    void h;
+    return oneMesh(parts, 'marketPullToy');
+  });
+}
+function oneMesh(parts, name) {
+  const geo = mergeGeometries(parts);
+  for (const p of parts) p.dispose();
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 }));
+  mesh.name = name;
+  mesh.castShadow = false;
+  mesh.receiveShadow = true;
+  mesh.userData.noCast = true;
+  const g = new THREE.Group();
+  g.name = name;
+  g.add(mesh);
+  return g;
+}
+
 // applePaths(area, crateAt, mouthYaw) -> [{ x0, z0, x1, z1 }] x APPLES.n. Pure.
 // `mouthYaw` is the tipped crate's rotation.y: its mouth faces world
 // (cos yaw, -sin yaw). Apple i's ray leaves the crate's spot at the fan's
@@ -111,10 +163,17 @@ function drawAppleCrate() {
 // x0 is the first walkable sample past the mouth, x1 the last walkable one
 // before the roll runs out or the ray meets anything solid.
 export function applePaths(area, crateAt, mouthYaw) {
-  const { n, roll, spread } = APPLES;
+  return rollPaths(area, crateAt, mouthYaw, APPLES, MARKET_APPLE_SALT);
+}
+// rollPaths(area, crateAt, mouthYaw, spec, salt, avoid): the same walk for anything that spills and rolls
+// (the apples, the yarn basket's wool). `avoid(x, z)`, if given, is true for a spot a ball may not roll through
+// (the wool keeps out of every watch zone and off every way to a treat); none is the apples' own.
+export function rollPaths(area, crateAt, mouthYaw, spec, salt, avoid = null) {
+  const { n, roll, spread } = spec;
+  const free = avoid ? (x, z) => isWalkableAt(area, x, z) && !avoid(x, z) : (x, z) => isWalkableAt(area, x, z);
   const out = [];
   for (let i = 0; i < n; i++) {
-    const h = hash01(i, 0, MARKET_APPLE_SALT);
+    const h = hash01(i, 0, salt);
     const jitter = (h * 7) % 1; // a second number from the same draw
     const a = mouthYaw + ((i + 0.5) / n - 0.5) * spread + (jitter - 0.5) * (spread / n);
     const ux = Math.cos(a);
@@ -122,10 +181,10 @@ export function applePaths(area, crateAt, mouthYaw) {
     const at = (s) => [crateAt.x + ux * s, crateAt.z + uz * s];
     let k = Math.ceil(MOUTH / STEP);
     const kMax = k + Math.ceil((roll.max + 1) / STEP);
-    while (k < kMax && !isWalkableAt(area, ...at(k * STEP))) k++;
+    while (k < kMax && !free(...at(k * STEP))) k++;
     const k0 = k;
     const kEnd = k0 + Math.floor((roll.min + (roll.max - roll.min) * h) / STEP + 1e-9);
-    while (k < kEnd && isWalkableAt(area, ...at((k + 1) * STEP))) k++;
+    while (k < kEnd && free(...at((k + 1) * STEP))) k++;
     const [x0, z0] = at(k0 * STEP);
     const [x1, z1] = at(k * STEP);
     out.push({ x0, z0, x1, z1 });
@@ -134,8 +193,8 @@ export function applePaths(area, crateAt, mouthYaw) {
 }
 
 // The apples' one InstancedMesh (its uuids from a local stream: withLocalUuids).
-function appleMesh(n) {
-  const { r } = APPLES;
+function appleMesh(n, spec = APPLES, name = 'marketApples') {
+  const { r } = spec;
   const body = new THREE.IcosahedronGeometry(r, 1);
   const stem = new THREE.CylinderGeometry(0.004, 0.005, 0.022, 4, 1, true).translate(0, r + 0.008, 0);
   const parts = [painted(body, 0xffffff), painted(stem, 0x5a3a20)];
@@ -143,7 +202,7 @@ function appleMesh(n) {
   for (const p of parts) p.dispose();
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0 });
   const mesh = new THREE.InstancedMesh(geo, mat, n);
-  mesh.name = 'marketApples';
+  mesh.name = name;
   mesh.castShadow = false;
   mesh.receiveShadow = false;
   mesh.userData.noCast = true;
@@ -154,10 +213,14 @@ function appleMesh(n) {
 
 // createApples(scene, paths, { reducedMotion }) -> { start(), update(dt), mesh, dispose() }.
 export function createApples(scene, paths, { reducedMotion = false } = {}) {
+  return createRollers(scene, paths, { reducedMotion, spec: APPLES, salt: MARKET_APPLE_SALT, colours: APPLE_REDS, name: 'marketApples' });
+}
+// createRollers: the same, for any spec (the wool's balls roll like the apples, in their own colours).
+export function createRollers(scene, paths, { reducedMotion = false, spec = APPLES, salt = MARKET_APPLE_SALT, colours = APPLE_REDS, name = 'marketApples' } = {}) {
   const n = paths.length;
-  const { r, time } = APPLES;
-  const { geo, mat, mesh } = withLocalUuids('market-apples', () => appleMesh(n));
-  for (let i = 0; i < n; i++) mesh.setColorAt(i, _c.setHex(APPLE_REDS[i % APPLE_REDS.length]));
+  const { r, time } = spec;
+  const { geo, mat, mesh } = withLocalUuids(`market-${name}`, () => appleMesh(n, spec, name));
+  for (let i = 0; i < n; i++) mesh.setColorAt(i, _c.setHex(colours[i % colours.length]));
 
   // each apple's fixed numbers, made once: where it starts, its line, its spin's axis, its own turn
   const apples = paths.map((p, i) => {
@@ -171,7 +234,7 @@ export function createApples(scene, paths, { reducedMotion = false } = {}) {
       sx, sz, x1: p.x1, z1: p.z1,
       run: Math.hypot(p.x1 - sx, p.z1 - sz),
       axis: new THREE.Vector3(uz, 0, -ux), // up x its line: the way it turns rolling along it
-      turn: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), hash01(i, 1, MARKET_APPLE_SALT) * Math.PI * 2),
+      turn: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), hash01(i, 1, salt) * Math.PI * 2),
       delay: i * STAGGER,
     };
   });

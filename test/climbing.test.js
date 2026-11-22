@@ -1071,8 +1071,9 @@ describe('CF-9b — the gated perches themselves', () => {
     // the four alley crates, the garden bench and the telescope crate
     expect(UNGATED.roofs).toHaveLength(6);
     // each of the six stalls' crates and awning, the flower trestle, the bicycle basket,
-    // the two crate stacks' tops and the three café tables
-    expect(UNGATED.market).toHaveLength(19);
+    // the two crate stacks' tops and the three café tables; and (2026-11-22) the four new stalls' crates and
+    // awnings (8), the plant stall's two shelf tiers, the bric-a-brac's three trunk tops and the butcher's hook rail (6)
+    expect(UNGATED.market).toHaveLength(33);
     for (const [area, mice] of CLIMB_MICE) {
       for (const m of mice.filter((x) => x.y > 0)) {
         const stand = UNGATED[area].find(

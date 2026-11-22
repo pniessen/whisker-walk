@@ -108,6 +108,16 @@ const RAW = [
   { id: 'milk', kind: 'treat', at: [8, 11.5], w: 2.2, d: 1.4, treat: ['cream', 0.3], hide: true, keeper: true },
   { id: 'flowers', kind: 'serve', at: [12, 0], w: 2.6, d: 1.6, treat: null, hide: true, keeper: true },
   { id: 'fruit', kind: 'serve', at: [0, -17], face: [0, 1], w: 3.0, d: 1.8, treat: null, hide: true, hideSide: -1, keeper: true },
+  // the four stalls of 2026-11-22 (docs/superpowers/specs/2026-11-22-market-stalls-design.md), appended
+  // (the plan test moved two from the spec's spots: toys (-16, -3) -> (-19, -6) clear of the fish crates' lane and the north lamp's;
+  // plants (15, 6.5) -> (15, 7), clear of the flower stall's crates' lane; the west barrow and its ribbon moved off the toy stall's zone;
+  // bric (-9.5, 11) -> (-13, 12), hide to the west, clear of the bench, the lamp (-5, 5) and the pigeons' patch)
+  // so the older stalls keep their order, their offsets and their sway phases
+  { id: 'toys', kind: 'treat', at: [-19, -6], w: 2.8, d: 1.8, treat: ['wool', 0.5], hide: true, keeper: true },
+  { id: 'plants', kind: 'treat', at: [15, 7], w: 2.6, d: 1.6, treat: ['catnip', 0.7], hide: true, keeper: true },
+  { id: 'bric', kind: 'treat', at: [-13, 12], w: 2.4, d: 1.6, treat: ['sardines', 0.55], hide: true, hideSide: -1, keeper: true },
+  // the butcher's sausages hang (`hang`) with their lowest link `hy` up: a hop or the hook rail's perch reaches them
+  { id: 'butcher', kind: 'treat', at: [14, -9], w: 2.8, d: 1.8, treat: ['sausages', 1.05], hang: true, hide: true, keeper: true },
   { id: 'cafe', kind: 'cafe', at: [-6.3, 13.5], w: 0, d: 0, treat: ['crumbs', 0], hide: false, keeper: false },
 ];
 
@@ -134,7 +144,7 @@ function makeStall(raw) {
   }
   if (raw.treat) {
     const t = treatSpot(raw.w, raw.d, side);
-    s.treat = freeze({ kind: raw.treat[0], ...fromStall(s, t.lx, t.lz), y: raw.treat[1] });
+    s.treat = freeze({ kind: raw.treat[0], ...fromStall(s, t.lx, t.lz), y: raw.treat[1], ...(raw.hang ? { hang: true, hy: raw.treat[1] } : {}) });
   } else s.treat = null;
   s.keeper = raw.keeper ? freeze(fromStall(s, 0, -raw.d / 2 + 0.45)) : null;
   if (raw.hide) {
@@ -145,7 +155,7 @@ function makeStall(raw) {
 }
 
 export const STALLS = freeze(RAW.map(makeStall));
-export const TREAT_STALLS = freeze(['fish', 'baker', 'cheese', 'milk']);
+export const TREAT_STALLS = freeze(['fish', 'baker', 'cheese', 'milk', 'toys', 'plants', 'bric', 'butcher']);
 export const stallById = (id) => STALLS.find((s) => s.id === id);
 
 // Colliders: circles along each counter's width, r = d/2 + 0.1, centred on the
@@ -220,14 +230,14 @@ const CLUTTER_RAW = [
   ['tub-gate-w', 'tub', -2.5, 21.9, 0], ['tub-gate-e', 'tub', 2.5, 21.9, 0],
   ['tub-nw', 'tub', -19.3, -19.3, 0], ['tub-ne', 'tub', 19.3, -19.3, 0],
   ['tub-sw', 'tub', -19.3, 21.3, 0], ['tub-se', 'tub', 19.3, 21.3, 0],
-  ['barrow-w', 'barrow', -16.5, -8, 0.5], ['barrow-e', 'barrow', 16, -4.5, -0.4],
+  ['barrow-w', 'barrow', -15, -11.5, 0.5], ['barrow-e', 'barrow', 16, -4.5, -0.4],
   ['bench-fountain', 'bench', -4.5, 6, 0], ['bench-east', 'bench', 5.5, -2.5, 0],
   ['stack-w', 'stack', -17.5, 12, 0.3], ['stack-e', 'stack', 16.5, 13, -0.2], ['stack-fruit', 'stack', 3.4, -18, 0.1],
   ['board', 'board', 4.8, 21.9, Math.PI], // its face to the square (-z)
   ['bicycle', 'bicycle', 9, 22.72, 0],
   ['chalkboard', 'chalkboard', -6.9, 22.55, Math.PI - 0.35], // its face to the square, turned toward the spawn; beside the east window board, not in front of it
   ['barrow-mid', 'barrow', 3.6, 13.6, 0.9], ['stack-mid', 'stack', -3.6, 10.4, 0.2],
-  ['bench-sw', 'bench', -9.2, 9.6, 0], ['stack-sw', 'stack', -14, 7.6, -0.3], ['tub-sw-mid', 'tub', -11.6, 12.4, 0],
+  ['bench-sw', 'bench', -9.2, 9.6, 0], ['stack-sw', 'stack', -14, 7.6, -0.3], ['tub-sw-mid', 'tub', -17.6, 19.2, 0],
 ];
 // V5 (step 3): THE CLIMBING STACKS, `crates` (three crates, CLIMB_STACK.h high,
 // solid r 0.3), one beside each stall with a counter on the side away from its
@@ -235,7 +245,7 @@ const CLUTTER_RAW = [
 // its front (every view lane ends 0.5 m inside the front line) and, for the
 // baker, of the flour sacks behind; the milk cart's behind its shafts.
 export const CLIMB_STACK = freeze({ h: 0.95, r: 0.3, out: 0.55 });
-const CLIMB_LZ = freeze({ fish: 0.1, baker: 0.15, cheese: 0, milk: -0.9, flowers: -0.2, fruit: -0.6 });
+const CLIMB_LZ = freeze({ fish: 0.1, baker: 0.15, cheese: 0, milk: -0.9, flowers: -0.2, fruit: -0.6, toys: 0.1, plants: -0.2, bric: 0, butcher: 0.1 });
 const climbAt = (s) => fromStall(s, -s.hideSide * (s.w / 2 + CLIMB_STACK.out), CLIMB_LZ[s.id]);
 const r2 = (v) => Math.round(v * 100) / 100;
 for (const s of STALLS.filter((q) => q.w > 0)) {
@@ -283,6 +293,40 @@ const MILK = stallById('milk');
 export const MILK_SHAFTS = freeze({ lx: -HIDE_SIDE * (MILK.w / 2 + 0.5), lz: MILK.d / 2 - 0.4, len: 1.0, r: 0.5 });
 const MILK_SHAFTS_AT = fromStall(MILK, MILK_SHAFTS.lx, MILK_SHAFTS.lz);
 
+// THE FOUR NEW STALLS' EXTRAS (2026-11-22), each in its stall's local frame, on the side
+// away from its hide (`out` is metres past the counter's end, as CLIMB_STACK.out is):
+//   plants   a two-tier shelving unit: a low column (top 0.55) and a high one (top 0.95)
+//            beside the crates; the clay pots stand on the tiers
+//   bric     a staircase of three trunks (tops 0.4, 0.8, 1.2); the crockery stands on the top two
+//   butcher  a chopping block (top 0.75) with the bucket of bones on it, and in front of the
+//            counter, a crate stack under the sausage string: the hook rail's perch (`rail`)
+export const STALL_PROPS = freeze({
+  plants: freeze({ lz: CLIMB_LZ.plants, lowOut: 1.35, highOut: 1.75, lowTop: 0.55, highTop: 0.9, colliderOut: 1.55, colliderR: 0.4, half: 0.55 }),
+  bric: freeze({ lz: CLIMB_LZ.bric, outs: freeze([1.2, 1.6, 2.0]), tops: freeze([0.3, 0.6, 0.9]), r: 0.3 }),
+  butcher: freeze({ lz: CLIMB_LZ.butcher, blockOut: 1.3, blockTop: 0.75, blockR: 0.3, railFront: 1.0 }),
+});
+const outAt = (s, out, lz) => fromStall(s, -s.hideSide * (s.w / 2 + out), lz);
+// The toy stall's two tippables (marketfruit.js: the yarn basket, whose wool rolls, and the pull-along toy),
+// on the cobbles past its crates, behind its counter's front line; each solid, r as marketfruit.js's own.
+// Their spots are the walk's tippables (market.js's record row, after the apple crate).
+const TOYS_AT = stallById('toys');
+export const TOY_TIPS = freeze({
+  basket: freeze({ ...(({ x, z }) => ({ x: r2(x), z: r2(z) }))(fromStall(TOYS_AT, -TOYS_AT.hideSide * (TOYS_AT.w / 2 + 2.3), CLIMB_LZ.toys - 0.55)), r: 0.4 }),
+  toy: freeze({ ...(({ x, z }) => ({ x: r2(x), z: r2(z) }))(fromStall(TOYS_AT, -TOYS_AT.hideSide * (TOYS_AT.w / 2 + 2.3), CLIMB_LZ.toys + 0.5)), r: 0.4 }),
+});
+function extraSolids(s) {
+  const P = STALL_PROPS[s.id];
+  if (s.id === 'toys') return [freeze({ x: TOY_TIPS.basket.x, z: TOY_TIPS.basket.z, r: TOY_TIPS.basket.r }), freeze({ x: TOY_TIPS.toy.x, z: TOY_TIPS.toy.z, r: TOY_TIPS.toy.r })];
+  if (!P) return [];
+  const lzc = CLIMB_LZ[s.id];
+  if (s.id === 'plants') return [-P.half, 0, P.half].map((d) => freeze({ ...outAt(s, P.colliderOut, lzc + d), r: P.colliderR }));
+  if (s.id === 'bric') return P.outs.map((o) => freeze({ ...outAt(s, o, lzc), r: P.r }));
+  const stack = fromStall(s, s.hideSide * (s.w / 2 - 0.3), s.d / 2 + P.railFront);
+  return [freeze({ ...outAt(s, P.blockOut, lzc), r: P.blockR }), freeze({ x: stack.x, z: stack.z, r: CLIMB_STACK.r })];
+}
+// the butcher's rail stack, in front of the sausage string: where the crates' top (the rail perch) stands
+export const RAIL_STACK = freeze({ ...fromStall(stallById('butcher'), stallById('butcher').hideSide * (stallById('butcher').w / 2 - 0.3), stallById('butcher').d / 2 + STALL_PROPS.butcher.railFront), r: CLIMB_STACK.r });
+
 // The baker's warm flour sacks, beside the stall on the side away from its hide:
 // the nap's spot (propSet.rests) and market.js's anchor (MARKET_ANCHORS.flourSacks).
 const BAKER = stallById('baker');
@@ -312,6 +356,7 @@ export const MARKET_COLLIDERS = freeze([
   freeze({ x: MILK_SHAFTS_AT.x, z: MILK_SHAFTS_AT.z, r: MILK_SHAFTS.r }),
   ...MARKET_LAMPS.map((p) => freeze({ x: p.x, z: p.z, r: LAMP_R })),
   ...MARKET_CLUTTER.flatMap((c) => c.solid),
+  ...STALLS.flatMap(extraSolids),
   freeze({ x: MUSICIAN.x, z: MUSICIAN.z, r: MUSICIAN.r }),
 ]);
 
@@ -402,6 +447,10 @@ export const MARKET_SHOTS = Object.freeze({
   baker: counterShot('baker'),
   cheese: counterShot('cheese'),
   milk: counterShot('milk'),
+  toys: counterShot('toys'),
+  plants: counterShot('plants'),
+  bric: counterShot('bric'),
+  butcher: counterShot('butcher'),
   // from the fountain's side, the tables in front of the café's awning
   cafe: '-1,1.3,11.5,-7.5,1.2,18',
   // high over the south-west corner, the whole square and all six stalls
@@ -449,6 +498,23 @@ const CUP_TABLE = CAFE.tables[2];
 // the bucket stands on the trestle's cloth, whose top is 0.775 (market.js: the
 // cloth's box at 0.765, 0.02 deep, over the plank top at 0.75)
 const BUCKET_Y = 0.775;
+// the four stalls' knockables (2026-11-22): three clay pots on the plant stall's tiers, three pieces of
+// crockery on the trunks, the butcher's bucket of bones on its block; each falls to its own curated spot
+const wx = (p, y) => ({ x: cm(p.x), z: cm(p.z), y });
+const fall = (p) => freeze({ x: cm(p.x), z: cm(p.z), y: 0.01 });
+const PLANTS = stallById('plants');
+const BRIC = stallById('bric');
+const BUTCHER = stallById('butcher');
+const SP = STALL_PROPS;
+const NEW_KNOCKABLES = [
+  { id: 'market-pot-1', kind: 'flowerpot', ...wx(outAt(PLANTS, SP.plants.lowOut, CLIMB_LZ.plants + 0.5), SP.plants.lowTop + 0.01), fallTo: fall(outAt(PLANTS, 2.55, CLIMB_LZ.plants + 0.9)) },
+  { id: 'market-pot-2', kind: 'flowerpot', ...wx(outAt(PLANTS, SP.plants.highOut, CLIMB_LZ.plants + 0.45), SP.plants.highTop + 0.01), fallTo: fall(outAt(PLANTS, 2.55, CLIMB_LZ.plants + 0.15)) },
+  { id: 'market-pot-3', kind: 'flowerpot', ...wx(outAt(PLANTS, SP.plants.highOut, CLIMB_LZ.plants - 0.45), SP.plants.highTop + 0.01), fallTo: fall(outAt(PLANTS, 2.55, CLIMB_LZ.plants - 0.6)) },
+  { id: 'market-crock-1', kind: 'cup', ...wx(outAt(BRIC, SP.bric.outs[2], CLIMB_LZ.bric + 0.35), SP.bric.tops[2] + 0.01), fallTo: fall(outAt(BRIC, 3.0, CLIMB_LZ.bric + 0.8)) },
+  { id: 'market-crock-2', kind: 'cup', ...wx(outAt(BRIC, SP.bric.outs[2], CLIMB_LZ.bric - 0.35), SP.bric.tops[2] + 0.01), fallTo: fall(outAt(BRIC, 3.0, CLIMB_LZ.bric - 0.8)) },
+  { id: 'market-crock-3', kind: 'cup', ...wx(outAt(BRIC, SP.bric.outs[1], CLIMB_LZ.bric + 0.3), SP.bric.tops[1] + 0.01), fallTo: fall(outAt(BRIC, 3.0, CLIMB_LZ.bric)) },
+  { id: 'market-bones-1', kind: 'bucket', ...wx(outAt(BUTCHER, SP.butcher.blockOut, CLIMB_LZ.butcher), SP.butcher.blockTop), fallTo: fall(outAt(BUTCHER, 2.1, CLIMB_LZ.butcher)) },
+];
 const PROP_ROWS = {
   rests: [
     { id: 'market-drink-1', kind: 'drink', x: 0, z: 3.8, mesh: false },
@@ -457,13 +523,14 @@ const PROP_ROWS = {
   knockables: [
     { id: 'market-bucket-1', kind: 'bucket', x: cm(TRESTLE_TOP.x), z: cm(TRESTLE_TOP.z), y: BUCKET_Y, fallTo: freeze({ x: cm(BUCKET_LANDS.x), z: cm(BUCKET_LANDS.z), y: 0.01 }) },
     { id: 'market-cup-1', kind: 'cup', x: cm(CUP_TABLE.x + 0.1), z: cm(CUP_TABLE.z + 0.1), y: 0.74, fallTo: freeze({ x: cm(CUP_TABLE.x + 1), z: cm(CUP_TABLE.z - 0.4) }) },
+    ...NEW_KNOCKABLES,
   ].map(freeze),
   markables: [
     { id: 'market-post-1', kind: 'post', x: -8, z: -4.4, nearBorder: false, mesh: false }, // a lamp post's foot
     { id: 'market-post-2', kind: 'post', x: 5.35, z: 22.5, nearBorder: false, mesh: false }, // the noticeboard's post
   ].map(freeze),
   carryables: [
-    { id: 'market-bag-1', kind: 'ribbon', x: -16.2, z: -6.5 }, // a paper bag's ribbon by the west barrow
+    { id: 'market-bag-1', kind: 'ribbon', x: -14.7, z: -10 }, // a paper bag's ribbon by the west barrow
     { id: 'market-glove-1', kind: 'glove', x: 6.5, z: -2.8 }, // a dropped glove by the east bench
   ].map(freeze),
 };
@@ -481,6 +548,10 @@ const ROOF_LABELS = freeze({
   baker: () => phrase('market.perch.baker'),
   cheese: () => phrase('market.perch.cheese'),
   milk: () => phrase('market.perch.milk'),
+  toys: () => phrase('market.perch.toys'),
+  plants: () => phrase('market.perch.plants'),
+  bric: () => phrase('market.perch.bric'),
+  butcher: () => phrase('market.perch.butcher'),
 });
 function stallPerches(s) {
   const side = -s.hideSide;
@@ -495,11 +566,22 @@ function stallPerches(s) {
     Object.defineProperty(top, 'label', { enumerable: true, get: label });
     top.vantage = true;
   }
-  return {
+  const out = {
     stack: CLIMB_STACKS.find((c) => c.stall === s.id),
     crate: freeze({ x: r2(crate.x), z: r2(crate.z), y: CLIMB_STACK.h, kind: 'crate' }),
     roof: freeze(top),
   };
+  const P = STALL_PROPS[s.id];
+  const perchOf = (p, y, extra = {}) => freeze({ x: r2(p.x), z: r2(p.z), y, kind: 'crate', ...extra });
+  if (s.id === 'plants') out.tiers = freeze([perchOf(outAt(s, P.lowOut, lz), P.lowTop), perchOf(outAt(s, P.highOut, lz), P.highTop)]);
+  if (s.id === 'bric') out.tiers = freeze(P.outs.map((o, i) => perchOf(outAt(s, o, lz), P.tops[i])));
+  if (s.id === 'butcher') {
+    // the rail's perch: the crates' top in front of the string, 0.1 m toward it from the stack's middle
+    const t = s.treat;
+    const dx = t.x - RAIL_STACK.x, dz = t.z - RAIL_STACK.z, d = Math.hypot(dx, dz);
+    out.rail = perchOf({ x: RAIL_STACK.x + (dx / d) * 0.1, z: RAIL_STACK.z + (dz / d) * 0.1 }, CLIMB_STACK.h, { rail: 'butcher' });
+  }
+  return out;
 }
 const CLIMBS = Object.fromEntries(STALLS.filter((s) => s.w > 0).map((s) => [s.id, freeze(stallPerches(s))]));
 // stallClimb(id) -> that stall's { stack, crate, roof } (the stack a MARKET_CLUTTER row)
@@ -523,7 +605,7 @@ export const TABLE_PERCHES = freeze(CAFE.tables.map((t, i) => freeze({
   x: r2(t.x - (i === 2 ? 0.15 : 0)), z: r2(t.z - (i === 2 ? 0.15 : 0)), y: TABLE_TOP, kind: 'furniture',
 })));
 export const MARKET_PERCHES = freeze([
-  ...Object.values(CLIMBS).flatMap((c) => [c.crate, c.roof]),
+  ...Object.values(CLIMBS).flatMap((c) => [c.crate, c.roof, ...(c.tiers ?? []), ...(c.rail ? [c.rail] : [])]),
   TRESTLE_PERCH,
   BICYCLE_BASKET,
   ...RIM_PERCHES,

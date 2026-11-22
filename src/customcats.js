@@ -5,8 +5,12 @@
 import { validPetName } from './net.js';
 import { PERSONALITIES } from './cat/brain.js';
 
-export const CUSTOM_IDS = Object.freeze(['mine1', 'mine2', 'mine3']);
-export const CUSTOM_MAX = 3;
+export const CUSTOM_IDS = Object.freeze(['mine1', 'mine2', 'mine3', 'mine4', 'mine5']);
+export const CUSTOM_MAX = 5;
+// Three slots are hers from the start; slots 4 and 5 are bought together,
+// once, for MORE_SLOTS_PRICE paw points (state.moreCatSlots).
+export const CUSTOM_BASE = 3;
+export const MORE_SLOTS_PRICE = 30;
 export const FALLBACK_NAME = 'My Cat';
 export const DEFAULT_PERSONALITY = 'keenNose';
 

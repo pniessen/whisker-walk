@@ -338,7 +338,7 @@ describe('two devices in one room see the same stallholders turn', () => {
         c.market.update(DT, t, { cat: c.cat, player, session: c });
         const pa = a.market.stalls.filter((s) => s.look).map((s) => [s.id, s.phase]);
         const pb = b.market.stalls.filter((s) => s.look).map((s) => [s.id, s.phase]);
-        expect(pa.length).toBe(4);
+        expect(pa.length).toBe(TREAT_STALLS.length);
         expect(pb).toEqual(pa);
         for (const [, ph] of pa) seen.add(ph);
         seqA.push(pa.map(([, ph]) => ph).join());

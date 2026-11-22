@@ -12,7 +12,18 @@ export const MARKET = Object.freeze({
   SHOO_S: 1.2, SHOO_REST_S: 2.0, HOP_DIST: 1.2, HOP_S: 0.3, TREAT_REACH: 0.8, HOLD_S: 1.0,
   MUNCH_S: 0.8, REFILL_S: 25, HIGH_Y: 1.8, TEAM_GRACE_S: 1.5, SHOO_TOAST_GAP, COO_BACK_S: 1.0,
   WATCH_DEPTH: 3.2, WATCH_SIDE: 1.0, STALK_SHARE: DOG_NOTICE_STALKED,
+  // the butcher's hop grab: the paw button's pounce lasts POUNCE_S (src/game/interactions.js sets
+  // session.pounceTime = 0.3 and counts it down); the string is taken in its HOP_FROM..HOP_TO seconds
+  // of elapsed time, the middle of the lunge, whatever the hop's drawn height (reduced motion draws none)
+  POUNCE_S: 0.3, HOP_FROM: 0.07, HOP_TO: 0.23,
 });
+
+// Is a pounce with `pounceTime` seconds left (0.3 down to 0) inside its catching window?
+export function inHopWindow(pounceTime) {
+  if (!(pounceTime > 0)) return false;
+  const elapsed = MARKET.POUNCE_S - pounceTime;
+  return elapsed >= MARKET.HOP_FROM - 1e-9 && elapsed <= MARKET.HOP_TO + 1e-9;
+}
 
 // Seconds of serving and of being turned away, per stall. Data, so no two
 // stalls move in lockstep whatever the seed. (Controller ruling: baker away 4.0 and
@@ -22,6 +33,12 @@ export const STALL_TIMES = Object.freeze({
   baker: Object.freeze({ serve: 5.4, away: 4.0 }),
   cheese: Object.freeze({ serve: 3.8, away: 4.3 }),
   milk: Object.freeze({ serve: 6.0, away: 3.8 }),
+  // the four of 2026-11-22: periods butcher 12.8, toys 8.9, plants 10.0, bric 9.4 (each more than 0.3 from every other and
+  // none over 13 s; the plan's first figures, plants 13.2 and toys 9.8, broke the 13 s ceiling and the 0.3 s gap)
+  toys: Object.freeze({ serve: 3.6, away: 2.9 }),
+  plants: Object.freeze({ serve: 4.2, away: 3.4 }),
+  bric: Object.freeze({ serve: 3.4, away: 3.6 }),
+  butcher: Object.freeze({ serve: 5.8, away: 4.6 }),
 });
 
 export const periodOf = (id) => {

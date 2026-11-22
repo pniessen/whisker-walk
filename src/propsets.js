@@ -339,12 +339,19 @@ const SETS = {
   // No dog yard, no colony.
   market: {
     carryables: [
-      { id: 'market-bag-1', kind: 'ribbon', x: -16.2, z: -6.5 },  // a paper bag's ribbon by the west barrow
+      { id: 'market-bag-1', kind: 'ribbon', x: -14.7, z: -10 },  // a paper bag's ribbon by the west barrow
       { id: 'market-glove-1', kind: 'glove', x: 6.5, z: -2.8 },   // a dropped glove by the east bench
     ],
     knockables: [
       { id: 'market-bucket-1', kind: 'bucket', x: 11.5, z: -2.5, y: 0.775, fallTo: { x: 10.1, z: -2.5, y: 0.01 } },
       { id: 'market-cup-1', kind: 'cup', x: -6.5, z: 17.3, y: 0.74, fallTo: { x: -5.6, z: 16.8 } },
+      { id: 'market-pot-1', kind: 'flowerpot', x: 13.61, z: 9.27, y: 0.56, fallTo: { x: 12.74, z: 10.19, y: 0.01 } },
+      { id: 'market-pot-2', kind: 'flowerpot', x: 13.48, z: 9.66, y: 0.91, fallTo: { x: 13.42, z: 10.51, y: 0.01 } },
+      { id: 'market-pot-3', kind: 'flowerpot', x: 14.3, z: 10.04, y: 0.91, fallTo: { x: 14.1, z: 10.83, y: 0.01 } },
+      { id: 'market-crock-1', kind: 'cup', x: -10.57, z: 14.11, y: 0.91, fallTo: { x: -9.56, z: 14.54, y: 0.01 } },
+      { id: 'market-crock-2', kind: 'cup', x: -11.09, z: 14.59, y: 0.91, fallTo: { x: -10.74, z: 15.63, y: 0.01 } },
+      { id: 'market-crock-3', kind: 'cup', x: -10.88, z: 13.85, y: 0.61, fallTo: { x: -10.15, z: 15.09, y: 0.01 } },
+      { id: 'market-bones-1', kind: 'bucket', x: 15.38, z: -6.67, y: 0.75, fallTo: { x: 15.81, z: -6, y: 0.01 } },
     ],
     markables: [
       { id: 'market-post-1', kind: 'post', x: -8, z: -4.4, nearBorder: false, mesh: false },   // a lamp post's foot
@@ -362,6 +369,10 @@ const SETS = {
       { x: 9.65965616882718, z: 9.858189596429026 },
       { x: 11.5, z: -2.5 },
       { x: 2.7, z: -16.4 },
+      { x: -19.210791957555966, z: -3.3400062498889738 },
+      { x: 15.60412209333018, z: 4.523099417346275 },
+      { x: -14.260470524245614, z: 9.897331681527497 },
+      { x: 12.08932317735897, z: -10.862609481190939 },
       { x: -6.3, z: 13.5 },
     ],
     dogYard: null,

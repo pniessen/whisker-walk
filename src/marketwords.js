@@ -13,6 +13,10 @@ export const TREAT_WORDS = Object.freeze({
   sausageroll: Object.freeze({ get name() { return phrase('market.treat.sausageroll'); }, get prompt() { return phrase('market.grab.sausageroll'); } }),
   cheddar: Object.freeze({ get name() { return phrase('market.treat.cheddar'); }, get prompt() { return phrase('market.grab.cheddar'); } }),
   cream: Object.freeze({ get name() { return phrase('market.treat.cream'); }, get prompt() { return phrase('market.grab.cream'); } }),
+  wool: Object.freeze({ get name() { return phrase('market.treat.wool'); }, get prompt() { return phrase('market.grab.wool'); } }),
+  sausages: Object.freeze({ get name() { return phrase('market.treat.sausages'); }, get prompt() { return phrase('market.grab.sausages'); } }),
+  catnip: Object.freeze({ get name() { return phrase('market.treat.catnip'); }, get prompt() { return phrase('market.grab.catnip'); } }),
+  sardines: Object.freeze({ get name() { return phrase('market.treat.sardines'); }, get prompt() { return phrase('market.grab.sardines'); } }),
   crumbs: Object.freeze({ get name() { return phrase('market.treat.crumbs'); }, get prompt() { return phrase('market.grab.crumbs'); } }),
 });
 

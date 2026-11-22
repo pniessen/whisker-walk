@@ -52,6 +52,10 @@
 //   actionFor(s)  { kind: 'grab', stall, prompt } for the nearest treat out within
 //            TREAT_REACH of her cat (s.cat), from the ground (not perched, not
 //            swimming) with no treat in her mouth and none being munched; else
+//            (2026-11-22) the butcher's string, which hangs, is offered only to a cat
+//            perched on its own hook rail (a perch tagged `rail: 'butcher'`), and is
+//            otherwise taken by the pounce's catching window (stepHopCatch, marketrules.js
+//            inHopWindow), never flat-footed; else
 //            null. One action object per stall, reused; `prompt` is
 //            TREAT_WORDS[kind].prompt (a string).
 //   act(action, s, { dropHeld })  the action button on a grab. Seen now (M4,
@@ -190,7 +194,7 @@
 // is asked only about a cat already in a watching stall's zone).
 // =============================================================================
 import * as THREE from 'three';
-import { MARKET, STALL_TIMES, stallOffsets, stallPhase, isHidden, stallSees } from './marketrules.js';
+import { MARKET, STALL_TIMES, stallOffsets, stallPhase, isHidden, stallSees, inHopWindow } from './marketrules.js';
 import { STALLS, TREAT_STALLS, MARKET_HIDES, fromStall, toStall, stallById } from './world/marketplan.js';
 import { createBubbleTexture, buildBroom, buildTreatMesh } from './world/marketparts.js';
 import { withLocalUuids } from './world/localuuids.js';
@@ -232,6 +236,7 @@ export const MARKET_LOOK = Object.freeze({
 // in from each end, `back` in from the back, at most `front` out past the
 // counter's front line (a cat's centre never comes closer than d/2 + 0.45).
 const BROOM_BOX = Object.freeze({ side: 0.15, back: 0.1, front: 0.2 });
+const HANG_LEN = 1.0; // m: from the string's middle link to the rail it hangs from (market.js's rail, y 2.05)
 const IN_SHARE = 0.5;    // her step in toward a counter, as a share of her whole step (sin 30°): walking at its treat
 const MAX_STEP = 1;      // m: more than this toward a treat in one frame is a teleport, not a walk
 const LAND_S = 0.12;     // s, the landing squash after the hop (session.landTime)
@@ -871,6 +876,51 @@ export function createMarketLive(scene, area, opts = {}) {
   const shownTreat = (id) => area.treatMeshes?.[id] ?? null;
   function hideShown(id) { const m = shownTreat(id); if (m) m.visible = false; }
 
+  // ---- The hanging string (the butcher's sausages): taken in a pounce's catching window, once a
+  // pounce (the latch lets go when the pounce ends), by her paw button's own lunge (nothing new to press).
+  // The window reads the pounce TIMER, never the drawn lift, so reduced motion (no lift) and the
+  // baseline cat both reach it; a cat on the ground just under it, standing still, does not. If the
+  // stallholder sees her the shoo (and the hop back) comes instead, once, and the string stays out. -----
+  let hopLatch = false;
+  function stepHopCatch() {
+    const s = seen.session;
+    if (!s || !(s.pounceTime > 0)) { hopLatch = false; return; }
+    if (hopLatch || !inHopWindow(s.pounceTime)) return;
+    const cat = herCat(s);
+    if (!cat || s.perched) return;
+    for (let j = 0; j < stalls.length; j++) {
+      const st = stalls[j];
+      const t = plans[st.id].treat;
+      if (!t?.hang || !st.treatOut) continue;
+      if (Math.hypot(cat.position.x - t.x, cat.position.z - t.z) > MARKET.TREAT_REACH) continue;
+      // Her mouth is full: the button path puts the item down (the walk's own putDownCarried, which the
+      // life cannot reach), the hop does not take the string and does not spend the pounce's one catch.
+      if (s.carry?.mouth?.held || munch.active) continue;
+      hopLatch = true;
+      grab(st.id, s, null, true);
+      return;
+    }
+  }
+  // the string's tell: it swings a little when a cat is within reach of it (still under reduced motion)
+  const SWAY_AT = MARKET.TREAT_REACH + 0.6;
+  function stepSwing(clock) {
+    const cat = seen.cat;
+    for (let j = 0; j < stalls.length; j++) {
+      const st = stalls[j];
+      const t = plans[st.id].treat;
+      if (!t?.hang) continue;
+      const m = shownTreat(st.id);
+      if (!m || !m.visible) continue;
+      const near = !reducedMotion && cat && Math.hypot(cat.position.x - t.x, cat.position.z - t.z) <= SWAY_AT;
+      const th = near ? 0.1 * Math.sin(clock * 7) : 0;
+      const H = HANG_LEN;
+      const yaw = Math.atan2(plans[st.id].face.x, plans[st.id].face.z);
+      const lx = H * Math.sin(th), ly = H * (1 - Math.cos(th)); // keeps the string's top still, on its rail
+      m.rotation.z = th;
+      m.position.set(t.x + lx * Math.cos(yaw), t.y + ly, t.z - lx * Math.sin(yaw));
+    }
+  }
+
   // ---- The refill, on this device only. ----------------------------------------
   function stepRefill(dt) {
     for (let j = 0; j < stalls.length; j++) {
@@ -930,6 +980,8 @@ export function createMarketLive(scene, area, opts = {}) {
     for (let i = 0; i < N; i++) show(treatRows[i], dt, clock);
     lookUp(dt);
     stepHop(dt);
+    stepHopCatch();
+    stepSwing(clock);
     stepMunch(dt);
     for (let k = 0; k < remoteRecs.length; k++) stepRemoteMunch(remoteRecs[k], dt);
     stepRefill(dt);
@@ -962,6 +1014,73 @@ export function createMarketLive(scene, area, opts = {}) {
 
   function herCat(s) { return s?.cat ?? seen.cat; }
 
+  // May her cat take this treat from where she is? From the ground: any treat but a hanging one. A
+  // hanging string (the butcher's) is taken by the pounce's catching window (`viaHop`, from stepHopCatch)
+  // or by the button from the stall's own hook rail (a perch tagged `rail`); a perched cat takes nothing else.
+  function canGrabFrom(s, stallId, t, viaHop = false) {
+    const perch = s.perched;
+    if (perch) return !!t.hang && perch.rail === stallId;
+    return !t.hang || viaHop;
+  }
+
+  // a treat grab: from the button (act) or, for the hanging string, from the hop's catching window (stepHopCatch)
+  function grab(stallId, s, dropHeld, viaHop) {
+    const st = stallLive[stallId];
+    const plan = plans[stallId];
+    const cat = herCat(s);
+    const mouth = s.carry?.mouth;
+    if (!st || !st.treatOut || !cat || !mouth) return false;
+    if (!canGrabFrom(s, stallId, plan.treat, viaHop)) return false;
+    if (mouth.held?.treat || munch.active) return false;
+    const t = plan.treat;
+    if (Math.hypot(cat.position.x - t.x, cat.position.z - t.z) > MARKET.TREAT_REACH) return false;
+    const row = rowById[st.id];
+    if (row) {
+      // seen now (M4), being cooed at included: a shoo and the hop, the treat stays out
+      const p = seen.player;
+      const perchUp = Number.isFinite(p?.perchY) ? p.perchY : 0;
+      _view.x = cat.position.x;
+      _view.z = cat.position.z;
+      _view.stalking = p?.stalking === true;
+      _view.high = Math.max(cat.position.y - gy(_view.x, _view.z), perchUp) >= MARKET.HIGH_Y;
+      st.look.cooing = !!st.cooing;
+      if (st.cooing?.who === 'me' || (!(row.backT > 0) && stallSees(plan, st.look, _view, MARKET_HIDES))) {
+        if (!seen.cat) seen.cat = cat;
+        if (!seen.session) seen.session = s;
+        me.treat = false;
+        shoo(row, me);
+        return false;
+      }
+    }
+    if (mouth.held) dropHeld?.();
+    if (mouth.held) return false;
+    if (!pick(mouth, { id: st.itemId, kind: t.kind, treat: true })) return false;
+    st.treatOut = false;
+    st.refillT = MARKET.REFILL_S;
+    if (t.kind !== 'cream') hideShown(st.id);
+    let teamWith = null;
+    if (row) {
+      if (st.cooing && st.cooing.who !== 'me') teamWith = st.cooing.who;
+      else if (row.graceT > 0 && row.graceWho !== 'me') teamWith = row.graceWho;
+    }
+    munch.active = true;
+    munch.t = 0;
+    munch.st = st;
+    munch.kind = t.kind;
+    munch.teamWith = teamWith;
+    munch.sniffed = false;
+    munch.session = s;
+    s.idleTime = 0;
+    munch.mesh = t.kind === 'cream' ? null : meshFor(me, t.kind);
+    if (munch.mesh) {
+      scene.add(munch.mesh);
+      showInMouth(munch.mesh, cat, 0);
+    } else s.sniffTime = MARKET.HOLD_S + MARKET.MUNCH_S; // the cream: head down, lapping, the whole time
+    onEvent(viaHop ? { type: 'grab', stall: st.id, hop: true } : { type: 'grab', stall: st.id });
+    return true;
+  
+  }
+
   const live = {
     stalls,
     keepers,
@@ -971,7 +1090,7 @@ export function createMarketLive(scene, area, opts = {}) {
       if (disposed || !s) return null;
       const cat = herCat(s);
       const mouth = s.carry?.mouth;
-      if (!cat || !mouth || s.perched || s.swimming || seen.player?.swimming) return null;
+      if (!cat || !mouth || s.swimming || seen.player?.swimming) return null;
       if (mouth.held?.treat || munch.active) return null;
       let best = null;
       let bestD = MARKET.TREAT_REACH;
@@ -979,6 +1098,7 @@ export function createMarketLive(scene, area, opts = {}) {
         const st = stalls[j];
         if (!st.treatOut) continue;
         const t = plans[st.id].treat;
+        if (!canGrabFrom(s, st.id, t)) continue;
         const d = Math.hypot(cat.position.x - t.x, cat.position.z - t.z);
         if (d <= bestD) { bestD = d; best = st; }
       }
@@ -989,58 +1109,7 @@ export function createMarketLive(scene, area, opts = {}) {
     },
     act(action, s, { dropHeld } = {}) {
       if (disposed || !action || action.kind !== 'grab' || !s) return false;
-      const st = stallLive[action.stall];
-      const plan = plans[action.stall];
-      const cat = herCat(s);
-      const mouth = s.carry?.mouth;
-      if (!st || !st.treatOut || !cat || !mouth || s.perched) return false;
-      if (mouth.held?.treat || munch.active) return false;
-      const t = plan.treat;
-      if (Math.hypot(cat.position.x - t.x, cat.position.z - t.z) > MARKET.TREAT_REACH) return false;
-      const row = rowById[st.id];
-      if (row) {
-        // seen now (M4), being cooed at included: a shoo and the hop, the treat stays out
-        const p = seen.player;
-        const perchUp = Number.isFinite(p?.perchY) ? p.perchY : 0;
-        _view.x = cat.position.x;
-        _view.z = cat.position.z;
-        _view.stalking = p?.stalking === true;
-        _view.high = Math.max(cat.position.y - gy(_view.x, _view.z), perchUp) >= MARKET.HIGH_Y;
-        st.look.cooing = !!st.cooing;
-        if (st.cooing?.who === 'me' || (!(row.backT > 0) && stallSees(plan, st.look, _view, MARKET_HIDES))) {
-          if (!seen.cat) seen.cat = cat;
-          if (!seen.session) seen.session = s;
-          me.treat = false;
-          shoo(row, me);
-          return false;
-        }
-      }
-      if (mouth.held) dropHeld?.();
-      if (mouth.held) return false;
-      if (!pick(mouth, { id: st.itemId, kind: t.kind, treat: true })) return false;
-      st.treatOut = false;
-      st.refillT = MARKET.REFILL_S;
-      if (t.kind !== 'cream') hideShown(st.id);
-      let teamWith = null;
-      if (row) {
-        if (st.cooing && st.cooing.who !== 'me') teamWith = st.cooing.who;
-        else if (row.graceT > 0 && row.graceWho !== 'me') teamWith = row.graceWho;
-      }
-      munch.active = true;
-      munch.t = 0;
-      munch.st = st;
-      munch.kind = t.kind;
-      munch.teamWith = teamWith;
-      munch.sniffed = false;
-      munch.session = s;
-      s.idleTime = 0;
-      munch.mesh = t.kind === 'cream' ? null : meshFor(me, t.kind);
-      if (munch.mesh) {
-        scene.add(munch.mesh);
-        showInMouth(munch.mesh, cat, 0);
-      } else s.sniffTime = MARKET.HOLD_S + MARKET.MUNCH_S; // the cream: head down, lapping, the whole time
-      onEvent({ type: 'grab', stall: st.id });
-      return true;
+      return grab(action.stall, s, dropHeld, false);
     },
     remotePick(remote, itemId) {
       if (disposed) return false;
