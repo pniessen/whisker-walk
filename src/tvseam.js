@@ -89,3 +89,26 @@ export function createTvLoader({ load, ctx, settings, onFail }) {
     },
   };
 }
+
+/** A window that fills a big screen: 1900+ CSS px wide and full screen (or as big as the screen). */
+export function bigScreenFullscreen(win) {
+  const s = win.screen;
+  if (!s || !(win.innerWidth >= 1900)) return false;
+  return !!win.document?.fullscreenElement || (win.innerWidth >= s.width - 2 && win.innerHeight >= s.height - 2);
+}
+
+/**
+ * The offer to use TV mode: the returned check() is called when the pad is used
+ * (never on a mouse or key, never on connecting). It calls onOffer() once per
+ * page load, at home base with no card up, on a big full-screen window, if TV
+ * mode is off and "Not now" has not been said. In a walk it waits for home.
+ */
+export function watchForTv({ win, settings, homeClear, onOffer }) {
+  let asked = false;
+  return () => {
+    if (asked || tvState.on || settings.get('tvMode') || settings.get('tvOfferDeclined')) return;
+    if (!bigScreenFullscreen(win) || !homeClear()) return;
+    asked = true;
+    onOffer();
+  };
+}

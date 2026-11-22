@@ -29,7 +29,8 @@ import { voiceFor } from './catvoice.js';
 import { createAlbum } from './album.js';
 import { askToKeepSaves } from './savekeep.js';
 import { createSettings } from './settings.js';
-import { createTvLoader, tvWanted, tvHooks } from './tvseam.js';
+import { createTvLoader, tvWanted, tvHooks, watchForTv } from './tvseam.js';
+import { createConfirmCard } from './ui/confirmcard.js';
 import { createBlockList } from './blocklist.js';
 import { phraseIdForDigit } from './chatkeys.js';
 import { createCloudToast, createCloudSync } from './game/cloudsync.js';
@@ -313,7 +314,7 @@ function init() {
     // No mouse to click for pointer lock, so a pad resumes the way touch does.
     onResume: () => player.setTouchEngaged(true),
     toast: (m) => hud.toast(m),
-    onPadUse: (i) => tvHooks.padUse?.(i),
+    onPadUse: (i) => { tvHooks.padUse?.(i); tvOffer(); },
     onPadConnect: (i) => tvHooks.padConnect?.(i),
     onPadDisconnect: (i) => tvHooks.padDisconnect?.(i),
   });
@@ -339,7 +340,11 @@ function init() {
   applySettings();
   // TV mode: its own lazy chunk (src/tv/), loaded only when the switch is on.
   // Nothing else in start-up may import src/tv/ (the build checks).
-  const tvContext = () => ({ doc: document, win: window, settings, toast: (m) => hud.toast(m), padInfo: () => gamepad.padInfo() });
+  // Bare home screen: no walk, no summary, no sheet or card, the visit celebration not up.
+  const homeClear = () => !session && !summaryUp() && homebase.depth() === 0 && !homebase.visitOpen() && !document.getElementById('homebase').classList.contains('hidden');
+  const tvContext = () => ({ doc: document, win: window, settings, toast: (m) => hud.toast(m), padInfo: () => gamepad.padInfo(), homeClear, createConfirmCard, enable: () => { tvLoader.apply(true); homebase.refresh(); } });
+  // A pad used full-screen on a big display, at home: offer TV mode, once per page load.
+  const tvOffer = watchForTv({ win: window, settings, homeClear, onOffer: () => import('./tv/index.js').then((m) => m.offer(tvContext())).catch((err) => note('tv', err)) });
   const tvLoader = createTvLoader({
     load: () => import('./tv/index.js'),
     ctx: tvContext,

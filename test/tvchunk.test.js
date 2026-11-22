@@ -15,5 +15,18 @@ for (const mode of ['production', IOS_MODE]) {
       expect(startupFiles(b.manifest)).not.toContain(c.file);
       expect(b.files.has(c.file)).toBe(true);
     }, 300_000);
+
+    it('no TV-only code or word leaks into the start-up files (the words and pictures live in the chunk)', async () => {
+      const b = await realBuild(mode);
+      const code = (f) => String(b.files.get(f).code ?? '');
+      const start = startupFiles(b.manifest).map(code).join('\n');
+      const tv = code(b.manifest['src/tv/index.js'].file);
+      // strings only the chunk may hold: the offer's words, the pad lines, a glyph's drawing
+      for (const marker of ['Bigger words, made for the sofa.', 'Keep exploring \u27e6confirm\u27e7', 'var(--ps-cross', 'html.tv']) {
+        expect(start, marker).not.toContain(marker);
+      }
+      expect(tv).toContain('Bigger words, made for the sofa.');
+      expect(tv).toContain('var(--ps-cross');
+    }, 300_000);
   });
 }

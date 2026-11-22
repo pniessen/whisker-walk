@@ -8,6 +8,7 @@ import { createInputTracker } from './input.js';
 import { glyphify, plainify, padKind } from './glyphs.js';
 import { setTv } from '../tvseam.js';
 import { padLine } from './padwords.js';
+export { offer } from './offer.js';
 
 /** Turns TV mode on for this page; returns { stop() } that puts everything back. */
 export async function start(ctx) {
