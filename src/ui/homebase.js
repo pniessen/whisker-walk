@@ -317,8 +317,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   let friendCodeSuccess = null; // short "Added X!" line shown once after confirm
 
   // Sync ☁️ section state: the sheet's state, drawn and changed by the lazy chunk
-  // src/ui/catlogin.js (busy, error, status, justLinked, preview, bringing, ...).
-  const cl = { busy: false, error: null, status: null, justLinked: false, preview: null, bringing: null };
+  // src/ui/catlogin.js (busy, error, status, preview, bringing, ...).
+  const cl = { busy: false, error: null, status: null, preview: null, bringing: null };
   const RELOAD_AFTER_MS = 800; // long enough to read the words
   // Set while a loaded cat's key is adopted: the page reloads once (it reads the
   // cat's id at boot), and the sheet says "Bringing ... here" meanwhile.
@@ -494,8 +494,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   function renderSync() {
     if (!sync || !sync.available) return '';
     if (!catloginReady()) return '<div class="sync-loading" aria-busy="true"></div>';
-    const body = catlogin.sheetHtml(cl, catApi);
-    return catlogin.isBare(cl, catApi) ? body : body + renderBackups() + renderOnlineDelete();
+    return catlogin.sheetHtml(cl, catApi, renderBackups() + renderOnlineDelete());
   }
 
   // "Delete my online data": drawn whether or not this device is linked (a
@@ -1515,6 +1514,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     // so the map is bare when she comes back.
     if (prev === 'places' && next !== 'places' && dressing?.ui?.mapCard) dressing.back?.();
     backupMsg = null; // a restore's result line is for the sheet it happened on
+    cl.moreOpen = false; // the My cat sheet opens with More shut
     // Usage counts: a sheet opened from somewhere else, not a re-open of itself.
     // (Back from a sheet to the Menu, or to For grown-ups, is not an open of it.)
     if (next && next !== prev && !returning) { try { progression.noteUse?.(next); } catch { /* a count, never a blocker */ } }
@@ -2359,7 +2359,6 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             res = { outcome: 'offline' };
           }
           cl.busy = false; deleting = false;
-          if (res.outcome === 'done' || res.save === 'ok' || res.save === 'none') cl.justLinked = false;
           deleteMsg = onlineDeleteMessage(res);
           render();
         },

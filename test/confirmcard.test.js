@@ -272,10 +272,12 @@ describe('the home base uses it', () => {
     const { progression } = setup({ storage, sync });
     dressingMock.opts.onOpenSheet('sync');
     await sheetDrawn(() => doc.root.innerHTML);
+    await click({ id: 'catlogin-more' }); // the kept copies sit under More
     expect(doc.root.innerHTML).not.toContain('data-backup-restore');
     progression.replaceFromPayload({ version: 4, points: 3 });
     dressingMock.opts.onOpenSheet('sync');
     await sheetDrawn(() => doc.root.innerHTML);
+    await click({ id: 'catlogin-more' }); // the kept copies sit under More
     expect(doc.root.innerHTML).toContain('<button data-backup-restore="cloud">Undo the last cloud load <small class="sync-backup-pts">(120 🐾)</small></button>');
     const btn = { getAttribute: () => 'cloud' };
     await click({ closest: (sel) => (sel === '[data-backup-restore]' ? btn : null) });
@@ -293,11 +295,13 @@ describe('the home base uses it', () => {
     setup({ storage, sync });
     dressingMock.opts.onOpenSheet('sync');
     await sheetDrawn(() => doc.root.innerHTML);
+    await click({ id: 'catlogin-more' }); // the kept copies sit under More
     expect(doc.root.innerHTML).toContain('This device has a save from a newer version of the game.');
     expect(doc.root.innerHTML).not.toContain('data-backup-restore="unreadable"');
     storage.setItem(BACKUP_KEYS.unreadable, JSON.stringify({ at: 1, raw: withPoints(4) }));
     dressingMock.opts.onOpenSheet('sync');
     await sheetDrawn(() => doc.root.innerHTML);
+    await click({ id: 'catlogin-more' }); // the kept copies sit under More
     expect(doc.root.innerHTML).toContain('<button data-backup-restore="unreadable">Try to restore');
   });
 

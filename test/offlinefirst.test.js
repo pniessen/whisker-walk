@@ -635,7 +635,7 @@ describe('where the network can start', () => {
     }
     // the one place a tap on the sheet reaches the cloud is the sync object it is handed
     expect([...new Set([...read('ui/catlogin.js').matchAll(/\bsync\.(\w+)\(/g)].map((m) => m[1]))].sort())
-      .toEqual(['changeCode', 'confirmLoad', 'getCode', 'previewLoad', 'saveToCloud', 'syncNow', 'unlink']);
+      .toEqual(['catchUp', 'changeCode', 'confirmLoad', 'getCode', 'previewLoad', 'saveToCloud', 'syncNow', 'unlink']);
   });
   it('the hop client (cat login M4) has no import and makes no request: it asks only through the cloud it is handed, and only after start() or join()', () => {
     const hop = read('game/hop.js');
