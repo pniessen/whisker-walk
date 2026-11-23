@@ -88,6 +88,7 @@ async function setup({ code = null, result = { outcome: 'done', player: 'ok', sa
   hb.show();
   dressingMock.opts.onOpenSheet('sync');
   await sheetDrawn(() => doc.root.innerHTML);
+  await click({ id: 'catlogin-more' }); // Delete my online data sits under More
   return { od, sync, progression, hb, release: () => release() };
 }
 async function confirmYes() {
@@ -169,7 +170,7 @@ describe('the confirm card', () => {
     await confirmYes();
     expect(s.od.run).toHaveBeenCalledTimes(1);
     expect(html()).toContain('<button id="sync-delete-online" class="danger" disabled>Deleting…</button>');
-    expect(html()).toContain('<button id="sync-now" disabled>');
+    expect(html()).toContain('<button id="sync-now" class="big" disabled>');
     await click({ id: 'sync-delete-online' }); // a tap while it runs does nothing
     expect(card()).toBeUndefined();
     s.release();

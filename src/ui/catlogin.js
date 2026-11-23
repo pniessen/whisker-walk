@@ -7,20 +7,19 @@
 // instead of imported: a lazy chunk that imports several start-up modules makes the bundler split
 // start-up into more files (see src/game/catsync.js). Only the code words are imported (also lazy).
 //
-//   cl  the sheet's state, kept by homebase: { busy, error, status, justLinked, preview, bringing,
-//       bringOpen, typed, checkText, checked, showUntil, changed }
+//   cl  the sheet's state, kept by homebase: { busy, error, status, preview, bringing,
+//       bringOpen, moreOpen, typed, notKept }
 //   a   { sync, escapeHtml, phrase, addPhrases, tvState, confirmCard, render, afterConfirm, root }
 import { checkCatCode } from '../catcodes.js';
 import { LINES } from './catloginwords.js';
 
-export const HOLD_MS = 2000; // how long Show my cat code is held
-export const SHOW_MS = 30000; // how long the code stays up after that
+// One switch for the hop code screens (Add a device, I have a hop code). Off: the owner simplified the
+// sheet to Save cat / Load cat. src/game/hop.js and the SQL stay as they are, so it can come back by
+// turning this on (the hop tests do).
+export const UI = { hop: false };
 
 // "PLUM · OTTER · CROW · MAPLE" (and the old shape, "PLUM · OTTER · CROW · 42"): the code as it is read aloud and copied.
 export const codeWords = (code) => String(code ?? '').split('-').join(' · ');
-const lastWord = (code) => String(code ?? '').split('-').pop() ?? '';
-
-const padInput = (a) => !!(a.tvState && (a.tvState.on || a.tvState.input === 'pad'));
 
 // ── the pieces of the sheet ────────────────────────────────────────
 
@@ -117,82 +116,81 @@ function hopHostHtml(cl, a) {
 function bringHtml(cl, a) {
   const e = a.escapeHtml;
   const busy = cl.busy ? 'disabled' : '';
-  if (cl.hopEntry) return hopEntryHtml(cl, a);
+  if (UI.hop && cl.hopEntry) return hopEntryHtml(cl, a);
   return `
-          <button id="catlogin-hop-have" ${busy}>${e(a.phrase('catlogin.hop.have'))}</button>
-          <div class="tag">${e(a.phrase('catlogin.hop.havehint'))}</div>
+          ${UI.hop ? `<button id="catlogin-hop-have" ${busy}>${e(a.phrase('catlogin.hop.have'))}</button>
+          <div class="tag">${e(a.phrase('catlogin.hop.havehint'))}</div>` : ''}
           <div class="code-field">
             <label class="code-label" for="sync-load-code">${e(a.phrase('catlogin.bring.label'))}</label>
             <div class="sync-load-row">
               <input type="text" id="sync-load-code" maxlength="60" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="${e(a.phrase('catlogin.bring.placeholder'))}" value="${e(cl.typed ?? '')}" class="wt-code-input sync-code-input" />
-              <button id="sync-load" ${busy}>${e(a.phrase('catlogin.bring'))}</button>
+              <button id="sync-load" ${busy}>${e(a.phrase('catlogin.find'))}</button>
             </div>
             <div class="cat-chips" id="catlogin-chips" aria-live="polite">${chipsHtml(cl.typed ?? '', a)}</div>
             <div class="tag">${e(a.phrase('catlogin.bring.hint'))}</div>
           </div>`;
 }
 
-// Screen 2: the new code, shown once, with the check that it was written down.
-function justLinkedHtml(cl, a, code) {
+// The cat code: the four words, always there on a linked sheet (under Save cat), big, selectable, on every layout and input.
+function showHtml(cl, a, code) {
+  const e = a.escapeHtml;
+  return `<div class="catlogin-shown"><div class="sync-code-value" data-cat-code>${e(codeWords(code))}</div></div>${cl.notKept ? `<div class="tag error">${e(a.phrase('catlogin.new.notkept'))}</div>` : ''}`;
+}
+
+// The two big buttons: Save cat and Load cat (ids stay: sync-save / sync-now, catlogin-bring).
+function twoButtons(cl, a, saveId) {
+  const e = a.escapeHtml;
+  const busy = cl.busy ? 'disabled' : '';
+  return `<div class="catsheet-two">
+              <button id="${saveId}" class="big" ${busy}>${e(cl.busy ? a.phrase('catlogin.saving') : a.phrase('catlogin.save'))}</button>
+              <button id="catlogin-bring" class="big" aria-expanded="${cl.bringOpen ? 'true' : 'false'}" ${busy}>${e(a.phrase('catlogin.load'))}</button>
+            </div>
+            ${cl.bringOpen ? bringHtml(cl, a) : ''}`;
+}
+
+// ONE quiet disclosure for everything else; collapsed unless cl.moreOpen (homebase clears it when the sheet opens).
+function moreHtml(cl, a, inner) {
+  if (!inner) return '';
   const e = a.escapeHtml;
   return `
-          <div class="sync-code-big">
-            <h3>${e(cl.changed ? a.phrase('catlogin.new.titlenew') : a.phrase('catlogin.new.title'))}</h3>
-            <div class="sync-code-value">${e(codeWords(code))}</div>
-            <div class="tag error">${e(a.phrase('catlogin.new.note'))}</div>
-            <div class="tag">${e(a.phrase('catlogin.new.warn'))}</div>
-            ${cl.notKept ? `<div class="tag error">${e(a.phrase('catlogin.new.notkept'))}</div>` : ''}
-            <label class="code-label" for="catlogin-check">${e(a.phrase('catlogin.new.check'))}</label>
-            <input type="text" id="catlogin-check" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" value="${e(cl.checkText ?? '')}" class="wt-code-input sync-code-input" />
-            <button id="sync-got-it" class="primary" ${cl.checked ? '' : 'disabled'}>${e(a.phrase('catlogin.new.ok'))}</button>
-            <button id="catlogin-skip" class="link">${e(a.phrase('catlogin.new.skip'))}</button>
+          <div class="catlogin-more">
+            <button id="catlogin-more" class="link" aria-expanded="${cl.moreOpen ? 'true' : 'false'}" aria-controls="catlogin-more-body">${e(a.phrase('catlogin.more'))}</button>
+            ${cl.moreOpen ? `<div id="catlogin-more-body" class="catlogin-more-body">${inner}</div>` : ''}
           </div>`;
 }
 
-// Show my cat code: pressed and held, never up by accident, and not drawn at all on a TV or with a game pad.
-function showHtml(cl, a, code) {
-  const e = a.escapeHtml;
-  if (padInput(a)) return `<div class="tag catlogin-notv">${e(a.phrase('catlogin.show.notv'))}</div>`;
-  if (cl.showUntil > Date.now()) {
-    return `<div class="catlogin-shown"><div class="sync-code-value" data-cat-code>${e(codeWords(code))}</div><button id="catlogin-hide">${e(a.phrase('catlogin.hide'))}</button></div>`;
-  }
-  return `<div class="catlogin-show"><button id="catlogin-show" class="hold" ${cl.busy ? 'disabled' : ''}>${e(a.phrase('catlogin.show'))}</button><span class="tag">${e(a.phrase('catlogin.show.hint'))}</span></div>`;
-}
-
-function linkedHtml(cl, a, code) {
+function linkedHtml(cl, a, code, extra) {
   const e = a.escapeHtml;
   const busy = cl.busy ? 'disabled' : '';
+  const inner = `
+              <div class="sync-actions">
+                <button id="catlogin-change" ${busy}>${e(a.phrase('catlogin.change'))}</button>
+              </div>
+              <div class="sync-unlink-row">
+                <button id="sync-unlink" class="danger" ${busy}>Unlink</button>
+              </div>${extra}`;
   return `
           <div class="sync-linked">
             <div class="tag on">☁️ ${e(a.phrase('catlogin.linked.tag'))}</div>
             ${catStatusLine(a)}
             ${cl.status ? `<div class="tag">${e(cl.status)}</div>` : ''}
-            <div class="sync-actions">
-              <button id="sync-now" ${busy}>${cl.busy ? 'Syncing…' : 'Sync now'}</button>
-              <button id="sync-load-linked" ${busy}>Load from cloud</button>
-            </div>
-            ${cl.hop?.kind === 'host' ? hopHostHtml(cl, a) : `<div class="sync-actions"><button id="catlogin-hop-add" ${busy}>${e(a.phrase('catlogin.hop.add'))}</button></div>`}
+            ${twoButtons(cl, a, 'sync-now')}
+            ${UI.hop ? (cl.hop?.kind === 'host' ? hopHostHtml(cl, a) : `<div class="sync-actions"><button id="catlogin-hop-add" ${busy}>${e(a.phrase('catlogin.hop.add'))}</button></div>`) : ''}
             ${showHtml(cl, a, code)}
-            <div class="sync-actions">
-              <button id="catlogin-change" ${busy}>${e(a.phrase('catlogin.change'))}</button>
-            </div>
             ${cl.error ? `<div class="tag error">${e(cl.error)}</div>` : ''}
-            <div class="sync-unlink-row">
-              <button id="sync-unlink" class="danger" ${busy}>Unlink</button>
-            </div>
+            ${moreHtml(cl, a, inner)}
           </div>`;
 }
 
-function unlinkedHtml(cl, a) {
+function unlinkedHtml(cl, a, extra) {
   const e = a.escapeHtml;
-  const busy = cl.busy ? 'disabled' : '';
   return `
         <div class="sync-unlinked">
           <h3>${e(a.phrase('catlogin.title'))}</h3>
           <div class="tag">${e(a.phrase('catlogin.intro'))}</div>
-          <button id="sync-save" ${busy}>${e(cl.busy ? a.phrase('catlogin.keeping') : a.phrase('catlogin.keep'))}</button>
-          ${cl.bringOpen ? bringHtml(cl, a) : `<button id="catlogin-bring" ${busy}>${e(a.phrase('catlogin.bring'))}</button>`}
+          ${twoButtons(cl, a, 'sync-save')}
           ${cl.error ? `<div class="tag error">${e(cl.error)}</div>` : ''}
+          ${moreHtml(cl, a, extra)}
         </div>`;
 }
 
@@ -218,16 +216,16 @@ function previewHtml(cl, a) {
 
 /** True when the sheet stands alone (no kept copies or Delete my online data under it). */
 export function isBare(cl, a) {
-  return !!(cl.bringing || cl.preview || (cl.justLinked && a.sync.getCode()));
+  return !!(cl.bringing || cl.preview);
 }
 
-/** The sheet's body for the state `cl`. */
-export function sheetHtml(cl, a) {
+/** The sheet's body for the state `cl`. `extra` is what homebase keeps under More (the kept copies, Delete my online data). */
+export function sheetHtml(cl, a, extra = '') {
   if (cl.bringing) return `<div class="sync-bringing" role="status">${a.escapeHtml(a.phrase('catlogin.bringing', cl.bringing.name))}</div>`;
   if (cl.preview) return previewHtml(cl, a);
   const code = a.sync.getCode();
-  if (!code) return unlinkedHtml(cl, a);
-  return cl.justLinked ? justLinkedHtml(cl, a, code) : linkedHtml(cl, a, code);
+  if (!code) return unlinkedHtml(cl, a, extra);
+  return linkedHtml(cl, a, code, extra);
 }
 
 // ── typing ─────────────────────────────────────────────────────────
@@ -244,52 +242,17 @@ export function typing(target, cl, a) {
     cl.hopTyped = String(target.value ?? '');
     return true;
   }
-  if (target?.id === 'catlogin-check') {
-    cl.checkText = String(target.value ?? '');
-    const want = lastWord(a.sync.getCode());
-    cl.checked = want !== '' && cl.checkText.trim().toUpperCase() === want.toUpperCase();
-    const go = a.root.querySelector?.('#sync-got-it');
-    if (go) go.disabled = !cl.checked;
-    return true;
-  }
   return false;
 }
 
-// ── Show my cat code: press and hold ───────────────────────────────
+// ── keys and listeners ─────────────────────────────────────────────
 
-const holdOf = (cl) => (cl._hold ??= { timer: null });
-function stopHold(cl, a) {
-  const h = holdOf(cl);
-  if (h.timer !== null) { clearTimeout(h.timer); h.timer = null; }
-}
-function startHold(cl, a) {
-  const h = holdOf(cl);
-  if (h.timer !== null || padInput(a) || cl.busy) return;
-  h.timer = setTimeout(() => {
-    h.timer = null;
-    cl.showUntil = Date.now() + SHOW_MS;
-    setTimeout(() => { if (cl.showUntil <= Date.now()) a.render(); }, SHOW_MS + 50);
-    a.render();
-  }, HOLD_MS);
-}
-const isShowButton = (t) => t?.id === 'catlogin-show';
+/** The home screen's root keydown: nothing on this sheet needs more than a normal key press. -> false. */
+export function keydown() { return false; }
 
-/** The home screen's root keydown: holding Enter or Space on the Show button also counts. -> true when it was ours. */
-export function keydown(e, cl, a) {
-  if (!isShowButton(e.target)) return false;
-  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault?.(); if (!e.repeat) startHold(cl, a); return true; }
-  return false;
-}
-
-/** Put the hold's listeners on the home screen's root (once, when this chunk arrives). */
+/** Called once when this chunk arrives: adds the sheet's words to the phrase table. */
 export function wire(root, cl, a) {
   a.addPhrases(LINES);
-  const stop = () => stopHold(cl, a);
-  root.addEventListener('pointerdown', (e) => { if (isShowButton(e.target)) startHold(cl, a); });
-  root.addEventListener('pointerup', stop);
-  root.addEventListener('pointercancel', stop);
-  root.addEventListener('pointerout', (e) => { if (isShowButton(e.target)) stop(); });
-  root.addEventListener('keyup', (e) => { if (isShowButton(e.target)) stop(); });
 }
 
 // ── add a device ───────────────────────────────────────────────────
@@ -395,19 +358,30 @@ export async function click(e, cl, a) {
     return true;
   }
   const sync = a.sync;
-  if (id.startsWith('catlogin-hop-')) return hopClick(id, e, cl, a);
+  if (UI.hop && id.startsWith('catlogin-hop-')) return hopClick(id, e, cl, a);
   switch (id) {
     case 'sync-save': {
       cl.busy = true; cl.error = null; a.render();
       const res = await sync.saveToCloud();
       cl.busy = false;
-      if (res.ok) { cl.justLinked = true; cl.changed = false; cl.notKept = false; cl.checkText = ''; cl.checked = false; } else cl.error = res.error;
+      if (res.ok) { cl.notKept = false; } else cl.error = res.error;
       a.render();
       return true;
     }
+    // Load cat: opens (or closes) the code box. On a device that is already linked it also catches up
+    // from the cloud, quietly (the status line shows it).
     case 'catlogin-bring':
-      cl.bringOpen = true; cl.error = null; a.render();
-      a.root.querySelector?.('#sync-load-code')?.focus?.();
+      cl.bringOpen = !cl.bringOpen; cl.error = null; cl.hopEntry = false;
+      if (cl.bringOpen && sync.getCode() && typeof sync.catchUp === 'function') {
+        cl.status = null;
+        sync.catchUp().then((r) => { if (r === 'offline') cl.status = a.phrase('catlogin.err.offline'); a.render(); }).catch(() => {});
+      }
+      a.render();
+      if (cl.bringOpen) a.root.querySelector?.('#sync-load-code')?.focus?.();
+      return true;
+    case 'catlogin-more':
+      cl.moreOpen = !cl.moreOpen; a.render();
+      a.root.querySelector?.('#catlogin-more')?.focus?.({ preventScroll: true });
       return true;
     // Load from cloud: the typed cat code, or (linked) this device's own. Either way it is the same
     // preview, which compares before it overwrites. A typed code is read and snapped first, and
@@ -441,13 +415,6 @@ export async function click(e, cl, a) {
     case 'sync-cancel-load':
       cl.preview = null; a.render();
       return true;
-    case 'sync-got-it':
-    case 'catlogin-skip':
-      cl.justLinked = false; cl.changed = false; cl.notKept = false; cl.checkText = ''; cl.checked = false; a.render();
-      return true;
-    case 'catlogin-hide':
-      cl.showUntil = 0; a.render();
-      return true;
     case 'sync-now': {
       cl.busy = true; cl.status = null; a.render();
       const res = await sync.syncNow();
@@ -466,10 +433,10 @@ export async function click(e, cl, a) {
         returnFocus: () => a.root.querySelector?.('#catlogin-change')?.focus?.({ preventScroll: true }),
         onYes: async () => {
           if (cl.busy) return;
-          cl.busy = true; cl.error = null; cl.status = null; cl.showUntil = 0; a.render();
+          cl.busy = true; cl.error = null; cl.status = null; a.render();
           const res = await sync.changeCode();
           cl.busy = false;
-          if (res.ok) { cl.justLinked = true; cl.changed = true; cl.notKept = !!res.notKept; cl.checkText = ''; cl.checked = false; } else cl.error = res.error;
+          if (res.ok) { cl.notKept = !!res.notKept; } else cl.error = res.error;
           a.render();
         },
       });
@@ -488,7 +455,7 @@ export async function click(e, cl, a) {
         onYes: () => {
           sync.unlink();
           stopHop(cl);
-          cl.status = null; cl.error = null; cl.justLinked = false; cl.showUntil = 0; cl.bringOpen = false;
+          cl.status = null; cl.error = null; cl.bringOpen = false;
           a.render();
         },
       });

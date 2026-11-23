@@ -87,6 +87,7 @@ async function setup({ code = null, result = { outcome: 'done', player: 'ok', sa
   hb.show();
   dressingMock.opts.onOpenSheet('sync');
   await sheetDrawn(() => doc.root.innerHTML);
+  await click({ id: 'catlogin-more' }); // Unlink and Delete my online data sit under More
   return { od, sync, progression, hb, release: () => release() };
 }
 async function confirmYes() {
@@ -97,14 +98,15 @@ async function confirmYes() {
 
 
 describe('Unlink on the linked Cloud save sheet', () => {
-  it('sits on its own row, apart from Sync now, and keeps its id', async () => {
+  it('sits on its own row under More, apart from Save cat, and keeps its id', async () => {
     await setup({ code: CODE });
     const h = html();
     expect(h).toContain('<div class="sync-unlink-row">');
     expect(h).toContain('<button id="sync-unlink" class="danger" >Unlink</button>');
-    const actions = h.slice(h.indexOf('<div class="sync-actions">'), h.indexOf('<div class="sync-unlink-row">'));
-    expect(actions).toContain('id="sync-now"');
-    expect(actions).not.toContain('sync-unlink');
+    expect(h.indexOf('id="sync-now"')).toBeLessThan(h.indexOf('catlogin-more-body'));
+    expect(h.indexOf('catlogin-more-body')).toBeLessThan(h.indexOf('sync-unlink'));
+    const two = h.slice(h.indexOf('catsheet-two'), h.indexOf('catlogin-more'));
+    expect(two).not.toContain('sync-unlink');
   });
   it('asks first: the code in the note, Keep saving first, nothing unlinked yet', async () => {
     const s = await setup({ code: CODE });
@@ -138,7 +140,7 @@ describe('Unlink on the linked Cloud save sheet', () => {
 });
 
 describe('the cat code box', () => {
-  it('has a visible label, once Bring my cat here is open', async () => {
+  it('has a visible label, once Load cat is open', async () => {
     await setup();
     expect(html()).not.toContain('sync-load-code');
     await click({ id: 'catlogin-bring' });
@@ -146,17 +148,19 @@ describe('the cat code box', () => {
   });
 });
 
-describe('Load from cloud while linked', () => {
-  it('is drawn beside Sync now', async () => {
+describe('Load cat while linked', () => {
+  it('is drawn beside Save cat, and Load from cloud is gone from the sheet', async () => {
     await setup({ code: CODE });
-    expect(html()).toContain('<button id="sync-load-linked" >Load from cloud</button>');
+    expect(html()).toContain('id="catlogin-bring"');
+    expect(html()).not.toContain('sync-load-linked');
   });
-  it('previews the linked code through the same compare-first card', async () => {
+  it('typing the cat code previews it through the same compare-first card', async () => {
     const s = await setup({ code: CODE });
-    await click({ id: 'sync-load-linked' });
+    await click({ id: 'catlogin-bring' });
+    doc.root.listeners.input({ target: { id: 'sync-load-code', value: 'plum otter crow 42' } });
+    await click({ id: 'sync-load' });
     expect(s.sync.previewLoad).toHaveBeenCalledWith(CODE);
     await vi.waitFor(() => expect(html()).toContain('Confirm — overwrite this device'));
     expect(html()).toContain('In the cloud');
-    expect(html()).not.toContain(CODE); // the code is not drawn by a load: it is only shown by holding
   });
 });

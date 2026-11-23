@@ -851,6 +851,15 @@ body.touch-mode:not(.left-handed) .hud-top {
 }
 .sync-cloud .sync-actions, .sync-load-row, .sync-unlinked { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .sync-cloud .sync-actions { margin-top: 8px; }
+/* My cat sheet: the two big buttons, and the quiet More under them */
+.catsheet-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; margin-top: 10px; }
+.catsheet-two .big { padding: 18px 10px; font-size: 1.2rem; font-weight: 700; }
+.catlogin-shown .sync-code-value { font-size: 1.5rem; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
+.catlogin-more { width: 100%; margin-top: 18px; }
+.catlogin-more .link { background: transparent; border: 0; color: inherit; opacity: 0.8; text-decoration: underline; cursor: pointer; padding: 8px 2px; font: inherit; }
+.catlogin-more .link::after { content: ' ▾'; }
+.catlogin-more .link[aria-expanded="true"]::after { content: ' ▴'; }
+.catlogin-more-body { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 /* Unlink on its own row, well away from Sync now (it asks first, too). */
 .sync-unlink-row { margin-top: 22px; }
 .sync-code-input { text-transform: uppercase; width: 14em; letter-spacing: 0.04em; }
@@ -867,13 +876,8 @@ body.touch-mode:not(.left-handed) .hud-top {
 .cat-chip.ok { background: #1f3d2a; color: #9fe3b0; border-color: #3f8f58; }
 .cat-chip.bad { background: #4a2020; color: #f2a0a0; border-color: #a04848; }
 .cat-chip.snap { background: #4a3d16; color: #f2d58a; border-color: #b8943a; cursor: pointer; font-family: inherit; }
-.catlogin-show { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 8px; }
-.catlogin-show .hold { position: relative; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-.catlogin-show .hold::after { content: ''; position: absolute; left: 0; bottom: 0; height: 4px; width: 0; background: #f2c14e; }
-.catlogin-show .hold:active::after { width: 100%; transition: width 2s linear; }
 .catlogin-shown { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 8px; }
 .sync-code-big .link, .sync-unlinked .link { background: transparent; border: 0; color: inherit; text-decoration: underline; cursor: pointer; padding: 6px 2px; font: inherit; }
-@media (prefers-reduced-motion: reduce) { .catlogin-show .hold:active::after { transition: none; } }
 .sync-cloud .primary { background: #f2c14e; color: #3a2a10; }
 .sync-cloud .primary:hover { background: #f2c14e; filter: brightness(1.08); }
 .sync-cloud .primary:disabled { background: var(--btn-off-bg); color: var(--btn-off-fg); cursor: default; }

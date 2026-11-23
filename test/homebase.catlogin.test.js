@@ -25,7 +25,7 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
   },
 }));
 
-await import('../src/ui/catlogin.js'); // the sheet's chunk, cached before the first test
+const { UI } = await import('../src/ui/catlogin.js'); // the sheet's chunk, cached before the first test
 await import('../src/game/hop.js'); // and the hop client's, so a tap does not wait for it
 const { sheetDrawn } = await import('./helpers/catsheet.js');
 const { createHomeBase } = await import('../src/ui/homebase.js');
@@ -121,18 +121,19 @@ describe('the lazy sheet', () => {
 });
 
 describe('Screen 1: My cat, on any device (nothing linked)', () => {
-  it('says what it is for and offers Keep my cat safe and Bring my cat here, and sends nothing', async () => {
+  it('says what it is for and offers exactly two big buttons, Save cat and Load cat, and sends nothing', async () => {
     const s = await setup();
     const h = html();
     expect(h).toContain('My cat, on any device');
-    expect(h).toContain('Your cat can visit your other devices. Pick one.');
-    expect(h).toContain('<button id="sync-save" >Keep my cat safe</button>');
-    expect(h).toContain('<button id="catlogin-bring" >Bring my cat here</button>');
-    expect(h).not.toContain('sync-load-code'); // the box opens with Bring my cat here
+    expect(h).toContain('<button id="sync-save" class="big" >Save cat</button>');
+    expect(h).toContain('<button id="catlogin-bring" class="big" aria-expanded="false" >Load cat</button>');
+    expect(h).not.toContain('sync-load-code'); // the box opens with Load cat
+    expect(h).not.toMatch(/Keep my cat safe|Bring my cat here|hop/i);
+    expect((h.slice(h.indexOf('sync-unlinked')).match(/<button/g) ?? []).length).toBe(2); // nothing else to press on a first-time sheet
     expect(s.sync.saveToCloud).not.toHaveBeenCalled();
     expect(s.sync.previewLoad).not.toHaveBeenCalled();
   });
-  it('Bring my cat here opens the code box with its label, chips and a hint, still sending nothing', async () => {
+  it('Load cat opens the code box with its label, chips and a hint, still sending nothing', async () => {
     const s = await setup();
     await click({ id: 'catlogin-bring' });
     const h = html();
@@ -180,7 +181,7 @@ describe('Screen 1: My cat, on any device (nothing linked)', () => {
     await click({ id: 'catlogin-fix', dataset: { catWord: '1', catFix: CAT_WORDS[9] } });
     expect(box.value).toBe(`${CAT_WORDS[3]} ${CAT_WORDS[9]} ${CAT_WORDS[5]}`);
   });
-  it('Bring my cat here with a bad code says so in kid words and sends nothing', async () => {
+  it('Load cat with a bad code says so in kid words and sends nothing', async () => {
     const s = await setup();
     await click({ id: 'catlogin-bring' });
     type('sync-load-code', 'one two three');
@@ -208,117 +209,127 @@ describe('Screen 1: My cat, on any device (nothing linked)', () => {
   });
 });
 
-describe('Screen 2: the new cat code', () => {
-  it('shows the code as four words, and how to keep it safe', async () => {
-    await setup();
-    await click({ id: 'sync-save' });
-    await vi.waitFor(() => expect(html()).toContain('This is your cat code.'));
-    const h = html();
-    expect(h).toContain(`<div class="sync-code-value">${WORDS}</div>`);
-    expect(h).toContain('Write it on paper. Show a grown-up. Keep it safe.');
-    expect(h).toContain('Anyone who knows it can play your cat. If you lose it and every device, we cannot find your cat.');
-    expect(h).toContain('To check, type the last word:');
-    expect(h).toContain('<button id="sync-got-it" class="primary" disabled>I wrote it down</button>');
-    expect(h).toContain('Skip, I’ll do it later');
-    expect(h).not.toContain('sync-delete-online'); // the sheet stands alone while the code is up
-  });
-  it('the check takes the right last word in any case, and then I wrote it down is open', async () => {
-    const go = { disabled: true };
-    doc.root.querySelector = (q) => (q === '#sync-got-it' ? go : null);
+describe('Save cat shows the four words, and only the words', () => {
+  it('a first-time Save cat saves, then the linked sheet shows the code as four words with nothing else about it', async () => {
     const s = await setup();
     await click({ id: 'sync-save' });
-    await vi.waitFor(() => expect(html()).toContain('This is your cat code.'));
-    type('catlogin-check', 'wrong');
-    expect(go.disabled).toBe(true);
-    type('catlogin-check', CAT_WORDS[400].toLowerCase());
-    expect(go.disabled).toBe(false);
+    await vi.waitFor(() => expect(html()).toContain('sync-linked'));
+    expect(s.sync.saveToCloud).toHaveBeenCalledTimes(1);
+    const h = html();
+    expect(h).toContain(`<div class="sync-code-value" data-cat-code>${WORDS}</div>`);
+    for (const gone of ['This is your cat code', 'Write it on paper', 'Anyone who knows it', 'To check, type the last word', 'I wrote it down', 'Skip, I', 'sync-got-it', 'catlogin-skip', 'catlogin-check', 'catlogin-hide', 'Hide', 'Press and hold', 'id="catlogin-show"']) expect(h, gone).not.toContain(gone);
+  });
+  it('the words stay after any re-draw, a sync and a status change, with no timer taking them away', async () => {
+    const s = await setup({ linked: CODE });
+    expect(html()).toContain(`data-cat-code>${WORDS}<`);
     s.hb.refreshSync();
-    expect(html()).toContain('<button id="sync-got-it" class="primary" >I wrote it down</button>');
+    expect(html()).toContain(`data-cat-code>${WORDS}<`);
+    await click({ id: 'sync-now' });
+    expect(html()).toContain(`data-cat-code>${WORDS}<`);
+    await click({ id: 'catlogin-more' });
+    await click({ id: 'catlogin-more' });
+    expect(html()).toContain(`data-cat-code>${WORDS}<`);
+    vi.advanceTimersByTime(10 * 60 * 1000);
+    s.hb.refreshSync();
+    expect(html()).toContain(`data-cat-code>${WORDS}<`);
   });
-  it('I wrote it down and Skip both go on to the saved sheet, and the code stays out of sight', async () => {
-    for (const id of ['sync-got-it', 'catlogin-skip']) {
-      await setup();
-      await click({ id: 'sync-save' });
-      await vi.waitFor(() => expect(html()).toContain('This is your cat code.'));
-      await click({ id });
-      expect(html()).toContain('sync-linked');
-      expect(html()).not.toContain(WORDS);
-      expect(html()).not.toContain(CODE);
-    }
-  });
-});
-
-describe('Screen 7: the saved sheet', () => {
-  it('never shows the code by itself, not even in the unlink line of the tag', async () => {
+  it('they are there as soon as the sheet opens for a cat that already has a code, and again when it is reopened', async () => {
     await setup({ linked: CODE });
-    expect(html()).not.toContain(CODE);
-    expect(html()).not.toContain(WORDS);
-    expect(html()).toContain('Show my cat code');
-    expect(html()).toContain('Press and hold for two seconds.');
-    expect(html()).toContain('<button id="catlogin-change" >Change my cat code</button>');
-    expect(html()).toContain('<button id="sync-now" >Sync now</button>');
+    expect(html()).toContain(`data-cat-code>${WORDS}<`);
+    dressingMock.opts.onOpenSheet(null);
+    dressingMock.opts.onOpenSheet('sync');
+    await sheetDrawn(html);
+    expect(html()).toContain(`data-cat-code>${WORDS}<`);
   });
-  it('a tap does not show the code', async () => {
-    await setup({ linked: CODE });
-    await click({ id: 'catlogin-show' });
-    expect(html()).not.toContain(WORDS);
-  });
-  const down = () => doc.root.listeners.pointerdown({ target: { id: 'catlogin-show' } });
-  it('holding for two seconds shows it, with a Hide button; letting go early shows nothing', async () => {
-    await setup({ linked: CODE });
-    down();
-    vi.advanceTimersByTime(1900);
-    doc.root.listeners.pointerup({ target: { id: 'catlogin-show' } });
-    vi.advanceTimersByTime(5000);
-    expect(html()).not.toContain(WORDS);
-    down();
-    vi.advanceTimersByTime(2000);
-    expect(html()).toContain(`<div class="sync-code-value" data-cat-code>${WORDS}</div>`);
-    expect(html()).toContain('<button id="catlogin-hide">Hide</button>');
-    await click({ id: 'catlogin-hide' });
-    expect(html()).not.toContain(WORDS);
-  });
-  it('holds a key too (Enter or Space), and lifting it early cancels', async () => {
-    await setup({ linked: CODE });
-    // the home screen's own keydown hands the key to the sheet; there is no second keydown listener on the root
-    doc.root.listeners.keydown({ target: { id: 'catlogin-show' }, key: 'Enter', repeat: false, preventDefault() {} });
-    doc.root.listeners.keydown({ target: { id: 'catlogin-show' }, key: 'Enter', repeat: true, preventDefault() {} });
-    vi.advanceTimersByTime(1000);
-    doc.root.listeners.keyup({ target: { id: 'catlogin-show' } });
-    vi.advanceTimersByTime(3000);
-    expect(html()).not.toContain(WORDS);
-    doc.root.listeners.keydown({ target: { id: 'catlogin-show' }, key: ' ', repeat: false, preventDefault() {} });
-    vi.advanceTimersByTime(2000);
-    expect(html()).toContain(WORDS);
-  });
-  it('goes away by itself after a little while', async () => {
-    await setup({ linked: CODE });
-    down();
-    vi.advanceTimersByTime(2000);
-    expect(html()).toContain(WORDS);
-    vi.advanceTimersByTime(31000);
-    expect(html()).not.toContain(WORDS);
-  });
-  it('is not drawn with a TV or a game pad, and the hold does nothing there', async () => {
+  it('are drawn on a TV and with a game pad too, and Save cat is a plain button the pad can press', async () => {
     for (const tv of [{ on: true }, { input: 'pad' }]) {
       resetTv();
       setTv(tv);
-      await setup({ linked: CODE });
-      expect(html()).not.toContain('catlogin-show');
-      expect(html()).toContain('Your cat code is not shown on a TV or with a game pad.');
-      down();
-      vi.advanceTimersByTime(3000);
-      expect(html()).not.toContain(WORDS);
+      const s = await setup({ linked: CODE });
+      expect(html()).toContain(`data-cat-code>${WORDS}<`);
+      expect(html()).toMatch(/<button id="sync-now" class="big" >Save cat<\/button>/);
+      expect(html()).not.toContain('not shown on a TV');
+      await click({ id: 'sync-now' });
+      expect(s.sync.syncNow).toHaveBeenCalled();
     }
   });
-  it('shows the catch-up line as before', async () => {
-    await setup({ linked: CODE, state: 'saved' });
-    expect(html()).toContain('<div class="tag catlogin-status" data-cat-status="saved" role="status">Mittens is safe</div>');
+  it('Save cat on a linked sheet syncs now, and says so', async () => {
+    const s = await setup({ linked: CODE });
+    await click({ id: 'sync-now' });
+    expect(s.sync.syncNow).toHaveBeenCalledTimes(1);
+    expect(html()).toContain('Synced ✓');
+  });
+  it('a code this device could not keep keeps its one line, since the words are then the only copy', async () => {
+    await setup({ linked: CODE, change: async () => ({ ok: true, code: CODE, notKept: true }) });
+    await click({ id: 'catlogin-more' });
+    await click({ id: 'catlogin-change' });
+    vi.advanceTimersByTime(CONFIRM_DELAY_MS);
+    answer(card(), 'yes');
+    await vi.waitFor(() => expect(html()).toContain('This device could not keep the new code. Write it down now.'));
+  });
+});
+
+describe('Load cat while linked', () => {
+  it('opens the code box and catches up from the cloud, once, and sends nothing else', async () => {
+    const catchUp = vi.fn(async () => 'saved');
+    const s = await setup({ linked: CODE, extra: { catchUp } });
+    await click({ id: 'catlogin-bring' });
+    expect(catchUp).toHaveBeenCalledTimes(1);
+    expect(html()).toContain('id="sync-load-code"');
+    expect(s.sync.previewLoad).not.toHaveBeenCalled();
+    await click({ id: 'catlogin-bring' }); // closes it again, no second catch-up
+    expect(html()).not.toContain('id="sync-load-code"');
+    expect(catchUp).toHaveBeenCalledTimes(1);
+  });
+  it('an offline catch-up says the plain offline line', async () => {
+    await setup({ linked: CODE, extra: { catchUp: async () => 'offline' } });
+    await click({ id: 'catlogin-bring' });
+    await vi.waitFor(() => expect(html()).toContain('Connect to the internet and try again.'));
+  });
+  it('a first-time device asks for no catch-up', async () => {
+    const catchUp = vi.fn(async () => 'none');
+    await setup({ extra: { catchUp } });
+    await click({ id: 'catlogin-bring' });
+    expect(catchUp).not.toHaveBeenCalled();
+  });
+});
+
+describe('More: one quiet disclosure for everything else', () => {
+  const backups = [{ kind: 'cloud', at: 1, newer: false, restorable: true, points: 3, lifetimePoints: 3 }];
+  it('is collapsed by default: only Save cat and Load cat and More are on the linked sheet', async () => {
+    const s = await setup({ linked: CODE });
+    vi.spyOn(s.progression, 'backupInfo').mockReturnValue(backups);
+    s.hb.refreshSync();
+    const h = html();
+    expect(h).toContain('<button id="catlogin-more" class="link" aria-expanded="false" aria-controls="catlogin-more-body">More</button>');
+    for (const hidden of ['catlogin-change', 'sync-unlink', 'data-backup-restore', 'sync-delete-online', 'id="catlogin-more-body"']) expect(h, hidden).not.toContain(hidden);
+    expect(h).not.toMatch(/Sync now|Load from cloud|Add a device|Show my cat code|hop/i);
+  });
+  it('opens to Change my cat code, Unlink and (while a copy is kept) Undo, and shuts again when the sheet is reopened', async () => {
+    const s = await setup({ linked: CODE });
+    vi.spyOn(s.progression, 'backupInfo').mockReturnValue(backups);
+    await click({ id: 'catlogin-more' });
+    let h = html();
+    expect(h).toContain('aria-expanded="true"');
+    for (const shown of ['id="catlogin-change"', 'id="sync-unlink"', 'data-backup-restore="cloud"']) expect(h, shown).toContain(shown);
+    // every one is a real button
+    expect(h).toMatch(/<button id="catlogin-change"/);
+    dressingMock.opts.onOpenSheet(null);
+    dressingMock.opts.onOpenSheet('sync');
+    await sheetDrawn(html);
+    h = html();
+    expect(h).toContain('aria-expanded="false"');
+    expect(h).not.toContain('id="catlogin-more-body"');
+  });
+  it('a first-time sheet shows no More when there is nothing under it', async () => {
+    await setup();
+    expect(html()).not.toContain('catlogin-more');
   });
 });
 
 describe('Change my cat code', () => {
   const ask = async () => {
+    await click({ id: 'catlogin-more' });
     await click({ id: 'catlogin-change' });
     vi.advanceTimersByTime(CONFIRM_DELAY_MS);
   };
@@ -334,13 +345,13 @@ describe('Change my cat code', () => {
     answer(card(), 'no');
     expect(s.sync.changeCode).not.toHaveBeenCalled();
   });
-  it('Yes changes it once and shows the new code on the write-it-down screen', async () => {
+  it('Yes changes it once and the sheet shows the new four words', async () => {
     const s = await setup({ linked: CODE });
     await ask();
     answer(card(), 'yes');
-    await vi.waitFor(() => expect(html()).toContain('This is your new cat code.'));
+    await vi.waitFor(() => expect(html()).toContain([CAT_WORDS[1], CAT_WORDS[2], CAT_WORDS[3], CAT_WORDS[4]].join(' · ')));
     expect(s.sync.changeCode).toHaveBeenCalledTimes(1);
-    expect(html()).toContain([CAT_WORDS[1], CAT_WORDS[2], CAT_WORDS[3], CAT_WORDS[4]].join(' · '));
+    expect(html()).not.toContain('This is your new cat code');
   });
   it('says kid words when it did not work, and the sheet stays as it was', async () => {
     const s = await setup({ linked: CODE, change: async () => ({ ok: false, error: 'The cloud is busy right now. Try again in a little while.' }) });
@@ -350,24 +361,19 @@ describe('Change my cat code', () => {
     expect(s.sync.getCode()).toBe(CODE);
     expect(html()).toContain('sync-linked');
   });
-  it('a code this device could not keep is shown with a line to write it down now', async () => {
-    await setup({ linked: CODE, change: async () => ({ ok: true, code: CODE, notKept: true }) });
-    await ask();
-    answer(card(), 'yes');
-    await vi.waitFor(() => expect(html()).toContain('This device could not keep the new code. Write it down now.'));
-  });
 });
 
-describe('Unlink and Load while linked keep the code out of sight', () => {
-  it('the unlink note says the code in words only after the question is asked', async () => {
+describe('Unlink', () => {
+  it('the unlink note says the code in words', async () => {
     await setup({ linked: CODE });
+    await click({ id: 'catlogin-more' });
     await click({ id: 'sync-unlink' });
     expect(card().innerHTML).toContain(`Your cat code is ${WORDS}.`);
   });
 });
 
 describe('both word sets', () => {
-  const IDS = ['title', 'intro', 'keep', 'keeping', 'bring', 'bring.label', 'bring.placeholder', 'bring.hint', 'new.title', 'new.titlenew', 'new.note', 'new.warn', 'new.notkept', 'new.check', 'new.ok', 'new.skip', 'linked.tag', 'show', 'show.hint', 'show.notv', 'hide', 'change', 'change.ask', 'change.note', 'change.no', 'change.yes', 'preview.cloud', 'err.changed', 'err.busy', 'err.notready', 'err.offline', 'err.nocode'];
+  const IDS = ['title', 'intro', 'save', 'saving', 'load', 'find', 'more', 'bring.label', 'bring.placeholder', 'bring.hint', 'new.notkept', 'linked.tag', 'change', 'change.ask', 'change.note', 'change.no', 'change.yes', 'preview.cloud', 'err.changed', 'err.busy', 'err.notready', 'err.offline', 'err.nocode'];
   it('every new line says something under the family words and under the everyday words', async () => {
     const { phrase, addPhrases } = await import('../src/clanphrases.js');
     const { LINES } = await import('../src/ui/catloginwords.js');
@@ -382,9 +388,9 @@ describe('both word sets', () => {
     await withOffWordsAsync(async () => {
       await setup();
       const unlinked = html();
-      expect(unlinked).toContain('Keep my cat safe');
+      expect(unlinked).toContain('Save cat');
       await click({ id: 'sync-save' });
-      await vi.waitFor(() => expect(html()).toContain('This is your cat code.'));
+      await vi.waitFor(() => expect(html()).toContain('sync-linked'));
       expect(html()).toContain(WORDS);
       for (const w of ['Twoleg', 'StarClan', 'clan', 'Clan', 'camp']) expect(unlinked + html(), w).not.toContain(w);
     });
@@ -398,18 +404,34 @@ describe('the sheet is reachable by pad and keyboard', () => {
     const h = html();
     const sheet = h.slice(h.indexOf('class="sync-unlinked"'));
     expect(sheet).not.toMatch(/<div[^>]*(onclick|data-action)/);
-    for (const id of ['sync-save', 'sync-load']) expect(sheet).toMatch(new RegExp(`<button id="${id}"`));
+    for (const id of ['sync-save', 'catlogin-bring', 'sync-load']) expect(sheet).toMatch(new RegExp(`<button id="${id}"`));
     expect(sheet).toMatch(/<input type="text" id="sync-load-code"/);
   });
   it('pad back and the card are unchanged: the confirm card is the same one Start over uses', async () => {
     await setup({ linked: CODE });
+    await click({ id: 'catlogin-more' });
     await click({ id: 'catlogin-change' });
     expect(card().id).toBe('confirm-card');
   });
 });
 
 // ── add a device (cat login M4) ────────────────────────────────────
-describe('Add a device: the hop code', () => {
+describe('the hop code screens are hidden while UI.hop is off', () => {
+  it('no Add a device, no I have a hop code, and a tap on a hop id does nothing', async () => {
+    expect(UI.hop).toBe(false);
+    const s = await setup({ linked: CODE, extra: { hopHost: vi.fn(), hopCloud: vi.fn() } });
+    await click({ id: 'catlogin-bring' });
+    await click({ id: 'catlogin-more' });
+    expect(html()).not.toMatch(/hop|Add a device/i);
+    await click({ id: 'catlogin-hop-add' });
+    expect(s.sync.hopHost).not.toHaveBeenCalled();
+    expect(html()).not.toMatch(/hop|Add a device/i);
+  });
+});
+
+describe('Add a device: the hop code (hidden: UI.hop is off; these run with it on)', () => {
+  beforeEach(() => { UI.hop = true; });
+  afterEach(() => { UI.hop = false; });
   const SECRET = 'k'.repeat(32);
   let server;
   let cloud;
@@ -428,15 +450,14 @@ describe('Add a device: the hop code', () => {
     expect(server.calls).toHaveLength(0);
     expect(s.sync.hopHost).not.toHaveBeenCalled();
   });
-  it('the tap shows six characters, how long they last, how to use them and Cancel, never the cat code', async () => {
+  it('the tap shows six characters, how long they last, how to use them and Cancel', async () => {
     await setup({ linked: CODE, extra: hopExtra() });
     await click({ id: 'catlogin-hop-add' });
     expect(hopOf()).toMatch(/^[A-Z0-9]{6}$/);
     const h = html();
-    expect(h).toContain('On the other device tap Bring my cat here, then I have a hop code. Type:');
+    expect(h).toContain('On the other device tap Load cat, then I have a hop code. Type:');
     expect(h).toContain('Good for 10 minutes.');
     expect(h).toContain('id="catlogin-hop-cancel"');
-    expect(h).not.toContain(WORDS);
   });
   it('a device types the code: the question comes within one poll, Yes hands the cat over', async () => {
     await setup({ linked: CODE, state: 'saved', extra: hopExtra() });
@@ -480,7 +501,7 @@ describe('Add a device: the hop code', () => {
     cloud = createCloud({ rpc: server.rpc, select: async () => [] });
     await click({ id: 'catlogin-hop-add' });
     await vi.waitFor(() => expect(html()).toContain('Adding a device is not ready yet. Use your cat code for now.'));
-    expect(html()).toContain('catlogin-change');
+    expect(html()).toContain('id="sync-now"');
   });
   it('no network says the plain offline line', async () => {
     await setup({ linked: CODE, extra: hopExtra() });
@@ -490,7 +511,7 @@ describe('Add a device: the hop code', () => {
     await vi.waitFor(() => expect(html()).toContain('Connect to the internet and try again.'));
   });
 
-  it('on the other device: Bring my cat here offers I have a hop code, and it asks for nothing yet', async () => {
+  it('on the other device: Load cat offers I have a hop code, and it asks for nothing yet', async () => {
     const s = await setup({ extra: hopExtra() });
     await click({ id: 'catlogin-bring' });
     expect(html()).toContain('<button id="catlogin-hop-have" >I have a hop code</button>');

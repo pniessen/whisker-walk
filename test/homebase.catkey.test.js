@@ -157,6 +157,7 @@ describe('Undo of a cloud load that changed the key', () => {
     vi.spyOn(s.progression, 'takeKeyChanged').mockReturnValue(true);
     s.hb.show();
     dressingMock.opts.onOpenSheet('sync');
+    await click({ id: 'catlogin-more' }); // Undo sits under More
     await click({ id: 'x', closest: (sel) => (sel === '[data-backup-restore]' ? { getAttribute: () => 'cloud' } : null) });
     vi.advanceTimersByTime(CONFIRM_DELAY_MS);
     answer(card(), 'yes');
