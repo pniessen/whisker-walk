@@ -28,10 +28,13 @@
 
 // The five places with people carry the figure (src/people/) in their own
 // download, never in start-up.
-const withPeople = (id, world) => Promise.all([world, import('../people/index.js')])
-  .then(([w, p]) => ({ id, world: w, life: { createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } }));
+const withPeople = (id, world) => Promise.all([world, import('../people/index.js'), walkExtras()])
+  .then(([w, p, walk]) => ({ id, world: w, life: { walk, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } }));
 
-const own = (id, world) => ({ id, world, life: {} });
+// The weather, the friends' ghosts, the yard dog, the kitten and the race (game/walkextras.js) are one
+// chunk beside the place's, never in start-up. Every pack carries it as life.walk.
+const walkExtras = () => Promise.all([import('../game/walkextras.js'), import('../game/walkscene.js'), import('../game/walklive.js')]).then(([a, b, c]) => ({ ...a, ...b, ...c }));
+const own = (id, world) => walkExtras().then((walk) => ({ id, world, life: { walk } }));
 
 const loaders = {
   neighborhood: () => withPeople('neighborhood', import('./neighborhood.js')),
@@ -43,16 +46,16 @@ const loaders = {
   river: () => import('./river.js').then((w) => own('river', w)),
   moor: () => import('./moor.js').then((w) => own('moor', w)),
   // The Pines carry her birthday Gathering on the island (birthdaygathering.js).
-  pines: () => Promise.all([import('./pines.js'), import('./birthdaygathering.js')])
-    .then(([world, g]) => ({ id: 'pines', world, life: { planGathering: g.planGathering, gatheringCast: g.gatheringCast, createBirthdayGathering: g.createBirthdayGathering } })),
+  pines: () => Promise.all([import('./pines.js'), import('./birthdaygathering.js'), walkExtras()])
+    .then(([world, g, walk]) => ({ id: 'pines', world, life: { walk, planGathering: g.planGathering, gatheringCast: g.gatheringCast, createBirthdayGathering: g.createBirthdayGathering } })),
   gorge: () => import('./gorge.js').then((w) => own('gorge', w)),
-  farm: () => Promise.all([import('./farm.js'), import('../farmanimals.js')])
-    .then(([world, a]) => ({ id: 'farm', world, life: { createFarmAnimals: a.createFarmAnimals } })),
-  fair: () => Promise.all([import('./fair.js'), import('../fairlive.js'), import('../fairshow.js'), import('../people/index.js')])
-    .then(([world, live, show, p]) => ({ id: 'fair', world, life: { createFairLive: live.createFairLive, createFairShow: show.createFairShow, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } })),
+  farm: () => Promise.all([import('./farm.js'), import('../farmanimals.js'), walkExtras()])
+    .then(([world, a, walk]) => ({ id: 'farm', world, life: { walk, createFarmAnimals: a.createFarmAnimals } })),
+  fair: () => Promise.all([import('./fair.js'), import('../fairlive.js'), import('../fairshow.js'), import('../people/index.js'), walkExtras()])
+    .then(([world, live, show, p, walk]) => ({ id: 'fair', world, life: { walk, createFairLive: live.createFairLive, createFairShow: show.createFairShow, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } })),
   roofs: () => import('./roofs.js').then((w) => own('roofs', w)),
-  market: () => Promise.all([import('./market.js'), import('../marketlive.js'), import('../people/index.js')])
-    .then(([world, live, p]) => ({ id: 'market', world, life: { createMarketLive: live.createMarketLive, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } })),
+  market: () => Promise.all([import('./market.js'), import('../marketlive.js'), import('../people/index.js'), walkExtras()])
+    .then(([world, live, p, walk]) => ({ id: 'market', world, life: { walk, createMarketLive: live.createMarketLive, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } })),
   house: () => import('./house.js').then((w) => own('house', w)),
   // Lighthouse Point (a catalog row and the Seaside's gate since its milestone 4; ?lighthouse=1 stays a developer shortcut).
   lighthouse: () => import('./lighthouse.js').then((w) => own('lighthouse', w)),
