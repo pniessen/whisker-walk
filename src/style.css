@@ -19,7 +19,7 @@ body { font-family: 'Avenir', 'Trebuchet MS', sans-serif; background: #1c2431; c
 :root { --map-size: 150px; --btn-off-bg: rgba(231,169,160,.30); --btn-off-fg: #f6dcd7; }
 body.touch-mode { --map-size: 110px; }
 /* Layout profile values (src/profilevalues.js; test/profilevalues.test.js). Read by nothing yet. TV's are in tv/tv.css. */
-html.phone { --pv-map: 110; --pv-toasts: 2; --pv-cap: 1.5; }
+html.phone { --pv-map: 88; --pv-toasts: 1; --pv-cap: 1.5; }
 html.tablet { --pv-map: 110; --pv-toasts: 2; --pv-cap: 1.5; }
 html.laptop { --pv-map: 150; --pv-toasts: 2; --pv-cap: 2; }
 /* Points on the left, rank centred in what is left. The right edge stops
@@ -2821,6 +2821,21 @@ body.touch-mode .fight-key { display: none; }
   .party-balloon, .party-banner { animation: none; }
   .party-bit { animation-name: party-fade; animation-duration: 2.8s !important; animation-delay: 0s !important; }
 }
+
+/* --- Phone cleanup (device profiles M2, 2026-11-22): the phone walking screen gave a quarter of
+   the viewport to messages, goals and hints. One message at a time (hud.js, VALUES.phone.toasts),
+   a smaller corner map, the goals folded to one pill (tap it for the list, kept open by its focus; the guided first walk
+   keeps its full list), a shorter hint card. Phone only: tablet and laptop keep their rules. --- */
+html.phone body.touch-mode { --map-size: 88px; }
+html.phone body.touch-mode .hud-map { width: auto; align-items: flex-end; }
+html.phone body.touch-mode .hud-area { font-size: 0.74rem; padding: 1px 7px; }
+html.phone .toast { padding: 6px 12px; }
+html.phone #hud:not(.lesson-on) .hud-hint:not(.chip) { font-size: 15px; line-height: 1.25; padding: 6px 12px; gap: 8px; border-radius: 14px; }
+html.phone #hud:not(.lesson-on) .hud-hint:not(.chip) .hud-hint-pic { font-size: 18px; }
+html.phone #hud:not(.lesson-on) .hud-goals { pointer-events: auto; cursor: pointer; outline: none; }
+html.phone #hud:not(.lesson-on) .hud-goals:not(:focus) .goal-how { display: none; }
+html.phone #hud:not(.lesson-on) .hud-goals:not(:focus):has(.goal.next) .goal:not(.next) { display: none; }
+html.phone #hud:not(.lesson-on) .hud-goals:not(:focus) .goal.next::after { content: " \25BE"; opacity: 0.7; }
 
 /* ===== Sideways phones, tiny windows and enlarged text (UX review, finding 11) =====
    Three cases the layouts above did not cover. Each one is behind its own

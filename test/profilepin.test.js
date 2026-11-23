@@ -26,21 +26,25 @@ function rules(css) {
 // What decides phone and laptop looks: touch-mode rules and every rule inside a pointer, width or height query.
 const touchy = (r) => /body\.touch-mode/.test(r.sel) || /pointer|max-width|max-height|min-width/.test(r.at);
 const profileClass = (r) => /html\.(phone|tablet|laptop|tv)\b/.test(r.sel);
+const pvOnly = (r) => r.body.split(';').filter(Boolean).every((d) => /^\s*--pv-[a-z]+:/.test(d));
 
 describe('phone and laptop are pinned', () => {
   const all = rules(CSS);
   const sel = [...new Set(all.filter(touchy).filter((r) => !profileClass(r)).map((r) => r.sel))].sort();
   const snapshot = Object.fromEntries(sel.map((s) => [s, all.filter((r) => r.sel === s).map((r) => `${r.at ? r.at + ' | ' : ''}${r.body}`)]));
+  // M2 phone cleanup: the only profile-class rules that may do more than set --pv-* values. Recorded too,
+  // so a change to the phone look shows in the golden diff.
+  const phoneCleanup = all.filter(profileClass).filter((r) => !pvOnly(r)).map((r) => `${r.sel} | ${r.body}`);
+  snapshot.__phoneCleanup = phoneCleanup;
 
   it('the pinned selector list is large enough to mean something', () => expect(sel.length).toBeGreaterThanOrEqual(60));
   it('every rule for the pinned selectors equals the golden file', () => {
     if (process.env.UPDATE_PROFILE_GOLDEN) writeFileSync(GOLDEN, JSON.stringify(snapshot, null, 1) + '\n');
     expect(snapshot).toEqual(JSON.parse(readFileSync(GOLDEN, 'utf8')));
   });
-  it('the profile classes only carry the --pv-* values, so they cannot move a look', () => {
-    for (const r of all.filter(profileClass)) {
-      expect(r.body.split(';').filter(Boolean).every((d) => /^\s*--pv-[a-z]+:/.test(d)), r.sel).toBe(true);
-    }
+  it('the profile classes carry --pv-* values only, except the phone cleanup rules (M2), which are in the golden', () => {
+    for (const r of all.filter(profileClass).filter((x) => !pvOnly(x))) expect(r.sel, r.body).toMatch(/^html\.phone\b/);
+    expect(phoneCleanup.length).toBeGreaterThan(0);
   });
 });
 

@@ -940,3 +940,22 @@ describe('TV mode: the strip, the goals and the hint say the pad\'s words', () =
     expect(el.textContent).toBe('Press  now');
   });
 });
+
+// Device profiles M2 (phone cleanup): a phone shows one message at a time (VALUES.phone.toasts), a tablet
+// and a laptop two. The extra lines wait their turn; none is lost.
+describe('messages at once, by layout profile', () => {
+  const shown = () => byId.get('hud-toasts').children.length;
+  const on = async (coarse, w, h) => {
+    const { startProfile } = await import('../src/profile.js');
+    const cl = { toggle() {}, add() {} };
+    const win = { innerWidth: w, innerHeight: h, location: { search: '' }, navigator: {}, matchMedia: () => ({ matches: coarse }), addEventListener() {}, removeEventListener() {} };
+    startProfile(win, { documentElement: { classList: cl }, body: { classList: cl } }, () => 'auto');
+  };
+  afterEach(async () => (await import('../src/profile.js')).stopProfile());
+  const three = () => { const hud = createHud(); hud.toast('one'); hud.toast('two'); hud.toast('three'); return hud; };
+  it('phone: one shown, two waiting', async () => { await on(true, 390, 844); three(); expect(shown()).toBe(1); });
+  it('phone, guided step cap null: still one', async () => { await on(true, 390, 844); const h = three(); h.setToastCap(null); expect(shown()).toBe(1); });
+  it('tablet: two', async () => { await on(true, 1180, 820); three(); expect(shown()).toBe(2); });
+  it('laptop: two', async () => { await on(false, 1440, 900); three(); expect(shown()).toBe(2); });
+  it('the table says the same', async () => { const { VALUES } = await import('../src/profilevalues.js'); expect([VALUES.phone.toasts, VALUES.tablet.toasts, VALUES.laptop.toasts]).toEqual([1, 2, 2]); });
+});

@@ -196,5 +196,8 @@ html.tv .hb-usage > summary { font-size: calc(20px * var(--tv-s, 1)) !important;
 html.tv .hb-usage-table thead th { font-size: calc(20px * var(--tv-s, 1)) !important; }
 html.tv .party-banner { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .party-line { font-size: calc(26px * var(--tv-s, 1)) !important; }
+html.tv html.phone body.touch-mode .hud-area { font-size: calc(24px * var(--tv-s, 1)) !important; }
+html.tv html.phone #hud:not(.lesson-on) .hud-hint:not(.chip) { font-size: calc(24px * var(--tv-s, 1)) !important; }
+html.tv html.phone #hud:not(.lesson-on) .hud-hint:not(.chip) .hud-hint-pic { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .hud-top .hud-rank { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv body.touch-mode #hud-toasts .toast { font-size: calc(24px * var(--tv-s, 1)) !important; }
