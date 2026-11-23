@@ -5,7 +5,7 @@ export const COOP_READY = {
   neighborhood: true, // milestone 1 builds the walk; milestone 0 only marks the place
   park: false, seaside: false, woods: false, river: false, moor: false, pines: false,
   docks: false, den: false, gorge: false, farm: false, fair: false, roofs: false,
-  market: false, house: false, lighthouse: false,
+  market: false, house: false, lighthouse: false, greenhouse: false,
 };
 
 export const coopReady = (areaId) => COOP_READY[areaId] === true;
