@@ -99,21 +99,21 @@ const tileOrder = (h) => [...tilesOf(h).matchAll(/<button class="hb-tile[^"]*"(?
   .map((m) => m[1] ?? `#${m[2]}`);
 
 describe('the For grown-ups sheet id', () => {
-  it('is a home sheet named For grown-ups with the gear; it opens Game settings, Cloud save and Gift code', () => {
+  it('is a home sheet named For grown-ups with the gear; it opens Game settings and Gift code (My cat, the cloud save, is a Menu tile)', () => {
     expect(HOME_SHEETS).toContain('grownups');
     expect(resolveSheet('grownups')).toBe('grownups');
     expect(SHEET_NAME.grownups).toBe('For grown-ups');
     expect(SHEET_ICON.grownups).toBe('⚙️');
-    expect(GROWNUP_SHEETS).toEqual(['settings', 'sync', 'code']);
+    expect(GROWNUP_SHEETS).toEqual(['settings', 'code']);
   });
 });
 
 describe('the Menu\'s doors', () => {
-  it('menu has six tiles then a Sound & controls row then one For grown-ups door', () => {
+  it('menu has seven tiles (My cat before My den) then a Sound & controls row then one For grown-ups door', () => {
     setup();
     openSheet('menu');
     const h = html();
-    expect(tileOrder(h)).toEqual(['together', 'colony', 'journal', 'album', 'skills', '#btn-visit-den']);
+    expect(tileOrder(h)).toEqual(['together', 'colony', 'journal', 'album', 'skills', 'sync', '#btn-visit-den']);
     expect(tilesOf(h)).not.toContain('data-dr-sheet="controls"');
     expect(outsideTiles(h)).toContain('<button class="hb-row" data-dr-sheet="controls">');
     expect(count(h, 'data-dr-sheet="controls"')).toBe(1);
@@ -121,7 +121,7 @@ describe('the Menu\'s doors', () => {
     expect(count(h, 'data-dr-sheet="grownups"')).toBe(1);
     expect(h).toContain('<button class="hb-grownups-door" data-dr-sheet="grownups">');
     expect(h).toMatch(/data-dr-sheet="grownups">[\s\S]*?For grown-ups[\s\S]*?<\/button>/);
-    for (const id of ['settings', 'sync', 'code']) expect(h).not.toContain(`data-dr-sheet="${id}"`);
+    for (const id of ['settings', 'code']) expect(h).not.toContain(`data-dr-sheet="${id}"`);
     // in that order: the tiles, the row, the door
     expect(h.indexOf('class="hb-tiles"')).toBeLessThan(h.indexOf('data-dr-sheet="controls"'));
     expect(h.indexOf('data-dr-sheet="controls"')).toBeLessThan(h.indexOf('data-dr-sheet="grownups"'));
@@ -137,12 +137,12 @@ describe('the Menu\'s doors', () => {
     setup({ state: (st) => { st.edition = 'legacy'; } });
     openSheet('menu');
     const h = html();
-    expect(tileOrder(h)).toEqual(['together', 'colony', 'journal', 'album', 'skills', '#btn-visit-den']);
+    expect(tileOrder(h)).toEqual(['together', 'colony', 'journal', 'album', 'skills', 'sync', '#btn-visit-den']);
     expect(outsideTiles(h)).toContain('<button class="hb-row" data-dr-sheet="controls">');
     expect(count(h, 'data-dr-sheet="grownups"')).toBe(1);
-    for (const id of ['settings', 'sync', 'code']) expect(h).not.toContain(`data-dr-sheet="${id}"`);
+    for (const id of ['settings', 'code']) expect(h).not.toContain(`data-dr-sheet="${id}"`);
   });
-  it('offline (no rooms, no cloud): five tiles and the den, no Play together, and nothing throws', () => {
+  it('offline (no rooms, no cloud): four tiles and the den, no Play together, and nothing throws', () => {
     expect(() => setup({ rooms: null, sync: null })).not.toThrow();
     expect(() => openSheet('menu')).not.toThrow();
     const h = html();
@@ -155,18 +155,18 @@ describe('the Menu\'s doors', () => {
 });
 
 describe('the For grown-ups sheet', () => {
-  it('For grown-ups lists Game settings, Cloud save, Gift code and Do the first lesson again', () => {
+  it('For grown-ups lists Game settings, Gift code and Do the first lesson again', () => {
     setup();
     openSheet('menu');
     openSheet('grownups');
     const h = html();
     expect(h).toContain('data-sheet="grownups"');
     expect(h).toContain('<h2>For grown-ups ⚙️</h2>');
-    const at = ['data-dr-sheet="settings"', 'data-dr-sheet="sync"', 'data-dr-sheet="code"', 'id="set-replay-first"'].map((s) => h.indexOf(s));
+    const at = ['data-dr-sheet="settings"', 'data-dr-sheet="code"', 'id="set-replay-first"'].map((s) => h.indexOf(s));
     expect(at.every((i) => i > 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
     expect(h).toContain('Game settings');
-    expect(h).toContain('Cloud save');
+    expect(h).not.toContain('data-dr-sheet="sync"'); // the cloud save moved to the Menu's My cat tile
     expect(h).toContain('Gift code');
     // the same row as the three above it: an icon, the words, the ›
     expect(h).toContain(`<button type="button" id="set-replay-first" class="hb-row"><span class="hb-row-icon" aria-hidden="true">🎓</span>`
@@ -174,12 +174,12 @@ describe('the For grown-ups sheet', () => {
     // quiet rows, not pink
     expect(h).not.toContain('primary');
   });
-  it('with sync unavailable there is no Cloud save button', () => {
+  it('with sync unavailable there is no My cat tile', () => {
     setup({ sync: null });
     openSheet('menu');
+    expect(html()).not.toContain('data-dr-sheet="sync"');
     openSheet('grownups');
     const h = html();
-    expect(h).not.toContain('data-dr-sheet="sync"');
     expect(h).toContain('data-dr-sheet="settings"');
     expect(h).toContain('data-dr-sheet="code"');
     expect(h).toContain('id="set-replay-first"');
@@ -238,8 +238,8 @@ describe('Back through For grown-ups', () => {
     expect(hb.back()).toBe(true);
     expect(html()).not.toContain('data-sheet=');
     expect(hb.depth()).toBe(0);
-    // the same chain by the sheet's own Back button, from Cloud save and Gift code
-    for (const id of ['sync', 'code']) {
+    // the same chain by the sheet's own Back button, from Gift code
+    for (const id of ['code']) {
       openSheet('menu');
       openSheet('grownups');
       openSheet(id);

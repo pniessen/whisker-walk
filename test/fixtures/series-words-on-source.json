@@ -1,4 +1,11 @@
 {
  "about": "Lines with series-adjacent words that are built inside a closure, pinned as source text. A to-do list for the word refactor; see test/serieswords.source.test.js.",
- "notReached": []
+ "notReached": [
+  "src/clanphrases.js :: ${} caught up. Paws, finds and outfits from both devices are in camp.",
+  "src/clanphrases.js :: ${} chased you off! 🐾",
+  "src/offclanwords.js :: An outsider has come onto your land. You choose: chase or leave.",
+  "src/offclanwords.js :: Outsiders chased away",
+  "src/ui/territorymap.js :: tm-land ${}${}",
+  "src/world/roofsparts.js :: roofsparts: no mark object for ${}; its hop needs a prop"
+ ]
 }

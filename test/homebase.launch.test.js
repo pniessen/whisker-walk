@@ -160,19 +160,19 @@ describe('the Menu', () => {
     expect(h).toContain('<button class="hb-row" data-dr-sheet="controls">');
     expect(h).toContain('<button class="hb-grownups-door" data-dr-sheet="grownups">');
     // the grown-ups' sheets are behind that one door (homebase.grownups.test.js)
-    for (const id of ['settings', 'sync', 'code']) expect(h).not.toContain(`data-dr-sheet="${id}"`);
+    for (const id of ['settings', 'code']) expect(h).not.toContain(`data-dr-sheet="${id}"`);
     // Friends folded into Play together and the Journal
     expect(h).not.toContain('data-dr-sheet="social"');
     expect(h).not.toContain('Friends');
     expect(SHEET_NAME.together).toBe('Play together');
   });
-  it('leaves out the tiles that are not available (no multiplayer: no Play together; no cloud: no Save)', () => {
+  it('leaves out the tiles that are not available (no multiplayer: no Play together; no cloud: no My cat)', () => {
     setup();
     openSheet('menu');
     const h = html();
     expect(h).not.toContain('data-dr-sheet="together"');
     expect(h).not.toContain('data-dr-sheet="sync"');
-    expect(h.match(/class="hb-tile"/g)).toHaveLength(MENU_TILES.length - 1);
+    expect(h.match(/class="hb-tile"/g)).toHaveLength(MENU_TILES.length - 2);
     for (const id of ['colony', 'journal', 'album', 'skills', 'controls', 'grownups']) expect(h).toContain(`data-dr-sheet="${id}"`);
   });
   it('has a My den tile after Skills that says go now, and a tap visits the den', () => {

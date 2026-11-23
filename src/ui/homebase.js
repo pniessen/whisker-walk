@@ -1714,7 +1714,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             }).join('')
             : emptyStateHtml('album')}
         </div></section>`;
-      case 'sync': return `<section class="walk-together sync-cloud"><h2>Cloud save ☁️</h2>${renderSync()}</section>`;
+      case 'sync': return `<section class="walk-together sync-cloud"><h2>${escapeHtml(SHEET_NAME.sync)} ☁️</h2>${renderSync()}</section>`;
       case 'settings': return renderSettings();
       case 'controls': return renderControls();
       case 'code': return renderRedeemHtml({ text: redeemText, busy: redeemBusy, result: redeemResult, catalog: CATALOG });
@@ -1772,7 +1772,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       // together) on Play together, whose room starts from it; on the other
       // sheets only where and Start. Dusk is chosen in Change place only; a
       // Start from any dock reads that choice (duskWanted).
-      const dock = door || openSheet === 'grownups' || GROWNUP_SHEETS.includes(openSheet) ? 'none' : openSheet === 'together' ? 'full' : 'slim';
+      const dock = door || openSheet === 'grownups' || GROWNUP_SHEETS.includes(openSheet) || openSheet === 'sync' ? 'none' : openSheet === 'together' ? 'full' : 'slim';
       const back = backTo === 'menu' ? '← Back to the menu' : backTo === 'grownups' ? '← Back' : backTo === 'journal' ? '← Back to the journal' : '← Back to my cat';
       // From a sheet the Menu (or For grown-ups) opened, home is two Backs or
       // more: a cat face at the row's right goes straight there.
