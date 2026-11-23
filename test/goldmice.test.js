@@ -10,7 +10,7 @@ describe('GOLD_MICE', () => {
   it('has exactly 48 mice total, 3 per area and 6 in the Pines (its island holds three)', () => {
     const all = Object.values(GOLD_MICE).flat();
     expect(all.length).toBe(48); // 45 until Lighthouse Point added its three, 42 until the Old House added its three, 39 until the Market added its three, 36 until the Rooftops added its three
-    expect(Object.keys(GOLD_MICE)).toEqual(['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'gorge', 'farm', 'fair', 'roofs', 'market', 'house']);
+    expect(Object.keys(GOLD_MICE)).toEqual(['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'gorge', 'farm', 'fair', 'roofs', 'market', 'house', 'lighthouse']);
     for (const [area, mice] of Object.entries(GOLD_MICE)) expect(mice.length, area).toBe(area === 'pines' ? 6 : 3);
     expect(GOLD_MICE.woods.map((m) => m.id)).toEqual(['gm-woods-1', 'gm-woods-2', 'gm-woods-3']);
     expect(GOLD_MICE.river.map((m) => m.id)).toEqual(['gm-river-1', 'gm-river-2', 'gm-river-3']);
