@@ -19,7 +19,7 @@ import { SKULL } from './torso.js';
 // the cat's head slot builds these.
 
 export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown', 'acorncap',
-  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap'];
+  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap', 'keepercap'];
 
 // Palette. The three shop hats' colours are model.js's own (it imports these
 // for Hagrid's hats); the prize colours are the same hexes as model.js's
@@ -984,6 +984,8 @@ const PAPERBOY = { shell: 1.05, rimFront: 0.125, rimBack: 0.045, lipH: 0.016, pu
 const CAP_LOOKS = {
   paperboycap: { panel: [0x7d6b58, 0x6b5a48], peak: 0x4e4136, fleck: 0x8c7a64, stitch: 0xb8a68a },
   tradercap: { panel: [0x7a4a2a, 0x3f8046, 0x7a4a2a], check: 1, peak: 0x4a3a26, stitch: 0xd8c08a },
+  // The Keeper's Cap (Lighthouse milestone 4): the same cap in navy, its stitching and its button brass.
+  keepercap: { panel: [0x24365a, 0x1b2a47], peak: 0x141d30, stitch: 0xc9a24a, button: 0xc9a24a },
 };
 const paperboyRim = (phi) => (PAPERBOY.rimFront + PAPERBOY.rimBack) / 2 + ((PAPERBOY.rimFront - PAPERBOY.rimBack) / 2) * Math.cos(phi);
 function peakedCap(id, simple) {
@@ -1013,11 +1015,12 @@ function peakedCap(id, simple) {
   const peak = frontPeak((th) => drape(ringPoint(th, paperboyRim(th)), 0.010)[0], PAPERBOY.span, PAPERBOY.peakLen, PAPERBOY.peakSlope, PEAK, simple ? 7 : 11,
     (w) => (Math.abs(w - 0.8) < 0.01 ? L.stitch : PEAK), simple ? [] : [0.84, 0.8, 0.76]);
   const r = PAPERBOY.button;
-  const button = blob(r, simple ? 5 : 6, simple ? 3 : 4, new THREE.Vector3(0, SB * PAPERBOY.shell + r * 0.3, 0), [1, 0.7, 1], (uy) => (uy > 0.6 ? shade(PEAK, 1.3) : PEAK));
+  const button = blob(r, simple ? 5 : 6, simple ? 3 : 4, new THREE.Vector3(0, SB * PAPERBOY.shell + r * 0.3, 0), [1, 0.7, 1], (uy) => (L.button ?? (uy > 0.6 ? shade(PEAK, 1.3) : PEAK)));
   return finish(id, [shell, lip, peak, button]);
 }
 const paperboycap = (simple) => peakedCap('paperboycap', simple);
 const tradercap = (simple) => peakedCap('tradercap', simple);
+const keepercap = (simple) => peakedCap('keepercap', simple);
 
 // --- clips (found outfits step 2, lane H, Task 3; beauty pass) ---------------
 //
@@ -1216,7 +1219,7 @@ function birthdayhat(simple) {
   return finish('birthdayhat', parts);
 }
 
-const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap };
+const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap, keepercap };
 
 // The clips' ground looks (src/foundwear/display.js): the clip as worn (the
 // simple build), turned so its face is up and propped toward -z, as if

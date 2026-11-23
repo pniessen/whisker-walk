@@ -91,10 +91,10 @@ describe('world map: the world as data', () => {
   it("draft 2's street places, world and coast", () => {
     expect(WORLD).toEqual({ w: 1500, h: 880 });
     expect(STREET_PLACES.map(({ id, x, y, r }) => [id, x, y, r])).toEqual([
-      ['park', 1080, 470, 90], ['fair', 1060, 230, 85], ['farm', 1235, 320, 85], ['docks', 900, 770, 80], ['seaside', 1185, 680, 90]]);
+      ['park', 1080, 470, 90], ['fair', 1060, 230, 85], ['farm', 1235, 320, 85], ['docks', 900, 770, 80], ['seaside', 1185, 680, 90], ['lighthouse', 1268, 525, 46]]);
     expect(STREET_PLACES.every((p) => p.areaId === p.id)).toBe(true);
     expect(Object.isFrozen(STREET_PLACES) && STREET_PLACES.every((p) => Object.isFrozen(p))).toBe(true);
-    expect(STREET_LAND).toEqual({ park: '#b9dc8f', fair: '#e9b7c9', farm: '#e3cf7e', docks: '#b7b9bf', seaside: '#ecdca8' });
+    expect(STREET_LAND).toEqual({ park: '#b9dc8f', fair: '#e9b7c9', farm: '#e3cf7e', docks: '#b7b9bf', seaside: '#ecdca8', lighthouse: '#cfdad2' });
     expect(COAST).toEqual([[1340, 0], [1320, 160], [1360, 300], [1335, 430], [1315, 540], [1350, 640], [1310, 730], [1280, 800], [1180, 860], [1000, 880]]);
     expect(Object.isFrozen(COAST) && COAST.every((p) => Object.isFrozen(p))).toBe(true);
     expect(ISLAND_HIT_R).toBe(46);
@@ -127,11 +127,11 @@ describe('world map: the world as data', () => {
     }
   });
 
-  it('eight gateways join the places draft 2 joins, the Rooftops, the Market and the Old House, edge to edge', () => {
+  it('nine gateways join the places draft 2 joins, the Rooftops, the Market, the Old House and Lighthouse Point, edge to edge', () => {
     expect(GATEWAYS.map((g) => [g.id, g.from, g.to])).toEqual([
       ['town-park', 'neighborhood', 'park'], ['park-fair', 'park', 'fair'], ['park-farm', 'park', 'farm'],
       ['town-docks', 'neighborhood', 'docks'], ['docks-seaside', 'docks', 'seaside'], ['town-roofs', 'neighborhood', 'roofs'],
-      ['town-market', 'neighborhood', 'market'], ['town-house', 'neighborhood', 'house']]);
+      ['town-market', 'neighborhood', 'market'], ['seaside-lighthouse', 'seaside', 'lighthouse'], ['town-house', 'neighborhood', 'house']]);
     expect(GATEWAYS.map((g) => g.road)).toEqual([
       [[952, 570], [1000, 580], [1060, 590], [1080, 560]],
       [[1080, 380], [1080, 350], [1060, 340], [1060, 315]],
@@ -140,6 +140,7 @@ describe('world map: the world as data', () => {
       [[980, 780], [1040, 790], [1110, 790], [1140, 765]],
       [[946, 520], [980, 508], [984, 468], [951, 455]],
       MARKET_ROAD,
+      [[1229, 598], [1233, 587], [1241, 577], [1248, 566]],
       HOUSE_ROAD,
     ]);
     expect(Object.isFrozen(GATEWAYS) && GATEWAYS.every((g) => Object.isFrozen(g) && Object.isFrozen(g.road))).toBe(true);
@@ -240,7 +241,7 @@ describe('world map: the world as data', () => {
 
   it('tap targets: every place and the island, the island the smallest at 92 across (the Rooftops, the Market and the Old House as small, never smaller)', () => {
     const t = tapTargets(worldMapModel(fresh(), CATALOG));
-    expect(t).toHaveLength(15);
+    expect(t).toHaveLength(16);
     expect(t.at(-1)).toEqual({ areaId: 'pines', x: 455, y: 314, r: 46 });
     expect(Math.min(...t.map((x) => 2 * x.r))).toBe(92);
   });
@@ -288,8 +289,8 @@ describe('drawing the world', () => {
 
   it('every place is a labelled keyboard button that opens its card', () => {
     const ids = [...html.matchAll(/data-dr-map-place="([a-z]+)"/g)].map(([, id]) => id);
-    expect(new Set(ids).size).toBe(14);
-    expect(ids).toHaveLength(15); // the island is a second way into the Pines
+    expect(new Set(ids).size).toBe(15);
+    expect(ids).toHaveLength(16); // the island is a second way into the Pines
     expect(new Set(ids)).toEqual(new Set(Object.keys(CATALOG.areas)));
     expect(html).not.toContain('data-dr-place=');
     expect(regionHtml(html, 'park')).toMatch(/role="button" tabindex="0" aria-label="City Park: opens after you explore Twolegplace 2 times · 0\/2"/);
@@ -306,12 +307,12 @@ describe('drawing the world', () => {
     expect(html.match(/<g class="tm-region[^>]*>(?=<title>)/)).toBeNull();
   });
 
-  it('her paths and bridge, eight roads and eight gate marks', () => {
+  it('her paths and bridge, nine roads and nine gate marks', () => {
     expect((html.match(/class="tm-path"/g) || []).length).toBe(3);
     expect(html).toContain('class="tm-bridge"');
     for (const cls of ['tm-lake', 'tm-island', 'tm-star', 'tm-pond', 'tm-river']) expect(html).toContain(`class="${cls}`);
-    expect((html.match(/class="wm-road"/g) || []).length).toBe(8);
-    expect((html.match(/class="wm-gate"/g) || []).length).toBe(8);
+    expect((html.match(/class="wm-road"/g) || []).length).toBe(9);
+    expect((html.match(/class="wm-gate"/g) || []).length).toBe(9);
     expect(html).toContain('<path class="wm-road" d="M952 570 C1000 580 1060 590 1080 560"/>');
     expect(html).toContain('<circle class="wm-gate" cx="1080" cy="560" r="8"/>');
     expect(html).toContain('<path class="wm-road" d="M980 780 C1040 790 1110 790 1140 765"/><circle class="wm-gate" cx="1140" cy="765" r="8"/>');
@@ -335,7 +336,7 @@ describe('drawing the world', () => {
       expect(html, id).toMatch(new RegExp(`<path class="tm-land street built locked" fill="${fill}" d="M`));
     }
     expect(html).toContain(`<path class="tm-land built locked" fill="${LAND.woods}" d="M`);
-    expect((html.match(/class="tm-land /g) || []).length).toBe(14);
+    expect((html.match(/class="tm-land /g) || []).length).toBe(15);
   });
 
   it('camps only on her board, only in Clan Edition', () => {
@@ -378,7 +379,7 @@ describe('drawing the world', () => {
   it('every place is there in the everyday words, the camp a home base', () => {
     withOffWords(() => {
       const h = draw(pick('woods'));
-      expect(new Set([...h.matchAll(/data-dr-map-place="([a-z]+)"/g)].map(([, id]) => id)).size).toBe(14);
+      expect(new Set([...h.matchAll(/data-dr-map-place="([a-z]+)"/g)].map(([, id]) => id)).size).toBe(15);
       expect(regionHtml(h, 'town')).toContain('aria-label="Peopleville: ');
       expect(regionHtml(h, 'woods')).toMatch(/<title>[^<]* home base<\/title>/);
     });
@@ -767,5 +768,55 @@ describe("world map: the Old House on the town's rim", () => {
 
   it('Legacy has no Old House on the map', () => {
     expect(regionOf(worldMapModel({ ...fresh(), edition: 'legacy' }, CATALOG), 'house')).toBeUndefined();
+  });
+});
+
+// Lighthouse Point: a street place on the headland north of the Seaside, on the coast (Lighthouse milestone 4),
+// in both editions, 150 paws after 2 Seaside walks. The design's circle (1295, 552) r 52 held the coast's point
+// (1315, 540), so it is at (1268, 525) r 46.
+describe('world map: Lighthouse Point on the coast', () => {
+  const lh = () => regionOf(worldMapModel(fresh(), CATALOG), 'lighthouse');
+  it('is a street place, its name from the catalog, locked behind two Seaside walks, in either edition', () => {
+    expect(lh()).toMatchObject({ kind: 'street', areaId: 'lighthouse', name: 'Lighthouse Point', status: 'built', x: 1268, y: 525, r: 46, locked: true, owned: false, canOpen: false, price: 150 });
+    expect(lh().line).toMatch(/Seaside 2 times · 0\/2$/);
+    for (const edition of ['canon', 'legacy']) {
+      expect(regionOf(worldMapModel({ ...fresh(), edition }, CATALOG), 'lighthouse')).toMatchObject({ areaId: 'lighthouse', price: 150 });
+    }
+    withOffWords(() => expect(regionOf(worldMapModel(fresh(), CATALOG), 'lighthouse').name).toBe('Lighthouse Point'));
+  });
+  it('clears every other circle, every tap target and the coast', () => {
+    const m = worldMapModel(fresh(), CATALOG);
+    const me = regionOf(m, 'lighthouse');
+    for (const o of m.regions) if (o !== me) expect(dist(me.x, me.y, o.x, o.y), o.id).toBeGreaterThan(me.r + o.r + 20);
+    expect(dist(me.x, me.y, m.star.x, m.star.y)).toBeGreaterThan(me.r + ISLAND_HIT_R);
+    for (const [px, py] of COAST) if (Math.abs(py - me.y) <= me.r) expect(px, `coast ${px},${py}`).toBeGreaterThan(me.x + me.r);
+    expect(2 * me.r).toBeGreaterThanOrEqual(92);
+  });
+  it('the Seaside road runs from the Seaside\'s edge to its own, clear of the Seaside, the Docks and the coast', () => {
+    const m = worldMapModel(fresh(), CATALOG);
+    const [sea, me, docks] = ['seaside', 'lighthouse', 'docks'].map((id) => regionOf(m, id));
+    const g = GATEWAYS.find((x) => x.id === 'seaside-lighthouse');
+    expect(g).toMatchObject({ from: 'seaside', to: 'lighthouse' });
+    const [p0, , , p3] = g.road;
+    expect(Math.abs(dist(p0[0], p0[1], sea.x, sea.y) - sea.r)).toBeLessThanOrEqual(8);
+    expect(Math.abs(dist(p3[0], p3[1], me.x, me.y) - me.r)).toBeLessThanOrEqual(8);
+    expect(dist(p0[0], p0[1], me.x, me.y)).toBeGreaterThan(me.r + 8);
+    expect(dist(p3[0], p3[1], sea.x, sea.y)).toBeGreaterThan(sea.r + 8);
+    for (let i = 0; i <= 20; i++) {
+      const [x, y] = roadAt(g.road, i / 20);
+      expect(dist(x, y, docks.x, docks.y), `at ${i / 20}`).toBeGreaterThan(docks.r + 4);
+      for (const [px, py] of COAST) if (Math.abs(py - y) < 6) expect(px, `coast ${px},${py}`).toBeGreaterThan(x + 8);
+    }
+    expect(renderWorldMapHtml(m)).toContain('<path class="wm-road" d="M1229 598 C1233 587 1241 577 1248 566"/><circle class="wm-gate" cx="1248" cy="566" r="8"/>');
+  });
+  it('opens like any place: after 2 Seaside walks, 150 paws, and a Legacy save sees it too', () => {
+    const s = fresh();
+    const base = { ...s, points: 150, unlocked: { ...s.unlocked, areas: [...s.unlocked.areas, 'seaside'] } };
+    expect(placeCardFor(worldMapModel({ ...base, walks: { ...s.walks, seaside: 1 } }, CATALOG), 'lighthouse', 150)).toMatchObject({ id: 'lighthouse', action: null, locked: true });
+    expect(placeCardFor(worldMapModel({ ...base, walks: { ...s.walks, seaside: 2 } }, CATALOG), 'lighthouse', 150)).toMatchObject({ id: 'lighthouse', action: 'open', label: 'Open for 150 🐾', locked: false });
+    expect(placeCardFor(worldMapModel({ ...base, walks: { ...s.walks, seaside: 2 }, points: 149 }, CATALOG), 'lighthouse', 149)).toMatchObject({ action: null });
+    const gone = (e) => regionOf(worldMapModel({ ...base, edition: e }, CATALOG), 'lighthouse');
+    expect(gone('legacy')).toBeTruthy();
+    expect(gone('canon')).toBeTruthy();
   });
 });

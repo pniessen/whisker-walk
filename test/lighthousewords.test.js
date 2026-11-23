@@ -21,12 +21,12 @@ const read = (id) => (TAKES[id] ? phrase(id, words().OUTSIDE_WORDS[TAKES[id]]) :
 
 describe('the place\'s words', () => {
   it('every line is in the table (the lazy file adds them), and none is empty', () => {
-    expect(IDS.length).toBeGreaterThanOrEqual(30);
+    expect(IDS.length).toBeGreaterThanOrEqual(29);
     for (const id of IDS) { expect(hasPhrase(id), id).toBe(true); expect(read(id), id).toMatch(/\S/); }
   });
   it('the lines the spec lists are all here, under the spec\'s ids', () => {
     for (const id of [
-      'hint.lighthouse', 'lighthouse.scenic.gallery', 'lighthouse.scenic.cave', 'lighthouse.scenic.pools', 'lighthouse.scenic.cottage', 'lighthouse.scenic.gullrock',
+      'lighthouse.scenic.gallery', 'lighthouse.scenic.cave', 'lighthouse.scenic.pools', 'lighthouse.scenic.cottage', 'lighthouse.scenic.gullrock',
       'lighthouse.perch.boat', 'lighthouse.perch.pool', 'lighthouse.collect.shell', 'lighthouse.collect.glass', 'lighthouse.collect.starfish', 'lighthouse.collect.button', 'lighthouse.collect.cork',
       'lighthouse.moment.crab', 'lighthouse.moment.chip', 'lighthouse.lever.prompt', 'lighthouse.lamp.lit', 'lighthouse.lamp.ship', 'lighthouse.bell.prompt',
       'lighthouse.kitten.offer', 'lighthouse.kitten.hear', 'lighthouse.kitten.found', 'lighthouse.kitten.prompt', 'lighthouse.kitten.home',

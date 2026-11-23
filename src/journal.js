@@ -4,7 +4,7 @@ import { phrase } from './clanphrases.js';
 import { PAGE_WORDS } from './farmwords.js';
 import { ROOFS_PAGE_WORDS } from './roofspages.js';
 import { MARKET_PAGE_WORDS } from './marketpages.js';
-import { LIGHTHOUSE_PAGE_WORDS, lighthousePagesShown } from './lighthousepages.js';
+import { LIGHTHOUSE_PAGE_WORDS } from './lighthousepages.js';
 import { RIDE_PAGE_WORDS, FAIR_PAGE_WORDS } from './fairwords.js';
 
 // All content here is a fixed, static catalog (ids/emoji/names/hints are
@@ -77,7 +77,7 @@ export const CRITTER_INFO = [
   ...[['marketfountain', '💧'], ['marketpigeons', '🕊️'], ['marketsacks', '🌾'], ['marketmusician', '🎻'], ['marketbasket', '🚲'], ['marketapples', '🍎']]
     .map(([id, emoji]) => ({ id, emoji, get name() { return MARKET_PAGE_WORDS[id].name(); }, get hint() { return MARKET_PAGE_WORDS[id].hint(); } })),
   // Lighthouse Point's six finds and two jobs (src/lighthousepages.js): the walks each was found or finished on.
-  // Shown only behind ?lighthouse=1 or once one has a count, until the place is in the game (lighthousePagesShown).
+  // Always drawn, like every other place's (the place is in the game since its milestone 4; `lighthouse` only marks them).
   ...[['lhlamproom', '💡'], ['lhpool', '🦀'], ['lhgull', '🐦'], ['lhecho', '🎶'], ['lhbell', '🔔'], ['lhwindow', '🏮'], ['lhjobkitten', '🐱'], ['lhjoblamp', '🔦']]
     .map(([id, emoji]) => ({ id, emoji, lighthouse: true, get name() { return LIGHTHOUSE_PAGE_WORDS[id].name(); }, get hint() { return LIGHTHOUSE_PAGE_WORDS[id].hint(); } })),
 ];
@@ -95,8 +95,7 @@ export function renderJournalHtml(journal, goldenFound, goldenTotal, { chasedOff
   const j = journal && typeof journal === 'object' ? journal : {};
   const found = Number.isFinite(goldenFound) ? goldenFound : 0;
   const total = Number.isFinite(goldenTotal) ? goldenTotal : 0;
-  const lh = lighthousePagesShown(j);
-  const cards = CRITTER_INFO.filter((c) => lh || !c.lighthouse).map((c) => {
+  const cards = CRITTER_INFO.map((c) => {
     const raw = j[c.id];
     const count = Number.isFinite(raw) ? raw : 0;
     if (count > 0) {

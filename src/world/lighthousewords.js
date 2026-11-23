@@ -9,8 +9,7 @@
 import { addPhrases } from '../clanphrases.js';
 
 export const LINES = Object.freeze({
-  // the place's first hint (the HINTS row is milestone 4's)
-  'hint.lighthouse': 'Follow the stairs up to the big lamp!',
+  // (the place's first hint, 'hint.lighthouse', is in the start-up table: src/tutorialwords.js)
   // the corner map's special places, what she can perch on, and the five things to collect
   'lighthouse.scenic.gallery': 'the lighthouse balcony',
   'lighthouse.scenic.cave': 'the sea cave',

@@ -40,10 +40,14 @@ export const STREET_PLACES = freezeAll([
   { id: 'farm', areaId: 'farm', x: 1235, y: 320, r: 85 },
   { id: 'docks', areaId: 'docks', x: 900, y: 770, r: 80 },
   { id: 'seaside', areaId: 'seaside', x: 1185, y: 680, r: 90 },
+  // Lighthouse Point (milestone 4): on the headland north of the Seaside, on the coast. The design's (1295, 552)
+  // r 52 put the coast's point (1315, 540) inside it, so the circle is moved 27 units west and 27 north and
+  // drawn r 46 (the Rooftops' and the Old House's, the smallest tap target the map allows).
+  { id: 'lighthouse', areaId: 'lighthouse', x: 1268, y: 525, r: 46 },
 ]);
 
 // Land colours for the street places, as territories.js's LAND is for hers.
-export const STREET_LAND = Object.freeze({ park: '#b9dc8f', fair: '#e9b7c9', farm: '#e3cf7e', docks: '#b7b9bf', seaside: '#ecdca8' });
+export const STREET_LAND = Object.freeze({ park: '#b9dc8f', fair: '#e9b7c9', farm: '#e3cf7e', docks: '#b7b9bf', seaside: '#ecdca8', lighthouse: '#cfdad2' });
 
 // Places inside the town, drawn on top of it: the Rooftops, up the back
 // alley's fire escape (draft 2's "Rooftops"), and the Market Square, on the
@@ -87,6 +91,9 @@ export const GATEWAYS = Object.freeze([
   // The Old House's circle lies over the town's south-west rim (W4): from the
   // town's south rim, beside it, to its east edge, in the open between the
   // town, the house and the Docks (picked from a map picture).
+  // Lighthouse Point's circle lies north-north-east of the Seaside's, on the coast: a short road in the
+  // gap from the Seaside's north-east rim to the Lighthouse's south-west rim.
+  { id: 'seaside-lighthouse', from: 'seaside', to: 'lighthouse', road: [[1229, 598], [1233, 587], [1241, 577], [1248, 566]] },
   { id: 'town-house', from: 'neighborhood', to: 'house', road: [[834, 676], [830, 692], [810, 702], [794, 690]] },
 ].map((g) => Object.freeze({ ...g, road: pts(g.road) })));
 

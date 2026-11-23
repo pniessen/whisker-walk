@@ -781,7 +781,7 @@ describe('createProgression', () => {
         },
         clanRoles: { medicine: null, deputy: null },
         clan: { name: null, adopted: false },
-        marks: { neighborhood: [], park: [], seaside: [], docks: [], woods: [], river: [], moor: [], pines: [], gorge: [], farm: [], fair: [], roofs: [], market: [], den: [] },
+        marks: { neighborhood: [], park: [], seaside: [], docks: [], woods: [], river: [], moor: [], pines: [], gorge: [], farm: [], fair: [], roofs: [], market: [], lighthouse: [], den: [] },
         visits: 0, visitPrizesSeen: 0, visitPrizePending: null,
         mapMode: 'north', edition: 'canon',
         clanPick: { mine: null, partner: null, partnerId: null },
@@ -2419,7 +2419,7 @@ describe('the colony save key', () => {
     expect(usage).toEqual({});
     expect(clanPick).toEqual({ mine: null, partner: null, partnerId: null });
     expect(clanRoles).toEqual({ medicine: null, deputy: null });
-    expect(marks).toEqual({ neighborhood: [], park: [], seaside: [], docks: [], woods: [], river: [], moor: [], pines: [], gorge: [], farm: [], fair: [], roofs: [], market: [], den: [] });
+    expect(marks).toEqual({ neighborhood: [], park: [], seaside: [], docks: [], woods: [], river: [], moor: [], pines: [], gorge: [], farm: [], fair: [], roofs: [], market: [], lighthouse: [], den: [] });
     expect([visits, visitPrizesSeen, visitPrizePending, mapMode]).toEqual([0, 0, null, 'north']);
     expect(rest).toEqual({ ...v20, equipped: { ...v20.equipped, custom: null }, walks: { ...v20.walks, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0 } });
   });
@@ -3130,7 +3130,7 @@ describe('the clan name', () => {
 
 describe('private marks (v21 Stream 3b)', () => {
   const scratch = (at, id = 'park-post-1') => ({ kind: 'scratch', id, x: 1, z: 2, at, contested: false, item: null });
-  const EMPTY = { neighborhood: [], park: [], seaside: [], docks: [], woods: [], river: [], moor: [], pines: [], gorge: [], farm: [], fair: [], roofs: [], market: [], den: [] };
+  const EMPTY = { neighborhood: [], park: [], seaside: [], docks: [], woods: [], river: [], moor: [], pines: [], gorge: [], farm: [], fair: [], roofs: [], market: [], lighthouse: [], den: [] };
   const SAVE = 'whisker-walk-save';
 
   test('a v20 save with no marks loads with empty marks', () => {

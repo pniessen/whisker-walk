@@ -99,7 +99,7 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(ids('farm')).toEqual(['strawhat', 'featherplume', 'neckerchief', 'haybalepack']);
     expect(ids('fair')).toEqual(['stripedboater', 'heartglasses', 'ticketgarland', 'candyflosspuff']);
     for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) expect(ids(a)).toEqual([]);   // Legacy's retirement first
-    expect(FOUND_WEAR).toHaveLength(28);   // the street places' 24 and the Market's four
+    expect(FOUND_WEAR).toHaveLength(29);   // the street places' 24, the Market's four and Lighthouse Point's keeper's cap
   });
   // Market step 4 (2026-11-21): a hat, a neck piece, a collar charm and a
   // back item, the names placeholders the owner and his daughter will rename
@@ -111,6 +111,16 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(validateFoundWear({ head: HEAD_WEAR, face: FACE_WEAR, neck: NECK_WEAR, body: BODY_WEAR, feet: FEET_WEAR },
       { areaIds: Object.keys(CATALOG.areas), takenIds: BASE_ACCESSORY_IDS })).toEqual([]);
     for (const id of ['tradercap', 'stringbagscarf', 'applecharm', 'flowerbasket']) expect(CATALOG.accessories[id]?.find, id).toBe('market');
+  });
+  // Lighthouse milestone 4 (2026-11-22): one outfit, a head piece, its name a placeholder
+  it('Lighthouse Point hides one outfit, the keeper\'s cap, and says the same in either set', () => {
+    expect(foundWearIn('lighthouse').map((r) => r.id)).toEqual(['keepercap']);
+    expect(foundWearIn('lighthouse').map((r) => r.slot)).toEqual(['head']);
+    expect(foundWearIn('lighthouse').map((r) => r.name())).toEqual(['Keeper’s Cap']);
+    expect(withOffWords(() => foundWearIn('lighthouse').map((r) => r.name()))).toEqual(['Keeper’s Cap']);
+    expect(CATALOG.accessories.keepercap?.find).toBe('lighthouse');
+    expect(validateFoundWear({ head: HEAD_WEAR, face: FACE_WEAR, neck: NECK_WEAR, body: BODY_WEAR, feet: FEET_WEAR },
+      { areaIds: Object.keys(CATALOG.areas), takenIds: BASE_ACCESSORY_IDS })).toEqual([]);
   });
   it('step 2: every street place has its find spots, and only the Woods of the territories', () => {
     for (const a of ['neighborhood', 'park', 'seaside', 'docks', 'farm', 'fair']) {

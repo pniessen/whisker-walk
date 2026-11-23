@@ -4,7 +4,6 @@
 // (the place's chunk). The pages' own words are in the phrase table (src/clanphrases.js) because the journal is
 // drawn before the place has ever been walked; every other line is in the lazy src/world/lighthousewords.js.
 import { phrase } from './clanphrases.js';
-import { lighthouseOn } from './lighthouseflag.js';
 
 export const LIGHTHOUSE_FIND_IDS = Object.freeze(['lamproom', 'pool', 'gull', 'echo', 'bell', 'window']);
 export const lighthousePageId = (id) => 'lh' + id;
@@ -23,11 +22,3 @@ export const LIGHTHOUSE_PAGE_WORDS = Object.freeze({
   lhjobkitten: Object.freeze({ name: () => phrase('lighthouse.page.kitten.name'), hint: () => phrase('lighthouse.page.kitten.hint') }),
   lhjoblamp: Object.freeze({ name: () => phrase('lighthouse.page.lamp.name'), hint: () => phrase('lighthouse.page.lamp.hint') }),
 });
-
-// Until the place is in the game (milestone 4: its catalog row), its pages show only behind ?lighthouse=1 or once
-// one has a count (a save that walked it).
-export function lighthousePagesShown(journal) {
-  if (lighthouseOn()) return true;
-  const j = journal && typeof journal === 'object' ? journal : {};
-  return LIGHTHOUSE_JOURNAL_TYPES.some((id) => Number.isFinite(j[id]) && j[id] > 0);
-}

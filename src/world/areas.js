@@ -18,7 +18,7 @@
 //
 // `roofs` has its own row in CATALOG.areas (Rooftops step 4), so the place
 // lists show it, and so has `market` (Market step 4, Clan Edition only), and
-// so has `house` (the Old House, its step 4, Clan Edition only).
+// so has `house` (the Old House, its step 4, Clan Edition only), and `lighthouse` (Lighthouse Point, its milestone 4, both editions).
 // `den` is not in the catalog; it is built from home.
 //
 // An AreaPack is { id, world, life }: world is the builder module, life the
@@ -54,7 +54,7 @@ const loaders = {
   market: () => Promise.all([import('./market.js'), import('../marketlive.js'), import('../people/index.js')])
     .then(([world, live, p]) => ({ id: 'market', world, life: { createMarketLive: live.createMarketLive, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } })),
   house: () => import('./house.js').then((w) => own('house', w)),
-  // Lighthouse Point (?lighthouse=1 only until its milestone 4: no catalog row, no gate).
+  // Lighthouse Point (a catalog row and the Seaside's gate since its milestone 4; ?lighthouse=1 stays a developer shortcut).
   lighthouse: () => import('./lighthouse.js').then((w) => own('lighthouse', w)),
 };
 

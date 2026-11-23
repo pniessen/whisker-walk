@@ -53,8 +53,7 @@ describe('renderJournalHtml', () => {
     expect(html).toContain(bird.hint);
     expect(html).not.toContain(bird.name);
     // every one of the unspotted cards gets a silhouette, none a name
-    const shown = CRITTER_INFO.filter((c) => !c.lighthouse); // Lighthouse Point's eight are not in the game yet (milestone 4)
-    expect(html.match(/journal-emoji silhouette/g)).toHaveLength(shown.length);
+    expect(html.match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.length); // Lighthouse Point's eight are in the game since milestone 4
     for (const c of CRITTER_INFO) expect(html).not.toContain(c.name);
   });
 
@@ -62,21 +61,22 @@ describe('renderJournalHtml', () => {
     const html = renderJournalHtml({ bird: 2 }, 0, 9);
     const bird = CRITTER_INFO.find((c) => c.id === 'bird');
     expect(html).toContain(`<span class="journal-emoji">${bird.emoji}</span>`);
-    expect(html.match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.length - 8 - 1);
+    expect(html.match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.length - 1);
   });
 
-  it('Lighthouse Point\'s eight pages stay out of the journal until the place is in the game, unless its flag is on or a page has a count', async () => {
+  it('Lighthouse Point\'s eight pages are in the journal like any place\'s, flag or none (milestone 4)', async () => {
     const { setLighthouse } = await import('../src/lighthouseflag.js');
     const ids = CRITTER_INFO.filter((c) => c.lighthouse).map((c) => c.id);
     expect(ids).toEqual(['lhlamproom', 'lhpool', 'lhgull', 'lhecho', 'lhbell', 'lhwindow', 'lhjobkitten', 'lhjoblamp']);
     try {
+      for (const flag of [false, true]) {
+        setLighthouse(flag);
+        const html = renderJournalHtml({}, 0, 9);
+        for (const id of ids) expect(html).toContain(CRITTER_INFO.find((c) => c.id === id).hint);
+        expect(html.match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.length);
+      }
       setLighthouse(false);
-      expect(renderJournalHtml({}, 0, 9)).not.toContain(CRITTER_INFO.find((c) => c.id === 'lhbell').hint);
       expect(renderJournalHtml({ lhbell: 1 }, 0, 9)).toContain('The Fog Bell');
-      setLighthouse(true);
-      const html = renderJournalHtml({}, 0, 9);
-      for (const id of ids) expect(html).toContain(CRITTER_INFO.find((c) => c.id === id).hint);
-      expect(html.match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.length);
     } finally {
       setLighthouse(null);
     }

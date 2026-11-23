@@ -29,10 +29,11 @@ const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildFair } = await import('../src/world/fair.js');
 const { build: buildRoofs } = await import('../src/world/roofs.js');
 const { build: buildMarket } = await import('../src/world/market.js');
+const { build: buildLighthouse } = await import('../src/world/lighthouse.js');
 const grassSrc = await import('node:fs').then((fs) => fs.readFileSync(new URL('../src/render/grass.js', import.meta.url), 'utf8'));
 
 const BUILDS = {
-  neighborhood: buildNeighborhood, park: buildPark, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, den: buildDen, farm: buildFarm, fair: buildFair, roofs: buildRoofs, market: buildMarket,
+  neighborhood: buildNeighborhood, park: buildPark, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, den: buildDen, farm: buildFarm, fair: buildFair, roofs: buildRoofs, market: buildMarket, lighthouse: buildLighthouse,
 };
 // main.js's game camera: PerspectiveCamera(70, aspect, 0.1, 300).
 const GAME_FAR = 300;
@@ -193,7 +194,9 @@ describe('cloud drift', () => {
 
 // The Rooftops draw no horizon band: their far edge is the far town (one unlit
 // mesh, `townBand`), tested on its own below.
-const BANDED = CLOUD_AREAS.filter((a) => a !== 'roofs');
+// Lighthouse Point draws none either (open sea to the east and west, the headland's own cliffs the only
+// skyline), so its clouds sit on the floor (BASE_MIN) and its banks have no profile to clear.
+const BANDED = CLOUD_AREAS.filter((a) => a !== 'roofs' && a !== 'lighthouse');
 
 describe('cloud placement', () => {
   for (const areaId of BANDED) {
@@ -352,6 +355,17 @@ describe('cloud placement', () => {
         expect(Math.hypot(p.x, p.z)).toBeCloseTo(bk.dist, 6);
       }
     }
+  });
+
+  it('Lighthouse Point: the golden-hour sky has its clouds and its banks and no band to clear', () => {
+    const { scene } = world('lighthouse');
+    expect(scene.getObjectByName('horizonBand')).toBeUndefined();
+    const c = make('lighthouse');
+    expect(c.clouds).toHaveLength(AREA_SKY.lighthouse.clouds);
+    expect(c.banks).toHaveLength(AREA_SKY.lighthouse.banks);
+    for (const cl of c.clouds) expect(cl.base).toBeGreaterThanOrEqual(BASE_MIN);
+    for (const box of puffBoxes(c.mesh)) expect(Math.hypot(Math.max(Math.abs(box.min.x), Math.abs(box.max.x)), Math.max(Math.abs(box.min.z), Math.abs(box.max.z)))).toBeLessThan(GAME_FAR - 5);
+    c.dispose();
   });
 
   it('sits high: bases 30m up or more, and the Docks lifted over its skyline', () => {

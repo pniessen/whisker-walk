@@ -80,11 +80,11 @@ describe('three golden mice', () => {
 });
 
 describe('the totals', () => {
-  it('Clan Edition counts 48 and Legacy 24, with or without the place in the catalog (it has no edition key: both editions)', () => {
+  it('Clan Edition counts 48 and Legacy 24, with the place in the catalog (it has no edition key: both editions)', () => {
     expect(GOLD_TOTAL).toBe(48);
     expect(goldForEdition('canon', CATALOG).size).toBe(48);
     expect(goldForEdition('legacy', CATALOG).size).toBe(24);
     for (const e of ['canon', 'legacy']) for (const m of GOLD) expect(goldForEdition(e, CATALOG).has(m.id), `${e} ${m.id}`).toBe(true);
-    expect(Object.hasOwn(CATALOG.areas, 'lighthouse')).toBe(false); // (milestone 4's row)
+    expect(Object.hasOwn(CATALOG.areas, 'lighthouse')).toBe(true); // milestone 4's row: no edition key, so both editions count it
   });
 });

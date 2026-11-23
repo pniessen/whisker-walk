@@ -117,7 +117,7 @@ describe('the Clan sheet: the world map only', () => {
   });
   it('the Clan model carries the world map and the card, not the old map or other places', () => {
     const m = buildDressingModel(park60, CATALOG, { mapCard: 'park' });
-    expect(m.worldMap.regions).toHaveLength(14); // the Market and the Old House among them (Market step 4, Old House step 4)
+    expect(m.worldMap.regions).toHaveLength(15); // the Market, the Old House and Lighthouse Point among them (Market step 4, Old House step 4, Lighthouse milestone 4)
     expect(m.placeCard).toMatchObject({ id: 'park', action: 'open' });
     expect(m).not.toHaveProperty('territoryMap');
     expect(m).not.toHaveProperty('otherPlaces');
@@ -134,7 +134,7 @@ describe('the Clan sheet: the world map only', () => {
   it('the everyday-words version: every place on the map, no family word anywhere', () => {
     withOffWords(() => {
       const html = renderPlacesSheetHtml(buildDressingModel(midSave, CATALOG, { mapCard: 'neighborhood' }));
-      expect(new Set([...html.matchAll(/data-dr-map-place="([a-z]+)"/g)].map(([, id]) => id)).size).toBe(14);
+      expect(new Set([...html.matchAll(/data-dr-map-place="([a-z]+)"/g)].map(([, id]) => id)).size).toBe(15);
       expect(bannedLeaks(htmlText(html))).toEqual([]);
       expect(html).toContain('Peopleville');
     });

@@ -24,13 +24,13 @@
 // starts the gap again for the hints after it).
 //
 // A PLACE'S OWN HINT (the Rooftops' is the first row, the Market's the
-// second, the house's the third): add a row
+// second, the house's the third, Lighthouse Point's the fourth): add a row
 //   { id: '<place>', max: 1, ring: null, when: (f) => f.place === '<area id>' }
 // its `hint.<id>` line in tutorialwords.js, and its picture in game/tips.js
 // HINT_PICS. f.place is the walk's area id. Put it FIRST in HINTS: the table
 // is walked in order and the first due hint wins, and a place's own hint
 // should go up at the walk's first check, ahead of any other that is due then.
-// The three place hints lead the table (roofs, market, house) for that reason;
+// The four place hints lead the table (roofs, market, house, lighthouse) for that reason;
 // one walk is in one place, so they are never due together.
 //
 // `ring` names the control the line is about, for the guided walk's ring
@@ -49,6 +49,7 @@ export const HINTS = Object.freeze([
   { id: 'roofs', max: 1, ring: null, when: (f) => f.place === 'roofs' },
   { id: 'market', max: 1, ring: null, when: (f) => f.place === 'market' },
   { id: 'house', max: 1, ring: null, when: (f) => f.place === 'house' },
+  { id: 'lighthouse', max: 1, ring: null, when: (f) => f.place === 'lighthouse' },
   { id: 'look', max: 2, ring: 'look', when: (f) => later(f) && f.t >= 15 && !f.looked, until: (f) => f.looked },
   { id: 'creep', max: 2, ring: 'move', until: (f) => f.stalking },
   { id: 'jump', max: 2, ring: 'pounce', when: (f) => f.canJump && !f.perched, until: (f) => f.perched },
