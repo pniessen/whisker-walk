@@ -124,6 +124,12 @@ export function tvDownloads(manifest) {
 export const CAT_ENTRY_MODULES = { catsync: ['src/game/catsync.js'], savecode: ['src/savecode.js'], catcodes: ['src/catcodes.js'], catlogin: ['src/ui/catlogin.js'], hop: ['src/game/hop.js'] };
 export const CAT_GZIP_CEILING_KB = 30;
 
+// Couch play (src/coop/, docs/superpowers/specs/2026-11-22-couch-coop-design.md)
+// is one lazy chunk, loaded only by ?coop=1. It must never fold into start-up,
+// and it has its own ceiling.
+export const COOP_ENTRY_MODULES = { coop: ['src/coop/index.js'] };
+export const COOP_GZIP_CEILING_KB = 25;
+
 const gzipOf = (dir, file) => gzipSync(readFileSync(join(dir, file))).length;
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
@@ -132,7 +138,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   writeFileSync(join(dir, 'build.json'), JSON.stringify(buildInfo()) + '\n');
   console.log(`wrote ${dir}/build.json`);
   const manifest = JSON.parse(readFileSync(join(dir, '.vite', 'manifest.json'), 'utf8'));
-  const problems = [...lazyProblems(manifest), ...lazyProblems(manifest, TV_ENTRY_MODULES), ...lazyProblems(manifest, CAT_ENTRY_MODULES)];
+  const problems = [...lazyProblems(manifest), ...lazyProblems(manifest, TV_ENTRY_MODULES), ...lazyProblems(manifest, CAT_ENTRY_MODULES), ...lazyProblems(manifest, COOP_ENTRY_MODULES)];
   const start = startupFiles(manifest);
   const startBytes = start.reduce((n, f) => n + gzipOf(dir, f), 0);
   const startProblem = sizeProblem(startBytes);
@@ -145,6 +151,9 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   console.log(`start-up ${(startBytes / 1000).toFixed(1)} kB gzipped (ceiling ${MAIN_GZIP_CEILING_KB} kB), ${start.length} files`);
   for (const [id, v] of Object.entries(kb)) console.log(`  ${id.padEnd(13)} ${v.toFixed(1)} kB gzipped (ceiling ${AREA_GZIP_CEILING_KB} kB)`);
   console.log(`  tv chunk      ${tvKb.toFixed(1)} kB gzipped (ceiling ${TV_GZIP_CEILING_KB} kB)`);
+  const coopKb = (areaDownloads(manifest, COOP_ENTRY_MODULES).coop ?? []).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000;
+  problems.push(...areaSizeProblems({ coop: coopKb }, COOP_GZIP_CEILING_KB));
+  console.log(`  coop chunk    ${coopKb.toFixed(1)} kB gzipped (ceiling ${COOP_GZIP_CEILING_KB} kB)`);
   const catDownloads = areaDownloads(manifest, CAT_ENTRY_MODULES);
   const catAll = Object.fromEntries(Object.keys(CAT_ENTRY_MODULES).map((k) => [k, (catDownloads[k] ?? []).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000]));
   problems.push(...areaSizeProblems(catAll, CAT_GZIP_CEILING_KB));

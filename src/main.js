@@ -33,6 +33,7 @@ import { askToKeepSaves } from './savekeep.js';
 import { createSettings } from './settings.js';
 import { startProfile, markTouch } from './profile.js';
 import { createTvLoader, tvWanted, tvHooks, watchForTv } from './tvseam.js';
+import { coop, coopWanted } from './coopseam.js';
 import { createConfirmCard } from './ui/confirmcard.js';
 import { createBlockList } from './blocklist.js';
 import { readCatKey } from './catkey.js';
@@ -377,6 +378,8 @@ function init() {
       homebase.refresh();
     },
   });
+  // ?coop=1 (couch play, src/coop/): this page load only.
+  if (coopWanted(location.search)) import('./coop/index.js').then((m) => m.start({ nav: navigator, getSession: () => session })).catch((err) => note('coop', err));
   // ?tv=1 / ?tv=0 force it for this page load only, never saved (like ?perf).
   tvLoader.apply(tvWanted(location.search, settings.get('tvMode')), /[?&]tv=[01]\b/.test(location.search));
   // The pause card's Sound and Music switches (walk.js pauseCardFor) change
@@ -1253,6 +1256,7 @@ function init() {
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
     gamepad.poll(dt);
+    coop.poll?.(dt);
     if (!session) { perfHud.frameEnd(null, performance.now()); return; }
     // The corner map shows only while the walk is being played: not behind
     // the Ready? and pause cards, which are exactly the times the player is

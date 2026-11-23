@@ -138,9 +138,9 @@ export function createGamepad({
     },
     destroy() { for (const t of RING_OFF) win.removeEventListener?.(t, ringOff, true); },
     // Called once per frame, whether or not a walk is live.
-    poll(dt) {
+    poll(dt, forcePad) {
       if (!supported) return;
-      const pad = pick();
+      const pad = forcePad ?? pick();
       if (!pad) return;
       ensureNav();
       clock += dt * 1000;
