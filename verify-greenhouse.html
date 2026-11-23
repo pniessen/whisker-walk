@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Greenhouse spike</title>
+<!-- Greenhouse milestone 0: the picture page for the glass-house kit (src/world/greenhouse.js, greenhouseglass.js).
+     The real Greenhouse scaffold, the real cat, the real player and follow camera and the real building fade
+     (treefade.js, in main.js's frame order). NOT in the game: nothing reaches it from the app. scripts/record-page.mjs
+     makes the pictures: __shot(name), __snap(). URL params: size=WxH (default 960x540), bare (no HUD),
+     rm=1 (reduced motion), dusk=1 (the walk's own dusk look), low=1 (the low tier: no mist, no shafts).
+     Free play: the arrows or W-A-S-D walk her. -->
+<style>
+  html, body { margin: 0; background: #1c2431; overflow: hidden; font: 12px/1.35 Avenir, system-ui, sans-serif; color: #f1e0c2; }
+  canvas { position: fixed; left: 0; top: 0; display: block; }
+  #hud { position: fixed; left: 0; top: 0; padding: 6px 10px; background: rgba(20, 26, 36, .72); white-space: pre; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="hud">loading…</div>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier } from '/src/render/textures.js';
+  import { createSun, createFill, DEFAULT_GROUND_BOUNCE, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { skyBackground } from '/src/render/sky.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { createPlayer } from '/src/player.js';
+  import { createTreeFade, findFadeOccluders } from '/src/treefade.js';
+  import { facingYaw, behindYaw } from '/src/traversal.js';
+  import { applyDusk, duskEnv, tintDuskLawn } from '/src/render/dusk.js';
+  import { build } from '/src/world/greenhouse.js';
+
+  const params = new URLSearchParams(location.search);
+  const rm = params.get('rm') === '1';
+  const DUSK = params.get('dusk') === '1';
+  const LOW = params.get('low') === '1';
+  const [W, H] = (params.get('size') || '960x540').split('x').map(Number);
+  const BARE = params.has('bare');
+  const DT = 1 / 30;
+  const PACE = 3.5;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  document.body.prepend(renderer.domElement);
+  const tier = { name: LOW ? 'low' : 'high', envIntensity: 0.45 };
+  setTextureTier(tier);
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+  scene.background = skyBackground(0x8cc8ee, 0xe6f2e8);
+  scene.fog = new THREE.Fog(0xe6f2e8, 70, 170);
+  const sun = createSun();
+  scene.add(sun);
+  const fill = createFill(DEFAULT_GROUND_BOUNCE);
+  scene.add(fill);
+  const area = build(scene, { water: { quality: LOW ? 'low' : 'high', reducedMotion: rm } });
+  if (DUSK) {
+    const look = applyDusk({ scene, sun, fill, areaData: area });
+    tintDuskLawn({ ground: scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint)), grass: null, look });
+    scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
+    renderer.toneMappingExposure = 1.1;
+  }
+  const cat = buildCat('tabby');
+  scene.add(cat);
+  const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
+  const shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
+  sun.shadow.bias = SUN_BIAS;
+  assignShadowCasters(scene);
+  const fade = createTreeFade(findFadeOccluders(scene), { reducedMotion: rm });
+  const life = area.life({ reducedMotion: rm });
+
+  const player = createPlayer(camera, renderer.domElement);
+  player.setReducedMotion(rm);
+  let t = 0;
+  function reset(x, z, fx, fz) {
+    cat.position.set(x, 0, z);
+    cat.rotation.set(0, facingYaw(fx, fz), 0);
+    player.setAvatar(cat, PACE);
+    player.setGround(null);
+    player.setViewYaw(behindYaw(fx, fz));
+    player.enable();
+    player.update(0, area.colliders, area.bounds, area.waters);
+    shadows.update(0, 1e3);
+  }
+  const stick = (x, z) => player.setTouchMove(x === 0 && z === 0 ? null : { x, z, mag: 1 });
+  const hud = document.getElementById('hud');
+  if (BARE) hud.remove();
+  let freeCam = false;
+  function frame(dt) {
+    t += dt;
+    for (const w of area.waterFx ?? []) w.update?.(dt);
+    life.update(dt, t);
+    player.update(dt, area.colliders, area.bounds, area.waters);
+    player.speedFactor = 1;
+    animateCat(cat, 'follow', t, player.speed, rm);
+    cat.rotation.x = 0; cat.rotation.z = 0;
+    shadows.update(0, dt);
+    fade.update(dt, camera, { x: cat.position.x, y: cat.position.y + 0.35, z: cat.position.z });
+    render();
+  }
+  function render() {
+    renderer.render(scene, camera);
+    if (BARE) return;
+    const p = cat.position;
+    const panes = scene.getObjectByName('palmHouse-glass');
+    hud.textContent = [`at ${p.x.toFixed(2)}, ${p.z.toFixed(2)}`, `glass ${panes?.visible ? 'shown' : 'hidden'} · draws ${renderer.info.render.calls} · tris ${renderer.info.render.triangles}`].join('\n');
+  }
+
+  // ---- Shots: place her, walk `secs` with the stick, look; `cam` is a fixed camera; `settle` runs the fade on ----
+  const SHOTS = {
+    arrival: { at: [0, 30], face: [0, -1] },
+    frontdoor: { at: [0, 6], face: [0, -1], secs: 0 },
+    doorway: { at: [0, 1.4], face: [0, -1], secs: 0 },
+    inside: { at: [0, -4], face: [0, -1], secs: 0 },
+    hall: { at: [0, -9], face: [-1, 0], secs: 0 },
+    through: { at: [-4, -12], face: [0, 1], secs: 0, cam: { pos: [-4, 3.2, 12], look: [-4, 2.2, -12], fov: 55 }, hold: true },
+    throughglass: { at: [0, -9], face: [0, 1], secs: 0, cam: { pos: [20, 3, 14], look: [0, 1.4, -9], fov: 48 }, hold: true },
+    aerial: { at: [0, 30], face: [0, -1], cam: { pos: [34, 22, 30], look: [0, 3, -9], fov: 55 }, hold: true },
+    ridge: { at: [0, -9], face: [0, -1], cam: { pos: [0, 10.3, -4], look: [0, 4, -12], fov: 70 }, hold: true },
+    pond: { at: [-26, 28], face: [0, -1], stick: [0, -1], secs: 1.2 },
+    pondwade: { at: [-26, 28], face: [0, -1], stick: [0, -1], secs: 2.6 },
+    pondview: { at: [-26, 28], face: [0, -1], cam: { pos: [-14, 5, 30], look: [-26, 0.5, 18], fov: 60 }, hold: true },
+    northside: { at: [0, -9], face: [0, -1], cam: { pos: [6, 4, -26], look: [0, 4, -9], fov: 62 }, hold: true },
+    palms: { at: [-6, -9], face: [-1, 0], cam: { pos: [12, 2.4, -2.2], look: [-6, 4, -12], fov: 60 }, hold: true },
+  };
+  window.__shot = (name) => {
+    const s = SHOTS[name];
+    if (!s) throw new Error(`no shot "${name}"; there are ${Object.keys(SHOTS).join(', ')}`);
+    freeCam = !!s.cam;
+    reset(s.at[0], s.at[1], s.face[0], s.face[1]);
+    if (s.stick) stick(...s.stick);
+    for (let k = 0; k < (s.secs ?? 0) / DT; k++) frame(DT);
+    stick(0, 0);
+    // let the building fade settle (the camera follows her for the walking shots, sits where `cam` says for the fixed ones)
+    for (let k = 0; k < 60; k++) {
+      if (s.cam) {
+        camera.fov = s.cam.fov ?? 70; camera.updateProjectionMatrix();
+        camera.position.set(...s.cam.pos); camera.lookAt(...s.cam.look);
+        t += DT; life.update(DT, t);
+        fade.update(DT, camera, { x: cat.position.x, y: cat.position.y + 0.35, z: cat.position.z });
+      } else frame(DT);
+    }
+    if (s.cam) { renderer.render(scene, camera); } else render();
+    return name;
+  };
+  window.__snap = (q = 0.85) => { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/jpeg', q); };
+  window.__fade = () => ({ glassVisible: scene.getObjectByName('palmHouse-glass').visible, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles });
+  reset(0, 30, 0, -1);
+  render();
+  window.__ready = true;
+  if (params.get('drive') !== '1') {
+    const clock = new THREE.Clock();
+    const loop = () => { requestAnimationFrame(loop); if (!freeCam) frame(Math.min(clock.getDelta(), 0.05)); };
+    requestAnimationFrame(loop);
+  }
+</script>
+</body>
+</html>

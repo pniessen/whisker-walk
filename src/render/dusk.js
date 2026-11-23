@@ -80,7 +80,7 @@ export function applyDusk({ scene, sun, fill, areaData }) {
   // dusk: house windows glow warm (bloom-friendly on the high tier; endWalk's
   // scene traversal disposes the swapped material like any other)
   scene.traverse((o) => {
-    if (o.userData?.window) {
+    if (o.userData?.window && o.userData.window !== 'glass') { // (a glass-house pane keeps its own see-through material)
       const old = o.material;
       o.material = litMaterial(0xffe0a0, { emissive: 0x8a6a20 });
       old.dispose();

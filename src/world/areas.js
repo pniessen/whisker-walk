@@ -56,6 +56,8 @@ const loaders = {
   house: () => import('./house.js').then((w) => own('house', w)),
   // Lighthouse Point (?lighthouse=1 only until its milestone 4: no catalog row, no gate).
   lighthouse: () => import('./lighthouse.js').then((w) => own('lighthouse', w)),
+  // The Greenhouse (?greenhouse=1 only until its milestone 4: no catalog row, no gate).
+  greenhouse: () => import('./greenhouse.js').then((w) => own('greenhouse', w)),
 };
 
 // The private family edition (vite --mode family) registers its one place here; in every other build
@@ -84,6 +86,7 @@ const entryModules = {
   market: Object.freeze(['src/world/market.js', 'src/marketlive.js', 'src/people/index.js']),
   house: Object.freeze(['src/world/house.js']),
   lighthouse: Object.freeze(['src/world/lighthouse.js']),
+  greenhouse: Object.freeze(['src/world/greenhouse.js']),
 };
 if (typeof __PRIVATE_FAMILY__ !== 'undefined' && __PRIVATE_FAMILY__) {
   entryModules.family = Object.freeze(['src/family/index.js']);

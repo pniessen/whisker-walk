@@ -20,6 +20,7 @@ const { build: buildRoofs } = await import('../src/world/roofs.js');
 const { build: buildMarket } = await import('../src/world/market.js');
 const { build: buildHouse } = await import('../src/world/house.js');
 const { build: buildLighthouse } = await import('../src/world/lighthouse.js');
+const { build: buildGreenhouse } = await import('../src/world/greenhouse.js');
 const { HOUSE_LEVELS } = await import('../src/world/houseplan.js');
 const { measureHouse } = await import('./helpers/housebudget.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -470,6 +471,10 @@ const AREAS = [
   // lamp room (drum, glass and roof as two meshes of their own, lens, lever housing), two sea stacks, the chalk marks.
   // The life's lamp pieces (beam, halo, glow, pool of light) are made by the walk, after this count: 5 meshes, 0 casters.
   ['lighthouse', buildLighthouse, 280, 210, 62000],
+  // The Greenhouse (Greenhouse milestone 0, 2026-11-22): the spike only, one glass house with stand-in palms, a pond, a lawn, measured 11 / 0 / 12,342
+  // (frame 2,988 triangles, glass 420, mist 8, shafts 16, dapple 2). No merged row: nothing here merges yet. The street
+  // places' ruling, never raised; the place aims for 150 / 70 / 52,000 when it is whole.
+  ['greenhouse', buildGreenhouse, 280, 210, 62000],
 ];
 
 // ---------------------------------------------------------------------------
