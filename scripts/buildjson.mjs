@@ -130,9 +130,10 @@ export const CAT_GZIP_CEILING_KB = 30;
 export const COOP_ENTRY_MODULES = { coop: ['src/coop/index.js'] };
 export const COOP_GZIP_CEILING_KB = 25;
 
-// The walk's extras (src/game/walkextras.js: weather, ghosts, the yard dog, the kitten, the race) are one
-// lazy chunk fetched beside each place's own. It must never fold into start-up, and it has its own ceiling.
-export const WALK_ENTRY_MODULES = { walk: ['src/game/walkextras.js'] };
+// The walk's extras (src/game/walkextras.js: weather, ghosts, the yard dog, the kitten, the race; walkscene.js:
+// the scene's dressing; walklive.js: the live systems) are three lazy chunks fetched beside each place's own.
+// None may fold into start-up, and each has its own ceiling.
+export const WALK_ENTRY_MODULES = { walk: ['src/game/walkextras.js'], scene: ['src/game/walkscene.js'], live: ['src/game/walklive.js'] };
 export const WALK_GZIP_CEILING_KB = 30;
 
 const gzipOf = (dir, file) => gzipSync(readFileSync(join(dir, file))).length;
@@ -159,9 +160,10 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   const coopKb = (areaDownloads(manifest, COOP_ENTRY_MODULES).coop ?? []).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000;
   problems.push(...areaSizeProblems({ coop: coopKb }, COOP_GZIP_CEILING_KB));
   console.log(`  coop chunk    ${coopKb.toFixed(1)} kB gzipped (ceiling ${COOP_GZIP_CEILING_KB} kB)`);
-  const walkKb = (areaDownloads(manifest, WALK_ENTRY_MODULES).walk ?? []).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000;
-  problems.push(...areaSizeProblems({ walk: walkKb }, WALK_GZIP_CEILING_KB));
-  console.log(`  walk extras   ${walkKb.toFixed(1)} kB gzipped (ceiling ${WALK_GZIP_CEILING_KB} kB)`);
+  const walkDl = areaDownloads(manifest, WALK_ENTRY_MODULES);
+  const walkAll = Object.fromEntries(Object.keys(WALK_ENTRY_MODULES).map((k) => [k, (walkDl[k] ?? []).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000]));
+  problems.push(...areaSizeProblems(walkAll, WALK_GZIP_CEILING_KB));
+  console.log(`  walk chunks   extras ${walkAll.walk.toFixed(1)} kB gzipped, scene ${walkAll.scene.toFixed(1)} kB, live ${walkAll.live.toFixed(1)} kB (ceiling ${WALK_GZIP_CEILING_KB} kB each)`);
   const catDownloads = areaDownloads(manifest, CAT_ENTRY_MODULES);
   const catAll = Object.fromEntries(Object.keys(CAT_ENTRY_MODULES).map((k) => [k, (catDownloads[k] ?? []).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000]));
   problems.push(...areaSizeProblems(catAll, CAT_GZIP_CEILING_KB));

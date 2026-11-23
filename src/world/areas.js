@@ -33,7 +33,7 @@ const withPeople = (id, world) => Promise.all([world, import('../people/index.js
 
 // The weather, the friends' ghosts, the yard dog, the kitten and the race (game/walkextras.js) are one
 // chunk beside the place's, never in start-up. Every pack carries it as life.walk.
-const walkExtras = () => import('../game/walkextras.js');
+const walkExtras = () => Promise.all([import('../game/walkextras.js'), import('../game/walkscene.js'), import('../game/walklive.js')]).then(([a, b, c]) => ({ ...a, ...b, ...c }));
 const own = (id, world) => walkExtras().then((walk) => ({ id, world, life: { walk } }));
 
 const loaders = {

@@ -50,18 +50,12 @@ import { DISCS, isTrespassing } from '../rivalclans.js';
 import { createRemoteCats } from '../remotecats.js';
 import { takeHeldItemsWithRemotes } from './netevents.js';
 import { createGifts, pickFoundGift, NO_GIFTS } from '../gifts.js';
-import { createTippables } from '../tippables.js';
 import { createCarryables } from '../carryables.js';
-import { createKnockables } from '../knockables.js';
-import { createPushThroughs } from '../pushthrough.js';
 import { createRests } from '../rests.js';
-import { createPlayerMarks } from '../render/playermarks.js';
 import { borderMarkId } from '../marks.js';
 import { createMarkContest } from '../markcontest.js';
 import { createMouth, walkEndMarks, carryLabel } from '../carry.js';
 import { propsFor, yarnSpotFor } from '../propsets.js';
-import { createScent } from '../scent.js';
-import { createToy, buildYarnBall } from '../toy.js';
 import { createQuest } from '../quests.js';
 import { QUEST_TRAIL_COLOR } from '../questscent.js';
 import { createGoals, GOAL_POOL } from '../goals.js';
@@ -69,7 +63,6 @@ import { line as tutorialLine } from '../tutorialwords.js';
 import { tvState, padHtml, padTag } from '../tvseam.js';
 import { rankFor, CATALOG } from '../progression.js';
 import { catsInArea, colonyWear, denResidents, denMoment } from '../colony.js';
-import { createDenCats } from '../dencats.js';
 import { placedKits } from '../clanroles.js';
 import { strayBreed } from '../straynames.js';
 import { legendaryFor, legendaryRoll } from '../legendary.js';
@@ -84,16 +77,13 @@ import { NO_FAIR } from '../fairnone.js';
 import { handleFairEvent, addBalloonRibbon, restoreFairGames } from './fairplay.js';
 import { NO_MARKET } from '../marketnone.js';
 import { handleMarketEvent, restoreMarket, createMarketToasts } from './marketplay.js';
-import { createTraversalLive, NO_TRAVERSAL, traversalEventEffects, traversalTally } from '../traversallive.js';
 import { moveAbilities } from '../traversal.js';
 import { groundOf } from '../ground.js';
 import { isFearless } from '../dogs.js';
 import { createBorderMarks } from '../render/bordermarks.js';
 import { addBorderDressing } from '../world/borderpost.js';
-import { addGatewayDressing, NO_GATES } from '../world/gateway.js';
 import { liveEndsFor, endById } from '../gateways.js';
 import { postsFor, postById, postArrival } from '../borderposts.js';
-import { createFx } from '../fx.js';
 import { createSkyLife } from '../skylife.js';
 import { rollSecrets, createSecrets } from '../secrets.js';
 import { GOLD_MICE, createGoldMice } from '../goldmice.js';
@@ -110,7 +100,6 @@ import { newWalkSeed, newClearSeed, restoreGoals, restoreTallies, resumeWelcome 
 import { lessonFor, buildFirstLesson, placeCampGuide, headingToward, lessonOpen } from './guidewalk.js';
 import { findPath } from '../pathfind.js';
 import { createEnemyWalkLog } from '../enemies.js';
-import { buildMapLayer, createMinimap } from '../ui/minimap.js';
 import { createChatBubbles } from '../chatbubble.js';
 import { createChatWheel } from '../ui/chatwheel.js';
 import { phraseById, createChatRateLimiter, shouldShowIncomingChat } from '../chat.js';
@@ -132,17 +121,10 @@ import { createTreeFade, findFadeOccluders } from '../treefade.js';
 import { createRustle } from '../render/rustle.js';
 import { createFightUi } from '../ui/fightui.js';
 import { createShadowFit, createNoShadows } from '../render/shadowfit.js';
-import { createContactShadows } from '../render/contactshadows.js';
 import { mergeStaticProps } from '../render/mergeprops.js';
-import { createStripTiles } from '../render/striptiles.js';
 import { createGrass, groundFinds } from '../render/grass.js';
-import { createPawPrints } from '../render/pawprints.js';
-import { createPartyBalloons } from '../render/partyballoons.js';
 import { birthdayPartyOn } from '../ui/party.js';
-import { createSplash } from '../render/splash.js';
-import { createClouds } from '../render/clouds.js';
 import { createAmbient } from '../render/ambient.js';
-import { createWaterDressing } from '../render/waterdress.js';
 import { createFishJumps } from '../render/fishjump.js';
 import { note, noteMemory } from '../diagnostics.js';
 // Grass keep-out radii (plus grass.js's own 0.15 collider margin): a doormat
@@ -482,6 +464,7 @@ export function createWalkLifecycle({
   // been torn down (endWalk) or replaced by a different walk; every await
   // re-checks `session === mySession` before touching anything.
   // Set by startWalk from the place's pack (game/walkextras.js); every use is inside a walk.
+  let createWaterDressing, createContactShadows, createClouds, createStripTiles, createPawPrints, createPlayerMarks, buildMapLayer, createMinimap, createTraversalLive, NO_TRAVERSAL, traversalEventEffects, traversalTally, createDenCats, addGatewayDressing, NO_GATES, createSplash, createPartyBalloons, createPushThroughs, createKnockables, createTippables, createToy, buildYarnBall, createFx, createScent;
   let rollWeather, createWeather, rainPuddleSpots, rollGhosts, createGhosts, createYardDog, kittenPlan, createKittenEncounter, raceCourse, createRace;
   async function spawnGhosts(mySession) {
     const cloud = getCloud();
@@ -726,6 +709,7 @@ export function createWalkLifecycle({
     const { createFarmAnimals, createFairLive, createFairShow, createMarketLive, createPeopleKit, lodNearFor } = pack.life;
     // Weather, ghosts, the yard dog, the kitten and the race come beside the place (game/walkextras.js).
     ({ rollWeather, createWeather, rainPuddleSpots, rollGhosts, createGhosts, createYardDog, kittenPlan, createKittenEncounter, raceCourse, createRace } = pack.life.walk);
+    ({ createWaterDressing, createContactShadows, createClouds, createStripTiles, createPawPrints, createPlayerMarks, buildMapLayer, createMinimap, createTraversalLive, NO_TRAVERSAL, traversalEventEffects, traversalTally, createDenCats, addGatewayDressing, NO_GATES, createSplash, createPartyBalloons, createPushThroughs, createKnockables, createTippables, createToy, buildYarnBall, createFx, createScent } = pack.life.walk);
     // A visit prize held for the tap (styles A and C) goes on FIRST, before
     // anything below reads state.equipped (the avatar, the collar/crown
     // perks). Style C never dims and A lets go after its reveal, so Start,

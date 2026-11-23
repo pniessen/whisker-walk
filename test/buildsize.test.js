@@ -106,7 +106,7 @@ describe('the cat login catch-up chunk guard', () => {
 });
 
 describe('the walk extras chunk guard', () => {
-  const walkM = { ...M, 'src/game/walkextras.js': { file: 'assets/walkextras.js', isDynamicEntry: true, imports: ['_three.js'] } };
+  const walkM = { ...M, 'src/game/walkextras.js': { file: 'assets/walkextras.js', isDynamicEntry: true, imports: ['_three.js'] }, 'src/game/walkscene.js': { file: 'assets/walkscene.js', isDynamicEntry: true }, 'src/game/walklive.js': { file: 'assets/walklive.js', isDynamicEntry: true } };
   it('a walk-extras chunk that is lazy passes, with its own 30 kB ceiling', () => {
     expect(lazyProblems(walkM, WALK_ENTRY_MODULES)).toEqual([]);
     expect(WALK_GZIP_CEILING_KB).toBe(30);
@@ -114,6 +114,12 @@ describe('the walk extras chunk guard', () => {
   it('names the module when start-up imports it statically', () => {
     const bad = { ...walkM, 'index.html': { ...walkM['index.html'], imports: [...walkM['index.html'].imports, 'src/game/walkextras.js'] } };
     expect(lazyProblems(bad, WALK_ENTRY_MODULES)[0]).toMatch(/src\/game\/walkextras\.js/);
+  });
+  it('guards the scene and live chunks too', () => {
+    for (const mod of ['src/game/walkscene.js', 'src/game/walklive.js']) {
+      const bad = { ...walkM, 'index.html': { ...walkM['index.html'], imports: [...walkM['index.html'].imports, mod] } };
+      expect(lazyProblems(bad, WALK_ENTRY_MODULES).join('\n')).toContain(mod);
+    }
   });
 });
 
