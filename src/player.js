@@ -530,7 +530,7 @@ function pushIntoShallow(pos, waters) {
   return true;
 }
 
-export function createPlayer(camera, canvas) {
+export function createPlayer(camera, canvas, { headless = false } = {}) {
   let yaw = 0;
   let pitch = DEFAULT_PITCH;
   let enabled = false;
@@ -906,7 +906,7 @@ export function createPlayer(camera, canvas) {
       const next = !!engaged;
       if (touchEngaged === next) return;
       touchEngaged = next;
-      bus.emit('player:lockchange', { locked: api.engaged });
+      if (!headless) bus.emit('player:lockchange', { locked: api.engaged }); // a second cat must not speak for the first
     },
     setTouchMode(mode) {
       touchMode = !!mode;
@@ -951,7 +951,7 @@ export function createPlayer(camera, canvas) {
       zoom = { charging: false, zooming: false, time: 0 };
       hopArc = null;
       hopTime = 0;
-      if (document.pointerLockElement === canvas) document.exitPointerLock();
+      if (!headless && document.pointerLockElement === canvas) document.exitPointerLock();
     },
     update(dt, colliders = [], bounds = null, waters = [], bumps = NO_BUMPS) {
       if (!enabled || !avatar) return;
@@ -1198,6 +1198,9 @@ export function createPlayer(camera, canvas) {
       if (!ground.flat) camera.lookAt(rockTarget);
     },
   };
+
+  // headless (couch play's second cat): the same mover, no page listeners.
+  if (headless) return api;
 
   canvas.addEventListener('click', () => {
     if (touchMode) return; // a touch UI handles engagement itself — don't fight it for pointer lock
