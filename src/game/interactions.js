@@ -1090,6 +1090,14 @@ export function createInteractions({
         setPrompt(kp);
       }
     }
+    // An area life's own offer (Lighthouse Point's kitten): its promptAt(catP) says the line, or null.
+    if (!s.prompt && !lesson && s.areaLife?.promptAt) {
+      const lp = s.areaLife.promptAt(catP);
+      if (lp) {
+        s.prompt = { kind: 'area-life' };
+        setPrompt(lp);
+      }
+    }
     if (!s.prompt && s.denCats) {
       // v21 Stream 2: a tamed colony cat at home in the den.
       const dc = s.denCats.nearest(catP, DEN_CAT_PET_RANGE);
@@ -1965,6 +1973,8 @@ export function createInteractions({
       } else {
         log.awardOnce('pet', 'kitten-nuzzle', 'a nuzzle from Mochi');
       }
+    } else if (s.prompt.kind === 'area-life') {
+      s.areaLife.interact?.();
     } else if (s.prompt.kind === 'den-cat') {
       // A purr from a tamed colony cat. One award per cat, ever (awardOnce);
       // petting again just makes it sit up and purr for a moment.

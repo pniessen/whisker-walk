@@ -87,7 +87,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   // The Rooftops' six finds (src/roofspages.js; walks each was found on).
   'roofgarden', 'roofloft', 'roofvane', 'roofskylight', 'rooftelescope', 'roofchimney',
   // The Market Square's six finds (src/marketpages.js; walks each was found on).
-  'marketfountain', 'marketpigeons', 'marketsacks', 'marketmusician', 'marketbasket', 'marketapples'];
+  'marketfountain', 'marketpigeons', 'marketsacks', 'marketmusician', 'marketbasket', 'marketapples',
+  // Lighthouse Point's six finds and two jobs (src/lighthousepages.js; walks each was found or finished on).
+  'lhlamproom', 'lhpool', 'lhgull', 'lhecho', 'lhbell', 'lhwindow', 'lhjobkitten', 'lhjoblamp'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but

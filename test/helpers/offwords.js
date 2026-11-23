@@ -63,7 +63,8 @@ for (const p of onFirstHalves) for (const e of [...onEndings, on.CLAN_SUFFIX]) o
 export const BANNED = Object.freeze([
   // the family's rank, outside-cat and place words (kit, apprentice, warrior, elder, queen, medicine cat, deputy, leader, rogue, kittypet, Twolegplace)
   ['a rank, outside-cat or place word of the family\'s set', new RegExp(`\\b(${tableWords.map(esc).join('|')})s?\\b`, 'i')],
-  ['the group word', new RegExp(esc(on.CLAN_SUFFIX), 'i')],
+  // (a whole word: "Clang!" is a bell, not a clan; Lighthouse Point's fog bell says it)
+  ['the group word', new RegExp(`\\b${esc(on.CLAN_SUFFIX)}s?\\b`, 'i')],
   ['Twoleg', /twoleg/i],
   // a capitalised word ending in a rank ending: Mosskit, Mosspaw, Mossstar
   ['a name that ends in a rank ending', new RegExp(`\\b[A-Z][a-z]+(${Object.values(on.RANK_SUFFIX).map(esc).join('|')})\\b`)],

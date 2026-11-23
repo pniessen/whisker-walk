@@ -610,6 +610,24 @@ const LATER = Object.freeze({
   'wear.stringbagscarf.name': 'Shopping-Bag Scarf',
   'wear.applecharm.name': 'Apple Charm',
   'wear.flowerbasket.name': 'Flower Basket',
+  // Lighthouse Point's journal pages (src/lighthousepages.js): drawn before the place is ever walked, so they are
+  // here; its other lines are in the place's lazy file (src/world/lighthousewords.js)
+  'lighthouse.page.lamproom.name': 'The Lamp Room',
+  'lighthouse.page.lamproom.hint': 'The top of the tower glows when you get there.',
+  'lighthouse.page.pool.name': 'Rock Pool Peek',
+  'lighthouse.page.pool.hint': 'Sit very still at a rock pool. Who lives there?',
+  'lighthouse.page.gull.name': 'A Gull Friend',
+  'lighthouse.page.gull.hint': 'Gulls like a quiet cat on a high place.',
+  'lighthouse.page.echo.name': 'The Echo Cave',
+  'lighthouse.page.echo.hint': 'What happens if you call into the cave?',
+  'lighthouse.page.bell.name': 'The Fog Bell',
+  'lighthouse.page.bell.hint': 'The old bell by the cottage has a long rope.',
+  'lighthouse.page.window.name': 'The Lit Window',
+  'lighthouse.page.window.hint': 'Someone left a light on in the cottage.',
+  'lighthouse.page.kitten.name': 'The Lost Kitten',
+  'lighthouse.page.kitten.hint': 'The cat at the cottage door is missing her little one.',
+  'lighthouse.page.lamp.name': 'The Great Lamp',
+  'lighthouse.page.lamp.hint': 'The lamp at the top of the tower is dark.',
 });
 
 // Every id of the first table, in table order.

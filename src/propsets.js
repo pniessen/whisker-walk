@@ -496,6 +496,24 @@ const SETS = {
       { x: -3.7, z: 7.6, y: 0 }, { x: -3.7, z: 6.95, y: 0 },
     ],
   },
+
+  // Lighthouse Point (src/world/lighthouseplan.js LIGHTHOUSE_REGISTRATION.propSet; test/lighthouse*.test.js): a bowl,
+  // a dish and a cushion on the keeper's porch, drawn. Nothing to carry, knock or mark (its tippables are its own
+  // and it has no mark area until its milestone 4); no cover (its critters are gulls and crabs); no dog, no colony.
+  lighthouse: {
+    carryables: [],
+    knockables: [],
+    markables: [],
+    flaps: [],
+    rests: [
+      { id: 'lighthouse-drink-1', kind: 'drink', x: -27, z: -5.2, mesh: true },  // a water bowl by the porch
+      { id: 'lighthouse-eat-1', kind: 'eat', x: -27, z: -8.8, mesh: true },      // a dish by the porch
+      { id: 'lighthouse-nap-1', kind: 'nap', x: -28.7, z: -8, mesh: true },      // a cushion on the porch step
+    ],
+    hides: [],
+    dogYard: null,
+    keepSlots: [],
+  },
 };
 
 // The yarn ball's two spots in every area, the den too (controls review,
@@ -560,6 +578,10 @@ const YARN_SPOTS = {
   gorge: [
     { x: -6.4, z: 6, where: 'by the stream' },
     { x: -11, z: -23.7, where: 'down by the stream' },
+  ],
+  lighthouse: [
+    { x: 8.5, z: 33, where: 'by the upturned boat' },
+    { x: -27.5, z: 1.5, where: 'by the garden wall' },
   ],
   den: [
     { x: -3.4, z: -5, where: 'by the cardboard box' },

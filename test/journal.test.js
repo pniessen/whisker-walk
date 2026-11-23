@@ -4,8 +4,8 @@ import { CRITTER_INFO, renderJournalHtml } from '../src/journal.js';
 import { JOURNAL_TYPES } from '../src/progression.js';
 
 describe('CRITTER_INFO', () => {
-  it('has all 56 journal pages with kid-friendly entries', () => {
-    expect(CRITTER_INFO).toHaveLength(56); // 14 critters, Appletree Farm's six animals, its four jobs and six finds, the Fairground's five rides, three games and six finds, the Rooftops' six finds, and the Market Square's six finds
+  it('has all 64 journal pages with kid-friendly entries', () => {
+    expect(CRITTER_INFO).toHaveLength(64); // 14 critters, Appletree Farm's six animals, its four jobs and six finds, the Fairground's five rides, three games and six finds, the Rooftops' six finds, the Market Square's six finds, and Lighthouse Point's six finds and two jobs (shown only behind ?lighthouse=1 or once one has a count)
     for (const entry of CRITTER_INFO) {
       expect(typeof entry.id).toBe('string');
       expect(typeof entry.emoji).toBe('string');
@@ -53,7 +53,8 @@ describe('renderJournalHtml', () => {
     expect(html).toContain(bird.hint);
     expect(html).not.toContain(bird.name);
     // every one of the unspotted cards gets a silhouette, none a name
-    expect(html.match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.length);
+    const shown = CRITTER_INFO.filter((c) => !c.lighthouse); // Lighthouse Point's eight are not in the game yet (milestone 4)
+    expect(html.match(/journal-emoji silhouette/g)).toHaveLength(shown.length);
     for (const c of CRITTER_INFO) expect(html).not.toContain(c.name);
   });
 
@@ -61,7 +62,24 @@ describe('renderJournalHtml', () => {
     const html = renderJournalHtml({ bird: 2 }, 0, 9);
     const bird = CRITTER_INFO.find((c) => c.id === 'bird');
     expect(html).toContain(`<span class="journal-emoji">${bird.emoji}</span>`);
-    expect(html.match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.length - 1);
+    expect(html.match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.length - 8 - 1);
+  });
+
+  it('Lighthouse Point\'s eight pages stay out of the journal until the place is in the game, unless its flag is on or a page has a count', async () => {
+    const { setLighthouse } = await import('../src/lighthouseflag.js');
+    const ids = CRITTER_INFO.filter((c) => c.lighthouse).map((c) => c.id);
+    expect(ids).toEqual(['lhlamproom', 'lhpool', 'lhgull', 'lhecho', 'lhbell', 'lhwindow', 'lhjobkitten', 'lhjoblamp']);
+    try {
+      setLighthouse(false);
+      expect(renderJournalHtml({}, 0, 9)).not.toContain(CRITTER_INFO.find((c) => c.id === 'lhbell').hint);
+      expect(renderJournalHtml({ lhbell: 1 }, 0, 9)).toContain('The Fog Bell');
+      setLighthouse(true);
+      const html = renderJournalHtml({}, 0, 9);
+      for (const id of ids) expect(html).toContain(CRITTER_INFO.find((c) => c.id === id).hint);
+      expect(html.match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.length);
+    } finally {
+      setLighthouse(null);
+    }
   });
 
   it('renders the golden mice footer as found/total', () => {
