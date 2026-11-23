@@ -469,6 +469,9 @@ const AREAS = [
   // Milestone 2 (the climb) measured 51 / 14 / 33,219: the stair's treads, cleats, rails and piers, the gallery's rail, the
   // lamp room (drum, glass and roof as two meshes of their own, lens, lever housing), two sea stacks, the chalk marks.
   // The life's lamp pieces (beam, halo, glow, pool of light) are made by the walk, after this count: 5 meshes, 0 casters.
+  // Milestone 3 (the life) measured 53 / 33,323 built: the fog bell split off the merge (two meshes, so it swings), the sleeper in the lit window.
+  // The life it adds (the gull, the crab, the paw prints; and two cats, 58 meshes and about 19,000 triangles, drawn within 48 m of her) is
+  // counted in test/lighthousebeam.test.js, never in this build count.
   ['lighthouse', buildLighthouse, 280, 210, 62000],
 ];
 
@@ -516,7 +519,7 @@ const MERGED_AREAS = [
   ['fair', buildFair, 200, 140], // measured 178 / 124
   ['roofs', buildRoofs, 64, 34], // measured 60 / 30 (59 / 30 before the Rooftops step 5 fix wave's vane, its own mesh so the tower view can fade it, never merged; 57 / 30 before Rooftops step 3's two sleeping cats, Task 6, never merged; 56 / 30 before round two's lamp halo, Task G; 55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
   ['market', buildMarket, 156, 36], // 2026-11-22: re-measured on purpose for the four new stalls (toys, plants, bric-a-brac, butcher): 139 / 32 merged, +12% (the same ruling); ceilings 280 / 210 / 62000 unchanged. Earlier: measured 98 / 24 after Task 6's rework and review (its clutter, the controller's ruling), +12%; 76 / 23 before; 108 / 24 after step 3's Task 8 (the café front's paint and its chalkboard's contact-shadow box), ceiling unchanged; 110 / 25 with step 4's gate (its body and its bar), re-pinned at +12% (the same ruling)
-  ['lighthouse', buildLighthouse, 29, 11], // 2026-11-22: milestone 2 measured 26 / 9 merged (23 / 9 at milestone 1), +12% (the Farm's and the Market's ruling); to be re-pinned once more when milestone 3 adds the life's finds; the plan's gate is 70 / 36
+  ['lighthouse', buildLighthouse, 32, 11], // 2026-11-22: milestone 3 measured 28 / 9 merged (26 / 9 at milestone 2, 23 / 9 at milestone 1: the fog bell is two meshes of its own so it can swing), +12% (the Farm's and the Market's ruling); the plan's gate is 70 / 36
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {

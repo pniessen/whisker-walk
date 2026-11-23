@@ -243,7 +243,7 @@ export const LIGHTHOUSE_COLLECTIBLES = Object.freeze([
 export const LIGHTHOUSE_SCENICS = Object.freeze([
   { id: 'lighthouse-cave', x: -12, z: -19, label: 'the sea cave' },
   { id: 'lighthouse-pools', x: 19, z: 27, label: 'the rock pools' },
-  { id: 'lighthouse-cottage', x: -27.6, z: -7, label: 'the keeper\'s porch' },
+  { id: 'lighthouse-cottage', x: -27.6, z: -7, label: 'the keeper’s porch' },
   { id: 'lighthouse-gallery', ...onTower(201, 3.6), label: 'the lighthouse balcony' },
   { id: 'lighthouse-gullrock', x: -45.2, z: -30, label: 'Gull Rock' },
 ].map(Object.freeze));
@@ -258,12 +258,77 @@ export const LIGHTHOUSE_TIPPABLES = Object.freeze([
   { x: 11, z: 26, kind: 'bin', look: 'crate' },
   { x: -26, z: -2.5, kind: 'bin', look: 'bin' },
   { x: LEVER.x, z: LEVER.z, kind: 'lever', look: 'lever' },
+  // the fog bell's rope (its tip rings the bell: world/lighthouselife.js)
+  { x: BELL.x + 1.0, z: BELL.z, kind: 'bell', look: 'bellrope' },
 ].map(Object.freeze));
 // The lever is the one tippable the life reads: its entry in the walk's list is the one of this kind.
 export const LEVER_KIND = 'lever';
+export const BELL_KIND = 'bell';
 export const LIGHTHOUSE_BOXES = Object.freeze([{ x: 18, z: 38 }, { x: -20, z: 10 }].map(Object.freeze));
 
 export const LIGHTHOUSE_NAME = 'Lighthouse Point';
+
+// -----------------------------------------------------------------------------
+// Milestone 3: the life. Where each of the six finds is found, the three golden mice, the keeper's cat and the
+// three places her kitten hides, the gulls, the crabs and the moments. Pure data.
+// -----------------------------------------------------------------------------
+
+// The three golden mice (src/goldmice.js GOLD_MICE.lighthouse holds the same three; test/lighthousegold.test.js):
+// on the gallery on the sea side opposite the lamp room's door, in the cave's back nook behind the lantern, and
+// on the high pool ledge. `y` is the height over the ground at the spot.
+export const LIGHTHOUSE_GOLD = Object.freeze([
+  Object.freeze({ id: 'gm-light-1', ...onTower(160, 3.4), y: 0 }),
+  Object.freeze({ id: 'gm-light-2', x: -14.6, z: -21.3, y: 0 }),
+  Object.freeze({ id: 'gm-light-3', x: 6, z: 12, y: 0.72 }),
+].map((m) => Object.freeze({ ...m, x: Math.round(m.x * 100) / 100, z: Math.round(m.z * 100) / 100 })));
+
+// The bell's rope end is the tippable (its prompt "ring the fog bell"); the bell itself hangs over it.
+export const BELL_ROPE = Object.freeze({ x: BELL.x + 1.0, z: BELL.z });
+
+// THE SIX FINDS. Each is a list of zones; she is at a find when she is in any zone of it (horizontally between
+// `rMin` and `r` of its middle, her paws within `dy` of its `y`) and its condition holds: `still` seconds of
+// standing still, `meow` (a call this frame) or `belled` (the bell's rope went over this frame). Automatic: no
+// prompt, no button. One spot never finds two: the lamp room's ring (r 2.0) is inside the gallery's (from 2.7).
+const zone = (o) => Object.freeze(o);
+export const LIGHTHOUSE_FIND_ZONES = Object.freeze({
+  lamproom: Object.freeze([zone({ x: TOWER.x, z: TOWER.z, y: GALLERY_Y, r: 2.0, dy: 1.2, still: 2 })]),
+  pool: Object.freeze(POOLS.map((p) => zone({ x: p.x, z: p.z, y: 0, r: p.r + 1.3, dy: 0.9, still: 2 }))),
+  gull: Object.freeze([
+    zone({ x: TOWER.x, z: TOWER.z, y: GALLERY_Y, rMin: 2.7, r: 4.7, dy: 1.3, still: 3 }),
+    zone({ x: GULL_ROCK.x, z: GULL_ROCK.z, y: PLATEAU_Y, r: 2.4, dy: 1, still: 3 }),
+  ]),
+  echo: Object.freeze([zone({ x: -15, z: -19.4, y: 0, r: 3.6, dy: 1, meow: true })]),
+  bell: Object.freeze([zone({ x: BELL_ROPE.x, z: BELL_ROPE.z, y: PLATEAU_Y, r: 3, dy: 1, belled: true })]),
+  window: Object.freeze([zone({ x: -33.4, z: -3.6, y: PLATEAU_Y, r: 1.3, dy: 0.8, still: 2 })]),
+});
+
+// THE KEEPER'S CAT (a ginger tabby, "Biscuit" until the owner's daughter picks) paces at the cottage door and
+// looks down at the shore; her kitten ("Pebble") waits in one of three hiding places, which the room seed (a
+// solo walk: how many times she has walked here) picks. `from` is where the paw prints start, 14 m or so back.
+export const KEEPER_DOOR = Object.freeze({ x: -28, z: -7 });
+export const KEEPER_PACE = Object.freeze({ a: Object.freeze({ x: -27, z: -8 }), b: Object.freeze({ x: -27, z: -6 }) });
+export const KITTEN_SPOTS = Object.freeze([
+  Object.freeze({ id: 'pool', label: 'lighthouse.perch.pool', x: 24, z: 18.5, from: Object.freeze({ x: 14, z: 36 }) }),
+  Object.freeze({ id: 'cave', x: -14.6, z: -17.3, from: Object.freeze({ x: 2, z: -17.4 }) }),
+  Object.freeze({ id: 'boat', label: 'lighthouse.perch.boat', x: 5, z: 31.4, from: Object.freeze({ x: 14, z: 36 }) }),
+]);
+
+// Gulls and crabs (the game's own critters), in the open on the sand and the rocks, none in water or a wall.
+export const LIGHTHOUSE_CRITTERS = Object.freeze([
+  { type: 'seagull', x: -45.4, z: -30 }, { type: 'seagull', x: -36, z: -35 }, { type: 'seagull', x: -10, z: -31 },
+  { type: 'seagull', x: 24, z: 34 }, { type: 'seagull', x: 30, z: 6 },
+  { type: 'crab', x: 10.4, z: 17.6 }, { type: 'crab', x: 25.5, z: 19.5 }, { type: 'crab', x: 19, z: 27.2 }, { type: 'crab', x: 31.8, z: 13.5 },
+  { type: 'crab', x: -4, z: -14 },
+].map(Object.freeze));
+// Two moments (the Seaside's kind): a crab scuttles out of a rock pool, a gull steals a chip. Their words are
+// `lighthouse.moment.*` (src/world/lighthousewords.js), put in by world/lighthouse.js.
+export const LIGHTHOUSE_MOMENTS = Object.freeze([
+  { id: 'crab-pool', type: 'crab', x: 16, z: 18, from: { x: 19, z: 27.2 } },
+  { id: 'gull-chip', type: 'seagull', x: 20, z: 30, from: { x: 24, z: 34 } },
+].map(Object.freeze));
+
+// The tippables gain the bell's rope (drawn by tippableLook('bellrope')): the lever and this are the two that
+// the place's life reads.
 
 const S = (x, z) => ({ x, z });
 const out = (p, d) => {

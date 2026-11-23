@@ -20,6 +20,7 @@ import { createWater, WATER_TUNING } from '../render/water.js';
 import * as P from './lighthouseplan.js';
 import * as K from './lighthouseparts.js';
 import { createLighthouseLife } from './lighthouselife.js';
+import './lighthousewords.js';
 import { phrase } from '../clanphrases.js';
 
 export { LIGHTHOUSE_BOUNDS, LIGHTHOUSE_SPAWN } from './lighthouseplan.js';
@@ -78,6 +79,7 @@ export function build(scene, { water = {}, wind } = {}) {
     for (const m of kit.meshes()) place.add(m);
     place.add(lamp.glass, lamp.roof);
     scene.add(place);
+    scene.add(K.createBell());
 
     // the bench on the plateau (a perch), and the beach plants (marram and sea holly)
     const bench = b.bench(P.BENCH.x, P.BENCH.z, P.BENCH.yaw);
@@ -87,7 +89,22 @@ export function build(scene, { water = {}, wind } = {}) {
     for (const box of plan.boxes) scene.add(b.cardboardBox(box.x, box.z));
 
     // the record
-    const lookBuild = (spot) => (spot.look ? { ...spot, build: () => K.tippableLook(spot.look), ...(spot.look === 'lever' ? { prompt: phrase('lighthouse.lever.prompt') } : {}) } : spot);
+    const PROMPTS = { lever: () => phrase('lighthouse.lever.prompt'), bellrope: () => phrase('lighthouse.bell.prompt') };
+    const lookBuild = (spot) => (spot.look ? { ...spot, build: () => K.tippableLook(spot.look), ...(PROMPTS[spot.look] ? { prompt: PROMPTS[spot.look]() } : {}) } : spot);
+    // the names the game shows go through the phrase table (the same in both word sets; test/lighthousewords.test.js)
+    const named = (list, words, keyOf) => list.map((o) => (words[keyOf(o)] ? { ...o, label: words[keyOf(o)]() } : o));
+    const SCENIC_WORDS = {
+      'lighthouse-gallery': () => phrase('lighthouse.scenic.gallery'), 'lighthouse-cave': () => phrase('lighthouse.scenic.cave'), 'lighthouse-pools': () => phrase('lighthouse.scenic.pools'),
+      'lighthouse-cottage': () => phrase('lighthouse.scenic.cottage'), 'lighthouse-gullrock': () => phrase('lighthouse.scenic.gullrock'),
+    };
+    const COLLECT_WORDS = {
+      'light-1': () => phrase('lighthouse.collect.shell'), 'light-2': () => phrase('lighthouse.collect.glass'), 'light-3': () => phrase('lighthouse.collect.starfish'),
+      'light-4': () => phrase('lighthouse.collect.button'), 'light-5': () => phrase('lighthouse.collect.cork'),
+    };
+    const PERCH_WORDS = { 'the upturned boat': () => phrase('lighthouse.perch.boat'), 'the high pool ledge': () => phrase('lighthouse.perch.pool') };
+    const MOMENT_WORDS = { 'crab-pool': () => phrase('lighthouse.moment.crab'), 'gull-chip': () => phrase('lighthouse.moment.chip') };
+
+    // the record
     return {
       name: plan.name,
       bounds: plan.bounds,
@@ -95,14 +112,14 @@ export function build(scene, { water = {}, wind } = {}) {
       colliders: plan.colliders,
       waters: plan.waters,
       waterFx: [seaEast, seaWest],
-      perches: plan.perches,
+      perches: named(plan.perches, PERCH_WORDS, (o) => o.label),
       pois: plan.pois,
-      collectibles: plan.collectibles,
-      scenics: plan.scenics,
+      collectibles: named(plan.collectibles, COLLECT_WORDS, (o) => o.id),
+      scenics: named(plan.scenics, SCENIC_WORDS, (o) => o.id),
       tippables: plan.tippables.map(lookBuild),
       boxes: plan.boxes,
-      critterSpawns: [], // the gulls and crabs are milestone 3's
-      moments: [],
+      critterSpawns: P.LIGHTHOUSE_CRITTERS.map((c) => ({ ...c })), // the game's own gulls and crabs
+      moments: P.LIGHTHOUSE_MOMENTS.map((m) => ({ ...m, label: MOMENT_WORDS[m.id]() })),
       puddles: [],
       groundBounce: K.COL.sand,
       skyDusk: { ...SKY_EVENING },
@@ -112,7 +129,7 @@ export function build(scene, { water = {}, wind } = {}) {
       ground: plan.ground,
       traversal: plan.traversal,
       // the lamp: lit by the lever, a beam that turns, the ship's horn (world/lighthouselife.js)
-      life: (ctx) => createLighthouseLife(ctx),
+      life: (ctx) => createLighthouseLife({ ...ctx, colliders: plan.colliders, waters: plan.waters }),
     };
   });
 }

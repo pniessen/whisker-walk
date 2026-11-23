@@ -19,7 +19,8 @@ const { HORN, createLighthouseSound } = await import('../src/world/lighthousesou
 const area = L.lighthouseArea();
 const leverIndex = area.tippables.findIndex((t) => t.kind === 'lever');
 const LEVER_ID = `tip-${leverIndex}`;
-const CAT_AT = { x: L.LEVER.x + 0.5, y: 13.5, z: L.LEVER.z };
+// beside the lever, 2.65 m from the tower's middle: in reach of it (the job pays here) but outside the lamp room's find (2.0 m) and the gallery's (from 2.7 m)
+const CAT_AT = { x: L.TOWER.x + 2.65 * Math.cos((201 * Math.PI) / 180), y: 13.5, z: L.TOWER.z + 2.65 * Math.sin((201 * Math.PI) / 180) };
 
 function rig({ restore = null, audio = null, roomSeed } = {}) {
   const record = build(new THREE.Scene()); // (for the tippables' own looks and the record's life)
@@ -28,7 +29,7 @@ function rig({ restore = null, audio = null, roomSeed } = {}) {
   const placed = build(scene);
   const tippables = createTippables(scene, placed.tippables, { ground: placed.ground });
   const points = { n: 0 };
-  const progression = { addPoints: (n) => { points.n += n; }, recordFeat: vi.fn() };
+  const progression = { addPoints: (n) => { points.n += n; }, recordFeat: vi.fn(), recordSighting: vi.fn() };
   const log = createDiscoveryLog(progression);
   log.startWalk();
   if (restore) log.restore(restore);
@@ -39,7 +40,7 @@ function rig({ restore = null, audio = null, roomSeed } = {}) {
   const off = bus.on('discovery', (e) => events.push(e));
   const lever = tippables.list.find((e) => e.kind === 'lever');
   const step = (seconds, cat = CAT_AT) => { for (let i = 0; i < seconds * 30; i++) life.update(1 / 30, 0, cat, camera, session); };
-  return { scene, tippables, life, log, points, events, lever, step, off, placed };
+  return { scene, tippables, life, log, points, events, lever, step, off, placed, progression };
 }
 const objects = (scene) => ['lighthouse:glass', 'lighthouse:lamproof'].map((n) => scene.getObjectByName(n));
 
@@ -55,7 +56,8 @@ describe('the lever', () => {
     expect(r.lever.group.getObjectByName('lever-arm')).toBeTruthy();
     expect(r.lever.prompt).toBe('E — pull the lamp lever');
     // every other tippable has none (the game's own "paw it over" stands)
-    expect(r.tippables.list.filter((e) => e.kind !== 'lever').every((e) => e.prompt === null)).toBe(true);
+    expect(r.tippables.list.filter((e) => e.kind !== 'lever' && e.kind !== 'bell').every((e) => e.prompt === null)).toBe(true);
+    expect(r.tippables.list.find((e) => e.kind === 'bell').prompt).toBe('E — ring the fog bell'); // (milestone 3: the fog bell's rope has its own line too)
   });
 });
 
@@ -135,6 +137,37 @@ describe('the lamp job', () => {
     expect(r.lever.group.getObjectByName('lever-arm').rotation.z).toBeLessThan(-1);
     // and it cannot be pulled a second time: it is down
     expect(r.tippables.nearest(new THREE.Vector3(L.LEVER.x, 13.5, L.LEVER.z), 2)).toBeNull();
+  });
+
+  it('a partner\'s pull pays only the cat who is up in the lamp room: far away she sees the lamp and is paid nothing, and is paid when she gets there', () => {
+    r = rig();
+    const far = { x: 14, y: 0, z: 36 };
+    r.step(1, far);
+    expect(r.tippables.tipById(LEVER_ID)).toBe(true);
+    r.step(2, far);
+    expect(r.life.lit).toBe(true);
+    expect(r.points.n).toBe(0);
+    expect(r.events.filter((e) => e.type === 'lighthousejob')).toHaveLength(0);
+    r.step(HORN_AFTER, far); // the ship answers on this screen too, for nothing
+    expect(r.events.filter((e) => e.type === 'lighthouseship')).toHaveLength(1);
+    // on the plateau under the lamp room (the gallery's level is 7.5 m up): not there yet
+    r.step(1, { x: L.LEVER.x, y: 6, z: L.LEVER.z });
+    expect(r.points.n).toBe(0);
+    r.step(1, CAT_AT);
+    expect(r.points.n).toBe(25);
+    expect(r.events.filter((e) => e.type === 'lighthousejob')).toHaveLength(1);
+    expect(r.progression.recordSighting).toHaveBeenCalledWith('lhjoblamp');
+    r.step(30);
+    expect(r.points.n).toBe(25);
+  });
+
+  it('her own pull counts on the lamp\'s journal page, once a walk', () => {
+    r = rig();
+    r.step(1);
+    r.tippables.tip(r.lever);
+    r.step(1);
+    expect(r.progression.recordSighting).toHaveBeenCalledTimes(1);
+    expect(r.progression.recordSighting).toHaveBeenCalledWith('lhjoblamp');
   });
 
   it('a tip on a later walk pays again (once a walk): a fresh log is a fresh walk', () => {

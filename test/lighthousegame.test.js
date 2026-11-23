@@ -9,6 +9,7 @@ import { endsFor } from '../src/gateways.js';
 import { nextThing } from '../src/ui/nextthing.js';
 import { KEPT_OFFERS } from '../src/areaoffer.js';
 import { lifecycle, fakeEl, memStorage } from './helpers/walklife.js';
+import * as L from '../src/world/lighthouseplan.js';
 
 // Lighthouse Point in the game (milestone 1): behind ?lighthouse=1, a solo walk in either edition, its own
 // download. Nothing offers it: no catalog row, no map place, no gate, until milestone 4.
@@ -95,6 +96,8 @@ describe('the flag', () => {
       expect(lever.prompt).toBe('E — pull the lamp lever');
       const before = l.progression.state.points;
       expect(s.tippables.tip(lever)).toBe(true);
+      // up in the lamp room (the job pays the cat who is there)
+      s.cat.position.set(L.TOWER.x + 2.65 * Math.cos((201 * Math.PI) / 180), 13.5, L.TOWER.z + 2.65 * Math.sin((201 * Math.PI) / 180));
       for (let i = 0; i < 10; i++) s.areaLife.update(1 / 30, 0, s.cat.position, null, s);
       expect(s.areaLife.lit).toBe(true);
       expect(l.progression.state.points - before).toBe(25);
