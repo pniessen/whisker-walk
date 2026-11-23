@@ -6,6 +6,7 @@ import { resumableAreaIds, roofsOn } from './roofsflag.js';
 import { marketOn, marketResumable } from './marketflag.js';
 import { housePrefetch, resumableHouseIds } from './houseflag.js';
 import { lighthouseOn } from './lighthouseflag.js';
+import { greenhouseOn } from './greenhouseflag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { createProgression, rankFor, CATALOG } from './progression.js';
 import { colonyNews, tradeEffect } from './colony.js';
@@ -692,6 +693,7 @@ function init() {
   if (roofsOn()) areas.prefetch('roofs');
   if (marketOn()) areas.prefetch('market');
   if (lighthouseOn()) areas.prefetch('lighthouse');
+  if (greenhouseOn()) areas.prefetch('greenhouse');
   if (housePrefetch(progression.state)) areas.prefetch('house');
   // Rosa's one-time farewell goes up before the news (showNews yields while it is up).
   const showFarewell = () => {
