@@ -194,6 +194,6 @@ describe('the registry', () => {
     const pack = await AREA_LOADERS.lighthouse();
     expect(pack.id).toBe('lighthouse');
     expect(pack.world.build).toBe(build);
-    expect(pack.life).toEqual({});
+    expect(Object.keys(pack.life)).toEqual(['walk']); // no live animals of its own; only the walk's lazy extras
   });
 });
