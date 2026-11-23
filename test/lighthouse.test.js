@@ -50,9 +50,11 @@ describe('the record', () => {
     expect(area.skyDusk.top).toBeTypeOf('number');
     expect(area.duskLight.fogFar).toBeGreaterThan(area.duskLight.fogNear);
   });
-  it('nothing is alive yet: no critters, no moments', () => {
-    expect(area.critterSpawns).toEqual([]);
-    expect(area.moments).toEqual([]);
+  it('the gulls, the crabs and two moments are in the record (milestone 3), as plain data from the plan', () => {
+    expect(area.critterSpawns).toEqual(P.LIGHTHOUSE_CRITTERS);
+    expect(new Set(area.critterSpawns.map((c) => c.type))).toEqual(new Set(['seagull', 'crab']));
+    expect(area.moments.map((m) => m.id)).toEqual(['crab-pool', 'gull-chip']);
+    for (const m of area.moments) expect(m.label, m.id).toMatch(/\S/);
   });
   it('the seas are drawn from the declared footprints', () => {
     // (the west sea has an island under each stack, so its surface is a shape with holes, not a plain slab)
@@ -63,7 +65,7 @@ describe('the record', () => {
     expect(area.waterFx[1].mesh.position.x).toBeCloseTo((P.SEA_WEST.minX + P.SEA_WEST.maxX) / 2, 6);
   });
   it('each tippable carries its own look', () => {
-    expect(area.tippables).toHaveLength(6); // two crab pots, a bucket, a crate, a bin and (milestone 2) the lamp lever
+    expect(area.tippables).toHaveLength(7); // two crab pots, a bucket, a crate, a bin, the lamp lever (milestone 2) and the fog bell's rope (milestone 3)
     for (const t of area.tippables) {
       expect(typeof t.build).toBe('function');
       expect(t.build().children.length).toBeGreaterThan(0);

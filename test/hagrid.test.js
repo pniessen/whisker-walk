@@ -43,6 +43,8 @@ const DELTA = {
   // the Market Square (2026-11-21): the trader's cap (the cat's own, carried onto his skull); the
   // string-bag scarf's ring + cloth (the neckerchief's); ring + apple (the anchor's hang); no back item
   tradercap: 1, stringbagscarf: 2, applecharm: 2, flowerbasket: 0,
+  // Lighthouse Point (2026-11-22): the keeper's cap (the trader's cap's shape in navy, carried onto his skull)
+  keepercap: 1,
 };
 
 const hen = (acc = BARE) => {
@@ -413,7 +415,7 @@ describe('Hagrid rebuilt (Task 8)', () => {
     // above his skull there is hat.
     const HEN_R = [0.13, 0.1365, 0.13];
     const henRho = (v) => Math.hypot(v.x / HEN_R[0], v.y / HEN_R[1], v.z / HEN_R[2]);
-    it.each(['acorncap', 'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'tradercap'])('the %s sits on his head with the comb inside it', (id) => {
+    it.each(['acorncap', 'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'tradercap', 'keepercap'])('the %s sits on his head with the comb inside it', (id) => {
       const { pts: combPts } = comb();
       const c = hen({ ...BARE, head: id });
       const { head } = c.userData.parts;

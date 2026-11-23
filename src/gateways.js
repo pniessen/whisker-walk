@@ -129,6 +129,14 @@ export const GATEWAY_ENDS = Object.freeze({
   ]),
   seaside: Object.freeze([
     end({ id: 'seaside-docks', gateway: 'docks-seaside', x: 10, z: 45, faces: 'south', to: 'docks', twin: 'docks-seaside', look: 'promenade' }),
+    // On the open north-east sand, 2.5 m inside the north bounds (z -34) and clear of the lamp at
+    // (20, -30): the bluff's colliders stand at z -37. A signpost with its painted name board.
+    end({ id: 'seaside-lighthouse', gateway: 'seaside-lighthouse', x: 12, z: -31.5, faces: 'north', to: 'lighthouse', twin: 'lighthouse-seaside', look: 'signpost', sign: true }),
+  ]),
+  lighthouse: Object.freeze([
+    // On the cove's south edge (bounds z 44), facing south; she lands 3.65 m in at (14, 37.4), facing north,
+    // the tower ahead of her as at the spawn (14, 36).
+    end({ id: 'lighthouse-seaside', gateway: 'seaside-lighthouse', x: 14, z: 41, faces: 'south', to: 'seaside', twin: 'seaside-lighthouse', look: 'signpost' }),
   ]),
   roofs: Object.freeze([
     // A green door in the back alley's brick wall (roofs.js draws it at

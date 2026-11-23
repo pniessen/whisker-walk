@@ -37,6 +37,8 @@ export const AWARDS = {
   marketfind: 12,
   // Lighthouse Point (2026-11-22): the lamp lit, once a walk (world/lighthouselife.js; what the Farm's jobs pay).
   lighthousejob: 25,
+  // ...and one of its six finds, paid the first time ever (world/lighthousefinds.js noteLighthouseFind).
+  lighthousefind: 12,
   // Found outfits (2026-11-19): the walk's find when everything hidden in the
   // place is already hers, the spec's "a small coin pouch instead (Claude's
   // call: 5 coins)" (the coins are 🐾). Once a walk (foundwear/play.js), and

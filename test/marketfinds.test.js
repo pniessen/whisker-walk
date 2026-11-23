@@ -31,7 +31,7 @@ describe('the Market Square journal pages', () => {
     const ids = ['marketfountain', 'marketpigeons', 'marketsacks', 'marketmusician', 'marketbasket', 'marketapples'];
     expect(MARKET_FIND_IDS).toEqual(['fountain', 'pigeons', 'sacks', 'musician', 'basket', 'apples']);
     expect(MARKET_JOURNAL_TYPES).toEqual(ids);
-    expect(JOURNAL_TYPES.slice(-6)).toEqual(MARKET_JOURNAL_TYPES);
+    expect(JOURNAL_TYPES.slice(-14, -8)).toEqual(MARKET_JOURNAL_TYPES);
     expect(MARKET_FIND_IDS.map(marketPageId)).toEqual(ids);
     for (const id of MARKET_FIND_IDS) {
       const [name, hint, line, emoji] = PAGES[id];

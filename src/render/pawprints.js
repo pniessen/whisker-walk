@@ -112,6 +112,9 @@ export const AREA_RULES = Object.freeze({
   roofs: Object.freeze({ ground: null, path: 'gravel', strip: null }),
   // The Market's cobbles take gravel-grey prints (no 'cobble' look exists; gravel is nearest); no grass.
   market: Object.freeze({ ground: null, path: 'gravel', strip: null }),
+  // Lighthouse Point's cliff path and tracks are worn earth and sand; its turf, rock and the cove's sand (the Seaside's
+  // wetness() is the Seaside's own shore, not this cove's) take none.
+  lighthouse: Object.freeze({ ground: null, path: 'sand', strip: null }),
 });
 
 // THE BIRTHDAY'S GLITTER (2026-11-21; src/ui/party.js birthdayPartyOn). While

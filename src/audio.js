@@ -823,7 +823,8 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         // indoors, so this stays explicit rather than relying on the caller
         // never passing dusk: true.
         layers.push(crackleLayer());
-      } else if (areaKey === 'seaside') {
+      } else if (areaKey === 'seaside' || areaKey === 'lighthouse') {
+        // Lighthouse Point has the Seaside's surf and gulls (its own bell, horn and echo are the place's, lighthousesound.js).
         layers.push(wavesLayer());
         layers.push(gullLayer());
       } else if (areaKey === 'docks') {

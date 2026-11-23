@@ -14,7 +14,10 @@
      dusk look (render/dusk.js applyDusk, the dusk tint, the base exposure 1.1) with its own shots;
      milestone 2: its life too (the lamp: the lever's tippable, the beam, the halo), shots with "lit" in their
      spec light the lamp first, and the tours "climb", "lamp" (up the stair, to the lever, light it) and
-     "railwalk" walk the real moves).
+     "railwalk" walk the real moves; milestone 3: the keeper's cat, the kitten, the finds' looks, the golden
+     mice and the gulls and crabs too. `visits=N` picks which of the three hiding places the kitten has (0..2 = pool,
+     cave, boat, read from the walk count), shots with "bell" ring the fog bell first, the tour "kitten" finds
+     her at the boat and takes her home to the cottage door).
      Free play: the arrows or W-A-S-D walk her (the stair needs "up" held). -->
 <style>
   html, body { margin: 0; background: #1c2431; overflow: hidden; font: 12px/1.35 Avenir, system-ui, sans-serif; color: #f1e0c2; }
@@ -79,6 +82,10 @@
   let lamp = null;
   let lever = null;
   const lifeSession = { tippables: null };
+  let visitsNow = 0; // milestone 3: which hiding place the kitten has (see lighthousecats.kittenSpotIndex)
+  let mice = null;
+  let critters = null;
+  let bellRope = null;
   if (PLACE) {
     const { build } = await import('/src/world/lighthouse.js');
     const { applyDusk, duskEnv, tintDuskLawn } = await import('/src/render/dusk.js');
@@ -90,6 +97,11 @@
     tippables = createTippables(scene, area.tippables, { ground: area.ground });
     lifeSession.tippables = tippables;
     lever = tippables.list.find((e) => e.kind === 'lever');
+    bellRope = tippables.list.find((e) => e.kind === 'bell');
+    const { createGoldMice } = await import('/src/goldmice.js');
+    const { createCritters } = await import('/src/critters.js');
+    mice = createGoldMice(scene, 'lighthouse', new Set(), { ground: area.ground, rng: () => 0.25 });
+    critters = createCritters(scene, area.critterSpawns, { ground: area.ground, rng: () => 0.5, motionRng: () => 0.37 });
   } else {
     area = buildLighthouseSpike(scene);
   }
@@ -102,10 +114,15 @@
   // the place's own life (the lamp), made after the caster sweep as the walk makes it; each shot makes a new one
   function remakeLife() {
     lamp?.dispose();
-    lamp = PLACE ? area.life({ scene, ground: area.ground, audio: null, log: null, progression: {}, reducedMotion: rm, tier: { name: 'high' }, roomSeed: undefined }) : null;
+    lamp = PLACE ? area.life({ scene, ground: area.ground, audio: null, log: null, progression: {}, reducedMotion: rm, tier: { name: 'high' }, roomSeed: undefined, visits: visitsNow, critters }) : null;
+    if (bellRope) { bellRope.tipped = false; bellRope.anim = 0; bellRope.group.rotation.z = 0; bellRope.group.position.y = bellRope.gy; }
     if (lever) { lever.tipped = false; lever.anim = 0; lever.group.rotation.z = 0; lever.group.position.y = lever.gy; lever.group.getObjectByName('lever-arm').rotation.z = 0; }
   }
   const pullLever = () => { if (lever && !lever.tipped) tippables.tip(lever); };
+  const pullBell = () => { if (bellRope && !bellRope.tipped) tippables.tip(bellRope); };
+  // the walk count whose kitten hides in place `idx` (0 the pool ledge, 1 the cave, 2 the boat)
+  let kittenIndexOf = null;
+  if (PLACE) { const { kittenSpotIndex } = await import('/src/world/lighthousecats.js'); kittenIndexOf = (idx) => [...Array(200).keys()].find((v) => kittenSpotIndex(undefined, v) === idx); }
   remakeLife();
 
   const player = createPlayer(camera, renderer.domElement);
@@ -136,7 +153,7 @@
   const stick = (x, z) => player.setTouchMove(x === 0 && z === 0 ? null : { x, z, mag: 1 });
   const _w = { x: 0, z: 0 };
   // a held WORLD direction, as the thumb would (the camera is behind her; the stick is that direction turned by the view)
-  const push = (wx, wz) => { stickToWorld(wx, wz, -player.viewYaw(), _w); player.setTouchMove({ x: _w.x, z: _w.z, mag: 1 }); };
+  const push = (wx, wz) => { const n = Math.hypot(wx, wz) || 1; stickToWorld(wx / n, wz / n, -player.viewYaw(), _w); player.setTouchMove({ x: _w.x, z: _w.z, mag: 1 }); };
   function press() {
     if (live.jump(ctx)) return true;
     player.pounce(ARC);
@@ -156,6 +173,8 @@
     cat.rotation.z = 0;
     live.late(dt, t, ctx);
     lamp?.update(dt, t, cat.position, camera, lifeSession);
+    mice?.update(t);
+    critters?.update(dt, t, cat.position, cat.position, cat);
     shadows.update(area.ground.y(cat.position.x, cat.position.z), dt);
     render();
   }
@@ -170,7 +189,9 @@
     captionEl.replaceChildren();
     if (text) { const s = document.createElement('span'); s.textContent = text; captionEl.append(s); }
   }
+  let camHold = null; // a shot with `keepCat` and `cam`: the camera stays where the shot put it (the cat is drawn)
   function render() {
+    if (camHold) { camera.position.set(...camHold.pos); camera.lookAt(...camHold.look); }
     renderer.render(scene, camera);
     if (BARE) return;
     const p = cat.position;
@@ -216,7 +237,17 @@
     const toward = (p, tol = 0.35) => ({ push: () => [p.x - cat.position.x, p.z - cat.position.z], until: () => Math.hypot(p.x - cat.position.x, p.z - cat.position.z) < tol, max: 8 });
     const rail = T('rail-walk');
     const climbTo = { caption: 'Up the stair', stick: [0, -1], until: atTop, max: 30 };
+    const KIT_BOAT = { x: 5, z: 31.4 };
+    const wp = (x, z, tol = 0.6, caption = '') => ({ caption, ...toward({ x, z }, tol), max: 14 });
     Object.assign(TOURS, {
+      // find the kitten at the boat, say hello, and walk her home over the cliff path to the cottage door
+      kitten: { start: [11, 33.5, -1, -0.3], visits: 'boat', steps: () => [
+        { caption: 'A kitten is mewing', ...toward({ x: 7.2, z: 32.2 }, 0.5), max: 8 },
+        { caption: 'Say hello', stick: [0, 0], act: () => lamp.interact(), until: hold(1.6), max: 3 },
+        { caption: 'She follows', ...toward({ x: -2, z: 17 }, 0.8), max: 14 },
+        wp(-12, 16.2, 0.8), wp(-22, 16.2, 0.8), wp(-24.4, 12, 0.8, 'Up the cliff path'), wp(-24.4, 3, 0.8), wp(-26, -2, 0.8, 'To the cottage'), wp(-27.2, -7, 1.2),
+        { caption: 'Home safe!', stick: [0, 0], until: hold(4.5), max: 6 },
+      ] },
       climb: { start: [S1.points[0].x, S1.points[0].z, ...dir(S1, 0)], steps: () => [
         climbTo,
         { caption: 'The gallery', stick: [0, 0], until: hold(1.5), max: 3 },
@@ -242,7 +273,9 @@
     if (!spec) throw new Error(`no tour "${name}"; there are ${Object.keys(TOURS).join(', ')}`);
     const [x, z, fx, fz] = spec.start;
     const y = spec.yawFrom?.() ?? [fx, fz];
+    camHold = null;
     reset(x, z, fx, fz, y);
+    visitsNow = spec.visits === 'boat' && kittenIndexOf ? kittenIndexOf(2) : 0;
     remakeLife();
     pilot = { steps: spec.steps(), i: 0, t0: t, acted: -1 };
     render();
@@ -296,6 +329,10 @@
     aerialpools: { at: [14, 36], face: [0, -1], secs: 0, cam: { pos: [33, 11, 44], look: [17, 0, 20], fov: 60 } },
     aerialwest: { at: [14, 36], face: [0, -1], secs: 0, cam: { pos: [-72, 14, 0], look: [-30, 5, -22], fov: 55 } },
     aerialcove: { at: [14, 36], face: [0, -1], secs: 0, cam: { pos: [34, 18, -38], look: [4, 3, -4], fov: 58 } },
+    // the card picture (public/places/lighthouse.jpg, shot at 640 x 360): the tower and the cottage from the cliff path's foot
+    card1: { at: [-6, 14], face: [-1, 0], secs: 0, keepCat: true, cam: { pos: [6, 7, 20], look: [-22, 10, -14], fov: 55 } },
+    card2: { at: [-14, 9], face: [-1, -0.3], secs: 0, keepCat: true, cam: { pos: [-2, 9, 14], look: [-24, 11, -20], fov: 50 } },
+    card3: { at: [-12, -4], face: [-1, -0.4], secs: 0, keepCat: true, cam: { pos: [-1, 4.8, 3], look: [-23, 12, -20], fov: 56 } },
   };
   // milestone 2 (the climb and the lamp): `lit` pulls the lever first and runs on `warm` s; `t` (default 0) is the walk
   // second the beam is shown at (the beam's angle is 20 degrees a second from the solo phase 0)
@@ -304,7 +341,24 @@
     const sf = (c, k) => [c.points[k].x, c.points[k].z];
     const dr = (c, k) => dir(c, k);
     const [A1, A2, A3, RW] = T0;
+    const DEG = Math.PI / 180;
+    const TWR = { x: -22, z: -20 };
+    const onT = (deg, r) => [TWR.x + r * Math.cos(deg * DEG), TWR.z + r * Math.sin(deg * DEG)];
     Object.assign(PLACE_SHOTS, {
+      // milestone 3: the life
+      kittenpool: { at: [21.6, 20], face: [1, -0.3], secs: 0, visits: 0, warm: 0.5 },
+      kittencave: { at: [-6, -17.6], face: [-1, 0], secs: 0, visits: 1, warm: 0.5 },
+      kittenboat: { at: [9, 33], face: [-1, -0.3], secs: 0, visits: 2, warm: 0.5 },
+      kittenprints: { at: [14, 36], face: [-0.4, -1], secs: 0, visits: 2, warm: 0.2 },
+      keeper: { at: [-22.5, -6.4], face: [-1, 0], secs: 0, warm: 1.0 },
+      crabpop: { at: [18.9, 22], face: [-1, 0], secs: 0, warm: 3.4 },
+      gullvisit: { at: onT(150, 3.8), face: [-0.5, 0.86], secs: 0, warm: 5.5, keepCat: true, cam: { pos: [-33, 20, -9], look: [-25.5, 13.2, -18], fov: 46 } },
+      bellring: { at: [-9.2, 0.1], face: [-1, 0], secs: 0, bell: true, warm: 0.7 },
+      windowlit: { at: [-33.4, -2.9], face: [0, -1], secs: 0, warm: 2.6 },
+      goldgallery: { at: onT(160, 3.0), face: [0.4, 0.9], secs: 0, warm: 0.5 },
+      goldcave: { at: [-9, -20.2], face: [-1, 0], secs: 0, lit: false, warm: 0.5 },
+      gullsplateau: { at: [-18, -10], face: [-1, -0.2], secs: 0, warm: 0.5 },
+      crabsshore: { at: [18, 28.5], face: [0.4, -1], secs: 0, warm: 0.5 },
       arrivallit: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 2.9 },
       arrivallit2: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 4.4 },
       arrivalfar: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 2.9, zoom: 2 },
@@ -337,11 +391,14 @@
     const s = (PLACE ? PLACE_SHOTS : SHOTS)[name];
     if (!s) throw new Error(`no shot "${name}"; there are ${Object.keys(SHOTS).join(', ')}`);
     pilot = null;
+    camHold = null;
     setCaption(null);
     player.setCameraZoom(s.zoom ?? 1, { instant: true });
     reset(s.at[0], s.at[1], s.face[0], s.face[1], s.yawFrom ?? s.face);
+    visitsNow = s.visits !== undefined && kittenIndexOf ? kittenIndexOf(s.visits) : 0;
     remakeLife();
     if (s.lit) pullLever();
+    if (s.bell) pullBell();
     if (s.stick) stick(...s.stick);
     for (let k = 0; k < s.secs / DT; k++) frame(DT);
     stick(0, 0);
@@ -352,7 +409,8 @@
       camera.updateProjectionMatrix();
       camera.position.set(...s.cam.pos);
       camera.lookAt(...s.cam.look);
-      cat.visible = false;
+      cat.visible = !!s.keepCat;
+      camHold = s.keepCat ? s.cam : null;
     } else { cat.visible = true; camera.fov = 70; camera.updateProjectionMatrix(); }
     render();
     return name;

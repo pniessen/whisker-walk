@@ -5,7 +5,11 @@ import { phrase } from '../clanphrases.js';
 import { bus } from '../events.js';
 import { createLighthouseSound } from './lighthousesound.js';
 import './lighthousewords.js';
-import { TOWER, GALLERY_Y, LAMP_ROOM, LEVER_KIND } from './lighthouseplan.js';
+import { TOWER, GALLERY_Y, LAMP_ROOM, LEVER, LEVER_KIND, BELL_KIND, BELL, GULL_ROCK, POOLS } from './lighthouseplan.js';
+import { findAt, noteLighthouseFind } from './lighthousefinds.js';
+import { createFindLooks } from './lighthousemoments.js';
+import { createKeeperCats } from './lighthousecats.js';
+import { LIGHTHOUSE_JOB_PAGES } from '../lighthousepages.js';
 
 // =============================================================================
 // THE LIGHTHOUSE'S LIFE (milestone 2: the lamp). Made once a walk by walk.js from the area's `life`
@@ -33,6 +37,27 @@ import { TOWER, GALLERY_Y, LAMP_ROOM, LEVER_KIND } from './lighthouseplan.js';
 // THE LAMP ROOM'S ROOF AND GLASS fade while she is inside, so the camera sees her whichever way it
 // looks down: opacity eased to FADE_ROOF and FADE_GLASS inside, back to 1 and the glass's own outside.
 //
+// THE LAMP PAYS WHERE SHE STANDS (milestone 3). The lever lights the lamp on every screen, but the job's 25 paws
+// are paid to the screen whose cat is in the lamp room (within PAY_R of the lever) when it is lit, or comes there
+// after: a partner's pull, which the log cannot tell from hers, pays only a cat who is up there to see it.
+//
+// THE SIX FINDS (milestone 3, world/lighthousefinds.js findAt). Every frame the life fills one spot from her paws,
+// her paws' own speed, how long she has stood still, a call this frame (the bus's `tip:did` 'call', her own meow
+// button) and the bell's rope going over this frame, and asks findAt which find she is at. One not yet seen this
+// walk is noted on her save (noteLighthouseFind: the first time ever pays AWARDS.lighthousefind and says its line;
+// every walk counts once on its page, by the discovery log's key). Then its look plays (every time she is there,
+// not once a walk): the pool's crab pops up, a gull lands beside her on the gallery or Gull Rock, the cave sings
+// her call back, the fog bell rings and the gulls scatter, the window's cat purrs. Re-armed when she moves 1.5 m.
+//   * Without a log or a progression (the picture pages) nothing is noted; the looks still play.
+//   * In a room each device runs its own walk, so each player is noted on her own save, once.
+//
+// THE FOG BELL'S ROPE is a tippable (kind BELL_KIND): her paw tips it and a partner's `tip` event tips it by id,
+// each screen sees the entry's own `tipped`. The bell (the group 'lighthouse:bell') swings, the bell sounds, the
+// gulls near it flee, once a walk. Its find is found if she is within r m of it when it goes over.
+//
+// THE KEEPER'S CAT AND HER KITTEN are world/lighthousecats.js; the job's prompt and interaction (promptAt,
+// interact) are handed to the walk through this life (game/interactions.js asks an area life for them).
+//
 // Draws no random number and reads no clock: every number is a constant here or a walk second.
 // =============================================================================
 
@@ -47,6 +72,11 @@ export const FADE_ROOF = 0.14;
 export const FADE_GLASS = 0.08;
 export const GLASS_OPACITY = 0.22;
 export const INSIDE_R = 2.6;
+export const PAY_R = 3.2; // m from the lever she must be in for the lamp job to pay her
+export const STILL_EPS = 0.05; // m: her paws within this of where she came to rest are still (the Rooftops' rule)
+export const REARM_R = 1.5; // m she walks off before a look can play again
+export const BELL_SWING = Object.freeze({ amp: 0.5, hz: 1.7, secs: 4 });
+export const SCATTER_R = 30; // m: gulls within this of the bell flee
 const TAU = Math.PI * 2;
 
 // The beam's world angle (radians, x east = 0, z south = pi/2) after `seconds` of the walk, in a room of `seed`
@@ -57,6 +87,7 @@ export function beamAngle(seconds, seed) {
   return ((a % TAU) + TAU) % TAU;
 }
 
+const nearestPool = (p) => POOLS.reduce((best, q) => (Math.hypot(p.x - q.x, p.z - q.z) - q.r < Math.hypot(p.x - best.x, p.z - best.z) - best.r ? q : best), POOLS[0]);
 const smooth = (k) => { const t = Math.min(1, Math.max(0, k)); return t * t * (3 - 2 * t); };
 
 // A flat or upright disc whose colour fades from `hex` x k at its middle to black at its rim (added to the picture, so black is nothing).
@@ -98,7 +129,7 @@ const additive = (opacity = 1, side = THREE.DoubleSide) => new THREE.MeshBasicMa
 
 // createLighthouseLife(ctx) -> { update, dispose, lit, state }. ctx is what walk.js hands an area life: { scene, ground, reducedMotion, audio, log, progression, tier, roomSeed, ... }.
 export function createLighthouseLife(ctx = {}) {
-  const { scene, ground = null, audio = null, log = null, tier = null } = ctx;
+  const { scene, ground = null, audio = null, log = null, tier = null, progression = null, critters = null } = ctx;
   const seed = ctx.roomSeed;
   const lowTier = tier?.name === 'low';
   let disposed = false;
@@ -133,6 +164,20 @@ export function createLighthouseLife(ctx = {}) {
   });
   for (const m of parts.all) scene?.add(m);
   const sound = createLighthouseSound(audio);
+  const looks = createFindLooks({ scene, ground, reducedMotion: !!ctx.reducedMotion });
+  const cats = createKeeperCats({ scene, ground, colliders: ctx.colliders, waters: ctx.waters, sound, log, progression, roomSeed: seed, visits: ctx.visits, reducedMotion: !!ctx.reducedMotion });
+  // her own meow button (game/interactions.js doMeow tells the bus): the cave's echo answers it
+  let meowed = false;
+  const offMeow = bus.on('tip:did', (e) => { if (e && e.id === 'call') meowed = true; });
+  let payDue = false;
+  let bellEntry = null;
+  let bellMesh = null;
+  let bellRungAt = null;
+  // stillness (the Rooftops' rule): her paws within STILL_EPS of where she came to rest
+  const rest = { x: 0, z: 0, y: 0, since: 0, set: false };
+  const armed = { pool: true, gull: true, window: true };
+  const armPos = { pool: null, gull: null, window: null };
+  const spot = { x: 0, y: 0, z: 0, still: 0, meow: false, belled: false };
 
   function findLever(session) {
     const list = session?.tippables?.list;
@@ -151,7 +196,7 @@ export function createLighthouseLife(ctx = {}) {
       lever.group.position.y = lever.gy;
     }
     if (fresh) {
-      log?.awardOnce('lighthousejob', JOB_KEY, phrase('lighthouse.lamp.lit'));
+      payDue = true; // paid to the cat who is in the lamp room (update), not to whoever's paw it was
       shipDue = at + HORN_AFTER;
     } else {
       shipDone = true;
@@ -184,8 +229,72 @@ export function createLighthouseLife(ctx = {}) {
     void catPos;
   }
 
+  function scatterGulls(x, z) {
+    for (const c of critters?.list ?? []) {
+      if (c.type !== 'seagull' || c.hidden) continue;
+      if (Math.hypot(c.group.position.x - x, c.group.position.z - z) < SCATTER_R) { c.fleeing = true; c.cooldown = 18; }
+    }
+  }
+
+  function updateBellAndFinds(dt, catPos, session) {
+    // the bell's rope: tipped by her paw or her partner's; the bell swings once, the gulls flap off
+    bellEntry ??= session?.tippables?.list?.find((e) => e.kind === BELL_KIND) ?? null;
+    bellMesh ??= scene?.getObjectByName?.('lighthouse:bell') ?? null;
+    let belled = false;
+    if (bellEntry && bellEntry.anim > 0) { bellEntry.anim = 0; bellEntry.group.rotation.z = 0; bellEntry.group.position.y = bellEntry.gy; } // the rope stays up
+    if (bellEntry?.tipped && bellRungAt === null) {
+      bellRungAt = t;
+      belled = true;
+      sound.bell();
+      scatterGulls(BELL.x, BELL.z);
+    }
+    if (bellMesh) {
+      const k = bellRungAt === null ? -1 : (t - bellRungAt) / BELL_SWING.secs;
+      bellMesh.rotation.x = k < 0 || k >= 1 || ctx.reducedMotion ? 0 : BELL_SWING.amp * Math.exp(-3.2 * k) * Math.sin(TAU * BELL_SWING.hz * (t - bellRungAt));
+    }
+
+    // how long she has stood still
+    if (!rest.set || Math.hypot(catPos.x - rest.x, catPos.z - rest.z) > STILL_EPS || Math.abs(catPos.y - rest.y) > 0.3) { rest.x = catPos.x; rest.z = catPos.z; rest.y = catPos.y; rest.since = t; rest.set = true; }
+    spot.x = catPos.x; spot.y = catPos.y; spot.z = catPos.z;
+    spot.still = t - rest.since;
+    spot.meow = meowed;
+    spot.belled = belled && Math.hypot(catPos.x - BELL.x, catPos.z - BELL.z) < 3.5;
+    meowed = false;
+    const id = findAt(spot);
+
+    // re-arm a look once she has walked off from where it played
+    for (const k of Object.keys(armPos)) {
+      if (!armed[k] && Math.hypot(catPos.x - armPos[k].x, catPos.z - armPos[k].z) > REARM_R) armed[k] = true;
+    }
+    if (!id) return;
+    if (log && progression) noteLighthouseFind(id, { log, progression });
+    if (id === 'echo') sound.echo();
+    else if (id === 'pool' && armed.pool) {
+      armed.pool = false; armPos.pool = { x: catPos.x, z: catPos.z };
+      // the crab comes up at the pool's rim a little way round from her
+      const pool = nearestPool(catPos);
+      const a = Math.atan2(catPos.z - pool.z, catPos.x - pool.x) + 0.9; // a little round the rim from her, so it is seen, not trodden on
+      const rx = pool.x + Math.cos(a) * (pool.r + 0.15); const rz = pool.z + Math.sin(a) * (pool.r + 0.15);
+      looks.crab(rx, ground ? ground.y(rx, rz) : 0, rz, Math.atan2(catPos.x - rx, catPos.z - rz));
+    } else if (id === 'gull' && armed.gull) {
+      armed.gull = false; armPos.gull = { x: catPos.x, z: catPos.z };
+      // beside her, out toward the sea (away from the tower, or from Gull Rock's middle), facing her way in
+      const cx = catPos.y > GALLERY_Y - 2 ? TOWER.x : GULL_ROCK.x; const cz = catPos.y > GALLERY_Y - 2 ? TOWER.z : GULL_ROCK.z;
+      const a = Math.atan2(catPos.z - cz, catPos.x - cx) + Math.PI / 2; // a quarter turn along the rail from her
+      const ux = Math.cos(a); const uz = Math.sin(a);
+      if (looks.gull(catPos.x + ux * 1.1, catPos.y, catPos.z + uz * 1.1, -ux, -uz)) sound.gull();
+    } else if (id === 'window' && armed.window) {
+      armed.window = false; armPos.window = { x: catPos.x, z: catPos.z };
+      sound.purr();
+    }
+  }
+
   return {
     get lit() { return lit; },
+    promptAt: (catPos) => cats.promptAt(catPos),
+    interact: () => cats.interact(),
+    get cats() { return cats; },
+    get looks() { return looks; },
     get state() { return { lit, litAt, t, shipDone }; },
     update(dt, _t, catPos = null, camera = null, session = null) {
       if (disposed) return;
@@ -211,6 +320,17 @@ export function createLighthouseLife(ctx = {}) {
         bus.emit('discovery', { type: 'lighthouseship', key: 'lighthouse-ship', label: phrase('lighthouse.lamp.ship'), points: 0, repeat: false });
       }
 
+      if (catPos) {
+        if (payDue && Math.hypot(catPos.x - LEVER.x, catPos.z - LEVER.z) < PAY_R && Math.abs(catPos.y - GALLERY_Y) < 1.5) {
+          payDue = false;
+          const paid = log?.awardOnce('lighthousejob', JOB_KEY, phrase('lighthouse.lamp.lit')) ?? 0;
+          if (paid > 0) progression?.recordSighting?.(LIGHTHOUSE_JOB_PAGES.lamp);
+        }
+        updateBellAndFinds(dt, catPos, session);
+        cats.update(dt, catPos);
+      }
+      looks.update(dt);
+
       // the roof and the glass: see-through while she is inside the lamp room
       const inside = !!catPos && Math.hypot(catPos.x - TOWER.x, catPos.z - TOWER.z) < INSIDE_R && Math.abs(catPos.y - GALLERY_Y) < 1.5;
       const k = 1 - Math.exp(-6 * (dt > 0 ? dt : 0));
@@ -223,6 +343,9 @@ export function createLighthouseLife(ctx = {}) {
       if (disposed) return;
       disposed = true;
       sound.dispose();
+      offMeow?.();
+      looks.dispose();
+      cats.dispose();
       for (const m of parts.all) {
         scene?.remove(m);
         m.geometry.dispose();

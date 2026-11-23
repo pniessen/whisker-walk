@@ -1,9 +1,10 @@
-// The Lighthouse Point switch (Lighthouse milestone 1; a shortcut at milestone 4).
+// The Lighthouse Point switch (Lighthouse milestone 1; a developer shortcut since milestone 4).
 //
-// Until the place has its CATALOG.areas row and its gate (milestone 4), the address ending in
-// ?lighthouse=1 (or a test calling setLighthouse(true)) makes Explore start a solo walk there, in
-// either edition, never in a room. Nothing a child sees offers it. Read at call time, never at
-// import time, like roofsflag.js and marketflag.js.
+// Lighthouse Point has its CATALOG.areas row, its world-map place and its gates now, so the switch gates
+// nothing a child sees: she unlocks the place like any other (150 paws after 2 Seaside walks). On (the
+// address ends in ?lighthouse=1, or a test calling setLighthouse(true)), Explore still starts a solo walk
+// there in either edition, never in a room, as the owner and the picture pages use it. Read at call time,
+// never at import time, like roofsflag.js and marketflag.js.
 let forced = null;
 
 export function lighthouseOn() {

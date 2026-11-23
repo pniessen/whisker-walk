@@ -17,6 +17,7 @@ const { CHICK_SPOT_SETS, goatRoute } = await import('../src/farmjobs.js');
 const { FARM_HIDES } = await import('../src/world/farm.js');
 const { FAIR_HIDES } = await import('../src/world/fair.js');
 const { STALLS: MARKET_STALLS, MARKET_HIDES } = await import('../src/world/marketplan.js');
+const { KITTEN_SPOTS, KEEPER_DOOR, LEVER, BELL_ROPE, LIGHTHOUSE_TIPPABLES } = await import('../src/world/lighthouseplan.js');
 
 // Scripted job points per area: a find never sits where a job's animal or
 // object is placed (PICKUP is 1 m, so a find that close doubles up with it).
@@ -27,6 +28,8 @@ const JOB_POINTS = {
   farm: (area) => [...CHICK_SPOT_SETS.flat(), ...goatRoute(area.anchors), ...FARM_HIDES],
   fair: (area) => [...FAIR_JOB_ANCHORS.flatMap((k) => area.anchors[k]), ...FAIR_HIDES],
   // the Market's: every treat (the sneak's) and every hide, the apple crate and where the bucket lands
+  // Lighthouse Point's: the kitten's three hiding places, the cottage door, the lever, the bell's rope and every tippable
+  lighthouse: () => [...KITTEN_SPOTS, KEEPER_DOOR, LEVER, BELL_ROPE, ...LIGHTHOUSE_TIPPABLES],
   market: (area) => [...MARKET_STALLS.filter((s) => s.treat).map((s) => s.treat), ...MARKET_HIDES, area.anchors.apples, propsFor('market').knockables[0].fallTo],
 };
 
@@ -39,7 +42,7 @@ const ALL_BUILDERS = {
   neighborhood: '../src/world/neighborhood.js', park: '../src/world/park.js', seaside: '../src/world/seaside.js',
   docks: '../src/world/docks.js', woods: '../src/world/woods.js', river: '../src/world/river.js',
   moor: '../src/world/moor.js', pines: '../src/world/pines.js', gorge: '../src/world/gorge.js',
-  farm: '../src/world/farm.js', fair: '../src/world/fair.js', market: '../src/world/market.js',
+  farm: '../src/world/farm.js', fair: '../src/world/fair.js', market: '../src/world/market.js', lighthouse: '../src/world/lighthouse.js',
 };
 const BUILDERS = Object.fromEntries(Object.entries(ALL_BUILDERS).filter(([id]) => spotsIn(id).length > 0));
 it('every area with spots has a builder here', () => {

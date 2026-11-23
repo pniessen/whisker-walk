@@ -167,13 +167,13 @@ describe('territories', () => {
     expect(m.island).toMatchObject({ status: 'built', areaId: 'pines' });
     const html = renderWorldMapHtml(worldMapModel(clanState(), CATALOG));
     for (const r of m.regions) expect(regionHtml(html, r.id), r.id).toContain(`data-dr-map-place="${r.areaId}"`);
-    // Fourteen places: her six (Twolegplace, the Woods, the River, the Moor, the
-    // Pines and the Gorge) and the five street places around them, plus the
-    // Rooftops, the Market and the Old House in the town; the island is a
-    // fifteenth way in, to the Pines.
+    // Fifteen places: her six (Twolegplace, the Woods, the River, the Moor, the
+    // Pines and the Gorge) and the six street places around them (Lighthouse
+    // Point the last), plus the Rooftops, the Market and the Old House in the
+    // town; the island is a sixteenth way in, to the Pines.
     const places = [...html.matchAll(/data-dr-map-place="([a-z]+)"/g)].map(([, id]) => id);
-    expect(new Set(places).size).toBe(14);
-    expect(places).toHaveLength(15);
+    expect(new Set(places).size).toBe(15);
+    expect(places).toHaveLength(16);
   });
 
   it("the island's star is the Pines' way in, locked and opened with it", () => {
@@ -191,7 +191,7 @@ describe('territories', () => {
     expect(regionHtml(html, 'island')).toContain('tm-hit');
     expect(html.lastIndexOf('data-region="island"')).toBeGreaterThan(html.lastIndexOf('data-region="pines"'));
     // Her six places, the five street places, the Rooftops, the Market and the Old House, and the island leading to the Pines
-    expect((html.match(/data-dr-map-place=/g) || []).length).toBe(15);
+    expect((html.match(/data-dr-map-place=/g) || []).length).toBe(16);
   });
 
   it('the island is always built and says where it is, in its title and under its name, from one string (Polish 3)', () => {

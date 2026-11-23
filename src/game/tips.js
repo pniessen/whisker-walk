@@ -31,6 +31,7 @@ export const HINT_PICS = Object.freeze({
   roofs: '🕊️',
   market: '🧺',
   house: '🕰️',
+  lighthouse: '🗼',
   find: '✨', 'find-kept': '👕', map: '🗺️',
 });
 

@@ -472,6 +472,11 @@ export function drawCottage(kit, M) {
   }
   kit.put('stone', M.stone, bx(wx - 0.8, wx + 0.8, Y0 + 1.04, Y0 + 1.1, z1, z1 + 0.22, COL.stone), { noCast: true });
   for (const s of [-1, 1]) kit.put('wood', M.wood, bx(wx + s * 0.7 + (s > 0 ? 0 : -0.35), wx + s * 0.7 + (s > 0 ? 0.35 : 0), Y0 + 1.15, Y0 + 2.05, z1 - 0.02, z1 + 0.05, 0x4f7a8a), { noCast: true });
+  // the sleeper in the lit window: an armchair's back and a dark shape slumped in it with its head down on its chest (never a person walking about)
+  const SLEEP = 0x3a2a20;
+  kit.put('paint', M.paint, bx(wx + 0.1, wx + 0.46, Y0 + 1.25, Y0 + 1.92, z1 + 0.04, z1 + 0.06, 0x6b4a30), { noCast: true });
+  kit.put('paint', M.paint, bx(wx - 0.3, wx + 0.12, Y0 + 1.25, Y0 + 1.58, z1 + 0.04, z1 + 0.065, SLEEP), { noCast: true });
+  kit.put('paint', M.paint, sp(wx - 0.08, Y0 + 1.7, z1 + 0.07, 0.14, SLEEP, { seg: 6, rings: 4 }), { noCast: true });
   // a small window on the west wall too, dark
   kit.put('paint', M.paint, bx(x0 - 0.04, x0 + 0.02, Y0 + 1.2, Y0 + 2.0, C0.z - 0.5, C0.z + 0.5, COL.glass), { noCast: true });
 }
@@ -507,10 +512,24 @@ export function drawGarden(kit, M) {
 export function drawBell(kit, M) {
   const { BELL: B, PLATEAU_Y: Y0 } = P;
   for (const s of [-1, 1]) kit.put('wood', M.wood, bx(B.x + s * 0.55 - 0.08, B.x + s * 0.55 + 0.08, Y0, Y0 + 2.5, B.z - 0.08, B.z + 0.08, COL.post));
-  kit.put('wood', M.wood, bx(B.x - 0.7, B.x + 0.7, Y0 + 2.5, Y0 + 2.62, B.z - 0.09, B.z + 0.09, COL.post));
-  kit.put('paint', M.paint, cy(B.x, B.z, Y0 + 1.75, Y0 + 2.45, 0.34, 0.12, COL.brass, 12));
-  kit.put('paint', M.paint, sp(B.x, Y0 + 1.75, B.z, 0.07, COL.dark, { seg: 6, rings: 4 }));
-  kit.put('wood', M.wood, bm(B.x + 0.1, Y0 + 1.72, B.z, B.x + 0.1, Y0 + 0.5, B.z, 0.03, 0.03, COL.rope), { noCast: true }); // the rope
+  kit.put('wood', M.wood, bx(B.x - 0.7, B.x + 1.15, Y0 + 2.5, Y0 + 2.62, B.z - 0.09, B.z + 0.09, COL.post));
+  // the bell itself is its own group (createBell) so it can swing; its rope end is a tippable (tippableLook('bellrope'))
+}
+
+// The fog bell, hung from the post's cross beam, as a group of its own named 'lighthouse:bell' (world/lighthouselife.js
+// swings it about the beam's axis when its rope is pulled). Two meshes, never merged.
+export function createBell() {
+  const { BELL: B, PLATEAU_Y: Y0 } = P;
+  const g = new THREE.Group();
+  g.name = 'lighthouse:bell';
+  g.position.set(B.x, Y0 + 2.5, B.z);
+  const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.34, 0.7, 12), mat(COL.brass));
+  cup.position.y = -0.4;
+  const clapper = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 4), mat(COL.dark));
+  clapper.position.y = -0.78;
+  g.add(cup, clapper);
+  for (const m of g.children) { m.userData.noMerge = true; m.userData.noCast = true; m.castShadow = false; }
+  return g;
 }
 
 export function drawFlagpole(kit, M) {
@@ -918,6 +937,10 @@ export function tippableLook(look) {
   } else if (look === 'crate') {
     add(new THREE.BoxGeometry(0.55, 0.32, 0.4), 0x8b6a45, 0, 0.16);
     add(new THREE.BoxGeometry(0.5, 0.05, 0.36), 0x6e5236, 0, 0.33);
+  } else if (look === 'bellrope') {
+    // a rope hanging from the post's cross beam (2.5 m up) to a knot at about her nose; the bell hangs over it
+    add(new THREE.CylinderGeometry(0.025, 0.025, 1.6, 6), COL.rope, 0, 1.65);
+    add(new THREE.SphereGeometry(0.075, 6, 5), COL.rope, 0, 0.85);
   } else if (look === 'lever') {
     // only the arm: the housing is part of the lamp room, so the arm can swing (world/lighthouselife.js
     // turns `lever-arm` about its pivot, and the tippable's own tilt is not used)

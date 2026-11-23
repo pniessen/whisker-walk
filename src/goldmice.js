@@ -190,10 +190,20 @@ export const GOLD_MICE = {
     // on the cellar floor between the barrels and the crates
     { id: 'gm-house-3', x: 27.0, z: -0.7, y: 0 },
   ],
+  // Lighthouse Point (src/world/lighthouseplan.js LIGHTHOUSE_GOLD; test/lighthousegold.test.js holds the two lists
+  // equal). `y` is the height over the ground there: none needs Long Leap, Sea Legs or Spring Paws.
+  lighthouse: [
+    // on the gallery, on the sea side opposite the lamp room's door: the top of the stair
+    { id: 'gm-light-1', x: -25.19, z: -18.84, y: 0 },
+    // in the sea cave's back nook, behind the lantern, on the floor
+    { id: 'gm-light-2', x: -14.6, z: -21.3, y: 0 },
+    // on the high pool ledge, one climb up from the pools' west side
+    { id: 'gm-light-3', x: 6, z: 12, y: 0.72 },
+  ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 45 (fourteen areas x three, and the island's three; 42 until the Old House)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 48 (fifteen areas x three, and the island's three; 45 until Lighthouse Point)
 
 // The golden mice a player of `edition` can reach: those in the areas the
 // edition shows (Legacy hides the Clan Edition territories; see edition.js).

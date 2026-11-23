@@ -563,7 +563,7 @@ const STATES = {
 // reached by the house's own ledge climbs, pinned in test/housethings.test.js
 // and test/housegame.test.js. Only the house is skipped, by name, so any other
 // area missing from AREAS still fails loudly.
-const NOT_MODELLED = new Set(['house']);
+const NOT_MODELLED = new Set(['house', 'lighthouse']); // (Lighthouse Point's three are walked on its own plan: test/lighthousegold.test.js)
 const CLIMB_MICE = Object.entries(GOLD_MICE).filter(([area]) => !NOT_MODELLED.has(area));
 
 function hopTable(state, fenceRun = false) {
