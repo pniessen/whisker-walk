@@ -498,7 +498,7 @@ const SETS = {
   },
 
   // Lighthouse Point (src/world/lighthouseplan.js LIGHTHOUSE_REGISTRATION.propSet; test/lighthouse*.test.js): a bowl,
-  // a dish and a cushion on the keeper's porch, drawn. Nothing to carry, knock or mark (its tippables are its own
+  // a dish and a cushion by the keeper's porch, drawn. Nothing to carry, knock or mark (its tippables are its own
   // and it has no mark area until its milestone 4); no cover (its critters are gulls and crabs); no dog, no colony.
   lighthouse: {
     carryables: [],
@@ -506,9 +506,9 @@ const SETS = {
     markables: [],
     flaps: [],
     rests: [
-      { id: 'lighthouse-drink-1', kind: 'drink', x: -27, z: -5.2, mesh: true },  // a water bowl by the porch
-      { id: 'lighthouse-eat-1', kind: 'eat', x: -27, z: -8.8, mesh: true },      // a dish by the porch
-      { id: 'lighthouse-nap-1', kind: 'nap', x: -28.7, z: -8, mesh: true },      // a cushion on the porch step
+      { id: 'lighthouse-drink-1', kind: 'drink', x: -25.3, z: -8.8, mesh: true },  // a water bowl by the porch
+      { id: 'lighthouse-eat-1', kind: 'eat', x: -26.6, z: -11.2, mesh: true },      // a dish below the porch
+      { id: 'lighthouse-nap-1', kind: 'nap', x: -29.2, z: -10.2, mesh: true },      // a cushion at the cottage's north-east corner
     ],
     hides: [],
     dogYard: null,

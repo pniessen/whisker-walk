@@ -107,6 +107,36 @@ describe('the flag', () => {
     } finally { endIfWalking(l); }
   }, 90_000);
 
+  it('the walk lays the gulls and crabs, three golden mice, the porch\'s rests and the two cats, and the real critters fly up at the bell', async () => {
+    setLighthouse(true);
+    const l = life({ realLog: true });
+    try {
+      expect(await l.w.beginWalkFromHomebase({ duskMode: false })).toBe('started');
+      const s = l.getSession();
+      const types = s.critters.list.map((c) => c.type);
+      expect(types.filter((t) => t === 'seagull')).toHaveLength(5);
+      expect(types.filter((t) => t === 'crab')).toHaveLength(5);
+      expect(s.goldMice.list.map((m) => m.id)).toEqual(['gm-light-1', 'gm-light-2', 'gm-light-3']);
+      expect(s.goldMice.list[0].worldY).toBe(13.5);
+      expect(s.areaLife.cats.state).toBe('hidden');
+      expect(typeof s.areaLife.promptAt).toBe('function');
+      expect(s.areaLife.cats.meshes.mother.parent).toBe(s.scene ?? s.areaLife.cats.meshes.mother.parent);
+      // the bell: her paw on the rope rings it, and the gull on the plateau nearest it takes off
+      const rope = s.tippables.list.find((e) => e.kind === 'bell');
+      const gull = s.critters.list.find((c) => c.type === 'seagull' && Math.hypot(c.group.position.x - L.BELL.x, c.group.position.z - L.BELL.z) < 30);
+      expect(gull).toBeTruthy();
+      expect(gull.fleeing).toBe(false);
+      s.cat.position.set(L.BELL_ROPE.x + 0.4, 6, L.BELL_ROPE.z);
+      for (let i = 0; i < 5; i++) s.areaLife.update(1 / 30, 0, s.cat.position, null, s);
+      expect(s.tippables.tip(rope)).toBe(true);
+      const before = l.progression.state.points;
+      for (let i = 0; i < 5; i++) s.areaLife.update(1 / 30, 0, s.cat.position, null, s);
+      expect(gull.fleeing).toBe(true);
+      expect(l.progression.state.journal.lhbell).toBe(1);
+      expect(l.progression.state.points - before).toBe(12); // the find (the first ever); the rope's own mischief paws are interactions.js's
+    } finally { endIfWalking(l); }
+  }, 90_000);
+
   it('never in a room', () => {
     setLighthouse(true);
     const l = life();

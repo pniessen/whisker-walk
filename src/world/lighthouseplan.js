@@ -315,7 +315,7 @@ export const KITTEN_SPOTS = Object.freeze([
 
 // Gulls and crabs (the game's own critters), in the open on the sand and the rocks, none in water or a wall.
 export const LIGHTHOUSE_CRITTERS = Object.freeze([
-  { type: 'seagull', x: -45.4, z: -30 }, { type: 'seagull', x: -36, z: -35 }, { type: 'seagull', x: -10, z: -31 },
+  { type: 'seagull', x: -45.4, z: -30 }, { type: 'seagull', x: -36, z: -35 }, { type: 'seagull', x: -14, z: -12 },
   { type: 'seagull', x: 24, z: 34 }, { type: 'seagull', x: 30, z: 6 },
   { type: 'crab', x: 10.4, z: 17.6 }, { type: 'crab', x: 25.5, z: 19.5 }, { type: 'crab', x: 19, z: 27.2 }, { type: 'crab', x: 31.8, z: 13.5 },
   { type: 'crab', x: -4, z: -14 },

@@ -186,6 +186,32 @@ describe('walking it', () => {
   });
 });
 
+describe('the life\'s places (milestone 3)', () => {
+  it('every gull and crab stands on dry open ground, and the moments run between spots the life already has', () => {
+    for (const c of L.LIGHTHOUSE_CRITTERS) {
+      if (c.type === 'crab') expect(dry(c.x, c.z), `crab ${c.x},${c.z}`).toBe(true);
+      // a gull may stand on Gull Rock (a leap away) or any plateau or sand; never in the water or a wall
+      expect(inWater(area.waters, c.x, c.z) && !(c.x === -45.4), `${c.type} ${c.x},${c.z}`).toBe(false);
+      expect(area.colliders.every((k) => Math.hypot(c.x - k.x, c.z - k.z) >= k.r), `${c.type} ${c.x},${c.z} in a wall`).toBe(true);
+    }
+    expect(L.LIGHTHOUSE_CRITTERS.filter((c) => c.type === 'seagull')).toHaveLength(5);
+    expect(L.LIGHTHOUSE_CRITTERS.filter((c) => c.type === 'crab')).toHaveLength(5);
+    for (const m of L.LIGHTHOUSE_MOMENTS) {
+      expect(L.LIGHTHOUSE_CRITTERS.some((c) => c.type === m.type && c.x === m.from.x && c.z === m.from.z), m.id).toBe(true);
+      expect(dry(m.x, m.z), `${m.id} target`).toBe(true);
+    }
+  });
+  it('one gull stands within the bell\'s reach (30 m) on the plateau, so it has something to scatter', () => {
+    const near = L.LIGHTHOUSE_CRITTERS.filter((c) => c.type === 'seagull' && Math.hypot(c.x - L.BELL.x, c.z - L.BELL.z) < 30);
+    expect(near.length).toBeGreaterThan(0);
+  });
+  it('the bell\'s rope is walkable and reachable, 1.3 m or less from a spot she can stand', () => {
+    const rope = L.BELL_ROPE;
+    expect(dry(rope.x, rope.z)).toBe(true);
+    expect(area.tippables.some((t) => t.kind === 'bell' && t.x === rope.x && t.z === rope.z)).toBe(true);
+  });
+});
+
 describe('the data', () => {
   it('six pools of 1.4 to 2.4 m, none touching another or the sea, all clear of the spawn by 4 m', () => {
     expect(L.POOLS).toHaveLength(6);
