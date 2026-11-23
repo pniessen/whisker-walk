@@ -192,6 +192,7 @@ export const PHRASES = Object.freeze({
   'colony.rankAfterName': (rankWords) => `the ${rankWords}`,
   // the Menu's tile and the sheet's heading: no group word in the everyday game
   'menu.myCats': 'My cats',
+  'menu.myCat': 'My cat',
   // the My cats sheet: "cats", never a word for the group
   'mycats.empty': 'No cats here yet — touch noses with a stray, then feed it 🐟',
   'mycats.notSetUp': "Sharing your cats isn't switched on yet",

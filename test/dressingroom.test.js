@@ -401,7 +401,7 @@ describe('sheets and pictures', () => {
     expect(SHEET_LABEL['den-shop']).toBeUndefined();
   });
   it('labels name the two doors, the Menu tiles, Sound & controls, For grown-ups and its sheets, in that order', () => {
-    expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['☰ Menu', '🗺️ Change place', '👫 Play together', '🐈 My clan', '📖 Journal', '📸 Album', '⭐ Skills', '🔊 Sound & controls', '⚙️ For grown-ups', '⚙️ Game settings', '☁️ Cloud save', '🎁 Gift code']);
+    expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['☰ Menu', '🗺️ Change place', '👫 Play together', '🐈 My clan', '📖 Journal', '📸 Album', '⭐ Skills', '☁️ My cat', '🔊 Sound & controls', '⚙️ For grown-ups', '⚙️ Game settings', '🎁 Gift code']);
   });
   it('Play together is a sheet of its own', () => {
     expect(resolveSheet('together')).toBe('together');
@@ -906,15 +906,15 @@ describe('Launch A: the home screen (cat, place, go)', () => {
   });
 
   describe('the sheets', () => {
-    it('the Menu holds the kid tiles, Sound & controls and For grown-ups, which opens three sheets; the doors are menu and places', () => {
-      expect(MENU_TILES).toEqual(['together', 'colony', 'journal', 'album', 'skills']);
-      expect(GROWNUP_SHEETS).toEqual(['settings', 'sync', 'code']);
+    it('the Menu holds the kid tiles, Sound & controls and For grown-ups, which opens two sheets; the doors are menu and places', () => {
+      expect(MENU_TILES).toEqual(['together', 'colony', 'journal', 'album', 'skills', 'sync']);
+      expect(GROWNUP_SHEETS).toEqual(['settings', 'code']);
       expect(HOME_SHEETS).toEqual(['menu', 'places', ...MENU_TILES, 'controls', 'grownups', ...GROWNUP_SHEETS]);
     });
-    it('Cloud save is the name for sync; Friends is folded into Play together', () => {
+    it('My cat is the name for sync; Friends is folded into Play together', () => {
       expect(SHEET_LABEL.social).toBeUndefined();
       expect(resolveSheet('social')).toBe('together');
-      expect(SHEET_LABEL.sync).toBe('☁️ Cloud save');
+      expect(SHEET_LABEL.sync).toBe('☁️ My cat');
     });
   });
 });

@@ -30,11 +30,11 @@ import { spotsIn } from '../foundwear/spots/index.js';
 // door (menu review #6 and #14, 2026-11-20). Sound & controls is the children's
 // half of the old Settings (volume, the touch controls); For grown-ups opens
 // the GROWNUP_SHEETS: Game settings keeps the grown-ups' half (edition,
-// quality, Start over), then Cloud save and Gift code. Friends folded into
+// quality, Start over), then Gift code (Cloud save is the My cat tile). Friends folded into
 // Play together (the friends list and the friend code) and the Journal (the
 // stray cats), so one sheet holds every code.
-export const MENU_TILES = ['together', 'colony', 'journal', 'album', 'skills'];
-export const GROWNUP_SHEETS = ['settings', 'sync', 'code'];
+export const MENU_TILES = ['together', 'colony', 'journal', 'album', 'skills', 'sync'];
+export const GROWNUP_SHEETS = ['settings', 'code'];
 export const HOME_SHEETS = ['menu', 'places', ...MENU_TILES, 'controls', 'grownups', ...GROWNUP_SHEETS];
 export const SHEET_ICON = {
   menu: '☰', places: '🗺️', together: '👫', skills: '⭐', colony: '🐈', journal: '📖',
@@ -44,7 +44,8 @@ export const SHEET_NAME = {
   menu: 'Menu', places: 'Change place', together: 'Play together', skills: 'Skills',
   // read when asked, so the word set in use decides it (My clan / My cats)
   get colony() { return phrase('menu.myCats'); },
-  journal: 'Journal', album: 'Album', sync: 'Cloud save', settings: 'Game settings', code: 'Gift code',
+  get sync() { return phrase('menu.myCat'); }, // the cat login sheet: a Menu tile now
+  journal: 'Journal', album: 'Album', settings: 'Game settings', code: 'Gift code',
   controls: 'Sound & controls', grownups: 'For grown-ups',
 };
 export const SHEET_LABEL = Object.defineProperties({}, Object.fromEntries(HOME_SHEETS.map((id) => [id, { enumerable: true, get: () => `${SHEET_ICON[id]} ${SHEET_NAME[id]}` }])));
