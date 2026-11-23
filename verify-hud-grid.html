@@ -1,0 +1,132 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HUD grid: walking screen on every layout profile</title>
+<!--
+  Device profiles M1 (audit grid). Open /verify-hud-grid.html on the dev server.
+  Without ?frame it draws a grid: one row per HUD state, one column per layout
+  profile (phone 390x844, tablet 1180x820, laptop 1440x900), each cell a real
+  createHud() with the real style.css in an iframe of that size, plus how much
+  of the screen the HUD boxes cover. With ?frame=1&profile=phone&state=burst it is
+  that one cell. ?words=off draws the everyday word set (default is the clan set).
+  The touch control cluster (touchui.js) is not drawn: it is the same on every
+  state, so it does not change a cell's difference between states.
+-->
+<style>
+  html, body { margin: 0; }
+  body.grid { background: #222; color: #eee; font: 13px/1.35 -apple-system, Avenir, sans-serif; padding: 12px; }
+  table { border-collapse: collapse; }
+  th, td { border: 1px solid #444; padding: 6px; vertical-align: top; text-align: left; }
+  .cell { position: relative; overflow: hidden; background: #000; }
+  .cell iframe { border: 0; transform-origin: 0 0; position: absolute; left: 0; top: 0; }
+  .pct { font-weight: 700; color: #ffd36a; }
+  #scene { position: fixed; inset: 0; background: linear-gradient(#8fc2e8 0 45%, #9bbd7a 45% 100%); }
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; font-family: Avenir, -apple-system, sans-serif; }
+  #hud.hidden { display: none; }
+</style>
+<body>
+<script type="module">
+  const q = new URLSearchParams(location.search);
+  const PROFILES = { phone: [390, 844], tablet: [1180, 820], laptop: [1440, 900] };
+  const STATES = {
+    walk: 'Plain walk: points, rank, corner map, three goals',
+    hint: 'A hint card up (goals, hint)',
+    burst: 'Two discoveries in a row (goals, toasts)',
+    worst: 'Hint + objective + toasts + goals',
+  };
+
+  if (!q.get('frame')) {
+    document.body.className = 'grid';
+    const cols = Object.keys(PROFILES);
+    const rows = Object.keys(STATES);
+    const scale = 0.42;
+    let html = '<h2>Walking HUD: share of the screen the HUD boxes cover</h2><table><tr><th></th>' + cols.map((c) => `<th>${c} ${PROFILES[c].join('x')}</th>`).join('') + '</tr>';
+    for (const r of rows) {
+      html += `<tr><th>${r}<br><small>${STATES[r]}</small></th>`;
+      for (const c of cols) {
+        const [w, h] = PROFILES[c];
+        const s = c === 'phone' ? 0.6 : scale * (c === 'tablet' ? 0.7 : 0.6);
+        const src = `?frame=1&profile=${c}&state=${r}&words=${q.get('words') || 'on'}`;
+        html += `<td><div class="cell" style="width:${w * s}px;height:${h * s}px"><iframe id="f-${c}-${r}" src="${src}" width="${w}" height="${h}" style="transform:scale(${s})"></iframe></div><div class="pct" id="p-${c}-${r}">...</div></td>`;
+      }
+      html += '</tr>';
+    }
+    document.body.innerHTML = html + '</table><pre id="json"></pre>';
+    const out = {};
+    addEventListener('message', (e) => {
+      const m = e.data;
+      if (!m || m.type !== 'hudgrid') return;
+      out[`${m.profile}/${m.state}`] = m;
+      document.getElementById(`p-${m.profile}-${m.state}`).textContent = `${m.covered}% covered; ` + m.boxes.map((b) => `${b.n} ${b.w}x${b.h}`).join(', ');
+      window.__grid = out;
+    });
+  } else {
+    const profile = q.get('profile') || 'phone';
+    const state = q.get('state') || 'walk';
+    const touch = profile !== 'laptop';
+    await import('/src/style.css');
+    // The real layout profile module decides (?profile= wins), as the game does; it writes html.<profile>.
+    (await import('/src/profile.js')).startProfile(window, document, () => 'auto');
+    document.body.classList.toggle('touch-mode', touch); // the pane may emulate touch; a laptop cell is not touch
+    if (q.get('words') === 'off') {
+      const ws = await import('/src/wordset.js');
+      ws.addWordSet('off', await import('/src/offclanwords.js'));
+      ws.setSeriesMode('off');
+    }
+    document.body.insertAdjacentHTML('beforeend', '<div id="scene"></div><div id="hud"></div>');
+    const { createHud } = await import('/src/ui/hud.js');
+    const { bus } = await import('/src/events.js');
+    const { MAX_TOASTS } = await import('/src/ui/hud.js');
+    const hud = createHud();
+    hud.setPoints(125);
+    hud.setRank('Neighborhood Legend');
+    hud.setArea('Cozy Neighborhood');
+    // The corner map disc, as minimap.js draws it (a canvas of the map's size).
+    const disc = document.createElement('div');
+    disc.className = 'hud-map-disc';
+    disc.style.background = '#f4efe4';
+    hud.mapHost.insertBefore(disc, hud.mapHost.firstChild);
+    hud.show();
+    const goals = [
+      { text: 'Spot 4 animals', how: 'how.spot-critters', type: 'critter', target: 4, progress: 1, done: false },
+      { text: 'Pick up 2 treasures', how: 'how.collect', type: 'collectible', target: 2, progress: 0, done: false },
+      { text: 'Knock 3 things over', how: 'how.tip-things', type: 'mischief', target: 3, progress: 3, done: true },
+    ];
+    hud.setGoals(goals);
+    if (state === 'hint' || state === 'worst') hud.setHint('Tap the paw to jump up onto things you can climb.', '🐾');
+    if (state === 'worst') hud.setObjective('Find the lost kitten', 38);
+    if (state === 'burst' || state === 'worst') {
+      bus.emit('discovery', { type: 'critter', label: 'a squirrel', points: 5 });
+      bus.emit('discovery', { type: 'collectible', label: 'a shiny button', points: 10 });
+      bus.emit('discovery', { type: 'mischief', label: 'the flower pot', points: 8 });
+    }
+    // Measure the boxes the HUD draws and how much of the screen they cover.
+    setTimeout(() => {
+      const W = innerWidth, H = innerHeight;
+      const sels = ['.hud-points', '.hud-rank', '.hud-map', '.hud-goals', '.hud-hint', '.hud-objective', '.toast', '.hud-prompt', '.hud-roster', '.hud-controls'];
+      const cv = document.createElement('canvas');
+      cv.width = W; cv.height = H;
+      const g = cv.getContext('2d');
+      g.fillStyle = '#000';
+      const boxes = [];
+      for (const s of sels) {
+        for (const el of document.querySelectorAll('#hud ' + s)) {
+          const cs = getComputedStyle(el);
+          if (cs.display === 'none' || cs.visibility === 'hidden' || el.classList.contains('hidden')) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 2 || r.height < 2) continue;
+          g.fillRect(r.left, r.top, r.width, r.height);
+          boxes.push({ n: s.slice(1), x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), font: parseFloat(cs.fontSize) });
+        }
+      }
+      const d = g.getImageData(0, 0, W, H).data;
+      let on = 0;
+      for (let i = 3; i < d.length; i += 4) if (d[i]) on++;
+      const covered = Math.round((on / (W * H)) * 1000) / 10;
+      const toasts = boxes.filter((b) => b.n === 'toast').length;
+      const msg = { type: 'hudgrid', profile, state, covered, boxes, toasts, maxToasts: MAX_TOASTS, overflowX: document.documentElement.scrollWidth > innerWidth };
+      parent.postMessage(msg, '*');
+      window.__hudgrid = msg;
+    }, 500);
+  }
+</script>

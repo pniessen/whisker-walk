@@ -11,8 +11,8 @@ describe('the design-values table', () => {
     expect(Object.keys(VALUES)).toEqual(['phone', 'tablet', 'laptop', 'tv']);
     for (const v of Object.values(VALUES)) expect(Object.keys(v)).toEqual(Object.keys(names));
   });
-  it('M0 holds today: phone and tablet map 110 and laptop 150 (style.css), two messages (hud.js), pixel cap 1.5 touch / 2 otherwise (main.js)', () => {
-    expect(VALUES.phone).toEqual({ map: 110, toasts: 2, cap: 1.5 });
+  it('M2 changed the phone only: map 88 and one message at a time; tablet map 110 and laptop 150 (style.css), two messages (hud.js), pixel cap 1.5 touch / 2 otherwise (main.js)', () => {
+    expect(VALUES.phone).toEqual({ map: 88, toasts: 1, cap: 1.5 });
     expect(VALUES.tablet).toEqual({ map: 110, toasts: 2, cap: 1.5 });
     expect(VALUES.laptop).toEqual({ map: 150, toasts: 2, cap: 2 });
     expect(VALUES.tv.toasts).toBe(1);
@@ -26,8 +26,9 @@ describe('the design-values table', () => {
       }
     }
   });
-  it('the phone and laptop map sizes agree with the rules the game uses today', () => {
+  it('the map sizes agree with the rules the game uses', () => {
     expect(css).toMatch(/:root\s*\{\s*--map-size:\s*150px/);
     expect(css).toMatch(/body\.touch-mode\s*\{\s*--map-size:\s*110px/);
+    expect(css).toMatch(/html\.phone body\.touch-mode\s*\{\s*--map-size:\s*88px/);
   });
 });

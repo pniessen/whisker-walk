@@ -958,5 +958,17 @@
  ],
  "body:not(.zoom-buttons) .chat-wheel": [
   "@media (pointer: coarse) | right: max(88px, calc(72px + env(safe-area-inset-right)))"
+ ],
+ "__phoneCleanup": [
+  "html.phone body.touch-mode | --map-size: 88px",
+  "html.phone body.touch-mode .hud-map | width: auto;align-items: flex-end",
+  "html.phone body.touch-mode .hud-area | font-size: 0.74rem;padding: 1px 7px",
+  "html.phone .toast | padding: 6px 12px",
+  "html.phone #hud:not(.lesson-on) .hud-hint:not(.chip) | font-size: 15px;line-height: 1.25;padding: 6px 12px;gap: 8px;border-radius: 14px",
+  "html.phone #hud:not(.lesson-on) .hud-hint:not(.chip) .hud-hint-pic | font-size: 18px",
+  "html.phone #hud:not(.lesson-on) .hud-goals | pointer-events: auto;cursor: pointer;outline: none",
+  "html.phone #hud:not(.lesson-on) .hud-goals:not(:focus) .goal-how | display: none",
+  "html.phone #hud:not(.lesson-on) .hud-goals:not(:focus):has(.goal.next) .goal:not(.next) | display: none",
+  "html.phone #hud:not(.lesson-on) .hud-goals:not(:focus) .goal.next::after | content: \" \\25BE\";opacity: 0.7"
  ]
 }

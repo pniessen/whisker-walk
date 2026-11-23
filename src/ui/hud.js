@@ -5,6 +5,7 @@ import { toastLifeMs } from './toastlife.js';
 import { bothForms, hasLine } from '../tutorialwords.js';
 import { tvState, padHtml, padText, padFix, onTv } from '../tvseam.js';
 import { escapeHtml } from '../escapehtml.js';
+import { getProfile } from '../profile.js';
 
 // Toasts (polish-hud2, R2/R3). At most two on screen: a burst of discoveries
 // used to stack four or five pills in a column that climbed over the cat.
@@ -127,7 +128,7 @@ export function createHud() {
     <div class="hud-map" id="hud-map"><div class="hud-area" id="hud-area"></div></div>
     <div class="hud-roster hidden" id="hud-roster"></div>
     <div class="hud-objective hidden" id="hud-objective"></div>
-    <div class="hud-goals hidden" id="hud-goals"></div>
+    <div class="hud-goals hidden" id="hud-goals" tabindex=0></div>
     <div class="hud-hint hidden" id="hud-hint" role="status" aria-live="polite"><span id="hud-hint-pic" class="hud-hint-pic" aria-hidden="true"></span><span id="hud-hint-text" class="hud-hint-text"></span></div>
     <div class="hud-toasts" id="hud-toasts" role="status" aria-live="polite"></div>
     <div class="hud-prompt hidden" id="hud-prompt"></div>
@@ -166,6 +167,8 @@ export function createHud() {
   // How many toasts may show at once: MAX_TOASTS, or fewer while a guided
   // step is open (setToastCap), so its bubble is never buried.
   let toastCap = MAX_TOASTS;
+  // A phone shows one at a time (device profiles M2; VALUES.phone.toasts): the rest wait their turn.
+  const cap = () => Math.min(toastCap, tvState.toastTiming?.cap ?? MAX_TOASTS - (getProfile() == 'phone'));
   // Retire a toast: fade it now, take it out of the DOM after the fade, and
   // let the next waiting line in. Its timers are cleared so they can't fire
   // on a toast already on its way out.
@@ -207,7 +210,7 @@ export function createHud() {
   // full, the oldest unheld shown toast makes room once it has been up 2.5 s
   // (now if it already has, else its ripe timer calls back here then).
   const pumpToasts = () => {
-    while (liveToasts.length < (tvState.toastTiming ? Math.min(toastCap, tvState.toastTiming.cap) : toastCap) && toastQueue.length) showToast(toastQueue.shift());
+    while (liveToasts.length < cap() && toastQueue.length) showToast(toastQueue.shift());
     const oldest = liveToasts.find((t) => !t.held);
     if (toastQueue.length && oldest?.ripe) retireToast(oldest);
   };
@@ -351,7 +354,7 @@ export function createHud() {
     // walk): n toasts at most, or null for the usual MAX_TOASTS. Lines past
     // it wait their turn as always; none is lost.
     setToastCap(n) {
-      toastCap = Number.isInteger(n) && n >= 1 ? Math.min(n, MAX_TOASTS) : MAX_TOASTS;
+      toastCap = Number.isInteger(n) && n >= 1 ? n : MAX_TOASTS; // cap() holds it to the profile's own number
       pumpToasts();
     },
     // Only the first unfinished goal shows its "how" line, so there is one
