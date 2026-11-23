@@ -22,6 +22,7 @@ const mat = (hex) => litMaterial(hex, { roughness: 0.8 });
 function buildGull() {
   const g = new THREE.Group();
   g.name = 'lighthouse:gull';
+  g.scale.setScalar(1.3); // a herring gull is a big bird, and the camera is a long way back
   const add = (geo, hex, x, y, z, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(geo, mat(hex)); m.position.set(x, y, z); m.scale.set(sx, sy, sz); g.add(m); return m; };
   add(new THREE.SphereGeometry(0.16, 8, 6), 0xf2f2ee, 0, 0.22, 0, 0.9, 0.8, 1.5); // body
   const head = add(new THREE.SphereGeometry(0.075, 6, 5), 0xf6f6f2, 0, 0.38, -0.2); // head

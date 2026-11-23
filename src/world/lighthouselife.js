@@ -271,9 +271,9 @@ export function createLighthouseLife(ctx = {}) {
     if (id === 'echo') sound.echo();
     else if (id === 'pool' && armed.pool) {
       armed.pool = false; armPos.pool = { x: catPos.x, z: catPos.z };
-      // the crab comes up at the rim nearest her: a metre out from the pool's edge on her side
+      // the crab comes up at the pool's rim a little way round from her
       const pool = nearestPool(catPos);
-      const a = Math.atan2(catPos.z - pool.z, catPos.x - pool.x);
+      const a = Math.atan2(catPos.z - pool.z, catPos.x - pool.x) + 0.9; // a little round the rim from her, so it is seen, not trodden on
       const rx = pool.x + Math.cos(a) * (pool.r + 0.15); const rz = pool.z + Math.sin(a) * (pool.r + 0.15);
       looks.crab(rx, ground ? ground.y(rx, rz) : 0, rz, Math.atan2(catPos.x - rx, catPos.z - rz));
     } else if (id === 'gull' && armed.gull) {

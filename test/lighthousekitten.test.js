@@ -37,6 +37,8 @@ describe('where the kitten hides', () => {
     expect(changes).toBeGreaterThan(20);
     // a room: both screens take the same index from the same seed, whatever each has walked
     expect(C.kittenSpotIndex(424242, 3)).toBe(C.kittenSpotIndex(424242, 77));
+    // a seed that is no number (never from walk.js) still gives a place
+    for (const bad of ['x', NaN, {}, Infinity]) expect([0, 1, 2]).toContain(C.kittenSpotIndex(bad));
   });
   it('the salt is its own: none of the walk\'s, none of the beam\'s', async () => {
     const { LIGHT_BEAM_SALT } = await import('../src/world/lighthouselife.js');

@@ -26,8 +26,8 @@ import { KEEPER_DOOR, KEEPER_PACE, KITTEN_SPOTS } from './lighthouseplan.js';
 //   * within HEAR_R of her, until she is found, the kitten mews now and then (sound) and the walk says so once;
 //   * the keeper's cat looking at the shore is the offer: within OFFER_R of her the walk says so once;
 //   * within PROMPT_R of the kitten (on her level) the prompt is "say hello": E and the kitten follows;
-//   * the kitten follows the way she walked (her footprints, never a straight line through a cliff), waits when
-//     she is far, never runs off and never fails. She stops following when the cat is on the stair or a perch
+//   * the kitten follows the way she walked (her footprints, never a straight line through a cliff), hurrying up to
+//     CATCH_MAX when she falls behind a running cat, waiting when she is far, never running off and never failing. She stops following when the cat is on the stair or a perch
 //     (the trail only takes her paws on the ground) and catches up where she next stands;
 //   * with the kitten within HOME_R of the porch's door and she within HOME_R of it, the job pays
 //     AWARDS.lighthousejob once a walk (log.awardOnce under KITTEN_KEY) under the line "home safe", the kitten
@@ -48,6 +48,8 @@ export const PROMPT_R = 2.2;
 export const HOME_R = 4;
 export const SHOW_R = 48;
 export const FOLLOW_SPEED = 2.6;
+export const CATCH_MAX = 5.2; // m/s: a gap in her path of more than FOLLOW_GAP makes her hurry, up to this, so she keeps up with a running cat
+export const CATCH_GAIN = 1.0; // m/s for each metre of gap over FOLLOW_GAP
 export const FOLLOW_GAP = 1.5; // m of her path she keeps between them
 export const CRUMB_EVERY = 0.6;
 export const LEVEL_TOL = 1.2; // m: she only follows footprints on her own level (a stair or a ledge is left to the cat)
@@ -60,7 +62,8 @@ export function kittenSpotIndex(roomSeed, visits = 0) {
   const solo = roomSeed === undefined || roomSeed === null;
   const a = solo ? Number(visits) || 0 : Number(roomSeed) % 9973;
   const b = solo ? 3 : (Number(roomSeed) >>> 4) % 7919;
-  return Math.min(KITTEN_SPOTS.length - 1, Math.floor(hash01(a, b, LIGHT_KITTEN_SALT) * KITTEN_SPOTS.length));
+  const i = Math.floor(hash01(a, b, LIGHT_KITTEN_SALT) * KITTEN_SPOTS.length);
+  return Number.isFinite(i) ? Math.min(KITTEN_SPOTS.length - 1, Math.max(0, i)) : 0; // (a seed that is not a number is the first place)
 }
 
 const YAW = (dx, dz) => Math.atan2(dx, dz) + Math.PI; // the model faces -z: player.js turns a cat by atan2(v.x, v.z) + PI
@@ -252,15 +255,17 @@ export function createKeeperCats(ctx) {
         }
         // she follows the oldest footprint while more than FOLLOW_GAP of her path lies between them
         let moving = false;
+        let speed = FOLLOW_SPEED;
         if (crumbs.length) {
           let gap = Math.hypot(crumbs[0].x - kitten.position.x, crumbs[0].z - kitten.position.z);
           for (let i = 1; i < crumbs.length; i++) gap += Math.hypot(crumbs[i].x - crumbs[i - 1].x, crumbs[i].z - crumbs[i - 1].z);
           if (gap > FOLLOW_GAP) {
-            moving = stepKitten(dt, crumbs[0].x, crumbs[0].z, FOLLOW_SPEED);
+            speed = Math.min(CATCH_MAX, FOLLOW_SPEED + CATCH_GAIN * (gap - FOLLOW_GAP));
+            moving = stepKitten(dt, crumbs[0].x, crumbs[0].z, speed);
             if (Math.hypot(crumbs[0].x - kitten.position.x, crumbs[0].z - kitten.position.z) < 0.12 && crumbs.length > 1) crumbs.shift();
           }
         }
-        animateCat(kitten, moving ? 'follow' : 'requestPet', t, moving ? FOLLOW_SPEED : 0, reducedMotion);
+        animateCat(kitten, moving ? 'follow' : 'requestPet', t, moving ? speed : 0, reducedMotion);
         // home: she is at the porch's door and the kitten is nearly there
         const catHome = Math.hypot(catPos.x - KEEPER_DOOR.x, catPos.z - KEEPER_DOOR.z) < HOME_R;
         const kitHome = Math.hypot(kitten.position.x - KEEPER_DOOR.x, kitten.position.z - KEEPER_DOOR.z) < HOME_R;

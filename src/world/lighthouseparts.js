@@ -472,11 +472,11 @@ export function drawCottage(kit, M) {
   }
   kit.put('stone', M.stone, bx(wx - 0.8, wx + 0.8, Y0 + 1.04, Y0 + 1.1, z1, z1 + 0.22, COL.stone), { noCast: true });
   for (const s of [-1, 1]) kit.put('wood', M.wood, bx(wx + s * 0.7 + (s > 0 ? 0 : -0.35), wx + s * 0.7 + (s > 0 ? 0.35 : 0), Y0 + 1.15, Y0 + 2.05, z1 - 0.02, z1 + 0.05, 0x4f7a8a), { noCast: true });
-  // the sleeper in the lit window: a chair back and a dark shape in it with its head down (never a person walking about)
+  // the sleeper in the lit window: an armchair's back and a dark shape slumped in it with its head down on its chest (never a person walking about)
   const SLEEP = 0x3a2a20;
-  kit.put('paint', M.paint, bx(wx - 0.42, wx - 0.1, Y0 + 1.25, Y0 + 1.9, z1 + 0.04, z1 + 0.06, 0x6b4a30), { noCast: true });
-  kit.put('paint', M.paint, bx(wx - 0.08, wx + 0.38, Y0 + 1.25, Y0 + 1.55, z1 + 0.04, z1 + 0.065, SLEEP), { noCast: true });
-  kit.put('paint', M.paint, sp(wx + 0.12, Y0 + 1.7, z1 + 0.07, 0.13, SLEEP, { seg: 6, rings: 4 }), { noCast: true });
+  kit.put('paint', M.paint, bx(wx + 0.1, wx + 0.46, Y0 + 1.25, Y0 + 1.92, z1 + 0.04, z1 + 0.06, 0x6b4a30), { noCast: true });
+  kit.put('paint', M.paint, bx(wx - 0.3, wx + 0.12, Y0 + 1.25, Y0 + 1.58, z1 + 0.04, z1 + 0.065, SLEEP), { noCast: true });
+  kit.put('paint', M.paint, sp(wx - 0.08, Y0 + 1.7, z1 + 0.07, 0.14, SLEEP, { seg: 6, rings: 4 }), { noCast: true });
   // a small window on the west wall too, dark
   kit.put('paint', M.paint, bx(x0 - 0.04, x0 + 0.02, Y0 + 1.2, Y0 + 2.0, C0.z - 0.5, C0.z + 0.5, COL.glass), { noCast: true });
 }
