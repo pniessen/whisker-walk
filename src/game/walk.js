@@ -49,7 +49,6 @@ import { clanWalkableFor } from '../world/clanground.js';
 import { DISCS, isTrespassing } from '../rivalclans.js';
 import { createRemoteCats } from '../remotecats.js';
 import { takeHeldItemsWithRemotes } from './netevents.js';
-import { rollGhosts, createGhosts } from '../ghosts.js';
 import { createGifts, pickFoundGift, NO_GIFTS } from '../gifts.js';
 import { createTippables } from '../tippables.js';
 import { createCarryables } from '../carryables.js';
@@ -79,7 +78,6 @@ import { rosterIsPartnerOnly } from './lobby.js';
 import { zoomTuning, canSwim, isWalkableAt } from '../player.js';
 import { clampZoomStep, maxZoomStep, zoomView } from '../camzoom.js';
 import { createRivalPatrol, chaseAllowed } from '../rivalcats.js';
-import { createYardDog } from '../yarddog.js';
 import { NO_FARM } from '../farmnone.js';
 import { handleFarmEvent, addFarmHat, restoreFarmJobs } from './farmplay.js';
 import { NO_FAIR } from '../fairnone.js';
@@ -97,7 +95,6 @@ import { liveEndsFor, endById } from '../gateways.js';
 import { postsFor, postById, postArrival } from '../borderposts.js';
 import { createFx } from '../fx.js';
 import { createSkyLife } from '../skylife.js';
-import { rollWeather, createWeather, rainPuddleSpots } from '../weather.js';
 import { rollSecrets, createSecrets } from '../secrets.js';
 import { GOLD_MICE, createGoldMice } from '../goldmice.js';
 import { planFind, pickFindItem, findsAgreed, roomFindRoster } from '../foundwear/rules.js';
@@ -113,8 +110,6 @@ import { newWalkSeed, newClearSeed, restoreGoals, restoreTallies, resumeWelcome 
 import { lessonFor, buildFirstLesson, placeCampGuide, headingToward, lessonOpen } from './guidewalk.js';
 import { findPath } from '../pathfind.js';
 import { createEnemyWalkLog } from '../enemies.js';
-import { kittenPlan, createKittenEncounter } from '../kitten.js';
-import { raceCourse, createRace } from '../race.js';
 import { buildMapLayer, createMinimap } from '../ui/minimap.js';
 import { createChatBubbles } from '../chatbubble.js';
 import { createChatWheel } from '../ui/chatwheel.js';
@@ -486,6 +481,8 @@ export function createWalkLifecycle({
   // time) so a slow response can't attach ghosts to a scene that's since
   // been torn down (endWalk) or replaced by a different walk; every await
   // re-checks `session === mySession` before touching anything.
+  // Set by startWalk from the place's pack (game/walkextras.js); every use is inside a walk.
+  let rollWeather, createWeather, rainPuddleSpots, rollGhosts, createGhosts, createYardDog, kittenPlan, createKittenEncounter, raceCourse, createRace;
   async function spawnGhosts(mySession) {
     const cloud = getCloud();
     if (!cloud) return;
@@ -727,6 +724,8 @@ export function createWalkLifecycle({
     if (!pack) throw new Error(`Whisker Walk: area "${areaOverride ?? progression.state.area}" is not loaded; start walks with startWalkWhenReady`);
     // The Farm's animals and the Fair's rides and games come with their place.
     const { createFarmAnimals, createFairLive, createFairShow, createMarketLive, createPeopleKit, lodNearFor } = pack.life;
+    // Weather, ghosts, the yard dog, the kitten and the race come beside the place (game/walkextras.js).
+    ({ rollWeather, createWeather, rainPuddleSpots, rollGhosts, createGhosts, createYardDog, kittenPlan, createKittenEncounter, raceCourse, createRace } = pack.life.walk);
     // A visit prize held for the tap (styles A and C) goes on FIRST, before
     // anything below reads state.equipped (the avatar, the collar/crown
     // perks). Style C never dims and A lets go after its reveal, so Start,

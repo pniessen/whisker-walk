@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MAIN_GZIP_CEILING_KB, mainScript, sizeProblem, startupFiles, areaDownloads, lazyProblems, areaSizeProblems, TV_ENTRY_MODULES, TV_GZIP_CEILING_KB, tvDownloads, CAT_ENTRY_MODULES } from '../scripts/buildjson.mjs';
+import { MAIN_GZIP_CEILING_KB, mainScript, sizeProblem, startupFiles, areaDownloads, lazyProblems, areaSizeProblems, TV_ENTRY_MODULES, TV_GZIP_CEILING_KB, tvDownloads, CAT_ENTRY_MODULES, WALK_ENTRY_MODULES, WALK_GZIP_CEILING_KB } from '../scripts/buildjson.mjs';
 import { precacheManifest } from '../scripts/precache.mjs';
 
 const M = {
@@ -102,6 +102,18 @@ describe('the cat login catch-up chunk guard', () => {
       const bad = { ...catM, 'index.html': { ...catM['index.html'], imports: [...catM['index.html'].imports, mod] } };
       expect(lazyProblems(bad, CAT_ENTRY_MODULES).join('\n')).toContain(mod);
     }
+  });
+});
+
+describe('the walk extras chunk guard', () => {
+  const walkM = { ...M, 'src/game/walkextras.js': { file: 'assets/walkextras.js', isDynamicEntry: true, imports: ['_three.js'] } };
+  it('a walk-extras chunk that is lazy passes, with its own 30 kB ceiling', () => {
+    expect(lazyProblems(walkM, WALK_ENTRY_MODULES)).toEqual([]);
+    expect(WALK_GZIP_CEILING_KB).toBe(30);
+  });
+  it('names the module when start-up imports it statically', () => {
+    const bad = { ...walkM, 'index.html': { ...walkM['index.html'], imports: [...walkM['index.html'].imports, 'src/game/walkextras.js'] } };
+    expect(lazyProblems(bad, WALK_ENTRY_MODULES)[0]).toMatch(/src\/game\/walkextras\.js/);
   });
 });
 
