@@ -49,6 +49,25 @@ describe('the seam is identity when couch play is off', () => {
     expect(main.match(/coop\.poll\?\.\(dt\)/g)).toHaveLength(1);
   });
 
+  it('the frame loop calls the seam in order: poll, then the pad glue with the pad it chose, then (after player.update) frame', () => {
+    const main = readFileSync(new URL('main.js', SRC), 'utf8');
+    const a = main.indexOf('coop.poll?.(dt);');
+    const b = main.indexOf('gamepad.poll(dt, coop.pad);');
+    const c = main.indexOf('player.update(dt, session.areaData.colliders');
+    const d = main.indexOf('coop.frame?.(dt);');
+    expect(a).toBeGreaterThan(0);
+    expect(b).toBeGreaterThan(a);
+    expect(c).toBeGreaterThan(b);
+    expect(d).toBeGreaterThan(c);
+    expect(main.slice(c, d)).not.toMatch(/\n\s*session\./); // nothing but player.update's own lines between them
+    expect(main.match(/coop\.frame\?\.\(dt\)/g)).toHaveLength(1);
+    expect(main.match(/gamepad\.poll\(/g)).toHaveLength(1);
+  });
+
+  it('every slot starts empty: with no chunk the pad glue gets null and reads its own pad, as today', () => {
+    expect(coop).toEqual({ poll: null, pad: null, frame: null });
+  });
+
   it('the seam file imports nothing and stays tiny', () => {
     const code = readFileSync(new URL('coopseam.js', SRC), 'utf8');
     expect(code).not.toMatch(/^\s*import\b/m);
@@ -82,13 +101,13 @@ describe('the chunk, started', () => {
     expect(standardPads({ getGamepads: () => { throw new Error('no'); } })).toEqual([]);
   });
 
-  it('a second pad changes nothing in milestone 0: it is counted, and no move or action goes anywhere', () => {
+  it('with no walk code handed in (the milestone-0 call), a second pad is counted and nothing goes anywhere', () => {
     let session = { areaId: 'neighborhood', net: null };
     const pads = [pad(0), pad(1)];
     const h = start({ nav: { getGamepads: () => pads }, getSession: () => session });
     expect(coop.poll).toBeTypeOf('function');
     coop.poll(0.016);
-    expect(h.state).toEqual({ pads: 2, ready: true });
+    expect(h.state).toMatchObject({ pads: 2, ready: true, joined: false });
     session = { areaId: 'neighborhood', net: {} }; // an online co-walk: couch play stays out
     coop.poll(0.016);
     expect(h.state.ready).toBe(false);

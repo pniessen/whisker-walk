@@ -11,6 +11,7 @@ const { build: buildFair } = await import('../src/world/fair.js');
 const { buildCat } = await import('../src/cat/model.js');
 const { CATALOG } = await import('../src/progression.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
+const { createMarkers } = await import('../src/coop/markers.js');
 
 // Couch play (docs/superpowers/specs/2026-11-22-couch-coop-design.md, section
 // 10): the second cat is a SIMPLE cat, and no place ceiling is raised. This
@@ -34,6 +35,10 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //   neighborhood               40,386     402     326                    66,982      508     432
 //   docks                      76,938     527     426                   103,534      633     532
 //   fair                       68,572     175     109                    95,168      281     215
+//
+// Milestone 1 adds the two marks under the cats (a 32-segment ring and a 4-segment
+// diamond, no shadow caster: 72 triangles, 2 meshes) and the second cat's name tag
+// (one sprite, like every co-walker's); the totals below include the marks.
 //
 // Casters with the cats count every cat mesh (the worst case). Cat 1 is in
 // today's scene already; couch play adds only cat 2, the simple cat.
@@ -93,7 +98,18 @@ const SCENES = [
   ['fair', buildFair, 99950, 296, 226],
 ];
 
+const markScene = () => {
+  const root = new THREE.Group();
+  const m = createMarkers(root);
+  m.place(0, 0, 0, 0); m.place(1, 2, 0, 0);
+  return root;
+};
+
 describe('couch play: place + full cat + simple cat, heaviest outfits', () => {
+  it('the two marks are 72 triangles, two meshes, and cast no shadow', () => {
+    expect(stats(markScene())).toEqual({ meshes: 2, casters: 0, triangles: 72 });
+  });
+
   it('the outfit is one accessory in every slot', () => {
     expect(Object.keys(OUTFIT).sort()).toEqual(['back', 'body', 'collar', 'face', 'feet', 'head', 'neck']);
   });
@@ -115,7 +131,8 @@ describe('couch play: place + full cat + simple cat, heaviest outfits', () => {
       const scene = new THREE.Scene();
       build(scene);
       const place = stats(scene);
-      const total = { triangles: place.triangles + FULL.t + SIMPLE.t, meshes: place.meshes + FULL.m + SIMPLE.m, casters: place.casters + FULL.m + SIMPLE.m };
+      const marks = stats(markScene());
+      const total = { triangles: place.triangles + FULL.t + SIMPLE.t + marks.triangles, meshes: place.meshes + FULL.m + SIMPLE.m + marks.meshes, casters: place.casters + FULL.m + SIMPLE.m + marks.casters };
       if (process.env.COOP_BUDGET_REPORT) console.log(name, place, total);
       expect(total.triangles).toBeLessThanOrEqual(triCeil);
       expect(total.meshes).toBeLessThanOrEqual(meshCeil);
