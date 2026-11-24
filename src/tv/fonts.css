@@ -156,6 +156,7 @@ html.tv .hb-journal-friends { font-size: calc(24px * var(--tv-s, 1)) !important;
 html.tv .hb-grownups-door .hb-row-icon { font-size: calc(20px * var(--tv-s, 1)) !important; }
 html.tv .hb-dusk-switch span { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .hb-dusk-why { font-size: calc(24px * var(--tv-s, 1)) !important; }
+html.tv .hb-have-cat { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .hb-pick-line { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv button.hb-pick-line { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .dr-where .hb-pick-choose { font-size: calc(24px * var(--tv-s, 1)) !important; }
