@@ -13,7 +13,7 @@
 import { gatewayEnd, endById, arrivalFor, GATE_REACH, GATE_PREFETCH_REACH } from './gateways.js';
 import { phrase } from './clanphrases.js';
 import * as ui from './teleui.js';
-import { addTeleGates } from './world/telegate.js';
+import { addTeleGates, discTint } from './world/telegate.js';
 
 export const TELE_SWIRL_MS = 1200; // the swirl, full motion
 export const TELE_FADE_MS = 400; // the gentle fade, reduced motion
@@ -45,20 +45,38 @@ export function teleRow({ suit = null, wake = false, edition = 'canon', needWalk
 }
 const end = teleRow;
 
-// The spike pair, Park <-> Greenhouse, in the stone-ring look. Each stands on open lawn in sight of its place's
-// spawn (Park (0, 45), Greenhouse (0, 30)), clear of every collider, point of interest and golden mouse
-// (test/teleport.test.js). The cat walks up heading west; she lands 3.6 m east of the other end, FACING the ring she
-// stepped out of (rotation.y +pi/2, west): the camera stands 4.4 m behind her, which with her back to the stones would
-// put it inside them (seen in the first pictures); facing them it looks at the way home. A deviation from the spec's
-// "facing in"; milestone 1 may turn it round again once the real art is in.
+// ---- OWNER DECISIONS (milestone 1): the look of each gate, and which way she faces when she lands ----
+// Each end's look, by id: 'stonering' (five mossy standing stones round a light disc), 'archway' (a little stone arch in a
+// hedge, with a lantern) or 'hollow' (a trunk with a glowing hole). Pictures of all three in the Park and the Greenhouse:
+// verify-teleport-gates-m1.html. The plan's recommendation for the real pairs: stones for the Moon, hollow for the Reef.
+export const TELE_LOOK = Object.freeze({ 'park-greenhouse': 'stonering', 'greenhouse-park': 'stonering' });
+// Where she lands, and facing which way: 'toward' (the milestone 0 choice: 3.6 m out, FACING the gate she stepped out of; the
+// camera stands 4.4 m behind her, so it looks at the way home) or 'away' (the spec's "facing in": 7 m out, looking into
+// the place, the gate behind her; further, so the camera does not stand inside the stones).
+export const TELE_ARRIVAL_FACING = 'toward';
+export const ARRIVAL_FACINGS = Object.freeze({ toward: Object.freeze({ dist: 3.6, turn: false }), away: Object.freeze({ dist: 7, turn: true }) });
+const INWARD = { north: [0, 1], south: [0, -1], east: [-1, 0], west: [1, 0] }; // the way she lands from a gate that faces so
+const FACING_YAW = { north: 0, south: Math.PI, east: -Math.PI / 2, west: Math.PI / 2 };
+// Her landing spot beside the gate at (x, z) that faces `faces`: `dist` metres out on the side she came from.
+export function arriveFor(faces, x, z, mode = TELE_ARRIVAL_FACING) {
+  const m = ARRIVAL_FACINGS[mode];
+  if (!m) throw new Error(`tele arrival "${mode}" is not one of ${Object.keys(ARRIVAL_FACINGS).join(', ')}`);
+  const [dx, dz] = INWARD[faces];
+  const yaw = FACING_YAW[faces] + (m.turn ? Math.PI : 0);
+  return { x: x + dx * m.dist, z: z + dz * m.dist, yaw: yaw > Math.PI ? yaw - 2 * Math.PI : yaw };
+}
+
+// The spike pair, Park <-> Greenhouse. Each stands on open lawn in sight of its place's spawn (Park (0, 45), Greenhouse
+// (0, 30)), clear of every collider, point of interest and golden mouse (test/teleport.test.js). The cat walks up
+// heading west and lands east of the other end (arriveFor).
 export const TELE_ENDS = Object.freeze({
   park: Object.freeze([
-    end({ id: 'park-greenhouse', gateway: 'tele-park-greenhouse', x: -10, z: 44, faces: 'west', to: 'greenhouse', twin: 'greenhouse-park', look: 'stonering',
-      placement: 'inside', arrive: { x: -6.4, z: 44, yaw: Math.PI / 2 }, edition: 'all' }),
+    end({ id: 'park-greenhouse', gateway: 'tele-park-greenhouse', x: -10, z: 44, faces: 'west', to: 'greenhouse', twin: 'greenhouse-park', look: TELE_LOOK['park-greenhouse'],
+      placement: 'inside', arrive: arriveFor('west', -10, 44), edition: 'all' }),
   ]),
   greenhouse: Object.freeze([
-    end({ id: 'greenhouse-park', gateway: 'tele-park-greenhouse', x: -10, z: 29, faces: 'west', to: 'park', twin: 'park-greenhouse', look: 'stonering',
-      placement: 'inside', arrive: { x: -6.4, z: 29, yaw: Math.PI / 2 }, edition: 'all' }),
+    end({ id: 'greenhouse-park', gateway: 'tele-park-greenhouse', x: -10, z: 29, faces: 'west', to: 'park', twin: 'park-greenhouse', look: TELE_LOOK['greenhouse-park'],
+      placement: 'inside', arrive: arriveFor('west', -10, 29), edition: 'all' }),
   ]),
 });
 
@@ -158,13 +176,16 @@ export function prompt(s, catP, state, inRoom, prefetch, free) {
   if (!near) return null;
   const status = teleStatus(near, state, H.catalog, opts);
   if (status.kind === 'dormant') return null;
-  if (status.kind === 'go') return { text: `E — ${phrase('tele.go')}`, prompt: { kind: 'gate', data: { end: near, status, card: () => ui.cardHtml({ name: status.name }) } } };
+  if (status.kind === 'go') return { text: `E — ${phrase('tele.go')}`, prompt: { kind: 'gate', data: { end: near, status, card: () => ui.cardHtml({ name: status.name, look: near.look, tint: discTint(near) }) } } };
   return { text: status.kind === 'room' ? phrase('tele.room') : phrase('tele.coop'), prompt: { kind: 'gate-info', data: { end: near, status } } };
 }
 
 // The gates of this place, drawn into the walk's scene; returns the pillars' colliders for walk.js to push.
-export function draw(scene, areaId, state, ground) {
-  return addTeleGates(scene, liveTeleEnds(areaId, H.catalog, { clan: H.isClan(state) }), { ground }).colliders;
+// A gate whose host place she has not walked enough is drawn dormant (the body alone, greyer, no light); `calm`: reduced
+// motion, nothing turns or drifts.
+export function draw(scene, areaId, state, ground, calm = false) {
+  return addTeleGates(scene, liveTeleEnds(areaId, H.catalog, { clan: H.isClan(state) }),
+    { ground, calm, awakeOf: (e) => teleStatus(e, state, H.catalog).kind !== 'dormant' }).colliders;
 }
 
 // A walk-on through `via`, or null when it is not a teleport gate: the plan, the swirl as the moment, how long it
@@ -174,9 +195,9 @@ export function walkOn(via, state, calm = false) {
   if (!plan) return null;
   return {
     plan, twin: plan.tele.twin,
-    html: ui.swirlHtml({ name: teleName(plan.to, state.edition, H.catalog), calm }),
+    html: ui.swirlHtml({ name: teleName(plan.to, state.edition, H.catalog), calm, tint: discTint(plan.tele) }),
     ms: swirlMs(calm),
-    line: phrase('tele.home'),
+    line: phrase('tele.home', plan.tele.look),
     slowMs: TELE_SLOW_MS,
     slow: (root) => ui.nearly(root),
     opened: () => ui.opening({ calm }),

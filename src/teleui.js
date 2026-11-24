@@ -11,11 +11,16 @@ let lower = (s) => s;
 let escapeHtml = (s) => s;
 export function setup(host) { ({ padTag, lower, escapeHtml } = host); }
 
+const stones = (look) => look === 'stonering';
 export const LINES = Object.freeze({
   'tele.go': 'Go through',
   'tele.notnow': 'Not now',
-  'tele.prompt': (name) => `Go through to ${name}?`,
-  'tele.home': 'Take the gate home when you’re ready.',
+  'tele.prompt': (name, look) => `${stones(look) ? 'The stones are' : 'The gate is'} glowing. Go through to ${name}?`,
+  'tele.wake': (look) => (stones(look) ? 'A gate! The stones are waking.' : 'A gate! It is waking up.'), // the wake beat (milestone 5)
+  'tele.suit': 'Your suit is on!', // the suit (milestone 2)
+  'tele.home': (look) => (stones(look) ? 'Take the stones home when you’re ready.' : 'Take the gate home when you’re ready.'),
+  'tele.hint': (host) => `Find the gate in ${host}.`, // the map's card (milestone 5)
+  'tele.guest': (name) => `This way to ${name}.`, // a friend in a room (later)
   'tele.room': 'The gate hums, but it is not ready for friends yet.',
   'tele.coop': 'The gate is waiting. Two cats go together when we’re ready!',
   'tele.slow': 'Nearly there!',
@@ -27,7 +32,7 @@ addPhrases(LINES);
 // turning. Slow smooth changes only: nothing flashes. `.opening` is the same screen going away over the arrival.
 export const CSS = `
 .tele-swirl{position:absolute;inset:0;display:grid;place-items:center;overflow:hidden;color:#4b3a14;text-align:center;
- background:radial-gradient(circle at 50% 50%,#fffbe8 0,#ffe7a6 38%,#cfe8ff 100%);clip-path:circle(0% at 50% 50%);animation:tele-grow 1.2s cubic-bezier(.5,0,.8,1) forwards}
+ background:radial-gradient(circle at 50% 50%,#fffbe8 0,var(--tele-a,#ffe7a6) 38%,#cfe8ff 100%);clip-path:circle(0% at 50% 50%);animation:tele-grow 1.2s cubic-bezier(.5,0,.8,1) forwards}
 .tele-turn{position:absolute;inset:-60%;opacity:.75;background:conic-gradient(from 0deg,#fff1b8,#a9dcff,#f4c6ff,#ffe39a,#fff1b8);animation:tele-spin 1.2s linear forwards}
 .tele-line{position:relative;padding:0 16px;font:700 clamp(1.4rem,5vw,2.4rem)/1.25 Avenir,'Trebuchet MS',sans-serif;text-shadow:0 1px 8px #fff8}
 .tele-swirl.opening{position:fixed;z-index:12;pointer-events:none;clip-path:circle(75% at 50% 50%);animation:tele-open .6s ease-out forwards}
@@ -36,6 +41,12 @@ export const CSS = `
 .tele-swirl.calm .tele-turn{animation:none}
 .tele-swirl.calm.opening{opacity:1;animation:tele-fadeout .4s ease forwards}
 .tele-card h2{max-width:22ch;justify-self:center;text-align:center}
+.tele-emblem{width:72px;height:72px;border-radius:50%;background:radial-gradient(circle,#fffbe8 0,var(--tele-a,#ffe7a6) 58%,transparent 72%);box-shadow:0 0 22px var(--tele-a,#ffe7a6)}
+.tele-emblem-archway{width:56px;height:84px;border-radius:28px 28px 6px 6px}
+.tele-emblem-hollow{width:58px;height:80px;border-radius:50%}
+html.tv .tele-emblem{width:calc(120px * var(--tv-s,1));height:calc(120px * var(--tv-s,1))}
+html.tv .tele-emblem-archway{width:calc(96px * var(--tv-s,1));height:calc(140px * var(--tv-s,1))}
+html.tv .tele-emblem-hollow{width:calc(96px * var(--tv-s,1));height:calc(132px * var(--tv-s,1))}
 .tele-card .btn{min-height:48px;min-width:160px}
 html.tv .tele-line{font-size:calc(2.6rem * var(--tv-s,1))}
 html.tv .tele-card .btn{min-height:calc(84px * var(--tv-s,1))}
@@ -59,9 +70,10 @@ export function ensureStyle(doc = globalThis.document) {
 }
 
 // The swirl, as the overlay's content while the next place comes.
-export function swirlHtml({ name, calm = false }) {
+export const hex = (n) => `#${(Number.isInteger(n) ? n : 0xffe7a6).toString(16).padStart(6, '0')}`;
+export function swirlHtml({ name, calm = false, tint = 0xffe7a6 }) {
   ensureStyle();
-  return `<div class="tele-swirl${calm ? ' calm' : ''}" role="status"><div class="tele-turn"></div><p class="tele-line">${escapeHtml(phrase('gate.off', lower(name)))}</p></div>`;
+  return `<div class="tele-swirl${calm ? ' calm' : ''}" role="status" style="--tele-a:${hex(tint)}"><div class="tele-turn"></div><p class="tele-line">${escapeHtml(phrase('gate.off', lower(name)))}</p></div>`;
 }
 
 // "Nearly there!": the place is slow; the swirl keeps turning and the line changes.
@@ -85,10 +97,12 @@ export function opening({ calm = false, doc = globalThis.document, later = setTi
 
 // The question at a gate she can go through; the buttons are the crossing card's own (crossing.js wires them by id),
 // 48 px high, with the pad's tags.
-export function cardHtml({ name }) {
+export function cardHtml({ name, look = 'stonering', tint = 0xffe7a6 }) {
   ensureStyle();
-  return `<div class="pause-card cross-card tele-card">
-      <h2>${escapeHtml(phrase('tele.prompt', lower(name)))}</h2>
+  const kind = ['stonering', 'archway', 'hollow'].includes(look) ? look : 'stonering';
+  return `<div class="pause-card cross-card tele-card" style="--tele-a:${hex(tint)}">
+      <div class="tele-emblem tele-emblem-${kind}" aria-hidden="true"></div>
+      <h2>${escapeHtml(phrase('tele.prompt', lower(name), kind))}</h2>
       <button id="btn-cross-yes" class="btn" type="button">${escapeHtml(phrase('tele.go'))}${padTag('⟦confirm⟧')}</button>
       <button id="btn-cross-no" class="btn" type="button">${escapeHtml(phrase('tele.notnow'))}${padTag('⟦back⟧')}</button>
     </div>`;

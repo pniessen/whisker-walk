@@ -875,7 +875,7 @@ export function createWalkLifecycle({
       : NO_GATES;
     // The teleport gates (?gates=1, src/telehook.js): either edition, beside the map's gates, on the same terms (drawn here,
     // never by the builder); their pillars join the live collider list below.
-    const teleColliders = !isDen && tele.kit ? tele.kit.draw(scene, areaId, state, ground) : [];
+    const teleColliders = !isDen && tele.kit ? tele.kit.draw(scene, areaId, state, ground, !!settings.get('reducedMotion')) : [];
     // The fill light, added here rather than beside the sun because its ground
     // term is the AREA'S OWN dominant ground colour and only areaData knows it:
     // a green bounce under the park's lawn, sand at Seaside, wet grey stone at

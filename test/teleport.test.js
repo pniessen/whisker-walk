@@ -369,7 +369,7 @@ describe('the swirl: 1.2 s, and a 0.4 s fade under reduced motion', () => {
     expect(full.ms).toBe(1200);
     expect(full.html).toContain('class="tele-swirl"');
     expect(full.html).toContain('Off to the Greenhouse!');
-    expect(full.line).toBe('Take the gate home when you’re ready.');
+    expect(full.line).toBe('Take the stones home when you’re ready.'); // the stone ring says stones; the everyday set says gate (words, below)
     expect(full.slowMs).toBe(1500);
     const calm = walkOn(GP.id, st, true);
     expect(calm.ms).toBe(400);
@@ -413,28 +413,51 @@ describe('the swirl: 1.2 s, and a 0.4 s fade under reduced motion', () => {
 
 describe('the words', () => {
   const IDS = Object.keys(UI.LINES);
-  const say = (id) => (id === 'tele.prompt' ? phrase(id, 'the Greenhouse') : phrase(id));
+  const ARGS = { 'tele.prompt': ['the Greenhouse', 'stonering'], 'tele.wake': ['stonering'], 'tele.home': ['stonering'], 'tele.hint': ['the Park'], 'tele.guest': ['the Greenhouse'] };
+  const say = (id, ...more) => phrase(id, ...(more.length ? more : ARGS[id] ?? []));
+  const FLAVOURED = ['tele.home', 'tele.prompt', 'tele.wake'];
   it('every line is in the phrase table once the lazy file has come, and none is empty', () => {
-    expect(IDS.sort()).toEqual(['tele.coop', 'tele.go', 'tele.home', 'tele.notnow', 'tele.prompt', 'tele.room', 'tele.slow']);
+    expect([...IDS].sort()).toEqual(['tele.coop', 'tele.go', 'tele.guest', 'tele.hint', 'tele.home', 'tele.notnow', 'tele.prompt', 'tele.room', 'tele.slow', 'tele.suit', 'tele.wake']);
     for (const id of IDS) expect(say(id), id).toMatch(/\S/);
   });
-  it('both word sets say every line, the same, and the everyday set never shows a series word', () => {
+  it('both word sets say every line; only the three flavoured ones differ, and the everyday set never shows a series word', () => {
     const clan = Object.fromEntries(IDS.map((id) => [id, say(id)]));
     let everyday;
     withOffWords(() => { everyday = Object.fromEntries(IDS.map((id) => [id, say(id)])); });
-    expect(everyday).toEqual(clan);
-    for (const id of IDS) expect(bannedIn(everyday[id]), id).toBeNull();
+    for (const id of IDS) {
+      if (FLAVOURED.includes(id)) expect(everyday[id], id).not.toBe(clan[id]);
+      else expect(everyday[id], id).toBe(clan[id]);
+      expect(bannedIn(everyday[id]), id).toBeNull();
+      expect(everyday[id], id).not.toMatch(/stones/i);
+    }
     // the card and the swirl, whole
     withOffWords(() => {
-      expect(bannedIn(UI.cardHtml({ name: 'The Greenhouse' }))).toBeNull();
+      for (const look of ['stonering', 'archway', 'hollow']) expect(bannedIn(UI.cardHtml({ name: 'The Greenhouse', look })), look).toBeNull();
       expect(bannedIn(UI.swirlHtml({ name: 'The Greenhouse' }))).toBeNull();
     });
   });
-  it('a line is short, kind, and scolds nobody', () => {
-    for (const id of IDS) {
-      expect(say(id).length, id).toBeLessThanOrEqual(70);
-      expect(say(id), id).not.toMatch(/\b(dark|scary|dead|die|hurt|danger|afraid|fall|lost forever|too late|hurry|can't|cannot|no\b)/i);
-    }
+  it('the main edition flavours: stones for the stone ring, gate for the others', () => {
+    expect(phrase('tele.prompt', 'the Moon', 'stonering')).toBe('The stones are glowing. Go through to the Moon?');
+    expect(phrase('tele.prompt', 'the Reef', 'hollow')).toBe('The gate is glowing. Go through to the Reef?');
+    expect(phrase('tele.home', 'archway')).toBe('Take the gate home when you’re ready.');
+    withOffWords(() => {
+      expect(phrase('tele.prompt', 'the Moon', 'stonering')).toBe('Go through to the Moon?');
+      expect(phrase('tele.home', 'stonering')).toBe('Take the gate home when you’re ready.');
+      expect(phrase('tele.wake', 'stonering')).toBe('A gate! It’s waking up.');
+    });
+  });
+  it('a line is short, kind, and scolds nobody (both sets)', () => {
+    const check = () => {
+      for (const id of IDS) {
+        for (const look of ['stonering', 'hollow']) {
+          const text = say(id, ...(ARGS[id] ?? []).map((a) => (a === 'stonering' ? look : a)));
+          expect(text.length, id).toBeLessThanOrEqual(70);
+          expect(text, id).not.toMatch(/\b(dark|scary|dead|die|hurt|danger|afraid|fall|lost forever|too late|hurry|can't|cannot|no\b)/i);
+        }
+      }
+    };
+    check();
+    withOffWords(check);
   });
   it('none of the lines is in the start-up download\'s phrase tables', async () => {
     const { PHRASE_IDS, LATER_PHRASE_IDS } = await import('../src/clanphrases.js');
@@ -449,28 +472,4 @@ describe('the words', () => {
   });
 });
 
-describe('the look: the cheapest placeholder, in the plan\'s budget', () => {
-  it('at most 6 meshes, 480 triangles and 1 transparent draw... per look: this one is 3 meshes, 2 of them additive, under 200 triangles', () => {
-    const g = buildTeleGate(PG);
-    const meshes = [];
-    g.traverse((o) => { if (o.isMesh) meshes.push(o); });
-    const tris = meshes.reduce((n, m) => n + (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3, 0);
-    expect(meshes.length).toBeLessThanOrEqual(LOOK_BUDGET.meshes);
-    expect(meshes.length).toBe(3);
-    expect(tris).toBeLessThanOrEqual(LOOK_BUDGET.triangles);
-    expect(tris).toBeLessThan(200);
-    expect(meshes.filter((m) => m.material.transparent)).toHaveLength(2); // the disc and the ground glow (milestone 1's budget draws one)
-    expect(g.name).toBe('telegate');
-    expect(g.userData.endId).toBe(PG.id);
-    expect(g.position.x).toBe(-10);
-    expect(g.position.z).toBe(44);
-    expect(g.rotation.y).toBeCloseTo(Math.PI / 2, 9); // local -z points west, the way she walks through
-    // the disc is light, never a dark hole; the two additive meshes do not cast or merge
-    const disc = g.getObjectByName('teleDisc');
-    expect(disc.material.color.getHex()).toBe(0xffeeb4);
-    for (const n of ['teleDisc', 'teleGlow']) {
-      const m = g.getObjectByName(n);
-      expect(m.userData.noMerge && m.userData.noCast, n).toBe(true);
-    }
-  });
-});
+// the three looks, their budgets and the dormant / calm variants: test/telegate.looks.test.js

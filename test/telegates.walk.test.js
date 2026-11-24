@@ -128,7 +128,7 @@ describe('through and back', () => {
     expect(h.progression.state.walks.greenhouse ?? 0).toBe(0);
     // the arrival line says how to go home
     expect(walked).toHaveLength(1);
-    expect(walked[0].concat(s.startLines ?? [])).toContain(phrase('tele.home'));
+    expect(walked[0].concat(s.startLines ?? [])).toContain(phrase('tele.home', 'stonering'));
     expect(gateMeshes(s)).toHaveLength(1); // the way home
   }, WALK_MS);
 
