@@ -1,15 +1,16 @@
 // =============================================================================
-// THE MOON: THE DRAWING KIT (milestone 1). The ground (one heightfield mesh in the game's own gravel tile, vertex-coloured:
-// dust, darker bowls, lighter rims), the rocks (four InstancedMeshes), the lander, the return gate ring, the flag and the
+// THE MOON: THE DRAWING KIT (milestone 1). The ground (one heightfield mesh, vertex-coloured, with the regolith canvas of beauty round 1), the rocks (four InstancedMeshes), the lander, the return gate ring, the flag and the
 // landing lights, gathered by material into a few merged meshes. No real lights, no canvas, no Math.random: every number
 // comes from moonplan.js and the seeded stream below (the area builds in withLocalUuids).
 // =============================================================================
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { litMaterial, tileMetres } from '../render/materials.js';
+import { litMaterial } from '../render/materials.js';
 import { mulberry32 } from '../rng.js';
 import * as P from './moonplan.js';
+import { regolithMaterial, angularRock, GRAIN_TILE } from './moonbeauty.js';
+import * as BP from './moonbeautyplan.js';
 
 export const COL = Object.freeze({
   dust: 0x8d8c93, white: 0xe9ecf2, steel: 0x7d848f, yellow: 0xf0c43c, red: 0xd8503c, teal: 0x3a9aa8, dark: 0x2a2f3a,
@@ -30,7 +31,7 @@ function lines(min, max, edge, outer) {
 const _c = new THREE.Color();
 const noise = (x, z) => 0.5 + 0.25 * Math.sin(x * 0.21 + 1.3) * Math.cos(z * 0.17 - 0.4) + 0.15 * Math.sin(x * 0.53 - z * 0.41) + 0.1 * Math.sin(z * 0.9 + x * 0.3);
 
-export function groundGeometry() {
+export function groundGeometry(base = COL.dust) {
   const half = P.GROUND_SIZE / 2;
   const xs = lines(P.MOON_BOUNDS.minX, P.MOON_BOUNDS.maxX, half, 2);
   const zs = lines(P.MOON_BOUNDS.minZ, P.MOON_BOUNDS.maxZ, half, 3);
@@ -38,8 +39,8 @@ export function groundGeometry() {
   const nz = zs.length;
   const pos = new Float32Array(nx * nz * 3);
   const uv = new Float32Array(nx * nz * 2);
+  const grain = new Float32Array(nx * nz * 2);
   const col = new Float32Array(nx * nz * 3);
-  const T = tileMetres('gravel') ?? 1.4;
   const index = [];
   for (let j = 0; j < nz; j++) {
     for (let i = 0; i < nx; i++) {
@@ -48,23 +49,22 @@ export function groundGeometry() {
       const z = zs[j];
       const y = P.moonBaseY(x, z);
       pos[k * 3] = x; pos[k * 3 + 1] = y; pos[k * 3 + 2] = z;
-      uv[k * 2] = x / T; uv[k * 2 + 1] = z / T;
-      // dust: a slow mottle, darker in the bowls' floors, lighter on their rims and the ridge's top, a little cooler and darker far away
-      let tone = 0.86 + 0.26 * noise(x, z);
+      uv[k * 2] = (x + half) / P.GROUND_SIZE; uv[k * 2 + 1] = (z + half) / P.GROUND_SIZE; // the one regolith canvas over the whole ground (moonbeauty.js)
+      grain[k * 2] = x / GRAIN_TILE; grain[k * 2 + 1] = z / GRAIN_TILE; // the close grain, tiled
+      // the broad tone: a slow mottle, a little darker on the bowls' floors, a little lighter on their rims and the ridge's top (the canvas paints the rest)
+      let tone = 0.94 + 0.12 * noise(x, z);
       let floor = 0;
       for (const cr of P.CRATERS) {
         const u = Math.hypot(x - cr.x, z - cr.z) / cr.r;
         if (u < 1) floor = Math.max(floor, 1 - u * u);
-        else if (u < 1.35) tone += 0.1 * (1 - (u - 1) / 0.35);
+        else if (u < 1.35) tone += 0.06 * (1 - (u - 1) / 0.35);
       }
-      tone -= 0.14 * floor;
-      tone += Math.min(0.1, Math.max(0, y) * 0.03);
-      const out = Math.max(0, Math.hypot(Math.max(P.MOON_BOUNDS.minX - x, 0, x - P.MOON_BOUNDS.maxX), Math.max(P.MOON_BOUNDS.minZ - z, 0, z - P.MOON_BOUNDS.maxZ)));
-      _c.setHex(COL.dust);
-      const far = Math.min(1, out / 11);
-      col[k * 3] = _c.r * tone * (1 - 0.3 * far);
-      col[k * 3 + 1] = _c.g * tone * (1 - 0.27 * far);
-      col[k * 3 + 2] = _c.b * tone * (1 - 0.15 * far);
+      tone -= 0.1 * floor;
+      tone += Math.min(0.08, Math.max(0, y) * 0.025);
+      _c.setHex(base);
+      col[k * 3] = _c.r * tone;
+      col[k * 3 + 1] = _c.g * tone;
+      col[k * 3 + 2] = _c.b * tone;
     }
   }
   for (let j = 0; j < nz - 1; j++) {
@@ -79,15 +79,18 @@ export function groundGeometry() {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.setAttribute('grainUv', new THREE.BufferAttribute(grain, 2));
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   g.setIndex(index);
   g.computeVertexNormals();
   return g;
 }
 
-export function drawGround() {
-  const mat = litMaterial(0xffffff, { vertexColors: true, surface: 'gravel', repeat: [1, 1] });
-  const m = new THREE.Mesh(groundGeometry(), mat);
+// (beauty round 1) the ground's one material is the regolith canvas and grain (moonbeauty.js); headless it is the plain vertex-coloured dust it was.
+export function drawGround(lowTier = false) {
+  const shade = Object.values(rockLists(lowTier)).flat().map((r) => ({ x: r.x, z: r.z, s: r.s }));
+  const mat = regolithMaterial({ lite: lowTier, shade });
+  const m = new THREE.Mesh(groundGeometry(mat ? 0xffffff : COL.dust), mat ?? new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 1 }));
   m.name = 'moon:ground';
   m.receiveShadow = true;
   Object.assign(m.userData, { ground: true, noCast: true, noContactShadow: true, noMerge: true });
@@ -95,21 +98,6 @@ export function drawGround() {
 }
 
 // ---- the rocks -------------------------------------------------------------------------------------------------------
-
-// A lumpy rock: an icosahedron pushed about by a fixed hash, flat-shaded.
-function rockGeometry(detail, salt) {
-  const g = new THREE.IcosahedronGeometry(1, detail); // non-indexed already
-  const pos = g.attributes.position;
-  const seen = new Map();
-  for (let i = 0; i < pos.count; i++) {
-    const key = `${pos.getX(i).toFixed(3)},${pos.getY(i).toFixed(3)},${pos.getZ(i).toFixed(3)}`;
-    let k = seen.get(key);
-    if (k === undefined) { k = 0.8 + 0.4 * (0.5 + 0.5 * Math.sin((seen.size + 1) * 12.9898 + salt * 78.233)); seen.set(key, k); }
-    pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k * 0.72, pos.getZ(i) * k);
-  }
-  g.computeVertexNormals();
-  return g;
-}
 
 function keepClear(x, z, extra = 0) {
   for (const [kx, kz, kr] of P.ROCK_KEEP_OUT) if (Math.hypot(x - kx, z - kz) < kr + extra) return false;
@@ -141,35 +129,48 @@ export function scatterRocks(lowTier = false) {
   return out;
 }
 
+// Every rock that stands on the dust, by class: the plan's scatter and (beauty round 1) the pebble fields and the chunks on the bowls' rims. { x, z, s, ... }
+function rockLists(lowTier) {
+  const r = scatterRocks(lowTier);
+  return { small: [...r.small, ...BP.pebbles(lowTier)], medium: r.medium, large: r.large, boulder: r.boulder, rim: BP.rimChunks(lowTier) };
+}
+
 // Two InstancedMeshes (milestone 4 merged the medium, large and boulder meshes into one, `big`: they were three draws in the picture and
-// three more in the shadow pass for the same shape in three sizes): the small rocks (a 20-triangle stone, never a caster) and the big ones
-// (an 80-triangle stone, 70 instances: the 40 medium, the 20 large and the 10 boulders, each scaled and turned by its own instance).
+// three more in the shadow pass for the same shape in three sizes): the small rocks (a 20-triangle chip, never a caster) and the big ones
+// (an 80-triangle fractured stone: the 40 medium, the 20 large and the 10 boulders, and from beauty round 1 the chunks on the bowls' rims, each scaled
+// and turned by its own instance). The small mesh also carries the pebble fields. Still two draws.
 export function drawRocks(lowTier = false) {
-  const rocks = scatterRocks(lowTier);
-  const specs = [['small', 0, 1, rocks.small], ['big', 1, 2, [...rocks.medium, ...rocks.large, ...rocks.boulder]]];
+  const rocks = rockLists(lowTier);
+  const specs = [['small', false, 1, rocks.small], ['big', true, 2, [...rocks.medium, ...rocks.large, ...rocks.boulder, ...rocks.rim]]];
   const meshes = [];
   const tint = new THREE.Color();
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion();
-  const up = new THREE.Vector3(0, 1, 0);
-  for (const [name, detail, salt, list] of specs) {
+  const eu = new THREE.Euler();
+  const pos = new THREE.Vector3();
+  const sc = new THREE.Vector3();
+  for (const [name, big, salt, list] of specs) {
     if (!list.length) continue;
     const mat = litMaterial(0xffffff, { roughness: 1, flatShading: true });
-    const mesh = new THREE.InstancedMesh(rockGeometry(detail, salt), mat, list.length);
+    const mesh = new THREE.InstancedMesh(angularRock(salt, big), mat, list.length);
     mesh.name = `moon:rocks-${name}`;
     list.forEach((r, i) => {
-      q.setFromAxisAngle(up, r.yaw);
-      m4.compose(new THREE.Vector3(r.x, P.moonY(r.x, r.z) + r.s * 0.2, r.z), q, new THREE.Vector3(r.s * (1 + 0.25 * Math.sin(i * 2.3)), r.s, r.s * (1 + 0.25 * Math.cos(i * 1.7))));
+      const tilt = r.tilt ?? 0.5 * Math.sin(i * 5.3 + salt); // the stone leans a little, as it fell
+      eu.set(tilt, r.yaw, 0.6 * tilt * Math.cos(i * 3.7), 'YXZ');
+      q.setFromEuler(eu);
+      pos.set(r.x, P.moonY(r.x, r.z) + r.s * 0.2, r.z);
+      sc.set(r.s * (1 + 0.3 * Math.sin(i * 2.3)), r.s * (0.58 + 0.4 * Math.sin(i * 4.1) ** 2), r.s * (1 + 0.3 * Math.cos(i * 1.7)));
+      m4.compose(pos, q, sc);
       mesh.setMatrixAt(i, m4);
-      tint.setHex(COL.rock).multiplyScalar(0.78 + 0.34 * (0.5 + 0.5 * Math.sin(i * 7.31 + salt)));
+      tint.setHex(0xa4a3a3).multiplyScalar((big ? 0.6 : 0.45) + (big ? 0.75 : 0.5) * (0.5 + 0.5 * Math.sin(i * 7.31 + salt)) ** 1.3);
       mesh.setColorAt(i, tint);
     });
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.receiveShadow = true;
-    mesh.castShadow = name !== 'small';
+    mesh.castShadow = big;
     Object.assign(mesh.userData, { noContactShadow: true, noMerge: true });
-    if (name === 'small') mesh.userData.noCast = true;
+    if (!big) mesh.userData.noCast = true;
     mesh.computeBoundingSphere();
     mesh.computeBoundingBox();
     meshes.push(mesh);

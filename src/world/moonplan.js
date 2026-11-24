@@ -447,8 +447,8 @@ export const ROCK_CLASSES = Object.freeze({
   large: Object.freeze({ count: 20, min: 0.9, max: 1.4, cast: true }),
 });
 
-// 700 stars on a full device, 350 on the lite rung (the sky dress reads this).
-export const STARS = Object.freeze({ full: 700, lite: 350, radius: 285 });
+// 1,800 stars on a full device, 900 on the lite rung (the sky dress reads this; beauty round 1 made the sky dense, a third of them along a faint Milky Way).
+export const STARS = Object.freeze({ full: 1800, lite: 900, radius: 285 });
 
 // Earth: one quad about 8 degrees across, 21 degrees up, 12 degrees east of north (north is -z).
 export const EARTH = Object.freeze({ elevDeg: 21, bearingDeg: 12, radius: 275, size: 40 });
