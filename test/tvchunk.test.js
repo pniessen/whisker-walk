@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { realBuild } from './helpers/realbuild.js';
-import { startupFiles, lazyProblems, TV_ENTRY_MODULES } from '../scripts/buildjson.mjs';
+import { startupFiles, lazyProblems, areaDownloads, TV_ENTRY_MODULES } from '../scripts/buildjson.mjs';
 import { IOS_MODE } from '../vite.config.js';
 
 // TV mode is ONE lazy chunk. If a start-up module ever imports src/tv/* the
@@ -20,7 +20,8 @@ for (const mode of ['production', IOS_MODE]) {
       const b = await realBuild(mode);
       const code = (f) => String(b.files.get(f).code ?? '');
       const start = startupFiles(b.manifest).map(code).join('\n');
-      const tv = code(b.manifest['src/tv/index.js'].file);
+      // the chunk and the lazy files it shares: the button pictures (src/tv/glyphs.js) are also read by couch play's chunk, so they sit in a shared lazy file, never in start-up
+      const tv = areaDownloads(b.manifest, TV_ENTRY_MODULES).tv.map(code).join('\n');
       // strings only the chunk may hold: the offer's words, the pad lines, a glyph's drawing
       for (const marker of ['Bigger words, made for the sofa.', 'Keep exploring \u27e6confirm\u27e7', 'var(--ps-cross', 'html.tv']) {
         expect(start, marker).not.toContain(marker);

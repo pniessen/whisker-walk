@@ -3,5 +3,5 @@
 // here may import src/coop/: the build fails if the chunk joins start-up
 // (scripts/buildjson.mjs). With the flag off `poll` stays null, so the frame
 // loop's one extra line does nothing and solo play is today's.
-export const coop = { poll: null }; // poll(dt): the chunk's per-frame work, null = nobody listens
+export const coop = { poll: null, pad: null, frame: null }; // poll(dt): the chunk's per-frame work, null = nobody listens; pad: the pad cat one's walk reads (null = as today); frame(dt): after player.update
 export const coopWanted = (search) => /[?&]coop=1\b/.test(search); // this page load only, never saved

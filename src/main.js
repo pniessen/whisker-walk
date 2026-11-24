@@ -383,7 +383,7 @@ function init() {
     },
   });
   // ?coop=1 (couch play, src/coop/): this page load only.
-  if (coopWanted(location.search)) import('./coop/index.js').then((m) => m.start({ nav: navigator, getSession: () => session })).catch((err) => note('coop', err));
+  if (coopWanted(location.search)) import('./coop/index.js').then((m) => m.start({ nav: navigator, getSession: () => session, player, camera, getState: () => progression.state, catalog: CATALOG, act: (n) => handleTouchAction(n), voice: (p) => catVoice(p), toast: (m) => hud.toast(m), resume: () => player.setTouchEngaged(true), canResume: () => !!session && !session.walkingOn && !!overlay.querySelector('#btn-resume') })).catch((err) => note('coop', err));
   // ?tv=1 / ?tv=0 force it for this page load only, never saved (like ?perf).
   tvLoader.apply(tvWanted(location.search, settings.get('tvMode')), /[?&]tv=[01]\b/.test(location.search));
   // The pause card's Sound and Music switches (walk.js pauseCardFor) change
@@ -1269,8 +1269,8 @@ function init() {
     perfHud.frameStart(performance.now(), session);
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
-    gamepad.poll(dt);
     coop.poll?.(dt);
+    gamepad.poll(dt, coop.pad);
     if (!session) { perfHud.frameEnd(null, performance.now()); return; }
     // The corner map shows only while the walk is being played: not behind
     // the Ready? and pause cards, which are exactly the times the player is
@@ -1294,6 +1294,7 @@ function init() {
       // the people's soft bumps: the Fairground show's visitors there, else
       // the villagers'.
       player.update(dt, session.areaData.colliders, session.areaData.bounds, session.areaData.waters, session.fair?.show?.bumps ?? session.critters?.bumps);
+      coop.frame?.(dt);
 
       // Zoomies FOV kick: ease toward a wider field of view while sprinting,
       // back to normal otherwise. updateProjectionMatrix is comparatively

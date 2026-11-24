@@ -277,7 +277,7 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
         continue;
       }
 
-      const frac = THREE.MathUtils.clamp((now - entry.stateAt) / INTERP_WINDOW, 0, 1);
+      const frac = entry.local ? 1 : THREE.MathUtils.clamp((now - entry.stateAt) / INTERP_WINDOW, 0, 1); // a local cat (couch play) is drawn where it is
       // On a ride's seat: eased onto the seat where this device's ride has it
       // now, and from then on carried with it every frame.
       const seat = entry.seatId && rides?.seatById ? rides.seatById(entry.seatId) : null;
