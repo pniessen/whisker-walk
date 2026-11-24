@@ -7,14 +7,18 @@
 //     the drawn height, as the Market's shoo hop does), none in reduced motion;
 //   * the LANDING DUST: ten slow puffs that hang about 1.2 s, on the very frame the pounce window ends (the frame
 //     game/avatar.js plays the thump on), five on the lite rung, none in reduced motion (fx.burst's own rule).
-// Nothing here is saved, sent or drawn from a random number or a clock of its own. The numbers below are the
-// spec's section 5.2.
+//   * (milestone 2) the BASE: Pip, the two power cells, the Core, the dome, the door, the board, the finds, the gold ring and the
+//     switching-off of the daily goals and the air's sounds (world/moonbaselive.js); this life hands the walk its promptAt, interact
+//     and credit.
+// The base's own saves go through its life (state.moon); nothing else here is saved, sent or drawn from a random number or a clock of
+// its own. The numbers below are the spec's section 5.2.
 // =============================================================================
 
 import * as THREE from 'three';
 import { pounceArc, hopOffset } from '../player.js';
 import { placeArc } from '../placephysics.js';
 import { createMoonSky } from './moonsky.js';
+import { createBaseLife } from './moonbaselive.js';
 import { MOON_SPAWN } from './moonplan.js';
 
 export const CAMERA_FOLLOW = 0.6; // the camera rises this much of a hop's height
@@ -31,9 +35,10 @@ export function hopNow(arc, pounceTime) {
 }
 
 // createMoonLife(ctx) -> { update(dt, t, catPos, camera, session), dispose() }; ctx is walk.js's life context.
-export function createMoonLife({ scene, reducedMotion = false, tier, progression }) {
+export function createMoonLife({ scene, reducedMotion = false, tier, progression, ground, colliders, log, audio }) {
   scene.background = new THREE.Color(SKY_BLACK); // no horizon haze under the stars: the Moon has no air
   const sky = createMoonSky({ scene, tier, reducedMotion });
+  const base = createBaseLife({ scene, reducedMotion, ground, colliders, progression, log, audio });
   // placed for the Ready card, before the first frame of the walk moves the camera (it looks north from behind the spawn)
   const first = new THREE.PerspectiveCamera();
   first.position.set(MOON_SPAWN.x, 2.9, MOON_SPAWN.z + 4.4);
@@ -47,6 +52,10 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
 
   return {
     sky,
+    base,
+    promptAt: (catPos) => base.promptAt(catPos),
+    interact: () => base.interact(),
+    credit: (ev) => base.credit(ev),
     update(dt, t, catPos, camera, session) {
       held = session;
       sky.update(camera, t);
@@ -74,8 +83,10 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       lastX = catPos.x;
       lastZ = catPos.z;
       session.hopLift = skip;
+      base.update(dt, t, catPos, camera, session);
     },
     dispose() {
+      base.dispose();
       sky.dispose();
       if (held) held.hopLift = 0;
     },

@@ -268,7 +268,7 @@ describe('the pack', () => {
 describe('the words', () => {
   const IDS = Object.keys(LINES);
   it('every lazy line is in the table once the file is loaded, none is in the start-up tables, and none is empty', () => {
-    expect(IDS.length).toBe(15);
+    expect(IDS.length).toBe(32); // the spec's 15 samples and milestone 2's 17 (Pip, the cells, the Core, the board, the first three finds)
     for (const id of IDS) {
       expect(hasPhrase(id), id).toBe(true);
       expect(PHRASE_IDS.includes(id) || LATER_PHRASE_IDS.includes(id), `${id} is in the start-up download`).toBe(false);
@@ -283,12 +283,16 @@ describe('the words', () => {
     expect(Object.keys(HINTS)).toEqual(MOON_JOURNAL_TYPES);
     expect(MOON_PAGES).toHaveLength(12);
   });
-  it('the spec\'s sample ids are all here, and read the same in both sets', () => {
+  it('the spec\'s sample ids are all here, and read the same in both sets but the two lines the Clan set flavours (milestone 2)', () => {
     const spec = ['moon.arrive', 'moon.pip.wake', 'moon.pip.goal', 'moon.core.on', 'moon.earth', 'moon.scope.milky', 'moon.scope.hmm', 'moon.stamp.ask', 'moon.count.go', 'moon.reply', 'moon.badge', 'moon.cape', 'moon.job.glove', 'moon.rover.in', 'moon.home'];
     for (const id of spec) expect(Object.hasOwn(LINES, id), id).toBe(true);
     const clan = Object.fromEntries(IDS.map((id) => [id, phrase(id)]));
     let everyday;
     withOffWords(() => { everyday = Object.fromEntries(IDS.map((id) => [id, phrase(id)])); });
+    const flavoured = ['moon.arrive', 'moon.earth']; // Silverpelt: the Clan set only
+    expect(clan['moon.earth']).toMatch(/Silverpelt/);
+    expect(everyday['moon.earth']).not.toMatch(/Silverpelt/);
+    for (const id of flavoured) delete clan[id], delete everyday[id];
     expect(everyday).toEqual(clan);
   });
   it('the everyday set never shows a series word, and no line scolds or scares; every line is short', () => {

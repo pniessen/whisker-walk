@@ -43,9 +43,65 @@ export const STEP_B = Object.freeze({ x: -2.3, z: 41.4, w: 1.5, d: 1.1, y: 2.1 }
 const c = (x, z, r) => Object.freeze({ x, z, r });
 // Boulders over a metre across: ten, each a collider (the drawn boulder is a bit smaller than its circle).
 export const BOULDERS = Object.freeze([
-  c(-26, 30, 1.3), c(18, 28, 1.2), c(38, 12, 1.4), c(-44, -12, 1.5), c(10, -16, 1.2),
+  c(-21, 38, 1.3), c(18, 28, 1.2), c(38, 12, 1.4), c(-44, -12, 1.5), c(10, -16, 1.2),
   c(-6, -12, 1.3), c(51, -14, 1.1), c(-30, 8, 1.2), c(26, -2, 1.1), c(-16, -42, 1.4),
 ]);
+
+// ---- milestone 2: the base, the Old Dish, Skip Ridge, the two power cells, Pip -------------------------------------
+
+// The Moonbase Dome: a glass dome on a white ring (radius 9, the wall's pillars on 8.7), the Core in the middle with two
+// sockets, the Mission Board on the west wall, six glowing planters, and an airlock tunnel east (the way in, always open: its
+// door only slides apart for show). Pure data; moonbase.js draws it.
+export const DOME = Object.freeze({ x: -34, z: 26, r: 9, wall: 8.7, floor: 8.4, glass: 5.6 });
+export const AIRLOCK = Object.freeze({ x0: -25.4, x1: -21.4, z: DOME.z, half: 1.45, front: Object.freeze({ x: -19.6, z: DOME.z }) });
+export const CORE = Object.freeze({ x: DOME.x, z: DOME.z, r: 1.05, top: 1.1 });
+// Socket 0 takes the Ridge cell (teal), socket 1 the Rover cell (amber); each sits on the pedestal's top, either side of the column.
+export const SOCKETS = Object.freeze([
+  Object.freeze({ x: CORE.x, z: CORE.z - 0.58, y: CORE.top }),
+  Object.freeze({ x: CORE.x, z: CORE.z + 0.58, y: CORE.top }),
+]);
+export const BOARD = Object.freeze({ x: DOME.x - 7.4, z: DOME.z, w: 3.2, h: 1.7, y: 2.1 });
+export const PLANTERS = Object.freeze(Array.from({ length: 6 }, (_, i) => {
+  const a = ((30 + i * 60) / 180) * Math.PI;
+  return Object.freeze({ x: DOME.x + Math.cos(a) * 5.6, z: DOME.z + Math.sin(a) * 5.6 });
+}));
+export const OLD_DISH = Object.freeze({ x: -44, z: 14, post: 4.8, bowl: 3.3 });
+
+// Skip Ridge's chain: two rock pillars (2.6 m and 5.0 m, each step more than Earth's best climb of 2.2 and less than the Moon's
+// 3.2) and the Ridge cell on the top. Only the Moon's doubled climb takes it (test/moonbase.test.js runs the real rules).
+export const SKIP = Object.freeze([
+  Object.freeze({ x: 7.5, z: -34.5, y: 2.6, r: 1.6 }),
+  Object.freeze({ x: 9.8, z: -37.0, y: 5.0, r: 1.6 }),
+]);
+// (the cell lies a step to the east of the pillar's middle, where she lands, so she is not standing inside it; the perch pick-up window is 1.0 m)
+export const RIDGE_CELL = Object.freeze({ x: SKIP[1].x + 0.85, z: SKIP[1].z, y: SKIP[1].y });
+// PLACEHOLDER (milestone 3 replaces it): the Rover cell lies at the Far Beacon, 70 m from the landing on the east end of the track.
+// Until Dot is built she walks there (about 20 s) and picks it up like the Ridge cell. The post and plinth drawn here are stand-ins.
+export const ROVER_CELL = Object.freeze({ x: 46, z: 0, y: 0.6, placeholder: true });
+// Pip: asleep beside the lander; when woken he rolls ahead along these waypoints to the airlock's front and then follows her.
+export const PIP_SLEEP = Object.freeze({ x: 3, z: 43 });
+export const PIP_LEAD = Object.freeze([[2.5, 36.5], [-4, 34], [-17, 31], [AIRLOCK.front.x, AIRLOCK.front.z]].map(([x, z]) => Object.freeze({ x, z })));
+
+const ring = [];
+for (let i = 0; i < 40; i++) {
+  const a = (i / 40) * Math.PI * 2;
+  const x = DOME.x + Math.cos(a) * DOME.wall;
+  const z = DOME.z + Math.sin(a) * DOME.wall;
+  if (Math.cos(a) > 0 && Math.abs(z - DOME.z) < 2.0) continue; // the airlock's mouth
+  ring.push(c(x, z, 0.7));
+}
+export const DOME_RING = Object.freeze(ring.slice());
+const tunnel = [];
+for (let i = 0; i < 5; i++) for (const s of [-1, 1]) tunnel.push(c(AIRLOCK.x0 + 0.4 + i * 0.8, AIRLOCK.z + s * AIRLOCK.half, 0.45));
+export const BASE_COLLIDERS = Object.freeze([
+  ...ring, ...tunnel, c(CORE.x, CORE.z, CORE.r),
+  ...[-1.1, 0, 1.1].map((dz) => c(BOARD.x + 0.1, BOARD.z + dz, 0.6)),
+  ...PLANTERS.map((p) => c(p.x, p.z, 0.55)),
+  c(OLD_DISH.x, OLD_DISH.z, 0.8),
+  ...SKIP.map((p) => c(p.x, p.z, p.r + 0.05)),
+  c(ROVER_CELL.x, ROVER_CELL.z, 0.5),
+]);
+
 export const MOON_COLLIDERS = Object.freeze([
   c(LANDER.x, LANDER.z, LANDER.r + 0.2),
   c(STEP_A.x, STEP_A.z, 0.95),
@@ -53,6 +109,7 @@ export const MOON_COLLIDERS = Object.freeze([
   c(FLAG.x, FLAG.z, 0.2),
   ...POLES.map((p) => c(p.x, p.z, 0.25)),
   ...BOULDERS,
+  ...BASE_COLLIDERS,
 ]);
 
 // Perches (heights over the ground under each). No labels: nothing here is a discovery yet.
@@ -61,6 +118,7 @@ export const MOON_PERCHES = Object.freeze([
   P(STEP_A.x, STEP_A.z, STEP_A.y, 'crate'),
   P(STEP_B.x, STEP_B.z, STEP_B.y, 'crate'),
   P(LANDER.x, LANDER.z, LANDER.deck, 'roof'),
+  ...SKIP.map((p) => P(p.x, p.z, p.y, 'stone')),
 ]);
 
 // Interesting spots a wanderer may head for: open dust, all reachable from the spawn on foot (the walk clears them of colliders).
@@ -71,7 +129,7 @@ export const MOON_POIS = Object.freeze([
 // Where the rocks may not stand: the landing site, the ring, the spawn's plain, and the places the later milestones build
 // (centre x, z, radius). The scatter keeps this clear, so a later milestone never has to move a rock.
 export const ROCK_KEEP_OUT = Object.freeze([
-  [0, 42, 10], [-10, 41, 5.5], [-20, 46.5, 12], [0, 46, 7],
+  [0, 42, 10], [-10, 41, 5.5], [-20, 46.5, 12], [0, 46, 7], [46, 0, 4],
   [-34, 26, 13], [-44, 14, 7], [30, 34, 11], [42, -34, 12], [30, -28, 6], [24, -20, 6], [-38, -32, 10], [-47, 0, 8], [8, -40, 8],
 ]);
 

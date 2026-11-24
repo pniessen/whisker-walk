@@ -191,6 +191,7 @@ export function createKit(prefix) {
         m.castShadow = !b.noCast;
         m.receiveShadow = true;
         m.userData.noContactShadow = true;
+        m.userData.noMerge = true; // one mesh per material already; the base's animated ones are found by name
         if (b.noCast) m.userData.noCast = true;
         return m;
       });
@@ -209,7 +210,7 @@ export function moonMaterials() {
 }
 
 // Paint a geometry one colour (non-indexed, with position, normal, uv and colour so any two merge).
-function paint(geo, hex) {
+export function paint(geo, hex) {
   const g = geo.index ? geo.toNonIndexed() : geo;
   if (g !== geo) geo.dispose();
   if (!g.attributes.normal) g.computeVertexNormals();
@@ -223,14 +224,14 @@ function paint(geo, hex) {
 }
 
 // place(geo, x, z, dy, ry): sit a geometry on the ground at (x, z), dy over it, turned ry about the vertical.
-const at = (geo, x, z, dy = 0, ry = 0, rz = 0) => {
+export const at = (geo, x, z, dy = 0, ry = 0, rz = 0) => {
   if (rz) geo.rotateZ(rz);
   if (ry) geo.rotateY(ry);
   geo.translate(x, P.moonY(x, z) + dy, z);
   return geo;
 };
-const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-const cyl = (rt, rb, h, seg = 8, open = false) => new THREE.CylinderGeometry(rt, rb, h, seg, 1, open);
+export const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+export const cyl = (rt, rb, h, seg = 8, open = false) => new THREE.CylinderGeometry(rt, rb, h, seg, 1, open);
 
 export function drawLander(kit, M) {
   const { x, z, r, deck } = P.LANDER;

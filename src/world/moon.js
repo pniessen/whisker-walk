@@ -3,7 +3,7 @@
 // game's own gravel tile: six craters, the Earthrise Ridge along the north edge, low hills round the far edge so the
 // plain never ends in a wall; a black star sky with a big Earth over the ridge (world/moonsky.js); the landing site (the
 // lander with its two steps and a 3.0 m deck, the flag, four landing lights, the return gate ring as a placeholder that
-// does nothing yet). Her cat wears the space suit here (src/suithook.js: LOOK_OF_PLACE.moon); the hop, the climb and the
+// does nothing yet) and, from milestone 2, the Moonbase Dome (world/moonbase.js), the Old Dish and Skip Ridge. Her cat wears the space suit here (src/suithook.js: LOOK_OF_PLACE.moon); the hop, the climb and the
 // pace are the Moon's (src/placephysics.js); the camera's ease, the skip and the landing dust are world/moonlife.js.
 //
 // Behind ?moon=1 only: no catalog row, no map place, no gate. Draws no random number and reads no clock; builds in
@@ -16,6 +16,7 @@ import { withLocalUuids } from './localuuids.js';
 import { installSuitKit } from '../cat/suitkit.js';
 import * as P from './moonplan.js';
 import * as K from './moonparts.js';
+import { drawBase } from './moonbase.js';
 import { createMoonLife } from './moonlife.js';
 import './moonwords.js';
 
@@ -43,13 +44,14 @@ export function build(scene, { water = {} } = {}) {
     K.drawFlag(kit, M);
     K.drawLights(kit, M);
     K.drawGateRing(kit, M);
+    drawBase(kit, M);
     const place = new THREE.Group();
     place.name = 'moonPlace';
     for (const m of kit.meshes()) place.add(m);
     scene.add(place);
     for (const rocks of K.drawRocks(lowTier)) scene.add(rocks);
 
-    return {
+    const area = {
       name: P.MOON_NAME,
       bounds: P.MOON_BOUNDS,
       spawn: P.MOON_SPAWN,
@@ -70,9 +72,12 @@ export function build(scene, { water = {} } = {}) {
       skySunset: { ...SKY },
       duskLight: { ...DUSK_LIGHT },
       evening: true,
+      // spec 5.3: no strays, no clan cats, no wanderer, no rival (walk.js's one switch for "no cats at all", the Rooftops' way)
+      strays: false,
       ground: P.createMoonGround(),
       // the stars, Earth, the camera's ease, the skip and the landing dust (world/moonlife.js)
-      life: (ctx) => createMoonLife(ctx),
+      life: (ctx) => createMoonLife({ ...ctx, colliders: area.colliders, perches: area.perches }),
     };
+    return area;
   });
 }

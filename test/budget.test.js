@@ -489,7 +489,10 @@ const AREAS = [
   // on every count. The sky (700 stars, Earth, a cloud disc) is the walk's life, built after the sweeps, and not in this count. The spec's
   // final ceilings (240 / 150 / 56,000, chunk 94 kB) are set as its stages measure (milestones 2 to 8), never above them. Not in the
   // merged table below: nothing here merges (the kit is already one mesh per material, and a top-level mesh is left alone).
-  ['moon', buildMoon, 12, 6, 8800],
+  // Milestone 2 (the base: the dome, the airlock and its two door leaves, the Core, the Mission Board, the six planters, the Old Dish, Skip Ridge's
+  // two pillars, the Far Beacon's stand-in; Pip, the cells and the ring are the walk's own, built after this count) measured 20 / 8 / 11,986 built
+  // (18,726 counting every rock instance, test/moonplace.test.js), +12%: 23 / 9 / 13,500. The plan's row A (end of milestone 4) is 100 / 56 / 27,500.
+  ['moon', buildMoon, 23, 9, 13500],
 ];
 
 // ---------------------------------------------------------------------------
