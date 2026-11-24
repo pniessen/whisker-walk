@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { litMaterial } from '../render/materials.js';
+import { litMaterial, tileMetres } from '../render/materials.js';
 import { hash01 } from './builder.js';
 import * as P from './lighthouseplan.js';
 
@@ -137,6 +137,9 @@ export function createKit(prefix) {
 export function lighthouseMaterials() {
   return {
     stone: litMaterial(0xffffff, { vertexColors: true, roughness: 0.95 }),
+    // the cliff faces and the lawn carry the game's own gravel and grass textures under their vertex colours (their uvs are metres / the tile)
+    rock: litMaterial(0xffffff, { vertexColors: true, surface: 'gravel', repeat: [1, 1] }),
+    lawn: litMaterial(0xffffff, { vertexColors: true, surface: 'grass', repeat: [1, 1] }),
     paint: litMaterial(0xffffff, { vertexColors: true, roughness: 0.62 }),
     wood: litMaterial(0xffffff, { vertexColors: true, roughness: 0.85 }),
     // lit from inside (no real lights): the cottage window, the cave's lantern, the tower's slits
@@ -167,18 +170,28 @@ const gully = (u, salt) => {
 // A rock face from (ax, az) to (bx, bz), y0..y1, looking toward (nx, nz). `cols` and `rows` are metres
 // per cell. `tone` picks the strata palette. The ends and the foot and the lip do not move, so
 // neighbouring faces meet without a seam.
-export function cliffWall({ ax, az, bx: bx2, bz, y0, y1, nx, nz, salt = 1, cell = 1.5, rowH = 0.75, tones = COL.rock, lip = true, push = 0.8, dark = 1 }) {
+export function cliffWall({ ax, az, bx: bx2, bz, y0, y1, nx, nz, salt = 1, cell = 1.5, rowH = 0.75, tones = COL.rock, lip = true, push = 0.8, dark = 1, tide = 0 }) {
   const len = Math.hypot(bx2 - ax, bz - az);
   const cols = Math.max(1, Math.round(len / cell));
   const rows = Math.max(1, Math.round((y1 - y0) / rowH));
   const pos = [];
   const col = [];
-  const vcol = (u, v, p) => {
+  const uvs = [];
+  const T = tileMetres('gravel') ?? 1.4;
+  const ux = (bx2 - ax) / len; const uz = (bz - az) / len;
+  const vcol = (u, v, p, j) => {
     const band = Math.floor(v * rows + (hash01(salt, Math.round(u * 5), 3) - 0.5) * 0.9);
     const t = tones[(((Math.floor(hash01(band, salt, 5) * 97)) % tones.length) + tones.length) % tones.length];
     let hex = t;
     if (lip && v > 1 - 1.25 / rows) hex = mix(t, COL.grass[Math.floor(hash01(Math.round(u * 6), salt, 7) * 4) % 4], smooth(1 - 1.25 / rows, 1, v));
-    return shade(hex, dark * (1 - 0.45 * (p / 0.9)));
+    // a crack or ledge every few rows (a darker seam), lichen and gull streaks in patches, the tide's stain at the foot
+    const seam = hash01(j, salt, 11) < 0.4 ? 0.82 : 1;
+    const patch = hash01(Math.round(u * len / 2.2), band, salt + 17);
+    if (patch > 0.9) hex = mix(hex, 0xc79a52, 0.45); // lichen
+    else if (patch < 0.07) hex = mix(hex, 0xe9e4d6, 0.5); // gull streaks
+    const y = y0 + (y1 - y0) * v;
+    if (tide && y < y0 + tide) hex = mix(hex, 0x4f5a4a, 0.55 * (1 - (y - y0) / tide)); // wet weed and barnacle band
+    return shade(hex, dark * seam * (1 - 0.45 * (p / 0.9)));
   };
   const grid = [];
   for (let j = 0; j <= rows; j++) {
@@ -187,12 +200,20 @@ export function cliffWall({ ax, az, bx: bx2, bz, y0, y1, nx, nz, salt = 1, cell 
       const v = j / rows;
       const edge = smooth(0, 0.08, Math.min(u, 1 - u) * (len / cell) / 6 + 0.001) * smooth(0, 0.18, v) * smooth(0, 0.12, 1 - v);
       const p = gully(u * len, salt) * push * edge;
-      const jag = (hash01(i, j, salt) - 0.5) * 0.18 * edge;
-      grid.push({ x: ax + (bx2 - ax) * u - nx * (p + Math.abs(jag)), y: y0 + (y1 - y0) * v, z: az + (bz - az) * u - nz * (p + Math.abs(jag)), c: vcol(u, v, p) });
+      const jag = (hash01(i, j, salt) - 0.5) * 0.3 * edge;
+      grid.push({ x: ax + (bx2 - ax) * u - nx * (p + Math.abs(jag)), y: y0 + (y1 - y0) * v, z: az + (bz - az) * u - nz * (p + Math.abs(jag)), c: vcol(u, v, p, j), s: u * len });
     }
   }
   const at = (i, j) => grid[j * (cols + 1) + i];
-  const tri = (a, b, c2) => { for (const q of [a, b, c2]) { pos.push(q.x, q.y, q.z); _c.setHex(q.c); col.push(_c.r, _c.g, _c.b); } };
+  // each flat face is a touch lighter or darker than its neighbours (a faceted rock, not a smooth cake)
+  const tri = (a, b, c2, k) => {
+    for (const q of [a, b, c2]) {
+      pos.push(q.x, q.y, q.z);
+      _c.setHex(q.c);
+      col.push(_c.r * k, _c.g * k, _c.b * k);
+      uvs.push((q.x - ax) * ux / T + (q.z - az) * uz / T, q.y / T);
+    }
+  };
   // a quad's winding is set once, from its first cell, so the whole face agrees with (nx, nz)
   const a0 = at(0, 0); const b0 = at(1, 0); const c0 = at(0, 1);
   const e1 = [b0.x - a0.x, b0.y - a0.y, b0.z - a0.z]; const e2 = [c0.x - a0.x, c0.y - a0.y, c0.z - a0.z];
@@ -201,29 +222,45 @@ export function cliffWall({ ax, az, bx: bx2, bz, y0, y1, nx, nz, salt = 1, cell 
   for (let j = 0; j < rows; j++) {
     for (let i = 0; i < cols; i++) {
       const a = at(i, j); const b = at(i + 1, j); const c3 = at(i, j + 1); const d = at(i + 1, j + 1);
-      if (!flip) { tri(a, b, c3); tri(b, d, c3); } else { tri(a, c3, b); tri(b, c3, d); }
+      const k1 = 0.88 + 0.24 * hash01(i, j, salt + 31); const k2 = 0.88 + 0.24 * hash01(i, j, salt + 37);
+      if (!flip) { tri(a, b, c3, k1); tri(b, d, c3, k2); } else { tri(a, c3, b, k1); tri(b, c3, d, k2); }
     }
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   g.computeVertexNormals();
   return g;
 }
 
-// A top of grass: a grid of cells, each a patch of one of four greens, with a darker edge.
-export function grassCap(x0, x1, z0, z1, y, { cell = 2, salt = 1, shade: k = 1 } = {}) {
+// Smooth value noise on a lattice `size` metres across (0..1), for the lawn's long swells of lush and dry.
+export const vnoise = (x, z, size, salt) => {
+  const fx = x / size; const fz = z / size;
+  const ix = Math.floor(fx); const iz = Math.floor(fz);
+  const tx = smooth(0, 1, fx - ix); const tz = smooth(0, 1, fz - iz);
+  const h = (i, j) => hash01(ix + i, iz + j, salt);
+  return (h(0, 0) * (1 - tx) + h(1, 0) * tx) * (1 - tz) + (h(0, 1) * (1 - tx) + h(1, 1) * tx) * tz;
+};
+
+// A top of grass: a grid of cells whose colours swell from lush to sun-dry over metres, with a fine mottle on top.
+// The uvs are metres over the grass tile, so the game's own lawn texture lies under the vertex colours.
+export function grassCap(x0, x1, z0, z1, y, { cell = 1.6, salt = 1, shade: k = 1 } = {}) {
   const nx = Math.max(1, Math.round((x1 - x0) / cell));
   const nz = Math.max(1, Math.round((z1 - z0) / cell));
   const pos = [];
   const col = [];
+  const uvs = [];
+  const T = tileMetres('grass') ?? 3;
   const patch = (x, z) => {
-    const a = hash01(Math.floor(x / 5), Math.floor(z / 5), salt);
-    const b = hash01(Math.round(x), Math.round(z), salt + 1);
-    return shade(COL.grass[Math.floor(a * 4) % 4], k * (0.92 + 0.16 * b));
+    const swell = vnoise(x, z, 7, salt) * 0.7 + vnoise(x, z, 2.6, salt + 4) * 0.3;
+    const lush = COL.grass[Math.floor(hash01(Math.round(x * 0.5), Math.round(z * 0.5), salt + 2) * 3) % 3];
+    let hex = mix(mix(COL.grass[2], lush, 0.6), 0xa6ad60, smooth(0.45, 0.85, swell)); // sun-dry where the swell is high
+    hex = mix(hex, 0x5e8244, 0.5 * smooth(0.55, 0.15, swell)); // deep green in the hollows
+    const b = hash01(Math.round(x * 2), Math.round(z * 2), salt + 1);
+    return shade(hex, k * (0.94 + 0.12 * b));
   };
-  const vert = (x, z) => { pos.push(x, y, z); _c.setHex(patch(x, z)); col.push(_c.r, _c.g, _c.b); };
+  const vert = (x, z) => { pos.push(x, y, z); _c.setHex(patch(x, z)); col.push(_c.r, _c.g, _c.b); uvs.push(x / T, z / T); };
   for (let i = 0; i < nx; i++) {
     for (let j = 0; j < nz; j++) {
       const xa = x0 + ((x1 - x0) * i) / nx; const xb = x0 + ((x1 - x0) * (i + 1)) / nx;
@@ -235,14 +272,14 @@ export function grassCap(x0, x1, z0, z1, y, { cell = 2, salt = 1, shade: k = 1 }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   g.computeVertexNormals();
   return g;
 }
 
 // A boulder: an icosahedron whose points are pulled in and out by hash01, squashed to `h` high.
-export function boulder(x, y, z, r, h, salt, tones = COL.rock) {
-  const g = new THREE.IcosahedronGeometry(r, 1);
+export function boulder(x, y, z, r, h, salt, tones = COL.rock, detail = 1) {
+  const g = new THREE.IcosahedronGeometry(r, detail);
   const pos = g.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const k = 0.78 + 0.44 * hash01(Math.round(pos.getX(i) * 40) + salt, Math.round(pos.getZ(i) * 40), salt + 3);
@@ -315,16 +352,16 @@ export function gable(x0, x1, z0, z1, y0, y1, o, hex) {
 export function drawHeadland(kit, M) {
   const { PLATEAU, CAVE, PLATEAU_Y } = P;
   const NORTH_FAR = -68;
-  const put = (g, noCast = false) => kit.put('cliff', M.stone, g, { noCast });
+  const put = (g, noCast = false) => kit.put('face', M.rock, g, { noCast });
   // the east face (the cove's side): the north run, the cave's lintel, the south run
-  put(cliffWall({ ax: PLATEAU.maxX, az: NORTH_FAR, bx: PLATEAU.maxX, bz: CAVE.minZ, y0: 0, y1: PLATEAU_Y, nx: 1, nz: 0, salt: 3 }));
+  put(cliffWall({ ax: PLATEAU.maxX, az: NORTH_FAR, bx: PLATEAU.maxX, bz: CAVE.minZ, y0: 0, y1: PLATEAU_Y, nx: 1, nz: 0, salt: 3, tide: 0.9 }));
   put(cliffWall({ ax: PLATEAU.maxX, az: CAVE.minZ, bx: PLATEAU.maxX, bz: CAVE.maxZ, y0: CAVE.roof, y1: PLATEAU_Y, nx: 1, nz: 0, salt: 5, push: 0.15 }));
-  put(cliffWall({ ax: PLATEAU.maxX, az: CAVE.maxZ, bx: PLATEAU.maxX, bz: PLATEAU.maxZ, y0: 0, y1: PLATEAU_Y, nx: 1, nz: 0, salt: 7 }));
+  put(cliffWall({ ax: PLATEAU.maxX, az: CAVE.maxZ, bx: PLATEAU.maxX, bz: PLATEAU.maxZ, y0: 0, y1: PLATEAU_Y, nx: 1, nz: 0, salt: 7, tide: 0.9 }));
   // the south face (the lower shore's side), the west face (the sea's side)
-  put(cliffWall({ ax: PLATEAU.minX, az: PLATEAU.maxZ, bx: PLATEAU.maxX, bz: PLATEAU.maxZ, y0: 0, y1: PLATEAU_Y, nx: 0, nz: 1, salt: 11 }));
-  put(cliffWall({ ax: PLATEAU.minX, az: NORTH_FAR, bx: PLATEAU.minX, bz: PLATEAU.maxZ, y0: 0, y1: PLATEAU_Y, nx: -1, nz: 0, salt: 13, cell: 2.4 }));
+  put(cliffWall({ ax: PLATEAU.minX, az: PLATEAU.maxZ, bx: PLATEAU.maxX, bz: PLATEAU.maxZ, y0: 0, y1: PLATEAU_Y, nx: 0, nz: 1, salt: 11, tide: 0.6 }));
+  put(cliffWall({ ax: PLATEAU.minX, az: NORTH_FAR, bx: PLATEAU.minX, bz: PLATEAU.maxZ, y0: 0, y1: PLATEAU_Y, nx: -1, nz: 0, salt: 13, cell: 2.4, tide: 1.3 }));
   // the cave's inside: darker and warmer, no grass lip, little relief
-  const inside = { y0: 0, y1: CAVE.roof, lip: false, push: 0.35, tones: [0xb39c7c, 0xa28d70, 0xbea887], cell: 1.2, rowH: 0.65 };
+  const inside = { y0: 0, y1: CAVE.roof, lip: false, push: 0.35, tones: [0xb39c7c, 0xa28d70, 0xbea887], cell: 1.2, rowH: 0.65, tide: 0.8 };
   put(cliffWall({ ...inside, ax: CAVE.minX, az: CAVE.minZ, bx: CAVE.maxX, bz: CAVE.minZ, nx: 0, nz: 1, salt: 17 }));
   put(cliffWall({ ...inside, ax: CAVE.minX, az: CAVE.maxZ, bx: CAVE.maxX, bz: CAVE.maxZ, nx: 0, nz: -1, salt: 19 }));
   put(cliffWall({ ...inside, ax: CAVE.minX, az: CAVE.minZ, bx: CAVE.minX, bz: CAVE.maxZ, nx: 1, nz: 0, salt: 23 }));
@@ -332,7 +369,7 @@ export function drawHeadland(kit, M) {
   put(flipWinding(flat(CAVE.minX, CAVE.maxX, CAVE.minZ, CAVE.maxZ, CAVE.roof, 0x94826a)));
   kit.put('floor', M.stone, flat(CAVE.minX, CAVE.maxX, CAVE.minZ, CAVE.maxZ, 0.012, COL.wet), { noCast: true });
   // the grass on top of the plateau (the cave's roof is under it)
-  kit.put('top', M.stone, grassCap(PLATEAU.minX, PLATEAU.maxX, NORTH_FAR, PLATEAU.maxZ, PLATEAU_Y, { salt: 21 }), { noCast: true });
+  kit.put('top', M.lawn, grassCap(PLATEAU.minX, PLATEAU.maxX, NORTH_FAR, PLATEAU.maxZ, PLATEAU_Y, { salt: 21 }), { noCast: true });
 }
 
 // Turn a geometry's faces over (its normals recomputed).
@@ -541,6 +578,12 @@ export function drawFlagpole(kit, M) {
   kit.put('paint', M.paint, bx(F.x - 1.5, F.x - 0.1, Y0 + 6.05, Y0 + 6.35, F.z - 0.02, F.z + 0.02, COL.white), { noCast: true });
 }
 
+export const PLATEAU_PATH_LINES = Object.freeze([
+  [[[-24.4, 3.6], [-24.4, -2], [-22, -10], [-18.9, -15.7]], 1.5],
+  [[[-24.4, -2], [-28.5, -7]], 1.1],
+  [[[-18.9, -15.7], [-14, -6], [-12.4, -1]], 1.1],
+]);
+
 // Flagstone paths on top of the plateau: the cliff path's top to the stair's foot and the cottage's door.
 export function drawPlateauPaths(kit, M) {
   const Y0 = P.PLATEAU_Y + 0.02;
@@ -550,9 +593,7 @@ export function drawPlateauPaths(kit, M) {
       kit.put('path', M.stone, bm(a[0], Y0, a[1], b[0], Y0, b[1], w, 0.03, COL.earth), { noCast: true });
     }
   };
-  polyline([[-24.4, 3.6], [-24.4, -2], [-22, -10], [-18.9, -15.7]], 1.5);
-  polyline([[-24.4, -2], [-28.5, -7]], 1.1);
-  polyline([[-18.9, -15.7], [-14, -6], [-12.4, -1]], 1.1);
+  for (const [pts, w] of PLATEAU_PATH_LINES) polyline(pts, w);
 }
 
 // -----------------------------------------------------------------------------
