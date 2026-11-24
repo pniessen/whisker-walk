@@ -116,3 +116,55 @@ describe('the stub passes the placing state on (M2)', () => {
     expect(stop).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('the home screen and the pad through the stub (den shop UX M4)', () => {
+  it('openHome loads the chunk on the first tap, then opens the sheet; padButton is ours only once loaded', async () => {
+    const view = { ...fakeView(), openHome: vi.fn(), padButton: vi.fn(() => true), isHome: false };
+    const load = vi.fn(async () => ({ createDenShopView: () => view }));
+    const shop = createLazyDenShop({}, load);
+    expect(shop.padButton(4)).toBe(false);
+    expect(shop.isHome).toBe(false);
+    shop.openHome({ onWalkIn: 1 });
+    await flush();
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(view.openHome).toHaveBeenCalledWith({ onWalkIn: 1 });
+    expect(shop.padButton(4)).toBe(true);
+  });
+  it('Y on the pause card of a den walk opens the panel (the card says so); never off a den walk', async () => {
+    const view = { ...fakeView(), padButton: vi.fn(() => false) };
+    const shop = createLazyDenShop({}, async () => ({ createDenShopView: () => view }));
+    shop.setActive(true);
+    await flush();
+    expect(shop.padButton(3)).toBe(true);
+    expect(view.open).toHaveBeenCalledTimes(1);
+    shop.setActive(false);
+    expect(shop.padButton(3)).toBe(false);
+    expect(view.open).toHaveBeenCalledTimes(1);
+  });
+  it('a chunk that will not load says so once and opens nothing; isActive follows the den walk', async () => {
+    const onUnavailable = vi.fn();
+    const shop = createLazyDenShop({ onUnavailable }, async () => { throw new Error('offline'); });
+    expect(shop.isActive).toBe(false);
+    shop.openHome();
+    await flush();
+    expect(onUnavailable).toHaveBeenCalledTimes(1);
+    shop.setActive(true);
+    expect(shop.isActive).toBe(true);
+    shop.setActive(false);
+    expect(shop.isActive).toBe(false);
+  });
+});
+
+describe('main.js wiring (den shop UX M4)', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  it('Y opens the panel through yOpensDen, the home button through openHome, and the pad menu asks the panel first', () => {
+    expect(main).toContain('yOpensDen(name, denShop.isActive, session?.cameraMode)');
+    expect(main).toContain('onOpenDen: (o) => denShop.openHome(o)');
+    expect(main).toContain('denShop.padButton(i) || (tvHooks.button?.(i) ?? false)');
+    expect(main).toContain('home: denShop.isHome');
+  });
+  it('Escape and the pad B close the home sheet before any sheet under it', () => {
+    expect(main).toContain('escape: () => (denShop.isHome ? homeDenBack() : homebase.back())');
+    expect(main).toContain('if (!denShop.isHome && homebase.back())');
+  });
+});

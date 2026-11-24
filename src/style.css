@@ -2341,6 +2341,17 @@ body.den-shop-open .chat-wheel { display: none !important; }
 .ds-buy:hover { background: #5a7eb5; }
 /* "Get it?" over the den shop (z 20), not under it */
 .confirm-overlay.ds-confirm { z-index: 21; }
+/* Den shop UX M4: "need N more" on a card she cannot afford yet, the pad's shortcut line, the
+   home screen's My den button (a pill with words, unlike the round Play together) and the sheet
+   when it opens from there (no room behind it, so it is a centred sheet, not the docked panel). */
+.ds-need { display: block; font-size: 0.8rem; color: #f2c14e; font-weight: 700; margin-top: 2px; }
+.ds-padkeys { margin: 0; font-size: 0.8rem; color: #c0ccdd; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.ds-foot { display: flex; justify-content: flex-end; }
+.ds-walkin { min-height: 44px; padding: 8px 18px; border-radius: 999px; border: 0; font: inherit; font-weight: 800; cursor: pointer; background: #f2c14e; color: #2a2008; }
+.den-shop.den-home { background: #1c2431; left: 50%; right: auto; top: auto; bottom: 0; width: min(100%, 640px); max-height: 88vh; max-height: 88dvh; transform: translateX(-50%); border-radius: 18px 18px 0 0; }
+.dr .dr-dock .dr-together.dr-den { flex: 0 0 auto; width: auto; padding: 0 14px; border-radius: 999px; font-size: 15px; }
+.dr .dr-dock .dr-together.dr-den .dr-together-words { display: inline; }
+
 
 /* Visit celebrations (src/ui/visitcelebration.js)
    A full card over a dimmer, B a small banner, C a speech bubble from the

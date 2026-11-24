@@ -121,6 +121,7 @@ export function createBackStack({ hist, depth, closeTop, later = () => null, can
 // What Back does during a walk (main.js carries it out). Pure.
 //   summary     the "Walk complete!" card is up (the walk is over)
 //   walking     a walk is on (session)
+//   home        the den sheet is open on the home screen (no walk)
 //   walkingOn   a walk-on is waiting for its place (the "Off to ..." moment)
 //   shopAsk     the den shop's "Get it?" card is up
 //   placing     a bought piece's "Place it now?" card, or a piece in hand
@@ -132,7 +133,9 @@ export function createBackStack({ hist, depth, closeTop, later = () => null, can
 //   photo       photo mode is on
 //   started     the walk has begun (the card behind it is "Paused", not "Ready?")
 //   touch       a touch walk (a paused one can walk on without a click)
-export function walkBackAction({ summary = false, walking = false, walkingOn = false, shopAsk = false, placing = false, shop = false, findCard = false, crossing = false, engaged = false, photo = false, started = false, touch = false } = {}) {
+export function walkBackAction({ summary = false, walking = false, home = false, walkingOn = false, shopAsk = false, placing = false, shop = false, findCard = false, crossing = false, engaged = false, photo = false, started = false, touch = false } = {}) {
+  // The den sheet opened from the home screen (no walk): the same ladder, then the sheet closes.
+  if (!walking && home) return shopAsk ? 'shop-not-now' : placing ? 'shop-later' : 'shop-done';
   if (!walking) return summary ? 'continue' : null;
   // A walk-on waiting for its place (walk.js session.walkingOn): the "Off to
   // ..." moment stays up and the walk stays paused until the place comes.

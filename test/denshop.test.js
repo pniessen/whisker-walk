@@ -211,3 +211,23 @@ describe('plan view in hand mode (den shop UX M3)', () => {
     expect(renderDenShopHtml(placedBed, DEN_ITEMS, DEN_SPOTS, { stage: { kind: 'hand', id: 'lamp' } })).toContain('dp-spot empty open');
   });
 });
+
+describe('need N more (den shop UX M4)', () => {
+  it('a card she cannot afford yet says how many more paws it needs, and never goes below 1', () => {
+    const cheap = Object.entries(DEN_ITEMS).sort((a, b) => a[1].price - b[1].price)[0];
+    const html = renderDenShopHtml(st({ points: 0 }), DEN_ITEMS, DEN_SPOTS, { tab: 'shop' });
+    expect(html).toContain(`Need ${cheap[1].price} more`);
+    const near = renderDenShopHtml(st({ points: cheap[1].price - 1 }), DEN_ITEMS, DEN_SPOTS, { tab: 'shop' });
+    expect(near).toContain('Need 1 more');
+    const rich = renderDenShopHtml(st({ points: 100000 }), DEN_ITEMS, DEN_SPOTS, { tab: 'shop' });
+    expect(rich).not.toContain('Need ');
+  });
+  it('junk points read as none, still showing the shop', () => {
+    const html = renderDenShopHtml(st({ points: 'lots' }), DEN_ITEMS, DEN_SPOTS, { tab: 'shop' });
+    expect(count(html, /class="ds-card locked"/g)).toBe(ITEM_IDS.length);
+  });
+  it('Walk in shows only on the home screen\'s sheet', () => {
+    expect(renderDenShopHtml(st(), DEN_ITEMS, DEN_SPOTS, { home: true })).toContain('data-den-walk-in');
+    expect(renderDenShopHtml(st(), DEN_ITEMS, DEN_SPOTS, {})).not.toContain('data-den-walk-in');
+  });
+});

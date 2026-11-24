@@ -20,6 +20,7 @@ import { renderDenShopHtml, changedSpots, SPOT_LABEL } from './denshop.js';
 import { createConfirmCard, spendAsk } from './confirmcard.js';
 import { tvState, padHtml, onTv } from '../tvseam.js';
 import { denWord } from './denwords.js';
+import { PAD_BUTTONS } from '../gamepadinput.js';
 
 /**
  * createDenShopView({ hud, progression, sync, player, getSession, pause, resume,
@@ -36,6 +37,7 @@ export function createDenShopView({
   canvas = document.getElementById('game'),
   bus = null,
   applyDenSpot = () => {},
+  onHomeClosed = () => {},
   doc = document,
 } = {}) {
   const button = doc.createElement('button');
@@ -69,6 +71,10 @@ export function createDenShopView({
 
   let active = false;
   let open = false;
+  // The sheet opened from the home screen (the My den button): no walk under it, so it never
+  // pauses or resumes anything, shows a "Walk in" button, and sits as a centred sheet.
+  let home = false;
+  let onWalkIn = null;
   let note = '';
   // After a buy: { kind: 'yours', id } (Place it now / Later). Place mode: { kind: 'hand', id }.
   // UI state only, never saved.
@@ -98,21 +104,28 @@ export function createDenShopView({
   const itemName = (id) => DEN_ITEMS[id]?.name ?? id;
   const q = (v) => String(v).replace(/["\\]/g, '');
 
+  const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // While the pad is the input the panel says what its buttons do: pictures when the glyph
+  // module is there, plain words otherwise. Nothing from the save goes in.
+  const padKeysHtml = () => (tvState.input === 'pad' ? (padHtml(denWord('padKeys')) ?? esc(denWord('padKeysPlain'))) : '');
+
   function render() {
     const body = sheet.querySelector('.ds-body');
     const scroll = body ? body.scrollTop : 0;
-    sheet.innerHTML = renderDenShopHtml(progression.state, DEN_ITEMS, DEN_SPOTS, { note, stage, tab: tab ?? undefined });
+    sheet.innerHTML = renderDenShopHtml(progression.state, DEN_ITEMS, DEN_SPOTS, { note, stage, tab: tab ?? undefined, home, padKeysHtml: padKeysHtml() });
     const next = sheet.querySelector('.ds-body');
     if (next) next.scrollTop = scroll;
   }
 
-  function show() {
-    if (!active || open) return;
+  function show(asHome = false) {
+    if (open || (!asHome && !active)) return;
     open = true;
+    home = asHome;
+    sheet.classList.toggle('den-home', home);
     note = '';
     stage = null;
     tab = readTab();
-    pause();
+    if (!home) pause();
     doc.body.classList.add('den-shop-open');
     render();
     sheet.classList.remove('hidden');
@@ -126,6 +139,7 @@ export function createDenShopView({
     open = false;
     sheet.classList.add('hidden');
     doc.body.classList.remove('den-shop-open');
+    if (home) { home = false; onWalkIn = null; sheet.classList.remove('den-home'); onHomeClosed(); return; }
     if (walkOn) resume();
   }
 
@@ -135,7 +149,7 @@ export function createDenShopView({
     if (!item || progression.state?.den?.owned?.includes?.(id) || !(points >= item.price)) return;
     confirm.ask({
       ...spendAsk({ name: item.name, price: item.price, points }),
-      returnFocus: () => sheet.querySelector?.(`[data-den-buy="${q}"]`)?.focus?.(),
+      returnFocus: () => sheet.querySelector?.(`[data-den-buy="${q(id)}"]`)?.focus?.(),
       onYes: () => {
         buy(id); // focus lands on "Place it now"
       },
@@ -236,11 +250,12 @@ export function createDenShopView({
     sheet.querySelector?.(`[data-den-tab="${id}"]`)?.focus?.();
   }
 
-  button.addEventListener('click', show);
+  button.addEventListener('click', () => show());
   sheet.addEventListener('click', (e) => {
     const t = e.target;
     if (!t || !t.closest) return;
     if (t.closest('[data-den-done]')) { hide(); return; }
+    if (t.closest('[data-den-walk-in]')) { const go = onWalkIn; hide(); go?.(); return; }
     if (t.closest('[data-den-later]')) { stopPlacing(); return; }
     if (t.closest('[data-den-place-now]')) { startPlacing(); return; }
     const tabBtn = t.closest('[data-den-tab]');
@@ -303,18 +318,41 @@ export function createDenShopView({
     }
   });
 
+  // The pad's own buttons while the panel is up (main.js passes them from the menu mode):
+  // L1 / R1 switch tabs, X puts away the piece on the focused spot (or the one in hand), Start
+  // closes. True when the panel took the press, so the zoom and resume it would have meant stay quiet.
+  function padButton(i) {
+    if (!open || confirm.isOpen()) return false;
+    if (i === PAD_BUTTONS.L1 || i === PAD_BUTTONS.R1) { setTab(i === PAD_BUTTONS.L1 ? 'shop' : 'things'); return true; }
+    if (i === PAD_BUTTONS.X) {
+      const el = doc.activeElement;
+      const onSpot = el?.closest?.('[data-den-plan-spot]');
+      if (stage?.kind === 'hand' && stage.from) putAway(stage.from);
+      else if (!stage && onSpot) putAway(onSpot.dataset.denPlanSpot);
+      return true;
+    }
+    if (i === PAD_BUTTONS.START) { if (stage) stopPlacing(); else hide(); return true; }
+    return false;
+  }
+  // The shortcut line follows the input (pad pictures on, keys off) while the panel is up.
+  onTv(() => { if (open) render(); });
+
   return {
+    padButton,
+    openHome(opts = {}) { onWalkIn = typeof opts.onWalkIn === 'function' ? opts.onWalkIn : null; show(true); },
     // Shown only on a den walk. Turning it off (the walk ended) closes the
     // sheet without trying to walk on.
     setActive(on) {
       active = !!on;
       button.classList.toggle('hidden', !active);
       doc.body.classList.toggle('den-walk', active);
-      if (!active) hide({ walkOn: false });
+      if (!active && !home) hide({ walkOn: false });
     },
-    open: show,
+    open: () => show(),
     close: hide,
     get isOpen() { return open; },
+    get isActive() { return active; },
+    get isHome() { return home; },
     // The browser's Back (ui/backstack.js): the question first ("Not now"),
     // then the shop (close, as Done does).
     get isAsking() { return confirm.isOpen(); },

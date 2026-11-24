@@ -21,6 +21,7 @@ import { whenSplashGone, startVisitGreeting } from './visitboot.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { attachBackStack, walkBackAction, padBackAction } from './ui/backstack.js';
 import { createGamepad } from './gamepad.js';
+import { yOpensDen } from './gamepadinput.js';
 import { answerChallenge } from './ui/fightui.js';
 import { createNav } from './gamepadnav.js';
 import { createZoomControl, createWheelStepper, keyZoomDir, zoomActionDir, clampZoomStep, maxZoomStep } from './camzoom.js';
@@ -322,6 +323,8 @@ function init() {
     onAction: (name) => {
       // Square and Circle answer the challenge pill, same as the touch buttons (they used to fall through to a plain interact / meow).
       if (answerChallenge(session?.clanFight, name)) return;
+      // Y / Triangle opens the den panel on a den walk (photo mode stays on its touch and key buttons there).
+      if (yOpensDen(name, denShop.isActive, session?.cameraMode)) { denShop.open(); return; }
       const zoomDir = zoomActionDir(name);
       if (zoomDir) zoomBy(zoomDir);
       else handleTouchAction(name);
@@ -332,7 +335,7 @@ function init() {
     onPadUse: (i) => { if (tvHooks.padUse) tvHooks.padUse(i); else padHintsOn(i); tvOffer(); },
     onPadConnect: (i) => tvHooks.padConnect?.(i),
     onPadDisconnect: (i) => tvHooks.padDisconnect?.(i),
-    onMenuButton: (i) => tvHooks.button?.(i) ?? false,
+    onMenuButton: (i) => denShop.padButton(i) || (tvHooks.button?.(i) ?? false),
     onLook: (rad) => homebase.spinHero(rad),
   });
   // Pushes every live-tunable setting into the systems that read it — audio
@@ -578,6 +581,8 @@ function init() {
     getSession: () => session,
     pause: () => handleTouchAction('pause'),
     resume: () => resumeWalk(),
+    onHomeClosed: () => homebase.refresh(), // points and the Menu tile's count may have changed
+    onUnavailable: () => cloudToast('The den needs a moment. Try again!'),
   });
 
   // The walk lifecycle (src/game/walk.js). main.js keeps the `session`
@@ -658,7 +663,7 @@ function init() {
   const homebaseCloud = createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed: togetherAllowed, pushProfileNow, blockList });
   // "Delete my online data" on the Cloud save sheet (src/game/onlinedelete.js).
   const onlineDelete = createOnlineDelete({ MP, pid, getCloud: openCloud, getPsecret, sync, progression });
-  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onTvChange: (on) => tvLoader.apply(on), onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onBirthdaySong: () => audio.playTune(birthdayTune(), settings.get('musicVolume')), onAudioWake: () => { const c = audio.getContext(); if (c.state === 'suspended') c.resume?.()?.catch?.(() => {}); }, onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
+  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onTvChange: (on) => tvLoader.apply(on), onVisitDen: beginDenWalk, onOpenDen: (o) => denShop.openHome(o), colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onBirthdaySong: () => audio.playTune(birthdayTune(), settings.get('musicVolume')), onAudioWake: () => { const c = audio.getContext(); if (c.state === 'suspended') c.resume?.()?.catch?.(() => {}); }, onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the
@@ -933,10 +938,17 @@ function init() {
   // layer (ui/backstack.js). During a walk Back pauses; the walk's own Escape
   // is not touched (homebase.back() does nothing while home is hidden).
   const summaryUp = () => !session && !overlay.classList.contains('hidden') && !!overlay.querySelector('#btn-summary-continue');
+  // The den sheet opened from the home screen: Esc (and Back, and the pad's B) close it one step at a time.
+  function homeDenBack() {
+    if (!denShop.isHome) return false;
+    walkBack();
+    return true;
+  }
   function walkBack() {
     const action = walkBackAction({
       summary: summaryUp(),
       walking: !!session,
+      home: denShop.isHome,
       walkingOn: !!session?.walkingOn,
       shopAsk: denShop.isAsking,
       placing: denShop.isPlacing,
@@ -960,14 +972,14 @@ function init() {
   }
   const backStack = attachBackStack({
     win: window,
-    depth: () => homebase.depth() + (session || summaryUp() ? 1 : 0),
-    closeTop: () => { if (!homebase.back()) walkBack(); },
-    escape: () => homebase.back(),
+    depth: () => homebase.depth() + (session || summaryUp() || denShop.isHome ? 1 : 0),
+    closeTop: () => { if (denShop.isHome || !homebase.back()) walkBack(); },
+    escape: () => (denShop.isHome ? homeDenBack() : homebase.back()),
   });
   // The pad's B in a menu: the same one level up as the browser's Back.
   function padBack() {
     if (tvHooks.back?.()) return; // a TV card (the offer, the letter picker) is the top layer
-    if (homebase.back()) { backStack?.sync?.(); return; }
+    if (!denShop.isHome && homebase.back()) { backStack?.sync?.(); return; }
     const act = padBackAction({
       fight: session?.clanFight?.uiShowing === 'fight', summary: summaryUp(), walking: !!session, walkingOn: !!session?.walkingOn,
       cardUp: !!overlay.querySelector('#btn-resume'), shopAsk: denShop.isAsking, placing: denShop.isPlacing, shop: denShop.isOpen, findCard: !!session?.findCard, crossing: !!session?.crossing,

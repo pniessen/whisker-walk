@@ -382,3 +382,18 @@ describe('Back with a piece to place (den shop UX M2)', () => {
     expect(padBackAction({ walking: true, cardUp: true })).toBe('resume');
   });
 });
+
+describe('the den sheet opened from the home screen (den shop UX M4)', () => {
+  it('Back is the same ladder with no walk: the question, the piece in hand, the sheet', () => {
+    expect(walkBackAction({ home: true, shopAsk: true, shop: true })).toBe('shop-not-now');
+    expect(walkBackAction({ home: true, placing: true, shop: true })).toBe('shop-later');
+    expect(walkBackAction({ home: true, shop: true })).toBe('shop-done');
+  });
+  it('with no sheet open and no walk Back does nothing, as before', () => {
+    expect(walkBackAction({})).toBe(null);
+    expect(walkBackAction({ summary: true })).toBe('continue');
+  });
+  it('the pad B on the home sheet is a plain back', () => {
+    expect(padBackAction({ shop: true })).toBe('back');
+  });
+});

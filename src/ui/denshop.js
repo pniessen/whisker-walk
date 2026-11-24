@@ -73,7 +73,7 @@ function itemCard(id, item, owned, points, placedHere = true) {
     </div>`;
   }
   return `<div class="ds-card locked" data-den-item="${escapeHtml(id)}">
-      <div class="ds-name">${name}</div><div class="ds-act"><span class="ds-tag" aria-label="${price} paw points">${price} ${PAW}</span></div>
+      <div class="ds-name">${name}</div><div class="ds-act"><span class="ds-tag" aria-label="${price} paw points">${price} ${PAW}</span><span class="ds-need">${escapeHtml(denWord('needMore', null, { n: Math.max(1, Math.ceil(price - points)) }))}</span></div>
     </div>`;
 }
 
@@ -161,6 +161,9 @@ export function renderDenShopHtml(state, items = DEN_ITEMS, spots = DEN_SPOTS, u
   const body = tab === 'things' ? things : (owned.length ? '' : '<p class="ds-hint">Buy something you like, then pick a spot for it!</p>\n      ') + shop;
   const tabBtn = (id, word) => `<button type="button" role="tab" class="ds-tab${tab === id ? ' on' : ''}" id="ds-tab-${id}" data-den-tab="${id}" aria-selected="${tab === id}" tabindex="${tab === id ? 0 : -1}">${escapeHtml(denWord(word))}</button>`;
   const tabs = `<div class="ds-tabs" role="tablist" aria-label="${escapeHtml(denWord('tablist'))}">${tabBtn('shop', 'tabShop')}${tabBtn('things', 'tabThings')}</div>`;
+  // The pad's shortcut line: HTML made by the glyph module (or our own plain words), never from the save.
+  const padKeys = ui && typeof ui.padKeysHtml === 'string' && ui.padKeysHtml ? `<p class="ds-padkeys">${ui.padKeysHtml}</p>` : '';
+  const walkIn = ui && ui.home ? `<div class="ds-foot"><button type="button" class="ds-walkin" data-den-walk-in>${escapeHtml(denWord('walkInLabel'))}</button></div>` : '';
   return `<div class="ds-head">
       <h2>🛋️ Den shop</h2>
       <span class="ds-points" aria-label="${points} paw points">${PAW} ${points}</span>
@@ -170,7 +173,8 @@ export function renderDenShopHtml(state, items = DEN_ITEMS, spots = DEN_SPOTS, u
     ${note}${yours}${handBar}
     <div class="ds-body" role="tabpanel" aria-labelledby="ds-tab-${tab}">
       ${body}
-    </div>`;
+    </div>
+    ${walkIn}${padKeys}`;
 }
 
 /**

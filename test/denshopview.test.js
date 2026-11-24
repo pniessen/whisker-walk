@@ -280,6 +280,7 @@ describe('TV mode: the den walk\'s note', () => {
       expect(t.hint.innerHTML).toContain('<svg');
       expect(t.hint.innerHTML).toContain('Den shop to decorate');
       expect(t.hint.innerHTML).not.toContain('Esc');
+      expect(t.hint.innerHTML).not.toContain('Start');
       tv.setTv({ input: 'keys' });
       expect(t.hint.textContent).toBe('Press Esc, then 🛋️ Den shop to decorate');
     } finally {
@@ -524,5 +525,121 @@ describe('den shop: the plan view (M3)', () => {
     t.chip('bed'); t.spot('window'); t.spot('window'); t.spot('shelf'); t.tap('data-den-put-away');
     expect(Object.keys(den(t)).sort()).toEqual(['owned', 'placed']);
     for (const [s, i] of Object.entries(den(t).placed)) expect(den(t).owned).toContain(i);
+  });
+});
+
+// Den shop UX M4: opened from the home screen, and the pad's own buttons.
+describe('den shop: from the home screen and the pad (M4)', () => {
+  function homeRig(over = {}) {
+    const map = new Map();
+    const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
+    progression.state.points = over.points ?? 0;
+    progression.state.den.owned = over.owned ?? ['bed', 'lamp'];
+    progression.state.den.placed = over.placed ?? {};
+    const doc = new Node('document');
+    doc.body = new Node('body', doc);
+    const app = new Node('app', doc.body);
+    const canvas = new Node('canvas', app);
+    const hud = new Node('hud', app);
+    doc.createElement = (tag) => new Node(tag);
+    const f = { pause: vi.fn(), resume: vi.fn(), applied: vi.fn(), closed: vi.fn() };
+    const view = createDenShopView({
+      progression, pause: f.pause, resume: f.resume, bus: createEmitter(), canvas, doc, hudRoot: hud, mountRoot: app,
+      applyDenSpot: f.applied, onHomeClosed: f.closed,
+    });
+    const sheet = app.children.find((c) => c.attrs.role === 'dialog');
+    const tapAttr = (attr, key, value) => {
+      const b = new Node('button', sheet);
+      b.attrs[attr] = value ?? '';
+      if (key) b.dataset[key] = value;
+      dispatch(b, 'click');
+      b.remove();
+    };
+    return { progression, view, sheet, doc, tapAttr, ...f };
+  }
+
+  it('opens with no walk: no pause, no resume, a Walk in button, and Done tells the home screen', () => {
+    const t = homeRig();
+    expect(t.view.isActive).toBe(false);
+    t.view.openHome({});
+    expect(t.view.isOpen).toBe(true);
+    expect(t.view.isHome).toBe(true);
+    expect(t.pause).not.toHaveBeenCalled();
+    expect(t.sheet.innerHTML).toContain('data-den-walk-in');
+    expect(t.sheet.cls.has('den-home')).toBe(true);
+    t.tapAttr('data-den-done');
+    expect(t.view.isOpen).toBe(false);
+    expect(t.resume).not.toHaveBeenCalled();
+    expect(t.closed).toHaveBeenCalledTimes(1);
+    expect(t.sheet.cls.has('den-home')).toBe(false);
+  });
+
+  it('Walk in closes the sheet, then walks in; a den walk opens the plain panel with no Walk in', () => {
+    const t = homeRig();
+    const go = vi.fn(() => expect(t.view.isOpen).toBe(false));
+    t.view.openHome({ onWalkIn: go });
+    t.tapAttr('data-den-walk-in');
+    expect(go).toHaveBeenCalledTimes(1);
+    t.view.setActive(true);
+    t.view.open();
+    expect(t.pause).toHaveBeenCalledTimes(1);
+    expect(t.sheet.innerHTML).not.toContain('data-den-walk-in');
+  });
+
+  it('placing from home only edits the save: nothing is applied to a room that is not there', () => {
+    const t = homeRig();
+    t.view.openHome({});
+    t.tapAttr('data-den-hand-item', 'denHandItem', 'lamp');
+    t.tapAttr('data-den-plan-spot', 'denPlanSpot', 'window');
+    expect(t.progression.state.den.placed).toEqual({ window: 'lamp' });
+    expect(Object.keys(t.progression.state.den).sort()).toEqual(['owned', 'placed']);
+  });
+
+  it('the pad: L1 and R1 switch tabs, X puts away the piece in hand, Start steps back then closes', () => {
+    const t = homeRig({ placed: { window: 'lamp' } });
+    t.view.openHome({});
+    expect(t.view.padButton(4)).toBe(true); // L1
+    expect(t.sheet.innerHTML).toContain('data-den-item');
+    expect(t.view.padButton(5)).toBe(true); // R1
+    expect(t.sheet.innerHTML).toContain('data-den-plan-spot');
+    t.tapAttr('data-den-plan-spot', 'denPlanSpot', 'window'); // picks the lamp up
+    expect(t.view.isPlacing).toBe(true);
+    expect(t.view.padButton(2)).toBe(true); // X
+    expect(t.progression.state.den.placed).toEqual({});
+    t.tapAttr('data-den-hand-item', 'denHandItem', 'bed');
+    expect(t.view.padButton(9)).toBe(true); // Start: the hand first
+    expect(t.view.isPlacing).toBe(false);
+    expect(t.view.isOpen).toBe(true);
+    expect(t.view.padButton(9)).toBe(true);
+    expect(t.view.isOpen).toBe(false);
+    expect(t.view.padButton(4)).toBe(false); // closed: the press is not ours
+  });
+
+  it('X on a focused standing piece puts it away; a question on screen takes no pad shortcut', () => {
+    const t = homeRig({ placed: { window: 'lamp' } });
+    t.view.openHome({});
+    const el = new Node('button', t.sheet);
+    el.attrs['data-den-plan-spot'] = '';
+    el.dataset.denPlanSpot = 'window';
+    t.doc.activeElement = el;
+    expect(t.view.padButton(2)).toBe(true);
+    expect(t.progression.state.den.placed).toEqual({});
+  });
+
+  it('the shortcut line shows only while the pad is the input', async () => {
+    const tv = await import('../src/tvseam.js');
+    tv.resetTv();
+    try {
+      const t = homeRig();
+      t.view.openHome({});
+      expect(t.sheet.innerHTML).not.toContain('ds-padkeys');
+      tv.setTv({ input: 'pad' });
+      expect(t.sheet.innerHTML).toContain('ds-padkeys');
+      expect(t.sheet.innerHTML).toContain('Start done'); // no pictures wired in this test: the plain words
+      tv.setTv({ input: 'keys' });
+      expect(t.sheet.innerHTML).not.toContain('ds-padkeys');
+    } finally {
+      tv.resetTv();
+    }
   });
 });

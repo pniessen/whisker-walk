@@ -137,7 +137,8 @@ html.tv .den-shop { width: min(calc(1060px * var(--tv-s, 1)), 62vw); }
 html.tv .dp-plan { grid-template-rows: repeat(var(--dp-rows), minmax(calc(96px * var(--tv-s, 1)), auto)); gap: calc(8px * var(--tv-s, 1)); }
 html.tv .dp-spot { min-height: calc(96px * var(--tv-s, 1)); min-width: calc(96px * var(--tv-s, 1)); border-radius: calc(14px * var(--tv-s, 1)); }
 html.tv .dp-icon { font-size: calc(40px * var(--tv-s, 1)); }
-html.tv .dp-chip, html.tv .ds-tab, html.tv .ds-later, html.tv .ds-place-now { min-height: calc(64px * var(--tv-s, 1)); }
+html.tv .dp-chip, html.tv .ds-tab, html.tv .ds-later, html.tv .ds-place-now, html.tv .ds-walkin { min-height: calc(64px * var(--tv-s, 1)); }
+html.tv .dr .dr-dock .dr-together.dr-den { min-height: calc(64px * var(--tv-s, 1)); padding: 0 calc(20px * var(--tv-s, 1)); }
 html.tv .dp-grid { grid-template-columns: repeat(auto-fill, minmax(calc(220px * var(--tv-s, 1)), 1fr)); }
 
 /* ======================================================================
