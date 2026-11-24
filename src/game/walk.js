@@ -427,6 +427,7 @@ export function createWalkLifecycle({
     if (session?.fx) session.fx.burst(session.cat.position, 0xf2c14e, 26);
     audio.unlockFanfare();
     for (const id of added) celebration.show(SKILL_BY_ID.get(id));
+    hud.earnBadges?.(added);
     return added;
   }
 
@@ -2764,6 +2765,7 @@ export function createWalkLifecycle({
     hud.setRank(session.rankTitle);
     hud.setGoals(session.goals ? session.goals.goals : null);
     hud.setLesson?.(lesson?.kind === 'first' && !lesson.finished);
+    hud.setBadges?.(state.skills); // the skills the save lists, also on a resume; saves nothing
     denShop?.setActive(isDen && roomSeed === undefined); // never in a room walk
     getHomebase().hide();
     session.welcome = welcome;

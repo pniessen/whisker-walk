@@ -34,6 +34,9 @@ html.tv .hud-goals {
   font-size: calc(24px * var(--tv-s, 1)) !important; max-width: calc(520px * var(--tv-s, 1));
   top: calc(var(--tv-s, 1) * 76px); gap: calc(5px * var(--tv-s, 1));
 }
+/* The skill badges: round pictures (no words), 48 px at 1080p, level under the goals pill (the script moves them down with it). */
+html.tv .hud-badges { top: calc(var(--tv-s, 1) * 150px); gap: calc(8px * var(--tv-s, 1)); max-width: calc(100vw - 2 * var(--tv-safe-x, 5vw)); }
+html.tv .hud-badge { width: calc(48px * var(--tv-s, 1)); height: calc(48px * var(--tv-s, 1)); font-size: calc(28px * var(--tv-s, 1)) !important; }
 html.tv .hud-roster { top: calc(var(--map-size) + var(--tv-s, 1) * 62px); }
 html.tv .hud-map:not(:has(.hud-map-disc)) ~ .hud-roster { top: calc(var(--tv-s, 1) * 76px); }
 html.tv .hud-area { padding: calc(3px * var(--tv-s, 1)) calc(14px * var(--tv-s, 1)); }
@@ -157,7 +160,7 @@ html.tv :is(.screen-panel, .join-moment-card, .hb-sheet, .lp-card) { font-weight
 html.tv :is(.screen-panel, .join-moment-card) :is(h1, h2) { text-wrap: balance; letter-spacing: .01em; }
 
 /* A card hides the whole walking HUD behind it, and its scrim is solid enough to read on. */
-html.tv body:has(#overlay:not(.hidden) :is(.pause-card, .summary-card)) #hud :is(.hud-controls, .hud-hint, .hud-prompt, .hud-toasts, .hud-goals, .hud-objective, .hud-roster, .hud-viewfinder, .hud-crosshair, .hud-top, .hud-map, .hud-area) { visibility: hidden; }
+html.tv body:has(#overlay:not(.hidden) :is(.pause-card, .summary-card)) #hud :is(.hud-controls, .hud-hint, .hud-prompt, .hud-toasts, .hud-goals, .hud-objective, .hud-roster, .hud-viewfinder, .hud-crosshair, .hud-top, .hud-map, .hud-area, .hud-badges) { visibility: hidden; }
 html.tv .pause-card, html.tv .summary-card { background: rgba(14, 19, 29, 0.88); }
 /* The key strip yields to a tip: never both at once. */
 html.tv #hud.hinting .hud-controls { display: none; }

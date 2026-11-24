@@ -2841,6 +2841,31 @@ html.phone #hud:not(.lesson-on) .hud-goals:not(:focus) .goal-how { display: none
 html.phone #hud:not(.lesson-on) .hud-goals:not(:focus):has(.goal.next) .goal:not(.next) { display: none; }
 html.phone #hud:not(.lesson-on) .hud-goals:not(:focus) .goal.next::after { content: " \25BE"; opacity: 0.7; }
 
+/* --- Skill badges (src/ui/skillbadges.js): one small round badge per skill the cat has earned, in a row under
+   the goals pill (the script sets `top` from the pills' height). Phone badges are 24 px and the row folds past 8
+   into a "+n"; tablet and laptop get 28 px. The newest wears a gold ring; a skill earned mid-walk pops in. --- */
+.hud-badges {
+  position: absolute; z-index: 2; display: flex; gap: 3px; width: fit-content;
+  top: calc(max(16px, env(safe-area-inset-top)) + 84px); left: max(16px, env(safe-area-inset-left));
+  max-width: calc(100vw - 32px - var(--map-size) - 12px);
+}
+.hud-badge {
+  flex: none; width: 28px; height: 28px; padding: 0; border-radius: 50%; display: grid; place-items: center;
+  background: rgba(20,26,38,0.55); border: 1.5px solid rgba(242,193,78,0.45); color: #fff;
+  font: inherit; font-size: 15px; line-height: 1; pointer-events: auto; cursor: pointer;
+}
+.hud-badge-more { font-size: 12px; font-weight: 700; }
+.hud-badge.new { border-color: #f2c14e; box-shadow: 0 0 8px rgba(242,193,78,0.8); }
+.hud-badge.pop { animation: badge-pop 0.7s ease-out; }
+@keyframes badge-pop {
+  0% { transform: scale(0.3); opacity: 0; }
+  55% { transform: scale(1.5); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) { .hud-badge.pop { animation: none; } }
+html.phone .hud-badge { width: 24px; height: 24px; font-size: 13px; }
+html.phone .hud-badge-more { font-size: 12px; }
+
 /* ===== Sideways phones, tiny windows and enlarged text (UX review, finding 11) =====
    Three cases the layouts above did not cover. Each one is behind its own
    media query, so an upright phone (390x844), a tablet and a laptop never see

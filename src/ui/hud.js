@@ -215,7 +215,16 @@ export function createHud() {
     if (toastQueue.length && oldest?.ripe) retireToast(oldest);
   };
 
+  // The earned-skill badge strip is a lazy chunk (src/ui/skillbadges.js): nothing loads until a walk has a skill to show.
+  let strip = null, stripLoad = null;
+  const withStrip = (fn) => (strip ? Promise.resolve(fn(strip)) : (stripLoad ??= import('./skillbadges.js').then((m) => (strip = m.createBadgeStrip({ root, hud: api }))).catch(() => { stripLoad = null; })).then((s) => s && fn(s)));
+
   const api = {
+    // The skills in the save, at a walk's start (no pop); a skill earned mid-walk pops in.
+    setBadges(ids) { if ((ids && ids.length) || strip) withStrip((s) => s.set(ids)); },
+    earnBadges(ids) { if (ids && ids.length) withStrip((s) => s.earn(ids)); },
+    // A toast is up or waiting (a phone's badge pop waits its turn).
+    toastBusy() { return liveToasts.length > 0 || toastQueue.length > 0; },
     show() { root.classList.remove('hidden'); },
     hide() { root.classList.add('hidden'); },
     setPoints(n) { pointsEl.textContent = String(n); },
