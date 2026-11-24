@@ -18,16 +18,16 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import { SKULL, PAW_HALF, TORSO } from './torso.js';
-import { placeOnBack, seatedAnchor } from './backitems.js';
+import { backAnchor, placeOnBack, seatedAnchor } from './backitems.js';
 import { registerSuitKit } from '../suithook.js';
 
 export const SUIT_PALETTE = Object.freeze({
   space: Object.freeze({
-    body: 0xf0f0f2, joint: 0x8b919b, ring: 0xe6e6ea, antenna: 0xb4b9c2, ball: 0xd8403a, glass: 0xcfe6ff,
+    body: 0xf0f0f2, joint: 0x8b919b, ring: 0xe6e6ea, antenna: 0xb4b9c2, ball: 0xd8403a, glass: 0xf0d58a, visor: 0xfff6d8, dark: 0x4a505a, strap: 0x555b66, box: 0xb9bec7, btnA: 0xd8403a, btnB: 0x4a8fd8, lamp: 0x6fd08a, star: 0xffffff, stripeA: 0xd8403a, stripeB: 0xffffff, canton: 0x2f55a4,
     pack: 0xdadade, dial: 0x2f343c, dialFace: 0xf2c14e, boot: 0x9ea4ad, sole: 0x5d636d, patch: 0xd8403a, patchDot: 0xffffff,
   }),
   dive: Object.freeze({
-    body: 0xf2c230, joint: 0x2f6fb5, ring: 0xf2c230, antenna: 0x2a2f38, ball: 0x2a2f38, glass: 0xbfe4f2,
+    body: 0xf2c230, joint: 0x2f6fb5, ring: 0xf2c230, antenna: 0x2a2f38, ball: 0x2a2f38, glass: 0xbfe4f2, visor: 0xffffff, rubber: 0x23282f, strap: 0x23282f, box: 0x6b7480, dark: 0x23282f, weight: 0x5b6470, tank2: 0xd9dee4, brass: 0xe0b040,
     pack: 0xb7c3cf, dial: 0x2a2f38, dialFace: 0xf2c230, boot: 0xf2c230, sole: 0x2f6fb5, patch: 0x2f6fb5, patchDot: 0xf2c230,
     cap: 0x2f6fb5, hose: 0x2a2f38,
   }),
@@ -71,27 +71,104 @@ function glassMesh(geo, hex, tag) {
   return m;
 }
 
+// --- crisp details on the shell ---------------------------------------------
+// Bands, seams, the flag patch, the chest box and the belt are real thin geometry
+// laid ON the suit's shell (backitems.js backAnchor, cover 'shell'), merged into one
+// vertex-coloured mesh. Painting them into the shell's vertices blurs: the grid is coarse.
+class Detail {
+  constructor(bodyScale, simple) {
+    this.bs = new THREE.Vector3(...bodyScale); this.bsa = bodyScale; this.simple = simple;
+    this.pos = []; this.col = [];
+  }
+  // a point on the shell over unit direction `dir`, in the body's own frame, with its normal
+  at(dir, lift = 0.012) {
+    const a = backAnchor(dir, { bodyScale: this.bsa, cover: 'shell' }, lift);
+    return { p: a.at.clone().divide(this.bs), n: a.n.clone().divide(this.bs).normalize() };
+  }
+  tri(a, b, c, hex, n) {
+    const f = new THREE.Vector3().crossVectors(b.clone().sub(a), c.clone().sub(a));
+    if (f.dot(n) < 0) [b, c] = [c, b];
+    const k = new THREE.Color(hex);
+    for (const v of [a, b, c]) { this.pos.push(v.x, v.y, v.z); this.col.push(k.r, k.g, k.b); }
+  }
+  quad(a, b, c, d, hex, n) { this.tri(a, b, c, hex, n); this.tri(a, c, d, hex, n); }
+  // a ribbon along `dirs`, `w` wide, closed into a ring when `closed`
+  ribbon(dirs, w, hex, { lift = 0.012, closed = false } = {}) {
+    const P = dirs.map((d) => this.at(d, lift)), n = P.length, L = [], R = [];
+    for (let i = 0; i < n; i++) {
+      const a = P[closed ? (i + n - 1) % n : Math.max(0, i - 1)].p, b = P[closed ? (i + 1) % n : Math.min(n - 1, i + 1)].p;
+      const side = new THREE.Vector3().crossVectors(P[i].n, b.clone().sub(a)).normalize().multiplyScalar(w / 2);
+      L.push(P[i].p.clone().sub(side)); R.push(P[i].p.clone().add(side));
+    }
+    for (let i = 0; i < (closed ? n : n - 1); i++) { const j = (i + 1) % n; this.quad(L[i], R[i], R[j], L[j], hex, P[i].n); }
+  }
+  ring(uz, w, hex, N, opts) {
+    const r = Math.sqrt(1 - uz * uz), dirs = [];
+    for (let i = 0; i < N; i++) { const t = (i / N) * Math.PI * 2; dirs.push([r * Math.sin(t), r * Math.cos(t), uz]); }
+    this.ribbon(dirs, w, hex, { ...opts, closed: true });
+  }
+  // a ribbon down the length of the body at angle t round it (0 = the spine, pi/2 = a flank)
+  seam(t, z0, z1, w, hex, steps) {
+    const dirs = [];
+    for (let i = 0; i <= steps; i++) { const z = z0 + ((z1 - z0) * i) / steps, r = Math.sqrt(1 - z * z); dirs.push([r * Math.sin(t), r * Math.cos(t), z]); }
+    this.ribbon(dirs, w, hex);
+  }
+  // a frame on the shell at `dir`: o the origin, n out, az toward the tail, ax across (down on a flank)
+  frame(dir, lift = 0.012) {
+    const { p, n } = this.at(dir, lift), az = new THREE.Vector3(0, 0, 1).addScaledVector(n, -n.z).normalize();
+    return { p, n, az, ax: new THREE.Vector3().crossVectors(n, az).normalize() };
+  }
+  // a flat rectangle (x across, z along) in a frame
+  rect(f, x0, x1, z0, z1, hex) {
+    const c = (x, z) => f.p.clone().addScaledVector(f.ax, x).addScaledVector(f.az, z);
+    this.quad(c(x0, z0), c(x1, z0), c(x1, z1), c(x0, z1), hex, f.n);
+  }
+  // any geometry stood in a frame at (x, z) and `up` out of the shell
+  geo(g, f, x, z, up, hex) {
+    const m = new THREE.Matrix4().makeBasis(f.ax, f.n, f.az).setPosition(f.p.clone().addScaledVector(f.ax, x).addScaledVector(f.az, z).addScaledVector(f.n, up));
+    g = (g.index ? g.toNonIndexed() : g).clone().applyMatrix4(m);
+    const p = g.attributes.position, k = new THREE.Color(hex);
+    for (let i = 0; i < p.count; i++) { this.pos.push(p.getX(i), p.getY(i), p.getZ(i)); this.col.push(k.r, k.g, k.b); }
+  }
+  mesh(tag) {
+    if (!this.pos.length) return null;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
+    g.computeVertexNormals();
+    return vcMesh(g, tag);
+  }
+}
+
 // --- the helmet ------------------------------------------------------------
 // The head frame has the skull's centre at its origin (+y up, -z forward). The
-// bubble is 1.25x the skull; its lower rim is open at the neck, where a ring sits.
+// bubble is 1.25x the skull; its lower rim is open at the neck, where two rings sit.
 function helmet(head, { look, simple }) {
   const P = SUIT_PALETTE[look], w = simple ? 8 : 12, h = simple ? 4 : 7;
   const R = [SA * 1.25, SB * 1.3, SC * 1.32], at = [0, -0.005, -0.015];
   const bubble = new THREE.SphereGeometry(1, w, h, 0, Math.PI * 2, 0, Math.PI * 0.78).scale(...R).translate(...at);
   const rimY = at[1] + R[1] * Math.cos(Math.PI * 0.78), rimR = Math.sin(Math.PI * 0.78);
-  const ring = new THREE.TorusGeometry(R[0] * rimR * 0.97, 0.016, 4, simple ? 8 : 12).rotateX(Math.PI / 2).translate(0, rimY, at[2]);
-  const parts = [part(ring, P.ring)];
+  const rr = R[0] * rimR * 0.97, segs = simple ? 8 : 12;
+  const parts = [part(new THREE.TorusGeometry(rr, 0.018, 3, segs).rotateX(Math.PI / 2).translate(0, rimY, at[2]), P.ring)];
+  // a soft highlight: a short pale arc lying on the glass, upper left of the face
+  const arc = [];
+  for (let i = 0; i <= 3; i++) {
+    const a = 0.85 + i * 0.16, b = 0.5;   // up from the front, to the side
+    const x = -Math.sin(a) * Math.sin(b) * R[0] * 1.004, y = Math.cos(a) * R[1] * 1.004 + at[1], z = -Math.sin(a) * Math.cos(b) * R[2] * 1.004 + at[2];
+    arc.push([x, y, z]);
+  }
+  for (let i = 0; i < 3; i++) parts.push(tube(arc[i], arc[i + 1], 0.0085, P.visor, 3));
   if (look === 'space') {
     const top = at[1] + R[1] * 0.93;
     parts.push(tube([0.05, top - 0.01, 0.02], [0.07, top + 0.12, 0.02], 0.006, P.antenna, 4));
-    parts.push(part(new THREE.SphereGeometry(0.02, 6, 4).translate(0.07, top + 0.13, 0.02), P.ball));
+    parts.push(part(new THREE.SphereGeometry(0.024, 6, 4).translate(0.07, top + 0.135, 0.02), P.ball));
   } else {
-    // a hose stub out of the back of the bubble, bent down toward the tank
-    parts.push(tube([0, 0.02, R[2] * 0.92 + at[2]], [0, 0.0, R[2] + 0.07], 0.018, P.hose, 6));
-    parts.push(part(new THREE.CylinderGeometry(0.024, 0.024, 0.02, 6).rotateX(Math.PI / 2).translate(0, 0.02, R[2] * 0.92 + at[2]), P.ring));
+    // the mask's rubber rim round the face, and a hose stub out of the back of the bubble
+    parts.push(part(new THREE.TorusGeometry(0.118, 0.013, 3, simple ? 8 : 12).scale(1, 0.82, 1).translate(0, 0.0, -R[2] * 0.9 + at[2]), P.rubber));
+    parts.push(tube([0, 0.015, R[2] * 0.9 + at[2]], [0, -0.02, R[2] + 0.075], 0.018, P.hose, 6));
+    parts.push(part(new THREE.CylinderGeometry(0.026, 0.026, 0.02, 6).rotateX(Math.PI / 2).translate(0, 0.015, R[2] * 0.9 + at[2]), P.ring));
   }
-  const trim = vcMesh(merged(parts), 'helmet');
-  head.add(trim, glassMesh(bubble, P.glass, 'helmet'));
+  head.add(vcMesh(merged(parts), 'helmet'), glassMesh(bubble, P.glass, 'helmet'));
 }
 
 // Hagrid's: the same bubble, a hen-sized one (his skull is about 0.13).
@@ -104,76 +181,142 @@ function henHelmet(head, { look }) {
 }
 
 // --- the body --------------------------------------------------------------
-// The coat shell (model.js coatShell) painted by the shell vertex's unit
-// direction (x side, y up, z toward the tail, front -z): bands at the shoulders
-// and hips, and a small flag on the left shoulder.
-function suitPaint(look) {
-  const P = SUIT_PALETTE[look];
-  return (ux, uy, uz) => {
-    if (Math.abs(uz + 0.66) < 0.07 || Math.abs(uz - 0.62) < 0.07) return P.joint;
-    const dx = ux - 0.9, dy = uy - 0.12, dz = uz + 0.3, d = Math.hypot(dx * 0.6, dy, dz);
-    if (look === 'space' && d < 0.27) return d < 0.1 ? P.patchDot : P.patch;
-    return P.body;
-  };
-}
+// The coat shell (model.js coatShell), painted plain (a pale body, or yellow),
+// plus a Detail mesh of crisp bands, seams, the flag patch and chest box (space)
+// or the piping and weight belt (dive).
 const PUFF = 1.02;
-function body({ coatShell, look, simple }) {
-  // a light tube: a coarser grid than the coats (the fur tufts under it are hidden, as a coat hides them)
-  const shell = coatShell(null, suitPaint(look), simple ? [10, 8] : [18, 14]);
-  // a little fuller than a coat, so a coarse grid never lets the belly fur through
+function body({ coatShell, look, simple, bodyScale }) {
+  const P = SUIT_PALETTE[look];
+  const shell = coatShell(null, () => P.body, simple ? [10, 8] : [16, 12]);
   const pos = shell.geometry.attributes.position, cy = TORSO.CENTRE_Y;
   for (let i = 0; i < pos.count; i++) pos.setXYZ(i, pos.getX(i) * PUFF, pos.getY(i) - Math.min(0, pos.getY(i) - cy) * 0 + Math.max(0, pos.getY(i) - cy) * (PUFF - 1), pos.getZ(i) * PUFF);
   shell.geometry.computeVertexNormals();
   shell.userData.suit = 'body';
+  const D = new Detail(bodyScale, simple), N = simple ? 9 : 14;
+  D.ring(-0.62, 0.034, P.joint, N);     // shoulders
+  D.ring(0.66, 0.034, P.joint, N);      // hips
+  if (look === 'space') {
+    // the paw-flag patch on the left flank: five stripes, a blue canton with three stars
+    const f = D.frame([0.97, 0.18, -0.36], 0.013), W = 0.056, H = 0.04;   // half sizes: along the body, up
+    const up = f.ax.clone().negate(), c = (u, z) => f.p.clone().addScaledVector(up, u).addScaledVector(f.az, z);
+    const stripe = (u0, u1, hex) => D.quad(c(u0, -W), c(u0, W), c(u1, W), c(u1, -W), hex, f.n);
+    for (let i = 0; i < 5; i++) stripe(H - (i * 2 * H) / 5, H - ((i + 1) * 2 * H) / 5, i % 2 ? P.stripeB : P.stripeA);
+    const CZ = -W + 0.05, CH = H - 0.044;   // the canton: the front 5 cm of the top three stripes' height
+    D.quad(c(H, -W), c(H, CZ), c(CH, CZ), c(CH, -W), P.canton, f.n);
+    for (const [dz, du] of [[0.012, 0.008], [0.027, -0.002], [0.036, 0.011], [0.044, -0.0005]].slice(0, 3)) {
+      const q = [[0, 0.006], [0.006, 0], [0, -0.006], [-0.006, 0]].map(([z, u]) => c(H - 0.022 + du + u, -W + dz + z));
+      D.quad(...q, P.star, f.n);
+    }
+    if (!simple) {
+      D.seam(0, -0.55, 0.62, 0.007, P.joint, 8);                    // the back seam
+      D.seam(Math.PI / 2, -0.5, 0.55, 0.006, P.joint, 8);           // a seam down each flank
+      D.seam(-Math.PI / 2, -0.5, 0.55, 0.006, P.joint, 8);
+      // the chest control box: a plate, two buttons and a small light
+      const cf = D.frame([0, -0.5, -0.85], 0.012);
+      D.geo(new THREE.BoxGeometry(0.075, 0.012, 0.05), cf, 0, 0, 0.004, P.box);
+      D.geo(new THREE.CylinderGeometry(0.0085, 0.0085, 0.01, 5), cf, -0.02, 0.012, 0.012, P.btnA);
+      D.geo(new THREE.CylinderGeometry(0.0085, 0.0085, 0.01, 5), cf, 0.0, 0.012, 0.012, P.btnB);
+      D.geo(new THREE.SphereGeometry(0.0075, 4, 3), cf, 0.02, 0.012, 0.013, P.lamp);
+    }
+  } else {
+    // contrast piping down the back and flanks, a weight belt with three weights and a buckle
+    if (!simple) {
+      D.seam(0, -0.55, 0.62, 0.008, P.joint, 8);
+      D.seam(Math.PI / 2, -0.5, 0.55, 0.007, P.joint, 8);
+      D.seam(-Math.PI / 2, -0.5, 0.55, 0.007, P.joint, 8);
+    }
+    D.ring(0.18, 0.04, P.weight, N, { lift: 0.015 });
+    if (!simple) {
+      for (const t of [Math.PI / 2, -Math.PI / 2, Math.PI]) {
+        const r = Math.sqrt(1 - 0.18 * 0.18), f = D.frame([r * Math.sin(t), r * Math.cos(t), 0.18], 0.015);
+        D.geo(new THREE.BoxGeometry(0.03, 0.02, 0.026), f, 0, 0, 0.01, P.weight);
+      }
+      const bf = D.frame([0, -Math.sqrt(1 - 0.18 * 0.18), 0.18], 0.015);
+      D.geo(new THREE.BoxGeometry(0.026, 0.01, 0.026), bf, 0, 0, 0.005, P.brass);
+    }
+  }
+  const detail = D.mesh('body');
+  if (detail) shell.parent.add(detail);   // beside the shell, on the body
 }
 
 // --- the pack --------------------------------------------------------------
 const PACK_DIR = [0, 0.94, 0.18];
 function pack({ bodyScale, cover, simple, look }) {
-  const P = SUIT_PALETTE[look], seg = simple ? 5 : 8;
+  const P = SUIT_PALETTE[look], seg = simple ? 5 : 6;
   const parts = [];
   if (look === 'space') {
-    // a boxy life-support pack, two dials on its back face
-    parts.push(part(new THREE.BoxGeometry(0.2, 0.1, 0.16).translate(0, 0.05, 0), P.pack));
-    for (const x of [-0.045, 0.045]) {
-      parts.push(part(new THREE.CylinderGeometry(0.022, 0.022, 0.012, seg).translate(x, 0.106, 0.03), P.dial));
-      parts.push(part(new THREE.CylinderGeometry(0.014, 0.014, 0.004, seg).translate(x, 0.113, 0.03), P.dialFace));
+    // a boxy life-support pack: a rounded lid, two dials, a vent and a base plate
+    parts.push(part(new THREE.BoxGeometry(0.2, 0.09, 0.16).translate(0, 0.045, 0), P.pack));
+    parts.push(part(new THREE.BoxGeometry(0.21, 0.02, 0.17).translate(0, 0.097, 0), P.box));
+    for (const x of [-0.05, 0.05]) {
+      parts.push(part(new THREE.CylinderGeometry(0.02, 0.02, 0.012, seg).translate(x, 0.113, 0.035), P.dial));
+      parts.push(part(new THREE.CylinderGeometry(0.0125, 0.0125, 0.004, seg).translate(x, 0.12, 0.035), P.dialFace));
     }
-    parts.push(part(new THREE.BoxGeometry(0.2, 0.014, 0.04).translate(0, 0.012, 0.09), P.joint));
+    parts.push(part(new THREE.BoxGeometry(0.1, 0.006, 0.03).translate(0, 0.108, -0.04), P.dark));
+    parts.push(part(new THREE.BoxGeometry(0.2, 0.014, 0.05).translate(0, 0.006, 0.08), P.joint));
   } else {
-    // an air tank lying along the back, a blue cap, a hose arcing up toward the neck
-    const tank = new THREE.CylinderGeometry(0.052, 0.052, 0.2, seg).rotateX(Math.PI / 2).translate(0, 0.058, 0.02);
-    parts.push(part(tank, P.pack));
-    parts.push(part(new THREE.SphereGeometry(0.052, seg, simple ? 3 : 4, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(-Math.PI / 2).translate(0, 0.058, -0.08), P.cap));
-    parts.push(part(new THREE.CylinderGeometry(0.03, 0.03, 0.03, seg).translate(0, 0.118, -0.05), P.cap));
-    const arc = [[0, 0.125, -0.05], [0, 0.17, -0.09], [0, 0.185, -0.15], [0, 0.17, -0.2]];
-    for (let i = 0; i < 3; i++) parts.push(tube(arc[i], arc[i + 1], 0.011, P.hose, 5));
-    parts.push(part(new THREE.BoxGeometry(0.11, 0.012, 0.03).translate(0, 0.006, 0.02), P.joint));
+    // twin air tanks side by side: each with a base cap, a band and a domed neck, a valve block between
+    for (const x of [-0.04, 0.04]) {
+      parts.push(part(new THREE.CylinderGeometry(0.038, 0.038, 0.2, seg).rotateX(Math.PI / 2).translate(x, 0.05, 0.02), P.pack));
+      if (!simple) parts.push(part(new THREE.CylinderGeometry(0.04, 0.04, 0.016, seg).rotateX(Math.PI / 2).translate(x, 0.05, 0.12), P.cap));            // base cap
+      if (!simple) parts.push(part(new THREE.CylinderGeometry(0.04, 0.04, 0.014, seg).rotateX(Math.PI / 2).translate(x, 0.05, 0.02), P.joint));         // band
+      parts.push(part(new THREE.SphereGeometry(0.038, seg, 2, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(-Math.PI / 2).translate(x, 0.05, -0.08), P.tank2));
+    }
+    parts.push(part(new THREE.BoxGeometry(0.05, 0.03, 0.03).translate(0, 0.074, -0.09), P.brass));    // the valve block
+    parts.push(part(new THREE.CylinderGeometry(0.014, 0.014, 0.02, seg).translate(0, 0.098, -0.09), P.cap));   // the regulator knob
+    parts.push(part(new THREE.BoxGeometry(0.1, 0.012, 0.03).translate(0, 0.004, 0.02), P.strap));      // the cradle under the tanks
   }
   const geo = merged(parts);
-  const anchor = seatedAnchor(geo, PACK_DIR, cover, bodyScale, -0.008);
+  const anchor = seatedAnchor(geo, PACK_DIR, cover, bodyScale, -0.006);
   placeOnBack(geo, anchor, bodyScale);
-  geo.computeVertexNormals();
-  const m = vcMesh(geo, 'pack');
+  // harness: two straps over the shoulders to the chest, and (dive) a hose rising over the shoulder to the nape
+  const D = new Detail(bodyScale, simple);
+  const steps = simple ? 4 : 7;
+  for (const sx of [-1, 1]) {
+    const dirs = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, phi = (0.12 + 0.95 * t) * Math.PI * 0.85;
+      dirs.push([sx * (0.3 + 0.55 * Math.sin(phi)), Math.cos(phi), 0.0 - 0.38 * t]);
+    }
+    D.ribbon(dirs, 0.02, P.strap, { lift: cover === 'shell' ? 0.014 : 0.006 });
+  }
+  const out = [geo];
+  if (look === 'dive' && !simple) {
+    // from the valve block, up and over the left shoulder, to a stub at the nape
+    const a = anchor, up = a.n.clone(), tail = a.fwd.clone().negate();
+    const loc = (y, z, x = 0) => a.at.clone().addScaledVector(up, y).addScaledVector(tail, z).addScaledVector(new THREE.Vector3().crossVectors(up, tail), x).divide(D.bs);
+    const pts = [loc(0.1, -0.09), loc(0.16, -0.12, 0.02), loc(0.2, -0.17, 0.04), loc(0.19, -0.22, 0.04), loc(0.15, -0.26, 0.02)];
+    const hose = merged(pts.slice(0, -1).map((q, i) => tube(q.toArray(), pts[i + 1].toArray(), 0.0105, P.hose, 4)));
+    out.push(hose);
+  }
+  const trim = D.mesh('pack');
+  const m = vcMesh(merged([...out.map((g) => (g.index ? g.toNonIndexed() : g)), ...(trim ? [trim.geometry] : [])].map((g) => { const c = g.clone(); c.deleteAttribute('uv'); return c; })), 'pack');
   m.userData.backItem = `suit-pack-${look}`;
   return [m];
 }
 
 // --- the boots -------------------------------------------------------------
-// Each paw is made chunky and painted (a darker sole): no new mesh. The fins are
-// the paw flattened and fanned forward, then lowered so the sole stays on the ground.
-function boots(legs, { plainPaw, mat, PAW_Y, look }) {
+// Each paw is made chunky and painted (a darker sole, a cuff band): no new mesh. The
+// fins are the paw spread wide and cupped (edges and tip curled up), then lowered so
+// the sole stays on the ground. The dive suit's depth gauge is one band on one front leg.
+function boots(legs, { plainPaw, PAW_Y, look, simple }) {
   const P = SUIT_PALETTE[look];
   for (const leg of legs) {
     const paw = plainPaw(leg);
-    const [sx, sy, sz] = look === 'space' ? [1.2, 1.55, 1.18] : [1.9, 0.5, 2.2];
-    paw.scale.set(sx, sy, sz);
+    const [sx, sy, sz] = look === 'space' ? [1.2, 1.55, 1.18] : [2.3, 0.55, 2.4];
     paw.geometry.computeBoundingBox();
-    const hb = paw.geometry.boundingBox.max, p = paw.geometry.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color();
+    const hb = paw.geometry.boundingBox.max, p = paw.geometry.attributes.position;
+    if (look === 'dive') for (let i = 0; i < p.count; i++) {
+      const nx = p.getX(i) / hb.x, nz = p.getZ(i) / hb.z;
+      p.setY(i, p.getY(i) + hb.y * (0.9 * nx * nx + 1.5 * Math.max(0, -nz) ** 2));
+    }
+    paw.geometry.computeVertexNormals();
+    paw.scale.set(sx, sy, sz);
+    const col = new Float32Array(p.count * 3), c = new THREE.Color();
     for (let i = 0; i < p.count; i++) {
       const y = p.getY(i) / hb.y, z = p.getZ(i) / hb.z;
-      c.set(y < -0.45 ? P.sole : P.boot);
-      if (look === 'dive' && z < -0.8) c.set(P.sole);   // the fin's blue tip
+      if (look === 'space') c.set(y < -0.45 ? P.sole : y > 0.42 ? P.joint : P.boot);
+      else c.set(y < -0.45 ? P.sole : P.boot), z < -0.8 && c.set(P.sole);
       c.toArray(col, i * 3);
     }
     paw.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -181,8 +324,19 @@ function boots(legs, { plainPaw, mat, PAW_Y, look }) {
     paw.userData.suit = 'boots';
     if (look === 'dive') {
       paw.position.y -= PAW_HALF * (1 - sy);
-      paw.position.z -= hb.z * (sz - 1) * 0.55;   // the fin fans forward
+      paw.position.z -= hb.z * (sz - 1) * 0.55;
     }
+  }
+  if (look === 'dive' && !simple) {
+    const leg = legs[0], y = PAW_Y + 0.07;
+    const g = merged([
+      part(new THREE.CylinderGeometry(0.049, 0.049, 0.022, 6, 1, true).translate(0, y, 0), P.joint),
+      part(new THREE.CylinderGeometry(0.019, 0.019, 0.012, 6).rotateX(Math.PI / 2).translate(0, y, -0.052), P.dark),
+      part(new THREE.CylinderGeometry(0.0135, 0.0135, 0.004, 6).rotateX(Math.PI / 2).translate(0, y, -0.0585), P.brass),
+    ]);
+    const m = vcMesh(g, 'gauge');
+    m.material.side = THREE.DoubleSide;
+    leg.add(m);
   }
 }
 

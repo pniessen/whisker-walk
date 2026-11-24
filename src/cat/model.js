@@ -2203,7 +2203,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     else coatShell(found.colour, found.paint);
     tagFound(body.children.slice(from), accessories.body);
   } else {
-    addSuit(accessories.body, 'body', (kit, look) => kit.body({ coatShell, look, simple: !!opts.simple }));
+    addSuit(accessories.body, 'body', (kit, look) => kit.body({ coatShell, look, simple: !!opts.simple, bodyScale: BODY_SCALE }));
   }
 
   // back: the backpack, jetpack and wings are shaped things built ON the
