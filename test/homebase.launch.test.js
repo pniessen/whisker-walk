@@ -87,10 +87,10 @@ const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolu
 const OPEN_ROOMS = { available: true, getState: () => null, onChange() {} };
 const IN_ROOM = { available: true, getState: () => ({ roster: [{ id: 'a' }, { id: 'b' }] }), onChange() {} };
 
-function setup({ rooms = null, sync = null, colonySync = null, onVisitDen = () => {}, state, getIsTouch } = {}) {
+function setup({ rooms = null, sync = null, colonySync = null, onVisitDen = () => {}, onOpenDen, state, getIsTouch } = {}) {
   const progression = createProgression(memStorage());
   if (state) state(progression.state);
-  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync, cloud: null, settings, onSettingsChange: () => {}, onVisitDen, colonySync, myId: 'me', toast: () => {}, getIsTouch });
+  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync, cloud: null, settings, onSettingsChange: () => {}, onVisitDen, onOpenDen, colonySync, myId: 'me', toast: () => {}, getIsTouch });
   hb.show();
   return { progression, hb };
 }
@@ -1180,5 +1180,46 @@ describe('pad layers: the cards carry data-pad-layer', () => {
     const { hb } = setup({ state: woodsOpened });
     hb.showVisit(PLAIN);
     expect(moment().attrs['data-pad-layer']).toBe('');
+  });
+});
+
+describe('My den on the home screen (den shop UX M4)', () => {
+  it('a My den button sits in the start row beside Explore; it opens the sheet and never walks', () => {
+    const onVisitDen = vi.fn();
+    const onOpenDen = vi.fn();
+    setup({ onVisitDen, onOpenDen });
+    const h = html();
+    expect(h).toContain('id="btn-my-den"');
+    expect(h.indexOf('id="btn-my-den"')).toBeLessThan(h.indexOf('id="btn-start"'));
+    clickRoot({ '#btn-my-den': {} });
+    expect(onOpenDen).toHaveBeenCalledTimes(1);
+    expect(onVisitDen).not.toHaveBeenCalled();
+  });
+  it('Walk in (the callback the sheet is given) is the old walk, and notes the visit', () => {
+    const onVisitDen = vi.fn();
+    const onOpenDen = vi.fn();
+    setup({ onVisitDen, onOpenDen });
+    clickRoot({ '#btn-my-den': {} });
+    onOpenDen.mock.calls[0][0].onWalkIn();
+    expect(onVisitDen).toHaveBeenCalledTimes(1);
+    expect(store.get('whisker-walk-den-day')).toBeTruthy();
+  });
+  it('the Menu tile opens the same sheet and says how many things are placed', () => {
+    const onVisitDen = vi.fn();
+    const onOpenDen = vi.fn();
+    setup({ onVisitDen, onOpenDen, state: (st) => { st.den.owned = ['bed', 'lamp']; st.den.placed = { window: 'lamp' }; } });
+    openSheet('menu');
+    expect(html()).toContain('<small>1 placed</small>');
+    clickRoot({ '#btn-visit-den': {} });
+    expect(onOpenDen).toHaveBeenCalledTimes(1);
+    expect(onVisitDen).not.toHaveBeenCalled();
+  });
+  it('is hidden in a room, with the Menu tile; and with no sheet wired the old walk-in stays', () => {
+    setup({ rooms: IN_ROOM, onOpenDen: () => {} });
+    expect(html()).not.toContain('btn-my-den');
+    const onVisitDen = vi.fn();
+    setup({ onVisitDen });
+    clickRoot({ '#btn-my-den': {} });
+    expect(onVisitDen).toHaveBeenCalledTimes(1);
   });
 });

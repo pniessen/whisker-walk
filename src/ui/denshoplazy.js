@@ -6,6 +6,8 @@
 //
 // Nothing here may import denshopview.js or denshop.js statically; a test
 // (test/denshoplazy.test.js) reads the source to keep it so.
+import { PAD_BUTTONS } from '../gamepadinput.js';
+
 const defaultLoad = () => import('./denshopview.js');
 
 export function createLazyDenShop(opts = {}, load = defaultLoad) {
@@ -48,9 +50,23 @@ export function createLazyDenShop(opts = {}, load = defaultLoad) {
         if (wantOpen) { wantOpen = false; v.open(); }
       });
     },
+    // The home screen's My den button: the sheet with no walk under it. `o.onWalkIn` runs after it closes.
+    openHome(o = {}) {
+      if (view) { view.openHome(o); return; }
+      ensure().then((v) => { if (v) v.openHome(o); else opts.onUnavailable?.(); });
+    },
+    // The pad's shortcut buttons while the panel is up (L1/R1 tabs, X put away, Start done); true = taken.
+    padButton(i) {
+      if (!view) return false;
+      // The pause card of a den walk says "Press Y for the Den shop": the pad is in menu mode there, so Y answers here too.
+      if (i === PAD_BUTTONS.Y && active && !view.isOpen) { view.open(); return true; }
+      return view.padButton(i);
+    },
     close(arg) { if (view) view.close(arg); else wantOpen = false; },
     get isOpen() { return !!view && view.isOpen; },
     get isAsking() { return !!view && view.isAsking; },
+    get isActive() { return active; },
+    get isHome() { return !!view && view.isHome; },
     get isPlacing() { return !!view && view.isPlacing; },
     stopPlacing() { if (view) view.stopPlacing(); },
     notNow() { if (view) view.notNow(); },

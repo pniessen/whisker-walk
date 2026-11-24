@@ -120,6 +120,7 @@ export function createGamepad({
     // A TV card (the letter picker) may take L1, R1, Square or Start for itself (true = taken).
     const taken = (i) => edge(i) && !!onMenuButton?.(i);
     taken(PAD_BUTTONS.X);
+    taken(PAD_BUTTONS.Y); // on a den walk's pause card, Y opens the den panel here too
     if (edge(PAD_BUTTONS.L1) && !taken(PAD_BUTTONS.L1)) menuNav.zoom?.('out');
     if (edge(PAD_BUTTONS.R1) && !taken(PAD_BUTTONS.R1)) menuNav.zoom?.('in');
     if (edge(PAD_BUTTONS.START) && !taken(PAD_BUTTONS.START) && canResume?.()) onResume?.();

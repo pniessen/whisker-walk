@@ -56,7 +56,7 @@ export const PAD_WORDS = Object.freeze({
   'pad.go': 'Start exploring ⟦confirm⟧',
   'pad.keep': 'Keep exploring ⟦confirm⟧',
   // the den walk's note under the pause card
-  'pad.den.hint': 'Press ⟦pause⟧, then 🛋️ Den shop to decorate',
+  'pad.den.hint': 'Press ⟦photo⟧ for the 🛋️ Den shop to decorate',
   // the photo viewfinder's one line
   'pad.vf.hint': '📷 ⟦jump⟧ to snap · ⟦photo⟧ to lower',
   // the fight pill and sheet

@@ -153,3 +153,13 @@ describe('createGamepad glue', () => {
     expect(calls.move).toEqual([]);
   });
 });
+
+describe('Y / Triangle on a den walk (den shop UX M4)', () => {
+  it('opens the den panel only on a den walk with no viewfinder; photo mode everywhere else', async () => {
+    const { yOpensDen } = await import('../src/gamepadinput.js');
+    expect(yOpensDen('camera', true, false)).toBe(true);
+    expect(yOpensDen('camera', false, false)).toBe(false);
+    expect(yOpensDen('camera', true, true)).toBe(false);
+    expect(yOpensDen('pounce', true, false)).toBe(false);
+  });
+});

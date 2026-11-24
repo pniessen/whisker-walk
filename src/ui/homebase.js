@@ -144,6 +144,8 @@ export function showEditionTitle(doc, edition) {
 //     "Delete my online data"; absent, the button isn't drawn
 //   settings, onSettingsChange: the settings store and its change hook
 //   onVisitDen: called to walk into a family den
+//   onOpenDen (optional): opens the den sheet on this screen, no walk; called with { onWalkIn }.
+//     Absent, the My den button and tile walk straight in as they did.
 //   myId: this player's id; toast: shows a short message
 //   onCelebrate (optional): called when a milestone celebration starts
 //   onCardsClosed (optional): called when she dismisses the clan moment, so
@@ -153,7 +155,7 @@ export function showEditionTitle(doc, edition) {
 //   nearby: game/nearby.js, the rooms the app found on the local network.
 //     Absent, or not available (Safari, desktop), nothing of it is drawn
 //   metPlayers: src/metplayers.js (the device's own list when absent)
-export function createHomeBase({ progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onTvChange = null, onVisitDen, colonySync, myId, toast, onCelebrate, onBirthdaySong, onAudioWake, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null, getIsTouch = () => false, reload = () => globalThis.location?.reload?.() }) {
+export function createHomeBase({ progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onTvChange = null, onVisitDen, onOpenDen = null, colonySync, myId, toast, onCelebrate, onBirthdaySong, onAudioWake, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null, getIsTouch = () => false, reload = () => globalThis.location?.reload?.() }) {
   const met = () => metPlayers ?? deviceMetPlayers();
   const root = document.getElementById('homebase');
   let petNameError = null;
@@ -1468,6 +1470,19 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       + `<span aria-hidden="true">👫</span><span class="dr-together-words" aria-hidden="true">${escapeHtml(words)}</span></button>`;
   }
 
+  // The 🏠 My den button beside Start (den shop UX M4): opens the den sheet, no walk. Not in a
+  // room (the den never joins one) and not on the Play together sheet's dock.
+  function denButtonHtml(roomState) {
+    if (roomState || openSheet === 'together') return '';
+    return '<button id="btn-my-den" class="dr-together dr-den" type="button" aria-label="My den">'
+      + '<span aria-hidden="true">🏠</span><span class="dr-together-words" aria-hidden="true">My den</span></button>';
+  }
+  // Opens the sheet (or, with no sheet wired, walks in as before). "Walk in" inside it does the old walk.
+  function openDen() {
+    if (!onOpenDen) { noteDenVisit(); onVisitDen?.(); return; }
+    onOpenDen({ onWalkIn: () => { noteDenVisit(); onVisitDen?.(); } });
+  }
+
   // The cat Start walks, named while a locked cat or a try-on is on show.
   function startAs() {
     try { return dressing?.walkingAs?.() ?? null; } catch { return null; }
@@ -1475,7 +1490,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
 
   // Start, with Play together beside it when multiplayer is on.
   function startRowHtml(roomState) {
-    return `<div class="dr-start-row">${playTogetherHtml(roomState)}${renderStartButtonHtml(roomState, { as: startAs(), gettingReady })}</div>`;
+    return `<div class="dr-start-row">${playTogetherHtml(roomState)}${denButtonHtml(roomState)}${renderStartButtonHtml(roomState, { as: startAs(), gettingReady })}</div>`;
   }
 
   // null (or anything not on offer) = back to the dressing room. Where a sheet's
@@ -1574,8 +1589,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // hides it, as before.
   function denTileHtml(roomState) {
     if (roomState) return '';
+    const n = Object.keys(progression.state?.den?.placed ?? {}).length;
+    const sub = !onOpenDen ? 'go now' : n ? `${n} placed` : 'shop and arrange';
     return '<button class="hb-tile hb-tile-den" id="btn-visit-den" type="button"><span class="hb-tile-icon" aria-hidden="true">🏠</span>'
-      + '<span class="hb-tile-name">My den</span><small>go now</small></button>';
+      + `<span class="hb-tile-name">My den</span><small>${sub}</small></button>`;
   }
 
   function renderMenu(s, roomState) {
@@ -2048,9 +2065,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       setSheet('together');
       return;
     }
-    if (e.target.closest?.('#btn-visit-den')) {
-      noteDenVisit();
-      onVisitDen?.();
+    if (e.target.closest?.('#btn-visit-den') || e.target.closest?.('#btn-my-den')) {
+      openDen();
       return;
     }
     // Start over asks first, in the page (window.confirm is a silent "no" in

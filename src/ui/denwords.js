@@ -13,7 +13,7 @@ export const WORDS = Object.freeze({
   walkIn: 'Walk in',
   done: 'Done',
   isYours: '{name} is yours!',
-  needMore: 'Need {n} more 🐾',
+  needMore: 'Need {n} more',
   handPlace: 'Pick a spot for {name}',
   tablist: 'Den sections',
   planLabel: 'Your den from above',
@@ -29,6 +29,10 @@ export const WORDS = Object.freeze({
   placedNote: '{name}: {spot}. Looks cosy!',
   swapNote: '{name} and {other} swapped places.',
   emptyNote: '{spot} is empty now.',
+  // The pad's shortcut line (⟦tokens⟧ become button pictures; the plain form is for a pad with no TV pictures).
+  padKeys: '⟦dpad⟧ spots · ⟦confirm⟧ pick · ⟦zoomOut⟧⟦zoomIn⟧ tabs · ⟦interact⟧ put away · ⟦pause⟧ done · ⟦back⟧ back',
+  padKeysPlain: 'D-pad moves · A picks · L1 R1 tabs · X puts away · Start done · B back',
+  walkInLabel: '🚶 Walk in',
 });
 
 export const DEN_WORD_IDS = Object.freeze(Object.keys(WORDS));

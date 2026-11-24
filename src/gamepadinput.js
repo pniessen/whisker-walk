@@ -34,6 +34,9 @@ export const BUTTON_ACTIONS = Object.freeze({
   [PAD_BUTTONS.START]: 'pause',
 });
 
+/** Y / Triangle is photo mode everywhere except a den walk with no viewfinder up, where it opens the den panel. */
+export const yOpensDen = (name, denActive, cameraMode) => name === 'camera' && !!denActive && !cameraMode;
+
 /** Radial dead zone, rescaled so the edge of the zone reads 0 and a full push 1. */
 export function applyDeadZone(x, y, dead = STICK_DEAD) {
   const ax = Number.isFinite(x) ? x : 0;
