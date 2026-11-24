@@ -24,8 +24,8 @@ const isSuit = (o) => !!o.userData.suit || o.userData.backItem?.startsWith('suit
 const suitMeshes = (cat) => { const out = []; cat.traverse((o) => { if (o.isMesh && (isSuit(o))) out.push(o); }); return out; };
 const DRESSED = { collar: 'bell', head: 'tophat', face: 'glasses', neck: 'scarf', body: 'sweater', back: 'backpack', feet: 'sneakers' };
 // The most a suit adds beyond the bare cat. Spec 4.1 said 1,100 / 600; the beauty pass
-// (crisp patch, harness, twin tanks, hose, belt) raises it to 1,300 / 800 (owner's ceiling 1,400 / 800).
-const KIT_CAP = (simple) => (simple ? 800 : 1300);
+// (crisp patch, harness, twin tanks, hose, belt) raises it to 1,450 / 800 after round 3 (owner ceiling 1,500 / 900).
+const KIT_CAP = (simple) => (simple ? 800 : 1450);
 
 describe('suit seam: effectiveWear and the hook slot', () => {
   it('no look: her own wear, untouched (same object)', () => {
