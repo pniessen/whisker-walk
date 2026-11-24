@@ -140,6 +140,13 @@ describe('slot picker', () => {
     for (const no of ['data-dr-acc', '🐾', 'Try on', 'Unlock']) expect(tile).not.toContain(no);
     expect(html).not.toContain('A surprise at visit null');
   });
+  it('the Starlight Cape of the Moon (no catalog place yet, behind ?moon=1) shows no silhouette and no empty "Found in", and is an ordinary tile once owned', () => {
+    const html = renderSlotPickerHtml(defaultishState(), CATALOG, 'body', null);
+    expect(html).not.toContain('🌠');
+    expect(html).not.toMatch(/Found in\s*</);
+    const s = defaultishState(); s.unlocked.accessories.push('starlightcape');
+    expect(renderSlotPickerHtml(s, CATALOG, 'body', null)).toContain('data-dr-acc="starlightcape" data-dr-act="wear"');
+  });
   it('a found outfit is an ordinary owned tile', () => {
     const s = defaultishState(); s.unlocked.accessories.push('acorncap');
     expect(renderSlotPickerHtml(s, CATALOG, 'head', null)).toContain('data-dr-acc="acorncap" data-dr-act="wear"');

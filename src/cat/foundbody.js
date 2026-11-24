@@ -93,10 +93,22 @@ function jumperPaint(ux, uy, uz) {
   return Math.round(uz * 16) % 2 ? JUMPER : JUMPER_KNIT;
 }
 
+// The Starlight Cape (the Moon): deep navy cloth shading darker toward the hem, a scatter of small stars (pale gold and ice blue) at
+// hand-chosen cloth cells, a pale seam down the flanks and at the hem. Counted from a and s like the others, so the stand, sit and
+// simple grids all show the same sky.
+const NIGHT = 0x2a3a82, NIGHT_LOW = 0x1c2766, STAR = 0xfff4c4, STAR_ICE = 0xd2e2ff, SEAM = 0xc9d3ee;
+function starlightPaint(a, s) {
+  if (Math.abs(a) > 0.88 || s > 0.93) return SEAM;
+  const i = Math.round(a * 6), j = Math.round(s * 10), h = (i * 7 + j * 13 + i * j * 5 + 40) % 8;
+  if (h < 3 && Math.hypot(a * 6 - i, (s * 10 - j) * 0.7) < 0.6) return h ? STAR_ICE : STAR;
+  return s > 0.6 ? NIGHT_LOW : NIGHT;
+}
+
 export const FOUND_BODY = Object.freeze({
   doormatcape: Object.freeze({ kind: 'cape', colour: COIR, accent: COIR_BORDER, paint: doormatPaint }),
   beachtowelcape: Object.freeze({ kind: 'cape', colour: 0xf2763c, accent: 0xf2c14e, paint: towelPaint }),
   fishermansjumper: Object.freeze({ kind: 'shell', colour: JUMPER, paint: jumperPaint }),
+  starlightcape: Object.freeze({ kind: 'cape', colour: NIGHT, accent: STAR_ICE, paint: starlightPaint }),
 });
 
 // The Kite-tail Ribbon: a little diamond kite flying up behind her on a white

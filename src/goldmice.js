@@ -200,10 +200,17 @@ export const GOLD_MICE = {
     // on the high pool ledge, one climb up from the pools' west side
     { id: 'gm-light-3', x: 6, z: 12, y: 0.72 },
   ],
+  // The Moon (src/world/moonplan.js MOON_GOLD; test/moongold.test.js holds the two lists equal). `y` is the height over the dust.
+  // None needs a bound or the cave: the lander's deck (one hop in low gravity), Earthrise Rock's top ledge, the Sample Pit's floor.
+  moon: [
+    { id: 'gm-moon-1', x: 0, z: 40.6, y: 3 },
+    { id: 'gm-moon-2', x: -2, z: -46, y: 3 },
+    { id: 'gm-moon-3', x: 30.8, z: -9.6, y: 0 },
+  ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 48 (fifteen areas x three, and the island's three; 45 until Lighthouse Point)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 51 (sixteen areas x three, and the island's three; 48 before the Moon)
 
 // The golden mice a player of `edition` can reach: those in the areas the
 // edition shows (Legacy hides the Clan Edition territories; see edition.js).

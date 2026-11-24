@@ -82,6 +82,8 @@ export const SURFACES = Object.freeze({
   flagstone: Object.freeze({ color: 0x45423c, alpha: 0.42, rim: 0, life: 0.7 }),
   // Gravel and packed-earth paths: faint dusty prints.
   gravel: Object.freeze({ color: 0x7a6a52, alpha: 0.4, rim: 0, life: 0.85 }),
+  // The Moon's dust: dark, clear prints with a pale pushed-up rim that stay a good while (nothing blows on the Moon).
+  dust: Object.freeze({ color: 0x2c2c34, alpha: 0.75, rim: 0.4, life: 1.6 }),
 });
 
 // The per-area rule. `ground` is what the bare ground plane is, `path` what a
@@ -115,6 +117,8 @@ export const AREA_RULES = Object.freeze({
   // Lighthouse Point's cliff path and tracks are worn earth and sand; its turf, rock and the cove's sand (the Seaside's
   // wetness() is the Seaside's own shore, not this cove's) take none.
   lighthouse: Object.freeze({ ground: null, path: 'sand', strip: null }),
+  // The Moon's whole plain is dust: it keeps her paw prints (the Quiet Dust find).
+  moon: Object.freeze({ ground: 'dust', path: 'dust', strip: null }),
 });
 
 // THE BIRTHDAY'S GLITTER (2026-11-21; src/ui/party.js birthdayPartyOn). While

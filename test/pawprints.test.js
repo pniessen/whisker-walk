@@ -22,13 +22,14 @@ const { build: buildFair } = await import('../src/world/fair.js');
 const { build: buildRoofs } = await import('../src/world/roofs.js');
 const { build: buildMarket } = await import('../src/world/market.js');
 const { build: buildLighthouse } = await import('../src/world/lighthouse.js');
+const { build: buildMoon } = await import('../src/world/moon.js');
 const { createContactShadows } = await import('../src/render/contactshadows.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { assignShadowCasters } = await import('../src/render/rig.js');
 const { LADDER } = await import('../src/render/quality.js');
 const { inWater } = await import('../src/world/builder.js');
 
-const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, farm: buildFarm, fair: buildFair, roofs: buildRoofs, market: buildMarket, lighthouse: buildLighthouse };
+const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, farm: buildFarm, fair: buildFair, roofs: buildRoofs, market: buildMarket, lighthouse: buildLighthouse, moon: buildMoon };
 
 // walk.js's order: build, contact shadows, merge, casters, THEN prints.
 function walkScene(areaId) {
@@ -216,6 +217,10 @@ describe('paw print surfaces', () => {
 
   it('the Fairground takes prints on its trodden midway, plaza and paths, and none on the lawn', () => {
     expect(AREA_RULES.fair).toEqual({ ground: null, path: 'sand', strip: null });
+  });
+  it('the Moon\'s whole plain is dust that keeps a print a good while (the Quiet Dust find)', () => {
+    expect(AREA_RULES.moon).toEqual({ ground: 'dust', path: 'dust', strip: null });
+    expect(SURFACES.dust.life).toBeGreaterThan(SURFACES.gravel.life);
   });
 
   it('never prints in water or in a puddle, in any area', () => {

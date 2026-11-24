@@ -15,7 +15,8 @@
 // silent exactly as before.
 
 import { PERSONALITIES } from '../cat/brain.js';
-import { bestPerch, canReach, climbBudget, fenceRunning } from '../climbing.js';
+import { bestPerch, canReach, fenceRunning } from '../climbing.js';
+import { placeArc, placeBudget } from '../placephysics.js';
 import { FLAT_GROUND } from '../ground.js';
 import { hasSkill } from '../skills.js';
 import { pounceArc } from '../player.js';
@@ -280,7 +281,7 @@ export function createInteractions({
     // both behave exactly as they do today. Read live off the save, same as
     // the budget above, so the 25th vantage perch enables the wall-run on
     // the very next press.
-    const budget = climbBudget(progression.state);
+    const budget = placeBudget(progression.state, session.areaId);
     // Gorge part 1 (R5): perch heights are metres above the ground at the
     // perch; bestPerch compares world heights and never leaves the cat's level.
     const ground = session.ground ?? FLAT_GROUND;
@@ -371,13 +372,14 @@ export function createInteractions({
       // `settings` into this module) keeps the setting read off the 60Hz
       // path and out of this factory's dependency list, and a stand-in
       // session without the field simply reads as "motion allowed".
-      player.pounce(pounceArc(progression.state, { reducedMotion: session.reducedMotion }));
+      const arc = placeArc(pounceArc(progression.state, { reducedMotion: session.reducedMotion }), session.areaId);
+      player.pounce(arc);
       audio.pounceWhoosh();
       // 0.3s is also the hop's duration (POUNCE_HOP_TIME) — the arc is tied
       // to this pose window on purpose, so the paws touch down on the frame
       // game/avatar.js plays the landing thump. Changing one means changing
       // the other.
-      session.pounceTime = 0.3;
+      session.pounceTime = arc.time; // 0.3 s, or the place's own (the Moon's hop hangs longer: placephysics.js)
       session.pounceCooldown = 1.2;
       bus.emit('guide:did', { what: 'pounce' }); // the guided walk's step 5
     }

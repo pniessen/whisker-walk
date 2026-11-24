@@ -167,6 +167,16 @@ export const MERGE_RULES = Object.freeze({
     if (l.bestMs === null || c.bestMs === null) return l.bestMs === null ? c : l;
     return l.bestMs <= c.bestMs ? l : c;
   },
+  // The Moon: the story only moves on (step max), cells and star pictures are unions of bits, the stamp is the side that
+  // changed it (a set one beats none), each cat's best jump is the longer one.
+  moon: (r) => {
+    const l = r.L.moon; const c = r.C.moon;
+    return {
+      step: Math.max(l.step, c.step), cells: l.cells | c.cells, scope: l.scope | c.scope,
+      stamp: l.stamp < 0 || l.stamp === c.stamp ? c.stamp : c.stamp < 0 ? l.stamp : newer(l.stamp, c.stamp, r.B?.moon?.stamp, r.ctx),
+      jump: perKey(l.jump, c.jump, (x, y) => Math.max(num(x), num(y))),
+    };
+  },
   den: (r) => ({
     owned: union(r.L.den.owned, r.C.den.owned),
     placed: newer(r.L.den.placed, r.C.den.placed, r.B?.den?.placed, r.ctx),
@@ -251,7 +261,7 @@ export const MERGE_RULES = Object.freeze({
 // (Object keys, not strings: the word tests read string literals, and `clan` is a key here.)
 const BASE_WANTED = {
   points: 1, walks: 1, unlocked: 1, equipped: 1, customCats: 1, area: 1, lifetimePoints: 1, petName: 1, den: 1,
-  duskWalks: 1, clan: 1, visits: 1, visitPrizesSeen: 1, visitPrizePending: 1, mapMode: 1, edition: 1, clanPick: 1, fightsWon: 1,
+  duskWalks: 1, moon: 1, clan: 1, visits: 1, visitPrizesSeen: 1, visitPrizePending: 1, mapMode: 1, edition: 1, clanPick: 1, fightsWon: 1,
 };
 export const BASE_KEYS = Object.freeze(Object.keys(BASE_WANTED));
 

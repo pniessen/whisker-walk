@@ -280,7 +280,7 @@ export function renderSlotPickerHtml(state, catalog, slot, tryOn, thumbs) {
     // data-dr-acc (the controller ignores it), no price, no try-on. In Legacy
     // a place her edition hides keeps its outfits out of sight until found.
     if (a.find && !owned) {
-      if (!areaInEdition(catalog.areas?.[a.find], state?.edition)) return '';
+      if (!catalog.areas?.[a.find] || !areaInEdition(catalog.areas[a.find], state?.edition)) return ''; // (a place with no catalog row yet, the Moon behind ?moon=1, shows no silhouette)
       // Nothing is hidden in a place with no find spots: no silhouette to hunt for.
       if (spotsIn(a.find).length === 0) return '';
       const where = phrase('wear.foundIn', lower(placeName(a.find, state?.edition, catalog)));

@@ -21,6 +21,7 @@ const { build: buildMarket } = await import('../src/world/market.js');
 const { build: buildHouse } = await import('../src/world/house.js');
 const { build: buildLighthouse } = await import('../src/world/lighthouse.js');
 const { build: buildGreenhouse } = await import('../src/world/greenhouse.js');
+const { build: buildMoon } = await import('../src/world/moon.js');
 const { HOUSE_LEVELS } = await import('../src/world/houseplan.js');
 const { measureHouse } = await import('./helpers/housebudget.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -480,6 +481,27 @@ const AREAS = [
   // 3,084, foliage 10,560, orchids 1,884, koi 108; the fountain 6,900; the frame 2,988 and the glass 420). The street places' ruling, never
   // raised; the place aims for 150 / 70 / 52,000 when it is whole.
   ['greenhouse', buildGreenhouse, 280, 210, 62000],
+  // The Moon. Milestone 0 (2026-11-23, the seams) was a bare plain, 1 / 0 / 5,408 (the 130 m ground plane's own segments). Milestone 1
+  // (the real heightfield ground in the gravel tile, 6,496 triangles in one mesh; four InstancedMeshes of rocks; the lander, the flag, the
+  // landing lights and the return gate ring, merged by material) measured 10 / 5 / 7,844 built as this file counts (an InstancedMesh is
+  // one geometry here), +12% (the Farm's and the Market's ruling): 12 / 6 / 8,800. Counting every instance the plain draws 14,584 (the
+  // plan's row A1 is 15,500; test/moonplace.test.js holds that number too). The plan's A1 row was 40 / 24 / 15,500: this is under it
+  // on every count. The sky (700 stars, Earth, a cloud disc) is the walk's life, built after the sweeps, and not in this count. The spec's
+  // final ceilings (240 / 150 / 56,000, chunk 94 kB) are set as its stages measure (milestones 2 to 8), never above them. Not in the
+  // merged table below: nothing here merges (the kit is already one mesh per material, and a top-level mesh is left alone).
+  // Milestone 2 (the base: the dome, the airlock and its two door leaves, the Core, the Mission Board, the six planters, the Old Dish, Skip Ridge's
+  // two pillars, the Far Beacon's stand-in; Pip, the cells and the ring are the walk's own, built after this count) measured 20 / 8 / 11,986 built
+  // (18,726 counting every rock instance, test/moonplace.test.js), +12%: 23 / 9 / 13,500. The plan's row A (end of milestone 4) is 100 / 56 / 27,500.
+  // Milestone 3 (Dot's course: the Rover Depot, 36 lit track posts, the Far Beacon and the Rover cell's plinth, merged into the same buckets plus one
+  // more for the lit lamps; Dot herself, her ring and her dust are the walk's own, made after this count, like Pip) measured 21 / 8 / 13,274 built
+  // (20,014 counting every rock instance, test/moonplace.test.js), +12%: 24 / 9 / 14,900. The plan's row A (end of milestone 4) is 100 / 56 / 27,500.
+  // Milestone 4 added Earthrise Rock, the pit's rock, the cheese, the echo studs and the plain's posts into the existing material buckets (no mesh more),
+  // and took draw calls OUT: the planters and the track's lit posts joined the place's one `glow` bucket, and the medium, large and boulder rocks became
+  // one InstancedMesh: measured 17 / 6 / 14,262 built (21,162 counting every rock instance, test/moonplace.test.js), +12%: 20 / 7 / 16,000.
+  // Milestone 5 (Star Hill, wing B) puts the tower and its ramp into the Moon's own stone mesh (no mesh of its own) and adds two meshes, the observatory's
+  // paint and the additive figures (the table's pictures and the ceiling's Great Cat): measured 19 / 7 / 17,456 built (24,356 counting every rock
+  // instance, test/moonplace.test.js), +12%: 22 / 8 / 19,600. The plan's row B (end of milestone 5) is 125 / 66 / 33,000.
+  ['moon', buildMoon, 22, 8, 19600],
 ];
 
 // ---------------------------------------------------------------------------
