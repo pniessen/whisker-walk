@@ -119,6 +119,12 @@ export const LINES = Object.freeze({
   // (milestone 7b) the ring gates of the bound
   'moon.ring.hint': 'Run, then pounce. Bound through the rings!',
   'moon.ring.all': 'Every ring is lit!',
+  // (milestone 8) the Lava Tube and the Deep Cell (the same in both sets)
+  'moon.deep.hint': 'Something glows deep in the cave.',
+  'moon.deep.got': 'A Deep Cell! Take it to the Core.',
+  'moon.deep.bloom': 'The Star Garden is blooming!',
+  'moon.deep.finale': 'Earth is shining extra bright!',
+  'moon.goal.cave': 'A glowing cell waits deep in the cave.',
 });
 
 addPhrases(LINES);

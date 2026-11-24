@@ -16,6 +16,9 @@
 //   step 7  the rocket was launched with the postcard in it: "sent, reply waiting". Saved: the reply is shown on the next walk without a relaunch
 //   step 8  Earth answered: her stamp blinked back on its night side. The story is done (the Moon Badge, 40 paws).
 // (this machine never lowers a step and never raises one past 8.)
+// CHAPTER 4, THE DEEP CELL (milestone 8; optional, no step of its own): `cells` bit 2. The third cell waits on its pedestal in the Lava Tube's chamber; carried to the
+// Core once the base is awake (step 4 or more), it goes into the Core's third socket: the Star Garden blooms and Earth's finale is bigger. Any time after the base wakes,
+// before or after the story; bit 2 is never lowered and never changes a step.
 // A cell she is CARRYING is never saved: an unplugged cell is always back at its own spot on the next walk.
 //
 // ANY ORDER: Pip first, then the two cells in either order, then the Core. normalize() repairs whatever a merge of two
@@ -28,6 +31,7 @@ export const STAMPS = 3; // a paw, a star, a heart
 export const STORY_SCOPE = 3; // scope bits 0 and 1: the Mouse and the Cat
 export const CELLS = Object.freeze([Object.freeze({ id: 0, name: 'ridge' }), Object.freeze({ id: 1, name: 'rover' })]);
 export const CELL_BITS = 3;
+export const DEEP = 2; // the Deep Cell's id (cells bit 2)
 
 const int = (v, lo, hi) => (Number.isInteger(v) && v >= lo ? Math.min(hi, v) : lo);
 const bits = (n) => (n & 1) + ((n >> 1) & 1);
@@ -48,6 +52,7 @@ export function normalize(moon) {
 export const pipAwake = (moon) => normalize(moon).step >= STEP.pip;
 export const baseAwake = (moon) => normalize(moon).step >= STEP.awake;
 export const cellIn = (moon, id) => (normalize(moon).cells & (1 << id)) !== 0;
+export const deepIn = (moon) => (normalize(moon).cells & (1 << DEEP)) !== 0; // the Deep Cell is in the Core
 export const scopeBits = (moon) => (Number.isInteger(moon?.scope) && moon.scope >= 0 ? moon.scope & 31 : 0);
 export const storyTraced = (moon) => (scopeBits(moon) & STORY_SCOPE) === STORY_SCOPE;
 export const earthFound = (moon) => normalize(moon).step >= STEP.aimed;
@@ -68,8 +73,8 @@ export function apply(moon, ev) {
   const kind = ev && typeof ev === 'object' ? ev.kind : null;
   if (kind === 'wake') {
     if (step < STEP.pip) step = STEP.pip;
-  } else if (kind === 'plug' && (ev.cell === 0 || ev.cell === 1)) {
-    if (step < STEP.pip) return { moon: { ...base, ...cur }, changed: false, effect: null };
+  } else if (kind === 'plug' && (ev.cell === 0 || ev.cell === 1 || ev.cell === DEEP)) {
+    if (step < STEP.pip || (ev.cell === DEEP && step < STEP.awake)) return { moon: { ...base, ...cur }, changed: false, effect: null }; // the Deep Cell is for a woken base
     cells |= 1 << ev.cell;
   } else if (kind === 'beat') {
     if (step === STEP.both) step = STEP.awake;
@@ -101,7 +106,7 @@ export function apply(moon, ev) {
     : kind === 'stamp' ? 'stamp' : kind === 'load' ? 'load' : kind === 'launch' ? 'launch' : kind === 'reply' ? 'reply'
     : kind === 'trace' ? (next.step === STEP.aimed && cur.step < STEP.aimed ? 'earth' : 'trace')
     : kind === 'aim' ? 'earth'
-    : kind === 'wake' ? 'wake' : kind === 'plug' ? (next.step === STEP.both ? 'both' : 'plug') : next.step === STEP.aimed ? 'aimed' : 'awake';
+    : kind === 'wake' ? 'wake' : kind === 'plug' ? (ev.cell === DEEP ? 'deep' : next.step === STEP.both ? 'both' : 'plug') : next.step === STEP.aimed ? 'aimed' : 'awake';
   return { moon: { ...base, ...next, ...(scope || 'scope' in base ? { scope } : {}), ...(stamp >= 0 || 'stamp' in base ? { stamp } : {}) }, changed, effect };
 }
 
@@ -110,16 +115,18 @@ export function apply(moon, ev) {
 export function credit(moon, ev) {
   if (!ev || typeof ev !== 'object' || typeof ev.kind !== 'string') return apply(moon, null);
   if (ev.kind === 'wake') return apply(moon, { kind: 'wake' });
-  if (ev.kind === 'plug' && (ev.cell === 0 || ev.cell === 1)) return apply(moon, { kind: 'plug', cell: ev.cell });
+  if (ev.kind === 'plug' && (ev.cell === 0 || ev.cell === 1 || ev.cell === DEEP)) return apply(moon, { kind: 'plug', cell: ev.cell });
   if (ev.kind === 'launch') return apply(moon, { kind: 'launch' }); // anyone's press launches for everyone: it moves a device only if its own postcard is in the rocket
   return apply(moon, null);
 }
 
-// What the gold ring points at next: { kind: 'pip' | 'cell' | 'core' | 'scope' | 'done', cell? }. `carrying` is the cell in her mouth (0, 1) or
+// What the gold ring points at next: { kind: 'pip' | 'cell' | 'core' | 'scope' | 'desk' | 'rocket' | 'button' | 'reply' | 'cave' | 'done', cell? }. `carrying` is the cell in her mouth (0, 1) or
 // null. Always answers; 'done' only when the base is awake or the wake-up beat is all that is left.
 export function nextGoal(moon, carrying = null, card = false) {
   const cur = normalize(moon);
   if (cur.step < STEP.pip) return { kind: 'pip' };
+  if (carrying === DEEP && cur.step >= STEP.awake && !(cur.cells & (1 << DEEP))) return { kind: 'core', cell: DEEP }; // the Deep Cell is in her mouth: to the Core
+  if (cur.step >= STEP.replied) return cur.cells & (1 << DEEP) ? { kind: 'done' } : { kind: 'cave' }; // the story is told: the glowing cell in the cave is what is left
   if (cur.step === STEP.awake) return { kind: 'scope' }; // the base is awake: the telescope on Star Hill is next
   // chapter 3 (milestone 6): the Message Desk, the rocket's slot (with the postcard in her mouth), the big red button, the ridge
   if (cur.step === STEP.aimed) return card ? { kind: 'rocket' } : { kind: 'desk' };

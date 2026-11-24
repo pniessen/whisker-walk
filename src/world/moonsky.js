@@ -203,13 +203,52 @@ export function createMoonSky({ scene, tier, reducedMotion = false }) {
     map.needsUpdate = true;
   }
 
+  // (milestone 8) the Deep Cell's finale: a soft additive halo round Earth (made the first time it is asked for, so a walk that never plugs the Deep Cell has none and pays no draw)
+  let halo = null;
+  let haloLevel = 0;
+  function setShimmer(level) {
+    const lv = Math.max(0, Math.min(1, level));
+    haloLevel = lv;
+    if (!earth) return;
+    if (!halo && lv > 0) {
+      const R0 = EARTH.size * 0.46;
+      const R1 = R0 * 1.9;
+      const seg = 40;
+      const pos = [];
+      const col = [];
+      const at = (a, r, f) => { pos.push(Math.cos(a) * r, Math.sin(a) * r, 0); col.push(0.55 * f, 0.85 * f, 1 * f); };
+      for (let i = 0; i < seg; i++) {
+        const a0 = (i / seg) * Math.PI * 2;
+        const a1 = ((i + 1) / seg) * Math.PI * 2;
+        at(a0, R0 * 0.97, 0.9); at(a0, R1, 0); at(a1, R1, 0);
+        at(a0, R0 * 0.97, 0.9); at(a1, R1, 0); at(a1, R0 * 0.97, 0.9);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+      halo = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, side: THREE.DoubleSide, forceSinglePass: true, opacity: 0 }));
+      halo.name = 'moon:earthglow';
+      skyFlags(halo, -2);
+      g.computeBoundingSphere();
+      halo.frustumCulled = true; // unlike the stars and Earth it is not centred on the camera: drawn only when Earth is in view (a draw saved on the Moon's heaviest frames)
+      scene.add(halo);
+    }
+    if (halo) { halo.material.opacity = lv; halo.visible = lv > 0.001; }
+  }
+
   return {
-    stars, earth, clouds, setReply,
+    stars, earth, clouds, setReply, setShimmer,
+    get halo() { return halo; },
+    get shimmer() { return haloLevel; },
     update(camera, t = 0) {
       stars.position.copy(camera.position);
       if (earth) {
         earth.position.copy(camera.position).addScaledVector(earthDirection, EARTH.radius);
         earth.quaternion.copy(camera.quaternion);
+        if (halo) {
+          halo.position.copy(earth.position).addScaledVector(earthDirection, 0.5);
+          halo.quaternion.copy(camera.quaternion);
+        }
         if (clouds) {
           clouds.position.copy(earth.position).addScaledVector(earthDirection, -1);
           clouds.quaternion.copy(camera.quaternion);
@@ -218,7 +257,7 @@ export function createMoonSky({ scene, tier, reducedMotion = false }) {
       }
     },
     dispose() {
-      for (const o of [stars, earth, clouds]) {
+      for (const o of [stars, earth, clouds, halo]) {
         if (!o) continue;
         scene.remove(o);
         o.geometry.dispose();

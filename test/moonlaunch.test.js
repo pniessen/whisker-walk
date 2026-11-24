@@ -301,7 +301,8 @@ describe('the mission, chapter 3: steps 6 to 8 (src/world/moonmission.js)', () =
     expect(M.nextGoal(rec(5), null, true).kind).toBe('rocket');
     expect(M.nextGoal(rec(6, { stamp: 0 })).kind).toBe('button');
     expect(M.nextGoal(rec(7, { stamp: 0 })).kind).toBe('reply');
-    expect(M.nextGoal(rec(8, { stamp: 0 })).kind).toBe('done');
+    expect(M.nextGoal(rec(8, { stamp: 0 })).kind).toBe('cave'); // (milestone 8) the glowing cell in the cave is what is left
+    expect(M.nextGoal({ ...rec(8, { stamp: 0 }), cells: 7 }).kind).toBe('done');
   });
   it('PROPERTY: any order of any events from any start never stops the story (there is always a next goal) and never lowers a step', () => {
     const events = [{ kind: 'wake' }, { kind: 'plug', cell: 0 }, { kind: 'plug', cell: 1 }, { kind: 'beat' }, { kind: 'trace', id: 0 }, { kind: 'trace', id: 1 }, { kind: 'aim' },
@@ -317,7 +318,7 @@ describe('the mission, chapter 3: steps 6 to 8 (src/world/moonmission.js)', () =
         const step = M.normalize(m).step;
         expect(step).toBeGreaterThanOrEqual(last);
         last = step;
-        expect(['pip', 'cell', 'core', 'scope', 'desk', 'rocket', 'button', 'reply', 'done']).toContain(M.nextGoal(m, null, rnd() < 0.5).kind);
+        expect(['pip', 'cell', 'core', 'scope', 'desk', 'rocket', 'button', 'reply', 'cave', 'done']).toContain(M.nextGoal(m, null, rnd() < 0.5).kind);
       }
     }
   });

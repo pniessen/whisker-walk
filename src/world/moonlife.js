@@ -17,6 +17,7 @@
 //   * (milestone 7a) the COURSE LAMPS on the three ring-free courses and the HOP BOARD (world/moonjumplive.js);
 //   * (milestone 7b) the BOUND and the RING GATES (world/moonboundlive.js, behind world/moonswitch.js): a pounce at a run carries her along an arc of its own; while it does, her height
 //     is the bound's (session.hopLift) and the camera follows 60 percent of it as it does a plain hop's;
+//   * (milestone 8) the LAVA TUBE and the DEEP CELL (world/moondeeplive.js): the cave's zone, the outside left undrawn once she is deep inside, the Star Garden's bloom and Earth's finale;
 //   * (milestone 3) DOT the rover: hop in at the depot, steer, hop out (world/moonroverlive.js); she hangs her hooks on the walk's session.fair.
 //   * (milestone 2) the BASE: Pip, the two power cells, the Core, the dome, the door, the board, the finds, the gold ring and the
 //     switching-off of the daily goals and the air's sounds (world/moonbaselive.js); this life hands the walk its promptAt, interact
@@ -35,6 +36,7 @@ import { createStarLive } from './moonstarlive.js';
 import { createLaunchLive } from './moonlaunchlive.js';
 import { createJumpLive } from './moonjumplive.js';
 import { createBoundLive } from './moonboundlive.js';
+import { createDeepLive } from './moondeeplive.js';
 import { MOON_SPAWN, AIRLOCK, RETURN_GATE, DOME } from './moonplan.js';
 
 export const CAMERA_FOLLOW = 0.6; // the camera rises this much of a hop's height
@@ -105,6 +107,8 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
   const jump = createJumpLive({ scene, reducedMotion, ground, audio, progression, doc, air: () => bound?.boundY ?? 0 });
   // (milestone 7b) the bound and the ring gates (moonboundlive.js; an inert stand-in when world/moonswitch.js is off); a lit ring counts the journal's Long Jump page with the board's
   bound = createBoundLive({ scene, reducedMotion, ground, colliders, perches, audio, progression, count: () => jump.count() });
+  // (milestone 8) the Lava Tube's zone and the Deep Cell's bloom and finale (moondeeplive.js); the cell itself is the base's (moonbaselive.js)
+  const deep = createDeepLive({ scene, reducedMotion, ground, audio, progression, sky, launch, pip: base.pip });
   const rover = createRoverLive({ scene, reducedMotion, ground, colliders, tier, audio, progression, onDismount: () => base.pip.rejoin(), onFrame: (dt, t, ctx) => { star.frame(dt, t, ctx); launch.frame(dt, t, ctx); } });
   // placed for the Ready card, before the first frame of the walk moves the camera (it looks north from behind the spawn)
   const first = new THREE.PerspectiveCamera();
@@ -127,6 +131,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
     launch,
     jump,
     bound,
+    deep,
     // the action button: Dot's "Hop in" / "Hop out" first (riding), else the base's own offers, else "Hop in" when nothing else is asked
     promptAt(catPos) {
       const b = base.promptAt(catPos);
@@ -174,10 +179,12 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       launch.update(dt, t, catPos, camera, session);
       jump.update(dt, t, catPos, camera, session);
       bound.update(dt, t, catPos, camera, session);
-      cullFar(catPos, session);
+      deep.update(dt, t, catPos, camera, session);
+      cullFar(catPos, session, deep.inside ? 0 : DRAW_NEAR); // deep in the tube nothing outside is drawn: the walk's pebbles and mice too
       cullParts(parts, catPos);
     },
     dispose() {
+      deep.dispose();
       bound.dispose();
       jump.dispose();
       launch.dispose();

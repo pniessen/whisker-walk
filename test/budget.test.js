@@ -506,7 +506,9 @@ const AREAS = [
   // 22 / 8 / 19,838 built (26,738 counting every rock instance, test/moonplace.test.js), +12%: 25 / 9 / 22,300. The plan's row C (end of milestone 7) is 168 / 94 / 42,000.
   // Milestone 7a (the Beam Hops, the hop board's lane, their posts: all in the kit's buckets) measured 22 / 8 / 21,290 built (28,190 counting every rock instance, test/moonplace.test.js), +12%: 25 / 9 / 23,900.
   // Milestone 7b (the three rifts and the ring gates' posts and arms, in the kit's buckets; the hoops are the life's one InstancedMesh) measured 22 / 8 / 21,822 built (28,722 counting every rock instance), +12%: 25 / 9 / 24,450.
-  ['moon', buildMoon, 25, 9, 24450],
+  // Milestone 8 (the Lava Tube: the Cave Massif, the tube's shell and its floor and crystals are three meshes of their own, none a caster; the Old Dish's ledge and the
+  // Core's third socket are in the kit's buckets) measured 25 / 8 / 27,586 built (34,486 counting every rock instance), +12%: 28 / 9 / 30,900. The plan's row D (end of milestone 8) is 184 / 100 / 46,500.
+  ['moon', buildMoon, 28, 9, 30900],
 ];
 
 // ---------------------------------------------------------------------------

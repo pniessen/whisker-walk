@@ -106,7 +106,8 @@ describe('the goal (what the gold ring points at)', () => {
     expect(nextGoal({ step: 5, cells: 3 }, null, true)).toEqual({ kind: 'rocket' });
     expect(nextGoal({ step: 6, cells: 3 })).toEqual({ kind: 'button' });
     expect(nextGoal({ step: 7, cells: 3 })).toEqual({ kind: 'reply' });
-    expect(nextGoal({ step: 8, cells: 3 })).toEqual({ kind: 'done' });
+    expect(nextGoal({ step: 8, cells: 3 })).toEqual({ kind: 'cave' }); // (milestone 8) the story is told: the glowing cell in the cave is what is left
+    expect(nextGoal({ step: 8, cells: 7 })).toEqual({ kind: 'done' });
   });
   it('a cell she carries that is already in the Core is not a goal (someone else plugged it)', () => {
     expect(nextGoal({ step: 2, cells: 1 }, 0)).toEqual({ kind: 'cell', cell: 1 });

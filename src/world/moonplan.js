@@ -8,7 +8,9 @@
 import { STEP_MAX, MAX_GRADE, SUBSTEP, LEVEL_TOL, groundTilt } from '../ground.js';
 
 import { MOON_BOUND_ON } from './moonswitch.js';
+import { LAVA_COLLIDERS, LAVA_KEEP_OUT, DEEP_CELL } from './moonlava.js';
 export { MOON_BOUND_ON };
+export * from './moonlava.js';
 
 export const MOON_NAME = 'The Moon';
 export const MOON_BOUNDS = Object.freeze({ minX: -54, maxX: 54, minZ: -50, maxZ: 50 });
@@ -69,6 +71,10 @@ export const PLANTERS = Object.freeze(Array.from({ length: 6 }, (_, i) => {
   return Object.freeze({ x: DOME.x + Math.cos(a) * 5.6, z: DOME.z + Math.sin(a) * 5.6 });
 }));
 export const OLD_DISH = Object.freeze({ x: -44, z: 14, post: 4.8, bowl: 3.3 });
+// (milestone 8) The Old Dish's ledge: a low stone shelf beside its post, a perch (1.1 m) she can hop up on to stand under the bowl, with a lamp on its edge.
+export const DISH_LEDGE = Object.freeze({ x: -41.6, z: 15.6, y: 1.1, r: 1.3 });
+// (milestone 8) The Core's third socket: the Deep Cell's, on the pedestal's top on the side toward the airlock (the two cells' sockets are north and south of the column).
+export const DEEP_SOCKET = Object.freeze({ x: CORE.x + 0.62, z: CORE.z, y: CORE.top });
 
 // Skip Ridge's chain: two rock pillars (2.6 m and 5.0 m, each step more than Earth's best climb of 2.2 and less than the Moon's
 // 3.2) and the Ridge cell on the top. Only the Moon's doubled climb takes it (test/moonbase.test.js runs the real rules).
@@ -145,7 +151,7 @@ export const PEBBLES = Object.freeze([
   [-14, 14], [22, 4], [-8, -4], [36, -14], [-36, 12], [6, 22], [-24, 38], [-30, -2],
 ].map(([x, z], i) => Object.freeze({ id: `moon-${i + 1}`, x, z })));
 // The scripted points of the story (a find never sits within 3 m of one): Pip's bed, the cells, the sockets, the board, Dot's pad.
-export const JOB_POINTS = Object.freeze([PIP_SLEEP, RIDGE_CELL, ROVER_CELL, ...SOCKETS, { x: BOARD.x + 1.5, z: BOARD.z }, DOT_PARK]);
+export const JOB_POINTS = Object.freeze([PIP_SLEEP, RIDGE_CELL, ROVER_CELL, DEEP_CELL, ...SOCKETS, { x: BOARD.x + 1.5, z: BOARD.z }, DOT_PARK]);
 
 
 // ---- milestone 5: Star Hill (wing B): the tower, its spiral ramp, the observatory, the Star Table ---------------------------------
@@ -262,7 +268,7 @@ export const BEAM_COLLIDERS = Object.freeze(BEAMS.map((b) => c(b.x, b.z, b.r + 0
 // Three RIFTS: shallow trenches (a stadium: a straight axis from (x0, z0) to (x1, z1) and a width w, 3.5 to 6.5 m) that only a bound crosses; nothing the story, the rover,
 // the rocket or the mice need lies beyond one, and each can be walked round at its ends. Her walk is stopped at the lips by a row of overlapping colliders along the axis
 // (flagged `rift`: the bound flies over those and no other); the bound never lands inside one (world/moonbound.js).
-const RIFT_DEFS = [[23, -17, 23, -8, 3.5], [-20, -35, -20, -25, 5], [-46, -4, -46, 7, 6.5]];
+const RIFT_DEFS = [[23, -17, 23, -8, 3.5], [-20, -35, -20, -25, 5], [48.5, 7, 48.5, 16, 6.5]]; // (milestone 8: the third rift moved from (-46, -4..7), where the Cave Massif now stands, across the plain to the east edge)
 export const RIFTS = Object.freeze(MOON_BOUND_ON ? RIFT_DEFS.map(([x0, z0, x1, z1, w]) => Object.freeze({ x0, z0, x1, z1, w })) : []);
 export const RIFT_LIP = 0.3; // m beyond a rift's half width inside which no landing stands: her body's 0.35 less the 0.05 the colliders' scallops dip
 // Five lit RING GATES in a row west to east along the park's south field (each a hoop of radius R standing in the north-south plane, its centre y metres over the
@@ -295,6 +301,8 @@ export const BASE_COLLIDERS = Object.freeze([
   ...[-1.1, 0, 1.1].map((dz) => c(BOARD.x + 0.1, BOARD.z + dz, 0.6)),
   ...PLANTERS.map((p) => c(p.x, p.z, 0.55)),
   c(OLD_DISH.x, OLD_DISH.z, 0.8),
+  c(DISH_LEDGE.x, DISH_LEDGE.z, DISH_LEDGE.r + 0.05),
+  ...LAVA_COLLIDERS,
   ...SKIP.map((p) => c(p.x, p.z, p.r + 0.05)),
   c(ROVER_CELL.x, ROVER_CELL.z, 0.5),
   // the depot's shed (two circles cover its 6 m x 3.6 m footprint) and the Far Beacon's mast
@@ -328,23 +336,25 @@ export const MOON_PERCHES = Object.freeze([
   P(LANDER.x, LANDER.z, LANDER.deck, 'roof'),
   ...SKIP.map((p) => P(p.x, p.z, p.y, 'stone')),
   ...ROCK_LEDGES.map((p) => P(p.x, p.z, p.y, 'stone')),
+  P(DISH_LEDGE.x, DISH_LEDGE.z, DISH_LEDGE.y, 'stone'),
   ...BEAMS.map((p) => P(p.x, p.z, p.y, 'stone')),
 ]);
 
 // Interesting spots a wanderer may head for: open dust, all reachable from the spawn on foot (the walk clears them of colliders).
 export const MOON_POIS = Object.freeze([
-  [14, 36], [-22, 34], [24, 22], [-6, 14], [8, 0], [-30, -16], [38, -2], [-2, -20], [22, -32], [-38, 6], [0, -40], [44, 26],
+  [14, 36], [-22, 34], [24, 22], [-6, 14], [8, 0], [-30, -16], [38, -2], [-2, -20], [22, -32], [-33, 8], [0, -40], [44, 26],
 ].map(([x, z]) => Object.freeze({ x, z })));
 
 // Where the rocks may not stand: the landing site, the ring, the spawn's plain, and the places the later milestones build
 // (centre x, z, radius). The scatter keeps this clear, so a later milestone never has to move a rock.
 export const ROCK_KEEP_OUT = Object.freeze([
   [0, 42, 10], [-10, 41, 5.5], [-20, 46.5, 12], [0, 46, 7], [46, 0, 4],
-  [-34, 26, 13], [-44, 14, 7], [30, 34, 11], [42, -34, 12], [30, -28, 6], [24, -20, 6], [-38, -32, 14], [-27, -24, 4.5], [-47, 0, 8], [8, -40, 8],
+  [-34, 26, 13], [-44, 14, 7], [30, 34, 11], [42, -34, 12], [30, -28, 6], [24, -20, 6], [-38, -32, 14], [-27, -24, 4.5], [8, -40, 8],
   [-4.5, -44.8, 6.5], [31, -10, 4],
   [42, -34, 9.5], [24, -40, 8.6], [-37, 20.8, 2],
   [0, -30, 15.6], [10, -9, 13], [0.6, -5.1, 2.4], // (milestone 7a) the Beam Hops, the hop board's strip and its board
-  ...(MOON_BOUND_ON ? [[23, -12.5, 7.5], [-20, -30, 7.5], [-46, 1.5, 9], [0, -17.5, 16.5]] : []), // (milestone 7b) the rifts and the ring gates' row
+  ...LAVA_KEEP_OUT, [-41.6, 15.6, 3.2], // (milestone 8) the Cave Massif, its mouth and the Old Dish's ledge
+  ...(MOON_BOUND_ON ? [[23, -12.5, 7.5], [-20, -30, 7.5], [48.5, 11.5, 9], [0, -17.5, 16.5]] : []), // (milestone 7b) the rifts and the ring gates' row
 ]);
 
 // ---- the heightfield -------------------------------------------------------------------------------------------------
