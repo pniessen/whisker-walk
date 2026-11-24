@@ -23,7 +23,7 @@ const FIRST_BEAM = P.SKIP.length + P.ROCK_LEDGES.length; // index of the first B
 const SAY = { 'moon.jump.hint': () => phrase('moon.jump.hint'), 'moon.jump.record': () => phrase('moon.jump.record'), 'moon.jump.beams': () => phrase('moon.jump.beams') };
 const say = (key) => bus.emit('discovery', { type: 'greenhousenote', key, label: SAY[key](), points: 0, repeat: false });
 
-export function createJumpLive({ scene, reducedMotion = false, ground, audio = null, progression = null, doc = null } = {}) {
+export function createJumpLive({ scene, reducedMotion = false, ground, audio = null, progression = null, doc = null, air = () => 0 } = {}) {
   const gy = ground?.y ?? P.moonY;
   const sound = createMoonSound(audio);
   const lamps = makeLamps();
@@ -68,9 +68,16 @@ export function createJumpLive({ scene, reducedMotion = false, ground, audio = n
     say('moon.jump.beams');
   }
 
+  // the journal's Long Jump page counts once a walk, for the board's first measured hop or (milestone 7b) the first lit ring
+  function countJournal() {
+    if (usedJournal) return;
+    usedJournal = true;
+    try { progression?.recordSighting?.('mnjump'); } catch { /* a stand-in save */ }
+  }
+
   function land(pos, session) {
     const cm = J.measureHop(from, pos, { perched: false, groundFrom: fromGround, groundTo: gy(pos.x, pos.z) });
-    if (cm === null || session?.perched) return;
+    if (cm === null || session?.perched || air() > 0.05) return; // (milestone 7b) a bound still in the air is not a landing
     last = cm;
     const r = J.improve(progression?.state?.moon, catId, cm);
     recordShown = r.record;
@@ -78,7 +85,7 @@ export function createJumpLive({ scene, reducedMotion = false, ground, audio = n
       progression.state.moon = r.moon;
       try { progression.addPoints?.(0); } catch { /* a stand-in save */ }
     }
-    if (!usedJournal) { usedJournal = true; try { progression?.recordSighting?.('mnjump'); } catch { /* a stand-in save */ } }
+    countJournal();
     paintScreen();
     if (r.record) { sound.traced(); say('moon.jump.record'); } else sound.pin(Math.min(12, Math.floor(cm / 100)));
   }
@@ -88,6 +95,7 @@ export function createJumpLive({ scene, reducedMotion = false, ground, audio = n
     screen,
     lamps,
     get last() { return last; },
+    count: countJournal,
     update(dt, t, catPos, camera, session) {
       const left = session?.pounceTime ?? 0;
       if (!airborne && left > 0) {

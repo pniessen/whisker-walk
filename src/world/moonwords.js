@@ -116,6 +116,9 @@ export const LINES = Object.freeze({
   'moon.jump.hint': 'Hop from the line. The board shows how far!',
   'moon.jump.record': 'New record!',
   'moon.jump.beams': 'Every beam is lit!',
+  // (milestone 7b) the ring gates of the bound
+  'moon.ring.hint': 'Run, then pounce. Bound through the rings!',
+  'moon.ring.all': 'Every ring is lit!',
 });
 
 addPhrases(LINES);

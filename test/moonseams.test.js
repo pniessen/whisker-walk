@@ -268,7 +268,7 @@ describe('the pack', () => {
 describe('the words', () => {
   const IDS = Object.keys(LINES);
   it('every lazy line is in the table once the file is loaded, none is in the start-up tables, and none is empty', () => {
-    expect(IDS.length).toBe(78); // the spec's 15 samples, milestone 2's 17 (Pip, the cells, the Core, the board, the first three finds), milestone 3's five, milestone 4's four (the other three finds, the pebble) and milestone 5's sixteen (the telescope, the star pictures, the Star Table) and milestone 6's eighteen (the Message Desk, the postcard, the rocket, the launch, the reply, the binoculars, the four goal lines) and milestone 7a's three (the hop board's hint, "New record!", "Every beam is lit!")
+    expect(IDS.length).toBe(80); // the spec's 15 samples, milestone 2's 17 (Pip, the cells, the Core, the board, the first three finds), milestone 3's five, milestone 4's four (the other three finds, the pebble) and milestone 5's sixteen (the telescope, the star pictures, the Star Table) and milestone 6's eighteen (the Message Desk, the postcard, the rocket, the launch, the reply, the binoculars, the four goal lines) and milestone 7a's three (the hop board's hint, "New record!", "Every beam is lit!") and milestone 7b's two (the ring gates' hint, "Every ring is lit!")
     for (const id of IDS) {
       expect(hasPhrase(id), id).toBe(true);
       expect(PHRASE_IDS.includes(id) || LATER_PHRASE_IDS.includes(id), `${id} is in the start-up download`).toBe(false);

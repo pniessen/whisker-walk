@@ -7,6 +7,9 @@
 
 import { STEP_MAX, MAX_GRADE, SUBSTEP, LEVEL_TOL, groundTilt } from '../ground.js';
 
+import { MOON_BOUND_ON } from './moonswitch.js';
+export { MOON_BOUND_ON };
+
 export const MOON_NAME = 'The Moon';
 export const MOON_BOUNDS = Object.freeze({ minX: -54, maxX: 54, minZ: -50, maxZ: 50 });
 export const MOON_SPAWN = Object.freeze({ x: 0, z: 45 });
@@ -255,6 +258,27 @@ export const JUMP_RECORD_MAX = 2000; // cm: the save's ceiling (state.moon.jump)
 export const COURSE_LAMPS = Object.freeze([...SKIP, ...ROCK_LEDGES, ...BEAMS].map((p) => Object.freeze({ x: p.x, z: p.z, y: p.y, r: Math.round(p.r * 75) / 100 })));
 export const BEAM_COLLIDERS = Object.freeze(BEAMS.map((b) => c(b.x, b.z, b.r + 0.05)));
 
+// ---- milestone 7b: the bound's courses (Tier 2). All empty when MOON_BOUND_ON is false (world/moonswitch.js), so the Moon is then exactly milestone 7a's. -------------
+// Three RIFTS: shallow trenches (a stadium: a straight axis from (x0, z0) to (x1, z1) and a width w, 3.5 to 6.5 m) that only a bound crosses; nothing the story, the rover,
+// the rocket or the mice need lies beyond one, and each can be walked round at its ends. Her walk is stopped at the lips by a row of overlapping colliders along the axis
+// (flagged `rift`: the bound flies over those and no other); the bound never lands inside one (world/moonbound.js).
+const RIFT_DEFS = [[23, -17, 23, -8, 3.5], [-20, -35, -20, -25, 5], [-46, -4, -46, 7, 6.5]];
+export const RIFTS = Object.freeze(MOON_BOUND_ON ? RIFT_DEFS.map(([x0, z0, x1, z1, w]) => Object.freeze({ x0, z0, x1, z1, w })) : []);
+export const RIFT_LIP = 0.3; // m beyond a rift's half width inside which no landing stands: her body's 0.35 less the 0.05 the colliders' scallops dip
+// Five lit RING GATES in a row west to east along the park's south field (each a hoop of radius R standing in the north-south plane, its centre y metres over the
+// dust, on a short post at its south side): a ring lights when she bounds through it (the walk's own record of this walk, nothing is saved).
+const RING_DEFS = [[-14, -16, 1.6], [-7, -17.5, 1.8], [0, -17, 2.0], [7, -18, 2.25], [14, -17.5, 2.5]];
+export const RING_R = 1.2;
+export const RING_GATES = Object.freeze(MOON_BOUND_ON ? RING_DEFS.map(([x, z, y]) => Object.freeze({ x, z, y, r: RING_R, post: Object.freeze({ x, z: z + RING_R + 0.4 }) })) : []);
+const riftCircles = RIFTS.flatMap((f) => {
+  const len = Math.hypot(f.x1 - f.x0, f.z1 - f.z0);
+  const r = f.w / 2;
+  const n = Math.ceil(len / (2 * Math.sqrt(0.1 * r - 0.0025))) + 1; // the lip's scallops dip at most 0.05 m
+  return Array.from({ length: n }, (_, i) => ({ ...c(f.x0 + ((f.x1 - f.x0) * i) / (n - 1), f.z0 + ((f.z1 - f.z0) * i) / (n - 1), r), rift: true }));
+});
+export const RIFT_COLLIDERS = Object.freeze(riftCircles.map((q) => Object.freeze(q)));
+export const RING_COLLIDERS = Object.freeze(RING_GATES.map((g) => c(g.post.x, g.post.z, 0.25)));
+
 const ring = [];
 for (let i = 0; i < 40; i++) {
   const a = (i / 40) * Math.PI * 2;
@@ -282,6 +306,8 @@ export const BASE_COLLIDERS = Object.freeze([
   ...STAR_COLLIDERS,
   ...LAUNCH_COLLIDERS,
   ...BEAM_COLLIDERS,
+  ...RIFT_COLLIDERS,
+  ...RING_COLLIDERS,
 ]);
 
 export const MOON_COLLIDERS = Object.freeze([
@@ -318,6 +344,7 @@ export const ROCK_KEEP_OUT = Object.freeze([
   [-4.5, -44.8, 6.5], [31, -10, 4],
   [42, -34, 9.5], [24, -40, 8.6], [-37, 20.8, 2],
   [0, -30, 15.6], [10, -9, 13], [0.6, -5.1, 2.4], // (milestone 7a) the Beam Hops, the hop board's strip and its board
+  ...(MOON_BOUND_ON ? [[23, -12.5, 7.5], [-20, -30, 7.5], [-46, 1.5, 9], [0, -17.5, 16.5]] : []), // (milestone 7b) the rifts and the ring gates' row
 ]);
 
 // ---- the heightfield -------------------------------------------------------------------------------------------------
