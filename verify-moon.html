@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Moon: concept pictures</title>
+<!-- The Moon design (docs/superpowers/specs/2026-11-23-moon-design.md): cheap placeholder pictures, NOT the game.
+     One placeholder Moon built from primitives and the game's own materials and rig, with the real suit-kit cat.
+     Shots (?shot=<name>, or window.__shot(name) for scripts/record-page.mjs):
+       earthrise      the landing site at earthrise: lander, return gate ring, Earth over the north ridge, a suited cat
+       crater-rover   the crater field: a suited cat riding the rover along the track posts, a dust trail, Earth
+       launchpad      the launch complex from the viewing mound: pad, gantry, rocket, launch desk, a cat watching
+       layout         the top-down layout with coordinates in metres and the Fairground's footprint for scale
+     Scratch: gitignored, kept on disk (added with git add -f on the design branch only). -->
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #05070f; }
+  #gl { position: fixed; inset: 0; }
+  #gl canvas { display: block; }
+  #labels { position: fixed; inset: 0; pointer-events: none; font: 600 12px/1.2 -apple-system, 'Helvetica Neue', sans-serif; }
+  #labels .pin { position: absolute; transform: translate(-50%, -100%); white-space: nowrap; padding: 2px 6px; border-radius: 6px; background: rgba(8, 12, 24, .78); color: #e9f1ff; }
+  #labels .pin small { color: #f2d58a; font-weight: 500; margin-left: 4px; }
+  #labels .dot { position: absolute; width: 7px; height: 7px; margin: -3px 0 0 -3px; border-radius: 50%; background: #ffd25a; }
+  #labels .box { position: absolute; box-sizing: border-box; border: 2px dashed rgba(255, 255, 255, .6); color: #fff; padding: 3px 6px; }
+  #labels .box.moon { border: 2px solid #8fd0ff; }
+  #title { position: fixed; right: 10px; bottom: 8px; padding: 3px 10px; border-radius: 7px; background: rgba(8, 12, 24, .8); color: #cfe0ff; font: 600 13px sans-serif; }
+</style>
+</head>
+<body>
+<div id="gl"></div>
+<div id="labels"></div>
+<div id="title"></div>
+<script type="module">
+  import '/src/style.css';
+  import * as THREE from 'three';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { buildEnvMap, litMaterial } from '/src/render/materials.js';
+  import { setTextureTier } from '/src/render/textures.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { installSuitKit } from '/src/cat/suitkit.js';
+  import { effectiveWear } from '/src/suithook.js';
+  import * as b from '/src/world/builder.js';
+  import { mulberry32 } from '/src/rng.js';
+
+  installSuitKit();
+  const $ = (id) => document.getElementById(id);
+  const W = innerWidth, H = innerHeight;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.78;
+  $('gl').appendChild(renderer.domElement);
+  const tier = { name: 'high', envIntensity: 0.3 };
+  setTextureTier(tier);
+
+  // ---- the placeholder plan (all metres; north is -z, east is +x) -----------------------------------------
+  // The same numbers as the design's section 3 (src/world/moonplan.js will hold them in the real build).
+  const BOUNDS = { minX: -54, maxX: 54, minZ: -50, maxZ: 50 };
+  const CRATERS = [
+    { id: 'Bunny Bowl', x: -14, z: 20, r: 6, d: 1.2 },
+    { id: 'Echo Crater', x: 16, z: 12, r: 8, d: 1.4 },
+    { id: 'Twin Bowl W', x: -2, z: 4, r: 4, d: 1.0 },
+    { id: 'Twin Bowl E', x: 4, z: 7, r: 3.5, d: 0.9 },
+    { id: 'Great Bowl', x: -20, z: -4, r: 12, d: 2.0 },
+    { id: 'Sample Pit', x: 30, z: -8, r: 5, d: 1.0 },
+  ];
+  const BUMPS = [ // hills and ridges: gaussian bumps, height h, radii rx rz
+    { id: 'Earthrise Ridge', x: -2, z: -47, h: 3.2, rx: 20, rz: 3.2 },
+    { id: 'Star Hill', x: -38, z: -32, h: 5.0, rx: 9, rz: 9 },
+    { id: 'Viewing Mound', x: 24, z: -20, h: 2.0, rx: 5, rz: 5 },
+    { id: 'Cave Massif', x: -47, z: 0, h: 4.5, rx: 8, rz: 11 },
+    { id: 'Skip Ridge', x: 8, z: -40, h: 3.0, rx: 6, rz: 2.5 },
+  ];
+  const TRACK = [[30, 34], [42, 20], [46, 0], [38, -18], [14, -26], [-10, -24], [-30, -14], [-26, 4], [-6, 24]];
+  const hAt = (x, z) => {
+    let y = 0;
+    for (const c of CRATERS) {
+      const d = Math.hypot(x - c.x, z - c.z) / c.r;
+      if (d < 1) y -= c.d * (1 - d * d);
+      else if (d < 1.5) y += c.d * 0.22 * Math.exp(-((d - 1.05) * (d - 1.05)) * 28);
+    }
+    for (const k of BUMPS) y += k.h * Math.exp(-(((x - k.x) / k.rx) ** 2 + ((z - k.z) / k.rz) ** 2));
+    return y;
+  };
+
+  function newWorld(skyTop = 0x02040c, skyHorizon = 0x141d36) {
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(skyTop);
+    scene.environment = envMap;
+    scene.environmentIntensity = tier.envIntensity;
+    scene.fog = new THREE.Fog(0x232a3e, 90, 260);
+    const sun = createSun();
+    sun.color.set(0xfff1dc);
+    sun.intensity = 1.9;
+    sun.position.set(60, 22, 30);
+    scene.add(sun);
+    const fill = createFill(0x7f8aa8);
+    scene.add(fill);
+    return { scene, sun };
+  }
+  const envMap = buildEnvMap(renderer);
+
+  const dustMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
+  function terrain(scene) {
+    const SX = 140, SZ = 130, STEP = 1.5;
+    const nx = Math.round(SX / STEP), nz = Math.round(SZ / STEP);
+    const g = new THREE.PlaneGeometry(SX, SZ, nx, nz);
+    g.rotateX(-Math.PI / 2);
+    const pos = g.attributes.position;
+    const col = new Float32Array(pos.count * 3);
+    const rnd = mulberry32(7);
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), z = pos.getZ(i), y = hAt(x, z);
+      pos.setY(i, y);
+      const n = 0.93 + rnd() * 0.1;
+      const tone = 0.50 + Math.min(0.14, y * 0.04) - Math.max(0, -y) * 0.07;
+      col[i * 3] = tone * n * 1.0; col[i * 3 + 1] = tone * n * 0.98; col[i * 3 + 2] = tone * n * 0.96;
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    g.computeVertexNormals();
+    const m = new THREE.Mesh(g, dustMat);
+    m.receiveShadow = true;
+    scene.add(m);
+  }
+
+  const M = {
+    white: litMaterial(0xe9ecf2, { roughness: 0.55 }),
+    steel: litMaterial(0x7d848f, { roughness: 0.45, metalness: 0.5 }),
+    rock: litMaterial(0x8b8a8d, { roughness: 1 }),
+    red: litMaterial(0xd8503c, { roughness: 0.6 }),
+    yellow: litMaterial(0xf0c43c, { roughness: 0.6 }),
+    teal: litMaterial(0x3a9aa8, { roughness: 0.6 }),
+    dark: litMaterial(0x2a2f3a, { roughness: 0.8 }),
+    glass: new THREE.MeshStandardMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0.1, depthWrite: false }),
+    glow: new THREE.MeshBasicMaterial({ color: 0xffd987 }),
+    crystal: new THREE.MeshBasicMaterial({ color: 0x8fe6ff }),
+    disc: new THREE.MeshBasicMaterial({ color: 0xbfe9ff, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }),
+  };
+  const at = (o, x, z, dy = 0) => { o.position.set(x, hAt(x, z) + dy, z); return o; };
+  const add = (scene, o) => { scene.add(o); return o; };
+  const cast = (o) => { o.castShadow = true; o.receiveShadow = true; return o; };
+  const mesh = (geo, mat) => cast(new THREE.Mesh(geo, mat));
+
+  function lander(scene, x, z) {
+    const g = new THREE.Group();
+    const body = mesh(new THREE.CylinderGeometry(1.8, 2.3, 2.6, 8), M.white); body.position.y = 2.7; g.add(body);
+    const top = mesh(new THREE.CylinderGeometry(0.6, 1.8, 1.2, 8), M.steel); top.position.y = 4.6; g.add(top);
+    const band = mesh(new THREE.CylinderGeometry(2.05, 2.05, 0.3, 8), M.yellow); band.position.y = 2.1; g.add(band);
+    for (let i = 0; i < 4; i++) {
+      const a = Math.PI / 4 + (i * Math.PI) / 2;
+      const leg = mesh(new THREE.BoxGeometry(0.2, 2.4, 0.2), M.steel);
+      leg.position.set(Math.cos(a) * 2.4, 1.1, Math.sin(a) * 2.4); leg.rotation.z = Math.cos(a) * 0.35; leg.rotation.x = -Math.sin(a) * 0.35; g.add(leg);
+      const foot = mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.1, 8), M.steel); foot.position.set(Math.cos(a) * 3.0, 0.06, Math.sin(a) * 3.0); g.add(foot);
+    }
+    const door = mesh(new THREE.BoxGeometry(0.9, 1.5, 0.1), M.dark); door.position.set(0, 2.5, 2.15); g.add(door);
+    at(g, x, z); scene.add(g);
+  }
+  function gateRing(scene, x, z) {
+    const g = new THREE.Group();
+    const R = 2.6;
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + 0.3;
+      const s = mesh(new THREE.BoxGeometry(0.7, 3.2 + (i % 2) * 0.5, 0.6), M.rock);
+      s.position.set(Math.cos(a) * R, 1.6, Math.sin(a) * R); s.rotation.y = -a; s.rotation.z = 0.06 * (i % 2 ? 1 : -1); g.add(s);
+    }
+    const lintel = mesh(new THREE.BoxGeometry(2.2, 0.5, 0.7), M.rock); lintel.position.set(0, 3.7, -R); g.add(lintel);
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(2.1, 28), M.disc); disc.rotation.x = -Math.PI / 2; disc.position.y = 0.08; g.add(disc);
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.0, 3.2, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xbfe9ff, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide }));
+    shaft.position.y = 1.7; g.add(shaft);
+    at(g, x, z); scene.add(g);
+  }
+  function flag(scene, x, z) {
+    const g = new THREE.Group();
+    const pole = mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.6, 6), M.steel); pole.position.y = 1.3; g.add(pole);
+    const cloth = mesh(new THREE.BoxGeometry(1.1, 0.7, 0.03), M.teal); cloth.position.set(0.58, 2.2, 0); g.add(cloth);
+    const paw = mesh(new THREE.CircleGeometry(0.2, 10), M.white); paw.position.set(0.58, 2.2, 0.03); g.add(paw);
+    at(g, x, z); scene.add(g);
+  }
+  function dome(scene, x, z) {
+    const g = new THREE.Group();
+    const R = 9;
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(R, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), M.glass); g.add(shell);
+    for (let i = 0; i < 8; i++) {
+      const rib = mesh(new THREE.TorusGeometry(R, 0.1, 6, 24, Math.PI), M.white); rib.rotation.y = (i / 8) * Math.PI; g.add(rib);
+    }
+    const base = mesh(new THREE.CylinderGeometry(R + 0.4, R + 0.7, 0.8, 24), M.white); base.position.y = 0.3; g.add(base);
+    const core = mesh(new THREE.CylinderGeometry(1.2, 1.4, 1.6, 12), M.steel); core.position.y = 1.2; g.add(core);
+    const coreGlow = new THREE.Mesh(new THREE.SphereGeometry(0.7, 12, 8), M.glow); coreGlow.position.y = 2.5; g.add(coreGlow);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const p = mesh(new THREE.CylinderGeometry(0.6, 0.5, 0.5, 8), M.teal); p.position.set(Math.cos(a) * 5.5, 0.9, Math.sin(a) * 5.5); g.add(p);
+      const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.0, 6), M.crystal); leaf.position.set(Math.cos(a) * 5.5, 1.6, Math.sin(a) * 5.5); g.add(leaf);
+    }
+    at(g, x, z); scene.add(g);
+    for (const [mx, mz, w, d] of [[x, z + 15, 9, 5], [x - 13, z, 5, 9]]) {
+      const mod = mesh(new THREE.BoxGeometry(w, 3.2, d), M.white); at(mod, mx, mz, 1.8); scene.add(mod);
+      const stripe = mesh(new THREE.BoxGeometry(w + 0.05, 0.5, d + 0.05), M.yellow); at(stripe, mx, mz, 2.3); scene.add(stripe);
+    }
+    const tun = mesh(new THREE.CylinderGeometry(1.4, 1.4, 6, 10), M.white); tun.rotation.z = Math.PI / 2; at(tun, x + 11, z + 4, 1.6); scene.add(tun);
+  }
+  function dish(scene, x, z) {
+    const g = new THREE.Group();
+    const post = mesh(new THREE.CylinderGeometry(0.3, 0.45, 4, 8), M.steel); post.position.y = 2; g.add(post);
+    const bowl = mesh(new THREE.SphereGeometry(4.2, 20, 8, 0, Math.PI * 2, 0, 0.55), M.white);
+    bowl.material = bowl.material.clone(); bowl.material.side = THREE.DoubleSide;
+    bowl.position.y = 4.8; bowl.rotation.x = 2.2; g.add(bowl);
+    at(g, x, z); scene.add(g);
+  }
+  function depot(scene, x, z) {
+    const shed = mesh(new THREE.BoxGeometry(9, 3.6, 6), M.white); at(shed, x + 5, z + 1, 1.8); scene.add(shed);
+    const roof = mesh(new THREE.BoxGeometry(9.6, 0.4, 6.6), M.red); at(roof, x + 5, z + 1, 3.8); scene.add(roof);
+    const door = mesh(new THREE.BoxGeometry(5, 2.8, 0.15), M.dark); at(door, x + 5, z - 2.05, 1.4); scene.add(door);
+  }
+  function rover(scene, x, z, yaw) {
+    const g = new THREE.Group();
+    const chassis = mesh(new THREE.BoxGeometry(1.7, 0.35, 3.0), M.white); chassis.position.y = 0.75; g.add(chassis);
+    const nose = mesh(new THREE.BoxGeometry(1.5, 0.3, 0.8), M.yellow); nose.position.set(0, 0.8, 1.7); nose.rotation.x = -0.15; g.add(nose);
+    const seat = mesh(new THREE.BoxGeometry(0.7, 0.3, 0.7), M.dark); seat.position.set(0, 1.0, 0.1); g.add(seat);
+    const seat2 = mesh(new THREE.BoxGeometry(0.7, 0.3, 0.7), M.dark); seat2.position.set(0, 1.0, -0.9); g.add(seat2);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const w = mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.34, 14), M.dark); w.rotation.z = Math.PI / 2; w.position.set(sx * 1.0, 0.46, sz * 1.15); g.add(w);
+      const hub = mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.36, 8), M.steel); hub.rotation.z = Math.PI / 2; hub.position.copy(w.position); g.add(hub);
+    }
+    for (const sx of [-1, 1]) { const bar = mesh(new THREE.BoxGeometry(0.08, 0.9, 0.08), M.steel); bar.position.set(sx * 0.7, 1.45, -1.2); g.add(bar); }
+    const roll = mesh(new THREE.BoxGeometry(1.5, 0.08, 0.08), M.steel); roll.position.set(0, 1.9, -1.2); g.add(roll);
+    const ant = mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.4, 5), M.steel); ant.position.set(0.6, 1.9, -1.3); g.add(ant);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), M.glow); lamp.position.set(0, 0.95, 2.0); g.add(lamp);
+    at(g, x, z); g.rotation.y = yaw; scene.add(g);
+    return g;
+  }
+  function track(scene) {
+    const pts = [];
+    for (let i = 0; i < TRACK.length; i++) {
+      const a = TRACK[i], c = TRACK[(i + 1) % TRACK.length];
+      const len = Math.hypot(c[0] - a[0], c[1] - a[1]);
+      const n = Math.max(1, Math.round(len / 6));
+      for (let k = 0; k < n; k++) pts.push([a[0] + ((c[0] - a[0]) * k) / n, a[1] + ((c[1] - a[1]) * k) / n]);
+    }
+    for (const [x, z] of pts) {
+      const post = mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.0, 5), M.steel); at(post, x, z, 0.5); scene.add(post);
+      const top = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 4), M.glow); at(top, x, z, 1.05); scene.add(top);
+    }
+    return pts.length;
+  }
+  function launch(scene, x, z) {
+    const pad = mesh(new THREE.CylinderGeometry(8, 8.4, 0.5, 28), M.steel); at(pad, x, z, 0.2); scene.add(pad);
+    const ring = mesh(new THREE.TorusGeometry(5, 0.12, 6, 32), M.yellow); ring.rotation.x = Math.PI / 2; at(ring, x, z, 0.5); scene.add(ring);
+    const rk = new THREE.Group();
+    const body = mesh(new THREE.CylinderGeometry(1.35, 1.5, 9.5, 18), M.white); body.position.y = 5.7; rk.add(body);
+    const nose = mesh(new THREE.ConeGeometry(1.35, 3.4, 18), M.red); nose.position.y = 12.2; rk.add(nose);
+    const band = mesh(new THREE.CylinderGeometry(1.42, 1.42, 0.7, 18), M.yellow); band.position.y = 8.2; rk.add(band);
+    const win = new THREE.Mesh(new THREE.CircleGeometry(0.45, 14), M.glass.clone()); win.material.opacity = 0.7; win.position.set(0, 9.4, 1.37); rk.add(win);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      const fin = mesh(new THREE.BoxGeometry(0.12, 2.6, 1.7), M.red); fin.position.set(Math.cos(a) * 1.7, 2.2, Math.sin(a) * 1.7); fin.rotation.y = -a; rk.add(fin);
+    }
+    const nozzle = mesh(new THREE.CylinderGeometry(0.7, 1.0, 0.8, 12), M.dark); nozzle.position.y = 0.5; rk.add(nozzle);
+    at(rk, x, z, 0.4); scene.add(rk);
+    const gx = x - 4.6;
+    for (const dz of [-1.4, 1.4]) for (let lvl = 0; lvl < 3; lvl++) {
+      const beam = mesh(new THREE.BoxGeometry(0.3, 4.4, 0.3), M.steel); at(beam, gx, z + dz, 2.4 + lvl * 0); if (lvl === 0) scene.add(beam);
+    }
+    for (let k = 0; k < 4; k++) {
+      const bar = mesh(new THREE.BoxGeometry(0.2, 0.2, 3.2), M.steel); at(bar, gx, z, 2.0 + k * 3.2); scene.add(bar);
+      const bar2 = mesh(new THREE.BoxGeometry(0.2, 3.2, 0.2), M.steel); at(bar2, gx, z - 1.4, 1.6 + k * 3.2); if (k < 3) scene.add(bar2);
+    }
+    const arm = mesh(new THREE.BoxGeometry(3.6, 0.3, 0.4), M.steel); at(arm, gx + 1.8, z, 8.4); scene.add(arm);
+    const tank = mesh(new THREE.SphereGeometry(1.6, 14, 10), M.white); at(tank, x + 9, z + 5, 1.6); scene.add(tank);
+    const tank2 = mesh(new THREE.SphereGeometry(1.3, 14, 10), M.white); at(tank2, x + 11.5, z + 2.5, 1.3); scene.add(tank2);
+  }
+  function launchDesk(scene, x, z) {
+    const bunker = mesh(new THREE.BoxGeometry(6, 2.4, 4), M.white); at(bunker, x, z, 1.2); scene.add(bunker);
+    const slope = mesh(new THREE.BoxGeometry(6.2, 0.3, 4.4), M.red); at(slope, x, z, 2.5); scene.add(slope);
+    const win = mesh(new THREE.BoxGeometry(4.4, 0.8, 0.1), M.glass); at(win, x + 0.2, z + 2.05, 1.6); scene.add(win);
+    const button = mesh(new THREE.CylinderGeometry(0.35, 0.4, 0.2, 14), M.red); at(button, x + 4.5, z + 1, 0.9); scene.add(button);
+    const stand = mesh(new THREE.BoxGeometry(0.7, 0.8, 0.7), M.steel); at(stand, x + 4.5, z + 1, 0.4); scene.add(stand);
+  }
+  function bench(scene, x, z, yaw) {
+    const seat = mesh(new THREE.BoxGeometry(2.2, 0.12, 0.6), M.teal); at(seat, x, z, 0.5); seat.rotation.y = yaw; scene.add(seat);
+    for (const o of [-0.9, 0.9]) { const leg = mesh(new THREE.BoxGeometry(0.1, 0.5, 0.5), M.steel); at(leg, x + Math.cos(yaw) * o, z - Math.sin(yaw) * o, 0.25); leg.rotation.y = yaw; scene.add(leg); }
+  }
+  function observatory(scene, x, z) {
+    const base = mesh(new THREE.CylinderGeometry(3.2, 3.5, 2.4, 16), M.white); at(base, x, z, 1.2); scene.add(base);
+    const cap = mesh(new THREE.SphereGeometry(3.2, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), M.white); at(cap, x, z, 2.4); scene.add(cap);
+    const slit = mesh(new THREE.BoxGeometry(0.9, 3.2, 0.3), M.dark); slit.rotation.x = -0.9; at(slit, x, z + 2.4, 4.4); scene.add(slit);
+    const tube = mesh(new THREE.CylinderGeometry(0.28, 0.36, 3.2, 12), M.steel); tube.rotation.x = -1.0; at(tube, x, z + 0.4, 3.8); scene.add(tube);
+  }
+  function caveMouth(scene, x, z) {
+    const frame = mesh(new THREE.BoxGeometry(0.8, 3.4, 4.2), M.rock); at(frame, x, z - 3.2, 1.7); scene.add(frame);
+    const frame2 = mesh(new THREE.BoxGeometry(0.8, 3.4, 4.2), M.rock); at(frame2, x, z + 3.2, 1.7); scene.add(frame2);
+    const lintel = mesh(new THREE.BoxGeometry(0.8, 1.2, 8.4), M.rock); at(lintel, x, z, 3.6); scene.add(lintel);
+    const back = mesh(new THREE.BoxGeometry(0.4, 3.4, 6), M.dark); at(back, x - 1.4, z, 1.7); scene.add(back);
+    for (let i = 0; i < 7; i++) {
+      const c = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.7 + (i % 3) * 0.3, 5), M.crystal);
+      at(c, x + 0.4, z - 2.6 + i * 0.9, 0.35); scene.add(c);
+    }
+  }
+  function ridgeLedges(scene) {
+    let i = 0;
+    for (const [x, z, w, h] of [[-12, -43, 3.4, 1.0], [-6, -44, 3.0, 2.0], [0, -45, 3.4, 3.0], [8, -43, 3.0, 1.4], [14, -42.5, 2.6, 2.4]]) {
+      const l = mesh(new THREE.BoxGeometry(w, 0.5, 2.2), M.rock); at(l, x, z, h - 0.25 + (hAt(x, z) > 0.2 ? 0 : 0)); l.rotation.y = 0.12 * (i++ % 2 ? 1 : -1); scene.add(l);
+    }
+    const rock = mesh(new THREE.DodecahedronGeometry(1.2, 0), M.rock); at(rock, -2, -47.5, 3.3); scene.add(rock);
+  }
+  function beams(scene) {
+    const hs = [0.6, 1.1, 1.7, 1.2, 2.2, 1.6, 2.6, 3.0];
+    hs.forEach((h, i) => {
+      const x = -12 + i * 3.2, z = -30 + Math.sin(i * 1.1) * 3;
+      const beam = mesh(new THREE.BoxGeometry(1.0, 0.25, 2.2), M.yellow); at(beam, x, z, h); scene.add(beam);
+      const stem = mesh(new THREE.CylinderGeometry(0.12, 0.12, h, 6), M.steel); at(stem, x, z, h / 2); scene.add(stem);
+    });
+    for (let i = 0; i < 5; i++) {
+      const ring = mesh(new THREE.TorusGeometry(0.9, 0.07, 6, 18), M.red); ring.rotation.y = Math.PI / 2; at(ring, -6 + i * 4.5, -24, 1.6 + (i % 2) * 0.9); scene.add(ring);
+    }
+  }
+  function scatterRocks(scene, seed) {
+    const rnd = mulberry32(seed);
+    const keep = (x, z) => {
+      for (const [fx, fz, r] of [[0, 42, 8], [-34, 26, 13], [30, 34, 10], [42, -34, 12], [-10, 41, 5], [30, -28, 6], [24, -20, 6], [-38, -32, 6], [-47, 0, 6]]) if (Math.hypot(x - fx, z - fz) < r) return false;
+      return true;
+    };
+    for (let i = 0; i < 150; i++) {
+      const x = BOUNDS.minX - 6 + rnd() * (BOUNDS.maxX - BOUNDS.minX + 12), z = BOUNDS.minZ - 6 + rnd() * (BOUNDS.maxZ - BOUNDS.minZ + 12);
+      if (!keep(x, z)) continue;
+      const s = 0.25 + rnd() ** 3 * 1.8;
+      const r = mesh(new THREE.DodecahedronGeometry(s, 0), M.rock); at(r, x, z, s * 0.35); r.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3); r.scale.y = 0.7; scene.add(r);
+    }
+  }
+
+  // ---- the sky: stars and a big Earth ---------------------------------------------------------------------
+  function earthTexture() {
+    const S = 512, c = document.createElement('canvas'); c.width = c.height = S;
+    const g = c.getContext('2d');
+    const cx = S / 2, cy = S / 2, R = S * 0.46;
+    g.clearRect(0, 0, S, S);
+    g.save(); g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.clip();
+    const ocean = g.createRadialGradient(cx - R * 0.3, cy - R * 0.2, R * 0.1, cx, cy, R);
+    ocean.addColorStop(0, '#6db8ff'); ocean.addColorStop(1, '#1b4fa8'); g.fillStyle = ocean; g.fillRect(0, 0, S, S);
+    const land = (x, y, rx, ry, rot) => { g.beginPath(); g.ellipse(cx + x * R, cy + y * R, rx * R, ry * R, rot, 0, Math.PI * 2); g.fillStyle = '#4f9a58'; g.fill(); g.fillStyle = 'rgba(205,190,120,.55)'; g.beginPath(); g.ellipse(cx + x * R + rx * R * 0.2, cy + y * R + ry * R * 0.15, rx * R * 0.5, ry * R * 0.4, rot, 0, Math.PI * 2); g.fill(); };
+    land(-0.35, -0.1, 0.28, 0.5, 0.4); land(0.35, 0.2, 0.2, 0.34, -0.3); land(0.05, -0.62, 0.34, 0.12, 0.1); land(-0.1, 0.55, 0.12, 0.2, 0.2);
+    g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineCap = 'round';
+    for (let i = 0; i < 9; i++) { g.lineWidth = 7 + (i % 3) * 4; g.beginPath(); g.arc(cx + (i - 4) * R * 0.12, cy + ((i * 37) % 11 - 5) * R * 0.14, R * (0.25 + (i % 4) * 0.1), 0.3 * i, 0.3 * i + 1.6); g.stroke(); }
+    g.fillStyle = 'rgba(255,255,255,.8)'; g.beginPath(); g.ellipse(cx, cy - R * 0.9, R * 0.5, R * 0.14, 0, 0, Math.PI * 2); g.fill();
+    // the night side: the sun is to the right, so the left falls into shade, with a few city lights
+    const shade = g.createLinearGradient(cx - R, 0, cx + R * 0.55, 0);
+    shade.addColorStop(0, 'rgba(2,6,22,.93)'); shade.addColorStop(0.5, 'rgba(2,6,22,.62)'); shade.addColorStop(1, 'rgba(2,6,22,0)');
+    g.fillStyle = shade; g.fillRect(0, 0, S, S);
+    g.fillStyle = '#ffe9a8';
+    for (const [x, y] of [[-0.62, -0.1], [-0.55, 0.0], [-0.5, 0.12], [-0.7, 0.2], [-0.45, -0.25], [-0.6, -0.3], [-0.38, 0.05], [-0.66, 0.35]]) { g.beginPath(); g.arc(cx + x * R, cy + y * R, 2.4, 0, Math.PI * 2); g.fill(); }
+    g.restore();
+    const rim = g.createRadialGradient(cx, cy, R * 0.94, cx, cy, R * 1.06); rim.addColorStop(0, 'rgba(150,200,255,.0)'); rim.addColorStop(0.5, 'rgba(150,200,255,.45)'); rim.addColorStop(1, 'rgba(150,200,255,0)');
+    g.fillStyle = rim; g.beginPath(); g.arc(cx, cy, R * 1.06, 0, Math.PI * 2); g.fill();
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  }
+  function sky(scene, camera) {
+    const rnd = mulberry32(21), N = 900, pos = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) {
+      const el = (-3 + 85 * rnd() ** 0.8) * Math.PI / 180, az = rnd() * Math.PI * 2, R = 285;
+      pos[i * 3] = Math.cos(az) * Math.cos(el) * R; pos[i * 3 + 1] = Math.sin(el) * R; pos[i * 3 + 2] = Math.sin(az) * Math.cos(el) * R;
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const stars = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 2.4, sizeAttenuation: false, depthWrite: false, fog: false }));
+    stars.frustumCulled = false; stars.renderOrder = -2;
+    const earth = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ map: earthTexture(), transparent: true, depthWrite: false, fog: false }));
+    earth.renderOrder = -1;
+    scene.add(stars, earth);
+    return { update() {
+      stars.position.copy(camera.position);
+      const el = 21 * Math.PI / 180, az = Math.PI * 0.5 - 0.05, R = 275; // north is -z: bearing so Earth stands over the north ridge
+      earth.position.set(camera.position.x + 62, camera.position.y + Math.sin(el) * R, camera.position.z - Math.cos(el) * R);
+      earth.lookAt(camera.position);
+    } };
+  }
+
+  // ---- cats ---------------------------------------------------------------------------------------------
+  const BARE = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null };
+  const suited = (breed = 'tabby') => buildCat(breed, effectiveWear(BARE, 'moon', 'space', { hen: false }));
+  const POSES = { stand: ['follow', 1.3], sit: ['requestPet', 1.3], hop: ['pounce', 0.18] };
+  const pose = (cat, p) => { const [s, t] = POSES[p]; animateCat(cat, s, t, 0, false); };
+  const placeCat = (scene, cat, x, z, yaw, p = 'stand', dy = 0) => { cat.position.set(x, hAt(x, z) + dy, z); cat.rotation.y = yaw; pose(cat, p); scene.add(cat); };
+
+  let current = null;
+  const cam = new THREE.PerspectiveCamera(58, W / H, 0.1, 700);
+  function setup(skyTop) {
+    $('labels').innerHTML = '';
+    const w = newWorld(skyTop);
+    terrain(w.scene);
+    scatterRocks(w.scene, 5);
+    lander(w.scene, 0, 40); gateRing(w.scene, -10, 41); flag(w.scene, 6, 38);
+    dome(w.scene, -34, 26); dish(w.scene, -44, 14);
+    depot(w.scene, 25, 33); const nposts = track(w.scene);
+    launch(w.scene, 42, -34); launchDesk(w.scene, 30, -28);
+    [[18, -23, 0.5], [22, -16, 2.4], [28, -22, 3.6]].forEach(([x, z, yaw]) => bench(w.scene, x, z, yaw));
+    observatory(w.scene, -38, -32); caveMouth(w.scene, -41, 0);
+    ridgeLedges(w.scene); beams(w.scene);
+    w.skyDress = sky(w.scene, cam);
+    w.nposts = nposts;
+    return w;
+  }
+  function finish(w) {
+    assignShadowCasters(w.scene);
+    w.shadows = createShadowFit(w.sun, cam, { radius: 30, mapSize: 2048 });
+    w.sun.shadow.bias = SUN_BIAS;
+    w.sun.shadow.camera.far = 400;
+  }
+  function frame(w) {
+    cam.updateMatrixWorld();
+    w.skyDress.update();
+    w.shadows.update();
+    renderer.render(w.scene, cam);
+  }
+  function view(pos, look, fov = 58) { cam.fov = fov; cam.aspect = W / H; cam.position.set(...pos); cam.lookAt(...look); cam.updateProjectionMatrix(); cam.updateMatrixWorld(); }
+  function caption(text, sub) {
+    const d = document.createElement('div'); d.className = 'pin'; d.style.cssText = 'left:50%;top:' + (H - 20) + 'px;font-size:15px;transform:translate(-50%,-100%)';
+    d.innerHTML = `${text}<small>${sub || ''}</small>`; $('labels').appendChild(d);
+  }
+
+  // ---- the four shots ---------------------------------------------------------------------------------------
+  function earthrise() {
+    const w = setup(); current = w;
+    const cat = suited(); placeCat(w.scene, cat, 6.0, 45.6, -0.3, 'stand');
+    const cat2 = suited('d2'); placeCat(w.scene, cat2, 4.5, 45.0, -0.1, 'sit');
+    finish(w);
+    view([7.4, hAt(7.4, 49.4) + 1.5, 49.4], [4, hAt(4, 30) + 4.8, 30], 64);
+    frame(w);
+    caption('Landing site at earthrise', 'the lander, the return gate ring, the flag, Earth over the north ridge');
+  }
+  function craterRover() {
+    const w = setup(); current = w;
+    // the rover on the track between (-10,-24) side... use the south-west stretch near the Great Bowl and Twin Bowls
+    const rx = -6, rz = 14, yaw = Math.PI - 0.25; // driving north-north-east
+    const r = rover(w.scene, rx, rz, yaw);
+    const driver = suited(); driver.position.set(0, 0.95, 0.1); driver.rotation.y = Math.PI; pose(driver, 'sit'); r.add(driver);
+    const rider = suited('d2'); rider.position.set(0, 0.95, -0.9); rider.rotation.y = Math.PI; pose(rider, 'sit'); r.add(rider);
+    // a dust trail behind the rover
+    const dm = new THREE.MeshBasicMaterial({ color: 0xb9b3aa, transparent: true, opacity: 0.35, depthWrite: false });
+    for (let i = 0; i < 16; i++) {
+      const t = i / 15, s = 0.25 + t * 0.9;
+      const p = new THREE.Mesh(new THREE.SphereGeometry(s, 8, 6), dm.clone()); p.material.opacity = 0.4 * (1 - t);
+      const back = 2.2 + i * 0.75; p.position.set(rx - Math.sin(yaw) * back + (i % 2 ? 0.3 : -0.3), hAt(rx, rz) + 0.2 + t * 0.7, rz - Math.cos(yaw) * back); w.scene.add(p);
+    }
+    finish(w);
+    view([rx + 2.6, hAt(rx, rz) + 2.2, rz + 8.2], [rx + 0.6, hAt(rx, rz) + 3.2, rz - 6], 66);
+    frame(w);
+    caption('Crater field: the rover on the track', 'two suited cats ride; track posts glow; Twin Bowls and the Great Bowl beyond');
+  }
+  function launchpad() {
+    const w = setup(); current = w;
+    const cat = suited(); placeCat(w.scene, cat, 26.5, -17.2, -0.64, 'sit', 0.2);
+    const cat2 = suited('d2'); placeCat(w.scene, cat2, 27.9, -16.1, -0.64, 'stand');
+    finish(w);
+    view([25.2, hAt(25.2, -14.2) + 2.1, -13.2], [40, 6.5, -34], 52);
+    frame(w);
+    caption('Launch complex from the viewing mound', 'pad, gantry, rocket, fuel tanks, the launch desk; two cats waiting for the countdown');
+  }
+  function layout() {
+    const w = setup(); current = w;
+    finish(w);
+    const aspect = W / H, halfH = 62, halfW = halfH * aspect;
+    const ortho = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, 1, 400);
+    ortho.position.set(0, 200, 0.001); ortho.up.set(0, 0, -1); ortho.lookAt(0, 0, 0); ortho.updateProjectionMatrix(); ortho.updateMatrixWorld();
+    w.sun.position.set(40, 80, 30);
+    w.scene.fog = null; w.scene.background = new THREE.Color(0x05070f);
+    w.skyDress.update = () => {}; w.scene.children.filter((o) => o.isPoints || (o.isMesh && o.geometry.type === 'PlaneGeometry' && o.geometry.parameters.width === 40)).forEach((o) => { o.visible = false; });
+    w.shadows.update();
+    renderer.render(w.scene, ortho);
+    const proj = (x, z) => { const v = new THREE.Vector3(x, 0, z).project(ortho); return [(v.x * 0.5 + 0.5) * W, (-v.y * 0.5 + 0.5) * H]; };
+    const L = $('labels'); L.innerHTML = '';
+    const rect = (cls, x0, z0, x1, z1, text) => { const [a, bb] = proj(x0, z0), [c, d] = proj(x1, z1); const e = document.createElement('div'); e.className = 'box ' + cls; e.style.cssText = `left:${a}px;top:${bb}px;width:${c - a}px;height:${d - bb}px`; e.textContent = text; L.appendChild(e); };
+    rect('moon', BOUNDS.minX, BOUNDS.minZ, BOUNDS.maxX, BOUNDS.maxZ, 'The Moon: 108 x 100 m = 10,800 m2');
+    rect('', -44, -44, 44, 50, '');
+    const fl = document.createElement('div'); fl.className = 'pin'; { const [a, bb] = proj(-44, 50); fl.style.cssText = `left:${a + 100}px;top:${bb - 2}px`; fl.innerHTML = 'Fairground bounds 88 x 94 m = 8,272 m2<small>(dashed)</small>'; L.appendChild(fl); }
+    const pins = [
+      ['Landing site + return gate', 0, 40, '(0, 40)'], ['Moonbase Dome', -34, 26, '(-34, 26)'], ['Old Dish', -44, 14, '(-44, 14)'],
+      ['Rover Depot', 30, 34, '(30, 34)'], ['Launch pad + rocket', 42, -34, '(42, -34)'], ['Launch Desk', 30, -28, '(30, -28)'], ['Viewing Mound', 24, -20, '(24, -20)'],
+      ['Star Hill observatory', -38, -32, '(-38, -32)'], ['Lava tube mouth', -41, 0, '(-41, 0)'], ['Earthrise Ridge', -2, -47, '(-2, -47)'], ['Bounce Park', 0, -30, '(0, -30)'],
+      ['Great Bowl', -20, -4, '(-20, -4)'], ['Echo Crater', 16, 12, '(16, 12)'], ['Far Beacon', 46, 0, '(46, 0)'], ['Quiet Plain', -20, 46, '(-20, 46)'], ['Long-jump strip', -19, -22, '(-28..-10, -22)'],
+    ];
+    for (const [t, x, z, c] of pins) {
+      const [px, py] = proj(x, z);
+      const dot = document.createElement('div'); dot.className = 'dot'; dot.style.cssText = `left:${px}px;top:${py}px`; L.appendChild(dot);
+      const p = document.createElement('div'); p.className = 'pin'; p.style.cssText = `left:${px}px;top:${py - 5}px`; p.innerHTML = `${t}<small>${c}</small>`; L.appendChild(p);
+    }
+    // the rover track as a dotted polyline on a canvas overlay
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H; cv.style.cssText = 'position:fixed;inset:0;pointer-events:none';
+    const g = cv.getContext('2d'); g.strokeStyle = 'rgba(255,210,90,.95)'; g.lineWidth = 2.5; g.setLineDash([2, 6]); g.beginPath();
+    TRACK.forEach(([x, z], i) => { const [px, py] = proj(x, z); i ? g.lineTo(px, py) : g.moveTo(px, py); }); g.closePath(); g.stroke();
+    g.setLineDash([]); g.fillStyle = '#fff'; g.font = '600 12px sans-serif'; const [tx, ty] = proj(8, 22); g.fillText('rover track, about 214 m', tx - 40, ty);
+    // metre grid ticks every 20 m
+    g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 1;
+    for (let x = -40; x <= 40; x += 20) { const [a, bb] = proj(x, -50), [c, d] = proj(x, 50); g.beginPath(); g.moveTo(a, bb); g.lineTo(c, d); g.stroke(); }
+    for (let z = -40; z <= 40; z += 20) { const [a, bb] = proj(-54, z), [c, d] = proj(54, z); g.beginPath(); g.moveTo(a, bb); g.lineTo(c, d); g.stroke(); }
+    L.appendChild(cv);
+    const arrow = document.createElement('div'); arrow.className = 'pin'; { const [a, bb] = proj(0, 50); arrow.style.cssText = `left:${a + 220}px;top:${bb - 4}px`; arrow.innerHTML = 'north is up (-z); gridlines every 20 m'; L.appendChild(arrow); }
+  }
+
+  const SHOTS = { earthrise, 'crater-rover': craterRover, launchpad, layout };
+  window.__shot = (name) => { if (!SHOTS[name]) throw new Error('no such shot ' + name); SHOTS[name](); $('title').textContent = name; return name; };
+  window.__ready = false;
+  const first = new URLSearchParams(location.search).get('shot') ?? 'earthrise';
+  requestAnimationFrame(() => { window.__shot(first); requestAnimationFrame(() => { window.__ready = true; }); });
+</script>
+</body>
+</html>
