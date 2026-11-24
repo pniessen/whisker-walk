@@ -32,7 +32,7 @@ import { buildCat } from './model.js';
 import { disposeHenRig } from './henfight.js';
 
 // Caches on cat.userData made from the old build's meshes.
-const BUILD_CACHES = ['henRig', 'waterFit'];
+const BUILD_CACHES = ['henRig', 'waterFit', 'suitTick', 'suitLive'];
 
 const isKept = (o) => !!(o.isSprite || o.isLight);
 

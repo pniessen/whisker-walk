@@ -24,8 +24,8 @@ const isSuit = (o) => !!o.userData.suit || o.userData.backItem?.startsWith('suit
 const suitMeshes = (cat) => { const out = []; cat.traverse((o) => { if (o.isMesh && (isSuit(o))) out.push(o); }); return out; };
 const DRESSED = { collar: 'bell', head: 'tophat', face: 'glasses', neck: 'scarf', body: 'sweater', back: 'backpack', feet: 'sneakers' };
 // The most a suit adds beyond the bare cat. Spec 4.1 said 1,100 / 600; the beauty pass
-// (crisp patch, harness, twin tanks, hose, belt) raises it to 1,300 / 800 (owner's ceiling 1,400 / 800).
-const KIT_CAP = (simple) => (simple ? 800 : 1300);
+// (crisp patch, harness, twin tanks, live hose, bubbles, belt) raises it to 1,450 / 800 after round 4 (owner ceiling 1,500 / 900).
+const KIT_CAP = (simple) => (simple ? 800 : 1450);
 
 describe('suit seam: effectiveWear and the hook slot', () => {
   it('no look: her own wear, untouched (same object)', () => {
@@ -120,5 +120,37 @@ describe('suit kit: both colourways on every cat shape', () => {
       let clear = 0; one.traverse((o) => { if (o.isMesh && o.material.transparent) clear++; });
       expect(clear).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('suit kit: the live parts (hose to the helmet port, rising bubbles)', () => {
+  beforeAll(() => installSuitKit());
+  afterAll(() => registerSuitKit(null));
+  const find = (cat, key) => { let r = null; cat.traverse((o) => { if (o.userData[key]) r = o; }); return r; };
+  const verts = (m) => { const p = m.geometry.attributes.position, out = []; m.updateWorldMatrix(true, false); for (let i = 0; i < p.count; i++) out.push(new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld)); return out; };
+  it.each([['follow', 1.3], ['requestPet', 1.3], ['pounce', 0.18], ['nap', 1.3], ['stalk', 0.7]])('%s: the tank hose still ends at the helmet port (within 1.5 cm)', (st, t) => {
+    for (const breed of ['tabby', 'mainecoon', 'digit', 'persian']) {
+      const cat = buildCat(breed, suited('dive'), {}); const g = new THREE.Group(); g.add(cat);
+      animateCat(cat, st, t, 0, false); g.updateMatrixWorld(true);
+      const hose = find(cat, 'suitHose'), { head } = cat.userData.parts;
+      const port = head.localToWorld(new THREE.Vector3(0, 0.02, 0.272));
+      const vs = verts(hose).slice(-18 * 1); // the last segment's ring at the port
+      expect(Math.min(...vs.map((v) => v.distanceTo(port))), `${breed} ${st}`).toBeLessThan(0.015);
+    }
+  });
+  it('bubbles drift with time, and freeze under reduced motion', () => {
+    const cat = buildCat('tabby', suited('dive'));
+    const b = find(cat, 'suitBubbles'), snap = () => Array.from(b.geometry.attributes.position.array);
+    animateCat(cat, 'follow', 1, 0, true); const a1 = snap();
+    animateCat(cat, 'follow', 2.1, 0, true); expect(snap()).toEqual(a1);
+    animateCat(cat, 'follow', 1, 0, false); const f1 = snap();
+    animateCat(cat, 'follow', 1.9, 0, false); expect(snap()).not.toEqual(f1);
+    expect(b.userData.noCast).toBe(true);
+  });
+  it('a cat without a suit has no tick, and a redress drops the old one', () => {
+    expect(buildCat('tabby', BARE).userData.suitTick ?? null).toBe(null);
+    const cat = redressCat(buildCat('tabby', suited('dive')), 'tabby', BARE);
+    expect(cat.userData.suitTick ?? null).toBe(null);
+    expect(cat.userData.suitLive ?? null).toBe(null);
   });
 });

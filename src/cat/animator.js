@@ -274,6 +274,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   fitNeckSkin(cat, state);
   fitNeck(cat, state);
   tieCape(cat, state);
+  cat.userData.suitTick?.(cat, t, reducedMotion);
   slideHood(cat);
   lids(cat, state, t, moveSpeed);
   // Last: a scar rides the head and torso where everything above left them.
