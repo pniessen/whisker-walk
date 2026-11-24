@@ -46,6 +46,7 @@ import { postStatus, promptFor } from '../bordercross.js';
 import { gatewayNear, liveEndsFor, GATE_PREFETCH_REACH } from '../gateways.js';
 import { gateStatus, gatePrompt } from '../gatecross.js';
 import { phrase } from '../clanphrases.js';
+import { tele } from '../telehook.js';
 import * as THREE from 'three';
 import { villagerPos } from '../critters.js';
 import { startRest, REST_PROMPTS, REST_TOASTS, NAP_PURR_LEN, REST_REACH } from '../rests.js';
@@ -1251,6 +1252,12 @@ export function createInteractions({
         setPrompt(line.text);
       }
     }
+    // The teleport gates (?gates=1, src/teleport.js, lazy): either edition, just after the map's gates and on the same terms;
+    // a gate she can go through is a 'gate' prompt (its own card), a refusal a sign. Couch play is shut out of a gate
+    // until both places' couch rows are ready; a room is refused (milestone 0).
+    const tg = tele.kit?.prompt(s, catP, progression.state, !!s.net, prefetchArea,
+      !s.prompt && !s.perched && !player.swimming && !s.fight && !s.clanFight?.uiShowing);
+    if (tg) { s.prompt = tg.prompt; setPrompt(tg.text); }
     // Border crossings: a waymark post, Clan Edition only. After the rest (so
     // anything a kid walked up to comes first) and before gift-leave and the
     // drop (so a held thing never hides a post). Never mid-fight.
