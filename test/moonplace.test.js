@@ -455,8 +455,8 @@ describe('the suit', () => {
   });
   it('the walk builds her cat through the registered kit (one call: her breed\'s own hen rule, her wear back when there is none) and start-up never names the suit kit', () => {
     const walk = readFileSync('src/game/walk.js', 'utf8');
-    expect(walk).toMatch(/suitKit\(\)\?\.dress\(worn, areaId, active\.breed === 'hagrid'\) \?\? worn/);
-    expect(walk).not.toMatch(/effectiveWear|suitkit/);
+    expect(walk).toMatch(/suitKit\(\)\?\.dress\(worn, areaId, hen\) \?\? worn/);
+    expect(walk).not.toMatch(/suitkit/); // (a gate's own suit goes through effectiveWear first: the teleport gates, src/teleport.js)
     expect(readFileSync('src/main.js', 'utf8')).not.toMatch(/suitkit/);
     expect(readFileSync('src/suithook.js', 'utf8')).toMatch(/LOOK_OF_PLACE = Object\.freeze\(\{ moon: 'space' \}\)/);
   });
