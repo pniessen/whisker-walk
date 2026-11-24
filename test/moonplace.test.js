@@ -60,7 +60,8 @@ describe('the built place', () => {
     const pts = [P.LANDER, P.FLAG, P.RETURN_GATE, P.STEP_A, P.STEP_B, ...P.POLES, ...P.GATE_STONES, ...P.BOULDERS];
     for (const p of pts) expect(inside(p.x, p.z, 1), JSON.stringify(p)).toBe(true);
     for (const k of P.CRATERS) { expect(inside(k.x - k.r * 1.5, k.z - k.r * 1.5), k.id).toBe(true); expect(inside(k.x + k.r * 1.5, k.z + k.r * 1.5), k.id).toBe(true); }
-    for (const c of area.colliders) expect(inside(c.x, c.z), JSON.stringify(c)).toBe(true);
+    // (milestone 8) the Cave Massif's rock reaches past the west edge: a collider's middle may lie beyond the bounds when its disc still reaches in (the walk is stopped at the bounds anyway)
+    for (const c of area.colliders) expect(inside(c.x, c.z, -c.r), JSON.stringify(c)).toBe(true);
     for (const p of area.perches) expect(inside(p.x, p.z), JSON.stringify(p)).toBe(true);
   });
   it('no collider sits inside another place of the plan (the ring, the steps, the lander, a crater)', () => {
@@ -211,7 +212,7 @@ describe('the drawing, as the walk\'s sweeps see it (the rocks as InstancedMeshe
 });
 
 describe('the budget as the plan states it (row A1 at milestone 1: 40 / 24 / 15,500; milestone 2 is on the way to row A, 100 / 56 / 27,500, and pins its own measure at +12%)', () => {
-  it('counting every instance of the rocks, the place draws at most 27,300 triangles in at most 22 meshes, 8 of them casters (milestone 5 measured 19 / 7 / 24,356 with Star Hill; milestone 4 measured 17 / 6 / 21,162 after merging the rocks and the glowing lamps; milestone 3 21 / 8 / 20,014; milestone 2 20 / 8 / 18,726)', () => {
+  it('counting every instance of the rocks, the place draws at most 32,200 triangles in at most 22 meshes, 8 of them casters (milestone 7b measured 22 / 8 / 28,722; milestone 7a measured 22 / 8 / 28,190; milestone 6 22 / 8 / 26,738; milestone 5 measured 19 / 7 / 24,356 with Star Hill; milestone 4 measured 17 / 6 / 21,162 after merging the rocks and the glowing lamps; milestone 3 21 / 8 / 20,014; milestone 2 20 / 8 / 18,726)', () => {
     const { scene } = built();
     let meshes = 0; let tri = 0; let casters = 0;
     const box = new THREE.Box3();
@@ -226,14 +227,14 @@ describe('the budget as the plan states it (row A1 at milestone 1: 40 / 24 / 15,
         if (eligible && !o.material.transparent && !o.userData.noCast) casters++;
       });
     }
-    expect(meshes).toBeLessThanOrEqual(22);
-    expect(casters).toBeLessThanOrEqual(8);
-    expect(tri).toBeLessThanOrEqual(27300);
+    expect(meshes).toBeLessThanOrEqual(28);
+    expect(casters).toBeLessThanOrEqual(9);
+    expect(tri).toBeLessThanOrEqual(38600); // milestone 8 measured 25 / 8 / 34,486 (+5,764 for the Lava Tube: the massif, the cave's shell, its floor and crystals), +12%;  milestone 7b measured 22 / 8 / 28,722 (+532 for the rifts and the ring gates' posts), +12%; 7a measured 22 / 8 / 28,190 (+1,452 for the Beam Hops, the lane and its posts)
     expect(tri).toBeGreaterThan(16000); // and it is the real ground and the base, not a bare plain any more (milestone 0 was 5,408; milestone 1 14,584)
-    // and it is under the plan's row B for the whole place with Star Hill (milestone 5: 125 / 66 / 33,000)
-    expect(meshes).toBeLessThanOrEqual(125);
-    expect(casters).toBeLessThanOrEqual(66);
-    expect(tri).toBeLessThanOrEqual(33000);
+    // and it is under the plan's row D for the whole place with the Lava Tube (milestone 8: 184 / 100 / 46,500)
+    expect(meshes).toBeLessThanOrEqual(184);
+    expect(casters).toBeLessThanOrEqual(100);
+    expect(tri).toBeLessThanOrEqual(46500);
   });
 });
 

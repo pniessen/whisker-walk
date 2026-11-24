@@ -209,7 +209,7 @@ describe('the drawing', () => {
     const { scene } = built();
     let meshes = 0;
     scene.traverse((o) => { if (o.isMesh) meshes++; });
-    expect(meshes).toBe(19); // 17 at milestone 4, and the two of the wing
+    expect(meshes).toBe(25); // (milestone 8: the massif, the cave's shell, the cave's floor and crystals) // 17 at milestone 4, the two of the wing and (milestone 6) the Launch Complex's rocket, arm and plume (the smoke's Points is a fourth object, not a mesh)
   });
   it('the wing\'s meshes sit on the hill: the observatory reaches 3.4 m over the top and its dome a little more, the table\'s stone is on the dust', () => {
     const { scene } = built();

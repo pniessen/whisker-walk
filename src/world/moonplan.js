@@ -7,6 +7,11 @@
 
 import { STEP_MAX, MAX_GRADE, SUBSTEP, LEVEL_TOL, groundTilt } from '../ground.js';
 
+import { MOON_BOUND_ON } from './moonswitch.js';
+import { LAVA_COLLIDERS, LAVA_KEEP_OUT, DEEP_CELL } from './moonlava.js';
+export { MOON_BOUND_ON };
+export * from './moonlava.js';
+
 export const MOON_NAME = 'The Moon';
 export const MOON_BOUNDS = Object.freeze({ minX: -54, maxX: 54, minZ: -50, maxZ: 50 });
 export const MOON_SPAWN = Object.freeze({ x: 0, z: 45 });
@@ -66,6 +71,10 @@ export const PLANTERS = Object.freeze(Array.from({ length: 6 }, (_, i) => {
   return Object.freeze({ x: DOME.x + Math.cos(a) * 5.6, z: DOME.z + Math.sin(a) * 5.6 });
 }));
 export const OLD_DISH = Object.freeze({ x: -44, z: 14, post: 4.8, bowl: 3.3 });
+// (milestone 8) The Old Dish's ledge: a low stone shelf beside its post, a perch (1.1 m) she can hop up on to stand under the bowl, with a lamp on its edge.
+export const DISH_LEDGE = Object.freeze({ x: -41.6, z: 15.6, y: 1.1, r: 1.3 });
+// (milestone 8) The Core's third socket: the Deep Cell's, on the pedestal's top on the side toward the airlock (the two cells' sockets are north and south of the column).
+export const DEEP_SOCKET = Object.freeze({ x: CORE.x + 0.62, z: CORE.z, y: CORE.top });
 
 // Skip Ridge's chain: two rock pillars (2.6 m and 5.0 m, each step more than Earth's best climb of 2.2 and less than the Moon's
 // 3.2) and the Ridge cell on the top. Only the Moon's doubled climb takes it (test/moonbase.test.js runs the real rules).
@@ -142,7 +151,7 @@ export const PEBBLES = Object.freeze([
   [-14, 14], [22, 4], [-8, -4], [36, -14], [-36, 12], [6, 22], [-24, 38], [-30, -2],
 ].map(([x, z], i) => Object.freeze({ id: `moon-${i + 1}`, x, z })));
 // The scripted points of the story (a find never sits within 3 m of one): Pip's bed, the cells, the sockets, the board, Dot's pad.
-export const JOB_POINTS = Object.freeze([PIP_SLEEP, RIDGE_CELL, ROVER_CELL, ...SOCKETS, { x: BOARD.x + 1.5, z: BOARD.z }, DOT_PARK]);
+export const JOB_POINTS = Object.freeze([PIP_SLEEP, RIDGE_CELL, ROVER_CELL, DEEP_CELL, ...SOCKETS, { x: BOARD.x + 1.5, z: BOARD.z }, DOT_PARK]);
 
 
 // ---- milestone 5: Star Hill (wing B): the tower, its spiral ramp, the observatory, the Star Table ---------------------------------
@@ -201,6 +210,81 @@ export const STAR_COLLIDERS = Object.freeze([
   c(STAR_TABLE.x, STAR_TABLE.z, STAR_TABLE.r),
 ]);
 
+// ---- milestone 6: Wing C, the Launch Complex (the pad, the gantry, the rocket, the Launch Desk, the Viewing Mound, the tanks), the Message
+// Desk in the dome and the binocular stand on Earthrise Rock --------------------------------------------------------------------------
+
+// The pad (a flat disc of radius 8) with the 16 m rocket on it. The gantry tower stands north of the rocket (behind it from the mound) and its
+// arm swings away at T-1 s; the two fuel spheres stand on the pad's north-east edge. The rocket's mailbox slot faces the Launch Desk (south-west).
+export const PAD = Object.freeze({ x: 42, z: -34, r: 8 });
+export const ROCKET = Object.freeze({ x: PAD.x, z: PAD.z, r: 1.55, h: 16, stand: 1.2, reach: 3.5 }); // the stand under its feet lets the plume show below it
+export const ROCKET_SLOT = Object.freeze({ x: PAD.x - 1.0, z: PAD.z + 1.0 }); // where the postcard goes in (the body's face toward the desk)
+// The countdown board: a post with a screen at the pad's near edge, facing the Launch Desk and the mound.
+export const COUNT_BOARD = Object.freeze({ x: PAD.x - 5.5, z: PAD.z + 4.5, y: 4.6, size: 3.2 });
+export const GANTRY = Object.freeze({ x: PAD.x, z: PAD.z - 5.6, h: 13, armY: 9.5, armLen: 4.6, swing: 1.25 }); // `swing` radians the arm turns away
+export const TANKS = Object.freeze([Object.freeze({ x: 46.8, z: -39.0, r: 1.7 }), Object.freeze({ x: 49.6, z: -35.6, r: 1.7 })]);
+// The Launch Desk: a console with the big red button, between the pad and the mound.
+export const LAUNCH_DESK = Object.freeze({ x: 30, z: -28, reach: 2.7 });
+// The Viewing Mound: a low, gentle hill, 2 m high, for watching from. The spec put it at (24, -20); Dot's track runs 2.5 m from that
+// point, so it stands 20 m north-west at (24, -40) (19 m from the pad) where nothing drives over it.
+export const MOUND = Object.freeze({ x: 24, z: -40, r: 7.5, h: 2 });
+export const BENCHES = Object.freeze([Object.freeze({ x: 22.6, z: -40.8, yaw: 0.5 }), Object.freeze({ x: 25.8, z: -39.2, yaw: 0.5 })]);
+// The Message Desk in the dome (between two planters, on the side away from the board and the door): where the postcard's stamp is chosen.
+export const MESSAGE_DESK = Object.freeze({ x: DOME.x + Math.cos((240 * Math.PI) / 180) * 6.0, z: DOME.z + Math.sin((240 * Math.PI) / 180) * 6.0, reach: 2.7 });
+// The binocular stand on Earthrise Rock's top ledge, a step from golden mouse 2: a stone post with a pair of binoculars on it.
+export const BINOCULARS = Object.freeze({ x: -1.1, z: -46.9, y: 3.0, reach: 2.4, level: 1.4 });
+export const REPLY_NEAR = 6; // m of Earthrise Rock's top: near enough to wait for Earth's answer
+export const LAUNCH_COLLIDERS = Object.freeze([
+  Object.freeze({ x: ROCKET.x, z: ROCKET.z, r: ROCKET.r }),
+  Object.freeze({ x: GANTRY.x - 0.8, z: GANTRY.z, r: 0.9 }), Object.freeze({ x: GANTRY.x + 0.8, z: GANTRY.z, r: 0.9 }),
+  ...TANKS.map((t) => Object.freeze({ x: t.x, z: t.z, r: t.r })),
+  Object.freeze({ x: LAUNCH_DESK.x, z: LAUNCH_DESK.z, r: 0.85 }),
+  Object.freeze({ x: MESSAGE_DESK.x, z: MESSAGE_DESK.z, r: 0.75 }),
+]);
+
+
+// ---- milestone 7a: Bounce Park's Beam Hops, the hop board's strip, the course lamps ---------------------------------------------
+
+// Eight Beam Hops: stone beams in a gentle wave from x -12 to 12 at z about -30 (Dot's track passes 4 m south of them, Skip Ridge 4 m north), rising to
+// 3.0 m and coming down again. Each beam is 0.7 m (at most) above the last, and about 3.45 m (centre to centre) from its neighbours: more than Earth's very best
+// reach (3.2 m, Sure Claws) and less than the Moon's plainest (3.9 m), so the crossing is the Moon's alone. Every beam is a perch AND a collider (as Skip Ridge's pillars).
+const BEAM_HEIGHTS = [0.6, 1.3, 2.0, 2.7, 3.0, 2.4, 1.6, 0.8];
+export const BEAMS = Object.freeze(BEAM_HEIGHTS.map((y, i) => Object.freeze({
+  x: Math.round((-12 + (i * 24) / 7) * 100) / 100, z: Math.round((-30 + 0.7 * Math.sin(i * 0.9)) * 100) / 100, y, r: 1.25,
+})));
+
+// The hop board's strip: a lane of level dust running east from a start line (x0), 16 m long and 4 m wide, a post every metre. She takes off behind the line
+// (at most `back` m before it, a hand's width past it) on the ground inside the lane and lands on level ground inside it: the board reads the metres from
+// the line to where she lands. Nothing is lost for a hop that does not count: the board simply does not move.
+export const JUMP_LANE = Object.freeze({ x0: 0, z: -9, len: 16, half: 2.0, back: 1.2, over: 0.15, slack: 0.4, level: 0.2 });
+// The board: a post with a screen beside the start line, facing the lane. (Dot's track is 14 m away; the rocks keep clear of the lane.)
+export const JUMP_BOARD = Object.freeze({ x: 0.6, z: JUMP_LANE.z + 3.9, y: 2.5, size: 2.6, near: 45 });
+export const JUMP_RECORD_MAX = 2000; // cm: the save's ceiling (state.moon.jump)
+
+// The course lamps: a ring (outer radius `r`) round the top of every perch of the three ring-free courses (Skip Ridge, Earthrise Rock, the Beam Hops) that lights when she stands on it.
+export const COURSE_LAMPS = Object.freeze([...SKIP, ...ROCK_LEDGES, ...BEAMS].map((p) => Object.freeze({ x: p.x, z: p.z, y: p.y, r: Math.round(p.r * 75) / 100 })));
+export const BEAM_COLLIDERS = Object.freeze(BEAMS.map((b) => c(b.x, b.z, b.r + 0.05)));
+
+// ---- milestone 7b: the bound's courses (Tier 2). All empty when MOON_BOUND_ON is false (world/moonswitch.js), so the Moon is then exactly milestone 7a's. -------------
+// Three RIFTS: shallow trenches (a stadium: a straight axis from (x0, z0) to (x1, z1) and a width w, 3.5 to 6.5 m) that only a bound crosses; nothing the story, the rover,
+// the rocket or the mice need lies beyond one, and each can be walked round at its ends. Her walk is stopped at the lips by a row of overlapping colliders along the axis
+// (flagged `rift`: the bound flies over those and no other); the bound never lands inside one (world/moonbound.js).
+const RIFT_DEFS = [[23, -17, 23, -8, 3.5], [-20, -35, -20, -25, 5], [48.5, 7, 48.5, 16, 6.5]]; // (milestone 8: the third rift moved from (-46, -4..7), where the Cave Massif now stands, across the plain to the east edge)
+export const RIFTS = Object.freeze(MOON_BOUND_ON ? RIFT_DEFS.map(([x0, z0, x1, z1, w]) => Object.freeze({ x0, z0, x1, z1, w })) : []);
+export const RIFT_LIP = 0.3; // m beyond a rift's half width inside which no landing stands: her body's 0.35 less the 0.05 the colliders' scallops dip
+// Five lit RING GATES in a row west to east along the park's south field (each a hoop of radius R standing in the north-south plane, its centre y metres over the
+// dust, on a short post at its south side): a ring lights when she bounds through it (the walk's own record of this walk, nothing is saved).
+const RING_DEFS = [[-14, -16, 1.6], [-7, -17.5, 1.8], [0, -17, 2.0], [7, -18, 2.25], [14, -17.5, 2.5]];
+export const RING_R = 1.2;
+export const RING_GATES = Object.freeze(MOON_BOUND_ON ? RING_DEFS.map(([x, z, y]) => Object.freeze({ x, z, y, r: RING_R, post: Object.freeze({ x, z: z + RING_R + 0.4 }) })) : []);
+const riftCircles = RIFTS.flatMap((f) => {
+  const len = Math.hypot(f.x1 - f.x0, f.z1 - f.z0);
+  const r = f.w / 2;
+  const n = Math.ceil(len / (2 * Math.sqrt(0.1 * r - 0.0025))) + 1; // the lip's scallops dip at most 0.05 m
+  return Array.from({ length: n }, (_, i) => ({ ...c(f.x0 + ((f.x1 - f.x0) * i) / (n - 1), f.z0 + ((f.z1 - f.z0) * i) / (n - 1), r), rift: true }));
+});
+export const RIFT_COLLIDERS = Object.freeze(riftCircles.map((q) => Object.freeze(q)));
+export const RING_COLLIDERS = Object.freeze(RING_GATES.map((g) => c(g.post.x, g.post.z, 0.25)));
+
 const ring = [];
 for (let i = 0; i < 40; i++) {
   const a = (i / 40) * Math.PI * 2;
@@ -217,6 +301,8 @@ export const BASE_COLLIDERS = Object.freeze([
   ...[-1.1, 0, 1.1].map((dz) => c(BOARD.x + 0.1, BOARD.z + dz, 0.6)),
   ...PLANTERS.map((p) => c(p.x, p.z, 0.55)),
   c(OLD_DISH.x, OLD_DISH.z, 0.8),
+  c(DISH_LEDGE.x, DISH_LEDGE.z, DISH_LEDGE.r + 0.05),
+  ...LAVA_COLLIDERS,
   ...SKIP.map((p) => c(p.x, p.z, p.r + 0.05)),
   c(ROVER_CELL.x, ROVER_CELL.z, 0.5),
   // the depot's shed (two circles cover its 6 m x 3.6 m footprint) and the Far Beacon's mast
@@ -226,6 +312,10 @@ export const BASE_COLLIDERS = Object.freeze([
   c(PIT_ROCK.x, PIT_ROCK.z, PIT_ROCK.r),
   ...PLAIN_POSTS.map((p) => c(p.x, p.z, 0.2)),
   ...STAR_COLLIDERS,
+  ...LAUNCH_COLLIDERS,
+  ...BEAM_COLLIDERS,
+  ...RIFT_COLLIDERS,
+  ...RING_COLLIDERS,
 ]);
 
 export const MOON_COLLIDERS = Object.freeze([
@@ -246,19 +336,25 @@ export const MOON_PERCHES = Object.freeze([
   P(LANDER.x, LANDER.z, LANDER.deck, 'roof'),
   ...SKIP.map((p) => P(p.x, p.z, p.y, 'stone')),
   ...ROCK_LEDGES.map((p) => P(p.x, p.z, p.y, 'stone')),
+  P(DISH_LEDGE.x, DISH_LEDGE.z, DISH_LEDGE.y, 'stone'),
+  ...BEAMS.map((p) => P(p.x, p.z, p.y, 'stone')),
 ]);
 
 // Interesting spots a wanderer may head for: open dust, all reachable from the spawn on foot (the walk clears them of colliders).
 export const MOON_POIS = Object.freeze([
-  [14, 36], [-22, 34], [24, 22], [-6, 14], [8, 0], [-30, -16], [38, -2], [-2, -20], [22, -32], [-38, 6], [0, -40], [44, 26],
+  [14, 36], [-22, 34], [24, 22], [-6, 14], [8, 0], [-30, -16], [38, -2], [-2, -20], [22, -32], [-33, 8], [0, -40], [44, 26],
 ].map(([x, z]) => Object.freeze({ x, z })));
 
 // Where the rocks may not stand: the landing site, the ring, the spawn's plain, and the places the later milestones build
 // (centre x, z, radius). The scatter keeps this clear, so a later milestone never has to move a rock.
 export const ROCK_KEEP_OUT = Object.freeze([
   [0, 42, 10], [-10, 41, 5.5], [-20, 46.5, 12], [0, 46, 7], [46, 0, 4],
-  [-34, 26, 13], [-44, 14, 7], [30, 34, 11], [42, -34, 12], [30, -28, 6], [24, -20, 6], [-38, -32, 14], [-27, -24, 4.5], [-47, 0, 8], [8, -40, 8],
+  [-34, 26, 13], [-44, 14, 7], [30, 34, 11], [42, -34, 12], [30, -28, 6], [24, -20, 6], [-38, -32, 14], [-27, -24, 4.5], [8, -40, 8],
   [-4.5, -44.8, 6.5], [31, -10, 4],
+  [42, -34, 9.5], [24, -40, 8.6], [-37, 20.8, 2],
+  [0, -30, 15.6], [10, -9, 13], [0.6, -5.1, 2.4], // (milestone 7a) the Beam Hops, the hop board's strip and its board
+  ...LAVA_KEEP_OUT, [-41.6, 15.6, 3.2], // (milestone 8) the Cave Massif, its mouth and the Old Dish's ledge
+  ...(MOON_BOUND_ON ? [[23, -12.5, 7.5], [-20, -30, 7.5], [48.5, 11.5, 9], [0, -17.5, 16.5]] : []), // (milestone 7b) the rifts and the ring gates' row
 ]);
 
 // ---- the heightfield -------------------------------------------------------------------------------------------------
@@ -279,6 +375,8 @@ export function moonBaseY(x, z) {
   const rx = (x - RIDGE.x) / RIDGE.rx;
   const rz = (z - RIDGE.z) / RIDGE.rz;
   y += RIDGE.h * (0.88 + 0.12 * Math.sin(x * 0.33)) * Math.exp(-(rx ** 4) - rz * rz);
+  const mu = Math.hypot(x - MOUND.x, z - MOUND.z) / MOUND.r; // the Viewing Mound (milestone 6): a cosine bump, 2 m high, slope at most 0.42
+  if (mu < 1) y += MOUND.h * 0.5 * (1 + Math.cos(Math.PI * mu));
   const dx = Math.max(MOON_BOUNDS.minX - x, 0, x - MOON_BOUNDS.maxX);
   const dz = Math.max(MOON_BOUNDS.minZ - z, 0, z - MOON_BOUNDS.maxZ);
   const d = Math.hypot(dx, dz);

@@ -147,7 +147,7 @@ export function setLevel(geo, key, k) {
   col.needsUpdate = true;
 }
 
-// The material every figure mesh shares in kind: additive, vertex-coloured, double-sided, never writes depth.
+// The material every figure mesh shares in kind: additive, vertex-coloured, double-sided, never writes depth (and one pass: milestone 6's draw-call margin).
 export function figureMaterial({ depthTest = true } = {}) {
-  return new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest, side: THREE.DoubleSide, fog: false, toneMapped: false });
+  return new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest, side: THREE.DoubleSide, fog: false, toneMapped: false, forceSinglePass: true });
 }

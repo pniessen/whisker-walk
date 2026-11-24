@@ -21,6 +21,10 @@ import { drawBase } from './moonbase.js';
 import { drawRoverCourse } from './moonroverparts.js';
 import { drawFinds } from './moonfindparts.js';
 import { drawWing } from './moonwing.js';
+import { drawLaunchStanding, drawLaunchWing } from './moonlaunchparts.js';
+import { drawBeams, drawLane } from './moonjumpparts.js';
+import { drawRifts, drawRingPosts } from './moonboundparts.js';
+import { drawMassif, drawCave, drawFill, drawLavaKit } from './moonlavaparts.js';
 import { createMoonLife } from './moonlife.js';
 import { moonPebbles } from './moonfinds.js';
 import './moonwords.js';
@@ -55,12 +59,30 @@ export function build(scene, { water = {} } = {}) {
     // Star Hill (milestone 5): the tower and its ramp go into the kit's stone (the stand-in: always drawn, no draw call of its own); the observatory, the
     // lamps, the table and the ceiling are the wing group, drawn only within 55 m (moonzones.js)
     const W = drawWing(kit, M);
+    // Launch Complex (milestone 6): the pad, gantry tower, tanks, desks and the mound's benches go into the kit (no draw call of their own); the rocket, the gantry's arm,
+    // the plume and the smoke are the wing C group below (world/moonlaunchlive.js moves them)
+    drawLaunchStanding(kit, M);
+    // Bounce Park (milestone 7a): the eight Beam Hops and the hop board's lane go into the kit too (the lamps and the board's screen are the life's)
+    drawBeams(kit, M);
+    drawLane(kit, M);
+    // the bound's courses (milestone 7b, nothing when world/moonswitch.js is off): the three rifts and the ring gates' posts, also in the kit
+    drawRifts(kit, M);
+    drawRingPosts(kit, M);
+    // the Lava Tube (milestone 8): the Old Dish's ledge and the Core's third socket go into the kit; the massif, the shell and the cave's floor and crystals are three meshes below
+    drawLavaKit(kit, M, B);
     const place = new THREE.Group();
     place.name = 'moonPlace';
     for (const m of kit.meshes()) place.add(m);
     scene.add(place);
+    scene.add(drawMassif(M), drawCave()); // the massif seen from outside, the tube and room seen from inside (always drawn: the wing's stand-in)
+    const fill = drawFill(); // the cave's floor, crystals and pedestal: drawn only within the wing's reach (world/moondeeplive.js)
+    fill.visible = false;
+    scene.add(fill);
     W.wing.visible = false; // the spawn is 77 m away; the life shows it when she is near
     scene.add(W.wing);
+    const C = drawLaunchWing(M, { lite: quality?.shadows === false, low: lowTier && quality?.shadows !== false });
+    C.arm.visible = false; // the life shows the arm within 55 m of the pad or while a rocket is in flight; the rocket itself is only ever drawn when it is in view
+    scene.add(C.group);
     for (const rocks of K.drawRocks(lowTier)) scene.add(rocks);
 
     const area = {

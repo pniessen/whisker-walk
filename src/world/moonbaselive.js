@@ -39,8 +39,9 @@ export const RING = Object.freeze({ secs: 7, bubble: 3.2 });
 export const CELL_DRAWN = 50; // m (milestone 5): a power cell farther than this from her is not drawn (its capsule and halo are two draws each)
 export const NEAR_DOME = 16; // m: a wake-up beat that was saved unseen plays when she is this near the dome
 export const DOOR = Object.freeze({ open: 5.2, slide: 1.3, rate: 3 });
-const CELL_COLORS = Object.freeze([BASE_COL.teal, BASE_COL.amber]);
-const ICON = Object.freeze({ pip: '🤖', cell: '🔋', core: '🔌', scope: '🔭', done: '💡' });
+const CELL_COLORS = Object.freeze([BASE_COL.teal, BASE_COL.amber, 0xb690ff]); // the third is the Deep Cell's (milestone 8)
+const CELL_IDS = Object.freeze([0, 1, 2]);
+const ICON = Object.freeze({ pip: '🤖', cell: '🔋', core: '🔌', scope: '🔭', desk: '✉️', rocket: '🚀', button: '🔴', reply: '🌍', cave: '💎', done: '💡' });
 const TAU = Math.PI * 2;
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -77,7 +78,7 @@ function glowRing(r0, r1, hex, k, seg = 40) {
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   return g;
 }
-const additive = (opacity = 1) => new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true, opacity, side: THREE.DoubleSide });
+const additive = (opacity = 1) => new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true, opacity, side: THREE.DoubleSide, forceSinglePass: true });
 
 // One power cell: a glowing capsule with two white caps (one mesh, vertex-coloured) and a soft halo that faces the camera (a second).
 function makeCell(id) {
@@ -109,6 +110,7 @@ export function createBaseLife(ctx) {
   const log = ctx.log ?? null;
   const audio = ctx.audio ?? null;
   const sound = createMoonSound(audio);
+  const cardIn = ctx.cardCarried ?? (() => false); // (milestone 6) is a postcard in her mouth (the Launch Complex's)
   let clock = 0;
   let disposed = false;
   let quieted = false;
@@ -140,11 +142,12 @@ export function createBaseLife(ctx) {
   const doorZ = [doorL?.position.z ?? 0, doorR?.position.z ?? 0];
   const beacon = byName('moon:beacon'); // the Far Beacon's lamp: it blinks while the Rover cell waits and rests once the cell is taken
   const board = createBoardFace(boardMesh);
-  const cells = [makeCell(0), makeCell(1)];
+  const cells = CELL_IDS.map(makeCell);
   const cellPlace = (id) => (id === 0 ? { x: P.RIDGE_CELL.x, z: P.RIDGE_CELL.z, y: ground.y(P.RIDGE_CELL.x, P.RIDGE_CELL.z) + P.RIDGE_CELL.y + 0.42 }
+    : id === M.DEEP ? { x: P.DEEP_CELL.x, z: P.DEEP_CELL.z, y: ground.y(P.DEEP_CELL.x, P.DEEP_CELL.z) + P.DEEP_CELL.y + 0.42 } // on its pedestal in the cave (milestone 8)
     : { x: P.ROVER_CELL.x, z: P.ROVER_CELL.z, y: ground.y(P.ROVER_CELL.x, P.ROVER_CELL.z) + 0.84 });
-  const socketPlace = (id) => ({ x: P.SOCKETS[id].x, z: P.SOCKETS[id].z, y: P.SOCKETS[id].y + 0.32 });
-  const ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.12, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd45a, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: true }));
+  const socketPlace = (id) => { const k = id === M.DEEP ? P.DEEP_SOCKET : P.SOCKETS[id]; return { x: k.x, z: k.z, y: k.y + 0.32 }; };
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.12, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd45a, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: true, forceSinglePass: true }));
   ring.name = 'moon:goalring';
   const shaftGeo = new THREE.CylinderGeometry(0.42, 0.42, 9, 12, 1, true).translate(0, 4.5, 0);
   { const pos = shaftGeo.attributes.position; const col = new Float32Array(pos.count * 3); const c = new THREE.Color(0xffd45a); for (let i = 0; i < pos.count; i++) { const k = 1 - pos.getY(i) / 9; col[i * 3] = c.r * k * 0.8; col[i * 3 + 1] = c.g * k * 0.8; col[i * 3 + 2] = c.b * k * 0.8; } shaftGeo.setAttribute('color', new THREE.BufferAttribute(col, 3)); }
@@ -163,17 +166,17 @@ export function createBaseLife(ctx) {
 
   const pip = createPip({ scene, ground, colliders, reducedMotion, awake: rec().step >= M.STEP.pip });
   if (rec().step >= M.STEP.pip) pip.setAwake();
-  let cellMode = [null, null]; // 'home' | 'carried' | 'plugged'
+  const cellMode = [null, null, null]; // 'home' | 'carried' | 'plugged'
   function setCellModes() {
     const r = rec();
-    for (const id of [0, 1]) cellMode[id] = r.cells & (1 << id) ? 'plugged' : carrying === id ? 'carried' : 'home';
+    for (const id of CELL_IDS) cellMode[id] = r.cells & (1 << id) ? 'plugged' : carrying === id ? 'carried' : 'home';
   }
   setCellModes();
   if (rec().step >= M.STEP.awake) power = 1;
   if (rec().step === M.STEP.both) beatSeen = false;
   board.setMarks(M.boardMarks(rec()));
   applyPower();
-  for (const id of [0, 1]) placeCell(id, 0, null, null, null);
+  for (const id of CELL_IDS) placeCell(id, 0, null, null, null);
 
   // one cell where its mode says: home on its pillar or plinth, in front of her mouth, or in its socket
   function placeCell(id, t, catPos, session, camera) {
@@ -245,16 +248,26 @@ export function createBaseLife(ctx) {
   function plugged(effect, id) {
     sound.click();
     if (effect === 'both') startBeat();
+    else if (effect === 'deep') { /* the Deep Cell: its own beat is world/moondeeplive.js's, which sees the cell go in */ }
     else say('moon-core-plug', phrase('moon.core.plug1'));
     void id;
   }
 
+  // (milestone 9) once the story is told, Pip's errand of the day is what the ring and the board point at (carrying the Deep Cell is still to the Core first)
+  const jobGoal = () => (carrying === null && rec().step >= M.STEP.replied ? ctx.jobGoal?.() ?? null : null);
   function goalPoint() {
-    const g = M.nextGoal(progression?.state?.moon, carrying);
+    const jg = jobGoal();
+    if (jg) return { g: { kind: 'job', icon: jg.icon }, x: jg.x, z: jg.z, y: jg.y };
+    const g = M.nextGoal(progression?.state?.moon, carrying, cardIn());
     if (g.kind === 'pip') return { g, x: pip.position.x, z: pip.position.z, y: ground.y(pip.position.x, pip.position.z) };
     if (g.kind === 'cell') { const p = cellPlace(g.cell); return { g, x: p.x, z: p.z, y: p.y - 0.42 }; }
     if (g.kind === 'core') return { g, x: P.CORE.x, z: P.CORE.z, y: ground.y(P.CORE.x, P.CORE.z) };
     if (g.kind === 'scope') { const p = P.rampPoint(0.04, 0); return { g, x: p.x, z: p.z, y: ground.y(p.x, p.z) }; } // the ramp's mouth at Star Hill's foot
+    if (g.kind === 'desk') return { g, x: P.MESSAGE_DESK.x, z: P.MESSAGE_DESK.z, y: ground.y(P.MESSAGE_DESK.x, P.MESSAGE_DESK.z) }; // milestone 6: the Message Desk
+    if (g.kind === 'rocket') return { g, x: P.ROCKET_SLOT.x, z: P.ROCKET_SLOT.z, y: ground.y(P.ROCKET_SLOT.x, P.ROCKET_SLOT.z) };
+    if (g.kind === 'button') return { g, x: P.LAUNCH_DESK.x, z: P.LAUNCH_DESK.z, y: ground.y(P.LAUNCH_DESK.x, P.LAUNCH_DESK.z) };
+    if (g.kind === 'reply') { const l = P.ROCK_LEDGES[0]; return { g, x: l.x, z: l.z, y: ground.y(l.x, l.z) }; } // the foot of Earthrise Rock's ledges
+    if (g.kind === 'cave') return { g, x: P.MOUTH_FRONT.x, z: P.MOUTH_FRONT.z, y: ground.y(P.MOUTH_FRONT.x, P.MOUTH_FRONT.z) }; // milestone 8: the Lava Tube's mouth
     return { g, x: P.BOARD.x + 1.6, z: P.BOARD.z, y: ground.y(P.BOARD.x, P.BOARD.z) };
   }
   // her meow (or the board): Pip beeps, shows a picture and a gold ring and light show where the next goal is
@@ -263,7 +276,7 @@ export function createBaseLife(ctx) {
     ringGoal = gp;
     ringT = clock;
     bubbleT = clock;
-    bubble.show(ICON[gp.g.kind] ?? ICON.done);
+    bubble.show(gp.g.icon ?? ICON[gp.g.kind] ?? ICON.done);
     pip.beep();
     sound.chirp();
     if (rec().step >= M.STEP.pip) pip.lookAt(gp.x, gp.z);
@@ -279,8 +292,9 @@ export function createBaseLife(ctx) {
     if (r.step < M.STEP.pip && pip.state === 'asleep' && dist(catPos, pip.position) < REACH.pip && level(ground.y(pip.position.x, pip.position.z))) return { kind: 'wake', line: phrase('moon.pip.prompt') };
     if (carrying !== null && dist(catPos, P.CORE) < REACH.core) return { kind: 'plug', cell: carrying, line: phrase('moon.core.prompt') };
     if (carrying === null && r.step >= M.STEP.pip) {
-      for (const id of [0, 1]) {
+      for (const id of CELL_IDS) {
         if (cellMode[id] !== 'home') continue;
+        if (id === M.DEEP && r.step < M.STEP.awake) continue; // the Deep Cell is for a woken base (milestone 8)
         const p = cellPlace(id);
         if (dist(catPos, p) < REACH.cell && level(p.y)) return { kind: 'pick', cell: id, line: phrase('moon.cell.prompt') };
       }
@@ -309,7 +323,8 @@ export function createBaseLife(ctx) {
         carrying = t.cell;
         setCellModes();
         sound.chirp();
-        say('moon-cell-got', phrase('moon.cell.got'));
+        if (t.cell === M.DEEP) say('moon-deep-got', phrase('moon.deep.got'));
+        else say('moon-cell-got', phrase('moon.cell.got'));
       } else if (t.kind === 'plug') {
         const id = t.cell;
         carrying = null;
@@ -318,8 +333,11 @@ export function createBaseLife(ctx) {
         if (effect) plugged(effect, id);
       } else if (t.kind === 'board') {
         callPip();
-        const g = M.nextGoal(progression?.state?.moon, carrying).kind;
-        say('moon-board', phrase(g === 'pip' ? 'moon.goal.pip' : g === 'cell' ? 'moon.goal.cells' : g === 'core' ? 'moon.goal.core' : g === 'scope' ? 'moon.goal.scope' : 'moon.goal.done'));
+        const g = M.nextGoal(progression?.state?.moon, carrying, cardIn()).kind;
+        const jg = jobGoal();
+        if (jg) say('moon-board', jg.line);
+        else say('moon-board', phrase(g === 'pip' ? 'moon.goal.pip' : g === 'cell' ? 'moon.goal.cells' : g === 'core' ? 'moon.goal.core' : g === 'scope' ? 'moon.goal.scope' : g === 'cave' ? 'moon.goal.cave'
+          : g === 'desk' ? 'moon.goal.card' : g === 'rocket' ? 'moon.goal.rocket' : g === 'button' ? 'moon.goal.button' : g === 'reply' ? 'moon.goal.reply' : 'moon.goal.done'));
       }
       return t.kind;
     },
@@ -359,6 +377,11 @@ export function createBaseLife(ctx) {
           if (!told.has('rover') && !(r.cells & 2) && dist(catPos, P.ROVER_CELL) < 26) { told.add('rover'); say('moon-cell-rover', phrase('moon.cell.rover.hint')); }
           if (!told.has('dot') && !(r.cells & 2) && dist(catPos, P.DEPOT) < 24) { told.add('dot'); say('moon-dot-hint', phrase('moon.rover.hint')); }
         }
+        // (milestone 8) the base is awake and a cell glows in the cave: a line once a walk when she comes near the mouth
+        if (r.step >= M.STEP.awake && carrying === null && !(r.cells & 4) && !told.has('deep') && dist(catPos, P.MOUTH) < 22) {
+          told.add('deep');
+          say('moon-deep-hint', phrase('moon.deep.hint'));
+        }
         // a wake-up beat saved unseen (both cells were in when the walk ended): it plays when she is near the dome
         if (r.step === M.STEP.both && !beat && !beatSeen && dist(catPos, P.DOME) < NEAR_DOME) startBeat();
       }
@@ -396,7 +419,7 @@ export function createBaseLife(ctx) {
       pip.update(step, t, catPos ? { x: catPos.x, y: catPos.y, z: catPos.z, perched: !!session?.perched } : null);
 
       // the cells: each where its mode says
-      for (const id of [0, 1]) placeCell(id, t, catPos, session, camera);
+      for (const id of CELL_IDS) placeCell(id, t, catPos, session, camera);
 
       // the door slides apart as she comes (and shuts behind her): purely for show, it never stops her
       if (doorL && doorR) {

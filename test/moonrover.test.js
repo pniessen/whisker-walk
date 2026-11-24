@@ -199,7 +199,7 @@ describe('the way off: one press, always onto free ground', () => {
       const to = dismountSpot(s, e);
       expect(to.ok, `${x},${z}`).toBe(true);
       expect(Math.hypot(to.x - s.x, to.z - s.z)).toBeGreaterThan(ROVER.radius + 0.5);
-      for (const c of e.colliders) expect(Math.hypot(to.x - c.x, to.z - c.z)).toBeGreaterThanOrEqual(c.r + 0.5 - 1e-6);
+      for (const c of e.colliders) expect(Math.hypot(to.x - c.x, to.z - c.z)).toBeGreaterThanOrEqual(c.r + 0.5 - 1.1e-3); // (isFree's own 1 mm of slack)
       expect(to.x).toBeGreaterThan(P.MOON_BOUNDS.minX);
       expect(to.x).toBeLessThan(P.MOON_BOUNDS.maxX);
       expect(to.z).toBeGreaterThan(P.MOON_BOUNDS.minZ);

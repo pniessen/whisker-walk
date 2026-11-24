@@ -7,6 +7,7 @@
 // =============================================================================
 
 import * as THREE from 'three';
+import { drawStampLights } from './moonstamps.js';
 import { mulberry32 } from '../rng.js';
 import { STARS, EARTH } from './moonplan.js';
 
@@ -14,13 +15,11 @@ const DEG = Math.PI / 180;
 
 // A 256 px Earth: blue sea, green land, white swirls, a thin blue rim. The sun is the game's own low sun, in the
 // north-west, so the lit side is the left one; the right side falls into night, with a few warm city lights.
-function earthTexture() {
-  if (typeof document === 'undefined') return null;
-  const S = 256;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = S;
+// Earth drawn on a square canvas of any size (the sky's quad is 256 px; the binoculars draw it bigger). Returns the 2D context or null.
+export function paintEarth(canvas) {
   const g = canvas.getContext?.('2d');
   if (!g) return null;
+  const S = canvas.width;
   const cx = S / 2;
   const R = S * 0.46;
   g.save();
@@ -60,7 +59,7 @@ function earthTexture() {
   g.fillStyle = '#ffe9a8';
   for (const [x, y] of [[0.62, -0.1], [0.55, 0], [0.5, 0.12], [0.7, 0.2], [0.45, -0.25], [0.6, -0.3], [0.38, 0.05], [0.66, 0.35]]) {
     g.beginPath();
-    g.arc(cx + x * R, cx + y * R, 1.4, 0, Math.PI * 2);
+    g.arc(cx + x * R, cx + y * R, 1.4 * (S / 256), 0, Math.PI * 2);
     g.fill();
   }
   g.restore();
@@ -72,8 +71,28 @@ function earthTexture() {
   g.beginPath();
   g.arc(cx, cx, R * 1.06, 0, Math.PI * 2);
   g.fill();
+  return g;
+}
+
+// The reply: her stamp drawn in lights on Earth's night side (the right side: the sun is on the left), `level` 0..1 bright. Drawn over paintEarth's picture.
+export const NIGHT_AT = Object.freeze({ x: 0.52, y: -0.04, size: 0.4 }); // in Earth radii from its middle
+export function paintReplyLights(canvas, stamp, level) {
+  const g = canvas.getContext?.('2d');
+  if (!g || !(level > 0) || !drawStampLights) return;
+  const S = canvas.width;
+  const R = S * 0.46;
+  drawStampLights(g, stamp, S / 2 + NIGHT_AT.x * R, S / 2 + NIGHT_AT.y * R, NIGHT_AT.size * R, level);
+}
+
+function earthTexture() {
+  if (typeof document === 'undefined') return null;
+  const S = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = S;
+  if (!paintEarth(canvas)) return null;
   const t = new THREE.CanvasTexture(canvas);
   t.colorSpace = THREE.SRGBColorSpace;
+  t.userData.canvas = canvas;
   return t;
 }
 
@@ -169,13 +188,67 @@ export function createMoonSky({ scene, tier, reducedMotion = false }) {
     }
   }
 
+  // (milestone 6) Earth's answer: her stamp in lights on the night side, drawn again over Earth's own picture when its level changes
+  let replyLevel = 0;
+  let replyStamp = -1;
+  function setReply(stamp, level) {
+    const canvas = map?.userData?.canvas;
+    if (!canvas) return;
+    const lv = Math.round(Math.max(0, Math.min(1, level)) * 20) / 20; // a step of 5 percent: the canvas is redrawn only when this changes
+    if (lv === replyLevel && stamp === replyStamp) return;
+    replyLevel = lv;
+    replyStamp = stamp;
+    paintEarth(canvas);
+    paintReplyLights(canvas, stamp, lv);
+    map.needsUpdate = true;
+  }
+
+  // (milestone 8) the Deep Cell's finale: a soft additive halo round Earth (made the first time it is asked for, so a walk that never plugs the Deep Cell has none and pays no draw)
+  let halo = null;
+  let haloLevel = 0;
+  function setShimmer(level) {
+    const lv = Math.max(0, Math.min(1, level));
+    haloLevel = lv;
+    if (!earth) return;
+    if (!halo && lv > 0) {
+      const R0 = EARTH.size * 0.46;
+      const R1 = R0 * 1.9;
+      const seg = 40;
+      const pos = [];
+      const col = [];
+      const at = (a, r, f) => { pos.push(Math.cos(a) * r, Math.sin(a) * r, 0); col.push(0.55 * f, 0.85 * f, 1 * f); };
+      for (let i = 0; i < seg; i++) {
+        const a0 = (i / seg) * Math.PI * 2;
+        const a1 = ((i + 1) / seg) * Math.PI * 2;
+        at(a0, R0 * 0.97, 0.9); at(a0, R1, 0); at(a1, R1, 0);
+        at(a0, R0 * 0.97, 0.9); at(a1, R1, 0); at(a1, R0 * 0.97, 0.9);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+      halo = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, side: THREE.DoubleSide, forceSinglePass: true, opacity: 0 }));
+      halo.name = 'moon:earthglow';
+      skyFlags(halo, -2);
+      g.computeBoundingSphere();
+      halo.frustumCulled = true; // unlike the stars and Earth it is not centred on the camera: drawn only when Earth is in view (a draw saved on the Moon's heaviest frames)
+      scene.add(halo);
+    }
+    if (halo) { halo.material.opacity = lv; halo.visible = lv > 0.001; }
+  }
+
   return {
-    stars, earth, clouds,
+    stars, earth, clouds, setReply, setShimmer,
+    get halo() { return halo; },
+    get shimmer() { return haloLevel; },
     update(camera, t = 0) {
       stars.position.copy(camera.position);
       if (earth) {
         earth.position.copy(camera.position).addScaledVector(earthDirection, EARTH.radius);
         earth.quaternion.copy(camera.quaternion);
+        if (halo) {
+          halo.position.copy(earth.position).addScaledVector(earthDirection, 0.5);
+          halo.quaternion.copy(camera.quaternion);
+        }
         if (clouds) {
           clouds.position.copy(earth.position).addScaledVector(earthDirection, -1);
           clouds.quaternion.copy(camera.quaternion);
@@ -184,7 +257,7 @@ export function createMoonSky({ scene, tier, reducedMotion = false }) {
       }
     },
     dispose() {
-      for (const o of [stars, earth, clouds]) {
+      for (const o of [stars, earth, clouds, halo]) {
         if (!o) continue;
         scene.remove(o);
         o.geometry.dispose();

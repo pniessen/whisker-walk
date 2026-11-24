@@ -251,7 +251,7 @@ describe('the cells and the Core', () => {
     a.progression.state.moon = { step: 4, cells: 3, stamp: -1, scope: 0, jump: {} };
     const r = rig({ progression: a.progression });
     expect(r.life.base.state.power).toBe(1);
-    expect(r.life.base.state.cellMode).toEqual(['plugged', 'plugged']);
+    expect(r.life.base.state.cellMode).toEqual(['plugged', 'plugged', 'home']); // (milestone 8: the Deep Cell is the third)
     expect(r.scene.getObjectByName('moon:lamp').material.color.getHex()).toBe(0xfff0c4);
     r.step(0.2, { x: 0, z: 45, y: 0 });
     expect(lines(r.events)).not.toContain(phrase('moon.core.on'));
@@ -281,7 +281,7 @@ describe('the cells and the Core', () => {
     r.dispose();
     const r2 = rig({ progression: r.progression });
     expect(JSON.stringify(r2.progression.state.moon)).toBe(saved);
-    expect(r2.life.base.state.cellMode).toEqual(['home', 'home']);
+    expect(r2.life.base.state.cellMode).toEqual(['home', 'home', 'home']);
     expect(r2.life.base.state.carrying).toBe(null);
     const c = r2.life.base.cells[0];
     expect(c.position.x).toBeCloseTo(P.RIDGE_CELL.x, 2);

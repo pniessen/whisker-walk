@@ -99,7 +99,7 @@ describe('the dome', () => {
   });
   it('the base is inside the bounds, clear of the landing site and the gate ring, and no boulder is in or on it', () => {
     const inb = (x, z, m = 0) => x >= P.MOON_BOUNDS.minX + m && x <= P.MOON_BOUNDS.maxX - m && z >= P.MOON_BOUNDS.minZ + m && z <= P.MOON_BOUNDS.maxZ - m;
-    for (const c of P.BASE_COLLIDERS) expect(inb(c.x, c.z, 0.5), JSON.stringify(c)).toBe(true);
+    for (const c of P.BASE_COLLIDERS) expect(inb(c.x, c.z, -c.r), JSON.stringify(c)).toBe(true); // (milestone 8: the Cave Massif's rock reaches past the west edge; the disc must still reach the plain)
     for (const b of P.BOULDERS) {
       expect(Math.hypot(b.x - P.DOME.x, b.z - P.DOME.z), 'boulder in the dome').toBeGreaterThan(P.DOME.r + b.r + 1);
       expect(Math.hypot(b.x - P.OLD_DISH.x, b.z - P.OLD_DISH.z)).toBeGreaterThan(b.r + 3);

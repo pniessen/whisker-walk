@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moon milestone 7a picture page</title>
+<!-- The Moon, milestone 7a (jumping, the safe half: the Beam Hops, the course lamps on the three ring-free courses, the hop board and its record): the REAL place
+     (src/world/moon.js) and its REAL life (world/moonlife.js with world/moonjumplive.js), a real progression on an in-memory save and a real discovery log, driven the way
+     src/main.js drives them each frame, the real suit and the Moon's own hop and the evening look. NOT in the game's page: nothing reaches it from the app.
+     scripts/record-page.mjs makes the pictures: __shot(name), __tour(name) with __frame(), __snap().
+     URL params: size=WxH (default 960x540), bare (no HUD), tier=high|low|lite, rm=1 (reduced motion), save=0..8 (the story's step; the default is 4).
+     Shots: park (the eight Beam Hops from the south-west, the lamps dim), beamtop (on the 3.0 m beam, its ring lit), beamsgold (all eight lit, gold), hop (mid-air over the lane),
+            land (the board after a first hop), record (the board after a better hop: a star), lane (the whole strip from behind the line), skip (Skip Ridge's rings), rock (Earthrise
+            Rock's rings), phone, phonepark, tv, tvpark, worst (the heaviest view found by the sweep).
+     Tours: beams (walk to the line, a first hop, a better hop, then up the beams one by one, the rings lighting, all eight gold).
+     window.__sweep(places, headings, { save }) counts draw calls. -->
+<style>
+  html, body { margin: 0; background: #05070f; overflow: hidden; font: 12px/1.35 Avenir, system-ui, sans-serif; color: #e8ecf8; }
+  canvas { position: fixed; left: 0; top: 0; display: block; }
+  #hud { position: fixed; left: 0; top: 0; padding: 6px 10px; background: rgba(8, 10, 18, .72); white-space: pre; pointer-events: none; }
+  #cap { position: fixed; left: 0; bottom: 0; padding: 6px 10px; background: rgba(8, 10, 18, .72); white-space: pre; pointer-events: none; font-size: 14px; }
+</style>
+</head>
+<body>
+<div id="hud">loading…</div>
+<div id="cap"></div>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier } from '/src/render/textures.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { createPlayer, pounceArc } from '/src/player.js';
+  import { createFx } from '/src/fx.js';
+  import { facingYaw, behindYaw } from '/src/traversal.js';
+  import { applyDusk, duskEnv, tintDuskLawn } from '/src/render/dusk.js';
+  import { effectiveWear } from '/src/suithook.js';
+  import { placeArc, placePace, placeBudget } from '/src/placephysics.js';
+  import { bestPerch, stickTakesOff } from '/src/climbing.js';
+  import { NO_FAIR } from '/src/fairnone.js';
+  import { mergeStaticProps } from '/src/render/mergeprops.js';
+  import { bus } from '/src/events.js';
+  import { build } from '/src/world/moon.js';
+  import * as P from '/src/world/moonplan.js';
+  import { createProgression } from '/src/progression.js';
+  import { createDiscoveryLog } from '/src/discoveries.js';
+  import { discoveryText } from '/src/ui/hud.js';
+  import { createGoldMice } from '/src/goldmice.js';
+  import { createPawPrints } from '/src/render/pawprints.js';
+  import { litMaterial } from '/src/render/materials.js';
+
+  const params = new URLSearchParams(location.search);
+  const rm = params.get('rm') === '1';
+  const [W0, H0] = (params.get('size') || '960x540').split('x').map(Number);
+  const BARE = params.has('bare');
+  const TIER = params.get('tier') || 'high';
+  const DT = 1 / 30;
+  const tier = TIER === 'lite' ? { name: 'low', rung: 5, shadows: false, envIntensity: 0.3 } : TIER === 'low' ? { name: 'low', rung: 3, shadows: true, envIntensity: 0.3 } : { name: 'high', shadows: true, envIntensity: 0.3 };
+
+  let W = W0, H = H0;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = tier.shadows;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.95;
+  document.body.prepend(renderer.domElement);
+  setTextureTier(tier);
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+  const sun = createSun();
+  scene.add(sun);
+  const fill = createFill(0x8d8c93);
+  scene.add(fill);
+  const area = build(scene, { water: { quality: tier, reducedMotion: rm } });
+  const look = applyDusk({ scene, sun, fill, areaData: area });
+  tintDuskLawn({ ground: scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint)), grass: null, look });
+  scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
+  const ground = area.ground;
+
+  const wear = effectiveWear({ collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }, 'moon');
+  const cat = buildCat('tabby', wear);
+  scene.add(cat);
+  const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
+  const shadows = tier.shadows ? createShadowFit(sun, camera, { radius: 20, mapSize: tier.rung >= 3 ? 1024 : 2048 }) : null;
+  sun.shadow.bias = SUN_BIAS;
+  sun.castShadow = tier.shadows;
+  assignShadowCasters(scene);
+  mergeStaticProps(scene);
+
+  const fx = createFx(scene, { reducedMotion: rm });
+  // the golden mice and the pebbles as game/walk.js makes them
+  const mice = createGoldMice(scene, 'moon', new Set(), { ground, rng: () => 0.3 });
+  const pebbles = area.collectibles.map((c) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), litMaterial(0xf25c8a, { emissive: 0x5a1a30 })); m.position.set(c.x, ground.y(c.x, c.z) + 0.2, c.z); scene.add(m); return m; });
+  // the paw prints on the dust (the walk makes the ring after the shadow sweeps)
+  const paws = createPawPrints(scene, { areaId: 'moon', areaData: area, tier: { pawPrints: 48, pawFade: 9 }, reducedMotion: rm });
+  // the save: a real progression on an in-memory store (nothing persisted), and a real discovery log, so the finds pay as they do in the game
+  const STAMP = Number(params.get('stamp') ?? 1);
+  const SAVES = [{ step: 0, cells: 0 }, { step: 1, cells: 0 }, { step: 2, cells: 1 }, { step: 3, cells: 3 }, { step: 4, cells: 3 }, { step: 5, cells: 3, scope: 3 }, { step: 6, cells: 3, scope: 3, stamp: STAMP }, { step: 7, cells: 3, scope: 3, stamp: STAMP }, { step: 8, cells: 3, scope: 3, stamp: STAMP }];
+  const SCOPE = 0;
+  const store = new Map();
+  const progression = createProgression({ getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) });
+  const state = progression.state;
+  let log = null;
+  const toasts = [];
+  bus.on('discovery', (e) => { toasts.push(discoveryText(e) || e.label); });
+  const session = { pounceTime: 0, perched: null, perchHold: null, idleTime: 0, hopLift: 0, fx, goals: null, cat, fair: NO_FAIR };
+  session.goldMice = mice; // what the walk's session carries (the Moon's life hides the far ones to hold the draw budget)
+  session.collectibleMeshes = new Map(area.collectibles.map((c, i) => [c.id, pebbles[i]]));
+  let life = null;
+  const dust = {};
+  let t = 0;
+  function makeLife(save) {
+    life?.dispose();
+    Object.assign(state.moon, { stamp: -1, scope: SCOPE }, SAVES[save]);
+    state.journal = {};
+    log = createDiscoveryLog(progression);
+    log.startWalk();
+    toasts.length = 0;
+    dust.reset?.();
+    life = area.life({ scene, sun, fill, ground, reducedMotion: rm, tier, progression, log, audio: null, doc: document, win: window, clock: () => 250 });
+    t = 0;
+    session.perched = null;
+    session.perchHold = null;
+    session.fair = NO_FAIR;
+    return life;
+  }
+  makeLife(Number(params.get('save') ?? 4));
+  const player = createPlayer(camera, renderer.domElement);
+  player.setReducedMotion(rm);
+  function reset(x, z, fx_, fz_) {
+    cat.position.set(x, ground.y(x, z), z);
+    cat.rotation.set(0, facingYaw(fx_, fz_), 0);
+    player.setAvatar(cat, placePace(3.5, 'moon'));
+    player.setGround(ground);
+    player.setViewYaw(behindYaw(fx_, fz_));
+    player.perchY = 0;
+    session.perched = null;
+    player.enable();
+    player.update(0, area.colliders, area.bounds, area.waters);
+    session.pounceTime = 0; session.hopLift = 0;
+    life.update(0, t, cat.position, camera, session);
+    if (shadows) shadows.update(0, 1e3);
+  }
+  const stick = (x, z) => player.setTouchMove(x === 0 && z === 0 ? null : { x, z, mag: 1 });
+  const hud = document.getElementById('hud');
+  const capEl = document.getElementById('cap');
+  if (BARE) { hud.remove(); }
+  // main.js's order: player.update; the area's life; the fair (here Dot's hooks); the avatar (pose, speedFactor, a pushed stick off a perch); late
+  let lock = null; // the shot's camera, put back before each frame (the walk recomputes its camera every frame: a launch's tilt must not pile up)
+  function frame(dt) {
+    t += dt;
+    player.update(dt, area.colliders, area.bounds, area.waters);
+    if (lock) { camera.position.set(...lock.pos); camera.lookAt(...lock.look); } // the shot's camera over the walk's follow camera, before the life tips it (as main.js's order: the player, then the area's life)
+    life.update(dt, t, cat.position, camera, session);
+    session.fair.update(dt, t, { cat, player, session });
+    if (stickTakesOff(session, player.inputActive)) { session.perched = null; player.perchY = 0; }
+    player.speedFactor = session.perched ? 0 : 1;
+    fx.update(dt, camera);
+    mice.update(t);
+    if (session.pounceTime > 0) session.pounceTime -= dt;
+    const on = session.perched;
+    animateCat(cat, player.hopY > 0 ? 'pounce' : on?.pose ?? (on ? 'perch' : 'follow'), t, on ? 0 : player.speed, rm);
+    cat.rotation.x = 0; cat.rotation.z = 0;
+    cat.position.y = ground.y(cat.position.x, cat.position.z) + (on ? on.y : 0) + player.hopY + session.hopLift;
+    paws.update(dt, { x: cat.position.x, z: cat.position.z, grounded: !on && !(player.hopY > 0) });
+    session.fair.late(dt, t, { cat, player, session });
+    if (shadows) shadows.update(0, dt);
+    render();
+  }
+  function render() {
+    renderer.render(scene, camera);
+    if (BARE) return;
+    const p = cat.position;
+    hud.textContent = [`moon m7a · tier ${TIER} · at ${p.x.toFixed(1)}, ${p.z.toFixed(1)}, ${p.y.toFixed(2)} · save step ${state.moon.step} stamp ${state.moon.stamp}`, `draws ${renderer.info.render.calls} · tris ${renderer.info.render.triangles}`].join('\n');
+  }
+  // the walk's own presses
+  const arcNow = () => placeArc(pounceArc(state, { reducedMotion: rm }), 'moon');
+  const press = () => { // game/interactions.js doPounceOrClimb: a climb if a perch is in reach (the cat goes to it at once, the arc is drawn there), else a hop
+    const arc = arcNow();
+    const next = bestPerch(area.perches, cat.position, player.perchY, session.perched, placeBudget(state, 'moon'), { ground });
+    if (next) { session.perched = next; player.perchY = next.y; player.halt(); cat.position.set(next.x, ground.y(next.x, next.z), next.z); }
+    else if (session.perched) { session.perched = null; player.perchY = 0; }
+    player.pounce(arc); session.pounceTime = arc.time;
+  };
+  const resize = (w, h) => { W = w; H = h; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); };
+  const setCam = (pos, look, fov = 70) => { lock = { pos, look }; camera.fov = fov; camera.updateProjectionMatrix(); camera.position.set(...pos); camera.lookAt(...look); life.sky.update(camera, t); };
+  const settle = (n) => { for (let k = 0; k < n; k++) frame(DT); };
+  const at = (x, z) => { cat.position.set(x, ground.y(x, z), z); };
+  const angTo = (cur, want, k) => { let d = ((want - cur + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return cur + d * k; };
+  // the cat walks a path of points at `speed` m/s (placed each frame, as the stick would; the life, the prints and the camera follow)
+  function scriptWalk(points, speed = 4, each = null) {
+    for (let i = 0; i + 1 < points.length; i++) {
+      const [ax, az] = points[i]; const [bx, bz] = points[i + 1];
+      const n = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / (speed * DT)));
+      cat.rotation.y = facingYaw(bx - ax, bz - az);
+      for (let k = 1; k <= n; k++) { const x = ax + ((bx - ax) * k) / n; const z = az + ((bz - az) * k) / n; cat.position.set(x, ground.y(x, z), z); frame(DT); each?.(); }
+    }
+  }
+  const meow = () => bus.emit('tip:did', { id: 'call' });
+  const behind = (dist = 4.4, up = 2.5, fov = 66) => { const p = cat.position; const yaw = cat.rotation.y; setCam([p.x - Math.sin(yaw) * dist, p.y + up, p.z - Math.cos(yaw) * dist], [p.x + Math.sin(yaw) * 2.5, p.y + 0.8, p.z + Math.cos(yaw) * 2.5], fov); };
+  const L = P.JUMP_LANE;
+  const B = P.BEAMS;
+  const stepFor = (n) => settle(Math.round(n / DT));
+  const place = (x, z, fx_, fz_) => { cat.position.set(x, ground.y(x, z), z); cat.rotation.y = facingYaw(fx_, fz_); };
+  const perchOn = (p) => { session.perched = { x: p.x, z: p.z, y: p.y, pose: 'perch' }; player.perchY = p.y; cat.position.set(p.x, ground.y(p.x, p.z) + p.y, p.z); settle(3); };
+  // a real hop: the walk's own press (player.pounce and the Moon's window), her paws carried east at `v` m/s; `upTo` (0..1) stops part way through the window
+  function hopEast(v = 5.5, upTo = 1) {
+    const arc = arcNow();
+    player.pounce(arc);
+    session.pounceTime = arc.time;
+    const n = Math.round(arc.time / DT * upTo);
+    for (let k = 0; k < n; k++) { cat.position.x += v * DT; frame(DT); }
+    if (upTo >= 1) settle(4);
+  }
+  const lineAt = (back = 0.4) => { place(L.x0 - back, L.z, 1, 0); settle(3); };
+  const boardCam = () => { const Bd = P.JUMP_BOARD; setCam([Bd.x - 4.6, 2.4, Bd.z + 3.6], [Bd.x + 2.6, 1.1, L.z - 0.6], 64); };
+  const parkCam = (pos = [-17, 4.5, -19], look = [0, 1.4, -30], fov = 66) => { lock = null; setCam(pos, look, fov); };
+  const SHOTS = {
+    park: () => { prep({ at: [-12, -22], face: [1, -1], save: 4 }); parkCam(); },
+    beamtop: () => { prep({ at: [B[4].x - 6, B[4].z + 5], face: [1, -1], save: 4 }); for (const i of [0, 1, 2, 3, 4]) perchOn(B[i]); const p = cat.position; setCam([p.x - 5.5, p.y + 2.2, p.z + 3.6], [p.x + 2.5, p.y - 0.2, p.z - 1.2], 64); },
+    beamsgold: () => { prep({ at: [B[0].x - 4, B[0].z + 3], face: [1, -1], save: 4 }); for (const b of B) perchOn(b); place(B[3].x, B[3].z + 4.4, 0, -1); session.perched = null; player.perchY = 0; settle(3); parkCam([-19, 5.6, -22], [0, 1.4, -30], 70); },
+    hop: () => { prep({ at: [L.x0 - 0.4, L.z], face: [1, 0], save: 4 }); hopEast(5.5, 0.5); const p = cat.position; setCam([p.x - 1.0, 1.2, p.z + 6.0], [p.x + 0.5, p.y - 0.2, p.z], 56); },
+    land: () => { prep({ at: [L.x0 - 0.4, L.z], face: [1, 0], save: 4 }); hopEast(5.5); boardCam(); },
+    record: () => { prep({ at: [L.x0 - 0.4, L.z], face: [1, 0], save: 4 }); hopEast(4.0); settle(30); place(L.x0 - 0.4, L.z, 1, 0); session.perched = null; settle(40); hopEast(6.2); boardCam(); },
+    lane: () => { prep({ at: [L.x0 - 0.4, L.z], face: [1, 0], save: 4 }); setCam([L.x0 - 5.5, 2.8, L.z + 4.2], [L.x0 + 9, 0.3, L.z], 70); },
+    skip: () => { const s = P.SKIP; prep({ at: [s[0].x - 5, s[0].z + 4], face: [1, -1], save: 4 }); perchOn(s[0]); perchOn(s[1]); place(s[0].x - 4.5, s[0].z + 1.2, 1, -0.3); session.perched = null; player.perchY = 0; settle(3); setCam([s[0].x - 9.5, 4.4, s[0].z + 7.5], [s[1].x, s[1].y - 1.2, s[1].z], 60); },
+    rock: () => { const r = P.ROCK_LEDGES; prep({ at: [r[0].x - 4, r[0].z + 5], face: [1, -1], save: 4 }); perchOn(r[0]); perchOn(r[1]); place(r[0].x - 4.2, r[0].z + 1.8, 1, -0.5); session.perched = null; player.perchY = 0; settle(3); setCam([r[0].x - 7.5, 3.8, r[0].z + 7.5], [r[1].x, r[1].y, r[1].z], 58); },
+    phone: () => { prep({ at: [L.x0 - 0.4, L.z], face: [1, 0], save: 4, size: [390, 760] }); hopEast(5.5); const Bd = P.JUMP_BOARD; setCam([Bd.x - 2.6, Bd.y - 0.2, Bd.z + 4.6], [Bd.x + 1.2, Bd.y - 0.9, Bd.z - 3.4], 62); },
+    phonepark: () => { prep({ at: [-12, -22], face: [1, -1], save: 4, size: [390, 760] }); for (const i of [0, 1, 2]) perchOn(B[i]); parkCam([-14, 6.5, -17], [-2, 1.6, -30], 72); },
+    tv: () => { prep({ at: [L.x0 - 0.4, L.z], face: [1, 0], save: 4, size: [1920, 1080] }); hopEast(5.5); boardCam(); },
+    tvpark: () => { prep({ at: [-12, -22], face: [1, -1], save: 4, size: [1920, 1080] }); for (const i of [0, 1, 2, 3]) perchOn(B[i]); parkCam(); },
+    worst: () => { prep({ at: [0, -22], face: [0, -1], save: 4 }); const p = cat.position; setCam([p.x - 3, p.y + 2.8, p.z + 5], [0, 2, -32], 70); },
+  };
+  function prep(s) {
+    life.star?.scope?.close();
+    lock = null;
+    resize(...(s.size ?? [W0, H0]));
+    makeLife(s.save ?? Number(params.get('save') ?? 4));
+    reset(s.at[0], s.at[1], (s.face ?? [1, 0])[0], (s.face ?? [1, 0])[1]);
+    stick(0, 0);
+    cat.visible = true;
+    settle(s.settle ?? 20);
+    if (s.cam) setCam(s.cam.pos, s.cam.look, s.cam.fov);
+  }
+  window.__shot = (name) => {
+    const f = SHOTS[name];
+    if (!f) throw new Error(`no shot "${name}"; there are ${Object.keys(SHOTS).join(', ')}`);
+    f();
+    render();
+    return name;
+  };
+  window.__snap = (q = 0.85) => { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/jpeg', q); };
+  window.__stats = () => { const i = renderer.info; return { calls: i.render.calls, triangles: i.render.triangles }; };
+  // the sweep: the draw calls of a frame (main and shadow passes) from 12 headings at each of many places, the worst reported. `fly` starts a launch at 6.5 s into its flight
+  // (a rocket in the air, the plume and the smoke on) for every place; `save` is the story's step.
+  window.__sweep = (places, headings = 12, { fly = false, save = 7 } = {}) => {
+    let worst = { calls: 0 }; let sum = 0; let n = 0;
+    for (const [x, z, y0] of places) {
+      if (fly) { lock = null; makeLife(save); reset(x, z, 0, -1); life.launch.credit({ kind: 'launch', t0: 0, now: 6.5 }); }
+      for (let h = 0; h < headings; h++) {
+        const a = (h / headings) * Math.PI * 2;
+        cat.position.set(x, y0 ?? ground.y(x, z), z); cat.rotation.y = a;
+        settle(2);
+        setCam([x - Math.sin(a) * 4.4, (y0 ?? ground.y(x, z)) + 2.9, z - Math.cos(a) * 4.4], [x + Math.sin(a) * 2.5, (y0 ?? ground.y(x, z)) + 0.8, z + Math.cos(a) * 2.5], 70);
+        renderer.info.autoReset = false; renderer.info.reset();
+        renderer.render(scene, camera);
+        const calls = renderer.info.render.calls; const tris = renderer.info.render.triangles;
+        renderer.info.autoReset = true;
+        sum += calls; n++;
+        if (calls > worst.calls) worst = { calls, tris, at: [x, z], heading: h };
+      }
+    }
+    return { worst, mean: sum / n, n };
+  };
+
+  // ---- tours ----------------------------------------------------------------------------------------------------------
+  // beams: to the start line, a first hop, a better hop (a star), then up the beams one by one (each ring lighting) and down the far side, all eight gold
+  const TOURS = {
+    beams: () => {
+      makeLife(4);
+      reset(L.x0 - 6, L.z + 1.2, 1, 0);
+      let step = -1; let hold = 0; let cap = ''; let k = 0; let seg = [];
+      const walkTo = (x, z, speed = 5) => { const p = cat.position; const n = Math.max(1, Math.round(Math.hypot(x - p.x, z - p.z) / (speed * DT))); const ax = p.x; const az = p.z; seg = []; for (let q = 1; q <= n; q++) seg.push([ax + ((x - ax) * q) / n, az + ((z - az) * q) / n, facingYaw(x - ax, z - az)]); k = 0; };
+      const follow = (dist = 5.2, up = 2.6, fov = 66) => behind(dist, up, fov);
+      const script = [
+        ['Walk to the start line', () => walkTo(L.x0 - 0.4, L.z), 0, () => follow()],
+        ['Hop from the line: the board shows how far', () => { cat.rotation.y = facingYaw(1, 0); session.perched = null; hopEast(4.0, 0.5); }, 0, () => { follow(4.6, 2.2); }],
+        ['(the hop carries on)', () => {}, 60, () => { follow(4.6, 2.2); }],
+        ['Again, a longer one: a star for a new record', () => { place(L.x0 - 0.4, L.z, 1, 0); settle(3); hopEast(6.4, 0.5); }, 0, () => { follow(4.6, 2.2); }],
+        ['(the board)', () => { boardCam(); }, 80, null],
+        ['Over to the Beam Hops', () => { lock = null; walkTo(B[0].x - 2.4, B[0].z + 0.4, 6); }, 0, () => follow()],
+        ...B.map((b, i) => [`Beam ${i + 1}: ${b.y} m`, () => { perchOn(b); }, 26, () => { const p = cat.position; setCam([p.x - 5.2, p.y + 2.4, p.z + 4.4], [p.x + 2.4, p.y - 0.2, p.z - 1.2], 64); }]),
+        ['Every beam is lit', () => { session.perched = null; player.perchY = 0; place(B[7].x + 2.6, B[7].z + 3.6, -1, -1); settle(2); }, 100, () => parkCam([-19, 5.6, -22], [0, 1.4, -30], 70)],
+      ];
+      return () => {
+        if (seg.length && k < seg.length) {
+          const [x, z, yaw] = seg[k++];
+          cat.rotation.y = angTo(cat.rotation.y, yaw, 0.25);
+          cat.position.set(x, ground.y(x, z), z);
+          frame(DT); lock = null; script[Math.max(0, step)][3]?.(); capEl.textContent = BARE ? '' : cap; render();
+          return { done: false, caption: cap };
+        }
+        if (hold <= 0) {
+          step++;
+          if (step >= script.length) return { done: true, caption: cap };
+          cap = script[step][0]; script[step][1](); hold = script[step][2];
+          if (seg.length) return { done: false, caption: cap };
+        }
+        hold--; settle(1);
+        script[step][3]?.();
+        capEl.textContent = BARE ? '' : cap; render();
+        return { done: false, caption: cap };
+      };
+    },
+  };
+  window.__tour = (name) => { if (!TOURS[name]) throw new Error(`no tour "${name}"; there are ${Object.keys(TOURS).join(', ')}`); resize(W0, H0); tour = TOURS[name](); return name; };
+  let tour = null;
+  window.__frame = () => tour ? tour() : { done: true };
+  // for tests of the page by hand
+  window.__makeLife = (n) => { lock = null; return makeLife(n); };
+  window.__d = { P, player, session, cat, get life() { return life; }, frame, ground, area, progression, paws, mice, scene, camera, renderer };
+
+  reset(0, 45, 0, -1);
+  render();
+  window.__ready = true;
+</script>
+</body>
+</html>

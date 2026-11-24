@@ -457,7 +457,7 @@ describe('the draw budget: the walk\'s far pebbles and mice are not drawn', () =
     build(scene);
     let meshes = 0;
     scene.traverse((o) => { if (o.isMesh) meshes++; });
-    expect(meshes).toBeLessThanOrEqual(22); // 17 at milestone 4; Star Hill (milestone 5) adds two (the observatory's paint and the additive figures)
+    expect(meshes).toBeLessThanOrEqual(25); // (milestone 8: the massif, the cave's shell and its floor and crystals) 17 at milestone 4; Star Hill (milestone 5) adds two (the observatory's paint and the additive figures)
   });
 });
 

@@ -12,7 +12,7 @@
 // listener. Text: only the "hmm" line and the name of a picture just traced; everything else is a picture. No random number, no clock.
 // =============================================================================
 
-import { CONSTELLATIONS, GREAT_CAT, WINDOW, TOLERANCE, STORY_BITS, starSky, catSky, nearestStar, scopeScale, angleTo, bitsOf } from './moonstars.js';
+import { CONSTELLATIONS, GREAT_CAT, WINDOW, TOLERANCE, STORY_BITS, starSky, catSky, nearestStar, scopeScale, angleTo } from './moonstars.js';
 
 export const EARTH_AT = Object.freeze({ b: 12, e: 21, r: 4 }); // where Earth is on the sky (world/moonplan.js EARTH) and its size in degrees
 export const PAN_SPEED = 34; // degrees a second by key or stick
@@ -32,6 +32,7 @@ const keyOf = (code) => Object.keys(KEYS).find((k) => KEYS[k].includes(code)) ??
 //   line(key) -> text, reducedMotion, lite, onResult(res), onClose(), onAsk()
 export function createScope(opts) {
   const { doc, win, solver, hint, sky = [], reducedMotion = false } = opts;
+  const PICS = opts.pictures ?? CONSTELLATIONS; // (milestone 9) the five, plus the day's guest as a sixth while Pip's errand asks for it
   const line = opts.line ?? (() => '');
   const pads = opts.pads ?? (() => []);
   let root = null;
@@ -77,7 +78,7 @@ export function createScope(opts) {
   // ---- the stars on screen, by picture --------------------------------------------------------------------------------------
   function place() {
     hits = [];
-    CONSTELLATIONS.forEach((c, ci) => {
+    PICS.forEach((c, ci) => {
       for (let i = 0; i < c.pts.length; i++) {
         const s = starSky(c, i);
         const x = toX(s.b);
@@ -99,7 +100,7 @@ export function createScope(opts) {
     if (res.kind === 'hmm') { flash = { c: s.c, i: s.i, t: 0, x, y }; said = { text: line('moon.scope.hmm'), t: 0 }; hint.reset(); }
     if (res.kind === 'done') {
       sparkle = { c: s.c, t: 0 };
-      said = { text: line(`moon.star.${CONSTELLATIONS[s.c].id}`), t: 0 };
+      said = { text: line(s.c >= CONSTELLATIONS.length ? `moon.guest.${PICS[s.c].id}` : `moon.star.${CONSTELLATIONS[s.c].id}`), t: 0 };
       if ((res.bits & STORY_BITS) === STORY_BITS && (before & STORY_BITS) !== STORY_BITS) showEarth(); // Earth is found: the view slides to it
     }
     opts.onResult?.(res);
@@ -193,7 +194,7 @@ export function createScope(opts) {
     make();
     isOpen = true;
     for (const key of Object.keys(held)) held[key] = false;
-    const t = at ?? (() => { const c = solver.focus(); return c >= 0 ? CONSTELLATIONS[c] : { bearing: EARTH_AT.b, elev: EARTH_AT.e }; })();
+    const t = at ?? (() => { const c = solver.focus(); return c >= 0 ? PICS[c] : { bearing: EARTH_AT.b, elev: EARTH_AT.e }; })();
     view.b = wrap(t.bearing);
     view.e = clamp(t.elev, VIEW_LIMITS.minE, VIEW_LIMITS.maxE);
     goal.b = null;
@@ -303,7 +304,7 @@ export function createScope(opts) {
       }
     }
     // the Great Cat, once all five are traced (faint, behind the pictures)
-    if (solver.bits === 31) {
+    if ((solver.bits & 31) === 31) {
       g.strokeStyle = 'rgba(150,200,255,.5)'; g.lineWidth = 2;
       const trace = (pts, close2) => { g.beginPath(); pts.forEach(([x, y], i) => { const c = catSky(x, y); (i ? g.lineTo : g.moveTo).call(g, toX(c.b), toY(c.e)); }); if (close2) g.closePath(); g.stroke(); };
       trace(GREAT_CAT.outline, true);
@@ -311,11 +312,10 @@ export function createScope(opts) {
     }
     // the pictures
     place();
-    const done = bitsOf(solver.bits);
-    CONSTELLATIONS.forEach((c, ci) => {
+    PICS.forEach((c, ci) => {
       const n = solver.pins(ci);
       const guide = ci === 0 && solver.bits === 0 && n === 0; // the first picture, drawn faintly the first time
-      const lit = done[ci];
+      const lit = ((solver.bits >> ci) & 1) === 1;
       const spark = sparkle && sparkle.c === ci ? 1 + 0.5 * Math.sin(sparkle.t * 14) : 1;
       if (n > 1 || guide) {
         g.strokeStyle = lit ? 'rgba(160,215,255,.95)' : guide && n < 2 ? 'rgba(160,200,255,.22)' : 'rgba(150,200,255,.8)';
@@ -341,7 +341,7 @@ export function createScope(opts) {
     });
     // the hint: the next star pulses
     if (hintStar) {
-      const sp = starSky(CONSTELLATIONS[hintStar.c], hintStar.i);
+      const sp = starSky(PICS[hintStar.c], hintStar.i);
       const x = toX(sp.b); const y = toY(sp.e);
       const r = 14 + (reducedMotion ? 6 : 8 * Math.abs(Math.sin(pulse * 4)));
       g.strokeStyle = '#ffd45a'; g.lineWidth = 3;
@@ -349,7 +349,7 @@ export function createScope(opts) {
     }
     // the wrong star: a grey ring that fades
     if (flash) {
-      const sp = starSky(CONSTELLATIONS[flash.c], flash.i);
+      const sp = starSky(PICS[flash.c], flash.i);
       g.strokeStyle = `rgba(190,190,205,${(1 - flash.t / 0.7) * 0.8})`; g.lineWidth = 3;
       g.beginPath(); g.arc(toX(sp.b), toY(sp.e), 12 + flash.t * 14, 0, Math.PI * 2); g.stroke();
     }

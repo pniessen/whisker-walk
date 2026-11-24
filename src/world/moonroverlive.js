@@ -81,7 +81,7 @@ export function createRoverLive(ctx) {
 
   // the hint ring round Dot while she waits: bright when it is near enough to hop in
   const ringGeo = new THREE.RingGeometry(RING.inner, RING.outer, 40).rotateX(-Math.PI / 2);
-  const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x7ff0dd, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: true }));
+  const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x7ff0dd, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: true, forceSinglePass: true }));
   ring.name = 'moon:dotring';
   ring.visible = false;
   ring.renderOrder = 2;
