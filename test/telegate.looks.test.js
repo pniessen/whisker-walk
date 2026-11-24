@@ -180,7 +180,7 @@ describe('what is solid', () => {
 
 describe('the owner\'s two choices, as constants', () => {
   it('each gate\'s look is named in TELE_LOOK, a real look, and is what its table row says', () => {
-    expect(Object.keys(TELE_LOOK).sort()).toEqual(['greenhouse-park', 'park-greenhouse']);
+    expect(Object.keys(TELE_LOOK).sort()).toEqual(['greenhouse-park', 'moon-park', 'park-greenhouse', 'park-moon']);
     for (const e of [PG, GP]) {
       expect(LOOK_NAMES, e.id).toContain(TELE_LOOK[e.id]);
       expect(e.look, e.id).toBe(TELE_LOOK[e.id]);
@@ -286,13 +286,15 @@ describe('the walk\'s draw of the gates (teleport.draw)', () => {
       const state = { edition: 'canon', walks: {} };
       const scene = new THREE.Scene();
       const solids = T.draw(scene, 'park', state, { y: () => 0 }, false);
-      const gate = scene.children.find((c) => c.name === 'telegate');
+      const gate = scene.children.find((c) => c.name === 'telegate' && c.userData.endId === 'park-greenhouse');
       expect(gate.userData.awake).toBe(true);
+      // the Moon gate stands beside it, dormant until two Park walks (no walks in this state)
+      expect(scene.children.find((c) => c.userData.endId === 'park-moon').userData.awake).toBe(false);
       expect(gate.getObjectByName('teleDisc').onBeforeRender).not.toBe(new THREE.Mesh().onBeforeRender);
-      expect(solids).toHaveLength(2);
+      expect(solids).toHaveLength(4); // two pillars each
       const calmScene = new THREE.Scene();
       T.draw(calmScene, 'park', state, { y: () => 0 }, true);
-      expect(calmScene.children.find((c) => c.name === 'telegate').getObjectByName('teleDisc').onBeforeRender).toBe(new THREE.Mesh().onBeforeRender);
+      expect(calmScene.children.find((c) => c.userData.endId === 'park-greenhouse').getObjectByName('teleDisc').onBeforeRender).toBe(new THREE.Mesh().onBeforeRender);
       setTele(false);
       const none = new THREE.Scene();
       expect(T.draw(none, 'park', state, { y: () => 0 }, false)).toEqual([]);

@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teleport gates, milestone 3: the Moon gate</title>
+<link rel="stylesheet" href="/src/style.css">
+<!-- Teleport gates milestone 3 (docs/superpowers/plans/2026-11-23-teleport-gates.md): the picture page for the Moon gate. The REAL
+     Park (src/world/park.js) with its Moon gate (src/world/telegate.js, row park-moon from src/teleport.js), the REAL Moon
+     (src/world/moon.js, its own return ring), the real suit (effectiveWear 'space'), the real card, swirl and toast classes
+     (src/teleui.js). NOT in the game. scripts/record-page.mjs makes the pictures: __shot(name), __tour(). URL params: size=WxH
+     (default 960x540), rm=1 (reduced motion). Shots: park-far (the Park at dusk, the stone ring beyond the spawn), park-near,
+     park-dormant (before two walks), park-prompt, park-card, swirl, moon-arrive (suited, beside the ring, the lander and the first
+     golden mouse in sight), moon-ring, moon-card, park-home. The film: walk to the gate, the card, the swirl, the Moon arrival
+     (suit pops on), the walk to the ring, the card, the swirl, home. -->
+<style>
+  html, body { margin: 0; background: #1c2431; overflow: hidden; font: 16px/1.35 Avenir, system-ui, sans-serif; color: #f1e0c2; }
+  #stage { position: fixed; left: 0; top: 0; }
+  #stage canvas { display: block; }
+  #stage #overlay { position: absolute; inset: 0; z-index: 10; }
+  #stage #overlay.hidden { display: none; }
+  #stage #hud { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+  #stage #hud .cap { position: absolute; left: 10px; top: 8px; padding: 4px 10px; background: rgba(8,10,18,.6); border-radius: 8px; font-size: 14px; }
+</style>
+</head>
+<body>
+<div id="stage"><div id="hud"></div><div id="overlay" class="hidden"></div></div>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier } from '/src/render/textures.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters, DEFAULT_GROUND_BOUNCE } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { skyBackground } from '/src/render/sky.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { createPlayer } from '/src/player.js';
+  import { createFx } from '/src/fx.js';
+  import { facingYaw, behindYaw } from '/src/traversal.js';
+  import { applyDusk, duskEnv, tintDuskLawn } from '/src/render/dusk.js';
+  import { mergeStaticProps } from '/src/render/mergeprops.js';
+  import { build as buildPark } from '/src/world/park.js';
+  import { build as buildMoon } from '/src/world/moon.js';
+  import { addTeleGates, setTeleClock, discTint } from '/src/world/telegate.js';
+  import { TELE_ENDS, suitUp } from '/src/teleport.js';
+  import { effectiveWear } from '/src/suithook.js';
+  import { installSuitKit } from '/src/cat/suitkit.js';
+  import { placePace } from '/src/placephysics.js';
+  import * as UI from '/src/teleui.js';
+  import { lower } from '/src/territories.js';
+  import { escapeHtml } from '/src/escapehtml.js';
+  import { phrase } from '/src/clanphrases.js';
+
+  const params = new URLSearchParams(location.search);
+  const rm = params.get('rm') === '1';
+  const [W, H] = (params.get('size') || '960x540').split('x').map(Number);
+  const DT = 1 / 30;
+  const stage = document.getElementById('stage');
+  stage.style.width = `${W}px`; stage.style.height = `${H}px`;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  stage.prepend(renderer.domElement);
+  const tier = { name: 'high', shadows: true, envIntensity: 0.45 };
+  setTextureTier(tier);
+  const env = buildEnvMap(renderer);
+  installSuitKit();
+  const PM = TELE_ENDS.park[1];
+  const MP = TELE_ENDS.moon[0];
+  let clockT = 0.6;
+  setTeleClock(() => clockT);
+  const OWN = { collar: 'bell', head: null, face: null, neck: 'scarf', body: 'raincoat', back: null, feet: null };
+
+  function world(kind, { dormant = false } = {}) {
+    const scene = new THREE.Scene();
+    scene.environment = env;
+    scene.environmentIntensity = kind === 'moon' ? 0.3 : tier.envIntensity;
+    if (kind === 'park') { scene.background = skyBackground(0x8cc8ee, 0xe6f2e8); scene.fog = new THREE.Fog(0xe6f2e8, 70, 170); }
+    const sun = createSun(); scene.add(sun);
+    const fill = createFill(kind === 'moon' ? 0x8d8c93 : DEFAULT_GROUND_BOUNCE); scene.add(fill);
+    const area = (kind === 'moon' ? buildMoon : buildPark)(scene, { water: { quality: tier, reducedMotion: rm } });
+    const look = applyDusk({ scene, sun, fill, areaData: area });
+    tintDuskLawn({ ground: scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint)), grass: null, look });
+    scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
+    const colliders = [...area.colliders];
+    if (kind === 'park') colliders.push(...addTeleGates(scene, [PM], { calm: rm, awakeOf: () => !dormant }).colliders);
+    const ground = area.ground ?? null;
+    const cat = buildCat('tabby', kind === 'moon' ? effectiveWear(OWN, 'moon', 'space') : OWN);
+    scene.add(cat);
+    const camera = new THREE.PerspectiveCamera(W < H ? 62 : 70, W / H, 0.1, 300);
+    const shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
+    sun.shadow.bias = SUN_BIAS;
+    assignShadowCasters(scene);
+    if (kind === 'moon') mergeStaticProps(scene);
+    const fx = createFx(scene, { reducedMotion: rm });
+    const session = { pounceTime: 0, perched: null, hopLift: 0, fx };
+    const life = kind === 'moon' ? area.life({ scene, sun, fill, ground, reducedMotion: rm, tier, progression: { state: { skills: [] } }, audio: null }) : null;
+    const player = createPlayer(camera, renderer.domElement);
+    player.setReducedMotion(rm);
+    return { kind, scene, area, colliders, ground, cat, camera, shadows, fx, session, life, player, pace: kind === 'moon' ? placePace(3.5, 'moon') : 3.5 };
+  }
+  let worlds = { park: world('park'), moon: world('moon') };
+  let cur = worlds.park;
+  let t = 0;
+  const gy = (w, x, z) => (w.ground ? w.ground.y(x, z) : 0);
+  function reset(w, x, z, fx_, fz_) {
+    cur = w;
+    w.cat.position.set(x, gy(w, x, z), z);
+    w.cat.rotation.set(0, facingYaw(fx_, fz_), 0);
+    w.player.setAvatar(w.cat, w.pace);
+    w.player.setGround(w.ground);
+    w.player.setViewYaw(behindYaw(fx_, fz_));
+    w.player.enable();
+    w.player.setTouchMove(null);
+    w.player.update(0, w.colliders, w.area.bounds, w.area.waters);
+    w.life?.update(0, t, w.cat.position, w.camera, w.session);
+    w.shadows.update(0, 1e3);
+  }
+  function frame(dt) {
+    const w = cur;
+    t += dt; clockT += dt;
+    w.player.update(dt, w.colliders, w.area.bounds, w.area.waters);
+    w.player.speedFactor = 1;
+    w.life?.update(dt, t, w.cat.position, w.camera, w.session);
+    w.fx.update(dt, w.camera);
+    animateCat(w.cat, 'follow', t, w.player.speed, rm);
+    w.cat.rotation.x = 0; w.cat.rotation.z = 0;
+    w.cat.position.y = gy(w, w.cat.position.x, w.cat.position.z) + w.player.hopY;
+    w.shadows.update(0, dt);
+    renderer.render(w.scene, w.camera);
+  }
+  const overlay = document.getElementById('overlay');
+  const hud = document.getElementById('hud');
+  UI.setup({ padTag: () => '', lower, escapeHtml });
+  document.body.classList.add('touch-mode');
+  const clear = () => { overlay.className = 'hidden'; overlay.innerHTML = ''; hud.innerHTML = ''; };
+  const toasts = (...lines) => { hud.innerHTML = `<div class="hud-toasts">${lines.map((l) => `<div class="toast">${escapeHtml(l)}</div>`).join('')}</div>`; };
+  const prompt = () => { hud.innerHTML = `<div class="hud-prompt"><button class="hud-prompt-btn" type="button">${escapeHtml(phrase('tele.go'))}</button></div>`; };
+  const card = (end) => { overlay.className = ''; overlay.innerHTML = `<div class="overlay-wrap" style="display:grid;place-items:center;height:100%;background:rgba(8,10,18,.45)">${UI.cardHtml({ name: end.to === 'moon' ? 'The Moon' : 'The Park', look: end.look, tint: discTint(end) })}</div>`; };
+  const swirlAt = (s, end, name) => {
+    overlay.className = '';
+    overlay.innerHTML = UI.swirlHtml({ name, calm: rm, tint: discTint(end) });
+    for (const el of overlay.querySelectorAll('.tele-swirl, .tele-turn')) { el.style.animationPlayState = 'paused'; el.style.animationDelay = `-${Math.min(s, 1.19)}s`; }
+  };
+  const openingAt = (s, end) => {
+    overlay.className = '';
+    overlay.innerHTML = `<div class="tele-swirl opening${rm ? ' calm' : ''}" style="--tele-a:${UI.hex(discTint(end))};animation-play-state:paused;animation-delay:-${Math.min(s, 0.59)}s"><div class="tele-turn"></div></div>`;
+  };
+  const cap = (s) => { const d = document.createElement('div'); d.className = 'cap'; d.textContent = s; hud.append(d); };
+  const showAt = (w, cam) => { w.camera.position.set(...cam.pos); w.camera.lookAt(...cam.look); w.camera.fov = cam.fov ?? w.camera.fov; w.camera.updateProjectionMatrix(); };
+  const dir = (a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], m = Math.hypot(dx, dz) || 1; return [dx / m, dz / m]; };
+  const settle = (w, n = 24) => { for (let k = 0; k < n; k++) { clockT = 0.6; frame(DT); } clockT = 0.6; };
+  const A_PARK = [PM.arrive.x, PM.arrive.z];
+  const A_MOON = [MP.arrive.x, MP.arrive.z];
+  const faceOf = (a) => [-Math.sin(a.yaw), -Math.cos(a.yaw)];
+
+  const SHOTS = {
+    'park-far': () => { reset(worlds.park, 0, 47, 1, -0.2); settle(worlds.park); },
+    'park-near': () => { reset(worlds.park, PM.x - 4.2, PM.z + 0.4, 1, 0); settle(worlds.park); },
+    'park-dormant': () => { worlds.park = world('park', { dormant: true }); reset(worlds.park, PM.x - 4.2, PM.z + 0.4, 1, 0); settle(worlds.park); },
+    'park-prompt': () => { reset(worlds.park, PM.x - 1.2, PM.z, 1, 0); settle(worlds.park); prompt(); },
+    'park-card': () => { reset(worlds.park, PM.x - 1.2, PM.z, 1, 0); settle(worlds.park); card(PM); },
+    swirl: () => { reset(worlds.park, PM.x - 1.2, PM.z, 1, 0); settle(worlds.park); swirlAt(0.8, PM, 'The Moon'); },
+    'moon-arrive': () => { const f = faceOf(MP.arrive); reset(worlds.moon, A_MOON[0], A_MOON[1], f[0], f[1]); settle(worlds.moon, 40); toasts(phrase('tele.suit'), phrase('tele.home', 'stonering')); },
+    'moon-wide': () => { const f = faceOf(MP.arrive); reset(worlds.moon, A_MOON[0], A_MOON[1], f[0], f[1]); settle(worlds.moon, 40); showAt(worlds.moon, { pos: [A_MOON[0] + 8, 4.5, A_MOON[1] + 8], look: [A_MOON[0] + 2, 1.5, A_MOON[1] - 4], fov: 62 }); worlds.moon.life.sky.update(worlds.moon.camera, t); renderer.render(worlds.moon.scene, worlds.moon.camera); },
+    'moon-ring': () => { reset(worlds.moon, MP.x, MP.z + 1.2, 0, -1); settle(worlds.moon, 40); prompt(); },
+    'moon-card': () => { reset(worlds.moon, MP.x, MP.z + 1.2, 0, -1); settle(worlds.moon, 40); card(MP); },
+    'park-home': () => { const f = faceOf(PM.arrive); reset(worlds.park, A_PARK[0], A_PARK[1], f[0], f[1]); settle(worlds.park); toasts(phrase('tele.home', 'stonering')); },
+  };
+  window.__shot = (name) => {
+    const s = SHOTS[name];
+    if (!s) throw new Error(`no shot "${name}"; there are ${Object.keys(SHOTS).join(', ')}`);
+    clear();
+    s();
+    renderer.render(cur.scene, cur.camera);
+    return name;
+  };
+
+  // ---- the film: one timeline ----
+  let k = 0;
+  window.__tour = () => { clear(); k = 0; worlds = { park: world('park'), moon: worlds.moon }; reset(worlds.park, 0, 47.5, 1, -0.2); };
+  let popped = false; let pending = []; const later = (fn, ms) => pending.push({ fn, ms }); let popAt = 0;
+  const T = { walk: 0, prompt1: 4.6, card1: 5.4, swirl1: 7.0, arrive: 8.2, toRing: 12.0, prompt2: 14.6, card2: 15.4, swirl2: 17.0, home: 18.2, end: 22.4 };
+  window.__frame = () => {
+    const sec = k++ * DT;
+    let caption = '';
+    if (sec < T.prompt1) {
+      const w = worlds.park; if (cur !== w) reset(w, 0, 47.5, 1, -0.2);
+      const d = dir([w.cat.position.x, w.cat.position.z], [PM.x - 0.6, PM.z]);
+      const near = Math.hypot(w.cat.position.x - (PM.x - 0.6), w.cat.position.z - PM.z) < 0.5;
+      w.player.setTouchMove(near ? null : { x: d[0], z: d[1], mag: 0.8 });
+      frame(DT); clear(); caption = 'walk to the stone ring in the Park';
+    } else if (sec < T.card1) { frame(DT); prompt(); caption = '"Go through"'; }
+    else if (sec < T.swirl1) { frame(DT); clear(); card(PM); caption = 'the card'; }
+    else if (sec < T.arrive) { frame(DT); swirlAt(Math.min(sec - T.swirl1, 1.19), PM, 'The Moon'); caption = 'the swirl'; }
+    else if (sec < T.toRing) {
+      const w = worlds.moon;
+      if (cur !== w) { const f = faceOf(MP.arrive); reset(w, A_MOON[0], A_MOON[1], f[0], f[1]); pending = []; if (!rm) suitUp(w.cat, { later }); popAt = sec; }
+      for (const p of pending.filter((q) => q.ms <= (sec - popAt) * 1000)) p.fn();
+      pending = pending.filter((q) => q.ms > (sec - popAt) * 1000);
+      frame(DT);
+      const s = sec - T.arrive;
+      if (s < 0.6) openingAt(s, PM); else clear();
+      if (s >= 1.2) toasts(phrase('tele.suit'), phrase('tele.home', 'stonering'));
+      caption = s < 1.2 ? 'the Moon: the swirl opens, the suit pops on' : 'Your suit is on!';
+    } else if (sec < T.prompt2) {
+      const w = worlds.moon;
+      const d = dir([w.cat.position.x, w.cat.position.z], [MP.x, MP.z + 0.6]);
+      const near = Math.hypot(w.cat.position.x - MP.x, w.cat.position.z - (MP.z + 0.6)) < 0.5;
+      w.player.setTouchMove(near ? null : { x: d[0], z: d[1], mag: 0.8 });
+      frame(DT); clear(); caption = 'the way home is the same ring';
+    } else if (sec < T.card2) { frame(DT); prompt(); caption = '"Go through"'; }
+    else if (sec < T.swirl2) { frame(DT); clear(); card(MP); caption = 'the card'; }
+    else if (sec < T.home) { frame(DT); swirlAt(Math.min(sec - T.swirl2, 1.19), MP, 'The Park'); caption = 'the swirl'; }
+    else {
+      const w = worlds.park;
+      if (cur !== w) { const f = faceOf(PM.arrive); reset(w, A_PARK[0], A_PARK[1], f[0], f[1]); }
+      w.player.setTouchMove(null);
+      frame(DT);
+      const s = sec - T.home;
+      if (s < 0.6) openingAt(s, MP); else { clear(); toasts(phrase('tele.home', 'stonering')); }
+      caption = 'home again: her own clothes';
+    }
+    cap(caption);
+    return { done: sec > T.end, caption };
+  };
+  window.__info = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles });
+  reset(worlds.park, 0, 47, 1, -0.2);
+  renderer.render(cur.scene, cur.camera);
+  window.__ready = true;
+</script>
+</body>
+</html>
