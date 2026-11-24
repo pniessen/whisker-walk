@@ -2,7 +2,7 @@
 
 Status: design for owner approval (2026-11-23). Plan: `docs/superpowers/plans/2026-11-23-teleport-gates.md`.
 Design only: nothing here is built. Numbers marked "start" are starting values the builder tunes from pictures.
-Concept pictures: `verify-gates.html` (`?c=1|2|3`), pictures in the session scratchpad.
+Concept pictures: `verify-teleport-gates.html` (`?c=1|2|3`), pictures in the session scratchpad.
 
 ## Summary for a parent (half a page)
 
@@ -13,7 +13,7 @@ A **teleport gate** is a glowing, storybook doorway standing in a place the cat 
 - **How it feels.** The gate hums softly when she is near, wakes the first time she touches it (a chime and a journal page, worth the usual 12 paws once), and from then on works any time. The swirl lasts about 1.2 seconds (a gentle fade if she has "reduce motion" on). The suit puts itself on during the swirl and is simply not drawn when she is home again: her own clothes were never touched. Going through is free. Every destination has a gate home, and the pause menu's home button still works, so nobody is ever stranded.
 - **Friends.** Online: the host walks through and everyone in the room comes along together (a guest who lacks the place borrows a suit and the place for that walk). Two cats on one couch: gates stay closed (a kind "not yet for two cats") until a destination is made ready for two, then both go together.
 - **Size.** Nothing new at start-up beyond about 0.8 kB; the swirl, the stones, the suit and each place download only when she walks near a gate.
-- **Build.** Six small steps, the first a one-gate spike behind a switch, so you can see the swirl before anything else is drawn. Six decisions for you are in section 9, each with my recommended answer.
+- **Build.** Six small steps, the first a one-gate spike behind a switch, so you can see the swirl before anything else is drawn. Seven decisions for you are in section 9, each with my recommended answer.
 
 ## 1. Facts this design stands on
 
@@ -31,7 +31,7 @@ A **teleport gate** is a glowing, storybook doorway standing in a place the cat 
 
 A gate is **a gateway end pair whose two places are not neighbours**, drawn by a place-specific natural-looking feature, found by the child, and reached by pressing one button next to it. In data it is one more row kind in the same table (section 6), so it inherits prompts, the room protocol, prefetch, arrival, banking and failure handling for free; what is new is the look, the "wake" beat, the swirl, the suit, the map mark and a few phrases.
 
-### 2.1 Three looks (pictures in `verify-gates.html`)
+### 2.1 Three looks (pictures in `verify-teleport-gates.html`)
 
 | | Look | Feels like | Cost (start, in the host place) | Fits |
 |---|---|---|---|---|
