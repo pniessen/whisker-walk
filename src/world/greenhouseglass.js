@@ -1,9 +1,12 @@
 // =============================================================================
 // THE GLASS-HOUSE KIT (Greenhouse milestone 0). Four cheap flat parts, no real refraction, no lights:
 //   * the frame: ribs, purlins, door posts and a low plinth, ONE opaque vertex-coloured mesh;
-//   * the glass: ONE transparent mesh of quads, a vertical colour gradient with a low alpha, FRONT FACES ONLY,
-//     so from outside she sees the pane and from inside it is culled (clear views, no overdraw);
-//     tagged userData.window so the walk camera's building fade hides it (treefade.js);
+//   * the glass: ONE transparent mesh of quads, a vertical colour gradient, FRONT FACES ONLY, SOMEWHAT FROSTED
+//     (about 25 to 35 percent opaque, tinted green-white): from outside she sees a soft pane and the cat and the
+//     plants inside read through it as soft shapes; from inside the pane is culled (clear views, no overdraw).
+//     The glass house is NOT a fading building (the owner, 2026-11-23): it carries no userData.window, so the
+//     walk camera's building fade (treefade.js) and the dusk swap (dusk.js) both leave it alone, and neither
+//     the frame nor the cat inside is ever hidden when the camera stands outside and the line crosses it;
 //   * mist: flat soft sheets on one shader mesh with one uTime; sun shafts: additive vertex-faded quads;
 //   * the dapple: one flat floor quad with a diamond-lattice light texture, drawn in build, never at import.
 // The frame and the glass share ONE top-level group (the building the camera fades). The mist, the shafts, the
@@ -16,10 +19,11 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 
 export const COL = Object.freeze({
   frame: 0xe4eee2, plinth: 0x6f8a78, floor: 0xd9c9a4, post: 0xcfdccb,
-  paneLow: 0xdff0e8, paneHigh: 0x9fd0ea, shaft: 0xffe2a8, mist: 0xe8f2ee,
+  paneLow: 0xe8f6ec, paneHigh: 0xd6eedd, shaft: 0xffe2a8, mist: 0xf4faf7,
 });
-// The alpha the spec gives: 0.14 on the walls, 0.26 on the roof, a wetter edge in the lowest 0.4 m.
-export const GLASS_ALPHA = Object.freeze({ wall: 0.14, roof: 0.26, wet: 0.08 });
+// Frosted: 0.32 on the walls, 0.34 on the roof (the owner's 25 to 35 percent), a wetter edge in the lowest 0.4 m
+// that stays inside the band.
+export const GLASS_ALPHA = Object.freeze({ wall: 0.32, roof: 0.34, wet: 0.01 });
 const ARC_SEGMENTS = 12;
 const RIB_X = [-14, -12, -10, -8, -6, -4, -1.5, 1.5, 4, 6, 8, 10, 12, 14]; // 14 ribs; the middle bay is the door's
 
@@ -209,7 +213,7 @@ export function glassHouse(h, doors, { name = 'glassHouse' } = {}) {
     vertexColors: true, transparent: true, depthWrite: false, side: THREE.FrontSide, fog: true,
   }));
   glass.name = `${name}-glass`;
-  glass.userData.window = 'glass'; // treefade hides it with the building; dusk.js leaves it be (it is not swapped for a lit slab)
+  glass.userData.glassHouse = true; // (no userData.window: neither the building fade nor the dusk swap may touch it)
   glass.userData.noCast = true;
   glass.userData.noMerge = true;
   glass.castShadow = false;
@@ -269,6 +273,8 @@ export function dappleQuad(h, { size = 64 } = {}) {
 // Sun shafts: tall additive quads under the ridge, brighter at the top and fading to nothing at the floor.
 // One mesh whose origin is the ridge, so the sway (a few degrees over 20 s) is one rotation.
 export const SHAFT_SPOTS = Object.freeze([[-8, -12.5], [-2, -5.5], [5.5, -13], [10, -6]].map((p) => Object.freeze(p)));
+export const SHAFT_GAIN = 0.16; // the additive light's strength at a shaft's top, centre (M0's 0.22 blew out)
+export const SHAFT_FADE = Object.freeze({ near: 2.5, far: 8 }); // m from the camera: none, then all
 export function sunShafts(h) {
   const pos = [];
   const col = [];
@@ -276,17 +282,18 @@ export function sunShafts(h) {
   const ridge = h.ridge - 0.6;
   _col.set(COL.shaft);
   for (const [x, z] of SHAFT_SPOTS) {
-    // two crossed quads leaning a little east: the top narrow and bright, the foot wide and black (additive nothing)
+    // two crossed pairs of triangles leaning a little east: the top narrow and bright in the middle, soft to nothing at
+    // the sides (the edge vertices are black, and additive black is nothing), the foot wide and black
     for (const yaw of [0, Math.PI / 2]) {
       const cs = Math.cos(yaw), sn = Math.sin(yaw);
       const base = pos.length / 3;
-      for (const [u, y, k] of [[-0.5, 0, 0.5], [0.5, 0, 0.5], [2.4, -ridge, 0], [-2.4, -ridge, 0]]) {
-        const px = x + u * cs + (0.5 - k) * 3.2; // the foot leans 1.6 m east of the top
+      for (const [u, y, k] of [[-0.9, 0, 0], [0, 0, 1], [0.9, 0, 0], [-2.6, -ridge, 0], [0, -ridge, 0], [2.6, -ridge, 0]]) {
+        const px = x + u * cs + (y === 0 ? 0 : 1.6); // the foot leans 1.6 m east of the top
         const pz = z + u * sn;
         pos.push(px, y, pz);
-        col.push(_col.r * k * 0.22, _col.g * k * 0.22, _col.b * k * 0.22);
+        col.push(_col.r * k * SHAFT_GAIN, _col.g * k * SHAFT_GAIN, _col.b * k * SHAFT_GAIN);
       }
-      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      idx.push(base, base + 1, base + 4, base, base + 4, base + 3, base + 1, base + 2, base + 5, base + 1, base + 5, base + 4);
     }
   }
   const g = new THREE.BufferGeometry();
@@ -294,9 +301,22 @@ export function sunShafts(h) {
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.setIndex(idx);
   g.computeBoundingSphere();
-  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+  const mat = new THREE.MeshBasicMaterial({
     vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false,
-  }));
+  });
+  // The distance fade (M0's known bug: a camera among the shafts saw a screenful of stacked additive light, blown out
+  // to white). A shaft's light fades to nothing within SHAFT_FADE.near of the camera and is whole beyond .far.
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vShaftW;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvShaftW = (modelMatrix * vec4(position, 1.0)).xyz;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vShaftW;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+diffuseColor.rgb *= smoothstep(${SHAFT_FADE.near.toFixed(1)}, ${SHAFT_FADE.far.toFixed(1)}, distance(cameraPosition, vShaftW));`);
+  };
+  mat.customProgramCacheKey = () => 'greenhouse-shafts-v2';
+  const m = new THREE.Mesh(g, mat);
   m.name = 'sunShafts';
   m.position.set(0, ridge, 0);
   m.userData.noCast = true;
@@ -358,14 +378,14 @@ float mN(vec2 q) { vec2 i = floor(q), f = fract(q); vec2 u = f * f * (3.0 - 2.0 
   vec2 e = min(vMistUv, 1.0 - vMistUv);
   float edge = smoothstep(0.0, 0.4, min(e.x, e.y));
   float n = 0.6 * mN(p * 0.35 + vec2(uTime * 0.05, uTime * 0.03)) + 0.4 * mN(p * 0.9 + vec2(-uTime * 0.03, uTime * 0.06) + 17.0);
-  float a = smoothstep(0.35, 0.8, n) * edge * 0.5;
+  float a = smoothstep(0.3, 0.7, n) * edge * 0.8;
   a *= smoothstep(1.0, 3.0, distance(cameraPosition, vMistW));
   diffuseColor.rgb = uColor;
   diffuseColor.a *= a;
   if (diffuseColor.a < 0.004) discard;
 }`);
   };
-  material.customProgramCacheKey = () => 'greenhouse-mist-v1';
+  material.customProgramCacheKey = () => 'greenhouse-mist-v2';
   const m = new THREE.Mesh(g, material);
   m.name = 'glassMist';
   m.userData.noCast = true;

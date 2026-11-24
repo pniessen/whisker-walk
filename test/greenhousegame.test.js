@@ -69,9 +69,10 @@ describe('the flag', () => {
         expect(s.areaData.name).toBe('The Greenhouse');
         expect(s.cat.position.x).toBe(0);
         expect(s.cat.position.z).toBe(30);
-        // the walk's sweeps leave the glass house whole: the pane is still one transparent window mesh, un-merged
+        // the walk's sweeps leave the glass house whole: the pane is still one transparent mesh, un-merged, and (the owner's
+        // call) NOT a fading window: no userData.window, so the building fade never hides the frame or the cat behind it
         let panes = 0;
-        s.scene.traverse((o) => { if (o.isMesh && o.userData.window === 'glass') { panes++; expect(o.material.transparent).toBe(true); } });
+        s.scene.traverse((o) => { if (o.isMesh && o.userData.glassHouse) { panes++; expect(o.material.transparent).toBe(true); expect(o.userData.window).toBeUndefined(); } });
         expect(panes).toBe(1);
         expect(s.scene.getObjectByName('glassMist')).toBeTruthy();
       } finally { endIfWalking(l); }

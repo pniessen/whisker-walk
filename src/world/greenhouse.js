@@ -1,19 +1,21 @@
 // =============================================================================
-// THE GREENHOUSE (milestone 0: the spike). One glass house (the Palm House) with six stand-in palms, its mist,
-// sun shafts, floor and dapple, a pond with lily pads, a lawn. Behind ?greenhouse=1 only: no catalog row, no map
-// place, no gate. Nothing alive, no jobs, no finds. The glass kit is greenhouseglass.js; the data is
+// THE GREENHOUSE (milestones 0 and 1). One glass house (the Palm House) with its real plants (greenhouseplants.js),
+// mist, sun shafts, floor and dapple; a pond with lily pads, reeds and koi; the Park's fountain; a potting bench,
+// a kitchen bed and the two gardener's jobs (greenhouselife.js). Behind ?greenhouse=1 only: no catalog row, no map
+// place, no gate, no finds, no awards. The glass kit is greenhouseglass.js; the data is
 // greenhouseplan.js. Builds in withLocalUuids; draws no random number and reads no clock.
 // docs/superpowers/specs/2026-11-22-greenhouse-design.md; the plan next to it.
 // =============================================================================
 
-import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as b from './builder.js';
 import { withLocalUuids } from './localuuids.js';
 import { seedFromCode } from '../rng.js';
 import { createWater, PARK_POND_LOOK } from '../render/water.js';
 import * as P from './greenhouseplan.js';
 import * as G from './greenhouseglass.js';
+import * as Plants from './greenhouseplants.js';
+import * as Parts from './greenhouseparts.js';
+import { createGreenhouseLife } from './greenhouselife.js';
 
 export { GREENHOUSE_BOUNDS, GREENHOUSE_SPAWN } from './greenhouseplan.js';
 
@@ -21,45 +23,9 @@ const GRASS = 0x6fae5a;
 const SKY = Object.freeze({ top: 0x8cc8ee, horizon: 0xe6f2e8 });
 const SKY_DUSK = Object.freeze({ top: 0x35456a, horizon: 0xd8a688 });
 
-// Six stand-in palms as ONE caster mesh: a trunk and a fan of leaf blades each (the real palms are milestone 2's).
-function standInPalms() {
-  const parts = [];
-  const paint = (g, hex) => {
-    const c = new THREE.Color(hex);
-    const n = g.attributes.position.count;
-    const a = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3);
-    g.setAttribute('color', new THREE.BufferAttribute(a, 3));
-    g.deleteAttribute('uv');
-    return g;
-  };
-  const m = new THREE.Matrix4();
-  const e = new THREE.Euler();
-  const q = new THREE.Quaternion();
-  const one = new THREE.Vector3(1, 1, 1);
-  P.PALM_SPOTS.forEach(([x, z, h], k) => {
-    const trunk = paint(new THREE.CylinderGeometry(0.22, 0.34, h, 7).translate(0, h / 2, 0), 0x86684a);
-    trunk.applyMatrix4(m.makeTranslation(x, 0, z));
-    parts.push(trunk);
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2 + k * 0.4;
-      const blade = paint(new THREE.ConeGeometry(0.32, 3.6, 4).translate(0, 1.8, 0), i % 2 ? 0x3f8d3d : 0x4aa044);
-      // lean the blade out and down from the crown
-      q.setFromEuler(e.set(0, a, 0)).multiply(new THREE.Quaternion().setFromEuler(e.set(1.15, 0, 0)));
-      blade.applyMatrix4(m.compose(new THREE.Vector3(x, h, z), q, one));
-      parts.push(blade);
-    }
-  });
-  const g = mergeGeometries(parts, false);
-  for (const p of parts) p.dispose();
-  const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0, side: THREE.DoubleSide }));
-  mesh.name = 'standInPalms';
-  mesh.userData.noMerge = true;
-  return mesh;
-}
-
 export function build(scene, { water = {}, wind } = {}) {
   void wind;
+
   const area = P.greenhouseArea();
   return withLocalUuids('greenhouse-build', () => {
     b.applySky(scene, SKY.top, SKY.horizon);
@@ -77,7 +43,6 @@ export function build(scene, { water = {}, wind } = {}) {
 
     const H = P.PALM_HOUSE;
     scene.add(G.floorQuad(H));
-    scene.add(standInPalms());
     const house = G.glassHouse(H, P.PALM_DOORS, { name: 'palmHouse' });
     scene.add(house.group);
     scene.add(G.dappleQuad(H));
@@ -86,6 +51,15 @@ export function build(scene, { water = {}, wind } = {}) {
     const shafts = quality === 'low' ? null : G.sunShafts(H);
     if (mist) scene.add(mist);
     if (shafts) scene.add(shafts);
+
+    // the plants, the koi, the fountain court, the potting bench, the kitchen bed and the eight garden pots
+    scene.add(Plants.palms(), Plants.foliage(), Plants.orchids());
+    const koi = Plants.koiMesh();
+    scene.add(koi);
+    scene.add(Parts.fountainCourt({ reducedMotion: water.reducedMotion ?? false }));
+    scene.add(Parts.pottingBench(), Parts.kitchenBed());
+    const garden = Parts.gardenPots();
+    scene.add(garden.pots, ...garden.leaves);
 
     return {
       name: area.name,
@@ -105,14 +79,10 @@ export function build(scene, { water = {}, wind } = {}) {
       puddles: [],
       groundBounce: 0xc9d8a8,
       skyDusk: { ...SKY_DUSK },
-      // the mist and the sun shafts drift on the walk's clock; reduced motion freezes both
-      life: ({ reducedMotion = false } = {}) => ({
-        update(dt, t) {
-          const tt = reducedMotion ? 0 : t;
-          if (mist) mist.userData.mist.uTime.value = tt;
-          if (shafts) shafts.rotation.z = G.shaftAngle(t, reducedMotion);
-        },
-        dispose() {},
+      // the mist, the shafts and the koi drift on the walk's clock (reduced motion freezes all three); the jobs and
+      // their prompts are the life's (game/interactions.js asks it for promptAt and interact)
+      life: ({ reducedMotion = false, roomSeed, visits, ground, sound } = {}) => createGreenhouseLife({
+        scene, ground, reducedMotion, roomSeed, visits, mist, shafts, koi, sound,
       }),
     };
   });

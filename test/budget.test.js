@@ -475,9 +475,10 @@ const AREAS = [
   // counted in test/lighthousebeam.test.js, never in this build count.
   // The beauty pass (2026-11-23) measured 57 / 15 / 47,995 built (textured cliffs and lawn, tufts, flowers, sand detail, foam, far sea, tower and cottage detail): ceilings unchanged.
   ['lighthouse', buildLighthouse, 280, 210, 62000],
-  // The Greenhouse (Greenhouse milestone 0, 2026-11-22): the spike only, one glass house with stand-in palms, a pond, a lawn, measured 11 / 0 / 12,342
-  // (frame 2,988 triangles, glass 420, mist 8, shafts 16, dapple 2). No merged row: nothing here merges yet. The street
-  // places' ruling, never raised; the place aims for 150 / 70 / 52,000 when it is whole.
+  // The Greenhouse. Milestone 0 (2026-11-22, the spike) measured 11 / 0 / 12,342. Milestone 1 (2026-11-23: the real plants, the koi, the
+  // Park's fountain, the potting bench, the kitchen bed, the eight garden pots) measured 31 / 5 / 35,050 built (plants 17,000 of it: palms
+  // 3,084, foliage 10,560, orchids 1,884, koi 108; the fountain 6,900; the frame 2,988 and the glass 420). The street places' ruling, never
+  // raised; the place aims for 150 / 70 / 52,000 when it is whole.
   ['greenhouse', buildGreenhouse, 280, 210, 62000],
 ];
 
@@ -525,6 +526,7 @@ const MERGED_AREAS = [
   ['fair', buildFair, 200, 140], // measured 178 / 124
   ['roofs', buildRoofs, 64, 34], // measured 60 / 30 (59 / 30 before the Rooftops step 5 fix wave's vane, its own mesh so the tower view can fade it, never merged; 57 / 30 before Rooftops step 3's two sleeping cats, Task 6, never merged; 56 / 30 before round two's lamp halo, Task G; 55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
   ['market', buildMarket, 156, 36], // 2026-11-22: re-measured on purpose for the four new stalls (toys, plants, bric-a-brac, butcher): 139 / 32 merged, +12% (the same ruling); ceilings 280 / 210 / 62000 unchanged. Earlier: measured 98 / 24 after Task 6's rework and review (its clutter, the controller's ruling), +12%; 76 / 23 before; 108 / 24 after step 3's Task 8 (the café front's paint and its chalkboard's contact-shadow box), ceiling unchanged; 110 / 25 with step 4's gate (its body and its bar), re-pinned at +12% (the same ruling)
+  ['greenhouse', buildGreenhouse, 33, 5], // 2026-11-23: milestone 1 measured 29 / 4 merged (31 / 5 built), +12% (the Farm's and the Market's ruling); the plan's gate is about 80 / 40
   ['lighthouse', buildLighthouse, 32, 11], // 2026-11-22: milestone 3 measured 28 / 9 merged (26 / 9 at milestone 2, 23 / 9 at milestone 1: the fog bell is two meshes of its own so it can swing), +12% (the Farm's and the Market's ruling); the plan's gate is 70 / 36. Beauty pass 2026-11-23 measured 30 / 10 merged (the cliff faces and the lawn carry the game's own gravel and grass textures, two more merged meshes, one caster more), ceilings unchanged
 ];
 
