@@ -2756,6 +2756,9 @@ export function createProgression(storage) {
       state.fightMoves = FIGHT_MOVE_IDS.filter((id) => localMoves.includes(id) || state.fightMoves.includes(id) || earned.includes(id));
       // A move this phone already had is not new to her.
       pendingMoves = pendingMoves.filter((id) => !localMoves.includes(id));
+      // A cat that has walked or earned is not a new player, whatever its save says about the guide
+      // (cat login M5.3): no guide cat meets a loaded cat on its next walk.
+      if (state.tutorial.first === null && (Object.values(state.walks).some((n) => n > 0) || state.lifetimePoints > 0 || state.points > 0)) state.tutorial.first = 'old';
       save();
       return true;
     },
