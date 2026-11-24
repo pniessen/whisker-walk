@@ -156,7 +156,7 @@ export function createBaseLife(ctx) {
   const bubble = createBubble();
   for (const m of [ring, shaft]) { m.visible = false; m.castShadow = false; m.receiveShadow = false; m.userData.noMerge = true; m.userData.noCast = true; m.frustumCulled = false; }
   // the dome's glow on the dust when the base is awake: a warm soft disc round it (additive, never a light)
-  const glow = new THREE.Mesh(glowRing(P.DOME.wall + 0.9, 17, 0xffe2a8, 0.6), additive(0));
+  const glow = new THREE.Mesh(glowRing(P.DOME.wall + 0.9, 17, 0xf0ead8, 0.4), additive(0)); // (beauty round 1: a paler, fainter pool: it read as sand on the darker dust)
   glow.name = 'moon:domeglow';
   glow.position.set(P.DOME.x, P.moonY(P.DOME.x, P.DOME.z) + 0.1, P.DOME.z);
   glow.visible = false;

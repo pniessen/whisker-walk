@@ -72,7 +72,7 @@ export function drawAirlock(kit, M, B) {
     kit.put('paint', M.paint, paint(at(box(len, 0.16, 0.08), mid, z + s * (half + 0.36), 0.5), BASE_COL.hazard));
   }
   // two door leaves that slide apart as she comes (a mesh each, so the life can move them)
-  for (const [key, s] of [['doorL', -1], ['doorR', 1]]) kit.put(key, M.paint, paint(at(box(0.14, 2.1, half - 0.1), x1, z + s * (half / 2 - 0.05), 1.05), BASE_COL.rail));
+  for (const [key, s] of [['doorL', -1], ['doorR', 1]]) kit.put(key, M.paint, paint(at(box(0.14, 2.1, half - 0.1), x1, z + s * (half / 2 - 0.05), 1.05), BASE_COL.rail), { noCast: true }); // (beauty round 1) a sliding leaf casts no shadow: two draws fewer
 }
 
 export function drawCore(kit, M, B) {

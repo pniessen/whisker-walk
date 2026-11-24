@@ -121,19 +121,35 @@ function cloudTexture() {
   return t;
 }
 
-// Where the stars stand: unit directions crowded low (where the camera looks), a seeded stream, a few brighter ones.
+// Where the stars stand: unit directions crowded low (where the camera looks), a seeded stream, a few brighter ones. (Beauty round 1) A third of them
+// lie along a faint Milky Way, a band tilted 55 degrees across the sky, dimmer and crowded; the rest are many dim stars and a few bright ones.
 export function starField(count) {
   const rng = mulberry32(0x57a2f1);
   const pos = new Float32Array(count * 3);
   const col = new Float32Array(count * 3);
+  const phi = 55 * DEG;
   for (let i = 0; i < count; i++) {
-    const el = (3 + 78 * rng() ** 1.5) * DEG;
-    const az = rng() * Math.PI * 2;
-    pos[i * 3] = Math.cos(az) * Math.cos(el) * STARS.radius;
-    pos[i * 3 + 1] = Math.sin(el) * STARS.radius;
-    pos[i * 3 + 2] = Math.sin(az) * Math.cos(el) * STARS.radius;
-    const b = rng() < 0.06 ? 1 : 0.45 + 0.4 * rng();
-    const warm = rng() < 0.12;
+    let x; let y; let z; let band = false;
+    if (i % 3 === 0) { // the Milky Way: a great circle, thickened
+      const t = rng() * Math.PI * 2;
+      const off = (rng() + rng() + rng() - 1.5) * 0.16;
+      x = Math.cos(t);
+      y = Math.sin(t) * Math.cos(phi) + off;
+      z = Math.sin(t) * Math.sin(phi) + (rng() - 0.5) * 0.2;
+      const n = Math.hypot(x, y, z);
+      x /= n; y /= n; z /= n;
+      band = y > 0.04;
+    }
+    if (!band) {
+      const el = (3 + 78 * rng() ** 1.5) * DEG;
+      const az = rng() * Math.PI * 2;
+      x = Math.cos(az) * Math.cos(el); y = Math.sin(el); z = Math.sin(az) * Math.cos(el);
+    }
+    pos[i * 3] = x * STARS.radius;
+    pos[i * 3 + 1] = y * STARS.radius;
+    pos[i * 3 + 2] = z * STARS.radius;
+    const b = band ? 0.22 + 0.3 * rng() : rng() < 0.05 ? 1 : 0.3 + 0.55 * rng() ** 1.6;
+    const warm = !band && rng() < 0.12;
     col[i * 3] = b * (warm ? 1 : 0.88);
     col[i * 3 + 1] = b * (warm ? 0.9 : 0.93);
     col[i * 3 + 2] = b * (warm ? 0.75 : 1);

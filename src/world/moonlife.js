@@ -51,10 +51,10 @@ export const DUST = Object.freeze({ count: 10, lite: 5, ttl: 1.2, gravity: 0.35,
 // metres of their places they are a dot, so they are not drawn (about nine draws a frame on the far side, which is where Star Hill's wing is drawn).
 export const PART_NEAR = Object.freeze([
   Object.freeze({ names: ['moon:doorL', 'moon:doorR'], x: AIRLOCK.x1, z: AIRLOCK.z, near: 40 }),
-  Object.freeze({ names: ['moon:disc', 'moon:shaft'], x: RETURN_GATE.x, z: RETURN_GATE.z, near: 60 }),
+  Object.freeze({ names: ['moon:disc', 'moon:shaft'], x: RETURN_GATE.x, z: RETURN_GATE.z, near: 44 }), // (beauty round 1: 60 to 44 m, a faint ring a dot beyond it)
   Object.freeze({ names: ['moon:lamp', 'moon:coreglow', 'moon:board'], x: DOME.x, z: DOME.z, near: 45 }),
 ]);
-const SKY_BLACK = 0x03050d;
+const SKY_BLACK = 0x010208;
 
 // The height of the hop now, from the pounce window the walk keeps (session.pounceTime counts down from arc.time): the
 // same parabola player.js draws, so the camera and the cat agree. 0 when she is not hopping.
