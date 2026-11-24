@@ -27,7 +27,7 @@ export const HINTS = Object.freeze({
   mnlaunch: 'Send a postcard home on the rocket.',
   mnscope: 'Join the stars into pictures.',
   mnjump: 'Jump as far as you can.',
-  mnjob: 'Pip has a small job for you each day.',
+  mnjob: 'Once Earth has answered, Pip has an errand each walk.',
 });
 
 export const LINES = Object.freeze({
@@ -125,6 +125,31 @@ export const LINES = Object.freeze({
   'moon.deep.bloom': 'The Star Garden is blooming!',
   'moon.deep.finale': 'Earth is shining extra bright!',
   'moon.goal.cave': 'A glowing cell waits deep in the cave.',
+  // (milestone 9) Pip's postcard of the day: the six errands, the tray, the glove, the album, the twelve guest star pictures (the same in both sets; 'moon.job.glove' is above)
+  'moon.job.pebbles': 'Pip needs three glowing pebbles for his tray.',
+  'moon.job.rounds': 'Drive Dot past the five lit posts, in order!',
+  'moon.job.guest': 'A new star picture is in the sky. Trace it in the telescope!',
+  'moon.job.bound': 'Jump a little farther than your best!',
+  'moon.job.rocket': 'Send another postcard on the rocket!',
+  'moon.job.tray.prompt': 'E — look at the tray',
+  'moon.job.tray.need': 'Three glowing pebbles go in the tray.',
+  'moon.job.glove.prompt': 'E — pick up the glove',
+  'moon.job.glove.got': 'Got the glove! Take it to Pip.',
+  'moon.job.give.prompt': 'E — give Pip the glove',
+  'moon.job.pay': 'a new postcard from Earth for the album',
+  'moon.job.full': 'The album is full! Pip loves every postcard.',
+  'moon.guest.star': 'You drew a Star!',
+  'moon.guest.boat': 'You drew a Boat!',
+  'moon.guest.house': 'You drew a House!',
+  'moon.guest.tree': 'You drew a Tree!',
+  'moon.guest.heart': 'You drew a Heart!',
+  'moon.guest.kite': 'You drew a Kite!',
+  'moon.guest.moon': 'You drew the Moon!',
+  'moon.guest.bell': 'You drew a Bell!',
+  'moon.guest.flower': 'You drew a Flower!',
+  'moon.guest.rocket': 'You drew a Rocket!',
+  'moon.guest.key': 'You drew a Key!',
+  'moon.guest.cup': 'You drew a Cup!',
 });
 
 addPhrases(LINES);

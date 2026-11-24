@@ -38,6 +38,19 @@ const SCOPE_LINES = Object.freeze({
   'moon.star.fish': () => phrase('moon.star.fish'),
   'moon.star.crown': () => phrase('moon.star.crown'),
   'moon.star.paw': () => phrase('moon.star.paw'),
+  // (milestone 9) the twelve guest pictures of Pip's postcards
+  'moon.guest.star': () => phrase('moon.guest.star'),
+  'moon.guest.boat': () => phrase('moon.guest.boat'),
+  'moon.guest.house': () => phrase('moon.guest.house'),
+  'moon.guest.tree': () => phrase('moon.guest.tree'),
+  'moon.guest.heart': () => phrase('moon.guest.heart'),
+  'moon.guest.kite': () => phrase('moon.guest.kite'),
+  'moon.guest.moon': () => phrase('moon.guest.moon'),
+  'moon.guest.bell': () => phrase('moon.guest.bell'),
+  'moon.guest.flower': () => phrase('moon.guest.flower'),
+  'moon.guest.rocket': () => phrase('moon.guest.rocket'),
+  'moon.guest.key': () => phrase('moon.guest.key'),
+  'moon.guest.cup': () => phrase('moon.guest.cup'),
 });
 const say = (key, label) => bus.emit('discovery', { type: 'greenhousenote', key, label, points: 0, repeat: false });
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -73,6 +86,7 @@ export function createStarLive(ctx) {
   let sky = null; // the seeded stars as bearings (made when the scope opens, dropped when it closes)
   let solver = null;
   let hintT = null;
+  let guest = null; // (milestone 9) { pic, done } the day's guest star picture while Pip's errand asks for it; its bit is never saved
   let dishA = 0;
   let dishTo = 0;
   let dishStart = -1;
@@ -140,10 +154,11 @@ export function createStarLive(ctx) {
       const d = bearingOf(field.pos[i], field.pos[i + 1], field.pos[i + 2]);
       sky.push({ b: d.b, e: d.e, m: Math.min(1, field.col[i + 2] * 1.1) });
     }
-    solver = createSolver(bitsNow());
+    const pictures = guest && !guest.done ? [...CONSTELLATIONS, guest.pic] : CONSTELLATIONS;
+    solver = createSolver(bitsNow(), pictures);
     hintT = createHint(solver);
     scope = createScope({
-      doc, win, solver, hint: hintT, sky, reducedMotion, lite,
+      doc, win, solver, hint: hintT, sky, reducedMotion, lite, pictures,
       line: (key) => SCOPE_LINES[key]?.() ?? '',
       pads: () => { try { return Array.from(globalThis.navigator?.getGamepads?.() ?? []).filter((p) => p && p.connected); } catch { return []; } },
       onResult,
@@ -154,7 +169,7 @@ export function createStarLive(ctx) {
     hold = s?.cat ? { x: s.cat.position.x, y: s.cat.position.y, z: s.cat.position.z, yaw: s.cat.rotation.y } : null;
     sceneWas = scene.visible;
     scene.visible = false; // the 3D render pauses under the opaque overlay: nothing is drawn twice
-    scope.open();
+    scope.open(guest && !guest.done ? guest.pic : null); // the day's guest picture is where the telescope looks first
     if (!toldMilky) { toldMilky = true; scope.caption(phrase('moon.scope.milky')); }
   }
   function closed() {
@@ -166,6 +181,12 @@ export function createStarLive(ctx) {
     paintLevels();
   }
   function onResult(res) {
+    if (res.c >= CONSTELLATIONS.length) { // the guest picture (milestone 9): a pin chimes, the last one is the errand done; nothing about it is saved here
+      if (res.kind === 'pin') sound.pin(res.i);
+      else if (res.kind === 'hmm') sound.hmm();
+      else if (res.kind === 'done' && guest && !guest.done) { guest.done = true; sound.traced(); guest.onDone?.(); }
+      return;
+    }
     if (res.kind === 'pin') sound.pin(res.i);
     else if (res.kind === 'hmm') sound.hmm();
     else if (res.kind === 'done') {
@@ -202,6 +223,9 @@ export function createStarLive(ctx) {
     get state() { return { clock, open: !!scope?.isOpen, bits: bitsNow(), dish: dishA, near: zones.near('B'), target }; },
     get figs() { return figs; },
     frame,
+    // (milestone 9) Pip's errand asks for the day's guest star picture in the telescope (pic: a moonjob.js GUEST_POOL entry), or no longer (null); onDone says it was traced
+    setGuest(pic, onDone = null) { guest = pic ? { pic, done: false, onDone } : null; },
+    get guest() { return guest; },
     promptAt(catPos) {
       target = decide(catPos);
       return target ? target.line : null;

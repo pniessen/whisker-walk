@@ -83,9 +83,10 @@ export const cleanBits = (n) => (Number.isInteger(n) && n >= 0 ? n & ALL_BITS : 
 //   'hmm'    any other star: a soft "hmm", nothing lost
 //   'known'  a star of a picture already traced: nothing
 //   'miss'   no star there: nothing
-export function createSolver(doneBits = 0) {
+// (milestone 9) `list` is the pictures in play: the five, plus the day's guest as a sixth while Pip's errand asks for it (its bit is never saved: the save keeps five).
+export function createSolver(doneBits = 0, list = CONSTELLATIONS) {
   let bits = cleanBits(doneBits);
-  const n = CONSTELLATIONS.map((cc, i) => (((bits >> i) & 1) ? cc.pts.length : 0));
+  const n = list.map((cc, i) => (((bits >> i) & 1) ? cc.pts.length : 0));
   let last = -1; // the picture pinned last (the hint follows it)
   const api = {
     get bits() { return bits; },
@@ -93,20 +94,22 @@ export function createSolver(doneBits = 0) {
     pins: (c) => n[c] ?? 0,
     done: (c) => ((bits >> c) & 1) === 1,
     tap(c, i) {
-      if (!Number.isInteger(c) || !Number.isInteger(i) || !CONSTELLATIONS[c] || i < 0 || i >= CONSTELLATIONS[c].pts.length) return { kind: 'miss', c: -1, i: -1, bits };
+      if (!Number.isInteger(c) || !Number.isInteger(i) || !list[c] || i < 0 || i >= list[c].pts.length) return { kind: 'miss', c: -1, i: -1, bits };
       if ((bits >> c) & 1) return { kind: 'known', c, i, bits };
       if (i < n[c]) return { kind: 'again', c, i, bits };
       if (i !== n[c]) return { kind: 'hmm', c, i, bits };
       n[c]++;
       last = c;
-      if (n[c] === CONSTELLATIONS[c].pts.length) { bits |= 1 << c; return { kind: 'done', c, i, bits }; }
+      if (n[c] === list[c].pts.length) { bits |= 1 << c; return { kind: 'done', c, i, bits }; }
       return { kind: 'pin', c, i, bits };
     },
     // the picture she is on: the one pinned last if it is not done, else the first with a star pinned, else the first not done; -1 when all are done
     focus() {
       if (last >= 0 && !((bits >> last) & 1)) return last;
       for (let c = 0; c < n.length; c++) if (n[c] > 0 && !((bits >> c) & 1)) return c;
-      return firstUndone(bits);
+      for (let c = CONSTELLATIONS.length; c < n.length; c++) if (!((bits >> c) & 1)) return c; // (milestone 9) today's guest picture comes before the five she may still do
+      for (let c = 0; c < n.length; c++) if (!((bits >> c) & 1)) return c;
+      return -1;
     },
     // the next star to pin in the focus picture: { c, i }, or null when every picture is done
     next() {

@@ -157,6 +157,7 @@ describe('the Deep Cell: from the pedestal, through the whole tube, into the Cor
   });
   it('the gold ring and the board point at the cave once the story is told, and at the Core while she carries it', () => {
     const r = rig({ moon: { step: 8, cells: 3, stamp: 0, scope: 3 } });
+    r.life.job.credit({ kind: 'job', job: r.life.job.plan.kind }); // (milestone 9) today's errand is done: the board and the ring show the cave again, not the errand
     r.step(0.3, r.at(P.BOARD.x + 1.5, P.BOARD.z));
     expect(r.prompt()).toBe(phrase('moon.board.prompt'));
     r.life.interact();

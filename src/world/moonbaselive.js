@@ -253,7 +253,11 @@ export function createBaseLife(ctx) {
     void id;
   }
 
+  // (milestone 9) once the story is told, Pip's errand of the day is what the ring and the board point at (carrying the Deep Cell is still to the Core first)
+  const jobGoal = () => (carrying === null && rec().step >= M.STEP.replied ? ctx.jobGoal?.() ?? null : null);
   function goalPoint() {
+    const jg = jobGoal();
+    if (jg) return { g: { kind: 'job', icon: jg.icon }, x: jg.x, z: jg.z, y: jg.y };
     const g = M.nextGoal(progression?.state?.moon, carrying, cardIn());
     if (g.kind === 'pip') return { g, x: pip.position.x, z: pip.position.z, y: ground.y(pip.position.x, pip.position.z) };
     if (g.kind === 'cell') { const p = cellPlace(g.cell); return { g, x: p.x, z: p.z, y: p.y - 0.42 }; }
@@ -272,7 +276,7 @@ export function createBaseLife(ctx) {
     ringGoal = gp;
     ringT = clock;
     bubbleT = clock;
-    bubble.show(ICON[gp.g.kind] ?? ICON.done);
+    bubble.show(gp.g.icon ?? ICON[gp.g.kind] ?? ICON.done);
     pip.beep();
     sound.chirp();
     if (rec().step >= M.STEP.pip) pip.lookAt(gp.x, gp.z);
@@ -330,7 +334,9 @@ export function createBaseLife(ctx) {
       } else if (t.kind === 'board') {
         callPip();
         const g = M.nextGoal(progression?.state?.moon, carrying, cardIn()).kind;
-        say('moon-board', phrase(g === 'pip' ? 'moon.goal.pip' : g === 'cell' ? 'moon.goal.cells' : g === 'core' ? 'moon.goal.core' : g === 'scope' ? 'moon.goal.scope' : g === 'cave' ? 'moon.goal.cave'
+        const jg = jobGoal();
+        if (jg) say('moon-board', jg.line);
+        else say('moon-board', phrase(g === 'pip' ? 'moon.goal.pip' : g === 'cell' ? 'moon.goal.cells' : g === 'core' ? 'moon.goal.core' : g === 'scope' ? 'moon.goal.scope' : g === 'cave' ? 'moon.goal.cave'
           : g === 'desk' ? 'moon.goal.card' : g === 'rocket' ? 'moon.goal.rocket' : g === 'button' ? 'moon.goal.button' : g === 'reply' ? 'moon.goal.reply' : 'moon.goal.done'));
       }
       return t.kind;

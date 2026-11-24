@@ -133,6 +133,9 @@ export function createLaunchLive(ctx) {
   let disposed = false;
   let target = null;
   let carryingCard = -1; // the stamp on the postcard in her mouth, or -1 (never saved)
+  // (milestone 9) THE SECOND ROCKET, Pip's errand once the story is told: a fresh stamp at the Message Desk, the postcard posted in the rolled-out rocket, the big red button.
+  // second = { stage: 0 desk | 1 card in her mouth | 2 posted, onDone } or null. Nothing of it is saved; the story's own step (8) is never touched.
+  let second = null;
   let flight = null; // { t0, real, demo, reduced, cd, lastPhase, sentSaid }
   let lastLaunchAt = null; // this walk's own launch (walk seconds): the reply waits 40 s after it; null = launched on an earlier walk (or not at all this walk)
   let reply = null; // { t0 } while the answer plays
@@ -225,13 +228,14 @@ export function createLaunchLive(ctx) {
   }
 
   // ---- the launch -------------------------------------------------------------------------------------------------------------------
-  function startFlight({ t0, real, demo = false, silent = false }) {
+  function startFlight({ t0, real, demo = false, silent = false, second: isSecond = false }) {
     if (flight) return false;
-    flight = { t0, real, demo, reduced: reducedMotion, cd: L.createCountdown(reducedMotion) };
+    flight = { t0, real, demo, second: isSecond, reduced: reducedMotion, cd: L.createCountdown(reducedMotion) };
     if (silent && flight.cd.advance(clock - t0).some((ev) => ev.kind === 'go')) onGo(true); // joined late: what was already counted is not counted again, but the ignition still counts
     return true;
   }
   function onGo(silent = false) {
+    if (flight.second && second) { const done = second.onDone; second = null; try { done?.(); } catch { /* the errand's hook must never stop a launch */ } }
     if (!silent) {
       sound.tick(true);
       sound.rumble();
@@ -252,11 +256,19 @@ export function createLaunchLive(ctx) {
       if (flight.demo && !flight.real && norm().step === M.STEP.loaded && (clock - flight.t0) < L.countOf(reducedMotion)) flight.real = true; // she joined a demo's count: it is hers
       return;
     }
-    startFlight({ t0: clock, real: norm().step === M.STEP.loaded });
+    startFlight({ t0: clock, real: norm().step === M.STEP.loaded, second: second?.stage === 2 });
   }
 
   // ---- the postcard ------------------------------------------------------------------------------------------------------------------
   function choose(id) {
+    if (second && norm().step >= M.STEP.replied) { // the second rocket's fresh stamp: not saved (the story's own stamp is kept)
+      second.stage = 1;
+      carryingCard = id;
+      postcard.draw(id);
+      sound.chirp?.();
+      say('moon-card-got', phrase('moon.card.got'));
+      return;
+    }
     const effect = perform({ kind: 'stamp', id });
     if (effect === null && stampNow() !== id) return; // not at this step
     carryingCard = id;
@@ -265,6 +277,13 @@ export function createLaunchLive(ctx) {
     say('moon-card-got', phrase('moon.card.got'));
   }
   function post() {
+    if (second && second.stage === 1 && norm().step >= M.STEP.replied) {
+      second.stage = 2;
+      carryingCard = -1;
+      sound.click();
+      say('moon-card-posted', phrase('moon.rocket.loaded'));
+      return;
+    }
     const effect = perform({ kind: 'load' });
     if (!effect) return;
     carryingCard = -1;
@@ -277,8 +296,9 @@ export function createLaunchLive(ctx) {
   function decide(catPos) {
     if (disposed || !catPos || picker.isOpen || view.isOpen) return null;
     const step = norm().step;
-    if (dist(catPos, P.MESSAGE_DESK) < REACH_L.desk && level(catPos, ground.y(P.MESSAGE_DESK.x, P.MESSAGE_DESK.z)) && step >= M.STEP.awake && step < M.STEP.loaded) return { kind: 'desk', line: lineOf('moon.desk.prompt') };
-    if (carryingCard >= 0 && step === M.STEP.aimed && dist(catPos, P.ROCKET) < REACH_L.rocket && level(catPos, baseY)) return { kind: 'rocket', line: lineOf('moon.rocket.prompt') };
+    const again = second && step >= M.STEP.replied; // the second rocket
+    if (dist(catPos, P.MESSAGE_DESK) < REACH_L.desk && level(catPos, ground.y(P.MESSAGE_DESK.x, P.MESSAGE_DESK.z)) && ((step >= M.STEP.awake && step < M.STEP.loaded) || (again && second.stage === 0))) return { kind: 'desk', line: lineOf('moon.desk.prompt') };
+    if (carryingCard >= 0 && (step === M.STEP.aimed || (again && second.stage === 1)) && dist(catPos, P.ROCKET) < REACH_L.rocket && level(catPos, baseY)) return { kind: 'rocket', line: lineOf('moon.rocket.prompt') };
     const inCount = flight && flight.demo && (clock - flight.t0) < L.countOf(reducedMotion);
     if ((!flight || inCount) && dist(catPos, P.LAUNCH_DESK) < REACH_L.button && level(catPos, ground.y(P.LAUNCH_DESK.x, P.LAUNCH_DESK.z))) return { kind: 'button', line: lineOf('moon.launch.prompt') };
     if (dist(catPos, P.BINOCULARS) < P.BINOCULARS.reach && Math.abs(catPos.y - ledgeTop) < P.BINOCULARS.level) return { kind: 'binoc', line: lineOf('moon.binoc.prompt') };
@@ -300,6 +320,9 @@ export function createLaunchLive(ctx) {
     get board() { return board; },
     get postcard() { return postcard; },
     get carryingCard() { return carryingCard; },
+    // (milestone 9) the second rocket: Pip's errand turns it on (onDone: the second flight's ignition) or off (null)
+    setSecond(onDone) { second = onDone ? { stage: 0, onDone } : null; if (!second && carryingCard >= 0 && norm().step >= M.STEP.replied) carryingCard = -1; },
+    get second() { return second; },
     // the camera's tilt this frame (radians; 0 unless a launch is climbing): the Moon's life applies it before the sky is placed
     tilt() { return flight && !reducedMotion ? L.launchPose(clock - flight.t0, false).tilt : 0; },
     promptAt(catPos) {
@@ -429,7 +452,7 @@ export function createLaunchLive(ctx) {
         postcard.mesh.position.set(catPos.x - Math.sin(yaw) * 0.45, catPos.y + 0.55, catPos.z - Math.cos(yaw) * 0.45);
         postcard.mesh.rotation.y = yaw + Math.PI;
       } else postcard.mesh.visible = false;
-      if (r.step >= M.STEP.loaded) carryingCard = -1; // it is in the rocket
+      if (r.step >= M.STEP.loaded && !(second?.stage === 1)) carryingCard = -1; // it is in the rocket (the second rocket's card stays in her mouth until it is posted)
 
       // Earth's answer: she waits on the ridge
       if (catPos && r.step === M.STEP.sent && !reply) {

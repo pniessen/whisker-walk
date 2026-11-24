@@ -23,7 +23,7 @@ const FIRST_BEAM = P.SKIP.length + P.ROCK_LEDGES.length; // index of the first B
 const SAY = { 'moon.jump.hint': () => phrase('moon.jump.hint'), 'moon.jump.record': () => phrase('moon.jump.record'), 'moon.jump.beams': () => phrase('moon.jump.beams') };
 const say = (key) => bus.emit('discovery', { type: 'greenhousenote', key, label: SAY[key](), points: 0, repeat: false });
 
-export function createJumpLive({ scene, reducedMotion = false, ground, audio = null, progression = null, doc = null, air = () => 0 } = {}) {
+export function createJumpLive({ scene, reducedMotion = false, ground, audio = null, progression = null, doc = null, air = () => 0, onHop = null } = {}) {
   const gy = ground?.y ?? P.moonY;
   const sound = createMoonSound(audio);
   const lamps = makeLamps();
@@ -79,6 +79,7 @@ export function createJumpLive({ scene, reducedMotion = false, ground, audio = n
     const cm = J.measureHop(from, pos, { perched: false, groundFrom: fromGround, groundTo: gy(pos.x, pos.z) });
     if (cm === null || session?.perched || air() > 0.05) return; // (milestone 7b) a bound still in the air is not a landing
     last = cm;
+    const before = best(); // (milestone 9) her best before this hop: Pip's "beat your bound" errand asks for a margin over it
     const r = J.improve(progression?.state?.moon, catId, cm);
     recordShown = r.record;
     if (r.kept && progression?.state) {
@@ -87,6 +88,7 @@ export function createJumpLive({ scene, reducedMotion = false, ground, audio = n
     }
     countJournal();
     paintScreen();
+    try { onHop?.({ cm, before, record: r.record }); } catch { /* the errand's hook must never stop a hop */ }
     if (r.record) { sound.traced(); say('moon.jump.record'); } else sound.pin(Math.min(12, Math.floor(cm / 100)));
   }
 
