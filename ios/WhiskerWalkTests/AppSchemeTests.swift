@@ -29,6 +29,15 @@ final class AppSchemeTests: XCTestCase {
         }
     }
 
+    func test_the_always_on_switch_is_the_teleport_gates_and_joins_the_other_switches() {
+        XCTAssertEqual(AppScheme.previewSwitches, ["gates=1"])
+        XCTAssertEqual(AppScheme.startURL(rung: nil, perf: false, extra: AppScheme.previewSwitches).absoluteString,
+                       "whiskerwalk://app/index.html?gates=1")
+        XCTAssertEqual(AppScheme.startURL(rung: "4", perf: true, extra: AppScheme.previewSwitches).absoluteString,
+                       "whiskerwalk://app/index.html?gates=1&rung=4&perf")
+        XCTAssertEqual(NavigationRule.decide(AppScheme.launchURL), .allow)
+    }
+
     func test_the_switched_page_is_still_the_game() {
         let url = AppScheme.startURL(rung: "4", perf: true)
         XCTAssertEqual(NavigationRule.decide(url), .allow)
