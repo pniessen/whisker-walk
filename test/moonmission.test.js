@@ -102,15 +102,21 @@ describe('the goal (what the gold ring points at)', () => {
     expect(nextGoal({ step: 2, cells: 2 })).toEqual({ kind: 'cell', cell: 0 });
     expect(nextGoal({ step: 3, cells: 3 })).toEqual({ kind: 'done' });
     expect(nextGoal({ step: 4, cells: 3 })).toEqual({ kind: 'scope' }); // milestone 5: the telescope on Star Hill is next
-    expect(nextGoal({ step: 5, cells: 3 })).toEqual({ kind: 'done' });
+    expect(nextGoal({ step: 5, cells: 3 })).toEqual({ kind: 'desk' }); // milestone 6: the Message Desk is next, then the rocket with the postcard in her mouth
+    expect(nextGoal({ step: 5, cells: 3 }, null, true)).toEqual({ kind: 'rocket' });
+    expect(nextGoal({ step: 6, cells: 3 })).toEqual({ kind: 'button' });
+    expect(nextGoal({ step: 7, cells: 3 })).toEqual({ kind: 'reply' });
+    expect(nextGoal({ step: 8, cells: 3 })).toEqual({ kind: 'done' });
   });
   it('a cell she carries that is already in the Core is not a goal (someone else plugged it)', () => {
     expect(nextGoal({ step: 2, cells: 1 }, 0)).toEqual({ kind: 'cell', cell: 1 });
   });
-  it('the board shows four pictures: Pip, the Ridge cell, the Rover cell, the base', () => {
-    expect(boardMarks({ step: 0, cells: 0 })).toEqual([false, false, false, false]);
-    expect(boardMarks({ step: 2, cells: 2 })).toEqual([true, false, true, false]);
-    expect(boardMarks({ step: 4, cells: 3 })).toEqual([true, true, true, true]);
+  it('the board shows six pictures: Pip, the Ridge cell, the Rover cell, the base, the rocket sent, Earth answered', () => {
+    expect(boardMarks({ step: 0, cells: 0 })).toEqual([false, false, false, false, false, false]);
+    expect(boardMarks({ step: 2, cells: 2 })).toEqual([true, false, true, false, false, false]);
+    expect(boardMarks({ step: 4, cells: 3 })).toEqual([true, true, true, true, false, false]);
+    expect(boardMarks({ step: 7, cells: 3 })).toEqual([true, true, true, true, true, false]);
+    expect(boardMarks({ step: 8, cells: 3 })).toEqual([true, true, true, true, true, true]);
   });
 });
 

@@ -6,14 +6,15 @@
 // docs/superpowers/specs/2026-11-23-moon-design.md section 7.2; the plan's milestone 5.
 // =============================================================================
 
-import { STAR_HILL } from './moonplan.js';
+import { STAR_HILL, PAD } from './moonplan.js';
 
 export const NEAR = 55; // m: the wing's detail is drawn within this
 export const HYSTERESIS = 6; // m: once drawn it stays drawn out to NEAR + HYSTERESIS
 
-// The wings and where each stands (milestones 6 and 8 add the Launch Complex and the Lava Tube here).
+// The wings and where each stands (milestone 8 adds the Lava Tube here).
 export const WINGS = Object.freeze({
   B: Object.freeze({ id: 'B', x: STAR_HILL.x, z: STAR_HILL.z }),
+  C: Object.freeze({ id: 'C', x: PAD.x, z: PAD.z }), // milestone 6: the Launch Complex's arm, plume, smoke and board
 });
 
 // wingNear(distance, was) -> boolean: true within NEAR; once true it stays true until NEAR + HYSTERESIS.

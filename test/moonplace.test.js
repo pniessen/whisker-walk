@@ -226,9 +226,9 @@ describe('the budget as the plan states it (row A1 at milestone 1: 40 / 24 / 15,
         if (eligible && !o.material.transparent && !o.userData.noCast) casters++;
       });
     }
-    expect(meshes).toBeLessThanOrEqual(22);
-    expect(casters).toBeLessThanOrEqual(8);
-    expect(tri).toBeLessThanOrEqual(27300);
+    expect(meshes).toBeLessThanOrEqual(25);
+    expect(casters).toBeLessThanOrEqual(9);
+    expect(tri).toBeLessThanOrEqual(30000);
     expect(tri).toBeGreaterThan(16000); // and it is the real ground and the base, not a bare plain any more (milestone 0 was 5,408; milestone 1 14,584)
     // and it is under the plan's row B for the whole place with Star Hill (milestone 5: 125 / 66 / 33,000)
     expect(meshes).toBeLessThanOrEqual(125);

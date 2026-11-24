@@ -12,6 +12,8 @@
 //     mesh's `visible` to decide anything (the walk uses the collectible Map and the mice's own list);
 //   * (milestone 5) the base's small parts far from her are not drawn (cullParts: the draw budget);
 //   * (milestone 5) STAR HILL: the telescope and its star pictures, the Old Dish's turn to Earth, the wing's stand-in (world/moonstarlive.js);
+//   * (milestone 6) the LAUNCH COMPLEX: the Message Desk's stamps, the postcard, the rocket and its launch, the reply on Earth's night side, the binocular stand, the
+//     Moon Badge (world/moonlaunchlive.js); a launch tilts the camera up with the rocket (applied before the sky is placed);
 //   * (milestone 3) DOT the rover: hop in at the depot, steer, hop out (world/moonroverlive.js); she hangs her hooks on the walk's session.fair.
 //   * (milestone 2) the BASE: Pip, the two power cells, the Core, the dome, the door, the board, the finds, the gold ring and the
 //     switching-off of the daily goals and the air's sounds (world/moonbaselive.js); this life hands the walk its promptAt, interact
@@ -27,6 +29,7 @@ import { createMoonSky } from './moonsky.js';
 import { createBaseLife } from './moonbaselive.js';
 import { createRoverLive } from './moonroverlive.js';
 import { createStarLive } from './moonstarlive.js';
+import { createLaunchLive } from './moonlaunchlive.js';
 import { MOON_SPAWN, AIRLOCK, RETURN_GATE, DOME } from './moonplan.js';
 
 export const CAMERA_FOLLOW = 0.6; // the camera rises this much of a hop's height
@@ -82,14 +85,17 @@ export function cullParts(parts, catPos, table = PART_NEAR) {
 }
 
 // createMoonLife(ctx) -> { update(dt, t, catPos, camera, session), dispose() }; ctx is walk.js's life context.
-export function createMoonLife({ scene, reducedMotion = false, tier, progression, ground, colliders, log, audio, doc, win }) {
+export function createMoonLife({ scene, reducedMotion = false, tier, progression, ground, colliders, log, audio, doc, win, clock, pads }) {
   scene.background = new THREE.Color(SKY_BLACK); // no horizon haze under the stars: the Moon has no air
   const sky = createMoonSky({ scene, tier, reducedMotion });
-  const base = createBaseLife({ scene, reducedMotion, ground, colliders, progression, log, audio });
+  let launch = null; // (milestone 6) made below: the base's gold ring asks whether a postcard is in her mouth
+  const base = createBaseLife({ scene, reducedMotion, ground, colliders, progression, log, audio, cardCarried: () => (launch?.carryingCard ?? -1) >= 0 });
   // (milestone 3) Dot: hop in at the depot, steer by the stick, hop out; she hooks the walk's session.fair on the first frame (moonroverlive.js)
   // (milestone 5) Star Hill: the telescope, the star pictures, the Old Dish's turn (moonstarlive.js); the rover's walk hook hands it the player each frame
   const star = createStarLive({ scene, reducedMotion, ground, tier, audio, progression, doc, win });
-  const rover = createRoverLive({ scene, reducedMotion, ground, colliders, tier, audio, progression, onDismount: () => base.pip.rejoin(), onFrame: star.frame });
+  // (milestone 6) the Launch Complex: the postcard, the rocket, the reply (moonlaunchlive.js); the rover's walk hook hands it the player each frame as well
+  launch = createLaunchLive({ scene, reducedMotion, ground, tier, audio, progression, log, doc, win, clock, pads, pip: base.pip, sky });
+  const rover = createRoverLive({ scene, reducedMotion, ground, colliders, tier, audio, progression, onDismount: () => base.pip.rejoin(), onFrame: (dt, t, ctx) => { star.frame(dt, t, ctx); launch.frame(dt, t, ctx); } });
   // placed for the Ready card, before the first frame of the walk moves the camera (it looks north from behind the spawn)
   const first = new THREE.PerspectiveCamera();
   first.position.set(MOON_SPAWN.x, 2.9, MOON_SPAWN.z + 4.4);
@@ -108,18 +114,22 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
     base,
     rover,
     star,
+    launch,
     // the action button: Dot's "Hop in" / "Hop out" first (riding), else the base's own offers, else "Hop in" when nothing else is asked
     promptAt(catPos) {
       const b = base.promptAt(catPos);
       const s = star.promptAt(catPos);
+      const l = launch.promptAt(catPos);
       const r = rover.promptAt(catPos);
-      owner = rover.riding ? 'rover' : b ? 'base' : s ? 'star' : r ? 'rover' : null;
-      return owner === 'rover' ? r : owner === 'base' ? b : owner === 'star' ? s : null;
+      owner = rover.riding ? 'rover' : b ? 'base' : s ? 'star' : l ? 'launch' : r ? 'rover' : null;
+      return owner === 'rover' ? r : owner === 'base' ? b : owner === 'star' ? s : owner === 'launch' ? l : null;
     },
-    interact() { return owner === 'rover' ? rover.interact() : owner === 'star' ? star.interact() : base.interact(); },
-    credit: (ev) => (typeof ev?.kind === 'string' && ev.kind.startsWith('rover-') ? rover.credit(ev) : base.credit(ev)),
+    interact() { return owner === 'rover' ? rover.interact() : owner === 'star' ? star.interact() : owner === 'launch' ? launch.interact() : base.interact(); },
+    credit: (ev) => (typeof ev?.kind === 'string' && ev.kind.startsWith('rover-') ? rover.credit(ev) : ev?.kind === 'launch' ? launch.credit(ev) : base.credit(ev)),
     update(dt, t, catPos, camera, session) {
       held = session;
+      const tilt = launch.tilt(); // a rocket climbing: the view tips up with it (none in reduced motion), before the sky is placed on the camera
+      if (tilt) camera.rotateX(tilt);
       sky.update(camera, t);
       const arc = placeArc(pounceArc(progression.state, { reducedMotion }), 'moon');
       const left = session.pounceTime ?? 0;
@@ -148,10 +158,12 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       rover.update(dt, t, catPos, camera, session);
       base.update(dt, t, catPos, camera, session);
       star.update(dt, t, catPos, camera, session);
+      launch.update(dt, t, catPos, camera, session);
       cullFar(catPos, session);
       cullParts(parts, catPos);
     },
     dispose() {
+      launch.dispose();
       star.dispose();
       rover.dispose();
       base.dispose();

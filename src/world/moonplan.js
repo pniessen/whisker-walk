@@ -201,6 +201,37 @@ export const STAR_COLLIDERS = Object.freeze([
   c(STAR_TABLE.x, STAR_TABLE.z, STAR_TABLE.r),
 ]);
 
+// ---- milestone 6: Wing C, the Launch Complex (the pad, the gantry, the rocket, the Launch Desk, the Viewing Mound, the tanks), the Message
+// Desk in the dome and the binocular stand on Earthrise Rock --------------------------------------------------------------------------
+
+// The pad (a flat disc of radius 8) with the 16 m rocket on it. The gantry tower stands north of the rocket (behind it from the mound) and its
+// arm swings away at T-1 s; the two fuel spheres stand on the pad's north-east edge. The rocket's mailbox slot faces the Launch Desk (south-west).
+export const PAD = Object.freeze({ x: 42, z: -34, r: 8 });
+export const ROCKET = Object.freeze({ x: PAD.x, z: PAD.z, r: 1.55, h: 16, stand: 1.2, reach: 3.5 }); // the stand under its feet lets the plume show below it
+export const ROCKET_SLOT = Object.freeze({ x: PAD.x - 1.0, z: PAD.z + 1.0 }); // where the postcard goes in (the body's face toward the desk)
+// The countdown board: a post with a screen at the pad's near edge, facing the Launch Desk and the mound.
+export const COUNT_BOARD = Object.freeze({ x: PAD.x - 5.5, z: PAD.z + 4.5, y: 4.6, size: 3.2 });
+export const GANTRY = Object.freeze({ x: PAD.x, z: PAD.z - 5.6, h: 13, armY: 9.5, armLen: 4.6, swing: 1.25 }); // `swing` radians the arm turns away
+export const TANKS = Object.freeze([Object.freeze({ x: 46.8, z: -39.0, r: 1.7 }), Object.freeze({ x: 49.6, z: -35.6, r: 1.7 })]);
+// The Launch Desk: a console with the big red button, between the pad and the mound.
+export const LAUNCH_DESK = Object.freeze({ x: 30, z: -28, reach: 2.7 });
+// The Viewing Mound: a low, gentle hill, 2 m high, for watching from. The spec put it at (24, -20); Dot's track runs 2.5 m from that
+// point, so it stands 20 m north-west at (24, -40) (19 m from the pad) where nothing drives over it.
+export const MOUND = Object.freeze({ x: 24, z: -40, r: 7.5, h: 2 });
+export const BENCHES = Object.freeze([Object.freeze({ x: 22.6, z: -40.8, yaw: 0.5 }), Object.freeze({ x: 25.8, z: -39.2, yaw: 0.5 })]);
+// The Message Desk in the dome (between two planters, on the side away from the board and the door): where the postcard's stamp is chosen.
+export const MESSAGE_DESK = Object.freeze({ x: DOME.x + Math.cos((240 * Math.PI) / 180) * 6.0, z: DOME.z + Math.sin((240 * Math.PI) / 180) * 6.0, reach: 2.7 });
+// The binocular stand on Earthrise Rock's top ledge, a step from golden mouse 2: a stone post with a pair of binoculars on it.
+export const BINOCULARS = Object.freeze({ x: -1.1, z: -46.9, y: 3.0, reach: 2.4, level: 1.4 });
+export const REPLY_NEAR = 6; // m of Earthrise Rock's top: near enough to wait for Earth's answer
+export const LAUNCH_COLLIDERS = Object.freeze([
+  Object.freeze({ x: ROCKET.x, z: ROCKET.z, r: ROCKET.r }),
+  Object.freeze({ x: GANTRY.x - 0.8, z: GANTRY.z, r: 0.9 }), Object.freeze({ x: GANTRY.x + 0.8, z: GANTRY.z, r: 0.9 }),
+  ...TANKS.map((t) => Object.freeze({ x: t.x, z: t.z, r: t.r })),
+  Object.freeze({ x: LAUNCH_DESK.x, z: LAUNCH_DESK.z, r: 0.85 }),
+  Object.freeze({ x: MESSAGE_DESK.x, z: MESSAGE_DESK.z, r: 0.75 }),
+]);
+
 const ring = [];
 for (let i = 0; i < 40; i++) {
   const a = (i / 40) * Math.PI * 2;
@@ -226,6 +257,7 @@ export const BASE_COLLIDERS = Object.freeze([
   c(PIT_ROCK.x, PIT_ROCK.z, PIT_ROCK.r),
   ...PLAIN_POSTS.map((p) => c(p.x, p.z, 0.2)),
   ...STAR_COLLIDERS,
+  ...LAUNCH_COLLIDERS,
 ]);
 
 export const MOON_COLLIDERS = Object.freeze([
@@ -259,6 +291,7 @@ export const ROCK_KEEP_OUT = Object.freeze([
   [0, 42, 10], [-10, 41, 5.5], [-20, 46.5, 12], [0, 46, 7], [46, 0, 4],
   [-34, 26, 13], [-44, 14, 7], [30, 34, 11], [42, -34, 12], [30, -28, 6], [24, -20, 6], [-38, -32, 14], [-27, -24, 4.5], [-47, 0, 8], [8, -40, 8],
   [-4.5, -44.8, 6.5], [31, -10, 4],
+  [42, -34, 9.5], [24, -40, 8.6], [-37, 20.8, 2],
 ]);
 
 // ---- the heightfield -------------------------------------------------------------------------------------------------
@@ -279,6 +312,8 @@ export function moonBaseY(x, z) {
   const rx = (x - RIDGE.x) / RIDGE.rx;
   const rz = (z - RIDGE.z) / RIDGE.rz;
   y += RIDGE.h * (0.88 + 0.12 * Math.sin(x * 0.33)) * Math.exp(-(rx ** 4) - rz * rz);
+  const mu = Math.hypot(x - MOUND.x, z - MOUND.z) / MOUND.r; // the Viewing Mound (milestone 6): a cosine bump, 2 m high, slope at most 0.42
+  if (mu < 1) y += MOUND.h * 0.5 * (1 + Math.cos(Math.PI * mu));
   const dx = Math.max(MOON_BOUNDS.minX - x, 0, x - MOON_BOUNDS.maxX);
   const dz = Math.max(MOON_BOUNDS.minZ - z, 0, z - MOON_BOUNDS.maxZ);
   const d = Math.hypot(dx, dz);

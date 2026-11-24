@@ -501,7 +501,10 @@ const AREAS = [
   // Milestone 5 (Star Hill, wing B) puts the tower and its ramp into the Moon's own stone mesh (no mesh of its own) and adds two meshes, the observatory's
   // paint and the additive figures (the table's pictures and the ceiling's Great Cat): measured 19 / 7 / 17,456 built (24,356 counting every rock
   // instance, test/moonplace.test.js), +12%: 22 / 8 / 19,600. The plan's row B (end of milestone 5) is 125 / 66 / 33,000.
-  ['moon', buildMoon, 22, 8, 19600],
+  // Milestone 6 (Wing C, the Launch Complex) puts the pad, the gantry tower, the tanks, the desks, the benches and the binocular stand into the existing buckets (no
+  // mesh of their own) and adds three meshes, the rocket (the one new caster), the gantry's arm and the plume (the smoke is a Points, not a mesh): measured
+  // 22 / 8 / 19,838 built (26,738 counting every rock instance, test/moonplace.test.js), +12%: 25 / 9 / 22,300. The plan's row C (end of milestone 7) is 168 / 94 / 42,000.
+  ['moon', buildMoon, 25, 9, 22300],
 ];
 
 // ---------------------------------------------------------------------------

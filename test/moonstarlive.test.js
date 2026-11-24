@@ -326,7 +326,7 @@ describe('the wing as a stand-in', () => {
 describe('the goal and the board', () => {
   it('once the base is awake the gold ring and the board point at the ramp\'s mouth, and say so; before and after, they do not', () => {
     expect(M.nextGoal({ step: 4, cells: 3 })).toEqual({ kind: 'scope' });
-    expect(M.nextGoal({ step: 5, cells: 3 })).toEqual({ kind: 'done' });
+    expect(M.nextGoal({ step: 5, cells: 3 })).toEqual({ kind: 'desk' }); // milestone 6: the Message Desk
     const r = rig({ moon: { step: 4, cells: 3 } });
     r.step(0.1, { x: P.BOARD.x + 2, z: P.BOARD.z, y: gy(P.BOARD.x + 2, P.BOARD.z) });
     press(r);

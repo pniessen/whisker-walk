@@ -19,7 +19,7 @@ export const GLASS = Object.freeze({ cold: 0.1, warm: 0.2 });
 export function baseMaterials() {
   const dish = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, side: THREE.DoubleSide });
   return {
-    glass: new THREE.MeshBasicMaterial({ color: BASE_COL.glassTint, transparent: true, opacity: GLASS.cold, depthWrite: false, side: THREE.DoubleSide }),
+    glass: new THREE.MeshBasicMaterial({ color: BASE_COL.glassTint, transparent: true, opacity: GLASS.cold, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true }),
     lamp: new THREE.MeshBasicMaterial({ vertexColors: true, color: LAMP.dim }),
     coreglow: new THREE.MeshBasicMaterial({ vertexColors: true, color: CORE_GLOW.dim }),
     beacon: new THREE.MeshBasicMaterial({ vertexColors: true }),

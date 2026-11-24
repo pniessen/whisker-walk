@@ -93,6 +93,25 @@ export const LINES = Object.freeze({
   'moon.table.story': 'Trace the Mouse and the Cat in the telescope to find Earth.',
   'moon.table.more': 'Earth is found! Can you trace all five star pictures?',
   'moon.table.done': 'Every star picture is traced. The Great Cat shines!',
+  // milestone 6: the Message Desk, the postcard, the rocket, the launch, Earth's answer (the same in both sets; 'moon.count.go', 'moon.reply' and 'moon.badge' are above)
+  'moon.desk.prompt': 'E — write a postcard',
+  'moon.stamp.paw': 'A paw stamp',
+  'moon.stamp.star': 'A star stamp',
+  'moon.stamp.heart': 'A heart stamp',
+  'moon.stamp.close': 'Close',
+  'moon.card.got': 'Your postcard is ready! Take it to the rocket.',
+  'moon.rocket.prompt': 'E — post the postcard',
+  'moon.rocket.loaded': 'The postcard is in the rocket!',
+  'moon.launch.prompt': 'E — press the big red button',
+  'moon.launch.sent': 'The postcard is on its way. Wait on the ridge for Earth to answer.',
+  'moon.reply.wait': 'Earth got the postcard. Wait here for its answer.',
+  'moon.story.pay': 'Earth saying hello back, with your stamp',
+  'moon.binoc.prompt': 'E — look at Earth',
+  'moon.binoc.close': 'Close',
+  'moon.goal.card': 'Write a postcard at the message desk in the dome.',
+  'moon.goal.rocket': 'Post the postcard in the rocket.',
+  'moon.goal.button': 'Press the big red button!',
+  'moon.goal.reply': 'Wait on Earthrise Rock. Earth will answer.',
 });
 
 addPhrases(LINES);

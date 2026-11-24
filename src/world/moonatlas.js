@@ -18,10 +18,10 @@ const canvasOf = (w, h) => {
   }
 };
 
-export const BOARD_ICONS = Object.freeze(['🤖', '🔋', '🚙', '💡']);
-const PANEL = Object.freeze(['#3fb58f', '#2fb8c8', '#f0a43a', '#f3d36b']);
+export const BOARD_ICONS = Object.freeze(['🤖', '🔋', '🚙', '💡', '🚀', '🌍']);
+const PANEL = Object.freeze(['#3fb58f', '#2fb8c8', '#f0a43a', '#f3d36b', '#e0607a', '#5b8def']);
 
-// The Mission Board's face: four big pictures in a row (Pip, the Ridge cell, the Rover cell, the base), each dim until done and bright with
+// The Mission Board's face: six pictures in a row (Pip, the Ridge cell, the Rover cell, the base, the rocket, Earth), each dim until done and bright with
 // a tick when it is. setMarks([bool x 4]) redraws. Gives the mesh its map.
 export function createBoardFace(mesh) {
   const cv = canvasOf(512, 272);
@@ -38,43 +38,44 @@ export function createBoardFace(mesh) {
     g.fillRect(0, 0, 512, 272);
     g.fillStyle = '#273a4c';
     g.fillRect(0, 0, 512, 22);
-    for (let i = 0; i < 4; i++) {
+    const N = BOARD_ICONS.length; // six pictures, 80 px a panel (milestone 6 added the rocket and Earth)
+    for (let i = 0; i < N; i++) {
       const done = !!marks[i];
-      const x = 14 + i * 124;
+      const x = 8 + i * 84;
       g.globalAlpha = done ? 1 : 0.42;
       g.fillStyle = PANEL[i];
       g.beginPath();
-      g.roundRect?.(x, 44, 112, 190, 18);
-      if (!g.roundRect) g.rect(x, 44, 112, 190);
+      g.roundRect?.(x, 44, 76, 190, 14);
+      if (!g.roundRect) g.rect(x, 44, 76, 190);
       g.fill();
       g.fillStyle = 'rgba(255,255,255,.92)';
       g.beginPath();
-      g.arc(x + 56, 118, 42, 0, Math.PI * 2);
+      g.arc(x + 38, 108, 30, 0, Math.PI * 2);
       g.fill();
       g.globalAlpha = done ? 1 : 0.55;
-      g.font = '58px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+      g.font = '40px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       g.fillStyle = '#000';
-      g.fillText(BOARD_ICONS[i], x + 56, 122);
+      g.fillText(BOARD_ICONS[i], x + 38, 111);
       g.globalAlpha = 1;
       // a tick when done, a small ring when not
-      g.lineWidth = 9;
+      g.lineWidth = 8;
       g.lineCap = 'round';
       g.lineJoin = 'round';
       if (done) {
         g.strokeStyle = '#ffffff';
-        g.beginPath(); g.moveTo(x + 30, 196); g.lineTo(x + 50, 214); g.lineTo(x + 86, 176); g.stroke();
+        g.beginPath(); g.moveTo(x + 18, 192); g.lineTo(x + 33, 207); g.lineTo(x + 60, 176); g.stroke();
       } else {
         g.strokeStyle = 'rgba(255,255,255,.55)';
-        g.beginPath(); g.arc(x + 56, 196, 16, 0, Math.PI * 2); g.stroke();
+        g.beginPath(); g.arc(x + 38, 192, 14, 0, Math.PI * 2); g.stroke();
       }
       // a small arrow between the pictures
-      if (i < 3) { g.fillStyle = 'rgba(255,255,255,.6)'; g.beginPath(); g.moveTo(x + 114, 126); g.lineTo(x + 124, 139); g.lineTo(x + 114, 152); g.fill(); }
+      if (i < N - 1) { g.fillStyle = 'rgba(255,255,255,.6)'; g.beginPath(); g.moveTo(x + 77, 130); g.lineTo(x + 84, 140); g.lineTo(x + 77, 150); g.fill(); }
     }
     tex.needsUpdate = true;
   }
-  draw([false, false, false, false]);
+  draw([false, false, false, false, false, false]);
   return { setMarks: draw, get texture() { return tex; }, dispose() { tex.dispose(); mesh.material.dispose(); } };
 }
 

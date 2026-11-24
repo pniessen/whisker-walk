@@ -207,8 +207,10 @@ export function moonMaterials() {
     paint: litMaterial(0xffffff, { vertexColors: true, roughness: 0.6 }),
     stone: litMaterial(0xffffff, { vertexColors: true, roughness: 1 }),
     glow: new THREE.MeshBasicMaterial({ vertexColors: true }),
-    disc: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide }),
-    shaft: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide }),
+    // (milestone 6) forceSinglePass: a double-sided transparent material is two draws (back faces, then front) unless it is told one pass is enough; these are soft
+    // shapes that write no depth, so the order of their faces does not show, and the Moon's frame had no draw calls to spare
+    disc: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true }),
+    shaft: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true }),
   };
 }
 
