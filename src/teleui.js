@@ -35,7 +35,7 @@ export const CSS = `
 .tele-swirl.calm,.tele-swirl.calm.opening{clip-path:none;opacity:0;animation:tele-fade .4s ease forwards}
 .tele-swirl.calm .tele-turn{animation:none}
 .tele-swirl.calm.opening{opacity:1;animation:tele-fadeout .4s ease forwards}
-.tele-card h2{max-width:22ch}
+.tele-card h2{max-width:22ch;justify-self:center;text-align:center}
 .tele-card .btn{min-height:48px;min-width:160px}
 html.tv .tele-line{font-size:calc(2.6rem * var(--tv-s,1))}
 html.tv .tele-card .btn{min-height:calc(84px * var(--tv-s,1))}
