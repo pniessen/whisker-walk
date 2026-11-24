@@ -24,6 +24,8 @@ import { isIndoor } from '../indoor.js';
 import { marketOn } from '../marketflag.js';
 import { lighthouseOn } from '../lighthouseflag.js';
 import { greenhouseOn } from '../greenhouseflag.js';
+import { moonOn } from '../moonflag.js';
+import { placePace } from '../placephysics.js';
 import { birthdayDue, BDAY_AREA, BDAY_START, BRIDGE_ISLAND_END, speakerFor, birthdayCatName, noteCandlesBlown, bdayCountsWalk, saveBirthdayPhoto, BDAY_PHOTO_KEY } from '../birthday.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
@@ -572,6 +574,7 @@ export function createWalkLifecycle({
     // ?lighthouse=1: a solo Lighthouse Point walk, either edition, never in a room (Lighthouse milestone 1).
     if (lighthouseOn() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'lighthouse' });
     if (greenhouseOn() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'greenhouse' });
+    if (moonOn() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'moon' }); // ?moon=1: a solo walk on the Moon
     // Her birthday (src/birthday.js): while the Gathering waits, a solo
     // Explore starts in the Pines at the foot of the island bridge. An
     // override only, never a setArea, and nothing is unlocked: the Pines stay
@@ -954,7 +957,7 @@ export function createWalkLifecycle({
     scene.add(cat);
     // your pace IS the world's pace: breed speed sets how fast anything scrolls
     const pace = 2.2 + PERSONALITIES[active.breed].speed * 0.8;
-    player.setAvatar(cat, pace);
+    player.setAvatar(cat, placePace(pace, areaId));
     player.setGround(ground);
     player.setCameraGround(areaData.cameraGround); // the house's floors without the furniture tops; elsewhere none
     // v18 CF-10b: without this, Long Zoomies did nothing in the running game —

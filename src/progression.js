@@ -89,7 +89,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   // The Market Square's six finds (src/marketpages.js; walks each was found on).
   'marketfountain', 'marketpigeons', 'marketsacks', 'marketmusician', 'marketbasket', 'marketapples',
   // Lighthouse Point's six finds and two jobs (src/lighthousepages.js; walks each was found or finished on).
-  'lhlamproom', 'lhpool', 'lhgull', 'lhecho', 'lhbell', 'lhwindow', 'lhjobkitten', 'lhjoblamp'];
+  'lhlamproom', 'lhpool', 'lhgull', 'lhecho', 'lhbell', 'lhwindow', 'lhjobkitten', 'lhjoblamp',
+  // The Moon's six discoveries and six activity pages (src/moonpages.js; ids reserved in its milestone 0).
+  'mnflag', 'mnecho', 'mndust', 'mncheese', 'mndish', 'mngarden', 'mnstory', 'mnrover', 'mnlaunch', 'mnscope', 'mnjump', 'mnjob'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
@@ -517,7 +519,7 @@ function defaultState() {
     // the River: a save with no 'river' key would pin state.walks.river at NaN. And the Moor, the Pines and the Gorge: no 'moor', 'pines' or 'gorge' key, same NaN.
     // And the Farm: a save from before it loads with farm: 0. And the Fairground: fair: 0. And the Rooftops (in CATALOG.areas since Rooftops step 4): roofs: 0. And the Market Square (in CATALOG.areas since Market step 4): market: 0. And the Old House (in CATALOG.areas since its step 4): house: 0.
     // And Lighthouse Point (in CATALOG.areas since Lighthouse milestone 4): lighthouse: 0. And the Greenhouse (?greenhouse=1 only for now): greenhouse: 0.
-    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0 },
+    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0 },
     // A COPY of STARTER_ACCESSORIES: buy() pushes into this array.
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: [...STARTER_ACCESSORIES], areas: ['neighborhood'] },
     equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null },
@@ -543,6 +545,9 @@ function defaultState() {
     streak: { last: null, count: 0 },
     kitten: { stage: 0 },
     race: { date: null, area: null, bestMs: null },
+    // The Moon (docs/superpowers/plans/2026-11-23-moon.md, milestone 0): the story's step, the power cells carried home (bits),
+    // the postcard's stamp (-1 none), the star pictures traced (bits) and each cat's long-jump record in cm. Additive: SAVE_VERSION stays 4.
+    moon: { step: 0, cells: 0, stamp: -1, scope: 0, jump: {} },
     den: { owned: [], placed: {} },
     // v18 Cat Skills. `skills` is the list of ability ids already earned —
     // stored rather than derived so a later threshold change can never
@@ -881,6 +886,19 @@ function sanitizeRace(v) {
   return { date, area, bestMs };
 }
 
+// The Moon's save key: every number clamped (a step over 9, a cell or scope bit that does not exist, a jump over
+// 2000 cm are cut back), the jump record kept for at most six cats whose ids look like a cat's.
+function sanitizeMoon(v) {
+  const n = (x, hi) => Math.min(hi, asFiniteNonNegInt(x, 0));
+  const jump = {};
+  if (isPlainObject(v?.jump)) {
+    for (const [id, cm] of Object.entries(v.jump)) {
+      if (Object.keys(jump).length < 6 && /^[a-z][a-z0-9]{1,15}$/.test(id)) jump[id] = n(cm, 2000);
+    }
+  }
+  return { step: n(v?.step, 9), cells: n(v?.cells, 7), stamp: [0, 1, 2].includes(v?.stamp) ? v.stamp : -1, scope: n(v?.scope, 31), jump };
+}
+
 // Cloud-loaded (or otherwise externally supplied) den field: same untrusted
 // threat model as every other field in sanitizeState. owned is filtered to
 // DEN_ITEMS' own keys, deduped, and capped at DEN_OWNED_MAX (mirrors
@@ -1196,6 +1214,7 @@ function sanitizeState(parsed) {
     streak: sanitizeStreak(parsed.streak),
     kitten: sanitizeKitten(parsed.kitten),
     race: sanitizeRace(parsed.race),
+    moon: sanitizeMoon(parsed.moon),
     den: sanitizeDen(parsed.den),
     skills: sanitizeSkills(parsed.skills),
     feats,

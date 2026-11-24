@@ -3,9 +3,12 @@ import { readFileSync } from 'node:fs';
 import { CRITTER_INFO, renderJournalHtml } from '../src/journal.js';
 import { JOURNAL_TYPES } from '../src/progression.js';
 
+// the pages a child sees today: the Moon's twelve are drawn only behind ?moon=1 (src/moonpages.js)
+const SHOWN = CRITTER_INFO.filter((c) => !c.moon);
+
 describe('CRITTER_INFO', () => {
-  it('has all 64 journal pages with kid-friendly entries', () => {
-    expect(CRITTER_INFO).toHaveLength(64); // 14 critters, Appletree Farm's six animals, its four jobs and six finds, the Fairground's five rides, three games and six finds, the Rooftops' six finds, the Market Square's six finds, and Lighthouse Point's six finds and two jobs (shown only behind ?lighthouse=1 or once one has a count)
+  it('has all 76 journal pages with kid-friendly entries', () => {
+    expect(CRITTER_INFO).toHaveLength(76); // 14 critters, Appletree Farm's six animals, its four jobs and six finds, the Fairground's five rides, three games and six finds, the Rooftops' six finds, the Market Square's six finds, and Lighthouse Point's six finds and two jobs (shown only behind ?lighthouse=1 or once one has a count)
     for (const entry of CRITTER_INFO) {
       expect(typeof entry.id).toBe('string');
       expect(typeof entry.emoji).toBe('string');
@@ -53,15 +56,15 @@ describe('renderJournalHtml', () => {
     expect(html).toContain(bird.hint);
     expect(html).not.toContain(bird.name);
     // every one of the unspotted cards gets a silhouette, none a name
-    expect(html.match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.length); // Lighthouse Point's eight are in the game since milestone 4
-    for (const c of CRITTER_INFO) expect(html).not.toContain(c.name);
+    expect(html.match(/journal-emoji silhouette/g)).toHaveLength(SHOWN.length); // Lighthouse Point's eight are in the game since milestone 4; the Moon's twelve only behind ?moon=1
+    for (const c of SHOWN) expect(html).not.toContain(c.name);
   });
 
   it('a spotted entry is never a silhouette', () => {
     const html = renderJournalHtml({ bird: 2 }, 0, 9);
     const bird = CRITTER_INFO.find((c) => c.id === 'bird');
     expect(html).toContain(`<span class="journal-emoji">${bird.emoji}</span>`);
-    expect(html.match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.length - 1);
+    expect(html.match(/journal-emoji silhouette/g)).toHaveLength(SHOWN.length - 1);
   });
 
   it('Lighthouse Point\'s eight pages are in the journal like any place\'s, flag or none (milestone 4)', async () => {
@@ -73,12 +76,29 @@ describe('renderJournalHtml', () => {
         setLighthouse(flag);
         const html = renderJournalHtml({}, 0, 9);
         for (const id of ids) expect(html).toContain(CRITTER_INFO.find((c) => c.id === id).hint);
-        expect(html.match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.length);
+        expect(html.match(/journal-emoji silhouette/g)).toHaveLength(SHOWN.length);
       }
       setLighthouse(false);
       expect(renderJournalHtml({ lhbell: 1 }, 0, 9)).toContain('The Fog Bell');
     } finally {
       setLighthouse(null);
+    }
+  });
+
+  it('the Moon\'s twelve pages are drawn only behind ?moon=1, and are journal types either way', async () => {
+    const { setMoon } = await import('../src/moonflag.js');
+    const { JOURNAL_TYPES } = await import('../src/progression.js');
+    const moon = CRITTER_INFO.filter((c) => c.moon);
+    expect(moon.map((c) => c.id)).toEqual(['mnflag', 'mnecho', 'mndust', 'mncheese', 'mndish', 'mngarden', 'mnstory', 'mnrover', 'mnlaunch', 'mnscope', 'mnjump', 'mnjob']);
+    for (const c of moon) expect(JOURNAL_TYPES).toContain(c.id);
+    try {
+      setMoon(false);
+      expect(renderJournalHtml({ mnstory: 1 }, 0, 9)).not.toContain('Hello, Earth!');
+      setMoon(true);
+      expect(renderJournalHtml({ mnstory: 1 }, 0, 9)).toContain('Hello, Earth!');
+      expect(renderJournalHtml({}, 0, 9).match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.length);
+    } finally {
+      setMoon(null);
     }
   });
 

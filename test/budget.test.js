@@ -21,6 +21,7 @@ const { build: buildMarket } = await import('../src/world/market.js');
 const { build: buildHouse } = await import('../src/world/house.js');
 const { build: buildLighthouse } = await import('../src/world/lighthouse.js');
 const { build: buildGreenhouse } = await import('../src/world/greenhouse.js');
+const { build: buildMoon } = await import('../src/world/moon.js');
 const { HOUSE_LEVELS } = await import('../src/world/houseplan.js');
 const { measureHouse } = await import('./helpers/housebudget.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -480,6 +481,12 @@ const AREAS = [
   // 3,084, foliage 10,560, orchids 1,884, koi 108; the fountain 6,900; the frame 2,988 and the glass 420). The street places' ruling, never
   // raised; the place aims for 150 / 70 / 52,000 when it is whole.
   ['greenhouse', buildGreenhouse, 280, 210, 62000],
+  // The Moon, milestone 0 (2026-11-23): the seams, a bare plain (one ground mesh, no props). Measured 1 / 0 / 5,408 (the 130 m ground
+  // plane's own segments), +12% on the triangles (the Farm's and the Market's ruling): 6 / 2 / 6,100. The plan's 2,000 guess forgot the
+  // ground's grid; milestone 1 swaps it for the real heightfield. Its mesh and caster rows are the plan's 6 / 2. The spec's final
+  // ceilings (240 / 150 / 56,000, chunk 94 kB) are set as its stages measure (milestones 1 to 8), never above them. Not in the merged
+  // table below: one ground mesh has nothing to merge (milestone 1 adds the row).
+  ['moon', buildMoon, 6, 2, 6100],
 ];
 
 // ---------------------------------------------------------------------------

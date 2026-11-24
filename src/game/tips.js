@@ -17,7 +17,8 @@ import { createHints } from '../hints.js';
 import { line } from '../tutorialwords.js';
 import { onTv } from '../tvseam.js';
 import { bus } from '../events.js';
-import { bestPerch, climbBudget, fenceRunning } from '../climbing.js';
+import { bestPerch, fenceRunning } from '../climbing.js';
+import { placeBudget } from '../placephysics.js';
 import { FLAT_GROUND } from '../ground.js';
 import * as THREE from 'three';
 import { villagerPos } from '../critters.js';
@@ -80,7 +81,7 @@ export function climbInReach(session, player, state, ride = ridePaw(session, pla
   const move = session.traversal?.pressKind?.({ cat: session.cat, player, session }) ?? null;
   if (move) return move === 'climb';
   const ground = session.ground ?? FLAT_GROUND;
-  const next = bestPerch(session.areaData.perches ?? [], session.cat.position, player.perchY, session.perched, climbBudget(state),
+  const next = bestPerch(session.areaData.perches ?? [], session.cat.position, player.perchY, session.perched, placeBudget(state, session.areaId),
     { fenceRun: fenceRunning(state), state, ground });
   // From a perch, bestPerch also offers drops; only a higher perch is a climb.
   if (next && (!session.perched || next.y > player.perchY + 0.05)) return true;

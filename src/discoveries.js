@@ -39,6 +39,11 @@ export const AWARDS = {
   lighthousejob: 25,
   // ...and one of its six finds, paid the first time ever (world/lighthousefinds.js noteLighthouseFind).
   lighthousefind: 12,
+  // The Moon (2026-11-23, ids reserved in milestone 0): one of its six finds, paid the first time ever; Pip's postcard of the
+  // day, once a walk; and the story's end (the reply from Earth), once ever.
+  moonfind: 12,
+  moonjob: 25,
+  moonstory: 40,
   // Found outfits (2026-11-19): the walk's find when everything hidden in the
   // place is already hers, the spec's "a small coin pouch instead (Claude's
   // call: 5 coins)" (the coins are 🐾). Once a walk (foundwear/play.js), and
