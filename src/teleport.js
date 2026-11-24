@@ -20,6 +20,9 @@ export const TELE_SWIRL_MS = 1200; // the swirl, full motion
 export const TELE_FADE_MS = 400; // the gentle fade, reduced motion
 export const TELE_SLOW_MS = 1500; // a place still not here by now: "Nearly there!"
 export const TELE_PAIR_CAP = 6; // gate pairs per release (a test constant)
+// Park walks before the Moon gate wakes (the Moon plan's rule: 2). The Moon has no catalog row until the map milestone (a row
+// would put a Moon card in the home-base picker), so the number lives here; a test keeps the rule honest.
+export const MOON_NEED_WALKS = 2;
 
 let H = null;
 // host: { teleOn, greenhouseOn, placeName, walkOnMove, lower, padTag, escapeHtml, coopReady, catalog, isClan, couch }
@@ -34,15 +37,17 @@ export function setup(host) {
 //   wake      true: her first touch is a find (milestone 5)
 //   edition   'canon' (the default: the main edition only) | 'all' (both editions)
 //   needWalks host-place walks before it is awake (0: always)
+//   own       true: the place draws this gate's stones itself (the Moon's return ring, src/world/moonparts.js), so the gate
+//             draws nothing and adds no pillars: only the prompt, the card and the walk-on are the gate's
 const LOOKS = ['stonering', 'archway', 'hollow'];
-export function teleRow({ suit = null, wake = false, edition = 'canon', needWalks = 0, ...row }) {
+export function teleRow({ suit = null, wake = false, edition = 'canon', needWalks = 0, own = false, ...row }) {
   const id = row.id;
   if (![null, 'space', 'dive'].includes(suit)) throw new Error(`tele gate ${id}: suit "${suit}" is not space, dive or null`);
   if (edition !== 'canon' && edition !== 'all') throw new Error(`tele gate ${id}: edition "${edition}" is not canon or all`);
   if (!Number.isInteger(needWalks) || needWalks < 0) throw new Error(`tele gate ${id}: needWalks must be a whole number, 0 or more`);
   if (!LOOKS.includes(row.look)) throw new Error(`tele gate ${id}: look "${row.look}" is not one of ${LOOKS.join(', ')}`);
   if (row.placement !== 'inside' || !row.arrive) throw new Error(`tele gate ${id}: stands inside a place, with an explicit arrive`);
-  return gatewayEnd({ ...row, kind: 'tele', suit, wake: wake === true, edition, needWalks });
+  return gatewayEnd({ ...row, kind: 'tele', suit, wake: wake === true, edition, needWalks, own: own === true });
 }
 const end = teleRow;
 
@@ -50,7 +55,7 @@ const end = teleRow;
 // Each end's look, by id: 'stonering' (five mossy standing stones round a light disc), 'archway' (a little stone arch in a
 // hedge, with a lantern) or 'hollow' (a trunk with a glowing hole). Pictures of all three in the Park and the Greenhouse:
 // verify-teleport-gates-m1.html. The plan's recommendation for the real pairs: stones for the Moon, hollow for the Reef.
-export const TELE_LOOK = Object.freeze({ 'park-greenhouse': 'stonering', 'greenhouse-park': 'stonering' });
+export const TELE_LOOK = Object.freeze({ 'park-greenhouse': 'stonering', 'greenhouse-park': 'stonering', 'park-moon': 'stonering', 'moon-park': 'stonering' });
 // Where she lands, and facing which way: 'toward' (the milestone 0 choice: 3.6 m out, FACING the gate she stepped out of; the
 // camera stands 4.4 m behind her, so it looks at the way home) or 'away' (the spec's "facing in": 7 m out, looking into
 // the place, the gate behind her; further, so the camera does not stand inside the stones).
@@ -74,6 +79,18 @@ export const TELE_ENDS = Object.freeze({
   park: Object.freeze([
     end({ id: 'park-greenhouse', gateway: 'tele-park-greenhouse', x: -10, z: 44, faces: 'west', to: 'greenhouse', twin: 'greenhouse-park', look: TELE_LOOK['park-greenhouse'],
       placement: 'inside', arrive: arriveFor('west', -10, 44), edition: 'all' }),
+    // The Moon gate (milestone 3): the Park's stone ring, east of the spawn (12, 44), awake after two Park walks; she lands
+    // 3.6 m west of it, facing it, when she comes home. Both editions. Its twin is the Moon's own return ring.
+    end({ id: 'park-moon', gateway: 'tele-park-moon', x: 12, z: 44, faces: 'east', to: 'moon', twin: 'moon-park', look: TELE_LOOK['park-moon'],
+      placement: 'inside', arrive: arriveFor('east', 12, 44), edition: 'all', suit: 'space', needWalks: MOON_NEED_WALKS }),
+  ]),
+  moon: Object.freeze([
+    // The way home: the Moon's own return ring (RETURN_GATE (-10, 41), drawn by the Moon: `own`, so nothing is drawn twice),
+    // always awake. It faces north, so she lands 3.6 m south of it (-10, 44.6), 10 m from the lander's spawn, facing it with
+    // the camera behind her over open dust (an east landing put the camera inside the lander's steps): the same pair, the same
+    // look. The first golden mouse (0, 40.6) is in sight, 10.8 m away.
+    end({ id: 'moon-park', gateway: 'tele-park-moon', x: -10, z: 41, faces: 'north', to: 'park', twin: 'park-moon', look: TELE_LOOK['moon-park'],
+      placement: 'inside', arrive: arriveFor('north', -10, 41), edition: 'all', own: true }),
   ]),
   greenhouse: Object.freeze([
     end({ id: 'greenhouse-park', gateway: 'tele-park-greenhouse', x: -10, z: 29, faces: 'west', to: 'park', twin: 'park-greenhouse', look: TELE_LOOK['greenhouse-park'],
@@ -85,10 +102,10 @@ export const teleEnds = (areaId) => (typeof areaId === 'string' && Object.hasOwn
 
 // A place behind its own switch (the Greenhouse, until its milestone 4 gives it a catalog row) counts as built while
 // that switch is on, and has no name in the catalog, so its name is here.
-const NAMES = { greenhouse: 'The Greenhouse' };
+const NAMES = { greenhouse: 'The Greenhouse', moon: 'The Moon' };
 export function placeLive(to, catalog) {
   const areas = catalog && catalog.areas;
-  return (!!areas && Object.hasOwn(areas, to)) || (to === 'greenhouse' && H.greenhouseOn());
+  return (!!areas && Object.hasOwn(areas, to)) || (to === 'greenhouse' && H.greenhouseOn()) || to === 'moon'; // (the Moon: behind ?gates=1 already)
 }
 export const teleName = (to, edition, catalog) => H.placeName(to, edition, catalog) || NAMES[to] || '';
 
@@ -240,7 +257,7 @@ export function prompt(s, catP, state, inRoom, prefetch, free) {
 // A gate whose host place she has not walked enough is drawn dormant (the body alone, greyer, no light); `calm`: reduced
 // motion, nothing turns or drifts.
 export function draw(scene, areaId, state, ground, calm = false) {
-  return addTeleGates(scene, liveTeleEnds(areaId, H.catalog, { clan: H.isClan(state) }),
+  return addTeleGates(scene, liveTeleEnds(areaId, H.catalog, { clan: H.isClan(state) }).filter((e) => !e.own),
     { ground, calm, awakeOf: (e) => teleStatus(e, state, H.catalog).kind !== 'dormant' }).colliders;
 }
 

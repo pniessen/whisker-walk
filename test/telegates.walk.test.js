@@ -64,7 +64,7 @@ describe('the gates in a walk', () => {
     for (const save of [parkSave, legacyParkSave]) {
       const h = walkHarness({ save });
       h.w.startWalk({});
-      expect(gateMeshes(h.getSession()), save.name).toHaveLength(1);
+      expect(gateMeshes(h.getSession()), save.name).toHaveLength(2); // the spike gate and the Moon gate (dormant)
       expect(h.getSession().areaId).toBe('park');
     }
     const g = walkHarness({ save: parkSave });
@@ -86,7 +86,7 @@ describe('the gates in a walk', () => {
     const h = walkHarness({ save: parkSave });
     h.w.startWalk({});
     const cs = h.getSession().areaData.colliders;
-    expect(cs.length).toBe(n + 2);
+    expect(cs.length).toBe(n + 4); // two pillars for each of the Park's two gates
     expect(cs.filter((c) => c.x === -10 && (c.z === 42.7 || c.z === 45.3))).toHaveLength(2);
   }, WALK_MS);
 });

@@ -35,6 +35,8 @@ const { TELE_ENDS, teleEnds, teleRow, liveTeleEnds, teleNear, teleStatus, planFo
 const ALL = Object.values(TELE_ENDS).flat();
 const PG = TELE_ENDS.park[0];
 const GP = TELE_ENDS.greenhouse[0];
+const PM = TELE_ENDS.park[1]; // the Moon gate
+const MP = TELE_ENDS.moon[0]; // and the Moon's way home
 const newSave = () => {
   const p = createProgression(memStorage());
   p.setTutorialFirst('done');
@@ -45,9 +47,9 @@ beforeEach(() => { setTele(true); setGreenhouse(true); });
 afterEach(() => { setTele(null); setGreenhouse(null); });
 
 describe('the gate table', () => {
-  it('is one pair, Park <-> Greenhouse, in the stone-ring look, each end the other\'s twin', () => {
-    expect(Object.keys(TELE_ENDS)).toEqual(['park', 'greenhouse']);
-    expect(ALL.map((e) => e.id)).toEqual(['park-greenhouse', 'greenhouse-park']);
+  it('is the spike pair, Park <-> Greenhouse, and the Moon pair (milestone 3), in the stone-ring look, each end the other\'s twin', () => {
+    expect(Object.keys(TELE_ENDS)).toEqual(['park', 'moon', 'greenhouse']);
+    expect(ALL.map((e) => e.id)).toEqual(['park-greenhouse', 'park-moon', 'moon-park', 'greenhouse-park']);
     expect(PG.twin).toBe(GP.id);
     expect(GP.twin).toBe(PG.id);
     expect(PG.to).toBe('greenhouse');
@@ -58,8 +60,9 @@ describe('the gate table', () => {
       expect(e.look, e.id).toBe('stonering');
       expect(e.placement, e.id).toBe('inside');
       expect(e.edition, e.id).toBe('all'); // both editions
-      expect(e.suit, e.id).toBeNull();
       expect(e.wake, e.id).toBe(false);
+      if (e.id.includes('moon')) continue; // (the Moon pair: describe 'the Moon gate')
+      expect(e.suit, e.id).toBeNull();
       expect(e.needWalks, e.id).toBe(0);
       expect(e.gateway, e.id).toBe('tele-park-greenhouse');
       expect(Object.isFrozen(e), e.id).toBe(true);
@@ -69,6 +72,7 @@ describe('the gate table', () => {
     expect(GATEWAYS.some((g) => [g.from, g.to].sort().join() === 'greenhouse,park')).toBe(false);
     expect(GATEWAYS.some((g) => g.id === PG.gateway)).toBe(false);
     expect(ALL.length / 2).toBeLessThanOrEqual(T.TELE_PAIR_CAP);
+    expect(GATEWAYS.some((g) => [g.from, g.to].sort().join() === 'moon,park')).toBe(false);
   });
 
   it('every end has a twin that points back, in the place it leads to; both ways', () => {
@@ -90,6 +94,9 @@ describe('the gate table', () => {
       const a = e.arrive;
       expect(Math.hypot(a.x - e.x, a.z - e.z), e.id).toBeCloseTo(ARRIVE_IN, 9);
       // she stands east of a gate she walked through heading west, and faces west, toward it: rotation.y +pi/2 turns -z toward -x
+      // (the Park's Moon gate faces east: she lands west of it, facing east)
+      if (e.id === 'park-moon') { expect(e.faces).toBe('east'); expect(a.yaw).toBe(-Math.PI / 2); expect(a.x).toBeLessThan(e.x); continue; }
+      if (e.id === 'moon-park') { expect(e.faces).toBe('north'); expect(a.yaw).toBe(0); expect(a.z).toBeGreaterThan(e.z); continue; } // lands south of it, facing -z, toward it
       expect(e.faces).toBe('west');
       expect(a.yaw).toBe(Math.PI / 2);
       expect(a.x).toBeGreaterThan(e.x);
@@ -120,7 +127,8 @@ describe('the gate table', () => {
   });
 
   it('teleEnds is the table, safe for any place name', () => {
-    expect(teleEnds('park')).toEqual([PG]);
+    expect(teleEnds('park')).toEqual([PG, PM]);
+    expect(teleEnds('moon')).toEqual([MP]);
     expect(teleEnds('greenhouse')).toEqual([GP]);
     expect(teleEnds('seaside')).toEqual([]);
     expect(teleEnds('__proto__')).toEqual([]);
@@ -189,16 +197,16 @@ describe('a gate is live only behind its switch', () => {
     expect(liveTeleEnds('park', CATALOG)).toEqual([]);
     expect(liveTeleEnds('greenhouse', CATALOG)).toEqual([]);
     setTele(true);
-    expect(liveTeleEnds('park', CATALOG)).toEqual([PG]);
+    expect(liveTeleEnds('park', CATALOG)).toEqual([PG, PM]);
     expect(liveTeleEnds('greenhouse', CATALOG)).toEqual([GP]); // the Park has a catalog row
     setGreenhouse(false);
-    expect(liveTeleEnds('park', CATALOG)).toEqual([]); // the Greenhouse has none until its milestone 4
+    expect(liveTeleEnds('park', CATALOG)).toEqual([PM]); // the Greenhouse has none until its milestone 4 (the Moon's gate needs only ?gates=1)
     expect(liveTeleEnds('greenhouse', CATALOG)).toEqual([GP]);
     expect(liveTeleEnds('seaside', CATALOG)).toEqual([]);
   });
   it('either edition (the rows say all); a row that says canon would stand in the main edition only', () => {
-    expect(liveTeleEnds('park', CATALOG, { clan: false })).toEqual([PG]);
-    expect(liveTeleEnds('park', CATALOG, { clan: true })).toEqual([PG]);
+    expect(liveTeleEnds('park', CATALOG, { clan: false })).toEqual([PG, PM]);
+    expect(liveTeleEnds('park', CATALOG, { clan: true })).toEqual([PG, PM]);
   });
   it('teleNear finds the gate within reach, and the nearest one; nothing for a bad place or position', () => {
     expect(teleNear('park', PG.x + 1.5, PG.z, CATALOG)).toBe(PG);
@@ -229,7 +237,7 @@ describe('what a gate says (teleStatus)', () => {
     expect(teleStatus({ ...GP, needWalks: 1 }, state({ greenhouse: 1 }), CATALOG).kind).toBe('go');
   });
   it('room: refused with a kind line in an online room, either end', () => {
-    for (const e of ALL) expect(teleStatus(e, state(), CATALOG, { inRoom: true })).toMatchObject({ kind: 'room', lineId: 'tele.room' });
+    for (const e of ALL) expect(teleStatus(e, state({ park: 9 }), CATALOG, { inRoom: true })).toMatchObject({ kind: 'room', lineId: 'tele.room' });
   });
   it('coop: couch play stays out of the gate while the destination\'s (or the host\'s) COOP_READY row is false', () => {
     expect(COOP_READY.park).toBe(false);
