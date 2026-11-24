@@ -10,6 +10,7 @@
 import { BACK_ITEM_IDS } from './backitems.js';
 import { FOUND_BODY } from './foundbody.js';
 import { FOUND_COLLARS } from './foundneck.js';
+import { suitPiece, suitKit } from '../suithook.js';
 
 // True when `id` is one of `table`'s own entries (never one it inherits:
 // '__proto__' and 'toString' are no outfit).
@@ -25,7 +26,7 @@ const CHARMED = new Set(['bell', 'heart', 'tag', 'sparklecollar']);
 // 'shell' (a coat cut from the torso), 'cape' (a cloak on the back) or null
 // (anything else, or nothing).
 export function bodyKind(id) {
-  if (SHELLS.has(id)) return 'shell';
+  if (SHELLS.has(id) || (suitKit() && suitPiece(id)?.piece === 'body')) return 'shell';
   if (CAPES.has(id)) return 'cape';
   return hasEntry(FOUND_BODY, id) ? FOUND_BODY[id].kind : null;
 }
@@ -34,7 +35,7 @@ export function bodyKind(id) {
 // jetpack, the wings, and a found pack): the hood tucks under it and the fur
 // mane gives way to it.
 export function isPack(id) {
-  return BACK_ITEM_IDS.includes(id);
+  return BACK_ITEM_IDS.includes(id) || !!(suitKit() && suitPiece(id)?.piece === 'pack');
 }
 
 // True for a collar style with a charm hanging at the throat.

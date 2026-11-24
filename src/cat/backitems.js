@@ -142,7 +142,7 @@ function seatLift(geo, anchor, cover, bodyScale, gap) {
   return gap - clearance(geo.clone().applyMatrix4(frameOf(anchor)), cover, bodyScale);
 }
 // The anchor over `dir`, lifted so `geo` (item frame) rests `gap` off the surface.
-function seatedAnchor(geo, dir, cover, bodyScale, gap) {
+export function seatedAnchor(geo, dir, cover, bodyScale, gap) {
   const lift = seatLift(geo, backAnchor(dir, { bodyScale, cover }), cover, bodyScale, gap);
   return backAnchor(dir, { bodyScale, cover }, lift);
 }
