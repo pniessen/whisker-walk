@@ -707,6 +707,7 @@ describe('createProgression', () => {
       const donorStorage = fakeStorage();
       const donor = createProgression(donorStorage);
       donor.addPoints(321);
+      donor.setTutorialFirst('old'); // a cat with points has met the guide (a loaded cat never starts one: cat login M5.3)
       donor.setPetName('Whiskers');
       donor.equipCat('siamese');
 

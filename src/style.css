@@ -2155,6 +2155,10 @@ button.hb-next-line:hover, button.hb-next-line:focus-visible { background: rgba(
 .hb-next-pic { flex: none; font-size: 1.25rem; }
 .hb-next-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .hb-next-go { flex: none; font-size: 1.3rem; opacity: 0.8; }
+/* "I already have a cat": a quiet text link under Start, on a brand-new device only (cat login M5.2) */
+.hb-have-cat { align-self: center; min-height: 44px; padding: 8px 14px; background: transparent; border: 0; color: #fff6e2;
+  font: inherit; font-size: 15px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; opacity: .88; }
+.hb-have-cat:hover, .hb-have-cat:focus-visible { opacity: 1; }
 .hb-pick-line { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 15px; }
 .hb-pick-line .dr-home-emblem { margin: 0; }
 /* her clan's line is the door to change it: a full-width button, quiet until the gold Change */

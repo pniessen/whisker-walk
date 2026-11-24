@@ -1483,6 +1483,28 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     onOpenDen({ onWalkIn: () => { noteDenVisit(); onVisitDen?.(); } });
   }
 
+  // "I already have a cat" (cat login M5.2): a small link under Start on a device that has never been played
+  // and is not linked to a cloud save (a brand-new iPad on day one). It goes straight to the Load cat box.
+  // Drawing it asks nothing of the network. Gone once there is any progress, a link, or a guided walk begun.
+  function haveCatHtml(roomState) {
+    if (roomState || dressing?.ui?.wardrobe || !sync?.available) return '';
+    const s = progression.state;
+    try {
+      if (sync.getCode?.()) return '';
+      if (s.tutorial?.first !== null || s.points > 0 || s.lifetimePoints > 0 || Object.values(s.walks ?? {}).some((n) => n > 0)) return '';
+    } catch { return ''; }
+    return '<button id="btn-have-cat" class="hb-have-cat" type="button">I already have a cat</button>';
+  }
+  // Opens the My cat sheet with the Load cat box open and focused. The box is in the lazy chunk, so it
+  // is focused again when the chunk has drawn it.
+  function haveCat() {
+    cl.bringOpen = true; cl.error = null; cl.hopEntry = false;
+    setSheet('sync');
+    const focusBox = () => { try { root.querySelector('#sync-load-code')?.focus?.(); } catch { /* a nicety */ } };
+    focusBox();
+    loadCatlogin().then(() => { if (openSheet === 'sync') focusBox(); });
+  }
+
   // The cat Start walks, named while a locked cat or a try-on is on show.
   function startAs() {
     try { return dressing?.walkingAs?.() ?? null; } catch { return null; }
@@ -1849,7 +1871,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (room.deferRender?.(root)) return; // she is typing her cat's name: runs on blur
     const f = room.captureFocus(root);
     root.innerHTML = room.html({
-      headerHtml, startHtml: nextLineHtml(s, roomState) + startRowHtml(roomState), extrasHtml: duskBadge, rankTitle: rank.title,
+      headerHtml, startHtml: nextLineHtml(s, roomState) + startRowHtml(roomState) + haveCatHtml(roomState), extrasHtml: duskBadge, rankTitle: rank.title,
     });
     room.afterRender(root);
     // The first pick (or the line's own tap) changed today's walk: its card
@@ -2063,6 +2085,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     }
     if (e.target.closest?.('#btn-play-together')) {
       setSheet('together');
+      return;
+    }
+    if (e.target.closest?.('#btn-have-cat')) {
+      haveCat();
       return;
     }
     if (e.target.closest?.('#btn-visit-den') || e.target.closest?.('#btn-my-den')) {
