@@ -90,12 +90,13 @@ function fakeOverlay() {
 //   blockList          the ids this device has hidden (default: none)
 //   isTouch            a touch device (default: false); player, homebase: the
 //                      walk's player and home screen (default: no-ops)
+//   settingsValues     settings the walk reads besides muted, by key (default: none)
 export function walkHarness({
   save = () => {}, renderer = null, pendingRoom = null,
   onWalkedOn = () => {}, onWalkEnded = () => {},
   areas: loader = areas, isOnline = () => true,
   pid = 'me', applyRemoteEvent = () => {}, blockList = new Set(),
-  isTouch = false, player = anything(), homebase = anything(),
+  isTouch = false, player = anything(), homebase = anything(), settingsValues = {},
 } = {}) {
   let session = null;
   let room = pendingRoom;
@@ -111,7 +112,7 @@ export function walkHarness({
     MP: false, pid, coarse: false, envMap, overlay, blockList,
     renderer, camera, composerRig: anything(),
     player, progression,
-    settings: { get: (k) => (k === 'muted' ? true : null) },
+    settings: { get: (k) => (k === 'muted' ? true : Object.hasOwn(settingsValues, k) ? settingsValues[k] : null) },
     hud: anything({ mapHost: fakeEl(), toast: (t) => toasts.push(t) }),
     audio: anything(), music: anything(), log: anything(), touchUI: anything(),
     catVoice: () => {},

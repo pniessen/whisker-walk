@@ -7,6 +7,7 @@ import { marketOn, marketResumable } from './marketflag.js';
 import { housePrefetch, resumableHouseIds } from './houseflag.js';
 import { lighthouseOn } from './lighthouseflag.js';
 import { greenhouseOn } from './greenhouseflag.js';
+import { teleLoad } from './telehook.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { createProgression, rankFor, CATALOG } from './progression.js';
 import { colonyNews, tradeEffect } from './colony.js';
@@ -699,6 +700,7 @@ function init() {
   if (marketOn()) areas.prefetch('market');
   if (lighthouseOn()) areas.prefetch('lighthouse');
   if (greenhouseOn()) areas.prefetch('greenhouse');
+  teleLoad(effectiveArea(progression.state, CATALOG)); // ?gates=1 only: the teleport gates' pieces (src/telehook.js)
   if (housePrefetch(progression.state)) areas.prefetch('house');
   // Rosa's one-time farewell goes up before the news (showNews yields while it is up).
   const showFarewell = () => {

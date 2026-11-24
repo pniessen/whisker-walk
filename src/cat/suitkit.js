@@ -17,9 +17,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
-import { SKULL, PAW_HALF, TORSO } from './torso.js';
-import { backAnchor, placeOnBack, seatedAnchor } from './backitems.js';
-import { registerSuitKit } from '../suithook.js';
+// The cat's own pieces come through model.js (it re-exports them) so the kit adds no shared chunk to start-up.
+import { SKULL, PAW_HALF, TORSO, backAnchor, placeOnBack, seatedAnchor, registerSuitKit } from './model.js';
 
 export const SUIT_PALETTE = Object.freeze({
   space: Object.freeze({

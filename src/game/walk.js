@@ -24,12 +24,13 @@ import { isIndoor } from '../indoor.js';
 import { marketOn } from '../marketflag.js';
 import { lighthouseOn } from '../lighthouseflag.js';
 import { greenhouseOn } from '../greenhouseflag.js';
+import { tele } from '../telehook.js';
 import { birthdayDue, BDAY_AREA, BDAY_START, BRIDGE_ISLAND_END, speakerFor, birthdayCatName, noteCandlesBlown, bdayCountsWalk, saveBirthdayPhoto, BDAY_PHOTO_KEY } from '../birthday.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
 import { applyDusk, duskEnv, addCollarGlow, tintDuskLawn, createLampPools } from '../render/dusk.js';
-import { buildCat, CAT_LOOK_Y, catDims, coatColor } from '../cat/model.js';
+import { buildCat, CAT_LOOK_Y, catDims, coatColor, effectiveWear } from '../cat/model.js';
 import { setCatScars } from '../cat/scarmesh.js';
 import { disposeHenRig } from '../cat/henfight.js';
 import { setCatRimLight } from '../cat/rimlight.js';
@@ -699,7 +700,7 @@ export function createWalkLifecycle({
   // wins over the arrival's yaw); the spawn still seeds the race pad, the
   // kitten, the wanderer and the guided walk, and no stream is drawn from
   // differently.
-  function startWalk({ duskMode = false, roomSeed, areaOverride, resume = null, arrive = null, birthday = false } = {}) {
+  function startWalk({ duskMode = false, roomSeed, areaOverride, resume = null, arrive = null, birthday = false, suitUp = false } = {}) {
     walksStarted += 1;
     // The place's pack (F6), before anything touches the save: a start whose
     // place has not come is a mistake in the caller (every start goes
@@ -872,6 +873,9 @@ export function createWalkLifecycle({
       ? addGatewayDressing(scene, areaId, { ground, ends: gateEnds, isOpen: (e) => gateStatus(e, state, CATALOG).kind === 'go',
         nameFor: (e) => placeName(e.to, state.edition, CATALOG) }) // a gate's name board (Rooftops step 4)
       : NO_GATES;
+    // The teleport gates (?gates=1, src/telehook.js): either edition, beside the map's gates, on the same terms (drawn here,
+    // never by the builder); their pillars join the live collider list below.
+    const teleColliders = !isDen && tele.kit ? tele.kit.draw(scene, areaId, state, ground, !!settings.get('reducedMotion')) : [];
     // The fill light, added here rather than beside the sun because its ground
     // term is the AREA'S OWN dominant ground colour and only areaData knows it:
     // a green bounce under the park's lawn, sand at Seaside, wet grey stone at
@@ -938,7 +942,10 @@ export function createWalkLifecycle({
     // Fight moves and scars: the key her cat's scars are filed under (null for
     // Hagrid, who never scars); she walks wearing them.
     const myScarKey = scarKey(state);
-    const cat = buildCat(active.breed, {
+    // A place beyond a teleport gate draws every cat in the suit it calls for (src/teleport.js suitFor: null elsewhere, and
+    // while the suit kit is not here); what she owns and wears is never touched, only what is drawn.
+    const suitLook = tele.kit?.suitFor(areaId) ?? null;
+    const cat = buildCat(active.breed, effectiveWear({
       collar: state.equipped.collar,
       head: state.equipped.head,
       face: state.equipped.face,
@@ -946,7 +953,8 @@ export function createWalkLifecycle({
       body: state.equipped.body,
       back: state.equipped.back,
       feet: state.equipped.feet,
-    }, { look: active.look, scars: progression.catScars(myScarKey) });
+    }, areaId, suitLook, { hen: active.breed === 'hagrid' }), { look: active.look, scars: progression.catScars(myScarKey) });
+    if (suitLook && suitUp) tele.kit.suitUp(cat, { calm: reducedMotion }); // the first arrival: the pieces pop on, one by one
     // her own custom cat wears its name on her own screen, like a co-walker
     attachOwnTag(cat, state);
     cat.position.set(areaData.spawn.x, ground.y(areaData.spawn.x, areaData.spawn.z), areaData.spawn.z);
@@ -1428,7 +1436,7 @@ export function createWalkLifecycle({
     const campMarker = !isDen && campAt && isClanEdition(state)
       ? { x: campAt.cx, z: campAt.cz, color: CLAN_COLOURS[areaId] }
       : null;
-    const remotes = createRemoteCats(scene, { reducedMotion, ground });
+    const remotes = createRemoteCats(scene, { reducedMotion, ground, suitLook });
 
     // v18 Task 3.2 Gift Paws — the gifts this player has stashed at scenic
     // spots on earlier walks, rendered where they were left. Read off the
@@ -1586,6 +1594,7 @@ export function createWalkLifecycle({
     // circles off it again.
     for (const c of gates.colliders) areaData.colliders.push({ ...c });
     gates.attach(areaData.colliders);
+    for (const c of teleColliders) areaData.colliders.push({ ...c });
     // v21 3b Task 14 — the cat flaps in garden gates and the gaps in hedges. A
     // cat that walks through one swings it the way it went, and it keeps a
     // gentle sway for the rest of the walk. Its frame is solid and its opening
@@ -3195,7 +3204,9 @@ export function createWalkLifecycle({
   // (gatecross.js walkOnMove: a walk-on never buys).
   function walkOn({ via, ledBy = null, guest = false } = {}) {
     const s = getSession();
-    const plan = typeof via === 'string' ? viaPlan(via) : null;
+    // A teleport gate (?gates=1, src/teleport.js) is planned by its own table; the map's gates and posts by the map's.
+    const tp = typeof via === 'string' && tele.kit ? tele.kit.walkOn(via, progression.state, !!settings.get('reducedMotion')) : null;
+    const plan = tp?.plan ?? (typeof via === 'string' ? viaPlan(via) : null);
     if (!s || s.walkingOn || !plan || plan.from !== s.areaId) return Promise.resolve('refused');
     // Border posts stand in Clan Edition only (Task 10): Legacy has none of
     // its own. A guest is never turned away for her edition: a Legacy guest
@@ -3204,11 +3215,13 @@ export function createWalkLifecycle({
     const post = postById(via);
     if (post && !guest && !isClanEdition(progression.state)) return Promise.resolve('refused');
     const { to, arrive } = plan;
-    const twin = post ? postArrival(via) : (endById(via)?.end.twin ?? null);
+    const twin = tp ? tp.twin : post ? postArrival(via) : (endById(via)?.end.twin ?? null);
     const keepRoom = !!s.net;
     const roomSeed = keepRoom ? nextRoomSeed(s.roomSeed, via) : undefined;
     const duskMode = s.duskMode;
-    const momentHtml = gateMomentHtml({ name: placeName(to, progression.state.edition, CATALOG), ledBy });
+    // A teleport gate's moment is the swirl (1.2 s; a 0.4 s fade under reduced motion), else "Off to ...!" (1.2 s).
+    const momentHtml = tp ? tp.html : gateMomentHtml({ name: placeName(to, progression.state.edition, CATALOG), ledBy });
+    const momentMs = tp ? tp.ms : GATE_MOMENT_MS;
     const shownAt = Date.now();
     const showMoment = () => {
       overlay.innerHTML = momentHtml;
@@ -3217,6 +3230,8 @@ export function createWalkLifecycle({
     const go = () => {
       onWalkEnded();
       const lines = arrivalLines(bankWalk(s));
+      if (tp?.suitLine) lines.push(tp.suitLine);
+      if (tp) lines.push(tp.line);
       const move = walkOnMove(progression.state, CATALOG, to, { guest });
       if (move === 'set') progression.setArea(to);
       else if (move === 'take' && progression.buy('areas', to)) progression.setArea(to);
@@ -3226,7 +3241,7 @@ export function createWalkLifecycle({
       setTimeout(() => {
         if (getSession() || walksStarted !== startsAtMoment) return;
         try {
-          startWalk({ duskMode, roomSeed, areaOverride: progression.state.area === to ? undefined : to, arrive });
+          startWalk({ duskMode, roomSeed, areaOverride: progression.state.area === to ? undefined : to, arrive, suitUp: !!tp?.montage });
         } catch (err) {
           cannotStart(err);
           return;
@@ -3234,6 +3249,7 @@ export function createWalkLifecycle({
         failures = 0;
         const next = getSession();
         if (next) next.arrivedVia = twin;
+        tp?.opened(); // the swirl opens on the arrival
         // A touch walk has begun at once (its engage toasted its start
         // lines): the lines are toasted now. A desktop walk waits on its
         // Ready? card, which covers toasts, so they wait with its start
@@ -3242,16 +3258,19 @@ export function createWalkLifecycle({
           next.startLines = [...(Array.isArray(next.startLines) ? next.startLines : []), ...lines];
           onWalkedOn([]);
         } else onWalkedOn(lines);
-      }, Math.max(0, GATE_MOMENT_MS - (Date.now() - shownAt)));
+      }, Math.max(0, momentMs - (Date.now() - shownAt)));
     };
-    if (areas.loaded(to)) {
+    if (areas.loaded(to) && (!tp || tp.kitReady())) {
       go();
       return Promise.resolve('walked');
     }
     s.walkingOn = true;
     showMoment();
+    // The place is slow: the swirl keeps turning and the line says so.
+    if (tp) setTimeout(() => { if (getSession() === s && s.walkingOn) tp.slow(overlay); }, tp.slowMs);
     releaseControl();
-    return areas.ensure(to).then(
+    // The suit kit comes with the place; if it will not come she still goes, in her own clothes (no fail state).
+    return Promise.all([areas.ensure(to), tp ? tp.loadKit() : null]).then(
       () => {
         if (getSession() !== s || !s.walkingOn) return 'dropped';
         s.walkingOn = false;

@@ -20,6 +20,9 @@ import {
 } from '../src/wordset.js';
 import { phrase, hasPhrase, PHRASE_IDS, LATER_PHRASE_IDS } from '../src/clanphrases.js';
 import { WORDS as TUTORIAL, line as tutorialLine, hasLine } from '../src/tutorialwords.js';
+import { addPhrases } from '../src/clanphrases.js';
+import { LINES as TELE_LINES } from '../src/teleui.js';
+addPhrases(TELE_LINES); // the teleport gates' lazy words: the everyday set overrides three of them (src/teleui.js adds its own on import)
 import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES, KITTYPET_NAMES, isKittypetName } from '../src/straynames.js';
 import { clanNameOf, clanRankFor, colonyRankFor, clanTitleFor, candidateStarNames, prefixFor } from '../src/clannames.js';
 import { clanName, ownClanTitle, clanTitleOfWord, clanWordOfTitle, patrolClanFor, TRUCE_AREAS, HOMES } from '../src/clanhomes.js';

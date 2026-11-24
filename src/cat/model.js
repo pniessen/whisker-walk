@@ -185,6 +185,11 @@ const SOCK_COLORS = [0xf27ab0, 0x7ec9b8, 0xf2c14e, 0xf5f5f5]; // mismatched on p
 // The cape's cloth lives in cape.js (a leaf module, so backitems.js can read
 // it without importing this file); re-exported for existing imports.
 export { CAPE, CAPE_SIT, CAPE_TIE, capePoint, capeGeometry };
+// For the lazy suit kit (src/cat/suitkit.js): it takes the cat's own pieces from here, so the build keeps them in this chunk
+// and does not split them out for the kit to share (teleport gates M2: that split cost the start-up download 1.7 kB).
+export { SKULL, PAW_HALF, TORSO } from './torso.js';
+export { backAnchor, placeOnBack, seatedAnchor } from './backitems.js';
+export { registerSuitKit, suitKit, effectiveWear } from '../suithook.js';
 
 const mat = (color) => litMaterial(color);
 

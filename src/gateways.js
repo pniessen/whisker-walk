@@ -55,7 +55,8 @@ export const GATE_PREFETCH_REACH = 12;
 export const GATE_HALF = 1.4; // m, centre to each gate post along the edge
 export const GATE_POST_R = 0.15;
 export const ARRIVE_IN = GATE_REACH + 2;
-export const GATE_LOOKS = Object.freeze(['signpost', 'fairgate', 'farmgate', 'promenade', 'alleydoor', 'none']);
+// 'stonering', 'archway' and 'hollow' are the teleport gates' looks (src/teleport.js, src/world/telegate.js).
+export const GATE_LOOKS = Object.freeze(['signpost', 'fairgate', 'farmgate', 'promenade', 'alleydoor', 'none', 'stonering', 'archway', 'hollow']);
 export const PLACEMENTS = Object.freeze(['edge', 'inside']);
 export const LANE_LOOKS = Object.freeze(['gravel', 'paving']);
 // The cat's rotation.y facing into the area (rotation 0 faces -z).
@@ -68,7 +69,9 @@ const THROUGH = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
 
 const own = (o, k) => o != null && Object.prototype.hasOwnProperty.call(o, k);
 
-export function gatewayEnd({ id, gateway, x, z, faces, to, twin, look, placement = 'edge', lane = null, laneLook = 'gravel', arrive = null, wings = null, sign = false }) {
+// Any other key a row names is kept as given: a teleport gate's own fields (kind, suit, wake, edition, needWalks:
+// src/teleport.js teleRow, which defaults and checks them), so no map row gained a key.
+export function gatewayEnd({ id, gateway, x, z, faces, to, twin, look, placement = 'edge', lane = null, laneLook = 'gravel', arrive = null, wings = null, sign = false, ...more }) {
   if (!FACINGS.includes(faces)) throw new Error(`gateway end ${id}: faces "${faces}" is not one of ${FACINGS.join(', ')}`);
   if (!GATE_LOOKS.includes(look)) throw new Error(`gateway end ${id}: look "${look}" is not one of ${GATE_LOOKS.join(', ')}`);
   if (!PLACEMENTS.includes(placement)) throw new Error(`gateway end ${id}: placement "${placement}" is not one of ${PLACEMENTS.join(', ')}`);
@@ -84,6 +87,7 @@ export function gatewayEnd({ id, gateway, x, z, faces, to, twin, look, placement
     arrive: arrive ? Object.freeze({ ...arrive }) : null,
     wings: wings ? Object.freeze([...wings]) : null,
     sign: sign === true,
+    ...more,
   });
 }
 const end = gatewayEnd;

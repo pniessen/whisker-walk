@@ -38,7 +38,9 @@ describe('gateways', () => {
   it('the constants, frozen', () => {
     expect([GATE_REACH, GATE_HALF, GATE_POST_R]).toEqual([1.6, 1.4, 0.15]);
     expect(ARRIVE_IN).toBeCloseTo(3.6, 12);
-    expect(GATE_LOOKS).toEqual(['signpost', 'fairgate', 'farmgate', 'promenade', 'alleydoor', 'none']);
+    // the last three are the teleport gates' looks (test/teleport.test.js); no map row uses them
+    expect(GATE_LOOKS).toEqual(['signpost', 'fairgate', 'farmgate', 'promenade', 'alleydoor', 'none', 'stonering', 'archway', 'hollow']);
+    expect(Object.values(GATEWAY_ENDS).flat().filter((e) => ['stonering', 'archway', 'hollow'].includes(e.look))).toEqual([]);
     expect(PLACEMENTS).toEqual(['edge', 'inside']);
     expect(INWARD_YAW).toEqual({ north: Math.PI, south: 0, east: Math.PI / 2, west: -Math.PI / 2 });
     expect(Object.keys(GATEWAY_ENDS)).toEqual(['neighborhood', 'park', 'fair', 'farm', 'docks', 'seaside', 'lighthouse', 'roofs', 'market', 'house']);

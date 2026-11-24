@@ -126,10 +126,10 @@ export function createCrossing({
   // says so ("Your trip ends here"); anywhere else she walks on. confirmGate
   // reads s.crossing.endsHere, never the roster again, so the card and what
   // happens always agree.
-  function showCrossing(s, { to, name, via, kind }) {
+  function showCrossing(s, { to, name, via, kind, card = null }) {
     const endsHere = !!s.net && !roomWalksOn(getRoster());
     s.crossing = { to, name, via, kind, endsHere };
-    overlay.innerHTML = (endsHere ? crossCardHtml : gateCardHtml)({ name, extras: extrasFor(s, { kind, endsHere }) });
+    overlay.innerHTML = card ?? (endsHere ? crossCardHtml : gateCardHtml)({ name, extras: extrasFor(s, { kind, endsHere }) });
     releaseControl();
   }
 
@@ -149,7 +149,8 @@ export function createCrossing({
     if (!mayAsk(s)) return;
     const { to, name } = data.status;
     prefetchArea(to);
-    showCrossing(s, { to, name, via: data.end.id, kind: 'gate' });
+    // A teleport gate's question is its own card (src/teleui.js).
+    showCrossing(s, { to, name, via: data.end.id, kind: 'gate', card: data.card?.() });
   }
 
   // A gate to a place she can open now: the usual "Get it?" card first.
