@@ -31,13 +31,13 @@ export function setup(host) {
 // A teleport gate's row: gatewayEnd's, plus kind 'tele' and these, defaulted so a row names only what it needs:
 //   suit      null | 'space' | 'dive': the look the place beyond draws her in (milestone 2; null until then)
 //   wake      true: her first touch is a find (milestone 5)
-//   edition   'clan' (the default) | 'all': 'all' stands in Legacy Edition too
+//   edition   'canon' (the default: the main edition only) | 'all' (both editions)
 //   needWalks host-place walks before it is awake (0: always)
 const LOOKS = ['stonering', 'archway', 'hollow'];
-export function teleRow({ suit = null, wake = false, edition = 'clan', needWalks = 0, ...row }) {
+export function teleRow({ suit = null, wake = false, edition = 'canon', needWalks = 0, ...row }) {
   const id = row.id;
   if (![null, 'space', 'dive'].includes(suit)) throw new Error(`tele gate ${id}: suit "${suit}" is not space, dive or null`);
-  if (edition !== 'clan' && edition !== 'all') throw new Error(`tele gate ${id}: edition "${edition}" is not clan or all`);
+  if (edition !== 'canon' && edition !== 'all') throw new Error(`tele gate ${id}: edition "${edition}" is not canon or all`);
   if (!Number.isInteger(needWalks) || needWalks < 0) throw new Error(`tele gate ${id}: needWalks must be a whole number, 0 or more`);
   if (!LOOKS.includes(row.look)) throw new Error(`tele gate ${id}: look "${row.look}" is not one of ${LOOKS.join(', ')}`);
   if (row.placement !== 'inside' || !row.arrive) throw new Error(`tele gate ${id}: stands inside a place, with an explicit arrive`);
@@ -74,7 +74,7 @@ export function placeLive(to, catalog) {
 export const teleName = (to, edition, catalog) => H.placeName(to, edition, catalog) || NAMES[to] || '';
 
 // The gates this walk draws and offers: none without ?gates=1; a row whose place beyond is not built is dormant for
-// good (as liveEndsFor); a 'clan' row only in Clan Edition, an 'all' row in both.
+// good (as liveEndsFor); a 'canon' row only in the main edition, an 'all' row in both.
 export function liveTeleEnds(areaId, catalog, { clan = true } = {}) {
   if (!H.teleOn()) return [];
   return teleEnds(areaId).filter((e) => placeLive(e.to, catalog) && (e.edition === 'all' || clan));

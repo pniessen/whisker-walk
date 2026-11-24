@@ -98,7 +98,7 @@ describe('the gate table', () => {
 
   it('a tele row is checked and defaulted by teleRow, and every map row is as it was', () => {
     const ok = { id: 'x', gateway: 'g', x: 0, z: 0, faces: 'west', to: 'park', twin: 'y', look: 'stonering', placement: 'inside', arrive: { x: 3.6, z: 0, yaw: 0 } };
-    expect(teleRow(ok)).toMatchObject({ kind: 'tele', suit: null, wake: false, edition: 'clan', needWalks: 0 });
+    expect(teleRow(ok)).toMatchObject({ kind: 'tele', suit: null, wake: false, edition: 'canon', needWalks: 0 });
     expect(teleRow({ ...ok, suit: 'space', wake: true, edition: 'all', needWalks: 2 })).toMatchObject({ suit: 'space', wake: true, edition: 'all', needWalks: 2 });
     for (const bad of [
       { suit: 'moon' }, { edition: 'both' }, { needWalks: -1 }, { needWalks: 1.5 }, { look: 'signpost' }, { look: 'arch' },
@@ -196,7 +196,7 @@ describe('a gate is live only behind its switch', () => {
     expect(liveTeleEnds('greenhouse', CATALOG)).toEqual([GP]);
     expect(liveTeleEnds('seaside', CATALOG)).toEqual([]);
   });
-  it('either edition (the rows say all); a row that says clan would stand in Clan Edition only', () => {
+  it('either edition (the rows say all); a row that says canon would stand in the main edition only', () => {
     expect(liveTeleEnds('park', CATALOG, { clan: false })).toEqual([PG]);
     expect(liveTeleEnds('park', CATALOG, { clan: true })).toEqual([PG]);
   });
