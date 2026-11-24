@@ -45,6 +45,11 @@ export const LINES = Object.freeze({
   'moon.cape': 'Starlight Cape, in your wardrobe.',
   'moon.job.glove': 'Earth lost a glove. Can you find it?',
   'moon.rover.in': 'Hop in',
+  'moon.rover.prompt': 'E — hop in Dot',
+  'moon.rover.out': 'E — hop out',
+  'moon.rover.honk': 'E — honk the horn',
+  'moon.rover.hint': 'Dot the rover waits at the depot. Hop in and follow the lights!',
+  'moon.rover.drive': 'Push to steer. Meow to honk!',
   'moon.home': 'Take the gate home when you’re ready.',
   // milestone 2: Pip, the power cells, the Core, the board, the first three finds (the same in both sets)
   'moon.pip.prompt': 'E — wake Pip',

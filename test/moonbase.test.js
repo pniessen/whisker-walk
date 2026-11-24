@@ -167,9 +167,11 @@ describe('the Ridge cell: a ledge-hop chain only the Moon\'s doubled climb takes
   });
 });
 
-describe('the Rover cell (a placeholder until milestone 3)', () => {
-  it('is marked as one in the plan and stands where the spec puts the Far Beacon, 70 m from the landing', () => {
-    expect(P.ROVER_CELL.placeholder).toBe(true);
+describe('the Rover cell (milestone 3: the real Far Beacon; the placeholder is gone)', () => {
+  it('is the real thing: no placeholder mark, and it stands where the spec puts the Far Beacon, 70 m from the landing', () => {
+    expect(P.ROVER_CELL.placeholder).toBeUndefined();
+    expect(P.FAR_BEACON.x).toBe(P.ROVER_CELL.x);
+    expect(P.FAR_BEACON.z).toBe(P.ROVER_CELL.z);
     expect(P.ROVER_CELL.x).toBe(46);
     expect(P.ROVER_CELL.z).toBe(0);
     const d = Math.hypot(P.ROVER_CELL.x - P.MOON_SPAWN.x, P.ROVER_CELL.z - P.MOON_SPAWN.z);

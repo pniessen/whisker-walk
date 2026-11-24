@@ -140,7 +140,9 @@ describe('Pip', () => {
   });
   it('is not a collider (she walks through him; he can never block a route) and adds none to the area', () => {
     const r = rig();
-    expect(r.area.colliders.length).toBe(P.MOON_COLLIDERS.length);
+    // (milestone 3: Dot parked at the depot is the one collider the life adds; Pip adds none)
+    expect(r.area.colliders.length).toBe(P.MOON_COLLIDERS.length + 1);
+    expect(r.area.colliders.filter((c) => c.dot).length).toBe(1);
     expect(r.life.base.pip.group.userData.collider).toBeUndefined();
     r.dispose();
   });

@@ -268,7 +268,7 @@ describe('the pack', () => {
 describe('the words', () => {
   const IDS = Object.keys(LINES);
   it('every lazy line is in the table once the file is loaded, none is in the start-up tables, and none is empty', () => {
-    expect(IDS.length).toBe(32); // the spec's 15 samples and milestone 2's 17 (Pip, the cells, the Core, the board, the first three finds)
+    expect(IDS.length).toBe(37); // the spec's 15 samples and milestone 2's 17 (Pip, the cells, the Core, the board, the first three finds)
     for (const id of IDS) {
       expect(hasPhrase(id), id).toBe(true);
       expect(PHRASE_IDS.includes(id) || LATER_PHRASE_IDS.includes(id), `${id} is in the start-up download`).toBe(false);

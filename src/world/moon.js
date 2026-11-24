@@ -17,6 +17,7 @@ import { installSuitKit } from '../cat/suitkit.js';
 import * as P from './moonplan.js';
 import * as K from './moonparts.js';
 import { drawBase } from './moonbase.js';
+import { drawRoverCourse } from './moonroverparts.js';
 import { createMoonLife } from './moonlife.js';
 import './moonwords.js';
 
@@ -44,7 +45,8 @@ export function build(scene, { water = {} } = {}) {
     K.drawFlag(kit, M);
     K.drawLights(kit, M);
     K.drawGateRing(kit, M);
-    drawBase(kit, M);
+    const B = drawBase(kit, M);
+    drawRoverCourse(kit, M, B); // the depot, the track's lit posts and the Far Beacon (milestone 3; Dot herself is the walk's)
     const place = new THREE.Group();
     place.name = 'moonPlace';
     for (const m of kit.meshes()) place.add(m);

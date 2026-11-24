@@ -115,6 +115,7 @@ function keepClear(x, z, extra = 0) {
   for (const [kx, kz, kr] of P.ROCK_KEEP_OUT) if (Math.hypot(x - kx, z - kz) < kr + extra) return false;
   for (const cr of P.CRATERS) if (Math.hypot(x - cr.x, z - cr.z) < cr.r * 0.55) return false; // no rocks on a bowl's floor
   for (const b of P.BOULDERS) if (Math.hypot(x - b.x, z - b.z) < b.r + extra + 0.5) return false;
+  if (P.trackDistance(x, z) < 1.8 + extra) return false; // Dot's track of lights is clear (milestone 3)
   if (Math.abs(x) > P.MOON_BOUNDS.maxX - 2 || z < P.MOON_BOUNDS.minZ + 2 || z > P.MOON_BOUNDS.maxZ - 2) return false;
   return true;
 }

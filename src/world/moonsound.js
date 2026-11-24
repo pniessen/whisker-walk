@@ -9,6 +9,7 @@
 export const BEEP = Object.freeze({ gain: 0.045, notes: Object.freeze([Object.freeze({ at: 0, f: 880, dur: 0.1 }), Object.freeze({ at: 0.13, f: 1320, dur: 0.14 })]) });
 export const CHIRP = Object.freeze({ gain: 0.04, f: 600, to: 1500, dur: 0.22 });
 export const CLICK = Object.freeze({ gain: 0.05, f: 300, to: 900, dur: 0.12, ping: 1568 });
+export const HONK = Object.freeze({ gain: 0.05, notes: Object.freeze([Object.freeze({ at: 0, f: 330, dur: 0.16 }), Object.freeze({ at: 0.2, f: 262, dur: 0.22 })]) });
 export const HUM = Object.freeze({ gain: 0.05, dur: 2.8, notes: Object.freeze([110, 165, 220, 330]) });
 
 export function createMoonSound(audio) {
@@ -49,6 +50,7 @@ export function createMoonSound(audio) {
     beep: () => play((c, m, now) => { for (const n of BEEP.notes) voice(c, m, { type: 'square', ...n, gain: BEEP.gain, now }); }),
     chirp: () => play((c, m, now) => voice(c, m, { type: 'triangle', ...CHIRP, now })),
     click: () => play((c, m, now) => { voice(c, m, { type: 'triangle', f: CLICK.f, to: CLICK.to, dur: CLICK.dur, gain: CLICK.gain, now }); voice(c, m, { f: CLICK.ping, at: 0.1, dur: 0.5, gain: CLICK.gain * 0.5, now }); }),
+    honk: () => play((c, m, now) => { for (const n of HONK.notes) voice(c, m, { type: 'square', ...n, gain: HONK.gain, now }); }),
     hum: () => play((c, m, now) => { HUM.notes.forEach((f, i) => voice(c, m, { type: 'sine', f, to: f * 1.01, at: i * 0.35, dur: HUM.dur - i * 0.35, gain: HUM.gain / (1 + i * 0.4), attack: 0.4, now })); }),
     dispose() {
       dead = true;

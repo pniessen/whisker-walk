@@ -18,7 +18,7 @@ const canvasOf = (w, h) => {
   }
 };
 
-export const BOARD_ICONS = Object.freeze(['🤖', '🔋', '🔋', '💡']);
+export const BOARD_ICONS = Object.freeze(['🤖', '🔋', '🚙', '💡']);
 const PANEL = Object.freeze(['#3fb58f', '#2fb8c8', '#f0a43a', '#f3d36b']);
 
 // The Mission Board's face: four big pictures in a row (Pip, the Ridge cell, the Rover cell, the base), each dim until done and bright with

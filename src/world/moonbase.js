@@ -1,7 +1,7 @@
 // =============================================================================
 // THE MOON: THE BASE'S DRAWING KIT (milestone 2). The Moonbase Dome (a glass dome on a white ring, an airlock tunnel with a door that
 // slides apart for show, the Core with its two sockets, the Mission Board, six glowing planters), the Old Dish, Skip Ridge's two
-// rock pillars and the Far Beacon's stand-in post. Gathered into the same material buckets as milestone 1's kit (one merged mesh
+// rock pillars (the Far Beacon and the rover's course are milestone 3's: world/moonroverparts.js). Gathered into the same material buckets as milestone 1's kit (one merged mesh
 // per material); only what moves or changes is a mesh of its own: the two door leaves, the Core's glow, the dome's lamps, the glass,
 // the board's face. No real lights, no canvas (the life puts the board's picture on), no random number: every number is moonplan.js's.
 // =============================================================================
@@ -141,15 +141,6 @@ export function drawSkip(kit, M, B) {
   kit.put('coreglow', B.coreglow, paint(new THREE.RingGeometry(0.34, 0.46, 16).rotateX(-Math.PI / 2).translate(top.x, P.moonY(top.x, top.z) + top.y + 0.18, top.z), BASE_COL.teal), { noCast: true });
 }
 
-// The Far Beacon's stand-in (PLACEHOLDER, milestone 3 replaces it): a striped post with an amber lamp and the Rover cell's plinth.
-export function drawBeaconPlaceholder(kit, M, B) {
-  const { x, z } = P.ROVER_CELL;
-  kit.put('paint', M.paint, paint(at(cyl(0.5, 0.58, 0.5, 10), x, z, 0.25), BASE_COL.hazard));
-  kit.put('paint', M.paint, paint(at(cyl(0.38, 0.38, 0.06, 10), x, z, 0.52), BASE_COL.core), { noCast: true });
-  kit.put('paint', M.paint, paint(at(cyl(0.07, 0.09, 3.4, 6), x + 1.1, z, 1.7), BASE_COL.hazard));
-  kit.put('beacon', B.beacon, paint(at(new THREE.SphereGeometry(0.22, 8, 6), x + 1.1, z, 3.55), BASE_COL.amber), { noCast: true });
-}
-
 export function drawBase(kit, M) {
   const B = baseMaterials();
   drawDome(kit, M, B);
@@ -159,7 +150,6 @@ export function drawBase(kit, M) {
   drawPlanters(kit, M, B);
   drawDish(kit, M, B);
   drawSkip(kit, M, B);
-  drawBeaconPlaceholder(kit, M, B);
   return B;
 }
 

@@ -492,7 +492,10 @@ const AREAS = [
   // Milestone 2 (the base: the dome, the airlock and its two door leaves, the Core, the Mission Board, the six planters, the Old Dish, Skip Ridge's
   // two pillars, the Far Beacon's stand-in; Pip, the cells and the ring are the walk's own, built after this count) measured 20 / 8 / 11,986 built
   // (18,726 counting every rock instance, test/moonplace.test.js), +12%: 23 / 9 / 13,500. The plan's row A (end of milestone 4) is 100 / 56 / 27,500.
-  ['moon', buildMoon, 23, 9, 13500],
+  // Milestone 3 (Dot's course: the Rover Depot, 36 lit track posts, the Far Beacon and the Rover cell's plinth, merged into the same buckets plus one
+  // more for the lit lamps; Dot herself, her ring and her dust are the walk's own, made after this count, like Pip) measured 21 / 8 / 13,274 built
+  // (20,014 counting every rock instance, test/moonplace.test.js), +12%: 24 / 9 / 14,900. The plan's row A (end of milestone 4) is 100 / 56 / 27,500.
+  ['moon', buildMoon, 24, 9, 14900],
 ];
 
 // ---------------------------------------------------------------------------

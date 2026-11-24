@@ -75,12 +75,41 @@ export const SKIP = Object.freeze([
 ]);
 // (the cell lies a step to the east of the pillar's middle, where she lands, so she is not standing inside it; the perch pick-up window is 1.0 m)
 export const RIDGE_CELL = Object.freeze({ x: SKIP[1].x + 0.85, z: SKIP[1].z, y: SKIP[1].y });
-// PLACEHOLDER (milestone 3 replaces it): the Rover cell lies at the Far Beacon, 70 m from the landing on the east end of the track.
-// Until Dot is built she walks there (about 20 s) and picks it up like the Ridge cell. The post and plinth drawn here are stand-ins.
-export const ROVER_CELL = Object.freeze({ x: 46, z: 0, y: 0.6, placeholder: true });
+// The Rover cell lies at the Far Beacon, 70 m from the landing on the east end of Dot's track (milestone 3: the real beacon, the real
+// pick-up; she may walk the 70 m, about 20 s, or drive Dot there in about 10).
+export const ROVER_CELL = Object.freeze({ x: 46, z: 0, y: 0.6 });
 // Pip: asleep beside the lander; when woken he rolls ahead along these waypoints to the airlock's front and then follows her.
 export const PIP_SLEEP = Object.freeze({ x: 3, z: 43 });
 export const PIP_LEAD = Object.freeze([[2.5, 36.5], [-4, 34], [-17, 31], [AIRLOCK.front.x, AIRLOCK.front.z]].map(([x, z]) => Object.freeze({ x, z })));
+
+// ---- milestone 3: Dot the rover, the Rover Depot, the track of lights and the Far Beacon ------------------------------------------
+
+// The depot east of the landing: a shed, a charging pad and Dot parked on it, facing the way the track starts. The track is a loop of
+// nine waypoints (the spec's 214 m, a little more once the corners are cut) with a lit post every 6 m; she may leave it anywhere the ground
+// is walkable. Dot is NOT a collider while she drives; parked, she is a small one (a collider the life puts in the live list and takes
+// out again), so a cat walks round her, not through her.
+export const DEPOT = Object.freeze({ x: 30, z: 34 });
+export const DOT_PARK = Object.freeze({ x: 29.4, z: 38.4, yaw: 2.43 });
+export const DOT_REACH = 2.9; // m from Dot's middle: "Hop in" shows (her parked collider is 0.9 wide, so a cat can stand at 1.25)
+export const DOT_PARKED_R = 0.9;
+export const SHED = Object.freeze({ x: 22.4, z: 40.2, w: 3.6, d: 6.0, h: 3.1 }); // its open side faces east, toward Dot
+export const FAR_BEACON = Object.freeze({ x: ROVER_CELL.x, z: ROVER_CELL.z, mast: 3.6 });
+export const TRACK = Object.freeze([[30, 34], [42, 20], [42.5, 0], [38, -18], [14, -26], [-10, -24], [-30, -14], [-26, 4], [-6, 24]].map(([x, z]) => Object.freeze({ x, z })));
+export const TRACK_POST_EVERY = 6; // m along the loop
+
+// The distance from (x, z) to the track's loop (the plain polyline): the rocks keep clear of it, the tests measure it.
+export function trackDistance(x, z) {
+  let best = Infinity;
+  for (let i = 0; i < TRACK.length; i++) {
+    const a = TRACK[i];
+    const b = TRACK[(i + 1) % TRACK.length];
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz)));
+    best = Math.min(best, Math.hypot(x - (a.x + dx * t), z - (a.z + dz * t)));
+  }
+  return best;
+}
 
 const ring = [];
 for (let i = 0; i < 40; i++) {
@@ -100,6 +129,9 @@ export const BASE_COLLIDERS = Object.freeze([
   c(OLD_DISH.x, OLD_DISH.z, 0.8),
   ...SKIP.map((p) => c(p.x, p.z, p.r + 0.05)),
   c(ROVER_CELL.x, ROVER_CELL.z, 0.5),
+  // the depot's shed (two circles cover its 6 m x 3.6 m footprint) and the Far Beacon's mast
+  c(SHED.x, SHED.z - 1.6, 1.9), c(SHED.x, SHED.z + 1.6, 1.9),
+  c(FAR_BEACON.x + 1.1, FAR_BEACON.z, 0.3),
 ]);
 
 export const MOON_COLLIDERS = Object.freeze([

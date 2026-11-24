@@ -8,7 +8,7 @@
 //      hops, and he rolls ahead toward the dome; she follows; he follows her (world/moonpip.js).
 //   2. THE CELLS (either order, one at a time, in her mouth in front of her): the Ridge cell on Skip Ridge's top pillar (only the
 //      Moon's doubled climb takes the two jumps: placephysics.js, test/moonbase.test.js) and the Rover cell at the Far Beacon, 70 m
-//      east (a walk now; milestone 3 adds the rover. PLACEHOLDER: the post and the walk are stand-ins).
+//      east on a plinth (a walk of about 20 s, or a drive in Dot: milestone 3, world/moonroverlive.js; the beacon's lamp blinks while it waits).
 //   3. THE CORE. Carrying a cell, E beside the Core plugs it into its own socket. The second one wakes the base: lamps up, the dome's
 //      glow, the Core bright, the board lit, a fanfare, Pip's dance, "The base has power!" Saved as state.moon.step 4.
 //   Nothing fails, nothing is timed, a cell she is carrying is never saved (the next walk finds it at its own spot), and meowing
@@ -136,6 +136,7 @@ export function createBaseLife(ctx) {
   const doorR = byName('moon:doorR');
   const boardMesh = byName('moon:board');
   const doorZ = [doorL?.position.z ?? 0, doorR?.position.z ?? 0];
+  const beacon = byName('moon:beacon'); // the Far Beacon's lamp: it blinks while the Rover cell waits and rests once the cell is taken
   const board = createBoardFace(boardMesh);
   const cells = [makeCell(0), makeCell(1)];
   const cellPlace = (id) => (id === 0 ? { x: P.RIDGE_CELL.x, z: P.RIDGE_CELL.z, y: ground.y(P.RIDGE_CELL.x, P.RIDGE_CELL.z) + P.RIDGE_CELL.y + 0.42 }
@@ -351,9 +352,17 @@ export function createBaseLife(ctx) {
         if (r.step >= M.STEP.pip && carrying === null) {
           if (!told.has('ridge') && !(r.cells & 1) && dist(catPos, P.SKIP[0]) < 26) { told.add('ridge'); say('moon-cell-ridge', phrase('moon.cell.ridge.hint')); }
           if (!told.has('rover') && !(r.cells & 2) && dist(catPos, P.ROVER_CELL) < 26) { told.add('rover'); say('moon-cell-rover', phrase('moon.cell.rover.hint')); }
+          if (!told.has('dot') && !(r.cells & 2) && dist(catPos, P.DEPOT) < 24) { told.add('dot'); say('moon-dot-hint', phrase('moon.rover.hint')); }
         }
         // a wake-up beat saved unseen (both cells were in when the walk ended): it plays when she is near the dome
         if (r.step === M.STEP.both && !beat && !beatSeen && dist(catPos, P.DOME) < NEAR_DOME) startBeat();
+      }
+
+      // the Far Beacon: an amber blink while the Rover cell waits for her, a calm teal glow once it has been taken
+      if (beacon) {
+        const waiting = cellMode[1] === 'home';
+        const blink = waiting ? (reducedMotion ? 1 : 0.35 + 0.65 * (Math.sin(t * 3.2) > 0.2 ? 1 : 0.15)) : 0.55;
+        beacon.material.color.setHex(waiting ? 0xffffff : 0x9ae8dc).multiplyScalar(blink);
       }
 
       // her meow, the call

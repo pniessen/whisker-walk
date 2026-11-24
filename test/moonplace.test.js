@@ -210,7 +210,7 @@ describe('the drawing, as the walk\'s sweeps see it (the rocks as InstancedMeshe
 });
 
 describe('the budget as the plan states it (row A1 at milestone 1: 40 / 24 / 15,500; milestone 2 is on the way to row A, 100 / 56 / 27,500, and pins its own measure at +12%)', () => {
-  it('counting every instance of the rocks, the place draws at most 21,000 triangles in at most 23 meshes, 9 of them casters (milestone 2 measured 20 / 8 / 18,726)', () => {
+  it('counting every instance of the rocks, the place draws at most 22,500 triangles in at most 24 meshes, 9 of them casters (milestone 3 measured 21 / 8 / 20,014; milestone 2 20 / 8 / 18,726)', () => {
     const { scene } = built();
     let meshes = 0; let tri = 0; let casters = 0;
     const box = new THREE.Box3();
@@ -225,9 +225,9 @@ describe('the budget as the plan states it (row A1 at milestone 1: 40 / 24 / 15,
         if (eligible && !o.material.transparent && !o.userData.noCast) casters++;
       });
     }
-    expect(meshes).toBeLessThanOrEqual(23);
+    expect(meshes).toBeLessThanOrEqual(24);
     expect(casters).toBeLessThanOrEqual(9);
-    expect(tri).toBeLessThanOrEqual(21000);
+    expect(tri).toBeLessThanOrEqual(22500);
     expect(tri).toBeGreaterThan(16000); // and it is the real ground and the base, not a bare plain any more (milestone 0 was 5,408; milestone 1 14,584)
     // and it is under the plan's row A for the whole base (milestones 2 to 4)
     expect(meshes).toBeLessThanOrEqual(100);

@@ -153,6 +153,8 @@ export function createPip({ scene, ground, colliders = [], reducedMotion = false
     },
     // the saved game says he is awake already: up and idle where he slept (the walk's start)
     setAwake() { if (state === 'asleep') { state = 'following'; lantern01 = 1; } },
+    // she has been carried a long way (Dot): his footprints to her old place are no way to follow her now; he starts from where she is
+    rejoin() { crumbs.length = 0; lastCrumb.set = false; },
     beep() { beepAt = clock; },
     dance() { danceAt = clock; },
     lookAt(x, z) { yaw = Math.atan2(x - pos.x, z - pos.z); },
