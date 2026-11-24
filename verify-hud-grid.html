@@ -27,12 +27,14 @@
 <body>
 <script type="module">
   const q = new URLSearchParams(location.search);
-  const PROFILES = { phone: [390, 844], tablet: [1180, 820], laptop: [1440, 900] };
+  const PROFILES = { phone: [390, 844], tablet: [1180, 820], laptop: [1440, 900], tv: [1920, 1080] };
   const STATES = {
     walk: 'Plain walk: points, rank, corner map, three goals',
     hint: 'A hint card up (goals, hint)',
     burst: 'Two discoveries in a row (goals, toasts)',
     worst: 'Hint + objective + toasts + goals',
+    badges: 'Plain walk + all 14 skill badges earned (skill badges)',
+    worstbadges: 'Worst state + all 14 skill badges earned',
   };
 
   if (!q.get('frame')) {
@@ -45,7 +47,7 @@
       html += `<tr><th>${r}<br><small>${STATES[r]}</small></th>`;
       for (const c of cols) {
         const [w, h] = PROFILES[c];
-        const s = c === 'phone' ? 0.6 : scale * (c === 'tablet' ? 0.7 : 0.6);
+        const s = c === 'phone' ? 0.6 : c === 'tv' ? 0.2 : scale * (c === 'tablet' ? 0.7 : 0.6);
         const src = `?frame=1&profile=${c}&state=${r}&words=${q.get('words') || 'on'}`;
         html += `<td><div class="cell" style="width:${w * s}px;height:${h * s}px"><iframe id="f-${c}-${r}" src="${src}" width="${w}" height="${h}" style="transform:scale(${s})"></iframe></div><div class="pct" id="p-${c}-${r}">...</div></td>`;
       }
@@ -57,14 +59,15 @@
       const m = e.data;
       if (!m || m.type !== 'hudgrid') return;
       out[`${m.profile}/${m.state}`] = m;
-      document.getElementById(`p-${m.profile}-${m.state}`).textContent = `${m.covered}% covered; ` + m.boxes.map((b) => `${b.n} ${b.w}x${b.h}`).join(', ');
+      document.getElementById(`p-${m.profile}-${m.state}`).textContent = `${m.covered}% covered; ` + (m.badgeOverlaps.length ? `BADGES OVERLAP ${m.badgeOverlaps.join(', ')}; ` : '') + m.boxes.map((b) => `${b.n} ${b.w}x${b.h}`).join(', ');
       window.__grid = out;
     });
   } else {
     const profile = q.get('profile') || 'phone';
     const state = q.get('state') || 'walk';
-    const touch = profile !== 'laptop';
+    const touch = profile !== 'laptop' && profile !== 'tv';
     await import('/src/style.css');
+    if (profile === 'tv') { await import('/src/tv/fonts.css'); await import('/src/tv/tv.css'); document.documentElement.style.setProperty('--tv-s', '1'); }
     // The real layout profile module decides (?profile= wins), as the game does; it writes html.<profile>.
     (await import('/src/profile.js')).startProfile(window, document, () => 'auto');
     document.body.classList.toggle('touch-mode', touch); // the pane may emulate touch; a laptop cell is not touch
@@ -93,17 +96,24 @@
       { text: 'Knock 3 things over', how: 'how.tip-things', type: 'mischief', target: 3, progress: 3, done: true },
     ];
     hud.setGoals(goals);
-    if (state === 'hint' || state === 'worst') hud.setHint('Tap the paw to jump up onto things you can climb.', '🐾');
-    if (state === 'worst') hud.setObjective('Find the lost kitten', 38);
-    if (state === 'burst' || state === 'worst') {
+    if (state === 'badges' || state === 'worstbadges') hud.setBadges((await import('/src/skills.js')).SKILL_IDS);
+    if (state === 'pop') {
+      const ids = (await import('/src/skills.js')).SKILL_IDS;
+      hud.setBadges(ids.slice(0, 4));
+      setTimeout(() => hud.earnBadges([ids[11]]), Number(q.get('popat') || 1500)); // the pop: ?popat= ms after load
+    }
+    if (state === 'hint' || state === 'worst' || state === 'worstbadges') hud.setHint('Tap the paw to jump up onto things you can climb.', '🐾');
+    if (state === 'worst' || state === 'worstbadges') hud.setObjective('Find the lost kitten', 38);
+    if (state === 'burst' || state === 'worst' || state === 'worstbadges') {
       bus.emit('discovery', { type: 'critter', label: 'a squirrel', points: 5 });
       bus.emit('discovery', { type: 'collectible', label: 'a shiny button', points: 10 });
       bus.emit('discovery', { type: 'mischief', label: 'the flower pot', points: 8 });
     }
     // Measure the boxes the HUD draws and how much of the screen they cover.
+    const wait = state.includes('badges') ? 1200 : 500; // the badge strip is a lazy chunk
     setTimeout(() => {
       const W = innerWidth, H = innerHeight;
-      const sels = ['.hud-points', '.hud-rank', '.hud-map', '.hud-goals', '.hud-hint', '.hud-objective', '.toast', '.hud-prompt', '.hud-roster', '.hud-controls'];
+      const sels = ['.hud-points', '.hud-rank', '.hud-map', '.hud-goals', '.hud-hint', '.hud-objective', '.toast', '.hud-prompt', '.hud-roster', '.hud-controls', '.hud-badges'];
       const cv = document.createElement('canvas');
       cv.width = W; cv.height = H;
       const g = cv.getContext('2d');
@@ -123,10 +133,13 @@
       let on = 0;
       for (let i = 3; i < d.length; i += 4) if (d[i]) on++;
       const covered = Math.round((on / (W * H)) * 1000) / 10;
+      // Which other boxes the badge strip sits on (a box pair that overlaps by more than 1 px each way).
+      const bb = boxes.find((b) => b.n === 'hud-badges');
+      const badgeOverlaps = bb ? boxes.filter((b) => b !== bb && Math.min(b.x + b.w, bb.x + bb.w) - Math.max(b.x, bb.x) > 1 && Math.min(b.y + b.h, bb.y + bb.h) - Math.max(b.y, bb.y) > 1).map((b) => b.n) : [];
       const toasts = boxes.filter((b) => b.n === 'toast').length;
-      const msg = { type: 'hudgrid', profile, state, covered, boxes, toasts, maxToasts: MAX_TOASTS, overflowX: document.documentElement.scrollWidth > innerWidth };
+      const msg = { type: 'hudgrid', profile, state, covered, boxes, toasts, maxToasts: MAX_TOASTS, badgeOverlaps, overflowX: document.documentElement.scrollWidth > innerWidth };
       parent.postMessage(msg, '*');
       window.__hudgrid = msg;
-    }, 500);
+    }, wait);
   }
 </script>

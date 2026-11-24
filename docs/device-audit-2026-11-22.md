@@ -109,3 +109,14 @@ Share of the screen covered by the HUD (before -> after the phone cleanup; ident
 | hint + objective + toasts | 22.3% | 16.5% | 11.8% | 10.5% |
 
 Tablet and laptop are the same before and after.
+
+## Skill badges (2026-11-23, branch `skill-badges`)
+
+`verify-hud-grid.html` gained a TV column (1920x1080) and three states: `badges` (a plain walk with every skill earned), `worstbadges` (hint + objective + toasts + goals with every skill earned) and `pop` (one skill earned mid-walk, `?popat=` ms). It also reports which boxes the badge strip sits on (none, in every cell). Share of the screen the HUD covers, all 14 badges earned (the most a player can have), before -> after:
+
+| State | Phone | Tablet | Laptop | TV 1920 |
+|---|---|---|---|---|
+| walk | 7.8% -> 9.4% (+1.6) | 5.7% -> 7.0% (+1.3) | 6.4% -> 7.4% (+1.0) | 10.6% -> 12.4% (+1.8) |
+| worst (hint + objective + toasts) | 16.5% -> 18.0% (+1.5) | 11.8% -> 13.1% (+1.3) | 10.5% -> 11.4% (+0.9) | 14.5% -> 16.3% (+1.8) |
+
+The strip shows only earned skills; a player with none sees no change. A phone shows the newest 7 and folds the rest into a "+n" badge.

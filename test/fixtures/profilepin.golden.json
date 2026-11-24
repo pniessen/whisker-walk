@@ -969,6 +969,8 @@
   "html.phone #hud:not(.lesson-on) .hud-goals | pointer-events: auto;cursor: pointer;outline: none",
   "html.phone #hud:not(.lesson-on) .hud-goals:not(:focus) .goal-how | display: none",
   "html.phone #hud:not(.lesson-on) .hud-goals:not(:focus):has(.goal.next) .goal:not(.next) | display: none",
-  "html.phone #hud:not(.lesson-on) .hud-goals:not(:focus) .goal.next::after | content: \" \\25BE\";opacity: 0.7"
+  "html.phone #hud:not(.lesson-on) .hud-goals:not(:focus) .goal.next::after | content: \" \\25BE\";opacity: 0.7",
+  "html.phone .hud-badge | width: 24px;height: 24px;font-size: 13px",
+  "html.phone .hud-badge-more | font-size: 12px"
  ]
 }
