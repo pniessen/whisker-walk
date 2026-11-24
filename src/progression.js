@@ -308,6 +308,8 @@ const BASE_ACCESSORIES = {
   papercrown: { name: 'Paper Crown', slot: 'head', price: 0, prize: true, fair: 'cans' },
   prizerosette: { name: 'Prize Rosette', slot: 'neck', price: 0, prize: true, fair: 'ducks' },
   tailballoon: { name: 'Tail Balloon', slot: 'back', price: 0, prize: true, fair: 'bell' },
+  // The Moon's story prize (a collar, src/cat/foundneck.js FOUND_COLLARS): owned once the story's page has a count (mnstory).
+  moonbadge: { name: 'Moon Badge', slot: 'collar', price: 0, prize: true, moon: 'story' },
 };
 // Their ids: every id a found outfit must not take (test/foundwear.test.js).
 export const BASE_ACCESSORY_IDS = Object.freeze(Object.keys(BASE_ACCESSORIES));
@@ -1150,7 +1152,9 @@ function sanitizeState(parsed) {
   const visitPrizesSeen = Math.min(VISITS_MAX, asFiniteNonNegInt(parsed.visitPrizesSeen, 0));
   for (const id of prizesWonBy(visitPrizesSeen)) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);
   // The Fairground's prizes likewise: every game the journal says was won has its prize owned.
-  for (const id of fairPrizesWonBy(sanitizeJournal(parsed.journal))) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);
+  const journalNow = sanitizeJournal(parsed.journal);
+  for (const id of fairPrizesWonBy(journalNow)) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);
+  if (journalNow.mnstory > 0 && !unlockedAcc.includes('moonbadge')) unlockedAcc.push('moonbadge');
   // And every found outfit: foundWear is the record, so it is owned.
   const foundWear = sanitizeFoundWear(parsed.foundWear);
   for (const id of foundWear) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);

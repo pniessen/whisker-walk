@@ -12,7 +12,7 @@ import { CATALOG } from '../src/progression.js';
 // gets up, and put back exactly.
 
 const BARE = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null };
-const GARMENTS = ['hoodie', 'raincoat', 'sweater', 'cape', 'confetticape', 'doormatcape', 'beachtowelcape', 'fishermansjumper'];
+const GARMENTS = ['hoodie', 'raincoat', 'sweater', 'cape', 'confetticape', 'doormatcape', 'beachtowelcape', 'fishermansjumper', 'starlightcape'];
 const SHELLS = ['hoodie', 'raincoat', 'sweater'];
 const BREEDS = ['tabby', 'siamese', 'persian', 'mainecoon', 'robbie', 'digit'];
 const OTHER_STATES = ['follow', 'idle', 'stalk', 'stretch', 'groom', 'sniff', 'pounce', 'land', 'scared', 'roll', 'pinned', 'swim', 'wade', 'cross'];

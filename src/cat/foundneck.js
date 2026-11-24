@@ -516,7 +516,16 @@ function dressCakeCharm(group, ring, { tubeR, charmPos }) {
   group.add(cake);
 }
 
+// Moon Badge (the Moon's story prize): a pale-steel band piped blue, and at the throat a small silver disc with a crescent (a thick
+// arc of the disc's own silver, raised) and a gold star beside it, facing -z. One mesh.
+const dressMoonBadge = charm([0x8e98b0, 0x3a4a86], (u) => [
+  colour(new THREE.CylinderGeometry(0.95 * u, 0.95 * u, 0.2 * u, 12, 1).rotateX(Math.PI / 2), 0xc9d1e0),
+  colour(new THREE.TorusGeometry(0.55 * u, 0.15 * u, 4, 10, Math.PI * 1.25).rotateZ(Math.PI * 0.4).translate(-0.12 * u, 0, -0.16 * u), 0xf4f7ff),
+  colour(new THREE.OctahedronGeometry(0.22 * u).scale(1, 1, 0.5).translate(0.4 * u, 0.2 * u, -0.16 * u), 0xf2c14e),
+]);
+
 export const FOUND_COLLARS = Object.freeze({
+  moonbadge: Object.freeze({ ring: 0x8e98b0, charmed: true, dress: dressMoonBadge }),
   bottletopcollar: Object.freeze({ ring: 0x3a3a42, charmed: false, dress: dressBottleTops }),
   ropecollar: Object.freeze({ ring: 0xc8a46a, charmed: true, dress: dressRope }),
   anchorcharm: Object.freeze({ ring: 0x24365c, charmed: true, dress: dressAnchor }),

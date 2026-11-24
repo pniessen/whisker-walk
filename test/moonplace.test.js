@@ -33,7 +33,7 @@ describe('the built place', () => {
     expect(area.spawn).toEqual({ x: 0, z: 45 });
     expect(area.waters).toEqual([]);
     expect(area.evening).toBe(true);
-    for (const key of ['collectibles', 'scenics', 'tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
+    for (const key of ['scenics', 'tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
     expect(area.ground.flat).toBe(false);
     expect(typeof area.life).toBe('function');
   });
@@ -155,13 +155,13 @@ describe('the lander\'s climb (the Moon\'s budget, not Earth\'s)', () => {
 });
 
 describe('the drawing, as the walk\'s sweeps see it (the rocks as InstancedMeshes: the spike)', () => {
-  it('four InstancedMeshes: the small rocks never cast, the others do', () => {
+  it('two InstancedMeshes (milestone 4 merged the medium, large and boulder meshes): the small rocks never cast, the big ones do', () => {
     const { scene } = built();
     assignShadowCasters(scene);
     const rocks = scene.children.filter((o) => o.isInstancedMesh);
-    expect(rocks.map((r) => r.name)).toEqual(['moon:rocks-small', 'moon:rocks-medium', 'moon:rocks-large', 'moon:rocks-boulder']);
-    expect(rocks.map((r) => r.count)).toEqual([70, 40, 20, 10]);
-    expect(rocks.map((r) => r.castShadow)).toEqual([false, true, true, true]);
+    expect(rocks.map((r) => r.name)).toEqual(['moon:rocks-small', 'moon:rocks-big']);
+    expect(rocks.map((r) => r.count)).toEqual([70, 70]); // 70 small; 40 medium + 20 large + 10 boulders
+    expect(rocks.map((r) => r.castShadow)).toEqual([false, true]);
     for (const r of rocks) expect(r.receiveShadow).toBe(true);
   });
   it('the prop merge leaves every top-level mesh as it is (the instanced rocks, the ground)', () => {
@@ -169,7 +169,7 @@ describe('the drawing, as the walk\'s sweeps see it (the rocks as InstancedMeshe
     const before = scene.children.map((o) => o.uuid);
     mergeStaticProps(scene);
     expect(scene.children.map((o) => o.uuid)).toEqual(before);
-    expect(scene.children.filter((o) => o.isInstancedMesh)).toHaveLength(4);
+    expect(scene.children.filter((o) => o.isInstancedMesh)).toHaveLength(2);
   });
   it('the contact-shadow scan never gives the plain or a rock a footprint (one decal per top-level prop; the plain\'s props are over its size rule)', () => {
     const { scene } = built();
@@ -210,7 +210,7 @@ describe('the drawing, as the walk\'s sweeps see it (the rocks as InstancedMeshe
 });
 
 describe('the budget as the plan states it (row A1 at milestone 1: 40 / 24 / 15,500; milestone 2 is on the way to row A, 100 / 56 / 27,500, and pins its own measure at +12%)', () => {
-  it('counting every instance of the rocks, the place draws at most 22,500 triangles in at most 24 meshes, 9 of them casters (milestone 3 measured 21 / 8 / 20,014; milestone 2 20 / 8 / 18,726)', () => {
+  it('counting every instance of the rocks, the place draws at most 23,700 triangles in at most 20 meshes, 7 of them casters (milestone 4 measured 17 / 6 / 21,162 after merging the rocks and the glowing lamps; milestone 3 21 / 8 / 20,014; milestone 2 20 / 8 / 18,726)', () => {
     const { scene } = built();
     let meshes = 0; let tri = 0; let casters = 0;
     const box = new THREE.Box3();
@@ -225,9 +225,9 @@ describe('the budget as the plan states it (row A1 at milestone 1: 40 / 24 / 15,
         if (eligible && !o.material.transparent && !o.userData.noCast) casters++;
       });
     }
-    expect(meshes).toBeLessThanOrEqual(24);
-    expect(casters).toBeLessThanOrEqual(9);
-    expect(tri).toBeLessThanOrEqual(22500);
+    expect(meshes).toBeLessThanOrEqual(20);
+    expect(casters).toBeLessThanOrEqual(7);
+    expect(tri).toBeLessThanOrEqual(23700);
     expect(tri).toBeGreaterThan(16000); // and it is the real ground and the base, not a bare plain any more (milestone 0 was 5,408; milestone 1 14,584)
     // and it is under the plan's row A for the whole base (milestones 2 to 4)
     expect(meshes).toBeLessThanOrEqual(100);

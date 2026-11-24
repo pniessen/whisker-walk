@@ -98,8 +98,10 @@ export function buildDot() {
 const oct = (r) => new THREE.OctahedronGeometry(r, 0);
 const flat = (r0, r1, seg = 24) => new THREE.RingGeometry(r0, r1, seg).rotateX(-Math.PI / 2);
 
+// (milestone 4: the track's lit posts, the depot's lamp and the beacon's studs go into the place's own `glow` bucket (M.glow, the same basic
+// vertex-coloured material): one draw less. The track keeps no material of its own.)
 export function trackMaterials() {
-  return { lamp: new THREE.MeshBasicMaterial({ vertexColors: true }) };
+  return {};
 }
 
 export function drawDepot(kit, M, T) {
@@ -111,7 +113,7 @@ export function drawDepot(kit, M, T) {
   for (const s of [-1, 1]) kit.put('paint', M.paint, paint(at(box(0.3, h - 0.5, 0.3), x + w / 2 + 0.1, z + s * (d / 2 - 0.55), (h - 0.5) / 2), BASE_COL.hazard));
   kit.put('paint', M.paint, paint(at(box(0.3, 0.3, d - 0.5), x + w / 2 + 0.1, z, h - 0.45), BASE_COL.hazard));
   kit.put('paint', M.paint, paint(at(cyl(0.05, 0.07, 3.4, 5), x + w / 2 + 0.9, z + d / 2 - 0.2, 1.7), BASE_COL.core));
-  kit.put('trackglow', T.lamp, paint(at(new THREE.SphereGeometry(0.2, 8, 6), x + w / 2 + 0.9, z + d / 2 - 0.2, 3.5), 0xfff0c4), { noCast: true });
+  kit.put('glow', M.glow, paint(at(new THREE.SphereGeometry(0.2, 8, 6), x + w / 2 + 0.9, z + d / 2 - 0.2, 3.5), 0xfff0c4), { noCast: true });
   // a tool crate and a spare wheel beside it
   kit.put('paint', M.paint, paint(at(box(0.9, 0.7, 0.7), x + w / 2 + 0.7, z - d / 2 + 0.2, 0.35), BASE_COL.hazard));
   kit.put('paint', M.paint, paint(at(cyl(0.34, 0.34, 0.24, 10).rotateX(Math.PI / 2), x - 0.3, z + d / 2 + 0.2, 0.34), 0x30343c));
@@ -121,14 +123,14 @@ export function drawDepot(kit, M, T) {
   kit.put('floor', M.paint, paint(at(flat(1.7, 1.95, 28), pk.x, pk.z, 0.07), BASE_COL.teal), { noCast: true });
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-    kit.put('trackglow', T.lamp, paint(at(oct(0.1), pk.x + Math.cos(a) * 1.82, pk.z + Math.sin(a) * 1.82, 0.14), BASE_COL.amber), { noCast: true });
+    kit.put('glow', M.glow, paint(at(oct(0.1), pk.x + Math.cos(a) * 1.82, pk.z + Math.sin(a) * 1.82, 0.14), BASE_COL.amber), { noCast: true });
   }
 }
 
 export function drawTrackPosts(kit, M, T) {
   for (const p of trackPosts(P.TRACK_POST_EVERY)) {
     kit.put('paint', M.paint, paint(at(cyl(0.035, 0.05, 0.9, 4, true), p.x, p.z, 0.45), BASE_COL.core), { noCast: true });
-    kit.put('trackglow', T.lamp, paint(at(oct(0.13), p.x, p.z, 1.0), BASE_COL.amber), { noCast: true });
+    kit.put('glow', M.glow, paint(at(oct(0.13), p.x, p.z, 1.0), BASE_COL.amber), { noCast: true });
   }
 }
 
@@ -141,7 +143,7 @@ export function drawFarBeacon(kit, M, B, T) {
   // the plinth: a low drum, a dark seat for the cell and a teal ring round it
   kit.put('paint', M.paint, paint(at(cyl(0.5, 0.58, 0.5, 10), x, z, 0.25), BASE_COL.hazard));
   kit.put('paint', M.paint, paint(at(cyl(0.38, 0.38, 0.06, 10), x, z, 0.52), BASE_COL.core), { noCast: true });
-  kit.put('trackglow', T.lamp, paint(at(flat(0.3, 0.4, 12), x, z, 0.57), BASE_COL.teal), { noCast: true });
+  kit.put('glow', M.glow, paint(at(flat(0.3, 0.4, 12), x, z, 0.57), BASE_COL.teal), { noCast: true });
   // the mast: five bands, a cap, a pair of cross arms and the lamp
   const mx = x + 1.1;
   const seg = mast / 5;
@@ -151,7 +153,7 @@ export function drawFarBeacon(kit, M, B, T) {
   kit.put('beacon', B.beacon, paint(at(new THREE.SphereGeometry(0.26, 10, 8), mx, z, mast + 0.3), BASE_COL.amber), { noCast: true });
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2 + 0.2;
-    kit.put('trackglow', T.lamp, paint(at(oct(0.1), x + Math.cos(a) * 2.42, z + Math.sin(a) * 2.42, 0.13), i % 2 ? BASE_COL.amber : 0xf1f3f8), { noCast: true });
+    kit.put('glow', M.glow, paint(at(oct(0.1), x + Math.cos(a) * 2.42, z + Math.sin(a) * 2.42, 0.13), i % 2 ? BASE_COL.amber : 0xf1f3f8), { noCast: true });
   }
 }
 

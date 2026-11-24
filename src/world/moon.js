@@ -18,7 +18,9 @@ import * as P from './moonplan.js';
 import * as K from './moonparts.js';
 import { drawBase } from './moonbase.js';
 import { drawRoverCourse } from './moonroverparts.js';
+import { drawFinds } from './moonfindparts.js';
 import { createMoonLife } from './moonlife.js';
+import { moonPebbles } from './moonfinds.js';
 import './moonwords.js';
 
 export { MOON_NAME, MOON_BOUNDS, MOON_SPAWN } from './moonplan.js';
@@ -46,6 +48,7 @@ export function build(scene, { water = {} } = {}) {
     K.drawLights(kit, M);
     K.drawGateRing(kit, M);
     const B = drawBase(kit, M);
+    drawFinds(kit, M); // Earthrise Rock, the pit's rock, the cheese, the echo studs and the plain's posts (milestone 4)
     drawRoverCourse(kit, M, B); // the depot, the track's lit posts and the Far Beacon (milestone 3; Dot herself is the walk's)
     const place = new THREE.Group();
     place.name = 'moonPlace';
@@ -62,7 +65,7 @@ export function build(scene, { water = {} } = {}) {
       waterFx: [],
       perches: P.MOON_PERCHES.map((p) => ({ ...p })),
       pois: P.MOON_POIS.map((p) => ({ ...p })),
-      collectibles: [],
+      collectibles: moonPebbles(), // eight glowing pebbles: the walk's own collectibles
       scenics: [],
       tippables: [],
       boxes: [],

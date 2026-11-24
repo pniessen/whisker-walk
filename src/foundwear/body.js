@@ -33,4 +33,6 @@ export const BODY_WEAR = Object.freeze([
   Object.freeze({ id: 'candyflosspuff', slot: 'back', find: 'fair', emoji: '🍭', name: () => phrase('wear.candyflosspuff.name') }),
   // the Market Square (2026-11-21): the bale pack's shape as a wicker basket of blooms (backitems.js)
   Object.freeze({ id: 'flowerbasket', slot: 'back', find: 'market', emoji: '🧺', name: () => phrase('wear.flowerbasket.name') }),
+  // the Moon (2026-11-24): a cape, so a body one (foundbody.js FOUND_BODY), starry navy cloth
+  Object.freeze({ id: 'starlightcape', slot: 'body', find: 'moon', emoji: '🌠', name: () => phrase('wear.starlightcape.name') }),
 ]);

@@ -141,16 +141,18 @@ export function scatterRocks(lowTier = false) {
   return out;
 }
 
+// Two InstancedMeshes (milestone 4 merged the medium, large and boulder meshes into one, `big`: they were three draws in the picture and
+// three more in the shadow pass for the same shape in three sizes): the small rocks (a 20-triangle stone, never a caster) and the big ones
+// (an 80-triangle stone, 70 instances: the 40 medium, the 20 large and the 10 boulders, each scaled and turned by its own instance).
 export function drawRocks(lowTier = false) {
   const rocks = scatterRocks(lowTier);
-  const specs = [['small', 0, 1], ['medium', 1, 2], ['large', 1, 3], ['boulder', 1, 4]];
+  const specs = [['small', 0, 1, rocks.small], ['big', 1, 2, [...rocks.medium, ...rocks.large, ...rocks.boulder]]];
   const meshes = [];
   const tint = new THREE.Color();
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
-  for (const [name, detail, salt] of specs) {
-    const list = rocks[name];
+  for (const [name, detail, salt, list] of specs) {
     if (!list.length) continue;
     const mat = litMaterial(0xffffff, { roughness: 1, flatShading: true });
     const mesh = new THREE.InstancedMesh(rockGeometry(detail, salt), mat, list.length);
@@ -165,7 +167,7 @@ export function drawRocks(lowTier = false) {
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.receiveShadow = true;
-    mesh.castShadow = P.ROCK_CLASSES[name]?.cast ?? true;
+    mesh.castShadow = name !== 'small';
     Object.assign(mesh.userData, { noContactShadow: true, noMerge: true });
     if (name === 'small') mesh.userData.noCast = true;
     mesh.computeBoundingSphere();

@@ -28,7 +28,7 @@ import * as M from './moonmission.js';
 import { createPip, pushOut } from './moonpip.js';
 import { createBoardFace, createBubble } from './moonatlas.js';
 import { createMoonSound } from './moonsound.js';
-import { findAt, noteMoonFind, MOON_FIND_IDS } from './moonfinds.js';
+import { findAt, noteMoonFind, inEcho, createDustTally, MOON_FIND_IDS } from './moonfinds.js';
 import { COLORS, GLASS, BASE_COL } from './moonbase.js';
 import { paint } from './moonparts.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -123,6 +123,7 @@ export function createBaseLife(ctx) {
   let meowed = false;
   const told = new Set();
   const rest = { x: 1e9, z: 1e9, since: 0 }; // where her paws came to rest, and since when (the finds' stillness)
+  const dust = createDustTally(); // Quiet Dust: metres walked on the Quiet Plain
   const timers = [];
   const rec = () => M.normalize(progression?.state?.moon);
   const later = (secs, fn) => timers.push({ at: clock + secs, fn });
@@ -366,7 +367,12 @@ export function createBaseLife(ctx) {
       }
 
       // her meow, the call
-      if (meowed) { meowed = false; if (!beat) callPip(); }
+      if (meowed) {
+        meowed = false;
+        // a meow with her paws in the Echo Crater's middle: the echo (Echo Crater's find)
+        if (catPos && log && progression && inEcho(catPos)) { sound.echo(); noteMoonFind('echo', { log, progression }); }
+        if (!beat) callPip();
+      }
 
       // the beat
       if (beat) {
@@ -421,6 +427,7 @@ export function createBaseLife(ctx) {
         if (Math.hypot(catPos.x - rest.x, catPos.z - rest.z) > 0.05) { rest.x = catPos.x; rest.z = catPos.z; rest.since = clock; }
         const id = findAt({ x: catPos.x, y: catPos.y, z: catPos.z, still: clock - rest.since });
         if (id) noteMoonFind(id, { log, progression });
+        if (dust.add(catPos.x, catPos.z)) noteMoonFind('dust', { log, progression });
       }
     },
     dispose() {

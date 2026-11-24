@@ -22,7 +22,6 @@ export function baseMaterials() {
     glass: new THREE.MeshBasicMaterial({ color: BASE_COL.glassTint, transparent: true, opacity: GLASS.cold, depthWrite: false, side: THREE.DoubleSide }),
     lamp: new THREE.MeshBasicMaterial({ vertexColors: true, color: LAMP.dim }),
     coreglow: new THREE.MeshBasicMaterial({ vertexColors: true, color: CORE_GLOW.dim }),
-    planter: new THREE.MeshBasicMaterial({ vertexColors: true }),
     beacon: new THREE.MeshBasicMaterial({ vertexColors: true }),
     board: new THREE.MeshBasicMaterial({ color: 0x24313f, side: THREE.DoubleSide }),
     dish,
@@ -102,7 +101,7 @@ export function drawPlanters(kit, M, B) {
     kit.put('paint', M.paint, paint(at(cyl(0.56, 0.4, 0.5, 8), p.x, p.z, 0.25), BASE_COL.rail));
     kit.put('floor', M.paint, paint(at(cyl(0.46, 0.46, 0.06, 8), p.x, p.z, 0.5), 0x3a3326), { noCast: true });
     [[0, 0, 0.95, 0.2], [0.22, 0.1, 0.7, 0.14], [-0.2, -0.12, 0.78, 0.15]].forEach(([dx, dz, dy, r], i) => {
-      kit.put('planter', B.planter, paint(at(oct(r), p.x + dx, p.z + dz, dy), i === 0 ? BASE_COL.mint : 0x5ae0a8), { noCast: true });
+      kit.put('glow', M.glow, paint(at(oct(r), p.x + dx, p.z + dz, dy), i === 0 ? BASE_COL.mint : 0x5ae0a8), { noCast: true });
     });
     kit.put('floor', M.paint, paint(at(cyl(0.025, 0.025, 0.6, 4), p.x, p.z, 0.8), 0x3d8f66), { noCast: true });
   }

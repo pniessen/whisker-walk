@@ -7,6 +7,9 @@
 //     the drawn height, as the Market's shoo hop does), none in reduced motion;
 //   * the LANDING DUST: ten slow puffs that hang about 1.2 s, on the very frame the pounce window ends (the frame
 //     game/avatar.js plays the thump on), five on the lite rung, none in reduced motion (fx.burst's own rule).
+//   * (milestone 4) the DRAW BUDGET: the walk's own pebbles and golden mice (about 17 draws if all are in view on this wide plain) are
+//     hidden beyond DRAW_NEAR metres of her (a 0.2 m thing at 50 m is a dot), so a frame stays under the 120-draw gate; nothing reads a
+//     mesh's `visible` to decide anything (the walk uses the collectible Map and the mice's own list);
 //   * (milestone 3) DOT the rover: hop in at the depot, steer, hop out (world/moonroverlive.js); she hangs her hooks on the walk's session.fair.
 //   * (milestone 2) the BASE: Pip, the two power cells, the Core, the dome, the door, the board, the finds, the gold ring and the
 //     switching-off of the daily goals and the air's sounds (world/moonbaselive.js); this life hands the walk its promptAt, interact
@@ -26,6 +29,7 @@ import { MOON_SPAWN } from './moonplan.js';
 export const CAMERA_FOLLOW = 0.6; // the camera rises this much of a hop's height
 export const SKIP_HEIGHT = 0.1; // m, the bounce of one stride
 export const SKIP_STRIDE = 1.1; // m walked per stride
+export const DRAW_NEAR = 50; // m: the walk's pebbles and golden mice farther than this from her are not drawn (milestone 4's draw budget)
 export const DUST = Object.freeze({ count: 10, lite: 5, ttl: 1.2, gravity: 0.35, speed: 0.9, size: 0.14, color: 0xb9b3aa });
 const SKY_BLACK = 0x03050d;
 
@@ -34,6 +38,21 @@ const SKY_BLACK = 0x03050d;
 export function hopNow(arc, pounceTime) {
   if (!(pounceTime > 0)) return 0;
   return hopOffset(arc.time - pounceTime, arc);
+}
+
+// cullFar(catPos, session, near) -> how many of the walk's pebbles and golden mice are drawn now. A mesh beyond `near` metres (sideways) is
+// hidden, one within it shown; the walk's collectible Map and the mice's list are not touched.
+export function cullFar(catPos, session, near = DRAW_NEAR) {
+  let shown = 0;
+  const set = (obj) => {
+    const on = Math.hypot(obj.position.x - catPos.x, obj.position.z - catPos.z) <= near;
+    obj.visible = on;
+    if (on) shown++;
+  };
+  const metres = session?.collectibleMeshes;
+  if (metres && typeof metres.values === 'function') for (const m of metres.values()) set(m);
+  for (const mo of session?.goldMice?.list ?? []) if (mo?.group) set(mo.group);
+  return shown;
 }
 
 // createMoonLife(ctx) -> { update(dt, t, catPos, camera, session), dispose() }; ctx is walk.js's life context.
@@ -97,12 +116,15 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       session.hopLift = skip;
       rover.update(dt, t, catPos, camera, session);
       base.update(dt, t, catPos, camera, session);
+      cullFar(catPos, session);
     },
     dispose() {
       rover.dispose();
       base.dispose();
       sky.dispose();
       if (held) held.hopLift = 0;
+      for (const m of held?.collectibleMeshes?.values?.() ?? []) m.visible = true;
+      for (const mo of held?.goldMice?.list ?? []) if (mo?.group) mo.group.visible = true;
     },
   };
 }

@@ -230,11 +230,11 @@ describe('the reserved ids', () => {
     expect([AWARDS.moonfind, AWARDS.moonjob, AWARDS.moonstory]).toEqual([12, 25, 40]);
   });
   it('couch play is not ready on the Moon', () => { expect(COOP_READY.moon).toBe(false); });
-  it('the Moon is in no catalog (no card, no price, no map place) and its golden mice wait for milestone 4', async () => {
+  it('the Moon is in no catalog (no card, no price, no map place) and its three golden mice are in (51 in all, 27 for the everyday edition)', async () => {
     expect(Object.hasOwn(CATALOG.areas, 'moon')).toBe(false);
     const { GOLD_TOTAL, GOLD_MICE } = await import('../src/goldmice.js');
-    expect(GOLD_TOTAL).toBe(48); // 51 (and 27 for the everyday edition) arrives with the three mice, milestone 4
-    expect(Object.hasOwn(GOLD_MICE, 'moon')).toBe(false);
+    expect(GOLD_TOTAL).toBe(51); // milestone 4's three mice (48 before)
+    expect(GOLD_MICE.moon.map((m) => m.id)).toEqual(['gm-moon-1', 'gm-moon-2', 'gm-moon-3']);
   });
 });
 
@@ -255,7 +255,7 @@ describe('the pack', () => {
     expect(area.spawn).toEqual(MOON_SPAWN);
     expect(area.waters).toEqual([]);
     expect(area.evening).toBe(true);
-    for (const key of ['collectibles', 'scenics', 'tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
+    for (const key of ['scenics', 'tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
   });
   it('the Moon\'s files import no other place (the chunk stays its own); the walk reaches it only through the pack', () => {
     const src = read('src/world/moon.js');
@@ -268,7 +268,7 @@ describe('the pack', () => {
 describe('the words', () => {
   const IDS = Object.keys(LINES);
   it('every lazy line is in the table once the file is loaded, none is in the start-up tables, and none is empty', () => {
-    expect(IDS.length).toBe(37); // the spec's 15 samples and milestone 2's 17 (Pip, the cells, the Core, the board, the first three finds)
+    expect(IDS.length).toBe(41); // the spec's 15 samples, milestone 2's 17 (Pip, the cells, the Core, the board, the first three finds), milestone 3's five and milestone 4's four (the other three finds, the pebble)
     for (const id of IDS) {
       expect(hasPhrase(id), id).toBe(true);
       expect(PHRASE_IDS.includes(id) || LATER_PHRASE_IDS.includes(id), `${id} is in the start-up download`).toBe(false);

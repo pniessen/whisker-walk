@@ -111,6 +111,39 @@ export function trackDistance(x, z) {
   return best;
 }
 
+
+// ---- milestone 4: Earthrise Rock, the Sample Pit, the Echo Crater, the Great Bowl's cheese, the Quiet Plain, the pebbles ------------
+
+// Earthrise Rock: a three-ledge climb on the Earthrise Ridge's south flank (1.1, 2.05 and 3.0 m over the dust under each; each step is
+// within the Moon's plainest climb of 3.2 m and the top holds golden mouse 2). Collider and perch share a centre, as Skip Ridge's do.
+export const ROCK_LEDGES = Object.freeze([
+  Object.freeze({ x: -7.0, z: -43.3, y: 1.1, r: 1.4 }),
+  Object.freeze({ x: -4.4, z: -44.9, y: 2.05, r: 1.3 }),
+  Object.freeze({ x: -2.0, z: -46.4, y: 3.0, r: 1.3 }),
+]);
+// The Sample Pit's rock: the boulder golden mouse 3 hides behind, on the side the walk comes from (the spawn is to the south-west: the rock is
+// between). A collider; not one of the loose boulders, which are kept out of the bowls.
+export const PIT_ROCK = Object.freeze({ x: 30.0, z: -8.1, r: 1.0 });
+// The golden mice, as goldmice.js holds them (a test keeps the two equal): the lander's deck (one hop), Earthrise Rock's top, the pit's floor.
+export const MOON_MICE = Object.freeze([
+  Object.freeze({ id: 'gm-moon-1', x: 0, z: 40.6, y: 3 }),
+  Object.freeze({ id: 'gm-moon-2', x: -2, z: -46, y: 3 }),
+  Object.freeze({ id: 'gm-moon-3', x: 30.8, z: -9.6, y: 0 }),
+]);
+// The three finds that stand on ground (the first three are milestone 2's). Echo: stand in the crater's middle (the floor is `d` under the dust) and meow.
+export const ECHO = Object.freeze({ x: 16, z: 12, r: 3.2 });
+// The Great Bowl's golden wedge (the Moon Cheese) lies on the bowl's floor; reaching it finds it.
+export const CHEESE = Object.freeze({ x: -20, z: -4, r: 1.7 });
+// The Quiet Plain: untouched dust west of the landing site, bounded by four lamp posts; 20 m of walking across it finds Quiet Dust.
+export const QUIET_PLAIN = Object.freeze({ x0: -30, x1: -10, z0: 44, z1: 49, walk: 20 });
+export const PLAIN_POSTS = Object.freeze([[-9.2, 43.2], [-9.2, 49.2], [-30.8, 43.2], [-30.8, 49.2]].map(([x, z]) => Object.freeze({ x, z })));
+// Eight glowing pebbles (the walk's own collectibles, ids moon-1 to moon-8): out on the open dust, none near a mouse, a find spot or a job.
+export const PEBBLES = Object.freeze([
+  [-14, 14], [22, 4], [-8, -4], [36, -14], [-36, 12], [6, 22], [-24, 38], [-30, -2],
+].map(([x, z], i) => Object.freeze({ id: `moon-${i + 1}`, x, z })));
+// The scripted points of the story (a find never sits within 3 m of one): Pip's bed, the cells, the sockets, the board, Dot's pad.
+export const JOB_POINTS = Object.freeze([PIP_SLEEP, RIDGE_CELL, ROVER_CELL, ...SOCKETS, { x: BOARD.x + 1.5, z: BOARD.z }, DOT_PARK]);
+
 const ring = [];
 for (let i = 0; i < 40; i++) {
   const a = (i / 40) * Math.PI * 2;
@@ -132,6 +165,9 @@ export const BASE_COLLIDERS = Object.freeze([
   // the depot's shed (two circles cover its 6 m x 3.6 m footprint) and the Far Beacon's mast
   c(SHED.x, SHED.z - 1.6, 1.9), c(SHED.x, SHED.z + 1.6, 1.9),
   c(FAR_BEACON.x + 1.1, FAR_BEACON.z, 0.3),
+  ...ROCK_LEDGES.map((p) => c(p.x, p.z, p.r + 0.05)),
+  c(PIT_ROCK.x, PIT_ROCK.z, PIT_ROCK.r),
+  ...PLAIN_POSTS.map((p) => c(p.x, p.z, 0.2)),
 ]);
 
 export const MOON_COLLIDERS = Object.freeze([
@@ -151,6 +187,7 @@ export const MOON_PERCHES = Object.freeze([
   P(STEP_B.x, STEP_B.z, STEP_B.y, 'crate'),
   P(LANDER.x, LANDER.z, LANDER.deck, 'roof'),
   ...SKIP.map((p) => P(p.x, p.z, p.y, 'stone')),
+  ...ROCK_LEDGES.map((p) => P(p.x, p.z, p.y, 'stone')),
 ]);
 
 // Interesting spots a wanderer may head for: open dust, all reachable from the spawn on foot (the walk clears them of colliders).
@@ -163,6 +200,7 @@ export const MOON_POIS = Object.freeze([
 export const ROCK_KEEP_OUT = Object.freeze([
   [0, 42, 10], [-10, 41, 5.5], [-20, 46.5, 12], [0, 46, 7], [46, 0, 4],
   [-34, 26, 13], [-44, 14, 7], [30, 34, 11], [42, -34, 12], [30, -28, 6], [24, -20, 6], [-38, -32, 10], [-47, 0, 8], [8, -40, 8],
+  [-4.5, -44.8, 6.5], [31, -10, 4],
 ]);
 
 // ---- the heightfield -------------------------------------------------------------------------------------------------

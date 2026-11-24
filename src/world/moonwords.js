@@ -3,7 +3,8 @@
 // download does not carry them (the Lighthouse's way). The page names are in start-up (src/moonpages.js: the journal is
 // drawn before the place has ever been walked); the hints and every other line are here. Every line reads the same in both
 // word sets except those two: no series word is in the everyday set. The Clan set's light flavour (the spec's "Silverpelt" lines:
-// moon.arrive and moon.earth since milestone 2; moon.scope.milky, moon.cape and moon.home) is added with the milestone that shows each line.
+// moon.arrive and moon.earth since milestone 2; moon.scope.milky and moon.home) is added with the milestone that shows each line. The
+// cape stays "Starlight Cape" in both sets (milestone 4: its wardrobe name is start-up text, so a Clan name costs start-up bytes).
 // test/moonseams.test.js checks both sets.
 import { addPhrases } from '../clanphrases.js';
 import { MOON_HINTS } from '../moonpages.js';
@@ -70,6 +71,11 @@ export const LINES = Object.freeze({
   'moon.find.flag': 'the first flag on the Moon',
   'moon.find.dish': 'the Old Dish, listening to space',
   'moon.find.garden': 'the glowing Star Garden',
+  // milestone 4: the other three finds, the pebbles, the cape's toast
+  'moon.find.echo': 'Echo Crater, where your meow comes back',
+  'moon.find.dust': 'the quiet dust, keeping your paw prints',
+  'moon.find.cheese': 'the Moon Cheese, a golden wedge',
+  'moon.pebble': 'a glowing pebble',
 });
 
 addPhrases(LINES);

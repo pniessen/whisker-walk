@@ -495,7 +495,10 @@ const AREAS = [
   // Milestone 3 (Dot's course: the Rover Depot, 36 lit track posts, the Far Beacon and the Rover cell's plinth, merged into the same buckets plus one
   // more for the lit lamps; Dot herself, her ring and her dust are the walk's own, made after this count, like Pip) measured 21 / 8 / 13,274 built
   // (20,014 counting every rock instance, test/moonplace.test.js), +12%: 24 / 9 / 14,900. The plan's row A (end of milestone 4) is 100 / 56 / 27,500.
-  ['moon', buildMoon, 24, 9, 14900],
+  // Milestone 4 added Earthrise Rock, the pit's rock, the cheese, the echo studs and the plain's posts into the existing material buckets (no mesh more),
+  // and took draw calls OUT: the planters and the track's lit posts joined the place's one `glow` bucket, and the medium, large and boulder rocks became
+  // one InstancedMesh: measured 17 / 6 / 14,262 built (21,162 counting every rock instance, test/moonplace.test.js), +12%: 20 / 7 / 16,000.
+  ['moon', buildMoon, 20, 7, 16000],
 ];
 
 // ---------------------------------------------------------------------------
