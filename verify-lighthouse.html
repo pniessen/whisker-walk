@@ -416,6 +416,7 @@
     return name;
   };
   window.__snap = (q = 0.85) => { render(); return renderer.domElement.toDataURL('image/jpeg', q); };
+  window.__info = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries });
   window.__live = () => live;
   window.__events = events;
 

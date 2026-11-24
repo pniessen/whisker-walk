@@ -208,10 +208,10 @@ function hazeLift(horizonRgb) {
 // same guard as every other canvas-texture call site in this repo). Null is
 // the expected answer in that case, not an error; callers use skyBackground()
 // below to fall back to the flat colour this replaces.
-export function skyTexture(top, horizon) {
+export function skyTexture(top, horizon, warm = null) {
   if (typeof document === 'undefined') return null;
 
-  const key = `${top}|${horizon}`;
+  const key = warm === null ? `${top}|${horizon}` : `${top}|${horizon}|${warm}`;
   let tex = cache.get(key);
   if (tex) return tex;
 
@@ -230,7 +230,13 @@ export function skyTexture(top, horizon) {
   // its colour automatically (canvas gradient semantics) — that clamp IS the
   // flat `top` region described above, not a separate thing to draw.
   g.addColorStop(SKY_V, rgbToCss(topRgb));
-  g.addColorStop(HAZE_V, rgbToCss(hazeRgb));
+  // opt-in `warm` (a hex): a low-sun band, top -> rose -> warm gold at the haze -> the horizon colour (Lighthouse Point only)
+  if (warm !== null) {
+    const w = hexToRgb(warm);
+    g.addColorStop(0.478, rgbToCss(lerpRgb(topRgb, w, 0.35)));
+    g.addColorStop(0.487, rgbToCss(lerpRgb(horizonRgb, w, 0.7)));
+    g.addColorStop(0.495, rgbToCss(lerpRgb(horizonRgb, [255, 238, 200], 0.45)));
+  } else g.addColorStop(HAZE_V, rgbToCss(hazeRgb));
   g.addColorStop(HORIZON_V, rgbToCss(horizonRgb));
   g.addColorStop(1, rgbToCss(horizonRgb));
   ctx.fillStyle = g;
@@ -256,6 +262,6 @@ export function skyTexture(top, horizon) {
 // walk.js's dusk swap, weather.js's sunset/rain swaps — goes through this
 // rather than skyTexture directly, so "no canvas support" degrades to
 // today's behaviour instead of an undefined scene.background.
-export function skyBackground(top, horizon) {
-  return skyTexture(top, horizon) || new THREE.Color(top);
+export function skyBackground(top, horizon, warm = null) {
+  return skyTexture(top, horizon, warm) || new THREE.Color(top);
 }

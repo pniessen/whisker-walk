@@ -19,6 +19,7 @@ import { withLocalUuids } from './localuuids.js';
 import { createWater, WATER_TUNING } from '../render/water.js';
 import * as P from './lighthouseplan.js';
 import * as K from './lighthouseparts.js';
+import { drawBeauty } from './lighthousebeauty.js';
 import { createLighthouseLife } from './lighthouselife.js';
 import './lighthousewords.js';
 import { phrase } from '../clanphrases.js';
@@ -48,7 +49,7 @@ export function build(scene, { water = {}, wind } = {}) {
     scene.add(sand);
 
     // the seas: drawn from the declared footprints, straight into the scene
-    const seaOpts = { y: 0.05, color: 0x4a90c0, style: 'sea', glare: WATER_TUNING.GLARE_SEA, quality: water.quality ?? 'high', reducedMotion: water.reducedMotion ?? false };
+    const seaOpts = { y: 0.05, color: 0x4a90c0, style: 'sea', glare: WATER_TUNING.GLARE_SEA * 0.55, quality: water.quality ?? 'high', reducedMotion: water.reducedMotion ?? false };
     const seaEast = createWater(P.SEA_EAST, { ...seaOpts, shores: ['minX'] });
     const seaWest = createWater(P.SEA_WEST, { ...seaOpts, shores: ['maxX'] });
     scene.add(seaEast.mesh, seaWest.mesh);
@@ -74,6 +75,7 @@ export function build(scene, { water = {}, wind } = {}) {
     K.drawCaveFittings(kit, M);
     K.drawGullRock(kit, M);
     K.drawMarks(kit, M, plan.ground);
+    drawBeauty(kit, M);
     const place = new THREE.Group();
     place.name = 'lighthousePlace';
     for (const m of kit.meshes()) place.add(m);
@@ -122,7 +124,7 @@ export function build(scene, { water = {}, wind } = {}) {
       moments: P.LIGHTHOUSE_MOMENTS.map((m) => ({ ...m, label: MOMENT_WORDS[m.id]() })),
       puddles: [],
       groundBounce: K.COL.sand,
-      skyDusk: { ...SKY_EVENING },
+      skyDusk: { ...SKY_EVENING, warm: 0xff9a4a },
       skySunset: { ...SKY_EVENING },
       duskLight: { ...DUSK_LIGHT },
       evening: true,

@@ -64,8 +64,8 @@ export function duskLook(areaData) {
 
 export function applyDusk({ scene, sun, fill, areaData }) {
   const look = duskLook(areaData);
-  const { top, horizon } = areaData.skyDusk;
-  scene.background = skyBackground(top, horizon);
+  const { top, horizon, warm = null } = areaData.skyDusk;
+  scene.background = skyBackground(top, horizon, warm);
   scene.fog = new THREE.Fog(horizon, look.fogNear, look.fogFar);
   sun.color.set(look.sunColor);
   sun.intensity = look.sunIntensity;
