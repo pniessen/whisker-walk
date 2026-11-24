@@ -481,12 +481,15 @@ const AREAS = [
   // 3,084, foliage 10,560, orchids 1,884, koi 108; the fountain 6,900; the frame 2,988 and the glass 420). The street places' ruling, never
   // raised; the place aims for 150 / 70 / 52,000 when it is whole.
   ['greenhouse', buildGreenhouse, 280, 210, 62000],
-  // The Moon, milestone 0 (2026-11-23): the seams, a bare plain (one ground mesh, no props). Measured 1 / 0 / 5,408 (the 130 m ground
-  // plane's own segments), +12% on the triangles (the Farm's and the Market's ruling): 6 / 2 / 6,100. The plan's 2,000 guess forgot the
-  // ground's grid; milestone 1 swaps it for the real heightfield. Its mesh and caster rows are the plan's 6 / 2. The spec's final
-  // ceilings (240 / 150 / 56,000, chunk 94 kB) are set as its stages measure (milestones 1 to 8), never above them. Not in the merged
-  // table below: one ground mesh has nothing to merge (milestone 1 adds the row).
-  ['moon', buildMoon, 6, 2, 6100],
+  // The Moon. Milestone 0 (2026-11-23, the seams) was a bare plain, 1 / 0 / 5,408 (the 130 m ground plane's own segments). Milestone 1
+  // (the real heightfield ground in the gravel tile, 6,496 triangles in one mesh; four InstancedMeshes of rocks; the lander, the flag, the
+  // landing lights and the return gate ring, merged by material) measured 10 / 5 / 7,844 built as this file counts (an InstancedMesh is
+  // one geometry here), +12% (the Farm's and the Market's ruling): 12 / 6 / 8,800. Counting every instance the plain draws 14,584 (the
+  // plan's row A1 is 15,500; test/moonplace.test.js holds that number too). The plan's A1 row was 40 / 24 / 15,500: this is under it
+  // on every count. The sky (700 stars, Earth, a cloud disc) is the walk's life, built after the sweeps, and not in this count. The spec's
+  // final ceilings (240 / 150 / 56,000, chunk 94 kB) are set as its stages measure (milestones 2 to 8), never above them. Not in the
+  // merged table below: nothing here merges (the kit is already one mesh per material, and a top-level mesh is left alone).
+  ['moon', buildMoon, 12, 6, 8800],
 ];
 
 // ---------------------------------------------------------------------------

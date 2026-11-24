@@ -559,7 +559,9 @@ describe('fights teach moves and leave scars (source pins)', () => {
 
   it("her own cat is built wearing its scars; intruders and camp cats wear theirs", () => {
     const s = src();
-    expect(s).toMatch(/const cat = buildCat\(active\.breed, \{[^}]*\}, \{ look: active\.look, scars: progression\.catScars\(myScarKey\) \}\);/);
+    // (the Moon's milestone 1: her wear goes through the suit kit's dress first, `worn` as it is when no suit place has registered one)
+    expect(s).toMatch(/const worn = \{[^}]*\};/);
+    expect(s).toMatch(/const cat = buildCat\(active\.breed, suitKit\(\)\?\.dress\(worn, areaId, active\.breed === 'hagrid'\) \?\? worn, \{ look: active\.look, scars: progression\.catScars\(myScarKey\) \}\);/);
     const intr = s.slice(s.indexOf('session.intruders = '), s.indexOf('session.clanFight = '));
     expect(intr).toContain('scarsFor: (id) => progression.intruderScars(id)');
     const clan = s.slice(s.indexOf('createClanCats(scene, areaData, clanCast, {'), s.indexOf('}) : NO_CLAN_CATS;'));

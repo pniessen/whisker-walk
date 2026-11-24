@@ -243,7 +243,7 @@ describe('the pack', () => {
     expect(typeof AREA_LOADERS.moon).toBe('function');
     expect(AREA_ENTRY_MODULES.moon).toEqual(['src/world/moon.js']);
   });
-  it('builds a bare plain: bounds, a clear spawn inside them, no water, no props, the evening look', async () => {
+  it('builds a place: bounds, a clear spawn inside them, no water, the evening look (milestone 1 draws it: test/moonplace.test.js)', async () => {
     const { build, MOON_BOUNDS, MOON_SPAWN } = await import('../src/world/moon.js');
     const scene = new THREE.Scene();
     const area = build(scene);
@@ -254,16 +254,13 @@ describe('the pack', () => {
     expect(MOON_SPAWN.z).toBeGreaterThan(MOON_BOUNDS.minZ); expect(MOON_SPAWN.z).toBeLessThan(MOON_BOUNDS.maxZ);
     expect(area.spawn).toEqual(MOON_SPAWN);
     expect(area.waters).toEqual([]);
-    expect(area.colliders).toEqual([]);
     expect(area.evening).toBe(true);
-    for (const key of ['perches', 'collectibles', 'scenics', 'tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
-    let meshes = 0; scene.traverse((o) => { if (o.isMesh) meshes++; });
-    expect(meshes).toBeLessThanOrEqual(6);
+    for (const key of ['collectibles', 'scenics', 'tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
   });
-  it('the Moon\'s file imports no other place and nothing outside the world kit (the chunk stays small)', () => {
+  it('the Moon\'s files import no other place (the chunk stays its own); the walk reaches it only through the pack', () => {
     const src = read('src/world/moon.js');
     const imports = [...src.matchAll(/^import .*?from '(.+?)';/gm)].map((m) => m[1]);
-    expect(imports.sort()).toEqual(['./builder.js', './localuuids.js']);
+    for (const i of imports) expect(i, i).toMatch(/^(three|\.\/(builder|localuuids|moon[a-z]*)\.js|\.\.\/cat\/suitkit\.js)$/);
     expect(src).toMatch(/import '\.\/moonwords\.js'/);
   });
 });

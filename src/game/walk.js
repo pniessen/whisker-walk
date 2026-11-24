@@ -26,6 +26,7 @@ import { lighthouseOn } from '../lighthouseflag.js';
 import { greenhouseOn } from '../greenhouseflag.js';
 import { moonOn } from '../moonflag.js';
 import { placePace } from '../placephysics.js';
+import { suitKit } from '../suithook.js';
 import { birthdayDue, BDAY_AREA, BDAY_START, BRIDGE_ISLAND_END, speakerFor, birthdayCatName, noteCandlesBlown, bdayCountsWalk, saveBirthdayPhoto, BDAY_PHOTO_KEY } from '../birthday.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
@@ -941,7 +942,7 @@ export function createWalkLifecycle({
     // Fight moves and scars: the key her cat's scars are filed under (null for
     // Hagrid, who never scars); she walks wearing them.
     const myScarKey = scarKey(state);
-    const cat = buildCat(active.breed, {
+    const worn = {
       collar: state.equipped.collar,
       head: state.equipped.head,
       face: state.equipped.face,
@@ -949,7 +950,9 @@ export function createWalkLifecycle({
       body: state.equipped.body,
       back: state.equipped.back,
       feet: state.equipped.feet,
-    }, { look: active.look, scars: progression.catScars(myScarKey) });
+    };
+    // in a place with a suit look (the Moon) she is drawn in the suit: the suit kit a suit place registers says, and her saved wear is untouched
+    const cat = buildCat(active.breed, suitKit()?.dress(worn, areaId, active.breed === 'hagrid') ?? worn, { look: active.look, scars: progression.catScars(myScarKey) });
     // her own custom cat wears its name on her own screen, like a co-walker
     attachOwnTag(cat, state);
     cat.position.set(areaData.spawn.x, ground.y(areaData.spawn.x, areaData.spawn.z), areaData.spawn.z);
