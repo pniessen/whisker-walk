@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildCat } from './cat/model.js';
+import { buildCat, effectiveWear } from './cat/model.js';
 import { wireLook } from './customcats.js';
 import { wireScars } from './scars.js';
 import { animateCat } from './cat/animator.js';
@@ -95,7 +95,7 @@ function profileUnchanged(entry, profile) {
 // the start of the walk.
 // `ground` (Gorge part 1, R13): a co-walker stands at THIS device's ground
 // under its streamed [x, z], lifted by the `h` she sends (liftForState above).
-export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_GROUND } = {}) {
+export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_GROUND, suitLook = null } = {}) {
   const rm = !!reducedMotion;
   const remotes = new Map(); // playerId -> entry
   const tiltTarget = { pitch: 0, roll: 0 }; // leanOf's scratch
@@ -136,7 +136,7 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
 
     // Fight moves and scars (R7): her scars ride accessories.scars, repaired
     // here; a changed scars key rebuilds through profileUnchanged above.
-    const group = buildCat(profile.breed, profile.accessories, { simple: true, look: profile.look, scars: wireScars(profile.accessories) });
+    const group = buildCat(profile.breed, effectiveWear(profile.accessories, null, suitLook, { hen: profile.breed === 'hagrid' }), { simple: true, look: profile.look, scars: wireScars(profile.accessories) });
     const tag = makeNameTag(profile.petName);
     if (tag) {
       tag.userData.partner = true; // bigger on a phone (nametag.js)

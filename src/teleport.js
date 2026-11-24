@@ -12,6 +12,7 @@
 // map, the walk's gate dressing, a room's walk-on) can see one; teleRow defaults and checks the fields only they have.
 import { gatewayEnd, endById, arrivalFor, GATE_REACH, GATE_PREFETCH_REACH } from './gateways.js';
 import { phrase } from './clanphrases.js';
+import { suitKit } from './cat/model.js'; // (through model.js, so the build adds no shared chunk to start-up)
 import * as ui from './teleui.js';
 import { addTeleGates, discTint } from './world/telegate.js';
 
@@ -29,7 +30,7 @@ export function setup(host) {
 }
 
 // A teleport gate's row: gatewayEnd's, plus kind 'tele' and these, defaulted so a row names only what it needs:
-//   suit      null | 'space' | 'dive': the look the place beyond draws her in (milestone 2; null until then)
+//   suit      null | 'space' | 'dive': the look the place beyond draws her in (milestone 2: see suitOf below)
 //   wake      true: her first touch is a find (milestone 5)
 //   edition   'canon' (the default: the main edition only) | 'all' (both editions)
 //   needWalks host-place walks before it is awake (0: always)
@@ -137,16 +138,70 @@ export function planFor(via) {
 // walk banks as it always does. `move` is how the place beyond lands on this save (gatecross.walkOnMove: 'set',
 // 'take' or 'override'; for the Greenhouse, free and with no catalog row, it says 'take' and the walk's buy() refuses,
 // so it is walked as an override and nothing is bought);
-// `suit` is the draw-time look the place beyond puts on her (null until the suit kit: milestone 2); a room is kept
+// `suit` is the draw-time look the place beyond puts on her (suitOf; never saved, never worn); a room is kept
 // together and `seedFrom` is the id its next seed derives from (gatecross.nextRoomSeed), else null.
 export function teleHandoff({ via, state, catalog, inRoom = false, guest = false } = {}) {
   const plan = planFor(via);
   if (!plan) return null;
   return {
-    via, from: plan.from, to: plan.to, twin: plan.tele.twin, arrive: plan.arrive, suit: plan.tele.suit,
+    via, from: plan.from, to: plan.to, twin: plan.tele.twin, arrive: plan.arrive, suit: suitOf(plan.tele),
     move: H.walkOnMove(state, catalog, plan.to, { guest }),
     keepRoom: !!inRoom, seedFrom: inRoom ? via : null,
   };
+}
+
+// ---- the suit (milestone 2): drawn from the place, never worn ----
+// The look a gate's far side draws her in is the row's `suit`. The spike pair has none of its own, so a test page can see
+// either look on the Greenhouse side with `?suit=space` or `?suit=dive` (read here, in the lazy chunk, so start-up carries
+// nothing): the row into the Greenhouse takes it, the row home never does, so going home puts her own clothes back.
+export const SPIKE_SUIT_ROW = 'park-greenhouse';
+function suitQuery() {
+  try {
+    const v = new URLSearchParams(globalThis.location?.search).get('suit');
+    return v === 'space' || v === 'dive' ? v : null;
+  } catch { return null; }
+}
+export const suitOf = (e) => e.suit ?? (e.id === SPIKE_SUIT_ROW ? suitQuery() : null);
+const allEnds = () => Object.values(TELE_ENDS).flat();
+// The look every cat in `areaId` is drawn in (her own and a co-walker's alike), or null: none, the gates off, or the suit
+// kit not here yet (then nobody is drawn half-dressed: she keeps her own clothes).
+export function suitFor(areaId) {
+  if (!H.teleOn() || !suitKit()) return null;
+  for (const e of allEnds()) {
+    if (e.to !== areaId) continue;
+    const look = suitOf(e);
+    if (look) return look;
+  }
+  return null;
+}
+// Is a suit look wanted in this place? (the kit is worth fetching) and the kit, fetched once, errors swallowed.
+export const suitWanted = (areaId) => H.teleOn() && allEnds().some((e) => e.to === areaId && suitOf(e));
+let kitLoading = null;
+export function loadSuitKit() {
+  kitLoading ??= import('./cat/suitkit.js').catch(() => { kitLoading = null; return null; });
+  return kitLoading.then((k) => { if (!k) return false; if (!suitKit()) k.installSuitKit(); return true; });
+}
+// The warm-up: the kit comes with the place when the place beyond wears one (a gate's prefetch, a start-up in such a place).
+export function warm(areaId) { return suitWanted(areaId) ? loadSuitKit() : Promise.resolve(false); }
+
+// The first-arrival montage: the body, the pack and the helmet pop on one by one as the swirl opens. Visibility only (the
+// pieces are the cat's own meshes), nothing saved. Reduced motion: no montage, the suit is simply on. Returns the pieces.
+export const SUIT_MONTAGE = Object.freeze(['body', 'pack', 'helmet']);
+export function suitUp(cat, { calm = false, later = setTimeout, startMs = 300, gapMs = 220 } = {}) {
+  if (calm || !cat || !cat.traverse) return 0;
+  const steps = SUIT_MONTAGE.map(() => []);
+  cat.traverse((o) => {
+    const i = SUIT_MONTAGE.indexOf(o.userData?.suit === 'gauge' ? 'pack' : o.userData?.suit);
+    if (o.isMesh && i >= 0) steps[i].push(o);
+  });
+  let n = 0;
+  steps.forEach((meshes, i) => {
+    if (!meshes.length) return;
+    n += 1;
+    for (const m of meshes) m.visible = false;
+    later(() => { for (const m of meshes) m.visible = true; }, startMs + i * gapMs);
+  });
+  return n;
 }
 
 export const swirlMs = (reducedMotion) => (reducedMotion ? TELE_FADE_MS : TELE_SWIRL_MS);
@@ -170,6 +225,7 @@ export function prompt(s, catP, state, inRoom, prefetch, free) {
     if (!done) { done = new Set(); fetched.set(s, done); }
     done.add(e.id);
     prefetch(e.to);
+    if (suitOf(e)) loadSuitKit();
   }
   if (!free) return null;
   const near = teleNear(s.areaId, catP.x, catP.z, H.catalog, { clan });
@@ -193,8 +249,15 @@ export function draw(scene, areaId, state, ground, calm = false) {
 export function walkOn(via, state, calm = false) {
   const plan = planFor(via);
   if (!plan) return null;
+  const suit = suitOf(plan.tele);
+  const visits = state && state.walks && Number.isFinite(state.walks[plan.to]) ? state.walks[plan.to] : 0;
   return {
-    plan, twin: plan.tele.twin,
+    plan, twin: plan.tele.twin, suit,
+    // the suit comes with this arrival: the kit (fetched with the place), the toast, and the montage on the first visit only
+    kitReady: () => !suit || !!suitKit(),
+    loadKit: () => (suit ? loadSuitKit() : Promise.resolve(true)),
+    suitLine: suit ? phrase('tele.suit') : null,
+    montage: !!suit && visits === 0,
     html: ui.swirlHtml({ name: teleName(plan.to, state.edition, H.catalog), calm, tint: discTint(plan.tele) }),
     ms: swirlMs(calm),
     line: phrase('tele.home', plan.tele.look),

@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teleport gates, milestone 2: the suit</title>
+<link rel="stylesheet" href="/src/style.css">
+<!-- Teleport gates milestone 2 (docs/superpowers/plans/2026-11-23-teleport-gates.md): the picture page for the suit that puts itself on
+     at a gate's far side. The real Greenhouse scaffold, the real gate and kit code (src/teleport.js suitUp, src/suithook.js
+     effectiveWear, src/cat/suitkit.js) and the real card, swirl and toast classes. NOT in the game. scripts/record-page.mjs makes
+     the pictures: __shot(name), __tour(name) / __frame(). URL params: suit=space|dive (default space), hen=1 (Hagrid, helmet only),
+     dusk=1, rm=1 (reduced motion), size=WxH (default 960x540). Shots: before (her own clothes, at the Park's gate), arrive,
+     sheet (own clothes beside the suit), pop1..pop3 (the montage), home (back in her clothes). -->
+
+<style>
+  html, body { margin: 0; background: #1c2431; overflow: hidden; font: 16px/1.35 Avenir, system-ui, sans-serif; color: #f1e0c2; }
+  #stage { position: fixed; left: 0; top: 0; }
+  #stage canvas { display: block; }
+  #stage #overlay { position: absolute; inset: 0; z-index: 10; }
+  #stage #overlay.hidden { display: none; }
+  #stage #hud { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+</style>
+</head>
+<body>
+<div id="stage"><div id="hud"></div><div id="overlay" class="hidden"></div></div>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier } from '/src/render/textures.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters, DEFAULT_GROUND_BOUNCE } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { skyBackground } from '/src/render/sky.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { createPlayer } from '/src/player.js';
+  import { facingYaw, behindYaw } from '/src/traversal.js';
+  import { applyDusk, duskEnv, tintDuskLawn } from '/src/render/dusk.js';
+  import { build as buildGreenhouse } from '/src/world/greenhouse.js';
+  import { addTeleGates, setTeleClock, discTint } from '/src/world/telegate.js';
+  import { TELE_ENDS, teleRow, suitUp } from '/src/teleport.js';
+  import { effectiveWear } from '/src/suithook.js';
+  import { installSuitKit } from '/src/cat/suitkit.js';
+  import * as UI from '/src/teleui.js';
+  import { lower } from '/src/territories.js';
+  import { escapeHtml } from '/src/escapehtml.js';
+  import { phrase } from '/src/clanphrases.js';
+
+  const params = new URLSearchParams(location.search);
+  const rm = params.get('rm') === '1';
+  const DUSK = params.get('dusk') === '1';
+  const HEN = params.get('hen') === '1';
+  const LOOK = params.get('suit') === 'dive' ? 'dive' : 'space';
+  const [W, H] = (params.get('size') || '960x540').split('x').map(Number);
+  const DT = 1 / 30;
+  const PACE = 3.5;
+  const stage = document.getElementById('stage');
+  stage.style.width = `${W}px`; stage.style.height = `${H}px`;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  stage.prepend(renderer.domElement);
+  const tier = { name: 'high', envIntensity: 0.45 };
+  setTextureTier(tier);
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+  scene.background = skyBackground(0x8cc8ee, 0xe6f2e8);
+  scene.fog = new THREE.Fog(0xe6f2e8, 70, 170);
+  const sun = createSun();
+  scene.add(sun);
+  const fill = createFill(DEFAULT_GROUND_BOUNCE);
+  scene.add(fill);
+  const area = buildGreenhouse(scene, { water: { quality: 'high', reducedMotion: rm } });
+  if (DUSK) {
+    const look = applyDusk({ scene, sun, fill, areaData: area });
+    tintDuskLawn({ ground: scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint)), grass: null, look });
+    scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
+    renderer.toneMappingExposure = 1.1;
+  }
+  // The way home: the Greenhouse's own gate (no suit of its own: it takes her home in her own clothes).
+  const home = TELE_ENDS.greenhouse[0];
+  let clockT = 0.6;
+  setTeleClock(() => clockT);
+  addTeleGates(scene, [teleRow({ ...home, suit: null })], { calm: rm });
+
+  installSuitKit();
+  const OWN = { collar: 'bell', head: 'tophat', face: null, neck: 'scarf', body: 'sweater', back: 'backpack', feet: 'sneakers' };
+  const BREED = HEN ? 'hagrid' : 'tabby';
+  const dress = (suit) => buildCat(BREED, suit ? effectiveWear(OWN, 'greenhouse', LOOK, { hen: HEN }) : OWN);
+  const cat = dress(true);
+  scene.add(cat);
+  const own = dress(false); // the "before" cat, only in the sheet
+  own.visible = false;
+  scene.add(own);
+  const camera = new THREE.PerspectiveCamera(W < H ? 62 : 70, W / H, 0.1, 300);
+  const shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
+  sun.shadow.bias = SUN_BIAS;
+  assignShadowCasters(scene);
+  const player = createPlayer(camera, renderer.domElement);
+  player.setReducedMotion(rm);
+  let t = 0;
+  function reset(x, z, fx, fz) {
+    cat.position.set(x, 0, z);
+    cat.rotation.set(0, facingYaw(fx, fz), 0);
+    player.setAvatar(cat, PACE);
+    player.setGround(null);
+    player.setViewYaw(behindYaw(fx, fz));
+    player.enable();
+    player.update(0, area.colliders, area.bounds, area.waters);
+    shadows.update(0, 1e3);
+  }
+  function frame(dt) {
+    t += dt; clockT += dt;
+    player.update(dt, area.colliders, area.bounds, area.waters);
+    player.speedFactor = 1;
+    animateCat(cat, 'follow', t, player.speed, rm);
+    cat.rotation.x = 0; cat.rotation.z = 0;
+    shadows.update(0, dt);
+    renderer.render(scene, camera);
+  }
+  const showAt = (cam) => { camera.position.set(...cam.pos); camera.lookAt(...cam.look); camera.fov = cam.fov ?? camera.fov; camera.updateProjectionMatrix(); };
+  const overlay = document.getElementById('overlay');
+  const hud = document.getElementById('hud');
+  UI.setup({ padTag: () => '', lower, escapeHtml });
+  const toast = (text) => { hud.innerHTML = `<div class="hud-toasts"><div class="toast">${escapeHtml(text)}</div></div>`; document.body.classList.add('touch-mode'); };
+  const clear = () => { overlay.className = 'hidden'; overlay.innerHTML = ''; hud.innerHTML = ''; };
+  const openingAt = (s) => {
+    overlay.className = '';
+    overlay.innerHTML = `<div class="tele-swirl opening${rm ? ' calm' : ''}" style="--tele-a:${UI.hex(discTint(teleRow({ ...home, suit: LOOK })))};animation-play-state:paused;animation-delay:-${s}s"><div class="tele-turn"></div></div>`;
+  };
+
+  const A = home.arrive; // where she lands: 3.6 m east of the gate, facing it
+  const face = [-Math.sin(A.yaw), -Math.cos(A.yaw)];
+  const CAM = { pos: [A.x + 3.6, 1.7, A.z + 3.2], look: [A.x, 0.9, A.z], fov: 45 };
+  const wide = { pos: [A.x + 3, 1.5, A.z + 4.5], look: [A.x - 2, 1.0, A.z], fov: 50 };
+  // the montage: the page's own clock, so a frame is the same every time
+  let pending = [];
+  const later = (fn, ms) => pending.push({ fn, ms });
+  const runTo = (ms) => { for (const p of pending.filter((q) => q.ms <= ms)) { p.fn(); } pending = pending.filter((q) => q.ms > ms); };
+  const SHOTS = {
+    arrive: { at: [A.x, A.z], face, toast: true },
+    near: { at: [A.x, A.z], face, cam: CAM },
+    suited: { at: [A.x, A.z], face, cam: CAM, toast: true },
+    wide: { at: [A.x, A.z], face, cam: wide, toast: true },
+    pop0: { at: [A.x, A.z], face, cam: CAM, montage: 0 },
+    pop1: { at: [A.x, A.z], face, cam: CAM, montage: 330 },
+    pop2: { at: [A.x, A.z], face, cam: CAM, montage: 550 },
+    pop3: { at: [A.x, A.z], face, cam: CAM, montage: 800 },
+    sheet: { at: [A.x, A.z + 0.6], face: [0, 1], cam: { pos: [A.x, 1.2, A.z + 5.2], look: [A.x, 0.8, A.z + 0.6], fov: 40 }, sheet: true },
+    sheetdive: { at: [A.x, A.z + 0.6], face: [0, 1], cam: { pos: [A.x, 1.2, A.z + 5.2], look: [A.x, 0.8, A.z + 0.6], fov: 40 }, sheet: true },
+  };
+  window.__shot = (name) => {
+    const s = SHOTS[name];
+    if (!s) throw new Error(`no shot "${name}"; there are ${Object.keys(SHOTS).join(', ')}`);
+    clear();
+    own.visible = false;
+    for (const m of cat.children) m.visible = true;
+    cat.traverse((o) => { o.visible = true; });
+    reset(s.at[0], s.at[1], s.face[0], s.face[1]);
+    if (s.sheet) {
+      cat.position.x = A.x + 0.9; own.visible = true;
+      own.position.set(A.x - 0.9, 0, A.z + 0.6); own.rotation.y = cat.rotation.y;
+    }
+    if (s.montage !== undefined) { pending = []; suitUp(cat, { later }); runTo(s.montage); }
+    for (let k = 0; k < 20; k++) { clockT = 0.6; showAt(s.cam ?? CAM); shadows.update(0, DT); renderer.render(scene, camera); }
+    clockT = 0.6;
+    if (s.toast) toast(phrase('tele.suit'));
+    renderer.render(scene, camera);
+    return name;
+  };
+
+  // ---- the film: the swirl opens on the arrival, the pieces pop on one by one, the toast, she walks off ----
+  let tour = null;
+  window.__tour = () => { clear(); pending = []; tour = { k: 0, popped: false }; reset(A.x, A.z, face[0], face[1]); player.setTouchMove(null); showAt(wide); cat.traverse((o) => { o.visible = true; }); };
+  window.__frame = () => {
+    const k = tour.k++;
+    const sec = k * DT;
+    t += DT; clockT += DT;
+    let caption = 'the swirl opens';
+    if (!tour.popped) { tour.popped = true; if (!rm) suitUp(cat, { later }); }
+    runTo(sec * 1000);
+    showAt(wide);
+    frame(DT);
+    if (sec < 0.6) openingAt(Math.min(sec, 0.59));
+    else { clear(); caption = 'the suit pops on'; }
+    if (sec >= 1.2) { toast(phrase('tele.suit')); caption = 'Your suit is on!'; }
+    if (sec >= 3.2) { player.setTouchMove({ x: 0, z: -1, mag: 0.7 }); caption = 'she walks off'; }
+    return { done: sec > 5.2, caption };
+  };
+  window.__info = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, look: LOOK });
+  reset(A.x, A.z, face[0], face[1]);
+  showAt(CAM);
+  renderer.render(scene, camera);
+  window.__ready = true;
+</script>
+</body>
+</html>

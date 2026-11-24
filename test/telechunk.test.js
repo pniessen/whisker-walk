@@ -10,9 +10,10 @@ describe('the teleport chunk guard (scripts/buildjson.mjs)', () => {
     'index.html': { file: 'assets/main.js', isEntry: true, imports: ['_three.js'] },
     '_three.js': { file: 'assets/three.js' },
     'src/teleport.js': { file: 'assets/teleport.js', isDynamicEntry: true, imports: ['_three.js'] },
+    'src/cat/suitkit.js': { file: 'assets/suitkit.js', isDynamicEntry: true, imports: ['_three.js'] },
   };
   it('names the module, a ceiling of 30 kB, and the start-up ceiling is untouched', () => {
-    expect(TELE_ENTRY_MODULES).toEqual({ tele: ['src/teleport.js'] });
+    expect(TELE_ENTRY_MODULES).toEqual({ tele: ['src/teleport.js'], suit: ['src/cat/suitkit.js'] });
     expect(TELE_GZIP_CEILING_KB).toBe(30);
     expect(MAIN_GZIP_CEILING_KB).toBe(720);
   });
@@ -39,12 +40,19 @@ for (const mode of ['production', IOS_MODE]) {
       expect(c?.isDynamicEntry).toBe(true);
       expect(startupFiles(b.manifest)).not.toContain(c.file);
       expect(b.files.has(c.file)).toBe(true);
-      const kb = (areaDownloads(b.manifest, TELE_ENTRY_MODULES).tele ?? []).reduce((n, f) => n + b.gz(f), 0) / 1000;
+      const dl = areaDownloads(b.manifest, TELE_ENTRY_MODULES);
+      const kb = (dl.tele ?? []).reduce((n, f) => n + b.gz(f), 0) / 1000;
       expect(kb).toBeLessThanOrEqual(TELE_GZIP_CEILING_KB);
+      // milestone 2: the suit kit is a lazy chunk of its own, never folded into start-up or into the gates' chunk
+      const kit = b.manifest['src/cat/suitkit.js'];
+      expect(kit?.isDynamicEntry).toBe(true);
+      expect(startupFiles(b.manifest)).not.toContain(kit.file);
+      expect(dl.tele).not.toContain(kit.file);
+      expect((dl.suit ?? []).reduce((n, f) => n + b.gz(f), 0) / 1000).toBeLessThanOrEqual(TELE_GZIP_CEILING_KB);
       const pre = b.files.get('precache.json');
       if (pre) {
         const list = new Set(JSON.parse(String(pre.source)).files);
-        for (const f of areaDownloads(b.manifest, TELE_ENTRY_MODULES).tele) expect(list.has(f), `${f} is precached`).toBe(true);
+        for (const f of [...dl.tele, ...dl.suit]) expect(list.has(f), `${f} is precached`).toBe(true);
       }
     }, 300_000);
 
@@ -56,6 +64,7 @@ for (const mode of ['production', IOS_MODE]) {
       expect(start).not.toContain('teleDisc');
       expect(start).not.toContain('tele-swirl');
       expect(start).not.toContain('Go through');
+      expect(start).not.toContain('suit-pack-');
       expect(code(b.manifest['src/teleport.js'].file)).toContain('teleDisc');
     }, 300_000);
   });

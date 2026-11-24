@@ -138,7 +138,8 @@ export const WALK_GZIP_CEILING_KB = 30;
 
 // The teleport gates (src/teleport.js, with src/teleui.js and src/world/telegate.js in it) are one lazy chunk, fetched only
 // behind ?gates=1 (src/telehook.js). It must never fold into start-up, and has its own ceiling (the plan: lazy chunks 30 kB).
-export const TELE_ENTRY_MODULES = { tele: ['src/teleport.js'] };
+// (milestone 2: the suit kit, src/cat/suitkit.js, is its own lazy chunk too, fetched with the place beyond a suit gate)
+export const TELE_ENTRY_MODULES = { tele: ['src/teleport.js'], suit: ['src/cat/suitkit.js'] };
 export const TELE_GZIP_CEILING_KB = 30;
 
 const gzipOf = (dir, file) => gzipSync(readFileSync(join(dir, file))).length;
@@ -165,9 +166,10 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   const coopKb = (areaDownloads(manifest, COOP_ENTRY_MODULES).coop ?? []).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000;
   problems.push(...areaSizeProblems({ coop: coopKb }, COOP_GZIP_CEILING_KB));
   console.log(`  coop chunk    ${coopKb.toFixed(1)} kB gzipped (ceiling ${COOP_GZIP_CEILING_KB} kB)`);
-  const teleKb = (areaDownloads(manifest, TELE_ENTRY_MODULES).tele ?? []).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000;
-  problems.push(...areaSizeProblems({ tele: teleKb }, TELE_GZIP_CEILING_KB));
-  console.log(`  tele chunk    ${teleKb.toFixed(1)} kB gzipped (ceiling ${TELE_GZIP_CEILING_KB} kB)`);
+  const teleDl = areaDownloads(manifest, TELE_ENTRY_MODULES);
+  const teleKbs = Object.fromEntries(Object.keys(TELE_ENTRY_MODULES).map((k) => [k, (teleDl[k] ?? []).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000]));
+  problems.push(...areaSizeProblems(teleKbs, TELE_GZIP_CEILING_KB));
+  console.log(`  tele chunk    ${teleKbs.tele.toFixed(1)} kB gzipped, suit kit ${teleKbs.suit.toFixed(1)} kB (ceiling ${TELE_GZIP_CEILING_KB} kB each)`);
   const walkDl = areaDownloads(manifest, WALK_ENTRY_MODULES);
   const walkAll = Object.fromEntries(Object.keys(WALK_ENTRY_MODULES).map((k) => [k, (walkDl[k] ?? []).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000]));
   problems.push(...areaSizeProblems(walkAll, WALK_GZIP_CEILING_KB));

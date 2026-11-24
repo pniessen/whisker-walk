@@ -700,7 +700,7 @@ function init() {
   if (marketOn()) areas.prefetch('market');
   if (lighthouseOn()) areas.prefetch('lighthouse');
   if (greenhouseOn()) areas.prefetch('greenhouse');
-  teleLoad(); // ?gates=1 only: the teleport gates' pieces (src/telehook.js)
+  teleLoad(effectiveArea(progression.state, CATALOG)); // ?gates=1 only: the teleport gates' pieces (src/telehook.js)
   if (housePrefetch(progression.state)) areas.prefetch('house');
   // Rosa's one-time farewell goes up before the news (showNews yields while it is up).
   const showFarewell = () => {

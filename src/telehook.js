@@ -15,12 +15,13 @@ import { escapeHtml } from './escapehtml.js';
 export const tele = { kit: null };
 let loading = null;
 
-export function teleLoad() {
+// `area`: the place she will walk in; if it draws a suit the kit is fetched too (a start there after closing the app).
+export function teleLoad(area) {
   if (!teleOn()) return Promise.resolve(null);
   loading ??= Promise.all([import('./teleport.js'), import('./coop/table.js')])
     .then(([t, co]) => {
       t.setup({ teleOn, greenhouseOn, placeName, walkOnMove, lower, padTag, escapeHtml, coopReady: co.coopReady, catalog: CATALOG, isClan: isClanEdition, couch: () => coop.poll !== null });
       return (tele.kit = t);
     }, () => { loading = null; return null; });
-  return loading;
+  return loading.then((t) => { if (t && area) t.warm(area); return t; });
 }

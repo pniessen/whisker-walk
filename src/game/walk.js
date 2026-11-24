@@ -30,7 +30,7 @@ import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
 import { applyDusk, duskEnv, addCollarGlow, tintDuskLawn, createLampPools } from '../render/dusk.js';
-import { buildCat, CAT_LOOK_Y, catDims, coatColor } from '../cat/model.js';
+import { buildCat, CAT_LOOK_Y, catDims, coatColor, effectiveWear } from '../cat/model.js';
 import { setCatScars } from '../cat/scarmesh.js';
 import { disposeHenRig } from '../cat/henfight.js';
 import { setCatRimLight } from '../cat/rimlight.js';
@@ -700,7 +700,7 @@ export function createWalkLifecycle({
   // wins over the arrival's yaw); the spawn still seeds the race pad, the
   // kitten, the wanderer and the guided walk, and no stream is drawn from
   // differently.
-  function startWalk({ duskMode = false, roomSeed, areaOverride, resume = null, arrive = null, birthday = false } = {}) {
+  function startWalk({ duskMode = false, roomSeed, areaOverride, resume = null, arrive = null, birthday = false, suitUp = false } = {}) {
     walksStarted += 1;
     // The place's pack (F6), before anything touches the save: a start whose
     // place has not come is a mistake in the caller (every start goes
@@ -942,7 +942,10 @@ export function createWalkLifecycle({
     // Fight moves and scars: the key her cat's scars are filed under (null for
     // Hagrid, who never scars); she walks wearing them.
     const myScarKey = scarKey(state);
-    const cat = buildCat(active.breed, {
+    // A place beyond a teleport gate draws every cat in the suit it calls for (src/teleport.js suitFor: null elsewhere, and
+    // while the suit kit is not here); what she owns and wears is never touched, only what is drawn.
+    const suitLook = tele.kit?.suitFor(areaId) ?? null;
+    const cat = buildCat(active.breed, effectiveWear({
       collar: state.equipped.collar,
       head: state.equipped.head,
       face: state.equipped.face,
@@ -950,7 +953,8 @@ export function createWalkLifecycle({
       body: state.equipped.body,
       back: state.equipped.back,
       feet: state.equipped.feet,
-    }, { look: active.look, scars: progression.catScars(myScarKey) });
+    }, areaId, suitLook, { hen: active.breed === 'hagrid' }), { look: active.look, scars: progression.catScars(myScarKey) });
+    if (suitLook && suitUp) tele.kit.suitUp(cat, { calm: reducedMotion }); // the first arrival: the pieces pop on, one by one
     // her own custom cat wears its name on her own screen, like a co-walker
     attachOwnTag(cat, state);
     cat.position.set(areaData.spawn.x, ground.y(areaData.spawn.x, areaData.spawn.z), areaData.spawn.z);
@@ -1432,7 +1436,7 @@ export function createWalkLifecycle({
     const campMarker = !isDen && campAt && isClanEdition(state)
       ? { x: campAt.cx, z: campAt.cz, color: CLAN_COLOURS[areaId] }
       : null;
-    const remotes = createRemoteCats(scene, { reducedMotion, ground });
+    const remotes = createRemoteCats(scene, { reducedMotion, ground, suitLook });
 
     // v18 Task 3.2 Gift Paws — the gifts this player has stashed at scenic
     // spots on earlier walks, rendered where they were left. Read off the
@@ -3226,6 +3230,7 @@ export function createWalkLifecycle({
     const go = () => {
       onWalkEnded();
       const lines = arrivalLines(bankWalk(s));
+      if (tp?.suitLine) lines.push(tp.suitLine);
       if (tp) lines.push(tp.line);
       const move = walkOnMove(progression.state, CATALOG, to, { guest });
       if (move === 'set') progression.setArea(to);
@@ -3236,7 +3241,7 @@ export function createWalkLifecycle({
       setTimeout(() => {
         if (getSession() || walksStarted !== startsAtMoment) return;
         try {
-          startWalk({ duskMode, roomSeed, areaOverride: progression.state.area === to ? undefined : to, arrive });
+          startWalk({ duskMode, roomSeed, areaOverride: progression.state.area === to ? undefined : to, arrive, suitUp: !!tp?.montage });
         } catch (err) {
           cannotStart(err);
           return;
@@ -3255,7 +3260,7 @@ export function createWalkLifecycle({
         } else onWalkedOn(lines);
       }, Math.max(0, momentMs - (Date.now() - shownAt)));
     };
-    if (areas.loaded(to)) {
+    if (areas.loaded(to) && (!tp || tp.kitReady())) {
       go();
       return Promise.resolve('walked');
     }
@@ -3264,7 +3269,8 @@ export function createWalkLifecycle({
     // The place is slow: the swirl keeps turning and the line says so.
     if (tp) setTimeout(() => { if (getSession() === s && s.walkingOn) tp.slow(overlay); }, tp.slowMs);
     releaseControl();
-    return areas.ensure(to).then(
+    // The suit kit comes with the place; if it will not come she still goes, in her own clothes (no fail state).
+    return Promise.all([areas.ensure(to), tp ? tp.loadKit() : null]).then(
       () => {
         if (getSession() !== s || !s.walkingOn) return 'dropped';
         s.walkingOn = false;
