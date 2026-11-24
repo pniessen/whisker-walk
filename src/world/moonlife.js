@@ -14,6 +14,7 @@
 //   * (milestone 5) STAR HILL: the telescope and its star pictures, the Old Dish's turn to Earth, the wing's stand-in (world/moonstarlive.js);
 //   * (milestone 6) the LAUNCH COMPLEX: the Message Desk's stamps, the postcard, the rocket and its launch, the reply on Earth's night side, the binocular stand, the
 //     Moon Badge (world/moonlaunchlive.js); a launch tilts the camera up with the rocket (applied before the sky is placed);
+//   * (milestone 7a) the COURSE LAMPS on the three ring-free courses and the HOP BOARD (world/moonjumplive.js);
 //   * (milestone 3) DOT the rover: hop in at the depot, steer, hop out (world/moonroverlive.js); she hangs her hooks on the walk's session.fair.
 //   * (milestone 2) the BASE: Pip, the two power cells, the Core, the dome, the door, the board, the finds, the gold ring and the
 //     switching-off of the daily goals and the air's sounds (world/moonbaselive.js); this life hands the walk its promptAt, interact
@@ -30,6 +31,7 @@ import { createBaseLife } from './moonbaselive.js';
 import { createRoverLive } from './moonroverlive.js';
 import { createStarLive } from './moonstarlive.js';
 import { createLaunchLive } from './moonlaunchlive.js';
+import { createJumpLive } from './moonjumplive.js';
 import { MOON_SPAWN, AIRLOCK, RETURN_GATE, DOME } from './moonplan.js';
 
 export const CAMERA_FOLLOW = 0.6; // the camera rises this much of a hop's height
@@ -95,6 +97,8 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
   const star = createStarLive({ scene, reducedMotion, ground, tier, audio, progression, doc, win });
   // (milestone 6) the Launch Complex: the postcard, the rocket, the reply (moonlaunchlive.js); the rover's walk hook hands it the player each frame as well
   launch = createLaunchLive({ scene, reducedMotion, ground, tier, audio, progression, log, doc, win, clock, pads, pip: base.pip, sky });
+  // (milestone 7a) the course lamps and the hop board (moonjumplive.js)
+  const jump = createJumpLive({ scene, reducedMotion, ground, audio, progression, doc });
   const rover = createRoverLive({ scene, reducedMotion, ground, colliders, tier, audio, progression, onDismount: () => base.pip.rejoin(), onFrame: (dt, t, ctx) => { star.frame(dt, t, ctx); launch.frame(dt, t, ctx); } });
   // placed for the Ready card, before the first frame of the walk moves the camera (it looks north from behind the spawn)
   const first = new THREE.PerspectiveCamera();
@@ -115,6 +119,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
     rover,
     star,
     launch,
+    jump,
     // the action button: Dot's "Hop in" / "Hop out" first (riding), else the base's own offers, else "Hop in" when nothing else is asked
     promptAt(catPos) {
       const b = base.promptAt(catPos);
@@ -159,10 +164,12 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       base.update(dt, t, catPos, camera, session);
       star.update(dt, t, catPos, camera, session);
       launch.update(dt, t, catPos, camera, session);
+      jump.update(dt, t, catPos, camera, session);
       cullFar(catPos, session);
       cullParts(parts, catPos);
     },
     dispose() {
+      jump.dispose();
       launch.dispose();
       star.dispose();
       rover.dispose();

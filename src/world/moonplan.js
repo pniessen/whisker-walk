@@ -232,6 +232,29 @@ export const LAUNCH_COLLIDERS = Object.freeze([
   Object.freeze({ x: MESSAGE_DESK.x, z: MESSAGE_DESK.z, r: 0.75 }),
 ]);
 
+
+// ---- milestone 7a: Bounce Park's Beam Hops, the hop board's strip, the course lamps ---------------------------------------------
+
+// Eight Beam Hops: stone beams in a gentle wave from x -12 to 12 at z about -30 (Dot's track passes 4 m south of them, Skip Ridge 4 m north), rising to
+// 3.0 m and coming down again. Each beam is 0.7 m (at most) above the last, and about 3.45 m (centre to centre) from its neighbours: more than Earth's very best
+// reach (3.2 m, Sure Claws) and less than the Moon's plainest (3.9 m), so the crossing is the Moon's alone. Every beam is a perch AND a collider (as Skip Ridge's pillars).
+const BEAM_HEIGHTS = [0.6, 1.3, 2.0, 2.7, 3.0, 2.4, 1.6, 0.8];
+export const BEAMS = Object.freeze(BEAM_HEIGHTS.map((y, i) => Object.freeze({
+  x: Math.round((-12 + (i * 24) / 7) * 100) / 100, z: Math.round((-30 + 0.7 * Math.sin(i * 0.9)) * 100) / 100, y, r: 1.25,
+})));
+
+// The hop board's strip: a lane of level dust running east from a start line (x0), 16 m long and 4 m wide, a post every metre. She takes off behind the line
+// (at most `back` m before it, a hand's width past it) on the ground inside the lane and lands on level ground inside it: the board reads the metres from
+// the line to where she lands. Nothing is lost for a hop that does not count: the board simply does not move.
+export const JUMP_LANE = Object.freeze({ x0: 0, z: -9, len: 16, half: 2.0, back: 1.2, over: 0.15, slack: 0.4, level: 0.2 });
+// The board: a post with a screen beside the start line, facing the lane. (Dot's track is 14 m away; the rocks keep clear of the lane.)
+export const JUMP_BOARD = Object.freeze({ x: 0.6, z: JUMP_LANE.z + 3.9, y: 2.5, size: 2.6, near: 45 });
+export const JUMP_RECORD_MAX = 2000; // cm: the save's ceiling (state.moon.jump)
+
+// The course lamps: a ring (outer radius `r`) round the top of every perch of the three ring-free courses (Skip Ridge, Earthrise Rock, the Beam Hops) that lights when she stands on it.
+export const COURSE_LAMPS = Object.freeze([...SKIP, ...ROCK_LEDGES, ...BEAMS].map((p) => Object.freeze({ x: p.x, z: p.z, y: p.y, r: Math.round(p.r * 75) / 100 })));
+export const BEAM_COLLIDERS = Object.freeze(BEAMS.map((b) => c(b.x, b.z, b.r + 0.05)));
+
 const ring = [];
 for (let i = 0; i < 40; i++) {
   const a = (i / 40) * Math.PI * 2;
@@ -258,6 +281,7 @@ export const BASE_COLLIDERS = Object.freeze([
   ...PLAIN_POSTS.map((p) => c(p.x, p.z, 0.2)),
   ...STAR_COLLIDERS,
   ...LAUNCH_COLLIDERS,
+  ...BEAM_COLLIDERS,
 ]);
 
 export const MOON_COLLIDERS = Object.freeze([
@@ -278,6 +302,7 @@ export const MOON_PERCHES = Object.freeze([
   P(LANDER.x, LANDER.z, LANDER.deck, 'roof'),
   ...SKIP.map((p) => P(p.x, p.z, p.y, 'stone')),
   ...ROCK_LEDGES.map((p) => P(p.x, p.z, p.y, 'stone')),
+  ...BEAMS.map((p) => P(p.x, p.z, p.y, 'stone')),
 ]);
 
 // Interesting spots a wanderer may head for: open dust, all reachable from the spawn on foot (the walk clears them of colliders).
@@ -292,6 +317,7 @@ export const ROCK_KEEP_OUT = Object.freeze([
   [-34, 26, 13], [-44, 14, 7], [30, 34, 11], [42, -34, 12], [30, -28, 6], [24, -20, 6], [-38, -32, 14], [-27, -24, 4.5], [-47, 0, 8], [8, -40, 8],
   [-4.5, -44.8, 6.5], [31, -10, 4],
   [42, -34, 9.5], [24, -40, 8.6], [-37, 20.8, 2],
+  [0, -30, 15.6], [10, -9, 13], [0.6, -5.1, 2.4], // (milestone 7a) the Beam Hops, the hop board's strip and its board
 ]);
 
 // ---- the heightfield -------------------------------------------------------------------------------------------------

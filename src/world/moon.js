@@ -22,6 +22,7 @@ import { drawRoverCourse } from './moonroverparts.js';
 import { drawFinds } from './moonfindparts.js';
 import { drawWing } from './moonwing.js';
 import { drawLaunchStanding, drawLaunchWing } from './moonlaunchparts.js';
+import { drawBeams, drawLane } from './moonjumpparts.js';
 import { createMoonLife } from './moonlife.js';
 import { moonPebbles } from './moonfinds.js';
 import './moonwords.js';
@@ -59,6 +60,9 @@ export function build(scene, { water = {} } = {}) {
     // Launch Complex (milestone 6): the pad, gantry tower, tanks, desks and the mound's benches go into the kit (no draw call of their own); the rocket, the gantry's arm,
     // the plume and the smoke are the wing C group below (world/moonlaunchlive.js moves them)
     drawLaunchStanding(kit, M);
+    // Bounce Park (milestone 7a): the eight Beam Hops and the hop board's lane go into the kit too (the lamps and the board's screen are the life's)
+    drawBeams(kit, M);
+    drawLane(kit, M);
     const place = new THREE.Group();
     place.name = 'moonPlace';
     for (const m of kit.meshes()) place.add(m);

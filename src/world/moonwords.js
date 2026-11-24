@@ -112,6 +112,10 @@ export const LINES = Object.freeze({
   'moon.goal.rocket': 'Post the postcard in the rocket.',
   'moon.goal.button': 'Press the big red button!',
   'moon.goal.reply': 'Wait on Earthrise Rock. Earth will answer.',
+  // milestone 7a: the hop board and the course lamps (the same in both sets)
+  'moon.jump.hint': 'Hop from the line. The board shows how far!',
+  'moon.jump.record': 'New record!',
+  'moon.jump.beams': 'Every beam is lit!',
 });
 
 addPhrases(LINES);

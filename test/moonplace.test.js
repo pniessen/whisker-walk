@@ -211,7 +211,7 @@ describe('the drawing, as the walk\'s sweeps see it (the rocks as InstancedMeshe
 });
 
 describe('the budget as the plan states it (row A1 at milestone 1: 40 / 24 / 15,500; milestone 2 is on the way to row A, 100 / 56 / 27,500, and pins its own measure at +12%)', () => {
-  it('counting every instance of the rocks, the place draws at most 27,300 triangles in at most 22 meshes, 8 of them casters (milestone 5 measured 19 / 7 / 24,356 with Star Hill; milestone 4 measured 17 / 6 / 21,162 after merging the rocks and the glowing lamps; milestone 3 21 / 8 / 20,014; milestone 2 20 / 8 / 18,726)', () => {
+  it('counting every instance of the rocks, the place draws at most 31,600 triangles in at most 22 meshes, 8 of them casters (milestone 7a measured 22 / 8 / 28,190; milestone 6 22 / 8 / 26,738; milestone 5 measured 19 / 7 / 24,356 with Star Hill; milestone 4 measured 17 / 6 / 21,162 after merging the rocks and the glowing lamps; milestone 3 21 / 8 / 20,014; milestone 2 20 / 8 / 18,726)', () => {
     const { scene } = built();
     let meshes = 0; let tri = 0; let casters = 0;
     const box = new THREE.Box3();
@@ -228,7 +228,7 @@ describe('the budget as the plan states it (row A1 at milestone 1: 40 / 24 / 15,
     }
     expect(meshes).toBeLessThanOrEqual(25);
     expect(casters).toBeLessThanOrEqual(9);
-    expect(tri).toBeLessThanOrEqual(30000);
+    expect(tri).toBeLessThanOrEqual(31600); // milestone 7a measured 22 / 8 / 28,190 (+1,452 for the Beam Hops, the lane and its posts), +12%
     expect(tri).toBeGreaterThan(16000); // and it is the real ground and the base, not a bare plain any more (milestone 0 was 5,408; milestone 1 14,584)
     // and it is under the plan's row B for the whole place with Star Hill (milestone 5: 125 / 66 / 33,000)
     expect(meshes).toBeLessThanOrEqual(125);

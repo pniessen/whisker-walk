@@ -504,7 +504,8 @@ const AREAS = [
   // Milestone 6 (Wing C, the Launch Complex) puts the pad, the gantry tower, the tanks, the desks, the benches and the binocular stand into the existing buckets (no
   // mesh of their own) and adds three meshes, the rocket (the one new caster), the gantry's arm and the plume (the smoke is a Points, not a mesh): measured
   // 22 / 8 / 19,838 built (26,738 counting every rock instance, test/moonplace.test.js), +12%: 25 / 9 / 22,300. The plan's row C (end of milestone 7) is 168 / 94 / 42,000.
-  ['moon', buildMoon, 25, 9, 22300],
+  // Milestone 7a (the Beam Hops, the hop board's lane, their posts: all in the kit's buckets) measured 22 / 8 / 21,290 built (28,190 counting every rock instance, test/moonplace.test.js), +12%: 25 / 9 / 23,900.
+  ['moon', buildMoon, 25, 9, 23900],
 ];
 
 // ---------------------------------------------------------------------------
