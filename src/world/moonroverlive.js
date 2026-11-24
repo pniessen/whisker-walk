@@ -32,6 +32,7 @@ import { ROVER, ROVER_FREE, createRover, stepRover, dismountSpot, tourPoint, tou
 import { buildDot, DOT_SEATS } from './moonroverparts.js';
 import { createMoonSound } from './moonsound.js';
 
+export const FAR_DRAWN = 70; // m (milestone 5): parked Dot is not drawn farther than this from her
 export const SEAT_FRAME = Object.freeze({ camOut: 0.45, camUp: 0.55, camEase: 2.6, lead: 1.4 });
 export const DUST = Object.freeze({ max: 60, low: 30, every: 0.07, ttl: 1.1, size: 0.42, color: 0x55535a });
 export const BOUNCE = Object.freeze({ height: 0.45, secs: 0.5 });
@@ -255,6 +256,7 @@ export function createRoverLive(ctx) {
   const hooks = {
     update(dt, t, { cat, player, session }) {
       if (!installed) return;
+      ctx.onFrame?.(dt, t, { cat, player, session }); // milestone 5: the telescope holds her still while it is open (world/moonstarlive.js)
       if (wantMount && !riding) { wantMount = false; board(cat, player, session); }
       if (wantOut && riding) { wantOut = false; getOut(cat, player, session); }
       wantMount = false;
@@ -433,6 +435,10 @@ export function createRoverLive(ctx) {
         ring.scale.setScalar(reducedMotion ? 1 : 1 + (inReach ? 0.1 : 0.04) * Math.sin(t * 3));
       } else ring.visible = false;
       dust(step);
+      // (milestone 5) the draw budget: Dot parked far from her is a dot on the horizon (six draws with her shadow): not drawn beyond FAR_DRAWN m, and the
+      // dust mesh (an always-drawn InstancedMesh) only while a puff is alive. A friend driving, or her riding, always draws her.
+      body.visible = !catPos || riding !== null || occupant.includes('friend') || dist(catPos, sim) <= FAR_DRAWN;
+      if (puffs) puffs.visible = riding !== null || pool.some((p) => p.age < DUST.ttl);
     },
     dispose() {
       offCall?.();

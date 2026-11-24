@@ -3,7 +3,8 @@
 // game's own gravel tile: six craters, the Earthrise Ridge along the north edge, low hills round the far edge so the
 // plain never ends in a wall; a black star sky with a big Earth over the ridge (world/moonsky.js); the landing site (the
 // lander with its two steps and a 3.0 m deck, the flag, four landing lights, the return gate ring as a placeholder that
-// does nothing yet) and, from milestone 2, the Moonbase Dome (world/moonbase.js), the Old Dish and Skip Ridge. Her cat wears the space suit here (src/suithook.js: LOOK_OF_PLACE.moon); the hop, the climb and the
+// does nothing yet) and, from milestone 2, the Moonbase Dome (world/moonbase.js), the Old Dish and Skip Ridge; from milestone 5 Star Hill
+// (world/moonwing.js: the tower, its ramp, the observatory, the Star Table). Her cat wears the space suit here (src/suithook.js: LOOK_OF_PLACE.moon); the hop, the climb and the
 // pace are the Moon's (src/placephysics.js); the camera's ease, the skip and the landing dust are world/moonlife.js.
 //
 // Behind ?moon=1 only: no catalog row, no map place, no gate. Draws no random number and reads no clock; builds in
@@ -19,6 +20,7 @@ import * as K from './moonparts.js';
 import { drawBase } from './moonbase.js';
 import { drawRoverCourse } from './moonroverparts.js';
 import { drawFinds } from './moonfindparts.js';
+import { drawWing } from './moonwing.js';
 import { createMoonLife } from './moonlife.js';
 import { moonPebbles } from './moonfinds.js';
 import './moonwords.js';
@@ -50,10 +52,15 @@ export function build(scene, { water = {} } = {}) {
     const B = drawBase(kit, M);
     drawFinds(kit, M); // Earthrise Rock, the pit's rock, the cheese, the echo studs and the plain's posts (milestone 4)
     drawRoverCourse(kit, M, B); // the depot, the track's lit posts and the Far Beacon (milestone 3; Dot herself is the walk's)
+    // Star Hill (milestone 5): the tower and its ramp go into the kit's stone (the stand-in: always drawn, no draw call of its own); the observatory, the
+    // lamps, the table and the ceiling are the wing group, drawn only within 55 m (moonzones.js)
+    const W = drawWing(kit, M);
     const place = new THREE.Group();
     place.name = 'moonPlace';
     for (const m of kit.meshes()) place.add(m);
     scene.add(place);
+    W.wing.visible = false; // the spawn is 77 m away; the life shows it when she is near
+    scene.add(W.wing);
     for (const rocks of K.drawRocks(lowTier)) scene.add(rocks);
 
     const area = {

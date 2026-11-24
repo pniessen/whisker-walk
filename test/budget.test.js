@@ -498,7 +498,10 @@ const AREAS = [
   // Milestone 4 added Earthrise Rock, the pit's rock, the cheese, the echo studs and the plain's posts into the existing material buckets (no mesh more),
   // and took draw calls OUT: the planters and the track's lit posts joined the place's one `glow` bucket, and the medium, large and boulder rocks became
   // one InstancedMesh: measured 17 / 6 / 14,262 built (21,162 counting every rock instance, test/moonplace.test.js), +12%: 20 / 7 / 16,000.
-  ['moon', buildMoon, 20, 7, 16000],
+  // Milestone 5 (Star Hill, wing B) puts the tower and its ramp into the Moon's own stone mesh (no mesh of its own) and adds two meshes, the observatory's
+  // paint and the additive figures (the table's pictures and the ceiling's Great Cat): measured 19 / 7 / 17,456 built (24,356 counting every rock
+  // instance, test/moonplace.test.js), +12%: 22 / 8 / 19,600. The plan's row B (end of milestone 5) is 125 / 66 / 33,000.
+  ['moon', buildMoon, 22, 8, 19600],
 ];
 
 // ---------------------------------------------------------------------------

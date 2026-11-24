@@ -36,10 +36,11 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 export const REACH = Object.freeze({ pip: 2.3, cell: 1.9, core: 3.0, board: 2.7, level: 1.2 }); // m: how near each prompt appears
 export const BEAT = Object.freeze({ rise: 2.6, hold: 1.0, earth: 3.4, total: 4.2 }); // s: the base waking
 export const RING = Object.freeze({ secs: 7, bubble: 3.2 });
+export const CELL_DRAWN = 50; // m (milestone 5): a power cell farther than this from her is not drawn (its capsule and halo are two draws each)
 export const NEAR_DOME = 16; // m: a wake-up beat that was saved unseen plays when she is this near the dome
 export const DOOR = Object.freeze({ open: 5.2, slide: 1.3, rate: 3 });
 const CELL_COLORS = Object.freeze([BASE_COL.teal, BASE_COL.amber]);
-const ICON = Object.freeze({ pip: '🤖', cell: '🔋', core: '🔌', done: '💡' });
+const ICON = Object.freeze({ pip: '🤖', cell: '🔋', core: '🔌', scope: '🔭', done: '💡' });
 const TAU = Math.PI * 2;
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -192,6 +193,8 @@ export function createBaseLife(ctx) {
     if (halo && camera) halo.quaternion.copy(camera.quaternion);
     if (halo) halo.visible = mode !== 'plugged' || power < 1; // a plugged cell is only a glow in the Core once the base is awake
     c.scale.setScalar(mode === 'plugged' ? 0.9 : 1);
+    // (milestone 5) the draw budget: a cell far from her (the other one, on its pillar or its plinth) is a speck: its two meshes are not drawn
+    c.visible = !catPos || Math.hypot(catPos.x - p.x, catPos.z - p.z) <= CELL_DRAWN;
   }
 
   // ---- saving ----------------------------------------------------------------------------------------------------------
@@ -251,6 +254,7 @@ export function createBaseLife(ctx) {
     if (g.kind === 'pip') return { g, x: pip.position.x, z: pip.position.z, y: ground.y(pip.position.x, pip.position.z) };
     if (g.kind === 'cell') { const p = cellPlace(g.cell); return { g, x: p.x, z: p.z, y: p.y - 0.42 }; }
     if (g.kind === 'core') return { g, x: P.CORE.x, z: P.CORE.z, y: ground.y(P.CORE.x, P.CORE.z) };
+    if (g.kind === 'scope') { const p = P.rampPoint(0.04, 0); return { g, x: p.x, z: p.z, y: ground.y(p.x, p.z) }; } // the ramp's mouth at Star Hill's foot
     return { g, x: P.BOARD.x + 1.6, z: P.BOARD.z, y: ground.y(P.BOARD.x, P.BOARD.z) };
   }
   // her meow (or the board): Pip beeps, shows a picture and a gold ring and light show where the next goal is
@@ -315,7 +319,7 @@ export function createBaseLife(ctx) {
       } else if (t.kind === 'board') {
         callPip();
         const g = M.nextGoal(progression?.state?.moon, carrying).kind;
-        say('moon-board', phrase(g === 'pip' ? 'moon.goal.pip' : g === 'cell' ? 'moon.goal.cells' : g === 'core' ? 'moon.goal.core' : 'moon.goal.done'));
+        say('moon-board', phrase(g === 'pip' ? 'moon.goal.pip' : g === 'cell' ? 'moon.goal.cells' : g === 'core' ? 'moon.goal.core' : g === 'scope' ? 'moon.goal.scope' : 'moon.goal.done'));
       }
       return t.kind;
     },

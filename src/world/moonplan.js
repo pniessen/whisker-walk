@@ -144,6 +144,63 @@ export const PEBBLES = Object.freeze([
 // The scripted points of the story (a find never sits within 3 m of one): Pip's bed, the cells, the sockets, the board, Dot's pad.
 export const JOB_POINTS = Object.freeze([PIP_SLEEP, RIDGE_CELL, ROVER_CELL, ...SOCKETS, { x: BOARD.x + 1.5, z: BOARD.z }, DOT_PARK]);
 
+
+// ---- milestone 5: Star Hill (wing B): the tower, its spiral ramp, the observatory, the Star Table ---------------------------------
+
+// Star Hill is a stone tower 5 m high and 12 m across with a ramp wound once and a half round it (the ground rules of this game
+// are strips and discs with square edges, a rim of 0.3 m or more is a wall: a smooth cone steeper than 1 in 1 is still climbed by short
+// steps, so the tower's side is a true wall and the ramp, which rises 1 in 6 or so, is the one way up). The ramp's inner edge lies against the tower; it
+// starts on the dust at bearing `a0` (south-south-east, toward the spawn) and winds round to the west, the north and the east, ending
+// in a flat landing that joins the top. Pure data and one pure function; moonY adds it to the plain's own height.
+export const STAR_HILL = Object.freeze({
+  x: -38, z: -32, h: 5, top: 6.0, // the top's radius (a disc); its height over the dust
+  rs: 7.3, w: 2.8, // the ramp's middle radius and its width (from 5.9 to 8.7: it overlaps the tower's wall a little)
+  a0: (70 * Math.PI) / 180, turn: 1.5 * Math.PI, // where the ramp starts (angle in x, z) and how far round it goes
+  flat: 0.12, // the last share of the ramp is level (a landing)
+});
+// The ramp's height at a fraction t (0 at the dust, h on the landing) and where the ramp's middle stands at that fraction.
+export const rampHeight = (t) => STAR_HILL.h * Math.min(1, Math.max(0, t) / (1 - STAR_HILL.flat));
+export const rampAngle = (t) => STAR_HILL.a0 + STAR_HILL.turn * t;
+export const rampPoint = (t, k = 0) => {
+  const a = rampAngle(t);
+  const r = STAR_HILL.rs + k;
+  return { x: STAR_HILL.x + Math.cos(a) * r, z: STAR_HILL.z + Math.sin(a) * r, y: rampHeight(t) };
+};
+const HILL_OUT = STAR_HILL.rs + STAR_HILL.w / 2;
+// How much Star Hill lifts the ground at (x, z): the top's disc, the ramp's band, else 0.
+export function hillAdd(x, z) {
+  const H = STAR_HILL;
+  const dx = x - H.x;
+  const dz = z - H.z;
+  const r2 = dx * dx + dz * dz;
+  if (r2 > HILL_OUT * HILL_OUT) return 0;
+  const r = Math.sqrt(r2);
+  if (r <= H.top) return H.h;
+  if (r >= H.rs - H.w / 2) {
+    const a = (((Math.atan2(dz, dx) - H.a0) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    const t = a / H.turn;
+    if (t <= 1 + 1e-9) return rampHeight(t);
+  }
+  return 0;
+}
+// The observatory on the top: eight pillars round a level floor, a shallow dome with a slit, the telescope in the middle. The pillars
+// stand on a ring (the way in is between any two); the telescope's base is the one collider in the middle.
+export const OBSERVATORY = Object.freeze({
+  x: STAR_HILL.x, z: STAR_HILL.z, floor: 5.6, ring: 3.7, pillars: 8, pillarH: 3.4, pillarR: 0.3, dome: 4.1, domeRise: 1.4,
+  scopeR: 0.8, reach: 2.9, level: 1.4, // the telescope's collider; how near her paws the prompt shows and how far from the floor's height
+});
+export const PILLAR_SPOTS = Object.freeze(Array.from({ length: OBSERVATORY.pillars }, (_, i) => {
+  const a = ((i + 0.5) / OBSERVATORY.pillars) * Math.PI * 2;
+  return Object.freeze({ x: OBSERVATORY.x + Math.cos(a) * OBSERVATORY.ring, z: OBSERVATORY.z + Math.sin(a) * OBSERVATORY.ring });
+}));
+// The Star Table at the hill's foot (the spec's plaza was (-30, -26): that is 10 m from the hill, inside the ramp's reach, so it stands 4 m farther out).
+export const STAR_TABLE = Object.freeze({ x: -27, z: -24, r: 1.35, top: 0.95, reach: 3.2 });
+export const STAR_COLLIDERS = Object.freeze([
+  ...PILLAR_SPOTS.map((p) => c(p.x, p.z, OBSERVATORY.pillarR)),
+  c(OBSERVATORY.x, OBSERVATORY.z, OBSERVATORY.scopeR),
+  c(STAR_TABLE.x, STAR_TABLE.z, STAR_TABLE.r),
+]);
+
 const ring = [];
 for (let i = 0; i < 40; i++) {
   const a = (i / 40) * Math.PI * 2;
@@ -168,6 +225,7 @@ export const BASE_COLLIDERS = Object.freeze([
   ...ROCK_LEDGES.map((p) => c(p.x, p.z, p.r + 0.05)),
   c(PIT_ROCK.x, PIT_ROCK.z, PIT_ROCK.r),
   ...PLAIN_POSTS.map((p) => c(p.x, p.z, 0.2)),
+  ...STAR_COLLIDERS,
 ]);
 
 export const MOON_COLLIDERS = Object.freeze([
@@ -199,7 +257,7 @@ export const MOON_POIS = Object.freeze([
 // (centre x, z, radius). The scatter keeps this clear, so a later milestone never has to move a rock.
 export const ROCK_KEEP_OUT = Object.freeze([
   [0, 42, 10], [-10, 41, 5.5], [-20, 46.5, 12], [0, 46, 7], [46, 0, 4],
-  [-34, 26, 13], [-44, 14, 7], [30, 34, 11], [42, -34, 12], [30, -28, 6], [24, -20, 6], [-38, -32, 10], [-47, 0, 8], [8, -40, 8],
+  [-34, 26, 13], [-44, 14, 7], [30, 34, 11], [42, -34, 12], [30, -28, 6], [24, -20, 6], [-38, -32, 14], [-27, -24, 4.5], [-47, 0, 8], [8, -40, 8],
   [-4.5, -44.8, 6.5], [31, -10, 4],
 ]);
 
@@ -209,7 +267,7 @@ const smooth = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 
 // The plain's height at (x, z): the six bowls (a cosine bowl, a low raised rim), the long ridge, the hills that close the
 // far edge. Smooth everywhere; steepest well under the walk's 0.5 per metre inside the bounds.
-export function moonY(x, z) {
+export function moonBaseY(x, z) {
   let y = 0;
   let bowl = 0; // the deepest bowl at the point, not the sum: the twin bowls overlap and must not double their slope
   for (const k of CRATERS) {
@@ -232,6 +290,9 @@ export function moonY(x, z) {
   }
   return y;
 }
+
+// The plain's height with Star Hill on it (milestone 5): what she walks on and what everything stands on.
+export const moonY = (x, z) => moonBaseY(x, z) + hillAdd(x, z);
 
 // The Moon's ground in the shape the walk reads (src/ground.js's: y, ceil, canStep, slide, sameLevel, gradient, tilt), made
 // from the heightfield above. A step is legal under the same rule as every raised ground (STEP_MAX plus MAX_GRADE a metre).

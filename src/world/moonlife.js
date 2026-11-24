@@ -10,6 +10,8 @@
 //   * (milestone 4) the DRAW BUDGET: the walk's own pebbles and golden mice (about 17 draws if all are in view on this wide plain) are
 //     hidden beyond DRAW_NEAR metres of her (a 0.2 m thing at 50 m is a dot), so a frame stays under the 120-draw gate; nothing reads a
 //     mesh's `visible` to decide anything (the walk uses the collectible Map and the mice's own list);
+//   * (milestone 5) the base's small parts far from her are not drawn (cullParts: the draw budget);
+//   * (milestone 5) STAR HILL: the telescope and its star pictures, the Old Dish's turn to Earth, the wing's stand-in (world/moonstarlive.js);
 //   * (milestone 3) DOT the rover: hop in at the depot, steer, hop out (world/moonroverlive.js); she hangs her hooks on the walk's session.fair.
 //   * (milestone 2) the BASE: Pip, the two power cells, the Core, the dome, the door, the board, the finds, the gold ring and the
 //     switching-off of the daily goals and the air's sounds (world/moonbaselive.js); this life hands the walk its promptAt, interact
@@ -24,13 +26,22 @@ import { placeArc } from '../placephysics.js';
 import { createMoonSky } from './moonsky.js';
 import { createBaseLife } from './moonbaselive.js';
 import { createRoverLive } from './moonroverlive.js';
-import { MOON_SPAWN } from './moonplan.js';
+import { createStarLive } from './moonstarlive.js';
+import { MOON_SPAWN, AIRLOCK, RETURN_GATE, DOME } from './moonplan.js';
 
 export const CAMERA_FOLLOW = 0.6; // the camera rises this much of a hop's height
 export const SKIP_HEIGHT = 0.1; // m, the bounce of one stride
 export const SKIP_STRIDE = 1.1; // m walked per stride
 export const DRAW_NEAR = 50; // m: the walk's pebbles and golden mice farther than this from her are not drawn (milestone 4's draw budget)
 export const DUST = Object.freeze({ count: 10, lite: 5, ttl: 1.2, gravity: 0.35, speed: 0.9, size: 0.14, color: 0xb9b3aa });
+// (milestone 5) The base's small parts are meshes of their own (they animate or change colour), and a frame on this wide plain drew every one of them
+// from anywhere: the two door leaves (and their shadows), the gate ring's disc and shaft, and the dome's lamps, Core glow and board. Beyond these
+// metres of their places they are a dot, so they are not drawn (about nine draws a frame on the far side, which is where Star Hill's wing is drawn).
+export const PART_NEAR = Object.freeze([
+  Object.freeze({ names: ['moon:doorL', 'moon:doorR'], x: AIRLOCK.x1, z: AIRLOCK.z, near: 40 }),
+  Object.freeze({ names: ['moon:disc', 'moon:shaft'], x: RETURN_GATE.x, z: RETURN_GATE.z, near: 60 }),
+  Object.freeze({ names: ['moon:lamp', 'moon:coreglow', 'moon:board'], x: DOME.x, z: DOME.z, near: 45 }),
+]);
 const SKY_BLACK = 0x03050d;
 
 // The height of the hop now, from the pounce window the walk keeps (session.pounceTime counts down from arc.time): the
@@ -55,13 +66,30 @@ export function cullFar(catPos, session, near = DRAW_NEAR) {
   return shown;
 }
 
+// cullParts(parts, catPos) -> how many of the base's small parts are drawn now (each hidden beyond its `near` metres of its place, shown within it).
+export function cullParts(parts, catPos, table = PART_NEAR) {
+  let shown = 0;
+  for (const row of table) {
+    const on = Math.hypot(catPos.x - row.x, catPos.z - row.z) <= row.near;
+    for (const name of row.names) {
+      const m = parts.get(name);
+      if (!m) continue;
+      m.visible = on;
+      if (on) shown++;
+    }
+  }
+  return shown;
+}
+
 // createMoonLife(ctx) -> { update(dt, t, catPos, camera, session), dispose() }; ctx is walk.js's life context.
-export function createMoonLife({ scene, reducedMotion = false, tier, progression, ground, colliders, log, audio }) {
+export function createMoonLife({ scene, reducedMotion = false, tier, progression, ground, colliders, log, audio, doc, win }) {
   scene.background = new THREE.Color(SKY_BLACK); // no horizon haze under the stars: the Moon has no air
   const sky = createMoonSky({ scene, tier, reducedMotion });
   const base = createBaseLife({ scene, reducedMotion, ground, colliders, progression, log, audio });
   // (milestone 3) Dot: hop in at the depot, steer by the stick, hop out; she hooks the walk's session.fair on the first frame (moonroverlive.js)
-  const rover = createRoverLive({ scene, reducedMotion, ground, colliders, tier, audio, progression, onDismount: () => base.pip.rejoin() });
+  // (milestone 5) Star Hill: the telescope, the star pictures, the Old Dish's turn (moonstarlive.js); the rover's walk hook hands it the player each frame
+  const star = createStarLive({ scene, reducedMotion, ground, tier, audio, progression, doc, win });
+  const rover = createRoverLive({ scene, reducedMotion, ground, colliders, tier, audio, progression, onDismount: () => base.pip.rejoin(), onFrame: star.frame });
   // placed for the Ready card, before the first frame of the walk moves the camera (it looks north from behind the spawn)
   const first = new THREE.PerspectiveCamera();
   first.position.set(MOON_SPAWN.x, 2.9, MOON_SPAWN.z + 4.4);
@@ -72,20 +100,23 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
   let phase = 0;
   let wasUp = false;
   let held = null;
-  let owner = null; // whose offer the action button is showing: 'base' | 'rover' | null
+  let owner = null; // whose offer the action button is showing: 'base' | 'star' | 'rover' | null
+  const parts = new Map(PART_NEAR.flatMap((r) => r.names).map((n) => [n, scene.getObjectByName(n)]).filter(([, m]) => m));
 
   return {
     sky,
     base,
     rover,
+    star,
     // the action button: Dot's "Hop in" / "Hop out" first (riding), else the base's own offers, else "Hop in" when nothing else is asked
     promptAt(catPos) {
       const b = base.promptAt(catPos);
+      const s = star.promptAt(catPos);
       const r = rover.promptAt(catPos);
-      owner = rover.riding ? 'rover' : b ? 'base' : r ? 'rover' : null;
-      return owner === 'rover' ? r : owner === 'base' ? b : null;
+      owner = rover.riding ? 'rover' : b ? 'base' : s ? 'star' : r ? 'rover' : null;
+      return owner === 'rover' ? r : owner === 'base' ? b : owner === 'star' ? s : null;
     },
-    interact() { return owner === 'rover' ? rover.interact() : base.interact(); },
+    interact() { return owner === 'rover' ? rover.interact() : owner === 'star' ? star.interact() : base.interact(); },
     credit: (ev) => (typeof ev?.kind === 'string' && ev.kind.startsWith('rover-') ? rover.credit(ev) : base.credit(ev)),
     update(dt, t, catPos, camera, session) {
       held = session;
@@ -116,12 +147,16 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       session.hopLift = skip;
       rover.update(dt, t, catPos, camera, session);
       base.update(dt, t, catPos, camera, session);
+      star.update(dt, t, catPos, camera, session);
       cullFar(catPos, session);
+      cullParts(parts, catPos);
     },
     dispose() {
+      star.dispose();
       rover.dispose();
       base.dispose();
       sky.dispose();
+      for (const m of parts.values()) m.visible = true;
       if (held) held.hopLift = 0;
       for (const m of held?.collectibleMeshes?.values?.() ?? []) m.visible = true;
       for (const mo of held?.goldMice?.list ?? []) if (mo?.group) mo.group.visible = true;

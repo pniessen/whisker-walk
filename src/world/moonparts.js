@@ -46,7 +46,7 @@ export function groundGeometry() {
       const k = j * nx + i;
       const x = xs[i];
       const z = zs[j];
-      const y = P.moonY(x, z);
+      const y = P.moonBaseY(x, z);
       pos[k * 3] = x; pos[k * 3 + 1] = y; pos[k * 3 + 2] = z;
       uv[k * 2] = x / T; uv[k * 2 + 1] = z / T;
       // dust: a slow mottle, darker in the bowls' floors, lighter on their rims and the ridge's top, a little cooler and darker far away

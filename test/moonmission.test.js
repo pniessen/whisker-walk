@@ -3,7 +3,7 @@
 // step never goes back, a carried cell is never in the save, a step done by anyone in the room counts the same, and hostile input is
 // ignored.
 import { describe, it, expect } from 'vitest';
-import { normalize, apply, credit, nextGoal, boardMarks, pipAwake, baseAwake, cellIn, STEP } from '../src/world/moonmission.js';
+import { normalize, apply, credit, nextGoal, boardMarks, pipAwake, baseAwake, cellIn, scopeBits, storyTraced, earthFound, STEP } from '../src/world/moonmission.js';
 import { mulberry32 } from '../src/rng.js';
 import { sanitizeSave } from '../src/progression.js';
 
@@ -101,7 +101,8 @@ describe('the goal (what the gold ring points at)', () => {
     expect(nextGoal({ step: 2, cells: 1 })).toEqual({ kind: 'cell', cell: 1 });
     expect(nextGoal({ step: 2, cells: 2 })).toEqual({ kind: 'cell', cell: 0 });
     expect(nextGoal({ step: 3, cells: 3 })).toEqual({ kind: 'done' });
-    expect(nextGoal({ step: 4, cells: 3 })).toEqual({ kind: 'done' });
+    expect(nextGoal({ step: 4, cells: 3 })).toEqual({ kind: 'scope' }); // milestone 5: the telescope on Star Hill is next
+    expect(nextGoal({ step: 5, cells: 3 })).toEqual({ kind: 'done' });
   });
   it('a cell she carries that is already in the Core is not a goal (someone else plugged it)', () => {
     expect(nextGoal({ step: 2, cells: 1 }, 0)).toEqual({ kind: 'cell', cell: 1 });
@@ -193,6 +194,79 @@ describe('the saved fields (state.moon, sanitised by progression.js, repaired by
       const moon = sanitizeSave({ version: 4, moon: { ...rec, stamp: -1, scope: 0, jump: {} } }).moon;
       expect(moon).toMatchObject(rec);
       expect(normalize(moon)).toEqual(rec);
+    }
+  });
+});
+
+describe('chapter 2, "Aim" (milestone 5): the star pictures and step 5', () => {
+  it('a picture traced is a bit in `scope` (the Mouse bit 0, the Cat bit 1) at any time, with no other change to the story before the base is awake', () => {
+    const a = apply({ step: 1, cells: 0 }, { kind: 'trace', id: 0 });
+    expect(a.changed).toBe(true);
+    expect(a.effect).toBe('trace');
+    expect(a.moon).toEqual({ step: 1, cells: 0, scope: 1 });
+    const b = apply(a.moon, { kind: 'trace', id: 1 });
+    expect(b.moon).toEqual({ step: 1, cells: 0, scope: 3 }); // both traced, but the base is asleep: no step 5 yet
+    expect(storyTraced(b.moon)).toBe(true);
+    expect(earthFound(b.moon)).toBe(false);
+  });
+  it('the Mouse and the Cat on a woken base lift the story to step 5 (effect "earth"); the other three pictures change no step', () => {
+    let m = { step: 4, cells: 3, scope: 0 };
+    m = apply(m, { kind: 'trace', id: 0 }).moon;
+    expect(m.step).toBe(4);
+    const r = apply(m, { kind: 'trace', id: 1 });
+    expect(r.moon).toEqual({ step: 5, cells: 3, scope: 3 });
+    expect(r.effect).toBe('earth');
+    expect(earthFound(r.moon)).toBe(true);
+    m = r.moon;
+    for (const id of [2, 3, 4]) m = apply(m, { kind: 'trace', id }).moon;
+    expect(m.step).toBe(5);
+    expect(m.scope).toBe(31);
+    expect(apply(m, { kind: 'trace', id: 4 }).changed).toBe(false); // again: nothing
+  });
+  it('the other order: the pictures first, then the base wakes: the beat lifts to 5; and "aim" repairs a merged record', () => {
+    let m = { step: 3, cells: 3, scope: 3 };
+    expect(apply(m, { kind: 'beat' }).moon.step).toBe(5);
+    const merged = { step: 4, cells: 3, scope: 3 }; // two devices: one woke the base, the other found Earth
+    const r = apply(merged, { kind: 'aim' });
+    expect(r.moon.step).toBe(5);
+    expect(r.effect).toBe('earth');
+    expect(apply(r.moon, { kind: 'aim' }).changed).toBe(false);
+    expect(apply({ step: 4, cells: 3, scope: 1 }, { kind: 'aim' }).changed).toBe(false);
+  });
+  it('hostile trace events change nothing: an id that is not a picture, a string, a prototype key', () => {
+    const m = { step: 4, cells: 3, scope: 1 };
+    for (const ev of [{ kind: 'trace', id: 5 }, { kind: 'trace', id: -1 }, { kind: 'trace', id: '1' }, { kind: 'trace', id: 1.5 }, { kind: 'trace' }, { kind: '__proto__', id: 0 }]) {
+      const r = apply(m, ev);
+      expect(r.changed, JSON.stringify(ev)).toBe(false);
+      expect(r.moon.scope).toBe(1);
+    }
+    expect(scopeBits({ scope: 99 })).toBe(99 & 31);
+    expect(scopeBits({ scope: -4 })).toBe(0);
+    expect(scopeBits({ scope: 'x' })).toBe(0);
+    expect(scopeBits(null)).toBe(0);
+  });
+  it('a record with no `scope` key (chapter 1\'s) stays exactly as it was until a picture is traced', () => {
+    const r = apply({ step: 0, cells: 0 }, { kind: 'wake' });
+    expect(Object.keys(r.moon).sort()).toEqual(['cells', 'step']);
+  });
+  it('the credit path (a friend\'s event from the wire) takes no trace: the telescope is one cat at a time and the pictures are saved by the cat who traced them', () => {
+    expect(credit({ step: 4, cells: 3 }, { kind: 'trace', id: 0 }).changed).toBe(false);
+  });
+  it('the goal: the telescope is next once the base is awake, then nothing; and a player who follows the goals ends on step 5 from any start', () => {
+    for (const s of states) {
+      let m = normalize(s);
+      m = { ...m, scope: 0 };
+      let carrying = null;
+      let steps = 0;
+      while (!earthFound(m) && steps++ < 14) {
+        const g = nextGoal(m, carrying);
+        if (g.kind === 'pip') m = apply(m, { kind: 'wake' }).moon;
+        else if (g.kind === 'cell') carrying = g.cell;
+        else if (g.kind === 'core') { m = apply(m, { kind: 'plug', cell: g.cell }).moon; carrying = null; }
+        else if (g.kind === 'scope') { m = apply(apply(m, { kind: 'trace', id: 0 }).moon, { kind: 'trace', id: 1 }).moon; }
+        else m = apply(m, { kind: 'beat' }).moon;
+      }
+      expect(earthFound(m), JSON.stringify(s)).toBe(true);
     }
   });
 });

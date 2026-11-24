@@ -120,8 +120,8 @@ export function drawDish(kit, M, B) {
   const arm = cyl(0.04, 0.04, 2.6, 5);
   arm.translate(0, 1.3, 0);
   arm.rotateZ(-0.62);
-  kit.put('floor', M.paint, paint(at(arm, x, z, post + 0.35), BASE_COL.core), { noCast: true });
-  kit.put('floor', M.paint, paint(at(cyl(0.05, 0.22, 0.4, 6).rotateZ(-0.62), x + Math.sin(0.62) * 2.7, z, post + 0.35 + Math.cos(0.62) * 2.7), BASE_COL.hazard), { noCast: true });
+  kit.put('dish', B.dish, paint(at(arm, x, z, post + 0.35), BASE_COL.core)); // the arm and the horn turn with the bowl (milestone 5: the dish swings to Earth)
+  kit.put('dish', B.dish, paint(at(cyl(0.05, 0.22, 0.4, 6).rotateZ(-0.62), x + Math.sin(0.62) * 2.7, z, post + 0.35 + Math.cos(0.62) * 2.7), BASE_COL.hazard));
 }
 
 // Skip Ridge: two stacked rock pillars, a scatter of rocks at their feet and the Ridge cell's plinth on the top.

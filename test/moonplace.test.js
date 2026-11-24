@@ -89,6 +89,7 @@ describe('the ground', () => {
     let worst = 0;
     for (let x = P.MOON_BOUNDS.minX; x <= P.MOON_BOUNDS.maxX; x += 0.5) {
       for (let z = P.MOON_BOUNDS.minZ; z <= P.MOON_BOUNDS.maxZ; z += 0.5) {
+        if (Math.hypot(x - P.STAR_HILL.x, z - P.STAR_HILL.z) < P.STAR_HILL.rs + P.STAR_HILL.w) continue; // Star Hill's tower is a wall by design (test/moonstarhill.test.js)
         g.gradient(x, z, out);
         worst = Math.max(worst, Math.hypot(out.x, out.z));
       }
@@ -210,7 +211,7 @@ describe('the drawing, as the walk\'s sweeps see it (the rocks as InstancedMeshe
 });
 
 describe('the budget as the plan states it (row A1 at milestone 1: 40 / 24 / 15,500; milestone 2 is on the way to row A, 100 / 56 / 27,500, and pins its own measure at +12%)', () => {
-  it('counting every instance of the rocks, the place draws at most 23,700 triangles in at most 20 meshes, 7 of them casters (milestone 4 measured 17 / 6 / 21,162 after merging the rocks and the glowing lamps; milestone 3 21 / 8 / 20,014; milestone 2 20 / 8 / 18,726)', () => {
+  it('counting every instance of the rocks, the place draws at most 27,300 triangles in at most 22 meshes, 8 of them casters (milestone 5 measured 19 / 7 / 24,356 with Star Hill; milestone 4 measured 17 / 6 / 21,162 after merging the rocks and the glowing lamps; milestone 3 21 / 8 / 20,014; milestone 2 20 / 8 / 18,726)', () => {
     const { scene } = built();
     let meshes = 0; let tri = 0; let casters = 0;
     const box = new THREE.Box3();
@@ -225,14 +226,14 @@ describe('the budget as the plan states it (row A1 at milestone 1: 40 / 24 / 15,
         if (eligible && !o.material.transparent && !o.userData.noCast) casters++;
       });
     }
-    expect(meshes).toBeLessThanOrEqual(20);
-    expect(casters).toBeLessThanOrEqual(7);
-    expect(tri).toBeLessThanOrEqual(23700);
+    expect(meshes).toBeLessThanOrEqual(22);
+    expect(casters).toBeLessThanOrEqual(8);
+    expect(tri).toBeLessThanOrEqual(27300);
     expect(tri).toBeGreaterThan(16000); // and it is the real ground and the base, not a bare plain any more (milestone 0 was 5,408; milestone 1 14,584)
-    // and it is under the plan's row A for the whole base (milestones 2 to 4)
-    expect(meshes).toBeLessThanOrEqual(100);
-    expect(casters).toBeLessThanOrEqual(56);
-    expect(tri).toBeLessThanOrEqual(27500);
+    // and it is under the plan's row B for the whole place with Star Hill (milestone 5: 125 / 66 / 33,000)
+    expect(meshes).toBeLessThanOrEqual(125);
+    expect(casters).toBeLessThanOrEqual(66);
+    expect(tri).toBeLessThanOrEqual(33000);
   });
 });
 
@@ -256,7 +257,7 @@ describe('the ground mesh', () => {
       const dz = Math.abs(pos.getZ(i) - pos.getZ(i - 1));
       if (dz === 0) expect(dx).toBeLessThanOrEqual(6);
     }
-    for (let i = 0; i < pos.count; i += 37) expect(pos.getY(i)).toBeCloseTo(P.moonY(pos.getX(i), pos.getZ(i)), 4);
+    for (let i = 0; i < pos.count; i += 37) expect(pos.getY(i)).toBeCloseTo(P.moonBaseY(pos.getX(i), pos.getZ(i)), 4); // the plain's own height: Star Hill is its own mesh
     let big = 0;
     const idx = ground.geometry.index;
     for (let i = 0; i < idx.count; i += 3) {

@@ -37,7 +37,7 @@ export const LINES = Object.freeze({
   'moon.pip.goal': 'Let’s say hello to Earth!',
   'moon.core.on': 'The base has power!',
   'moon.earth': clan('Earth is out. Look up!', 'Earth is out. Silverpelt shines beside it.'),
-  'moon.scope.milky': 'The Milky Way is out.',
+  'moon.scope.milky': clan('The Milky Way is out.', 'Silverpelt is out.'),
   'moon.scope.hmm': 'Hmm, not that one.',
   'moon.stamp.ask': 'Pick a stamp for your postcard.',
   'moon.count.go': 'Lift-off!',
@@ -76,6 +76,23 @@ export const LINES = Object.freeze({
   'moon.find.dust': 'the quiet dust, keeping your paw prints',
   'moon.find.cheese': 'the Moon Cheese, a golden wedge',
   'moon.pebble': 'a glowing pebble',
+  // milestone 5: Star Hill, the telescope, the star pictures, the Star Table (the same in both sets; the Milky Way line above is the one Clan flavour)
+  'moon.scope.prompt': 'E — look through the telescope',
+  'moon.table.prompt': 'E — look at the star table',
+  'moon.scope.hint': 'A telescope waits on Star Hill. Find Earth in the stars!',
+  'moon.goal.scope': 'Climb Star Hill and find Earth in the telescope.',
+  'moon.scope.found': 'You found Earth! The dish is looking at it.',
+  'moon.scope.cat': 'All five star pictures make the Great Cat!',
+  'moon.scope.close': 'Close the telescope',
+  'moon.scope.hintbtn': 'Show the next star',
+  'moon.star.mouse': 'You drew the Mouse!',
+  'moon.star.cat': 'You drew the Cat!',
+  'moon.star.fish': 'You drew the Fish!',
+  'moon.star.crown': 'You drew the Crown!',
+  'moon.star.paw': 'You drew the Paw!',
+  'moon.table.story': 'Trace the Mouse and the Cat in the telescope to find Earth.',
+  'moon.table.more': 'Earth is found! Can you trace all five star pictures?',
+  'moon.table.done': 'Every star picture is traced. The Great Cat shines!',
 });
 
 addPhrases(LINES);

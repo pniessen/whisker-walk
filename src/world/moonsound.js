@@ -11,6 +11,9 @@ export const CHIRP = Object.freeze({ gain: 0.04, f: 600, to: 1500, dur: 0.22 });
 export const CLICK = Object.freeze({ gain: 0.05, f: 300, to: 900, dur: 0.12, ping: 1568 });
 export const HONK = Object.freeze({ gain: 0.05, notes: Object.freeze([Object.freeze({ at: 0, f: 330, dur: 0.16 }), Object.freeze({ at: 0.2, f: 262, dur: 0.22 })]) });
 export const ECHO_PINGS = Object.freeze({ f: 660, gains: Object.freeze([0.05, 0.03, 0.016]), gap: 0.3, dur: 0.5 });
+export const PIN = Object.freeze({ gain: 0.04, base: 523, step: 1.122, dur: 0.35 }); // a star pinned: a soft ping, a little higher each time
+export const HMM = Object.freeze({ gain: 0.03, notes: Object.freeze([Object.freeze({ at: 0, f: 247, dur: 0.18 }), Object.freeze({ at: 0.16, f: 220, dur: 0.24 })]) });
+export const TRACED = Object.freeze({ gain: 0.045, notes: Object.freeze([523, 659, 784, 1047]) });
 export const HUM = Object.freeze({ gain: 0.05, dur: 2.8, notes: Object.freeze([110, 165, 220, 330]) });
 
 export function createMoonSound(audio) {
@@ -53,6 +56,9 @@ export function createMoonSound(audio) {
     click: () => play((c, m, now) => { voice(c, m, { type: 'triangle', f: CLICK.f, to: CLICK.to, dur: CLICK.dur, gain: CLICK.gain, now }); voice(c, m, { f: CLICK.ping, at: 0.1, dur: 0.5, gain: CLICK.gain * 0.5, now }); }),
     honk: () => play((c, m, now) => { for (const n of HONK.notes) voice(c, m, { type: 'square', ...n, gain: HONK.gain, now }); }),
     echo: () => play((c, m, now) => { ECHO_PINGS.gains.forEach((g, i) => voice(c, m, { type: 'sine', f: ECHO_PINGS.f - i * 30, at: i * ECHO_PINGS.gap, dur: ECHO_PINGS.dur, gain: g, attack: 0.03, now })); }),
+    pin: (i = 0) => play((c, m, now) => voice(c, m, { type: 'sine', f: PIN.base * PIN.step ** Math.min(12, Math.max(0, i)), dur: PIN.dur, gain: PIN.gain, attack: 0.03, now })),
+    hmm: () => play((c, m, now) => { for (const n of HMM.notes) voice(c, m, { type: 'sine', ...n, gain: HMM.gain, now }); }),
+    traced: () => play((c, m, now) => { TRACED.notes.forEach((f, i) => voice(c, m, { type: 'triangle', f, at: i * 0.11, dur: 0.6, gain: TRACED.gain, attack: 0.03, now })); }),
     hum: () => play((c, m, now) => { HUM.notes.forEach((f, i) => voice(c, m, { type: 'sine', f, to: f * 1.01, at: i * 0.35, dur: HUM.dur - i * 0.35, gain: HUM.gain / (1 + i * 0.4), attack: 0.4, now })); }),
     dispose() {
       dead = true;
