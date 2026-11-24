@@ -15,6 +15,7 @@ import { GLASSES, GLASSES_FRAME, buildGlasses } from './glasses.js';
 import { buildHat, HAT_BLACK, BEANIE_COLOR, WIZARD_COLOR } from './hats.js';
 import { buildBackItem, buildHood } from './backitems.js';
 import { hasEntry, bodyKind, isPack, isCharmed } from './wearkind.js';
+import { suitPiece, suitKit } from '../suithook.js';
 import { addFoundHenHead } from './foundhead.js';
 import { addFoundFace } from './foundface.js';
 import { addFoundNeck, FOUND_COLLARS } from './foundneck.js';
@@ -557,6 +558,14 @@ function tagFound(objs, id) {
   for (const obj of objs) obj.traverse((o) => { if (o.isMesh) o.userData.foundWear = id; });
 }
 
+// A suit piece (src/suithook.js; the kit is a lazy file a suit place registers):
+// runs `make(kit, look)` when `id` names `piece` and the kit is loaded, else
+// draws nothing.
+function addSuit(id, piece, make) {
+  const s = suitPiece(id), kit = suitKit();
+  if (s && s.piece === piece && kit) make(kit, s.look);
+}
+
 // A flat five-point star, extruded a hair so it has a face to catch light.
 function starGeometry(outer, inner, depth) {
   const shape = new THREE.Shape();
@@ -992,6 +1001,7 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   let foundFrom = head.children.length;
   addFoundHenHead(head, accessories.head, { k: 0.82, y: 0.2, rx: 0.09, rz: 0.06, ringY: 0.115 });
   tagFound(head.children.slice(foundFrom), accessories.head);
+  addSuit(accessories.head, 'helmet', (kit, look) => kit.henHelmet(head, { look }));
   addPrizeFace(head, accessories.face, { k: 0.75, x: 0.09, y: 0.03, z: -0.1, starZ: -0.112, skull: [0.13, 0.13, 0.13] });
   foundFrom = head.children.length;
   addFoundFace(head, accessories.face, { k: 0.75, x: 0.09, y: 0.03, z: -0.1, starZ: -0.112, skull: [0.13, 0.13, 0.13] });
@@ -1916,6 +1926,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // accessories polish Task 1 — they used to float 4-5 cm over the head).
   const hat = buildHat(accessories.head, { simple: opts.simple });
   if (hat) head.add(hat);
+  addSuit(accessories.head, 'helmet', (kit, look) => kit.helmet(head, { look, simple: !!opts.simple }));
   // The birthday kitten's bow (STYLE `bow`): a red ribbon bow beside her right
   // ear, one mesh; a hat takes its place.
   if (s.bow && !hat) head.add(kitBow());
@@ -2041,11 +2052,11 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     string.userData.span = { top: top.toArray(), len };
     return floatOn(string, tie);
   };
-  const coatShell = (color, paint) => {
+  const coatShell = (color, paint, segs) => {
     // A full shell is 32×32 (the torso itself is 40×40; the simple shell uses
     // the torso's simple grid), fine enough that the shell does not sag
     // between its facets and thin the clearance to the fur.
-    const geo = torsoGeometry(BODY_R, ...(opts.simple ? TORSO.SEG.simple : [32, 32]));
+    const geo = torsoGeometry(BODY_R, ...(segs ?? (opts.simple ? TORSO.SEG.simple : [32, 32])));
     const unit0 = geo.userData.unit, pos = geo.attributes.position;
     for (let i = 0; i < pos.count; i++) {
       const k = shellInflate(unit0[i * 3 + 1]);
@@ -2191,6 +2202,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     if (found.kind === 'cape') capeOn(found.colour, found.accent, found.paint ?? null);
     else coatShell(found.colour, found.paint);
     tagFound(body.children.slice(from), accessories.body);
+  } else {
+    addSuit(accessories.body, 'body', (kit, look) => kit.body({ coatShell, look, simple: !!opts.simple, bodyScale: BODY_SCALE }));
   }
 
   // back: the backpack, jetpack and wings are shaped things built ON the
@@ -2201,7 +2214,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const isCape = bodyKind(accessories.body) === 'cape';
     const isShell = bodyKind(accessories.body) === 'shell';
     const cover = isCape ? 'cape' : isShell ? 'shell' : 'fur';
-    for (const item of buildBackItem(accessories.back, { bodyScale: BODY_SCALE, cover, simple: !!opts.simple })) body.add(item);
+    const suit = suitPiece(accessories.back);
+    if (suit) addSuit(accessories.back, 'pack', (kit, look) => { for (const item of kit.pack({ bodyScale: BODY_SCALE, cover, simple: !!opts.simple, look })) body.add(item); });
+    else for (const item of buildBackItem(accessories.back, { bodyScale: BODY_SCALE, cover, simple: !!opts.simple })) body.add(item);
   }
   if (accessories.back === 'balloonbunch') {
     // three balloons on three strings tied at one point over the tail; kept
@@ -2303,6 +2318,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const from = legs.map((leg) => leg.children.length);
     FOUND_FEET[accessories.feet](legs, { plainPaw, mat, PAW_Y });
     legs.forEach((leg, i) => tagFound([leg.userData.paw, ...leg.children.slice(from[i])], accessories.feet));
+  } else {
+    addSuit(accessories.feet, 'boots', (kit, look) => kit.boots(legs, { plainPaw, mat, PAW_Y, look, simple: !!opts.simple }));
   }
 
   // A feet item that makes the paw taller (scale.y > 1) would push its sole
