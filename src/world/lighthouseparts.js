@@ -112,7 +112,10 @@ const shade = (hex, k) => new THREE.Color(hex).multiplyScalar(k).getHex();
 
 export function createKit(prefix) {
   const buckets = new Map();
+  const extras = [];
   return {
+    // a finished mesh of its own (a glow, a contact shadow): added to the place as it stands
+    addExtra(mesh) { extras.push(mesh); },
     put(key, mat, geo, { noCast = false } = {}) {
       const k = `${key}${noCast ? ':nc' : ''}`;
       let b = buckets.get(k);
@@ -120,7 +123,7 @@ export function createKit(prefix) {
       (Array.isArray(geo) ? geo : [geo]).forEach((g) => b.geos.push(g));
     },
     meshes() {
-      return [...buckets.values()].map((b) => {
+      return [...extras, ...[...buckets.values()].map((b) => {
         const g = b.geos.length === 1 ? b.geos[0] : mergeGeometries(b.geos);
         if (!g) throw new Error(`lighthouse: could not merge ${b.key}`);
         const m = new THREE.Mesh(g, b.mat);
@@ -129,7 +132,7 @@ export function createKit(prefix) {
         m.receiveShadow = true;
         if (b.noCast) m.userData.noCast = true;
         return m;
-      });
+      })];
     },
   };
 }
@@ -151,6 +154,9 @@ export function lighthouseMaterials() {
     glassWall: new THREE.MeshStandardMaterial({ color: 0xbcd9e8, roughness: 0.1, metalness: 0, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }),
     roof: new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.62, transparent: true, opacity: 1 }),
     lens: new THREE.MeshStandardMaterial({ color: 0xe6d79a, roughness: 0.35, metalness: 0.25, emissive: 0x3a2e10, emissiveIntensity: 0.3 }),
+    // a soft dark contact shadow under a prop (multiplies the ground; white at its rim changes nothing), and the low sun's glow (additive, unfogged)
+    contact: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.MultiplyBlending, premultipliedAlpha: true, depthWrite: false, fog: false }),
+    sunglow: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
     // a painted pool of lantern light on the floor: additive, no real light
     patch: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }),
   };
@@ -245,7 +251,7 @@ export const vnoise = (x, z, size, salt) => {
 
 // A top of grass: a grid of cells whose colours swell from lush to sun-dry over metres, with a fine mottle on top.
 // The uvs are metres over the grass tile, so the game's own lawn texture lies under the vertex colours.
-export function grassCap(x0, x1, z0, z1, y, { cell = 1.6, salt = 1, shade: k = 1 } = {}) {
+export function grassCap(x0, x1, z0, z1, y, { cell = 1.8, salt = 1, shade: k = 1 } = {}) {
   const nx = Math.max(1, Math.round((x1 - x0) / cell));
   const nz = Math.max(1, Math.round((z1 - z0) / cell));
   const pos = [];

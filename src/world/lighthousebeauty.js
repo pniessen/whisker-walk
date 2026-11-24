@@ -30,6 +30,11 @@ class Soup {
       this.nor.push(n[0], n[1], n[2]);
     }
   }
+  // a triangle wound to face up whichever way round it was given
+  up(a, b, c, ha, hb = ha, hc = ha) {
+    const ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+    if (ny >= 0) this.tri(a, c, b, ha, hc, hb); else this.tri(a, b, c, ha, hb, hc);
+  }
   both(a, b, c, ha, hb, hc) { this.tri(a, b, c, ha, hb, hc); this.tri(a, c, b, ha, hc, hb); }
   get empty() { return this.pos.length === 0; }
   geometry() {
@@ -61,15 +66,16 @@ function tuft(S, x, y, z, seed, h, base, tip, n = 4) {
   }
 }
 
-// A flower: a thin stem and a flat head (a fan of `seg` petals) with a bright eye.
-function flower(S, x, y, z, seed, hex, r = 0.07, stem = 0.16) {
+// A flower: a thin stem and a small cup of petals (a bowl, so it reads from the side), with a bright eye.
+function flower(S, x, y, z, seed, hex, r = 0.05, stem = 0.16) {
   const a = h01(seed, 1, 211) * 6.28;
   S.both([x - 0.012, y, z], [x + 0.012, y, z], [x, y + stem, z], 0x4d6b34, 0x4d6b34, 0x6f8c4a);
-  const top = [x, y + stem, z];
   const seg = 5;
+  const lo = [x, y + stem, z];
   for (let k = 0; k < seg; k++) {
     const a0 = a + (k / seg) * 6.283; const a1 = a + ((k + 1) / seg) * 6.283;
-    S.tri(top, [x + Math.cos(a1) * r, y + stem - 0.01, z + Math.sin(a1) * r], [x + Math.cos(a0) * r, y + stem - 0.01, z + Math.sin(a0) * r], 0xf1c93e, hex, hex);
+    const rim = (t) => [x + Math.cos(t) * r, y + stem + r * 0.9, z + Math.sin(t) * r];
+    S.tri(lo, rim(a1), rim(a0), 0xf1c93e, hex, shadeHex(hex, 0.92), [Math.cos((a0 + a1) / 2) * 0.6, 0.8, Math.sin((a0 + a1) / 2) * 0.6]);
   }
 }
 
@@ -116,6 +122,18 @@ function starfish(S, x, y, z, r, seed, hex) {
   S.tri([x + Math.cos(seed) * r * 0.3, y, z + Math.sin(seed) * r * 0.3], [x + Math.cos(seed + 2.1) * r * 0.3, y, z + Math.sin(seed + 2.1) * r * 0.3], [x + Math.cos(seed + 4.2) * r * 0.3, y, z + Math.sin(seed + 4.2) * r * 0.3], hex);
 }
 
+// A soft band from (ax, az) to (bx, bz): the middle line in `ma` and `mb`, both sides fading to `edge`.
+function S_band(S, ax, az, bx2, bz, half, y, ma, mb, edge) {
+  const l = Math.hypot(bx2 - ax, bz - az) || 1;
+  const nx = (-(bz - az) / l) * half; const nz = ((bx2 - ax) / l) * half;
+  const A = [ax, y, az]; const B = [bx2, y, bz];
+  for (const sgn of [1, -1]) {
+    const A2 = [ax + nx * sgn, y, az + nz * sgn]; const B2 = [bx2 + nx * sgn, y, bz + nz * sgn];
+    S.up(A, B, B2, ma, mb, edge);
+    S.up(A, B2, A2, ma, edge, edge);
+  }
+}
+
 // ---- where things may go -----------------------------------------------------------------------------
 
 const segDist = (px, pz, ax, az, bx2, bz) => {
@@ -147,8 +165,8 @@ function drawLawn(kit, M) {
   const F = new Soup();
   const greens = [0x6f9a45, 0x7aa24e, 0x5f8a40, 0x86a85a];
   let n = 0;
-  for (let gx = -39.4; gx < -7; gx += 1.45) {
-    for (let gz = -62; gz < 3.4; gz += 1.45) {
+  for (let gx = -39.4; gx < -7; gx += 1.6) {
+    for (let gz = -62; gz < 3.4; gz += 1.6) {
       const x = gx + 1.1 * h01(Math.round(gx * 10), Math.round(gz * 10), 301);
       const z = gz + 1.1 * h01(Math.round(gx * 10), Math.round(gz * 10), 303);
       if (z < -44 && h01(n, 5, 305) > 0.2) continue; // beyond the walk's bounds: sparse
@@ -165,10 +183,10 @@ function drawLawn(kit, M) {
     const cx = lip ? -39.2 + 1.2 * h01(i, 1, 311) : -39 + 32 * h01(i, 2, 311);
     const cz = lip ? -40 + 43 * h01(i, 3, 311) : -43 + 46 * h01(i, 4, 311);
     const hex = pal[(lip ? 2 : i % 4) % 4];
-    for (let k = 0; k < 5; k++) {
+    for (let k = 0; k < 7; k++) {
       const x = cx + (h01(i, k, 313) - 0.5) * 1.8; const z = cz + (h01(i, k, 315) - 0.5) * 1.8;
       if (!lawnOk(x, z)) continue;
-      flower(F, x, P.PLATEAU_Y, z, i * 10 + k, hex, 0.075, 0.14 + 0.08 * h01(i, k, 317));
+      flower(F, x, P.PLATEAU_Y, z, i * 10 + k, hex, 0.05, 0.13 + 0.08 * h01(i, k, 317));
     }
   }
   kit.put('flora', M.stone, [S.geometry(), F.geometry()], { noCast: true });
@@ -191,31 +209,42 @@ function drawSand(kit, M) {
   const R = new Soup();
   const W = new Soup();
   const G = new Soup();
-  // ripple marks, long and low, lying with the shore (along z), a lighter crest and a darker trough
+  // ripple marks: broad soft bands lying with the shore, a shade darker along the middle and fading into the sand at the edges
   let placed = 0;
-  for (let i = 0; i < 400 && placed < 60; i++) {
+  for (let i = 0; i < 500 && placed < 50; i++) {
     const x = -4.5 + 38 * h01(i, 1, 331);
     const z = -42 + 84 * h01(i, 2, 331);
     if (!sandOk(x, z)) continue;
     placed++;
-    const len = 1.6 + 3.4 * h01(i, 3, 331);
-    const w = 0.07 + 0.08 * h01(i, 4, 331);
+    const len = 3 + 5 * h01(i, 3, 331);
+    const w = 0.32 + 0.3 * h01(i, 4, 331);
     const pts = [];
-    for (let k = 0; k < 4; k++) pts.push([x + 0.25 * Math.sin(k * 1.7 + i), z + (k / 3 - 0.5) * len]);
-    const crest = i % 2 === 0;
-    const mid = crest ? 0xc9b68d : 0xb09a74;
-    // the ends fade into the sand, so a ripple is a soft swell and never a drawn line
-    const sandHex = 0xbfab84;
-    for (let k = 0; k + 1 < pts.length; k++) ribbon(R, [pts[k], pts[k + 1]], 0.02, w * 1.5, k === 0 ? sandHex : mid, k + 1 === pts.length - 1 ? sandHex : mid);
+    for (let k = 0; k < 5; k++) pts.push([x + 0.4 * Math.sin(k * 1.3 + i), z + (k / 4 - 0.5) * len]);
+    const edge = 0xbfab84; const mid = i % 3 === 0 ? 0xcab68c : 0xaa9670;
+    for (let k = 0; k + 1 < pts.length; k++) {
+      const [ax, az] = pts[k]; const [bx2, bz] = pts[k + 1];
+      const fa = k === 0 ? edge : mid; const fb = k + 2 === pts.length ? edge : mid;
+      const ha = (w / 2);
+      S_band(R, ax, az, bx2, bz, ha, 0.02, fa, fb, edge);
+    }
   }
   // wrack along the high-tide line (x about 29 to 31) and round the low rocks: dark weed patches with a pale stalk or two
   const wrackX = (z) => 30.2 + 1.4 * Math.sin(z * 0.23) + 0.8 * Math.sin(z * 0.71 + 1);
-  for (let i = 0; i < 110; i++) {
+  for (let i = 0; i < 46; i++) {
     const z = -42 + 84 * h01(i, 1, 341);
-    const x = wrackX(z) + (h01(i, 2, 341) - 0.5) * 1.1;
+    const x = wrackX(z) + (h01(i, 2, 341) - 0.5) * 0.9;
     if (poolNear(x, z, 0.8)) continue;
-    const tone = [0x7b6b38, 0x8a7a42, 0x66703a, 0x95804a][i % 4];
-    patch(W, x, 0.025, z, 0.14 + 0.2 * h01(i, 3, 341), 500 + i, shadeHex(tone, 0.85), tone, 6, 1.4 + h01(i, 4, 341), 0.9);
+    // a drift: a tangle of curved strands (olive, brown, a little green) with pale bladders along them
+    const strands = 3 + (i % 3);
+    for (let k = 0; k < strands; k++) {
+      const a0 = h01(i, k, 343) * 6.283; const len = 0.35 + 0.5 * h01(i, k, 345);
+      const tone = [0x6d5f30, 0x7d6c36, 0x56673a, 0x8a7440][(i + k) % 4];
+      const pts = [];
+      for (let m = 0; m < 4; m++) pts.push([x + Math.cos(a0 + 0.35 * m * (k % 2 ? 1 : -1)) * len * m / 3, z + Math.sin(a0 + 0.35 * m * (k % 2 ? 1 : -1)) * len * m / 3]);
+      ribbon(W, pts, 0.03 + 0.008 * k, 0.07 + 0.05 * h01(i, k, 347), shadeHex(tone, 0.8), tone);
+      if (k < 2) shell(W, pts[2][0], 0.035, pts[2][1], 0.035, k, 0xa89a58);
+    }
+    patch(W, x, 0.026, z, 0.2 + 0.14 * h01(i, 3, 341), 500 + i, 0x5e5429, 0x74683a, 7, 1.5, 0.9);
   }
   // shells and starfish
   const shellTones = [0xf3e6cf, 0xe9b9a8, 0xcfc4b0, 0xf7efe0];
@@ -590,6 +619,272 @@ function drawCoveProps(kit, M) {
   kit.put('paint', M.paint, cy(-0.8, 14.6, 1.97, 2.03, 0.14, 0.04, COL.dark, 6), { noCast: true });
 }
 
+
+// =============================================================================
+// ROUND TWO
+// =============================================================================
+
+// ---- the cave: a wet cobbled floor, a tide pool, driftwood, a cask, and the light from the mouth -------------
+
+function drawCaveFloor(kit, M) {
+  const { CAVE: V } = P;
+  const S = new Soup();
+  // wet cobbles: flat rounded stones, dark and pale, packed across the floor with a gap for the walking line
+  for (let i = 0; i < 70; i++) {
+    const x = V.minX + 0.7 + (V.maxX - V.minX - 1.4) * h01(i, 1, 431);
+    const z = V.minZ + 0.5 + (V.maxZ - V.minZ - 1.0) * h01(i, 2, 431);
+    if (Math.hypot(x - -11.6, z - -20.2) < 0.5) continue;
+    const tone = [0xa0916f, 0xb0a283, 0x8d7f63, 0xb9ab8c][i % 4];
+    patch(S, x, 0.018, z, 0.09 + 0.1 * h01(i, 3, 431), 1100 + i, shadeHex(tone, 0.82), tone, 6, 1.2, 1);
+  }
+  // a tide pool with a sheen, and a dark wet fringe
+  for (const [px, pz, r] of [[-9.6, -17.4, 0.3], [-13.4, -20.6, 0.3]]) {
+    patch(S, px, 0.02, pz, r * 1.3, 1200 + r * 10, 0x8a7c62, 0x9a8c70, 9, 1.2, 1);
+    patch(S, px, 0.028, pz, r, 1250 + r * 10, 0x4a7a8a, 0x6aa2b0, 9, 1.2, 1);
+  }
+  // a strand of weed along one wall's foot
+  ribbon(S, [[-15.2, -21.2], [-13.8, -21.4], [-12.2, -21.1], [-10.8, -21.4]], 0.03, 0.14, 0x4e5a30, 0x66703a);
+  kit.put('wet', M.stone, S.geometry(), { noCast: true });
+  // a cask on its side, a plank of driftwood and a coil of rope by the lantern's pool of light
+  const cx = -13.0; const cz = -17.4;
+  const cask = new THREE.CylinderGeometry(0.34, 0.34, 0.7, 10);
+  cask.rotateZ(Math.PI / 2);
+  cask.translate(cx, 0.36, cz);
+  kit.put('wood', M.wood, paint(cask, 0x8a5e38), { noCast: true });
+  for (const dx of [-0.22, 0.22]) kit.put('wood', M.wood, paint(new THREE.CylinderGeometry(0.355, 0.355, 0.05, 10).rotateZ(Math.PI / 2).translate(cx + dx, 0.36, cz), 0x3c3a3a), { noCast: true });
+  kit.put('wood', M.wood, bm(-9.8, 0.05, -20.8, -8.2, 0.07, -21.3, 0.2, 0.06, 0x9a8468), { noCast: true });
+  kit.put('wood', M.wood, paint(new THREE.TorusGeometry(0.26, 0.055, 5, 12).rotateX(Math.PI / 2).translate(-10.8, 0.07, -17.2), COL.rope), { noCast: true });
+  // the light from the mouth: a warm fan on the floor and two soft shafts leaning in from the opening (additive)
+  const L = new Soup();
+  const warm = 0x5a3a18;
+  const fan = (z0, z1, xin) => {
+    L.tri([V.maxX, 0.035, z0], [V.maxX, 0.035, z1], [xin, 0.035, (z0 + z1) / 2], warm, warm, 0x000000);
+  };
+  fan(V.minZ + 0.4, V.maxZ - 0.4, V.maxX - 5.5);
+  for (const zz of [-20.4, -17.8]) {
+    const shaft = 0x2c1e0c;
+    L.both([V.maxX - 0.05, 0.1, zz - 0.25], [V.maxX - 0.05, V.roof - 0.15, zz - 0.25], [V.maxX - 3.4, 0.05, zz + 0.1], shaft, shaft, 0x000000);
+    L.both([V.maxX - 0.05, V.roof - 0.15, zz - 0.25], [V.maxX - 0.05, V.roof - 0.15, zz + 0.25], [V.maxX - 3.4, 0.05, zz + 0.1], shaft, shaft, 0x000000);
+  }
+  kit.put('glowpatch', M.patch, L.geometry(), { noCast: true });
+}
+
+// ---- distance: low islands and headlands in the haze, gulls on the horizon, the low sun's glow ----------------
+
+function drawDistance(kit, M) {
+  const hazeCol = 0xf0b878;
+  const isle = (x, z, r, h, salt, tone = 0x59607a) => {
+    const g = new THREE.IcosahedronGeometry(r, 1);
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const k = 0.8 + 0.4 * h01(Math.round(pos.getX(i) * 7) + salt, Math.round(pos.getZ(i) * 7), salt);
+      pos.setXYZ(i, pos.getX(i) * k, Math.max(0, pos.getY(i)) * (h / r) * k, pos.getZ(i) * k);
+    }
+    g.translate(x, -0.2, z);
+    kit.put('far', M.stone, paintBy(g, (px, py) => mixHex(tone, py > h * 0.62 ? 0x667a58 : 0x6a6470, 0.5)), { noCast: true });
+  };
+  // east, west and north headlands and a few small rocks, far enough to be half-fogged
+  isle(118, -38, 26, 9, 11); isle(138, 26, 16, 6, 13); isle(-122, 42, 24, 8, 17, 0x5b5f78); isle(-98, -78, 14, 5, 19); isle(24, -132, 30, 10, 23);
+  isle(86, 70, 8, 3, 29); isle(-70, 96, 10, 3.5, 31);
+  // a far light: a thin white tower on the east headland
+  kit.put('far', M.stone, cy(118, -38, 8, 12.6, 0.55, 0.4, 0xd8cfc0, 6), { noCast: true });
+  kit.put('far', M.stone, cy(118, -38, 12.6, 13.4, 0.5, 0.5, 0xc2402f, 6), { noCast: true });
+  void hazeCol;
+  // gulls: small flat W shapes at different heights and distances (two wing tris each), still against the glow
+  const G = new Soup();
+  for (let i = 0; i < 14; i++) {
+    const a = 3.4 + 2.6 * h01(i, 1, 441); const d = 70 + 90 * h01(i, 2, 441);
+    const x = Math.cos(a) * d; const z = Math.sin(a) * d; const y = 14 + 28 * h01(i, 3, 441);
+    const sz = 0.9 + 0.7 * h01(i, 4, 441);
+    const yaw = h01(i, 5, 441) * 3;
+    const ux = Math.cos(yaw) * sz; const uz = Math.sin(yaw) * sz;
+    const c = 0xf4efe6;
+    G.both([x, y, z], [x - ux, y + sz * 0.35, z - uz], [x - ux * 0.4, y + sz * 0.05, z - uz * 0.4 + 0.3], c, c, c);
+    G.both([x, y, z], [x + ux, y + sz * 0.35, z + uz], [x + ux * 0.4, y + sz * 0.05, z + uz * 0.4 + 0.3], c, c, c);
+  }
+  kit.put('far', M.stone, G.geometry(), { noCast: true });
+  // the low sun's glow: a wide additive gradient (no disc) standing in the sun's direction, low over the sea
+  const sx = -36; const sz2 = -24;
+  const len = Math.hypot(sx, sz2);
+  const D = 232; const dx = (sx / len) * D; const dz = (sz2 / len) * D; const cyy = 16;
+  const rx = -dz / D; const rz = dx / D; // the glow's own horizontal axis
+  const SG = new Soup();
+  const rings = [[0, 0xffe2a0], [28, 0x9a5c28], [62, 0x4a2a12], [110, 0x180e06]];
+  const seg = 24;
+  const at = (r, ang, ky) => [dx + rx * Math.cos(ang) * r, cyy + Math.sin(ang) * r * ky, dz + rz * Math.cos(ang) * r];
+  for (let ring = 0; ring + 1 < rings.length; ring++) {
+    for (let k = 0; k < seg; k++) {
+      const a0 = (k / seg) * 6.283; const a1 = ((k + 1) / seg) * 6.283;
+      const [r0, c0] = rings[ring]; const [r1, c1] = rings[ring + 1];
+      SG.tri(at(r0, a0, 0.55), at(r1, a0, 0.55), at(r1, a1, 0.55), c0, c1, c1);
+      SG.tri(at(r0, a0, 0.55), at(r1, a1, 0.55), at(r0, a1, 0.55), c0, c1, c0);
+    }
+  }
+  // the glow hangs below the horizon too (it is drawn by view direction, so it just needs to stand clear of the sea): lift it
+  const sunMesh = new THREE.Mesh(SG.geometry(), M.sunglow);
+  sunMesh.name = 'lighthouse:sunglow';
+  sunMesh.castShadow = false;
+  sunMesh.userData.noCast = true;
+  sunMesh.userData.noMerge = true;
+  sunMesh.renderOrder = -1;
+  sunMesh.frustumCulled = false;
+  kit.addExtra(sunMesh);
+}
+
+// ---- soft contact shadows under the big things ------------------------------------------------------------
+
+function drawContact(kit, M) {
+  const S = new Soup();
+  const disc = (x, y, z, rx, rz, strength, seg = 14) => {
+    const mid = Math.round(255 * (1 - strength));
+    const dark = (mid << 16) | (mid << 8) | mid;
+    const half = (Math.round(255 * (1 - strength * 0.4)) << 16) | (Math.round(255 * (1 - strength * 0.4)) << 8) | Math.round(255 * (1 - strength * 0.4));
+    const pt = (a, k) => [x + Math.cos(a) * rx * k, y, z + Math.sin(a) * rz * k];
+    for (let k = 0; k < seg; k++) {
+      const a0 = (k / seg) * 6.283; const a1 = ((k + 1) / seg) * 6.283;
+      S.up([x, y, z], pt(a0, 0.55), pt(a1, 0.55), dark, half, half);
+      S.up(pt(a0, 0.55), pt(a0, 1), pt(a1, 1), half, 0xffffff, 0xffffff);
+      S.up(pt(a0, 0.55), pt(a1, 1), pt(a1, 0.55), half, 0xffffff, half);
+    }
+  };
+  const Y0 = P.PLATEAU_Y;
+  disc(P.TOWER.x, Y0 + 0.04, P.TOWER.z, 5.6, 5.6, 0.5, 22);
+  disc(C0.x - 0.4, Y0 + 0.04, C0.z + 0.2, 5.6, 4.2, 0.42, 16);
+  disc(P.FLAGPOLE.x, Y0 + 0.04, P.FLAGPOLE.z, 0.7, 0.7, 0.4, 8);
+  for (const q of P.BOULDERS) {
+    const onPlateau = P.PLATEAU.minX < q.x && q.x < P.PLATEAU.maxX && q.z < P.PLATEAU.maxZ;
+    disc(q.x, (onPlateau ? Y0 : 0) + 0.04, q.z, q.r * 1.5, q.r * 1.5, 0.38, 10);
+  }
+  disc(P.BOAT.x, 0.04, P.BOAT.z, 2.5, 1.5, 0.4, 12);
+  disc(8.8, 0.04, 32.7, 1.5, 0.9, 0.35, 8);
+  disc(18.4, 0.04, 32.6, 1.5, 1.5, 0.3, 10);
+  disc(1.5, 0.04, 9, 1.6, 0.6, 0.3, 8);
+  P.POOLS.forEach((p) => disc(p.x, 0.045, p.z, p.r + 1.5, p.r + 1.5, 0.22, 12));
+  disc(P.BENCH.x, Y0 + 0.04, P.BENCH.z, 1.4, 0.9, 0.35, 8);
+  const mesh = new THREE.Mesh(S.geometry(), M.contact);
+  mesh.name = 'lighthouse:contact';
+  mesh.castShadow = false;
+  mesh.userData.noCast = true;
+  mesh.userData.noMerge = true;
+  mesh.renderOrder = 1;
+  kit.addExtra(mesh);
+}
+
+// ---- warm glows on the walls round the lit windows and slits -------------------------------------------------
+
+function drawGlows(kit, M) {
+  const S = new Soup();
+  // a soft additive disc standing on a wall: `nx, nz` the wall's outward direction
+  const wallGlow = (x, y, z, nx, nz, r, hex) => {
+    const tx = -nz; const tz = nx;
+    const seg = 12;
+    const pt = (a, k) => [x + nx * 0.04 + tx * Math.cos(a) * r * k, y + Math.sin(a) * r * k, z + nz * 0.04 + tz * Math.cos(a) * r * k];
+    const mid = hex; const half = shadeHex(hex, 0.35);
+    for (let k = 0; k < seg; k++) {
+      const a0 = (k / seg) * 6.283; const a1 = ((k + 1) / seg) * 6.283;
+      S.both([x + nx * 0.04, y, z + nz * 0.04], pt(a0, 0.5), pt(a1, 0.5), mid, half, half);
+      S.both(pt(a0, 0.5), pt(a0, 1), pt(a1, 1), half, 0x000000, 0x000000);
+      S.both(pt(a0, 0.5), pt(a1, 1), pt(a1, 0.5), half, 0x000000, half);
+    }
+  };
+  const Y0 = P.PLATEAU_Y;
+  const wx = C0.x - 0.4;
+  wallGlow(wx, Y0 + 1.6, CZ1, 0, 1, 1.5, 0x4a3414);
+  wallGlow(CX1, Y0 + 1.5, C0.z, 1, 0, 1.2, 0x3e2c10);
+  for (const [deg, y] of [[200, 9.2], [290, 10.9], [20, 12.2], [110, 8.4]]) {
+    const r = (deg * Math.PI) / 180;
+    const rr = P.TOWER.shaft - 0.5 * ((y - (Y0 + 1.05)) / (P.GALLERY_Y - (Y0 + 1.05))) + 0.02;
+    wallGlow(P.TOWER.x + rr * Math.cos(r), y, P.TOWER.z + rr * Math.sin(r), Math.cos(r), Math.sin(r), 0.9, 0x40300f);
+  }
+  kit.put('glowpatch', M.patch, S.geometry(), { noCast: true });
+}
+
+// ---- the lamp: facets, a bright bulb, a brass band round the glass -----------------------------------------
+
+function drawLampDetail(kit, M) {
+  const { TOWER: T, LAMP_ROOM: LR } = P;
+  // twelve vertical brass ribs round the lens (its facets) and a bulb inside
+  for (let k = 0; k < 12; k++) {
+    const a = (k / 12) * 6.283;
+    kit.put('lens', M.lens, bx(T.x + Math.cos(a) * 0.49 - 0.02, T.x + Math.cos(a) * 0.49 + 0.02, LR.lensY - 0.5, LR.lensY + 0.95, T.z + Math.sin(a) * 0.49 - 0.02, T.z + Math.sin(a) * 0.49 + 0.02, COL.brass), { noCast: true });
+  }
+  kit.put('lens', M.lens, sp(T.x, LR.lensY + 0.4, T.z, 0.2, 0xfff0b8, { seg: 8, rings: 5 }), { noCast: true });
+  // a brass band under the roof's rim, and a second stone course round the gallery's deck edge
+  kit.put('paint', M.paint, paint(new THREE.CylinderGeometry(LR.r + 0.06, LR.r + 0.06, 0.12, 28, 1, true).translate(T.x, LR.roof - 0.12, T.z), COL.brass), { noCast: true });
+}
+
+// ---- the stair: bunting, lanterns, flower tubs ------------------------------------------------------------
+
+function drawStairDetail(kit, M) {
+  const { LANDINGS, PLATEAU_Y: Y0 } = P;
+  const flights = P.LIGHTHOUSE_TRAVERSAL.crossings.filter((c) => c.kind === 'stair');
+  const out = (p, d) => { const a = Math.atan2(p.z - P.TOWER.z, p.x - P.TOWER.x); return { x: p.x + d * Math.cos(a), z: p.z + d * Math.sin(a) }; };
+  const flags = [COL.red, 0xf4efe0, 0xf2cf3a, 0x3f6f9e];
+  let n = 0;
+  for (const c of flights) {
+    c.points.forEach((p, k) => {
+      const o = out(p, 0.58);
+      if (k % 3 === 1) {
+        kit.put('glow', M.glow, sp(o.x, p.y + 1.18, o.z, 0.1, COL.warm, { seg: 6, rings: 4 }), { noCast: true });
+        kit.put('paint', M.paint, cy(o.x, o.z, p.y + 0.95, p.y + 1.05, 0.03, 0.03, COL.dark, 5), { noCast: true });
+        kit.put('paint', M.paint, cy(o.x, o.z, p.y + 1.29, p.y + 1.33, 0.12, 0.03, COL.dark, 6), { noCast: true });
+      }
+      if (k + 1 < c.points.length) {
+        const q = c.points[k + 1]; const o2 = out(q, 0.58);
+        // pennants hanging from the handrail, three to a span
+        for (let f = 0; f < 3; f++) {
+          const t = (f + 0.5) / 3;
+          const x = o.x + (o2.x - o.x) * t; const z = o.z + (o2.z - o.z) * t; const y = p.y + (q.y - p.y) * t + 0.93;
+          const ux = (o2.x - o.x); const uz = (o2.z - o.z); const l = Math.hypot(ux, uz) || 1;
+          const dx = (ux / l) * 0.1; const dz = (uz / l) * 0.1;
+          const hex = flags[(n++) % 4];
+          const g = new THREE.BufferGeometry();
+          const pos = [x - dx, y, z - dz, x + dx, y, z + dz, x, y - 0.24, z, x + dx, y, z + dz, x - dx, y, z - dz, x, y - 0.24, z];
+          g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+          kit.put('paint', M.paint, paint(g, hex), { noCast: true });
+        }
+      }
+    });
+  }
+  // flower tubs on the two middle ledges
+  for (const p of LANDINGS.slice(1, 3)) {
+    const o = out(p, 0.95);
+    kit.put('wood', M.wood, cy(o.x, o.z, p.y, p.y + 0.3, 0.2, 0.17, 0x7a5232, 8), { noCast: true });
+    kit.put('paint', M.paint, sp(o.x, p.y + 0.38, o.z, 0.22, 0x5f8a40, { seg: 6, rings: 3, sy: 0.7 }), { noCast: true });
+    for (let k = 0; k < 4; k++) kit.put('paint', M.paint, sp(o.x + (k - 1.5) * 0.09, p.y + 0.48 + (k % 2) * 0.04, o.z + ((k * 7) % 3 - 1) * 0.08, 0.06, [0xe6586a, 0xf5d24a, 0xf4efe0, 0xe6586a][k], { seg: 4, rings: 2 }), { noCast: true });
+  }
+  void Y0;
+}
+
+// ---- a few big foreground rocks and tall tufts, so the near ground has a silhouette ----------------------
+
+function drawForeground(kit, M) {
+  const tones = [0xa59882, 0x8d7d68, 0xb3a58c, 0x837565];
+  for (const [x, z, r, salt] of [[6.0, 38.4, 0.62, 1], [22.8, 39.4, 0.5, 2], [10.5, 26, 0.4, 3], [29.5, 33, 0.45, 4], [-1, 28, 0.55, 5]]) {
+    kit.put('rocks', M.stone, boulder(x, -0.04, z, r, r * 0.7, 1300 + salt, tones, 1), { noCast: true });
+    kit.put('rocks', M.stone, boulder(x + r * 1.1, -0.03, z + r * 0.4, r * 0.5, r * 0.34, 1310 + salt, tones, 0), { noCast: true });
+    const T2 = new Soup();
+    for (let k = 0; k < 3; k++) tuft(T2, x - r * 0.9 + k * 0.15, 0.02, z + r * 0.6, 1400 + salt * 5 + k, 0.5, 0x6f7d4a, 0xd4c98a, 6);
+    kit.put('flora', M.stone, T2.geometry(), { noCast: true });
+  }
+  // tall grass along the plateau's cliff-top fence and round the plateau boulders
+  const T = new Soup();
+  let n = 0;
+  for (const q of P.BOULDERS.filter((b) => P.PLATEAU.minX < b.x && b.x < P.PLATEAU.maxX && b.z < P.PLATEAU.maxZ)) {
+    for (let k = 0; k < 5; k++) {
+      const a = (k / 5) * 6.283 + q.x; const d = q.r * 1.15;
+      tuft(T, q.x + Math.cos(a) * d, P.PLATEAU_Y, q.z + Math.sin(a) * d, 1500 + n++, 0.5, 0x56743a, 0xd8d28a, 6);
+    }
+  }
+  for (let i = 0; i < 40; i++) {
+    const z = -42 + 45 * h01(i, 1, 451);
+    const x = -39.3 + 0.9 * h01(i, 2, 451);
+    if (!lawnOk(x + 0.3, z)) continue;
+    tuft(T, x, P.PLATEAU_Y, z, 1600 + i, 0.45, 0x56743a, 0xd8d28a, 6);
+  }
+  kit.put('flora', M.stone, T.geometry(), { noCast: true });
+}
+
 // -----------------------------------------------------------------------------------------------------
 
 export function drawBeauty(kit, M) {
@@ -603,4 +898,11 @@ export function drawBeauty(kit, M) {
   drawCottageDetail(kit, M);
   drawGardenDetail(kit, M);
   drawCoveProps(kit, M);
+  drawCaveFloor(kit, M);
+  drawDistance(kit, M);
+  drawGlows(kit, M);
+  drawLampDetail(kit, M);
+  drawStairDetail(kit, M);
+  drawForeground(kit, M);
+  drawContact(kit, M);
 }
