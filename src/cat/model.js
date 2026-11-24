@@ -2513,6 +2513,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     body, head, tail, tailPivots, legs, underside,
     earL: head.userData.earL, earR: head.userData.earR, whiskers,
   };
+  g.userData.suitTick = suitPiece(accessories.head) || suitPiece(accessories.back) ? suitKit()?.tick : null;   // the suit's live parts (src/cat/suitkit.js)
+  g.userData.suitLive = null;
   // hipY and legLift (the hip's rise over the reference rig the poses were
   // written for) and legReach (that rig's hip-to-sole drop) drive animator.js's
   // fitLongLegs; poseFit is the per-state correction applyPoseFit adds after it.
