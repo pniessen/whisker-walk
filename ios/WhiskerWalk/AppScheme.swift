@@ -19,8 +19,8 @@ enum AppScheme {
     /// nothing remembered) and `perf` becomes `?perf` (the readout). Anything
     /// that is not a small whole number is ignored, so the page never sees
     /// text it did not expect. With neither, this is `startURL` exactly.
-    static func startURL(rung: String?, perf: Bool) -> URL {
-        var query: [String] = []
+    static func startURL(rung: String?, perf: Bool, extra: [String] = []) -> URL {
+        var query: [String] = extra
         if let rung, (1...2).contains(rung.count), rung.allSatisfy({ $0.isASCII && $0.isNumber }) {
             query.append("rung=\(rung)")
         }
@@ -29,8 +29,14 @@ enum AppScheme {
         return URL(string: "\(startURL.absoluteString)?\(query.joined(separator: "&"))")!
     }
 
-    /// What this launch loads: `startURL`, plus any switches given as launch
+    /// Game switches that are always on in this app (the owner's own iPhone and iPad): the teleport gates, so the
+    /// Moon is reachable. The kids' play in the browser never carries them. To turn them off in the app, empty
+    /// this list and refresh.
+    static let previewSwitches = ["gates=1"]
+
+    /// What this launch loads: `startURL`, plus the always-on preview switches and any switches given as launch
     /// arguments (they are read through UserDefaults' argument domain).
     static let launchURL = startURL(rung: UserDefaults.standard.string(forKey: "rung"),
-                                    perf: UserDefaults.standard.bool(forKey: "perf"))
+                                    perf: UserDefaults.standard.bool(forKey: "perf"),
+                                    extra: previewSwitches)
 }
