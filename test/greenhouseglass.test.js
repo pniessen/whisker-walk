@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { stubCanvasDocument } from './helpers/canvas.js';
-import { createTreeFade, findFadeOccluders, WINDOW_HIDE } from '../src/treefade.js';
+import { createTreeFade, findFadeOccluders } from '../src/treefade.js';
 import { castsFromBox, isTransparentMat } from '../src/render/rig.js';
 
 stubCanvasDocument();
@@ -22,19 +22,25 @@ const glass = house.children.find((c) => c.name === 'palmHouse-glass');
 const frame = house.children.find((c) => c.name === 'palmHouse-frame');
 const tris = (m) => (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
 
-describe('the pane mesh is transparent, not a caster, front-sided and tagged as a window', () => {
-  it('is one transparent mesh with a low alpha gradient', () => {
+describe('the pane mesh is transparent, frosted, not a caster, front-sided and NOT a fading window', () => {
+  it('is one transparent mesh with a frosted (25 to 35 percent) green-white gradient', () => {
     expect(glass.material.transparent).toBe(true);
     expect(isTransparentMat(glass.material)).toBe(true);
     expect(glass.material.depthWrite).toBe(false);
     expect(glass.material.side).toBe(THREE.FrontSide);
-    expect(glass.userData.window).toBe('glass');
+    expect(glass.userData.window).toBeUndefined(); // (the owner, 2026-11-23: a glass house is not a fading building)
+    expect(glass.userData.glassHouse).toBe(true);
     expect(glass.userData.noCast).toBe(true);
     expect(glass.castShadow).toBe(false);
     const col = glass.geometry.attributes.color;
     expect(col.itemSize).toBe(4);
     const alphas = Array.from({ length: col.count }, (_, i) => col.getW(i));
+    expect(Math.max(...alphas)).toBeLessThanOrEqual(0.35 + 1e-6);
+    expect(Math.min(...alphas)).toBeGreaterThanOrEqual(0.25);
     expect(Math.max(...alphas)).toBeLessThanOrEqual(G.GLASS_ALPHA.roof + G.GLASS_ALPHA.wet + 1e-6);
+    // tinted green-white: the green channel is the highest, and it is light
+    const rgb = (i) => [col.getX(i), col.getY(i), col.getZ(i)];
+    for (let i = 0; i < col.count; i += 7) { const [r, g, b] = rgb(i); expect(g).toBeGreaterThanOrEqual(r); expect(g).toBeGreaterThanOrEqual(b - 0.02); expect(r).toBeGreaterThan(0.6); }
     expect(Math.min(...alphas)).toBeGreaterThanOrEqual(G.GLASS_ALPHA.wall - 1e-6);
     // a wetter edge in the lowest 0.4 m
     const pos = glass.geometry.attributes.position;
@@ -91,32 +97,31 @@ describe('the pane mesh is transparent, not a caster, front-sided and tagged as 
   });
 });
 
-describe('a house\'s boxes fade the building and hide the panes', () => {
-  const entry = () => findFadeOccluders(scene).find((e) => e.obj === house);
-  it('registers as one building box that spans the hall', () => {
-    const e = entry();
-    expect(e).toBeDefined();
-    expect(e.box.minX).toBeCloseTo(P.PALM_HOUSE.x0, 0);
-    expect(e.box.maxX).toBeCloseTo(P.PALM_HOUSE.x1, 0);
-    expect(e.box.minZ).toBeCloseTo(P.PALM_HOUSE.z0, 0);
-    expect(e.box.maxZ).toBeCloseTo(P.PALM_HOUSE.z1, 0);
-    expect(e.top).toBeCloseTo(P.PALM_HOUSE.ridge, 0);
-    // only the house is a building: the mist, shafts, floor, dapple and palms are untouched siblings
-    expect(findFadeOccluders(scene).filter((o) => o.box)).toHaveLength(1);
+describe('the glass house is exempt from the building fade: the cat is seen through it from outside', () => {
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 500);
+  it('is not a fading building (no box, no window mesh), and nothing else in the scene is one either', () => {
+    expect(findFadeOccluders(scene).find((e) => e.obj === house)).toBeUndefined();
+    expect(findFadeOccluders(scene).filter((o) => o.box)).toHaveLength(0);
   });
-  it('hides the panes with the camera inside, shows them again outside', () => {
+  it('frame and panes stay shown whatever the camera does: inside, outside, or outside with the line to her crossing the hall', () => {
     const fade = createTreeFade(findFadeOccluders(scene));
-    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 500);
-    const look = { x: 0, y: 0.35, z: 6 };
-    camera.position.set(0, 3, -9); // inside the hall
-    for (let i = 0; i < 20; i++) fade.update(0.1, camera, look);
-    expect(glass.visible).toBe(false);
-    camera.position.set(40, 3, 30);
-    for (let i = 0; i < 30; i++) fade.update(0.1, camera, look);
-    expect(glass.visible).toBe(true);
+    const cases = [
+      { cam: [0, 3, -9], look: { x: 0, y: 0.35, z: 6 } }, // inside
+      { cam: [40, 3, 30], look: { x: 0, y: 0.35, z: -6 } }, // far outside, the line crosses the whole hall
+      { cam: [0, 2, 8], look: { x: 0, y: 0.35, z: -5 } }, // close outside the south wall, she is inside
+      { cam: [20, 2, -9], look: { x: -6, y: 0.35, z: -9 } }, // outside the east end
+    ];
+    for (const c of cases) {
+      camera.position.set(...c.cam);
+      for (let i = 0; i < 40; i++) fade.update(0.1, camera, c.look);
+      expect(glass.visible, c.cam.join()).toBe(true);
+      expect(frame.visible).toBe(true);
+      expect(glass.material.opacity).toBe(1); // (the material's own opacity is never lowered; the alpha is in the vertex colours)
+    }
     fade.dispose();
-    expect(glass.visible).toBe(true);
-    expect(WINDOW_HIDE).toBeGreaterThan(0);
+  });
+  it('from inside the pane is back-facing and culled: front faces only, so inside views are clear', () => {
+    expect(glass.material.side).toBe(THREE.FrontSide);
   });
 });
 
@@ -176,7 +181,7 @@ describe('mist, shafts and dapple', () => {
     const d = vi.spyOn(Date, 'now');
     const p = vi.spyOn(performance, 'now');
     const a = build(s);
-    a.life({}).update(0.03, 5);
+    a.life({ scene: s }).update(0.03, 5);
     const calls = [r.mock.calls.length, d.mock.calls.length, p.mock.calls.length];
     r.mockRestore(); d.mockRestore(); p.mockRestore();
     expect(calls[1]).toBe(0);
@@ -200,7 +205,8 @@ describe('the record and the scaffold', () => {
     expect(area.waterFx).toHaveLength(1);
   });
   it('two builds are identical', () => {
-    const sig = (sc) => sc.children.map((c) => { let n = 0; c.traverse((o) => { if (o.isMesh) n += o.geometry.attributes.position.count; }); return `${c.name}:${n}:${c.position.toArray().join(',')}`; }).join('|');
+    const LIFE = /^(ghPacket|ghSprouts|ghCan|ghCloud|ghSpray)/; // (made by a life, not by the build)
+    const sig = (sc) => sc.children.filter((c) => !LIFE.test(c.name)).map((c) => { let n = 0; c.traverse((o) => { if (o.isMesh) n += o.geometry.attributes.position.count; }); return `${c.name}:${n}:${c.position.toArray().join(',')}`; }).join('|');
     const s2 = new THREE.Scene();
     build(s2);
     expect(sig(s2)).toBe(sig(scene));
@@ -217,7 +223,8 @@ describe('the record and the scaffold', () => {
     }
     // the frame is solid: a point on the south wall beside the door is blocked
     expect(clear(5, P.PALM_HOUSE.z1)).toBe(false);
-    expect(clear(0, -9, 0.4)).toBe(true); // the hall's middle is open
+    expect(clear(0, -5.5, 0.4)).toBe(true); // the hall's south middle is open
+    expect(clear(0, -9, 0.4)).toBe(false); // the fern island is solid
   });
   it('a cat can walk from the spawn through the south door to the hall\'s middle (a flood fill on the colliders)', () => {
     const R = 0.3; // her radius
@@ -238,7 +245,7 @@ describe('the record and the scaffold', () => {
         todo.push([ni, nj]);
       }
     }
-    expect(seen.has(key(0, -18))).toBe(true); // the hall's middle (0, -9)
+    expect(seen.has(key(0, -24))).toBe(true); // the hall, north of the fern island (0, -12): the loop round it
     expect(seen.has(key(0, -36))).toBe(true); // out of the north door, round the back (0, -18)
     expect(seen.has(key(-28, -18))).toBe(true); // out of the west door
     expect(seen.has(key(28, -18))).toBe(true); // out of the east door
@@ -250,11 +257,11 @@ describe('the record and the scaffold', () => {
     expect(STREET_PLACES.some((p) => p.areaId === 'greenhouse')).toBe(false);
     expect(TOWN_PLACES.some((p) => p.areaId === 'greenhouse')).toBe(false);
   });
-  it('the frame and the whole build stay inside the spike\'s numbers', () => {
+  it('the whole build stays inside milestone 1\'s numbers', () => {
     let meshes = 0, triangles = 0;
     scene.traverse((o) => { if (o.isMesh) { meshes++; triangles += tris(o); } });
-    expect(meshes).toBeLessThan(40);
-    expect(triangles).toBeLessThan(30000);
+    expect(meshes).toBeLessThan(60);
+    expect(triangles).toBeLessThan(45000);
     expect(castsFromBox(new THREE.Box3().setFromObject(house))).toBe(true); // (it is big; its parts opt out)
   });
 });
