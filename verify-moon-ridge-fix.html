@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moon ridge fix picture page</title>
+<!-- The Moon's Skip Ridge fix (2026-11-25): the REAL place and life (as verify-moon-m2.html), with the paw button pressed through the walk's own hooks: the Moon's
+     way down (world/moonperch.js, hung on session.fair by world/moonroverlive.js) first, then the walk's own pick (bestPerch). The yellow "PAW up / PAW down" tag is the
+     real badge's answer (game/tips.js climbBadge), drawn as text here (the real button is the app's). NOT in the game's page.
+     Shots: foot (the foot of Skip Ridge, paw up), pillar1 (on the first pillar, paw up), top (on the top pillar with the Ridge cell, paw down), down (after the press: on the dust),
+            beamfoot, beampeak (on the wave's fifth stone: paw down), beamdown (after it), plus phone sizes of each: phonefoot, phonepillar1, phonetop, phonedown.
+     Tours: ridgefix (the whole climb, the cell picked up, the hop down with it), beamsfix (the wave's five stones and the hop down from the peak). -->
+<style>
+  html, body { margin: 0; background: #05070f; overflow: hidden; font: 12px/1.35 Avenir, system-ui, sans-serif; color: #e8ecf8; }
+  canvas { position: fixed; left: 0; top: 0; display: block; }
+  #hud { position: fixed; left: 0; top: 0; padding: 6px 10px; background: rgba(8, 10, 18, .72); white-space: pre; pointer-events: none; }
+  #cap { position: fixed; left: 0; bottom: 0; padding: 6px 10px; background: rgba(8, 10, 18, .72); white-space: pre; pointer-events: none; font-size: 14px; }
+</style>
+</head>
+<body>
+<div id="hud">loading…</div>
+<div id="cap"></div>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier } from '/src/render/textures.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { createPlayer, pounceArc } from '/src/player.js';
+  import { createFx } from '/src/fx.js';
+  import { facingYaw, behindYaw } from '/src/traversal.js';
+  import { applyDusk, duskEnv, tintDuskLawn } from '/src/render/dusk.js';
+  import { effectiveWear } from '/src/suithook.js';
+  import { placeArc, placePace, placeBudget } from '/src/placephysics.js';
+  import { bestPerch } from '/src/climbing.js';
+  import { climbBadge } from '/src/game/tips.js';
+  import { mergeStaticProps } from '/src/render/mergeprops.js';
+  import { bus } from '/src/events.js';
+  import { build } from '/src/world/moon.js';
+  import * as P from '/src/world/moonplan.js';
+
+  const params = new URLSearchParams(location.search);
+  const rm = params.get('rm') === '1';
+  const [W0, H0] = (params.get('size') || '960x540').split('x').map(Number);
+  const BARE = params.has('bare');
+  const TIER = params.get('tier') || 'high';
+  const DT = 1 / 30;
+  const tier = TIER === 'lite' ? { name: 'low', rung: 5, shadows: false, envIntensity: 0.3 } : TIER === 'low' ? { name: 'low', rung: 3, shadows: true, envIntensity: 0.3 } : { name: 'high', shadows: true, envIntensity: 0.3 };
+
+  let W = W0, H = H0;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = tier.shadows;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.95;
+  document.body.prepend(renderer.domElement);
+  setTextureTier(tier);
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+  const sun = createSun();
+  scene.add(sun);
+  const fill = createFill(0x8d8c93);
+  scene.add(fill);
+  const area = build(scene, { water: { quality: tier, reducedMotion: rm } });
+  const look = applyDusk({ scene, sun, fill, areaData: area });
+  tintDuskLawn({ ground: scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint)), grass: null, look });
+  scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
+  const ground = area.ground;
+
+  const wear = effectiveWear({ collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }, 'moon');
+  const cat = buildCat('tabby', wear);
+  scene.add(cat);
+  const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
+  const shadows = tier.shadows ? createShadowFit(sun, camera, { radius: 20, mapSize: tier.rung >= 3 ? 1024 : 2048 }) : null;
+  sun.shadow.bias = SUN_BIAS;
+  sun.castShadow = tier.shadows;
+  assignShadowCasters(scene);
+  mergeStaticProps(scene);
+
+  const fx = createFx(scene, { reducedMotion: rm });
+  // the save: a stand-in with just the Moon's record (no storage, nothing persisted)
+  const SAVES = [{ step: 0, cells: 0 }, { step: 1, cells: 0 }, { step: 2, cells: 1 }, { step: 3, cells: 3 }, { step: 4, cells: 3 }];
+  const state = { skills: [], moon: { ...SAVES[Number(params.get('save') ?? 0)], stamp: -1, scope: 0, jump: {} }, journal: {} };
+  const progression = { state, addPoints() {}, recordSighting() {}, recordFeat() {} };
+  const session = { areaId: 'moon', areaData: area, ground, pounceTime: 0, perched: null, hopLift: 0, fx, goals: null, cat: { position: cat.position, rotation: cat.rotation } };
+  let life = null;
+  let t = 0;
+  function makeLife(save) {
+    life?.dispose();
+    Object.assign(state.moon, SAVES[save], { stamp: -1 });
+    life = area.life({ scene, sun, fill, ground, reducedMotion: rm, tier, progression, audio: null });
+    t = 0;
+    session.perched = null;
+    return life;
+  }
+  makeLife(Number(params.get('save') ?? 0));
+  const player = createPlayer(camera, renderer.domElement);
+  player.setReducedMotion(rm);
+  function reset(x, z, fx_, fz_) {
+    cat.position.set(x, ground.y(x, z), z);
+    cat.rotation.set(0, facingYaw(fx_, fz_), 0);
+    player.setAvatar(cat, placePace(3.5, 'moon'));
+    player.setGround(ground);
+    player.setViewYaw(behindYaw(fx_, fz_));
+    player.perchY = 0;
+    session.perched = null;
+    player.enable();
+    player.update(0, area.colliders, area.bounds, area.waters);
+    session.pounceTime = 0; session.hopLift = 0;
+    life.update(0, t, cat.position, camera, session);
+    if (shadows) shadows.update(0, 1e3);
+  }
+  const stick = (x, z) => player.setTouchMove(x === 0 && z === 0 ? null : { x, z, mag: 1 });
+  const hud = document.getElementById('hud');
+  const capEl = document.getElementById('cap');
+  if (BARE) { hud.remove(); }
+  function frame(dt, { drive = true } = {}) {
+    t += dt;
+    player.update(dt, area.colliders, area.bounds, area.waters);
+    player.speedFactor = session.perched ? 0 : 1;
+    life.update(dt, t, cat.position, camera, session);
+    fx.update(dt, camera);
+    if (session.pounceTime > 0) session.pounceTime -= dt;
+    animateCat(cat, player.hopY > 0 ? 'pounce' : session.perched ? 'sit' : 'follow', t, session.perched ? 0 : player.speed, rm);
+    cat.rotation.x = 0; cat.rotation.z = 0;
+    cat.position.y = ground.y(cat.position.x, cat.position.z) + (session.perched ? session.perched.y : 0) + player.hopY + session.hopLift;
+    if (shadows) shadows.update(0, dt);
+    render();
+  }
+  const pawLine = () => { const b = pawNow(); return b ? `PAW ${b === 'up' ? '▲ up: the press climbs' : '▼ down: the press hops to the dust'}` : 'PAW: a hop'; };
+  function render() {
+    renderer.render(scene, camera);
+    if (BARE) return;
+    const p = cat.position;
+    hud.textContent = [`moon m2 · tier ${TIER} · at ${p.x.toFixed(1)}, ${p.z.toFixed(1)}, ${p.y.toFixed(2)} · save step ${state.moon.step}`, `draws ${renderer.info.render.calls} · tris ${renderer.info.render.triangles}`, pawLine()].join('\n');
+  }
+  // the walk's own presses
+  const arcNow = () => placeArc(pounceArc(state, { reducedMotion: rm }), 'moon');
+  const press = () => { // game/interactions.js doPounceOrClimb: the Moon's way down first (session.fair), then a climb if a perch is in reach, else a hop
+    const arc = arcNow();
+    if (session.fair?.jump({ cat: session.cat, player, session })) return;
+    const next = bestPerch(area.perches, cat.position, player.perchY, session.perched, placeBudget(state, 'moon'), { ground });
+    if (next) { session.perched = next; player.perchY = next.y; player.halt(); cat.position.set(next.x, ground.y(next.x, next.z), next.z); }
+    else if (session.perched) { session.perched = null; player.perchY = 0; }
+    player.pounce(arc); session.pounceTime = arc.time;
+  };
+  const pawNow = () => climbBadge(session, player, state);
+  const interact = () => { const line = life.promptAt(cat.position); if (line) life.interact(); return line; };
+  const resize = (w, h) => { W = w; H = h; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); };
+  const setCam = (pos, look, fov = 70) => { camera.fov = fov; camera.updateProjectionMatrix(); camera.position.set(...pos); camera.lookAt(...look); life.sky.update(camera, t); };
+  const settle = (n) => { for (let k = 0; k < n; k++) frame(DT); };
+  // the cat walks a path of points at `speed` m/s (placed each frame, as the stick would; the life, Pip and the camera follow)
+  function scriptWalk(points, speed) {
+    for (let i = 0; i + 1 < points.length; i++) {
+      const [ax, az] = points[i]; const [bx, bz] = points[i + 1];
+      const n = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / (speed * DT)));
+      cat.rotation.y = facingYaw(bx - ax, bz - az);
+      for (let k = 1; k <= n; k++) { const x = ax + ((bx - ax) * k) / n; const z = az + ((bz - az) * k) / n; cat.position.set(x, ground.y(x, z), z); frame(DT); }
+    }
+  }
+
+  const SK0 = P.SKIP[0]; const SK1 = P.SKIP[1]; const BE = P.BEAMS;
+  const SHOTS = {
+    foot: { save: 1, at: [5.4, -33.6], face: [1, -0.5], settle: 30, cam: { pos: [1.2, 1.7, -31.2], look: [7.4, 2.6, -35.2], fov: 70 } },
+    pillar1: { save: 1, at: [SK0.x, SK0.z], face: [1, -1], perch: SK0, settle: 30, cam: { pos: [3.0, 5.2, -28.5], look: [9.0, 4.2, -36.5], fov: 66 } },
+    top: { save: 1, at: [SK1.x, SK1.z], face: [0, -1], perch: SK1, settle: 30, cam: { pos: [14, 7.6, -32], look: [9.8, 5.2, -37], fov: 62 } },
+    down: { save: 1, at: [SK1.x, SK1.z], face: [1, 0.4], perch: SK1, press: 1, settle: 40, cam: { pos: [14.5, 3.6, -28.5], look: [10.4, 2.4, -37], fov: 66 } },
+    beamfoot: { save: 1, at: [BE[0].x - 1.9, BE[0].z], face: [1, 0], settle: 30, cam: { pos: [-15.5, 2.2, -26.5], look: [-9, 1.4, -29.6], fov: 66 } },
+    beampeak: { save: 1, at: [BE[4].x, BE[4].z], face: [1, 0], perch: BE[4], settle: 30, cam: { pos: [-1.5, 5.4, -23.5], look: [2.6, 3.6, -30], fov: 66 } },
+    beamdown: { save: 1, at: [BE[4].x, BE[4].z], face: [0, 1], perch: BE[4], press: 1, settle: 40, cam: { pos: [-3.5, 3.6, -23.5], look: [1.7, 1.4, -30.5], fov: 66 } },
+    phonefoot: { save: 1, at: [5.4, -33.6], face: [1, -0.5], size: [390, 760], settle: 30, cam: { pos: [2.6, 1.9, -31.0], look: [7.2, 2.4, -35.4], fov: 74 } },
+    phonepillar1: { save: 1, at: [SK0.x, SK0.z], face: [1, -1], perch: SK0, size: [390, 760], settle: 30, cam: { pos: [3.4, 5.6, -29.0], look: [9.0, 4.4, -36.5], fov: 68 } },
+    phonetop: { save: 1, at: [SK1.x, SK1.z], face: [0, -1], perch: SK1, size: [390, 760], settle: 30, cam: { pos: [14.4, 7.8, -32.5], look: [9.8, 5.0, -37], fov: 66 } },
+    phonedown: { save: 1, at: [SK1.x, SK1.z], face: [1, 0.4], perch: SK1, press: 1, size: [390, 760], settle: 40, cam: { pos: [14.5, 3.8, -29.5], look: [10.4, 2.4, -37], fov: 68 } },
+  };
+  window.__shot = (name) => {
+    const s = SHOTS[name];
+    if (!s) throw new Error(`no shot "${name}"; there are ${Object.keys(SHOTS).join(', ')}`);
+    resize(...(s.size ?? [W0, H0]));
+    makeLife(s.save ?? 0);
+    reset(s.at[0], s.at[1], s.face[0], s.face[1]);
+    stick(0, 0);
+    if (s.perch) { session.perched = s.perch; player.perchY = s.perch.y; cat.position.set(s.perch.x, ground.y(s.perch.x, s.perch.z), s.perch.z); }
+    if (s.press) { life.update(DT, t, cat.position, camera, session); press(); }
+    settle(s.settle ?? 20);
+    if (s.cam) setCam(s.cam.pos, s.cam.look, s.cam.fov);
+    render();
+    return name;
+  };
+  window.__snap = (q = 0.85) => { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/jpeg', q); };
+  window.__stats = () => { const i = renderer.info; return { calls: i.render.calls, triangles: i.render.triangles }; };
+
+  // ---- tours -------------------------------------------------------------------------------------------------------
+  let tour = null;
+  const angTo = (cur, want, k) => { let d = ((want - cur + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return cur + d * k; };
+  let viewYaw = 0;
+  // walk the cat toward (x, z) by the stick with the view swung behind her: true when she is there
+  function walkTo(x, z, stop = 0.6) {
+    const dx = x - cat.position.x; const dz = z - cat.position.z;
+    if (Math.hypot(dx, dz) < stop) { stick(0, 0); return true; }
+    viewYaw = angTo(viewYaw, behindYaw(dx, dz), 0.1);
+    player.setViewYaw(viewYaw);
+    stick(0, -1);
+    return false;
+  }
+  const TOURS = {
+    ridgefix: () => {
+      makeLife(1);
+      life.base.pip.setAwake();
+      reset(4.2, -30.5, 0.2, -1);
+      viewYaw = behindYaw(0.2, -1);
+      let n = 0;
+      return () => {
+        n++;
+        let cap = 'Skip Ridge: two jumps, only on the Moon';
+        const at = (a) => n === a;
+        if (n < 20) stick(0, 0);
+        else if (n < 62) { walkTo(5.6, -33.2, 0.3); cap = 'walk to the foot of the first rock'; } else stick(0, 0);
+        if (at(75)) press(); // up onto the first pillar
+        if (n > 75 && n < 130) cap = 'paw up: onto the first rock (2.6 m)';
+        if (at(140)) press(); // up onto the top
+        if (n > 140 && n < 195) cap = 'paw up: onto the top (5.0 m)';
+        if (at(205)) interact();
+        if (n > 205 && n < 255) cap = 'the Ridge cell: picked up';
+        if (n > 255 && n < 262) cap = 'on the top, the paw says down';
+        if (at(262)) press(); // the way down
+        if (n > 262) cap = 'paw down: she hops to the dust, the cell in her mouth';
+        const cx = 14.5; const cy = 3.4 + Math.max(0, cat.position.y - 1) * 0.55;
+        frame(DT);
+        if (n > 20) {
+          if (n > 262) camera.position.set(cat.position.x + 3.4, 2.2, cat.position.z + 4.2);
+          else { camera.position.set(14.5, 3.4 + Math.max(0, cat.position.y - 1) * 0.55, -27); }
+          camera.fov = 66; camera.updateProjectionMatrix();
+          if (n > 262) camera.lookAt(cat.position.x, cat.position.y + 0.7, cat.position.z); else camera.lookAt(8.4, Math.max(1.4, cat.position.y), -35.2);
+          life.sky.update(camera, t);
+          renderer.render(scene, camera);
+        }
+        capEl.textContent = BARE ? pawLine() : `${cap}   |   ${pawLine()}`;
+        return { done: n > 340, caption: cap };
+      };
+    },
+    beamsfix: () => {
+      makeLife(1);
+      reset(BE[0].x - 1.9, BE[0].z, 1, 0);
+      viewYaw = behindYaw(1, 0);
+      let n = 0;
+      let k = 0;
+      return () => {
+        n++;
+        let cap = 'the Beam Hops: five stones up the wave';
+        stick(0, 0);
+        if (n > 20 && n <= 20 + 5 * 36 && (n - 20) % 36 === 0) { press(); k++; cap = `paw up: stone ${k}`; }
+        if (n === 20 + 5 * 36 + 40) press();
+        if (n > 20 + 5 * 36 + 40) cap = 'on the peak the paw says down: she hops to the dust';
+        else if (n > 20 + 5 * 36) cap = 'the peak (3.0 m): the paw says down';
+        const px = cat.position.x;
+        camera.fov = 66; camera.updateProjectionMatrix();
+        frame(DT);
+        camera.position.set(px - 1.5, 3.2 + Math.max(0, cat.position.y - 1) * 0.5, -22.5);
+        camera.lookAt(px + 1.5, Math.max(1.2, cat.position.y), -30.2);
+        life.sky.update(camera, t);
+        renderer.render(scene, camera);
+        capEl.textContent = BARE ? pawLine() : `${cap}   |   ${pawLine()}`;
+        return { done: n > 20 + 5 * 36 + 120, caption: cap };
+      };
+    },
+  };
+  window.__tour = (name) => { if (!TOURS[name]) throw new Error(`no tour "${name}"; there are ${Object.keys(TOURS).join(', ')}`); resize(W0, H0); tour = TOURS[name](); return name; };
+  window.__frame = () => tour ? tour() : { done: true };
+
+  reset(0, 45, 0, -1);
+  render();
+  window.__ready = true;
+</script>
+</body>
+</html>

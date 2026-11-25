@@ -31,6 +31,8 @@ import * as P from './moonplan.js';
 import { ROVER, ROVER_FREE, createRover, stepRover, dismountSpot, tourPoint, tourNearest } from './moonrover.js';
 import { buildDot, DOT_SEATS } from './moonroverparts.js';
 import { createMoonSound } from './moonsound.js';
+import { wayDown } from './moonperch.js';
+import { placeBudget } from '../placephysics.js';
 
 export const FAR_DRAWN = 70; // m (milestone 5): parked Dot is not drawn farther than this from her
 export const SEAT_FRAME = Object.freeze({ camOut: 0.45, camUp: 0.55, camEase: 2.6, lead: 1.4 });
@@ -253,6 +255,21 @@ export function createRoverLive(ctx) {
     camera.lookAt(c.x + Math.sin(sim.yaw) * lead, c.y + LOOK_Y, c.z + Math.cos(sim.yaw) * lead);
   }
 
+  // (the Skip Ridge fix, moonperch.js) the dust a press would take her to from the perch she is on, or null when the ordinary climb takes it
+  const downSpot = (cat, player, session) => session?.perched && wayDown({
+    perches: ctx.perches ?? P.MOON_PERCHES, perched: session.perched, cat: cat.position, perchY: player.perchY, budget: placeBudget(progression?.state, 'moon'),
+    state: progression?.state, ground: session.ground ?? ground, colliders, bounds: P.MOON_BOUNDS, fwd: player.forward?.(),
+  });
+  function hopDown(cat, player, session) {
+    const spot = downSpot(cat, player, session);
+    if (!spot) return false;
+    session.perched = session.perchHold = null;
+    player.perchY = 0;
+    cat.position.set(spot.x, gy(spot.x, spot.z), spot.z);
+    session.fx?.burst(cat.position, 0xcbb8a0, 8);
+    return true;
+  }
+
   const hooks = {
     update(dt, t, { cat, player, session }) {
       if (!installed) return;
@@ -276,12 +293,12 @@ export function createRoverLive(ctx) {
       cat.rotation.x = tilt.pitch;
       cat.rotation.z = tilt.roll;
     },
-    jump() {
-      if (!riding) return false;
+    jump({ cat, player, session } = {}) {
+      if (!riding) return hopDown(cat, player, session); // (the Skip Ridge fix) on a stone with no higher one in reach the press is a hop to the dust
       bounceAt = clock; // the paw button: a small bounce, render only
       return true;
     },
-    pawKind() { return riding ? 'none' : null; },
+    pawKind(cat, player, session) { return riding ? 'none' : downSpot(cat, player, session) ? 'down' : null; },
     canBoard() { return false; },
     groundSpot() { if (!riding) return null; const to = dismountSpot(sim, env, null); return { x: to.x, z: to.z }; },
     dispose() {},
