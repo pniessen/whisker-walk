@@ -124,6 +124,11 @@ export function tvDownloads(manifest) {
 export const CAT_ENTRY_MODULES = { catsync: ['src/game/catsync.js'], savecode: ['src/savecode.js'], catcodes: ['src/catcodes.js'], catlogin: ['src/ui/catlogin.js'], hop: ['src/game/hop.js'] };
 export const CAT_GZIP_CEILING_KB = 30;
 
+// "Start a fresh cat" (src/ui/freshcat.js, with its words): one lazy chunk, fetched only by a tap on the Settings button.
+// It must never fold into start-up, and has its own ceiling.
+export const FRESH_ENTRY_MODULES = { fresh: ['src/ui/freshcat.js'] };
+export const FRESH_GZIP_CEILING_KB = 30;
+
 // Couch play (src/coop/, docs/superpowers/specs/2026-11-22-couch-coop-design.md)
 // is one lazy chunk, loaded only by ?coop=1. It must never fold into start-up,
 // and it has its own ceiling.
@@ -150,7 +155,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   writeFileSync(join(dir, 'build.json'), JSON.stringify(buildInfo()) + '\n');
   console.log(`wrote ${dir}/build.json`);
   const manifest = JSON.parse(readFileSync(join(dir, '.vite', 'manifest.json'), 'utf8'));
-  const problems = [...lazyProblems(manifest), ...lazyProblems(manifest, TV_ENTRY_MODULES), ...lazyProblems(manifest, CAT_ENTRY_MODULES), ...lazyProblems(manifest, COOP_ENTRY_MODULES), ...lazyProblems(manifest, WALK_ENTRY_MODULES), ...lazyProblems(manifest, TELE_ENTRY_MODULES)];
+  const problems = [...lazyProblems(manifest), ...lazyProblems(manifest, TV_ENTRY_MODULES), ...lazyProblems(manifest, CAT_ENTRY_MODULES), ...lazyProblems(manifest, FRESH_ENTRY_MODULES), ...lazyProblems(manifest, COOP_ENTRY_MODULES), ...lazyProblems(manifest, WALK_ENTRY_MODULES), ...lazyProblems(manifest, TELE_ENTRY_MODULES)];
   const start = startupFiles(manifest);
   const startBytes = start.reduce((n, f) => n + gzipOf(dir, f), 0);
   const startProblem = sizeProblem(startBytes);
@@ -180,6 +185,9 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   const catKb = catAll.catsync;
   console.log(`  catch-up      ${catKb.toFixed(1)} kB gzipped (ceiling ${CAT_GZIP_CEILING_KB} kB)`);
   console.log(`  cat codes     ${catAll.catcodes.toFixed(1)} kB gzipped, My cat sheet ${catAll.catlogin.toFixed(1)} kB, old codes ${catAll.savecode.toFixed(1)} kB, hop codes ${catAll.hop.toFixed(1)} kB (ceiling ${CAT_GZIP_CEILING_KB} kB each)`);
+  const freshKb = (areaDownloads(manifest, FRESH_ENTRY_MODULES).fresh ?? []).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000;
+  problems.push(...areaSizeProblems({ fresh: freshKb }, FRESH_GZIP_CEILING_KB));
+  console.log(`  fresh cat     ${freshKb.toFixed(1)} kB gzipped (ceiling ${FRESH_GZIP_CEILING_KB} kB)`);
   if (problems.length) {
     for (const p of problems) console.error(`\n✗ ${p}`);
     process.exit(1);

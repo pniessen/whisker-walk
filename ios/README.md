@@ -134,6 +134,33 @@ Safari into the app:
 Keep a save code linked on every device. If an app is ever deleted, install
 it again with the refresh and load the save back with its code.
 
+## Starting a fresh cat on a device
+
+To give one device a brand new cat (for a new player, or to start over without
+touching the other devices): **☰ Menu → For grown-ups → Game settings → Start a
+fresh cat**, then press and hold the red button for two seconds. Nothing is
+erased until the ring is full; letting go cancels. The same button works in
+Safari and in the app.
+
+- **A cat saved to the cloud** is pushed once more first. The card then shows
+  its four-word cat code. To get that cat back on any device, tap **Load cat**
+  (My cat) and type the code. Nothing in the cloud is ever deleted, and the
+  fresh cat gets its own new cat key and no cloud link, so it can never be
+  saved over the old cat's cloud copy.
+- **A cat only on this device** (never saved) gets a plain warning and a
+  **Save this cat first** button, which makes the cat code.
+- **Either way a copy of the old cat stays on the device**, in one rollback
+  slot, until the next fresh cat. **Bring back my old cat** (same Settings
+  screen) puts it back whole (save, cat key, cloud link, photos) and keeps the
+  cat that was there in the slot, so the two can be swapped again. If you start
+  a second fresh cat before the first one has done anything, the first old cat
+  is kept.
+- The device's own settings stay as they are: sound, TV mode, the word
+  edition, graphics, accessibility. The full list of what is cleared and what
+  is kept is in `src/ui/freshcat.js` (and `test/freshcat.keys.test.js` fails
+  if a new storage key is not listed there).
+- In a room it says to leave the room first.
+
 ## Walking together in the same room: nearby joining
 
 When two devices running the app are in the same room, starting a walk

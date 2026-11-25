@@ -658,6 +658,18 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       </section>`;
   }
 
+  // Start a fresh cat (src/ui/freshcat.js, a lazy chunk): only the two doors are here. Bring back my old cat shows once a
+  // fresh cat has been started (the rollback slot is there); a slot made by that very button's swap says so.
+  const freshSlot = () => {
+    try {
+      const v = globalThis.localStorage?.getItem('whisker-walk-fresh-backup');
+      return v ? `<button id="btn-fresh-back" class="danger">${v.startsWith('{"role":"swap"') ? 'Switch back to the other cat' : 'Bring back my old cat'}</button>` : '';
+    } catch { return ''; }
+  };
+  const openFresh = (back) => import('./freshcat.js')
+    .then((m) => m[back ? 'openBack' : 'open']({ ...catApi, progression, album, reload, doc: document, storage: () => globalThis.localStorage, rooms: () => rooms?.getState?.(), notice: showNotice, reduced: reducedNow }))
+    .catch((err) => note('ui', err));
+
   // The edition is not a look: say what switching does, so a grown-up does
   // not flip it like a colour (the save keeps everything either way).
   function renderSettings() {
@@ -692,6 +704,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         </div>${usageHtml(progression.state.usage, { visits: progression.state.visits, walks: Object.values(progression.state.walks ?? {}).reduce((a, b) => a + asFiniteNonNeg(b, 0), 0) })}
         <p class="settings-note" id="hb-build">Build ${escapeHtml(BUILD_STAMP)}</p>
         <button id="btn-reset" class="danger">Start over</button>
+        <button id="btn-fresh" class="danger">Start a fresh cat</button>${freshSlot()}
       </section>`;
   }
 
@@ -2104,6 +2117,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       progression.setTutorialFirst?.(null);
       replayNote = true;
       render();
+      return;
+    }
+    if (e.target.id === 'btn-fresh' || e.target.id === 'btn-fresh-back') {
+      openFresh(e.target.id === 'btn-fresh-back');
       return;
     }
     if (e.target.id === 'btn-reset') {

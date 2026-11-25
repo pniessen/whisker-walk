@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Start a fresh cat harness</title>
+<!-- Start a fresh cat: the REAL home base, the REAL Settings sheet and the REAL lazy chunk (src/ui/freshcat.js) over an
+     in-memory localStorage and a stand-in cloud (nothing is sent anywhere). The bar picks how the cloud answers:
+       linked, saved      Sync now says yes: the card shows the cat code and "nothing in the cloud is deleted"
+       linked, offline    Sync now fails: the warning, the code from the last save, Save this cat first
+       only on device     no link: the plain warning, Save this cat first makes a code
+     "Reload" is what the page does after a fresh cat: the same storage, a new boot. "?tv=1" turns TV sizes on
+     (the real TV chunk), "?pad=1" shows the pad's button pictures. -->
+<style>
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9999; padding: 6px 8px; display: flex; flex-wrap: wrap;
+         gap: 5px; align-items: center; background: rgba(12, 18, 30, .92); color: #a8c0e0; font: 12px/1.4 sans-serif;
+         border-top: 1px dashed #33425e; }
+  #bar button { padding: 6px 9px; border-radius: 8px; border: 1px solid #5b6c88; background: #2c3d58; color: #fff; font-size: 12px; }
+  #bar output { flex: 1 0 100%; color: #f2c14e; }
+  #bar.min > :not(#bar-toggle) { display: none; }
+  body.shot #bar { display: none; }
+</style>
+</head>
+<body>
+<div id="homebase" class="hidden"></div>
+<div id="bar">
+  <button id="bar-toggle" title="Collapse or expand this bar">harness</button>
+  <button id="m-saved">Linked, saved</button>
+  <button id="m-offline">Linked, offline</button>
+  <button id="m-local">Only on device</button>
+  <button id="m-room">In a room</button>
+  <button id="h-settings">Open Settings</button>
+  <button id="h-reload">Reload</button>
+  <button id="h-ring">Ring at 60%</button>
+  <output id="h-out">pick a case, then Open Settings</output>
+</div>
+<script type="module">
+  import '/src/style.css';
+  import { createProgression, SAVE_KEY } from '/src/progression.js';
+  import { createHomeBase } from '/src/ui/homebase.js';
+  import { createSettings } from '/src/settings.js';
+
+  const $ = (id) => document.getElementById(id);
+  const out = (msg) => { $('h-out').textContent = msg; };
+  const q = new URLSearchParams(location.search);
+  if (q.has('shot')) document.body.classList.add('shot');
+
+  // an in-memory localStorage the game's own code reads and writes (keys listable, as a browser's are)
+  const map = new Map();
+  const mem = {
+    getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => { map.set(k, String(v)); }, removeItem: (k) => { map.delete(k); },
+    key: (i) => [...map.keys()][i] ?? null, get length() { return map.size; },
+  };
+  try { Object.defineProperty(window, 'localStorage', { value: mem, configurable: true }); } catch { out('could not replace localStorage: this page will use the real one'); }
+  const store = window.localStorage;
+
+  function seedCat() {
+    const p = createProgression(store);
+    Object.assign(p.state, { points: 85, lifetimePoints: 230, petName: 'Mochi', visits: 12 });
+    store.setItem(SAVE_KEY, JSON.stringify(p.state));
+    store.setItem('whisker-walk-player', crypto.randomUUID());
+    store.setItem('whisker-walk-settings', JSON.stringify({ tvMode: q.has('tv') }));
+    if (mode !== 'local') { store.setItem('whisker-walk-cloudcode', 'PLUM-OTTER-CROW-MAPLE'); store.setItem('whisker-walk-cloudsecret', 's'); }
+  }
+
+  let mode = 'saved';
+  let room = null;
+  const log = [];
+  function makeSync() {
+    let code = null;
+    return {
+      available: true,
+      getCode: () => store.getItem('whisker-walk-cloudcode'),
+      syncNow: async () => { log.push('syncNow'); await new Promise((r) => setTimeout(r, 900)); return mode === 'saved' ? { ok: true, message: 'Synced' } : { ok: false, message: 'offline' }; },
+      saveToCloud: async () => { log.push('saveToCloud'); await new Promise((r) => setTimeout(r, 700)); code = 'RIVER-LANTERN-MOSS-DAISY'; store.setItem('whisker-walk-cloudcode', code); store.setItem('whisker-walk-cloudsecret', 's'); return { ok: true, code }; },
+      catStatus: () => null, catchUp: () => Promise.resolve('none'), unlink() {}, previewLoad: async () => ({ ok: false, error: 'no' }), confirmLoad: async () => ({ ok: false }),
+      changeCode: async () => ({ ok: false }),
+    };
+  }
+
+  let hb = null;
+  function boot() {
+    if (hb) { try { hb.hide(); } catch { /* nothing open */ } }
+    for (const id of ['confirm-card', 'home-notice']) document.getElementById(id)?.remove();
+    const old = $('homebase');
+    const fresh = document.createElement('div');
+    fresh.id = 'homebase';
+    fresh.className = 'hidden';
+    old.replaceWith(fresh);
+    const progression = createProgression(store);
+    const settings = createSettings(store);
+    const album = { photos: [], serialize: () => ({ version: 1, photos: [] }), clear() {}, replaceFromPayload() {}, all: () => [] };
+    hb = createHomeBase({
+      progression, album, onStartWalk: () => out('Start pressed'), rooms: room ? { available: true, getState: () => room, retrackProfile() {}, pushProfileNow() {} } : null,
+      sync: makeSync(), cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me',
+      toast: (t) => out(`toast: ${t}`), onCelebrate: () => {}, getIsTouch: () => matchMedia('(pointer: coarse)').matches,
+      reload: () => { out('RELOADED: the page boots again from the same storage'); log.push('reload'); setTimeout(boot, 0); setTimeout(() => hb.show(), 30); },
+    });
+    window.harness = { hb, progression, store, log, keys: () => [...map.keys()].sort(), mode: () => mode };
+  }
+  if (q.has('tv')) { try { const m = await import('/src/tv/index.js'); await m.start({ doc: document, win: window, padInfo: () => null }); if (q.has('pad')) (await import('/src/tvseam.js')).setTv({ input: 'pad' }); } catch (e) { out('tv: ' + e.message); } }
+  seedCat();
+  boot();
+  hb.show({ sheet: q.get('sheet') || null });
+  const pick = (m, r = false) => () => { map.clear(); mode = m; seedCat(); room = r ? { roster: [{}, {}] } : null; const was = hb?.depth?.() ?? 0; boot(); hb.show({ sheet: 'settings' }); out(`case: ${m}${r ? ' + room' : ''} (${was ? 'reopened' : 'opened'} Settings)`); };
+  $('m-saved').onclick = pick('saved');
+  $('m-offline').onclick = pick('offline');
+  $('m-local').onclick = pick('local');
+  $('m-room').onclick = pick('saved', true);
+  $('h-settings').onclick = () => { boot(); hb.show({ sheet: 'settings' }); };
+  $('h-reload').onclick = () => { boot(); hb.show(); out('reloaded: ' + window.harness.keys().join(', ')); };
+  // the ring part-way, for a picture (the real hold is timed by the page's clock; a picture cannot catch it)
+  $('h-ring').onclick = () => { const y = document.getElementById('confirm-card-yes'); const f = y?.querySelector('.fill'); if (f) { f.style.strokeDashoffset = String(100.53 * 0.4); y.classList.add('holding'); } };
+  $('bar-toggle').onclick = () => $('bar').classList.toggle('min');
+</script>
+</body>
+</html>
