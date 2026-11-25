@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moon arrival bug picture page</title>
+<!-- Arriving on the Moon through the Park's gate (the owner's bug, 2026-11-25): the REAL Moon (src/world/moon.js) and its REAL life, started the way game/walk.js starts it (NO page handed in), the REAL HUD
+     (src/ui/hud.js, with its one-or-two-slot toast queue on a virtual clock) fed the gate's own two lines (Your suit is on! / Take the stones home...), the game's stylesheet. NOT in the game's page. scripts/record-page.mjs
+     makes the pictures: __shot(name), __tour('arrival') with __frame(). URL params: size=WxH, profile=laptop|tablet|phone|tv, words=off, save=asleep|awake. Shots: a1, a5, a10 (seconds after arrival), _ph (390x760 touch phone), _tv (1920x1080).
+     Same page serves the BEFORE (a worktree at main) and the AFTER. -->
+<link rel="stylesheet" href="/src/style.css">
+<link rel="stylesheet" href="/src/tv/fonts.css">
+<link rel="stylesheet" href="/src/tv/tv.css">
+<style>
+  canvas#game3d { position: fixed; left: 0; top: 0; display: block; }
+  #dbg { position: fixed; left: 0; top: 40%; padding: 6px 10px; background: rgba(8, 10, 18, .72); white-space: pre; pointer-events: none; font: 12px/1.35 system-ui; z-index: 50; }
+  #cap { position: fixed; left: 0; bottom: 0; padding: 6px 10px; background: rgba(8, 10, 18, .72); white-space: pre; pointer-events: none; font-size: 14px; z-index: 50; }
+  .mock-bad { background: #7a3a3a; }
+</style>
+</head>
+<body>
+<div id="hud"></div>
+<div id="cap"></div>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier } from '/src/render/textures.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { createPlayer, pounceArc } from '/src/player.js';
+  import { createFx } from '/src/fx.js';
+  import { facingYaw, behindYaw } from '/src/traversal.js';
+  import { applyDusk, duskEnv, tintDuskLawn } from '/src/render/dusk.js';
+  import { effectiveWear } from '/src/suithook.js';
+  import { placeArc, placePace, placeBudget } from '/src/placephysics.js';
+  import { bestPerch, stickTakesOff } from '/src/climbing.js';
+  import { NO_FAIR } from '/src/fairnone.js';
+  import { NO_TRAVERSAL } from '/src/traversallive.js';
+  import { mergeStaticProps } from '/src/render/mergeprops.js';
+  import { bus } from '/src/events.js';
+  import { build } from '/src/world/moon.js';
+  import * as P from '/src/world/moonplan.js';
+  import { createProgression } from '/src/progression.js';
+  import { createDiscoveryLog } from '/src/discoveries.js';
+  import { createHud } from '/src/ui/hud.js';
+  import { startProfile } from '/src/profile.js';
+  import { phrase } from '/src/clanphrases.js';
+  import * as UI from '/src/teleui.js';
+  import { lower } from '/src/territories.js';
+  import { escapeHtml } from '/src/escapehtml.js';
+  import { createGoldMice } from '/src/goldmice.js';
+  import { createPawPrints } from '/src/render/pawprints.js';
+  import { litMaterial } from '/src/render/materials.js';
+  import * as LV from '/src/world/moonlava.js';
+  import * as J from '/src/world/moonjob.js';
+  import { addWordSet, setSeriesMode } from '/src/wordset.js';
+  import * as OFFW from '/src/offclanwords.js';
+
+  const params = new URLSearchParams(location.search);
+  if (params.get('words') === 'off') { addWordSet(OFFW.OFF_ID, OFFW); setSeriesMode(OFFW.OFF_ID); } // the everyday edition
+  const rm = params.get('rm') === '1';
+  const [W0, H0] = (params.get('size') || '960x540').split('x').map(Number);
+  const BARE = params.has('bare');
+  const PROFILE = params.get('profile') || 'laptop';
+  const TIER = params.get('tier') || 'high';
+  const DT = 1 / 30;
+  const tier = TIER === 'lite' ? { name: 'low', rung: 5, shadows: false, envIntensity: 0.3 } : TIER === 'low' ? { name: 'low', rung: 3, shadows: true, envIntensity: 0.3 } : { name: 'high', shadows: true, envIntensity: 0.3 };
+
+  let W = W0, H = H0;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = tier.shadows;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.95;
+  renderer.domElement.id = 'game3d';
+  document.body.prepend(renderer.domElement);
+  setTextureTier(tier);
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+  const sun = createSun();
+  scene.add(sun);
+  const fill = createFill(0x8d8c93);
+  scene.add(fill);
+  const area = build(scene, { water: { quality: tier, reducedMotion: rm } });
+  const look = applyDusk({ scene, sun, fill, areaData: area });
+  tintDuskLawn({ ground: scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint)), grass: null, look });
+  scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
+  const ground = area.ground;
+
+  const wear = effectiveWear({ collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }, 'moon');
+  const cat = buildCat('tabby', wear);
+  scene.add(cat);
+  const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
+  const shadows = tier.shadows ? createShadowFit(sun, camera, { radius: 20, mapSize: tier.rung >= 3 ? 1024 : 2048 }) : null;
+  sun.shadow.bias = SUN_BIAS;
+  sun.castShadow = tier.shadows;
+  assignShadowCasters(scene);
+  mergeStaticProps(scene);
+
+  const fx = createFx(scene, { reducedMotion: rm });
+  // the golden mice and the pebbles as game/walk.js makes them
+  const mice = createGoldMice(scene, 'moon', new Set(), { ground, rng: () => 0.3 });
+  const pebbles = area.collectibles.map((c) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), litMaterial(0xf25c8a, { emissive: 0x5a1a30 })); m.position.set(c.x, ground.y(c.x, c.z) + 0.2, c.z); scene.add(m); return m; });
+  // the paw prints on the dust (the walk makes the ring after the shadow sweeps)
+  const paws = createPawPrints(scene, { areaId: 'moon', areaData: area, tier: { pawPrints: 48, pawFade: 9 }, reducedMotion: rm });
+  // the save: a real progression on an in-memory store (nothing persisted), and a real discovery log, so the finds pay as they do in the game
+
+  UI.setup({ padTag: () => '', lower, escapeHtml });
+  // ---- a virtual clock: the HUD's toasts run on setTimeout and Date; a film frame is one fixed step, so they must follow the steps, not the wall --------------------------------------------
+  let vnow = 0; let seq = 0; let timers = [];
+  window.setTimeout = (fn, ms = 0) => { const id = ++seq; timers.push({ id, at: vnow + ms, fn }); return id; };
+  window.clearTimeout = (id) => { timers = timers.filter((x) => x.id !== id); };
+  Date.now = () => 1.7e12 + vnow;
+  const advance = (ms) => { vnow += ms; for (;;) { const due = timers.filter((x) => x.at <= vnow).sort((a, b) => a.at - b.at)[0]; if (!due) break; timers = timers.filter((x) => x !== due); due.fn(); } };
+
+  const store = new Map();
+  const progression = createProgression({ getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) });
+  const state = progression.state;
+  const session = { pounceTime: 0, pounceCooldown: 0, perched: null, perchHold: null, idleTime: 0, hopLift: 0, fx, goals: null, cat, fair: NO_FAIR, traversal: NO_TRAVERSAL };
+  session.goldMice = mice;
+  session.collectibleMeshes = new Map(area.collectibles.map((c, i) => [c.id, pebbles[i]]));
+  let life = null;
+  let t = 0;
+  let hud = null;
+  const SAVES = { asleep: { step: 0, cells: 0 }, awake: { step: 4, cells: 3 } };
+  // the life as game/walk.js makes it: the walk hands it NO page (no doc, no win)
+  function makeLife(save) {
+    life?.dispose();
+    Object.assign(state.moon, { stamp: -1, scope: 0 }, SAVES[save]);
+    const log = createDiscoveryLog(progression);
+    log.startWalk();
+    life = area.life({ scene, sun, fill, ground, reducedMotion: rm, tier, progression, log, audio: null, clock: () => 250, visits: 0 });
+    t = 0;
+    session.perched = null; session.perchHold = null; session.fair = NO_FAIR; session.traversal = NO_TRAVERSAL;
+    return life;
+  }
+  makeLife('asleep');
+  const player = createPlayer(camera, renderer.domElement);
+  const ctx = { cat, player, session };
+  player.setReducedMotion(rm);
+  function reset(x, z, fx_, fz_) {
+    cat.position.set(x, ground.y(x, z), z);
+    cat.rotation.set(0, facingYaw(fx_, fz_), 0);
+    player.setAvatar(cat, placePace(3.5, 'moon'));
+    player.setGround(ground);
+    player.setViewYaw(behindYaw(fx_, fz_));
+    player.perchY = 0;
+    session.perched = null;
+    player.enable();
+    player.update(0, area.colliders, area.bounds, area.waters);
+    life.update(0, t, cat.position, camera, session);
+    if (shadows) shadows.update(0, 1e3);
+  }
+  const capEl = document.getElementById('cap');
+  let sec = 0;
+  function frame(dt) {
+    t += dt; sec += dt;
+    ctx.cat = cat;
+    session.traversal.update(dt, t, ctx);
+    player.update(dt, area.colliders, area.bounds, area.waters);
+    life.update(dt, t, cat.position, camera, session);
+    session.fair.update(dt, t, { cat, player, session });
+    player.speedFactor = 1;
+    fx.update(dt, camera);
+    mice.update(t);
+    animateCat(cat, 'follow', t, player.speed, rm);
+    cat.rotation.x = 0; cat.rotation.z = 0;
+    cat.position.y = ground.y(cat.position.x, cat.position.z) + player.hopY;
+    paws.update(dt, { x: cat.position.x, z: cat.position.z, grounded: true });
+    session.fair.late(dt, t, { cat, player, session });
+    session.traversal.late(dt, t, ctx);
+    if (shadows) shadows.update(0, dt);
+    advance(dt * 1000);
+    renderer.render(scene, camera);
+  }
+  const resize = (w, h) => { W = w; H = h; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); };
+  // the arrival: Park gate hand-off lines (the real words from src/teleui.js, as game/walk.js toasts them), then the Moon life's frames
+  function arrive({ size, mode, profile, save }) {
+    timers = []; vnow = 0; sec = 0;
+    document.getElementById('hud').innerHTML = '';
+    resize(...size);
+    const html = document.documentElement;
+    html.classList.toggle('tv', mode === 'tv');
+    document.body.classList.toggle('touch-mode', mode === 'touch');
+    startProfile({ location: { search: `?profile=${profile}` }, matchMedia: () => ({ matches: false }), navigator: {}, innerWidth: size[0], innerHeight: size[1], addEventListener() {}, removeEventListener() {} }, document);
+    html.style.setProperty('--tv-s', mode === 'tv' ? String(size[0] / 960) : '1');
+    hud = createHud();
+    document.getElementById('hud').insertAdjacentHTML('beforeend', mode === 'touch' ? `<div class="touch-ui"><div class="tui-joystick-rest"></div><div class="tui-actions"><button class="tui-btn">🐾<span class="tui-label">pounce</span></button><button class="tui-btn">😺<span class="tui-label">meow</span></button></div></div>` : '');
+    hud.setArea?.('The Moon');
+    makeLife(save);
+    reset(-10, 44.6, 0, -1); // MP.arrive: beside the return ring, facing it
+    player.setTouchMove(null);
+    cat.visible = true;
+    hud.toast(phrase('tele.suit'));
+    hud.toast(phrase('tele.home', 'stonering'));
+  }
+  const SIZES = { '': null, _ph: [390, 760, 'touch', 'phone'], _tv: [1920, 1080, 'tv', 'tv'], _ipad: [1180, 820, 'touch', 'tablet'], _ipadp: [820, 1180, 'touch', 'tablet'] };
+  const SHOTS = {};
+  for (const [name, at] of Object.entries({ a1: 1, a5: 5, a10: 10 })) for (const [suffix, sz] of Object.entries(SIZES)) {
+    SHOTS[name + suffix] = () => {
+      const [w, h, mode, profile] = sz ?? [W0, H0, 'laptop', PROFILE];
+      arrive({ size: [w, h], mode, profile, save: params.get('save') || 'asleep' });
+      for (let i = 0; i < Math.round(at / DT); i++) frame(DT);
+      const g = life.guide?.state ?? {};
+      capEl.textContent = BARE ? '' : `${name}${suffix}: ${at} s after arrival | goal "${g.lineOn ? g.text : ''}" | arrow ${g.arrowOn ? g.metres + ' m' : 'off'}`;
+      window.__last = { at, goal: g.lineOn ? g.text : '', arrow: g.arrowOn ? g.metres : 0, toasts: [...document.querySelectorAll('.toast')].filter((e) => !e.classList.contains('fade')).map((e) => e.textContent) };
+    };
+  }
+  window.__shot = (name) => {
+    const f = SHOTS[name];
+    if (!f) throw new Error(`no shot "${name}"; there are ${Object.keys(SHOTS).join(', ')}`);
+    f();
+    renderer.render(scene, camera);
+    return name;
+  };
+  let tour = null;
+  window.__tour = (name) => {
+    if (name !== 'arrival') throw new Error('tours: arrival');
+    arrive({ size: [W0, H0], mode: PROFILE === 'tv' ? 'tv' : PROFILE === 'laptop' ? 'laptop' : 'touch', profile: PROFILE, save: params.get('save') || 'asleep' });
+    let n = 0;
+    tour = () => { frame(DT); n++; const g = life.guide?.state ?? {}; capEl.textContent = BARE ? '' : `${(n * DT).toFixed(1)} s after arrival | goal "${g.lineOn ? g.text : ''}" | arrow ${g.arrowOn ? g.metres + ' m' : 'off'}`; return { done: n >= 20 / DT, caption: capEl.textContent }; };
+    return name;
+  };
+  window.__frame = () => (tour ? tour() : { done: true });
+  window.__shot('a1');
+  window.__ready = true;
+</script>
+</body>
+</html>
