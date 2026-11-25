@@ -165,7 +165,7 @@ export function drawRocks(lowTier = false) {
   const sc = new THREE.Vector3();
   for (const [name, big, salt, list] of specs) {
     if (!list.length) continue;
-    const mat = litMaterial(0xffffff, { roughness: 1, flatShading: true });
+    const mat = litMaterial(0xffffff, { roughness: 1, flatShading: true, vertexColors: true });
     const mesh = new THREE.InstancedMesh(angularRock(salt, big), mat, list.length);
     mesh.name = `moon:rocks-${name}`;
     list.forEach((r, i) => {
@@ -177,6 +177,8 @@ export function drawRocks(lowTier = false) {
       m4.compose(pos, q, sc);
       mesh.setMatrixAt(i, m4);
       tint.setHex(0xa4a3a3).multiplyScalar((big ? 0.6 : 0.45) + (big ? 0.75 : 0.5) * (0.5 + 0.5 * Math.sin(i * 7.31 + salt)) ** 1.3);
+      const hue = Math.sin(i * 3.9 + salt * 1.7); // (beauty round 3) a cool basalt or a warm dusty one, rock to rock
+      tint.r *= 1 + 0.07 * hue; tint.b *= 1 - 0.08 * hue;
       mesh.setColorAt(i, tint);
     });
     mesh.instanceMatrix.needsUpdate = true;

@@ -8,6 +8,7 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { dustGeometry } from './moonbeauty.js';
 import { litMaterial } from '../render/materials.js';
 import * as P from './moonplan.js';
 import { trackPosts } from './moonrover.js';
@@ -58,7 +59,7 @@ export function buildDot() {
   // a front grille and a spare small crate on the back
   put(box(0.6, 0.12, 0.04).translate(0, 0.7, 1.37), C.dark);
   put(box(0.4, 0.2, 0.3).translate(0.3, 0.78, -1.32), C.panel);
-  const body = new THREE.Mesh(mergeGeometries(parts), litMaterial(0xffffff, { vertexColors: true, roughness: 0.55 }));
+  const body = new THREE.Mesh(dustGeometry(mergeGeometries(parts), () => 0, { reach: 1.7, gain: 3.4 }), litMaterial(0xffffff, { vertexColors: true, roughness: 0.55 }));
   body.name = 'dot:body';
   // the headlamp and the tail lamps: one mesh (a basic material the life brightens: a flash on a honk)
   const lampGeo = mergeGeometries([
@@ -79,7 +80,7 @@ export function buildDot() {
       g.push(col(cyl(w.r * 0.5, w.r * 0.5, w.w + 0.04, 6).rotateZ(Math.PI / 2).translate(s * w.x, 0, 0), C.hub));
       g.push(col(box(w.w + 0.05, 0.07, 0.07).translate(s * w.x, w.r * 0.7, 0), C.panel)); // a mark on the rim, so the turning shows
     }
-    const m = new THREE.Mesh(mergeGeometries(g), tyreMat);
+    const m = new THREE.Mesh(dustGeometry(mergeGeometries(g), () => -w.r, { reach: 1.4, gain: 3.2 }), tyreMat);
     m.name = `dot:axle${i}`;
     m.position.set(0, w.r, z);
     return m;

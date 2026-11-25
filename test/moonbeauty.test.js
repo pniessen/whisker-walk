@@ -8,7 +8,12 @@ import * as P from '../src/world/moonplan.js';
 import * as B from '../src/world/moonbeautyplan.js';
 import { paintRegolith, paintGrain, regolithMaterial, angularRock, GRAIN_TILE, dustAmount, dustGeometry, bigBowl, DUST_REACH } from '../src/world/moonbeauty.js';
 import { groundGeometry, drawGround, drawRocks, scatterRocks, farRidge } from '../src/world/moonparts.js';
-import { starField, withSun, SUN_SKY, paintEarth, createMoonSky } from '../src/world/moonsky.js';
+import { starField, withSun, SUN_SKY, paintEarth, createMoonSky, HALO_RINGS } from '../src/world/moonsky.js';
+import * as E from '../src/world/moonearth.js';
+import { backlit, rimStrength, fillFactor, patchRim, createCatRim, FILL_SWELL } from '../src/world/moonrim.js';
+import { rocketGeometry } from '../src/world/moonlaunchparts.js';
+import { buildDot } from '../src/world/moonroverparts.js';
+import { rockFacetTone, ROCK_TOP, ROCK_UNDER, ROCK_FLANK } from '../src/world/moonbeauty.js';
 import { build } from '../src/world/moon.js';
 
 const read = (f) => readFileSync(f, 'utf8');
@@ -129,10 +134,10 @@ describe('the painter', () => {
       expect(Number(m[4])).toBeLessThanOrEqual(1);
     }
   });
-  it('the grain is a mid grey with specks, 2,600 of them', () => {
+  it('the grain is a mid grey with 2,600 specks and (round 3) 70 pebbles of a lit and a shadowed square each', () => {
     const g = fakeContext();
     paintGrain(g);
-    expect(g.calls.filter((c) => c[0] === 'fillRect')).toHaveLength(2601);
+    expect(g.calls.filter((c) => c[0] === 'fillRect')).toHaveLength(2601 + 140);
   });
 });
 
@@ -358,17 +363,144 @@ describe('beauty round 2', () => {
   });
 });
 
+describe('beauty round 3', () => {
+  it('Earth\'s geography: seeded, the coasts are inside the disc, the Americas and Africa face us, the far side hugs the limb', () => {
+    expect(E.roughCoast(E.COASTS.africa)).toEqual(E.roughCoast(E.COASTS.africa));
+    for (const n of Object.keys(E.COASTS)) for (const [x, y] of E.coastOutline(n)) expect(Math.hypot(x, y)).toBeLessThanOrEqual(1.0001);
+    for (const n of ['northAmerica', 'southAmerica', 'africa', 'eurasia', 'greenland']) expect(E.coastVisible(n), n).toBe(true);
+    const mid = E.project(E.VIEW.lon, E.VIEW.lat);
+    expect(mid.x).toBeCloseTo(0, 6); expect(mid.y).toBeCloseTo(0, 6); expect(mid.z).toBeCloseTo(1, 6);
+    expect(E.project(E.VIEW.lon + 180, -E.VIEW.lat).z).toBeCloseTo(-1, 6); // the antipode is hidden
+    // west is left: the Americas stand left of Africa
+    expect(E.project(-60, -10).x).toBeLessThan(E.project(20, 0).x);
+    // a coast has bays and capes: the roughened outline has many more points than the table and stays within a few degrees of it
+    const rough = E.roughCoast(E.COASTS.southAmerica);
+    expect(rough.length).toBeGreaterThan(E.COASTS.southAmerica.length * 3);
+    expect(read('src/world/moonearth.js').replace(/\/\/.*$/gm, '')).not.toMatch(/Math\.random|Date\.now/);
+  });
+  it('Earth paints continents as path fills and clips (no more polka dots), and still the same twice', () => {
+    const calls = [];
+    const g = new Proxy({}, { get: (_, k) => (k === 'createRadialGradient' || k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : (...a) => { calls.push(k); return undefined; }), set: () => true });
+    paintEarth({ width: 256, height: 256, getContext: () => g });
+    expect(calls.filter((k) => k === 'lineTo').length).toBeGreaterThan(300); // coastlines
+    expect(calls.filter((k) => k === 'clip').length).toBeGreaterThanOrEqual(2);
+    const n = calls.length;
+    calls.length = 0;
+    paintEarth({ width: 256, height: 256, getContext: () => g });
+    expect(calls.length).toBe(n);
+  });
+  it('the finale halo falls off steeply from a bright rim to nothing, and is built from those rings (not a flat ramp)', () => {
+    expect(HALO_RINGS[0][0]).toBeLessThan(1);
+    expect(HALO_RINGS.at(-1)[1]).toBe(0);
+    for (let i = 1; i < HALO_RINGS.length; i++) { expect(HALO_RINGS[i][0]).toBeGreaterThan(HALO_RINGS[i - 1][0]); expect(HALO_RINGS[i][1]).toBeLessThan(HALO_RINGS[i - 1][1]); }
+    expect(HALO_RINGS[3][1]).toBeLessThan(0.1); // a straight ramp would still be at ~0.25 here
+    expect(HALO_RINGS.at(-1)[0]).toBeLessThanOrEqual(1.8); // the old halo reached 1.9
+    const sky = createMoonSky({ scene: new THREE.Scene(), tier: {} });
+    sky.setShimmer(0.5);
+    if (sky.halo) expect(sky.halo.geometry.attributes.position.count).toBe(40 * 6 * (HALO_RINGS.length - 1));
+    sky.dispose();
+  });
+  it('a rock\'s facets are toned: pale tops, mid flanks, dark undersides, and every rock mesh carries the tone as vertex colours', () => {
+    expect(rockFacetTone(1, 0.5)).toBeGreaterThan(rockFacetTone(0, 0.5));
+    expect(rockFacetTone(0, 0.5)).toBeGreaterThan(rockFacetTone(-1, 0.5));
+    expect(ROCK_TOP).toBeGreaterThan(ROCK_FLANK); expect(ROCK_FLANK).toBeGreaterThan(ROCK_UNDER);
+    for (const big of [true, false]) {
+      const g = angularRock(2, big);
+      const c = g.attributes.color;
+      expect(c.count).toBe(g.attributes.position.count);
+      const seen = new Set();
+      for (let i = 0; i < c.count; i += 3) seen.add(c.getX(i).toFixed(2));
+      expect(seen.size).toBeGreaterThan(4); // facets differ
+    }
+    const mats = drawRocks(false).map((m) => m.material);
+    for (const m of mats) expect(m.vertexColors).toBe(true);
+    const cols = drawRocks(false).map((m) => { const out = []; for (let i = 0; i < Math.min(40, m.count); i++) { const c = new THREE.Color(); m.getColorAt(i, c); out.push(c.r / c.b); } return out; });
+    for (const rs of cols) expect(Math.max(...rs) - Math.min(...rs)).toBeGreaterThan(0.1); // cool and warm stones
+  });
+  it('dust takes a reach and a gain, and the rocket, Dot and her wheels are baked dusty low and clean high (in their own local height)', () => {
+    expect(dustAmount(0.5, 0, 1, 1, 3, 2)).toBeGreaterThan(dustAmount(0.5, 0, 1, 1, 3, 1));
+    expect(dustAmount(2, 0, 1, 1, 1, 5)).toBe(0); // above the reach: none, however high the gain
+    const rocket = rocketGeometry();
+    const c = rocket.attributes.color; const p = rocket.attributes.position;
+    let lo = 0; let hi = 0; // the white body's rings: its foot (y 1.3) against its shoulder (y 11.9)
+    for (let i = 0; i < p.count; i++) {
+      const r = Math.hypot(p.getX(i), p.getZ(i));
+      if (r > 0.9 && Math.abs(p.getY(i) - 1.3) < 0.02) lo = Math.max(lo, c.getX(i));
+      if (r > 0.9 && Math.abs(p.getY(i) - 11.9) < 0.02) hi = Math.max(hi, c.getX(i));
+    }
+    expect(hi).toBeGreaterThan(0.5);
+    expect(lo).toBeLessThan(hi - 0.05); // the white body is greyer at the foot
+    const tyre = buildDot().axles[0].geometry; // dark rubber: the dust lightens its lower half, in the axle's own local height
+    const tc = tyre.attributes.color; const tp = tyre.attributes.position;
+    let lowT = 0; let nlT = 0; let highT = 0; let nhT = 0;
+    for (let i = 0; i < tp.count; i++) { if (Math.hypot(tp.getY(i), tp.getZ(i)) < 0.33) continue; if (tp.getY(i) < -0.2) { lowT += tc.getX(i); nlT++; } else if (tp.getY(i) > 0.2) { highT += tc.getX(i); nhT++; } }
+    expect(nlT).toBeGreaterThan(0); expect(nhT).toBeGreaterThan(0);
+    expect(lowT / nlT).toBeGreaterThan(highT / nhT + 0.03);
+  });
+  it('the suit\'s rim and the fill swell: stronger the more the camera looks into the sun, none with the sun behind it', () => {
+    expect(backlit(B.SUN.x, B.SUN.z)).toBeCloseTo(1, 6);
+    expect(backlit(-B.SUN.x, -B.SUN.z)).toBe(0);
+    expect(backlit(-B.SUN.z, B.SUN.x)).toBeLessThan(0.2); // sun at the side
+    expect(rimStrength(1)).toBeGreaterThan(rimStrength(0));
+    expect(fillFactor(1)).toBeCloseTo(1 + FILL_SWELL, 9);
+    expect(fillFactor(0)).toBe(1);
+  });
+  it('the rim patches a suit mesh\'s own material once, never a transparent or basic one, and adds nothing else (no light, no draw)', () => {
+    const lit = new THREE.MeshStandardMaterial({ vertexColors: true });
+    expect(patchRim(lit, { value: 1 })).toBe(true);
+    expect(patchRim(lit, { value: 1 })).toBe(false); // once
+    const shader = { uniforms: {}, fragmentShader: '#include <common>\n#include <normal_fragment_maps>' };
+    lit.onBeforeCompile(shader, null);
+    expect(shader.fragmentShader).toMatch(/totalEmissiveRadiance/);
+    expect(shader.uniforms.uRim).toBeDefined();
+    expect(patchRim(new THREE.MeshStandardMaterial({ transparent: true }), { value: 1 })).toBe(false);
+    expect(patchRim(new THREE.MeshBasicMaterial(), { value: 1 })).toBe(false);
+  });
+  it('createCatRim swells the scene\'s hemisphere light facing the sun, eases back, restores it on dispose, and patches only suit-tagged meshes', () => {
+    const scene = new THREE.Scene();
+    const hemi = new THREE.HemisphereLight(0x3a5aa0, 0x8d8c93, 0.4);
+    scene.add(hemi);
+    const cat = new THREE.Group();
+    const suit = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ vertexColors: true }));
+    suit.userData.suit = 'body';
+    const fur = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial());
+    cat.add(suit, fur);
+    const rim = createCatRim({ scene });
+    const cam = new THREE.PerspectiveCamera();
+    cam.position.set(0, 2, 0);
+    cam.lookAt(B.SUN.x * 10, 2, B.SUN.z * 10); // into the sun
+    cam.updateMatrixWorld();
+    for (let i = 0; i < 60; i++) rim.update(1 / 30, cam, cat);
+    expect(hemi.intensity).toBeGreaterThan(0.4 * 1.4);
+    expect(suit.material.userData.moonRim).toBe(true);
+    expect(fur.material.userData.moonRim).toBeUndefined();
+    cam.lookAt(-B.SUN.x * 10, 2, -B.SUN.z * 10); // away
+    cam.updateMatrixWorld();
+    for (let i = 0; i < 90; i++) rim.update(1 / 30, cam, cat);
+    expect(hemi.intensity).toBeCloseTo(0.4, 2);
+    rim.update(1 / 30, { notACamera: true }, null); // a plain camera (a test's or a picture page's) is ignored
+    rim.dispose();
+    expect(hemi.intensity).toBeCloseTo(0.4, 2);
+  });
+  it('the big bowls\' terraces are bolder: a broad tread under each lip, a dark riser and a pale lip (nine strokes, three of them broad)', () => {
+    const calls = [];
+    const g = new Proxy({}, { set: (_, k, v) => { if (k === 'lineWidth') calls.push(v); return true; }, get: (_, k) => (k === 'createRadialGradient' || k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : () => {}) });
+    bigBowl(g, 100, 100, 40);
+    expect(calls.filter((w) => w >= 40 * 0.12).length).toBe(3);
+  });
+});
+
 describe('nothing else knows', () => {
   it('only the Moon\'s own files name the beauty files; start-up never does', () => {
     const files = globSync('src/**/*.js').map((f) => f.split('\\').join('/'));
     for (const f of files) {
       if (/^src\/world\/moon[a-z0-9]*\.js$/.test(f)) continue;
-      expect(read(f), f).not.toMatch(/moonbeauty/);
+      expect(read(f), f).not.toMatch(/moonbeauty|moonearth|moonrim/);
     }
     expect(read('src/main.js')).not.toMatch(/moonbeauty/);
   });
   it('draws no random number and reads no clock', () => {
-    for (const f of ['src/world/moonbeauty.js', 'src/world/moonbeautyplan.js']) {
+    for (const f of ['src/world/moonbeauty.js', 'src/world/moonbeautyplan.js', 'src/world/moonearth.js', 'src/world/moonrim.js']) {
       const src = read(f);
       expect(src.replace(/\/\/.*$/gm, '')).not.toMatch(/Math\.random|Date\.now|performance\.now/);
     }
