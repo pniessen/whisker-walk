@@ -33,6 +33,7 @@ const SCOPE_LINES = Object.freeze({
   'moon.scope.hmm': () => phrase('moon.scope.hmm'),
   'moon.scope.close': () => phrase('moon.scope.close'),
   'moon.scope.hintbtn': () => phrase('moon.scope.hintbtn'),
+  'moon.pad.scope': () => phrase('moon.pad.scope'),
   'moon.star.mouse': () => phrase('moon.star.mouse'),
   'moon.star.cat': () => phrase('moon.star.cat'),
   'moon.star.fish': () => phrase('moon.star.fish'),

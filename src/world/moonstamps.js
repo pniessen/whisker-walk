@@ -2,11 +2,12 @@
 // THE MOON'S STAMPS AND THEIR PAGES (milestone 6). Three stamps, a paw, a star and a heart: drawn as shapes (so the same picture is the button,
 // the postcard, and the lights on Earth's night side), the Message Desk's picker (three big picture buttons) and the binoculars' view of Earth.
 // Both pages are DOM overlays made when they are opened and gone when they close (the canvas freed), like the telescope's (world/moonscope.js).
-// Touch: tap a picture. Pad: left and right to choose, A to pick, B to close. Keyboard: 1 2 3, or the arrows and Enter, Esc to close.
+// Touch: tap a picture. Pad: left and right (stick or d-pad) to choose, A to pick, B to close; a bar names the buttons while the pad is the last input; on a TV everything is bigger. Keyboard: 1 2 3, or the arrows and Enter, Esc to close.
 // Where there is no document every function does nothing. No random number, no clock. Words come from the life (`line`).
 // =============================================================================
 
 import { paintEarth, paintReplyLights } from './moonsky.js';
+import { tvScale, safeEdge, makeHintBar } from './moontv.js';
 
 export const STAMP_NAMES = Object.freeze(['paw', 'star', 'heart']);
 export const STAMP_COLORS = Object.freeze(['#3fb58f', '#f0c43c', '#e0607a']);
@@ -64,12 +65,13 @@ export function drawStampLights(g, id, cx, cy, s, level) {
 // ---- the page's building blocks -------------------------------------------------------------------------------------------------------------
 
 const BTN_CSS = { position: 'absolute', border: '3px solid rgba(255,255,255,.55)', background: 'rgba(20,30,52,.82)', color: '#fff', cursor: 'pointer', touchAction: 'manipulation', padding: '0' };
-const roundBtn = (doc, root, text, label, side, fn) => {
+const roundBtn = (doc, root, text, label, side, fn, T = { tv: false, s: 1 }) => {
   const b = doc.createElement('button');
   b.type = 'button';
   b.textContent = text;
   b.setAttribute?.('aria-label', label);
-  Object.assign(b.style ?? {}, BTN_CSS, { top: 'max(14px, env(safe-area-inset-top))', [side]: 'max(14px, env(safe-area-inset-left))', width: '56px', height: '56px', borderRadius: '50%', fontSize: '26px', lineHeight: '1' });
+  const size = T.tv ? Math.round(84 * T.s) : 56; // on a TV: bigger, and inside the 5 % safe margin
+  Object.assign(b.style ?? {}, BTN_CSS, { top: safeEdge(T.tv, 'top'), [side]: safeEdge(T.tv, 'side'), width: `${size}px`, height: `${size}px`, borderRadius: '50%', fontSize: `${Math.round(size * 0.46)}px`, lineHeight: '1' });
   b.addEventListener?.('click', (e) => { e.stopPropagation?.(); fn(); });
   b.addEventListener?.('pointerdown', (e) => e.stopPropagation?.());
   root.appendChild(b);
@@ -86,6 +88,7 @@ export function createStampPicker(opts) {
   const line = opts.line ?? (() => '');
   const pads = opts.pads ?? padsNow;
   let root = null;
+  let bar = null;
   let isOpen = false;
   let focus = Math.max(0, opts.selected ?? 0);
   const btns = [];
@@ -120,34 +123,39 @@ export function createStampPicker(opts) {
 
   function open() {
     if (isOpen || !doc?.body) return false;
+    const T = tvScale(doc, win); // the couch size: 1 off a TV
+    const ts = T.tv ? T.s : 1;
     root = doc.createElement('div');
     root.className = 'moon-stamps';
     root.setAttribute?.('role', 'dialog');
-    Object.assign(root.style ?? {}, { position: 'fixed', inset: '0', zIndex: '90', background: 'rgba(2,4,10,.62)', touchAction: 'none', userSelect: 'none', webkitUserSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '22px' });
+    Object.assign(root.style ?? {}, { position: 'fixed', inset: '0', zIndex: '90', background: T.tv ? 'rgba(2,4,10,.94)' : 'rgba(2,4,10,.62)', touchAction: 'none', userSelect: 'none', webkitUserSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: `${Math.round((T.tv ? 36 : 22) * ts)}px` });
     const head = doc.createElement('div');
     head.textContent = line('moon.stamp.ask');
-    Object.assign(head.style ?? {}, { color: '#fff', fontSize: '24px', fontWeight: '700', textAlign: 'center', padding: '0 20px', textShadow: '0 2px 6px rgba(0,0,0,.7)' });
+    Object.assign(head.style ?? {}, { color: '#fff', fontSize: `${Math.round((T.tv ? 36 : 24) * ts)}px`, fontWeight: '700', textAlign: 'center', padding: '0 20px', textShadow: '0 2px 6px rgba(0,0,0,.7)' });
     root.appendChild(head);
     const row = doc.createElement('div');
-    Object.assign(row.style ?? {}, { display: 'flex', gap: '18px', justifyContent: 'center', flexWrap: 'wrap' });
+    Object.assign(row.style ?? {}, { display: 'flex', gap: `${Math.round((T.tv ? 32 : 18) * ts)}px`, justifyContent: 'center', flexWrap: 'wrap' });
     root.appendChild(row);
     btns.length = 0;
     STAMP_NAMES.forEach((name, i) => {
       const b = doc.createElement('button');
       b.type = 'button';
       b.setAttribute?.('aria-label', line(`moon.stamp.${name}`));
-      Object.assign(b.style ?? {}, BTN_CSS, { position: 'relative', width: '120px', height: '120px', borderRadius: '24px' });
+      const box = Math.round((T.tv ? 200 : 120) * ts); // a stamp's button: 120 px, on a TV 200 (400 at 4K)
+      const pic = Math.round(box * 0.8);
+      Object.assign(b.style ?? {}, BTN_CSS, { position: 'relative', width: `${box}px`, height: `${box}px`, borderRadius: `${Math.round(box / 5)}px`, borderWidth: T.tv ? `${Math.round(5 * ts)}px` : '3px' });
       const c = doc.createElement('canvas');
-      c.width = c.height = 96;
-      Object.assign(c.style ?? {}, { width: '96px', height: '96px', pointerEvents: 'none' });
-      drawStamp(c.getContext?.('2d'), i, 48, 50, 36);
+      c.width = c.height = pic;
+      Object.assign(c.style ?? {}, { width: `${pic}px`, height: `${pic}px`, pointerEvents: 'none' });
+      drawStamp(c.getContext?.('2d'), i, pic / 2, pic * 0.52, pic * 0.375);
       b.appendChild(c);
       b.addEventListener?.('click', (e) => { e.stopPropagation?.(); pick(i); });
       b.addEventListener?.('pointerdown', (e) => e.stopPropagation?.());
       row.appendChild(b);
       btns.push(b);
     });
-    roundBtn(doc, root, '✕', line('moon.stamp.close'), 'right', () => close());
+    roundBtn(doc, root, '✕', line('moon.stamp.close'), 'right', () => close(), T);
+    bar = makeHintBar({ doc, root, text: line('moon.pad.stamp'), scale: T });
     doc.body.appendChild(root);
     on(win, 'keydown', onKeyDown, true);
     isOpen = true;
@@ -163,6 +171,8 @@ export function createStampPicker(opts) {
     if (!isOpen) return false;
     isOpen = false;
     for (const f of unbind.splice(0)) f();
+    bar?.dispose();
+    bar = null;
     root?.remove?.();
     root = null;
     btns.length = 0;
@@ -204,10 +214,11 @@ export function createEarthView(opts) {
   let root = null;
   let canvas = null;
   let isOpen = false;
+  let bar = null;
   let stamp = opts.stamp ?? -1;
   let drawn = -1;
   const unbind = [];
-  const pad = { b: true };
+  const pad = { a: true, b: true };
   const on = (target, type, fn, cap) => { target?.addEventListener?.(type, fn, cap); unbind.push(() => target?.removeEventListener?.(type, fn, cap)); };
   function onKeyDown(e) {
     if (!isOpen) return;
@@ -228,12 +239,15 @@ export function createEarthView(opts) {
     canvas = doc.createElement('canvas');
     Object.assign(canvas.style ?? {}, { maxWidth: '100%', maxHeight: '100%' });
     root.appendChild(canvas);
-    roundBtn(doc, root, '✕', line('moon.binoc.close'), 'right', () => close());
+    const T = tvScale(doc, win);
+    roundBtn(doc, root, '✕', line('moon.binoc.close'), 'right', () => close(), T);
+    bar = makeHintBar({ doc, root, text: line('moon.pad.binoc'), scale: T });
     doc.body.appendChild(root);
     on(win, 'keydown', onKeyDown, true);
     on(win, 'resize', layout);
     isOpen = true;
     pad.b = true;
+    pad.a = !!pads()[0]?.buttons?.[0]?.pressed; // a press that opened the page is not a close: it waits to be let go
     layout();
     draw(0);
     return true;
@@ -252,6 +266,8 @@ export function createEarthView(opts) {
     isOpen = false;
     for (const f of unbind.splice(0)) f();
     if (canvas) { canvas.width = 0; canvas.height = 0; }
+    bar?.dispose();
+    bar = null;
     root?.remove?.();
     root = canvas = null;
     opts.onClose?.();
@@ -260,7 +276,12 @@ export function createEarthView(opts) {
   function update(dt, t = 0) {
     if (!isOpen) return;
     const p = pads()[0];
-    if (p) { const b = !!p.buttons?.[1]?.pressed; if (b && !pad.b) { close(); return; } pad.b = b; }
+    if (p) { // Circle (B) or Cross (A) closes, as Esc and Space do
+      const b = !!p.buttons?.[1]?.pressed; const a = !!p.buttons?.[0]?.pressed;
+      const was = pad.a || pad.b;
+      pad.a = a; pad.b = b;
+      if ((a || b) && !was) { close(); return; }
+    }
     draw(t);
   }
   return { open, close, update, setStamp(id) { stamp = id; drawn = -1; }, get isOpen() { return isOpen; } };
