@@ -9,7 +9,7 @@ import * as P from '../src/world/moonplan.js';
 import { build } from '../src/world/moon.js';
 import { createMoonLife, hopNow, CAMERA_FOLLOW, SKIP_HEIGHT, DUST } from '../src/world/moonlife.js';
 import { createMoonSky, starField, earthDirection } from '../src/world/moonsky.js';
-import { scatterRocks } from '../src/world/moonparts.js';
+import { scatterRocks, farRidge } from '../src/world/moonparts.js';
 import { pebbles as beautyPebbles, rimChunks } from '../src/world/moonbeautyplan.js';
 import { placeArc, placeBudget } from '../src/placephysics.js';
 import { pounceArc, BASE_POUNCE_ARC } from '../src/player.js';
@@ -259,7 +259,7 @@ describe('the ground mesh', () => {
       const dz = Math.abs(pos.getZ(i) - pos.getZ(i - 1));
       if (dz === 0) expect(dx).toBeLessThanOrEqual(6);
     }
-    for (let i = 0; i < pos.count; i += 37) expect(pos.getY(i)).toBeCloseTo(P.moonBaseY(pos.getX(i), pos.getZ(i)), 4); // the plain's own height: Star Hill is its own mesh
+    for (let i = 0; i < pos.count; i += 37) expect(pos.getY(i)).toBeCloseTo(P.moonBaseY(pos.getX(i), pos.getZ(i)) + farRidge(pos.getX(i), pos.getZ(i)), 4); // the plain's own height (beauty round 2: plus the far skyline, drawn only beyond the bounds): Star Hill is its own mesh
     let big = 0;
     const idx = ground.geometry.index;
     for (let i = 0; i < idx.count; i += 3) {
@@ -280,10 +280,10 @@ describe('the sky', () => {
     for (let i = 0; i < 1800; i++) expect(full.pos[i * 3 + 1]).toBeGreaterThan(0);
     const scene = new THREE.Scene();
     const lite = createMoonSky({ scene, tier: { shadows: false } });
-    expect(lite.stars.geometry.attributes.position.count).toBe(900);
+    expect(lite.stars.geometry.attributes.position.count).toBe(900 + 2); // (beauty round 2: and the sun's two points)
     lite.dispose();
     const high = createMoonSky({ scene, tier: { shadows: true } });
-    expect(high.stars.geometry.attributes.position.count).toBe(1800);
+    expect(high.stars.geometry.attributes.position.count).toBe(1800 + 2);
     high.dispose();
     expect(scene.children).toHaveLength(0);
   });
