@@ -36,6 +36,9 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 export const REACH = Object.freeze({ pip: 2.3, cell: 1.9, core: 3.0, board: 2.7, level: 1.2 }); // m: how near each prompt appears
 export const BEAT = Object.freeze({ rise: 2.6, hold: 1.0, earth: 3.4, total: 4.2 }); // s: the base waking
 export const RING = Object.freeze({ secs: 7, bubble: 3.2 });
+// (guide cues) the light column over the current goal is ALWAYS up while there is a goal (the gold ring and column are the same two meshes a meow lights, so there is no new draw): dim by itself, bright
+// while a meow or the idle schedule rings. `goal` is looked at four times a second (and the moment something she did changes it), never built per frame.
+export const BEACON = Object.freeze({ ring: 0.3, shaft: 0.26, tall: 3.2, near: 60, fadeFrom: 2, fadeOver: 6, every: 0.25 });
 export const CELL_DRAWN = 50; // m (milestone 5): a power cell farther than this from her is not drawn (its capsule and halo are two draws each)
 export const NEAR_DOME = 16; // m: a wake-up beat that was saved unseen plays when she is this near the dome
 export const DOOR = Object.freeze({ open: 5.2, slide: 1.3, rate: 3 });
@@ -124,6 +127,14 @@ export function createBaseLife(ctx) {
   let ringGoal = null;
   let bubbleT = -100;
   let meowed = false;
+  let goalCur = null; // (guide cues) the goal now, from goalPoint(); refreshed 4 times a second and when she does something
+  let goalAt = -100;
+  let goalDirty = true;
+  let hold = false; // (guide cues) the launch flight or Earth's finale plays: no beacon
+  const lastCat = { x: 1e9, z: 1e9, y: 0, seen: false };
+  const bubbleInfo = { on: false, a: 0, x: 0, y: 0, z: 0, g: null }; // (guide cues) Pip's picture now, for the words beside it
+  let ringing = false;
+  let beaconOn = false;
   let finds = 0; // (idle ring) real discoveries (finds, pebbles, mice, journal pages); the toasts' own type is not one
   const offFinds = bus.on('discovery', (e) => { if (e && e.type !== 'greenhousenote') finds++; });
   let calls = 0; // (idle ring) her meows and board presses this walk: any of them is progress
@@ -153,11 +164,11 @@ export function createBaseLife(ctx) {
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.12, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd45a, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: true, forceSinglePass: true }));
   ring.name = 'moon:goalring';
   const shaftGeo = new THREE.CylinderGeometry(0.42, 0.42, 9, 12, 1, true).translate(0, 4.5, 0);
-  { const pos = shaftGeo.attributes.position; const col = new Float32Array(pos.count * 3); const c = new THREE.Color(0xffd45a); for (let i = 0; i < pos.count; i++) { const k = 1 - pos.getY(i) / 9; col[i * 3] = c.r * k * 0.8; col[i * 3 + 1] = c.g * k * 0.8; col[i * 3 + 2] = c.b * k * 0.8; } shaftGeo.setAttribute('color', new THREE.BufferAttribute(col, 3)); }
+  { const pos = shaftGeo.attributes.position; const col = new Float32Array(pos.count * 3); const c = new THREE.Color(0xffd45a); for (let i = 0; i < pos.count; i++) { const k = 1 - (0.55 * pos.getY(i)) / 9; col[i * 3] = c.r * k * 0.8; col[i * 3 + 1] = c.g * k * 0.8; col[i * 3 + 2] = c.b * k * 0.8; } shaftGeo.setAttribute('color', new THREE.BufferAttribute(col, 3)); }
   const shaft = new THREE.Mesh(shaftGeo, additive(0));
   shaft.name = 'moon:goalshaft';
   const bubble = createBubble();
-  for (const m of [ring, shaft]) { m.visible = false; m.castShadow = false; m.receiveShadow = false; m.userData.noMerge = true; m.userData.noCast = true; m.frustumCulled = false; }
+  for (const m of [ring, shaft]) { m.visible = false; m.castShadow = false; m.receiveShadow = false; m.userData.noMerge = true; m.userData.noCast = true; } // (guide cues) culled by the view like any mesh: they are up all the time now
   // the dome's glow on the dust when the base is awake: a warm soft disc round it (additive, never a light)
   const glow = new THREE.Mesh(glowRing(P.DOME.wall + 0.9, 17, 0xf0ead8, 0.4), additive(0)); // (beauty round 1: a paler, fainter pool: it read as sand on the darker dust)
   glow.name = 'moon:domeglow';
@@ -217,6 +228,7 @@ export function createBaseLife(ctx) {
     if (!r.changed) return null;
     commit(r.moon);
     setCellModes();
+    goalDirty = true;
     return r.effect;
   }
 
@@ -260,17 +272,30 @@ export function createBaseLife(ctx) {
   const jobGoal = () => (carrying === null && rec().step >= M.STEP.replied ? ctx.jobGoal?.() ?? null : null);
   function goalPoint() {
     const jg = jobGoal();
-    if (jg) return { g: { kind: 'job', icon: jg.icon }, x: jg.x, z: jg.z, y: jg.y };
+    if (jg) {
+      // (guide cues) the guest star picture's goal is the ramp's mouth; once she is on the ramp or the top it is the telescope
+      const rp = P.rampPoint(0.04, 0);
+      if (jg.x === rp.x && jg.z === rp.z && lastCat.seen && P.hillAdd(lastCat.x, lastCat.z) > 1) return { g: { kind: 'job', icon: jg.icon }, x: P.STAR_HILL.x, z: P.STAR_HILL.z, y: ground.y(P.STAR_HILL.x, P.STAR_HILL.z) };
+      return { g: { kind: 'job', icon: jg.icon }, x: jg.x, z: jg.z, y: jg.y };
+    }
     const g = M.nextGoal(progression?.state?.moon, carrying, cardIn());
     if (g.kind === 'pip') return { g, x: pip.position.x, z: pip.position.z, y: ground.y(pip.position.x, pip.position.z) };
     if (g.kind === 'cell') { const p = cellPlace(g.cell); return { g, x: p.x, z: p.z, y: p.y - 0.42 }; }
     if (g.kind === 'core') return { g, x: P.CORE.x, z: P.CORE.z, y: ground.y(P.CORE.x, P.CORE.z) };
-    if (g.kind === 'scope') { const p = P.rampPoint(0.04, 0); return { g, x: p.x, z: p.z, y: ground.y(p.x, p.z) }; } // the ramp's mouth at Star Hill's foot
+    if (g.kind === 'scope') {
+      // (guide cues) once she is on the ramp or the top, the telescope in the middle is the goal
+      if (lastCat.seen && P.hillAdd(lastCat.x, lastCat.z) > 1) return { g, x: P.STAR_HILL.x, z: P.STAR_HILL.z, y: ground.y(P.STAR_HILL.x, P.STAR_HILL.z) };
+      const p = P.rampPoint(0.04, 0); return { g, x: p.x, z: p.z, y: ground.y(p.x, p.z) }; // the ramp's mouth at Star Hill's foot
+    }
     if (g.kind === 'desk') return { g, x: P.MESSAGE_DESK.x, z: P.MESSAGE_DESK.z, y: ground.y(P.MESSAGE_DESK.x, P.MESSAGE_DESK.z) }; // milestone 6: the Message Desk
     if (g.kind === 'rocket') return { g, x: P.ROCKET_SLOT.x, z: P.ROCKET_SLOT.z, y: ground.y(P.ROCKET_SLOT.x, P.ROCKET_SLOT.z) };
     if (g.kind === 'button') return { g, x: P.LAUNCH_DESK.x, z: P.LAUNCH_DESK.z, y: ground.y(P.LAUNCH_DESK.x, P.LAUNCH_DESK.z) };
     if (g.kind === 'reply') { const l = P.ROCK_LEDGES[0]; return { g, x: l.x, z: l.z, y: ground.y(l.x, l.z) }; } // the foot of Earthrise Rock's ledges
-    if (g.kind === 'cave') return { g, x: P.MOUTH_FRONT.x, z: P.MOUTH_FRONT.z, y: ground.y(P.MOUTH_FRONT.x, P.MOUTH_FRONT.z) }; // milestone 8: the Lava Tube's mouth
+    if (g.kind === 'cave') {
+      // (guide cues) once she is at the mouth or inside, the cell on its pedestal is the goal
+      if (lastCat.seen && (lastCat.x < P.MOUTH.x + 0.5 || Math.hypot(lastCat.x - P.MOUTH.x, lastCat.z - P.MOUTH.z) < 12)) { const c = cellPlace(M.DEEP); return { g, x: c.x, z: c.z, y: c.y - 0.42 }; }
+      return { g, x: P.MOUTH_FRONT.x, z: P.MOUTH_FRONT.z, y: ground.y(P.MOUTH_FRONT.x, P.MOUTH_FRONT.z) }; // milestone 8: the Lava Tube's mouth
+    }
     return { g, x: P.BOARD.x + 1.6, z: P.BOARD.z, y: ground.y(P.BOARD.x, P.BOARD.z) };
   }
   // her meow (or the board): Pip beeps, shows a picture and a gold ring and light show where the next goal is
@@ -323,6 +348,11 @@ export function createBaseLife(ctx) {
     get calls() { return calls; },
     get finds() { return finds; },
     goalNow: goalPoint,
+    /** (guide cues) the goal now as the beacon, the arrow and the words all read it: the same object until it is looked at again (4 times a second, and when she does something). Never built per frame. */
+    goal() { return goalCur ?? (goalCur = goalPoint()); },
+    get ringing() { return ringing; },
+    get beacon() { return beaconOn; },
+    get bubble() { return bubbleInfo; },
     autoCall,
     promptAt(catPos) {
       target = decide(catPos);
@@ -332,6 +362,7 @@ export function createBaseLife(ctx) {
       if (!target || disposed) return null;
       const t = target;
       target = null;
+      goalDirty = true;
       if (t.kind === 'wake') {
         if (perform({ kind: 'wake' })) wakePip(false);
       } else if (t.kind === 'pick') {
@@ -373,6 +404,7 @@ export function createBaseLife(ctx) {
       const step = dt > 0 ? dt : 0;
       clock += step;
       const r = rec();
+      if (catPos) { lastCat.x = catPos.x; lastCat.z = catPos.z; lastCat.y = catPos.y; lastCat.seen = true; }
 
       if (!quieted && session) {
         // the Moon has no daily goals and no air (spec 5.3): the goals panel goes, the birdsong and crickets stop
@@ -445,17 +477,30 @@ export function createBaseLife(ctx) {
         doorR.position.z = doorZ[1] + DOOR.slide * door;
       }
 
-      // the gold ring and Pip's picture
+      // the light column over the goal (always up while there is a goal; a meow or the idle schedule makes it bright) and Pip's picture
+      if (goalDirty || clock - goalAt >= BEACON.every) { goalCur = goalPoint(); goalAt = clock; goalDirty = false; hold = !!ctx.beaconHold?.(); }
+      const gc = goalCur;
       const rk = clock - ringT;
-      if (ringGoal && rk >= 0 && rk < RING.secs) {
-        const fade = smooth(rk / 0.5) * (1 - smooth((rk - (RING.secs - 1.2)) / 1.2));
+      ringing = !!gc && ringGoal !== null && rk >= 0 && rk < RING.secs;
+      beaconOn = !!gc && (gc.g.kind !== 'done' || r.step < M.STEP.replied) && !beat && !hold; // 'done' before the story is told is the dome's board (both cells in, the wake-up beat still to come)
+      if (gc && (ringing || beaconOn)) {
+        const live = gc.g.kind === 'pip' && r.step < M.STEP.pip; // Pip asleep: where he lies; the rest are looked at four times a second
+        const gx = live ? pip.position.x : gc.x;
+        const gz = live ? pip.position.z : gc.z;
+        const d = catPos ? Math.hypot(catPos.x - gx, catPos.z - gz) : 0;
+        const fade = ringing ? smooth(rk / 0.5) * (1 - smooth((rk - (RING.secs - 1.2)) / 1.2)) : 0;
         const pulse = reducedMotion ? 1 : 0.8 + 0.2 * Math.sin(t * 5);
-        ring.visible = shaft.visible = true;
-        ring.position.set(ringGoal.x, ringGoal.y + 0.06, ringGoal.z);
+        const nearK = smooth((d - BEACON.fadeFrom) / BEACON.fadeOver);
+        const b = beaconOn ? 1 : 0;
+        ring.visible = d < BEACON.near;
+        shaft.visible = true;
+        ring.position.set(gx, gc.y + 0.06, gz);
         shaft.position.copy(ring.position);
-        ring.material.opacity = 0.85 * fade * pulse;
-        shaft.material.opacity = 0.65 * fade;
-        ring.scale.setScalar(reducedMotion ? 1 : 1 + 0.12 * Math.sin(t * 3));
+        ring.material.opacity = Math.max(BEACON.ring * b, 0.85 * fade * pulse);
+        shaft.material.opacity = Math.max(BEACON.shaft * b * (1 + Math.min(1, d / 80)), 0.65 * fade) * nearK; // (brighter from far away: it is what she steers by)
+        const w = Math.min(2.4, Math.max(1, 0.9 + d / 45));
+        shaft.scale.set(w, BEACON.tall, w);
+        ring.scale.setScalar(reducedMotion || !ringing ? 1 : 1 + 0.12 * Math.sin(t * 3));
       } else { ring.visible = shaft.visible = false; }
       const bk = clock - bubbleT;
       if (bk >= 0 && bk < RING.bubble) {
@@ -463,6 +508,10 @@ export function createBaseLife(ctx) {
         bubble.sprite.position.set(pip.position.x, ground.y(pip.position.x, pip.position.z) + 1.1 + (reducedMotion ? 0 : 0.05 * Math.sin(t * 4)), pip.position.z);
         bubble.sprite.material.opacity = smooth(bk / 0.25) * (1 - smooth((bk - (RING.bubble - 0.6)) / 0.6));
       } else bubble.sprite.visible = false;
+      bubbleInfo.on = bubble.sprite.visible;
+      bubbleInfo.a = bubble.sprite.material.opacity;
+      bubbleInfo.x = bubble.sprite.position.x; bubbleInfo.y = bubble.sprite.position.y; bubbleInfo.z = bubble.sprite.position.z;
+      bubbleInfo.g = ringGoal ? ringGoal.g : null;
 
       // the finds: her paws, how long she has stood still
       if (catPos && log && progression) {

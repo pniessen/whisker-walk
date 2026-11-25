@@ -40,7 +40,7 @@ function rig({ moon = null, restore = null, reducedMotion = false, visits = 0 } 
   const move = (p) => { Object.assign(where, p); cat.position.set(where.x, where.y, where.z); };
   const step = (secs, at) => { if (at) move(at); for (let i = 0; i < Math.round(secs * 30); i++) { t += 1 / 30; life.update(1 / 30, t, where, camera, session); } };
   const press = () => { const line = life.promptAt(where); life.interact(); return line; };
-  const ring = () => ({ vis: life.base.ring.visible, x: life.base.ring.position.x, z: life.base.ring.position.z });
+  const ring = () => ({ vis: life.base.ringing, x: life.base.ring.position.x, z: life.base.ring.position.z });
   const lines = () => events.filter((e) => e.type === 'greenhousenote').map((e) => e.label);
   move(where);
   return { scene, life, progression, page, session, events, where, move, step, press, ring, lines, log, cat, dispose() { off(); life.dispose(); } };

@@ -20,6 +20,7 @@
 //   * (milestone 8) the LAVA TUBE and the DEEP CELL (world/moondeeplive.js): the cave's zone, the outside left undrawn once she is deep inside, the Star Garden's bloom and Earth's finale;
 //   * (milestone 9) PIP'S POSTCARD OF THE DAY: one small errand a walk once the story is told, and the album of twelve (world/moonjoblive.js);
 //   * (milestone 3) DOT the rover: hop in at the depot, steer, hop out (world/moonroverlive.js); she hangs her hooks on the walk's session.fair.
+//   * (guide cues) the WRITTEN GUIDE: the goal line, the edge arrow and the words beside Pip's picture (world/moonguidelive.js), and the light column over the goal that is always up (the base's own ring and column; world/moonguide.js has the words);
 //   * (idle ring) the gold ring and light column show BY THEMSELVES after about 30 s without progress (world/moonidle.js is the schedule; the ring is the base's, no new draw);
 //   * (milestone 2) the BASE: Pip, the two power cells, the Core, the dome, the door, the board, the finds, the gold ring and the
 //     switching-off of the daily goals and the air's sounds (world/moonbaselive.js); this life hands the walk its promptAt, interact
@@ -44,6 +45,7 @@ import { MOON_SPAWN, AIRLOCK, RETURN_GATE, DOME } from './moonplan.js';
 import { createCatRim } from './moonrim.js';
 import { IDLE, idleStart, nextIdleRing, idlePaused, progressMark } from './moonidle.js';
 import { FINALE_LENGTH } from './moondeeplive.js';
+import { createGuideLive } from './moonguidelive.js';
 
 export const CAMERA_FOLLOW = 0.6; // the camera rises this much of a hop's height
 export const SKIP_HEIGHT = 0.1; // m, the bounce of one stride
@@ -105,7 +107,9 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
   const catRim = createCatRim({ scene });
   let job = null; // (milestone 9) made below: the base's ring and board ask what today's errand is
   let launch = null; // (milestone 6) made below: the base's gold ring asks whether a postcard is in her mouth
-  const base = createBaseLife({ scene, reducedMotion, ground, colliders, progression, log, audio, cardCarried: () => (launch?.carryingCard ?? -1) >= 0, jobGoal: () => job?.goal() ?? null });
+  let deepLive = null; // (guide cues) made below: the beacon rests while the launch flies or Earth's finale plays
+  const base = createBaseLife({ scene, reducedMotion, ground, colliders, progression, log, audio, cardCarried: () => (launch?.carryingCard ?? -1) >= 0, jobGoal: () => job?.goal() ?? null,
+    beaconHold: () => { const fin = deepLive?.state.finale; return !!launch?.state.flight || (fin !== null && fin !== undefined && fin < FINALE_LENGTH); } });
   // (milestone 3) Dot: hop in at the depot, steer by the stick, hop out; she hooks the walk's session.fair on the first frame (moonroverlive.js)
   // (milestone 5) Star Hill: the telescope, the star pictures, the Old Dish's turn (moonstarlive.js); the rover's walk hook hands it the player each frame
   const star = createStarLive({ scene, reducedMotion, ground, tier, audio, progression, doc, win });
@@ -118,9 +122,12 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
   bound = createBoundLive({ scene, reducedMotion, ground, colliders, perches, audio, progression, count: () => jump.count() });
   // (milestone 8) the Lava Tube's zone and the Deep Cell's bloom and finale (moondeeplive.js); the cell itself is the base's (moonbaselive.js)
   const deep = createDeepLive({ scene, reducedMotion, ground, audio, progression, sky, launch, pip: base.pip });
+  deepLive = deep;
   const rover = createRoverLive({ scene, reducedMotion, ground, colliders, tier, audio, progression, onDismount: () => base.pip.rejoin(), onFrame: (dt, t, ctx) => { star.frame(dt, t, ctx); launch.frame(dt, t, ctx); } });
   // (milestone 9) Pip's postcard of the day and the album (moonjoblive.js): after the rover, whose position it reads, and the star hill and the launch it asks things of
   job = createJobLive({ scene, reducedMotion, ground, progression, log, audio, roomSeed, visits, boundOn, base, star, launch, rover });
+  // (guide cues) the written guide: the goal line, the edge arrow and the words beside Pip's picture (moonguidelive.js); its own DOM, one goal (base.goal()) shared with the gold ring and light column
+  const guide = createGuideLive({ doc, win, base, job, launch, star, deep, rover, progression, reducedMotion });
   // placed for the Ready card, before the first frame of the walk moves the camera (it looks north from behind the spawn)
   const first = new THREE.PerspectiveCamera();
   first.position.set(MOON_SPAWN.x, 2.9, MOON_SPAWN.z + 4.4);
@@ -168,6 +175,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
     bound,
     deep,
     job,
+    guide,
     // the action button: Dot's "Hop in" / "Hop out" first (riding), else the base's own offers, else "Hop in" when nothing else is asked
     promptAt(catPos) {
       const b = base.promptAt(catPos);
@@ -218,12 +226,14 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       bound.update(dt, t, catPos, camera, session);
       deep.update(dt, t, catPos, camera, session);
       job.update(dt, t, catPos, camera, session);
+      guide.update(dt, t, catPos, camera, session);
       catRim.update(dt, camera, session.cat); // (beauty round 3) the suit's rim and the fill swell while she is backlit
       cullFar(catPos, session, deep.inside ? 0 : DRAW_NEAR); // deep in the tube nothing outside is drawn: the walk's pebbles and mice too
       cullParts(parts, catPos);
       idleStep(dt, catPos, session);
     },
     dispose() {
+      guide.dispose();
       job.dispose();
       deep.dispose();
       bound.dispose();
