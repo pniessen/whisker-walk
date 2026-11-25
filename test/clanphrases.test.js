@@ -9,7 +9,7 @@ import { PHRASE_IDS, phrase, hasPhrase, addPhrases } from '../src/clanphrases.js
 import { LINES as CATLOGIN_LINES } from '../src/ui/catloginwords.js';
 import { LINES as LIGHTHOUSE_LINES } from '../src/world/lighthousewords.js';
 import { LINES as GREENHOUSE_LINES } from '../src/world/greenhousewords.js';
-import { LINES as MOON_LINES } from '../src/world/moonwords.js';
+import { LINES as MOON_LINES, FLOW_LINES as MOON_FLOW_LINES } from '../src/world/moonwords.js';
 import { LINES as SKILLBADGE_LINES } from '../src/ui/skillbadgewords.js';
 import { LINES as COOP_LINES } from '../src/coop/words.js';
 import { LINES as TELE_LINES } from '../src/teleui.js';
@@ -21,6 +21,7 @@ addPhrases(GREENHOUSE_LINES); // (the Greenhouse's chunk adds its own on import:
 addPhrases(COOP_LINES); // couch play's chunk (src/coop/words.js)
 addPhrases(TELE_LINES); // the teleport gates' chunk (src/teleui.js adds its own on import)
 addPhrases(MOON_LINES); // (the Moon's chunk adds its own on import: src/world/moonwords.js)
+addPhrases(MOON_FLOW_LINES); // (so do the story flow's connective lines, in the same file)
 addPhrases(LIGHTHOUSE_LINES); // (so does Lighthouse Point's chunk: src/world/lighthousewords.js adds its own on import)
 import { RANK_WORDS, OUTSIDE_WORDS, PLACE_WORDS, CLAN_SUFFIX } from '../src/clanwords.js';
 import { contestToast } from '../src/markcontest.js';

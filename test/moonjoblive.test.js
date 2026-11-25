@@ -104,10 +104,10 @@ const DOERS = {
     r.page.win.fire('keydown', { code: 'Digit2' });
     expect(r.life.launch.carryingCard).toBe(1);
     r.step(0.1, { x: P.ROCKET_SLOT.x - 1.0, z: P.ROCKET_SLOT.z + 1.0, y: gy(P.ROCKET.x, P.ROCKET.z) });
-    expect(r.press()).toBe('E — post the postcard');
+    expect(r.press()).toBe('E — post the postcard in the rocket');
     expect(r.life.launch.carryingCard).toBe(-1);
     r.step(0.1, { x: P.LAUNCH_DESK.x - 1.4, z: P.LAUNCH_DESK.z, y: gy(P.LAUNCH_DESK.x, P.LAUNCH_DESK.z) });
-    expect(r.press()).toBe('E — press the big red button');
+    expect(r.press()).toBe('E — press the big red button to launch!');
     r.step(6.5);
   },
   glove(r) {

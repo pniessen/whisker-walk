@@ -79,9 +79,9 @@ describe('the prompts', () => {
     expect(r.life.promptAt(r.where) ?? '').not.toMatch(/post/);
     pick(r, 1);
     atRocket(r);
-    expect(r.life.promptAt(r.where)).toBe('E — post the postcard');
+    expect(r.life.promptAt(r.where)).toBe('E — post the postcard in the rocket');
     atButton(r);
-    expect(r.life.promptAt(r.where)).toBe('E — press the big red button');
+    expect(r.life.promptAt(r.where)).toBe('E — press the big red button to launch!');
     atRock(r);
     expect(r.life.promptAt(r.where)).toBe('E — look at Earth');
     r.step(0.1, { x: LEDGE.x, z: LEDGE.z, y: 0 });
@@ -167,12 +167,12 @@ describe('the postcard: a stamp, carried, posted', () => {
     const r = rig({ moon: at5 });
     pick(r, 1);
     atRocket(r);
-    expect(press(r)).toBe('E — post the postcard');
+    expect(press(r)).toBe('E — post the postcard in the rocket');
     expect(r.progression.state.moon.step).toBe(6);
     expect(r.launch.carryingCard).toBe(-1);
     r.step(0.1);
     expect(r.scene.getObjectByName('moon:postcard').visible).toBe(false);
-    expect(r.events.some((e) => /in the rocket/.test(e.label))).toBe(true);
+    expect(r.events.some((e) => /Postcard posted! Next: press the big red button/.test(e.label))).toBe(true);
     r.dispose();
   });
   it('the postcard in her mouth is not saved: a walk that ends with it leaves the step and the stamp, and she writes it again; step 6 and 7 persist', () => {
@@ -216,7 +216,7 @@ describe('the launch', () => {
   it('a real launch: the count 5 4 3 2 1 shows on the board, the gantry arm swings away, at ignition step 7 is saved and the journal counts one rocket', () => {
     const r = rig({ moon: { ...at5, step: 6, stamp: 1 } });
     atButton(r);
-    expect(press(r)).toBe('E — press the big red button');
+    expect(press(r)).toBe('E — press the big red button to launch!');
     expect(r.launch.state.flight).toMatchObject({ real: true, demo: false });
     r.step(2.5);
     expect(r.progression.state.moon.step).toBe(6); // not before ignition
@@ -308,7 +308,7 @@ describe('the launch', () => {
   it('a test launch with no postcard (any step before 6): the whole show, nothing saved but the journal\'s count, the mission is where it was', () => {
     const r = rig({ moon: at5 });
     atButton(r);
-    expect(press(r)).toBe('E — press the big red button');
+    expect(press(r)).toBe('E — press the big red button to launch!');
     expect(r.launch.state.flight).toMatchObject({ real: false });
     r.step(8);
     expect(r.progression.state.moon.step).toBe(5);
@@ -330,7 +330,7 @@ describe('the launch', () => {
     const session = { goals: null, pounceTime: 0, perched: null, fx: { burst: vi.fn() }, cat: new THREE.Object3D(), idleTime: 0 };
     const cam = new THREE.PerspectiveCamera();
     for (let i = 0; i < 3; i++) life2.update(1 / 30, i / 30, where, cam, session);
-    expect(life2.promptAt(where)).toBe('E — press the big red button');
+    expect(life2.promptAt(where)).toBe('E — press the big red button to launch!');
     life2.interact();
     for (let i = 0; i < 7 * 30; i++) life2.update(1 / 30, i / 30, where, cam, session);
     expect(r.progression.state.moon.step).toBe(7);
@@ -344,14 +344,14 @@ describe('the launch', () => {
     r.step(6);
     expect(r.life.promptAt(r.where) ?? '').not.toMatch(/button/);
     r.step(36);
-    expect(r.life.promptAt(r.where)).toBe('E — press the big red button');
+    expect(r.life.promptAt(r.where)).toBe('E — press the big red button to launch!');
     r.dispose();
   });
   it('the Launch Desk\'s button also works when the postcard is not posted yet and when the story is long done (always a show)', () => {
     for (const moon of [{ step: 7, cells: 3, scope: 3, stamp: 0 }, { step: 8, cells: 3, scope: 3, stamp: 0 }]) {
       const r = rig({ moon });
       atButton(r);
-      expect(press(r)).toBe('E — press the big red button');
+      expect(press(r)).toBe('E — press the big red button to launch!');
       r.step(8);
       expect(r.progression.state.moon.step).toBe(moon.step);
       r.dispose();
@@ -393,7 +393,7 @@ describe('reduced motion', () => {
     r.life.update(1 / 30, 5, r.where, r.camera, r.session);
     expect(r.camera.rotation.x).toBeCloseTo(0, 6);
     r.step(9);
-    expect(r.life.promptAt(r.where)).toBe('E — press the big red button');
+    expect(r.life.promptAt(r.where)).toBe('E — press the big red button to launch!');
     r.dispose();
   });
 });
@@ -450,7 +450,7 @@ describe('the clock-launched demo', () => {
     atButton(r);
     r.step(0.3);
     expect(r.launch.state.flight).toMatchObject({ demo: true, real: false });
-    expect(press(r)).toBe('E — press the big red button');
+    expect(press(r)).toBe('E — press the big red button to launch!');
     expect(r.launch.state.flight.real).toBe(true);
     now += 6;
     r.step(6);
@@ -467,7 +467,7 @@ describe('Earth answers', () => {
     r.step(2, { x: LEDGE.x + 3, z: LEDGE.z + 3, y: gy(LEDGE.x + 3, LEDGE.z + 3) });
     expect(r.progression.state.moon.step).toBe(8);
     r.step(3);
-    expect(r.events.some((e) => e.label === 'Earth says hello back!')).toBe(true);
+    expect(r.events.some((e) => e.label === 'Earth answered! It sent your stamp back.')).toBe(true);
     r.step(2);
     expect(r.progression.state.points - before).toBe(40);
     expect(r.events.filter((e) => e.type === 'moonstory')).toHaveLength(1);
@@ -475,7 +475,7 @@ describe('Earth answers', () => {
     expect(r.progression.state.unlocked.accessories).toContain('moonbadge');
     expect(r.progression.state.equipped.collar).toBe('moonbadge');
     r.step(6);
-    expect(r.events.some((e) => e.label === 'A Moon Badge!')).toBe(true);
+    expect(r.events.some((e) => e.label === 'A Moon Badge! You are a Moon Explorer!')).toBe(true);
     r.dispose();
   });
   it('the Moon Badge is owned once: a second walk does not pay or count again, and it is put on only if her collar is bare', () => {

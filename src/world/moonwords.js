@@ -41,8 +41,8 @@ export const LINES = Object.freeze({
   'moon.scope.hmm': 'Hmm, not that one.',
   'moon.stamp.ask': 'Pick a stamp for your postcard.',
   'moon.count.go': 'Lift-off!',
-  'moon.reply': 'Earth says hello back!',
-  'moon.badge': 'A Moon Badge!',
+  'moon.reply': 'Earth answered! It sent your stamp back.',
+  'moon.badge': 'A Moon Badge! You are a Moon Explorer!',
   'moon.cape': 'Starlight Cape, in your wardrobe.',
   'moon.job.glove': 'Earth lost a glove. Can you find it?',
   'moon.rover.in': 'Hop in',
@@ -99,12 +99,12 @@ export const LINES = Object.freeze({
   'moon.stamp.star': 'A star stamp',
   'moon.stamp.heart': 'A heart stamp',
   'moon.stamp.close': 'Close',
-  'moon.card.got': 'Your postcard is ready! Take it to the rocket.',
-  'moon.rocket.prompt': 'E — post the postcard',
-  'moon.rocket.loaded': 'The postcard is in the rocket!',
-  'moon.launch.prompt': 'E — press the big red button',
-  'moon.launch.sent': 'The postcard is on its way. Wait on the ridge for Earth to answer.',
-  'moon.reply.wait': 'Earth got the postcard. Wait here for its answer.',
+  'moon.card.got': 'Great stamp! Now carry the postcard to the rocket.',
+  'moon.rocket.prompt': 'E — post the postcard in the rocket',
+  'moon.rocket.loaded': 'Postcard posted! Next: press the big red button at the launch desk.',
+  'moon.launch.prompt': 'E — press the big red button to launch!',
+  'moon.launch.sent': 'The postcard is on its way to Earth!',
+  'moon.reply.wait': 'Earth is reading your postcard... Wait here and watch.',
   'moon.story.pay': 'Earth saying hello back, with your stamp',
   'moon.binoc.prompt': 'E — look at Earth',
   'moon.binoc.close': 'Close',
@@ -194,5 +194,38 @@ export const LINES = Object.freeze({
   'moon.chip.e': 'Pip wants a big jump|Pip wants another postcard|Earth lost a glove|The base is awake!',
 });
 
+// (story flow) the connective lines: what comes next, and why (world/moonflow.js is the table, world/moonflowlive.js says them). Kept apart from LINES so the other cues' counts do not move.
+export const FLOW_LINES = Object.freeze({
+  'moon.flow.ch1': 'The Moon base is asleep. Find two power cells to wake it up!',
+  'moon.flow.ch2': 'Now Pip wants to send a postcard to Earth. The dish must find Earth first!',
+  'moon.flow.ch3': 'Time to send your postcard to Earth!',
+  'moon.flow.posted': 'The rocket will carry your postcard all the way to Earth.',
+  'moon.flow.sky': 'Watch the sky!',
+  'moon.flow.mound': 'For the best view, stand on the Viewing Mound.',
+  'moon.flow.wait': 'Earth is still reading... Keep watching!',
+  'moon.flow.rock': 'Walk to Earthrise Rock. Earth will answer there.',
+  'moon.flow.what.cave': 'What now? A glowing cell waits in the cave. Follow the gold light.',
+  'moon.flow.what.job': 'What now? Pip has an errand today. Follow the gold light.',
+  'moon.flow.what.more': 'Pip has a small errand every walk. Meow to call him.',
+  'moon.flow.errand': 'Do the errand and Earth sends a new postcard for the album!',
+  'moon.flow.rest': 'That is all for today. Pip will have a new errand next walk.',
+  'moon.flow.deep': 'The Deep Cell gives the whole base extra power!',
+  'moon.flow.all': 'That is everything on the Moon! Pip has a new errand every walk.',
+  'moon.flow.cta.button': 'Press the big red button!',
+  'moon.flow.cta.rocket': 'Post the postcard in the rocket!',
+  // "Next:" lines, one per goal the gold light can point at (each names the same thing as the goal line, world/moonguide.js)
+  'moon.flow.n.pip': 'Next: wake Pip, the little robot by the lander.',
+  'moon.flow.n.cell': 'Next: find a power cell. Follow the gold light.',
+  'moon.flow.n.core': 'Next: take the power cell to the Core in the dome.',
+  'moon.flow.n.scope': 'Next: climb Star Hill and look through the telescope.',
+  'moon.flow.n.desk': 'Next: write a postcard at the Message Desk in the dome.',
+  'moon.flow.n.rocket': 'Next: take the postcard to the rocket and post it.',
+  'moon.flow.n.button': 'Next: press the big red button at the launch desk.',
+  'moon.flow.n.reply': 'Next: wait at Earthrise Rock to see Earth answer.',
+  'moon.flow.n.cave': 'Next: a glowing cell waits in the cave. Follow the gold light.',
+  'moon.flow.n.job': 'Next: Pip has an errand today. Follow the gold light.',
+});
+
 addPhrases(LINES);
+addPhrases(FLOW_LINES);
 Object.assign(MOON_HINTS, HINTS);
