@@ -42,7 +42,6 @@ import { createDeepLive } from './moondeeplive.js';
 import { createJobLive } from './moonjoblive.js';
 import { MOON_SPAWN, AIRLOCK, RETURN_GATE, DOME } from './moonplan.js';
 import { createCatRim } from './moonrim.js';
-import { bus } from '../events.js';
 import { IDLE, idleStart, nextIdleRing, idlePaused, progressMark } from './moonidle.js';
 import { FINALE_LENGTH } from './moondeeplive.js';
 
@@ -137,8 +136,6 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
   let idle = idleStart();
   let idleMark = null;
   let idleAcc = 0;
-  let finds = 0; // real discoveries (finds, pebbles, mice, journal pages); the toasts' own type is not one
-  const offFinds = bus.on('discovery', (e) => { if (e && e.type !== 'greenhousenote') finds++; });
   function idleStep(dt, catPos, session) {
     idleAcc += dt;
     if (idleAcc < IDLE_LOOK) return;
@@ -149,7 +146,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
     const lf = launch.state;
     const gp = base.goalNow();
     const mark = progressMark({ step: rec.step, cells: rec.cells, scope: progression?.state?.moon?.scope ?? 0, stamp: progression?.state?.moon?.stamp ?? -1, carrying: b.carrying ?? -1, pip: b.pip, riding: rover.riding,
-      card: lf.carryingCard, flight: !!lf.flight, reply: lf.reply, job: JSON.stringify([job.state.taken, job.state.next, job.state.glove, job.state.done]), finds: finds + (session?.collectibleMeshes?.size ?? 0), calls: base.calls, hops: jump.count() });
+      card: lf.carryingCard, flight: !!lf.flight, reply: lf.reply, job: JSON.stringify([job.state.taken, job.state.next, job.state.glove, job.state.done]), finds: base.finds + (session?.collectibleMeshes?.size ?? 0), calls: base.calls, hops: jump.count() });
     const reached = !!catPos && Math.hypot(catPos.x - gp.x, catPos.z - gp.z) < IDLE.reach;
     const progress = (idleMark !== null && mark !== idleMark) || reached;
     idleMark = mark;
@@ -237,7 +234,6 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       base.dispose();
       sky.dispose();
       catRim.dispose();
-      offFinds();
       for (const m of parts.values()) m.visible = true;
       if (held) held.hopLift = 0;
       for (const m of held?.collectibleMeshes?.values?.() ?? []) m.visible = true;

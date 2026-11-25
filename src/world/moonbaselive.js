@@ -124,6 +124,8 @@ export function createBaseLife(ctx) {
   let ringGoal = null;
   let bubbleT = -100;
   let meowed = false;
+  let finds = 0; // (idle ring) real discoveries (finds, pebbles, mice, journal pages); the toasts' own type is not one
+  const offFinds = bus.on('discovery', (e) => { if (e && e.type !== 'greenhousenote') finds++; });
   let calls = 0; // (idle ring) her meows and board presses this walk: any of them is progress
   const told = new Set();
   const rest = { x: 1e9, z: 1e9, since: 0 }; // where her paws came to rest, and since when (the finds' stillness)
@@ -319,6 +321,7 @@ export function createBaseLife(ctx) {
     get ring() { return ring; },
     get board() { return board; },
     get calls() { return calls; },
+    get finds() { return finds; },
     goalNow: goalPoint,
     autoCall,
     promptAt(catPos) {
@@ -473,6 +476,7 @@ export function createBaseLife(ctx) {
       if (disposed) return;
       disposed = true;
       offMeow?.();
+      offFinds();
       sound.dispose();
       pip.dispose();
       board.dispose();
