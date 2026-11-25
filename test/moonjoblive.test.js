@@ -205,9 +205,9 @@ describe('the offer', () => {
     r.press();
     r.step(0.1, { x: P.BOARD.x + 1.5, z: P.BOARD.z, y: gy(P.BOARD.x, P.BOARD.z) });
     r.press();
-    const pip = { x: r.life.base.pip.position.x, z: r.life.base.pip.position.z }; // where Pip stood when the ring was lit
     r.step(0.3);
-    expect(Math.hypot(ring.position.x - pip.x, ring.position.z - pip.z)).toBeLessThan(0.1);
+    const pip = r.life.base.pip.position; // the light column follows the goal, which is Pip (looked at four times a second)
+    expect(Math.hypot(ring.position.x - pip.x, ring.position.z - pip.z)).toBeLessThan(3);
     expect(Math.hypot(ring.position.x - g.x, ring.position.z - g.z)).toBeGreaterThan(1);
     r.dispose();
   });

@@ -25,7 +25,9 @@ export function fakePage({ width = 960, height = 540 } = {}) {
     return el;
   };
   const body = make('body');
-  const doc = { body, createElement: make, pointerLockElement: null };
-  const win = Object.assign(make('window'), { innerWidth: width, innerHeight: height, devicePixelRatio: 1 });
-  return { doc, win, ctx, make };
+  const hud = make('div'); // the walk's #hud: the Moon's written guide mounts there (not in body, where the pages go)
+  const doc = { body, createElement: make, pointerLockElement: null, getElementById: (id) => (id === 'hud' ? hud : null) };
+  const intervals = []; // the written guide's pause watchdog (a test runs it by hand)
+  const win = Object.assign(make('window'), { innerWidth: width, innerHeight: height, devicePixelRatio: 1, setInterval: (f) => intervals.push(f), clearInterval: (id) => { intervals[id - 1] = null; } });
+  return { doc, win, ctx, make, hud, intervals };
 }

@@ -328,7 +328,7 @@ describe('the cells and the Core', () => {
 const top = P.SKIP[1];
 
 describe('the call (meow) and the board: a gold ring to the next goal, a picture from Pip, no text, no fail', () => {
-  const ringAt = (r) => ({ x: r.life.base.ring.position.x, z: r.life.base.ring.position.z, vis: r.life.base.ring.visible });
+  const ringAt = (r) => ({ x: r.life.base.ring.position.x, z: r.life.base.ring.position.z, vis: r.life.base.ringing });
   it('the meow lights a ring at the next goal: Pip asleep, then the Ridge cell, then the Core when she carries one; it fades and is gone', () => {
     const r = rig();
     r.step(0.1);
