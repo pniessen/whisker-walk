@@ -2,7 +2,7 @@
 // progress, every picture keeps its own count, the hint after 20 seconds, tolerance and snap, the positions on the sky.
 import { describe, it, expect } from 'vitest';
 import {
-  CONSTELLATIONS, STAR_COUNT, ALL_BITS, STORY_BITS, HINT_SECS, GREAT_CAT, TOLERANCE, WINDOW,
+  CONSTELLATIONS, STAR_COUNT, ALL_BITS, STORY_BITS, HINT_SECS, HINT_SECS_OPTIONAL, HINT_GRACE, GREAT_CAT, TOLERANCE, WINDOW,
   starSky, catSky, skyDir, bearingOf, createSolver, createHint, nearestStar, scopeScale, angleTo, firstUndone, bitsOf, cleanBits,
 } from '../src/world/moonstars.js';
 import { earthDirection } from '../src/world/moonsky.js';
@@ -11,13 +11,13 @@ import { phrase } from '../src/clanphrases.js';
 import { withOffWords, bannedIn } from './helpers/offwords.js';
 
 describe('the data', () => {
-  it('five pictures, 27 stars: the Mouse 4, the Cat 7, the Fish 6, the Crown 5, the Paw 5, in the order of the save bits', () => {
+  it('five pictures, 44 stars (redrawn so each is recognisable): the Mouse 9, the Cat 11, the Fish 8, the Crown 7, the Paw 9, in the order of the save bits', () => {
     expect(CONSTELLATIONS.map((c) => c.id)).toEqual(['mouse', 'cat', 'fish', 'crown', 'paw']);
-    expect(CONSTELLATIONS.map((c) => c.pts.length)).toEqual([4, 7, 6, 5, 5]);
-    expect(STAR_COUNT).toBe(27);
+    expect(CONSTELLATIONS.map((c) => c.pts.length)).toEqual([9, 11, 8, 7, 9]);
+    expect(STAR_COUNT).toBe(44);
     expect(ALL_BITS).toBe(31);
     expect(STORY_BITS).toBe(3);
-    expect(HINT_SECS).toBe(20);
+    expect(HINT_SECS).toBeLessThanOrEqual(1);
     expect(WINDOW).toEqual({ w: 60, h: 40 });
   });
   it('every star is above the horizon and under the zenith, no two stars of one picture are the same point, and each picture fits a 60 by 40 window', () => {
@@ -106,7 +106,7 @@ describe('the solver', () => {
   it('every picture keeps its own progress: leave one half drawn, do another, come back', () => {
     const s = createSolver(0);
     s.tap(2, 0); s.tap(2, 1);
-    for (let i = 0; i < 4; i++) s.tap(0, i);
+    for (let i = 0; i < CONSTELLATIONS[0].pts.length; i++) s.tap(0, i);
     expect(s.done(0)).toBe(true);
     expect(s.pins(2)).toBe(2);
     expect(s.tap(2, 2).kind).toBe('pin');
@@ -160,38 +160,51 @@ describe('the solver', () => {
 });
 
 describe('the hint', () => {
-  it('shows nothing before 20 seconds, then the next star of the picture she is on, and keeps showing it until a pin', () => {
+  it('shows nothing for the first 0.6 s, then the next star of the picture she is on, and keeps showing it until a pin', () => {
     const s = createSolver(0);
     const h = createHint(s);
-    expect(h.tick(10)).toBeNull();
-    expect(h.tick(9.9)).toBeNull();
-    expect(h.tick(0.1)).toEqual({ c: 0, i: 0 });
-    expect(h.tick(1)).toEqual({ c: 0, i: 0 });
+    expect(h.tick(0.5)).toBeNull();
+    expect(h.tick(0.2)).toEqual({ c: 0, i: 0 });
+    expect(h.tick(10)).toEqual({ c: 0, i: 0 });
     s.tap(0, 0);
     h.reset();
-    expect(h.tick(5)).toBeNull();
-    expect(h.tick(15)).toEqual({ c: 0, i: 1 });
+    expect(h.tick(0.3)).toBeNull();
+    expect(h.tick(0.5)).toEqual({ c: 0, i: 1 });
   });
-  it('a wrong star does not move the hint along, a pin resets the clock, and the meow asks at once', () => {
-    const s = createSolver(0);
-    const h = createHint(s);
-    h.tick(19);
-    s.tap(0, 3); // wrong
-    expect(h.tick(1)).toEqual({ c: 0, i: 0 });
+  it('the optional pictures wait HINT_SECS_OPTIONAL (the same today), a wrong star does not hide it, a pin restarts it, the bulb asks at once', () => {
+    const s = createSolver(3);
+    const h = createHint(s, 0.6, 5); // the owner may choose 5 s for the Fish, Crown and Paw
+    expect(h.tick(1)).toBeNull();
+    expect(h.tick(4)).toEqual({ c: 2, i: 0 });
+    s.tap(2, 5); // wrong
+    expect(h.tick(0)).toEqual({ c: 2, i: 0 });
     h.reset();
     expect(h.tick(1)).toBeNull();
     h.ask();
-    expect(h.tick(0)).toEqual({ c: 0, i: 0 });
+    expect(h.tick(0)).toEqual({ c: 2, i: 0 });
+    expect(h.asked).toBe(true);
     h.reset();
     expect(h.tick(0)).toBeNull();
+    expect(HINT_SECS_OPTIONAL).toBe(HINT_SECS);
   });
-  it('a negative or zero step does not run the clock backwards or forwards, and there is no hint when every picture is done', () => {
+  it('after a picture is finished the next picture rests HINT_GRACE seconds (or until the bulb), then its first star pulses', () => {
+    const s = createSolver(0);
+    const h = createHint(s);
+    CONSTELLATIONS[0].pts.forEach((_, i) => s.tap(0, i));
+    h.reset(HINT_GRACE);
+    expect(h.tick(HINT_GRACE - 0.5)).toBeNull();
+    expect(h.tick(1.2)).toEqual({ c: 1, i: 0 });
+    h.reset(HINT_GRACE);
+    expect(h.tick(1)).toBeNull();
+    h.ask();
+    expect(h.tick(0)).toEqual({ c: 1, i: 0 });
+  });
+  it('a negative or zero step does not run the clock, and there is no hint when every picture is done', () => {
     const s = createSolver(0);
     const h = createHint(s);
     h.tick(-5); h.tick(0); h.tick(NaN);
     expect(h.idle).toBe(0);
-    const done = createHint(createSolver(31));
-    expect(done.tick(100)).toBeNull();
+    expect(createHint(createSolver(31)).tick(100)).toBeNull();
   });
 });
 

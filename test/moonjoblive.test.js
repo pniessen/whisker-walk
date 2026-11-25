@@ -73,7 +73,7 @@ const DOERS = {
   guest(r) {
     const O = P.OBSERVATORY;
     r.step(0.1, { x: O.x + 1.5, z: O.z, y: gy(O.x, O.z) });
-    expect(r.press()).toBe('E — look through the telescope');
+    expect(r.press()).toBe('E — draw more star pictures'); // (scope usability pass) the errand runs after Earth is found: the prompt is the replay wording
     const sc = r.life.star.scope;
     expect(sc.isOpen).toBe(true);
     const pic = r.job.plan.guest;

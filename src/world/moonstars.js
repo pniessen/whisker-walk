@@ -1,7 +1,7 @@
 // =============================================================================
 // THE MOON'S STAR PICTURES (milestone 5): the data and the pure solver of the telescope game. No THREE, no canvas, no clock, no random
 // number: world/moonscope.js draws and listens, world/moonstarlive.js saves. Five star pictures (the Mouse, the Cat, the Fish, the Crown
-// and the Paw: 27 stars in all), each a hand-placed chain of stars in the order they are pinned, and the Great Cat that they join into.
+// and the Paw: 51 stars in all), each a hand-placed chain of stars in the order they are pinned, and the Great Cat that they join into.
 //
 // THE GAME. She looks through the telescope at a 60 by 40 degree window of the sky and pins a picture's stars one after another. A star is
 // pinned when it is the NEXT one of its picture; any other star is a soft "hmm" and NOTHING is lost (every picture keeps its own progress,
@@ -16,21 +16,45 @@
 
 const DEG = Math.PI / 180;
 
-// The pictures, in the order of their save bits (bit 0 the Mouse ... bit 4 the Paw). `pts` is the order they are pinned (and the chain of
-// lines drawn between them). The story needs the Mouse and the Cat (the first two bits); the others are for the finding.
+// The pictures, in the order of their save bits (bit 0 the Mouse ... bit 4 the Paw). `pts` is the order they are pinned. Lines join each star to the one before
+// it, except where `gaps` lists a star that starts a new stroke (the Paw's four toes are lone stars), and `join` lists extra [from, to] lines drawn once both
+// stars are pinned (the closing line of an outline). The story needs the Mouse and the Cat (the first two bits); the others are for the finding.
+// (scope usability pass, 2026-11-25) Each picture is now an outline a child knows at a glance: the old shapes (a zigzag, an arc, a "W") were not. Every star is at
+// least 4 degrees from every other of its picture (test/moonscopeux.test.js); a picture is under 31 degrees wide so a phone upright (40 degrees across) shows it all.
+// Two designs of the Cat are kept: the recommended sitting cat with its tail (11 stars) and a front-facing head with two pointed ears (9). CAT_DESIGN picks one.
+export const CAT_DESIGNS = Object.freeze({
+  sitting: Object.freeze({ pts: [[9.8, -2], [9.8, -8], [5.3, -10], [-9.8, -10], [-7.3, 1], [-8.3, 5], [-6.8, 10], [-2.3, 7.5], [2.3, 10], [3.8, 5], [2.8, 1]], join: [[10, 2]] }),
+  head: Object.freeze({ pts: [[-8, 1], [-6, 8], [0, 4], [6, 8], [8, 1], [8.5, -4], [4, -8], [-4, -8], [-8.5, -4]], join: [[8, 0]] }),
+});
+export const CAT_DESIGN = 'sitting'; // the owner may switch this to 'head'
 export const CONSTELLATIONS = Object.freeze([
-  { id: 'mouse', bearing: 338, elev: 30, pts: [[-8, -2.5], [-2.5, 0], [4, -0.5], [1.5, 3.5]] },
-  { id: 'cat', bearing: 40, elev: 42, pts: [[-10, -5], [-6, -3], [-2, 0], [2, 4], [3, 8], [5.5, 6], [7.5, 8.5]] },
-  { id: 'fish', bearing: 95, elev: 30, pts: [[-9, 3.5], [-5, 0], [-9, -3.5], [-1, -3], [6, 0], [-1, 3]] },
-  { id: 'crown', bearing: 160, elev: 52, pts: [[-7, -2], [-5, 3], [0, 0], [5, 3], [7, -2]] },
-  { id: 'paw', bearing: 262, elev: 36, pts: [[-6, 2], [-2, 5], [2, 5], [6, 2], [0, -3]] },
-].map((c) => Object.freeze({ ...c, pts: Object.freeze(c.pts.map((p) => Object.freeze(p))) })));
-export const STAR_COUNT = CONSTELLATIONS.reduce((n, c) => n + c.pts.length, 0); // 27
+  { id: 'mouse', bearing: 338, elev: 30, pts: [[13, 2.3], [10, -2.8], [6, -4.8], [1.5, 1.3], [-3, 1.3], [-4.5, 6.8], [-8.5, 1.3], [-13, -5.8], [-4.5, -6.8]], join: [[8, 2]] },
+  { id: 'cat', bearing: 40, elev: 42, ...CAT_DESIGNS[CAT_DESIGN] },
+  { id: 'fish', bearing: 95, elev: 30, pts: [[-10.5, 0], [-4.5, 4.5], [2.5, 3], [10.5, 5.5], [8, 0], [10.5, -5.5], [2.5, -3], [-4.5, -4.5]], join: [[7, 0]] },
+  { id: 'crown', bearing: 160, elev: 52, pts: [[-8, 3.5], [-4, -0.5], [0, 4.5], [4, -0.5], [8, 3.5], [8, -4.5], [-8, -4.5]], join: [[6, 0]] },
+  { id: 'paw', bearing: 262, elev: 36, pts: [[-4, -0.5], [4, -0.5], [6, -5], [0, -8], [-6, -5], [-8, 4.5], [-3, 8], [3, 8], [8, 4.5]], join: [[4, 0]], gaps: [5, 6, 7, 8] },
+].map((c) => Object.freeze({ ...c, gaps: Object.freeze(c.gaps ?? []), join: Object.freeze((c.join ?? []).map((j) => Object.freeze(j))), pts: Object.freeze(c.pts.map((p) => Object.freeze(p))) })));
+export const STAR_COUNT = CONSTELLATIONS.reduce((n, c) => n + c.pts.length, 0); // 51 (9 + 11 + 8 + 7 + 9)
 export const ALL_BITS = (1 << CONSTELLATIONS.length) - 1; // 31
 export const STORY_BITS = 3; // the Mouse and the Cat: what finds Earth (mission step 5)
-export const HINT_SECS = 20;
+// The next star pulses almost at once (owner, 2026-11-25: "otherwise it will take 5 minutes to connect all the stars"): HINT_SECS after the scope
+// opens and after each pin; the three optional pictures may wait longer (HINT_SECS_OPTIONAL: the same today, one number to change if the owner wants
+// them to be more of a puzzle). A wrong star never hides it. A finished picture rests HINT_GRACE seconds before the next picture's first star pulses.
+export const HINT_SECS = 0.6;
+export const HINT_SECS_OPTIONAL = 0.6;
+export const HINT_GRACE = 5;
 export const WINDOW = Object.freeze({ w: 60, h: 40 }); // degrees the telescope shows
-export const TOLERANCE = Object.freeze({ touch: 40, mouse: 28, snap: 70 }); // px: a tap this near a star pins it; a reticle snaps this near
+export const TOLERANCE = Object.freeze({ touch: 40, mouse: 28, snap: 70 }); // px: the OLD fixed reach (kept for callers that name it); the scope now uses scopeRing below
+// (scope usability pass) The ring (the reticle) and the capture reach, in px, from the screen's short side, so the ring you see and the reach you get agree
+// on every screen. kind: 'touch' (a phone or tablet, or a pad on a laptop), 'tv' (the 10-foot view) or 'mouse' (a laptop). `reach` is the ring plus a star's
+// own size and glow (`star` px, in the page's couch multiplier `m`): a star counts when its centre is inside the ring, or the ring just overlaps it.
+export const RING = Object.freeze({ touch: { f: 0.075, lo: 34, hi: 96 }, tv: { f: 0.065, lo: 48, hi: 190 }, mouse: { f: 0.035, lo: 26, hi: 44 } });
+export function scopeRing(w, h, kind = 'mouse', m = 1) {
+  const q = RING[kind] ?? RING.mouse;
+  const ring = Math.round(Math.min(q.hi, Math.max(q.lo, Math.min(w, h) * q.f)));
+  const star = Math.round(8 * (kind === 'tv' ? m : 1));
+  return { ring, reach: ring + star, star };
+}
 
 // The Great Cat: a sitting cat seen from the front (a closed outline, a tail and two eyes), drawn on the sky once all five are traced and
 // on the observatory's ceiling always (faint until then). Units: x -1.3..1.3, y 0..2.3; `scale` is degrees per unit on the sky.
@@ -120,19 +144,24 @@ export function createSolver(doneBits = 0, list = CONSTELLATIONS) {
   return api;
 }
 
-// The hint: createHint(solver) -> { tick(dt) -> null | { c, i }, reset(), ask() }. After HINT_SECS without a pin (reset() on every pin and
-// on opening) tick answers the next star to pulse, and keeps answering it until the next reset; ask() (the meow) shows it at once.
-export function createHint(solver, secs = HINT_SECS) {
+// The hint: createHint(solver) -> { tick(dt) -> null | { c, i }, reset(grace), ask() }. HINT_SECS after opening or a pin (reset() on every pin and
+// on opening; a wrong star does not reset it) tick answers the next star to pulse and keeps answering it; ask() (the bulb) shows it at once, stronger.
+export function createHint(solver, secs = HINT_SECS, optSecs = HINT_SECS_OPTIONAL) {
   let idle = 0;
   let asked = false;
   return {
     get idle() { return idle; },
     tick(dt) {
       if (dt > 0) idle += dt;
-      return asked || idle >= secs ? solver.next() : null;
+      if (asked) return solver.next();
+      const nx = solver.next();
+      if (!nx) return null;
+      return idle >= (nx.c >= 2 && nx.c < CONSTELLATIONS.length ? optSecs : secs) ? nx : null;
     },
-    reset() { idle = 0; asked = false; },
+    // after a pin (or opening) the clock restarts; `grace` seconds of rest first (a picture just finished: the next one waits for her to choose or for the rest to pass)
+    reset(grace = 0) { idle = -Math.max(0, grace); asked = false; },
     ask() { asked = true; },
+    get asked() { return asked; },
   };
 }
 
@@ -145,6 +174,40 @@ export function nearestStar(list, x, y, tol) {
     if (best ? d < bd : d <= bd) { bd = d; best = s; }
   }
   return best;
+}
+
+// Which star a tap or the ring takes: every star within `reach` px of the point; when the NEXT star to pin ({ c, i }, from solver.next()) is one of them
+// it wins (the intended star can never lose to a neighbour), else the nearest. null when none is that near.
+export function pickStar(list, x, y, reach, next = null) {
+  let near = null;
+  let nd = Infinity;
+  const r2 = reach * reach;
+  for (const s of list) {
+    const d = (s.x - x) * (s.x - x) + (s.y - y) * (s.y - y);
+    if (d > r2) continue;
+    if (next && s.c === next.c && s.i === next.i) return s;
+    if (d < nd) { nd = d; near = s; }
+  }
+  return near;
+}
+
+// The written objective at the top of the telescope: { id, vars } for the lazy line to say (moon.scope.goal.*); `names` are the five pictures' names in order.
+export function objectiveOf(solver, pictures, names, earth = false) {
+  const nxt = solver.next();
+  if (earth && (solver.bits & STORY_BITS) === STORY_BITS && (!nxt || solver.pins(nxt.c) === 0)) return { id: 'moon.scope.earth', vars: {} }; // looking at Earth with the story done: what it is and what to do next
+  if (!nxt) return { id: 'moon.scope.goal.all', vars: {} };
+  const guest = nxt.c >= CONSTELLATIONS.length;
+  const n = solver.pins(nxt.c);
+  const t = pictures[nxt.c].pts.length;
+  if (guest) return { id: 'moon.scope.goal.guest', vars: { n, t } };
+  const name = names[nxt.c];
+  if ((solver.bits & STORY_BITS) === STORY_BITS && n === 0) {
+    const left = [];
+    for (let c = 2; c < CONSTELLATIONS.length; c++) if (!solver.done(c)) left.push(names[c]);
+    if (left.length > 1) return { id: 'moon.scope.goal.more', vars: { list: `the ${left.slice(0, -1).join(', the ')} or the ${left[left.length - 1]}` } };
+    return { id: 'moon.scope.goal.more', vars: { list: `the ${left[0]}` } };
+  }
+  return { id: solver.bits === 0 ? 'moon.scope.goal.first' : 'moon.scope.goal.next', vars: { name, n, t } };
 }
 
 // The window's pixel scale: px per degree so that at least 40 by 32 degrees are shown, whatever the screen's shape (a phone held upright
