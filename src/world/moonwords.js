@@ -81,6 +81,7 @@ export const LINES = Object.freeze({
   'moon.table.prompt': 'E — look at the star table',
   'moon.scope.hint': 'A telescope waits on Star Hill. Find Earth in the stars!',
   'moon.goal.scope': 'Climb Star Hill and find Earth in the telescope.',
+  'moon.next.scope': 'Next: climb Star Hill and find Earth in the telescope.', // (arrival fix) said when the base has woken, so the next step needs no trip to the board
   'moon.scope.found': 'You found Earth! The dish is looking at it.',
   'moon.scope.cat': 'All five star pictures make the Great Cat!',
   'moon.scope.close': 'Close the telescope',

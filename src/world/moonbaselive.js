@@ -416,8 +416,10 @@ export function createBaseLife(ctx) {
 
       // timers and the first-time lines
       for (let i = timers.length - 1; i >= 0; i--) if (clock >= timers[i].at) { const f = timers.splice(i, 1)[0].fn; f(); }
+      // (arrival fix) the hint to wake Pip goes FIRST, with the greeting just behind it: arriving through a gate, the suit and the way-home lines are already
+      // on the HUD's toast slots, and the greeting plus a 3.6 s wait used to push the one line that matters past 12 s on a phone
+      if (!told.has('pip') && clock > 1.2 && r.step === M.STEP.asleep) { told.add('pip'); say('moon-pip-hint', phrase('moon.pip.hint')); }
       if (!told.has('arrive') && clock > 1.2) { told.add('arrive'); say('moon-arrive', phrase('moon.arrive')); }
-      if (!told.has('pip') && clock > 3.6 && r.step === M.STEP.asleep) { told.add('pip'); say('moon-pip-hint', phrase('moon.pip.hint')); }
       if (catPos) {
         if (r.step >= M.STEP.pip && carrying === null) {
           if (!told.has('ridge') && !(r.cells & 1) && dist(catPos, P.SKIP[0]) < 26) { told.add('ridge'); say('moon-cell-ridge', phrase('moon.cell.ridge.hint')); }
@@ -459,6 +461,7 @@ export function createBaseLife(ctx) {
           power = 1;
           applyPower();
           perform({ kind: 'beat' });
+          say('moon-next-scope', phrase('moon.next.scope')); // the next step in words, right after the wake-up, so nobody has to open the board
         }
       } else if (r.step >= M.STEP.awake && power < 1) { power = 1; applyPower(); }
 

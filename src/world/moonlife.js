@@ -101,7 +101,8 @@ export function cullParts(parts, catPos, table = PART_NEAR) {
 }
 
 // createMoonLife(ctx) -> { update(dt, t, catPos, camera, session), dispose() }; ctx is walk.js's life context.
-export function createMoonLife({ scene, reducedMotion = false, tier, progression, ground, colliders, perches, log, audio, doc, win, clock, pads, roomSeed, visits, boundOn }) {
+export function createMoonLife({ scene, reducedMotion = false, tier, progression, ground, colliders, perches, log, audio, doc = globalThis.document, win = globalThis.window, clock, pads, roomSeed, visits, boundOn }) {
+  // (arrival fix) walk.js's life context carries no page: the guide must find the real one itself, or it never mounts (the star, launch and jump lives already fell back this way)
   scene.background = new THREE.Color(SKY_BLACK); // no horizon haze under the stars: the Moon has no air
   const sky = createMoonSky({ scene, tier, reducedMotion });
   const catRim = createCatRim({ scene });
