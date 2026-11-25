@@ -146,7 +146,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
     const lf = launch.state;
     const gp = base.goalNow();
     const mark = progressMark({ step: rec.step, cells: rec.cells, scope: progression?.state?.moon?.scope ?? 0, stamp: progression?.state?.moon?.stamp ?? -1, carrying: b.carrying ?? -1, pip: b.pip, riding: rover.riding,
-      card: lf.carryingCard, flight: !!lf.flight, reply: lf.reply, job: JSON.stringify([job.state.taken, job.state.next, job.state.glove, job.state.done]), finds: base.finds + (session?.collectibleMeshes?.size ?? 0), calls: base.calls, hops: jump.count() });
+      card: lf.carryingCard, flight: !!lf.flight, reply: lf.reply, job: JSON.stringify([job.state.taken, job.state.next, job.state.glove, job.state.done]), finds: base.finds + (session?.collectibleMeshes?.size ?? 0), calls: base.calls, hops: JSON.stringify(jump.last ?? null) });
     const reached = !!catPos && Math.hypot(catPos.x - gp.x, catPos.z - gp.z) < IDLE.reach;
     const progress = (idleMark !== null && mark !== idleMark) || reached;
     idleMark = mark;
