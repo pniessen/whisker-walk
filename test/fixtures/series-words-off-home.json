@@ -81,7 +81,8 @@
     "Cat builder",
     "0",
     "never",
-    "Start over"
+    "Start over",
+    "Start a fresh cat"
    ],
    "together": [
     "← Back to my cat",
@@ -631,7 +632,8 @@
    "Cat builder",
    "0",
    "never",
-   "Start over"
+   "Start over",
+   "Start a fresh cat"
   ],
   "together": [
    "← Back to my cat",

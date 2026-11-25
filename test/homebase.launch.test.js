@@ -723,8 +723,9 @@ describe('Settings in two halves', () => {
     expect(h).toContain('<h2>Game settings ⚙️</h2>');
     for (const id of GROWN) expect(h).toContain(`id="${id}"`);
     for (const id of KIDS) expect(h).not.toContain(`id="${id}"`);
-    // Start over is the last thing on the sheet: no dock under it
-    const reset = '<button id="btn-reset" class="danger">Start over</button>';
+    // Start over and Start a fresh cat close the sheet: no dock under them
+    const reset = '<button id="btn-reset" class="danger">Start over</button>\n        <button id="btn-fresh" class="danger">Start a fresh cat</button>';
+    expect(h).toContain(reset);
     expect(h.slice(h.indexOf(reset) + reset.length).replace(/<\/section>|<\/div>|\s/g, '')).toBe('');
   });
   it('the controls keep their wiring from the new sheet', () => {
