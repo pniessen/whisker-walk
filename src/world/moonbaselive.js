@@ -124,6 +124,7 @@ export function createBaseLife(ctx) {
   let ringGoal = null;
   let bubbleT = -100;
   let meowed = false;
+  let calls = 0; // (idle ring) her meows and board presses this walk: any of them is progress
   const told = new Set();
   const rest = { x: 1e9, z: 1e9, since: 0 }; // where her paws came to rest, and since when (the finds' stillness)
   const dust = createDustTally(); // Quiet Dust: metres walked on the Quiet Plain
@@ -271,7 +272,7 @@ export function createBaseLife(ctx) {
     return { g, x: P.BOARD.x + 1.6, z: P.BOARD.z, y: ground.y(P.BOARD.x, P.BOARD.z) };
   }
   // her meow (or the board): Pip beeps, shows a picture and a gold ring and light show where the next goal is
-  function callPip() {
+  function callPip(auto = false) {
     const gp = goalPoint();
     ringGoal = gp;
     ringT = clock;
@@ -280,9 +281,17 @@ export function createBaseLife(ctx) {
     pip.beep();
     sound.chirp();
     if (rec().step >= M.STEP.pip) pip.lookAt(gp.x, gp.z);
-    if (gp.g.kind === 'pip') say('moon-pip-hint', phrase('moon.pip.hint'));
+    if (gp.g.kind === 'pip' && !auto) say('moon-pip-hint', phrase('moon.pip.hint'));
+    if (!auto) calls++;
   }
-  const offMeow = bus.on('tip:did', (e) => { if (e && e.id === 'call') meowed = true; });
+  // (idle ring) the same ring and picture, lit by the idle schedule (world/moonidle.js) instead of her meow; false when one is already showing or the beat plays
+  function autoCall(hint) {
+    if (disposed || beat || clock - ringT < RING.secs) return false;
+    callPip(true);
+    if (hint) say('moon-idle-hint', phrase('moon.meow.hint'));
+    return true;
+  }
+  const offMeow = bus.on('tip:did', (e) => { if (e && e.id === 'call') { meowed = true; calls++; } });
 
   // ---- the action button -----------------------------------------------------------------------------------------------
   function decide(catPos) {
@@ -309,6 +318,9 @@ export function createBaseLife(ctx) {
     get cells() { return cells; },
     get ring() { return ring; },
     get board() { return board; },
+    get calls() { return calls; },
+    goalNow: goalPoint,
+    autoCall,
     promptAt(catPos) {
       target = decide(catPos);
       return target ? target.line : null;

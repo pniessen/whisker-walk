@@ -20,6 +20,7 @@
 //   * (milestone 8) the LAVA TUBE and the DEEP CELL (world/moondeeplive.js): the cave's zone, the outside left undrawn once she is deep inside, the Star Garden's bloom and Earth's finale;
 //   * (milestone 9) PIP'S POSTCARD OF THE DAY: one small errand a walk once the story is told, and the album of twelve (world/moonjoblive.js);
 //   * (milestone 3) DOT the rover: hop in at the depot, steer, hop out (world/moonroverlive.js); she hangs her hooks on the walk's session.fair.
+//   * (idle ring) the gold ring and light column show BY THEMSELVES after about 30 s without progress (world/moonidle.js is the schedule; the ring is the base's, no new draw);
 //   * (milestone 2) the BASE: Pip, the two power cells, the Core, the dome, the door, the board, the finds, the gold ring and the
 //     switching-off of the daily goals and the air's sounds (world/moonbaselive.js); this life hands the walk its promptAt, interact
 //     and credit.
@@ -41,10 +42,14 @@ import { createDeepLive } from './moondeeplive.js';
 import { createJobLive } from './moonjoblive.js';
 import { MOON_SPAWN, AIRLOCK, RETURN_GATE, DOME } from './moonplan.js';
 import { createCatRim } from './moonrim.js';
+import { bus } from '../events.js';
+import { IDLE, idleStart, nextIdleRing, idlePaused, progressMark } from './moonidle.js';
+import { FINALE_LENGTH } from './moondeeplive.js';
 
 export const CAMERA_FOLLOW = 0.6; // the camera rises this much of a hop's height
 export const SKIP_HEIGHT = 0.1; // m, the bounce of one stride
 export const SKIP_STRIDE = 1.1; // m walked per stride
+export const IDLE_LOOK = 0.5; // s: the idle ring looks at the goal and what changed this often (not every frame)
 export const DRAW_NEAR = 50; // m: the walk's pebbles and golden mice farther than this from her are not drawn (milestone 4's draw budget)
 export const DUST = Object.freeze({ count: 10, lite: 5, ttl: 1.2, gravity: 0.35, speed: 0.9, size: 0.14, color: 0xb9b3aa });
 // (milestone 5) The base's small parts are meshes of their own (they animate or change colour), and a frame on this wide plain drew every one of them
@@ -128,6 +133,32 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
   let wasUp = false;
   let held = null;
   let owner = null; // whose offer the action button is showing: 'base' | 'star' | 'rover' | null
+  // (idle ring) what moved her on since the last look (a mark that changes), the schedule's state, and the half-second the goal is looked at
+  let idle = idleStart();
+  let idleMark = null;
+  let idleAcc = 0;
+  let finds = 0; // real discoveries (finds, pebbles, mice, journal pages); the toasts' own type is not one
+  const offFinds = bus.on('discovery', (e) => { if (e && e.type !== 'greenhousenote') finds++; });
+  function idleStep(dt, catPos, session) {
+    idleAcc += dt;
+    if (idleAcc < IDLE_LOOK) return;
+    const span = Math.min(idleAcc, 1); // a stalled frame (a hidden tab) is not half a minute of idling
+    idleAcc = 0;
+    const b = base.state;
+    const rec = b.record;
+    const lf = launch.state;
+    const gp = base.goalNow();
+    const mark = progressMark({ step: rec.step, cells: rec.cells, scope: progression?.state?.moon?.scope ?? 0, stamp: progression?.state?.moon?.stamp ?? -1, carrying: b.carrying ?? -1, pip: b.pip, riding: rover.riding,
+      card: lf.carryingCard, flight: !!lf.flight, reply: lf.reply, job: JSON.stringify([job.state.taken, job.state.next, job.state.glove, job.state.done]), finds: finds + (session?.collectibleMeshes?.size ?? 0), calls: base.calls, hops: jump.count() });
+    const reached = !!catPos && Math.hypot(catPos.x - gp.x, catPos.z - gp.z) < IDLE.reach;
+    const progress = (idleMark !== null && mark !== idleMark) || reached;
+    idleMark = mark;
+    const fin = deep.state.finale;
+    const paused = idlePaused({ open: star.state.open || lf.open, flight: !!lf.flight, beat: b.beat, finale: fin !== null && fin < FINALE_LENGTH, riding: rover.riding, goal: gp.g });
+    const r = nextIdleRing(idle, span, { progress, paused, target: gp.g.kind !== 'done' });
+    idle = r.state;
+    if (r.ring) base.autoCall(r.first);
+  }
   const parts = new Map(PART_NEAR.flatMap((r) => r.names).map((n) => [n, scene.getObjectByName(n)]).filter(([, m]) => m));
 
   return {
@@ -193,6 +224,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       catRim.update(dt, camera, session.cat); // (beauty round 3) the suit's rim and the fill swell while she is backlit
       cullFar(catPos, session, deep.inside ? 0 : DRAW_NEAR); // deep in the tube nothing outside is drawn: the walk's pebbles and mice too
       cullParts(parts, catPos);
+      idleStep(dt, catPos, session);
     },
     dispose() {
       job.dispose();
@@ -205,6 +237,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       base.dispose();
       sky.dispose();
       catRim.dispose();
+      offFinds();
       for (const m of parts.values()) m.visible = true;
       if (held) held.hopLift = 0;
       for (const m of held?.collectibleMeshes?.values?.() ?? []) m.visible = true;
