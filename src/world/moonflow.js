@@ -50,7 +50,7 @@ const goal = (kind) => nextLine(kind);
 const R = (step, lines) => Object.freeze({ step, lines });
 export const FLOW = Object.freeze({
   wake: R(M.STEP.pip, [L(3.2, 'why', () => phrase('moon.flow.ch1'))]),
-  awake: R(M.STEP.awake, [L(1.2, 'why', () => phrase('moon.flow.ch2')), L(4.4, 'next', goal)]),
+  awake: R(M.STEP.awake, [L(1.2, 'why', () => phrase('moon.flow.ch2'))]), // (the arrival fix already says the Next line right after the wake beat: moon.next.scope)
   aimed: R(M.STEP.aimed, [L(1.2, 'why', () => phrase('moon.flow.ch3')), L(4.4, 'next', goal)]),
   posted: R(M.STEP.loaded, [L(3.4, 'why', () => phrase('moon.flow.posted'), { story: true })]),
   count: R(M.STEP.loaded, [L(0, 'confirm', () => phrase('moon.flow.sky')), L(2.8, 'more', () => phrase('moon.flow.mound'))]),

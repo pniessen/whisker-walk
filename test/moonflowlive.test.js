@@ -333,11 +333,12 @@ describe('the chapters', () => {
     r.step(1);
     r.progression.state.moon = { ...r.progression.state.moon, step: 4 }; // the wake-up beat ends
     r.step(9);
-    expect(r.said()).toEqual(['Now Pip wants to send a postcard to Earth. The dish must find Earth first!', 'Next: climb Star Hill and look through the telescope.']);
+    // (the 'Next: climb Star Hill...' line is the arrival fix's, said by the base's own beat, not by the flow)
+    expect(r.said()).toEqual(['Now Pip wants to send a postcard to Earth. The dish must find Earth first!']);
     expect(r.base.goal().g.kind).toBe('scope');
     r.progression.state.moon = { ...r.progression.state.moon, step: 5, scope: 3 };
     r.step(10);
-    expect(r.said().slice(2)).toEqual(['Time to send your postcard to Earth!', 'Next: write a postcard at the Message Desk in the dome.']);
+    expect(r.said().slice(1)).toEqual(['Time to send your postcard to Earth!', 'Next: write a postcard at the Message Desk in the dome.']);
     expect(r.base.goal().g.kind).toBe('desk');
     r.dispose();
   });
