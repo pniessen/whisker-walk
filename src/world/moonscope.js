@@ -3,7 +3,7 @@
 // scene under it, so nothing is drawn twice): the seeded sky (the same stars as the real one), the five pictures' stars brighter, a 60 by
 // 40 degree window she pans (drag, stick, arrows, the mouse when the pointer is locked), the pictures she has traced lit, the next star
 // pulsing when she is stuck. The rules are world/moonstars.js (pure); this only draws, listens and calls back.
-//   touch / mouse   drag the sky; tap near a star (within the ring plus a star's size: world/moonstars.js scopeRing, screen units) to pin it; pinch or wheel zooms 1x to 2.5x;
+//   touch / mouse   drag the sky; tap near a star (within the ring plus a star's size: world/moonstars.js scopeRing, screen units) to pin it; pinch or wheel zooms 0.5x to 2.5x;
 //                   the Close pill (top right) closes, the Hint pill (top left) shows the next star; a written objective sits at the top; two cards (why she is here, Earth found)
 //   pad             the stick pans the sky under a ring in the middle that snaps to the nearest star; A pins it, B closes, X shows the hint
 //   TV / pad        (TV and pad pass) on a TV the buttons, rings and words are bigger and inside the safe margin; while the pad is the last input a bar names its
@@ -20,7 +20,7 @@ import { CONSTELLATIONS, GREAT_CAT, WINDOW, STORY_BITS, HINT_GRACE, starSky, cat
 
 export const EARTH_AT = Object.freeze({ b: 12, e: 21, r: 4 }); // where Earth is on the sky (world/moonplan.js EARTH) and its size in degrees
 export const PAN_SPEED = 34; // degrees a second by key or stick
-export const ZOOM = Object.freeze({ min: 1, max: 2.5, step: 1.35 }); // the telescope's zoom: 1x (the whole picture) to 2.5x; the ring and the reach stay the same size on screen
+export const ZOOM = Object.freeze({ min: 0.5, max: 2.5, step: 1.35 }); // the telescope's zoom: 0.5x (a broad piece of sky, twice the width) to 2.5x, 1x is the start; the ring and the reach stay the same size on screen
 export const VIEW_LIMITS = Object.freeze({ minE: 6, maxE: 82 });
 // the band's middle line on the sky: bearing and elevation
 const MILKY = Object.freeze(Array.from({ length: 37 }, (_, i) => { const b = i * 10; return Object.freeze([b, 38 + 26 * Math.sin(((b - 130) * Math.PI) / 180)]); }));
@@ -85,7 +85,13 @@ export function createScope(opts) {
   const toY = (e) => H / 2 - (e - view.e) * k();
   const setZoom = (z, now = false) => { zoomGoal = clamp(z, ZOOM.min, ZOOM.max); if (now || reducedMotion) zoom = zoomGoal; };
   const stepZoom = (dir) => setZoom(zoomGoal * (dir > 0 ? ZOOM.step : 1 / ZOOM.step));
-  const panBy = (db, de) => { view.b = wrap(view.b + db); view.e = clamp(view.e + de, VIEW_LIMITS.minE, VIEW_LIMITS.maxE); goal.b = null; };
+  // zoomed out, the window must not show more than the sky: the middle's elevation keeps the top and bottom edges within 8 degrees of the zenith and the horizon (1x and in: the plain limits)
+  const fitE = (e) => {
+    if (zoom >= 1) return clamp(e, VIEW_LIMITS.minE, VIEW_LIMITS.maxE);
+    const half = H / 2 / k(); const lo = Math.max(VIEW_LIMITS.minE, half - 8); const hi = Math.min(VIEW_LIMITS.maxE, 98 - half);
+    return lo <= hi ? clamp(e, lo, hi) : (lo + hi) / 2;
+  };
+  const panBy = (db, de) => { view.b = wrap(view.b + db); view.e = fitE(view.e + de); goal.b = null; };
 
   // the buttons: the close cross (top right) and the hint bulb (top left) are pills with a word beside the picture (56 px high, 84 px on a TV at 1080p, inside the 5 % safe margin);
   // the zoom + and - are round and sit on the right edge; Back to the Moon is a wide pill at the bottom once Earth is found
@@ -413,6 +419,8 @@ export function createScope(opts) {
     }
     pulse += step;
     if (zoom !== zoomGoal) zoom = Math.abs(zoomGoal - zoom) < 0.002 ? zoomGoal : zoom + (zoomGoal - zoom) * Math.min(1, step * 9);
+    if (zoom < 1) view.e = fitE(view.e);
+    for (const { b, side, kind } of btns) if (kind === 'zoom') { const off = side === 'in' ? zoomGoal >= ZOOM.max : zoomGoal <= ZOOM.min; b.disabled = off; if (b.style) b.style.opacity = off ? '0.4' : '1'; }
     if (found) { found.t += step; if (found.t >= (reducedMotion ? 0.3 : 1.0) && !card) { showCard('found'); opts.onFound?.(); } }
     if (earthPulse) { earthPulse.t += step; if (earthPulse.t > 1.4) earthPulse = null; }
     if (doneBtn) { const show = (solver.bits & STORY_BITS) === STORY_BITS && !found; if (doneBtn.style) doneBtn.style.display = show ? 'block' : 'none'; }
@@ -541,7 +549,7 @@ export function createScope(opts) {
     // the Great Cat, once all five are traced (faint, behind the pictures)
     if ((solver.bits & 31) === 31) {
       g.strokeStyle = 'rgba(150,200,255,.5)'; g.lineWidth = 2 * m;
-      const trace = (pts, close2) => { g.beginPath(); pts.forEach(([x, y], i) => { const c = catSky(x, y); (i ? g.lineTo : g.moveTo).call(g, toX(c.b), toY(c.e)); }); if (close2) g.closePath(); g.stroke(); };
+      const trace = (pts, close2) => { g.beginPath(); let qx = 0; let qb = 0; pts.forEach(([x, y], i) => { const c = catSky(x, y); qx = i ? qx + angleTo(qb, c.b) * k() : toX(c.b); qb = c.b; (i ? g.lineTo : g.moveTo).call(g, qx, toY(c.e)); }); if (close2) g.closePath(); g.stroke(); };
       trace(GREAT_CAT.outline, true);
       trace(GREAT_CAT.tail, false);
     }
@@ -558,8 +566,9 @@ export function createScope(opts) {
         g.beginPath();
         const upto = guide ? c.pts.length : n;
         const gaps = c.gaps ?? [];
-        for (let i = 0; i < upto; i++) { const sp = starSky(c, i); (i && !gaps.includes(i) ? g.lineTo : g.moveTo).call(g, toX(sp.b), toY(sp.e)); }
-        for (const [a, b] of c.join ?? []) { if (upto > a && upto > b) { const pa = starSky(c, a); const pb = starSky(c, b); g.moveTo(toX(pa.b), toY(pa.e)); g.lineTo(toX(pb.b), toY(pb.e)); } }
+        let qx = 0; let qb = 0;
+        for (let i = 0; i < upto; i++) { const sp = starSky(c, i); const link = i && !gaps.includes(i); qx = link ? qx + angleTo(qb, sp.b) * k() : toX(sp.b); qb = sp.b; (link ? g.lineTo : g.moveTo).call(g, qx, toY(sp.e)); }
+        for (const [a, b] of c.join ?? []) { if (upto > a && upto > b) { const pa = starSky(c, a); const pb = starSky(c, b); const xa = toX(pa.b); g.moveTo(xa, toY(pa.e)); g.lineTo(xa + angleTo(pa.b, pb.b) * k(), toY(pb.e)); } }
         g.stroke();
       }
       for (let i = 0; i < c.pts.length; i++) {
@@ -587,7 +596,7 @@ export function createScope(opts) {
       if (strong && hintStar.i > 0) {
         const pv = starSky(PICS[hintStar.c], hintStar.i - 1);
         g.strokeStyle = 'rgba(255,212,90,.85)'; g.lineWidth = 3 * m; g.setLineDash?.([8 * m, 7 * m]);
-        g.beginPath(); g.moveTo(toX(pv.b), toY(pv.e)); g.lineTo(x, y); g.stroke(); g.setLineDash?.([]);
+        g.beginPath(); g.moveTo(toX(pv.b), toY(pv.e)); g.lineTo(toX(pv.b) + angleTo(pv.b, sp.b) * k(), y); g.stroke(); g.setLineDash?.([]);
       }
       g.fillStyle = '#ffd45a'; g.globalAlpha = reducedMotion ? 0.32 : 0.14 + 0.16 * wob;
       g.beginPath(); g.arc(x, y, r * 1.25, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1;
