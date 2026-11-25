@@ -6,9 +6,9 @@ import { readFileSync, globSync } from 'node:fs';
 import * as THREE from 'three';
 import * as P from '../src/world/moonplan.js';
 import * as B from '../src/world/moonbeautyplan.js';
-import { paintRegolith, paintGrain, regolithMaterial, angularRock, GRAIN_TILE } from '../src/world/moonbeauty.js';
-import { groundGeometry, drawGround, drawRocks, scatterRocks } from '../src/world/moonparts.js';
-import { starField } from '../src/world/moonsky.js';
+import { paintRegolith, paintGrain, regolithMaterial, angularRock, GRAIN_TILE, dustAmount, dustGeometry, bigBowl, DUST_REACH } from '../src/world/moonbeauty.js';
+import { groundGeometry, drawGround, drawRocks, scatterRocks, farRidge } from '../src/world/moonparts.js';
+import { starField, withSun, SUN_SKY, paintEarth, createMoonSky } from '../src/world/moonsky.js';
 import { build } from '../src/world/moon.js';
 
 const read = (f) => readFileSync(f, 'utf8');
@@ -189,14 +189,14 @@ describe('the ground\'s material', () => {
     const grain = g.attributes.grainUv;
     expect(grain.count).toBe(pos.count);
     for (let i = 0; i < pos.count; i += 7) {
-      expect(pos.getY(i)).toBeCloseTo(P.moonBaseY(pos.getX(i), pos.getZ(i)), 4); // (a Float32 vertex)
+      expect(pos.getY(i)).toBeCloseTo(P.moonBaseY(pos.getX(i), pos.getZ(i)) + farRidge(pos.getX(i), pos.getZ(i)), 4); // (a Float32 vertex)
       expect(uv.getX(i)).toBeGreaterThanOrEqual(0);
       expect(uv.getX(i)).toBeLessThanOrEqual(1);
       expect(uv.getY(i)).toBeGreaterThanOrEqual(0);
       expect(uv.getY(i)).toBeLessThanOrEqual(1);
       expect(grain.getX(i)).toBeCloseTo(pos.getX(i) / GRAIN_TILE, 5);
     }
-    expect(g.index.count / 3).toBe(6496);
+    expect(g.index.count / 3).toBe(6960); // (beauty round 2: three more lines across the hills each way, the skyline needs the rows)
   });
   it('the walkable height is exactly what it was: moonY at fixed points (the traversal fixtures read it)', () => {
     // the bowls' floors are their depth under the plain, the far hills rise, the plain is flat at the spawn
@@ -270,6 +270,91 @@ describe('the light and the sky', () => {
     expect(L.fogNear).toBeGreaterThan(300); // beyond the far hills: a crisp horizon
     expect(area.skyDusk.top).toBeLessThan(0x080810);
     expect(area.skyDusk.horizon).toBeLessThan(0x080810);
+  });
+});
+
+describe('beauty round 2', () => {
+  it('the far skyline is drawn only beyond the bounds: zero inside them, and every vertex inside keeps moonBaseY exactly', () => {
+    for (let x = -54; x <= 54; x += 3) for (let z = -50; z <= 50; z += 3) expect(farRidge(x, z)).toBe(0);
+        let tall = 0;
+    for (let a = 0; a < 6.28; a += 0.05) { const h = farRidge(Math.cos(a) * 62, Math.sin(a) * 62); expect(h).toBeLessThan(3.3); if (h > 1.5) tall++; }
+    expect(tall).toBeGreaterThan(2); // a few crests (and the notches between them)
+    const g = groundGeometry();
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i); const z = pos.getZ(i);
+      if (Math.abs(x) <= P.MOON_BOUNDS.maxX && z >= P.MOON_BOUNDS.minZ && z <= P.MOON_BOUNDS.maxZ) expect(pos.getY(i)).toBeCloseTo(P.moonBaseY(x, z), 4);
+    }
+  });
+  it('the dust: heavier low than high, a little on the tops, none on a wall high up, ragged, never above 0.75', () => {
+    expect(dustAmount(0, 0, 3, 4)).toBeGreaterThan(0.25);
+    expect(dustAmount(0, 0, 3, 4)).toBeGreaterThan(dustAmount(DUST_REACH * 0.6, 0, 3, 4));
+    expect(dustAmount(DUST_REACH + 1, 0, 3, 4)).toBe(0);
+    expect(dustAmount(3, 1, 3, 4)).toBeGreaterThan(0.1); // a top, high up: settled dust
+    expect(dustAmount(3, 0, 3, 4)).toBe(0);
+    for (let i = 0; i < 200; i++) expect(dustAmount(i * 0.01, (i % 7) / 7, i, i * 0.7)).toBeLessThanOrEqual(0.75);
+  });
+  it('dustGeometry moves a low vertex\'s colour toward the dust and leaves a high one, using the height function it is given', () => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0.05, 0, 0, 6, 0], 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute([1, 0, 0, 1, 0, 0], 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute([1, 1, 1, 1, 1, 1], 3));
+    dustGeometry(geo, () => 0);
+    const c = geo.attributes.color;
+    expect(c.getX(0)).toBeLessThan(0.9);
+    expect(c.getX(1)).toBe(1);
+    const flat = new THREE.BufferGeometry();
+    flat.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
+    expect(() => dustGeometry(flat)).not.toThrow(); // no colour: untouched
+  });
+  it('the sun is two more points in the one stars Points, where the game\'s sun lies, a disc and a wider glare', () => {
+    const f = starField(10);
+    const s = withSun(f, 10);
+    expect(s.pos.length / 3).toBe(12);
+    expect(s.size[10]).toBe(SUN_SKY.disc);
+    expect(s.size[11]).toBe(SUN_SKY.glare);
+    expect(s.size[0]).toBe(1);
+    const x = s.pos[30] / P.STARS.radius; const y = s.pos[31] / P.STARS.radius; const z = s.pos[32] / P.STARS.radius;
+    expect(Math.asin(y) * 180 / Math.PI).toBeCloseTo(19.1, 0);
+    expect(x).toBeLessThan(0); expect(z).toBeLessThan(0); // north-west
+    expect(s.col[30]).toBeGreaterThan(1); // past white: burns out
+  });
+  it('Earth paints with its disc, its atmosphere rim and a night side (the pixel stub records the calls) and draws no random number', () => {
+    const calls = [];
+    const g = new Proxy({}, { get: (_, k) => (k === 'createRadialGradient' || k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : (...a) => { calls.push(k); return undefined; }), set: () => true });
+    const cv = { width: 256, height: 256, getContext: () => g };
+    expect(paintEarth(cv)).toBe(g);
+    const n = calls.length;
+    calls.length = 0;
+    paintEarth(cv);
+    expect(calls.length).toBe(n); // the same twice
+    expect(calls.filter((k) => k === 'arc').length).toBeGreaterThan(40); // continents and clouds
+    expect(calls.filter((k) => k === 'stroke').length).toBeGreaterThanOrEqual(2); // the rim
+    expect(read('src/world/moonsky.js').replace(/\/\/.*$/gm, '')).not.toMatch(/Math\.random/);
+  });
+  it('a big bowl paints its terraces, slumps and central peak, and only the two big bowls get them', () => {
+    const calls = [];
+    const g = new Proxy({}, { get: (_, k) => (k === 'createRadialGradient' || k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : (...a) => { calls.push([k, a]); }), set: () => true });
+    bigBowl(g, 100, 100, 40);
+    expect(calls.filter(([k]) => k === 'arc').length).toBeGreaterThanOrEqual(6 + 3);
+    const bigOnes = P.CRATERS.filter((c) => c.r >= 8).map((c) => c.id);
+    expect(bigOnes).toEqual(['echo', 'great']);
+  });
+  it('Earth and its clouds are culled by the view (a draw saved when Earth is out of frame); the stars and the sun are not', () => {
+    const src = read('src/world/moonsky.js');
+    expect(src).toMatch(/earth\.frustumCulled = true/);
+    expect(src).toMatch(/clouds\.frustumCulled = true/);
+    const scene = new THREE.Scene();
+    const sky = createMoonSky({ scene, tier: {} });
+    expect(sky.stars.frustumCulled).toBe(false);
+    expect(sky.stars.geometry.attributes.aSize.count).toBe(sky.stars.geometry.attributes.position.count);
+    sky.dispose();
+  });
+  it('the light is warm on the sunlit tops and cool in the shadow', () => {
+    const L = build(new THREE.Scene()).duskLight;
+    const sun = new THREE.Color(L.sunColor); const fill = new THREE.Color(L.hemiSky);
+    expect(sun.r).toBeGreaterThan(sun.b); // warm
+    expect(fill.b).toBeGreaterThan(fill.r + 0.1); // cool
   });
 });
 

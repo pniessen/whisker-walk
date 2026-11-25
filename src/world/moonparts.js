@@ -9,7 +9,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { litMaterial } from '../render/materials.js';
 import { mulberry32 } from '../rng.js';
 import * as P from './moonplan.js';
-import { regolithMaterial, angularRock, GRAIN_TILE } from './moonbeauty.js';
+import { regolithMaterial, angularRock, GRAIN_TILE, dustGeometry } from './moonbeauty.js';
 import * as BP from './moonbeautyplan.js';
 
 export const COL = Object.freeze({
@@ -31,10 +31,24 @@ function lines(min, max, edge, outer) {
 const _c = new THREE.Color();
 const noise = (x, z) => 0.5 + 0.25 * Math.sin(x * 0.21 + 1.3) * Math.cos(z * 0.17 - 0.4) + 0.15 * Math.sin(x * 0.53 - z * 0.41) + 0.1 * Math.sin(z * 0.9 + x * 0.3);
 
+// (Beauty round 2) The far hills' skyline was a row of soft dunes; this lifts only what is drawn FAR beyond the walk's bounds (never inside them, never the height she
+// stands on: moonBaseY is untouched) into sharp-topped ranges and a few notches, so the horizon reads as mountains and crater rims, not sand.
+export function farRidge(x, z) {
+  const dx = Math.max(P.MOON_BOUNDS.minX - x, 0, x - P.MOON_BOUNDS.maxX);
+  const dz = Math.max(P.MOON_BOUNDS.minZ - z, 0, z - P.MOON_BOUNDS.maxZ);
+  const d = Math.hypot(dx, dz);
+  if (d < 2) return 0;
+  const th = Math.atan2(z, x);
+  const peak = (f, ph, e) => (1 - Math.abs(Math.sin(th * f + ph))) ** e;
+  const crest = 0.55 * peak(9, 1, 1.6) + 0.35 * peak(23, 2, 2.2) + 0.25 * peak(41, 0.4, 3) - 0.35 * peak(5, 3, 8); // a notch (a crater's cut) here and there
+  const t = Math.min(1, (d - 2) / 7);
+  return 3.2 * t * t * (3 - 2 * t) * crest;
+}
+
 export function groundGeometry(base = COL.dust) {
   const half = P.GROUND_SIZE / 2;
-  const xs = lines(P.MOON_BOUNDS.minX, P.MOON_BOUNDS.maxX, half, 2);
-  const zs = lines(P.MOON_BOUNDS.minZ, P.MOON_BOUNDS.maxZ, half, 3);
+  const xs = lines(P.MOON_BOUNDS.minX, P.MOON_BOUNDS.maxX, half, 3);
+  const zs = lines(P.MOON_BOUNDS.minZ, P.MOON_BOUNDS.maxZ, half, 4);
   const nx = xs.length;
   const nz = zs.length;
   const pos = new Float32Array(nx * nz * 3);
@@ -47,7 +61,7 @@ export function groundGeometry(base = COL.dust) {
       const k = j * nx + i;
       const x = xs[i];
       const z = zs[j];
-      const y = P.moonBaseY(x, z);
+      const y = P.moonBaseY(x, z) + farRidge(x, z); // (beauty round 2) the walk's height inside and just beyond the bounds, a crisper skyline out in the hills
       pos[k * 3] = x; pos[k * 3 + 1] = y; pos[k * 3 + 2] = z;
       uv[k * 2] = (x + half) / P.GROUND_SIZE; uv[k * 2 + 1] = (z + half) / P.GROUND_SIZE; // the one regolith canvas over the whole ground (moonbeauty.js)
       grain[k * 2] = x / GRAIN_TILE; grain[k * 2 + 1] = z / GRAIN_TILE; // the close grain, tiled
@@ -190,7 +204,9 @@ export function createKit(prefix) {
     },
     meshes() {
       return [...buckets.values()].map((b) => {
-        const m = new THREE.Mesh(b.geos.length === 1 ? b.geos[0] : mergeGeometries(b.geos), b.mat);
+        const geo = b.geos.length === 1 ? b.geos[0] : mergeGeometries(b.geos);
+        if (b.mat.vertexColors && !b.mat.isMeshBasicMaterial) dustGeometry(geo); // (beauty round 2) the lower parts dusty, the tops settled with it
+        const m = new THREE.Mesh(geo, b.mat);
         m.name = `${prefix}:${b.key}`;
         m.castShadow = !b.noCast;
         m.receiveShadow = true;

@@ -34,7 +34,7 @@ export { MOON_NAME, MOON_BOUNDS, MOON_SPAWN } from './moonplan.js';
 // Always "earthrise": one hard white sun low (the game's own), a faint blue fill, a near-black navy sky (the walk's evening look).
 const SKY = Object.freeze({ top: 0x010208, horizon: 0x03050b });
 const DUSK_LIGHT = Object.freeze({
-  sunColor: 0xfff8ee, sunIntensity: 2.1, hemiSky: 0x4a5e8c, hemiIntensity: 0.4, groundDim: 0.6,
+  sunColor: 0xfff4e6, sunIntensity: 2.1, hemiSky: 0x3a5aa0, hemiIntensity: 0.42, groundDim: 0.6,
   envScale: 0.28, fogNear: 380, fogFar: 900,
   lawnTint: Object.freeze({ desat: 0, dark: 1, cool: Object.freeze([1, 1, 1]) }),
 });

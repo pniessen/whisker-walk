@@ -62,6 +62,46 @@ function crater(g, cx, cy, R, fresh, str) {
   g.stroke();
 }
 
+// (Beauty round 2) A big bowl's terraced wall and central peak, painted flat (the heightfield's bowl is a smooth cosine; the shading is what reads as depth): on the
+// far wall (the side away from the sun, where the sun lights it) three stepped lips, each a pale line over a dark one, a few dark slump streaks down the wall, and
+// a small peak at the middle (a lit wedge on the sun's side, a shadowed one away from it, a dark moat of floor round the foot).
+export function bigBowl(g, cx, cy, R, str = 1) {
+  const a0 = Math.atan2(-SUN.z, -SUN.x); // the far wall's middle: away from the sun
+  g.save();
+  g.beginPath();
+  g.arc(cx, cy, R * 0.98, 0, TAU);
+  g.clip();
+  g.lineCap = 'round';
+  for (const [f, span] of [[0.6, 1.0], [0.76, 1.15], [0.9, 1.25]]) {
+    for (const [dy, col, al] of [[0, PAL.dark, 0.34], [-R * 0.018, PAL.pale, 0.5]]) {
+      g.strokeStyle = rgb(col, al * str);
+      g.lineWidth = Math.max(1, R * 0.03);
+      g.beginPath();
+      g.arc(cx + dy * SUN.x, cy + dy * SUN.z, R * f, a0 - span, a0 + span);
+      g.stroke();
+    }
+  }
+  for (let i = -3; i <= 3; i++) { // slump streaks: thin dark fans from the lip down the wall
+    const a = a0 + i * 0.3 + (i & 1) * 0.07;
+    const x0 = cx + Math.cos(a) * R * 0.95; const y0 = cy + Math.sin(a) * R * 0.95;
+    const x1 = cx + Math.cos(a + 0.02 * i) * R * 0.58; const y1 = cy + Math.sin(a + 0.02 * i) * R * 0.58;
+    const q = g.createLinearGradient(x0, y0, x1, y1);
+    q.addColorStop(0, rgb(PAL.dark, 0.3 * str));
+    q.addColorStop(1, rgb(PAL.dark, 0));
+    g.strokeStyle = q;
+    g.lineWidth = Math.max(1, R * 0.045);
+    g.beginPath();
+    g.moveTo(x0, y0);
+    g.lineTo(x1, y1);
+    g.stroke();
+  }
+  soft(g, cx, cy, R * 0.24, PAL.floor, 0.45 * str); // the moat
+  const pr = R * 0.13;
+  soft(g, cx - SUN.x * pr * 0.6, cy - SUN.z * pr * 0.6, pr * 1.1, PAL.floor, 0.65 * str); // the shadowed side
+  soft(g, cx + SUN.x * pr * 0.55, cy + SUN.z * pr * 0.55, pr * 0.95, PAL.ray, 0.75 * str); // the lit side
+  g.restore();
+}
+
 // Paints the whole ground on a canvas context (S px square for the 130 m ground). `shade`: [{ x, z, s }] the rocks whose smudge goes on the dust.
 export function paintRegolith(g, S, { lite = false, shade = [] } = {}) {
   const k = S / P.GROUND_SIZE;
@@ -95,6 +135,7 @@ export function paintRegolith(g, S, { lite = false, shade = [] } = {}) {
     soft(g, px(c.x), px(c.z), c.r * 2.1 * k, PAL.pale, 0.2);
     crater(g, px(c.x), px(c.z), c.r * k, false, 0.55);
     soft(g, px(c.x), px(c.z), c.r * 0.7 * k, PAL.floor, 0.32);
+    if (c.r >= 8) bigBowl(g, px(c.x), px(c.z), c.r * k, lite ? 0.8 : 1); // the two big bowls: terraces, slumps and a central peak
   }
   for (const c of B.smallCraters(lite)) crater(g, px(c.x), px(c.z), c.r * k, c.fresh, c.fresh ? 0.95 : 0.7);
   for (const s of shade) { // a rock's smudge: dark on the dust, longer away from the sun, drawn flat
@@ -198,4 +239,35 @@ export function angularRock(salt, big = true) {
   }
   g.computeVertexNormals();
   return g;
+}
+
+// ---- dust on the buildings (beauty round 2) -------------------------------------------------------------------------
+
+export const DUST_TINT = 0x8a8680; // the dust the buildings pick up: the regolith's own light, warm-neutral grey
+export const DUST_REACH = 1.1; // m above the ground the kicked-up dust climbs
+const _d = new THREE.Color(DUST_TINT);
+
+// How much dust a surface point carries, 0..1: a veil on everything low (it climbs a metre off the ground, ragged), a fainter one settled on the tops (an up-facing face).
+export function dustAmount(h, ny, x, z) {
+  const rag = 0.75 + 0.25 * Math.sin(x * 7.1 + z * 3.3) * Math.cos(z * 5.7 - x * 1.9); // streaks, not a ruler line
+  const low = h < DUST_REACH ? (1 - Math.max(0, h) / DUST_REACH) ** 1.5 * 0.55 * rag : 0;
+  const top = ny > 0.6 ? 0.24 * ((ny - 0.6) / 0.4) * rag : 0;
+  return Math.min(0.75, low + top);
+}
+
+// Bakes that dust into a vertex-coloured geometry that is already in world coordinates (the Moon's kit is): the colour goes toward the dust by dustAmount.
+// Pure on the geometry and the height function; no draw call, no texture.
+export function dustGeometry(geo, groundY = P.moonY) {
+  const pos = geo.attributes.position;
+  const nor = geo.attributes.normal;
+  const col = geo.attributes.color;
+  if (!pos || !nor || !col) return geo;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i); const z = pos.getZ(i);
+    const k = dustAmount(pos.getY(i) - groundY(x, z), nor.getY(i), x, z);
+    if (k <= 0) continue;
+    col.setXYZ(i, col.getX(i) + (_d.r - col.getX(i)) * k, col.getY(i) + (_d.g - col.getY(i)) * k, col.getZ(i) + (_d.b - col.getZ(i)) * k);
+  }
+  col.needsUpdate = true;
+  return geo;
 }
