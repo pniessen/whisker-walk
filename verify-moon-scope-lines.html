@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moon telescope usability picture page</title>
+<!-- The Moon's telescope usability pass: the REAL overlay (world/moonscope.js), the REAL star pictures (world/moonstars.js) and the REAL Moon words, over nothing else.
+     scripts/record-page.mjs makes the pictures: __shot(name). URL params: touch=1 (the screen is a touch screen: the ring is the touch size), tv=1 (couch size: starts the TV chunk),
+     pad=1, words=off (the everyday word set). The same page runs on the old build (it only uses calls both have) for the before pictures.
+     Shots: start (the first star pulsing, ring, objective, labels), intro (the first card), mouse3 (three Mouse stars pinned, finger beside the next star), zoom (2x), found (Earth found: sparkles and the card),
+     earth (Earth found earlier: objective line and Back to the Moon), hello (Earth tapped), pic-mouse pic-cat pic-fish pic-crown pic-paw (each picture drawn, all five done),
+     optional (Fish/Crown/Paw line), wrong (the wrong-star line).
+     Tour: __tour('trace') then __frame() per frame: a touch trace of the Mouse then the Cat with a pinch in and out in the middle (fingers drawn as dots). -->
+<style>
+  html, body { margin: 0; background: #05070f; overflow: hidden; font-family: Avenir, system-ui, sans-serif; color: #e8ecf8; }
+  #cap { position: fixed; left: 8px; bottom: 8px; z-index: 200; font: 600 14px system-ui; color: #fff; background: rgba(0,0,0,.6); padding: 4px 8px; border-radius: 8px; pointer-events: none; }
+  .finger { position: fixed; z-index: 201; width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 50%; background: rgba(255,255,255,.45); border: 2px solid #fff; pointer-events: none; }
+</style>
+</head>
+<body>
+<script type="module">
+  const q = new URLSearchParams(location.search);
+  const TV = q.get('tv') === '1';
+  if (q.get('touch') === '1') { const mm = window.matchMedia.bind(window); window.matchMedia = (s) => (/pointer:\s*coarse/.test(s) ? { matches: true, media: s, addEventListener() {}, removeEventListener() {} } : mm(s)); }
+  await import('/src/style.css');
+  const pad = { id: '054c-0ce6-DualSense Wireless Controller', index: 0, connected: true, mapping: 'standard', axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+  navigator.getGamepads = () => [pad];
+  if (TV) {
+    const tv = await import('/src/tv/index.js');
+    await tv.start({ doc: document, win: window, padInfo: () => ({ id: pad.id, vendor: '054c' }) });
+  }
+  if (q.get('words') === 'off') {
+    const ws = await import('/src/wordset.js');
+    ws.addWordSet('off', await import('/src/offclanwords.js'));
+    ws.setSeriesMode('off');
+  }
+  await import('/src/world/moonwords.js');
+  const { phrase, hasPhrase } = await import('/src/clanphrases.js');
+  const L = (k) => (hasPhrase(k) ? phrase(k) : '');
+  const MS = await import('/src/world/moonstars.js');
+  const { createScope, EARTH_AT } = await import('/src/world/moonscope.js');
+  let seed = 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const sky = Array.from({ length: 700 }, () => ({ b: rnd() * 360, e: 6 + rnd() * 76, m: 0.3 + rnd() * 0.7 }));
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  let scope = null; let solver = null; let tick = null; const fingers = [];
+  const cap = document.createElement('div'); cap.id = 'cap'; document.body.appendChild(cap);
+  const clearAll = () => { scope?.close(); scope = null; if (tick) { cancelAnimationFrame(tick); tick = null; } fingers.splice(0).forEach((f) => f.remove()); cap.textContent = ''; };
+  const loop = (fn) => { let t = 0; const f = () => { t += 1 / 60; fn(1 / 60, t); tick = requestAnimationFrame(f); }; tick = requestAnimationFrame(f); };
+  const GUEST = { id: 'star', bearing: 210, elev: 40, pts: [[0, 6], [-4, -5], [5, 1], [-5, 1], [4, -5]] };
+  function openScope({ bits = 0, at = null, intro = false, taps = [], reducedMotion = true, run = true, guest = false } = {}) {
+    const LIST = guest ? [...MS.CONSTELLATIONS, GUEST] : MS.CONSTELLATIONS;
+    solver = MS.createSolver(bits, LIST);
+    for (const [c, i] of taps) solver.tap(c, i);
+    const hint = MS.createHint(solver);
+    scope = createScope({ doc: document, win: window, solver, hint, sky, reducedMotion, lite: false, pictures: LIST, line: L, pads: () => (TV || q.get('pad') === '1' ? [pad] : []), onResult() {}, onAsk() {}, onClose() {}, intro: intro ? () => true : undefined, after: () => 'desk' });
+    scope.open(at);
+    if (run) loop((dt, t) => scope?.update(dt, t));
+    return scope;
+  }
+  const finger = (x, y) => { const f = document.createElement('div'); f.className = 'finger'; f.style.left = `${x}px`; f.style.top = `${y}px`; document.body.appendChild(f); fingers.push(f); return f; };
+  const starXY = (c, i) => { scope.place(); const h = scope.hits.find((s) => s.c === c && s.i === i); return h ? [h.x, h.y] : [innerWidth / 2, innerHeight / 2]; };
+  const pic = (c) => async () => { openScope({ bits: 31, at: MS.CONSTELLATIONS[c] }); await wait(150); };
+  const SHOTS = {
+    guest: async () => { openScope({ bits: 31, at: GUEST, guest: true }); await wait(900); },
+    'guest-fresh': async () => { openScope({ bits: 0, at: GUEST, guest: true }); await wait(900); },
+    start: async () => { openScope(); await wait(900); },
+    intro: async () => { openScope({ intro: true }); await wait(300); },
+    mouse3: async () => { openScope({ taps: [[0, 0], [0, 1], [0, 2]] }); await wait(900); const [x, y] = starXY(0, 3); finger(x + 20, y + 24); },
+    zoom: async () => { openScope({ taps: [[0, 0], [0, 1]] }); scope.setZoom(2, true); await wait(900); },
+    found: async () => { openScope({ bits: 1, at: MS.CONSTELLATIONS[1], reducedMotion: false, run: false });
+      for (let i = 0; i < MS.CONSTELLATIONS[1].pts.length; i++) { const s = MS.starSky(MS.CONSTELLATIONS[1], i); scope.view.b = s.b; scope.view.e = s.e; scope.place(); scope.pinSnapped(); }
+      loop((dt, t) => scope?.update(dt, t)); await wait(3200); },
+    earth: async () => { openScope({ bits: 3, at: { bearing: EARTH_AT.b, elev: EARTH_AT.e } }); await wait(400); },
+    hello: async () => { openScope({ bits: 3, at: { bearing: EARTH_AT.b, elev: EARTH_AT.e } }); await wait(200); scope.tap(innerWidth / 2, innerHeight / 2); await wait(250); },
+    optional: async () => { openScope({ bits: 3, at: MS.CONSTELLATIONS[2] }); await wait(400); },
+    wrong: async () => { openScope(); await wait(900); const [x, y] = starXY(0, 5); scope.tap(x, y); await wait(150); },
+    'pic-mouse': pic(0), 'pic-cat': pic(1), 'pic-fish': pic(2), 'pic-crown': pic(3), 'pic-paw': pic(4),
+  };
+  window.__shot = async (name) => { clearAll(); if (!SHOTS[name]) throw new Error('no shot ' + name); await SHOTS[name](); await wait(250); return name; };
+  window.__state = () => ({ scope, solver });
+  window.__setView = (b, e, z) => { scope.view.b = b; scope.view.e = e; if (z) scope.setZoom(z, true); };
+
+  // ---- the touch film: the Mouse, a pinch in and out, then the Cat; a finger dot taps each star (30 fps, fixed steps)
+  const DT = 1 / 30;
+  let gen = null; let clock = 0; let capText = '';
+  function* trace() {
+    const wait2 = function* (n) { for (let i = 0; i < n; i++) yield; };
+    openScope({ reducedMotion: false, run: false });
+    capText = 'Touch: the Mouse. The glowing star is the next one.';
+    yield* wait2(40);
+    const doPic = function* (c, pinchAt) {
+      const n = MS.CONSTELLATIONS[c].pts.length;
+      for (let i = 0; i < n; i++) {
+        if (i === pinchAt) {
+          capText = 'Pinch in: zoom';
+          const a = finger(innerWidth / 2 - 60, innerHeight / 2); const b = finger(innerWidth / 2 + 60, innerHeight / 2);
+          for (let s = 0; s <= 24; s++) { const gap = 60 + s * 5; a.style.left = `${innerWidth / 2 - gap}px`; b.style.left = `${innerWidth / 2 + gap}px`; scope.setZoom(1 + s * 0.045, true); yield; }
+          yield* wait2(12);
+          for (let s = 24; s >= 0; s--) { const gap = 60 + s * 5; a.style.left = `${innerWidth / 2 - gap}px`; b.style.left = `${innerWidth / 2 + gap}px`; scope.setZoom(1 + s * 0.045, true); yield; }
+          a.remove(); b.remove(); fingers.length = 0; capText = 'Pinch out: back to 1x';
+          yield* wait2(10);
+        }
+        // pan the star towards the middle-ish (drag), then tap near it
+        const t = MS.starSky(MS.CONSTELLATIONS[c], i);
+        for (let s = 0; s < 14; s++) { scope.view.b += MS.angleTo(scope.view.b, t.b) * 0.3; scope.view.e += (t.e - scope.view.e) * 0.3; yield; }
+        const [x, y] = starXY(c, i);
+        const f = finger(x + 14, y + 18);
+        capText = `Tap star ${i + 1} of ${n}`;
+        yield* wait2(5);
+        scope.tap(x + 14, y + 18, 'touch');
+        yield* wait2(8); f.remove(); fingers.length = 0;
+      }
+      yield* wait2(25);
+    };
+    yield* doPic(0, 4);
+    capText = 'The Mouse is traced. Now the Cat.'; yield* wait2(40);
+    yield* doPic(1, -1);
+    capText = 'Earth is found!'; yield* wait2(100);
+  }
+  window.__tour = (name) => { if (name !== 'trace') throw new Error('no tour ' + name); clearAll(); gen = trace(); return name; };
+  window.__frame = () => { clock += DT; const r = gen.next(); if (scope?.isOpen) scope.update(DT, clock); cap.textContent = capText; return { caption: capText, done: !!r.done }; };
+  window.__ready = true;
+</script>
+</body>
+</html>

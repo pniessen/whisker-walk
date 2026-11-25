@@ -66,7 +66,7 @@ describe('choosing a star: the intended star wins from anywhere in the visible r
   it('for every star of every picture, on every profile and zoom: a point anywhere within the ring of the star picks it when it is the next star', () => {
     for (const [name, w, h, kind, m] of PROFILES) {
       const { ring, reach } = scopeRing(w, h, kind, m);
-      for (const zoom of [1, 1.35, 1.8, 2.5]) {
+      for (const zoom of [0.5, 0.6, 0.74, 1, 1.35, 1.8, 2.5]) {
         const k = scopeScale(w, h) * zoom;
         CONSTELLATIONS.forEach((c, ci) => c.pts.forEach((_, i) => {
           const hits = around(starSky(c, i), c, k);
@@ -203,7 +203,7 @@ describe('the scope on screen', () => {
 
 describe('zoom', () => {
   const k0 = (r) => scopeScale(r.win.innerWidth, r.win.innerHeight);
-  it('+ and - keys, the mouse wheel, the buttons and a pinch zoom between 1x and 2.5x; the ring and the reach do not change', () => {
+  it('+ and - keys, the mouse wheel, the buttons and a pinch zoom between 0.5x and 2.5x; the ring and the reach do not change', () => {
     const r = rig();
     r.scope.open();
     const ring0 = r.scope.profile.ring;
@@ -214,7 +214,9 @@ describe('zoom', () => {
     for (let i = 0; i < 12; i++) r.win.fire('keydown', { code: 'Minus' });
     expect(r.scope.zoom).toBe(ZOOM.min);
     r.scope.canvas.fire('wheel', { deltaY: -400 });
-    expect(r.scope.zoom).toBeGreaterThan(1.5);
+    expect(r.scope.zoom).toBeGreaterThan(0.8);
+    r.scope.canvas.fire('wheel', { deltaY: 4000 });
+    expect(r.scope.zoom).toBe(ZOOM.min);
     r.scope.setZoom(1);
     const [, , , zin, zout] = r.scope.element.children;
     zin.fire('click'); expect(r.scope.zoom).toBeGreaterThan(1.3);
