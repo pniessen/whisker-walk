@@ -493,7 +493,7 @@ describe('sizes: phone, laptop, TV', () => {
   });
   it('is drawn in the page\'s own #hud, not the body (where the pages go), and is gone with the walk', () => {
     const r = rig({ moon: AWAKE });
-    expect(r.page.hud.children).toHaveLength(1);
+    expect(r.page.hud.children).toHaveLength(2); // the guide, and the story flow's pill (hidden until she is at the rocket or the red button)
     expect(r.page.doc.body.children).toHaveLength(0);
     r.dispose();
     expect(r.page.hud.children).toHaveLength(0);

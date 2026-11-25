@@ -21,6 +21,7 @@
 //   * (milestone 9) PIP'S POSTCARD OF THE DAY: one small errand a walk once the story is told, and the album of twelve (world/moonjoblive.js);
 //   * (milestone 3) DOT the rover: hop in at the depot, steer, hop out (world/moonroverlive.js); she hangs her hooks on the walk's session.fair.
 //   * (guide cues) the WRITTEN GUIDE: the goal line, the edge arrow and the words beside Pip's picture (world/moonguidelive.js), and the light column over the goal that is always up (the base's own ring and column; world/moonguide.js has the words);
+//   * (story flow) the CONNECTIVE tissue: what comes next and why after each step, the call-to-action pill by the rocket slot and the big red button (world/moonflowlive.js; the table is world/moonflow.js);
 //   * (idle ring) the gold ring and light column show BY THEMSELVES after about 30 s without progress (world/moonidle.js is the schedule; the ring is the base's, no new draw);
 //   * (milestone 2) the BASE: Pip, the two power cells, the Core, the dome, the door, the board, the finds, the gold ring and the
 //     switching-off of the daily goals and the air's sounds (world/moonbaselive.js); this life hands the walk its promptAt, interact
@@ -46,6 +47,7 @@ import { createCatRim } from './moonrim.js';
 import { IDLE, idleStart, nextIdleRing, idlePaused, progressMark } from './moonidle.js';
 import { FINALE_LENGTH } from './moondeeplive.js';
 import { createGuideLive } from './moonguidelive.js';
+import { createFlowLive } from './moonflowlive.js';
 
 export const CAMERA_FOLLOW = 0.6; // the camera rises this much of a hop's height
 export const SKIP_HEIGHT = 0.1; // m, the bounce of one stride
@@ -129,6 +131,8 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
   job = createJobLive({ scene, reducedMotion, ground, progression, log, audio, roomSeed, visits, boundOn, base, star, launch, rover });
   // (guide cues) the written guide: the goal line, the edge arrow and the words beside Pip's picture (moonguidelive.js); its own DOM, one goal (base.goal()) shared with the gold ring and light column
   const guide = createGuideLive({ doc, win, base, job, launch, star, deep, rover, progression, reducedMotion });
+  // (story flow) the connective tissue: what comes next and why, the call-to-action pill by the rocket and the big red button (moonflowlive.js)
+  const flow = createFlowLive({ ground, doc, win, audio, base, launch, star, job, deep, progression, reducedMotion });
   // placed for the Ready card, before the first frame of the walk moves the camera (it looks north from behind the spawn)
   const first = new THREE.PerspectiveCamera();
   first.position.set(MOON_SPAWN.x, 2.9, MOON_SPAWN.z + 4.4);
@@ -177,6 +181,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
     deep,
     job,
     guide,
+    flow,
     // the action button: Dot's "Hop in" / "Hop out" first (riding), else the base's own offers, else "Hop in" when nothing else is asked
     promptAt(catPos) {
       const b = base.promptAt(catPos);
@@ -228,12 +233,14 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       deep.update(dt, t, catPos, camera, session);
       job.update(dt, t, catPos, camera, session);
       guide.update(dt, t, catPos, camera, session);
+      flow.update(dt, t, catPos, camera, session);
       catRim.update(dt, camera, session.cat); // (beauty round 3) the suit's rim and the fill swell while she is backlit
       cullFar(catPos, session, deep.inside ? 0 : DRAW_NEAR); // deep in the tube nothing outside is drawn: the walk's pebbles and mice too
       cullParts(parts, catPos);
       idleStep(dt, catPos, session);
     },
     dispose() {
+      flow.dispose();
       guide.dispose();
       job.dispose();
       deep.dispose();
