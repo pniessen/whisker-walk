@@ -18,6 +18,7 @@ import { litMaterial } from '../render/materials.js';
 import { PIP_SLEEP, PIP_LEAD, MOON_BOUNDS } from './moonplan.js';
 import { paint } from './moonparts.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { dustGeometry } from './moonbeauty.js';
 
 export const PIP = Object.freeze({
   radius: 0.4, // m kept between his middle and a collider's edge
@@ -78,7 +79,7 @@ export function buildPip() {
   body.push(paint(new THREE.SphereGeometry(0.04, 6, 4).translate(0.15, 0.82, -0.05), 0xffb23c));
   body.push(paint(new THREE.CylinderGeometry(0.1, 0.16, 0.08, 10).translate(0, 0.56, 0), 0x7d848f)); // the neck ring under the lantern
   body.push(paint(new THREE.BoxGeometry(0.1, 0.07, 0.04).translate(0, 0.36, 0.265), 0x4fd6c4)); // a little chest panel
-  const bodyMesh = new THREE.Mesh(mergeGeometries(body), litMaterial(0xffffff, { vertexColors: true, roughness: 0.5 }));
+  const bodyMesh = new THREE.Mesh(dustGeometry(mergeGeometries(body), () => 0, { reach: 0.32 }), litMaterial(0xffffff, { vertexColors: true, roughness: 0.5 }));
   bodyMesh.name = 'pip:body';
   // the lantern: a glowing sphere and a small dark cap (the glow is a basic material, lit by its colour)
   const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 8).translate(0, 0.72, 0), new THREE.MeshBasicMaterial({ color: 0x2a2a2a }));

@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { drawStampLights } from './moonstamps.js';
 import { mulberry32 } from '../rng.js';
 import { STARS, EARTH } from './moonplan.js';
+import * as E from './moonearth.js';
 
 const DEG = Math.PI / 180;
 
@@ -23,70 +24,92 @@ export function paintEarth(canvas) {
   const cx = S / 2;
   const R = S * 0.46;
   const rng = mulberry32(0xea47);
+  const at = (p) => [cx + p[0] * R, cx + p[1] * R];
+  const trace = (pts) => { pts.forEach((p, i) => { const [x, y] = at(p); if (i) g.lineTo(x, y); else g.moveTo(x, y); }); g.closePath(); };
   g.save();
   g.beginPath();
   g.arc(cx, cx, R, 0, Math.PI * 2);
   g.clip();
-  // (beauty round 2) the ocean: deep blue, a paler shallow shelf toward the sunlit limb
+  // the ocean: deep blue, paler toward the sunlit limb
   const sea = g.createRadialGradient(cx - R * 0.4, cx - R * 0.25, R * 0.05, cx, cx, R * 1.05);
-  sea.addColorStop(0, '#5aa8ec');
-  sea.addColorStop(0.55, '#255fb4');
-  sea.addColorStop(1, '#0f2f78');
+  sea.addColorStop(0, '#4d9be0');
+  sea.addColorStop(0.55, '#1f58aa');
+  sea.addColorStop(1, '#0c2a70');
   g.fillStyle = sea;
   g.fillRect(0, 0, S, S);
-  // continents: a few broken blobs (circles jittered by the seeded stream), green with a tan desert, a brown spine and a pale coast
-  const blob = (x, y, rx, ry, n, fill) => {
-    g.fillStyle = fill;
-    for (let i = 0; i < n; i++) {
-      const a = rng() * Math.PI * 2;
-      const d = Math.sqrt(rng());
+  // (beauty round 3) the lands: real outlines (world/moonearth.js: the Americas, Greenland, Europe, Africa, the edge of Asia) with a fractal coast, projected as the ball is seen
+  // from the Atlantic. A pale shallow shelf round each, then the land, the dry and high and wooded parts clipped to it, the ice, a bright coast.
+  const names = Object.keys(E.COASTS).filter((n) => E.coastVisible(n));
+  const outlines = names.map((n) => E.coastOutline(n));
+  g.lineJoin = 'round';
+  g.strokeStyle = 'rgba(120,205,215,.30)';
+  g.lineWidth = Math.max(2, R * 0.055);
+  for (const o of outlines) { g.beginPath(); trace(o); g.stroke(); }
+  g.fillStyle = '#3d8a4a';
+  for (const o of outlines) { g.beginPath(); trace(o); g.fill(); }
+  g.save();
+  g.beginPath();
+  for (const o of outlines) trace(o);
+  g.clip();
+  for (const [lon, lat, rd, kind] of E.LAND_TONES) {
+    const p = E.project(lon, lat);
+    if (p.z < 0.05) continue;
+    const r = rd * (Math.PI / 180) * R * (0.45 + 0.55 * p.z);
+    const col = kind === 'desert' ? [206, 180, 108] : kind === 'forest' ? [28, 96, 52] : [122, 104, 84];
+    for (let i = 0; i < (kind === 'peak' ? 3 : 5); i++) {
+      const a = rng() * Math.PI * 2; const d = Math.sqrt(rng()) * r * 0.6;
+      const [x, y] = at([p.x + Math.cos(a) * d / R, -p.y + Math.sin(a) * d / R * p.z]);
+      const q = g.createRadialGradient(x, y, 0, x, y, r * (0.5 + 0.5 * rng()));
+      q.addColorStop(0, `rgba(${col[0]},${col[1]},${col[2]},${kind === 'peak' ? 0.85 : 0.75})`);
+      q.addColorStop(1, `rgba(${col[0]},${col[1]},${col[2]},0)`);
+      g.fillStyle = q;
       g.beginPath();
-      g.arc(cx + (x + Math.cos(a) * rx * d) * R, cx + (y + Math.sin(a) * ry * d) * R, R * (0.05 + 0.07 * rng()), 0, Math.PI * 2);
+      g.arc(x, y, r, 0, Math.PI * 2);
       g.fill();
     }
-  };
-  const continent = (x, y, rx, ry, desert) => {
-    blob(x, y, rx * 1.08, ry * 1.08, 26, 'rgba(150,205,150,.55)'); // the pale coast
-    blob(x, y, rx, ry, 26, '#3f8a4c');
-    blob(x - rx * 0.1, y + ry * 0.1, rx * 0.7, ry * 0.65, 12, desert ? '#c8b36a' : '#5da24f');
-    blob(x + rx * 0.2, y - ry * 0.2, rx * 0.35, ry * 0.4, 7, '#7a6a48');
-  };
-  continent(-0.36, -0.12, 0.2, 0.5, true); // an Africa and a Europe
-  continent(-0.2, -0.55, 0.28, 0.1, false);
-  continent(0.38, 0.18, 0.16, 0.36, false); // the Americas swing in on the night side
-  continent(-0.04, 0.5, 0.1, 0.16, false);
-  continent(0.26, -0.4, 0.2, 0.12, true);
-  // the ice caps
-  g.fillStyle = 'rgba(245,250,255,.92)';
-  g.beginPath();
-  g.ellipse(cx, cx - R * 0.98, R * 0.42, R * 0.17, 0, 0, Math.PI * 2);
-  g.fill();
-  g.beginPath();
-  g.ellipse(cx, cx + R * 1.0, R * 0.36, R * 0.13, 0, 0, Math.PI * 2);
-  g.fill();
-  // clouds: soft banded swirls (a storm curl and a belt across the middle), white with a little blue at the edge
-  for (let i = 0; i < 46; i++) {
-    const belt = i < 18;
-    const y = belt ? (rng() - 0.5) * 0.28 : (rng() - 0.5) * 1.7;
-    const x = (rng() - 0.5) * 1.8;
-    const w = R * (0.12 + 0.2 * rng());
-    const q = g.createRadialGradient(cx + x * R, cx + y * R, 0, cx + x * R, cx + y * R, w);
-    q.addColorStop(0, 'rgba(255,255,255,.62)');
+  }
+  // Greenland and the poles: white
+  g.fillStyle = 'rgba(245,250,255,.9)';
+  if (names.includes('greenland')) { g.beginPath(); trace(E.coastOutline('greenland', { step: 2.5, amp: 0.8 })); g.fill(); }
+  g.restore();
+  g.strokeStyle = 'rgba(190,225,200,.55)';
+  g.lineWidth = Math.max(1, R * 0.012);
+  for (const o of outlines) { g.beginPath(); trace(o); g.stroke(); }
+  g.fillStyle = 'rgba(245,250,255,.93)';
+  g.beginPath(); trace(E.latitudeRing(73)); g.fill();
+  g.beginPath(); trace(E.latitudeRing(-66)); g.fill();
+  // clouds: soft white banks laid in longitude and latitude: the belt over the tropics, a storm curl in the north Atlantic, fronts in the mid latitudes, a scatter
+  const puff = (lon, lat, w, a, tilt) => {
+    const p = E.project(lon, lat);
+    if (p.z < 0.08) return;
+    const [x, y] = at([p.x, -p.y]);
+    const r = w * R * (0.4 + 0.6 * p.z);
+    const q = g.createRadialGradient(x, y, 0, x, y, r);
+    q.addColorStop(0, `rgba(255,255,255,${a})`);
     q.addColorStop(1, 'rgba(255,255,255,0)');
     g.save();
-    g.translate(cx + x * R, cx + y * R);
-    g.rotate(belt ? 0.12 : (rng() - 0.5) * 1.2);
-    g.scale(2.1, 0.55);
-    g.translate(-(cx + x * R), -(cx + y * R));
+    g.translate(x, y);
+    g.rotate(tilt - Math.atan2(p.y, p.x) * 0.0);
+    g.scale(1.9, 0.6);
+    g.translate(-x, -y);
     g.fillStyle = q;
     g.beginPath();
-    g.arc(cx + x * R, cx + y * R, w, 0, Math.PI * 2);
+    g.arc(x, y, r, 0, Math.PI * 2);
     g.fill();
     g.restore();
+  };
+  for (let i = 0; i < 16; i++) puff(-120 + i * 12 + rng() * 8, 4 + (rng() - 0.5) * 8, 0.1 + 0.1 * rng(), 0.62, 0);
+  for (let i = 0; i < 22; i++) { // the curl: a spiral arm out of the storm's eye
+    const a = i * 0.42;
+    const rd = 1.5 + i * 0.5;
+    puff(-45 + Math.cos(a) * rd * 1.5, 40 + Math.sin(a) * rd, 0.055, 0.55, 0);
   }
+  for (let i = 0; i < 10; i++) puff(-110 + i * 18, 47 + 8 * Math.sin(i * 1.3), 0.1, 0.5, 0.35); // fronts
+  for (let i = 0; i < 10; i++) puff(-100 + i * 20 + rng() * 10, -42 + 7 * Math.sin(i * 1.1), 0.11, 0.52, -0.3);
+  for (let i = 0; i < 16; i++) puff(-130 + rng() * 200, (rng() - 0.5) * 130, 0.06 + 0.07 * rng(), 0.4, (rng() - 0.5) * 1.2);
   // the sun's glint on the sea (a pale smear on the lit side)
   const glint = g.createRadialGradient(cx - R * 0.42, cx - R * 0.18, 0, cx - R * 0.42, cx - R * 0.18, R * 0.3);
-  glint.addColorStop(0, 'rgba(255,255,255,.4)');
+  glint.addColorStop(0, 'rgba(255,255,255,.34)');
   glint.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = glint;
   g.fillRect(0, 0, S, S);
@@ -99,18 +122,21 @@ export function paintEarth(canvas) {
   const shade = g.createLinearGradient(cx - R * 0.5, 0, cx + R, 0);
   shade.addColorStop(0, 'rgba(2,6,22,0)');
   shade.addColorStop(0.45, 'rgba(2,6,22,.5)');
-  shade.addColorStop(0.75, 'rgba(2,6,22,.86)');
-  shade.addColorStop(1, 'rgba(2,6,22,.95)');
+  shade.addColorStop(0.75, 'rgba(2,6,22,.72)');
+  shade.addColorStop(1, 'rgba(2,6,22,.85)');
   g.fillStyle = shade;
   g.fillRect(0, 0, S, S);
-  g.fillStyle = '#ffe9a8';
-  for (const [x, y] of [[0.62, -0.1], [0.55, 0], [0.5, 0.12], [0.7, 0.2], [0.45, -0.25], [0.6, -0.3], [0.38, 0.05], [0.66, 0.35]]) {
+  g.fillStyle = '#ffe9a8'; // city lights on the night side: Europe and the Nile, the Gulf
+  for (const [lon, lat] of [[2, 49], [8, 50], [13, 52], [-3, 40], [12, 42], [31, 30], [3, 6], [28, -26], [37, 55], [-1, 51], [18, 59], [36, 34]]) {
+    const p = E.project(lon, lat);
+    if (p.z < 0.15) continue;
+    const [x, y] = at([p.x, -p.y]);
     g.beginPath();
-    g.arc(cx + x * R, cx + y * R, 1.4 * (S / 256), 0, Math.PI * 2);
+    g.arc(x, y, 1.4 * (S / 256), 0, Math.PI * 2);
     g.fill();
   }
   g.restore();
-  // the atmosphere: a bright thin blue rim on the lit side that thins to a faint one on the night side (two strokes, a wide faint one and a thin bright one)
+  // the atmosphere: a bright thin blue rim on the lit side that thins to a faint one on the night side (a wide faint stroke and a thin bright one)
   const rim = g.createLinearGradient(cx - R, 0, cx + R, 0);
   rim.addColorStop(0, 'rgba(160,215,255,1)');
   rim.addColorStop(0.55, 'rgba(120,180,255,.55)');
@@ -129,6 +155,9 @@ export function paintEarth(canvas) {
   g.globalAlpha = 1;
   return g;
 }
+
+// The finale halo's rings: [radius in Earth radii, brightness]. A steep fall (like light scattered in a thin air), not a straight ramp: the old halo read as a flat dark disc.
+export const HALO_RINGS = Object.freeze([[0.97, 0.75], [1.05, 0.42], [1.18, 0.2], [1.4, 0.075], [1.75, 0]]);
 
 // The reply: her stamp drawn in lights on Earth's night side (the right side: the sun is on the left), `level` 0..1 bright. Drawn over paintEarth's picture.
 export const NIGHT_AT = Object.freeze({ x: 0.52, y: -0.04, size: 0.4 }); // in Earth radii from its middle
@@ -342,16 +371,19 @@ export function createMoonSky({ scene, tier, reducedMotion = false }) {
     if (!earth) return;
     if (!halo && lv > 0) {
       const R0 = EARTH.size * 0.46;
-      const R1 = R0 * 1.9;
       const seg = 40;
       const pos = [];
       const col = [];
-      const at = (a, r, f) => { pos.push(Math.cos(a) * r, Math.sin(a) * r, 0); col.push(0.55 * f, 0.85 * f, 1 * f); };
-      for (let i = 0; i < seg; i++) {
-        const a0 = (i / seg) * Math.PI * 2;
-        const a1 = ((i + 1) / seg) * Math.PI * 2;
-        at(a0, R0 * 0.97, 0.9); at(a0, R1, 0); at(a1, R1, 0);
-        at(a0, R0 * 0.97, 0.9); at(a1, R1, 0); at(a1, R0 * 0.97, 0.9);
+      // (beauty round 3) a glow, not a disc: five rings whose brightness falls off like a halo (a steep curve), pale blue-white at the rim to nothing at 1.8 radii
+      const RINGS = HALO_RINGS;
+      const at = (a, ring) => { const f = ring[1]; pos.push(Math.cos(a) * R0 * ring[0], Math.sin(a) * R0 * ring[0], 0); col.push(0.42 * f, 0.7 * f, 1 * f); };
+      for (let j = 0; j + 1 < RINGS.length; j++) {
+        for (let i = 0; i < seg; i++) {
+          const a0 = (i / seg) * Math.PI * 2;
+          const a1 = ((i + 1) / seg) * Math.PI * 2;
+          at(a0, RINGS[j]); at(a0, RINGS[j + 1]); at(a1, RINGS[j + 1]);
+          at(a0, RINGS[j]); at(a1, RINGS[j + 1]); at(a1, RINGS[j]);
+        }
       }
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));

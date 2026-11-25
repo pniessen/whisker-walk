@@ -40,6 +40,7 @@ import { createBoundLive } from './moonboundlive.js';
 import { createDeepLive } from './moondeeplive.js';
 import { createJobLive } from './moonjoblive.js';
 import { MOON_SPAWN, AIRLOCK, RETURN_GATE, DOME } from './moonplan.js';
+import { createCatRim } from './moonrim.js';
 
 export const CAMERA_FOLLOW = 0.6; // the camera rises this much of a hop's height
 export const SKIP_HEIGHT = 0.1; // m, the bounce of one stride
@@ -97,6 +98,7 @@ export function cullParts(parts, catPos, table = PART_NEAR) {
 export function createMoonLife({ scene, reducedMotion = false, tier, progression, ground, colliders, perches, log, audio, doc, win, clock, pads, roomSeed, visits, boundOn }) {
   scene.background = new THREE.Color(SKY_BLACK); // no horizon haze under the stars: the Moon has no air
   const sky = createMoonSky({ scene, tier, reducedMotion });
+  const catRim = createCatRim({ scene });
   let job = null; // (milestone 9) made below: the base's ring and board ask what today's errand is
   let launch = null; // (milestone 6) made below: the base's gold ring asks whether a postcard is in her mouth
   const base = createBaseLife({ scene, reducedMotion, ground, colliders, progression, log, audio, cardCarried: () => (launch?.carryingCard ?? -1) >= 0, jobGoal: () => job?.goal() ?? null });
@@ -188,6 +190,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       bound.update(dt, t, catPos, camera, session);
       deep.update(dt, t, catPos, camera, session);
       job.update(dt, t, catPos, camera, session);
+      catRim.update(dt, camera, session.cat); // (beauty round 3) the suit's rim and the fill swell while she is backlit
       cullFar(catPos, session, deep.inside ? 0 : DRAW_NEAR); // deep in the tube nothing outside is drawn: the walk's pebbles and mice too
       cullParts(parts, catPos);
     },
@@ -201,6 +204,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       rover.dispose();
       base.dispose();
       sky.dispose();
+      catRim.dispose();
       for (const m of parts.values()) m.visible = true;
       if (held) held.hopLift = 0;
       for (const m of held?.collectibleMeshes?.values?.() ?? []) m.visible = true;
