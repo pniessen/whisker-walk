@@ -7,25 +7,25 @@ import { phrase, PHRASE_IDS, LATER_PHRASE_IDS } from '../src/clanphrases.js';
 import * as M from '../src/world/moonmission.js';
 import { FLOW_LINES, LINES } from '../src/world/moonwords.js';
 import { goalWords } from '../src/world/moonguide.js';
-import { FLOW, FLOW_KEYS, GOAL_KINDS, GAP, CTA, MUTED, nextLine, whatNow, rowLines, linesFor, diff, createQueue, ctaFor, createCta } from '../src/world/moonflow.js';
+import { FLOW, FLOW_DOC, FLOW_KEYS, GOAL_KINDS, GAP, CTA, MUTED, nextLine, whatNow, rowLines, linesFor, diff, createQueue, ctaFor, createCta } from '../src/world/moonflow.js';
 import { keysToPad } from '../src/tv/padwords.js';
 import { TOKENS } from '../src/tv/glyphs.js';
 import { withOffWords, bannedIn } from './helpers/offwords.js';
 
 const read = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
 const BOTH = (fn) => { fn('family'); withOffWords(() => fn('everyday')); };
-const look = (o = {}) => ({ step: 0, deep: false, card: false, stage: -1, flight: 0, done: false, ...o });
+const look = (o = {}) => ({ step: 0, deep: false, stage: -1, flight: 0, done: false, ...o });
 
 describe('the table', () => {
   it('has a row for every transition of the story, and each row names who says its confirm line, the goal after it and a step', () => {
-    expect(FLOW_KEYS).toEqual(['wake', 'plug1', 'awake', 'aimed', 'stamp', 'posted', 'count', 'liftoff', 'waiting', 'replied', 'errand', 'errandDone', 'deep']);
+    expect(FLOW_KEYS).toEqual(['wake', 'plug1', 'awake', 'aimed', 'stamp', 'posted', 'count', 'liftoff', 'waiting', 'replied', 'errandDone', 'deep']);
     for (const k of FLOW_KEYS) {
-      const row = FLOW[k];
+      const row = { ...FLOW[k], ...FLOW_DOC[k], lines: FLOW[k]?.lines ?? [] };
       expect(['base', 'star', 'launch', 'deep', 'job', 'flow'], k).toContain(row.by);
       expect(typeof row.confirm(), k).toBe('string');
       expect(row.confirm().length, k).toBeGreaterThan(0);
       expect(Number.isInteger(row.step), k).toBe(true);
-      expect([...GOAL_KINDS, 'done'], k).toContain(row.goal);
+      expect(['pip', 'cell', 'core', 'scope', 'desk', 'rocket', 'button', 'reply', 'cave', 'job', 'done'], k).toContain(row.goal);
       expect(typeof row.prompt(), k).toBe('string');
       for (const l of row.lines) { expect(l.at).toBeGreaterThanOrEqual(0); expect(['why', 'next', 'what', 'more', 'confirm']).toContain(l.k); }
     }
@@ -33,6 +33,8 @@ describe('the table', () => {
   });
   it('the step transitions of the story all have a row: wake 1, the cells, the base 4, Earth found 5, posted 6, sent 7, replied 8', () => {
     const steps = Object.fromEntries(['wake', 'awake', 'aimed', 'posted', 'liftoff', 'replied'].map((k) => [k, FLOW[k].step]));
+    expect(Object.keys(FLOW).every((k) => Object.hasOwn(FLOW_DOC, k))).toBe(true);
+    for (const k of FLOW_KEYS) expect(FLOW_DOC[k].step, k).toBe(FLOW[k]?.step ?? FLOW_DOC[k].step);
     expect(steps).toEqual({ wake: M.STEP.pip, awake: M.STEP.awake, aimed: M.STEP.aimed, posted: M.STEP.loaded, liftoff: M.STEP.sent, replied: M.STEP.replied });
   });
   it('the three chapter lines are the owner\'s, in both word sets, and they sit at the chapter starts (Pip awake, the base awake, Earth found)', () => {
@@ -43,12 +45,12 @@ describe('the table', () => {
     });
   });
   it('confirm lines are said by the life that owns the step: the words the table points at are the very words that life says', () => {
-    expect(FLOW.stamp.confirm()).toBe('Great stamp! Now carry the postcard to the rocket.');
-    expect(FLOW.posted.confirm()).toBe('Postcard posted! Next: press the big red button at the launch desk.');
-    expect(FLOW.replied.confirm()).toBe('Earth answered! It sent your stamp back.');
+    expect(FLOW_DOC.stamp.confirm()).toBe('Great stamp! Now carry the postcard to the rocket.');
+    expect(FLOW_DOC.posted.confirm()).toBe('Postcard posted! Next: press the big red button at the launch desk.');
+    expect(FLOW_DOC.replied.confirm()).toBe('Earth answered! It sent your stamp back.');
     expect(phrase('moon.badge')).toBe('A Moon Badge! You are a Moon Explorer!');
-    expect(FLOW.stamp.prompt()).toBe('E — post the postcard in the rocket');
-    expect(FLOW.posted.prompt()).toBe('E — press the big red button to launch!');
+    expect(FLOW_DOC.stamp.prompt()).toBe('E — post the postcard in the rocket');
+    expect(FLOW_DOC.posted.prompt()).toBe('E — press the big red button to launch!');
   });
   it('every row\'s lines come out for the goal kind it is said at; a kind with nothing to say adds nothing', () => {
     for (const k of FLOW_KEYS) for (const kind of [...GOAL_KINDS, 'done']) for (const l of linesFor(k, kind)) expect(l.text, `${k}/${kind}`).toMatch(/\S/);
@@ -70,7 +72,7 @@ describe('the table', () => {
 });
 
 describe('the Next: line follows the goal, never another', () => {
-  const NAMES = { pip: /Pip/, cell: /power cell/, core: /Core/, scope: /Star Hill|telescope/, desk: /Message Desk/, rocket: /rocket/, button: /big red button/, reply: /Earthrise Rock/, cave: /cave/, job: /errand/ };
+  const NAMES = { scope: /Star Hill|telescope/, desk: /Message Desk/, reply: /Earthrise Rock/, cave: /cave/, job: /errand/ };
   const guide = (kind) => {
     const at = { x: 0, z: 0 };
     const rec = { step: kind === 'cave' ? 8 : 4, cells: 3 };
@@ -87,6 +89,7 @@ describe('the Next: line follows the goal, never another', () => {
         expect(written, `${set} ${kind} guide`).toMatch(NAMES[kind]);
       }
       expect(nextLine('done')).toBe('');
+      for (const other of ['pip', 'cell', 'core', 'rocket', 'button', 'nonsense', undefined]) expect(nextLine(other)).toBe(''); // those steps say it in their own toast
       expect(whatNow('cave')).toMatch(/cave/);
       expect(whatNow('job')).toMatch(/errand/);
       expect(whatNow('done')).toBe('');
@@ -98,12 +101,12 @@ describe('which transition happened', () => {
   const hit = (a, b) => diff(look(a), look(b));
   it('one step each, in order', () => {
     expect(hit({ step: 0 }, { step: 1 })).toEqual(['wake']);
-    expect(hit({ step: 1 }, { step: 2 })).toEqual(['plug1']);
+    expect(hit({ step: 1 }, { step: 2 })).toEqual([]); // a cell in: "Clunk! One more cell to go." says it all
     expect(hit({ step: 2 }, { step: 3 })).toEqual([]); // the wake-up beat is playing: nothing yet
     expect(hit({ step: 3 }, { step: 4 })).toEqual(['awake']);
     expect(hit({ step: 4 }, { step: 5 })).toEqual(['aimed']);
-    expect(hit({ step: 5 }, { step: 5, card: true })).toEqual(['stamp']);
-    expect(hit({ step: 5, card: true }, { step: 6 })).toEqual(['posted']);
+    expect(hit({ step: 5 }, { step: 5 })).toEqual([]); // a stamp: "Great stamp!" says it all
+    expect(hit({ step: 5 }, { step: 6 })).toEqual(['posted']);
     expect(hit({ step: 6 }, { step: 6, flight: 2 })).toEqual(['count']);
     expect(hit({ step: 6, flight: 2 }, { step: 7, flight: 2 })).toEqual(['liftoff']);
     expect(hit({ step: 7 }, { step: 8 })).toEqual(['replied']);
@@ -114,7 +117,7 @@ describe('which transition happened', () => {
     expect(hit({ step: 5 }, { step: 8 })).toEqual(['replied']);
   });
   it('the second rocket, the Deep Cell and the errand', () => {
-    expect(hit({ step: 8, stage: 0 }, { step: 8, stage: 1 })).toEqual(['stamp']);
+    expect(hit({ step: 8, stage: 0 }, { step: 8, stage: 1 })).toEqual([]);
     expect(hit({ step: 8, stage: 1 }, { step: 8, stage: 2 })).toEqual(['posted']);
     expect(hit({ step: 8, stage: -1 }, { step: 8, stage: 0 })).toEqual([]);
     expect(hit({ step: 8 }, { step: 8, deep: true })).toEqual(['deep']);
@@ -218,8 +221,8 @@ describe('the call to action', () => {
 
 describe('the lines', () => {
   const ids = Object.keys(FLOW_LINES);
-  it('twenty-seven lines, all lazy (not in the start-up tables), every one short, plain and in the same words in both sets', () => {
-    expect(ids.length).toBe(27);
+  it('twenty-one lines, all lazy (not in the start-up tables), every one short, plain and in the same words in both sets', () => {
+    expect(ids.length).toBe(21);
     for (const id of ids) expect(PHRASE_IDS.includes(id) || LATER_PHRASE_IDS.includes(id), `${id} is in the start-up download`).toBe(false);
     for (const id of ids) expect(id).toMatch(/^moon\.flow\./);
     const fam = Object.fromEntries(ids.map((id) => [id, phrase(id)]));

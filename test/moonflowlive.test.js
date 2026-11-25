@@ -36,8 +36,6 @@ function rig({ moon = null, reducedMotion = false, storage = mem(), touch = fals
   const page = fakePage();
   if (touch) page.doc.body.classList = { contains: (c) => c === 'touch-mode' };
   const prompt = page.make('div');
-  const classes = new Set();
-  prompt.classList = { add: (c) => classes.add(c), remove: (c) => classes.delete(c), contains: (c) => classes.has(c) };
   const was = page.doc.getElementById;
   page.doc.getElementById = (id) => (id === 'hud-prompt' ? prompt : was(id));
   const life = area.life({ scene, ground: area.ground, audio: null, log, progression, reducedMotion, tier: { name: 'high' }, doc: page.doc, win: page.win, clock: NOT_DEMO, visits, roomSeed: undefined, boundOn: true });
@@ -55,8 +53,8 @@ function rig({ moon = null, reducedMotion = false, storage = mem(), touch = fals
   move(where);
   const flow = life.flow;
   return {
-    scene, life, flow, launch: life.launch, base: life.base, progression, page, session, events, stamps, where, move, step, press, storage, prompt, pulsing: () => classes.has('moon-flow-pulse'), t: () => t,
-    pill: () => flow.els.root, pillOn: () => flow.els.root.style.display === 'flex', pillText: () => flow.els.text.textContent,
+    scene, life, flow, launch: life.launch, base: life.base, progression, page, session, events, stamps, where, move, step, press, storage, prompt, pulsing: () => (prompt.style.outline ?? '') !== '', t: () => t,
+    pill: () => flow.els.root, pillOn: () => flow.els.root.style.display === 'block', pillText: () => flow.els.root.textContent.replace(/^\S+ /, ''), pillIcon: () => flow.els.root.textContent.split(' ')[0],
     said: () => flow.state.said.slice(), labels: () => events.filter((e) => e.type === 'greenhousenote').map((e) => e.label),
     dispose() { off(); life.dispose(); },
   };
@@ -88,7 +86,7 @@ describe('from the stamp to the red button', () => {
     expect(r.life.promptAt(r.where)).toBe('E — post the postcard in the rocket');
     expect(r.pillOn()).toBe(true);
     expect(r.pillText()).toBe('Post the postcard in the rocket!');
-    expect(r.flow.els.icon.style.display).toBe('none'); // the red button's picture is the other pill's
+    expect(r.pillIcon()).toBe('📮');
     expect(r.pulsing()).toBe(true);
     r.dispose();
   });
@@ -134,32 +132,34 @@ describe('from the stamp to the red button', () => {
     expect(r.life.promptAt(r.where)).toBe('E — press the big red button to launch!');
     expect(r.pillOn()).toBe(true);
     expect(r.pillText()).toBe('Press the big red button!');
-    expect(r.flow.els.icon.style.display).toBe('block');
-    expect(r.flow.els.chip.textContent).toBe('E');
-    expect(r.flow.els.chip.style.display).toBe('block');
+    expect(r.pillIcon()).toBe('🔴'); // the red button's own picture
     expect(r.pulsing()).toBe(true);
     expect(r.pill().attrs.role).toBe('status');
     expect(r.pill().style.pointerEvents).toBe('none'); // not a dialog: it takes no input
     r.dispose();
   });
-  it('the pill reads on a phone, a pad and a TV: a bigger size, the pad\'s own button where the pad is used, no key chip on touch', () => {
-    const r = rig({ moon: at6, touch: true });
-    atButton(r);
-    r.step(0.5);
-    expect(r.flow.els.chip.style.display).toBe('none');
-    expect(parseFloat(r.pill().style.fontSize)).toBeGreaterThanOrEqual(17);
+  it('the pill reads on a phone, a laptop and a TV: 17 px words on a narrow phone, 22 on a laptop, 34 on a TV at 1080p (the TV\'s own scale) inside the page, never taking input', () => {
+    const r = rig({ moon: at6 });
+    expect(parseFloat(r.pill().style.fontSize)).toBe(22);
     r.dispose();
-    setTv({ html: (s) => `<b>${s}</b>`, text: (s) => s, input: 'pad' });
-    const p = rig({ moon: at6 });
-    atButton(p);
-    p.step(0.5);
-    expect(p.flow.els.chip.innerHTML).toBe('<b>⟦interact⟧</b>');
-    p.dispose();
-    resetTv();
-    const tvp = rig({ moon: at6 });
-    tvp.page.doc.documentElement = { classList: { contains: (c) => c === 'tv' } };
-    tvp.page.win.getComputedStyle = () => ({ fontSize: '24px' });
-    tvp.dispose();
+    const ph = rig({ moon: at6 });
+    ph.page.win.innerWidth = 390;
+    ph.dispose();
+    const tv = fakePage({ width: 1920, height: 1080 });
+    tv.doc.documentElement = { classList: { contains: (c) => c === 'tv' } };
+    tv.win.getComputedStyle = () => ({ fontSize: '24px' });
+    const progression = createProgression(mem());
+    const scene = new THREE.Scene();
+    const area = build(scene);
+    const log = createDiscoveryLog(progression); log.startWalk();
+    const life = area.life({ scene, ground: area.ground, audio: null, log, progression, reducedMotion: false, tier: { name: 'high' }, doc: tv.doc, win: tv.win, clock: NOT_DEMO, visits: 0, roomSeed: undefined, boundOn: true });
+    expect(parseFloat(life.flow.els.root.style.fontSize)).toBe(34);
+    life.dispose();
+    const narrow = fakePage({ width: 390, height: 760 });
+    const p2 = createProgression(mem()); const s2 = new THREE.Scene(); const a2 = build(s2); const l2 = createDiscoveryLog(p2); l2.startWalk();
+    const life2 = a2.life({ scene: s2, ground: a2.ground, audio: null, log: l2, progression: p2, reducedMotion: false, tier: { name: 'high' }, doc: narrow.doc, win: narrow.win, clock: NOT_DEMO, visits: 0, roomSeed: undefined, boundOn: true });
+    expect(parseFloat(life2.flow.els.root.style.fontSize)).toBe(17);
+    life2.dispose();
   });
   it('it comes back every 10 s while she stays (6 s up, 4 s resting), goes when she walks away and is back at once when she returns', () => {
     const r = rig({ moon: at6 });
@@ -435,18 +435,6 @@ describe('a walk, a resume and a story that is done', () => {
     expect(r.said()).toContain('Watch the sky!');
     r.dispose();
   });
-  it('the errand\'s why is told in the first few walks only, and done errands point on', () => {
-    const r = rig({ moon: { ...at8, cells: 7 }, walks: 2 });
-    far(r);
-    r.step(12);
-    expect(r.said().join(' ')).toMatch(/Earth sends a new postcard for the album/);
-    r.dispose();
-    const old = rig({ moon: { ...at8, cells: 7 }, walks: 40 });
-    far(old);
-    old.step(12);
-    expect(old.said().join(' ')).not.toMatch(/Earth sends a new postcard/);
-    old.dispose();
-  });
 });
 
 describe('both word sets and the muting switch', () => {
@@ -492,7 +480,7 @@ describe('the cost', () => {
     expect(r.pill().parent).toBe(r.page.hud);
     r.dispose();
     expect(r.page.hud.children).toHaveLength(0);
-    expect(r.prompt.classList.contains('moon-flow-pulse')).toBe(false);
+    expect(r.prompt.style.outline ?? '').toBe('');
   });
   it('a hundred seconds of frames build nothing per frame: the pill keeps one text node and the queue empties', () => {
     const r = rig({ moon: at6 });

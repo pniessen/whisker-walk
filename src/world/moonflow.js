@@ -24,49 +24,57 @@ export const WAIT_EVERY = 12; // s: "Earth is still reading..." while she waits 
 export const WAIT_MAX = 2; // how many of those
 export const RESEND = 25; // s after lift-off: a nudge toward the rock if she is not there yet
 
-// The "Next:" line for each goal the light can point at. '' for 'done' (nothing is left to go to).
+// The "Next:" line for the goals a transition leads to. '' for any other (the step's own toast says it) and for 'done' (nothing is left to go to).
 export function nextLine(kind) {
   switch (kind) {
-    case 'pip': return phrase('moon.flow.n.pip');
-    case 'cell': return phrase('moon.flow.n.cell');
-    case 'core': return phrase('moon.flow.n.core');
     case 'scope': return phrase('moon.flow.n.scope');
     case 'desk': return phrase('moon.flow.n.desk');
-    case 'rocket': return phrase('moon.flow.n.rocket');
-    case 'button': return phrase('moon.flow.n.button');
     case 'reply': return phrase('moon.flow.n.reply');
     case 'cave': return phrase('moon.flow.n.cave');
     case 'job': return phrase('moon.flow.n.job');
     default: return '';
   }
 }
-export const GOAL_KINDS = Object.freeze(['pip', 'cell', 'core', 'scope', 'desk', 'rocket', 'button', 'reply', 'cave', 'job']);
+export const GOAL_KINDS = Object.freeze(['scope', 'desk', 'reply', 'cave', 'job']); // the goals a transition leads to (a step whose next goal is one of the others says it in its own toast)
 
 // "What now?" after the story is told: the same goal, in the words of the end of the story.
 export const whatNow = (kind) => (kind === 'cave' ? phrase('moon.flow.what.cave') : kind === 'job' ? phrase('moon.flow.what.job') : '');
 
 // ---- the table ---------------------------------------------------------------------------------------------------------------------------------
-// by: who says the CONFIRM line ('base' | 'star' | 'launch' | 'deep' | 'job' | 'flow' (this pass)); confirm(): the line; goal: the goal kind the gold light has after it;
-// lines: what this pass adds, in order: { at (s after the transition), k: 'why' | 'next' | 'what' | 'more', text(kind): the line from the goal kind now, story: only the story's own rocket };
+// FLOW is what the walk runs: the step a row belongs to and the lines this pass adds after it, in order: { at (s after the transition), k: 'why' | 'next' | 'what' | 'more' | 'confirm',
+// text(kind): the line from the goal kind now, story: only the story's own rocket }. FLOW_DOC says the rest of each row and is read by tests and by whoever merges the lines (so the walk never
+// carries it): by = who says the CONFIRM line ('base' | 'star' | 'launch' | 'deep' | 'job' | 'flow' (this pass)); confirm(): that line; goal: the goal kind the gold light has after it;
 // prompt(): the action button's words at the target ('' when the step has none of its own).
 const L = (at, k, text, extra = {}) => Object.freeze({ at, k, text, ...extra });
 const goal = (kind) => nextLine(kind);
+const R = (step, lines) => Object.freeze({ step, lines });
 export const FLOW = Object.freeze({
-  wake: Object.freeze({ step: M.STEP.pip, by: 'base', confirm: () => phrase('moon.pip.wake'), goal: 'cell', lines: [L(3.2, 'why', () => phrase('moon.flow.ch1'))], prompt: () => phrase('moon.cell.prompt') }),
-  plug1: Object.freeze({ step: M.STEP.one, by: 'base', confirm: () => phrase('moon.core.plug1'), goal: 'cell', lines: [], prompt: () => phrase('moon.core.prompt') }),
-  awake: Object.freeze({ step: M.STEP.awake, by: 'base', confirm: () => phrase('moon.core.on'), goal: 'scope', lines: [L(1.2, 'why', () => phrase('moon.flow.ch2')), L(4.4, 'next', goal)], prompt: () => phrase('moon.scope.prompt') }),
-  aimed: Object.freeze({ step: M.STEP.aimed, by: 'star', confirm: () => phrase('moon.scope.found'), goal: 'desk', lines: [L(1.2, 'why', () => phrase('moon.flow.ch3')), L(4.4, 'next', goal)], prompt: () => phrase('moon.desk.prompt') }),
-  stamp: Object.freeze({ step: M.STEP.aimed, by: 'launch', confirm: () => phrase('moon.card.got'), goal: 'rocket', lines: [], prompt: () => phrase('moon.rocket.prompt') }),
-  posted: Object.freeze({ step: M.STEP.loaded, by: 'launch', confirm: () => phrase('moon.rocket.loaded'), goal: 'button', lines: [L(3.4, 'why', () => phrase('moon.flow.posted'), { story: true })], prompt: () => phrase('moon.launch.prompt') }),
-  count: Object.freeze({ step: M.STEP.loaded, by: 'flow', confirm: () => phrase('moon.flow.sky'), goal: 'button', lines: [L(0, 'confirm', () => phrase('moon.flow.sky')), L(2.8, 'more', () => phrase('moon.flow.mound'))], prompt: () => phrase('moon.launch.prompt') }),
-  liftoff: Object.freeze({ step: M.STEP.sent, by: 'launch', confirm: () => phrase('moon.launch.sent'), goal: 'reply', lines: [L(8.4, 'next', goal)], prompt: () => phrase('moon.binoc.prompt') }),
-  waiting: Object.freeze({ step: M.STEP.sent, by: 'launch', confirm: () => phrase('moon.reply.wait'), goal: 'reply', lines: [L(WAIT_EVERY, 'more', () => phrase('moon.flow.wait'))], prompt: () => phrase('moon.binoc.prompt') }),
-  replied: Object.freeze({ step: M.STEP.replied, by: 'launch', confirm: () => phrase('moon.reply'), goal: 'cave', lines: [L(10.5, 'what', (kind) => whatNow(kind)), L(14, 'more', (kind) => (kind === 'cave' || kind === 'job' ? phrase('moon.flow.what.more') : ''))], prompt: () => phrase('moon.binoc.prompt') }),
-  errand: Object.freeze({ step: M.STEP.replied, by: 'job', confirm: () => phrase('moon.job.glove'), goal: 'job', lines: [L(1, 'why', () => phrase('moon.flow.errand'))], prompt: () => phrase('moon.job.tray.prompt') }),
-  errandDone: Object.freeze({ step: M.STEP.replied, by: 'job', confirm: () => phrase('moon.job.pay'), goal: 'cave', lines: [L(2.6, 'next', (kind) => (kind === 'done' ? phrase('moon.flow.rest') : goal(kind)))], prompt: () => '' }),
-  deep: Object.freeze({ step: M.STEP.awake, by: 'deep', confirm: () => phrase('moon.deep.bloom'), goal: 'done', lines: [L(5.6, 'why', () => phrase('moon.flow.deep')), L(9, 'next', (kind) => (kind === 'done' ? phrase('moon.flow.all') : goal(kind)))], prompt: () => phrase('moon.core.prompt') }),
+  wake: R(M.STEP.pip, [L(3.2, 'why', () => phrase('moon.flow.ch1'))]),
+  awake: R(M.STEP.awake, [L(1.2, 'why', () => phrase('moon.flow.ch2')), L(4.4, 'next', goal)]),
+  aimed: R(M.STEP.aimed, [L(1.2, 'why', () => phrase('moon.flow.ch3')), L(4.4, 'next', goal)]),
+  posted: R(M.STEP.loaded, [L(3.4, 'why', () => phrase('moon.flow.posted'), { story: true })]),
+  count: R(M.STEP.loaded, [L(0, 'confirm', () => phrase('moon.flow.sky')), L(2.8, 'more', () => phrase('moon.flow.mound'))]),
+  liftoff: R(M.STEP.sent, [L(8.4, 'next', goal)]), // (the launch life says "Lift-off!" at ignition and "on its way" 5 s later)
+  replied: R(M.STEP.replied, [L(10.5, 'what', (kind) => whatNow(kind)), L(14, 'more', (kind) => (kind === 'cave' || kind === 'job' ? phrase('moon.flow.what.more') : ''))]),
+  errandDone: R(M.STEP.replied, [L(2.6, 'next', (kind) => (kind === 'done' ? phrase('moon.flow.rest') : goal(kind)))]),
+  deep: R(M.STEP.awake, [L(5.6, 'why', () => phrase('moon.flow.deep')), L(9, 'next', (kind) => (kind === 'done' ? phrase('moon.flow.all') : goal(kind)))]),
 });
-export const FLOW_KEYS = Object.freeze(Object.keys(FLOW));
+const D = (step, by, confirm, goalKind, prompt) => Object.freeze({ step, by, confirm, goal: goalKind, prompt });
+export const FLOW_DOC = Object.freeze({
+  wake: D(M.STEP.pip, 'base', () => phrase('moon.pip.wake'), 'cell', () => phrase('moon.cell.prompt')),
+  plug1: D(M.STEP.one, 'base', () => phrase('moon.core.plug1'), 'cell', () => phrase('moon.core.prompt')),
+  awake: D(M.STEP.awake, 'base', () => phrase('moon.core.on'), 'scope', () => phrase('moon.scope.prompt')),
+  aimed: D(M.STEP.aimed, 'star', () => phrase('moon.scope.found'), 'desk', () => phrase('moon.desk.prompt')),
+  stamp: D(M.STEP.aimed, 'launch', () => phrase('moon.card.got'), 'rocket', () => phrase('moon.rocket.prompt')),
+  posted: D(M.STEP.loaded, 'launch', () => phrase('moon.rocket.loaded'), 'button', () => phrase('moon.launch.prompt')),
+  count: D(M.STEP.loaded, 'flow', () => phrase('moon.flow.sky'), 'button', () => phrase('moon.launch.prompt')),
+  liftoff: D(M.STEP.sent, 'launch', () => phrase('moon.launch.sent'), 'reply', () => phrase('moon.binoc.prompt')),
+  waiting: D(M.STEP.sent, 'launch', () => phrase('moon.reply.wait'), 'reply', () => phrase('moon.binoc.prompt')),
+  replied: D(M.STEP.replied, 'launch', () => phrase('moon.reply'), 'cave', () => phrase('moon.binoc.prompt')),
+  errandDone: D(M.STEP.replied, 'job', () => phrase('moon.job.pay'), 'cave', () => ''),
+  deep: D(M.STEP.awake, 'deep', () => phrase('moon.deep.bloom'), 'done', () => phrase('moon.core.prompt')),
+});
+export const FLOW_KEYS = Object.freeze(Object.keys(FLOW_DOC)); // every transition of the story (FLOW holds the ones that add lines)
 // A key listed here is not said by this pass (the coordinator's switch when another builder's line says the same thing).
 export const MUTED = new Set();
 
@@ -76,17 +84,14 @@ export const rowLines = (key, { second = false } = {}) => (MUTED.has(key) ? [] :
 export const linesFor = (key, kind, opts) => rowLines(key, opts).map((l) => ({ at: l.at, k: l.k, text: l.text(kind) })).filter((l) => l.text);
 
 // ---- which transition happened between two looks -------------------------------------------------------------------------------------------
-// A look: { step, deep (the Deep Cell is in), card (a postcard is in her mouth), stage (the second rocket's stage, -1 none), flight (a flight she can see: 0 none, 1 a demo, 2 any other), done (today's errand done), eligible (an errand is offered) }.
-// Several can come at once (the Deep Cell and the step); they come back in this order. A skipped step says only the highest one it reaches.
+// A look: { step, deep (the Deep Cell is in), stage (the second rocket's stage, -1 none), flight (a flight she can see: 0 none, 1 a demo, 2 any other), done (today's errand done) }.
+// Only the transitions that add lines are found (the cell, the stamp and the wait say theirs through the step's own toast). Several can come at once; a skipped step says only the highest it reaches.
 export function diff(prev, now) {
   if (!prev || !now) return [];
   const out = [];
-  if (now.step > prev.step) {
-    const n = now.step;
-    out.push(n >= M.STEP.replied ? 'replied' : n >= M.STEP.sent ? 'liftoff' : n >= M.STEP.loaded ? 'posted' : n >= M.STEP.aimed ? 'aimed' : n >= M.STEP.awake ? 'awake' : n >= M.STEP.one && prev.step < M.STEP.one ? 'plug1' : prev.step < M.STEP.pip ? 'wake' : '');
-  }
-  if (now.step === prev.step && now.step === M.STEP.aimed && now.card && !prev.card) out.push('stamp');
-  if (now.stage > prev.stage && now.stage >= 1 && now.step >= M.STEP.replied) out.push(now.stage === 1 ? 'stamp' : 'posted');
+  const n = now.step;
+  if (n > prev.step) out.push(n >= M.STEP.replied ? 'replied' : n >= M.STEP.sent ? 'liftoff' : n >= M.STEP.loaded ? 'posted' : n >= M.STEP.aimed ? 'aimed' : n >= M.STEP.awake ? 'awake' : prev.step < M.STEP.pip && n === M.STEP.pip ? 'wake' : '');
+  else if (n >= M.STEP.replied && now.stage === 2 && prev.stage < 2) out.push('posted'); // the second rocket's postcard
   if (now.flight === 2 && prev.flight === 0) out.push('count');
   if (now.deep && !prev.deep) out.push('deep');
   if (now.done && !prev.done) out.push('errandDone');
