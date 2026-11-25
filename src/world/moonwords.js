@@ -61,7 +61,7 @@ export const LINES = Object.freeze({
   'moon.cell.ridge.hint': 'A power cell glows on the tall rocks. Hop up!',
   'moon.cell.rover.hint': 'Another power cell waits by the far beacon.',
   'moon.core.prompt': 'E — plug in the power cell',
-  'moon.core.plug1': 'Click! One more cell to go.',
+  'moon.core.plug1': 'Clunk! One more cell to go.',
   'moon.board.prompt': 'E — look at the mission board',
   'moon.goal.pip': 'Wake Pip, asleep by the lander.',
   'moon.goal.cells': 'Find the two power cells.',
@@ -116,6 +116,10 @@ export const LINES = Object.freeze({
   'moon.jump.hint': 'Hop from the line. The board shows how far!',
   'moon.jump.record': 'New record!',
   'moon.jump.beams': 'Every beam is lit!',
+  // (TV and pad pass) the pad's own line at the bottom of each full-screen page (button pictures on a TV; the pages show it only while the pad is the last input)
+  'moon.pad.scope': '⟦move⟧ look · ⟦confirm⟧ pin the star · ⟦interact⟧ next star · ⟦back⟧ close',
+  'moon.pad.stamp': '⟦dpad⟧ choose · ⟦confirm⟧ pick · ⟦back⟧ close',
+  'moon.pad.binoc': '⟦confirm⟧ or ⟦back⟧ close',
   // (milestone 7b) the ring gates of the bound
   'moon.ring.hint': 'Run, then pounce. Bound through the rings!',
   'moon.ring.all': 'Every ring is lit!',

@@ -169,6 +169,8 @@ export function createLaunchLive(ctx) {
       case 'moon.stamp.heart': return phrase('moon.stamp.heart');
       case 'moon.stamp.close': return phrase('moon.stamp.close');
       case 'moon.binoc.close': return phrase('moon.binoc.close');
+      case 'moon.pad.stamp': return phrase('moon.pad.stamp');
+      case 'moon.pad.binoc': return phrase('moon.pad.binoc');
       default: return '';
     }
   }

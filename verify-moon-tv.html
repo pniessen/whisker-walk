@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moon TV and pad picture page</title>
+<!-- The Moon's TV and pad pass: the REAL HUD (src/ui/hud.js, real style.css), the REAL TV chunk (src/tv/index.js: tv.css, glyph tokens, --tv-s), the REAL
+     Moon word table and the REAL overlays (world/moonscope.js telescope, world/moonstamps.js stamp picker and Earth binoculars), over a plain night backdrop (the 3D
+     place is verify-moon-m9.html's job: nothing here is drawn in 3D). A fake DualSense (navigator.getGamepads) drives the overlays.
+     scripts/record-page.mjs makes the pictures: __shot(name). URL params: tv=1 (couch size: starts the TV chunk), pad=1 (the pad is the last input: button pictures;
+     with tv=1 this is the default), words=off (the everyday word set), pre=1 (ask the pad-only walk through, __walk()).
+     Shots: hud (the walk's bottom: prompt, hint, two toasts, goals), hudrover, hudworst, scope (telescope), scopecap (a wrong-star caption), stamps, stamps2 (focus on the star), binoc.
+     window.__state() says what is drawn (for the pad-only walk). -->
+<style>
+  html, body { margin: 0; background: #05070f; overflow: hidden; font-family: Avenir, system-ui, sans-serif; color: #e8ecf8; }
+  #scene { position: fixed; inset: 0; background: radial-gradient(ellipse at 50% 120%, #4a4f5c 0 25%, #1b1f2b 55%, #05070f 100%); }
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; font-family: Avenir, -apple-system, sans-serif; }
+  #hud.hidden { display: none; }
+</style>
+</head>
+<body>
+<div id="scene"></div><div id="hud"></div>
+<script type="module">
+  const q = new URLSearchParams(location.search);
+  const TV = q.get('tv') === '1';
+  const PAD = q.get('pad') === '1' || (TV && q.get('pad') !== '0');
+  await import('/src/style.css');
+  const root = document.documentElement;
+  const touchy = innerWidth < 1100;
+  document.body.classList.toggle('touch-mode', touchy && !TV);
+
+  // a fake DualSense, driven by __pad
+  const pad = { id: '054c-0ce6-DualSense Wireless Controller', index: 0, connected: true, mapping: 'standard', axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+  navigator.getGamepads = () => [pad];
+  window.__pad = { pad, press(i, on = true) { pad.buttons[i] = { pressed: on, value: on ? 1 : 0 }; }, axes(a) { pad.axes = a; } };
+
+  if (TV) {
+    const tv = await import('/src/tv/index.js');
+    await tv.start({ doc: document, win: window, padInfo: () => ({ id: pad.id, vendor: '054c' }) });
+  } else if (PAD) {
+    const tv = await import('/src/tv/index.js');
+    tv.startLite({ doc: document, win: window, padInfo: () => ({ id: pad.id, vendor: '054c' }) });
+    document.body.dataset.input = 'pad';
+    const { setTv } = await import('/src/tvseam.js');
+    setTv({ input: 'pad' });
+  }
+  (await import('/src/profile.js')).startProfile(window, document, () => 'auto');
+  if (q.get('words') === 'off') {
+    const ws = await import('/src/wordset.js');
+    ws.addWordSet('off', await import('/src/offclanwords.js'));
+    ws.setSeriesMode('off');
+  }
+  await import('/src/world/moonwords.js');
+  const { phrase, hasPhrase } = await import('/src/clanphrases.js');
+  const say = (id) => (hasPhrase(id) ? phrase(id) : '');
+  const { createHud } = await import('/src/ui/hud.js');
+  const hud = createHud();
+  hud.setPoints(125); hud.setRank('Moon Explorer'); hud.setArea('The Moon');
+  hud.show();
+  const MS = await import('/src/world/moonstars.js');
+  const ST = await import('/src/world/moonstamps.js');
+  const { createScope } = await import('/src/world/moonscope.js');
+
+  // a seeded background sky (the real one is the walk's starField)
+  let seed = 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const sky = Array.from({ length: 700 }, () => ({ b: rnd() * 360, e: 6 + rnd() * 76, m: 0.3 + rnd() * 0.7 }));
+  // the lines the lives hand each overlay: the real ones when this build has them, else the old set
+  const L = (k) => say(k);
+
+  let scope = null; let picker = null; let earth = null; let tick = null;
+  const clearAll = () => {
+    scope?.close(); picker?.close(); earth?.close(); scope = picker = earth = null;
+    if (tick) { cancelAnimationFrame(tick); tick = null; }
+    hud.setPrompt(null); hud.setHint(null); hud.setGoals(null); hud.setObjective?.(null);
+
+  };
+  const loop = (fn) => { let t = 0; const f = () => { t += 1 / 60; fn(1 / 60, t); tick = requestAnimationFrame(f); }; tick = requestAnimationFrame(f); };
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const goals = (texts) => hud.setGoals(texts.map((text, i) => ({ text, how: null, type: 'x', target: 1, progress: 0, done: i === 0 && texts.length > 2 })));
+
+  const SHOTS = {
+    hud: async () => {
+      goals(['Wake Pip, asleep by the lander.', 'Find the two power cells.', 'Plug the cell into the Core.']);
+      hud.setPrompt(say('moon.pip.prompt'), false);
+      hud.toast(say('moon.pip.hint'), 0); hud.toast('You spotted ' + say('moon.find.flag'), 5);
+    },
+    hudrover: async () => {
+      goals(['Find Earth in the telescope.', 'Write a postcard at the message desk in the dome.']);
+      hud.setPrompt(say('moon.rover.prompt'), false);
+      hud.toast(say('moon.rover.drive'), 0);
+    },
+    hudworst: async () => {
+      goals(['Climb Star Hill and find Earth in the telescope.', 'Press the big red button!', 'Wait on Earthrise Rock. Earth will answer.']);
+      hud.setPrompt(say('moon.launch.prompt'), false);
+      hud.toast(say('moon.launch.sent'), 0); hud.toast(say('moon.reply.wait'), 0);
+    },
+    scope: async () => { openScope(); await wait(300); },
+    scopecap: async () => { openScope(); await wait(100); scope.caption(say('moon.scope.hmm')); scope.update(0.016, 1); },
+    stamps: async () => { picker = ST.createStampPicker({ doc: document, win: window, line: L, pads: () => [pad], selected: 0, onPick() {}, onClose() {} }); picker.open(); loop(() => picker?.update()); },
+    stamps2: async () => { picker = ST.createStampPicker({ doc: document, win: window, line: L, pads: () => [pad], selected: 1, onPick() {}, onClose() {} }); picker.open(); loop(() => picker?.update()); },
+    binoc: async () => { earth = ST.createEarthView({ doc: document, win: window, line: L, pads: () => [pad], stamp: 1, reducedMotion: true, onClose() {} }); earth.open(); loop((dt, t) => earth?.update(dt, t)); },
+  };
+  function openScope(over = {}) {
+    const solver = MS.createSolver(0, MS.CONSTELLATIONS);
+    const hint = MS.createHint(solver);
+    scope = createScope({ doc: document, win: window, solver, hint, sky, reducedMotion: true, lite: false, pictures: MS.CONSTELLATIONS, line: L, pads: () => [pad], onResult() {}, onAsk() {}, onClose() {}, ...over });
+    scope.open();
+    loop((dt, t) => scope?.update(dt, t));
+  }
+  window.__shot = async (name) => { clearAll(); if (!SHOTS[name]) throw new Error('no shot ' + name); await SHOTS[name](); await wait(350); return name; };
+  window.__openScope = openScope;
+  window.__state = () => ({ scope, picker, earth, hud, input: document.body.dataset.input, scale: getComputedStyle(root).fontSize });
+
+  // ---- the pad-only film: __tour('padwalk') then __frame() per frame (30 fps). A fake DualSense does everything: Square at the prompt opens the telescope, the left stick
+  //      pans to each star of the Mouse and Cross pins it, Circle closes; the stamp picker by d-pad and Cross; the binoculars by Circle. No key, no mouse, no touch.
+  const DT = 1 / 30;
+  const P = window.__pad;
+  const rel = () => { pad.buttons = pad.buttons.map(() => ({ pressed: false, value: 0 })); pad.axes = [0, 0, 0, 0]; };
+  const tap = (...ix) => { rel(); ix.forEach((i) => P.press(i)); };
+  let gen = null; let cap = null; let clock = 0;
+  function* padwalk() {
+    const wait = function* (n) { for (let i = 0; i < n; i++) yield; };
+    cap = 'Pip is awake. Square at the telescope.';
+    goals(['Climb Star Hill and find Earth in the telescope.']);
+    hud.setPrompt(say('moon.scope.prompt'), false);
+    yield* wait(45);
+    cap = 'Square: look through the telescope'; tap(2); yield; rel(); hud.setPrompt(null);
+    openScopeManual(); yield* wait(20);
+    const pts = MS.CONSTELLATIONS[0].pts;
+    for (let i = 0; i < pts.length; i++) {
+      const t = MS.starSky(MS.CONSTELLATIONS[0], i);
+      cap = `Left stick: pan to star ${i + 1}`;
+      for (let n = 0; n < 150; n++) {
+        const db = MS.angleTo(scope.view.b, t.b); const de = t.e - scope.view.e;
+        const d = Math.hypot(db, de);
+        if (d < 1.6) break;
+        const m = Math.min(1, d / 6);
+        pad.axes = [(db / d) * m, -(de / d) * m, 0, 0];
+        yield;
+      }
+      rel(); yield* wait(6);
+      cap = `Cross: pin star ${i + 1}`; tap(0); yield; rel(); yield* wait(8);
+    }
+    cap = 'The Mouse is traced. Circle closes.'; yield* wait(50);
+    tap(1); yield; rel(); yield* wait(5);
+    cap = 'Square at the message desk'; hud.setPrompt(say('moon.desk.prompt'), false); yield* wait(30);
+    tap(2); yield; rel(); hud.setPrompt(null);
+    picker = ST.createStampPicker({ doc: document, win: window, line: L, pads: () => [pad], selected: 0, onPick() {}, onClose() {} }); picker.open(); yield* wait(25);
+    cap = 'D-pad right, right'; for (let k = 0; k < 2; k++) { tap(15); picker.update(); yield; rel(); picker.update(); yield* wait(14); }
+    cap = 'Cross: pick the heart'; tap(0); picker.update(); yield; rel(); yield* wait(20);
+    cap = 'Square at the rocket binoculars'; hud.setPrompt(say('moon.binoc.prompt'), false); yield* wait(25);
+    tap(2); yield; rel(); hud.setPrompt(null);
+    earth = ST.createEarthView({ doc: document, win: window, line: L, pads: () => [pad], stamp: 2, reducedMotion: true, onClose() {} }); earth.open(); yield* wait(40);
+    cap = 'Circle: close'; tap(1); earth.update(DT, clock); yield; rel(); yield* wait(10);
+    cap = 'Done: nothing but the pad'; yield* wait(15);
+  }
+  function openScopeManual() {
+    const solver = MS.createSolver(0, MS.CONSTELLATIONS); const hint = MS.createHint(solver);
+    scope = createScope({ doc: document, win: window, solver, hint, sky, reducedMotion: true, lite: false, pictures: MS.CONSTELLATIONS, line: L, pads: () => [pad], onResult() {}, onAsk() {}, onClose() {} });
+    scope.open();
+  }
+  window.__tour = (name) => { if (name !== 'padwalk') throw new Error('no tour ' + name); clearAll(); gen = padwalk(); return name; };
+  window.__frame = () => {
+    clock += DT;
+    const r = gen.next();
+    if (scope?.isOpen) scope.update(DT, clock);
+    if (picker?.isOpen) picker.update();
+    if (earth?.isOpen) earth.update(DT, clock);
+    return { caption: cap, done: !!r.done };
+  };
+  window.__ready = true;
+</script>
+</body>
+</html>

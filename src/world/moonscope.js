@@ -5,6 +5,8 @@
 // pulsing when she is stuck. The rules are world/moonstars.js (pure); this only draws, listens and calls back.
 //   touch / mouse   drag the sky; tap a star (40 px) to pin it; the cross (top right) closes, the bulb (top left) shows the next star
 //   pad             the stick pans the sky under a ring in the middle that snaps to the nearest star; A pins it, B closes, X shows the hint
+//   TV / pad        (TV and pad pass) on a TV the buttons, rings and words are bigger and inside the safe margin; while the pad is the last input a bar names its
+//                   buttons (moon.pad.scope); the d-pad pans like the stick; the snap and tap reach grow with the picture
 //   keyboard        arrows or WASD pan; Space or Enter pins; Esc, Backspace, E or Q closes; H shows the hint
 //   mouse (locked)  moving the mouse pans (the pointer is locked in the walk); a click pins the star under the ring
 // A wrong star is a soft "hmm" and nothing is lost. Nothing here is timed but the hint, and no pointer, key or pad press reaches the walk
@@ -12,6 +14,7 @@
 // listener. Text: only the "hmm" line and the name of a picture just traced; everything else is a picture. No random number, no clock.
 // =============================================================================
 
+import { tvScale, safeEdge, makeHintBar } from './moontv.js';
 import { CONSTELLATIONS, GREAT_CAT, WINDOW, TOLERANCE, STORY_BITS, starSky, catSky, nearestStar, scopeScale, angleTo } from './moonstars.js';
 
 export const EARTH_AT = Object.freeze({ b: 12, e: 21, r: 4 }); // where Earth is on the sky (world/moonplan.js EARTH) and its size in degrees
@@ -36,6 +39,9 @@ export function createScope(opts) {
   const line = opts.line ?? (() => '');
   const pads = opts.pads ?? (() => []);
   let root = null;
+  let T = tvScale(doc, win); // the couch size (1 off a TV); a TV also gets a bar of the pad's buttons and bigger rings
+  let bar = null;
+  const btns = [];
   let canvas = null;
   let g = null;
   let W = 0;
@@ -66,12 +72,23 @@ export function createScope(opts) {
   const toY = (e) => H / 2 - (e - view.e) * k();
   const panBy = (db, de) => { view.b = wrap(view.b + db); view.e = clamp(view.e + de, VIEW_LIMITS.minE, VIEW_LIMITS.maxE); goal.b = null; };
 
+  // the round buttons: 56 px in a corner, and on a TV 84 px (168 at 4K) inside the 5 % safe margin
+  function styleBtns() {
+    const size = T.tv ? Math.round(84 * T.s) : 56;
+    for (const { b, side } of btns) {
+      Object.assign(b.style ?? {}, { top: safeEdge(T.tv, 'top'), left: '', right: '', [side]: safeEdge(T.tv, 'side'), width: `${size}px`, height: `${size}px`, fontSize: `${Math.round(size * 0.46)}px` });
+    }
+  }
+
   function layout() {
     const w = win?.innerWidth ?? 960;
     const h = win?.innerHeight ?? 540;
     dpr = Math.min(2, win?.devicePixelRatio ?? 1);
     W = w;
     H = h;
+    T = tvScale(doc, win);
+    styleBtns();
+    bar?.refresh(T);
     if (canvas) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); }
   }
 
@@ -89,7 +106,7 @@ export function createScope(opts) {
     return hits;
   }
   const reticle = () => ({ x: W / 2, y: H / 2 });
-  const snapped = () => nearestStar(hits, W / 2, H / 2, TOLERANCE.snap);
+  const snapped = () => nearestStar(hits, W / 2, H / 2, TOLERANCE.snap * T.m);
 
   // ---- an answer to a tap or a pin -------------------------------------------------------------------------------------------
   function tapStar(s, x, y) {
@@ -150,7 +167,7 @@ export function createScope(opts) {
     if (!isOpen || !drag.on) return;
     drag.on = false;
     if (drag.moved <= 8) {
-      const s = nearestStar(hits, e.clientX, e.clientY, e.pointerType === 'mouse' ? TOLERANCE.mouse : TOLERANCE.touch);
+      const s = nearestStar(hits, e.clientX, e.clientY, (e.pointerType === 'mouse' ? TOLERANCE.mouse : TOLERANCE.touch) * T.m);
       tapStar(s, e.clientX, e.clientY);
     }
   }
@@ -170,14 +187,16 @@ export function createScope(opts) {
       b.type = 'button';
       b.textContent = text;
       b.setAttribute?.('aria-label', label);
-      Object.assign(b.style ?? {}, { position: 'absolute', top: 'max(14px, env(safe-area-inset-top))', [side]: 'max(14px, env(safe-area-inset-left))', width: '56px', height: '56px', borderRadius: '50%', border: '2px solid rgba(255,255,255,.45)', background: 'rgba(20,30,52,.78)', color: '#fff', fontSize: '26px', lineHeight: '1', cursor: 'pointer', touchAction: 'manipulation' });
+      Object.assign(b.style ?? {}, { position: 'absolute', borderRadius: '50%', border: '2px solid rgba(255,255,255,.45)', background: 'rgba(20,30,52,.78)', color: '#fff', lineHeight: '1', cursor: 'pointer', touchAction: 'manipulation' });
       b.addEventListener?.('click', (e) => { e.stopPropagation?.(); fn(); });
       b.addEventListener?.('pointerdown', (e) => e.stopPropagation?.());
       root.appendChild(b);
+      btns.push({ b, side });
       return b;
     };
     btn('✕', line('moon.scope.close'), 'right', () => close());
     btn('💡', line('moon.scope.hintbtn'), 'left', () => { hint.ask(); opts.onAsk?.(); });
+    bar = makeHintBar({ doc, root, text: line('moon.pad.scope'), scale: T });
     doc.body.appendChild(root);
     layout();
     on(canvas, 'pointerdown', onPointerDown);
@@ -213,6 +232,9 @@ export function createScope(opts) {
     isOpen = false;
     for (const f of unbind.splice(0)) f();
     if (canvas) { canvas.width = 0; canvas.height = 0; } // frees the pixels
+    bar?.dispose();
+    bar = null;
+    btns.length = 0;
     root?.remove?.();
     root = canvas = g = null;
     hits = [];
@@ -233,6 +255,8 @@ export function createScope(opts) {
       px += dz(ax[0]) + dz(ax[2]);
       py += -dz(ax[1]) - dz(ax[3]);
       const down = (i) => !!p.buttons?.[i]?.pressed;
+      px += (down(15) ? 1 : 0) - (down(14) ? 1 : 0); // the d-pad pans too (a thumb on the buttons, not the stick)
+      py += (down(12) ? 1 : 0) - (down(13) ? 1 : 0);
       const a = down(0); const b = down(1); const x = down(2);
       place();
       if (a && !pad.a) tapStar(snapped(), W / 2, H / 2);
@@ -264,6 +288,7 @@ export function createScope(opts) {
   function draw(t = 0, hintStar = null) {
     if (!isOpen || !g) return;
     const s = dpr;
+    const m = T.m; // 1 off a TV; rings, lines and stars are drawn bigger for the sofa
     g.setTransform?.(s, 0, 0, s, 0, 0);
     const bg = g.createLinearGradient?.(0, 0, 0, H);
     if (bg) { bg.addColorStop(0, '#02040a'); bg.addColorStop(1, '#0b1226'); g.fillStyle = bg; } else g.fillStyle = '#02040a';
@@ -299,13 +324,13 @@ export function createScope(opts) {
       if (grad) { grad.addColorStop(0, '#7cc0ff'); grad.addColorStop(1, '#1b4fa8'); g.fillStyle = grad; } else g.fillStyle = '#2f6fd0';
       g.beginPath(); g.arc(ex, ey, er, 0, Math.PI * 2); g.fill();
       if ((solver.bits & STORY_BITS) === STORY_BITS) {
-        g.strokeStyle = '#9fffe0'; g.lineWidth = 3; g.globalAlpha = reducedMotion ? 1 : 0.6 + 0.4 * Math.sin(t * 3);
+        g.strokeStyle = '#9fffe0'; g.lineWidth = 3 * m; g.globalAlpha = reducedMotion ? 1 : 0.6 + 0.4 * Math.sin(t * 3);
         g.beginPath(); g.arc(ex, ey, er * 1.35, 0, Math.PI * 2); g.stroke(); g.globalAlpha = 1;
       }
     }
     // the Great Cat, once all five are traced (faint, behind the pictures)
     if ((solver.bits & 31) === 31) {
-      g.strokeStyle = 'rgba(150,200,255,.5)'; g.lineWidth = 2;
+      g.strokeStyle = 'rgba(150,200,255,.5)'; g.lineWidth = 2 * m;
       const trace = (pts, close2) => { g.beginPath(); pts.forEach(([x, y], i) => { const c = catSky(x, y); (i ? g.lineTo : g.moveTo).call(g, toX(c.b), toY(c.e)); }); if (close2) g.closePath(); g.stroke(); };
       trace(GREAT_CAT.outline, true);
       trace(GREAT_CAT.tail, false);
@@ -319,7 +344,7 @@ export function createScope(opts) {
       const spark = sparkle && sparkle.c === ci ? 1 + 0.5 * Math.sin(sparkle.t * 14) : 1;
       if (n > 1 || guide) {
         g.strokeStyle = lit ? 'rgba(160,215,255,.95)' : guide && n < 2 ? 'rgba(160,200,255,.22)' : 'rgba(150,200,255,.8)';
-        g.lineWidth = lit ? 3 : 2.5;
+        g.lineWidth = (lit ? 3 : 2.5) * m;
         g.beginPath();
         const upto = guide ? c.pts.length : n;
         for (let i = 0; i < upto; i++) { const sp = starSky(c, i); (i ? g.lineTo : g.moveTo).call(g, toX(sp.b), toY(sp.e)); }
@@ -330,7 +355,7 @@ export function createScope(opts) {
         const x = toX(sp.b); const y = toY(sp.e);
         if (x < -20 || x > W + 20 || y < -20 || y > H + 20) continue;
         const pinned = i < n;
-        const r = (pinned ? 7 : 5) * spark;
+        const r = (pinned ? 7 : 5) * spark * m;
         g.fillStyle = pinned ? '#fff4c2' : '#ffe9a8';
         g.globalAlpha = pinned ? 1 : 0.85;
         g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
@@ -343,26 +368,28 @@ export function createScope(opts) {
     if (hintStar) {
       const sp = starSky(PICS[hintStar.c], hintStar.i);
       const x = toX(sp.b); const y = toY(sp.e);
-      const r = 14 + (reducedMotion ? 6 : 8 * Math.abs(Math.sin(pulse * 4)));
-      g.strokeStyle = '#ffd45a'; g.lineWidth = 3;
+      const r = (14 + (reducedMotion ? 6 : 8 * Math.abs(Math.sin(pulse * 4)))) * m;
+      g.strokeStyle = '#ffd45a'; g.lineWidth = 3 * m;
       g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.stroke();
     }
     // the wrong star: a grey ring that fades
     if (flash) {
       const sp = starSky(PICS[flash.c], flash.i);
-      g.strokeStyle = `rgba(190,190,205,${(1 - flash.t / 0.7) * 0.8})`; g.lineWidth = 3;
-      g.beginPath(); g.arc(toX(sp.b), toY(sp.e), 12 + flash.t * 14, 0, Math.PI * 2); g.stroke();
+      g.strokeStyle = `rgba(190,190,205,${(1 - flash.t / 0.7) * 0.8})`; g.lineWidth = 3 * m;
+      g.beginPath(); g.arc(toX(sp.b), toY(sp.e), (12 + flash.t * 14) * m, 0, Math.PI * 2); g.stroke();
     }
     // the reticle (always: it is what the pad and the locked mouse aim with) and what it snaps to
     const sn = snapped();
-    g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 2;
-    g.beginPath(); g.arc(W / 2, H / 2, sn ? 22 : 16, 0, Math.PI * 2); g.stroke();
-    if (sn) { g.strokeStyle = '#9fffe0'; g.beginPath(); g.arc(sn.x, sn.y, 17, 0, Math.PI * 2); g.stroke(); }
+    g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 2 * m;
+    g.beginPath(); g.arc(W / 2, H / 2, (sn ? 22 : 16) * m, 0, Math.PI * 2); g.stroke();
+    if (sn) { g.strokeStyle = '#9fffe0'; g.beginPath(); g.arc(sn.x, sn.y, 17 * m, 0, Math.PI * 2); g.stroke(); }
     // the one line of words
     if (said?.text) {
-      g.font = '600 22px system-ui, sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(230,240,255,.95)';
+      const px = T.tv ? Math.round(30 * T.s) : 22; // 30 px at 1080p on a TV (the floor is 24)
+      g.font = `600 ${px}px system-ui, sans-serif`; g.textAlign = 'center'; g.fillStyle = 'rgba(230,240,255,.95)';
       g.globalAlpha = Math.min(1, (2.6 - said.t) * 2);
-      g.fillText(said.text, W / 2, H - 46);
+      // on a TV the line sits above the safe margin and the pad's button bar
+      g.fillText(said.text, W / 2, T.tv ? H - Math.round(H * 0.05) - (bar?.height() ?? 0) - px : H - 46);
       g.globalAlpha = 1;
     }
   }
