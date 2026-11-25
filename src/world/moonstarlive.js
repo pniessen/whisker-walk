@@ -10,7 +10,7 @@
 //     Earth: mission step 5: world/moonmission.js) and glows on the real sky, on the Star Table and (all five) as the Great Cat on the sky and
 //     on the observatory's ceiling. The Old Dish turns to face Earth once it is found;
 //   * THE STAR TABLE at the hill's foot shows the five pictures dim until traced; Interact says what is left.
-// No fail state, nothing timed but the 20 s hint. Draws no random number and reads no clock: every number is a constant or a walk second.
+// No fail state, nothing timed but the hint (it pulses within a second). Draws no random number and reads no clock: every number is a constant or a walk second.
 // =============================================================================
 
 import * as THREE from 'three';
@@ -31,6 +31,34 @@ export const HINT_NEAR = 34; // m: the wing's hint line shows within this of the
 // the page's own words, each a literal phrase id (the phrase table's scan reads them)
 const SCOPE_LINES = Object.freeze({
   'moon.scope.hmm': () => phrase('moon.scope.hmm'),
+  'moon.scope.hmm.try': () => phrase('moon.scope.hmm.try'),
+  'moon.scope.goal.first': () => phrase('moon.scope.goal.first'),
+  'moon.scope.goal.next': () => phrase('moon.scope.goal.next'),
+  'moon.scope.goal.guest': () => phrase('moon.scope.goal.guest'),
+  'moon.scope.goal.more': () => phrase('moon.scope.goal.more'),
+  'moon.scope.goal.all': () => phrase('moon.scope.goal.all'),
+  'moon.scope.names': () => phrase('moon.scope.names'),
+  'moon.scope.intro.1': () => phrase('moon.scope.intro.1'),
+  'moon.scope.intro.2': () => phrase('moon.scope.intro.2'),
+  'moon.scope.intro.3': () => phrase('moon.scope.intro.3'),
+  'moon.scope.intro.go': () => phrase('moon.scope.intro.go'),
+  'moon.scope.found.title': () => phrase('moon.scope.found.title'),
+  'moon.scope.found.pip': () => phrase('moon.scope.found.pip'),
+  'moon.scope.found.body.desk': () => phrase('moon.scope.found.body.desk'),
+  'moon.scope.found.body.rocket': () => phrase('moon.scope.found.body.rocket'),
+  'moon.scope.found.body.power': () => phrase('moon.scope.found.body.power'),
+  'moon.scope.found.body.other': () => phrase('moon.scope.found.body.other'),
+  'moon.scope.found.go': () => phrase('moon.scope.found.go'),
+  'moon.scope.earth.desk': () => phrase('moon.scope.earth.desk'),
+  'moon.scope.earth.rocket': () => phrase('moon.scope.earth.rocket'),
+  'moon.scope.earth.power': () => phrase('moon.scope.earth.power'),
+  'moon.scope.earth.other': () => phrase('moon.scope.earth.other'),
+  'moon.scope.hello': () => phrase('moon.scope.hello'),
+  'moon.scope.done': () => phrase('moon.scope.done'),
+  'moon.scope.lbl.hint': () => phrase('moon.scope.lbl.hint'),
+  'moon.scope.lbl.close': () => phrase('moon.scope.lbl.close'),
+  'moon.scope.zoomin': () => phrase('moon.scope.zoomin'),
+  'moon.scope.zoomout': () => phrase('moon.scope.zoomout'),
   'moon.scope.close': () => phrase('moon.scope.close'),
   'moon.scope.hintbtn': () => phrase('moon.scope.hintbtn'),
   'moon.pad.scope': () => phrase('moon.pad.scope'),
@@ -81,6 +109,7 @@ export function createStarLive(ctx) {
   let target = null; // what the action button would do: { kind: 'scope' | 'table', line }
   let toldHint = false;
   let toldMilky = false;
+  let toldIntro = false;
   let sceneWas = true;
   let hold = null; // { pos, yaw } where the cat is held while the scope is open
   let lastSession = null;
@@ -164,6 +193,10 @@ export function createStarLive(ctx) {
       pads: () => { try { return Array.from(globalThis.navigator?.getGamepads?.() ?? []).filter((p) => p && p.connected); } catch { return []; } },
       onResult,
       onAsk: () => sound.chirp?.(),
+      onEarth: () => sound.chirp?.(),
+      onFound: () => sound.beep?.(), // Pip's cheer when Earth is found (the pictures' chime has just played)
+      intro: () => { if (toldIntro || (bitsNow() & 3) === 3) return false; toldIntro = true; return true; }, // why she is here: once a walk, never once Earth is found
+      after: () => { const k = M.nextGoal(rec()).kind; return k === 'desk' || k === 'rocket' ? k : (k === 'pip' || k === 'cell' || k === 'core') ? 'power' : 'other'; }, // what the objective line says to do once Earth is found
       onClose: closed,
     });
     const s = lastSession;
@@ -214,7 +247,7 @@ export function createStarLive(ctx) {
 
   function decide(catPos) {
     if (disposed || !catPos || scope?.isOpen) return null;
-    if (dist(catPos, O) < O.reach && Math.abs(catPos.y - floorY) < O.level) return { kind: 'scope', line: phrase('moon.scope.prompt') };
+    if (dist(catPos, O) < O.reach && Math.abs(catPos.y - floorY) < O.level) return { kind: 'scope', line: phrase(!M.storyTraced(rec()) ? 'moon.scope.prompt' : bitsNow() === ALL_BITS ? 'moon.scope.prompt.cat' : 'moon.scope.prompt.more') }; // after Earth is found it is only for more pictures
     if (dist(catPos, P.STAR_TABLE) < P.STAR_TABLE.reach && Math.abs(catPos.y - ground.y(P.STAR_TABLE.x, P.STAR_TABLE.z)) < 1.2) return { kind: 'table', line: phrase('moon.table.prompt') };
     return null;
   }

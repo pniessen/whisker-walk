@@ -10,6 +10,7 @@ import { createProgression } from '../src/progression.js';
 import { createDiscoveryLog } from '../src/discoveries.js';
 import { bus } from '../src/events.js';
 import { mem } from './helpers/lighthouselife.js';
+import { withOffWords } from './helpers/offwords.js';
 import { fakePage } from './helpers/moonpage.js';
 import { CONSTELLATIONS, starSky, ALL_BITS } from '../src/world/moonstars.js';
 import { DISH_TURN, LEVEL } from '../src/world/moonstarlive.js';
@@ -43,6 +44,7 @@ const onTop = (r) => { r.step(0.1, { x: O.x + 1.5, z: O.z + 1.5, y: floorY }); }
 const press = (r) => { const line = r.life.promptAt(r.where); r.life.interact(); return line; };
 // trace a picture through the scope's own door (aim and press Space)
 const trace = (r, c) => {
+  r.life.star.scope.cardGo?.(); // the first card of a walk (why she is here) is answered first
   for (let i = 0; i < CONSTELLATIONS[c].pts.length; i++) {
     const s = starSky(CONSTELLATIONS[c], i);
     r.life.star.scope.view.b = s.b; r.life.star.scope.view.e = s.e;
@@ -150,6 +152,23 @@ describe('the telescope opens and closes', () => {
     // the scope's own hint object is the life\'s: it now answers at once (the pulse is drawn)
     expect(r.page.doc.body.children[0]).toBeTruthy();
     r.dispose();
+  });
+});
+
+describe('the prompt after the job is done (the table of lines per state, both word sets)', () => {
+  it('Earth not found: the job; Earth found with 0 to 3 optional pictures drawn: more pictures; all five: the Great Cat; none says to find Earth or look for it', () => {
+    const want = [[0, 'E — look through the telescope'], [1, 'E — look through the telescope'], [3, 'E — draw more star pictures'], [7, 'E — draw more star pictures'], [15, 'E — draw more star pictures'], [31, 'E — look at the Great Cat']];
+    const check = () => {
+      for (const [scope, line] of want) {
+        const r = rig({ moon: { step: scope === 0 || scope === 1 ? 4 : 5, cells: 3, scope } });
+        onTop(r);
+        expect(r.life.promptAt(r.where), `scope ${scope}`).toBe(line);
+        if ((scope & 3) === 3) expect(line).not.toMatch(/Earth|look through/);
+        r.dispose();
+      }
+    };
+    check();
+    withOffWords(check);
   });
 });
 

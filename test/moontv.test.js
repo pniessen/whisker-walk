@@ -88,14 +88,14 @@ describe('the telescope on a TV', () => {
       const r = scopeRig({ page: tvPage({ width: w, height: h }) });
       r.scope.open();
       const [, close, bulb] = r.scope.element.children;
-      expect(px(close.style.width)).toBe(want); expect(px(bulb.style.height)).toBe(want);
+      expect(px(close.style.height)).toBe(want); expect(px(bulb.style.height)).toBe(want); // (scope usability pass) the corner buttons are pills with a word, so their height is the size
       expect(close.style.top).toContain('5vh'); expect(close.style.right).toContain('5vw'); expect(bulb.style.left).toContain('5vw');
       expect(px(close.style.fontSize)).toBeGreaterThanOrEqual(24);
     }
     const r = scopeRig({ page: tvPage({ tv: false }) });
     r.scope.open();
     const [, close] = r.scope.element.children;
-    expect(close.style.width).toBe('56px'); expect(close.style.top).toBe('max(14px, env(safe-area-inset-top))'); expect(close.style.fontSize).toBe('26px');
+    expect(close.style.height).toBe('56px'); expect(close.style.top).toBe('max(14px, env(safe-area-inset-top))'); expect(px(close.style.fontSize)).toBeGreaterThanOrEqual(16);
   });
   it('carries the pad bar, which shows only while the pad is the input', () => {
     const r = scopeRig();
@@ -109,15 +109,15 @@ describe('the telescope on a TV', () => {
     r.scope.close();
     expect(r.scope.element).toBeNull();
   });
-  it('widens the snap and tap reach with the picture on a TV, and leaves it alone off one', () => {
-    const on = scopeRig({ page: tvPage() }); on.scope.open(); aim(on, 0, 0);
-    const s = starSky(CONSTELLATIONS[0], 0);
-    // a star a little further than the old reach from the middle still snaps on a TV
-    const k = Math.max(1, Math.min(1920 / 40, 1080 / 32));
-    on.scope.view.b = s.b + (TOLERANCE.snap * 1.3) / k; on.scope.view.e = s.e; on.scope.place();
-    expect(on.scope.pinSnapped()).not.toBeNull();
+  it('widens the snap and tap reach with the picture on a TV, and leaves a laptop mouse alone (the numbers are scope.profile: scopeRing)', () => {
+    const on = scopeRig({ page: tvPage() }); on.scope.open();
     const off = scopeRig({ page: tvPage({ tv: false }) }); off.scope.open();
-    off.scope.view.b = s.b + (TOLERANCE.snap * 1.3) / k; off.scope.view.e = s.e; off.scope.place();
+    const s = starSky(CONSTELLATIONS[0], 0);
+    const k = Math.max(1, Math.min(1920 / 40, 1080 / 32));
+    expect(on.scope.profile.reach).toBeGreaterThan(off.scope.profile.reach * 1.5);
+    // a star at nine tenths of the TV's reach from the middle snaps on a TV, and not for a mouse
+    for (const r of [on, off]) { r.scope.view.b = s.b + (on.scope.profile.reach * 0.9) / k; r.scope.view.e = s.e; r.scope.place(); }
+    expect(on.scope.pinSnapped()).not.toBeNull();
     expect(off.scope.pinSnapped()).toBeNull();
   });
 });

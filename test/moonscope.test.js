@@ -1,5 +1,5 @@
 // The Moon, milestone 5: the telescope overlay (src/world/moonscope.js). Opens an opaque page, pans and pins by touch, mouse, pad and keyboard,
-// a wrong star is a soft hmm that loses nothing, the hint pulses after 20 s, closing frees the canvas and every listener.
+// a wrong star is a soft hmm that loses nothing, the hint pulses at once, closing frees the canvas and every listener.
 import { describe, it, expect, vi } from 'vitest';
 import { createScope, EARTH_AT, PAN_SPEED } from '../src/world/moonscope.js';
 import { CONSTELLATIONS, createSolver, createHint, starSky, angleTo, STORY_BITS } from '../src/world/moonstars.js';
@@ -307,18 +307,23 @@ describe('the game through the overlay', () => {
     expect(angleTo(r.scope.view.b, EARTH_AT.b)).toBeCloseTo(0, 3);
     expect(r.scope.view.e).toBeCloseTo(EARTH_AT.e, 3);
   });
-  it('twenty seconds with no pin: the hint is the next star of the picture, and a pin takes it away', () => {
+  it('the next star pulses at once (within a second of opening), a wrong star does not hide it, and a pin moves it to the next star', () => {
     const r = rig();
     r.scope.open();
     const spy = vi.spyOn(r.hint, 'tick');
-    for (let i = 0; i < 390; i++) r.scope.update(0.05, i * 0.05); // 19.5 s
+    for (let i = 0; i < 10; i++) r.scope.update(0.05, i * 0.05); // half a second
     expect(spy.mock.results.at(-1).value).toBeNull();
-    for (let i = 0; i < 20; i++) r.scope.update(0.05, 20 + i * 0.05);
+    for (let i = 0; i < 6; i++) r.scope.update(0.05, 1 + i * 0.05);
+    expect(spy.mock.results.at(-1).value).toEqual({ c: 0, i: 0 });
+    aimAt(r, 0, 5); r.win.fire('keydown', { code: 'Space' }); // a wrong star
+    r.scope.update(0.05, 2);
     expect(spy.mock.results.at(-1).value).toEqual({ c: 0, i: 0 });
     aimAt(r, 0, 0);
     r.win.fire('keydown', { code: 'Space' });
-    r.scope.update(0.1, 21);
-    expect(spy.mock.results.at(-1).value).toBeNull();
+    r.scope.update(0.1, 3);
+    expect(spy.mock.results.at(-1).value).toBeNull(); // a pin restarts the short wait
+    for (let i = 0; i < 12; i++) r.scope.update(0.05, 3.1 + i * 0.05);
+    expect(spy.mock.results.at(-1).value).toEqual({ c: 0, i: 1 });
   });
   it('a picture already traced is shown as known: its stars do not pin again and the saved bits are not lost', () => {
     const r = rig({ bits: 1 });
