@@ -120,7 +120,9 @@ export function rimChunks(lite = false) {
       const s = 0.16 + 0.3 * rng() * (k.r > 7 ? 1.3 : 1);
       const x = k.x + Math.cos(a) * k.r * u;
       const z = k.z + Math.sin(a) * k.r * u;
-      if (clear(x, z, s, 0.4, 1)) out.push({ x, z, s, yaw: rng() * Math.PI * 2, tilt: (rng() - 0.5) * 0.8 });
+      // (Ridge clarity) never on ANOTHER bowl's floor either: a chunk of one rim can fall inside a neighbouring bowl (the keep-outs used to hide it)
+      const nearest = Math.min(...P.CRATERS.map((q) => Math.hypot(x - q.x, z - q.z) / q.r));
+      if (nearest >= 0.55 && clear(x, z, s, 0.4, 1)) out.push({ x, z, s, yaw: rng() * Math.PI * 2, tilt: (rng() - 0.5) * 0.8 });
     }
   }
   return out;

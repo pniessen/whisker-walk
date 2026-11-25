@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import * as P from './moonplan.js';
 import { COL, paint, at, box, cyl } from './moonparts.js';
 
-export const BASE_COL = Object.freeze({ floor: 0xc3c8d3, rail: 0xf1f3f8, core: 0x5e6773, teal: 0x4fd6c4, amber: 0xffb23c, mint: 0x8affc0, glassTint: 0x9fd8ff, lampDim: 0x303a4c, lampOn: 0xfff0c4, stone: 0x9b9899, stoneTop: 0xb4b2b1, hazard: 0xf0c43c });
+export const BASE_COL = Object.freeze({ floor: 0xc3c8d3, rail: 0xf1f3f8, core: 0x5e6773, teal: 0x4fd6c4, amber: 0xffb23c, mint: 0x8affc0, glassTint: 0x9fd8ff, lampDim: 0x303a4c, lampOn: 0xfff0c4, stone: 0x9b9899, stoneTop: 0xb4b2b1, hazard: 0xf0c43c, ridge: 0x6b6672, ridgeTop: 0x5fc2b4, ridgeMark: 0x4fd6c4 });
 // The values the life moves between: the dome's lamps and the Core's glow, dim before the base wakes and full after.
 export const LAMP = Object.freeze({ dim: 0x303a4c, on: 0xfff0c4 });
 export const CORE_GLOW = Object.freeze({ dim: 0x1d3a3a, on: 0xffffff });
@@ -128,13 +128,16 @@ export function drawDish(kit, M, B) {
 export function drawSkip(kit, M, B) {
   for (const p of P.SKIP) {
     const g = P.moonY(p.x, p.z);
-    kit.put('stone', M.stone, paint(new THREE.CylinderGeometry(p.r * 0.86, p.r * 1.15, p.y + 0.6, 9).translate(p.x, g + (p.y - 0.6) / 2 - 0.0, p.z), BASE_COL.stone));
-    kit.put('stone', M.stone, paint(new THREE.CylinderGeometry(p.r * 0.95, p.r * 0.86, 0.28, 9).translate(p.x, g + p.y - 0.1, p.z), BASE_COL.stoneTop));
+    kit.put('stone', M.stone, paint(new THREE.CylinderGeometry(p.r * 0.86, p.r * 1.15, p.y + 0.6, 9).translate(p.x, g + (p.y - 0.6) / 2 - 0.0, p.z), BASE_COL.ridge));
+    kit.put('stone', M.stone, paint(new THREE.CylinderGeometry(p.r * 0.95, p.r * 0.86, 0.28, 9).translate(p.x, g + p.y - 0.1, p.z), BASE_COL.ridgeTop));
     for (let i = 0; i < 3; i++) {
       const a = i * 2.2 + p.x;
       kit.put('stone', M.stone, paint(at(new THREE.DodecahedronGeometry(0.4 + 0.12 * i, 0), p.x + Math.cos(a) * (p.r + 0.6), p.z + Math.sin(a) * (p.r + 0.6), 0.25), BASE_COL.stone));
     }
   }
+  // (Ridge clarity) a glowing step marker on the dust at the first pillar's foot, on the side she arrives from: the paw button works from here
+  const m = P.RIDGE_MARK;
+  kit.put('glow', M.glow, paint(new THREE.RingGeometry(0.5, 0.74, 14).rotateX(-Math.PI / 2).translate(m.x, P.moonY(m.x, m.z) + 0.06, m.z), BASE_COL.ridgeMark), { noCast: true });
   const top = P.SKIP[1];
   kit.put('paint', M.paint, paint(new THREE.CylinderGeometry(0.5, 0.58, 0.16, 12).translate(top.x, P.moonY(top.x, top.z) + top.y + 0.08, top.z), BASE_COL.core), { noCast: true });
   kit.put('coreglow', B.coreglow, paint(new THREE.RingGeometry(0.34, 0.46, 16).rotateX(-Math.PI / 2).translate(top.x, P.moonY(top.x, top.z) + top.y + 0.18, top.z), BASE_COL.teal), { noCast: true });

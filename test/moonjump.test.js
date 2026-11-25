@@ -38,12 +38,14 @@ const earth = {
 describe('the Beam Hops', () => {
   const { area } = built();
   const B = P.BEAMS;
-  it('are eight, rising from 0.6 m to 3.0 m and coming down, from x -12 to 12, each at most 3.2 m above the last', () => {
+  it('are eight, rising from 0.6 m to 3.0 m and coming down along a 24 m line, each at most 3.2 m above the last', () => {
     expect(B).toHaveLength(8);
     expect(Math.min(...B.map((b) => b.y))).toBe(0.6);
     expect(Math.max(...B.map((b) => b.y))).toBe(3.0);
-    expect(B[0].x).toBe(-12);
-    expect(B[7].x).toBe(12);
+    // (Ridge clarity) the wave lies on the plain in the east: its first beam is 12 m (along the 120 degree line) from BEAM_MID, its last 12 m the other way
+    expect(Math.hypot(B[0].x - P.BEAM_MID.x, B[0].z - P.BEAM_MID.z)).toBeGreaterThan(11.5);
+    expect(Math.hypot(B[7].x - B[0].x, B[7].z - B[0].z)).toBeGreaterThan(23);
+    expect(Math.hypot(B[7].x - B[0].x, B[7].z - B[0].z)).toBeLessThan(25);
     for (let i = 1; i < B.length; i++) expect(B[i].y - B[i - 1].y).toBeLessThanOrEqual(3.2);
   });
   it('are perches and colliders of the area, in the stone kind, on level dust, inside the bounds, clear of every other thing of the plan', () => {

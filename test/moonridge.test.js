@@ -86,7 +86,10 @@ describe.each([['the bound on', true], ['the bound off', false]])('the Moon\'s c
   it('the Beam Hops\' west half: five presses climb the wave beam by beam (each a lamp) and the sixth, on the peak, takes her to the dust', async () => {
     const r = await moonRig(boundOn);
     const beams = r.P.BEAMS;
-    const f = foot(r, beams[0], [-1, 0]);
+    // (Ridge clarity: the wave now runs north-west from its south-eastern first beam) she starts behind the first beam, on the side away from the second
+    const away = [beams[0].x - beams[1].x, beams[0].z - beams[1].z];
+    const al = Math.hypot(...away);
+    const f = foot(r, beams[0], [away[0] / al, away[1] / al]);
     r.put(f.x, f.z);
     const stood = [];
     for (let i = 0; i < 5; i++) {

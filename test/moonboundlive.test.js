@@ -197,7 +197,7 @@ describe('a run and a pounce is a bound', () => {
     r.dispose();
     // a perch in reach: the press takes it, as in Tier 1 (never a bound over it)
     const q = rig();
-    const b = P.BEAMS[2];
+    const b = P.BEAMS[5]; // (Ridge clarity: the Beam Hops moved east; the fifth beam, 2.4 m, is the highest stone in reach from its west side)
     q.place(b.x - 3.5, b.z);
     q.stick.x = 1; q.stick.z = 0; q.pl.inputActive = true; q.pl.vx = 3.1;
     q.session.traversal.late(DT, 0, q.ctx);
@@ -209,7 +209,7 @@ describe('a run and a pounce is a bound', () => {
   });
   it('a press in the air is swallowed (it can never take a perch from mid-bound), and she is busy only while she flies', () => {
     const r = rig();
-    r.place(P.BEAMS[0].x - 7, P.BEAMS[0].z);
+    r.place(P.BEAMS[2].x - 7, P.BEAMS[2].z); // (the third beam: the first lies by the pit crater's rim since the Beam Hops moved east)
     r.runAndPress(1, 0, 0.8);
     r.run(0.3);
     expect(r.bound.flying).toBe(true);
@@ -224,7 +224,7 @@ describe('a run and a pounce is a bound', () => {
   });
   it('ends early and gently at a collider: never inside one, the window shortened to the ease, then a plain stand', () => {
     const r = rig();
-    const b = P.BEAMS[0];
+    const b = P.BEAMS[7]; // (Ridge clarity: the wave's north-western end has an open run-up from the west)
     r.place(b.x - 5.0, b.z);
     r.runAndPress(1, 0, 0.8);
     r.run(1.6);
