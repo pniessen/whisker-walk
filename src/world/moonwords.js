@@ -116,6 +116,8 @@ export const LINES = Object.freeze({
   'moon.jump.hint': 'Hop from the line. The board shows how far!',
   'moon.jump.record': 'New record!',
   'moon.jump.beams': 'Every beam is lit!',
+  // (Ridge clarity) the foot of Skip Ridge: the paw button is the way up
+  'moon.ridge.paw': 'Press the paw button by the tall rocks to hop up to the cell.',
   // (TV and pad pass) the pad's own line at the bottom of each full-screen page (button pictures on a TV; the pages show it only while the pad is the last input)
   'moon.pad.scope': '⟦move⟧ look · ⟦confirm⟧ pin the star · ⟦interact⟧ next star · ⟦back⟧ close',
   'moon.pad.stamp': '⟦dpad⟧ choose · ⟦confirm⟧ pick · ⟦back⟧ close',

@@ -192,7 +192,11 @@ describe('the course lamps', () => {
     b.step(0.2, { x: 0, z: 45 });
     expect(b.jump.lamps.mesh.visible).toBe(false); // 81 m from the courses
     b.step(0.2, { x: 0, z: -20 });
-    expect(b.jump.lamps.mesh.visible).toBe(true);
+    expect(b.jump.lamps.mesh.visible).toBe(true); // Skip Ridge and Earthrise Rock are within 60 m
+    b.step(0.2, { x: 31, z: 11 });
+    expect(b.jump.lamps.mesh.visible).toBe(true); // the Beam Hops (Ridge clarity: in the east) show when she is within 40 m of their middle
+    b.step(0.2, { x: 0, z: 45 });
+    expect(b.jump.lamps.mesh.visible).toBe(false);
     b.dispose();
   });
   it('dispose takes the lamps and the board out of the scene', () => {

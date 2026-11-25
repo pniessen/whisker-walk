@@ -82,6 +82,8 @@ export const SKIP = Object.freeze([
   Object.freeze({ x: 7.5, z: -34.5, y: 2.6, r: 1.6 }),
   Object.freeze({ x: 9.8, z: -37.0, y: 5.0, r: 1.6 }),
 ]);
+// (Ridge clarity) the step marker: a teal ring on the dust at the first pillar's south-west foot (a cat stands on it 2.7 m from the pillar's middle, well inside the paw button's reach)
+export const RIDGE_MARK = Object.freeze({ x: 6.3, z: -32.1 });
 // (the cell lies a step to the east of the pillar's middle, where she lands, so she is not standing inside it; the perch pick-up window is 1.0 m)
 export const RIDGE_CELL = Object.freeze({ x: SKIP[1].x + 0.85, z: SKIP[1].z, y: SKIP[1].y });
 // The Rover cell lies at the Far Beacon, 70 m from the landing on the east end of Dot's track (milestone 3: the real beacon, the real
@@ -244,13 +246,22 @@ export const LAUNCH_COLLIDERS = Object.freeze([
 
 // ---- milestone 7a: Bounce Park's Beam Hops, the hop board's strip, the course lamps ---------------------------------------------
 
-// Eight Beam Hops: stone beams in a gentle wave from x -12 to 12 at z about -30 (Dot's track passes 4 m south of them, Skip Ridge 4 m north), rising to
+// Eight Beam Hops: stone beams in a gentle wave on the open plain in the east (2026-11-25, the Ridge clarity fix: they used to lie at z -30 right next to Skip Ridge's
+// pillars and read as one more staircase to the Ridge cell; they are now about 50 m from the pillars, off the way from the lander and the track to them). The wave's
+// middle is BEAM_MID, its line runs `ang` degrees from east (120: toward the north-west, so the first beam is the south-eastern one), 24 m long, rising to
 // 3.0 m and coming down again. Each beam is 0.7 m (at most) above the last, and about 3.45 m (centre to centre) from its neighbours: more than Earth's very best
 // reach (3.2 m, Sure Claws) and less than the Moon's plainest (3.9 m), so the crossing is the Moon's alone. Every beam is a perch AND a collider (as Skip Ridge's pillars).
 const BEAM_HEIGHTS = [0.6, 1.3, 2.0, 2.7, 3.0, 2.4, 1.6, 0.8];
-export const BEAMS = Object.freeze(BEAM_HEIGHTS.map((y, i) => Object.freeze({
-  x: Math.round((-12 + (i * 24) / 7) * 100) / 100, z: Math.round((-30 + 0.7 * Math.sin(i * 0.9)) * 100) / 100, y, r: 1.25,
-})));
+export const BEAM_MID = Object.freeze({ x: 31, z: 11, ang: 120 });
+export const BEAMS = Object.freeze(BEAM_HEIGHTS.map((y, i) => {
+  const a = (BEAM_MID.ang * Math.PI) / 180;
+  const d = -12 + (i * 24) / 7; // along the line
+  const o = 0.7 * Math.sin(i * 0.9); // across it: the wave
+  return Object.freeze({
+    x: Math.round((BEAM_MID.x + Math.cos(a) * d - Math.sin(a) * o) * 100) / 100,
+    z: Math.round((BEAM_MID.z + Math.sin(a) * d + Math.cos(a) * o) * 100) / 100, y, r: 1.25,
+  });
+}));
 
 // The hop board's strip: a lane of level dust running east from a start line (x0), 16 m long and 4 m wide, a post every metre. She takes off behind the line
 // (at most `back` m before it, a hand's width past it) on the ground inside the lane and lands on level ground inside it: the board reads the metres from
@@ -342,7 +353,7 @@ export const MOON_PERCHES = Object.freeze([
 
 // Interesting spots a wanderer may head for: open dust, all reachable from the spawn on foot (the walk clears them of colliders).
 export const MOON_POIS = Object.freeze([
-  [14, 36], [-22, 34], [24, 22], [-6, 14], [8, 0], [-30, -16], [38, -2], [-2, -20], [22, -32], [-33, 8], [0, -40], [44, 26],
+  [14, 36], [-22, 34], [21, 26], [-6, 14], [8, 0], [-30, -16], [38, -2], [-2, -20], [22, -32], [-33, 8], [0, -40], [44, 26],
 ].map(([x, z]) => Object.freeze({ x, z })));
 
 // Where the rocks may not stand: the landing site, the ring, the spawn's plain, and the places the later milestones build
@@ -352,7 +363,7 @@ export const ROCK_KEEP_OUT = Object.freeze([
   [-34, 26, 13], [-44, 14, 7], [30, 34, 11], [42, -34, 12], [30, -28, 6], [24, -20, 6], [-38, -32, 14], [-27, -24, 4.5], [8, -40, 8],
   [-4.5, -44.8, 6.5], [31, -10, 4],
   [42, -34, 9.5], [24, -40, 8.6], [-37, 20.8, 2],
-  [0, -30, 15.6], [10, -9, 13], [0.6, -5.1, 2.4], // (milestone 7a) the Beam Hops, the hop board's strip and its board
+  [BEAM_MID.x, BEAM_MID.z, 15.6], [10, -9, 13], [0.6, -5.1, 2.4], // (milestone 7a) the Beam Hops (moved east 2026-11-25), the hop board's strip and its board
   ...LAVA_KEEP_OUT, [-41.6, 15.6, 3.2], // (milestone 8) the Cave Massif, its mouth and the Old Dish's ledge
   ...(MOON_BOUND_ON ? [[23, -12.5, 7.5], [-20, -30, 7.5], [48.5, 11.5, 9], [0, -17.5, 16.5]] : []), // (milestone 7b) the rifts and the ring gates' row
 ]);

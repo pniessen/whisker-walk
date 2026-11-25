@@ -9,15 +9,14 @@
 import * as THREE from 'three';
 import * as P from './moonplan.js';
 import { paint, at, cyl } from './moonparts.js';
-import { BASE_COL } from './moonbase.js';
 
-export const JUMP_COL = Object.freeze({ lane: 0xd9dce4, line: 0xffffff, post: 0xc9cdd6, tall: 0xf0c43c, dim: 0x3a4152, lit: 0xfff0c4, gold: 0xffc83a, board: 0x16212d, frame: 0xf0c43c });
+export const JUMP_COL = Object.freeze({ lane: 0xd9dce4, line: 0xffffff, post: 0xc9cdd6, tall: 0xf0c43c, dim: 0x3a4152, lit: 0xfff0c4, dimSkip: 0x1f4a46, litSkip: 0x4fd6c4, dimBeam: 0x5a4220, litBeam: 0xffb23c, beam: 0xb98c5a, beamTop: 0xd9ad72, gold: 0xffc83a, board: 0x16212d, frame: 0xf0c43c });
 
 export function drawBeams(kit, M) {
   for (const p of P.BEAMS) {
     const g = P.moonY(p.x, p.z);
-    kit.put('stone', M.stone, paint(new THREE.CylinderGeometry(p.r * 0.86, p.r * 1.15, p.y + 0.6, 9).translate(p.x, g + (p.y - 0.6) / 2, p.z), BASE_COL.stone));
-    kit.put('stone', M.stone, paint(new THREE.CylinderGeometry(p.r * 0.95, p.r * 0.86, 0.28, 9).translate(p.x, g + p.y - 0.1, p.z), BASE_COL.stoneTop));
+    kit.put('stone', M.stone, paint(new THREE.CylinderGeometry(p.r * 0.86, p.r * 1.15, p.y + 0.6, 9).translate(p.x, g + (p.y - 0.6) / 2, p.z), JUMP_COL.beam));
+    kit.put('stone', M.stone, paint(new THREE.CylinderGeometry(p.r * 0.95, p.r * 0.86, 0.28, 9).translate(p.x, g + p.y - 0.1, p.z), JUMP_COL.beamTop));
   }
 }
 
@@ -58,7 +57,7 @@ export function makeLamps() {
   lamps.forEach((l, i) => {
     m4.compose(new THREE.Vector3(l.x, P.moonY(l.x, l.z) + l.y + 0.08, l.z), new THREE.Quaternion(), new THREE.Vector3(l.r, 1, l.r));
     mesh.setMatrixAt(i, m4);
-    mesh.setColorAt(i, col.setHex(JUMP_COL.dim));
+    mesh.setColorAt(i, col.setHex(i < P.SKIP.length ? JUMP_COL.dimSkip : i >= P.SKIP.length + P.ROCK_LEDGES.length ? JUMP_COL.dimBeam : JUMP_COL.dim));
   });
   mesh.instanceMatrix.needsUpdate = true;
   mesh.instanceColor.needsUpdate = true;

@@ -17,10 +17,12 @@ import { makeLamps, makeScreen, JUMP_COL } from './moonjumpparts.js';
 import { createMoonSound } from './moonsound.js';
 
 export const LAMPS_NEAR = 60; // m from the courses' middle: farther than this the lamps' one draw call is skipped
+export const RIDGE_HINT_NEAR = 8; // m from Skip Ridge's first pillar: the paw-button line shows once a walk
+export const BEAMS_NEAR = 40; // m from the Beam Hops' middle (they lie in the east, 50 m from the other courses)
 export const HINT_NEAR = 7; // m from the start line: the board's hint shows once a walk
 const COURSES = Object.freeze({ x: 0, z: -36 });
 const FIRST_BEAM = P.SKIP.length + P.ROCK_LEDGES.length; // index of the first Beam Hop among the lamps
-const SAY = { 'moon.jump.hint': () => phrase('moon.jump.hint'), 'moon.jump.record': () => phrase('moon.jump.record'), 'moon.jump.beams': () => phrase('moon.jump.beams') };
+const SAY = { 'moon.jump.hint': () => phrase('moon.jump.hint'), 'moon.jump.record': () => phrase('moon.jump.record'), 'moon.jump.beams': () => phrase('moon.jump.beams'), 'moon.ridge.paw': () => phrase('moon.ridge.paw') };
 const say = (key) => bus.emit('discovery', { type: 'greenhousenote', key, label: SAY[key](), points: 0, repeat: false });
 
 export function createJumpLive({ scene, reducedMotion = false, ground, audio = null, progression = null, doc = null, air = () => 0, onHop = null } = {}) {
@@ -46,6 +48,7 @@ export function createJumpLive({ scene, reducedMotion = false, ground, audio = n
   let recordShown = false;
   let usedJournal = false;
   let hinted = false;
+  let ridgeHinted = false;
   let prev = null;
 
   const best = () => J.bestOf(progression?.state?.moon, catId);
@@ -55,7 +58,7 @@ export function createJumpLive({ scene, reducedMotion = false, ground, audio = n
   function light(i) {
     if (i < 0 || lit.has(i)) return false;
     lit.add(i);
-    lamps.paint(i, JUMP_COL.lit);
+    lamps.paint(i, i < P.SKIP.length ? JUMP_COL.litSkip : i < FIRST_BEAM ? JUMP_COL.lit : JUMP_COL.litBeam); // (Ridge clarity) teal on Skip Ridge, amber on the Beam Hops
     sound.click();
     return true;
   }
@@ -112,12 +115,17 @@ export function createJumpLive({ scene, reducedMotion = false, ground, audio = n
       }
       prev = { x: catPos.x, z: catPos.z };
       // the lamps
-      const near = Math.hypot(catPos.x - COURSES.x, catPos.z - COURSES.z) <= LAMPS_NEAR;
+      const near = Math.hypot(catPos.x - COURSES.x, catPos.z - COURSES.z) <= LAMPS_NEAR || Math.hypot(catPos.x - P.BEAM_MID.x, catPos.z - P.BEAM_MID.z) <= BEAMS_NEAR; // (the Beam Hops lie in the east now)
       lamps.mesh.visible = near;
       if (session?.perched) { if (light(J.lampUnder(session.perched, P.COURSE_LAMPS))) checkBeams(); }
       // the board's screen: drawn only within reach of seeing it
       const B = P.JUMP_BOARD;
       screen.sprite.visible = Math.hypot(catPos.x - B.x, catPos.z - B.z) <= B.near;
+      // (Ridge clarity) the first time she is near the foot of Skip Ridge's first pillar on the dust with the Ridge cell still to fetch: the paw button is the way up
+      if (!ridgeHinted && !session?.perched && Math.hypot(catPos.x - P.SKIP[0].x, catPos.z - P.SKIP[0].z) <= RIDGE_HINT_NEAR) {
+        const m = progression?.state?.moon;
+        if ((m?.step ?? 0) >= 1 && !((m?.cells ?? 0) & 1)) { ridgeHinted = true; say('moon.ridge.paw'); }
+      }
       if (!hinted && Math.hypot(catPos.x - P.JUMP_LANE.x0, catPos.z - P.JUMP_LANE.z) <= HINT_NEAR) { hinted = true; say('moon.jump.hint'); }
     },
     dispose() {
