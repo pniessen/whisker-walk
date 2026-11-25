@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, globSync } from 'node:fs';
 import { PHRASE_IDS, phrase, hasPhrase, addPhrases } from '../src/clanphrases.js';
 import { LINES as CATLOGIN_LINES } from '../src/ui/catloginwords.js';
+import { LINES as FRESH_LINES } from '../src/ui/freshcatwords.js';
 import { LINES as LIGHTHOUSE_LINES } from '../src/world/lighthousewords.js';
 import { LINES as GREENHOUSE_LINES } from '../src/world/greenhousewords.js';
 import { LINES as MOON_LINES, FLOW_LINES as MOON_FLOW_LINES } from '../src/world/moonwords.js';
@@ -16,6 +17,7 @@ import { LINES as TELE_LINES } from '../src/teleui.js';
 
 // the My cat sheet's lazy chunk adds its lines when it arrives; the scan below reads src/ for every id it uses
 addPhrases(CATLOGIN_LINES);
+addPhrases(FRESH_LINES); // Start a fresh cat's chunk (src/ui/freshcat.js)
 addPhrases(SKILLBADGE_LINES); // the skill badge strip's chunk (src/ui/skillbadges.js)
 addPhrases(GREENHOUSE_LINES); // (the Greenhouse's chunk adds its own on import: src/world/greenhousewords.js)
 addPhrases(COOP_LINES); // couch play's chunk (src/coop/words.js)

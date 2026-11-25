@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MAIN_GZIP_CEILING_KB, mainScript, sizeProblem, startupFiles, areaDownloads, lazyProblems, areaSizeProblems, TV_ENTRY_MODULES, TV_GZIP_CEILING_KB, tvDownloads, CAT_ENTRY_MODULES, WALK_ENTRY_MODULES, WALK_GZIP_CEILING_KB } from '../scripts/buildjson.mjs';
+import { MAIN_GZIP_CEILING_KB, mainScript, sizeProblem, startupFiles, areaDownloads, lazyProblems, areaSizeProblems, TV_ENTRY_MODULES, TV_GZIP_CEILING_KB, tvDownloads, CAT_ENTRY_MODULES, WALK_ENTRY_MODULES, WALK_GZIP_CEILING_KB, FRESH_ENTRY_MODULES, FRESH_GZIP_CEILING_KB } from '../scripts/buildjson.mjs';
 import { precacheManifest } from '../scripts/precache.mjs';
 
 const M = {
@@ -102,6 +102,22 @@ describe('the cat login catch-up chunk guard', () => {
       const bad = { ...catM, 'index.html': { ...catM['index.html'], imports: [...catM['index.html'].imports, mod] } };
       expect(lazyProblems(bad, CAT_ENTRY_MODULES).join('\n')).toContain(mod);
     }
+  });
+});
+
+describe('the Start a fresh cat chunk guard', () => {
+  const freshM = { ...M, 'src/ui/freshcat.js': { file: 'assets/freshcat.js', isDynamicEntry: true } };
+  it('a lazy fresh-cat chunk passes, with its own 30 kB ceiling', () => {
+    expect(lazyProblems(freshM, FRESH_ENTRY_MODULES)).toEqual([]);
+    expect(FRESH_GZIP_CEILING_KB).toBe(30);
+    expect(FRESH_ENTRY_MODULES.fresh).toEqual(['src/ui/freshcat.js']);
+    expect(areaSizeProblems({ fresh: 30.1 }, FRESH_GZIP_CEILING_KB)[0]).toMatch(/fresh.*30\.1 kB/);
+    expect(areaSizeProblems({ fresh: 5.4 }, FRESH_GZIP_CEILING_KB)).toEqual([]);
+  });
+  it('names the module when start-up imports it statically, or when it is missing', () => {
+    const bad = { ...freshM, 'index.html': { ...freshM['index.html'], imports: [...freshM['index.html'].imports, 'src/ui/freshcat.js'] } };
+    expect(lazyProblems(bad, FRESH_ENTRY_MODULES)[0]).toMatch(/src\/ui\/freshcat\.js/);
+    expect(lazyProblems(M, FRESH_ENTRY_MODULES)[0]).toMatch(/src\/ui\/freshcat\.js/);
   });
 });
 

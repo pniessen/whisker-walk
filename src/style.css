@@ -820,7 +820,7 @@ body.touch-mode:not(.left-handed) .hud-top {
 /* Start over: a small soft-red outline pill. */
 .settings-section .danger {
   background: transparent; color: #e98a8a; border: 1px solid #e98a8a; border-radius: 999px;
-  padding: 8px 18px; font-weight: 700;
+  padding: 8px 18px; font-weight: 700; margin: 4px 6px 0 0;
 }
 .settings-section .danger:hover { background: rgba(233,138,138,0.12); }
 .settings-section .danger:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }

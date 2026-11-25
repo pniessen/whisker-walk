@@ -637,6 +637,18 @@ describe('where the network can start', () => {
     expect([...new Set([...read('ui/catlogin.js').matchAll(/\bsync\.(\w+)\(/g)].map((m) => m[1]))].sort())
       .toEqual(['catchUp', 'changeCode', 'confirmLoad', 'getCode', 'previewLoad', 'saveToCloud', 'syncNow', 'unlink']);
   });
+  it('Start a fresh cat (a lazy chunk) makes no request of its own and never deletes anything in the cloud: it reaches the cloud only through the sync handed to it, with three calls', () => {
+    for (const f of ['ui/freshcat.js', 'ui/freshcatwords.js']) {
+      expect(read(f), f).not.toMatch(/\bfetch\(|XMLHttpRequest|WebSocket|sendBeacon|createCloud|createLiveCloud|createSupabaseTransport|supabase|from '\.\.?\/(cloud|net)\.js'/);
+    }
+    expect([...new Set([...read('ui/freshcat.js').matchAll(/\bsync\??\.(\w+)\??\.?\(/g)].map((m) => m[1]))].sort())
+      .toEqual(['getCode', 'saveToCloud', 'syncNow']);
+    // no delete anywhere in it: not the cloud save's, not the online data's
+    expect(read('ui/freshcat.js')).not.toMatch(/deleteSave|deleteCloudSave|onlineDelete|deleteOnline|\.delete\(|DELETE/);
+    // start-up holds only the two doors and a dynamic import
+    expect(read('ui/homebase.js')).toContain("import('./freshcat.js')");
+    expect(read('ui/homebase.js')).not.toMatch(/^import .*freshcat/m);
+  });
   it('the hop client (cat login M4) has no import and makes no request: it asks only through the cloud it is handed, and only after start() or join()', () => {
     const hop = read('game/hop.js');
     expect(hop).not.toMatch(/^import /m);
@@ -649,7 +661,7 @@ describe('where the network can start', () => {
   it('only cloudsync.js and rooms.js can make a cloud or a transport, and only net.js a client', () => {
     const files = ['main.js', 'game/walk.js', 'game/netevents.js', 'game/interactions.js', 'game/colonysync.js',
       'game/onlinedelete.js', 'game/homebasecloud.js', 'ui/homebase.js', 'game/nearby.js', 'game/session.js',
-      'ui/catlogin.js', 'ui/catloginwords.js', 'catcodes.js', 'randomindex.js', 'savecode.js', 'game/hop.js']; // (cat login M3: the sheet and the code words reach the cloud only through the sync handed to them)
+      'ui/catlogin.js', 'ui/catloginwords.js', 'ui/freshcat.js', 'ui/freshcatwords.js', 'catcodes.js', 'randomindex.js', 'savecode.js', 'game/hop.js']; // (cat login M3: the sheet and the code words reach the cloud only through the sync handed to them)
     for (const f of files) {
       expect(read(f), f).not.toMatch(/createLiveCloud|createSupabaseTransport|getSupabaseClient|@supabase\/supabase-js/);
     }
