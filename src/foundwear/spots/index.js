@@ -24,6 +24,7 @@ import { seedFromCode } from '../../rng.js';
 import { DOCKS_SPOTS } from './docks.js';
 import { FAIR_SPOTS } from './fair.js';
 import { FARM_SPOTS } from './farm.js';
+import { GREENHOUSE_SPOTS } from './greenhouse.js';
 import { LIGHTHOUSE_SPOTS } from './lighthouse.js';
 import { MARKET_SPOTS } from './market.js';
 import { MOON_SPOTS } from './moon.js';
@@ -37,7 +38,7 @@ import { WOODS_SPOTS } from './woods.js';
 export const FIND_LOOKS = Object.freeze(['post', 'branch', 'grass', 'water', 'perch']);
 export const SPOT_ID = /^fw-[a-z]{2,12}-\d{1,2}$/;
 
-export const FIND_SPOTS = Object.freeze({ docks: DOCKS_SPOTS, fair: FAIR_SPOTS, farm: FARM_SPOTS, lighthouse: LIGHTHOUSE_SPOTS, market: MARKET_SPOTS, moon: MOON_SPOTS, neighborhood: NEIGHBORHOOD_SPOTS, park: PARK_SPOTS, seaside: SEASIDE_SPOTS, woods: WOODS_SPOTS });
+export const FIND_SPOTS = Object.freeze({ docks: DOCKS_SPOTS, fair: FAIR_SPOTS, farm: FARM_SPOTS, greenhouse: GREENHOUSE_SPOTS, lighthouse: LIGHTHOUSE_SPOTS, market: MARKET_SPOTS, moon: MOON_SPOTS, neighborhood: NEIGHBORHOOD_SPOTS, park: PARK_SPOTS, seaside: SEASIDE_SPOTS, woods: WOODS_SPOTS });
 
 // spotsIn(areaId) -> that area's spots, or [] (own keys only).
 const NONE = Object.freeze([]);

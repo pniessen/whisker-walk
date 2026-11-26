@@ -481,8 +481,10 @@ const AREAS = [
   // 3,084, foliage 10,560, orchids 1,884, koi 108; the fountain 6,900; the frame 2,988 and the glass 420). The street places' ruling, never
   // raised; the place aims for 150 / 70 / 52,000 when it is whole. Milestone G3 (2026-11-26: the court, the shed and its roof climb, the
   // beds, hedges, trees, perches, rests, collectibles, tippables, a box, critters, moments and the three stage-A finds) measured 42 / 7 / 40,212
-  // built (ghGround 212, ghStreet 1,318, ghShed 1,388, ghTrees 2,160, the box 84): the ceiling row stays.
-  ['greenhouse', buildGreenhouse, 280, 210, 62000],
+  // built (ghGround 212, ghStreet 1,318, ghShed 1,388, ghTrees 2,160, the box 84). Milestone G4 (2026-11-26: the return archway, 2 meshes) measured
+  // 44 / 7 / 40,488 built, so the row is SET at measured +12% (the Farm's and the Market's ruling): 50 / 8 / 45,350 (it was the street
+  // places' 280 / 210 / 62,000 ceiling until measured). Stage B's rooms (G6) re-measure and set it again.
+  ['greenhouse', buildGreenhouse, 50, 8, 45350],
   // The Moon. Milestone 0 (2026-11-23, the seams) was a bare plain, 1 / 0 / 5,408 (the 130 m ground plane's own segments). Milestone 1
   // (the real heightfield ground in the gravel tile, 6,496 triangles in one mesh; four InstancedMeshes of rocks; the lander, the flag, the
   // landing lights and the return gate ring, merged by material) measured 10 / 5 / 7,844 built as this file counts (an InstancedMesh is
@@ -557,7 +559,7 @@ const MERGED_AREAS = [
   ['fair', buildFair, 200, 140], // measured 178 / 124
   ['roofs', buildRoofs, 64, 34], // measured 60 / 30 (59 / 30 before the Rooftops step 5 fix wave's vane, its own mesh so the tower view can fade it, never merged; 57 / 30 before Rooftops step 3's two sleeping cats, Task 6, never merged; 56 / 30 before round two's lamp halo, Task G; 55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
   ['market', buildMarket, 156, 36], // 2026-11-22: re-measured on purpose for the four new stalls (toys, plants, bric-a-brac, butcher): 139 / 32 merged, +12% (the same ruling); ceilings 280 / 210 / 62000 unchanged. Earlier: measured 98 / 24 after Task 6's rework and review (its clutter, the controller's ruling), +12%; 76 / 23 before; 108 / 24 after step 3's Task 8 (the café front's paint and its chalkboard's contact-shadow box), ceiling unchanged; 110 / 25 with step 4's gate (its body and its bar), re-pinned at +12% (the same ruling)
-  ['greenhouse', buildGreenhouse, 41, 7], // 2026-11-26: milestone G3 measured 36 / 6 merged (42 / 7 built), +12% (the Farm's and the Market's ruling); 33 / 5 at milestone 1 (29 / 4 measured); the plan's gate is about 80 / 40
+  ['greenhouse', buildGreenhouse, 43, 7], // 2026-11-26: milestone G4 measured 38 / 6 merged (44 / 7 built: the return arch's two meshes never merge), +12% (the Farm's and the Market's ruling); G3 measured 36 / 6 merged (42 / 7 built) and set 41 / 7; 33 / 5 at milestone 1 (29 / 4 measured); the plan's gate is about 80 / 40
   ['lighthouse', buildLighthouse, 32, 11], // 2026-11-22: milestone 3 measured 28 / 9 merged (26 / 9 at milestone 2, 23 / 9 at milestone 1: the fog bell is two meshes of its own so it can swing), +12% (the Farm's and the Market's ruling); the plan's gate is 70 / 36. Beauty pass 2026-11-23 measured 30 / 10 merged (the cliff faces and the lawn carry the game's own gravel and grass textures, two more merged meshes, one caster more), ceilings unchanged
 ];
 

@@ -283,13 +283,16 @@ describe('the walk\'s draw of the gates (teleport.draw)', () => {
     const { setGreenhouse } = await import('../src/greenhouseflag.js');
     setTele(true); setGreenhouse(true);
     try {
-      const state = { edition: 'canon', walks: {} };
+      const state = { edition: 'canon', walks: { park: 2 } };
       const scene = new THREE.Scene();
       const solids = T.draw(scene, 'park', state, { y: () => 0 }, false);
       const gate = scene.children.find((c) => c.name === 'telegate' && c.userData.endId === 'park-greenhouse');
-      expect(gate.userData.awake).toBe(true);
-      // the Moon gate stands beside it, dormant until two Park walks (no walks in this state)
-      expect(scene.children.find((c) => c.userData.endId === 'park-moon').userData.awake).toBe(false);
+      expect(gate.userData.awake).toBe(true); // (two Park walks: the archway and the Moon's ring wake together)
+      expect(scene.children.find((c) => c.userData.endId === 'park-moon').userData.awake).toBe(true);
+      // and before two Park walks both sleep
+      const sleepy = new THREE.Scene();
+      T.draw(sleepy, 'park', { edition: 'canon', walks: {} }, { y: () => 0 }, false);
+      expect(sleepy.children.filter((c) => c.name === 'telegate').map((c) => c.userData.awake)).toEqual([false, false]);
       expect(gate.getObjectByName('teleDisc').onBeforeRender).not.toBe(new THREE.Mesh().onBeforeRender);
       expect(solids).toHaveLength(4); // two pillars each
       const calmScene = new THREE.Scene();

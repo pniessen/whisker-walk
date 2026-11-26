@@ -30,7 +30,7 @@
 // HINT_PICS. f.place is the walk's area id. Put it FIRST in HINTS: the table
 // is walked in order and the first due hint wins, and a place's own hint
 // should go up at the walk's first check, ahead of any other that is due then.
-// The four place hints lead the table (roofs, market, house, lighthouse) for that reason;
+// The five place hints lead the table (roofs, market, house, lighthouse, greenhouse) for that reason;
 // one walk is in one place, so they are never due together.
 //
 // `ring` names the control the line is about, for the guided walk's ring
@@ -50,6 +50,7 @@ export const HINTS = Object.freeze([
   { id: 'market', max: 1, ring: null, when: (f) => f.place === 'market' },
   { id: 'house', max: 1, ring: null, when: (f) => f.place === 'house' },
   { id: 'lighthouse', max: 1, ring: null, when: (f) => f.place === 'lighthouse' },
+  { id: 'greenhouse', max: 1, ring: null, when: (f) => f.place === 'greenhouse' },
   { id: 'look', max: 2, ring: 'look', when: (f) => later(f) && f.t >= 15 && !f.looked, until: (f) => f.looked },
   { id: 'creep', max: 2, ring: 'move', until: (f) => f.stalking },
   { id: 'jump', max: 2, ring: 'pounce', when: (f) => f.canJump && !f.perched, until: (f) => f.perched },

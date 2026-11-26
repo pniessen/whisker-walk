@@ -8,7 +8,7 @@
 //
 // It reads catalog.accessories[id].find, so a stand-in catalog drives the
 // tests. Nothing here writes state.
-import { placeName, areaInEdition, accessoryName } from '../edition.js';
+import { placeName, areaShown, accessoryName } from '../edition.js';
 import { lower } from '../bordercross.js';
 import { escapeHtml } from '../escapehtml.js';
 import { phrase } from '../clanphrases.js';
@@ -27,7 +27,7 @@ export function renderThingsToWearHtml(state, catalog) {
   const areas = catalog?.areas ?? {};
   const accessories = Object.entries(catalog?.accessories ?? {}).filter(([, a]) => a && typeof a.find === 'string');
   const groups = Object.keys(areas).map((areaId) => {
-    const shown = areaInEdition(areas[areaId], edition);
+    const shown = areaShown(areas[areaId], edition);
     const cards = accessories.filter(([, a]) => a.find === areaId).map(([id, a]) => {
       const emoji = escapeHtml(a.emoji ?? '');
       if (owned.includes(id)) {

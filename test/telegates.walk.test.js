@@ -70,7 +70,10 @@ describe('the gates in a walk', () => {
     const g = walkHarness({ save: parkSave });
     g.w.startWalk({ areaOverride: 'greenhouse' });
     expect(g.getSession().areaId).toBe('greenhouse');
-    expect(gateMeshes(g.getSession())).toHaveLength(1);
+    expect(gateMeshes(g.getSession())).toHaveLength(0); // the gate draws nothing there: the Greenhouse's own arch is the gate (`own`)
+    let arch = 0;
+    g.getSession().scene.traverse((o) => { if (o.name === 'ghReturnArch') arch += 1; });
+    expect(arch).toBe(1);
     setTele(false);
     const off = walkHarness({ save: parkSave });
     off.w.startWalk({});
@@ -87,7 +90,7 @@ describe('the gates in a walk', () => {
     h.w.startWalk({});
     const cs = h.getSession().areaData.colliders;
     expect(cs.length).toBe(n + 4); // two pillars for each of the Park's two gates
-    expect(cs.filter((c) => c.x === -10 && (c.z === 42.7 || c.z === 45.3))).toHaveLength(2);
+    expect(cs.filter((c) => c.x === -10 && (c.z === 43.05 || c.z === 44.95))).toHaveLength(2);
   }, WALK_MS);
 });
 
@@ -101,6 +104,7 @@ describe('through and back', () => {
     const equipped = JSON.stringify(h.progression.state.equipped);
     const area = h.progression.state.area;
     const unlockedBefore = JSON.stringify(h.progression.state.unlocked);
+    const pointsBefore = h.progression.state.points;
     const going = h.w.walkOn({ via: PG });
     expect(h.getSession()).toBeNull(); // banked and freed: the pack is here
     expect(await going).toBe('walked');
@@ -120,16 +124,19 @@ describe('through and back', () => {
     expect(s.cat.position.z).toBeCloseTo(29, 9);
     expect(s.cat.rotation.y).toBeCloseTo(Math.PI / 2, 9);
     expect(s.arrivedVia).toBe(GP);
-    // the same cat, the same clothes, nothing bought or unlocked, her place unchanged
+    // the same cat, the same clothes, nothing bought; the free Greenhouse is taken (price 0, the 'take' path: it is hers and her place)
     expect(s.cat.userData.breed).toBe(cat);
     expect(JSON.stringify(h.progression.state.equipped)).toBe(equipped);
-    expect(JSON.stringify(h.progression.state.unlocked)).toBe(unlockedBefore);
-    expect(h.progression.state.area).toBe(area);
+    expect(JSON.parse(unlockedBefore).areas).toEqual(['neighborhood', 'park']);
+    expect(h.progression.state.unlocked.areas).toEqual(['neighborhood', 'park', 'greenhouse']);
+    expect(h.progression.state.points).toBeGreaterThanOrEqual(pointsBefore); // (free: nothing is charged; the banked walk may add paws)
+    expect(area).toBe('park');
+    expect(h.progression.state.area).toBe('greenhouse');
     expect(h.progression.state.walks.greenhouse ?? 0).toBe(0);
     // the arrival line says how to go home
     expect(walked).toHaveLength(1);
-    expect(walked[0].concat(s.startLines ?? [])).toContain(phrase('tele.home', 'stonering'));
-    expect(gateMeshes(s)).toHaveLength(1); // the way home
+    expect(walked[0].concat(s.startLines ?? [])).toContain(phrase('tele.home', 'archway'));
+    expect(gateMeshes(s)).toHaveLength(0); // the way home is the Greenhouse's own arch
   }, WALK_MS);
 
   it('and back: Greenhouse to Park, at the Park\'s gate, the walk banked, her place the Park', async () => {
@@ -153,14 +160,14 @@ describe('through and back', () => {
     expect(JSON.stringify(h.progression.state.equipped)).toBe(equipped);
   }, WALK_MS);
 
-  it('closing the app on the far side starts there: the walk note names the Greenhouse and a launch picks it up; her saved place stays the Park', async () => {
+  it('closing the app on the far side starts there: the walk note names the Greenhouse and a launch picks it up; her saved place is the Greenhouse she took', async () => {
     const h = walkHarness({ save: parkSave });
     h.w.startWalk({});
     await h.w.walkOn({ via: PG });
     vi.advanceTimersByTime(GATE_MOMENT_MS);
     const s = h.getSession();
     expect(s.areaId).toBe('greenhouse');
-    expect(h.progression.state.area).toBe('park'); // the Greenhouse is walked as an override, never her saved place
+    expect(h.progression.state.area).toBe('greenhouse'); // the free Greenhouse is taken on the way through (not an override)
     // what main.js writes as the game is put away, and reads back at the next launch
     const note = snapshotWalk(s, { yaw: 0, now: Date.now() });
     expect(note).not.toBeNull();
@@ -238,7 +245,7 @@ describe('through and back', () => {
     // tele.kit stays set from this file's load (one page, one load), but a flagless walk draws nothing and its prompt is null
     expect(tele.kit).not.toBeNull();
     expect(gateMeshes(h.getSession())).toHaveLength(0);
-    expect(CATALOG.areas.greenhouse).toBeUndefined();
+    expect(CATALOG.areas.greenhouse.gate).toBe('tele'); // (the row is there, but nothing shows it while the switch is off: test/greenhousegate.test.js)
   }, WALK_MS);
 });
 
@@ -256,7 +263,7 @@ describe('the card and its two buttons (game/crossing.js)', () => {
   const dataFor = async () => {
     const kit = await teleLoad();
     const end = kit.TELE_ENDS.park[0];
-    const p = kit.prompt({ areaId: 'park' }, { x: end.x + 1, z: end.z }, { edition: 'canon', walks: {} }, false, () => {}, true);
+    const p = kit.prompt({ areaId: 'park' }, { x: end.x + 1, z: end.z }, { edition: 'canon', walks: { park: 2 } }, false, () => {}, true);
     return p.prompt.data;
   };
 

@@ -59,7 +59,7 @@ const loaders = {
   house: () => import('./house.js').then((w) => own('house', w)),
   // Lighthouse Point (a catalog row and the Seaside's gate since its milestone 4; ?lighthouse=1 stays a developer shortcut).
   lighthouse: () => import('./lighthouse.js').then((w) => own('lighthouse', w)),
-  // The Greenhouse (?greenhouse=1 only until its milestone 4: no catalog row, no gate).
+  // The Greenhouse (a catalog row, behind the gates switch, and the Park's archway since its milestone G4; ?greenhouse=1 stays a developer shortcut).
   greenhouse: () => import('./greenhouse.js').then((w) => own('greenhouse', w)),
   // The Moon (?moon=1 only: no catalog row, no gate; its milestone 0 is the seams and a bare plain).
   moon: () => import('./moon.js').then((w) => own('moon', w)),

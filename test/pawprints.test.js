@@ -22,6 +22,7 @@ const { build: buildFair } = await import('../src/world/fair.js');
 const { build: buildRoofs } = await import('../src/world/roofs.js');
 const { build: buildMarket } = await import('../src/world/market.js');
 const { build: buildLighthouse } = await import('../src/world/lighthouse.js');
+const { build: buildGreenhouse } = await import('../src/world/greenhouse.js');
 const { build: buildMoon } = await import('../src/world/moon.js');
 const { createContactShadows } = await import('../src/render/contactshadows.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -29,7 +30,7 @@ const { assignShadowCasters } = await import('../src/render/rig.js');
 const { LADDER } = await import('../src/render/quality.js');
 const { inWater } = await import('../src/world/builder.js');
 
-const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, farm: buildFarm, fair: buildFair, roofs: buildRoofs, market: buildMarket, lighthouse: buildLighthouse, moon: buildMoon };
+const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, farm: buildFarm, fair: buildFair, roofs: buildRoofs, market: buildMarket, lighthouse: buildLighthouse, greenhouse: buildGreenhouse, moon: buildMoon };
 
 // walk.js's order: build, contact shadows, merge, casters, THEN prints.
 function walkScene(areaId) {

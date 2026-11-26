@@ -614,6 +614,8 @@ const LATER = Object.freeze({
   'wear.flowerbasket.name': 'Flower Basket',
   // Lighthouse Point's found outfit (a placeholder name the owner and his daughter will pick, the same in every set)
   'wear.keepercap.name': 'Keeper’s Cap',
+  // The Greenhouse's found outfit (a placeholder name the owner and his daughter will pick, the same in every set)
+  'wear.gardenerhat.name': 'Gardener’s Hat',
   // The Moon's found cape (the Clan words' Silverpelt Cape is a milestone-later flavour: this name is the same in every set)
   'wear.starlightcape.name': 'Starlight Cape',
   // Lighthouse Point's journal pages (src/lighthousepages.js): drawn before the place is ever walked, so they are

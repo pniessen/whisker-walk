@@ -239,8 +239,9 @@ const CLUMPS = [
   [-150, 180, 2], [420, 950, 3], [60, 960, 2], [-260, 760, 3],
 ];
 const BUSHES = [[30, 330], [200, 812], [560, 840], [702, 852], [930, 150], [1190, 70], [1300, 470], [1070, 735], [-90, 70], [250, 20]];
-// The east one moved north (1266, 515 -> 1248, 128) when Lighthouse Point's circle took the coast it stood on.
-const PONDS_AT = [[1248, 128, 20, 13], [-70, 690, 26, 16]];
+// The east one moved north (1266, 515 -> 1248, 128) when Lighthouse Point's circle took the coast it stood on, and again
+// (1248, 128 -> 1118, 44) when the Greenhouse's circle (1215, 150, r 60) took that spot.
+const PONDS_AT = [[1118, 44, 20, 13], [-70, 690, 26, 16]];
 
 function makeTrees() {
   const trees = [];

@@ -34,4 +34,6 @@ export const HEAD_WEAR = Object.freeze([
   Object.freeze({ id: 'tradercap', slot: 'head', find: 'market', emoji: '🧢', name: () => phrase('wear.tradercap.name') }),
   // Lighthouse Point (2026-11-22): the same cap in navy with a brass button (a placeholder name)
   Object.freeze({ id: 'keepercap', slot: 'head', find: 'lighthouse', emoji: '🧢', name: () => phrase('wear.keepercap.name') }),
+  // The Greenhouse (2026-11-26): the Bucket Hat's shape in sage canvas with a white daisy; deliberately not a straw hat (a placeholder name)
+  Object.freeze({ id: 'gardenerhat', slot: 'head', find: 'greenhouse', emoji: '🌼', name: () => phrase('wear.gardenerhat.name') }),
 ]);

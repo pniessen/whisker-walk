@@ -32,10 +32,10 @@ afterEach(() => {
 });
 
 describe('nothing offers it yet', () => {
-  it('no catalog row, no map place, no gate, no kept offer', () => {
-    expect(Object.hasOwn(CATALOG.areas, 'greenhouse')).toBe(false);
-    expect(STREET_PLACES.some((p) => p.areaId === 'greenhouse')).toBe(false);
-    expect(endsFor('farm').some((e) => /greenhouse/.test(e.id))).toBe(false);
+  it('a catalog row and a map circle since G4, but behind the gates switch; no Farm gate, no kept offer', () => {
+    expect(CATALOG.areas.greenhouse).toMatchObject({ price: 0, requires: { area: 'park', walks: 2 }, gate: 'tele' });
+    expect(STREET_PLACES.some((p) => p.areaId === 'greenhouse')).toBe(true);
+    expect(endsFor('farm').some((e) => /greenhouse/.test(e.id))).toBe(false); // (the Farm fence is not cut: the Park's archway is the way)
     expect(Object.hasOwn(KEPT_OFFERS, 'greenhouse')).toBe(false);
   });
   it('a fresh save is never told about it, and cannot buy it with any paws', () => {

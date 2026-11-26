@@ -84,8 +84,8 @@ const ICON = { town: '🏠', woods: '🌳', moor: '🌾', river: '🌿', pines: 
 // Where each name sits, nudged off her water and paths where they cross the centre.
 const LABEL_AT = { town: [862, 572], woods: [556, 540], moor: [655, 92], river: [205, 548], pines: [290, 172], gorge: [815, 300] };
 // The world map's street places: their icons, and where draft 2 puts their names.
-const STREET_ICON = { park: '⛲', fair: '🎡', farm: '🚜', docks: '⚓', seaside: '🏖️', roofs: '🕊️', market: '🧺', house: '🕰️', lighthouse: '🗼' };
-const STREET_LABEL_AT = { park: [1080, 478], fair: [1060, 236], farm: [1235, 326], docks: [900, 778], seaside: [1170, 688], lighthouse: [1268, 531] };
+const STREET_ICON = { park: '⛲', fair: '🎡', farm: '🚜', docks: '⚓', seaside: '🏖️', roofs: '🕊️', market: '🧺', house: '🕰️', lighthouse: '🗼', greenhouse: '🌿' };
+const STREET_LABEL_AT = { park: [1080, 478], fair: [1060, 236], farm: [1235, 326], docks: [900, 778], seaside: [1170, 688], lighthouse: [1268, 531], greenhouse: [1255, 150] };
 // Places inside the town whose names sit off their centre: the Market's, just
 // east of its circle, in the one gap that keeps its icon, name and line off
 // the town's own name and line, the Docks', the Park's and the Seaside's

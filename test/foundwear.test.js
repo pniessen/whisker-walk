@@ -99,7 +99,7 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(ids('farm')).toEqual(['strawhat', 'featherplume', 'neckerchief', 'haybalepack']);
     expect(ids('fair')).toEqual(['stripedboater', 'heartglasses', 'ticketgarland', 'candyflosspuff']);
     for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) expect(ids(a)).toEqual([]);   // Legacy's retirement first
-    expect(FOUND_WEAR).toHaveLength(30);   // the street places' 24, the Market's four, Lighthouse Point's keeper's cap and the Moon's cape
+    expect(FOUND_WEAR).toHaveLength(31);   // the street places' 24, the Market's four, Lighthouse Point's keeper's cap, the Moon's cape and the Greenhouse's gardener's hat
   });
   // Market step 4 (2026-11-21): a hat, a neck piece, a collar charm and a
   // back item, the names placeholders the owner and his daughter will rename
@@ -119,6 +119,18 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(foundWearIn('lighthouse').map((r) => r.name())).toEqual(['Keeper’s Cap']);
     expect(withOffWords(() => foundWearIn('lighthouse').map((r) => r.name()))).toEqual(['Keeper’s Cap']);
     expect(CATALOG.accessories.keepercap?.find).toBe('lighthouse');
+    expect(validateFoundWear({ head: HEAD_WEAR, face: FACE_WEAR, neck: NECK_WEAR, body: BODY_WEAR, feet: FEET_WEAR },
+      { areaIds: [...Object.keys(CATALOG.areas), 'moon'], takenIds: BASE_ACCESSORY_IDS })).toEqual([]);
+  });
+  // Greenhouse G4 (2026-11-26): one hat, a head piece in sage canvas with a daisy, deliberately not a second straw hat
+  it('the Greenhouse hides one outfit, the Gardener\'s Hat, a head piece with a plain name in either set, twelve spots', () => {
+    expect(foundWearIn('greenhouse').map((r) => [r.id, r.slot])).toEqual([['gardenerhat', 'head']]);
+    expect(foundWearIn('greenhouse').map((r) => r.name())).toEqual(['Gardener’s Hat']);
+    expect(withOffWords(() => foundWearIn('greenhouse').map((r) => r.name()))).toEqual(['Gardener’s Hat']);
+    expect(CATALOG.accessories.gardenerhat).toMatchObject({ slot: 'head', price: 0, prize: true, find: 'greenhouse' });
+    expect(CATALOG.accessories.gardenerhat.emoji).not.toBe(CATALOG.accessories.strawhat.emoji); // not a second straw hat
+    expect(spotsIn('greenhouse')).toHaveLength(12);
+    expect(foundWearIn('farm').map((r) => r.id)).toContain('strawhat'); // the Farm keeps its own
     expect(validateFoundWear({ head: HEAD_WEAR, face: FACE_WEAR, neck: NECK_WEAR, body: BODY_WEAR, feet: FEET_WEAR },
       { areaIds: [...Object.keys(CATALOG.areas), 'moon'], takenIds: BASE_ACCESSORY_IDS })).toEqual([]);
   });

@@ -235,6 +235,38 @@ export function streetKit() {
   return finishMesh('ghStreet', col.merged());
 }
 
+// The way home (G4): a little stone archway with a lantern and ivy, standing at RETURN_ARCH facing west (she walks west into it),
+// with one faint warm disc in the gap (the one transparent draw). The Park's archway is its twin (src/teleport.js, `own`: the
+// gate draws nothing here). Two meshes: the stone body (vertex colours) and the disc.
+export function returnArch() {
+  const A = P.RETURN_ARCH;
+  const col = collector();
+  const stone = [0xb69a74, 0xad9168];
+  for (const [i, sz] of [-1, 1].entries()) col.add(slab(0.5, A.spring, 0.5, stone[i]), 0, A.spring / 2, sz * A.pillarGap, {});
+  for (let i = 0; i < 7; i++) {
+    const a = Math.PI * (i / 6);
+    const mid = i === 3;
+    col.add(slab(0.5, mid ? 0.6 : 0.46, mid ? 0.72 : 0.62, mid ? 0xd2b88a : stone[i % 2]), 0, A.spring + Math.sin(a) * A.pillarGap, Math.cos(a) * A.pillarGap, { tilt: Math.PI / 2 - a });
+  }
+  const ivy = tint(new THREE.IcosahedronGeometry(0.22, 0), 0x4e8a42);
+  for (const [y, z, k] of [[0.4, -1.08, 1], [1.0, -0.86, 0.8], [1.6, -1.1, 0.9], [2.5, -1.2, 0.8], [0.5, 1.1, 0.9], [1.3, 0.84, 0.8]]) col.add(ivy, 0.12, y, z, { scale: k, sy: k * 0.8 });
+  col.add(slab(0.2, 0.26, 0.2, 0xffe08a), -0.34, A.spring + A.pillarGap + 0.62, 0, {});
+  col.add(slab(0.3, 0.05, 0.3, 0x3a3a40), -0.34, A.spring + A.pillarGap + 0.78, 0, {});
+  const body = finishMesh('ghReturnArchBody', col.merged());
+  const discGeo = new THREE.CircleGeometry(0.78, 24).rotateY(Math.PI / 2);
+  const disc = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ color: 0xffe2a0, transparent: true, opacity: 0.42, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  disc.position.set(0, 1.25, 0);
+  disc.name = 'ghReturnArchDisc';
+  disc.userData.noMerge = true;
+  disc.userData.noCast = true;
+  disc.castShadow = false;
+  const g = new THREE.Group();
+  g.name = 'ghReturnArch';
+  g.add(body, disc);
+  g.position.set(A.x, 0, A.z);
+  return g;
+}
+
 // The potting shed (7 x 5, door west, roof 2.4), the rain barrel, two pot stacks, the cold frames and the bean rows' poles.
 export function shedKit() {
   const col = collector();

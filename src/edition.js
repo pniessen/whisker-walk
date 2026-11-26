@@ -11,6 +11,7 @@
 import { words } from './wordset.js';
 import { phrase } from './clanphrases.js';
 import { rivalFor } from './rivalclans.js';
+import { teleOn } from './teleflag.js';
 
 export const EDITIONS = Object.freeze(['canon', 'legacy']);
 export const DEFAULT_EDITION = 'canon';
@@ -40,6 +41,14 @@ export function areaInEdition(entry, edition) {
   return !(edition === 'legacy' && entry && entry.edition === 'canon');
 }
 
+// Is this place in front of a child at all? areaInEdition, and a row marked `gate: 'tele'` (the Greenhouse: reached only through a
+// teleport gate) only while the gates switch is on (src/teleflag.js); with it off its card, map circle, purchase and hint are hidden.
+// (The golden-mice total counts by areaInEdition alone, as it counts the Moon, which has no row.)
+export function areaShown(entry, edition) {
+  if (entry && entry.gate === 'tele' && !teleOn()) return false;
+  return areaInEdition(entry, edition);
+}
+
 // Own-property read so '__proto__' and friends are not areas. A place whose
 // name is in the word tables by its own id (the Rooftops) takes it from there,
 // as the world map does, so a word set's name shows wherever the place is named.
@@ -57,10 +66,9 @@ export function placeName(areaId, edition, catalog) {
 // shows the same place again.
 export function effectiveArea(state, catalog) {
   const area = state.area;
-  if (state.edition === 'legacy') {
-    const areas = catalog && catalog.areas;
-    if (areas && Object.hasOwn(areas, area) && !areaInEdition(areas[area], 'legacy')) return 'neighborhood';
-  }
+  // (Legacy and a Clan-only place; or a gate-only place with the gates off: she walks the town, state.area is left alone)
+  const areas = catalog && catalog.areas;
+  if (areas && Object.hasOwn(areas, area) && !areaShown(areas[area], state.edition)) return 'neighborhood';
   return area;
 }
 
