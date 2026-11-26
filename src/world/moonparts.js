@@ -9,7 +9,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { litMaterial } from '../render/materials.js';
 import { mulberry32 } from '../rng.js';
 import * as P from './moonplan.js';
-import { regolithMaterial, angularRock, GRAIN_TILE, dustGeometry } from './moonbeauty.js';
+import { regolithMaterial, angularRock, GRAIN_TILE, dustGeometry, machineTone } from './moonbeauty.js';
 import * as BP from './moonbeautyplan.js';
 
 export const COL = Object.freeze({
@@ -157,7 +157,7 @@ function rockLists(lowTier) {
 // a hashed grain at two scales from the stone's own (object space) position, so it turns and scales with the stone, and a pale dusting that clings to the
 // up-facing faces. A few ALU on the rocks' pixels; no texture, no draw.
 export const ROCK_GRAIN = Object.freeze({ fine: 26, blotch: 5.5, amount: 0.34 });
-export function rockGrain(mat) {
+export function rockGrain(mat, amount = ROCK_GRAIN.amount, strata = 0) {
   mat.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vRockP;')
@@ -166,9 +166,9 @@ export function rockGrain(mat) {
       .replace('#include <common>', '#include <common>\nvarying vec3 vRockP;\nfloat rockH(vec3 p) { return fract(sin(dot(floor(p), vec3(12.9898, 78.233, 37.719))) * 43758.5453); }')
       .replace('#include <color_fragment>', `#include <color_fragment>
       float rg = rockH(vRockP * ${ROCK_GRAIN.fine.toFixed(1)}) * 0.55 + rockH(vRockP * ${ROCK_GRAIN.blotch.toFixed(1)} + 7.0) * 0.45;
-      diffuseColor.rgb *= 1.0 - ${ROCK_GRAIN.amount.toFixed(2)} + ${(ROCK_GRAIN.amount * 2).toFixed(2)} * rg;`);
+      diffuseColor.rgb *= 1.0 - ${amount.toFixed(2)} + ${(amount * 2).toFixed(2)} * rg;${strata ? `\n      diffuseColor.rgb *= 1.0 + ${strata.toFixed(2)} * sin(vRockP.y * 6.0 + sin(vRockP.x * 1.3 + vRockP.z * 1.1) * 2.0);` : ''}`);
   };
-  mat.customProgramCacheKey = () => 'moon-rock-grain';
+  mat.customProgramCacheKey = () => (strata || amount !== ROCK_GRAIN.amount ? `moon-rock-grain-${amount}-${strata}` : 'moon-rock-grain');
   return mat;
 }
 
@@ -227,7 +227,7 @@ export function createKit(prefix) {
     meshes() {
       return [...buckets.values()].map((b) => {
         const geo = b.geos.length === 1 ? b.geos[0] : mergeGeometries(b.geos);
-        if (b.mat.vertexColors && !b.mat.isMeshBasicMaterial) dustGeometry(geo); // (beauty round 2) the lower parts dusty, the tops settled with it
+        if (b.mat.vertexColors && !b.mat.isMeshBasicMaterial) { if (b.key === 'paint') machineTone(geo, { lo: 0.9, up: 0.1, scuff: 0.14 }); dustGeometry(geo); } // (beauty round 5) the painted kit's panels: tops brighter, undersides greyer, a ragged scuff // (beauty round 2) the lower parts dusty, the tops settled with it
         const m = new THREE.Mesh(geo, b.mat);
         m.name = `${prefix}:${b.key}`;
         m.castShadow = !b.noCast;
@@ -244,7 +244,7 @@ export function createKit(prefix) {
 export function moonMaterials() {
   return {
     paint: litMaterial(0xffffff, { vertexColors: true, roughness: 0.6 }),
-    stone: litMaterial(0xffffff, { vertexColors: true, roughness: 1 }),
+    stone: rockGrain(litMaterial(0xffffff, { vertexColors: true, roughness: 1 }), 0.16, 0.07), // (beauty round 5) the pillars' and gate stones' grain, and strata bands that follow world height
     glow: new THREE.MeshBasicMaterial({ vertexColors: true }),
     // (milestone 6) forceSinglePass: a double-sided transparent material is two draws (back faces, then front) unless it is told one pass is enough; these are soft
     // shapes that write no depth, so the order of their faces does not show, and the Moon's frame had no draw calls to spare

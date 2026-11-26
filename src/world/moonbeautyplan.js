@@ -93,6 +93,28 @@ export function rimDebris(lite = false) {
   return out;
 }
 
+// (beauty round 5) Where the buildings meet the dust: soft dark contact smudges (a little longer away from the sun) at the feet of the dome, tunnel, rocket stand, gantry, tanks,
+// desk, dish, ridge pillars, gate stones and lander legs, and pale blown-dust aprons round the pad and the lander. Painted only: { x, z, r, a (alpha), pale }.
+export function footprints() {
+  const out = [];
+  const put = (x, z, r, a, pale = false) => out.push({ x, z, r, a, pale });
+  put(P.DOME.x, P.DOME.z, P.DOME.wall + 2.6, 0.5);
+  put((P.AIRLOCK.x0 + P.AIRLOCK.x1) / 2, P.AIRLOCK.z, 3.6, 0.45);
+  put(P.PAD.x, P.PAD.z, P.PAD.r + 4.5, 0.4, true);
+  put(P.ROCKET.x, P.ROCKET.z, 3.4, 0.55);
+  put(P.GANTRY.x, P.GANTRY.z, 2.6, 0.5);
+  for (const t of P.TANKS) put(t.x, t.z, t.r + 1.5, 0.5);
+  put(P.LAUNCH_DESK.x, P.LAUNCH_DESK.z, 2.1, 0.45);
+  put(P.OLD_DISH.x, P.OLD_DISH.z, 2.6, 0.45);
+  put(P.LANDER.x, P.LANDER.z, 6.5, 0.4, true);
+  put(P.LANDER.x, P.LANDER.z, 2.2, 0.45);
+  for (let i = 0; i < 4; i++) { const a = Math.PI / 4 + (i * Math.PI) / 2; put(P.LANDER.x + Math.cos(a) * 3.05, P.LANDER.z + Math.sin(a) * 3.05, 1.0, 0.5); }
+  for (const s of P.SKIP) put(s.x, s.z, s.r + 1.6, 0.5);
+  for (const s of P.GATE_STONES) put(s.x, s.z, 1.2, 0.45);
+  put(P.SHED.x, P.SHED.z, 4.2, 0.4);
+  return out;
+}
+
 // Rays thrown out of the three biggest bowls and of a few fresh craters, and the lander's scour streaks and the pad's scorch (pale and dark):
 // { x, z, a (the heading), from, len, w, k (strength 0..1), dark }.
 export function rays(lite = false) {

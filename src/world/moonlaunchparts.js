@@ -11,7 +11,7 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { dustGeometry } from './moonbeauty.js';
+import { dustGeometry, machineTone } from './moonbeauty.js';
 import * as P from './moonplan.js';
 import { COL, paint, at, box, cyl } from './moonparts.js';
 import { smokeCount } from './moonlaunch.js';
@@ -139,7 +139,7 @@ export function rocketGeometry() {
   // a porthole high on the body (the side that looks at the mound)
   add(new THREE.CylinderGeometry(0.3, 0.3, 0.12, 10).rotateX(Math.PI / 2).translate(0, 8.6, 0.95), L.dark);
   add(new THREE.CylinderGeometry(0.2, 0.2, 0.14, 10).rotateX(Math.PI / 2).translate(0, 8.6, 0.96), 0x8fd3ff);
-  return dustGeometry(mergeGeometries(parts), () => -P.ROCKET.stand, { reach: 6, gain: 3 }); // (beauty round 3) the engine's dust and the pad's grime climb its foot (a fixed local-height veil: the rocket flies)
+  return dustGeometry(machineTone(mergeGeometries(parts), { lo: 0.92, up: 0.1, scuff: 0.12 }), () => -P.ROCKET.stand, { reach: 6, gain: 3 }); // (beauty round 3) the engine's dust and the pad's grime climb its foot (a fixed local-height veil: the rocket flies)
 }
 
 // The gantry's arm: a box from the tower's middle toward the rocket, pivoting at the tower (the mesh turns it); a small clamp at the end.

@@ -152,6 +152,9 @@ export function paintRegolith(g, S, { lite = false, shade = [] } = {}) {
     g.fillStyle = rgb(d.lit ? PAL.pale : PAL.base, d.lit ? 0.75 : 0.9);
     g.fillRect(px(d.x) - w * 0.5, px(d.z) - w * 0.5, w, w * 0.8);
   }
+  for (const f of B.footprints()) { // (beauty round 5) buildings meet the dust: a soft contact smudge (pulled a little away from the sun) or a pale blown-dust apron
+    soft(g, px(f.x) - (f.pale ? 0 : SUN.x * f.r * k * 0.12), px(f.z) - (f.pale ? 0 : SUN.z * f.r * k * 0.12), f.r * k, f.pale ? PAL.pale : PAL.dark, f.a * (f.pale ? 0.5 : 0.7));
+  }
   for (const s of shade) { // a rock's smudge: dark on the dust, longer away from the sun, drawn flat
     g.save();
     g.translate(px(s.x) - SUN.x * s.s * k * 0.9, px(s.z) - SUN.z * s.s * k * 0.9);
