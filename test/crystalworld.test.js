@@ -136,7 +136,8 @@ describe('the built place', () => {
     expect(area.evening).toBe(true);
     expect(area.strays).toBe(false);
     expect(area.collectibles).toHaveLength(6); // milestone C3 (test/crystalfinds.test.js)
-    for (const key of ['perches', 'tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
+    expect(area.perches).toHaveLength(6); // the pool's stepping crystals (milestone C5, test/crystalwing.test.js)
+    for (const key of ['tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
     expect(area.ground.flat).toBe(false);
     expect(typeof area.life).toBe('function');
     expect(area.duskLight.fogNear).toBe(5);
@@ -171,7 +172,7 @@ describe('the built place', () => {
       }
     }
     const reach = (x, z) => seen.has(key(Math.round((x - B.minX) / step), Math.round((z - B.minZ) / step)));
-    for (const z of P.ZONES) expect(reach(z.x, z.z), z.id).toBe(true);
+    for (const z of P.ZONES) if (z.id !== 'heart') expect(reach(z.x, z.z), z.id).toBe(true); // (the Heart's own middle is the great crystal: test/crystalwing.test.js checks its reach)
     for (const p of area.pois) expect(reach(p.x, p.z), JSON.stringify(p)).toBe(true);
     for (const m of GOLD_MICE.crystal) expect(reach(m.x, m.z), m.id).toBe(true);
     expect(seen.size / (nx * nz)).toBeGreaterThan(0.85);

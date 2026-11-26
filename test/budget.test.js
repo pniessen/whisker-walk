@@ -539,7 +539,8 @@ const AREAS = [
   // not in this count) measured 9 meshes / 14,308 triangles built (casters inside the ceiling of 2), +12% (the Farm's and the Market's ruling): 10 / 2 / 16,000. The plan's expectation for the whole place was about
   // 35,000 triangles. Row B comes with milestone C5 (plan section 5: measured, then set).
   // Milestone C3 (2026-11-26, the finds: the Echo Wall slab, the Crystal Garden's five tiny crystals and the Gold Vein rock in ONE merged vertex-coloured mesh, no caster) measured 10 / 1 / 14,634 built (+326 triangles, +1 mesh), +12%: 11 / 2 / 16,400. The finds' glow is the walk's life, not in this count.
-  ['crystal', buildCrystal, 11, 2, 16400],
+  // Milestone C5 (2026-11-26, wing B: the Blue Pool disc, six stepping crystals, the Blue, Gold and Heart great crystals and their small rings, the Gold Gallery's nine vein slabs and three nook rocks with their gold seams, the Heart as its own dormant mesh, the passages' lamps as one Points object) measured 12 / 2 / 19,786 built (+5,152 triangles, +2 meshes: the pool and the Heart; the lamps are Points), +12%: 13 / 2 / 22,200. The plan expected about 35,000 triangles at most for the whole place. The Heart's halo, the nook's glints, the show's motes and the lamps' glow are the walk's life, not in this count.
+  ['crystal', buildCrystal, 13, 2, 22200],
   // Milestone R2 (Marlo and chapter one) adds only the coral ledge (no mesh more; about 200 triangles measured on top of R3: 7 / 2 / 10,700). Marlo, the shells, their glints, the picture bubble, the meow's ring and the air pockets are the walk's life, counted in test/reefmarlo.test.js
 ];
 

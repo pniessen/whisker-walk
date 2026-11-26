@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import * as P from './crystalplan.js';
+import { BLUE_GREAT, GOLD_GREAT, HEART_GREAT } from './crystalwingplan.js';
 
 export const COL = Object.freeze({
   stone: 0x9a8a9c, stoneDark: 0x6c5a70, stoneLight: 0xc4b4c6, warm: 0xffd9a8, glow: 0xffe0b0, rim: 0x4a3a52,
@@ -45,7 +46,7 @@ function floorColour(x, z, clusters, out) {
   out[0] = r; out[1] = g; out[2] = b;
 }
 
-export function groundGeometry(clusters = P.scatterClusters()) {
+export function groundGeometry(clusters = [...P.scatterClusters(), BLUE_GREAT, GOLD_GREAT, HEART_GREAT]) {
   const half = P.GROUND_SIZE / 2;
   const xs = lines(P.CRYSTAL_BOUNDS.minX, P.CRYSTAL_BOUNDS.maxX, half, 3);
   const zs = lines(P.CRYSTAL_BOUNDS.minZ, P.CRYSTAL_BOUNDS.maxZ, half, 4);

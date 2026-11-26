@@ -7,6 +7,7 @@
 
 import { STEP_MAX, MAX_GRADE, SUBSTEP, LEVEL_TOL, groundTilt } from '../ground.js';
 import { mulberry32 } from '../rng.js';
+import { wingColliders } from './crystalwingplan.js';
 
 export const CRYSTAL_NAME = 'The Crystal Cave';
 export const CRYSTAL_BOUNDS = Object.freeze({ minX: -36, maxX: 36, minZ: -32, maxZ: 32 });
@@ -230,11 +231,12 @@ export const CAVE_LOOK = Object.freeze({
 });
 export const HUE_COLOURS = Object.freeze({ rose: 0xff6fa8, blue: 0x62b8ff, gold: 0xffc65a, heart: 0xffa8f0 });
 
-// Everything solid: the arch's two pillars and the big clusters (all within the bounds).
+// Everything solid: the arch's two pillars, the big clusters, and wing B's great crystals, stepping crystals, vein slabs and nook rocks (all within the bounds).
 export const crystalColliders = () => [
   Object.freeze({ x: ARCH.x - ARCH.w / 2 + 0.35, z: ARCH.z, r: 0.5 }),
   Object.freeze({ x: ARCH.x + ARCH.w / 2 - 0.35, z: ARCH.z, r: 0.5 }),
   ...clusterColliders(),
+  ...wingColliders(),
 ];
 
 // Places a wanderer may head for: open floor, each at least 1.5 m clear of every collider.

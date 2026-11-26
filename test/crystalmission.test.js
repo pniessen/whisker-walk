@@ -6,7 +6,8 @@ import * as S from '../src/world/crystalstory.js';
 import * as P from '../src/world/crystalplan.js';
 import { LINES as LINES_A } from '../src/world/crystalwords.js';
 import { CRYSTAL_FIND_LINES } from '../src/world/crystalfindwords.js';
-const LINES = { ...LINES_A, ...CRYSTAL_FIND_LINES };
+import { CRYSTAL_WING_LINES } from '../src/world/crystalwingwords.js';
+const LINES = { ...LINES_A, ...CRYSTAL_FIND_LINES, ...CRYSTAL_WING_LINES };
 import { phrase } from '../src/clanphrases.js';
 import { withOffWords, bannedIn } from './helpers/offwords.js';
 import { build } from '../src/world/crystal.js';
@@ -60,7 +61,8 @@ describe('the step machine', () => {
     expect(M.nextGoal(rec(1))).toMatchObject({ kind: 'stone', stone: 0, icon: 'spark' });
     expect(M.nextGoal(rec(1), 0)).toMatchObject({ kind: 'deliver', stone: 0, icon: 'heart' });
     expect(M.nextGoal(rec(2))).toMatchObject({ kind: 'stone', stone: 1 });
-    expect(M.nextGoal(rec(5, 7))).toMatchObject({ kind: 'rest' });
+    expect(M.nextGoal(rec(5, 7))).toMatchObject({ kind: 'heart', icon: 'spark' }); // (milestone C5: the Heart is next)
+    expect(M.nextGoal(rec(7, 7))).toMatchObject({ kind: 'rest' });
     expect(M.canPick(rec(1), 0, null)).toBe(true);
     expect(M.canPick(rec(1), 0, 0)).toBe(false);
     expect(M.canPick(rec(0), 0, null)).toBe(false);
@@ -140,7 +142,7 @@ describe('the rose stone is findable on foot with no skills', () => {
 });
 
 describe('the words', () => {
-  const ids = Object.keys(LINES).filter((k) => k.startsWith('crystal.lumi.') || k.startsWith('crystal.stone.') || k.startsWith('crystal.rose.'));
+  const ids = Object.keys(LINES).filter((k) => k.startsWith('crystal.lumi.') || k.startsWith('crystal.stone.') || k.startsWith('crystal.rose.') || /^crystal\.(sky|gold|heart|show|passages)\./.test(k) || k === 'crystal.gem');
   it('Lumi\'s and the stones\' lines exist, are short and kind, and read the same in both word sets (no series word, no banned word)', () => {
     expect(ids.length).toBeGreaterThanOrEqual(8);
     const scary = /\b(dark\w*|lost forever|trapped|stuck|collapse\w*|cave-in|scary|scared|afraid|danger\w*|drown\w*|die|dies|dead|hurt)\b/i;
