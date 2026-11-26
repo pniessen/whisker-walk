@@ -19,7 +19,7 @@ import { SKULL } from './torso.js';
 // the cat's head slot builds these.
 
 export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown', 'acorncap',
-  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap', 'keepercap'];
+  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap', 'keepercap', 'gardenerhat'];
 
 // Palette. The three shop hats' colours are model.js's own (it imports these
 // for Hagrid's hats); the prize colours are the same hexes as model.js's
@@ -853,6 +853,19 @@ const BRIM_HATS = {
         (a, k) => (Math.cos(a) < -0.8 ? 0.015 : 0.027 * (k % 2 ? 0.86 : 1)), (k) => (k % 2 ? 0xe8735c : 0xf8c0a8), 0xf8c0a8, 0.005));
     },
   },
+  // The Gardener's Hat (Greenhouse G4): the Bucket Hat's shape in soft sage canvas, a wide brim, a darker band and a small white daisy.
+  gardenerhat: {
+    at: [0, 0.02], crownR: 0.115, taper: 0.9, crownH: 0.05, crownTop: 'round', brimW: 0.07, brimDroop: 0.006, segs: 20, domeRows: 2,
+    crown: 0xa9c49a, brim: 0xa9c49a, edge: 0x8aa67c,
+    wall: [[0, 0x6f8e62], [0.3, 0x6f8e62], [0.34, 0xf3efe0], [0.37, 0x6f8e62], [0.42, 0x6f8e62], [0.46, 0xa9c49a], [1, 0xa9c49a]],
+    wallSimple: [[0, 0x6f8e62], [0.42, 0x6f8e62], [0.46, 0xa9c49a], [1, 0xa9c49a]],
+    rings: [[0.5, 0x8aa67c, 1]],
+    extra: (parts, { wallAt }, simple) => {
+      // a small white daisy pinned on the band, front left
+      const [at, d] = wallAt(-0.55, 0.3, 0.008), n = d.clone().add(new THREE.Vector3(0, 0.3, 0)).normalize();
+      parts.push(rosette(at, n, new THREE.Vector3(0, 1, 0), simple ? 8 : 12, (a, k) => (k % 2 ? 0.01 : 0.022), (k) => (k % 2 ? 0xe8e4d8 : 0xfdfdf5), 0xf2c14e, 0.004));
+    },
+  },
   sailorcap: {
     at: [0, 0.03], crownR: 0.14, taper: 1.12, flare: [0.45, 1], crownH: 0.05, crownTop: 'flat', brimW: 0, brimDroop: 0,
     crown: 0xf2f2ee,
@@ -968,6 +981,7 @@ function brimHat(id, spec, simple) {
   return finish(id, parts);
 }
 const buckethat = (simple) => brimHat('buckethat', BRIM_HATS.buckethat, simple);
+const gardenerhat = (simple) => brimHat('gardenerhat', BRIM_HATS.gardenerhat, simple);
 const sailorcap = (simple) => brimHat('sailorcap', BRIM_HATS.sailorcap, simple);
 const strawhat = (simple) => brimHat('strawhat', BRIM_HATS.strawhat, simple);
 const stripedboater = (simple) => brimHat('stripedboater', BRIM_HATS.stripedboater, simple);
@@ -1219,7 +1233,7 @@ function birthdayhat(simple) {
   return finish('birthdayhat', parts);
 }
 
-const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap, keepercap };
+const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap, keepercap, gardenerhat };
 
 // The clips' ground looks (src/foundwear/display.js): the clip as worn (the
 // simple build), turned so its face is up and propped toward -z, as if

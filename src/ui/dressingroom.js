@@ -6,7 +6,7 @@
 import { tvState, padHtml } from '../tvseam.js';
 import { phrase } from '../clanphrases.js';
 import { asFiniteNonNeg } from '../progression.js';
-import { areaInEdition, isClanEdition, placeName, effectiveArea, accessoryName } from '../edition.js';
+import { areaShown, isClanEdition, placeName, effectiveArea, accessoryName } from '../edition.js';
 import { opensAfterLine, lower, goHereLine } from '../territories.js';
 import { worldMapModel } from '../worldmap.js';
 import { renderWorldMapHtml } from './territorymap.js';
@@ -66,7 +66,7 @@ export const PLACE_PICTURE = (id) => `${import.meta.env.BASE_URL}places/${id}.jp
 // open) or it is not a place in this edition.
 export function placeWhyLine(state, catalog, id) {
   const a = typeof id === 'string' && has(catalog.areas, id) ? catalog.areas[id] : null;
-  if (!a || !areaInEdition(a, state?.edition) || ownedList(state, 'areas').includes(id)) return null;
+  if (!a || !areaShown(a, state?.edition) || ownedList(state, 'areas').includes(id)) return null;
   // The gate and price ask areaOffer, which knows a kept offer.
   const offer = areaOffer(state, catalog, id);
   const req = offer.requires;
@@ -180,7 +180,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard,
   // Clan-only walks the Neighborhood, so neither the dock nor the cards may
   // name the Woods; the card marked today's walk is the place she'll walk.
   const walkArea = effectiveArea({ area, edition: state?.edition }, catalog);
-  const places = Object.entries(catalog.areas).filter(([, a]) => areaInEdition(a, state?.edition)).map(([id, a]) => {
+  const places = Object.entries(catalog.areas).filter(([, a]) => areaShown(a, state?.edition)).map(([id, a]) => {
     const owned = ownedAreas.includes(id);
     const offer = areaOffer(state, catalog, id); // knows a kept offer
     const price = num(offer.price);
@@ -280,7 +280,7 @@ export function renderSlotPickerHtml(state, catalog, slot, tryOn, thumbs) {
     // data-dr-acc (the controller ignores it), no price, no try-on. In Legacy
     // a place her edition hides keeps its outfits out of sight until found.
     if (a.find && !owned) {
-      if (!catalog.areas?.[a.find] || !areaInEdition(catalog.areas[a.find], state?.edition)) return ''; // (a place with no catalog row yet, the Moon behind ?moon=1, shows no silhouette)
+      if (!catalog.areas?.[a.find] || !areaShown(catalog.areas[a.find], state?.edition)) return ''; // (a place with no catalog row yet, the Moon behind ?moon=1, shows no silhouette)
       // Nothing is hidden in a place with no find spots: no silhouette to hunt for.
       if (spotsIn(a.find).length === 0) return '';
       const where = phrase('wear.foundIn', lower(placeName(a.find, state?.edition, catalog)));

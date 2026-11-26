@@ -21,6 +21,10 @@
    "touch": "Follow the stairs up to the big lamp!",
    "keys": "Follow the stairs up to the big lamp!"
   },
+  "hint.greenhouse": {
+   "touch": "The gardener lost some seeds. Can you find them?",
+   "keys": "The gardener lost some seeds. Can you find them?"
+  },
   "hint.look": {
    "touch": "Drag here to look around.",
    "keys": "Move the mouse to look around."
@@ -371,6 +375,10 @@
   "hint.lighthouse": {
    "touch": "Follow the stairs up to the big lamp!",
    "keys": "Follow the stairs up to the big lamp!"
+  },
+  "hint.greenhouse": {
+   "touch": "The gardener lost some seeds. Can you find them?",
+   "keys": "The gardener lost some seeds. Can you find them?"
   },
   "hint.look": {
    "touch": "Drag here to look around.",
@@ -723,6 +731,7 @@
     "house": "rule 7: Explore here again to open the Old Twoleg Nest!",
     "seaside": "rule 7: Explore here again to open Seaside!",
     "lighthouse": "rule 7: Explore here again to open Lighthouse Point!",
+    "greenhouse": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "docks": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "woods": "rule 7: Explore here again to open City Park and the Market Square!",
     "river": "rule 7: Explore here again to open the River and Marshes!",
@@ -766,6 +775,7 @@
     "house": "rule 12: 150 🐾 more to become a Yard Prowler.",
     "seaside": "rule 7: Explore here again to open Seaside!",
     "lighthouse": "rule 7: Explore here again to open Lighthouse Point!",
+    "greenhouse": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "docks": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "woods": "rule 7: Explore here again to open City Park!",
     "river": "rule 12: 150 🐾 more to become a Yard Prowler.",

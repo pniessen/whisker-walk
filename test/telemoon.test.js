@@ -249,7 +249,7 @@ describe('through the whole walk and home again', () => {
     const h = walkHarness({ save: (p) => { save(p); p.state.walks.park = 0; } });
     h.w.startWalk({});
     const gates = []; h.getSession().scene.traverse((o) => { if (o.name === 'telegate') gates.push(o); });
-    expect(gates.map((g) => [g.userData.endId, g.userData.awake])).toEqual([['park-moon', false]]); // (the spike's Greenhouse gate needs its own switch)
+    expect(gates.map((g) => [g.userData.endId, g.userData.awake])).toEqual([['park-greenhouse', false], ['park-moon', false]]); // (both dormant before two Park walks)
     const m = walkHarness({ save });
     m.w.startWalk({ areaOverride: 'moon' });
     const rings = []; m.getSession().scene.traverse((o) => { if (o.name === 'telegate') rings.push(o); });

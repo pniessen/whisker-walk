@@ -1,8 +1,8 @@
 // =============================================================================
 // THE GREENHOUSE (milestones 0 and 1). One glass house (the Palm House) with its real plants (greenhouseplants.js),
 // mist, sun shafts, floor and dapple; a pond with lily pads, reeds and koi; the Park's fountain; a potting bench,
-// a kitchen bed and the two gardener's jobs (greenhouselife.js). Behind ?greenhouse=1 only: no catalog row, no map
-// place, no gate, no finds, no awards. The glass kit is greenhouseglass.js; the data is
+// a kitchen bed and the two gardener's jobs (greenhouselife.js). Reached by the Park's archway gate (G4; ?greenhouse=1 is a
+// shortcut), with its own return arch at the court. The glass kit is greenhouseglass.js; the data is
 // greenhouseplan.js. Builds in withLocalUuids; draws no random number and reads no clock.
 // docs/superpowers/specs/2026-11-22-greenhouse-design.md; the plan next to it.
 // =============================================================================
@@ -66,7 +66,7 @@ export function build(scene, { water = {}, wind } = {}) {
     scene.add(garden.pots, ...garden.leaves);
 
     // milestone G3: the court, paths, hedges, beds, benches, the shed and its kit, the trees, the box
-    scene.add(Parts.groundDress(), Parts.streetKit(), Parts.shedKit(), Parts.trees());
+    scene.add(Parts.groundDress(), Parts.streetKit(), Parts.shedKit(), Parts.trees(), Parts.returnArch());
     const boxes = area.boxes.map((bx) => ({ ...bx }));
     for (const bx of boxes) scene.add(b.cardboardBox(bx.x, bx.z));
 

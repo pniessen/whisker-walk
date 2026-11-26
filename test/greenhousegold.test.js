@@ -5,6 +5,7 @@ import { CATALOG, createProgression } from '../src/progression.js';
 import { SEED_SPOT_SETS, WATER_POT_SPOTS, GREENHOUSE_GOLD, GREENHOUSE_FIND_ZONES, GREENHOUSE_COLLECTIBLES, ISLAND } from '../src/world/greenhouseplan.js';
 import { inWater } from '../src/world/water.js';
 import { memoryStorage } from './helpers/storage.js';
+import { setTele } from '../src/teleflag.js';
 
 stubCanvasDocument();
 const W = await import('./helpers/greenhousewalk.js');
@@ -50,11 +51,16 @@ describe('three golden mice', () => {
 });
 
 describe('the totals', () => {
-  it('Clan Edition counts 54 and Legacy 30 (the Greenhouse has no edition key and no catalog row)', () => {
+  it('Clan Edition counts 54 and Legacy 30 (the Greenhouse has no edition key), whatever the gates switch says: the total counts by edition alone, as it counts the Moon', () => {
     expect(GOLD_TOTAL).toBe(54);
-    expect(goldForEdition('canon', CATALOG).size).toBe(54);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(30);
-    for (const e of ['canon', 'legacy']) for (const m of GOLD) expect(goldForEdition(e, CATALOG).has(m.id), `${e} ${m.id}`).toBe(true);
-    expect(Object.hasOwn(CATALOG.areas, 'greenhouse')).toBe(false);
+    for (const on of [true, false]) {
+      setTele(on);
+      try {
+        expect(goldForEdition('canon', CATALOG).size).toBe(54);
+        expect(goldForEdition('legacy', CATALOG).size).toBe(30);
+        for (const e of ['canon', 'legacy']) for (const m of GOLD) expect(goldForEdition(e, CATALOG).has(m.id), `${e} ${m.id}`).toBe(true);
+      } finally { setTele(null); }
+    }
+    expect(CATALOG.areas.greenhouse.edition).toBeUndefined();
   });
 });

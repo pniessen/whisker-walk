@@ -40,6 +40,7 @@ const MP = TELE_ENDS.moon[0]; // and the Moon's way home
 const newSave = () => {
   const p = createProgression(memStorage());
   p.setTutorialFirst('done');
+  p.state.walks.park = 2; // (the Park's archway to the Greenhouse is awake after two Park walks)
   return p;
 };
 
@@ -47,7 +48,7 @@ beforeEach(() => { setTele(true); setGreenhouse(true); });
 afterEach(() => { setTele(null); setGreenhouse(null); });
 
 describe('the gate table', () => {
-  it('is the spike pair, Park <-> Greenhouse, and the Moon pair (milestone 3), in the stone-ring look, each end the other\'s twin', () => {
+  it('is the Greenhouse pair (the Park\'s archway, awake after 2 Park walks, and the Greenhouse\'s own return arch) and the Moon pair, each end the other\'s twin', () => {
     expect(Object.keys(TELE_ENDS)).toEqual(['park', 'moon', 'greenhouse']);
     expect(ALL.map((e) => e.id)).toEqual(['park-greenhouse', 'park-moon', 'moon-park', 'greenhouse-park']);
     expect(PG.twin).toBe(GP.id);
@@ -57,13 +58,14 @@ describe('the gate table', () => {
     expect(new Set(ALL.map((e) => e.id)).size).toBe(ALL.length);
     for (const e of ALL) {
       expect(e.kind, e.id).toBe('tele');
-      expect(e.look, e.id).toBe('stonering');
+      expect(e.look, e.id).toBe(e.id.includes('moon') ? 'stonering' : 'archway');
       expect(e.placement, e.id).toBe('inside');
       expect(e.edition, e.id).toBe('all'); // both editions
       expect(e.wake, e.id).toBe(false);
       if (e.id.includes('moon')) continue; // (the Moon pair: describe 'the Moon gate')
       expect(e.suit, e.id).toBeNull();
-      expect(e.needWalks, e.id).toBe(0);
+      expect(e.needWalks, e.id).toBe(e.id === 'park-greenhouse' ? T.GREENHOUSE_NEED_WALKS : 0);
+      expect(e.own, e.id).toBe(e.id === 'greenhouse-park'); // the Greenhouse draws its own return arch, as the Moon its ring
       expect(e.gateway, e.id).toBe('tele-park-greenhouse');
       expect(Object.isFrozen(e), e.id).toBe(true);
     }
@@ -149,10 +151,11 @@ describe('where the gates stand', () => {
   for (const [id, e] of [['park', PG], ['greenhouse', GP]]) {
     it(`${e.id}: open lawn, clear of every collider, point of interest and golden mouse, in sight of the spawn`, () => {
       const area = areas[id];
-      for (const c of area.colliders) expect(Math.hypot(c.x - e.x, c.z - e.z) - (c.r ?? 0), `collider (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(5);
+      // (the Greenhouse's own return arch has its two pillars in the area's list: those are the gate itself)
+      for (const c of area.colliders.filter((k) => !(e.own && Math.hypot(k.x - e.x, k.z - e.z) < 1.3))) expect(Math.hypot(c.x - e.x, c.z - e.z) - (c.r ?? 0), `collider (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(e.own ? 1.5 : 5); // (the Greenhouse's court is small: its lamp, bench and hedge are near, but 1.5 m clear)
       const things = [...(area.pois ?? []), ...(area.collectibles ?? []), ...(area.scenics ?? []), ...(area.perches ?? []), ...(GOLD_MICE[id] ?? []), spawn[id]];
       expect(things.length).toBeGreaterThan(3);
-      for (const t of things) expect(Math.hypot(t.x - e.x, t.z - e.z), `thing at (${t.x}, ${t.z})`).toBeGreaterThanOrEqual(7);
+      for (const t of things) expect(Math.hypot(t.x - e.x, t.z - e.z), `thing at (${t.x}, ${t.z})`).toBeGreaterThanOrEqual(e.own ? 4 : 7);
       expect(Math.hypot(spawn[id].x - e.x, spawn[id].z - e.z)).toBeLessThan(15); // the first thing she sees
     });
     it(`${e.id}: she can walk up to it (within reach, reached on foot from the spawn), and the ring round it is open`, () => {
@@ -165,8 +168,9 @@ describe('where the gates stand', () => {
         }
       }
       expect(spots.length).toBeGreaterThan(50);
-      // the two pillars stand 1.3 m either side along z; the cat is not boxed in by them
-      for (let a = 0; a < 16; a++) {
+      // the two pillars stand 1.3 m either side along z; the cat is not boxed in by them (the Greenhouse's own arch: 0.95 m, a gap to walk through)
+      if (e.own) expect(isWalkableAt(area, e.x, e.z)).toBe(true);
+      for (let a = 0; a < 16 && !e.own; a++) {
         for (const r of [1, 2, 3]) expect(isWalkableAt(area, e.x + Math.cos(a * Math.PI / 8) * r, e.z + Math.sin(a * Math.PI / 8) * r), `ring ${a} at ${r} m`).toBe(true);
       }
     });
@@ -180,18 +184,30 @@ describe('where the gates stand', () => {
     });
   }
 
-  it('the two pillars sit 1.3 m either side of the gate, along its width, and are solid', () => {
+  it('the Greenhouse\'s own arch has two solid pillars 0.95 m either side of the gate and draws nothing of the gate\'s own', () => {
+    const area = greenhouse.build(new THREE.Scene(), {});
+    const pillars = area.colliders.filter((c) => Math.hypot(c.x - GP.x, c.z - GP.z) < 1.3);
+    expect(pillars.map((c) => [c.x, c.z]).sort((p, q) => p[1] - q[1])).toEqual([[-10, 28.05], [-10, 29.95]]);
+    expect(isWalkableAt(area, GP.x, GP.z + 0.95)).toBe(false);
+    expect(isWalkableAt(area, GP.x, GP.z)).toBe(true);
+    expect(addTeleGates(new THREE.Scene(), liveTeleEnds('greenhouse', CATALOG).filter((e) => !e.own)).colliders).toEqual([]);
+  });
+  it('the two pillars sit 1.3 m either side of the Park\'s ring (the Moon\'s) and are solid', () => {
+    const { colliders } = addTeleGates(new THREE.Scene(), [{ ...PG, look: 'stonering' }]);
+    expect(colliders).toHaveLength(2);
+  });
+  it('the two pillars of the Park\'s archway sit 0.95 m either side of it, along its width, and are solid', () => {
     const { colliders } = addTeleGates(new THREE.Scene(), [PG]);
     expect(colliders).toHaveLength(2);
-    expect(colliders.map((c) => [c.x, c.z]).sort((p, q) => p[1] - q[1])).toEqual([[-10, 42.7], [-10, 45.3]]);
-    for (const c of colliders) expect(c.r).toBe(STONE_COLLIDER_R);
+    expect(colliders.map((c) => [c.x, c.z]).sort((p, q) => p[1] - q[1])).toEqual([[-10, 43.05], [-10, 44.95]]);
+    for (const c of colliders) expect(c.r).toBe(0.32);
     // the pillars leave the middle open: the cat stands in the disc within reach
-    for (const c of colliders) expect(Math.hypot(c.x - PG.x, c.z - PG.z) - c.r).toBeGreaterThan(0.9);
+    for (const c of colliders) expect(Math.hypot(c.x - PG.x, c.z - PG.z) - c.r).toBeGreaterThan(0.6);
   });
 });
 
 describe('a gate is live only behind its switch', () => {
-  it('?gates=1 (read at call time) and the place beyond: Park needs the Greenhouse\'s own switch too', () => {
+  it('?gates=1 (read at call time) alone: the Greenhouse has its catalog row, so the Park\'s archway needs no second switch', () => {
     setTele(null); // the address bar: no ?gates=1 in a test
     expect(teleOn()).toBe(false);
     expect(liveTeleEnds('park', CATALOG)).toEqual([]);
@@ -200,7 +216,7 @@ describe('a gate is live only behind its switch', () => {
     expect(liveTeleEnds('park', CATALOG)).toEqual([PG, PM]);
     expect(liveTeleEnds('greenhouse', CATALOG)).toEqual([GP]); // the Park has a catalog row
     setGreenhouse(false);
-    expect(liveTeleEnds('park', CATALOG)).toEqual([PM]); // the Greenhouse has none until its milestone 4 (the Moon's gate needs only ?gates=1)
+    expect(liveTeleEnds('park', CATALOG)).toEqual([PG, PM]); // (since G4: the ?greenhouse=1 shortcut no longer matters here)
     expect(liveTeleEnds('greenhouse', CATALOG)).toEqual([GP]);
     expect(liveTeleEnds('seaside', CATALOG)).toEqual([]);
   });
@@ -216,20 +232,23 @@ describe('a gate is live only behind its switch', () => {
     setTele(false);
     expect(teleNear('park', PG.x, PG.z, CATALOG)).toBeNull();
   });
-  it('the Greenhouse has a name here, since it has none in the catalog', () => {
+  it('the Greenhouse\'s name, and the Moon\'s (it has no catalog row)', () => {
+    expect(T.teleName('moon', 'canon', CATALOG)).toBe('The Moon');
     expect(T.teleName('greenhouse', 'canon', CATALOG)).toBe('The Greenhouse');
     expect(T.teleName('park', 'canon', CATALOG)).toBe(CATALOG.areas.park.name);
   });
 });
 
 describe('what a gate says (teleStatus)', () => {
-  const state = (walks = {}) => ({ edition: 'canon', walks });
+  const state = (walks = { park: 2 }) => ({ edition: 'canon', walks });
   it('go: awake, solo, no couch', () => {
     expect(teleStatus(PG, state(), CATALOG)).toEqual({ kind: 'go', to: 'greenhouse', name: 'The Greenhouse', lineId: null });
     expect(teleStatus(GP, state(), CATALOG).kind).toBe('go');
   });
-  it('dormant: until the host place has been walked needWalks times (0 for the spike: always awake)', () => {
-    const late = { ...PG, needWalks: 2 };
+  it('dormant: until the host place has been walked needWalks times (2 for the Park\'s archway; the way home is always awake)', () => {
+    const late = PG;
+    expect(teleStatus(PG, state({ park: 1 }), CATALOG).kind).toBe('dormant');
+    expect(teleStatus(GP, state({ park: 0 }), CATALOG).kind).toBe('go');
     expect(teleStatus(late, state({ park: 1 }), CATALOG).kind).toBe('dormant');
     expect(teleStatus(late, state({ park: 2 }), CATALOG).kind).toBe('go');
     expect(teleStatus(late, null, CATALOG).kind).toBe('dormant');
@@ -272,8 +291,8 @@ describe('the handoff (pure): the same cat, the same clothes, nothing else carri
     const h = teleHandoff({ via: PG.id, state: p.state, catalog: CATALOG });
     expect(Object.keys(h).sort()).toEqual(['arrive', 'from', 'keepRoom', 'move', 'seedFrom', 'suit', 'to', 'twin', 'via']);
     expect(h).toMatchObject({ from: 'park', to: 'greenhouse', twin: GP.id, suit: null, keepRoom: false, seedFrom: null });
-    // a free, open place for a solo cat is 'take'; the Greenhouse has no catalog row, so buy() refuses it and the
-    // walk starts there as an override (test/telegates.walk.test.js): the handoff itself changes nothing
+    // a free, open place for a solo cat is 'take' (the Greenhouse is price 0 with a catalog row since G4, as the Woods):
+    // the walk takes it (test/greenhousegate.test.js); the handoff itself changes nothing
     expect(h.move).toBe('take');
     expect(JSON.stringify(p.state)).toBe(before);
     expect(teleHandoff({ via: 'nope', state: p.state, catalog: CATALOG })).toBeNull();
@@ -320,9 +339,9 @@ describe('the prompt, as the walk reads it every frame', () => {
     const st = stateOf(newSave());
     const s = walkAt();
     const { got, prefetch } = calls();
-    expect(prompt(s, { x: PG.x + 12.1, z: PG.z }, st, false, prefetch, true)).toBeNull();
+    expect(prompt(s, { x: PG.x - 12.1, z: PG.z }, st, false, prefetch, true)).toBeNull(); // (west of it: the Moon's ring, east of it, would be in range too)
     expect(got).toEqual([]);
-    expect(prompt(s, { x: PG.x + 11.9, z: PG.z }, st, false, prefetch, false)).toBeNull(); // not free: no prompt, still warmed
+    expect(prompt(s, { x: PG.x - 11.9, z: PG.z }, st, false, prefetch, false)).toBeNull(); // not free: no prompt, still warmed
     expect(got).toEqual(['greenhouse']);
     prompt(s, { x: PG.x + 1, z: PG.z }, st, false, prefetch, true);
     prompt(s, { x: PG.x + 1, z: PG.z }, st, false, prefetch, true);
@@ -377,7 +396,7 @@ describe('the swirl: 1.2 s, and a 0.4 s fade under reduced motion', () => {
     expect(full.ms).toBe(1200);
     expect(full.html).toContain('class="tele-swirl"');
     expect(full.html).toContain('Off to the Greenhouse!');
-    expect(full.line).toBe('Take the stones home when you’re ready.'); // the stone ring says stones; the everyday set says gate (words, below)
+    expect(full.line).toBe('Take the gate home when you’re ready.'); // (the stone ring says stones; the archway says gate)
     expect(full.slowMs).toBe(1500);
     const calm = walkOn(GP.id, st, true);
     expect(calm.ms).toBe(400);

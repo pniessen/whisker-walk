@@ -6,7 +6,7 @@
 // stage shows, nothing more, and clearPreview() (called by the owner on hide
 // and before Start) drops them, so a walk always uses the owned, equipped cat.
 import { CATALOG } from '../progression.js';
-import { areaInEdition, accessoryName, placeName } from '../edition.js';
+import { areaShown, accessoryName, placeName } from '../edition.js';
 import { spendAsk } from './confirmcard.js';
 import { areaOffer } from '../areaoffer.js';
 import { menuThumbnails, fillFoundThumbs, customThumbnails, accessoryFraming } from '../thumbnails.js';
@@ -528,7 +528,7 @@ export function createDressingRoom({
   function onPlace(id) {
     if (!has(catalog.areas, id)) return;
     // Legacy hides Clan-only places; a stray click on one buys and sets nothing.
-    if (!areaInEdition(catalog.areas[id], progression.state?.edition)) return;
+    if (!areaShown(catalog.areas[id], progression.state?.edition)) return;
     // A place that costs paws is bought only through the card's Yes, whatever was tapped.
     // Its price asks areaOffer, which knows a kept offer, as canBuy and buy do.
     const price = areaOffer(progression.state, catalog, id).price;

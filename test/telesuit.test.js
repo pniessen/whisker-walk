@@ -113,7 +113,7 @@ describe('the suit in a walk', () => {
     expect(JSON.stringify(h.progression.state.equipped)).toBe(equipped);
     const lines = walked.flat().concat(s.startLines ?? []);
     expect(lines).toContain(phrase('tele.suit'));
-    expect(lines).toContain(phrase('tele.home', 'stonering'));
+    expect(lines).toContain(phrase('tele.home', 'archway'));
     // nothing suit-shaped is in the save, an outfit or what the cat is saved as
     expect(JSON.stringify(h.progression.state).includes('suit-')).toBe(false);
     expect(Object.values(wornNow(h.progression.state.equipped, CATALOG)).some(isSuitId)).toBe(false);

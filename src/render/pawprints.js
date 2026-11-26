@@ -117,6 +117,8 @@ export const AREA_RULES = Object.freeze({
   // Lighthouse Point's cliff path and tracks are worn earth and sand; its turf, rock and the cove's sand (the Seaside's
   // wetness() is the Seaside's own shore, not this cove's) take none.
   lighthouse: Object.freeze({ ground: null, path: 'sand', strip: null }),
+  // The Greenhouse's court gravel and its garden paths take faint dusty prints; the lawn, flagstones and glass house floor take none.
+  greenhouse: Object.freeze({ ground: null, path: 'gravel', strip: null }),
   // The Moon's whole plain is dust: it keeps her paw prints (the Quiet Dust find).
   moon: Object.freeze({ ground: 'dust', path: 'dust', strip: null }),
 });

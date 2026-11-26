@@ -34,7 +34,7 @@ import { medicineOrder, deputyOrder } from './clanroles.js';
 import { RANK_KEYS } from './wordset.js';
 import { clanTitleFor } from './clannames.js';
 import { phrase } from './clanphrases.js';
-import { DEFAULT_EDITION, EDITIONS, sanitizeEdition, isClanEdition, areaInEdition, accessoryName } from './edition.js';
+import { DEFAULT_EDITION, EDITIONS, sanitizeEdition, isClanEdition, areaShown, accessoryName } from './edition.js';
 import { latestMilestoneUpTo, milestoneIndex, styleFor, prizeFor, prizesWonBy } from './visits.js';
 import { FAIR_GAME_IDS, FAIR_PRIZES, gameJournalId, fairPrizesWonBy } from './fairprizes.js';
 import { FOUND_CATALOG } from './foundwear/index.js';
@@ -398,6 +398,11 @@ export const CATALOG = {
     // paws after 2 Seaside walks, not a kept offer. A place on the coast beyond the Seaside on the
     // world map; its name is the one here (no word set renames it).
     lighthouse: { name: 'Lighthouse Point', price: 150, requires: { area: 'seaside', walks: 2 } },
+    // The Greenhouse (docs/superpowers/plans/2026-11-26-greenhouse-remaining.md, G4; advisor answer 1): reached only by the
+    // Park's archway gate (src/teleport.js), free, after 2 Park walks, in both editions. `gate: 'tele'` keeps it out of every
+    // card, map and purchase while the gates switch (?gates=1) is off (edition.js areaShown); walking through the gate
+    // takes it (gatecross.walkOnMove 'take', price 0). It is not a kept offer and has no map road.
+    greenhouse: { name: 'The Greenhouse', price: 0, requires: { area: 'park', walks: 2 }, gate: 'tele' },
     // v18 Task 2.6 — the fourth walk area. The catalog is the ONLY place an
     // area has to be registered for the home-base picker: homebase.js renders
     // a card per CATALOG.areas entry, canBuy reads price + requires, and
@@ -522,7 +527,7 @@ function defaultState() {
     // with no 'woods' key would pin state.walks.woods at NaN forever. So does
     // the River: a save with no 'river' key would pin state.walks.river at NaN. And the Moor, the Pines and the Gorge: no 'moor', 'pines' or 'gorge' key, same NaN.
     // And the Farm: a save from before it loads with farm: 0. And the Fairground: fair: 0. And the Rooftops (in CATALOG.areas since Rooftops step 4): roofs: 0. And the Market Square (in CATALOG.areas since Market step 4): market: 0. And the Old House (in CATALOG.areas since its step 4): house: 0.
-    // And Lighthouse Point (in CATALOG.areas since Lighthouse milestone 4): lighthouse: 0. And the Greenhouse (?greenhouse=1 only for now): greenhouse: 0.
+    // And Lighthouse Point (in CATALOG.areas since Lighthouse milestone 4): lighthouse: 0. And the Greenhouse (in CATALOG.areas since its G4, behind the gates switch): greenhouse: 0.
     walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0 },
     // A COPY of STARTER_ACCESSORIES: buy() pushes into this array.
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: [...STARTER_ACCESSORIES], areas: ['neighborhood'] },
@@ -1632,7 +1637,7 @@ export function createProgression(storage) {
       if (!offer || state.points < offer.price) return false;
       if (offer.requires && state.walks[offer.requires.area] < offer.requires.walks) return false;
       // Legacy hides a Clan-only place; the hidden card is not the only guard.
-      if (kind === 'areas' && !areaInEdition(item, state.edition)) return false;
+      if (kind === 'areas' && !areaShown(item, state.edition)) return false;
       return true;
     },
     buy(kind, id) {
@@ -1930,7 +1935,7 @@ export function createProgression(storage) {
       const first = state.clanPick.mine === null;
       if (!api.setClanPick(id)) return false;
       if (!first) return 'changed';
-      if (Object.hasOwn(CATALOG.areas, id) && areaInEdition(CATALOG.areas[id], state.edition)) {
+      if (Object.hasOwn(CATALOG.areas, id) && areaShown(CATALOG.areas[id], state.edition)) {
         if (!state.unlocked.areas.includes(id)) state.unlocked.areas.push(id);
         state.area = id;
         save();
@@ -2017,7 +2022,7 @@ export function createProgression(storage) {
     // A Clan-only place cannot be chosen in Legacy. Refusing leaves state.area
     // alone, so a kid already standing in the Woods keeps it for Clan Edition.
     setArea(id) {
-      if (api.isUnlocked('areas', id) && areaInEdition(CATALOG.areas[id], state.edition)) {
+      if (api.isUnlocked('areas', id) && areaShown(CATALOG.areas[id], state.edition)) {
         state.area = id;
         save();
       }

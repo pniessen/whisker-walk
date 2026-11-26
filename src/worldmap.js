@@ -24,7 +24,7 @@
 // The world map's bigger words leave no room for it on the Moor's north edge
 // beside the name, so it sits in the bend of her river instead. Her board's
 // CAMP_AT is kept.
-import { placeName, areaInEdition } from './edition.js';
+import { placeName, areaInEdition, areaShown } from './edition.js';
 import { words } from './wordset.js';
 import { STAR, territoryMapModel, placeState } from './territories.js';
 
@@ -44,10 +44,13 @@ export const STREET_PLACES = freezeAll([
   // r 52 put the coast's point (1315, 540) inside it, so the circle is moved 27 units west and 27 north and
   // drawn r 46 (the Rooftops' and the Old House's, the smallest tap target the map allows).
   { id: 'lighthouse', areaId: 'lighthouse', x: 1268, y: 525, r: 46 },
+  // The Greenhouse (G4): north of the Farm, west of the coast, with no road: the Park's archway gate is its way in (the map's
+  // roads are on foot). Shown only while the gates switch is on (edition.js areaShown, the row's `gate: 'tele'`).
+  { id: 'greenhouse', areaId: 'greenhouse', x: 1215, y: 150, r: 60 },
 ]);
 
 // Land colours for the street places, as territories.js's LAND is for hers.
-export const STREET_LAND = Object.freeze({ park: '#b9dc8f', fair: '#e9b7c9', farm: '#e3cf7e', docks: '#b7b9bf', seaside: '#ecdca8', lighthouse: '#cfdad2' });
+export const STREET_LAND = Object.freeze({ park: '#b9dc8f', fair: '#e9b7c9', farm: '#e3cf7e', docks: '#b7b9bf', seaside: '#ecdca8', lighthouse: '#cfdad2', greenhouse: '#bfe3b5' });
 
 // Places inside the town, drawn on top of it: the Rooftops, up the back
 // alley's fire escape (draft 2's "Rooftops"), and the Market Square, on the
@@ -122,7 +125,7 @@ export function worldMapModel(state, catalog, { touch = false } = {}) {
       const at = r.camp && WORLD_CAMP_AT[r.id];
       return { ...r, kind: 'board', ...(at ? { camp: { ...r.camp, x: at[0], y: at[1] } } : {}) };
     }),
-    ...STREET_PLACES.map((p) => ({
+    ...STREET_PLACES.filter((p) => areaShown(catalog?.areas?.[p.areaId], edition)).map((p) => ({
       id: p.id, areaId: p.areaId, x: p.x, y: p.y, r: p.r,
       // (a street place the catalog does not have yet is not built)
       kind: 'street', name: placeName(p.areaId, edition, catalog), status: catalog?.areas?.[p.areaId] ? 'built' : 'soon', camp: null,

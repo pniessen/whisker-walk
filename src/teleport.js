@@ -23,6 +23,8 @@ export const TELE_PAIR_CAP = 6; // gate pairs per release (a test constant)
 // Park walks before the Moon gate wakes (the Moon plan's rule: 2). The Moon has no catalog row until the map milestone (a row
 // would put a Moon card in the home-base picker), so the number lives here; a test keeps the rule honest.
 export const MOON_NEED_WALKS = 2;
+// Park walks before the Greenhouse's archway wakes (the same rule; CATALOG.areas.greenhouse.requires says it too, and a test keeps them equal).
+export const GREENHOUSE_NEED_WALKS = 2;
 
 let H = null;
 // host: { teleOn, greenhouseOn, placeName, walkOnMove, lower, padTag, escapeHtml, coopReady, catalog, isClan, couch }
@@ -55,7 +57,7 @@ const end = teleRow;
 // Each end's look, by id: 'stonering' (five mossy standing stones round a light disc), 'archway' (a little stone arch in a
 // hedge, with a lantern) or 'hollow' (a trunk with a glowing hole). Pictures of all three in the Park and the Greenhouse:
 // verify-teleport-gates-m1.html. The plan's recommendation for the real pairs: stones for the Moon, hollow for the Reef.
-export const TELE_LOOK = Object.freeze({ 'park-greenhouse': 'stonering', 'greenhouse-park': 'stonering', 'park-moon': 'stonering', 'moon-park': 'stonering' });
+export const TELE_LOOK = Object.freeze({ 'park-greenhouse': 'archway', 'greenhouse-park': 'archway', 'park-moon': 'stonering', 'moon-park': 'stonering' });
 // Where she lands, and facing which way: 'toward' (the milestone 0 choice: 3.6 m out, FACING the gate she stepped out of; the
 // camera stands 4.4 m behind her, so it looks at the way home) or 'away' (the spec's "facing in": 7 m out, looking into
 // the place, the gate behind her; further, so the camera does not stand inside the stones).
@@ -72,13 +74,15 @@ export function arriveFor(faces, x, z, mode = TELE_ARRIVAL_FACING) {
   return { x: x + dx * m.dist, z: z + dz * m.dist, yaw: yaw > Math.PI ? yaw - 2 * Math.PI : yaw };
 }
 
-// The spike pair, Park <-> Greenhouse. Each stands on open lawn in sight of its place's spawn (Park (0, 45), Greenhouse
-// (0, 30)), clear of every collider, point of interest and golden mouse (test/teleport.test.js). The cat walks up
-// heading west and lands east of the other end (arriveFor).
+// The Greenhouse pair (Greenhouse milestone G4; the spike pair made real), Park <-> Greenhouse, both editions. Each stands on
+// open ground in sight of its place's spawn (Park (0, 45), Greenhouse (0, 30)), clear of every collider, point of interest and
+// golden mouse (test/teleport.test.js). The cat walks up heading west and lands 3.6 m east of the other end, facing it
+// (arriveFor). The Park's archway is awake after two Park walks; the Greenhouse's own return arch (greenhouseparts.js
+// returnArch, `own`) is always awake, as the Moon's ring is.
 export const TELE_ENDS = Object.freeze({
   park: Object.freeze([
     end({ id: 'park-greenhouse', gateway: 'tele-park-greenhouse', x: -10, z: 44, faces: 'west', to: 'greenhouse', twin: 'greenhouse-park', look: TELE_LOOK['park-greenhouse'],
-      placement: 'inside', arrive: arriveFor('west', -10, 44), edition: 'all' }),
+      placement: 'inside', arrive: arriveFor('west', -10, 44), edition: 'all', needWalks: GREENHOUSE_NEED_WALKS }),
     // The Moon gate (milestone 3): the Park's stone ring, east of the spawn (12, 44), awake after two Park walks; she lands
     // 3.6 m west of it, facing it, when she comes home. Both editions. Its twin is the Moon's own return ring.
     end({ id: 'park-moon', gateway: 'tele-park-moon', x: 12, z: 44, faces: 'east', to: 'moon', twin: 'moon-park', look: TELE_LOOK['park-moon'],
@@ -94,18 +98,18 @@ export const TELE_ENDS = Object.freeze({
   ]),
   greenhouse: Object.freeze([
     end({ id: 'greenhouse-park', gateway: 'tele-park-greenhouse', x: -10, z: 29, faces: 'west', to: 'park', twin: 'park-greenhouse', look: TELE_LOOK['greenhouse-park'],
-      placement: 'inside', arrive: arriveFor('west', -10, 29), edition: 'all' }),
+      placement: 'inside', arrive: arriveFor('west', -10, 29), edition: 'all', own: true }),
   ]),
 });
 
 export const teleEnds = (areaId) => (typeof areaId === 'string' && Object.hasOwn(TELE_ENDS, areaId) ? TELE_ENDS[areaId] : []);
 
-// A place behind its own switch (the Greenhouse, until its milestone 4 gives it a catalog row) counts as built while
-// that switch is on, and has no name in the catalog, so its name is here.
+// A place with no catalog row (the Moon) counts as built behind the gates switch, and has no name in the catalog, so its
+// name is here. (The Greenhouse has its row since G4; its `gate: 'tele'` keeps it out of the cards while the switch is off.)
 const NAMES = { greenhouse: 'The Greenhouse', moon: 'The Moon' };
 export function placeLive(to, catalog) {
   const areas = catalog && catalog.areas;
-  return (!!areas && Object.hasOwn(areas, to)) || (to === 'greenhouse' && H.greenhouseOn()) || to === 'moon'; // (the Moon: behind ?gates=1 already)
+  return (!!areas && Object.hasOwn(areas, to)) || to === 'moon'; // (the Moon: behind ?gates=1 already)
 }
 export const teleName = (to, edition, catalog) => H.placeName(to, edition, catalog) || NAMES[to] || '';
 
@@ -153,8 +157,8 @@ export function planFor(via) {
 // What one walk-on through a gate hands to the next walk, and nothing more. She is the same cat in the same clothes:
 // no wear, no cat and no position is carried or changed (she lands at the twin's arrival spot, as at every gate); a
 // walk banks as it always does. `move` is how the place beyond lands on this save (gatecross.walkOnMove: 'set',
-// 'take' or 'override'; for the Greenhouse, free and with no catalog row, it says 'take' and the walk's buy() refuses,
-// so it is walked as an override and nothing is bought);
+// 'take' or 'override'; the Greenhouse is free with a catalog row, so it says 'take' and the walk takes it (price 0, as the
+// Woods); the Moon has no row, so it is walked as an override and nothing is bought);
 // `suit` is the draw-time look the place beyond puts on her (suitOf; never saved, never worn); a room is kept
 // together and `seedFrom` is the id its next seed derives from (gatecross.nextRoomSeed), else null.
 export function teleHandoff({ via, state, catalog, inRoom = false, guest = false } = {}) {

@@ -123,6 +123,7 @@ export function ambientKind(areaId, { dusk = false } = {}) {
     case 'woods': return 'leaves';
     case 'seaside': return 'spray';
     case 'lighthouse': return 'spray'; // surf mist off the cove's sea (the `sea` water), always evening
+    case 'greenhouse': return 'fluff'; // seed down and pollen drifting over the lawns, day and dusk
     case 'docks': return dusk ? 'moths' : 'motes';
     case 'neighborhood': return 'fluff';
     case 'farm': return 'fluff'; // dandelion and thistle down over the fields, day and dusk

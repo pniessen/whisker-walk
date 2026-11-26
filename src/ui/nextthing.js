@@ -6,7 +6,7 @@
 // tutorialwords.js (home.<id>); names of places, things to wear and ranks come
 // from the game's own tables, so the series switch changes them in one place.
 import { CATALOG, rankFor } from '../progression.js';
-import { isClanEdition, areaInEdition, placeName, accessoryName, effectiveArea } from '../edition.js';
+import { isClanEdition, areaShown, placeName, accessoryName, effectiveArea } from '../edition.js';
 import { isClanId } from '../clanhomes.js';
 import { clanMomentDue } from './clanpicker.js';
 import { tamingProgress, denResidents, TAME_FEEDS } from '../colony.js';
@@ -101,7 +101,7 @@ export function nextThing(state, { catalog = CATALOG, present = false, toldNow =
   const here = own(areas, s.area) ? effectiveArea({ area: s.area, edition }, catalog) : null;
   const soon = Object.keys(areas).filter((id) => {
     const req = offer(id).requires;
-    return !owned.includes(id) && areaInEdition(areas[id], edition) && !!req && req.area === here
+    return !owned.includes(id) && areaShown(areas[id], edition) && !!req && req.area === here
       && count(walks[here]) === req.walks - 1;
   }).sort((a, b) => (count(offer(a).price) > 0) - (count(offer(b).price) > 0));
   // Two places that both cost coins are a choice, so the line names both
@@ -146,7 +146,7 @@ export function nextThing(state, { catalog = CATALOG, present = false, toldNow =
     if (best) {
       // That cat's place, when it is one she can walk today.
       const cat = colony.cats.find((c) => c && c.name === best.name);
-      const at = cat && own(areas, cat.area) && owned.includes(cat.area) && areaInEdition(areas[cat.area], edition) ? cat.area : null;
+      const at = cat && own(areas, cat.area) && owned.includes(cat.area) && areaShown(areas[cat.area], edition) ? cat.area : null;
       return say(9, 'home.feed', '🐟', { name: best.name, n: best.have }, at ? 'place' : null, at ? { place: at } : {});
     }
   }

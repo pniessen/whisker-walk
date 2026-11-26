@@ -886,6 +886,13 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         layers.push(windLayer({ gain: 0.022, cutoff: 160 }));
         layers.push(waterLapLayer());
         if (rain) layers.push(rainLayer());
+      } else if (areaKey === 'greenhouse') {
+        // The Greenhouse: the fountain's trickle and a hush of wind; birdsong by day, rain's wash in rain (greenhousesound.js,
+        // milestone G5, adds the drips, the sparrow bath and the rain patter on the glass).
+        layers.push(windLayer({ gain: 0.03, cutoff: 260 }));
+        layers.push(waterLapLayer());
+        if (rain) layers.push(rainLayer());
+        else if (!dusk) layers.push(birdsongLayer());
       } else if (areaKey === 'pines') {
         // The Pines and Swamp: a low hush of wind and the bog frogs, never
         // birdsong at any hour. Crickets at dusk come from the shared line.

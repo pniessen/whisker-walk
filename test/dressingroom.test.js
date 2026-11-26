@@ -7,7 +7,7 @@ import { CAT_BLURBS, ACC_BLURBS } from '../src/ui/catblurbs.js';
 import { PAW } from '../src/ui/pawicon.js';
 import { clanName } from '../src/clanhomes.js';
 import { spotsIn } from '../src/foundwear/spots/index.js';
-import { areaInEdition } from '../src/edition.js';
+import { areaShown as areaInEdition } from '../src/edition.js'; // (what a child is shown: the Greenhouse hides behind the gates switch)
 import {
   HOME_SHEETS, SHEET_LABEL, resolveSheet, PLACE_PICTURE,
   MENU_TILES, GROWNUP_SHEETS,

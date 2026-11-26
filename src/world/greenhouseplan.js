@@ -76,9 +76,13 @@ const P2 = (x, z) => Object.freeze({ x, z });
 
 // The spawn court: gravel, two lamps, a bench, the gate's signpost at the south edge (the real gate is milestone G4).
 export const COURT = Object.freeze({ x0: -8, x1: 8, z0: 26, z1: 36 });
-export const COURT_LAMPS = Object.freeze([P2(-5.5, 27.5), P2(5.5, 27.5)]);
+export const COURT_LAMPS = Object.freeze([P2(-5.5, 26.5), P2(5.5, 26.5)]);
 export const COURT_BENCH = Object.freeze({ x: -5.5, z: 32.5, w: 1.6, d: 0.5, y: 0.5 });
 export const SIGNPOST = P2(0, 34.6);
+// The way home (G4): the Greenhouse's own return arch, a little stone archway in the court's west hedge line, facing west (the same
+// pair as the Park's archway: src/teleport.js `greenhouse-park`, `own`, so the gate draws nothing of its own). Two pillars with a
+// round of stones over a 1.9 m gap; she lands 3.6 m east of it, facing it.
+export const RETURN_ARCH = Object.freeze({ x: -10, z: 29, pillarGap: 0.95, spring: 2.0, pillarR: 0.32 });
 // Clipped hedges (run start, run end), 1 m high, 0.8 m thick.
 export const HEDGES = Object.freeze([[-14, 7.3, -10, 7.3], [10, 7.3, 14, 7.3], [8.5, 31, 13.5, 31], [-13.5, 31, -8.5, 31]].map((h) => Object.freeze(h)));
 // The two catnip beds (flat, walked over): each is an `eat` rest at its middle.
@@ -226,6 +230,7 @@ export const GREENHOUSE_COLLIDERS = Object.freeze([
   // G3: the lamps and the signpost in the court, benches, hedges, the shed (solid all round), the barrel, stacks, cold frames, the log, trees
   ...COURT_LAMPS.map((l) => c(l.x, l.z, 0.25)),
   c(SIGNPOST.x, SIGNPOST.z, 0.25),
+  c(RETURN_ARCH.x, RETURN_ARCH.z - RETURN_ARCH.pillarGap, RETURN_ARCH.pillarR), c(RETURN_ARCH.x, RETURN_ARCH.z + RETURN_ARCH.pillarGap, RETURN_ARCH.pillarR),
   ...[COURT_BENCH, SUNNY_BENCH, POND_BENCH].flatMap((b) => run(b.x - 0.5, b.z, b.x + 0.5, b.z, 0.35, 1)),
   ...HEDGES.flatMap((h) => run(h[0], h[1], h[2], h[3], 0.4, 0.7)),
   ...shedWalls(),

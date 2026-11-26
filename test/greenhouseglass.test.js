@@ -250,11 +250,10 @@ describe('the record and the scaffold', () => {
     expect(seen.has(key(-28, -18))).toBe(true); // out of the west door
     expect(seen.has(key(28, -18))).toBe(true); // out of the east door
   });
-  it('is registered as its own download and offered nowhere', () => {
+  it('is registered as its own download, in the catalog behind the gates switch only', () => {
     expect(typeof AREA_LOADERS.greenhouse).toBe('function');
     expect(AREA_ENTRY_MODULES.greenhouse).toEqual(['src/world/greenhouse.js']);
-    expect(Object.hasOwn(CATALOG.areas, 'greenhouse')).toBe(false);
-    expect(STREET_PLACES.some((p) => p.areaId === 'greenhouse')).toBe(false);
+    expect(CATALOG.areas.greenhouse.gate).toBe('tele');
     expect(TOWN_PLACES.some((p) => p.areaId === 'greenhouse')).toBe(false);
   });
   it('the whole build stays inside the place\'s numbers (milestone G3 measured 42 meshes and 40,212 triangles; the aim is 150 and 52,000)', () => {
