@@ -117,7 +117,10 @@ function glassGeometry(h, doors) {
   // A quad of four points a b c d (in order round it); its winding is made to face `out`.
   const quad = (A, B, C, D, out) => {
     const base = pos.length / 3;
-    for (const P of [A, B, C, D]) { pos.push(P[0], P[1], P[2]); col.push(...colorAt(P[1])); }
+    // beauty round 4: each pane its own faint tone (a little greener, bluer or paler); the alpha is never touched
+    const tone = 0.98 + 0.05 * hash01(Math.round(A[0] * 10), Math.round((A[1] + A[2]) * 10), 0x91a5);
+    const greener = hash01(Math.round(A[0] * 10), Math.round((A[1] * 3 + A[2]) * 10), 0x91a6) < 0.22 ? 0.95 : 1;
+    for (const P of [A, B, C, D]) { const c = colorAt(P[1]); pos.push(P[0], P[1], P[2]); col.push(c[0] * tone * greener, c[1] * tone, c[2] * tone * greener, c[3]); }
     const e1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]];
     const e2 = [C[0] - A[0], C[1] - A[1], C[2] - A[2]];
     const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
@@ -219,6 +222,14 @@ function frameGeometry(h, doors) {
   }
   const g = mergeGeometries(parts, false);
   for (const p of parts) p.dispose();
+  // beauty round 4: the white ironwork is greener and darker at the foot (damp and algae) and brightest at the ridge
+  const pp = g.attributes.position, cc = g.attributes.color;
+  for (let i = 0; i < pp.count; i++) {
+    const u = Math.min(1, Math.max(0, (pp.getY(i) - h.plinth) / Math.max(1e-6, h.ridge - h.plinth)));
+    const damp = Math.max(0, 1 - u * 3.2);
+    const k = 0.97 + 0.08 * u;
+    cc.setXYZ(i, cc.getX(i) * k * (1 - 0.2 * damp), cc.getY(i) * k * (1 - 0.07 * damp), cc.getZ(i) * k * (1 - 0.24 * damp));
+  }
   return g;
 }
 
@@ -304,6 +315,14 @@ export function dappleQuad(h, { size = 64, name = 'glassDapple' } = {}) {
       ctx.fill();
     }
   }
+  // beauty round 4: soft round blobs of light between the diamonds, as light comes through leaves
+  for (const [bx, by, br] of [[0.5, 0.5, 0.11], [0.0, 0.0, 0.08], [0.0, 1.0, 0.08], [1.0, 0.0, 0.08], [1.0, 1.0, 0.08]]) {
+    const gr = ctx.createRadialGradient(bx * size, by * size, 0, bx * size, by * size, br * size);
+    gr.addColorStop(0, 'rgba(255, 244, 205, 0.3)');
+    gr.addColorStop(1, 'rgba(255, 244, 205, 0)');
+    ctx.fillStyle = gr;
+    ctx.fillRect(0, 0, size, size);
+  }
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -333,7 +352,11 @@ export function sunShafts(h, spots = SHAFT_SPOTS, name = 'sunShafts') {
   const idx = [];
   const ridge = h.ridge - 0.6;
   _col.set(COL.shaft);
+  let spotNo = 0;
   for (const [x, z] of spots) {
+    // beauty round 4: each shaft its own strength and warmth (one bright and golden, one paler and thin)
+    const gk = [1, 0.7, 0.88, 0.76][spotNo % 4], warmK = [1, 0.92, 1, 0.9][spotNo % 4];
+    spotNo++;
     // two crossed pairs of triangles leaning a little east: the top narrow and bright in the middle, soft to nothing at
     // the sides (the edge vertices are black, and additive black is nothing), the foot wide and black
     for (const yaw of [0, Math.PI / 2]) {
@@ -343,7 +366,7 @@ export function sunShafts(h, spots = SHAFT_SPOTS, name = 'sunShafts') {
         const px = x + u * cs + (y === 0 ? 0 : 1.6); // the foot leans 1.6 m east of the top
         const pz = z + u * sn;
         pos.push(px, y, pz);
-        col.push(_col.r * k * SHAFT_GAIN, _col.g * k * SHAFT_GAIN, _col.b * k * SHAFT_GAIN);
+        col.push(_col.r * k * SHAFT_GAIN * gk, _col.g * k * SHAFT_GAIN * gk, _col.b * k * SHAFT_GAIN * gk * warmK ** 2);
       }
       idx.push(base, base + 1, base + 4, base, base + 4, base + 3, base + 1, base + 2, base + 5, base + 1, base + 5, base + 4);
     }
