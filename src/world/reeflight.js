@@ -98,10 +98,11 @@ export function createReefLight({ scene, lowTier = false, reducedMotion = false 
 
   const shafts = [];
   if (!lowTier) {
-    for (const s of P.SHAFTS) {
+    const shaftTints = [0xffffff, 0xd8fff0, 0xf4fff0]; // round 6: no two shafts quite the same light (aqua, green-white, pale gold)
+    for (const [si, s] of P.SHAFTS.entries()) {
       const m = new THREE.Mesh(
         shaftGeometry(s.w, SHAFT_LOOK.height),
-        new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: SHAFT_LOOK.opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true }),
+        new THREE.MeshBasicMaterial({ color: shaftTints[si % 3], vertexColors: true, transparent: true, opacity: SHAFT_LOOK.opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true }),
       );
       m.name = 'reef:shaft';
       m.position.set(s.x, P.reefY(s.x, s.z) - 0.2, s.z);
