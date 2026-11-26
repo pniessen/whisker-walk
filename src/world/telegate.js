@@ -24,7 +24,7 @@ import { litMaterial } from '../render/materials.js';
 import { FLAT_GROUND } from '../ground.js';
 
 export const LOOK_BUDGET = Object.freeze({ meshes: 6, triangles: 480, transparent: 1 });
-export const LOOK_NAMES = Object.freeze(['stonering', 'archway', 'hollow', 'cleft']);
+export const LOOK_NAMES = Object.freeze(['stonering', 'archway', 'hollow', 'cleft', 'grotto']);
 const OUT_YAW = { north: 0, south: Math.PI, east: -Math.PI / 2, west: Math.PI / 2 };
 
 // What each look is made of that she cannot walk through: circles in the gate's own frame (lx along its width, lz along
@@ -34,14 +34,15 @@ export const LOOK_SOLIDS = Object.freeze({
   archway: Object.freeze([{ lx: -0.95, lz: 0, r: 0.32 }, { lx: 0.95, lz: 0, r: 0.32 }]),
   hollow: Object.freeze([{ lx: 0, lz: -1.3, r: 1.1 }]),
   cleft: Object.freeze([{ lx: -1.35, lz: -1.0, r: 0.95 }, { lx: 1.35, lz: -1.0, r: 0.95 }, { lx: 0, lz: -2.2, r: 1.2 }]),
+  grotto: Object.freeze([{ lx: -1.35, lz: -1.0, r: 0.95 }, { lx: 1.35, lz: -1.0, r: 0.95 }, { lx: 0, lz: -2.2, r: 1.2 }]),
 });
 export const STONE_COLLIDER_R = 0.35;
 
 // The disc and the motes: colour by look, and by the suit the place beyond puts on her (the dive's is bluer, the
 // Moon's paler and cooler).
-const LOOK_TINT = { stonering: 0xffeeb4, archway: 0xffe2a0, hollow: 0xcdeeff, cleft: 0xbfe6ff };
+const LOOK_TINT = { stonering: 0xffeeb4, archway: 0xffe2a0, hollow: 0xcdeeff, cleft: 0xbfe6ff, grotto: 0xe3c8ff };
 const SUIT_TINT = { space: 0xe6e2ff, dive: 0x9fd8ff };
-const MOTE_COLOUR = { stonering: 0xfff3b0, archway: 0xffe9a8, hollow: 0xd8f4ff, cleft: 0xd8f4ff };
+const MOTE_COLOUR = { stonering: 0xfff3b0, archway: 0xffe9a8, hollow: 0xd8f4ff, cleft: 0xd8f4ff, grotto: 0xf0dcff };
 export const discTint = (end) => SUIT_TINT[end.suit] ?? LOOK_TINT[end.look] ?? LOOK_TINT.stonering;
 
 // ---- time: one clock the whole look reads (a picture page sets its own, so a frame is the same every time) ----
@@ -188,7 +189,15 @@ function hollowDisc(front) {
 // Two tall grey rocks with a cleft between them and a back rock behind it, a low rock over the top; a brass ladder runs up the
 // left rock's face and a red ring buoy hangs on the right's. One merged body (about 380 triangles), the disc in the gap.
 const CLEFT_FRONT = -0.85; // m, the back rock's face, where the disc sits
-function cleftBody() {
+// `grotto` (the Crystal Cave's gate at the Old Docks): the same rocks with no ladder and no ring buoy, a violet cast and two little
+// crystal shards at the cleft's foot.
+// The rocks' round feet are flattened at a hand below the ground, so none sinks further.
+function buryFoot(geo) {
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) if (pos.getY(i) < -0.1) pos.setY(i, -0.1);
+  return geo;
+}
+function cleftBody(grotto = false) {
   const rock = (r, sx, sy, sz, o) => piece(new THREE.IcosahedronGeometry(r, o.detail ?? 1).scale(sx, sy, sz), o);
   const parts = [
     rock(1.1, 0.9, 1.9, 1, { x: -1.35, y: 1.3, z: -1.0, tint: 0x8c9296, moss: 0.8, mossTo: 0.9, wob: 0.1, salt: 71 }),
@@ -196,16 +205,20 @@ function cleftBody() {
     rock(1.2, 1.3, 1.8, 0.9, { x: 0, y: 1.6, z: -2.1, tint: 0x767c82, moss: 0.6, mossTo: 1.2, wob: 0.1, salt: 73 }),
     rock(0.9, 1.8, 0.6, 0.9, { x: 0, y: 2.55, z: -1.15, tint: 0x969b9e, wob: 0.08, salt: 74, detail: 0 }),
   ];
+  if (grotto) {
+    for (const [x, s, t] of [[-0.45, 0.32, 0xc9a6ff], [0.5, 0.26, 0xe8d2ff]]) parts.push(piece(new THREE.OctahedronGeometry(s, 0).scale(0.6, 1.8, 0.6), { x, y: s * 1.6, z: -0.7, tint: t }));
+    return buryFoot(mergeGeometries(parts, false));
+  }
   // the ladder on the left rock's face: two rails and three rungs
   for (const sx of [-1, 1]) parts.push(piece(box(0.06, 2.1, 0.06), { x: -1.35 + sx * 0.3, y: 1.15, z: 0.02, tint: 0xb08d4a }));
   for (const y of [0.55, 1.2, 1.85]) parts.push(piece(box(0.66, 0.05, 0.05), { x: -1.35, y, z: 0.03, tint: 0xc29f58 }));
   // the ring buoy on the right rock's face
   parts.push(piece(new THREE.TorusGeometry(0.27, 0.08, 4, 8), { x: 1.35, y: 1.45, z: 0.0, tint: 0xd9402f }));
-  return mergeGeometries(parts, false);
+  return buryFoot(mergeGeometries(parts, false));
 }
 function cleftDisc() {
-  const g = new THREE.CircleGeometry(0.5, 24);
-  g.scale(1, 1.9, 1);
+  const g = new THREE.CircleGeometry(0.58, 24);
+  g.scale(1, 1.8, 1);
   g.translate(0, 1.2, CLEFT_FRONT + 0.05);
   return g;
 }
@@ -277,7 +290,8 @@ export function buildTeleGate(end, { ground = FLAT_GROUND, awake = true, calm = 
   else if (look === 'hollow') {
     const h = hollowBody();
     bodyGeo = h.geo; discGeo = hollowDisc(h.front); moteY = 1.6;
-  } else { bodyGeo = ringBody(); discGeo = ringDisc(); }
+  } else if (look === 'cleft' || look === 'grotto') { bodyGeo = cleftBody(look === 'grotto'); discGeo = cleftDisc(); moteY = 1.6; }
+  else { bodyGeo = ringBody(); discGeo = ringDisc(); }
 
   const body = new THREE.Mesh(bodyGeo, litMaterial(awake ? 0xffffff : 0xbcc2c4, { vertexColors: true, roughness: 0.95 }));
   body.name = 'teleBody';

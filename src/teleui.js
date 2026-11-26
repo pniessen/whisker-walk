@@ -43,10 +43,10 @@ export const CSS = `
 .tele-card h2{max-width:22ch;justify-self:center;text-align:center}
 .tele-emblem{width:72px;height:72px;border-radius:50%;background:radial-gradient(circle,#fffbe8 0,var(--tele-a,#ffe7a6) 58%,transparent 72%);box-shadow:0 0 22px var(--tele-a,#ffe7a6)}
 .tele-emblem-archway{width:56px;height:84px;border-radius:28px 28px 6px 6px}
-.tele-emblem-hollow,.tele-emblem-cleft{width:58px;height:80px;border-radius:50%}
+.tele-emblem-hollow,.tele-emblem-cleft,.tele-emblem-grotto{width:58px;height:80px;border-radius:50%}
 html.tv .tele-emblem{width:calc(120px * var(--tv-s,1));height:calc(120px * var(--tv-s,1))}
 html.tv .tele-emblem-archway{width:calc(96px * var(--tv-s,1));height:calc(140px * var(--tv-s,1))}
-html.tv .tele-emblem-hollow,html.tv .tele-emblem-cleft{width:calc(96px * var(--tv-s,1));height:calc(132px * var(--tv-s,1))}
+html.tv .tele-emblem-hollow,html.tv .tele-emblem-cleft,html.tv .tele-emblem-grotto{width:calc(96px * var(--tv-s,1));height:calc(132px * var(--tv-s,1))}
 .tele-card .btn{min-height:48px;min-width:160px}
 html.tv .tele-line{font-size:calc(2.6rem * var(--tv-s,1))}
 html.tv .tele-card .btn{min-height:calc(84px * var(--tv-s,1))}
@@ -99,7 +99,7 @@ export function opening({ calm = false, doc = globalThis.document, later = setTi
 // 48 px high, with the pad's tags.
 export function cardHtml({ name, look = 'stonering', tint = 0xffe7a6 }) {
   ensureStyle();
-  const kind = ['stonering', 'archway', 'hollow', 'cleft'].includes(look) ? look : 'stonering';
+  const kind = ['stonering', 'archway', 'hollow', 'cleft', 'grotto'].includes(look) ? look : 'stonering';
   return `<div class="pause-card cross-card tele-card" style="--tele-a:${hex(tint)}">
       <div class="tele-emblem tele-emblem-${kind}" aria-hidden="true"></div>
       <h2>${escapeHtml(phrase('tele.prompt', lower(name), kind))}</h2>

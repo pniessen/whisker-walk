@@ -35,7 +35,7 @@ afterEach(() => setTeleClock(null));
 
 describe('the three looks, in the plan\'s budget', () => {
   it('the looks are the three names the plan gives, all in the gate table\'s vocabulary', () => {
-    expect([...LOOK_NAMES]).toEqual(['stonering', 'archway', 'hollow', 'cleft']);
+    expect([...LOOK_NAMES]).toEqual(['stonering', 'archway', 'hollow', 'cleft', 'grotto']);
     expect(LOOK_BUDGET).toEqual({ meshes: 6, triangles: 480, transparent: 1 });
   });
   for (const look of LOOK_NAMES) {
@@ -180,7 +180,7 @@ describe('what is solid', () => {
 
 describe('the owner\'s two choices, as constants', () => {
   it('each gate\'s look is named in TELE_LOOK, a real look, and is what its table row says', () => {
-    expect(Object.keys(TELE_LOOK).sort()).toEqual(['greenhouse-park', 'moon-park', 'park-greenhouse', 'park-moon', 'reef-seaside', 'seaside-reef']);
+    expect(Object.keys(TELE_LOOK).sort()).toEqual(['greenhouse-park', 'moon-park', 'park-greenhouse', 'park-moon', 'reef-seaside', 'seaside-reef', 'crystal-docks', 'docks-crystal'].sort());
     for (const e of [PG, GP]) {
       expect(LOOK_NAMES, e.id).toContain(TELE_LOOK[e.id]);
       expect(e.look, e.id).toBe(TELE_LOOK[e.id]);
