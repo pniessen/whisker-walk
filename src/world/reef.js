@@ -20,6 +20,8 @@ import { reefCollectibles, createReefFindsLife } from './reeffinds.js';
 import { drawFindMarks, drawBubbleColumns } from './reeffindparts.js';
 import { drawCave, drawLanternStalks, drawWingClumps, drawSpires } from './reefwingparts.js';
 import { REEF_SCENICS } from './reeffindsplan.js';
+import { drawDeep } from './reefdeepparts.js';
+import { createReefDeepLife } from './reefdeeplife.js';
 import './reefwords.js';
 
 export { REEF_NAME, REEF_BOUNDS, REEF_SPAWN } from './reefplan.js';
@@ -46,6 +48,7 @@ export function build(scene) {
     drawCave(kit, M); // wing B (R5): the shallow cave that holds shell three, the lantern corals' stalks and the clumps at three heights
     drawLanternStalks(kit, M);
     drawWingClumps(kit, M);
+    drawDeep(kit, M); // wing C (R8): the Sunken Boat, the Old Anchor and the Glow Cave, into the same two buckets
     for (const m of kit.meshes()) scene.add(m);
     scene.add(K.drawKelp());
     scene.add(drawSpires()); // the tall coral spires: one InstancedMesh (R5)
@@ -82,10 +85,11 @@ export function build(scene) {
       life: (ctx) => {
         const base = createReefStoryLife(ctx); // the light, the kelp, the gauge, Marlo and chapter one (milestone R2)
         const finds = createReefFindsLife(ctx); // the six discoveries (milestone R3)
+        const deep = createReefDeepLife({ ...ctx, say: base.say }); // the plankton and the Deep's three soft lines (R8)
         return {
           ...base,
-          update(...a) { base.update(...a); finds.update(...a); },
-          dispose() { finds.dispose(); base.dispose(); },
+          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); },
+          dispose() { deep.dispose(); finds.dispose(); base.dispose(); },
         };
       },
     };
