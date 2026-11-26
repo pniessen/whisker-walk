@@ -18,23 +18,32 @@ const _c = new THREE.Color();
 
 // ---- the pool: a disc of rings that follows the floor, bright in the middle and deep blue at the rim -----------------------------------------------------
 export function poolGeometry() {
-  const radii = [0, 1.3, 2.6, 3.7, 4.6];
-  const seg = 28;
+  const radii = [0, 1.2, 2.4, 3.4, 4.2, 4.6, 4.95]; // the last two: the water's edge and a pale stone lip round it
+  const seg = 32;
+  const last = radii.length - 1;
   const pos = [];
   const col = [];
   const index = [];
   const lift = 0.05;
+  const glow = new THREE.Color(0xa8ecff); const deep = new THREE.Color(0x2670c8); const shallow = new THREE.Color(0x6fd6ea); const lip = new THREE.Color(0xb4b8e0);
   for (let ri = 0; ri < radii.length; ri++) {
     const n = ri === 0 ? 1 : seg;
     for (let i = 0; i < n; i++) {
       const a = (i / seg) * Math.PI * 2;
-      const x = W.POOL.x + Math.cos(a) * radii[ri];
-      const z = W.POOL.z + Math.sin(a) * radii[ri];
+      const wob = 1 + 0.07 * Math.sin(a * 3 + 0.6) + 0.05 * Math.sin(a * 5 + 2); // an uneven shore, so it is a pool and not a plate
+      const rr = radii[ri] * (ri === 0 ? 1 : wob);
+      const x = W.POOL.x + Math.cos(a) * rr;
+      const z = W.POOL.z + Math.sin(a) * rr;
       pos.push(x, P.crystalY(x, z) + lift, z);
-      _c.setHex(WING_COL.pool).lerp(new THREE.Color(WING_COL.poolRim), Math.min(1, (radii[ri] / W.POOL.r) ** 1.6));
+      const t = radii[ri] / W.POOL.r;
+      if (t < 0.5) _c.copy(glow).lerp(deep, t * 1.4); // a bright glow in the middle...
+      else if (t < 0.9) _c.copy(deep).lerp(shallow, ((t - 0.5) / 0.4) ** 1.5 * 0.7); // ...deep blue round it...
+      else _c.copy(shallow).lerp(lip, ri === last ? 0.85 : 0.25 + 0.2 * (t - 0.9) / 0.1); // ...shallow turquoise toward the shore and a pale lip
       const band = 0.5 + 0.5 * Math.sin(radii[ri] * 3.1 + i * 0.9) * Math.cos(i * 0.5 + ri); // ripples of lighter and deeper water
       _c.multiplyScalar(ri === 0 ? 1 : 0.9 + 0.2 * band);
-      if (ri === radii.length - 1) _c.lerp(new THREE.Color(0x8fa0d8), 0.3); // a pale wet rim where the water meets the stone
+      let near = 0; // the stepping crystals glow on the water round their feet
+      for (const st of W.STEPPING) near = Math.max(near, 1 - Math.hypot(x - st.x, z - st.z) / 1.3);
+      if (near > 0 && ri < last) _c.lerp(glow, near * 0.45);
       col.push(_c.r, _c.g, _c.b);
     }
   }
@@ -102,7 +111,7 @@ function putCluster(kit, M, k, i) { for (const g of K.clusterGeometry(k, i)) kit
 function putSlab(kit, M, s, i, light) {
   const tone = Math.sin(i * 2.3 + 1);
   const g = new THREE.DodecahedronGeometry(1, 0).scale(s.r, s.h / 2, s.r * 0.9).translate(0, s.h / 2 - 0.1, 0);
-  kit.put('paint', M.paint, K.paint(K.at(g, s.x, s.z, 0, i * 1.1), i % 2 ? WING_COL.slab : light ? WING_COL.slabLight : WING_COL.slab, tone), { noCast: true });
+  kit.put('paint', M.paint, K.at(K.gradient(g, 0x5e4c60, i % 2 ? WING_COL.slab : light ? WING_COL.slabLight : WING_COL.slab, s.h, tone), s.x, s.z, 0, i * 1.1), { noCast: true }); // darker at the foot, warmer and paler toward the top, each face its own tone
 }
 // the gold seams: thin bars on a slab's south face, in the gold hue so they glow with the other gold crystals
 function putSeams(kit, M, s, i) {
@@ -125,7 +134,7 @@ export function drawWing(kit, M) {
   // the stepping crystals: a stout blue column with a glowing top, each at its own height over the floor
   W.STEPPING.forEach((s, i) => {
     const body = cyl(s.r * 0.85, s.r * 1.05, s.h, 6).translate(0, s.h / 2, 0);
-    kit.put('hue:blue', M.hue.blue, K.paint(K.at(body, s.x, s.z, 0, i), WING_COL.step, Math.sin(i * 2)), { noCast: true, pulse: { hue: 'blue' } }); // glowing like the pool's crystals, so they read from afar
+    kit.put('hue:blue', M.hue.blue, K.at(K.gradient(body, 0x3f86c8, 0xa4dcff, s.h, Math.sin(i * 2)), s.x, s.z, 0, i), { noCast: true, pulse: { hue: 'blue' } }); // glowing like the pool's crystals, so they read from afar
     const cap = K.paint(K.at(cyl(s.r * 0.7, s.r * 0.82, 0.08, 6).translate(0, s.h + 0.04, 0), s.x, s.z, 0, i), i % 2 ? 0xbfe6ff : 0xd2eeff);
     kit.put('hue:blue', M.hue.blue, cap, { noCast: true, pulse: { hue: 'blue' } });
   });

@@ -238,7 +238,7 @@ export function paint(geo, hex, jitter = 0) {
 
 // A geometry painted from a base colour (at y 0) to a bright one (at its top y = `top`): the crystal's own glow runs bright toward the point.
 const FACET = [1.0, 0.82, 0.93, 0.76, 0.97, 0.86]; // six faces, six tones: the cut sides catch the glow differently
-function gradient(geo, baseHex, tipHex, top, tint = 0) {
+export function gradient(geo, baseHex, tipHex, top, tint = 0) {
   const g = geo.index ? geo.toNonIndexed() : geo;
   if (g !== geo) geo.dispose();
   if (!g.attributes.normal) g.computeVertexNormals();
