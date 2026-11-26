@@ -15,6 +15,7 @@ import { LINES as CRYSTAL_LINES } from '../src/world/crystalwords.js';
 import { FIND_LINES as REEF_FIND_LINES } from '../src/world/reeffindwords.js';
 import { CRYSTAL_FIND_LINES } from '../src/world/crystalfindwords.js';
 import { CRYSTAL_WING_LINES } from '../src/world/crystalwingwords.js';
+import { CRYSTAL_ERRAND_LINES } from '../src/world/crystalerrandwords.js';
 import { LINES as REEF_ERRAND_LINES } from '../src/world/reeferrandwords.js';
 import { LINES as REEF_DEEP_LINES } from '../src/world/reefdeepwords.js';
 import { LINES as MOON_LINES, FLOW_LINES as MOON_FLOW_LINES } from '../src/world/moonwords.js';
@@ -32,6 +33,7 @@ addPhrases(REEF_LINES); // (the Reef's chunk adds its own on import: src/world/r
 addPhrases(REEF_FIND_LINES); // (and its find lines, milestone R3: src/world/reeffindwords.js)
 addPhrases(CRYSTAL_FIND_LINES); // (the Crystal Cave's find lines, milestone C3: src/world/crystalfindwords.js)
 addPhrases(CRYSTAL_WING_LINES); // (the Crystal Cave's wing B lines, milestone C5: src/world/crystalwingwords.js)
+addPhrases(CRYSTAL_ERRAND_LINES); // (and Lumi's errand lines, milestone C7: src/world/crystalerrandwords.js)
 addPhrases(REEF_ERRAND_LINES); // (and Marlo's errand lines, milestone R7: src/world/reeferrandwords.js)
 addPhrases(REEF_DEEP_LINES); // (and the Deep's soft lines, milestone R8: src/world/reefdeepwords.js)
 addPhrases(COOP_LINES); // couch play's chunk (src/coop/words.js)
