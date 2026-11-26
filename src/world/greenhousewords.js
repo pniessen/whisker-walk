@@ -3,10 +3,10 @@
 // same in both word sets: no series word is in any of them. test/greenhousewords.test.js checks both sets.
 import { addPhrases } from '../clanphrases.js';
 import { GREENHOUSE_HINTS } from '../greenhousepages.js';
-import { seriesMode, SERIES_ON } from '../wordset.js';
+import { seriesMode, SERIES_ON, rankWord, RANK_KEYS } from '../wordset.js';
 
 // The Clan set's light flavour: a line that takes it reads the set in use WHEN IT IS SAID, so the everyday set is the plain base.
-const clan = (everyday, flavoured) => () => (seriesMode() === SERIES_ON ? flavoured : everyday);
+const clan = (everyday, flavoured) => () => (seriesMode() === SERIES_ON ? (typeof flavoured === 'function' ? flavoured() : flavoured) : everyday);
 
 // The journal's hints by page id (the unspotted cards read them through src/greenhousepages.js; milestone G2).
 export const HINTS = Object.freeze({
@@ -40,7 +40,7 @@ export const LINES = Object.freeze({
   // the six finds' lines (milestone G2 reserves them; the rules that say them come with the finds)
   'greenhouse.find.palm': 'A cool drop of mist lands on your nose. 💧',
   'greenhouse.find.koi': 'A fat orange fish blows you a bubble. 🐟',
-  'greenhouse.find.catnip': clan('Catnip! Mmmm, it smells so good. 🌿', 'Catmint! It smells like a medicine cat’s den. Mmmm. 🌿'),
+  'greenhouse.find.catnip': clan('Catnip! Mmmm, it smells so good. 🌿', () => `Catmint! It smells like a ${rankWord(RANK_KEYS.medicine)}’s den. Mmmm. 🌿`),
   'greenhouse.find.orchid': 'The orchid opens up, just for you. 🌸',
   'greenhouse.find.cactus': 'A little pink flower pops open on the cactus. 🌵',
   'greenhouse.find.butterfly': 'A butterfly lands on your nose. Hold still! 🦋',
