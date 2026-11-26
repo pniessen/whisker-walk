@@ -1,0 +1,20 @@
+// The Reef's twelve journal pages (six discoveries, six activity pages): ids, emoji and names, the same in both word sets
+// (no series word is in any). Start-up code (journal.js imports it), so it holds nothing of the place's world; a page's
+// hint is in the lazy src/world/reefwords.js and reads empty until the Reef's chunk has been loaded (no card is drawn
+// before ?reef=1 until the gate hand-off). All twelve ids are reserved in milestone R0 so no older build drops one.
+export const REEF_PAGES = Object.freeze([
+  ['rfboat', '🚢', 'boat', 'The Sunken Boat'], ['rfoyster', '🦪', 'oyster', 'The Pearl Oyster'], ['rfseahorse', '🐴', 'seahorse', 'The Kelp Seahorse'],
+  ['rfcave', '✨', 'cave', 'The Glow Cave'], ['rfchest', '🧰', 'chest', 'The Treasure Chest'], ['rfanchor', '⚓', 'anchor', 'The Old Anchor'],
+  ['rfshells', '🐚', 'shells', 'Marlo’s New Shell'], ['rflanterns', '🏮', 'lanterns', 'The Lantern Corals'], ['rfparade', '🎉', 'parade', 'The Housewarming'],
+  ['rfalbum', '🖼️', 'album', 'Reef Postcards'], ['rferrand', '🦀', 'errand', 'Marlo’s Errand'], ['rfrings', '🫧', 'rings', 'Bubble Rings'],
+].map((p) => Object.freeze(p)));
+export const REEF_JOURNAL_TYPES = Object.freeze(REEF_PAGES.map((p) => p[0]));
+
+// The hints by journal id: empty here, filled by the Reef's lazy file (world/reefwords.js) when its chunk arrives.
+export const REEF_HINTS = {};
+
+// The journal's pages, by journal id.
+export const REEF_PAGE_WORDS = Object.freeze(Object.fromEntries(REEF_PAGES.map(([id, , , name]) => [id, Object.freeze({
+  name: () => name,
+  hint: () => REEF_HINTS[id] ?? '',
+})])));

@@ -93,7 +93,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   // The Moon's six discoveries and six activity pages (src/moonpages.js; ids reserved in its milestone 0).
   'mnflag', 'mnecho', 'mndust', 'mncheese', 'mndish', 'mngarden', 'mnstory', 'mnrover', 'mnlaunch', 'mnscope', 'mnjump', 'mnjob',
   // The Greenhouse's six finds and two jobs (src/greenhousepages.js; ids reserved in its milestone G2).
-  'ghpalm', 'ghkoi', 'ghcatnip', 'ghorchid', 'ghcactus', 'ghbutterfly', 'ghjobseeds', 'ghjobwater'];
+  'ghpalm', 'ghkoi', 'ghcatnip', 'ghorchid', 'ghcactus', 'ghbutterfly', 'ghjobseeds', 'ghjobwater',
+  // The Reef's six discoveries and six activity pages (src/reefpages.js; ids reserved in its milestone R0).
+  'rfboat', 'rfoyster', 'rfseahorse', 'rfcave', 'rfchest', 'rfanchor', 'rfshells', 'rflanterns', 'rfparade', 'rfalbum', 'rferrand', 'rfrings'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
@@ -528,7 +530,7 @@ function defaultState() {
     // the River: a save with no 'river' key would pin state.walks.river at NaN. And the Moor, the Pines and the Gorge: no 'moor', 'pines' or 'gorge' key, same NaN.
     // And the Farm: a save from before it loads with farm: 0. And the Fairground: fair: 0. And the Rooftops (in CATALOG.areas since Rooftops step 4): roofs: 0. And the Market Square (in CATALOG.areas since Market step 4): market: 0. And the Old House (in CATALOG.areas since its step 4): house: 0.
     // And Lighthouse Point (in CATALOG.areas since Lighthouse milestone 4): lighthouse: 0. And the Greenhouse (in CATALOG.areas since its G4, behind the gates switch): greenhouse: 0.
-    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0 },
+    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0 },
     // A COPY of STARTER_ACCESSORIES: buy() pushes into this array.
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: [...STARTER_ACCESSORIES], areas: ['neighborhood'] },
     equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null },
@@ -557,6 +559,9 @@ function defaultState() {
     // The Moon (docs/superpowers/plans/2026-11-23-moon.md, milestone 0): the story's step, the power cells carried home (bits),
     // the postcard's stamp (-1 none), the star pictures traced (bits) and each cat's long-jump record in cm. Additive: SAVE_VERSION stays 4.
     moon: { step: 0, cells: 0, stamp: -1, scope: 0, jump: {} },
+    // The Reef (docs/superpowers/plans/2026-11-26-reef.md, milestone R0): the story's step (0 to 7), the shells carried to Marlo (3 bits) and
+    // the postcard album (12 bits). No errand: the day's errand is derived from the room seed. Additive: SAVE_VERSION stays 4.
+    reef: { step: 0, shells: 0, album: 0 },
     den: { owned: [], placed: {} },
     // v18 Cat Skills. `skills` is the list of ability ids already earned —
     // stored rather than derived so a later threshold change can never
@@ -908,6 +913,15 @@ function sanitizeMoon(v) {
   return { step: n(v?.step, 9), cells: n(v?.cells, 7), stamp: [0, 1, 2].includes(v?.stamp) ? v.stamp : -1, scope: n(v?.scope, 31), jump };
 }
 
+// The Reef's save key: step capped at 7, shells at 3 bits, album at 12 bits. The shells are never fewer than the step implies (steps 2, 3
+// and 4 each delivered a shell), so a save cannot hold a later step with an earlier shell missing.
+const REEF_SHELLS_AT = [0, 0, 1, 3, 7, 7, 7, 7];
+function sanitizeReef(v) {
+  const n = (x, hi) => Math.min(hi, asFiniteNonNegInt(x, 0));
+  const step = n(v?.step, 7);
+  return { step, shells: n(v?.shells, 7) | REEF_SHELLS_AT[step], album: n(v?.album, 4095) };
+}
+
 // Cloud-loaded (or otherwise externally supplied) den field: same untrusted
 // threat model as every other field in sanitizeState. owned is filtered to
 // DEN_ITEMS' own keys, deduped, and capped at DEN_OWNED_MAX (mirrors
@@ -1226,6 +1240,7 @@ function sanitizeState(parsed) {
     kitten: sanitizeKitten(parsed.kitten),
     race: sanitizeRace(parsed.race),
     moon: sanitizeMoon(parsed.moon),
+    reef: sanitizeReef(parsed.reef),
     den: sanitizeDen(parsed.den),
     skills: sanitizeSkills(parsed.skills),
     feats,

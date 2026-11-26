@@ -26,7 +26,7 @@ describe('the Rooftops journal pages', () => {
     const ids = ['roofgarden', 'roofloft', 'roofvane', 'roofskylight', 'rooftelescope', 'roofchimney'];
     expect(ROOFS_FIND_IDS).toEqual(['garden', 'loft', 'vane', 'skylight', 'telescope', 'chimney']);
     expect(ROOFS_JOURNAL_TYPES).toEqual(ids);
-    expect(JOURNAL_TYPES.slice(-40, -34)).toEqual(ids);
+    expect(JOURNAL_TYPES.slice(-52, -46)).toEqual(ids);
     expect(ROOFS_FIND_IDS.map(roofsPageId)).toEqual(ids);
     for (const id of ROOFS_FIND_IDS) {
       const [name, hint, line, emoji] = PAGES[id];

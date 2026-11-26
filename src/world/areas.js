@@ -63,6 +63,8 @@ const loaders = {
   greenhouse: () => import('./greenhouse.js').then((w) => own('greenhouse', w)),
   // The Moon (?moon=1 only: no catalog row, no gate; its milestone 0 is the seams and a bare plain).
   moon: () => import('./moon.js').then((w) => own('moon', w)),
+  // The Reef (?reef=1 only: no catalog row, no gate; its milestone 0 is the seams and a stub seabed).
+  reef: () => import('./reef.js').then((w) => own('reef', w)),
 };
 
 // The private family edition (vite --mode family) registers its one place here; in every other build
@@ -93,6 +95,7 @@ const entryModules = {
   lighthouse: Object.freeze(['src/world/lighthouse.js']),
   greenhouse: Object.freeze(['src/world/greenhouse.js']),
   moon: Object.freeze(['src/world/moon.js']),
+  reef: Object.freeze(['src/world/reef.js']),
 };
 if (typeof __PRIVATE_FAMILY__ !== 'undefined' && __PRIVATE_FAMILY__) {
   entryModules.family = Object.freeze(['src/family/index.js']);

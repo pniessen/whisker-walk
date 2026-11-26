@@ -9,6 +9,7 @@ import { lighthouseOn } from './lighthouseflag.js';
 import { greenhouseOn } from './greenhouseflag.js';
 import { teleLoad } from './telehook.js';
 import { moonOn } from './moonflag.js';
+import { reefOn } from './reefflag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { createProgression, rankFor, CATALOG } from './progression.js';
 import { colonyNews, tradeEffect } from './colony.js';
@@ -703,6 +704,7 @@ function init() {
   if (greenhouseOn()) areas.prefetch('greenhouse');
   teleLoad(effectiveArea(progression.state, CATALOG)); // ?gates=1 only: the teleport gates' pieces (src/telehook.js)
   if (moonOn()) areas.prefetch('moon');
+  if (reefOn()) areas.prefetch('reef');
   if (housePrefetch(progression.state)) areas.prefetch('house');
   // Rosa's one-time farewell goes up before the news (showNews yields while it is up).
   const showFarewell = () => {

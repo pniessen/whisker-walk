@@ -227,11 +227,11 @@ describe('the three golden mice', () => {
     expect(MICE.map((m) => m.id)).toEqual(['gm-moon-1', 'gm-moon-2', 'gm-moon-3']);
     expect(MICE).toEqual(P.MOON_MICE.map((m) => ({ ...m })));
     const total = Object.values(GOLD_MICE).flat().length;
-    expect(total).toBe(54);
-    expect(goldForEdition('canon', CATALOG).size).toBe(54);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(30);
+    expect(total).toBe(57);
+    expect(goldForEdition('canon', CATALOG).size).toBe(57);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(33);
     // the Moon has no catalog row yet, so its three count in both editions; with a row and no edition key they still do
-    expect(goldForEdition('legacy', { ...CATALOG, areas: { ...CATALOG.areas, moon: { name: 'The Moon' } } }).size).toBe(30);
+    expect(goldForEdition('legacy', { ...CATALOG, areas: { ...CATALOG.areas, moon: { name: 'The Moon' } } }).size).toBe(33);
   });
   it('each is inside the bounds, over open ground (clear of every collider) and in the walk\'s own spawn list', () => {
     const scene = { add() {}, remove() {} };
