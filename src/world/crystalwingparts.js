@@ -32,6 +32,9 @@ export function poolGeometry() {
       const z = W.POOL.z + Math.sin(a) * radii[ri];
       pos.push(x, P.crystalY(x, z) + lift, z);
       _c.setHex(WING_COL.pool).lerp(new THREE.Color(WING_COL.poolRim), Math.min(1, (radii[ri] / W.POOL.r) ** 1.6));
+      const band = 0.5 + 0.5 * Math.sin(radii[ri] * 3.1 + i * 0.9) * Math.cos(i * 0.5 + ri); // ripples of lighter and deeper water
+      _c.multiplyScalar(ri === 0 ? 1 : 0.9 + 0.2 * band);
+      if (ri === radii.length - 1) _c.lerp(new THREE.Color(0x8fa0d8), 0.3); // a pale wet rim where the water meets the stone
       col.push(_c.r, _c.g, _c.b);
     }
   }
@@ -97,8 +100,9 @@ const cyl = (rt, rb, h, seg = 6) => new THREE.CylinderGeometry(rt, rb, h, seg, 1
 function putCluster(kit, M, k, i) { for (const g of K.clusterGeometry(k, i)) kit.put(`hue:${k.hue}`, M.hue[k.hue], g, { noCast: true, pulse: { hue: k.hue } }); }
 
 function putSlab(kit, M, s, i, light) {
+  const tone = Math.sin(i * 2.3 + 1);
   const g = new THREE.DodecahedronGeometry(1, 0).scale(s.r, s.h / 2, s.r * 0.9).translate(0, s.h / 2 - 0.1, 0);
-  kit.put('paint', M.paint, K.paint(K.at(g, s.x, s.z, 0, i * 1.1), i % 2 ? WING_COL.slab : light ? WING_COL.slabLight : WING_COL.slab), { noCast: true });
+  kit.put('paint', M.paint, K.paint(K.at(g, s.x, s.z, 0, i * 1.1), i % 2 ? WING_COL.slab : light ? WING_COL.slabLight : WING_COL.slab, tone), { noCast: true });
 }
 // the gold seams: thin bars on a slab's south face, in the gold hue so they glow with the other gold crystals
 function putSeams(kit, M, s, i) {
@@ -121,8 +125,8 @@ export function drawWing(kit, M) {
   // the stepping crystals: a stout blue column with a glowing top, each at its own height over the floor
   W.STEPPING.forEach((s, i) => {
     const body = cyl(s.r * 0.85, s.r * 1.05, s.h, 6).translate(0, s.h / 2, 0);
-    kit.put('hue:blue', M.hue.blue, K.paint(K.at(body, s.x, s.z, 0, i), WING_COL.step), { noCast: true, pulse: { hue: 'blue' } }); // glowing like the pool's crystals, so they read from afar
-    const cap = K.paint(K.at(cyl(s.r * 0.7, s.r * 0.82, 0.08, 6).translate(0, s.h + 0.04, 0), s.x, s.z, 0, i), 0xbfe6ff);
+    kit.put('hue:blue', M.hue.blue, K.paint(K.at(body, s.x, s.z, 0, i), WING_COL.step, Math.sin(i * 2)), { noCast: true, pulse: { hue: 'blue' } }); // glowing like the pool's crystals, so they read from afar
+    const cap = K.paint(K.at(cyl(s.r * 0.7, s.r * 0.82, 0.08, 6).translate(0, s.h + 0.04, 0), s.x, s.z, 0, i), i % 2 ? 0xbfe6ff : 0xd2eeff);
     kit.put('hue:blue', M.hue.blue, cap, { noCast: true, pulse: { hue: 'blue' } });
   });
   return [drawPool(), drawHeart(), drawPassageLamps()];

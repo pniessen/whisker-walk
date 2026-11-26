@@ -57,6 +57,8 @@ function floorColour(x, z, clusters, out) {
   let r = _c.r * tone; let g = _c.g * tone; let b = _c.b * tone;
   for (const k of clusters) {
     const d2 = (x - k.x) * (x - k.x) + (z - k.z) * (z - k.z);
+    const sh = 1 - 0.28 * Math.exp(-d2 / (k.s * k.s * 0.6)); // the foot of each cluster sits in a little shade
+    r *= sh; g *= sh; b *= sh;
     const reach = k.s * 3.2;
     if (d2 > reach * reach) continue;
     const w = 0.42 * (k.great ? 1.5 : 1) * Math.exp(-d2 / (k.s * k.s * 3.2));
@@ -104,7 +106,7 @@ export function groundGeometry(clusters = [...P.scatterClusters(), BLUE_GREAT, G
 }
 
 export function drawGround() {
-  const m = new THREE.Mesh(groundGeometry(), new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.55, metalness: 0 }));
+  const m = new THREE.Mesh(groundGeometry(), new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.85, metalness: 0 }));
   m.name = 'crystal:ground';
   m.receiveShadow = true;
   Object.assign(m.userData, { ground: true, noCast: true, noContactShadow: true, noMerge: true });
@@ -220,7 +222,7 @@ export function crystalMaterials() {
 }
 
 // Paint a geometry one colour (non-indexed, with position, normal, uv and colour so any two merge).
-export function paint(geo, hex) {
+export function paint(geo, hex, jitter = 0) {
   const g = geo.index ? geo.toNonIndexed() : geo;
   if (g !== geo) geo.dispose();
   if (!g.attributes.normal) g.computeVertexNormals();
@@ -228,6 +230,7 @@ export function paint(geo, hex) {
   const n = g.attributes.position.count;
   const col = new Float32Array(n * 3);
   _c.setHex(hex);
+  if (jitter) _c.offsetHSL(jitter * 0.02, 0, jitter * 0.08); // each rock its own tone
   for (let i = 0; i < n; i++) { col[i * 3] = _c.r; col[i * 3 + 1] = _c.g; col[i * 3 + 2] = _c.b; }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
@@ -339,13 +342,13 @@ export function drawClusters(kit, M) {
 // ---- rocks ---------------------------------------------------------------------------------------------------------------------
 export function drawRim(kit, M) {
   P.scatterRim().forEach((k, i) => {
-    kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(k.s, 0).scale(1, 0.9 + 0.5 * (i % 3), 1).translate(0, k.s * 0.4, 0), k.x, k.z, 0, k.yaw), i % 2 ? COL.stoneDark : COL.rim), { noCast: true });
+    kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(k.s, 0).scale(1, 0.9 + 0.5 * (i % 3), 1).translate(0, k.s * 0.4, 0), k.x, k.z, 0, k.yaw), i % 2 ? COL.stoneDark : COL.rim, Math.sin(i * 2.7)), { noCast: true });
   });
 }
 
 export function drawPebbles(kit, M) {
-  P.scatterPebbles().forEach((k) => {
-    kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(k.s, 0).scale(1, 0.6, 1), k.x, k.z, 0.04, k.yaw), COL.stoneLight), { noCast: true });
+  P.scatterPebbles().forEach((k, i) => {
+    kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(k.s, 0).scale(1, 0.6, 1), k.x, k.z, 0.04, k.yaw), i % 3 ? COL.stoneLight : 0xd2b4b0, Math.sin(i * 1.9)), { noCast: true });
   });
 }
 
