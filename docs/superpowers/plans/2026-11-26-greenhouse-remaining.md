@@ -34,3 +34,9 @@ Planning figures only, none a gate: place chunk about 50 kB gz at stage A, 55 at
 1. **How is the Greenhouse reached?** Spec says a catalog row (100 paws, after 2 Farm walks) plus a Farm `farmgate` road. Teleport gates now exist (Moon: no catalog row, `needWalks 2`, price 0, `own` return ring; spike `park-greenhouse` already in place). Which host (Park vs Farm), which look, price 0 plus needWalks or the 100-paw row, and does it need a world-map circle?
 2. **Save shape.** Confirm no new `state.greenhouse` key (jobs per device, `walks.greenhouse` only) and that appending stage-B journal ids later is safe for the sanitiser and `catmerge` on old saves.
 3. **Shared-seam order.** Confirm Greenhouse G2 (gold totals 54 / 30, journal types, awards) before Reef R0 is safe, and that the Reef's 54 / 30 becomes 57 / 33.
+
+## Advisor answers (Opus, 2026-11-26), now binding
+
+1. **Reach: a teleport gate hosted in the Park** (Moon pattern): price 0, `requires {area:'park', walks:2}`, `edition:'all'`, `archway` look, own return ring at the Greenhouse spawn. G4 promotes `park-greenhouse` / `greenhouse-park` from the spike, adds `CATALOG.areas.greenhouse` (price 0, map circle (1215, 150), place card after first walk), found-outfit spots, area rows, co-walk test, and a test for the price-0 `walkOnMove` 'take' path. The Farm fence is NOT cut; the Farm-road `farmgate` plan is dropped. Risk: release waits on the gates switch (gates M5).
+2. **Save:** no `state.greenhouse`; `walks.greenhouse` only. **G2 reserves all six find ids and the job ids** (orchid, cactus, butterfly too, as the Moon's M0 did) so no older build drops an unknown id.
+3. **Seam order:** Reef R0 branches from main only after G2 merges; the literal 51 is in nine test files (docks, fair, farm, goldmice, housethings, lighthousegold, moonseams, roofs, goldedition). G2 re-pins them to 54 / 30; Reef R0 re-pins 57 / 33 in one commit. No Clan-only catalog row for either place.
