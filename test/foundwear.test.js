@@ -90,6 +90,14 @@ describe('found outfits: the records', () => {
 });
 
 describe('found outfits: the finished catalog (step 2)', () => {
+  // Crystal Cave milestone C3 (2026-11-26): one collar (a crystal charm), hidden in four places in the cave, behind ?crystal=1
+  it('the Crystal Cave hides one outfit, the Glimmer Collar, a collar with a plain name in either set, in four spots', () => {
+    expect(foundWearIn('crystal').map((r) => [r.id, r.slot])).toEqual([['glimmercollar', 'collar']]);
+    expect(foundWearIn('crystal').map((r) => r.name())).toEqual(['Glimmer Collar']);
+    expect(withOffWords(() => foundWearIn('crystal').map((r) => r.name()))).toEqual(['Glimmer Collar']);
+    expect(CATALOG.accessories.glimmercollar).toMatchObject({ slot: 'collar', price: 0, prize: true, find: 'crystal' });
+    expect(spotsIn('crystal').map((x) => x.id)).toEqual(['fw-crystal-1', 'fw-crystal-2', 'fw-crystal-3', 'fw-crystal-4']);
+  });
   it('step 2: every street place has its four, and the places held back have none yet', () => {
     const ids = (a) => foundWearIn(a).map((r) => r.id);
     expect(ids('neighborhood')).toEqual(['paperboycap', 'gardenglovescarf', 'bottletopcollar', 'doormatcape']);
@@ -99,7 +107,7 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(ids('farm')).toEqual(['strawhat', 'featherplume', 'neckerchief', 'haybalepack']);
     expect(ids('fair')).toEqual(['stripedboater', 'heartglasses', 'ticketgarland', 'candyflosspuff']);
     for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) expect(ids(a)).toEqual([]);   // Legacy's retirement first
-    expect(FOUND_WEAR).toHaveLength(32);   // the street places' 24, the Market's four, Lighthouse Point's keeper's cap, the Moon's cape and the Greenhouse's gardener's hat
+    expect(FOUND_WEAR).toHaveLength(33);   // the street places' 24, the Market's four, Lighthouse Point's keeper's cap, the Moon's cape and the Greenhouse's gardener's hat
   });
   // Market step 4 (2026-11-21): a hat, a neck piece, a collar charm and a
   // back item, the names placeholders the owner and his daughter will rename

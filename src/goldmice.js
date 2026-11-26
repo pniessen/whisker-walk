@@ -222,7 +222,7 @@ export const GOLD_MICE = {
     { id: 'gm-reef-2', x: 14, z: -4, y: 1.9 },
     { id: 'gm-reef-3', x: 20, z: 6, y: 2.0 },
   ],
-  // The Crystal Cave (milestone C0: stub spots on the floor, refined in C3 with the plan file; bounds are 72 x 64 m).
+  // The Crystal Cave (milestone C3: the final spots, on the floor and all on foot: under the Rose arch, by the stepping crystal at the pool, behind the Heart; src/world/crystalfindsplan.js CRYSTAL_GOLD holds the same three, test/crystalfinds.test.js; bounds are 72 x 64 m).
   crystal: [
     { id: 'gm-crystal-1', x: -28, z: 4, y: 0 },
     { id: 'gm-crystal-2', x: 14, z: -4, y: 0 },

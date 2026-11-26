@@ -36,4 +36,6 @@ export const NECK_WEAR = Object.freeze([
   Object.freeze({ id: 'applecharm', slot: 'collar', find: 'market', emoji: '🍎', name: () => phrase('wear.applecharm.name') }),
   // the Reef (2026-11-26): a collar with a pearl charm (foundneck.js FOUND_COLLARS), hidden in four places under the sea, behind ?reef=1 (no catalog place yet)
   Object.freeze({ id: 'pearlcollar', slot: 'collar', find: 'reef', emoji: '🦪', name: () => phrase('wear.pearlcollar.name') }),
+  // the Crystal Cave (2026-11-26): a collar with a glimmering crystal charm (foundneck.js FOUND_COLLARS), hidden in four places in the cave, behind ?crystal=1
+  Object.freeze({ id: 'glimmercollar', slot: 'collar', find: 'crystal', emoji: '💎', name: () => phrase('wear.glimmercollar.name') }),
 ]);

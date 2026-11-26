@@ -14,6 +14,9 @@ import * as K from './crystalparts.js';
 import { createCrystalLight } from './crystallight.js';
 import { createLumi } from './crystallife.js';
 import './crystalwords.js';
+import { crystalCollectibles, createCrystalFindsLife } from './crystalfinds.js';
+import { drawFindMarks } from './crystalfindparts.js';
+import { CRYSTAL_SCENICS } from './crystalfindsplan.js';
 
 export { CRYSTAL_NAME, CRYSTAL_BOUNDS, CRYSTAL_SPAWN } from './crystalplan.js';
 
@@ -37,6 +40,7 @@ export function build(scene) {
     K.drawRim(kit, M);
     K.drawPebbles(kit, M);
     for (const m of kit.meshes()) scene.add(m);
+    scene.add(drawFindMarks()); // the Echo Wall, the Crystal Garden and the Gold Vein (milestone C3)
     scene.add(K.drawLight()); // the cave's one real light, at intensity 0
     return {
       name: P.CRYSTAL_NAME,
@@ -47,8 +51,8 @@ export function build(scene) {
       waterFx: [],
       perches: [],
       pois: P.CRYSTAL_POIS.map((p) => ({ ...p })),
-      collectibles: [],
-      scenics: [],
+      collectibles: crystalCollectibles(), // six (milestone C3)
+      scenics: CRYSTAL_SCENICS.map((k) => ({ ...k })),
       tippables: [],
       boxes: [],
       critterSpawns: [],
@@ -68,14 +72,15 @@ export function build(scene) {
       life: (ctx) => {
         const light = createCrystalLight(ctx);
         const lumi = createLumi({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion });
+        const finds = createCrystalFindsLife(ctx); // the six discoveries (milestone C3)
         return {
           light,
           lumi,
           promptAt: (catPos) => lumi.promptAt(catPos),
           interact: () => lumi.interact(),
           credit: (ev) => lumi.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); },
-          dispose() { lumi.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); },
+          dispose() { finds.dispose(); lumi.dispose(); light.dispose(); },
         };
       },
     };
