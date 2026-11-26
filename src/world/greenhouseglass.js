@@ -325,7 +325,7 @@ export function dappleQuad(h, { size = 64, name = 'glassDapple' } = {}) {
 // Sun shafts: tall additive quads under the ridge, brighter at the top and fading to nothing at the floor.
 // One mesh whose origin is the ridge, so the sway (a few degrees over 20 s) is one rotation.
 export const SHAFT_SPOTS = Object.freeze([[-8, -12.5], [-2, -5.5], [5.5, -13], [10, -6]].map((p) => Object.freeze(p)));
-export const SHAFT_GAIN = 0.16; // the additive light's strength at a shaft's top, centre (M0's 0.22 blew out)
+export const SHAFT_GAIN = 0.18; // the additive light's strength at a shaft's top, centre (M0's 0.22 blew out)
 export const SHAFT_FADE = Object.freeze({ near: 2.5, far: 8 }); // m from the camera: none, then all
 export function sunShafts(h, spots = SHAFT_SPOTS, name = 'sunShafts') {
   const pos = [];

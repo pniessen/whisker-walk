@@ -12,7 +12,7 @@ import {
 } from './parkfountain.js';
 import * as P from './greenhouseplan.js';
 import { hash01 } from './warehouselook.js';
-import { frondGeometry, tint, collector, finishMesh, memo } from './greenhouseplants.js';
+import { frondGeometry, tint, shade, collector, finishMesh, memo } from './greenhouseplants.js';
 import { pavedGeometry } from './greenhouseglass.js';
 
 export const GH_TREE_SALT = 0x61a77;
@@ -188,6 +188,8 @@ export function groundDress() {
   col.add(slab(C.x1 - C.x0, 0.02, C.z1 - C.z0, 0xb9ad96), (C.x0 + C.x1) / 2, 0.01, (C.z0 + C.z1) / 2, {});
   // beauty round 1: the court is laid in flagstones (hashed tones, a worn middle, a darker edge), not one flat slab
   col.add(pavedGeometry(C.x1 - C.x0 - 0.2, C.z1 - C.z0 - 0.2, 0xcfc3aa, { cell: 1.6, seed: 0x6c0, edge: 0.7, ao: 0.12 }), (C.x0 + C.x1) / 2, 0.024, (C.z0 + C.z1) / 2, {});
+  // the pond's wet bank: a ring of dark soil under the stones, so the water meets the lawn on something (28 segments, one ring)
+  col.add(flat(tint(new THREE.RingGeometry(P.POND.r - 0.25, P.POND.r + 0.55, 36), 0x7c6b48)), P.POND.x, 0.012, P.POND.z, {});
   // the pond's bank: a ring of rounded stones and a few paler ones, each turned and sized on its hash
   const stone = tint(new THREE.IcosahedronGeometry(1, 0), 0x8f9288);
   const stoneHi = tint(new THREE.IcosahedronGeometry(1, 0), 0xb0b0a2);
@@ -202,6 +204,8 @@ export function groundDress() {
   // the path from the court to the fountain ring, and from the ring to the Palm House's south door
   col.add(slab(2.6, 0.02, 26 - (P.FOUNTAIN.z + 5.4), 0xc9bda5), 0, 0.012, (26 + P.FOUNTAIN.z + 5.4) / 2, {});
   col.add(slab(2.6, 0.02, P.FOUNTAIN.z - 5.4, 0xc9bda5), 0, 0.012, (P.FOUNTAIN.z - 5.4) / 2, {});
+  col.add(pavedGeometry(2.5, 26 - (P.FOUNTAIN.z + 5.4) - 0.1, 0xd4c8b0, { cell: 1.25, seed: 0x6c1, edge: 0.3, ao: 0.08 }), 0, 0.0235, (26 + P.FOUNTAIN.z + 5.4) / 2, {});
+  col.add(pavedGeometry(2.5, P.FOUNTAIN.z - 5.4 - 0.1, 0xd4c8b0, { cell: 1.25, seed: 0x6c2, edge: 0.3, ao: 0.08 }), 0, 0.0235, (P.FOUNTAIN.z - 5.4) / 2, {});
   // the sunny flagstones by the bench
   for (let i = 0; i < 6; i++) col.add(slab(0.9, 0.02, 0.9, i % 2 ? 0xd8cdb6 : 0xcfc4ac), P.SUNNY_BENCH.x - 1.4 + (i % 3) * 1.4, 0.014, P.SUNNY_BENCH.z + 0.9 + Math.floor(i / 3) * 1.1, {});
   // the kitchen garden's dug rows
@@ -342,8 +346,8 @@ export function shedKit() {
 const WILLOW_STRAND = memo(() => frondGeometry({ len: 2.4, width: 0.16, segs: 3, rise: 0.5, droop: 2.4, fold: 0.1, base: 0x5f9a4e, tip: 0x8cc468, belly: 0.4 }));
 export function trees() {
   const col = collector();
-  const trunk = tint(new THREE.CylinderGeometry(0.16, 0.26, 1, 6), 0x6a4a2e);
-  const blob = (hex) => tint(new THREE.IcosahedronGeometry(1, 0), hex);
+  const trunk = shade(tint(new THREE.CylinderGeometry(0.16, 0.26, 1, 6), 0x6a4a2e), { foot: 0.7, crown: 1.12, ribs: 3, ribDepth: 0.2 });
+  const blob = (hex) => shade(tint(new THREE.IcosahedronGeometry(1, 0), hex), { foot: 0.66, crown: 1.16 });
   const greens = [0x3f8a3f, 0x4f9a46, 0x2f7a3a, 0x5aa04a];
   P.TREE_SPOTS.forEach(([x, z, h], i) => {
     const k = hash01(x, z, GH_TREE_SALT);

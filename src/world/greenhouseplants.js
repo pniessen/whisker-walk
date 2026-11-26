@@ -31,6 +31,21 @@ function finish(g) {
   if (!g.attributes.normal) g.computeVertexNormals();
   return g;
 }
+// Beauty round 2: light a tinted geometry from below (a darker foot, a brighter crown) and, for a ribbed body, darken every other
+// vertical column a little. Multiplies the vertex colours already there; the geometry stays one mesh's worth.
+export function shade(g, { foot = 0.78, crown = 1.1, ribs = 0, ribDepth = 0.12 } = {}) {
+  const pos = g.attributes.position, col = g.attributes.color;
+  g.computeBoundingBox();
+  const { min, max } = g.boundingBox;
+  const hgt = Math.max(1e-6, max.y - min.y);
+  for (let i = 0; i < pos.count; i++) {
+    const u = (pos.getY(i) - min.y) / hgt;
+    let k = foot + (crown - foot) * u;
+    if (ribs) k *= 1 - ribDepth * (0.5 - 0.5 * Math.cos(Math.atan2(pos.getX(i), pos.getZ(i)) * ribs));
+    col.setXYZ(i, col.getX(i) * k, col.getY(i) * k, col.getZ(i) * k);
+  }
+  return g;
+}
 export function tint(g, hex) {
   _c.set(hex);
   const n = g.attributes.position.count;
