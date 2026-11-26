@@ -450,7 +450,7 @@ describe('the camera keeps out of rock', () => {
   it('on flat ground the camera block runs exactly today’s lines', () => {
     const src = readFileSync(new URL('../src/player.js', import.meta.url), 'utf8');
     expect(src).toMatch(
-      /camera\.position\.copy\(avatar\.position\)\.add\(camOff\);\n\s+if \(camera\.position\.y < MIN_CAMERA_Y\) camera\.position\.y = MIN_CAMERA_Y;\n\s+if \(!ground\.flat\) placeCameraOnGround\(/,
+      /camera\.position\.copy\(avatar\.position\)\.add\(camOff\);\n\s+camera\.position\.x \+= climbOff\.x; camera\.position\.y \+= climbOff\.y; camera\.position\.z \+= climbOff\.z;[^\n]*\n\s+if \(camera\.position\.y < MIN_CAMERA_Y\) camera\.position\.y = MIN_CAMERA_Y;\n\s+if \(!ground\.flat\) placeCameraOnGround\(/,
     );
   });
 });

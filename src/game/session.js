@@ -76,6 +76,8 @@ const FIELDS = [
   ['perched', 'the perch the cat is on, or null'],
   ['perchHold', 'the perch a jump put her on with the stick already held, or null: a push does not take her off it until the stick is let go (climbing.js stickTakesOff)'],
   ['pounceTime', 'seconds left in the current pounce'],
+  ['climbT', 'seconds left in a perch climb drawn as a jump (game/interactions.js; avatar.js plays the pounce pose off it)'],
+  ['drawOff', "the climb jump's draw-only offset (avatar.js; game/composer.js applies it around the render)"],
   ['pounceCooldown', 'seconds until the next pounce'],
   ['landTime', 'seconds of landing squash left'],
   ['stepPhase', 'the walk-cycle phase'],
