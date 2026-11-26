@@ -17,6 +17,7 @@ export const COL = Object.freeze({
 
 const _c = new THREE.Color();
 const _d = new THREE.Color();
+const _e = new THREE.Color();
 
 // A soft round dot (a 32 x 32 data texture, no canvas: it works in a test too) so the glints, lamps and motes are round and not square.
 let _dot = null;
@@ -129,11 +130,18 @@ export function domeGeometry() {
     _c.multiplyScalar(0.9 + 0.14 * Math.sin(a * 5 + y * 0.35) * Math.cos(a * 3 - y * 0.2)); // slow patches of lighter and darker rock
     _d.setHex(0xa06a78);
     _c.lerp(_d, 0.32 * clamp01(1 - Math.abs(y - 6) / 5)); // a warm rose band where the wall meets the glow
+    const px = pos.getX(v); const pz = pos.getZ(v);
+    for (const w of WING_GLOWS) { // each wing tints the wall behind it with its own hue (the walls stay far beyond the walkable edge)
+      let da = Math.abs(Math.atan2(pz, px) - Math.atan2(w.z, w.x)); if (da > Math.PI) da = Math.PI * 2 - da;
+      _c.lerp(_d.setHex(w.hex), 0.22 * clamp01(1 - da / 0.7) * clamp01(1 - Math.abs(y - 7) / 8));
+    }
     col[v * 3] = _c.r; col[v * 3 + 1] = _c.g; col[v * 3 + 2] = _c.b;
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
 }
+// where each wing's hue washes the walls and the stalactites nearest it (pool, gold gallery, heart)
+const WING_GLOWS = Object.freeze([{ x: 14, z: -4, hex: 0x4a8ad8 }, { x: -12, z: -19.5, hex: 0xc89a48 }, { x: 22, z: -22, hex: 0xc86ac8 }]);
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 export function drawDome() {
@@ -173,6 +181,7 @@ export function drawStalactites() {
     m4.compose(pos, q, sc);
     mesh.setMatrixAt(i, m4);
     _c.setHSL(0.86 + 0.07 * Math.sin(i * 2.9), 0.25 + 0.15 * Math.sin(i * 1.3 + 1), 0.62 + 0.28 * (0.5 + 0.5 * Math.sin(i * 4.1))); // each its own warm tone
+    for (const w of WING_GLOWS) _c.lerp(_d.setHex(w.hex).lerp(_e.setScalar(1), 0.4), 0.55 * clamp01(1 - Math.hypot(k.x - w.x, k.z - w.z) / 18)); // nearer a wing, tipped with its hue
     mesh.setColorAt(i, _c);
   });
   mesh.instanceMatrix.needsUpdate = true;
