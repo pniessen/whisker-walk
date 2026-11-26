@@ -107,12 +107,14 @@ const POT_FLOWER = (hex) => {
 };
 export function gardenPots() {
   const col = collector();
-  const pot = tint(new THREE.CylinderGeometry(0.28, 0.2, 0.36, 8), 0xb8613c);
-  const rim = tint(new THREE.CylinderGeometry(0.31, 0.29, 0.07, 8), 0xa4532f);
+  const pot = shade(tint(new THREE.CylinderGeometry(0.28, 0.2, 0.36, 8), 0xb8613c), { foot: 0.72, crown: 1.12 });
+  const rim = shade(tint(new THREE.CylinderGeometry(0.31, 0.29, 0.07, 8), 0xa4532f), { foot: 0.9, crown: 1.15 });
+  const soil = tint(new THREE.CylinderGeometry(0.27, 0.27, 0.02, 8), 0x33241a);
   const leaves = [];
   P.ALL_POT_SPOTS.forEach(({ x, z }, i) => {
-    col.add(pot, x, 0.18, z, {});
+    col.add(pot, x, 0.18, z, { k: 0.9 + 0.2 * hash01(i, 4, 0x6c5), warm: (hash01(i, 6, 0x6c5) - 0.5) * 0.25 });
     col.add(rim, x, 0.38, z, {});
+    col.add(soil, x, 0.4, z, {});
     const lc = collector();
     for (let k = 0; k < 7; k++) lc.add(POT_LEAF(), 0, 0.4, 0, { yaw: -((k / 7) * TAU + i), scale: 0.9 + 0.2 * ((k * 7 + i) % 3) / 2 });
     const blooms = [0xf27ab8, 0xf5d042, 0xffffff, 0xe84a7a][i % 4];
