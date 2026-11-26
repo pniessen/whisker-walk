@@ -91,7 +91,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   // Lighthouse Point's six finds and two jobs (src/lighthousepages.js; walks each was found or finished on).
   'lhlamproom', 'lhpool', 'lhgull', 'lhecho', 'lhbell', 'lhwindow', 'lhjobkitten', 'lhjoblamp',
   // The Moon's six discoveries and six activity pages (src/moonpages.js; ids reserved in its milestone 0).
-  'mnflag', 'mnecho', 'mndust', 'mncheese', 'mndish', 'mngarden', 'mnstory', 'mnrover', 'mnlaunch', 'mnscope', 'mnjump', 'mnjob'];
+  'mnflag', 'mnecho', 'mndust', 'mncheese', 'mndish', 'mngarden', 'mnstory', 'mnrover', 'mnlaunch', 'mnscope', 'mnjump', 'mnjob',
+  // The Greenhouse's six finds and two jobs (src/greenhousepages.js; ids reserved in its milestone G2).
+  'ghpalm', 'ghkoi', 'ghcatnip', 'ghorchid', 'ghcactus', 'ghbutterfly', 'ghjobseeds', 'ghjobwater'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but

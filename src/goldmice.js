@@ -207,10 +207,18 @@ export const GOLD_MICE = {
     { id: 'gm-moon-2', x: -2, z: -46, y: 3 },
     { id: 'gm-moon-3', x: 30.8, z: -9.6, y: 0 },
   ],
+  // The Greenhouse (milestone G2; test/greenhousegold.test.js). Three hidden spots on walkable ground, none needing a skill: the
+  // hall's north-west corner behind the banana plants, the pond's far side, and the garden's south-east corner by the shed's
+  // ground. Placeholders on the plan so far: milestone G3 may refine them (the spec's shed-roof and log perches) once those exist.
+  greenhouse: [
+    { id: 'gm-green-1', x: 33.5, z: 22.5, y: 0 },
+    { id: 'gm-green-2', x: -11.2, z: -16.9, y: 0 },
+    { id: 'gm-green-3', x: -34, z: 20, y: 0 },
+  ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 51 (sixteen areas x three, and the island's three; 48 before the Moon)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 54 (seventeen areas x three, and the island's three; 51 before the Greenhouse, 48 before the Moon)
 
 // The golden mice a player of `edition` can reach: those in the areas the
 // edition shows (Legacy hides the Clan Edition territories; see edition.js).
