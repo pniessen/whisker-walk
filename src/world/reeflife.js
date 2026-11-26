@@ -92,6 +92,7 @@ export function createReefLife({ scene, reducedMotion = false, tier, visits = 0,
   return {
     air,
     light,
+    say, // (R2) the gauge's soft line: the story's air pockets use it
     update(dt, t, catPos, camera, session) {
       clock += Math.max(dt, 0);
       light.update(dt, t, camera);

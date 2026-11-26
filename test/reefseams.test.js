@@ -98,6 +98,7 @@ describe('floatY, the Reef\'s read-only float height (a placeholder until milest
     'src/catcam.js', // the camera's follow
     'src/coop/index.js', // the couch markers
     'src/remotecats.js', // the lift of a partner's cat
+    'src/world/reefstorylife.js', // R2: the shell on the coral ledge is picked up only by floating (it hands the number to Marlo's pick-up rule)
   ]);
   it('only the allow-listed files mention it', () => {
     const offenders = files().filter((f) => /\bfloatY\b/.test(code(f)) && !ALLOW.has(f));
@@ -245,7 +246,7 @@ describe('the pack', () => {
   it('the Reef\'s files import no other place (the chunk stays small); the dive suit is the shared lazy kit', () => {
     const src = read('src/world/reef.js');
     const imports = [...src.matchAll(/^import .*?from '(.+?)';/gm)].map((x) => x[1]);
-    expect(imports.sort()).toEqual(['../cat/suitkit.js', './builder.js', './localuuids.js', './reefparts.js', './reefplan.js', './reeflife.js', './reeffinds.js', './reeffindparts.js', './reeffindsplan.js'].sort());
+    expect(imports.sort()).toEqual(['../cat/suitkit.js', './builder.js', './localuuids.js', './reefparts.js', './reefplan.js', './reefstorylife.js', './reefmarlo.js', './reefstory.js', './reeffinds.js', './reeffindparts.js', './reeffindsplan.js'].sort());
     expect(src).toMatch(/import '\.\/reefwords\.js'/);
     for (const f of globSync('src/world/reef*.js')) {
       for (const [, spec] of read(f).matchAll(/^import .*?from '(.+?)';/gm)) expect(spec, `${f} imports ${spec}`).not.toMatch(/(moon|greenhouse|seaside|park|docks)/);
