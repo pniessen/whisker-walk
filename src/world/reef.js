@@ -13,7 +13,9 @@ import { withLocalUuids } from './localuuids.js';
 import { installSuitKit } from '../cat/suitkit.js';
 import * as P from './reefplan.js';
 import * as K from './reefparts.js';
-import { createReefLife } from './reeflife.js';
+import { createReefStoryLife } from './reefstorylife.js';
+import { drawLedge } from './reefmarlo.js';
+import { storyColliders } from './reefstory.js';
 import { reefCollectibles, createReefFindsLife } from './reeffinds.js';
 import { drawFindMarks, drawBubbleColumns } from './reeffindparts.js';
 import { REEF_SCENICS } from './reeffindsplan.js';
@@ -39,6 +41,7 @@ export function build(scene) {
     K.drawSpawn(kit, M);
     K.drawCoral(kit, M);
     K.drawPebbles(kit, M);
+    drawLedge(kit, M); // the coral ledge that holds shell two (R2)
     for (const m of kit.meshes()) scene.add(m);
     scene.add(K.drawKelp());
     for (const m of drawFindMarks()) scene.add(m); // the oyster, the seahorse and the chest (milestone R3)
@@ -47,7 +50,7 @@ export function build(scene) {
       name: P.REEF_NAME,
       bounds: P.REEF_BOUNDS,
       spawn: P.REEF_SPAWN,
-      colliders: P.reefColliders().map((c) => ({ ...c })),
+      colliders: [...P.reefColliders(), ...storyColliders()].map((c) => ({ ...c })),
       waters: [],
       waterFx: [],
       perches: [],
@@ -70,9 +73,9 @@ export function build(scene) {
       // daily goals: only the kinds she can finish here (the walk always draws three of them)
       goalTypes: Object.freeze(['collectible', 'photo', 'scenic']),
       ground: P.createReefGround(),
-      // the light, the kelp's sway and the air gauge (world/reeflife.js)
+      // the light, the kelp's sway, the air gauge, Marlo and chapter one (world/reefstorylife.js), with the finds on top
       life: (ctx) => {
-        const base = createReefLife(ctx);
+        const base = createReefStoryLife(ctx); // the light, the kelp, the gauge, Marlo and chapter one (milestone R2)
         const finds = createReefFindsLife(ctx); // the six discoveries (milestone R3)
         return {
           ...base,
