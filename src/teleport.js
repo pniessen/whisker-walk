@@ -45,7 +45,7 @@ export function setup(host) {
 //   needWalks host-place walks before it is awake (0: always)
 //   own       true: the place draws this gate's stones itself (the Moon's return ring, src/world/moonparts.js), so the gate
 //             draws nothing and adds no pillars: only the prompt, the card and the walk-on are the gate's
-const LOOKS = ['stonering', 'archway', 'hollow', 'cleft'];
+const LOOKS = ['stonering', 'archway', 'hollow', 'cleft', 'grotto'];
 export function teleRow({ suit = null, wake = false, edition = 'canon', needWalks = 0, own = false, ...row }) {
   const id = row.id;
   if (![null, 'space', 'dive'].includes(suit)) throw new Error(`tele gate ${id}: suit "${suit}" is not space, dive or null`);
@@ -61,7 +61,7 @@ const end = teleRow;
 // Each end's look, by id: 'stonering' (five mossy standing stones round a light disc), 'archway' (a little stone arch in a
 // hedge, with a lantern) or 'hollow' (a trunk with a glowing hole) or 'cleft' (the same in rock, with a ladder and a ring buoy). Pictures of all three in the Park and the Greenhouse:
 // verify-teleport-gates-m1.html. The plan's recommendation for the real pairs: stones for the Moon, hollow for the Reef.
-export const TELE_LOOK = Object.freeze({ 'park-greenhouse': 'archway', 'greenhouse-park': 'archway', 'park-moon': 'stonering', 'moon-park': 'stonering', 'seaside-reef': 'cleft', 'reef-seaside': 'cleft' });
+export const TELE_LOOK = Object.freeze({ 'park-greenhouse': 'archway', 'greenhouse-park': 'archway', 'park-moon': 'stonering', 'moon-park': 'stonering', 'seaside-reef': 'cleft', 'reef-seaside': 'cleft', 'docks-crystal': 'grotto', 'crystal-docks': 'grotto' });
 // Where she lands, and facing which way: 'toward' (the milestone 0 choice: 3.6 m out, FACING the gate she stepped out of; the
 // camera stands 4.4 m behind her, so it looks at the way home) or 'away' (the spec's "facing in": 7 m out, looking into
 // the place, the gate behind her; further, so the camera does not stand inside the stones).
@@ -111,6 +111,16 @@ export const TELE_ENDS = Object.freeze({
     end({ id: 'reef-seaside', gateway: 'tele-seaside-reef', x: 0, z: 31, faces: 'north', to: 'seaside', twin: 'seaside-reef', look: TELE_LOOK['reef-seaside'],
       placement: 'inside', arrive: arriveFor('north', 0, 31), edition: 'all', own: true }),
   ]),
+  // The Crystal Cave pair (Crystal milestone C6): a grotto in the rock at the Old Docks' south edge, awake after two Docks walks, both editions, no suit,
+  // and the cave's own return arch (the cave draws it: `own`).
+  docks: Object.freeze([
+    end({ id: 'docks-crystal', gateway: 'tele-docks-crystal', x: 10, z: -37.5, faces: 'north', to: 'crystal', twin: 'crystal-docks', look: TELE_LOOK['docks-crystal'],
+      placement: 'inside', arrive: arriveFor('north', 10, -37.5), edition: 'all', needWalks: CRYSTAL_NEED_WALKS }),
+  ]),
+  crystal: Object.freeze([
+    end({ id: 'crystal-docks', gateway: 'tele-docks-crystal', x: 0, z: 31, faces: 'north', to: 'docks', twin: 'docks-crystal', look: TELE_LOOK['crystal-docks'],
+      placement: 'inside', arrive: arriveFor('north', 0, 31), edition: 'all', own: true }),
+  ]),
   greenhouse: Object.freeze([
     end({ id: 'greenhouse-park', gateway: 'tele-park-greenhouse', x: -10, z: 29, faces: 'west', to: 'park', twin: 'park-greenhouse', look: TELE_LOOK['greenhouse-park'],
       placement: 'inside', arrive: arriveFor('west', -10, 29), edition: 'all', own: true }),
@@ -121,7 +131,7 @@ export const teleEnds = (areaId) => (typeof areaId === 'string' && Object.hasOwn
 
 // A place with no catalog row (the Moon) counts as built behind the gates switch, and has no name in the catalog, so its
 // name is here. (The Greenhouse has its row since G4; its `gate: 'tele'` keeps it out of the cards while the switch is off.)
-const NAMES = { greenhouse: 'The Greenhouse', reef: 'The Reef', moon: 'The Moon' };
+const NAMES = { greenhouse: 'The Greenhouse', reef: 'The Reef', crystal: 'The Crystal Cave', moon: 'The Moon' };
 export function placeLive(to, catalog) {
   const areas = catalog && catalog.areas;
   return (!!areas && Object.hasOwn(areas, to)) || to === 'moon'; // (the Moon: behind ?gates=1 already)
