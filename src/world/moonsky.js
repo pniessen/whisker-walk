@@ -245,9 +245,11 @@ export function starField(count) {
     pos[i * 3 + 2] = z * STARS.radius;
     const b = band ? 0.22 + 0.3 * rng() : rng() < 0.05 ? 1 : 0.3 + 0.55 * rng() ** 1.6;
     const warm = !band && rng() < 0.12;
-    col[i * 3] = b * (warm ? 1 : 0.88);
-    col[i * 3 + 1] = b * (warm ? 0.9 : 0.93);
-    col[i * 3 + 2] = b * (warm ? 0.75 : 1);
+    const hue = !band && !warm ? rng() : 0.5; // (beauty round 6) a few stars burn blue-white, a few orange: real stars are not all one white
+    const cool = hue < 0.1; const amber = hue > 0.94;
+    col[i * 3] = b * (warm ? 1 : cool ? 0.72 : amber ? 1 : 0.88);
+    col[i * 3 + 1] = b * (warm ? 0.9 : cool ? 0.86 : amber ? 0.76 : 0.93);
+    col[i * 3 + 2] = b * (warm ? 0.75 : cool ? 1 : amber ? 0.55 : 1);
   }
   return { pos, col };
 }

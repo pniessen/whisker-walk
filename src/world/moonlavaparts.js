@@ -135,7 +135,10 @@ export function massifGeometry() {
   const noise = (x, z) => 0.5 + 0.5 * Math.sin(x * 0.7 + z * 1.3) * Math.cos(z * 0.9 - x * 0.4);
   const sw = sweep(outerProfile, L.S_CHAMBER + L.CHAMBER.outerR, (x, y, z) => {
     const top = Math.min(1, y / 4.6);
-    return flat(LAVA_COL.rock, 0.78 + 0.34 * noise(x, z) + 0.3 * top);
+    const strata = 1 + 0.07 * Math.sin(y * 5.5 + noise(x, z) * 3); // (beauty round 6) layered bands up the hump, and the dust drifted round its foot
+    const dust = Math.max(0, 1 - y / 1.5) ** 1.5 * 0.5;
+    const c = flat(LAVA_COL.rock, (0.78 + 0.34 * noise(x, z) + 0.3 * top) * strata);
+    return [c[0] + (0.54 - c[0]) * dust, c[1] + (0.53 - c[1]) * dust, c[2] + (0.5 - c[2]) * dust];
   }, 0.4);
   const inn = sweep(INNER, L.S_CHAMBER + L.CHAMBER.shellR, () => [0, 0, 0]);
   const face = mouthFace({ pos: sw.pos }, { pos: inn.pos }, LAVA_COL.rim);

@@ -23,7 +23,9 @@ export function drawBeams(kit, M) {
 export function drawLane(kit, M) {
   const L = P.JUMP_LANE;
   // the strip (a hair over the dust: the ground is level here) and the start line across its foot
-  kit.put('floor', M.paint, paint(at(new THREE.PlaneGeometry(L.len + 1, L.half * 2).rotateX(-Math.PI / 2), L.x0 + (L.len + 1) / 2 - 0.5, L.z, 0.035), JUMP_COL.lane), { noCast: true });
+  // (beauty round 6) the strip in four-metre bands, light and a little darker by turns (the posts' tall ones fall on the joins), with a dark edge line along each side
+  for (let b = 0; b < L.len / 4; b++) kit.put('floor', M.paint, paint(at(new THREE.PlaneGeometry(4 + (b === 0 ? 0.5 : 0), L.half * 2).rotateX(-Math.PI / 2), L.x0 + b * 4 + (4 + (b === 0 ? 0.5 : 0)) / 2 - (b === 0 ? 0.5 : 0), L.z, 0.035), b % 2 ? 0xc3c7d1 : JUMP_COL.lane), { noCast: true });
+  for (const s of [-1, 1]) kit.put('floor', M.paint, paint(at(new THREE.PlaneGeometry(L.len + 1, 0.12).rotateX(-Math.PI / 2), L.x0 + (L.len + 1) / 2 - 0.5, L.z + s * (L.half - 0.1), 0.045), 0x6b7080), { noCast: true });
   kit.put('floor', M.paint, paint(at(new THREE.PlaneGeometry(0.28, L.half * 2).rotateX(-Math.PI / 2), L.x0, L.z, 0.05), JUMP_COL.line), { noCast: true });
   // a post every metre along both edges (a taller yellow one every four metres), and a lamp at each end of the line
   for (let m = 1; m <= L.len; m++) {

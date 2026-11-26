@@ -28,6 +28,9 @@ export function drawLaunchStanding(kit, M) {
   const { PAD, GANTRY, TANKS, LAUNCH_DESK, BENCHES, MESSAGE_DESK, BINOCULARS } = P;
   // the pad: a flat disc, a hazard ring near its edge and a dark blast disc under the rocket
   kit.put('floor', M.paint, paint(at(new THREE.CircleGeometry(PAD.r, 36).rotateX(-Math.PI / 2), PAD.x, PAD.z, 0.045), L.pad), { noCast: true });
+  // (beauty round 6) the pad's slabs: a darker inner ring of worn concrete and four dark seams across it
+  kit.put('floor', M.paint, paint(at(new THREE.RingGeometry(2.85, PAD.r - 1.3, 36).rotateX(-Math.PI / 2), PAD.x, PAD.z, 0.052), 0xa3a9b6), { noCast: true });
+  for (let i = 0; i < 4; i++) kit.put('floor', M.paint, paint(at(new THREE.PlaneGeometry(PAD.r * 2 - 1.4, 0.07).rotateX(-Math.PI / 2).rotateY((i * Math.PI) / 4), PAD.x, PAD.z, 0.058), 0x7d8390), { noCast: true });
   kit.put('floor', M.paint, paint(at(new THREE.RingGeometry(PAD.r - 1.0, PAD.r - 0.7, 36).rotateX(-Math.PI / 2), PAD.x, PAD.z, 0.06), L.yellow), { noCast: true });
   kit.put('floor', M.paint, paint(at(new THREE.CircleGeometry(2.6, 24).rotateX(-Math.PI / 2), PAD.x, PAD.z, 0.065), L.dark), { noCast: true });
   kit.put('floor', M.paint, paint(at(new THREE.RingGeometry(2.6, 2.85, 24).rotateX(-Math.PI / 2), PAD.x, PAD.z, 0.07), L.red), { noCast: true });
