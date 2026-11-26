@@ -33,6 +33,9 @@ export const LINES = Object.freeze({
   'reef.float.hint': 'Hold the kick button to float up.',
   'reef.air.pocket': 'A bubble of fresh air. Breathe in!',
   'reef.home': 'Home again, safe and dry.',
+  'reef.air.low': 'Your air is getting low. A warm bubble is ready.',
+  'reef.air.lift': 'A warm bubble lifts you to the ladder.',
+  'reef.air.full': 'Fresh air, all full!',
 });
 
 addPhrases(LINES);

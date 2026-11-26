@@ -28,3 +28,10 @@ export function placeBudget(state, place) {
 }
 
 export const placePace = (pace, place) => pace * (physicsFor(place)?.pace ?? 1);
+
+// The float of a water place (the Reef, milestone R1): { floatMax, rise, sink } for the player's float height, or null where the place floats nothing
+// (every place but the Reef: the player then never reads a float and every walk is byte-identical).
+export function placeFloat(place) {
+  const p = physicsFor(place);
+  return p && p.medium === 'water' ? Object.freeze({ floatMax: p.floatMax, rise: p.rise, sink: p.sink }) : null;
+}

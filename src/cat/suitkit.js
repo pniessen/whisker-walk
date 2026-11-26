@@ -482,7 +482,7 @@ function boots(legs, { plainPaw, PAW_Y, look, simple }) {
 // The wear her cat is drawn with in a place that has a suit look: the same map src/suithook.js's effectiveWear makes, from this
 // kit's own copy of the places' looks, so that the start-up download carries none of it (game/walk.js asks the registered kit,
 // and a cat in any other place gets its own wear back). null: no suit here. test/moonplace.test.js keeps the two in step.
-const LOOK_OF_PLACE = Object.freeze({ moon: 'space' });
+const LOOK_OF_PLACE = Object.freeze({ moon: 'space', reef: 'dive' });
 function dress(equipped, place, hen) {
   const look = Object.hasOwn(LOOK_OF_PLACE, place) ? LOOK_OF_PLACE[place] : null; // an own key only: 'constructor' is no place
   if (!look) return null;

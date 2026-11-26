@@ -1,40 +1,52 @@
 // =============================================================================
-// THE REEF (milestone R0: the seams). A stub seabed: a flat sandy floor under a blue-green sky, 96 x 84 m, no props, no kelp, no
-// water body (the surface is a shimmer ceiling later, never a `waters` entry). It exists so ?reef=1 can start a walk, give the cat
-// control and walk at the Reef's own pace (src/placephysics.js). Behind ?reef=1 only: no catalog row, no map place, no gate.
-// Draws no random number and reads no clock; builds in withLocalUuids. docs/superpowers/plans/2026-11-26-reef.md.
+// THE REEF (milestone R1: the water world). A real seabed: gently rolled dunes of sand (one vertex-coloured heightfield with ripples), 96 x 84 m,
+// the spawn arch with its ladder and ring buoy hanging from the shimmer ceiling, a Kelp Garden of swaying kelp (ONE InstancedMesh, the sway in its
+// vertex shader), the coral clumps and a few rocks (merged by material), a warm blue-green fog, a shimmer ceiling at y 9 and light shafts (the walk's
+// life, world/reeflife.js, which also holds the air gauge). No `waters` (the surface is a quad, never a water body). Her cat wears the dive suit here
+// (src/cat/suitkit.js, the registered kit's look of this place); the float and the camera's follow of it are the player's (src/player.js, the `reef` row of
+// src/placephysics.js). Behind ?reef=1 only: no catalog row, no map place, no gate. Draws no random number and reads no clock; builds in withLocalUuids.
+// docs/superpowers/plans/2026-11-26-reef.md.
 // =============================================================================
 
 import * as b from './builder.js';
 import { withLocalUuids } from './localuuids.js';
+import { installSuitKit } from '../cat/suitkit.js';
+import * as P from './reefplan.js';
+import * as K from './reefparts.js';
+import { createReefLife } from './reeflife.js';
 import './reefwords.js';
 
-export const REEF_NAME = 'The Reef';
-export const REEF_BOUNDS = Object.freeze({ minX: -48, maxX: 48, minZ: -42, maxZ: 42 });
-export const REEF_SPAWN = Object.freeze({ x: 0, z: 36 });
+export { REEF_NAME, REEF_BOUNDS, REEF_SPAWN } from './reefplan.js';
 
-const SAND = 0xd8c690;
-// Always the "evening" look (no weather rolls; the light and fog are milestone R1's): a deep blue-green water sky.
-const SKY = Object.freeze({ top: 0x2a7fa0, horizon: 0x5fb9b4 });
+// Always the "evening" look (no weather rolls): a deep blue-green water sky; the fog is the life's (the same horizon colour).
+const SKY = Object.freeze({ top: P.WATER_LOOK.top, horizon: P.WATER_LOOK.horizon });
 const DUSK_LIGHT = Object.freeze({
-  sunColor: 0xdff4ff, sunIntensity: 1.6, hemiSky: 0x7ec8d8, hemiIntensity: 0.55, groundDim: 0.85,
-  envScale: 0.4, fogNear: 12, fogFar: 60,
+  sunColor: P.WATER_LOOK.sunColor, sunIntensity: P.WATER_LOOK.sunIntensity, hemiSky: P.WATER_LOOK.hemiSky, hemiIntensity: 0.55, groundDim: 0.85,
+  envScale: 0.4, fogNear: P.WATER_LOOK.fogNear, fogFar: P.WATER_LOOK.fogFar,
   lawnTint: Object.freeze({ desat: 0, dark: 1, cool: Object.freeze([1, 1, 1]) }),
 });
 
 export function build(scene) {
+  installSuitKit(); // the dive suit her cat is drawn with here (game/walk.js asks the registered kit)
   return withLocalUuids('reef-build', () => {
     b.applySky(scene, SKY.top, SKY.horizon);
-    scene.add(b.ground(130, SAND, { surface: 'gravel' }));
-    return {
-      name: REEF_NAME,
-      bounds: REEF_BOUNDS,
-      spawn: REEF_SPAWN,
-      colliders: [],
+    scene.add(K.drawGround());
+    const M = K.reefMaterials();
+    const kit = K.createKit('reef');
+    K.drawSpawn(kit, M);
+    K.drawCoral(kit, M);
+    K.drawPebbles(kit, M);
+    for (const m of kit.meshes()) scene.add(m);
+    scene.add(K.drawKelp());
+    const area = {
+      name: P.REEF_NAME,
+      bounds: P.REEF_BOUNDS,
+      spawn: P.REEF_SPAWN,
+      colliders: P.reefColliders().map((c) => ({ ...c })),
       waters: [],
       waterFx: [],
       perches: [],
-      pois: [],
+      pois: P.REEF_POIS.map((p) => ({ ...p })),
       collectibles: [],
       scenics: [],
       tippables: [],
@@ -42,7 +54,7 @@ export function build(scene) {
       critterSpawns: [],
       moments: [],
       puddles: [],
-      groundBounce: SAND,
+      groundBounce: P.WATER_LOOK.sand,
       skyDusk: { ...SKY },
       skySunset: { ...SKY },
       duskLight: { ...DUSK_LIGHT },
@@ -52,6 +64,10 @@ export function build(scene) {
       strays: false,
       // daily goals: only the kinds she can finish here (the walk always draws three of them)
       goalTypes: Object.freeze(['collectible', 'photo', 'scenic']),
+      ground: P.createReefGround(),
+      // the light, the kelp's sway and the air gauge (world/reeflife.js)
+      life: (ctx) => createReefLife(ctx),
     };
+    return area;
   });
 }

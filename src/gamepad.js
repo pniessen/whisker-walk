@@ -18,7 +18,7 @@ const LOOK_RAD_PER_SEC = 3.2; // the hero cat's turn at full right-stick push
 export function createGamepad({
   win = window, nav = navigator,
   getEngaged, getCameraMode, isFighting, isWalkingOn, canResume,
-  onMove, onOrbit, onAction, onResume, toast, onPadUse, onPadConnect, onPadDisconnect, onMenuButton, onLook,
+  onMove, onOrbit, onAction, onKick, onResume, toast, onPadUse, onPadConnect, onPadDisconnect, onMenuButton, onLook,
   menuNav: menuNavIn = null, menuNavFactory = null, padBack = null, doc = typeof document === 'undefined' ? null : document,
 }) {
   const supported = typeof nav?.getGamepads === 'function';
@@ -178,6 +178,7 @@ export function createGamepad({
       const r = stepPad(state, masked, dt, { engaged, cameraMode: !!getCameraMode?.(), fighting: !!isFighting?.() });
       if (r.move !== undefined) onMove?.(r.move);
       if (r.orbit) onOrbit?.(r.orbit.dx, r.orbit.dy);
+      if (r.kick !== undefined) onKick?.(r.kick);
       for (const name of r.actions) {
         if (name === 'pause' && !engaged) { if (canResume?.()) onResume?.(); }
         else onAction?.(name);

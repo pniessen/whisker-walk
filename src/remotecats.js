@@ -30,9 +30,11 @@ const SEAT_ID = /^[a-z]+(-[a-z]+)*(-\d{1,2})?$/; // a ride seat's id: 'mgr-horse
 // function of the time, the same on both), so she moves with the horse or the
 // car smoothly every frame instead of jumping between 8 Hz samples. The
 // helter-skelter's chute is not sent: each device runs its own slide.
-export function liftForState(perchY, seat) {
+export function liftForState(perchY, seat, floatY = 0) {
   const out = {};
-  if (Number.isFinite(perchY) && perchY >= 0.005) out.h = Math.round(Math.min(perchY, MAX_LIFT) * 100) / 100;
+  // the Reef's float height rides the same `h` (a partner under the sea is drawn up in the water, never saved)
+  const up = (Number.isFinite(perchY) ? perchY : 0) + (Number.isFinite(floatY) && floatY > 0 ? floatY : 0);
+  if (up >= 0.005) out.h = Math.round(Math.min(up, MAX_LIFT) * 100) / 100;
   if (seat && typeof seat.id === 'string' && seat.rideId !== 'slide') out.seat = seat.id;
   return out;
 }

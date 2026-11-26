@@ -27,7 +27,7 @@ import { greenhouseOn } from '../greenhouseflag.js';
 import { tele } from '../telehook.js';
 import { moonOn } from '../moonflag.js';
 import { reefOn } from '../reefflag.js';
-import { placePace } from '../placephysics.js';
+import { placePace, placeFloat } from '../placephysics.js';
 import { suitKit } from '../suithook.js';
 import { birthdayDue, BDAY_AREA, BDAY_START, BRIDGE_ISLAND_END, speakerFor, birthdayCatName, noteCandlesBlown, bdayCountsWalk, saveBirthdayPhoto, BDAY_PHOTO_KEY } from '../birthday.js';
 import { hideToastFor } from './labels.js';
@@ -972,6 +972,7 @@ export function createWalkLifecycle({
     // your pace IS the world's pace: breed speed sets how fast anything scrolls
     const pace = 2.2 + PERSONALITIES[active.breed].speed * 0.8;
     player.setAvatar(cat, placePace(pace, areaId));
+    player.setFloat(placeFloat(areaId)); // the Reef's float row (null everywhere else: nothing moves)
     player.setGround(ground);
     player.setCameraGround(areaData.cameraGround); // the house's floors without the furniture tops; elsewhere none
     // v18 CF-10b: without this, Long Zoomies did nothing in the running game —
@@ -1878,7 +1879,7 @@ export function createWalkLifecycle({
     // her view heading (the tower view turns it), and the Old House's yarn toy.
     // The Market's takes the pack's people factory (its street musician) and its rung's near distance.
     const lifeViewYaw = { get: () => player.viewYaw(), set: (v) => player.setViewYaw(v) };
-    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0, log, toy, progression, tier, roomSeed, viewYaw: lifeViewYaw, people: createPeopleKit, lodNear: () => lodNearFor?.(qualityAdapter.status?.rung) }) ?? NO_AREA_LIFE;
+    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0, player, log, toy, progression, tier, roomSeed, viewYaw: lifeViewYaw, people: createPeopleKit, lodNear: () => lodNearFor?.(qualityAdapter.status?.rung) }) ?? NO_AREA_LIFE;
     if (areaLife.musician) decals.follow(areaLife.musician.group); // the Market's street musician, a contact shadow like the stallholders'
     const session = createSession({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,

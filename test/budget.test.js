@@ -518,8 +518,11 @@ const AREAS = [
   // Core's third socket are in the kit's buckets) measured 25 / 8 / 27,586 built (34,486 counting every rock instance), +12%: 28 / 9 / 30,900. The plan's row D (end of milestone 8) is 184 / 100 / 46,500.
   ['moon', buildMoon, 28, 9, 30900],
   // The Reef. Milestone R0 (2026-11-26, the seams) is a stub seabed: the 130 m ground plane alone, measured 1 / 0 / 5,408, +12%: 2 / 1 / 6,100.
-  // Rows A, B and C come with milestones R1, R5 and R8 (plan section 7: measured, then set).
-  ['reef', buildReef, 2, 1, 6100],
+  // Milestone R1 (2026-11-26, the water world: the dune seabed in one vertex-coloured mesh, 6,300 triangles; the spawn arch, ladder, ring buoy, coral and pebbles in two
+  // merged buckets, paint and glow; the kelp as ONE InstancedMesh of one blade) measured 4 / 1 / 7,934 built (10,646 counting every kelp instance), +12% (the Farm's and the
+  // Market's ruling): 5 / 2 / 8,900. The plan's shell A figures were about 60 / 30 / 14,000: under them on every count. The light (the shimmer quad, up to three
+  // shafts, the warm bubble) is the walk's life, made after the sweeps, and not in this count, as the Moon's sky is not. Rows B and C come with milestones R5 and R8.
+  ['reef', buildReef, 5, 2, 8900],
 ];
 
 // ---------------------------------------------------------------------------

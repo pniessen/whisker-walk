@@ -5,7 +5,7 @@
 export const SUIT_LOOKS = Object.freeze(['space', 'dive']);
 const PIECE_RE = /^suit-(helmet|body|pack|boots)-(space|dive)$/;
 // The suit look of each place (src/placephysics.js rows arrive with the Reef and the Moon).
-const LOOK_OF_PLACE = Object.freeze({ moon: 'space' }); // the walk reads the lazy kit's own copy of this table (src/cat/suitkit.js dress); a test keeps the two equal
+const LOOK_OF_PLACE = Object.freeze({ moon: 'space', reef: 'dive' }); // the walk reads the lazy kit's own copy of this table (src/cat/suitkit.js dress); a test keeps the two equal
 const SLOT = Object.freeze({ helmet: 'head', body: 'body', pack: 'back', boots: 'feet' });
 
 // 'suit-helmet-dive' -> { piece: 'helmet', look: 'dive' }, anything else null.

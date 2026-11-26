@@ -484,6 +484,7 @@ body.left-handed .tui-joystick-rest {
   display: grid; place-items: center; touch-action: none; cursor: pointer;
 }
 .tui-btn:active { background: rgba(20,26,38,0.8); }
+.tui-btn.tui-kicking { background: rgba(60,150,190,0.85); }
 /* The yarn button went (controls review, 2026-11-19): the photo button keeps
    the cell it always had, bottom right of the 2x2, so nothing the children
    know moves. */
