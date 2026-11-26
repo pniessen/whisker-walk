@@ -12,6 +12,7 @@ import { withLocalUuids } from './localuuids.js';
 import * as P from './crystalplan.js';
 import * as K from './crystalparts.js';
 import { createCrystalLight } from './crystallight.js';
+import { createLumi } from './crystallife.js';
 import './crystalwords.js';
 
 export { CRYSTAL_NAME, CRYSTAL_BOUNDS, CRYSTAL_SPAWN } from './crystalplan.js';
@@ -63,10 +64,19 @@ export function build(scene) {
       strays: false,
       goalTypes: Object.freeze(['collectible', 'photo', 'scenic']),
       ground: P.createCrystalGround(),
-      // the fog, the pulse and the glints
+      // the fog, the pulse and the glints, with Lumi and chapter one (milestone C2) on top
       life: (ctx) => {
         const light = createCrystalLight(ctx);
-        return { light, update: (dt, t) => light.update(dt, t), dispose: () => light.dispose() };
+        const lumi = createLumi({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion });
+        return {
+          light,
+          lumi,
+          promptAt: (catPos) => lumi.promptAt(catPos),
+          interact: () => lumi.interact(),
+          credit: (ev) => lumi.credit(ev),
+          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); },
+          dispose() { lumi.dispose(); light.dispose(); },
+        };
       },
     };
   });

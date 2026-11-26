@@ -27,6 +27,13 @@ export const LINES = Object.freeze({
   'crystal.arrive': clan('Welcome to the Crystal Cave!', 'Welcome to the Crystal Cave! The crystals glimmer like Silverpelt.'),
   'crystal.lumi.hello': 'A tiny glow-worm peeks out. Say hello!',
   'crystal.stone.hint': 'A spark stone! Carry it to a great crystal.',
+  'crystal.lumi.prompt': 'Say hello to the glow-worm',
+  'crystal.lumi.met': 'Lumi\'s glow is sleepy. Meow and she will show you where to look.',
+  'crystal.stone.prompt': 'Pick up the spark stone',
+  'crystal.stone.find': 'Look for a little glint behind the crystals.',
+  'crystal.stone.got': 'Take the spark stone to the great Rose crystal!',
+  'crystal.stone.give': 'Set the spark stone on the crystal',
+  'crystal.rose.lit': 'The Rose crystal hums and Lumi\'s tail glows pink!',
   'crystal.glow': 'The crystal hums and glows.',
   'crystal.home': 'Home again, warm and cosy.',
 });
