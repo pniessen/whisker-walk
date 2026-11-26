@@ -8,7 +8,7 @@ import { hasSkill } from './skills.js';
 import { waterClearance, nearestDry, shallowExcess, nearestShallow } from './world/builder.js';
 import { createWaterState, stepWaterState, WADE_SPEED, SHAKE_PACE } from './waterstate.js';
 import {
-  DEFAULT_ZOOM_STEP, MIN_CAMERA_Y, cameraPullScale, cameraClearFraction, CAM_CEIL_CLEAR, MIN_CAM_DIST, clampZoomStep, easeZoomLevel, zoomView, caveView, CAVE_VIEW,
+  DEFAULT_ZOOM_STEP, ZOOM_STEPS, MIN_CAMERA_Y, cameraPullScale, cameraClearFraction, CAM_CEIL_CLEAR, MIN_CAM_DIST, clampZoomStep, easeZoomLevel, zoomView, caveView, CAVE_VIEW,
 } from './camzoom.js';
 import { FLAT_GROUND, MAX_PATH_GRADE } from './ground.js';
 import { underCeiling } from './caves.js';
@@ -125,6 +125,10 @@ const PULL_HOLD = 0.3; // seconds
 // at a cliff foot never looks straight down (see placeCameraOnGround).
 const MIN_LOOK_RUN = 0.1; // metres
 const UP = new THREE.Vector3(0, 1, 0);
+// The Reef's float (milestone R1): the held kick eases to its rise speed over FLOAT_EASE seconds; the camera sits at `dist` metres (default step) and
+// follows `follow` of the float height. Floor clamp: the camera never lower than the seabed + MIN_CAMERA_Y (0.5, above the plan's 0.4).
+const FLOAT_EASE = 0.2;
+const FLOAT_CAM = Object.freeze({ dist: 4.0, follow: 0.6 });
 // Gorge part 3 (C4): how fast the cave view eases in under a ceiling and back
 // out once she is out, as a linear rate of the 0..1 blend per second. Going
 // out waits PULL_HOLD first, so stepping back and forth over a mouth does not
@@ -652,7 +656,7 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
   // ceiling (validateGround keeps those two from crossing). Allocates nothing.
   function placeCameraOnGround(dt) {
     rockLook.copy(avatar.position);
-    rockLook.y += CAT_LOOK_Y;
+    rockLook.y += CAT_LOOK_Y + camLift;
     rockWant.copy(avatar.position).add(camOff);
     const len = rockLook.distanceTo(rockWant);
     const f = cameraClearFraction(rockLook, rockWant, camGround);
@@ -741,7 +745,23 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
   // The water state (src/waterstate.js): one object for the player's whole
   // life, reset in place by setAvatar, exposed as api.waterState.
   const waterState = createWaterState();
-  let floatLift = 0; // the Reef's float height (api.floatY), 0 until milestone R1
+  // The Reef's float (milestone R1). floatLift is the height above the seabed (api.floatY); floatCfg is the place's row ({ max, rise, sink } from
+  // placephysics.placeFloat, null everywhere else, so every other place never moves a byte); floatKick is the held kick button (pad A, touch).
+  let floatLift = 0;
+  let floatVel = 0;
+  let floatKick = false;
+  let floatCfg = null;
+  let camLift = 0; // the part of the float the camera follows this frame
+  function stepFloat(dt) {
+    if (!floatCfg) return;
+    const d = Math.max(dt, 0);
+    const held = floatKick || keys.has('Space');
+    const target = held ? floatCfg.rise : -floatCfg.sink;
+    floatVel += (target - floatVel) * (1 - Math.exp(-d / FLOAT_EASE));
+    floatLift += floatVel * d;
+    if (floatLift <= 0) { floatLift = 0; if (floatVel < 0) floatVel = 0; }
+    else if (floatLift >= floatCfg.max) { floatLift = floatCfg.max; if (floatVel > 0) floatVel = 0; }
+  }
 
   const api = {
     locked: false,
@@ -751,6 +771,23 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
     // never written to perchY, cleared on perch, nap and walk end (setAvatar). Only the readers in test/reefseams.test.js's allow-list may read it.
     get floatY() {
       return floatLift;
+    },
+    // True in a place with a float row (the Reef): the pounce hop does not run there, the kick button does the climbing.
+    get canFloat() {
+      return floatCfg !== null;
+    },
+    // The place's float numbers ({ floatMax, rise, sink } or null), once per walk, after setAvatar.
+    setFloat(row) {
+      floatCfg = row ? { max: row.floatMax, rise: row.rise, sink: row.sink } : null;
+      floatLift = 0; floatVel = 0; floatKick = false;
+    },
+    // The kick button held or let go (pad A, the touch kick button); the keyboard's Space is read from the held keys.
+    setKick(v) {
+      floatKick = !!v;
+    },
+    // Back to the sand at once (a perch, a nap, a warm bubble's lift): the height and its speed go to 0.
+    clearFloat() {
+      floatLift = 0; floatVel = 0; floatKick = false;
     },
     // Written by update from the water state, read from where the cat stood at
     // the top of the frame:
@@ -781,7 +818,7 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
       pitch = DEFAULT_PITCH;
       velocity.set(0, 0, 0);
       api.perchY = 0;
-      floatLift = 0;
+      floatLift = 0; floatVel = 0; floatKick = false; floatCfg = null;
       touchMove = null;
       touchEngaged = false;
       inputYaw = null;
@@ -966,6 +1003,7 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
     disable() {
       enabled = false;
       keys.clear();
+      floatKick = false; // a held kick does not outlive a pause (the pad or touch release may never arrive)
       touchMove = null;
       inputYaw = null;
       api.setTouchEngaged(false);
@@ -1014,6 +1052,10 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
       // Ruling: zoomies stop in water. The charge is wiped on the frame the
       // cat goes in, and (below) running charges it only while dry.
       if (st.entered) zoom = { charging: false, zooming: false, time: 0 };
+      if (floatCfg) {
+        if (api.perchY !== 0) { floatLift = 0; floatVel = 0; } // never lifted off a perch
+        else stepFloat(dt);
+      }
       const turn = inputYaw ?? yaw;
       const dir = touchMove ? touchDirection(touchMove, turn) : moveDirection(keys, turn);
       // Gorge part 1 (R6): a little slower uphill. The grade is the slope of
@@ -1210,6 +1252,8 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
 
       camLevel = easeZoomLevel(camLevel, camTarget, dt, reducedMotion);
       zoomView(camLevel, camView);
+      if (floatCfg) camView.dist *= FLOAT_CAM.dist / ZOOM_STEPS[DEFAULT_ZOOM_STEP].dist; // under the sea the camera sits a little nearer (4.0 m at the default step)
+      camLift = floatLift * FLOAT_CAM.follow; // the camera follows 60 percent of the float; the rest of a kick shows as the cat leaving the middle of the picture
       if (!ground.flat) applyCaveView(Math.max(dt, 0));
       cameraOffset(yaw, pitch, camView.dist, camView.height, camOff);
       // At or inside the default distance this is exactly 1, so the shipped
@@ -1218,11 +1262,12 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
       const pull = cameraPullScale(avatar.position, camOff, camView.dist, colliders, bounds);
       camPull = stepPull(camPull, pull, Math.max(dt, 0), camView.dist);
       camOff.multiplyScalar(camPull);
+      camOff.y += camLift; // the Reef: the camera rises with the float (0 everywhere else)
       camera.position.copy(avatar.position).add(camOff);
       camera.position.x += climbOff.x; camera.position.y += climbOff.y; camera.position.z += climbOff.z; // follow the DRAWN cat
       if (camera.position.y < MIN_CAMERA_Y) camera.position.y = MIN_CAMERA_Y;
       if (!ground.flat) placeCameraOnGround(Math.max(dt, 0));
-      camera.lookAt(avatar.position.x + climbOff.x, avatar.position.y + climbOff.y + CAT_LOOK_Y, avatar.position.z + climbOff.z);
+      camera.lookAt(avatar.position.x + climbOff.x, avatar.position.y + climbOff.y + camLift + CAT_LOOK_Y, avatar.position.z + climbOff.z);
       if (!ground.flat) camera.lookAt(rockTarget);
     },
   };

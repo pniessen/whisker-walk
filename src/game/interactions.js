@@ -250,6 +250,8 @@ export function createInteractions({
     // or pounce pressed mid-scamper would be overwritten (and could strand the
     // cat at perch height outside the border).
     if (session.chasing) return;
+    // Under the sea (the Reef) there is no pounce hop: the same button is the kick, held (game/walk.js hands the player the place's float row).
+    if (player.canFloat) return;
     // The Fairground's rides (src/fairlive.js) answer first: a seat in reach,
     // a hop from seat to seat, or getting off. Everywhere else, and beside a
     // ride with no seat in reach, this is false and the ordinary jump runs.

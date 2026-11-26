@@ -219,7 +219,7 @@ describe('the pack', () => {
     expect(typeof AREA_LOADERS.reef).toBe('function');
     expect(AREA_ENTRY_MODULES.reef).toEqual(['src/world/reef.js']);
   });
-  it('builds a stub seabed: 96 x 84, a clear spawn inside the bounds, no water, no props, no strays, no weather, only goals she can finish', async () => {
+  it('builds the water world (R1): 96 x 84, a clear spawn inside the bounds, no water, no strays, no weather, only goals she can finish (the world itself is test/reefworld.test.js)', async () => {
     const { build, REEF_BOUNDS, REEF_SPAWN } = await import('../src/world/reef.js');
     const scene = new THREE.Scene();
     const area = build(scene);
@@ -230,21 +230,24 @@ describe('the pack', () => {
     expect(REEF_SPAWN.z).toBeGreaterThan(REEF_BOUNDS.minZ); expect(REEF_SPAWN.z).toBeLessThan(REEF_BOUNDS.maxZ);
     expect(area.spawn).toEqual(REEF_SPAWN);
     expect(area.waters).toEqual([]);
-    expect(area.colliders).toEqual([]);
+    for (const c of area.colliders) expect(Math.hypot(c.x - REEF_SPAWN.x, c.z - REEF_SPAWN.z)).toBeGreaterThan(c.r + 1.5);
     expect(area.evening).toBe(true); // the walk's switch for "no weather"
     expect(area.strays).toBe(false); // ...and for no strays, ghosts, wanderer, rival or clan cats
     for (const key of ['perches', 'collectibles', 'scenics', 'tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
     let meshes = 0; scene.traverse((o) => { if (o.isMesh) meshes++; });
-    expect(meshes).toBeLessThanOrEqual(2);
+    expect(meshes).toBeLessThanOrEqual(5);
     const goals = createGoals(() => 0.5, area).goals;
     expect(goals).toHaveLength(3);
     for (const g of goals) expect(area.goalTypes).toContain(g.type);
   });
-  it('the Reef\'s file imports no other place and nothing outside the world kit (the chunk stays small)', () => {
+  it('the Reef\'s files import no other place (the chunk stays small); the dive suit is the shared lazy kit', () => {
     const src = read('src/world/reef.js');
     const imports = [...src.matchAll(/^import .*?from '(.+?)';/gm)].map((x) => x[1]);
-    expect(imports.sort()).toEqual(['./builder.js', './localuuids.js']);
+    expect(imports.sort()).toEqual(['../cat/suitkit.js', './builder.js', './localuuids.js', './reefparts.js', './reefplan.js', './reeflife.js'].sort());
     expect(src).toMatch(/import '\.\/reefwords\.js'/);
+    for (const f of globSync('src/world/reef*.js')) {
+      for (const [, spec] of read(f).matchAll(/^import .*?from '(.+?)';/gm)) expect(spec, `${f} imports ${spec}`).not.toMatch(/(moon|greenhouse|seaside|park|docks)/);
+    }
   });
 });
 

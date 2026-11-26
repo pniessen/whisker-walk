@@ -59,7 +59,7 @@ export function onFirstTouch(callback) {
 // (see style.css). Use setLeftHanded() on the returned handle to change it
 // live without recreating the touch UI.
 export function createTouchUI(root, callbacks, opts = {}) {
-  const { onMove, onOrbit, onAction, onZoom = () => {} } = callbacks;
+  const { onMove, onOrbit, onAction, onZoom = () => {}, onKick = () => {} } = callbacks;
   let leftHanded = !!opts.leftHanded;
   document.body.classList.toggle('left-handed', leftHanded);
 
@@ -95,6 +95,19 @@ export function createTouchUI(root, callbacks, opts = {}) {
     pawBadge.textContent = next ? CLIMB_MARK[next] : '';
     paw.setAttribute('aria-label', CLIMB_LABEL[next]);
   }
+  // The Reef's kick (the pounce slot, held): where the place floats, the big paw button is HELD to rise and let go to sink (setKick). Elsewhere it is
+  // the pounce button it always was, and none of this runs.
+  let kickMode = false;
+  let kicking = false;
+  const kickLabel = paw.querySelector('.tui-label');
+  function kick(on) {
+    if (kicking === on) return;
+    kicking = on;
+    paw.classList.toggle('tui-kicking', on);
+    onKick(on);
+  }
+  paw.addEventListener('touchstart', (e) => { if (kickMode) { e.preventDefault(); kick(true); } }, { passive: false });
+  for (const type of ['touchend', 'touchcancel']) paw.addEventListener(type, (e) => { if (kickMode) { e.preventDefault(); kick(false); } }, { passive: false });
   const joystick = wrap.querySelector('#tui-joystick');
   const rest = wrap.querySelector('#tui-joystick-rest');
   // The resting ring shows the way to move before any touch: from the start
@@ -283,6 +296,16 @@ export function createTouchUI(root, callbacks, opts = {}) {
     // The word under each action button. `on` is true / false for all three,
     // or { pounce, meow, camera } to say which still show theirs (a
     // button keeps its word until it has been used twice: main.js counts).
+    // The pounce slot becomes the kick button (the Reef) or goes back to pounce. Letting go of the button ends a kick in progress.
+    setKick(on) {
+      const next = !!on;
+      if (next === kickMode) return;
+      kickMode = next;
+      if (!next) kick(false);
+      paw.dataset.kick = next ? '1' : '';
+      if (kickLabel) kickLabel.textContent = next ? 'kick' : 'pounce';
+      paw.setAttribute('aria-label', next ? 'Kick (hold to float up)' : CLIMB_LABEL[climb]);
+    },
     setLabels(on) {
       const each = on && typeof on === 'object';
       wrap.classList.toggle('tui-labelled', each ? true : !!on);

@@ -460,7 +460,7 @@ describe('the suit', () => {
     expect(walk).toMatch(/suitKit\(\)\?\.dress\(worn, areaId, hen\) \?\? worn/);
     expect(walk).not.toMatch(/suitkit/); // (a gate's own suit goes through effectiveWear first: the teleport gates, src/teleport.js)
     expect(readFileSync('src/main.js', 'utf8')).not.toMatch(/suitkit/);
-    expect(readFileSync('src/suithook.js', 'utf8')).toMatch(/LOOK_OF_PLACE = Object\.freeze\(\{ moon: 'space' \}\)/);
+    expect(readFileSync('src/suithook.js', 'utf8')).toMatch(/LOOK_OF_PLACE = Object\.freeze\(\{ moon: 'space', reef: 'dive' \}\)/);
   });
   it('building the Moon registers the kit, and her cat is then drawn with the suit\'s live parts', async () => {
     const { suitKit } = await import('../src/suithook.js');

@@ -331,8 +331,8 @@ export function start(ctx) {
     s.remotes.applyState(msg, nowSec());
 
     // The marks under the two cats.
-    markers.place(0, cat.position.x, s.ground.y(cat.position.x, cat.position.z) + ctx.player.perchY, cat.position.z);
-    markers.place(1, body.position.x, gy + mover.player.perchY, body.position.z);
+    markers.place(0, cat.position.x, s.ground.y(cat.position.x, cat.position.z) + ctx.player.perchY + ctx.player.floatY, cat.position.z);
+    markers.place(1, body.position.x, gy + mover.player.perchY + mover.player.floatY, body.position.z);
 
     // The shared camera: on the middle of the two, widened until both fit.
     one.set(cat.position.x, cat.position.y, cat.position.z);

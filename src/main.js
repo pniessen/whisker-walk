@@ -297,6 +297,7 @@ function init() {
   const touchUI = createTouchUI(document.getElementById('hud'), {
     onMove: (v) => player.setTouchMove(v),
     onOrbit: (dx, dy) => player.addOrbit(dx, dy),
+    onKick: (v) => player.setKick(v), // the touch kick button held (the Reef; the button is the pounce slot)
     onAction: (name) => {
       // The challenge pill (Fight! / Back off) is E and Q on a keyboard: Square and Circle on a pad.
       if (answerChallenge(session?.clanFight, name)) return;
@@ -323,6 +324,7 @@ function init() {
     canResume: () => !!session && !session.walkingOn && !!overlay.querySelector('#btn-resume'),
     onMove: (v) => player.setTouchMove(v),
     onOrbit: (dx, dy) => player.addOrbit(dx, dy),
+    onKick: (v) => player.setKick(v), // A held: the Reef's kick (nothing floats elsewhere)
     onAction: (name) => {
       // Square and Circle answer the challenge pill, same as the touch buttons (they used to fall through to a plain interact / meow).
       if (answerChallenge(session?.clanFight, name)) return;
@@ -1438,8 +1440,10 @@ function init() {
       session.treeFade?.update(dt, camera, treeFadeLook);
       session.rustle?.update(dt, session.cat.position);
       // Gorge part 1: the paws' world height, the ground under the cat plus perchY.
-      const pawsY = session.ground.flat ? player.perchY
-        : session.ground.y(session.cat.position.x, session.cat.position.z) + player.perchY;
+      // Under the sea (the Reef) her paws are the float height higher: the two golden mice that hang in bubble columns are reached by floating
+      const floatLift = +player.floatY || 0; // a number always (the Reef's float height, 0 everywhere else)
+      const pawsY = session.ground.flat ? player.perchY + floatLift
+        : session.ground.y(session.cat.position.x, session.cat.position.z) + player.perchY + floatLift;
       const gm = session.goldMice.checkFind(session.cat.position, pawsY);
       if (gm && progression.recordGolden(gm.id)) {
         log.awardOnce('legend', gm.id, 'a GOLDEN MOUSE! 🥇');
@@ -1648,7 +1652,7 @@ function init() {
             speed: player.speed,
             toy: toyForState(session.toy),
             // her height on a perch or seat, and the seat (remotecats.js liftForState)
-            ...liftForState(player.perchY, session.fair.riding),
+            ...liftForState(player.perchY, session.fair.riding, player.floatY),
             // the place she is in: a co-walker elsewhere does not draw her
             area: session.areaId,
           });
@@ -1678,6 +1682,7 @@ function init() {
       if (session.climbAccum >= 0.25) {
         session.climbAccum = 0;
         touchUI.setClimb(isTouch ? climbBadge(session, player, progression.state) : null);
+        touchUI.setKick(isTouch && player.canFloat); // the Reef: the pounce slot is the held kick button
       }
       updateMoments(session, dt);
       if (session.questGiver?.marker?.visible) {

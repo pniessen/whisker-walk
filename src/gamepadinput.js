@@ -113,6 +113,11 @@ export function stepPad(state, pad, dt, opts = {}) {
     if (o.dx !== 0 || o.dy !== 0) out.orbit = o;
   }
 
+  // The kick (the Reef's float): A / Cross HELD, reported only when it changes (out.kick true or false; undefined otherwise). Where nothing floats
+  // the walk ignores it (player.setKick does nothing without a float row), so every other place is exactly as it was.
+  const kick = engaged && !fighting && !cameraMode && !!cur[PAD_BUTTONS.A];
+  if (kick !== (state.kick === true)) { state.kick = kick; out.kick = kick; }
+
   for (const i of edges) {
     let name = BUTTON_ACTIONS[i];
     if (!name) continue;

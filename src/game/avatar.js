@@ -35,7 +35,7 @@ import { stickTakesOff } from '../climbing.js';
 // unset everywhere else). On flat ground it is exactly the old sum, with no
 // ground term.
 export function avatarBaseY(ground, cat, player, s) {
-  const rel = player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0) + (s.hopLift || 0);
+  const rel = player.perchY + player.hopY + (player.floatY || 0) + (s.fight ? (s.fightLift ?? 0) : 0) + (s.hopLift || 0);
   if (!ground || ground.flat) return rel;
   return ground.y(cat.position.x, cat.position.z) + rel;
 }
@@ -60,6 +60,10 @@ export function avatarSlopeTilt(ground, cat, player, s, dt) {
   }
   return easeTilt(s.slopeTilt, slopeTarget, dt);
 }
+
+// The Reef's float: above this many metres she paddles (the swim pose, tail streaming); below it she walks the sand.
+export const FLOAT_PADDLE = 0.3;
+const FLOAT_STATE = Object.freeze({ mode: 'swim', shake: 0, sink: 0 }); // only waterPose reads it: the cat's own water state (dry, no waters) still sinks nothing
 
 // Gait pace while a rival's chase scampers the cat (m/s-equivalent).
 export const CHASE_GAIT_SPEED = 6;
@@ -237,6 +241,12 @@ export function createAvatarUpdater({
       if (next.purr) { audio.purr(NAP_PURR_LEN); bus.emit('purr', { seconds: NAP_PURR_LEN }); }
       if (napping && !s.rest) bus.emit('purr:end');
     }
+    // Under the sea (the Reef): a rest, a nap or a perch puts her back on the sand; while she floats she is never idle, and above 0.3 m she paddles.
+    const floating = player.floatY > FLOAT_PADDLE;
+    if (player.floatY > 0) {
+      if (s.rest || s.perched) player.clearFloat();
+      else s.idleTime = 0;
+    }
     const wasNapping = s.pose === 'nap';
     let pose = 'follow';
     if (s.freezeTime > 0) pose = 'scared';
@@ -274,7 +284,7 @@ export function createAvatarUpdater({
     const reducedMotion = settings.get('reducedMotion');
     const ws = player.waterState;
     const amount = Math.sin(Math.PI * shakeProgress(ws));
-    const drawn = waterPose(pose, ws, { hagrid: cat.userData.breed === 'hagrid', reducedMotion });
+    const drawn = waterPose(pose, floating ? FLOAT_STATE : ws, { hagrid: cat.userData.breed === 'hagrid', reducedMotion });
     // Hagrid draws a fight's states as his hen ones (cat/henfight.js); the wire
     // pose above is untouched, so every other build sees the usual fight states.
     animateCat(cat, s.fight && cat.userData.breed === 'hagrid' ? henFightState(drawn) : drawn, t, speed, reducedMotion, amount);
