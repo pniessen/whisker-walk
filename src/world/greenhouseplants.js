@@ -178,15 +178,27 @@ export function collector() {
   const p = new THREE.Vector3();
   return {
     // add(geometry, x, y, z, { yaw, tilt, roll, scale, sy }) -- yaw about y, then tilt about x (lean), roll about z
-    add(g, x, y, z, { yaw = 0, tilt = 0, roll = 0, scale = 1, sy = scale } = {}) {
+    // Beauty round 3: `k` (a brightness) and `warm` (toward yellow-green, negative toward blue-green) vary one placed copy's colours.
+    add(g, x, y, z, { yaw = 0, tilt = 0, roll = 0, scale = 1, sy = scale, k = 1, warm = 0 } = {}) {
       const c = g.clone();
+      if (k !== 1 || warm) {
+        const col = c.attributes.color;
+        for (let i = 0; i < col.count; i++) col.setXYZ(i, Math.min(1, col.getX(i) * k * (1 + warm * 0.5)), Math.min(1, col.getY(i) * k * (1 + warm * 0.12)), col.getZ(i) * k * (1 - warm * 0.6));
+      }
       q.setFromEuler(e.set(tilt, yaw, roll));
       m.compose(p.set(x, y, z), q, s.set(scale, sy, scale));
       c.applyMatrix4(m);
       parts.push(c);
     },
     // a prebuilt matrix (for children of a leaning plant)
-    addM(g, mat) { const c = g.clone(); c.applyMatrix4(mat); parts.push(c); },
+    addM(g, mat, { k = 1, warm = 0 } = {}) {
+      const c = g.clone();
+      if (k !== 1 || warm) {
+        const col = c.attributes.color;
+        for (let i = 0; i < col.count; i++) col.setXYZ(i, Math.min(1, col.getX(i) * k * (1 + warm * 0.5)), Math.min(1, col.getY(i) * k * (1 + warm * 0.12)), col.getZ(i) * k * (1 - warm * 0.6));
+      }
+      c.applyMatrix4(mat); parts.push(c);
+    },
     get count() { return parts.length; },
     merged() {
       const flat = parts.map((x) => (x.index ? x.toNonIndexed() : x));
@@ -229,7 +241,7 @@ export function palms() {
     const lean = (h01(x, z, 1) - 0.5) * 0.09;
     const yaw0 = h01(x, z, 2) * TAU;
     const trunk = trunkGeometry({ h, r0: 0.34, r1: 0.2, sides: 7, rings: Math.round(h * 1.1), hex: 0x8a6c4c, hex2: 0x6b5238, scar: 0.12 });
-    col.add(trunk, x, 0, z, { yaw: yaw0, tilt: lean });
+    col.add(shade(trunk, { foot: 0.62, crown: 1.12 }), x, 0, z, { yaw: yaw0, tilt: lean });
     // the crown sits at the trunk's leaning top
     const top = new THREE.Vector3(0, h, 0).applyEuler(new THREE.Euler(lean, yaw0, 0, 'YXZ'));
     const cx = x + top.x, cy = top.y, cz = z + top.z;
@@ -239,12 +251,12 @@ export function palms() {
       const s = lerp(0.82, 1.12, h01(x + i * 3, z, 4));
       // a frond's local +x is its length; turn it round y to point out, a little tilt up or down by hash
       m.compose(new THREE.Vector3(cx, cy, cz), new THREE.Quaternion().setFromAxisAngle(UP, -a), new THREE.Vector3(s, s * lerp(0.85, 1.1, h01(x, z + i, 5)), s));
-      col.addM(PALM_FROND(), m);
+      col.addM(PALM_FROND(), m, { k: lerp(0.86, 1.1, h01(x + i, z + 2, 6)), warm: (h01(x, z + i * 5, 7) - 0.4) * 0.35 + (i % 4 === 3 ? 0.18 : 0) });
     }
     for (let i = 0; i < 3; i++) {
       const a = (i / 3) * TAU + yaw0 + 0.6;
       m.makeRotationY(-a).setPosition(cx, cy + 0.1, cz);
-      col.addM(PALM_YOUNG(), m);
+      col.addM(PALM_YOUNG(), m, { k: 1.12, warm: 0.2 });
     }
     // a hanging bunch of dates under the crown
     col.add(tint(new THREE.IcosahedronGeometry(0.2, 0).scale(1, 1.4, 1), 0xb8742f), cx, cy - 0.35, cz, { yaw: a0(k) });
@@ -273,13 +285,13 @@ export function foliage() {
     for (let i = 0; i < n; i++) {
       const a = (i / n) * TAU + yaw0 + (h01(x + i, z, seed) - 0.5) * jit;
       const s = scale * lerp(0.82, 1.14, h01(x, z + i * 1.7, seed + 1));
-      col.add(g, x, y, z, { yaw: -a, scale: s, roll: tilt + (h01(x + 5, z + i, seed + 2) - 0.5) * 0.25 });
+      col.add(g, x, y, z, { yaw: -a, scale: s, roll: tilt + (h01(x + 5, z + i, seed + 2) - 0.5) * 0.25, k: lerp(0.84, 1.12, h01(x + i, z, seed + 3)), warm: (h01(x, z + i, seed + 4) - 0.5) * 0.4 });
     }
   };
   // banana plants: a green pseudo-stem and a few huge leaves, one already tattered by the glass's wind
   P.BANANA_SPOTS.forEach(([x, z]) => {
     const h = lerp(2.0, 2.6, h01(x, z, 10));
-    col.add(trunkGeometry({ h, r0: 0.24, r1: 0.14, sides: 6, rings: 4, hex: 0x7aa04a, hex2: 0x5f8a3a, scar: 0.05 }), x, 0, z, {});
+    col.add(shade(trunkGeometry({ h, r0: 0.24, r1: 0.14, sides: 6, rings: 4, hex: 0x7aa04a, hex2: 0x5f8a3a, scar: 0.05 }), { foot: 0.7, crown: 1.1 }), x, 0, z, {});
     radial(BANANA_LEAF(), x, h, z, 7, { yaw0: h01(x, z, 11) * TAU, seed: 12 });
     // a purple flower bud and a little hand of green bananas hanging from the crown
     col.add(tint(new THREE.ConeGeometry(0.11, 0.42, 5).rotateX(Math.PI), 0x6e2a5a), x + 0.35, h - 0.35, z, {});
@@ -289,7 +301,7 @@ export function foliage() {
   // tree ferns
   P.TREE_FERN_SPOTS.forEach(([x, z], k) => {
     const h = k === 4 ? 2.1 : lerp(2.2, 3.1, h01(x, z, 20));
-    col.add(trunkGeometry({ h, r0: 0.22, r1: 0.16, sides: 6, rings: 5, hex: 0x6a4a34, hex2: 0x4e3626, scar: 0.07 }), x, k === 4 ? 0.2 : 0, z, {});
+    col.add(shade(trunkGeometry({ h, r0: 0.22, r1: 0.16, sides: 6, rings: 5, hex: 0x6a4a34, hex2: 0x4e3626, scar: 0.07 }), { foot: 0.7, crown: 1.12 }), x, k === 4 ? 0.2 : 0, z, {});
     radial(TREEFERN_FROND(), x, (k === 4 ? 0.2 : 0) + h, z, 12, { yaw0: h01(x, z, 21) * TAU, seed: 22 });
     radial(FERN_FROND(), x, (k === 4 ? 0.2 : 0) + h + 0.05, z, 4, { yaw0: 0.4, tilt: -0.7, scale: 0.8, seed: 23 });
   });
@@ -312,7 +324,7 @@ export function foliage() {
       const sh = lerp(0.9, 1.7, h01(x + i, z, 51));
       const out = 0.28 + 0.1 * h01(x, z + i, 52);
       col.add(stalk(x, 0, z, x + Math.cos(a) * out, sh, z + Math.sin(a) * out, 0.022, 0x6a9a3a), 0, 0, 0, {});
-      col.add(BIRD_LEAF(), x + Math.cos(a) * out, sh, z + Math.sin(a) * out, { yaw: -a, scale: lerp(0.9, 1.15, h01(x, z + i, 53)) });
+      col.add(BIRD_LEAF(), x + Math.cos(a) * out, sh, z + Math.sin(a) * out, { yaw: -a, scale: lerp(0.9, 1.15, h01(x, z + i, 53)), k: lerp(0.86, 1.1, h01(x + i, z + 1, 55)), warm: (h01(x, z + i, 56) - 0.5) * 0.3 });
     }
     for (let f = 0; f < 2; f++) {
       const a = h01(x, z, 54 + f) * TAU;
@@ -331,7 +343,7 @@ export function foliage() {
       const out = 0.3 + 0.2 * h01(x, z + i, 62);
       const lx = x + Math.cos(a) * out, lz = z + Math.sin(a) * out;
       col.add(stalk(x, 0, z, lx, sh, lz, 0.025, 0x4a8a3a), 0, 0, 0, {});
-      col.add(MONSTERA_LEAF(), lx, sh, lz, { yaw: -a, roll: lerp(0.55, 0.85, h01(x + i, z, 63)), scale: lerp(0.85, 1.2, h01(x, z + i, 64)) });
+      col.add(MONSTERA_LEAF(), lx, sh, lz, { yaw: -a, roll: lerp(0.55, 0.85, h01(x + i, z, 63)), scale: lerp(0.85, 1.2, h01(x, z + i, 64)), k: lerp(0.8, 1.15, h01(x + i, z + 3, 65)), warm: (h01(x, z + i, 66) - 0.5) * 0.3 });
     }
   });
   // hibiscus: a bush of branches, small leaves and big red flowers
@@ -347,6 +359,15 @@ export function foliage() {
       if (b % 2 === 0) col.add(HIBISCUS_FLOWER(), bx, bh + 0.05, bz, { yaw: h01(x + b, z, 72) * TAU, tilt: 0.2, scale: 1 });
     }
   });
+  // beauty round 3: lily pads on the pond (flat discs a hair over the water, under the koi) and two pink flowers
+  const PAD = shade(tint(new THREE.CircleGeometry(1, 9).rotateX(-Math.PI / 2), 0x4f9a46), { foot: 0.9, crown: 1.0 });
+  const PO = P.POND;
+  for (let i = 0; i < 11; i++) {
+    const a = h01(i, 3, 120) * TAU, r = lerp(0.3, 0.8, h01(i, 5, 120)) * (PO.r - 0.8);
+    const px = PO.x + Math.cos(a) * r, pz = PO.z + Math.sin(a) * r;
+    col.add(PAD, px, 0.034, pz, { yaw: h01(i, 7, 120) * TAU, scale: lerp(0.22, 0.42, h01(i, 9, 120)), k: lerp(0.85, 1.15, h01(i, 11, 120)), warm: (h01(i, 13, 120) - 0.4) * 0.3 });
+    if (i % 5 === 2) col.add(flowerGeometry({ r: 0.13, n: 6, petal: 0xf6a0c8, centre: 0xf6d44a, lift: 0.35 }), px + 0.05, 0.045, pz, { yaw: i });
+  }
   // reeds at the pond's rim
   for (const [x, z] of reedClumps()) {
     radial(REED_BLADE(), x, 0, z, 5, { yaw0: h01(x, z, 80) * TAU, scale: lerp(0.8, 1.3, h01(x, z, 81)), seed: 82, tilt: 0 });
@@ -407,7 +428,7 @@ const BENCH_WOOD = 0xa07a52;
 // (`benches` and `name` are the stage-B Orchid Room's: its two benches.)
 export function orchids({ benches = P.ORCHID_BENCHES, name = 'ghOrchids' } = {}) {
   const col = collector();
-  const pot = tint(new THREE.CylinderGeometry(0.15, 0.11, 0.2, 8), 0xb8613c);
+  const pot = shade(tint(new THREE.CylinderGeometry(0.15, 0.11, 0.2, 8), 0xb8613c), { foot: 0.74, crown: 1.12 });
   const soil = tint(new THREE.CylinderGeometry(0.14, 0.14, 0.02, 8), 0x3a2a1a);
   benches.forEach((b, bi) => {
     // the bench: a slab on four legs, a shelf under it
@@ -418,7 +439,7 @@ export function orchids({ benches = P.ORCHID_BENCHES, name = 'ghOrchids' } = {})
       const x = b.x - b.w / 2 + 0.4 + i * ((b.w - 0.8) / 4);
       const z = b.z + (i % 2 ? 0.1 : -0.08);
       const y = b.h;
-      col.add(pot, x, y, z, {});
+      col.add(pot, x, y, z, { k: lerp(0.9, 1.1, h01(x, z, 111)), warm: (h01(x, z, 112) - 0.5) * 0.2 });
       col.add(soil, x, y + 0.19, z, {});
       for (let l = 0; l < 3; l++) col.add(ORCHID_LEAF(), x, y + 0.2, z, { yaw: -((l / 3) * TAU + i), scale: 1 });
       // an arching flower stem with five blooms
