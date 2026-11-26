@@ -154,7 +154,8 @@ export function shadePaint(g) {
       const h = pos.getY(v) - P.reefY(pos.getX(v), pos.getZ(v));
       const near = h < 0.45 ? 1 - Math.max(0, h) / 0.45 : 0; // 1 on the sand, 0 at 0.45 m
       const k = jit * (1 - 0.3 * near * near) * (1 + 0.05 * Math.min(1, Math.max(0, h) / 2));
-      col.setXYZ(v, col.getX(v) * k, col.getY(v) * k, col.getZ(v) * k);
+      const low = Math.max(0, 1 - Math.max(0, h) / 1.1); // round 2: a cool, mossy teal foot on everything, warmer light on the tops
+      col.setXYZ(v, col.getX(v) * k * (1 - 0.1 * low), col.getY(v) * k * (1 + 0.03 * low), col.getZ(v) * k * (1 + 0.04 * low));
     }
   }
   return g;
@@ -351,5 +352,21 @@ export function drawPebbles(kit, M) {
     const z = P.REEF_SPAWN.z + (rng() - 0.6) * 9;
     if (Math.hypot(x - P.LADDER.x, z - P.LADDER.z) < 1.2) continue;
     kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(0.08 + rng() * 0.1, 0).scale(1, 0.6, 1), x, z, 0.04, rng() * 3), COL.stoneLight), { noCast: true });
+  }
+  // round 2: pebbles and shells strewn over the whole seabed (eight triangles each), thicker round the coral, the boat and the anchor, so the sand is never bare
+  const near = [...P.scatterCoral().map((k) => [k.x, k.z, k.s + 1.2]), [-32.8, -31.5, 5], [-23.5, -29.5, 3]];
+  const tones = [0xb6c7c2, 0xd9c9a8, 0xa89a82, 0xe8d6c0, 0x8fa3a0];
+  let made = 0;
+  for (let tries = 0; made < 70 && tries < 900; tries++) {
+    const pick = rng();
+    let x; let z;
+    if (pick < 0.65) { const c = near[Math.floor(rng() * near.length)]; const a = rng() * Math.PI * 2; const r = c[2] * (0.5 + rng() * 0.8); x = c[0] + Math.cos(a) * r; z = c[1] + Math.sin(a) * r; }
+    else { x = P.REEF_BOUNDS.minX + 3 + rng() * (P.REEF_BOUNDS.maxX - P.REEF_BOUNDS.minX - 6); z = P.REEF_BOUNDS.minZ + 3 + rng() * (P.REEF_BOUNDS.maxZ - P.REEF_BOUNDS.minZ - 6); }
+    if (!P.REEF_POIS.length || Math.hypot(x - P.REEF_SPAWN.x, z - P.REEF_SPAWN.z) < 7) continue;
+    if (P.reefColliders().some((c) => Math.hypot(x - c.x, z - c.z) < c.r + 0.3)) continue; // not inside the big coral or the arch's feet
+    if (Math.hypot(x + 32.8, z + 31.5) < 3.4) continue; // not inside the boat
+    const sz = 0.07 + rng() * 0.11;
+    kit.put('paint', M.paint, paint(at(new THREE.OctahedronGeometry(sz, 0).scale(1, 0.5, 1 + rng() * 0.5), x, z, sz * 0.2, rng() * 3), tones[Math.floor(rng() * tones.length)]), { noCast: true });
+    made++;
   }
 }

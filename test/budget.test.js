@@ -530,7 +530,8 @@ const AREAS = [
   // Milestone R8 (2026-11-26, wing C: the Sunken Boat's lofted hull, mast, ribs and rim coral, the Old Anchor, the Glow Cave's rocks and glowing beads, all in the kit's two
   // existing buckets, so no mesh more; the plankton is the walk's life, not in this count) measured 7 / 1 / 14,845 built and merged (+2,258 triangles; about 18,200 counting
   // every kelp blade and spire instance), +12%: 8 / 2 / 16,700. The plan's wing C figures were about 150 / 80 / 36,000: far under them on every count.
-  ['reef', buildReef, 8, 2, 16700],
+  // Beauty round 2 (2026-11-26: 70 strewn pebbles and shells, eight triangles each, in the existing 'paint' bucket) measured 7 / 1 / 15,405 built (+560), +12%: 8 / 2 / 17,200.
+  ['reef', buildReef, 8, 2, 17200],
   // Milestone R2 (Marlo and chapter one) adds only the coral ledge (no mesh more; about 200 triangles measured on top of R3: 7 / 2 / 10,700). Marlo, the shells, their glints, the picture bubble, the meow's ring and the air pockets are the walk's life, counted in test/reefmarlo.test.js
 ];
 
