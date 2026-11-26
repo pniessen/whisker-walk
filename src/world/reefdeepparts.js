@@ -6,7 +6,7 @@
 // =============================================================================
 
 import * as THREE from 'three';
-import { COL, paint, at } from './reefparts.js';
+import { COL, STONES, paint, at } from './reefparts.js';
 import { reefY } from './reefplan.js';
 import * as D from './reefdeep.js';
 
@@ -15,6 +15,7 @@ const WOOD_DARK = 0x5f4630;
 const WOOD_WORN = 0xa58a62;
 const IRON = 0x5d6b70;
 const IRON_LIGHT = 0x7d8d90;
+const RUST = 0x7a5f4c;
 const BEAD = Object.freeze([0x8ff0d0, 0xb4ffa0, 0x9be8ff]);
 
 const cyl = (rt, rb, h, seg = 6) => new THREE.CylinderGeometry(rt, rb, h, seg, 1);
@@ -106,11 +107,12 @@ export function drawAnchor(kit, M) {
   // lying on its side: the shank along x, sunk a little into the dune, tilted up at the ring
   const body = (geo, hex, opts) => put(geo.rotateZ(0.12), hex, opts);
   body(cyl(0.09, 0.11, A.shank, 6).rotateZ(Math.PI / 2).translate(0, 0.22, 0), IRON);
+  body(cyl(0.095, 0.115, 0.7, 6).rotateZ(Math.PI / 2).translate(0.5, 0.22, 0), RUST); // a rust-brown stretch of the shank, where the sea has had longest
   body(new THREE.TorusGeometry(0.22, 0.05, 5, 8).translate(-A.shank / 2 - 0.12, 0.3, 0), IRON_LIGHT); // the ring at the top
   body(cyl(0.05, 0.05, 1.3, 5).rotateX(Math.PI / 2).translate(-A.shank / 2 + 0.3, 0.3, 0), IRON_LIGHT); // the stock, across the shank
   // the crown: two curved arms, each a half ring, and a fluke at each tip
   for (const s of [-1, 1]) {
-    body(new THREE.TorusGeometry(0.62, 0.075, 5, 8, Math.PI * 0.7).rotateX(s > 0 ? 0 : Math.PI).rotateZ(Math.PI * 0.15).translate(A.shank / 2 - 0.3, 0.1, 0), IRON);
+    body(new THREE.TorusGeometry(0.62, 0.075, 5, 8, Math.PI * 0.7).rotateX(s > 0 ? 0 : Math.PI).rotateZ(Math.PI * 0.15).translate(A.shank / 2 - 0.3, 0.1, 0), s > 0 ? RUST : IRON);
     body(new THREE.ConeGeometry(0.17, 0.4, 4).rotateZ(-Math.PI / 2).rotateY(s * 0.7).translate(A.shank / 2 + 0.3, 0.45, s * 0.55), IRON_LIGHT, { noCast: true });
   }
   // a few links of chain trailing off across the sand
@@ -122,12 +124,13 @@ export function drawGlowCave(kit, M) {
   D.WALLS.forEach((w, i) => {
     // a tall rock, leaning in toward the cleft, with a smaller one riding on its shoulder
     const lean = w.z < G.floorZ ? 0.12 : w.z > G.floorZ ? -0.12 : 0;
-    kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(w.r, 0).scale(1.25, w.h / (w.r * 2), 1.15).translate(0, w.h / 2 - 0.2, 0).rotateX(lean), w.x, w.z, 0, i * 1.1), COL.stone));
+    kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(w.r, 0).scale(1.25, w.h / (w.r * 2), 1.15).translate(0, w.h / 2 - 0.2, 0).rotateX(lean), w.x, w.z, 0, i * 1.1), STONES[i % 5]));
     kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(w.r * 0.6, 0).translate(w.r * 0.2, w.h - 0.4, 0).rotateX(lean * 2), w.x, w.z, 0, i * 0.7), COL.stoneLight), { noCast: true });
   });
   // the rocks behind the walls, so the cleft is a pass through a bigger outcrop, and a few stones at its mouth
+  let bi = 2;
   for (const [x, z, r, h] of [[-41.4, -41, 1.5, 3.6], [-44, -41.2, 1.4, 3.2], [-41.4, -33, 1.4, 3.2], [-44, -33, 1.3, 3.0], [-47, -39.6, 1.5, 3.4], [-47, -34.6, 1.4, 3.0]]) {
-    kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(r, 0).scale(1.2, h / (r * 2), 1.1).translate(0, h / 2 - 0.2, 0), x, z, 0, x), COL.stone));
+    kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(r, 0).scale(1.2, h / (r * 2), 1.1).translate(0, h / 2 - 0.2, 0), x, z, 0, x), STONES[bi++ % 5]));
   }
   for (const [x, z] of [[-38.2, -39.4], [-38.6, -34.6], [-37.8, -36.4]]) kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(0.28, 0).scale(1, 0.6, 1), x, z, 0.05, x), COL.stoneLight), { noCast: true });
   // the glow: beads on the walls' inner faces and a pale patch on the floor (unlit, so it shines at any depth)
@@ -135,8 +138,16 @@ export function drawGlowCave(kit, M) {
     const geo = new THREE.IcosahedronGeometry(b.r, 0);
     kit.put('glow', M.glow, paint(at(geo, b.x, b.z, b.y), BEAD[i % 3]), { noCast: true });
   });
-  kit.put('glow', M.glow, paint(at(new THREE.CircleGeometry(1.5, 10).rotateX(-Math.PI / 2), -42, G.floorZ, 0.03), 0xbff7ea), { noCast: true });
-  kit.put('glow', M.glow, paint(at(new THREE.CircleGeometry(0.8, 8).rotateX(-Math.PI / 2), -44.4, G.floorZ + 0.3, 0.035), 0xe2ffd2), { noCast: true });
+  // round 3: each pale patch is brightest in the middle and fades to a soft teal at the rim (vertex colour), so it reads as a pool of light, not a white tile
+  const pool = (geo, x, z, dy, r) => {
+    const q = at(geo, x, z, dy);
+    const p = q.attributes.position;
+    const c = q.attributes.color;
+    for (let v = 0; v < p.count; v++) { const k = 1 - 0.62 * Math.min(1, Math.hypot(p.getX(v) - x, p.getZ(v) - z) / r); c.setXYZ(v, c.getX(v) * k * (0.9 + 0.1 * k), c.getY(v) * k, c.getZ(v) * k * (1.1 - 0.1 * k)); }
+    return q;
+  };
+  kit.put('glow', M.glow, pool(paint(new THREE.CircleGeometry(1.5, 10).rotateX(-Math.PI / 2), 0xbff7ea), -42, G.floorZ, 0.03, 1.5), { noCast: true });
+  kit.put('glow', M.glow, pool(paint(new THREE.CircleGeometry(0.8, 8).rotateX(-Math.PI / 2), 0xe2ffd2), -44.4, G.floorZ + 0.3, 0.035, 0.8), { noCast: true });
 }
 
 export function drawDeep(kit, M) {
