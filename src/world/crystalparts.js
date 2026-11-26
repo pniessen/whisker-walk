@@ -18,6 +18,23 @@ export const COL = Object.freeze({
 const _c = new THREE.Color();
 const _d = new THREE.Color();
 
+// A soft round dot (a 32 x 32 data texture, no canvas: it works in a test too) so the glints, lamps and motes are round and not square.
+let _dot = null;
+export function dotTexture() {
+  if (_dot) return _dot;
+  const n = 32;
+  const data = new Uint8Array(n * n * 4);
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const r = Math.hypot(x + 0.5 - n / 2, y + 0.5 - n / 2) / (n / 2);
+    const a = r >= 1 ? 0 : (1 - r) ** 1.4;
+    const k = (y * n + x) * 4;
+    data[k] = data[k + 1] = data[k + 2] = 255; data[k + 3] = Math.round(255 * a);
+  }
+  _dot = new THREE.DataTexture(data, n, n, THREE.RGBAFormat);
+  _dot.needsUpdate = true;
+  return _dot;
+}
+
 // ---- the floor ------------------------------------------------------------------------------------------------------------
 function lines(min, max, edge, outer) {
   const out = [];
@@ -33,10 +50,15 @@ function floorColour(x, z, clusters, out) {
   _d.setHex(P.CAVE_LOOK.stoneDark);
   const mottle = 0.5 + 0.5 * Math.sin(x * 0.9 + Math.sin(z * 0.4) * 2) * Math.cos(z * 0.7 + x * 0.1);
   _c.lerp(_d, 0.35 * mottle);
-  const tone = 0.95 + 0.05 * Math.sin((x + z) * 0.31);
+  const grain = Math.sin(x * 2.3 + Math.sin(z * 1.7) * 1.5) * Math.sin(z * 2.1 - x * 0.6); // finer patches, so the stone is not one grey
+  _d.setHex(0xb08a8c); // a warm rose-clay patch here and there
+  _c.lerp(_d, Math.max(0, grain) * 0.3);
+  const tone = 0.93 + 0.05 * Math.sin((x + z) * 0.31) + 0.03 * grain;
   let r = _c.r * tone; let g = _c.g * tone; let b = _c.b * tone;
   for (const k of clusters) {
     const d2 = (x - k.x) * (x - k.x) + (z - k.z) * (z - k.z);
+    const sh = 1 - 0.28 * Math.exp(-d2 / (k.s * k.s * 0.6)); // the foot of each cluster sits in a little shade
+    r *= sh; g *= sh; b *= sh;
     const reach = k.s * 3.2;
     if (d2 > reach * reach) continue;
     const w = 0.42 * (k.great ? 1.5 : 1) * Math.exp(-d2 / (k.s * k.s * 3.2));
@@ -84,7 +106,7 @@ export function groundGeometry(clusters = [...P.scatterClusters(), BLUE_GREAT, G
 }
 
 export function drawGround() {
-  const m = new THREE.Mesh(groundGeometry(), new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.55, metalness: 0 }));
+  const m = new THREE.Mesh(groundGeometry(), new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.85, metalness: 0 }));
   m.name = 'crystal:ground';
   m.receiveShadow = true;
   Object.assign(m.userData, { ground: true, noCast: true, noContactShadow: true, noMerge: true });
@@ -101,7 +123,12 @@ export function domeGeometry() {
   const lo = new THREE.Color(0x4a3458);
   const hi = new THREE.Color(0x7a5a80);
   for (let v = 0; v < pos.count; v++) {
-    _c.copy(lo).lerp(hi, clamp01((pos.getY(v) - 4) / 13));
+    const y = pos.getY(v);
+    _c.copy(lo).lerp(hi, clamp01((y - 4) / 13));
+    const a = Math.atan2(pos.getZ(v), pos.getX(v));
+    _c.multiplyScalar(0.9 + 0.14 * Math.sin(a * 5 + y * 0.35) * Math.cos(a * 3 - y * 0.2)); // slow patches of lighter and darker rock
+    _d.setHex(0xa06a78);
+    _c.lerp(_d, 0.32 * clamp01(1 - Math.abs(y - 6) / 5)); // a warm rose band where the wall meets the glow
     col[v * 3] = _c.r; col[v * 3 + 1] = _c.g; col[v * 3 + 2] = _c.b;
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -145,8 +172,11 @@ export function drawStalactites() {
     sc.set(k.w * 2, k.h, k.w * 2);
     m4.compose(pos, q, sc);
     mesh.setMatrixAt(i, m4);
+    _c.setHSL(0.86 + 0.07 * Math.sin(i * 2.9), 0.25 + 0.15 * Math.sin(i * 1.3 + 1), 0.62 + 0.28 * (0.5 + 0.5 * Math.sin(i * 4.1))); // each its own warm tone
+    mesh.setColorAt(i, _c);
   });
   mesh.instanceMatrix.needsUpdate = true;
+  mesh.instanceColor.needsUpdate = true;
   mesh.castShadow = false;
   mesh.receiveShadow = false;
   mesh.frustumCulled = false;
@@ -192,7 +222,7 @@ export function crystalMaterials() {
 }
 
 // Paint a geometry one colour (non-indexed, with position, normal, uv and colour so any two merge).
-export function paint(geo, hex) {
+export function paint(geo, hex, jitter = 0) {
   const g = geo.index ? geo.toNonIndexed() : geo;
   if (g !== geo) geo.dispose();
   if (!g.attributes.normal) g.computeVertexNormals();
@@ -200,13 +230,15 @@ export function paint(geo, hex) {
   const n = g.attributes.position.count;
   const col = new Float32Array(n * 3);
   _c.setHex(hex);
+  if (jitter) _c.offsetHSL(jitter * 0.02, 0, jitter * 0.08); // each rock its own tone
   for (let i = 0; i < n; i++) { col[i * 3] = _c.r; col[i * 3 + 1] = _c.g; col[i * 3 + 2] = _c.b; }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
 }
 
 // A geometry painted from a base colour (at y 0) to a bright one (at its top y = `top`): the crystal's own glow runs bright toward the point.
-function gradient(geo, baseHex, tipHex, top) {
+const FACET = [1.0, 0.82, 0.93, 0.76, 0.97, 0.86]; // six faces, six tones: the cut sides catch the glow differently
+function gradient(geo, baseHex, tipHex, top, tint = 0) {
   const g = geo.index ? geo.toNonIndexed() : geo;
   if (g !== geo) geo.dispose();
   if (!g.attributes.normal) g.computeVertexNormals();
@@ -217,6 +249,11 @@ function gradient(geo, baseHex, tipHex, top) {
   const b = new THREE.Color(tipHex);
   for (let v = 0; v < pos.count; v++) {
     _c.copy(a).lerp(b, clamp01(pos.getY(v) / top));
+    if (tint) _c.offsetHSL(tint * 0.025, 0, tint * 0.03); // this crystal leans a little to one side of its hue
+    const f = v - (v % 3); // the triangle's first vertex: its centre decides which face it is
+    const ang = Math.atan2(pos.getZ(f) + pos.getZ(f + 1) + pos.getZ(f + 2), pos.getX(f) + pos.getX(f + 1) + pos.getX(f + 2));
+    const face = Math.floor(((ang + Math.PI) / (Math.PI * 2)) * 6) % 6;
+    _c.multiplyScalar(FACET[face] * (0.9 + 0.1 * clamp01(pos.getY(v) / top)));
     col[v * 3] = _c.r; col[v * 3 + 1] = _c.g; col[v * 3 + 2] = _c.b;
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -249,20 +286,34 @@ export function drawSpawn(kit, M) {
     kit.put(`hue:${h}`, M.hue[h], crystalPrism(0.12, 0.55 + (i % 2) * 0.3, h, x, A.z, A.h + 0.4, 0, true), { noCast: true, pulse: { hue: h } });
   });
   // the door's soft light (the view through the arch)
-  kit.put('glow', M.glow, paint(at(new THREE.PlaneGeometry(A.w - 1.2, A.h - 0.7), A.x, A.z + 0.02, (A.h - 0.7) / 2 + 0.15), COL.glow), { noCast: true });
+  { // brightest low and in the middle, deepening to rose at the top and the edges, so it reads as light and not a flat card
+    const dg = at(new THREE.PlaneGeometry(A.w - 1.2, A.h - 0.7, 4, 4).toNonIndexed(), A.x, A.z + 0.02, (A.h - 0.7) / 2 + 0.15);
+    const dp = dg.attributes.position; const dc = new Float32Array(dp.count * 3);
+    const mid = new THREE.Color(COL.glow); const edge = new THREE.Color(0xe08a98);
+    for (let v = 0; v < dp.count; v++) {
+      const u = Math.abs(dp.getX(v) - A.x) / ((A.w - 1.2) / 2);
+      const w = clamp01((dp.getY(v) - P.crystalY(A.x, A.z)) / (A.h - 0.4));
+      _c.copy(mid).lerp(edge, clamp01(0.55 * u * u + 0.5 * w * w));
+      dc[v * 3] = _c.r; dc[v * 3 + 1] = _c.g; dc[v * 3 + 2] = _c.b;
+    }
+    dg.setAttribute('color', new THREE.BufferAttribute(dc, 3));
+    if (!dg.attributes.normal) dg.computeVertexNormals();
+    if (!dg.attributes.uv) dg.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(dp.count * 2), 2));
+    kit.put('glow', M.glow, dg, { noCast: true });
+  }
 }
 
 // ---- the crystals --------------------------------------------------------------------------------------------------------------
-const tipOf = (h) => new THREE.Color(P.HUE_COLOURS[h]).lerp(new THREE.Color(0xffffff), 0.28).getHex();
-const baseOf = (h) => new THREE.Color(P.HUE_COLOURS[h]).multiplyScalar(0.9).getHex();
+const tipOf = (h) => new THREE.Color(P.HUE_COLOURS[h]).lerp(new THREE.Color(0xffffff), 0.16).getHex(); // brighter toward the point, but still its own colour
+const baseOf = (h) => new THREE.Color(P.HUE_COLOURS[h]).multiplyScalar(0.72).getHex();
 
 // One prism: a tapering hexagonal column and a pyramid tip, glowing brighter toward the point. `over` sits it at (x, z) at height dy over the floor.
-export function crystalPrism(r, h, hue, x, z, dy, yaw, flat = false) {
+export function crystalPrism(r, h, hue, x, z, dy, yaw, flat = false, tint = 0) {
   const colH = h * 0.72;
   const col = cyl(r * 0.8, r, colH, 6).translate(0, colH / 2, 0);
   const tip = new THREE.ConeGeometry(r * 0.8, h - colH, 6, 1).translate(0, colH + (h - colH) / 2, 0);
   const g = mergeGeometries([col, tip].map((p) => { const n = p.toNonIndexed(); p.dispose(); return n; }));
-  const out = gradient(g, baseOf(hue), tipOf(hue), h);
+  const out = gradient(g, baseOf(hue), tipOf(hue), h, tint);
   if (flat) { out.rotateY(yaw); out.translate(x, P.crystalY(x, z) + dy, z); return out; }
   return at(out, x, z, dy, yaw);
 }
@@ -276,7 +327,7 @@ export function clusterGeometry(k, i) {
     const r = k.s * (n === 0 ? 0.26 : 0.17);
     const px = k.x + Math.cos(a) * spread;
     const pz = k.z + Math.sin(a) * spread;
-    const g = crystalPrism(r, h, k.hue, 0, 0, 0, 0, true);
+    const g = crystalPrism(r, h, k.hue, 0, 0, 0, 0, true, Math.sin(i * 1.9 + n * 2.3));
     g.rotateZ(n === 0 ? 0 : 0.28 * Math.cos(a)).rotateX(n === 0 ? 0 : 0.28 * Math.sin(a));
     g.translate(px, P.crystalY(px, pz) - 0.05, pz);
     parts.push(g);
@@ -291,13 +342,13 @@ export function drawClusters(kit, M) {
 // ---- rocks ---------------------------------------------------------------------------------------------------------------------
 export function drawRim(kit, M) {
   P.scatterRim().forEach((k, i) => {
-    kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(k.s, 0).scale(1, 0.9 + 0.5 * (i % 3), 1).translate(0, k.s * 0.4, 0), k.x, k.z, 0, k.yaw), i % 2 ? COL.stoneDark : COL.rim), { noCast: true });
+    kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(k.s, 0).scale(1, 0.9 + 0.5 * (i % 3), 1).translate(0, k.s * 0.4, 0), k.x, k.z, 0, k.yaw), i % 2 ? COL.stoneDark : COL.rim, Math.sin(i * 2.7)), { noCast: true });
   });
 }
 
 export function drawPebbles(kit, M) {
-  P.scatterPebbles().forEach((k) => {
-    kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(k.s, 0).scale(1, 0.6, 1), k.x, k.z, 0.04, k.yaw), COL.stoneLight), { noCast: true });
+  P.scatterPebbles().forEach((k, i) => {
+    kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(k.s, 0).scale(1, 0.6, 1), k.x, k.z, 0.04, k.yaw), i % 3 ? COL.stoneLight : 0xd2b4b0, Math.sin(i * 1.9)), { noCast: true });
   });
 }
 

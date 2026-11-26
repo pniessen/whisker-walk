@@ -153,10 +153,10 @@ export function createWing(ctx) {
     // the Heart: dull asleep, gently lit once woken for good, brilliant in the show
     const rest = rec().step >= M.STEP.show ? 1 : 0;
     heartLevel += (Math.max(rest, h) - heartLevel) * Math.min(1, reducedMotion ? 1 : 0.1);
-    const peak = reducedMotion ? 0 : p.waves.heart * 0.3;
-    heart?.material.color.setScalar(HEART_DORMANT + (1 - HEART_DORMANT) * heartLevel + peak + flash * 0.25);
+    const peak = reducedMotion ? 0 : p.waves.heart * 0.12;
+    heart?.material.color.setScalar(HEART_DORMANT + (1 - HEART_DORMANT) * heartLevel + peak + flash * 0.1);
     heartHalo.visible = heartLevel > 0.02 || on;
-    heartHalo.material.opacity = Math.min(0.85, 0.5 * heartLevel + (reducedMotion ? 0.3 * wake : 0.4 * p.waves.heart) + flash * 0.2);
+    heartHalo.material.opacity = Math.min(0.62, 0.5 * heartLevel + (reducedMotion ? 0.3 * wake : 0.4 * p.waves.heart) + flash * 0.2);
     heartHalo.scale.setScalar(12 + (reducedMotion ? 0 : 2.5 * p.waves.heart));
     // the three other great crystals flare in turn (a still glow in reduced motion)
     for (const [hue, i] of Object.entries(HUE_IDX)) {

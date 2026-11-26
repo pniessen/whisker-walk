@@ -9,6 +9,7 @@
 
 import * as THREE from 'three';
 import * as P from './crystalplan.js';
+import { dotTexture } from './crystalparts.js';
 
 export const PULSE = Object.freeze({ depth: 0.14, rate: 0.9 }); // the colour scalar swings 1 +- depth, once in about 7 s
 export const GLINT_LOOK = Object.freeze({ size: 0.09, opacity: 0.85, wobble: 0.3, rate: 1.6 });
@@ -38,7 +39,7 @@ export function createCrystalLight({ scene, tier = null, reducedMotion = false }
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   const glints = new THREE.Points(geo, new THREE.PointsMaterial({
-    size: GLINT_LOOK.size, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: GLINT_LOOK.opacity,
+    map: dotTexture(), alphaTest: 0.02, size: GLINT_LOOK.size * 2.2, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: GLINT_LOOK.opacity,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: true,
   }));
   glints.name = 'crystal:glints';
