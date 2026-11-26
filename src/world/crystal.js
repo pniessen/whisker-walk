@@ -12,6 +12,8 @@ import { withLocalUuids } from './localuuids.js';
 import * as P from './crystalplan.js';
 import * as K from './crystalparts.js';
 import { createCrystalLight } from './crystallight.js';
+import { createCrystalCritters } from './crystalcritters.js';
+import { createCrystalSound } from './crystalsound.js';
 import { createLumi } from './crystallife.js';
 import { createWing } from './crystalwing.js';
 import { drawWing } from './crystalwingparts.js';
@@ -80,9 +82,13 @@ export function build(scene) {
         const lumi = createLumi({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion });
         const wingLife = createWing({ scene: ctx.scene, lumi, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
         const finds = createCrystalFindsLife(ctx); // the six discoveries (milestone C3)
+        const critters = createCrystalCritters(ctx); // glow-bugs, dust, drips (milestone C4)
+        const sound = createCrystalSound(ctx); // the hum, the plinks, the crystals' notes
         let used = lumi; // whose prompt the action button is on now
         return {
           light,
+          critters,
+          sound,
           lumi,
           wing: wingLife,
           promptAt(catPos) {
@@ -94,8 +100,8 @@ export function build(scene) {
           interact: () => used.interact(),
           // a show begun by anyone in the room starts ours (the shared T0); every other step is Lumi's, credited in order
           credit: (ev) => (ev?.kind === 'show' ? wingLife.credit(ev) : lumi.credit(ev)),
-          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); },
-          dispose() { finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); sound.update(dt, catPos); },
+          dispose() { sound.dispose(); critters.dispose(); finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
         };
       },
     };
