@@ -181,7 +181,7 @@ export function drawSpawn(kit, M) {
 
 // ---- the coral ----------------------------------------------------------------------------------------------------------------
 
-function coralGeometry(k, i) {
+export function coralGeometry(k, i) {
   const hue = COL.coral[k.hue];
   const deep = COL.coralDeep[k.hue];
   const parts = [];

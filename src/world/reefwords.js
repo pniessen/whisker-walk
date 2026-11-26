@@ -45,6 +45,18 @@ export const LINES = Object.freeze({
   'reef.air.low': 'Your air is getting low. A warm bubble is ready.',
   'reef.air.lift': 'A warm bubble lifts you to the ladder.',
   'reef.air.full': 'Fresh air, all full!',
+  // milestone R5: shell three, the lantern corals, the housewarming (the same in both sets; nothing here is a series word)
+  'reef.shell.cave': 'Look for a little cave behind the coral. Fresh air bubbles up there.',
+  'reef.marlo.third': 'It looks just right! Wait a moment and watch.',
+  'reef.marlo.tried': 'It fits! His old shell is a cosy home for a sea snail.',
+  'reef.lantern.hint': 'Touch the lantern corals, one after another.',
+  'reef.lantern.lit': 'The coral glows!',
+  'reef.lantern.all': 'Every lantern is lit! Marlo is ready for the party.',
+  'reef.parade.prompt': 'Start the housewarming',
+  'reef.parade.replay': 'Watch the housewarming again',
+  'reef.parade.start': 'Everyone is swimming over to say welcome home!',
+  'reef.parade.pay': 'A housewarming for Marlo, with a manta, a turtle and a shoal',
+  'reef.pearl': 'Marlo gives you a pearl for your collar!',
 });
 
 addPhrases(LINES);

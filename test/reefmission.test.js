@@ -36,8 +36,8 @@ describe('the step machine', () => {
     expect(a).toMatchObject({ changed: true, effect: 'big' }); r = a.reef;
     expect(r).toMatchObject({ step: 3, shells: 3 });
     expect(M.chapterOneDone(r)).toBe(true);
-    expect(M.nextGoal(r).kind).toBe('rest');
-    for (const ev of [{ kind: 'meet' }, { kind: 'bring', shell: 0 }, { kind: 'bring', shell: 1 }, { kind: 'bring', shell: 2 }]) expect(M.apply(r, ev).changed).toBe(false);
+    expect(M.nextGoal(r)).toEqual({ kind: 'shell', shell: 2, icon: 'shell' }); // chapter two (milestone R5): the just-right shell
+    for (const ev of [{ kind: 'meet' }, { kind: 'bring', shell: 0 }, { kind: 'bring', shell: 1 }]) expect(M.apply(r, ev).changed).toBe(false);
   });
   it('refuses a shell out of order, before the meeting, a third shell (R5) and nonsense, and changes nothing', () => {
     const r = { step: 1, shells: 0, album: 5 };
@@ -80,7 +80,7 @@ describe('the step machine', () => {
     expect(M.canPick({ step: 1 }, 1)).toBe(false);
     expect(M.canPick({ step: 1 }, 0, 1)).toBe(false);
     expect(M.canPick({ step: 0 }, 0)).toBe(false);
-    for (let s = 0; s <= 7; s++) for (const c of [null, 0, 1]) expect(['marlo', 'shell', 'deliver', 'rest']).toContain(M.nextGoal({ step: s }, c).kind);
+    for (let s = 0; s <= 7; s++) for (const c of [null, 0, 1]) expect(['marlo', 'shell', 'deliver', 'tryon', 'lantern', 'parade', 'rest']).toContain(M.nextGoal({ step: s }, c).kind);
     expect(M.reachable({ minLift: 0.95 }, 0)).toBe(false);
     expect(M.reachable({ minLift: 0.95 }, 1.1)).toBe(true);
     expect(M.reachable({ minLift: 0 }, NaN)).toBe(true);

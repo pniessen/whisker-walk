@@ -6,6 +6,7 @@
 // =============================================================================
 
 import { REEF_BOUNDS, reefColliders, reefY } from './reefplan.js';
+import { SHELL_THREE, CAVE_POCKET, wingColliders } from './reefwing.js';
 
 // Marlo, the hermit crab: waits on the sand beside the ladder; once met he follows at a shy distance and waits.
 export const MARLO = Object.freeze({
@@ -23,7 +24,7 @@ export const MARLO = Object.freeze({
   seen: 10, // m: she is this near and he waves and shows a picture (once a walk)
 });
 
-// The shells of chapter 1 (the third, the just-right one, is milestone R5's). `y` is the shell's height over the seabed; `minLift` the float it takes
+// The shells of chapter 1 (the third, the just-right one, is milestone R5's: reefwing.js SHELL_THREE, in STORY_SHELLS below). `y` is the shell's height over the seabed; `minLift` the float it takes
 // to reach it (the ledge is reached only by floating); `reach` how near (horizontally) she must be.
 export const SHELLS = Object.freeze([
   Object.freeze({ id: 0, kind: 'small', x: -22.4, z: 17.2, y: 0, minLift: 0, reach: 1.7 }),
@@ -32,13 +33,17 @@ export const SHELLS = Object.freeze([
 
 // The coral ledge: a flat-topped column 1.4 m tall (solid on the sand, so she cannot walk beneath it; she floats up beside it and over it).
 export const LEDGE = Object.freeze({ x: 17.2, z: 1.6, r: 1.1, h: 1.4 });
-export const storyColliders = () => [Object.freeze({ x: LEDGE.x, z: LEDGE.z, r: LEDGE.r })];
+// All three shells in the order Marlo wants them (milestone R5 adds the just-right one, in the cave behind the coral).
+export const STORY_SHELLS = Object.freeze([...SHELLS, SHELL_THREE]);
+// What is solid in the story: the ledge and (milestone R5) the cave's boulders, the lantern corals and the wing's spires and larger clumps.
+export const storyColliders = () => [Object.freeze({ x: LEDGE.x, z: LEDGE.z, r: LEDGE.r }), ...wingColliders()];
 
 // The first air pockets: columns of fresh bubbles; swimming into one fills the gauge (a pocket gives its air again after `again` seconds).
 export const POCKETS = Object.freeze([
   Object.freeze({ x: 7, z: 29.5 }), // beside the ladder (the first, in sight of the spawn)
   Object.freeze({ x: -13, z: 22 }), // by the Kelp Garden's edge
   Object.freeze({ x: 11.5, z: 5.5 }), // by the coral ledge
+  Object.freeze({ x: CAVE_POCKET.x, z: CAVE_POCKET.z }), // milestone R5: ringing the cave floor where shell three lies (it teaches that a pocket gives air again)
 ]);
 export const POCKET = Object.freeze({ r: 1.4, again: 14, height: 2.6 });
 

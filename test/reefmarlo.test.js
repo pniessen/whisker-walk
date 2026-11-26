@@ -50,7 +50,7 @@ describe('chapter one on a walk', () => {
     expect(press(r, cat).k).toBe('give');
     expect(r.progression.state.reef).toMatchObject({ step: 2, shells: 1 });
     expect(r.mar.state.carrying).toBe(null);
-    expect(r.mar.state.shellModes).toEqual(['given', 'home']);
+    expect(r.mar.state.shellModes).toEqual(['given', 'home', 'home']);
     // shell two: on the sand beside the ledge she cannot reach it; floating at 1.1 she can
     const s1 = S.SHELLS[1];
     const beside = at(s1.x - 1.8, s1.z);
@@ -181,11 +181,11 @@ describe('a carried shell is never lost and never sent to the den, however the w
 });
 
 describe('the draw budget', () => {
-  it('Marlo\'s whole life adds at most twelve drawn objects, none a shadow caster, and disposing removes them all', () => {
+  it('Marlo\'s whole life adds at most fifteen drawn objects (R5: shell three, its glint and the snail home), none a shadow caster, and disposing removes them all', () => {
     const r = rigged();
     let drawn = 0;
     r.scene.traverse((o) => { if (o.isMesh || o.isSprite || o.isPoints) { drawn++; expect(o.castShadow).toBeFalsy(); } });
-    expect(drawn).toBeLessThanOrEqual(12);
+    expect(drawn).toBeLessThanOrEqual(15);
     r.mar.dispose();
     expect(r.scene.children).toHaveLength(0);
     r.off();
