@@ -1,3 +1,4 @@
+import { climbArcOffset } from './climbarc.js';
 import * as THREE from 'three';
 import { bus } from './events.js';
 import { CAT_LOOK_Y } from './cat/model.js';
@@ -565,6 +566,10 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
   // setAvatar, disable and halt.
   let hopArc = null;
   let hopTime = 0;
+  // A perch climb drawn as a jump (climbarc.js): render offset on top of the logical position, never in perchY.
+  let climb = null;
+  let climbTime = 0;
+  const climbOff = { x: 0, y: 0, z: 0 };
   // Sea Legs. Like zoomTune this is a PERMANENT ability's capability, not
   // per-walk state, so setAvatar and disable deliberately leave it alone —
   // walk.js sets it once per walk from the save.
@@ -776,6 +781,7 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
       zoom = { charging: false, zooming: false, time: 0 };
       hopArc = null;
       hopTime = 0;
+      climb = null; climbOff.x = 0; climbOff.y = 0; climbOff.z = 0;
       Object.assign(waterState, createWaterState());
     },
     // Mid-walk resume: the heading the camera looks along, read for the note
@@ -917,6 +923,14 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
     get hopY() {
       return hopOffset(hopTime, hopArc);
     },
+    // Start drawing the cat `arc` (climbarc.js) behind where it was just put. The caller has already moved avatar.position.
+    startClimb(arc) {
+      climb = arc && arc.dur > 0 ? arc : null;
+      climbTime = 0;
+      climbOff.x = 0; climbOff.y = 0; climbOff.z = 0;
+    },
+    // Metres to add to where the cat is DRAWN (and the camera looks): never to avatar.position, which stays logical.
+    get climbOffset() { return climbOff; },
     halt() {
       velocity.set(0, 0, 0);
       // "Stop" means stop in all three axes. This is what guarantees no
@@ -951,6 +965,7 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
       zoom = { charging: false, zooming: false, time: 0 };
       hopArc = null;
       hopTime = 0;
+      climb = null; climbOff.x = 0; climbOff.y = 0; climbOff.z = 0;
       if (!headless && document.pointerLockElement === canvas) document.exitPointerLock();
     },
     update(dt, colliders = [], bounds = null, waters = [], bumps = NO_BUMPS) {
@@ -1064,6 +1079,11 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
           hopTime = 0;
           lift = 0;
         }
+      }
+      if (climb) {
+        climbTime += Math.max(dt, 0);
+        if (climbTime >= climb.dur) { climb = null; climbOff.x = 0; climbOff.y = 0; climbOff.z = 0; }
+        else climbArcOffset(climb, climbTime, climbOff);
       }
       // Gorge part 1: where the step started, for the edge slide below.
       const px = avatar.position.x;
@@ -1192,9 +1212,10 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
       camPull = stepPull(camPull, pull, Math.max(dt, 0), camView.dist);
       camOff.multiplyScalar(camPull);
       camera.position.copy(avatar.position).add(camOff);
+      camera.position.x += climbOff.x; camera.position.y += climbOff.y; camera.position.z += climbOff.z; // follow the DRAWN cat
       if (camera.position.y < MIN_CAMERA_Y) camera.position.y = MIN_CAMERA_Y;
       if (!ground.flat) placeCameraOnGround(Math.max(dt, 0));
-      camera.lookAt(avatar.position.x, avatar.position.y + CAT_LOOK_Y, avatar.position.z);
+      camera.lookAt(avatar.position.x + climbOff.x, avatar.position.y + climbOff.y + CAT_LOOK_Y, avatar.position.z + climbOff.z);
       if (!ground.flat) camera.lookAt(rockTarget);
     },
   };

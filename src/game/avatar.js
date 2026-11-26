@@ -93,6 +93,7 @@ export function createAvatarUpdater({
   const fightTilt = { pitch: 0, roll: 0 }; // reused each frame: no allocation mid-fight
   function updateAvatar(s, dt, t) {
     const { cat } = s;
+    s.drawOff = player.climbOffset; // the climb jump's draw-only offset (game/composer.js applies it around the render)
     const p = PERSONALITIES[cat.userData.breed];
 
     // v18 CF-9a — where the PAWS are, as opposed to where the cat is drawn.
@@ -143,9 +144,11 @@ export function createAvatarUpdater({
     if (s.freezeTime > 0) s.freezeTime -= dt;
     // Clan Life Part 2: a fight holds the cat still (game/clanfight.js moves it).
     player.speedFactor = (s.freezeTime > 0 || s.perched || s.fight) ? 0 : player.stalking ? 0.45 : 1;
-    const wasPouncing = s.pounceTime > 0;
+    // a perch climb drawn as a jump (s.climbT, game/interactions.js) shares this pose window and the one landing thump
+    const wasPouncing = s.pounceTime > 0 || s.climbT > 0;
     if (s.pounceTime > 0) s.pounceTime -= dt;
-    if (wasPouncing && s.pounceTime <= 0) {
+    if (s.climbT > 0) s.climbT -= dt;
+    if (wasPouncing && !(s.pounceTime > 0) && !(s.climbT > 0)) {
       if (player.inWater) {
         audio.waterSplash('wade'); // landed in water: a splash, no sandy poof or thump
       } else {
@@ -240,7 +243,7 @@ export function createAvatarUpdater({
     // The moves (traversallive.js) say their own: stalk on a crossing and in
     // a hop's crouch, pounce in the air, land, follow while she looks across.
     else if (s.traversal?.pose) pose = s.traversal.pose;
-    else if (s.pounceTime > 0) pose = 'pounce';
+    else if (s.pounceTime > 0 || s.climbT > 0) pose = 'pounce';
     else if (s.landTime > 0) pose = 'land';
     // On a cow's back (farmanimals.js) she sits, and lying still as long as an
     // idle nap takes she curls up and naps there as the cow ambles on.
