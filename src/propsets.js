@@ -612,7 +612,7 @@ const YARN_SPOTS = {
     { x: -8, z: 2, where: 'by the sandy dunes' },
   ],
   crystal: [
-    { x: 20, z: 12, where: 'on the smooth stone' },
+    { x: 5, z: 12, where: 'on the smooth stone' },
     { x: -20, z: -8, where: 'by the crystal garden' },
   ],
   den: [
