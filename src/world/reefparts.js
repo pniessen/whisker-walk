@@ -164,7 +164,9 @@ export function shadePaint(g) {
     const nx = e1y * e2z - e1z * e2y; const ny = e1z * e2x - e1x * e2z; const nz = e1x * e2y - e1y * e2x;
     const up = Math.max(0, ny / (Math.hypot(nx, ny, nz) || 1));
     const wz = Math.sin(cx * 0.21 + 0.7) * Math.cos(cz * 0.17 - 0.3); // -1 (cool) .. 1 (warm)
-    const tr = (1 + 0.07 * up) * (1 + 0.05 * wz); const tb = (1 - 0.04 * up) * (1 - 0.06 * wz);
+    // round 5: the sea's light nets lie across everything that faces up (the same net as the sand's), brightest on the tops
+    const cn = Math.max(0, 1 - Math.abs(Math.sin(cx * 0.55 + Math.sin(cz * 0.4) * 1.6) + Math.sin(cz * 0.5 + Math.sin(cx * 0.45 + 1) * 1.6)) / 0.5);
+    const tr = (1 + 0.07 * up + 0.1 * up * cn * cn) * (1 + 0.05 * wz); const tb = (1 - 0.04 * up + 0.04 * up * cn * cn) * (1 - 0.06 * wz);
     for (let v = f; v < f + 3; v++) {
       const h = pos.getY(v) - P.reefY(pos.getX(v), pos.getZ(v));
       const near = h < 0.45 ? 1 - Math.max(0, h) / 0.45 : 0; // 1 on the sand, 0 at 0.45 m
@@ -238,24 +240,33 @@ export function drawSpawn(kit, M) {
 
 // ---- the coral ----------------------------------------------------------------------------------------------------------------
 
+// beauty round 5: no two clumps of one colour are quite the same colour (a seeded nudge of hue, saturation and lightness), and tips and rims run paler
+const _t = new THREE.Color();
+export function nudge(hex, a, b, c) { return _t.setHex(hex).offsetHSL(a, b, c).getHex(); }
 export function coralGeometry(k, i) {
-  const hue = COL.coral[k.hue];
-  const deep = COL.coralDeep[k.hue];
+  const j = hash3(Math.round(k.x * 10), 1, Math.round(k.z * 10));
+  const hue = nudge(COL.coral[k.hue], (j - 0.5) * 0.05, (j * 7 % 1 - 0.5) * 0.2, (j * 13 % 1 - 0.5) * 0.1);
+  const deep = nudge(COL.coralDeep[k.hue], (j - 0.5) * 0.05, 0, (j * 5 % 1 - 0.5) * 0.08);
+  const tip = nudge(COL.coral[k.hue], (j - 0.5) * 0.03, -0.1, 0.16);
   const parts = [];
   const s = k.s;
   const put = (geo, hex) => parts.push(paint(at(geo, k.x, k.z, 0, k.yaw), hex));
   if (k.kind === 'brain') {
     put(new THREE.SphereGeometry(s * 0.9, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.7, 1).translate(0, 0, 0), hue);
     put(new THREE.TorusGeometry(s * 0.55, s * 0.07, 4, 10).rotateX(Math.PI / 2).translate(0, s * 0.42, 0), deep);
+    put(new THREE.TorusGeometry(s * 0.3, s * 0.06, 3, 6).rotateX(Math.PI / 2).translate(0, s * 0.6, 0), tip); // a pale inner ridge
   } else if (k.kind === 'branch') {
     for (let b = 0; b < 4; b++) {
       const a = b * 1.7 + i;
       const h = s * (1.2 + 0.4 * ((b + i) % 3));
-      put(cyl(s * 0.04, s * 0.14, h, 5).translate(0, h / 2, 0).rotateZ(0.35 * Math.sin(a)).rotateX(0.35 * Math.cos(a)).translate(Math.cos(a) * s * 0.3, 0, Math.sin(a) * s * 0.3), b % 2 ? hue : deep);
+      const lz = 0.35 * Math.sin(a); const lx = 0.35 * Math.cos(a); const ox = Math.cos(a) * s * 0.3; const oz = Math.sin(a) * s * 0.3;
+      put(cyl(s * 0.04, s * 0.14, h, 5).translate(0, h / 2, 0).rotateZ(lz).rotateX(lx).translate(ox, 0, oz), b % 2 ? hue : deep);
+      put(new THREE.TetrahedronGeometry(s * 0.1, 0).translate(0, h, 0).rotateZ(lz).rotateX(lx).translate(ox, 0, oz), tip); // a pale bud at each tip
     }
   } else if (k.kind === 'fan') {
     put(new THREE.CircleGeometry(s * 0.95, 9, 0, Math.PI).translate(0, 0, 0).rotateX(0), hue);
     put(new THREE.CircleGeometry(s * 0.95, 9, 0, Math.PI).rotateY(Math.PI), deep);
+    put(new THREE.RingGeometry(s * 0.7, s * 0.95, 9, 1, 0, Math.PI).translate(0, 0, 0.01), tip); // a pale ruffled rim on the front
     put(cyl(s * 0.05, s * 0.07, s * 0.2, 4).translate(0, s * 0.1, 0), deep);
   } else if (k.kind === 'tube') {
     for (let b = 0; b < 3; b++) {
@@ -342,7 +353,7 @@ export function drawKelp() {
     eu.set(k.lean, k.phase, k.lean * 0.5, 'YXZ');
     q.setFromEuler(eu);
     pos.set(k.x, P.reefY(k.x, k.z) - 0.05, k.z);
-    sc.set(1, k.h, 1);
+    sc.set(0.7 + 0.8 * ((i * 0.737) % 1), k.h, 1); // round 5: broad and slim blades
     m4.compose(pos, q, sc);
     mesh.setMatrixAt(i, m4);
     const u = (i * 0.618) % 1;
