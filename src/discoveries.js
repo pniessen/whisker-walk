@@ -49,6 +49,11 @@ export const AWARDS = {
   reeffind: 12,
   reefstory: 40,
   reefjob: 25,
+  // The Crystal Cave (2026-11-26, ids reserved in milestone C0): one of its six finds, paid the first time ever; Lumi's glow errand of the
+  // day, once a walk; and the story's end (the Heart Crystal wakes), once ever.
+  cavefind: 12,
+  crystalstory: 40,
+  cavejob: 25,
   // The Greenhouse (ids reserved in milestone G2): one of its six finds, paid the first time ever; a job done (seeds sown, plants
   // watered), once a walk.
   greenhousefind: 12,

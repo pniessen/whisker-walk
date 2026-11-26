@@ -192,7 +192,7 @@ describe('the reserved ids', () => {
     expect(REEF_JOURNAL_TYPES).toEqual(['rfboat', 'rfoyster', 'rfseahorse', 'rfcave', 'rfchest', 'rfanchor', 'rfshells', 'rflanterns', 'rfparade', 'rfalbum', 'rferrand', 'rfrings']);
     for (const id of REEF_JOURNAL_TYPES) { expect(JOURNAL_TYPES).toContain(id); expect(REEF_PAGE_WORDS[id].name()).toMatch(/\S/); }
     expect(new Set(JOURNAL_TYPES).size).toBe(JOURNAL_TYPES.length);
-    expect(JOURNAL_TYPES.slice(-12)).toEqual(REEF_JOURNAL_TYPES);
+    expect(JOURNAL_TYPES.slice(-24, -12)).toEqual(REEF_JOURNAL_TYPES);
   });
   it('a journal page counts like any other (the sanitiser keeps it)', () => {
     expect(fresh({ journal: { rfparade: 2, rfnope: 4 } }).journal).toEqual({ rfparade: 2 });
@@ -210,7 +210,7 @@ describe('the golden mice', () => {
   it('three stub mice, two at float height, and the totals are 57 and 33', () => {
     expect(GOLD_MICE.reef.map((x) => x.id)).toEqual(['gm-reef-1', 'gm-reef-2', 'gm-reef-3']);
     expect(GOLD_MICE.reef.filter((x) => x.y >= 1.9).length).toBe(2);
-    expect(GOLD_TOTAL).toBe(57);
+    expect(GOLD_TOTAL).toBe(60);
     for (const mouse of GOLD_MICE.reef) expect(KNOWN_GOLD.has(mouse.id)).toBe(true);
   });
 });

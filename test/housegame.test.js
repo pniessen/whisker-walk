@@ -458,8 +458,8 @@ describe('a walk in the house', () => {
     expect(life.progression.recordGolden('gm-house-1')).toBe(true);
     expect(life.progression.recordGolden('gm-house-1')).toBe(false); // once
     expect(life.progression.state.golden).toContain('gm-house-1');
-    expect(goldForEdition('canon', CATALOG).size).toBe(57);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(33); // the house is Clan-only: Legacy's count is unmoved
+    expect(goldForEdition('canon', CATALOG).size).toBe(60);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(36); // the house is Clan-only: Legacy's count is unmoved
     expect(Object.hasOwn(GOLD_MICE, 'house')).toBe(true);
   }, 90_000);
 

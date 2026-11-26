@@ -23,6 +23,7 @@ const { build: buildLighthouse } = await import('../src/world/lighthouse.js');
 const { build: buildGreenhouse } = await import('../src/world/greenhouse.js');
 const { build: buildMoon } = await import('../src/world/moon.js');
 const { build: buildReef } = await import('../src/world/reef.js');
+const { build: buildCrystal } = await import('../src/world/crystal.js');
 const { HOUSE_LEVELS } = await import('../src/world/houseplan.js');
 const { measureHouse } = await import('./helpers/housebudget.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -532,6 +533,9 @@ const AREAS = [
   // every kelp blade and spire instance), +12%: 8 / 2 / 16,700. The plan's wing C figures were about 150 / 80 / 36,000: far under them on every count.
   // Beauty round 2 (2026-11-26: 70 strewn pebbles and shells, eight triangles each, in the existing 'paint' bucket) measured 7 / 1 / 15,405 built (+560), +12%: 8 / 2 / 17,200.
   ['reef', buildReef, 8, 2, 17200],
+  // The Crystal Cave. Milestone C0 (2026-11-26, the seams) is a stub floor: the 100 m ground plane alone, 1 / 0 / 5,408 like the Reef's stub, +12%: 2 / 1 / 6,100.
+  // Rows A and B come with milestones C1 and C5 (plan section 5: measured, then set).
+  ['crystal', buildCrystal, 2, 1, 6100],
   // Milestone R2 (Marlo and chapter one) adds only the coral ledge (no mesh more; about 200 triangles measured on top of R3: 7 / 2 / 10,700). Marlo, the shells, their glints, the picture bubble, the meow's ring and the air pockets are the walk's life, counted in test/reefmarlo.test.js
 ];
 

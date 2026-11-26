@@ -95,7 +95,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   // The Greenhouse's six finds and two jobs (src/greenhousepages.js; ids reserved in its milestone G2).
   'ghpalm', 'ghkoi', 'ghcatnip', 'ghorchid', 'ghcactus', 'ghbutterfly', 'ghjobseeds', 'ghjobwater',
   // The Reef's six discoveries and six activity pages (src/reefpages.js; ids reserved in its milestone R0).
-  'rfboat', 'rfoyster', 'rfseahorse', 'rfcave', 'rfchest', 'rfanchor', 'rfshells', 'rflanterns', 'rfparade', 'rfalbum', 'rferrand', 'rfrings'];
+  'rfboat', 'rfoyster', 'rfseahorse', 'rfcave', 'rfchest', 'rfanchor', 'rfshells', 'rflanterns', 'rfparade', 'rfalbum', 'rferrand', 'rfrings',
+  // The Crystal Cave's six discoveries and six activity pages (src/crystalpages.js; ids reserved in its milestone C0).
+  'ccrose', 'ccecho', 'ccpool', 'ccgold', 'ccgarden', 'ccheart', 'ccstonerose', 'ccstonesky', 'ccstonegold', 'ccshow', 'ccerrand', 'ccrubbings'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
@@ -116,7 +118,7 @@ const YMD_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 // headroom for future additions — its real job is capping the array so a
 // hostile cloud payload can't pad state.golden with thousands of
 // valid-shaped-but-fake ids and bloat the save past the localStorage quota.
-const GOLD_MAX_COUNT = 64;
+const GOLD_MAX_COUNT = 72;
 // Ceiling on state.streak.count: a ten-year unbroken daily streak. Matches
 // kitten.stage's Math.min clamp just below — asFiniteNonNegInt alone accepts
 // any finite non-negative integer (e.g. 1e15), which is a meaningless streak
@@ -408,6 +410,9 @@ export const CATALOG = {
     // The Reef (docs/superpowers/plans/2026-11-26-reef.md, R6): the same rule. Reached only by the Seaside's rock cleft at the pier foot
     // (src/teleport.js), free, after 2 Seaside walks, in both editions (no `edition` key); hidden while the gates switch is off.
     reef: { name: 'The Reef', price: 0, requires: { area: 'seaside', walks: 2 }, gate: 'tele' },
+    // The Crystal Cave (docs/superpowers/plans/2026-11-26-crystal-cave.md, C0): the same rule, reached by a Docks gate (milestone C6), free,
+    // after 2 Docks walks, both editions; hidden while the gates switch is off.
+    crystal: { name: 'The Crystal Cave', price: 0, requires: { area: 'docks', walks: 2 }, gate: 'tele' },
     // v18 Task 2.6 — the fourth walk area. The catalog is the ONLY place an
     // area has to be registered for the home-base picker: homebase.js renders
     // a card per CATALOG.areas entry, canBuy reads price + requires, and
@@ -533,7 +538,7 @@ function defaultState() {
     // the River: a save with no 'river' key would pin state.walks.river at NaN. And the Moor, the Pines and the Gorge: no 'moor', 'pines' or 'gorge' key, same NaN.
     // And the Farm: a save from before it loads with farm: 0. And the Fairground: fair: 0. And the Rooftops (in CATALOG.areas since Rooftops step 4): roofs: 0. And the Market Square (in CATALOG.areas since Market step 4): market: 0. And the Old House (in CATALOG.areas since its step 4): house: 0.
     // And Lighthouse Point (in CATALOG.areas since Lighthouse milestone 4): lighthouse: 0. And the Greenhouse (in CATALOG.areas since its G4, behind the gates switch): greenhouse: 0.
-    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0 },
+    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0 },
     // A COPY of STARTER_ACCESSORIES: buy() pushes into this array.
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: [...STARTER_ACCESSORIES], areas: ['neighborhood'] },
     equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null },
@@ -565,6 +570,9 @@ function defaultState() {
     // The Reef (docs/superpowers/plans/2026-11-26-reef.md, milestone R0): the story's step (0 to 7), the shells carried to Marlo (3 bits) and
     // the postcard album (12 bits). No errand: the day's errand is derived from the room seed. Additive: SAVE_VERSION stays 4.
     reef: { step: 0, shells: 0, album: 0 },
+    // The Crystal Cave (docs/superpowers/plans/2026-11-26-crystal-cave.md, C0): the story's step (0 to 7), the spark stones carried (3 bits) and the
+    // rubbings album (12 bits). Additive: SAVE_VERSION stays 4.
+    crystal: { step: 0, sparks: 0, album: 0 },
     den: { owned: [], placed: {} },
     // v18 Cat Skills. `skills` is the list of ability ids already earned —
     // stored rather than derived so a later threshold change can never
@@ -919,6 +927,12 @@ function sanitizeMoon(v) {
 // The Reef's save key: step capped at 7, shells at 3 bits, album at 12 bits. The shells are never fewer than the step implies (steps 2, 3
 // and 4 each delivered a shell), so a save cannot hold a later step with an earlier shell missing.
 const REEF_SHELLS_AT = [0, 0, 1, 3, 7, 7, 7, 7];
+const CRYSTAL_SPARKS_AT = [0, 0, 1, 3, 7, 7, 7, 7];
+function sanitizeCrystal(v) {
+  const n = (x, hi) => Math.min(hi, asFiniteNonNegInt(x, 0));
+  const step = n(v?.step, 7);
+  return { step, sparks: n(v?.sparks, 7) | CRYSTAL_SPARKS_AT[step], album: n(v?.album, 4095) };
+}
 function sanitizeReef(v) {
   const n = (x, hi) => Math.min(hi, asFiniteNonNegInt(x, 0));
   const step = n(v?.step, 7);
@@ -1244,6 +1258,7 @@ function sanitizeState(parsed) {
     race: sanitizeRace(parsed.race),
     moon: sanitizeMoon(parsed.moon),
     reef: sanitizeReef(parsed.reef),
+    crystal: sanitizeCrystal(parsed.crystal),
     den: sanitizeDen(parsed.den),
     skills: sanitizeSkills(parsed.skills),
     feats,

@@ -9,6 +9,8 @@ import { MOON_PAGES, MOON_PAGE_WORDS } from './moonpages.js';
 import { moonOn } from './moonflag.js';
 import { REEF_PAGES, REEF_PAGE_WORDS } from './reefpages.js';
 import { reefOn } from './reefflag.js';
+import { CRYSTAL_PAGES, CRYSTAL_PAGE_WORDS } from './crystalpages.js';
+import { crystalOn } from './crystalflag.js';
 import { GREENHOUSE_PAGES, GREENHOUSE_PAGE_WORDS } from './greenhousepages.js';
 import { greenhouseOn } from './greenhouseflag.js';
 import { RIDE_PAGE_WORDS, FAIR_PAGE_WORDS } from './fairwords.js';
@@ -90,6 +92,8 @@ export const CRITTER_INFO = [
   ...MOON_PAGES.map(([id, emoji]) => ({ id, emoji, moon: true, get name() { return MOON_PAGE_WORDS[id].name(); }, get hint() { return MOON_PAGE_WORDS[id].hint(); } })),
   // The Reef's twelve pages (src/reefpages.js): drawn only behind ?reef=1 until the gate hand-off.
   ...REEF_PAGES.map(([id, emoji]) => ({ id, emoji, reef: true, get name() { return REEF_PAGE_WORDS[id].name(); }, get hint() { return REEF_PAGE_WORDS[id].hint(); } })),
+  // The Crystal Cave's twelve pages (src/crystalpages.js): drawn only behind ?crystal=1 until the gate hand-off.
+  ...CRYSTAL_PAGES.map(([id, emoji]) => ({ id, emoji, crystal: true, get name() { return CRYSTAL_PAGE_WORDS[id].name(); }, get hint() { return CRYSTAL_PAGE_WORDS[id].hint(); } })),
   // The Greenhouse's eight pages (src/greenhousepages.js): drawn only behind ?greenhouse=1 until the place is in the game.
   ...GREENHOUSE_PAGES.map(([id, emoji]) => ({ id, emoji, greenhouse: true, get name() { return GREENHOUSE_PAGE_WORDS[id].name(); }, get hint() { return GREENHOUSE_PAGE_WORDS[id].hint(); } })),
 ];
@@ -107,7 +111,7 @@ export function renderJournalHtml(journal, goldenFound, goldenTotal, { chasedOff
   const j = journal && typeof journal === 'object' ? journal : {};
   const found = Number.isFinite(goldenFound) ? goldenFound : 0;
   const total = Number.isFinite(goldenTotal) ? goldenTotal : 0;
-  const cards = CRITTER_INFO.filter((c) => (!c.moon || moonOn()) && (!c.greenhouse || greenhouseOn()) && (!c.reef || reefOn())).map((c) => {
+  const cards = CRITTER_INFO.filter((c) => (!c.moon || moonOn()) && (!c.greenhouse || greenhouseOn()) && (!c.reef || reefOn()) && (!c.crystal || crystalOn())).map((c) => {
     const raw = j[c.id];
     const count = Number.isFinite(raw) ? raw : 0;
     if (count > 0) {
