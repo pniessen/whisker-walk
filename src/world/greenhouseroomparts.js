@@ -9,7 +9,8 @@
 import * as THREE from 'three';
 import { hash01 } from './warehouselook.js';
 import * as R from './greenhouserooms.js';
-import { frondGeometry, flowerGeometry, tint, collector, finishMesh, memo, stalk } from './greenhouseplants.js';
+import { frondGeometry, flowerGeometry, tint, shade, collector, finishMesh, memo, stalk } from './greenhouseplants.js';
+import { pavedGeometry } from './greenhouseglass.js';
 
 export const GH_ROOM_LOOK_SALT = 0x61a90;
 const TAU = Math.PI * 2;
@@ -30,6 +31,7 @@ export function roomPaths() {
   R.ROOM_PATHS.forEach(([x0, z0, x1, z1], k) => {
     const w = x1 - x0, d = z1 - z0;
     col.add(tint(new THREE.BoxGeometry(w, 0.05, d), 0xb9b2a0), (x0 + x1) / 2, 0.025, (z0 + z1) / 2, {});
+    col.add(pavedGeometry(w - 0.06, d - 0.06, 0xc4bda9, { cell: 1.2, seed: 0x7a0 + k, edge: 0.4, ao: 0.1 }), (x0 + x1) / 2, 0.052, (z0 + z1) / 2, {});
     // a few darker stones laid on it, a function of the place
     for (let i = 0; i < 4; i++) {
       const x = x0 + w * (0.15 + 0.7 * h01(k, i, 1)), z = z0 + d * (0.15 + 0.7 * h01(i, k, 2));
@@ -99,18 +101,21 @@ export function shyOrchidMesh() {
 
 // ---------------------------------------------------------------------------------------------
 // CACTUS HOUSE: soft clusters (a big rounded cactus, two small ones, a few pale tufts: no spike is drawn), the low walls with pots.
-const CACTUS_BODY = memo(() => tint(new THREE.CapsuleGeometry(0.34, 0.9, 3, 8), 0x5f9a5a));
-const CACTUS_SMALL = memo(() => tint(new THREE.CapsuleGeometry(0.17, 0.28, 2, 7), 0x6aa862));
-const CACTUS_ARM = memo(() => tint(new THREE.CapsuleGeometry(0.12, 0.3, 2, 6), 0x5f9a5a));
+// beauty round 2: ribbed (every other column darker), a darker foot and a sunlit crown, and three greens (blue-grey, leaf, yellow) picked on the hash
+const CACTUS_GREENS = [0x5f9a5a, 0x4f8f6a, 0x7aa24f];
+const cactusBodies = memo(() => CACTUS_GREENS.map((c) => shade(tint(new THREE.CapsuleGeometry(0.34, 0.9, 3, 8), c), { foot: 0.7, crown: 1.12, ribs: 4, ribDepth: 0.16 })));
+const cactusArms = memo(() => CACTUS_GREENS.map((c) => shade(tint(new THREE.CapsuleGeometry(0.12, 0.3, 2, 6), c), { foot: 0.85, crown: 1.1 })));
+const CACTUS_SMALL = memo(() => shade(tint(new THREE.CapsuleGeometry(0.17, 0.28, 2, 7), 0x6aa862), { foot: 0.75, crown: 1.12, ribs: 3, ribDepth: 0.14 }));
 const TUFT = memo(() => tint(new THREE.OctahedronGeometry(0.035, 0), 0xf3ecd2));
 export function cactusHouseDecor() {
   const col = collector();
   R.CACTUS_CLUSTERS.forEach((k, i) => {
     const big = lerp(0.95, 1.25, h01(k.x, k.z, 30));
-    col.add(CACTUS_BODY(), k.x, 0.45 * big, k.z, { scale: big });
+    const gi = Math.floor(h01(k.x, k.z, 29) * 3) % 3;
+    col.add(cactusBodies()[gi], k.x, 0.45 * big, k.z, { scale: big });
     // a soft arm each side
-    col.add(CACTUS_ARM(), k.x + 0.36 * big, 0.95 * big, k.z, { roll: -0.5, scale: big });
-    col.add(CACTUS_ARM(), k.x - 0.34 * big, 0.75 * big, k.z + 0.05, { roll: 0.5, scale: big });
+    col.add(cactusArms()[gi], k.x + 0.36 * big, 0.95 * big, k.z, { roll: -0.5, scale: big });
+    col.add(cactusArms()[gi], k.x - 0.34 * big, 0.75 * big, k.z + 0.05, { roll: 0.5, scale: big });
     // two small ones at its foot
     for (let s = 0; s < 2; s++) {
       const a = h01(k.x, k.z, 31 + s) * TAU;
