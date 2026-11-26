@@ -57,9 +57,9 @@ export function createReefLife({ scene, reducedMotion = false, tier, visits = 0,
   let lifted = false; // the cat has been set down at the ladder in this lift
   let clock = 0;
 
-  const say = (id) => {
+  const say = (text) => {
     if (!gauge) return;
-    gauge.line.textContent = phrase(id);
+    gauge.line.textContent = text;
     gauge.line.style.opacity = '1';
     lineLeft = LINE_SECONDS;
   };
@@ -98,14 +98,14 @@ export function createReefLife({ scene, reducedMotion = false, tier, visits = 0,
       if (kelpTime) kelpTime.value = reducedMotion ? 0 : clock;
 
       const ev = stepAir(air, dt);
-      if (ev === 'low') say('reef.air.low');
+      if (ev === 'low') say(phrase('reef.air.low'));
       if (ev === 'lift') {
-        say('reef.air.lift');
+        say(phrase('reef.air.lift'));
         audio?.chime?.();
         lifted = false;
         if (player) { player.halt?.(); player.clearFloat?.(); }
       }
-      if (ev === 'landed') { say('reef.air.full'); }
+      if (ev === 'landed') { say(phrase('reef.air.full')); }
 
       if (lifting(air)) {
         const p = liftProgress(air);

@@ -112,7 +112,7 @@ describe('where the float is read (and nowhere else)', () => {
     const base = avatarBaseY(ground, cat, { perchY: 0, hopY: 0, floatY: 0 }, {});
     expect(avatarBaseY(ground, cat, { perchY: 0, hopY: 0, floatY: 1.5 }, {})).toBeCloseTo(base + 1.5, 9);
     expect(avatarBaseY(ground, cat, { perchY: 0.7, hopY: 0.1, floatY: 0 }, {})).toBeCloseTo(base + 0.8, 9); // other places: as ever
-    expect(readFileSync('src/main.js', 'utf8')).toMatch(/player\.perchY \+ player\.floatY/);
+    expect(readFileSync('src/main.js', 'utf8')).toMatch(/player\.perchY \+ floatLift/);
     expect(liftForState(0, null, 1.5)).toEqual({ h: 1.5 });
     expect(liftForState(0.72, null)).toEqual({ h: 0.72 });
     expect(liftForState(0, null)).toEqual({});

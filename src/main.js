@@ -1441,8 +1441,9 @@ function init() {
       session.rustle?.update(dt, session.cat.position);
       // Gorge part 1: the paws' world height, the ground under the cat plus perchY.
       // Under the sea (the Reef) her paws are the float height higher: the two golden mice that hang in bubble columns are reached by floating
-      const pawsY = session.ground.flat ? player.perchY + player.floatY
-        : session.ground.y(session.cat.position.x, session.cat.position.z) + player.perchY + player.floatY;
+      const floatLift = +player.floatY || 0; // a number always (the Reef's float height, 0 everywhere else)
+      const pawsY = session.ground.flat ? player.perchY + floatLift
+        : session.ground.y(session.cat.position.x, session.cat.position.z) + player.perchY + floatLift;
       const gm = session.goldMice.checkFind(session.cat.position, pawsY);
       if (gm && progression.recordGolden(gm.id)) {
         log.awardOnce('legend', gm.id, 'a GOLDEN MOUSE! 🥇');
