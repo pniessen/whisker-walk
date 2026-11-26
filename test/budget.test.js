@@ -22,6 +22,7 @@ const { build: buildHouse } = await import('../src/world/house.js');
 const { build: buildLighthouse } = await import('../src/world/lighthouse.js');
 const { build: buildGreenhouse } = await import('../src/world/greenhouse.js');
 const { build: buildMoon } = await import('../src/world/moon.js');
+const { build: buildReef } = await import('../src/world/reef.js');
 const { HOUSE_LEVELS } = await import('../src/world/houseplan.js');
 const { measureHouse } = await import('./helpers/housebudget.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -513,6 +514,9 @@ const AREAS = [
   // Milestone 8 (the Lava Tube: the Cave Massif, the tube's shell and its floor and crystals are three meshes of their own, none a caster; the Old Dish's ledge and the
   // Core's third socket are in the kit's buckets) measured 25 / 8 / 27,586 built (34,486 counting every rock instance), +12%: 28 / 9 / 30,900. The plan's row D (end of milestone 8) is 184 / 100 / 46,500.
   ['moon', buildMoon, 28, 9, 30900],
+  // The Reef. Milestone R0 (2026-11-26, the seams) is a stub seabed: the 130 m ground plane alone, measured 1 / 0 / 5,408, +12%: 2 / 1 / 6,100.
+  // Rows A, B and C come with milestones R1, R5 and R8 (plan section 7: measured, then set).
+  ['reef', buildReef, 2, 1, 6100],
 ];
 
 // ---------------------------------------------------------------------------

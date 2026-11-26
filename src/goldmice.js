@@ -215,10 +215,17 @@ export const GOLD_MICE = {
     { id: 'gm-green-2', x: -11.2, z: -16.9, y: 0 },
     { id: 'gm-green-3', x: -34, z: 20, y: 0.8 },
   ],
+  // The Reef (milestone R0: stub spots, refined in R3 with src/world/reefplan.js; `y` is metres over the seabed): one on the sand behind
+  // the Sunken Boat, and two at float height in bubble columns (1.9 m and 2.0 m: reachable only by floating, floatY inside checkFind's window).
+  reef: [
+    { id: 'gm-reef-1', x: -36, z: -30, y: 0 },
+    { id: 'gm-reef-2', x: 14, z: -4, y: 1.9 },
+    { id: 'gm-reef-3', x: 20, z: 6, y: 2.0 },
+  ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 54 (seventeen areas x three, and the island's three; 51 before the Greenhouse, 48 before the Moon)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 57 (eighteen areas x three, and the island's three; 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
 
 // The golden mice a player of `edition` can reach: those in the areas the
 // edition shows (Legacy hides the Clan Edition territories; see edition.js).

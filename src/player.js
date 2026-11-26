@@ -741,11 +741,17 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
   // The water state (src/waterstate.js): one object for the player's whole
   // life, reset in place by setAvatar, exposed as api.waterState.
   const waterState = createWaterState();
+  let floatLift = 0; // the Reef's float height (api.floatY), 0 until milestone R1
 
   const api = {
     locked: false,
     speedFactor: 1, // 0 while frozen by a scare; 1 normally
     perchY: 0,
+    // The Reef's float height above the seabed (milestone R0: the placeholder, always 0; R1 implements the float). Read-only, never saved,
+    // never written to perchY, cleared on perch, nap and walk end (setAvatar). Only the readers in test/reefseams.test.js's allow-list may read it.
+    get floatY() {
+      return floatLift;
+    },
     // Written by update from the water state, read from where the cat stood at
     // the top of the frame:
     //   water    — 'dry' | 'wade' | 'swim';
@@ -775,6 +781,7 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
       pitch = DEFAULT_PITCH;
       velocity.set(0, 0, 0);
       api.perchY = 0;
+      floatLift = 0;
       touchMove = null;
       touchEngaged = false;
       inputYaw = null;
