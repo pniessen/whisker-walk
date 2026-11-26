@@ -39,7 +39,7 @@ describe('the plan', () => {
     expect([at('pool').x, at('pool').z]).toEqual([14, -4]);
     expect([at('gold').x, at('gold').z]).toEqual([-6, -22]);
     expect([at('heart').x, at('heart').z]).toEqual([22, -22]);
-    expect([P.ARCH.x, P.ARCH.z]).toEqual([0, 31]);
+    expect([P.ARCH.x, P.ARCH.z]).toEqual([0, 24.5]);
   });
   it('every coordinate of the plan is inside the bounds (zones, arch, clusters, colliders, wander spots, glints, mice)', () => {
     for (const z of P.ZONES) expect(inside(z.x, z.z), z.id).toBe(true);
@@ -142,10 +142,10 @@ describe('the built place', () => {
     expect(area.duskLight.fogNear).toBe(5);
     expect(area.duskLight.fogFar).toBe(38);
   });
-  it('the spawn is clear: no collider within 1.5 m of the paws, and the arch\'s two pillars flank it at (0, 31)', () => {
+  it('the spawn is clear: no collider within 1.5 m of the paws, and the arch\'s two pillars flank it at (0, 24.5)', () => {
     for (const c of area.colliders) expect(Math.hypot(c.x - 0, c.z - 28), JSON.stringify(c)).toBeGreaterThan(c.r + 1.5);
     expect(area.colliders.length).toBeGreaterThan(8);
-    expect(area.colliders.filter((c) => c.z === 31)).toHaveLength(2);
+    expect(area.colliders.filter((c) => c.z === 24.5)).toHaveLength(2);
   });
   it('every zone, wander spot and mouse place is reachable on foot from the spawn with no skills', () => {
     const g = area.ground;
@@ -240,6 +240,23 @@ describe('the light, the pulse and the glints', () => {
     l.update(0.016, 1.1);
     l.dispose();
     for (const v of scalars(l)) expect(v).toBe(1);
+  });
+});
+
+describe('the gate\'s landing', () => {
+  it('every landing point of the crystal end is inside the cave bounds, clear of colliders, on the spawn court, facing the arch', async () => {
+    const { TELE_ENDS } = await import('../src/teleport.js');
+    const { arrivalFor } = await import('../src/gateways.js');
+    const { area } = built();
+    for (const e of TELE_ENDS.crystal) {
+      const a = arrivalFor(e.twin, TELE_ENDS);
+      expect(a.areaId).toBe('crystal');
+      expect(inside(a.x, a.z, 2), JSON.stringify(a)).toBe(true);
+      for (const c of area.colliders) expect(Math.hypot(a.x - c.x, a.z - c.z), JSON.stringify(c)).toBeGreaterThan(c.r + 1);
+      expect(Math.hypot(a.x - P.CRYSTAL_SPAWN.x, a.z - P.CRYSTAL_SPAWN.z)).toBeLessThan(1);
+      expect(e.z).toBe(P.ARCH.z);
+      expect(e.x).toBe(P.ARCH.x);
+    }
   });
 });
 

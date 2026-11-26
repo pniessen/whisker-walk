@@ -29,8 +29,8 @@ export const ZONES = Object.freeze([
 ]);
 export const zoneAt = (x, z) => ZONES.find((k) => Math.hypot(x - k.x, z - k.z) <= k.r)?.id ?? null;
 
-// ---- the spawn: the return arch (the C6 gate marks it `own`; it stands at (0, 31) facing north, like the Reef's) --------------
-export const ARCH = Object.freeze({ x: 0, z: 31, w: 4.4, h: 3.4, depth: 1.1 });
+// ---- the spawn: the return arch (the C6 gate marks it `own`; it stands at (0, 24.5) facing north, like the Reef's) --------------
+export const ARCH = Object.freeze({ x: 0, z: 24.5, w: 4.4, h: 3.4, depth: 1.1 });
 
 // ---- the floor ------------------------------------------------------------------------------------------------------------
 // One smooth stone floor between 0 and FLOOR_MAX, flat round the spawn court and the entry hall, steeper than 0.5 nowhere. Past the walkable bounds
