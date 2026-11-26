@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { dustGeometry } from './moonbeauty.js';
+import { dustGeometry, machineTone, treadTone } from './moonbeauty.js';
 import { litMaterial } from '../render/materials.js';
 import * as P from './moonplan.js';
 import { trackPosts } from './moonrover.js';
@@ -59,7 +59,31 @@ export function buildDot() {
   // a front grille and a spare small crate on the back
   put(box(0.6, 0.12, 0.04).translate(0, 0.7, 1.37), C.dark);
   put(box(0.4, 0.2, 0.3).translate(0.3, 0.78, -1.32), C.panel);
-  const body = new THREE.Mesh(dustGeometry(mergeGeometries(parts), () => 0, { reach: 1.7, gain: 3.4 }), litMaterial(0xffffff, { vertexColors: true, roughness: 0.55 }));
+  // (beauty round 4) fittings: a belt line and a door seam along each flank, a housing round each headlamp and tail lamp, vent slats on the battery box, a dark rear bumper with
+  // a hazard bar, mud flaps behind the rear wheels, a stitched strip on each cushion and a tow eye at the nose.
+  for (const s of [-1, 1]) {
+    put(box(0.02, 0.014, 2.46).translate(s * 0.765, 0.67, 0), C.steel);
+    put(box(0.02, 0.2, 0.014).translate(s * 0.765, 0.58, 0.55), C.steel);
+    put(box(0.02, 0.2, 0.014).translate(s * 0.765, 0.58, -0.55), C.steel);
+    put(cyl(0.19, 0.19, 0.08, 8).rotateX(Math.PI / 2).translate(s * 0.44, 0.74, 1.34), C.dark);
+    put(box(0.14, 0.12, 0.05).translate(s * 0.5, 0.78, -1.25), C.dark);
+    put(box(0.04, 0.3, 0.26).translate(s * 0.9, 0.45, -1.28), C.dark);
+  }
+  for (let i = 0; i < 3; i++) put(box(0.5, 0.025, 0.02).translate(0, 0.84 + i * 0.1, -1.24), C.dark);
+  put(box(1.46, 0.1, 0.1).translate(0, 0.5, -1.3), C.dark);
+  put(box(0.5, 0.05, 0.12).translate(0.45, 0.5, -1.36), C.panel);
+  put(box(0.5, 0.05, 0.12).translate(-0.45, 0.5, -1.36), C.panel);
+  for (const s of DOT_SEATS) put(box(0.38, 0.012, 0.4).translate(s.x, s.y - 0.012, s.z), 0x5a6478);
+  put(cyl(0.05, 0.05, 0.12, 6).rotateX(Math.PI / 2).translate(0, 0.52, 1.46), C.steel);
+  put(box(0.22, 0.012, 0.74).translate(0, 0.875, 0.98), C.trim); // a racing stripe down the bonnet
+  put(box(0.08, 0.012, 0.74).translate(0.19, 0.875, 0.98), C.panel);
+  put(box(0.08, 0.012, 0.74).translate(-0.19, 0.875, 0.98), C.panel);
+  for (const s of [-1, 1]) { // a round badge on each flank: a teal disc with a pale ring
+    put(cyl(0.17, 0.17, 0.02, 10).rotateZ(Math.PI / 2).translate(s * 0.785, 0.62, 0.82), C.trim);
+    put(cyl(0.1, 0.1, 0.026, 10).rotateZ(Math.PI / 2).translate(s * 0.79, 0.62, 0.82), C.body);
+  }
+  const hull = mergeGeometries(parts);
+  const body = new THREE.Mesh(dustGeometry(machineTone(hull), () => 0, { reach: 1.7, gain: 3.4 }), litMaterial(0xffffff, { vertexColors: true, roughness: 0.55 }));
   body.name = 'dot:body';
   // the headlamp and the tail lamps: one mesh (a basic material the life brightens: a flash on a honk)
   const lampGeo = mergeGeometries([
@@ -80,7 +104,7 @@ export function buildDot() {
       g.push(col(cyl(w.r * 0.5, w.r * 0.5, w.w + 0.04, 6).rotateZ(Math.PI / 2).translate(s * w.x, 0, 0), C.hub));
       g.push(col(box(w.w + 0.05, 0.07, 0.07).translate(s * w.x, w.r * 0.7, 0), C.panel)); // a mark on the rim, so the turning shows
     }
-    const m = new THREE.Mesh(dustGeometry(mergeGeometries(g), () => -w.r, { reach: 1.4, gain: 3.2 }), tyreMat);
+    const m = new THREE.Mesh(dustGeometry(treadTone(mergeGeometries(g)), () => -w.r, { reach: 1.4, gain: 3.2 }), tyreMat);
     m.name = `dot:axle${i}`;
     m.position.set(0, w.r, z);
     return m;
