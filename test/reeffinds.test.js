@@ -39,15 +39,13 @@ describe('each find is found by its rule', () => {
       expect(F.findAt(spot({ x: z.x + z.r + 0.3, z: z.z, still: 9 })), `${id} outside`).toBe(null);
     }
   });
-  it('the boat, the anchor and the cave are ready but inactive: the rule finds nothing until R8 turns them on', () => {
-    for (const id of ['boat', 'anchor', 'cave']) {
+  it('the boat, the anchor and the cave are live since R8: the boat and the cave on arrival, the anchor after a second\'s stillness, never from outside the ring', () => {
+    for (const [id, secs] of [['boat', 0], ['cave', 0], ['anchor', 1]]) {
       const z = mid(id);
-      expect(z.active, id).toBe(false);
-      expect(F.findAt(spot({ x: z.x, z: z.z, still: 9 })), id).toBe(null);
-      expect(F.findAt(spot({ x: z.x, z: z.z, still: 9 }), Z, { all: true }), `${id} with all`).toBe(id);
-      // switching one on in a copy of the plan finds it, nothing else changes
-      const on = { ...Z, [id]: [{ ...z, active: true }] };
-      expect(F.findAt(spot({ x: z.x, z: z.z, still: z.still }), on)).toBe(id);
+      expect(z.active, id).toBe(true);
+      expect(F.findAt(spot({ x: z.x, z: z.z, still: secs })), id).toBe(id);
+      if (secs > 0) expect(F.findAt(spot({ x: z.x, z: z.z, still: secs - 0.1 })), `${id} too soon`).toBe(null);
+      expect(F.findAt(spot({ x: z.x + z.r + 0.3, z: z.z, still: 9 })), `${id} outside`).toBe(null);
     }
   });
   it('the float height never matters: the rule reads where she stands and how still, not floatY', () => {
@@ -170,8 +168,8 @@ describe('the collectibles and scenic spots', () => {
       expect(Math.hypot(c.x - area.spawn.x, c.z - area.spawn.z), c.id).toBeGreaterThan(8);
     }
   });
-  it('three scenic spots, in the bounds, each in its own zone', () => {
-    expect(area.scenics.map((s) => P.zoneAt(s.x, s.z))).toEqual(['kelp', 'coral', 'flats']);
+  it('five scenic spots (three, and the Deep\'s boat and cave from R8), each in its own zone', () => {
+    expect(area.scenics.map((s) => P.zoneAt(s.x, s.z))).toEqual(['kelp', 'coral', 'flats', 'deep', 'deep']);
     for (const s of area.scenics) for (const id of Q.REEF_FIND_IDS) expect(Math.hypot(s.x - mid(id).x, s.z - mid(id).z), `${s.id} by ${id}`).toBeGreaterThan(mid(id).r + 1.5);
   });
   it('the three live finds and the two bubble columns are drawn, each in one merged mesh; the shared glow is hidden', () => {
@@ -219,10 +217,12 @@ describe('the life notes a find while she stands still', () => {
     for (let i = 0; i < 90; i++) r.step(1 / 30, { x: z.x - 1 + i * 0.03, y: 0, z: z.z });
     expect(r.progression.state.journal.rfchest ?? 0).toBe(0);
   });
-  it('the three placeholder finds find nothing even when she stands in them for a while', () => {
+  it('the boat, the anchor and the cave each pay 12 the first time ever and show the glow, once', () => {
     r = make();
-    for (const id of ['boat', 'anchor', 'cave']) r.step(10, { x: mid(id).x, y: 0, z: mid(id).z });
-    expect(r.progression.state.points).toBe(0);
+    for (const id of ['boat', 'anchor', 'cave']) r.step(3, { x: mid(id).x, y: 0, z: mid(id).z });
+    expect(r.progression.state.points).toBe(36);
+    for (const page of ['rfboat', 'rfanchor', 'rfcave']) expect(r.progression.state.journal[page]).toBe(1);
+    expect(r.heard.filter((e) => e.type === 'reeffind')).toHaveLength(3);
   });
   it('under reduced motion the glow does not grow; disposing removes it', () => {
     r = make({ reducedMotion: true });

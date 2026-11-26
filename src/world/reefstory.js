@@ -7,6 +7,7 @@
 
 import { REEF_BOUNDS, reefColliders, reefY } from './reefplan.js';
 import { SHELL_THREE, CAVE_POCKET, wingColliders } from './reefwing.js';
+import { DEEP_POCKETS, deepColliders } from './reefdeep.js';
 
 // Marlo, the hermit crab: waits on the sand beside the ladder; once met he follows at a shy distance and waits.
 export const MARLO = Object.freeze({
@@ -36,7 +37,7 @@ export const LEDGE = Object.freeze({ x: 17.2, z: 1.6, r: 1.1, h: 1.4 });
 // All three shells in the order Marlo wants them (milestone R5 adds the just-right one, in the cave behind the coral).
 export const STORY_SHELLS = Object.freeze([...SHELLS, SHELL_THREE]);
 // What is solid in the story: the ledge and (milestone R5) the cave's boulders, the lantern corals and the wing's spires and larger clumps.
-export const storyColliders = () => [Object.freeze({ x: LEDGE.x, z: LEDGE.z, r: LEDGE.r }), ...wingColliders()];
+export const storyColliders = () => [Object.freeze({ x: LEDGE.x, z: LEDGE.z, r: LEDGE.r }), ...wingColliders(), ...deepColliders()];
 
 // The first air pockets: columns of fresh bubbles; swimming into one fills the gauge (a pocket gives its air again after `again` seconds).
 export const POCKETS = Object.freeze([
@@ -44,6 +45,7 @@ export const POCKETS = Object.freeze([
   Object.freeze({ x: -13, z: 22 }), // by the Kelp Garden's edge
   Object.freeze({ x: 11.5, z: 5.5 }), // by the coral ledge
   Object.freeze({ x: CAVE_POCKET.x, z: CAVE_POCKET.z }), // milestone R5: ringing the cave floor where shell three lies (it teaches that a pocket gives air again)
+  ...DEEP_POCKETS, // milestone R8: the third chain, out from the Sandy Flats to the Glow Cave's mouth
 ]);
 export const POCKET = Object.freeze({ r: 1.4, again: 14, height: 2.6 });
 

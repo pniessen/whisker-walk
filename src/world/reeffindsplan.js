@@ -1,10 +1,12 @@
 // =============================================================================
 // THE REEF: THE FINDS' PLAN (milestone R3). Where the six discoveries are, the eight collectibles, the three golden mice (the same three as
 // src/goldmice.js; test/reefgold.test.js holds the two lists equal), the three scenic spots and the two bubble columns. Pure data: no THREE, no clock, no rng.
-// Three discoveries are live now (the Pearl Oyster, the Kelp Garden seahorse, the Treasure Chest). The Sunken Boat, the Old Anchor and the Glow Cave
-// are built in milestone R8: their positions here are placeholders in the Deep (the places the plan names) and their rules are `active: false` until R8
-// turns them on. North is -z; heights are metres over the seabed. docs/superpowers/plans/2026-11-26-reef.md sections 3.4, 6 and 8.
+// All six discoveries are live: the Pearl Oyster, the Kelp Garden seahorse and the Treasure Chest (milestone R3), and the Sunken Boat, the Old Anchor and the
+// Glow Cave (milestone R8: their real positions and rules are world/reefdeep.js's, re-exported here). North is -z; heights are metres over the seabed.
+// docs/superpowers/plans/2026-11-26-reef.md sections 3.4, 6 and 8.
 // =============================================================================
+
+import { DEEP_FIND_ZONES, DEEP_SCENICS } from './reefdeep.js';
 
 const P2 = (x, z) => Object.freeze({ x, z });
 
@@ -12,12 +14,12 @@ const P2 = (x, z) => Object.freeze({ x, z });
 // { x, z, r, still, active }: she finds it standing within r (horizontal; the float height never matters) for `still` seconds. The middles are the
 // first ring of the plan's zone keep-outs (reefplan.js KEEP_OUT): no kelp or coral stands on them.
 export const REEF_FIND_ZONES = Object.freeze({
-  boat: Object.freeze([Object.freeze({ x: -32, z: -34, r: 3.5, still: 0, active: false })]), // R8: the Sunken Boat, in the Deep
+  boat: Object.freeze([DEEP_FIND_ZONES.boat]), // R8: the Sunken Boat, in the Deep (the hull's middle; walking by or floating over finds it)
   oyster: Object.freeze([Object.freeze({ x: 17.5, z: -1.5, r: 1.5, still: 1.2, active: true })]), // the Coral Garden: the pearl shows once she waits
   seahorse: Object.freeze([Object.freeze({ x: -22.5, z: 14.5, r: 1.7, still: 2, active: true })]), // the Kelp Garden: stand still among the kelp
-  cave: Object.freeze([Object.freeze({ x: -42, z: -36, r: 2.5, still: 0, active: false })]), // R8: the Glow Cave's mouth, far west of the Deep
+  cave: Object.freeze([DEEP_FIND_ZONES.cave]), // R8: the Glow Cave's floor, far west of the Deep
   chest: Object.freeze([Object.freeze({ x: -6.5, z: -15.5, r: 1.4, still: 0.6, active: true })]), // the Sandy Flats
-  anchor: Object.freeze([Object.freeze({ x: -22, z: -27, r: 1.8, still: 1, active: false })]), // R8: the Old Anchor, half in the sand
+  anchor: Object.freeze([DEEP_FIND_ZONES.anchor]), // R8: the Old Anchor, half in the sand
 });
 export const REEF_FIND_IDS = Object.freeze(['boat', 'oyster', 'seahorse', 'cave', 'chest', 'anchor']);
 
@@ -46,7 +48,8 @@ export const REEF_SCENICS = Object.freeze([
   Object.freeze({ id: 'reef-kelp', x: -29, z: 21, label: 'the Kelp Garden' }),
   Object.freeze({ id: 'reef-coral', x: 10, z: 4, label: 'the Coral Garden' }),
   Object.freeze({ id: 'reef-flats', x: -12, z: -19, label: 'the Sandy Flats' }),
+  ...DEEP_SCENICS, // R8: the Sunken Boat and the Glow Cave
 ]);
 
 // ---- the markers the three live finds draw (a Pearl Oyster, a seahorse, a Treasure Chest), one merged mesh (reeffindparts.js) ----------------------
-export const REEF_FIND_MARKS = Object.freeze({ oyster: P2(17.5, -1.5), seahorse: P2(-22.5, 14.5), chest: P2(-6.5, -15.5) });
+export const REEF_FIND_MARKS = Object.freeze({ oyster: P2(17.5, -1.5), seahorse: P2(-22.5, 14.5), chest: P2(-6.5, -15.5), boat: P2(DEEP_FIND_ZONES.boat.x, DEEP_FIND_ZONES.boat.z), anchor: P2(DEEP_FIND_ZONES.anchor.x, DEEP_FIND_ZONES.anchor.z), cave: P2(DEEP_FIND_ZONES.cave.x, DEEP_FIND_ZONES.cave.z) });

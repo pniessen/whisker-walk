@@ -24,7 +24,7 @@ export const ZONES = Object.freeze([
   Z('kelp', -24, 16, 12, 'Kelp Garden'),
   Z('coral', 16, 0, 14, 'Coral Garden'),
   Z('flats', -8, -14, 12, 'Sandy Flats'),
-  Z('deep', -32, -34, 12, 'The Deep'),
+  Z('deep', -36, -33.5, 13.5, 'The Deep'), // (R8: the middle moved to the open sand between the boat's bow and the cave, so it can be stood on; the plan's (-32, -34) is the boat's bow)
 ]);
 export const zoneAt = (x, z) => ZONES.find((k) => Math.hypot(x - k.x, z - k.z) <= k.r)?.id ?? null;
 
