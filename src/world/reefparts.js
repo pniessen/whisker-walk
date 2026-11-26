@@ -396,3 +396,52 @@ export function drawPebbles(kit, M) {
     made++;
   }
 }
+
+// Beauty round 6: the seabed's small life, all in the one 'paint' bucket (no new draw): tufts of seagrass (three leaning blades, green to yellow-green),
+// starfish (five flat arms, a paler middle) and sea urchins (a dark purple body with pale spines), strewn from their own seeded stream, thickest round the coral.
+export function drawSeabedLife(kit, M) {
+  const rng = mulberry32(0x73656167);
+  const near = P.scatterCoral().map((k) => [k.x, k.z, k.s + 1.5]);
+  const cols = P.reefColliders();
+  const okSpot = (x, z) => Math.hypot(x - P.REEF_SPAWN.x, z - P.REEF_SPAWN.z) > 6 && Math.hypot(x + 32.8, z + 31.5) > 3.6 && !cols.some((c) => Math.hypot(x - c.x, z - c.z) < c.r + 0.3)
+    && x > P.REEF_BOUNDS.minX + 2 && x < P.REEF_BOUNDS.maxX - 2 && z > P.REEF_BOUNDS.minZ + 2 && z < P.REEF_BOUNDS.maxZ - 2;
+  const spot = () => {
+    if (rng() < 0.6) { const c = near[Math.floor(rng() * near.length)]; const a = rng() * Math.PI * 2; const r = c[2] * (0.6 + rng() * 0.9); return [c[0] + Math.cos(a) * r, c[1] + Math.sin(a) * r]; }
+    return [P.REEF_BOUNDS.minX + rng() * (P.REEF_BOUNDS.maxX - P.REEF_BOUNDS.minX), P.REEF_BOUNDS.minZ + rng() * (P.REEF_BOUNDS.maxZ - P.REEF_BOUNDS.minZ)];
+  };
+  const grass = [0x3f9a55, 0x5fae4f, 0x7cba5a, 0x4a9a6a];
+  for (let n = 0, t = 0; n < 90 && t < 900; t++) {
+    const [x, z] = spot();
+    if (!okSpot(x, z)) continue;
+    const gc = grass[Math.floor(rng() * grass.length)];
+    for (let b = 0; b < 3; b++) {
+      const h = 0.35 + rng() * 0.4;
+      const a = rng() * Math.PI * 2;
+      kit.put('paint', M.paint, paint(at(new THREE.ConeGeometry(0.035, h, 3, 1, true).translate(0, h / 2, 0).rotateZ(0.25 + rng() * 0.3).rotateY(a), x, z, -0.02), nudge(gc, 0, 0, (b - 1) * 0.05)), { noCast: true });
+    }
+    n++;
+  }
+  const stars = [0xe8703c, 0xe8a04b, 0xd8503c, 0xe8c34a];
+  for (let n = 0, t = 0; n < 12 && t < 400; t++) {
+    const [x, z] = spot();
+    if (!okSpot(x, z)) continue;
+    const sc = stars[Math.floor(rng() * stars.length)];
+    const yaw = rng() * 3;
+    for (let a = 0; a < 5; a++) {
+      const arm = new THREE.ConeGeometry(0.05, 0.3, 3, 1, true).translate(0, 0.15, 0).rotateX(Math.PI / 2).scale(1, 0.35, 1).rotateY((a * Math.PI * 2) / 5);
+      kit.put('paint', M.paint, paint(at(arm, x, z, 0.03, yaw), sc), { noCast: true });
+    }
+    kit.put('paint', M.paint, paint(at(new THREE.OctahedronGeometry(0.07, 0).scale(1, 0.5, 1), x, z, 0.05), nudge(sc, 0, -0.1, 0.15)), { noCast: true });
+    n++;
+  }
+  for (let n = 0, t = 0; n < 9 && t < 400; t++) {
+    const [x, z] = spot();
+    if (!okSpot(x, z)) continue;
+    kit.put('paint', M.paint, paint(at(new THREE.IcosahedronGeometry(0.11, 0).scale(1, 0.8, 1), x, z, 0.09), 0x5a3a78), { noCast: true });
+    for (let a = 0; a < 5; a++) {
+      const th = (a * Math.PI * 2) / 5 + rng();
+      kit.put('paint', M.paint, paint(at(new THREE.ConeGeometry(0.02, 0.16, 3, 1, true).translate(0, 0.08, 0).rotateZ(1.0 + rng() * 0.5).rotateY(th), x, z, 0.1), 0xc9b4d8), { noCast: true });
+    }
+    n++;
+  }
+}

@@ -44,6 +44,7 @@ export function build(scene) {
     K.drawSpawn(kit, M);
     K.drawCoral(kit, M);
     K.drawPebbles(kit, M);
+    K.drawSeabedLife(kit, M); // round 6: seagrass, starfish and sea urchins
     drawLedge(kit, M); // the coral ledge that holds shell two (R2)
     drawCave(kit, M); // wing B (R5): the shallow cave that holds shell three, the lantern corals' stalks and the clumps at three heights
     drawLanternStalks(kit, M);
