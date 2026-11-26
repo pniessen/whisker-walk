@@ -73,7 +73,7 @@ describe('the flag', () => {
         // call) NOT a fading window: no userData.window, so the building fade never hides the frame or the cat behind it
         let panes = 0;
         s.scene.traverse((o) => { if (o.isMesh && o.userData.glassHouse) { panes++; expect(o.material.transparent).toBe(true); expect(o.userData.window).toBeUndefined(); } });
-        expect(panes).toBe(1);
+        expect(panes).toBe(4); // the Palm House and the three stage-B rooms
         expect(s.scene.getObjectByName('glassMist')).toBeTruthy();
       } finally { endIfWalking(l); }
     }, 90_000);

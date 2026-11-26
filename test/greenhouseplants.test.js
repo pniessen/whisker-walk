@@ -29,14 +29,14 @@ describe('the plants are a few merged meshes, with palms the only casters', () =
     expect(named('ghPalms').castShadow).toBe(true);
     for (const n of ['ghFoliage', 'ghOrchids', 'ghKoi', 'ghBench', 'ghKitchenBed', 'ghPots']) { expect(named(n).castShadow, n).toBe(false); expect(named(n).userData.noCast, n).toBe(true); }
   });
-  it('the triangles stay inside the milestone\'s numbers (plants about 17,000, the whole build under 45,000 with 62,000 the ceiling)', () => {
+  it('the triangles stay inside the milestone\'s numbers (plants about 17,000, the whole build under 62,000 with the three rooms of milestone G6 in: 54,904 measured)', () => {
     const plantTris = ['ghPalms', 'ghFoliage', 'ghOrchids', 'ghKoi'].reduce((n, k) => n + tris(named(k)), 0);
     expect(plantTris).toBeGreaterThan(8000);
     expect(plantTris).toBeLessThan(18000);
     let meshes = 0, casters = 0, all = 0;
     scene.traverse((o) => { if (o.isMesh) { meshes++; all += tris(o); if (o.castShadow && !o.userData.noCast) casters++; } });
-    expect(all).toBeLessThan(45000);
-    expect(meshes).toBeLessThan(60);
+    expect(all).toBeLessThan(62000);
+    expect(meshes).toBeLessThan(150);
     expect(casters).toBeLessThan(10);
   });
   it('six palms, each with a trunk and a crown, are placed where the plan says; two builds are identical', () => {

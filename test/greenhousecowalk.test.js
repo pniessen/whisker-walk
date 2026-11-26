@@ -33,7 +33,10 @@ describe('the same room seed, the same packets and the same pots', () => {
       expect(a.life.state.set).toEqual(b.life.state.set);
       expect(a.life.state.thirsty).toEqual(b.life.state.thirsty);
       expect(L.seedSetIndex(roomSeed, 0)).toBe(L.seedSetIndex(roomSeed, 17));
-      expect(a.life.state.thirsty).toEqual(L.thirstyPots(roomSeed, 0));
+      const ri = L.roomSetIndex(roomSeed, 0);
+      expect(L.roomSetIndex(roomSeed, 17)).toBe(ri);
+      expect(a.life.state.thirsty).toEqual(ri >= 0 ? P.ROOM_POT_SETS[ri] : L.thirstyPots(roomSeed, 0));
+      expect(a.life.state.set).toEqual((ri >= 0 ? P.ROOM_SEED_SPOT_SETS[ri] : P.SEED_SPOT_SETS[L.seedSetIndex(roomSeed, 0)]).map((s) => ({ ...s })));
     }
   });
   it('the seed sets and pot sets the stage-A build offers are the three and the eight it always had (stage B only appends new sets)', () => {

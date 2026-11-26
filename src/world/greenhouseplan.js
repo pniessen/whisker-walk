@@ -7,6 +7,8 @@
 // to tune (docs/superpowers/specs/2026-11-22-greenhouse-design.md).
 // =============================================================================
 
+import * as R from './greenhouserooms.js';
+
 export const GREENHOUSE_NAME = 'The Greenhouse';
 export const GREENHOUSE_BOUNDS = Object.freeze({ minX: -40, maxX: 40, minZ: -36, maxZ: 36 });
 export const GREENHOUSE_SPAWN = Object.freeze({ x: 0, z: 30 });
@@ -67,6 +69,11 @@ export const WATER_POT_SPOTS = Object.freeze([
   pt(-6.8, -2.6), pt(6.8, -2.6), pt(-12.4, -10.8), pt(12.4, -10.8), pt(-9, 12), pt(9, 12), pt(14, 24), pt(-16, 26),
 ]);
 
+// MILESTONE G6 (the three stage-B rooms, greenhouserooms.js) adds NEW sets beside these: ROOM_SEED_SPOT_SETS and ROOM_POT_SETS over
+// ALL_POT_SPOTS (the eight above, then the rooms' six). The stage-A sets and pots above are unchanged.
+export { ROOM_SEED_SPOT_SETS, ROOM_POT_SPOTS, ROOM_POT_SETS } from './greenhouserooms.js';
+export const ALL_POT_SPOTS = Object.freeze([...WATER_POT_SPOTS, ...R.ROOM_POT_SPOTS]);
+
 // ---------------------------------------------------------------------------------------------------------------------
 // MILESTONE G3: THE GARDEN FILLS. The spawn court, the potting shed, the beds, hedges, trees, the perches, rests, finds
 // and the rest of the area record's data. Pure data, no THREE. (A tree, a hedge or a stack is a collider circle; a bed,
@@ -120,6 +127,7 @@ export const GREENHOUSE_PERCHES = Object.freeze([
   Object.freeze({ x: POND_BENCH.x, z: POND_BENCH.z, y: POND_BENCH.y, kind: 'furniture' }),
   Object.freeze({ x: LOG.x, z: LOG.z, y: LOG.y, kind: 'tree', label: 'the fallen willow log' }),
   ...ORCHID_BENCHES.map((o) => Object.freeze({ x: o.x, z: o.z + 0.5, y: o.h, kind: 'furniture' })),
+  ...R.ROOM_PERCHES,
 ]);
 
 // THE RESTS (src/propsets.js SETS.greenhouse; test/greenhousegame.test.js holds the two equal): the catnip beds (`eat`), a
@@ -146,6 +154,7 @@ export const GREENHOUSE_SCENICS = Object.freeze([
   Object.freeze({ id: 'greenhouse-pond', x: -26, z: 10.4, label: 'the lily pond' }),
   Object.freeze({ id: 'greenhouse-shed', x: 23.1, z: 17.4, label: 'the potting shed' }),
 ]);
+// (stage B appends its three after these, in the area record: R.ROOM_SCENICS)
 export const GREENHOUSE_TIPPABLES = Object.freeze([
   Object.freeze({ x: 17.5, z: 19.2, kind: 'can' }), Object.freeze({ x: -9.8, z: 16.8, kind: 'can' }),
   Object.freeze({ x: 12.5, z: 17.6, kind: 'pot' }), Object.freeze({ x: -14.2, z: 21.4, kind: 'pot' }), Object.freeze({ x: 6.3, z: 25.2, kind: 'pot' }),
@@ -165,6 +174,7 @@ export const GREENHOUSE_MOMENTS = Object.freeze([
 export const GREENHOUSE_POIS = Object.freeze([
   [0, 22], [-18, 27], [16, 18], [0, -5.5], [-8, 4.5], [30, 25], [-30, 31], [34, 7], [8, 3.5], [-32, 4], [-6, -14.5],
 ].map(([x, z]) => Object.freeze({ x, z })));
+export const ALL_POIS = Object.freeze([...GREENHOUSE_POIS, ...R.ROOM_POIS]);
 
 // The three finds stage A can make (the rest are stage B's rooms; their ids are reserved in greenhousepages.js). Each its own way
 // at its own spot: `still` seconds standing still within the ring (rMin..r) of the spot at the height; or a rest of that kind.
@@ -172,9 +182,9 @@ export const GREENHOUSE_FIND_ZONES = Object.freeze({
   palm: Object.freeze([Object.freeze({ x: ISLAND.x, z: ISLAND.z, rMin: 1.7, r: 3.4, y: 0, dy: 0.6, still: 2 })]),
   koi: Object.freeze([Object.freeze({ x: -26, z: 10.6, r: 1.8, y: 0, dy: 0.6, still: 3 })]),
   catnip: Object.freeze(CATNIP_BEDS.map((b) => Object.freeze({ x: b.x, z: b.z, r: 1.2, rest: 'eat' }))),
-  orchid: Object.freeze([]),
-  cactus: Object.freeze([]),
-  butterfly: Object.freeze([]),
+  orchid: R.ROOM_FIND_ZONES.orchid,
+  cactus: R.ROOM_FIND_ZONES.cactus,
+  butterfly: R.ROOM_FIND_ZONES.butterfly,
 });
 
 // THE GOLD (src/goldmice.js GOLD_MICE.greenhouse; test/greenhousegold.test.js holds the two equal): the shed's roof (the three-hop climb),
@@ -185,7 +195,7 @@ export const GREENHOUSE_GOLD = Object.freeze([
   Object.freeze({ id: 'gm-green-3', x: LOG.x, z: LOG.z, y: LOG.y }),
 ]);
 // Under the Palm House (the rain stays out): a camera inside the hall's footprint and under its roof.
-export const underGlass = (x, y, z) => x > PALM_HOUSE.x0 && x < PALM_HOUSE.x1 && z > PALM_HOUSE.z0 && z < PALM_HOUSE.z1 && y < PALM_HOUSE.ridge + 1;
+export const underGlass = (x, y, z) => (x > PALM_HOUSE.x0 && x < PALM_HOUSE.x1 && z > PALM_HOUSE.z0 && z < PALM_HOUSE.z1 && y < PALM_HOUSE.ridge + 1) || R.underRoomGlass(x, y, z);
 
 const c = (x, z, r) => Object.freeze({ x, z, r });
 // Circles along a straight run (the collider list is circles only), a wall's thickness apart.
@@ -239,6 +249,7 @@ export const GREENHOUSE_COLLIDERS = Object.freeze([
   ...COLD_FRAMES.map((f) => run(f.x - 0.45, f.z, f.x + 0.45, f.z, 0.45, 0.9)).flat(),
   ...run(LOG.x, LOG.z - LOG.length / 2 + 0.5, LOG.x, LOG.z + LOG.length / 2 - 0.5, 0.45, 0.9),
   ...TREE_SPOTS.map(([x, z]) => c(x, z, 0.5)),
+  ...R.ROOM_COLLIDERS,
 ]);
 
 export function greenhouseArea() {
@@ -248,10 +259,10 @@ export function greenhouseArea() {
     spawn: { ...GREENHOUSE_SPAWN },
     colliders: GREENHOUSE_COLLIDERS.map((k) => ({ ...k })),
     waters: [{ ...POND }],
-    pois: GREENHOUSE_POIS.map((p) => ({ ...p })),
+    pois: ALL_POIS.map((p) => ({ ...p })),
     perches: GREENHOUSE_PERCHES.map((p) => ({ ...p })),
     collectibles: GREENHOUSE_COLLECTIBLES.map((k) => ({ ...k })),
-    scenics: GREENHOUSE_SCENICS.map((k) => ({ ...k })),
+    scenics: [...GREENHOUSE_SCENICS, ...R.ROOM_SCENICS].map((k) => ({ ...k })),
     tippables: GREENHOUSE_TIPPABLES.map((k) => ({ ...k })),
     boxes: GREENHOUSE_BOXES.map((k) => ({ ...k })),
     critterSpawns: GREENHOUSE_CRITTERS.map((k) => ({ ...k })),
