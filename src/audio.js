@@ -893,6 +893,8 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         layers.push(waterLapLayer());
         if (rain) layers.push(rainLayer());
         else if (!dusk) layers.push(birdsongLayer());
+      } else if (areaKey === 'crystal') {
+        // The Crystal Cave: no wind, birds or crickets; its hum and drips are crystalsound.js's.
       } else if (areaKey === 'pines') {
         // The Pines and Swamp: a low hush of wind and the bog frogs, never
         // birdsong at any hour. Crickets at dusk come from the shared line.
@@ -906,7 +908,7 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         if (rain) layers.push(rainLayer());
         else if (!dusk) layers.push(birdsongLayer());
       }
-      if (dusk && !isIndoor(areaKey)) layers.push(cricketLayer());
+      if (dusk && !isIndoor(areaKey) && areaKey !== 'crystal') layers.push(cricketLayer());
       if (ambientMix) for (const layer of layers) layer.mix?.(ambientMix);
       ambient = layers;
     },
