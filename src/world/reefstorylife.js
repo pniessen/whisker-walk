@@ -11,6 +11,7 @@ import { phrase } from '../clanphrases.js';
 import { createReefLife } from './reeflife.js';
 import { createMarlo } from './reefmarlo.js';
 import { createHousewarming } from './reefhouse.js';
+import { createErrandLive } from './reeferrandlive.js';
 import { refill, bubblesLeft, lifting, AIR } from './reefair.js';
 
 // createReefStoryLife(ctx) -> the place's life, plus { marlo, promptAt, interact, credit }; ctx is walk.js's life context.
@@ -33,21 +34,31 @@ export function createReefStoryLife(ctx) {
     },
   });
   house = createHousewarming({ scene, marlo, progression, log, audio, tier, reducedMotion, send: ctx.sendEvent });
+  const errand = createErrandLive({ scene, reducedMotion, progression, log, audio, roomSeed: ctx.roomSeed, visits: ctx.visits, marlo, lift: () => player?.floatY ?? 0 }); // R7: Marlo's errand of the day
+  let used = marlo; // whose prompt the action button is on now
   return {
     ...life,
     marlo,
     house,
+    errand,
     // the action button's offers (Marlo's hello, a shell to take or to give) and a step done by anyone in the room
-    promptAt: (catPos) => marlo.promptAt(catPos, player?.floatY ?? 0),
-    interact: () => marlo.interact(),
+    promptAt(catPos) {
+      const line = marlo.promptAt(catPos, player?.floatY ?? 0);
+      const job = errand.promptAt(catPos); // the errand's hand-in wins over Marlo's housewarming replay when both are in reach
+      used = job ? errand : marlo;
+      return job ?? line;
+    },
+    interact: () => used.interact(),
     // a parade begun by anyone in the room starts ours (the shared T0); every other step is Marlo's, credited in order
     credit: (ev) => (ev?.kind === 'parade' && Number.isFinite(ev.elapsed) ? house.credit(ev) : marlo.credit(ev)),
     update(dt, t, catPos, camera, session) {
       life.update(dt, t, catPos, camera, session);
       marlo.update(dt, t, catPos, camera, session, player?.floatY ?? 0);
       house.update(dt, t, catPos, camera, session);
+      errand.update(dt, t, catPos, camera, session);
     },
     dispose() {
+      errand.dispose();
       house.dispose();
       marlo.dispose();
       life.dispose();
