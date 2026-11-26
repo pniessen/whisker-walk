@@ -76,7 +76,13 @@ export function groundGeometry() {
       const net = Math.max(0, 1 - Math.abs(Math.sin(x * 0.55 + Math.sin(z * 0.4) * 1.6) + Math.sin(z * 0.5 + Math.sin(x * 0.45 + 1) * 1.6)) / 0.5);
       const tone = P.rippleTone(x, z) * (1 + 0.1 * net * net) * (1 - 0.08 * drift);
       const settle = 1 - 0.4 * settleAt(x, z);
-      col[k * 3] = _c.r * tone * settle * (1 + 0.1 * drift); col[k * 3 + 1] = _c.g * tone * settle; col[k * 3 + 2] = _c.b * tone * settle * (1 - 0.1 * drift) * (1 + 0.04 * (1 - settle) * 5);
+      // round 3: the Deep's sand is its own: cooler and a touch darker with silt patches and pale cream swept round the boat's bow and the cave's mouth
+      const dd = Math.hypot(x + 34, z + 33) / 15;
+      const dw = dd < 1 ? (1 - dd * dd) ** 2 : 0;
+      const silt = 0.5 + 0.5 * Math.sin(x * 0.37 + Math.sin(z * 0.23) * 2.1) * Math.sin(z * 0.31 - 0.8 + Math.cos(x * 0.2));
+      const swept = Math.max(0, 1 - Math.hypot(x + 38.8, z + 37) / 3.2) + Math.max(0, 1 - Math.hypot(x + 28, z + 33.5) / 2.6);
+      const dk = 1 - dw * (0.1 + 0.14 * silt * silt) + 0.1 * Math.min(1, swept);
+      col[k * 3] = _c.r * tone * settle * (1 + 0.1 * drift) * dk * (1 - 0.1 * dw); col[k * 3 + 1] = _c.g * tone * settle * dk * (1 + 0.02 * dw); col[k * 3 + 2] = _c.b * tone * settle * (1 - 0.1 * drift) * (1 + 0.04 * (1 - settle) * 5) * dk * (1 + 0.1 * dw);
     }
   }
   for (let j = 0; j < nz - 1; j++) {
@@ -150,12 +156,19 @@ export function shadePaint(g) {
     const cy = (pos.getY(f) + pos.getY(f + 1) + pos.getY(f + 2)) / 3;
     const cz = (pos.getZ(f) + pos.getZ(f + 1) + pos.getZ(f + 2)) / 3;
     const jit = 0.9 + 0.2 * hash3(Math.round(cx * 50), Math.round(cy * 50), Math.round(cz * 50));
+    // round 3: faces looking up catch the surface light (a warmer, brighter top) and the colour drifts a little with where the piece stands (warm in some places, cool in others)
+    const e1x = pos.getX(f + 1) - pos.getX(f); const e1y = pos.getY(f + 1) - pos.getY(f); const e1z = pos.getZ(f + 1) - pos.getZ(f);
+    const e2x = pos.getX(f + 2) - pos.getX(f); const e2y = pos.getY(f + 2) - pos.getY(f); const e2z = pos.getZ(f + 2) - pos.getZ(f);
+    const nx = e1y * e2z - e1z * e2y; const ny = e1z * e2x - e1x * e2z; const nz = e1x * e2y - e1y * e2x;
+    const up = Math.max(0, ny / (Math.hypot(nx, ny, nz) || 1));
+    const wz = Math.sin(cx * 0.21 + 0.7) * Math.cos(cz * 0.17 - 0.3); // -1 (cool) .. 1 (warm)
+    const tr = (1 + 0.07 * up) * (1 + 0.05 * wz); const tb = (1 - 0.04 * up) * (1 - 0.06 * wz);
     for (let v = f; v < f + 3; v++) {
       const h = pos.getY(v) - P.reefY(pos.getX(v), pos.getZ(v));
       const near = h < 0.45 ? 1 - Math.max(0, h) / 0.45 : 0; // 1 on the sand, 0 at 0.45 m
       const k = jit * (1 - 0.3 * near * near) * (1 + 0.05 * Math.min(1, Math.max(0, h) / 2));
       const low = Math.max(0, 1 - Math.max(0, h) / 1.1); // round 2: a cool, mossy teal foot on everything, warmer light on the tops
-      col.setXYZ(v, col.getX(v) * k * (1 - 0.1 * low), col.getY(v) * k * (1 + 0.03 * low), col.getZ(v) * k * (1 + 0.04 * low));
+      col.setXYZ(v, col.getX(v) * k * (1 - 0.1 * low) * tr, col.getY(v) * k * (1 + 0.03 * low) * (1 + 0.03 * up), col.getZ(v) * k * (1 + 0.04 * low) * tb);
     }
   }
   return g;

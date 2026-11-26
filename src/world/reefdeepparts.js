@@ -135,8 +135,16 @@ export function drawGlowCave(kit, M) {
     const geo = new THREE.IcosahedronGeometry(b.r, 0);
     kit.put('glow', M.glow, paint(at(geo, b.x, b.z, b.y), BEAD[i % 3]), { noCast: true });
   });
-  kit.put('glow', M.glow, paint(at(new THREE.CircleGeometry(1.5, 10).rotateX(-Math.PI / 2), -42, G.floorZ, 0.03), 0xbff7ea), { noCast: true });
-  kit.put('glow', M.glow, paint(at(new THREE.CircleGeometry(0.8, 8).rotateX(-Math.PI / 2), -44.4, G.floorZ + 0.3, 0.035), 0xe2ffd2), { noCast: true });
+  // round 3: each pale patch is brightest in the middle and fades to a soft teal at the rim (vertex colour), so it reads as a pool of light, not a white tile
+  const pool = (geo, x, z, dy, r) => {
+    const q = at(geo, x, z, dy);
+    const p = q.attributes.position;
+    const c = q.attributes.color;
+    for (let v = 0; v < p.count; v++) { const k = 1 - 0.62 * Math.min(1, Math.hypot(p.getX(v) - x, p.getZ(v) - z) / r); c.setXYZ(v, c.getX(v) * k * (0.9 + 0.1 * k), c.getY(v) * k, c.getZ(v) * k * (1.1 - 0.1 * k)); }
+    return q;
+  };
+  kit.put('glow', M.glow, pool(paint(new THREE.CircleGeometry(1.5, 10).rotateX(-Math.PI / 2), 0xbff7ea), -42, G.floorZ, 0.03, 1.5), { noCast: true });
+  kit.put('glow', M.glow, pool(paint(new THREE.CircleGeometry(0.8, 8).rotateX(-Math.PI / 2), 0xe2ffd2), -44.4, G.floorZ + 0.3, 0.035, 0.8), { noCast: true });
 }
 
 export function drawDeep(kit, M) {
