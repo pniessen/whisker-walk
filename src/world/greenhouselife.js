@@ -33,6 +33,7 @@ import * as K from './greenhouseparts.js';
 import { KOI_FROZEN_TIME } from './greenhouseplants.js';
 import * as G from './greenhouseglass.js';
 import { findAt, noteGreenhouseFind } from './greenhousefinds.js';
+import { createGreenhouseSound } from './greenhousesound.js';
 import './greenhousewords.js';
 
 export const GH_SEED_SALT = 0x6e5d1;
@@ -100,6 +101,8 @@ export function createGreenhouseLife(ctx) {
   const restAt = { x: 0, y: 0, z: 0, set: false };
   let restWas = false;
   let sheltered = false;
+  // G5: the near sounds (greenhousesound.js); none without the walk's audio, silent while muted
+  const sound = ctx.audio ? createGreenhouseSound(ctx.audio, { weather, dusk: !!ctx.dusk, reducedMotion }) : null;
 
   // ---- the seeds
   const packets = withLocalUuids('greenhouse-packets', () => set.map((s, i) => {
@@ -250,19 +253,18 @@ export function createGreenhouseLife(ctx) {
         }
       }
       // under the Palm House's glass the rain stays out (only on a change)
-      if (weather && camera?.position) {
-        const under = P.underGlass(camera.position.x, camera.position.y, camera.position.z);
-        if (under !== sheltered) { sheltered = under; weather.setSheltered(under); }
-      }
+      const under = camera?.position ? P.underGlass(camera.position.x, camera.position.y, camera.position.z) : false;
+      if (weather && camera?.position && under !== sheltered) { sheltered = under; weather.setSheltered(under); }
+      sound?.update(dt, catPos, under);
       // the shy orchid and the cactus flower open with a small overshoot, and stay open the walk
       for (const pop of Object.values(pops)) {
         if (pop.at < 0 || !pop.mesh) continue;
-        const k = Math.min(1, (clock - pop.at) / POP_TIME);
+        const k = reducedMotion ? 1 : Math.min(1, (clock - pop.at) / POP_TIME);
         pop.mesh.scale.setScalar(Math.max(0.001, k < 1 ? smooth(k) * (1 + 0.18 * Math.sin(k * Math.PI)) : 1));
       }
       // the sprouts pop up with a small overshoot
       if (seedState === 'sown') {
-        const k = Math.min(1, (clock - sowAt) / SOW_TIME);
+        const k = reducedMotion ? 1 : Math.min(1, (clock - sowAt) / SOW_TIME);
         const over = k < 1 ? smooth(k) * (1 + 0.18 * Math.sin(k * Math.PI)) : 1;
         sprouts.scale.setScalar(Math.max(0.001, over));
       }
@@ -270,7 +272,7 @@ export function createGreenhouseLife(ctx) {
       for (const p of pots) {
         if (!p.leaves) continue;
         if (p.watered) {
-          const k = smooth((clock - p.perkAt) / PERK_TIME);
+          const k = reducedMotion ? 1 : smooth((clock - p.perkAt) / PERK_TIME);
           p.leaves.scale.set(1.2 - 0.2 * k, 0.5 + 0.5 * k, 1.2 - 0.2 * k);
           p.leaves.material.color.set(0xd2c690).lerp(new THREE.Color(0xffffff), k);
         } else if (!reducedMotion) {
@@ -291,6 +293,7 @@ export function createGreenhouseLife(ctx) {
     },
     dispose() {
       disposed = true;
+      sound?.dispose();
       if (sheltered) { sheltered = false; weather?.setSheltered(false); }
       for (const m of [...packets, sprouts, can, dropMesh, ...pots.map((p) => p.cloud)]) {
         scene.remove(m);
