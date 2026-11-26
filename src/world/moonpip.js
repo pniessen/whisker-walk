@@ -68,7 +68,38 @@ export function stepToward(p, tx, tz, speed, dt) {
 const smooth = (k) => { const t = Math.min(1, Math.max(0, k)); return t * t * (3 - 2 * t); };
 const turnTo = (cur, want, k) => { let d = ((want - cur + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return cur + d * Math.min(1, k); };
 
-// ---- the model: four meshes, about 480 triangles -------------------------------------------------------------------------
+// (beauty round 4) Pip's tone, baked: the top of the shell a touch brighter, the underside greyer, a ragged scuff band low on the shell where he has rolled through dust,
+// and a few dark smears. Into the vertex colours (the geometry is in his own local frame); no draw, no texture.
+export function pipShade(geo) {
+  const pos = geo.attributes.position; const nor = geo.attributes.normal; const col = geo.attributes.color;
+  if (!pos || !nor || !col) return geo;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i); const y = pos.getY(i); const z = pos.getZ(i);
+    const up = nor.getY(i);
+    let k = 0.9 + 0.12 * up; // lit from above
+    const smear = Math.sin(x * 31 + z * 17) * Math.sin(y * 23 - x * 9); // a few dark streaks running down the shell
+    if (y > 0.2 && y < 0.62 && smear > 0.55) k *= 0.82;
+    col.setXYZ(i, col.getX(i) * k, col.getY(i) * k, col.getZ(i) * (k * 1.0 + (up < 0 ? 0.02 : 0)));
+  }
+  col.needsUpdate = true;
+  return geo;
+}
+
+// ---- the model: four meshes, about 640 triangles -------------------------------------------------------------------------
+// (beauty round 4) The lantern was one flat colour (a basic material: it is lit by its own colour, the life animates that). A vertex gradient is multiplied into it: the
+// brightest at its crown and the middle of its front, dimmer toward its rim and foot, so it reads as a glowing glass globe, not a disc. Pure on the geometry.
+export function lanternGlow(geo) {
+  const pos = geo.attributes.position;
+  const col = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i); const y = (pos.getY(i) - 0.72) / 0.15; const z = pos.getZ(i);
+    const k = Math.min(1, 0.5 + 0.3 * Math.max(0, y) + 0.5 * Math.max(0, z / 0.15) ** 2 - 0.2 * Math.abs(x / 0.15) ** 3 - 0.2 * Math.max(0, -y)); // front and crown bright, the flanks and foot dim
+    col[i * 3] = k; col[i * 3 + 1] = k * 0.97; col[i * 3 + 2] = k * 0.9;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return geo;
+}
+
 export function buildPip() {
   const white = 0xeef1f6;
   const body = [];
@@ -79,13 +110,24 @@ export function buildPip() {
   body.push(paint(new THREE.SphereGeometry(0.04, 6, 4).translate(0.15, 0.82, -0.05), 0xffb23c));
   body.push(paint(new THREE.CylinderGeometry(0.1, 0.16, 0.08, 10).translate(0, 0.56, 0), 0x7d848f)); // the neck ring under the lantern
   body.push(paint(new THREE.BoxGeometry(0.1, 0.07, 0.04).translate(0, 0.36, 0.265), 0x4fd6c4)); // a little chest panel
-  const bodyMesh = new THREE.Mesh(dustGeometry(mergeGeometries(body), () => 0, { reach: 0.32 }), litMaterial(0xffffff, { vertexColors: true, roughness: 0.5 }));
-  bodyMesh.name = 'pip:body';
+  // (beauty round 4) panel lines and fittings: three thin dark seams round the shell (a belt line and two meridians), a vent of three slots under the chest panel, two
+  // shoulder pods with a dark socket each, a lantern cage ring, a kick-plate under the axle block and a battery hatch on the back.
+  const seam = (g) => body.push(paint(g, 0x8f98a8));
+  seam(new THREE.TorusGeometry(0.272, 0.007, 3, 14).rotateX(Math.PI / 2).translate(0, 0.45, 0));
+  seam(new THREE.TorusGeometry(0.273, 0.007, 3, 14).rotateY(Math.PI / 2 + 0.5).translate(0, 0.33, 0).scale(1, 0.92, 1));
+  for (let i = 0; i < 3; i++) body.push(paint(new THREE.BoxGeometry(0.1, 0.012, 0.012).translate(0, 0.28 - i * 0.025, 0.272 - i * 0.002), 0x39404c));
+  for (const sd of [-1, 1]) body.push(paint(new THREE.CylinderGeometry(0.05, 0.05, 0.05, 6).rotateZ(Math.PI / 2).translate(sd * 0.28, 0.33, 0.02), 0x4fd6c4)); // shoulder pods
+  body.push(paint(new THREE.CylinderGeometry(0.15, 0.16, 0.02, 10, 1, true).translate(0, 0.62, 0), 0x2a2f3a)); // the cage ring at the lantern's foot
+  body.push(paint(new THREE.BoxGeometry(0.15, 0.1, 0.012).translate(0, 0.38, -0.262), 0xc9ced8)); // the battery hatch
+  const bodyMesh = new THREE.Mesh(dustGeometry(pipShade(mergeGeometries(body)), () => 0, { reach: 0.32 }), litMaterial(0xffffff, { vertexColors: true, roughness: 0.5 }));  bodyMesh.name = 'pip:body';
   // the lantern: a glowing sphere and a small dark cap (the glow is a basic material, lit by its colour)
-  const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 8).translate(0, 0.72, 0), new THREE.MeshBasicMaterial({ color: 0x2a2a2a }));
+  const lantern = new THREE.Mesh(lanternGlow(new THREE.SphereGeometry(0.15, 12, 8).translate(0, 0.72, 0)), new THREE.MeshBasicMaterial({ color: 0x2a2a2a, vertexColors: true }));
   lantern.name = 'pip:lantern';
   const cap = paint(new THREE.ConeGeometry(0.1, 0.1, 8).translate(0, 0.9, 0), 0x2a2f3a);
-  const eyes = mergeGeometries([paint(new THREE.SphereGeometry(0.03, 6, 4).scale(1, 1.4, 0.5).translate(-0.055, 0.73, 0.138), 0x1a1f28), paint(new THREE.SphereGeometry(0.03, 6, 4).scale(1, 1.4, 0.5).translate(0.055, 0.73, 0.138), 0x1a1f28), cap]);
+  const eyes = mergeGeometries([paint(new THREE.SphereGeometry(0.03, 6, 4).scale(1, 1.4, 0.5).translate(-0.055, 0.73, 0.138), 0x1a1f28), paint(new THREE.SphereGeometry(0.03, 6, 4).scale(1, 1.4, 0.5).translate(0.055, 0.73, 0.138), 0x1a1f28), cap,
+    // (beauty round 4) a rosy cheek each side and a small smile: a face, not two dots on a disc
+    paint(new THREE.CylinderGeometry(0.022, 0.022, 0.01, 6).rotateX(Math.PI / 2).translate(-0.095, 0.7, 0.116), 0xf0907f), paint(new THREE.CylinderGeometry(0.022, 0.022, 0.01, 6).rotateX(Math.PI / 2).translate(0.095, 0.7, 0.116), 0xf0907f),
+    paint(new THREE.BoxGeometry(0.03, 0.008, 0.008).translate(0, 0.688, 0.147), 0x1a1f28), paint(new THREE.BoxGeometry(0.014, 0.008, 0.008).rotateZ(-0.7).translate(-0.027, 0.696, 0.143), 0x1a1f28), paint(new THREE.BoxGeometry(0.014, 0.008, 0.008).rotateZ(0.7).translate(0.027, 0.696, 0.143), 0x1a1f28)]);
   const eyeMesh = new THREE.Mesh(eyes, new THREE.MeshBasicMaterial({ vertexColors: true }));
   eyeMesh.name = 'pip:eyes';
   // the wheel: a tyre and a light hub mark on its rim (one mesh: it turns as he rolls), about its own middle

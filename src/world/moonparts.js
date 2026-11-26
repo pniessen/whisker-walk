@@ -153,6 +153,25 @@ function rockLists(lowTier) {
 // three more in the shadow pass for the same shape in three sizes): the small rocks (a 20-triangle chip, never a caster) and the big ones
 // (an 80-triangle fractured stone: the 40 medium, the 20 large and the 10 boulders, and from beauty round 1 the chunks on the bowls' rims, each scaled
 // and turned by its own instance). The small mesh also carries the pebble fields. Still two draws.
+// (beauty round 4) The rocks' own surface: mineral grain and blotches. A rock was a smooth, flat-faced polygon with one tone a face. The material's fragment gets
+// a hashed grain at two scales from the stone's own (object space) position, so it turns and scales with the stone, and a pale dusting that clings to the
+// up-facing faces. A few ALU on the rocks' pixels; no texture, no draw.
+export const ROCK_GRAIN = Object.freeze({ fine: 26, blotch: 5.5, amount: 0.34 });
+export function rockGrain(mat) {
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vRockP;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRockP = position;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vRockP;\nfloat rockH(vec3 p) { return fract(sin(dot(floor(p), vec3(12.9898, 78.233, 37.719))) * 43758.5453); }')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+      float rg = rockH(vRockP * ${ROCK_GRAIN.fine.toFixed(1)}) * 0.55 + rockH(vRockP * ${ROCK_GRAIN.blotch.toFixed(1)} + 7.0) * 0.45;
+      diffuseColor.rgb *= 1.0 - ${ROCK_GRAIN.amount.toFixed(2)} + ${(ROCK_GRAIN.amount * 2).toFixed(2)} * rg;`);
+  };
+  mat.customProgramCacheKey = () => 'moon-rock-grain';
+  return mat;
+}
+
 export function drawRocks(lowTier = false) {
   const rocks = rockLists(lowTier);
   const specs = [['small', false, 1, rocks.small], ['big', true, 2, [...rocks.medium, ...rocks.large, ...rocks.boulder, ...rocks.rim]]];
@@ -166,6 +185,7 @@ export function drawRocks(lowTier = false) {
   for (const [name, big, salt, list] of specs) {
     if (!list.length) continue;
     const mat = litMaterial(0xffffff, { roughness: 1, flatShading: true, vertexColors: true });
+    rockGrain(mat);
     const mesh = new THREE.InstancedMesh(angularRock(salt, big), mat, list.length);
     mesh.name = `moon:rocks-${name}`;
     list.forEach((r, i) => {
@@ -178,7 +198,7 @@ export function drawRocks(lowTier = false) {
       mesh.setMatrixAt(i, m4);
       tint.setHex(0xa4a3a3).multiplyScalar((big ? 0.6 : 0.45) + (big ? 0.75 : 0.5) * (0.5 + 0.5 * Math.sin(i * 7.31 + salt)) ** 1.3);
       const hue = Math.sin(i * 3.9 + salt * 1.7); // (beauty round 3) a cool basalt or a warm dusty one, rock to rock
-      tint.r *= 1 + 0.07 * hue; tint.b *= 1 - 0.08 * hue;
+      tint.r *= 1.04 + 0.07 * hue; tint.b *= 0.94 - 0.08 * hue; // (beauty round 4) warmer on the whole: the blue fill had made them read violet
       mesh.setColorAt(i, tint);
     });
     mesh.instanceMatrix.needsUpdate = true;

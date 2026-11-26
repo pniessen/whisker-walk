@@ -117,6 +117,7 @@ export function paintRegolith(g, S, { lite = false, shade = [] } = {}) {
   g.fillRect(0, 0, S, S);
   for (const p of B.patches(lite)) soft(g, px(p.x), px(p.z), p.r * k, p.k < 0 ? PAL.dark : PAL.pale, Math.abs(p.k) * 0.42);
   for (let i = 0; i < (lite ? 350 : 800); i++) soft(g, rng() * S, rng() * S, (0.5 + 2.2 * rng()) * k, rng() < 0.5 ? PAL.dark : PAL.pale, 0.05 + 0.1 * rng());
+  for (let i = 0; i < (lite ? 50 : 140); i++) soft(g, rng() * S, rng() * S, (4 + 9 * rng()) * k, rng() < 0.5 ? [140, 131, 118] : [120, 124, 132], 0.06 + 0.06 * rng()); // (beauty round 4) metres-wide warm and cool tints: the dust was one grey
   for (const r of B.rays(lite)) {
     const x0 = px(r.x) + Math.cos(r.a) * r.from * k;
     const y0 = px(r.z) + Math.sin(r.a) * r.from * k;
@@ -143,6 +144,14 @@ export function paintRegolith(g, S, { lite = false, shade = [] } = {}) {
     if (c.r >= 8) bigBowl(g, px(c.x), px(c.z), c.r * k, lite ? 0.8 : 1); // the two big bowls: terraces, slumps and a central peak
   }
   for (const c of B.smallCraters(lite)) crater(g, px(c.x), px(c.z), c.r * k, c.fresh, c.fresh ? 0.95 : 0.7);
+  for (const c of B.craterlets(lite)) crater(g, px(c.x), px(c.z), c.r * k, c.fresh, c.fresh ? 0.6 : 0.32); // (beauty round 4) the small pits between the craters
+  for (const d of B.rimDebris(lite)) { // (beauty round 4) loose blocks along the rims and walls: a lit face and a short dark shadow away from the sun
+    const w = Math.max(1, d.s * k);
+    g.fillStyle = rgb(PAL.dark, 0.5);
+    g.fillRect(px(d.x) - SUN.x * w * 0.9 - w * 0.5, px(d.z) - SUN.z * w * 0.9 - w * 0.5, w * 1.2, w * 0.9);
+    g.fillStyle = rgb(d.lit ? PAL.pale : PAL.base, d.lit ? 0.75 : 0.9);
+    g.fillRect(px(d.x) - w * 0.5, px(d.z) - w * 0.5, w, w * 0.8);
+  }
   for (const s of shade) { // a rock's smudge: dark on the dust, longer away from the sun, drawn flat
     g.save();
     g.translate(px(s.x) - SUN.x * s.s * k * 0.9, px(s.z) - SUN.z * s.s * k * 0.9);
@@ -310,6 +319,37 @@ export function dustGeometry(geo, groundY = P.moonY, { reach = DUST_REACH, gain 
     const k = dustAmount(pos.getY(i) - groundY(x, z), nor.getY(i), x, z, reach, gain);
     if (k <= 0) continue;
     col.setXYZ(i, col.getX(i) + (_d.r - col.getX(i)) * k, col.getY(i) + (_d.g - col.getY(i)) * k, col.getZ(i) + (_d.b - col.getZ(i)) * k);
+  }
+  col.needsUpdate = true;
+  return geo;
+}
+
+// (beauty round 4) A machine's tone, baked into vertex colours: faces that look up are a little brighter, the undersides greyer, and a ragged scuff darkens some of the lower
+// side faces, so a flat panel is not one colour all over. `rag` makes the scuff (a function of the vertex's own position; pure). Pure on the geometry; no draw, no texture.
+export function machineTone(geo, { lo = 0.86, up = 0.14, scuff = 0.2 } = {}) {
+  const pos = geo.attributes.position; const nor = geo.attributes.normal; const col = geo.attributes.color;
+  if (!pos || !nor || !col) return geo;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i); const y = pos.getY(i); const z = pos.getZ(i);
+    const ny = nor.getY(i);
+    let k = lo + up * (0.5 + 0.5 * ny);
+    const rag = Math.sin(x * 9.7 + z * 4.1) * Math.sin(z * 6.3 - y * 11.1);
+    if (Math.abs(ny) < 0.5 && rag > 0.45) k *= 1 - scuff * Math.min(1, (rag - 0.45) * 3);
+    col.setXYZ(i, col.getX(i) * k, col.getY(i) * k, col.getZ(i) * k);
+  }
+  col.needsUpdate = true;
+  return geo;
+}
+
+// (beauty round 4) Tread on a tyre: the side face's vertices alternate lighter and darker round the rim (cos 6a at the twelve vertices), which the faces blend into bands that turn with the wheel.
+export function treadTone(geo, amount = 0.3) {
+  const pos = geo.attributes.position; const nor = geo.attributes.normal; const col = geo.attributes.color;
+  if (!pos || !nor || !col) return geo;
+  for (let i = 0; i < pos.count; i++) {
+    if (Math.abs(nor.getX(i)) > 0.5) continue; // the tyre's flat faces
+    const a = Math.atan2(pos.getY(i), pos.getZ(i));
+    const k = 1 + amount * Math.cos(6 * a);
+    col.setXYZ(i, col.getX(i) * k, col.getY(i) * k, col.getZ(i) * k);
   }
   col.needsUpdate = true;
   return geo;

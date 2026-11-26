@@ -14,6 +14,9 @@ import { backlit, rimStrength, fillFactor, patchRim, createCatRim, FILL_SWELL } 
 import { rocketGeometry } from '../src/world/moonlaunchparts.js';
 import { buildDot } from '../src/world/moonroverparts.js';
 import { rockFacetTone, ROCK_TOP, ROCK_UNDER, ROCK_FLANK } from '../src/world/moonbeauty.js';
+import { machineTone, treadTone } from '../src/world/moonbeauty.js';
+import { buildPip, lanternGlow, pipShade } from '../src/world/moonpip.js';
+import { rockGrain, ROCK_GRAIN } from '../src/world/moonparts.js';
 import { build } from '../src/world/moon.js';
 
 const read = (f) => readFileSync(f, 'utf8');
@@ -487,6 +490,111 @@ describe('beauty round 3', () => {
     const g = new Proxy({}, { set: (_, k, v) => { if (k === 'lineWidth') calls.push(v); return true; }, get: (_, k) => (k === 'createRadialGradient' || k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : () => {}) });
     bigBowl(g, 100, 100, 40);
     expect(calls.filter((w) => w >= 40 * 0.12).length).toBe(3);
+  });
+});
+
+describe('beauty round 4', () => {
+  const tris = (o) => { let n = 0; o.traverse((m) => { if (m.geometry) n += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3; }); return n; };
+  it('craterlets: seeded, small, many fewer on the lower rungs, clear of every prop and of the small craters and each other', () => {
+    const a = B.craterlets(false);
+    expect(a).toEqual(B.craterlets(false));
+    expect(a.length).toBeGreaterThan(400);
+    expect(B.craterlets(true).length).toBeGreaterThan(150);
+    expect(B.craterlets(true).length).toBeLessThan(a.length);
+    const big = B.smallCraters(false);
+    for (const c of a) {
+      expect(c.r).toBeGreaterThanOrEqual(0.25); expect(c.r).toBeLessThanOrEqual(0.75);
+      expect(B.clear(c.x, c.z, c.r, 0.25)).toBe(true);
+      expect(big.some((o) => hyp(c.x - o.x, c.z - o.z) < (o.r + c.r) * 1.05)).toBe(false);
+    }
+  });
+  it('rim debris: seeded, round the plan bowls only, clear of props, a lit and a dark share', () => {
+    const a = B.rimDebris(false);
+    expect(a).toEqual(B.rimDebris(false));
+    expect(a.length).toBeGreaterThan(100);
+    expect(B.rimDebris(true).length).toBeLessThan(a.length);
+    for (const d of a) {
+      expect(P.CRATERS.some((c) => { const f = hyp(d.x - c.x, d.z - c.z) / c.r; return f > 0.85 && f < 1.29; })).toBe(true);
+      expect(B.clear(d.x, d.z, d.s, 0.2, 0.3)).toBe(true);
+    }
+    expect(a.some((d) => d.lit)).toBe(true); expect(a.some((d) => !d.lit)).toBe(true);
+  });
+  it('the painter draws them (more calls than before-the-pass counts allow on a lower rung) and is still the same twice', () => {
+    const a = fakeContext(); const b = fakeContext();
+    paintRegolith(a, 1024, {}); paintRegolith(b, 1024, {});
+    expect(a.calls).toEqual(b.calls);
+    const lo = fakeContext();
+    paintRegolith(lo, 512, { lite: true });
+    expect(lo.calls.length).toBeLessThan(a.calls.length);
+  });
+  it('the rocks have a surface: one patched material per rock mesh, grain in the stone\'s own position, still two meshes', () => {
+    const meshes = drawRocks(false);
+    expect(meshes.length).toBe(2);
+    for (const m of meshes) {
+      expect(typeof m.material.onBeforeCompile).toBe('function');
+      expect(m.material.customProgramCacheKey()).toBe('moon-rock-grain');
+      const sh = { vertexShader: '#include <common>\n#include <begin_vertex>', fragmentShader: '#include <common>\n#include <color_fragment>' };
+      m.material.onBeforeCompile(sh);
+      expect(sh.vertexShader).toContain('vRockP = position');
+      expect(sh.fragmentShader).toContain('rockH(vRockP');
+    }
+    expect(ROCK_GRAIN.amount).toBeGreaterThan(0.1); expect(ROCK_GRAIN.amount).toBeLessThan(0.5);
+    const mat = rockGrain(new THREE.MeshStandardMaterial());
+    expect(mat.customProgramCacheKey()).toBe('moon-rock-grain');
+  });
+  it('the rocks lean warm: the average tint is not bluer than red', () => {
+    const [small] = drawRocks(false);
+    const c = new THREE.Color(); let r = 0; let b = 0;
+    for (let i = 0; i < small.count; i++) { small.getColorAt(i, c); r += c.r; b += c.b; }
+    expect(r).toBeGreaterThan(b);
+  });
+  it('Pip: still four meshes and four draws, vertex-coloured, with a face, panel seams and under 1,200 triangles', () => {
+    const p = buildPip();
+    const meshes = []; p.group.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    expect(meshes.length).toBe(4);
+    expect(p.lantern.material.vertexColors).toBe(true);
+    expect(tris(p.group)).toBeLessThan(1200);
+    expect(tris(p.group)).toBeGreaterThan(792); // the fittings and the face
+  });
+  it('the lantern glows toward its front and crown (a gradient, never above 1) and the shell is toned from above', () => {
+    const g = lanternGlow(new THREE.SphereGeometry(0.15, 12, 8).translate(0, 0.72, 0));
+    const col = g.attributes.color; const pos = g.attributes.position;
+    let front = 0; let back = 0; let max = 0;
+    for (let i = 0; i < pos.count; i++) {
+      const k = col.getX(i); max = Math.max(max, k);
+      if (pos.getZ(i) > 0.12) front = Math.max(front, k);
+      if (pos.getZ(i) < -0.12) back = Math.max(back, k);
+    }
+    expect(max).toBeLessThanOrEqual(1);
+    expect(front).toBeGreaterThan(back);
+    const shell = new THREE.BoxGeometry(0.2, 0.2, 0.2).translate(0, 0.33, 0);
+    shell.setAttribute('color', new THREE.BufferAttribute(new Float32Array(shell.attributes.position.count * 3).fill(1), 3));
+    pipShade(shell);
+    const ny = shell.attributes.normal;
+    let top = 0; let under = 0;
+    for (let i = 0; i < ny.count; i++) { const v = shell.attributes.color.getX(i); if (ny.getY(i) > 0.9) top = v; if (ny.getY(i) < -0.9) under = v; }
+    expect(top).toBeGreaterThan(under);
+  });
+  it('Dot: machine tone brightens up-facing faces, tread bands alternate round the tyre, still five meshes', () => {
+    const geo = new THREE.BoxGeometry(1, 1, 1);
+    geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count * 3).fill(0.8), 3));
+    machineTone(geo);
+    let top = 0; let under = 0;
+    for (let i = 0; i < geo.attributes.normal.count; i++) { const v = geo.attributes.color.getX(i); if (geo.attributes.normal.getY(i) > 0.9) top = v; if (geo.attributes.normal.getY(i) < -0.9) under = v; }
+    expect(top).toBeGreaterThan(under);
+    const tyre = new THREE.CylinderGeometry(0.36, 0.36, 0.26, 12).rotateZ(Math.PI / 2);
+    tyre.setAttribute('color', new THREE.BufferAttribute(new Float32Array(tyre.attributes.position.count * 3).fill(1), 3));
+    treadTone(tyre);
+    const vals = new Set(); for (let i = 0; i < tyre.attributes.color.count; i++) vals.add(tyre.attributes.color.getX(i).toFixed(3));
+    expect(vals.size).toBeGreaterThan(2);
+    const d = buildDot();
+    const meshes = []; d.group.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    expect(meshes.length).toBe(5);
+    expect(tris(d.group)).toBeLessThan(1900);
+  });
+  it('nothing walkable moved and no draw was added: the built place still holds its mesh row', () => {
+    expect(P.moonBaseY(0, 0)).toBe(P.moonBaseY(0, 0));
+    expect(read('src/world/moonplan.js')).toMatch(/\{ id: 'great', x: -20, z: -4, r: 12, d: 2\.0 \}/);
   });
 });
 

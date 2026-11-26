@@ -53,6 +53,46 @@ export function smallCraters(lite = false) {
   return out;
 }
 
+// (beauty round 4) Craterlets: the small pits (0.25 to 0.75 m) that pepper real regolith between the larger craters. Painted only; they may lie on a bowl's wall (that is
+// where they read best) but keep clear of every prop, of the small craters and of each other. 520 on a full device, 200 on the lower rungs.
+export function craterlets(lite = false) {
+  const rng = mulberry32(0x1e75a);
+  const want = lite ? 200 : 520;
+  const big = smallCraters(lite);
+  const out = [];
+  for (let tries = 0; out.length < want && tries < 12000; tries++) {
+    const r = 0.25 + 0.5 * rng() ** 2;
+    const x = (rng() * 2 - 1) * REACH;
+    const z = (rng() * 2 - 1) * REACH;
+    const fresh = rng() < 0.12;
+    if (!clear(x, z, r, 0.25)) continue;
+    if (big.some((o) => hyp(x - o.x, z - o.z) < (o.r + r) * 1.05)) continue;
+    if (out.some((o) => hyp(x - o.x, z - o.z) < (o.r + r) * 1.2)) continue;
+    out.push({ x, z, r, fresh });
+  }
+  return out;
+}
+
+// (beauty round 4) The loose blocks and specks along each plan bowl's rim and upper wall, painted: { x, z, s (m), pale (lit side) | dark }, denser at the lip and
+// falling off down the wall and out onto the apron. Seeded; every bowl gets its own count by size.
+export function rimDebris(lite = false) {
+  const rng = mulberry32(0x9d3b1);
+  const out = [];
+  for (const c of P.CRATERS) {
+    const n = Math.round((lite ? 26 : 70) * c.r / 4);
+    for (let i = 0; i < n; i++) {
+      const a = rng() * Math.PI * 2;
+      const f = 0.86 + 0.42 * rng() ** 1.4; // 0.86..1.28 of the bowl's radius: wall, lip, apron
+      const x = c.x + Math.cos(a) * c.r * f;
+      const z = c.z + Math.sin(a) * c.r * f;
+      const s = 0.08 + 0.3 * rng() ** 3;
+      if (!clear(x, z, s, 0.2, 0.3)) continue;
+      out.push({ x, z, s, lit: rng() < 0.6 });
+    }
+  }
+  return out;
+}
+
 // Rays thrown out of the three biggest bowls and of a few fresh craters, and the lander's scour streaks and the pad's scorch (pale and dark):
 // { x, z, a (the heading), from, len, w, k (strength 0..1), dark }.
 export function rays(lite = false) {
