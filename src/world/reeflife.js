@@ -11,6 +11,8 @@
 import * as THREE from 'three';
 import { phrase } from '../clanphrases.js';
 import { createReefLight } from './reeflight.js';
+import { createReefCritters } from './reefcritters.js';
+import { createReefSound } from './reefsound.js';
 import { createAir, stepAir, bubblesLeft, airHidden, liftProgress, lifting, AIR } from './reefair.js';
 import { LADDER_FOOT, reefY } from './reefplan.js';
 
@@ -49,6 +51,8 @@ function mountGauge(doc) {
 export function createReefLife({ scene, reducedMotion = false, tier, visits = 0, audio, player, doc = globalThis.document }) {
   const lowTier = !!tier && (tier.name === 'low' || tier.shadows === false || (tier.rung ?? 0) >= 3);
   const light = createReefLight({ scene, lowTier, reducedMotion });
+  const critters = createReefCritters({ scene, tier, reducedMotion }); // (R4) fish, Sela, crabs and bubbles
+  const sound = createReefSound({ audio }); // (R4) the hum and the bubbles' blips; nothing asked of the context while muted
   const kelp = scene.getObjectByName('reef:kelp');
   const kelpTime = kelp?.material?.userData?.kelpTime ?? null;
   const air = createAir({ firstVisit: !visits });
@@ -92,10 +96,14 @@ export function createReefLife({ scene, reducedMotion = false, tier, visits = 0,
   return {
     air,
     light,
+    critters,
+    sound,
     say, // (R2) the gauge's soft line: the story's air pockets use it
     update(dt, t, catPos, camera, session) {
       clock += Math.max(dt, 0);
       light.update(dt, t, camera);
+      critters.update(dt);
+      sound.update(dt);
       if (kelpTime) kelpTime.value = reducedMotion ? 0 : clock;
 
       const ev = stepAir(air, dt);
@@ -135,6 +143,8 @@ export function createReefLife({ scene, reducedMotion = false, tier, visits = 0,
     },
     dispose() {
       light.dispose();
+      critters.dispose();
+      sound.dispose();
       scene.remove(bubble);
       bubble.geometry.dispose(); bubble.material.dispose();
       gauge?.wrap.remove();
