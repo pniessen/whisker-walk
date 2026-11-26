@@ -15,6 +15,7 @@
 // =============================================================================
 
 import * as THREE from 'three';
+import { softDisc } from './reeflight.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { phrase } from '../clanphrases.js';
 import { bus } from '../events.js';
@@ -188,7 +189,7 @@ function makeBubble() {
 function pointsOf(n, size, color, opacity) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
-  const mat = new THREE.PointsMaterial({ size, sizeAttenuation: true, color, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending, fog: true });
+  const mat = new THREE.PointsMaterial({ map: softDisc(), alphaTest: 0.02, size, sizeAttenuation: true, color, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending, fog: true });
   const p = new THREE.Points(geo, mat);
   p.frustumCulled = false;
   p.visible = false;

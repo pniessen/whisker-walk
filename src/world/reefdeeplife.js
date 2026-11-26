@@ -4,6 +4,7 @@
 // (the three finds are the finds' life, world/reeffinds.js) and it asks nothing of the gauge. Draws no random number and reads no clock but the walk's own.
 // =============================================================================
 import * as THREE from 'three';
+import { softDisc } from './reeflight.js';
 import { phrase } from '../clanphrases.js';
 import * as D from './reefdeep.js';
 import { reefY } from './reefplan.js';
@@ -22,7 +23,7 @@ export function createReefDeepLife({ scene, reducedMotion = false, tier = null, 
   const geo = new THREE.BufferGeometry();
   const pos = new Float32Array(list.length * 3);
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const mat = new THREE.PointsMaterial({ size: 0.14, sizeAttenuation: true, color: 0xb8fff0, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending, fog: true });
+  const mat = new THREE.PointsMaterial({ map: softDisc(), alphaTest: 0.02, size: 0.14, sizeAttenuation: true, color: 0xb8fff0, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending, fog: true });
   const points = new THREE.Points(geo, mat);
   points.name = 'reef:plankton';
   points.frustumCulled = false;
