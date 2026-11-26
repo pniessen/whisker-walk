@@ -49,9 +49,14 @@ export function clampZoomStep(step, max = MAX_ZOOM_STEP) {
   return Math.min(Math.max(Math.round(step), 0), top);
 }
 
-// The farthest step allowed in an area.
-export function maxZoomStep(isDen) {
-  return isDen ? DEN_MAX_ZOOM_STEP : MAX_ZOOM_STEP;
+// Places that stop short of the farthest step. The Crystal Cave's dome is 9 m over its floor at its lowest and step 3 reaches about that high, so the
+// cave stops at step 2 (advisor answer 2, docs/superpowers/plans/2026-11-26-crystal-cave.md). Every other place is the full range.
+export const ZOOM_CAPPED_AREAS = Object.freeze({ den: DEN_MAX_ZOOM_STEP, crystal: 2 });
+
+// The farthest step allowed in an area. Takes the area's id; `true` still means the den (the old boolean).
+export function maxZoomStep(area) {
+  if (area === true) return DEN_MAX_ZOOM_STEP;
+  return typeof area === 'string' && Object.hasOwn(ZOOM_CAPPED_AREAS, area) ? ZOOM_CAPPED_AREAS[area] : MAX_ZOOM_STEP;
 }
 
 // level is a float step index (the camera eases through the in-between
@@ -186,13 +191,13 @@ export function createPinchTracker() {
 // CAPPED_TOAST_MS, so a held pinch-out cannot stack a column of them.
 const CAPPED_TOAST_MS = 2500;
 export function createZoomControl({
-  settings, player, isDen = () => false, onCapped = () => {}, now = () => Date.now(),
+  settings, player, isDen = () => false, area = null, onCapped = () => {}, now = () => Date.now(),
 }) {
   let lastCapped = -Infinity;
   return {
     step(dir) {
       if (dir !== -1 && dir !== 1) return null;
-      const max = maxZoomStep(!!isDen());
+      const max = maxZoomStep(area ? area() : !!isDen());
       const cur = clampZoomStep(settings.get('cameraZoom'), max);
       const next = clampZoomStep(cur + dir, max);
       if (next === cur) {

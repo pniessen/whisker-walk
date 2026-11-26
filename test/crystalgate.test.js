@@ -24,14 +24,14 @@ const CD = T.TELE_ENDS.crystal[0];
 describe('the gate table', () => {
   it('is one pair: the Docks grotto (no suit, awake after 2 Docks walks, both editions) and the cave\'s own return arch', () => {
     expect(DC).toMatchObject({ id: 'docks-crystal', to: 'crystal', twin: 'crystal-docks', look: 'grotto', suit: null, placement: 'inside', edition: 'all', needWalks: 2, own: false, kind: 'tele' });
-    expect(CD).toMatchObject({ id: 'crystal-docks', to: 'docks', twin: 'docks-crystal', look: 'grotto', suit: null, edition: 'all', needWalks: 0, own: true, x: 0, z: 31, faces: 'north' });
+    expect(CD).toMatchObject({ id: 'crystal-docks', to: 'docks', twin: 'docks-crystal', look: 'grotto', suit: null, edition: 'all', needWalks: 0, own: true, x: 0, z: 24.5, faces: 'north' });
     expect(T.CRYSTAL_NEED_WALKS).toBe(CATALOG.areas.crystal.requires.walks);
     expect(DC.needWalks).toBe(CATALOG.areas.crystal.requires.walks);
   });
   it('she lands 3.6 m out from the twin, facing it, both ways', () => {
     const there = arrivalFor('docks-crystal', T.TELE_ENDS);
     const back = arrivalFor('crystal-docks', T.TELE_ENDS);
-    expect(there).toMatchObject({ areaId: 'crystal', x: 0, z: 34.6, yaw: 0 });
+    expect(there).toMatchObject({ areaId: 'crystal', x: 0, z: 28.1, yaw: 0 });
     expect(back.areaId).toBe('docks');
     expect(Math.hypot(back.x - DC.x, back.z - DC.z)).toBeCloseTo(3.6, 9);
   });

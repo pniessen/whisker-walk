@@ -59,6 +59,29 @@ describe('zoom steps', () => {
     expect(clampZoomStep(MAX_ZOOM_STEP, maxZoomStep(true))).toBe(DEFAULT_ZOOM_STEP);
     expect(clampZoomStep(0, maxZoomStep(true))).toBe(0); // closer is fine indoors
   });
+
+  it('the Crystal Cave caps zoom at step 2; the den by id is the default step; every other place is the full range', () => {
+    expect(maxZoomStep('crystal')).toBe(2);
+    expect(clampZoomStep(MAX_ZOOM_STEP, maxZoomStep('crystal'))).toBe(2);
+    expect(clampZoomStep(1, maxZoomStep('crystal'))).toBe(1);
+    expect(maxZoomStep('den')).toBe(DEFAULT_ZOOM_STEP);
+    for (const id of ['neighborhood', 'park', 'docks', 'seaside', 'woods', 'river', 'moor', 'pines', 'gorge', 'farm', 'fair', 'roofs', 'market', 'house', 'greenhouse', 'lighthouse', 'moon', 'reef', 'constructor', 'toString', undefined, null, false]) {
+      expect(maxZoomStep(id), String(id)).toBe(MAX_ZOOM_STEP);
+    }
+  });
+
+  it('createZoomControl asks the area when given one', () => {
+    const settings = { v: 2, get() { return this.v; }, set(_k, v) { this.v = v; } };
+    let id = 'crystal';
+    let capped = 0;
+    const ctl = createZoomControl({ settings, player: { setCameraZoom() {} }, area: () => id, onCapped: () => { capped++; }, now: () => 1e9 });
+    ctl.step(1);
+    expect(settings.v).toBe(2); // held at the cave's cap
+    expect(capped).toBe(1);
+    id = 'docks';
+    ctl.step(1);
+    expect(settings.v).toBe(3);
+  });
 });
 
 describe('easeZoomLevel', () => {

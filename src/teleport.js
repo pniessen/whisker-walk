@@ -118,8 +118,8 @@ export const TELE_ENDS = Object.freeze({
       placement: 'inside', arrive: arriveFor('north', 10, -37.5), edition: 'all', needWalks: CRYSTAL_NEED_WALKS }),
   ]),
   crystal: Object.freeze([
-    end({ id: 'crystal-docks', gateway: 'tele-docks-crystal', x: 0, z: 31, faces: 'north', to: 'docks', twin: 'docks-crystal', look: TELE_LOOK['crystal-docks'],
-      placement: 'inside', arrive: arriveFor('north', 0, 31), edition: 'all', own: true }),
+    end({ id: 'crystal-docks', gateway: 'tele-docks-crystal', x: 0, z: 24.5, faces: 'north', to: 'docks', twin: 'docks-crystal', look: TELE_LOOK['crystal-docks'],
+      placement: 'inside', arrive: arriveFor('north', 0, 24.5), edition: 'all', own: true }),
   ]),
   greenhouse: Object.freeze([
     end({ id: 'greenhouse-park', gateway: 'tele-park-greenhouse', x: -10, z: 29, faces: 'west', to: 'park', twin: 'park-greenhouse', look: TELE_LOOK['greenhouse-park'],
