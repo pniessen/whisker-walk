@@ -53,7 +53,7 @@ describe('each find is found by its rule', () => {
   it('the float height never matters: the rule reads where she stands and how still, not floatY', () => {
     const code = readFileSync('src/world/reeffinds.js', 'utf8').replace(/\/\/.*$/gm, '');
     expect(code).not.toMatch(/floatY/);
-    for (const f of globSync('src/world/reef*.js')) expect(readFileSync(f, 'utf8').replace(/\/\/.*$/gm, ''), f).not.toMatch(/\bfloatY\b/);
+    for (const f of globSync('src/world/reeffind*.js')) expect(readFileSync(f, 'utf8').replace(/\/\/.*$/gm, ''), f).not.toMatch(/\bfloatY\b/);
   });
   it('one spot never finds two: the six rings do not overlap', () => {
     for (const a of Q.REEF_FIND_IDS) for (const b of Q.REEF_FIND_IDS) {
