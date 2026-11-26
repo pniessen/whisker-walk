@@ -25,6 +25,8 @@ export const TELE_PAIR_CAP = 6; // gate pairs per release (a test constant)
 export const MOON_NEED_WALKS = 2;
 // Park walks before the Greenhouse's archway wakes (the same rule; CATALOG.areas.greenhouse.requires says it too, and a test keeps them equal).
 export const GREENHOUSE_NEED_WALKS = 2;
+// Seaside walks before the rock cleft at the pier foot wakes (the Reef plan's D3: 2; CATALOG.areas.reef.requires says it too, and a test keeps them equal).
+export const REEF_NEED_WALKS = 2;
 
 let H = null;
 // host: { teleOn, greenhouseOn, placeName, walkOnMove, lower, padTag, escapeHtml, coopReady, catalog, isClan, couch }
@@ -41,7 +43,7 @@ export function setup(host) {
 //   needWalks host-place walks before it is awake (0: always)
 //   own       true: the place draws this gate's stones itself (the Moon's return ring, src/world/moonparts.js), so the gate
 //             draws nothing and adds no pillars: only the prompt, the card and the walk-on are the gate's
-const LOOKS = ['stonering', 'archway', 'hollow'];
+const LOOKS = ['stonering', 'archway', 'hollow', 'cleft'];
 export function teleRow({ suit = null, wake = false, edition = 'canon', needWalks = 0, own = false, ...row }) {
   const id = row.id;
   if (![null, 'space', 'dive'].includes(suit)) throw new Error(`tele gate ${id}: suit "${suit}" is not space, dive or null`);
@@ -55,9 +57,9 @@ const end = teleRow;
 
 // ---- OWNER DECISIONS (milestone 1): the look of each gate, and which way she faces when she lands ----
 // Each end's look, by id: 'stonering' (five mossy standing stones round a light disc), 'archway' (a little stone arch in a
-// hedge, with a lantern) or 'hollow' (a trunk with a glowing hole). Pictures of all three in the Park and the Greenhouse:
+// hedge, with a lantern) or 'hollow' (a trunk with a glowing hole) or 'cleft' (the same in rock, with a ladder and a ring buoy). Pictures of all three in the Park and the Greenhouse:
 // verify-teleport-gates-m1.html. The plan's recommendation for the real pairs: stones for the Moon, hollow for the Reef.
-export const TELE_LOOK = Object.freeze({ 'park-greenhouse': 'archway', 'greenhouse-park': 'archway', 'park-moon': 'stonering', 'moon-park': 'stonering' });
+export const TELE_LOOK = Object.freeze({ 'park-greenhouse': 'archway', 'greenhouse-park': 'archway', 'park-moon': 'stonering', 'moon-park': 'stonering', 'seaside-reef': 'cleft', 'reef-seaside': 'cleft' });
 // Where she lands, and facing which way: 'toward' (the milestone 0 choice: 3.6 m out, FACING the gate she stepped out of; the
 // camera stands 4.4 m behind her, so it looks at the way home) or 'away' (the spec's "facing in": 7 m out, looking into
 // the place, the gate behind her; further, so the camera does not stand inside the stones).
@@ -96,6 +98,17 @@ export const TELE_ENDS = Object.freeze({
     end({ id: 'moon-park', gateway: 'tele-park-moon', x: -10, z: 41, faces: 'north', to: 'park', twin: 'park-moon', look: TELE_LOOK['moon-park'],
       placement: 'inside', arrive: arriveFor('north', -10, 41), edition: 'all', own: true }),
   ]),
+  // The Reef pair (Reef milestone R6): the Seaside's rock cleft at the pier foot, awake after two Seaside walks, both editions, and the
+  // Reef's own return arch (reefparts.js drawSpawn, `own`: the gate draws nothing there). She lands 3.6 m out from the other end, facing it.
+  seaside: Object.freeze([
+    end({ id: 'seaside-reef', gateway: 'tele-seaside-reef', x: 21.5, z: -14.5, faces: 'east', to: 'reef', twin: 'reef-seaside', look: TELE_LOOK['seaside-reef'],
+      placement: 'inside', arrive: arriveFor('east', 21.5, -14.5), edition: 'all', suit: 'dive', needWalks: REEF_NEED_WALKS }),
+  ]),
+  reef: Object.freeze([
+    // The arch stands at (0, 31) in the Reef's spawn court, 5 m north of the spawn (0, 36); she walks north into it and lands 3.6 m south of it.
+    end({ id: 'reef-seaside', gateway: 'tele-seaside-reef', x: 0, z: 31, faces: 'north', to: 'seaside', twin: 'seaside-reef', look: TELE_LOOK['reef-seaside'],
+      placement: 'inside', arrive: arriveFor('north', 0, 31), edition: 'all', own: true }),
+  ]),
   greenhouse: Object.freeze([
     end({ id: 'greenhouse-park', gateway: 'tele-park-greenhouse', x: -10, z: 29, faces: 'west', to: 'park', twin: 'park-greenhouse', look: TELE_LOOK['greenhouse-park'],
       placement: 'inside', arrive: arriveFor('west', -10, 29), edition: 'all', own: true }),
@@ -106,7 +119,7 @@ export const teleEnds = (areaId) => (typeof areaId === 'string' && Object.hasOwn
 
 // A place with no catalog row (the Moon) counts as built behind the gates switch, and has no name in the catalog, so its
 // name is here. (The Greenhouse has its row since G4; its `gate: 'tele'` keeps it out of the cards while the switch is off.)
-const NAMES = { greenhouse: 'The Greenhouse', moon: 'The Moon' };
+const NAMES = { greenhouse: 'The Greenhouse', reef: 'The Reef', moon: 'The Moon' };
 export function placeLive(to, catalog) {
   const areas = catalog && catalog.areas;
   return (!!areas && Object.hasOwn(areas, to)) || to === 'moon'; // (the Moon: behind ?gates=1 already)

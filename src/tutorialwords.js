@@ -33,6 +33,7 @@ export const WORDS = Object.freeze({
   'hint.house': same('Explore every floor, from the attic to the cellar!'),
   'hint.lighthouse': same('Follow the stairs up to the big lamp!'),
   'hint.greenhouse': same('The gardener lost some seeds. Can you find them?'),
+  'hint.reef': same('Someone small is hiding in the coral. Say hello!'),
   'hint.look': two('Drag here to look around.', 'Move the mouse to look around.'),
   'hint.creep': two('{name} is shy. Push the circle gently to creep.', '{name} is shy. Hold Shift to creep.'),
   'hint.jump': two('Tap the paw to jump up.', 'Press Space to jump up.'),

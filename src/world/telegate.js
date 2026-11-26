@@ -8,6 +8,8 @@
 //   'stonering'  five old, mossy stones leaning round a soft disc: the Meeting Ring (the Moon gate)
 //   'archway'    a little stone arch in a hedge with a lantern and ivy: a garden door, for the town later
 //   'hollow'     a great trunk with a glowing hole, a sea-cave or a hollow tree: nearest to "doors live in natural things"
+//   'cleft'      the hollow's rock cousin (the Seaside's way down to the Reef): two grey rocks and a cleft between them, a brass
+//                ladder on one and a ring buoy on the other, a blue glow in the gap
 // Every look is the same three meshes:
 //   body    the stones / the arch / the trunk and its leaves: one vertex-coloured geometry, one lit material (opaque)
 //   disc    the one transparent draw: a soft additive disc with a turning swirl painted on it, light and warm, never a
@@ -22,7 +24,7 @@ import { litMaterial } from '../render/materials.js';
 import { FLAT_GROUND } from '../ground.js';
 
 export const LOOK_BUDGET = Object.freeze({ meshes: 6, triangles: 480, transparent: 1 });
-export const LOOK_NAMES = Object.freeze(['stonering', 'archway', 'hollow']);
+export const LOOK_NAMES = Object.freeze(['stonering', 'archway', 'hollow', 'cleft']);
 const OUT_YAW = { north: 0, south: Math.PI, east: -Math.PI / 2, west: Math.PI / 2 };
 
 // What each look is made of that she cannot walk through: circles in the gate's own frame (lx along its width, lz along
@@ -31,14 +33,15 @@ export const LOOK_SOLIDS = Object.freeze({
   stonering: Object.freeze([{ lx: -1.3, lz: 0, r: 0.35 }, { lx: 1.3, lz: 0, r: 0.35 }]),
   archway: Object.freeze([{ lx: -0.95, lz: 0, r: 0.32 }, { lx: 0.95, lz: 0, r: 0.32 }]),
   hollow: Object.freeze([{ lx: 0, lz: -1.3, r: 1.1 }]),
+  cleft: Object.freeze([{ lx: -1.35, lz: -1.0, r: 0.95 }, { lx: 1.35, lz: -1.0, r: 0.95 }, { lx: 0, lz: -2.2, r: 1.2 }]),
 });
 export const STONE_COLLIDER_R = 0.35;
 
 // The disc and the motes: colour by look, and by the suit the place beyond puts on her (the dive's is bluer, the
 // Moon's paler and cooler).
-const LOOK_TINT = { stonering: 0xffeeb4, archway: 0xffe2a0, hollow: 0xcdeeff };
+const LOOK_TINT = { stonering: 0xffeeb4, archway: 0xffe2a0, hollow: 0xcdeeff, cleft: 0xbfe6ff };
 const SUIT_TINT = { space: 0xe6e2ff, dive: 0x9fd8ff };
-const MOTE_COLOUR = { stonering: 0xfff3b0, archway: 0xffe9a8, hollow: 0xd8f4ff };
+const MOTE_COLOUR = { stonering: 0xfff3b0, archway: 0xffe9a8, hollow: 0xd8f4ff, cleft: 0xd8f4ff };
 export const discTint = (end) => SUIT_TINT[end.suit] ?? LOOK_TINT[end.look] ?? LOOK_TINT.stonering;
 
 // ---- time: one clock the whole look reads (a picture page sets its own, so a frame is the same every time) ----
@@ -178,6 +181,32 @@ function hollowDisc(front) {
   const g = new THREE.CircleGeometry(0.6, 28);
   g.scale(1, 1.35, 1);
   g.translate(0, 1.45, front + 0.06); // just proud of the trunk's face, so it is seen
+  return g;
+}
+
+// the cleft (the Seaside's rock gate at the pier foot) ---------------------------------------------------------------
+// Two tall grey rocks with a cleft between them and a back rock behind it, a low rock over the top; a brass ladder runs up the
+// left rock's face and a red ring buoy hangs on the right's. One merged body (about 380 triangles), the disc in the gap.
+const CLEFT_FRONT = -0.85; // m, the back rock's face, where the disc sits
+function cleftBody() {
+  const rock = (r, sx, sy, sz, o) => piece(new THREE.IcosahedronGeometry(r, o.detail ?? 1).scale(sx, sy, sz), o);
+  const parts = [
+    rock(1.1, 0.9, 1.9, 1, { x: -1.35, y: 1.3, z: -1.0, tint: 0x8c9296, moss: 0.8, mossTo: 0.9, wob: 0.1, salt: 71 }),
+    rock(1.1, 0.9, 1.7, 1, { x: 1.35, y: 1.2, z: -1.0, tint: 0x82888d, moss: 0.8, mossTo: 0.9, wob: 0.1, salt: 72 }),
+    rock(1.2, 1.3, 1.8, 0.9, { x: 0, y: 1.6, z: -2.1, tint: 0x767c82, moss: 0.6, mossTo: 1.2, wob: 0.1, salt: 73 }),
+    rock(0.9, 1.8, 0.6, 0.9, { x: 0, y: 2.55, z: -1.15, tint: 0x969b9e, wob: 0.08, salt: 74, detail: 0 }),
+  ];
+  // the ladder on the left rock's face: two rails and three rungs
+  for (const sx of [-1, 1]) parts.push(piece(box(0.06, 2.1, 0.06), { x: -1.35 + sx * 0.3, y: 1.15, z: 0.02, tint: 0xb08d4a }));
+  for (const y of [0.55, 1.2, 1.85]) parts.push(piece(box(0.66, 0.05, 0.05), { x: -1.35, y, z: 0.03, tint: 0xc29f58 }));
+  // the ring buoy on the right rock's face
+  parts.push(piece(new THREE.TorusGeometry(0.27, 0.08, 4, 8), { x: 1.35, y: 1.45, z: 0.0, tint: 0xd9402f }));
+  return mergeGeometries(parts, false);
+}
+function cleftDisc() {
+  const g = new THREE.CircleGeometry(0.5, 24);
+  g.scale(1, 1.9, 1);
+  g.translate(0, 1.2, CLEFT_FRONT + 0.05);
   return g;
 }
 

@@ -63,7 +63,7 @@ const loaders = {
   greenhouse: () => import('./greenhouse.js').then((w) => own('greenhouse', w)),
   // The Moon (?moon=1 only: no catalog row, no gate; its milestone 0 is the seams and a bare plain).
   moon: () => import('./moon.js').then((w) => own('moon', w)),
-  // The Reef (?reef=1 only: no catalog row, no gate; its milestone 0 is the seams and a stub seabed).
+  // The Reef (a catalog row, behind the gates switch, and the Seaside's rock cleft since its milestone R6; ?reef=1 stays a developer shortcut).
   reef: () => import('./reef.js').then((w) => own('reef', w)),
 };
 

@@ -405,6 +405,9 @@ export const CATALOG = {
     // card, map and purchase while the gates switch (?gates=1) is off (edition.js areaShown); walking through the gate
     // takes it (gatecross.walkOnMove 'take', price 0). It is not a kept offer and has no map road.
     greenhouse: { name: 'The Greenhouse', price: 0, requires: { area: 'park', walks: 2 }, gate: 'tele' },
+    // The Reef (docs/superpowers/plans/2026-11-26-reef.md, R6): the same rule. Reached only by the Seaside's rock cleft at the pier foot
+    // (src/teleport.js), free, after 2 Seaside walks, in both editions (no `edition` key); hidden while the gates switch is off.
+    reef: { name: 'The Reef', price: 0, requires: { area: 'seaside', walks: 2 }, gate: 'tele' },
     // v18 Task 2.6 — the fourth walk area. The catalog is the ONLY place an
     // area has to be registered for the home-base picker: homebase.js renders
     // a card per CATALOG.areas entry, canBuy reads price + requires, and
