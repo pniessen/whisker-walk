@@ -607,6 +607,10 @@ const YARN_SPOTS = {
     { x: 14.8, z: 20.6, where: 'by the cold frames' },
     { x: -28.5, z: 29.5, where: 'by the pond bench' },
   ],
+  reef: [
+    { x: 30, z: 20, where: 'on the open sand' },
+    { x: -8, z: 2, where: 'by the sandy dunes' },
+  ],
   den: [
     { x: -3.4, z: -5, where: 'by the cardboard box' },
     { x: 0, z: -6.4, where: 'under the sunny window' },

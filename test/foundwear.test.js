@@ -143,12 +143,12 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(Object.hasOwn(CATALOG.areas, 'moon')).toBe(false);
   });
   // Reef milestone R3 (2026-11-26): one collar (a pearl charm), hidden in four places under the sea, behind ?reef=1 (no catalog place yet)
-  it('the Reef hides one outfit, the Pearl Collar, a collar with a plain name in either set, in four spots; the Reef has no catalog place yet', () => {
+  it('the Reef hides one outfit, the Pearl Collar, a collar with a plain name in either set, in four spots; the Reef has a catalog row, hidden while the gates switch is off', () => {
     expect(foundWearIn('reef').map((r) => [r.id, r.slot])).toEqual([['pearlcollar', 'collar']]);
     expect(foundWearIn('reef').map((r) => r.name())).toEqual(['Pearl Collar']);
     expect(withOffWords(() => foundWearIn('reef').map((r) => r.name()))).toEqual(['Pearl Collar']);
     expect(CATALOG.accessories.pearlcollar).toMatchObject({ slot: 'collar', price: 0, prize: true, find: 'reef' });
-    expect(Object.hasOwn(CATALOG.areas, 'reef')).toBe(false);
+    expect(Object.hasOwn(CATALOG.areas, 'reef')).toBe(true);
     expect(spotsIn('reef')).toHaveLength(4);
     expect(spotsIn('reef').map((x) => x.id)).toEqual(['fw-reef-1', 'fw-reef-2', 'fw-reef-3', 'fw-reef-4']);
   });
