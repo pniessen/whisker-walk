@@ -532,7 +532,16 @@ const dressPearl = charm([0xa8d8cf, 0xf5f5f0], (u) => [
   ...[-1, 1].map((sx) => colour(new THREE.SphereGeometry(0.32 * u, 6, 4).translate(sx * 1.05 * u, 0.3 * u, 0), () => 0xe8e2d6)),
 ]);
 
+// Glimmer Collar (the Crystal Cave): a violet band piped pale rose, and at the throat one tall rose-pink crystal with a smaller sky-blue one and a gold one
+// either side, a pale shine on the tall one. Faces -z, one mesh.
+const dressGlimmer = charm([0x8a6ac0, 0xf4c6dc], (u) => [
+  colour(new THREE.OctahedronGeometry(0.5 * u).scale(0.7, 1.5, 0.6).translate(0, -0.05 * u, 0), (x, y, z) => (z < -0.15 * u && y > 0.2 * u ? 0xffe4f4 : 0xff6fa8)),
+  colour(new THREE.OctahedronGeometry(0.3 * u).scale(0.7, 1.3, 0.6).translate(-0.7 * u, 0.1 * u, 0), () => 0x62b8ff),
+  colour(new THREE.OctahedronGeometry(0.3 * u).scale(0.7, 1.3, 0.6).translate(0.7 * u, 0.1 * u, 0), () => 0xffc65a),
+]);
+
 export const FOUND_COLLARS = Object.freeze({
+  glimmercollar: Object.freeze({ ring: 0x8a6ac0, charmed: true, dress: dressGlimmer }),
   pearlcollar: Object.freeze({ ring: 0xa8d8cf, charmed: true, dress: dressPearl }),
   moonbadge: Object.freeze({ ring: 0x8e98b0, charmed: true, dress: dressMoonBadge }),
   bottletopcollar: Object.freeze({ ring: 0x3a3a42, charmed: false, dress: dressBottleTops }),

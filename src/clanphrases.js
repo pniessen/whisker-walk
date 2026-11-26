@@ -620,6 +620,8 @@ const LATER = Object.freeze({
   'wear.starlightcape.name': 'Starlight Cape',
   // The Reef's found collar (a placeholder name the owner and his daughter will pick, the same in every set)
   'wear.pearlcollar.name': 'Pearl Collar',
+  // The Crystal Cave's found collar (a placeholder name, the same in every set)
+  'wear.glimmercollar.name': 'Glimmer Collar',
   // Lighthouse Point's journal pages (src/lighthousepages.js): drawn before the place is ever walked, so they are
   // here; its other lines are in the place's lazy file (src/world/lighthousewords.js)
   'lighthouse.page.lamproom.name': 'The Lamp Room',

@@ -135,7 +135,7 @@ describe('the built place', () => {
     expect(area.waters).toEqual([]);
     expect(area.evening).toBe(true);
     expect(area.strays).toBe(false);
-    expect(area.collectibles).toEqual([]);
+    expect(area.collectibles).toHaveLength(6); // milestone C3 (test/crystalfinds.test.js)
     for (const key of ['perches', 'tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
     expect(area.ground.flat).toBe(false);
     expect(typeof area.life).toBe('function');
