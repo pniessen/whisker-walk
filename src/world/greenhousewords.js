@@ -33,6 +33,10 @@ export const LINES = Object.freeze({
   'greenhouse.water.prompt': 'E — water the plant',
   'greenhouse.water.done': 'Ahh! The plant perks right up. 💧',
   'greenhouse.water.all': 'Every pot is watered! The can goes back to its hook. 🌼',
+  // the moments' labels (the corner card says what just happened) and the catnip bed's purr
+  'greenhouse.moment.frog': 'a frog plopping into the pond',
+  'greenhouse.moment.sparrow': 'a sparrow splashing in the fountain',
+  'greenhouse.catnip.purr': clan('Purrrr… so happy. 🌿', 'Purrrr… the catmint makes everything soft. 🌿'),
   // the six finds' lines (milestone G2 reserves them; the rules that say them come with the finds)
   'greenhouse.find.palm': 'A cool drop of mist lands on your nose. 💧',
   'greenhouse.find.koi': 'A fat orange fish blows you a bubble. 🐟',

@@ -15,6 +15,9 @@
 //   * the can hangs by the bench: E picks it up (she carries it in front of her, one thing at a time); E by a
 //     drooping pot waters it (a sprinkle, it perks up); after the fourth the can goes back to its hook;
 //   * a can can be put down and picked up again: walking away from a pot does nothing, there is no failure.
+// MILESTONE G3 adds, in this same life: the finds (greenhousefinds.js: palm, koi, catnip; found by the rules there, paid once
+// ever, counted once a walk), the catnip bed's purr line when she nibbles there, and the rain shelter (weather.setSheltered while
+// the camera is under the Palm House's glass; put back on dispose). All of it is optional in ctx: a bare test life skips it.
 // The can and packets are this life's own meshes (a carried "job" item without the walk's mouth, which the later
 // milestone wires with the rain-slip rule). Nothing here pays yet (the awards are the next milestone's), draws no
 // random number and reads no clock.
@@ -29,6 +32,7 @@ import * as P from './greenhouseplan.js';
 import * as K from './greenhouseparts.js';
 import { KOI_FROZEN_TIME } from './greenhouseplants.js';
 import * as G from './greenhouseglass.js';
+import { findAt, noteGreenhouseFind } from './greenhousefinds.js';
 import './greenhousewords.js';
 
 export const GH_SEED_SALT = 0x6e5d1;
@@ -42,6 +46,7 @@ export const PERK_TIME = 0.9;
 export const SOW_TIME = 1.4;
 export const SEEDS = 5;
 export const THIRSTY = 4;
+export const STILL_EPS = 0.05; // m: her paws within this of where she came to rest are still (the Market's)
 
 // Which of the three sets (0, 1, 2) the packets lie in; and which four pots droop. Pure: the room's seed or the walk
 // count, and the salts.
@@ -74,6 +79,14 @@ export function createGreenhouseLife(ctx) {
   const thirsty = thirstyPots(ctx.roomSeed, ctx.visits ?? 0);
   let disposed = false;
   let clock = 0;
+
+  // G3: finding, the catnip purr, the shelter
+  const { log = null, progression = null, weather = null } = ctx;
+  const found = new Set(); // this walk's
+  const spot = { x: 0, y: 0, z: 0, still: 0, rest: null };
+  const restAt = { x: 0, y: 0, z: 0, set: false };
+  let restWas = false;
+  let sheltered = false;
 
   // ---- the seeds
   const packets = withLocalUuids('greenhouse-packets', () => set.map((s, i) => {
@@ -180,6 +193,22 @@ export function createGreenhouseLife(ctx) {
       if (koi) koi.userData.koi.uTime.value = reducedMotion ? KOI_FROZEN_TIME : t;
 
       if (catPos) {
+        // stillness starts again whenever she moves or a rest ends; the finds read it with her rest
+        const resting = !!session?.rest;
+        const moved = !restAt.set || Math.hypot(catPos.x - restAt.x, catPos.y - restAt.y, catPos.z - restAt.z) >= STILL_EPS;
+        if (moved || (restWas && !resting)) {
+          restAt.x = catPos.x; restAt.y = catPos.y; restAt.z = catPos.z; restAt.set = true;
+          spot.still = 0;
+        } else spot.still += dt > 0 ? dt : 0;
+        if (resting && !restWas && session.rest.kind === 'eat' && P.CATNIP_BEDS.some((bd) => dist(catPos, bd) < 1.4)) say('greenhouse-catnip-purr', phrase('greenhouse.catnip.purr'));
+        restWas = resting;
+        spot.x = catPos.x; spot.y = catPos.y; spot.z = catPos.z;
+        spot.rest = session?.rest ?? null;
+        const here = findAt(spot);
+        if (here && !found.has(here)) {
+          found.add(here);
+          if (log && progression) noteGreenhouseFind(here, { log, progression });
+        }
         // the packets: walking to one picks it
         for (let i = 0; i < packets.length; i++) {
           const m = packets[i];
@@ -201,6 +230,11 @@ export function createGreenhouseLife(ctx) {
         } else if (!allWatered) {
           can.position.y = ground.y(can.position.x, can.position.z);
         }
+      }
+      // under the Palm House's glass the rain stays out (only on a change)
+      if (weather && camera?.position) {
+        const under = P.underGlass(camera.position.x, camera.position.y, camera.position.z);
+        if (under !== sheltered) { sheltered = under; weather.setSheltered(under); }
       }
       // the sprouts pop up with a small overshoot
       if (seedState === 'sown') {
@@ -233,6 +267,7 @@ export function createGreenhouseLife(ctx) {
     },
     dispose() {
       disposed = true;
+      if (sheltered) { sheltered = false; weather?.setSheltered(false); }
       for (const m of [...packets, sprouts, can, dropMesh, ...pots.map((p) => p.cloud)]) {
         scene.remove(m);
         m.geometry.dispose();
