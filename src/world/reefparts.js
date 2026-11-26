@@ -34,6 +34,20 @@ function lines(min, max, edge, outer) {
   return out;
 }
 
+// How much a spot of sand sits in the shade of something standing on it (0 to 1): the coral, the boat, the anchor and the cave's mouth.
+let settles = null;
+function settleAt(x, z) {
+  if (!settles) {
+    settles = P.scatterCoral().map((k) => [k.x, k.z, k.s * 1.5]);
+    settles.push([-32.8, -31.5, 4.2], [-29, -30, 3.2], [-36, -31.5, 3.2], [-23.5, -29.5, 1.8]); // the boat's belly, bow and stern, the anchor
+  }
+  let m = 0;
+  for (const [cx, cz, r] of settles) {
+    const d = Math.hypot(x - cx, z - cz);
+    if (d < r) m = Math.max(m, (1 - d / r) ** 1.5);
+  }
+  return m;
+}
 const _c = new THREE.Color();
 const _d = new THREE.Color();
 export function groundGeometry() {
@@ -57,8 +71,12 @@ export function groundGeometry() {
       _c.setHex(COL.sand);
       _d.setHex(COL.sandDark);
       _c.lerp(_d, 0.45 * low);
-      const tone = P.rippleTone(x, z);
-      col[k * 3] = _c.r * tone; col[k * 3 + 1] = _c.g * tone; col[k * 3 + 2] = _c.b * tone;
+      // beauty round 1: broad warm and cool drifts, a faint net of caustic light, and a soft dark settle round everything that stands on the sand
+      const drift = 0.5 + 0.5 * Math.sin(x * 0.083 + 1.3) * Math.cos(z * 0.071 - 0.4);
+      const net = Math.max(0, 1 - Math.abs(Math.sin(x * 0.55 + Math.sin(z * 0.4) * 1.6) + Math.sin(z * 0.5 + Math.sin(x * 0.45 + 1) * 1.6)) / 0.5);
+      const tone = P.rippleTone(x, z) * (1 + 0.1 * net * net) * (1 - 0.08 * drift);
+      const settle = 1 - 0.4 * settleAt(x, z);
+      col[k * 3] = _c.r * tone * settle * (1 + 0.1 * drift); col[k * 3 + 1] = _c.g * tone * settle; col[k * 3 + 2] = _c.b * tone * settle * (1 - 0.1 * drift) * (1 + 0.04 * (1 - settle) * 5);
     }
   }
   for (let j = 0; j < nz - 1; j++) {
@@ -92,6 +110,7 @@ export function createKit(prefix) {
   const buckets = new Map();
   return {
     put(key, mat, geo, { noCast = false } = {}) {
+      if (key === 'paint') shadePaint(geo); // beauty round 1: contact darkening and a per-face tone on everything lit and painted
       let b = buckets.get(key);
       if (!b) buckets.set(key, (b = { key, mat, noCast, geos: [] }));
       b.geos.push(geo);
@@ -117,6 +136,28 @@ export function reefMaterials() {
     paint: litMaterial(0xffffff, { vertexColors: true, roughness: 0.75 }),
     glow: new THREE.MeshBasicMaterial({ vertexColors: true }),
   };
+}
+
+// Beauty round 1: per-face tone jitter (a hash of the face's middle, so no two facets are quite the same) and a soft contact darkening
+// over the first 0.45 m above the seabed (the geometry is already in world space when it is put). Vertex colour only: no new mesh, draw or texture.
+const hash3 = (x, y, z) => { const n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return n - Math.floor(n); };
+export function shadePaint(g) {
+  const pos = g.attributes.position;
+  const col = g.attributes.color;
+  if (!col || pos.count % 3) return g;
+  for (let f = 0; f < pos.count; f += 3) {
+    const cx = (pos.getX(f) + pos.getX(f + 1) + pos.getX(f + 2)) / 3;
+    const cy = (pos.getY(f) + pos.getY(f + 1) + pos.getY(f + 2)) / 3;
+    const cz = (pos.getZ(f) + pos.getZ(f + 1) + pos.getZ(f + 2)) / 3;
+    const jit = 0.9 + 0.2 * hash3(Math.round(cx * 50), Math.round(cy * 50), Math.round(cz * 50));
+    for (let v = f; v < f + 3; v++) {
+      const h = pos.getY(v) - P.reefY(pos.getX(v), pos.getZ(v));
+      const near = h < 0.45 ? 1 - Math.max(0, h) / 0.45 : 0; // 1 on the sand, 0 at 0.45 m
+      const k = jit * (1 - 0.3 * near * near) * (1 + 0.05 * Math.min(1, Math.max(0, h) / 2));
+      col.setXYZ(v, col.getX(v) * k, col.getY(v) * k, col.getZ(v) * k);
+    }
+  }
+  return g;
 }
 
 // Paint a geometry one colour (non-indexed, with position, normal, uv and colour so any two merge).
@@ -288,7 +329,9 @@ export function drawKelp() {
     sc.set(1, k.h, 1);
     m4.compose(pos, q, sc);
     mesh.setMatrixAt(i, m4);
-    tint.setHex(0xffffff).multiplyScalar(0.8 + 0.3 * ((i * 0.618) % 1));
+    const u = (i * 0.618) % 1;
+    const w = (i * 0.381 + 0.17) % 1; // a yellow-green blade, a blue-green one, brighter or darker
+    tint.setRGB(0.75 + 0.5 * w, 0.78 + 0.35 * u, 1.1 - 0.7 * w + 0.1 * u);
     mesh.setColorAt(i, tint);
   });
   mesh.instanceMatrix.needsUpdate = true;

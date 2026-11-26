@@ -10,6 +10,7 @@
 // =============================================================================
 
 import * as THREE from 'three';
+import { softDisc } from './reeflight.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as P from './reefplan.js';
 
@@ -271,7 +272,7 @@ function createBubbles(scene, reducedMotion) {
   const n = reducedMotion ? BUBBLES.reduced : BUBBLES.count;
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
-  const mat = new THREE.PointsMaterial({ size: 0.14, sizeAttenuation: true, color: 0xdffcff, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending, fog: true });
+  const mat = new THREE.PointsMaterial({ map: softDisc(), alphaTest: 0.02, size: 0.14, sizeAttenuation: true, color: 0xdffcff, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending, fog: true });
   const pts = new THREE.Points(geo, mat);
   pts.name = 'reef:bubbles';
   pts.frustumCulled = false;

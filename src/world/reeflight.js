@@ -33,6 +33,24 @@ export function shimmerPixels(size = SHIMMER.size) {
   return px;
 }
 
+// A soft round dot for every Points of the Reef (beauty round 1: they were square). 16 x 16, white with an alpha that falls off to the rim; made once.
+let disc = null;
+export function softDisc() {
+  if (!disc) {
+    const n = 16;
+    const px = new Uint8Array(n * n * 4).fill(255);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const d = Math.hypot((i + 0.5) / n - 0.5, (j + 0.5) / n - 0.5) * 2; // 0 in the middle, 1 at the rim
+      const a = Math.min(1, Math.max(0, (1 - d) / 0.45));
+      px[(j * n + i) * 4 + 3] = Math.round(255 * a * (0.55 + 0.45 * Math.min(1, d * 1.4)));  // a brighter rim: a bubble, not a blob
+    }
+    disc = new THREE.DataTexture(px, n, n, THREE.RGBAFormat);
+    disc.magFilter = disc.minFilter = THREE.LinearFilter;
+    disc.needsUpdate = true;
+  }
+  return disc;
+}
+
 function shimmerTexture() {
   const tex = new THREE.DataTexture(shimmerPixels(), SHIMMER.size, SHIMMER.size, THREE.RGBAFormat);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
@@ -44,14 +62,15 @@ function shimmerTexture() {
 
 // One shaft: a quad `w` wide and `height` tall, bright at the top and gone at the foot (vertex colours into an additive blend).
 export function shaftGeometry(w, height) {
-  const g = new THREE.PlaneGeometry(w, height, 1, 1);
+  const g = new THREE.PlaneGeometry(w, height, 4, 1); // four across: the edges fade (beauty round 1)
   g.translate(0, height / 2, 0);
   const pos = g.attributes.position;
   const col = new Float32Array(pos.count * 3);
   const c = new THREE.Color(SHAFT_LOOK.tint);
   for (let v = 0; v < pos.count; v++) {
     const t = pos.getY(v) / height; // 0 at the foot, 1 at the top
-    const k = t * t;
+    const e = Math.abs(pos.getX(v)) / (w / 2); // 0 down the middle, 1 at the sides
+    const k = t * t * (1 - e * e * 0.97) * (e > 0.99 ? 0 : 1);
     col[v * 3] = c.r * k; col[v * 3 + 1] = c.g * k; col[v * 3 + 2] = c.b * k;
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
