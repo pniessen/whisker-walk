@@ -46,7 +46,7 @@ describe('the daily goals', () => {
     expect(area.boxes).toHaveLength(1);
     expect(spottable).toHaveLength(8);
     expect(area.collectibles).toHaveLength(5);
-    expect(area.scenics).toHaveLength(3);
+    expect(area.scenics).toHaveLength(6);
     expect(yarnSpotsFor('greenhouse')).toHaveLength(2);
   });
   it('still draws exactly three, however many goals fit', () => {

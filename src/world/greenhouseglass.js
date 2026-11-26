@@ -27,6 +27,21 @@ export const GLASS_ALPHA = Object.freeze({ wall: 0.32, roof: 0.34, wet: 0.01 });
 const ARC_SEGMENTS = 12;
 const RIB_X = [-14, -12, -10, -8, -6, -4, -1.5, 1.5, 4, 6, 8, 10, 12, 14]; // 14 ribs; the middle bay is the door's
 
+// The rib stations of any house: the Palm House's own list, or (a stage-B room) an even spacing of about 2 m either side of the
+// long-wall door's 3 m bay. The door's x is the south or north door's, or the house's middle.
+export function ribsOf(h, doors = []) {
+  if (h.x0 === -14 && h.x1 === 14) return RIB_X;
+  const d = doors.find((k) => k.side === 'south' || k.side === 'north');
+  const dx = d ? d.x : (h.x0 + h.x1) / 2;
+  const half = h.doorW / 2;
+  const side = (a, b) => {
+    const n = Math.max(1, Math.round((b - a) / 2));
+    return Array.from({ length: n + 1 }, (_, i) => a + ((b - a) * i) / n);
+  };
+  return [...side(h.x0, dx - half), ...side(dx + half, h.x1)];
+}
+const doorX = (doors, side, h) => doors.find((d) => d.side === side)?.x ?? (h.x0 + h.x1) / 2;
+
 const _col = new THREE.Color();
 const _a = new THREE.Color();
 const _b = new THREE.Color();
@@ -67,11 +82,12 @@ export function profileOf(h) {
   const hw = (h.z1 - h.z0) / 2;
   const rise = h.ridge - h.wallH;
   const arc = [];
-  for (let k = 0; k <= ARC_SEGMENTS; k++) {
-    const th = (k * Math.PI) / ARC_SEGMENTS;
-    arc.push({ z: zc - hw * Math.cos(th), y: h.wallH + rise * Math.sin(th), roof: k > 0 && k < ARC_SEGMENTS });
+  const segs = h.arcSegments ?? ARC_SEGMENTS; // (a stage-B room draws a coarser arch: fewer beams)
+  for (let k = 0; k <= segs; k++) {
+    const th = (k * Math.PI) / segs;
+    arc.push({ z: zc - hw * Math.cos(th), y: h.wallH + rise * Math.sin(th), roof: k > 0 && k < segs });
   }
-  arc[0].z = h.z0; arc[ARC_SEGMENTS].z = h.z1;
+  arc[0].z = h.z0; arc[segs].z = h.z1;
   return [{ z: h.z0, y: h.plinth, roof: false }, ...arc, { z: h.z1, y: h.plinth, roof: false }];
 }
 const topAt = (arc, z) => {
@@ -110,17 +126,19 @@ function glassGeometry(h, doors) {
   const southDoor = doors.find((d) => d.side === 'south');
   const northDoor = doors.find((d) => d.side === 'north');
   const half = h.doorW / 2;
+  const ribs = ribsOf(h, doors);
   // the long surface: each profile segment, bay by bay
   for (let s = 0; s + 1 < prof.length; s++) {
     const a = prof[s], b = prof[s + 1];
     const dz = b.z - a.z, dy = b.y - a.y;
     const out = [0, dz, -dy]; // the 90-degree turn of the travel in the (z, y) plane: up on the roof, -z on the north wall, +z on the south
     const northWall = s === 0, southWall = s === prof.length - 2;
-    for (let i = 0; i + 1 < RIB_X.length; i++) {
-      const xa = RIB_X[i], xb = RIB_X[i + 1];
+    for (let i = 0; i + 1 < ribs.length; i++) {
+      const xa = ribs[i], xb = ribs[i + 1];
       let A = [xa, a.y, a.z], B = [xb, a.y, a.z], C = [xb, b.y, b.z], D = [xa, b.y, b.z];
-      const inDoorBay = xa >= -half - 1e-6 && xb <= half + 1e-6;
-      if (inDoorBay && ((northWall && northDoor) || (southWall && southDoor))) {
+      const wallDoor = northWall ? northDoor : southWall ? southDoor : null;
+      const inDoorBay = !!wallDoor && xa >= wallDoor.x - half - 1e-6 && xb <= wallDoor.x + half + 1e-6;
+      if (inDoorBay) {
         // only the transom above the doorway (the wall segment runs plinth to wall top)
         const up = Math.max(a.y, b.y);
         if (up - h.doorH < 0.05) continue;
@@ -158,7 +176,7 @@ function frameGeometry(h, doors) {
   const parts = [];
   const T = 0.12;
   // ribs: the arch at every rib x, foot to foot (the wall segments are the first and last)
-  for (const x of RIB_X) {
+  for (const x of ribsOf(h, doors)) {
     for (let s = 0; s + 1 < prof.length; s++) {
       const a = prof[s], b = prof[s + 1];
       // the ribs beside a door (x = +-1.5) stand to the ground; every other rib starts at the plinth
@@ -170,9 +188,9 @@ function frameGeometry(h, doors) {
   // door posts and lintels
   for (const d of doors) {
     if (d.side === 'south' || d.side === 'north') {
-      parts.push(beam(-half, h.plinth, d.z, -half, h.doorH, d.z, 0.2, 0.2, COL.post));
-      parts.push(beam(half, h.plinth, d.z, half, h.doorH, d.z, 0.2, 0.2, COL.post));
-      parts.push(beam(-half, h.doorH, d.z, half, h.doorH, d.z, 0.2, 0.16, COL.post));
+      parts.push(beam(d.x - half, h.plinth, d.z, d.x - half, h.doorH, d.z, 0.2, 0.2, COL.post));
+      parts.push(beam(d.x + half, h.plinth, d.z, d.x + half, h.doorH, d.z, 0.2, 0.2, COL.post));
+      parts.push(beam(d.x - half, h.doorH, d.z, d.x + half, h.doorH, d.z, 0.2, 0.16, COL.post));
     } else {
       parts.push(beam(d.x, h.plinth, zc - half, d.x, h.doorH, zc - half, 0.2, 0.2, COL.post));
       parts.push(beam(d.x, h.plinth, zc + half, d.x, h.doorH, zc + half, 0.2, 0.2, COL.post));
@@ -190,11 +208,14 @@ function frameGeometry(h, doors) {
   }
   // the plinth: a low dark wall round the foot, each door left open
   const wall = (x0, z0, x1, z1) => parts.push(beam(x0, h.plinth / 2, z0, x1, h.plinth / 2, z1, 0.36, h.plinth, COL.plinth));
-  wall(h.x0, h.z0, -half, h.z0); wall(half, h.z0, h.x1, h.z0);
-  wall(h.x0, h.z1, -half, h.z1); wall(half, h.z1, h.x1, h.z1);
-  wall(h.x0, h.z0, h.x0, zc - half); wall(h.x0, zc + half, h.x0, h.z1);
-  wall(h.x1, h.z0, h.x1, zc - half); wall(h.x1, zc + half, h.x1, h.z1);
-  void doors;
+  // (a side with no door is one whole wall; the Palm House has all four doors)
+  const nx = doorX(doors, 'north', h), sx = doorX(doors, 'south', h);
+  const has = (side) => doors.some((d) => d.side === side);
+  if (has('north')) { wall(h.x0, h.z0, nx - half, h.z0); wall(nx + half, h.z0, h.x1, h.z0); } else wall(h.x0, h.z0, h.x1, h.z0);
+  if (has('south')) { wall(h.x0, h.z1, sx - half, h.z1); wall(sx + half, h.z1, h.x1, h.z1); } else wall(h.x0, h.z1, h.x1, h.z1);
+  for (const [side, x] of [['west', h.x0], ['east', h.x1]]) {
+    if (has(side)) { wall(x, h.z0, x, zc - half); wall(x, zc + half, x, h.z1); } else wall(x, h.z0, x, h.z1);
+  }
   const g = mergeGeometries(parts, false);
   for (const p of parts) p.dispose();
   return g;
@@ -224,18 +245,18 @@ export function glassHouse(h, doors, { name = 'glassHouse' } = {}) {
 
 // ---------------------------------------------------------------------------------------------
 // The floor and the dapple. The dapple's canvas is drawn here, inside build, never at import.
-export function floorQuad(h) {
+export function floorQuad(h, hex = COL.floor, name = 'glassFloor') {
   const g = new THREE.PlaneGeometry(h.x1 - h.x0 - 0.4, h.z1 - h.z0 - 0.4);
   g.rotateX(-Math.PI / 2);
-  paint(g, COL.floor);
+  paint(g, hex);
   const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 }));
   m.position.set((h.x0 + h.x1) / 2, 0.03, (h.z0 + h.z1) / 2);
-  m.name = 'glassFloor';
+  m.name = name;
   m.receiveShadow = true;
   return m;
 }
 
-export function dappleQuad(h, { size = 64 } = {}) {
+export function dappleQuad(h, { size = 64, name = 'glassDapple' } = {}) {
   const canvas = document.createElement('canvas');
   canvas.width = size; canvas.height = size;
   const ctx = canvas.getContext('2d');
@@ -261,7 +282,7 @@ export function dappleQuad(h, { size = 64 } = {}) {
   g.rotateX(-Math.PI / 2);
   const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: true, polygonOffset: true, polygonOffsetFactor: -1 }));
   m.position.set((h.x0 + h.x1) / 2, 0.05, (h.z0 + h.z1) / 2);
-  m.name = 'glassDapple';
+  m.name = name;
   m.userData.noCast = true;
   m.userData.noMerge = true;
   m.castShadow = false;
@@ -275,13 +296,13 @@ export function dappleQuad(h, { size = 64 } = {}) {
 export const SHAFT_SPOTS = Object.freeze([[-8, -12.5], [-2, -5.5], [5.5, -13], [10, -6]].map((p) => Object.freeze(p)));
 export const SHAFT_GAIN = 0.16; // the additive light's strength at a shaft's top, centre (M0's 0.22 blew out)
 export const SHAFT_FADE = Object.freeze({ near: 2.5, far: 8 }); // m from the camera: none, then all
-export function sunShafts(h) {
+export function sunShafts(h, spots = SHAFT_SPOTS, name = 'sunShafts') {
   const pos = [];
   const col = [];
   const idx = [];
   const ridge = h.ridge - 0.6;
   _col.set(COL.shaft);
-  for (const [x, z] of SHAFT_SPOTS) {
+  for (const [x, z] of spots) {
     // two crossed pairs of triangles leaning a little east: the top narrow and bright in the middle, soft to nothing at
     // the sides (the edge vertices are black, and additive black is nothing), the foot wide and black
     for (const yaw of [0, Math.PI / 2]) {
@@ -317,7 +338,7 @@ diffuseColor.rgb *= smoothstep(${SHAFT_FADE.near.toFixed(1)}, ${SHAFT_FADE.far.t
   };
   mat.customProgramCacheKey = () => 'greenhouse-shafts-v2';
   const m = new THREE.Mesh(g, mat);
-  m.name = 'sunShafts';
+  m.name = name;
   m.position.set(0, ridge, 0);
   m.userData.noCast = true;
   m.userData.noMerge = true;
@@ -339,11 +360,11 @@ export const MIST_SHEETS = Object.freeze([
   { x: -7, z: -8, w: 7, d: 4.5, y: 0.35 }, { x: 5, z: -12, w: 8, d: 4, y: 0.5 },
   { x: 0, z: -1.6, w: 4.5, d: 2.2, y: 0.6 }, { x: 8.5, z: -4, w: 6, d: 3.5, y: 0.8 },
 ].map((s) => Object.freeze(s)));
-export function mistSheets() {
+export function mistSheets(sheets = MIST_SHEETS, name = 'glassMist') {
   const pos = [];
   const uv = [];
   const idx = [];
-  MIST_SHEETS.forEach((s, k) => {
+  sheets.forEach((s, k) => {
     const base = k * 4;
     for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
       pos.push(s.x + (u - 0.5) * s.w, s.y, s.z + (v - 0.5) * s.d);
@@ -387,7 +408,7 @@ float mN(vec2 q) { vec2 i = floor(q), f = fract(q); vec2 u = f * f * (3.0 - 2.0 
   };
   material.customProgramCacheKey = () => 'greenhouse-mist-v2';
   const m = new THREE.Mesh(g, material);
-  m.name = 'glassMist';
+  m.name = name;
   m.userData.noCast = true;
   m.userData.noMerge = true;
   m.userData.mist = uniforms;

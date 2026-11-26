@@ -59,8 +59,35 @@ describe('each find is found by its rule and not by anything near it', () => {
       }
     }
   });
-  it('the orchid, the cactus and the butterfly find nothing yet (no rooms), and the ids are reserved in the journal', () => {
-    for (const id of ['orchid', 'cactus', 'butterfly']) expect(Z[id]).toEqual([]);
+  it('the orchid: still 2 s beside the shy blue orchid on the first bench; not on the other bench, not moving', () => {
+    const z = ring('orchid');
+    expect(F.findAt(spot({ x: z.x, z: z.z + 1.0, still: 2 }))).toBe('orchid');
+    expect(F.findAt(spot({ x: z.x, z: z.z + 1.0, still: 1.9 }))).toBe(null);
+    expect(F.findAt(spot({ x: -20.5, z: -12.6, still: 9 }))).toBe(null);
+    expect(F.findAt(spot({ x: z.x, z: z.z + 1.0, y: 1.4, still: 9 }))).toBe(null);
+  });
+  it('the cactus: still 2 s beside the flowering cactus; not beside the others', () => {
+    const z = ring('cactus');
+    expect(F.findAt(spot({ x: z.x, z: z.z + 1.2, still: 2 }))).toBe('cactus');
+    expect(F.findAt(spot({ x: z.x, z: z.z + 1.2, still: 1.9 }))).toBe(null);
+    expect(F.findAt(spot({ x: 20.8, z: -10.9, still: 9 }))).toBe(null);
+  });
+  it('the butterfly: still 3 s in the Butterfly Room\'s middle; not at its door', () => {
+    const z = ring('butterfly');
+    expect(F.findAt(spot({ x: z.x, z: z.z, still: 3 }))).toBe('butterfly');
+    expect(F.findAt(spot({ x: z.x, z: z.z, still: 2.9 }))).toBe(null);
+    expect(F.findAt(spot({ x: 0, z: -21.5, still: 9 }))).toBe(null);
+  });
+  it('the three room finds pay and count as the others do, and the ids are reserved in the journal', () => {
+    for (const id of ['orchid', 'cactus', 'butterfly']) {
+      const progression = createProgression(memoryStorage());
+      const log = createDiscoveryLog(progression);
+      log.startWalk();
+      expect(F.noteGreenhouseFind(id, { log, progression })).toEqual({ fresh: true, first: true, points: 12 });
+      expect(progression.state.journal[`gh${id}`]).toBe(1);
+      expect(F.noteGreenhouseFind(id, { log, progression }).fresh).toBe(false);
+      expect(withOffWords(() => F.GREENHOUSE_FIND_WORDS[id]())).toBe(F.GREENHOUSE_FIND_WORDS[id]());
+    }
     expect(GREENHOUSE_FIND_IDS).toEqual(['palm', 'koi', 'catnip', 'orchid', 'cactus', 'butterfly']);
     expect(JOURNAL_TYPES.filter((t) => GREENHOUSE_JOURNAL_TYPES.includes(t))).toEqual(GREENHOUSE_JOURNAL_TYPES);
   });
@@ -117,7 +144,7 @@ describe('what a find pays and says', () => {
     expect(b.progression.state.journal.ghcatnip).toBe(1);
   });
   it('the lines read the same in both word sets except the catnip\'s, which names its plant', () => {
-    for (const id of ['palm', 'koi']) expect(withOffWords(() => F.GREENHOUSE_FIND_WORDS[id]())).toBe(F.GREENHOUSE_FIND_WORDS[id]());
+    for (const id of ['palm', 'koi', 'orchid', 'cactus', 'butterfly']) expect(withOffWords(() => F.GREENHOUSE_FIND_WORDS[id]())).toBe(F.GREENHOUSE_FIND_WORDS[id]());
     expect(F.GREENHOUSE_FIND_WORDS.catnip()).toMatch(/^Catmint|^Catnip/);
     expect(withOffWords(() => F.GREENHOUSE_FIND_WORDS.catnip())).toBe('Catnip! Mmmm, it smells so good. 🌿');
     expect(phrase('greenhouse.catnip.purr')).toMatch(/Purr/);

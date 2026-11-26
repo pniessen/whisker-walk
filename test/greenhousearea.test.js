@@ -20,14 +20,14 @@ const { area } = W;
 const near = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
 describe('the record is whole', () => {
-  it('counts what the spec asks for: 5 collectibles, 6 tippables, a box, critters, 3 scenics, moments', () => {
+  it('counts what the spec asks for: 5 collectibles, 6 tippables, a box, critters, 6 scenics (3 stage A, 3 rooms), moments', () => {
     expect(area.collectibles).toHaveLength(5);
     expect(area.tippables).toHaveLength(6);
     expect(area.tippables.filter((t) => t.kind === 'can')).toHaveLength(2);
     expect(area.tippables.filter((t) => t.kind === 'pot')).toHaveLength(3);
     expect(area.tippables.filter((t) => t.kind === 'bin')).toHaveLength(1);
     expect(area.boxes).toHaveLength(1);
-    expect(area.scenics.map((s) => s.id)).toEqual(['greenhouse-palms', 'greenhouse-pond', 'greenhouse-shed']);
+    expect(area.scenics.map((s) => s.id)).toEqual(['greenhouse-palms', 'greenhouse-pond', 'greenhouse-shed', 'greenhouse-orchids', 'greenhouse-cactus', 'greenhouse-butterflies']);
     expect(area.critterSpawns.filter((c) => c.type === 'frog').length).toBeGreaterThanOrEqual(2);
     expect(area.critterSpawns.filter((c) => c.type === 'bird').length).toBeGreaterThanOrEqual(3);
     expect(area.moments.map((m) => m.id)).toEqual(['frog-plop', 'sparrow-bath']);
@@ -53,7 +53,7 @@ describe('everything stands on ground she can walk to', () => {
   const items = [
     ...rows([area.spawn], 'spawn'), ...rows(area.collectibles, 'collectible'), ...rows(area.scenics, 'scenic'), ...rows(area.tippables, 'tippable'),
     ...rows(area.boxes, 'box'), ...rows(area.critterSpawns, 'critter'), ...rows(area.pois, 'poi'), ...rows(P.GREENHOUSE_RESTS, 'rest'),
-    ...rows(P.GREENHOUSE_HIDES, 'hide'), ...rows(P.SEED_SPOT_SETS.flat(), 'seed'), ...rows(P.WATER_POT_SPOTS, 'pot'),
+    ...rows(P.GREENHOUSE_HIDES, 'hide'), ...rows([...P.SEED_SPOT_SETS.flat(), ...P.ROOM_SEED_SPOT_SETS.flat()], 'seed'), ...rows(P.ALL_POT_SPOTS, 'pot'),
     ...rows(area.moments.map((m) => ({ ...m, x: m.from.x, z: m.from.z })), 'moment start'),
     ...rows([P.POTTING.canHome], 'bench'),
   ];
@@ -70,7 +70,7 @@ describe('everything stands on ground she can walk to', () => {
     for (const p of [{ x: 0, z: 29 }, { x: 0, z: 1.6 }, { x: 0, z: -9 + 2.6 }, { x: 23.2, z: 16 }, { x: P.POND.x, z: P.POND.z - P.POND.r - 0.6 }]) expect(W.reachable(p.x, p.z), `${p.x},${p.z}`).toBe(true);
   });
   it('no two walk-up things crowd each other: collectibles, scenics and the box keep 2 m from every seed spot and pot', () => {
-    for (const a of [...area.collectibles, ...area.scenics, ...area.boxes]) for (const s of [...P.SEED_SPOT_SETS.flat(), ...P.WATER_POT_SPOTS]) expect(near(a, s), `${a.id ?? 'box'} vs ${s.x},${s.z}`).toBeGreaterThan(2);
+    for (const a of [...area.collectibles, ...area.scenics, ...area.boxes]) for (const s of [...P.SEED_SPOT_SETS.flat(), ...P.ROOM_SEED_SPOT_SETS.flat(), ...P.ALL_POT_SPOTS]) expect(near(a, s), `${a.id ?? 'box'} vs ${s.x},${s.z}`).toBeGreaterThan(2);
   });
 });
 

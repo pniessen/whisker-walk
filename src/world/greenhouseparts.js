@@ -109,7 +109,7 @@ export function gardenPots() {
   const pot = tint(new THREE.CylinderGeometry(0.28, 0.2, 0.36, 8), 0xb8613c);
   const rim = tint(new THREE.CylinderGeometry(0.31, 0.29, 0.07, 8), 0xa4532f);
   const leaves = [];
-  P.WATER_POT_SPOTS.forEach(({ x, z }, i) => {
+  P.ALL_POT_SPOTS.forEach(({ x, z }, i) => {
     col.add(pot, x, 0.18, z, {});
     col.add(rim, x, 0.38, z, {});
     const lc = collector();

@@ -37,6 +37,9 @@ import './greenhousewords.js';
 
 export const GH_SEED_SALT = 0x6e5d1;
 export const GH_WATER_SALT = 0x6e5d2;
+export const GH_ROOM_SALT = 0x6e5d4; // (0x6e5d3 is the butterflies')
+export const ROOM_SHARE = 0.5; // a walk's chance, by hash, of using a rooms' packet set and pot set (milestone G6)
+export const POP_TIME = 1.2; // s: the shy orchid and the cactus flower open
 export const PICK_R = 1.15;
 export const TRAY_R = 2.7;
 export const CAN_R = 1.5;
@@ -59,6 +62,13 @@ export function seedSetIndex(roomSeed, visits = 0) {
   const i = Math.floor(hash01(a, b, GH_SEED_SALT) * P.SEED_SPOT_SETS.length);
   return Number.isFinite(i) ? Math.min(P.SEED_SPOT_SETS.length - 1, Math.max(0, i)) : 0;
 }
+// The rooms' sets (milestone G6): -1 for the stage-A sets above, else the index into ROOM_SEED_SPOT_SETS and ROOM_POT_SETS.
+export function roomSetIndex(roomSeed, visits = 0) {
+  const [a, b] = seedPair(roomSeed, visits);
+  const h = hash01(a, b, GH_ROOM_SALT);
+  if (!(h < ROOM_SHARE)) return -1;
+  return Math.min(P.ROOM_SEED_SPOT_SETS.length - 1, Math.floor((h / ROOM_SHARE) * P.ROOM_SEED_SPOT_SETS.length));
+}
 export function thirstyPots(roomSeed, visits = 0) {
   const [a, b] = seedPair(roomSeed, visits);
   const rank = (ids) => ids.map((i) => [hash01(a + i, b, GH_WATER_SALT), i]).sort((p, q) => p[0] - q[0] || p[1] - q[1]).map((p) => p[1]);
@@ -69,14 +79,17 @@ const say = (key, label) => bus.emit('discovery', { type: 'greenhousenote', key,
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const smooth = (k) => { const t = Math.min(1, Math.max(0, k)); return t * t * (3 - 2 * t); };
 
-// ctx: { scene, ground, reducedMotion, roomSeed, visits, mist, shafts, koi, sound }
+// ctx: { scene, ground, reducedMotion, roomSeed, visits, mist, shafts, koi, sound, rooms, roomMist, roomShafts, butterflies, shyOrchid, cactusFlower }
+// (`rooms` true turns the stage-B rooms on: their packet and pot sets, the butterflies, the two opening flowers)
 export function createGreenhouseLife(ctx) {
   const { reducedMotion = false } = ctx;
   const scene = ctx.scene ?? new THREE.Scene();
   const ground = ctx.ground ?? { y: () => 0 };
-  const { mist = null, shafts = null, koi = null } = ctx;
-  const set = P.SEED_SPOT_SETS[seedSetIndex(ctx.roomSeed, ctx.visits ?? 0)];
-  const thirsty = thirstyPots(ctx.roomSeed, ctx.visits ?? 0);
+  const { mist = null, shafts = null, koi = null, roomMist = null, roomShafts = [], butterflies = null, shyOrchid = null, cactusFlower = null } = ctx;
+  const roomSet = ctx.rooms ? roomSetIndex(ctx.roomSeed, ctx.visits ?? 0) : -1;
+  const set = roomSet >= 0 ? P.ROOM_SEED_SPOT_SETS[roomSet] : P.SEED_SPOT_SETS[seedSetIndex(ctx.roomSeed, ctx.visits ?? 0)];
+  const thirsty = roomSet >= 0 ? P.ROOM_POT_SETS[roomSet].slice() : thirstyPots(ctx.roomSeed, ctx.visits ?? 0);
+  const pops = { orchid: { mesh: shyOrchid, at: -1 }, cactus: { mesh: cactusFlower, at: -1 } };
   let disposed = false;
   let clock = 0;
 
@@ -112,7 +125,7 @@ export function createGreenhouseLife(ctx) {
   let held = false;
   const pots = thirsty.map((i) => {
     const leaves = scene.getObjectByName(`ghPot-${i}`) ?? null;
-    const sp = P.WATER_POT_SPOTS[i];
+    const sp = P.ALL_POT_SPOTS[i];
     const cloud = withLocalUuids('greenhouse-cloud', () => K.thirstCloud());
     cloud.position.set(sp.x, 1.25, sp.z);
     scene.add(cloud);
@@ -189,7 +202,10 @@ export function createGreenhouseLife(ctx) {
       clock += dt > 0 ? dt : 0;
       const tt = reducedMotion ? 0 : t;
       if (mist) mist.userData.mist.uTime.value = tt;
+      if (roomMist) roomMist.userData.mist.uTime.value = tt;
       if (shafts) shafts.rotation.z = G.shaftAngle(t, reducedMotion);
+      for (const sh of roomShafts) sh.rotation.z = G.shaftAngle(t, reducedMotion);
+      butterflies?.update(dt, t, catPos);
       if (koi) koi.userData.koi.uTime.value = reducedMotion ? KOI_FROZEN_TIME : t;
 
       if (catPos) {
@@ -208,6 +224,8 @@ export function createGreenhouseLife(ctx) {
         if (here && !found.has(here)) {
           found.add(here);
           if (log && progression) noteGreenhouseFind(here, { log, progression });
+          if (here === 'butterfly') butterflies?.land(catPos);
+          else if (pops[here]?.mesh) { pops[here].at = clock; pops[here].mesh.visible = true; }
         }
         // the packets: walking to one picks it
         for (let i = 0; i < packets.length; i++) {
@@ -235,6 +253,12 @@ export function createGreenhouseLife(ctx) {
       if (weather && camera?.position) {
         const under = P.underGlass(camera.position.x, camera.position.y, camera.position.z);
         if (under !== sheltered) { sheltered = under; weather.setSheltered(under); }
+      }
+      // the shy orchid and the cactus flower open with a small overshoot, and stay open the walk
+      for (const pop of Object.values(pops)) {
+        if (pop.at < 0 || !pop.mesh) continue;
+        const k = Math.min(1, (clock - pop.at) / POP_TIME);
+        pop.mesh.scale.setScalar(Math.max(0.001, k < 1 ? smooth(k) * (1 + 0.18 * Math.sin(k * Math.PI)) : 1));
       }
       // the sprouts pop up with a small overshoot
       if (seedState === 'sown') {

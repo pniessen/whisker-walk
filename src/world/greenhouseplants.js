@@ -389,11 +389,12 @@ export function reedClumps() {
 const ORCHID_COLOURS = Object.freeze([0xf27ab8, 0xf6f0f4, 0xb07ae0, 0xf5b042, 0x7aa0f2, 0xe84a7a]);
 const ORCHID_LEAF = memo(() => frondGeometry({ len: 0.5, width: 0.1, segs: 3, rise: 0.6, droop: 1.0, fold: 0.3, base: 0x2f7a3a, tip: 0x5aa84a, belly: 0.5 }));
 const BENCH_WOOD = 0xa07a52;
-export function orchids() {
+// (`benches` and `name` are the stage-B Orchid Room's: its two benches.)
+export function orchids({ benches = P.ORCHID_BENCHES, name = 'ghOrchids' } = {}) {
   const col = collector();
   const pot = tint(new THREE.CylinderGeometry(0.15, 0.11, 0.2, 8), 0xb8613c);
   const soil = tint(new THREE.CylinderGeometry(0.14, 0.14, 0.02, 8), 0x3a2a1a);
-  P.ORCHID_BENCHES.forEach((b, bi) => {
+  benches.forEach((b, bi) => {
     // the bench: a slab on four legs, a shelf under it
     col.add(tint(new THREE.BoxGeometry(b.w, 0.07, b.d), BENCH_WOOD), b.x, b.h - 0.035, b.z, {});
     col.add(tint(new THREE.BoxGeometry(b.w - 0.2, 0.05, b.d - 0.1), 0x8a6642), b.x, 0.3, b.z, {});
@@ -418,7 +419,7 @@ export function orchids() {
       }
     }
   });
-  return finishMesh('ghOrchids', col.merged());
+  return finishMesh(name, col.merged());
 }
 
 // ---------------------------------------------------------------------------------------------
