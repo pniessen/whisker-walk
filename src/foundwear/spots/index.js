@@ -30,6 +30,7 @@ import { MARKET_SPOTS } from './market.js';
 import { MOON_SPOTS } from './moon.js';
 import { NEIGHBORHOOD_SPOTS } from './neighborhood.js';
 import { PARK_SPOTS } from './park.js';
+import { REEF_SPOTS } from './reef.js';
 import { SEASIDE_SPOTS } from './seaside.js';
 import { WOODS_SPOTS } from './woods.js';
 
@@ -38,7 +39,7 @@ import { WOODS_SPOTS } from './woods.js';
 export const FIND_LOOKS = Object.freeze(['post', 'branch', 'grass', 'water', 'perch']);
 export const SPOT_ID = /^fw-[a-z]{2,12}-\d{1,2}$/;
 
-export const FIND_SPOTS = Object.freeze({ docks: DOCKS_SPOTS, fair: FAIR_SPOTS, farm: FARM_SPOTS, greenhouse: GREENHOUSE_SPOTS, lighthouse: LIGHTHOUSE_SPOTS, market: MARKET_SPOTS, moon: MOON_SPOTS, neighborhood: NEIGHBORHOOD_SPOTS, park: PARK_SPOTS, seaside: SEASIDE_SPOTS, woods: WOODS_SPOTS });
+export const FIND_SPOTS = Object.freeze({ docks: DOCKS_SPOTS, fair: FAIR_SPOTS, farm: FARM_SPOTS, greenhouse: GREENHOUSE_SPOTS, lighthouse: LIGHTHOUSE_SPOTS, market: MARKET_SPOTS, moon: MOON_SPOTS, neighborhood: NEIGHBORHOOD_SPOTS, park: PARK_SPOTS, reef: REEF_SPOTS, seaside: SEASIDE_SPOTS, woods: WOODS_SPOTS });
 
 // spotsIn(areaId) -> that area's spots, or [] (own keys only).
 const NONE = Object.freeze([]);

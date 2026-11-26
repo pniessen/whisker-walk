@@ -14,6 +14,9 @@ import { installSuitKit } from '../cat/suitkit.js';
 import * as P from './reefplan.js';
 import * as K from './reefparts.js';
 import { createReefLife } from './reeflife.js';
+import { reefCollectibles, createReefFindsLife } from './reeffinds.js';
+import { drawFindMarks, drawBubbleColumns } from './reeffindparts.js';
+import { REEF_SCENICS } from './reeffindsplan.js';
 import './reefwords.js';
 
 export { REEF_NAME, REEF_BOUNDS, REEF_SPAWN } from './reefplan.js';
@@ -38,6 +41,8 @@ export function build(scene) {
     K.drawPebbles(kit, M);
     for (const m of kit.meshes()) scene.add(m);
     scene.add(K.drawKelp());
+    for (const m of drawFindMarks()) scene.add(m); // the oyster, the seahorse and the chest (milestone R3)
+    scene.add(drawBubbleColumns()); // the two floating golden mice's columns
     const area = {
       name: P.REEF_NAME,
       bounds: P.REEF_BOUNDS,
@@ -47,8 +52,8 @@ export function build(scene) {
       waterFx: [],
       perches: [],
       pois: P.REEF_POIS.map((p) => ({ ...p })),
-      collectibles: [],
-      scenics: [],
+      collectibles: reefCollectibles(), // five shells and three pieces of sea-glass (milestone R3)
+      scenics: REEF_SCENICS.map((k) => ({ ...k })),
       tippables: [],
       boxes: [],
       critterSpawns: [],
@@ -66,7 +71,15 @@ export function build(scene) {
       goalTypes: Object.freeze(['collectible', 'photo', 'scenic']),
       ground: P.createReefGround(),
       // the light, the kelp's sway and the air gauge (world/reeflife.js)
-      life: (ctx) => createReefLife(ctx),
+      life: (ctx) => {
+        const base = createReefLife(ctx);
+        const finds = createReefFindsLife(ctx); // the six discoveries (milestone R3)
+        return {
+          ...base,
+          update(...a) { base.update(...a); finds.update(...a); },
+          dispose() { finds.dispose(); base.dispose(); },
+        };
+      },
     };
     return area;
   });

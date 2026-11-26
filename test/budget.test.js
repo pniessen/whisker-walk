@@ -522,7 +522,9 @@ const AREAS = [
   // merged buckets, paint and glow; the kelp as ONE InstancedMesh of one blade) measured 4 / 1 / 7,934 built (10,646 counting every kelp instance), +12% (the Farm's and the
   // Market's ruling): 5 / 2 / 8,900. The plan's shell A figures were about 60 / 30 / 14,000: under them on every count. The light (the shimmer quad, up to three
   // shafts, the warm bubble) is the walk's life, made after the sweeps, and not in this count, as the Moon's sky is not. Rows B and C come with milestones R5 and R8.
-  ['reef', buildReef, 5, 2, 8900],
+  // Milestone R3 (2026-11-26, the finds: the oyster, the seahorse and the chest in one vertex-coloured mesh, the two golden mice's bubble columns in one translucent mesh; neither
+  // casts) measured 6 / 1 / 9,350 built, +12%: 7 / 2 / 10,500. The finds' glow is the walk's life, made after the sweeps, and not in this count.
+  ['reef', buildReef, 7, 2, 10500],
 ];
 
 // ---------------------------------------------------------------------------

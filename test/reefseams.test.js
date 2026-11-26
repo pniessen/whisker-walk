@@ -233,9 +233,11 @@ describe('the pack', () => {
     for (const c of area.colliders) expect(Math.hypot(c.x - REEF_SPAWN.x, c.z - REEF_SPAWN.z)).toBeGreaterThan(c.r + 1.5);
     expect(area.evening).toBe(true); // the walk's switch for "no weather"
     expect(area.strays).toBe(false); // ...and for no strays, ghosts, wanderer, rival or clan cats
-    for (const key of ['perches', 'collectibles', 'scenics', 'tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
+    expect(area.collectibles).toHaveLength(8); // milestone R3 (test/reeffinds.test.js)
+    expect(area.scenics).toHaveLength(3);
+    for (const key of ['perches', 'tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
     let meshes = 0; scene.traverse((o) => { if (o.isMesh) meshes++; });
-    expect(meshes).toBeLessThanOrEqual(5);
+    expect(meshes).toBeLessThanOrEqual(7); // R1's five, plus R3's finds marker mesh and bubble-column mesh (two merged meshes)
     const goals = createGoals(() => 0.5, area).goals;
     expect(goals).toHaveLength(3);
     for (const g of goals) expect(area.goalTypes).toContain(g.type);
@@ -243,7 +245,7 @@ describe('the pack', () => {
   it('the Reef\'s files import no other place (the chunk stays small); the dive suit is the shared lazy kit', () => {
     const src = read('src/world/reef.js');
     const imports = [...src.matchAll(/^import .*?from '(.+?)';/gm)].map((x) => x[1]);
-    expect(imports.sort()).toEqual(['../cat/suitkit.js', './builder.js', './localuuids.js', './reefparts.js', './reefplan.js', './reeflife.js'].sort());
+    expect(imports.sort()).toEqual(['../cat/suitkit.js', './builder.js', './localuuids.js', './reefparts.js', './reefplan.js', './reeflife.js', './reeffinds.js', './reeffindparts.js', './reeffindsplan.js'].sort());
     expect(src).toMatch(/import '\.\/reefwords\.js'/);
     for (const f of globSync('src/world/reef*.js')) {
       for (const [, spec] of read(f).matchAll(/^import .*?from '(.+?)';/gm)) expect(spec, `${f} imports ${spec}`).not.toMatch(/(moon|greenhouse|seaside|park|docks)/);

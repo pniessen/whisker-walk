@@ -618,6 +618,8 @@ const LATER = Object.freeze({
   'wear.gardenerhat.name': 'Gardener’s Hat',
   // The Moon's found cape (the Clan words' Silverpelt Cape is a milestone-later flavour: this name is the same in every set)
   'wear.starlightcape.name': 'Starlight Cape',
+  // The Reef's found collar (a placeholder name the owner and his daughter will pick, the same in every set)
+  'wear.pearlcollar.name': 'Pearl Collar',
   // Lighthouse Point's journal pages (src/lighthousepages.js): drawn before the place is ever walked, so they are
   // here; its other lines are in the place's lazy file (src/world/lighthousewords.js)
   'lighthouse.page.lamproom.name': 'The Lamp Room',

@@ -18,12 +18,12 @@ describe('found outfits: the records', () => {
     // the hand-written ids, not the catalog's: a found id that clashed with
     // one would have been skipped there and so never be seen as taken
     expect(validateFoundWear({ head: HEAD_WEAR, face: FACE_WEAR, neck: NECK_WEAR, body: BODY_WEAR, feet: FEET_WEAR },
-      { areaIds: [...Object.keys(CATALOG.areas), 'moon'], takenIds: BASE_ACCESSORY_IDS })).toEqual([]);
+      { areaIds: [...Object.keys(CATALOG.areas), 'moon', 'reef'], takenIds: BASE_ACCESSORY_IDS })).toEqual([]);
   });
   it('a found record may not take a shop or prize id, and never replaces one', () => {
     const heart = Object.freeze({ id: 'heart', slot: 'collar', find: 'park', emoji: '💖', name: () => 'Heart' });
     const problems = validateFoundWear({ head: [], face: [], neck: [heart], body: [], feet: [] },
-      { areaIds: [...Object.keys(CATALOG.areas), 'moon'], takenIds: BASE_ACCESSORY_IDS });
+      { areaIds: [...Object.keys(CATALOG.areas), 'moon', 'reef'], takenIds: BASE_ACCESSORY_IDS });
     expect(problems).toHaveLength(1);
     expect(problems[0]).toMatch(/heart/);
     // the catalog keeps the shop's Heart Charm Collar, whatever the found records say
@@ -99,7 +99,7 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(ids('farm')).toEqual(['strawhat', 'featherplume', 'neckerchief', 'haybalepack']);
     expect(ids('fair')).toEqual(['stripedboater', 'heartglasses', 'ticketgarland', 'candyflosspuff']);
     for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) expect(ids(a)).toEqual([]);   // Legacy's retirement first
-    expect(FOUND_WEAR).toHaveLength(31);   // the street places' 24, the Market's four, Lighthouse Point's keeper's cap, the Moon's cape and the Greenhouse's gardener's hat
+    expect(FOUND_WEAR).toHaveLength(32);   // the street places' 24, the Market's four, Lighthouse Point's keeper's cap, the Moon's cape and the Greenhouse's gardener's hat
   });
   // Market step 4 (2026-11-21): a hat, a neck piece, a collar charm and a
   // back item, the names placeholders the owner and his daughter will rename
@@ -109,7 +109,7 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(foundWearIn('market').map((r) => r.name())).toEqual(['Market Trader’s Cap', 'Shopping-Bag Scarf', 'Apple Charm', 'Flower Basket']);
     expect(withOffWords(() => foundWearIn('market').map((r) => r.name()))).toEqual(['Market Trader’s Cap', 'Shopping-Bag Scarf', 'Apple Charm', 'Flower Basket']);
     expect(validateFoundWear({ head: HEAD_WEAR, face: FACE_WEAR, neck: NECK_WEAR, body: BODY_WEAR, feet: FEET_WEAR },
-      { areaIds: [...Object.keys(CATALOG.areas), 'moon'], takenIds: BASE_ACCESSORY_IDS })).toEqual([]);
+      { areaIds: [...Object.keys(CATALOG.areas), 'moon', 'reef'], takenIds: BASE_ACCESSORY_IDS })).toEqual([]);
     for (const id of ['tradercap', 'stringbagscarf', 'applecharm', 'flowerbasket']) expect(CATALOG.accessories[id]?.find, id).toBe('market');
   });
   // Lighthouse milestone 4 (2026-11-22): one outfit, a head piece, its name a placeholder
@@ -120,7 +120,7 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(withOffWords(() => foundWearIn('lighthouse').map((r) => r.name()))).toEqual(['Keeper’s Cap']);
     expect(CATALOG.accessories.keepercap?.find).toBe('lighthouse');
     expect(validateFoundWear({ head: HEAD_WEAR, face: FACE_WEAR, neck: NECK_WEAR, body: BODY_WEAR, feet: FEET_WEAR },
-      { areaIds: [...Object.keys(CATALOG.areas), 'moon'], takenIds: BASE_ACCESSORY_IDS })).toEqual([]);
+      { areaIds: [...Object.keys(CATALOG.areas), 'moon', 'reef'], takenIds: BASE_ACCESSORY_IDS })).toEqual([]);
   });
   // Greenhouse G4 (2026-11-26): one hat, a head piece in sage canvas with a daisy, deliberately not a second straw hat
   it('the Greenhouse hides one outfit, the Gardener\'s Hat, a head piece with a plain name in either set, twelve spots', () => {
@@ -132,7 +132,7 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(spotsIn('greenhouse')).toHaveLength(12);
     expect(foundWearIn('farm').map((r) => r.id)).toContain('strawhat'); // the Farm keeps its own
     expect(validateFoundWear({ head: HEAD_WEAR, face: FACE_WEAR, neck: NECK_WEAR, body: BODY_WEAR, feet: FEET_WEAR },
-      { areaIds: [...Object.keys(CATALOG.areas), 'moon'], takenIds: BASE_ACCESSORY_IDS })).toEqual([]);
+      { areaIds: [...Object.keys(CATALOG.areas), 'moon', 'reef'], takenIds: BASE_ACCESSORY_IDS })).toEqual([]);
   });
   // Moon milestone 4 (2026-11-24): one cape, a body piece (the capes are body ones in this game), hidden on the Moon, behind ?moon=1 (no catalog place yet)
   it('the Moon hides one outfit, the Starlight Cape, a body piece with a plain name in either set; the Moon has no catalog place yet', () => {
@@ -141,6 +141,16 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(withOffWords(() => foundWearIn('moon').map((r) => r.name()))).toEqual(['Starlight Cape']);
     expect(CATALOG.accessories.starlightcape).toMatchObject({ slot: 'body', price: 0, prize: true, find: 'moon' });
     expect(Object.hasOwn(CATALOG.areas, 'moon')).toBe(false);
+  });
+  // Reef milestone R3 (2026-11-26): one collar (a pearl charm), hidden in four places under the sea, behind ?reef=1 (no catalog place yet)
+  it('the Reef hides one outfit, the Pearl Collar, a collar with a plain name in either set, in four spots; the Reef has no catalog place yet', () => {
+    expect(foundWearIn('reef').map((r) => [r.id, r.slot])).toEqual([['pearlcollar', 'collar']]);
+    expect(foundWearIn('reef').map((r) => r.name())).toEqual(['Pearl Collar']);
+    expect(withOffWords(() => foundWearIn('reef').map((r) => r.name()))).toEqual(['Pearl Collar']);
+    expect(CATALOG.accessories.pearlcollar).toMatchObject({ slot: 'collar', price: 0, prize: true, find: 'reef' });
+    expect(Object.hasOwn(CATALOG.areas, 'reef')).toBe(false);
+    expect(spotsIn('reef')).toHaveLength(4);
+    expect(spotsIn('reef').map((x) => x.id)).toEqual(['fw-reef-1', 'fw-reef-2', 'fw-reef-3', 'fw-reef-4']);
   });
   it('step 2: every street place has its find spots, and only the Woods of the territories', () => {
     for (const a of ['neighborhood', 'park', 'seaside', 'docks', 'farm', 'fair']) {
