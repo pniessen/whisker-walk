@@ -16,6 +16,7 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { hash01 } from './warehouselook.js';
 
 export const COL = Object.freeze({
   frame: 0xe4eee2, plinth: 0x6f8a78, floor: 0xd9c9a4, post: 0xcfdccb,
@@ -245,10 +246,40 @@ export function glassHouse(h, doors, { name = 'glassHouse' } = {}) {
 
 // ---------------------------------------------------------------------------------------------
 // The floor and the dapple. The dapple's canvas is drawn here, inside build, never at import.
+// The paved floor: a grid of flagstones (about `cell` m), each with its own hashed tone, a slightly lighter middle (a worn
+// bevel) and a soft darkening along the walls where the glass meets the plinth. Five vertices a cell, four triangles, one mesh.
+export function pavedGeometry(w, d, hex, { cell = 1.4, seed = 1, edge = 0.9, ao = 0.3 } = {}) {
+  const nx = Math.max(1, Math.round(w / cell)), nz = Math.max(1, Math.round(d / cell));
+  const cw = w / nx, cd = d / nz;
+  const base = new THREE.Color(hex);
+  const pos = [], col = [], idx = [];
+  const shade = (x, z, k) => {
+    const e = Math.min(x + w / 2, w / 2 - x, z + d / 2, d / 2 - z); // m from the nearest wall
+    const f = k * (1 - ao * Math.max(0, 1 - e / edge) ** 2);
+    col.push(base.r * f, base.g * f, base.b * f);
+  };
+  for (let j = 0; j < nz; j++) {
+    for (let i = 0; i < nx; i++) {
+      const x0 = -w / 2 + i * cw, z0 = -d / 2 + j * cd, x1 = x0 + cw, z1 = z0 + cd;
+      const tone = 0.9 + 0.17 * hash01(i, j, seed) + (((i + j) & 1) ? 0.02 : -0.02);
+      const b = pos.length / 3;
+      for (const [x, z, k] of [[x0, z0, 0.94], [x1, z0, 0.94], [x1, z1, 0.94], [x0, z1, 0.94], [(x0 + x1) / 2, (z0 + z1) / 2, 1.03]]) {
+        pos.push(x, 0, z);
+        shade(x, z, tone * k);
+      }
+      idx.push(b, b + 4, b + 1, b + 1, b + 4, b + 2, b + 2, b + 4, b + 3, b + 3, b + 4, b);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
 export function floorQuad(h, hex = COL.floor, name = 'glassFloor') {
-  const g = new THREE.PlaneGeometry(h.x1 - h.x0 - 0.4, h.z1 - h.z0 - 0.4);
-  g.rotateX(-Math.PI / 2);
-  paint(g, hex);
+  const g = pavedGeometry(h.x1 - h.x0 - 0.4, h.z1 - h.z0 - 0.4, hex, { seed: Math.round(h.x0 * 7 + h.z0 * 13) & 0xffff });
   const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 }));
   m.position.set((h.x0 + h.x1) / 2, 0.03, (h.z0 + h.z1) / 2);
   m.name = name;

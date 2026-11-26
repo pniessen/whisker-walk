@@ -487,8 +487,8 @@ const AREAS = [
   // places' 280 / 210 / 62,000 ceiling until measured). Milestone G6 (2026-11-26: the Orchid Room, the Cactus House and the Butterfly Room: three
   // glass houses of the Palm House's kit with a coarser arch, the rooms' benches, cacti, hedge, shrubs, stream bed, shelf, paths, the butterflies'
   // one instanced mesh, the two opening flowers, six more garden pots) measured 74 / 7 / 54,904 built (the frames 3 x about 1,250, ghCactusHouse
-  // 3,136, ghButterflyRoom 2,236, the rooms' orchids 1,884), so the row is RE-SET at measured +12%: 83 / 8 / 61,490 (under the 62,000 ceiling).
-  ['greenhouse', buildGreenhouse, 83, 8, 61490],
+  // 3,136, ghButterflyRoom 2,236, the rooms' orchids 1,884), so the row is RE-SET at measured +12%: 83 / 8 / 61,490 (under the 62,000 ceiling). Beauty round 1 (2026-11-26: flagstone floors with hashed tones in the four houses, the court's flagstones, the pond bank stones, the shed's footing, skirt and window box) measured 74 / 7 / 57,796 built (meshes and casters unchanged), so the triangle line is RE-SET at +12%: 64,730 (the meshes' 83 / 8 stay).
+  ['greenhouse', buildGreenhouse, 83, 8, 64730],
   // The Moon. Milestone 0 (2026-11-23, the seams) was a bare plain, 1 / 0 / 5,408 (the 130 m ground plane's own segments). Milestone 1
   // (the real heightfield ground in the gravel tile, 6,496 triangles in one mesh; four InstancedMeshes of rocks; the lander, the flag, the
   // landing lights and the return gate ring, merged by material) measured 10 / 5 / 7,844 built as this file counts (an InstancedMesh is
