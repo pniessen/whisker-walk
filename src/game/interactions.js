@@ -17,6 +17,7 @@
 import { PERSONALITIES } from '../cat/brain.js';
 import { bestPerch, canReach, fenceRunning } from '../climbing.js';
 import { placeArc, placeBudget } from '../placephysics.js';
+import { climbArc } from '../climbarc.js';
 import { FLAT_GROUND } from '../ground.js';
 import { hasSkill } from '../skills.js';
 import { pounceArc } from '../player.js';
@@ -233,6 +234,16 @@ export function createInteractions({
     }
   }
 
+  // A perch climb or hop down, DRAWN as a jump (climbarc.js): render only, the logical move above is already done.
+  // None in reduced motion. avatar.js plays the pounce pose and the one landing thump off session.climbT.
+  function startClimbJump(session, from, to) {
+    if (session.reducedMotion) return;
+    const base = placeArc(pounceArc(progression.state, { reducedMotion: false }), session.areaId);
+    const arc = climbArc(from, to, base);
+    player.startClimb?.(arc);
+    session.climbT = arc.dur;
+  }
+
   function doPounceOrClimb() {
     const session = getSession();
     // A rival's chase is a 0.65s scamper that owns the cat's position; a climb
@@ -313,7 +324,9 @@ export function createInteractions({
       player.perchY = next.y; // relative: metres above the ground under the cat (R4)
       player.halt();
       const from = session.cat.position.clone();
+      const drawn = session.cat.position.clone(); // where she is DRAWN now (a press mid-jump starts from here)
       session.cat.position.set(next.x, ground.flat ? next.y : ground.y(next.x, next.z) + next.y, next.z);
+      startClimbJump(session, drawn, session.cat.position);
       catVoice();
       bus.emit('guide:did', { what: 'pounce' }); // the paw button did its thing
       // A puff of dust at the take-off point, so a wall-run reads as an
@@ -351,9 +364,11 @@ export function createInteractions({
         if (paid > 0) progression.recordFeat?.('perch');
       }
     } else if (session.perched) {
+      const drawn = session.cat.position.clone();
       session.perched = null;                    // hop down
       player.perchY = 0; // onto the ground right below: the perch's own level (R5)
       session.fx.burst(session.cat.position, 0xcbb8a0, 8);
+      startClimbJump(session, drawn, session.cat.position.clone().setY(ground.flat ? 0 : ground.y(session.cat.position.x, session.cat.position.z)));
     } else if (session.pounceCooldown <= 0 && !player.swimming) {
       // v18 CF-9a: Spring Paws' OTHER half — "your pounce jump goes markedly
       // higher". Until now that clause described nothing: pounce() was a
