@@ -207,13 +207,13 @@ export const GOLD_MICE = {
     { id: 'gm-moon-2', x: -2, z: -46, y: 3 },
     { id: 'gm-moon-3', x: 30.8, z: -9.6, y: 0 },
   ],
-  // The Greenhouse (milestone G2; test/greenhousegold.test.js). Three hidden spots on walkable ground, none needing a skill: the
-  // hall's north-west corner behind the banana plants, the pond's far side, and the garden's south-east corner by the shed's
-  // ground. Placeholders on the plan so far: milestone G3 may refine them (the spec's shed-roof and log perches) once those exist.
+  // The Greenhouse (src/world/greenhouseplan.js GREENHOUSE_GOLD; test/greenhousegold.test.js holds the two equal), none needing a
+  // skill: the potting shed's roof (ground -> pot stack -> rain barrel -> roof, three hops), the hall's north-west corner behind
+  // the banana plants (on foot), and the fallen willow log by the pond (one hop, 0.8 m). `y` is metres over the ground.
   greenhouse: [
-    { id: 'gm-green-1', x: 33.5, z: 22.5, y: 0 },
+    { id: 'gm-green-1', x: 29.5, z: 17, y: 2.4 },
     { id: 'gm-green-2', x: -11.2, z: -16.9, y: 0 },
-    { id: 'gm-green-3', x: -34, z: 20, y: 0 },
+    { id: 'gm-green-3', x: -34, z: 20, y: 0.8 },
   ],
 };
 

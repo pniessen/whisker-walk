@@ -257,11 +257,11 @@ describe('the record and the scaffold', () => {
     expect(STREET_PLACES.some((p) => p.areaId === 'greenhouse')).toBe(false);
     expect(TOWN_PLACES.some((p) => p.areaId === 'greenhouse')).toBe(false);
   });
-  it('the whole build stays inside milestone 1\'s numbers', () => {
+  it('the whole build stays inside the place\'s numbers (milestone G3 measured 42 meshes and 40,212 triangles; the aim is 150 and 52,000)', () => {
     let meshes = 0, triangles = 0;
     scene.traverse((o) => { if (o.isMesh) { meshes++; triangles += tris(o); } });
-    expect(meshes).toBeLessThan(60);
-    expect(triangles).toBeLessThan(45000);
+    expect(meshes).toBeLessThan(150);
+    expect(triangles).toBeLessThan(52000);
     expect(castsFromBox(new THREE.Box3().setFromObject(house))).toBe(true); // (it is big; its parts opt out)
   });
 });

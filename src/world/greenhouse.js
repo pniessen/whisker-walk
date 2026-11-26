@@ -16,8 +16,12 @@ import * as G from './greenhouseglass.js';
 import * as Plants from './greenhouseplants.js';
 import * as Parts from './greenhouseparts.js';
 import { createGreenhouseLife } from './greenhouselife.js';
+import { phrase } from '../clanphrases.js';
+import './greenhousewords.js';
 
 export { GREENHOUSE_BOUNDS, GREENHOUSE_SPAWN } from './greenhouseplan.js';
+
+const MOMENT_WORDS = { 'frog-plop': () => phrase('greenhouse.moment.frog'), 'sparrow-bath': () => phrase('greenhouse.moment.sparrow') };
 
 const GRASS = 0x6fae5a;
 const SKY = Object.freeze({ top: 0x8cc8ee, horizon: 0xe6f2e8 });
@@ -61,6 +65,11 @@ export function build(scene, { water = {}, wind } = {}) {
     const garden = Parts.gardenPots();
     scene.add(garden.pots, ...garden.leaves);
 
+    // milestone G3: the court, paths, hedges, beds, benches, the shed and its kit, the trees, the box
+    scene.add(Parts.groundDress(), Parts.streetKit(), Parts.shedKit(), Parts.trees());
+    const boxes = area.boxes.map((bx) => ({ ...bx }));
+    for (const bx of boxes) scene.add(b.cardboardBox(bx.x, bx.z));
+
     return {
       name: area.name,
       bounds: area.bounds,
@@ -68,22 +77,20 @@ export function build(scene, { water = {}, wind } = {}) {
       colliders: area.colliders,
       waters: area.waters,
       waterFx: [pond],
-      perches: [],
+      perches: area.perches,
       pois: area.pois,
-      collectibles: [],
-      scenics: [],
-      tippables: [],
-      boxes: [],
-      critterSpawns: [],
-      moments: [],
+      collectibles: area.collectibles,
+      scenics: area.scenics,
+      tippables: area.tippables,
+      boxes,
+      critterSpawns: area.critterSpawns,
+      moments: area.moments.map((m) => ({ ...m, label: MOMENT_WORDS[m.id]() })),
       puddles: [],
       groundBounce: 0xc9d8a8,
       skyDusk: { ...SKY_DUSK },
       // the mist, the shafts and the koi drift on the walk's clock (reduced motion freezes all three); the jobs and
       // their prompts are the life's (game/interactions.js asks it for promptAt and interact)
-      life: ({ reducedMotion = false, roomSeed, visits, ground, sound } = {}) => createGreenhouseLife({
-        scene, ground, reducedMotion, roomSeed, visits, mist, shafts, koi, sound,
-      }),
+      life: (ctx = {}) => createGreenhouseLife({ ...ctx, scene: ctx.scene ?? scene, mist, shafts, koi }),
     };
   });
 }

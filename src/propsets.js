@@ -514,6 +514,26 @@ const SETS = {
     dogYard: null,
     keepSlots: [],
   },
+  // The Greenhouse (src/world/greenhouseplan.js GREENHOUSE_RESTS and GREENHOUSE_HIDES; test/greenhousegame.test.js holds the two
+  // equal). Two catnip beds to nibble at (drawn by the area), a sunbeam on the hall's warm tiles and a cushion by the sunny bench to
+  // nap on, a drink at the fountain's south rim. Cover for the frogs: the pond's far reeds, a hedge corner, the kitchen garden's bean
+  // rows. Nothing to carry, knock or mark; no dog, no colony.
+  greenhouse: {
+    carryables: [],
+    knockables: [],
+    markables: [],
+    flaps: [],
+    rests: [
+      { id: 'greenhouse-eat-1', kind: 'eat', x: -12, z: 11.5, mesh: false },
+      { id: 'greenhouse-eat-2', kind: 'eat', x: 12, z: 11.5, mesh: false },
+      { id: 'greenhouse-nap-1', kind: 'nap', x: -7.3, z: -8.8, mesh: false },
+      { id: 'greenhouse-nap-2', kind: 'nap', x: -12, z: 25.4, mesh: true },
+      { id: 'greenhouse-drink-1', kind: 'drink', x: 0, z: 17.7, mesh: false },
+    ],
+    hides: [{ x: -31.8, z: 13.2 }, { x: 3.5, z: 8.5 }, { x: 30, z: 11 }],
+    dogYard: null,
+    keepSlots: [],
+  },
 };
 
 // The yarn ball's two spots in every area, the den too (controls review,
@@ -582,6 +602,10 @@ const YARN_SPOTS = {
   lighthouse: [
     { x: 8.5, z: 33, where: 'by the upturned boat' },
     { x: -27.5, z: 1.5, where: 'by the garden wall' },
+  ],
+  greenhouse: [
+    { x: 14.8, z: 20.6, where: 'by the cold frames' },
+    { x: -28.5, z: 29.5, where: 'by the pond bench' },
   ],
   den: [
     { x: -3.4, z: -5, where: 'by the cardboard box' },
