@@ -16,6 +16,8 @@ import { litMaterial } from '../render/materials.js';
 import { mulberry32 } from '../rng.js';
 import * as P from './reefplan.js';
 
+// beauty round 4: the rocks are not all one grey: mossy, blue, warm and plain stones to pick from by index
+export const STONES = Object.freeze([0x8fa3a0, 0x8da59a, 0x93a1ad, 0xa0a496, 0x86a0a4]);
 export const COL = Object.freeze({
   sand: 0xecd9a0, sandDark: 0xc9b57e, stone: 0x8fa3a0, stoneLight: 0xb6c7c2, brass: 0xc99a3a, dark: 0x2e4a52,
   red: 0xd8503c, white: 0xf2efe6, glow: 0x8fe6de,
@@ -204,7 +206,7 @@ export function drawSpawn(kit, M) {
   const A = P.ARCH;
   const px = A.w / 2 - 0.35;
   for (const sx of [-1, 1]) {
-    kit.put('paint', M.paint, paint(at(cyl(0.5, 0.65, A.h, 8), A.x + sx * px, A.z, A.h / 2, 0, -sx * 0.05), COL.stone));
+    kit.put('paint', M.paint, paint(at(cyl(0.5, 0.65, A.h, 8), A.x + sx * px, A.z, A.h / 2, 0, -sx * 0.05), sx > 0 ? STONES[1] : STONES[3]));
     kit.put('paint', M.paint, paint(at(new THREE.SphereGeometry(0.62, 7, 5), A.x + sx * px, A.z, 0.2), COL.stoneLight));
   }
   kit.put('paint', M.paint, paint(at(box(A.w + 0.8, 0.6, A.depth), A.x, A.z, A.h + 0.1), COL.stone));

@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
-import { COL, paint, at, coralGeometry } from './reefparts.js';
+import { COL, STONES, paint, at, coralGeometry } from './reefparts.js';
 import * as W from './reefwing.js';
 
 const cyl = (rt, rb, h, seg = 6) => new THREE.CylinderGeometry(rt, rb, h, seg, 1);
@@ -16,7 +16,7 @@ const cyl = (rt, rb, h, seg = 6) => new THREE.CylinderGeometry(rt, rb, h, seg, 1
 export function drawCave(kit, M) {
   const C = W.CAVE;
   C.boulders.forEach((b, i) => {
-    kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(b.r, 0).scale(1.15, b.h / (b.r * 2), 1.05).translate(0, b.h / 2 - 0.2, 0), b.x, b.z, 0, i * 1.3), COL.stone));
+    kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(b.r, 0).scale(1.15, b.h / (b.r * 2), 1.05).translate(0, b.h / 2 - 0.2, 0), b.x, b.z, 0, i * 1.3), STONES[(i + 1) * 2 % 5]));
     kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(b.r * 0.55, 0).translate(b.r * 0.8, b.r * 0.3, b.r * 0.4), b.x, b.z, 0, i), COL.stoneLight));
   });
   const L = C.lintel;
