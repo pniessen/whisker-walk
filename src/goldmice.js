@@ -215,7 +215,7 @@ export const GOLD_MICE = {
     { id: 'gm-green-2', x: -11.2, z: -16.9, y: 0 },
     { id: 'gm-green-3', x: -34, z: 20, y: 0.8 },
   ],
-  // The Reef (milestone R0: stub spots, refined in R3 with src/world/reefplan.js; `y` is metres over the seabed): one on the sand behind
+  // The Reef (milestone R3: the final spots; src/world/reeffindsplan.js REEF_GOLD holds the same three, test/reefgold.test.js; `y` is metres over the seabed): one on the sand behind
   // the Sunken Boat, and two at float height in bubble columns (1.9 m and 2.0 m: reachable only by floating, floatY inside checkFind's window).
   reef: [
     { id: 'gm-reef-1', x: -36, z: -30, y: 0 },

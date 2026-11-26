@@ -524,7 +524,16 @@ const dressMoonBadge = charm([0x8e98b0, 0x3a4a86], (u) => [
   colour(new THREE.OctahedronGeometry(0.22 * u).scale(1, 1, 0.5).translate(0.4 * u, 0.2 * u, -0.16 * u), 0xf2c14e),
 ]);
 
+// Pearl Collar (the Reef): a pale seafoam band piped white, and at the throat one large pearl with a pale shine, a small gold cap above it
+// and a smaller pearl either side. Faces -z, one mesh.
+const dressPearl = charm([0xa8d8cf, 0xf5f5f0], (u) => [
+  colour(new THREE.SphereGeometry(0.7 * u, 8, 6).translate(0, -0.1 * u, 0), (x, y, z) => (z < -0.35 * u && y > 0.2 * u ? 0xffffff : 0xf1ece4)),
+  colour(new THREE.CylinderGeometry(0.2 * u, 0.28 * u, 0.28 * u, 5, 1).translate(0, 0.78 * u, 0), () => 0xf2c14e),
+  ...[-1, 1].map((sx) => colour(new THREE.SphereGeometry(0.32 * u, 6, 4).translate(sx * 1.05 * u, 0.3 * u, 0), () => 0xe8e2d6)),
+]);
+
 export const FOUND_COLLARS = Object.freeze({
+  pearlcollar: Object.freeze({ ring: 0xa8d8cf, charmed: true, dress: dressPearl }),
   moonbadge: Object.freeze({ ring: 0x8e98b0, charmed: true, dress: dressMoonBadge }),
   bottletopcollar: Object.freeze({ ring: 0x3a3a42, charmed: false, dress: dressBottleTops }),
   ropecollar: Object.freeze({ ring: 0xc8a46a, charmed: true, dress: dressRope }),

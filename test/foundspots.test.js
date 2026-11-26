@@ -48,7 +48,7 @@ const ALL_BUILDERS = {
   neighborhood: '../src/world/neighborhood.js', park: '../src/world/park.js', seaside: '../src/world/seaside.js',
   docks: '../src/world/docks.js', woods: '../src/world/woods.js', river: '../src/world/river.js',
   moor: '../src/world/moor.js', pines: '../src/world/pines.js', gorge: '../src/world/gorge.js',
-  farm: '../src/world/farm.js', fair: '../src/world/fair.js', market: '../src/world/market.js', lighthouse: '../src/world/lighthouse.js', moon: '../src/world/moon.js', greenhouse: '../src/world/greenhouse.js',
+  farm: '../src/world/farm.js', fair: '../src/world/fair.js', market: '../src/world/market.js', lighthouse: '../src/world/lighthouse.js', moon: '../src/world/moon.js', reef: '../src/world/reef.js', greenhouse: '../src/world/greenhouse.js',
 };
 const BUILDERS = Object.fromEntries(Object.entries(ALL_BUILDERS).filter(([id]) => spotsIn(id).length > 0));
 it('every area with spots has a builder here', () => {
@@ -68,8 +68,8 @@ describe.each(Object.keys(BUILDERS))('%s find spots', (areaId) => {
     flood = floodFrom(area, area.spawn, stand);
   });
   const spots = () => spotsIn(areaId);
-  it('10 to 15 spots, ids fw-<area>-<n>, unique, each with a known look', () => {
-    expect(spots().length).toBeGreaterThanOrEqual(10); expect(spots().length).toBeLessThanOrEqual(15);
+  it('10 to 15 spots (the Reef hides its collar in four, plan section 6), ids fw-<area>-<n>, unique, each with a known look', () => {
+    expect(spots().length).toBeGreaterThanOrEqual(areaId === 'reef' ? 4 : 10); expect(spots().length).toBeLessThanOrEqual(15);
     for (const s of spots()) { expect(s.id).toMatch(SPOT_ID); expect(s.id.startsWith(`fw-${areaId}-`)).toBe(true); expect(FIND_LOOKS).toContain(s.look); }
     expect(new Set(spots().map((s) => s.id)).size).toBe(spots().length);
   });
@@ -159,7 +159,7 @@ describe.each(Object.keys(BUILDERS))('%s find spots', (areaId) => {
   });
   it('never beside the yarn ball: 3 m from both its spots', () => {
     const yarn = yarnSpotsFor(areaId);
-    if (areaId === 'moon') { expect(yarn).toEqual([]); return; } // the yarn ball is off on the Moon (spec 5.3)
+    if (areaId === 'moon' || areaId === 'reef') { expect(yarn).toEqual([]); return; } // the yarn ball is off on the Moon (spec 5.3) and under the sea (the Reef has no yarn spots: propsets.js)
     expect(yarn.length).toBe(2);
     for (const s of spots()) {
       for (const y of yarn) expect(Math.hypot(s.x - y.x, s.z - y.z), s.id).toBeGreaterThanOrEqual(YARN_CLEAR);

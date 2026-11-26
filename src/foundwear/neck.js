@@ -34,4 +34,6 @@ export const NECK_WEAR = Object.freeze([
   // the Market Square (2026-11-21): the neckerchief in a string-bag weave, and an apple on the anchor's hang
   Object.freeze({ id: 'stringbagscarf', slot: 'neck', find: 'market', emoji: '🛍️', name: () => phrase('wear.stringbagscarf.name') }),
   Object.freeze({ id: 'applecharm', slot: 'collar', find: 'market', emoji: '🍎', name: () => phrase('wear.applecharm.name') }),
+  // the Reef (2026-11-26): a collar with a pearl charm (foundneck.js FOUND_COLLARS), hidden in four places under the sea, behind ?reef=1 (no catalog place yet)
+  Object.freeze({ id: 'pearlcollar', slot: 'collar', find: 'reef', emoji: '🦪', name: () => phrase('wear.pearlcollar.name') }),
 ]);

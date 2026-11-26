@@ -79,7 +79,9 @@ describe('the built place', () => {
     expect(area.waters).toEqual([]);
     expect(area.evening).toBe(true);
     expect(area.strays).toBe(false);
-    for (const key of ['perches', 'collectibles', 'scenics', 'tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
+    expect(area.collectibles).toHaveLength(8); // milestone R3: five shells and three pieces of sea-glass (test/reeffinds.test.js)
+    expect(area.scenics).toHaveLength(3);
+    for (const key of ['perches', 'tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
     expect(area.ground.flat).toBe(false);
     expect(typeof area.life).toBe('function');
     expect(area.duskLight.fogNear).toBe(6);

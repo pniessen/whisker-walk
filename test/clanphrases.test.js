@@ -11,6 +11,7 @@ import { LINES as FRESH_LINES } from '../src/ui/freshcatwords.js';
 import { LINES as LIGHTHOUSE_LINES } from '../src/world/lighthousewords.js';
 import { LINES as GREENHOUSE_LINES } from '../src/world/greenhousewords.js';
 import { LINES as REEF_LINES } from '../src/world/reefwords.js';
+import { FIND_LINES as REEF_FIND_LINES } from '../src/world/reeffindwords.js';
 import { LINES as MOON_LINES, FLOW_LINES as MOON_FLOW_LINES } from '../src/world/moonwords.js';
 import { LINES as SKILLBADGE_LINES } from '../src/ui/skillbadgewords.js';
 import { LINES as COOP_LINES } from '../src/coop/words.js';
@@ -22,6 +23,7 @@ addPhrases(FRESH_LINES); // Start a fresh cat's chunk (src/ui/freshcat.js)
 addPhrases(SKILLBADGE_LINES); // the skill badge strip's chunk (src/ui/skillbadges.js)
 addPhrases(GREENHOUSE_LINES); // (the Greenhouse's chunk adds its own on import: src/world/greenhousewords.js)
 addPhrases(REEF_LINES); // (the Reef's chunk adds its own on import: src/world/reefwords.js)
+addPhrases(REEF_FIND_LINES); // (and its find lines, milestone R3: src/world/reeffindwords.js)
 addPhrases(COOP_LINES); // couch play's chunk (src/coop/words.js)
 addPhrases(TELE_LINES); // the teleport gates' chunk (src/teleui.js adds its own on import)
 addPhrases(MOON_LINES); // (the Moon's chunk adds its own on import: src/world/moonwords.js)
