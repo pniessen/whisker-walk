@@ -27,6 +27,8 @@ export const MOON_NEED_WALKS = 2;
 export const GREENHOUSE_NEED_WALKS = 2;
 // Seaside walks before the rock cleft at the pier foot wakes (the Reef plan's D3: 2; CATALOG.areas.reef.requires says it too, and a test keeps them equal).
 export const REEF_NEED_WALKS = 2;
+// Docks walks before the Crystal Cave's gate wakes (the plan's D3: 2; CATALOG.areas.crystal.requires says it too). No gate end yet (milestone C6).
+export const CRYSTAL_NEED_WALKS = 2;
 
 let H = null;
 // host: { teleOn, greenhouseOn, placeName, walkOnMove, lower, padTag, escapeHtml, coopReady, catalog, isClan, couch }

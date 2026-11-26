@@ -27,6 +27,7 @@ import { greenhouseOn } from '../greenhouseflag.js';
 import { tele } from '../telehook.js';
 import { moonOn } from '../moonflag.js';
 import { reefOn } from '../reefflag.js';
+import { crystalOn } from '../crystalflag.js';
 import { placePace, placeFloat } from '../placephysics.js';
 import { suitKit } from '../suithook.js';
 import { birthdayDue, BDAY_AREA, BDAY_START, BRIDGE_ISLAND_END, speakerFor, birthdayCatName, noteCandlesBlown, bdayCountsWalk, saveBirthdayPhoto, BDAY_PHOTO_KEY } from '../birthday.js';
@@ -578,6 +579,7 @@ export function createWalkLifecycle({
     if (lighthouseOn() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'lighthouse' });
     if (greenhouseOn() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'greenhouse' });
     if (moonOn() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'moon' }); // ?moon=1: a solo walk on the Moon
+    if (crystalOn() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'crystal' }); // ?crystal=1: a solo walk in the Crystal Cave
     if (reefOn() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'reef' }); // ?reef=1: a solo walk under the sea
     // Her birthday (src/birthday.js): while the Gathering waits, a solo
     // Explore starts in the Pines at the foot of the island bridge. An

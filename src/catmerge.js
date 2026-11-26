@@ -182,6 +182,10 @@ export const MERGE_RULES = Object.freeze({
   reef: (r) => ({
     step: Math.max(r.L.reef.step, r.C.reef.step), shells: r.L.reef.shells | r.C.reef.shells, album: r.L.reef.album | r.C.reef.album,
   }),
+  // The Crystal Cave: the story only moves on (step max), spark stones and rubbings are unions of bits.
+  crystal: (r) => ({
+    step: Math.max(r.L.crystal.step, r.C.crystal.step), sparks: r.L.crystal.sparks | r.C.crystal.sparks, album: r.L.crystal.album | r.C.crystal.album,
+  }),
   den: (r) => ({
     owned: union(r.L.den.owned, r.C.den.owned),
     placed: newer(r.L.den.placed, r.C.den.placed, r.B?.den?.placed, r.ctx),
@@ -266,7 +270,7 @@ export const MERGE_RULES = Object.freeze({
 // (Object keys, not strings: the word tests read string literals, and `clan` is a key here.)
 const BASE_WANTED = {
   points: 1, walks: 1, unlocked: 1, equipped: 1, customCats: 1, area: 1, lifetimePoints: 1, petName: 1, den: 1,
-  duskWalks: 1, moon: 1, reef: 1, clan: 1, visits: 1, visitPrizesSeen: 1, visitPrizePending: 1, mapMode: 1, edition: 1, clanPick: 1, fightsWon: 1,
+  duskWalks: 1, moon: 1, reef: 1, crystal: 1, clan: 1, visits: 1, visitPrizesSeen: 1, visitPrizePending: 1, mapMode: 1, edition: 1, clanPick: 1, fightsWon: 1,
 };
 export const BASE_KEYS = Object.freeze(Object.keys(BASE_WANTED));
 

@@ -222,10 +222,16 @@ export const GOLD_MICE = {
     { id: 'gm-reef-2', x: 14, z: -4, y: 1.9 },
     { id: 'gm-reef-3', x: 20, z: 6, y: 2.0 },
   ],
+  // The Crystal Cave (milestone C0: stub spots on the floor, refined in C3 with the plan file; bounds are 72 x 64 m).
+  crystal: [
+    { id: 'gm-crystal-1', x: -28, z: 4, y: 0 },
+    { id: 'gm-crystal-2', x: 14, z: -4, y: 0 },
+    { id: 'gm-crystal-3', x: 26, z: -26, y: 0 },
+  ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 57 (eighteen areas x three, and the island's three; 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 60 (nineteen areas x three, and the island's three; 57 before the Crystal Cave, 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
 
 // The golden mice a player of `edition` can reach: those in the areas the
 // edition shows (Legacy hides the Clan Edition territories; see edition.js).

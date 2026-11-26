@@ -65,6 +65,8 @@ const loaders = {
   moon: () => import('./moon.js').then((w) => own('moon', w)),
   // The Reef (a catalog row, behind the gates switch, and the Seaside's rock cleft since its milestone R6; ?reef=1 stays a developer shortcut).
   reef: () => import('./reef.js').then((w) => own('reef', w)),
+  // The Crystal Cave (?crystal=1 and a catalog row behind the gates switch; milestone C0 is the seams and a stub floor).
+  crystal: () => import('./crystal.js').then((w) => own('crystal', w)),
 };
 
 // The private family edition (vite --mode family) registers its one place here; in every other build
@@ -96,6 +98,7 @@ const entryModules = {
   greenhouse: Object.freeze(['src/world/greenhouse.js']),
   moon: Object.freeze(['src/world/moon.js']),
   reef: Object.freeze(['src/world/reef.js']),
+  crystal: Object.freeze(['src/world/crystal.js']),
 };
 if (typeof __PRIVATE_FAMILY__ !== 'undefined' && __PRIVATE_FAMILY__) {
   entryModules.family = Object.freeze(['src/family/index.js']);
