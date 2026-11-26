@@ -44,6 +44,10 @@ export const AWARDS = {
   moonfind: 12,
   moonjob: 25,
   moonstory: 40,
+  // The Greenhouse (ids reserved in milestone G2): one of its six finds, paid the first time ever; a job done (seeds sown, plants
+  // watered), once a walk.
+  greenhousefind: 12,
+  greenhousejob: 25,
   // Found outfits (2026-11-19): the walk's find when everything hidden in the
   // place is already hers, the spec's "a small coin pouch instead (Claude's
   // call: 5 coins)" (the coins are 🐾). Once a walk (foundwear/play.js), and

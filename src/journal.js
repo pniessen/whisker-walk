@@ -7,6 +7,8 @@ import { MARKET_PAGE_WORDS } from './marketpages.js';
 import { LIGHTHOUSE_PAGE_WORDS } from './lighthousepages.js';
 import { MOON_PAGES, MOON_PAGE_WORDS } from './moonpages.js';
 import { moonOn } from './moonflag.js';
+import { GREENHOUSE_PAGES, GREENHOUSE_PAGE_WORDS } from './greenhousepages.js';
+import { greenhouseOn } from './greenhouseflag.js';
 import { RIDE_PAGE_WORDS, FAIR_PAGE_WORDS } from './fairwords.js';
 
 // All content here is a fixed, static catalog (ids/emoji/names/hints are
@@ -84,6 +86,8 @@ export const CRITTER_INFO = [
     .map(([id, emoji]) => ({ id, emoji, lighthouse: true, get name() { return LIGHTHOUSE_PAGE_WORDS[id].name(); }, get hint() { return LIGHTHOUSE_PAGE_WORDS[id].hint(); } })),
   // The Moon's twelve pages (src/moonpages.js): drawn only behind ?moon=1 until the gate hand-off.
   ...MOON_PAGES.map(([id, emoji]) => ({ id, emoji, moon: true, get name() { return MOON_PAGE_WORDS[id].name(); }, get hint() { return MOON_PAGE_WORDS[id].hint(); } })),
+  // The Greenhouse's eight pages (src/greenhousepages.js): drawn only behind ?greenhouse=1 until the place is in the game.
+  ...GREENHOUSE_PAGES.map(([id, emoji]) => ({ id, emoji, greenhouse: true, get name() { return GREENHOUSE_PAGE_WORDS[id].name(); }, get hint() { return GREENHOUSE_PAGE_WORDS[id].hint(); } })),
 ];
 
 // renderJournalHtml(journal, goldenFound, goldenTotal) → HTML string.
@@ -99,7 +103,7 @@ export function renderJournalHtml(journal, goldenFound, goldenTotal, { chasedOff
   const j = journal && typeof journal === 'object' ? journal : {};
   const found = Number.isFinite(goldenFound) ? goldenFound : 0;
   const total = Number.isFinite(goldenTotal) ? goldenTotal : 0;
-  const cards = CRITTER_INFO.filter((c) => !c.moon || moonOn()).map((c) => {
+  const cards = CRITTER_INFO.filter((c) => (!c.moon || moonOn()) && (!c.greenhouse || greenhouseOn())).map((c) => {
     const raw = j[c.id];
     const count = Number.isFinite(raw) ? raw : 0;
     if (count > 0) {
