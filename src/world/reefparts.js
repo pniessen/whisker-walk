@@ -143,7 +143,7 @@ export const at = (geo, x, z, dy = 0, ry = 0, rz = 0) => {
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const cyl = (rt, rb, h, seg = 8) => new THREE.CylinderGeometry(rt, rb, h, seg, 1);
 
-// ---- the spawn: the return arch, the ladder and the ring buoy (stand-ins until the gate, milestone R6) --------------------
+// ---- the spawn: the return arch, the ladder and the ring buoy (the arch is the gate's own return end since R6: teleport.js reef-seaside, `own`) --------------------
 
 export function drawSpawn(kit, M) {
   const A = P.ARCH;

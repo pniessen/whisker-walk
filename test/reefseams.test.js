@@ -201,8 +201,8 @@ describe('the reserved ids', () => {
     expect([AWARDS.reeffind, AWARDS.reefstory, AWARDS.reefjob]).toEqual([12, 40, 25]);
   });
   it('couch play is not ready under the sea', () => { expect(COOP_READY.reef).toBe(false); });
-  it('the Reef is in no catalog (no card, no price, no map place, no gate)', () => {
-    expect(Object.hasOwn(CATALOG.areas, 'reef')).toBe(false);
+  it('the Reef\'s catalog row (R6) is free and gate-only: no price, no edition key, hidden while the gates switch is off (test/reefgate.test.js)', () => {
+    expect(CATALOG.areas.reef).toMatchObject({ price: 0, gate: 'tele' });
   });
 });
 
