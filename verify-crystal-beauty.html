@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crystal Cave beauty picture page</title>
+<!-- The Crystal Cave (flag-only place), picture page for the beauty rounds: the REAL build and life. NOT in the game's page.
+     URL params: size=WxH (default 960x540), tier=high|low|lite. window.__shot(name) with scripts/record-page.mjs.
+     Shots: spawn entry rose pool gold heart lumi phone. -->
+<style>html,body{margin:0;background:#2a1a30;overflow:hidden}canvas{position:fixed;left:0;top:0;display:block}</style>
+</head>
+<body>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier } from '/src/render/textures.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { facingYaw } from '/src/traversal.js';
+  import { applyDusk, duskEnv, tintDuskLawn } from '/src/render/dusk.js';
+  import { effectiveWear } from '/src/suithook.js';
+  import { mergeStaticProps } from '/src/render/mergeprops.js';
+  import { build } from '/src/world/crystal.js';
+  import { createProgression } from '/src/progression.js';
+  import { createDiscoveryLog } from '/src/discoveries.js';
+  import { createFx } from '/src/fx.js';
+
+  const params = new URLSearchParams(location.search);
+  const [W0, H0] = (params.get('size') || '960x540').split('x').map(Number);
+  const TIER = params.get('tier') || 'high';
+  const DT = 1 / 30;
+  const tier = TIER === 'lite' ? { name: 'low', rung: 5, shadows: false, envIntensity: 0.3 } : TIER === 'low' ? { name: 'low', rung: 3, shadows: true, envIntensity: 0.3 } : { name: 'high', shadows: true, envIntensity: 0.3 };
+  let W = W0, H = H0;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H); renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = tier.shadows; renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.95;
+  document.body.prepend(renderer.domElement);
+  setTextureTier(tier);
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+  const sun = createSun(); scene.add(sun);
+  const fill = createFill(0x8d8c93); scene.add(fill);
+  const area = build(scene);
+  const look = applyDusk({ scene, sun, fill, areaData: area });
+  tintDuskLawn({ ground: scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint)), grass: null, look });
+  scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
+  const ground = area.ground;
+  const wear = effectiveWear({ collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }, 'crystal');
+  const cat = buildCat('tabby', wear); scene.add(cat);
+  const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
+  const shadows = tier.shadows ? createShadowFit(sun, camera, { radius: 20, mapSize: tier.rung >= 3 ? 1024 : 2048 }) : null;
+  sun.shadow.bias = SUN_BIAS; sun.castShadow = tier.shadows;
+  assignShadowCasters(scene);
+  mergeStaticProps(scene);
+  const fx = createFx(scene, { reducedMotion: false });
+  const store = new Map();
+  const STEP = Number(params.get('step') ?? 2);
+  const progression = createProgression({ getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) });
+  const log = createDiscoveryLog(progression); log.startWalk();
+  progression.state.crystal = { step: STEP, sparks: STEP >= 2 ? 1 : 0, album: 0 };
+  const player = { floatY: 0 };
+  const life = area.life({ roomSeed: 7, sendEvent: () => {}, scene, sun, fill, ground, reducedMotion: false, tier, progression, log, audio: null, doc: document, win: window, clock: () => 250, visits: 3, player });
+  let t = 0;
+  const lookAt = (pos, tgt, fov = 70) => { camera.fov = fov; camera.updateProjectionMatrix(); camera.position.set(...pos); camera.lookAt(...tgt); };
+  let lock = null;
+  function frame() {
+    t += DT;
+    if (lock) lookAt(...lock);
+    life.update(DT, t, cat.position, camera, { hopLift: 0 });
+    fx.update(DT, camera);
+    animateCat(cat, 'idle', t, 0, false);
+    if (shadows) shadows.update(0, DT);
+    renderer.render(scene, camera);
+  }
+  const settle = (n) => { for (let i = 0; i < n; i++) frame(); };
+  const put = (x, z, fx_, fz_, lift = 0) => { cat.position.set(x, ground.y(x, z) + lift, z); cat.rotation.set(0, facingYaw(fx_, fz_), 0); };
+  const cam = (pos, tgt, fov = 70, size = null) => { if (size) { W = size[0]; H = size[1]; } else { W = W0; H = H0; } renderer.setSize(W, H); camera.aspect = W / H; lock = [pos, tgt, fov]; };
+  const S = {
+    spawn: [0, 29, 0, -1, 0, [3, 2.4, 33], [0, 1.8, 20], 68],
+    entry: [0, 21, 0, -1, 0, [-3, 2.2, 26], [0, 1.2, 8], 68],
+    rose: [-15, 6, -1, -0.3, 0, [-9, 2.2, 10], [-22, 1.6, 1.5], 68],
+    pool: [14, 3, 0, -1, 0, [18, 2.4, 8], [13, 0.6, -6], 68],
+    gold: [-8, -17, 0, -1, 0, [-4, 2.4, -12], [-9, 1.6, -26], 68],
+    heart: [19, -14, 1, -1, 0, [15, 2.6, -10], [22, 2.0, -22], 68],
+    lumi: [2, 24, 0, -1, 0, [5, 1.8, 26.5], [3.4, 0.5, 21.2], 60],
+    phone: [0, 29, 0, -1, 0, [0, 2.8, 34.5], [0, 1.6, 20], 62, [390, 760]],
+  };
+  window.__shot = (name) => {
+    const s = S[name]; if (!s) throw new Error('no shot ' + name);
+    put(s[0], s[1], s[2], s[3], s[4]);
+    cam(s[5], s[6], s[7], s[8]);
+    if (name === 'heart') { life.wing.start({ own: false, elapsed: 0 }); for (let i = 0; i < 400; i++) { t += DT; life.update(DT, t, cat.position, camera, { hopLift: 0 }); } }
+    settle(name === 'lumi' ? 120 : 30);
+    return name;
+  };
+  window.__stats = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles });
+  window.__ready = true;
+</script>
+</body>
+</html>

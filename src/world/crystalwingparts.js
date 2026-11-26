@@ -70,7 +70,7 @@ export function drawPassageLamps() {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  const mat = new THREE.PointsMaterial({ size: 0.34, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: true });
+  const mat = new THREE.PointsMaterial({ map: K.dotTexture(), alphaTest: 0.02, size: 0.6, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: true });
   const pts = new THREE.Points(geo, mat);
   pts.name = 'crystal:lamps';
   pts.frustumCulled = false;
