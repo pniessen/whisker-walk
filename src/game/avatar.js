@@ -93,6 +93,7 @@ export function createAvatarUpdater({
   const fightTilt = { pitch: 0, roll: 0 }; // reused each frame: no allocation mid-fight
   function updateAvatar(s, dt, t) {
     const { cat } = s;
+    s.drawOff = player.climbOffset; // the climb jump's draw-only offset (game/composer.js applies it around the render)
     const p = PERSONALITIES[cat.userData.breed];
 
     // v18 CF-9a — where the PAWS are, as opposed to where the cat is drawn.

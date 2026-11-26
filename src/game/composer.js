@@ -110,8 +110,16 @@ export function createComposerRig(renderer, camera) {
   // fallback dereferences session.scene, so it is only ever reached with a
   // live session — the render loop returns early without one).
   function renderFrame(session) {
-    if (session?.useComposer && composer) composer.render();
-    else renderer.render(session.scene, camera);
+    // A perch climb drawn as a jump: the cat model is moved for the draw only, then put back on its logical spot.
+    const o = session?.drawOff;
+    const pos = o && (o.x || o.y || o.z) ? session.cat?.position : null;
+    if (pos) pos.set(pos.x + o.x, pos.y + o.y, pos.z + o.z);
+    try {
+      if (session?.useComposer && composer) composer.render();
+      else renderer.render(session.scene, camera);
+    } finally {
+      if (pos) pos.set(pos.x - o.x, pos.y - o.y, pos.z - o.z);
+    }
   }
 
   // startWalk points the composer's RenderPass at the new walk's scene.
