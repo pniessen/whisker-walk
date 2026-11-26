@@ -524,7 +524,10 @@ const AREAS = [
   // shafts, the warm bubble) is the walk's life, made after the sweeps, and not in this count, as the Moon's sky is not. Rows B and C come with milestones R5 and R8.
   // Milestone R3 (2026-11-26, the finds: the oyster, the seahorse and the chest in one vertex-coloured mesh, the two golden mice's bubble columns in one translucent mesh; neither
   // casts) measured 6 / 1 / 9,350 built, +12%: 7 / 2 / 10,500. The finds' glow is the walk's life, made after the sweeps, and not in this count.
-  ['reef', buildReef, 7, 2, 10700],
+  // Milestone R5 (2026-11-26, wing B: the shallow cave, the three lantern corals' stalks and 24 clumps at three heights in the kit's merged buckets; the 8 tall spires are ONE
+  // InstancedMesh like the kelp; the lantern orbs, the parade's creatures and the snail's home are the walk's life, not in this count) measured 7 / 1 / 12,587 built (about
+  // 15,900 counting every kelp blade and spire instance), +12%: 8 / 2 / 14,100. The plan's wing B figures were about 110 / 60 / 28,000: far under them on every count.
+  ['reef', buildReef, 8, 2, 14100],
   // Milestone R2 (Marlo and chapter one) adds only the coral ledge (no mesh more; about 200 triangles measured on top of R3: 7 / 2 / 10,700). Marlo, the shells, their glints, the picture bubble, the meow's ring and the air pockets are the walk's life, counted in test/reefmarlo.test.js
 ];
 

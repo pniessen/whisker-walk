@@ -152,7 +152,7 @@ describe('the built place', () => {
 describe('the kelp: an InstancedMesh through the walk\'s own sweeps (the plan\'s spike question: yes)', () => {
   it('is ONE InstancedMesh with one instance per plan blade, never merged, never a caster, never a contact shadow', () => {
     const { scene } = built();
-    const kelp = scene.children.filter((o) => o.isInstancedMesh);
+    const kelp = scene.children.filter((o) => o.isInstancedMesh && o.name === 'reef:kelp'); // (R5 adds the coral spires, a second InstancedMesh: test/reefwing.test.js)
     expect(kelp.map((k) => k.name)).toEqual(['reef:kelp']);
     expect(kelp[0].count).toBe(P.scatterKelp().length);
     expect(kelp[0].userData).toMatchObject({ noCast: true, noContactShadow: true, noMerge: true });
@@ -164,7 +164,7 @@ describe('the kelp: an InstancedMesh through the walk\'s own sweeps (the plan\'s
     const decalsFromKelp = scene.children.filter((o) => o.userData?.noContactShadow);
     expect(decalsFromKelp).toContain(kelp[0]); // skipped by scanFootprints through the flag, not by luck
     mergeStaticProps(scene);
-    const after = scene.children.filter((o) => o.isInstancedMesh);
+    const after = scene.children.filter((o) => o.isInstancedMesh && o.name === 'reef:kelp');
     expect(after).toEqual(kelp); // the very same object: not merged, not flattened to its first instance
     expect(after[0].count).toBe(before);
     expect(after[0].geometry.attributes.position.count).toBe(bladeGeometry().attributes.position.count);

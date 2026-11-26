@@ -18,6 +18,7 @@ import { drawLedge } from './reefmarlo.js';
 import { storyColliders } from './reefstory.js';
 import { reefCollectibles, createReefFindsLife } from './reeffinds.js';
 import { drawFindMarks, drawBubbleColumns } from './reeffindparts.js';
+import { drawCave, drawLanternStalks, drawWingClumps, drawSpires } from './reefwingparts.js';
 import { REEF_SCENICS } from './reeffindsplan.js';
 import './reefwords.js';
 
@@ -42,8 +43,12 @@ export function build(scene) {
     K.drawCoral(kit, M);
     K.drawPebbles(kit, M);
     drawLedge(kit, M); // the coral ledge that holds shell two (R2)
+    drawCave(kit, M); // wing B (R5): the shallow cave that holds shell three, the lantern corals' stalks and the clumps at three heights
+    drawLanternStalks(kit, M);
+    drawWingClumps(kit, M);
     for (const m of kit.meshes()) scene.add(m);
     scene.add(K.drawKelp());
+    scene.add(drawSpires()); // the tall coral spires: one InstancedMesh (R5)
     for (const m of drawFindMarks()) scene.add(m); // the oyster, the seahorse and the chest (milestone R3)
     scene.add(drawBubbleColumns()); // the two floating golden mice's columns
     const area = {

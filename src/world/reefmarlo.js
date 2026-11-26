@@ -7,6 +7,8 @@
 //     Interact picks one up (one at a time, in her mouth in front of her, like the Moon's power cells; it is the story's own item and never touches
 //     the walk's mouth, so it never goes to the den); Interact beside Marlo gives it. A carried shell is NEVER SAVED: however a walk ends (leaving
 //     through the arch, a resume, a warm bubble's lift, the cat's own end), the next walk finds it at its own spot, and nothing is lost.
+//   * SHELL THREE (milestone R5): the just-right one lies in the shallow cave behind the coral, ringed by an air pocket; given to Marlo, he steps into it by himself a
+//     moment later (step 5, the wobble), his old shell comes off and is left as a sea snail's home. The lantern corals and the parade are world/reefhouse.js's.
 //   * THE MEOW calls him: he shows the next goal's picture and a ring of bubbles rises where it is (a column over the spot, a trail from him). No fail.
 //   * THE AIR POCKETS: columns of bubbles; swimming into one fills the gauge (the life says how); one gives its air again after a while.
 // Draws no random number and reads no clock of its own (the walk's dt only).
@@ -20,13 +22,16 @@ import * as M from '../reefmission.js';
 import * as S from './reefstory.js';
 import * as K from './reefparts.js';
 import { reefY } from './reefplan.js';
+import { LANTERNS, SNAIL_HOME } from './reefwing.js';
 
-export const RING = Object.freeze({ secs: 6, bubble: 4, points: 30 }); // how long the meow's ring and the picture stay
+export const RING = Object.freeze({ secs: 6, bubble: 4, points: 30 });
+export const TRYON = Object.freeze({ near: 4.5, wait: 1.8 }); // seconds after shell three is given (and she is near) before he steps into it // how long the meow's ring and the picture stay
 export const GLINT = Object.freeze({ color: 0xfff2c0, size: 0.55 });
 const COLORS = Object.freeze({
   marlo: 0xf08a4b, marloDark: 0xc4622f, eye: 0x1c2a30, white: 0xf2efe6, crack: 0x4a3a30, old: 0xd9c8a8,
-  small: 0xf4a6c0, smallDark: 0xd9809e, big: 0x9e8be8, bigDark: 0x7864c8, ledge: 0xc4622f, ledgeTop: 0xe8c34a,
+  small: 0xf4a6c0, smallDark: 0xd9809e, big: 0x9e8be8, bigDark: 0x7864c8, right: 0x7fd6c2, rightDark: 0x3fa890, snail: 0xd9b27a, ledge: 0xc4622f, ledgeTop: 0xe8c34a,
 });
+const PAGE_OF_EFFECT = Object.freeze({ third: 'rfshells', lit: 'rflanterns', parade: 'rfparade' });
 const ICON_BY_KIND = Object.freeze({ question: 'question', shell: 'shell', heart: 'heart' });
 const smooth = (k) => { const t = Math.min(1, Math.max(0, k)); return t * t * (3 - 2 * t); };
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -42,6 +47,32 @@ export function drawLedge(kit, M2) {
   for (const [dx, dz, s] of [[-0.55, 0.3, 0.3], [0.5, -0.45, 0.24], [0.1, 0.7, 0.2]]) {
     kit.put('paint', M2.paint, K.at(K.paint(new THREE.SphereGeometry(s, 7, 5), COLORS.ledgeTop), x + dx, z + dz, h + 0.02, 0));
   }
+}
+
+// The old shell: a cone with a dark crack (the same geometry whether it sits on his back or as the sea snail's home).
+function makeOldShell(M2) {
+  const parts = [];
+  const put = (geo, hex, x, y, z, rx) => { geo.rotateX(rx); geo.translate(x, y, z); parts.push(K.paint(geo, hex)); };
+  put(new THREE.ConeGeometry(0.17, 0.34, 7), COLORS.old, 0, 0.36, -0.1, -0.5);
+  put(new THREE.BoxGeometry(0.02, 0.2, 0.02), COLORS.crack, 0.05, 0.38, -0.02, -0.5);
+  return new THREE.Mesh(mergeGeometries(parts), M2.paint);
+}
+
+// The sea snail's home: the old shell on the sand with a small sleepy snail beside it (one mesh; shown once Marlo has tried the new shell on).
+function makeSnailHome(M2) {
+  const g = new THREE.Group();
+  g.name = 'reef:snailhome';
+  const old = makeOldShell(M2);
+  old.scale.setScalar(2.2);
+  const parts = [];
+  const body = new THREE.SphereGeometry(0.1, 7, 5); body.scale(1.6, 0.7, 1); body.translate(0.05, 0.07, 0.42); parts.push(K.paint(body, COLORS.snail));
+  for (const sx of [-1, 1]) { const eye = new THREE.SphereGeometry(0.025, 4, 3); eye.translate(sx * 0.05, 0.19, 0.48); parts.push(K.paint(eye, COLORS.eye)); }
+  const snail = new THREE.Mesh(mergeGeometries(parts), M2.paint);
+  snail.name = 'reef:snail';
+  for (const m of [old, snail]) { m.castShadow = false; m.receiveShadow = false; Object.assign(m.userData, { noMerge: true, noCast: true, noContactShadow: true }); }
+  g.add(old, snail);
+  g.visible = false;
+  return g;
 }
 
 // ---- Marlo ------------------------------------------------------------------------------------------------------------------
@@ -62,18 +93,20 @@ function makeMarlo(M2) {
     for (const k of [0, 1, 2]) put(new THREE.CylinderGeometry(0.012, 0.012, 0.2, 3), COLORS.marloDark, s * 0.2, 0.08, 0.02 + k * 0.1, 1, 1, 1, 0); // legs
     put(new THREE.SphereGeometry(0.075, 6, 4), COLORS.marlo, s * 0.19, 0.12, 0.3, 1, 0.8, 1.2); // a claw on the ground
   }
-  // his old, cracked shell on his back: a cone with a dark crack, too small for him now
-  put(new THREE.ConeGeometry(0.17, 0.34, 7), COLORS.old, 0, 0.36, -0.1, 1, 1, 1, -0.5);
-  put(new THREE.BoxGeometry(0.02, 0.2, 0.02), COLORS.crack, 0.05, 0.38, -0.02, 1, 1, 1, -0.5);
   const body = new THREE.Mesh(mergeGeometries(parts), M2.paint);
   body.name = 'reef:marlo:body';
   // the waving claw (a separate small mesh turned by the life): one sphere on a short arm, held up
   const claw = new THREE.Mesh(K.paint(new THREE.SphereGeometry(0.085, 6, 4), COLORS.marlo), M2.paint);
   claw.name = 'reef:marlo:claw';
   claw.position.set(0.2, 0.3, 0.28);
-  for (const m of [body, claw]) { m.castShadow = false; m.receiveShadow = false; m.userData.noMerge = true; m.userData.noCast = true; m.userData.noContactShadow = true; }
-  g.add(body, claw);
+  // his old, cracked shell on his back: a cone with a dark crack, too small for him now (its own mesh: it comes off when he tries the new one on, and is left as a sea snail's home)
+  const old = makeOldShell(M2);
+  old.position.set(0, 0, 0);
+  old.name = 'reef:marlo:old';
+  for (const m of [body, claw, old]) { m.castShadow = false; m.receiveShadow = false; m.userData.noMerge = true; m.userData.noCast = true; m.userData.noContactShadow = true; }
+  g.add(body, claw, old);
   g.userData.claw = claw;
+  g.userData.old = old;
   g.scale.setScalar(1.35);
   return g;
 }
@@ -81,8 +114,9 @@ function makeMarlo(M2) {
 // ---- a shell ------------------------------------------------------------------------------------------------------------------
 function makeShell(id, M2) {
   const big = id === 1;
-  const hex = big ? COLORS.big : COLORS.small;
-  const dark = big ? COLORS.bigDark : COLORS.smallDark;
+  const right = id === 2;
+  const hex = right ? COLORS.right : big ? COLORS.big : COLORS.small;
+  const dark = right ? COLORS.rightDark : big ? COLORS.bigDark : COLORS.smallDark;
   const parts = [];
   const cone = new THREE.ConeGeometry(0.2, 0.5, 8); cone.rotateX(Math.PI / 2 + 0.25); cone.translate(0, 0.14, -0.08);
   parts.push(K.paint(cone, hex));
@@ -97,7 +131,7 @@ function makeShell(id, M2) {
   const g = new THREE.Group();
   g.name = `reef:shellgroup${id}`;
   g.add(mesh);
-  g.userData.base = big ? 1.55 : 0.8; // the too-big shell is big; the too-small one is small
+  g.userData.base = right ? 1.05 : big ? 1.55 : 0.8; // the too-big shell is big, the too-small one small, the just-right one between
   g.scale.setScalar(g.userData.base);
   return g;
 }
@@ -180,6 +214,8 @@ export function createMarlo(ctx) {
   let ringT = -100;
   let bubbleT = -100;
   let wobble = -100; // when a shell was tried on (the sigh)
+  let lit = 0; // the lantern corals glowing on this walk (never saved; world/reefhouse.js sets it)
+  let tryT = 0; // seconds she has waited near Marlo with shell three given
   let goalCur = null;
   let goalAt = -100;
   const told = new Set();
@@ -187,10 +223,10 @@ export function createMarlo(ctx) {
   const home = { ...marlo };
 
   const group = makeMarlo(M2);
-  const shells = S.SHELLS.map((s) => makeShell(s.id, M2));
-  const glints = S.SHELLS.map(() => null);
+  const shells = S.STORY_SHELLS.map((s) => makeShell(s.id, M2));
+  const glints = S.STORY_SHELLS.map(() => null);
   const gtex = glintTexture();
-  S.SHELLS.forEach((s, i) => {
+  S.STORY_SHELLS.forEach((s, i) => {
     const mat = new THREE.SpriteMaterial({ map: gtex, color: GLINT.color, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending, fog: true });
     const sp = new THREE.Sprite(mat);
     sp.name = `reef:glint${i}`;
@@ -198,6 +234,9 @@ export function createMarlo(ctx) {
     sp.userData.noMerge = true; sp.userData.noCast = true;
     glints[i] = sp;
   });
+  const snail = makeSnailHome(M2);
+  snail.position.set(SNAIL_HOME.x, reefY(SNAIL_HOME.x, SNAIL_HOME.z), SNAIL_HOME.z);
+  snail.rotation.y = 0.7;
   const bubble = makeBubble();
   const ring = pointsOf(RING.points, 0.2, 0xcff8ff, 0.9);
   ring.name = 'reef:meowRing';
@@ -205,7 +244,7 @@ export function createMarlo(ctx) {
   pockets.name = 'reef:pockets';
   pockets.visible = true;
   const pocketLeft = S.POCKETS.map(() => 0); // seconds until a pocket has air again
-  for (const o of [group, ...shells, ...glints, bubble.sprite, ring, pockets]) scene.add(o);
+  for (const o of [group, snail, ...shells, ...glints, bubble.sprite, ring, pockets]) scene.add(o);
 
   const shellMode = (i) => (M.shellBrought(progression?.state?.reef, i) ? 'given' : carrying === i ? 'carried' : 'home');
   const marloAt = () => ({ x: marlo.x, z: marlo.z });
@@ -213,10 +252,14 @@ export function createMarlo(ctx) {
 
   // The goal now: where the meow's ring rises and which picture Marlo shows. { g: { kind, shell?, icon }, x, z, y }
   function goalPoint() {
-    const g = M.nextGoal(progression?.state?.reef, carrying);
+    const g = M.nextGoal(progression?.state?.reef, carrying, lit);
     if (g.kind === 'shell') {
-      const s = S.SHELLS[g.shell];
+      const s = S.STORY_SHELLS[g.shell];
       return { g, x: s.x, z: s.z, y: reefY(s.x, s.z) + s.y };
+    }
+    if (g.kind === 'lantern') {
+      const l = LANTERNS[g.lantern];
+      return { g, x: l.x, z: l.z, y: reefY(l.x, l.z) + 0.4 };
     }
     return { g, x: marlo.x, z: marlo.z, y: reefY(marlo.x, marlo.z) };
   }
@@ -233,6 +276,8 @@ export function createMarlo(ctx) {
     if (!r.changed) return null;
     commit(r.reef);
     goalCur = null;
+    const page = PAGE_OF_EFFECT[r.effect];
+    if (page) { try { progression?.recordSighting?.(page); } catch { /* a stand-in save */ } } // the journal's activity pages (ids in src/reefpages.js)
     return r.effect;
   }
   function showBubble(kind) { bubble.show(kind); bubbleT = clock; }
@@ -244,6 +289,8 @@ export function createMarlo(ctx) {
     if (!told.has('hint-' + gp.g.kind)) {
       told.add('hint-' + gp.g.kind);
       if (gp.g.kind === 'shell' && gp.g.shell === 1) say('reef-shell-float', phrase('reef.shell.float'));
+      else if (gp.g.kind === 'shell' && gp.g.shell === 2) say('reef-shell-cave', phrase('reef.shell.cave'));
+      else if (gp.g.kind === 'lantern') say('reef-lantern-hint', phrase('reef.lantern.hint'));
       else if (gp.g.kind === 'shell') say('reef-shell-find', phrase('reef.shell.find'));
     }
   }
@@ -256,15 +303,18 @@ export function createMarlo(ctx) {
     if (r.step < M.STEP.met && dist(catPos, marlo) < S.MARLO.reach) return { kind: 'meet', line: phrase('reef.marlo.prompt') };
     if (carrying !== null && dist(catPos, marlo) < S.MARLO.give) return { kind: 'give', shell: carrying, line: phrase('reef.marlo.give') };
     if (carrying === null && wanted() >= 0) {
-      const s = S.SHELLS[wanted()];
+      const s = S.STORY_SHELLS[wanted()];
       if (dist(catPos, s) < s.reach && M.reachable({ minLift: s.minLift }, lift)) return { kind: 'pick', shell: s.id, line: phrase('reef.shell.prompt') };
+    }
+    if (r.step >= M.STEP.lit && ctx.onParade && !ctx.paradeOn?.() && dist(catPos, marlo) < S.MARLO.reach) {
+      return { kind: 'parade', line: r.step >= M.STEP.done ? phrase('reef.parade.replay') : phrase('reef.parade.prompt') };
     }
     return null;
   }
 
   // ---- placing things each frame ---------------------------------------------------------------------------------------------
   function placeShell(i, t, catPos, session) {
-    const s = S.SHELLS[i];
+    const s = S.STORY_SHELLS[i];
     const mode = shellMode(i);
     const g = shells[i];
     let x = s.x; let z = s.z; let y = reefY(s.x, s.z) + s.y;
@@ -273,6 +323,11 @@ export function createMarlo(ctx) {
       const yaw = session?.cat?.rotation?.y ?? 0;
       x = catPos.x + Math.sin(yaw) * 0.5; z = catPos.z + Math.cos(yaw) * 0.5; y = catPos.y + 0.18;
       scale *= 0.8;
+    } else if (mode === 'given' && i === 2 && rec().step >= M.STEP.tried) {
+      // tried on: the just-right shell sits on his back (his old one is the sea snail's home now)
+      const h = group.scale.x;
+      x = marlo.x - Math.sin(marlo.yaw) * 0.12 * h; z = marlo.z - Math.cos(marlo.yaw) * 0.12 * h; y = reefY(marlo.x, marlo.z) + 0.3 * h;
+      scale *= 0.42;
     } else if (mode === 'given') {
       x = marlo.x + (i === 0 ? -0.55 : 0.55); z = marlo.z - 0.25; y = reefY(x, z);
       scale *= 0.7;
@@ -331,7 +386,7 @@ export function createMarlo(ctx) {
   }
 
   return {
-    get state() { return { clock, carrying, marlo: { ...marlo }, record: rec(), shellModes: S.SHELLS.map((s) => shellMode(s.id)), bubble: bubble.icon, pocketLeft: pocketLeft.slice() }; },
+    get state() { return { clock, carrying, marlo: { ...marlo }, record: rec(), shellModes: S.STORY_SHELLS.map((s) => shellMode(s.id)), bubble: bubble.icon, pocketLeft: pocketLeft.slice() }; },
     get marlo() { return marlo; },
     get group() { return group; },
     get shells() { return shells; },
@@ -366,14 +421,22 @@ export function createMarlo(ctx) {
         audio?.chime?.();
         if (effect === 'small') { say('reef-shell-small', phrase('reef.marlo.small')); showBubble('question'); }
         else if (effect === 'big') { say('reef-shell-big', phrase('reef.marlo.big')); showBubble('heart'); }
+        else if (effect === 'third') { say('reef-shell-third', phrase('reef.marlo.third')); showBubble('heart'); tryT = 0; }
+      } else if (t.kind === 'parade') {
+        ctx.onParade?.();
       }
       return t.kind;
     },
+    // the housewarming's own steps (the lantern corals lit, the parade paid) go through the same machine and the same save; world/reefhouse.js asks
+    perform: (ev) => perform(ev),
+    setLit(n) { lit = Number.isInteger(n) ? Math.max(0, Math.min(M.LANTERN_COUNT, n)) : 0; goalCur = null; },
+    get lit() { return lit; },
     // a step done by anyone in the room: the same effects as her own; the shell she was holding is gone from her mouth if it was the one just brought
     credit(ev) {
       const effect = perform(ev, { remote: true });
       if (!effect) return null;
       if (carrying !== null && M.shellBrought(progression?.state?.reef, carrying)) carrying = null;
+      if (effect === 'lit') lit = M.LANTERN_COUNT;
       wobble = clock;
       return effect;
     },
@@ -399,6 +462,22 @@ export function createMarlo(ctx) {
         claw.rotation.z = wave;
       }
       group.visible = !catPos || near < 60;
+
+      // shell three is given: a moment later (she is near and waiting) he steps into it, by himself
+      if (r.step === M.STEP.third && carrying === null && catPos && near < TRYON.near) {
+        tryT += step;
+        if (tryT >= TRYON.wait && perform({ kind: 'tryon' })) {
+          wobble = clock; tryT = 0;
+          audio?.chime?.();
+          showBubble('heart');
+          say('reef-marlo-tried', phrase('reef.marlo.tried'));
+        }
+      } else tryT = 0;
+      const rr = rec();
+      const old = group.userData.old;
+      if (old) old.visible = rr.step < M.STEP.tried;
+      snail.visible = rr.step >= M.STEP.tried;
+      if (!M.lanternsLit(lit) && rr.step >= M.STEP.lit) lit = M.LANTERN_COUNT;
 
       for (let i = 0; i < shells.length; i++) placeShell(i, t, catPos, session);
 
@@ -438,7 +517,7 @@ export function createMarlo(ctx) {
       carrying = null; // a shell in her mouth when the walk ends is not kept: the next walk finds it at its own spot
       bubble.dispose();
       gtex?.dispose();
-      for (const o of [group, ...shells, ...glints, bubble.sprite, ring, pockets]) {
+      for (const o of [group, snail, ...shells, ...glints, bubble.sprite, ring, pockets]) {
         scene.remove(o);
         o.traverse?.((m) => {
           m.geometry?.dispose?.();
