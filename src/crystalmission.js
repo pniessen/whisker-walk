@@ -1,5 +1,5 @@
 // =============================================================================
-// THE CRYSTAL CAVE'S MISSION: THE PURE STEP MACHINE (milestone C2: chapter 1, steps 0 to 2; the later steps join it in milestone C5). No THREE, no clock, no random number, no
+// THE CRYSTAL CAVE'S MISSION: THE PURE STEP MACHINE (milestone C2: chapter 1, steps 0 to 2; milestone C5 adds steps 3 to 7). No THREE, no clock, no random number, no
 // save write: it takes the `state.crystal` record and an event and answers the next record; world/crystallife.js carries it out on a walk and writes it back. Modelled on
 // src/reefmission.js (the Reef's Marlo).
 //
@@ -7,9 +7,11 @@
 //   step 0  nothing yet: Lumi, a baby glow-worm, peeks out near the entrance
 //   step 1  Lumi is met (the Interact button): she shows a spark and a heart
 //   step 2  the rose spark stone is brought to the Rose crystal (sparks bit 0): it lights, hums, and her tail glows pink. Chapter 1 is done.
-//   step 3  the sky spark stone is brought (sparks bit 1)  \  milestone C5: the stones go in order, one then two then three; nothing here places
-//   step 4  the gold spark stone is brought (sparks bit 2) /  them yet, so after step 2 the goal is only 'rest'
-//   steps 5 to 7 (all lit, the Heart's light show, the story paid) are milestone C5's
+//   step 3  the sky spark stone is carried across the Blue Pool and brought to the Blue crystal (sparks bit 1)
+//   step 4  the gold spark stone is brought from its nook to the Gold crystal (sparks bit 2)
+//   step 5  all three are lit and the passages light up (event 'lit', taken a moment after the gold stone is set)
+//   step 6  the Heart Crystal is woken (event 'wake'): its 20 s light show begins (world/crystalshow.js, a pure function of one start time)
+//   step 7  the show reaches its pay moment (event 'done'): crystalstory pays once and Lumi gives the Glimmer Collar's gem. The story is over; the show can be replayed for fun
 // (this machine never lowers a step and never raises one past STEP.rest.)
 //
 // A stone she is CARRYING is never saved, and is never in the walk's mouth: it is back at its own spot on the next walk, whatever ends a walk (leaving, a
@@ -47,13 +49,15 @@ export function wantedStone(rec) {
 
 const LADDER = Object.freeze([
   Object.freeze({ kind: 'meet' }), Object.freeze({ kind: 'bring', stone: 0 }), Object.freeze({ kind: 'bring', stone: 1 }), Object.freeze({ kind: 'bring', stone: 2 }),
+  Object.freeze({ kind: 'lit' }), Object.freeze({ kind: 'wake' }), Object.freeze({ kind: 'done' }),
 ]);
 const rungOf = (ev) => LADDER.findIndex((e) => e.kind === ev.kind && e.stone === ev.stone);
 const STONE_EFFECT = Object.freeze(['rose', 'sky', 'gold']);
 
 // The next record after an event; `rec` itself is never touched and the other keys of the save record come back as they were.
-// events: { kind: 'meet' } (she said hello), { kind: 'bring', stone: 0 | 1 | 2 } (a stone was set on its crystal). Anything else, a stone out of order, a
-// stone before Lumi is met: no change. effect: 'met' | 'rose' | 'sky' | 'gold' | null.
+// events: { kind: 'meet' } (she said hello), { kind: 'bring', stone: 0 | 1 | 2 } (a stone was set on its crystal), { kind: 'lit' } (the passages light, once all
+// three stones are in), { kind: 'wake' } (the Heart Crystal is woken: the show begins), { kind: 'done' } (the show's pay moment). Anything else, a step out of
+// order, a stone before Lumi is met: no change. effect: 'met' | 'rose' | 'sky' | 'gold' | 'lit' | 'wake' | 'done' | null.
 export function apply(rec, ev) {
   const cur = normalize(rec);
   const base = rec && typeof rec === 'object' ? rec : {};
@@ -65,6 +69,8 @@ export function apply(rec, ev) {
     const step = STONE_STEP[ev.stone];
     return { crystal: { ...base, step, sparks: cur.sparks | (1 << ev.stone) | SPARKS_AT[step] }, changed: true, effect: STONE_EFFECT[ev.stone] };
   }
+  const later = kind === 'lit' ? [STEP.gold, STEP.lit, 'lit'] : kind === 'wake' ? [STEP.lit, STEP.show, 'wake'] : kind === 'done' ? [STEP.show, STEP.done, 'done'] : null;
+  if (later && cur.step === later[0]) return { crystal: { ...base, step: later[1], sparks: cur.sparks | SPARKS_AT[later[1]] }, changed: true, effect: later[2] };
   return none;
 }
 
@@ -84,14 +90,15 @@ export function credit(rec, ev) {
 }
 
 // The one thing to do next, for the picture bubble and the meow's ring. { kind, stone?, icon }:
-//   'lumi' (say hello), 'stone' (find stone `stone`), 'deliver' (carry it to its crystal), 'rest' (nothing more yet).
+//   'lumi' (say hello), 'stone' (find stone `stone`), 'deliver' (carry it to its crystal), 'heart' (wake the Heart Crystal), 'rest' (nothing more to do).
 // `carrying`: the stone in her mouth (0, 1, 2) or null. Pictures only: a spark and a heart, never text.
-export const ICON = Object.freeze({ lumi: 'heart', stone: 'spark', deliver: 'heart', rest: 'heart' });
+export const ICON = Object.freeze({ lumi: 'heart', stone: 'spark', deliver: 'heart', heart: 'spark', rest: 'heart' });
 export function nextGoal(rec, carrying = null) {
   const { step } = normalize(rec);
   const want = wantedStone(rec);
   if (step < STEP.met) return { kind: 'lumi', icon: ICON.lumi };
   if (want >= 0) return carrying === want ? { kind: 'deliver', stone: want, icon: ICON.deliver } : { kind: 'stone', stone: want, icon: ICON.stone };
+  if (step >= STEP.gold && step <= STEP.show) return { kind: 'heart', icon: ICON.heart }; // (step 4's lit event is a moment; the Heart is next either way)
   return { kind: 'rest', icon: ICON.rest };
 }
 

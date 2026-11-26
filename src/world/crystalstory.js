@@ -5,6 +5,7 @@
 // =============================================================================
 
 import { CRYSTAL_BOUNDS, ROSE_GREAT, crystalColliders, crystalY } from './crystalplan.js';
+import { WING_STONES, WING_CRYSTALS, HEART_GREAT } from './crystalwingplan.js';
 
 // Lumi, the baby glow-worm: waits just inside the entrance; once met she follows at a shy distance and waits.
 export const LUMI = Object.freeze({
@@ -20,14 +21,19 @@ export const LUMI = Object.freeze({
   seen: 10, // m: she is this near and Lumi peeks out with a picture (once a walk)
 });
 
-// The great crystals the stones go to, in order (the sky and the gold crystals come with milestone C5). `reach` is how near the cat must stand to set a stone.
+// The great crystals the stones go to, in order (rose, blue, gold: milestone C5 added the last two). `reach` is how near the cat must stand to set a stone.
 export const CRYSTALS = Object.freeze([
   Object.freeze({ id: 'rose', x: ROSE_GREAT.x, z: ROSE_GREAT.z, reach: 3.7, hue: 'rose' }),
+  ...WING_CRYSTALS,
 ]);
+// The Heart Crystal: stand within `reach` of it (a ring of small crystals round it) and the action button wakes it (or replays the show once the story is done).
+export const HEART = Object.freeze({ x: HEART_GREAT.x, z: HEART_GREAT.z, reach: HEART_GREAT.reach });
 
-// The rose spark stone: on the far side of a crystal cluster in the Rose hall, seen from the spawn court (a glint hangs over it).
+// The spark stones, in order: the rose one on the far side of a crystal cluster in the Rose hall (a glint hangs over it); the sky one on the Blue Pool's far shore;
+// the gold one in a nook ringed by glints in the Gold Gallery.
 export const STONES = Object.freeze([
   Object.freeze({ id: 0, hue: 'rose', x: -18.76, z: 9.24, reach: 1.7, hideBehind: Object.freeze({ x: -17.19, z: 10.77 }) }),
+  ...WING_STONES,
 ]);
 export const STONE_Y = 0.35; // m over the floor
 

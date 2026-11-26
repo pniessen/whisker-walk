@@ -1,7 +1,7 @@
 // =============================================================================
 // THE CRYSTAL CAVE (milestone C1: the cave world). A warm, glowing cave of smooth stone, 72 x 64 m: the spawn court with its return arch, the entry hall and the
-// Rose hall with the great Rose crystal, small crystal clusters over the rest, a dome and its stalactites, a warm rose fog. The Blue Pool, the Gold Gallery and the
-// Heart are on the floor but not yet drawn (milestone C5). Behind ?crystal=1 and the gates switch only. Draws no random number and reads no clock; builds in
+// Rose hall with the great Rose crystal, small crystal clusters over the rest, a dome and its stalactites, a warm rose fog. Wing B (milestone C5): the Blue Pool with
+// its stepping crystals, the Gold Gallery with its vein wall and nook, and the Heart Crystal. Behind ?crystal=1 and the gates switch only. Draws no random number and reads no clock; builds in
 // withLocalUuids. docs/superpowers/plans/2026-11-26-crystal-cave.md.
 // HARD RULES (the advisor's answers 2 and 4): the walls stand 9 m or more beyond the walkable edge and are inside-only; NO real `ceil` (it would trigger the den's
 // caveView); not in INDOOR_AREAS; camera zoom stops at step 2 here (src/camzoom.js); at most ONE PointLight in the whole place, made at build with intensity 0.
@@ -13,7 +13,11 @@ import * as P from './crystalplan.js';
 import * as K from './crystalparts.js';
 import { createCrystalLight } from './crystallight.js';
 import { createLumi } from './crystallife.js';
+import { createWing } from './crystalwing.js';
+import { drawWing } from './crystalwingparts.js';
+import { wingPerches } from './crystalwingplan.js';
 import './crystalwords.js';
+import './crystalwingwords.js';
 import { crystalCollectibles, createCrystalFindsLife } from './crystalfinds.js';
 import { drawFindMarks } from './crystalfindparts.js';
 import { CRYSTAL_SCENICS } from './crystalfindsplan.js';
@@ -39,7 +43,9 @@ export function build(scene) {
     K.drawClusters(kit, M);
     K.drawRim(kit, M);
     K.drawPebbles(kit, M);
+    const wing = drawWing(kit, M); // the pool, the Heart and the passages' lamps (milestone C5)
     for (const m of kit.meshes()) scene.add(m);
+    for (const o of wing) scene.add(o);
     scene.add(drawFindMarks()); // the Echo Wall, the Crystal Garden and the Gold Vein (milestone C3)
     scene.add(K.drawLight()); // the cave's one real light, at intensity 0
     return {
@@ -49,7 +55,7 @@ export function build(scene) {
       colliders: P.crystalColliders().map((c) => ({ ...c })),
       waters: [],
       waterFx: [],
-      perches: [],
+      perches: wingPerches(P.crystalY), // the pool's stepping crystals: an optional climb, the floor goes round (milestone C5)
       pois: P.CRYSTAL_POIS.map((p) => ({ ...p })),
       collectibles: crystalCollectibles(), // six (milestone C3)
       scenics: CRYSTAL_SCENICS.map((k) => ({ ...k })),
@@ -72,15 +78,24 @@ export function build(scene) {
       life: (ctx) => {
         const light = createCrystalLight(ctx);
         const lumi = createLumi({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion });
+        const wingLife = createWing({ scene: ctx.scene, lumi, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
         const finds = createCrystalFindsLife(ctx); // the six discoveries (milestone C3)
+        let used = lumi; // whose prompt the action button is on now
         return {
           light,
           lumi,
-          promptAt: (catPos) => lumi.promptAt(catPos),
-          interact: () => lumi.interact(),
-          credit: (ev) => lumi.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); },
-          dispose() { finds.dispose(); lumi.dispose(); light.dispose(); },
+          wing: wingLife,
+          promptAt(catPos) {
+            const a = lumi.promptAt(catPos);
+            if (a) { used = lumi; return a; }
+            used = wingLife;
+            return wingLife.promptAt(catPos);
+          },
+          interact: () => used.interact(),
+          // a show begun by anyone in the room starts ours (the shared T0); every other step is Lumi's, credited in order
+          credit: (ev) => (ev?.kind === 'show' ? wingLife.credit(ev) : lumi.credit(ev)),
+          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); },
+          dispose() { finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
         };
       },
     };

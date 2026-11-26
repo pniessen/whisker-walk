@@ -47,7 +47,7 @@ describe('chapter one on a walk', () => {
     expect(press(r, at(rose.x + 2, rose.z + 1.5)).k).toBe('give');
     expect(r.progression.state.crystal).toMatchObject({ step: 2, sparks: 1 });
     expect(r.lum.state.carrying).toBe(null);
-    expect(r.lum.state.stoneModes).toEqual(['given']);
+    expect(r.lum.state.stoneModes).toEqual(['given', 'home', 'home']);
     tick(r, at(rose.x + 2, rose.z + 1.5), 40);
     expect(r.lum.state.glow).toBeGreaterThan(0.9);
     // chapter one is done: nothing else is offered, nothing can go wrong
@@ -187,7 +187,7 @@ describe('the draw budget', () => {
     const r = rigged();
     let drawn = 0;
     r.scene.traverse((o) => { if (o.isMesh || o.isSprite || o.isPoints) { drawn++; expect(o.castShadow).toBeFalsy(); } });
-    expect(drawn).toBeLessThanOrEqual(16);
+    expect(drawn).toBeLessThanOrEqual(19);
     r.lum.dispose(); r.off();
   });
 });

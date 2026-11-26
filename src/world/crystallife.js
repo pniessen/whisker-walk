@@ -1,6 +1,6 @@
 // =============================================================================
-// LUMI AND CHAPTER ONE ON A WALK (milestone C2). The baby glow-worm, the rose spark stone, the Rose crystal's light and the meow's ring of sparkles, all drawn here
-// and run by the pure rules (src/crystalmission.js for the steps, world/crystalstory.js for the places and her moves).
+// LUMI AND THE THREE SPARK STONES ON A WALK (milestone C2: chapter one; milestone C5: the sky and gold stones too). The baby glow-worm, the three spark stones, the
+// three great crystals' lights and the meow's ring of sparkles, all drawn here and run by the pure rules (src/crystalmission.js for the steps, world/crystalstory.js for the places and her moves).
 //   * LUMI waits just inside the entrance, her glow faint; the Interact button says hello (step 1). Then she follows at a shy distance and waits. Her talk is a
 //     picture over her head (a spark, a heart), never text; the words below are only the toast line beside it.
 //   * THE ROSE SPARK STONE lies behind a crystal cluster in the Rose hall, under a glint. Interact picks it up (in her mouth in front of her, like the Reef's
@@ -20,8 +20,11 @@ import { crystalY, HUE_COLOURS } from './crystalplan.js';
 
 export const RING = Object.freeze({ secs: 6, bubble: 4, points: 30 }); // how long the meow's ring and the picture stay
 export const GLINT = Object.freeze({ color: 0xfff2c0, size: 0.6 });
-export const HALO = Object.freeze({ size: 9, high: 0.55, rise: 1.6, y: 2.4, light: 1.6 }); // the Rose crystal's glow once lit
+export const HALO = Object.freeze({ size: 9, high: 0.55, rise: 1.6, y: 2.4, light: 1.6 }); // a great crystal's glow once lit
 const COLORS = Object.freeze({ body: 0xe4d6ee, eye: 0x2c2234, faint: 0x9a8fa6, bright: 0xffe7a0, pink: 0xff6fa8 });
+const STONE_COLOURS = Object.freeze([0xff6fa8, 0x62b8ff, 0xffc65a]); // rose, sky blue, gold: the halo, the light and Lumi's tail after that stone
+const NOTES = Object.freeze([[392, 587.3], [440, 659.3], [523.3, 784]]); // each crystal's soft note and its fifth
+const PASSAGE_DELAY = 1.6; // seconds after the gold stone is set before the passages light
 const ICON_BY_KIND = Object.freeze({ spark: 'spark', heart: 'heart' });
 const smooth = (k) => { const t = Math.min(1, Math.max(0, k)); return t * t * (3 - 2 * t); };
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -113,7 +116,7 @@ function sparkles(n, size, color, opacity, map) {
 }
 
 // One soft note, quiet, on the walk's audio context. Asks for nothing when muted (no context is requested and no node made).
-export function humNote(audio) {
+export function humNote(audio, stone = 0) {
   if (!audio || typeof audio.getContext !== 'function' || audio.isMuted?.()) return false;
   const ac = audio.getContext();
   if (!ac) return false;
@@ -124,7 +127,7 @@ export function humNote(audio) {
   g.gain.exponentialRampToValueAtTime(0.03, now + 0.25);
   g.gain.exponentialRampToValueAtTime(0.0001, now + 2.4);
   g.connect(dest);
-  for (const f of [392, 587.3]) { // a rose note and its fifth
+  for (const f of NOTES[stone] ?? NOTES[0]) { // the crystal's note and its fifth
     const o = ac.createOscillator();
     o.type = 'sine';
     o.frequency.value = f;
@@ -152,7 +155,9 @@ export function createLumi(ctx) {
   let ringT = -100;
   let bubbleT = -100;
   let wobble = -100;
-  let glow = rec().step >= M.STEP.rose ? 1 : 0; // the Rose crystal's light, 0 to 1 (rises when lit)
+  const glows = S.CRYSTALS.map((c, i) => (M.stoneBrought(progression?.state?.crystal, i) ? 1 : 0)); // each great crystal's light, 0 to 1 (rises when lit)
+  let litAt = -1; // when the passages light (after the gold stone is set)
+  let override = null; // the light show's hold on the cave's one light: { x, y, z, color, intensity } or null
   let goalCur = null;
   let goalAt = -100;
   const told = new Set();
@@ -170,17 +175,20 @@ export function createLumi(ctx) {
   const tailHalo = mark(new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: COLORS.bright, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending, fog: true })));
   tailHalo.name = 'crystal:lumi:halo';
   tailHalo.scale.setScalar(0.9);
-  const halo = mark(new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: COLORS.pink, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: true })));
-  halo.name = 'crystal:rose:halo';
-  halo.scale.setScalar(HALO.size);
-  halo.visible = false;
+  const halos = S.CRYSTALS.map((c, i) => {
+    const h = mark(new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: STONE_COLOURS[i], transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: true })));
+    h.name = i === 0 ? 'crystal:rose:halo' : `crystal:${c.id}:halo`;
+    h.scale.setScalar(HALO.size);
+    h.visible = false;
+    return h;
+  });
   const bubble = makeBubble();
   const ring = sparkles(RING.points, 0.2, 0xffe6ff, 0.9, tex);
   ring.name = 'crystal:meowRing';
-  const roseCrystal = S.CRYSTALS[0];
   const light = scene.getObjectByName?.('crystal:light') ?? null;
   const lightHome = light ? { x: light.position.x, y: light.position.y, z: light.position.z, color: light.color.getHex() } : null;
-  const objects = [group, ...stones, ...glints, tailHalo, halo, bubble.sprite, ring];
+  const objects = [group, ...stones, ...glints, tailHalo, ...halos, bubble.sprite, ring];
+  const lightNow = { x: lightHome?.x ?? 0, y: lightHome?.y ?? 0, z: lightHome?.z ?? 0, color: new THREE.Color(lightHome?.color ?? 0xffc890), at: 0 };
   for (const o of objects) scene.add(o);
 
   const stoneMode = (i) => (M.stoneBrought(progression?.state?.crystal, i) ? 'given' : carrying === i ? 'carried' : 'home');
@@ -192,6 +200,7 @@ export function createLumi(ctx) {
     const s = g.stone !== undefined ? S.STONES[g.stone] : null;
     if (g.kind === 'stone' && s) return { g, x: s.x, z: s.z, y: S.stoneWorldY(s) };
     if (g.kind === 'deliver' && S.CRYSTALS[g.stone]) { const c = S.CRYSTALS[g.stone]; return { g, x: c.x, z: c.z, y: crystalY(c.x, c.z) + 0.6 }; }
+    if (g.kind === 'heart') return { g, x: S.HEART.x, z: S.HEART.z, y: crystalY(S.HEART.x, S.HEART.z) + 0.6 };
     return { g: g.kind === 'stone' ? { ...g, icon: 'heart' } : g, x: lumi.x, z: lumi.z, y: crystalY(lumi.x, lumi.z) };
   }
   const goal = () => (goalCur ?? (goalCur = goalPoint()));
@@ -215,9 +224,14 @@ export function createLumi(ctx) {
     ringT = clock;
     showBubble(gp.g.icon);
     audio?.chime?.();
-    if (!told.has('hint-' + gp.g.kind)) {
-      told.add('hint-' + gp.g.kind);
-      if (gp.g.kind === 'stone') say('crystal-stone-find', phrase('crystal.stone.find'));
+    const hintKey = 'hint-' + gp.g.kind + (gp.g.stone ?? '');
+    if (!told.has(hintKey)) {
+      told.add(hintKey);
+      if (gp.g.kind === 'stone') {
+        if (gp.g.stone === 1) say('crystal-sky-find', phrase('crystal.sky.find'));
+        else if (gp.g.stone === 2) say('crystal-gold-find', phrase('crystal.gold.find'));
+        else say('crystal-stone-find', phrase('crystal.stone.find'));
+      }
     }
   }
   const offMeow = bus.on('tip:did', (e) => { if (e && e.id === 'call') meowed = true; });
@@ -292,33 +306,54 @@ export function createLumi(ctx) {
     pos.needsUpdate = true;
   }
 
-  // The Rose crystal's glow and Lumi's tail, from the saved step: faint at first, brighter once met, pink once the rose stone is set.
+  // The great crystals' glow, the cave's one light and Lumi's tail, from the saved step: faint at first, brighter once met, then the colour of the last stone set.
   const tailColour = new THREE.Color();
-  function placeGlow(step, dt) {
+  const _want = new THREE.Color();
+  function placeGlow(step, dt, catPos) {
     const lit = step >= M.STEP.rose;
     const base = step >= M.STEP.met ? 0.5 : 0;
     tailColour.set(COLORS.faint).lerp(new THREE.Color(COLORS.bright), base);
-    if (lit) tailColour.set(COLORS.pink);
+    if (lit) tailColour.set(step >= M.STEP.lit ? 0xfff2d0 : STONE_COLOURS[Math.min(2, step - M.STEP.rose)]);
     group.userData.tail.material.color.copy(tailColour);
     tailHalo.material.color.copy(tailColour);
     const pulse = reducedMotion ? 0 : 0.08 * Math.sin(clock * 2.2);
     tailHalo.material.opacity = (lit ? 0.75 : step >= M.STEP.met ? 0.4 : 0.22) + pulse;
     tailHalo.scale.setScalar(lit ? 1.5 : 0.9);
-    const want = lit ? 1 : 0;
-    glow = reducedMotion ? want : glow + Math.sign(want - glow) * Math.min(Math.abs(want - glow), dt / HALO.rise);
-    halo.visible = glow > 0.001;
-    halo.position.set(roseCrystal.x, crystalY(roseCrystal.x, roseCrystal.z) + HALO.y, roseCrystal.z);
-    halo.material.opacity = HALO.high * smooth(glow);
-    if (light) {
-      light.intensity = HALO.light * smooth(glow);
-      light.color.set(glow > 0.001 ? COLORS.pink : lightHome.color);
-      if (glow > 0.001) light.position.set(roseCrystal.x + 1.5, crystalY(roseCrystal.x, roseCrystal.z) + 3.4, roseCrystal.z + 2.5);
-      else light.position.set(lightHome.x, lightHome.y, lightHome.z);
+    let near = -1; let nearD = Infinity;
+    for (let i = 0; i < halos.length; i++) {
+      const c = S.CRYSTALS[i];
+      const want = M.stoneBrought(progression?.state?.crystal, i) ? 1 : 0;
+      glows[i] = reducedMotion ? want : glows[i] + Math.sign(want - glows[i]) * Math.min(Math.abs(want - glows[i]), dt / HALO.rise);
+      const h = halos[i];
+      h.visible = glows[i] > 0.001;
+      h.position.set(c.x, crystalY(c.x, c.z) + HALO.y, c.z);
+      h.material.opacity = HALO.high * smooth(glows[i]);
+      if (want) { const d = catPos ? dist(catPos, c) : i; if (d < nearD) { nearD = d; near = i; } }
     }
+    if (!light) return;
+    // the one light stands by the lit crystal nearest the cat (or the light show's own hold), and eases from place to place
+    let tx = lightHome.x; let ty = lightHome.y; let tz = lightHome.z; let ti = 0;
+    _want.setHex(lightHome.color);
+    if (override) { tx = override.x; ty = override.y; tz = override.z; ti = override.intensity; _want.setHex(override.color); }
+    else if (near >= 0) {
+      const c = S.CRYSTALS[near];
+      tx = c.x + 1.5; ty = crystalY(c.x, c.z) + 3.4; tz = c.z + 2.5; ti = HALO.light * smooth(glows[near]);
+      _want.setHex(STONE_COLOURS[near]);
+    }
+    const k = reducedMotion || lightNow.at === 0 ? 1 : Math.min(1, dt * 3);
+    lightNow.at = 1;
+    lightNow.x += (tx - lightNow.x) * k; lightNow.y += (ty - lightNow.y) * k; lightNow.z += (tz - lightNow.z) * k;
+    lightNow.color.lerp(_want, k);
+    light.position.set(lightNow.x, lightNow.y, lightNow.z);
+    light.color.copy(lightNow.color);
+    light.intensity = ti;
   }
 
   return {
-    get state() { return { clock, carrying, lumi: { ...lumi }, record: rec(), stoneModes: S.STONES.map((s) => stoneMode(s.id)), bubble: bubble.icon, glow }; },
+    get state() { return { clock, carrying, lumi: { ...lumi }, record: rec(), stoneModes: S.STONES.map((s) => stoneMode(s.id)), bubble: bubble.icon, glow: glows[0], glows: [...glows] }; },
+    get halos() { return halos; },
+    // the light show's hold on the cave's one light (null lets go)
+    holdLight(o) { override = o; },
     get lumi() { return lumi; },
     get group() { return group; },
     get stones() { return stones; },
@@ -343,21 +378,27 @@ export function createLumi(ctx) {
       } else if (t.kind === 'pick') {
         carrying = t.stone;
         audio?.chime?.();
-        say('crystal-stone-got', phrase('crystal.stone.got'));
+        if (t.stone === 1) say('crystal-sky-got', phrase('crystal.sky.got'));
+        else if (t.stone === 2) say('crystal-gold-got', phrase('crystal.gold.got'));
+        else say('crystal-stone-got', phrase('crystal.stone.got'));
         showBubble('heart');
       } else if (t.kind === 'give') {
         const id = t.stone;
         carrying = null;
         const effect = perform({ kind: 'bring', stone: id });
         wobble = clock;
-        if (effect === 'rose') {
-          humNote(audio);
-          say('crystal-rose-lit', phrase('crystal.rose.lit'));
+        if (effect === 'rose' || effect === 'sky' || effect === 'gold') {
+          humNote(audio, id);
+          if (effect === 'rose') say('crystal-rose-lit', phrase('crystal.rose.lit'));
+          else if (effect === 'sky') say('crystal-sky-lit', phrase('crystal.sky.lit'));
+          else say('crystal-gold-lit', phrase('crystal.gold.lit'));
           showBubble('heart');
         }
       }
       return t.kind;
     },
+    // one step of the story taken by the wing's life (the Heart, the light show): the same machine and the same save as her own, so there is one of each
+    step(ev, remote = false) { return perform(ev, { remote }); },
     // a step done by anyone in the room: the same effects as her own; the stone she was holding is gone from her mouth if it was the one just brought
     credit(ev) {
       const effect = perform(ev, { remote: true });
@@ -386,7 +427,12 @@ export function createLumi(ctx) {
       tailHalo.position.set(lumi.x - Math.sin(lumi.yaw) * 0.5, crystalY(lumi.x, lumi.z) + 0.25 + bobY, lumi.z - Math.cos(lumi.yaw) * 0.5);
 
       for (let i = 0; i < stones.length; i++) placeStone(i, t, catPos, session);
-      placeGlow(r.step, step);
+      placeGlow(r.step, step, catPos);
+      // all three stones set: a moment later the passages light (taken once, saved as step 5)
+      if (r.step === M.STEP.gold) {
+        if (litAt < 0) litAt = clock + PASSAGE_DELAY;
+        else if (clock >= litAt && perform({ kind: 'lit' })) { audio?.chime?.(); say('crystal-passages-lit', phrase('crystal.passages.lit')); showBubble('spark'); }
+      }
 
       // the meow: Lumi shows the next picture and the ring rises
       if (meowed) { meowed = false; callLumi(); }
