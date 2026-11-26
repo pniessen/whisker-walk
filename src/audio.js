@@ -895,6 +895,12 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         else if (!dusk) layers.push(birdsongLayer());
       } else if (areaKey === 'crystal') {
         // The Crystal Cave: no wind, birds or crickets; its hum and drips are crystalsound.js's.
+      } else if (areaKey === 'moon') {
+        // The Moon has no air: nothing here (moonbaselive.js also stops the ambience, but never let wind or crickets start first).
+      } else if (areaKey === 'reef') {
+        // The Reef, under the sea: a very soft low water hush, never birdsong or crickets (its own sounds are reefsound.js's).
+        layers.push(windLayer({ gain: 0.014, cutoff: 120 }));
+        layers.push(waterLapLayer());
       } else if (areaKey === 'pines') {
         // The Pines and Swamp: a low hush of wind and the bog frogs, never
         // birdsong at any hour. Crickets at dusk come from the shared line.
@@ -908,7 +914,7 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         if (rain) layers.push(rainLayer());
         else if (!dusk) layers.push(birdsongLayer());
       }
-      if (dusk && !isIndoor(areaKey) && areaKey !== 'crystal') layers.push(cricketLayer());
+      if (dusk && !isIndoor(areaKey) && areaKey !== 'crystal' && areaKey !== 'reef' && areaKey !== 'moon') layers.push(cricketLayer());
       if (ambientMix) for (const layer of layers) layer.mix?.(ambientMix);
       ambient = layers;
     },

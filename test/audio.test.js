@@ -162,6 +162,24 @@ describe('layered ambience', () => {
     return { audio, ctx, bufferSources, intervals, timeouts, intervalFns, timeoutFns };
   };
 
+  it('the Reef is a soft water hush: never birdsong or crickets, day or dusk', () => {
+    for (const opts of [{}, { dusk: true }, { rain: true }]) {
+      const r = ambienceProbe('reef', opts);
+      expect(r.bufferSources).toHaveLength(2); // wind + water lap
+      expect(r.intervals).toBe(0); // no birdsong, no crickets
+      expect(r.timeouts).toBe(0);
+      r.audio.stopAmbient();
+      for (const src of r.bufferSources) expect(src.stopped).toBe(true);
+    }
+  });
+
+  it('the Moon starts no ambience at all, even at dusk', () => {
+    const m = ambienceProbe('moon', { dusk: true });
+    expect(m.bufferSources).toHaveLength(0);
+    expect(m.intervals).toBe(0);
+    expect(m.timeouts).toBe(0);
+  });
+
   it('docks ambience is water lap + gulls + horn, and never birdsong', () => {
     const dry = ambienceProbe('docks');
     // one looped-noise layer (the water lap), no rain wash stacked on it
