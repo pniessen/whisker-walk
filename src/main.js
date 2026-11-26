@@ -286,8 +286,8 @@ function init() {
   const zoomControl = createZoomControl({
     settings,
     player,
-    isDen: () => session?.areaId === 'den',
-    onCapped: () => hud.toast('The den can’t zoom out any more 🏠'),
+    area: () => session?.areaId,
+    onCapped: () => hud.toast(session?.areaId === 'crystal' ? 'The cave can’t zoom out any more 💎' : 'The den can’t zoom out any more 🏠'),
   });
   const zoomBy = (dir) => {
     if (session && player.engaged) zoomControl.step(dir);
@@ -913,7 +913,7 @@ function init() {
     if (viewChip && session && !viewChip.disabled) {
       const step = Number(viewChip.dataset.viewStep);
       if (Number.isInteger(step)) {
-        const next = clampZoomStep(step, maxZoomStep(session.areaId === 'den'));
+        const next = clampZoomStep(step, maxZoomStep(session.areaId));
         settings.set('cameraZoom', next);
         player.setCameraZoom(next);
         overlay.innerHTML = pauseCardFor(session, isTouch, pauseSound());

@@ -247,7 +247,7 @@ export function cardMode(s) {
 export function pauseCardFor(s, touch, sound = null, note = null) {
   const mode = cardMode(s);
   const L = s.lesson;
-  const max = maxZoomStep(s.areaId === 'den');
+  const max = maxZoomStep(s.areaId);
   const view = sound && Number.isInteger(sound.zoom) ? { step: clampZoomStep(sound.zoom, max), max } : null;
   return pauseCardHtml({
     welcome: mode === 'paused' ? null : s.welcome, touch, portrait: s.portrait, mode,
@@ -999,7 +999,7 @@ export function createWalkLifecycle({
     // camera gliding out. reducedMotion is set first so later zoom presses
     // this walk are instant too.
     player.setReducedMotion(reducedMotion);
-    const zoomStep = clampZoomStep(settings.get('cameraZoom'), maxZoomStep(isDen));
+    const zoomStep = clampZoomStep(settings.get('cameraZoom'), maxZoomStep(areaId));
     player.setCameraZoom(zoomStep, { instant: true });
     const startView = zoomView(zoomStep);
     camera.position.copy(cat.position).add(cameraOffset(0, 0.18, startView.dist, startView.height));

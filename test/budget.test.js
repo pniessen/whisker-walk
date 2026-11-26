@@ -534,8 +534,11 @@ const AREAS = [
   // Beauty round 2 (2026-11-26: 70 strewn pebbles and shells, eight triangles each, in the existing 'paint' bucket) measured 7 / 1 / 15,405 built (+560), +12%: 8 / 2 / 17,200.
   ['reef', buildReef, 8, 2, 17200],
   // The Crystal Cave. Milestone C0 (2026-11-26, the seams) is a stub floor: the 100 m ground plane alone, 1 / 0 / 5,408 like the Reef's stub, +12%: 2 / 1 / 6,100.
-  // Rows A and B come with milestones C1 and C5 (plan section 5: measured, then set).
-  ['crystal', buildCrystal, 2, 1, 6100],
+  // Milestone C1 (2026-11-26, the cave world: the stone floor in one vertex-coloured mesh, the dome as one inside-only lathe, the stalactites as ONE InstancedMesh, the
+  // arch, rim rocks and pebbles in the paint bucket, the arch's door of light, one merged glow mesh per crystal hue; the pulse, the glints and the fog are the walk's life,
+  // not in this count) measured 9 meshes / 14,308 triangles built (casters inside the ceiling of 2), +12% (the Farm's and the Market's ruling): 10 / 2 / 16,000. The plan's expectation for the whole place was about
+  // 35,000 triangles. Row B comes with milestone C5 (plan section 5: measured, then set).
+  ['crystal', buildCrystal, 10, 2, 16000],
   // Milestone R2 (Marlo and chapter one) adds only the coral ledge (no mesh more; about 200 triangles measured on top of R3: 7 / 2 / 10,700). Marlo, the shells, their glints, the picture bubble, the meow's ring and the air pockets are the walk's life, counted in test/reefmarlo.test.js
 ];
 
