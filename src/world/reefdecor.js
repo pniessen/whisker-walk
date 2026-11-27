@@ -182,20 +182,20 @@ export function scatterDecor() {
   out.pile = scatterFamily('pile', { n: 24, sep: 4, rad: 0.2, lo: 1, hi: 1, foot: 0.8, placed }).items;
   out.wood = scatterFamily('wood', { n: 9, sep: 6, rad: 0.2, lo: 1, hi: 1, foot: 1.0, placed }).items;
   out.fan = scatterFamily('fan', { n: 16, sep: 4, rad: 2.2, lo: 1, hi: 4, foot: 0.55, placed }).items;
-  out.head = scatterFamily('head', { n: 13, sep: 3.5, rad: 1.8, lo: 2, hi: 5, foot: 0.4, placed }).items;
+  out.head = scatterFamily('head', { n: 16, sep: 3.5, rad: 1.8, lo: 2, hi: 5, foot: 0.4, placed }).items;
   out.sponge = scatterFamily('sponge', { n: 12, sep: 4, rad: 1.4, lo: 2, hi: 4, foot: 0.35, placed }).items;
-  const anem = scatterFamily('anem', { n: 22, sep: 3.2, rad: 0.8, lo: 4, hi: 8, foot: 0.12, placed: null });
-  const grass = scatterFamily('grass', { n: 32, sep: 4.2, rad: 1.9, lo: 8, hi: 15, foot: 0.12, placed: null });
+  const anem = scatterFamily('anem', { n: 26, sep: 3.2, rad: 0.8, lo: 4, hi: 8, foot: 0.12, placed: null });
+  const grass = scatterFamily('grass', { n: 38, sep: 4, rad: 1.9, lo: 8, hi: 15, foot: 0.12, placed: null });
   const keepBig = (list) => list.filter((t) => !placed.some((o) => Math.hypot(o.x - t.x, o.z - t.z) < o.f + 0.15));
   out.anem = keepBig(anem.items);
   out.grass = keepBig(grass.items);
   out.grassPatches = grass.patches;
   out.star = scatterFamily('star', { n: 16, sep: 4, rad: 1.2, lo: 1, hi: 2, foot: 0.2 }).items;
   out.urchin = scatterFamily('urchin', { n: 11, sep: 4, rad: 1.2, lo: 1, hi: 3, foot: 0.2 }).items;
-  out.shell = scatterFamily('shell', { n: 22, sep: 3, rad: 1.2, lo: 1, hi: 3, foot: 0.12 }).items;
-  out.dollar = scatterFamily('dollar', { n: 12, sep: 3, rad: 1.2, lo: 1, hi: 3, foot: 0.12 }).items;
-  out.pebble = scatterFamily('pebble', { n: 28, sep: 2.6, rad: 1.1, lo: 3, hi: 7, foot: 0.1 }).items;
-  out.ripple = scatterFamily('ripple', { n: 14, sep: 5, rad: 0.7, lo: 3, hi: 4, foot: { r: 0.9 }, placed: null }).items;
+  out.shell = scatterFamily('shell', { n: 34, sep: 2.6, rad: 1.2, lo: 1, hi: 3, foot: 0.12 }).items;
+  out.dollar = scatterFamily('dollar', { n: 16, sep: 3, rad: 1.2, lo: 1, hi: 3, foot: 0.12 }).items;
+  out.pebble = scatterFamily('pebble', { n: 34, sep: 2.5, rad: 1.1, lo: 3, hi: 7, foot: 0.1 }).items;
+  out.ripple = scatterFamily('ripple', { n: 24, sep: 4.2, rad: 0.8, lo: 3, hi: 4, foot: { r: 0.9 }, placed: null }).items;
   // the Sealab's footprint (a stage pushes it onto REEF_CLEARS) takes its plants and decor away now, after every stream has run
   for (const k of Object.keys(out)) if (k !== 'grassPatches') out[k] = out[k].filter((t) => !inReefClear(t.x, t.z, t.r ?? 0.3));
   cached = out;

@@ -210,7 +210,8 @@ export function decorGeometries() {
     const L = 0.9 + 1.1 * it.s;
     const ry = it.pyaw + (it.t - 0.5) * 0.25;
     const rz = slopeOf(it.x, it.z, ry, L);
-    put(it, cyl(0.07, 0.07, L, 4).rotateZ(Math.PI / 2).scale(1, 0.32, 1), it.x, it.z, 0.0, ry, rz, 0xf3e5b5);
+    put(it, cyl(0.07, 0.07, L, 3, true).rotateZ(Math.PI / 2).scale(1, 0.36, 1), it.x, it.z, 0.0, ry, rz, 0xdcc98c);
+    put(it, cyl(0.045, 0.045, L * 0.7, 3, true).rotateZ(Math.PI / 2).scale(1, 0.34, 1).translate(L * 0.05, 0, 0.2), it.x, it.z, 0.0, ry, rz, 0xf2e6b6); // a thinner, paler crest beside it (open 3-sided ridges: no caps)
   }
   return { a, b };
 }
