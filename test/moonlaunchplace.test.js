@@ -119,7 +119,7 @@ describe('on foot', () => {
 
 describe('the zone', () => {
   it('wing C is the pad: drawn within 55 m, kept to 61 m; B is untouched', () => {
-    expect(Object.keys(WINGS)).toEqual(['B', 'C', 'D']); // (milestone 8) the Lava Tube
+    expect(Object.keys(WINGS)).toEqual(['B', 'C', 'D', 'E']); // (milestone 8) the Lava Tube
     expect([WINGS.C.x, WINGS.C.z]).toEqual([P.PAD.x, P.PAD.z]);
     const z = createZones();
     expect(z.update(P.PAD.x - 40, P.PAD.z).C).toBe(true);

@@ -9,6 +9,7 @@
 //
 // The names are literal phrase ids, registered in the phrase table when this file loads (the lazy files' way); they read the
 // same in both word sets except the Clan lands, which the everyday set calls the wild lands.
+import { CLAN_SUFFIX } from './clanwords.js'; // (the borrowed word lives in clanwords.js only)
 import { addPhrases, phrase } from './clanphrases.js';
 import { seriesMode, SERIES_ON } from './wordset.js';
 
@@ -16,7 +17,7 @@ export const REGION_LINES = Object.freeze({
   'region.urban': 'Urban',
   'region.suburban': 'Suburban and rural',
   'region.shore': 'Shore',
-  'region.clan': () => (seriesMode() === SERIES_ON ? 'Clan lands' : 'Wild lands'),
+  'region.wild': () => (seriesMode() === SERIES_ON ? `${CLAN_SUFFIX} lands` : 'Wild lands'),
   'region.other': 'Other worlds',
 });
 addPhrases(REGION_LINES);
@@ -25,7 +26,7 @@ export const REGIONS = Object.freeze([
   { id: 'urban', members: ['neighborhood', 'park', 'roofs', 'market', 'greenhouse'] },
   { id: 'suburban', members: ['farm', 'fair', 'house'] },
   { id: 'shore', members: ['docks', 'seaside', 'lighthouse'] },
-  { id: 'clan', members: ['woods', 'river', 'moor', 'pines', 'gorge'] },
+  { id: 'wild', members: ['woods', 'river', 'moor', 'pines', 'gorge'] },
   { id: 'other', members: ['moon', 'reef', 'crystal'] },
 ].map((r) => Object.freeze({ ...r, members: Object.freeze(r.members) })));
 
@@ -41,7 +42,7 @@ export function regionName(regionId) {
     case 'urban': return phrase('region.urban');
     case 'suburban': return phrase('region.suburban');
     case 'shore': return phrase('region.shore');
-    case 'clan': return phrase('region.clan');
+    case 'wild': return phrase('region.wild');
     case 'other': return phrase('region.other');
     default: return '';
   }

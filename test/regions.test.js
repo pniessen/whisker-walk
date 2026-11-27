@@ -7,7 +7,7 @@ import { withOffWords } from './helpers/offwords.js';
 
 describe('regions', () => {
   it('five regions, the owner\'s, each with members', () => {
-    expect(REGIONS.map((r) => r.id)).toEqual(['urban', 'suburban', 'shore', 'clan', 'other']);
+    expect(REGIONS.map((r) => r.id)).toEqual(['urban', 'suburban', 'shore', 'wild', 'other']);
     for (const r of REGIONS) expect(r.members.length, r.id).toBeGreaterThan(0);
     expect(Object.isFrozen(REGIONS) && REGIONS.every((r) => Object.isFrozen(r) && Object.isFrozen(r.members))).toBe(true);
   });
@@ -39,7 +39,7 @@ describe('regions', () => {
     expect(regionOf('greenhouse')).toBe('urban');
     expect(regionOf('house')).toBe('suburban');
     expect(regionOf('lighthouse')).toBe('shore');
-    expect(regionOf('gorge')).toBe('clan');
+    expect(regionOf('gorge')).toBe('wild');
     for (const id of ['moon', 'reef', 'crystal']) expect(regionOf(id), id).toBe('other');
     expect(regionOf('__proto__')).toBeNull();
     expect(regionOf(undefined)).toBeNull();

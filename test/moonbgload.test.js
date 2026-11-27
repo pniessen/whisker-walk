@@ -33,7 +33,7 @@ const setup = async (ids, { reducedMotion = false, imports } = {}) => {
   const frame = (dt = 1 / 60, p = at) => life.update(dt, 1, p, cam, session);
   return { scene, area, life, frame, at };
 };
-const rings = (area) => area.colliders.filter((c) => c.moonRing);
+const rings = (area) => area.colliders.filter((c) => c.moonRing && !c.station); // (the Old Relay Station's own ring is counted in moonstation.test.js)
 const planKey = (c) => `${c.x},${c.z},${c.r}`;
 const names = (scene) => { const n = new Set(); scene.traverse((o) => n.add(o.name)); return n; };
 
