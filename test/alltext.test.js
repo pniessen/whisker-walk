@@ -71,6 +71,7 @@ const KNOWN_HITS = new Map([
   ["src/world/crystalfindwords.js :: camp", "OWNER DECIDES: find line says 'the camp'; a *findwords.js table with no everyday version (allwords.test.js does not see it in its tables)"],
   ["src/world/junglecritterwords.js :: gathering", "OWNER DECIDES: 'a gathering call', ordinary English but on the banned list"],
   ["src/world/reeffindwords.js :: elders", "OWNER DECIDES: 'the elders under Silverpelt' (a Warriors star name), shown in the everyday set as written"],
+  ["src/world/snowvillestrayswords.js :: patrol", "Clan-flavoured line of a pair (a stray cat, calm as a night patrol): the everyday line is plain"],
   ["src/world/snowvillecritterwords.js :: patrol", "OWNER DECIDES: 'a river patrol', ordinary English but on the banned list"],
   ["src/world/snowvillefindwords.js :: patrol", "OWNER DECIDES: 'quiet as a patrol', ordinary English but on the banned list"],
   ["src/world/treehousecritterwords.js :: patrol", "OWNER DECIDES: 'a dawn patrol call', ordinary English but on the banned list"],
