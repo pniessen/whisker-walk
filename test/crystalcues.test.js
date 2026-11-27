@@ -188,16 +188,16 @@ describe('(b) every step\'s target exists, is in bounds, can be walked to with n
 
 // ---- (c) cue coverage -------------------------------------------------------------------------------------------------------------------
 const CUES = [
-  { step: 0, goal: 'lumi', icon: 'heart', target: (t) => t.lumi, lines: ['crystal.lumi.hello', 'crystal.lumi.prompt'], journal: 'ccstonerose' },
-  { step: 1, goal: 'stone', icon: 'spark', target: () => S.STONES[0], lines: ['crystal.lumi.met', 'crystal.stone.find', 'crystal.stone.prompt', 'crystal.stone.got', 'crystal.stone.give'], journal: 'ccstonerose', glint: true },
-  { step: 2, goal: 'stone', icon: 'spark', target: () => S.STONES[1], lines: ['crystal.rose.lit', 'crystal.sky.find', 'crystal.sky.got'], journal: 'ccstonesky', glint: true },
-  { step: 3, goal: 'stone', icon: 'spark', target: () => S.STONES[2], lines: ['crystal.sky.lit', 'crystal.gold.find', 'crystal.gold.got'], journal: 'ccstonegold', glint: true },
-  { step: 4, goal: 'heart', icon: 'spark', target: () => S.HEART, lines: ['crystal.gold.lit', 'crystal.passages.lit'], journal: 'ccheart' },
+  { step: 0, goal: 'lumi', icon: 'heart', target: (t) => t.lumi, lines: ['crystal.lumi.hello', 'crystal.lumi.prompt', 'crystal.guide.hello'], journal: 'ccstonerose' },
+  { step: 1, goal: 'stone', icon: 'spark', target: () => S.STONES[0], lines: ['crystal.lumi.met', 'crystal.stone.find', 'crystal.stone.prompt', 'crystal.stone.got', 'crystal.stone.give', 'crystal.guide.stone0', 'crystal.guide.carry'], journal: 'ccstonerose', glint: true },
+  { step: 2, goal: 'stone', icon: 'spark', target: () => S.STONES[1], lines: ['crystal.rose.lit', 'crystal.sky.find', 'crystal.sky.got', 'crystal.guide.stone1'], journal: 'ccstonesky', glint: true },
+  { step: 3, goal: 'stone', icon: 'spark', target: () => S.STONES[2], lines: ['crystal.sky.lit', 'crystal.gold.find', 'crystal.gold.got', 'crystal.guide.stone2'], journal: 'ccstonegold', glint: true },
+  { step: 4, goal: 'heart', icon: 'spark', target: () => S.HEART, lines: ['crystal.gold.lit', 'crystal.passages.lit', 'crystal.guide.heart'], journal: 'ccheart' },
   { step: 5, goal: 'heart', icon: 'spark', target: () => S.HEART, lines: ['crystal.heart.prompt'], journal: 'ccshow' },
-  { step: 6, goal: 'heart', icon: 'spark', target: () => S.HEART, lines: ['crystal.heart.prompt', 'crystal.show.start'], journal: 'ccshow' },
-  { step: 7, goal: 'rest', icon: 'heart', target: null, lines: ['crystal.show.pay', 'crystal.gem', 'crystal.heart.replay'], journal: 'ccerrand' },
+  { step: 6, goal: 'heart', icon: 'spark', target: () => S.HEART, lines: ['crystal.heart.prompt', 'crystal.show.start', 'crystal.guide.show'], journal: 'ccshow' },
+  { step: 7, goal: 'rest', icon: 'heart', target: null, lines: ['crystal.show.pay', 'crystal.gem', 'crystal.heart.replay', 'crystal.guide.errand'], journal: 'ccerrand' },
 ];
-const LIVE_SRC = ['crystallife.js', 'crystalwing.js', 'crystal.js'].map((f) => readFileSync(new URL(`../src/world/${f}`, import.meta.url), 'utf8').replace(/\/\/.*$/gm, '')).join('\n');
+const LIVE_SRC = ['crystallife.js', 'crystalwing.js', 'crystal.js', 'crystalguide.js'].map((f) => readFileSync(new URL(`../src/world/${f}`, import.meta.url), 'utf8').replace(/\/\/.*$/gm, '')).join('\n');
 
 describe('(c) every step has a cue that points at the next target, and every cue resolves in both word sets with no banned word', () => {
   const trail = play(rig());

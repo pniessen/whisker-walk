@@ -20,6 +20,7 @@ import { drawWing } from './crystalwingparts.js';
 import { wingPerches } from './crystalwingplan.js';
 import './crystalwords.js';
 import { createCrystalIntro } from './crystalintro.js';
+import { createCrystalGuideLive } from './crystalguidelive.js'; // the written guide: goal line, chip, arrow
 import './crystalwingwords.js';
 import { crystalCollectibles, createCrystalFindsLife } from './crystalfinds.js';
 import { drawFindMarks } from './crystalfindparts.js';
@@ -88,6 +89,7 @@ export function build(scene) {
         const sound = createCrystalSound(ctx); // the hum, the plinks, the crystals' notes
         const errand = createCaveErrandLive({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, lumi }); // C7
         const intro = createCrystalIntro(ctx); // the arrival card (step 0 only)
+        const guide = createCrystalGuideLive({ doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, lumi, errand, progression: ctx.progression });
         let used = lumi; // whose prompt the action button is on now
         return {
           light,
@@ -95,6 +97,7 @@ export function build(scene) {
           sound,
           lumi,
           intro,
+          guide,
           wing: wingLife,
           errand,
           promptAt(catPos) {
@@ -108,8 +111,8 @@ export function build(scene) {
           interact: () => used.interact(),
           // a show begun by anyone in the room starts ours (the shared T0); every other step is Lumi's, credited in order
           credit: (ev) => (ev?.kind === 'show' ? wingLife.credit(ev) : lumi.credit(ev)),
-          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); sound.update(dt, catPos); errand.update(dt, t, catPos, camera, session); intro.update(dt); },
-          dispose() { intro.dispose(); errand.dispose(); sound.dispose(); critters.dispose(); finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); sound.update(dt, catPos); errand.update(dt, t, catPos, camera, session); intro.update(dt); guide.update(dt, t, catPos, camera); },
+          dispose() { guide.dispose(); intro.dispose(); errand.dispose(); sound.dispose(); critters.dispose(); finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
         };
       },
     };
