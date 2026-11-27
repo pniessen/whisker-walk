@@ -643,13 +643,13 @@ describe('with the gateways (world map step 3)', () => {
       expect(after.casters).toBeLessThanOrEqual(merged[3]);
     });
   }
-  it('the Seaside paid for its gate first (28793 bare); with the holiday decor (seaside-life) it is 31093 bare and at or under 31665 dressed', () => {
+  it('the Seaside paid for its gate first (28793 bare); with the holiday decor (seaside-life) it is 31093 bare and at or under 31665 dressed (seaside-life), then 34157 and 34737 with the beauty round (seasidebeauty.js)', () => {
     const scene = new THREE.Scene();
     buildSeaside(scene);
-    expect(budgetStats(scene).triangles).toBe(31093);
+    expect(budgetStats(scene).triangles).toBe(34157);
     addGatewayDressing(scene, 'seaside');
     if (process.env.BUDGET_LOG) console.log('seaside dressed', JSON.stringify(budgetStats(scene)));
-    expect(budgetStats(scene).triangles).toBeLessThanOrEqual(31665);
+    expect(budgetStats(scene).triangles).toBeLessThanOrEqual(34737);
   });
 });
 
