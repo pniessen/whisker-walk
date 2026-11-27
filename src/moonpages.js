@@ -15,7 +15,7 @@ export const MOON_LIFE_PAGES = Object.freeze([['mldrone', '🛸', 'drone', 'Surv
 export const MOON_WING_PAGES = Object.freeze([['mnstation', '🛰️', 'station', 'The Old Relay Station'], ['mnsignal', '📶', 'signal', 'The Far Signal'], ['mnrelay', '🔧', 'relay', 'Relay Parts'],
   ['mnsled', '🛷', 'sled', 'The Moon Sled'], ['mnlap', '🏁', 'lap', 'Sled Lap']].map((p) => Object.freeze(p)));
 // Which wings are open: a page stays out of the journal until its wing is in the game. A switch to true in the wing's own milestone.
-export const WING_LIVE = { mnstation: true, mnsignal: false, mnrelay: false, mnsled: false, mnlap: false };
+export const WING_LIVE = { mnstation: true, mnsignal: false, mnrelay: false, mnsled: true, mnlap: true };
 export const wingPageShown = (id) => WING_LIVE[id] !== false;
 export const MOON_JOURNAL_TYPES = Object.freeze(MOON_PAGES.map((p) => p[0]));
 
