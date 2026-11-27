@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { stubCanvasDocument } from './helpers/canvas.js';
@@ -412,205 +413,32 @@ function budgetStats(scene) {
   return { meshes, casters, triangles: Math.round(triangles) };
 }
 
-const AREAS = [
-  // name, builder, [meshCeiling, casterCeiling, triangleCeiling]
-  ['neighborhood', buildNeighborhood, 450, 380, 70000],
-  ['park', buildPark, 210, 170, 40000],
-  ['docks', buildDocks, 600, 500, 90000],
-  // 2026-11-26, seaside-life: the holiday decor (castles, towels, the two vendors' stands, the gulls' posts, two
-  // merged noCast meshes) took the bare build from 28,793 to 31,093 triangles and 75 meshes; the ceiling is that
-  // measured +12% (34,824, rounded). Meshes and casters are unchanged (the decor casts nothing).
-  ['seaside', buildSeaside, 85, 45, 34900],
-  ['den', buildDen, 340, 220, 40000],
-  // The Woods is held to the Cozy Neighborhood's numbers. Raised from 60k to 70k
-  // on 2026-11-04 after the owner's iPhone check passed with every area near 60k.
-  ['woods', buildWoods, 450, 380, 70000],
-  ['river', buildRiver, 450, 380, 70000],
-  ['moor', buildMoor, 450, 380, 70000],
-  ['pines', buildPines, 450, 380, 70000],
-  ['gorge', buildGorge, 450, 380, 70000],
-  // Appletree Farm (2026-11-18), measured 244 / 176 / 53,419 (243 until the
-  // scarecrow's hat became a mesh of its own, noCast, for step 3): the barn and the
-  // four small buildings are three vertex-coloured meshes each (walls, roof,
-  // window panes), the fences are one mesh, the wheat one (9,750 triangles,
-  // noCast), the vegetable rows one; 21 trees and a willow, 15 of the trees
-  // with an apple mesh (noCast); eight flower patches are 96 of the meshes.
-  // Ceilings at the usual headroom over that, well under the territories'.
-  ['farm', buildFarm, 280, 210, 62000],
-  // The Fairground (2026-11-18), the static place as step 1 built it: measured
-  // 221 / 157 / 69,452; after the polish pass (2026-11-19) 174 / 109 / 66,692
-  // (test/fair.test.js pins the exact numbers). The rides
-  // are the densest things in the game and their moving parts cannot be
-  // merged: 12 horses, 8 gondolas, 6 cups and 4 coaster cars are a mesh each.
-  // Meshes and casters at a small headroom over that. The triangle ceiling,
-  // 75,000, is PROVISIONAL: the owner approved 75,000 for the Farm (place,
-  // animals and jobs); for the Fairground it is the coordinator's call,
-  // flagged to the owner and his to change.
-  ['fair', buildFair, 250, 180, 75000],
-  // The Rooftops (Rooftops step 2, 2026-11-20), measured 113 / 67 / 32,202
-  // (part one alone was 76 / 42 / 13,284); 114 / 68 / 32,506 after
-  // follow-up 3 (stack-5 on the flat house, its ridge beam gone); 112 / 68 /
-  // 31,218 after follow-up 2 (calmer take-off marks); 113 / 68 / 32,382 after
-  // the beauty pass's Task A (the sky glow band, +1 mesh casting nothing, and
-  // the far town's lights and landmarks); 113 / 68 / 32,918 after Task B
-  // (houses that differ and real roof edges: no mesh or caster added, +536
-  // triangles in the buckets it had); 113 / 68 / 33,246 after Task C (windows
-  // and the tower: no mesh or caster added, +328 triangles in the buckets it
-  // had); 113 / 68 / 33,933 after Task D (readable hints and a lived-in
-  // alley: no mesh or caster added, +687 triangles in the buckets it had);
-  // 113 / 68 / 34,023 after round two's Task E (the shop's string courses
-  // and the garden bench's uprights, +96, in noCast buckets it had; the far
-  // town's lower back rows, -6: no mesh or caster added); 113 / 68 / 36,065
-  // after round two's Task F (what she walks on: the ridges in single tiles,
-  // the felt's drip edges, patches, flashing and outlets, the crates' slats
-  // and the bin bags' knots, +2,042 in noCast buckets it had: no mesh or
-  // caster added); 114 / 68 / 36,707 after round two's Task G (the street
-  // lit: the lamps' halo, +1 mesh casting nothing and never merged, 8
-  // triangles; the copings' joints, the road's lines, grates and covers, +632
-  // in noCast buckets it had; the far town's back row a little taller, +2);
-  // 116 / 68 / 37,335 after Rooftops step 3's Task 6 (two house cats asleep
-  // on warm sills: +2 meshes casting nothing and never merged, 314 triangles
-  // each). Held to the territories' ceilings,
-  // never raised; the place aims for 300 / 120 / 60,000 (test/roofs.test.js
-  // pins the exact numbers).
-  ['roofs', buildRoofs, 450, 380, 70000],
-  // The Market Square (Market step 1, 2026-11-21), measured 101 / 27 / 37,943 after Task 6's rework and its review (the square drawn in, its clutter in one kit; 79 / 26 / 33,005 before, 79 / 30 before the shop fronts stopped casting);
-  // 111 / 27 / 39,335 after step 3's Task 8 (the café front, the flower tubs' blooms, the chalkboard; 109 / 27 / 38,329 before it)
-  // (test/market.test.js pins the exact numbers). The Farm's ceilings (spec,
-  // 2026-11-20), never raised; the place aims for 180 / 110 / 45,000.
-  ['market', buildMarket, 280, 210, 62000],
-  // Lighthouse Point (Lighthouse milestone 1, 2026-11-22), measured 47 / 14 / 27,332: the headland, cove, six
-  // pools, cliff path, cave, tower to the gallery, cottage and garden, Gull Rock. The street places' ruling
-  // (the Farm's and the Market's), never raised; the place aims for 150 / 70 / 52,000 when it is whole
-  // (milestones 2 and 3 add the stair, lamp room, beam and life).
-  // Milestone 2 (the climb) measured 51 / 14 / 33,219: the stair's treads, cleats, rails and piers, the gallery's rail, the
-  // lamp room (drum, glass and roof as two meshes of their own, lens, lever housing), two sea stacks, the chalk marks.
-  // The life's lamp pieces (beam, halo, glow, pool of light) are made by the walk, after this count: 5 meshes, 0 casters.
-  // Milestone 3 (the life) measured 53 / 33,323 built: the fog bell split off the merge (two meshes, so it swings), the sleeper in the lit window.
-  // The life it adds (the gull, the crab, the paw prints; and two cats, 58 meshes and about 19,000 triangles, drawn within 48 m of her) is
-  // counted in test/lighthousebeam.test.js, never in this build count.
-  // The beauty pass (2026-11-23) measured 57 / 15 / 47,995 built (textured cliffs and lawn, tufts, flowers, sand detail, foam, far sea, tower and cottage detail): ceilings unchanged.
-  ['lighthouse', buildLighthouse, 280, 210, 62000],
-  // The Greenhouse. Milestone 0 (2026-11-22, the spike) measured 11 / 0 / 12,342. Milestone 1 (2026-11-23: the real plants, the koi, the
-  // Park's fountain, the potting bench, the kitchen bed, the eight garden pots) measured 31 / 5 / 35,050 built (plants 17,000 of it: palms
-  // 3,084, foliage 10,560, orchids 1,884, koi 108; the fountain 6,900; the frame 2,988 and the glass 420). The street places' ruling, never
-  // raised; the place aims for 150 / 70 / 52,000 when it is whole. Milestone G3 (2026-11-26: the court, the shed and its roof climb, the
-  // beds, hedges, trees, perches, rests, collectibles, tippables, a box, critters, moments and the three stage-A finds) measured 42 / 7 / 40,212
-  // built (ghGround 212, ghStreet 1,318, ghShed 1,388, ghTrees 2,160, the box 84). Milestone G4 (2026-11-26: the return archway, 2 meshes) measured
-  // 44 / 7 / 40,488 built, so the row is SET at measured +12% (the Farm's and the Market's ruling): 50 / 8 / 45,350 (it was the street
-  // places' 280 / 210 / 62,000 ceiling until measured). Milestone G6 (2026-11-26: the Orchid Room, the Cactus House and the Butterfly Room: three
-  // glass houses of the Palm House's kit with a coarser arch, the rooms' benches, cacti, hedge, shrubs, stream bed, shelf, paths, the butterflies'
-  // one instanced mesh, the two opening flowers, six more garden pots) measured 74 / 7 / 54,904 built (the frames 3 x about 1,250, ghCactusHouse
-  // 3,136, ghButterflyRoom 2,236, the rooms' orchids 1,884), so the row is RE-SET at measured +12%: 83 / 8 / 61,490 (under the 62,000 ceiling). Beauty round 1 (2026-11-26: flagstone floors with hashed tones in the four houses, the court's flagstones, the pond bank stones, the shed's footing, skirt and window box) measured 74 / 7 / 57,796 built (meshes and casters unchanged), so the triangle line is RE-SET at +12%: 64,730 (the meshes' 83 / 8 stay).
-  ['greenhouse', buildGreenhouse, 83, 8, 64730],
-  // The Moon. Milestone 0 (2026-11-23, the seams) was a bare plain, 1 / 0 / 5,408 (the 130 m ground plane's own segments). Milestone 1
-  // (the real heightfield ground in the gravel tile, 6,496 triangles in one mesh; four InstancedMeshes of rocks; the lander, the flag, the
-  // landing lights and the return gate ring, merged by material) measured 10 / 5 / 7,844 built as this file counts (an InstancedMesh is
-  // one geometry here), +12% (the Farm's and the Market's ruling): 12 / 6 / 8,800. Counting every instance the plain draws 14,584 (the
-  // plan's row A1 is 15,500; test/moonplace.test.js holds that number too). The plan's A1 row was 40 / 24 / 15,500: this is under it
-  // on every count. The sky (700 stars, Earth, a cloud disc) is the walk's life, built after the sweeps, and not in this count. The spec's
-  // final ceilings (240 / 150 / 56,000, chunk 94 kB) are set as its stages measure (milestones 2 to 8), never above them. Not in the
-  // merged table below: nothing here merges (the kit is already one mesh per material, and a top-level mesh is left alone).
-  // Milestone 2 (the base: the dome, the airlock and its two door leaves, the Core, the Mission Board, the six planters, the Old Dish, Skip Ridge's
-  // two pillars, the Far Beacon's stand-in; Pip, the cells and the ring are the walk's own, built after this count) measured 20 / 8 / 11,986 built
-  // (18,726 counting every rock instance, test/moonplace.test.js), +12%: 23 / 9 / 13,500. The plan's row A (end of milestone 4) is 100 / 56 / 27,500.
-  // Milestone 3 (Dot's course: the Rover Depot, 36 lit track posts, the Far Beacon and the Rover cell's plinth, merged into the same buckets plus one
-  // more for the lit lamps; Dot herself, her ring and her dust are the walk's own, made after this count, like Pip) measured 21 / 8 / 13,274 built
-  // (20,014 counting every rock instance, test/moonplace.test.js), +12%: 24 / 9 / 14,900. The plan's row A (end of milestone 4) is 100 / 56 / 27,500.
-  // Milestone 4 added Earthrise Rock, the pit's rock, the cheese, the echo studs and the plain's posts into the existing material buckets (no mesh more),
-  // and took draw calls OUT: the planters and the track's lit posts joined the place's one `glow` bucket, and the medium, large and boulder rocks became
-  // one InstancedMesh: measured 17 / 6 / 14,262 built (21,162 counting every rock instance, test/moonplace.test.js), +12%: 20 / 7 / 16,000.
-  // Milestone 5 (Star Hill, wing B) puts the tower and its ramp into the Moon's own stone mesh (no mesh of its own) and adds two meshes, the observatory's
-  // paint and the additive figures (the table's pictures and the ceiling's Great Cat): measured 19 / 7 / 17,456 built (24,356 counting every rock
-  // instance, test/moonplace.test.js), +12%: 22 / 8 / 19,600. The plan's row B (end of milestone 5) is 125 / 66 / 33,000.
-  // Milestone 6 (Wing C, the Launch Complex) puts the pad, the gantry tower, the tanks, the desks, the benches and the binocular stand into the existing buckets (no
-  // mesh of their own) and adds three meshes, the rocket (the one new caster), the gantry's arm and the plume (the smoke is a Points, not a mesh): measured
-  // 22 / 8 / 19,838 built (26,738 counting every rock instance, test/moonplace.test.js), +12%: 25 / 9 / 22,300. The plan's row C (end of milestone 7) is 168 / 94 / 42,000.
-  // Milestone 7a (the Beam Hops, the hop board's lane, their posts: all in the kit's buckets) measured 22 / 8 / 21,290 built (28,190 counting every rock instance, test/moonplace.test.js), +12%: 25 / 9 / 23,900.
-  // Milestone 7b (the three rifts and the ring gates' posts and arms, in the kit's buckets; the hoops are the life's one InstancedMesh) measured 22 / 8 / 21,822 built (28,722 counting every rock instance), +12%: 25 / 9 / 24,450.
-  // Milestone 8 (the Lava Tube: the Cave Massif, the tube's shell and its floor and crystals are three meshes of their own, none a caster; the Old Dish's ledge and the
-  // Core's third socket are in the kit's buckets) measured 25 / 8 / 27,586 built (34,486 counting every rock instance), +12%: 28 / 9 / 30,900. The plan's row D (end of milestone 8) is 184 / 100 / 46,500.
-  // Decor (2026-11-26, the base props, cables and footprints in the kit's existing paint, floor and glow buckets: no mesh more) measured 25 / 8 / 35,208 built (+7,622; 48,008 counting every rock instance), +12%: 28 / 9 / 39,500.
-  // Buildings beauty (the lander's, dome's, tunnel's, dish's, shed's, observatory's, gantry's, tanks' and desk's seams, window glows, bands and decals, same buckets) measured 25 / 8 / 36,816 built (49,616 counting every rock instance), +12%: 28 / 9 / 41,200.
-  ['moon', buildMoon, 28, 9, 41200],
-  // The Reef. Milestone R0 (2026-11-26, the seams) is a stub seabed: the 130 m ground plane alone, measured 1 / 0 / 5,408, +12%: 2 / 1 / 6,100.
-  // Milestone R1 (2026-11-26, the water world: the dune seabed in one vertex-coloured mesh, 6,300 triangles; the spawn arch, ladder, ring buoy, coral and pebbles in two
-  // merged buckets, paint and glow; the kelp as ONE InstancedMesh of one blade) measured 4 / 1 / 7,934 built (10,646 counting every kelp instance), +12% (the Farm's and the
-  // Market's ruling): 5 / 2 / 8,900. The plan's shell A figures were about 60 / 30 / 14,000: under them on every count. The light (the shimmer quad, up to three
-  // shafts, the warm bubble) is the walk's life, made after the sweeps, and not in this count, as the Moon's sky is not. Rows B and C come with milestones R5 and R8.
-  // Milestone R3 (2026-11-26, the finds: the oyster, the seahorse and the chest in one vertex-coloured mesh, the two golden mice's bubble columns in one translucent mesh; neither
-  // casts) measured 6 / 1 / 9,350 built, +12%: 7 / 2 / 10,500. The finds' glow is the walk's life, made after the sweeps, and not in this count.
-  // Milestone R5 (2026-11-26, wing B: the shallow cave, the three lantern corals' stalks and 24 clumps at three heights in the kit's merged buckets; the 8 tall spires are ONE
-  // InstancedMesh like the kelp; the lantern orbs, the parade's creatures and the snail's home are the walk's life, not in this count) measured 7 / 1 / 12,587 built (about
-  // 15,900 counting every kelp blade and spire instance), +12%: 8 / 2 / 14,100. The plan's wing B figures were about 110 / 60 / 28,000: far under them on every count.
-  // Milestone R8 (2026-11-26, wing C: the Sunken Boat's lofted hull, mast, ribs and rim coral, the Old Anchor, the Glow Cave's rocks and glowing beads, all in the kit's two
-  // existing buckets, so no mesh more; the plankton is the walk's life, not in this count) measured 7 / 1 / 14,845 built and merged (+2,258 triangles; about 18,200 counting
-  // every kelp blade and spire instance), +12%: 8 / 2 / 16,700. The plan's wing C figures were about 150 / 80 / 36,000: far under them on every count.
-  // Beauty round 2 (2026-11-26: 70 strewn pebbles and shells, eight triangles each, in the existing 'paint' bucket) measured 7 / 1 / 15,405 built (+560), +12%: 8 / 2 / 17,200.
-  // Beauty rounds 5-6 (2026-11-26): coral buds and rims, seagrass, starfish and urchins; measured 7 / 1 / 17,828, +12%: 8 / 2 / 20,000.
-  // Seabed decor (2026-11-26: seagrass and anemone tufts as ONE InstancedMesh on the kelp's sway, and every still piece, about 700 sea fans, coral heads, sponge tubes, arches,
-  // urchins, starfish, shells, sand dollars, pebbles, rock piles, driftwood and ripples, as ONE merged non-casting mesh; the sand's patches are vertex colour) measured 9 / 2 / 29,568
-  // built (+2 meshes, +11,740 triangles; no caster more), +12%: 10 / 2 / 33,100.
-  // Milestone R13 (2026-11-27, the Sealab's shell: eight meshes of its own, none a caster: the inside walls with a material for each room, the fixtures, the small props
-  // (the lower rungs leave them out), the glow, the glass, the roof, the outside hull and the hatch beside the Boat) measured 17 / 2 / 36,841 built (+8 meshes, +7,273
-  // triangles), +12%: 19 / 2 / 41,300. The inside meshes are hidden until she climbs in, the hull while she is inside, so a frame draws about half of them.
-  ['reef', buildReef, 25, 2, 46200],
-  // (R12 racks + R16 galleon on top of the Sealab: measured 22 meshes, set at +12 percent; triangles checked below)
-  // The Crystal Cave. Milestone C0 (2026-11-26, the seams) is a stub floor: the 100 m ground plane alone, 1 / 0 / 5,408 like the Reef's stub, +12%: 2 / 1 / 6,100.
-  // Milestone C1 (2026-11-26, the cave world: the stone floor in one vertex-coloured mesh, the dome as one inside-only lathe, the stalactites as ONE InstancedMesh, the
-  // arch, rim rocks and pebbles in the paint bucket, the arch's door of light, one merged glow mesh per crystal hue; the pulse, the glints and the fog are the walk's life,
-  // not in this count) measured 9 meshes / 14,308 triangles built (casters inside the ceiling of 2), +12% (the Farm's and the Market's ruling): 10 / 2 / 16,000. The plan's expectation for the whole place was about
-  // 35,000 triangles. Row B comes with milestone C5 (plan section 5: measured, then set).
-  // Milestone C3 (2026-11-26, the finds: the Echo Wall slab, the Crystal Garden's five tiny crystals and the Gold Vein rock in ONE merged vertex-coloured mesh, no caster) measured 10 / 1 / 14,634 built (+326 triangles, +1 mesh), +12%: 11 / 2 / 16,400. The finds' glow is the walk's life, not in this count.
-  // Milestone C5 (2026-11-26, wing B: the Blue Pool disc, six stepping crystals, the Blue, Gold and Heart great crystals and their small rings, the Gold Gallery's nine vein slabs and three nook rocks with their gold seams, the Heart as its own dormant mesh, the passages' lamps as one Points object) measured 12 / 2 / 19,786 built (+5,152 triangles, +2 meshes: the pool and the Heart; the lamps are Points), +12%: 13 / 2 / 22,200. The plan expected about 35,000 triangles at most for the whole place. The Heart's halo, the nook's glints, the show's motes and the lamps' glow are the walk's life, not in this count.
-  ['crystal', buildCrystal, 13, 2, 22200],
-  // The Treehouse village. Milestone T1 (2026-11-27, the tree world: the leafy floor, the great oak, the four decks with their stilts, railings, lanterns and huts' shells, the two
-  // rope bridges, the stairs, the post box, the forest rim and the leaf canopy; merged by material into ONE caster mesh, one non-casting leaf mesh and one lantern-glow mesh, on the
-  // floor) measured 4 meshes / 1 caster / 27,704 triangles built, +12%: 5 / 2 / 31,100 (the plan expected about 28,000 for stage A). The dapple and the one light are the
-  // walk's life, not in this count. Row B (the Bell Tower's show, the rope bridge to the Bookshop) comes with milestone T5: measured, then set.
-  // Milestone T5 (2026-11-27, wing B, the branches stage's drawing put into the same merged buckets: letter two's basket and sign, the mail bag, the Bookshop's sign, window box and book stacks,
-  // the bell rope and its beam, a lantern at each bridge's middle, the supper table with its cloth, stools, cups, candles and acorn basket, and the ring of hanging lanterns; no mesh of its
-  // own) measured 4 / 1 / 29,154 built (+1,450 triangles, no mesh), +12%: 5 / 2 / 32,700. The plan's stage figures (about 28,000 triangles for A and B together) hold within the same margin. The
-  // strings of lights, lantern glows, candle flames, fireflies and the bell's ring are the walk's life, not in this count.
-  // Milestone T8 (2026-11-27, the beauty round, treehousebeauty.js in the lift stage: ground tones and the worn track, flower clumps in each zone's hue, mushrooms, stumps, logs, pennants, vines,
-  // autumn leaves, all in the same merged buckets, plus ONE non-casting additive mesh for the shafts of sun) measured 5 / 1 / 44,825 built (+12,000 triangles, +1 mesh, no caster), +12%: 6 / 2 / 50,200.
-  // Beauty round two (2026-11-27, the lift stage: realistic rim trees in four shared variants, shrubs and ferns, the canopy as three lumps a clump, the houses' shingle rows, plank lines, frames, shutters and trim,
-  // ground-tone patches, blade tufts and wildflower specks in ONE more non-casting mesh, and the sun shafts opening at the canopy's gaps) measured 6 / 1 / 56,689 built (+11,900 triangles; the tufts, 3,551, are hidden
-  // on LOW and LITE; the same meshes, no caster), +12%: 6 / 2 / 63,500.
-  ['treehouse', buildTreehouse, 6, 2, 63500],
-  // Snowville. Milestone V1 (2026-11-27, the snow world: the ground heightfield, then the arch, brazier, seven cottages, the square and the 100-odd firs, drifts and rocks in three
-  // merged buckets (paint, glow, tree) and the treeline's own non-casting bucket; the flakes, glints and cheeks are the walk's life, not in this count) measured 5 / 2 / 16,108 built
-  // (the same merged), +12%: 6 / 3 / 18,100. The plan's stage A figures were about 25,000 triangles: under them. The Farm with its new gate (3 meshes, +441 triangles, +1 caster)
-  // measured 180 / 120 / 53,700 merged: under its unchanged ceilings (200 / 135 / 62,000).
-  // Milestone V5 (2026-11-27, wing B, stage B's drawing put into the same merged buckets: the pond's ice disc, skate marks, bank stones, reeds and stump, the sled hill's summit rock, runner
-  // lines, sled and hill rock, the village hearth, the Great Fir and the hare's burrow; no mesh of its own) measured 5 / 2 / 19,166 built (+3,058 triangles, no mesh), +12%: 6 / 3 / 21,500.
-  // The plan's stage figures (about 25,000 triangles for A and B together) hold. The show's strings, bulbs, window glows and sparks are the walk's life, not in this count.
-  // The Jungle lodge. Milestone J1 (2026-11-27, the jungle world: the ground heightfield with the river bed, the brown water ribbon, then the stone ring, signpost and moss pool, the
-  // stilted lodge, the log bridge and stepping stones, the giant leaves, about 40 trees and a 70-tree green wall, 110 fern clumps and the mossy stones in a few merged buckets (paint,
-  // glow, tree and their non-casting twins); the mist, the rain, the rainbow and the lantern's glow are the walk's life, not in this count) measured 8 / 3 / 23,540 built, +12%: 9 / 4 / 26,400.
-  // The plan expected about 30,000 triangles for stage A. The Greenhouse with its new stone ring (3 meshes, +441 triangles, +1 caster) is re-measured in the same file.
-  // Milestone J5 (2026-11-27, wing B, stage b's drawing put into the same merged buckets: the banana plant, the big tree with the low branch, the canopy walk's two trunks, planks, rails and
-  // lookout, the vine swing, the sloth's tree and limb, the orchid on its stump and the ring of hanging lantern glasses; no mesh of its own) measured 8 / 3 / 25,462 built (+1,922 triangles, no
-  // mesh), +12%: 9 / 4 / 28,600. The plan's stage figures (about 30,000 triangles for A and B together) hold. The lantern glows, candles, window halos, strings of lights, fireflies, sloth, rain
-  // and rainbow are the walk's life, not in this count.
-  // Milestone J8 (2026-11-27, beauty round, stage b's junglepolish.js in the same merged buckets: shrub drifts with each zone's accent flower, grass tufts, fallen logs, buttress roots,
-  // bromeliads and lianas; ground tones are vertex colour, no triangles) measured 8 / 3 / 32,576 built (+7,114 triangles, no mesh), +12%: 9 / 4 / 36,500.
-  // Round two (2026-11-27, the owner's live play: seven tree shapes and heights incl. dead snags, 58 plant clumps of eight leaf shapes, ten giant overhead leaves and about 40 hanging vines, the
-  // lodge's roof laid in tone-per-row thatch on a soffit with ridge beam, rafters, plank seams, corner posts, shutters, balusters, treads, lanterns and hanging pots, thirteen lived-in props and
-  // the rope bridge's second rail; all in the same merged buckets, no mesh of its own; the four strays are the walk's cats, not in this count) measured 8 / 3 / 49,894 built (+17,318 triangles,
-  // no mesh), +12%: 9 / 4 / 55,900. The worst spot on the walk stays under the 70,000 ceiling.
-  ['jungle', buildJungle, 9, 4, 55900],
-  // Milestone V8 (2026-11-27, the beauty pass: sixteen holly-and-snow shrub clumps, four woodpiles, four crate-and-barrel corners, icicles and a wreath at every cottage, two strings of
-  // pennants and a 28-peak far ridge, all in the merged buckets plus the ridge's own non-casting bucket (the 6 / 3 draw caps held: the ridge shares the treeline's slot); the ground's new
-  // tones are per-vertex colour, no triangle) measured 6 / 3 / 27,905 built (+8,739 triangles), +12%: 6 / 3 / 31,300.
-  // Snowville round two, commit 1 (2026-11-27, the owner's live play: the houses' roof ridges, eave lips, frames, shutters, steps, lanterns, planks and footprints, fir snow clumps, bare birches,
-  // stumps, eight pinned notices, three snowmen, a well, leaning sleds, woodpiles and pennants, stage b's snowvilledetail.js in the same merged buckets (the fine pieces in the treeline's
-  // non-casting bucket); the lower rungs skip the fine pieces) measured 6 / 3 / 41,820 built (+13,915 triangles, no mesh), +12%: 6 / 3 / 46,800.
-  // Snowville round two, commit 4 (the sled run: a packed-snow ribbon with two grooves down the hill's east flank in the non-casting bucket, and 8 flagged stakes along its edges; the sled and the speed lines
-  // are the walk's life, not in this count) measured 6 / 2 / 42,308 built (+488 triangles, no mesh; 33,833 on the lower rungs), +12%: 6 / 3 / 47,400. The rise over V8's 27,905 is the detail round's (+14.4k, +52%).
-  ['snowville', buildSnowville, 6, 3, 47400],
-  // Milestone R2 (Marlo and chapter one) adds only the coral ledge (no mesh more; about 200 triangles measured on top of R3: 7 / 2 / 10,700). Marlo, the shells, their glints, the picture bubble, the meow's ring and the air pockets are the walk's life, counted in test/reefmarlo.test.js
-];
+const AREA_BUILDERS = {
+  neighborhood: buildNeighborhood,
+  park: buildPark,
+  docks: buildDocks,
+  seaside: buildSeaside,
+  den: buildDen,
+  woods: buildWoods,
+  river: buildRiver,
+  moor: buildMoor,
+  pines: buildPines,
+  gorge: buildGorge,
+  farm: buildFarm,
+  fair: buildFair,
+  roofs: buildRoofs,
+  market: buildMarket,
+  lighthouse: buildLighthouse,
+  greenhouse: buildGreenhouse,
+  moon: buildMoon,
+  reef: buildReef,
+  crystal: buildCrystal,
+  treehouse: buildTreehouse,
+  jungle: buildJungle,
+  snowville: buildSnowville,
+};
+const AREAS = JSON.parse(readFileSync(new URL('./fixtures/area-budgets.json', import.meta.url), 'utf8')).areas
+  .map((r) => [r.name, AREA_BUILDERS[r.name], r.meshes, r.casters, r.triangles]); // rows and their history notes: test/fixtures/area-budgets.json
 
 // ---------------------------------------------------------------------------
 // WAVE 3.1's half of the same budget.

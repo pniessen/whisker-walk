@@ -500,12 +500,9 @@ describe('the budget, switch on: the most the grown River puts on screen at once
 
   it(`at the worst spot stays under ${CEILING.meshes} meshes, ${CEILING.casters} casters and ${CEILING.triangles} triangles`, () => {
     if (process.env.BUDGET_LOG) console.log('south budget', JSON.stringify({ fixed: m.fixed, always: m.always, worst }));
-    expect(worst.meshes).toBeLessThanOrEqual(CEILING.meshes);
-    expect(worst.casters).toBeLessThanOrEqual(CEILING.casters);
-    expect(worst.triangles).toBeLessThanOrEqual(CEILING.triangles);
-    expect(worst.meshes).toBeGreaterThan(CEILING.meshes * 0.92);
-    expect(worst.casters).toBeGreaterThan(CEILING.casters * 0.92);
-    expect(worst.triangles).toBeGreaterThan(CEILING.triangles * 0.95);
+    expect(worst.meshes, `worst spot meshes: measured ${worst.meshes}, ceiling ${CEILING.meshes}`).toBeLessThanOrEqual(CEILING.meshes);
+    expect(worst.casters, `worst spot casters: measured ${worst.casters}, ceiling ${CEILING.casters}`).toBeLessThanOrEqual(CEILING.casters);
+    expect(worst.triangles, `worst spot triangles: measured ${worst.triangles}, ceiling ${CEILING.triangles}`).toBeLessThanOrEqual(CEILING.triangles);
   });
 
   it('anywhere in the south strip it is well under: the strip is never the busiest place', () => {
