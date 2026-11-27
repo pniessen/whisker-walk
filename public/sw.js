@@ -75,6 +75,26 @@ function storeList(cache, list) {
   });
 }
 
+// Runs the task functions at most `limit` at a time, in order; never rejects.
+const PRECACHE_PARALLEL = 3;
+// A top-up (a page load, online) waits this long so the page's own requests
+// go first on a weak connection; install and activate do not wait.
+const TOPUP_DELAY = 500;
+// A navigation that the network has not answered in this long gets the cached shell.
+const NAV_TIMEOUT = 4000;
+function pool(tasks, limit) {
+  let next = 0;
+  const worker = () => {
+    if (next >= tasks.length) return Promise.resolve();
+    const task = tasks[next++];
+    return Promise.resolve()
+      .then(task)
+      .catch(() => {})
+      .then(worker);
+  };
+  return Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker));
+}
+
 // Caches the shell and every file the live build lists, one by one, skipping
 // ones already cached. The index.html shell is fetched again every time, not
 // skipped: it is the offline fallback for any page URL never cached (a query
@@ -84,24 +104,30 @@ function storeList(cache, list) {
 // next top-up. The list is stored before the files so a prune running
 // meanwhile keeps them. Never rejects; resolves true when the live build's
 // list is stored.
-function precache() {
-  return fetch(PRECACHE_URL, { cache: 'no-store' })
+function precache(delayMs = 0) {
+  return (delayMs ? new Promise((r) => setTimeout(r, delayMs)) : Promise.resolve()).then(() => fetch(PRECACHE_URL, { cache: 'no-store' })
     .then((r) => (r.ok ? r.json() : null))
     .catch(() => null)
     .then((list) =>
       caches.open(CACHE).then((cache) => {
         const files = precacheUrls(list, SCOPE);
         const listed = files.length ? storeList(cache, list).catch(() => false) : Promise.resolve(false);
+        // The shell and the page's start-up files go first in the queue.
         return listed.then((ok) =>
-          Promise.allSettled([
+          cache
             // past the browser's HTTP cache too (Pages keeps a page 10 minutes)
-            cache.add(new Request(INDEX, { cache: 'no-cache' })),
-            ...[SCOPE, ...files].map((u) => cache.match(u).then((hit) => hit || cache.add(u))),
-          ]).then(() => ok)
+            .add(new Request(INDEX, { cache: 'no-cache' }))
+            .catch(() => {})
+            .then(() => shellsNamed(cache).catch(() => []))
+            .then((startup) => {
+              const queue = [...new Set([SCOPE, ...startup, ...files])];
+              return pool(queue.map((u) => () => cache.match(u).then((hit) => hit || cache.add(u))), PRECACHE_PARALLEL);
+            })
+            .then(() => ok)
         );
       })
     )
-    .catch(() => false);
+    .catch(() => false));
 }
 
 // Drops build lists beyond KEEP_BUILDS, then every /assets/ file outside the
@@ -171,7 +197,7 @@ let installListed = false;
 let topping = null;
 function topUp() {
   if (!topping) {
-    topping = precache()
+    topping = precache(TOPUP_DELAY)
       .then((listed) => (listed ? pruneAssets() : undefined))
       .finally(() => {
         topping = null;
@@ -227,17 +253,27 @@ self.addEventListener('fetch', (event) => {
   if (isNavigation) {
     // Network-first for HTML so a fresh deploy is picked up immediately;
     // fall back to the cached shell when offline.
+    // If the network has not answered in NAV_TIMEOUT, answer with the cached
+    // shell (a slow answer that arrives later is still cached, never an error).
+    const cachedShell = () => caches.match(request).then((cached) => cached || caches.match(INDEX));
+    const network = fetch(request).then((response) => {
+      if (response.ok) {
+        const copy = response.clone();
+        keep(event, caches.open(CACHE).then((cache) => cache.put(request, copy)));
+        keep(event, topUp());
+      }
+      return response;
+    });
+    let timer;
+    const late = new Promise((resolve) => {
+      timer = setTimeout(() => resolve(cachedShell().catch(() => undefined)), NAV_TIMEOUT);
+    });
+    // `late` resolves undefined when nothing is cached: then keep waiting for the network.
+    const raced = Promise.race([network, late]).then((r) => r || network);
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            keep(event, caches.open(CACHE).then((cache) => cache.put(request, copy)));
-            keep(event, topUp());
-          }
-          return response;
-        })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match(INDEX)))
+      raced
+        .finally(() => clearTimeout(timer))
+        .catch(() => cachedShell())
     );
     return;
   }
