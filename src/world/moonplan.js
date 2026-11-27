@@ -188,7 +188,7 @@ export function hillAdd(x, z) {
   const r2 = dx * dx + dz * dz;
   if (r2 > HILL_OUT * HILL_OUT) return 0;
   const r = Math.sqrt(r2);
-  if (r <= H.top) return H.h;
+  if (r <= H.top - 0.1) return H.h; // the top stops where the ramp band begins: the ramp meets the landing with no lip
   if (r >= H.rs - H.w / 2) {
     const a = (((Math.atan2(dz, dx) - H.a0) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
     const t = a / H.turn;
