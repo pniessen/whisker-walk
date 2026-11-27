@@ -10,6 +10,7 @@ import { drawDetail } from './snowvilledetail.js';
 import { detailColliders } from './snowvilledetailplan.js';
 import { createWing } from './snowvillewinglive.js';
 import { createSnowErrandLive } from './snowvillejoblive.js';
+import { strayHomes, createStrayNotes } from './snowvillestrays.js';
 
 Object.assign(ST, {
   b: Object.freeze({
@@ -20,6 +21,8 @@ Object.assign(ST, {
     story: wingStory(),
     draw: (kit, M, opts) => { drawWing(kit, M); drawDetail(kit, M, opts); }, // the wing's drawing and the round-two detail (houses, trees, notices, village)
     wing: createWing,
+    strayHomes, // four friendly cats at their own homes (round two)
+    strayNotes: createStrayNotes,
     errand: createSnowErrandLive, // Tilly's errand of the day and its album (milestone V7)
   }),
 });

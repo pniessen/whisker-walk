@@ -367,7 +367,8 @@ function outOfDiscs(x, z, discs) {
 function homeOf(h) {
   if (!h || typeof h !== 'object' || !Number.isFinite(h.x) || !Number.isFinite(h.z)) return null;
   const onlyOn = Array.isArray(h.onlyOn) && h.onlyOn.length > 0 ? h.onlyOn : null;
-  return { x: h.x, z: h.z, roam: Number.isFinite(h.roam) ? Math.max(0, h.roam) : 0, onlyOn };
+  // Snowville's homes also name their cat (`name`, a stray's name) and give its coat (`coat`, a clancast-style row), and carry an `id` the area's life reads.
+  return { x: h.x, z: h.z, roam: Number.isFinite(h.roam) ? Math.max(0, h.roam) : 0, onlyOn, name: isStrayName(h.name) ? h.name : null, coat: h.coat && typeof h.coat === 'object' ? h.coat : null, id: typeof h.id === 'string' ? h.id : null };
 }
 
 // The area as a homed stray sees it: the same, except that the ONLY places it
@@ -499,6 +500,12 @@ function leash(v, home, roam) {
 // position values, a colony cat's way, so the stream position after spawn is
 // 47 + 5 * count with or without homes, and two co-walkers (one stream, one
 // cast) see the same cat at home. No homes: every stray exactly as before.
+// An area's own few strays (Snowville: `strayCap` 4): the walk's count is cut to the cap, scaled down on the lower rungs (tier.strays 22 on HIGH, fewer below), never under one; no cap, no change.
+export function capStrayCount(cap, n, tierStrays) {
+  if (!(cap > 0)) return n;
+  return Math.min(n, Math.max(1, Math.ceil(cap * Math.min(1, (Number.isFinite(tierStrays) ? tierStrays : 22) / 22))));
+}
+
 export function createStrayCats(scene, area, count = 3, rng = Math.random, {
   grudges = [], roomSeed, colonyCats = [], excludeNames = [], extras = [], reducedMotion = false, collarFor = () => null, colonyAvoid = [],
   ground = groundOf(area), homes = [],
@@ -539,8 +546,11 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     colony.push({ ...c, ...outOfDiscs(c.x, c.z, colonyAvoid) });
   }
   const excluded = new Set(Array.isArray(excludeNames) ? excludeNames : []);
-  const cast = [...colony, ...names.filter((n) => !colonyNames.has(n) && !excluded.has(n))];
   const homeList = (Array.isArray(homes) ? homes : []).map(homeOf).filter(Boolean);
+  // A home's own named cat (Snowville): used unless that cat is already on the walk as a colony cat or is excluded; kept out of the ordinary shuffle either way, so a name is never twice.
+  for (const h of homeList) if (h.name && (colonyNames.has(h.name) || excluded.has(h.name))) h.name = null;
+  const homeNames = new Set(homeList.map((h) => h.name).filter(Boolean));
+  const cast = [...colony, ...names.filter((n) => !colonyNames.has(n) && !excluded.has(n) && !homeNames.has(n))];
   // Who lives where (ruling C-F10). A colony cat saved on a home's own
   // rectangles (she fed the cave cat there) keeps that home; then each
   // ordinary stray, in cast order, takes the next home still free. Draws
@@ -558,15 +568,16 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     const fixed = i < colony.length ? colony[i] : null;
     const homed = homeFor[i];
     const stand = homed ? homeArea(area, homed) : area;
-    const name = fixed ? fixed.name : cast[i % cast.length];
+    const name = fixed ? fixed.name : homed?.name ?? cast[i % cast.length];
     // breed is derived from the name, not rolled, so a given cat (e.g. "Pickles")
     // is always the same breed across walks
     const breed = strayBreed(name);
+    const coatRow = !fixed && homed?.coat ? homed.coat : null; // a home's own coat (white, grey, ginger, tortoiseshell): a whole style row, its eyes borrowed from a preset breed
     const collarId = fixed ? null : collarFor(name);
     const wear = fixed?.wear && typeof fixed.wear.slot === 'string' && typeof fixed.wear.id === 'string'
       ? { [fixed.wear.slot]: fixed.wear.id }
       : typeof collarId === 'string' ? { collar: collarId } : undefined;
-    const group = buildCat(breed, wear, { simple: true });
+    const group = buildCat(coatRow ? coatRow.eyes ?? breed : breed, wear, coatRow ? { simple: true, style: coatRow } : { simple: true });
     group.userData.blinkSeed = (i * 0.618034) % 1; // cat-beauty A1: a crowd does not blink in step
     noCastCollar(group);
     group.scale.multiplyScalar(0.85); // strays read as slightly smaller than your cat
@@ -619,6 +630,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     // legendary extra or the wanderer, field for field.
     strays.push({
       id: `stray-${i}`,
+      homeId: homed?.id ?? null,
       breed,
       name,
       personality,

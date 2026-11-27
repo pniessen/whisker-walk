@@ -68,8 +68,9 @@ export function build(scene, opts = {}) {
       duskLight: { ...SNOW_LIGHT },
       // evening: true is the walk's one switch for "no weather"
       evening: true,
-      // no strays, and with them no ghosts, no wanderer, no rival, no clan cats
-      strays: false,
+      // a few friendly cats at their own homes (round two): strayCap caps the walk's stray count, strayHomes puts each at its place with its name and coat (stage b). No ghosts, no wanderer, no rival, no clan cats.
+      strayCap: 4,
+      strayHomes: ST.b?.strayHomes?.() ?? [],
       goalTypes: Object.freeze(['collectible', 'photo', 'scenic']),
       ground: P.createSnowvilleGround(),
       // the flakes, the glints, the brazier's glow and her cheeks, with Tilly and chapter one (milestone V2) on top
@@ -80,6 +81,7 @@ export function build(scene, opts = {}) {
         const errand = ST.b?.errand?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, tilly, send: ctx.sendEvent }); // Tilly's errand of the day (milestone V7, in stage b)
         const prompts = createSnowvillePrompts(tilly, wing, errand);
         const finds = ST.b?.finds?.life(ctx); // the six discoveries (milestone V3)
+        const strayNotes = ST.b?.strayNotes?.(); // a line the first time she meets each of the four friendly strays (round two)
         const critters = ST.b?.critters?.(ctx); // the otters, hare, robin, fox kit, smoke, bells and crunch (milestone V4)
         return {
           light,
@@ -90,7 +92,7 @@ export function build(scene, opts = {}) {
           wing,
           // a step done by anyone in the room (an `sv-` event): an errand done by a partner is credited to ours, a show begun by a partner starts ours, any other step is Tilly's
           credit: (ev) => errand?.credit(ev) ?? wing?.credit(ev) ?? tilly.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); wing?.update(dt, t, catPos); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); wing?.update(dt, t, catPos); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); strayNotes?.update(catPos, session); },
           dispose() { errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); tilly.dispose(); light.dispose(); },
         };
       },

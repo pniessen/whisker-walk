@@ -49,7 +49,7 @@ import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
 import { createCritters, goatForDay, questMarkerY } from '../critters.js';
-import { createStrayCats, strayStream } from '../straycats.js';
+import { createStrayCats, strayStream, capStrayCount } from '../straycats.js';
 import { createClanCats } from '../clancats.js';
 import { castFor, CLAN_COLOURS, clanCountFor, clanHomeFor, lonersFor, roamHomes, borderWarriorFor } from '../clancast.js';
 import { campLayout, campDiscs } from '../world/camplayout.js';
@@ -1352,7 +1352,8 @@ export function createWalkLifecycle({
     // cats already read for this area: empty off a colony walk, so a
     // non-partner co-walk gets 0 on both devices and the two agree.
     const fedHere = colonyCats.length;
-    const loners = indoor ? 0 : lonersFor(areaId, tier.strays, fedHere);
+    // Snowville keeps a few friendly cats at their own homes (area.strayCap, fewer on the lower rungs); the cap only ever shortens the same cast, so no draw shifts.
+    const loners = indoor ? 0 : capStrayCount(areaData.strayCap, lonersFor(areaId, tier.strays, fedHere), tier.strays);
     // The wanderer takes an ordinary loner's slot, never a colony cat's.
     // The lite rung's count is small enough to fall below her colony here
     // (createStrayCats counts fed cats inside the number and drops the ones
@@ -1360,7 +1361,7 @@ export function createWalkLifecycle({
     // gives up: tier.keepFedCats raises the count to the colony's size. It
     // is a longer prefix of the same cast on the strays' own stream, like
     // every other count, so no draw shifts anywhere.
-    const strayCount = wanderStrayCount(tier.keepFedCats ? Math.max(loners, fedHere) : loners, fedHere, !!wanderSpot);
+    const strayCount = areaData.strayCap > 0 ? loners : wanderStrayCount(tier.keepFedCats ? Math.max(loners, fedHere) : loners, fedHere, !!wanderSpot);
     const strayCats = createStrayCats(scene, areaData, strayCount, strayStream(roomSeed ?? soloSeed), {
       grudges: progression.grudgeNames?.() ?? [],
       collarFor: (name) => collarFor(progression.state, name),
@@ -2699,7 +2700,7 @@ export function createWalkLifecycle({
     // Rooftops, R8): ghosts.js stands a ghost anywhere over the area's middle
     // at ground level, and there that is inside a pitched roof, the street
     // below or a yard wall.
-    if (roomSeed === undefined && MP && areaData.strays !== false) spawnGhosts(session);
+    if (roomSeed === undefined && MP && areaData.strays !== false && !areaData.strayCap) spawnGhosts(session);
 
     // The corner map, everywhere but the den: the den is one small room and
     // has no map, so session.minimap is null there and every use guards for

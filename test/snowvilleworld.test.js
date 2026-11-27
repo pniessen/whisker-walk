@@ -120,13 +120,15 @@ describe('the hard rules', () => {
 
 describe('the built place', () => {
   const { scene, area } = built();
-  it('has the plan\'s bounds and spawn, no `waters`, the evening switch, no strays, and nothing a later milestone owns', () => {
+  it('has the plan\'s bounds and spawn, no `waters`, the evening switch, four friendly strays, and nothing a later milestone owns', () => {
     expect(area.name).toBe('Snowville');
     expect(area.bounds).toEqual(B);
     expect(area.spawn).toEqual(P.SNOWVILLE_SPAWN);
     expect(area.waters).toEqual([]);
     expect(area.evening).toBe(true);
-    expect(area.strays).toBe(false);
+    expect(area.strays).toBeUndefined(); // round two: four friendly strays at their own homes (strayCap, strayHomes)
+    expect(area.strayCap).toBe(4);
+    expect(Array.isArray(area.strayHomes)).toBe(true); // (the four homes arrive with stage b: test/snowvillestrays.test.js)
     expect(area.collectibles).toEqual([]);
     expect(area.perches).toEqual([]);
     for (const key of ['tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
