@@ -421,9 +421,9 @@ export function createTilly(ctx) {
   };
 }
 
-// The action button's one arbiter for the place: Tilly first, then Tilly's errand of the day (stage B), then stage B's wing (Lantern Night), then the sled run's slot (answers null until the stage fills it, so later milestones add to the
+// The action button's one arbiter for the place: Tilly first, then Tilly's errand of the day (stage B), then stage B's wing (Lantern Night), then the sled run's slot and the ski slope's (each answers null until the stage fills it, so later milestones add to the
 // list and never fight over it).
-export function createSnowvillePrompts(tilly, wing = null, errand = null, sled = null) {
+export function createSnowvillePrompts(tilly, wing = null, errand = null, sled = null, skis = null) {
   const slot = (get) => ({ promptAt: (p) => get()?.promptAt?.(p) ?? null, interact: () => get()?.interact?.() ?? null });
-  return createPromptArbiter([slot(() => sled?.slots.riding), tilly, slot(() => errand), slot(() => wing), slot(() => sled?.slots.sled), slot(() => ST.c)]);
+  return createPromptArbiter([slot(() => sled?.slots.riding), slot(() => skis?.slots.riding), tilly, slot(() => errand), slot(() => wing), slot(() => sled?.slots.sled), slot(() => skis?.slots.skis), slot(() => ST.c)]);
 }

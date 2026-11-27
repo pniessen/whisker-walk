@@ -80,7 +80,8 @@ export function build(scene, opts = {}) {
         const wing = ST.b?.wing?.({ scene: ctx.scene, tilly, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent }); // the hearth, the strings of lights and Lantern Night (milestone V5)
         const errand = ST.b?.errand?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, tilly, send: ctx.sendEvent }); // Tilly's errand of the day (milestone V7, in stage b)
         const sled = ST.b?.sled?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, tier: ctx.tier }); // the sled run down the hill (round two, stage b)
-        const prompts = createSnowvillePrompts(tilly, wing, errand, sled);
+        const skis = ST.b?.skis?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, tier: ctx.tier, audio: ctx.audio, progression: ctx.progression }); // the ski slope on the hill's west flank (round three, stage b)
+        const prompts = createSnowvillePrompts(tilly, wing, errand, sled, skis);
         const finds = ST.b?.finds?.life(ctx); // the six discoveries (milestone V3)
         const strayNotes = ST.b?.strayNotes?.(); // a line the first time she meets each of the four friendly strays (round two)
         const critters = ST.b?.critters?.(ctx); // the otters, hare, robin, fox kit, smoke, bells and crunch (milestone V4)
@@ -93,8 +94,8 @@ export function build(scene, opts = {}) {
           wing,
           // a step done by anyone in the room (an `sv-` event): an errand done by a partner is credited to ours, a show begun by a partner starts ours, any other step is Tilly's
           credit: (ev) => errand?.credit(ev) ?? wing?.credit(ev) ?? tilly.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); wing?.update(dt, t, catPos); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); strayNotes?.update(catPos, session); sled?.frame(dt, t, catPos, camera, session); },
-          dispose() { sled?.dispose(); errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); tilly.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); wing?.update(dt, t, catPos); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); strayNotes?.update(catPos, session); sled?.frame(dt, t, catPos, camera, session); skis?.frame(dt, t, catPos, camera, session); },
+          dispose() { skis?.dispose(); sled?.dispose(); errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); tilly.dispose(); light.dispose(); },
         };
       },
     };

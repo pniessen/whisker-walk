@@ -27,7 +27,7 @@ const ROWS = [
   ['reef', buildReef, 101, 2, 74200],
   ['crystal', buildCrystal, 32, 2, 36900],
   ['treehouse', buildTreehouse, 23, 2, 66200],
-  ['snowville', buildSnowville, 36, 3, 46500],
+  ['snowville', buildSnowville, 36, 3, 47700], // 46,500 before the ski slope (round three, +1,356 built)
   ['jungle', buildJungle, 31, 4, 55700],
 ];
 
