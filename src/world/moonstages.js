@@ -9,7 +9,7 @@
 export const ST = {};
 
 export const STAGE_ORDER = ['rover', 'hill', 'launch']; // nearest-needed first: the second power cell and Dot, then the telescope, then the rocket
-const SENTINEL = { hill: 'drawWing', launch: 'drawLaunchStanding', rover: 'drawRoverCourse' }; // what each stage puts in ST
+const SENTINEL = { hill: 'drawWing', launch: 'drawLaunchStanding', rover: 'drawRoverCourse', station: 'drawStation' }; // what each stage puts in ST
 
 /** Test hook: ids held "not yet arrived" even though their code is in ST (the tests load all three). arrive(id) lets one in. */
 export const HELD = new Set();

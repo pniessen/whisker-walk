@@ -17,6 +17,7 @@ export const WINGS = Object.freeze({
   B: Object.freeze({ id: 'B', x: STAR_HILL.x, z: STAR_HILL.z }),
   C: Object.freeze({ id: 'C', x: PAD.x, z: PAD.z }), // milestone 6: the Launch Complex's arm, plume, smoke and board
   D: Object.freeze({ id: 'D', x: LAVA_WING.x, z: LAVA_WING.z, near: LAVA_WING.near }), // milestone 8: the Lava Tube's floor, crystals and pedestal
+  E: Object.freeze({ id: 'E', x: 44, z: 36, near: 26 }), // M1: the Old Relay Station's detail (its stand-in always drawn; the numbers equal world/moonstationplan.js STATION)
 });
 
 // wingNear(distance, was) -> boolean: true within NEAR; once true it stays true until NEAR + HYSTERESIS.

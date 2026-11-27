@@ -178,9 +178,11 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
   let held = null;
   const st = (k) => ({ promptAt: (p) => ST.station?.[k]?.promptAt?.(p) ?? null, interact: () => ST.station?.[k]?.interact?.() ?? null }); // a station slot: null until its stage fills it
   const arbiter = createPromptArbiter([{ promptAt: (p) => (rover.riding ? rover.promptAt(p) : null), interact: () => rover.interact() }, st('riding'), base, job, star, launch, st('relay'), rover, st('sled')]);
+  const L = { scene, stages, colliders, perches, tier, reducedMotion, closed, rings: new Map(), said: new Set(), slots, spottable, spot: absent.hill ? spottable : robots.spottable, base, deep, mk: { star: mkStar, robots: mkRobots, launch: mkLaunch, jump: mkJump, bound: mkBound, rover: mkRover, job: mkJob } };
+  let late = null; // moonlate.js (a lazy file) fetches the other stages, shuts their places, and draws and wakes each as it arrives; an arrival waits in the queue until it is in (a few frames at most)
   // (idle ring) the schedule's own step lives in moonlate.js (a lazy file: the ring waits 30 s anyway); it is bound here when that file is in
   let idleStep = null;
-  const bindIdle = (m) => { idleStep = m.createIdle({ base, launch, star, job, rover, jump, deep, progression, finale: FINALE_LENGTH }); };
+  const bindIdle = (m) => { late = m; idleStep = m.createIdle({ base, launch, star, job, rover, jump, deep, progression, finale: FINALE_LENGTH }); m.stationBegin(L); };
   if (lateTop) bindIdle(lateTop);
   else if (!closed.size) import('./moonlate.js').then(bindIdle);
   const parts = new Map(PART_NEAR.flatMap((r) => r.names).map((n) => [n, scene.getObjectByName(n)]).filter(([, m]) => m));
@@ -188,10 +190,8 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
   // (background loading) a stage arrives: its drawing is added and fades in, its lives wake in the stand-ins' places, its region opens (one stage a frame, so no frame carries two builds)
   let disposed = false;
   // moonlate.js (a lazy file) fetches the other stages, shuts their places, and draws and wakes each as it arrives; an arrival waits in the queue until it is in (a few frames at most)
-  let late = null;
   let fader = null;
-  const L = { scene, stages, colliders, closed, rings: new Map(), said: new Set(), slots, spottable, base, deep, mk: { star: mkStar, robots: mkRobots, launch: mkLaunch, jump: mkJump, bound: mkBound, rover: mkRover, job: mkJob } };
-  const lateReady = closed.size && import('./moonlate.js').then((m) => { late = m; bindIdle(m); L.fader = fader = m.createFader({ reducedMotion }); m.closeRings(L); m.startMoonStages(); });
+  const lateReady = closed.size && import('./moonlate.js').then((m) => { bindIdle(m); L.fader = fader = m.createFader({ reducedMotion }); m.closeRings(L); m.startMoonStages(); });
 
   return {
     sky,
@@ -220,7 +220,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       if (stages) {
         fader?.update(dt);
         if (late && stages.pending.length && !disposed) late.applyStage(stages.pending.shift(), L);
-        late?.waiting(L, catPos);
+        late?.waiting(L, catPos, dt, t);
       }
       const tilt = launch.tilt(); // a rocket climbing: the view tips up with it (none in reduced motion), before the sky is placed on the camera
       if (tilt) camera.rotateX(tilt);
@@ -272,6 +272,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       stages?.stop?.();
       fader?.flush();
       for (const id of [...closed]) late?.openRegion(id, L);
+      late?.stationEnd(L);
       robots.dispose();
       flow.dispose();
       guide.dispose();
