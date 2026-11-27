@@ -15,6 +15,9 @@ export const LINES = Object.freeze({
   'reef.lab.fuse.in': 'Click. One more fuse is in the panel.',
   'reef.lab.power': 'All three fuses are in. The station hums.',
   'reef.lab.pay': 'Tidewell Station has power again',
+  // the dome's light show (R15)
+  'reef.lab.show.prompt': 'Watch the dome lights',
+  'reef.lab.show.start': 'Soft lights ripple past the dome.',
   'reef.life.shark': 'a spotted shark',
   // the written guide's lines for the station (kind, plain, no series word)
   'reef.guide.lab.hatch': 'Climb down by the ring next to the Sunken Boat.',

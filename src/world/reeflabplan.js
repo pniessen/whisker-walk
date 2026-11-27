@@ -161,6 +161,7 @@ export const HATCH = Object.freeze({
 // The three empty fuse sockets on the control room's panel wall (R14 puts the fuses in them), and the aquarium hall's three big tanks (R14 puts creatures in).
 export const FUSE_SOCKETS = Object.freeze([6.3, 7.3, 8.3].map((x, i) => Object.freeze({ id: i, x, y: 1.37, z: -30.0 })));
 export const TANKS = Object.freeze([10.6, 13.5, 16.4].map((x, i) => Object.freeze({ id: i, x, z: -38.85, w: 2.5, d: 0.7, h: 2.4 })));
+export const DOME_REACH = 1.8; // how near the bench she must stand to watch the dome's light show again (R15)
 export const DOME_BENCH = Object.freeze({ x: 15.6, z: -31.2 }); // where she stands to sit by the dome's bench (a place for the light show to come)
 export const BUNK_SPOT = Object.freeze({ x: 2.4, z: -37.1 }); // an open spot of the bunk room's floor (the golden mouse's place, R14)
 

@@ -111,7 +111,7 @@ export function renderJournalHtml(journal, goldenFound, goldenTotal, { chasedOff
   const j = journal && typeof journal === 'object' ? journal : {};
   const found = Number.isFinite(goldenFound) ? goldenFound : 0;
   const total = Number.isFinite(goldenTotal) ? goldenTotal : 0;
-  const cards = CRITTER_INFO.filter((c) => (!c.moon || moonOn()) && (!c.greenhouse || greenhouseOn()) && (!c.reef || (reefOn() && wingPageShown(c.id))) && (!c.crystal || crystalOn())).map((c) => {
+  const cards = CRITTER_INFO.filter((c) => (!c.moon || moonOn()) && (!c.greenhouse || greenhouseOn()) && (!c.reef || (reefOn() && wingPageShown(c.id, j))) && (!c.crystal || crystalOn())).map((c) => {
     const raw = j[c.id];
     const count = Number.isFinite(raw) ? raw : 0;
     if (count > 0) {

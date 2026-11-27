@@ -8,6 +8,11 @@
 //     station, when Marlo's shell is picked up as well, and when the walk ends (however it ends); the saved bits are only the fuses already in the panel.
 //   * THE AQUARIUM: three tanks with three small friendly fish each, gliding back and forth; drawn only while she is inside; still under reduced motion;
 //     the lower rungs draw six, not nine.
+//   * THE DOME SHOW (R15): the moment the third fuse goes in the dome plays a gentle 20 s light show (world/reeflabshow.js labShowAt, a pure function of one
+//     start time; world/reeflabshowdraw.js draws it; the Sealab's one PointLight is only tinted). Anyone's start is everyone's in a room: credit({ kind:
+//     'labshow', elapsed }) starts it for a partner (elapsed = how long ago it began on the sender's clock). Watching it past SHOW.seenAt sets bit 3 of the
+//     save and the page `rfshow`; she can watch it again from the dome's bench whenever the station has power (no timer can fail her). Reduced motion: a still
+//     glow of ribbons held for the same 20 s, nothing moving.
 //   * THE SHY SHARK: a spotted shark on a slow loop on the sea side of the dome's glass, seen from the dome (a journal subject, `rfshark`); it keeps its
 //     distance from a cat outside. Under reduced motion it hangs still by the glass.
 // It takes everything of the save and the walk through `io` (this chunk never reads or writes the save itself): { reef() -> state.reef, commit(next), sight(id),
@@ -18,10 +23,14 @@ import { phrase } from '../clanphrases.js';
 import * as M from '../reeflab.js';
 import * as L from './reeflabplan.js';
 import { makeFuse, makeFish, makeShark } from './reeflabcritters.js';
+import { labShowAt, labStill, SHOW, RIBBON_HUES } from './reeflabshow.js';
+import { createShowDraw } from './reeflabshowdraw.js';
 import './reeflabwords.js';
 
 export const CARRY_LIFT = 1.2; // m: higher over the seabed than this she cannot reach a fuse (she climbs from the sand)
 const FISH_LOW = 6;
+const LIGHT_BASE = 0xffd9a8;
+const mixHex = (a, b, t) => { const ch = (s) => Math.round(((a >> s) & 255) * (1 - t) + ((b >> s) & 255) * t); return (ch(16) << 16) | (ch(8) << 8) | ch(0); };
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
 // createLabStory(ctx) -> { promptAt, interact, update, credit, goalNow, dispose, spottable, state }
@@ -34,6 +43,10 @@ export function createLabStory({ scene, reefY, lab, player = null, reducedMotion
   const shark = makeShark(L.SHARK.spots);
   scene.add(...fuses, fish, shark);
   fish.visible = false;
+  const draw = createShowDraw({ scene, reefY, lowTier });
+  const lamp = scene.getObjectByName?.('lab:light') ?? null;
+  let clock = 0; // the walk's own time, kept here: the show's T0 is on it
+  let showRun = null; // { t0, seen } while the dome show plays
   const spot = { type: 'rfshark', label: phrase('reef.life.shark'), pos: Vec3 ? new Vec3() : { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; } }, range: 10 };
   const spottable = [spot];
   let carrying = null; // the fuse in her mouth (0, 1, 2) or null: NEVER saved
@@ -59,6 +72,34 @@ export function createLabStory({ scene, reefY, lab, player = null, reducedMotion
     if (r.effect === 'power') io.award?.('reeflab', 'reef-lab', phrase('reef.lab.pay'));
     return r.effect;
   }
+  // the dome show (T0 = now); `elapsed` (a partner's start, some seconds ago on their clock) joins one already going
+  function startShow({ own = true, elapsed = 0 } = {}) {
+    if (disposed || showRun) return false;
+    const e = Number.isFinite(elapsed) ? Math.min(Math.max(0, elapsed), SHOW.secs) : 0;
+    showRun = { t0: clock - e, seen: false };
+    if (e < 3) safeSay(phrase('reef.lab.show.start'));
+    if (own) io.send?.({ kind: 'labshow', elapsed: 0 });
+    return true;
+  }
+  function placeShow() {
+    let k = -1;
+    if (showRun) {
+      k = clock - showRun.t0;
+      if (k >= SHOW.seenAt && !showRun.seen) {
+        showRun.seen = true;
+        if (M.powered(reef())) { perform({ kind: 'show' }, false); try { io.sight?.('rfshow'); } catch { /* a stand-in save */ } }
+      }
+      if (k > SHOW.secs) { showRun = null; k = -1; }
+    }
+    const s = k >= 0 ? (reducedMotion ? labStill() : labShowAt(k)) : null;
+    draw.place(s, reducedMotion);
+    if (lamp) {
+      const i = k >= 0 ? Math.floor(k / 4) % 3 : 0;
+      const f = k >= 0 ? (k / 4) % 1 : 0;
+      const hue = reducedMotion ? RIBBON_HUES[0] : mixHex(RIBBON_HUES[i], RIBBON_HUES[(i + 1) % 3], f * f * (3 - 2 * f));
+      lamp.color.setHex(k >= 0 ? mixHex(LIGHT_BASE, hue, 0.45 * (reducedMotion ? 0.7 : s.glow)) : LIGHT_BASE);
+    }
+  }
   function putBack(why) {
     if (carrying === null) return;
     carrying = null;
@@ -78,6 +119,7 @@ export function createLabStory({ scene, reefY, lab, player = null, reducedMotion
       if (s.inside !== inside() || !M.canPick(r, s.id, carrying)) continue;
       if (dist(catPos, s) < L.FUSE_REACH) return { kind: 'pick', fuse: s.id, line: phrase('reef.lab.fuse.prompt') };
     }
+    if (M.powered(r) && !showRun && dist(catPos, L.DOME_BENCH) < L.DOME_REACH && inside()) return { kind: 'show', line: phrase('reef.lab.show.prompt') };
     return null;
   }
 
@@ -148,7 +190,10 @@ export function createLabStory({ scene, reefY, lab, player = null, reducedMotion
 
   return {
     get carrying() { return carrying; },
-    get state() { return { carrying, fuses: M.fusesIn(reef()), inside: inside(), fish: fishN, shark: { x: shark.position.x, y: shark.position.y, z: shark.position.z } }; },
+    get showOn() { return !!showRun; },
+    get draw() { return draw; },
+    startShow,
+    get state() { return { show: showRun ? { ...showRun, k: clock - showRun.t0 } : null, carrying, fuses: M.fusesIn(reef()), inside: inside(), fish: fishN, shark: { x: shark.position.x, y: shark.position.y, z: shark.position.z } }; },
     get fuses() { return fuses; },
     get fish() { return fish; },
     get shark() { return shark; },
@@ -173,12 +218,17 @@ export function createLabStory({ scene, reefY, lab, player = null, reducedMotion
         audio?.chime?.();
         try { io.sight?.('rffuses'); } catch { /* a stand-in save */ }
         io.send?.({ kind: 'fuse', fuse: id });
+        if (effect === 'power') startShow({ own: true }); // the third fuse: the dome plays (its message follows the fuse's)
         safeSay(effect === 'power' ? phrase('reef.lab.power') : phrase('reef.lab.fuse.in'));
+      } else if (t.kind === 'show') {
+        audio?.chime?.();
+        startShow({ own: true }); // watching it again: nothing is paid, and no clock can fail her
       }
       return t.kind;
     },
     // a fuse put in by anyone in the room: the same effects as her own; if it was the one in her mouth it is gone from it
     credit(ev) {
+      if (ev && typeof ev === 'object' && ev.kind === 'labshow') return startShow({ own: false, elapsed: ev.elapsed }) ? 'show-start' : null;
       const effect = perform(ev, true);
       if (!effect) return null;
       if (carrying === ev.fuse) carrying = null;
@@ -187,6 +237,7 @@ export function createLabStory({ scene, reefY, lab, player = null, reducedMotion
     update(dt, t, catPos, camera, session) {
       if (disposed) return;
       cat = catPos ?? cat;
+      clock += dt > 0 ? dt : 0;
       const now = inside();
       if (now && !wasInside) { try { io.sight?.('rflab'); } catch { /* a stand-in save */ } }
       if (!now && wasInside && carrying !== null && L.FUSE_SPOTS[carrying].inside) putBack(true); // up the ladder: a fuse of the station stays in it
@@ -197,10 +248,14 @@ export function createLabStory({ scene, reefY, lab, player = null, reducedMotion
       placeFuses(t);
       placeFish(t);
       placeShark(t);
+      placeShow();
     },
     dispose() {
       if (disposed) return;
       disposed = true;
+      showRun = null;
+      draw.dispose();
+      lamp?.color?.setHex?.(LIGHT_BASE);
       carrying = null; // a fuse in her mouth when the walk ends is not kept: the next walk finds it at its spot
       for (const o of [...fuses, fish, shark]) {
         scene.remove(o);
