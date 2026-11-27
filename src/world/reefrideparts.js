@@ -81,8 +81,7 @@ export function buildScooter(M) {
 // The hull is an ellipsoid (radii 1.45, 0.34, 1.45) with its middle at y -0.1; a point on it at radius r from the axis is at hullY(r), and the surface tilts by hullTilt(r).
 const hullY = (r) => -0.1 + 0.34 * Math.sqrt(Math.max(0, 1 - (r / 1.45) ** 2));
 const hullTilt = (r) => Math.atan((0.34 * (r / 2.1025)) / Math.sqrt(Math.max(0.05, 1 - (r / 1.45) ** 2)));
-export const LEG_FOLD = 1.86; // how far a leg swings up and in when the gear is retracted (radians about its hinge; 0 is straight down)
-export const LEG_HINGE = Object.freeze({ r: 1.0, y: -0.35 });
+export const LEG_HINGE_Y = -0.3; // the gear's hinge height (a little inside the hull's underside, which is at -0.35 where the legs stand)
 export function buildSaucer(M, lowTier = false) {
   const C = COL;
   const g = new THREE.Group();
@@ -116,19 +115,17 @@ export function buildSaucer(M, lowTier = false) {
   if (!lowTier) for (let i = 0; i < 6; i++) { const t = (i / 6) * Math.PI * 2 + 0.3; glow.push(box(0.08, 0.04, 0.08, Math.sin(t) * 0.95, -0.4, Math.cos(t) * 0.95, C.lamp)); } // and a smaller ring under the belly
   glow.push(cyl(0.18, 0.18, 0.05, 0, -0.5, 0, C.lamp, 8));
   g.add(mesh([...paint, ...glow], M.paint, 'ride:saucer:body'));
-  // the landing gear: three legs, each on its own hinge (the live folds them up and in when she lifts off and puts them down when she lands)
+  // the landing gear: three struts with their feet, ONE mesh on a group hinged at the hull (the live telescopes it up into the hull when she lifts off, a short smooth motion, and
+  // puts it down when she lands: the group's height scale goes from 1 to nearly 0 about the hinge's height, which is inside the hull)
   const legs = new THREE.Group();
   legs.name = 'ride:saucer:legs';
+  legs.position.y = LEG_HINGE_Y;
+  const gear = [];
   for (let a = 0; a < 3; a++) {
     const t = (a / 3) * Math.PI * 2 + Math.PI / 6;
-    const leg = new THREE.Group();
-    leg.name = `ride:saucer:leg${a}`;
-    leg.rotation.order = 'YXZ';
-    leg.rotation.y = t;
-    leg.position.set(Math.sin(t) * LEG_HINGE.r, LEG_HINGE.y, Math.cos(t) * LEG_HINGE.r);
-    leg.add(mesh([cyl(0.05, 0.05, 0.53, 0, -0.265, 0, C.steel, 5), box(0.26, 0.05, 0.26, 0, -0.53, 0, C.dark), cyl(0.08, 0.08, 0.1, 0, -0.04, 0, C.dark, 5)], M.paint, `ride:saucer:leg${a}:mesh`));
-    legs.add(leg);
+    gear.push(cyl(0.05, 0.05, 0.58, Math.sin(t) * 1.0, -0.29, Math.cos(t) * 1.0, C.steel, 5), box(0.26, 0.05, 0.26, 0, -0.58, 0, C.dark).translate(Math.sin(t) * 1.0, 0, Math.cos(t) * 1.0), cyl(0.08, 0.08, 0.12, Math.sin(t) * 1.0, -0.02, Math.cos(t) * 1.0, C.dark, 5));
   }
+  legs.add(mesh(gear, M.paint, 'ride:saucer:gear'));
   g.add(legs);
   const dome = tone(new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1.05, 0.9, 1.05).translate(0, 0.02, 0), C.glass);
   g.add(mesh([dome], M.glass, 'ride:saucer:dome'));

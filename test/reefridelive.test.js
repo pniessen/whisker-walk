@@ -122,27 +122,25 @@ describe('on a walk', () => {
     expect(s.life.promptAt(s.cat.position)).toBe('Climb into the Diving Saucer');
   });
 
-  it('the saucer\'s landing gear: down while it is parked, folds up into the hull within a second of lift-off, comes down again on landing (also under reduced motion)', () => {
+  it('the saucer\'s landing gear: down while it is parked, telescopes up into the hull within a second of lift-off, comes down again on landing (also under reduced motion)', () => {
     for (const reducedMotion of [false, true]) {
       const m = make({ at: 'saucer', extra: { reducedMotion } });
-      const legs = [0, 1, 2].map((i) => m.scene.getObjectByName(`ride:saucer:leg${i}`));
-      for (const l of legs) expect(l, 'leg').toBeTruthy();
+      const legs = m.scene.getObjectByName('ride:saucer:legs');
+      expect(legs).toBeTruthy();
+      expect(legs.children).toHaveLength(1); // one mesh for all three legs
       m.tick(2);
-      expect(legs.map((l) => l.rotation.x)).toEqual([0, 0, 0]);
+      expect(legs.scale.y).toBe(1);
       m.board();
       m.tick(30); // a second
-      for (const l of legs) expect(l.rotation.x).toBeGreaterThan(1.8);
-      // folded, a foot is up inside the hull (the leg's end is above the hinge's own height)
-      for (const l of legs) { const end = new THREE.Vector3(0, -0.53, 0).applyMatrix4(l.matrix.clone().compose(l.position, l.quaternion, l.scale)); expect(end.y).toBeGreaterThan(l.position.y); expect(Math.hypot(end.x, end.z)).toBeLessThan(0.7); }
+      expect(legs.scale.y).toBeLessThan(0.1);
       m.hopOff();
       m.tick(30);
-      for (const l of legs) expect(l.rotation.x).toBeCloseTo(0, 2);
-      // a short smooth motion, not a jump: partway through, the fold is between the two
+      expect(legs.scale.y).toBeGreaterThan(0.95);
+      // a short smooth motion, not a jump: partway through, the gear is between the two
       m.board();
       m.tick(3);
-      const part = legs[0].rotation.x;
-      expect(part).toBeGreaterThan(0);
-      expect(part).toBeLessThan(1.86);
+      expect(legs.scale.y).toBeLessThan(1);
+      expect(legs.scale.y).toBeGreaterThan(0.1);
     }
   });
 
