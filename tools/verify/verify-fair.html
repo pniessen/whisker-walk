@@ -184,6 +184,13 @@
     edge: () => frameCat(-34, -12, [-50, -40]),
     backdrop: () => frameCat(30, 30, [60, 50]),
     overview: () => { cat.visible = false; camera.position.set(0, 26, 66); camera.lookAt(0, 0, 4); },
+    // the grounds' beauty round: the fair's lawn and sawdust, close and wide
+    'g-pole': () => frameCat(1.4, 36, [3, 30]),
+    'g-stallback': () => frameCat(-9, 30, [-6, 26]),
+    'g-field': () => frameCat(-20, -18, [-14, -26]),
+    'g-picnic': () => frameCat(-27, 24, [-32, 18]),
+    'g-wheel': () => frameCat(6, -22, [10, -26]),
+    'g-east': () => frameCat(14, 26, [18, 20]),
     'ride-horse': () => { /* set up in __shot below */ },
   };
   window.__shot = (name) => {

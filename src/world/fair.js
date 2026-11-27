@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import * as b from './builder.js';
 import { createWater, PARK_POND_LOOK } from '../render/water.js';
-import { addTrails } from './pathribbon.js';
+import { addTrails, trailField } from './pathribbon.js';
 import { sureClawsTreePerch } from '../climbing.js';
 import { tintGround, rectDist, smoothField, smoothstep, lerp3, lin } from './dressing.js';
 import { lawnMottle } from './park.js';
@@ -592,6 +592,21 @@ export function cullGroundFaces(scene, names) {
   return dropped;
 }
 
+// THE GROUND'S BEAUTY (world/fairground.js): where its scuffs may lie. Trodden grass (fairWear) that is open: off the sawdust, the rides' rings, the buildings, the big flat things
+// and the pool; none east of x = 20 (the coaster's side, and the Viking boat's).
+import { groundPlan, drawGround } from './fairground.js';
+function groundOpenCheck(segs) {
+  const circles = [...WAGONS, FORTUNE_AT, BANDSTAND_AT, MUSIC_BOX_AT, ...PICNIC_RUGS, DUCK_POOL].map((t) => [t.x, t.z, 3.5]); // the big and the flat: a tuft keeps 3.5 m off each
+  const blocks = [...STALLS.map(stallRect), ...RIDGE_TENTS.map(tentRect), STATION_DECK];
+  return (x, z, m) => {
+    if (x > 20 || x < -56 || Math.abs(z) > 56) return false; // (the east is the coaster's and the Viking boat's)
+    if (fairBare(x, z) || fairWear(x, z) < 0.35) return false;
+    for (const [cx, cz, r] of circles) if (Math.hypot(x - cx, z - cz) < r + m) return false;
+    for (const q of blocks) if (rectDist(q, x, z) < m) return false;
+    if (trailField(segs, x, z, 'sawdust').sd < m + 0.4) return false;
+    return true;
+  };
+}
 export function build(scene, { water = {}, wind, gateEnds = [] } = {}) {
   // A bright fair day: a clear blue over a pale horizon.
   b.applySky(scene, 0x8fcbf0, 0xe4f1e2);
@@ -675,6 +690,11 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) {
       parts.bulbString(K.bulbs, K.flags, [MIDWAY_POLE_X, top + 0.1, z0], [-MIDWAY_POLE_X, top + 0.1, z1], { sag: 0.5, salt: i + 3 });
     }
     for (const s of [-1, 1]) parts.bunting(K.flags, [s * GATE_HALF, 4.0, GATE_AT.z], [s * MIDWAY_POLE_X, top, MIDWAY_POLE_Z[0]], { sag: 0.15, salt: 2 });
+    // the ground's beauty: an earth footing under every pole and scuffs of bare earth where the queues stand, on the fence's own non-casting list
+    drawGround(K.fence, groundPlan({
+      poles: [...MIDWAY_POLE_Z.flatMap((z) => [[-MIDWAY_POLE_X, z], [MIDWAY_POLE_X, z]]), ...PLAZA_POLES.map((p) => [p.x, p.z])],
+      ok: groundOpenCheck(trails.segs),
+    }));
     // At dusk the pole tops light soft warm pools on the ground under them
     // (render/dusk.js createLampPools finds anything tagged lampGlobeY): every
     // pole round the plaza, and one of each pair down the midway, side to
