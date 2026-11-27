@@ -159,7 +159,8 @@ describe('the footprint is clear of everything a cat or Lumi comes to', () => {
 
 describe('the clears: rim rocks and pebbles only, after the scatter', () => {
   it('CRYSTAL_CLEARS holds the footprint; no rock or pebble is inside it; clusters, KEEP_OUT and the other rocks stay', () => {
-    expect(CRYSTAL_CLEARS.length).toBe(cleared + R.CLEARS.length);
+    expect(CRYSTAL_CLEARS.length).toBeGreaterThanOrEqual(cleared + R.CLEARS.length); // the grotto and forge add theirs
+    for (const c of R.CLEARS) expect(CRYSTAL_CLEARS).toContainEqual(c);
     const rim = P.scatterRim();
     expect(rim.some((k) => P.inCrystalClear(k.x, k.z, k.s))).toBe(false);
     const saved = CRYSTAL_CLEARS.splice(0);
@@ -298,7 +299,7 @@ describe('light, motion, words, journal', () => {
     }
     expect(WING_LIVE.boat && WING_LIVE.falls).toBe(true);
     expect(wingPageShown('ccboat') && wingPageShown('ccfalls')).toBe(true);
-    expect(wingPageShown('ccforge')).toBe(false);
+    expect(wingPageShown('ccforge')).toBe(WING_LIVE.forge); // the forge is the other stage's
   });
   it('the boat is small and low, everything but the cliff is under 2.5 m', () => {
     const r = rigged();

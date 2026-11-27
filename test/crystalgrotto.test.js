@@ -67,8 +67,13 @@ describe('the footprints', () => {
 
 describe('the walk', () => {
   const area = build(new THREE.Scene());
-  it('the stage adds 14 colliders and the shelf perch; the cave without the stage is what it was', () => {
-    expect(area.colliders.length).toBe(P.crystalColliders().length + G.grottoColliders().length);
+  it('the stage adds 14 colliders and the shelf perch; the cave without the stage is what it was', async () => {
+    const have = new Set(area.colliders.map((c) => `${c.x},${c.z},${c.r}`));
+    for (const c of [...P.crystalColliders(), ...G.grottoColliders()]) expect(have.has(`${c.x},${c.z},${c.r}`)).toBe(true);
+    expect(G.grottoColliders().length).toBe(14);
+    const { riverColliders } = await import('../src/world/crystalriverplan.js'); // the river stage may be loaded too
+    expect(area.colliders.length).toBeGreaterThanOrEqual(P.crystalColliders().length + G.grottoColliders().length);
+    expect(area.colliders.length).toBeLessThanOrEqual(P.crystalColliders().length + G.grottoColliders().length + riverColliders().length);
     expect(ST.grotto).toBeTruthy();
     expect(area.perches).toContainEqual(expect.objectContaining({ x: G.SHELF.x, z: G.SHELF.z, y: 1, kind: 'stone' }));
   });
@@ -137,7 +142,7 @@ describe('the drawing', () => {
     expect(life.spottable.map((s) => s.type)).toEqual(['ccgrotto', 'ccforge']);
     for (const s of life.spottable) { expect(s.label).toMatch(/\S/); expect(s.range).toBeGreaterThan(3); expect(CRYSTAL_HINTS[s.type]).toMatch(/\S/); expect(wingPageShown(s.type)).toBe(true); }
     expect(WING_LIVE.grotto && WING_LIVE.forge).toBe(true);
-    expect([WING_LIVE.boat, WING_LIVE.falls, WING_LIVE.cart, WING_LIVE.song]).toEqual([false, false, false, false]);
+    expect([WING_LIVE.cart, WING_LIVE.song]).toEqual([false, false]); // boat and falls are the river's, live when both stages load
     const everyday = withOffWords(() => Object.keys(CRYSTAL_GROTTO_LINES).map((k) => phrase(k)));
     const clan = Object.keys(CRYSTAL_GROTTO_LINES).map((k) => phrase(k));
     for (const t of [...everyday, ...clan, CRYSTAL_HINTS.ccgrotto, CRYSTAL_HINTS.ccforge]) expect(bannedIn(t) ?? [], t).toEqual([]);
