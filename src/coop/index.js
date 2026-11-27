@@ -101,7 +101,7 @@ function ahead(p, v) {
  */
 export function start(ctx) {
   const state = {
-    pads: 0, ready: false, couch: false, joined: false, following: [false, false], seats: [null, null], second: null, yaw: 0, level: 0, apart: 0, leash: 0, tight: false,
+    pads: 0, ready: false, couch: false, joined: false, following: [false, false], seats: [null, null], owner: 0, second: null, yaw: 0, level: 0, apart: 0, leash: 0, tight: false,
   };
   const hub = createPadHub();
   const heading = createHeading();
@@ -145,7 +145,8 @@ export function start(ctx) {
   let tight = false; // the camera could not frame both cats last frame
   const settings = readSettings(ctx.storage ?? globalThis.localStorage);
   const follow = settings.follow; // the Settings switch for follow-when-idle
-  let menuOwner = 0; // the slot whose pad moves the pause card's focus
+  let menuOwner = 0; // the slot whose pad opened the menu: its pad moves the focus and answers every card
+  let carry = false; // cat two came along when the walk changed place: it is brought into the next ready place
   let dismissed = false; // "Wait for it" was chosen for the card on screen
   let heldOne = false, heldTwo = false; // a stick held through a turn keeps its world direction
   let padKindNow = 'ps';
@@ -169,7 +170,14 @@ export function start(ctx) {
   };
   const nameTwo = () => pick?.name ?? '';
 
-  function leave(toast) {
+  /** The slot whose pad owns the menus now: the one that opened them, or the other when that one's pad is away. */
+  function ownerSlot() {
+    const ok = (i) => !!state.seats[i] && !state.seats[i].lost;
+    return ok(menuOwner) || !ok(1 - menuOwner) ? menuOwner : 1 - menuOwner;
+  }
+
+  function leave(toast, keep = false) {
+    if (!keep) carry = false;
     if (!state.joined) return;
     const s = cur;
     release();
@@ -210,12 +218,26 @@ export function start(ctx) {
       state.joined = false; state.second = null;
       heldOne = heldTwo = false;
     }
-    hub.reset();
+    if (!carry) hub.reset(); // a walk that goes on in the next place keeps the pads' seats
     cards?.hideJoin();
     cards?.hideLost();
     cur = next;
     menuOwner = 0;
     dismissed = false;
+  }
+
+  /** Where cat two stands beside cat one: to its right when that is clear, else the nearest clear ring spot round it. */
+  function spotBeside(s, p) {
+    const right = { x: p.x + Math.cos(heading.target) * START_APART, z: p.z - Math.sin(heading.target) * START_APART };
+    if (isWalkableAt(s.areaData, right.x, right.z)) return right;
+    for (const radius of [START_APART, 2.4, 3.2]) {
+      for (let i = 0; i < 8; i++) {
+        const a = heading.target + (i * Math.PI) / 4;
+        const x = p.x + Math.sin(a) * radius, z = p.z + Math.cos(a) * radius;
+        if (isWalkableAt(s.areaData, x, z)) return { x, z };
+      }
+    }
+    return right;
   }
 
   function join() {
@@ -227,9 +249,8 @@ export function start(ctx) {
     const yaw0 = ctx.player.viewYaw();
     heading.yaw = yaw0;
     heading.square(yaw0);
-    const right = { x: Math.cos(heading.target), z: -Math.sin(heading.target) };
     const p = s.cat.position;
-    const at = { x: p.x + right.x * START_APART, z: p.z + right.z * START_APART, yaw: s.cat.rotation.y };
+    const at = { ...spotBeside(s, p), yaw: s.cat.rotation.y };
     mover = createMover({ ground: s.ground, state: st, pick, at, reducedMotion: !!s.reducedMotion });
     markers = createMarkers(s.scene);
     if (!s.cat.userData.ownTag) { // cat one's name, so both cats read
@@ -256,6 +277,7 @@ export function start(ctx) {
     idle = 0; level = ctx.player.cameraZoomLevel ?? 1; pull = 1;
     prev.a.set(p.x, p.z); prev.b.set(at.x, at.z);
     state.joined = true;
+    carry = true;
     state.second = { key: pick.key, name: pick.name };
     toasts.push({ slot: 1, one: phrase('coop.joined', nameTwo()), found: false });
   }
@@ -275,7 +297,7 @@ export function start(ctx) {
     else if (ev.type === 'turn') { if (state.joined && engaged) turn(ev.dir); }
     else if (ev.type === 'start') {
       if (engaged) { menuOwner = ev.slot; if (ev.slot === 1) ctx.act?.('pause'); } // pad one's own Start is the walk's
-      else if (ctx.canResume?.()) ctx.resume?.();
+      else if (ev.slot === ownerSlot() && ctx.canResume?.()) ctx.resume?.(); // the owner pad only: the other pad's Start does nothing in a menu
     }
   }
 
@@ -371,8 +393,9 @@ export function start(ctx) {
     if (!ctx.player) return;
     const live = state.couch && state.ready;
     if (!live) {
-      if (state.joined) leave(false);
-      hub.reset();
+      if (state.joined) leave(false, state.couch); // a place that is not ready yet: cat two waits, and is brought back to the next ready one
+      if (!state.couch) carry = false;
+      if (!carry) hub.reset();
       cards?.hideLost();
       hud?.hideAll();
       joinPill(pads, !!ctx.player.engaged, state.couch);
@@ -384,6 +407,10 @@ export function start(ctx) {
     const { events, two: pad2 } = hub.step(pads, { joinOpen: engaged && !state.joined && !!hub.seats()[0] && !hub.seats()[0].lost, engaged: playing, dt });
     for (const ev of events) onEvent(ev, engaged);
     state.seats = hub.seats();
+    if (carry && !state.joined && playing) { // the walk moved to a new place: cat two arrives beside cat one
+      if (!state.seats[1]) carry = false;
+      else if (!state.seats[1].lost && state.seats[0] && !state.seats[0].lost) join();
+    }
     if (state.joined && mover) {
       if (pad2) {
         if (pad2.move !== undefined) mover.player.setTouchMove(pad2.move);
@@ -415,7 +442,9 @@ export function start(ctx) {
     const p0 = hub.padOf(0, pads);
     const p1 = hub.padOf(1, pads);
     const live2 = !!ctx.player.engaged; // a pause pressed just now counts
-    const owner = !live2 && (menuOwner === 1 || (state.seats[0]?.lost)) && p1 ? p1 : p0;
+    const own0 = ownerSlot();
+    state.owner = own0;
+    const owner = !live2 && own0 === 1 && p1 ? p1 : p0;
     coop.pad = owner ? padForWalk(owner, live2 && state.joined) : null;
     if (owner) padKindNow = padKind(owner.id);
     if (p0) kinds[0] = padKind(p0.id);

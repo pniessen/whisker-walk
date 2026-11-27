@@ -107,7 +107,7 @@ export function createCrossing({
   // one's check wants a post), so that card lists the roster's members on
   // this build, never a hidden one.
   function togetherFor(s, { kind, endsHere, via }) {
-    if (!s.net) return [];
+    if (!s.net) return (s.remotes?.list ?? []).filter((r) => r.local).map((r) => r.petName); // couch play: the second cat comes too
     if (kind === 'gate' && endsHere) {
       return rosterOf()
         .filter((m) => m && typeof m.walkOn === 'number' && m.walkOn >= needFor(via) && m.playerId !== s.playerId && !hiddenIn(s, m.playerId))
