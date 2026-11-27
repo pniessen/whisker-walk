@@ -25,7 +25,8 @@ const { ST } = await import('../src/world/moonstages.js');
 const { build } = await import('../src/world/moon.js');
 
 const fresh = (o = {}) => sanitizeSave({ version: 4, ...o });
-const sha = (v) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
+// (numbers are rounded to 5 places before hashing: the Linux CI's Math.sin/cos differ from a Mac's in the last bits)
+const sha = (v) => createHash('sha256').update(JSON.stringify(v, (k, x) => (typeof x === 'number' ? Math.round(x * 1e5) / 1e5 : x))).digest('hex');
 
 describe('the save key', () => {
   it('relay is in the default and round trips; the other moon keys are as they were', () => {
@@ -199,21 +200,21 @@ describe('the station stage', () => {
 
 // sha256 of JSON.stringify of each, taken on main before X0 (the relay tower's mouse must not move one byte)
 const EXPECTED_HASHES = {
-  "smallfull": "51a1b6eafcd8e9b1b32368b2a3c89e092ad21d0338a4aab841b5620c7c690b76",
-  "crlfull": "ad77d56d61a14937f3da8061e83cbf65dd80332e3fce2f7d1b7c11839a964eb2",
-  "rimfull": "4db6455c04aa85b4dad66dd2d49ad2cc1ece775f190354082018fe771ec3eb2d",
-  "raysfull": "f2c6162ee6c3e30e28b5064f953c6428d2322b90944c9a1af2689dbf6634fed5",
-  "patchesfull": "6dbbf65ef4e8f8f97107893133479a20e94d8db04b134d819f944fe9c9a90e72",
-  "pebblesfull": "af0f27fce095fa297b93129a6abede361e0f8a8f4e06f3c84c7930111a5f6ccf",
-  "chunksfull": "a41e91202607307020eaa770fdad58c55abd64d306be4f44439524ef19b5931b",
-  "rocksfull": "65f5e9c24bc154d053f03ce0031b18868c414921ea2349aaa87eeb670703572a",
-  "smalllite": "f81f16fd982c635b3fc89f9b129e05c6ec4fed89f26bf0581d3c895692726054",
-  "crllite": "2ac9d66a62368f611c9700665aa72dc544b3ab54acf4e310c894dd38154805ea",
-  "rimlite": "bda20fabccb07901e8646e5a9a17f203b23243b54df1840574ee13903dbfc064",
-  "rayslite": "2b93a54a962f49ddf9ebc7f866cf1bef8fac255067b5a78e7aea6db95371e0b6",
-  "patcheslite": "f7395bbeb8fc9ec1d0f41cec9b356268e1684922e99755551e416f0a964575f7",
+  "smallfull": "09fb82638ce76d1c07f0337967105668206f85959a9b9d4e07120a6408c98247",
+  "crlfull": "7193065b6266d426c8b8e44e3995731c47fe2199e28716f7fe068600294ce93b",
+  "rimfull": "61063f8a3e1d8f9f99bd15b72e59a4748e5ecaac8ab4e2894a5f08a23405903e",
+  "raysfull": "24347af9d33a379a0164464a119db7dc3a9af4cc07d49f48044c6551f40b0c5b",
+  "patchesfull": "4f7dbad90eeba34a7573f5cb88bc1655719de60ce89ad01699211a7738d3c398",
+  "pebblesfull": "08f96513480f94fe30ba4a0f6ff99c90e04a2cd5448e9d39915079dc67dbdafd",
+  "chunksfull": "d5633404f004389501e5b067dfdf4b772f1cb9b267d44a263c75d6c7e953af3e",
+  "rocksfull": "27bbe3fea9491d291dd270ecc116400d749dcffff3eb052404447274b5020923",
+  "smalllite": "2d6b5249df8be338c556313327112e7772d28fe11162a468b00f0b2e3a773a85",
+  "crllite": "a7df1ab831258e6deb6f3c6c678976c2f0e62dcbc8db3ba7645b78026f5d3211",
+  "rimlite": "c233929796f3976047053bdf5e05724ff717e9e8815fe28d388f06eee409c8e1",
+  "rayslite": "775cbfcace558e1ff173d6e1621da3246ac210c0cfd175bcb2641f6499b97794",
+  "patcheslite": "eace1facf5980c807dd039548fac30897d77ab00b7046a196f878e505d07192b",
   "pebbleslite": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-  "chunkslite": "3c12ceadb6c0f344166edda8d75e6cd68a88428f362f9f0f2ed96b6b30a39713",
-  "rockslite": "f3595cc8f7f08efadcf5f2df1edb10fb81fd3a3ab66ee6477b33260f3bdd9b9d",
-  "foot": "63e1a23a3fc4c0b6a6a765e9fa90f73b06acc6dc8b13825815295a3080296d7d"
+  "chunkslite": "4714b11b6cd5385521da6f65cf82b67d2bb400f5cdd6d815644ec03ba025a64e",
+  "rockslite": "a4d56a2a4603aa061c0e6b8bd384c7a43552afcb164a5be798c12058057dbd94",
+  "foot": "e6b2474fd1218b3f12011b3b654eb22151e7221704964604d2046d434e9959a9"
 };;
