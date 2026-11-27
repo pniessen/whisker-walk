@@ -27,6 +27,22 @@ export const PAY_SEQ = Object.freeze({ gem: 2.6 }); // seconds after the pay mom
 const say = (key, label) => bus.emit('discovery', { type: 'greenhousenote', key, label, points: 0, repeat: false });
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const smooth = (k) => { const t = Math.min(1, Math.max(0, k)); return t * t * (3 - 2 * t); };
+// the Heart's halo: a soft glow with six faint crystal rays
+function heartTexture() {
+  const cv = globalThis.document?.createElement?.('canvas');
+  const g = cv?.getContext?.('2d');
+  if (!g) return null;
+  cv.width = cv.height = 128;
+  g.translate(64, 64);
+  const grd = g.createRadialGradient(0, 0, 0, 0, 0, 64);
+  grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(0.25, 'rgba(255,255,255,.5)'); grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd; g.fillRect(-64, -64, 128, 128);
+  g.globalAlpha = 0.22;
+  for (let i = 0; i < 6; i++) { g.rotate(Math.PI / 3); const r = g.createLinearGradient(0, 0, 0, -62); r.addColorStop(0, '#fff'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.beginPath(); g.moveTo(-3, 0); g.lineTo(0, -62); g.lineTo(3, 0); g.fill(); }
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 const FLAGS = Object.freeze({ noMerge: true, noCast: true, noContactShadow: true });
 const HUE_IDX = Object.freeze({ rose: 0, blue: 1, gold: 2 });
 
@@ -67,7 +83,8 @@ export function createWing(ctx) {
   const heartY = crystalY(S.HEART.x, S.HEART.z);
 
   const tex = haloTexture();
-  const heartHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: HUE_COLOURS.heart, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: true }));
+  const heartTex = heartTexture();
+  const heartHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map: heartTex ?? tex, color: HUE_COLOURS.heart, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: true }));
   heartHalo.name = 'crystal:heart:halo';
   heartHalo.position.set(S.HEART.x, heartY + 3.2, S.HEART.z);
   heartHalo.scale.setScalar(12);
@@ -158,6 +175,7 @@ export function createWing(ctx) {
     heartHalo.visible = heartLevel > 0.02 || on;
     heartHalo.material.opacity = Math.min(0.62, 0.5 * heartLevel + (reducedMotion ? 0.3 * wake : 0.4 * p.waves.heart) + flash * 0.2);
     heartHalo.scale.setScalar(12 + (reducedMotion ? 0 : 2.5 * p.waves.heart));
+    if (!reducedMotion) heartHalo.material.rotation = clock * 0.06;
     // the three other great crystals flare in turn (a still glow in reduced motion)
     for (const [hue, i] of Object.entries(HUE_IDX)) {
       const hl = lumi.halos?.[i];
@@ -184,12 +202,27 @@ export function createWing(ctx) {
     return p;
   }
 
+  // each passage wakes as its great crystal lights (rose lights the way to the pool, sky the way to the gold, gold the way to the Heart); all the way on once the passages light
+  const lampCol = lamps?.geometry?.attributes?.color ?? null;
+  const lampBase = lampCol ? Float32Array.from(lampCol.array) : null;
+  const lampPass = W.PASSAGES.flatMap((p, pi) => p.lamps.map(() => pi));
+  const lampEase = [0, 0, 0];
   function placeLamps(t, dt) {
     const want = rec().step >= M.STEP.lit ? 1 : 0;
     lampLevel += Math.sign(want - lampLevel) * Math.min(Math.abs(want - lampLevel), reducedMotion ? 1 : dt / 1.6);
-    if (lamps) {
-      lamps.visible = lampLevel > 0.001;
-      lamps.material.opacity = 0.9 * smooth(lampLevel) * (reducedMotion ? 1 : 0.85 + 0.15 * Math.sin(t * 2.6));
+    if (!lamps) return;
+    const gl = lumi.glows ?? [];
+    let any = lampLevel;
+    for (let pi = 0; pi < 3; pi++) {
+      const w = Math.max(smooth(gl[pi] ?? 0), smooth(lampLevel));
+      lampEase[pi] = reducedMotion ? w : lampEase[pi] + (w - lampEase[pi]) * Math.min(1, dt * 3);
+      any = Math.max(any, lampEase[pi]);
+    }
+    lamps.visible = any > 0.001;
+    lamps.material.opacity = 0.9 * (reducedMotion ? 1 : 0.85 + 0.15 * Math.sin(t * 2.6));
+    if (lampCol) { // additive: a lamp's colour scaled down is a lamp turned down
+      for (let i = 0; i < lampPass.length; i++) { const k = lampEase[lampPass[i]] * (reducedMotion ? 1 : 0.9 + 0.1 * Math.sin(t * 1.9 + i * 0.7)); for (let c = 0; c < 3; c++) lampCol.array[i * 3 + c] = lampBase[i * 3 + c] * k; }
+      lampCol.needsUpdate = true;
     }
   }
 
@@ -245,7 +278,7 @@ export function createWing(ctx) {
       heart?.material.color.setScalar(HEART_DORMANT);
       scene.remove(heartHalo, nook, motes);
       heartHalo.material.dispose(); nookGeo.dispose(); nook.material.dispose(); moteGeo.dispose(); motes.material.dispose();
-      tex?.dispose();
+      tex?.dispose(); heartTex?.dispose();
     },
   };
 }

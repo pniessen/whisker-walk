@@ -12,6 +12,7 @@
 // =============================================================================
 
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { phrase } from '../clanphrases.js';
 import { bus } from '../events.js';
 import * as M from '../crystalmission.js';
@@ -46,22 +47,59 @@ function softTexture() {
 
 const mark = (o) => { o.castShadow = false; o.receiveShadow = false; Object.assign(o.userData, { noMerge: true, noCast: true, noContactShadow: true }); return o; };
 
-// ---- Lumi: five round segments, the last one her glowing tail ------------------------------------------------------------------
+// ---- Lumi: a soft little glow-worm. Head (with its big friendly eyes, tiny highlights and two antennae, all in ONE vertex-coloured mesh), three body segments that
+// shrink and bob in a gentle wave, and her glowing tail. Six draws. The tail takes the lit crystals' colours (placeGlow). ----------------------------------------
+const SEGS = Object.freeze([[0.115, 0.08], [0.105, -0.045], [0.093, -0.165]]); // [radius, z] of the three body segments
+const paintGeo = (geo, hex) => {
+  const g = geo.index ? geo.toNonIndexed() : geo;
+  if (g !== geo) geo.dispose();
+  const c = new THREE.Color(hex);
+  const n = g.attributes.position.count;
+  const col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) col.set([c.r, c.g, c.b], i * 3);
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.deleteAttribute('uv'); g.deleteAttribute('normal');
+  return g;
+};
+function headGeometry() {
+  const parts = [paintGeo(new THREE.SphereGeometry(0.16, 10, 8).scale(1, 0.95, 1), COLORS.body)];
+  for (const s of [-1, 1]) {
+    parts.push(paintGeo(new THREE.SphereGeometry(0.058, 8, 6).translate(s * 0.07, 0.04, 0.115), 0xffffff)); // a big round eye
+    parts.push(paintGeo(new THREE.SphereGeometry(0.036, 7, 5).translate(s * 0.07, 0.035, 0.158), COLORS.eye)); // its pupil
+    parts.push(paintGeo(new THREE.SphereGeometry(0.012, 4, 3).translate(s * 0.06, 0.056, 0.185), 0xffffff)); // the little shine
+    parts.push(paintGeo(new THREE.CylinderGeometry(0.008, 0.012, 0.15, 4).rotateZ(-s * 0.35).translate(s * 0.075, 0.2, 0.05), COLORS.faint)); // an antenna
+    parts.push(paintGeo(new THREE.SphereGeometry(0.024, 5, 4).translate(s * 0.115, 0.265, 0.05), COLORS.bright)); // its glowing tip
+  }
+  return mergeGeometries(parts);
+}
 function makeLumi() {
   const g = new THREE.Group();
   g.name = 'crystal:lumi';
   const bodyMat = new THREE.MeshBasicMaterial({ color: COLORS.body });
-  const eyeMat = new THREE.MeshBasicMaterial({ color: COLORS.eye });
+  const headMat = new THREE.MeshBasicMaterial({ vertexColors: true });
   const tailMat = new THREE.MeshBasicMaterial({ color: COLORS.faint });
-  const seg = (r, z, mat) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), mat); m.position.set(0, r, z); g.add(mark(m)); return m; };
-  seg(0.13, 0.24, bodyMat); // the head
-  seg(0.12, 0.08, bodyMat); seg(0.11, -0.07, bodyMat); seg(0.1, -0.2, bodyMat);
-  const tail = seg(0.13, -0.34, tailMat);
-  for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.03, 5, 4), eyeMat); e.position.set(s * 0.06, 0.2, 0.34); g.add(mark(e)); }
+  const head = new THREE.Mesh(headGeometry(), headMat);
+  head.position.set(0, 0.16, 0.24);
+  g.add(mark(head));
+  const segs = SEGS.map(([r, z]) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), bodyMat); m.position.set(0, r, z); g.add(mark(m)); return m; });
+  const tail = new THREE.Mesh(new THREE.SphereGeometry(0.125, 8, 6).scale(1, 0.95, 1.15), tailMat);
+  tail.position.set(0, 0.12, -0.3);
+  g.add(mark(tail));
   g.userData.tail = tail;
-  g.userData.mats = [bodyMat, eyeMat, tailMat];
+  g.userData.head = head;
+  g.userData.segs = segs;
+  g.userData.mats = [bodyMat, headMat, tailMat];
   g.scale.setScalar(1.5);
   return g;
+}
+// a soft bob: a wave runs down her body (flat in reduced motion)
+function bobLumi(g, t, moving, still) {
+  const amp = still ? 0 : moving ? 0.028 : 0.012;
+  const sp = moving ? 9 : 2.2;
+  const { head, segs, tail } = { head: g.userData.head, segs: g.userData.segs, tail: g.userData.tail };
+  head.position.y = 0.16 + amp * Math.sin(t * sp);
+  segs.forEach((m, i) => { m.position.y = SEGS[i][0] + amp * Math.sin(t * sp - (i + 1) * 0.9); });
+  tail.position.y = 0.12 + amp * Math.sin(t * sp - 4 * 0.9);
 }
 
 // ---- the stone: a little faceted gem ----------------------------------------------------------------------------------------
@@ -309,11 +347,18 @@ export function createLumi(ctx) {
   // The great crystals' glow, the cave's one light and Lumi's tail, from the saved step: faint at first, brighter once met, then the colour of the last stone set.
   const tailColour = new THREE.Color();
   const _want = new THREE.Color();
+  const _mix = new THREE.Color();
+  const greats = scene.getObjectByName?.('crystal:greats')?.material?.userData?.great ?? null;
   function placeGlow(step, dt, catPos) {
     const lit = step >= M.STEP.rose;
     const base = step >= M.STEP.met ? 0.5 : 0;
     tailColour.set(COLORS.faint).lerp(new THREE.Color(COLORS.bright), base);
-    if (lit) tailColour.set(step >= M.STEP.lit ? 0xfff2d0 : STONE_COLOURS[Math.min(2, step - M.STEP.rose)]);
+    if (lit) { // the lit crystals' colours, blended (and her own warm white once every passage is lit)
+      let w = 0; _want.setRGB(0, 0, 0);
+      for (let i = 0; i < 3; i++) { const q = smooth(glows[i]); _want.r += _mix.set(STONE_COLOURS[i]).r * q; _want.g += _mix.g * q; _want.b += _mix.b * q; w += q; }
+      if (w > 0) tailColour.setRGB(_want.r / w, _want.g / w, _want.b / w);
+      if (step >= M.STEP.lit) tailColour.set(0xfff2d0);
+    }
     group.userData.tail.material.color.copy(tailColour);
     tailHalo.material.color.copy(tailColour);
     const pulse = reducedMotion ? 0 : 0.08 * Math.sin(clock * 2.2);
@@ -330,6 +375,7 @@ export function createLumi(ctx) {
       h.material.opacity = HALO.high * smooth(glows[i]);
       if (want) { const d = catPos ? dist(catPos, c) : i; if (d < nearD) { nearD = d; near = i; } }
     }
+    if (greats) { greats.uLit.value.set(smooth(glows[0]), smooth(glows[1]), smooth(glows[2])); greats.uPulse.value = reducedMotion ? 0 : Math.sin(clock * 0.9); }
     if (!light) return;
     // the one light stands by the lit crystal nearest the cat (or the light show's own hold), and eases from place to place
     let tx = lightHome.x; let ty = lightHome.y; let tz = lightHome.z; let ti = 0;
@@ -352,6 +398,7 @@ export function createLumi(ctx) {
   return {
     get state() { return { clock, carrying, lumi: { ...lumi }, record: rec(), stoneModes: S.STONES.map((s) => stoneMode(s.id)), bubble: bubble.icon, glow: glows[0], glows: [...glows] }; },
     get halos() { return halos; },
+    get glows() { return glows; },
     // the light show's hold on the cave's one light (null lets go)
     holdLight(o) { override = o; },
     get lumi() { return lumi; },
@@ -422,6 +469,7 @@ export function createLumi(ctx) {
       const bobY = lumi.moving && !reducedMotion ? 0.025 * Math.abs(Math.sin(clock * 9)) : 0;
       group.position.set(lumi.x, crystalY(lumi.x, lumi.z) + bobY, lumi.z);
       group.rotation.y = lumi.yaw + wob;
+      bobLumi(group, clock, lumi.moving, reducedMotion);
       group.visible = !catPos || near < 60;
       tailHalo.visible = group.visible;
       tailHalo.position.set(lumi.x - Math.sin(lumi.yaw) * 0.5, crystalY(lumi.x, lumi.z) + 0.25 + bobY, lumi.z - Math.cos(lumi.yaw) * 0.5);

@@ -45,6 +45,12 @@ function lines(min, max, edge, outer) {
   return out;
 }
 
+const CHAMBER_TONES = Object.freeze([
+  { x: -18, z: 4, r: 11, hex: 0xc8929c, k: 0.4 }, // the Rose hall: warm rose stone
+  { x: 14, z: -4, r: 10, hex: 0x7f94b4, k: 0.45 }, // the Blue Pool hall: cool blue-grey
+  { x: -6, z: -22, r: 10, hex: 0xc8a468, k: 0.42 }, // the Gold Gallery: honey-gold
+  { x: 22, z: -22, r: 10, hex: 0x6a4a96, k: 0.5 }, // the Heart room: deep violet
+]);
 // The stone's tone: a soft mottle, and the light the crystals throw (a pool of their hue on the floor round each cluster, in the vertex colour).
 function floorColour(x, z, clusters, out) {
   _c.setHex(P.CAVE_LOOK.stone);
@@ -54,6 +60,11 @@ function floorColour(x, z, clusters, out) {
   const grain = Math.sin(x * 2.3 + Math.sin(z * 1.7) * 1.5) * Math.sin(z * 2.1 - x * 0.6); // finer patches, so the stone is not one grey
   _d.setHex(0xb08a8c); // a warm rose-clay patch here and there
   _c.lerp(_d, Math.max(0, grain) * 0.3);
+  for (const c of CHAMBER_TONES) { // each hall its own stone: warm rose, cool blue-grey, honey-gold, deep violet
+    const d2 = (x - c.x) * (x - c.x) + (z - c.z) * (z - c.z);
+    _d.setHex(c.hex);
+    _c.lerp(_d, c.k * Math.exp(-d2 / (c.r * c.r)));
+  }
   const tone = 0.93 + 0.05 * Math.sin((x + z) * 0.31) + 0.03 * grain;
   let r = _c.r * tone; let g = _c.g * tone; let b = _c.b * tone;
   for (const k of clusters) {
@@ -141,7 +152,7 @@ export function domeGeometry() {
   return g;
 }
 // where each wing's hue washes the walls and the stalactites nearest it (pool, gold gallery, heart)
-const WING_GLOWS = Object.freeze([{ x: 14, z: -4, hex: 0x4a8ad8 }, { x: -12, z: -19.5, hex: 0xc89a48 }, { x: 22, z: -22, hex: 0xc86ac8 }]);
+const WING_GLOWS = Object.freeze([{ x: 14, z: -4, hex: 0x4a8ad8 }, { x: -12, z: -19.5, hex: 0xc89a48 }, { x: 22, z: -22, hex: 0x9a5ad8 }, { x: -18, z: 4, hex: 0xc8788a }]);
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 export function drawDome() {
@@ -152,15 +163,20 @@ export function drawDome() {
   return m;
 }
 
-// One stalactite: a thin hexagonal cone, point down, 1 m long at scale 1 (colour from the dome's violet at the root to a warm rose at the tip).
+// One stalactite: a tapered, banded hexagonal spike, 1 m long at scale 1 (root at y 0, tip at y -1; a bulge, then a long taper). The vertex colour carries pale and
+// deep bands and the violet-to-rose run; the instance colour tints each one.
 export function stalactiteGeometry() {
-  const g = new THREE.ConeGeometry(0.5, 1, 6, 1, true).rotateX(Math.PI).translate(0, -0.5, 0).toNonIndexed(); // root at y 0, tip at y -1
+  const prof = [[0, -1], [0.1, -0.78], [0.3, -0.52], [0.42, -0.28], [0.5, 0]].map(([r, y]) => new THREE.Vector2(r, y));
+  const g = new THREE.LatheGeometry(prof, 6).toNonIndexed();
+  g.deleteAttribute('uv'); g.deleteAttribute('normal');
   const pos = g.attributes.position;
   const col = new Float32Array(pos.count * 3);
   const root = new THREE.Color(0x5a4466);
   const tip = new THREE.Color(0xd8a0b8);
   for (let v = 0; v < pos.count; v++) {
-    _c.copy(root).lerp(tip, clamp01(-pos.getY(v)));
+    const y = pos.getY(v);
+    _c.copy(root).lerp(tip, clamp01(-y));
+    _c.multiplyScalar(0.8 + 0.3 * (0.5 + 0.5 * Math.sin(y * 17))); // soft bands down its length
     col[v * 3] = _c.r; col[v * 3 + 1] = _c.g; col[v * 3 + 2] = _c.b;
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -173,11 +189,14 @@ export function drawStalactites() {
   mesh.name = 'crystal:stalactites';
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion();
+  const qa = new THREE.Euler();
   const pos = new THREE.Vector3();
   const sc = new THREE.Vector3();
   list.forEach((k, i) => {
     pos.set(k.x, k.y + 0.2, k.z);
-    sc.set(k.w * 2, k.h, k.w * 2);
+    const fat = 0.75 + 0.5 * (0.5 + 0.5 * Math.sin(i * 3.7)); // some stout, some slender; the long ones lean a little
+    sc.set(k.w * 2 * fat, k.h * (0.9 + 0.3 * Math.sin(i * 2.1)), k.w * 2 * (2 - fat) * 0.6 + k.w * 0.8);
+    q.setFromEuler(qa.set(0.1 * Math.sin(i * 1.7), i * 1.3, 0.1 * Math.cos(i * 2.9)));
     m4.compose(pos, q, sc);
     mesh.setMatrixAt(i, m4);
     _c.setHSL(0.86 + 0.07 * Math.sin(i * 2.9), 0.25 + 0.15 * Math.sin(i * 1.3 + 1), 0.62 + 0.28 * (0.5 + 0.5 * Math.sin(i * 4.1))); // each its own warm tone
@@ -345,7 +364,46 @@ export function clusterGeometry(k, i) {
 }
 
 export function drawClusters(kit, M) {
-  P.scatterClusters().forEach((k, i) => { for (const g of clusterGeometry(k, i)) kit.put(`hue:${k.hue}`, M.hue[k.hue], g, { noCast: true, pulse: { hue: k.hue } }); });
+  P.scatterClusters().forEach((k, i) => { if (k.great) return; for (const g of clusterGeometry(k, i)) kit.put(`hue:${k.hue}`, M.hue[k.hue], g, { noCast: true, pulse: { hue: k.hue } }); });
+}
+
+// ---- the three great crystals: ONE mesh, each its own unlit and lit look ---------------------------------------------------------------
+// Unlit they are muted and a little grey with a faint inner glow; lit they are saturated and bright, breathing a little. The vertex shader mixes the two by
+// uLit (rose, sky, gold: 0 to 1, eased by the life) and uPulse, so the whole change is a pair of uniforms: no new light, no per-frame geometry.
+export const GREATS_UNLIT = Object.freeze({ grey: 0.5, dim: 0.5, glow: 0.07 });
+export function greatsMaterial() {
+  const mat = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const u = { uLit: { value: new THREE.Vector3(0, 0, 0) }, uPulse: { value: 0 } };
+  mat.userData.great = u;
+  mat.customProgramCacheKey = () => 'crystal-greats';
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uLit = u.uLit; sh.uniforms.uPulse = u.uPulse;
+    sh.vertexShader = sh.vertexShader
+      .replace('void main() {', 'attribute float aGreat;\nuniform vec3 uLit;\nuniform float uPulse;\nvoid main() {')
+      .replace('#include <color_vertex>', `#include <color_vertex>
+  vec3 selG = vec3(step(abs(aGreat), 0.5), step(abs(aGreat - 1.0), 0.5), step(abs(aGreat - 2.0), 0.5));
+  float litG = dot(selG, uLit);
+  float lumG = dot(vColor.rgb, vec3(0.3, 0.59, 0.11));
+  vec3 dullG = mix(vec3(lumG), vColor.rgb, ${GREATS_UNLIT.grey.toFixed(2)}) * ${GREATS_UNLIT.dim.toFixed(2)} + vColor.rgb * ${GREATS_UNLIT.glow.toFixed(2)};
+  vec3 brightG = mix(vec3(lumG), vColor.rgb, 1.25) * (1.14 + 0.1 * uPulse);
+  vColor.rgb = mix(dullG, brightG, litG);`);
+  };
+  return mat;
+}
+// drawGreats([{ k, i, g }]) -> the one mesh (g: 0 rose, 1 sky, 2 gold; i: the cluster's own seed, so the shapes are the ones always drawn)
+export function drawGreats(list) {
+  const parts = [];
+  for (const { k, i, g } of list) {
+    for (const geo of clusterGeometry(k, i)) {
+      geo.setAttribute('aGreat', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(g), 1));
+      parts.push(geo);
+    }
+  }
+  const m = new THREE.Mesh(mergeGeometries(parts), greatsMaterial());
+  m.name = 'crystal:greats';
+  m.castShadow = false; m.receiveShadow = false;
+  Object.assign(m.userData, { noCast: true, noContactShadow: true, noMerge: true });
+  return m;
 }
 
 // ---- rocks ---------------------------------------------------------------------------------------------------------------------
