@@ -100,9 +100,11 @@ export function rig({ areaId = 'neighborhood', profile = 'tv', unlocked = ['tabb
           const a = current.areaData;
           player.update(DT, a.colliders, a.bounds, a.waters);
           coop.frame?.(DT);
+          current.fair?.update?.(DT, 0, { cat: current.cat, player, session: current }); // the rides of the Fairground, as main.js runs them after player.update (a place that has none: nothing)
+          current.fair?.late?.(DT, 0, { cat: current.cat, player, session: current });
           current.clanFight?.update?.(DT, current); // main.js: the fight, after everything that moves the cat
           coop.late?.(DT);
-          current.remotes.update(DT, performance.now() / 1000, a.waters);
+          current.remotes.update(DT, performance.now() / 1000, a.waters, current.fair);
         } else current.clanFight?.update?.(DT, current);
       }
     },

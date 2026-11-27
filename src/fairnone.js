@@ -2,6 +2,7 @@
 // What a walk that is not at the Fairground has.
 export const NO_FAIR = Object.freeze({
   sim: null,
+  env: null,
   riding: null,
   wobble: 0,
   groundSpot() { return null; },
@@ -11,6 +12,7 @@ export const NO_FAIR = Object.freeze({
   canBoard() { return false; },
   pawKind() { return null; },
   seatById() { return null; },
+  friendSeat() {},
   // step 3 (src/fairshow.js): no games, no finds, no visitors anywhere else
   games: null,
   show: null,

@@ -477,24 +477,24 @@ export function createFairSim(area) {
   const apart = (s, o) => Math.hypot(s.x - o.x, s.y - (o.y ?? 0), s.z - o.z);
 
   // The gondola nearest `at` that is within `reach` of it, or null.
-  function gondolaNear(at, reach) {
+  function gondolaNear(at, reach, taken) {
     let best = null;
     let bestD = reach;
     for (let i = 0; i < wheel.gondolas.length; i++) {
       const d = apart(wheel.gondolas[i], at);
-      if (d < bestD) { best = wheel.gondolas[i]; bestD = d; }
+      if (d < bestD && wheel.gondolas[i] !== taken) { best = wheel.gondolas[i]; bestD = d; }
     }
     return best;
   }
 
   // From one of the merry-go-round's seats: the best horse to hop to, or null.
   // `last` is the seat she hopped here from, which is not hopped straight back to.
-  function nextHorse(from, last) {
+  function nextHorse(from, last, taken) {
     let best = null;
     let bestScore = Infinity;
     for (let i = 0; i < mgr.horses.length; i++) {
       const h = mgr.horses[i];
-      if (h === from || h === last) continue;
+      if (h === from || h === last || h === taken) continue;
       const d = Math.hypot(h.x - from.x, h.z - from.z);
       if (d >= RIDE.REACH_HORSE) continue;
       const ahead = wrap(h.a - from.a) > 1e-6;
@@ -514,13 +514,13 @@ export function createFairSim(area) {
   }
   // The car of the train that is alongside the station's deck (`slack`
   // metres beyond either end of it) and nearest `cat`, or null.
-  function stationCar(cat, slack) {
+  function stationCar(cat, slack, taken) {
     const st = coaster.station;
     let best = null;
     let bestD = Infinity;
     for (let i = 0; i < coaster.cars.length; i++) {
       const c = coaster.cars[i];
-      if (c.z < st.minZ - slack || c.z > st.maxZ + slack || c.x < st.minX || c.x > st.maxX + 2) continue;
+      if (c === taken || c.z < st.minZ - slack || c.z > st.maxZ + slack || c.x < st.minX || c.x > st.maxX + 2) continue;
       const d = flat(c, cat);
       if (d < RIDE.STATION_CAR + slack && d < bestD) { best = c; bestD = d; }
     }
@@ -542,15 +542,15 @@ export function createFairSim(area) {
   //             on the boarding deck or the lookout for the next gondola)
   //   'slide'   from the helter-skelter's gallery onto `seat`, the chute: the slide starts
   //   'off'     off the ride, to the ground
-  function jumpTarget(cat, from, last = null, slack = 0) {
+  function jumpTarget(cat, from, last = null, slack = 0, taken = null) {
     if (from && from.fair) {
       if (from.rideId === 'mgr') {
-        const h = nextHorse(from, last);
+        const h = nextHorse(from, last, taken);
         return h ? answer('hop', h) : answer('off');
       }
       if (from.seatKind === 'gondola') {
         // at the top, across to the lookout; at the bottom, out onto the boarding deck
-        if (apart(from, wheel.lookout) < RIDE.REACH_LOOKOUT) return answer('hop', wheel.lookout);
+        if (taken !== wheel.lookout && apart(from, wheel.lookout) < RIDE.REACH_LOOKOUT) return answer('hop', wheel.lookout);
         if (wheel.step && apart(from, wheel.step) < RIDE.REACH_GONDOLA) return answer('static', null, wheel.step);
         return answer('off');
       }
@@ -564,7 +564,7 @@ export function createFairSim(area) {
       // on the slide there is nothing to do but slide; on the mat, a jump is a step off it
       if (from.seatKind === 'chute') return slide.sliding ? answer('stay') : answer('off');
       if (from.seatKind === 'lookout') {
-        const g = gondolaNear(from, RIDE.REACH_LOOKOUT);
+        const g = gondolaNear(from, RIDE.REACH_LOOKOUT, taken);
         return g ? answer('hop', g) : answer('stay');
       }
       return answer('off');
@@ -579,18 +579,18 @@ export function createFairSim(area) {
       if (Math.hypot(cat.x - mgr.cx, cat.z - mgr.cz) - RIDE.MGR_DECK_R < RIDE.REACH_DECK) {
         for (let i = 0; i < mgr.deck.length; i++) {
           const d = flat(mgr.deck[i], cat);
-          if (d < bestD) { best = mgr.deck[i]; bestD = d; }
+          if (d < bestD && mgr.deck[i] !== taken) { best = mgr.deck[i]; bestD = d; }
         }
       }
     }
     if ((cat.y ?? 0) < 0.6) {
       for (let i = 0; i < cups.list.length; i++) {
         const d = flat(cups.list[i], cat);
-        if (d < RIDE.REACH_CUP + slack && d < bestD) { best = cups.list[i]; bestD = d; }
+        if (d < RIDE.REACH_CUP + slack && d < bestD && cups.list[i] !== taken) { best = cups.list[i]; bestD = d; }
       }
     }
     {
-      const g = gondolaNear(cat, RIDE.REACH_GONDOLA + slack);
+      const g = gondolaNear(cat, RIDE.REACH_GONDOLA + slack, taken);
       if (g && g.y - (cat.y ?? 0) <= RIDE.GONDOLA_STEP_UP) {
         const d = apart(g, cat);
         if (d < bestD) { best = g; bestD = d; }
@@ -600,11 +600,11 @@ export function createFairSim(area) {
       for (let i = 0; i < coaster.cars.length; i++) {
         const c = coaster.cars[i];
         const d = apart(c, cat);
-        if (d < RIDE.REACH_CAR + slack && c.y - (cat.y ?? 0) <= RIDE.CAR_STEP_UP && d < bestD) { best = c; bestD = d; }
+        if (c !== taken && d < RIDE.REACH_CAR + slack && c.y - (cat.y ?? 0) <= RIDE.CAR_STEP_UP && d < bestD) { best = c; bestD = d; }
       }
       // In front of the station, the car nearest her, from the ground at the
       // foot of the steps as well as from the platform: one press, not three.
-      if (!best && atStation(cat)) best = stationCar(cat, slack);
+      if (!best && atStation(cat)) best = stationCar(cat, slack, taken);
     }
     if (best) return answer('board', best);
     // On the boarding deck with no gondola in reach, or the coaster's platform
