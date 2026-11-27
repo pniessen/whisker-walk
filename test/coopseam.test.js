@@ -111,7 +111,7 @@ describe('the chunk, started', () => {
     session = { areaId: 'neighborhood', net: {} }; // an online co-walk: couch play stays out
     coop.poll(0.016);
     expect(h.state.ready).toBe(false);
-    session = { areaId: 'seaside', net: null };
+    session = { areaId: 'moon', net: null };
     coop.poll(0.016);
     expect(h.state.ready).toBe(false);
     session = null;
