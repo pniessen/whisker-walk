@@ -17,6 +17,9 @@ const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildMarket } = await import('../src/world/market.js');
 await (await import('../src/world/housestages.js')).loadHouseStages();
+await (await import('../src/world/snowvillestages.js')).loadSnowvilleStages(); // stage B's drawing is part of Snowville's build
+const { build: buildSnowville } = await import('../src/world/snowville.js');
+const SNOW = await import('../src/world/snowvilleplan.js');
 const { build: buildHouse } = await import('../src/world/house.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
@@ -58,8 +61,29 @@ describe('which holidays dress the places', () => {
 });
 
 describe('what each place gets', () => {
-  it('the five places are listed, Snowville is not (its slot is a TODO in the table)', () => {
-    expect([...DECOR_PLACES].sort()).toEqual(['farm', 'house', 'market', 'neighborhood', 'park']);
+  it('the six places are listed (Snowville joined in H8)', () => {
+    expect([...DECOR_PLACES].sort()).toEqual(['farm', 'house', 'market', 'neighborhood', 'park', 'snowville']);
+  });
+  it('Snowville: a lit tree in the square, a wreath on each of seven cabins, a menorah on one sill, lights on the notice board', () => {
+    const p = partsFor('snowville', BOTH);
+    expect(count(p.items, 'tree')).toBe(1);
+    expect(count(p.items, 'wreath')).toBe(7);
+    expect(count(p.items, 'menorah')).toBe(1);
+    expect(count(p.items, 'string')).toBe(1);
+    expect(count(partsFor('snowville', WINTER).items, 'string')).toBe(1);
+  });
+  it('the Snowville cabin table is the village plan, and the tree stands clear of every collider, the board and the spawn', () => {
+    expect(spots.SNOWVILLE.cabins.length).toBe(SNOW.COTTAGES.length);
+    spots.SNOWVILLE.cabins.forEach((r, i) => {
+      const c = SNOW.COTTAGES[i];
+      expect(r.slice(0, 7)).toEqual([c.id, c.x, c.z, c.yaw, c.w, c.d, c.h]);
+      const fx = c.x + Math.sin(c.yaw) * (c.d / 2 + 0.3), fz = c.z + Math.cos(c.yaw) * (c.d / 2 + 0.3);
+      expect(Math.abs(r[7] - SNOW.snowY(fx, fz)), c.id).toBeLessThan(0.05);
+    });
+    const T = spots.SNOWVILLE.tree;
+    expect(SNOW.snowY(T.x, T.z)).toBe(0);
+    for (const c of SNOW.snowvilleColliders()) expect(Math.hypot(T.x - c.x, T.z - c.z), `${c.x},${c.z}`).toBeGreaterThan(c.r + 0.8 * T.s);
+    expect(Math.hypot(T.x - SNOW.SNOWVILLE_SPAWN.x, T.z - SNOW.SNOWVILLE_SPAWN.z)).toBeGreaterThan(10);
   });
   it('Neighborhood: a wreath on all eight doors, strings on two houses (four rakes), a tree in one window, a menorah in another', () => {
     const p = partsFor('neighborhood', BOTH);
@@ -167,7 +191,7 @@ describe('merged, no colliders, nothing moved in the area', () => {
     try { r = dress(id, scene, area, { pick: set.christmas && set.hanukkah ? 'auto' : picks[set.christmas ? 'christmas' : 'hanukkah'], ...opts }); } finally { setHolidayOverride(null); }
     return { scene, area, before, r };
   }
-  for (const [id, build] of [['neighborhood', buildNeighborhood], ['park', buildPark], ['farm', buildFarm], ['market', buildMarket]]) {
+  for (const [id, build] of [['neighborhood', buildNeighborhood], ['park', buildPark], ['farm', buildFarm], ['market', buildMarket], ['snowville', buildSnowville]]) {
     it(`${id}: two merged meshes (solid and glow), noCast, no collider, perch or find added`, () => {
       const { scene, area, before, r } = dressed(id, build, XMAS);
       expect(r.meshes.length).toBeLessThanOrEqual(2);
@@ -198,9 +222,8 @@ describe('merged, no colliders, nothing moved in the area', () => {
     expect(top.length).toBe(2);
     for (const m of top) expect(m.userData).toMatchObject({ houseDetail: true, houseLevel: 'ground', houseRoom: 'parlour' });
   });
-  it('a place with no table (the Den, Snowville) gets nothing', () => {
+  it('a place with no table (the Den) gets nothing', () => {
     expect(dress('den', new THREE.Scene(), {}, { pick: 'auto' })).toBe(null);
-    expect(dress('snowville', new THREE.Scene(), {}, { pick: 'auto' })).toBe(null);
   });
 });
 
@@ -328,6 +351,8 @@ describe('each place\'s own budget row with the decor on it', () => {
     ['park', buildPark, [210, 170, 40000], [140, 110], 3000, 2],
     ['farm', buildFarm, [280, 210, 62000], [200, 135], 2500, 2],
     ['market', buildMarket, [280, 210, 62000], [156, 36], 4000, 2],
+    // Snowville's row is 6 / 3 / 47,400 with no decor; the lazy pair rides on top (8 draws here is the row's 6 plus the decor's 2)
+    ['snowville', buildSnowville, [8, 3, 47400], [8, 3], 3000, 2],
   ];
   for (const [id, build, built, merged, maxTris, maxDraws] of ROWS) {
     it(`${id}: with both holidays at night 8, still under ${built.join(' / ')} built and ${merged.join(' / ')} merged; the decor is at most ${maxDraws} draws and ${maxTris} triangles`, () => {
@@ -352,7 +377,7 @@ describe('each place\'s own budget row with the decor on it', () => {
       expect(bare.meshes + 2).toBeLessThanOrEqual(built[0]);
       expect(bare.triangles + decorTris).toBeLessThanOrEqual(built[2]);
       expect(decorTris).toBeLessThanOrEqual(maxTris);
-      if (process.env.BUDGET_LOG) console.log('holiday decor', id, JSON.stringify({ bare, mergedBare, decorTris: Math.round(decorTris) }));
+      if (process.env.BUDGET_LOG) process.stderr.write(`holiday decor ${id} ${JSON.stringify({ bare, mergedBare, decorTris: Math.round(decorTris) })}\n`);
     });
   }
 });

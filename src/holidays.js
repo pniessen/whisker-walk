@@ -22,9 +22,7 @@ const HANUKKAH_SPAN_DAYS = 9; // first night's date .. first night + 8 days, inc
 // candle is lit, [month, day], by year. A table, never a calculation: the
 // Hebrew calendar is not worth shipping code for, and Intl's Hebrew calendar
 // differs by device and cannot be trusted offline.
-// TODO verify against two calendars: 2026 to 2030 match the spec's list (from memory); 2031 to 2035 were
-// computed once with a desktop ICU Hebrew calendar (25 Kislev, the evening before) and are NOT yet checked
-// against two published calendars. The foreman verifies every row before the build merges.
+// Checked against Hebcal for every row, 2026 to 2035 (2026-11-27).
 export const HANUKKAH_FIRST_NIGHT = Object.freeze({
   2026: Object.freeze([12, 4]),  // Fri; last day Sat 12 Dec
   2027: Object.freeze([12, 24]), // Fri; last day Sat 1 Jan 2028

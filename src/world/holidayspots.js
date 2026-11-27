@@ -7,8 +7,9 @@
 // gables with their rakes from (+-2.8, 2.8) up to (0, 5) at z 2.3. A yaw turns local +z the way three.js does: local
 // (lx, lz) lands at (lx cos + lz sin, -lx sin + lz cos).
 //
-// Snowville is NOT here yet: its branch (snowville-r2) is not merged. TODO(snowville): add a SNOWVILLE block (a lit tree in
-// the square, a menorah on the inn sill) and its row in DECOR_PLACES when the village lands.
+// Snowville (H8) is the last block below: a lit tree in the village square, a wreath on each cabin window, a menorah on a cabin
+// sill and lights along the notice board. Its cabin table is copied from snowvilleplan.js COTTAGES (a test holds them equal, so
+// this chunk never imports the village).
 
 // Neighborhood: the eight lots (x, z), the two near-spawn front-gable houses that carry the strings and the windows.
 export const NEIGHBORHOOD = Object.freeze({
@@ -75,4 +76,22 @@ export const HOLIDAY_FIND_SPOTS = Object.freeze({
   farm: Object.freeze([[-9, 14], [10, 14], [-3, -4], [9, -18]]),
   market: Object.freeze([[5, -3], [9, 3], [-15, 5], [3, -13]]),
   house: Object.freeze([[11.5, -6], [7, -6], [12.5, -3.5]]), // the kitchen, on the ground level
+});
+
+// Snowville (H8). Cabins: [id, x, z, yaw, w, d, h, dy] with dy the snow's height at the door (rounded), so a wall piece does not
+// float or sink. A cabin's door is local +z; its two front windows sit at local x +-0.32 w, y 0.55 h, on the front wall at z d/2.
+// The village square is flat ground (y 0), so the tree needs no height. The notice board stands at (-9.5, 11) turned 0.5.
+export const SNOWVILLE = Object.freeze({
+  cabins: Object.freeze([
+    Object.freeze(['baker', 11, 1, -1.272, 6, 4.6, 2.7, 0.04]),
+    Object.freeze(['west1', -16, 14, 1.893, 5, 4, 2.5, 0]),
+    Object.freeze(['west2', -17, 3, 1.344, 5, 4, 2.5, 0]),
+    Object.freeze(['east1', 9, 15, -1.92, 5, 4, 2.5, -0.02]),
+    Object.freeze(['north1', -10, -5, 0.588, 5.4, 4, 2.6, -0.02]),
+    Object.freeze(['gate1', -22, 21, 1.326, 4.6, 4, 2.4, 0.18]),
+    Object.freeze(['gate2', 17, 24, -1.272, 4.6, 4, 2.4, -0.08]),
+  ]),
+  menorahCabin: 'baker', // on the right window's sill (local +x), which the snow already caps
+  tree: Object.freeze({ x: 0.5, z: 13, s: 1.5 }),
+  board: Object.freeze({ x: -9.5, z: 11, yaw: 0.5, y: 2.42, half: 1.1 }), // a string just above the board's snow cap
 });

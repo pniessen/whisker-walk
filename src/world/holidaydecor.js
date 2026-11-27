@@ -20,10 +20,10 @@ export const NEEDS = Object.freeze(['BufferGeometry', 'BufferAttribute', 'BoxGeo
 // `classes` are those, in NEEDS order (an array: the names are not repeated in the start-up bundle)
 export function bind(classes) { THREE = Object.fromEntries(NEEDS.map((k, i) => [k, classes[i]])); }
 import { activeHolidays, nightOf } from '../holidays.js';
-import { NEIGHBORHOOD, PARK, FARM, MARKET, MARKET_STALLS, HOUSE } from './holidayspots.js';
+import { NEIGHBORHOOD, PARK, FARM, MARKET, MARKET_STALLS, HOUSE, SNOWVILLE } from './holidayspots.js';
 
-// The places that dress. TODO(snowville): add 'snowville' (a lit tree in the square, a menorah on the inn sill) once its branch lands.
-export const DECOR_PLACES = Object.freeze(['neighborhood', 'house', 'market', 'farm', 'park']);
+// The places that dress (Snowville too since H8: a lit tree in the square, wreaths on the cabin windows, a menorah on a cabin sill).
+export const DECOR_PLACES = Object.freeze(['neighborhood', 'house', 'market', 'farm', 'park', 'snowville']);
 
 // Which holidays the decor shows now: { christmas, hanukkah, night } or null (nothing in a window, or Off). `pick` is the
 // Settings choice; a chosen holiday that is not in its window falls back to Automatic, as the home flair does.
@@ -347,6 +347,29 @@ function world(x, z, yaw, lx, ly, lz) {
   return [x + lx * Math.cos(yaw) + lz * Math.sin(yaw), ly, z - lx * Math.sin(yaw) + lz * Math.cos(yaw)];
 }
 
+// Snowville: a lit tree in the square, a wreath on each cabin's left front window, a menorah on the baker's right sill, and a
+// string of steady lights along the notice board. Cabins stand at their own yaw; world() lands local points like the village does.
+function snowville(kit, set, { rng, sparse }) {
+  const colors = bulbColors(set);
+  if (set.christmas) {
+    for (const [, cx, cz, yaw, w, d, h, dy] of SNOWVILLE.cabins) {
+      const [wx, , wz] = world(cx, cz, yaw, -w * 0.32, 0, d / 2 + 0.1);
+      wreath(kit, wx, h * 0.55 + dy, wz, yaw, 0.22, sparse);
+    }
+    const T = SNOWVILLE.tree;
+    tree(kit, T.x, 0, T.z, 0, T.s, rng, sparse, BULBS_CHRISTMAS);
+  }
+  if (set.hanukkah) {
+    const [, cx, cz, yaw, w, d, h, dy] = SNOWVILLE.cabins.find((c) => c[0] === SNOWVILLE.menorahCabin);
+    const [wx, , wz] = world(cx, cz, yaw, w * 0.32, 0, d / 2 + 0.12);
+    menorah(kit, wx, h * 0.55 - 0.34 + dy, wz, yaw, 0.55, set.night);
+  }
+  const B = SNOWVILLE.board;
+  const a = world(B.x, B.z, B.yaw, -B.half, B.y, 0.22);
+  const b = world(B.x, B.z, B.yaw, B.half, B.y, 0.22);
+  string(kit, a, b, 7, 0.14, rng, colors, sparse);
+}
+
 // The Old House: stockings on the parlour's mantel and a small tree in its corner (one group, tagged for the level drawing so
 // they show with the parlour), and a menorah on the sill of the parlour's south window, built apart (it rides the wall).
 function house(kit, set, { rng, sparse }) {
@@ -361,7 +384,7 @@ function houseSill(kit, set, base) {
   if (set.hanukkah) menorah(kit, S.x, S.y - base, S.z, S.yaw, S.s, set.night);
 }
 
-const PLACES = { neighborhood, park, farm, market, house };
+const PLACES = { neighborhood, park, farm, market, house, snowville };
 
 // The parts of one place, not yet meshes: { solid, glow, items } or null for a place that has no decor.
 export function partsFor(areaId, set, { sparse = false, base = 0 } = {}) {
