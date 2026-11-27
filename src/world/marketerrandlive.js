@@ -37,10 +37,9 @@ const STRAY_LOOK = Object.freeze({ ...catStyle('tabby'), base: 0x7d7468, belly: 
 
 // One merged, vertex-coloured mesh a prop (the life's meshes are counted: test/marketlife.test.js), no shadow, marked as a
 // mission prop so the life's own budget counts leave it to test/marketerrands.test.js.
-const MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
 const at = (geo, x, y, z) => geo.translate(x, y, z);
 function prop(name, geos) {
-  const m = new THREE.Mesh(mergeGeometries(geos), MAT.clone());
+  const m = new THREE.Mesh(mergeGeometries(geos), new THREE.MeshLambertMaterial({ vertexColors: true }));
   m.name = name;
   m.castShadow = false;
   m.userData.errand = true;

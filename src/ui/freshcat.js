@@ -49,6 +49,7 @@ export const KEPT_KEYS = Object.freeze([
   'whisker-walk-gl-reload', // the graphics-recovery reload guard (diagnostics)
   'whisker-walk-nearby-opted', // this device's choice about looking for rooms on the local network
   'whisker-walk-redeem-rest', // the guessing rest of the code box: a fresh cat must not skip it
+  'whisker-walk-coop', // couch co-op settings (follow, pads) are per device, like the TV mode
   'whisker-walk-den-tab', 'whisker-walk-builder-pose', // how this screen was last left (a tab, a pose)
   FRESH_BACKUP_KEY, // the rollback slot
 ]);

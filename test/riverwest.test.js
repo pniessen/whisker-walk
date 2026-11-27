@@ -70,13 +70,13 @@ describe('the switch', () => {
     expect(growOn()).toBe(false);
   });
 
-  it('reads ?grow=1 from the address, and nothing else turns it on', () => {
+  it('is on in a browser, and only ?grow=0 turns it off', () => {
     const at = (search) => { vi.stubGlobal('location', { search }); try { return growOn(); } finally { vi.unstubAllGlobals(); vi.stubGlobal('document', canvasStub); } };
     expect(at('?grow=1')).toBe(true);
     expect(at('?perf&grow=1')).toBe(true);
     expect(at('?grow=0')).toBe(false);
-    expect(at('?grow')).toBe(false);
-    expect(at('')).toBe(false);
+    expect(at('?grow')).toBe(true);
+    expect(at('')).toBe(true);
   });
 
   it('off: the River is the 100 m square it was, with no strip in its data', () => {
