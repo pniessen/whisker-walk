@@ -104,7 +104,7 @@ describe('world map: the world as data', () => {
   it('every place in the catalog is on the map exactly once, inside the world', () => {
     const m = worldMapModel(fresh(), CATALOG);
     // the Rooftops and the Market among them, town places (Rooftops step 4, Market step 4); the Greenhouse only while the gates switch is on (below)
-    expect(m.regions.map((r) => r.areaId).sort()).toEqual(Object.keys(CATALOG.areas).filter((id) => id !== 'greenhouse' && id !== 'reef' && id !== 'crystal' && id !== 'moon').sort()); // (the Moon in the top margin, the Reef is under the sea, the Crystal Cave behind the Docks gate: no circle on the land map)
+    expect(m.regions.map((r) => r.areaId).sort()).toEqual(Object.keys(CATALOG.areas).filter((id) => id !== 'greenhouse' && id !== 'reef' && id !== 'crystal' && id !== 'snowville' && id !== 'moon').sort()); // (the Moon in the top margin, the Reef is under the sea, the Crystal Cave behind the Docks gate: no circle on the land map)
     // Her Moor (620, 161, r 165) reaches 4 units above the top edge, on her
     // board and in draft 2 alike; her board is not moved, so that one overhang
     // is allowed, and pinned so no other place gets one.
@@ -293,7 +293,7 @@ describe('drawing the world', () => {
     const ids = [...html.matchAll(/data-dr-map-place="([a-z]+)"/g)].map(([, id]) => id);
     expect(new Set(ids).size).toBe(15);
     expect(ids).toHaveLength(16); // the island is a second way into the Pines
-    expect(new Set(ids)).toEqual(new Set(Object.keys(CATALOG.areas).filter((id) => id !== 'greenhouse' && id !== 'reef' && id !== 'crystal' && id !== 'moon'))); // (nobody sees the Greenhouse or the Reef while the gates switch is off)
+    expect(new Set(ids)).toEqual(new Set(Object.keys(CATALOG.areas).filter((id) => id !== 'greenhouse' && id !== 'reef' && id !== 'crystal' && id !== 'snowville' && id !== 'moon'))); // (nobody sees the Greenhouse or the Reef while the gates switch is off)
     expect(html).not.toContain('data-dr-place=');
     expect(regionHtml(html, 'park')).toMatch(/role="button" tabindex="0" aria-label="City Park: opens after you explore Twolegplace 2 times · 0\/2"/);
     expect(regionHtml(html, 'park')).toContain('data-x="1080" data-y="470"');

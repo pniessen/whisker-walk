@@ -46,7 +46,10 @@ export const STONE_COLLIDER_R = 0.35;
 const LOOK_TINT = { stonering: 0xffeeb4, archway: 0xffe2a0, hollow: 0xcdeeff, cleft: 0xbfe6ff, grotto: 0xe3c8ff, hatch: 0xbff5e8 };
 const SUIT_TINT = { space: 0xe6e2ff, dive: 0x9fd8ff };
 const MOTE_COLOUR = { stonering: 0xfff3b0, archway: 0xffe9a8, hollow: 0xd8f4ff, cleft: 0xd8f4ff, grotto: 0xf0dcff, hatch: 0xc8f4ea };
-export const discTint = (end) => SUIT_TINT[end.suit] ?? LOOK_TINT[end.look] ?? LOOK_TINT.stonering;
+// A pair that keeps its look but not its colour: Snowville's archway pair is the same lantern arch with an icy white-blue disc (by gate id, so no new look name).
+const ID_TINT = { 'farm-snowville': 0xcfe6ff, 'snowville-farm': 0xcfe6ff };
+const ID_MOTE = { 'farm-snowville': 0xeaf4ff, 'snowville-farm': 0xeaf4ff };
+export const discTint = (end) => SUIT_TINT[end.suit] ?? ID_TINT[end.id] ?? LOOK_TINT[end.look] ?? LOOK_TINT.stonering;
 
 // ---- time: one clock the whole look reads (a picture page sets its own, so a frame is the same every time) ----
 let clock = () => (globalThis.performance?.now?.() ?? 0) / 1000;
@@ -352,7 +355,7 @@ export function buildTeleGate(end, { ground = FLAT_GROUND, awake = true, calm = 
     m.translate(x, y + moteY - 1.5, z);
     motes.push(m);
   });
-  const moteMesh = new THREE.Mesh(mergeGeometries(motes, false), new THREE.MeshBasicMaterial({ color: MOTE_COLOUR[look] }));
+  const moteMesh = new THREE.Mesh(mergeGeometries(motes, false), new THREE.MeshBasicMaterial({ color: ID_MOTE[end.id] ?? MOTE_COLOUR[look] }));
   moteMesh.name = 'teleMotes';
   moteMesh.position.y = 0;
   moteMesh.userData.noMerge = true;

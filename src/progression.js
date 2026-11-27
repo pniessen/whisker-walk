@@ -441,6 +441,9 @@ export const CATALOG = {
     // The Crystal Cave (docs/superpowers/plans/2026-11-26-crystal-cave.md, C0): the same rule, reached by a Docks gate (milestone C6), free,
     // after 2 Docks walks, both editions; hidden while the gates switch is off.
     crystal: { name: 'The Crystal Cave', price: 0, requires: { area: 'docks', walks: 2 }, gate: 'tele' },
+    // Snowville (docs/superpowers/plans/2026-11-27-new-areas-snowville-treehouse-jungle.md, V1): the same rule, reached by the Farm's archway with an icy
+    // disc (src/teleport.js), free, after 2 Farm walks, both editions; hidden while the gates switch is off.
+    snowville: { name: 'Snowville', price: 0, requires: { area: 'farm', walks: 2 }, gate: 'tele' },
     // v18 Task 2.6 — the fourth walk area. The catalog is the ONLY place an
     // area has to be registered for the home-base picker: homebase.js renders
     // a card per CATALOG.areas entry, canBuy reads price + requires, and
@@ -566,7 +569,7 @@ function defaultState() {
     // the River: a save with no 'river' key would pin state.walks.river at NaN. And the Moor, the Pines and the Gorge: no 'moor', 'pines' or 'gorge' key, same NaN.
     // And the Farm: a save from before it loads with farm: 0. And the Fairground: fair: 0. And the Rooftops (in CATALOG.areas since Rooftops step 4): roofs: 0. And the Market Square (in CATALOG.areas since Market step 4): market: 0. And the Old House (in CATALOG.areas since its step 4): house: 0.
     // And Lighthouse Point (in CATALOG.areas since Lighthouse milestone 4): lighthouse: 0. And the Greenhouse (in CATALOG.areas since its G4, behind the gates switch): greenhouse: 0.
-    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0 },
+    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0, snowville: 0 },
     // A COPY of STARTER_ACCESSORIES: buy() pushes into this array.
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: [...STARTER_ACCESSORIES], areas: ['neighborhood'] },
     equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null },

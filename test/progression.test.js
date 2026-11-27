@@ -764,7 +764,7 @@ describe('createProgression', () => {
 
       expect(p.state).toEqual({
         version: 4, points: 0, retired: ['rosa'], redeemed: [],
-        walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0 },
+        walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0, snowville: 0 },
         unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
         equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null },
         customCats: [],
@@ -827,7 +827,7 @@ describe('createProgression', () => {
       expect(p.state.points).toBe(0);
       expect(p.state.lifetimePoints).toBe(0);
       expect(p.state.bestWalk).toBe(0);
-      expect(p.state.walks).toEqual({ neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0 });
+      expect(p.state.walks).toEqual({ neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0, snowville: 0 });
       // starter unlocks are still guaranteed even though the payload's
       // unlocked lists were unusable
       expect(p.state.unlocked).toEqual({ cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] });
@@ -978,7 +978,7 @@ describe('v11 slots + save migration', () => {
       expect(p.state.lifetimePoints).toBe(300);     // veteran rank must survive
       expect(p.state.bestWalk).toBe(40);             // best-walk record must survive
       expect(p.state.area).toBe('park');
-      expect(p.state.walks).toEqual({ neighborhood: 5, park: 2, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0 });
+      expect(p.state.walks).toEqual({ neighborhood: 5, park: 2, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0, snowville: 0 });
       expect(p.state.friends).toEqual({ Whiskers: { breed: 'siamese', greets: 4, lastWalk: 'walk-9' } });
       expect(p.state.petName).toBe('Zeetoo');
       expect(p.state.unlocked.cats).toEqual(expect.arrayContaining(['tabby', 'black', 'siamese', 'persian']));
@@ -1504,7 +1504,7 @@ describe('v18 skills/feats save fields', () => {
     expect(p.state.bestWalk).toBe(61);
     // v18 Task 2.6: 'docks' is recovered with a 0 on a save that predates it —
     // the whole point of iterating the DEFAULT walks keys rather than the payload's.
-    expect(p.state.walks).toEqual({ neighborhood: 7, park: 3, seaside: 2, den: 1, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0 });
+    expect(p.state.walks).toEqual({ neighborhood: 7, park: 3, seaside: 2, den: 1, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0, snowville: 0 });
     expect(p.state.journal).toEqual({ bird: 4 });
     expect(p.state.golden).toEqual(['gm-park-1']);
     expect(p.state.streak).toEqual({ last: '2026-08-01', count: 5 });
@@ -1727,7 +1727,7 @@ describe('v18 duskWalks save field', () => {
     expect(p.state.points).toBe(120);
     // v18 Task 2.6: 'docks' is recovered with a 0 on a save that predates it —
     // the whole point of iterating the DEFAULT walks keys rather than the payload's.
-    expect(p.state.walks).toEqual({ neighborhood: 7, park: 3, seaside: 2, den: 1, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0 });
+    expect(p.state.walks).toEqual({ neighborhood: 7, park: 3, seaside: 2, den: 1, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0, snowville: 0 });
     expect(p.state.journal).toEqual({ bird: 4 });
     expect(p.state.golden).toEqual(['gm-park-1']);
     expect(p.state.streak).toEqual({ last: '2026-08-01', count: 5 });
@@ -1831,7 +1831,7 @@ describe('v18 duskWalks save field', () => {
     p.completeWalk('park', { dusk: true });
     p.completeWalk('seaside', { dusk: true });
     expect(p.state.duskWalks).toBe(2);
-    expect(p.state.walks).toEqual({ neighborhood: 0, park: 4, seaside: 1, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0 });
+    expect(p.state.walks).toEqual({ neighborhood: 0, park: 4, seaside: 1, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0, snowville: 0 });
   });
 
   it('unlocks Night Eyes on the fifth dusk walk and persists across a reload', () => {
@@ -2425,7 +2425,7 @@ describe('the colony save key', () => {
     expect(clanRoles).toEqual({ medicine: null, deputy: null });
     expect(marks).toEqual({ neighborhood: [], park: [], seaside: [], docks: [], woods: [], river: [], moor: [], pines: [], gorge: [], farm: [], fair: [], roofs: [], market: [], lighthouse: [], den: [] });
     expect([visits, visitPrizesSeen, visitPrizePending, mapMode]).toEqual([0, 0, null, 'north']);
-    expect(rest).toEqual({ ...v20, equipped: { ...v20.equipped, custom: null }, walks: { ...v20.walks, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0 }, moon: { step: 0, cells: 0, stamp: -1, scope: 0, jump: {}, relay: 0 }, reef: { step: 0, shells: 0, album: 0, lab: 0, wreck: 0 }, crystal: { step: 0, sparks: 0, album: 0, forge: 0, songs: 0 }, snowville: { step: 0, album: 0 }, treehouse: { step: 0, album: 0 }, jungle: { step: 0, album: 0 } });
+    expect(rest).toEqual({ ...v20, equipped: { ...v20.equipped, custom: null }, walks: { ...v20.walks, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0, snowville: 0 }, moon: { step: 0, cells: 0, stamp: -1, scope: 0, jump: {}, relay: 0 }, reef: { step: 0, shells: 0, album: 0, lab: 0, wreck: 0 }, crystal: { step: 0, sparks: 0, album: 0, forge: 0, songs: 0 }, snowville: { step: 0, album: 0 }, treehouse: { step: 0, album: 0 }, jungle: { step: 0, album: 0 } });
   });
 
   it('a fresh save starts with the starter accessories and an empty colony', () => {

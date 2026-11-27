@@ -615,6 +615,10 @@ const YARN_SPOTS = {
     { x: 5, z: 12, where: 'on the smooth stone' },
     { x: -20, z: -8, where: 'by the crystal garden' },
   ],
+  snowville: [
+    { x: 8, z: 22, where: 'in the fresh snow' },
+    { x: -22, z: 12, where: 'by the cottages' },
+  ],
   moon: [
     { x: -12, z: 6, where: 'on the open moon dust' },
     { x: 20, z: 0, where: 'on the flat grey plain' },

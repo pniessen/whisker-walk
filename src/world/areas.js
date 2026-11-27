@@ -68,6 +68,8 @@ const loaders = {
   reef: () => Promise.all([import('./reef.js'), import('./reefstages.js').then((s) => s.loadReefStages())]).then(([w]) => own('reef', w)),
   // The Crystal Cave (?crystal=1 and a catalog row behind the gates switch; milestone C0 is the seams and a stub floor).
   crystal: () => Promise.all([import('./crystal.js'), import('./crystalstages.js').then((s) => s.loadCrystalStages())]).then(([w]) => own('crystal', w)),
+  // Snowville (?snowville=1 and a catalog row behind the gates switch; milestone V1 is the snow world: the village square, the spawn court and its return arch).
+  snowville: () => Promise.all([import('./snowville.js'), import('./snowvillestages.js').then((s) => s.loadSnowvilleStages())]).then(([w]) => own('snowville', w)),
 };
 
 // The private family edition (vite --mode family) registers its one place here; in every other build
@@ -100,6 +102,7 @@ const entryModules = {
   moon: Object.freeze(['src/world/moon.js']), // stage A, the only one the loader waits for; the three later stages and the late arrivals' code are MOON_STAGE_ENTRY_MODULES (scripts/buildjson.mjs), fetched in the background after it
   reef: Object.freeze(['src/world/reef.js']), // stage A; the three stages are REEF_STAGE_ENTRY_MODULES (scripts/buildjson.mjs), loaded with it by the loader above
   crystal: Object.freeze(['src/world/crystal.js']), // stage A; the two stages are CRYSTAL_STAGE_ENTRY_MODULES (scripts/buildjson.mjs), loaded with it by the loader above
+  snowville: Object.freeze(['src/world/snowville.js']), // stage A; the two stages are SNOWVILLE_STAGE_ENTRY_MODULES (scripts/buildjson.mjs), loaded with it by the loader above
 };
 if (typeof __PRIVATE_FAMILY__ !== 'undefined' && __PRIVATE_FAMILY__) {
   entryModules.family = Object.freeze(['src/family/index.js']);
