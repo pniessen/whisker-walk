@@ -176,8 +176,8 @@ describe('with the switch on, the core did not move', () => {
     const off = budgetOf(offScene.children, rig);
     const on = budgetOf(core(onScene), rig);
     // today's Woods, as test/budget.test.js counts it
-    expect(built.triangles).toBe(68810);
-    expect(off).toEqual({ meshes: 182, casters: 152, triangles: 68810 });
+    expect(built.triangles).toBe(69379); // 68,810 before the Woods beauty round (+569, woodsbeauty.js)
+    expect(off).toEqual({ meshes: 182, casters: 152, triangles: 69379 });
     expect(on.meshes).toBe(off.meshes);
     expect(on.casters).toBe(off.casters);
     const band = (scene) => trianglesOf(scene.children.find((c) => c.name === 'horizonBand'));

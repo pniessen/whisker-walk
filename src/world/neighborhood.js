@@ -203,7 +203,7 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) { // `wat
   const lots = [
     [-12, -30, 0xe8d8b0, SLATE, 'brick', { roof: 'frontGable', door: GREEN, shutters: RED, flowerBox: true, entry: 'porch', chimney: [1.2, -0.8] }],
     [-12, -15, 0xd6c2ea, TERRA, undefined, { roof: 'sideGable', door: WOOD, flowerBox: true, entry: 'flat', chimney: [1.6, -1.1] }],
-    [-12, 15, 0xf2e0c0, MOSS, 'brick', { roof: 'pyramid', door: NAVY, flowerBox: true, entry: 'hood', chimney: [-1.4, -1.0] }],
+    [-12, 15, 0xf2e0c0, MOSS, 'brick', { roof: 'pyramid', bareRoof: true, door: NAVY, flowerBox: true, entry: 'hood', chimney: [-1.4, -1.0] }],
     [-12, 30, 0xbfe0cc, BLUE, undefined, { roof: 'frontGable', door: RED, shutters: NAVY, entry: 'hood' }],
     [12, -30, 0xf4cfb8, COCOA, undefined, { roof: 'pyramid', door: NAVY, shutters: GREEN, flowerBox: true, entry: 'flat', chimney: [1.2, -0.8] }],
     [12, -15, 0xd9e8bc, TERRA, undefined, { roof: 'sideGable', door: GREEN, entry: 'hood' }],

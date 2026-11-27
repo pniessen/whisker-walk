@@ -29,6 +29,8 @@ const SPOTS = [
 export const SLED_KEEP = f([[22.4, -15.2], [26.2, -13.2], [27.6, -10.2], [26.0, -7.2], [27.0, -3.8], [24.6, -0.6], [22.2, 1.4]]); // the sled run's corner points (snowvillesledplan.js smooths them)
 /** The ski slope's corridor on the hill's west flank is kept clear too (snowvilleskisplan.js smooths these corner points). */
 export const SKI_KEEP = f([[20.4, -27.4], [18.6, -24.4], [16.0, -21.4], [13.8, -18.4], [11.8, -15.4], [11.4, -12.4], [12.6, -9.8], [13.0, -8.4]]);
+/** The snowmobile's loop corridor on the south-east lawn is kept clear too (snowvillemobileplan.js smooths these corner points into a closed ring). */
+export const MOBILE_KEEP = f([[20, 10], [25, 10], [26.5, 15], [25.5, 20], [27, 25], [24, 27.5], [22, 25], [22, 20], [19.5, 16]]);
 let _solid = null;
 const solids = () => (_solid ??= [...P.snowvilleColliders(), ...wingColliders()]);
 export function isOpen(x, z, clear = 1.2, placed = []) {
@@ -38,6 +40,7 @@ export function isOpen(x, z, clear = 1.2, placed = []) {
   for (const [sx, sz, sr] of SPOTS) if (Math.hypot(x - sx, z - sz) < sr + clear * 0.4) return false;
   for (const [sx, sz] of SLED_KEEP) if (Math.hypot(x - sx, z - sz) < 3.2 + clear * 0.4) return false;
   for (const [sx, sz] of SKI_KEEP) if (Math.hypot(x - sx, z - sz) < 2.5 + clear * 0.4) return false;
+  for (const [sx, sz] of MOBILE_KEEP) if (Math.hypot(x - sx, z - sz) < 4.2 + clear * 0.4) return false;
   return true;
 }
 

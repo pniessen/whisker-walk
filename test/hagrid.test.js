@@ -50,6 +50,7 @@ const DELTA = {
   keepercap: 1,
   // the Treehouse village (2026-11-27): the canopy cap (the trader's cap's shape in leaf green, carried onto his skull)
   canopycap: 1,
+  snowhelmet: 1,
   // Snowville (2026-11-27): the snowflake scarf's ring + cloth (the neckerchief's)
   snowflakescarf: 2,
   // The Jungle lodge (2026-11-27): the fern anklet (Hagrid wears no feet item)

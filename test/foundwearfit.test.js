@@ -93,7 +93,7 @@ describe('found outfits: the seam (wearkind.js, display.js)', () => {
     expect(['bell', 'heart', 'tag', 'sparklecollar', 'studded', 'glow', 'toString'].map(isCharmed)).toEqual([true, true, true, true, false, false, false]);
   });
   it('the dearest ground look still fits under the Woods\' ceiling', () => {
-    const WOODS_STATIC = 68810; // test/woodssouth.test.js pins the Woods' build at exactly this
+    const WOODS_STATIC = 69379; // test/woodssouth.test.js pins the Woods build at exactly this (68,810 before the beauty round)
     const dearest = Math.max(...FOUND_WEAR.map((r) => trisIn(buildFindDisplay({ kind: 'wear', id: r.id }))));
     expect(WOODS_STATIC + dearest).toBeLessThan(70000);
   });

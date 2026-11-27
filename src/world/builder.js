@@ -872,6 +872,38 @@ function gableTrim(k, roof, gableHex, trimHex) {
   k.poly([[-A, EAVE_Y, -L], [A, EAVE_Y, -L], [A, EAVE_Y, L], [-A, EAVE_Y, L]], [0, -1, 0], trimHex, turn);
 }
 
+function toneHex(hex, f) {
+  return new THREE.Color(hex).multiplyScalar(f).getHex();
+}
+
+// The roof's dressing: tile courses, gutters on the eaves, a ridge cap (a cap
+// on the apex for a pyramid). Canonical frame, turned with the roof.
+function roofTrim(k, look) {
+  const course = toneHex(look.roofHex, 0.8), cap = toneHex(look.roofHex, 0.66);
+  const rise = RIDGE_Y - EAVE_Y;
+  if (look.roof === 'pyramid') {
+    const A = 3.9 * Math.SQRT1_2, R = 2;
+    for (let q = 0; q < 4; q++) {
+      const turn = q * Math.PI / 2;
+      if (q % 2 === 0) k.box(0.08, 0.08, 2 * A - 0.5, A, 2.96, 0, IRON, { turn });
+      if (!look.bareRoof) for (const t of [0.2, 0.45, 0.7]) { // a roof the cat climbs stays bare
+        const a = A * (1 - t);
+        k.box(0.1, 0.04, 2 * a - 0.1, a + 0.02, 3 + R * t + 0.02, 0, course, { rz: -Math.atan2(R, A), turn });
+      }
+    }
+    return;
+  }
+  const { across: A, along: L, turn } = GABLES[look.roof];
+  for (const s of [-1, 1]) {
+    k.box(0.08, 0.08, 2 * L, s * (A - 0.04), EAVE_Y - 0.04, 0, IRON, { turn });
+    for (const t of [0.25, 0.5, 0.75]) {
+      k.box(0.1, 0.04, 2 * L - 0.3, s * (A * (1 - t) + 0.02), EAVE_Y + rise * t + 0.02, 0, course,
+        { rz: -s * Math.atan2(rise, A), turn });
+    }
+  }
+  k.box(0.22, 0.12, 2 * L + 0.06, 0, RIDGE_Y - 0.06, 0, cap, { turn });
+}
+
 // Everything on a dressed house that is not glass, as one vertex-coloured
 // geometry. Front door face is +z (door at z 2.01-2.06); body is 5 x 3 x 4.
 function houseTrimGeometry(bodyColor, look, x, z) {
@@ -957,6 +989,8 @@ function houseTrimGeometry(bodyColor, look, x, z) {
     k.box(0.6, Math.max(0.1, top - bottom), 0.6, cx, (Math.min(bottom, top - 0.1) + top) / 2, cz, CHIMNEY_BRICK);
     k.box(0.75, 0.1, 0.75, cx, 4.9, cz, CHIMNEY_CAP);
   }
+  roofTrim(k, look);
+
   return k.merged();
 }
 
@@ -1010,8 +1044,11 @@ export function house(x, z, bodyColor = 0xe8d8b0, roofColor = 0xb05a4a, bodySurf
   //
   // A gable look swaps ONLY the geometry (see gableRoofGeometry): same
   // material call and repeat, one mesh, so the same Math.random draws.
+  // a dressed house's roof takes its own tone, a shade either way
+  const roofHex = L ? toneHex(roofColor, 0.92 + 0.16 * hash01(x, z, 141)) : roofColor;
+  if (L) L.roofHex = roofHex;
   const roof = new THREE.Mesh(gabled ? gableRoofGeometry(L.roof) : new THREE.ConeGeometry(3.9, 2, 4),
-    surfMat(roofColor, 'shingle', 11, 4.4));
+    surfMat(roofHex, 'shingle', 11, 4.4));
   if (!gabled) {
     roof.position.y = 4;
     roof.rotation.y = Math.PI / 4;
