@@ -73,18 +73,22 @@
   const store = new Map();
   const progression = createProgression({ getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) });
   const log = createDiscoveryLog(progression); log.startWalk();
-  const player = { floatY: 0 };
+  const player = { floatY: 0, perchY: 0, inputActive: false, inputDirection: () => ({ x: 0, z: 0 }), halt() {} };
+  const session = { cat, ground, perched: null, perchHold: null, idleTime: 0, fair: { update() {}, late() {}, jump: () => false, pawKind: () => null, groundSpot: () => null, riding: null } };
   const life = area.life({ roomSeed: 7, sendEvent: () => {}, scene, sun, fill, ground, reducedMotion: false, tier, progression, log, audio: null, doc: document, win: window, clock: () => 250, visits: 3, player });
   const strayCats = createStrayCats(scene, area, 4, strayStream(7), { roomSeed: 7, homes: area.strayHomes ?? [] }); // the four friendly strays (standing at their homes: not stepped here)
   let t = 0;
   const lookAt = (pos, tgt, fov = 70) => { camera.fov = fov; camera.updateProjectionMatrix(); camera.position.set(...pos); camera.lookAt(...tgt); };
   let lock = null;
+  let follow = false;
   function frame() {
     t += DT;
     if (lock) lookAt(...lock);
-    life.update(DT, t, cat.position, camera, { hopLift: 0 });
+    else if (follow) { const r = cat.rotation.y; camera.position.set(cat.position.x + Math.sin(r) * 3.0, cat.position.y + 1.6, cat.position.z + Math.cos(r) * 3.0); camera.lookAt(cat.position.x, cat.position.y + 0.5, cat.position.z); } // (the walk's follow camera puts the camera back every frame; the sled's live then carries it)
+    life.update(DT, t, cat.position, camera, session);
+    session.fair.update(DT, t, { cat, player, session });
     fx.update(DT, camera);
-    animateCat(cat, 'idle', t, 0, false);
+    animateCat(cat, session.perched ? 'requestPet' : 'idle', t, 0, false);
     if (shadows) shadows.update(0, DT);
     if (useBloom) rig.renderFrame({ useComposer: true, scene, cat: null }); else renderer.render(scene, camera);
   }
@@ -109,16 +113,27 @@
     strays2: [15, -6, 0, -1, 0, [13.4, 1.4, -8.5], [17.2, 0.45, -12.6], 50],
     strays3: [8, -26, 0, -1, 0, [1.8, 1.6, -29.5], [4.2, 0.5, -33.2], 50],
     strays4: [13, 17, 0, -1, 0, [12.4, 1.5, 20.2], [10.4, 0.5, 18.6], 50],
+    run: [14, 0, 0, -1, 0, [16, 11, 4], [25, 0.5, -8], 62],
     parka: [0, 24, 0, -1, 0, [2.2, 1.0, 21.4], [0, 0.5, 24], 40],
     phone: [0, 29, 0, -1, 0, [0, 2.8, 35], [0, 1.4, 20], 62, [390, 760]],
   };
   window.__shot = (name) => {
+    if (name.startsWith('sled')) return window.__shot2(name);
     const s = S[name]; if (!s) throw new Error('no shot ' + name);
     put(s[0], s[1], s[2], s[3], s[4]);
     cam(s[5], s[6], s[7], s[8]);
     settle(30);
     const i = renderer.info.render; tag.textContent = `${name} ${TIME} ${TIER}: ${i.calls} draws, ${i.triangles} triangles`;
     return name;
+  };
+  // the sled: 'sledtop' (the offer at the top), then 'sledride:N' boards and rides N frames (the live carries the camera), 'sledland' rides to the landing
+  const SL = { x: 22.4, z: -15.2 };
+  window.__shot2 = (name) => {
+    const hy = (x, z, up) => ground.y(x, z) + up;
+    if (name === 'sledtop') { put(SL.x + 1.4, SL.z + 1.2, -1, -1); cam([SL.x + 3.4, hy(SL.x + 3.4, SL.z + 5, 1.7), SL.z + 5], [SL.x, hy(SL.x, SL.z, 0.5), SL.z - 1.0], 62); settle(30); return name; }
+    if (name === 'sledride') { put(SL.x + 1.4, SL.z + 1.2, -1, -1); life.promptAt(cat.position); life.interact(); lock = null; follow = true; for (let i = 0; i < 70; i++) frame(); tag.textContent = `cam ${camera.position.toArray().map((v) => v.toFixed(1))} cat ${cat.position.toArray().map((v) => v.toFixed(1))} perched ${!!session.perched}`; return name; }
+    if (name === 'sledland') { lock = null; follow = true; for (let i = 0; i < 400 && session.perched; i++) frame(); follow = false; cam([20, hy(20, 8, 2.4), 8], [24, hy(24, 0, 0.4), 0], 66); settle(5); return name; }
+    throw new Error('no shot ' + name);
   };
   window.__stats = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles });
   window.__ready = true;

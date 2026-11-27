@@ -25,8 +25,8 @@ const SPOTS = [
   ...JOB_SPOTS.map((q) => [q.x, q.z, 2.8]), // Tilly's errand's places
   ...[...W_CANDLES].map((q) => [q.x, q.z, 2.6]),
 ];
-/** The sled run's corridor is kept clear too (read lazily from the sled plan's own line to avoid a cycle): a short list of its middle points. */
-export const SLED_KEEP = f([[22, -15.5], [23.5, -12], [25, -8.5], [25.2, -5], [24, -2.5]]);
+/** The sled run's corridor is kept clear too: its corner points (the sled plan reads this same list, so the two never differ). */
+export const SLED_KEEP = f([[22.4, -15.2], [26.2, -13.2], [27.6, -10.2], [26.0, -7.2], [27.0, -3.8], [24.6, -0.6], [22.2, 1.4]]); // the sled run's corner points (snowvillesledplan.js smooths them)
 let _solid = null;
 const solids = () => (_solid ??= [...P.snowvilleColliders(), ...wingColliders()]);
 export function isOpen(x, z, clear = 1.2, placed = []) {

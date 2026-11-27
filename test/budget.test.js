@@ -601,8 +601,10 @@ const AREAS = [
   // tones are per-vertex colour, no triangle) measured 6 / 3 / 27,905 built (+8,739 triangles), +12%: 6 / 3 / 31,300.
   // Snowville round two, commit 1 (2026-11-27, the owner's live play: the houses' roof ridges, eave lips, frames, shutters, steps, lanterns, planks and footprints, fir snow clumps, bare birches,
   // stumps, eight pinned notices, three snowmen, a well, leaning sleds, woodpiles and pennants, stage b's snowvilledetail.js in the same merged buckets (the fine pieces in the treeline's
-  // non-casting bucket); the lower rungs skip the fine pieces) measured 6 / 3 / 41,820 built (+13,915 triangles, no mesh), +12%: 6 / 3 / 46,800. The sled run and its landing are in commit 4.
-  ['snowville', buildSnowville, 6, 3, 46800],
+  // non-casting bucket); the lower rungs skip the fine pieces) measured 6 / 3 / 41,820 built (+13,915 triangles, no mesh), +12%: 6 / 3 / 46,800.
+  // Snowville round two, commit 4 (the sled run: a packed-snow ribbon with two grooves down the hill's east flank in the non-casting bucket, and 8 flagged stakes along its edges; the sled and the speed lines
+  // are the walk's life, not in this count) measured 6 / 2 / 42,308 built (+488 triangles, no mesh; 33,833 on the lower rungs), +12%: 6 / 3 / 47,400. The rise over V8's 27,905 is the detail round's (+14.4k, +52%).
+  ['snowville', buildSnowville, 6, 3, 47400],
   // Milestone R2 (Marlo and chapter one) adds only the coral ledge (no mesh more; about 200 triangles measured on top of R3: 7 / 2 / 10,700). Marlo, the shells, their glints, the picture bubble, the meow's ring and the air pockets are the walk's life, counted in test/reefmarlo.test.js
 ];
 
