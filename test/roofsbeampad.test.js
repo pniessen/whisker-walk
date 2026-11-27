@@ -32,22 +32,24 @@ function areaBefore() {
 // A pad thumb: aims at the loft beyond the far end (or, aimA, at the near end
 // first), its angle wandering as an AR(1) walk (sigma rad, remembered ~0.3 s)
 // and its depth varying between 0.75 and 1.
-function padTry(seed, { sigma, aimA = false, steady = false, start = [-26, -33], before = false }) {
+function padTry(seed, { sigma, aimA = false, steady = false, start = [-26, -33], before = false, back = false }) {
   const rng = mulberry32(seed);
   const gauss = () => Math.sqrt(-2 * Math.log(rng() || 1e-9)) * Math.cos(2 * Math.PI * rng());
   const abilities = steady ? () => ({ ...BASE_ABILITIES, steady: true }) : () => BASE_ABILITIES;
   const area = before ? areaBefore() : roofsArea();
-  const w = yardWalk({ area, at: start, face: [0, -1], colliders: area.colliders, abilities });
+  const w = yardWalk({ area, at: start, face: back ? [0.4, 0.9] : [0, -1], colliders: area.colliders, abilities });
   const dt = 1 / 60;
   const k = Math.exp(-dt / 0.3);
   let ang = 0;
   let mounted = false;
   let minY = Infinity;
-  const goal = { x: B.x + (B.x - A.x) * 0.3, z: B.z + (B.z - A.z) * 0.3 };
+  // back: from the loft's roof, toward the tank beyond A (aimA then aims at B first)
+  const goal = back ? { x: A.x + (A.x - B.x) * 0.3, z: A.z + (A.z - B.z) * 0.3 } : { x: B.x + (B.x - A.x) * 0.3, z: B.z + (B.z - A.z) * 0.3 };
+  const near = back ? B : A;
   for (let i = 0; i < 60 * 25; i++) {
     const p = w.cat.position;
     ang = ang * k + sigma * Math.sqrt(1 - k * k) * gauss();
-    const g = aimA && !mounted ? A : goal;
+    const g = aimA && !mounted ? near : goal;
     let dx = g.x - p.x;
     let dz = g.z - p.z;
     const l = Math.hypot(dx, dz) || 1;
@@ -60,6 +62,10 @@ function padTry(seed, { sigma, aimA = false, steady = false, start = [-26, -33],
     w.frame(dt);
     if (w.live.crossing) mounted = true;
     minY = Math.min(minY, p.y);
+    if (back) {
+      if (mounted && !w.live.busy && Math.abs(w.area.ground.y(p.x, p.z) - LEVELS.TANK) < 0.2 && Math.hypot(p.x + 26, p.z + 34) < 1.3 && p.z > -34.6) return { ok: true, minY };
+      continue;
+    }
     if (mounted && !w.live.busy && Math.abs(w.area.ground.y(p.x, p.z) - LEVELS.TANK) < 0.2 && p.z < -43.2 && p.x < -30.3) return { ok: true, minY };
   }
   return { ok: false, minY };
@@ -100,6 +106,23 @@ describe('pipe-1 with a wandering pad stick', () => {
   it('with Tightrope Tail it crosses at least as often', () => {
     for (const t of THUMBS) expect(rate({ ...t, steady: true }, 100).ok).toBeGreaterThanOrEqual(95);
   });
+});
+
+// The way back, from the loft's roof to the tank: the same wandering thumbs (99 of 100).
+describe('pipe-1 walked back from the loft with a wandering pad stick', () => {
+  const BACK = [
+    { name: 'aimed at the tank from the loft climb-down spot', sigma: 0.4, back: true, start: [-33, -43.5] },
+    { name: 'aimed at the loft end first', sigma: 0.4, back: true, aimA: true, start: [-33, -45] },
+    { name: 'a shakier thumb', sigma: 0.6, back: true, aimA: true, start: [-34, -45] },
+  ];
+  for (const t of BACK) {
+    it(`crosses in at least 99 of 100 seeded tries, never below the roof, ${t.name}`, () => {
+      const r = rate(t, 100);
+      console.log('BACK', t.name, `${r.ok}/${r.n}`);
+      expect(r.ok).toBeGreaterThanOrEqual(99);
+      expect(r.minY).toBeGreaterThan(LEVELS.TANK - 1e-6);
+    });
+  }
 });
 
 describe('a clearly wrong move still does not get her on, and nothing else changed', () => {
