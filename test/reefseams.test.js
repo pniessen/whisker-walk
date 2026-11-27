@@ -232,7 +232,7 @@ describe('the reserved ids', () => {
     expect([AWARDS.reeffind, AWARDS.reefstory, AWARDS.reefjob]).toEqual([12, 40, 25]);
     expect([AWARDS.reeflab, AWARDS.reefwreck]).toEqual([40, 40]); // R10: reserved, nothing pays them yet
   });
-  it('couch play is not ready under the sea', () => { expect(COOP_READY.reef).toBe(false); });
+  it('couch play is ready under the sea (M5d: test/coopm5reef.test.js, test/coopreef.test.js)', () => { expect(COOP_READY.reef).toBe(true); });
   it('the Reef\'s catalog row (R6) is free and gate-only: no price, no edition key, hidden while the gates switch is off (test/reefgate.test.js)', () => {
     expect(CATALOG.areas.reef).toMatchObject({ price: 0, gate: 'tele' });
   });

@@ -81,7 +81,7 @@ describe('M4: a change of place moves both cats', () => {
 
   it('a place that is not ready leaves cat two waiting, and the next ready place brings it back', () => {
     const r = joined();
-    r.setSession(newSession('reef')); r.tick(2);
+    r.setSession(newSession('nowhere')); r.tick(2);
     expect(r.h.state.joined).toBe(false);
     expect(r.h.state.seats[1]).toEqual({ index: 1, lost: false });
     const back = newSession('river');
