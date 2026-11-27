@@ -20,10 +20,10 @@
 
 import { createGround } from '../ground.js';
 import {
-  WING_ROOMS, WING_STAIRS, WING_DOORWAYS, WING_WINDOWS, WING_LAMPS, WING_FURNITURE, WING_ZONES, WING_JOINS, ZONE_NEAR, ZONE_LEAVE, OUT_NEAR, OUT_LEAVE,
+  WING_ROOMS, WING_STAIRS, WING_DOORWAYS, WING_WINDOWS, WING_LAMPS, WING_FURNITURE, WING_ZONES, WING_JOINS, ZONE_NEAR, ZONE_LEAVE, OUT_NEAR, OUT_LEAVE, SECRET_WARDROBE, WING_TUNNEL,
 } from './housewingplan.js';
 
-export { WING_JOINS, ZONE_NEAR, ZONE_LEAVE, OUT_NEAR, OUT_LEAVE };
+export { WING_JOINS, ZONE_NEAR, ZONE_LEAVE, OUT_NEAR, OUT_LEAVE, SECRET_WARDROBE, WING_TUNNEL };
 
 let active = null; // the plan a build is running against (withPlan, at the end of this file)
 
@@ -97,7 +97,7 @@ export const HOUSE_WINDOWS = frozenAll([
   ...WING_WINDOWS,
 ]);
 
-export const HOUSE_BOUNDS = freeze({ minX: -24, maxX: 50, minZ: -16, maxZ: 12 });
+export const HOUSE_BOUNDS = freeze({ minX: -24, maxX: 52, minZ: -16, maxZ: 12 }); // 50 until the wonder room (x 41 to 52)
 
 // ---- the secret bookcase (step 2, ruling D9) ----
 
@@ -129,9 +129,12 @@ export const SECRET_R = 0.26;
 // less) down the leaf's centreline from its pivot, on the ground level, tagged
 // `secret` so the walk can swap one row for the other. houseColliders carries the shut row.
 export function secretColliders(open, into = 'library') {
-  const b = SECRET_BOOKCASE;
+  return leafColliders(SECRET_BOOKCASE, open, into, 'ground', 'secret');
+}
+// The same row for any leaf shaped like the bookcase (the kids' wardrobe, the wonder stair's: SECRET_WARDROBE), on `level`, tagged `tag`.
+function leafColliders(b, open, into, level, tag) {
   const stair = open && into === 'stair';
-  const p = open ? secretPivot(into) : b.hinge;
+  const p = open ? leafPivot(b, into) : b.hinge;
   // open into the stair, the leaf's centreline runs north up the stair d/2 in from the wall line
   const x0 = stair ? p.x + b.d / 2 : p.x;
   const ux = open ? 0 : 1;
@@ -140,10 +143,14 @@ export function secretColliders(open, into = 'library') {
   const out = [];
   for (let i = 0; i <= n; i++) {
     const t = (b.w * i) / n;
-    out.push({ x: x0 + ux * t, z: p.z + uz * t, r: SECRET_R, level: 'ground', secret: true });
+    out.push({ x: x0 + ux * t, z: p.z + uz * t, r: SECRET_R, level, [tag]: true });
   }
   return out;
 }
+const leafPivot = (b, into) => (into === 'stair' ? { x: b.hinge.x, z: b.hinge.z - b.d / 2 } : b.hinge);
+/** The kids' wardrobe's colliders, shut or open (`into`: 'room' is the kids' room, from the stair; 'stair' from the room), tagged `wardrobe`. */
+export const wardrobeColliders = (open, into = 'room') => leafColliders(SECRET_WARDROBE, open, into, 'upstairs', 'wardrobe');
+export const wardrobePivot = (into) => leafPivot(SECRET_WARDROBE, into);
 
 // The shut front door on the hall's south wall, and where she lands coming in
 // (yaw 0 faces -z). Data only in step 1; step 4 opens it.
@@ -350,7 +357,7 @@ export const HOUSE_FURNITURE = frozenAll([
 // A piece's colliders: circles of its r down the middle of its long side, no
 // further apart than r, the end ones r in from its ends (one circle if it is short).
 function furnitureColliders(f) {
-  if (!(f.r > 0) || f.ledge) return [];
+  if (!(f.r > 0) || f.ledge || f.free) return []; // `free`: the tunnel's rings stand over the floor she crawls on (WING_TUNNEL has its own side rows)
   const wide = f.w >= f.d;
   const len = wide ? f.w : f.d;
   const ax = wide ? Math.cos(f.rotY) : Math.sin(f.rotY);
@@ -609,7 +616,8 @@ export const HOUSE_ZONES = frozenAll([
 ]);
 const WING_ZONE_IDS = new Set(WING_ZONES.map((z) => z.id));
 export const isWingZone = (id) => WING_ZONE_IDS.has(id);
-const wingStair = HOUSE_STAIRS.find((s) => WING_STAIRS.some((w) => w.id === s.id));
+const wingStair = HOUSE_STAIRS.find((s) => s.id === 'wing');
+const wonderStair = HOUSE_STAIRS.find((s) => s.id === 'wonderstair');
 // The wing zone she is in, by where she stands (not by her paws' height: the wing's floors share
 // heights with the old levels): a wing room's, or on the wing stair the zone of her half of it.
 // null anywhere else, and the old levels read their own height as they always did.
@@ -618,6 +626,7 @@ export const outdoorsAt = (x, z) => roomAt(x, z) === null && stairAt(x, z) === n
 export function wingZoneAt(x, z) {
   for (const r of HOUSE_ROOMS) if (r.zone && inRect(r, x, z)) return r.zone;
   if (inRect(stairRect(wingStair), x, z)) return x < (wingStair.x0 + wingStair.x1) / 2 ? 'sun' : 'kids';
+  if (inRect(stairRect(wonderStair), x, z)) return z > (wonderStair.z0 + wonderStair.z1) / 2 ? 'kids' : 'wonder'; // the secret stair: her half of it
   return null;
 }
 
@@ -774,10 +783,12 @@ function buildSections(plan, stairs) {
       // rough edge 4: the wall over the shut bookcase in the secret stair's library mouth, from
       // its top to the wall's, so the stair never shows through from across the library. A
       // lintel: it sinks to nothing when the camera on the stair looks back at her.
-      const B = SECRET_BOOKCASE;
-      for (const [a, b] of plan.secret ? stairOpenings(room, edge, stairs) : []) {
-        if (edge.run !== 'x' || Math.abs(edge.fixed - B.z) > 1e-9 || Math.abs(a - (B.x - B.w / 2)) > 1e-9 || Math.abs(b - (B.x + B.w / 2)) > 1e-9) continue;
-        sections.push(make({ id: `${room.id}-${side}-${k++}`, kind: 'lintel', level: room.level, owner: room.id, side, ...along(edge, a, b), base: y + B.h, height: WALL_H - B.h, stub: 0, outer: false }));
+      // the same over the kids' wardrobe in the kids' north wall (the wonder stair's mouth), when the plan has the wing
+      for (const B of [plan.secret ? SECRET_BOOKCASE : null, plan.wing?.wardrobe ?? null]) {
+        for (const [a, b] of B ? stairOpenings(room, edge, stairs) : []) {
+          if (edge.run !== 'x' || Math.abs(edge.fixed - B.z) > 1e-9 || Math.abs(a - (B.x - B.w / 2)) > 1e-9 || Math.abs(b - (B.x + B.w / 2)) > 1e-9) continue;
+          sections.push(make({ id: `${room.id}-${side}-${k++}`, kind: 'lintel', level: room.level, owner: room.id, side, ...along(edge, a, b), base: y + B.h, height: WALL_H - B.h, stub: 0, outer: false }));
+        }
       }
     }
   });
@@ -844,6 +855,7 @@ export function houseColliders(given = OLD_HOUSE_PLAN) {
   for (const f of plan.furniture ?? []) out.push(...furnitureColliders(f));
   for (const l of plan.lamps ?? []) out.push({ x: l.x, z: l.z, r: LAMP_R, level: roomById(l.room).level });
   if (plan.secret) out.push(...secretColliders(false)); // the bookcase shut (house life swaps in the open row)
+  if (plan.wing?.wardrobe) out.push(...wardrobeColliders(false), ...WING_TUNNEL.colliders.map((c) => ({ ...c }))); // the kids' wardrobe shut, the same way, and the crinkly tunnel's two side rows
   return out;
 }
 
@@ -889,7 +901,7 @@ export const OLD_HOUSE_PLAN = freeze({
   ledges: HOUSE_LEDGES,
   secret: true,
   cellarLid: HOUSE_CELLAR_LID,
-  wing: freeze({ zoneAt: wingZoneAt, isWing: isWingZone, outdoors: outdoorsAt, joins: WING_JOINS, near: ZONE_NEAR, leave: ZONE_LEAVE }),
+  wing: freeze({ zoneAt: wingZoneAt, isWing: isWingZone, outdoors: outdoorsAt, joins: WING_JOINS, near: ZONE_NEAR, leave: ZONE_LEAVE, wardrobe: SECRET_WARDROBE }),
   dressing: true, // the Old House's own garden, hedge, neighbours and trees, its things and its life (house.js)
 });
 

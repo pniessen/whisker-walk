@@ -70,12 +70,12 @@ export function catPoints(a, b) {
 /**
  * The smallest zoom level at or above `base` that fits the points, or the
  * widest step when even that does not (a bisection: more distance only ever
- * brings the cats closer to the middle of the picture).
+ * brings the cats closer to the middle of the picture). `top` is the farthest step the place allows (the Den stops at the default step).
  */
-export function neededLevel(pts, base, mid, yaw, lens) {
+export function neededLevel(pts, base, mid, yaw, lens, top = MAX_ZOOM_STEP) {
   if (fitsAt(pts, base, mid, yaw, lens)) return base;
-  if (!fitsAt(pts, MAX_ZOOM_STEP, mid, yaw, lens)) return MAX_ZOOM_STEP;
-  let lo = base, hi = MAX_ZOOM_STEP;
+  if (!fitsAt(pts, top, mid, yaw, lens)) return top;
+  let lo = base, hi = top;
   for (let i = 0; i < 9; i++) {
     const m = (lo + hi) / 2;
     if (fitsAt(pts, m, mid, yaw, lens)) hi = m; else lo = m;
@@ -89,8 +89,8 @@ const sepCache = new Map();
  * camera at its widest step: the leash of couch play. Read from the live
  * lens, so a 4:3 window gets less than a 16:9 television.
  */
-export function maxSeparation(lens) {
-  const key = `${lens.fov}|${lens.aspect}|${lens.pitch}|${lens.lookY}`;
+export function maxSeparation(lens, top = MAX_ZOOM_STEP) {
+  const key = `${lens.fov}|${lens.aspect}|${lens.pitch}|${lens.lookY}|${top}`;
   if (sepCache.has(key)) return sepCache.get(key);
   const mid = new THREE.Vector3(0, 0, 0);
   const a = new THREE.Vector3(), b = new THREE.Vector3();
@@ -99,7 +99,7 @@ export function maxSeparation(lens) {
     const d = (lo + hi) / 2;
     a.set(-d / 2, 0, 0); b.set(d / 2, 0, 0); // yaw 0: the screen's right is +x
     const pts = catPoints(a, b);
-    if (fitsAt(pts, MAX_ZOOM_STEP, mid, 0, lens)) lo = d; else hi = d;
+    if (fitsAt(pts, top, mid, 0, lens)) lo = d; else hi = d;
   }
   sepCache.set(key, lo);
   return lo;

@@ -7,6 +7,7 @@ vi.stubGlobal('document', canvasStub);
 
 const H = await import('../src/world/houseplan.js');
 const { createWallSink, makeView, SINK } = await import('../src/housewalls.js');
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
 const { build } = await import('../src/world/house.js');
 const { CAT_LOOK_Y } = await import('../src/cat/model.js');
 
@@ -16,7 +17,7 @@ const { CAT_LOOK_Y } = await import('../src/cat/model.js');
 // others, and the wing builds and goes away with the house.
 // =============================================================================
 
-const WING_OWNERS = new Set(['livingroom', 'solarium', 'kids', 'bath', 'wing']);
+const WING_OWNERS = new Set(['livingroom', 'solarium', 'kids', 'bath', 'wing', 'wonder', 'wonderstair']); // (the kids' north wall is the kids' own, and the wardrobe's lintel with it)
 const sections = H.houseSections();
 const mine = (s) => WING_OWNERS.has(s.owner);
 

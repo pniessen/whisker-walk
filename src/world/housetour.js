@@ -92,6 +92,14 @@ export const HOUSE_SHOTS = freeze({
   'sofa-seat': shot([18.6, 3.1], [0, 1], 1, 'A sofa for a nap', { ledge: 'living-sofa' }),
   'bunk-top': shot([47.4, 6.0], [-1, 0], 1, 'Top bunk!', { ledge: 'kids-bunk-top' }),
   'wing-outside': shot([27.0, 7.0], [1, 0], 3, 'The new rooms, from outside'),
+  // the secret wonder room (milestone 3), named by room id: the wardrobe shut and open (`wardrobe`: the page opens it the walk's own way, from the kids' room), the room from the top of its
+  // stair, the cat tree's crown, the tunnel, and the loft with its round window seen from the kids' room at Farther (the lawn is not a place she can stand)
+  wonder: shot([46.4, -6.0], [0, -1], 1, 'A secret room!'),
+  'wardrobe-shut': shot([46.4, 6.0], [0, -1], 1, 'A wardrobe in the wall'),
+  'wardrobe-open': shot([44.0, 6.0], [0.5, -1], 1, 'The wardrobe swings open', { wardrobe: true }),
+  'tree-crown': shot([48.99, -11.35], [-1, 0], 1, 'King of the cat tree!', { ledge: 'wonder-tree-crown' }),
+  tunnel: shot([50.6, -6.0], [0, -1], 0, 'A crinkly tunnel'),
+  'wonder-outside': shot([46.4, 4.0], [0, -1], 3, 'A little room up high'),
   // step 4: the world map's place card (public/places/house.jpg, shot at 640 x 360): just in
   // at the front door, Far, looking up the hall's runner to the big stair, the library on the
   // left and the parlour on the right (sips formatOptions 50: the boards' grain is busy, 80

@@ -37,6 +37,9 @@ const mid = (id) => Z[id][0];
 const near = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const area0 = build(new THREE.Scene());
 const flood = floodFrom(area0, area0.spawn, (x, z) => isWalkableAt(area0, x, z));
+// walked, not hopped: the cells a cat on foot reaches from the spawn, up the flights of stairs and along the decks and bridges (treehouseplan.js walkFlood)
+const walked = P.walkFlood();
+const walkReaches = (x, z, y = 0, tol = 0.6) => walked.some((c) => Math.hypot(c.x - x, c.z - z) <= tol && Math.abs(c.y - y) < 0.3);
 const onPerch = (p, tolY = 0.9) => P.TREEHOUSE_PERCHES.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < 1.0 && Math.abs(q.y - (p.y ?? 0)) < tolY);
 
 describe('each find is found by its rule', () => {
@@ -73,7 +76,7 @@ describe('each find is found by its rule', () => {
         expect(flood.reachesWithin(z.x, z.z, z.r), `${id} reached`).toBe(true);
       } else {
         expect(onPerch(z), `${id} on a perch`).toBe(true);
-        expect(perchHops(area0.perches, z, { groundOk: (x, y) => flood.reachesWithin(x, y, 1.5) }), `${id} reached by hops`).toBeLessThan(Infinity);
+        expect(walkReaches(z.x, z.z, z.y), `${id} reached on foot`).toBe(true);
       }
     }
   });
@@ -255,7 +258,8 @@ describe('three golden mice', () => {
   it('in the bounds, clear of colliders, finds, collectibles, cap spots and the spawn; the ground one on foot, the two up on a perch within the plan\'s hops', () => {
     const b = area0.bounds;
     const area = build(new THREE.Scene());
-    for (const m of GOLD) {
+    for (const g of GOLD) {
+      const m = { ...g, y: g.y + P.TREEHOUSE_GROUND.y(g.x, g.z) }; // the mouse's y is metres over the deck or bridge under it: this is its height over the earth
       expect(m.x > b.minX + 2 && m.x < b.maxX - 2 && m.z > b.minZ + 2 && m.z < b.maxZ - 2, m.id).toBe(true);
       if (m.y === 0) for (const c of area0.colliders) expect(near(m, c), m.id).toBeGreaterThan(c.r + 0.5);
       for (const z of Object.values(Z).flat()) if (Math.abs(z.y - m.y) < 0.9) expect(near(m, z), `${m.id} vs a find`).toBeGreaterThan(Math.max(2, z.r + 1));
@@ -265,10 +269,11 @@ describe('three golden mice', () => {
       if (m.y === 0) expect(flood.reachesWithin(m.x, m.z, 0.9), `${m.id} reached`).toBe(true);
       else {
         expect(onPerch(m, 0.05), `${m.id} stands on a perch`).toBe(true);
-        expect(perchHops(area0.perches, m, { groundOk: (x, z) => flood.reachesWithin(x, z, 1.5) }), `${m.id} hops`).toBeLessThan(Infinity);
+        expect(walkReaches(m.x, m.z, m.y, 0.9), `${m.id} reached on foot`).toBe(true);
       }
     }
-    expect(GOLD.map((m) => m.y)).toEqual([0, 4.2, 5.6]);
+    expect(GOLD.map((m) => m.y)).toEqual([0, 0, 0]); // over the ground under each: the roots, the far platform (4.2) and the Crown deck (5.6)
+    expect(GOLD.map((m) => P.TREEHOUSE_GROUND.y(m.x, m.z))).toEqual([0, 4.2, 5.6]);
   });
   it('the totals are 71 (Clan) and 47 (everyday): the three count in both editions', () => {
     expect(GOLD_TOTAL).toBe(CLAN_TOTAL);
@@ -282,16 +287,15 @@ describe('the Canopy Cap\'s four spots', () => {
   const spots = spotsIn('treehouse');
   it('four, two on the ground and two on decks, 15 m from the spawn, 3 m from both yarn spots, clear of every find ring, inside no collider, reached', () => {
     expect(spots).toHaveLength(4);
-    expect(spots.map((s) => s.y)).toEqual([0, 1.4, 2.8, 0]);
+    expect(spots.map((s) => s.y)).toEqual([0, 0, 0, 0]); // metres over the ground under each
+    expect(spots.map((s) => P.TREEHOUSE_GROUND.y(s.x, s.z))).toEqual([0, 1.4, 2.8, 0]); // two stand on a deck and the landing
     const yarn = PROPSETS?.treehouse ?? [{ x: -4, z: 19 }, { x: 12, z: 10 }];
     for (const s of spots) {
       expect(near(s, area0.spawn), s.id).toBeGreaterThan(15);
       for (const y of yarn) expect(near(s, y), `${s.id} vs yarn`).toBeGreaterThanOrEqual(3);
       for (const z of Object.values(Z).flat()) if (Math.abs(z.y - s.y) < 0.9) expect(near(s, z), `${s.id} vs a find ring`).toBeGreaterThan(z.r + 1);
-      if (s.y === 0) {
-        for (const c of area0.colliders) expect(near(s, c), s.id).toBeGreaterThan(c.r + 0.3);
-        expect(flood.reachesWithin(s.x, s.z, 0.9), `${s.id} reached`).toBe(true);
-      } else expect(perchHops(area0.perches, s, { groundOk: (x, z) => flood.reachesWithin(x, z, 1.5) }), s.id).toBeLessThanOrEqual(3);
+      for (const c of area0.colliders) expect(near(s, c), s.id).toBeGreaterThan(c.r + 0.3);
+      expect(walkReaches(s.x, s.z, P.TREEHOUSE_GROUND.y(s.x, s.z), 0.9), `${s.id} reached on foot`).toBe(true);
     }
   });
 });

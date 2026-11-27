@@ -213,8 +213,8 @@ describe('two screens of one house', () => {
         expect(s.scene.getObjectByName('kitten') ?? null).toBeNull();
       }
       // the same golden mice, at the same spots
-      expect(gold(a).length).toBe(3);
-      for (const id of gold(a)) expect(id).toMatch(/^gm-house-[1-3]$/);
+      expect(gold(a).length).toBe(5);
+      for (const id of gold(a)) expect(id).toMatch(/^gm-house-[1-5]$/);
       expect(gold(b)).toEqual(gold(a));
       expect(b.goldMice.list.map((m) => [m.x, m.z])).toEqual(a.goldMice.list.map((m) => [m.x, m.z]));
       // the house's mice, the same on both after the same 300 frames
@@ -357,6 +357,7 @@ describe('a walk picked up on the secret stair', () => {
 // =============================================================================
 describe('a partner at the bookcase', () => {
   async function scene() {
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
     const { build } = await import('../src/world/house.js');
     const scn = new THREE.Scene();
     const record = build(scn, { gateEnds: endsFor('house') });

@@ -565,7 +565,7 @@ const STATES = {
 // reached by the house's own ledge climbs, pinned in test/housethings.test.js
 // and test/housegame.test.js. Only the house is skipped, by name, so any other
 // area missing from AREAS still fails loudly.
-const NOT_MODELLED = new Set(['house', 'lighthouse', 'moon', 'greenhouse', 'reef', 'crystal', 'snowville', 'jungle']); // (Snowville's three are on foot, walked on its own plan: test/snowvillefinds.test.js) (the Greenhouse's three are walked on its own plan: test/greenhousegold.test.js) (Lighthouse Point's three are walked on its own plan: test/lighthousegold.test.js; the Moon's three are climbed on the Moon's own budget: test/moonfinds.test.js; the Reef's are floated to, R3)
+const NOT_MODELLED = new Set(['house', 'lighthouse', 'moon', 'greenhouse', 'reef', 'crystal', 'snowville', 'jungle', 'treehouse']); // (the Treehouse's three are walked on its own plan, up its flights of stairs: test/treehousefinds.test.js) (Snowville's three are on foot, walked on its own plan: test/snowvillefinds.test.js) (the Greenhouse's three are walked on its own plan: test/greenhousegold.test.js) (Lighthouse Point's three are walked on its own plan: test/lighthousegold.test.js; the Moon's three are climbed on the Moon's own budget: test/moonfinds.test.js; the Reef's are floated to, R3)
 const CLIMB_MICE = Object.entries(GOLD_MICE).filter(([area]) => !NOT_MODELLED.has(area));
 
 function hopTable(state, fenceRun = false) {
@@ -650,9 +650,6 @@ const SHIPPED_HOPS = {
   'gm-market-1': 2,
   'gm-market-2': 1,
   'gm-market-3': 0,
-  'gm-treehouse-1': 0, // on the roots
-  'gm-treehouse-2': 11, // the far platform y 4.2: the stair, the branch walk's seven planks, the Bookshop deck, the stair up (each hop at most 1.4 m, 2.4 across)
-  'gm-treehouse-3': 15, // the crown deck y 5.6: on past the far platform, the rope bridge's three planks, the stair up
   'fair-5': 1,    // the bandstand's deck, 0.6: one hop from its steps
 };
 
@@ -674,7 +671,7 @@ describe('shipped golden mice and rooftop collectible — no skills', () => {
   it('no mouse is reachable without a perch except the three deliberately-hidden ground ones', () => {
     const table = hopTable(STATES.none);
     const ground = Object.entries(table).filter(([, hops]) => hops === 0).map(([id]) => id);
-    expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-market-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-roofs-1', 'gm-roofs-2', 'gm-roofs-3', 'gm-sea-3', 'gm-treehouse-1', 'gm-woods-3']);
+    expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-market-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-roofs-1', 'gm-roofs-2', 'gm-roofs-3', 'gm-sea-3', 'gm-woods-3']);
     for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
   });
 });
@@ -899,16 +896,10 @@ describe('Fence Runner — the shipped-content pin', () => {
     // wall-run edge switched on, in every traversal-skill state. Not one
     // number may move: the fence-run edge is level-only, and every chain step
     // in the game is a climb of 0.9 or more.
-    // One exception (the Treehouse, T3): its rope bridge and walks are lines of LEVEL perches, which the fence-run edge joins, so its two raised mice are fewer hops with the
-    // wall-run on (never more, and still reached). They are compared on their own, below; every other number is pinned.
-    const TREE = ['gm-treehouse-2', 'gm-treehouse-3'];
-    const without = (t) => Object.fromEntries(Object.entries(t).filter(([id]) => !TREE.includes(id)));
     for (const state of Object.values(STATES)) {
-      expect(without(hopTable(state, true))).toEqual(without(hopTable(state, false)));
-      for (const id of TREE) expect(hopTable(state, true)[id]).toBeLessThanOrEqual(hopTable(state, false)[id]);
+      expect(hopTable(state, true)).toEqual(hopTable(state, false));
     }
-    expect(without(hopTable(STATES.none, true))).toEqual(without(SHIPPED_HOPS));
-    expect(TREE.map((id) => hopTable(STATES.none, true)[id])).toEqual([8, 10]);
+    expect(hopTable(STATES.none, true)).toEqual(SHIPPED_HOPS);
   });
 
   it('keeps the Docks crane chain (chain C) at four hops with the wall-run on', () => {
@@ -923,7 +914,7 @@ describe('Fence Runner — the shipped-content pin', () => {
     for (const state of Object.values(STATES)) {
       const table = hopTable(state, true);
       const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
-      expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-market-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-roofs-1', 'gm-roofs-2', 'gm-roofs-3', 'gm-sea-3', 'gm-treehouse-1', 'gm-woods-3']);
+      expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-market-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-roofs-1', 'gm-roofs-2', 'gm-roofs-3', 'gm-sea-3', 'gm-woods-3']);
       for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
     }
   });
@@ -1251,7 +1242,7 @@ describe('CF-9b — the gated perches short-circuit nothing', () => {
       for (const fenceRun of [false, true]) {
         const table = hopTable(state, fenceRun);
         const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
-        expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-market-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-roofs-1', 'gm-roofs-2', 'gm-roofs-3', 'gm-sea-3', 'gm-treehouse-1', 'gm-woods-3']);
+        expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-market-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-roofs-1', 'gm-roofs-2', 'gm-roofs-3', 'gm-sea-3', 'gm-woods-3']);
         for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
       }
     }

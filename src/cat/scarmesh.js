@@ -66,9 +66,9 @@ export const SCAR_COLOURS = Object.freeze({ full: 0xf4b0ba, pale: 0xfde8ea, half
 // sites' lines were still too small to find from the walk camera, so they are
 // longer and wider again (length 0.075 -> 0.095, width 0.014 -> 0.018, gap
 // 0.025 -> 0.032 to match). The face's lines keep their size.
-const UP = [0, 1, 0];
-const FWD = [0, 0, -1];
-const OUT = 'out';
+export const UP = [0, 1, 0];
+export const FWD = [0, 0, -1];
+export const OUT = 'out';
 export const SCAR_LAYOUT = Object.freeze({
   face: Object.freeze({ dir: [0.1, 0.1, -0.155], ref: UP, toward: OUT, slant: 0.5, length: 0.065, gap: 0.02, width: 0.011 }),
   shoulder: Object.freeze({ dir: [0.55, 1, -0.5], ref: UP, toward: FWD, slant: 0.45, length: 0.095, gap: 0.032, width: 0.018 }),
@@ -100,7 +100,7 @@ const NICK_TAPER = [0.6, 1, 0.6];
 
 // The skull: SKULL's ellipsoid, centred on the head's origin, in head-local
 // units (the head's own scale, HEAD.SCALE, is applied by its matrix).
-function skullSurface(colour) {
+export function skullSurface(colour) {
   const [a, b, c] = SKULL.SCALE.map((k) => SKULL.R * k);
   return (d) => {
     const t = 1 / Math.hypot(d.x / a, d.y / b, d.z / c);
@@ -163,7 +163,7 @@ function torsoHit(geo, S) {
 
 // The torso's base coat: its most common painted colour (bands, patches and
 // bibs cover only part of it; the rest is exactly the base).
-function coatBase(geo) {
+export function coatBase(geo) {
   const col = geo.attributes.color;
   const counts = new Map();
   let best = null, bestN = 0;
@@ -188,8 +188,9 @@ function tangent(v, ...ns) {
 // One scar's three strips: positions (in the layout's units), normals and the
 // coat colour under each vertex, appended to `out`. False (and `out` left
 // unused) when the surface is missing anywhere under the scar.
-function layScar(layout, sx, surface, out) {
+export function layScar(layout, sx, surface, out) {
   const { length, gap, slant } = layout;
+  const offs = layout.single ? [0] : [-gap, 0, gap];
   const units = out.units;
   const d = new THREE.Vector3(layout.dir[0] * sx, layout.dir[1], layout.dir[2]);
   const centre = surface(d);
@@ -200,7 +201,7 @@ function layScar(layout, sx, surface, out) {
   const along = U.clone().multiplyScalar(Math.cos(slant)).addScaledVector(T, Math.sin(slant));
   const perp = new THREE.Vector3().crossVectors(N, along).normalize();
   const segs = SCAR_STRIP.segments;
-  for (const off of [-gap, 0, gap]) {
+  for (const off of offs) {
     for (let j = 0; j <= segs; j++) {
       const q = P.clone()
         .addScaledVector(along, (j / segs - 0.5) * length / units)
@@ -226,7 +227,7 @@ function layScar(layout, sx, surface, out) {
 // own local space (it is fitted through head × ear each frame, so it rolls
 // with the ear when the animator pins it), appended to `out` like layScar's.
 // False when the ear is not the 4-sided cone it is expected to be.
-function layNick(ear, sx, out) {
+export function layNick(ear, sx, out, points = SCAR_NICK.points, width = SCAR_NICK.width) {
   // A shell ear (face.js shellEarGeometry, the B6 option) has a curved back:
   // it gives its own back surface, and the same two strokes are laid on that.
   const backAt = ear.geometry.userData.backAt;
@@ -234,14 +235,14 @@ function layNick(ear, sx, out) {
     const units = out.units, segs = SCAR_NICK.segments;
     const colour = ear.material.color.clone();
     for (let k = 0; k < 2; k++) {
-      const [v0, u0] = SCAR_NICK.points[k], [v1, u1] = SCAR_NICK.points[k + 1];
+      const [v0, u0] = points[k], [v1, u1] = points[k + 1];
       const a = backAt(v0, u0, sx).point, b = backAt(v1, u1, sx).point;
       const along = b.clone().sub(a).normalize();
       for (let j = 0; j <= segs; j++) {
         const t = j / segs, on = backAt(v0 + (v1 - v0) * t, u0 + (u1 - u0) * t, sx);
         const side = new THREE.Vector3().crossVectors(on.normal, along).normalize();
         const H = on.point.clone().addScaledVector(on.normal, SCAR_NICK.lift / units);
-        const w = (SCAR_NICK.width / 2) * NICK_TAPER[j] / units;
+        const w = (width / 2) * NICK_TAPER[j] / units;
         for (const s of [1, -1]) {
           out.points.push(H.clone().addScaledVector(side, s * w));
           out.normals.push(on.normal.clone());
@@ -278,7 +279,7 @@ function layNick(ear, sx, out) {
   const at = ([v, u]) => B.clone().lerp(C, v).lerp(A, u);
   // The coat under the nick: the ear's colour, shaded by its painted back.
   const col = ear.geometry.attributes.color;
-  const mid = at(SCAR_NICK.points[1]);
+  const mid = at(points[1]);
   const pos = ear.geometry.attributes.position;
   let near = 0, nd = Infinity;
   const tmp = new THREE.Vector3();
@@ -291,12 +292,12 @@ function layNick(ear, sx, out) {
   const units = out.units;
   const segs = SCAR_NICK.segments;
   for (let k = 0; k < 2; k++) {
-    const P0 = at(SCAR_NICK.points[k]), P1 = at(SCAR_NICK.points[k + 1]);
+    const P0 = at(points[k]), P1 = at(points[k + 1]);
     const along = P1.clone().sub(P0).normalize();
     const side = new THREE.Vector3().crossVectors(N, along).normalize();
     for (let j = 0; j <= segs; j++) {
       const H = P0.clone().lerp(P1, j / segs).addScaledVector(N, SCAR_NICK.lift / units);
-      const w = (SCAR_NICK.width / 2) * NICK_TAPER[j] / units;
+      const w = (width / 2) * NICK_TAPER[j] / units;
       for (const s of [1, -1]) {
         out.points.push(H.clone().addScaledVector(side, s * w));
         out.normals.push(N.clone());
@@ -310,7 +311,7 @@ function layNick(ear, sx, out) {
 
 // The full stage's colour for a scar over `under` (every vertex's coat) on a
 // cat whose coat base is `base`: the soft red, or pale where it would not read.
-function fullColour(under, base) {
+export function fullColour(under, base) {
   const red = new THREE.Color(SCAR_COLOURS.full);
   const close = [base, ...under].some((c) => colourDistance(red, c) < SCAR_COLOURS.minDistance);
   return close ? new THREE.Color(SCAR_COLOURS.pale) : red;
@@ -386,6 +387,14 @@ export function setCatScars(cat, scars) {
 
   const n = rest.length / 3;
   if (n === 0) return; // every scar was skipped: no mesh at all
+  parts.scars = hangMesh(cat, 'scars', { rest, restNormal, colours, under, strips, split, earSplit, earKey });
+  fitScars(cat);
+}
+
+// One vertex-coloured mesh of raised strips hung on the cat group, shared by
+// the fight scars and the builder's scar mark (same fit, same flags).
+export function hangMesh(cat, name, { rest, restNormal, colours, under, strips, split, earSplit, earKey }) {
+  const n = rest.length / 3;
   const geo = new THREE.BufferGeometry();
   const position = new THREE.BufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage);
   const normal = new THREE.BufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage);
@@ -404,7 +413,7 @@ export function setCatScars(cat, scars) {
   geo.setIndex(index);
 
   const mesh = new THREE.Mesh(geo, litMaterial(0xffffff, { vertexColors: true }));
-  mesh.name = 'scars';
+  mesh.name = name;
   mesh.castShadow = false;
   // It receives shadows (controller ruling); rig.js's shadow sweep skips a
   // noCast mesh, so the flag is set here on the mesh itself.
@@ -418,8 +427,7 @@ export function setCatScars(cat, scars) {
   mesh.userData.earKey = earKey;     // which ear the nick rides (parts[earKey]), or null
   mesh.userData.under = new Float32Array(under);
   cat.add(mesh);
-  parts.scars = mesh;
-  fitScars(cat);
+  return mesh;
 }
 
 // Scratch, module-level: fitScars allocates nothing.
@@ -434,8 +442,12 @@ const _v = new THREE.Vector3();
 // rotation × rest normal. Run last in animateCat. No-op without a scar mesh.
 export function fitScars(cat) {
   const parts = cat.userData.parts;
-  const mesh = parts?.scars;
-  if (!mesh) return;
+  if (!parts) return;
+  if (parts.scars) fitMesh(parts, parts.scars);
+  if (parts.marks) fitMesh(parts, parts.marks);
+}
+
+function fitMesh(parts, mesh) {
   const { head, body } = parts;
   _head.compose(head.position, head.quaternion, head.scale);
   _body.compose(body.position, body.quaternion, body.scale);

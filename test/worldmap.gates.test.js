@@ -88,7 +88,7 @@ describe('world map: gate place circles (I1)', () => {
 
   it('placement: inside the world, every circle at least 46 (92 across), clear of every other circle, the star and the roads (the Jungle lodge\'s too, with its switch on)', () => {
     setTele(true); setJungle(true);
-    const m = worldMapModel(save({ reef: 1, crystal: 1, moon: 1, jungle: 1 }), CATALOG);
+    const m = worldMapModel(save({ reef: 1, crystal: 1, moon: 1, jungle: 1, snowville: 1 }), CATALOG);
     for (const p of GATE_PLACES) {
       const me = find(m, p.id);
       expect(me.r).toBeGreaterThanOrEqual(46);

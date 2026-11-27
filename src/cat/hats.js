@@ -19,7 +19,7 @@ import { SKULL } from './torso.js';
 // the cat's head slot builds these.
 
 export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown', 'acorncap',
-  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap', 'keepercap', 'gardenerhat', 'crystalcirclet', 'canopycap'];
+  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap', 'keepercap', 'gardenerhat', 'crystalcirclet', 'canopycap', 'redcozyhat', 'snowcap', 'reindeerantlers', 'bluestarbeanie'];
 
 // Palette. The three shop hats' colours are model.js's own (it imports these
 // for Hagrid's hats); the prize colours are the same hexes as model.js's
@@ -341,10 +341,15 @@ function wizard(simple) {
 // the brow and 0.02 at the nape, a rolled ribbed cuff round its rim and a
 // white pompom on top.
 const BEANIE = { shell: 1.06, rimFront: 0.09, rimBack: 0.02, cuffH: 0.036, cuffOut: 0.022, pompom: 0.034 };
+// The holiday caps (src/foundwear/holidaywear.js) are this cap in other colours: a white cuff and pompom on red, an icy knit with a blue cuff.
+const BEANIE_LOOK = { body: BEANIE_COLOR, pom: POMPOM };
+const redcozyhat = (simple) => beanie(simple, 'redcozyhat', { body: 0xc8303a, cuff: 0xf5f1e8, pom: 0xfbfaf6 });
+const bluestarbeanie = (simple) => beanie(simple, 'bluestarbeanie', { body: 0x2f5fb0, cuff: 0xdfe6ee, pom: 0xf4f7fb });
+const snowcap = (simple) => beanie(simple, 'snowcap', { body: 0xe6eef8, cuff: 0x7aaee0, pom: 0xffffff });
 const beanieRim = (phi) => (BEANIE.rimFront + BEANIE.rimBack) / 2 + ((BEANIE.rimFront - BEANIE.rimBack) / 2) * Math.cos(phi);
-function beanie(simple) {
+function beanie(simple, id = 'beanie', L = BEANIE_LOOK) {
   const segs = simple ? 12 : 24, rows = simple ? 5 : 7;
-  const knitDark = shade(BEANIE_COLOR, 0.86);
+  const knitDark = shade(L.body, 0.86);
   const shell = grid(segs, rows, { wrapU: true }, (i, j) => {
     const phi = (i / segs) * Math.PI * 2;
     // the rim row tucks into the middle of the cuff
@@ -353,13 +358,13 @@ function beanie(simple) {
     const th = (j / (rows - 1)) * thRim;
     const u = new THREE.Vector3(Math.sin(th) * Math.sin(phi), Math.cos(th), -Math.sin(th) * Math.cos(phi));
     const p = new THREE.Vector3(u.x * SA, u.y * SB, u.z * SC).multiplyScalar(BEANIE.shell);
-    return { p, c: i % 2 ? knitDark : BEANIE_COLOR, out: u };
+    return { p, c: i % 2 ? knitDark : L.body, out: u };
   });
   // the cuff: a rolled band, flat on the skull underneath and fattest near
   // its top, so its lower edge lies on the head; ribbed by alternating
   // fat/thin, light/dark columns
   const cuffSegs = simple ? 24 : 36, sides = 6;
-  const cuffDark = shade(BEANIE_COLOR, 0.72), cuffLight = shade(BEANIE_COLOR, 0.88);
+  const cuffDark = shade(L.cuff ?? L.body, 0.72), cuffLight = shade(L.cuff ?? L.body, 0.88);
   const cuff = grid(cuffSegs, sides, { wrapU: true, wrapV: true }, (i, j) => {
     const phi = (i / cuffSegs) * Math.PI * 2;
     const p0 = ringPoint(phi, beanieRim(phi));
@@ -375,9 +380,9 @@ function beanie(simple) {
   const r = BEANIE.pompom;
   // a yarn ball: lumpy, a little squashed onto the cap
   const pom = blob(r, simple ? 6 : 8, simple ? 4 : 6, new THREE.Vector3(0, top + r * 0.75, 0), [1, 0.9, 1],
-    (uy) => mix(POMPOM, 0xd8d8d8, Math.max(0, -uy) * 0.6),
+    (uy) => mix(L.pom, 0xd8d8d8, Math.max(0, -uy) * 0.6),
     (x, y, z) => { const k = 1 + 0.12 * Math.sin(9 * x / r) * Math.sin(7 * z / r + 1) * Math.cos(5 * y / r); return [x * k, y * k, z * k]; });
-  return finish('beanie', [shell, cuff, pom]);
+  return finish(id, [shell, cuff, pom]);
 }
 
 // THE WREATH (polish-crown, 2026-11-06). The flower and leaf crowns used to
@@ -1244,7 +1249,30 @@ function crystalcirclet(simple) {
   return finish('crystalcirclet', [band, backFace(band), ...gems]);
 }
 
-const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap, keepercap, gardenerhat, crystalcirclet, canopycap };
+// Reindeer Antlers (a Christmas shop item): a soft brown headband round the crown, two small antlers rising from it (a beam
+// curving up and out with two short tines), and a red ribbon bow tied at the front of the band. One vertex-coloured mesh.
+const ANTLER = 0xa5754a, ANTLER_TIP = 0xcfa06c, ANTLER_BAND = 0x6b4a2a, ANTLER_BOW = 0xd8303c;
+function reindeerantlers(simple) {
+  const cols = simple ? 12 : 20, side = simple ? 3 : 4;
+  const ring = (phi, h) => { const p = ringPoint(phi, 0.135), n = skullNormal(p); return p.addScaledVector(n, 0.003).add(new THREE.Vector3(0, h, 0)); };
+  const band = grid(cols, 2, { wrapU: true }, (i, j) => { const phi = (i / cols) * Math.PI * 2; return { p: ring(phi, j * 0.012), c: ANTLER_BAND, out: new THREE.Vector3(Math.sin(phi), 0, -Math.cos(phi)) }; });
+  const parts = [band, backFace(band)];
+  const branch = (from, steps) => {
+    const pts = steps.map(([x, y, z]) => from.clone().add(new THREE.Vector3(x, y, z)));
+    return tube(pts, pts.map(() => new THREE.Vector3(0, 0, 1)), { sides: side, radius: (i) => 0.0075 * (1 - i / (pts.length + 1)), colour: (i) => (i > pts.length - 3 ? ANTLER_TIP : ANTLER) });
+  };
+  for (const s of [-1, 1]) {
+    const base = ring(s * 1.15, 0.006).add(new THREE.Vector3(0, 0.006, 0));
+    parts.push(branch(base, [[0, 0, 0], [s * 0.01, 0.03, 0], [s * 0.022, 0.056, 0.002], [s * 0.032, 0.082, 0.004], [s * 0.036, 0.1, 0.004]]));
+    parts.push(branch(base.clone().add(new THREE.Vector3(s * 0.011, 0.034, 0)), [[0, 0, 0], [-s * 0.012, 0.022, -0.004], [-s * 0.02, 0.04, -0.006]]));
+    if (!simple) parts.push(branch(base.clone().add(new THREE.Vector3(s * 0.026, 0.068, 0.003)), [[0, 0, 0], [s * 0.014, 0.014, 0.004], [s * 0.024, 0.03, 0.006]]));
+  }
+  const front = ring(0, 0.006);
+  parts.push(...bow(front.clone().add(new THREE.Vector3(0, 0.013, -0.005)), new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 1, 0), ANTLER_BOW, 0.026, simple));
+  return finish('reindeerantlers', parts);
+}
+
+const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap, keepercap, gardenerhat, crystalcirclet, canopycap, redcozyhat, snowcap, reindeerantlers, bluestarbeanie };
 
 // The clips' ground looks (src/foundwear/display.js): the clip as worn (the
 // simple build), turned so its face is up and propped toward -z, as if

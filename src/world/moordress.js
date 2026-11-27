@@ -361,7 +361,36 @@ export function moorGroundTint(x, z) {
   m = m.map((v, i) => v * peat[i] * moss[i]);
   const wet = smoothstep(0, 1, 1 - waterDist(x, z) / 5);
   m = lerp3(m, BRACKEN_TINT, smoothstep(0.2, 0.55, BRACKEN(x, z)) * (1 - wet));
-  return lerp3(m, WET, wet);
+  m = lerp3(m, WET, wet);
+  // MOR-1: heather and gorse drifts, over everything but the water's edge.
+  const d = driftTint(x, z);
+  if (d.heather > 0 || d.gorse > 0) {
+    const dry = 1 - wet;
+    const ht = lerp3(HEATHER_PURPLE, HEATHER_PINK, d.pink * 0.7);
+    m = lerp3(m, m.map((v, i) => v * ht[i]), d.heather * dry);
+    m = lerp3(m, m.map((v, i) => v * GORSE_TINT[i]), d.gorse * dry);
+    m = m.map((v) => Math.max(0.5, Math.min(1.24, v)));
+  }
+  return m;
+}
+
+// MOR-1 (beauty pass): big soft drifts of heather (purple, pink) and gorse
+// (yellow) on the ground colour, vertex colour only. The pass's own hashed
+// fields (salts 83..97, not the walk's shared stream), so every seeded layout
+// stays put. Edges wobble with a small-scale field warped into the threshold;
+// the grown strips use this same function, so the drifts run on across the seam.
+const HEATHER_PURPLE = [0.84, 0.68, 1.2];
+const HEATHER_PINK = [1.18, 0.7, 1.02];
+const GORSE_TINT = [1.2, 1.14, 0.58];
+function driftTint(x, z) {
+  const wob = smoothField(x, z, 91, 6) * 0.18;
+  const h = smoothField(x, z, 83, 44) * 0.5 + smoothField(x, z, 100, 38) * 0.5 + smoothField(x, z, 86, 20) * 0.15 + wob;
+  const g = smoothField(x, z, 94, 30) * 0.5 + smoothField(x, z, 103, 26) * 0.5 + smoothField(x, z, 97, 14) * 0.15 + wob;
+  return {
+    heather: smoothstep(0.05, 0.4, h) * 0.95,
+    gorse: smoothstep(0.3, 0.5, g) * 0.85,
+    pink: smoothstep(-0.2, 0.2, smoothField(x, z, 89, 9)),
+  };
 }
 
 // --- geometry (Tris, lin and the rest are dressing.js's) ----------------------------

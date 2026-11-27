@@ -89,7 +89,11 @@ export function areaDownloads(manifest, entryModules = AREA_ENTRY_MODULES) {
 //   Moon (src/world/moonstages.js): four stage chunks (the Old Relay Station last) and the late arrivals' code. The total was 135 until the Old Relay Station: its stage adds about 20 kB.
 //   Reef (reefstages.js), Crystal Cave (crystalstages.js), Treehouse (treehousestages.js), Snowville (snowvillestages.js: B the pond, the hill and Lantern Night; C the sled run, still empty),
 //   Jungle lodge (junglestages.js: B the river's far bank, the canopy walk and the Rain Supper; C the raft): the same shape.
+//   Old House (housestages.js): one stage, the east wing and the wonder room; the landing stays under 55 kB.
 export const STAGED_AREAS = Object.freeze([
+  { id: 'house', label: 'house stages  ', stageCeiling: 65, totalCeiling: 150, stages: [
+    ['housewing', 'wing', ['src/world/housestagewing.js']], // the east wing's drawing, far look and discoveries (housestages.js); there is no stage c
+  ] },
   { id: 'reef', label: 'reef stages   ', stageCeiling: 65, totalCeiling: 150, stages: [
     ['reeflab', 'lab', ['src/world/reefstagelab.js']],
     ['reefwreck', 'wreck', ['src/world/reefstagewreck.js']],

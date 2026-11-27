@@ -1,8 +1,8 @@
 // =============================================================================
 // THE TREEHOUSE VILLAGE: THE PLAN (milestone T1, the tree world). Every coordinate of the roots, the great oak, the decks, the branch walk, the crown, the colliders,
 // the perches and the forest rim: pure data and pure functions (no THREE, no clock, no Math.random; the scatters use seeded streams). treehouseparts.js and
-// treehouselight.js draw from these; the tests read them. North is -z, east is +x, heights are metres over the ground (which is flat: levels are PERCHES, the engine
-// has no multi-storey ground). docs/superpowers/plans/2026-11-27-new-areas-snowville-treehouse-jungle.md section 2, as the 2026-11-27 decisions change it: no gate,
+// treehouselight.js draw from these; the tests read them. North is -z, east is +x, heights are metres over the earth. The levels are PERCHES for the plan's hop proof and REAL RAISED GROUND for the walk
+// (the decks, the landing, the bridges and four flights of stairs are strips of src/ground.js, so a cat on foot walks up and down them; see STAIRS). docs/superpowers/plans/2026-11-27-new-areas-snowville-treehouse-jungle.md section 2, as the 2026-11-27 decisions change it: no gate,
 // an ordinary map place after the Farm, entered by the Farm's north signpost. Numbers marked "start" are tuned from pictures.
 //
 // THE CLIMB (the no-skills rule, src/climbing.js BASE_CLIMB_BUDGET: a hop gains at most 1.6 and reaches 2.6 to a perch above y 1): every hop here gains at most
@@ -12,6 +12,7 @@
 import { BASE_CLIMB_BUDGET, canReach } from '../climbing.js';
 import { mulberry32 } from '../rng.js';
 import { ZOOM_STEPS } from '../camzoom.js';
+import { createGround } from '../ground.js';
 
 export const TREEHOUSE_NAME = 'Treehouse Village';
 export const TREEHOUSE_BOUNDS = Object.freeze({ minX: -32, maxX: 32, minZ: -32, maxZ: 32 });
@@ -39,6 +40,24 @@ export const DECKS = Object.freeze([
 export const deckOf = (id) => DECKS.find((k) => k.id === id) ?? null;
 export const DECK_THICK = 0.22;
 export const RAIL_H = 0.9; // the railing round every deck and the bridge
+
+// ---- the stairs: walkable ramps (the ground's strips, src/ground.js), and the walkable decks ---------------------------------------------------------------
+// The levels are PERCHES for the plan's hop proof, AND real raised ground for the walk: every deck, the landing, both rope bridges and each flight of stairs is a strip of the
+// walk's ground at its own height, so a cat on foot climbs a flight by walking up it, walks along a deck or a bridge, and walks back down. A rim of 0.3 m or more is a wall
+// (ground.js canStep), so the rail side of a flight, a deck's edge and a bridge's side hold her in; she never falls off. A flight starts on the level below and ends exactly on the
+// edge of the level above (a step never jumps more than a ramp's own rise), and none is steeper than 1 in 3 (checked by the tests): the longer flights start well back on the deck.
+const S = (id, x0, z0, y0, x1, z1, y1, w = 0.9) => Object.freeze({ id, x0, z0, y0, x1, z1, y1, w });
+export const STAIRS = Object.freeze([
+  S('bakery-front', -9.0, 15.9, 0, -9.0, 11.5, 1.4), // the ladder-stair: ground to the Bakery deck's front edge, through the railing's gap
+  S('bakery-landing', -9.4, 10.6, 1.4, -5.5, 8.2, 2.8), // across the Bakery deck's front, up to the branch walk's landing
+  S('books-far', 7.7, 2.4, 2.8, 7.7, -3.2, 4.2), // from the Bookshop deck, across the gap, to the far platform's front edge
+  S('far-crown', 4.4, -8.6, 4.2, 0.6, -13.0, 5.6), // from the rope bridge's middle, up to the Crown deck's front edge
+]);
+export const stairOf = (id) => STAIRS.find((k) => k.id === id) ?? null;
+export const STAIR_GRADE_MAX = 1 / 3; // ground.js MAX_PATH_GRADE (copied: this file reads no player code)
+export const stairGrade = (k) => Math.abs(k.y1 - k.y0) / Math.hypot(k.x1 - k.x0, k.z1 - k.z0);
+// The landing at the branch walk's first plank (the walk's drawing, treehouseparts.js): its west edge is the Bakery deck's east edge.
+export const LANDING = Object.freeze({ x: -4.55, z: 8.0, w: 1.9, d: 1.6, y: 2.8 });
 
 // ---- the perches: one point per hop, every hop within HOP_MAX up and HOP_SPAN across ------------------------------------
 // kind 'roof' (smooth, no claw lift). The branch walk (the rope bridge) is a line of level perches along the planks, 2.3 m or less apart.
@@ -77,6 +96,7 @@ export const FRIEND_TREES = Object.freeze([[-22, 18, 0.6], [22, 16, 0.6], [-24, 
 export const treehouseColliders = () => [
   Object.freeze({ x: OAK.x, z: OAK.z, r: OAK.r }),
   ...DECKS.flatMap((k) => corners(k).map(([x, z]) => Object.freeze({ x, z, r: 0.22 }))), // each deck's four stilts
+  ...DECKS.filter((k) => k.hut).map((k) => Object.freeze({ x: k.hut.x, z: k.hut.z, r: k.hut.r })), // each hut (a cat on foot walks the decks now, so the huts are solid)
   ...FRIEND_TREES.map(([x, z, r]) => Object.freeze({ x, z, r })),
 ];
 
@@ -150,19 +170,35 @@ export function scatterFerns() {
   return out;
 }
 
-// ---- the area's ground: flat (the levels are perches). No `ceil`: the camera is never pulled in, so the leaves above must not be near (CANOPY_MIN_Y). ----
-export const TREEHOUSE_GROUND = null; // the walk's FLAT_GROUND (src/ground.js groundOf): nothing here lifts or lowers the ground
+// ---- the area's ground: flat earth, with the decks, the landing, the bridges and the flights of stairs raised on it (strips, src/ground.js). No `ceil`: the camera is never pulled in
+// (the walk's camera keeps the flat ground, treehouse.js cameraGround), so the leaves above must not be near (CANOPY_MIN_Y). ----
+const BRIDGE_W = 1.2;
+const extend = (a, b, m) => { const d = Math.hypot(b.x - a.x, b.z - a.z); return { x: b.x + ((b.x - a.x) / d) * m, z: b.z + ((b.z - a.z) / d) * m, y: b.y }; };
+export function treehouseGroundSpec() {
+  const strips = [];
+  const flat = (x0, z0, x1, z1, width, y) => strips.push({ x0, z0, x1, z1, width, y });
+  for (const k of DECKS) flat(k.x - k.w / 2, k.z, k.x + k.w / 2, k.z, k.d, k.y);
+  flat(LANDING.x - LANDING.w / 2, LANDING.z, LANDING.x + LANDING.w / 2, LANDING.z, LANDING.d, LANDING.y);
+  // the bridges run on into the deck they meet (a 0.7 m overlap, so no notch lies between the planks and the boards)
+  const [A, B] = BRIDGE_LINES;
+  const lineA = [extend(A[1], A[0], 0.7), ...A, extend(A[A.length - 2], A[A.length - 1], 0.7)];
+  const lineB = [extend(B[1], B[0], 0.7), ...B];
+  for (const line of [lineA, lineB]) for (let i = 0; i + 1 < line.length; i++) flat(line[i].x, line[i].z, line[i + 1].x, line[i + 1].z, BRIDGE_W, line[i].y);
+  for (const k of STAIRS) strips.push({ x0: k.x0, z0: k.z0, x1: k.x1, z1: k.z1, width: k.w, y0: k.y0, y1: k.y1 });
+  return { base: 0, strips, discs: [], ceilings: [] };
+}
+export const TREEHOUSE_GROUND = createGround(treehouseGroundSpec());
 
 // ---- the proofs -------------------------------------------------------------------------------------------------------------
 const STEP = 0.5;
 const walkable = (x, z, cs, b) => x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ && cs.every((c) => Math.hypot(x - c.x, z - c.z) >= c.r + CAT_R);
 // The ground cells a cat on foot can stand on from the spawn (0.5 m grid, four neighbours): [{ x, z }].
-export function groundFlood(colliders = treehouseColliders(), bounds = TREEHOUSE_BOUNDS, spawn = TREEHOUSE_SPAWN) {
+export function groundFlood(colliders = treehouseColliders(), bounds = TREEHOUSE_BOUNDS, spawn = TREEHOUSE_SPAWN, ground = TREEHOUSE_GROUND) {
   const nx = Math.round((bounds.maxX - bounds.minX) / STEP) + 1;
   const nz = Math.round((bounds.maxZ - bounds.minZ) / STEP) + 1;
   const seen = new Uint8Array(nx * nz);
   const at = (i, j) => [bounds.minX + i * STEP, bounds.minZ + j * STEP];
-  const ok = (i, j) => { const [x, z] = at(i, j); return walkable(x, z, colliders, bounds); };
+  const ok = (i, j) => { const [x, z] = at(i, j); return walkable(x, z, colliders, bounds) && ground.y(x, z) < 0.05; }; // standing at y 0: not on a flight, a deck or a bridge
   const si = Math.round((spawn.x - bounds.minX) / STEP);
   const sj = Math.round((spawn.z - bounds.minZ) / STEP);
   if (!ok(si, sj)) return [];
@@ -176,6 +212,36 @@ export function groundFlood(colliders = treehouseColliders(), bounds = TREEHOUSE
     for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const p = i + di; const q = j + dj;
       if (p < 0 || q < 0 || p >= nx || q >= nz || seen[p * nz + q] || !ok(p, q)) continue;
+      seen[p * nz + q] = 1;
+      stack.push([p, q]);
+    }
+  }
+  return out;
+}
+
+// The cells a cat WALKING (no hop, no skill) can stand on from the spawn: the flat ground, then up every flight of stairs and along every deck and bridge. 0.25 m grid, eight
+// neighbours, every step asked of the ground's own canStep (ground.js: a step of more than 0.12 + 0.5 per metre is a wall) and of the colliders. [{ x, z, y }].
+export function walkFlood({ colliders = treehouseColliders(), bounds = TREEHOUSE_BOUNDS, spawn = TREEHOUSE_SPAWN, ground = TREEHOUSE_GROUND, step = 0.25 } = {}) {
+  const nx = Math.round((bounds.maxX - bounds.minX) / step) + 1;
+  const nz = Math.round((bounds.maxZ - bounds.minZ) / step) + 1;
+  const seen = new Uint8Array(nx * nz);
+  const at = (i, j) => [bounds.minX + i * step, bounds.minZ + j * step];
+  const ok = (i, j) => { const [x, z] = at(i, j); return walkable(x, z, colliders, bounds); };
+  const si = Math.round((spawn.x - bounds.minX) / step);
+  const sj = Math.round((spawn.z - bounds.minZ) / step);
+  if (!ok(si, sj)) return [];
+  const stack = [[si, sj]];
+  seen[si * nz + sj] = 1;
+  const out = [];
+  while (stack.length) {
+    const [i, j] = stack.pop();
+    const [x, z] = at(i, j);
+    out.push({ x, z, y: ground.y(x, z) });
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const p = i + di; const q = j + dj;
+      if (p < 0 || q < 0 || p >= nx || q >= nz || seen[p * nz + q] || !ok(p, q)) continue;
+      const [x2, z2] = at(p, q);
+      if (!ground.canStep(x, z, x2, z2)) continue;
       seen[p * nz + q] = 1;
       stack.push([p, q]);
     }

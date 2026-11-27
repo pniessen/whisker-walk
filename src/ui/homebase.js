@@ -50,6 +50,7 @@ import { nextThing, nextThingHtml, NEXT_ATTR } from './nextthing.js';
 import { createHomeParty, birthdayPartyOn, partyBannerText, partyCatName, presentDue } from './party.js';
 import { BIRTHDAY_EVENT, localDay } from '../giftevents.js';
 import { birthdayDue } from '../birthday.js';
+import { activeHolidays } from '../holidays.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -269,6 +270,14 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     const present = presentDue(progression) && !dressing?.ui?.wardrobe ? { label: phrase('present.label'), onOpen: openPresentNow } : null;
     if (partyOn() && !dressing?.ui?.builder) party.mount(st, partyBannerText(partyCatName(progression.state, CATALOG)), present);
     else party.unmount(st);
+  }
+
+  // Holiday flair (src/ui/holidayflair.js, a lazy chunk): only while a window is open and the Settings choice is not Off.
+  let flairP = null;
+  function syncFlair() {
+    const pick = settings?.get?.('holidayDecor') ?? 'auto';
+    if (pick === 'off' || !activeHolidays().length) return;
+    (flairP ??= import('./holidayflair.js')).then((m) => m.mountFlair(root, { pick, reduced: reducedNow() })).catch((err) => { flairP = null; note('ui', err); });
   }
 
   // Colony pairing (Task 9). The draft code lives here, not in the DOM, because
@@ -640,6 +649,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             </select>
           </label>
           ${settingsSwitchHtml('set-reduced-motion', !!s.reducedMotion, 'Reduced motion')}
+          <label class="settings-row settings-quality">
+            <span class="settings-label">Holiday decorations</span>
+            <select id="set-holiday">${['auto', 'christmas', 'hanukkah', 'off'].map((v) => `<option value="${v}"${s.holidayDecor === v ? ' selected' : ''}>${v === 'auto' ? 'Automatic' : v[0].toUpperCase() + v.slice(1)}</option>`).join('')}</select>
+          </label>
           ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
           ${settingsSwitchHtml('set-tv-mode', !!(tvState.on || tvState.pending), tutorialLine('pad.settings.tv'))}
           <p class="settings-note" id="set-tv-note">${escapeHtml(tutorialLine('pad.settings.tv-note', { touch: !!getIsTouch() }))}</p>
@@ -1872,6 +1885,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         } catch { /* a nicety */ }
       }
       if (stage) stage.setVisible(false); // no frames for a cat nobody can see
+      syncFlair();
       syncCelebration();
       syncPairingPoll();
       syncNearby();
@@ -1905,6 +1919,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     room.restoreFocus(root, f);
     refocus(fid);
     syncParty();
+    syncFlair();
     stage.setVisible(shown);
     syncCelebration();
     syncPairingPoll();
@@ -2592,6 +2607,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       render();
       return;
     }
+    if (e.target.id === 'set-holiday' && settings) { settings.set('holidayDecor', e.target.value); onSettingsChange?.(); render(); return; }
     if (e.target.id === 'set-map-mode') {
       progression.setMapMode(e.target.value);
       render();

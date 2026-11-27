@@ -23,15 +23,34 @@ const goalAt = (step, carrying = null, lit = 0) => {
 };
 const words = (step, extra = {}, carrying = null, lit = 0) => G.goalWords({ goal: goalAt(step, carrying, lit), metres: 0, errand: false, ...extra });
 const EXPECT = [
-  [0, /Say hello to Marlo/], [1, /shell 1 of 3.*Kelp Garden, north-west of the ladder/], [2, /shell 2 of 3.*ledge.*kick button/], [3, /shell 3 of 3.*cave.*bubbles up/],
+  [0, /Say hello to Marlo/], [1, /shell 1 of 3.*Kelp Garden, about \d+ m (ahead|to your \w+|behind you)/], [2, /shell 2 of 3.*ledge.*kick button/], [3, /shell 3 of 3.*cave.*bubbles up/],
   [4, /trying on/], [5, /three lantern corals.*\(0 of 3\)/], [6, /Start the housewarming/],
 ];
+
+describe('goalWords from where she stands now', () => {
+  const at = (cat, fx, fz) => words(1, { cat, fx, fz });
+  const goal = goalAt(1);
+  it('says ahead, to your right, behind you and to your left, with the distance to 5 m', () => {
+    const near = { x: goal.x, z: goal.z + 25 }; // 25 m south of the shells: she faces north (-z) so it is ahead
+    expect(at(near, 0, -1)).toMatch(/Kelp Garden, about 25 m ahead\./);
+    expect(at(near, 0, 1)).toMatch(/about 25 m behind you/);
+    expect(at(near, 1, 0)).toMatch(/about 25 m to your left/); // facing east, a north goal is on her left
+    expect(at(near, -1, 0)).toMatch(/about 25 m to your right/);
+    expect(at({ x: goal.x, z: goal.z + 2 }, 0, -1)).toMatch(/about 5 m ahead/);
+  });
+  it('changes only when the bucket does, and reads the same in the everyday set', () => {
+    const a = at({ x: goal.x, z: goal.z + 25.4 }, 0, -1);
+    expect(at({ x: goal.x, z: goal.z + 24 }, 0, -1)).toBe(a);
+    withOffWords(() => { expect(at({ x: goal.x, z: goal.z + 25 }, 0, -1)).toBe(a); expect(bannedIn(a)).toBeNull(); });
+  });
+  it('without a position it speaks from the spawn, facing north', () => { expect(words(1)).toMatch(/Kelp Garden, about \d+ m (ahead|to your left)/); });
+});
 
 describe('goalWords: every step, both word sets', () => {
   for (const [step, re] of EXPECT) {
     it(`step ${step} says what to do`, () => {
       expect(words(step)).toMatch(re);
-      withOffWords(() => { const t = words(step); expect(t).toMatch(re.source.includes('north-west') ? /Kelp Garden/ : re); expect(bannedIn(t)).toBeNull(); });
+      withOffWords(() => { const t = words(step); expect(t).toMatch(re.source.includes('Kelp') ? /Kelp Garden/ : re); expect(bannedIn(t)).toBeNull(); });
     });
   }
   it('step 7 says nothing without an errand, and the errand hint with one', () => {
@@ -47,12 +66,6 @@ describe('goalWords: every step, both word sets', () => {
       expect(words(s, { metres: 23 }, s - 1)).toBe('Take the shell to Marlo (25 m).');
       expect(words(s, { metres: 2 }, s - 1)).toBe('Give the shell to Marlo.');
     }
-  });
-  it('the compass word comes from the plan (+x east, -z north)', () => {
-    expect(G.compassKey(10, 0)).toBe('e');
-    expect(G.compassKey(0, -10)).toBe('n');
-    expect(G.compassKey(-10, 10)).toBe('sw');
-    expect(G.atWords(-22.4, 17.2)).toBe('north-west of the ladder');
   });
   it('no step has banned or series words in the everyday set, and every guide line resolves in both sets', () => {
     const ids = Object.keys(LINES).filter((k) => k.startsWith('reef.guide.'));

@@ -949,3 +949,21 @@ describe('world map: the Treehouse village circle (T1)', () => {
     expect(th(walked(2))).toMatchObject({ locked: false, price: 0 });
   });
 });
+
+// Snowville was walkable from 2026-11-26 but had no map circle (the gate places list lacked it): a gate place's circle appears once she has walked it.
+describe('Snowville on the world map', () => {
+  afterEach(() => setTele(null));
+  it('is drawn once she has walked it (and not before), clear of every other circle', () => {
+    setTele(true);
+    const before = worldMapModel(fresh(), CATALOG);
+    expect(before.regions.some((r) => r.id === 'snowville')).toBe(false);
+    const walked = worldMapModel({ ...fresh(), walks: { ...fresh().walks, snowville: 1 } }, CATALOG);
+    const me = walked.regions.find((r) => r.id === 'snowville');
+    expect(me).toBeTruthy();
+    expect(me.r).toBeGreaterThanOrEqual(46);
+    for (const o of walked.regions.filter((r) => r.id !== 'snowville')) {
+      expect(dist(me.x, me.y, o.x, o.y), `snowville / ${o.id}`).toBeGreaterThan(me.r + o.r);
+    }
+    expect(renderWorldMapHtml(walked)).toContain('Snowville');
+  });
+});

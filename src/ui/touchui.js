@@ -303,8 +303,8 @@ export function createTouchUI(root, callbacks, opts = {}) {
       kickMode = next;
       if (!next) kick(false);
       paw.dataset.kick = next ? '1' : '';
-      if (kickLabel) kickLabel.textContent = next ? 'kick' : 'pounce';
-      paw.setAttribute('aria-label', next ? 'Kick (hold to float up)' : CLIMB_LABEL[climb]);
+      if (kickLabel) kickLabel.textContent = next ? 'float' : 'pounce';
+      paw.setAttribute('aria-label', next ? 'Float (hold to float up)' : CLIMB_LABEL[climb]);
     },
     setLabels(on) {
       const each = on && typeof on === 'object';

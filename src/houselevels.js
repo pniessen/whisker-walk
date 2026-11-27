@@ -58,8 +58,9 @@ function distToJoin(j, x, z) {
 //     (details with a houseRoom) is hidden and a stand-in stands for them (the level's far one, houseFar,
 //     for the rest of the house with the parlour kept, its ordinary one for all);
 //   - out on the lawn (no room, no stair) a wing room within OUT_NEAR of her is drawn in full too;
+//   - a join marked `secret` (the wonder room's stair) counts only while `joinOpen(join)` says its door stands open;
 //   - everything else is its stand-in.
-export function createLevelDrawing(scene, { levels, links, start, wing = null }) {
+export function createLevelDrawing(scene, { levels, links, start, wing = null, joinOpen = null }) {
   const details = [];
   const simples = [];
   const fars = [];
@@ -120,6 +121,7 @@ export function createLevelDrawing(scene, { levels, links, start, wing = null })
     for (const j of wing.joins) {
       // an outside join counts only while she is out on the lawn
       if ((j.a !== id && j.b !== id) || (j.outside && !out)) continue;
+      if (j.secret && !(joinOpen && joinOpen(j))) continue; // the secret stair is no way in until its wardrobe stands open
       const d = hasCam(cx, cz) ? Math.min(distToJoin(j, x, z), distToJoin(j, cx, cz)) : distToJoin(j, x, z);
       const was = on.has(j.id);
       if (d > (was ? (j.leave ?? wing.leave) : (j.near ?? wing.near))) continue;

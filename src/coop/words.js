@@ -20,6 +20,13 @@ export const LINES = Object.freeze({
   'coop.found': (name, what) => `${name} found ${what}`,
   'coop.foundboth': (what) => `You both found ${what}`,
   'coop.edge': (name) => `${name} is out of sight`,
+  'coop.pick': (what) => `⟦interact⟧ pick up ${what}`,
+  'coop.carry': (what) => `⟦interact⟧ carry the ${what}`,
+  'coop.drop': (what) => `⟦interact⟧ put the ${what} down`,
+  'coop.dig': '⟦interact⟧ dig it up',
+  'coop.sniffed': 'You smell something… follow the paw prints!',
+  'coop.nosniff': 'Nothing on the breeze.',
+  'coop.tally': (a, na, b, nb) => `${a} found ${na}, ${b} found ${nb}`,
   'coop.left': (name) => `${name} waves goodbye.`,
 });
 

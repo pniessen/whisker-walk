@@ -56,7 +56,7 @@ const loaders = {
   roofs: () => import('./roofs.js').then((w) => own('roofs', w)),
   market: () => Promise.all([import('./market.js'), import('../marketlive.js'), import('../people/index.js'), walkExtras()])
     .then(([world, live, p, walk]) => ({ id: 'market', world, life: { walk, createMarketLive: live.createMarketLive, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } })),
-  house: () => import('./house.js').then((w) => own('house', w)),
+  house: () => Promise.all([import('./house.js'), import('./housestages.js').then((s) => s.loadHouseStages())]).then(([w]) => own('house', w)), // the landing plus the wing's one stage (housestagewing.js), in parallel
   // Lighthouse Point (a catalog row and the Seaside's gate since its milestone 4; ?lighthouse=1 stays a developer shortcut).
   lighthouse: () => import('./lighthouse.js').then((w) => own('lighthouse', w)),
   // The Greenhouse (a catalog row, behind the gates switch, and the Park's archway since its milestone G4; ?greenhouse=1 stays a developer shortcut).
@@ -80,7 +80,7 @@ const loaders = {
 // the flag is a literal false, the branch is dropped and no family file is bundled. In plain Node
 // (build scripts) the flag does not exist, so it reads as false.
 if (typeof __PRIVATE_FAMILY__ !== 'undefined' && __PRIVATE_FAMILY__) {
-  loaders.family = () => import('../family/index.js').then((w) => own('family', w));
+  loaders.family = () => Promise.all([import('../family/index.js'), import('./housestages.js').then((s) => s.loadHouseStages())]).then(([w]) => own('family', w));
 }
 
 export const AREA_LOADERS = Object.freeze(loaders);
@@ -100,7 +100,7 @@ const entryModules = {
   fair: Object.freeze(['src/world/fair.js', 'src/fairlive.js', 'src/fairshow.js', 'src/people/index.js']),
   roofs: Object.freeze(['src/world/roofs.js']),
   market: Object.freeze(['src/world/market.js', 'src/marketlive.js', 'src/people/index.js']),
-  house: Object.freeze(['src/world/house.js']),
+  house: Object.freeze(['src/world/house.js']), // stage A; the one stage is in STAGED_AREAS (scripts/buildjson.mjs), loaded with it by the loader above
   lighthouse: Object.freeze(['src/world/lighthouse.js']),
   greenhouse: Object.freeze(['src/world/greenhouse.js']),
   moon: Object.freeze(['src/world/moon.js']), // stage A, the only one the loader waits for; the three later stages and the late arrivals' code are MOON_STAGE_ENTRY_MODULES (scripts/buildjson.mjs), fetched in the background after it

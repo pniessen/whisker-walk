@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { houseArea, houseFloorGround, secretColliders, HOUSE_LEDGES } from '../../src/world/houseplan.js';
+import { houseArea, houseFloorGround, secretColliders, wardrobeColliders, HOUSE_LEDGES } from '../../src/world/houseplan.js';
 import { houseMovesArea } from '../../src/world/housemoves.js';
 import { createPlayer, DEFAULT_PITCH } from '../../src/player.js';
 import { createTraversalLive, NO_TRAVERSAL } from '../../src/traversallive.js';
@@ -45,14 +45,17 @@ import { createLedgeGuards } from '../../src/world/houseguards.js';
 // every frame's player.update. The live list (`live`) is the area's colliders plus the set
 // standing; area.colliders stays the plan's, for the tests' floods and spot checks. catScale is
 // her cat's size, which the guards are built for (house life finds it on her cat).
+// wardrobeOpen (the kids' wardrobe, milestone 3) is the same for the wonder stair's leaf.
 // secretOpen may name the side it opened to: true and 'library' (from the stair, step 2's
 // row) or 'stair' (from the library, rough edge 3).
 //
 // The importing test file must stub `document` first (test/flattrace.test.js's
 // stub) and load this with `await import(...)`: createPlayer listens on it.
-export function createHouseWalk({ reducedMotion = true, pace = 3.5, secretOpen = false, moves = false, guards: guarded = true, catScale = 1 } = {}) {
+export function createHouseWalk({ reducedMotion = true, pace = 3.5, secretOpen = false, wardrobeOpen = false, moves = false, guards: guarded = true, catScale = 1 } = {}) {
   const area = moves ? houseMovesArea() : houseArea();
   if (secretOpen) area.colliders = [...area.colliders.filter((c) => !c.secret), ...secretColliders(true, secretOpen === 'stair' ? 'stair' : 'library')];
+  // wardrobeOpen (the wonder room, milestone 3): the kids' wardrobe stands open, true or 'stair' (swung into the stair, from the kids' room) in place of its shut colliders
+  if (wardrobeOpen) area.colliders = [...area.colliders.filter((c) => !c.wardrobe), ...wardrobeColliders(true, wardrobeOpen === 'stair' ? 'stair' : 'room')];
   // the camera keeps out of the floors, not the furniture tops, as the game's house hands it (house.js cameraGround)
   const cameraGround = houseFloorGround();
   const live = [...area.colliders];

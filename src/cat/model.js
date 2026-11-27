@@ -2532,6 +2532,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // opts.scars (fight moves and scars): scars.js render entries. Only a scarred
   // cat gets the scar mesh; without one, nothing here runs.
   if (opts.scars?.length) setCatScars(g, opts.scars);
+  if (s.scarMark) g.userData.markReady = import('./scarmark.js').then((m) => m.setCatMark(g, s.scarMark)); // the builder's scar (customcats.js SCARS), drawn once its chunk is in
   return g;
 }
 

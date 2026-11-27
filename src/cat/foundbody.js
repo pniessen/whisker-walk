@@ -52,6 +52,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
+import { nightOf } from '../holidays.js';
 
 // The Doormat Cape: coir, woven in ridges (every other row of the cloth a
 // shade darker, flecked), a dark border down the flanks (|a| > 0.85) and at
@@ -104,11 +105,26 @@ function starlightPaint(a, s) {
   return s > 0.6 ? NIGHT_LOW : NIGHT;
 }
 
+
+// The Evergreen Sweater (a Christmas shop item): deep evergreen knit, ribbed at the neck and hem, a band of small red and cream
+// diamonds round the chest. Painted by uz (along the body) like the jumper's bands, so the shell's grid draws it cleanly.
+const knitPaint = (main, lite, dark, d1, d2) => (ux, uy, uz) => {
+  if (uz > 0.82 || uz < -0.72) return Math.round(Math.atan2(ux, uy) * 12) % 2 ? main : dark;
+  if (Math.abs(uz - 0.12) < 0.1) return (Math.round(Math.atan2(ux, uy) * 7) + Math.round(uz * 20)) % 2 ? d1 : d2;
+  return Math.round(uz * 16) % 2 ? main : lite;
+};
+// The Silver Snowflake Sweater (Hanukkah) is the same knit in blue with silver diamonds (diamonds, never six-pointed marks).
+const EVERGREEN = 0x2f7a4a, SNOWBLUE = 0x2f5fb0;
+const evergreenPaint = knitPaint(EVERGREEN, 0x3a8a58, 0x24623b, 0xc8303a, 0xf3ead2);
+const snowflakePaint = knitPaint(SNOWBLUE, 0x3a6cc0, 0x254c92, 0xdfe6ee, 0x3a6cc0);
+
 export const FOUND_BODY = Object.freeze({
+  snowflakesweater: Object.freeze({ kind: 'shell', colour: SNOWBLUE, paint: snowflakePaint }),
   doormatcape: Object.freeze({ kind: 'cape', colour: COIR, accent: COIR_BORDER, paint: doormatPaint }),
   beachtowelcape: Object.freeze({ kind: 'cape', colour: 0xf2763c, accent: 0xf2c14e, paint: towelPaint }),
   fishermansjumper: Object.freeze({ kind: 'shell', colour: JUMPER, paint: jumperPaint }),
   starlightcape: Object.freeze({ kind: 'cape', colour: NIGHT, accent: STAR_ICE, paint: starlightPaint }),
+  evergreensweater: Object.freeze({ kind: 'shell', colour: EVERGREEN, paint: evergreenPaint }),
 });
 
 // The Kite-tail Ribbon: a little diamond kite flying up behind her on a white
@@ -212,7 +228,66 @@ function birthdayBalloon({ onBack, floatOn, floatString, ball }) {
   balloon.position.set(0.05, 0.965, 0.42);
   floatOn(balloon, foot);
 }
-export const FOUND_FLOATS = Object.freeze({ kitetailribbon: kiteTail, candyflosspuff: candyfloss, bdayballoon: birthdayBalloon });
+
+// A flat five-pointed star, `depth` thick, facing -z (the back's open side) once hung: one mesh, its points straight up.
+function starMesh(outer, inner, depth, hex) {
+  const shape = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 ? inner : outer, a = Math.PI / 2 + (i / 10) * Math.PI * 2;
+    if (i === 0) shape.moveTo(Math.cos(a) * r, Math.sin(a) * r); else shape.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false }).translate(0, 0, -depth / 2);
+  geo.deleteAttribute('uv');
+  return new THREE.Mesh(geo, litMaterial(hex));
+}
+// Little Gold Star (a Christmas earned piece): one gold star hovering over her shoulders on a white string tied where the tail begins.
+function littleGoldStar({ onBack, floatOn, floatString }) {
+  const foot = new THREE.Vector3(...onBack(0, 0.5, 0.31)), top = new THREE.Vector3(0, 0.84, 0.4);
+  floatString(foot, top, 0.0035);
+  const star = starMesh(0.058, 0.026, 0.014, 0xf2c14e);
+  star.position.set(0, 0.9, 0.4);
+  floatOn(star, foot);
+}
+// Star Topper Halo (a Winter Lights earned piece): a thin gold ring lying flat over the shoulders with a small pale-gold star standing on it.
+function starTopperHalo({ onBack, floatOn, floatString }) {
+  const foot = new THREE.Vector3(...onBack(0, 0.5, 0.31)), top = new THREE.Vector3(0, 0.8, 0.4);
+  floatString(foot, top, 0.0035);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.009, 4, 14).rotateX(Math.PI / 2), litMaterial(0xe0a82e));
+  ring.position.set(0, 0.84, 0.4);
+  floatOn(ring, foot);
+  const star = starMesh(0.036, 0.016, 0.01, 0xffe08a);
+  star.position.set(0, 0.9, 0.4);
+  floatOn(star, foot);
+}
+// Gelt Pouch (a Hanukkah shop item): a little blue drawstring pouch with a silver cord, gold coins peeking out of its top, on a string
+// tied where the tail begins.
+function geltPouch({ onBack, floatOn, floatString }) {
+  const foot = new THREE.Vector3(...onBack(0, 0.5, 0.31)), top = new THREE.Vector3(0, 0.82, 0.4);
+  const put = (geo, hex, y) => { const m = new THREE.Mesh(geo.scale(1.5, 1.5, 1.5), litMaterial(hex)); m.position.set(0, y, 0.4); floatOn(m, foot); };
+  floatString(foot, top, 0.0035);
+  put(new THREE.SphereGeometry(0.05, 7, 5), 0x2f5fb0, 0.87);
+  put(mergeGeometries([0, 1].map((i) => new THREE.CylinderGeometry(0.017, 0.017, 0.005, 8).rotateX(1.3 + i * 0.4).translate(i * 0.03 - 0.015, 0.03, 0))), 0xf2c14e, 0.9);
+}
+// Menorah Glow (a Hanukkah earned piece): a small silver menorah floating on a string over the shoulders: nine lights, eight in a row
+// and the shamash standing higher in the middle, lit by the night (nightOf): the shamash always, and one more candle each night,
+// left to right, as steady gold flames. Outside the eight nights only the shamash is lit. No text, no marks.
+function menorahGlow({ onBack, floatOn, floatString }) {
+  const foot = new THREE.Vector3(...onBack(0, 0.5, 0.31)), top = new THREE.Vector3(0, 0.82, 0.4), night = nightOf(new Date());
+  floatString(foot, top, 0.0035);
+  const parts = [new THREE.BoxGeometry(0.17, 0.008, 0.012), new THREE.CylinderGeometry(0.006, 0.006, 0.06, 4).translate(0, 0.03, 0)], flames = [];
+  const candle = (x, y, lit) => {
+    parts.push(new THREE.CylinderGeometry(0.0045, 0.0045, 0.03, 4).translate(x, y + 0.019, 0));
+    if (lit) flames.push(new THREE.ConeGeometry(0.006, 0.016, 4).translate(x, y + 0.042, 0));
+  };
+  [-0.072, -0.054, -0.036, -0.018, 0.018, 0.036, 0.054, 0.072].forEach((x, i) => candle(x, 0.004, i < night));
+  candle(0, 0.052, true);
+  for (const [gs, hex] of [[parts, 0xc9d3e0], [flames, 0xffc247]]) {
+    const m = new THREE.Mesh(mergeGeometries(gs.map((g) => g.toNonIndexed())).scale(1.8, 1.8, 1.8), litMaterial(hex));
+    m.position.set(0, 0.9, 0.4);
+    floatOn(m, foot);
+  }
+}
+export const FOUND_FLOATS = Object.freeze({ geltpouch: geltPouch, menorahglow: menorahGlow, kitetailribbon: kiteTail, candyflosspuff: candyfloss, bdayballoon: birthdayBalloon, littlegoldstar: littleGoldStar, startopper: starTopperHalo });
 
 function paintedGeo(geo, hexOf) {
   const p = geo.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color();

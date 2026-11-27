@@ -10,6 +10,7 @@ const {
   HOUSE_LEDGES, HOUSE_FURNITURE, HOUSE_LEVELS, HOUSE_SPAWN, TALL_H, LEDGE_STANDOFF, LEDGE_RIM, GUARD_BODY, LEDGE_ON,
   HEAD_REACH, BODY_REACH, HEAD_CLEAR, CAT_SCALE_MAX, ledgeStandoff, houseArea, houseFloorGround, houseLedgeGuards, roomAt,
 } = await import('../src/world/houseplan.js');
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
 const { pianoKeyAt } = await import('../src/world/houseparts.js');
 const { HOUSE_MOVES } = await import('../src/world/housemoves.js');
 const { HOUSE_FINDS } = await import('../src/world/housethings.js');

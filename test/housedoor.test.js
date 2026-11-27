@@ -12,6 +12,7 @@ import { canvasStub } from './helpers/growriver.js';
 // The headless document stub every world test uses (test/flattrace.test.js's).
 vi.stubGlobal('document', canvasStub);
 
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
 const { build } = await import('../src/world/house.js');
 const { HOUSE_FRONT_DOOR, houseFloorGround } = await import('../src/world/houseplan.js');
 const { FRONT_DOOR_NEAR, FRONT_DOOR_FAR, FRONT_DOOR_OPEN, FRONT_DOOR_S } = await import('../src/world/houselife.js');

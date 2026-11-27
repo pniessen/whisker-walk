@@ -13,6 +13,7 @@ const { MAX_PATH_GRADE } = await import('../src/ground.js');
 const { isWalkableAt } = await import('../src/player.js');
 const { houseFlood } = await import('./helpers/houseflood.js');
 const { createHouseWalk } = await import('./helpers/housewalk.js');
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
 const { build } = await import('../src/world/house.js');
 const { findFadeOccluders } = await import('../src/treefade.js');
 

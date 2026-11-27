@@ -101,6 +101,8 @@ describe('tutorialwords', () => {
       'box-sit': ['Sit in a box', 'Walk into a cardboard box and stop.', 'Walk into a cardboard box and stop.'],
       'scenic-spots': ['Visit 2 special places', 'Go to a ☆ on the map.', 'Go to a ☆ on the map.'],
       'pounce-play': ['Pounce on 2 animals', 'Creep close. Then tap the paw.', 'Hold Shift to creep close. Then press Space.'],
+      // the Old House's east wing (Milestone 2): a goal only the house offers
+      'house-wing': ['Find 2 things in the new rooms', 'Visit the rooms past the parlour. Lie in a sunny patch.', 'Visit the rooms past the parlour. Lie in a sunny patch.'],
     };
     expect(GOAL_POOL.map((g) => g.id)).toEqual(Object.keys(want));
     for (const g of GOAL_POOL) {

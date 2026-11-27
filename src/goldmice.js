@@ -189,6 +189,10 @@ export const GOLD_MICE = {
     { id: 'gm-house-2', x: -6.8, z: -15.6, y: 0 },
     // on the cellar floor between the barrels and the crates
     { id: 'gm-house-3', x: 27.0, z: -0.7, y: 0 },
+    // on the secret wonder room's cat tree, at the crown: three hops up from the floor with no skills
+    { id: 'gm-house-4', x: 48.99, z: -11.35, y: 0 },
+    // on the east wing's kids' top bunk, one hop up from the lower bunk
+    { id: 'gm-house-5', x: 47.35, z: 5.7, y: 0 },
   ],
   // Lighthouse Point (src/world/lighthouseplan.js LIGHTHOUSE_GOLD; test/lighthousegold.test.js holds the two lists
   // equal). `y` is the height over the ground there: none needs Long Leap, Sea Legs or Spring Paws.
@@ -244,11 +248,11 @@ export const GOLD_MICE = {
     { id: 'gm-snowville-3', x: 26, z: -26, y: 1.0 }, // V5: on the hill rock, one hop (y is metres over the snow under it)
   ],
   // The Treehouse village (milestone T3; src/world/treehousefindsplan.js TREEHOUSE_GOLD holds the same three, test/treehousefinds.test.js; bounds 64 x 64 m): on the roots (ground), on the far platform
-  // (perch f2, 4.2 m) and on the crown deck by the bell (perch k1, 5.6 m), so two are climbed (never by a hop over 1.4 m). Not in KEEP_OUT (it already holds their places).
+  // (the deck's own ground, 4.2 m up) and on the crown deck by the bell (5.6 m up), so two are climbed by the flights of stairs (y is metres over the deck under each). Not in KEEP_OUT (it already holds their places).
   treehouse: [
     { id: 'gm-treehouse-1', x: -5.5, z: -2.5, y: 0 },
-    { id: 'gm-treehouse-2', x: 6.2, z: -5.6, y: 4.2 },
-    { id: 'gm-treehouse-3', x: 1.4, z: -13.2, y: 5.6 },
+    { id: 'gm-treehouse-2', x: 6.2, z: -5.6, y: 0 },
+    { id: 'gm-treehouse-3', x: 1.4, z: -13.2, y: 0 },
   ],
   // The Jungle lodge (milestone J3; src/world/junglefindsplan.js JUNGLE_GOLD holds the same three, test/junglefinds.test.js; bounds 88 x 76 m): on the veranda boards, under the giant leaf by the river and on the
   // canopy walk's hill: J5 drew the low branch there (src/world/junglewingplan.js BRANCH, 1.0 m, one hop from the ground beside it) and lifted the third onto it. The first two are on foot. Not in KEEP_OUT (it already holds their places).
@@ -260,7 +264,7 @@ export const GOLD_MICE = {
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 74 (the Jungle's three joined in J3; 71 (the Treehouse's three joined in T3; 68 (Snowville's three joined in V3; 65 (the Moon's relay tower stub joined in X0; 64 (the Crystal Cave's two wing C stubs joined in X0; 62 (the Reef's two Sealab/galleon mice joined in R10; 60 was nineteen areas x three, and the island's three; 57 before the Crystal Cave, 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 76 (the Old House's cat tree crown joined in the wing's M3); 75 (the Old House's top bunk joined in the wing's M2); 74 (the Jungle's three joined in J3; 71 (the Treehouse's three joined in T3; 68 (Snowville's three joined in V3; 65 (the Moon's relay tower stub joined in X0; 64 (the Crystal Cave's two wing C stubs joined in X0; 62 (the Reef's two Sealab/galleon mice joined in R10; 60 was nineteen areas x three, and the island's three; 57 before the Crystal Cave, 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
 
 // The golden mice a player of `edition` can reach: those in the areas the
 // edition shows (Legacy hides the Clan Edition territories; see edition.js).

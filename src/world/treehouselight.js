@@ -12,6 +12,7 @@ import { mulberry32 } from '../rng.js';
 
 export const DAPPLE = Object.freeze({ size: 72, opacity: 0.2, drift: 0.004, tile: 3 }); // metres across, how dark, texture turns a second, how many times it repeats
 export const SHAFT_OPACITY = 0.2; // the shafts' drawn strength (the same number as treehousebeauty.js's, kept here so stage A never imports the lift stage)
+export const SHAFT_VERTS = 192; // one shaft's vertices (eight sides, four bands, two triangles each): the shimmer works on the one mesh a shaft at a time
 export const isLowTier = (tier) => !!tier && (tier.name === 'low' || tier.name === 'lite' || tier.shadows === false || (tier.rung ?? 0) >= 3);
 
 let _tex = null;
@@ -68,12 +69,26 @@ export function createTreehouseLight({ scene, tier = null, reducedMotion = false
   // the shafts of sun (milestone T8, drawn in treehousebeauty.js): LOW and LITE hide them, the rest breathe slowly, reduced motion holds them at their drawn strength
   const shafts = scene.getObjectByName('treehouse:shafts') ?? null;
   if (shafts) { shafts.renderOrder = 2; shafts.visible = !low; }
+  // the grass tufts and the wildflower specks (round two) are drawn only on the tiers that can spare them
+  const tufts = scene.getObjectByName('treehouse:tufts') ?? null;
+  if (tufts) tufts.visible = !low;
+  const shaftCol = shafts && !low ? shafts.geometry.attributes.color : null;
+  const shaftBase = shaftCol ? Float32Array.from(shaftCol.array) : null;
+  let lastShimmer = -1;
   return {
     dapple,
     light,
     setGlow(x, y, z, intensity) { if (light) { light.position.set(x, y, z); light.intensity = intensity; } },
     update(_dt, t) {
-      if (shafts && !low && !reducedMotion) shafts.material.opacity = SHAFT_OPACITY * (0.88 + 0.12 * Math.sin(t * 0.25));
+      if (shaftCol && !reducedMotion && t - lastShimmer > 0.1) { // each shaft glimmers on its own slow beat (reduced motion keeps every one at its drawn strength)
+        lastShimmer = t;
+        const n = shaftBase.length / (SHAFT_VERTS * 3);
+        for (let i = 0; i < n; i++) {
+          const f = 0.84 + 0.16 * Math.sin(t * (0.21 + 0.07 * (i % 3)) + i * 1.9);
+          for (let k = i * SHAFT_VERTS * 3, e = k + SHAFT_VERTS * 3; k < e; k++) shaftCol.array[k] = shaftBase[k] * f;
+        }
+        shaftCol.needsUpdate = true;
+      }
       if (!map || reducedMotion) return;
       map.offset.set((t * DAPPLE.drift) % 1, (t * DAPPLE.drift * 0.6) % 1);
     },

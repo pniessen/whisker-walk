@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Holiday outfits: Hanukkah picture sheets</title>
+<!-- Holiday keepsakes H4 (Hanukkah) (docs/superpowers/plans/2026-11-27-holiday-merch.md): the five Hanukkah shop pieces and Menorah Glow (lit by &night=, default 3),
+     for the owner's and his daughter's review (and the sensitivity check the plan's H8 asks for). Each sheet is one canvas with a grid of
+     tiles labelled in HTML:
+       <set>-<preset>   a set (hanukkah | all) one piece per tile on one cat (tabby, black, mainecoon, d2, digit), at the shop's angle;
+       <set>-hagrid     the same on Hagrid (head, neck and collar pieces only);
+       <set>-together   the whole set worn at once on four cats and Hagrid, from the front-left;
+       <set>-sit        the dress-up's sit (tabby);
+     Pass ?shot=hanukkah-tabby (the default), ?shot=hanukkah-black, ?shot=hanukkah-together, ...
+     Contract for scripts/record-page.mjs: window.__ready is true after the first frame; window.__shot(name) returns name once drawn. -->
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1c2431; }
+  #gl { position: fixed; inset: 0; }
+  #gl canvas { display: block; }
+  #labels { position: fixed; inset: 0; pointer-events: none; font: 600 13px/1.25 -apple-system, 'Helvetica Neue', sans-serif; }
+  #labels .tile { position: absolute; box-sizing: border-box; outline: 1px solid rgba(28, 36, 49, .55); }
+  #labels .tag { position: absolute; left: 6px; top: 5px; max-width: calc(100% - 12px); padding: 3px 7px; border-radius: 7px; background: rgba(20, 28, 44, .78); color: #fff; }
+  #labels .tag small { display: block; font-weight: 500; font-size: 11px; color: #f2d58a; }
+  #title { position: fixed; right: 8px; bottom: 6px; padding: 2px 8px; border-radius: 6px; background: rgba(20, 28, 44, .78); color: #cfe0ff; font: 600 12px sans-serif; }
+</style>
+</head>
+<body>
+<div id="gl"></div>
+<div id="labels"></div>
+<div id="title"></div>
+<script type="module">
+  import '/src/style.css';
+  import * as THREE from 'three';
+  import { buildCat } from '/src/cat/model.js';
+  import { defaultPoseCat } from '/src/ui/catstage.js';
+  import { buildEnvMap, litMaterial } from '/src/render/materials.js';
+  import { setTextureTier, setTextureAnisotropy } from '/src/render/textures.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { HOLIDAY_WEAR } from '/src/foundwear/holidaywear.js';
+  import { HEN_SLOTS } from '/src/foundwear/rules.js';
+  import { accessoryFraming } from '/src/thumbnails.js';
+
+  const BARE = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null };
+  const SETS = {
+    hanukkah: HOLIDAY_WEAR.filter((r) => r.season === 'hanukkah' || r.holiday === 'hanukkah'),
+    all: HOLIDAY_WEAR,
+  };
+  const BREEDS = ['tabby', 'black', 'mainecoon', 'd2', 'digit'];
+  const $ = (id) => document.getElementById(id);
+  const W = innerWidth, H = innerHeight;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  renderer.setScissorTest(true);
+  setTextureAnisotropy(Math.min(4, renderer.capabilities.getMaxAnisotropy()));
+  $('gl').appendChild(renderer.domElement);
+  const tier = { name: 'high', envIntensity: 0.45 };
+  setTextureTier(tier);
+  const env = buildEnvMap(renderer);
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 400);
+
+  let world = null;
+  function newScene() {
+    if (world) world.scene.traverse((o) => { o.geometry?.dispose?.(); });
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xbfd8ff);
+    scene.environment = env;
+    scene.environmentIntensity = tier.envIntensity;
+    const sun = createSun();
+    scene.add(sun);
+    const lawn = new THREE.Mesh(new THREE.CircleGeometry(2.2, 40), litMaterial(0x6cb058));
+    lawn.rotation.x = -Math.PI / 2;
+    lawn.receiveShadow = true;
+    scene.add(lawn);
+    scene.add(createFill(0x6cb058));
+    const shadows = createShadowFit(sun, camera, { radius: 4, mapSize: 2048 });
+    sun.shadow.bias = SUN_BIAS;
+    assignShadowCasters(scene);
+    world = { scene, shadows };
+  }
+  function clear() {
+    $('labels').innerHTML = '';
+    renderer.setViewport(0, 0, W, H);
+    renderer.setScissor(0, 0, W, H);
+    renderer.setClearColor(0x1c2431, 1);
+    renderer.clear();
+  }
+  const grid = (n) => { const cols = Math.ceil(Math.sqrt(n * W / H)); return { cols, rows: Math.ceil(n / cols) }; };
+  function box(i, { cols, rows }) {
+    const c = i % cols, r = Math.floor(i / cols);
+    return { x: Math.round(c * W / cols), y: Math.round(r * H / rows), w: Math.round((c + 1) * W / cols) - Math.round(c * W / cols), h: Math.round((r + 1) * H / rows) - Math.round(r * H / rows) };
+  }
+  function tile(b, cat, cam, look, title, sub) {
+    world.scene.add(cat);
+    camera.position.set(...cam);
+    camera.lookAt(...look);
+    const y = H - b.y - b.h;
+    renderer.setViewport(b.x, y, b.w, b.h);
+    renderer.setScissor(b.x, y, b.w, b.h);
+    camera.aspect = b.w / b.h;
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld();
+    world.shadows?.update();
+    renderer.render(world.scene, camera);
+    world.scene.remove(cat);
+    cat.traverse((o) => { o.geometry?.dispose?.(); });
+    const d = document.createElement('div');
+    d.className = 'tile';
+    d.style.cssText = `left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px`;
+    d.innerHTML = `<div class="tag">${title}<small>${sub}</small></div>`;
+    $('labels').appendChild(d);
+  }
+  const closeCam = (k) => [[0.85 * k, 0.99 * k, -1.11 * k], [0, 0.64 * k, -0.21 * k]];
+  const wideCam = (k) => [[1.35 * k, 1.14 * k, -1.7 * k], [0, 0.44 * k, 0]];
+
+  function sheet(set, breed, { sit = false } = {}) {
+    clear(); newScene();
+    const recs = breed === 'hagrid' ? SETS[set].filter((r) => HEN_SLOTS.includes(r.slot)) : SETS[set];
+    const g = grid(recs.length);
+    recs.forEach((rec, i) => {
+      const cat = buildCat(breed, { ...BARE, [rec.slot]: rec.id });
+      if (sit) defaultPoseCat(cat);
+      const { closeUp, rotY } = accessoryFraming(rec.id);
+      cat.rotation.y = rotY;
+      const k = cat.scale.x * (breed === 'digit' ? 1.2 : 1);
+      const [cam, look] = breed === 'hagrid' ? [[0.7 * k, 1.02 * k, -1.2 * k], [0, 0.8 * k, 0]] : closeUp ? closeCam(k) : wideCam(k);
+      tile(box(i, g), cat, cam, look, rec.name(), `${rec.slot} · ${rec.holiday ? 'earned, ' + rec.holiday : `shop, ${rec.price} paws`}`);
+    });
+    $('title').textContent = `${set}-${breed}${sit ? '-sit' : ''}`;
+  }
+  function together(set) {
+    clear(); newScene();
+    const worn = {};
+    for (const r of SETS[set]) if (!worn[r.slot]) worn[r.slot] = r.id; // one piece per slot: the first
+    const picks = ['tabby', 'black', 'calico', 'digit', 'hagrid'];
+    const g = grid(picks.length);
+    picks.forEach((breed, i) => {
+      const cat = buildCat(breed, { ...BARE, ...worn });
+      cat.rotation.y = -0.6;
+      const k = cat.scale.x;
+      tile(box(i, g), cat, breed === 'hagrid' ? [0.9 * k, 1.1 * k, -1.5 * k] : [1.45 * k, 1.2 * k, -1.8 * k], [0, breed === 'hagrid' ? 0.7 * k : 0.52 * k, 0], breed, Object.values(worn).join(', '));
+    });
+    $('title').textContent = `${set}-together`;
+  }
+
+  function shot(name) {
+    const m = /^(hanukkah|all)-(.+)$/.exec(name);
+    if (!m) throw new Error(`no such sheet: ${name}`);
+    const [, set, what] = m;
+    if (what === 'together') together(set);
+    else if (what === 'sit') sheet(set, 'tabby', { sit: true });
+    else if (what === 'hagrid' || BREEDS.includes(what)) sheet(set, what);
+    else throw new Error(`no such sheet: ${name}`);
+    return name;
+  }
+  window.__shot = (name) => shot(name);
+  window.__ready = false;
+  const first = new URLSearchParams(location.search).get('shot') ?? 'hanukkah-tabby';
+  requestAnimationFrame(() => {
+    shot(first);
+    requestAnimationFrame(() => { window.__ready = true; });
+  });
+</script>
+</body>
+</html>

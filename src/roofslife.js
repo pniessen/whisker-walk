@@ -60,6 +60,14 @@
 // motion too: scale.y = 1 + BREATH.amp * sin(BREATH.rate * t + i), t walk
 // seconds, i the sleeper's place in the list. Nothing else reads them.
 //
+// ...AND THEY STIR (fix wave): a sleeper's STIR.sniff walk seconds of her
+// nose within STIR.r of it (and her paws within STIR.dy of its sill) wake it a
+// little (stirSleeper below, a pure machine): it lifts its head and turns,
+// over STIR.stir s, then dozes again for STIR.doze s before it will stir once
+// more. The first stir of a walk says one line (a discovery toast, no points:
+// the log's key roofs-sleeper-<id>). Under reduced motion it still stirs and
+// says its line, but nothing moves. Walk seconds only: no clock, no random.
+//
 // THE SIX FINDS (Rooftops step 5, world/roofsmoments.js): where the place has
 // its discoveries (area.anchors.discoveries) the life makes the moments with
 // the walk's log and progression (walk.js's context; a picture page has
@@ -80,9 +88,11 @@
 // while the game is muted (audio.isMuted), and a picture page hands no audio.
 // =============================================================================
 import { Vector3 } from 'three';
+import { bus as events } from './events.js';
+import { phrase } from './clanphrases.js';
 import { createClockTicker } from './world/clockhands.js';
 import { skyBackground } from './render/sky.js';
-import { BUS } from './world/roofsplan.js';
+import { BUS, ROOFS_SLEEPERS } from './world/roofsplan.js';
 import { createRoofsBirds } from './world/roofsbirds.js';
 import { WASH, createRoofsSmoke } from './world/roofsair.js';
 import { createRoofsMoments } from './world/roofsmoments.js';
@@ -98,6 +108,34 @@ export const SUNSET_FILL = 1.3; // x the dusk fill, at the start
 // GLOW.breathe about it, a swell every 2pi / GLOW.rate s, still under reduced motion.
 export const GLOW = Object.freeze({ sunset: 0.55, breathe: 0.06, rate: 1.1 });
 export const BREATH = Object.freeze({ amp: 0.02, rate: 1.3 }); // the sleeping cats': under 3%, a breath every 4.8 s
+
+// The stirring sleeper: a sniff of STIR.sniff s within STIR.r m (paws within
+// STIR.dy of the sill) wakes it a little for STIR.stir s, then it dozes
+// STIR.doze s (it cannot be stirred again) and sleeps as before.
+export const STIR = Object.freeze({ r: 1.6, dy: 1.0, sniff: 0.6, stir: 3, doze: 10 });
+export const newSleeper = () => ({ phase: 'asleep', t: 0, near: 0 });
+// One step: s = { phase, t, near } changes in place; returns 'stir' on the frame it wakes, else null.
+export function stirSleeper(s, dt, isNear) {
+  if (s.phase === 'asleep') {
+    s.near = isNear ? s.near + dt : Math.max(0, s.near - dt);
+    if (s.near < STIR.sniff) return null;
+    s.phase = 'stirring';
+    s.t = 0;
+    s.near = 0;
+    return 'stir';
+  }
+  s.t += dt;
+  if (s.phase === 'stirring' && s.t >= STIR.stir) {
+    s.phase = 'dozing';
+    s.t = 0;
+  } else if (s.phase === 'dozing' && s.t >= STIR.doze) {
+    s.phase = 'asleep';
+    s.t = 0;
+  }
+  return null;
+}
+// How far it has stirred, 0..1 (a swell up and down over STIR.stir).
+export const stirLift = (s) => (s.phase === 'stirring' ? Math.sin(Math.PI * Math.min(1, s.t / STIR.stir)) ** 2 : 0);
 
 const smoothstep = (a, b, x) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -218,8 +256,26 @@ export function createRoofsLife(area) {
     }
 
     const sleepers = area.sleepers ?? [];
+    const stirs = sleepers.map(() => newSleeper());
     function breathe() {
-      for (let i = 0; i < sleepers.length; i++) sleepers[i].scale.y = 1 + BREATH.amp * Math.sin(BREATH.rate * walk + i);
+      for (let i = 0; i < sleepers.length; i++) {
+        const m = sleepers[i];
+        const lift = reducedMotion ? 0 : stirLift(stirs[i]);
+        m.scale.y = 1 + BREATH.amp * Math.sin(BREATH.rate * walk + i) + 0.06 * lift;
+        m.rotation.y = (ROOFS_SLEEPERS[i]?.yaw ?? m.rotation.y) + (ROOFS_SLEEPERS[i]?.mirror ? -0.25 : 0.25) * lift;
+      }
+    }
+    function stir(dt, catPos) {
+      for (let i = 0; i < sleepers.length; i++) {
+        const m = sleepers[i];
+        const near = !!catPos && Math.abs(catPos.y - m.position.y) <= STIR.dy && Math.hypot(catPos.x - m.position.x, catPos.z - m.position.z) <= STIR.r;
+        if (stirSleeper(stirs[i], dt, near) !== 'stir') continue;
+        const key = `roofs-sleeper-${ROOFS_SLEEPERS[i]?.id ?? i}`;
+        if (log && log.count(key) === 0) {
+          log.mark(key);
+          events.emit('discovery', { type: 'greenhousenote', key, label: phrase('roofs.sleeper.stir'), points: 0, repeat: false });
+        }
+      }
     }
 
     // The page the moon and the attic's pane are made on: the context's (a
@@ -260,6 +316,7 @@ export function createRoofsLife(area) {
         camLast = camera;
         apply();
         wind();
+        stir(dt, catPos);
         breathe();
         if (clock) {
           seen = camera;
@@ -275,7 +332,7 @@ export function createRoofsLife(area) {
         moments?.dispose();
         birds?.dispose();
         smoke?.dispose();
-        for (const s of sleepers) s.scale.y = 1;
+        sleepers.forEach((s, i) => { s.scale.y = 1; s.rotation.y = ROOFS_SLEEPERS[i]?.yaw ?? s.rotation.y; });
         for (const m of lit) m.emissiveIntensity = m.userData.glowBase;
       },
     };
