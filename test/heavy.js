@@ -1,7 +1,8 @@
 // The test files that take ~20 s or more of one worker each in a full run,
-// with those seconds (measured on the owner's Mac in a full run, 2026-11-19,
-// longest first): whole-cat pose sweeps that raycast every vertex against the
-// fur, and whole built territories. Three uses, all through vite.config.js:
+// with those seconds (measured in a full run, 2026-11-26, with other builds
+// running on the same Mac, so inflated but in proportion; regenerate with
+// `node scripts/heavycost.mjs <vitest --reporter=json report>`, longest first): whole-cat pose
+// sweeps that raycast every vertex against the fur, and whole built territories. Three uses, all through vite.config.js:
 //
 //   - HeavyFirst runs them before everything else. Vitest orders files by the
 //     durations it cached on the last run, and with no cache (a fresh CI
@@ -19,41 +20,37 @@
 // ordinary file when the shards are dealt. The seconds only need to be right
 // relative to each other.
 export const HEAVY_COST = [
-  ['catcape.tail.confetticape.test.js', 97],
-  ['catcape.tail.cape.test.js', 94],
-  ['catcape.sit.confetticape.test.js', 79],
-  ['catcape.sit.cape.test.js', 78],
-  ['catcape.fur.confetticape.test.js', 66],
-  ['gorge.test.js', 64],
-  ['catcape.fur.cape.test.js', 63],
-  ['folds.test.js', 61],
-  ['catbackitems.jetpack.test.js', 59],
-  ['catballoon.test.js', 58],
-  ['housecamera.test.js', 55], // 28 before the east wing's rooms and ledges joined its sweeps (measured 53 s, 2026-11-22)
-  ['fightcamworld.pines.test.js', 45],
-  ['catcape.tie.confetticape.test.js', 43],
-  ['fightcamworld.moor.test.js', 42],
-  ['catbackitems.backpack.test.js', 40],
-  ['catcape.tie.cape.test.js', 40],
-  ['fairgames.test.js', 40],
-  ['fightcamworld.test.js', 38],
-  ['catnap.test.js', 37],
-  ['farmjobs.test.js', 37],
-  ['catsitupright.test.js', 36],
-  ['builder.test.js', 34],
-  ['fightcamworld.river.test.js', 34],
-  ['catbackitems.test.js', 31],
-  ['catsitupright.items.test.js', 29],
-  ['catmodel.test.js', 28],
-  // the Old House's never-lost sweeps (every reachable spot, view step and pitch, the climbs and
-  // the ledges' guards): 28 s alone with another worktree's run going, 2026-11-21
-  ['farmlife.test.js', 27],
-  ['straycats.test.js', 23],
-  ['dencats-den.test.js', 22],
-  // every shipped map traced again in the everyday words (series A3): 5.4 s in
-  // a full run, 2026-11-20, lighter than the rest but a whole-world build; listed
+  ['fairgames.test.js', 178],
+  ['housecamera.test.js', 140], // 28 before the east wing's rooms and ledges joined its sweeps
+  ['folds.test.js', 130],
+  ['gorge.test.js', 124],
+  ['fightcamworld.pines.test.js', 100],
+  ['fightcamworld.moor.test.js', 94],
+  ['fightcamworld.test.js', 84],
+  ['farmjobs.test.js', 77],
+  ['catnap.test.js', 75],
+  ['builder.test.js', 74],
+  ['fightcamworld.river.test.js', 66],
+  ['catballoon.test.js', 63],
+  ['reeflabshow.test.js', 58],
+  ['reefridelive.test.js', 57],
+  ['catmodel.test.js', 50],
+  ['marketlive.test.js', 40],
+  ['foundwearfit.test.js', 38],
+  ['dencats-den.test.js', 33],
+  ['walkon.test.js', 30],
+  ['roofs.test.js', 29],
+  ['straycats.test.js', 29],
+  ['bumps.test.js', 28],
+  ['catsitupright.items.test.js', 28],
+  ['housebudget.test.js', 24],
+  ['houseguards.test.js', 24],
+  ['fairshow.people.test.js', 23],
+  ['people.reach.test.js', 21],
+  // every shipped map traced again in the everyday words (series A3): 9 s in
+  // a full run, 2026-11-26, lighter than the rest but a whole-world build; listed
   // so it starts early beside its family-words twin instead of last
-  ['flattrace.offwords.test.js', 5],
+  ['flattrace.offwords.test.js', 9],
   // two whole builds (public and family) searched for the private edition's tokens: 1 s alone, more with the suite running
   ['privateedition.test.js', 5],
 ];
