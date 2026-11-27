@@ -11,14 +11,28 @@ import * as THREE from 'three';
 import { createPlayer, zoomTuning, canSwim } from '../player.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { activeCat, sanitizeCustomCats, presetFor } from '../customcats.js';
+import { sanitizeOutfits, sameWear, wornNow } from '../outfits.js';
 
 export const SECOND_ID = 'local:2'; // a remote's id; nothing ever sends it anywhere
 const LOANERS = ['siamese', 'black', 'calico', 'persian', 'mainecoon', 'tabby'];
 
 const readyMade = (catalog, id) => Object.hasOwn(catalog.cats, id) && id !== 'hagrid' && Object.hasOwn(PERSONALITIES, id);
 
-/** The cat that walks as cat two: { key, breed, name, look } for the save `state` (and the game's CATALOG, which main hands in). */
-export function pickSecond(state, catalog) {
+/**
+ * The saved outfit cat two puts on: one of the household's own (state.outfits, never a new one),
+ * the one this device's couch settings name (`outfit`: its index, or -1 for plain), else the first
+ * that cat one is not wearing. Returns a wear map or null.
+ */
+export function outfitFor(state, catalog, index) {
+  const all = sanitizeOutfits(state?.outfits, catalog);
+  if (index === -1 || all.length === 0) return null;
+  if (Number.isInteger(index) && all[index]) return all[index].wear;
+  const mine = wornNow(state?.equipped, catalog);
+  return (all.find((o) => !sameWear(o.wear, mine)) ?? all[0]).wear;
+}
+
+/** The cat that walks as cat two: { key, breed, name, look, wear } for the save `state` (and the game's CATALOG, which main hands in); `outfit` is the couch setting. */
+export function pickSecond(state, catalog, outfit) {
   const mine = activeCat(state);
   const mineKey = mine.custom ?? mine.breed;
   const unlocked = Array.isArray(state?.unlocked?.cats) ? state.unlocked.cats : [];
@@ -31,12 +45,12 @@ export function pickSecond(state, catalog) {
     const id = LOANERS.find((l) => l !== mineKey);
     return { key: id, breed: id, name: catalog.cats[id].name, look: null };
   })();
-  return picked;
+  return { ...picked, wear: outfitFor(state, catalog, outfit) };
 }
 
 /** The profile remotecats.upsert takes for cat two. */
 export function profileOf(pick) {
-  return { playerId: SECOND_ID, breed: pick.breed, petName: pick.name, accessories: pick.look ? { look: pick.look } : {} };
+  return { playerId: SECOND_ID, breed: pick.breed, petName: pick.name, accessories: { ...(pick.wear ?? {}), ...(pick.look ? { look: pick.look } : {}) } };
 }
 
 /**

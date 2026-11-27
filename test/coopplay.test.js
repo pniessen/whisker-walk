@@ -445,7 +445,7 @@ describe('the TV\'s sizes', () => {
   it('its two pieces of page keep the 24 px floor on a TV, 48 px buttons, and the 5 % margins', () => {
     const r = rig({ profile: 'tv' });
     const css = r.doc.head.children[0].textContent;
-    expect(css).toMatch(/html\.tv \.coop-join\{[^}]*font-size:24px/);
+    expect(css).toMatch(/html\.tv \.coop-join[^{]*\{[^}]*font-size:24px/);
     expect(css).toMatch(/html\.tv \.coop-lost\{[^}]*font-size:24px/);
     expect(css).toMatch(/\.coop-lost button\{[^}]*min-height:48px/);
     expect(css).toMatch(/\.coop-join\{[^}]*top:max\(13vh/); // under the rank badge, inside the safe margin
@@ -476,7 +476,7 @@ describe('where couch play does not exist', () => {
   });
 
   it('an online co-walk and a place that is not ready leave solo play exactly as it is', () => {
-    for (const o of [{ net: {} }, { areaId: 'docks' }]) {
+    for (const o of [{ net: {} }, { areaId: 'fair' }]) {
       const r = rig(o);
       set(r, pad(0, [PAD_BUTTONS.X]), pad(1)); r.tick(2);
       set(r, pad(0), pad(1, [A])); r.tick(2);

@@ -19,16 +19,19 @@ import { createMarkers } from './markers.js';
 import { bandFactor, createFollow, edgeMarker, createToastQueue, FOLLOW_STOP } from './rules.js';
 import { createCoopHud } from './hud.js';
 import { createCards } from './cards.js';
+import { createFinds } from './finds.js';
+import { bus } from '../events.js';
 import { pickSecond, profileOf, createMover, SECOND_ID } from './second.js';
 import './words.js';
 import { phrase } from '../clanphrases.js';
 import { glyphify, plainify, padKind } from '../tv/glyphs.js';
 import { getProfile } from '../profile.js';
 import { pounceArc, DEFAULT_PITCH, isWalkableAt } from '../player.js';
+import { PERSONALITIES } from '../cat/brain.js';
 import { applyDeadZone } from '../gamepadinput.js';
 import { tvToastTiming } from '../tv/toasttime.js';
 import { CAT_LOOK_Y } from '../cat/model.js';
-import { MIN_CAMERA_Y, cameraPullScale } from '../camzoom.js';
+import { MIN_CAMERA_Y, cameraPullScale, maxZoomStep } from '../camzoom.js';
 import { makeNameTag } from '../nametag.js';
 import { activeCat } from '../customcats.js';
 import * as THREE from 'three';
@@ -50,6 +53,8 @@ const TIGHT_PULL = 0.6; // the camera pulled in below this share: the tight-plac
 const TAG_SCALE = 0.75; // cat one's own name tag, as game/owntag.js
 
 const nowSec = () => performance.now() / 1000;
+const FIND_TYPES = new Set(['collectible', 'legend', 'treasure', 'hunt']);
+const isFind = (e) => FIND_TYPES.has(e?.type) || (e?.type === 'perk' && e.key === 'catch');
 const LOOK_AHEAD = 0.3; // seconds of a cat's own pace the camera widens for
 const MAX_AHEAD = 2; // metres
 
@@ -75,9 +80,9 @@ function stop(pos, was, other, limit) {
 }
 
 const SETTINGS_KEY = 'whisker-walk-coop'; // couch settings, per device (like the TV switch), never the save
-/** Couch settings from this device: { follow } (follow when idle, on unless switched off). */
+/** Couch settings from this device: { follow, outfit } (follow when idle, on unless switched off; cat two's saved outfit by index, -1 plain, else the first one cat one is not wearing). */
 export function readSettings(storage) {
-  try { return { follow: JSON.parse(storage?.getItem(SETTINGS_KEY) || '{}').follow !== false }; } catch { return { follow: true }; }
+  try { const j = JSON.parse(storage?.getItem(SETTINGS_KEY) || '{}'); return { follow: j.follow !== false, outfit: Number.isInteger(j.outfit) ? j.outfit : undefined }; } catch { return { follow: true, outfit: undefined }; }
 }
 const STICK = (pad) => (pad ? applyDeadZone(pad.axes?.[0] || 0, pad.axes?.[1] || 0).mag : 0);
 
@@ -125,13 +130,21 @@ export function start(ctx) {
   let markers = null;
   let tag = null; // the name tag this chunk gave cat one (null: it had its own)
   let pick = null;
+  let finds = null; // cat two's finds (src/coop/finds.js), while it is in the walk
+  let offBus = null;
+  const tally = [0, 0]; // finds this walk by cat one and cat two: said at the walk's end, never saved
+  let tallyNames = ['', ''];
+  let tallyLeft = 0;
+  const own = [null, null]; // a line this chunk puts in a prompt slot (what cat two's X would do)
   let clock = 0;
   let idle = 0; // seconds cat two has stood still
   let hopAt = -Infinity;
+  let hopT = 0; // seconds left of cat two's hop: its paws can catch while it is up
   let level = 0; // the camera's eased zoom level while framing both
   let pull = 1;
   let tight = false; // the camera could not frame both cats last frame
-  const follow = readSettings(ctx.storage ?? globalThis.localStorage).follow; // the Settings switch for follow-when-idle
+  const settings = readSettings(ctx.storage ?? globalThis.localStorage);
+  const follow = settings.follow; // the Settings switch for follow-when-idle
   let menuOwner = 0; // the slot whose pad moves the pause card's focus
   let dismissed = false; // "Wait for it" was chosen for the card on screen
   let heldOne = false, heldTwo = false; // a stick held through a turn keeps its world direction
@@ -160,6 +173,8 @@ export function start(ctx) {
     if (!state.joined) return;
     const s = cur;
     release();
+    if (finds && mover && s) finds.letGo(s, mover.body);
+    finds = null; offBus?.(); offBus = null; own[1] = null;
     if (mover) { mover.player.setTouchMove(null); mover.player.disable(); }
     mover = null;
     s?.remotes?.remove?.(SECOND_ID);
@@ -179,8 +194,17 @@ export function start(ctx) {
     if (heldTwo) { mover?.player.setInputYaw(null); heldTwo = false; }
   }
 
+  // The walk is over: who found what, once, plain. Never saved.
+  function sayTally() {
+    const n = tally[0] + tally[1];
+    if (n > 0 && cards) { cards.showTally(phrase('coop.tally', tallyNames[0], tally[0], tallyNames[1], tally[1])); tallyLeft = 10; }
+    tally[0] = 0; tally[1] = 0;
+  }
+
   function switchSession(next) {
+    sayTally();
     if (state.joined) { // its scene is being thrown away: nothing of the old walk is touched
+      finds = null; offBus?.(); offBus = null; own[1] = null;
       mover?.player.disable();
       mover = null; markers = null; tag = null; pick = null;
       state.joined = false; state.second = null;
@@ -197,7 +221,7 @@ export function start(ctx) {
   function join() {
     const s = cur;
     const st = ctx.getState?.();
-    pick = pickSecond(st, ctx.catalog);
+    pick = pickSecond(st, ctx.catalog, settings.outfit);
     const entry = s.remotes.upsert(profileOf(pick));
     entry.local = true; // drawn where it is, with no network's half-second of smoothing
     const yaw0 = ctx.player.viewYaw();
@@ -218,6 +242,17 @@ export function start(ctx) {
         tag = t;
       }
     }
+    tallyNames = [nameOne(), nameTwo()];
+    if (ctx.progression && ctx.log) {
+      finds = createFinds({
+        ctx, tally, pick: () => pick,
+        drawn: () => cur?.remotes?.list.find((e) => e.playerId === SECOND_ID)?.group,
+        said: (slot, label, points) => { hud?.chipShow([slot], [nameOne(), nameTwo()], 2500); if (points > 0) handle.pop(slot, points); },
+      });
+      // cat one's finds are the walk's own awards: counted here, so the summary says who found what
+      offBus = bus.on('discovery', (e) => { if (finds && !finds.busy && isFind(e)) tally[0]++; });
+    }
+    cards?.hideTally(); tallyLeft = 0;
     idle = 0; level = ctx.player.cameraZoomLevel ?? 1; pull = 1;
     prev.a.set(p.x, p.z); prev.b.set(at.x, at.z);
     state.joined = true;
@@ -244,10 +279,18 @@ export function start(ctx) {
     }
   }
 
+  // X on cat two's pad: the walk's own finds (src/coop/finds.js), told in its own words.
+  function interact() {
+    if (!finds || !cur) return;
+    const r = finds.interact(cur, mover, mover.body);
+    if (r?.kind === 'sniff') ctx.toast?.(phrase(r.found ? 'coop.sniffed' : 'coop.nosniff'));
+  }
+
   function hop() {
     if (clock < hopAt || !mover) return;
     hopAt = clock + HOP_COOLDOWN;
     mover.player.pounce(pounceArc(ctx.getState?.() ?? {}, { reducedMotion: !!cur.reducedMotion }));
+    hopT = 0.35;
   }
 
   // Hop to my friend: the cat lands beside the other one, wherever it stood (the way past a wall).
@@ -316,6 +359,7 @@ export function start(ctx) {
     clock += dt;
     toasts.tick(dt);
     hud?.step(dt);
+    if (tallyLeft > 0 && (tallyLeft -= dt) <= 0) cards?.hideTally();
     const s = ctx.getSession?.() ?? null;
     if (s !== cur) switchSession(s);
     const pads = standardPads(ctx.nav);
@@ -345,7 +389,8 @@ export function start(ctx) {
         if (pad2.move !== undefined) mover.player.setTouchMove(pad2.move);
         for (const a of pad2.actions) {
           if (a === 'pounce') hop();
-          else if (a === 'meow') ctx.voice?.(1.26);
+          else if (a === 'meow') { ctx.voice?.(1.26); finds?.meow(cur, mover.body); }
+          else if (a === 'interact') interact();
           else if (a === 'camera') ctx.act?.('camera');
         }
       }
@@ -379,6 +424,24 @@ export function start(ctx) {
     joinPill(pads, live2, true);
   };
 
+  // After the walk's own interactions: what cat two reaches, finds and smells, and the finds' prompt.
+  coop.late = (dt) => {
+    const s = cur;
+    if (!state.joined || !mover || !s || !finds) return;
+    const body = mover.body;
+    hopT = Math.max(0, hopT - dt);
+    const reveal = (PERSONALITIES[pick?.breed]?.special === 'keenNose' ? 14 : 7);
+    for (const [id, m] of s.collectibleMeshes) { // a find lying near cat two shows, as it does near cat one
+      if (m.visible) continue;
+      const c = s.areaData.collectibles.find((x) => x.id === id);
+      if (c && Math.hypot(c.x - body.position.x, c.z - body.position.z) < reveal) m.visible = true;
+    }
+    finds.frame(dt, s, mover, body, hopT > 0 || mover.player.hopY > 0.01);
+    const r = finds.reach(s, mover, body);
+    const text = !r ? null : r.kind === 'collect' ? phrase('coop.pick', r.label) : r.kind === 'carry' ? phrase('coop.carry', r.label) : r.kind === 'drop' ? phrase('coop.drop', r.label) : r.kind === 'dig' ? phrase('coop.dig') : null;
+    own[1] = text;
+  };
+
   // After cat one's player.update: cat two's step, the leash, the picture of both.
   coop.frame = (dt) => {
     const s = cur;
@@ -395,7 +458,8 @@ export function start(ctx) {
     // one that is stopped slides round the circle, the other walks on as it pleases.
     // Where a building has pulled the camera in, the widest frame is not there to be had: the leash
     // then holds the cats no farther apart than they are (the plan's tight-place rule, in its first form).
-    const wide = maxSeparation(lens) * LEASH_MARGIN;
+    const top = maxZoomStep(s.areaId); // the Den stops at the default step: the leash is the room's own
+    const wide = maxSeparation(lens, top) * LEASH_MARGIN;
     const limit = tight ? Math.min(wide, Math.max(state.apart, 2)) : wide;
     state.leash = limit;
     stop(cat.position, prev.a, prev.b, limit);
@@ -409,7 +473,7 @@ export function start(ctx) {
     const pushing = [ctx.player.inputActive && !trotting[0], mover.player.inputActive && !trotting[1]];
     for (let i = 0; i < 2; i++) {
       if (state.apart > limit - 3 && pushing[i]) hopHint[i] = 1.2; else hopHint[i] = Math.max(0, hopHint[i] - dt);
-      const text = hopHint[i] > 0 ? phrase('coop.hophint') : state.following[i] ? phrase('coop.following', i ? nameTwo() : nameOne()) : ext[i];
+      const text = hopHint[i] > 0 ? phrase('coop.hophint') : state.following[i] ? phrase('coop.following', i ? nameTwo() : nameOne()) : (ext[i] ?? own[i]);
       if (text) hud?.prompt(i, glyphify(text, kinds[i]), plainify(text, kinds[i])); else hud?.prompt(i, null);
     }
     markers?.step(dt);
@@ -439,8 +503,8 @@ export function start(ctx) {
     // the widening looks a moment ahead, so cats running apart are not caught by the easing
     soon1.copy(one); soon2.copy(two);
     ahead(soon1, vel.a); ahead(soon2, vel.b);
-    const need = neededLevel(catPoints(soon1, soon2), base, mid, heading.yaw, lens);
-    level = easeLevel(Math.max(level, base), Math.max(need, base), dt, !!s.reducedMotion);
+    const need = neededLevel(catPoints(soon1, soon2), Math.min(base, top), mid, heading.yaw, lens, top);
+    level = Math.min(top, easeLevel(Math.max(level, Math.min(base, top)), Math.max(need, Math.min(base, top)), dt, !!s.reducedMotion));
     state.level = level;
     offsetAt(level, heading.yaw, DEFAULT_PITCH, off);
     const dist = Math.hypot(off.x, off.z);
@@ -483,7 +547,7 @@ export function start(ctx) {
       leave(false);
       cards?.dispose();
       hud?.dispose();
-      coop.poll = null; coop.pad = null; coop.frame = null;
+      coop.poll = null; coop.pad = null; coop.frame = null; coop.late = null;
     },
   };
   if (import.meta.env?.DEV) globalThis.__coop = handle; // the browser pane's handle (development server only; not in a build)

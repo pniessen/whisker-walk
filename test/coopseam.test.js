@@ -65,7 +65,7 @@ describe('the seam is identity when couch play is off', () => {
   });
 
   it('every slot starts empty: with no chunk the pad glue gets null and reads its own pad, as today', () => {
-    expect(coop).toEqual({ poll: null, pad: null, frame: null });
+    expect(coop).toEqual({ poll: null, pad: null, frame: null, late: null });
   });
 
   it('the seam file imports nothing and stays tiny', () => {
@@ -82,10 +82,10 @@ describe('the seam is identity when couch play is off', () => {
 });
 
 describe('the per-place ready table', () => {
-  it('has a row for every place the game can walk in, and only the Neighborhood is ready', () => {
+  it('has a row for every place the game can walk in, and only the Neighborhood and the open places (M3) are ready', () => {
     const ids = new Set([...Object.keys(CATALOG.areas), ...Object.keys(AREA_LOADERS)]);
     for (const id of ids) expect(Object.keys(COOP_READY), `${id} has no couch row`).toContain(id);
-    expect(Object.entries(COOP_READY).filter(([, v]) => v).map(([k]) => k)).toEqual(['neighborhood']);
+    expect(Object.entries(COOP_READY).filter(([, v]) => v).map(([k]) => k).sort()).toEqual(['den', 'docks', 'moor', 'neighborhood', 'pines', 'river', 'woods']); // M3 opened the open places
     expect(coopReady('neighborhood')).toBe(true);
     expect(coopReady('fair')).toBe(false);
     expect(coopReady('nowhere')).toBe(false);
