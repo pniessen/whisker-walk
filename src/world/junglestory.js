@@ -6,6 +6,7 @@
 // =============================================================================
 
 import * as P from './jungleplan.js';
+import { ST } from './junglestages.js';
 
 // Mossy, the old tortoise who keeps the lodge: she sits on the veranda (she is no follower; she lives here). She turns, slowly, to look.
 export const MOSSY = Object.freeze({
@@ -18,7 +19,10 @@ export const MOSSY = Object.freeze({
 });
 
 // The three fruit, in order (J2 draws the first, the mango lying under the mango tree in the grove; the others belong to stage B). `y` is how high it lies over the ground.
-export const FRUITS = Object.freeze([Object.freeze({ id: 0, x: -24.4, z: 3.2, y: 0.16, reach: 1.9 })]);
+export const FRUITS = Object.freeze([Object.freeze({ id: 0, kind: 'mango', x: -24.4, z: 3.2, y: 0.16, reach: 1.9 })]);
+// All three, in order: the mango is this file's; the banana bunch (across the log bridge) and the cacao pod (on the canopy walk's low branch) come from stage b (milestone J5,
+// world/junglewingplan.js) once it is in. A fruit may need her up on a branch (`minY`, metres over the sea of the world's zero, the same height a cat's y is read in).
+export const allFruits = () => [...FRUITS, ...(ST.b?.story?.fruits ?? [])];
 
 // The kitchen table on the veranda: the deck is 0.55 m up, so a cat under it (on the ground below the skirt) is not at the table and the fruit has to be carried UP. `slots` is
 // where each fruit sits once set down; `glow` is the warm glow over the table.
@@ -30,7 +34,7 @@ export const TABLE = Object.freeze({
 });
 
 // The picture a goal is shown with (never text).
-export const BUBBLE_ICON = Object.freeze({ fruit: '🥭', table: '🍽️', heart: '💗' });
+export const BUBBLE_ICON = Object.freeze({ fruit: '🥭', table: '🍽️', heart: '💗', spark: '✨' });
 
 export const storyColliders = () => P.jungleColliders();
 const hyp = Math.hypot;

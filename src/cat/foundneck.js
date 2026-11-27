@@ -565,6 +565,13 @@ const dressLocket = charm([0x6aa84f, 0xf4ecd6], (u) => [
   colour(new THREE.SphereGeometry(0.42 * u, 7, 5).scale(1, 1.1, 0.7).translate(0, -0.1 * u, -0.16 * u), (x, y) => (y > 0.1 * u ? 0x6a4a28 : 0xb07a3a)),
 ]);
 
+// Rain Lily Charm (the Jungle lodge's story prize, a placeholder name): a fern-green band piped cream, and at the throat a small white-and-pink lily (four petals round a gold middle) on a green disc. Faces -z, one mesh.
+const dressRainLily = charm([0x4f9a4a, 0xf4ecd6], (u) => [
+  colour(new THREE.CylinderGeometry(0.62 * u, 0.62 * u, 0.16 * u, 10, 1).rotateX(Math.PI / 2), 0x6aae5a),
+  ...[0, 1, 2, 3].map((i) => colour(new THREE.SphereGeometry(0.3 * u, 6, 4).scale(0.55, 1.3, 0.45).translate(0, 0.28 * u, 0).rotateZ((i * Math.PI) / 2).translate(0, 0, -0.14 * u), (x, y) => (Math.hypot(x, y) > 0.38 * u ? 0xf6b8d0 : 0xfff2f6))),
+  colour(new THREE.SphereGeometry(0.12 * u, 5, 4).translate(0, 0, -0.2 * u), () => 0xf2c14e),
+]);
+
 export const FOUND_COLLARS = Object.freeze({
   glimmercollar: Object.freeze({ ring: 0x8a6ac0, charmed: true, dress: dressGlimmer }),
   pearlcollar: Object.freeze({ ring: 0xa8d8cf, charmed: true, dress: dressPearl }),
@@ -572,6 +579,7 @@ export const FOUND_COLLARS = Object.freeze({
   signaltag: Object.freeze({ ring: 0x3fb8a8, charmed: true, dress: dressSignalTag }),
   snowclasp: Object.freeze({ ring: 0x8cb8e6, charmed: true, dress: dressClasp }),
   acornlocket: Object.freeze({ ring: 0x6aa84f, charmed: true, dress: dressLocket }),
+  rainlily: Object.freeze({ ring: 0x4f9a4a, charmed: true, dress: dressRainLily }),
   bottletopcollar: Object.freeze({ ring: 0x3a3a42, charmed: false, dress: dressBottleTops }),
   ropecollar: Object.freeze({ ring: 0xc8a46a, charmed: true, dress: dressRope }),
   anchorcharm: Object.freeze({ ring: 0x24365c, charmed: true, dress: dressAnchor }),

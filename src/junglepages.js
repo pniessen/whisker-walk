@@ -9,7 +9,9 @@ export const JUNGLE_PAGES = Object.freeze([
 // Milestone J4: three of the life pages (jw1 the macaws, jw2 the rain frogs, jw5 the toucan), counted like a farm animal (world/junglecritters.js spots them; the hints are in the lazy
 // src/world/junglecritterwords.js). The capybara family (jw3) and the butterflies (jw4) take their ids later; the other five jw ids stay hidden placeholders until their milestones.
 export const JUNGLE_LIFE_PAGES = Object.freeze([['jw1', '🦜', 'macaw', 'The Bright Macaws'], ['jw2', '🐸', 'frog', 'The Rain Frogs'], ['jw5', '🐦', 'toucan', 'The Big-Beaked Toucan']].map((p) => Object.freeze(p)));
-export const JUNGLE_LIVE_PAGES = Object.freeze([...JUNGLE_PAGES, ...JUNGLE_LIFE_PAGES]);
+// Milestone J5: the two story pages (jl7: the three fruit delivered; jl8: the Rain Supper seen; the hints are in the lazy src/world/junglewingwords.js). jl9 stays a placeholder.
+export const JUNGLE_STORY_PAGES = Object.freeze([['jl7', '🍌', 'fruit', 'The Three Fruits'], ['jl8', '🌧️', 'supper', 'The Rain Supper']].map((p) => Object.freeze(p)));
+export const JUNGLE_LIVE_PAGES = Object.freeze([...JUNGLE_PAGES, ...JUNGLE_LIFE_PAGES, ...JUNGLE_STORY_PAGES]);
 export const JUNGLE_PAGE_IDS = Object.freeze(JUNGLE_PAGES.map((p) => p[0]));
 
 // The hints by journal id: empty here, filled by the place's lazy file (world/junglefindwords.js) when its chunk arrives.

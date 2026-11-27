@@ -109,6 +109,7 @@ export function createJungleLight({ scene, tier = null, reducedMotion = false, s
   const told = { rain: false, rainbow: false }; // each soft line is said once a walk
   let cover = 0; // 0 in the open, 1 under cover: eases so the rain does not snap off at the veranda's edge
   const state = { strength: 0, rainbow: 0, phase: 'clear', cover: 0 };
+  const show = { rain: 0, bow: 0, glow: 0 }; // the Rain Supper's own rain, rainbow and lantern lift (milestone J5, world/junglewinglive.js): added to the schedule, never replacing it
 
   function placeMist(t) {
     const tt = reducedMotion ? 0 : t;
@@ -123,11 +124,13 @@ export function createJungleLight({ scene, tier = null, reducedMotion = false, s
     rainbow,
     light,
     state,
+    // the Rain Supper's pictures, each 0 to 1 (a show that is over sets them back to 0)
+    setShow(rain = 0, bow = 0, glow = 0) { show.rain = rain; show.bow = bow; show.glow = glow; },
     update(dt, t, catPos) {
       const cx = catPos?.x ?? P.JUNGLE_SPAWN.x;
       const cz = catPos?.z ?? P.JUNGLE_SPAWN.z;
-      const strength = schedule.intensity(t);
-      const bow = schedule.rainbow(t);
+      const strength = Math.max(schedule.intensity(t), show.rain);
+      const bow = Math.max(schedule.rainbow(t), show.bow);
       state.phase = schedule.phase(t);
       if (state.phase === 'rain' && !told.rain && strength > 0.5) { told.rain = true; say('jungle-rain', phrase('jungle.rain')); }
       if (state.phase === 'rainbow' && !told.rainbow && bow > 0.5) { told.rainbow = true; say('jungle-rainbow', phrase('jungle.rainbow')); }
@@ -152,7 +155,7 @@ export function createJungleLight({ scene, tier = null, reducedMotion = false, s
       }
       if (!reducedMotion) placeMist(t);
       // the lantern breathes a little (steady on the low rungs and in reduced motion)
-      if (light) light.intensity = reducedMotion || low ? LIGHT.intensity : LIGHT.intensity * (1 + 0.08 * Math.sin(t * 5.3) + 0.05 * Math.sin(t * 11.7 + 1));
+      if (light) light.intensity = (reducedMotion || low ? LIGHT.intensity : LIGHT.intensity * (1 + 0.08 * Math.sin(t * 5.3) + 0.05 * Math.sin(t * 11.7 + 1))) * (1 + 0.3 * show.glow);
     },
     dispose() {
       scene.remove(rain, mist, rainbow);
