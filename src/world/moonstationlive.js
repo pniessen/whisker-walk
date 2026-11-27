@@ -13,6 +13,7 @@ import { STATION_COLLIDERS, STATION_PERCHES, CLEAR, SPOT } from './moonstationpl
 import { phrase } from '../clanphrases.js';
 import { ST } from './moonstages.js';
 import { createSledLive } from './moonsledlive.js';
+import { createRelayLive } from './moonrelaylive.js';
 
 export const BLINK = Object.freeze({ period: 1.8, lo: 0.45, still: 0.85 }); // s; the glow's brightness runs lo..1 round the period; reduced motion holds `still`
 
@@ -36,8 +37,8 @@ export function clearDrawnRocks(scene, rect = CLEAR) {
   return n;
 }
 
-/** createStationLive({ scene, reducedMotion, tier, colliders, perches, spot }) -> { group, update(dt, t, catPos), dispose(), near, glow }. */
-export function createStationLive({ scene, reducedMotion = false, tier, colliders, perches, spot }) {
+/** createStationLive({ scene, reducedMotion, tier, colliders, perches, spot, audio, log, send }) -> { group, update(dt, t, catPos), dispose(), near, glow }. */
+export function createStationLive({ scene, reducedMotion = false, tier, colliders, perches, spot, audio, log, send }) {
   const lite = tier?.shadows === false;
   const M = moonMaterials();
   const D = drawStation(M, { lite });
@@ -56,7 +57,8 @@ export function createStationLive({ scene, reducedMotion = false, tier, collider
   spot?.push(view);
   const zones = createZones();
   const sled = createSledLive({ scene, reducedMotion, tier, colliders, spot, clear: (r) => clearDrawnRocks(scene, r) }); // (milestone M2) the sled lane: its slots go into the station's (read by moonlife.js)
-  const slotFns = { sled: sled.slots.sled, riding: sled.slots.riding, frame: (...a) => sled.frame(...a) };
+  const relay = createRelayLive({ scene, reducedMotion, tier, colliders, spot, audio, log, send }); // (milestone M3) the relay arc: its slot is read by moonlife.js too, and the partner's 'relay-' events go to it
+  const slotFns = { sled: sled.slots.sled, riding: sled.slots.riding, relay, frame: (...a) => { sled.frame(...a); relay.frame(...a); } };
   const slots = (ST.station ??= {});
   Object.assign(slots, slotFns);
   const live = {
@@ -65,9 +67,10 @@ export function createStationLive({ scene, reducedMotion = false, tier, collider
       if (catPos) D.near.visible = zones.update(catPos.x, catPos.z).E; // the detail within `near` metres (with the zone's hysteresis)
       M.glow.color.setScalar(reducedMotion ? BLINK.still : BLINK.lo + (1 - BLINK.lo) * (0.5 + 0.5 * Math.sin((t / BLINK.period) * Math.PI * 2)));
     },
-    sled,
+    sled, relay,
     dispose() {
       sled.dispose();
+      relay.dispose();
       for (const k of Object.keys(slotFns)) if (slots[k] === slotFns[k]) delete slots[k];
       for (const list of [[colliders, mine], [perches, myPerches], [spot, [view]]]) for (const x of list[1]) { const i = list[0]?.indexOf(x) ?? -1; if (i >= 0) list[0].splice(i, 1); }
       scene.remove(group);

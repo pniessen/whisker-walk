@@ -543,10 +543,18 @@ const dressGlimmer = charm([0x8a6ac0, 0xf4c6dc], (u) => [
   colour(new THREE.OctahedronGeometry(0.3 * u).scale(0.7, 1.3, 0.6).translate(0.7 * u, 0.1 * u, 0), () => 0xffc65a),
 ]);
 
+// Signal Tag (the Moon's Old Relay Station): a teal band piped white, and at the throat a small silver tag with a gold dot and a signal arc over it. Faces -z, one mesh.
+const dressSignalTag = charm([0x3fb8a8, 0xf1f3f8], (u) => [
+  colour(new THREE.CylinderGeometry(0.8 * u, 0.8 * u, 0.18 * u, 10, 1).rotateX(Math.PI / 2), 0xc9d1e0),
+  colour(new THREE.SphereGeometry(0.2 * u, 6, 4).translate(0, -0.3 * u, -0.14 * u), () => 0xf2c14e),
+  colour(new THREE.TorusGeometry(0.42 * u, 0.09 * u, 4, 8, Math.PI).translate(0, -0.05 * u, -0.14 * u), () => 0x3fb8a8),
+]);
+
 export const FOUND_COLLARS = Object.freeze({
   glimmercollar: Object.freeze({ ring: 0x8a6ac0, charmed: true, dress: dressGlimmer }),
   pearlcollar: Object.freeze({ ring: 0xa8d8cf, charmed: true, dress: dressPearl }),
   moonbadge: Object.freeze({ ring: 0x8e98b0, charmed: true, dress: dressMoonBadge }),
+  signaltag: Object.freeze({ ring: 0x3fb8a8, charmed: true, dress: dressSignalTag }),
   bottletopcollar: Object.freeze({ ring: 0x3a3a42, charmed: false, dress: dressBottleTops }),
   ropecollar: Object.freeze({ ring: 0xc8a46a, charmed: true, dress: dressRope }),
   anchorcharm: Object.freeze({ ring: 0x24365c, charmed: true, dress: dressAnchor }),

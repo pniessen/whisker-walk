@@ -335,10 +335,10 @@ describe('the words and the pages', () => {
     expect(bannedIn(phrase(id))).toBeNull();
     for (const w of ['collapse', 'trapped', 'stuck', 'dark']) expect(phrase(id).toLowerCase()).not.toContain(w);
   });
-  it('the station\'s page is live; the relay\'s (M3), the sled\'s and the signal\'s are still hidden', () => {
-    expect(WING_LIVE).toMatchObject({ mnstation: true, mnsignal: false, mnrelay: false, mnsled: true, mnlap: true });
+  it('all five wing pages are live (the sled\'s in M2, the signal\'s and the relay\'s in M3)', () => {
+    expect(WING_LIVE).toMatchObject({ mnstation: true, mnsignal: true, mnrelay: true, mnsled: true, mnlap: true });
     expect(wingPageShown('mnstation')).toBe(true);
-    expect(wingPageShown('mnrelay')).toBe(false);
+    expect(wingPageShown('mnrelay')).toBe(true);
   });
 });
 

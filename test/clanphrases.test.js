@@ -22,6 +22,7 @@ import { CRYSTAL_GROTTO_LINES } from '../src/world/crystalgrottowords.js';
 import { CRYSTAL_SONG_LINES } from '../src/world/crystalsongwords.js';
 import { MOON_STATION_LINES } from '../src/world/moonstationwords.js';
 import { SLED_LINES } from '../src/world/moonsledwords.js';
+import { RELAY_LINES } from '../src/world/moonrelaywords.js';
 import { CRYSTAL_FORGE_LINES } from '../src/world/crystalforgejobwords.js';
 import { CRYSTAL_ERRAND_LINES } from '../src/world/crystalerrandwords.js';
 import { LINES as REEF_ERRAND_LINES } from '../src/world/reeferrandwords.js';
@@ -57,6 +58,7 @@ addPhrases(CRYSTAL_FORGE_LINES); // (Lumi's forge job, milestone C3: src/world/c
 addPhrases(CRYSTAL_SONG_LINES); // (the singing chamber's lines, milestone C5: src/world/crystalsongwords.js)
 addPhrases(CRYSTAL_GROTTO_LINES); // (the grotto and forge labels, milestone C2: src/world/crystalgrottowords.js)
 addPhrases(SLED_LINES); // (the Moon sled's lines, milestone M2: src/world/moonsledwords.js)
+addPhrases(RELAY_LINES); // (the Moon's relay arc lines, milestone M3: src/world/moonrelaywords.js)
 addPhrases(MOON_STATION_LINES); // (the Moon's Old Relay Station journal lines, milestone X0: src/world/moonstationwords.js)
 addPhrases(CRYSTAL_WING_C_LINES); // (wing C's journal lines, milestone X0: src/world/crystalwingcwords.js)
 addPhrases(CART_LINES); // (Lumi's cart, milestone C4: src/world/crystalcartwords.js)

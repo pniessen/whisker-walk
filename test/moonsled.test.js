@@ -484,6 +484,6 @@ describe('the words and the pages', () => {
       expect(bannedIn(MOON_HINTS[id])).toBeNull();
     }
     expect(MOON_PAGE_WORDS.mnlap.name()).toBe('Sled Lap');
-    expect([WING_LIVE.mnsignal, WING_LIVE.mnrelay]).toEqual([false, false]);
+    expect([WING_LIVE.mnsignal, WING_LIVE.mnrelay]).toEqual([true, true]); // (switched on by M3)
   });
 });

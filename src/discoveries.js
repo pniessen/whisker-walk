@@ -44,6 +44,7 @@ export const AWARDS = {
   moonfind: 12,
   moonjob: 25,
   moonstory: 40,
+  moonrelay: 40, // the far station answered and the Signal Tag is hers, once ever (wing E, M3)
   // The Reef (2026-11-26, ids reserved in milestone R0): one of its six finds, paid the first time ever; Marlo's errand of the day,
   // once a walk; and the story's end (the housewarming), once ever.
   reeffind: 12,

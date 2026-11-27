@@ -96,7 +96,7 @@ describe('renderJournalHtml', () => {
       expect(renderJournalHtml({ mnstory: 1 }, 0, 9)).not.toContain('Hello, Earth!');
       setMoon(true);
       expect(renderJournalHtml({ mnstory: 1 }, 0, 9)).toContain('Hello, Earth!');
-      expect(renderJournalHtml({}, 0, 9).match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.filter((c) => !c.greenhouse && !c.reef && !c.crystal && !/^mn(signal|relay)$/.test(c.id)).length);
+      expect(renderJournalHtml({}, 0, 9).match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.filter((c) => !c.greenhouse && !c.reef && !c.crystal).length);
     } finally {
       setMoon(null);
     }

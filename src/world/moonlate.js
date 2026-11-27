@@ -81,7 +81,7 @@ export function applyStation(L) {
   for (const c of w.rings) { const i = L.colliders.indexOf(c); if (i >= 0) L.colliders.splice(i, 1); }
   w.rings = [];
   const known = materialsOf(L.scene);
-  w.live = ST.createStationLive({ scene: L.scene, reducedMotion: L.reducedMotion, tier: L.tier, colliders: L.colliders, perches: L.perches, spot: L.spot });
+  w.live = ST.createStationLive({ scene: L.scene, reducedMotion: L.reducedMotion, tier: L.tier, colliders: L.colliders, perches: L.perches, spot: L.spot, audio: L.audio, log: L.log, send: L.send });
   if (!L.reducedMotion) { w.fader = createFader({ reducedMotion: false }); w.fader.add([w.live.group], known); }
   L.base.refresh?.();
 }

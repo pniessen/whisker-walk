@@ -102,7 +102,7 @@ export function cullParts(parts, catPos, table = PART_NEAR) {
 }
 
 // createMoonLife(ctx) -> { update(dt, t, catPos, camera, session), dispose() }; ctx is walk.js's life context.
-export function createMoonLife({ scene, reducedMotion = false, tier, progression, ground, colliders, perches, log, audio, doc = globalThis.document, win = globalThis.window, clock, pads, roomSeed, visits, boundOn, stages = null }) {
+export function createMoonLife({ scene, reducedMotion = false, tier, progression, ground, colliders, perches, log, audio, doc = globalThis.document, win = globalThis.window, clock, pads, roomSeed, visits, boundOn, stages = null, sendEvent = null }) {
   // (arrival fix) walk.js's life context carries no page: the guide must find the real one itself, or it never mounts (the star, launch and jump lives already fell back this way)
   scene.background = new THREE.Color(SKY_BLACK); // no horizon haze under the stars: the Moon has no air
   const sky = createMoonSky({ scene, tier, reducedMotion });
@@ -178,7 +178,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
   let held = null;
   const st = (k) => ({ promptAt: (p) => ST.station?.[k]?.promptAt?.(p) ?? null, interact: () => ST.station?.[k]?.interact?.() ?? null }); // a station slot: null until its stage fills it
   const arbiter = createPromptArbiter([{ promptAt: (p) => (rover.riding ? rover.promptAt(p) : null), interact: () => rover.interact() }, st('riding'), base, job, star, launch, st('relay'), rover, st('sled')]);
-  const L = { scene, stages, colliders, perches, tier, reducedMotion, closed, rings: new Map(), said: new Set(), slots, spottable, spot: absent.hill ? spottable : robots.spottable, base, deep, mk: { star: mkStar, robots: mkRobots, launch: mkLaunch, jump: mkJump, bound: mkBound, rover: mkRover, job: mkJob } };
+  const L = { audio, log, send: sendEvent, scene, stages, colliders, perches, tier, reducedMotion, closed, rings: new Map(), said: new Set(), slots, spottable, spot: absent.hill ? spottable : robots.spottable, base, deep, mk: { star: mkStar, robots: mkRobots, launch: mkLaunch, jump: mkJump, bound: mkBound, rover: mkRover, job: mkJob } };
   let late = null; // moonlate.js (a lazy file) fetches the other stages, shuts their places, and draws and wakes each as it arrives; an arrival waits in the queue until it is in (a few frames at most)
   // (idle ring) the schedule's own step lives in moonlate.js (a lazy file: the ring waits 30 s anyway); it is bound here when that file is in
   let idleStep = null;

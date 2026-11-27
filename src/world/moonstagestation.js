@@ -6,4 +6,4 @@ import './moonstationwords.js'; // the wing's journal hints and lines
 import { drawStation } from './moonstationparts.js';
 import { createStationLive } from './moonstationlive.js';
 
-Object.assign(ST, { station: {}, drawStation, createStationLive }); // (station: the slots moonlife.js reads: the sled's `sled`, `riding` and `frame` while its live is up (M2); M3 adds `relay`)
+Object.assign(ST, { station: {}, drawStation, createStationLive }); // (station: the slots moonlife.js reads: the sled's `sled`, `riding` and `frame` while its live is up (M2); M3's `relay`: the arc's prompt and the partner's 'relay-' events)
