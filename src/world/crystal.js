@@ -58,14 +58,14 @@ export function build(scene) {
     for (const o of wing) scene.add(o);
     scene.add(drawFindMarks()); // the Echo Wall, the Crystal Garden and the Gold Vein (milestone C3)
     scene.add(K.drawLight()); // the cave's one real light, at intensity 0
-    return {
+    const area = {
       name: P.CRYSTAL_NAME,
       bounds: P.CRYSTAL_BOUNDS,
       spawn: P.CRYSTAL_SPAWN,
-      colliders: P.crystalColliders().map((c) => ({ ...c })),
+      colliders: [...P.crystalColliders(), ...(ST.wingc?.colliders?.() ?? []), ...(ST.grotto?.colliders() ?? [])].map((c) => ({ ...c })), // the river's banks (C1) and the grotto and forge (C2), once their stages are in
       waters: [],
       waterFx: [],
-      perches: wingPerches(P.crystalY), // the pool's stepping crystals: an optional climb, the floor goes round (milestone C5)
+      perches: [...wingPerches(P.crystalY), ...(ST.grotto?.perches() ?? [])], // the pool's stepping crystals: an optional climb, the floor goes round (milestone C5)
       pois: P.CRYSTAL_POIS.map((p) => ({ ...p })),
       collectibles: crystalCollectibles(), // six (milestone C3)
       scenics: CRYSTAL_SCENICS.map((k) => ({ ...k })),
@@ -92,6 +92,7 @@ export function build(scene) {
         const lumi = createLumi({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion });
         const wingLife = createWing({ scene: ctx.scene, lumi, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
         const finds = createCrystalFindsLife(ctx); // the six discoveries (milestone C3)
+        const grotto = ST.grotto?.life(ctx) ?? null; // wing C's grotto and forge shell (C2)
         const critters = createCrystalCritters(ctx); // glow-bugs, dust, drips (milestone C4)
         const sound = createCrystalSound(ctx); // the hum, the plinks, the crystals' notes
         const errand = createCaveErrandLive({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, lumi }); // C7
@@ -100,7 +101,10 @@ export function build(scene) {
         // One arbiter picks the action button's line: Lumi, the errand's hand-in (it wins over the Heart's replay), wing B, then wing C's boat, cart, forge and pads
         // (stage slots that answer null until the stage fills them, so later milestones never edit this file).
         const slot = (get) => ({ promptAt: (p) => get()?.promptAt?.(p) ?? null, interact: () => get()?.interact?.() ?? null });
-        const arbiter = createPromptArbiter([lumi, errand, wingLife, slot(() => ST.wingc?.boat), slot(() => ST.play?.cart), slot(() => ST.wingc?.forge), slot(() => ST.play?.pads)]);
+        // C1: the river boat (a live made here from the stage's factory); while she rides, its "Hop off" comes first, like the Moon's riding source
+        const river = ST.wingc?.createRiverLive?.({ scene: ctx.scene, ground: area.ground, colliders: area.colliders, player: ctx.player, reducedMotion: ctx.reducedMotion, tier: ctx.tier, progression: ctx.progression }) ?? null;
+        const riding = { promptAt: (p) => (river?.riding ? river.promptAt(p) : null), interact: () => river?.interact() ?? null };
+        const arbiter = createPromptArbiter([riding, lumi, errand, wingLife, slot(() => river), slot(() => ST.play?.cart), slot(() => ST.wingc?.forge), slot(() => ST.play?.pads)]);
         return {
           light,
           critters,
@@ -110,7 +114,7 @@ export function build(scene) {
           guide,
           wing: wingLife,
           errand,
-          spottable: cave.spottable, // the creatures: photo and journal subjects (cavelifelive.js)
+          spottable: [...cave.spottable, ...(grotto?.spottable ?? [])], // the creatures: photo and journal subjects (cavelifelive.js)
           promptAt: (catPos) => arbiter.promptAt(catPos),
           interact: () => arbiter.interact(),
           // a show begun by anyone in the room starts ours (the shared T0); every other step is Lumi's, credited in order
@@ -120,10 +124,11 @@ export function build(scene) {
             if (typeof ev?.kind === 'string' && ev.kind.startsWith('wc-')) return ST.wingc?.credit?.(ev) ?? ST.play?.credit?.(ev);
             return lumi.credit(ev);
           },
-          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); cave.update(dt, t); sound.update(dt, catPos); errand.update(dt, t, catPos, camera, session); intro.update(dt); guide.update(dt, t, catPos, camera); },
-          dispose() { cave.dispose(); decor.dispose(); guide.dispose(); intro.dispose(); errand.dispose(); sound.dispose(); critters.dispose(); finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); cave.update(dt, t); sound.update(dt, catPos); errand.update(dt, t, catPos, camera, session); river?.update(dt, t, catPos, camera, session); grotto?.update(dt); intro.update(dt); guide.update(dt, t, catPos, camera); },
+          dispose() { grotto?.dispose(); river?.dispose(); cave.dispose(); decor.dispose(); guide.dispose(); intro.dispose(); errand.dispose(); sound.dispose(); critters.dispose(); finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
         };
       },
     };
+    return area;
   });
 }

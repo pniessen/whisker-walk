@@ -15,7 +15,7 @@ export const CAVE_LIFE_PAGES = Object.freeze([['clfish', '🐟', 'fish', 'Cave F
 export const CRYSTAL_WING_PAGES = Object.freeze([['ccboat', '🚣', 'boat', 'The River Boat'], ['ccgrotto', '🍄', 'grotto', 'The Mushroom Grotto'], ['ccfalls', '🌊', 'falls', 'The Falls'],
   ['ccforge', '🔥', 'forge', 'The Forge'], ['cccart', '🛤️', 'cart', 'Lumi’s Cart'], ['ccsong', '🎶', 'song', 'The Singing Chamber']].map((p) => Object.freeze(p)));
 // Which wings are open: a page stays out of the journal until its wing is in the game (no silhouettes of places that are not there). A switch to true in the wing's own milestone.
-export const WING_LIVE = { boat: false, grotto: false, falls: false, forge: false, cart: false, song: false };
+export const WING_LIVE = { boat: true, grotto: true, falls: true, forge: true, cart: false, song: false };
 export const WING_OF = Object.freeze({ ccboat: 'boat', ccgrotto: 'grotto', ccfalls: 'falls', ccforge: 'forge', cccart: 'cart', ccsong: 'song' });
 export const wingPageShown = (id) => !WING_OF[id] || !!WING_LIVE[WING_OF[id]];
 export const CRYSTAL_JOURNAL_TYPES = Object.freeze(CRYSTAL_PAGES.map((p) => p[0]));

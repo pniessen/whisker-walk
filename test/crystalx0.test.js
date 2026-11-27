@@ -113,7 +113,7 @@ describe('the prompt arbiter and the stages', () => {
   });
   it('crystal.js routes the source order and the wc- events; empty stages change nothing', () => {
     const code = readFileSync(new URL('../src/world/crystal.js', import.meta.url), 'utf8');
-    expect(code).toContain("createPromptArbiter([lumi, errand, wingLife, slot(() => ST.wingc?.boat), slot(() => ST.play?.cart), slot(() => ST.wingc?.forge), slot(() => ST.play?.pads)])");
+    expect(code).toContain("createPromptArbiter([riding, lumi, errand, wingLife, slot(() => river), slot(() => ST.play?.cart), slot(() => ST.wingc?.forge), slot(() => ST.play?.pads)])");
     expect(code).toContain("startsWith('wc-')");
   });
   it('the clears hook starts empty and takes rim rocks and pebbles away after the scatter', async () => {
@@ -129,7 +129,7 @@ describe('the prompt arbiter and the stages', () => {
     const a = S.loadCrystalStages();
     expect(S.loadCrystalStages()).toBe(a);
     await a;
-    expect(Object.keys(S.ST).sort()).toEqual(['play', 'wingc']);
+    expect(Object.keys(S.ST).sort()).toEqual(['grotto', 'play', 'wingc']); // (grotto: the C2 grotto and forge shell, filled by crystalgrottostage.js)
     expect(S.CRYSTAL_STAGE_MODULES).toHaveLength(2);
   });
 });

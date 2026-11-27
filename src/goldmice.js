@@ -231,9 +231,9 @@ export const GOLD_MICE = {
     { id: 'gm-crystal-1', x: -28, z: 4, y: 0 },
     { id: 'gm-crystal-2', x: 14, z: -4, y: 0 },
     { id: 'gm-crystal-3', x: 26, z: -26, y: 0 },
-    // wing C stubs (milestone X0; positions are first guesses, tuned in C2): the mushroom grotto's floor (on foot) and the forge's shelf (one hop, within perch reach).
+    // wing C stubs (milestone X0; placed in C2): the mushroom grotto's floor (on foot) and the forge's shelf (one hop, within perch reach).
     { id: 'gm-crystal-4', x: 25, z: 12, y: 0 },
-    { id: 'gm-crystal-5', x: -25, z: 19.5, y: 0 },
+    { id: 'gm-crystal-5', x: -25, z: 19.5, y: 1.0 }, // C2: on the forge's stone shelf (src/world/crystalgrottoplan.js SHELF), one hop of 1.0 from the floor
   ],
 };
 
