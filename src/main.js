@@ -267,6 +267,7 @@ function init() {
   // music.setMuted() to silence the generative music. See music.js's
   // file-header comment for the full story.
   const music = createMusic(() => audio.getContext(), () => audio.getMaster());
+  audio.setVoiceHook?.(() => music.duck());
   // Sampled pet voices: created AFTER audio so its decode hook can reach
   // audio.getContext(). Loads public/sounds/manifest.json and lazily
   // decodes every listed file; decodeAudioData works without a user gesture

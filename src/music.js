@@ -39,8 +39,12 @@ function shuffled(rng, arr) {
 // scale. `rng` is caller-owned (mulberry32 in practice) so the same seed
 // always yields the same phrase — createMusic derives a fresh rng per
 // phrase from mulberry32(seed + phraseIndex).
-export function composePhrase(rng, { mood = 'day' } = {}) {
+export function composePhrase(rng, { mood = 'day', area, lib } = {}) {
   const root = ROOTS[mood] ?? ROOTS.day;
+  // A themed area (musicthemes.js, loaded on first use so start-up stays small; `lib` is that module) composes its own phrase; no theme (the
+  // neighborhood, an unknown id, no area) falls through to the original.
+  const th = lib ? lib.themeFor(area, mood) : null;
+  if (th) return lib.composeThemed(rng, th, mood, root);
 
   // Note count is drawn FIRST, before anything mood-specific, so day and
   // rain (given the same rng seed) start from the identical 4-7 base count —
@@ -87,6 +91,10 @@ export function createMusic(getCtx, getMaster) {
 
   let seed = 0;
   let mood = 'day';
+  let area = null;
+  let theme = null;
+  let lib = null; // musicthemes.js, once loaded
+  let startToken = 0;
   let beatDur = BASE_BEAT_DUR;
   let beatCursor = 0;
   let nextNoteTime = 0;
@@ -110,7 +118,10 @@ export function createMusic(getCtx, getMaster) {
   // Both setMuted() and setVolume() route through this so neither call can
   // clobber what the other one set.
   function applyGain() {
-    if (musicGain) musicGain.gain.value = muted ? 0 : volume;
+    if (musicGain) {
+      try { musicGain.gain.cancelScheduledValues?.(0); } catch { /* a duck in flight is dropped */ }
+      musicGain.gain.value = muted ? 0 : volume;
+    }
   }
 
   function killPad() {
@@ -123,7 +134,8 @@ export function createMusic(getCtx, getMaster) {
   }
 
   // pluck: triangle osc → lowpass 1800 → exponential-decay envelope (0.35s).
-  function schedulePluck(ctx, freq, when, len) {
+  function schedulePluck(ctx, freq, when, len, vel = 1, voice = null) {
+    if (voice) return lib.playVoice(ctx, musicGain, freq, when, len, vel, voice);
     const osc = ctx.createOscillator();
     osc.type = 'triangle';
     osc.frequency.value = freq;
@@ -141,11 +153,15 @@ export function createMusic(getCtx, getMaster) {
 
   // bass: plain sine at root/2, once per bar (phrase).
   function scheduleBass(ctx, rootFreq, when) {
+    if (theme?.drone) { for (const sm of theme.drone) bassNote(ctx, rootFreq * Math.pow(2, sm / 12), when); return; }
+    bassNote(ctx, rootFreq / 2, when);
+  }
+  function bassNote(ctx, freq, when) {
     const osc = ctx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.value = rootFreq / 2;
+    osc.frequency.value = freq;
     const g = ctx.createGain();
-    const dur = beatDur * BEATS_PER_PHRASE * 0.9;
+    const dur = beatDur * phraseLen() * 0.9;
     g.gain.setValueAtTime(0.0001, when);
     g.gain.linearRampToValueAtTime(0.12, when + 0.06);
     g.gain.exponentialRampToValueAtTime(0.001, when + dur);
@@ -161,7 +177,16 @@ export function createMusic(getCtx, getMaster) {
     killPad();
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, when);
-    g.gain.linearRampToValueAtTime(0.02, when + 1.2);
+    if (theme) {
+      // themed pad: its own level; a swell rises over the first part of the
+      // two phrases and ebbs away (tide-like), else a plain slow attack
+      const pg = theme.pad.g;
+      const span = beatDur * phraseLen() * 2;
+      if (theme.pad.swell) {
+        g.gain.linearRampToValueAtTime(pg, when + span * 0.45);
+        g.gain.linearRampToValueAtTime(0.0005, when + span * 0.98);
+      } else g.gain.linearRampToValueAtTime(pg, when + 1.2);
+    } else g.gain.linearRampToValueAtTime(0.02, when + 1.2);
     g.connect(musicGain);
     const oscs = [];
     for (const semi of chord) {
@@ -178,14 +203,19 @@ export function createMusic(getCtx, getMaster) {
     padVoices = { oscs, gain: g };
   }
 
+  const phraseLen = () => phrase?.len ?? BEATS_PER_PHRASE;
+
   function scheduleLoop() {
     const { ctx } = ensureGain();
     while (nextNoteTime < ctx.currentTime + LOOKAHEAD) {
-      const idx = Math.floor(beatCursor / BEATS_PER_PHRASE);
-      const beatInPhrase = beatCursor % BEATS_PER_PHRASE;
+      // one phrase is len steps (8 unless the theme says otherwise), so the
+      // cursor counts phrases in whole steps of the current length
+      const plen = theme ? theme.len : BEATS_PER_PHRASE;
+      const idx = Math.floor(beatCursor / plen);
+      const beatInPhrase = beatCursor % plen;
       if (idx !== phraseIndex) {
         phraseIndex = idx;
-        phrase = composePhrase(mulberry32((seed + phraseIndex) >>> 0), { mood });
+        phrase = composePhrase(mulberry32((seed + phraseIndex) >>> 0), { mood, area, lib });
       }
       const when = nextNoteTime;
       if (beatInPhrase === 0) {
@@ -195,7 +225,8 @@ export function createMusic(getCtx, getMaster) {
       for (const step of phrase.steps) {
         if (step.beat === beatInPhrase) {
           const freq = phrase.root * Math.pow(2, step.note / 12);
-          schedulePluck(ctx, freq, when, step.len);
+          const late = theme && theme.swing && step.beat % 2 === 1 ? theme.swing * beatDur : 0;
+          schedulePluck(ctx, freq, when + late, step.len, step.vel ?? 1, theme ? (step.alt ? theme.altVoice : theme.voice) : null);
         }
       }
       nextNoteTime += beatDur;
@@ -207,16 +238,25 @@ export function createMusic(getCtx, getMaster) {
     get playing() { return playingFlag; },
     // seed/mood per the brief: room walks share roomSeed so co-walkers hear
     // the same song; mood picks the root + (for dusk) a slower beat feel.
-    start(newSeed, newMood = 'day') {
+    start(newSeed, newMood = 'day', newArea = null) {
       // Remembered regardless of whether this call actually starts playing —
       // see the `pendingStart` declaration above and setVolume() below.
-      pendingStart = { seed: (newSeed ?? 0) >>> 0, mood: newMood };
+      pendingStart = { seed: (newSeed ?? 0) >>> 0, mood: newMood, area: newArea };
+      if (newArea && !lib && newArea !== 'neighborhood') {
+        // the themes load once, on the first themed walk (a small chunk); a
+        // restart or stop in the meantime cancels the pending start
+        const token = ++startToken;
+        import('./musicthemes.js').then((m) => { lib = m; if (token === startToken && pendingStart) api.start(pendingStart.seed, pendingStart.mood, pendingStart.area); }, () => { lib = { themeFor: () => null }; });
+        return;
+      }
       if (volume <= 0) return; // cheap opt-out — no nodes, no interval, nothing to tear down later
       if (intervalId) api.stop({ keepPending: true }); // restart cleanly rather than stacking a second scheduler
       const { ctx } = ensureGain();
       seed = pendingStart.seed;
       mood = pendingStart.mood;
-      beatDur = BASE_BEAT_DUR * (mood === 'dusk' ? 1.15 : 1); // dusk: same 70bpm grid, slightly longer beats = slower feel
+      area = pendingStart.area;
+      theme = lib ? lib.themeFor(area, mood) : null;
+      beatDur = theme ? theme.beat : BASE_BEAT_DUR * (mood === 'dusk' ? 1.15 : 1); // dusk: same 70bpm grid, slightly longer beats = slower feel
       beatCursor = 0;
       phraseIndex = -1;
       nextNoteTime = ctx.currentTime;
@@ -230,6 +270,7 @@ export function createMusic(getCtx, getMaster) {
     // default to clearing it, so a later volume tweak made outside a walk
     // (e.g. at homebase) doesn't resurrect a finished walk's song.
     stop({ keepPending = false } = {}) {
+      startToken++;
       if (intervalId) { clearInterval(intervalId); intervalId = null; }
       killPad();
       playingFlag = false;
@@ -248,7 +289,7 @@ export function createMusic(getCtx, getMaster) {
       if (volume === 0 && playingFlag) {
         api.stop({ keepPending: true });
       } else if (volume > 0 && !playingFlag && pendingStart) {
-        api.start(pendingStart.seed, pendingStart.mood);
+        api.start(pendingStart.seed, pendingStart.mood, pendingStart.area);
       }
     },
     // M-mute / settings.muted, pushed by main.js's applySettings. Zeroes
@@ -258,6 +299,18 @@ export function createMusic(getCtx, getMaster) {
     setMuted(m) {
       muted = !!m;
       applyGain();
+    },
+    // Duck: the music sits under a meow or a story line. Dips the gain to 55%
+    // for `secs` and eases back; muted and volume still win in applyGain().
+    duck(secs = 1.2) {
+      if (!musicGain || muted || !playingFlag) return;
+      const ctx = getCtx();
+      const now = ctx.currentTime;
+      if (typeof musicGain.gain.cancelScheduledValues !== 'function') return;
+      musicGain.gain.cancelScheduledValues(now);
+      musicGain.gain.setValueAtTime(musicGain.gain.value, now);
+      musicGain.gain.linearRampToValueAtTime(volume * 0.55, now + 0.08);
+      musicGain.gain.linearRampToValueAtTime(volume, now + 0.08 + secs);
     },
   };
   return api;

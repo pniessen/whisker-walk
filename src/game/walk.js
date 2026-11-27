@@ -2813,7 +2813,7 @@ export function createWalkLifecycle({
     // via music.setMuted()'s gain-zeroing, so unmuting mid-walk resumes
     // instantly instead of waiting for the next walk.
     const musicMood = eveningLook ? 'dusk' : weather.condition === 'rain' ? 'rain' : weather.condition === 'sunset' ? 'sunset' : 'day';
-    music.start(roomSeed ?? seedFromCode(walkStamp), musicMood);
+    music.start(roomSeed ?? seedFromCode(walkStamp), musicMood, areaId);
     // On touch a new walk starts walking at once: no "Ready?" tap between
     // Start and the cat (a desktop keeps its card, since the first click is
     // what takes the mouse; a walk picked up again keeps its card too). The
