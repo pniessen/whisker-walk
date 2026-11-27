@@ -65,7 +65,8 @@ export function tube(soup, spine, rad, rings, sides, m, col) {
       const j = (k * sides + i) * 9;
       SCR[j] = m[0] * px + m[4] * py + m[8] * pz + m[12]; SCR[j + 1] = m[1] * px + m[5] * py + m[9] * pz + m[13]; SCR[j + 2] = m[2] * px + m[6] * py + m[10] * pz + m[14];
       SCR[j + 3] = (m[0] * nx + m[4] * ny + m[8] * nz) / sc; SCR[j + 4] = (m[1] * nx + m[5] * ny + m[9] * nz) / sc; SCR[j + 5] = (m[2] * nx + m[6] * ny + m[10] * nz) / sc;
-      SCR[j + 6] = (bot[0] + (top[0] - bot[0]) * w) * dim; SCR[j + 7] = (bot[1] + (top[1] - bot[1]) * w) * dim; SCR[j + 8] = (bot[2] + (top[2] - bot[2]) * w) * dim;
+      const mc = col.mot && col.mot(k, i, w); // (a colour of its own for this vertex: a mottled coat)
+      SCR[j + 6] = mc ? mc[0] : (bot[0] + (top[0] - bot[0]) * w) * dim; SCR[j + 7] = mc ? mc[1] : (bot[1] + (top[1] - bot[1]) * w) * dim; SCR[j + 8] = mc ? mc[2] : (bot[2] + (top[2] - bot[2]) * w) * dim;
     }
   }
   const put = (k, i) => { const j = (k * sides + i) * 9; soup.vert(SCR[j], SCR[j + 1], SCR[j + 2], SCR[j + 3], SCR[j + 4], SCR[j + 5], SCR[j + 6], SCR[j + 7], SCR[j + 8]); };

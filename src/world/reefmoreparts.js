@@ -6,8 +6,8 @@
 // =============================================================================
 
 import * as THREE from 'three';
-import { Soup, tube, ellipsoid, paddle, bodyMatrix, frameMatrix, drawRocks } from './reefsealsparts.js';
-import { eelSpine, JELLY_TONES, EEL_DENS } from './reefmore.js';
+import { Soup, tube, ellipsoid, paddle, bodyMatrix, drawRocks } from './reefsealsparts.js';
+import { JELLY_TONES, EEL_DENS } from './reefmore.js';
 import { smooth, TAU } from './reefseals.js';
 
 export { Soup, drawRocks, EEL_DENS };
@@ -154,23 +154,4 @@ export function drawSquid(soup, q, pose, t) {
   }
 }
 
-// ---- the eels ---------------------------------------------------------------------------------------------------------------------
-const EEL_COL = { top: [170, 150, 70], bot: [236, 220, 160], spots: 0.25 };
-export function drawEel(soup, e, pose, groundY) {
-  const m = frameMatrix(e.x, groundY(e.x, e.z), e.z, e.yaw);
-  const col = { ...EEL_COL, seed: e.id };
-  const sp = { x: 0, y: 0, z: 0, r: 0 };
-  tube(soup, (s, o) => { eelSpine(e, pose, s, sp); o.x = sp.x; o.y = sp.y; o.z = sp.z; }, (s) => { eelSpine(e, pose, s, sp); return [sp.r, sp.r * 1.05]; }, 10, 7, m, col);
-  const h = eelSpine(e, pose, 1, {});
-  ellipsoid(soup, m, h.x, h.y + 0.02, h.z + 0.1, 0.15, 0.13, 0.23, col, 5, 8); // the head
-  const open = 1 - 0.9 * pose.blink;
-  for (const sx of [-1, 1]) {
-    ellipsoid(soup, m, h.x + sx * 0.1, h.y + 0.1, h.z + 0.16, 0.05, 0.05 * open, 0.05, flat(DARK), 3, 6); // a big eye
-    ellipsoid(soup, m, h.x + sx * 0.108, h.y + 0.12, h.z + 0.2, 0.014, 0.014 * open, 0.014, flat(WHITE), 3, 4);
-    tube(soup, (u, o) => { // the smile: along the head's side, its back end curled up
-      const z = 0.3 - 0.4 * u; const y = -0.05 + (0.02 + 0.07 * pose.grin) * u * u;
-      const rz = 0.23; const dz = z - 0.1; const wx = 0.15 * Math.sqrt(Math.max(0.02, 1 - (dz / rz) ** 2 - ((y - 0.02) / 0.13) ** 2));
-      o.x = h.x + sx * wx * 1.04; o.y = h.y + y; o.z = h.z + z;
-    }, () => [0.012, 0.012], 6, 3, m, flat([60, 36, 30]));
-  }
-}
+// (the moray eel's drawing is the ride stage's: world/reefrideeel.js, handed the soup's pieces by reefmorelive.js)

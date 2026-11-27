@@ -21,7 +21,8 @@ const F = await import('../src/world/reeffinds.js');
 const { drawDeep } = await import('../src/world/reefdeepparts.js');
 const { createReefDeepLife, planktonShare } = await import('../src/world/reefdeeplife.js');
 const { LINES } = await import('../src/world/reefdeepwords.js');
-const { createKit, reefMaterials } = await import('../src/world/reefparts.js');
+const { createKit, reefMaterials, paint, T3 } = await import('../src/world/reefparts.js');
+const W = await import('../src/world/reefwreckdeep.js');
 const { phrase, hasPhrase } = await import('../src/clanphrases.js');
 const { createProgression } = await import('../src/progression.js');
 const { createDiscoveryLog } = await import('../src/discoveries.js');
@@ -180,6 +181,87 @@ describe('the drawing', () => {
     const scene = new THREE.Scene();
     build(scene);
     expect(scene.getObjectByName('reef:plankton')).toBeUndefined(); // the plankton is the walk's life, made after the sweeps
+  });
+});
+
+describe('the Sunken Boat and the Old Anchor are each one connected thing (reefwreckdeep.js)', () => {
+  const env = { THREE: T3, paint, reefY: P.reefY, D }; // (the Reef's kit three, as the stage gets it)
+  const box = (p) => new THREE.Box3().setFromBufferAttribute(p.geo.attributes.position);
+  const gap = (a, b) => { const A = box(a); const Bx = box(b); const dx = Math.max(0, A.min.x - Bx.max.x, Bx.min.x - A.max.x); const dy = Math.max(0, A.min.y - Bx.max.y, Bx.min.y - A.max.y); const dz = Math.max(0, A.min.z - Bx.max.z, Bx.min.z - A.max.z); return Math.hypot(dx, dy, dz); };
+  const byName = (list) => Object.fromEntries(list.map((p) => [p.name, p]));
+  const EPS = 0.05;
+
+  it('the boat: the strakes meet seam to seam from rail to rail, the keel carries the middle two, the stem meets the keel, the rails sit on the outer two, every rib, thwart, the mast and its parts touch their neighbours', () => {
+    const list = boatPieces();
+    const b = byName(list);
+    for (let j = 0; j < W.BOAT_M - 1; j++) expect(gap(b[`strake${j}`], b[`strake${j + 1}`]), `strake ${j} to ${j + 1}`).toBeLessThan(EPS);
+    expect(gap(b.strake3, b.keel)).toBeLessThan(EPS); expect(gap(b.strake4, b.keel)).toBeLessThan(EPS);
+    expect(gap(b.stem, b.keel)).toBeLessThan(EPS);
+    expect(gap(b.stem, b.strake3)).toBeLessThan(EPS);
+    expect(gap(b.railL, b.strake0)).toBeLessThan(EPS); expect(gap(b.railR, b.strake7)).toBeLessThan(EPS);
+    for (const n of Object.keys(b).filter((k) => k.startsWith('rib'))) {
+      expect(gap(b[n], b.keel), n).toBeLessThan(EPS); // a rib's middle rests on the keel's top and its ends reach the rails' planking
+      expect(gap(b[n], b.strake0) + gap(b[n], b.strake7), n).toBeLessThan(EPS * 2);
+    }
+    for (const n of ['thwart0', 'thwart1']) expect(Math.min(gap(b[n], b.strake1), gap(b[n], b.strake0), gap(b[n], b.strake2)), n).toBeLessThan(EPS);
+    for (const n of ['thwart0', 'thwart1']) expect(Math.min(gap(b[n], b.strake6), gap(b[n], b.strake7), gap(b[n], b.strake5)), n).toBeLessThan(EPS);
+    expect(gap(b.mastStep, b.keel)).toBeLessThan(EPS);
+    expect(gap(b.mast, b.mastStep)).toBeLessThan(EPS);
+    for (const k of [0, 1, 2]) expect(gap(b[`splinter${k}`], b.mast)).toBeLessThan(EPS);
+    expect(gap(b.mastTop, b.mast)).toBeLessThan(EPS);
+    expect(gap(b.mastTop, b.railR)).toBeLessThan(EPS); // the broken top lies on the rail
+    for (const n of Object.keys(b).filter((k) => k.startsWith('coral'))) expect(Math.min(gap(b[n], b.railL), gap(b[n], b.railR)), n).toBeLessThan(EPS);
+    // one boat: every piece is joined to the hull through some chain of touching pieces
+    const seen = new Set(['strake0']); const todo = ['strake0'];
+    while (todo.length) { const a = todo.pop(); for (const n of Object.keys(b)) if (!seen.has(n) && gap(b[a], b[n]) < EPS) { seen.add(n); todo.push(n); } }
+    expect([...seen].sort()).toEqual(Object.keys(b).sort());
+  });
+  const boatPieces = () => W.boatPieces(env);
+
+  it('the boat\'s keel runs the length of the hull and curves up toward the open stern (the broken edge is ragged: the strakes stop at different stations)', () => {
+    const b = byName(boatPieces());
+    const kb = box(b.keel);
+    expect(kb.max.x - kb.min.x + kb.max.z - kb.min.z).toBeGreaterThan(D.BOAT.length * 0.85);
+    const tops = Array.from({ length: W.BOAT_M }, (_, j) => box(b[`strake${j}`]).max.y);
+    expect(new Set(tops.map((y) => y.toFixed(2))).size).toBeGreaterThan(2);
+  });
+
+  it('the strakes share their seams exactly: every vertex on the seam between two planks is a vertex of both', () => {
+    const b = byName(boatPieces());
+    const verts = (p) => { const a = p.geo.attributes.position; return Array.from({ length: a.count }, (_, i) => [a.getX(i), a.getY(i), a.getZ(i)]); };
+    for (let j = 0; j < W.BOAT_M - 1; j++) {
+      const A = verts(b[`strake${j}`]); const Bv = verts(b[`strake${j + 1}`]);
+      const shared = A.filter((p) => Bv.some((q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < 0.001)).length;
+      expect(shared, `seam ${j}/${j + 1}`).toBeGreaterThanOrEqual(14); // (at least the seven stations nearest the bow are shared by every pair, two triangles' vertices a station)
+    }
+  });
+
+  it('the anchor: ring on the shank, stock through it, crown at the far end, arms from the crown, each fluke on its arm\'s tip, the first link through the ring and the rest chained to the sand', () => {
+    const list = W.anchorPieces(env);
+    const a = byName(list);
+    const pairs = [['shank', 'ring'], ['shank', 'stock'], ['shank', 'crown'], ['stock', 'stockKnobA'], ['stock', 'stockKnobB'], ['shank', 'shankRust'], ['crown', 'armL'], ['crown', 'armR'], ['armL', 'flukeL'], ['armR', 'flukeR'], ['ring', 'chain0']];
+    for (const [x, y] of pairs) expect(gap(a[x], a[y]), `${x} to ${y}`).toBeLessThan(EPS);
+    for (let k = 0; k < W.ANCHOR_LINKS - 1; k++) expect(gap(a[`chain${k}`], a[`chain${k + 1}`]), `link ${k}`).toBeLessThan(EPS);
+    // the flukes' bases are on the arms' tips: the nearest point of the fluke's box to the arm's box is touching, and the arm's far end is the fluke's
+    for (const s of ['L', 'R']) {
+      const arm = box(a[`arm${s}`]); const f = box(a[`fluke${s}`]); expect(f.intersectsBox(arm.clone().expandByScalar(0.03))).toBe(true);
+      // the arm's tip is the end of its tube that is farthest from the crown; the fluke's base middle is exactly there
+      const ap = a[`arm${s}`].geo.attributes.position; const cr = box(a.crown).getCenter(new THREE.Vector3());
+      let far = null; for (let i = 0; i < ap.count; i++) { const v = new THREE.Vector3().fromBufferAttribute(ap, i); if (!far || v.distanceTo(cr) > far.d) far = { v, d: v.distanceTo(cr) }; }
+      expect(box(a[`fluke${s}`]).distanceToPoint(far.v)).toBeLessThan(0.05);
+    }
+    // the chain hangs to the sand: its last link is on the ground
+    const last = box(a[`chain${W.ANCHOR_LINKS - 1}`]);
+    const g = P.reefY((last.min.x + last.max.x) / 2, (last.min.z + last.max.z) / 2);
+    expect(last.min.y).toBeLessThan(g + 0.1);
+    expect(last.min.y).toBeGreaterThan(g - 0.1);
+    // one anchor: everything is joined through touching pieces
+    const seen = new Set(['shank']); const todo = ['shank'];
+    while (todo.length) { const q = todo.pop(); for (const n of Object.keys(a)) if (!seen.has(n) && gap(a[q], a[n]) < EPS) { seen.add(n); todo.push(n); } }
+    expect([...seen].sort()).toEqual(Object.keys(a).sort());
+    // it lies on its side: no piece but the stock's end and the arms' top rises more than a metre over the dune, and the shank is near the ground
+    const all = list.reduce((bb, p) => bb.union(box(p)), new THREE.Box3());
+    expect(all.max.y - P.reefY(D.ANCHOR.x, D.ANCHOR.z)).toBeLessThan(1.4);
   });
 });
 

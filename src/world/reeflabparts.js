@@ -14,6 +14,7 @@
 // =============================================================================
 
 import * as L from './reeflabplan.js';
+import { hullParts } from './reeflabhull.js';
 
 // three and the merge are handed in by the Reef (reef.js, through register): a stage chunk that imported them itself would take three out of start-up's file
 // into a chunk of its own, and one that imported them from the Reef's drawing file would split that file off the Reef's chunk (a build rule, test/lazybuild.test.js).
@@ -272,24 +273,8 @@ function roof() {
 }
 
 // ---- the building from outside --------------------------------------------------------------------------------------------------------------------
-function hull() {
-  const b = L.LAB_BUILD;
-  const w = b.maxX - b.minX;
-  const dp = b.maxZ - b.minZ;
-  const cx = (b.minX + b.maxX) / 2;
-  const cz = (b.minZ + b.maxZ) / 2;
-  const g = [bx(w, 4.4, dp, cx, -0.6, cz, COL.hull), bx(w + 0.06, 1.1, dp + 0.06, cx, -0.6, cz, COL.hullDark), bx(w + 0.1, 0.12, dp + 0.1, cx, 3.74, cz, COL.brass), bx(w - 0.8, 0.8, dp - 0.8, cx, 3.8, cz, COL.cream)];
-  // portholes in rows along the north and south faces and the west end, a door-sized brass hatch plate and some rivets
-  for (let x = 1.5; x < 18; x += 2.4) { g.push(disc(0.28, x, 2.3, b.minZ - 0.01, 'n', COL.porthole), tone(new THREE.RingGeometry(0.27, 0.35, 12).rotateX(Math.PI).translate(x, 2.3, b.minZ - 0.02), COL.brass)); }
-  for (let x = 1.5; x < 11; x += 2.4) { g.push(disc(0.28, x, 2.3, b.maxZ + 0.01, 's', COL.porthole), tone(new THREE.RingGeometry(0.27, 0.35, 12).translate(x, 2.3, b.maxZ + 0.02), COL.brass)); }
-  for (const z of [-37.5, -34.5, -31.5]) { g.push(disc(0.28, b.minX - 0.01, 2.3, z, 'w', COL.porthole), tone(new THREE.RingGeometry(0.27, 0.35, 12).rotateY(-Math.PI / 2).translate(b.minX - 0.02, 2.3, z), COL.brass)); }
-  const d = L.ROOMS.dome;
-  g.push(tone(new THREE.CylinderGeometry(d.r + 0.1, d.r + 0.1, 0.3, 24).translate(d.x, 4.4, d.z), COL.brass));
-  g.push(tone(new THREE.SphereGeometry(1, 20, 8, 0, Math.PI * 2, 0, Math.PI / 2).scale(d.r, DOME_RISE + 0.1, d.r).translate(d.x, DOME_WALL + 0.9, d.z), COL.domeOut));
-  for (let k = 0; k < 12; k++) { const a = (k / 12) * Math.PI * 2; g.push(bx(0.07, 2.4, 0.07, d.x + Math.cos(a) * (d.r - 0.02), 3.3, d.z + Math.sin(a) * (d.r - 0.02), COL.brass)); }
-  g.push(cy(0.05, 0.07, 2.4, 3.0, 4.5, -37.0, COL.navy, 6), cy(0.12, 0.12, 0.2, 3.0, 6.9, -37.0, COL.lamp, 8)); // a little mast with a lamp
-  g.push(cy(0.35, 0.35, 0.6, 7.0, 4.5, -35.0, COL.navy, 8), cy(0.38, 0.38, 0.08, 7.0, 5.1, -35.0, COL.brass, 8));
-  return g;
+function hull(lowTier) {
+  return hullParts({ THREE, tone, bx, cy, COL, dome: L.ROOMS.dome, domeWall: DOME_WALL, domeRise: DOME_RISE, floorY: L.LAB_FLOOR_Y }, L.LAB_BUILD, lowTier);
 }
 
 // The round hatch beside the Sunken Boat: a brass collar on the seabed, a lit disc below its rim, the lid swung back, and a short ladder to the rim. Unlit
@@ -303,6 +288,9 @@ function hatch(reefY) {
   g.push(disc(h.r - 0.08, h.x, y + 0.12, h.z, 'u', COL.lamp, 16), disc(h.r * 0.55, h.x, y + 0.13, h.z, 'u', 0xfff4d0, 12));
   const lid = new THREE.CircleGeometry(h.r + 0.05, 16).rotateX(-Math.PI / 2).rotateZ(1.25).translate(h.x - h.r - 0.35, y + 0.55, h.z);
   g.push(tone(lid, COL.tealDark));
+  const wx = h.x - h.r - 0.35; // a hand wheel on the lid (a ring, three spokes, a hub), lying with it
+  g.push(tone(new THREE.TorusGeometry(0.22, 0.035, 3, 8).rotateX(Math.PI / 2).translate(wx, y + 0.6, h.z), COL.brass), tone(new THREE.CylinderGeometry(0.06, 0.06, 0.1, 6).translate(wx, y + 0.58, h.z), COL.brass));
+  for (let k = 0; k < 3; k++) g.push(tone(new THREE.BoxGeometry(0.44, 0.03, 0.03).rotateY((k * Math.PI) / 3).translate(wx, y + 0.6, h.z), COL.brass));
   for (const sx of [-0.28, 0.28]) g.push(tone(new THREE.CylinderGeometry(0.03, 0.03, 0.85, 5).translate(h.x + sx, y + 0.45, h.z + h.r - 0.18), COL.brass));
   for (const k of [0.25, 0.5, 0.75]) g.push(tone(new THREE.CylinderGeometry(0.025, 0.025, 0.56, 5).rotateZ(Math.PI / 2).translate(h.x, y + k * 0.9, h.z + h.r - 0.18), COL.brass));
   return g;
@@ -335,7 +323,8 @@ function meshOf(parts, mat, name) {
 }
 
 // buildLab(scene, reefY) -> { interior, hull, hatch, light, walls, glow, led (the blinking cells' vertex range in the glow mesh), ... }: adds the meshes to the scene (the interior and the hull hidden/shown by the life).
-export function buildLab(scene, reefY) {
+export function buildLab(scene, reefY, tier = null) {
+  const lowTier = !!tier && (tier.name === 'low' || tier.shadows === false || (tier.rung ?? 0) >= 3);
   const M = labMaterials();
   const fx = fixtures();
   const interior = new THREE.Group();
@@ -362,9 +351,10 @@ export function buildLab(scene, reefY) {
   glassMesh.renderOrder = 3;
   const roofMesh = meshOf(roof(), M.roof, 'lab:roof');
   interior.add(walls, fixtureMesh, detailMesh, glowMesh, glassMesh, roofMesh);
-  const hullMesh = meshOf(hull(), M.hull, 'lab:hull');
+  const hp = hull(lowTier);
+  const hullMesh = meshOf(hp.hull, M.hull, 'lab:hull');
   hullMesh.position.y = L.LAB_FLOOR_Y;
-  const hatchMesh = meshOf(hatch(reefY), M.hatch, 'lab:hatch');
+  const hatchMesh = meshOf([...hatch(reefY), ...hp.glow], M.hatch, 'lab:hatch'); // (the hull's lamps and window panes are unlit, so they ride with the hatch)
   scene.add(interior, hullMesh, hatchMesh);
   // ONE real light, made now at intensity 0 so the shader's light count never changes mid-walk; the life raises it while she is inside
   const light = new THREE.PointLight(0xffd9a8, 0, 13, 1.6);

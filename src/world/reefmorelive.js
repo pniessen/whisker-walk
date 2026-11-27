@@ -10,6 +10,8 @@ import { phrase } from '../clanphrases.js';
 import * as M from './reefmore.js';
 import * as D from './reefmoreparts.js';
 import { reefY } from './reefplan.js';
+import { tube, ellipsoid, bodyMatrix } from './reefsealsparts.js';
+import { ST } from './reefstages.js';
 import './reeflifewords.js';
 
 // createReefMoreLife({ scene, reducedMotion, tier }) -> { update(dt, t, catPos), dispose(), spottable, counts }
@@ -35,6 +37,7 @@ export function createReefMoreLife({ scene, reducedMotion = false, tier = null }
   const eelSpots = eels.map(() => mk('rfmoray', phrase('reef.life.moray'), 6));
   const squidSpots = squids.map(() => mk('rfsquid', phrase('reef.life.squid'), 10));
 
+  const drawEel = ST.ride.makeEel({ tube, ellipsoid, bodyMatrix, eelSpine: M.eelSpine }); // (the moray's drawing is the ride stage's)
   const jel = new D.Soup(30000); const swim = new D.Soup(30000); const pin = new D.Soup(30000); const rocks = new D.Soup(12000);
   const drawJellies = () => {
     jel.begin();
@@ -54,7 +57,7 @@ export function createReefMoreLife({ scene, reducedMotion = false, tier = null }
     clowns.forEach((f) => { M.clownPose(f, clock, pose); D.drawClown(pin, f, pose); if (f.id % 2 === 0) clownSpots[c++].pos.set(pose.x, pose.y, pose.z); });
     horses.forEach((h, i) => { M.horsePose(h, clock, pose); D.drawHorse(pin, h, pose); horseSpots[i].pos.set(pose.x, pose.y + 0.2, pose.z); });
     eels.forEach((e, i) => {
-      M.eelPose(e, clock, eelP); D.drawEel(pin, e, eelP, reefY);
+      M.eelPose(e, clock, eelP); drawEel(pin, e, eelP, reefY, clock, rung);
       eelSpots[i].pos.set(e.x + Math.sin(e.yaw) * 0.9, reefY(e.x, e.z) + 0.7, e.z + Math.cos(e.yaw) * 0.9);
     });
   };

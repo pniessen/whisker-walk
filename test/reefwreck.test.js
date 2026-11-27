@@ -185,7 +185,7 @@ describe('the gold mouse, the page and the prop', () => {
     expect(there(S.x + 1.6, S.z)).toBe(true); // she can walk up to it
   });
   it('the other places and the traces: the stage adds only to the Reef (the plan reads reefBaseY and nothing else moved)', () => {
-    expect(Object.keys(ST.wreck).sort()).toEqual(['clues', 'colliders', 'draw', 'install', 'life']);
+    expect(Object.keys(ST.wreck).sort()).toEqual(['clues', 'colliders', 'draw', 'drawAnchor', 'drawBoat', 'install', 'life']);
     expect(P.REEF_RAISE_REGIONS).toHaveLength(1);
     expect(P.REEF_CEIL_REGIONS).toHaveLength(2); // the Sealab's and the cabin's
     expect(D.BOAT.x).toBe(-32.8);
