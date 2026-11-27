@@ -66,9 +66,9 @@ describe('Sela, the crabs, the bubbles', () => {
   it('crabs stay within a metre of their holes', () => {
     for (const h of C.CRAB_HOMES) for (let t = 0; t < 200; t += 3.1) { const p = C.crabPose(h, t, {}); expect(Math.hypot(p.x - h.x, p.z - h.z)).toBeLessThanOrEqual(1.001); }
   });
-  it('bubbles: 60, 20 in reduced motion (one Points each), rising and deterministic', () => {
+  it('bubbles: 60 (36 low), 14 in reduced motion (one Points each), rising and deterministic', () => {
     const a = make(HIGH); const r = make(HIGH, true);
-    expect(a.c.counts.bubbles).toBe(60); expect(r.c.counts.bubbles).toBe(20);
+    expect(a.c.counts.bubbles).toBe(60); expect(r.c.counts.bubbles).toBe(14); expect(make(LOW).c.counts.bubbles).toBe(36);
     expect(a.scene.children.filter((o) => o.isPoints).length).toBe(1);
     expect(C.bubblePos(5, 10, {})).toEqual(C.bubblePos(5, 10, {}));
     for (let i = 0; i < 60; i++) for (let t = 0; t < 60; t += 4.3) { const p = C.bubblePos(i, t, {}); expect(p.y).toBeLessThan(P.SURFACE_Y); expect(p.y).toBeGreaterThan(P.reefY(p.x, p.z) - 0.5); }
@@ -80,13 +80,14 @@ describe('Sela, the crabs, the bubbles', () => {
     c.update(5); c.update(5);
     expect([...scene.getObjectByName('reef:fish').instanceMatrix.array, ...scene.getObjectByName('reef:bubbles').geometry.attributes.position.array, scene.getObjectByName('reef:sela').position.x]).toEqual(snap);
   });
-  it('fits the planning life budget (about 8 meshes, 0 casters, 3,000 triangles), and disposes', () => {
+  it('fits the planning life budget (about 8 meshes, 0 casters, 3,800 triangles: the turtle redraw took the 3,000 up), and disposes', () => {
     const { scene, c } = make(HIGH);
     let meshes = 0; let tri = 0; let casters = 0;
     scene.traverse((o) => { if (o.isMesh || o.isPoints) { meshes++; if (o.isMesh) tri += tris(o); } if (o.castShadow) casters++; });
     // measured 2026-11-26: 6 meshes (fish, Sela's three, crabs, bubbles), 1,412 triangles counting every instance, 42 fish, 7 crabs; after the marine-life beauty pass (tapered forked fish, scuted Sela, legged crabs) 2,968
-    expect([meshes, tri, c.counts.fish, c.counts.crabs]).toEqual([6, 2968, 42, 7]);
-    expect(meshes).toBeLessThanOrEqual(8); expect(casters).toBe(0); expect(tri).toBeLessThanOrEqual(3000);
+    // Sela redrawn as a real sea turtle (scute shell, head with eyes and beak, paddle flippers, rear flippers, tail; four meshes): 7 meshes, 3,754
+    expect([meshes, tri, c.counts.fish, c.counts.crabs]).toEqual([7, 3754, 42, 7]);
+    expect(meshes).toBeLessThanOrEqual(8); expect(casters).toBe(0); expect(tri).toBeLessThanOrEqual(3800);
     c.dispose();
     expect(scene.children.length).toBe(0);
   });

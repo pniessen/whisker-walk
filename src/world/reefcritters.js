@@ -2,15 +2,16 @@
 // THE REEF: ITS CREATURES (milestone R4, life). Drawing only, none of it a rule, none of it ever near enough to matter and none of it ever after her:
 //   * the FISH SCHOOLS: ONE InstancedMesh (one draw). Every fish is a pure function of time and a hashed phase (fishPose), no state, no rng;
 //     the small fish swim in three schools, a few larger slow fish circle the middle. Fewer on the low rung, none of the small fish on the lite rung;
-//   * SELA the turtle: slow and friendly, a closed loop of waypoints on the Sandy Flats (three meshes: the body and the two front flippers that flap);
+//   * SELA the turtle: slow and friendly, a closed loop of waypoints on the Sandy Flats (four meshes: shell, head and the two front flippers; drawn in reefsela.js);
 //   * the CRABS: one InstancedMesh, each scuttling a metre to and fro by its own hole, pausing at both ends (they never come toward her);
-//   * the BUBBLES: one Points of 60 (20 in reduced motion), six seeps on open sand, each bubble rising on its own phase.
+//   * the BUBBLES: one Points of 60 (36 low, 14 in reduced motion; the bubble sprite and paths are in reefbubbles.js), six seeps on open sand, each bubble rising on its own phase.
 // Reduced motion freezes all of it at its pose for time zero (the fish, turtle, crabs and bubbles stand still; the count of bubbles drops).
 // Made by the walk's life, after the sweeps (not in the build's count). Draws no random number and reads no clock: the walk's own dt adds up to `clock`.
 // =============================================================================
 
 import * as THREE from 'three';
-import { softDisc } from './reeflight.js';
+import { buildSela } from './reefsela.js';
+import { BUB, bubbleState, makeBubbles, setBubble } from './reefbubbles.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as P from './reefplan.js';
 
@@ -183,48 +184,19 @@ function sphere(w, h, d, r, x, y, z, hex, seg = 8, rings = 5) {
   return paint(g, hex);
 }
 function createTurtle(scene) {
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
-  const parts = [
-    sphere(1, 0.5, 1.25, 0.5, 0, 0.05, 0, 0x5f8f50, 10, 6), // the shell
-    sphere(1, 0.35, 1.15, 0.5, 0, -0.1, 0, 0xe8dca0, 8, 4), // the belly under it
-    sphere(0.5, 0.5, 0.6, 0.3, 0, 0.0, 0.78, 0x9cc27a, 6, 4), // the head
-    sphere(0.12, 0.12, 0.12, 0.3, 0.1, 0.05, 0.99, 0x1f2a1c, 4, 3), // eyes
-    sphere(0.12, 0.12, 0.12, 0.3, -0.1, 0.05, 0.99, 0x1f2a1c, 4, 3),
-    sphere(0.14, 0.05, 0.16, 0.3, -0.18, -0.02, -0.6, 0x7aa467, 5, 3), // hind flippers
-    sphere(0.14, 0.05, 0.16, 0.3, 0.18, -0.02, -0.6, 0x7aa467, 5, 3),
-    sphere(0.16, 0.14, 0.2, 0.3, 0, 0.03, -0.72, 0x7aa467, 4, 3), // a short tail
-  ];
-  // the shell's scutes: a ridge of darker, flattened plates down the middle and two rows at the sides, each a lighter rim than its middle
-  const SCUTES = [[0, 0.5, 0.42, 0.2], [0, 0.55, 0.0, 0.23], [0, 0.5, -0.4, 0.19], [-0.3, 0.42, 0.3, 0.15], [0.3, 0.42, 0.3, 0.15], [-0.34, 0.4, -0.1, 0.16], [0.34, 0.4, -0.1, 0.16], [-0.26, 0.4, -0.45, 0.13], [0.26, 0.4, -0.45, 0.13]];
-  for (const [x, y, z, r] of SCUTES) parts.push(sphere(1, 0.3, 1, r, x, y * 0.5 + 0.1, z, 0x3d6b3a, 5, 2));
-  const body = mergeGeometries(parts, false);
-  const flipGeo = mergeGeometries([sphere(1.0, 0.1, 0.34, 0.3, 0.3, 0, 0.0, 0x7aa467, 5, 3), sphere(0.7, 0.08, 0.2, 0.3, 0.52, 0, -0.1, 0x8cb776, 4, 3)], false); // one front flipper (right): broad at the shoulder, narrow to a pointed tip
-  const group = new THREE.Group();
-  group.name = 'reef:sela';
-  const hull = new THREE.Mesh(body, mat);
-  const right = new THREE.Mesh(flipGeo, mat);
-  const left = new THREE.Mesh(flipGeo, mat);
-  right.position.set(0.4, 0, 0.3);
-  left.position.set(-0.4, 0, 0.3);
-  left.scale.x = -1;
-  group.add(hull, right, left);
-  group.scale.setScalar(1.15);
-  group.traverse((o) => { if (o.isMesh) Object.assign(o.userData, { noCast: true, noContactShadow: true, noMerge: true }); o.frustumCulled = false; });
-  scene.add(group);
-  const pose = {};
+  const sela = buildSela();
+  scene.add(sela.group);
+  const pose = {}; const later = {};
   return {
-    group,
+    group: sela.group,
     update(t, still) {
-      selaPose(still ? 0 : t, pose);
-      group.position.set(pose.x, pose.y, pose.z);
       const tt = still ? 0 : t;
-      group.rotation.set(0.05 * Math.sin(tt * 0.5 + 1), pose.yaw, 0.04 * Math.sin(tt * 0.35)); // a gentle nod and sway as she swims
-      const flap = still ? 0 : 0.4 * Math.sin(t * 1.3);
-      const sweep = still ? 0 : 0.18 * Math.sin(t * 1.3 - 0.8); // the stroke also rows back and forward, a beat behind the lift
-      right.rotation.set(0, sweep, flap);
-      left.rotation.set(0, sweep, -flap);
+      selaPose(tt, pose);
+      selaPose(tt + 0.6, later);
+      sela.group.position.set(pose.x, pose.y, pose.z);
+      sela.update(tt, still, pose.yaw, later.yaw);
     },
-    dispose() { scene.remove(group); body.dispose(); flipGeo.dispose(); mat.dispose(); },
+    dispose() { scene.remove(sela.group); sela.dispose(); },
   };
 }
 
@@ -293,43 +265,29 @@ export const SEEPS = Object.freeze(Array.from({ length: BUBBLES.seeps }, (_, k) 
   const r = z.r * (0.45 + 0.3 * hash01(k + 20, SALTS.seep));
   return Object.freeze({ x: z.x + Math.cos(a) * r + (k >= P.ZONES.length ? 9 : 0), z: z.z + Math.sin(a) * r });
 }));
-// Bubble i at time t: { x, y, z }. A pure function of (i, t): its own phase, speed and drift.
+// Bubble i at time t: { x, y, z } (the rising path of the realistic bubbles, src/world/reefbubbles.js). A pure function of (i, t).
+const bs = {};
 export function bubblePos(i, t, out = {}) {
-  const seep = SEEPS[i % BUBBLES.seeps];
-  const ph = hash01(i, SALTS.bubble);
-  const speed = 0.45 + 0.4 * hash01(i + 100, SALTS.bubble);
-  const rise = (((t * speed + ph * BUBBLES.rise) % BUBBLES.rise) + BUBBLES.rise) % BUBBLES.rise;
-  const a = ph * 40 + t * 1.1;
-  out.x = seep.x + (hash01(i + 200, SALTS.bubble) - 0.5) * 0.8 + Math.sin(a) * (0.1 + 0.02 * rise);
-  out.z = seep.z + (hash01(i + 300, SALTS.bubble) - 0.5) * 0.8 + Math.cos(a * 0.9) * (0.1 + 0.02 * rise);
-  out.y = P.reefY(seep.x, seep.z) + 0.15 + rise;
+  bubbleState(i, t, SEEPS, false, bs);
+  out.x = bs.x; out.y = bs.y; out.z = bs.z;
   return out;
 }
-function createBubbles(scene, reducedMotion) {
-  const n = reducedMotion ? BUBBLES.reduced : BUBBLES.count;
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
-  const mat = new THREE.PointsMaterial({ map: softDisc(), alphaTest: 0.02, size: 0.14, sizeAttenuation: true, color: 0xdffcff, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending, fog: true });
-  // each bubble its own size: a per-point scale in the one Points (no new draw)
-  const sizes = new Float32Array(n);
-  for (let i = 0; i < n; i++) sizes[i] = 0.55 + 1.35 * hash01(i + 400, SALTS.bubble) ** 2;
-  geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
-  mat.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aSize;').replace('gl_PointSize = size;', 'gl_PointSize = size * aSize;');
-  };
+function createBubbles(scene, reducedMotion, rung = 'high') {
+  const n = reducedMotion ? BUB.reduced : BUB[rung] ?? BUB.high;
+  const { geo, mat } = makeBubbles(n);
   const pts = new THREE.Points(geo, mat);
   pts.name = 'reef:bubbles';
   pts.frustumCulled = false;
   Object.assign(pts.userData, { noCast: true, noContactShadow: true, noMerge: true });
   scene.add(pts);
-  const pos = geo.attributes.position;
-  const p = {};
+  const s = {};
   return {
     pts,
     count: n,
     update(t) {
-      for (let i = 0; i < n; i++) { bubblePos(i, t, p); pos.setXYZ(i, p.x, p.y, p.z); }
-      pos.needsUpdate = true;
+      for (let i = 0; i < n; i++) setBubble(geo, i, bubbleState(i, t, SEEPS, reducedMotion, s));
+      geo.attributes.position.needsUpdate = true;
+      geo.attributes.aB.needsUpdate = true;
     },
     dispose() { scene.remove(pts); geo.dispose(); mat.dispose(); },
   };
@@ -341,10 +299,10 @@ export function createReefCritters({ scene, tier, reducedMotion = false }) {
   const fish = createFish(scene, rung);
   const sela = createTurtle(scene);
   const crabs = createCrabs(scene, rung);
-  const bubbles = createBubbles(scene, reducedMotion);
+  const bubbles = createBubbles(scene, reducedMotion, rung);
   let clock = 0;
   let frozen = false; // reduced motion: posed once at time zero
-  const counts = { rung, fish: fish.count, crabs: crabs.count, bubbles: bubbles.count, meshes: (fish.mesh ? 1 : 0) + 3 + 1 + 1 };
+  const counts = { rung, fish: fish.count, crabs: crabs.count, bubbles: bubbles.count, meshes: (fish.mesh ? 1 : 0) + 4 + 1 + 1 };
   const draw = () => { fish.update(clock); sela.update(clock, reducedMotion); crabs.update(clock); bubbles.update(clock); };
   return {
     counts,
