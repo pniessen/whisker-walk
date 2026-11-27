@@ -62,10 +62,10 @@ describe('crystal deep: pages, flag and the empty stage', () => {
     expect(crystalDeepOn()).toBe(false);
     setCrystalDeep(true); expect(crystalDeepOn()).toBe(true); setCrystalDeep(null); expect(crystalDeepOn()).toBe(false);
   });
-  it('the third stage is valid and loads with the others (C2 filled the hall shell; no prompt or credit yet, so the arbiter still gets null)', async () => {
+  it('the third stage is valid and loads with the others (C2 filled the hall shell, C4 the creature; with no walk made the arbiter still gets null)', async () => {
     const S = await import('../src/world/crystalstages.js');
     await S.loadCrystalStages();
-    expect(Object.isFrozen(S.ST.deep)).toBe(true); expect(S.ST.deep.promptAt).toBeUndefined(); expect(S.ST.deep.credit).toBeUndefined();
+    expect(Object.isFrozen(S.ST.deep)).toBe(true); expect([S.ST.deep.promptAt({ x: 0, z: 0 }), S.ST.deep.interact(), S.ST.deep.credit({ kind: 'wd-found' })]).toEqual([null, null, null]); // (C4: the slot answers, and with no walk made it is quiet)
     expect(S.CRYSTAL_STAGE_MODULES).toContain('src/world/crystalstagedeep.js');
     const code = readFileSync(new URL('../src/world/crystalstagedeep.js', import.meta.url), 'utf8');
     expect(code).toMatch(/crystalDeepOn/); // behind the flag

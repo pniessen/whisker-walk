@@ -7,6 +7,7 @@ import { CRYSTAL_CLEARS } from './crystalplan.js';
 import { crystalDeepOn } from '../crystalflag.js';
 import { DEEP_CLEARS, deepColliders, deepPerches } from './crystaldeepplan.js';
 import { createDeepLife } from './crystaldeeplive.js';
+import { withLiving, LIVING_SLOT } from './crystaldeeptinklive.js'; // C4: the creature of the story (prompt, interact, credit, goalFor)
 
 if (crystalDeepOn()) for (const c of DEEP_CLEARS) if (!CRYSTAL_CLEARS.includes(c)) CRYSTAL_CLEARS.push(c);
 
@@ -14,6 +15,7 @@ Object.assign(ST, {
   deep: Object.freeze({
     colliders: () => (crystalDeepOn() ? deepColliders() : []),
     perches: () => (crystalDeepOn() ? deepPerches() : []),
-    life: (ctx) => (crystalDeepOn() ? createDeepLife(ctx) : null),
+    life: (ctx) => (crystalDeepOn() ? withLiving(ctx, createDeepLife(ctx)) : null),
+    ...LIVING_SLOT,
   }),
 });
