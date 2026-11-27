@@ -1611,7 +1611,8 @@ describe('Gorge meadow (polish #1b)', () => {
     expect(m.receiveShadow).toBe(true);
     expect(m.material.map).toBeNull();
     expect(m.material.vertexColors).toBe(true);
-    expect(m.geometry.attributes.position.count / 3).toBeLessThanOrEqual(6000);
+    // 6,000 until the Gorge beauty round folded 3,003 triangles of reeds, flowers, sage, ferns and stones in (gorgebeauty.js)
+    expect(m.geometry.attributes.position.count / 3).toBeLessThanOrEqual(6700);
     // draws before the pawprints (-2) and contact shadows (-1)
     expect(m.renderOrder).toBeLessThan(-2);
   }, 120_000);

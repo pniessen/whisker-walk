@@ -22,6 +22,7 @@ import { caveRoom, caveTunnel, crystalClusters, CLUSTER_SPREAD, CORNER_R, caveMo
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createGorgeLife, GORGE_BIRD_Y } from '../gorgelife.js';
 import { smoothNormals } from './rocknormals.js';
+import { gorgeBeautyParts } from './gorgebeauty.js';
 import { noise3 } from './rockrelief.js';
 import { ZOOM_STEPS, DEFAULT_ZOOM_STEP, CAM_CEIL_CLEAR } from '../camzoom.js';
 
@@ -727,6 +728,24 @@ function bankColor(out, x, z, whole) {
   return out.set(GORGE_FLOOR_COLOR).lerp(_cb.set(BANK_GREEN), bankGreen(x, z, whole));
 }
 
+// Where the beauty round may stand: flat ground only (the floor, the ledges
+// and the clifftop), a little in from every rim, off the finds, caves and dens.
+let beautyOnce = null;
+function beautyParts() {
+  if (beautyOnce) return beautyOnce;
+  const g = shapeGround();
+  const flat = new Set([FLOOR, CLIFFTOP, LOOKOUT_LEDGE.y0, TURN.y0]);
+  beautyOnce = gorgeBeautyParts({
+    ground: (x, z) => (inBounds(x, z) && flat.has(g.y(x, z)) && oneShape(x, z, 0.3) ? g.y(x, z) + MEADOW_LIFT : null),
+    free: (x, z) => holeDist(x, z) > 0.3 && keepClearDist(x, z) >= 0.9 && mouthDist(x, z) >= 2,
+    nearPath: pathDist,
+    nearWater: (x, z) => rectDist(STREAM, x, z),
+    nearDeck: (x, z) => rectDist(STEPPING_STONES, x, z),
+    walls: FLOOR_WALLS,
+    stream: STREAM,
+  });
+  return beautyOnce;
+}
 function meadowMesh() {
   const { patches, tufts, talus } = gorgeMeadow();
   const pos = [], col = [];
@@ -780,6 +799,11 @@ function meadowMesh() {
       vert(bx + px, y, bz + pz, tc); vert(bx - px, y, bz - pz, tc); vert(tx, y + h, tz, tip);
     }
   }
+  // the beauty round (gorgebeauty.js): reeds, wildflowers, sage, ferns and
+  // small stones, flat-coloured, folded into this same mesh
+  const extra = beautyParts();
+  for (let i = 0; i < extra.pos.length; i++) pos.push(extra.pos[i]);
+  for (let i = 0; i < extra.col.length; i++) col.push(extra.col[i]);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));

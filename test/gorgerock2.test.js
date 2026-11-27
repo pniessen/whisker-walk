@@ -330,7 +330,8 @@ describe('Gorge rock, beauty pass 2: rock shader and talus', () => {
       }
     }
     const meadow = scene.getObjectByName('gorgeMeadow');
-    expect(triCount(meadow) - 3136).toBeLessThanOrEqual(700);
+    // the Gorge beauty round (gorgebeauty.js) folded 3,003 triangles of reeds, flowers, sage, ferns and stones into this mesh
+    expect(triCount(meadow) - 3136 - 3003).toBeLessThanOrEqual(700);
     expect(triCount(meadow)).toBeGreaterThan(3136);
   });
 
