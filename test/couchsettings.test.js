@@ -34,7 +34,7 @@ describe('Two-player couch mode: the Settings switch and the URL', () => {
     const { readFileSync } = await import('node:fs');
     const src = readFileSync(new URL('../src/ui/homebase.js', import.meta.url), 'utf8');
     expect(src).toContain('Two-player couch mode');
-    expect(src).toContain("settings.set('couchMode', e.target.value === 'on')");
+    expect(src).toContain("settings.set('couchMode', e.target.value === 'On')");
   });
 });
 
@@ -55,9 +55,9 @@ describe('who may see couch play', () => {
     expect(find(r.doc, 'coop-join').hidden).toBe(false);
   });
 
-  it('a tablet or phone stays solo by default and with ?coop=1 alone', () => {
+  it('a tablet or phone stays solo with couch play off, and when the page does not say', () => {
     for (const profile of ['tablet', 'phone']) {
-      const r = rig({ profile, ctxExtra: { enabled: () => true, touchOk: () => false } });
+      const r = rig({ profile, ctxExtra: { enabled: () => false } });
       set(r, pad(0, [PAD_BUTTONS.X]), pad(1)); r.tick(3);
       expect(r.h.state.couch, profile).toBe(false);
     }
@@ -68,7 +68,7 @@ describe('who may see couch play', () => {
 
   it('a tablet or phone with the switch On and ONE pad stays solo; with a second pad connected it is on', () => {
     for (const profile of ['tablet', 'phone']) {
-      const r = rig({ profile, ctxExtra: { enabled: () => true, touchOk: () => true } });
+      const r = rig({ profile, ctxExtra: { enabled: () => true } });
       set(r, pad(0)); r.tick(3);
       expect(r.h.state.couch, profile).toBe(false);
       set(r, pad(0), pad(1)); r.tick(3);

@@ -352,7 +352,7 @@ function init() {
   // and the M-key mute toggle below. (settings.reducedMotion isn't pushed
   // here — weather/animateCat read it directly at the point of use, since
   // those only apply per-walk/per-frame rather than to a live object.)
-  let couchBooted = false; // the couch chunk's loader is defined further down
+  let loadCouch; // couch play's chunk: loads once, when it is wanted (set below; null after)
   function applySettings() {
     audio.setVolume(settings.get('volume'));
     audio.setMuted(settings.get('muted'));
@@ -364,7 +364,7 @@ function init() {
     // With ?perf the readout stays on even if the Settings box is unchecked, by design.
     perfHud.setEnabled(settings.get('perfReadout') || perfFlag);
     haptics.setEnabled(settings.get('haptics'));
-    if (couchBooted && couchOn()) startCouch(); // switched on in Settings: the chunk arrives now, no reload
+    loadCouch?.(); // switched on in Settings: no reload
   }
   applySettings();
   // TV mode: its own lazy chunk (src/tv/), loaded only when the switch is on.
@@ -392,16 +392,13 @@ function init() {
     },
   });
   // Couch play (src/coop/): the Settings switch "Two-player couch mode" (per device), or ?coop=1 for this page load; ?coop=0 turns it off for this load.
-  const couchSetting = () => !!settings.get('couchMode');
-  const couchOn = () => coopMode(location.search, couchSetting());
-  let couchStarted = false;
-  function startCouch() {
-    if (couchStarted) return;
-    couchStarted = true;
-    import('./coop/index.js').then((m) => m.start({ nav: navigator, enabled: couchOn, touchOk: () => couchSetting() && !/[?&]coop=0\b/.test(location.search), getSession: () => session, player, camera, getState: () => progression.state, catalog: CATALOG, progression, log, audio, act: (n) => handleTouchAction(n), couch: qualityAdapter.couch, voice: (p) => catVoice(p), toast: (m, p, o) => hud.toast(m, p, o), resume: () => player.setTouchEngaged(true), canResume: () => !!session && !session.walkingOn && !!overlay.querySelector('#btn-resume') })).catch((err) => { couchStarted = false; note('coop', err); });
-  }
-  if (couchOn()) startCouch();
-  couchBooted = true;
+  const couchOn = () => coopMode(location.search, settings.get('couchMode'));
+  loadCouch = () => {
+    if (!couchOn()) return;
+    loadCouch = null;
+    import('./coop/index.js').then((m) => m.start({ nav: navigator, enabled: couchOn, getSession: () => session, player, camera, getState: () => progression.state, catalog: CATALOG, progression, log, audio, act: (n) => handleTouchAction(n), couch: qualityAdapter.couch, voice: (p) => catVoice(p), toast: (m, p, o) => hud.toast(m, p, o), resume: () => player.setTouchEngaged(true), canResume: () => !!session && !session.walkingOn && !!overlay.querySelector('#btn-resume') })).catch((err) => note('coop', err));
+  };
+  loadCouch();
   // ?tv=1 / ?tv=0 force it for this page load only, never saved (like ?perf).
   tvLoader.apply(tvWanted(location.search, settings.get('tvMode')), /[?&]tv=[01]\b/.test(location.search));
   // The pause card's Sound and Music switches (walk.js pauseCardFor) change

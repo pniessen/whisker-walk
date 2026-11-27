@@ -92,7 +92,7 @@ function sanitize(raw) {
     tvOfferDeclined: typeof raw.tvOfferDeclined === 'boolean' ? raw.tvOfferDeclined : DEFAULTS.tvOfferDeclined,
     profileOverride: clampEnum(raw.profileOverride, PROFILE_OVERRIDE, DEFAULTS.profileOverride),
     holidayDecor: clampEnum(raw.holidayDecor, HOLIDAY_DECOR, DEFAULTS.holidayDecor),
-    couchMode: typeof raw.couchMode === 'boolean' ? raw.couchMode : DEFAULTS.couchMode,
+    couchMode: raw.couchMode === true,
   };
 }
 

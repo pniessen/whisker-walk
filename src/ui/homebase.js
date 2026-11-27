@@ -655,7 +655,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           </label>
           <label class="settings-row settings-quality">
             <span class="settings-label">Two-player couch mode</span>
-            <select id="set-couch"><option value="off"${s.couchMode ? '' : ' selected'}>Off</option><option value="on"${s.couchMode ? ' selected' : ''}>On</option></select>
+            <select id="set-couch"><option>Off</option><option${s.couchMode ? ' selected' : ''}>On</option></select>
           </label>
           ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
           ${settingsSwitchHtml('set-tv-mode', !!(tvState.on || tvState.pending), tutorialLine('pad.settings.tv'))}
@@ -2611,7 +2611,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       render();
       return;
     }
-    if (e.target.id === 'set-couch' && settings) { settings.set('couchMode', e.target.value === 'on'); onSettingsChange?.(); render(); return; }
+    if (e.target.id === 'set-couch') { settings.set('couchMode', e.target.value === 'On'); onSettingsChange?.(); return; }
     if (e.target.id === 'set-holiday' && settings) { settings.set('holidayDecor', e.target.value); onSettingsChange?.(); render(); return; }
     if (e.target.id === 'set-map-mode') {
       progression.setMapMode(e.target.value);
