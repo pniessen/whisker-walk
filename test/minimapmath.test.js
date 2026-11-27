@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MAP_RADIUS_M, mapRadiusFor, toMap, pinToRim, mapMarkers, faceAngle, badgeAt, clearOfBadge } from '../src/ui/minimapmath.js';
+import { MAP_RADIUS_M, mapRadiusFor, toMap, pinToRim, mapMarkers, faceAngle, badgeAt, compassLetters, clearOfBadge } from '../src/ui/minimapmath.js';
 
 const view = { cx: 0, cz: 0, heading: 0, mode: 'north', radiusM: 35, radiusPx: 55 };
 
@@ -234,5 +234,30 @@ describe('clearOfBadge (Polish 3)', () => {
   it('leaves a point that is already clear exactly as it was', () => {
     const p = { u: 20, v: -40 };
     expect(clearOfBadge(p, badgeAt(north), 13)).toBe(p);
+  });
+});
+
+describe('compassLetters', () => {
+  const v = { cx: 0, cz: 0, heading: 0, mode: 'north', radiusM: 35, radiusPx: 55 };
+  const at = (L, ch) => L.find((l) => l.ch === ch);
+  it('north mode: N up, E right, S down, W left, on the badge ring', () => {
+    const L = compassLetters(v);
+    expect(at(L, 'N')).toEqual({ ch: 'N', u: 0, v: -46 });
+    expect(at(L, 'E').u).toBeCloseTo(46, 6);
+    expect(at(L, 'S').v).toBeCloseTo(46, 6);
+    expect(at(L, 'W').u).toBeCloseTo(-46, 6);
+    expect(at(L, 'N').u).toBe(badgeAt(v).u);
+  });
+  it('north mode ignores the heading', () => {
+    expect(compassLetters({ ...v, heading: 1.2 })).toEqual(compassLetters(v));
+  });
+  it('turn mode: N sits where the badge does, and the ring swings with the heading', () => {
+    const t = { ...v, mode: 'turn', heading: Math.PI / 2 };
+    const L = compassLetters(t);
+    expect(at(L, 'N').u).toBeCloseTo(badgeAt(t).u, 6);
+    expect(at(L, 'N').v).toBeCloseTo(badgeAt(t).v, 6);
+    expect(at(L, 'E').u).toBeCloseTo(0, 6);
+    expect(at(L, 'E').v).toBeCloseTo(46, 6);
+    for (const l of L) expect(Math.hypot(l.u, l.v)).toBeCloseTo(46, 6);
   });
 });

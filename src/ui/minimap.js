@@ -4,7 +4,7 @@
 import { flatFootprints } from '../render/grass.js';
 import { groundOf } from '../ground.js';
 import { findTrees } from '../render/ambient.js';
-import { toMap, pinToRim, mapMarkers, mapRadiusFor, faceAngle, badgeAt, clearOfBadge, BADGE_R, MARK_R } from './minimapmath.js';
+import { toMap, pinToRim, mapMarkers, mapRadiusFor, faceAngle, badgeAt, compassLetters, clearOfBadge, BADGE_R, MARK_R } from './minimapmath.js';
 
 const CREAM = '#f4efe4';
 const RIM = 'rgba(20,26,38,0.85)';
@@ -549,34 +549,23 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle,
     ctx.stroke();
   }
 
-  // The badge rides the rim at north's bearing: an "N" at the top in north
-  // mode, and in turn mode a small arrow that swings round with the heading.
+  // The badge rides the rim at north's bearing and always reads "N" (gold),
+  // upright; E, S and W are small letters on the same ring, which turns with
+  // the map in turn mode. Drawn in the rim's paint, so no extra repaints.
   function drawBadge(view, c) {
-    const nu = view.mode === 'turn' ? Math.sin(view.heading) : 0;
-    const nv = view.mode === 'turn' ? -Math.cos(view.heading) : -1;
-    const at = badgeAt(view);
-    const bx = c + at.u;
-    const by = c + at.v;
-    ctx.beginPath();
-    ctx.arc(bx, by, BADGE_R, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(20,26,38,0.85)';
-    ctx.fill();
-    ctx.fillStyle = '#fff';
-    if (view.mode === 'turn') {
-      const pu = -nv;
-      const pv = nu;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const L of compassLetters(view)) {
+      const x = c + L.u;
+      const y = c + L.v;
+      const north = L.ch === 'N';
       ctx.beginPath();
-      ctx.moveTo(bx + nu * 5, by + nv * 5);
-      ctx.lineTo(bx - nu * 3.5 + pu * 4, by - nv * 3.5 + pv * 4);
-      ctx.lineTo(bx - nu * 1.5, by - nv * 1.5);
-      ctx.lineTo(bx - nu * 3.5 - pu * 4, by - nv * 3.5 - pv * 4);
-      ctx.closePath();
+      ctx.arc(x, y, north ? BADGE_R : 5.5, 0, Math.PI * 2);
+      ctx.fillStyle = north ? 'rgba(20,26,38,0.85)' : 'rgba(20,26,38,0.5)';
       ctx.fill();
-    } else {
-      ctx.font = 'bold 10px Avenir, "Trebuchet MS", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('N', bx, by + 0.5);
+      ctx.font = `bold ${north ? 10 : 8}px Avenir, "Trebuchet MS", sans-serif`;
+      ctx.fillStyle = north ? '#ffd36a' : 'rgba(255,255,255,0.85)';
+      ctx.fillText(L.ch, x, y + 0.5);
     }
   }
 
