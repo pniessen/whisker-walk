@@ -111,6 +111,7 @@ html.tv .dr .dr-outfit-yes, html.tv .dr .dr-outfit-keep { font-size: calc(24px *
 html.tv .dr-outfit-words small { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .dr .dr-outfit-del { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .dr .dr-remove-all { font-size: calc(24px * var(--tv-s, 1)) !important; }
+html.tv .dr .dr-remove-cats { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .dr .dr-outfit-save { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .dr .dr-pick { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .dr-pick small { font-size: calc(24px * var(--tv-s, 1)) !important; }

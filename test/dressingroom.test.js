@@ -641,12 +641,13 @@ describe('her own cats in the dressing room', () => {
     expect(h.indexOf('data-dr-mine="mine1"')).toBeLessThan(h.indexOf('data-dr-make'));
     expect(h).toContain('aria-label="Make a cat">＋ Make');
   });
-  it('at three cats the tile offers slots 4 and 5 with the price, and nothing deletes', () => {
+  it('at three cats the tile offers slots 4 and 5 with the price, and no single cat can be deleted (only the confirmed Remove my other cats action exists)', () => {
     const h = renderDressingRoomHtml({ model: buildDressingModel({ ...withMine(3), points: 50 }, CATALOG), });
     expect(h).toMatch(/<button[^>]*data-dr-buy-slots/);
     expect(h).toContain('2 more cat slots — 30');
     expect(h).not.toMatch(/<button[^>]*data-dr-make/);
-    expect(h).not.toMatch(/delete|remove|let this cat go/i);
+    expect(h).not.toMatch(/delete|let this cat go/i);
+    expect(h.match(/data-dr-remove-cats/g) || []).toHaveLength(1); // the one confirmed action, not one per cat
   });
   it('at three cats with too few points the buy tile is greyed and says how many are needed', () => {
     const m = buildDressingModel({ ...withMine(3), points: 10 }, CATALOG);
