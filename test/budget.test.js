@@ -407,7 +407,10 @@ const AREAS = [
   ['neighborhood', buildNeighborhood, 450, 380, 70000],
   ['park', buildPark, 210, 170, 40000],
   ['docks', buildDocks, 600, 500, 90000],
-  ['seaside', buildSeaside, 85, 45, 30000],
+  // 2026-11-26, seaside-life: the holiday decor (castles, towels, the two vendors' stands, the gulls' posts, two
+  // merged noCast meshes) took the bare build from 28,793 to 31,093 triangles and 75 meshes; the ceiling is that
+  // measured +12% (34,824, rounded). Meshes and casters are unchanged (the decor casts nothing).
+  ['seaside', buildSeaside, 85, 45, 34900],
   ['den', buildDen, 340, 220, 40000],
   // The Woods is held to the Cozy Neighborhood's numbers. Raised from 60k to 70k
   // on 2026-11-04 after the owner's iPhone check passed with every area near 60k.
@@ -748,13 +751,13 @@ describe('with the gateways (world map step 3)', () => {
       expect(after.casters).toBeLessThanOrEqual(merged[3]);
     });
   }
-  it('the Seaside paid for its gate first: 28793 bare, and dressed it is at or under the 29513 it had before the trim', () => {
+  it('the Seaside paid for its gate first (28793 bare); with the holiday decor (seaside-life) it is 31093 bare and at or under 31665 dressed', () => {
     const scene = new THREE.Scene();
     buildSeaside(scene);
-    expect(budgetStats(scene).triangles).toBe(28793);
+    expect(budgetStats(scene).triangles).toBe(31093);
     addGatewayDressing(scene, 'seaside');
     if (process.env.BUDGET_LOG) console.log('seaside dressed', JSON.stringify(budgetStats(scene)));
-    expect(budgetStats(scene).triangles).toBeLessThanOrEqual(29513);
+    expect(budgetStats(scene).triangles).toBeLessThanOrEqual(31665);
   });
 });
 
