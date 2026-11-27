@@ -26,7 +26,8 @@ describe('the Rooftops journal pages', () => {
     const ids = ['roofgarden', 'roofloft', 'roofvane', 'roofskylight', 'rooftelescope', 'roofchimney'];
     expect(ROOFS_FIND_IDS).toEqual(['garden', 'loft', 'vane', 'skylight', 'telescope', 'chimney']);
     expect(ROOFS_JOURNAL_TYPES).toEqual(ids);
-    expect(JOURNAL_TYPES.slice(-64, -58)).toEqual(ids);
+    const at = JOURNAL_TYPES.indexOf(ids[0]); // by position of its first id, so later areas' pages (appended after) do not move it
+    expect(JOURNAL_TYPES.slice(at, at + ids.length)).toEqual(ids);
     expect(ROOFS_FIND_IDS.map(roofsPageId)).toEqual(ids);
     for (const id of ROOFS_FIND_IDS) {
       const [name, hint, line, emoji] = PAGES[id];

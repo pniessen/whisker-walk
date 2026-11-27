@@ -35,7 +35,8 @@ describe('the eight journal pages', () => {
     expect(LIGHTHOUSE_FIND_IDS).toEqual(['lamproom', 'pool', 'gull', 'echo', 'bell', 'window']);
     const ids = ['lhlamproom', 'lhpool', 'lhgull', 'lhecho', 'lhbell', 'lhwindow', 'lhjobkitten', 'lhjoblamp'];
     expect(LIGHTHOUSE_JOURNAL_TYPES).toEqual(ids);
-    expect(JOURNAL_TYPES.slice(-52, -44)).toEqual(LIGHTHOUSE_JOURNAL_TYPES);
+    const at = JOURNAL_TYPES.indexOf(LIGHTHOUSE_JOURNAL_TYPES[0]); // by position of its first id, so later areas' pages do not move it
+    expect(JOURNAL_TYPES.slice(at, at + LIGHTHOUSE_JOURNAL_TYPES.length)).toEqual(LIGHTHOUSE_JOURNAL_TYPES);
     expect(LIGHTHOUSE_FIND_IDS.map(lighthousePageId)).toEqual(ids.slice(0, 6));
     expect(CRITTER_INFO.filter((c) => c.lighthouse).map((c) => c.id)).toEqual(ids);
   });

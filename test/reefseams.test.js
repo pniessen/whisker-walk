@@ -246,7 +246,7 @@ describe('the pack', () => {
   it('the Reef\'s files import no other place (the chunk stays small); the dive suit is the shared lazy kit', () => {
     const src = read('src/world/reef.js');
     const imports = [...src.matchAll(/^import .*?from '(.+?)';/gm)].map((x) => x[1]);
-    expect(imports.sort()).toEqual(['../cat/suitkit.js', './builder.js', './localuuids.js', './reefparts.js', './reefplan.js', './reefstorylife.js', './reefmarlo.js', './reefstory.js', './reeffinds.js', './reeffindparts.js', './reeffindsplan.js', './reefwingparts.js', './reefdeepparts.js', './reefdeeplife.js', './reefguidelive.js', './reefdecorparts.js', './reefsealslive.js', './reefseals.js', './reefmorelive.js']);
+    expect(imports.sort()).toEqual(['../cat/suitkit.js', './builder.js', './localuuids.js', './reefparts.js', './reefplan.js', './reefstorylife.js', './reefmarlo.js', './reefstory.js', './reeffinds.js', './reeffindparts.js', './reeffindsplan.js', './reefwingparts.js', './reefdeepparts.js', './reefdeeplife.js', './reefguidelive.js', './reefdecorparts.js', './reefsealslive.js', './reefseals.js', './reefmorelive.js'].sort());
     expect(src).toMatch(/import '\.\/reefwords\.js'/);
     for (const f of globSync('src/world/reef*.js')) {
       for (const [, spec] of read(f).matchAll(/^import .*?from '(.+?)';/gm)) expect(spec, `${f} imports ${spec}`).not.toMatch(/(moon|greenhouse|seaside|park|docks)/);

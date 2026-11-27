@@ -118,7 +118,8 @@ describe('the reserved ids', () => {
     expect(CRYSTAL_JOURNAL_TYPES).toHaveLength(12);
     for (const id of CRYSTAL_JOURNAL_TYPES) { expect(id).toMatch(/^cc/); expect(JOURNAL_TYPES).toContain(id); expect(CRYSTAL_PAGE_WORDS[id].name()).toMatch(/\S/); }
     expect(new Set(JOURNAL_TYPES).size).toBe(JOURNAL_TYPES.length);
-    expect(JOURNAL_TYPES.slice(-12)).toEqual(CRYSTAL_JOURNAL_TYPES);
+    const at = JOURNAL_TYPES.indexOf(CRYSTAL_JOURNAL_TYPES[0]); // by position of its first id, so later areas' pages (the Reef's sea life) do not move it
+    expect(JOURNAL_TYPES.slice(at, at + CRYSTAL_JOURNAL_TYPES.length)).toEqual(CRYSTAL_JOURNAL_TYPES);
     expect(JOURNAL_TYPES.filter((t) => t.startsWith('cc'))).toEqual(CRYSTAL_JOURNAL_TYPES);
   });
   it('a journal page counts like any other (the sanitiser keeps it)', () => {
