@@ -3,7 +3,7 @@
 // roofed veranda and lantern, a slow brown river she wades across (shallows, a log bridge and stepping stones, NO swimming), giant leaves that shelter from the rain, trees, ferns,
 // mossy stones, soft green mist, a warm rain shower on a seeded repeating schedule with a rainbow after it, and the lodge's one real light. The river's far bank, the canopy walk,
 // the Rain Supper and the raft are the lazy stages (junglestages.js), filled by later milestones. Behind ?jungle=1 and the gates switch only. Always bright: no walk weather, no
-// strays (the rain is this place's own, junglelight.js). Milestone J2 adds Mossy and chapter one; J3 the six discoveries, their collectibles and the three golden mice (world/junglefinds.js, in stage b). Draws no random number and reads no clock; builds in withLocalUuids. docs/superpowers/plans/2026-11-27-new-areas-snowville-treehouse-jungle.md.
+// strays (the rain is this place's own, junglelight.js). Milestone J2 adds Mossy and chapter one; J3 the six discoveries, their collectibles and the three golden mice (world/junglefinds.js, in stage b). J4 adds the birds, frogs and sound (world/junglecritters.js, in stage b) and the music theme. Draws no random number and reads no clock; builds in withLocalUuids. docs/superpowers/plans/2026-11-27-new-areas-snowville-treehouse-jungle.md.
 // HARD RULES (the Crystal's and Moon's, adapted): open sky above the leaves, so NO real `ceil`; not in INDOOR_AREAS; at most ONE PointLight in the whole place (the veranda lantern's),
 // made at build with a steady intensity; reduced motion stands the mist still, draws no rain and holds the lantern; the low rungs draw half.
 // =============================================================================
@@ -75,15 +75,17 @@ export function build(scene) {
         const mossy = createMossy({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
         const prompts = createJunglePrompts(mossy);
         const finds = ST.b?.finds?.life(ctx); // the six discoveries (milestone J3)
+        const critters = ST.b?.critters?.(ctx); // the macaws, toucan, frogs and the rain's patter (milestone J4)
         return {
           light,
+          spottable: critters?.spottable ?? [],
           mossy,
           promptAt: (catPos) => prompts.promptAt(catPos),
           interact: () => prompts.interact(),
           // a step done by anyone in the room (a `jl-` event); a stage's own steps join this line with their stage
           credit: (ev) => mossy.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); mossy.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); },
-          dispose() { finds?.dispose(); mossy.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); mossy.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos, light.state); },
+          dispose() { critters?.dispose(); finds?.dispose(); mossy.dispose(); light.dispose(); },
         };
       },
     };

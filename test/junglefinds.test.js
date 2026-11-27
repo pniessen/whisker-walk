@@ -274,11 +274,11 @@ describe('the Fern Anklet\'s four spots', () => {
 
 describe('the six live journal pages', () => {
   afterEach(() => setJungle(null));
-  it('jl1..jl6 are live (named, hinted once the chunk is in), the other eleven stay hidden placeholders', () => {
+  it('jl1..jl6 are live (named, hinted once the chunk is in), the other eight stay hidden placeholders (jw1, jw2, jw5 are the life pages of J4)', () => {
     const jl = CRITTER_INFO.filter((c) => /^j[lw]\d$/.test(c.id));
     expect(jl).toHaveLength(17);
     for (const c of jl) {
-      if (JUNGLE_PAGE_IDS.includes(c.id)) { expect(c.later, c.id).toBeFalsy(); expect(c.jungle).toBe(true); expect(c.hint).toMatch(/\S/); } else expect(c.later, c.id).toBe(true);
+      if ([...JUNGLE_PAGE_IDS, 'jw1', 'jw2', 'jw5'].includes(c.id)) { expect(c.later, c.id).toBeFalsy(); expect(c.jungle).toBe(true); expect(c.hint).toMatch(/\S/); } else expect(c.later, c.id).toBe(true);
     }
     expect(jl.filter((c) => JUNGLE_PAGE_IDS.includes(c.id)).map((c) => c.name)).toEqual(JUNGLE_PAGES.map((p) => p[3]));
   });

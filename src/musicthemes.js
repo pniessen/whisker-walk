@@ -36,6 +36,7 @@ export const THEMES = Object.freeze({
   reef: t({ voice: 'harp', style: 'arp', reg: 0, beat: 0.36, n: [6, 8], up: 0.3, pad: { g: 0.026, swell: 1, chords: FIFTH } }),
   snowville: t({ voice: 'bell', reg: 12, beat: 0.7, len: 16, n: [2, 4], up: 0.1, pad: { g: 0.014, swell: 1, chords: FIFTH } }), // slow bells and a soft pad (Snowville V4)
   treehouse: t({ voice: 'mar', alt: 0.25, altVoice: 'chime', root: 4, beat: 0.5, n: [3, 5], pad: { g: 0.012, chords: FIFTH } }), // light woody marimba with a bell now and then (Treehouse T4)
+  jungle: t({ voice: 'mar', alt: 0.2, altVoice: 'chime', scale: MINP, root: 2, beat: 0.5, swing: 0.2, n: [3, 5], pad: { g: 0.012, chords: FIFTH } }), // warm marimba with a chime now and then (Jungle J4)
   // C major pentatonic, rooted on the crystals' own C: rose = G4 + D5, sky = A4 + E5, gold = C5 + G5 (crystallife.js NOTES)
   crystal: t({ voice: 'chime', style: 'notes', notes: [7, 9, 12, 14, 16, 19], rootHz: 261.63, beat: 0.75, len: 16, n: [3, 5], pad: { g: 0.012, swell: 1, chords: [[7, 12, 16], [9, 12, 16], [7, 14, 19]] } }),
 });
