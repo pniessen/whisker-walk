@@ -105,7 +105,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   // The Reef's second wave (src/reefpages.js REEF_WING_PAGES; ids reserved in its milestone R10): Sealab, galleon, two mounts.
   'rflab', 'rffuses', 'rfshow', 'rfshark', 'rfgalleon', 'rfmap', 'rfcaptchest', 'rfscooter', 'rfsaucer',
   // The Crystal Cave's friendly life (src/crystalpages.js CAVE_LIFE_PAGES): cave fish, bat, firefly, moth, salamander, beetle, crab.
-  'clfish', 'clbat', 'clfirefly', 'clmoth', 'clsalamander', 'clbeetle', 'clcrab'];
+  'clfish', 'clbat', 'clfirefly', 'clmoth', 'clsalamander', 'clbeetle', 'clcrab',
+  // the Moon's friendly robots and light (src/moonpages.js MOON_LIFE_PAGES): the walks each was spotted on
+  'mldrone', 'mlcleaner', 'mlconvoy', 'mlmoth', 'mlpixel', 'mlmoonling'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but

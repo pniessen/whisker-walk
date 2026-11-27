@@ -2,9 +2,10 @@
 import { ST } from './moonstages.js';
 import { drawWing } from './moonwing.js';
 import { createStarLive } from './moonstarlive.js';
+import { createRobotsLive } from './moonrobotslive.js';
 
 
-Object.assign(ST, { drawWing, createStarLive, });
+Object.assign(ST, { drawWing, createStarLive, createRobotsLive });
 
 const D = (a) => (a * Math.PI) / 180;
 
