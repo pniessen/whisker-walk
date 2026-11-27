@@ -2,7 +2,7 @@
 // fills ST when it loads, so a stage is always in before build() or the life runs (the area loader awaits them together, in parallel). V1 only reserves the slots (each
 // stage is empty but valid); the later milestones fill them. Each piece grows under its own budget (scripts/buildjson.mjs, SNOWVILLE_STAGE_ENTRY_MODULES).
 //   snowvilleb: the pond, the sled hill and Lantern Night (V5)
-//   snowvillec: the sled run (V7)
+//   snowvillec: the sled run (a later milestone; V7 has no ride, so it stays empty. Tilly's errand of the day is stage b's)
 // A slot with nothing in it answers null, so a later milestone never edits snowville.js.
 export const ST = {};
 

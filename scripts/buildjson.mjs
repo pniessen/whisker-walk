@@ -136,7 +136,7 @@ export const TREEHOUSE_STAGE_GZIP_CEILING_KB = 65;
 export const TREEHOUSE_TOTAL_GZIP_CEILING_KB = 150;
 export const treehouseDownloads = (manifest) => stagedDownloads(manifest, 'treehouse', TREEHOUSE_STAGE_ENTRY_MODULES);
 // Snowville is the same shape (src/world/snowvillestages.js): stage A (snowville.js: the square and the spawn court) and two stage chunks (B: the pond, the hill and Lantern Night;
-// C: the sled run), each under SNOWVILLE_STAGE_GZIP_CEILING_KB, all three under the total.
+// C: the sled run, still empty), each under SNOWVILLE_STAGE_GZIP_CEILING_KB, all three under the total.
 export const SNOWVILLE_STAGE_ENTRY_MODULES = Object.freeze({
   snowvilleb: Object.freeze(['src/world/snowvillestageb.js']),
   snowvillec: Object.freeze(['src/world/snowvillestagec.js']),
