@@ -24,8 +24,8 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const r2 = (v) => Math.round(v * 100) / 100;
 
 // the five chime bars: an arc on the east side of the hall (clear of the stands, the door and the nest; a test holds it)
-export const BAR_DEG = Object.freeze([-45, -22, 1, 24, 47]);
-export const BAR_R = 3.5;
+export const BAR_DEG = Object.freeze([-52, -30, -8, 14, 36]); // moved out and round (pictures): the old 24 deg bar sat 1 m from the east stand
+export const BAR_R = 3.9;
 export const BAR_AT = Object.freeze(BAR_DEG.map((deg, i) => Object.freeze({ i, x: r2(D.HALL.x + Math.cos((deg * Math.PI) / 180) * BAR_R), z: r2(D.HALL.z + Math.sin((deg * Math.PI) / 180) * BAR_R) })));
 export const BAR_COLOURS = Object.freeze([0xff8fb8, 0xffb060, 0xffe27a, 0x8fe0a8, 0x7fc8ff]);
 export const BAR_TRIGGER = 0.62;
@@ -61,7 +61,7 @@ export function errandGeometry(kind, plan) {
   const add = (g) => { parts.push(g); const c = g.attributes.position.count; const r = { start: at, count: c }; at += c; return r; };
   if (kind === 'tune') {
     for (const b of BAR_AT) {
-      const g = paint(new THREE.BoxGeometry(0.9, 0.14, 0.4).rotateY(Math.atan2(b.z - D.HALL.z, b.x - D.HALL.x)).translate(b.x, crystalY(b.x, b.z) + 0.09, b.z), BAR_COLOURS[b.i]);
+      const g = paint(new THREE.BoxGeometry(0.9, 0.14, 0.4).rotateY(-Math.atan2(b.z - D.HALL.z, b.x - D.HALL.x) - Math.PI / 2).translate(b.x, crystalY(b.x, b.z) + 0.09, b.z), BAR_COLOURS[b.i]);
       const r = add(g);
       bars.push({ ...r, base: g.attributes.color.array.slice() });
     }
