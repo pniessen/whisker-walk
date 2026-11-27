@@ -140,6 +140,7 @@ const FIELDS = [
   ['find', "late (walk.js): this walk's find (foundwear/live.js), or NO_FIND"],
   ['findCard', 'late (findcard.js): the find card being shown { id }, or null'],
   ['findNoseAt', 'late (foundwear/live.js): walkTime of the last Twitchy Nose trail to the find, or of the last skill check it failed'],
+  ['holidayFinds', 'late (walk.js): the holiday errand finds (world/holidayfinds.js), or null off season'],
   ['secrets', 'secret spots to find'],
   ['tippables', 'things the cat can tip over'],
   ['knockables', 'things the cat can knock off a ledge'],
