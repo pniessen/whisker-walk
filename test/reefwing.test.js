@@ -131,7 +131,7 @@ describe('steps 4 to 7 of the pure machine', () => {
     expect(M.credit({ step: 2 }, null).changed).toBe(false);
   });
   it('the machine, the sanitiser and the merge agree: every reachable record is kept as it is; a merge only moves on', () => {
-    let r = { step: 0, shells: 0, album: 0 };
+    let r = { step: 0, shells: 0, album: 0, lab: 0, wreck: 0 };
     for (const e of ev) {
       r = M.apply(r, e).reef;
       expect(sanitizeSave({ version: 4, reef: r }).reef).toEqual(r);

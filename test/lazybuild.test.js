@@ -71,3 +71,19 @@ describe('the Moon is four chunks fetched together', () => {
     expect(kb.total).toBeLessThanOrEqual(MOON_TOTAL_GZIP_CEILING_KB);
   });
 });
+
+describe('the Reef is four chunks fetched together (R10 stage slots)', () => {
+  it('stage A and the lab, wreck and ride stages are each under their ceiling, all four under the total, and start-up grew under 1 kB (658.0 kB before R10)', async () => {
+    const { reefDownloads, REEF_STAGE_ENTRY_MODULES, lazyProblems: lp, REEF_STAGE_GZIP_CEILING_KB, REEF_TOTAL_GZIP_CEILING_KB } = await import('../scripts/buildjson.mjs');
+    expect(lp(b.manifest, REEF_STAGE_ENTRY_MODULES)).toEqual([]);
+    const dl = reefDownloads(b.manifest);
+    const kb = Object.fromEntries(Object.entries(dl).map(([id, fs]) => [id, fs.reduce((n, f) => n + b.gz(f), 0) / 1000]));
+    for (const id of ['reef', 'reeflab', 'reefwreck', 'reefride']) {
+      expect(dl[id].length, id).toBeGreaterThan(0);
+      expect(kb[id], id).toBeLessThanOrEqual(REEF_STAGE_GZIP_CEILING_KB);
+    }
+    expect(kb.total).toBeLessThanOrEqual(REEF_TOTAL_GZIP_CEILING_KB);
+    const startKb = startupFiles(b.manifest).reduce((n, f) => n + b.gz(f), 0) / 1000;
+    expect(startKb).toBeLessThan(658.0 + 1);
+  });
+});

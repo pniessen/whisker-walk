@@ -23,8 +23,8 @@ const near = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const flood = floodFrom(area, area.spawn, (x, z) => isWalkableAt(area, x, z));
 
 describe('three golden mice', () => {
-  it('ids gm-reef-1..3, valid, known, unique, and the plan holds the same three', () => {
-    expect(GOLD.map((m) => m.id)).toEqual(['gm-reef-1', 'gm-reef-2', 'gm-reef-3']);
+  it('ids gm-reef-1..5 (4 and 5 are R10 stubs), valid, known, unique, and the plan holds the same five', () => {
+    expect(GOLD.map((m) => m.id)).toEqual(['gm-reef-1', 'gm-reef-2', 'gm-reef-3', 'gm-reef-4', 'gm-reef-5']);
     for (const m of GOLD) { expect(m.id).toMatch(/^gm-[a-z]{1,24}-[1-9]$/); expect(KNOWN_GOLD.has(m.id)).toBe(true); }
     expect(Q.REEF_GOLD.map((m) => ({ ...m }))).toEqual(GOLD);
   });
@@ -34,7 +34,7 @@ describe('three golden mice', () => {
     expect(p.state.golden).toEqual(GOLD.map((m) => m.id));
   });
   it('one on the sand, two at float height (1.9 m and 2.0 m) in the bubble columns; the columns reach a little over each mouse', () => {
-    expect(GOLD.map((m) => m.y)).toEqual([0, 1.9, 2.0]);
+    expect(GOLD.map((m) => m.y)).toEqual([0, 1.9, 2.0, 0, 0]);
     for (const c of Q.BUBBLE_COLUMNS) { const m = GOLD.find((g) => g.x === c.x && g.z === c.z); expect(m, 'a column holds a mouse').toBeTruthy(); expect(c.top).toBeGreaterThan(m.y); }
   });
   it('all in the bounds, clear of every collider, 2 m from every find ring (and 1 m past its edge), collectible and found-outfit spot, and far from the spawn', () => {
@@ -61,10 +61,10 @@ describe('three golden mice', () => {
 });
 
 describe('the totals', () => {
-  it('Clan Edition counts 57 and the everyday edition 33 (the Reef row, gate-only, has no edition key: it counts in both)', () => {
-    expect(GOLD_TOTAL).toBe(60);
-    expect(goldForEdition('canon', CATALOG).size).toBe(60);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(36);
+  it('Clan Edition counts 62 and the everyday edition 38 (the Reef row, gate-only, has no edition key: it counts in both)', () => {
+    expect(GOLD_TOTAL).toBe(62);
+    expect(goldForEdition('canon', CATALOG).size).toBe(62);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(38);
     for (const e of ['canon', 'legacy']) for (const m of GOLD) expect(goldForEdition(e, CATALOG).has(m.id), `${e} ${m.id}`).toBe(true);
     expect(CATALOG.areas.reef.edition).toBeUndefined();
   });

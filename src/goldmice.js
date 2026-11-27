@@ -221,6 +221,9 @@ export const GOLD_MICE = {
     { id: 'gm-reef-1', x: -36, z: -30, y: 0 },
     { id: 'gm-reef-2', x: 14, z: -4, y: 1.9 },
     { id: 'gm-reef-3', x: 20, z: 6, y: 2.0 },
+    // R10 stubs (they move in R14 to the Sealab bunk room and R16 to the galleon cabin; src/world/reeffindsplan.js REEF_GOLD holds the same five): open sand for now.
+    { id: 'gm-reef-4', x: -6, z: -36, y: 0 },
+    { id: 'gm-reef-5', x: 30, z: -28, y: 0 },
   ],
   // The Crystal Cave (milestone C3: the final spots, on the floor and all on foot: under the Rose arch, by the stepping crystal at the pool, behind the Heart; src/world/crystalfindsplan.js CRYSTAL_GOLD holds the same three, test/crystalfinds.test.js; bounds are 72 x 64 m).
   crystal: [
@@ -231,7 +234,7 @@ export const GOLD_MICE = {
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 60 (nineteen areas x three, and the island's three; 57 before the Crystal Cave, 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 62 (the Reef's two Sealab/galleon mice joined in R10; 60 was nineteen areas x three, and the island's three; 57 before the Crystal Cave, 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
 
 // The golden mice a player of `edition` can reach: those in the areas the
 // edition shows (Legacy hides the Clan Edition territories; see edition.js).

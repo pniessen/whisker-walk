@@ -227,3 +227,17 @@ describe('every Reef string is kind', () => {
     }
   });
 });
+
+describe('the ceiling hook (R10)', () => {
+  it('is Infinity everywhere today, on the ground and through reefCeil, and a region can lower it and be removed again', async () => {
+    const P = await import('../src/world/reefplan.js');
+    const g = P.createReefGround();
+    for (const [x, z] of [[0, 0], [10, -36], [37, -33], [-40, 30]]) { expect(g.ceil(x, z)).toBe(Infinity); expect(P.reefCeil(x, z)).toBe(Infinity); }
+    const region = { contains: (x) => x > 100, ceil: () => 3.2 };
+    P.REEF_CEIL_REGIONS.push(region);
+    expect(g.ceil(101, 0)).toBe(3.2);
+    expect(g.ceil(0, 0)).toBe(Infinity);
+    P.REEF_CEIL_REGIONS.splice(P.REEF_CEIL_REGIONS.indexOf(region), 1);
+    expect(g.ceil(101, 0)).toBe(Infinity);
+  });
+});

@@ -50,6 +50,15 @@ export const reefY = reefBaseY;
 
 const EPS = 0.25;
 // The ground in the shape the walk reads (src/ground.js's): made from the heightfield above, a step legal under the same rule as every raised ground.
+// The ceiling over a point (metres above the seabed). Infinity everywhere today (open water: the camera never pulls in). A later stage turns a region
+// finite (the Sealab's roof, the galleon's cabin) by pushing a { contains(x, z), ceil(x, z) } entry onto REEF_CEIL_REGIONS from its build; the lowest wins.
+export const REEF_CEIL_REGIONS = [];
+export function reefCeil(x, z) {
+  let c = Infinity;
+  for (const r of REEF_CEIL_REGIONS) if (r.contains(x, z)) c = Math.min(c, r.ceil(x, z));
+  return c;
+}
+
 export function createReefGround() {
   const y = reefY;
   function canStep(ax, az, bx, bz) {
@@ -78,7 +87,7 @@ export function createReefGround() {
   const self = Object.freeze({
     flat: false,
     y,
-    ceil: () => Infinity,
+    ceil: (x, z) => reefCeil(x, z),
     canStep,
     slide,
     sameLevel: (ax, az, bx, bz) => Math.abs(y(ax, az) - y(bx, bz)) <= LEVEL_TOL,

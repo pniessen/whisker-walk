@@ -137,7 +137,7 @@ describe('the golden mice', () => {
   it('three stub mice inside the bounds, and the totals are 60 and 36', async () => {
     const { CRYSTAL_BOUNDS } = await import('../src/world/crystal.js');
     expect(GOLD_MICE.crystal.map((x) => x.id)).toEqual(['gm-crystal-1', 'gm-crystal-2', 'gm-crystal-3']);
-    expect(GOLD_TOTAL).toBe(60);
+    expect(GOLD_TOTAL).toBe(62);
     for (const mouse of GOLD_MICE.crystal) {
       expect(KNOWN_GOLD.has(mouse.id)).toBe(true);
       expect(mouse.x).toBeGreaterThan(CRYSTAL_BOUNDS.minX); expect(mouse.x).toBeLessThan(CRYSTAL_BOUNDS.maxX);

@@ -123,15 +123,29 @@ describe('floatY, the Reef\'s read-only float height (a placeholder until milest
 
 describe('the save key', () => {
   it('a fresh save has the default and the walk counter; the key is in the key list; no errand is saved', () => {
-    expect(fresh().reef).toEqual({ step: 0, shells: 0, album: 0 });
+    expect(fresh().reef).toEqual({ step: 0, shells: 0, album: 0, lab: 0, wreck: 0 });
     expect(Object.keys(fresh().reef)).not.toContain('errand');
     expect(fresh().walks.reef).toBe(0);
     expect(freshStateKeys()).toContain('reef');
     expect(fresh().version).toBe(4);
   });
   it('a good value round trips', () => {
-    const reef = { step: 7, shells: 7, album: 2730 };
+    const reef = { step: 7, shells: 7, album: 2730, lab: 15, wreck: 31 };
     expect(fresh({ reef }).reef).toEqual(reef);
+  });
+  it('lab (bits 0-2 fuses, bit 3 the show; the show implies all three fuses) and wreck (bit 0 map, 1-3 clues, 4 chest; a set bit fills every bit below it)', () => {
+    const w = (lab, wreck) => fresh({ reef: { lab, wreck } }).reef;
+    expect(w(0, 0)).toMatchObject({ lab: 0, wreck: 0 });
+    for (const [a, b] of [[1, 1], [2, 2], [5, 5], [7, 7], [8, 15], [9, 15], [15, 15], [16, 15], [31, 15], [255, 15]]) expect(w(a, 0).lab, `lab ${a}`).toBe(b);
+    for (const [a, b] of [[1, 1], [2, 3], [4, 7], [8, 15], [16, 31], [10, 15], [17, 31], [31, 31], [32, 31], [1e9, 31]]) expect(w(0, a).wreck, `wreck ${a}`).toBe(b);
+    for (const junk of ['x', '7', -1, -7, 2.5, 7.9, NaN, Infinity, 1e300, null, undefined, [], [3], {}, true]) {
+      const r = w(junk, junk);
+      expect(Number.isInteger(r.lab) && r.lab >= 0 && r.lab <= 15, `lab ${String(junk)}`).toBe(true);
+      expect(Number.isInteger(r.wreck) && r.wreck >= 0 && r.wreck <= 31, `wreck ${String(junk)}`).toBe(true);
+      expect(r.lab === 0 || r.lab === 15 || r.lab < 8).toBe(true);
+      expect(r.wreck & (r.wreck + 1), `wreck ${String(junk)}`).toBe(0); // always 2^n - 1
+    }
+    expect(w('x', [], null).lab).toBe(0);
   });
   it('the shells are derived from the step: a later step never has an earlier shell missing', () => {
     expect(fresh({ reef: { step: 2, shells: 0 } }).reef.shells).toBe(1);
@@ -140,20 +154,20 @@ describe('the save key', () => {
     expect(fresh({ reef: { step: 1, shells: 4 } }).reef.shells).toBe(4); // a shell picked up early is kept
   });
   it('a hostile value is cut back, never trusted', () => {
-    expect(fresh({ reef: { step: 99, shells: 255, album: 99999 } }).reef).toEqual({ step: 7, shells: 7, album: 4095 });
+    expect(fresh({ reef: { step: 99, shells: 255, album: 99999 } }).reef).toEqual({ step: 7, shells: 7, album: 4095, lab: 0, wreck: 0 });
     for (const junk of [null, 5, 'reef', [], [1, 2], { step: 'x', shells: NaN, album: Infinity, errand: 3 }, { step: -3, shells: -1, album: -9 }]) {
-      expect(fresh({ reef: junk }).reef, JSON.stringify(junk)).toEqual({ step: 0, shells: 0, album: 0 });
+      expect(fresh({ reef: junk }).reef, JSON.stringify(junk)).toEqual({ step: 0, shells: 0, album: 0, lab: 0, wreck: 0 });
     }
   });
   it('the key goes through the real save and load, and a v3 payload gets the default', () => {
     const storage = memoryStorage();
     const p = createProgression(storage);
     p.replaceFromPayload({ version: 4, reef: { step: 4, shells: 3, album: 5 } });
-    expect(p.state.reef).toEqual({ step: 4, shells: 7, album: 5 });
+    expect(p.state.reef).toEqual({ step: 4, shells: 7, album: 5, lab: 0, wreck: 0 });
     expect(JSON.parse(storage.getItem(SAVE_KEY)).reef.step).toBe(4);
     expect(createProgression(storage).state.reef).toEqual(p.state.reef);
     p.replaceFromPayload({ version: 3 });
-    expect(p.state.reef).toEqual({ step: 0, shells: 0, album: 0 });
+    expect(p.state.reef).toEqual({ step: 0, shells: 0, album: 0, lab: 0, wreck: 0 });
   });
 });
 
@@ -175,7 +189,19 @@ describe('merging two devices', () => {
       expect(r.step).toBeLessThanOrEqual(7);
       expect(r.shells).toBeLessThanOrEqual(7);
       expect(r.album).toBeLessThanOrEqual(4095);
-      expect(Object.keys(r).sort()).toEqual(['album', 'shells', 'step']);
+      expect(r.lab).toBeLessThanOrEqual(15);
+      expect(r.wreck).toBeLessThanOrEqual(31);
+      expect(Object.keys(r).sort()).toEqual(['album', 'lab', 'shells', 'step', 'wreck']);
+    }
+  });
+  it('lab and wreck merge as an OR, then the sanitiser fills what the bits imply; hostile cloud values normalise', () => {
+    const a = fresh({ reef: { lab: 1, wreck: 1 } }); const b = fresh({ reef: { lab: 4, wreck: 4 } });
+    expect(mergeSaves({ local: a, cloud: b }).save.reef).toMatchObject({ lab: 5, wreck: 7 });
+    expect(mergeSaves({ local: fresh({ reef: { lab: 3 } }), cloud: fresh({ reef: { lab: 8 } }) }).save.reef.lab).toBe(15);
+    for (const bad of ['x', -1, 2.5, 1e300, [], null, { a: 1 }]) {
+      const r = mergeSaves({ local: fresh({ reef: { lab: 2, wreck: 2 } }), cloud: { version: 4, reef: { lab: bad, wreck: bad } } }).save.reef;
+      expect([r.lab & 2, r.wreck & 2], String(bad)).toEqual([2, 2]);
+      expect(r.lab).toBeLessThanOrEqual(15); expect(r.wreck).toBeLessThanOrEqual(31);
     }
   });
   it('merging a save with itself changes nothing and the merge is stable', () => {
@@ -200,6 +226,7 @@ describe('the reserved ids', () => {
   });
   it('the three awards have the owner\'s numbers', () => {
     expect([AWARDS.reeffind, AWARDS.reefstory, AWARDS.reefjob]).toEqual([12, 40, 25]);
+    expect([AWARDS.reeflab, AWARDS.reefwreck]).toEqual([40, 40]); // R10: reserved, nothing pays them yet
   });
   it('couch play is not ready under the sea', () => { expect(COOP_READY.reef).toBe(false); });
   it('the Reef\'s catalog row (R6) is free and gate-only: no price, no edition key, hidden while the gates switch is off (test/reefgate.test.js)', () => {
@@ -208,10 +235,10 @@ describe('the reserved ids', () => {
 });
 
 describe('the golden mice', () => {
-  it('three stub mice, two at float height, and the totals are 57 and 33', () => {
-    expect(GOLD_MICE.reef.map((x) => x.id)).toEqual(['gm-reef-1', 'gm-reef-2', 'gm-reef-3']);
+  it('five mice (the Sealab and galleon stubs are open sand), two at float height, and the totals are 62 and 38', () => {
+    expect(GOLD_MICE.reef.map((x) => x.id)).toEqual(['gm-reef-1', 'gm-reef-2', 'gm-reef-3', 'gm-reef-4', 'gm-reef-5']);
     expect(GOLD_MICE.reef.filter((x) => x.y >= 1.9).length).toBe(2);
-    expect(GOLD_TOTAL).toBe(60);
+    expect(GOLD_TOTAL).toBe(62);
     for (const mouse of GOLD_MICE.reef) expect(KNOWN_GOLD.has(mouse.id)).toBe(true);
   });
 });
@@ -247,8 +274,9 @@ describe('the pack', () => {
   it('the Reef\'s files import no other place (the chunk stays small); the dive suit is the shared lazy kit', () => {
     const src = read('src/world/reef.js');
     const imports = [...src.matchAll(/^import .*?from '(.+?)';/gm)].map((x) => x[1]);
-    expect(imports.sort()).toEqual(['../cat/suitkit.js', './builder.js', './localuuids.js', './reefparts.js', './reefplan.js', './reefstorylife.js', './reefmarlo.js', './reefstory.js', './reeffinds.js', './reeffindparts.js', './reeffindsplan.js', './reefwingparts.js', './reefdeepparts.js', './reefdeeplife.js', './reefguidelive.js', './reefdecorparts.js', './reefsealslive.js', './reefseals.js', './reefmorelive.js'].sort());
+    expect(imports.sort()).toEqual(['../cat/suitkit.js', './builder.js', './localuuids.js', './reefparts.js', './reefplan.js', './reefstorylife.js', './reefmarlo.js', './reefstory.js', './reeffinds.js', './reeffindparts.js', './reeffindsplan.js', './reefwingparts.js', './reefdeepparts.js', './reefdeeplife.js', './reefguidelive.js', './reefdecorparts.js', './reefsealslive.js', './reefseals.js', './reefmorelive.js', './reefstages.js'].sort());
     expect(src).toMatch(/import '\.\/reefwords\.js'/);
+    expect(src).toMatch(/import '\.\/reefwingwords2\.js'/);
     for (const f of globSync('src/world/reef*.js')) {
       for (const [, spec] of read(f).matchAll(/^import .*?from '(.+?)';/gm)) expect(spec, `${f} imports ${spec}`).not.toMatch(/(moon|greenhouse|seaside|park|docks)/);
     }

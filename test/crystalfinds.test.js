@@ -259,9 +259,9 @@ describe('three golden mice', () => {
     }
   });
   it('the totals stay 60 (Clan) and 36 (everyday)', () => {
-    expect(GOLD_TOTAL).toBe(60);
-    expect(goldForEdition('canon', CATALOG).size).toBe(60);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(36);
+    expect(GOLD_TOTAL).toBe(62);
+    expect(goldForEdition('canon', CATALOG).size).toBe(62);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(38);
   });
 });
 

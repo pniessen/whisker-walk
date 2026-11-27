@@ -102,7 +102,7 @@ describe('the saved record', () => {
     let r = { step: 0, shells: 0, album: 0 };
     for (const ev of [{ kind: 'meet' }, { kind: 'bring', shell: 0 }, { kind: 'bring', shell: 1 }]) {
       r = M.apply(r, ev).reef;
-      expect(fresh(r)).toEqual({ step: r.step, shells: r.shells, album: 0 });
+      expect(fresh(r)).toEqual({ step: r.step, shells: r.shells, album: 0, lab: 0, wreck: 0 });
     }
   });
   it('two devices merge to the furthest step and the union of the shells', () => {
