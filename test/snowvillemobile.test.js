@@ -454,7 +454,7 @@ describe('the row', () => {
     expect(r.life.meshes).toBe(31);
     expect(r.whole.meshes).toBe(37);
     expect(r.whole.casters).toBe(3);
-    expect(r.whole.triangles).toBeLessThanOrEqual(49620);
+    expect(r.whole.triangles).toBeLessThanOrEqual(50231);
     expect(r.build.triangles).toBeLessThanOrEqual(47400);
   });
 });

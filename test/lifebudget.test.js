@@ -27,7 +27,7 @@ const ROWS = [
   ['reef', buildReef, 101, 2, 74200],
   ['crystal', buildCrystal, 32, 2, 36900],
   ['treehouse', buildTreehouse, 23, 2, 66200],
-  ['snowville', buildSnowville, 37, 3, 49620], // 46,500 before the ski slope (round three, +1,356 built), 47,700 after it; the snowmobile (round four): ring, marks and garage +1,162 built, the machine +1 non-casting mesh +686 (measured 37 / 3 / 49,514, bound +106)
+  ['snowville', buildSnowville, 37, 3, 50231], // frost round (2026-11-27): +575 net (side drifts, west icicles, tufts, lane banks and prints, paid in part by open birch/stump/well cylinders and flat pads), measured 37 / 3 / 50,181, bound 49,620 -> 50,231 (measured +50); 46,500 before the ski slope (round three, +1,356 built), 47,700 after it; the snowmobile (round four): ring, marks and garage +1,162 built, the machine +1 non-casting mesh +686 (measured 37 / 3 / 49,514, bound +106)
   ['jungle', buildJungle, 31, 4, 55700],
 ];
 

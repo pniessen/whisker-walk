@@ -46,7 +46,7 @@ function lines(min, max, edge, outer) {
 }
 
 // The lane: a trodden line from the court's arch up to the square, a little greyer and bluer than the drifts.
-const LANE = Object.freeze([[0, 26], [-1, 20], [-3, 14], [-4, 9]]);
+export const LANE = Object.freeze([[0, 26], [-1, 20], [-3, 14], [-4, 9]]);
 export const laneDist = (x, z) => {
   let best = 1e9;
   for (let i = 0; i < LANE.length - 1; i++) {

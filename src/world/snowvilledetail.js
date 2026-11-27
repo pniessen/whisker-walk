@@ -11,11 +11,12 @@
 import * as THREE from 'three';
 import * as P from './snowvilleplan.js';
 import * as D from './snowvilledetailplan.js';
-import { COL, paint, stand, box, cyl, ball } from './snowvilleparts.js';
+import { COL, LANE, paint, stand, box, cyl, ball } from './snowvilleparts.js';
 
 const BERRY = 0xd23a3a;
 const GLASS = 0x2b2f3a;
 const PAPER_MARK = 0x4a4038;
+const tube = (rt, rb, h, seg) => new THREE.CylinderGeometry(rt, rb, h, seg, 1, true); // no hidden caps
 
 // ---- the cottages (in each cottage's frame: door on +z, the side window on +x, back at -z) ---------------------------------------------------------------------
 // Pieces too small to throw a shadow go in the treeline's non-casting bucket ('fine'), so the shadow pass does not draw them; the rest are in 'paint'.
@@ -108,8 +109,8 @@ function birch(kit, M, b, i) {
   const H = 3.4 + b.s * 1.4;
   const lean = Math.sin(i * 2.1) * 0.05;
   const t = (geo, hex, jit = 0) => kit.put('paint', M.paint, paint(stand(geo.rotateZ(lean), b.x, b.z, -0.05, b.yaw), hex, jit));
-  t(cyl(0.06, 0.11, H, 5).translate(0, H / 2, 0), 0xe9e7e0);
-  for (let k = 0; k < 3; k++) t(cyl(0.065 + 0.004 * (2 - k), 0.07, 0.06, 5).translate(0, H * (0.18 + 0.2 * k), 0), 0x2f2b2a);
+  t(tube(0.06, 0.11, H, 5).translate(0, H / 2, 0), 0xe9e7e0); // (open at both ends: the foot is in the snow, the top under its cap)
+  for (let k = 0; k < 3; k++) t(tube(0.126 - 0.05 * (0.18 + 0.2 * k), 0.126 - 0.05 * (0.18 + 0.2 * k), 0.06, 5).translate(0, H * (0.18 + 0.2 * k), 0), 0x2f2b2a); // dark bark bands, just proud of the trunk (they were hidden inside it, closed)
   for (let k = 0; k < (LOW ? 0 : 6); k++) { // bare branches up and out, with a fleck of frost at the end of each
     const a = k * 2.4 + i; const y = H * (0.5 + 0.08 * k); const L = 0.9 - 0.08 * k;
     const g = cyl(0.014, 0.03, L, 3).translate(0, L / 2, 0).rotateZ(-0.9).rotateY(a).translate(0, y, 0);
@@ -120,8 +121,8 @@ function birch(kit, M, b, i) {
 }
 function stump(kit, M, s, i) {
   const t = (geo, hex, jit = 0) => kit.put('paint', M.paint, paint(stand(geo, s.x, s.z, -0.05, s.yaw), hex, jit));
-  t(cyl(0.3 * s.s, 0.38 * s.s, 0.4 * s.s, 7).translate(0, 0.2 * s.s, 0), 0x7a5438, i);
-  t(cyl(0.3 * s.s, 0.3 * s.s, 0.03, 7).translate(0, 0.41 * s.s, 0), 0xc9a47a);
+  t(tube(0.3 * s.s, 0.38 * s.s, 0.4 * s.s, 7).translate(0, 0.2 * s.s, 0), 0x7a5438, i);
+  t(new THREE.CircleGeometry(0.3 * s.s, 7).rotateX(-Math.PI / 2).translate(0, 0.415 * s.s, 0), 0xc9a47a); // the cut top: a flat pad (was a closed cylinder)
   t(ball(0.36 * s.s, 6, 3).scale(1, 0.38, 1).translate(0, 0.42 * s.s, 0), COL.snowBright);
 }
 
@@ -185,8 +186,8 @@ function snowman(kit, M, s) {
 }
 function wellAt(kit, M, w) {
   const t = (geo, hex, jit = 0) => kit.put('paint', M.paint, paint(stand(geo, w.x, w.z, -0.05, w.yaw), hex, jit));
-  t(cyl(0.72, 0.78, 0.62, 9).translate(0, 0.31, 0), COL.rock, 1);
-  t(cyl(0.58, 0.58, 0.04, 9).translate(0, 0.62, 0), 0x2b3a4a);
+  t(tube(0.72, 0.78, 0.62, 9).translate(0, 0.31, 0), COL.rock, 1);
+  t(new THREE.CircleGeometry(0.58, 9).rotateX(-Math.PI / 2).translate(0, 0.62, 0), 0x2b3a4a); // the water: a flat pad
   t(ball(0.82, 8, 3).scale(1, 0.26, 1).translate(0, 0.66, 0), COL.snowBright);
   for (const sx of [-1, 1]) t(box(0.1, 1.5, 0.1).translate(sx * 0.66, 1.3, 0), COL.woodDark);
   t(cyl(0.05, 0.05, 1.4, 5).rotateZ(Math.PI / 2).translate(0, 1.7, 0), COL.wood);
@@ -208,9 +209,30 @@ function pennants(kit, M, a, b, hues, n, ya, yb, sag = 0.5) {
   }
 }
 
+
+// ---- the frost round (beauty round): side-wall drifts, the west eave's icicles, frosted tufts at the corners, the lane's snow edging and its footprints; all non-casting, in the fine bucket ----
+function frost(kit, M, c, i) {
+  for (const sx of [-1, 1]) on(kit, M, c, ball(0.5, 5, 3).scale(0.7, 0.6, 1.5).translate(sx * (c.w / 2 + 0.3), 0.06, c.d * (0.2 - 0.1 * sx)), COL.roofSnow, i + sx, 'fine');
+  const n = Math.round(c.d * 1.4);
+  for (let k = 0; k < n; k++) on(kit, M, c, new THREE.ConeGeometry(0.035, 0.16 + 0.1 * ((k * 3) % 3), 4, 1, true).rotateX(Math.PI).translate(-c.w / 2 - 0.4, c.h - 0.02, -c.d / 2 + (c.d * (k + 0.5)) / n), COL.ice, 0, 'fine');
+  for (let k = 0; k < 6; k++) { // a tuft at each corner and one each side of the porch, two blades leaning apart
+    const x = [-1, 1, -1, 1, -0.45, 0.45][k] * (c.w / 2 + (k < 4 ? 0.25 : -0.2)); const z = (k % 2 ? 1 : -1) * c.d / 2 + (k < 4 ? 0 : 0.7);
+    for (const b of [-1, 1]) on(kit, M, c, new THREE.ConeGeometry(0.075, 0.5, 3, 1, true).rotateZ(b * 0.3).translate(x + b * 0.07, 0.18, z), (k + i) % 2 ? 0x6f9a86 : 0x93b39e, 0, 'fine');
+  }
+}
+function lane(kit, M) { // snow banked along both edges of the trodden lane, and the first walker's prints down its middle
+  for (let s = 0; s < LANE.length - 1; s++) for (let u = 0; u < 4; u++) {
+    const [ax, az] = LANE[s]; const [bx, bz] = LANE[s + 1]; const t = (u + 0.5) / 4; const px = ax + (bx - ax) * t; const pz = az + (bz - az) * t;
+    const a = Math.atan2(bx - ax, bz - az); const nx = Math.cos(a); const nz = -Math.sin(a);
+    for (const sd of [-1, 1]) kit.put(FINE, M.paint, paint(stand(ball(0.34, 5, 3).scale(1, 0.4, 2.2), px + sd * nx * 1.45, pz + sd * nz * 1.45, -0.05, a), COL.roofSnow, sd + u), { noCast: true });
+    for (const k of [0, 1]) kit.put(FINE, M.paint, stand(paint(new THREE.CircleGeometry(0.1, 5).rotateX(-Math.PI / 2).scale(1, 1, 1.7), 0x93a6c4), px + (k - 0.5) * nx * 0.4 - nx * 0.1 * (u % 2), pz + (k - 0.5) * nz * 0.4 - nz * 0.1 * (u % 2), 0.03, a + 0.08 * (k - 0.5)), { noCast: true });
+  }
+}
+
 export function drawDetail(kit, M, { low = false } = {}) {
   LOW = !!low;
   P.COTTAGES.forEach((c, i) => houseDetail(kit, M, c, i));
+  if (!LOW) { P.COTTAGES.forEach((c, i) => frost(kit, M, c, i)); lane(kit, M); }
   const by = (id) => P.COTTAGES.find((c) => c.id === id);
   for (const id of D.EXTRA_WOODPILES) woodpile(kit, M, by(id));
   for (const s of D.LEANING_SLEDS) leaningSled(kit, M, by(s.id), s.hue);
