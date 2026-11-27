@@ -283,6 +283,8 @@ export const MERGE_RULES = Object.freeze({
   events: (r) => union(r.L.events, r.C.events),
   // Holiday pieces earned: each key's bitmask is the OR of both sides', so nothing earned on either device is lost.
   holidays: (r) => perKey(r.L.holidays, r.C.holidays, (l, c) => num(l) | num(c)),
+  // The holiday errand's counter: the larger count of each key, so a find kept on either device is never lost.
+  holidayFinds: (r) => perKey(r.L.holidayFinds, r.C.holidayFinds, (l, c) => Math.max(num(l), num(c))),
   sleepingCats: (r) => r.sleeping,
 });
 

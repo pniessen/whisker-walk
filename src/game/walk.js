@@ -25,6 +25,10 @@ import { marketOn } from '../marketflag.js';
 import { lighthouseOn } from '../lighthouseflag.js';
 import { greenhouseShortcut } from '../greenhouseflag.js';
 import { tele } from '../telehook.js';
+import { activeHolidays } from '../holidays.js';
+import { BufferGeometry, BufferAttribute, BoxGeometry, ConeGeometry, CylinderGeometry, OctahedronGeometry, TorusGeometry, Mesh, MeshStandardMaterial, MeshBasicMaterial, Group } from 'three';
+// the classes the holiday decor chunk draws with (it imports no three.js itself: see world/holidaydecor.js)
+const DECOR_THREE = [BufferGeometry, BufferAttribute, BoxGeometry, ConeGeometry, CylinderGeometry, OctahedronGeometry, TorusGeometry, Mesh, MeshStandardMaterial, MeshBasicMaterial, Group];
 import { moonShortcut } from '../moonflag.js';
 import { reefShortcut } from '../reefflag.js';
 import { crystalShortcut } from '../crystalflag.js';
@@ -646,6 +650,15 @@ export function createWalkLifecycle({
   // Resolves to 'started' | 'busy' | 'failed' | 'dropped'; a build throw on the
   // waiting path rejects it.
   let waiting = null; // the token of the start now waiting, else null
+  // Holiday decor (src/world/holidaydecor.js, a lazy chunk): fetched only inside a window while the Settings choice is not Off,
+  // and only once. A walk waits for it (a 5 kB file); if it fails (offline) the walk starts without it.
+  let decorMod = null;
+  let decorLoad = null;
+  function loadHolidayDecor() {
+    if (decorMod || !/^(auto|christmas|hanukkah)$/.test(settings.get('holidayDecor')) || !activeHolidays().length) return null;
+    decorLoad ??= import('../world/holidayfinds.js').then((m) => { m.bind(DECOR_THREE); decorMod = m; }, () => { decorLoad = null; });
+    return decorLoad;
+  }
   // Every startWalk counts itself, so a walk-on's moment can tell whether a
   // walk began some other way while it showed.
   let walksStarted = 0;
@@ -658,7 +671,8 @@ export function createWalkLifecycle({
     // (and perhaps another joined), or one joined, during the wait drops it.
     const roomAtCall = getPendingRoom();
     if (waiting !== null) return Promise.resolve('busy');
-    if (areas.loaded(areaId)) {
+    const decorP = loadHolidayDecor();
+    if (areas.loaded(areaId) && !decorP) {
       startWalk(opts);
       failures = 0;
       return Promise.resolve('started');
@@ -678,7 +692,7 @@ export function createWalkLifecycle({
       if (waiting === token) waiting = null;
       getHomebase()?.setGettingReady?.(false);
     };
-    return areas.ensure(areaId).then(
+    return Promise.all([areas.ensure(areaId), decorP]).then(
       () => {
         const stale = waiting !== token;
         done();
@@ -937,6 +951,10 @@ export function createWalkLifecycle({
     // holds the area's props and nothing else — is unaffected, because merging
     // adds and removes nothing the scan would have looked at.
     mergeStaticProps(scene);
+    // Holiday decor: only when its chunk came (inside a window, not Off); a failure never stops the walk.
+    if (decorMod) {
+      try { decorMod.dress(areaId, scene, areaData, { pick: settings.get('holidayDecor'), reducedMotion, sparse: tier.name === 'low' || tier.rung >= 4 }); } catch (err) { note('area', err); }
+    }
     // POIs are authored as "interesting spots" and several sit dead-center
     // on scenery (the park fountain, the parked car) — fine as vibes, but
     // race rings and quest objects placed there are unreachable: player
@@ -2103,6 +2121,11 @@ export function createWalkLifecycle({
         ground, reducedMotion, onNear: () => audio.findChime?.(),
       })
       : NO_FIND;
+    // The holiday errand's finds (world/holidayfinds.js, only when its chunk came): off the same seed as the outfit find, its own stream.
+    session.holidayFinds = null;
+    if (decorMod) {
+      try { session.holidayFinds = decorMod.holidayFinds(scene, { areaId, pick: settings.get('holidayDecor'), seed: roomSeed ?? soloSeed, isDen, lessonKind: lessonPlan?.kind ?? null, ground, reducedMotion, onNear: () => audio.findChime?.() }); } catch (err) { note('area', err); }
+    }
 
     // v21 3b Task 12 — the rival border marks I scented over on earlier walks,
     // by saved id (`<area>-border-<ring>`), read here, BEFORE the rival slice
@@ -2787,6 +2810,7 @@ export function createWalkLifecycle({
     if (resume) restoreMarket(market, log);
     // ...and the find it had found is not on the ground.
     if (resume) restoreFind(session.find, { log });
+    if (resume) session.holidayFinds?.restore(log);
     hud.show();
     hud.setArea(placeName(areaId, progression.state.edition, CATALOG) || areaData.name);
     // Kittypets: the arrival line waits for the walk to start (the Ready? card
@@ -3054,6 +3078,7 @@ export function createWalkLifecycle({
     session.traversal?.dispose();
     session.goldMice.dispose();
     session.find.dispose();
+    session.holidayFinds?.dispose();
     session.rival.dispose();
     session.chasing = false;
     session.kittenEnc.dispose();
