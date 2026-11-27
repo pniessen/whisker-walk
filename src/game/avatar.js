@@ -284,6 +284,15 @@ export function createAvatarUpdater({
     const reducedMotion = settings.get('reducedMotion');
     const ws = player.waterState;
     const amount = Math.sin(Math.PI * shakeProgress(ws));
+    // The Reef's swim pose (cat/reefswim.js): only where the place has a float, so nothing anywhere else moves a byte.
+    // Loaded the first time a place has a float, so the start-up bundle never carries it.
+    if (player.canFloat && s.swimMod === undefined) { s.swimMod = null; import('../cat/reefswim.js').then((m) => { s.swimMod = m; }); }
+    const sm = s.swimMod;
+    const swim = sm ? (s.swim ??= sm.newSwim()) : null;
+    if (swim) {
+      sm.swimStep(swim, floating, player.floatY, dt, reducedMotion);
+      cat.userData.swimDo ??= (c, tt) => sm.swimDo(c, swim, tt);
+    }
     const drawn = waterPose(pose, floating ? FLOAT_STATE : ws, { hagrid: cat.userData.breed === 'hagrid', reducedMotion });
     // Hagrid draws a fight's states as his hen ones (cat/henfight.js); the wire
     // pose above is untouched, so every other build sees the usual fight states.
@@ -297,6 +306,7 @@ export function createAvatarUpdater({
     if (s.fight) { fightTilt.pitch = s.fightPitch ?? 0; fightTilt.roll = s.fightRoll ?? 0; }
     applyWaterLook(cat, ws, t, dt, reducedMotion, avatarBaseY(s.ground, cat, player, s), amount,
       s.fight ? fightTilt : null, avatarSlopeTilt(s.ground, cat, player, s, dt));
+    if (swim) sm.swimGroup(cat, swim, t);
     // Her own name tag (a custom cat's) rides the group: through a fight's
     // pitch and roll it stays straight above her torso, and is put back after.
     // On raised ground it stays straight through the slope's lean too.
