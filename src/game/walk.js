@@ -28,6 +28,7 @@ import { tele } from '../telehook.js';
 import { moonShortcut } from '../moonflag.js';
 import { reefShortcut } from '../reefflag.js';
 import { crystalShortcut } from '../crystalflag.js';
+import { snowvilleShortcut } from '../snowvilleflag.js';
 import { placePace, placeFloat } from '../placephysics.js';
 import { suitKit } from '../suithook.js';
 import { birthdayDue, BDAY_AREA, BDAY_START, BRIDGE_ISLAND_END, speakerFor, birthdayCatName, noteCandlesBlown, bdayCountsWalk, saveBirthdayPhoto, BDAY_PHOTO_KEY } from '../birthday.js';
@@ -582,6 +583,7 @@ export function createWalkLifecycle({
     if (greenhouseShortcut() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'greenhouse' });
     if (moonShortcut() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'moon' }); // ?moon=1: a solo walk on the Moon
     if (crystalShortcut() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'crystal' }); // ?crystal=1: a solo walk in the Crystal Cave
+    if (snowvilleShortcut() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'snowville' }); // ?snowville=1: a solo walk in Snowville
     if (reefShortcut() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'reef' }); // ?reef=1: a solo walk under the sea
     // Her birthday (src/birthday.js): while the Gathering waits, a solo
     // Explore starts in the Pines at the foot of the island bridge. An

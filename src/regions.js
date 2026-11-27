@@ -26,7 +26,7 @@ export const REGIONS = Object.freeze([
   { id: 'suburban', members: ['farm', 'fair', 'house', 'treehouse'] },
   { id: 'shore', members: ['docks', 'seaside', 'lighthouse'] },
   { id: 'wild', members: ['woods', 'river', 'moor', 'pines', 'gorge'] },
-  { id: 'other', members: ['moon', 'reef', 'crystal'] },
+  { id: 'other', members: ['moon', 'reef', 'crystal', 'snowville'] },
 ].map((r) => Object.freeze({ ...r, members: Object.freeze(r.members) })));
 
 // The region id of a place id, or null for a place in none (own-property read: '__proto__' is nothing).

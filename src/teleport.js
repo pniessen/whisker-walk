@@ -28,6 +28,8 @@ export const GREENHOUSE_NEED_WALKS = 2;
 export const REEF_NEED_WALKS = 2;
 // Docks walks before the Crystal Cave's gate wakes (the plan's D3: 2; CATALOG.areas.crystal.requires says it too). No gate end yet (milestone C6).
 export const CRYSTAL_NEED_WALKS = 2;
+// Farm walks before Snowville's archway wakes (the plan's rule: 2; CATALOG.areas.snowville.requires says it too, and a test keeps them equal).
+export const SNOWVILLE_NEED_WALKS = 2;
 
 let H = null;
 // host: { teleOn, greenhouseOn, placeName, walkOnMove, lower, padTag, escapeHtml, coopReady, catalog, isClan, couch }
@@ -60,7 +62,7 @@ const end = teleRow;
 // Each end's look, by id: 'stonering' (five mossy standing stones round a light disc), 'archway' (a little stone arch in a
 // hedge, with a lantern) or 'hollow' (a trunk with a glowing hole) or 'cleft' (the same in rock, with a ladder and a ring buoy). Pictures of all three in the Park and the Greenhouse:
 // verify-teleport-gates-m1.html. The plan's recommendation for the real pairs: stones for the Moon, hollow for the Reef.
-export const TELE_LOOK = Object.freeze({ 'park-greenhouse': 'archway', 'greenhouse-park': 'archway', 'park-moon': 'stonering', 'moon-park': 'stonering', 'seaside-reef': 'hatch', 'reef-seaside': 'cleft', 'docks-crystal': 'grotto', 'crystal-docks': 'grotto' });
+export const TELE_LOOK = Object.freeze({ 'park-greenhouse': 'archway', 'greenhouse-park': 'archway', 'park-moon': 'stonering', 'moon-park': 'stonering', 'seaside-reef': 'hatch', 'reef-seaside': 'cleft', 'docks-crystal': 'grotto', 'crystal-docks': 'grotto', 'farm-snowville': 'archway', 'snowville-farm': 'archway' });
 // Where she lands, and facing which way: 'toward' (the milestone 0 choice: 3.6 m out, FACING the gate she stepped out of; the
 // camera stands 4.4 m behind her, so it looks at the way home) or 'away' (the spec's "facing in": 7 m out, looking into
 // the place, the gate behind her; further, so the camera does not stand inside the stones).
@@ -120,6 +122,16 @@ export const TELE_ENDS = Object.freeze({
     end({ id: 'crystal-docks', gateway: 'tele-docks-crystal', x: 0, z: 24.5, faces: 'north', to: 'docks', twin: 'docks-crystal', look: TELE_LOOK['crystal-docks'],
       placement: 'inside', arrive: arriveFor('north', 0, 24.5), edition: 'all', own: true }),
   ]),
+  // The Snowville pair (Snowville milestone V1): the Farm's archway with an icy disc (telegate.js discTint) on the lawn west of the lane, awake after two Farm walks, both
+  // editions, no suit (and no snow on the Farm), and Snowville's own return arch in its spawn court (`own`: the village draws it).
+  farm: Object.freeze([
+    end({ id: 'farm-snowville', gateway: 'tele-farm-snowville', x: -6, z: 40, faces: 'west', to: 'snowville', twin: 'snowville-farm', look: TELE_LOOK['farm-snowville'],
+      placement: 'inside', arrive: arriveFor('west', -6, 40), edition: 'all', needWalks: SNOWVILLE_NEED_WALKS }),
+  ]),
+  snowville: Object.freeze([
+    end({ id: 'snowville-farm', gateway: 'tele-farm-snowville', x: 0, z: 26.5, faces: 'north', to: 'farm', twin: 'farm-snowville', look: TELE_LOOK['snowville-farm'],
+      placement: 'inside', arrive: arriveFor('north', 0, 26.5), edition: 'all', own: true }),
+  ]),
   greenhouse: Object.freeze([
     end({ id: 'greenhouse-park', gateway: 'tele-park-greenhouse', x: -10, z: 29, faces: 'west', to: 'park', twin: 'park-greenhouse', look: TELE_LOOK['greenhouse-park'],
       placement: 'inside', arrive: arriveFor('west', -10, 29), edition: 'all', own: true }),
@@ -129,7 +141,7 @@ export const TELE_ENDS = Object.freeze({
 export const teleEnds = (areaId) => (typeof areaId === 'string' && Object.hasOwn(TELE_ENDS, areaId) ? TELE_ENDS[areaId] : []);
 
 // Every gate place has a catalog row now (its `gate: 'tele'` keeps it out of the cards while the switch is off); these names are the fallback.
-const NAMES = { greenhouse: 'The Greenhouse', reef: 'The Reef', crystal: 'The Crystal Cave', moon: 'The Moon' };
+const NAMES = { greenhouse: 'The Greenhouse', reef: 'The Reef', crystal: 'The Crystal Cave', snowville: 'Snowville', moon: 'The Moon' };
 export function placeLive(to, catalog) {
   const areas = catalog && catalog.areas;
   return !!areas && Object.hasOwn(areas, to);

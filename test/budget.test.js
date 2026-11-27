@@ -25,6 +25,7 @@ const { build: buildMoon } = await import('../src/world/moon.js');
 const { build: buildReef } = await import('../src/world/reef.js');
 const { build: buildCrystal } = await import('../src/world/crystal.js');
 const { build: buildTreehouse } = await import('../src/world/treehouse.js');
+const { build: buildSnowville } = await import('../src/world/snowville.js');
 const { HOUSE_LEVELS } = await import('../src/world/houseplan.js');
 const { measureHouse } = await import('./helpers/housebudget.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -560,6 +561,11 @@ const AREAS = [
   // floor) measured 4 meshes / 1 caster / 27,704 triangles built, +12%: 5 / 2 / 31,100 (the plan expected about 28,000 for stage A). The dapple and the one light are the
   // walk's life, not in this count. Row B (the Bell Tower's show, the rope bridge to the Bookshop) comes with milestone T5: measured, then set.
   ['treehouse', buildTreehouse, 5, 2, 31100],
+  // Snowville. Milestone V1 (2026-11-27, the snow world: the ground heightfield, then the arch, brazier, seven cottages, the square and the 100-odd firs, drifts and rocks in three
+  // merged buckets (paint, glow, tree) and the treeline's own non-casting bucket; the flakes, glints and cheeks are the walk's life, not in this count) measured 5 / 2 / 16,108 built
+  // (the same merged), +12%: 6 / 3 / 18,100. The plan's stage A figures were about 25,000 triangles: under them. The Farm with its new gate (3 meshes, +441 triangles, +1 caster)
+  // measured 180 / 120 / 53,700 merged: under its unchanged ceilings (200 / 135 / 62,000).
+  ['snowville', buildSnowville, 6, 3, 18100],
   // Milestone R2 (Marlo and chapter one) adds only the coral ledge (no mesh more; about 200 triangles measured on top of R3: 7 / 2 / 10,700). Marlo, the shells, their glints, the picture bubble, the meow's ring and the air pockets are the walk's life, counted in test/reefmarlo.test.js
 ];
 

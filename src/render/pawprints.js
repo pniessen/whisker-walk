@@ -84,6 +84,8 @@ export const SURFACES = Object.freeze({
   gravel: Object.freeze({ color: 0x7a6a52, alpha: 0.4, rim: 0, life: 0.85 }),
   // The Moon's dust: dark, clear prints with a pale pushed-up rim that stay a good while (nothing blows on the Moon).
   dust: Object.freeze({ color: 0x2c2c34, alpha: 0.75, rim: 0.4, life: 1.6 }),
+  // Snowville's snow (milestone V1): soft blue-grey hollows with a pale ridge that stay about 30 s at the Auto tier (the plan's start), longer than any other ground.
+  snow: Object.freeze({ color: 0x8aa0c0, alpha: 0.85, rim: 0.5, life: 3.3 }),
 });
 
 // The per-area rule. `ground` is what the bare ground plane is, `path` what a
@@ -123,6 +125,8 @@ export const AREA_RULES = Object.freeze({
   greenhouse: Object.freeze({ ground: null, path: 'gravel', strip: null }),
   // The Moon's whole plain is dust: it keeps her paw prints (the Quiet Dust find).
   moon: Object.freeze({ ground: 'dust', path: 'dust', strip: null }),
+  // Snowville's whole ground is snow: it keeps her prints, a wider stride apart (`stride`, a multiplier on the usual gap) and for longer (the 'snow' surface's life).
+  snowville: Object.freeze({ ground: 'snow', path: 'snow', strip: null, stride: 1.3 }),
 });
 
 // THE BIRTHDAY'S GLITTER (2026-11-21; src/ui/party.js birthdayPartyOn). While
@@ -250,7 +254,7 @@ function jitter(n, salt) {
 // scratch, so laying a print allocates nothing). Prints alternate left/right of the
 // line the cat walks, one per stride of actual travel: a cat standing still,
 // walking into a wall, in the air or swimming lays nothing.
-export function createTrail() {
+export function createTrail(strideScale = 1) {
   let lastX = NaN;
   let lastZ = NaN;
   let travelled = 0;
@@ -274,7 +278,7 @@ export function createTrail() {
     lastX = x; lastZ = z;
     if (dt > 0) speed += (d / dt - speed) * Math.min(1, dt * 6); // eased m/s
     travelled += d;
-    if (travelled < strideFor(speed) || d < 1e-5) return null;
+    if (travelled < strideFor(speed) * strideScale || d < 1e-5) return null;
     travelled = 0;
     // Heading: along the last stride when there is one (steadier than one
     // frame's delta), else this frame's movement.
@@ -333,7 +337,7 @@ export function createPawPrints(scene, { areaId, areaData, tier, glitter = false
 
   const ground = groundOf(areaData);
   const strips = groundStrips(scene, ground);
-  const trail = createTrail();
+  const trail = createTrail(glitter ? 1 : AREA_RULES[areaId]?.stride ?? 1);
 
   const material = new THREE.MeshStandardMaterial({
     color: 0xffffff,

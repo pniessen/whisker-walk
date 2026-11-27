@@ -12,6 +12,7 @@ import { LINES as LIGHTHOUSE_LINES } from '../src/world/lighthousewords.js';
 import { LINES as GREENHOUSE_LINES } from '../src/world/greenhousewords.js';
 import { LINES as REEF_LINES } from '../src/world/reefwords.js';
 import { LINES as CRYSTAL_LINES } from '../src/world/crystalwords.js';
+import { LINES as SNOWVILLE_LINES } from '../src/world/snowvillewords.js';
 import { FIND_LINES as REEF_FIND_LINES } from '../src/world/reeffindwords.js';
 import { CRYSTAL_FIND_LINES } from '../src/world/crystalfindwords.js';
 import { CRYSTAL_WING_LINES } from '../src/world/crystalwingwords.js';
@@ -50,6 +51,7 @@ addPhrases(CATLOGIN_LINES);
 addPhrases(FRESH_LINES); // Start a fresh cat's chunk (src/ui/freshcat.js)
 addPhrases(SKILLBADGE_LINES); // the skill badge strip's chunk (src/ui/skillbadges.js)
 addPhrases(GREENHOUSE_LINES); // (the Greenhouse's chunk adds its own on import: src/world/greenhousewords.js)
+addPhrases(SNOWVILLE_LINES); // (Snowville's cheeks line, milestone V1: src/world/snowvillewords.js)
 addPhrases(CRYSTAL_LINES); // (the Crystal Cave's chunk adds its own on import: src/world/crystalwords.js)
 addPhrases(REEF_LINES); // (the Reef's chunk adds its own on import: src/world/reefwords.js)
 addPhrases(REEF_FIND_LINES); // (and its find lines, milestone R3: src/world/reeffindwords.js)
