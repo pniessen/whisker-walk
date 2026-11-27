@@ -7,7 +7,8 @@
 
 const CSS = `
 .coop-join{position:fixed;left:50%;top:max(13vh,72px);transform:translateX(-50%);z-index:30;max-width:min(90vw,34em);padding:.5em 1em;border-radius:999px;background:rgba(20,26,38,.82);color:#fff;font:600 17px/1.3 Avenir,system-ui,sans-serif;text-align:center;pointer-events:none}
-.coop-join[hidden],.coop-lost[hidden]{display:none}
+.coop-join[hidden],.coop-lost[hidden],.coop-tally[hidden]{display:none}
+.coop-tally{position:fixed;left:50%;bottom:max(8vh,48px);transform:translateX(-50%);z-index:30;max-width:min(90vw,34em);padding:.5em 1em;border-radius:999px;background:rgba(20,26,38,.88);color:#fff;font:600 18px/1.3 Avenir,system-ui,sans-serif;text-align:center;pointer-events:none}
 .coop-join .pad-glyph{width:1.3em;height:1.3em;vertical-align:-.3em}
 .coop-lost{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(10,14,22,.55);font:500 18px/1.4 Avenir,system-ui,sans-serif;color:#fff}
 .coop-lost .coop-card{max-width:min(80vw,30em);padding:1.2em 1.6em;border-radius:18px;background:#1c2431;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.4)}
@@ -16,7 +17,7 @@ const CSS = `
 .coop-lost .coop-actions{display:flex;gap:.8em;justify-content:center;flex-wrap:wrap}
 .coop-lost button{min-height:48px;min-width:48px;padding:.5em 1.2em;border:2px solid #fff;border-radius:12px;background:#2b3a55;color:#fff;font:inherit;cursor:pointer}
 .coop-lost button:focus-visible,.pad-focus .coop-lost button:focus{outline:4px solid #ffd35c;outline-offset:2px}
-html.tv .coop-join{font-size:24px}
+html.tv .coop-join,html.tv .coop-tally{font-size:24px}
 html.tv .coop-lost{font-size:24px}
 html.tv .coop-lost .coop-card{max-width:min(80vw,34em)}
 `;
@@ -32,6 +33,12 @@ export function createCards({ doc = document } = {}) {
   join.setAttribute('aria-live', 'polite');
   join.hidden = true;
   doc.body?.appendChild(join);
+
+  const tally = make('div', 'coop-tally');
+  tally.setAttribute('role', 'status');
+  tally.setAttribute('aria-live', 'polite');
+  tally.hidden = true;
+  doc.body?.appendChild(tally);
 
   const lost = make('div', 'coop-lost');
   lost.setAttribute('role', 'alertdialog');
@@ -66,6 +73,10 @@ export function createCards({ doc = document } = {}) {
       join.setAttribute('aria-label', text);
       join.hidden = false;
     },
+    tallyEl: tally,
+    /** The walk's tally of who found what (plain text; never saved). */
+    showTally(text) { tally.textContent = text; tally.hidden = false; },
+    hideTally() { tally.hidden = true; },
     hideJoin() { join.hidden = true; join.dataset.text = ''; },
     showLost({ title: t, hint: h, wait: w, without: wo, onWait: a, onWithout: b }) {
       title.textContent = t; hint.textContent = h; wait.textContent = w; without.textContent = wo;
@@ -75,6 +86,6 @@ export function createCards({ doc = document } = {}) {
     },
     hideLost() { lost.hidden = true; onWait = null; onWithout = null; },
     get lostShown() { return !lost.hidden; },
-    dispose() { for (const e of [style, join, lost]) e.remove?.(); },
+    dispose() { for (const e of [style, join, tally, lost]) e.remove?.(); },
   };
 }
