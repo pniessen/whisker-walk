@@ -342,5 +342,6 @@ A screenshot from the owner helps most in these eight areas (noon walk, from the
 | Date | Entry | Commit | Chunk kB before/after | Notes |
 |---|---|---|---|---|
 | 2026-11-27 | ~~GRN-1~~ | COMMIT | 37.1 / 37.8 (greenhouse); start-up +0.01 | Condensation beads and runnels in the glass material's fragment shader; 0 meshes, 0 triangles, row unchanged; low tier none, medium beads only; runnels frozen under reduced motion; no picture page (shader, not renderable headless); warmth/lamp not wired (no light state) |
+| 2026-11-27 | NBH street and gardens (not NBH-1 as drawn) | see git log | neighborhood 37.8 -> 41.2 (gzip, row ceiling 110 unchanged); start-up 0 | Kerb stones and a gutter strip along all four pavements, grass blades and daisies on the pavement outer edges, soil beds with edging stones, worn earth and fallen leaves at the street trees, fuller flower patches, mailbox footing/flag/lip, lamp post base/cap/finial; all folded into the lawn, the pavements and the props own meshes (no new mesh or draw; built meshes 400 -> 316, flower patches baked 12 -> 5 meshes); place triangles 40,386 -> 42,776 (row 70,000 and coop ceiling 70,350 unchanged, coop 66,982 -> 69,460); silhouette pin re-pinned 400 -> 316 with note; picture page verify-street-beauty.html |
 
 Past rounds before this file are listed under each area in section 5.
