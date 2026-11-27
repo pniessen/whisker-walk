@@ -7,7 +7,7 @@ export const COOP_READY = {
   farm: true, // M5(b): test/coopm5farm.test.js
   park: false, seaside: false,
   fair: true, // M5(e): test/coopm5fair.test.js
-  roofs: false,
+  roofs: true, // M5(f): test/coopm5roofs.test.js
   gorge: true, // M5(c): test/coopm5gorge.test.js
   market: true, // M5(b): test/coopm5market.test.js
   house: true, // M5(d): test/coopm5house.test.js

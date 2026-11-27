@@ -253,14 +253,14 @@ export function start(ctx) {
   function spotBeside(s, p) {
     const right = { x: p.x + Math.cos(heading.target) * START_APART, z: p.z - Math.sin(heading.target) * START_APART };
     if (landsAt(s, p, right.x, right.z)) return right;
-    for (const radius of [START_APART, 2.4, 3.2]) {
+    for (const radius of [START_APART, 2.4, 3.2, 4.4]) {
       for (let i = 0; i < 8; i++) {
         const a = heading.target + (i * Math.PI) / 4;
         const x = p.x + Math.sin(a) * radius, z = p.z + Math.cos(a) * radius;
         if (landsAt(s, p, x, z)) return { x, z };
       }
     }
-    return right;
+    return s.ground.flat ? right : { x: p.x, z: p.z }; // on a perch with no room beside it (a bin top, a stack): on its own spot, never on the level below
   }
 
   function join() {
@@ -349,8 +349,9 @@ export function start(ctx) {
     const me = slot === 0 ? s.cat : mover.body;
     const friend = slot === 0 ? mover.body : s.cat;
     if (slot === 1 && rides.busy) return; // on a ride she stays on it
+    if (s.traversal?.busy) return; // a crossing or a leap is cat one alone: a hop would land on the plank or in the yard under it
     let spot = null;
-    for (const radius of [1.3, 2.2, 3.2]) {
+    for (const radius of [1.3, 2.2, 3.2, 4.4]) {
       for (let i = 0; i < 8 && !spot; i++) {
         const a = heading.target + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * (Math.PI / 4) + Math.PI; // behind the friend first, then round
         const x = friend.position.x + Math.sin(a) * radius, z = friend.position.z + Math.cos(a) * radius;
@@ -358,6 +359,7 @@ export function start(ctx) {
       }
       if (spot) break;
     }
+    if (!spot && !s.ground.flat && !s.ground.sameLevel(me.position.x, me.position.z, friend.position.x, friend.position.z)) spot = { x: friend.position.x, z: friend.position.z }; // no room on the perch of the friend: on its own spot, same level by being there
     if (!spot) return; // nowhere clear beside the friend: stay put
     me.position.set(spot.x, s.ground.y(spot.x, spot.z), spot.z);
     (slot === 0 ? prev.a : prev.b).set(spot.x, spot.z);
@@ -373,7 +375,13 @@ export function start(ctx) {
     if (on) {
       const k = stuck[slot];
       if (!trotting[slot] || Math.hypot(from.x - k.x, from.z - k.z) > 0.4) { k.x = from.x; k.z = from.z; k.t = 0; }
-      else if ((k.t += dt) > 1.5) { k.t = 0; pl.setTouchMove(null); trotting[slot] = false; hopFriend(slot); return; }
+      else if ((k.t += dt) > 1.5) {
+        k.t = 0; pl.setTouchMove(null); trotting[slot] = false;
+        const g = cur.ground;
+        if (slot === 0 && !g.flat && g.y(to.x, to.z) < g.y(from.x, from.z) - 0.5) follows[0].reset(); // cat one is never called down off a roof or a ledge by its idle trot: only a press of its own hop does that
+        else hopFriend(slot);
+        return;
+      }
       const dx = to.x - from.x, dz = to.z - from.z, d = Math.hypot(dx, dz) || 1;
       // the world way to the friend, turned back into the stick's screen space
       const c = Math.cos(heading.yaw), sn = Math.sin(heading.yaw);
@@ -461,7 +469,7 @@ export function start(ctx) {
       if (heldTwo && !mover.player.inputActive) { mover.player.setInputYaw(null); heldTwo = false; }
       state.yaw = heading.target;
       // Follow when idle: a cat whose stick has rested for 3 s trots to a friend farther than 8 m (any stick ends it).
-      const on = follow && playing && !s.cameraMode && !rides.busy && !s.fair?.riding && !s.fair?.hopping; // a cat on a ride, or its friend, is not called away
+      const on = follow && playing && !s.cameraMode && !rides.busy && !s.fair?.riding && !s.fair?.hopping && !s.traversal?.busy; // a cat on a ride or a crossing, or its friend, is not called away: cat two waits at the start
       const sticks = [STICK(hub.padOf(0, pads)), STICK(hub.padOf(1, pads))];
       const seat0 = state.seats[0] && !state.seats[0].lost;
       const reach = tight ? TIGHT_FOLLOW : null; // a tight place holds the pair as close as they stand: the idle cat comes along at once, or the walking one is pinned
@@ -581,7 +589,7 @@ export function start(ctx) {
     const wide = maxSeparation(lens, top) * LEASH_MARGIN;
     const limit = tight ? Math.min(wide, Math.max(state.apart, 2)) : wide;
     state.leash = limit;
-    const ride = rides.busy || s.fair?.riding || s.fair?.hopping; // a ride runs: the rides carry the cats, so no leash holds them
+    const ride = rides.busy || s.fair?.riding || s.fair?.hopping || s.traversal?.busy; // a ride runs or cat one is on a crossing: the ride or the move carries the cat, so no leash holds it
     if (!fightAny && !ride) { // a fight puts the fighter where it stands and the other cat sits: no leash then
       stop(cat.position, prev.a, prev.b, limit);
       stop(body.position, prev.b, prev.a, limit);

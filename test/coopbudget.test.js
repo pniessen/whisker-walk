@@ -17,6 +17,7 @@ const { build: buildMarket } = await import('../src/world/market.js');
 const { build: buildGorge } = await import('../src/world/gorge.js');
 await (await import('../src/world/housestages.js')).loadHouseStages(); // the house's wing stage fills its wing slots
 const { build: buildHouse } = await import('../src/world/house.js');
+const { build: buildRoofs } = await import('../src/world/roofs.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const { buildCat } = await import('../src/cat/model.js');
 const { CATALOG } = await import('../src/progression.js');
@@ -114,6 +115,7 @@ const SCENES = [
   ['farm', buildFarm, 83940, 371, 297],
   ['market', buildMarket, 77940, 267, 148],
   ['gorge', buildGorge, 97900, 180, 150],
+  ['roofs', buildRoofs, 67250, 238, 183], // 64,019 / 226 / 174 measured: the whole scene (no zone culling) with both dressed cats, under the 70,000 of the place alone,
   ['house', buildHouse, 102100, 514, 382] // the whole scene, every level's detail and stand-in at once: the worst spot (drawn set) is test/coopm5house.test.js's,
 ];
 
