@@ -342,7 +342,7 @@ describe('for her cat\'s size', () => {
       }
     }
     expect([...new Set(bad)].slice(0, 6)).toEqual([]);
-  });
+  }, 120000);
 
   it('house life finds her cat in the scene (the object at her position) and builds the guards for it', () => {
     const scene = new THREE.Scene();

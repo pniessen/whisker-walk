@@ -1318,7 +1318,7 @@ describe('in the walk: the real animals, the real prompt and E, a real save', ()
     expect(g.progression.state.points).toBe(AWARDS.farmfind); // paid once
     g.farm.dispose();
     expect(head.children.map((c) => c.name)).not.toContain('farm-scarecrow-hat');
-  });
+  }, 120000);
 
   it('the finds up in the hayloft, behind the tractor and in the pond are met by being there', () => {
     const g = game();

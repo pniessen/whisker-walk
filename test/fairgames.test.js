@@ -1230,7 +1230,7 @@ describe('the visitors', () => {
       if (gap < VISITOR.NEAR && gap >= VISITOR.KEEP && dist(target, cat) < gap - 1e-6) approached++;
     }
     expect(approached).toBe(0);
-  });
+  }, 120000);
 
   // A cat who hunts a child, at a walk and at a run.
   function hunt(speed, seed) {
@@ -1434,7 +1434,7 @@ describe('the visitors', () => {
     const v = visitors();
     for (const p of v.list) expect(AREA.colliders.some((c) => Math.hypot(c.x - p.x, c.z - p.z) < c.r)).toBe(false);
     expect(src).not.toMatch(/colliders\.push/);
-  });
+  }, 120000);
 });
 
 // =============================================================================

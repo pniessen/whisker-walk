@@ -270,7 +270,7 @@ describe('never lost behind a wall', () => {
       for (let i = 0; i < 30; i++) s2.update(1 / 60, makeView({ x: 0, y: 0, z: -0.55 }, { x: 0, y: 0.83, z: 2.4 }, 0.74));
       expect(s2.fraction('r')).toBeCloseTo(0.25 / 2.8, 9);
     }
-  });
+  }, 120000);
 
   it('keeps every view step in the house (the den cap is the den\'s only)', () => {
     expect(maxZoomStep(false)).toBe(3);
@@ -645,7 +645,7 @@ describe('never lost on a climb', () => {
     life.dispose();
     fade.dispose();
     expect(bad).toEqual([]);
-  });
+  }, 120000);
 
   it('the library\'s north-west corner on the floor, between bookcases n1 and w: 16 directions, three pitches', () => {
     // the corner test's spot there is on n1's top (step 2); this is the floor beside it

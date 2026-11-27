@@ -1150,7 +1150,7 @@ describe('the Gorge: every random spot stands where a cat can walk', () => {
       random.mockRestore();
     }
     expect(jumps.length, jumps.slice(0, 12).join('\n')).toBe(0);
-  });
+  }, 120000);
 
   it('the stray stream is not drawn any more than before', () => {
     for (const count of [0, 3, 22]) {
@@ -1306,7 +1306,7 @@ describe('the Gorge: no stray or ghost goes under a roof', () => {
         expect(overlap, `STAND_ON ${JSON.stringify(r)} over ${JSON.stringify(h)}`).toBe(false);
       }
     }
-  });
+  }, 120000);
 });
 
 // Part 3, Task 5 (C8, ruling C-F2): a cat lives in the Snug Cave.

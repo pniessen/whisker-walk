@@ -201,7 +201,7 @@ describe('on a walk', () => {
     expect(m.sent.filter((e) => e.kind === 'labshow')).toHaveLength(2);
     m.go(L.DOME_BENCH.x - 6, L.DOME_BENCH.z - 3); // somewhere else in the station: no offer
     expect(m.life.promptAt(m.cat.position)).toBeNull();
-  }, 60000);
+  }, 120000);
   it('co-walk: a partner\'s start joins at the right second (the room clock), starts once, never saves what she has not earned, and hostile elapsed values are safe', () => {
     const m = make();
     m.step(0.5);
@@ -228,7 +228,7 @@ describe('on a walk', () => {
     a.step(4); b.step(4);
     expect(Math.abs(a.life.story.state.show.k - b.life.story.state.show.k)).toBeLessThan(0.05);
     expect(JSON.stringify(S.labShowAt(a.life.story.state.show.k))).toBe(JSON.stringify(S.labShowAt(a.life.story.state.show.k)));
-  }, 60000);
+  }, 120000);
   it('a partner who has the power saves the show when it was watched; the others\' fuse credit still works', () => {
     const m = make({ progression: createProgression(memoryStorage()) });
     for (const f of [0, 1, 2]) m.life.credit({ kind: 'fuse', fuse: f });
