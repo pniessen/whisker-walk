@@ -101,7 +101,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   // The Reef's friendly sea life (src/reefpages.js REEF_LIFE_PAGES): the walks each was spotted on.
   'rfseal', 'rfoctopus', 'rfdolphin',
   // seven more sea creatures (world/reefmore.js)
-  'rfjelly', 'rfclown', 'rfhorse', 'rfmanta', 'rfwhale', 'rfmoray', 'rfsquid'];
+  'rfjelly', 'rfclown', 'rfhorse', 'rfmanta', 'rfwhale', 'rfmoray', 'rfsquid',
+  // the Moon's friendly robots and light (src/moonpages.js MOON_LIFE_PAGES): the walks each was spotted on
+  'mldrone', 'mlcleaner', 'mlconvoy', 'mlmoth', 'mlpixel', 'mlmoonling'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but

@@ -22,14 +22,14 @@ const L = P.JUMP_LANE;
 const props = [...P.MOON_COLLIDERS, ...P.MOON_PERCHES, ...P.MOON_POIS, ...P.PEBBLES, ...P.MOON_MICE, ...P.JOB_POINTS, ...P.POLES, P.FLAG, P.PIT_ROCK, P.CHEESE, P.ECHO];
 
 // Is a disc of radius r at (x, z) clear of everything a child plays with? (`gap` is the margin over each prop's own radius; `ks` the share of the plan's keep-out
-// circles kept clear: half for a flat decal, all of it for a standing rock.)
-export function clear(x, z, r, gap = 0.7, ks = 0.5) {
+// circles kept clear: half for a flat decal, all of it for a standing rock; `trackGap` the room kept round the rover's track: the mini-rovers' line passes it.)
+export function clear(x, z, r, gap = 0.7, ks = 0.5, trackGap = 2.2) {
   if (Math.abs(x) > REACH - r || Math.abs(z) > REACH - r) return false;
   if (hyp(x - P.DOME.x, z - P.DOME.z) < P.DOME.r + 1 + r) return false;
   for (const [kx, kz, kr] of P.ROCK_KEEP_OUT) if (hyp(x - kx, z - kz) < kr * ks + r) return false;
   for (const p of props) if (hyp(x - p.x, z - p.z) < (p.r ?? 0.4) + r + gap) return false;
   for (const b of P.BOULDERS) if (hyp(x - b.x, z - b.z) < b.r + r + gap) return false;
-  if (P.trackDistance(x, z) < 2.2 + r) return false;
+  if (P.trackDistance(x, z) < trackGap + r) return false;
   if (x > L.x0 - 4 - r && x < L.x0 + L.len + 8 + r && Math.abs(z - L.z) < L.half + 2 + r) return false; // the hop board's lane
   return true;
 }

@@ -5,7 +5,7 @@ import { PAGE_WORDS } from './farmwords.js';
 import { ROOFS_PAGE_WORDS } from './roofspages.js';
 import { MARKET_PAGE_WORDS } from './marketpages.js';
 import { LIGHTHOUSE_PAGE_WORDS } from './lighthousepages.js';
-import { MOON_PAGES, MOON_PAGE_WORDS } from './moonpages.js';
+import { MOON_PAGES, MOON_LIFE_PAGES, MOON_PAGE_WORDS } from './moonpages.js';
 import { moonOn } from './moonflag.js';
 import { REEF_PAGES, REEF_LIFE_PAGES, REEF_PAGE_WORDS } from './reefpages.js';
 import { reefOn } from './reefflag.js';
@@ -89,7 +89,7 @@ export const CRITTER_INFO = [
   ...[['lhlamproom', '💡'], ['lhpool', '🦀'], ['lhgull', '🐦'], ['lhecho', '🎶'], ['lhbell', '🔔'], ['lhwindow', '🏮'], ['lhjobkitten', '🐱'], ['lhjoblamp', '🔦']]
     .map(([id, emoji]) => ({ id, emoji, lighthouse: true, get name() { return LIGHTHOUSE_PAGE_WORDS[id].name(); }, get hint() { return LIGHTHOUSE_PAGE_WORDS[id].hint(); } })),
   // The Moon's twelve pages (src/moonpages.js): drawn only behind ?moon=1 until the gate hand-off.
-  ...MOON_PAGES.map(([id, emoji]) => ({ id, emoji, moon: true, get name() { return MOON_PAGE_WORDS[id].name(); }, get hint() { return MOON_PAGE_WORDS[id].hint(); } })),
+  ...[...MOON_PAGES, ...MOON_LIFE_PAGES].map(([id, emoji]) => ({ id, emoji, moon: true, get name() { return MOON_PAGE_WORDS[id].name(); }, get hint() { return MOON_PAGE_WORDS[id].hint(); } })),
   // The Reef's twelve pages (src/reefpages.js): drawn only behind ?reef=1 until the gate hand-off.
   ...[...REEF_PAGES, ...REEF_LIFE_PAGES].map(([id, emoji]) => ({ id, emoji, reef: true, get name() { return REEF_PAGE_WORDS[id].name(); }, get hint() { return REEF_PAGE_WORDS[id].hint(); } })),
   // The Crystal Cave's twelve pages (src/crystalpages.js): drawn only behind ?crystal=1 until the gate hand-off.

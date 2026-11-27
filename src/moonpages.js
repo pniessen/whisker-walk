@@ -8,13 +8,16 @@ export const MOON_PAGES = Object.freeze([
   ['mnstory', '🌍', 'story', 'Hello, Earth!'], ['mnrover', '🚙', 'rover', 'Dot the Rover'], ['mnlaunch', '🚀', 'launch', 'Rocket Launch'],
   ['mnscope', '🔭', 'scope', 'Star Pictures'], ['mnjump', '🦘', 'jump', 'Long Jump'], ['mnjob', '💌', 'job', 'Pip’s Postcards'],
 ].map((p) => Object.freeze(p)));
+// Six more pages, the Moon's friendly robots and light (world/moonrobots.js): spotted like a farm animal (looking at one), each page counting the walks. No animals are on the Moon.
+export const MOON_LIFE_PAGES = Object.freeze([['mldrone', '🛸', 'drone', 'Survey Drone'], ['mlcleaner', '🧹', 'cleaner', 'Dusty Cleaner Bot'], ['mlconvoy', '🚙', 'convoy', 'Mini-Rover Convoy'],
+  ['mlmoth', '✨', 'moth', 'Lunar Moth of Light'], ['mlpixel', '👾', 'pixel', 'Pixel Visitor'], ['mlmoonling', '👽', 'moonling', 'Moonling']].map((p) => Object.freeze(p)));
 export const MOON_JOURNAL_TYPES = Object.freeze(MOON_PAGES.map((p) => p[0]));
 
 // The hints by journal id: empty here, filled by the Moon's lazy file (world/moonwords.js) when its chunk arrives.
 export const MOON_HINTS = {};
 
 // The journal's pages, by journal id.
-export const MOON_PAGE_WORDS = Object.freeze(Object.fromEntries(MOON_PAGES.map(([id, , , name]) => [id, Object.freeze({
+export const MOON_PAGE_WORDS = Object.freeze(Object.fromEntries([...MOON_PAGES, ...MOON_LIFE_PAGES].map(([id, , , name]) => [id, Object.freeze({
   name: () => name,
   hint: () => MOON_HINTS[id] ?? '',
 })])));

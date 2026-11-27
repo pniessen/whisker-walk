@@ -124,6 +124,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
   const deep = createDeepLive({ scene, reducedMotion, ground, audio, progression, sky, launch, pip: base.pip });
   deepLive = deep;
   const rover = ST.createRoverLive({ scene, reducedMotion, ground, colliders, perches, tier, audio, progression, onDismount: () => base.pip.rejoin(), onFrame: (dt, t, ctx) => { star.frame(dt, t, ctx); launch.frame(dt, t, ctx); } });
+  const robots = ST.createRobotsLive({ scene, reducedMotion, tier, roomSeed, visits, audio, roverAt: () => rover.state }); // (moon life) robots and light: photo subjects through `spottable`
   // (milestone 9) Pip's postcard of the day and the album (moonjoblive.js): after the rover, whose position it reads, and the star hill and the launch it asks things of
   job = ST.createJobLive({ scene, reducedMotion, ground, progression, log, audio, roomSeed, visits, boundOn, base, star, launch, rover });
   // (guide cues) the written guide: the goal line, the edge arrow and the words beside Pip's picture (moonguidelive.js); its own DOM, one goal (base.goal()) shared with the gold ring and light column
@@ -180,6 +181,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
     job,
     guide,
     flow,
+    spottable: robots.spottable,
     // the action button: Dot's "Hop in" / "Hop out" first (riding), else the base's own offers, else "Hop in" when nothing else is asked
     promptAt(catPos) {
       const b = base.promptAt(catPos);
@@ -230,6 +232,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       bound.update(dt, t, catPos, camera, session);
       deep.update(dt, t, catPos, camera, session);
       job.update(dt, t, catPos, camera, session);
+      robots.update(dt, t, catPos, camera, deep.inside);
       guide.update(dt, t, catPos, camera, session);
       intro.update(dt);
       flow.update(dt, t, catPos, camera, session);
@@ -239,6 +242,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       idleStep(dt, catPos, session);
     },
     dispose() {
+      robots.dispose();
       flow.dispose();
       guide.dispose();
       intro.dispose();
