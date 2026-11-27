@@ -18,6 +18,7 @@ import { CRYSTAL_WING_LINES } from '../src/world/crystalwingwords.js';
 import { CRYSTAL_WING_C_LINES } from '../src/world/crystalwingcwords.js';
 import { RIVER_LINES } from '../src/world/crystalriverwords.js';
 import { CRYSTAL_GROTTO_LINES } from '../src/world/crystalgrottowords.js';
+import { CRYSTAL_SONG_LINES } from '../src/world/crystalsongwords.js';
 import { CRYSTAL_ERRAND_LINES } from '../src/world/crystalerrandwords.js';
 import { LINES as REEF_ERRAND_LINES } from '../src/world/reeferrandwords.js';
 import { LINES as REEF_LAB_LINES } from '../src/world/reeflabwords.js';
@@ -46,6 +47,7 @@ addPhrases(CRYSTAL_LINES); // (the Crystal Cave's chunk adds its own on import: 
 addPhrases(REEF_LINES); // (the Reef's chunk adds its own on import: src/world/reefwords.js)
 addPhrases(REEF_FIND_LINES); // (and its find lines, milestone R3: src/world/reeffindwords.js)
 addPhrases(CRYSTAL_FIND_LINES); // (the Crystal Cave's find lines, milestone C3: src/world/crystalfindwords.js)
+addPhrases(CRYSTAL_SONG_LINES); // (the singing chamber's lines, milestone C5: src/world/crystalsongwords.js)
 addPhrases(CRYSTAL_GROTTO_LINES); // (the grotto and forge labels, milestone C2: src/world/crystalgrottowords.js)
 addPhrases(CRYSTAL_WING_C_LINES); // (wing C's journal lines, milestone X0: src/world/crystalwingcwords.js)
 addPhrases(RIVER_LINES); // (the river boat's two lines, milestone C1: src/world/crystalriverwords.js)
