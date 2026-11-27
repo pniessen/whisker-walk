@@ -33,7 +33,13 @@ export function createSkisLive(ctx) {
   skis.castShadow = false;
   skis.visible = false;
   Object.assign(skis.userData, { noContactShadow: true, noMerge: true, noCast: true });
-  scene.add(skis);
+  // A partner who skis on her own device is a cat with seat 'snow-skis' in the walk's remote list: the same skis (one more small mesh, sharing the geometry) are put under her.
+  const partnerSkis = new THREE.Mesh(skis.geometry, M.paint);
+  partnerSkis.name = 'snowville:skis-partner';
+  partnerSkis.castShadow = false;
+  partnerSkis.visible = false;
+  Object.assign(partnerSkis.userData, { noContactShadow: true, noMerge: true, noCast: true });
+  scene.add(skis, partnerSkis);
 
   let ground = null;
   const gy = (x, z) => (ground ? ground.y(x, z) : P.snowY(x, z));
@@ -83,6 +89,16 @@ export function createSkisLive(ctx) {
     cat.position.set(ride.x, gy(ride.x, ride.z) + seatRec.y, ride.z);
     cat.rotation.set(0, ride.heading + Math.PI, 0);
     session.idleTime = 0;
+  }
+
+  function placePartner(session) {
+    let on = null;
+    const list = session?.remotes?.list;
+    if (list) for (let i = 0; i < list.length; i++) { const r = list[i]; if (r?.seatId === 'snow-skis' && r.group && r.group.visible !== false) { on = r.group; break; } }
+    partnerSkis.visible = !!on;
+    if (!on) return;
+    partnerSkis.position.set(on.position.x, gy(on.position.x, on.position.z) + 0.01, on.position.z);
+    partnerSkis.rotation.set(0, on.rotation.y - Math.PI, 0);
   }
 
   const blocked = (session) => !!session?.perched;
@@ -213,6 +229,7 @@ export function createSkisLive(ctx) {
 
   const api = {
     skis,
+    partnerSkis,
     get riding() { return mode === 'riding'; },
     get mode() { return mode; },
     get ride() { return ride; },
@@ -244,6 +261,7 @@ export function createSkisLive(ctx) {
       if (!ticked && mode === 'riding') advance(d, null, session?.cat ?? null, lastPlayer, session); // (the walk's hook did not run this frame: she still glides)
       ticked = false;
       place();
+      placePartner(session);
     },
     dispose() {
       // a walk that ends while she skis: set her down on a free spot, the fair she found put back (only if it is still ours)
@@ -254,7 +272,7 @@ export function createSkisLive(ctx) {
         if (s.fair && s.fair.update === hooks.update) s.fair = hookOrig;
       }
       installed = false;
-      scene.remove(skis);
+      scene.remove(skis, partnerSkis);
       skis.geometry.dispose();
       for (const m of Object.values(M)) m.dispose?.();
     },

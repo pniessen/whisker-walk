@@ -299,6 +299,25 @@ describe('on a walk', () => {
     expect(r.chimes.length).toBe(6);
     r.live.dispose();
   });
+  it('a partner skiing on her own device (seat snow-skis in the walk\'s remote list) is drawn on the skis here too, and the skis go when she gets off', () => {
+    const r = rig();
+    const group = new THREE.Object3D();
+    group.position.set(K.skiPos(8).x, 0, K.skiPos(8).z);
+    group.rotation.y = K.skiPos(8).heading + Math.PI;
+    r.session.remotes = { list: [{ seatId: null, group }] };
+    r.tick();
+    expect(r.live.partnerSkis.visible).toBe(false);
+    r.session.remotes.list[0].seatId = 'snow-skis';
+    r.tick();
+    expect(r.live.partnerSkis.visible).toBe(true);
+    expect(Math.hypot(r.live.partnerSkis.position.x - group.position.x, r.live.partnerSkis.position.z - group.position.z)).toBeLessThan(0.01);
+    expect(Math.abs(r.live.partnerSkis.rotation.y - K.skiPos(8).heading)).toBeLessThan(1e-6);
+    r.session.remotes.list[0].seatId = null;
+    r.tick();
+    expect(r.live.partnerSkis.visible).toBe(false);
+    r.live.dispose();
+    expect(r.scene.children.length).toBe(0);
+  });
   it('beside the sled: both fairs chain, the sled cannot be boarded while she skis, and the walk ends with the fair as it was', () => {
     const r = rig();
     const sled = createSledLive({ scene: r.scene, reducedMotion: false, tier: null });
