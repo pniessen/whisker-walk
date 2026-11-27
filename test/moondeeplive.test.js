@@ -327,6 +327,19 @@ describe('Earth\'s finale: the bigger shimmer', () => {
     expect(r.life.sky.halo.name).toBe('moon:earthglow');
     r.dispose();
   });
+  it('a steady bloom value is uploaded once, not every frame (600 frames, one instanceMatrix upload)', () => {
+    const r = rig({ moon: { ...told, cells: 7 } });
+    r.step(0.5, r.at(-30, 26));
+    const m = r.life.deep.flowers.instanceMatrix;
+    const v0 = m.version;
+    r.step(20, r.at(-30, 26)); // 600 frames
+    expect(m.version).toBe(v0);
+    r.dispose();
+    // and the first bloom is one upload at construction
+    const fresh = rig({ moon: { ...told, cells: 7 } });
+    expect(fresh.life.deep.flowers.instanceMatrix.version).toBe(1);
+    fresh.dispose();
+  });
   it('a walk that opens on a finished chapter: the bloom is in full from the first frame, no beat, no line, and Earth carries the faint halo', () => {
     const r = rig({ moon: { ...told, cells: 7 } });
     r.step(0.5, r.at(-30, 26));

@@ -105,16 +105,22 @@ export function createDeepLive(ctx) {
   P.PLANTERS.forEach((p, i) => flowers.setColorAt(i, tint.setHex(FLOWER_TINTS[i % FLOWER_TINTS.length])));
   const m4 = new THREE.Matrix4();
   const q0 = new THREE.Quaternion();
+  const bv = new THREE.Vector3(), bs = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+  let lastBloom = NaN;
   const setBloom = (k) => {
-    const sc = Math.max(0.0001, smooth(k));
-    P.PLANTERS.forEach((p, i) => {
-      // each planter's flower stands a little off the middle (the glow plants are on it), turned a different way
-      const a = i * 1.9;
-      m4.compose(new THREE.Vector3(p.x + Math.cos(a) * 0.18, ground.y(p.x, p.z) + 0.52, p.z + Math.sin(a) * 0.18), q0.setFromAxisAngle(new THREE.Vector3(0, 1, 0), a), new THREE.Vector3(sc, sc, sc));
-      flowers.setMatrixAt(i, m4);
-    });
-    flowers.instanceMatrix.needsUpdate = true;
-    if (!flowers.boundingSphere) { flowers.computeBoundingSphere(); flowers.boundingSphere.radius += 1.2; } // frustum-culled like any mesh (it is a draw, and the dome's frame is the Moon's heaviest): the sphere is measured once, from the planters, and padded by the flowers' reach
+    if (k !== lastBloom) {
+      lastBloom = k;
+      const sc = Math.max(0.0001, smooth(k));
+      bs.set(sc, sc, sc);
+      P.PLANTERS.forEach((p, i) => {
+        // each planter's flower stands a little off the middle (the glow plants are on it), turned a different way
+        const a = i * 1.9;
+        m4.compose(bv.set(p.x + Math.cos(a) * 0.18, ground.y(p.x, p.z) + 0.52, p.z + Math.sin(a) * 0.18), q0.setFromAxisAngle(up, a), bs);
+        flowers.setMatrixAt(i, m4);
+      });
+      flowers.instanceMatrix.needsUpdate = true;
+      if (!flowers.boundingSphere) { flowers.computeBoundingSphere(); flowers.boundingSphere.radius += 1.2; } // frustum-culled like any mesh (it is a draw, and the dome's frame is the Moon's heaviest): the sphere is measured once, from the planters, and padded by the flowers' reach
+    }
     flowers.visible = k > 0;
   };
   setBloom(wasIn ? 1 : 0);
