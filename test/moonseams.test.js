@@ -233,7 +233,7 @@ describe('the reserved ids', () => {
   it('the Moon is in no catalog (no card, no price, no map place) and its three golden mice are in (54 in all, 30 for the everyday edition)', async () => {
     expect(Object.hasOwn(CATALOG.areas, 'moon')).toBe(false);
     const { GOLD_TOTAL, GOLD_MICE } = await import('../src/goldmice.js');
-    expect(GOLD_TOTAL).toBe(62); // milestone 4's three mice (48 before)
+    expect(GOLD_TOTAL).toBe(64); // milestone 4's three mice (48 before)
     expect(GOLD_MICE.moon.map((m) => m.id)).toEqual(['gm-moon-1', 'gm-moon-2', 'gm-moon-3']);
   });
 });

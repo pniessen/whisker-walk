@@ -116,6 +116,15 @@ export const REEF_STAGE_GZIP_CEILING_KB = 65;
 export const REEF_TOTAL_GZIP_CEILING_KB = 150;
 export const reefDownloads = (manifest) => stagedDownloads(manifest, 'reef', REEF_STAGE_ENTRY_MODULES);
 
+// The Crystal Cave is the same shape (src/world/crystalstages.js): stage A (crystal.js) and two stage chunks, each under CRYSTAL_STAGE_GZIP_CEILING_KB, all three under the total.
+export const CRYSTAL_STAGE_ENTRY_MODULES = Object.freeze({
+  crystalwingc: Object.freeze(['src/world/crystalstagewingc.js']),
+  crystalplay: Object.freeze(['src/world/crystalstageplay.js']),
+});
+export const CRYSTAL_STAGE_GZIP_CEILING_KB = 65;
+export const CRYSTAL_TOTAL_GZIP_CEILING_KB = 120;
+export const crystalDownloads = (manifest) => stagedDownloads(manifest, 'crystal', CRYSTAL_STAGE_ENTRY_MODULES);
+
 /** One line per place over its ceiling; kbById is gzipped kB per place. */
 export function areaSizeProblems(kbById, ceilingKb = AREA_GZIP_CEILING_KB) {
   return Object.entries(kbById)
@@ -205,11 +214,16 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   const { total: reefTotal, ...reefParts } = reefKb;
   problems.push(...areaSizeProblems(reefParts, REEF_STAGE_GZIP_CEILING_KB), ...areaSizeProblems({ 'reef (all stages)': reefTotal }, REEF_TOTAL_GZIP_CEILING_KB));
   problems.push(...lazyProblems(manifest, REEF_STAGE_ENTRY_MODULES));
+  const crKb = Object.fromEntries(Object.entries(crystalDownloads(manifest)).map(([id, fs]) => [id, fs.reduce((n, f) => n + gzipOf(dir, f), 0) / 1000]));
+  const { total: crTotal, ...crParts } = crKb;
+  problems.push(...areaSizeProblems(crParts, CRYSTAL_STAGE_GZIP_CEILING_KB), ...areaSizeProblems({ 'crystal (all stages)': crTotal }, CRYSTAL_TOTAL_GZIP_CEILING_KB));
+  problems.push(...lazyProblems(manifest, CRYSTAL_STAGE_ENTRY_MODULES));
   const tvKb = tvDownloads(manifest).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000;
   problems.push(...areaSizeProblems({ tv: tvKb }, TV_GZIP_CEILING_KB));
   console.log(`start-up ${(startBytes / 1000).toFixed(1)} kB gzipped (ceiling ${MAIN_GZIP_CEILING_KB} kB), ${start.length} files`);
   for (const [id, v] of Object.entries(kb)) console.log(`  ${id.padEnd(13)} ${v.toFixed(1)} kB gzipped (ceiling ${AREA_GZIP_CEILING_KB} kB)`);
   console.log(`  reef stages   A ${reefKb.reef.toFixed(1)}, lab ${reefKb.reeflab.toFixed(1)}, wreck ${reefKb.reefwreck.toFixed(1)}, ride ${reefKb.reefride.toFixed(1)}, all ${reefTotal.toFixed(1)} kB gzipped (ceiling ${REEF_STAGE_GZIP_CEILING_KB} each, ${REEF_TOTAL_GZIP_CEILING_KB} all)`);
+  console.log(`  crystal stages A ${crKb.crystal.toFixed(1)}, wingc ${crKb.crystalwingc.toFixed(1)}, play ${crKb.crystalplay.toFixed(1)}, all ${crTotal.toFixed(1)} kB gzipped (ceiling ${CRYSTAL_STAGE_GZIP_CEILING_KB} each, ${CRYSTAL_TOTAL_GZIP_CEILING_KB} all)`);
   console.log(`  moon stages   A ${moonKb.moon.toFixed(1)}, hill ${moonKb.moonhill.toFixed(1)}, launch ${moonKb.moonlaunch.toFixed(1)}, rover ${moonKb.moonrover.toFixed(1)}, all ${moonTotal.toFixed(1)} kB gzipped (ceiling ${MOON_STAGE_GZIP_CEILING_KB} each, ${MOON_TOTAL_GZIP_CEILING_KB} all)`);
   console.log(`  tv chunk      ${tvKb.toFixed(1)} kB gzipped (ceiling ${TV_GZIP_CEILING_KB} kB)`);
   const coopKb = (areaDownloads(manifest, COOP_ENTRY_MODULES).coop ?? []).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000;

@@ -22,6 +22,9 @@ import './crystalwords.js';
 import { createCrystalIntro } from './crystalintro.js';
 import { createCrystalGuideLive } from './crystalguidelive.js'; // the written guide: goal line, chip, arrow
 import './crystalwingwords.js';
+import './crystalwingcwords.js'; // wing C's journal hints (X0)
+import { createPromptArbiter } from './promptarbiter.js';
+import { ST } from './crystalstages.js'; // the two wing C stages' slots (filled by their chunks, loaded with this one: areas.js)
 import { crystalCollectibles, createCrystalFindsLife } from './crystalfinds.js';
 import { drawFindMarks } from './crystalfindparts.js';
 import { CRYSTAL_SCENICS } from './crystalfindsplan.js';
@@ -94,7 +97,10 @@ export function build(scene) {
         const errand = createCaveErrandLive({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, lumi }); // C7
         const intro = createCrystalIntro(ctx); // the arrival card (step 0 only)
         const guide = createCrystalGuideLive({ doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, lumi, errand, progression: ctx.progression });
-        let used = lumi; // whose prompt the action button is on now
+        // One arbiter picks the action button's line: Lumi, the errand's hand-in (it wins over the Heart's replay), wing B, then wing C's boat, cart, forge and pads
+        // (stage slots that answer null until the stage fills them, so later milestones never edit this file).
+        const slot = (get) => ({ promptAt: (p) => get()?.promptAt?.(p) ?? null, interact: () => get()?.interact?.() ?? null });
+        const arbiter = createPromptArbiter([lumi, errand, wingLife, slot(() => ST.wingc?.boat), slot(() => ST.play?.cart), slot(() => ST.wingc?.forge), slot(() => ST.play?.pads)]);
         return {
           light,
           critters,
@@ -105,17 +111,15 @@ export function build(scene) {
           wing: wingLife,
           errand,
           spottable: cave.spottable, // the creatures: photo and journal subjects (cavelifelive.js)
-          promptAt(catPos) {
-            const a = lumi.promptAt(catPos);
-            if (a) { used = lumi; return a; }
-            const job = errand.promptAt(catPos); // C7: the errand's hand-in wins over the Heart's replay
-            if (job) { used = errand; return job; }
-            used = wingLife;
-            return wingLife.promptAt(catPos);
-          },
-          interact: () => used.interact(),
+          promptAt: (catPos) => arbiter.promptAt(catPos),
+          interact: () => arbiter.interact(),
           // a show begun by anyone in the room starts ours (the shared T0); every other step is Lumi's, credited in order
-          credit: (ev) => (ev?.kind === 'show' ? wingLife.credit(ev) : lumi.credit(ev)),
+          // kinds starting 'wc-' (wing C: a forge find, a finished tune) go to its stage slots, never to Lumi; a stage not yet loaded just drops them
+          credit: (ev) => {
+            if (ev?.kind === 'show') return wingLife.credit(ev);
+            if (typeof ev?.kind === 'string' && ev.kind.startsWith('wc-')) return ST.wingc?.credit?.(ev) ?? ST.play?.credit?.(ev);
+            return lumi.credit(ev);
+          },
           update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); cave.update(dt, t); sound.update(dt, catPos); errand.update(dt, t, catPos, camera, session); intro.update(dt); guide.update(dt, t, catPos, camera); },
           dispose() { cave.dispose(); decor.dispose(); guide.dispose(); intro.dispose(); errand.dispose(); sound.dispose(); critters.dispose(); finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
         };

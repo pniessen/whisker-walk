@@ -133,6 +133,11 @@ export const KEEP_OUT = Object.freeze([
   [ROSE_GREAT.x, ROSE_GREAT.z, 3.4],
 ].map((k) => Object.freeze(k)));
 
+// Rectangles { minX, maxX, minZ, maxZ } where the rim rocks and pebbles are taken away AFTER they are scattered (a wing's stage pushes its footprint here; never through
+// KEEP_OUT, which would move every scatter): every stream and every other item stays exactly as it was. Empty until a wing fills it (X0 only reserves the hook, like reefplan.js).
+export const CRYSTAL_CLEARS = [];
+export const inCrystalClear = (x, z, r = 0) => CRYSTAL_CLEARS.some((f) => x + r > f.minX && x - r < f.maxX && z + r > f.minZ && z - r < f.maxZ);
+
 function clearOf(x, z, extra = 0) {
   for (const [kx, kz, kr] of KEEP_OUT) if (Math.hypot(x - kx, z - kz) < kr + extra) return false;
   const m = 2.5;
@@ -193,7 +198,7 @@ export function scatterRim() {
   side(16, (t) => ({ x: B.minX + t * (B.maxX - B.minX), z: B.maxZ + off() }));
   side(14, (t) => ({ x: B.minX - off(), z: B.minZ + t * (B.maxZ - B.minZ) }));
   side(14, (t) => ({ x: B.maxX + off(), z: B.minZ + t * (B.maxZ - B.minZ) }));
-  return out.filter((k) => Math.hypot(k.x - ARCH.x, k.z - ARCH.z) > 5); // the arch's own gap stays open
+  return out.filter((k) => Math.hypot(k.x - ARCH.x, k.z - ARCH.z) > 5 && !inCrystalClear(k.x, k.z, k.s)); // the arch's own gap stays open; a wing's footprint is cleared after the scatter
 }
 
 // The floor's own dressing: small pebbles round the spawn court and the arch, in the stone's greys.
@@ -203,7 +208,7 @@ export function scatterPebbles() {
   for (let i = 0; i < 40; i++) {
     out.push({ x: CRYSTAL_SPAWN.x + (rng() - 0.5) * 16, z: CRYSTAL_SPAWN.z + (rng() - 0.55) * 11, s: 0.08 + rng() * 0.12, yaw: rng() * 3 });
   }
-  return out.filter((p) => Math.hypot(p.x - CRYSTAL_SPAWN.x, p.z - CRYSTAL_SPAWN.z) > 1.2);
+  return out.filter((p) => Math.hypot(p.x - CRYSTAL_SPAWN.x, p.z - CRYSTAL_SPAWN.z) > 1.2 && !inCrystalClear(p.x, p.z, p.s));
 }
 
 // The glints: tiny sparks that hang by the crystals and twinkle. { x, z, y, hue, phase }; the lite and low rungs draw the first half only.

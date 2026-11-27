@@ -109,7 +109,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   // the Moon's friendly robots and light (src/moonpages.js MOON_LIFE_PAGES): the walks each was spotted on
   'mldrone', 'mlcleaner', 'mlconvoy', 'mlmoth', 'mlpixel', 'mlmoonling',
   // The Reef's divers, research ship and big spotted shark (src/reefpages.js REEF_WING_PAGES; R18). Appended here so the ids before keep their places.
-  'rfdivers', 'rfvessel', 'rfwhaleshark'];
+  'rfdivers', 'rfvessel', 'rfwhaleshark',
+  // The Crystal Cave's wing C pages (src/crystalpages.js CRYSTAL_WING_PAGES; ids reserved in its milestone X0): boat, grotto, falls, forge, cart, singing chamber.
+  'ccboat', 'ccgrotto', 'ccfalls', 'ccforge', 'cccart', 'ccsong'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
@@ -330,6 +332,8 @@ const BASE_ACCESSORIES = {
   moonbadge: { name: 'Moon Badge', slot: 'collar', price: 0, prize: true, moon: 'story' },
   // The Reef's Captain's Chest (a neckerchief, src/cat/foundneck.js FOUND_NECKS): owned once the galleon's hunt is done (reef.wreck bit 4); never found on the ground.
   piratebandana: { name: 'Pirate Bandana', slot: 'neck', price: 0, prize: true, reef: 'chest' },
+  // The Crystal Cave's forge (wing C): owned once the circlet is made (crystal.forge bit 3); never found on the ground.
+  crystalcirclet: { name: 'Crystal Circlet', slot: 'head', price: 0, prize: true, crystal: 'forge' },
 };
 // Their ids: every id a found outfit must not take (test/foundwear.test.js).
 export const BASE_ACCESSORY_IDS = Object.freeze(Object.keys(BASE_ACCESSORIES));
@@ -586,7 +590,7 @@ function defaultState() {
     reef: { step: 0, shells: 0, album: 0, lab: 0, wreck: 0 },
     // The Crystal Cave (docs/superpowers/plans/2026-11-26-crystal-cave.md, C0): the story's step (0 to 7), the spark stones carried (3 bits) and the
     // rubbings album (12 bits). Additive: SAVE_VERSION stays 4.
-    crystal: { step: 0, sparks: 0, album: 0 },
+    crystal: { step: 0, sparks: 0, album: 0, forge: 0, songs: 0 },
     den: { owned: [], placed: {} },
     // v18 Cat Skills. `skills` is the list of ability ids already earned —
     // stored rather than derived so a later threshold change can never
@@ -945,7 +949,8 @@ const CRYSTAL_SPARKS_AT = [0, 0, 1, 3, 7, 7, 7, 7];
 function sanitizeCrystal(v) {
   const n = (x, hi) => Math.min(hi, asFiniteNonNegInt(x, 0));
   const step = n(v?.step, 7);
-  return { step, sparks: n(v?.sparks, 7) | CRYSTAL_SPARKS_AT[step], album: n(v?.album, 4095) };
+  // forge: bits 0-2 the three ingredients, bit 3 the circlet made (implies all three); songs: bits 0-2 the three tunes learned.
+  return { step, sparks: n(v?.sparks, 7) | CRYSTAL_SPARKS_AT[step], album: n(v?.album, 4095), forge: reefLab(n(v?.forge, 15)), songs: n(v?.songs, 7) };
 }
 function sanitizeReef(v) {
   const n = (x, hi) => Math.min(hi, asFiniteNonNegInt(x, 0));
@@ -1213,6 +1218,7 @@ function sanitizeState(parsed) {
   if (journalNow.mnstory > 0 && !unlockedAcc.includes('moonbadge')) unlockedAcc.push('moonbadge');
   // The Captain's Chest likewise: the hunt's last bit (a merge ORs the devices' bits first) is the record, so the bandana is owned.
   if ((sanitizeReef(parsed.reef).wreck & 16) !== 0 && !unlockedAcc.includes('piratebandana')) unlockedAcc.push('piratebandana');
+  if ((sanitizeCrystal(parsed.crystal).forge & 8) !== 0 && !unlockedAcc.includes('crystalcirclet')) unlockedAcc.push('crystalcirclet');
   // And every found outfit: foundWear is the record, so it is owned.
   const foundWear = sanitizeFoundWear(parsed.foundWear);
   for (const id of foundWear) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);

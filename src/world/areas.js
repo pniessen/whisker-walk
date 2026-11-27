@@ -66,7 +66,7 @@ const loaders = {
   // The Reef (a catalog row, behind the gates switch, and the Seaside's rock cleft since its milestone R6; ?reef=1 stays a developer shortcut).
   reef: () => Promise.all([import('./reef.js'), import('./reefstages.js').then((s) => s.loadReefStages())]).then(([w]) => own('reef', w)),
   // The Crystal Cave (?crystal=1 and a catalog row behind the gates switch; milestone C0 is the seams and a stub floor).
-  crystal: () => import('./crystal.js').then((w) => own('crystal', w)),
+  crystal: () => Promise.all([import('./crystal.js'), import('./crystalstages.js').then((s) => s.loadCrystalStages())]).then(([w]) => own('crystal', w)),
 };
 
 // The private family edition (vite --mode family) registers its one place here; in every other build
@@ -98,7 +98,7 @@ const entryModules = {
   greenhouse: Object.freeze(['src/world/greenhouse.js']),
   moon: Object.freeze(['src/world/moon.js']), // stage A; the three later stages are MOON_STAGE_ENTRY_MODULES (scripts/buildjson.mjs), loaded with it by the loader above
   reef: Object.freeze(['src/world/reef.js']), // stage A; the three stages are REEF_STAGE_ENTRY_MODULES (scripts/buildjson.mjs), loaded with it by the loader above
-  crystal: Object.freeze(['src/world/crystal.js']),
+  crystal: Object.freeze(['src/world/crystal.js']), // stage A; the two stages are CRYSTAL_STAGE_ENTRY_MODULES (scripts/buildjson.mjs), loaded with it by the loader above
 };
 if (typeof __PRIVATE_FAMILY__ !== 'undefined' && __PRIVATE_FAMILY__) {
   entryModules.family = Object.freeze(['src/family/index.js']);

@@ -184,9 +184,10 @@ export const MERGE_RULES = Object.freeze({
     step: Math.max(r.L.reef.step, r.C.reef.step), shells: r.L.reef.shells | r.C.reef.shells, album: r.L.reef.album | r.C.reef.album,
     lab: r.L.reef.lab | r.C.reef.lab, wreck: r.L.reef.wreck | r.C.reef.wreck,
   }),
-  // The Crystal Cave: the story only moves on (step max), spark stones and rubbings are unions of bits.
+  // The Crystal Cave: the story only moves on (step max), spark stones, rubbings, forge ingredients and tunes are unions of bits (the sanitiser fills the bits the circlet implies).
   crystal: (r) => ({
     step: Math.max(r.L.crystal.step, r.C.crystal.step), sparks: r.L.crystal.sparks | r.C.crystal.sparks, album: r.L.crystal.album | r.C.crystal.album,
+    forge: r.L.crystal.forge | r.C.crystal.forge, songs: r.L.crystal.songs | r.C.crystal.songs,
   }),
   den: (r) => ({
     owned: union(r.L.den.owned, r.C.den.owned),

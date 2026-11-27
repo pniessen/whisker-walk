@@ -84,6 +84,21 @@ describe('the Reef is four chunks fetched together (R10 stage slots)', () => {
     }
     expect(kb.total).toBeLessThanOrEqual(REEF_TOTAL_GZIP_CEILING_KB);
     const startKb = startupFiles(b.manifest).reduce((n, f) => n + b.gz(f), 0) / 1000;
-    expect(startKb).toBeLessThan(658.0 + 2.5); // +1 for the R10 seams, +1.2 for the area-music chunk link
+    expect(startKb).toBeLessThan(658.0 + 2.8); // +1 for the R10 seams, +1.2 for the area-music chunk link, +0.3 for the Crystal wing seams (X0)
+  });
+});
+
+describe('the Crystal Cave is three chunks fetched together (X0 stage slots)', () => {
+  it('stage A and the two wing C stages are each under their ceiling, all three under the total, each stage lazy, and start-up grew by 0.3 kB or less', async () => {
+    const { crystalDownloads, CRYSTAL_STAGE_ENTRY_MODULES, lazyProblems: lp, CRYSTAL_STAGE_GZIP_CEILING_KB, CRYSTAL_TOTAL_GZIP_CEILING_KB } = await import('../scripts/buildjson.mjs');
+    expect(lp(b.manifest, CRYSTAL_STAGE_ENTRY_MODULES)).toEqual([]);
+    const dl = crystalDownloads(b.manifest);
+    const kb = Object.fromEntries(Object.entries(dl).map(([id, fs]) => [id, fs.reduce((n, f) => n + b.gz(f), 0) / 1000]));
+    for (const id of ['crystal', 'crystalwingc', 'crystalplay']) {
+      expect(dl[id].length, id).toBeGreaterThan(0);
+      expect(kb[id], id).toBeLessThanOrEqual(CRYSTAL_STAGE_GZIP_CEILING_KB);
+    }
+    expect(kb.total).toBeLessThanOrEqual(CRYSTAL_TOTAL_GZIP_CEILING_KB);
+    expect(startupFiles(b.manifest).some((f) => f.includes('crystalstage'))).toBe(false);
   });
 });

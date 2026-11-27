@@ -15,6 +15,7 @@ import { LINES as CRYSTAL_LINES } from '../src/world/crystalwords.js';
 import { FIND_LINES as REEF_FIND_LINES } from '../src/world/reeffindwords.js';
 import { CRYSTAL_FIND_LINES } from '../src/world/crystalfindwords.js';
 import { CRYSTAL_WING_LINES } from '../src/world/crystalwingwords.js';
+import { CRYSTAL_WING_C_LINES } from '../src/world/crystalwingcwords.js';
 import { CRYSTAL_ERRAND_LINES } from '../src/world/crystalerrandwords.js';
 import { LINES as REEF_ERRAND_LINES } from '../src/world/reeferrandwords.js';
 import { LINES as REEF_LAB_LINES } from '../src/world/reeflabwords.js';
@@ -42,6 +43,7 @@ addPhrases(CRYSTAL_LINES); // (the Crystal Cave's chunk adds its own on import: 
 addPhrases(REEF_LINES); // (the Reef's chunk adds its own on import: src/world/reefwords.js)
 addPhrases(REEF_FIND_LINES); // (and its find lines, milestone R3: src/world/reeffindwords.js)
 addPhrases(CRYSTAL_FIND_LINES); // (the Crystal Cave's find lines, milestone C3: src/world/crystalfindwords.js)
+addPhrases(CRYSTAL_WING_C_LINES); // (wing C's journal lines, milestone X0: src/world/crystalwingcwords.js)
 addPhrases(CRYSTAL_WING_LINES); // (the Crystal Cave's wing B lines, milestone C5: src/world/crystalwingwords.js)
 addPhrases(CRYSTAL_ERRAND_LINES); // (and Lumi's errand lines, milestone C7: src/world/crystalerrandwords.js)
 addPhrases(REEF_LAB_LINES); // (the Sealab's hatch, R13: src/world/reeflabwords.js)
