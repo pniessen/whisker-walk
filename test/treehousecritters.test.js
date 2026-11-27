@@ -159,7 +159,7 @@ describe('the sound', () => {
 describe('the life pages, both word sets', () => {
   it('tl1..tl3 are live, named alike in both sets, hidden behind the flag; hints and lines exist and are kind', () => {
     expect(TREEHOUSE_LIFE_PAGES.map((p) => p[0])).toEqual(['tl1', 'tl2', 'tl3']);
-    expect(TREEHOUSE_LIVE_PAGES).toHaveLength(11); // (nine, and T5's two story pages th7, th8)
+    expect(TREEHOUSE_LIVE_PAGES).toHaveLength(13); // (nine, T5's two story pages th7, th8 and T7's two activity pages tl4, tl5)
     for (const [id, , name] of TREEHOUSE_LIFE_PAGES) {
       expect(HINTS[id]).toMatch(/\S/); expect(TREEHOUSE_HINTS[id]).toBe(HINTS[id]);
       const card = CRITTER_INFO.find((c) => c.id === id);

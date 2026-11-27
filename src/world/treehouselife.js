@@ -421,9 +421,9 @@ export function createNutmeg(ctx) {
   };
 }
 
-// The action button's one arbiter for the place: Nutmeg first, then the branches stage's wing (the bell and the firefly supper), then the lift's slot (answers null until the stage fills it, so
+// The action button's one arbiter for the place: Nutmeg first, then Nutmeg's post round of the day, then the branches stage's wing (the bell and the firefly supper), then the lift's slot (answers null until the stage fills it, so
 // later milestones add to the list and never fight over it).
-export function createTreehousePrompts(nutmeg, wing = null) {
+export function createTreehousePrompts(nutmeg, wing = null, errand = null) {
   const slot = (get) => ({ promptAt: (p) => get()?.promptAt?.(p) ?? null, interact: () => get()?.interact?.() ?? null });
-  return createPromptArbiter([nutmeg, slot(() => wing), slot(() => ST.lift)]);
+  return createPromptArbiter([nutmeg, slot(() => errand), slot(() => wing), slot(() => ST.lift)]);
 }

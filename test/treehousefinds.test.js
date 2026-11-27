@@ -301,7 +301,7 @@ describe('the six live journal pages', () => {
   it('th1..th6 are live (named, hinted once the chunk is in), the other eight stay hidden placeholders', () => {
     const th = CRITTER_INFO.filter((c) => /^t[hl]\d$/.test(c.id));
     expect(th).toHaveLength(17);
-    const LIVE = [...TREEHOUSE_PAGE_IDS, 'tl1', 'tl2', 'tl3', 'th7', 'th8']; // T5 made the two story pages live (test/treehousewing.test.js), T4 made the first three life pages live too (test/treehousecritters.test.js)
+    const LIVE = [...TREEHOUSE_PAGE_IDS, 'tl1', 'tl2', 'tl3', 'th7', 'th8', 'tl4', 'tl5']; // T5 made the two story pages live (test/treehousewing.test.js), T4 made the first three life pages live too (test/treehousecritters.test.js)
     for (const c of th) {
       if (LIVE.includes(c.id)) { expect(c.later, c.id).toBeFalsy(); expect(c.treehouse).toBe(true); expect(c.hint).toMatch(/\S/); } else expect(c.later, c.id).toBe(true);
     }
