@@ -73,9 +73,9 @@ function solo(progression, log, s, { collect, mouse }) {
 }
 
 describe('couch play M3: the table', () => {
-  it('opens Woods, River, Moor, Pines, Docks and Den (and the Neighborhood), nothing else', () => {
+  it('opens Woods, River, Moor, Pines, Docks and Den (and the Neighborhood), and M5 adds the Farm (then the Market), nothing else', () => {
     const ready = Object.entries(COOP_READY).filter(([, v]) => v).map(([k]) => k).sort();
-    expect(ready).toEqual(['den', 'docks', 'moor', 'neighborhood', 'pines', 'river', 'woods']);
+    expect(ready).toEqual(['den', 'docks', 'farm', 'market', 'moor', 'neighborhood', 'pines', 'river', 'woods']);
   });
 
   it('a row is ready only if coopbudget measures that place with both cats', () => {

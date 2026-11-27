@@ -234,6 +234,8 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
   let jumpT = 0;
   let clock = 0;          // the last frame's time, for a moo that starts between frames
   const simCat = { x: 0, z: 0, y: 0, speed: 0, running: false, inWater: false, perched: false, jumping: false, riding: null, fx: 0, fz: -1, hat: false };
+  const two = { x: 0, z: 0, y: 0, speed: 0, running: false, inWater: false, perched: false, jumping: false, riding: null, fx: 0, fz: -1, hat: false };
+  const twoCat = (c) => Object.assign(two, c);
 
   // ---- how each kind is posed -------------------------------------------------------
   // The sim says where an animal is and what it is doing; src/farmlife.js says
@@ -606,6 +608,12 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
     // actionFor), or null; and doing it. Both read the cat as of the last frame.
     actionFor() { return jobs.actionFor(simCat); },
     act(action) { return jobs.act(action, simCat); },
+
+    // Couch play's cat two (src/coop/finds.js): `c` is { x, z, fx, fz, perched }, read the way simCat is. The animals and the jobs'
+    // own steps stay cat one's (one sim, one trail); cat two offers and finishes a job, tries the hat and finds on the ground.
+    secondStep(dt, c) { jobs.second(dt, twoCat(c)); },
+    secondAction(c) { return jobs.actionFor(twoCat(c)); },
+    secondAct(action, c) { return jobs.act(action, twoCat(c)); },
 
     // A meow at `pos`: the cows look up and the nearest moos.
     reactToMeow(pos) {
