@@ -1,5 +1,5 @@
 // The Echo Deep, milestone C2: the hall shell. Footprints clear of everything that matters, the passage wide enough, the floor flood reaches the nest, the nook, the door-crystal
-// and both mice, the clears, three meshes and no light, the near-switch, LOW and reduced-motion stills, and the whole thing off (no change) without ?deep=1.
+// and both mice, the clears, three meshes and no light, the near-switch, LOW and reduced-motion stills, and the whole thing off (no change) with the flag off.
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';

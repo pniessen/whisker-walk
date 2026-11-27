@@ -1,4 +1,4 @@
-// The Echo Deep hall shell with ?deep=1 off (the default): the stage answers empty lists and no life, nothing is cleared, the cave is what it was.
+// The Echo Deep hall shell with the flag off (node tests; in a browser ?deep=0): the stage answers empty lists and no life, nothing is cleared, the cave is what it was.
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import * as P from '../src/world/crystalplan.js';
