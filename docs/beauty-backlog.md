@@ -297,9 +297,9 @@ Sparseness columns are estimates: triangles and meshes per 1000 m2 from the tabl
   - **WDS-2** (M/S, 2.0): light shafts and dust motes (Points; frozen under reduced motion).
   - **WDS-3** (M/S, BLOCKED): fallen leaves and mushroom rings (geometry; Woods is at 68.8k of 70k).
   - **WDS-4** (M/S, 2.0): dusk fireflies (Points, 16 max; LOW 8).
-  - **RIV-1** (H/S, 3.0): sparkle and foam at the stepping stones (shader on the water mesh).
-  - **RIV-2** (M/S, 2.0): bank reed and lily clumps (existing `riverdress.js` bucket).
-  - **RIV-3** (M/S, 2.0): stepping-stone moss and wet darkening (vertex colour).
+  - ~~**RIV-1** (H/S, 3.0): sparkle and foam at the stepping stones.~~ Done 2026-11-27 without a shader change: `riverbeauty.js` folds foam collars, wakes and ripple slivers (stones, river, lake, pond, pools; about 600 triangles) into the dressing mesh, paid for by dropping the stones' hidden bottoms (-224). Worst spot 69,598 -> 69,936 of 70,000.
+  - **RIV-2** (M/S, 2.0, skipped: only about 64 triangles of room left): bank reed and lily clumps (existing `riverdress.js` bucket).
+  - **RIV-3** (M/S, 2.0, skipped: same): stepping-stone moss and wet darkening (vertex colour).
   - **MOR-1** (H/S, 3.0): heather drifts and gorse patches (vertex colour only; Moor uses only 88 meshes).
   - **MOR-2** (H/M, 1.5): cloud shadows sliding across the ground (a shader scroll; frozen under reduced motion).
   - **MOR-3** (M/S, 2.0): standing stones and cairns (instanced, in `moordress.js`).

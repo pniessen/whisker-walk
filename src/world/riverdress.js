@@ -10,6 +10,7 @@ import {
   RIVER_WATERS, RIVER_PATHS, RIVER_KEEP_CLEAR, RIVER_DECKS, RIVER_LOG, RIVER_STONES,
   RIVER_MEADOW, RIVER_REEDBED, RIVER_FALLEN_LOG, SPAWN, WATER_LOOK, riverTrees, riverLilyPads,
 } from './river.js';
+import { riverBeautyParts } from './riverbeauty.js';
 
 // =============================================================================
 // The River and Marshes' marsh dressing (polish-rivermoor Task 2).
@@ -558,6 +559,8 @@ export function addRiverDressing(scene) {
   const tris = new Tris();
   addTussocks(tris);
   addCattails(tris);
+  // the beauty round (riverbeauty.js): foam and ripples, in this same mesh
+  riverBeautyParts(tris);
   const dressing = dressMesh([
     tris.geometry(), ...shrubParts(), ...padParts(), ...logMossParts(), ...stoneMossParts(),
   ], { name: 'dressing', side: THREE.DoubleSide });

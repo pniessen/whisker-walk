@@ -160,9 +160,11 @@ describe('with the switch on, the core did not move', () => {
     mergeStaticProps(onScene);
     const off = budgetOf(offScene.children, rig);
     const on = budgetOf(core(onScene), rig);
-    // today's River, as test/budget.test.js counts it
-    expect(built.triangles).toBe(63778);
-    expect(off).toEqual({ meshes: 170, casters: 133, triangles: 63778 });
+    // today's River, as test/budget.test.js counts it. 2026-11-27, the River beauty
+    // round: 63,778 -> 64,154 (+600 foam and ripple triangles in the dressing mesh,
+    // -224 hidden stone bottoms; no mesh, no caster).
+    expect(built.triangles).toBe(64154);
+    expect(off).toEqual({ meshes: 170, casters: 133, triangles: 64154 });
     expect(on.meshes).toBe(off.meshes);
     expect(on.casters).toBe(off.casters);
     // all of the difference in triangles is in the three objects that reach
