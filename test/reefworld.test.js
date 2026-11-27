@@ -44,7 +44,7 @@ describe('the plan', () => {
   it('the scatters are pure: the same answer twice, and the counts are the plan\'s', () => {
     expect(P.scatterKelp()).toEqual(P.scatterKelp());
     expect(P.scatterCoral()).toEqual(P.scatterCoral());
-    expect(P.scatterKelp().length).toBe(P.KELP_COUNT.garden + P.KELP_COUNT.outliers);
+    expect(P.scatterKelpAll().length).toBe(P.KELP_COUNT.garden + P.KELP_COUNT.outliers); // (the Sealab's footprint takes a few blades away after the scatter, R13: test/reeflab.test.js)
     expect(P.scatterCoral().length).toBeGreaterThan(30);
   });
   it('the dunes stay between 0 and 1.2 m and are never steeper than the walk\'s rule inside the bounds', () => {

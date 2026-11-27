@@ -32,8 +32,11 @@ const inB = (x, z, m = 1) => x >= B.minX + m && x <= B.maxX - m && z >= B.minZ +
 describe('the wing\'s plan (reefwing.js)', () => {
   it('is pure and seeded: the same clumps twice, three heights, the counts of the plan', () => {
     expect(W.scatterWing()).toEqual(W.scatterWing());
-    const by = (h) => W.scatterWing().filter((k) => k.h === h).length;
+    // the counts are the plan's for the whole scatter; the Sealab's footprint (R13) takes some clumps away AFTER it (the clumps that stay keep their places)
+    const by = (h) => W.scatterWingAll().filter((k) => k.h === h).length;
     expect([by(1), by(2), by(3)]).toEqual([W.WING_COUNT.low, W.WING_COUNT.mid, W.WING_COUNT.tall]);
+    expect(W.scatterWing().length).toBeGreaterThan(W.scatterWingAll().length - 12);
+    expect(W.scatterWing().every((k) => W.scatterWingAll().some((a) => a.x === k.x && a.z === k.z))).toBe(true);
     for (const k of W.scatterWing()) { expect(inB(k.x, k.z, 2), JSON.stringify(k)).toBe(true); expect(Number.isFinite(W.spireHeight(k.s))).toBe(true); }
     expect(W.wingSpires().every((k) => k.kind === 'spire')).toBe(true);
     expect(W.wingClumps().every((k) => k.kind !== 'spire')).toBe(true);

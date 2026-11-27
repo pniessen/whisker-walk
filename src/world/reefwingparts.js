@@ -10,6 +10,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { litMaterial } from '../render/materials.js';
 import { COL, STONES, paint, at, coralGeometry } from './reefparts.js';
 import * as W from './reefwing.js';
+import { inReefClear } from './reefplan.js';
 
 const cyl = (rt, rb, h, seg = 6) => new THREE.CylinderGeometry(rt, rb, h, seg, 1);
 
@@ -47,7 +48,7 @@ export function drawLanternStalks(kit, M) {
 
 // The clumps: the low and the middle ones (brain, rock, branch, fan, tube) through the same geometry the first coral uses.
 export function drawWingClumps(kit, M) {
-  W.wingClumps().forEach((k, i) => { for (const g of coralGeometry(k, i + 100)) kit.put('paint', M.paint, g, { noCast: k.s < 0.7 }); });
+  W.scatterWingAll().filter((k) => k.h < 3).forEach((k, i) => { if (inReefClear(k.x, k.z, k.s)) return; for (const g of coralGeometry(k, i + 100)) kit.put('paint', M.paint, g, { noCast: k.s < 0.7 }); });
 }
 
 // The tall spires: one cluster of three tubes (height 1, scaled by the instance), the colour from the instance (white vertex colours).

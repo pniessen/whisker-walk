@@ -46,7 +46,21 @@ export function reefBaseY(x, z) {
   if (d > 0) y += 2.4 * smooth(d / 16);
   return y;
 }
-export const reefY = reefBaseY;
+// A stage may flatten the seabed under a building (the Sealab): it pushes { minX, maxX, minZ, maxZ, apron, y } onto REEF_FLATS. Inside the rectangle the
+// dune eases down to `y` over `apron` metres (smooth, so there is no cliff); on and outside its edge the answer is reefBaseY itself, byte for byte.
+export const REEF_FLATS = [];
+export function reefY(x, z) {
+  const b = reefBaseY(x, z);
+  for (const f of REEF_FLATS) {
+    const d = Math.min(x - f.minX, f.maxX - x, z - f.minZ, f.maxZ - z);
+    if (d > 0) { const w = smooth(d / f.apron); return w >= 1 ? f.y : b + (f.y - b) * w; }
+  }
+  return b;
+}
+// Rectangles where the plants and decor are taken away AFTER they are scattered (a stage pushes its footprint here; never through KEEP_OUT, which would move
+// every plant): the scatters' streams and every other item stay exactly as they were.
+export const REEF_CLEARS = [];
+export const inReefClear = (x, z, r = 0) => REEF_CLEARS.some((f) => x + r > f.minX && x - r < f.maxX && z + r > f.minZ && z - r < f.maxZ);
 
 const EPS = 0.25;
 // The ground in the shape the walk reads (src/ground.js's): made from the heightfield above, a step legal under the same rule as every raised ground.
@@ -133,7 +147,8 @@ function clearOf(x, z, extra = 0) {
 
 // The kelp: tall blades in clumps, thickest in the Kelp Garden and a few outliers. { x, z, h, phase, lean }. A pure function of the plan.
 export const KELP_COUNT = Object.freeze({ garden: 90, outliers: 24 });
-export function scatterKelp() {
+export const scatterKelp = () => scatterKelpAll().filter((k) => !inReefClear(k.x, k.z, 0.3));
+export function scatterKelpAll() {
   const rng = mulberry32(0x6b656c70);
   const out = [];
   const garden = ZONES[1];
@@ -158,7 +173,8 @@ export function scatterKelp() {
 // The coral: clumps by kind (brain, branch, fan, tube) and a few rocks, in the Coral Garden mostly. { kind, x, z, s (size), yaw, hue }; the big ones are colliders.
 export const CORAL_KINDS = Object.freeze(['brain', 'branch', 'fan', 'tube', 'rock']);
 export const CORAL_COUNT = Object.freeze({ garden: 26, rest: 22 });
-export function scatterCoral() {
+export const scatterCoral = () => scatterCoralAll().filter((k) => !inReefClear(k.x, k.z, k.s));
+export function scatterCoralAll() {
   const rng = mulberry32(0x636f7261);
   const out = [];
   const garden = ZONES[2];
