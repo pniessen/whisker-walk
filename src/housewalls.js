@@ -104,7 +104,7 @@ export function createWallSink(sections, { reducedMotion = false, covers = null 
   const n = sections.length;
   const index = new Map();
   const capped = sections.map((s) => !!covers && covers.includes(s.id));
-  const wants = (i, view) => wantsDown(sections[i], view, view.lidOn === true && capped[i]);
+  const wants = (i, view, v2) => wantsDown(sections[i], view, view.lidOn === true && capped[i]) || (v2 != null && wantsDown(sections[i], v2, view.lidOn === true && capped[i])); // v2: couch play's second cat, seen from the same camera
   const frac = new Float64Array(n);
   const lo = new Float64Array(n);
   // the floor it is sinking to: its stub, or 0 once that stub itself was in the line (Task 6);
@@ -120,12 +120,12 @@ export function createWallSink(sections, { reducedMotion = false, covers = null 
     unwanted[i] = SINK.holdS; // standing and settled
   }
   return {
-    update(dt, view) {
+    update(dt, view, v2) {
       for (let i = 0; i < n; i++) {
         const span = 1 - lo[i];
-        if (wants(i, view)) {
+        if (wants(i, view, v2)) {
           unwanted[i] = 0;
-          if (floor[i] > 0 && stubInLine(sections[i], view)) floor[i] = 0;
+          if (floor[i] > 0 && (stubInLine(sections[i], view) || (v2 != null && stubInLine(sections[i], v2)))) floor[i] = 0;
           // never up while wanted (caught rising from below its stub, it holds there)
           frac[i] = Math.min(frac[i], reducedMotion ? floor[i] : Math.max(floor[i], frac[i] - (span / SINK.downS) * dt));
         } else {
@@ -137,11 +137,11 @@ export function createWallSink(sections, { reducedMotion = false, covers = null 
         }
       }
     },
-    settle(view) {
+    settle(view, v2) {
       for (let i = 0; i < n; i++) {
-        if (wants(i, view)) {
+        if (wants(i, view, v2)) {
           unwanted[i] = 0;
-          floor[i] = lo[i] > 0 && stubInLine(sections[i], view) ? 0 : lo[i];
+          floor[i] = lo[i] > 0 && (stubInLine(sections[i], view) || (v2 != null && stubInLine(sections[i], v2))) ? 0 : lo[i];
           frac[i] = floor[i];
         } else {
           unwanted[i] = SINK.holdS;
@@ -230,8 +230,8 @@ export function createCellarLid(lid, sections) {
   };
   return {
     covers,
-    look(view) {
-      wanted = underCellarLid(view.cat.x, view.cat.z) || lidInLine(lid, view, SINK.linePad);
+    look(view, v2) {
+      wanted = underCellarLid(view.cat.x, view.cat.z) || lidInLine(lid, view, SINK.linePad) || (v2 != null && (underCellarLid(v2.cat.x, v2.cat.z) || lidInLine(lid, v2, SINK.linePad)));
       view.lidOn = !wanted;
       return wanted;
     },

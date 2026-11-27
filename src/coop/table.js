@@ -8,7 +8,8 @@ export const COOP_READY = {
   park: false, seaside: false, fair: false, roofs: false,
   gorge: true, // M5(c): test/coopm5gorge.test.js
   market: true, // M5(b): test/coopm5market.test.js
-  house: false, lighthouse: false, greenhouse: false, moon: false, reef: false, crystal: false,
+  house: true, // M5(d): test/coopm5house.test.js
+  lighthouse: false, greenhouse: false, moon: false, reef: false, crystal: false,
   snowville: false, treehouse: false, jungle: false,
 };
 
