@@ -128,6 +128,7 @@ export function woodsFloorTint(trees, clearing, { edge = null } = {}) {
 // Pines' 0x56603e is a rust-brown (the clamp stops it at 0.5/1.5).
 const NEEDLE = [1.65, 0.66, 0.44];
 const PINE_MOSS = [0.86, 1.14, 0.84];
+const FROST = [0.82, 0.98, 1.22]; // beauty PIN-2: a pale cool frost on the open floor
 const NEEDLE_SHADE = 1;
 const NEEDLE_DRIFT = [1.3, 0.8, 0.6]; // a lighter, tawnier litter than the beds' rust
 const SUN_POOL = [1.12, 1.08, 0.88]; // a patch of sun on the open floor
@@ -157,6 +158,8 @@ export function pinesFloorTint(trees, { edge = null, plain = [] } = {}) {
     m = mul3(m, lerp3(ONE, PINE_MOSS, moss));
     const pool = smoothstep(0.35, 0.7, smoothField(x, z, 139, 6)) * (1 - Math.max(shade, litter));
     m = mul3(m, lerp3(ONE, SUN_POOL, pool));
+    // beauty PIN-2: frost-tint patches in the shade between the pools, vertex colour only
+    m = mul3(m, lerp3(ONE, FROST, smoothstep(0.3, 0.65, smoothField(x, z, 173, 6)) * (1 - pool * 0.6) * (1 - litter * 0.5)));
     let k = 1;
     if (edge != null) k *= 1 - smoothstep(edge - 8, edge - 1, Math.max(Math.abs(x), Math.abs(z)));
     for (const d of plain) k *= smoothstep(d.r, d.r + 1.5, Math.hypot(x - d.x, z - d.z));
@@ -190,7 +193,7 @@ const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a
 
 // One flat-shaded triangle. With `out` (a point inside a closed shape), the
 // normal is turned to face away from it; otherwise it is the winding's.
-function tri(t, A, B, C, color, out) {
+export function tri(t, A, B, C, color, out) {
   let n = unit(...cross(sub(B, A), sub(C, A)));
   if (out) {
     const mid = [(A[0] + B[0] + C[0]) / 3, (A[1] + B[1] + C[1]) / 3, (A[2] + B[2] + C[2]) / 3];
@@ -203,7 +206,7 @@ function tri(t, A, B, C, color, out) {
 }
 // A thin standing piece (a stem): lit as if it faced mostly up, so it never
 // goes black edge-on.
-function sliver(t, A, B, C, color) {
+export function sliver(t, A, B, C, color) {
   const n = unit(...cross(sub(B, A), sub(C, A)));
   const up = unit(n[0] * 0.5, 0.85, n[2] * 0.5);
   for (const P of [A, B, C]) t.v(P[0], P[1], P[2], up, color);
@@ -488,11 +491,13 @@ const SHAPES = { leaves: leaf, needles: needle, moss, mushrooms, bluebells, foxg
 // the normals as built on both faces (dressing.js bothSidesLit): thin
 // edge-on pieces under a standard material showed a pale grey sheen (the
 // fern pass found the same), Lambert keeps their true colours.
-export function forestFloorMesh(parts, { name = 'forestFloor' } = {}) {
+export function forestFloorMesh(parts, { name = 'forestFloor', extra = null } = {}) {
   const t = new Tris();
   for (const [kind, draw] of Object.entries(SHAPES)) {
     for (const p of parts?.[kind] ?? []) draw(t, p);
   }
+  // the bits of a beauty round (woodsbeauty.js), drawn into the same geometry: no new mesh
+  if (extra) extra(t);
   const material = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
   bothSidesLit(material);
   const mesh = new THREE.Mesh(t.geometry(), material);

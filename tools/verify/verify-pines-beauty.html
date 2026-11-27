@@ -1,0 +1,91 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Pines beauty</title>
+<style>
+  body { margin: 0; background: #6cb058; font: 12px Avenir, sans-serif; }
+  #hud { position: fixed; bottom: 8px; left: 8px; color: #fff; background: rgba(0,0,0,.6);
+         padding: 6px 10px; border-radius: 8px; z-index: 5; }
+</style>
+<div id="hud">loading…</div>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap, litMaterial } from '/src/render/materials.js';
+  import { setTextureTier, setTextureAnisotropy } from '/src/render/textures.js';
+  import { waterRig } from '/src/render/water.js';
+  import { createWind } from '/src/render/wind.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { build } from '/src/world/pines.js';
+
+  const W = 1000, H = 580;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;             // main.js:97
+  setTextureAnisotropy(Math.min(4, renderer.capabilities.getMaxAnisotropy()));
+  document.body.appendChild(renderer.domElement);
+
+  const tier = { name: 'high', envIntensity: 0.45 };
+  setTextureTier(tier);
+
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+
+  // The game's rig, from render/rig.js, in walk.js's order: the sun before the
+  // build, the fill after it (it takes the area's own groundBounce), then the
+  // shadow fit, the bias and the caster sweep once the scene is complete.
+  const sun = createSun();
+  scene.add(sun);
+
+  const wind = createWind({ reducedMotion: false });
+  const area = build(scene, { water: { quality: tier, reducedMotion: false }, wind });
+  scene.add(createFill(area.groundBounce));
+  const water = waterRig(area.waterFx ?? []);
+
+  const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
+  // The shadow fit as the game runs it on the high tier; shadows.update()
+  // runs before every render, as main.js does each frame.
+  const shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
+  sun.shadow.bias = SUN_BIAS;
+  const casters = assignShadowCasters(scene);
+  const VIEWS = {
+    ring:    { pos: [22.9, 0.9, -28.8], look: [22.9, 0.1, -30.8] },
+    root:    { pos: [-10.6, 1.2, -26.6], look: [-10.6, 0.3, -29.8] },
+    root2:   { pos: [28.2, 1.2, -3.8], look: [28.2, 0.3, -7] },
+    twig:    { pos: [-10.2, 1.2, 12.6], look: [-10.2, 0.0, 10] },
+    tufts:   { pos: [-13.5, 1.3, 25], look: [-17, 0.1, 19.5] },
+    tufts2:  { pos: [-24, 1.3, 41], look: [-24, 0.1, 46.4] },
+    frost:   { pos: [-34, 2.2, 14], look: [-26, 0, 8] },
+    frost2:  { pos: [10, 2.2, -8], look: [18, 0, -14] },
+    far:     { pos: [0, 16, 30], look: [0, 0, -10] },
+  };
+  let t = 0;
+  const render = () => { shadows.update(); renderer.render(scene, camera); };
+  window.__view = (name) => {
+    const v = VIEWS[name] || VIEWS.ring;
+    camera.position.set(...v.pos);
+    camera.lookAt(...v.look);
+    render();
+    document.getElementById('hud').textContent =
+      `${name} · high tier · waterFx ${(area.waterFx ?? []).length} · casters ${casters.casters}/${casters.meshes}`;
+    return name;
+  };
+  // Reads back the sRGB pixel the user actually sees at canvas (x, y).
+  window.__probe = (x, y) => {
+    render();
+    const gl = renderer.getContext();
+    const px = new Uint8Array(4);
+    gl.readPixels(x, H - y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    return [px[0], px[1], px[2]];
+  };
+  window.__scene = scene; window.__water = water; window.__area = area; window.__wind = wind;
+  window.__cam = (px,py,pz, lx,ly,lz, label='free') => { camera.position.set(px,py,pz); camera.lookAt(lx,ly,lz); render(); document.getElementById('hud').textContent = `${label} · pos ${px},${py},${pz} -> ${lx},${ly},${lz} · casters ${casters.casters}/${casters.meshes}`; return label; };
+  window.__step = (n = 60) => { for (let i = 0; i < n; i++) { t += 1 / 60; water.update(1 / 60); wind.update(t, 1); } render(); return t.toFixed(2); };
+  __view('ring');
+  window.__shot = (n) => __view(n);
+  window.__ready = true;
+</script>

@@ -291,7 +291,7 @@ describe('the Pines floor', () => {
     }
   });
 
-  it('builds one forestFloor mesh out of the shadow pass, inside the 67,638 triangle budget', () => {
+  it('builds one forestFloor mesh out of the shadow pass, inside the 68,400 triangle budget', () => {
     const scene = new THREE.Scene();
     const area = P.build(scene);
     const meshes = [];
@@ -313,7 +313,9 @@ describe('the Pines floor', () => {
     // each of the camp ring's 84 clumps (+252); polish-shrubs: the pine-scrub
     // edge mounds dome their tops, 2 more triangles a mound (+512)
     // polish-bushes: the 6 bushes (3 hidden-mouse, 3 island) wear leaf cards (+1,050)
-    expect(tris).toBeLessThanOrEqual(67_638);
+    // beauty round (pinesbeauty.js): twigs, roots, fairy rings and path tufts
+    // folded into this mesh (+910, no new mesh), 67,403 -> 68,313; cap re-pinned
+    expect(tris).toBeLessThanOrEqual(68_400);
 
     // the ground carries pinesGroundTint: its colours over an untinted twin's
     const ground = scene.children.find((o) => o.userData?.ground && o.isMesh);

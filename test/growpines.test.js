@@ -180,7 +180,7 @@ describe('with the switch on, the core did not move', () => {
     const off = budgetOf(offScene.children, rig);
     const on = budgetOf(core(onScene), rig);
     // today's Pines, as test/budget.test.js counts it
-    expect(off).toEqual({ meshes: 119, casters: 69, triangles: 67403 });
+    expect(off).toEqual({ meshes: 119, casters: 69, triangles: 68313 }); // 67,403 before the beauty round (pinesbeauty.js, +910, no new mesh)
     expect(on.meshes).toBe(off.meshes);
     expect(on.casters).toBe(off.casters);
     const reach = (scene) => scene.children.filter(reaching).reduce((n, c) => n + trianglesOf(c), 0);
@@ -808,7 +808,7 @@ describe('something to find in each strip', () => {
 // slot at its layer's `hide` range (test/helpers/growbudget.js):
 //
 //                                     meshes  casters  triangles
-//   the Pines today (switch off)        119       69     67,403
+//   the Pines today (switch off)        119       69     68,313   (67,403 before the beauty round)
 //   grown, the worst spot for
 //     triangles, (-20, -35) by the
 //     mire's east bank                  145       76     67,597   (2,087 of them stand-ins)
@@ -866,13 +866,13 @@ describe('the budget, switch on: the most the Pines puts on screen at once', () 
 
   it('from the spawn the Pines costs less than today', () => {
     const here = m.at(pines.SPAWN.x, pines.SPAWN.z, LAYERS);
-    expect(here.triangles).toBeLessThan(67403);
+    expect(here.triangles).toBeLessThan(68313);
   });
 
   it('out in each strip the Pines costs no more than today', () => {
     for (const [x, z] of [[8, -73], [-73, 20], [-70, -70]]) {
       const here = m.at(x, z, LAYERS);
-      expect(here.triangles, `${x},${z}`).toBeLessThan(67403);
+      expect(here.triangles, `${x},${z}`).toBeLessThan(68313);
     }
   });
 });

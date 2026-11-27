@@ -21,6 +21,7 @@ import { withLocalUuids } from './localuuids.js';
 import { DISCS } from '../rivalclans.js';
 import { tintGround, once } from './dressing.js';
 import { addPinesShafts, pinesShaftPlan } from './pinesshafts.js';
+import { pinesBeauty } from './pinesbeauty.js';
 import { forestFloorMesh, pinesFloorTint, pinesMossField, canopyShade } from './forestfloor.js';
 import { standingStoneData, lightningStumpData, frogStoneData, fillGeometry } from './pineslandmarks.js';
 import { growOn } from '../grow.js';
@@ -834,6 +835,26 @@ function grownPines() {
   return grown;
 }
 
+// Beauty round: fallen twigs, roots, fairy rings and path-edge tufts, drawn
+// into the floor mesh (pinesbeauty.js), so no new mesh or draw. Built once.
+function edgeFits(x, z) {
+  if (!inBounds(x, z) || inCamp(x, z) || onIsland(x, z)) return false;
+  if (waterDist(x, z) < 1 || bridgeDist(x, z) < BRIDGE_DECK.halfW + 1) return false;
+  if (!clearOf(x, z, 1.6) || !trailClear(x, z, BED_TRAIL_CLEAR)) return false;
+  return Math.hypot(x - SPAWN.x, z - SPAWN.z) >= 3;
+}
+const pinesBeautyBits = once(() => {
+  const { near, stand } = pinesTrees();
+  const trees = [...near, ...stand];
+  return pinesBeauty({
+    trees,
+    ok: flatFits,
+    okTall: (x, z) => standFits(x, z, trees),
+    okEdge: edgeFits,
+    paths: PINES_PATHS,
+  });
+});
+
 // What the core's merged scatter stands on, for cutting it per tile
 // (render/tilesplit.js): each thing's centre and how far its parts reach. The
 // reeds' list leaves out the island's own ring, so those are drawn whole (the
@@ -841,6 +862,7 @@ function grownPines() {
 export function pinesFloorItems() {
   const f = pinesFloor();
   return [
+    ...pinesBeautyBits().items,
     ...f.needles.map((p) => ({ x: p.x, z: p.z, r: 0.12 })),
     ...f.cones.map((p) => ({ x: p.x, z: p.z, r: 0.06 })),
     ...f.moss.map((p) => ({ x: p.x, z: p.z, r: r2(0.36 * p.s) })),
@@ -992,7 +1014,7 @@ export function build(scene, { water = {}, wind } = {}) {
   }
   // the needle-and-moss floor (forestfloor.js), its Three objects' uuids
   // local so the shared draws stay as they were
-  const floorMesh = withLocalUuids('pines-floor-uuids', () => forestFloorMesh(pinesFloor()));
+  const floorMesh = withLocalUuids('pines-floor-uuids', () => forestFloorMesh(pinesFloor(), { extra: pinesBeautyBits().draw }));
   scene.add(floorMesh);
 
   // --- the hidden mouse's bushes, and the puddles -----------------------------
