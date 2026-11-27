@@ -343,6 +343,8 @@ const BASE_ACCESSORIES = {
   signaltag: { name: 'Signal Tag', slot: 'collar', price: 0, prize: true, moon: 'relay' },
   // Snowville's story prize (a collar, src/cat/foundneck.js FOUND_COLLARS): owned once Lantern Night has been told (snowville.step 7).
   snowclasp: { name: 'Snowflake Clasp', slot: 'collar', price: 0, prize: true, snowville: 'story' },
+  // The Treehouse village's story prize (a collar, src/cat/foundneck.js FOUND_COLLARS): owned once the firefly supper has been told (treehouse.step 7). A placeholder name.
+  acornlocket: { name: 'Acorn Locket', slot: 'collar', price: 0, prize: true, treehouse: 'story' },
 };
 // Their ids: every id a found outfit must not take (test/foundwear.test.js).
 export const BASE_ACCESSORY_IDS = Object.freeze(Object.keys(BASE_ACCESSORIES));
@@ -1264,6 +1266,7 @@ function sanitizeState(parsed) {
   if ((sanitizeCrystal(parsed.crystal).forge & 8) !== 0 && !unlockedAcc.includes('crystalcirclet')) unlockedAcc.push('crystalcirclet');
   if ((sanitizeMoon(parsed.moon).relay & 16) !== 0 && !unlockedAcc.includes('signaltag')) unlockedAcc.push('signaltag');
   if (sanitizeSnowville(parsed.snowville).step >= 7 && !unlockedAcc.includes('snowclasp')) unlockedAcc.push('snowclasp');
+  if (sanitizeTreehouse(parsed.treehouse).step >= 7 && !unlockedAcc.includes('acornlocket')) unlockedAcc.push('acornlocket');
   // And every found outfit: foundWear is the record, so it is owned.
   const foundWear = sanitizeFoundWear(parsed.foundWear);
   for (const id of foundWear) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);

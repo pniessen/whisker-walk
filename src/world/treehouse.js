@@ -32,6 +32,7 @@ export function build(scene) {
     K.drawFerns(kit, M);
     K.drawRim(kit, M);
     K.drawCanopy(kit, M);
+    ST.branches?.draw?.(kit, M); // the baskets, the Bookshop's sign, the bell rope and the supper table (milestone T5, in the merged buckets)
     for (const m of kit.meshes()) scene.add(m);
     scene.add(K.drawLight()); // the village's one real light, at intensity 0
     return {
@@ -59,19 +60,21 @@ export function build(scene) {
       life: (ctx) => {
         const light = createTreehouseLight(ctx);
         const nutmeg = createNutmeg({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent, light, tier: ctx.tier });
-        const prompts = createTreehousePrompts(nutmeg);
+        const wing = ST.branches?.wing?.({ scene: ctx.scene, nutmeg, light, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent }); // the bell, the strings of lights and the firefly supper (milestone T5)
+        const prompts = createTreehousePrompts(nutmeg, wing);
         const finds = ST.branches?.finds?.life(ctx); // the six discoveries (milestone T3)
         const critters = ST.branches?.critters?.(ctx); // the songbirds, owl, fireflies, leaves, creak and chime (milestone T4)
         return {
           light,
           spottable: critters?.spottable ?? [],
           nutmeg,
+          wing,
           promptAt: (catPos) => prompts.promptAt(catPos),
           interact: () => prompts.interact(),
-          // a step done by anyone in the room (a `th-` event); a stage's own steps join this line with their stage
-          credit: (ev) => nutmeg.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t); nutmeg.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); },
-          dispose() { critters?.dispose(); finds?.dispose(); nutmeg.dispose(); light.dispose(); },
+          // a step done by anyone in the room (a `th-` event): a supper begun by a partner starts ours, any other step is Nutmeg's
+          credit: (ev) => wing?.credit(ev) ?? nutmeg.credit(ev),
+          update(dt, t, catPos, camera, session) { light.update(dt, t); nutmeg.update(dt, t, catPos, camera, session); wing?.update(dt, t); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); },
+          dispose() { critters?.dispose(); finds?.dispose(); wing?.dispose(); nutmeg.dispose(); light.dispose(); },
         };
       },
     };

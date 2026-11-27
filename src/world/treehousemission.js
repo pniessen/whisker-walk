@@ -9,7 +9,9 @@
 //   step 2  letter one (in the post box) is carried up to the Bakery on the low deck (letters bit 0): its window lights. Chapter 1 is done.
 //   step 3  letter two is carried to the Bookshop over the rope bridge (bit 1)      (milestone T5)
 //   step 4  letter three is carried to the Bell Tower at the crown (bit 2)          (milestone T5)
-//   steps 5 to 7: ring the bell, the firefly supper, the story pays                 (milestone T5)
+//   step 5  the bell is rung (event 'ring': one soft ring, every window lights)
+//   step 6  the firefly supper begins (event 'supper': the 20-second show, world/treeshow.js; a supper can be seen again whenever she likes)
+//   step 7  the supper reaches its pay moment (event 'done'): treestory pays once and Nutmeg gives the Acorn Locket. The story is over.
 // (this machine never lowers a step and never raises one past STEP.rest.)
 //
 // A letter she is CARRYING is never saved, and is never in the walk's mouth: it is back in the post box on the next walk, whatever ends a walk. A step done by ANYONE in the
@@ -45,12 +47,13 @@ export function wantedLetter(rec) {
   return step >= STEP.met && step <= STEP.second ? step - 1 : -1;
 }
 
-const LADDER = Object.freeze([Object.freeze({ kind: 'meet' }), ...[0, 1, 2].map((letter) => Object.freeze({ kind: 'deliver', letter }))]);
+const LADDER = Object.freeze([Object.freeze({ kind: 'meet' }), ...[0, 1, 2].map((letter) => Object.freeze({ kind: 'deliver', letter })), ...['ring', 'supper', 'done'].map((kind) => Object.freeze({ kind }))]);
 const rungOf = (ev) => LADDER.findIndex((e) => e.kind === ev.kind && e.letter === ev.letter);
 
 // The next record after an event; `rec` itself is never touched and the other keys of the save record come back as they were.
-// events: { kind: 'meet' } (she said hello), { kind: 'deliver', letter: 0 | 1 | 2 } (a letter was set down at its house). Anything else, a letter out of order, a letter
-// before the squirrel is met: no change. effect: 'met' | 'first' | 'second' | 'third' | null.
+// events: { kind: 'meet' } (she said hello), { kind: 'deliver', letter: 0 | 1 | 2 } (a letter was set down at its house), { kind: 'ring' } (the bell), { kind: 'supper' } (the supper began),
+// { kind: 'done' } (its pay moment). Anything else, a step out of order, a letter before the squirrel is met: no change.
+// effect: 'met' | 'first' | 'second' | 'third' | 'ring' | 'supper' | 'done' | null.
 export function apply(rec, ev) {
   const cur = normalize(rec);
   const base = rec && typeof rec === 'object' ? rec : {};
@@ -62,6 +65,8 @@ export function apply(rec, ev) {
     const step = LETTER_STEP[ev.letter];
     return { treehouse: { ...base, step, letters: cur.letters | (1 << ev.letter) | LETTERS_AT[step] }, changed: true, effect: ['first', 'second', 'third'][ev.letter] };
   }
+  const to = { ring: [STEP.third, STEP.bell], supper: [STEP.bell, STEP.supper], done: [STEP.supper, STEP.done] }[kind];
+  if (to && cur.step === to[0]) return { treehouse: { ...base, step: to[1], letters: cur.letters | LETTERS_AT[to[1]] }, changed: true, effect: kind };
   return none;
 }
 
@@ -81,25 +86,29 @@ export function credit(rec, ev) {
 }
 
 // The one thing to do next, for the picture bubble and the meow's ring. { kind, letter?, icon }:
-//   'nutmeg' (say hello), 'letter' (fetch letter `letter`), 'deliver' (carry it up to its house), 'rest' (nothing more to do yet).
+//   'nutmeg' (say hello), 'letter' (fetch letter `letter`), 'deliver' (carry it up to its house), 'ring' (ring the bell), 'supper' (begin the supper), 'rest' (nothing more to do).
 // `carrying`: the letter in her mouth (0, 1, 2) or null. Pictures only, never text.
-export const ICON = Object.freeze({ nutmeg: 'letter', letter: 'letter', deliver: 'house', rest: 'heart' });
+export const ICON = Object.freeze({ nutmeg: 'letter', letter: 'letter', deliver: 'house', ring: 'bell', supper: 'spark', rest: 'heart' });
 export function nextGoal(rec, carrying = null) {
   const { step } = normalize(rec);
   const want = wantedLetter(rec);
   if (step < STEP.met) return { kind: 'nutmeg', icon: ICON.nutmeg };
   if (want >= 0) return carrying === want ? { kind: 'deliver', letter: want, icon: ICON.deliver } : { kind: 'letter', letter: want, icon: ICON.letter };
+  if (step === STEP.third) return { kind: 'ring', icon: ICON.ring };
+  if (step === STEP.bell || step === STEP.supper) return { kind: 'supper', icon: ICON.supper };
   return { kind: 'rest', icon: ICON.rest };
 }
 
 // A letter may be picked up when it is the one the squirrel wants and her mouth is empty (no fail, no stuck state).
 export const canPick = (rec, letter, carrying = null) => carrying === null && wantedLetter(rec) === letter;
 
-// The wire form of a step (the one place that reads a partner's event, `th-` events only): { kind: 'th-meet' } or { kind: 'th-deliver', letter }; anything else is nothing.
-export const wire = (step) => (step.kind === 'meet' ? { kind: 'th-meet' } : { kind: 'th-deliver', letter: step.letter });
+// The wire form of a step (the one place that reads a partner's event, `th-` events only): { kind: 'th-meet' }, { kind: 'th-ring' } or { kind: 'th-deliver', letter }; the supper goes as
+// { kind: 'th-supper', elapsed } (world/treehousewinglive.js); anything else is nothing.
+export const wire = (step) => (step.kind === 'meet' ? { kind: 'th-meet' } : step.kind === 'ring' ? { kind: 'th-ring' } : { kind: 'th-deliver', letter: step.letter });
 export function toStep(ev) {
   if (!ev || typeof ev !== 'object' || typeof ev.kind !== 'string') return null;
   if (ev.kind === 'th-meet') return { kind: 'meet' };
+  if (ev.kind === 'th-ring') return { kind: 'ring' };
   if (ev.kind === 'th-deliver' && (ev.letter === 0 || ev.letter === 1 || ev.letter === 2)) return { kind: 'deliver', letter: ev.letter };
   return null;
 }

@@ -6,6 +6,7 @@
 // =============================================================================
 
 import { ANCHORS, DECKS, treehouseColliders, TREEHOUSE_BOUNDS } from './treehouseplan.js';
+import { ST } from './treehousestages.js';
 
 // Nutmeg, the red squirrel postmistress: stands by the post box at the roots (she is no follower: she lives here, and her basket is too heavy to carry). She turns to look.
 export const NUTMEG = Object.freeze({
@@ -28,8 +29,13 @@ export const HOUSES = Object.freeze([Object.freeze({
   glow: Object.freeze({ x: bakery.hut.x - 0.2, y: bakery.y + 1.3, z: bakery.hut.z + bakery.hut.r + 0.15 }),
 })]);
 
+// All three, in order: the first of each is this file's; the second and third (the sorting basket at the roots and the mail bag on the Bookshop deck; the Bookshop and the Bell Tower) come
+// from the branches stage (milestone T5, world/treehousewingplan.js) once it is in.
+export const allLetters = () => [...LETTERS, ...(ST.branches?.story?.letters ?? [])];
+export const allHouses = () => [...HOUSES, ...(ST.branches?.story?.houses ?? [])];
+
 // The picture a goal is shown with (never text).
-export const BUBBLE_ICON = Object.freeze({ letter: '✉️', house: '🏠', heart: '💗' });
+export const BUBBLE_ICON = Object.freeze({ letter: '✉️', house: '🏠', heart: '💗', bell: '🔔', spark: '✨' });
 
 export const storyColliders = () => treehouseColliders();
 const hyp = Math.hypot;
