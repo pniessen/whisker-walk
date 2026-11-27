@@ -28,8 +28,8 @@ describe('the Pines sun shafts', () => {
 
   it('is a handful of tubes, a few dozen triangles', () => {
     const tris = mesh.geometry.attributes.position.count / 3;
-    expect(tris).toBeGreaterThanOrEqual(30);
-    expect(tris).toBeLessThanOrEqual(SHAFT_RULE.cap * 10);
+    expect(tris).toBeGreaterThanOrEqual(40);
+    expect(tris).toBeLessThanOrEqual(SHAFT_RULE.cap * 20);
   });
 
   it('is seeded: the same plan every time', () => {

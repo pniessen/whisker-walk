@@ -1050,7 +1050,7 @@ export function build(scene, { water = {}, wind } = {}) {
     perches.push(...north.NORTH_PERCHES, ...west.WEST_PERCHES);
   }
 
-    return {
+  return {
     name: 'The Pines and Swamp',
     colliders,
     bounds: { ...(G ? G.bounds : BOUNDS) },

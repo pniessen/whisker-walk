@@ -25,7 +25,7 @@ export function pinesShaftPlan(fits, trunks = []) {
       const x = Math.round((gx + (rng() * 2 - 1) * r.jitter) * 100) / 100;
       const z = Math.round((gz + (rng() * 2 - 1) * r.jitter) * 100) / 100;
       const keep = rng() < r.keep;
-      const s = { x, z, rTop: 0.35 + rng() * 0.4, rBot: 0.9 + rng() * 0.9, lean: 0.25 + rng() * 0.12, bright: 0.6 + rng() * 0.4 };
+      const s = { x, z, rTop: 0.35 + rng() * 0.4, rBot: 0.9 + rng() * 0.9, lean: 0.2 + rng() * 0.18, ang: -0.6 + rng() * 1.2, bright: 0.6 + rng() * 0.4 };
       if (keep && out.length < r.cap && fits(x, z) && trunks.every((t) => Math.hypot(x - t.x, z - t.z) > r.clear * (t.scale ?? 1))) out.push(s);
     }
   }
@@ -37,12 +37,16 @@ function shaftGeometry(s) {
   const col = [];
   const c = new THREE.Color(0xfff0c0);
   const ring = (y, rad, ox, oz, a) => Array.from({ length: SIDES }, (_, i) => [s.x + ox + Math.cos((i / SIDES) * Math.PI * 2) * rad, y, s.z + oz + Math.sin((i / SIDES) * Math.PI * 2) * rad, a]);
-  const top = ring(TOP_Y, s.rTop, -s.lean * TOP_Y, -s.lean * TOP_Y * 0.4, s.bright * 0.5);
+  // the sun's lean, turned a little by each shaft's own angle; the top starts at
+  // nothing and brightens over its first metre, then fades out toward the floor
+  const lx = Math.cos(s.ang) * s.lean, lz = Math.sin(s.ang) * s.lean * 0.5 - s.lean * 0.4;
+  const top = ring(TOP_Y, s.rTop, -lx * TOP_Y, -lz * TOP_Y, 0);
+  const mid = ring(TOP_Y - 1, s.rTop * 1.04, -lx * (TOP_Y - 1), -lz * (TOP_Y - 1), s.bright * 0.5);
   const bot = ring(0.05, s.rBot, 0, 0, 0);
   const put = (p) => { pos.push(p[0], p[1], p[2]); col.push(c.r * p[3], c.g * p[3], c.b * p[3]); };
   for (let i = 0; i < SIDES; i++) {
     const j = (i + 1) % SIDES;
-    for (const p of [top[i], bot[i], top[j], top[j], bot[i], bot[j]]) put(p);
+    for (const p of [top[i], mid[i], top[j], top[j], mid[i], mid[j], mid[i], bot[i], mid[j], mid[j], bot[i], bot[j]]) put(p);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));

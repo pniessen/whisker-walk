@@ -300,7 +300,7 @@ Sparseness columns are estimates: triangles and meshes per 1000 m2 from the tabl
   - **MOR-1** (H/S, 3.0): heather drifts and gorse patches (vertex colour only; Moor uses only 88 meshes).
   - **MOR-2** (H/M, 1.5): cloud shadows sliding across the ground (a shader scroll; frozen under reduced motion).
   - **MOR-3** (M/S, 2.0): standing stones and cairns (instanced, in `moordress.js`).
-  - **PIN-1** (H/S, 3.0): needle-litter ground and sun shafts.
+  - ~~**PIN-1** (H/S, 3.0): needle-litter ground and sun shafts.~~ Done 2026-11-27 (section 8).
   - **PIN-2** (M/S, 2.0): frost-tint patches (vertex colour; a seasonal/dawn feel).
   - **PIN-3** (M/S, 2.0): mushrooms and ferns (about 2.6k triangles left; keep to 2k).
   - **GRG-1** (H/S, 3.0): strata bands and wet streaks on cliff walls (vertex or shader; 0 triangles).
