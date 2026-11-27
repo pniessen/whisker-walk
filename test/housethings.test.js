@@ -75,14 +75,14 @@ describe('the golden mice (D5)', () => {
     expect(GOLD_MICE.house).toEqual(HOUSE_GOLD_MICE);
   });
 
-  it('three golden mice, two up a climb and one tucked away in the cellar, and the east wing\'s on the kids\' top bunk', () => {
-    expect(HOUSE_GOLD_MICE.map((m) => m.id)).toEqual(['gm-house-1', 'gm-house-2', 'gm-house-3', 'gm-house-5']);
+  it('three golden mice, two up a climb and one tucked away in the cellar, the wonder room\'s on the cat tree\'s crown, and the east wing\'s on the kids\' top bunk', () => {
+    expect(HOUSE_GOLD_MICE.map((m) => m.id)).toEqual(['gm-house-1', 'gm-house-2', 'gm-house-3', 'gm-house-4', 'gm-house-5']);
     for (const m of HOUSE_GOLD_MICE) {
       expect(m.id).toMatch(/^gm-[a-z]{1,24}-[1-9]$/);
       expect(m.y, m.id).toBe(0);
     }
     expect(GOLD_TOTAL).toBe(CLAN_TOTAL); // 42 until the Old House's three joined the count
-    const [one, two, three, five] = HOUSE_GOLD_MICE;
+    const [one, two, three, four, five] = HOUSE_GOLD_MICE;
     for (const [m, id] of [[one, 'library-books-w'], [two, 'bedroom-wardrobe']]) {
       const l = ledgeById(id);
       expect(onLedge(l, m.x, m.z), m.id).toBe(true);
@@ -100,6 +100,11 @@ describe('the golden mice (D5)', () => {
     expect(onLedge(top, five.x, five.z)).toBe(true);
     expect(ledgeReached(top)).toBe(true);
     expect(Math.min(...moveEnds().filter((e) => onLedge(top, e.x, e.z)).map((e) => Math.hypot(e.x - five.x, e.z - five.z)))).toBeLessThanOrEqual(1.0);
+    // the cat tree's crown (the wonder room): on its ledge, up the tree's four hops from the floor, a hop's landing on its middle
+    const crown = ledgeById('wonder-tree-crown');
+    expect(onLedge(crown, four.x, four.z)).toBe(true);
+    expect(ledgeReached(crown)).toBe(true);
+    expect(Math.min(...moveEnds().filter((e) => onLedge(crown, e.x, e.z)).map((e) => Math.hypot(e.x - four.x, e.z - four.z)))).toBeLessThanOrEqual(1.0);
   });
 });
 
@@ -369,9 +374,9 @@ describe('the goals and the corner map (D11, D12)', () => {
     expect(record.goldMice).toBeUndefined(); // the walk lays them from GOLD_MICE.house
   });
 
-  it('the corner map\'s shapes are the rooms, the stairs and the walls, with the doorways open', () => {
-    const shapes = houseMapShapes();
-    expect(record.mapShapes).toEqual(shapes);
+  it('the corner map\'s shapes are the rooms, the stairs and the walls, with the doorways open (the wonder room and its stair once the kids\' wardrobe is open: test/housewonder.test.js)', () => {
+    expect(record.mapShapes).toEqual(houseMapShapes());
+    const shapes = houseMapShapes({ open: true });
     expect(record.mapGround).toBe(HOUSE_MAP_GROUND);
     expect(HOUSE_MAP_GROUND).toBe(0x6f9a52);
     for (const s of shapes) expect(['ledge', 'rock']).toContain(s.tone);
@@ -388,7 +393,8 @@ describe('the goals and the corner map (D11, D12)', () => {
     // the walls are 0.5 m strips, ledges first so the walls lie over them
     const rocks = shapes.filter((s) => s.tone === 'rock');
     expect(rocks.length).toBeGreaterThan(80);
-    for (const s of rocks) expect(Math.min(s.maxX - s.minX, s.maxZ - s.minZ)).toBeCloseTo(0.5, 6);
+    // a wall is a 0.5 m strip (a stub of wall 0.4 m long, at the kids' north wall beside the wonder stair, is 0.4 by 0.5)
+    for (const s of rocks) { expect(Math.max(s.maxX - s.minX, s.maxZ - s.minZ)).toBeGreaterThanOrEqual(0.4 - 1e-6); expect(Math.min(s.maxX - s.minX, s.maxZ - s.minZ)).toBeGreaterThanOrEqual(0.4 - 1e-6); expect(Math.min(s.maxX - s.minX, s.maxZ - s.minZ)).toBeLessThanOrEqual(0.5 + 1e-6); }
     expect(shapes.findIndex((s) => s.tone === 'rock')).toBeGreaterThan(shapes.findLastIndex((s) => s.tone === 'ledge'));
     const strictlyIn = (s, x, z) => x > s.minX + 1e-9 && x < s.maxX - 1e-9 && z > s.minZ + 1e-9 && z < s.maxZ - 1e-9;
     for (const d of HOUSE_DOORWAYS) expect(rocks.some((s) => strictlyIn(s, d.x, d.z)), d.id).toBe(false);

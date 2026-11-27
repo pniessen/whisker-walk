@@ -13,7 +13,7 @@ const {
   houseColliders, HOUSE_ZONES, HOUSE_LAMPS, zoneOfRoom,
 } = await import('../src/world/houseplan.js');
 // the zone a wall section is drawn with: the wing's rooms and stair name theirs, every old one is its level's
-const zoneOfSection = (s) => (s.owner === 'wing' ? 'sun' : zoneOfRoom(HOUSE_ROOMS.find((r) => r.id === s.owner) ?? { level: s.level }));
+const zoneOfSection = (s) => (s.owner === 'wing' ? 'sun' : s.owner === 'wonderstair' ? 'wonder' : zoneOfRoom(HOUSE_ROOMS.find((r) => r.id === s.owner) ?? { level: s.level }));
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { createLevelDrawing } = await import('../src/houselevels.js');
 const { HOUSE_ATLAS_CELLS, createHouseAtlas, furnitureMesh } = await import('../src/world/houseparts.js');
@@ -78,8 +78,8 @@ describe('the record', () => {
     for (const k of ['pois', 'collectibles', 'moments', 'puddles', 'tippables']) {
       expect(area[k], k).toEqual([]);
     }
-    // the east wing's two boxes she can sit in: the kids' blanket fort and the bathroom's laundry basket
-    expect(area.boxes).toHaveLength(2);
+    // the east wing's three boxes she can sit in: the kids' blanket fort, the bathroom's laundry basket and the wonder room's cardboard castle
+    expect(area.boxes).toHaveLength(3);
     // step 2 (D18, ruling D4): the knock-over pieces' tops are perches
     expect(area.perches.map((p) => p.kind)).toEqual(Array(11).fill('furniture')); // the old seven and the east wing's four
     expect(typeof area.life).toBe('function'); // house life (Task 6): the walls sink and the levels are drawn
@@ -102,7 +102,7 @@ describe('the record', () => {
     const H = area.house;
     expect(H.start).toBe('ground');
     expect(H.levels.map((l) => l.id)).toEqual(HOUSE_LEVELS.map((l) => l.id));
-    expect(H.links.length).toBe(HOUSE_STAIRS.length - 1); // the wing's stair joins zones by position (houselevels.js), not a level link
+    expect(H.links.length).toBe(HOUSE_STAIRS.length - 2); // the wing's two stairs join zones by position (houselevels.js), not a level link
     expect(H.sections).toEqual(houseSections());
     expect(H.sectionMeshes.size).toBe(H.sections.length);
     expect(H.panes).toBeInstanceOf(Map);
@@ -151,7 +151,7 @@ describe('determinism', () => {
     expect(a.image.data.length).toBe(512 * 512 * 4);
     expect(Buffer.from(a.image.data).equals(Buffer.from(b.image.data))).toBe(true);
     const ids = Object.values(HOUSE_ATLAS_CELLS);
-    expect(new Set(ids).size).toBe(42); // the east wing adds four wallpapers and a bathroom floor
+    expect(new Set(ids).size).toBe(43); // the east wing adds four wallpapers and a bathroom floor, the wonder room a fifth paper
     for (const r of HOUSE_ROOMS) expect(HOUSE_ATLAS_CELLS[r.id], r.id).toBeGreaterThanOrEqual(0);
     for (const k of ['brick', 'oak', 'pine', 'stone', 'lightWood', 'darkWood', 'plaster']) expect(ids).toContain(HOUSE_ATLAS_CELLS[k]);
   });
@@ -285,8 +285,8 @@ describe('the light', () => {
       g.traverse((o) => { if (o.userData?.lampGlobe) { globes++; expect(o.userData.noMerge).toBe(true); } });
       expect(globes).toBe(1);
     }
-    // the wing's raised rooms (kids, bath) are lit by sconces: a 3.4 m lamp pool needs a room 7 m wide
-    for (const r of HOUSE_ROOMS.filter((q) => q.id !== 'kids' && q.id !== 'bath')) expect(per.get(r.id) ?? 0, r.id).toBeGreaterThanOrEqual(r.id === 'cellar' ? 2 : 1);
+    // the wing's raised rooms (kids, bath) are lit by sconces, the wonder room by its string lights: a 3.4 m lamp pool needs a room 7 m wide
+    for (const r of HOUSE_ROOMS.filter((q) => q.id !== 'kids' && q.id !== 'bath' && q.id !== 'wonder')) expect(per.get(r.id) ?? 0, r.id).toBeGreaterThanOrEqual(r.id === 'cellar' ? 2 : 1);
 
     const s2 = new THREE.Scene();
     const a2 = build(s2);
@@ -422,8 +422,9 @@ describe('the furniture', () => {
   it('makes every tall piece a fade occluder, and tags every detail object with a level', () => {
     const shapes = findFadeOccluders(scene).filter((e) => !e.box);
     // step 2 (D9): and the secret bookcase, a tall ground-level piece of its own (test/housesecret.test.js)
-    expect(shapes.length).toBe(tall.length + 1);
+    expect(shapes.length).toBe(tall.length + 2); // + the kids' wardrobe's leaf, the wonder stair's (milestone 3)
     expect(shapes.filter((e) => e.obj.parent?.userData.secretBookcase).length).toBe(1);
+    expect(shapes.filter((e) => e.obj.parent?.userData.wardrobe).length).toBe(1);
     for (const f of tall) {
       const e = shapes.find((q) => Math.abs(q.x - f.x) < 1e-6 && Math.abs(q.z - f.z) < 1e-6);
       expect(e, f.id).toBeTruthy();
@@ -467,7 +468,8 @@ describe('the furniture', () => {
     // + the beauty pass's warm glow, one mesh per level (house.js drawGlow)
     // + the wing's zone details: four wall groups, two lamps, four floors, two brick skirts and the stair
     // + the solarium's one decal mesh of sunny slots (the wing's milestone 2)
-    expect(tagged.length).toBe(tall.length + HOUSE_ROOMS.length + 1 + marked.size + levelIds.length + 4 + 2 + 4 + 2 + 1 + 1);
+    // + the wonder room's own (milestone 3): its wall group, floor, brick skirt and stair, the kids' wardrobe, the feather wand, the string lights, the skylight's pool and the light under the wardrobe's doors
+    expect(tagged.length).toBe(tall.length + HOUSE_ROOMS.length + 1 + marked.size + levelIds.length + 4 + 2 + 4 + 2 + 1 + 1 + 8);
     for (const c of tagged) {
       expect(levelIds).toContain(c.userData.houseLevel);
       let meshes = 0;
@@ -497,7 +499,7 @@ describe('the furniture', () => {
     for (const l of HOUSE_LEVELS) {
       const m = scene.children.find((c) => c.userData?.houseSimple === l.id);
       m.geometry.computeBoundingBox();
-      const pieces = HOUSE_FURNITURE.filter((f) => f.level === l.id && f.r > 0);
+      const pieces = HOUSE_FURNITURE.filter((f) => f.level === l.id && f.r > 0 && !HOUSE_ROOMS.find((r) => r.id === f.room).zone); // (a wing room has its own far look)
       const top = Math.max(...pieces.map((f) => f.h));
       expect(m.geometry.boundingBox.max.y + m.position.y, l.id).toBeCloseTo(levelY(l.id) + 0.9 * top, 3);
       expect(m.geometry.boundingBox.min.y + m.position.y, l.id).toBeCloseTo(levelY(l.id), 3);

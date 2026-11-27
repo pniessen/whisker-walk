@@ -40,9 +40,9 @@ const footprint = (f) => {
 
 describe('the east wing: the plan', () => {
   it('adds the living room, solarium, kids\' room and bathroom, on the old levels, over the lawn', () => {
-    expect(WING_ROOMS.map((r) => r.id)).toEqual(['livingroom', 'solarium', 'kids', 'bath']);
-    expect(HOUSE_ROOMS).toHaveLength(11); // the seven old rooms and the four of the wing (the wonder room joins in milestone 3)
-    expect(HOUSE_STAIRS).toHaveLength(5); // the old four and the wing's
+    expect(WING_ROOMS.map((r) => r.id)).toEqual(['livingroom', 'solarium', 'kids', 'bath', 'wonder']);
+    expect(HOUSE_ROOMS).toHaveLength(12); // the seven old rooms, the wing's four and the secret wonder room (milestone 3)
+    expect(HOUSE_STAIRS).toHaveLength(6); // the old four, the wing's and the wonder room's secret one
     for (const r of WING_ROOMS) expect(levelAt((r.minX + r.maxX) / 2, (r.minZ + r.maxZ) / 2), r.id).toBe(r.level);
   });
 
@@ -56,7 +56,7 @@ describe('the east wing: the plan', () => {
   });
 
   it('every x, z has one level: the wing\'s floors do not stack over another room\'s', () => {
-    for (let x = -24; x <= 50; x += 0.5) {
+    for (let x = -24; x <= 52; x += 0.5) {
       for (let z = -16; z <= 12; z += 0.5) {
         const here = HOUSE_ROOMS.filter((r) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ).map((r) => r.level);
         expect(new Set(here).size, `${x},${z}`).toBeLessThanOrEqual(1);
@@ -150,8 +150,8 @@ describe('the east wing: the plan', () => {
 
 describe('the east wing: zones', () => {
   it('names the old four levels and the two wing zones; wingZoneAt reads position, not height', () => {
-    expect(HOUSE_ZONES.map((z) => z.id)).toEqual(['cellar', 'ground', 'upstairs', 'attic', 'living', 'sun', 'kids', 'bath']);
-    expect(WING_ZONES.map((z) => z.id)).toEqual(['living', 'sun', 'kids', 'bath']); // a zone a room, the stair with the solarium
+    expect(HOUSE_ZONES.map((z) => z.id)).toEqual(['cellar', 'ground', 'upstairs', 'attic', 'living', 'sun', 'kids', 'bath', 'wonder']);
+    expect(WING_ZONES.map((z) => z.id)).toEqual(['living', 'sun', 'kids', 'bath', 'wonder']); // a zone a room, the wing stair with the solarium, the secret stair with the wonder room
     expect(wingZoneAt(18, 6)).toBe('living');
     expect(wingZoneAt(26, 6)).toBe('sun'); // the solarium
     expect(wingZoneAt(43, 7)).toBe('kids');
@@ -169,7 +169,7 @@ describe('the east wing: zones', () => {
   it('the joins sit on the openings, and a joined zone is drawn only within ZONE_NEAR (5 m)', () => {
     expect(ZONE_NEAR).toBe(5);
     expect(ZONE_LEAVE).toBeGreaterThan(ZONE_NEAR);
-    expect(WING_JOINS.filter((j) => !j.outside).map((j) => [j.a, j.b])).toEqual([['ground', 'living'], ['living', 'sun'], ['sun', 'kids'], ['kids', 'bath']]);
+    expect(WING_JOINS.filter((j) => !j.outside).map((j) => [j.a, j.b])).toEqual([['ground', 'living'], ['living', 'sun'], ['sun', 'kids'], ['kids', 'bath'], ['kids', 'wonder']]);
     expect(WING_JOINS[0].keep).toEqual(['parlour']); // beside the wing, the old ground keeps only the parlour in full
     const d1 = WING_JOINS[0];
     expect(d1).toMatchObject({ x: 14, z: 10.2 });

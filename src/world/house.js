@@ -33,7 +33,7 @@ import { withLocalUuids } from './localuuids.js';
 import { words } from '../wordset.js';
 import {
   HOUSE_BOUNDS, HOUSE_FRONT_DOOR, LAWN_Y, WALL_T, fades, LEDGE_FADE_OVER, HOUSE_KITTEN_HOME, houseArea, houseFloorGround,
-  secretColliders, roomAt, zoneOfRoom, WING_JOINS, OLD_HOUSE_PLAN, planOf, withPlan, activePlan,
+  secretColliders, wardrobeColliders, roomAt, zoneOfRoom, WING_JOINS, OLD_HOUSE_PLAN, planOf, withPlan, activePlan,
 } from './houseplan.js';
 import { ST } from './housestages.js'; // the wing's drawing and life (the lazy wing stage, housestagewing.js)
 import { HOUSE_WING_FINDS, HOUSE_WING_SLOTS, HOUSE_WING_RESTS, SLOT_SIZE } from './housewingthings.js';
@@ -73,8 +73,8 @@ const HEDGE = freeze({
   minZ: HOUSE_BOUNDS.minZ - HEDGE_OUT, maxZ: HOUSE_BOUNDS.maxZ + HEDGE_OUT,
 });
 const GATE_HALF = 1.6; // the gap in the hedge, on the front path
-// a hedge piece's length: 1.6 m before the east wing lengthened the ring by 17%; 1.87 keeps the ring's piece count (and its triangles)
-const HEDGE_STEP = 1.87;
+// a hedge piece's length: 1.6 m before the east wing lengthened the ring by 17%; 1.87 kept the ring's piece count (and its triangles), 1.9 keeps it with the wonder room's two metres more (x 52)
+const HEDGE_STEP = 1.9;
 export const HOUSE_NEIGHBOURS = freeze([
   freeze({ x: -8, z: -33, yaw: 0, body: 0xe8d8b0, roof: 0xb05a4a, surface: 'siding' }),
   freeze({ x: 12, z: -34, yaw: 0, body: 0xc98a6a, roof: 0x5e5258, surface: 'brick' }),
@@ -97,6 +97,7 @@ const roomOf = (id) => activePlan().rooms.find((r) => r.id === id);
 // every old section is its level's and always drawn.
 const sectionZone = (s) => {
   if (s.owner === 'wing' && activePlan().wing) return 'sun';
+  if (s.owner === 'wonderstair' && activePlan().wing) return 'wonder'; // the secret stair is the wonder room's: drawn only once the wardrobe has been opened
   const r = roomOf(s.owner);
   return r ? zoneOfRoom(r) : s.level;
 };
@@ -528,6 +529,10 @@ function buildPlan(scene, P, { wind, gateEnds }) {
         m.userData.houseDetail = true;
         m.userData.houseLevel = 'sun';
         m.visible = false;
+      } else if (s.id === 'wonderstair' && P.wing) {
+        m.userData.houseDetail = true;
+        m.userData.houseLevel = 'wonder';
+        m.visible = false;
       }
       scene.add(m);
     }
@@ -552,6 +557,13 @@ function buildPlan(scene, P, { wind, gateEnds }) {
     parts.frontDoor = pivots.length === 2 ? { left: pivots[0], right: pivots[1] } : null;
     drawMarks(scene, plan.traversal, START_LEVEL);
     drawGlow(scene, START_LEVEL);
+    // the secret wonder room's hanging and moving parts (milestone 3): the kids' wardrobe's leaf, the feather wand, the string lights, the skylight's pool
+    const wonder = old && P.wing ? ST.wing.wonderParts(material) : null;
+    if (wonder) {
+      const shown = fullLevels(START_LEVEL, P.links);
+      for (const o of [wonder.wardrobe, wonder.wand, wonder.lights, wonder.pool]) { o.visible = shown.has(o.userData.houseLevel); scene.add(o); }
+      scene.add(wonder.lightUnder);
+    }
     // the solarium's sunny slots (the wing's milestone 2): one decal mesh, shown with its zone
     let sun = null;
     if (old && P.wing) {
@@ -596,7 +608,8 @@ function buildPlan(scene, P, { wind, gateEnds }) {
       hides: HOUSE_HIDES, // the mice's cover, each in its mouse's room (D10)
       yarnSpots: T.yarnSpots.map((s) => ({ x: s.x, z: s.z, where: said[s.words] })), // D14
       goalTypes: HOUSE_GOAL_TYPES, // D11
-      mapShapes: houseMapShapes(), // the floor plan (D12)
+      mapShapes: houseMapShapes(), // the floor plan (D12), without the wonder room and its stair until the kids' wardrobe has been opened (reveal)
+      mapVersion: 0, // the minimap repaints its floor plan when this moves (ui/minimap.js)
       mapGround: T.mapGround,
       moments: [],
       puddles: [],
@@ -627,6 +640,10 @@ function buildPlan(scene, P, { wind, gateEnds }) {
         // the secret bookcase and its collider rows (`secret: true`): colliders holds the shut one;
         // open into the library (from the stair) or into the stair (from the library, rough edge 3)
         secret: !P.secret ? null : { group: secretGroup, shut: secretColliders(false), open: secretColliders(true), stair: secretColliders(true, 'stair') },
+        // the kids' wardrobe the same way (`wardrobe: true` colliders; the wonder stair's mouth), the wonder room's parts, and what shows the secret on the corner map
+        wardrobe: !wonder ? null : { group: wonder.wardrobe, shut: wardrobeColliders(false), open: wardrobeColliders(true, 'room'), stair: wardrobeColliders(true, 'stair') },
+        wonder,
+        reveal: !wonder ? null : (open) => { areaData.mapShapes = houseMapShapes({ open }); areaData.mapVersion = (areaData.mapVersion ?? 0) + 1; },
         // the ground without the ledges: the level drawing reads the floor under her (step 2, D3)
         floor,
         // the six discoveries' spots (step 2, D6) and their moving parts: house life runs them

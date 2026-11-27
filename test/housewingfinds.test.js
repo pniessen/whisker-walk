@@ -41,9 +41,9 @@ function setup({ reducedMotion = false } = {}) {
 const keys = (paid) => paid.lines.map((l) => l[1]);
 
 describe('the east wing\'s discoveries', () => {
-  it('there are eight, paying 8 each under their own type, and each has a line in both word sets', () => {
+  it('there are thirteen (eight, and the wonder room\'s five), paying 8 each under their own type (the wardrobe pays housefind\'s 12), and each has a line in both word sets', () => {
     expect(AWARDS.housewing).toBe(8);
-    expect(HOUSE_WING_FINDS.map((f) => f.id)).toEqual(['sofa', 'fishtank', 'sunslot', 'sunall', 'bathtub', 'tap', 'bunk', 'fort']);
+    expect(HOUSE_WING_FINDS.map((f) => f.id)).toEqual(['sofa', 'fishtank', 'sunslot', 'sunall', 'bathtub', 'tap', 'bunk', 'fort', 'wardrobe', 'tunnel', 'treetop', 'scratch', 'feather']);
     for (const id of HOUSE_WING_FINDS.map((f) => f.id)) {
       expect(phrase(`house.find.${id}`, 'kids').length, id).toBeGreaterThan(0);
       withOffWords(() => expect(phrase(`house.find.${id}`, 'kids').length, id).toBeGreaterThan(0));

@@ -213,8 +213,8 @@ describe('two screens of one house', () => {
         expect(s.scene.getObjectByName('kitten') ?? null).toBeNull();
       }
       // the same golden mice, at the same spots
-      expect(gold(a).length).toBe(4);
-      for (const id of gold(a)) expect(id).toMatch(/^gm-house-[1-35]$/);
+      expect(gold(a).length).toBe(5);
+      for (const id of gold(a)) expect(id).toMatch(/^gm-house-[1-5]$/);
       expect(gold(b)).toEqual(gold(a));
       expect(b.goldMice.list.map((m) => [m.x, m.z])).toEqual(a.goldMice.list.map((m) => [m.x, m.z]));
       // the house's mice, the same on both after the same 300 frames

@@ -147,7 +147,7 @@ export function createAvatarUpdater({
 
     if (s.freezeTime > 0) s.freezeTime -= dt;
     // Clan Life Part 2: a fight holds the cat still (game/clanfight.js moves it).
-    player.speedFactor = (s.freezeTime > 0 || s.perched || s.fight) ? 0 : player.stalking ? 0.45 : 1;
+    player.speedFactor = (s.freezeTime > 0 || s.perched || s.fight) ? 0 : (player.stalking ? 0.45 : 1) * (s.areaLife?.pace ?? 1); // a place may slow her (the Old House's crinkly tunnel)
     // a perch climb drawn as a jump (s.climbT, game/interactions.js) shares this pose window and the one landing thump
     const wasPouncing = s.pounceTime > 0 || s.climbT > 0;
     if (s.pounceTime > 0) s.pounceTime -= dt;

@@ -390,7 +390,7 @@ describe('a walk in the house', () => {
         };
       },
     });
-    expect(got.gold).toEqual(['gm-house-1', 'gm-house-3', 'gm-house-5']); // the east wing's top bunk joins the two a walk without skills can reach
+    expect(got.gold).toEqual(['gm-house-1', 'gm-house-3', 'gm-house-4', 'gm-house-5']); // the east wing's top bunk and the wonder room's cat tree crown join the two a walk without skills can reach
     expect(got.knock).toEqual(HOUSE_KNOCKABLES.map((k) => k.id));
     expect(got.mice).toEqual(HOUSE_MICE.map(() => 'mouse'));
     expect(r.hides).toEqual([got.record.hides]);

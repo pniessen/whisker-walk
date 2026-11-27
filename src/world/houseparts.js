@@ -68,6 +68,8 @@ const CELL_ORDER = [
   'wainTile', 'slate', 'atticBoards',
   // the east wing: a wallpaper for each new room, a bathroom's checked floor
   'livingroom', 'solarium', 'kids', 'bath', 'bathFloor',
+  // the secret wonder room: a paper of paw prints
+  'wonder',
 ];
 export const HOUSE_ATLAS_CELLS = freeze(Object.fromEntries(CELL_ORDER.map((k, i) => [k, i])));
 const C = HOUSE_ATLAS_CELLS;
@@ -375,6 +377,14 @@ Object.assign(PATTERNS, {
     const c = (Math.floor(x / 12) + Math.floor(y / 12)) % 2 ? hex(0xeef2ec) : hex(0x5f9d9a);
     return mul(c, grain(x, y, 47, 0.02));
   },
+  // the wonder room: warm cream with small rose paw prints (a pad and four toes) in a half-drop
+  wonder(x, y) {
+    let c = hex(0xf0e4cc);
+    for (const [cx, cy] of [[12, 12], [36, 36]]) {
+      if (near(x, y, cx, cy + 2) < 3.2 || near(x, y, cx - 4.5, cy - 3) < 1.5 || near(x, y, cx - 1.5, cy - 5.5) < 1.5 || near(x, y, cx + 1.5, cy - 5.5) < 1.5 || near(x, y, cx + 4.5, cy - 3) < 1.5) c = hex(0xd9a08c);
+    }
+    return mul(c, grain(x, y, 48, 0.025));
+  },
   brass(x, y) { return mul(hex(0xc9a14a), (1 + 0.1 * wave(x, 24)) * grain(x, y, 37, 0.03)); },
   flame(x, y) { return mul(hex(0xfff0b0), grain(x, y, 38, 0.02)); },
 });
@@ -440,6 +450,7 @@ export function cellUV(cell, fu, fv) {
 // World tile sizes (m) per cell: [along, up] for a wall, [x, z] for a floor.
 const PAPER_TILE = freeze([0.8, 0.8]);
 const BRICK_TILE = freeze([0.9, 0.6]);
+const BRICK_TILE_BIG = freeze([1.8, 1.2]);
 const WOOD_TILE = freeze([1.0, 1.0]);
 const STONE_TILE = freeze([1.2, 1.2]);
 const PLASTER_TILE = freeze([1.0, 1.0]);
@@ -652,7 +663,7 @@ function wallSpan(s, sections) {
 }
 
 // What a side of the section faces: a room (its wallpaper), a stairwell, or outside (brick).
-const STAIR_PAPER = freeze({ main: 'hall', back: 'attic', cellar: 'cellar', wing: 'livingroom' });
+const STAIR_PAPER = freeze({ main: 'hall', back: 'attic', cellar: 'cellar', wing: 'livingroom', wonderstair: 'wonder' });
 function sideOf(s, W, sign) {
   const [px, , pz] = W.pt((W.lo + W.hi) / 2, 0, sign * 0.5);
   if (s.kind === 'stair') {
@@ -685,7 +696,7 @@ const ARCH_W = 0.07; // an architrave round a window or the door
 const SKIRT_H = 0.14;
 const DADO_Y = 0.8;
 const DADO_H = 0.05;
-const WAIN = freeze({ hall: 'wainSage', library: 'wainWood', parlour: 'wainRose', bedroom: 'wainSky', attic: 'wainPine', kitchen: 'wainTile', livingroom: 'wainWood', kids: 'wainSage', bath: 'wainTile' });
+const WAIN = freeze({ hall: 'wainSage', library: 'wainWood', parlour: 'wainRose', bedroom: 'wainSky', attic: 'wainPine', kitchen: 'wainTile', livingroom: 'wainWood', kids: 'wainSage', bath: 'wainTile', wonder: 'wainPine' });
 const WAIN_TILE = freeze([0.8, 6]);
 const WAIN_TILES = freeze({ kitchen: freeze([0.8, 0.8]), bath: freeze([0.8, 0.8]) }); // tiles have rows, so they keep their height phase (the kitchen floor is 0) // the boards run floor to rail, so only their width repeats
 
@@ -770,6 +781,8 @@ export const HOUSE_DECOR = freeze([
   D('bath', 'n', 41.9, 1.65, 'mirror', 0.6, 0.8), D('bath', 'n', 41.0, 1.8, 'sconce'), D('bath', 'n', 42.8, 1.8, 'sconce'),
   D('bath', 'w', -1.4, 1.6, 'frame', 0.8, 0.6, 'art3'), D('bath', 'e', -0.5, 1.7, 'frame', 0.6, 0.8, 'art2'),
   D('bath', 's', 39.2, 1.7, 'frame', 0.6, 0.7, 'art1'), D('bath', 's', 43.0, 1.7, 'frame', 0.6, 0.7, 'art3'),
+  // the wonder room: two pictures of cats (its lamp and string lights do the rest)
+  D('wonder', 'n', 43.4, 1.8, 'frame', 0.9, 0.65, 'art4'), D('wonder', 'n', 50.4, 1.7, 'frame', 0.6, 0.8, 'art2'),
 ]);
 
 // Where each sconce hangs, for house.js's warm glow: world x, y, z of its flame, the wall's inward normal.
@@ -1132,7 +1145,7 @@ function stairWall(kit, s, sections, deco) {
         bx(u - 0.015, u + 0.015, yc + 1.7, yc + 1.74, 0.03, 0.11, C.brass);
         bx(u - 0.025, u + 0.025, yc + 1.74, yc + 1.82, 0.07, 0.12, C.plaster);
         bx(u - 0.018, u + 0.018, yc + 1.82, yc + 1.88, 0.078, 0.112, C.flame);
-      } else if (st.id !== 'secret') {
+      } else if (st.id !== 'secret' && st.id !== 'wonderstair') {
         const w = 0.55, hh = 0.7;
         const cell = [C.art1, C.art2, C.art3, C.art4][(i + (st.id === 'back' ? 2 : 0)) % 4];
         bx(u - w / 2, u + w / 2, yc + 1.25, yc + 1.25 + hh, 0, 0.045, C.darkWood);
@@ -1208,7 +1221,7 @@ export function paneMesh(section, w) {
   return finish(mesh, { cast: false });
 }
 
-const FLOOR_CELL = freeze({ hall: 'oak', library: 'oak', parlour: 'oak', kitchen: 'stone', bedroom: 'pine', attic: 'atticBoards', cellar: 'slate', livingroom: 'oak', solarium: 'stone', kids: 'pine', bath: 'bathFloor' });
+const FLOOR_CELL = freeze({ hall: 'oak', library: 'oak', parlour: 'oak', kitchen: 'stone', bedroom: 'pine', attic: 'atticBoards', cellar: 'slate', livingroom: 'oak', solarium: 'stone', kids: 'pine', bath: 'bathFloor', wonder: 'atticBoards' });
 
 export function floorMesh(room, material) {
   const kit = new Kit();
@@ -1228,10 +1241,12 @@ export function skirtMesh(room, material) {
   const x0 = room.minX - h, x1 = room.maxX + h, z0 = room.minZ - h, z1 = room.maxZ + h;
   const kit = new Kit();
   if (y > LAWN_Y + EPS) {
-    kitFace(kit, 'z', z0, -1, rect(x0, x1, LAWN_Y, y), C.brick, BRICK_TILE);
-    kitFace(kit, 'z', z1, 1, rect(x0, x1, LAWN_Y, y), C.brick, BRICK_TILE);
-    kitFace(kit, 'x', x0, -1, rect(z0, z1, LAWN_Y, y), C.brick, BRICK_TILE);
-    kitFace(kit, 'x', x1, 1, rect(z0, z1, LAWN_Y, y), C.brick, BRICK_TILE);
+    // the wonder room's wide, tall brick (4.2 m up over the lawn) is cut in bricks twice the size: a quarter of the quads
+    const tile = room.id === 'wonder' ? BRICK_TILE_BIG : BRICK_TILE;
+    kitFace(kit, 'z', z0, -1, rect(x0, x1, LAWN_Y, y), C.brick, tile);
+    kitFace(kit, 'z', z1, 1, rect(x0, x1, LAWN_Y, y), C.brick, tile);
+    kitFace(kit, 'x', x0, -1, rect(z0, z1, LAWN_Y, y), C.brick, tile);
+    kitFace(kit, 'x', x1, 1, rect(z0, z1, LAWN_Y, y), C.brick, tile);
     return kitMesh(kit, material, `houseSkirt:${room.id}`);
   }
   if (!(y < LAWN_Y - EPS)) return null;
@@ -1269,6 +1284,7 @@ const STAIR_LOOK = freeze({
   back: freeze({ tread: 'pine', riser: 'pine', side: 'darkWood' }),
   cellar: freeze({ tread: 'stone', riser: 'stone', side: 'cellar' }),
   secret: freeze({ tread: 'pine', riser: 'darkWood', side: 'darkWood' }), // a plain old back stair, behind the bookcase
+  wonderstair: freeze({ tread: 'pine', riser: 'darkWood', side: 'darkWood' }), // and its twin behind the kids' wardrobe
 });
 const STAIR_RUNNER = freeze({ main: 'rugBlue', back: 'rugGreen' });
 
@@ -2262,7 +2278,7 @@ export function furnitureGeometry(f) {
 // A solid piece as a mesh in its own frame (house.js stands it and turns it). It casts:
 // it joins its room's merged mesh, or is a tall piece's own group.
 export function furnitureMesh(f, material) {
-  return kitMeshFrom(furnitureGeometry(f), material, `houseFurniture:${f.id}`, { cast: true });
+  return kitMeshFrom(furnitureGeometry(f), material, `houseFurniture:${f.id}`, { cast: !f.nocast }); // a low ring or box she crawls through (`nocast`) throws no shadow
 }
 
 // The library's secret bookcase (step 2, ruling D9), shut: a bookcase like the
@@ -2280,27 +2296,31 @@ export function furnitureMesh(f, material) {
 // so it has a plain wooden back, in its one mesh (the prop merge would empty the
 // leaf of a second one, and the fade find nothing on it).
 export function secretBookcaseGroup(material) {
-  const b = SECRET_BOOKCASE;
-  const f = { id: 'library-secret', kind: 'bookcase', x: b.x, z: b.z, w: b.w - 0.06, d: b.d, h: b.h };
+  return secretLeafGroup(material, SECRET_BOOKCASE, BUILDERS.bookcase, { id: 'library-secret', name: 'houseSecretBookcase', level: 'ground', zone: 'ground', flag: 'secretBookcase' });
+}
+// Any such leaf (the kids' wardrobe's: housewingparts.js hands its builder, SECRET_WARDROBE its shape): `build(p, f)` makes the piece, `id` names it, `name` the
+// group, `level` its floor, `zone` the level drawing's name for it, `flag` the userData mark house life looks for.
+export function secretLeafGroup(material, b, build, { id, name, level, zone, flag }) {
+  const f = { id, kind: 'leaf', x: b.x, z: b.z, w: b.w - 0.06, d: b.d, h: b.h };
   const p = new Piece();
-  BUILDERS.bookcase(p, f);
+  build(p, f);
   const hw = f.w / 2 - 0.04; // inside its side boards
   p.box(-hw, hw, 0.1, f.h - 0.08, -f.d / 2, -f.d / 2 + 0.02, 'darkWood', ['x-', 'x+', 'y-', 'y+', 'z+']);
   const leaf = new THREE.Group();
-  leaf.name = 'houseSecretBookcase:leaf';
+  leaf.name = `${name}:leaf`;
   leaf.position.set(b.w / 2, 0, 0);
   leaf.userData.fadeOccluder = [{ t: 'cyl', r: Math.hypot(b.w, b.d) / 2, y0: 0, y1: b.h }];
-  leaf.add(kitMeshFrom(p.geometry(), material, 'houseFurniture:library-secret', { cast: true }));
+  leaf.add(kitMeshFrom(p.geometry(), material, `houseFurniture:${id}`, { cast: true }));
   const g = new THREE.Group();
-  g.name = 'houseSecretBookcase';
-  g.position.set(b.hinge.x, levelY('ground'), b.hinge.z);
+  g.name = name;
+  g.position.set(b.hinge.x, levelY(level), b.hinge.z);
   g.add(leaf);
-  g.userData.secretBookcase = true;
+  g.userData[flag] = true;
   g.userData.leaf = leaf;
   g.userData.noMerge = true; // the leaf keeps its own mesh, and house life turns the group (housefinds.js)
   g.userData.noContactShadow = true;
   g.userData.houseDetail = true;
-  g.userData.houseLevel = 'ground';
+  g.userData.houseLevel = zone;
   return g;
 }
 
@@ -2426,7 +2446,7 @@ export function pawMarksMesh(level, spots) {
   for (const sp of spots) {
     for (const side of [-1, 1]) {
       for (const [px, pz, rx, rz] of PAW_PADS) {
-        const g = new THREE.CircleGeometry(1, 10);
+        const g = new THREE.CircleGeometry(1, 7);
         g.rotateX(-Math.PI / 2);
         g.scale(rx, 1, rz);
         g.translate(px + side * PAW_APART, 0, pz);

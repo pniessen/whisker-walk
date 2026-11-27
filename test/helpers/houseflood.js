@@ -4,7 +4,9 @@
 // real stairs, so it reaches a room only by walking there.
 import { isWalkableAt } from '../../src/player.js';
 
-export function houseFlood(area, start = area.spawn, step = 0.5) {
+export function houseFlood(shut, start = shut.spawn, step = 0.5) {
+  // walks as if the kids' wardrobe stood open (its shut colliders left out): the wonder room is a place she reaches, by its stair, once she has opened it
+  const area = shut.colliders.some((c) => c.wardrobe) ? { ...shut, colliders: shut.colliders.filter((c) => !c.wardrobe) } : shut;
   const key = (i, j) => `${i},${j}`;
   const at = (i, j) => ({ x: start.x + i * step, z: start.z + j * step });
   const seen = new Set();

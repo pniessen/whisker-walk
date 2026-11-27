@@ -101,8 +101,8 @@ describe('the finds, the mice, the yarn, the hints and the nooks', () => {
     expect(new Set(T.HOUSE_WING_HINTS.map((h) => h.room))).toEqual(new Set(['livingroom', 'solarium', 'kids', 'bath']));
   });
 
-  it('three outfit nooks, data only: each reachable, in its room, 3 m from yarn spots and 2 m from golden mice', () => {
-    expect(T.HOUSE_WING_NOOKS.length).toBe(3);
+  it('four outfit nooks (the sofa, the lower bunk\'s pillow, the tub, the wonder room\'s hammock), data only: each reachable, in its room, 3 m from yarn spots and 2 m from golden mice', () => {
+    expect(T.HOUSE_WING_NOOKS.length).toBe(4);
     for (const n of T.HOUSE_WING_NOOKS) {
       expect(roomAt(n.x, n.z), n.id).toBe(n.room);
       const r = tflood.regionAt(n.x, n.z, area.ground.y(n.x, n.z)); // her feet, on the ground there (a ledge's top included)

@@ -127,7 +127,8 @@ describe('never lost behind a wall', () => {
     // top, 2.25 m up) and the bedroom's north-west one beside the wardrobe; both were moved before
     // the east wing's four rooms add 11 more (the solarium's glass corners, the kids' room's and the bathroom's; the
     // living room's, the bunk's and a plant's are beside a piece and moved)
-    expect(corners.length).toBe(35);
+    // and the wonder room's four (milestone 3), all stood on
+    expect(corners.length).toBe(39);
     const bad = [];
     for (const [room, x, z] of corners) for (let k = 0; k < 16; k++) for (const zoom of ZOOMS) {
       for (const pitch of [-0.25, DEFAULT_PITCH, 0.85]) {
@@ -146,7 +147,7 @@ describe('never lost behind a wall', () => {
   // from the library, the leaf along the stair's west wall), so she can climb it from the library.
   function stairSweep(open, stairs) {
     for (const pace of [2.2 + 1.2 * 0.8, 2.2 + 2.8 * 0.8]) {
-      const w = createHouseWalk({ reducedMotion: false, pace, secretOpen: open });
+      const w = createHouseWalk({ reducedMotion: false, pace, secretOpen: open, wardrobeOpen: open === 'library' }); // (the kids' wardrobe stands open into the room, from the stair side, so the wonder stair can be climbed)
       for (const s of stairs) {
         const len = Math.hypot(s.x1 - s.x0, s.z1 - s.z0);
         const ux = (s.x1 - s.x0) / len;
@@ -241,7 +242,7 @@ describe('never lost behind a wall', () => {
       }
     }
     expect(bad).toEqual([]);
-  }, 90_000);
+  }, 180_000); // (90_000 until the wonder stair's cells joined the sweep)
 
   it('a stub that stood in the line stays down while the wall is wanted, and rises only after', () => {
     // a raised floor at 0.5 with its wall at z 0; she is below it at z 1.5, the camera over it
@@ -604,7 +605,8 @@ describe('never lost on a climb', () => {
     // big books and the chest off the taller pieces (their north sides, and the shelf's front, now
     // face floor) and made the keys 0.6 m deep (the piano's front is theirs)
     // the east wing's ledges add 13 more sides of open floor: the sofa's and the shelf's, the bunks' and the tub's
-    expect(sides).toBe(43);
+    // the wonder room's five ledges add 19 more (the tree's four in a row, 4 + 3 + 3 + 3 open sides... measured, and the hammock's three)
+    expect(sides).toBe(62);
     expect(jumps).toEqual([]);
   }, 90_000);
 
@@ -720,7 +722,8 @@ describe('never lost on a climb', () => {
     expect(tall.map(([l]) => l.id).sort()).toEqual([
       'bath-tub', 'bedroom-shelf', 'bedroom-wardrobe', 'kids-bunk-low', 'kids-bunk-top', 'library-bigbooks', 'library-books-n1', 'library-books-n2',
       'library-books-w', 'library-steps', 'living-shelf', 'living-sofa', 'parlour-keys', 'parlour-piano',
-    ]); // + the wing's: the tub, both bunks, the living room's shelf and sofa
+      'wonder-hammock', 'wonder-tree-base', 'wonder-tree-crown', 'wonder-tree-p1', 'wonder-tree-p2',
+    ]); // + the wing's: the tub, both bunks, the living room's shelf and sofa; and the wonder room's: the cat tree's four and the hammock
     const bad = [];
     for (const [l, g] of tall) {
       // the spot she stands on nearest the ledge's centre

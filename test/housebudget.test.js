@@ -106,7 +106,7 @@ describe('the worst spot in the house', () => {
       const { m: withMochi } = await measured(light, 'shut', 1, true);
       for (const id of ids) {
         const s = m.at(id);
-        expect(s.meshes, `${light} ${id}`).toBeLessThanOrEqual(314); // the east wing's re-pin, 300 -> 306: its four stand-ins, a box each (milestone 1); 306 -> 314: its two new mice and the kids' top-bunk golden mouse (milestone 2), always drawn (the ceiling is 450)
+        expect(s.meshes, `${light} ${id}`).toBeLessThanOrEqual(317); // milestone 3, 314 -> 317: the cat tree's golden mouse, always drawn. The east wing's re-pin, 300 -> 306: its four stand-ins, a box each (milestone 1); 306 -> 314: its two new mice and the kids' top-bunk golden mouse (milestone 2), always drawn (the ceiling is 450)
         expect(s.casters, `${light} ${id}`).toBeLessThanOrEqual(200);
         expect(s.triangles, `${light} ${id}`).toBeLessThanOrEqual(60300); // milestone 2, 60,000 -> 60,300: its two new mice, always drawn. The beauty pass's deliberate re-pin: 55,000 -> 59,500 (cornice, wainscot, wall dressing, glow); the wing's far-room fix round, 59,500 -> 60,000 (the four far stand-ins dressed: 52 -> 302 triangles, in view from the hall)
         expect(withMochi.at(id).triangles, `${light} ${id}`).toBeGreaterThan(s.triangles); // she is drawn
@@ -198,21 +198,23 @@ describe('the worst spot in the house', () => {
 // house's own worst spot is not worse (it stays inside its ceilings), and the stand-ins cost less.
 // =============================================================================
 describe('the east wing\'s zones', () => {
-  const WING = ['living', 'sun', 'kids', 'bath'];
+  const WING = ['living', 'sun', 'kids', 'bath', 'wonder'];
   // the design's per-room figures (living 3,000, solarium 2,400, kids 3,400, bath 2,000 triangles), as built and pinned: the
   // living room's and the kids' room's walls are dressed like the old rooms (cornice, wainscot, curtains, pictures); the
   // solarium's is with the wing stair, its stair gallery's walls and its glass walls' frames, which the design left out
   const LIMITS = {
     living: { triangles: 3900, meshes: 22, casters: 12 },
     sun: { triangles: 5000, meshes: 28, casters: 15 },
-    kids: { triangles: 5100, meshes: 26, casters: 17 },
+    kids: { triangles: 5150, meshes: 28, casters: 18 }, // milestone 3: 5,100 -> 5,150, 26 -> 28 meshes, 17 -> 18 casters: the kids' wardrobe's leaf and the light under its doors (mesh and caster counts here are the kids' zone alone)
+    // the secret wonder room (milestone 3), measured: its walls 2,700 (the stair's four sections with them), the cat tree and hammock 600, the tunnel 340, the stair 520, paw marks 770, the brick skirt 210 (cut in bricks twice the size), its floor, lights and wand. The design said 3,600 / 35 / 20: the room is 11 x 10 and 4.2 m up
+    wonder: { triangles: 6300, meshes: 38, casters: 25 },
     bath: { triangles: 2300, meshes: 17, casters: 10 },
   };
   // her zone and the zone joined to it that is near: the parlour's door, the living room's door to the solarium, the stair, the bathroom door
   // (houselevels.js draws her zone and at most the one joined zone nearest her, so a spot is two rooms, the old ground kept for
   // the parlour alone at the door, or the old ground kept for no room out on the lawn)
   const SPOTS = [['living', []], ['living', ['ground']], ['living', ['sun']], ['sun', []], ['sun', ['living']], ['sun', ['kids']],
-    ['kids', []], ['kids', ['sun']], ['kids', ['bath']], ['bath', []], ['bath', ['kids']]];
+    ['kids', []], ['kids', ['sun']], ['kids', ['bath']], ['kids', ['wonder']], ['bath', []], ['bath', ['kids']], ['wonder', []], ['wonder', ['kids']]];
   // the old house's worst spot before the wing, with Mochi (measured at the start of the wing's build, main 7a0e6f70)
   const OLD_WORST = { day: 67046, dusk: 67483 };
 
@@ -239,8 +241,8 @@ describe('the east wing\'s zones', () => {
         const s = m.atZone(zone, near);
         if (process.env.BUDGET_LOG) console.log(light, 'wing spot', zone, near.join('+'), JSON.stringify(s));
         expect(s.triangles, `${zone}+${near}`).toBeLessThanOrEqual(63000);
-        expect(s.meshes, `${zone}+${near}`).toBeLessThanOrEqual(348); // milestone 2: 340 -> 348, its two mice and the sunny slots' patch; the design said 330: each room's wall sections are a mesh each (so they can sink), and air, glow and marks come to 338 with two rooms
-        expect(s.casters, `${zone}+${near}`).toBeLessThanOrEqual(190);
+        expect(s.meshes, `${zone}+${near}`).toBeLessThanOrEqual(364); // milestone 2: 340 -> 348, its two mice and the sunny slots patch; milestone 3: 348 -> 364 (with the cat tree's golden mouse), the wardrobe and the wonder room's own parts (the pair kids + wonder, once the wardrobe is open, is the most); the design said 330: each room's wall sections are a mesh each (so they can sink), and air, glow and marks come to 338 with two rooms. The hard ceiling is 450
+        expect(s.casters, `${zone}+${near}`).toBeLessThanOrEqual(198); // 190 -> 198 the same way (the hard ceiling is 380)
       }
     }, 60_000);
 
@@ -248,7 +250,7 @@ describe('the east wing\'s zones', () => {
       const { m } = await measured(light, 'shut', 1, true);
       const worst = houseWorstSpot(m, ids);
       // four dressed stand-ins (302 triangles), the parlour's east wall dressed on its new face, the wing's four knock-overs and (milestone 2) its two new mice: 1,200 to 1,300 triangles
-      expect(worst.triangles).toBeLessThanOrEqual(OLD_WORST[light] + 1350);
+      expect(worst.triangles).toBeLessThanOrEqual(OLD_WORST[light] + 1400); // milestone 3: 1,350 -> 1,400, the cat tree's golden mouse, always drawn
       expect(worst.triangles).toBeLessThanOrEqual(70000);
       // at the parlour's east door, the living room drawn beside her; her level alone (the stairs' levels step back)
       const door = m.atZone('ground', ['living']);
@@ -270,7 +272,7 @@ describe('the east wing\'s zones', () => {
         const s = m.atZone('ground', [z], { outside: true });
         if (process.env.BUDGET_LOG) console.log(light, 'on the lawn by', z, JSON.stringify(s));
         expect(s.triangles, `${light} ${z}`).toBeLessThanOrEqual(63000);
-        expect(s.meshes, `${light} ${z}`).toBeLessThanOrEqual(340);
+        expect(s.meshes, `${light} ${z}`).toBeLessThanOrEqual(352);
         expect(s.casters, `${light} ${z}`).toBeLessThanOrEqual(190);
       }
     }
@@ -290,7 +292,7 @@ describe('the east wing\'s zones', () => {
       expect(far.userData.noContactShadow, z).toBe(true);
     }
     const panes = scene.children.filter((c) => c.userData?.paneZone);
-    expect(panes.length).toBe(12); // living room 2, solarium 6, kids' room 3, bathroom 1
+    expect(panes.length).toBe(13); // living room 2, solarium 6, kids' room 3, bathroom 1, the wonder room's porthole 1
     for (const z of WING) expect(scene.children.some((c) => c.userData?.houseSimple === z)).toBe(true);
   }, 30_000);
 });

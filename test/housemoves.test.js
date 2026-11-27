@@ -112,10 +112,11 @@ describe('the moves', () => {
     const home = f.regionAt(area.spawn.x, area.spawn.z);
     const ledges = ledgesWithMoves();
     // the two routes' eight ledges and the two short climbs; the piano's body has no move onto it;
-    // and the east wing's five: the sofa, the shelf, the two bunks and the tub
+    // the east wing's five: the sofa, the shelf, the two bunks and the tub; and the wonder room's five: the four levels of the cat tree and the hammock
     expect(ledges.map((l) => l.id).sort()).toEqual([
       'attic-seat', 'bath-tub', 'bedroom-chest', 'bedroom-shelf', 'bedroom-wardrobe', 'kids-bunk-low', 'kids-bunk-top', 'library-bigbooks',
       'library-books-n1', 'library-books-n2', 'library-books-w', 'library-steps', 'living-shelf', 'living-sofa', 'parlour-keys',
+      'wonder-hammock', 'wonder-tree-base', 'wonder-tree-crown', 'wonder-tree-p1', 'wonder-tree-p2',
     ]);
     for (const l of ledges) {
       const r = f.regionAt(cx(l), cz(l), l.y);
@@ -134,7 +135,7 @@ describe('the moves', () => {
       const [a, b] = c.ends.map((e) => f.regionAt(e.x, e.z, e.y));
       byId.set(c.id, { from: a, to: b });
     }
-    expect(Object.keys(HOUSE_ROUTES).sort()).toEqual(['attic', 'bath', 'bedroom', 'bunk', 'library', 'living', 'piano']);
+    expect(Object.keys(HOUSE_ROUTES).sort()).toEqual(['attic', 'bath', 'bedroom', 'bunk', 'library', 'living', 'piano', 'tree']);
     for (const [name, ids] of Object.entries(HOUSE_ROUTES)) {
       let at = home;
       for (const id of ids) {
@@ -148,7 +149,7 @@ describe('the moves', () => {
     // every move is on some route but the library's three ways back: off n2, off the steps, and the leap back to n1
     const named = new Set(Object.values(HOUSE_ROUTES).flat());
     const all = [...area.traversal.crossings, ...area.traversal.hops].map((m) => m.id);
-    expect(all.filter((id) => !named.has(id)).sort()).toEqual(['library-n2-steps', 'library-steps-floor', 'library-w-n1']);
+    expect(all.filter((id) => !named.has(id)).sort()).toEqual(['library-n2-steps', 'library-steps-floor', 'library-w-n1', 'wonder-hammock-p1', 'wonder-hammock-p2', 'wonder-p2-hammock']); // and the hammock's three (the leap on from the second platform, the drop to the first and the leap back): a leap from a spot where the crown's hop is the obvious one
     expect([...named].every((id) => all.includes(id))).toBe(true);
   });
 
@@ -170,8 +171,8 @@ describe('the moves', () => {
       }
     }
     // every hop followed by a hop: the library's three (all but onto and off the plank), the bedroom's
-    // five, one each on the seat and the keys, and the east wing's seven (the sofa 3, the bunks 3, the tub 1)
-    expect(checked.length).toBe(17);
+    // five, one each on the seat and the keys, the east wing's seven (the sofa 3, the bunks 3, the tub 1) and the wonder room's seven (the tree's)
+    expect(checked.length).toBe(24);
     // a spot in no room is a mistake in the data, and says so
     expect(() => levelAt(-8, -2)).toThrow(/no room/);
   });
@@ -183,6 +184,7 @@ describe('the ledges', () => {
     expect(ids).toEqual([
       'attic-seat', 'bath-tub', 'bedroom-chest', 'bedroom-shelf', 'bedroom-wardrobe', 'kids-bunk-low', 'kids-bunk-top', 'library-bigbooks',
       'library-books-n1', 'library-books-n2', 'library-books-w', 'library-steps', 'living-shelf', 'living-sofa', 'parlour-keys', 'parlour-piano',
+      'wonder-hammock', 'wonder-tree-base', 'wonder-tree-crown', 'wonder-tree-p1', 'wonder-tree-p2',
     ]);
     expect(HOUSE_LEDGES.map((l) => l.id).sort()).toEqual(ids);
     for (const l of HOUSE_LEDGES) {
@@ -216,7 +218,7 @@ describe('the ledges', () => {
     }
     // the ledge rows have no colliders of their own; every other solid piece keeps its own
     const cols = houseColliders();
-    for (const f of HOUSE_FURNITURE.filter((q) => q.r > 0)) {
+    for (const f of HOUSE_FURNITURE.filter((q) => q.r > 0 && !q.free)) { // (the tunnel's rings are `free`: its side rows stand for them)
       const own = cols.filter((c) => c.r === f.r && Math.hypot(c.x - f.x, c.z - f.z) <= Math.max(f.w, f.d) / 2 + 1e-6 && c.level === f.level);
       if (f.ledge) expect(own.filter((c) => inRect(c, HOUSE_LEDGES.find((l) => l.id === f.id), -0.05)), f.id).toEqual([]);
       else expect(own.length, f.id).toBeGreaterThanOrEqual(1);

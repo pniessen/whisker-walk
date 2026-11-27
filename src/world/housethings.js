@@ -7,7 +7,7 @@
 // Co-walk ready (D19): nothing here is drawn from any stream.
 
 import {
-  HOUSE_ROOMS, HOUSE_STAIRS, SECRET_BOOKCASE, houseSections, roomAt, stairAt,
+  HOUSE_ROOMS, HOUSE_STAIRS, SECRET_BOOKCASE, SECRET_WARDROBE, houseSections, roomAt, stairAt,
 } from './houseplan.js';
 
 import {
@@ -107,6 +107,7 @@ export const HOUSE_GOAL_TYPES = freeze(['mischief', 'photo', 'play', 'sits', 'sc
 export const HOUSE_BOXES = frozenAll([
   { x: 42.4, z: 4.7 },
   { x: 43.2, z: 1.25 },
+  { x: 44.0, z: -6.9 }, // the wonder room's cardboard castle
 ]);
 
 // ---- the corner map (D12) ----
@@ -131,13 +132,19 @@ const strip = (x0, z0, x1, z1) => {
 // doorways and stair mouths left open. The secret stair is drawn like the others, but
 // its library mouth, the shut bookcase's line, is drawn as wall, so the bookcase stays
 // a surprise; its bedroom end is a real way down and stays open (ruling S2-7).
-export function houseMapShapes() {
+// The secret wonder room and its stair are left off until the kids' wardrobe has been opened (`open`), and the wardrobe's line is a wall
+// like the bookcase's; once it is open the line goes and the room and its stair are drawn (house.js `reveal` swaps the list in).
+const SECRET_OWNERS = new Set(['wonder', 'wonderstair']);
+export function houseMapShapes({ open = false } = {}) {
   const out = [];
-  for (const r of HOUSE_ROOMS) out.push({ minX: r.minX, maxX: r.maxX, minZ: r.minZ, maxZ: r.maxZ, tone: 'ledge' });
-  for (const s of HOUSE_STAIRS) out.push({ ...stairRect(s), tone: 'ledge' });
-  for (const q of houseSections()) if (q.kind !== 'lintel') out.push(strip(q.x0, q.z0, q.x1, q.z1));
+  const hidden = (id) => !open && SECRET_OWNERS.has(id);
+  for (const r of HOUSE_ROOMS) if (!hidden(r.id)) out.push({ minX: r.minX, maxX: r.maxX, minZ: r.minZ, maxZ: r.maxZ, tone: 'ledge' });
+  for (const s of HOUSE_STAIRS) if (!hidden(s.id)) out.push({ ...stairRect(s), tone: 'ledge' });
+  for (const q of houseSections()) if (q.kind !== 'lintel' && !hidden(q.owner)) out.push(strip(q.x0, q.z0, q.x1, q.z1));
   const b = SECRET_BOOKCASE;
   out.push(strip(b.x - b.w / 2, b.z, b.x + b.w / 2, b.z));
+  const w = SECRET_WARDROBE;
+  if (!open) out.push(strip(w.x - w.w / 2, w.z, w.x + w.w / 2, w.z));
   return out;
 }
 
@@ -152,11 +159,14 @@ export function houseMapShapes() {
 export const STOP_IN = 0.3;
 let lines = null;
 let shut = null;
+let shutWardrobe = null;
 function wallLines() {
   if (!lines) {
     lines = houseSections().filter((q) => q.kind !== 'lintel').map((q) => freeze({ x0: q.x0, z0: q.z0, x1: q.x1, z1: q.z1 }));
     const b = SECRET_BOOKCASE;
     shut = freeze({ x0: b.x - b.w / 2, z0: b.z, x1: b.x + b.w / 2, z1: b.z });
+    const w = SECRET_WARDROBE;
+    shutWardrobe = freeze({ x0: w.x - w.w / 2, z0: w.z, x1: w.x + w.w / 2, z1: w.z });
   }
   return lines;
 }
@@ -184,10 +194,10 @@ function sideNormal(l, px, pz, qx, qz) {
   return [nx, nz];
 }
 
-export function toyStop(px, pz, x, z, { secretOpen = false } = {}) {
+export function toyStop(px, pz, x, z, { secretOpen = false, wardrobeOpen = false } = {}) {
   if (regionAt(px, pz) === regionAt(x, z)) return null;
   const all = wallLines();
-  const walls = secretOpen ? all : [...all, shut];
+  const walls = secretOpen && wardrobeOpen ? all : [...all, ...(secretOpen ? [] : [shut]), ...(wardrobeOpen ? [] : [shutWardrobe])];
   let best = -1;
   let hit = null;
   for (const l of walls) {
