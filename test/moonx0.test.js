@@ -83,16 +83,16 @@ describe('the journal ids', () => {
 });
 
 describe('the gold stub and the beauty scatter', () => {
-  it('gm-moon-4 is in the mice lists, equal to the plan, and not in ROCK_KEEP_OUT; the totals are 68 and 44', () => {
+  it('gm-moon-4 is in the mice lists, equal to the plan, and not in ROCK_KEEP_OUT; the totals are 71 and 47', () => {
     expect(GOLD_MICE.moon.map((m) => m.id)).toEqual(['gm-moon-1', 'gm-moon-2', 'gm-moon-3', 'gm-moon-4']);
     expect(P.MOON_MICE.map((m) => ({ ...m }))).toEqual(GOLD_MICE.moon);
     expect(KNOWN_GOLD.has('gm-moon-4')).toBe(true);
     const m4 = P.MOON_MICE[3];
     expect(m4.y).toBe(3);
     expect(P.ROCK_KEEP_OUT.some((k) => k[0] === m4.x && k[1] === m4.z)).toBe(false);
-    expect(Object.values(GOLD_MICE).flat().length).toBe(68);
-    expect(goldForEdition('canon', CATALOG).size).toBe(68);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(44);
+    expect(Object.values(GOLD_MICE).flat().length).toBe(71);
+    expect(goldForEdition('canon', CATALOG).size).toBe(71);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(47);
   });
   it('the beauty scatters and the rocks are byte-identical to main (recorded hashes)', () => {
     expect(B.SCATTER_MICE).toEqual(['gm-moon-1', 'gm-moon-2', 'gm-moon-3']);

@@ -134,10 +134,10 @@ describe('the reserved ids', () => {
 });
 
 describe('the golden mice', () => {
-  it('five stub mice inside the bounds (4 and 5 are for wing C), and the totals are 68 and 44', async () => {
+  it('five stub mice inside the bounds (4 and 5 are for wing C), and the totals are 71 and 47', async () => {
     const { CRYSTAL_BOUNDS } = await import('../src/world/crystal.js');
     expect(GOLD_MICE.crystal.map((x) => x.id)).toEqual(['gm-crystal-1', 'gm-crystal-2', 'gm-crystal-3', 'gm-crystal-4', 'gm-crystal-5']);
-    expect(GOLD_TOTAL).toBe(68);
+    expect(GOLD_TOTAL).toBe(71);
     for (const mouse of GOLD_MICE.crystal) {
       expect(KNOWN_GOLD.has(mouse.id)).toBe(true);
       expect(mouse.x).toBeGreaterThan(CRYSTAL_BOUNDS.minX); expect(mouse.x).toBeLessThan(CRYSTAL_BOUNDS.maxX);

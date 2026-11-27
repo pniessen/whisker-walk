@@ -13,6 +13,8 @@ import { CRYSTAL_PAGES, CAVE_LIFE_PAGES, CRYSTAL_WING_PAGES, CRYSTAL_PAGE_WORDS,
 import { crystalOn } from './crystalflag.js';
 import { SNOWVILLE_LIVE_PAGES, SNOWVILLE_HINTS } from './snowvillepages.js';
 import { snowvilleOn } from './snowvilleflag.js';
+import { TREEHOUSE_PAGES, TREEHOUSE_HINTS } from './treehousepages.js';
+import { treehouseOn } from './treehouseflag.js';
 import { GREENHOUSE_PAGES, GREENHOUSE_PAGE_WORDS } from './greenhousepages.js';
 import { greenhouseOn } from './greenhouseflag.js';
 import { RIDE_PAGE_WORDS, FAIR_PAGE_WORDS } from './fairwords.js';
@@ -39,6 +41,9 @@ const TWOLEG_ART = '<svg viewBox="0 0 24 32" width="0.9em" height="1.2em" aria-h
   + '<rect x="7.4" y="7.8" width="9.2" height="1.6" rx="0.8" fill="#d8503a"/>'
   + '<circle cx="12" cy="2.9" r="1.7" fill="#f4f0e8"/>'
   + '</svg>';
+
+// A new area's live pages over the placeholders: a page of `pages` takes its emoji and name and a hint read when shown (the area's lazy file fills `hints`), flagged `flag` so it hides with the area.
+const livePages = (pages, hints, flag, at) => (c) => { const p = pages.find((q) => q[0] === c.id); return p ? { id: c.id, emoji: p[1], [flag]: true, name: p[at], get hint() { return hints[c.id] ?? ''; } } : c; };
 
 export const CRITTER_INFO = [
   { id: 'bird', emoji: '🐦', name: 'Chirpy Bird', hint: 'Move slowly and stay downwind to get close.' },
@@ -99,7 +104,7 @@ export const CRITTER_INFO = [
   // The Greenhouse's eight pages (src/greenhousepages.js): drawn only behind ?greenhouse=1 until the place is in the game.
   ...GREENHOUSE_PAGES.map(([id, emoji]) => ({ id, emoji, greenhouse: true, get name() { return GREENHOUSE_PAGE_WORDS[id].name(); }, get hint() { return GREENHOUSE_PAGE_WORDS[id].hint(); } })),
   // N0 (Snowville, Treehouse, Jungle): 17 placeholder pages each, never drawn (later: true) until their area's milestones give them words.
-  ...[['sv', 'sw', '❄️', 'Snowville'], ['th', 'tl', '🌳', 'Treehouse'], ['jl', 'jw', '🌴', 'Jungle']].flatMap(([a, b, emoji, place]) => [...Array(17)].map((_, i) => ({ id: (i < 9 ? a + (i + 1) : b + (i - 8)), emoji, name: place + ' page', hint: 'Not found yet.', later: true }))).map((c) => { const live = SNOWVILLE_LIVE_PAGES.find((p) => p[0] === c.id); return live ? { id: c.id, emoji: live[1], snowville: true, name: live[3], get hint() { return SNOWVILLE_HINTS[c.id] ?? ''; } } : c; }), // V3: Snowville's six discoveries are live (behind ?snowville=0 they hide)
+  ...[['sv', 'sw', '❄️', 'Snowville'], ['th', 'tl', '🌳', 'Treehouse'], ['jl', 'jw', '🌴', 'Jungle']].flatMap(([a, b, emoji, place]) => [...Array(17)].map((_, i) => ({ id: (i < 9 ? a + (i + 1) : b + (i - 8)), emoji, name: place + ' page', hint: 'Not found yet.', later: true }))).map(livePages(SNOWVILLE_LIVE_PAGES, SNOWVILLE_HINTS, 'snowville', 3)).map(livePages(TREEHOUSE_PAGES, TREEHOUSE_HINTS, 'treehouse', 2)), // T3: the Treehouse's six discoveries are live (only behind ?treehouse=1), as V3 did Snowville's (behind ?snowville=0 they hide)
 ];
 
 // renderJournalHtml(journal, goldenFound, goldenTotal) → HTML string.
@@ -115,7 +120,7 @@ export function renderJournalHtml(journal, goldenFound, goldenTotal, { chasedOff
   const j = journal && typeof journal === 'object' ? journal : {};
   const found = Number.isFinite(goldenFound) ? goldenFound : 0;
   const total = Number.isFinite(goldenTotal) ? goldenTotal : 0;
-  const cards = CRITTER_INFO.filter((c) => !c.later && (!c.moon || (moonOn() && moonWingShown(c.id))) && (!c.greenhouse || greenhouseOn()) && (!c.reef || (reefOn() && wingPageShown(c.id, j))) && (!c.crystal || (crystalOn() && crystalWingShown(c.id))) && (!c.snowville || snowvilleOn())).map((c) => {
+  const cards = CRITTER_INFO.filter((c) => !c.later && (!c.moon || (moonOn() && moonWingShown(c.id))) && (!c.greenhouse || greenhouseOn()) && (!c.reef || (reefOn() && wingPageShown(c.id, j))) && (!c.crystal || (crystalOn() && crystalWingShown(c.id))) && (!c.snowville || snowvilleOn()) && (!c.treehouse || treehouseOn())).map((c) => {
     const raw = j[c.id];
     const count = Number.isFinite(raw) ? raw : 0;
     if (count > 0) {

@@ -136,7 +136,7 @@ describe('the build', () => {
     expect(sig(a)).toBe(sig(b));
     expect(JSON.stringify([ra.colliders, ra.perches, ra.pois, ra.scenics])).toBe(JSON.stringify([rb.colliders, rb.perches, rb.pois, rb.scenics]));
   });
-  it('makes ONE PointLight, at intensity 0, a few merged meshes, no water and no collectible yet', () => {
+  it('makes ONE PointLight, at intensity 0, a few merged meshes, no water and (before the branches stage is in) no collectible', () => {
     const scene = new THREE.Scene();
     const area = build(scene);
     const lights = []; scene.traverse((o) => { if (o.isLight) lights.push(o); });
@@ -257,18 +257,18 @@ describe('the way in: a catalog row after the Farm, a region, a map place, the F
     expect(Math.hypot(a.x - area.spawn.x, a.z - area.spawn.z)).toBeLessThan(GATE_REACH);
     expect(arrivalFor('treehouse-farm')).toMatchObject({ areaId: 'farm', x: 30 });
   });
-  it('no golden mouse, find or journal page is claimed yet (later milestones)', () => {
-    expect(GOLD_MICE.treehouse).toBeUndefined();
-    expect(JOURNAL_TYPES.filter((t) => /^(th|tl)\d/.test(t))).toHaveLength(17); // the N0 placeholders only
+  it('the journal ids stay the 17 N0 placeholders (T3 only made six of them live, test/treehousefinds.test.js) and the three golden mice are the finds\' (milestone T3)', () => {
+    expect(GOLD_MICE.treehouse.map((m) => m.id)).toEqual(['gm-treehouse-1', 'gm-treehouse-2', 'gm-treehouse-3']);
+    expect(JOURNAL_TYPES.filter((t) => /^(th|tl)\d/.test(t))).toHaveLength(17);
   });
 });
 
 describe('the two stage slots', () => {
-  it('load together, once, and fill ST.branches and ST.lift with empty, valid slots', async () => {
+  it('load together, once, and fill ST.branches (the finds, T3; the bridge and supper come with T5) and ST.lift (empty, valid)', async () => {
     const a = loadTreehouseStages();
     expect(loadTreehouseStages()).toBe(a);
     expect(await a).toBe(ST);
-    expect(ST.branches).toEqual({});
+    expect(Object.keys(ST.branches)).toEqual(['finds']);
     expect(ST.lift).toEqual({});
     const area = build(new THREE.Scene());
     expect(area.perches).toHaveLength(P.TREEHOUSE_PERCHES.length);

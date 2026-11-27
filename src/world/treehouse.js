@@ -2,8 +2,7 @@
 // THE TREEHOUSE VILLAGE (milestone T1: the tree world). A little town in a giant, friendly oak: the leafy roots where a walk begins, the great trunk, the Bakery deck, the
 // branch walk (a rope bridge) to the Bookshop deck, the far platform, the rope bridge on to the Crown deck with its Bell Tower, a forest rim and leaves overhead. The levels
 // are PERCHES (the engine has no multi-storey ground): every hop gains at most 1.4 m and reaches at most 2.4 m across, so an ordinary cat reaches every deck with no skill,
-// and there is always a railing. An ordinary map place of the Suburban and rural region, entered by the Farm's north signpost (no gate, no teleport pair). Milestone T2 adds Nutmeg and chapter one (world/treehousemission.js). No finds,
-// mice, life or music yet (later milestones). Draws no random number and reads no clock; builds in withLocalUuids.
+// and there is always a railing. An ordinary map place of the Suburban and rural region, entered by the Farm's north signpost (no gate, no teleport pair). Milestone T2 adds Nutmeg and chapter one (world/treehousemission.js). T3 adds the six discoveries, their collectibles and the three golden mice (world/treehousefinds.js, in the branches stage). No life or music yet (later milestones). Draws no random number and reads no clock; builds in withLocalUuids.
 // HARD RULES (plan 2.6): camera zoom stops at step 2 here (src/camzoom.js ZOOM_CAPPED_AREAS); NO real `ground.ceil` (the ground is flat, the walk's FLAT_GROUND); the leaves
 // stand above CANOPY_MIN_Y (11 m) so step 2 never clips them; at most ONE PointLight in the whole place, made at build with intensity 0.
 // =============================================================================
@@ -44,7 +43,7 @@ export function build(scene) {
       waterFx: [],
       perches: [...P.TREEHOUSE_PERCHES, ...(ST.branches?.perches?.() ?? [])].map((p) => ({ x: p.x, z: p.z, y: p.y, kind: p.kind })),
       pois: P.TREEHOUSE_POIS.map((p) => ({ ...p })),
-      collectibles: [],
+      collectibles: ST.branches?.finds?.collectibles() ?? [], // six (milestone T3, the finds in the branches stage)
       scenics: P.TREEHOUSE_SCENICS.map((k) => ({ ...k })),
       tippables: [],
       boxes: [],
@@ -61,6 +60,7 @@ export function build(scene) {
         const light = createTreehouseLight(ctx);
         const nutmeg = createNutmeg({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent, light, tier: ctx.tier });
         const prompts = createTreehousePrompts(nutmeg);
+        const finds = ST.branches?.finds?.life(ctx); // the six discoveries (milestone T3)
         return {
           light,
           nutmeg,
@@ -68,8 +68,8 @@ export function build(scene) {
           interact: () => prompts.interact(),
           // a step done by anyone in the room (a `th-` event); a stage's own steps join this line with their stage
           credit: (ev) => nutmeg.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t); nutmeg.update(dt, t, catPos, camera, session); },
-          dispose() { nutmeg.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t); nutmeg.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); },
+          dispose() { finds?.dispose(); nutmeg.dispose(); light.dispose(); },
         };
       },
     };

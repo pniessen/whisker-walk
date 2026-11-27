@@ -241,3 +241,16 @@ export function drawLight() {
   l.castShadow = false;
   return l;
 }
+
+// The shared glow of a find: a soft sphere of light, moved to wherever a find is made and shown for a moment.
+export function createFindGlow() {
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.9, 12, 8),
+    new THREE.MeshBasicMaterial({ color: 0xfff4d8, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending, forceSinglePass: true }),
+  );
+  mesh.name = 'treehouse:findGlow';
+  mesh.visible = false;
+  mesh.castShadow = false;
+  Object.assign(mesh.userData, { noCast: true, noContactShadow: true, noMerge: true });
+  return mesh;
+}

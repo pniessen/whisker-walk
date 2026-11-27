@@ -36,4 +36,6 @@ export const HEAD_WEAR = Object.freeze([
   Object.freeze({ id: 'keepercap', slot: 'head', find: 'lighthouse', emoji: '🧢', name: () => phrase('wear.keepercap.name') }),
   // The Greenhouse (2026-11-26): the Bucket Hat's shape in sage canvas with a white daisy; deliberately not a straw hat (a placeholder name)
   Object.freeze({ id: 'gardenerhat', slot: 'head', find: 'greenhouse', emoji: '🌼', name: () => phrase('wear.gardenerhat.name') }),
+  // The Treehouse village (2026-11-27): a leaf-green peaked cap with an acorn-brown button (hats.js CAP_LOOKS). The plan called it the Acorn Cap, but the Park's found hat already is (a placeholder name)
+  Object.freeze({ id: 'canopycap', slot: 'head', find: 'treehouse', emoji: '🌳', name: () => phrase('wear.canopycap.name') }),
 ]);

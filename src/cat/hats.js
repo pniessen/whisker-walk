@@ -19,7 +19,7 @@ import { SKULL } from './torso.js';
 // the cat's head slot builds these.
 
 export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown', 'acorncap',
-  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap', 'keepercap', 'gardenerhat', 'crystalcirclet'];
+  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap', 'keepercap', 'gardenerhat', 'crystalcirclet', 'canopycap'];
 
 // Palette. The three shop hats' colours are model.js's own (it imports these
 // for Hagrid's hats); the prize colours are the same hexes as model.js's
@@ -1000,6 +1000,8 @@ const CAP_LOOKS = {
   tradercap: { panel: [0x7a4a2a, 0x3f8046, 0x7a4a2a], check: 1, peak: 0x4a3a26, stitch: 0xd8c08a },
   // The Keeper's Cap (Lighthouse milestone 4): the same cap in navy, its stitching and its button brass.
   keepercap: { panel: [0x24365a, 0x1b2a47], peak: 0x141d30, stitch: 0xc9a24a, button: 0xc9a24a },
+  // The Treehouse village's Canopy Cap (milestone T3): the same cap in leaf green, a bark-brown peak and an acorn-brown button.
+  canopycap: { panel: [0x4f9a48, 0x3f8040], peak: 0x7a5a3c, stitch: 0xe3c98a, button: 0xb98a5a },
 };
 const paperboyRim = (phi) => (PAPERBOY.rimFront + PAPERBOY.rimBack) / 2 + ((PAPERBOY.rimFront - PAPERBOY.rimBack) / 2) * Math.cos(phi);
 function peakedCap(id, simple) {
@@ -1035,6 +1037,7 @@ function peakedCap(id, simple) {
 const paperboycap = (simple) => peakedCap('paperboycap', simple);
 const tradercap = (simple) => peakedCap('tradercap', simple);
 const keepercap = (simple) => peakedCap('keepercap', simple);
+const canopycap = (simple) => peakedCap('canopycap', simple);
 
 // --- clips (found outfits step 2, lane H, Task 3; beauty pass) ---------------
 //
@@ -1241,7 +1244,7 @@ function crystalcirclet(simple) {
   return finish('crystalcirclet', [band, backFace(band), ...gems]);
 }
 
-const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap, keepercap, gardenerhat, crystalcirclet };
+const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap, keepercap, gardenerhat, crystalcirclet, canopycap };
 
 // The clips' ground looks (src/foundwear/display.js): the clip as worn (the
 // simple build), turned so its face is up and propped toward -z, as if
