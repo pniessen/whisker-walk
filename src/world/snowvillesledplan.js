@@ -16,7 +16,7 @@ const r2 = (v) => Math.round(v * 100) / 100;
 
 // The track's corner points, summit to foot (a gentle S down the east flank), then smoothed twice (Chaikin) into the line the sled follows.
 const CORNERS = SLED_KEEP;
-function chaikin(pts, rounds) {
+export function chaikin(pts, rounds) {
   let p = pts;
   for (let k = 0; k < rounds; k++) {
     const q = [p[0]];

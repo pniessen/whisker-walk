@@ -8,6 +8,7 @@ import { wingColliders, wingPerches, wingStory } from './snowvillewingplan.js';
 import { drawWing } from './snowvillewingparts.js';
 import { drawDetail } from './snowvilledetail.js';
 import { detailColliders } from './snowvilledetailplan.js';
+import { skiColliders } from './snowvilleskisplan.js';
 import { createWing } from './snowvillewinglive.js';
 import { createSnowErrandLive } from './snowvillejoblive.js';
 import { strayHomes, createStrayNotes } from './snowvillestrays.js';
@@ -18,7 +19,7 @@ Object.assign(ST, {
   b: Object.freeze({
     finds: Object.freeze({ collectibles: snowvilleCollectibles, scenics: snowvilleScenics, life: createSnowvilleFindsLife }),
     critters: createSnowvilleCritters,
-    colliders: () => [...wingColliders(), ...detailColliders()],
+    colliders: () => [...wingColliders(), ...detailColliders(), ...skiColliders()],
     perches: wingPerches,
     story: wingStory(),
     draw: (kit, M, opts) => { drawWing(kit, M); drawDetail(kit, M, opts); drawRun(kit, M); }, // the wing's drawing and the round-two detail (houses, trees, notices, village)
