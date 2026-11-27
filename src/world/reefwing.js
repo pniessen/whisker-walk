@@ -8,7 +8,7 @@
 // cut (drop the three calls in world/reef.js and the life's wiring) and nothing else is hidden.
 // =============================================================================
 
-import { REEF_BOUNDS, reefY, scatterCoral, scatterKelp } from './reefplan.js';
+import { REEF_BOUNDS, reefY, scatterCoralAll, scatterKelpAll, inReefClear } from './reefplan.js';
 import { mulberry32 } from '../rng.js';
 
 const P3 = (x, z) => Object.freeze({ x, z });
@@ -65,9 +65,11 @@ function clearOfWing(x, z, extra) {
   return true;
 }
 
-export function scatterWing() {
+// What the Sealab's footprint takes away is taken AFTER the scatter (the stream, and so every other clump, stays put): wingAll keeps the old indices.
+export const scatterWing = () => scatterWingAll().filter((k) => !inReefClear(k.x, k.z, k.s));
+export function scatterWingAll() {
   const rng = mulberry32(0x77696e67);
-  const old = [...scatterCoral(), ...scatterKelp().map((k) => ({ x: k.x, z: k.z, s: 0.3 }))];
+  const old = [...scatterCoralAll(), ...scatterKelpAll().map((k) => ({ x: k.x, z: k.z, s: 0.3 }))];
   const out = [];
   for (const h of [3, 2, 1]) { // the big ones first, so the small ones fill round them
     const want = h === 3 ? WING_COUNT.tall : h === 2 ? WING_COUNT.mid : WING_COUNT.low;

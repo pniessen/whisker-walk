@@ -17,6 +17,15 @@ import { mulberry32 } from '../rng.js';
 import * as P from './reefplan.js';
 import { sandPatch } from './reefdecor.js';
 
+// The Reef's lazy stages (the Sealab, R13) draw with the same three and the same merge, handed on from here (reef.js gives them to the stage): a stage chunk that
+// imported three itself would pull three out of the start-up file into a chunk of its own (a build rule, test/lazybuild.test.js).
+export const T3 = Object.freeze({ // (named members only: the whole namespace object would keep all of three)
+  BufferGeometry: THREE.BufferGeometry, BufferAttribute: THREE.BufferAttribute, Color: THREE.Color, BoxGeometry: THREE.BoxGeometry, CylinderGeometry: THREE.CylinderGeometry,
+  CircleGeometry: THREE.CircleGeometry, RingGeometry: THREE.RingGeometry, PlaneGeometry: THREE.PlaneGeometry, TorusGeometry: THREE.TorusGeometry, ConeGeometry: THREE.ConeGeometry, SphereGeometry: THREE.SphereGeometry,
+  Mesh: THREE.Mesh, Group: THREE.Group, PointLight: THREE.PointLight, MeshStandardMaterial: THREE.MeshStandardMaterial, MeshBasicMaterial: THREE.MeshBasicMaterial, DoubleSide: THREE.DoubleSide,
+});
+export { mergeGeometries };
+
 // beauty round 4: the rocks are not all one grey: mossy, blue, warm and plain stones to pick from by index
 export const STONES = Object.freeze([0x8fa3a0, 0x8da59a, 0x93a1ad, 0xa0a496, 0x86a0a4]);
 export const COL = Object.freeze({
@@ -41,7 +50,7 @@ function lines(min, max, edge, outer) {
 let settles = null;
 function settleAt(x, z) {
   if (!settles) {
-    settles = P.scatterCoral().map((k) => [k.x, k.z, k.s * 1.5]);
+    settles = P.scatterCoralAll().map((k) => [k.x, k.z, k.s * 1.5]);
     settles.push([-32.8, -31.5, 4.2], [-29, -30, 3.2], [-36, -31.5, 3.2], [-23.5, -29.5, 1.8]); // the boat's belly, bow and stern, the anchor
   }
   let m = 0;
@@ -286,7 +295,7 @@ export function coralGeometry(k, i) {
 }
 
 export function drawCoral(kit, M) {
-  P.scatterCoral().forEach((k, i) => { for (const g of coralGeometry(k, i)) kit.put('paint', M.paint, g, { noCast: k.s < 0.7 }); });
+  P.scatterCoralAll().forEach((k, i) => { if (P.inReefClear(k.x, k.z, k.s)) return; for (const g of coralGeometry(k, i)) kit.put('paint', M.paint, g, { noCast: k.s < 0.7 }); }); // (the Sealab's footprint is cleared here, after the scatter, so every other clump keeps its index)
 }
 
 // ---- the kelp: one InstancedMesh, the sway in the vertex shader -------------------------------------------------------------
@@ -343,7 +352,8 @@ export function kelpMaterial(time = { value: 0 }) {
 }
 
 export function drawKelp() {
-  const list = P.scatterKelp();
+  const all = P.scatterKelpAll();
+  const list = all.filter((k) => !P.inReefClear(k.x, k.z, 0.3));
   const mesh = new THREE.InstancedMesh(bladeGeometry(), kelpMaterial(), list.length);
   mesh.name = 'reef:kelp';
   const m4 = new THREE.Matrix4();
@@ -352,17 +362,19 @@ export function drawKelp() {
   const pos = new THREE.Vector3();
   const sc = new THREE.Vector3();
   const tint = new THREE.Color();
-  list.forEach((k, i) => {
+  let n = 0;
+  all.forEach((k, i) => {
+    if (P.inReefClear(k.x, k.z, 0.3)) return; // the blades keep their own indices (the scale and tint read them)
     eu.set(k.lean, k.phase, k.lean * 0.5, 'YXZ');
     q.setFromEuler(eu);
     pos.set(k.x, P.reefY(k.x, k.z) - 0.05, k.z);
     sc.set(0.7 + 0.8 * ((i * 0.737) % 1), k.h, 1); // round 5: broad and slim blades
     m4.compose(pos, q, sc);
-    mesh.setMatrixAt(i, m4);
+    mesh.setMatrixAt(n, m4);
     const u = (i * 0.618) % 1;
     const w = (i * 0.381 + 0.17) % 1; // a yellow-green blade, a blue-green one, brighter or darker
     tint.setRGB(0.75 + 0.5 * w, 0.78 + 0.35 * u, 1.1 - 0.7 * w + 0.1 * u);
-    mesh.setColorAt(i, tint);
+    mesh.setColorAt(n++, tint);
   });
   mesh.instanceMatrix.needsUpdate = true;
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
@@ -383,7 +395,7 @@ export function drawPebbles(kit, M) {
     kit.put('paint', M.paint, paint(at(new THREE.DodecahedronGeometry(0.08 + rng() * 0.1, 0).scale(1, 0.6, 1), x, z, 0.04, rng() * 3), COL.stoneLight), { noCast: true });
   }
   // round 2: pebbles and shells strewn over the whole seabed (eight triangles each), thicker round the coral, the boat and the anchor, so the sand is never bare
-  const near = [...P.scatterCoral().map((k) => [k.x, k.z, k.s + 1.2]), [-32.8, -31.5, 5], [-23.5, -29.5, 3]];
+  const near = [...P.scatterCoralAll().map((k) => [k.x, k.z, k.s + 1.2]), [-32.8, -31.5, 5], [-23.5, -29.5, 3]];
   const tones = [0xb6c7c2, 0xd9c9a8, 0xa89a82, 0xe8d6c0, 0x8fa3a0];
   let made = 0;
   for (let tries = 0; made < 70 && tries < 900; tries++) {
@@ -395,7 +407,8 @@ export function drawPebbles(kit, M) {
     if (P.reefColliders().some((c) => Math.hypot(x - c.x, z - c.z) < c.r + 0.3)) continue; // not inside the big coral or the arch's feet
     if (Math.hypot(x + 32.8, z + 31.5) < 3.4) continue; // not inside the boat
     const sz = 0.07 + rng() * 0.11;
-    kit.put('paint', M.paint, paint(at(new THREE.OctahedronGeometry(sz, 0).scale(1, 0.5, 1 + rng() * 0.5), x, z, sz * 0.2, rng() * 3), tones[Math.floor(rng() * tones.length)]), { noCast: true });
+    const stone = paint(at(new THREE.OctahedronGeometry(sz, 0).scale(1, 0.5, 1 + rng() * 0.5), x, z, sz * 0.2, rng() * 3), tones[Math.floor(rng() * tones.length)]);
+    if (!P.inReefClear(x, z, sz)) kit.put('paint', M.paint, stone, { noCast: true }); // (inside the Sealab's footprint the stone is not kept; the stream runs on)
     made++;
   }
 }
@@ -404,7 +417,7 @@ export function drawPebbles(kit, M) {
 // starfish (five flat arms, a paler middle) and sea urchins (a dark purple body with pale spines), strewn from their own seeded stream, thickest round the coral.
 export function drawSeabedLife(kit, M) {
   const rng = mulberry32(0x73656167);
-  const near = P.scatterCoral().map((k) => [k.x, k.z, k.s + 1.5]);
+  const near = P.scatterCoralAll().map((k) => [k.x, k.z, k.s + 1.5]);
   const cols = P.reefColliders();
   const okSpot = (x, z) => Math.hypot(x - P.REEF_SPAWN.x, z - P.REEF_SPAWN.z) > 6 && Math.hypot(x + 32.8, z + 31.5) > 3.6 && !cols.some((c) => Math.hypot(x - c.x, z - c.z) < c.r + 0.3)
     && x > P.REEF_BOUNDS.minX + 2 && x < P.REEF_BOUNDS.maxX - 2 && z > P.REEF_BOUNDS.minZ + 2 && z < P.REEF_BOUNDS.maxZ - 2;
@@ -420,7 +433,8 @@ export function drawSeabedLife(kit, M) {
     for (let b = 0; b < 3; b++) {
       const h = 0.35 + rng() * 0.4;
       const a = rng() * Math.PI * 2;
-      kit.put('paint', M.paint, paint(at(new THREE.ConeGeometry(0.035, h, 3, 1, true).translate(0, h / 2, 0).rotateZ(0.25 + rng() * 0.3).rotateY(a), x, z, -0.02), nudge(gc, 0, 0, (b - 1) * 0.05)), { noCast: true });
+      const blade = paint(at(new THREE.ConeGeometry(0.035, h, 3, 1, true).translate(0, h / 2, 0).rotateZ(0.25 + rng() * 0.3).rotateY(a), x, z, -0.02), nudge(gc, 0, 0, (b - 1) * 0.05));
+      if (!P.inReefClear(x, z, 0.3)) kit.put('paint', M.paint, blade, { noCast: true });
     }
     n++;
   }
@@ -432,18 +446,23 @@ export function drawSeabedLife(kit, M) {
     const yaw = rng() * 3;
     for (let a = 0; a < 5; a++) {
       const arm = new THREE.ConeGeometry(0.05, 0.3, 3, 1, true).translate(0, 0.15, 0).rotateX(Math.PI / 2).scale(1, 0.35, 1).rotateY((a * Math.PI * 2) / 5);
-      kit.put('paint', M.paint, paint(at(arm, x, z, 0.03, yaw), sc), { noCast: true });
+      const armG = paint(at(arm, x, z, 0.03, yaw), sc);
+      if (!P.inReefClear(x, z, 0.3)) kit.put('paint', M.paint, armG, { noCast: true });
     }
-    kit.put('paint', M.paint, paint(at(new THREE.OctahedronGeometry(0.07, 0).scale(1, 0.5, 1), x, z, 0.05), nudge(sc, 0, -0.1, 0.15)), { noCast: true });
+    const mid = paint(at(new THREE.OctahedronGeometry(0.07, 0).scale(1, 0.5, 1), x, z, 0.05), nudge(sc, 0, -0.1, 0.15));
+    if (!P.inReefClear(x, z, 0.3)) kit.put('paint', M.paint, mid, { noCast: true });
     n++;
   }
   for (let n = 0, t = 0; n < 9 && t < 400; t++) {
     const [x, z] = spot();
     if (!okSpot(x, z)) continue;
-    kit.put('paint', M.paint, paint(at(new THREE.IcosahedronGeometry(0.11, 0).scale(1, 0.8, 1), x, z, 0.09), 0x5a3a78), { noCast: true });
+    const clear = P.inReefClear(x, z, 0.3);
+    const body = paint(at(new THREE.IcosahedronGeometry(0.11, 0).scale(1, 0.8, 1), x, z, 0.09), 0x5a3a78);
+    if (!clear) kit.put('paint', M.paint, body, { noCast: true });
     for (let a = 0; a < 5; a++) {
       const th = (a * Math.PI * 2) / 5 + rng();
-      kit.put('paint', M.paint, paint(at(new THREE.ConeGeometry(0.02, 0.16, 3, 1, true).translate(0, 0.08, 0).rotateZ(1.0 + rng() * 0.5).rotateY(th), x, z, 0.1), 0xc9b4d8), { noCast: true });
+      const spine = paint(at(new THREE.ConeGeometry(0.02, 0.16, 3, 1, true).translate(0, 0.08, 0).rotateZ(1.0 + rng() * 0.5).rotateY(th), x, z, 0.1), 0xc9b4d8);
+      if (!clear) kit.put('paint', M.paint, spine, { noCast: true });
     }
     n++;
   }

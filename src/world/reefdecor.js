@@ -11,8 +11,8 @@
 // =============================================================================
 
 import { mulberry32 } from '../rng.js';
-import { REEF_BOUNDS, ZONES, KEEP_OUT, ARCH, LADDER, REEF_POIS, reefColliders, scatterCoral, scatterKelp } from './reefplan.js';
-import { WING_AVOID, scatterWing } from './reefwing.js';
+import { REEF_BOUNDS, ZONES, KEEP_OUT, ARCH, LADDER, REEF_POIS, REEF_CLEARS, reefColliders, scatterCoralAll, inReefClear } from './reefplan.js';
+import { WING_AVOID, scatterWingAll } from './reefwing.js';
 import { LEDGE, SHELLS, POCKETS, MARLO, storyColliders } from './reefstory.js';
 import { REEF_COLLECTIBLES, REEF_FIND_MARKS, REEF_GOLD, REEF_SCENICS } from './reeffindsplan.js';
 import { BOAT, GLOW, ANCHOR } from './reefdeep.js';
@@ -57,8 +57,8 @@ export function decorAvoid() {
   const a = [];
   for (const [x, z, r] of KEEP_OUT) a.push([x, z, r + 0.4]); // the spawn court, the arch, the ladder, every zone's middle, the three mice
   for (const c of [...reefColliders(), ...storyColliders()]) a.push([c.x, c.z, c.r + 0.6]); // everything solid
-  for (const k of scatterCoral()) a.push([k.x, k.z, k.s + 0.35]);
-  for (const k of scatterWing()) a.push([k.x, k.z, k.s + 0.35]);
+  for (const k of scatterCoralAll()) a.push([k.x, k.z, k.s + 0.35]); // (the whole lists: the footprint's clearing comes after the scatter)
+  for (const k of scatterWingAll()) a.push([k.x, k.z, k.s + 0.35]);
   for (const [x, z, r] of WING_AVOID) a.push([x, z, r + 0.3]); // the cave and its mouth, the lanterns, the stage, the ledge's neighbours, the pockets, the oyster
   a.push([LEDGE.x, LEDGE.z, 3.8]); // the ledge keeps its slab, boulders and shell visible
   for (const s of SHELLS) a.push([s.x, s.z, 1.8]);
@@ -172,8 +172,10 @@ function scatterFamily(fam, { n, sep = 3, rad, lo, hi, foot, placed, edge = 3 })
 }
 
 let cached = null;
+let cachedClears = 0; // a stage that clears ground after the first call makes the next call scatter again
 export function scatterDecor() {
-  if (cached) return cached;
+  if (cached && cachedClears === REEF_CLEARS.length) return cached;
+  cachedClears = REEF_CLEARS.length;
   const placed = []; // the big things keep clear of each other (and the seagrass keeps clear of them)
   const out = {};
   out.arch = scatterFamily('arch', { n: 6, sep: 4.5, rad: 0.1, lo: 1, hi: 1, foot: 1.0, placed }).items;
@@ -194,6 +196,8 @@ export function scatterDecor() {
   out.dollar = scatterFamily('dollar', { n: 12, sep: 3, rad: 1.2, lo: 1, hi: 3, foot: 0.12 }).items;
   out.pebble = scatterFamily('pebble', { n: 28, sep: 2.6, rad: 1.1, lo: 3, hi: 7, foot: 0.1 }).items;
   out.ripple = scatterFamily('ripple', { n: 14, sep: 5, rad: 0.7, lo: 3, hi: 4, foot: { r: 0.9 }, placed: null }).items;
+  // the Sealab's footprint (a stage pushes it onto REEF_CLEARS) takes its plants and decor away now, after every stream has run
+  for (const k of Object.keys(out)) if (k !== 'grassPatches') out[k] = out[k].filter((t) => !inReefClear(t.x, t.z, t.r ?? 0.3));
   cached = out;
   return out;
 }
