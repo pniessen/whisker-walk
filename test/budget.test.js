@@ -24,6 +24,7 @@ const { build: buildGreenhouse } = await import('../src/world/greenhouse.js');
 const { build: buildMoon } = await import('../src/world/moon.js');
 const { build: buildReef } = await import('../src/world/reef.js');
 const { build: buildCrystal } = await import('../src/world/crystal.js');
+const { build: buildTreehouse } = await import('../src/world/treehouse.js');
 const { HOUSE_LEVELS } = await import('../src/world/houseplan.js');
 const { measureHouse } = await import('./helpers/housebudget.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -554,6 +555,11 @@ const AREAS = [
   // Milestone C3 (2026-11-26, the finds: the Echo Wall slab, the Crystal Garden's five tiny crystals and the Gold Vein rock in ONE merged vertex-coloured mesh, no caster) measured 10 / 1 / 14,634 built (+326 triangles, +1 mesh), +12%: 11 / 2 / 16,400. The finds' glow is the walk's life, not in this count.
   // Milestone C5 (2026-11-26, wing B: the Blue Pool disc, six stepping crystals, the Blue, Gold and Heart great crystals and their small rings, the Gold Gallery's nine vein slabs and three nook rocks with their gold seams, the Heart as its own dormant mesh, the passages' lamps as one Points object) measured 12 / 2 / 19,786 built (+5,152 triangles, +2 meshes: the pool and the Heart; the lamps are Points), +12%: 13 / 2 / 22,200. The plan expected about 35,000 triangles at most for the whole place. The Heart's halo, the nook's glints, the show's motes and the lamps' glow are the walk's life, not in this count.
   ['crystal', buildCrystal, 13, 2, 22200],
+  // The Treehouse village. Milestone T1 (2026-11-27, the tree world: the leafy floor, the great oak, the four decks with their stilts, railings, lanterns and huts' shells, the two
+  // rope bridges, the stairs, the post box, the forest rim and the leaf canopy; merged by material into ONE caster mesh, one non-casting leaf mesh and one lantern-glow mesh, on the
+  // floor) measured 4 meshes / 1 caster / 27,704 triangles built, +12%: 5 / 2 / 31,100 (the plan expected about 28,000 for stage A). The dapple and the one light are the
+  // walk's life, not in this count. Row B (the Bell Tower's show, the rope bridge to the Bookshop) comes with milestone T5: measured, then set.
+  ['treehouse', buildTreehouse, 5, 2, 31100],
   // Milestone R2 (Marlo and chapter one) adds only the coral ledge (no mesh more; about 200 triangles measured on top of R3: 7 / 2 / 10,700). Marlo, the shells, their glints, the picture bubble, the meow's ring and the air pockets are the walk's life, counted in test/reefmarlo.test.js
 ];
 

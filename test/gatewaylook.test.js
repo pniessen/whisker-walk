@@ -272,8 +272,8 @@ describe('the name board on the town\'s north signpost', () => {
     expect(mid.z - end.z).toBeGreaterThan(GATE_POST_R * 0.5);
   });
 
-  it('no other end has a name board (only town-roofs and, since Market step 4, town-market, and since Lighthouse milestone 4 seaside-lighthouse), and town-roofs is still at most 400 + 12 triangles', () => {
-    const signed = ['town-roofs', 'town-market', 'seaside-lighthouse'];
+  it('no other end has a name board (only town-roofs and, since Market step 4, town-market, since Lighthouse milestone 4 seaside-lighthouse, and since Treehouse milestone T1 farm-treehouse), and town-roofs is still at most 400 + 12 triangles', () => {
+    const signed = ['town-roofs', 'town-market', 'farm-treehouse', 'seaside-lighthouse'];
     for (const end of Object.values(GATEWAY_ENDS).flat()) {
       const g = buildGateLook(end);
       if (!g) continue;

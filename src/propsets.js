@@ -615,6 +615,10 @@ const YARN_SPOTS = {
     { x: 5, z: 12, where: 'on the smooth stone' },
     { x: -20, z: -8, where: 'by the crystal garden' },
   ],
+  treehouse: [
+    { x: -4, z: 19, where: 'on the leafy roots' },
+    { x: 12, z: 10, where: 'under the far branches' },
+  ],
   moon: [
     { x: -12, z: 6, where: 'on the open moon dust' },
     { x: 20, z: 0, where: 'on the flat grey plain' },

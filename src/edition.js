@@ -12,6 +12,7 @@ import { words } from './wordset.js';
 import { phrase } from './clanphrases.js';
 import { rivalFor } from './rivalclans.js';
 import { teleOn } from './teleflag.js';
+import { treehouseOn } from './treehouseflag.js';
 
 export const EDITIONS = Object.freeze(['canon', 'legacy']);
 export const DEFAULT_EDITION = 'canon';
@@ -46,6 +47,7 @@ export function areaInEdition(entry, edition) {
 // (The golden-mice total counts by areaInEdition alone, as it counts the Moon, which has no row.)
 export function areaShown(entry, edition) {
   if (entry && entry.gate === 'tele' && !teleOn()) return false;
+  if (entry && entry.flag === 'treehouse' && !treehouseOn()) return false; // the Treehouse village: behind its own switch until its release pass
   return areaInEdition(entry, edition);
 }
 

@@ -4,7 +4,7 @@
 //
 // A region's members are real ids: CATALOG.areas ids (src/progression.js) and the teleport places (TELE_ENDS in
 // src/teleport.js), the Moon among the latter (its catalog row came with the map circle). test/regions.test.js fails if any of those has no
-// region, if a place is in two, or if a region is empty. A planned place (the Treehouse village, Snowville, the Jungle lodge)
+// region, if a place is in two, or if a region is empty. A planned place (Snowville, the Jungle lodge)
 // is added here when its own milestone gives it an id.
 //
 // The names are literal phrase ids, registered in the phrase table when this file loads (the lazy files' way); they read the
@@ -23,7 +23,7 @@ addPhrases(REGION_LINES);
 
 export const REGIONS = Object.freeze([
   { id: 'urban', members: ['neighborhood', 'park', 'roofs', 'market', 'greenhouse'] },
-  { id: 'suburban', members: ['farm', 'fair', 'house'] },
+  { id: 'suburban', members: ['farm', 'fair', 'house', 'treehouse'] },
   { id: 'shore', members: ['docks', 'seaside', 'lighthouse'] },
   { id: 'wild', members: ['woods', 'river', 'moor', 'pines', 'gorge'] },
   { id: 'other', members: ['moon', 'reef', 'crystal'] },

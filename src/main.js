@@ -288,7 +288,7 @@ function init() {
     settings,
     player,
     area: () => session?.areaId,
-    onCapped: () => hud.toast(session?.areaId === 'crystal' ? 'The cave can’t zoom out any more 💎' : 'The den can’t zoom out any more 🏠'),
+    onCapped: () => hud.toast(session?.areaId === 'crystal' ? 'The cave can’t zoom out any more 💎' : session?.areaId === 'treehouse' ? 'The leaves are in the way of zooming out any more 🌳' : 'The den can’t zoom out any more 🏠'),
   });
   const zoomBy = (dir) => {
     if (session && player.engaged) zoomControl.step(dir);

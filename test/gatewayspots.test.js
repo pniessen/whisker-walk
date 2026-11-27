@@ -56,7 +56,12 @@ const lighthouseWorld = await import('../src/world/lighthouse.js');
 const { LIGHTHOUSE_SPAWN } = await import('../src/world/lighthouseplan.js');
 const lighthouse = { build: lighthouseWorld.build, SPAWN: LIGHTHOUSE_SPAWN };
 
-const MODS = { neighborhood, park, fair, farm, docks, seaside, lighthouse, roofs, market, house };
+// The Treehouse village's module names its spawn in its plan (treehouseplan.js).
+const treehouseWorld = await import('../src/world/treehouse.js');
+const { TREEHOUSE_SPAWN } = await import('../src/world/treehouseplan.js');
+const treehouse = { build: treehouseWorld.build, SPAWN: TREEHOUSE_SPAWN };
+
+const MODS = { neighborhood, park, fair, farm, docks, seaside, lighthouse, roofs, market, house, treehouse };
 const IDS = Object.keys(MODS);
 const T = 60000;
 
@@ -96,10 +101,10 @@ const FENCE_LINE = { fair: fair.GATE_AT.z, farm: farm.GATE_AT.z };
 const edgeGap = (b, p) => Math.min(p.x - b.minX, b.maxX - p.x, p.z - b.minZ, b.maxZ - p.z);
 
 describe('gateways: where the gates stand', () => {
-  it('has eighteen ends, fourteen on an edge and four inside (the Rooftops\' alley door, the Market\'s gate in its south row, the Old House\'s two doors), in ten built areas', () => {
-    expect(IDS).toHaveLength(10);
-    expect(allEnds).toHaveLength(18);
-    expect(edgeEnds).toHaveLength(14);
+  it('has twenty ends, sixteen on an edge and four inside (the Rooftops\' alley door, the Market\'s gate in its south row, the Old House\'s two doors), in eleven built areas', () => {
+    expect(IDS).toHaveLength(11);
+    expect(allEnds).toHaveLength(20);
+    expect(edgeEnds).toHaveLength(16);
     expect(allEnds.filter(([, e]) => e.placement === 'inside').map(([a, e]) => `${a}/${e.id}`).sort())
       .toEqual(['roofs/roofs-town', 'market/market-town', 'neighborhood/town-house', 'house/house-town'].sort());
     expect(edgeEnds.map(([a, e]) => `${a}/${e.id}`)).toContain('neighborhood/town-roofs');

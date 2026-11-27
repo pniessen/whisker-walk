@@ -3,6 +3,7 @@
 // around it (docs/superpowers/specs/img/2026-11-19-world-map-draft-2.svg).
 import { describe, it, expect, afterEach } from 'vitest';
 import { setTele } from '../src/teleflag.js';
+import { setTreehouse } from '../src/treehouseflag.js';
 import { CATALOG } from '../src/progression.js';
 import {
   BOARD, TERRITORIES, LAKE, POND, RIVER, PATHS, BRIDGE, STAR, CAMP_AT, placeState, territoryMapModel, shortLockLine, opensAfterLine,
@@ -92,10 +93,10 @@ describe('world map: the world as data', () => {
   it("draft 2's street places, world and coast", () => {
     expect(WORLD).toEqual({ w: 1500, h: 880 });
     expect(STREET_PLACES.map(({ id, x, y, r }) => [id, x, y, r])).toEqual([
-      ['park', 1080, 470, 90], ['fair', 1060, 230, 85], ['farm', 1235, 320, 85], ['docks', 900, 770, 80], ['seaside', 1185, 680, 90], ['lighthouse', 1268, 525, 46], ['greenhouse', 1215, 150, 60]]);
+      ['park', 1080, 470, 90], ['fair', 1060, 230, 85], ['farm', 1235, 320, 85], ['docks', 900, 770, 80], ['seaside', 1185, 680, 90], ['lighthouse', 1268, 525, 46], ['greenhouse', 1215, 150, 60], ['treehouse', 1110, 75, 46]]);
     expect(STREET_PLACES.every((p) => p.areaId === p.id)).toBe(true);
     expect(Object.isFrozen(STREET_PLACES) && STREET_PLACES.every((p) => Object.isFrozen(p))).toBe(true);
-    expect(STREET_LAND).toEqual({ park: '#b9dc8f', fair: '#e9b7c9', farm: '#e3cf7e', docks: '#b7b9bf', seaside: '#ecdca8', lighthouse: '#cfdad2', greenhouse: '#bfe3b5' });
+    expect(STREET_LAND).toEqual({ park: '#b9dc8f', fair: '#e9b7c9', farm: '#e3cf7e', docks: '#b7b9bf', seaside: '#ecdca8', lighthouse: '#cfdad2', greenhouse: '#bfe3b5', treehouse: '#a6cf86' });
     expect(COAST).toEqual([[1340, 0], [1320, 160], [1360, 300], [1335, 430], [1315, 540], [1350, 640], [1310, 730], [1280, 800], [1180, 860], [1000, 880]]);
     expect(Object.isFrozen(COAST) && COAST.every((p) => Object.isFrozen(p))).toBe(true);
     expect(ISLAND_HIT_R).toBe(46);
@@ -104,7 +105,7 @@ describe('world map: the world as data', () => {
   it('every place in the catalog is on the map exactly once, inside the world', () => {
     const m = worldMapModel(fresh(), CATALOG);
     // the Rooftops and the Market among them, town places (Rooftops step 4, Market step 4); the Greenhouse only while the gates switch is on (below)
-    expect(m.regions.map((r) => r.areaId).sort()).toEqual(Object.keys(CATALOG.areas).filter((id) => id !== 'greenhouse' && id !== 'reef' && id !== 'crystal' && id !== 'moon').sort()); // (the Moon in the top margin, the Reef is under the sea, the Crystal Cave behind the Docks gate: no circle on the land map)
+    expect(m.regions.map((r) => r.areaId).sort()).toEqual(Object.keys(CATALOG.areas).filter((id) => id !== 'greenhouse' && id !== 'treehouse' && id !== 'reef' && id !== 'crystal' && id !== 'moon').sort()); // (the Treehouse village behind its own switch, the Moon in the top margin, the Reef is under the sea, the Crystal Cave behind the Docks gate: no circle on the land map)
     // Her Moor (620, 161, r 165) reaches 4 units above the top edge, on her
     // board and in draft 2 alike; her board is not moved, so that one overhang
     // is allowed, and pinned so no other place gets one.
@@ -129,11 +130,11 @@ describe('world map: the world as data', () => {
     }
   });
 
-  it('nine gateways join the places draft 2 joins, the Rooftops, the Market, the Old House and Lighthouse Point, edge to edge', () => {
+  it('ten gateways join the places draft 2 joins, the Rooftops, the Market, the Old House, Lighthouse Point and the Treehouse village, edge to edge', () => {
     expect(GATEWAYS.map((g) => [g.id, g.from, g.to])).toEqual([
       ['town-park', 'neighborhood', 'park'], ['park-fair', 'park', 'fair'], ['park-farm', 'park', 'farm'],
       ['town-docks', 'neighborhood', 'docks'], ['docks-seaside', 'docks', 'seaside'], ['town-roofs', 'neighborhood', 'roofs'],
-      ['town-market', 'neighborhood', 'market'], ['seaside-lighthouse', 'seaside', 'lighthouse'], ['town-house', 'neighborhood', 'house']]);
+      ['town-market', 'neighborhood', 'market'], ['seaside-lighthouse', 'seaside', 'lighthouse'], ['town-house', 'neighborhood', 'house'], ['farm-treehouse', 'farm', 'treehouse']]);
     expect(GATEWAYS.map((g) => g.road)).toEqual([
       [[952, 570], [1000, 580], [1060, 590], [1080, 560]],
       [[1080, 380], [1080, 350], [1060, 340], [1060, 315]],
@@ -144,12 +145,13 @@ describe('world map: the world as data', () => {
       MARKET_ROAD,
       [[1229, 598], [1233, 587], [1241, 577], [1248, 566]],
       HOUSE_ROAD,
+      [[1180, 257], [1165, 215], [1148, 165], [1126.5, 118]],
     ]);
     expect(Object.isFrozen(GATEWAYS) && GATEWAYS.every((g) => Object.isFrozen(g) && Object.isFrozen(g.road))).toBe(true);
     const m = worldMapModel(fresh(), CATALOG);
     expect(m.gateways).toBe(GATEWAYS);
     const byArea = (id) => m.regions.find((r) => r.areaId === id);
-    for (const g of GATEWAYS) {
+    for (const g of GATEWAYS.filter((x) => x.to !== 'treehouse')) { // (the Treehouse village's own circle is checked in its own describe, with its switch on)
       const a = byArea(g.from); const b = byArea(g.to);
       const [fx, fy] = g.road[0]; const [tx, ty] = g.road.at(-1);
       expect(Math.abs(dist(fx, fy, a.x, a.y) - a.r) <= 8, `${g.id} from`).toBe(true);
@@ -293,7 +295,7 @@ describe('drawing the world', () => {
     const ids = [...html.matchAll(/data-dr-map-place="([a-z]+)"/g)].map(([, id]) => id);
     expect(new Set(ids).size).toBe(15);
     expect(ids).toHaveLength(16); // the island is a second way into the Pines
-    expect(new Set(ids)).toEqual(new Set(Object.keys(CATALOG.areas).filter((id) => id !== 'greenhouse' && id !== 'reef' && id !== 'crystal' && id !== 'moon'))); // (nobody sees the Greenhouse or the Reef while the gates switch is off)
+    expect(new Set(ids)).toEqual(new Set(Object.keys(CATALOG.areas).filter((id) => id !== 'greenhouse' && id !== 'treehouse' && id !== 'reef' && id !== 'crystal' && id !== 'moon'))); // (nobody sees the Greenhouse or the Reef while the gates switch is off)
     expect(html).not.toContain('data-dr-place=');
     expect(regionHtml(html, 'park')).toMatch(/role="button" tabindex="0" aria-label="City Park: opens after you explore Twolegplace 2 times · 0\/2"/);
     expect(regionHtml(html, 'park')).toContain('data-x="1080" data-y="470"');
@@ -309,12 +311,12 @@ describe('drawing the world', () => {
     expect(html.match(/<g class="tm-region[^>]*>(?=<title>)/)).toBeNull();
   });
 
-  it('her paths and bridge, nine roads and nine gate marks', () => {
+  it('her paths and bridge, ten roads and ten gate marks', () => {
     expect((html.match(/class="tm-path"/g) || []).length).toBe(3);
     expect(html).toContain('class="tm-bridge"');
     for (const cls of ['tm-lake', 'tm-island', 'tm-star', 'tm-pond', 'tm-river']) expect(html).toContain(`class="${cls}`);
-    expect((html.match(/class="wm-road"/g) || []).length).toBe(9);
-    expect((html.match(/class="wm-gate"/g) || []).length).toBe(9);
+    expect((html.match(/class="wm-road"/g) || []).length).toBe(10);
+    expect((html.match(/class="wm-gate"/g) || []).length).toBe(10);
     expect(html).toContain('<path class="wm-road" d="M952 570 C1000 580 1060 590 1080 560"/>');
     expect(html).toContain('<circle class="wm-gate" cx="1080" cy="560" r="8"/>');
     expect(html).toContain('<path class="wm-road" d="M980 780 C1040 790 1110 790 1140 765"/><circle class="wm-gate" cx="1140" cy="765" r="8"/>');
@@ -334,7 +336,7 @@ describe('drawing the world', () => {
     expect(tagAt(html, 'data-region="woods"')).toMatch(/class="tm-region built locked"/);
     expect(tagAt(html, 'data-region="town"')).toMatch(/class="tm-region built sel"/);
     // the lands: hers in her colours, the street ones in theirs, marked street
-    for (const [id, fill] of Object.entries(STREET_LAND).filter(([id]) => id !== 'greenhouse')) {
+    for (const [id, fill] of Object.entries(STREET_LAND).filter(([id]) => id !== 'greenhouse' && id !== 'treehouse')) {
       expect(html, id).toMatch(new RegExp(`<path class="tm-land street built locked" fill="${fill}" d="M`));
     }
     expect(html).toContain(`<path class="tm-land built locked" fill="${LAND.woods}" d="M`);
@@ -876,5 +878,74 @@ describe('world map: the Greenhouse circle (G4)', () => {
     const walked = (n) => ({ ...s, walks: { ...s.walks, park: n }, unlocked: { ...s.unlocked, areas: [...s.unlocked.areas, 'park'] } });
     expect(regionOf(worldMapModel(walked(1), CATALOG), 'greenhouse')).toMatchObject({ locked: true, price: 0 });
     expect(regionOf(worldMapModel(walked(2), CATALOG), 'greenhouse')).toMatchObject({ locked: false, price: 0 });
+  });
+});
+
+// The Treehouse village (T1): an ordinary map place of the Suburban and rural region, north-west of the Farm, behind its own switch until its release pass.
+describe('world map: the Treehouse village circle (T1)', () => {
+  afterEach(() => { setTreehouse(null); setTele(null); });
+  const th = (s = fresh()) => regionOf(worldMapModel(s, CATALOG), 'treehouse');
+  it('is not on the map, not tappable and not drawn while its switch is off', () => {
+    setTreehouse(false);
+    const m = worldMapModel(fresh(), CATALOG);
+    expect(regionOf(m, 'treehouse')).toBeUndefined();
+    expect(tapTargets(m).some((t) => t.areaId === 'treehouse')).toBe(false);
+    expect(renderWorldMapHtml(m)).not.toContain('treehouse');
+  });
+  it('is a street place at (1110, 75) r 46 with its own land colour, icon and label, in both editions', () => {
+    setTreehouse(true);
+    expect(th()).toMatchObject({ kind: 'street', areaId: 'treehouse', name: 'Treehouse Village', status: 'built', x: 1110, y: 75, r: 46 });
+    for (const edition of ['canon', 'legacy']) expect(th({ ...fresh(), edition }), edition).toBeTruthy();
+    const html = renderWorldMapHtml(worldMapModel(fresh(), CATALOG));
+    expect(html).toMatch(/<path class="tm-land street built locked" fill="#a6cf86" d="M/);
+    expect(regionHtml(html, 'treehouse')).toContain('🌳');
+    expect(regionHtml(html, 'treehouse')).toContain('data-dr-map-place="treehouse" data-x="1110" data-y="75"');
+  });
+  it('clears every other circle (by 20), the island star and the coast, and is at least 92 across', () => {
+    setTreehouse(true); setTele(true);
+    const m = worldMapModel(fresh(), CATALOG);
+    const me = regionOf(m, 'treehouse');
+    for (const o of m.regions) if (o !== me) expect(dist(me.x, me.y, o.x, o.y), o.id).toBeGreaterThan(me.r + o.r + 20);
+    expect(dist(me.x, me.y, m.star.x, m.star.y)).toBeGreaterThan(me.r + ISLAND_HIT_R);
+    for (const [px, py] of COAST) if (Math.abs(py - me.y) <= me.r) expect(px, `coast ${px},${py}`).toBeGreaterThan(me.x + me.r);
+    expect(2 * me.r).toBeGreaterThanOrEqual(92);
+    expect(me.y - me.r).toBeGreaterThanOrEqual(0);
+  });
+  it("its road leaves the Farm's north-west rim and runs up between the Fairground and the Greenhouse, edge to edge and in the open", () => {
+    setTreehouse(true); setTele(true);
+    const m = worldMapModel(fresh(), CATALOG);
+    const at = (id) => m.regions.find((r) => r.areaId === id);
+    const g = GATEWAYS.find((x) => x.id === 'farm-treehouse');
+    expect([g.from, g.to]).toEqual(['farm', 'treehouse']);
+    const [p0, p1, p2, p3] = g.road;
+    expect(Math.abs(dist(p0[0], p0[1], at('farm').x, at('farm').y) - at('farm').r)).toBeLessThanOrEqual(8);
+    expect(Math.abs(dist(p3[0], p3[1], at('treehouse').x, at('treehouse').y) - at('treehouse').r)).toBeLessThanOrEqual(8);
+    for (let i = 0; i <= 20; i++) {
+      const t = i / 20, u = 1 - t;
+      const x = u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0];
+      const y = u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1];
+      for (const id of ['fair', 'greenhouse', 'park']) expect(dist(x, y, at(id).x, at(id).y), `road at t ${t} vs ${id}`).toBeGreaterThan(at(id).r + 8);
+    }
+  });
+  it("its words clear every other place's words and circle", () => {
+    setTreehouse(true); setTele(true);
+    const all = { ...fresh(), walks: { ...fresh().walks, moon: 1, reef: 1, crystal: 1 } }; // (the three gate places walked, so their circles are drawn too)
+    const m = worldMapModel(all, CATALOG);
+    const html = renderWorldMapHtml(m);
+    const mine = rowsOf(html, 'treehouse');
+    for (const o of m.regions) {
+      if (o.id === 'treehouse' || o.id === 'house') continue; // (the Old House is a Clan place: drawn, far away)
+      for (const a of mine) for (const b of rowsOf(html, o.id)) expect(gap(a, b), `${a.words} / ${b.words}`).toBeGreaterThan(4);
+    }
+    for (const o of m.regions.filter((r) => r.id !== 'treehouse')) {
+      for (const a of mine) expect(dist(Math.max(a.x0, Math.min(o.x, a.x1)), Math.max(a.y0, Math.min(o.y, a.y1)), o.x, o.y), `${a.words} / ${o.id}`).toBeGreaterThan(o.r);
+    }
+  });
+  it('opens like any free place: after 2 Farm walks, and costs nothing', () => {
+    setTreehouse(true);
+    const s = fresh();
+    const walked = (n) => ({ ...s, walks: { ...s.walks, farm: n }, unlocked: { ...s.unlocked, areas: [...s.unlocked.areas, 'farm'] } });
+    expect(th(walked(1))).toMatchObject({ locked: true, price: 0 });
+    expect(th(walked(2))).toMatchObject({ locked: false, price: 0 });
   });
 });
