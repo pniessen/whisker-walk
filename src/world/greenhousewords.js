@@ -33,6 +33,12 @@ export const LINES = Object.freeze({
   'greenhouse.water.prompt': 'E — water the plant',
   'greenhouse.water.done': 'Ahh! The plant perks right up. 💧',
   'greenhouse.water.all': 'Every pot is watered! The can goes back to its hook. 🌼',
+  // the written guide (greenhouseguide.js): the goal line, with the real counts
+  'greenhouse.guide.bench': 'Go to the potting bench: the seed job and the watering job are there.',
+  'greenhouse.guide.seeds': 'Find the seed packets ({n} of {total})',
+  'greenhouse.guide.tray': 'Take the packets to the seed tray by the potting bench.',
+  'greenhouse.guide.can': 'Pick up the watering can by the potting bench.',
+  'greenhouse.guide.water': 'Water the thirsty plants ({n} of {total})',
   // the moments' labels (the corner card says what just happened) and the catnip bed's purr
   'greenhouse.moment.frog': 'a frog plopping into the pond',
   'greenhouse.moment.sparrow': 'a sparrow splashing in the fountain',

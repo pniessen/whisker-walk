@@ -20,6 +20,7 @@ import * as Rooms from './greenhouserooms.js';
 import * as RoomParts from './greenhouseroomparts.js';
 import { createButterflies } from './greenhousebutterflies.js';
 import { createGreenhouseLife } from './greenhouselife.js';
+import { createGreenhouseGuideLive } from './greenhouseguidelive.js';
 import { phrase } from '../clanphrases.js';
 import './greenhousewords.js';
 
@@ -119,7 +120,18 @@ export function build(scene, { water = {}, wind } = {}) {
       skyDusk: { ...SKY_DUSK },
       // the mist, the shafts and the koi drift on the walk's clock (reduced motion freezes all three); the jobs and
       // their prompts are the life's (game/interactions.js asks it for promptAt and interact)
-      life: (ctx = {}) => createGreenhouseLife({ ...ctx, scene: ctx.scene ?? scene, mist, shafts, koi, rooms: true, roomMist, roomShafts, butterflies, shyOrchid, cactusFlower }),
+      life: (ctx = {}) => {
+        const sc = ctx.scene ?? scene;
+        const life = createGreenhouseLife({ ...ctx, scene: sc, mist, shafts, koi, rooms: true, roomMist, roomShafts, butterflies, shyOrchid, cactusFlower });
+        // the written guide (greenhouseguidelive.js): the gold ring, the goal line and the edge arrow, read from this life's own state
+        const guide = createGreenhouseGuideLive({ scene: sc, life, ground: ctx.ground, doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, reducedMotion: ctx.reducedMotion ?? false });
+        const update = life.update;
+        const dispose = life.dispose;
+        life.update = (...a) => { update(...a); guide.update(a[0], a[1], a[2], a[3]); };
+        life.dispose = () => { guide.dispose(); dispose(); };
+        life.guide = guide;
+        return life;
+      },
     };
   });
 }
