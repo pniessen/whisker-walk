@@ -3,7 +3,7 @@
 import { phrase } from './clanphrases.js';
 import { PAGE_WORDS } from './farmwords.js';
 import { ROOFS_PAGE_WORDS } from './roofspages.js';
-import { MARKET_PAGE_WORDS } from './marketpages.js';
+import { MARKET_PAGE_WORDS, MARKET_ERRAND_PAGES, MARKET_ERRAND_PAGE_WORDS } from './marketpages.js';
 import { LIGHTHOUSE_PAGE_WORDS } from './lighthousepages.js';
 import { MOON_PAGES, MOON_LIFE_PAGES, MOON_WING_PAGES, MOON_PAGE_WORDS, wingPageShown as moonWingShown } from './moonpages.js';
 import { moonOn } from './moonflag.js';
@@ -93,6 +93,8 @@ export const CRITTER_INFO = [
   // The Market Square's six finds (src/marketpages.js): the walks each was found on.
   ...[['marketfountain', '💧'], ['marketpigeons', '🕊️'], ['marketsacks', '🌾'], ['marketmusician', '🎻'], ['marketbasket', '🚲'], ['marketapples', '🍎']]
     .map(([id, emoji]) => ({ id, emoji, get name() { return MARKET_PAGE_WORDS[id].name(); }, get hint() { return MARKET_PAGE_WORDS[id].hint(); } })),
+  // The Market's six missions (src/marketpages.js): the walks each was finished on.
+  ...MARKET_ERRAND_PAGES.map(([id, emoji]) => ({ id, emoji, get name() { return MARKET_ERRAND_PAGE_WORDS[id].name(); }, get hint() { return MARKET_ERRAND_PAGE_WORDS[id].hint(); } })),
   // Lighthouse Point's six finds and two jobs (src/lighthousepages.js): the walks each was found or finished on.
   // Always drawn, like every other place's (the place is in the game since its milestone 4; `lighthouse` only marks them).
   ...[['lhlamproom', '💡'], ['lhpool', '🦀'], ['lhgull', '🐦'], ['lhecho', '🎶'], ['lhbell', '🔔'], ['lhwindow', '🏮'], ['lhjobkitten', '🐱'], ['lhjoblamp', '🔦']]

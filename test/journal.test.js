@@ -7,8 +7,8 @@ import { JOURNAL_TYPES } from '../src/progression.js';
 const SHOWN = CRITTER_INFO.filter((c) => !c.moon && !c.greenhouse && !c.reef && !c.crystal && !c.later && !c.snowville && !c.treehouse && !c.jungle);
 
 describe('CRITTER_INFO', () => {
-  it('has all 154 journal pages with kid-friendly entries', () => {
-    expect(CRITTER_INFO).toHaveLength(205); // (51 N0 placeholder pages for Snowville, Treehouse and Jungle, never drawn) (the Moon's five Old Relay Station pages on top) (the Moon's six robot-and-light pages on top) (the Crystal Cave's seven life pages on top) (the Reef's ten sea-life pages on top) 14 critters, Appletree Farm's six animals, its four jobs and six finds, the Fairground's five rides, three games and six finds, the Rooftops' six finds, the Market Square's six finds, and Lighthouse Point's six finds and two jobs, the Moon's twelve, the Greenhouse's eight and the Reef's twelve (the last three only behind their flags; the Lighthouse's shown only behind ?lighthouse=1 or once one has a count)
+  it('has all 160 journal pages with kid-friendly entries', () => {
+    expect(CRITTER_INFO).toHaveLength(211); // (the Market's six mission pages on top) (51 N0 placeholder pages for Snowville, Treehouse and Jungle, never drawn) (the Moon's five Old Relay Station pages on top) (the Moon's six robot-and-light pages on top) (the Crystal Cave's seven life pages on top) (the Reef's ten sea-life pages on top) 14 critters, Appletree Farm's six animals, its four jobs and six finds, the Fairground's five rides, three games and six finds, the Rooftops' six finds, the Market Square's six finds, and Lighthouse Point's six finds and two jobs, the Moon's twelve, the Greenhouse's eight and the Reef's twelve (the last three only behind their flags; the Lighthouse's shown only behind ?lighthouse=1 or once one has a count)
     for (const entry of CRITTER_INFO) {
       expect(typeof entry.id).toBe('string');
       expect(typeof entry.emoji).toBe('string');

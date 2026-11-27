@@ -419,7 +419,7 @@ describe('the Market life finds the six', () => {
       let casters = 0;
       let triangles = 0;
       scene.traverse((o) => {
-        if (!o.isMesh) return;
+        if (!o.isMesh || o.userData.errand) return; // the six missions' props have their own budget (test/marketerrands.test.js)
         meshes++;
         if (o.castShadow) casters++;
         const g = o.geometry;

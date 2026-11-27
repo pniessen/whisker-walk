@@ -114,6 +114,15 @@ export function buildCarryMesh(kind) {
       g.add(mesh(new THREE.CylinderGeometry(0.275 * k, 0.28 * k, 0.05 * k, 12), lit(0xc2463a), 0, 0.065 * k, 0));
       break;
     }
+    case 'fishhead': {
+      // The Market's fish head (the hungry stray's mission, world/marketerrandlive.js)
+      const m = lit(0xaab4bc);
+      const body = mesh(new THREE.SphereGeometry(0.05, 8, 6), m);
+      body.scale.set(1, 1, 1.5);
+      g.add(body);
+      g.add(mesh(new THREE.ConeGeometry(0.045, 0.08, 6), lit(0x8f9aa3), 0, 0, 0.1).rotateX(Math.PI / 2));
+      break;
+    }
     default:
       g.add(mesh(new THREE.SphereGeometry(0.05, 8, 6), lit(0x9a9a9a)));
   }
