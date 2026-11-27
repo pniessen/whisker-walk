@@ -269,6 +269,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
     tail.position.y = _anchor.y;
     tail.position.z = _anchor.z;
   }
+  cat.userData.swimDo?.(cat, t); // the Reef's swim pose, blended over this one (cat/reefswim.js; only her own cat afloat)
   // Every state, once the body is where the pose fit left it.
   floatBalloons(cat);
   fitNeckSkin(cat, state);

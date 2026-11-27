@@ -186,11 +186,11 @@ function layHose(mesh, toBody) {
   }
   pos.needsUpdate = true; nor.needsUpdate = true;
 }
-function driftBubbles(mesh, t, reduced) {
+function driftBubbles(mesh, t, reduced, kick = 0) {
   const { items } = mesh.userData.suitBubbles, pos = mesh.geometry.attributes.position;
   for (const b of items) {
     const k = reduced ? b.phase : (t / b.period + b.phase) % 1;
-    const s = Math.min(1, k / 0.15) * Math.min(1, (1 - k) / 0.25), dy = k * 0.22, dx = Math.sin((k + b.phase) * 6.283) * 0.01;
+    const s = Math.min(1, k / 0.15) * Math.min(1, (1 - k) / 0.25), dy = k * (0.22 + 0.4 * kick), dx = Math.sin((k + b.phase) * 6.283) * 0.01;
     for (let j = 0; j < b.count; j++) {
       const o = j * 3;
       pos.setXYZ(b.from + j, b.cx + (b.base[o] - b.cx) * s + dx, b.cy + (b.base[o + 1] - b.cy) * s + dy, b.cz + (b.base[o + 2] - b.cz) * s);
@@ -210,7 +210,7 @@ export function suitTick(cat, t, reduced) {
     body.updateMatrix(); head.updateMatrix();
     layHose(live.hose, _m.copy(body.matrix).invert().multiply(head.matrix));
   }
-  if (live.bubbles) driftBubbles(live.bubbles, t, reduced);
+  if (live.bubbles) driftBubbles(live.bubbles, t, reduced, cat.userData.swimKick || 0);
 }
 
 // --- the helmet ------------------------------------------------------------
