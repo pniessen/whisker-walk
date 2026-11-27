@@ -113,6 +113,7 @@ const CAM_EASE = 2.6; // 1/seconds: how fast the ride's camera takes over, and l
 //                      { type: 'dismount' } when she is down, { type: 'note', freq, volume } the tune,
 //                      { type: 'lookout' } onto the lookout at the top of the big wheel,
 //                      { type: 'slide' } off down the helter-skelter, { type: 'slide-end' } onto its mat,
+//                      { type: 'boat-lap' } a whole swing of the boat ridden to the end (it pays: game/fairplay.js),
 //                      { type: 'boat-whoosh' | 'boat-creak', volume } the swing of the Viking boat, heard from near it
 export function createFairLive(scene, area, { camera = null, reducedMotion = false, now = wallClock, onEvent = () => {}, ground = FLAT_GROUND } = {}) {
   const sim = createFairSim(area, { reducedMotion });
@@ -131,6 +132,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
   const hop = { on: false, u: 0, dur: 0.3, x0: 0, z0: 0, x1: 0, z1: 0, h0: 0 };
   let wobble = 0;
   let noteAt = -1;
+  let boatSwung = false; // on the boat, and it has swung since she got on: the lap is hers once it is calm again
   let quarterAt = -1; // the swing of the boat, in quarters: a whoosh at the bottom, a creak at each end
 
   // the ride's camera: w is how much of it is in the picture (0: the game's own)
@@ -408,10 +410,15 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
       }
       const perch = session.perched ?? null;
       const seat = perch && perch.fair ? perch : null;
+      if (!(seat && seat.rideId === 'boat')) boatSwung = false;
       if (seat) {
         // carried: on the seat, at its height, facing the way it faces
         riding = seat;
         if (rodeRide !== seat.rideId) { rodeRide = seat.rideId; onEvent({ type: 'ride', ride: seat.rideId }); }
+        if (seat.rideId === 'boat') {
+          if (!sim.boat.calm) boatSwung = true;
+          else if (boatSwung) { boatSwung = false; onEvent({ type: 'boat-lap' }); } // a whole swing with her aboard
+        }
         player.perchY = seat.y;
         cat.position.set(seat.x, gy(seat.x, seat.z) + seat.y, seat.z);
         cat.rotation.y = seat.yaw;

@@ -32,6 +32,8 @@ export const AWARDS = {
   // walk for each game; and one of its six finds, paid the first time ever.
   fairgame: 15,
   fairfind: 12,
+  // ...and a Viking boat ride swung to the end (2026-11-28), 6 like a treat or a friend, the first 2 a walk (game/fairplay.js BOAT_PAY_CAP).
+  boatride: 6,
   // The Rooftops (2026-11-21): one of its six finds, paid the first time ever.
   roofsfind: 12,
   // The Market Square (2026-11-21): one of its six finds, paid the first time
