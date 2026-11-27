@@ -11,6 +11,6 @@ export const REEF_STAGE_MODULES = Object.freeze(['src/world/reefstagelab.js', 's
 let loading = null;
 /** Loads the three stages together; the same promise every time. */
 export function loadReefStages() {
-  loading ??= Promise.all([import('./reefstagelab.js'), import('./reefstagewreck.js'), import('./reefstageride.js')]).then(() => ST);
+  loading ??= Promise.all([import('./reefstagelab.js'), import('./reefstagewreck.js'), import('./reefstageride.js')]).then(() => ST).catch((e) => { loading = null; throw e; });
   return loading;
 }

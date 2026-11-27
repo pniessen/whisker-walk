@@ -11,6 +11,6 @@ export const CRYSTAL_STAGE_MODULES = Object.freeze(['src/world/crystalstagewingc
 let loading = null;
 /** Loads the two stages together; the same promise every time. */
 export function loadCrystalStages() {
-  loading ??= Promise.all([import('./crystalstagewingc.js'), import('./crystalstageplay.js')]).then(() => ST);
+  loading ??= Promise.all([import('./crystalstagewingc.js'), import('./crystalstageplay.js')]).then(() => ST).catch((e) => { loading = null; throw e; });
   return loading;
 }
