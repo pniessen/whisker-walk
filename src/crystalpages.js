@@ -8,13 +8,16 @@ export const CRYSTAL_PAGES = Object.freeze([
   ['ccstonerose', '🩷', 'stonerose', 'The Rose Spark'], ['ccstonesky', '🩵', 'stonesky', 'The Sky Spark'], ['ccstonegold', '💛', 'stonegold', 'The Gold Spark'],
   ['ccshow', '🎆', 'show', 'The Light Show'], ['ccerrand', '🐛', 'errand', 'Lumi’s Glow Errand'], ['ccrubbings', '🖼️', 'rubbings', 'Crystal Rubbings'],
 ].map((p) => Object.freeze(p)));
+// Seven more pages, the cave's friendly life (world/cavelife.js): spotted like a farm animal (6 m, looking at one), each page counting the walks. Short names: start-up constants.
+export const CAVE_LIFE_PAGES = Object.freeze([['clfish', '🐟', 'fish', 'Cave Fish'], ['clbat', '🦇', 'bat', 'Cave Bat'], ['clfirefly', '✨', 'firefly', 'Fireflies'], ['clmoth', '🦋', 'moth', 'Cave Moth'],
+  ['clsalamander', '🦎', 'salamander', 'Salamander'], ['clbeetle', '🪲', 'beetle', 'Gem Beetle'], ['clcrab', '🦀', 'crab', 'Cave Crab']].map((p) => Object.freeze(p)));
 export const CRYSTAL_JOURNAL_TYPES = Object.freeze(CRYSTAL_PAGES.map((p) => p[0]));
 
 // The hints by journal id: empty here, filled by the cave's lazy file (world/crystalwords.js) when its chunk arrives.
 export const CRYSTAL_HINTS = {};
 
 // The journal's pages, by journal id.
-export const CRYSTAL_PAGE_WORDS = Object.freeze(Object.fromEntries(CRYSTAL_PAGES.map(([id, , , name]) => [id, Object.freeze({
+export const CRYSTAL_PAGE_WORDS = Object.freeze(Object.fromEntries([...CRYSTAL_PAGES, ...CAVE_LIFE_PAGES].map(([id, , , name]) => [id, Object.freeze({
   name: () => name,
   hint: () => CRYSTAL_HINTS[id] ?? '',
 })])));
