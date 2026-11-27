@@ -251,6 +251,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       lastZ = catPos.z;
       session.hopLift = skip + bound.lift;
       rover.update(dt, t, catPos, camera, session);
+      ST.station?.frame?.(dt, t, catPos, camera, session, progression); // the sled (M2), after Dot's own hook
       base.update(dt, t, catPos, camera, session);
       star.update(dt, t, catPos, camera, session);
       launch.update(dt, t, catPos, camera, session);
