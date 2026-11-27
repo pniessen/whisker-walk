@@ -16,8 +16,11 @@ import { endById, liveEndsFor, arrivalFor, inwardOf, INWARD_YAW } from './gatewa
 import { postById, postArrival, postsFor, POST_ARRIVE_AT } from './borderposts.js';
 
 export const GATE_MOMENT_MS = 1200;
-// What a build that can walk on through a gate says about itself.
-export const WALK_ON = 1;
+// What a build that can walk on through a gate says about itself: 1 = the map's gates and posts, 2 = also a teleport
+// gate's id (src/teleport.js). A room with any member below 2 does not walk on through a teleport gate (it ends the
+// walk there, as a post does); the map's gates need only 1.
+export const WALK_ON = 2;
+export const WALK_ON_MAP = 1;
 
 const isObj = (v) => !!v && typeof v === 'object';
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
@@ -153,10 +156,13 @@ function isHostOf(selfId, remoteIds) {
 // One of this place's live ways on, by id, else null: a gate end, or a
 // border post (Task 10) to a place this build has a catalog row for. Either
 // has the `to` a walk-on reads.
-function liveEnd(areaId, via, catalog) {
+function liveEnd(areaId, via, catalog, tele = null) {
   if (typeof via !== 'string') return null;
   const end = liveEndsFor(areaId, catalog).find((e) => e.id === via);
   if (end) return end;
+  // A teleport gate: the lookup the walk hands in (null when the gates are off or their code is not loaded).
+  const gate = tele ? tele.ends(areaId).find((e) => e.id === via) : null;
+  if (gate) return gate;
   const areas = catalog && catalog.areas;
   return postsFor(areaId).find((p) => p.id === via && areas != null && Object.hasOwn(areas, p.to)) ?? null;
 }
@@ -164,10 +170,10 @@ function liveEnd(areaId, via, catalog) {
 // A guest follows a walk-on only when it is well formed, for this walk's
 // area, through one of its live gates or posts, from the room's host, with the seed
 // every device derives.
-export function decideWalkOn(ev, { areaId, selfId, remoteIds, catalog, roomSeed } = {}) {
+export function decideWalkOn(ev, { areaId, selfId, remoteIds, catalog, roomSeed, tele } = {}) {
   if (!isObj(ev) || ev.v !== 1 || ev.type !== 'walk-on' || ev.from !== areaId) return null;
   if (typeof ev.via !== 'string' || typeof ev.seed !== 'number') return null;
-  const end = liveEnd(areaId, ev.via, catalog);
+  const end = liveEnd(areaId, ev.via, catalog, tele);
   if (!end || !fromHost(ev.id, selfId, remoteIds)) return null;
   if (ev.seed !== nextRoomSeed(roomSeed, ev.via)) return null;
   return { via: ev.via, to: end.to, seed: ev.seed };
@@ -183,14 +189,16 @@ const MAX_VIA = 64;
 // not have (a newer build's gate), or about one to a place it has no row
 // for, gets { via, to: null }: the guest says no at once, so the host need
 // not wait. A way this build has, but of another place, is stale: null.
-export function decideWalkOnAsk(ev, { areaId, selfId, remoteIds, catalog } = {}) {
+export function decideWalkOnAsk(ev, { areaId, selfId, remoteIds, catalog, tele } = {}) {
   if (!isObj(ev) || ev.v !== 1 || ev.type !== 'walk-on-ask' || ev.from !== areaId) return null;
   if (typeof ev.via !== 'string' || ev.via.length === 0 || ev.via.length > MAX_VIA) return null;
   if (!fromHost(ev.id, selfId, remoteIds)) return null;
-  const end = liveEnd(areaId, ev.via, catalog);
+  const end = liveEnd(areaId, ev.via, catalog, tele);
   if (end) return { via: ev.via, to: end.to };
   const known = endById(ev.via) ?? postById(ev.via);
   if (known && known.areaId !== areaId) return null;
+  const teleHome = tele ? tele.areaOf(ev.via) : null;
+  if (teleHome && teleHome !== areaId) return null;
   return { via: ev.via, to: null };
 }
 
@@ -201,9 +209,9 @@ export function decideWalkOnAsk(ev, { areaId, selfId, remoteIds, catalog } = {})
 // friend still in the room has said it can; else { kind: 'wait', waiting }
 // (the friends not yet heard from). Only answers for this place's live gate or post
 // `via`, from a remote in the room, to the room's host, count.
-export function decideWalkOnHave(haves, { areaId, via, selfId, remoteIds, catalog, ready = false } = {}) {
+export function decideWalkOnHave(haves, { areaId, via, selfId, remoteIds, catalog, ready = false, tele } = {}) {
   const remotes = Array.isArray(remoteIds) ? remoteIds : [];
-  const counts = !!liveEnd(areaId, via, catalog) && isHostOf(selfId, remotes);
+  const counts = !!liveEnd(areaId, via, catalog, tele) && isHostOf(selfId, remotes);
   const yes = new Set();
   for (const ev of Array.isArray(haves) ? haves : []) {
     if (!counts || !isObj(ev) || ev.v !== 1 || ev.type !== 'walk-on-have' || ev.via !== via) continue;
@@ -227,16 +235,17 @@ export function decideHostThere(state, { hostId, to, selfId, remoteIds } = {}) {
 // A room with a member on an older build crosses at a gate as at a border
 // post (the walk ends): a guest on this build follows that border-cross when
 // it names a place one of this walk's live gates leads to, from the host.
-export function decideGateCross(ev, { areaId, selfId, remoteIds, catalog } = {}) {
+export function decideGateCross(ev, { areaId, selfId, remoteIds, catalog, tele } = {}) {
   if (!isObj(ev) || ev.type !== 'border-cross' || ev.from !== areaId || typeof ev.to !== 'string') return null;
-  if (!liveEndsFor(areaId, catalog).some((e) => e.to === ev.to)) return null;
+  if (!liveEndsFor(areaId, catalog).some((e) => e.to === ev.to) && !(tele && tele.ends(areaId).some((e) => e.to === ev.to))) return null;
   if (!fromHost(ev.id, selfId, remoteIds)) return null;
   return { to: ev.to };
 }
 
-// A room walks on together only when every member says it can.
-export function roomWalksOn(roster) {
-  return Array.isArray(roster) && roster.length > 0 && roster.every((m) => isObj(m) && m.walkOn === WALK_ON);
+// A room walks on together only when every member says it can: `need` is the version a way wants (WALK_ON_MAP for
+// the map's gates and posts, WALK_ON for a teleport gate).
+export function roomWalksOn(roster, need = WALK_ON_MAP) {
+  return Array.isArray(roster) && roster.length > 0 && roster.every((m) => isObj(m) && typeof m.walkOn === 'number' && m.walkOn >= need);
 }
 
 // A state from a cat in another place is not drawn here. An older build sends

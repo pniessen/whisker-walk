@@ -20,8 +20,7 @@ export const LINES = Object.freeze({
   'tele.suit': 'Your suit is on!', // the suit (milestone 2)
   'tele.home': (look) => (stones(look) ? 'Take the stones home when you’re ready.' : 'Take the gate home when you’re ready.'),
   'tele.hint': (host) => `Find the gate in ${host}.`, // the map's card (milestone 5)
-  'tele.guest': (name) => `This way to ${name}.`, // a friend in a room (later)
-  'tele.room': 'The gate hums, but it is not ready for friends yet.',
+  'tele.guest': (name) => `This way to ${name}.`, // a friend in a room reads the sign; the host chooses
   'tele.coop': 'The gate is waiting. Two cats go together when we’re ready!',
   'tele.slow': 'Nearly there!',
 });

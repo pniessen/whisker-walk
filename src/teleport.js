@@ -156,17 +156,16 @@ export function teleNear(areaId, x, z, catalog, { clan = true, reach = GATE_REAC
   return best;
 }
 
-// { kind: 'go' | 'dormant' | 'room' | 'coop', to, name, lineId } for one gate. 'dormant': the host place has not been
+// { kind: 'go' | 'dormant' | 'coop', to, name, lineId } for one gate. 'dormant': the host place has not been
 // walked `needWalks` times (a row's default 0 is always awake). 'room': a gate is refused in an online room (milestone
 // 0 keeps it simple). 'coop': couch play stays out of a gate until both places have their couch row true. lineId is
 // the phrase the refusal says.
-export function teleStatus(end, state, catalog, { inRoom = false, couch = false } = {}) {
+export function teleStatus(end, state, catalog, { couch = false } = {}) {
   const to = end.to;
   const base = { to, name: teleName(to, state && state.edition, catalog), lineId: null };
   const host = endById(end.twin, TELE_ENDS)?.end.to;
   const walks = state && state.walks && typeof state.walks === 'object' && Number.isFinite(state.walks[host]) ? state.walks[host] : 0;
   if (walks < end.needWalks) return { ...base, kind: 'dormant' };
-  if (inRoom) return { ...base, kind: 'room', lineId: 'tele.room' };
   if (couch && !(H.coopReady(to) && H.coopReady(host))) return { ...base, kind: 'coop', lineId: 'tele.coop' };
   return { ...base, kind: 'go' };
 }
@@ -254,16 +253,23 @@ export const swirlMs = (reducedMotion) => (reducedMotion ? TELE_FADE_MS : TELE_S
 
 // ---- what the walk calls (walk.js, interactions.js, crossing.js reach these through tele.kit) ----
 
+// What a room's walk-on asks of the gates (gatecross.js `tele`): this place's live gates (either edition: a guest is never
+// turned away for hers), and the place a gate id belongs to (null for an id that is none of ours).
+export const roomLook = Object.freeze({
+  ends: (areaId) => liveTeleEnds(areaId, H.catalog, { clan: true }),
+  areaOf: (via) => (typeof via === 'string' ? endById(via, TELE_ENDS)?.areaId ?? null : null),
+});
+
 // The walk's per-frame look at the gates. Nearing one (GATE_PREFETCH_REACH, 12 m) fetches the place beyond, once per
 // gate per walk, unless the gate is refused (nothing to fetch for). Within reach, and `free` (nothing else is prompting
 // her), it returns { text, prompt }: a gate she can go through is a 'gate' prompt (the map gates' own card and E,
 // the touch pill's tap and the pad's X all work), a refusal a 'gate-info' sign. Else null.
 const fetched = new WeakMap();
-export function prompt(s, catP, state, inRoom, prefetch, free) {
+export function prompt(s, catP, state, inRoom, prefetch, free, isHost = true) {
   const clan = H.isClan(state);
   const ends = liveTeleEnds(s.areaId, H.catalog, { clan });
   if (!ends.length) return null;
-  const opts = { inRoom, couch: H.couch() };
+  const opts = { couch: H.couch() };
   let done = fetched.get(s);
   for (const e of ends) {
     if (done?.has(e.id) || Math.hypot(e.x - catP.x, e.z - catP.z) > GATE_PREFETCH_REACH) continue;
@@ -278,8 +284,10 @@ export function prompt(s, catP, state, inRoom, prefetch, free) {
   if (!near) return null;
   const status = teleStatus(near, state, H.catalog, opts);
   if (status.kind === 'dormant') return null;
+  // A room's guest reads the sign only: the host chooses (as at the map's gates).
+  if (inRoom && !isHost && status.kind === 'go') return { text: phrase('tele.guest', status.name), prompt: { kind: 'gate-info', data: { end: near, status } } };
   if (status.kind === 'go') return { text: `E — ${phrase('tele.go')}`, prompt: { kind: 'gate', data: { end: near, status, card: () => ui.cardHtml({ name: status.name, look: near.look, tint: discTint(near) }) } } };
-  return { text: status.kind === 'room' ? phrase('tele.room') : phrase('tele.coop'), prompt: { kind: 'gate-info', data: { end: near, status } } };
+  return { text: phrase('tele.coop'), prompt: { kind: 'gate-info', data: { end: near, status } } };
 }
 
 // The gates of this place, drawn into the walk's scene; returns the pillars' colliders for walk.js to push.
