@@ -6,6 +6,8 @@ import { createSnowvilleCritters } from './snowvillecritters.js';
 import { snowvilleCollectibles, snowvilleScenics, createSnowvilleFindsLife } from './snowvillefinds.js';
 import { wingColliders, wingPerches, wingStory } from './snowvillewingplan.js';
 import { drawWing } from './snowvillewingparts.js';
+import { drawDetail } from './snowvilledetail.js';
+import { detailColliders } from './snowvilledetailplan.js';
 import { createWing } from './snowvillewinglive.js';
 import { createSnowErrandLive } from './snowvillejoblive.js';
 
@@ -13,10 +15,10 @@ Object.assign(ST, {
   b: Object.freeze({
     finds: Object.freeze({ collectibles: snowvilleCollectibles, scenics: snowvilleScenics, life: createSnowvilleFindsLife }),
     critters: createSnowvilleCritters,
-    colliders: wingColliders,
+    colliders: () => [...wingColliders(), ...detailColliders()],
     perches: wingPerches,
     story: wingStory(),
-    draw: drawWing,
+    draw: (kit, M, opts) => { drawWing(kit, M); drawDetail(kit, M, opts); }, // the wing's drawing and the round-two detail (houses, trees, notices, village)
     wing: createWing,
     errand: createSnowErrandLive, // Tilly's errand of the day and its album (milestone V7)
   }),

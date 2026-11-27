@@ -595,7 +595,10 @@ const AREAS = [
   // Milestone V8 (2026-11-27, the beauty pass: sixteen holly-and-snow shrub clumps, four woodpiles, four crate-and-barrel corners, icicles and a wreath at every cottage, two strings of
   // pennants and a 28-peak far ridge, all in the merged buckets plus the ridge's own non-casting bucket (the 6 / 3 draw caps held: the ridge shares the treeline's slot); the ground's new
   // tones are per-vertex colour, no triangle) measured 6 / 3 / 27,905 built (+8,739 triangles), +12%: 6 / 3 / 31,300.
-  ['snowville', buildSnowville, 6, 3, 31300],
+  // Snowville round two, commit 1 (2026-11-27, the owner's live play: the houses' roof ridges, eave lips, frames, shutters, steps, lanterns, planks and footprints, fir snow clumps, bare birches,
+  // stumps, eight pinned notices, three snowmen, a well, leaning sleds, woodpiles and pennants, stage b's snowvilledetail.js in the same merged buckets (the fine pieces in the treeline's
+  // non-casting bucket); the lower rungs skip the fine pieces) measured 6 / 3 / 41,820 built (+13,915 triangles, no mesh), +12%: 6 / 3 / 46,800. The sled run and its landing are in commit 4.
+  ['snowville', buildSnowville, 6, 3, 46800],
   // Milestone R2 (Marlo and chapter one) adds only the coral ledge (no mesh more; about 200 triangles measured on top of R3: 7 / 2 / 10,700). Marlo, the shells, their glints, the picture bubble, the meow's ring and the air pockets are the walk's life, counted in test/reefmarlo.test.js
 ];
 
