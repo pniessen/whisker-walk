@@ -85,7 +85,7 @@ describe('the per-place ready table', () => {
   it('has a row for every place the game can walk in, and only the Neighborhood and the open places (M3) are ready', () => {
     const ids = new Set([...Object.keys(CATALOG.areas), ...Object.keys(AREA_LOADERS)]);
     for (const id of ids) expect(Object.keys(COOP_READY), `${id} has no couch row`).toContain(id);
-    expect(Object.entries(COOP_READY).filter(([, v]) => v).map(([k]) => k).sort()).toEqual(['den', 'docks', 'fair', 'farm', 'gorge', 'greenhouse', 'house', 'jungle', 'lighthouse', 'market', 'moor', 'neighborhood', 'park', 'pines', 'river', 'roofs', 'seaside', 'treehouse', 'woods']); // M3 opened the open places
+    expect(Object.entries(COOP_READY).filter(([, v]) => v).map(([k]) => k).sort()).toEqual(['den', 'docks', 'fair', 'farm', 'gorge', 'greenhouse', 'house', 'jungle', 'lighthouse', 'market', 'moor', 'neighborhood', 'park', 'pines', 'river', 'roofs', 'seaside', 'snowville', 'treehouse', 'woods']); // M3 opened the open places
     expect(coopReady('neighborhood')).toBe(true);
     expect(coopReady('fair')).toBe(true);
     expect(coopReady('nowhere')).toBe(false);
