@@ -312,7 +312,7 @@ describe('the words and the source rules', () => {
       expect(REEF_PAGE_WORDS.rfmap.name()).toBe('The Torn Map'); expect(REEF_PAGE_WORDS.rfmap.hint()).toBe('A torn map lies in the old cabin.');
       expect(REEF_PAGE_WORDS.rfcaptchest.name()).toBe('Captain’s Chest'); expect(REEF_PAGE_WORDS.rfcaptchest.hint()).toBe('X marks where a chest lies buried.');
     });
-    expect(WING_LIVE.wreck).toBe(false);
+    expect(WING_LIVE.wreck).toBe(true);
   });
   it('the files draw no random number, read no clock, add no light, and use no banned word', () => {
     const banned = /\b(dark|lost forever|trapped|stuck|collapse|cave-in|scary|Zissou|Belafonte|Aquatic|cap|beanie)\b/i;
