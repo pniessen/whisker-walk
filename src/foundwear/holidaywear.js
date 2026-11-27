@@ -27,6 +27,14 @@ export const HOLIDAY_WEAR = Object.freeze([
   earned('snowcap', 'head', '❄️', 'winter', 1, () => phrase('wear.snowcap.name')),
   earned('lightscarf', 'neck', '💡', 'winter', 2, () => phrase('wear.lightscarf.name')),
   earned('startopper', 'back', '⭐', 'winter', 3, () => phrase('wear.startopper.name')),
+  // Christmas: five shop items (the Christmas shelf, 1 Dec to 26 Dec and the week before) and one earned piece (the errand, H7).
+  // Meshes: hats.js (redcozyhat, reindeerantlers), foundneck.js (candyscarf, jinglecollar), foundbody.js (evergreensweater, littlegoldstar).
+  sold('redcozyhat', 'head', '🎅', 'christmas', 30, () => phrase('wear.redcozyhat.name')),
+  sold('reindeerantlers', 'head', '🦌', 'christmas', 35, () => phrase('wear.reindeerantlers.name')),
+  sold('jinglecollar', 'collar', '🔔', 'christmas', 25, () => phrase('wear.jinglecollar.name')),
+  sold('candyscarf', 'neck', '🍬', 'christmas', 30, () => phrase('wear.candyscarf.name')),
+  sold('evergreensweater', 'body', '🎄', 'christmas', 35, () => phrase('wear.evergreensweater.name')),
+  earned('littlegoldstar', 'back', '🌟', 'christmas', 0, () => phrase('wear.littlegoldstar.name')),
 ]);
 export const HOLIDAY_WEAR_IDS = Object.freeze(HOLIDAY_WEAR.map((r) => r.id));
 

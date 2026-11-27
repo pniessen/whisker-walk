@@ -1,6 +1,6 @@
 // The holiday outfits (src/foundwear/holidaywear.js): the same gate the found and gift outfits pass (test/giftwearfit.test.js), over
 // HOLIDAY_WEAR, so a new record joins every check here; then the catalog rules (earned pieces are prizes, shop pieces are in season only).
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as THREE from 'three';
 import { buildCat } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
@@ -17,6 +17,7 @@ import { PRESETS, meshCount, triangles, fingerprintCat } from './helpers/catfing
 import { withOffWords, bannedIn } from './helpers/offwords.js';
 import { memoryStorage } from './helpers/storage.js';
 import { phrase } from '../src/clanphrases.js';
+import { renderSlotPickerHtml, buildDressingModel } from '../src/ui/dressingroom.js';
 import { holidayPrizeLine } from '../src/foundwear/holidaywear.js';
 
 const BARE = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null };
@@ -149,5 +150,66 @@ describe('holiday outfits: earned and kept', () => {
     const p = createProgression(memoryStorage());
     p.state.points = 999;
     for (const r of HOLIDAY_WEAR) if (r.holiday) expect(p.canBuy('accessories', r.id)).toBe(false);
+  });
+});
+
+describe('the Christmas shelf (H3)', () => {
+  const SHOP = { redcozyhat: 30, reindeerantlers: 35, jinglecollar: 25, candyscarf: 30, evergreensweater: 35 };
+  afterEach(() => { vi.useRealTimers(); });
+  const at = (y, m, d) => { vi.useFakeTimers(); vi.setSystemTime(new Date(y, m - 1, d, 12)); };
+  it('five shop pieces at the spec\'s prices and one earned star on the Christmas bit', () => {
+    for (const [id, price] of Object.entries(SHOP)) expect(CATALOG.accessories[id]).toMatchObject({ price, season: 'christmas' });
+    expect(holidayPrizeIds('christmas')).toEqual(['littlegoldstar']);
+    expect(CATALOG.accessories.littlegoldstar).toMatchObject({ prize: true, holiday: 'christmas', price: 0, slot: 'back' });
+  });
+  it('no piece costs over 35 and the shelf has one piece for head, collar, neck and body', () => {
+    const slots = new Set(Object.keys(SHOP).map((id) => CATALOG.accessories[id].slot));
+    expect([...slots].sort()).toEqual(['body', 'collar', 'head', 'neck']);
+    for (const id of Object.keys(SHOP)) expect(CATALOG.accessories[id].price).toBeLessThanOrEqual(35);
+  });
+  it('can be bought in season and the week before, not in July, and never twice', () => {
+    for (const [d, ok] of [[[2026, 7, 4], false], [[2026, 11, 23], false], [[2026, 11, 24], true], [[2026, 12, 25], true], [[2026, 12, 26], true], [[2026, 12, 27], false], [[2027, 11, 24], true]]) {
+      at(...d);
+      const p = createProgression(memoryStorage());
+      p.state.points = 100;
+      expect(p.canBuy('accessories', 'redcozyhat'), d.join('-')).toBe(ok);
+    }
+  });
+  it('buying takes the paws, owns it for good, and it stays wearable after the shelf closes', () => {
+    at(2026, 12, 10);
+    const storage = memoryStorage();
+    const p = createProgression(storage);
+    p.state.points = 60;
+    expect(p.buy('accessories', 'jinglecollar')).toBe(true);
+    expect(p.state.points).toBe(35);
+    expect(p.buy('accessories', 'jinglecollar')).toBe(false);
+    at(2027, 3, 1);
+    const q = createProgression(storage);
+    expect(q.state.unlocked.accessories).toContain('jinglecollar');
+    q.state.equipped.collar = 'jinglecollar';
+    expect(sanitizeSave(JSON.parse(JSON.stringify(q.state))).equipped.collar).toBe('jinglecollar');
+    expect(q.canBuy('accessories', 'candyscarf')).toBe(false); // the shelf is closed
+  });
+  it('the Little Gold Star is earned, never sold, and its bit lives in the Christmas record', () => {
+    at(2026, 12, 10);
+    const p = createProgression(memoryStorage());
+    p.state.points = 500;
+    expect(p.canBuy('accessories', 'littlegoldstar')).toBe(false);
+    expect(p.earnHolidayPiece('christmas', 0)).toBe(true);
+    expect(p.state.holidays).toEqual({ christmas2026: 1 });
+    expect(p.state.unlocked.accessories).toContain('littlegoldstar');
+  });
+  it('the dressing room shows a seasonal piece only in season, or once owned', () => {
+    const state = (owned) => ({ points: 100, unlocked: { cats: ['tabby'], accessories: owned, areas: ['neighborhood'] }, equipped: {}, walks: {} });
+    at(2026, 12, 10);
+    expect(renderSlotPickerHtml(state([]), CATALOG, 'head', null, null)).toContain('Red Cozy Hat');
+    at(2027, 3, 1);
+    expect(renderSlotPickerHtml(state([]), CATALOG, 'head', null, null)).not.toContain('Red Cozy Hat');
+    expect(renderSlotPickerHtml(state(['redcozyhat']), CATALOG, 'head', null, null)).toContain('Red Cozy Hat');
+    // an earned piece not yet earned says how, in plain words; the star shows only its line
+    const html = renderSlotPickerHtml(state([]), CATALOG, 'back', null, null);
+    expect(html).toContain('Earned at Christmas');
+    expect(html).toContain('Earned in Winter Lights');
+    expect(buildDressingModel(state([]), CATALOG, {}).accessoryTotal).toBeGreaterThan(0);
   });
 });
