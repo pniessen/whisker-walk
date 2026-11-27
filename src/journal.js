@@ -13,7 +13,7 @@ import { CRYSTAL_PAGES, CAVE_LIFE_PAGES, CRYSTAL_WING_PAGES, CRYSTAL_PAGE_WORDS,
 import { crystalOn } from './crystalflag.js';
 import { SNOWVILLE_LIVE_PAGES, SNOWVILLE_HINTS } from './snowvillepages.js';
 import { snowvilleOn } from './snowvilleflag.js';
-import { TREEHOUSE_PAGES, TREEHOUSE_HINTS } from './treehousepages.js';
+import { TREEHOUSE_LIVE_PAGES, TREEHOUSE_HINTS } from './treehousepages.js';
 import { treehouseOn } from './treehouseflag.js';
 import { GREENHOUSE_PAGES, GREENHOUSE_PAGE_WORDS } from './greenhousepages.js';
 import { greenhouseOn } from './greenhouseflag.js';
@@ -104,7 +104,7 @@ export const CRITTER_INFO = [
   // The Greenhouse's eight pages (src/greenhousepages.js): drawn only behind ?greenhouse=1 until the place is in the game.
   ...GREENHOUSE_PAGES.map(([id, emoji]) => ({ id, emoji, greenhouse: true, get name() { return GREENHOUSE_PAGE_WORDS[id].name(); }, get hint() { return GREENHOUSE_PAGE_WORDS[id].hint(); } })),
   // N0 (Snowville, Treehouse, Jungle): 17 placeholder pages each, never drawn (later: true) until their area's milestones give them words.
-  ...[['sv', 'sw', '❄️', 'Snowville'], ['th', 'tl', '🌳', 'Treehouse'], ['jl', 'jw', '🌴', 'Jungle']].flatMap(([a, b, emoji, place]) => [...Array(17)].map((_, i) => ({ id: (i < 9 ? a + (i + 1) : b + (i - 8)), emoji, name: place + ' page', hint: 'Not found yet.', later: true }))).map(livePages(SNOWVILLE_LIVE_PAGES, SNOWVILLE_HINTS, 'snowville', 3)).map(livePages(TREEHOUSE_PAGES, TREEHOUSE_HINTS, 'treehouse', 2)), // T3: the Treehouse's six discoveries are live (only behind ?treehouse=1), as V3 did Snowville's (behind ?snowville=0 they hide)
+  ...[['sv', 'sw', '❄️', 'Snowville'], ['th', 'tl', '🌳', 'Treehouse'], ['jl', 'jw', '🌴', 'Jungle']].flatMap(([a, b, emoji, place]) => [...Array(17)].map((_, i) => ({ id: (i < 9 ? a + (i + 1) : b + (i - 8)), emoji, name: place + ' page', hint: 'Not found yet.', later: true }))).map(livePages(SNOWVILLE_LIVE_PAGES, SNOWVILLE_HINTS, 'snowville', 3)).map(livePages(TREEHOUSE_LIVE_PAGES, TREEHOUSE_HINTS, 'treehouse', 2)), // T3/T4: the Treehouse's six discoveries and three life pages are live (only behind ?treehouse=1), as V3 did Snowville's (behind ?snowville=0 they hide)
 ];
 
 // renderJournalHtml(journal, goldenFound, goldenTotal) → HTML string.
