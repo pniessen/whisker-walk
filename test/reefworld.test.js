@@ -47,12 +47,13 @@ describe('the plan', () => {
     expect(P.scatterKelpAll().length).toBe(P.KELP_COUNT.garden + P.KELP_COUNT.outliers); // (the Sealab's footprint takes a few blades away after the scatter, R13: test/reeflab.test.js)
     expect(P.scatterCoral().length).toBeGreaterThan(30);
   });
-  it('the dunes stay between 0 and 1.2 m and are never steeper than the walk\'s rule inside the bounds', () => {
+  it('the dunes stay between 0 and 1.2 m and are never steeper than the walk\'s rule inside the bounds (but for the galleon\'s deck)', () => {
     let hi = -1; let lo = 9; let steep = 0;
     const out = { x: 0, z: 0 };
     const g = P.createReefGround();
     for (let x = B.minX; x <= B.maxX; x += 1.5) {
       for (let z = B.minZ; z <= B.maxZ; z += 1.5) {
+        if (P.REEF_RAISE_REGIONS.some((r) => r.contains(x, z))) continue; // the galleon's tilted deck is raised ground (test/reefwreck.test.js holds its own rule)
         const y = P.reefY(x, z);
         hi = Math.max(hi, y); lo = Math.min(lo, y);
         g.gradient(x, z, out);

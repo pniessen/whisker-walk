@@ -46,11 +46,15 @@ export function reefBaseY(x, z) {
   if (d > 0) y += 2.4 * smooth(d / 16);
   return y;
 }
+// Raised ground over the dunes (the galleon's tilted deck; a stage pushes a { contains(x, z), raise(x, z) } entry from its module). Empty means open
+// seabed, so with no stage loaded every point is reefBaseY and nothing outside a region ever changes.
+export const REEF_RAISE_REGIONS = [];
 // A stage may flatten the seabed under a building (the Sealab): it pushes { minX, maxX, minZ, maxZ, apron, y } onto REEF_FLATS. Inside the rectangle the
 // dune eases down to `y` over `apron` metres (smooth, so there is no cliff); on and outside its edge the answer is reefBaseY itself, byte for byte.
 export const REEF_FLATS = [];
 export function reefY(x, z) {
-  const b = reefBaseY(x, z);
+  let b = reefBaseY(x, z);
+  for (const r of REEF_RAISE_REGIONS) if (r.contains(x, z)) b += r.raise(x, z); // (the galleon's deck, R16)
   for (const f of REEF_FLATS) {
     const d = Math.min(x - f.minX, f.maxX - x, z - f.minZ, f.maxZ - z);
     if (d > 0) { const w = smooth(d / f.apron); return w >= 1 ? f.y : b + (f.y - b) * w; }
