@@ -25,7 +25,7 @@ export function onStage(fn) { listeners.add(fn); return () => listeners.delete(f
 let loading = null;
 /** Loads the three stages together (tests, and anything that needs the whole Moon at once); the same promise every time. */
 export function loadMoonStages() {
-  loading ??= Promise.all([import('./moonstagehill.js'), import('./moonstagelaunch.js'), import('./moonstagerover.js')]).then(() => ST);
+  loading ??= Promise.all([import('./moonstagehill.js'), import('./moonstagelaunch.js'), import('./moonstagerover.js')]).then(() => ST).catch((e) => { loading = null; throw e; });
   return loading;
 }
 
