@@ -500,13 +500,14 @@ describe('the words, the journal and the source rules', () => {
     setReef(true);
     try {
       const html = renderJournalHtml({}, 0, 0);
-      for (const id of ['rflab', 'rffuses', 'rfshow', 'rfshark']) expect(html, id).toContain(RP.REEF_PAGE_WORDS[id].hint());
-      for (const id of ['rfgalleon', 'rfmap', 'rfcaptchest']) expect(html, id).not.toContain(RP.REEF_PAGE_WORDS[id].hint());
-      expect(RP.WING_LIVE).toEqual({ lab: true, wreck: false, scooter: true, saucer: true });
+      for (const id of ['rflab', 'rffuses', 'rfshark']) expect(html, id).toContain(RP.REEF_PAGE_WORDS[id].hint());
+      expect(html).not.toContain(RP.REEF_PAGE_WORDS.rfshow.hint()); // the dome page waits for the show (R15)
+      expect(renderJournalHtml({ rfshow: 1 }, 0, 0)).toContain('Dome Lights');
+      expect(RP.WING_LIVE).toEqual({ lab: true, wreck: true, scooter: true, saucer: true });
       RP.WING_LIVE.wreck = true;
       expect(renderJournalHtml({}, 0, 0)).toContain(RP.REEF_PAGE_WORDS.rfgalleon.hint());
       RP.WING_LIVE.wreck = false;
-      for (const id of Object.keys(RP.WING_OF)) expect(RP.wingPageShown(id)).toBe(RP.WING_LIVE[RP.WING_OF[id]]);
+      for (const id of Object.keys(RP.WING_OF).filter((i) => i !== 'rfshow')) expect(RP.wingPageShown(id)).toBe(RP.WING_LIVE[RP.WING_OF[id]]);
       expect(RP.wingPageShown('rfseal')).toBe(true); // the older pages are never filtered
     } finally { RP.WING_LIVE.wreck = false; setReef(null); }
   });

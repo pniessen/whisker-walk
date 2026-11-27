@@ -22,7 +22,9 @@ export const REEF_WING_PAGES = Object.freeze([['rflab', '🔬', 'lab', 'The Seal
 // not there). 'lab' opened with R13 (the Sealab's hatch); the galleon (R16), the scooter and the saucer opened with R12 (their racks); the galleon (R16) follows, a switch to true in its own milestone.
 export const WING_LIVE = { lab: true, wreck: true, scooter: true, saucer: true };
 export const WING_OF = Object.freeze({ rflab: 'lab', rffuses: 'lab', rfshow: 'lab', rfshark: 'lab', rfgalleon: 'wreck', rfmap: 'wreck', rfcaptchest: 'wreck', rfscooter: 'scooter', rfsaucer: 'saucer' });
-export const wingPageShown = (id) => !WING_OF[id] || !!WING_LIVE[WING_OF[id]];
+// A page that stays out until it has been earned: the dome's show page is not a silhouette before the show exists (R15). `journal` is the journal's counts.
+export const PAGE_AFTER_SEEN = Object.freeze(['rfshow']);
+export const wingPageShown = (id, journal = null) => (!WING_OF[id] || !!WING_LIVE[WING_OF[id]]) && (!PAGE_AFTER_SEEN.includes(id) || Number(journal?.[id]) > 0);
 export const REEF_JOURNAL_TYPES = Object.freeze(REEF_PAGES.map((p) => p[0]));
 
 // The hints by journal id: empty here, filled by the Reef's lazy file (world/reefwords.js) when its chunk arrives.

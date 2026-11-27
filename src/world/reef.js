@@ -139,7 +139,7 @@ export function build(scene) {
           story,
           ride,
           guide,
-          credit: (ev) => (ev?.kind === 'fuse' ? story.credit(ev) : ev?.kind === 'map' || ev?.kind === 'clue' || ev?.kind === 'chest' ? wreck?.credit(ev) : base.credit(ev)), // a fuse (R14) or a hunt step (R17) done by anyone in the room; every other step is Marlo's
+          credit: (ev) => (ev?.kind === 'fuse' || ev?.kind === 'labshow' ? story.credit(ev) : ev?.kind === 'map' || ev?.kind === 'clue' || ev?.kind === 'chest' ? wreck?.credit(ev) : base.credit(ev)), // a fuse (R14) or a hunt step (R17) done by anyone in the room; every other step is Marlo's
           spottable: [...sea.spottable, ...more.spottable, ...story.spottable, ...(wreck?.spottable ?? [])],
           update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); more.update(...a); wreck?.update(...a); ride.update(...a); lab.update(...a); story.update(...a); guide.update(...a); },
           dispose() { guide.dispose(); ride.dispose(); wreck?.dispose(); story.dispose(); lab.dispose(); more.dispose(); sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },

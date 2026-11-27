@@ -26,19 +26,24 @@ export const powered = (reef) => (normalize(reef).lab & 7) === 7;
 export const showSeen = (reef) => (normalize(reef).lab & 8) !== 0;
 
 // The next record after an event; `reef` itself is never touched and its other keys come back as they were.
-// events: { kind: 'fuse', fuse: 0 | 1 | 2 } (a fuse was put in the panel). Anything else, a fuse already in, nonsense: no change.
-// effect: 'fuse' (one more in) | 'power' (the third: the station has power) | null.
+// events: { kind: 'fuse', fuse: 0 | 1 | 2 } (a fuse was put in the panel), { kind: 'show' } (the dome show was seen: only once all three fuses are in, R15).
+// Anything else, a fuse already in, a show before the power, nonsense: no change.
+// effect: 'fuse' (one more in) | 'power' (the third: the station has power) | 'seen' (the dome show, first time ever) | null.
 export function apply(reef, ev) {
   const cur = normalize(reef);
   const base = reef && typeof reef === 'object' ? reef : {};
   const none = { reef: { ...base, lab: cur.lab }, changed: false, effect: null };
+  if (ev && typeof ev === 'object' && ev.kind === 'show') {
+    if ((cur.lab & 7) !== 7 || cur.lab & 8) return none;
+    return { reef: { ...base, lab: 15 }, changed: true, effect: 'seen' };
+  }
   if (!ev || typeof ev !== 'object' || ev.kind !== 'fuse' || !(ev.fuse === 0 || ev.fuse === 1 || ev.fuse === 2)) return none;
   const bit = 1 << ev.fuse;
   if (cur.lab & bit) return none;
   const lab = cur.lab | bit;
   return { reef: { ...base, lab }, changed: true, effect: (lab & 7) === 7 ? 'power' : 'fuse' };
 }
-// Someone else's fuse: the same (no order to keep, so there is no ladder to walk).
+// Someone else's fuse (or show): the same (no order to keep, so there is no ladder to walk).
 export const credit = (reef, ev) => apply(reef, ev);
 
 // The one thing to do next. { kind, fuse?, icon }:

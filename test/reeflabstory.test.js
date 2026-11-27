@@ -422,8 +422,9 @@ describe('the guide, the words and the journal', () => {
   it('the Sealab\'s pages: ids reserved, names and hints in place and kind, the show and the three others with the wing switch on; the galleon\'s still hidden', () => {
     for (const id of ['rflab', 'rffuses', 'rfshow', 'rfshark']) {
       expect(RP.REEF_PAGE_WORDS[id].name().length).toBeGreaterThan(0);
-      expect(RP.wingPageShown(id)).toBe(true);
+      expect(RP.wingPageShown(id, { rfshow: 1 })).toBe(true);
     }
+    expect(RP.wingPageShown('rfshow')).toBe(false); // R15: the show page waits until the show has been seen
     expect(RP.wingPageShown('rfgalleon')).toBe(false);
     const p = createProgression(memoryStorage());
     for (const id of ['rflab', 'rffuses', 'rfshark']) { p.recordSighting(id); expect(p.state.journal?.[id] ?? p.state.sightings?.[id] ?? 1).toBeGreaterThan(0); }
