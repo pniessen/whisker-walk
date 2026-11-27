@@ -72,6 +72,19 @@ export function badgeAt(view) {
   return { u: nu * r, v: nv * r };
 }
 
+// The four compass letters on the rim, in pixels from the disc centre, at the
+// badge's radius: N is the badge itself, so the letters are drawn upright
+// wherever they sit. North mode: N up, E right, S down, W left. Turn mode: the
+// same ring swung round by the heading, so N still points at real north.
+export function compassLetters(view) {
+  const h = view.mode === 'turn' ? view.heading : 0;
+  const r = view.radiusPx - BADGE_INSET;
+  const sn = Math.sin(h);
+  const cs = Math.cos(h);
+  return [['N', sn, -cs], ['E', cs, sn], ['S', -sn, cs], ['W', -cs, -sn]]
+    .map(([ch, u, v]) => ({ ch, u: u * r, v: v * r }));
+}
+
 // A marker point under the badge (closer than `clear` to its centre) is
 // turned about the disc centre, keeping its distance from it, just far
 // enough to clear the badge, on the side it already leans to (east when it
