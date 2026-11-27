@@ -9,6 +9,8 @@
 import * as THREE from 'three';
 import * as P from './moonplan.js';
 import { COL, paint, at, box, cyl } from './moonparts.js';
+import { mulberry32 } from '../rng.js';
+import { clear } from './moonbeautyplan.js';
 
 export const BASE_COL = Object.freeze({ floor: 0xc3c8d3, rail: 0xf1f3f8, core: 0x5e6773, teal: 0x4fd6c4, amber: 0xffb23c, mint: 0x8affc0, glassTint: 0x9fd8ff, lampDim: 0x303a4c, lampOn: 0xfff0c4, stone: 0x9b9899, stoneTop: 0xb4b2b1, hazard: 0xf0c43c, ridge: 0x6b6672, ridgeTop: 0x5fc2b4, ridgeMark: 0x4fd6c4 });
 // The values the life moves between: the dome's lamps and the Core's glow, dim before the base wakes and full after.
@@ -155,6 +157,18 @@ export function drawSkip(kit, M, B) {
   kit.put('coreglow', B.coreglow, paint(new THREE.RingGeometry(0.34, 0.46, 16).rotateX(-Math.PI / 2).translate(top.x, P.moonY(top.x, top.z) + top.y + 0.18, top.z), BASE_COL.teal), { noCast: true });
 }
 
+// (beauty round 5) Pebble drifts: little flat grey stones in loose clumps round the landing and the spawn's path, folded into the non-casting 'floor' bucket (no mesh, no draw, no caster).
+function drawDrifts(kit, M) {
+  const r = mulberry32(0xd71f7), a = [0x9a9a9c, 0x82828a, 0xaaa8a4, 0x8a888d];
+  for (let i = 0; i < 20; i++) {
+    const cx = (r() - 0.5) * 16, cz = 33 + r() * 17;
+    for (let j = 0, n = 4 + (r() * 3 | 0); j < n; j++) {
+      const x = cx + (r() - 0.5) * 2.4, z = cz + (r() - 0.5) * 2.4, s = 0.06 + r() * 0.1;
+      if (clear(x, z, s, 0.6, 0.5)) kit.put('floor', M.paint, paint(at(new THREE.TetrahedronGeometry(s).scale(1, 0.5, 0.8), x, z, s * 0.2, r() * 6.3), a[(r() * 4) | 0]), { noCast: true });
+    }
+  }
+}
+
 export function drawBase(kit, M) {
   const B = baseMaterials();
   drawDome(kit, M, B);
@@ -164,6 +178,7 @@ export function drawBase(kit, M) {
   drawPlanters(kit, M, B);
   drawDish(kit, M, B);
   drawSkip(kit, M, B);
+  drawDrifts(kit, M);
   return B;
 }
 
