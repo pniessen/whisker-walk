@@ -1193,3 +1193,104 @@ export function coasterStation(r, trackX, glow) {
   }
   return { deck, roof, bulbs: glowMesh(L, 'coasterBulbs', glow) };
 }
+
+// ---- 6. the Viking boat ------------------------------------------------------------------
+// A friendly longship on a swing frame. The frame (`boatFrame`) stands still: two
+// A-frames and the beam between them at BOAT.pivotY, a plank stage on the ground and a
+// ticket post. The `swing` Group hangs from the beam: its origin is the pivot, its
+// rotation about x is the whole ride. The hull lies along z (dragon head on +z), the
+// deck is BOAT.arm below the pivot, and two benches on it are the seats.
+export const BOAT = Object.freeze({
+  pivotY: 5.4, arm: 4.4, legX: 2.1, legZ: 2.3, half: 0.85, benchZ: 1.05, benchTop: 0.3,
+  stageX: 2.9, stageZ: 4.0,
+});
+const BOAT_SHIELDS = Object.freeze([PAINT.red, PAINT.yellow, PAINT.sky, PAINT.cream, PAINT.green, PAINT.orange]);
+
+export function vikingBoat(x, z, glow) {
+  const g = new THREE.Group();
+  g.name = 'vikingBoat';
+  g.userData.noMerge = true;
+  g.position.set(x, 0, z);
+  const { pivotY: PY, arm: ARM, legX, legZ, half } = BOAT;
+  // the frame
+  const F = [];
+  for (let i = 0; i < 8; i++) {
+    const x0 = -BOAT.stageX + (i * 2 * BOAT.stageX) / 8;
+    const x1 = x0 + (2 * BOAT.stageX) / 8;
+    sheet(F, [[x0, 0.03, -BOAT.stageZ], [x0, 0.03, BOAT.stageZ], [x1, 0.03, BOAT.stageZ], [x1, 0.03, -BOAT.stageZ]], i % 2 ? PAINT.woodDark : PAINT.wood, { up: true });
+  }
+  const phi = Math.atan2(legZ, PY);
+  const legLen = Math.hypot(legZ, PY);
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      box(F, 0.22, legLen, 0.22, sx * legX, PY / 2, (sz * legZ) / 2, sz > 0 ? PAINT.red : PAINT.cream, { c: true, pitch: -sz * phi });
+      box(F, 0.6, 0.16, 0.6, sx * legX, 0, sz * legZ, PAINT.woodDark, { c: true });
+    }
+    ball(F, 0.24, sx * legX, PY + 0.2, 0, PAINT.gold, { detail: 1 });
+    cyl(F, 0.2, 0.2, 0.16, sx * 1.15, PY, 0, PAINT.gold, { sides: 8, c: true, roll: Math.PI / 2 });
+  }
+  cyl(F, 0.15, 0.15, 2 * legX + 0.2, 0, PY, 0, PAINT.steel, { sides: 8, c: true, roll: Math.PI / 2 });
+  // the ticket post: a striped pole and a round shield facing west, where the way in is
+  box(F, 0.12, 1.5, 0.12, -3.3, 0, 2.7, PAINT.cream);
+  box(F, 0.14, 0.25, 0.14, -3.3, 0.5, 2.7, PAINT.red);
+  cyl(F, 0.4, 0.4, 0.06, -3.3, 1.55, 2.7, PAINT.red, { sides: 10, c: true, roll: Math.PI / 2 });
+  cyl(F, 0.15, 0.15, 0.09, -3.3, 1.55, 2.7, PAINT.gold, { sides: 6, c: true, roll: Math.PI / 2 });
+  g.add(meshOf(F, 'boatFrame', { roughness: 0.7 }));
+
+  // the swinging ship
+  const swing = new THREE.Group();
+  swing.name = 'boatSwing';
+  swing.position.set(0, PY, 0);
+  g.add(swing);
+  const S = [];
+  const deck = -ARM;
+  // the hull: a keel, a flat deck and a prow and stern that rise
+  const key = (zz, top, bottom, w) => at(zz, deck + top, deck + bottom, w, { nt: 3, nb: 1.6 });
+  carve(S, [
+    key(-3.05, 0.85, 0.15, 0.06), key(-2.6, 0.45, -0.25, 0.45), key(-1.8, 0, -0.55, 0.78), key(0, 0, -0.7, half),
+    key(1.8, 0, -0.55, 0.78), key(2.6, 0.45, -0.25, 0.45), key(3.05, 0.85, 0.15, 0.06),
+  ], {
+    around: 10, along: 11, level: true, tipStart: 0.1, tipEnd: 0.1,
+    paint: (px, py, pz, u, v) => {
+      const hy = py - deck;
+      if (v > 0.3 && v < 0.7 && hy > -0.1) return PAINT.wood;
+      return hy > -0.2 ? PAINT.red : hy > -0.4 ? PAINT.cream : hy > -0.58 ? PAINT.red : PAINT.woodDark;
+    },
+  });
+  for (const sx of [-1, 1]) {
+    box(S, 0.08, 0.42, 5.2, sx * (half + 0.03), deck - 0.02, 0, PAINT.woodDark);
+    for (let i = 0; i < 6; i++) {
+      const sz = -2.2 + i * 0.88;
+      cyl(S, 0.3, 0.3, 0.05, sx * (half + 0.1), deck + 0.2, sz, BOAT_SHIELDS[(i + (sx > 0 ? 3 : 0)) % 6], { sides: 8, c: true, roll: Math.PI / 2 });
+      cyl(S, 0.1, 0.1, 0.07, sx * (half + 0.1), deck + 0.2, sz, PAINT.gold, { sides: 6, c: true, roll: Math.PI / 2 });
+    }
+    // the arm from the beam, bolted to the side of the hull
+    box(S, 0.12, ARM - 0.45, 0.12, sx * (half + 0.17), deck + 0.45, 0, PAINT.cream);
+    box(S, 0.2, 0.3, 0.3, sx * (half + 0.13), deck + 0.15, 0, PAINT.gold);
+  }
+  for (const s of [-1, 1]) box(S, 1.3, BOAT.benchTop, 0.5, 0, deck, s * BOAT.benchZ, PAINT.woodDark);
+  // the mast and its striped sail
+  cyl(S, 0.06, 0.07, 3.2, 0, deck, 0, PAINT.wood, { sides: 6 });
+  for (let i = 0; i < 6; i++) box(S, 0.27, 1.5, 0.04, -0.675 + i * 0.27, deck + 1.35, 0, i % 2 ? PAINT.cream : PAINT.red);
+  box(S, 1.7, 0.07, 0.07, 0, deck + 2.88, 0, PAINT.woodDark);
+  // the dragon at the bow, the tail at the stern
+  const neck = (sgn) => [0.1, 0.7, 1.25, 1.6].map((yy, i) => ({ y: deck + yy, z: sgn * [2.75, 3.15, 3.3, 3.2][i], r: [0.22, 0.2, 0.2, 0.26][i] }));
+  carve(S, neck(1), { around: 6, along: 6, open: 'start', paint: PAINT.green });
+  carve(S, [
+    { y: deck + 1.62, z: 3.15, r: 0.3 }, { y: deck + 1.64, z: 3.5, r: 0.34 }, { y: deck + 1.55, z: 3.88, r: 0.26 }, { y: deck + 1.5, z: 4.1, r: 0.18 },
+  ], { around: 7, along: 5, tipEnd: 0.06, paint: (px, py, pz, u) => (u > 0.8 ? PAINT.gold : PAINT.green) });
+  for (const sx of [-1, 1]) {
+    ball(S, 0.11, sx * 0.27, deck + 1.76, 3.55, PAINT.white, { detail: 1 });
+    ball(S, 0.055, sx * 0.35, deck + 1.77, 3.6, PAINT.dark);
+    spike(S, [sx * 0.15, deck + 1.9, 3.15], [sx * 0.25, deck + 2.5, 2.9], 0.08, 4, PAINT.cream);
+  }
+  carve(S, [
+    { y: deck + 0.1, z: -2.75, r: 0.15 }, { y: deck + 0.6, z: -3.15, r: 0.13 }, { y: deck + 1.1, z: -3.3, r: 0.12 },
+    { y: deck + 1.5, z: -3.2, r: 0.1 }, { y: deck + 1.7, z: -2.95, r: 0.07 },
+  ], { around: 5, along: 6, open: 'start', tipEnd: 0.1, paint: (px, py, pz, u) => (u > 0.8 ? PAINT.gold : PAINT.green) });
+  swing.add(meshOf(S, 'boatHull', { roughness: 0.65 }));
+  const L = [];
+  for (const sx of [-1, 1]) for (let i = 0; i < 6; i++) bulb(L, sx * (half + 0.06), deck + 0.5, -2.2 + i * 0.88, BULB_COLORS[(i + (sx > 0 ? 1 : 0)) % BULB_COLORS.length]);
+  swing.add(glowMesh(L, 'boatBulbs', glow));
+  return { group: g, swing, seats: [BOAT.benchZ, -BOAT.benchZ].map((zz) => ({ y: deck + BOAT.benchTop, z: zz })) };
+}

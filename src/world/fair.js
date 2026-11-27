@@ -11,7 +11,7 @@ import * as parts from './fairparts.js';
 import * as rides from './fairrides.js';
 import * as edge from './fairedge.js';
 import { STALL, STALL_SIGN, SIGN_POST, TINS, BELL, FORTUNE, BANDSTAND, PICNIC, RIDGE_TENT, FAIR_PAINT, POOL } from './fairparts.js';
-import { MGR, FERRIS, TEACUPS, HELTER, COASTER, STATION, MUSIC_BOX } from './fairrides.js';
+import { MGR, FERRIS, TEACUPS, HELTER, COASTER, STATION, MUSIC_BOX, BOAT } from './fairrides.js';
 import { cutForGates } from '../gateways.js';
 
 // =============================================================================
@@ -91,6 +91,7 @@ export const MGR_AT = pt(0, 0);
 export const MUSIC_BOX_AT = pt(0, -6.7);
 export const FERRIS_AT = pt(0, -30);
 export const TEACUPS_AT = pt(-26, 2);
+export const BOAT_AT = pt(31, 3); // inside the loop of the coaster, clear of the track, the station and the paths
 export const HELTER_AT = pt(-33, -33);
 export const HELTER_YAW = Math.PI / 4; // the door faces south-east, towards the plaza
 export const STATION_DECK = rect(21, 23.3, -5.2, 5.2);
@@ -134,7 +135,7 @@ const BENCHES = Object.freeze([
 // Trees: [x, z, scale, kind].
 const TREES = Object.freeze([
   [-40, 41, 1.3, 'oak'], [-38, 9, 1.2, 'round'], [-41, -14, 1.25, 'oak'], [-15, -40, 1.2, 'birch'], [15, -40.5, 1.3, 'oak'],
-  [31.5, -19, 1.2, 'round'], [31.5, 6, 1.3, 'oak'], [41, 40, 1.2, 'birch'], [-13, 42, 1.1, 'round'], [22, 41.5, 1.15, 'round'],
+  [31.5, -19, 1.2, 'round'], [33.5, 17.5, 1.3, 'oak'], [41, 40, 1.2, 'birch'], [-13, 42, 1.1, 'round'], [22, 41.5, 1.15, 'round'],
   [-32.5, 13.5, 1.15, 'round'], [34, 36.5, 1.25, 'oak'], [9.5, -25, 1.1, 'birch'], [41, -41, 1.2, 'round'],
 ]);
 // The showmen's wagons, parked north-east of the plaza: [x, z, yaw].
@@ -465,7 +466,7 @@ export const FAIR_REGISTRATION = Object.freeze({
   legendary: false,
   // step 1's proposed ceilings: [meshes, casters, triangles] built, [meshes, casters] merged
   // (test/budget.test.js holds the real ones: tighter on meshes and casters, 75,000 triangles)
-  budget: Object.freeze({ built: Object.freeze([260, 185, 70000]), merged: Object.freeze([210, 150]) }),
+  budget: Object.freeze({ built: Object.freeze([260, 185, 80000]), merged: Object.freeze([210, 150]) }),
   // verify-places.html VIEWS.fair, and the card picture public/places/fair.jpg:
   // from the top of the midway, the last stalls either side, the merry-go-round
   // under the bunting and the big wheel behind it (step 1's view, from the gate,
@@ -731,7 +732,8 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) {
     const track = rides.coasterTrack(COASTER_TRACK, { glow });
     const station = rides.coasterStation(STATION_DECK, TRACK_X, glow);
     const train = rides.coasterTrain(COASTER_TRACK, COASTER_STATION_S);
-    out.push(mgr.group, music.group, wheel.group, cups.group, helter.tower, helter.roof, helter.stairs, helter.slide, helter.brackets,
+    const boat = rides.vikingBoat(BOAT_AT.x, BOAT_AT.z, glow);
+    out.push(boat.group, mgr.group, music.group, wheel.group, cups.group, helter.tower, helter.roof, helter.stairs, helter.slide, helter.brackets,
       helter.bulbs, track.rails, track.supports, track.lights, station.deck, station.roof, station.bulbs, train.group);
     parts.balloonBunch(K, STATION_DECK.minX + 0.06, STATION.deckY + 0.8, STATION_DECK.minZ + 0.1, 4, 31);
 
@@ -759,7 +761,7 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) {
     FLOWER_TUBS.forEach((t, i) => parts.into(K, t.x, t.z, 0, (L) => edge.flowerTub(L, i * 1.7)));
 
     out.push(...parts.meshesOf(K, glow));
-    return { out, glow, mgr, music, wheel, cups, helter, train, tins, ducks, bell, fortune };
+    return { out, glow, mgr, music, wheel, cups, helter, train, boat, tins, ducks, bell, fortune };
   });
   for (const m of made.out) scene.add(m);
 
@@ -767,6 +769,10 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) {
   addC(MGR_AT.x, MGR_AT.z, MGR.baseR);
   addC(MUSIC_BOX_AT.x, MUSIC_BOX_AT.z, 0.85);
   addC(TEACUPS_AT.x, TEACUPS_AT.z, TEACUPS.baseR);
+  // the Viking boat: the four feet, the ticket post, and the hull at rest (nobody walks under it)
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) addC(BOAT_AT.x + sx * BOAT.legX, BOAT_AT.z + sz * BOAT.legZ, 0.3);
+  addC(BOAT_AT.x - 3.3, BOAT_AT.z + 2.7, 0.22);
+  for (const sz of [-1, 1]) addC(BOAT_AT.x, BOAT_AT.z + sz * 1.5, 0.9);
   // the big wheel: its four feet, the boarding deck, the ground under the wheel, the lookout's mast
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) addC(FERRIS_AT.x + sx * FERRIS.legX, FERRIS_AT.z + sz * FERRIS.frameZ, 0.45);
   blockRect(addC, FERRIS_AT.x - FERRIS.deckW / 2, FERRIS_AT.x + FERRIS.deckW / 2, FERRIS_AT.z + FERRIS.deckZ - FERRIS.deckD / 2, FERRIS_AT.z + FERRIS.deckZ + FERRIS.deckD / 2);
@@ -955,6 +961,8 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) {
       // the teacups
       teacups: Object.freeze({ x: TEACUPS_AT.x, z: TEACUPS_AT.z, r: TEACUPS.baseR }),
       teacupsBoard: pt(TEACUPS_AT.x + TEACUPS.baseR + 0.7, TEACUPS_AT.z),
+      // the Viking boat
+      boat: pt(BOAT_AT.x, BOAT_AT.z),
       // the helter-skelter
       helterSkelter: pt(HELTER_AT.x, HELTER_AT.z),
       helterDoor: Object.freeze(world(HELTER_AT, HELTER_YAW, 0, HELTER.baseR + 0.75)),
@@ -1003,6 +1011,7 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) {
       merryGoRound: { group: made.mgr.group, turn: made.mgr.turn, axis: 'y', horses: made.mgr.horses, bob: MGR.bob, musicBoxDrum: made.music.drum },
       wheel: { group: made.wheel.group, turn: made.wheel.turn, axis: 'z', gondolas: made.wheel.gondolas, hubY: FERRIS.hubY, radius: FERRIS.R },
       teacups: { group: made.cups.group, turn: made.cups.turn, axis: 'y', cups: made.cups.cups },
+      boat: { group: made.boat.group, swing: made.boat.swing, axis: 'x', pivotY: BOAT.pivotY, seats: made.boat.seats },
       helterSkelter: { tower: made.helter.tower, stairs: HELTER_STAIRS, top: HELTER_TOP, slide: HELTER_SLIDE, slideMeshes: [made.helter.slide, made.helter.brackets] },
       coaster: { train: made.train.group, cars: made.train.cars, track: COASTER_TRACK, stationS: COASTER_STATION_S, carGap: COASTER.carGap },
       tinCans: made.tins.children.slice(),

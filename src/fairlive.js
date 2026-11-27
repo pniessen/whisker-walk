@@ -58,6 +58,8 @@ export function poseRides(rides, sim) {
   const c = rides.teacups;
   c.turn.rotation.y = A.cups;
   for (let i = 0; i < c.cups.length; i++) c.cups[i].rotation.y = sim.cups.list[i].spin0 + A.cupSpin;
+  // the Viking boat swings about its beam
+  rides.boat.swing.rotation.x = A.boat;
   // the caterpillar: each car on the rails where the train is, nose along the track
   const t = rides.coaster;
   for (let i = 0; i < t.cars.length; i++) {
@@ -98,6 +100,7 @@ const smooth01 = (v) => { const k = Math.min(1, Math.max(0, v)); return k * k * 
 
 // The camera while she rides, by ride: how it is placed is cameraFor below.
 const EARS_BACK = 0.8; // radians: an ear laid back (the animator's upright ear is 0.22)
+const BOAT_HEAR = 16; // metres from the Viking boat at which its creak and whoosh are no longer heard
 const CAM_EASE = 2.6; // 1/seconds: how fast the ride's camera takes over, and lets go
 
 // createFairLive(scene, area, opts) → the Fairground's rides for one walk.
@@ -109,9 +112,10 @@ const CAM_EASE = 2.6; // 1/seconds: how fast the ride's camera takes over, and l
 //   opts.onEvent(e)    { type: 'ride', ride } the first frame on a ride's seat, { type: 'hop' },
 //                      { type: 'dismount' } when she is down, { type: 'note', freq, volume } the tune,
 //                      { type: 'lookout' } onto the lookout at the top of the big wheel,
-//                      { type: 'slide' } off down the helter-skelter, { type: 'slide-end' } onto its mat
+//                      { type: 'slide' } off down the helter-skelter, { type: 'slide-end' } onto its mat,
+//                      { type: 'boat-whoosh' | 'boat-creak', volume } the swing of the Viking boat, heard from near it
 export function createFairLive(scene, area, { camera = null, reducedMotion = false, now = wallClock, onEvent = () => {}, ground = FLAT_GROUND } = {}) {
-  const sim = createFairSim(area);
+  const sim = createFairSim(area, { reducedMotion });
   const rides = area.rides;
   const musicBox = rides.merryGoRound.musicBoxDrum.parent.position; // the music box stands behind the merry-go-round
   const env = {
@@ -127,6 +131,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
   const hop = { on: false, u: 0, dur: 0.3, x0: 0, z0: 0, x1: 0, z1: 0, h0: 0 };
   let wobble = 0;
   let noteAt = -1;
+  let quarterAt = -1; // the swing of the boat, in quarters: a whoosh at the bottom, a creak at each end
 
   // the ride's camera: w is how much of it is in the picture (0: the game's own)
   let camW = 0;
@@ -195,6 +200,12 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
       // neither spins with the cup nor swings round with the floor.
       camPos.set(sim.cups.cx + board.x * 8.8, 5.0, sim.cups.cz + board.z * 8.8);
       camLook.set(sim.cups.cx + (seat.x - sim.cups.cx) * 0.28, 0.9, sim.cups.cz + (seat.z - sim.cups.cz) * 0.28);
+      return 1;
+    }
+    if (seat.rideId === 'boat') {
+      // Still, out to the side the camera was on when she got on, level with the hull: the ship swings across the picture.
+      camPos.set(sim.boat.cx + board.x * 10.5, 3.4, sim.boat.cz + board.z * 10.5);
+      camLook.set(sim.boat.cx, 2.6, sim.boat.cz);
       return 1;
     }
     if (seat.seatKind === 'car') {
@@ -311,6 +322,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
       if (t.type === 'board' || t.type === 'hop') {
         lastSeat = t.type === 'hop' ? riding : null;
         if (t.seat.rideId === 'cups') noteBoardSide(sim.cups.cx, sim.cups.cz);
+        if (t.seat.rideId === 'boat') noteBoardSide(sim.boat.cx, sim.boat.cz);
         riding = t.seat;
         if (t.seat.seatKind === 'car') sim.departNow(); // the train leaves a beat after she sits down
         seatCat(t.seat, cat, player, session);
@@ -365,6 +377,14 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
         const freq = TUNE.notes[((n % TUNE.notes.length) + TUNE.notes.length) % TUNE.notes.length];
         const d = Math.hypot(cat.position.x - sim.mgr.cx, cat.position.z - sim.mgr.cz);
         if (freq > 0 && d < TUNE.HEAR) onEvent({ type: 'note', freq, volume: 1 - d / TUNE.HEAR });
+      }
+
+      // the Viking boat: a gentle whoosh as it passes the bottom, a creak at each end, quieter with distance
+      const q = Math.floor((T * 4) / RIDE.BOAT_PERIOD);
+      if (q !== quarterAt) {
+        quarterAt = q;
+        const d = Math.hypot(cat.position.x - sim.boat.cx, cat.position.z - sim.boat.cz);
+        if (sim.boat.env > 0.15 && d < BOAT_HEAR) onEvent({ type: q % 2 ? 'boat-creak' : 'boat-whoosh', volume: (1 - d / BOAT_HEAR) * sim.boat.env });
       }
 
       before.copy(cat.position);

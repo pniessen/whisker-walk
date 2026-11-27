@@ -297,6 +297,7 @@ const LATER = Object.freeze({
   'fair.toast.cups': 'Whee! You are spinning in a teacup! ☕',
   'fair.toast.slide': 'Wheee! Down the helter-skelter you go! 🌀',
   'fair.toast.coaster': 'All aboard the caterpillar coaster! 🐛',
+  'fair.toast.boat': 'Hold on tight! The Viking boat starts to swing! ⛵',
   // The journal's pages for the five rides.
   'fair.page.mgr.name': 'Merry-Go-Round Rider',
   'fair.page.mgr.hint': 'Hop onto the merry-go-round at the fair.',

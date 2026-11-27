@@ -658,7 +658,7 @@ describe('the caterpillar coaster', () => {
       expect(sim.swept(p.x, p.z)).toBe(true);
       expect(sim.swept(p.x + 0.9, p.z + 0.9)).toBe(true);
     }
-    expect(sim.swept(31, 0)).toBe(false); // the grass inside the loop
+    expect(sim.swept(33, 14)).toBe(false); // the grass inside the loop, beyond the boat
   });
 
   it('follows the train with a camera that eases round bends, never jumps, never rolls and only looks down a little', () => {
@@ -1674,6 +1674,7 @@ describe('the first ride: one friendly line and a journal page', () => {
 
   it('has a page and a line for every ride, in words a nine-year-old can read', () => {
     for (const ride of RIDE_IDS) {
+      if (ride === 'boat') continue; // the Viking boat has a line once a walk and no page (test/fairboat.test.js)
       const page = RIDE_PAGE[ride];
       expect(JOURNAL_TYPES).toContain(page);
       const info = CRITTER_INFO.find((c) => c.id === page);
