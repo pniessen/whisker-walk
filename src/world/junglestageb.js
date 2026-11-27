@@ -7,6 +7,7 @@ import { createJungleCritters } from './junglecritters.js';
 import { jungleCollectibles, createJungleFindsLife } from './junglefinds.js';
 import { wingColliders, wingPerches, wingStory } from './junglewingplan.js';
 import { drawWing, fruitModel } from './junglewingparts.js';
+import { drawPolish } from './junglepolish.js';
 import { createWing } from './junglewinglive.js';
 import { createJungleErrandLive } from './junglejoblive.js';
 
@@ -17,7 +18,7 @@ Object.assign(ST, {
     colliders: wingColliders,
     perches: wingPerches,
     story: wingStory(),
-    draw: drawWing,
+    draw: (kit, M) => { drawWing(kit, M); drawPolish(kit, M); }, // the wing, then the J8 beauty round (shrubs, tufts, logs, roots, bromeliads, lianas)
     fruitModel,
     wing: createWing,
     errand: createJungleErrandLive, // Mossy's errand of the day and its leaf album (milestone J7)

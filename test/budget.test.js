@@ -589,7 +589,9 @@ const AREAS = [
   // lookout, the vine swing, the sloth's tree and limb, the orchid on its stump and the ring of hanging lantern glasses; no mesh of its own) measured 8 / 3 / 25,462 built (+1,922 triangles, no
   // mesh), +12%: 9 / 4 / 28,600. The plan's stage figures (about 30,000 triangles for A and B together) hold. The lantern glows, candles, window halos, strings of lights, fireflies, sloth, rain
   // and rainbow are the walk's life, not in this count.
-  ['jungle', buildJungle, 9, 4, 28600],
+  // Milestone J8 (2026-11-27, beauty round, stage b's junglepolish.js in the same merged buckets: shrub drifts with each zone's accent flower, grass tufts, fallen logs, buttress roots,
+  // bromeliads and lianas; ground tones are vertex colour, no triangles) measured 8 / 3 / 32,576 built (+7,114 triangles, no mesh), +12%: 9 / 4 / 36,500.
+  ['jungle', buildJungle, 9, 4, 36500],
   // Milestone V8 (2026-11-27, the beauty pass: sixteen holly-and-snow shrub clumps, four woodpiles, four crate-and-barrel corners, icicles and a wreath at every cottage, two strings of
   // pennants and a 28-peak far ridge, all in the merged buckets plus the ridge's own non-casting bucket (the 6 / 3 draw caps held: the ridge shares the treeline's slot); the ground's new
   // tones are per-vertex colour, no triangle) measured 6 / 3 / 27,905 built (+8,739 triangles), +12%: 6 / 3 / 31,300.
