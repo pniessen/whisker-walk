@@ -309,3 +309,78 @@ describe('on a walk: a solo ride', () => {
     expect(r.session.fair).toBe(r.orig);
   });
 });
+
+describe('the second seat (co-walk)', () => {
+  const partnerAt = (s, seatId = 'snow-mobile') => {
+    const group = new THREE.Object3D();
+    const p = M.mobilePos(s);
+    const rec = M.seatRecord({ x: p.x, z: p.z, heading: p.heading }, seatId === 'snow-mobile' ? 0 : 1);
+    group.position.set(rec.x, 0, rec.z);
+    group.rotation.y = rec.yaw;
+    return { seatId, group };
+  };
+  it('a partner who rides on her own device is drawn on the machine here: it is put under her seat, and goes back to the garage when she gets off', () => {
+    const r = rig();
+    const p = partnerAt(12);
+    r.session.remotes.list.push(p);
+    r.tick();
+    const mp = M.mobilePos(12);
+    expect(Math.hypot(r.live.mobile.position.x - mp.x, r.live.mobile.position.z - mp.z)).toBeLessThan(0.02);
+    expect(Math.abs(r.live.mobile.rotation.y - mp.heading)).toBeLessThan(1e-6);
+    p.seatId = null;
+    r.tick();
+    expect(Math.hypot(r.live.mobile.position.x - M.START.x, r.live.mobile.position.z - M.START.z)).toBeLessThan(0.01);
+    r.live.dispose();
+  });
+  it('a back-seat partner is drawn on the machine too (her seat is a little behind the front one)', () => {
+    const r = rig();
+    r.session.remotes.list.push(partnerAt(20, 'snow-mobile-1'));
+    r.tick();
+    const mp = M.mobilePos(20);
+    expect(Math.hypot(r.live.mobile.position.x - mp.x, r.live.mobile.position.z - mp.z)).toBeLessThan(0.02);
+    r.live.dispose();
+  });
+  it('two riders: she who hops on while a partner is aboard is offered the back seat, sits on it (id snow-mobile-1, seat 1), and joins the ride where the partner is for one lap', () => {
+    const r = rig();
+    const p = partnerAt(14);
+    r.session.remotes.list.push(p);
+    const at = M.mobilePos(14);
+    r.cat.position.set(at.x + 1.0, area.ground.y(at.x, at.z), at.z);
+    r.tick();
+    expect(r.live.slots.mobile.promptAt(r.cat.position)).toBe('Hop on the back seat');
+    press(r);
+    expect(r.live.mode).toBe('riding');
+    expect(r.live.seat).toBe(1);
+    expect(r.session.fair.riding).toEqual({ id: 'snow-mobile-1', seat: 1 });
+    expect(Math.abs(r.live.state.s - 14)).toBeLessThan(0.8);
+    const s1 = M.seatRecord(r.live.ride, 1);
+    expect(Math.hypot(r.cat.position.x - s1.x, r.cat.position.z - s1.z)).toBeLessThan(0.05);
+    expect(r.live.state.length).toBe(M.MOBILE_LEN);
+    r.session.remotes.list.length = 0; // (the partner's own machine is hers: she leaves midway)
+    let n = 0;
+    while (r.live.mode === 'riding' && n++ < 1300) r.tick();
+    expect(r.live.mode).toBe('parked');
+    expect(n).toBeLessThan(20 * 30);
+    expect(freeSpot(r.cat.position)).toBe(true);
+    expect(r.session.fair.riding).toBeNull();
+    r.live.dispose();
+  });
+  it('a partner who leaves midway changes nothing for a rider: the machine goes on and ends normally (and the partner appearing midway changes nothing either)', () => {
+    const r = rig();
+    r.tick(); press(r);
+    expect(r.live.seat).toBe(0);
+    const p = partnerAt(5, 'snow-mobile-1');
+    for (let i = 0; i < 60; i++) { r.tick(); if (i === 20) r.session.remotes.list.push(p); if (i === 40) r.session.remotes.list.length = 0; }
+    expect(r.live.mode).toBe('riding');
+    expect(r.session.fair.riding).toEqual({ id: 'snow-mobile', seat: 0 });
+    expect(Math.hypot(r.live.mobile.position.x - r.live.ride.x, r.live.mobile.position.z - r.live.ride.z)).toBeLessThan(0.05);
+    drive(r, null);
+    expect(r.live.mode).toBe('parked');
+    expect(r.live.rides).toBe(1);
+    expect(r.added).toEqual([3]);
+    r.live.dispose();
+  });
+  it('the seat ids pass the remote cats\' check (letters, dashes and at most two digits, 24 characters)', () => {
+    for (const id of M.SEAT_IDS) { expect(id.length).toBeLessThanOrEqual(24); expect(/^[a-z]+(-[a-z]+)*(-\d{1,2})?$/.test(id)).toBe(true); }
+  });
+});
