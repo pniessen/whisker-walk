@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import * as P from './snowvilleplan.js';
+import * as BP from './snowvillebeautyplan.js';
 
 export const COL = Object.freeze({
   snow: 0xe9eff7, snowBright: 0xf6f9ff, shade: 0xbccfe6, wood: 0x8a6244, woodDark: 0x5a3e2a, iron: 0x3a3f4a, fir: 0x2f5a46, firLight: 0x4a7a5c, rock: 0x8a909c,
@@ -46,7 +47,7 @@ function lines(min, max, edge, outer) {
 
 // The lane: a trodden line from the court's arch up to the square, a little greyer and bluer than the drifts.
 const LANE = Object.freeze([[0, 26], [-1, 20], [-3, 14], [-4, 9]]);
-const laneDist = (x, z) => {
+export const laneDist = (x, z) => {
   let best = 1e9;
   for (let i = 0; i < LANE.length - 1; i++) {
     const [ax, az] = LANE[i]; const [bx, bz] = LANE[i + 1];
@@ -67,6 +68,7 @@ function snowColour(x, z, out) {
   _c.lerp(_d.setHex(0xc4d0de), clamp01(1 - laneDist(x, z) / 2.4) * 0.5); // the trodden lane
   for (const [wx, wz, r] of P.WARM_SPOTS) _c.lerp(_d.setHex(0xf4e2c8), 0.3 * Math.exp(-((x - wx) ** 2 + (z - wz) ** 2) / (r * r))); // firelight on the snow
   _c.lerp(_d.setHex(0xe6f4ff), 0.35 * Math.exp(-((x - P.ARCH.x) ** 2 + (z - P.ARCH.z - 1.5) ** 2) / 9)); // the arch's icy light
+  BP.groundShade(x, z, _c, _d); // V8: zone tones, shade under firs and eaves, door paths, window light
   out[0] = _c.r; out[1] = _c.g; out[2] = _c.b;
 }
 
@@ -156,14 +158,14 @@ export function paint(geo, hex, jitter = 0) {
 }
 
 // Place a built piece: turn it `ry` about the vertical at the origin, then stand it at (x, z), dy over the snow there.
-const stand = (geo, x, z, dy = 0, ry = 0) => {
+export const stand = (geo, x, z, dy = 0, ry = 0) => {
   if (ry) geo.rotateY(ry);
   geo.translate(x, P.snowY(x, z) + dy, z);
   return geo;
 };
-const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-const cyl = (rt, rb, h, seg = 8) => new THREE.CylinderGeometry(rt, rb, h, seg, 1);
-const ball = (r, ws = 7, hs = 5) => new THREE.SphereGeometry(r, ws, hs);
+export const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+export const cyl = (rt, rb, h, seg = 8) => new THREE.CylinderGeometry(rt, rb, h, seg, 1);
+export const ball = (r, ws = 7, hs = 5) => new THREE.SphereGeometry(r, ws, hs);
 
 // A gabled prism with its ridge along x: width w (ridge length), depth d (eave to eave), eaves at y 0, ridge at y rise. Faces are wound outward by a reference point inside.
 function gable(w, d, rise) {
@@ -240,7 +242,7 @@ export function cottageParts(c) {
   const chx = c.w * 0.28;
   add('paint', box(0.6, rise + 0.9, 0.6).translate(chx, c.h + (rise + 0.9) / 2 - 0.1, -c.d * 0.2), COL.rock);
   add('paint', box(0.78, 0.2, 0.78).translate(chx, c.h + rise + 0.82, -c.d * 0.2), COL.snowBright, 0, true);
-  add('paint', box(0.95, 1.75, 0.12).translate(0, 0.875, c.d / 2 + 0.03), COL.woodDark); // the door
+  add('paint', box(0.95, 1.75, 0.12).translate(0, 0.875, c.d / 2 + 0.03), P.DOOR_HUE[c.id] ?? COL.woodDark); // the door, in its zone's accent hue
   add('paint', box(1.25, 0.18, 0.5).translate(0, 1.82, c.d / 2 + 0.16), COL.snowBright, 0, true); // snow on the lintel
   for (const sx of [-1, 1]) { // two windows, a sill with snow under each
     const wx = sx * c.w * 0.32;

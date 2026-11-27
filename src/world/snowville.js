@@ -12,6 +12,7 @@ import * as b from './builder.js';
 import { withLocalUuids } from './localuuids.js';
 import * as P from './snowvilleplan.js';
 import * as K from './snowvilleparts.js';
+import { drawBeauty } from './snowvillebeauty.js';
 import { createSnowvilleLight } from './snowvillelight.js';
 import { createTilly, createSnowvillePrompts } from './snowvillelife.js';
 import './snowvillewords.js';
@@ -40,6 +41,7 @@ export function build(scene) {
     K.drawFirs(kit, M);
     K.drawDrifts(kit, M);
     K.drawRocks(kit, M);
+    drawBeauty(kit, M); // V8: shrubs, woodpiles, crates, icicles, wreaths, pennants and the far ridge
     ST.b?.draw?.(kit, M); // the pond and its ice, the sled hill, the hearth, the Great Fir and the burrow (milestone V5, in the merged buckets)
     for (const m of kit.meshes()) scene.add(m);
     scene.add(K.drawLight()); // the place's one real light (the brazier's)

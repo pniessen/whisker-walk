@@ -571,7 +571,9 @@ const AREAS = [
   // the bell rope and its beam, a lantern at each bridge's middle, the supper table with its cloth, stools, cups, candles and acorn basket, and the ring of hanging lanterns; no mesh of its
   // own) measured 4 / 1 / 29,154 built (+1,450 triangles, no mesh), +12%: 5 / 2 / 32,700. The plan's stage figures (about 28,000 triangles for A and B together) hold within the same margin. The
   // strings of lights, lantern glows, candle flames, fireflies and the bell's ring are the walk's life, not in this count.
-  ['treehouse', buildTreehouse, 5, 2, 32700],
+  // Milestone T8 (2026-11-27, the beauty round, treehousebeauty.js in the lift stage: ground tones and the worn track, flower clumps in each zone's hue, mushrooms, stumps, logs, pennants, vines,
+  // autumn leaves, all in the same merged buckets, plus ONE non-casting additive mesh for the shafts of sun) measured 5 / 1 / 44,825 built (+12,000 triangles, +1 mesh, no caster), +12%: 6 / 2 / 50,200.
+  ['treehouse', buildTreehouse, 6, 2, 50200],
   // Snowville. Milestone V1 (2026-11-27, the snow world: the ground heightfield, then the arch, brazier, seven cottages, the square and the 100-odd firs, drifts and rocks in three
   // merged buckets (paint, glow, tree) and the treeline's own non-casting bucket; the flakes, glints and cheeks are the walk's life, not in this count) measured 5 / 2 / 16,108 built
   // (the same merged), +12%: 6 / 3 / 18,100. The plan's stage A figures were about 25,000 triangles: under them. The Farm with its new gate (3 meshes, +441 triangles, +1 caster)
@@ -587,8 +589,13 @@ const AREAS = [
   // lookout, the vine swing, the sloth's tree and limb, the orchid on its stump and the ring of hanging lantern glasses; no mesh of its own) measured 8 / 3 / 25,462 built (+1,922 triangles, no
   // mesh), +12%: 9 / 4 / 28,600. The plan's stage figures (about 30,000 triangles for A and B together) hold. The lantern glows, candles, window halos, strings of lights, fireflies, sloth, rain
   // and rainbow are the walk's life, not in this count.
-  ['jungle', buildJungle, 9, 4, 28600],
-  ['snowville', buildSnowville, 6, 3, 21500],
+  // Milestone J8 (2026-11-27, beauty round, stage b's junglepolish.js in the same merged buckets: shrub drifts with each zone's accent flower, grass tufts, fallen logs, buttress roots,
+  // bromeliads and lianas; ground tones are vertex colour, no triangles) measured 8 / 3 / 32,576 built (+7,114 triangles, no mesh), +12%: 9 / 4 / 36,500.
+  ['jungle', buildJungle, 9, 4, 36500],
+  // Milestone V8 (2026-11-27, the beauty pass: sixteen holly-and-snow shrub clumps, four woodpiles, four crate-and-barrel corners, icicles and a wreath at every cottage, two strings of
+  // pennants and a 28-peak far ridge, all in the merged buckets plus the ridge's own non-casting bucket (the 6 / 3 draw caps held: the ridge shares the treeline's slot); the ground's new
+  // tones are per-vertex colour, no triangle) measured 6 / 3 / 27,905 built (+8,739 triangles), +12%: 6 / 3 / 31,300.
+  ['snowville', buildSnowville, 6, 3, 31300],
   // Milestone R2 (Marlo and chapter one) adds only the coral ledge (no mesh more; about 200 triangles measured on top of R3: 7 / 2 / 10,700). Marlo, the shells, their glints, the picture bubble, the meow's ring and the air pockets are the walk's life, counted in test/reefmarlo.test.js
 ];
 
