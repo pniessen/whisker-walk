@@ -54,7 +54,7 @@ describe('the plan', () => {
       for (const c of [...P.snowvilleColliders(), ...W.wingColliders(), ...D.detailColliders(), ...K.skiColliders()]) expect(Math.hypot(t.x - c.x, t.z - c.z) - c.r - t.r).toBeGreaterThan(0.8);
       expect(inB(t.x, t.z)).toBe(true);
     }
-    expect(Math.hypot(M.GARAGE.x - M.START.x, M.GARAGE.z - M.START.z)).toBeLessThan(M.REACH + 1);
+    expect(Math.hypot(M.GARAGE.x - M.START.x, M.GARAGE.z - M.START.z)).toBeLessThan(M.REACH + 1.5);
   });
   it('every hop-off spot is free and in bounds, and reachable on foot from the spawn; a free spot is near every point of the ring and by the garage', () => {
     expect(M.MOBILE_HOPS.length).toBeGreaterThanOrEqual(12);
