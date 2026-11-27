@@ -59,7 +59,34 @@ function groundColour(x, z, out) {
   const dx = Math.max(P.LODGE.x0 - x, 0, x - P.LODGE.x1);
   const dz = Math.max(P.LODGE.z0 - z, 0, z - P.LODGE.z1);
   _c.lerp(_d.setHex(0xa88a5a), clamp01(1 - Math.hypot(dx, dz) / P.LODGE.skirt) * 0.7); // the lodge's packed earth terrace
+  groundVariety(x, z, _c, _d);
   out[0] = _c.r; out[1] = _c.g; out[2] = _c.b;
+}
+
+// J8 ground variety: leaf-litter browns, wet dark loam, sun-dapple yellow-greens and a faint accent wash per zone, all from smooth sines (no random number, so the heights and layout stay put),
+// plus the worn dirt path from the ring to the lodge steps and on to the bridge. Painted last so the river's banks keep their mud.
+const ZONE_WASH = Object.freeze({ ring: 0xd8d27a, lodge: 0xc89a6a, grove: 0xe0b45a, river: 0x6a9ea0, canopy: 0x3a7a62 });
+function groundVariety(x, z, c, d) {
+  const rd = P.riverDist(x, z);
+  const bank = clamp01((rd - 2.4) / 3); // 0 in the water's bed, 1 on dry ground
+  const litter = clamp01(Math.sin(x * 0.21 + Math.sin(z * 0.17) * 2.4) * Math.sin(z * 0.19 - x * 0.07) * 3.4 - 0.2);
+  c.lerp(d.setHex(0x8a6a3c), litter * 0.8 * bank); // leaf litter, brown
+  const wet = clamp01(Math.sin(x * 0.13 + 1.7) * Math.cos(z * 0.16 - 0.6) * 3 - 0.4);
+  c.lerp(d.setHex(0x2c4a2c), wet * 0.7 * bank); // damp dark loam
+  const dapple = clamp01(Math.sin(x * 0.33 + z * 0.29 + 2) * Math.sin(x * 0.17 - z * 0.23) * 3.4 - 0.4);
+  c.lerp(d.setHex(0xa6c85a), dapple * 0.6 * bank); // sun-dapple, yellow-green
+  for (const k of P.ZONES) {
+    const f = clamp01(1 - Math.hypot(x - k.x, z - k.z) / (k.r * 1.5));
+    c.lerp(d.setHex(ZONE_WASH[k.id]), f * f * 0.45);
+  }
+  // the path: ring -> lodge steps -> bridge (a smooth distance to two segments)
+  const seg = (ax, az, bx, bz) => {
+    const vx = bx - ax; const vz = bz - az;
+    const t = clamp01(((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz));
+    return Math.hypot(x - (ax + vx * t), z - (az + vz * t));
+  };
+  const pd = Math.min(seg(0, 28, -6, 21), seg(-6, 21, 0, 4), seg(0, 4, 10, -2.5));
+  c.lerp(d.setHex(0xb49a64), clamp01(1 - pd / 1.9) * 0.6 * bank);
 }
 
 export function groundGeometry() {

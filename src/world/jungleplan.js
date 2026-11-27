@@ -142,7 +142,7 @@ export const KEEP_OUT = Object.freeze([
   [CANOPY_HILL.x, CANOPY_HILL.z, 8], [26, -26, 2.5], [30, -30, 3], [-34, -16, 3], [36, 10, 3], // the canopy walk and its branch, the lookout, the sloth, the orchid
 ].map((k) => Object.freeze(k)));
 
-function clearOf(x, z, extra = 0) {
+export function clearOf(x, z, extra = 0) {
   for (const [kx, kz, kr] of KEEP_OUT) if (Math.hypot(x - kx, z - kz) < kr + extra) return false;
   if (x > LODGE.x0 - 2.5 - extra && x < LODGE.x1 + 2.5 + extra && z > LODGE.z0 - 2.5 - extra && z < LODGE.z1 + 4 + extra) return false; // the lodge, its deck and ramp
   if (riverDist(x, z) < RIVER_W + 1.2 + extra) return false;

@@ -587,7 +587,9 @@ const AREAS = [
   // lookout, the vine swing, the sloth's tree and limb, the orchid on its stump and the ring of hanging lantern glasses; no mesh of its own) measured 8 / 3 / 25,462 built (+1,922 triangles, no
   // mesh), +12%: 9 / 4 / 28,600. The plan's stage figures (about 30,000 triangles for A and B together) hold. The lantern glows, candles, window halos, strings of lights, fireflies, sloth, rain
   // and rainbow are the walk's life, not in this count.
-  ['jungle', buildJungle, 9, 4, 28600],
+  // Milestone J8 (2026-11-27, beauty round, stage b's junglepolish.js in the same merged buckets: shrub drifts with each zone's accent flower, grass tufts, fallen logs, buttress roots,
+  // bromeliads and lianas; ground tones are vertex colour, no triangles) measured 8 / 3 / 32,576 built (+7,114 triangles, no mesh), +12%: 9 / 4 / 36,500.
+  ['jungle', buildJungle, 9, 4, 36500],
   ['snowville', buildSnowville, 6, 3, 21500],
   // Milestone R2 (Marlo and chapter one) adds only the coral ledge (no mesh more; about 200 triangles measured on top of R3: 7 / 2 / 10,700). Marlo, the shells, their glints, the picture bubble, the meow's ring and the air pockets are the walk's life, counted in test/reefmarlo.test.js
 ];
