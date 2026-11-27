@@ -126,11 +126,17 @@ export function deepGeometries(rung = 'high') {
   solid.push(put(crystal(0xa890f0, 0.45, Dr.h - 0.4).rotateZ(-0.1).translate(0.45, 0.3, 0), Dr.x, Dr.z));
   for (let i = 0; i < 3; i++) glow.push(shade(put(emblem(D.DOOR_PATTERN[i], 0.13).translate(-0.45 + i * 0.45, 1.05, 0.55), Dr.x, Dr.z), flat(D.FACE_COLOURS[D.DOOR_PATTERN[i]], -0.02)));
   glow.push(glowDisc(Dr.x, Dr.z + 0.6, 1.8, 0xc9a8ff, 0.3, 0.06, 3, 14));
-  // the nest of Tink: a stone ledge (one hop, 0.9 m), a ring of dry grass and a soft pad on it
+  // the nest of Tink: a rounded stone ledge (one hop, 0.9 m) with a soft bowl of moss outside and feathers inside, a few pale twigs across the rim, and two glints (all open shells, no hidden caps)
   const N = D.NEST;
-  solid.push(put(shade(new THREE.BoxGeometry(N.w, N.h, N.d).translate(0, N.h / 2 - 0.05, 0), flat(STONE, 0.02)), N.x, N.z));
-  solid.push(put(shade(new THREE.TorusGeometry(0.55, 0.13, 5, 10).rotateX(Math.PI / 2).translate(0, N.h + 0.05, 0), flat(0xc9a878)), N.x, N.z));
-  solid.push(put(shade(new THREE.CylinderGeometry(0.46, 0.46, 0.1, 10).translate(0, N.h + 0.02, 0), flat(0xf2dcc0)), N.x, N.z));
+  const V = (r, y) => new THREE.Vector2(r, N.h + y);
+  solid.push(put(shade(new THREE.CylinderGeometry(0.8, 1.0, N.h + 0.05, 8, 1, true).scale(1.05, 1, 0.92).translate(0, N.h / 2 - 0.025, 0), (x, y, z) => _a.setHex(STONE).lerp(_a.clone().setHex(0x93b36c), Math.min(1, Math.max(0, (y - N.h * 0.4) / (N.h * 0.6))) * 0.5).offsetHSL(0, 0, 0.06)), N.x, N.z));
+  solid.push(put(shade(new THREE.LatheGeometry([V(0.8, 0), V(0.86, 0.24), V(0.72, 0.32)], 8), flat(0x9cbc74)), N.x, N.z));
+  solid.push(put(shade(new THREE.LatheGeometry([V(0.72, 0.32), V(0.64, 0.2), V(0.45, 0.06), V(0.01, 0.05)], 8), (x, y, z) => _a.setHex(0xf8e6c4).offsetHSL(0.02, 0.1, -0.05 * Math.max(0, N.h + 0.3 - y))), N.x, N.z));
+  for (let i = 0; i < 4; i++) {
+    const a = i * 1.6 + 0.4;
+    solid.push(put(shade(new THREE.CylinderGeometry(0.026, 0.026, 0.55, 3, 1, true).rotateZ(Math.PI / 2).rotateY(a + 1.2).translate(Math.cos(a) * 0.72, N.h + 0.31, Math.sin(a) * 0.72), flat(i % 2 ? 0xe6d8bc : 0xd2c2a0)), N.x, N.z));
+  }
+  for (let i = 0; i < 2; i++) glow.push(shade(put(new THREE.OctahedronGeometry(0.045).translate(Math.cos(i * 3.1 + 1) * 0.5, N.h + 0.28 + 0.05 * i, Math.sin(i * 3.1 + 1) * 0.5), N.x, N.z), flat(0xfff4d0)));
   glow.push(glowDisc(N.x, N.z, 1.5, WARM, 0.28, N.h + 0.1, 3, 12));
   // the nook: two pillars, a lintel over them, hanging crystals, and a pedestal in the middle (where the charm will lie)
   const K = D.NOOK;
