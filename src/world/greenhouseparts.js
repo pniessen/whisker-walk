@@ -12,8 +12,9 @@ import {
 } from './parkfountain.js';
 import * as P from './greenhouseplan.js';
 import { hash01 } from './warehouselook.js';
-import { frondGeometry, tint, shade, collector, finishMesh, memo } from './greenhouseplants.js';
+import { frondGeometry, tint, shade, collector, finishMesh, memo, flowerGeometry } from './greenhouseplants.js';
 import { pavedGeometry } from './greenhouseglass.js';
+import { groundDetail } from './greenhousedetail.js';
 
 export const GH_TREE_SALT = 0x61a77;
 
@@ -172,9 +173,13 @@ export function sproutsMesh() {
 // =============================================================================================================
 const flat = (g) => { g.rotateX(-Math.PI / 2); return g; };
 const slab = (w, h, d, hex) => tint(new THREE.BoxGeometry(w, h, d), hex);
+// beauty round (greenhouse): a ground-laid piece is its top face alone (two triangles; the sides of a 2 cm slab and its underside are never seen)
+const pad = (w, d, hex) => tint(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), hex);
+// a box that stands on the ground or sits on a bed loses its underside (two triangles each)
+const standing = (w, h, d, hex) => { const g = new THREE.BoxGeometry(w, h, d); const idx = Array.from(g.index.array); g.setIndex(idx.slice(0, 18).concat(idx.slice(24))); return tint(g, hex); };
 const seg = (col, x0, z0, x1, z1, w, h, hex, y = 0) => {
   const len = Math.hypot(x1 - x0, z1 - z0);
-  col.add(slab(len, h, w, hex), (x0 + x1) / 2, y + h / 2, (z0 + z1) / 2, { yaw: -Math.atan2(z1 - z0, x1 - x0) });
+  col.add(y ? slab(len, h, w, hex) : standing(len, h, w, hex), (x0 + x1) / 2, y + h / 2, (z0 + z1) / 2, { yaw: -Math.atan2(z1 - z0, x1 - x0) });
 };
 const bench = (col, b) => {
   col.add(slab(b.w, 0.07, b.d, 0xa07a52), b.x, b.y - 0.035, b.z, {});
@@ -187,7 +192,7 @@ const bench = (col, b) => {
 export function groundDress() {
   const col = collector();
   const C = P.COURT;
-  col.add(slab(C.x1 - C.x0, 0.02, C.z1 - C.z0, 0xb9ad96), (C.x0 + C.x1) / 2, 0.01, (C.z0 + C.z1) / 2, {});
+  col.add(pad(C.x1 - C.x0, C.z1 - C.z0, 0xb9ad96), (C.x0 + C.x1) / 2, 0.02, (C.z0 + C.z1) / 2, {});
   // beauty round 1: the court is laid in flagstones (hashed tones, a worn middle, a darker edge), not one flat slab
   col.add(pavedGeometry(C.x1 - C.x0 - 0.2, C.z1 - C.z0 - 0.2, 0xcfc3aa, { cell: 1.6, seed: 0x6c0, edge: 0.7, ao: 0.12 }), (C.x0 + C.x1) / 2, 0.024, (C.z0 + C.z1) / 2, {});
   // the pond's wet bank: a ring of dark soil under the stones, so the water meets the lawn on something (28 segments, one ring)
@@ -195,23 +200,26 @@ export function groundDress() {
   // the pond's bank: a ring of rounded stones and a few paler ones, each turned and sized on its hash
   const stone = tint(new THREE.IcosahedronGeometry(1, 0), 0x8f9288);
   const stoneHi = tint(new THREE.IcosahedronGeometry(1, 0), 0xb0b0a2);
+  const pebble = tint(new THREE.OctahedronGeometry(1, 0), 0x8a8c80);
+  const pebbleHi = tint(new THREE.OctahedronGeometry(1, 0), 0xaeaea0);
   for (let i = 0; i < 22; i++) {
     const a = (i / 22) * TAU + hash01(i, 3, 0x9d1) * 0.2;
     const r = P.POND.r + 0.1 + hash01(i, 5, 0x9d1) * 0.5;
     const sc = 0.14 + hash01(i, 7, 0x9d1) * 0.2;
     if (hash01(i, 9, 0x9d1) < 0.25) continue; // gaps, so the bank is not a necklace
-    col.add(i % 3 ? stone : stoneHi, P.POND.x + Math.cos(a) * r, sc * 0.3, P.POND.z + Math.sin(a) * r, { scale: sc, sy: sc * 0.6, yaw: a * 3 });
+    col.add(sc < 0.24 ? (i % 3 ? pebble : pebbleHi) : (i % 3 ? stone : stoneHi), P.POND.x + Math.cos(a) * r, sc * 0.3, P.POND.z + Math.sin(a) * r, { scale: sc, sy: sc * 0.6, yaw: a * 3 });
   }
   col.add(flat(tint(new THREE.RingGeometry(P.FOUNTAIN.r + 0.1, P.FOUNTAIN.r + 2.2, 28), 0xcdc2ac)), P.FOUNTAIN.x, 0.016, P.FOUNTAIN.z, {});
   // the path from the court to the fountain ring, and from the ring to the Palm House's south door
-  col.add(slab(2.6, 0.02, 26 - (P.FOUNTAIN.z + 5.4), 0xc9bda5), 0, 0.012, (26 + P.FOUNTAIN.z + 5.4) / 2, {});
-  col.add(slab(2.6, 0.02, P.FOUNTAIN.z - 5.4, 0xc9bda5), 0, 0.012, (P.FOUNTAIN.z - 5.4) / 2, {});
+  col.add(pad(2.6, 26 - (P.FOUNTAIN.z + 5.4), 0xc9bda5), 0, 0.022, (26 + P.FOUNTAIN.z + 5.4) / 2, {});
+  col.add(pad(2.6, P.FOUNTAIN.z - 5.4, 0xc9bda5), 0, 0.022, (P.FOUNTAIN.z - 5.4) / 2, {});
   col.add(pavedGeometry(2.5, 26 - (P.FOUNTAIN.z + 5.4) - 0.1, 0xd4c8b0, { cell: 1.25, seed: 0x6c1, edge: 0.3, ao: 0.08 }), 0, 0.0235, (26 + P.FOUNTAIN.z + 5.4) / 2, {});
   col.add(pavedGeometry(2.5, P.FOUNTAIN.z - 5.4 - 0.1, 0xd4c8b0, { cell: 1.25, seed: 0x6c2, edge: 0.3, ao: 0.08 }), 0, 0.0235, (P.FOUNTAIN.z - 5.4) / 2, {});
   // the sunny flagstones by the bench
-  for (let i = 0; i < 6; i++) col.add(slab(0.9, 0.02, 0.9, i % 2 ? 0xd8cdb6 : 0xcfc4ac), P.SUNNY_BENCH.x - 1.4 + (i % 3) * 1.4, 0.014, P.SUNNY_BENCH.z + 0.9 + Math.floor(i / 3) * 1.1, {});
+  for (let i = 0; i < 6; i++) col.add(pad(0.9, 0.9, i % 2 ? 0xd8cdb6 : 0xcfc4ac), P.SUNNY_BENCH.x - 1.4 + (i % 3) * 1.4, 0.024, P.SUNNY_BENCH.z + 0.9 + Math.floor(i / 3) * 1.1, {});
   // the kitchen garden's dug rows
-  for (let i = 0; i < 4; i++) col.add(slab(5, 0.03, 0.55, 0x5c4630), 30 + (i % 2) * 0.4, 0.015, 24.5 + i * 1.1, {});
+  for (let i = 0; i < 4; i++) col.add(pad(5, 0.55, 0x5c4630), 30 + (i % 2) * 0.4, 0.03, 24.5 + i * 1.1, {});
+  groundDetail(col);
   return finishMesh('ghGround', col.merged());
 }
 
@@ -234,8 +242,10 @@ export function streetKit() {
     seg(col, x0, z0, x1, z1, 0.64, 0.14, 0x4a8a44, 0.9);
   }
   // catnip beds: a low frame round dark earth, a mat of grey-green catnip with violet-blue flower spikes
-  const leaf = tint(new THREE.IcosahedronGeometry(0.2, 0), 0x86a98a);
-  const spike = tint(new THREE.ConeGeometry(0.05, 0.28, 5), 0x8a78d8);
+  const leaf = tint(new THREE.OctahedronGeometry(0.2, 0).scale(1.2, 1, 1.2), 0x86a98a);
+  // beauty round (greenhouse): the spikes are not all one violet (a few white, pink and butter-yellow ones, hashed), and each bed has a few small daisies
+  const spikes = [0x8a78d8, 0x8a78d8, 0x9a86e0, 0xf0ecf4, 0xf08ab8, 0xf5d86a, 0x7a6ad0].map((hex) => tint(new THREE.ConeGeometry(0.05, 0.28, 5), hex));
+  const bloom = [0xfaf6ee, 0xf2a6c4, 0xf6d460].map((petal) => flowerGeometry({ r: 0.09, n: 4, petal, centre: 0xf4c93a, lift: 0.1 }));
   for (const bed of P.CATNIP_BEDS) {
     col.add(slab(bed.w, 0.12, bed.d, 0x4a3524), bed.x, 0.06, bed.z, {});
     for (const [w, d, x, z] of [[bed.w, 0.1, 0, -bed.d / 2], [bed.w, 0.1, 0, bed.d / 2], [0.1, bed.d, -bed.w / 2, 0], [0.1, bed.d, bed.w / 2, 0]]) col.add(slab(w, 0.18, d, 0x9a7650), bed.x + x, 0.09, bed.z + z, {});
@@ -243,7 +253,8 @@ export function streetKit() {
       const x = bed.x + (((i % 3) - 1) * bed.w) / 3.4;
       const z = bed.z + (Math.floor(i / 3) - 1) * (bed.d / 3.2);
       col.add(leaf, x, 0.2, z, { scale: 1 + 0.15 * ((i * 5) % 3), sy: 0.8 });
-      col.add(spike, x + 0.06, 0.38, z - 0.04, { tilt: 0.1 * ((i % 3) - 1) });
+      col.add(spikes[Math.floor(hash01(bed.x + i, bed.z, 0x6ed) * spikes.length) % spikes.length], x + 0.06, 0.38, z - 0.04, { tilt: 0.1 * ((i % 3) - 1), scale: 0.85 + 0.3 * hash01(i, bed.x, 0x6ee) });
+      if (i % 3 === 1) col.add(bloom[(i + (bed.x > 0 ? 1 : 0)) % 3], x - 0.08, 0.3, z + 0.1, { yaw: i });
     }
   }
   // the fallen willow log by the pond: a bark cylinder on its side, a lighter cut end, a few moss knobs
@@ -348,7 +359,7 @@ export function shedKit() {
 const WILLOW_STRAND = memo(() => frondGeometry({ len: 2.4, width: 0.16, segs: 3, rise: 0.5, droop: 2.4, fold: 0.1, base: 0x5f9a4e, tip: 0x8cc468, belly: 0.4 }));
 export function trees() {
   const col = collector();
-  const trunk = shade(tint(new THREE.CylinderGeometry(0.16, 0.26, 1, 6), 0x6a4a2e), { foot: 0.7, crown: 1.12, ribs: 3, ribDepth: 0.2 });
+  const trunk = shade(tint(new THREE.CylinderGeometry(0.16, 0.26, 1, 6, 1, true), 0x6a4a2e), { foot: 0.7, crown: 1.12, ribs: 3, ribDepth: 0.2 });
   const blob = (hex) => shade(tint(new THREE.IcosahedronGeometry(1, 0), hex), { foot: 0.66, crown: 1.16 });
   const greens = [0x3f8a3f, 0x4f9a46, 0x2f7a3a, 0x5aa04a];
   P.TREE_SPOTS.forEach(([x, z, h], i) => {
