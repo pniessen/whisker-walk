@@ -17,6 +17,9 @@ const P = await import('../src/world/reefplan.js');
 const C = await import('../src/world/reefcritters.js');
 const { paradeAt, PARADE } = await import('../src/world/reefparade.js');
 const { build } = await import('../src/world/reef.js');
+const { ST } = await import('../src/world/reefstages.js');
+const { tube, ellipsoid, bodyMatrix } = await import('../src/world/reefsealsparts.js');
+const drawEel = ST.ride.makeEel({ tube, ellipsoid, bodyMatrix, eelSpine: M.eelSpine });
 const { phrase, hasPhrase } = await import('../src/clanphrases.js');
 const { CRITTER_INFO } = await import('../src/journal.js');
 const { JOURNAL_TYPES, createProgression } = await import('../src/progression.js');
@@ -172,6 +175,37 @@ describe('the whale', () => {
   });
 });
 
+describe('the moray eel drawing (world/reefrideeel.js, the ride stage)', () => {
+  const e = M.EEL_DENS[0];
+  const draw = (t, rung = 'high') => { const soup = new D.Soup(30000); const pose = M.eelPose(e, t, {}); soup.begin(); drawEel(soup, e, pose, () => 0, t, rung); return soup; };
+  it('a long tapering body with a ridge fin, a deeper head and a jaw: more triangles than the old plain eel, and the same count on every frame (the soup is cut to its first frame)', () => {
+    const a = draw(0); const b = draw(3.7); const c = draw(11.2);
+    expect(a.k).toBe(b.k); expect(b.k).toBe(c.k);
+    expect(a.k / 3).toBeGreaterThan(500); expect(a.k / 3).toBeLessThan(1500); // triangles
+    for (const arr of [a.p, a.n, a.c]) for (let i = 0; i < a.k * 3; i++) expect(Number.isFinite(arr[i])).toBe(true);
+  });
+  it('it swims and opens its mouth slowly: a later clock moves the body and the jaw; the same clock draws the same picture; no clock (reduced motion) is one still picture', () => {
+    const a = draw(0); const b = draw(2.1); const a2 = draw(0);
+    expect(Array.from(a.p.slice(0, a.k * 3))).toEqual(Array.from(a2.p.slice(0, a2.k * 3)));
+    let moved = 0; for (let i = 0; i < a.k * 3; i++) if (Math.abs(a.p[i] - b.p[i]) > 0.01) moved++;
+    expect(moved).toBeGreaterThan(100);
+    // the jaw: the lowest vertex near the head follows the gape (the head is about a metre out of the den's middle, 0.6 m up)
+    const hx = e.x + Math.sin(e.yaw) * 1.2; const hz = e.z + Math.cos(e.yaw) * 1.2;
+    const lowest = (s) => { let y = 9; for (let i = 0; i < s.k; i++) if (Math.hypot(s.p[i * 3] - hx, s.p[i * 3 + 2] - hz) < 0.45) y = Math.min(y, s.p[i * 3 + 1]); return y; };
+    const ys = [0, 1.5, 3.1, 4.7].map((t) => lowest(draw(t)));
+    expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(0.03);
+  });
+  it('the coat is mottled in three tones (olive, brown, cream or gold) as per-vertex colour', () => {
+    const s = draw(0);
+    const tones = new Set(); for (let i = 0; i < s.k; i++) tones.add([s.c[i * 3], s.c[i * 3 + 1], s.c[i * 3 + 2]].map((v) => Math.round(v * 12)).join(','));
+    expect(tones.size).toBeGreaterThan(6);
+  });
+  it('the low rungs draw a shorter body with no fin, teeth or gill spot', () => {
+    expect(draw(0, 'low').k).toBeLessThan(draw(0, 'high').k * 0.7);
+    expect(draw(0, 'lite').k).toBe(draw(0, 'low').k);
+  });
+});
+
 describe('the moray eels', () => {
   it('each in its own rock crack, one by the Coral Garden\'s rocks and one by the Sunken Boat, clear of every find and the other rocks', () => {
     expect(M.EEL_DENS).toHaveLength(2);
@@ -251,7 +285,7 @@ describe('the drawing', () => {
     mark('horse', () => { M.horsePose(M.HORSES[0], 5, pose); D.drawHorse(soup, M.HORSES[0], pose); });
     mark('manta', () => { M.mantaPose(M.MANTAS[0], 5, pose); D.drawManta(soup, M.MANTAS[0], pose); });
     mark('whale', () => { M.whalePose(false, 5, pose); D.drawWhale(soup, null, pose); });
-    mark('eel', () => { const e = M.EEL_DENS[0]; const ep = M.eelPose(e, 5, {}); D.drawEel(soup, e, ep, () => 0); });
+    mark('eel', () => { const e = M.EEL_DENS[0]; const ep = M.eelPose(e, 5, {}); drawEel(soup, e, ep, () => 0, 5, 'high'); });
     mark('squid', () => { M.squidPose(M.SQUIDS[0], 5, pose); D.drawSquid(soup, M.SQUIDS[0], pose, 5); });
     mark('jelly', () => { M.jellyPose(M.JELLIES[0], 5, pose); D.drawJelly(soup, M.JELLIES[0], pose); });
     for (const [k, v] of Object.entries(sizes)) { expect(v, k).toBeGreaterThan(80); expect(v, k).toBeLessThan(1300); }

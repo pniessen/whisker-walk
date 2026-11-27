@@ -286,8 +286,8 @@ describe('the one real light, and the shadows', () => {
     hull.geometry.computeBoundingBox();
     const bb = hull.geometry.boundingBox;
     const b = L.LAB_BUILD;
-    expect(bb.min.x).toBeGreaterThan(b.minX - 0.3); expect(bb.max.x).toBeLessThan(b.maxX + 0.3); // the body's rounded corners and its ornaments stay near the footprint
-    expect(bb.min.z).toBeGreaterThan(b.minZ - 0.3); expect(bb.max.z).toBeLessThan(b.maxZ + 0.3);
+    expect(bb.min.x).toBeGreaterThan(b.minX - 0.6); expect(bb.max.x).toBeLessThan(b.maxX + 0.6); // the body's rounded corners and its ornaments stay near the footprint
+    expect(bb.min.z).toBeGreaterThan(b.minZ - 0.6); expect(bb.max.z).toBeLessThan(b.maxZ + 0.6);
     expect(bb.max.y).toBeGreaterThan(L.LAB_DOME_CEIL); // the dome's crown and the whips stand over the roof
     // the body's faces (the first part of the mesh) face out: each face's winding agrees with its normal
     const p = hull.geometry.attributes.position; const n = hull.geometry.attributes.normal;

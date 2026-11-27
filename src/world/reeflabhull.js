@@ -209,12 +209,12 @@ export function hullParts(env, b, lowTier = false) {
   // ---- growth on the lower half: barnacles (small pale cones standing out of the wall) and coral tufts (three cones leaning up), seeded
   const dense0 = ringPoints(b, 0, 6, 20, 9);
   const nBarn = lowTier ? 10 : 22;
-  const nCor = lowTier ? 6 : 14;
+  const nCor = lowTier ? 7 : 18;
   for (let k = 0; k < nBarn; k++) {
     const p = dense0[Math.floor(rand() * dense0.length)];
     const y = 0.05 + rand() * 1.9; // (the lowest metre is under the sand)
     for (let q = 0; q < 2; q++) {
-      const g = new THREE.ConeGeometry(0.07 + rand() * 0.04, 0.12, 3, 1, true).rotateX(Math.PI / 2).rotateY(Math.atan2(p.nx, p.nz));
+      const g = new THREE.ConeGeometry(0.14 + rand() * 0.07, 0.2, 4, 1, true).rotateX(Math.PI / 2).rotateY(Math.atan2(p.nx, p.nz));
       hull.push(tone(g.translate(p.x + p.nx * 0.02 + (rand() - 0.5) * 0.12, y + (rand() - 0.5) * 0.1, p.z + p.nz * 0.02 + (rand() - 0.5) * 0.12), BARNACLE[Math.floor(rand() * BARNACLE.length)]));
     }
   }
@@ -223,8 +223,8 @@ export function hullParts(env, b, lowTier = false) {
     const y = 0.1 + rand() * 1.3;
     const hex = GROWTH[Math.floor(rand() * GROWTH.length)];
     for (let q = 0; q < 3; q++) {
-      const g = new THREE.ConeGeometry(0.07, 0.3 + rand() * 0.25, 3, 1, true).rotateX(Math.PI / 2 - 0.55 - rand() * 0.3).rotateY(Math.atan2(p.nx, p.nz) + (q - 1) * 0.5);
-      hull.push(tone(g.translate(p.x + p.nx * 0.03 + (q - 1) * 0.06 * -p.nz, y, p.z + p.nz * 0.03 + (q - 1) * 0.06 * p.nx), hex));
+      const g = new THREE.ConeGeometry(0.15, 0.7 + rand() * 0.5, 4, 1, true).rotateX(Math.PI / 2 - 0.55 - rand() * 0.3).rotateY(Math.atan2(p.nx, p.nz) + (q - 1) * 0.5);
+      hull.push(tone(g.translate(p.x + p.nx * 0.03 + (q - 1) * 0.16 * -p.nz, y, p.z + p.nz * 0.03 + (q - 1) * 0.16 * p.nx), hex));
     }
   }
   return { hull, glow };

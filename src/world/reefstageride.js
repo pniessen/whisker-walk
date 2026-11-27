@@ -6,6 +6,7 @@ import * as plan from './reefrideplan.js';
 import { useKit, buildRacks } from './reefrideparts.js';
 import { createRideLive } from './reefridelive.js';
 import { createReefDiversLive } from './reefdiverslive.js';
+import { makeEel } from './reefrideeel.js';
 
 function draw(scene, kit, reefY, tier) {
   useKit(kit);
@@ -19,4 +20,4 @@ function live(kit, ctx, area, base, P) {
   });
 }
 
-Object.assign(ST, { ride: Object.freeze({ plan, buildRacks: draw, createRideLive: live, colliders: plan.rackColliders, createDiversLive: createReefDiversLive }) });
+Object.assign(ST, { ride: Object.freeze({ plan, buildRacks: draw, createRideLive: live, colliders: plan.rackColliders, createDiversLive: createReefDiversLive, makeEel }) });
