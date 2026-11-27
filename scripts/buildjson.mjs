@@ -145,6 +145,16 @@ export const SNOWVILLE_STAGE_GZIP_CEILING_KB = 65;
 export const SNOWVILLE_TOTAL_GZIP_CEILING_KB = 150;
 export const snowvilleDownloads = (manifest) => stagedDownloads(manifest, 'snowville', SNOWVILLE_STAGE_ENTRY_MODULES);
 
+// The Jungle lodge is the same shape (src/world/junglestages.js): stage A (jungle.js: the lodge, the ring, the river and the rain) and two stage chunks (B: the river's far bank, the
+// canopy walk and the Rain Supper; C: the raft), each under JUNGLE_STAGE_GZIP_CEILING_KB, all three under the total.
+export const JUNGLE_STAGE_ENTRY_MODULES = Object.freeze({
+  jungleb: Object.freeze(['src/world/junglestageb.js']),
+  junglec: Object.freeze(['src/world/junglestagec.js']),
+});
+export const JUNGLE_STAGE_GZIP_CEILING_KB = 65;
+export const JUNGLE_TOTAL_GZIP_CEILING_KB = 150;
+export const jungleDownloads = (manifest) => stagedDownloads(manifest, 'jungle', JUNGLE_STAGE_ENTRY_MODULES);
+
 /** One line per place over its ceiling; kbById is gzipped kB per place. */
 export function areaSizeProblems(kbById, ceilingKb = AREA_GZIP_CEILING_KB) {
   return Object.entries(kbById)
@@ -246,6 +256,10 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   const { total: svTotal, ...svParts } = svKb;
   problems.push(...areaSizeProblems(svParts, SNOWVILLE_STAGE_GZIP_CEILING_KB), ...areaSizeProblems({ 'snowville (all stages)': svTotal }, SNOWVILLE_TOTAL_GZIP_CEILING_KB));
   problems.push(...lazyProblems(manifest, SNOWVILLE_STAGE_ENTRY_MODULES));
+  const jlKb = Object.fromEntries(Object.entries(jungleDownloads(manifest)).map(([id, fs]) => [id, fs.reduce((n, f) => n + gzipOf(dir, f), 0) / 1000]));
+  const { total: jlTotal, ...jlParts } = jlKb;
+  problems.push(...areaSizeProblems(jlParts, JUNGLE_STAGE_GZIP_CEILING_KB), ...areaSizeProblems({ 'jungle (all stages)': jlTotal }, JUNGLE_TOTAL_GZIP_CEILING_KB));
+  problems.push(...lazyProblems(manifest, JUNGLE_STAGE_ENTRY_MODULES));
   const tvKb = tvDownloads(manifest).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000;
   problems.push(...areaSizeProblems({ tv: tvKb }, TV_GZIP_CEILING_KB));
   console.log(`start-up ${(startBytes / 1000).toFixed(1)} kB gzipped (ceiling ${MAIN_GZIP_CEILING_KB} kB), ${start.length} files`);
@@ -254,6 +268,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   console.log(`  crystal stages A ${crKb.crystal.toFixed(1)}, wingc ${crKb.crystalwingc.toFixed(1)}, play ${crKb.crystalplay.toFixed(1)}, all ${crTotal.toFixed(1)} kB gzipped (ceiling ${CRYSTAL_STAGE_GZIP_CEILING_KB} each, ${CRYSTAL_TOTAL_GZIP_CEILING_KB} all)`);
   console.log(`  treehouse     A ${thKb.treehouse.toFixed(1)}, branches ${thKb.treehousebranches.toFixed(1)}, lift ${thKb.treehouselift.toFixed(1)}, all ${thTotal.toFixed(1)} kB gzipped (ceiling ${TREEHOUSE_STAGE_GZIP_CEILING_KB} each, ${TREEHOUSE_TOTAL_GZIP_CEILING_KB} all)`);
   console.log(`  snowville stages A ${svKb.snowville.toFixed(1)}, b ${svKb.snowvilleb.toFixed(1)}, c ${svKb.snowvillec.toFixed(1)}, all ${svTotal.toFixed(1)} kB gzipped (ceiling ${SNOWVILLE_STAGE_GZIP_CEILING_KB} each, ${SNOWVILLE_TOTAL_GZIP_CEILING_KB} all)`);
+  console.log(`  jungle stages A ${jlKb.jungle.toFixed(1)}, b ${jlKb.jungleb.toFixed(1)}, c ${jlKb.junglec.toFixed(1)}, all ${jlTotal.toFixed(1)} kB gzipped (ceiling ${JUNGLE_STAGE_GZIP_CEILING_KB} each, ${JUNGLE_TOTAL_GZIP_CEILING_KB} all)`);
   console.log(`  moon stages   A ${moonKb.moon.toFixed(1)}, hill ${moonKb.moonhill.toFixed(1)}, launch ${moonKb.moonlaunch.toFixed(1)}, rover ${moonKb.moonrover.toFixed(1)}, station ${moonKb.moonstation.toFixed(1)}, late ${moonKb.moonlate.toFixed(1)}, all ${moonTotal.toFixed(1)} kB gzipped (ceiling ${MOON_STAGE_GZIP_CEILING_KB} each, ${MOON_TOTAL_GZIP_CEILING_KB} all)`);
   console.log(`  tv chunk      ${tvKb.toFixed(1)} kB gzipped (ceiling ${TV_GZIP_CEILING_KB} kB)`);
   const coopKb = (areaDownloads(manifest, COOP_ENTRY_MODULES).coop ?? []).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000;

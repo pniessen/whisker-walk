@@ -13,6 +13,7 @@ import { LINES as GREENHOUSE_LINES } from '../src/world/greenhousewords.js';
 import { LINES as REEF_LINES } from '../src/world/reefwords.js';
 import { LINES as CRYSTAL_LINES } from '../src/world/crystalwords.js';
 import { LINES as SNOWVILLE_LINES } from '../src/world/snowvillewords.js';
+import { LINES as JUNGLE_LINES } from '../src/world/junglewords.js';
 import { SNOWVILLE_FIND_LINES } from '../src/world/snowvillefindwords.js';
 import { LINES as SNOWVILLE_CRITTER_LINES } from '../src/world/snowvillecritterwords.js';
 import { WING_LINES as SNOWVILLE_WING_LINES } from '../src/world/snowvillewingwords.js';
@@ -59,6 +60,7 @@ addPhrases(GREENHOUSE_LINES); // (the Greenhouse's chunk adds its own on import:
 addPhrases(SNOWVILLE_FIND_LINES); // (Snowville's find lines, milestone V3: src/world/snowvillefindwords.js)
 addPhrases(SNOWVILLE_WING_LINES); // (Snowville's hearth, Lantern Night and clasp, milestone V5: src/world/snowvillewingwords.js)
 addPhrases(SNOWVILLE_CRITTER_LINES); // (Snowville's friendly life, milestone V4: src/world/snowvillecritterwords.js)
+addPhrases(JUNGLE_LINES); // (the Jungle lodge's two weather lines, milestone J1: src/world/junglewords.js)
 addPhrases(SNOWVILLE_LINES); // (Snowville's cheeks line, milestone V1: src/world/snowvillewords.js)
 addPhrases(TREEHOUSE_FIND_LINES); // (the Treehouse's find lines, milestone T3: src/world/treehousefindwords.js)
 addPhrases(TREEHOUSE_LINES); // (the Treehouse village's Nutmeg and chapter one, milestone T2: src/world/treehousewords.js)
