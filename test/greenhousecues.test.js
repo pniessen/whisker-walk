@@ -17,6 +17,7 @@ const { GREENHOUSE_FIND_IDS, GREENHOUSE_PAGES, GREENHOUSE_PAGE_WORDS } = await i
 const L = await import('../src/world/greenhouselife.js');
 const P = await import('../src/world/greenhouseplan.js');
 const W = await import('./helpers/greenhousewalk.js');
+const FC = await import('../src/world/greenhousecues.js');
 const F = await import('../src/world/greenhousefinds.js');
 const { build } = await import('../src/world/greenhouse.js');
 const { HINTS, LINES } = await import('../src/world/greenhousewords.js');
@@ -271,7 +272,37 @@ describe('(c) cue coverage: every step has at least one cue (a spoken line, a pr
     expect(life.state.set.some((s) => s.x === next.x && s.z === next.z), 'the ring is on one of this walk\'s packets').toBe(true);
     expect(life.guide.state.text).toBe('Find the seed packets (0 of 5)');
   });
-  it.todo('the six finds have no on-ground cue before she is on them (a find\'s zone is unmarked; the packets now have the guide ring)');
+  it('each of the six finds has a gold mote cue at its zone (one mesh, one draw call); a found find stops cueing; reduced motion freezes the twinkle; LOW draws fewer', () => {
+    const { life, scene } = rig(0);
+    const cue = life.meshes.cues;
+    expect(cue.parent).toBe(scene);
+    expect(cue.isMesh).toBe(true);
+    const n0 = cue.geometry.attributes.position.count;
+    expect(n0).toBeGreaterThan(0);
+    for (const id of GREENHOUSE_FIND_IDS) expect(FC.cuePoints(id).length, id).toBeGreaterThan(0);
+    // each mote column sits within sight of its zone
+    const pos = cue.geometry.attributes.position;
+    for (const id of GREENHOUSE_FIND_IDS) {
+      const pts = FC.cuePoints(id);
+      let near = 0;
+      for (let i = 0; i < pos.count; i++) if (pts.some((p) => Math.hypot(pos.getX(i) - p.x, pos.getZ(i) - p.z) < 0.6)) near++;
+      expect(near, id).toBeGreaterThan(0);
+    }
+    // a find made (the koi: still by the pond) removes its motes
+    const z = P.GREENHOUSE_FIND_ZONES.koi[0];
+    life.update(0.1, 0, catAt(z.x, z.z), null, { cat: { rotation: { y: 0 } } });
+    life.update(3.2, 3.2, catAt(z.x, z.z), null, { cat: { rotation: { y: 0 } } });
+    const n1 = life.meshes.cues.geometry.attributes.position.count;
+    expect(n1).toBeLessThan(n0);
+    // twinkle moves, and is frozen under reduced motion
+    const a = FC.createFindCues({ scene: new THREE.Scene(), reducedMotion: false });
+    a.update(0); const o0 = a.mesh.material.opacity; a.update(1); expect(a.mesh.material.opacity).not.toBe(o0);
+    const r = FC.createFindCues({ scene: new THREE.Scene(), reducedMotion: true });
+    r.update(0); const f0 = r.mesh.material.opacity; r.update(1); expect(r.mesh.material.opacity).toBe(f0);
+    const lo = FC.createFindCues({ scene: new THREE.Scene(), quality: 'low' });
+    expect(lo.mesh.geometry.attributes.position.count).toBeLessThan(a.mesh.geometry.attributes.position.count);
+    for (const c of [a, r, lo]) c.dispose();
+  });
 });
 
 // ---- (d) distance and sight --------------------------------------------------------------------------------------------------------------------------

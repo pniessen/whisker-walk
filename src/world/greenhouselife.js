@@ -32,9 +32,10 @@ import * as P from './greenhouseplan.js';
 import * as K from './greenhouseparts.js';
 import { KOI_FROZEN_TIME } from './greenhouseplants.js';
 import * as G from './greenhouseglass.js';
-import { findAt, noteGreenhouseFind } from './greenhousefinds.js';
+import { findAt, noteGreenhouseFind, greenhouseFindKey } from './greenhousefinds.js';
 import { createGreenhouseSound } from './greenhousesound.js';
 import './greenhousewords.js';
+import { createFindCues } from './greenhousecues.js';
 import { createGreenhouseIntro } from './greenhouseintro.js';
 
 export const GH_SEED_SALT = 0x6e5d1;
@@ -172,11 +173,16 @@ export function createGreenhouseLife(ctx) {
     return null;
   }
 
+  // the finds' on-ground cue: gold motes at each find not yet made (this walk's, or any earlier walk's)
+  const cues = withLocalUuids('greenhouse-cues', () => createFindCues({ scene, ground, quality: ctx.quality, reducedMotion }));
+  const alreadyFound = () => Object.keys(P.GREENHOUSE_FIND_ZONES).filter((id) => log?.count?.(greenhouseFindKey(id)) > 0);
+  withLocalUuids('greenhouse-cues', () => cues.setFound(alreadyFound()));
+
   const intro = createGreenhouseIntro({ progression, visits: ctx.visits ?? 0, state: () => ({ seeds, watered: wateredCount() }) }); // the first-visit arrival card
 
   return {
     get state() { return { seeds, seedState, held, watered: wateredCount(), thirsty: thirsty.slice(), set: set.map((s) => ({ ...s })), allWatered }; },
-    get meshes() { return { packets, sprouts, can, pots: pots.map((p) => p.leaves), clouds: pots.map((p) => p.cloud) }; },
+    get meshes() { return { cues: cues.mesh, packets, sprouts, can, pots: pots.map((p) => p.leaves), clouds: pots.map((p) => p.cloud) }; },
     promptAt(catPos) {
       target = decide(catPos);
       return target ? target.line : null;
@@ -219,6 +225,7 @@ export function createGreenhouseLife(ctx) {
       for (const sh of roomShafts) sh.rotation.z = G.shaftAngle(t, reducedMotion);
       butterflies?.update(dt, t, catPos);
       intro.update(dt);
+      cues.update(reducedMotion ? 0 : t);
       if (koi) koi.userData.koi.uTime.value = reducedMotion ? KOI_FROZEN_TIME : t;
 
       if (catPos) {
@@ -236,6 +243,7 @@ export function createGreenhouseLife(ctx) {
         const here = findAt(spot);
         if (here && !found.has(here)) {
           found.add(here);
+          withLocalUuids('greenhouse-cues', () => cues.setFound([here]));
           if (log && progression) noteGreenhouseFind(here, { log, progression });
           if (here === 'butterfly') butterflies?.land(catPos);
           else if (pops[here]?.mesh) { pops[here].at = clock; pops[here].mesh.visible = true; }
@@ -304,6 +312,7 @@ export function createGreenhouseLife(ctx) {
     dispose() {
       disposed = true;
       intro.dispose();
+      cues.dispose();
       sound?.dispose();
       if (sheltered) { sheltered = false; weather?.setSheltered(false); }
       for (const m of [...packets, sprouts, can, dropMesh, ...pots.map((p) => p.cloud)]) {
