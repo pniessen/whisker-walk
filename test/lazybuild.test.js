@@ -57,13 +57,13 @@ describe('the real website build is split into start-up and places', () => {
   });
 });
 
-describe('the Moon is four chunks fetched together', () => {
-  it('stage A (the landing) and each later stage are under their own ceiling, and all four under the total', async () => {
+describe('the Moon is a landing chunk, three stage chunks and the late arrivals code', () => {
+  it('stage A (the landing) and each later stage are under their own ceiling, and all together under the total', async () => {
     const { moonDownloads, MOON_STAGE_ENTRY_MODULES, lazyProblems: lp, MOON_STAGE_GZIP_CEILING_KB, MOON_TOTAL_GZIP_CEILING_KB } = await import('../scripts/buildjson.mjs');
     expect(lp(b.manifest, MOON_STAGE_ENTRY_MODULES)).toEqual([]);
     const dl = moonDownloads(b.manifest);
     const kb = Object.fromEntries(Object.entries(dl).map(([id, fs]) => [id, fs.reduce((n, f) => n + b.gz(f), 0) / 1000]));
-    for (const id of ['moon', 'moonhill', 'moonlaunch', 'moonrover']) {
+    for (const id of ['moon', 'moonhill', 'moonlaunch', 'moonrover', 'moonlate']) {
       expect(dl[id].length, id).toBeGreaterThan(0);
       expect(kb[id], id).toBeLessThanOrEqual(MOON_STAGE_GZIP_CEILING_KB);
     }

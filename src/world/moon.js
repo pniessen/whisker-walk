@@ -23,7 +23,7 @@ import { createMoonLife } from './moonlife.js';
 import { moonPebbles } from './moonfinds.js';
 import { decorList } from './moondecor.js';
 import './moonwords.js';
-import { ST, loadMoonStages } from './moonstages.js';
+import { ST, loadMoonStages, stageReady, createStageControl, STAGE_ORDER } from './moonstages.js';
 
 // Under vitest the stages load here, so every test that imports this file gets the whole Moon; the game's own loader awaits them (areas.js).
 // (The flag is undefined in a build, so this line and its top-level await are dropped.)
@@ -55,37 +55,55 @@ export function build(scene, { water = {} } = {}) {
     K.drawGateRing(kit, M);
     const B = drawBase(kit, M);
     drawFinds(kit, M); // Earthrise Rock, the pit's rock, the cheese, the echo studs and the plain's posts (milestone 4)
-    // (decor) the props, cables and footprints of the base and of each stage's area, in the kit's buckets (no draw call of their own; the lower rungs get about half)
-    for (const g of ['base', 'hill', 'launch', 'rover']) ST.drawDecor(kit, M, decorList(g, ST.decorRows[g], lowTier));
-    ST.drawRoverCourse(kit, M, B); // the depot, the track's lit posts and the Far Beacon (milestone 3; Dot herself is the walk's)
+    // (background loading) a late stage is simply absent until it arrives (moonlife.js applies it: ctl.draw below draws it into a kit of its own)
+    const ctl = createStageControl();
+    const here = Object.fromEntries(STAGE_ORDER.map((id) => [id, stageReady(id)]));
+    ctl.drawn = here;
+    const decorDone = new Set();
+    // (decor) the props, cables and footprints of the base and of each stage's area, in the kit's buckets (no draw call of their own; the lower rungs get about half). The drawing
+    // comes with the rover stage (moondecorbase.js) and each group with its own stage: a group waits until both are in.
+    const decor = (k, m, has) => {
+      for (const g of ['base', 'hill', 'launch', 'rover']) {
+        if (decorDone.has(g) || !ST.drawDecor || !has[g === 'base' ? 'rover' : g]) continue;
+        decorDone.add(g);
+        ST.drawDecor(k, m, decorList(g, ST.decorRows[g], lowTier));
+      }
+    };
+    decor(kit, M, here);
+    if (here.rover) ST.drawRoverCourse(kit, M, B); // the depot, the track's lit posts and the Far Beacon (milestone 3; Dot herself is the walk's)
     // Star Hill (milestone 5): the tower and its ramp go into the kit's stone (the stand-in: always drawn, no draw call of its own); the observatory, the
     // lamps, the table and the ceiling are the wing group, drawn only within 55 m (moonzones.js)
-    const W = ST.drawWing(kit, M);
+    const W = here.hill ? ST.drawWing(kit, M) : null;
     // Launch Complex (milestone 6): the pad, gantry tower, tanks, desks and the mound's benches go into the kit (no draw call of their own); the rocket, the gantry's arm,
-    // the plume and the smoke are the wing C group below (world/moonlaunchlive.js moves them)
-    ST.drawLaunchStanding(kit, M);
-    // Bounce Park (milestone 7a): the eight Beam Hops and the hop board's lane go into the kit too (the lamps and the board's screen are the life's)
-    ST.drawBeams(kit, M);
-    ST.drawLane(kit, M);
-    // the bound's courses (milestone 7b, nothing when world/moonswitch.js is off): the three rifts and the ring gates' posts, also in the kit
-    ST.drawRifts(kit, M);
-    ST.drawRingPosts(kit, M);
+    // the plume and the smoke are the wing C group below (world/moonlaunchlive.js moves them). Bounce Park (milestone 7a): the eight Beam Hops and the hop board's lane go into
+    // the kit too (the lamps and the board's screen are the life's). The bound's courses (milestone 7b, nothing when world/moonswitch.js is off): the three rifts and the ring gates' posts, also in the kit
+    if (here.launch) { ST.drawLaunchStanding(kit, M); ST.drawBeams(kit, M); ST.drawLane(kit, M); ST.drawRifts(kit, M); ST.drawRingPosts(kit, M); }
     // the Lava Tube (milestone 8): the Old Dish's ledge and the Core's third socket go into the kit; the massif, the shell and the cave's floor and crystals are three meshes below
-    ST.drawLavaKit(kit, M, B);
+    if (here.rover) ST.drawLavaKit(kit, M, B);
     const place = new THREE.Group();
     place.name = 'moonPlace';
     for (const m of kit.meshes()) place.add(m);
     scene.add(place);
-    scene.add(ST.drawMassif(M), ST.drawCave()); // the massif seen from outside, the tube and room seen from inside (always drawn: the wing's stand-in)
-    const fill = ST.drawFill(); // the cave's floor, crystals and pedestal: drawn only within the wing's reach (world/moondeeplive.js)
-    fill.visible = false;
-    scene.add(fill);
-    W.wing.visible = false; // the spawn is 77 m away; the life shows it when she is near
-    scene.add(W.wing);
-    const C = ST.drawLaunchWing(M, { lite: quality?.shadows === false, low: lowTier && quality?.shadows !== false });
-    C.arm.visible = false; // the life shows the arm within 55 m of the pad or while a rocket is in flight; the rocket itself is only ever drawn when it is in view
-    scene.add(C.group);
+    if (here.rover) {
+      scene.add(ST.drawMassif(M), ST.drawCave()); // the massif seen from outside, the tube and room seen from inside (always drawn: the wing's stand-in)
+      const fill = ST.drawFill(); // the cave's floor, crystals and pedestal: drawn only within the wing's reach (world/moondeeplive.js)
+      fill.visible = false;
+      scene.add(fill);
+    }
+    if (W) {
+      W.wing.visible = false; // the spawn is 77 m away; the life shows it when she is near
+      scene.add(W.wing);
+    }
+    const wingOpts = { lite: quality?.shadows === false, low: lowTier && quality?.shadows !== false };
+    if (here.launch) {
+      const C = ST.drawLaunchWing(M, wingOpts);
+      C.arm.visible = false; // the life shows the arm within 55 m of the pad or while a rocket is in flight; the rocket itself is only ever drawn when it is in view
+      scene.add(C.group);
+    }
     for (const rocks of K.drawRocks(lowTier)) scene.add(rocks);
+    // (background loading) what moonlate.js needs to draw a stage that arrives late, the same way, into a kit and group of its own
+    ctl.env = { B, wingOpts, decor };
+    // (the life fetches the rest the moment it is made: moonlife.js, moonlate.js startMoonStages)
 
     const area = {
       name: P.MOON_NAME,
@@ -112,7 +130,7 @@ export function build(scene, { water = {} } = {}) {
       strays: false,
       ground: P.createMoonGround(),
       // the stars, Earth, the camera's ease, the skip and the landing dust (world/moonlife.js)
-      life: (ctx) => createMoonLife({ ...ctx, colliders: area.colliders, perches: area.perches }),
+      life: (ctx) => createMoonLife({ ...ctx, colliders: area.colliders, perches: area.perches, stages: ctl }),
     };
     return area;
   });

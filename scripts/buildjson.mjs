@@ -83,13 +83,14 @@ export function areaDownloads(manifest, entryModules = AREA_ENTRY_MODULES) {
   return out;
 }
 
-// The Moon is four downloads fetched together at the walk's start (src/world/moonstages.js): stage A (moon.js, the landing's own
-// code, in AREA_ENTRY_MODULES) and three stage chunks. Each is held under MOON_STAGE_GZIP_CEILING_KB on its own files (what the
-// others do not already bring); the four together under MOON_TOTAL_GZIP_CEILING_KB.
+// The Moon is five downloads (src/world/moonstages.js): stage A (moon.js, the landing's own code, in AREA_ENTRY_MODULES), the only one the walk waits for; then
+// three stage chunks and the late arrivals' code, fetched in the background right after the landing is built. Each is held under MOON_STAGE_GZIP_CEILING_KB on its own files (what the
+// others do not already bring); all together under MOON_TOTAL_GZIP_CEILING_KB.
 export const MOON_STAGE_ENTRY_MODULES = Object.freeze({
   moonhill: Object.freeze(['src/world/moonstagehill.js']),
   moonlaunch: Object.freeze(['src/world/moonstagelaunch.js']),
   moonrover: Object.freeze(['src/world/moonstagerover.js']),
+  moonlate: Object.freeze(['src/world/moonlate.js']), // the late arrivals' own code (draw, fade, wake): fetched with the walk's start, only while a stage is still on its way
 });
 export const MOON_STAGE_GZIP_CEILING_KB = 65;
 export const MOON_TOTAL_GZIP_CEILING_KB = 135;
@@ -210,7 +211,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   console.log(`start-up ${(startBytes / 1000).toFixed(1)} kB gzipped (ceiling ${MAIN_GZIP_CEILING_KB} kB), ${start.length} files`);
   for (const [id, v] of Object.entries(kb)) console.log(`  ${id.padEnd(13)} ${v.toFixed(1)} kB gzipped (ceiling ${AREA_GZIP_CEILING_KB} kB)`);
   console.log(`  reef stages   A ${reefKb.reef.toFixed(1)}, lab ${reefKb.reeflab.toFixed(1)}, wreck ${reefKb.reefwreck.toFixed(1)}, ride ${reefKb.reefride.toFixed(1)}, all ${reefTotal.toFixed(1)} kB gzipped (ceiling ${REEF_STAGE_GZIP_CEILING_KB} each, ${REEF_TOTAL_GZIP_CEILING_KB} all)`);
-  console.log(`  moon stages   A ${moonKb.moon.toFixed(1)}, hill ${moonKb.moonhill.toFixed(1)}, launch ${moonKb.moonlaunch.toFixed(1)}, rover ${moonKb.moonrover.toFixed(1)}, all ${moonTotal.toFixed(1)} kB gzipped (ceiling ${MOON_STAGE_GZIP_CEILING_KB} each, ${MOON_TOTAL_GZIP_CEILING_KB} all)`);
+  console.log(`  moon stages   A ${moonKb.moon.toFixed(1)}, hill ${moonKb.moonhill.toFixed(1)}, launch ${moonKb.moonlaunch.toFixed(1)}, rover ${moonKb.moonrover.toFixed(1)}, late ${moonKb.moonlate.toFixed(1)}, all ${moonTotal.toFixed(1)} kB gzipped (ceiling ${MOON_STAGE_GZIP_CEILING_KB} each, ${MOON_TOTAL_GZIP_CEILING_KB} all)`);
   console.log(`  tv chunk      ${tvKb.toFixed(1)} kB gzipped (ceiling ${TV_GZIP_CEILING_KB} kB)`);
   const coopKb = (areaDownloads(manifest, COOP_ENTRY_MODULES).coop ?? []).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000;
   problems.push(...areaSizeProblems({ coop: coopKb }, COOP_GZIP_CEILING_KB));

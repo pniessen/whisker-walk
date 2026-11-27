@@ -78,8 +78,8 @@ export function createDeepLive(ctx) {
   const sound = createMoonSound(ctx.audio ?? null);
   const zones = createZones();
   const byName = (n) => scene.getObjectByName(n) ?? null;
-  const massif = byName('moon:massif');
-  const fill = byName('moon:cavefill');
+  let massif = byName('moon:massif');
+  let fill = byName('moon:cavefill');
   const rec = () => progression?.state?.moon ?? {};
   let clock = 0;
   let disposed = false;
@@ -151,6 +151,8 @@ export function createDeepLive(ctx) {
   }
 
   return {
+    /** (background loading) the rover stage arrived: find the massif and the cave's fill it brought */
+    refresh() { massif ??= byName('moon:massif'); fill ??= byName('moon:cavefill'); },
     get inside() { return deepNow; },
     get mouthIn() { return mIn; },
     get hiddenOutside() { return !!hidden; },

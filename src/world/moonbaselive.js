@@ -154,7 +154,7 @@ export function createBaseLife(ctx) {
   const doorR = byName('moon:doorR');
   const boardMesh = byName('moon:board');
   const doorZ = [doorL?.position.z ?? 0, doorR?.position.z ?? 0];
-  const beacon = byName('moon:beacon'); // the Far Beacon's lamp: it blinks while the Rover cell waits and rests once the cell is taken
+  let beacon = byName('moon:beacon'); // the Far Beacon's lamp: it blinks while the Rover cell waits and rests once the cell is taken
   const board = createBoardFace(boardMesh);
   const cells = CELL_IDS.map(makeCell);
   const cellPlace = (id) => (id === 0 ? { x: P.RIDGE_CELL.x, z: P.RIDGE_CELL.z, y: ground.y(P.RIDGE_CELL.x, P.RIDGE_CELL.z) + P.RIDGE_CELL.y + 0.42 }
@@ -348,6 +348,10 @@ export function createBaseLife(ctx) {
     get calls() { return calls; },
     get finds() { return finds; },
     goalNow: goalPoint,
+    /** (background loading) the rover stage arrived: find the Far Beacon's lamp it brought */
+    /** (background loading) the friendly line for a place whose stage is still arriving (or did not come) */
+    notice(id) { say(`moon-stage-wait-${id}`, phrase('moon.stage.wait')); },
+    refresh() { beacon = byName('moon:beacon'); },
     /** (guide cues) the goal now as the beacon, the arrow and the words all read it: the same object until it is looked at again (4 times a second, and when she does something). Never built per frame. */
     goal() { return goalCur ?? (goalCur = goalPoint()); },
     get ringing() { return ringing; },
@@ -423,8 +427,8 @@ export function createBaseLife(ctx) {
       if (catPos) {
         if (r.step >= M.STEP.pip && carrying === null) {
           if (!told.has('ridge') && !(r.cells & 1) && dist(catPos, P.SKIP[0]) < 26) { told.add('ridge'); say('moon-cell-ridge', phrase('moon.cell.ridge.hint')); }
-          if (!told.has('rover') && !(r.cells & 2) && dist(catPos, P.ROVER_CELL) < 26) { told.add('rover'); say('moon-cell-rover', phrase('moon.cell.rover.hint')); }
-          if (!told.has('dot') && !(r.cells & 2) && dist(catPos, P.DEPOT) < 24) { told.add('dot'); say('moon-dot-hint', phrase('moon.rover.hint')); }
+          if (!told.has('rover') && !(r.cells & 2) && !ctx.held?.has('rover') && dist(catPos, P.ROVER_CELL) < 26) { told.add('rover'); say('moon-cell-rover', phrase('moon.cell.rover.hint')); }
+          if (!told.has('dot') && !(r.cells & 2) && !ctx.held?.has('rover') && dist(catPos, P.DEPOT) < 24) { told.add('dot'); say('moon-dot-hint', phrase('moon.rover.hint')); }
         }
         // (milestone 8) the base is awake and a cell glows in the cave: a line once a walk when she comes near the mouth
         if (r.step >= M.STEP.awake && carrying === null && !(r.cells & 4) && !told.has('deep') && dist(catPos, P.MOUTH) < 22) {
