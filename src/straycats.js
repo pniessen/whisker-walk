@@ -387,6 +387,7 @@ function homeArea(area, home) {
 
 // Pulls v (a Vector3, in place) to within `roam` of `home` in the ground
 // plane. Nothing for a stray without a home.
+const _away = new THREE.Vector3(); // scratch for the recoil / call-in bearings
 function leash(v, home, roam) {
   if (roam === null) return v;
   const dx = v.x - home.x, dz = v.z - home.z;
@@ -870,7 +871,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
       faceToward(stray, fromPos);
       const px = stray.group.position.x;
       const pz = stray.group.position.z;
-      const away = stray.group.position.clone().sub(fromPos).setY(0);
+      const away = _away.copy(stray.group.position).sub(fromPos).setY(0);
       if (away.lengthSq() < 0.0001) away.set(0, 0, 1);   // standing exactly on you: pick a bearing
       stray.group.position.addScaledVector(away.normalize(), RECOIL_STEP);
       stray.group.position.x = THREE.MathUtils.clamp(stray.group.position.x, b.minX + 0.5, b.maxX - 0.5);
@@ -933,7 +934,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
           // short, so a called-in group fans out around the caller instead of
           // stacking on one point. Derived from positions, never rolled —
           // no bare Math.random() in here.
-          const away = s.group.position.clone().sub(pos).setY(0);
+          const away = _away.copy(s.group.position).sub(pos).setY(0);
           if (away.lengthSq() < 0.0001) away.set(0, 0, 1);
           const target = pos.clone().setY(0).addScaledVector(away.normalize(), FAR_CALL_STANDOFF);
           target.x = THREE.MathUtils.clamp(target.x, b.minX + 2, b.maxX - 2);
@@ -999,7 +1000,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
               (opts.catSpeed ?? 0) > 2.5 && !opts.stalking) {
             s.scurry = 2.5;
             bus.emit('tip', { id: 'creep', name: s.name }); // a hint, this device only; no dice
-            s.scurryDir = s.group.position.clone().sub(catPos).setY(0);
+            s.scurryDir = (s.scurryDir ?? new THREE.Vector3()).copy(s.group.position).sub(catPos).setY(0);
             // Degenerate case only: the cat is standing exactly on you, so
             // there is no bearing to flee along and one has to be picked.
             // Drawn from the cat's own stream like every other roll below.
@@ -1067,7 +1068,8 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
             // A homed stray (C8) draws the same two values and stays within
             // its roam of home.
             const r = s.roam === null ? 4 + s.wanderRng() * 8 : s.wanderRng() * s.roam;
-            s.target = s.home.clone().add(new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r));
+            s.target = s.home.clone();
+            s.target.x += Math.sin(a) * r; s.target.z += Math.cos(a) * r;
             s.stuck = 0;
             s.target.x = THREE.MathUtils.clamp(s.target.x, core.minX + 2, core.maxX - 2);
             s.target.z = THREE.MathUtils.clamp(s.target.z, core.minZ + 2, core.maxZ - 2);

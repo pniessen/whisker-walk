@@ -348,11 +348,12 @@ export function createLumi(ctx) {
   const tailColour = new THREE.Color();
   const _want = new THREE.Color();
   const _mix = new THREE.Color();
+  const _bright = new THREE.Color();
   const greats = scene.getObjectByName?.('crystal:greats')?.material?.userData?.great ?? null;
   function placeGlow(step, dt, catPos) {
     const lit = step >= M.STEP.rose;
     const base = step >= M.STEP.met ? 0.5 : 0;
-    tailColour.set(COLORS.faint).lerp(new THREE.Color(COLORS.bright), base);
+    tailColour.set(COLORS.faint).lerp(_bright.set(COLORS.bright), base);
     if (lit) { // the lit crystals' colours, blended (and her own warm white once every passage is lit)
       let w = 0; _want.setRGB(0, 0, 0);
       for (let i = 0; i < 3; i++) { const q = smooth(glows[i]); _want.r += _mix.set(STONE_COLOURS[i]).r * q; _want.g += _mix.g * q; _want.b += _mix.b * q; w += q; }
