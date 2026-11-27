@@ -751,6 +751,7 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
   let floatVel = 0;
   let floatKick = false;
   let floatCfg = null;
+  let floatRow = null; // the row setFloat was given (the Sealab puts the Reef's own back when she climbs out)
   let camLift = 0; // the part of the float the camera follows this frame
   function stepFloat(dt) {
     if (!floatCfg) return;
@@ -776,8 +777,13 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
     get canFloat() {
       return floatCfg !== null;
     },
+    // The row the place's float was set from (what setFloat was last given), so a stage that switches the float off can put it back.
+    get floatRow() {
+      return floatRow;
+    },
     // The place's float numbers ({ floatMax, rise, sink } or null), once per walk, after setAvatar.
     setFloat(row) {
+      floatRow = row ?? null;
       floatCfg = row ? { max: row.floatMax, rise: row.rise, sink: row.sink } : null;
       floatLift = 0; floatVel = 0; floatKick = false;
     },

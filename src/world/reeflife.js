@@ -44,7 +44,7 @@ function mountGauge(doc) {
   line.style.cssText = 'min-height:1em;opacity:0;transition:opacity .4s;background:rgba(20,80,100,.55);padding:2px 10px;border-radius:10px';
   wrap.append(row, line);
   root.appendChild(wrap);
-  return { wrap, dots, line };
+  return { wrap, row, dots, line };
 }
 
 // createReefLife(ctx) -> { update(dt, t, catPos, camera, session), dispose() }; ctx is walk.js's life context.
@@ -63,6 +63,7 @@ export function createReefLife({ scene, reducedMotion = false, tier, visits = 0,
   const gauge = mountGauge(doc);
   let lineLeft = 0;
   let lifted = false; // the cat has been set down at the ladder in this lift
+  let paused = false; // inside the Sealab (or later riding a mount): the gauge stands still and its bubbles are not drawn
   let clock = 0;
 
   const say = (text) => {
@@ -76,6 +77,7 @@ export function createReefLife({ scene, reducedMotion = false, tier, visits = 0,
     if (!gauge) return;
     const hide = airHidden(air);
     gauge.wrap.style.display = hide ? 'none' : 'flex';
+    gauge.row.style.display = paused ? 'none' : 'flex'; // (the soft line under them still shows)
     const n = bubblesLeft(air);
     gauge.dots.forEach((d, i) => {
       d.style.opacity = i < n ? '1' : '0.18';
@@ -103,6 +105,7 @@ export function createReefLife({ scene, reducedMotion = false, tier, visits = 0,
     critters,
     sound,
     say, // (R2) the gauge's soft line: the story's air pockets use it
+    setPaused(v) { paused = !!v; showGauge(); }, // (R13) the Sealab's hatch pauses the gauge while she is inside
     update(dt, t, catPos, camera, session) {
       clock += Math.max(dt, 0);
       light.update(dt, t, camera);
@@ -110,7 +113,7 @@ export function createReefLife({ scene, reducedMotion = false, tier, visits = 0,
       sound.update(dt);
       if (kelpTime) kelpTime.value = reducedMotion ? 0 : clock;
 
-      const ev = stepAir(air, dt);
+      const ev = stepAir(air, dt, paused);
       if (ev === 'low') say(phrase('reef.air.low'));
       if (ev === 'lift') {
         say(phrase('reef.air.lift'));

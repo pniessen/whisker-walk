@@ -30,6 +30,7 @@ import { lifeColliders } from './reefseals.js';
 import './reefwords.js';
 import './reefwingwords2.js';
 import { ST, loadReefStages } from './reefstages.js';
+import { createPromptArbiter } from './reefprompt.js';
 
 // Under vitest the stages load here, so every test that imports this file gets the whole Reef; the game's own loader awaits them (areas.js).
 // (The flag is undefined in a build, so this line and its top-level await are dropped.)
@@ -106,12 +107,17 @@ export function build(scene) {
         const guide = createReefGuideLive({ doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, marlo: base.marlo, errand: base.errand, progression: ctx.progression }); // the written guide: goal line, arrow, chip, arrival card
         const sea = createReefSealsLife(ctx); // the seals, octopuses and dolphin family (photo and journal subjects through `spottable`)
         const more = createReefMoreLife(ctx); // jellyfish, clownfish, seahorses, mantas, a whale, moray eels and squid
+        const lab = ST.lab.createLabLive({ scene: ctx.scene, reefY: P.reefY, look: P.WATER_LOOK, player: ctx.player, reducedMotion: ctx.reducedMotion, tier: ctx.tier, say: base.say, setPaused: base.setPaused, doc: ctx.doc ?? globalThis.document }); // the hatch and the inside (R13)
+        const prompt = createPromptArbiter([base, lab]); // Marlo's and the errand's offers win; the hatch is the lowest
         return {
           ...base,
+          promptAt: prompt.promptAt,
+          interact: prompt.interact,
+          lab,
           guide,
           spottable: [...sea.spottable, ...more.spottable],
-          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); more.update(...a); guide.update(...a); },
-          dispose() { guide.dispose(); more.dispose(); sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
+          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); more.update(...a); lab.update(...a); guide.update(...a); },
+          dispose() { guide.dispose(); lab.dispose(); more.dispose(); sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
         };
       },
     };
