@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:quick": "WW_TEST_QUICK=1 vitest run",
+    "test:pins": "vitest run test/budget.test.js test/housebudget.test.js test/lifebudget.test.js test/coopbudget.test.js test/growpines.test.js test/riversouth.test.js test/moornorth.test.js test/silhouette.test.js test/twolegplace.test.js test/viewclear2.test.js test/grass.test.js test/foundwearfit.test.js test/areacoverage.test.js test/lazybuild.test.js",
     "test:watch": "vitest",
     "build:ios": "vite build --mode ios",
     "build:family": "vite build --mode family",
