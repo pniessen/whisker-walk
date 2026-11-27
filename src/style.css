@@ -1606,6 +1606,8 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .dr .dr-outfit-del:hover { opacity: 1; background: rgba(255, 255, 255, .06); }
 .dr .dr-remove-all { min-height: 44px; margin-top: 10px; border-radius: 999px; border: 1.5px solid #5b6c88; font-weight: 700; font-size: 14px; padding: 6px 14px; }
 .dr .dr-remove-all:hover:not(:disabled) { background: rgba(255, 255, 255, .06); }
+.dr .dr-remove-cats { min-height: 44px; margin-top: 10px; border-radius: 999px; border: 1.5px solid #5b6c88; font-weight: 700; font-size: 14px; padding: 6px 14px; }
+.dr .dr-remove-cats:hover { background: rgba(255, 255, 255, .06); }
 .dr .dr-remove-all:disabled { border-style: dashed; font-weight: 400; opacity: .7; cursor: default; }
 .dr .dr-outfit-save { min-height: 44px; border-radius: 999px; border: 1.5px solid #5b6c88; font-weight: 700; font-size: 14px; padding: 6px 14px; }
 .dr .dr-outfit-save:hover:not(:disabled) { background: rgba(255, 255, 255, .06); }

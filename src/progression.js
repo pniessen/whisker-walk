@@ -1906,6 +1906,23 @@ export function createProgression(storage) {
       save();
       return true;
     },
+    // Dress up's "Remove other cats": every cat she made goes except the one she
+    // is walking as (equipped.custom), so she is never left without one. Walking
+    // a ready-made cat, all of hers go (that cat stays; equipped.cat is always a
+    // preset). Sleeping cats go too, their scars with them. → how many went.
+    // No new save key: the merge reads the base to tell this from a cat the
+    // other device has not seen yet (src/catmerge.js).
+    removeOtherCats() {
+      const keep = state.equipped.custom;
+      const gone = state.customCats.filter((c) => c.id !== keep);
+      const slept = state.sleepingCats.length;
+      if (!gone.length && !slept) return 0;
+      state.customCats = state.customCats.filter((c) => c.id === keep);
+      state.sleepingCats = [];
+      for (const c of gone) delete state.scars[c.id];
+      save();
+      return gone.length + slept;
+    },
     equipCustom(id) {
       if (!state.customCats.some((c) => c.id === id)) return false;
       state.equipped.custom = id;

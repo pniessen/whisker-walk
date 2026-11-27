@@ -97,7 +97,7 @@ export function reduceDressingUi(ui, action) {
 
 const DR_SELECTOR = '[data-dr-sheet],[data-dr-buy-cat],[data-dr-place-buy],[data-dr-cat],[data-dr-acc],[data-dr-slot],[data-dr-place],[data-dr-wardrobe],'
   + '[data-dr-wardrobe-done],[data-dr-more-cats],[data-dr-outfit],[data-dr-outfit-save],[data-dr-outfit-del],[data-dr-outfit-yes],[data-dr-outfit-keep],'
-  + '[data-dr-mine],[data-dr-make],[data-dr-buy-slots],[data-dr-remove-all],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-name-open],[data-cb-done],[data-cb-leave],[data-cb-stay],'
+  + '[data-dr-mine],[data-dr-make],[data-dr-buy-slots],[data-dr-remove-all],[data-dr-remove-cats],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-name-open],[data-cb-done],[data-cb-leave],[data-cb-stay],'
   + '[data-dr-map-place],[data-dr-map-close]';
 // Opening the world map's card lands focus on its one button (or ✕ when it
 // has none), by keyboard or touch; a keyboard close goes back to the place on
@@ -426,6 +426,32 @@ export function createDressingRoom({
     if (JSON.stringify(progression.state?.equipped ?? {}) !== before) { autoSync(); profileChanged(); }
   }
 
+  // Remove my other cats: asks first (the same confirm card as a buy), and
+  // Yes removes every cat of hers but the one she walks as.
+  function onRemoveCats() {
+    if (ui.builder || typeof confirmSpend !== 'function') return;
+    const st = progression.state;
+    const keep = (st?.customCats ?? []).find((c) => c.id === st?.equipped?.custom);
+    const n = (st?.customCats ?? []).length - (keep ? 1 : 0);
+    if (n < 1) return;
+    const q = (sel) => { try { globalThis.document?.querySelector?.(sel)?.focus?.({ preventScroll: true }); } catch { /* a nicety */ } };
+    const asked = confirmSpend({
+      text: phrase('cats.removeAsk', n),
+      note: keep ? phrase('cats.removeKeep', keep.name) : phrase('cats.removeKeepNone'),
+      no: 'Not now',
+      yes: phrase('cats.removeYes'),
+      danger: true,
+      returnFocus: () => q('[data-dr-remove-cats]') || q('[data-dr-make]'),
+      onYes: () => {
+        if (!progression.removeOtherCats()) return;
+        autoSync();
+        inClick = true;
+        try { onChange(); } finally { inClick = false; }
+      },
+    });
+    if (asked) focusAfter = null;
+  }
+
   function onEdit(id) {
     const cat = myCats().find((c) => c.id === id);
     if (cat && !ui.builder) dispatch({ type: 'builder', builder: editBuilder(cat) });
@@ -633,6 +659,7 @@ export function createDressingRoom({
     else if (d.drMake !== undefined) onMake();
     else if (d.drBuySlots !== undefined) onBuySlots();
     else if (d.drRemoveAll !== undefined) onRemoveAll();
+    else if (d.drRemoveCats !== undefined) onRemoveCats();
     else if (d.drEdit !== undefined) onEdit(d.drEdit);
     else if (d.drPose !== undefined) onPose(d.drPose);
     else if (d.cbPick !== undefined) builderOp({ type: 'pick', field: d.cbPick, value: d.cbValue });

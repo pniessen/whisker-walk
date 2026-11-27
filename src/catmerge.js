@@ -81,17 +81,26 @@ function balance(L, C, B) {
 // The cloud keeps a slot both sides filled with different cats; this device's
 // cat moves to a free slot, or sleeps. Returns this device's save with its cats
 // re-slotted (scars and the worn custom cat follow), and the cats to merge.
-function relocateCustom(L, C, B) {
+// A cat the base had, unchanged, that one side no longer has was removed there
+// (Dress up's "Remove other cats"): the other side lets it go instead of handing
+// it back. `live` is false for a cloud with no cats list (empty or wiped), so a
+// cleared cloud never empties a device.
+function relocateCustom(L, C, B, live = true) {
   const cloudBy = new Map(C.customCats.map((x) => [x.id, x]));
   const baseBy = new Map((Array.isArray(B?.customCats) ? B.customCats : []).map((x) => [x.id, x]));
   const slots = T.CUSTOM_IDS.slice(0, L.moreCatSlots || C.moreCatSlots ? T.CUSTOM_MAX : T.CUSTOM_BASE);
   const taken = new Map(); // slot -> cat
-  for (const cc of C.customCats) taken.set(cc.id, cc);
+  const localHas = (cc) => L.customCats.some((x) => x.id === cc.id || content(x) === content(cc));
+  for (const cc of C.customCats) {
+    const bc = baseBy.get(cc.id);
+    if (live && bc && same(bc, cc) && !localHas(cc)) continue; // removed on this device
+    taken.set(cc.id, cc);
+  }
   const movers = [];
   for (const lc of L.customCats) {
     const cc = cloudBy.get(lc.id);
     const bc = baseBy.get(lc.id);
-    if (!cc) taken.set(lc.id, lc);
+    if (!cc) { if (!(live && bc && same(bc, lc))) taken.set(lc.id, lc); } // (base had it, the cloud lost it: removed there)
     else if (same(cc, lc)) continue;
     else if (bc && same(bc, lc)) continue; // this device never changed it: the cloud's edit is the cat
     else if (bc && same(bc, cc)) taken.set(lc.id, lc); // only this device changed it
@@ -279,7 +288,7 @@ export const MERGE_RULES = Object.freeze({
 // (Object keys, not strings: the word tests read string literals, and `clan` is a key here.)
 const BASE_WANTED = {
   points: 1, walks: 1, unlocked: 1, equipped: 1, customCats: 1, area: 1, lifetimePoints: 1, petName: 1, den: 1,
-  duskWalks: 1, moon: 1, reef: 1, crystal: 1, snowville: 1, treehouse: 1, jungle: 1, clan: 1, visits: 1, visitPrizesSeen: 1, visitPrizePending: 1, mapMode: 1, edition: 1, clanPick: 1, fightsWon: 1,
+  duskWalks: 1, moon: 1, reef: 1, crystal: 1, snowville: 1, treehouse: 1, jungle: 1, clan: 1, visits: 1, visitPrizesSeen: 1, visitPrizePending: 1, mapMode: 1, edition: 1, clanPick: 1, fightsWon: 1, sleepingCats: 1,
 };
 export const BASE_KEYS = Object.freeze(Object.keys(BASE_WANTED));
 
@@ -303,12 +312,16 @@ export function mergeSaves({ local, cloud, base = null, now = Date.now(), localA
   const L0 = sanitizeSave(local);
   const C = sanitizeSave(cloud);
   const B = isObj(base) ? base : null;
-  const { L, taken, sleepers } = relocateCustom(L0, C, B);
+  const live = isObj(cloud) && Array.isArray(cloud.customCats);
+  const { L, taken, sleepers } = relocateCustom(L0, C, B, live);
   const cats = taken;
   // sleeping cats: both sides', plus any that found no slot; one wakes into a free slot
   const slots = T.CUSTOM_IDS.slice(0, L.moreCatSlots || C.moreCatSlots ? T.CUSTOM_MAX : T.CUSTOM_BASE);
   const sleeping = [];
-  for (const s of [...L.sleepingCats, ...C.sleepingCats, ...sleepers]) {
+  // a sleeper the base had that this device no longer has was removed here
+  const baseSleep = Array.isArray(B?.sleepingCats) ? B.sleepingCats : [];
+  const cloudSleep = C.sleepingCats.filter((s) => !(live && baseSleep.some((b) => content(b) === content(s)) && !L.sleepingCats.some((x) => content(x) === content(s))));
+  for (const s of [...L.sleepingCats, ...cloudSleep, ...sleepers]) {
     if ([...cats.values()].some((c) => content(c) === content(s)) || sleeping.some((x) => content(x) === content(s))) continue;
     const free = slots.find((id) => !cats.has(id));
     if (free) cats.set(free, { ...s, id: free }); else sleeping.push(s);

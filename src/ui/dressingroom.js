@@ -235,6 +235,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard,
   const slotBuy = !bought && mine.length >= CUSTOM_BASE ? { price: MORE_SLOTS_PRICE, canBuy: points >= MORE_SLOTS_PRICE } : null;
 
   return {
+    removable: mine.filter((c) => !c.selected).length,
     hero, cats, mine, walkingAs, canMake: mine.length < slotsHers, slotBuy, slots, wearingCount, slotCount: slotIds.length, places, ...clanPlaces,
     // 'ok' | 'empty' | 'saved' | 'full': whether the look she has on can be saved.
     outfits, outfitSave: canSaveOutfit(savedOutfits, wearNow),
@@ -531,6 +532,7 @@ export function renderDressingRoomHtml({ model, headerHtml = '', startHtml = '',
   <header class="dr-top">${headerHtml}</header>
   ${heroHtml}
     <div class="dr-strip">${stripHtml(m, ui, thumbs)}</div>
+    ${m.removable ? `<button class="dr-remove-cats" data-dr-remove-cats>${escapeHtml(phrase('cats.removeOthers'))}</button>` : ''}
   </section>
   ${wearingHtml(m, ui, thumbs)}
   ${ui.wardrobe ? '' : todayHtml(m, extrasHtml)}
