@@ -62,10 +62,10 @@ export function build(scene) {
       name: P.CRYSTAL_NAME,
       bounds: P.CRYSTAL_BOUNDS,
       spawn: P.CRYSTAL_SPAWN,
-      colliders: [...P.crystalColliders(), ...(ST.wingc?.colliders?.() ?? []), ...(ST.grotto?.colliders() ?? [])].map((c) => ({ ...c })), // the river's banks (C1) and the grotto and forge (C2), once their stages are in
+      colliders: [...P.crystalColliders(), ...(ST.wingc?.colliders?.() ?? []), ...(ST.grotto?.colliders() ?? []), ...(ST.deep?.colliders?.() ?? [])].map((c) => ({ ...c })), // the river's banks (C1) and the grotto and forge (C2), once their stages are in
       waters: [],
       waterFx: [],
-      perches: [...wingPerches(P.crystalY), ...(ST.grotto?.perches() ?? [])], // the pool's stepping crystals: an optional climb, the floor goes round (milestone C5)
+      perches: [...wingPerches(P.crystalY), ...(ST.grotto?.perches() ?? []), ...(ST.deep?.perches?.() ?? [])], // the pool's stepping crystals: an optional climb, the floor goes round (milestone C5)
       pois: P.CRYSTAL_POIS.map((p) => ({ ...p })),
       collectibles: crystalCollectibles(), // six (milestone C3)
       scenics: CRYSTAL_SCENICS.map((k) => ({ ...k })),
@@ -93,6 +93,7 @@ export function build(scene) {
         const wingLife = createWing({ scene: ctx.scene, lumi, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
         const finds = createCrystalFindsLife(ctx); // the six discoveries (milestone C3)
         const grotto = ST.grotto?.life(ctx) ?? null; // wing C's grotto and forge shell (C2)
+        const deep = ST.deep?.life?.(ctx) ?? null; // the Echo Deep's hall shell (second story C2, behind ?deep=1)
         const song = ST.play?.createSong?.(ctx) ?? null; // wing C's singing chamber (C5): the pads, the tunes
         const critters = createCrystalCritters(ctx); // glow-bugs, dust, drips (milestone C4)
         const sound = createCrystalSound(ctx); // the hum, the plinks, the crystals' notes
@@ -131,8 +132,8 @@ export function build(scene) {
             if (typeof ev?.kind === 'string' && ev.kind.startsWith('wd-')) return ST.deep?.credit?.(ev); // the Echo Deep (second story): its steps, never Lumi's
             return lumi.credit(ev);
           },
-          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); cave.update(dt, t); sound.update(dt, catPos); errand.update(dt, t, catPos, camera, session); river?.update(dt, t, catPos, camera, session); cart?.update(dt, t, catPos, camera, session); forgeJob?.update(dt, t, catPos, camera, session); grotto?.update(dt); song?.update(dt, t, catPos); intro.update(dt); guide.update(dt, t, catPos, camera); },
-          dispose() { song?.dispose(); forgeJob?.dispose(); cart?.dispose(); grotto?.dispose(); river?.dispose(); cave.dispose(); decor.dispose(); guide.dispose(); intro.dispose(); errand.dispose(); sound.dispose(); critters.dispose(); finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); cave.update(dt, t); sound.update(dt, catPos); errand.update(dt, t, catPos, camera, session); river?.update(dt, t, catPos, camera, session); cart?.update(dt, t, catPos, camera, session); forgeJob?.update(dt, t, catPos, camera, session); grotto?.update(dt); deep?.update(dt, t, catPos); song?.update(dt, t, catPos); intro.update(dt); guide.update(dt, t, catPos, camera); },
+          dispose() { deep?.dispose(); song?.dispose(); forgeJob?.dispose(); cart?.dispose(); grotto?.dispose(); river?.dispose(); cave.dispose(); decor.dispose(); guide.dispose(); intro.dispose(); errand.dispose(); sound.dispose(); critters.dispose(); finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
         };
       },
     };
