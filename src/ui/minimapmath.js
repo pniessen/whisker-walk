@@ -117,6 +117,8 @@ export function mapMarkers(frame) {
   if (frame.camp) out.push({ kind: 'camp', x: frame.camp.x, z: frame.camp.z, color: frame.camp.color, ...(frame.camp.pulse ? { pulse: frame.camp.pulse } : {}) });
   // Border posts (Clan Edition only; the frame carries null elsewhere).
   for (const p of frame.posts ?? []) out.push({ kind: 'post', x: p.x, z: p.z, faces: p.faces });
+  // The Reef's ladder (the way back up), a small icon at the arrival point (reefplan.js LADDER; a test keeps the two equal); the frame's flag is false elsewhere.
+  if (frame.ladder) out.push({ kind: 'ladder', x: 4.6, z: 32.2 });
   const race = frame.race;
   if (race && race.state === 'running') {
     // currentRing is 1-based: bright for the next ring, dim for the one after.

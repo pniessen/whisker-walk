@@ -76,6 +76,7 @@ export function createReefGuideLive(ctx) {
   let disposed = false;
   let lineH = 0;
   let cat = null;
+  let lastCam = null;
   let gp = null; // the goal as of the last look (four times a second): the arrow and the chip read it each frame
   let cardT = -1; // walk seconds the card has been up (-1: not up)
   const last = { deg: 1e9, x: 0, y: 0, m: 0, cx: 1e9, cy: 0, flip: 0, a: 0 };
@@ -143,7 +144,8 @@ export function createReefGuideLive(ctx) {
     // the Sealab's fuses (R14) speak once Marlo has nothing to say (the story is told and no errand waits), or while she is in the station or has a fuse in her mouth
     const lg = lab?.goalNow?.();
     if (lg && ((gp?.g?.kind === 'rest' && !errandWaits()) || lab.state.inside || lab.carrying !== null)) gp = lg;
-    const text = goalWords({ goal: gp, metres: cat ? dist(cat, marlo.marlo) : 0, errand: errandWaits() });
+    if (lastCam) viewOf(lastCam, view);
+    const text = goalWords({ goal: gp, cat, fx: view.fx, fz: view.fz, metres: cat ? dist(cat, marlo.marlo) : 0, errand: errandWaits() });
     if (text !== live.text) {
       live.text = text;
       line.textContent = text;
@@ -232,6 +234,7 @@ export function createReefGuideLive(ctx) {
       if (disposed) return;
       lastAt = Date.now();
       cat = catPos ?? cat;
+      lastCam = camera ?? lastCam;
       acc += dt > 0 ? dt : 0;
       if (acc >= LOOK_EVERY) { acc = 0; look(); } else if (!shown) show(true);
       if (cardT >= 0) { cardT += dt > 0 ? dt : 0; if (cardT > CARD_SECS || stepOf() > 0) closeCard(); }

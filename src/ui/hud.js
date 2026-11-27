@@ -117,6 +117,8 @@ export function goalHowHtml(goal) {
 // a walk needs every minute. The full list is on the Paused card (walk.js).
 const VF_KEYS = '📷 click to snap · C to lower';
 export const KEY_STRIP = '←↑↓→/WASD move · Space jump · E do it · V meow · C photo · Esc pause';
+// Under the sea Space is the held kick, not a jump (the same in both word sets)
+export const REEF_STRIP = '←↑↓→/WASD swim · hold Space to float up · E do it · V meow · C photo · Esc pause';
 
 export function createHud() {
   const root = document.getElementById('hud');
@@ -146,10 +148,14 @@ export function createHud() {
   const toastsEl = root.querySelector('#hud-toasts');
   // TV mode: the key strip becomes the pad's, with button pictures, while the pad is the input.
   const stripEl = root.querySelector('#hud-controls');
+  let floating = false;
   const vfEl = root.querySelector('#hud-vf');
+  function paintStrip() {
+    const p = tvState.input === 'pad' && padHtml(tvState.padLine?.(floating ? 'pad.strip.reef' : 'pad.strip') ?? '');
+    if (p) stripEl.innerHTML = p; else stripEl.textContent = floating ? REEF_STRIP : KEY_STRIP;
+  }
   onTv(() => {
-    const p = tvState.input === 'pad' && padHtml(tvState.padLine?.('pad.strip') ?? '');
-    if (p) stripEl.innerHTML = p; else stripEl.textContent = KEY_STRIP;
+    paintStrip();
     const v = tvState.input === 'pad' && padHtml(tvState.padLine?.('pad.vf.hint') ?? '');
     if (v) vfEl.innerHTML = v; else vfEl.textContent = VF_KEYS;
     if (hintArgs) api.setHint(...hintArgs);
@@ -231,6 +237,8 @@ export function createHud() {
   const withStrip = (fn) => (strip ? Promise.resolve(fn(strip)) : (stripLoad ??= import('./skillbadges.js').then((m) => (strip = m.createBadgeStrip({ root, hud: api }))).catch(() => { stripLoad = null; })).then((s) => s && fn(s)));
 
   const api = {
+    // The Reef: the key strip says to hold Space to float (the walk calls it a few times a second; it repaints only on a change)
+    setFloat(on) { if (!!on === floating) return; floating = !!on; paintStrip(); },
     // The skills in the save, at a walk's start (no pop); a skill earned mid-walk pops in.
     setBadges(ids) { if ((ids && ids.length) || strip) withStrip((s) => s.set(ids)); },
     earnBadges(ids) { if (ids && ids.length) withStrip((s) => s.earn(ids)); },

@@ -49,6 +49,7 @@ export const PAD_WORDS = Object.freeze({
 
   // TV-only lines
   // the walk's key strip, in place of KEY_STRIP
+  'pad.strip.reef': '⟦move⟧ swim · hold ⟦jump⟧ to float up · ⟦interact⟧ do it · ⟦meow⟧ meow · ⟦photo⟧ photo · ⟦pause⟧ pause',
   'pad.strip': '⟦move⟧ walk · ⟦jump⟧ jump · ⟦interact⟧ do it · ⟦meow⟧ meow · ⟦photo⟧ photo · ⟦pause⟧ pause',
   // the pause and Ready? card's list, in place of KEYS_HINT (one piece per control, split on " · ")
   'pad.pause.controls': '⟦move⟧ walk · ⟦look⟧ look · ⟦jump⟧ jump · ⟦interact⟧ do it · ⟦meow⟧ meow · ⟦photo⟧ photo · ⟦zoomOut⟧⟦zoomIn⟧ zoom',
