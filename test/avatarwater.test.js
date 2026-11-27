@@ -268,7 +268,9 @@ describe('a mount that swims her (perched.swim)', () => {
   // s.swim.k is the swim blend (0 to 1) the Reef's swim pose reads; it only rises while `floating` is true.
   const blend = async (perched) => {
     const h = harness(); h.player.canFloat = true; h.player.floatY = 0; h.at(10); h.s.perched = perched;
-    h.tick(1); await new Promise((r) => setTimeout(r, 50)); h.tick(60);
+    h.tick(1);
+    for (let i = 0; i < 500 && !h.s.swimMod; i++) await new Promise((r) => setTimeout(r, 10)); // the swim module loads lazily: wait for it (bounded), not a fixed pause
+    h.tick(60);
     return h.s.swim?.k;
   };
   it('changes nothing where perched.swim is unset: no blend with a plain perch or none', async () => {
