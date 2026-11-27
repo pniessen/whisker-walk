@@ -3,6 +3,7 @@ import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
 import { tintGround } from './dressing.js';
 import { lawnMottle } from './park.js';
 import { buildOldHouseFront } from './oldhousefront.js';
+import { dressStreet } from './neighborhoodstreet.js';
 
 // The lawn (polish-sheen): 0x7cb860 read as flat lime under the Pass 8 day
 // grade; about 11% darker and a touch bluer (hue 101 -> 105). Every copy of
@@ -168,10 +169,14 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) { // `wat
   // 1.2m width, i.e. four 30cm slabs kerb to kerb, which is a pavement. This
   // is the one place on this pass where the thin-member rule was checked and
   // came out fine — the strip is a full tile wide, not a fraction of one.
-  scene.add(b.sidewalk(-3.2, -50, -3.2, 50, undefined, { surface: 'cobble' }));
-  scene.add(b.sidewalk(3.2, -50, 3.2, 50, undefined, { surface: 'cobble' }));
-  scene.add(b.sidewalk(-50, -3.2, 50, -3.2, undefined, { surface: 'cobble' }));
-  scene.add(b.sidewalk(-50, 3.2, 50, 3.2, undefined, { surface: 'cobble' }));
+  // (kept by street direction and side, for world/neighborhoodstreet.js, which adds the kerbs)
+  const pavements = {
+    'z-1': b.sidewalk(-3.2, -50, -3.2, 50, undefined, { surface: 'cobble' }),
+    z1: b.sidewalk(3.2, -50, 3.2, 50, undefined, { surface: 'cobble' }),
+    'x-1': b.sidewalk(-50, -3.2, 50, -3.2, undefined, { surface: 'cobble' }),
+    x1: b.sidewalk(-50, 3.2, 50, 3.2, undefined, { surface: 'cobble' }),
+  };
+  for (const p of Object.values(pavements)) scene.add(p);
 
   // houses along the streets
   //
@@ -210,11 +215,14 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) { // `wat
     [12, 15, 0xcfc8f0, SLATE, undefined, { roof: 'pyramid', door: YELLOW, shutters: NAVY, flowerBox: true, entry: 'flat', chimney: [1.2, -0.8] }],
     [12, 30, 0xb86f58, MOSS, 'brick', { roof: 'frontGable', door: NAVY, entry: 'porch', chimney: [1.2, -0.8] }],
   ];
+  const flowers = []; const mailboxes = []; const lamps = []; const streetTrees = [];
   for (const [x, z, color, roofColor, bodySurface, look] of lots) {
     scene.add(b.house(x, z, color, roofColor, bodySurface, look));
     addC(x, z, 3.4);
-    scene.add(b.mailbox(x + (x < 0 ? 4 : -4), z + 2));
-    scene.add(b.flowerPatch(x + (x < 0 ? 5 : -5), z - 2, { wind }));
+    const mail = b.mailbox(x + (x < 0 ? 4 : -4), z + 2);
+    scene.add(mail); mailboxes.push(mail);
+    const bed = b.flowerPatch(x + (x < 0 ? 5 : -5), z - 2, { wind });
+    scene.add(bed); flowers.push(bed);
   }
 
   // trees, bushes, parked cars, lamps
@@ -231,6 +239,7 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) { // `wat
     // and the Sure Claws fork perch derived from `scale` on the line after —
     // stay exactly where this area declared them.
     scene.add(b.tree(x, z, scale, { wind }));
+    streetTrees.push([x, z]);
     addC(x, z, 0.6);
     clawPerches.push(sureClawsTreePerch(x, z, scale));
   }
@@ -258,6 +267,7 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) { // `wat
   const scatterTrees = [[-30, -12], [30, 12], [-32, 38], [32, -38]];
   for (const [x, z] of scatterTrees) {
     scene.add(b.tree(x, z, 1.0, { wind }));
+    streetTrees.push([x, z]);
     addC(x, z, 0.6);
     clawPerches.push(sureClawsTreePerch(x, z, 1.0));
   }
@@ -269,7 +279,10 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) { // `wat
 
   // flowerbeds beside houses. The quickest sway in the area and the smallest:
   // thin stems in the slowest air there is, which is builder.js's own reading.
-  for (const [x, z] of [[-16, -28], [16, -28], [-17, 29], [16, 32]]) scene.add(b.flowerPatch(x, z, { wind }));
+  for (const [x, z] of [[-16, -28], [16, -28], [-17, 29], [16, 32]]) {
+    const bed = b.flowerPatch(x, z, { wind });
+    scene.add(bed); flowers.push(bed);
+  }
 
   // a bike left leaning in a side yard
   scene.add(b.bike(-14, 8, 0.9));
@@ -281,7 +294,10 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) { // `wat
   addC(4, -35, 1.8);
   scene.add(b.car(-4, 20, 0x4a6ea5, 0));
   addC(-4, 20, 1.8);
-  for (const [x, z] of [[3, -10], [-3, 10], [10, 3], [-10, -3]]) scene.add(b.lampPost(x, z));
+  for (const [x, z] of [[3, -10], [-3, 10], [10, 3], [-10, -3]]) {
+    const lamp = b.lampPost(x, z);
+    scene.add(lamp); lamps.push(lamp);
+  }
 
   // a little roadside advertising
   scene.add(b.billboard(7, -14, -Math.PI / 2));
@@ -334,6 +350,10 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) { // `wat
 
   // The Old House's front (Old House step 4, W5), only for a walk with its door.
   if (gateEnds.some((e) => e.id === 'town-house')) colliders.push(...buildOldHouseFront(scene, { wind }).colliders);
+
+  // The street's beauty round (world/neighborhoodstreet.js): kerbs, verge blades, beds, tree feet, and the
+  // flower patches, mailboxes and lamps dressed. No new mesh or draw.
+  dressStreet({ lawn, pavements, flowers, mailboxes, lamps, trees: streetTrees });
 
   return {
     name: 'Cozy Neighborhood',

@@ -157,7 +157,10 @@ describe('builder — roundedBox (Wave 4.1)', () => {
     // Docks 519 -> 521: polish-quayside's barges each gain one vertex-coloured
     // dressing mesh (wheelhouse, windows, rails, life rings).
     // Park 176 -> 177: the Park beauty round's one merged noCast mesh (parkBeauty: armrests, plinths, flower beds, pond edge, mulch, wildflowers).
-    const expected = { neighborhood: 400, park: 177, docks: 521, seaside: 70, den: 288 };
+    // Neighborhood 400 -> 316: the street beauty round (neighborhoodstreet.js) bakes the flower patches into five meshes each
+    // (one per bloom colour and one for stems and leaves; they were twelve), 12 patches, 84 fewer; its kerbs, fringe, beds, tracks,
+    // mailbox and lamp parts are folded into meshes the area already had, so nothing else moved.
+    const expected = { neighborhood: 316, park: 177, docks: 521, seaside: 70, den: 288 };
     const builds = {
       neighborhood: buildNeighborhood, park: buildPark, docks: buildDocks,
       seaside: buildSeaside, den: buildDen,
