@@ -141,6 +141,8 @@ const FIELDS = [
   ['findCard', 'late (findcard.js): the find card being shown { id }, or null'],
   ['findNoseAt', 'late (foundwear/live.js): walkTime of the last Twitchy Nose trail to the find, or of the last skill check it failed'],
   ['holidayFinds', 'late (walk.js): the holiday errand finds (world/holidayfinds.js), or null off season'],
+  ['storyOn', 'late (walk.js): this place has a story card (the pause card then offers Story so far)'],
+  ['storyCard', 'late (walk.js): the story card (ui/storycard.js, a lazy chunk), or null until it has loaded or where there is none'],
   ['secrets', 'secret spots to find'],
   ['tippables', 'things the cat can tip over'],
   ['knockables', 'things the cat can knock off a ledge'],

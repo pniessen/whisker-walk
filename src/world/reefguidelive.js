@@ -52,6 +52,7 @@ export function createReefGuideLive(ctx) {
   chip.setAttribute?.('aria-hidden', 'true');
   const card = make({ position: 'absolute', left: '50%', top: '22%', transform: 'translateX(-50%)', width: 'min(86vw, 26em)', boxSizing: 'border-box', display: 'none', textAlign: 'center', color: '#fff', background: INK, border: `2px solid ${AQUA}`, fontWeight: '700' });
   card.setAttribute?.('role', 'status');
+  card.setAttribute?.('data-arrival-card', '1'); // the story card hides it when it comes (ui/storycard.js)
   const ok = doc.createElement('button');
   Object.assign(ok.style, { pointerEvents: 'auto', marginTop: '0.5em', font: 'inherit', padding: '0.2em 1.2em', borderRadius: '1em', border: 'none', background: AQUA, color: '#10303f', fontWeight: '800', cursor: 'pointer' });
   ok.textContent = phrase('reef.guide.close');

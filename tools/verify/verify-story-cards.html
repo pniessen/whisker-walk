@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Story cards harness</title>
+<!-- Story cards (docs/superpowers/specs/2026-11-28-story-cards-design.md; dev only, like the other verify-*.html). The REAL card (src/ui/storycard.js) over a plain
+     stand-in for the walk, at desktop, phone and TV sizes, for a few places and points of their stories. For scripts/record-page.mjs: window.__shot(name), name one of
+     desktop, phone, tv; the page sets window.__ready. -->
+<style>
+  html:root, html:root body { margin: 0; height: auto; overflow: auto; background: #1c2431; color: #f1e0c2; font: 14px/1.4 Avenir, Nunito, 'Trebuchet MS', sans-serif; }
+  .sheet { padding: 12px; display: flex; flex-wrap: wrap; gap: 14px; }
+  .sheet[hidden] { display: none; }
+  .frame { position: relative; overflow: hidden; border-radius: 10px; background: linear-gradient(#9fd0ee 0 45%, #8cba7a 45% 100%); flex: none; }
+  .frame small { position: absolute; left: 8px; bottom: 6px; color: #10202c; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="sheet" id="desktop"></div>
+<div class="sheet" id="phone" hidden></div>
+<div class="sheet" id="tv" hidden></div>
+<script type="module">
+  import '/src/style.css';
+  import { createStoryCard } from '/src/ui/storycard.js';
+
+  const mk = (sheet, w, h, label, place, state, { visits = 0, deepOn = false, tv = false, touch = false } = {}) => {
+    const el = document.createElement('div');
+    el.className = 'frame';
+    el.style.width = `${w}px`; el.style.height = `${h}px`;
+    el.innerHTML = `<small>${label}</small>`;
+    document.getElementById(sheet).appendChild(el);
+    const doc = {
+      body: document.body, createElement: (t) => document.createElement(t), getElementById: () => el, querySelector: () => null, querySelectorAll: () => [],
+      addEventListener() {}, removeEventListener() {}, documentElement: { classList: { contains: (c) => tv && c === 'tv' } },
+    };
+    const win = { innerWidth: w, getComputedStyle: () => ({ fontSize: '24px' }) };
+    const card = createStoryCard({ doc, win, nav: null, place, progression: { state: { walks: {}, ...state } }, visits, deepOn, touch });
+    card.open(); // the button's way: a finished story does not come by itself
+    card.els.card.style.width = 'min(90%, 26em)'; // 90vw of a real phone is 90% of this frame
+  };
+  // desktop: four places at four points of their stories
+  mk('desktop', 640, 360, 'Moon, first walk', 'moon', { moon: { step: 0, cells: 0 } });
+  mk('desktop', 640, 360, 'Reef, two shells in', 'reef', { reef: { step: 3, shells: 3 } });
+  mk('desktop', 640, 360, 'Crystal Cave, deep story on, Tink to find', 'crystal', { crystal: { step: 7, sparks: 7, songs: 7, album: 3, deep: 3 } }, { deepOn: true });
+  mk('desktop', 640, 360, 'Market Square, one errand done', 'market', { journal: { mkglove: 1 } });
+  // phone
+  mk('phone', 390, 700, 'Snowville, two lanterns', 'snowville', { snowville: { step: 3, candles: 3 } }, { touch: true });
+  mk('phone', 390, 700, 'Farm, nothing done', 'farm', { journal: {} }, { touch: true });
+  mk('phone', 390, 700, 'Treehouse, bell next', 'treehouse', { treehouse: { step: 4, letters: 7 } }, { touch: true });
+  // TV
+  mk('tv', 960, 540, 'TV: Jungle, set the table', 'jungle', { jungle: { step: 4, fruit: 7 } }, { tv: true });
+  document.documentElement.style.fontSize = '24px';
+  window.__shot = (name) => { for (const s of ['desktop', 'phone', 'tv']) document.getElementById(s).hidden = s !== name; document.documentElement.classList.toggle('tv', name === 'tv'); return name; };
+  window.__ready = true;
+</script>
+</body>
+</html>

@@ -891,6 +891,7 @@ function init() {
   }, true);
   overlay.addEventListener('click', (e) => {
     if (e.target.id === 'btn-resume') resumeWalk();
+    if (e.target.id === 'btn-story') { session?.storyCard?.open(); resumeWalk(); }
     if (e.target.id === 'btn-end') {
       // She found the way home by herself: that hint is never needed.
       if (session) progression.knowHint('home');
@@ -1468,6 +1469,7 @@ function init() {
       // is taken and never gives a second one (restoreFind).
       if (arrival && handleFindArrival(session, arrival, { progression, log, hud, audio, card: findCard })) noteWalk();
       // The holiday errand's finds (a lazy chunk; none outside a window): the same frame, its own arrivals.
+      session.storyCard?.update(dt);
       const holidayArrival = session.holidayFinds?.update(dt, t, findFrame);
       if (holidayArrival && session.holidayFinds.handle(holidayArrival, { progression, log, hud, audio, fx: session.fx, cat: session.cat })) noteWalk();
       session.kittenEnc.update(dt, session.cat.position);
