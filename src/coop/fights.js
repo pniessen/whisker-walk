@@ -69,6 +69,7 @@ export function createFights({ ctx }) {
     wrapScar = null; origScar = null;
   }
 
+  const spot = { x: 0, z: 0, yaw: 0 };
   return {
     state,
     get fighter() { return state.fighter; },
@@ -78,6 +79,8 @@ export function createFights({ ctx }) {
     get on() { return (cf?.uiShowing ?? null) === 'fight'; },
     /** Cat two is the one in the fight (so its spot, pose and lift come from the stage). */
     get twoFights() { return state.fighter === 1 && (cf?.uiShowing ?? null) === 'fight'; },
+    /** Where the fight last put cat two (written each frame it runs; coop.late puts the picture back there after the remote draw). */
+    spot,
     attach(s, { drawn, key, joined }) {
       this.detach();
       const f = s?.clanFight;
@@ -97,6 +100,8 @@ export function createFights({ ctx }) {
         state.fighter = pickFighter(state.fighter, { busy, oneCan, twoCan, quiet });
         state.showing = f.uiShowing;
         const r = orig.call(f, dt, state.fighter === 1 ? stage : sess);
+        const g = state.fighter === 1 && f.uiShowing === 'fight' ? getDrawn() : null;
+        if (g) { spot.x = g.position.x; spot.z = g.position.z; spot.yaw = g.rotation.y; } // where the fight put cat two: the remote draw would lerp it away before coop.late
         state.showing = f.uiShowing;
         return r;
       };

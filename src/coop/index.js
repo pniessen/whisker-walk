@@ -549,7 +549,7 @@ export function start(ctx) {
     rides.look(dt, nowSec(), s, s.remotes.list.find((e) => e.playerId === SECOND_ID)?.group);
     if (fights.twoFights) { // the fight wrote cat two's picture: its body follows, and cat one sits and cheers
       const g = s.remotes.list.find((e) => e.playerId === SECOND_ID)?.group;
-      if (g) { body.position.x = g.position.x; body.position.z = g.position.z; body.rotation.y = g.rotation.y; }
+      if (g) { g.position.x = fights.spot.x; g.position.z = fights.spot.z; g.rotation.y = fights.spot.yaw; body.position.x = g.position.x; body.position.z = g.position.z; body.rotation.y = g.rotation.y; }
       s.idleTime = SIT_AT + 0.5;
     }
     const near = !fights.showing && !groom.active && state.apart <= GROOM_NEAR && calm();

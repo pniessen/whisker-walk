@@ -86,10 +86,10 @@ describe('couch play: the gaps of the Fairground rides', () => {
     w.stickTwo(0, 0); w.tick(3);
     w.stickTwo(0, -1);
     let max = 0;
-    for (let i = 0; i < 60 * 2; i++) { w.tick(1); coop.late(DT); max = Math.max(max, Math.abs(w.r.two()?.group.rotation.z ?? 0)); }
+    for (let i = 0; i < 60 * 2; i++) { w.tick(1); max = Math.max(max, Math.abs(w.r.two()?.group.rotation.z ?? 0)); }
     expect(max).toBeGreaterThan(0.02);
     w.stickTwo(0, 0);
-    w.tick(60 * 5); coop.late(DT);
+    w.tick(60 * 5);
     expect(Math.abs(w.r.two().group.rotation.z)).toBeLessThan(0.01);
   }, 60_000);
 
