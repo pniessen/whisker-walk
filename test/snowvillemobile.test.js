@@ -19,6 +19,11 @@ const W = await import('../src/world/snowvillewingplan.js');
 const P = await import('../src/world/snowvilleplan.js');
 const Q = await import('../src/world/snowvillefindsplan.js');
 const { strayHomes } = await import('../src/world/snowvillestrays.js');
+const { createMobileLive } = await import('../src/world/snowvillemobilelive.js');
+const { createSkisLive } = await import('../src/world/snowvilleskislive.js');
+const { createSledLive } = await import('../src/world/snowvillesledlive.js');
+const { createSnowvillePrompts } = await import('../src/world/snowvillelife.js');
+const { phrase } = await import('../src/clanphrases.js');
 
 const area = build(new THREE.Scene());
 const B = P.SNOWVILLE_BOUNDS;
@@ -134,5 +139,173 @@ describe('the drawing', () => {
     expect(bb.max.z - bb.min.z).toBeGreaterThan(M.MOBILE.len - 0.4);
     expect(bb.max.x - bb.min.x).toBeLessThan(1.1);
     for (const n of ['position', 'normal', 'uv', 'color']) expect(buildMobileGeometry().attributes[n]).toBeTruthy();
+  });
+});
+
+// ---- the live on a walk (a stand-in session, cat, player and camera) ---------------------------------------------------------------------
+function rig(reducedMotion = false, extra = {}) {
+  const scene = new THREE.Scene();
+  const ticks = [];
+  const added = [];
+  const audio = { tick: () => ticks.push(1), fanfare: () => ticks.push('fanfare') };
+  const progression = { addPoints: (n) => added.push(n), ...(extra.progression ?? {}) };
+  const live = createMobileLive({ scene, reducedMotion, tier: null, audio, progression });
+  const cat = new THREE.Object3D();
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.set(0, 3, 0);
+  const player = { perchY: 0, inputActive: false, dir: { x: 0, z: 0 }, inputDirection() { return this.dir; }, halt() { this.halted = (this.halted ?? 0) + 1; } };
+  const fairLog = [];
+  const orig = { update: () => fairLog.push('orig'), late: () => undefined, jump: () => 'origjump', pawKind: () => 'origpaw', canBoard: () => true, groundSpot: () => ({ x: 1, z: 2 }), riding: null, marker: 'dot' };
+  const session = { cat, ground: area.ground, perched: null, perchHold: null, idleTime: 5, fair: orig, remotes: { list: [] }, fx: { burst() {} } };
+  const home = () => cat.position.set(M.START.x + 1.2, area.ground.y(M.START.x + 1.2, M.START.z), M.START.z + 0.5);
+  home();
+  let t = 0;
+  const tick = (dt = 1 / 30) => { t += dt; live.frame(dt, t, cat.position, camera, session); session.fair.update(dt, t, { cat, player, session }); session.fair.late(dt, t, { cat, player, session }); };
+  return { scene, live, cat, camera, player, session, orig, fairLog, tick, ticks, added, home };
+}
+const press = (r) => { const line = r.live.slots.riding.promptAt(r.cat.position) ?? r.live.slots.mobile.promptAt(r.cat.position); r.live.interact(); r.tick(); return line; };
+const freeSpot = (p) => M.MOBILE_HOPS.some((h) => Math.hypot(h.x - p.x, h.z - p.z) < 0.02);
+const drive = (r, stick, limit = 1500) => { let n = 0; while (r.live.mode === 'riding' && n++ < limit) { r.player.inputActive = !!stick; r.player.dir = stick ? stick(r, n / 30) : { x: 0, z: 0 }; r.tick(); } return n; };
+
+describe('on a walk: a solo ride', () => {
+  it('the machine waits at the garage: near it she is offered "Hop on", far away nothing', () => {
+    const r = rig();
+    r.tick();
+    expect(r.live.mode).toBe('parked');
+    expect(r.live.slots.mobile.promptAt(r.cat.position)).toBe('Hop on');
+    expect(r.live.slots.mobile.promptAt(new THREE.Vector3(0, 0, 25))).toBeNull();
+    expect(r.live.slots.riding.promptAt(r.cat.position)).toBeNull();
+    expect(r.live.mobile.visible).toBe(true);
+    expect(Math.hypot(r.live.mobile.position.x - M.START.x, r.live.mobile.position.z - M.START.z)).toBeLessThan(0.01);
+    r.live.dispose();
+  });
+  it('she hops on: the fair marked riding on the front seat, her pose seated, the camera carried; two laps, then home at the garage on a free spot with a cheer', () => {
+    const r = rig();
+    r.tick();
+    press(r);
+    expect(r.live.mode).toBe('riding');
+    expect(r.session.perched.pose).toBe('requestPet');
+    expect(r.session.fair.riding).toEqual({ id: 'snow-mobile', seat: 0 });
+    expect(r.player.perchY).toBe(M.MOBILE.seatY);
+    expect(r.session.fair.jump()).toBe(false);
+    expect(r.session.fair.pawKind()).toBe('none');
+    const s0 = M.seatRecord(r.live.ride, 0);
+    expect(Math.hypot(r.cat.position.x - s0.x, r.cat.position.z - s0.z)).toBeLessThan(0.05);
+    expect(Math.hypot(r.live.mobile.position.x - r.live.ride.x, r.live.mobile.position.z - r.live.ride.z)).toBeLessThan(0.05);
+    let last = 0; let vmax = 0; let n = 0;
+    while (r.live.mode === 'riding' && n++ < 1300) { r.tick(); if (r.live.mode === 'riding') { expect(r.live.state.travelled).toBeGreaterThanOrEqual(last - 1e-9); last = r.live.state.travelled; vmax = Math.max(vmax, r.live.state.v); } }
+    expect(n).toBeLessThan(40 * 30 + 30);
+    expect(r.live.mode).toBe('parked');
+    expect(last).toBeGreaterThan(M.MOBILE_LEN); // more than one lap
+    expect(r.session.perched).toBeNull();
+    expect(r.session.fair.riding).toBeNull();
+    expect(r.player.perchY).toBe(0);
+    expect(freeSpot(r.cat.position)).toBe(true);
+    expect(Math.hypot(r.cat.position.x - M.START.x, r.cat.position.z - M.START.z)).toBeLessThan(4.5); // home at the garage
+    expect(vmax).toBeLessThanOrEqual(M.MOBILE_SPEC.vMax + 1e-6);
+    expect(r.live.rides).toBe(1);
+    expect(Math.hypot(r.live.mobile.position.x - M.START.x, r.live.mobile.position.z - M.START.z)).toBeLessThan(0.01);
+    r.live.dispose();
+  });
+  it('"Hop off" anywhere on the ride: onto the nearest free spot, every time along it', () => {
+    for (const stop of [1, 20, 90, 200, 500, 900]) {
+      const r = rig();
+      r.tick(); press(r);
+      for (let i = 0; i < stop && r.live.mode === 'riding'; i++) r.tick();
+      if (r.live.mode !== 'riding') { r.live.dispose(); continue; }
+      expect(r.live.slots.riding.promptAt(r.cat.position)).toBe('Hop off');
+      expect(r.live.slots.mobile.promptAt(r.cat.position)).toBeNull();
+      const ride = { ...r.live.ride };
+      expect(press(r)).toBe('Hop off');
+      expect(r.live.mode).toBe('parked');
+      expect(freeSpot(r.cat.position)).toBe(true);
+      const best = Math.min(...M.MOBILE_HOPS.map((h) => Math.hypot(h.x - ride.x, h.z - ride.z)));
+      expect(Math.hypot(r.cat.position.x - ride.x, r.cat.position.z - ride.z)).toBeLessThanOrEqual(best + 0.5);
+      expect(r.session.perched).toBeNull();
+      r.live.dispose();
+    }
+  });
+  it('a sweep of sticks: never off the lane, never stuck, always set down on a free spot, the ride over in under forty seconds', () => {
+    const sticks = [null, () => ({ x: 0, z: 0 }), (r, t) => ({ x: Math.sin(t * 4), z: Math.cos(t * 3) }), () => ({ x: 1, z: 0 }), () => ({ x: -1, z: 0 }), () => ({ x: 0, z: 1 }), () => ({ x: 0, z: -1 }), () => ({ x: NaN, z: 0 })];
+    for (const st of sticks) {
+      const r = rig();
+      r.tick(); press(r);
+      let n = 0;
+      while (r.live.mode === 'riding' && n++ < 1400) {
+        r.player.inputActive = !!st; r.player.dir = st ? st(r, n / 30) : { x: 0, z: 0 };
+        r.tick();
+        expect(Math.abs(r.live.state.lat)).toBeLessThanOrEqual(M.MOBILE_SPEC.laneHalf + 1e-6);
+      }
+      expect(r.live.mode, String(st)).toBe('parked');
+      expect(n, String(st)).toBeLessThan(40 * 30 + 30);
+      expect(freeSpot(r.cat.position)).toBe(true);
+      r.live.dispose();
+    }
+  });
+  it('3 paws once a walk and no more; a quiet chug while she rides', () => {
+    const r = rig();
+    const ends = [];
+    r.live.onRideEnd = (e) => ends.push(e);
+    r.tick(); press(r);
+    drive(r, null);
+    expect(ends).toEqual([{ rides: 1, seat: 0 }]);
+    expect(r.added).toEqual([3]);
+    expect(r.ticks.length).toBeGreaterThan(20);
+    r.home(); r.tick(); press(r);
+    drive(r, null);
+    expect(ends.length).toBe(2);
+    expect(r.added).toEqual([3]);
+    r.live.dispose();
+  });
+  it('a walk that ends while she rides sets her down on a free spot and puts the fair back', () => {
+    const r = rig();
+    r.tick(); press(r);
+    for (let i = 0; i < 30; i++) r.tick();
+    expect(r.session.fair.update).not.toBe(r.orig.update);
+    const gs = r.session.fair.groundSpot();
+    expect(M.MOBILE_HOPS.some((h) => h.x === gs.x && h.z === gs.z)).toBe(true);
+    r.live.dispose();
+    expect(freeSpot(r.cat.position)).toBe(true);
+    expect(r.session.perched).toBeNull();
+    expect(r.session.fair).toBe(r.orig);
+    expect(r.scene.children.length).toBe(0);
+  });
+  it('the fair it replaced still runs while she is off the machine, and is handed back its calls', () => {
+    const r = rig();
+    r.tick();
+    expect(r.fairLog.length).toBeGreaterThan(0);
+    expect(r.session.fair.jump()).toBe('origjump');
+    expect(r.session.fair.pawKind()).toBe('origpaw');
+    expect(r.session.fair.groundSpot()).toEqual({ x: 1, z: 2 });
+    r.live.dispose();
+  });
+  it('reduced motion: she still rides, the machine does not sway and nothing chugs', () => {
+    const r = rig(true);
+    r.tick(); press(r);
+    for (let i = 0; i < 40; i++) r.tick();
+    expect(r.live.mobile.rotation.z).toBe(0);
+    expect(r.live.state.travelled).toBeGreaterThan(2);
+    drive(r, null);
+    expect(r.ticks.length).toBe(0);
+    r.live.dispose();
+  });
+  it('beside the sled and the skis: the three fairs chain, one at a time, and the walk ends with the fair as it was', () => {
+    const r = rig();
+    const sled = createSledLive({ scene: r.scene, reducedMotion: false, tier: null });
+    const skis = createSkisLive({ scene: r.scene, reducedMotion: false, tier: null, audio: null, progression: null });
+    sled.frame(1 / 30, 0.03, r.cat.position, r.camera, r.session);
+    skis.frame(1 / 30, 0.03, r.cat.position, r.camera, r.session);
+    r.tick();
+    const prompts = createSnowvillePrompts({ promptAt: () => null, interact: () => null }, null, null, sled, skis, r.live);
+    expect(prompts.promptAt(r.cat.position)).toBe('Hop on');
+    prompts.interact(); r.tick();
+    expect(r.live.mode).toBe('riding');
+    expect(sled.mode).toBe('parked');
+    expect(skis.mode).toBe('parked');
+    expect(prompts.promptAt(r.cat.position)).toBe('Hop off');
+    prompts.interact(); r.tick();
+    expect(r.live.mode).toBe('parked');
+    r.live.dispose(); skis.dispose(); sled.dispose();
+    expect(r.session.fair).toBe(r.orig);
   });
 });

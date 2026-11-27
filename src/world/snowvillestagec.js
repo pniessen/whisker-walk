@@ -3,10 +3,12 @@
 import { ST } from './snowvillestages.js';
 import { mobileColliders } from './snowvillemobileplan.js';
 import { drawMobile } from './snowvillemobileparts.js';
+import { createMobileLive } from './snowvillemobilelive.js';
 
 Object.assign(ST, {
   c: Object.freeze({
     colliders: mobileColliders,
     draw: (kit, M) => drawMobile(kit, M),
+    mobile: createMobileLive, // the machine on a walk (round four)
   }),
 });

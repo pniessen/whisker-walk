@@ -80,3 +80,11 @@ const CANDIDATES = (() => {
   return out;
 })();
 export const MOBILE_HOPS = f(CANDIDATES.filter(([x, z]) => clear(x, z) && inBounds(x, z)).map(([x, z]) => f({ x: r2(x), z: r2(z), y: r2(snowY(x, z)) })));
+
+/** The metres round the ring of the point nearest (x, z): where a cat who joins a ride in progress sits. */
+export function nearestS(x, z) {
+  let best = 0; let bd = Infinity;
+  for (let s = 0; s < MOBILE_LEN; s += 0.5) { const p = mobilePos(s); const d = Math.hypot(p.x - x, p.z - z); if (d < bd) { bd = d; best = s; } }
+  return best;
+}
+export const SEAT_IDS = f(['snow-mobile', 'snow-mobile-1']); // the co-walk seat ids (remotecats.js: letters, dashes and a number), front and back
