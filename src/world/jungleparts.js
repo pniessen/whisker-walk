@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import * as P from './jungleplan.js';
+import { shapedTreeParts } from './jungletrees.js';
 
 export const COL = Object.freeze({
   wood: 0xa87a4c, woodDark: 0x6a4a2e, thatch: 0xb59c58, thatchDark: 0x8a7640, trunk: 0x7a5a3a, leaf: 0x3f8a3e, leafLight: 0x6ab04a, leafDeep: 0x2c6a36, stone: 0x8c9486, moss: 0x5f9a46,
@@ -295,6 +296,42 @@ export function drawSpawn(kit, M) {
   }
 }
 
+// ---- the lodge's walls and roof as plain geometry (also read by test/junglelodge.test.js) -------------------------------------------------------------
+// [geometry, colour, jitter, noCast]. The walls stand wallBase..wallTop; the roof's soffit starts at LODGE_ROOF.base == wallTop and the thatch climbs from there.
+export function lodgeWallGeos() {
+  const W = P.LODGE_WALL;
+  const h = W.top - W.base;
+  const out = [[box(W.x1 - W.x0, h, W.z1 - W.z0).translate((W.x0 + W.x1) / 2, (W.base + W.top) / 2, (W.z0 + W.z1) / 2), 0xc29a68, 0]];
+  for (let i = 0; i < 5; i++) out.push([box(0.1, h, 0.06).translate(W.x0 + 1 + i * 2.25, (W.base + W.top) / 2, W.z1 + 0.04), COL.woodDark, 0]); // standing posts on the front wall
+  return out;
+}
+const mixHex = (a, b, t) => _c.setHex(a).lerp(_d.setHex(b), t).getHex();
+export function lodgeRoofGeos() {
+  const R = P.LODGE_ROOF;
+  const wd = R.x1 - R.x0;
+  const dp = R.z1 - R.z0;
+  const cx = (R.x0 + R.x1) / 2;
+  const cz = (R.z0 + R.z1) / 2;
+  const out = [];
+  // the soffit: a flat underside closing the roof over the walls and the veranda (so nothing looks up into the sky), and the solid core with its two gable ends
+  out.push([box(wd, 0.06, dp).translate(cx, R.base + 0.03, cz), COL.woodDark, 0, true]);
+  out.push([gable(wd, dp, R.rise).translate(cx, R.base, cz), COL.thatchDark, 0, false]);
+  // thatch rows: each a slab laid on the slope, lowest first, a tone of its own
+  const half = dp / 2;
+  const ang = Math.atan2(R.rise, half);
+  const rowL = Math.hypot(half, R.rise) / R.rows;
+  for (let r = 0; r < R.rows; r++) {
+    const mid = (r + 0.5) * rowL; // along the slope from the eave
+    const hex = mixHex(r % 2 ? COL.thatch : COL.thatchDark, 0xcab870, (r % 3) * 0.18 + r * 0.02);
+    for (const side of [-1, 1]) {
+      const slab = box(wd + 0.14 - r * 0.03, 0.1 + (R.rows - r) * 0.008, rowL + 0.1).translate(0, 0.06, 0).rotateX(side * ang);
+      slab.translate(cx, R.base + mid * Math.sin(ang), cz + side * (half - mid * Math.cos(ang)));
+      out.push([slab, hex, r, false]);
+    }
+  }
+  return out;
+}
+
 // ---- the lodge ---------------------------------------------------------------------------------------------------------------------
 export function drawLodge(kit, M) {
   const L = P.LODGE;
@@ -306,26 +343,25 @@ export function drawLodge(kit, M) {
   // the deck's boards
   put('paint', at(box(w + 0.4, 0.14, L.z1 - L.z0 + 0.4), cx, top, (L.z0 + L.z1) / 2), COL.wood, 0, true);
   for (let i = 0; i < 7; i++) put('paint', at(box(w + 0.42, 0.02, 0.05), cx, top + 0.075, L.wallZ + 0.7 + i * 0.64), COL.woodDark, 0, true);
-  // the body: warm timber walls, a double door, a window each side and one on each end
-  put('paint', at(box(w, 2.9, L.wallZ - L.z0), cx, top + 1.52, (L.z0 + L.wallZ) / 2), 0xc29a68);
-  for (let i = 0; i < 5; i++) put('paint', at(box(0.1, 2.9, 0.06), L.x0 + 1 + i * 2.25, top + 1.52, L.wallZ + 0.04), COL.woodDark); // standing posts on the front wall
+  // the body: warm timber walls (shared with the roof's base by jungleplan.js's LODGE_WALL / LODGE_ROOF), a double door, a window each side and one on each end
+  const W = P.LODGE_WALL;
+  for (const [geo, hex, jit] of lodgeWallGeos()) put('paint', geo, hex, jit);
   put('paint', at(box(1.9, 2.1, 0.1), cx, top + 1.12, L.wallZ + 0.05), COL.woodDark); // the double door
   put('paint', at(box(0.05, 2.0, 0.04), cx, top + 1.12, L.wallZ + 0.11), COL.wood);
   for (const sx of [-1, 1]) put('glow', at(box(1.3, 0.9, 0.06), cx + sx * 3.5, top + 1.5, L.wallZ + 0.04), COL.warm);
   for (const sx of [-1, 1]) put('glow', at(box(0.06, 0.9, 1.2), cx + sx * (w / 2 + 0.02), top + 1.5, 11.8), COL.warm);
-  // six posts holding the veranda roof, a top rail and a low rail along the front (open at the steps) and the two ends
-  for (const p of P.LODGE_POSTS) put('paint', at(cyl(0.11, 0.13, 2.95, 6), p.x, top + 1.5, p.z), COL.woodDark);
+  // six posts holding the veranda roof (their tops ARE the wall top), a top rail and a low rail along the front (open at the steps) and the two ends
+  for (const p of P.LODGE_POSTS) put('paint', at(cyl(0.11, 0.13, W.top - top, 6), p.x, (W.top + top) / 2, p.z), COL.woodDark);
   const front = [[L.x0, -6 - P.STEPS.w / 2], [-6 + P.STEPS.w / 2, L.x1]];
   for (const [a, b] of front) for (const ry of [0.95, 0.5]) put('paint', at(box(b - a, 0.07, 0.07), (a + b) / 2, top + ry, L.z1 - 0.2), COL.wood);
   for (const sx of [L.x0, L.x1]) for (const ry of [0.95, 0.5]) put('paint', at(box(0.07, 0.07, L.z1 - L.wallZ), sx + (sx === L.x0 ? 0.2 : -0.2), top + ry, (L.wallZ + L.z1) / 2), COL.wood);
-  // the thatched roof over the whole house, eaves 2.95 m over the deck, a darker band under it
-  const eave = top + 2.95;
-  put('paint', gable(w + 1.4, L.z1 - L.z0 + 1.6, 2.1).translate(cx, eave, (L.z0 + L.z1) / 2 + 0.2), COL.thatch);
-  put('paint', gable(w + 1.5, L.z1 - L.z0 + 1.7, 2.12).translate(cx, eave - 0.1, (L.z0 + L.z1) / 2 + 0.2), COL.thatchDark, 0, true);
+  // the thatched roof over the whole house: its base sits ON the wall top and overhangs every wall; rows of thatch, each its own tone, over a solid core and a soffit
+  for (const [geo, hex, jit, nc] of lodgeRoofGeos()) put('paint', geo, hex, jit, nc);
   // the ramp: the deck's front, sloping down to the ground between the open rail posts
   const run = L.skirt;
   const ramp = box(P.STEPS.w - 0.4, 0.08, Math.hypot(run, top)).rotateX(Math.atan2(top, run));
   put('paint', ramp.translate(P.STEPS.x, P.jungleY(P.STEPS.x, L.z1 + run / 2) + 0.06, L.z1 + run / 2), COL.wood, 0, true);
+  const eave = P.LODGE_ROOF.base; // the front eave's height: the wall top
   // the lantern on its cord from the middle rafter (its real light is drawLight's), and hanging vines at the front eave
   const Lt = P.LANTERN;
   put('paint', at(cyl(0.015, 0.015, 0.7, 4), Lt.x, top + Lt.y + 0.1, Lt.z), COL.rope, 0, true);
@@ -360,7 +396,9 @@ export function drawLeaves(kit, M) {
 }
 
 // A tree: a tapered trunk and three rounded lumps of leaves (broad) or a bare trunk with a crown of six drooping fronds (palm). `s` scales it (1 = 7 m).
+const TREE_COL = Object.freeze({ ...COL, dead: 0x8f8574, fungus: 0xe0b878, nut: 0x6a4a2a });
 export function treeParts(k) {
+  if (k.shape) return shapedTreeParts(k, TREE_COL); // round two: the tree's own shape and height (jungletrees.js); the green wall keeps the plain look below
   const parts = [];
   const s = k.s;
   if (k.kind === 'palm') {
@@ -385,10 +423,10 @@ function putTree(kit, M, k, back) {
 export function drawTrees(kit, M) {
   const trees = P.scatterTrees();
   for (const k of trees) putTree(kit, M, k, k.rim);
-  trees.filter((k) => !k.rim && k.s > 1.2 && k.kind === 'broad').forEach((k, i) => { // a hanging vine under the bigger crowns
+  trees.filter((k) => !k.rim && k.s > 1.2 && (k.shape === 'broad' || k.shape === 'emergent')).forEach((k, i) => { // a hanging vine under the bigger crowns
     const len = 2.6;
-    kit.put('paint', M.paint, paint(stand(cyl(0.025, 0.02, len, 4), k.x + 0.7 * k.s, k.z + 0.5 * k.s, 4.6 * k.s - len / 2), COL.leafDeep, i), { noCast: true });
-    kit.put('paint', M.paint, paint(stand(ball(0.12, 4, 3).scale(1.6, 0.6, 1), k.x + 0.7 * k.s, k.z + 0.5 * k.s, 4.6 * k.s - len), COL.leafLight, i), { noCast: true });
+    kit.put('paint', M.paint, paint(stand(cyl(0.025, 0.02, len, 4), k.x + 0.7 * k.s, k.z + 0.5 * k.s, (k.top ?? 4.6 * k.s) - 2.6 * k.s * 0.3 - len / 2), COL.leafDeep, i), { noCast: true });
+    kit.put('paint', M.paint, paint(stand(ball(0.12, 4, 3).scale(1.6, 0.6, 1), k.x + 0.7 * k.s, k.z + 0.5 * k.s, (k.top ?? 4.6 * k.s) - 2.6 * k.s * 0.3 - len), COL.leafLight, i), { noCast: true });
   });
 }
 export function drawFerns(kit, M) {
