@@ -98,3 +98,23 @@ describe('every save key survives the sanitiser', () => {
     });
   }
 });
+
+// Each numeric sub-key of a plain-object default, on its own: a sub-key the sanitiser drops or
+// zeroes would lose a child's progress without any top-level key going missing.
+// CLAMPED: sub-keys the sanitiser derives or caps, so they are checked for "not dropped" only.
+const CLAMPED = new Set(['snowville.candles', 'snowville.album', 'treehouse.album', 'jungle.album']);
+const isPlain = (v) => v && typeof v === 'object' && !Array.isArray(v);
+describe('every numeric sub-key of a plain-object default survives on its own', () => {
+  for (const k of freshStateKeys()) {
+    if (!isPlain(fresh[k])) continue;
+    for (const [sub, dv] of Object.entries(fresh[k])) {
+      if (typeof dv !== 'number') continue;
+      it(`${k}.${sub}`, () => {
+        const val = 1;
+        const out = sanitizeSave({ version: 4, ...ALSO[k], [k]: { ...fresh[k], [sub]: val } });
+        if (CLAMPED.has(`${k}.${sub}`)) expect(out[k][sub]).toBeGreaterThanOrEqual(0);
+        else expect(out[k][sub], `${k}.${sub} was dropped or reset`).toBe(val);
+      });
+    }
+  }
+});
