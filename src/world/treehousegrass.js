@@ -12,8 +12,9 @@
 import * as THREE from 'three';
 import { mulberry32 } from '../rng.js';
 import * as P from './treehouseplan.js';
-import { paint, placed } from './treehouseparts.js';
+import { paint, placed, pad } from './treehouseparts.js';
 import { TRACK } from './treehousebeauty.js';
+import { drawDetail } from './treehousedetail.js';
 
 const LEVELS = Object.freeze([0.0165, 0.0175, 0.0185, 0.0195, 0.0205, 0.0215, 0.0225]); // half-way between the other ground layers' heights (beauty's 0.017 to 0.022, the track's 0.024)
 const TONES = Object.freeze([0x4a7a38, 0x5a8a40, 0x6c9a48, 0x86a850, 0xa0b05a, 0xb4ac5c]); // dark, mid, mid-light, sunny, yellow-green, dry
@@ -81,7 +82,7 @@ function blade(a, x, z, h, dx, dz, w, root, tip) {
 
 export function drawGrass(kit, M) {
   const plan = planGrass();
-  for (const p of plan.patches) kit.put('paint', M.paint, paint(placed(new THREE.CylinderGeometry(1, 1, 0.012, 7), p.x, p.y, p.z, { sx: p.rx, sz: p.rz, yaw: p.yaw }), p.hex, 0));
+  for (const p of plan.patches) kit.put('paint', M.paint, paint(placed(pad(7), p.x, p.y + 0.006, p.z, { sx: p.rx, sz: p.rz, yaw: p.yaw }), p.hex, 0));
   const a = acc();
   const c0 = new THREE.Color(); const c1 = new THREE.Color();
   for (const t of plan.tufts) {
@@ -105,5 +106,6 @@ export function drawGrass(kit, M) {
       for (let k = 0; k < 4; k++) a.tri(ring[(k + 1) % 4], ring[k], apex, bloom, bloom, bloom);
     }
   }
+  drawDetail(a, blade);
   kit.put('tufts', M.leaves, a.geometry(), { noCast: true });
 }
