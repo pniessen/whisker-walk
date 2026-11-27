@@ -12,7 +12,7 @@ export const COOP_READY = {
   market: true, // M5(b): test/coopm5market.test.js
   house: true, // M5(d): test/coopm5house.test.js
   lighthouse: true, // M5(d): test/coopm5lighthouse.test.js
-  greenhouse: true, moon: false, reef: false, crystal: false,
+  greenhouse: true, moon: false, reef: false, crystal: true,
   snowville: true, treehouse: true, jungle: true,
 };
 
