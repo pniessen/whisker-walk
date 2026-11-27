@@ -68,7 +68,7 @@ describe('the plan (reeflabplan.js)', () => {
   it('stands clear of everything else in the Reef: the Deep, the finds, the pockets, the mice, the story, the spawn', () => {
     const solids = [...otherCols];
     for (const c of solids) expect(rectGap(c.x, c.z) - c.r, JSON.stringify(c)).toBeGreaterThan(0.3);
-    const marks = [...S.POCKETS.map((p) => [p, 2.2]), ...Q.REEF_SCENICS.map((p) => [p, 1.2]), ...Q.REEF_COLLECTIBLES.map((p) => [p, 1.4]), ...Q.REEF_GOLD.map((p) => [p, 2]),
+    const marks = [...S.POCKETS.map((p) => [p, 2.2]), ...Q.REEF_SCENICS.map((p) => [p, 1.2]), ...Q.REEF_COLLECTIBLES.map((p) => [p, 1.4]), ...Q.REEF_GOLD.filter((p) => p.id !== 'gm-reef-4').map((p) => [p, 2]), // (gm-reef-4 is in the bunk room, R14)
       ...Object.values(Q.REEF_FIND_MARKS).map((p) => [p, 2]), ...P.KEEP_OUT.map((k) => [{ x: k[0], z: k[1] }, k[2]]), [P.REEF_SPAWN, 2], [S.MARLO.start, 2]];
     for (const [p, r] of marks) expect(rectGap(p.x, p.z) - r, JSON.stringify(p)).toBeGreaterThanOrEqual(0);
     expect(rectGap(DEEP.BOAT.x, DEEP.BOAT.z)).toBeGreaterThan(20);
@@ -485,7 +485,7 @@ describe('the words, the journal and the source rules', () => {
       expect(line).not.toMatch(BAD);
       withOffWords(() => { expect(bannedIn(phrase(id)), id).toBeNull(); expect(phrase(id)).toBe(line); });
     }
-    expect(Object.keys(LINES)).toEqual(['reef.lab.down', 'reef.lab.up', 'reef.lab.in']);
+    expect(Object.keys(LINES).slice(0, 3)).toEqual(['reef.lab.down', 'reef.lab.up', 'reef.lab.in']); // (the fuses' lines follow, R14)
   });
   it('no banned word or film name in any lab file or lab journal hint (names and words, comments aside)', () => {
     for (const f of globSync('src/world/reeflab*.js')) {
@@ -510,7 +510,7 @@ describe('the words, the journal and the source rules', () => {
   });
   it('the lab chunk imports nothing of the Reef\'s plan or three (so start-up and stage A stay as they were), and only the lab files, the phrase table and the stage slot', () => {
     for (const f of globSync('src/world/reeflab*.js')) {
-      for (const [, spec] of read(f).matchAll(/^import .*?from '(.+?)';/gm)) expect(spec, `${f} imports ${spec}`).toMatch(/^(\.\/reeflab[a-z]*\.js|\.\.\/clanphrases\.js|\.\/reefstages\.js)$/);
+      for (const [, spec] of read(f).matchAll(/^import .*?from '(.+?)';/gm)) expect(spec, `${f} imports ${spec}`).toMatch(/^(\.\/reeflab[a-z]*\.js|\.\.\/clanphrases\.js|\.\.\/reeflab\.js|\.\/reefstages\.js)$/);
     }
     expect(read('src/world/reefstagelab.js')).toMatch(/import \{ ST \} from '\.\/reefstages\.js'/);
   });

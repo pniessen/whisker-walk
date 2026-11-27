@@ -21,6 +21,7 @@ const area = build(new THREE.Scene());
 const GOLD = GOLD_MICE.reef;
 const near = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const flood = floodFrom(area, area.spawn, (x, z) => isWalkableAt(area, x, z));
+const labFlood = floodFrom(area, { x: 2.4, z: -32.2 }, (x, z) => isWalkableAt(area, x, z)); // gm-reef-4 is in the Sealab's bunk room (R14): reached from the hatch's arrival spot
 
 describe('three golden mice', () => {
   it('ids gm-reef-1..5 (4 and 5 are R10 stubs), valid, known, unique, and the plan holds the same five', () => {
@@ -51,7 +52,7 @@ describe('three golden mice', () => {
   it('every one is reached from the spawn with no skills: on foot to within 1 m, and the float row reaches the two high ones inside checkFind\'s 0.9 m window', () => {
     const { floatMax } = placeFloat('reef');
     for (const m of GOLD) {
-      expect(flood.reachesWithin(m.x, m.z, 0.9), `${m.id} is reached on foot`).toBe(true);
+      expect((m.id === 'gm-reef-4' ? labFlood : flood).reachesWithin(m.x, m.z, 0.9), `${m.id} is reached on foot`).toBe(true);
       // the paws' height is a float of 0..floatMax over the seabed under her: some float in that range lands inside |paws - mouse| < 0.9
       expect(floatMax > m.y - 0.9 && 0 < m.y + 0.9, m.id).toBe(true);
       if (m.y > 0.9) expect(m.y - 0.9, `${m.id} needs a float, no skill`).toBeGreaterThan(0);

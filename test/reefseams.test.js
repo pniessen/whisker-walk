@@ -99,6 +99,7 @@ describe('floatY, the Reef\'s read-only float height (a placeholder until milest
     'src/coop/index.js', // the couch markers
     'src/remotecats.js', // the lift of a partner's cat
     'src/world/reefstorylife.js', // R2: the shell on the coral ledge is picked up only by floating (it hands the number to Marlo's pick-up rule)
+    'src/world/reeflabstory.js', // R14: a fuse is picked up from the floor, not from high over it (it reads the number, never writes it)
     'src/world/reeflablive.js', // R13: the Sealab's hatch is offered from the sand, not from high over it (it reads the number, never writes it)
   ]);
   it('only the allow-listed files mention it', () => {
