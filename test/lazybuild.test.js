@@ -85,7 +85,7 @@ describe('the Reef is four chunks fetched together (R10 stage slots)', () => {
     }
     expect(kb.total).toBeLessThanOrEqual(REEF_TOTAL_GZIP_CEILING_KB);
     const startKb = startupFiles(b.manifest).reduce((n, f) => n + b.gz(f), 0) / 1000;
-    expect(startKb).toBeLessThan(658.0 + 5.5); // +0.4 for the Treehouse village's milestone T1 (its catalog row, map place and signpost behind their own switch: measured +0.4), +0.2 for N0 (ids, three save keys, placeholder journal pages), +0.1 for the Moon's catalog row and map circle, +0.3 for rooms through tele gates (I3: measured +0.2), +1 for the R10 seams, +1.2 for the area-music chunk link, +0.3 for the Crystal wing seams (X0), +0.3 for the Crystal Circlet's drawing (C3: measured +0.2), +0.5 for the passport page and the Back button (I4: measured +0.49)
+    expect(startKb).toBeLessThan(658.0 + 5.8); // +0.3 for Snowville's finds (V3: measured +0.3), +0.4 for the Treehouse village's milestone T1 (its catalog row, map place and signpost behind their own switch: measured +0.4), +0.2 for N0 (ids, three save keys, placeholder journal pages), +0.1 for the Moon's catalog row and map circle, +0.3 for rooms through tele gates (I3: measured +0.2), +1 for the R10 seams, +1.2 for the area-music chunk link, +0.3 for the Crystal wing seams (X0), +0.3 for the Crystal Circlet's drawing (C3: measured +0.2), +0.5 for the passport page and the Back button (I4: measured +0.49)
   });
 });
 

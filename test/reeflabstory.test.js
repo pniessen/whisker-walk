@@ -128,7 +128,7 @@ describe('the plan\'s data', () => {
     expect(L.roomAt(m4.x, m4.z)).toBe('bunk');
     expect(flood.reaches(m4.x, m4.z)).toBe(true);
     expect(Q.REEF_GOLD.find((m) => m.id === 'gm-reef-4')).toMatchObject({ x: m4.x, z: m4.z, y: 0 });
-    expect(GOLD_TOTAL).toBe(65);
+    expect(GOLD_TOTAL).toBe(68);
     expect(P.KEEP_OUT.some(([x, z]) => x === m4.x && z === m4.z)).toBe(false);
     for (const c of L.PROP_COLLIDERS) expect(Math.hypot(c.x - m4.x, c.z - m4.z)).toBeGreaterThan(c.r + 0.5);
   });
