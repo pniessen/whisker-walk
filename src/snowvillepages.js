@@ -6,6 +6,10 @@ export const SNOWVILLE_PAGES = Object.freeze([
   ['sv1', '🏮', 'lantern', 'The Hill Lantern'], ['sv2', '⛸️', 'pond', 'The Skating Pond'], ['sv3', '🐇', 'hare', 'The Shy Hare'],
   ['sv4', '🌲', 'fir', 'The Great Fir'], ['sv5', '⛄', 'snowman', 'The Snowman'], ['sv6', '🔥', 'hearth', 'The Warm Hearth'],
 ].map((p) => Object.freeze(p)));
+// Milestone V4: three of the life pages (sw1..sw3: the otters, the robin, the little fox), counted like a farm animal (world/snowvillecritters.js spots them; the hints are in the lazy
+// src/world/snowvillecritterwords.js). The other five sw ids stay hidden placeholders until their milestones.
+export const SNOWVILLE_LIFE_PAGES = Object.freeze([['sw1', '🦦', 'otter', 'The Skating Otters'], ['sw2', '🐦', 'robin', 'The Lamp Robin'], ['sw3', '🦊', 'fox', 'The Sleepy Little Fox']].map((p) => Object.freeze(p)));
+export const SNOWVILLE_LIVE_PAGES = Object.freeze([...SNOWVILLE_PAGES, ...SNOWVILLE_LIFE_PAGES]);
 export const SNOWVILLE_PAGE_IDS = Object.freeze(SNOWVILLE_PAGES.map((p) => p[0]));
 
 // The hints by journal id: empty here, filled by the place's lazy file (world/snowvillefindwords.js) when its chunk arrives.

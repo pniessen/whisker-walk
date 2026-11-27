@@ -74,15 +74,17 @@ export function build(scene) {
         const tilly = createTilly({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
         const prompts = createSnowvillePrompts(tilly);
         const finds = ST.b?.finds?.life(ctx); // the six discoveries (milestone V3)
+        const critters = ST.b?.critters?.(ctx); // the otters, hare, robin, fox kit, smoke, bells and crunch (milestone V4)
         return {
           light,
+          spottable: critters?.spottable ?? [],
           tilly,
           promptAt: (catPos) => prompts.promptAt(catPos),
           interact: () => prompts.interact(),
           // a step done by anyone in the room (an `sv-` event); a stage's own steps join this line with their stage
           credit: (ev) => tilly.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); },
-          dispose() { finds?.dispose(); tilly.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); },
+          dispose() { critters?.dispose(); finds?.dispose(); tilly.dispose(); light.dispose(); },
         };
       },
     };

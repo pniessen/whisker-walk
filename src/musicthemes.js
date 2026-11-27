@@ -34,6 +34,7 @@ export const THEMES = Object.freeze({
   greenhouse: t({ voice: 'mar', alt: 0.2, altVoice: 'chime', root: 2, beat: 0.42, n: [4, 6], pad: { g: 0.01, chords: FIFTH } }),
   moon: t({ voice: 'bell', scale: LYD, reg: 12, beat: 0.8, len: 16, n: [2, 3], up: 0.1, pad: { g: 0.03, swell: 1, chords: [[0, 7, 12], [0, 6, 14]] } }),
   reef: t({ voice: 'harp', style: 'arp', reg: 0, beat: 0.36, n: [6, 8], up: 0.3, pad: { g: 0.026, swell: 1, chords: FIFTH } }),
+  snowville: t({ voice: 'bell', reg: 12, beat: 0.7, len: 16, n: [2, 4], up: 0.1, pad: { g: 0.014, swell: 1, chords: FIFTH } }), // slow bells and a soft pad (Snowville V4)
   // C major pentatonic, rooted on the crystals' own C: rose = G4 + D5, sky = A4 + E5, gold = C5 + G5 (crystallife.js NOTES)
   crystal: t({ voice: 'chime', style: 'notes', notes: [7, 9, 12, 14, 16, 19], rootHz: 261.63, beat: 0.75, len: 16, n: [3, 5], pad: { g: 0.012, swell: 1, chords: [[7, 12, 16], [9, 12, 16], [7, 14, 19]] } }),
 });

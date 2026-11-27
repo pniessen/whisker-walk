@@ -285,11 +285,12 @@ describe('the Snowflake Scarf\'s four spots', () => {
 
 describe('the six live journal pages', () => {
   afterEach(() => setSnowville(null));
-  it('sv1..sv6 are live (named, hinted once the chunk is in), the other eleven stay hidden placeholders', () => {
+  it('sv1..sv6 are live (named, hinted once the chunk is in), the other eight stay hidden placeholders', () => {
     const sv = CRITTER_INFO.filter((c) => /^s[vw]\d$/.test(c.id));
+    const LIVE = [...SNOWVILLE_PAGE_IDS, 'sw1', 'sw2', 'sw3']; // V4 made the first three life pages live too (test/snowvillecritters.test.js)
     expect(sv).toHaveLength(17);
     for (const c of sv) {
-      if (SNOWVILLE_PAGE_IDS.includes(c.id)) { expect(c.later, c.id).toBeFalsy(); expect(c.snowville).toBe(true); expect(c.hint).toMatch(/\S/); } else expect(c.later, c.id).toBe(true);
+      if (LIVE.includes(c.id)) { expect(c.later, c.id).toBeFalsy(); expect(c.snowville).toBe(true); expect(c.hint).toMatch(/\S/); } else expect(c.later, c.id).toBe(true);
     }
     expect(sv.filter((c) => SNOWVILLE_PAGE_IDS.includes(c.id)).map((c) => c.name)).toEqual(SNOWVILLE_PAGES.map((p) => p[3]));
   });
