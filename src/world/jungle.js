@@ -3,7 +3,7 @@
 // roofed veranda and lantern, a slow brown river she wades across (shallows, a log bridge and stepping stones, NO swimming), giant leaves that shelter from the rain, trees, ferns,
 // mossy stones, soft green mist, a warm rain shower on a seeded repeating schedule with a rainbow after it, and the lodge's one real light. The river's far bank, the canopy walk,
 // the Rain Supper and the raft are the lazy stages (junglestages.js), filled by later milestones. Behind ?jungle=1 and the gates switch only. Always bright: no walk weather, no
-// strays (the rain is this place's own, junglelight.js). Draws no random number and reads no clock; builds in withLocalUuids. docs/superpowers/plans/2026-11-27-new-areas-snowville-treehouse-jungle.md.
+// strays (the rain is this place's own, junglelight.js). Milestone J2 adds Mossy and chapter one. Draws no random number and reads no clock; builds in withLocalUuids. docs/superpowers/plans/2026-11-27-new-areas-snowville-treehouse-jungle.md.
 // HARD RULES (the Crystal's and Moon's, adapted): open sky above the leaves, so NO real `ceil`; not in INDOOR_AREAS; at most ONE PointLight in the whole place (the veranda lantern's),
 // made at build with a steady intensity; reduced motion stands the mist still, draws no rain and holds the lantern; the low rungs draw half.
 // =============================================================================
@@ -13,6 +13,7 @@ import { withLocalUuids } from './localuuids.js';
 import * as P from './jungleplan.js';
 import * as K from './jungleparts.js';
 import { createJungleLight } from './junglelight.js';
+import { createMossy, createJunglePrompts } from './junglelife.js';
 import './junglewords.js';
 import { ST } from './junglestages.js'; // the two stages' slots (filled by their chunks, loaded with this one: areas.js)
 
@@ -68,13 +69,20 @@ export function build(scene) {
       strays: false,
       goalTypes: Object.freeze(['collectible', 'photo', 'scenic']),
       ground: P.createJungleGround(),
-      // the mist, the rain and its rainbow, and the lantern's glow; Mossy and the story come with the next milestone
+      // the mist, the rain and its rainbow, the lantern's glow, and Mossy with chapter one (junglemission.js)
       life: (ctx) => {
         const light = createJungleLight(ctx);
+        const mossy = createMossy({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
+        const prompts = createJunglePrompts(mossy);
         return {
           light,
-          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); },
-          dispose() { light.dispose(); },
+          mossy,
+          promptAt: (catPos) => prompts.promptAt(catPos),
+          interact: () => prompts.interact(),
+          // a step done by anyone in the room (a `jl-` event); a stage's own steps join this line with their stage
+          credit: (ev) => mossy.credit(ev),
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); mossy.update(dt, t, catPos, camera, session); },
+          dispose() { mossy.dispose(); light.dispose(); },
         };
       },
     };

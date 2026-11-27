@@ -615,7 +615,7 @@ function defaultState() {
     // rubbings album (12 bits). Additive: SAVE_VERSION stays 4.
     crystal: { step: 0, sparks: 0, album: 0, forge: 0, songs: 0 },
     // Snowville, the Treehouse and the Jungle (milestone N0): each a story step and an album bitmask, nothing earns them yet.
-    snowville: { step: 0, candles: 0, album: 0 }, treehouse: { step: 0, letters: 0, album: 0 }, jungle: { step: 0, album: 0 },
+    snowville: { step: 0, candles: 0, album: 0 }, treehouse: { step: 0, letters: 0, album: 0 }, jungle: { step: 0, fruit: 0, album: 0 },
     den: { owned: [], placed: {} },
     // v18 Cat Skills. `skills` is the list of ability ids already earned —
     // stored rather than derived so a later threshold change can never
@@ -991,9 +991,11 @@ function sanitizeTreehouse(v) {
   const step = n(v?.step, 7);
   return { step, letters: n(v?.letters, 7) | TREEHOUSE_LETTERS_AT[step], album: n(v?.album, 4095) };
 }
-function sanitizeNewArea(v) {
+const JUNGLE_FRUIT_AT = [0, 0, 1, 3, 7, 7, 7, 7]; // the fruit each step implies (src/world/junglemission.js pins the same table)
+function sanitizeJungle(v) {
   const n = (x, hi) => Math.min(hi, asFiniteNonNegInt(x, 0));
-  return { step: n(v?.step, 7), album: n(v?.album, 4095) };
+  const step = n(v?.step, 7);
+  return { step, fruit: n(v?.fruit, 7) | JUNGLE_FRUIT_AT[step], album: n(v?.album, 4095) };
 }
 function sanitizeReef(v) {
   const n = (x, hi) => Math.min(hi, asFiniteNonNegInt(x, 0));
@@ -1332,7 +1334,7 @@ function sanitizeState(parsed) {
     crystal: sanitizeCrystal(parsed.crystal),
     snowville: sanitizeSnowville(parsed.snowville),
     treehouse: sanitizeTreehouse(parsed.treehouse),
-    jungle: sanitizeNewArea(parsed.jungle),
+    jungle: sanitizeJungle(parsed.jungle),
     den: sanitizeDen(parsed.den),
     skills: sanitizeSkills(parsed.skills),
     feats,

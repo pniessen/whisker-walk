@@ -173,6 +173,7 @@ describe('the built place', () => {
     for (const p of area.pois) expect(reach(p.x, p.z), JSON.stringify(p)).toBe(true);
     for (const [kx, kz] of P.KEEP_OUT.filter(([kx, kz]) => !area.colliders.some((c) => Math.hypot(kx - c.x, kz - c.z) < c.r + 0.4))) expect(reach(kx, kz), `${kx},${kz}`).toBe(true);
     expect(reach(-6, 17)).toBe(true); // the veranda
+    for (const [x, z] of [[-24.4 + 0.8, 3.2], [-9.4 + 1.2, 16.6 + 0.8], [-5.8 - 1.6, 15.4]]) expect(reach(x, z), `${x},${z}`).toBe(true); // chapter one: the mango, the table, Mossy (J2)
     expect(reach(10, -12)).toBe(true); // north of the river (the canopy walk's side)
     expect(seen.size / (nx * nz)).toBeGreaterThan(0.85);
   });
