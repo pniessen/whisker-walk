@@ -31,7 +31,7 @@ import { BufferGeometry, BufferAttribute, BoxGeometry, ConeGeometry, CylinderGeo
 const DECOR_THREE = [BufferGeometry, BufferAttribute, BoxGeometry, ConeGeometry, CylinderGeometry, OctahedronGeometry, TorusGeometry, Mesh, MeshStandardMaterial, MeshBasicMaterial, Group];
 import { moonShortcut } from '../moonflag.js';
 import { reefShortcut } from '../reefflag.js';
-import { crystalShortcut } from '../crystalflag.js';
+import { crystalShortcut, crystalDeepOn } from '../crystalflag.js';
 import { snowvilleShortcut } from '../snowvilleflag.js';
 import { jungleShortcut } from '../jungleflag.js';
 import { placePace, placeFloat } from '../placephysics.js';
@@ -259,7 +259,7 @@ export function pauseCardFor(s, touch, sound = null, note = null) {
     welcome: mode === 'paused' ? null : s.welcome, touch, portrait: s.portrait, mode,
     skip: !!L && !L.finished && !L.skipped,
     oneLine: mode === 'ready' && !touch && L?.kind === 'first' && !L.skipped,
-    sound, view, room: !!s.net, note,
+    story: !!s.storyOn, sound, view, room: !!s.net, note,
     // Back to where she came from: only after a gate or a gateway, started walk, solo or a room's host.
     back: mode === 'paused' && s.arrivedVia && s.backName && (!s.net || s.net.isHost?.()) ? s.backName : null,
   });
@@ -285,7 +285,7 @@ function pauseViewHtml({ step, max }) {
   return `
       <div class="pause-view" role="group" aria-label="View"><span class="pause-view-label">👀 View</span><div class="pause-view-chips">${chips}</div></div>`;
 }
-export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false, sound = null, view = null, room = false, note = null, back = null }) {
+export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false, sound = null, view = null, room = false, note = null, back = null, story = false }) {
   // TV mode with the pad as the input: the pad's words, with button pictures (src/tv/padwords.js).
   const pad = (id) => (tvState.input === 'pad' ? tvState.padLine?.(id) : null);
   const padSegs = pad(oneLine ? 'ready.keys' : 'pad.pause.controls')?.split(' · ');
@@ -297,12 +297,15 @@ export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready',
     <p class="pause-note" role="status">${escapeHtml(note)}</p>` : ''}
     <div class="screen-actions">
       <button id="btn-resume" class="primary">${(go && padHtml(go)) || resumeLabel(mode, touch)}</button>${sound && mode !== 'ready' ? pauseSoundHtml(sound, view) : ''}
-      ${back ? `<button id="btn-back" class="secondary">${escapeHtml(phrase('walk.back', back))}</button>` : ''}<button id="btn-end" class="secondary">Head home</button>${skip ? `
+      ${back ? `<button id="btn-back" class="secondary">${escapeHtml(phrase('walk.back', back))}</button>` : ''}${story ? '<button id="btn-story" class="secondary">Story so far</button>' : ''}<button id="btn-end" class="secondary">Head home</button>${skip ? `
       <button id="${SKIP_LESSON_ID}" class="quiet">${escapeHtml(tutorialLine('guide.skip'))}</button>` : ''}
     </div>
     <p class="controls-hint">${hintHtml(padSegs ?? (oneLine ? [tutorialLine('ready.keys')] : touch ? TOUCH_HINT : room ? [...KEYS_HINT, ...ROOM_KEYS_HINT] : KEYS_HINT))}</p></div></div></div>`;
 }
 export const SKIP_LESSON_ID = 'btn-skip-lesson';
+// The places with a story card (ui/storycard.js, a lazy chunk; test/storycards.test.js checks the list against the catalog there).
+const STORY_PLACES_RE = /^(moon|reef|crystal|jungle|snowville|treehouse|greenhouse|lighthouse|farm|market)$/;
+export const hasStoryCard = (areaId) => STORY_PLACES_RE.test(areaId);
 
 // A touch walk starts without the Ready? card, so its first few walks say
 // how to move in one toast (takeStartLines, given by main.js on the engage).
@@ -2124,6 +2127,16 @@ export function createWalkLifecycle({
       : NO_FIND;
     // The holiday errand's finds (world/holidayfinds.js, only when its chunk came): off the same seed as the outfit find, its own stream.
     session.holidayFinds = null;
+    // The story card (ui/storycard.js, a lazy chunk): only in a place with a story; it shows by itself on the first two walks there and from the pause card's Story button.
+    session.storyOn = hasStoryCard(areaId);
+    session.storyCard = null;
+    if (session.storyOn) {
+      const mine = session;
+      import('../ui/storycard.js').then((m) => {
+        if (getSession() !== mine) return;
+        mine.storyCard = m.createStoryCard({ place: areaId, progression, visits: state.walks[areaId] ?? 0, lesson: mine.lesson, deepOn: crystalDeepOn(), touch: getIsTouch() });
+      }, (err) => note('area', err));
+    }
     if (decorMod) {
       try { session.holidayFinds = decorMod.holidayFinds(scene, { areaId, pick: settings.get('holidayDecor'), seed: roomSeed ?? soloSeed, isDen, lessonKind: lessonPlan?.kind ?? null, ground, reducedMotion, onNear: () => audio.findChime?.() }); } catch (err) { note('area', err); }
     }
@@ -3080,6 +3093,7 @@ export function createWalkLifecycle({
     session.goldMice.dispose();
     session.find.dispose();
     session.holidayFinds?.dispose();
+    session.storyCard?.dispose();
     session.rival.dispose();
     session.chasing = false;
     session.kittenEnc.dispose();
