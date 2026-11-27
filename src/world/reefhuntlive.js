@@ -63,7 +63,7 @@ export const chestParts = () => [
   { w: 1.5, h: 0.14, d: 1.1, x: 0, y: 0.04, z: 0, ry: 0.3, hex: 0xd7c08a },
 ];
 
-export function createReefHuntLife({ scene, THREE, progression = null, log = null, audio = null, say = null }) {
+export function createReefHuntLife({ scene, THREE, progression = null, log = null, audio = null, say = null, send = null }) {
   const at = (m, x, z) => { m.position.set(x, W.topY(x, z), z); scene.add(m); return m; };
   const mapMesh = at(boxesMesh(THREE, mapParts(), 'reef:torn-map'), W.MAP_SPOT.x, W.MAP_SPOT.z);
   const markMesh = at(boxesMesh(THREE, markParts(), 'reef:x-mark'), W.CHEST_SPOT.x, W.CHEST_SPOT.z);
@@ -98,6 +98,7 @@ export function createReefHuntLife({ scene, THREE, progression = null, log = nul
     const r = remote ? H.credit(rec(), ev) : H.apply(rec(), ev);
     if (!r.changed) return null;
     commit(r.reef);
+    if (!remote) send?.(ev.kind === 'clue' ? { kind: 'clue', clue: ev.clue } : { kind: ev.kind }); // tell the room: a partner's credit() takes the steps before it in order
     const page = PAGE[r.effect];
     if (page) { try { progression?.recordSighting?.(page); } catch { /* a stand-in save */ } }
     audio?.chime?.();

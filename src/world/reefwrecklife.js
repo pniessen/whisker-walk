@@ -33,8 +33,8 @@ export const flagWave = (d, t) => Math.sin(d * 3.2 - t * 2.6) * 0.13 * Math.min(
 
 // (reef.js passes `THREE` in, so this stage chunk imports nothing of three's: see reefwreckparts.js.)
 // createReefWreckLife({ scene, THREE, reducedMotion, tier, say }) -> { update(dt, t, catPos), dispose(), spottable, flag }
-export function createReefWreckLife({ scene, THREE, reducedMotion = false, tier = null, say = null, progression = null, log = null, audio = null }) {
-  const hunt = createReefHuntLife({ scene, THREE, progression, log, audio, say }); // the torn map, the clues and the Captain's Chest (R17)
+export function createReefWreckLife({ scene, THREE, reducedMotion = false, tier = null, say = null, progression = null, log = null, audio = null, sendEvent = null }) {
+  const hunt = createReefHuntLife({ scene, THREE, progression, log, audio, say, send: sendEvent }); // the torn map, the clues and the Captain's Chest (R17)
   const { rest, col, count } = flagCloth();
   const pos = new Float32Array(count * 3);
   const geo = new THREE.BufferGeometry();

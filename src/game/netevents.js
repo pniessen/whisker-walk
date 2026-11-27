@@ -41,6 +41,15 @@ const groundY = (s, x, z) => (s.ground ?? FLAT_GROUND).y(x, z);
 // scene. `getClanCats` -> the walk's clan cats ({ list }), read at the
 // rebuild (they may be made after this is called); null or omitted: none.
 // Call once per walk, right after both exist.
+// What an area's life is given as ctx.sendEvent: the step goes to the room as an 'area-life' event, and the partner's applyRemoteEvent hands it to
+// their areaLife.credit. Solo (no net) it does nothing.
+export function areaLifeSender(getSession, areaId) {
+  return (ev) => {
+    const s = getSession();
+    if (s?.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'area-life', area: areaId, ev });
+  };
+}
+
 export function takeHeldItemsWithRemotes(remotes, items, localCat, { getClanCats = () => null } = {}) {
   function release() {
     let live = null;
@@ -346,6 +355,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
     } else if (ev.type === 'patrol-fight' || ev.type === 'patrol-done') {
       applyRemotePatrol(s, ev);
     } else if (ev.type === 'border-cross') onBorderCross(s, ev);
+    else if (ev.type === 'area-life') { if (ev.area === s.areaId && ev.ev && typeof ev.ev === 'object') s.areaLife?.credit?.(ev.ev); } // a story step done by a partner (the Reef's fuse, lab show and hunt; the cave's show)
     else if (ev.type === 'walk-on') onWalkOn(s, ev);
     else if (ev.type === 'walk-on-ask') onWalkOnAsk(s, ev);
     else if (ev.type === 'walk-on-have') onWalkOnHave(s, ev);
