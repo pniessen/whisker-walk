@@ -13,7 +13,7 @@ import { HOME_SHEETS, MENU_TILES, GROWNUP_SHEETS, SHEET_ICON, SHEET_NAME, resolv
 import { createDressingRoom } from './dressingroomview.js';
 import { attachMapPan } from './mappan.js';
 import { registerMap } from '../gamepadnav.js';
-import { WORLD_VIEW } from './territorymap.js';
+import { WORLD_VIEW, ICON, STREET_ICON } from './territorymap.js';
 import { worldMapModel, tapTargets, focusOf } from '../worldmap.js';
 import { createCatStage } from './catstage.js';
 import { buildCat } from '../cat/model.js';
@@ -472,6 +472,15 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       const farewell = progression.takeFarewell();
       if (farewell) showNotice(farewell);
     }
+  }
+
+  // The Journal's passport page (src/passport.js) is a lazy chunk: it draws on the next render once it has come.
+  let passport = null;
+  let passportP = null;
+  function passportHtml(s) {
+    if (passport) return passport.renderPassportHtml(s, { icons: { ...ICON, ...STREET_ICON }, name: (id) => placeName(id, s.edition, CATALOG), esc: escapeHtml });
+    passportP ??= import('../passport.js').then((m) => { passport = m; if (openSheet === 'journal') render(); }).catch((err) => { passportP = null; note('ui', err); });
+    return '';
   }
 
   // The sheet itself is a lazy chunk (cat login M3): drawn and handled there; this is the door.
@@ -1748,7 +1757,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         <section class="journal-section"><h2>Journal 📖</h2>
           ${renderJournalHtml(s.journal ?? {}, goldenFound(s.golden, gold), gold.size,
     isClanEdition(progression.state) ? { chasedOff: s.feats?.intruder ?? 0 } : {})}
-          ${renderThingsToWearHtml(s, CATALOG)}
+          ${renderThingsToWearHtml(s, CATALOG)}${passportHtml(s)}
           <button type="button" class="hb-journal-friends" data-dr-sheet="colony">${escapeHtml(phrase('journal.friendsMoved'))}</button>
         </section>`;
       }

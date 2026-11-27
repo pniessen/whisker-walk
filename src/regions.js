@@ -9,15 +9,14 @@
 //
 // The names are literal phrase ids, registered in the phrase table when this file loads (the lazy files' way); they read the
 // same in both word sets except the Clan lands, which the everyday set calls the wild lands.
-import { CLAN_SUFFIX } from './clanwords.js'; // (the borrowed word lives in clanwords.js only)
 import { addPhrases, phrase } from './clanphrases.js';
-import { seriesMode, SERIES_ON } from './wordset.js';
+import { seriesMode, SERIES_ON, words } from './wordset.js'; // (the borrowed word is read from the word set, never typed here)
 
 export const REGION_LINES = Object.freeze({
   'region.urban': 'Urban',
   'region.suburban': 'Suburban and rural',
   'region.shore': 'Shore',
-  'region.wild': () => (seriesMode() === SERIES_ON ? `${CLAN_SUFFIX} lands` : 'Wild lands'),
+  'region.wild': () => (seriesMode() === SERIES_ON ? `${words().CLAN_SUFFIX} lands` : 'Wild lands'),
   'region.other': 'Other worlds',
 });
 addPhrases(REGION_LINES);

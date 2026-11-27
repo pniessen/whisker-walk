@@ -487,6 +487,9 @@ const LATER = Object.freeze({
   // the Journal's quiet line where the stray friends used to be; reads the tile's phrase when called
   'journal.friendsMoved': () => `Your cat friends are in ${phrase('menu.myCats')} now ›`,
 
+  // ---- the passport's new-stamp line and the pause card's Back button (interconnectivity I4) ----
+  'passport.stamp': (place) => `A new stamp: ${place}`,
+
   // ---- the My cats sheet, in plain words for the everyday game (follow-up 2026-11-20) ----
   // Each line's family text is exactly what the sheet always said.
   'mycats.empty': 'No colony cats yet — touch noses with a stray, then feed it 🐟',

@@ -2864,7 +2864,10 @@ export function createWalkLifecycle({
     // A crossing: this walk counted toward the gate above; now pick the place.
     let crossLines = [];
     lastCrossing = null;
+    const stampBefore = progression.state.walks[session.areaId];
     if (crossTo) {
+    // The passport's new stamp: her first walk in a place (this session's line only; nothing is saved for it).
+    const stampName = !(stampBefore >= 1) && progression.state.walks[session.areaId] >= 1 ? placeName(session.areaId, progression.state.edition, CATALOG) : '';
       const clan = isClanEdition(progression.state);
       const out = crossingOutcome({ crossTo, ledBy, together: together ?? walkedWithNames, clan, pick: (id) => pickOnCrossing(progression, CATALOG, id, { guest: !!ledBy }), catalog: CATALOG, edition: progression.state.edition, touch: !!getIsTouch() });
       crossLines = out.lines;
@@ -2928,7 +2931,7 @@ export function createWalkLifecycle({
       firstLesson.tutorial.did.hello ? tutorialLine('guide.summary-friend', { name: guideName }) : null,
       firstLesson.gift > 0 ? tutorialLine('guide.summary-gift', { name: guideName }) : null,
     ].filter(Boolean) : [];
-    return { earned, isRecord, streak, goalsDone, discoveries, friendsGreeted, walkedWith, mochiArrived, broughtHome, guideLines, firstLesson, crossLines };
+    return { earned, isRecord, streak, goalsDone, discoveries, friendsGreeted, walkedWith, mochiArrived, broughtHome, guideLines, firstLesson, crossLines, stampName };
   }
 
   // freeWalk(session, { keepRoom }): the whole teardown, in this order. Every
@@ -3128,7 +3131,7 @@ export function createWalkLifecycle({
     if (!session) return;
     onWalkEnded();
     const banked = bankWalk(session, { together, crossTo, ledBy });
-    const { earned, isRecord, goalsDone, discoveries, friendsGreeted, walkedWith, guideLines, firstLesson, crossLines } = banked;
+    const { earned, isRecord, goalsDone, discoveries, friendsGreeted, walkedWith, guideLines, firstLesson, crossLines, stampName } = banked;
     const lines = bankedLines(banked, { html: true });
     const crossHtml = crossLines.map((l) => `<div class="best-line">${escapeHtml(l)}</div>`).join('');
     const guideHtml = guideLines.map((l) => `<div class="best-line guide-line">${escapeHtml(l)}</div>`).join('');
@@ -3150,7 +3153,7 @@ export function createWalkLifecycle({
       ${lines.streak ? `<div class="best-line">${lines.streak}</div>` : ''}
       ${lines.mochi ? `<div class="best-line">${lines.mochi}</div>` : ''}
       ${lines.brought ? `<div class="best-line">${lines.brought}</div>` : ''}
-      ${crossHtml}
+      ${stampName ? `<div class="best-line">${escapeHtml(phrase('passport.stamp', stampName))}</div>` : ''}${crossHtml}
       <button id="btn-summary-continue" class="primary">Continue${padTag('⟦confirm⟧')}</button>
       </div>
     </div>`;
@@ -3167,7 +3170,7 @@ export function createWalkLifecycle({
   // what she brought home (bankedLines, the summary card's words).
   function arrivalLines(banked) {
     const { best, streak, mochi, brought } = bankedLines(banked);
-    return [best, streak, mochi, brought].filter(Boolean);
+    return [best, streak, mochi, brought, banked.stampName ? phrase('passport.stamp', banked.stampName) : null].filter(Boolean);
   }
 
   // The next walk of a walk-on could not be built (a throw in startWalk at
