@@ -3,6 +3,7 @@ import { createRooms } from '../src/game/rooms.js';
 import { START_GATHER_MS, MEMBER_GATHER_MS, WALKING_FRESH_MS } from '../src/game/lobby.js';
 import { createFakeHub, createNet } from '../src/net.js';
 import { createProgression } from '../src/progression.js';
+import { BUILD_STAMP } from '../src/buildstamp.js';
 import { FIND_KEY } from '../src/foundwear/spots/index.js';
 import { diagnostics } from '../src/diagnostics.js';
 import { memoryStorage as fakeStorage } from './helpers/storage.js';
@@ -319,7 +320,7 @@ describe('anyone can press Start, and it starts everyone', () => {
   it('on a touch screen the walking-sister toast says Tap', async () => {
     const kid = client(hub, { pid: KID, petName: 'Robin', partner: { pid: HOST, petName: 'Mittens' }, getIsTouch: () => true });
     const walkingHost = createNet(hub.transport());
-    await walkingHost.join('P' + COLONY_ID, { playerId: HOST, petName: 'Mittens' });
+    await walkingHost.join('P' + COLONY_ID, { playerId: HOST, petName: 'Mittens', proto: 2 });
     await kid.rooms.walkWithPartner();
     walkingHost.sendState({ v: 1, id: HOST, pos: [1, 2], yaw: 0, pose: 'follow', speed: 1 });
     expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
@@ -339,7 +340,7 @@ describe('anyone can press Start, and it starts everyone', () => {
   it("never starts a second world beside a sister who's already walking", async () => {
     const kid = client(hub, { pid: KID, petName: 'Robin', partner: { pid: HOST, petName: 'Mittens' } });
     const walkingHost = createNet(hub.transport());
-    await walkingHost.join('P' + COLONY_ID, { playerId: HOST, petName: 'Mittens' });
+    await walkingHost.join('P' + COLONY_ID, { playerId: HOST, petName: 'Mittens', proto: 2 });
     await kid.rooms.walkWithPartner();
     walkingHost.sendState({ v: 1, id: HOST, pos: [1, 2], yaw: 0, pose: 'follow', speed: 1 });
     expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
@@ -703,7 +704,7 @@ describe('her cat\'s scars on the wire', () => {
 
   it('an unscarred profile is byte-identical to today', async () => {
     const { cloud, made } = pushing();
-    expect(JSON.stringify(made.roomProfile())).toBe(`{"playerId":"${HOST}","petName":"Mittens","breed":"tabby","accessories":{${SLOTS}},"finds":${FIND_KEY},"walkOn":2}`);
+    expect(JSON.stringify(made.roomProfile())).toBe(`{"playerId":"${HOST}","petName":"Mittens","breed":"tabby","accessories":{${SLOTS}},"finds":${FIND_KEY},"walkOn":2,"build":${JSON.stringify(BUILD_STAMP)},"proto":2}`);
     await made.pushProfileNow();
     expect(JSON.stringify(cloud.pushProfile.mock.calls[0][0])).toBe(
       `{"playerId":"${HOST}","secret":"sec","petName":"Mittens","breed":"tabby","accessories":{${SLOTS},"home":null},"rankTitle":${JSON.stringify(cloud.pushProfile.mock.calls[0][0].rankTitle)}}`);
