@@ -43,44 +43,46 @@ it("a phone starts zoomed in round today's place, inside the world", () => {
   const v = startView(WORLD, PHONE, [1080, 470], k); // the phone's map box (CSS: min(62vh, 440px) tall)
   expect(v.w).toBeCloseTo(343 / k, 3);
   expect(v.h).toBeCloseTo(420 / k, 3);
-  expect(v.w).toBeGreaterThan(1700 * 0.40); // about half the world's width
-  expect(v.w).toBeLessThan(1700 * 0.45);
+  expect(v.w).toBeGreaterThan(WORLD.w * 0.36); // under half the world's width
+  expect(v.w).toBeLessThan(WORLD.w * 0.45);
   expect(v.x).toBeGreaterThanOrEqual(0);
-  expect(v.x + v.w).toBeLessThanOrEqual(1700);
+  expect(v.x + v.w).toBeLessThanOrEqual(WORLD.w);
   expect(1080 > v.x && 1080 < v.x + v.w).toBe(true);
   expect(v.x + v.w / 2).toBeCloseTo(1080, 6); // centred on it where the edges allow
 });
 
 it('an iPad and a desktop see the whole world', () => {
-  expect(startView(WORLD, { w: 820, h: 432 }, [843, 566], k)).toMatchObject({ x: 0, w: 1700 });
-  expect(startView(WORLD, { w: 1190, h: 616 }, [843, 566], k)).toEqual({ x: 0, y: 0, w: 1700, h: 880 });
+  // (the island star's 44 px floor: an iPad held upright, 820 px, now shows a little under the whole width, and pans)
+  expect(startView(WORLD, { w: 900, h: 480 }, [843, 566], k)).toMatchObject({ x: 0, w: WORLD.w });
+  expect(startView(WORLD, { w: 820, h: 432 }, [843, 566], k).w).toBeCloseTo(820 / k, 6);
+  expect(startView(WORLD, { w: 1190, h: 595 }, [843, 566], k)).toEqual({ x: 0, y: 0, w: WORLD.w, h: WORLD.h });
 });
 
 it("today's place at the world's edge is still in view", () => {
   for (const focus of [[1185, 680], [1060, 230], [308, 199]]) {
     const v = startView(WORLD, PHONE, focus, k);
-    expect(v.x >= 0 && v.y >= 0 && v.x + v.w <= 1700 + 1e-9).toBe(true);
+    expect(v.x >= 0 && v.y >= 0 && v.x + v.w <= WORLD.w + 1e-9).toBe(true);
     expect(focus[0] >= v.x && focus[0] <= v.x + v.w && focus[1] >= v.y && focus[1] <= v.y + v.h).toBe(true);
   }
 });
 
 it("within WORLD_VIEW the view reaches the Moor's top margin and the whole view on a desktop", () => {
-  // her Moor's edge reaches about y -7: the view can pan up to y -20
+  // the Moon's rock and the sky above the land: the view can pan up to WORLD_VIEW.y
   const top = startView(WORLD_VIEW, PHONE, [308, 0], k);
-  expect(top.y).toBeCloseTo(-20, 9);
+  expect(top.y).toBeCloseTo(WORLD_VIEW.y, 9);
   expect(inside(top, WORLD_VIEW)).toBe(true);
-  const desk = startView(WORLD_VIEW, { w: 1190, h: 630 }, [843, 566], k);
-  expect(desk.x).toBe(0); expect(desk.y).toBeCloseTo(-20, 9); expect(desk.w).toBeCloseTo(1700, 9); expect(desk.h).toBeCloseTo(900, 9);
+  const desk = startView(WORLD_VIEW, { w: 1190, h: (1190 * WORLD_VIEW.h) / WORLD_VIEW.w }, [843, 566], k);
+  expect(desk.x).toBe(0); expect(desk.y).toBeCloseTo(WORLD_VIEW.y, 9); expect(desk.w).toBeCloseTo(WORLD_VIEW.w, 9); expect(desk.h).toBeCloseTo(WORLD_VIEW.h, 9);
   const far = panView(top, -100000, -100000, PHONE, WORLD_VIEW);
-  expect(far.x + far.w).toBeCloseTo(1700, 6);
-  expect(far.y + far.h).toBeCloseTo(880, 6);
+  expect(far.x + far.w).toBeCloseTo(WORLD.w, 6);
+  expect(far.y + far.h).toBeCloseTo(WORLD.h, 6);
 });
 
 it('clampView keeps a shorter side inside the world and centres a longer one', () => {
-  expect(clampView({ x: -50, y: 900, w: 700, h: 800 }, WORLD)).toEqual({ x: 0, y: 80, w: 700, h: 800 });
-  expect(clampView({ x: 1200, y: -5, w: 700, h: 300 }, WORLD)).toEqual({ x: 1000, y: 0, w: 700, h: 300 });
-  expect(clampView({ x: 40, y: 10, w: 1800, h: 1000 }, WORLD)).toEqual({ x: -50, y: -60, w: 1800, h: 1000 });
-  expect(clampView({ x: 0, y: -80, w: 700, h: 400 }, WORLD_VIEW)).toEqual({ x: 0, y: -20, w: 700, h: 400 });
+  expect(clampView({ x: -50, y: 900, w: 700, h: 800 }, WORLD)).toEqual({ x: 0, y: WORLD.h - 800, w: 700, h: 800 });
+  expect(clampView({ x: 1200, y: -5, w: 700, h: 300 }, WORLD)).toEqual({ x: WORLD.w - 700, y: 0, w: 700, h: 300 });
+  expect(clampView({ x: 40, y: 10, w: 2000, h: 1000 }, WORLD)).toEqual({ x: (WORLD.w - 2000) / 2, y: (WORLD.h - 1000) / 2, w: 2000, h: 1000 });
+  expect(clampView({ x: 0, y: WORLD_VIEW.y - 60, w: 700, h: 400 }, WORLD_VIEW)).toEqual({ x: 0, y: WORLD_VIEW.y, w: 700, h: 400 });
 });
 
 it('panning moves the view against the finger and stops at the edge', () => {
@@ -90,15 +92,15 @@ it('panning moves the view against the finger and stops at the edge', () => {
   expect(right.x).toBeCloseTo(v.x - 100 / s, 6);
   expect(right.y).toBeCloseTo(v.y, 9);
   expect(right.w).toBe(v.w);
-  // (vertically a phone sees nearly all 900 units of WORLD_VIEW: 22 to spare)
+  // (vertically a phone sees most of WORLD_VIEW's height, so a small pan moves it)
   const tall = startView(WORLD_VIEW, PHONE, [1080, 470], k);
   const down = panView(tall, 0, 5, PHONE, WORLD_VIEW);
   expect(down.y).toBeCloseTo(tall.y - 5 / s, 6);
-  expect(panView(tall, 0, 1000, PHONE, WORLD_VIEW).y).toBe(-20);
+  expect(panView(tall, 0, 100000, PHONE, WORLD_VIEW).y).toBe(WORLD_VIEW.y);
   const huge = panView(v, 100000, 0, PHONE, WORLD);
   expect(huge.x).toBe(0);
   const other = panView(v, -100000, 0, PHONE, WORLD);
-  expect(other.x + other.w).toBeCloseTo(1700, 6);
+  expect(other.x + other.w).toBeCloseTo(WORLD.w, 6);
 });
 
 it('zooming keeps the point under the fingers and stops at both limits', () => {
@@ -124,7 +126,7 @@ it('zooming keeps the point under the fingers and stops at both limits', () => {
   const deskBox = { w: 1190, h: 616 };
   const desk = startView(WORLD, deskBox, [843, 566], k);
   expect(zoomView(desk, 0.5, [600, 308], deskBox, WORLD, k)).toEqual(desk);
-  expect(scaleOf(zoomView(desk, 100, [600, 308], deskBox, WORLD, k), { w: 1190 })).toBeCloseTo(MAX_ZOOM * 0.7, 9);
+  expect(scaleOf(zoomView(desk, 100, [600, 308], deskBox, WORLD, k), { w: 1190 })).toBeCloseTo(MAX_ZOOM * (1190 / WORLD.w), 9);
 });
 
 it('viewBoxAttr rounds to one decimal', () => {
@@ -216,11 +218,11 @@ describe('attachMapPan', () => {
     expect(wide.pan.view.h).toBeCloseTo(420 / k, 6);
   });
 
-  it('defaults to WORLD_VIEW, so her Moor at the top is never cut off', () => {
+  it('defaults to WORLD_VIEW, so the sky at the top is never cut off', () => {
     const { frame, svg } = fakeFrame();
     const pan = attachMapPan(frame, { targets, focus: [308, 0] });
-    expect(pan.view.y).toBeCloseTo(-20, 9);
-    expect(parseVB(svg.attrs.viewBox).y).toBe(-20);
+    expect(pan.view.y).toBeCloseTo(WORLD_VIEW.y, 9);
+    expect(parseVB(svg.attrs.viewBox).y).toBe(WORLD_VIEW.y);
   });
 
   it('a drag pans and swallows the click that ends it; a tap does not', () => {
@@ -441,11 +443,11 @@ describe('attachMapPan', () => {
       // an iPad: the whole world, then turned on its side, still the whole world
       const ipad = attached({ box: { width: 728, height: 739 } });
       expect(728 / ipad.pan.view.w).toBeCloseTo(floor({ width: 728, height: 739 }), 9);
-      ipad.svg.size = { width: 922, height: 483 };
+      ipad.svg.size = { width: 922, height: 560 };
       observers.at(-1).fn([]);
-      expect(922 / ipad.pan.view.w).toBeCloseTo(floor({ width: 922, height: 483 }), 9);
+      expect(922 / ipad.pan.view.w).toBeCloseTo(floor({ width: 922, height: 560 }), 9);
       expect(ipad.pan.view.h).toBeCloseTo(WORLD_VIEW.h, 6);
-      expect(ipad.pan.view.w / ipad.pan.view.h).toBeCloseTo(922 / 483, 9);
+      expect(ipad.pan.view.w / ipad.pan.view.h).toBeCloseTo(922 / 560, 9);
       // a phone at its floor (44 px targets), turned: still at the floor
       const phone = attached({ box: { width: 347, height: 539 } });
       phone.svg.size = { width: 772, height: 260 };

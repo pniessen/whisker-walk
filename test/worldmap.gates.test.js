@@ -4,7 +4,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { setTele } from '../src/teleflag.js';
 import { setJungle } from '../src/jungleflag.js';
 import { CATALOG } from '../src/progression.js';
-import { WORLD, GATE_PLACES, GATE_LAND, COAST, GATEWAYS, ISLAND_HIT_R, worldMapModel, tapTargets } from '../src/worldmap.js';
+import { WORLD, LAYOUT, GATE_PLACES, GATE_LAND, COAST, GATEWAYS, ISLAND_HIT_R, worldMapModel, tapTargets } from '../src/worldmap.js';
 import { renderWorldMapHtml } from '../src/ui/territorymap.js';
 import { minScaleFor, MIN_TARGET_PX } from '../src/ui/mappan.js';
 import { placeCardFor } from '../src/ui/placecard.js';
@@ -92,7 +92,7 @@ describe('world map: gate place circles (I1)', () => {
     for (const p of GATE_PLACES) {
       const me = find(m, p.id);
       expect(me.r).toBeGreaterThanOrEqual(46);
-      expect(me.x - me.r >= 0 && me.y - me.r >= 0 && me.x + me.r <= WORLD.w && me.y + me.r <= WORLD.h, p.id).toBe(true);
+      expect(me.x - me.r >= 0 && (me.y - me.r >= 0 || p.id === 'moon') && me.x + me.r <= WORLD.w && me.y + me.r <= WORLD.h, p.id).toBe(true);
       for (const o of m.regions) if (o !== me) expect(dist(me.x, me.y, o.x, o.y), `${p.id} / ${o.id}`).toBeGreaterThan(me.r + o.r + 20);
       expect(dist(me.x, me.y, m.star.x, m.star.y)).toBeGreaterThan(me.r + ISLAND_HIT_R);
       expect(GATEWAYS.some((g) => g.from === p.id || g.to === p.id)).toBe(false);
@@ -106,21 +106,26 @@ describe('world map: gate place circles (I1)', () => {
     setJungle(true);
     expect(find(worldMapModel(save({ jungle: 0 }), CATALOG), 'jungle')).toBeUndefined(); // (never walked)
     const j = find(worldMapModel(save({ jungle: 1 }), CATALOG), 'jungle');
-    expect(j).toMatchObject({ x: 1560, y: 250, r: 46, areaId: 'jungle' });
+    expect(j).toMatchObject({ x: LAYOUT.jungle[0], y: LAYOUT.jungle[1], areaId: 'jungle' });
+    expect(j.x).toBeGreaterThan(find(worldMapModel(save({ jungle: 1 }), CATALOG), 'greenhouse').x);
     expect(GATE_LAND.jungle).toBeTruthy();
     const html = renderWorldMapHtml(worldMapModel(save({ jungle: 1 }), CATALOG));
-    expect(html).toContain('data-dr-map-place="jungle" data-x="1560" data-y="250"');
+    expect(html).toContain(`data-dr-map-place="jungle" data-x="${LAYOUT.jungle[0]}" data-y="${LAYOUT.jungle[1]}"`);
     expect(html).toContain('🌴');
     setTele(false);
     expect(find(worldMapModel(save({ jungle: 1 }), CATALOG), 'jungle')).toBeUndefined(); // (the gates switch is off)
   });
 
-  it('the Reef is out in the sea, east of the whole coast; the Crystal Cave is by the Docks', () => {
+  it('the Reef is out in the sea, east of the coast; the Moon is up in the sky, not in the sea; the Crystal Cave is on land by the Docks', () => {
     const [reef, crystal, moon] = GATE_PLACES;
-    expect(moon.y - moon.r).toBeLessThan(40); // the Moon is in the top margin
-    for (const [px] of COAST) expect(px, 'coast').toBeLessThan(reef.x - reef.r);
-    const docks = { x: 900, y: 770 };
-    expect(dist(crystal.x, crystal.y, docks.x, docks.y)).toBeLessThan(400); // (was 220: moved west to clear the Docks' and the Old House's words)
+    expect(moon.y + moon.r).toBeLessThan(0); // the Moon is wholly above the land, up in the sky
+    // the coast, at the Reef's height, is west of the whole Reef
+    const at = COAST.filter(([, py]) => Math.abs(py - reef.y) < 120);
+    expect(at.length).toBeGreaterThan(0);
+    expect(Math.max(...COAST.filter(([px, py]) => py > 600 && py < 800 && px < 1700).map(([px]) => px))).toBeLessThan(reef.x - reef.r + 40);
+    const docks = { x: LAYOUT.docks[0], y: LAYOUT.docks[1] };
+    expect(dist(crystal.x, crystal.y, docks.x, docks.y)).toBeLessThan(600);
+    expect(Math.abs(crystal.y - docks.y)).toBeLessThan(60);
   });
 
   it('hit targets: never under 44 px at the zoom-out floor, and the floor does not move', () => {
@@ -136,9 +141,9 @@ describe('world map: gate place circles (I1)', () => {
   it('markup: a labelled button with its own land, icon and anchor', () => {
     setTele(true);
     const html = renderWorldMapHtml(worldMapModel(save({ reef: 1, crystal: 1, moon: 1 }), CATALOG));
-    expect(html).toContain('data-dr-map-place="reef" data-x="1560" data-y="700"');
-    expect(html).toContain('data-dr-map-place="crystal" data-x="540" data-y="800"');
-    expect(html).toContain('fill="#9fd6dc"');
+    expect(html).toContain(`data-dr-map-place="reef" data-x="${LAYOUT.reef[0]}" data-y="${LAYOUT.reef[1]}"`);
+    expect(html).toContain(`data-dr-map-place="crystal" data-x="${LAYOUT.crystal[0]}" data-y="${LAYOUT.crystal[1]}"`);
+    expect(html).toContain('fill="#7fc3cc"');
     expect(html).toContain('fill="#d9c4ec"');
   });
 

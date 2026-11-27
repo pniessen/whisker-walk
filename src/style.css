@@ -1905,34 +1905,22 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .world-map .wm-gate { fill: #b04a2e; }
 .world-map .tm-land.street.locked { fill: #cbbfa6; stroke-dasharray: 14 9; }
 .world-map .tm-line-small { font-size: 24px; }
-/* The countryside between the places (ui/countryside.js): meadow green
-   paper, a patchwork of fields with hedgerows and furrows, lanes, ponds,
-   flowers and tree clumps, fading paler toward the frame past the world;
-   a sandy shore where the land meets the sea; a paper rim and a soft shadow
-   under every place so the places stand off the green. All decoration: no
-   taps (a drag still pans), hidden from screen readers. */
+/* One continent (map rework): each place is a patch of land, with a wobbly border between patches (a ridge, a forest edge),
+   a sandy shore along the sea, the sky above with its clouds, and the Reef's deep water out at sea. Decoration takes no taps. */
 .world-map .tm-paper { fill: #d4e3b1; }
-.world-map .wm-country, .world-map .wm-rims { pointer-events: none; }
-.world-map .wm-field { stroke: none; }
-.world-map .wm-furrows { fill: none; stroke: #8fa45f; stroke-opacity: .32; stroke-width: 2; stroke-linecap: round; }
-.world-map .wm-hedges { fill: none; stroke: #8fb36c; stroke-width: 6; stroke-linecap: round; stroke-dasharray: 0 8; }
-.world-map .wm-lane-edge { fill: none; stroke: #c4b083; stroke-width: 11; stroke-linecap: round; stroke-linejoin: round; }
-.world-map .wm-lane { fill: none; stroke: #efe3bd; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
-.world-map .wm-pond { fill: #a9d3e3; stroke: #79a9bb; stroke-width: 3; }
-.world-map .wm-flowers { fill: none; stroke-width: 5.5; stroke-linecap: round; }
-.world-map .wm-flowers-white { stroke: #fffaf0; }
-.world-map .wm-flowers-yellow { stroke: #f2d25c; }
-.world-map .wm-flowers-pink { stroke: #f0b4c8; }
-.world-map .wm-tree-shade { fill: #5f7f45; fill-opacity: .22; }
-.world-map .wm-trees { fill: #8fb86e; stroke: #5e8a4c; stroke-width: 2; }
-.world-map .wm-tree-shine { fill: #b2d290; }
-.world-map .wm-fade-in { stop-color: #e4ecd0; stop-opacity: 0; }
-.world-map .wm-fade-out { stop-color: #e4ecd0; stop-opacity: 1; }
-.world-map .tm-sea { stroke: #ecdcab; stroke-width: 16; stroke-linejoin: round; }
-.world-map .wm-shadow { fill: #b7ca93; stroke: #b7ca93; stroke-width: 16; stroke-linejoin: round; }
-.world-map .wm-rim { fill: #f3e4c4; stroke: #f6ecd2; stroke-width: 16; stroke-linejoin: round; }
-.world-map .wm-islet-shadow { fill: #8fb6c4; stroke: #8fb6c4; stroke-width: 10; stroke-linejoin: round; opacity: 0.55; }
-.world-map .wm-islet { fill: #efe3c0; stroke: #f7f0d8; stroke-width: 10; stroke-linejoin: round; }
+.world-map .tm-sea { fill: #a9d3e3; stroke: #ecdcab; stroke-width: 16; stroke-linejoin: round; }
+.world-map .wm-ground { fill: #c9d9a1; }
+.world-map .wm-cell { stroke: none; fill-opacity: 1; }
+.world-map .tm-land.wm-cell.locked { stroke-dasharray: none; }
+.world-map .wm-border { fill: none; stroke: #5f6b3a; stroke-opacity: .45; stroke-width: 4; stroke-linejoin: round; stroke-dasharray: 10 6; pointer-events: none; }
+.world-map .wm-afar { stroke: #3f8294; stroke-width: 4; }
+.world-map .tm-land.wm-afar.locked { stroke-dasharray: none; }
+.world-map .wm-bubbles circle { fill: #fff; fill-opacity: .6; stroke: #fff; stroke-width: 1.5; stroke-opacity: .8; }
+.world-map .wm-bubbles, .world-map .wm-sky, .world-map .wm-beam { pointer-events: none; }
+.world-map .wm-sky rect { fill: #2c3a6b; }
+.world-map .wm-stars circle { fill: #fff; fill-opacity: .85; }
+.world-map .wm-clouds circle { fill: #f6f9ff; }
+.world-map .wm-beam { fill: none; stroke: #fff6c8; stroke-width: 5; stroke-linecap: round; stroke-dasharray: 2 12; }
 /* Zoom in / Zoom out: two round buttons at the map's top right */
 .wm-zoom { position: absolute; top: 8px; right: 8px; z-index: 2; display: flex; flex-direction: column; gap: 8px; }
 .wm-frame .wm-zoom button { width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 1.5px solid #5b6c88;
