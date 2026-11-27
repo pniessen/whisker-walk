@@ -30,7 +30,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hash01 } from './builder.js';
 import { litMaterial } from '../render/materials.js';
-import { WING_BUILDERS, WING_FLAT_BUILDERS } from './housewingparts.js';
+import { ST } from './housestages.js'; // the wing's furniture builders arrive with the lazy wing stage (housestagewing.js)
 import {
   WALL_T, WALL_H, LAWN_Y, DOOR_H, SECRET_BOOKCASE,
   houseSections, roomAt, stairAt, activePlan,
@@ -2252,7 +2252,7 @@ const FLAT_BUILDERS = {
 
 // A piece's geometry in its own frame (the middle of its footprint on the floor, front +z).
 export function furnitureGeometry(f) {
-  const make = BUILDERS[f.kind] ?? FLAT_BUILDERS[f.kind] ?? WING_BUILDERS[f.kind] ?? WING_FLAT_BUILDERS[f.kind];
+  const make = BUILDERS[f.kind] ?? FLAT_BUILDERS[f.kind] ?? ST.wing?.builders[f.kind] ?? ST.wing?.flatBuilders[f.kind];
   if (!make) throw new Error(`no builder for furniture kind ${f.kind}`);
   const p = new Piece();
   make(p, f);

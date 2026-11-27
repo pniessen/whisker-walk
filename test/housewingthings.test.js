@@ -13,6 +13,7 @@ const { floodTraversal } = await import('./helpers/traversalflood.js');
 const { BASE_ABILITIES } = await import('../src/traversal.js');
 const { createRests } = await import('../src/rests.js');
 const { LINES } = await import('../src/world/housewingwords.js');
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
 const { build } = await import('../src/world/house.js');
 
 // The Old House's east wing, milestone 2: its data. Slots, rests, finds, hints, nooks.

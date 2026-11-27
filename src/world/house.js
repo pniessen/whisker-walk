@@ -35,8 +35,7 @@ import {
   HOUSE_BOUNDS, HOUSE_FRONT_DOOR, LAWN_Y, WALL_T, fades, LEDGE_FADE_OVER, HOUSE_KITTEN_HOME, houseArea, houseFloorGround,
   secretColliders, roomAt, zoneOfRoom, WING_JOINS, OLD_HOUSE_PLAN, planOf, withPlan, activePlan,
 } from './houseplan.js';
-import { wingFarMesh } from './housewingfar.js';
-import { sunPatchMesh } from './housewingparts.js';
+import { ST } from './housestages.js'; // the wing's drawing and life (the lazy wing stage, housestagewing.js)
 import { HOUSE_WING_FINDS, HOUSE_WING_SLOTS, HOUSE_WING_RESTS, SLOT_SIZE } from './housewingthings.js';
 import './housewingwords.js';
 import { houseMovesArea, bareMovesArea } from './housemoves.js';
@@ -364,7 +363,7 @@ function furnish(scene, material, start, traversal) {
   }
   // the wing's zones: one mesh a zone, dressed like its rooms (housewingfar.js), at most a few hundred triangles, no casters (houselevels.js)
   for (const z of P.zones.filter((q) => q.wing)) {
-    const m = wingFarMesh(z.id, material.map);
+    const m = ST.wing.wingFarMesh(z.id, material.map);
     m.visible = !full.has(z.id);
     scene.add(m);
   }
@@ -556,7 +555,7 @@ function buildPlan(scene, P, { wind, gateEnds }) {
     // the solarium's sunny slots (the wing's milestone 2): one decal mesh, shown with its zone
     let sun = null;
     if (old && P.wing) {
-      sun = sunPatchMesh(HOUSE_WING_SLOTS, levelY('ground'), SLOT_SIZE, 'sun');
+      sun = ST.wing.sunPatchMesh(HOUSE_WING_SLOTS, levelY('ground'), SLOT_SIZE, 'sun');
       sun.visible = fullLevels(START_LEVEL, P.links).has('sun');
       scene.add(sun);
     }

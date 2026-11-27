@@ -7,6 +7,7 @@ vi.stubGlobal('document', canvasStub);
 
 const H = await import('../src/world/houseplan.js');
 const { createWallSink, makeView, SINK } = await import('../src/housewalls.js');
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
 const { build } = await import('../src/world/house.js');
 const { CAT_LOOK_Y } = await import('../src/cat/model.js');
 

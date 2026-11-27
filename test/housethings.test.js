@@ -25,6 +25,7 @@ const { phrase } = await import('../src/clanphrases.js');
 const { houseFlood } = await import('./helpers/houseflood.js');
 const { floodTraversal } = await import('./helpers/traversalflood.js');
 const { withOffWords } = await import('./helpers/offwords.js');
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
 const { build } = await import('../src/world/house.js');
 
 // =============================================================================

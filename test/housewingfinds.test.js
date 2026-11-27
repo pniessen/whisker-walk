@@ -4,6 +4,7 @@ import { canvasStub } from './helpers/growriver.js';
 
 vi.stubGlobal('document', canvasStub);
 
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
 const { createHouseWingFinds } = await import('../src/world/housewingfinds.js');
 const { HOUSE_WING_FINDS, HOUSE_WING_SLOTS } = await import('../src/world/housewingthings.js');
 const { FIND_KEY } = await import('../src/world/housefinds.js');

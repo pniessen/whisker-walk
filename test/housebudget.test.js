@@ -5,6 +5,7 @@ import { canvasStub } from './helpers/growriver.js';
 // The headless document stub every world test uses (test/flattrace.test.js).
 vi.stubGlobal('document', canvasStub);
 
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
 const { build } = await import('../src/world/house.js');
 const { HOUSE_LEVELS } = await import('../src/world/houseplan.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');

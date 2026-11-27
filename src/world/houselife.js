@@ -56,8 +56,7 @@ import { makeView, createWallSink, createCellarLid, SINK } from '../housewalls.j
 import { createLevelDrawing } from '../houselevels.js';
 import { CAT_LOOK_Y } from '../cat/model.js';
 import { createHouseFinds, HOLD_PAD } from './housefinds.js';
-import { createHouseWingFinds } from './housewingfinds.js';
-import { SUN_DAY, SUN_DUSK } from './housewingparts.js';
+import { ST } from './housestages.js'; // the wing's discoveries' life and the sun's colours (the lazy wing stage, housestagewing.js)
 import { segmentHitsBox } from '../treefade.js';
 import { toyStop, HOUSE_FINDS } from './housethings.js';
 import { OLD_HOUSE_PLAN } from './houseplan.js';
@@ -152,9 +151,9 @@ export function createHouseLife(scene, house, {
     finds: house.finds ?? [], secret: house.secret, colliders, parts: house.parts, log, audio, reducedMotion, now,
   });
   // the east wing's discoveries and its sunny slots (milestone 2): the slots' light is gold by day and pale blue at dusk
-  const wingFinds = createHouseWingFinds({ finds: house.wingFinds ?? [], slots: house.wingSlots ?? [], log, audio, reducedMotion });
+  const wingFinds = ST.wing.createFinds({ finds: house.wingFinds ?? [], slots: house.wingSlots ?? [], log, audio, reducedMotion });
   const sunMat = house.sun?.material ?? null;
-  const sunColour = dusk ? SUN_DUSK : SUN_DAY;
+  const sunColour = dusk ? ST.wing.sunDusk : ST.wing.sunDay;
   const paintSun = (t) => {
     if (!sunMat) return;
     const k = wingFinds.pulse(t);

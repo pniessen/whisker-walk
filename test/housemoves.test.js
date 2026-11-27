@@ -9,6 +9,7 @@ vi.stubGlobal('document', canvasStub);
 const { HOUSE_LEVELS, HOUSE_LEDGES, HOUSE_FURNITURE, HOUSE_STAIRS, HOUSE_ROOMS, houseFloorGround, houseColliders, roomAt, levelAt } = await import('../src/world/houseplan.js');
 const { HOUSE_MOVES, HOUSE_PERCHES, HOUSE_ROUTES, houseMovesArea } = await import('../src/world/housemoves.js');
 const { validateTraversal, BASE_ABILITIES, stickToWorld, spotFor } = await import('../src/traversal.js');
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
 const { PAW_PADS, PAW_APART } = await import('../src/world/houseparts.js');
 const { canReach, BASE_CLIMB_BUDGET } = await import('../src/climbing.js');
 const { STEP_MAX } = await import('../src/ground.js');

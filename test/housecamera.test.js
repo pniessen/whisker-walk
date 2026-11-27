@@ -15,6 +15,7 @@ const { WALL_T, STUB_H, WALL_H, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_LEVELS, HOUSE_S
 const { HOUSE_SHOTS } = await import('../src/world/housetour.js');
 const { behindYaw } = await import('../src/traversal.js');
 const { cameraOffset } = await import('../src/catcam.js');
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
 const { build } = await import('../src/world/house.js');
 const { HOUSE_LEDGES, TALL_H, houseFloorGround } = await import('../src/world/houseplan.js');
 const { HOUSE_PERCHES, HOUSE_ROUTES } = await import('../src/world/housemoves.js');

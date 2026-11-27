@@ -357,6 +357,7 @@ describe('a walk picked up on the secret stair', () => {
 // =============================================================================
 describe('a partner at the bookcase', () => {
   async function scene() {
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
     const { build } = await import('../src/world/house.js');
     const scn = new THREE.Scene();
     const record = build(scn, { gateEnds: endsFor('house') });
