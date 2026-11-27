@@ -6,7 +6,7 @@ import { hash01 } from './warehouselook.js';
 // Moss and lichen creeping in from the edges, grit and leaf drifts in the
 // corners, pigeon splashes, a few weed tufts at the parapets and, on the roofs
 // she can climb to, clumps of pot plants in terracotta, grey and blue pots.
-// All of it is small, flat or low, put into the alley kit's noCast paint
+// All of it is small, flat or low, put into the alley kit noCast paint
 // bucket: no new mesh, no caster, no draw. Placed by hash01 only (never
 // Math.random) and only where the one roof is the ground (clear).
 // roofs.js hands in its own helpers, so this file imports nothing from it.
@@ -24,7 +24,7 @@ const BLOOMS = Object.freeze([0xd04a4a, 0xe8c63c, 0xf0ece0, 0xd980a8, 0x9a6ac8])
 const POT_ROOFS = Object.freeze({ flatHouse: 2, roofTerrace: 2, cornerShop: 3, warehouse: 4, garages: 2, ext: 0, dormer: 1 });
 const keyOf = (r) => (r.id in POT_ROOFS ? r.id : r.id.split('-')[0]);
 
-// A point on the roof's margin: s along its perimeter (0..1), `in` metres inside.
+// A point on the roof margin: s along its perimeter (0..1), `in` metres inside.
 function onMargin(r, s, inside) {
   const [W, D] = [r.x1 - r.x0, r.z1 - r.z0];
   const t = s * 2 * (W + D);

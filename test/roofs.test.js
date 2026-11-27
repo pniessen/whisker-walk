@@ -123,7 +123,7 @@ const centreOf = (b) => {
 // bucket into a mesh of its own (roofsVane: its own see-through gold, which
 // the tower view fades), casting nothing as before; its triangles moved, none
 // added, never merged: +1 mesh -> 117 / 68 / 37,335 (merged 59 -> 60 / 30).
-// beauty-roofs (roofsbeauty.js, folded into the alley kit's paint bucket: no mesh or caster added):
+// beauty-roofs (roofsbeauty.js, folded into the alley kit paint bucket: no mesh or caster added):
 // moss, litter, splashes, weeds and pot plants on the flat roofs, +1,827 -> 117 / 68 / 39,162.
 const MEASURED_BUILT = { meshes: 117, casters: 68, triangles: 39162 };
 const MEASURED_MERGED = { meshes: 60, casters: 30, triangles: 39162 };

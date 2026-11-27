@@ -552,7 +552,7 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     drawAlley(AK, alley, M, ground);
     const drawn = []; // the birds' drawn perches (the header)
     drawYards(AK, alley, M, drawn);
-    // the beauty round (roofsbeauty.js): moss, litter, splashes, weeds and pot plants, into the alley kit's paint bucket
+    // the beauty round (roofsbeauty.js): moss, litter, splashes, weeds and pot plants, into the alley kit paint bucket
     roofsBeauty({
       roofs: BLOCKS.filter((k) => k.kind === 'flat' && (FELT_PATCHES[k.id] ?? FELT_PATCHES[k.id.split('-')[0]] ?? GARDEN_ROOFS.has(k.id))),
       put: (geo, color) => AK.put('paint', M.paint, geo, { color, noCast: true }),
