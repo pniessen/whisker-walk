@@ -5,6 +5,7 @@ import { createWater, PARK_POND_LOOK } from '../render/water.js';
 import { addTrails } from './pathribbon.js';
 import { BASIN_PROFILE, SPIRE_PROFILE, BASIN_WATER, FOUNTAIN_STONE, fountainWaterMaterial, latheGeometry, dressFountain } from './parkfountain.js';
 import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
+import { addParkBeauty } from './parkbeauty.js';
 import { tintGround, smoothField, smoothstep, lerp3 } from './dressing.js';
 
 // The lawn (polish-sheen). Under the Pass 8 day grade the old 0x6cb058 read as
@@ -428,6 +429,10 @@ export function build(scene, { water = {}, wind } = {}) {
 
   // cardboard boxes
   for (const b2 of [[5, 33], [-12, -14]]) scene.add(b.cardboardBox(b2[0], b2[1]));
+
+  // The beauty round: furniture detail, fountain beds, pond edge, tree feet,
+  // meadow flowers, all one non-casting mesh (parkbeauty.js).
+  addParkBeauty(scene);
 
   return {
     name: 'City Park',
