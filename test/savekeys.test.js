@@ -52,7 +52,7 @@ const SENTINELS = {
   reef: { step: 1 },
   crystal: { step: 1 },
   snowville: { step: 2, candles: 1 },
-  treehouse: { step: 1 },
+  treehouse: { step: 2, letters: 1 },
   jungle: { step: 1 },
   den: { owned: [DEN_ITEM], placed: {} },
   skills: [SKILL_IDS[0]],
