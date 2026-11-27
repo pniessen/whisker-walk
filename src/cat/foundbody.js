@@ -118,7 +118,17 @@ const EVERGREEN = 0x2f7a4a, SNOWBLUE = 0x2f5fb0;
 const evergreenPaint = knitPaint(EVERGREEN, 0x3a8a58, 0x24623b, 0xc8303a, 0xf3ead2);
 const snowflakePaint = knitPaint(SNOWBLUE, 0x3a6cc0, 0x254c92, 0xdfe6ee, 0x3a6cc0);
 
+// The Snow Parka (Snowville): a fitted, quilted cranberry jacket with a fur-trimmed hood (always down, as the hoodie's) and toggles on its cords, a cream zip down the belly and a dark hem. ONE shell and ONE hood (the cords and toggles are the hood's mesh): two meshes, one layer, on the torso's own shell like every coat.  It costs what the Hoodie costs (the same shell, hood and cords), which is what
+// test/foundwearfit.test.js lets a hooded found coat cost.
+const PARKA = 0xb83a4a, PARKA_LITE = 0xc4485a, PARKA_DARK = 0x7e2434, PARKA_ZIP = 0xf1e8d6;
+const parkaPaint = (ux, uy, uz) => {
+  if (uz > 0.8) return PARKA_DARK;
+  if (uy < -0.5 && Math.abs(ux) < 0.12) return PARKA_ZIP;
+  return Math.round(uz * 14) % 2 ? PARKA : PARKA_LITE;
+};
+
 export const FOUND_BODY = Object.freeze({
+  snowparka: Object.freeze({ kind: 'shell', colour: PARKA, paint: parkaPaint, hood: true, trim: PARKA_ZIP }),
   snowflakesweater: Object.freeze({ kind: 'shell', colour: SNOWBLUE, paint: snowflakePaint }),
   doormatcape: Object.freeze({ kind: 'cape', colour: COIR, accent: COIR_BORDER, paint: doormatPaint }),
   beachtowelcape: Object.freeze({ kind: 'cape', colour: 0xf2763c, accent: 0xf2c14e, paint: towelPaint }),
@@ -302,7 +312,7 @@ function paintedGeo(geo, hexOf) {
 // across it, its ribbed hem along the near edge and its ribbed neckline
 // folded on top at the far one; painted as the coat is (jumperPaint). Built
 // about its own centre; seatDisplay stands it on the ground.
-export function buildFoldedJumper() {
+function foldedCoat(name, paintOf, ribOf) {
   const W = 0.24, H = 0.05, D = 0.18;
   const fold = new THREE.BoxGeometry(W, H, D, 6, 1, 7);
   const p = fold.attributes.position;
@@ -314,12 +324,15 @@ export function buildFoldedJumper() {
   }
   fold.deleteAttribute('uv');
   fold.computeVertexNormals();
-  paintedGeo(fold, (x, y, z) => jumperPaint(x / (W / 2) * 0.62, y, z / (D / 2) * 0.64 + 0.21));
-  // the ribbed neckline, folded on top at the far edge
+  paintedGeo(fold, (x, y, z) => paintOf(x / (W / 2), y, z / (D / 2)));
+  // the neckline (the jumper's ribbed one, the parka's fur-trimmed hood), folded on top at the far edge
   const neck = new THREE.TorusGeometry(0.05, 0.011, 3, 8, Math.PI).rotateX(-Math.PI / 2).scale(1, 0.6, 0.75).translate(0, H / 2 + 0.008, -D / 2 + 0.012);
   neck.deleteAttribute('uv');
-  const parts = [fold, paintedGeo(neck, (x) => (Math.round(x * 120) % 2 ? JUMPER : JUMPER_SHADOW))];
+  const parts = [fold, paintedGeo(neck, ribOf)];
   const mesh = new THREE.Mesh(mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g))), litMaterial(0xffffff, { vertexColors: true }));
-  mesh.name = 'wear:fishermansjumper';
+  mesh.name = `wear:${name}`;
   return mesh;
 }
+export const buildFoldedJumper = () => foldedCoat('fishermansjumper', (fx, y, fz) => jumperPaint(fx * 0.62, y, fz * 0.64 + 0.21), (x) => (Math.round(x * 120) % 2 ? JUMPER : JUMPER_SHADOW));
+// The Snow Parka's ground look: the same fold, its quilting across it, the cream zip down the middle, its dark hem near and the fur-trimmed hood folded on top at the far edge.
+export const buildFoldedParka = () => foldedCoat('snowparka', (fx, y, fz) => (fz > 0.78 ? PARKA_DARK : y > 0 && Math.abs(fx) < 0.06 ? PARKA_ZIP : Math.round(fz * 6) % 2 ? PARKA : PARKA_LITE), () => PARKA_ZIP);

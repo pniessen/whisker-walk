@@ -2092,7 +2092,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // With a backpack, jetpack or wings on, the hood presses flat as it slides
   // back (tuck), under the pack rather than into it.
   const tuck = isPack(accessories.back);
-  const hoodOn = (color, drawstrings) => body.add(buildHood(color, { bodyScale: BODY_SCALE, simple: !!opts.simple, drawstrings, tuck }));
+  const hoodOn = (color, drawstrings, trim) => body.add(buildHood(color, { bodyScale: BODY_SCALE, simple: !!opts.simple, drawstrings, tuck, trim }));
   // A cape is a cloak on the body (CAPE): the cloth shell, its two front
   // edges running from the shoulders to ONE gold clasp at the throat (cape.js
   // CAPE_TIE: the clasp and both bands are one vertex-coloured mesh on the
@@ -2205,7 +2205,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     // a found cape or coat (foundbody.js), built as the shop's are
     const found = FOUND_BODY[accessories.body], from = body.children.length;
     if (found.kind === 'cape') capeOn(found.colour, found.accent, found.paint ?? null);
-    else coatShell(found.colour, found.paint);
+    else { coatShell(found.colour, found.paint); if (found.hood) hoodOn(found.colour, true, found.trim); } // a found coat may wear a hood with a fur trim (the Snow Parka)
     tagFound(body.children.slice(from), accessories.body);
   } else {
     addSuit(accessories.body, 'body', (kit, look) => kit.body({ coatShell, look, simple: !!opts.simple, bodyScale: BODY_SCALE }));

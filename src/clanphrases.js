@@ -639,6 +639,7 @@ const LATER = Object.freeze({
   'wear.glimmercollar.name': 'Glimmer Collar',
   // Snowville's found scarf (a placeholder name, the same in every set)
   'wear.snowflakescarf.name': 'Snowflake Scarf',
+  'wear.snowparka.name': 'Snow Parka', // (a placeholder name: this table is the one place it is spelled)
   // The Treehouse village's found cap (a placeholder name, the same in every set)
   'wear.canopycap.name': 'Canopy Cap',
   // The holiday outfits (src/foundwear/holidaywear.js): real-world holiday words, the same in every set. Winter Lights, earned.

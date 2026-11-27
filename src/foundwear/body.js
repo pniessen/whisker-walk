@@ -35,4 +35,6 @@ export const BODY_WEAR = Object.freeze([
   Object.freeze({ id: 'flowerbasket', slot: 'back', find: 'market', emoji: '🧺', name: () => phrase('wear.flowerbasket.name') }),
   // the Moon (2026-11-24): a cape, so a body one (foundbody.js FOUND_BODY), starry navy cloth
   Object.freeze({ id: 'starlightcape', slot: 'body', find: 'moon', emoji: '🌠', name: () => phrase('wear.starlightcape.name') }),
+  // Snowville round two (2026-11-27): a fitted quilted parka with a fur-trimmed hood and toggles (foundbody.js FOUND_BODY: a shell and a hood), find-only, in the same four hand-placed spots as the scarf
+  Object.freeze({ id: 'snowparka', slot: 'body', find: 'snowville', emoji: '🧥', name: () => phrase('wear.snowparka.name') }),
 ]);

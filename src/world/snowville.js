@@ -13,7 +13,7 @@ import { withLocalUuids } from './localuuids.js';
 import * as P from './snowvilleplan.js';
 import * as K from './snowvilleparts.js';
 import { drawBeauty } from './snowvillebeauty.js';
-import { createSnowvilleLight } from './snowvillelight.js';
+import { createSnowvilleLight, isLowTier } from './snowvillelight.js';
 import { createTilly, createSnowvillePrompts } from './snowvillelife.js';
 import './snowvillewords.js';
 import { ST } from './snowvillestages.js'; // the two stages' slots (filled by their chunks, loaded with this one: areas.js)
@@ -24,11 +24,12 @@ const SKY = Object.freeze({ top: P.SNOW_LOOK.top, horizon: P.SNOW_LOOK.horizon }
 // Always bright, always snowy: the place's look is the walk's "evening" switch with daylight numbers (no weather rolls, one calm light).
 const SNOW_LIGHT = Object.freeze({
   sunColor: P.SNOW_LOOK.sunColor, sunIntensity: P.SNOW_LOOK.sunIntensity, hemiSky: P.SNOW_LOOK.hemiSky, hemiIntensity: P.SNOW_LOOK.hemiIntensity, groundDim: 0.9,
-  envScale: 0.8, fogNear: P.SNOW_LOOK.fogNear, fogFar: P.SNOW_LOOK.fogFar,
+  envScale: P.SNOW_LOOK.envScale, fogNear: P.SNOW_LOOK.fogNear, fogFar: P.SNOW_LOOK.fogFar,
   lawnTint: Object.freeze({ desat: 0, dark: 1, cool: Object.freeze([1, 1, 1]) }),
 });
 
-export function build(scene) {
+export function build(scene, opts = {}) {
+  const low = isLowTier(opts?.water?.quality ?? null);
   return withLocalUuids('snowville-build', () => {
     b.applySky(scene, SKY.top, SKY.horizon);
     scene.add(K.drawGround());
@@ -42,7 +43,7 @@ export function build(scene) {
     K.drawDrifts(kit, M);
     K.drawRocks(kit, M);
     drawBeauty(kit, M); // V8: shrubs, woodpiles, crates, icicles, wreaths, pennants and the far ridge
-    ST.b?.draw?.(kit, M); // the pond and its ice, the sled hill, the hearth, the Great Fir and the burrow (milestone V5, in the merged buckets)
+    ST.b?.draw?.(kit, M, { low }); // the pond and its ice, the sled hill, the hearth, the Great Fir and the burrow (milestone V5, in the merged buckets)
     for (const m of kit.meshes()) scene.add(m);
     scene.add(K.drawLight()); // the place's one real light (the brazier's)
     const area = {
@@ -67,8 +68,9 @@ export function build(scene) {
       duskLight: { ...SNOW_LIGHT },
       // evening: true is the walk's one switch for "no weather"
       evening: true,
-      // no strays, and with them no ghosts, no wanderer, no rival, no clan cats
-      strays: false,
+      // a few friendly cats at their own homes (round two): strayCap caps the walk's stray count, strayHomes puts each at its place with its name and coat (stage b). No ghosts, no wanderer, no rival, no clan cats.
+      strayCap: 4,
+      strayHomes: ST.b?.strayHomes?.() ?? [],
       goalTypes: Object.freeze(['collectible', 'photo', 'scenic']),
       ground: P.createSnowvilleGround(),
       // the flakes, the glints, the brazier's glow and her cheeks, with Tilly and chapter one (milestone V2) on top
@@ -77,8 +79,10 @@ export function build(scene) {
         const tilly = createTilly({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
         const wing = ST.b?.wing?.({ scene: ctx.scene, tilly, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent }); // the hearth, the strings of lights and Lantern Night (milestone V5)
         const errand = ST.b?.errand?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, tilly, send: ctx.sendEvent }); // Tilly's errand of the day (milestone V7, in stage b)
-        const prompts = createSnowvillePrompts(tilly, wing, errand);
+        const sled = ST.b?.sled?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, tier: ctx.tier }); // the sled run down the hill (round two, stage b)
+        const prompts = createSnowvillePrompts(tilly, wing, errand, sled);
         const finds = ST.b?.finds?.life(ctx); // the six discoveries (milestone V3)
+        const strayNotes = ST.b?.strayNotes?.(); // a line the first time she meets each of the four friendly strays (round two)
         const critters = ST.b?.critters?.(ctx); // the otters, hare, robin, fox kit, smoke, bells and crunch (milestone V4)
         return {
           light,
@@ -89,8 +93,8 @@ export function build(scene) {
           wing,
           // a step done by anyone in the room (an `sv-` event): an errand done by a partner is credited to ours, a show begun by a partner starts ours, any other step is Tilly's
           credit: (ev) => errand?.credit(ev) ?? wing?.credit(ev) ?? tilly.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); wing?.update(dt, t, catPos); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); },
-          dispose() { errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); tilly.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); wing?.update(dt, t, catPos); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); strayNotes?.update(catPos, session); sled?.frame(dt, t, catPos, camera, session); },
+          dispose() { sled?.dispose(); errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); tilly.dispose(); light.dispose(); },
         };
       },
     };

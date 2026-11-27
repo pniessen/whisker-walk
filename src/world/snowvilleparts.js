@@ -12,7 +12,7 @@ import * as P from './snowvilleplan.js';
 import * as BP from './snowvillebeautyplan.js';
 
 export const COL = Object.freeze({
-  snow: 0xe9eff7, snowBright: 0xf6f9ff, shade: 0xbccfe6, wood: 0x8a6244, woodDark: 0x5a3e2a, iron: 0x3a3f4a, fir: 0x2f5a46, firLight: 0x4a7a5c, rock: 0x8a909c,
+  snow: 0xdfe7f2, snowBright: 0xeaf0f8, roofSnow: 0xd9e4f3, roofShade: 0x9fb3d0, shade: 0xbccfe6, wood: 0x8a6244, woodDark: 0x5a3e2a, iron: 0x3a3f4a, fir: 0x2f5a46, firLight: 0x4a7a5c, rock: 0x8a909c,
   warm: 0xffd9a0, flame: 0xffa43c, ice: 0xdff0ff, cream: 0xf2e6cc,
 });
 
@@ -238,7 +238,7 @@ export function cottageParts(c) {
   const add = (key, geo, hex, jit = 0, noCast = false) => parts.push([key, paint(geo, hex, jit), noCast]);
   add('paint', box(c.w, c.h, c.d).translate(0, c.h / 2, 0), c.wall, Math.sin(c.x * 3.1));
   add('paint', gable(c.w + 0.5, c.d + 0.8, rise).translate(0, c.h, 0), c.roof);
-  add('paint', gable(c.w + 0.74, c.d + 0.96, rise + 0.1).translate(0, c.h + 0.1, 0), COL.snowBright, 0, true);
+  add('paint', gable(c.w + 0.74, c.d + 0.96, rise + 0.1).translate(0, c.h + 0.1, 0), COL.roofSnow, 0, true);
   const chx = c.w * 0.28;
   add('paint', box(0.6, rise + 0.9, 0.6).translate(chx, c.h + (rise + 0.9) / 2 - 0.1, -c.d * 0.2), COL.rock);
   add('paint', box(0.78, 0.2, 0.78).translate(chx, c.h + rise + 0.82, -c.d * 0.2), COL.snowBright, 0, true);
@@ -289,13 +289,17 @@ export function firParts(s, tiers) {
   }
   return parts;
 }
-function putFir(kit, M, k, noCast) {
+// Each fir has its own width and height from its place (a slim spire, a broad one, a squat one), so no two read alike.
+const jig = (i, n) => { const v = Math.sin(i * 12.9898 + n * 78.233) * 43758.5453; return v - Math.floor(v); };
+function putFir(kit, M, k, noCast, i) {
+  const wf = 0.78 + 0.5 * jig(i, 1); const hf = 0.88 + 0.3 * jig(i, 2);
   for (const [geo, hex] of firParts(k.s, k.tiers)) {
-    kit.put(noCast ? 'treeBack' : 'tree', M.paint, stand(hex === null ? geo : paint(geo, hex), k.x, k.z, -0.1, k.x * 7), { noCast });
+    const g = hex === null ? geo : paint(geo, hex);
+    kit.put(noCast ? 'treeBack' : 'tree', M.paint, stand(g.scale(wf, hf, wf), k.x, k.z, -0.1, k.x * 7), { noCast });
   }
 }
 export function drawFirs(kit, M) {
-  for (const k of P.scatterFirs()) putFir(kit, M, k, k.rim);
+  P.scatterFirs().forEach((k, i) => putFir(kit, M, k, k.rim, i));
 }
 
 export function drawSquare(kit, M) {
@@ -321,13 +325,12 @@ export function drawSquare(kit, M) {
   for (let i = 0; i < 6; i++) sp(paint(box(S.w / 6, 0.07, S.d + 0.7).translate(-S.w / 2 + S.w / 12 + (i * S.w) / 6, 2.38 + (i % 2) * 0.005, 0.05), i % 2 ? 0xf4ecd8 : 0xc8483f));
   sp(paint(box(S.w + 0.2, 0.16, S.d + 0.8).translate(0, 2.5, 0.05), COL.snowBright), true);
   for (let i = 0; i < 4; i++) sp(paint(cyl(0.07, 0.06, 0.13, 6).translate(-1 + i * 0.6, 1.1, S.d / 2 - 0.35), i % 2 ? 0xe0524a : 0xf4ecd8));
-  // the postcard board: two posts, a board, six small cards
+  // the postcard board: two posts and a board (the pinned notices are stage b's, snowvilledetail.js)
   const B = P.BOARD;
   const bp = (geo, hex, key = 'paint') => kit.put(key, key === 'glow' ? M.glow : M.paint, stand(paint(geo, hex), B.x, B.z, 0, B.yaw));
   for (const sx of [-1, 1]) bp(box(0.14, 2.2, 0.14).translate(sx * 0.95, 1.1, 0), COL.woodDark);
   bp(box(2.2, 1.3, 0.1).translate(0, 1.5, 0), COL.wood);
   bp(box(2.4, 0.14, 0.3).translate(0, 2.22, 0), COL.snowBright);
-  for (let i = 0; i < 6; i++) bp(box(0.5, 0.36, 0.02).translate(-0.7 + (i % 3) * 0.7, 1.75 - Math.floor(i / 3) * 0.55, 0.07).rotateZ((i - 2.5) * 0.04), [0xf4ecd8, 0xcfe0f4, 0xf2c8c0][i % 3]);
   // the snowman: three balls, a carrot, two coals and two sticks (its scarf comes with the story)
   const N = P.SNOWMAN;
   const nm = (geo, hex) => kit.put('paint', M.paint, stand(paint(geo, hex), N.x, N.z, 0, 0.6));

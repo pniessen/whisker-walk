@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { buildCat } from '../src/cat/model.js';
+import { FOUND_BODY } from '../src/cat/foundbody.js';
 import { animateCat } from '../src/cat/animator.js';
 import { redressCat } from '../src/cat/redress.js';
 import { bodyKind, isPack, isCharmed } from '../src/cat/wearkind.js';
@@ -26,7 +27,8 @@ const SHAPES = [...PRESETS.map((b) => [b, {}]),
 const IDS = FOUND_WEAR.map((r) => [r.id, r.slot]);
 const pieces = (cat, id) => { const out = []; cat.traverse((o) => { if (isPieceOf(o, id)) out.push(o); }); return out; };
 const kindCap = (id, slot, simple, breed = 'tabby', opts = {}) => {
-  if (slot === 'body' && bodyKind(id) === 'shell') return triangles(buildCat('tabby', { ...BARE, body: 'sweater' }, { simple })) - triangles(buildCat('tabby', BARE, { simple }));
+  // a hooded found coat (the Snow Parka: FOUND_BODY `hood`) costs no more than the Hoodie, which is the same shell, hood and cords; any other coat no more than the Striped Sweater
+  if (slot === 'body' && bodyKind(id) === 'shell') return triangles(buildCat('tabby', { ...BARE, body: FOUND_BODY[id]?.hood ? 'hoodie' : 'sweater' }, { simple })) - triangles(buildCat('tabby', BARE, { simple }));
   // a found cape adds no more than the Hero Cape on the same shape and build
   if (slot === 'body' && bodyKind(id) === 'cape') return triangles(buildCat(breed, { ...BARE, body: 'cape' }, { ...opts, simple })) - triangles(buildCat(breed, BARE, { ...opts, simple }));
   if (slot === 'back' && isPack(id)) return simple ? 600 : 1200;

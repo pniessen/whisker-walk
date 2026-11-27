@@ -683,7 +683,7 @@ export const DRAWSTRING = Object.freeze({ x: 0.075, run: [-0.36, -0.74], out: 0.
 // tail), before it is draped: a grid wrapping round the mouth (u) from the
 // outer pole, over the outer shell to the mouth, over the rolled rim, and down
 // the lining to the inner pole (v).
-function hoodScoop(color, simple) {
+function hoodScoop(color, simple, trim) {
   const [W, H, D] = HOOD.size, A = W / 2, C = D / 2, t = HOOD.thick;
   const n = new THREE.Vector3(...HOOD.open).normalize();
   const e1 = new THREE.Vector3(1, 0, 0), e2 = new THREE.Vector3().crossVectors(n, e1).normalize();
@@ -704,7 +704,7 @@ function hoodScoop(color, simple) {
   // the mouth's outward normal in the item frame (the plane's normal through
   // the ellipsoid map), for the roll
   const m = new THREE.Vector3(n.x / A, n.y / H, n.z / C).normalize();
-  const rim = shade(color, HOOD.rimShade), lining = shade(color, HOOD.liningShade), fold = shade(color, HOOD.foldShade);
+  const rim = trim ?? shade(color, HOOD.rimShade), lining = trim ? shade(trim, 0.92) : shade(color, HOOD.liningShade), fold = shade(color, HOOD.foldShade); // `trim`: a fur-trimmed hood (the Snow Parka): the rolled rim and the lining in its colour
   const rows = [];
   for (const f of outerRows) rows.push({ kind: 'outer', f });
   for (let k = 0; k <= rollSteps; k++) rows.push({ kind: 'roll', f: k / rollSteps });
@@ -778,8 +778,8 @@ function drawstring(side, [top, bottom], bodyScale, simple) {
 
 // The hood's geometry, body-local: its scoop over `dir` and the drawstrings,
 // if any.
-export function hoodGeometry(color, { bodyScale = TORSO.SCALE, simple = false, drawstrings = false, dir = HOOD.dir, flat = 1 } = {}) {
-  const scoop = hoodScoop(color, simple);
+export function hoodGeometry(color, { bodyScale = TORSO.SCALE, simple = false, drawstrings = false, dir = HOOD.dir, flat = 1, trim } = {}) {
+  const scoop = hoodScoop(color, simple, trim);
   // pressed flat, the scoop's underside sits at y >= -flat·H; lift it onto 0
   let low = Infinity;
   const p = scoop.attributes.position;
@@ -819,8 +819,8 @@ export function hoodGeometry(color, { bodyScale = TORSO.SCALE, simple = false, d
 // With a back item on (`tuck`), the spot it slides to is under the backpack
 // or jetpack, behind the wings' roots, so as it slides it is also pressed
 // flat (height × 1 → HOOD.tuck), tucked under the pack like a patch of coat.
-export function buildHood(color, { bodyScale = TORSO.SCALE, simple = false, drawstrings = false, tuck = false } = {}) {
-  const opts = { bodyScale, simple, drawstrings };
+export function buildHood(color, { bodyScale = TORSO.SCALE, simple = false, drawstrings = false, tuck = false, trim } = {}) {
+  const opts = { bodyScale, simple, drawstrings, trim };
   const geo = hoodGeometry(color, { ...opts, dir: HOOD.dir });
   const a = geo.attributes.position.array, targets = [];
   const d0 = new THREE.Vector3(...HOOD.dir).normalize(), d1 = new THREE.Vector3(...HOOD.napDir).normalize();
