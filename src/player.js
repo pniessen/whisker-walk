@@ -773,6 +773,10 @@ export function createPlayer(camera, canvas, { headless = false } = {}) {
     get floatY() {
       return floatLift;
     },
+    // The kick button held now (pad A, touch, Space): a Reef mount rises while it is (world/reefridelive.js).
+    get kickHeld() {
+      return floatKick || keys.has('Space');
+    },
     // True in a place with a float row (the Reef): the pounce hop does not run there, the kick button does the climbing.
     get canFloat() {
       return floatCfg !== null;

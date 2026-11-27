@@ -18,7 +18,9 @@
 // stepRide returns the new y. env = { colliders, keepOut?, bounds?, ground?, groundY?(x, z), ceil?(x, z) }.
 // =============================================================================
 
-import { REEF_BOUNDS } from './reefplan.js';
+// (the bounds are a copy of reefplan.js's REEF_BOUNDS, held equal by test/reefridelive.test.js: this file imports nothing of the Reef's plan, so the ride stage's
+// chunk does not split the plan off the Reef's chunk; the live passes the plan's own in env.bounds)
+export const REEF_BOUNDS = Object.freeze({ minX: -48, maxX: 48, minZ: -42, maxZ: 42 });
 
 const spec = (o) => Object.freeze({ ...o, seatsAt: Object.freeze(o.seatsAt.map((s) => Object.freeze(s))) });
 // seatsAt: where each rider sits relative to the mount's middle, in the mount's frame (x right, y up from the mount's y, z forward).

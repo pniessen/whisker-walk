@@ -70,6 +70,8 @@ export function build(scene) {
     drawDeep(kit, M); // wing C (R8): the Sunken Boat, the Old Anchor and the Glow Cave, into the same two buckets
     ST.lab.buildLab(scene, P.reefY); // the Sealab (R13, stage 'lab'): the station inside, its hull outside, the hatch beside the Boat and the ONE light
     ST.wreck.draw?.(kit, M, { paint: K.paint, COL: K.COL, THREE }); // the galleon (R16, the wreck stage): hull, deck, cabin, mast, cannons and the brass suit, into the same buckets
+    const rideKit = { THREE: K.T3, mergeGeometries: K.mergeGeometries };
+    ST.ride.buildRacks(scene, rideKit, P.reefY); // the two mounts' racks and the mounts on them (R12, stage 'ride')
     for (const m of kit.meshes()) scene.add(m);
     const kelp = K.drawKelp();
     scene.add(kelp);
@@ -82,7 +84,7 @@ export function build(scene) {
       name: P.REEF_NAME,
       bounds: P.REEF_BOUNDS,
       spawn: P.REEF_SPAWN,
-      colliders: [...P.reefColliders(), ...storyColliders(), ...lifeColliders(), ...ST.lab.colliders(), ...(ST.wreck.colliders?.() ?? [])].map((c) => ({ ...c })),
+      colliders: [...P.reefColliders(), ...storyColliders(), ...lifeColliders(), ...ST.lab.colliders(), ...(ST.wreck.colliders?.() ?? []), ...ST.ride.colliders()].map((c) => ({ ...c })),
       waters: [],
       waterFx: [],
       perches: [],
@@ -126,7 +128,8 @@ export function build(scene) {
           },
         });
         const guide = createReefGuideLive({ doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, marlo: base.marlo, errand: base.errand, progression: ctx.progression, lab: story }); // the written guide: goal line, arrow, chip, arrival card
-        const prompt = createPromptArbiter([base, story, lab]); // Marlo's and the errand's offers win, then a fuse's, and the hatch is the lowest
+        const ride = ST.ride.createRideLive(rideKit, ctx, area, base, P); // the two mounts (R12)
+        const prompt = createPromptArbiter([ride, base, story, lab]); // "Hop off" (and "Hop on" at a rack) come first; // Marlo's and the errand's offers win, then a fuse's, and the hatch is the lowest
         const wreck = ST.wreck.life?.({ ...ctx, say: base.say, THREE }); // the galleon's flag, journal spot and soft lines (R16)
         return {
           ...base,
@@ -134,11 +137,12 @@ export function build(scene) {
           interact: prompt.interact,
           lab,
           story,
+          ride,
           guide,
           credit: (ev) => (ev?.kind === 'fuse' ? story.credit(ev) : base.credit(ev)), // a fuse put in by anyone in the room; every other step is Marlo's
           spottable: [...sea.spottable, ...more.spottable, ...story.spottable, ...(wreck?.spottable ?? [])],
-          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); more.update(...a); wreck?.update(...a); lab.update(...a); story.update(...a); guide.update(...a); },
-          dispose() { guide.dispose(); wreck?.dispose(); story.dispose(); lab.dispose(); more.dispose(); sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
+          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); more.update(...a); wreck?.update(...a); ride.update(...a); lab.update(...a); story.update(...a); guide.update(...a); },
+          dispose() { guide.dispose(); ride.dispose(); wreck?.dispose(); story.dispose(); lab.dispose(); more.dispose(); sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
         };
       },
     };
