@@ -128,8 +128,8 @@ describe('the new stamp line and the Back button', () => {
     farm.started = true;
     const card = pauseCardFor(farm, false, null);
     expect(card).toContain(`<button id="btn-back" class="secondary">${phrase('walk.back', 'City Park')}</button>`);
-    // the same two doors in a reading order: keep exploring, back, head home
-    expect([...card.matchAll(/<button id="(btn-[a-z]+)"/g)].map((m) => m[1])).toEqual(['btn-resume', 'btn-back', 'btn-end']);
+    // the same two doors in a reading order: keep exploring, back, (the Farm's story card, 2026-11-28), head home
+    expect([...card.matchAll(/<button id="(btn-[a-z]+)"/g)].map((m) => m[1])).toEqual(['btn-resume', 'btn-back', 'btn-story', 'btn-end']);
     farm.net = { isHost: () => true };
     expect(pauseCardFor(farm, false, null)).toContain('btn-back');
     farm.net = { isHost: () => false };
