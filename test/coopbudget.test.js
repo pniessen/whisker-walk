@@ -23,6 +23,8 @@ const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildGreenhouse } = await import('../src/world/greenhouse.js');
 await (await import('../src/world/treehousestages.js')).loadTreehouseStages();
 const { build: buildTreehouse } = await import('../src/world/treehouse.js');
+await (await import('../src/world/junglestages.js')).loadJungleStages();
+const { build: buildJungle } = await import('../src/world/jungle.js');
 const { build: buildLighthouse } = await import('../src/world/lighthouse.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const { buildCat } = await import('../src/cat/model.js');
@@ -128,6 +130,7 @@ const SCENES = [
   ['seaside', buildSeaside, 57850, 185, 141], // 57,777 / 181 / 137 measured: the whole scene with both dressed cats
   ['greenhouse', buildGreenhouse, 85350, 187, 117], // 85,267 / 183 / 113 measured: the whole scene with both dressed cats
   ['treehouse', buildTreehouse, 83450, 119, 111], // 83,373 / 115 / 107 measured: the whole scene with both dressed cats
+  ['jungle', buildJungle, 76650, 121, 113], // 76,578 / 117 / 109 measured: the whole scene with both dressed cats
 ];
 
 const markScene = (withPuff = false) => {
