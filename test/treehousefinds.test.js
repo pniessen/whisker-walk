@@ -1,6 +1,7 @@
 // The Treehouse village, milestone T3: the six discoveries (rule incl. height, pay, words, both sets), the six collectibles, the three golden mice (71 and 47), the six live journal
 // pages and the Canopy Cap's four spots. Modelled on test/snowvillefinds.test.js. Plan: docs/superpowers/plans/2026-11-27-new-areas-snowville-treehouse-jungle.md 2.7, 2.8, 2.10.
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { CLAN_TOTAL, EVERYDAY_TOTAL } from './helpers/goldtotals.js';
 import * as THREE from 'three';
 import { readFileSync, globSync } from 'node:fs';
 import { stubCanvasDocument } from './helpers/canvas.js';
@@ -270,9 +271,9 @@ describe('three golden mice', () => {
     expect(GOLD.map((m) => m.y)).toEqual([0, 4.2, 5.6]);
   });
   it('the totals are 71 (Clan) and 47 (everyday): the three count in both editions', () => {
-    expect(GOLD_TOTAL).toBe(71);
-    expect(goldForEdition('canon', CATALOG).size).toBe(71);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(47);
+    expect(GOLD_TOTAL).toBe(CLAN_TOTAL);
+    expect(goldForEdition('canon', CATALOG).size).toBe(CLAN_TOTAL);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(EVERYDAY_TOTAL);
     expect(goldForEdition('legacy', CATALOG).has('gm-treehouse-1')).toBe(true);
   });
 });

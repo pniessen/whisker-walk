@@ -1,6 +1,7 @@
 // The Crystal Cave, milestone C3: the six discoveries, what each pays and says, the six collectibles, the scenic spots, the two word sets, the drawn markers,
 // the life that notes a find while she stands still, the three golden mice (totals stay 60 and 36) and the Glimmer Collar's four spots.
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { CLAN_TOTAL, EVERYDAY_TOTAL } from './helpers/goldtotals.js';
 import * as THREE from 'three';
 import { readFileSync, globSync } from 'node:fs';
 import { stubCanvasDocument } from './helpers/canvas.js';
@@ -259,9 +260,9 @@ describe('three golden mice', () => {
     }
   });
   it('the totals are 71 (Clan) and 47 (everyday) with Snowville\'s three', () => {
-    expect(GOLD_TOTAL).toBe(71);
-    expect(goldForEdition('canon', CATALOG).size).toBe(71);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(47);
+    expect(GOLD_TOTAL).toBe(CLAN_TOTAL);
+    expect(goldForEdition('canon', CATALOG).size).toBe(CLAN_TOTAL);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(EVERYDAY_TOTAL);
   });
 });
 

@@ -2,6 +2,7 @@
 // save key (sanitised and merged), the reserved journal and award ids, the area pack behind ?moon=1, the words.
 // Nothing here may move any other place: the identity cases are the point.
 import { describe, it, expect, afterEach } from 'vitest';
+import { CLAN_TOTAL } from './helpers/goldtotals.js';
 import { readFileSync, globSync } from 'node:fs';
 import * as THREE from 'three';
 import { PLACE_PHYSICS, physicsFor, placeArc, placeBudget, placePace } from '../src/placephysics.js';
@@ -233,7 +234,7 @@ describe('the reserved ids', () => {
   it('the Moon has a gate-only catalog row (free, no home card while the gates are off) and its three golden mice are in (54 in all, 30 for the everyday edition)', async () => {
     expect(Object.hasOwn(CATALOG.areas, 'moon')).toBe(true); // (its row came with the map circle: gate-only, free)
     const { GOLD_TOTAL, GOLD_MICE } = await import('../src/goldmice.js');
-    expect(GOLD_TOTAL).toBe(71); // milestone 4's three mice (48 before)
+    expect(GOLD_TOTAL).toBe(CLAN_TOTAL); // milestone 4's three mice (48 before)
     expect(GOLD_MICE.moon.map((m) => m.id)).toEqual(['gm-moon-1', 'gm-moon-2', 'gm-moon-3', 'gm-moon-4']);
   });
 });

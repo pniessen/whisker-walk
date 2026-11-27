@@ -2,6 +2,7 @@
 // reader allow-list, the `reef` save key (sanitised and merged), the reserved journal and award ids, the area pack behind ?reef=1, the words.
 // Nothing here may move any other place: the identity cases are the point.
 import { describe, it, expect, afterEach } from 'vitest';
+import { CLAN_TOTAL } from './helpers/goldtotals.js';
 import { readFileSync, globSync } from 'node:fs';
 import * as THREE from 'three';
 import { PLACE_PHYSICS, physicsFor, placeArc, placeBudget, placePace } from '../src/placephysics.js';
@@ -241,7 +242,7 @@ describe('the golden mice', () => {
   it('five mice (the Sealab and galleon stubs are open sand), two at float height, and the totals are 71 and 47', () => {
     expect(GOLD_MICE.reef.map((x) => x.id)).toEqual(['gm-reef-1', 'gm-reef-2', 'gm-reef-3', 'gm-reef-4', 'gm-reef-5']);
     expect(GOLD_MICE.reef.filter((x) => x.y >= 1.9).length).toBe(2);
-    expect(GOLD_TOTAL).toBe(71);
+    expect(GOLD_TOTAL).toBe(CLAN_TOTAL);
     for (const mouse of GOLD_MICE.reef) expect(KNOWN_GOLD.has(mouse.id)).toBe(true);
   });
 });

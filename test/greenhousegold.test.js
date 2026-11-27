@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { CLAN_TOTAL, EVERYDAY_TOTAL } from './helpers/goldtotals.js';
 import { stubCanvasDocument } from './helpers/canvas.js';
 import { GOLD_MICE, KNOWN_GOLD, GOLD_TOTAL, goldForEdition } from '../src/goldmice.js';
 import { CATALOG, createProgression } from '../src/progression.js';
@@ -52,12 +53,12 @@ describe('three golden mice', () => {
 
 describe('the totals', () => {
   it('Clan Edition counts 57 and Legacy 33 (the Reef joined) (the Greenhouse has no edition key), whatever the gates switch says: the total counts by edition alone, as it counts the Moon', () => {
-    expect(GOLD_TOTAL).toBe(71);
+    expect(GOLD_TOTAL).toBe(CLAN_TOTAL);
     for (const on of [true, false]) {
       setTele(on);
       try {
-        expect(goldForEdition('canon', CATALOG).size).toBe(71);
-        expect(goldForEdition('legacy', CATALOG).size).toBe(47);
+        expect(goldForEdition('canon', CATALOG).size).toBe(CLAN_TOTAL);
+        expect(goldForEdition('legacy', CATALOG).size).toBe(EVERYDAY_TOTAL);
         for (const e of ['canon', 'legacy']) for (const m of GOLD) expect(goldForEdition(e, CATALOG).has(m.id), `${e} ${m.id}`).toBe(true);
       } finally { setTele(null); }
     }

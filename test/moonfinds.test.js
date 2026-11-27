@@ -2,6 +2,7 @@
 // the Starlight Cape and the Moon Badge, the paw prints on the dust, and the words in both sets. The find spots are proved against the built
 // place by test/foundspots.test.js; the cape's and the badge's fit by test/foundwearfit.test.js.
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { CLAN_TOTAL, EVERYDAY_TOTAL } from './helpers/goldtotals.js';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import * as P from '../src/world/moonplan.js';
@@ -227,11 +228,11 @@ describe('the three golden mice', () => {
     expect(MICE.map((m) => m.id)).toEqual(['gm-moon-1', 'gm-moon-2', 'gm-moon-3', 'gm-moon-4']); // (the fourth is the Old Relay Station's tower ledge, a stub from X0)
     expect(MICE).toEqual(P.MOON_MICE.map((m) => ({ ...m })));
     const total = Object.values(GOLD_MICE).flat().length;
-    expect(total).toBe(71);
-    expect(goldForEdition('canon', CATALOG).size).toBe(71);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(47);
+    expect(total).toBe(CLAN_TOTAL);
+    expect(goldForEdition('canon', CATALOG).size).toBe(CLAN_TOTAL);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(EVERYDAY_TOTAL);
     // the Moon has no catalog row yet, so its three count in both editions; with a row and no edition key they still do
-    expect(goldForEdition('legacy', { ...CATALOG, areas: { ...CATALOG.areas, moon: { name: 'The Moon' } } }).size).toBe(47);
+    expect(goldForEdition('legacy', { ...CATALOG, areas: { ...CATALOG.areas, moon: { name: 'The Moon' } } }).size).toBe(EVERYDAY_TOTAL);
   });
   it('each is inside the bounds, over open ground (clear of every collider) and in the walk\'s own spawn list', () => {
     const scene = { add() {}, remove() {} };

@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import { CLAN_TOTAL, EVERYDAY_TOTAL } from './helpers/goldtotals.js';
 import * as THREE from 'three';
 import { stubCanvasDocument } from './helpers/canvas.js';
 
@@ -134,7 +135,7 @@ describe('the catalog row', () => {
       p.setArea('reef');
       expect(p.state.area).not.toBe('reef');
       expect(p.pickPlace('reef')).toBe(false);
-      expect(goldForEdition(edition, CATALOG).size).toBe(edition === 'canon' ? 71 : 47);
+      expect(goldForEdition(edition, CATALOG).size).toBe(edition === 'canon' ? CLAN_TOTAL : EVERYDAY_TOTAL);
     }
     expect(effectiveArea({ area: 'reef', edition: 'canon' }, CATALOG)).toBe('neighborhood');
     expect(JSON.stringify(nextThing(save().state, { catalog: CATALOG }) ?? null)).not.toMatch(/reef/i);
