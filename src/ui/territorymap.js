@@ -12,7 +12,7 @@
 
 import { clanName } from '../clanhomes.js';
 import { LAND } from '../territories.js';
-import { STREET_LAND, TOWN_LAND, ISLAND_HIT_R } from '../worldmap.js';
+import { STREET_LAND, TOWN_LAND, GATE_LAND, ISLAND_HIT_R } from '../worldmap.js';
 import { escapeHtml } from '../escapehtml.js';
 import { phrase } from '../clanphrases.js';
 import { countrysideHtml, countryFadeDefs } from './countryside.js';
@@ -84,8 +84,8 @@ const ICON = { town: '🏠', woods: '🌳', moor: '🌾', river: '🌿', pines: 
 // Where each name sits, nudged off her water and paths where they cross the centre.
 const LABEL_AT = { town: [862, 572], woods: [556, 540], moor: [655, 92], river: [205, 548], pines: [290, 172], gorge: [815, 300] };
 // The world map's street places: their icons, and where draft 2 puts their names.
-const STREET_ICON = { park: '⛲', fair: '🎡', farm: '🚜', docks: '⚓', seaside: '🏖️', roofs: '🕊️', market: '🧺', house: '🕰️', lighthouse: '🗼', greenhouse: '🌿' };
-const STREET_LABEL_AT = { park: [1080, 478], fair: [1060, 236], farm: [1235, 326], docks: [900, 778], seaside: [1170, 688], lighthouse: [1268, 531], greenhouse: [1255, 150] };
+const STREET_ICON = { park: '⛲', fair: '🎡', farm: '🚜', docks: '⚓', seaside: '🏖️', roofs: '🕊️', market: '🧺', house: '🕰️', lighthouse: '🗼', greenhouse: '🌿', reef: '🐠', crystal: '💎' };
+const STREET_LABEL_AT = { park: [1080, 478], fair: [1060, 236], farm: [1235, 326], docks: [900, 778], seaside: [1170, 688], lighthouse: [1268, 531], greenhouse: [1255, 150], reef: [1390, 690], crystal: [700, 812] };
 // Places inside the town whose names sit off their centre: the Market's, just
 // east of its circle, in the one gap that keeps its icon, name and line off
 // the town's own name and line, the Docks', the Park's and the Seaside's
@@ -202,8 +202,8 @@ export function renderWorldMapHtml(model) {
   for (let i = 0; i + 2 < cs.length; i += 3) coast += ` C${pt(cs[i])} ${pt(cs[i + 1])} ${pt(cs[i + 2])}`;
   const sea = `<path class="tm-sea" d="${coast} C820 900 760 960 750 1100 L750 ${h + BEYOND} L${w + BEYOND} ${h + BEYOND} L${w + BEYOND} ${-BEYOND} Z"/>`;
 
-  const landClass = (r) => `tm-land ${r.kind === 'street' || r.kind === 'town' ? 'street ' : ''}${stateClasses(r)}`;
-  const fillOf = (r) => (r.kind === 'town' ? TOWN_LAND[r.id] : r.kind === 'street' ? STREET_LAND[r.id] : LAND[r.id]) ?? '#c8b98f';
+  const landClass = (r) => `tm-land ${r.kind === 'street' || r.kind === 'town' || r.kind === 'gate' ? 'street ' : ''}${stateClasses(r)}`;
+  const fillOf = (r) => (r.kind === 'town' ? TOWN_LAND[r.id] : r.kind === 'street' ? STREET_LAND[r.id] : r.kind === 'gate' ? GATE_LAND[r.id] : LAND[r.id]) ?? '#c8b98f';
   const land = m.regions.map((r) => `<path class="${landClass(r)}" fill="${fillOf(r)}" d="${blobPath(r.id, r.x, r.y, r.r)}"/>`).join('');
   const water = `<path class="tm-river-bank" d="${smoothPath(m.river, false)}"/><path class="tm-river" d="${smoothPath(m.river, false)}"/>`
     + `<path class="tm-lake" d="${smoothPath(m.lake, true)}"/>`
