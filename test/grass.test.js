@@ -851,7 +851,7 @@ describe('ground tint under tufts', () => {
       aimAt(camera, x, z);
       grass.update(1, 1);
       checked += grass.mesh.count;
-      expectFollows(checkFollows(grass, pinesGroundTint, 0.8, GRASS_STYLES.pines, areaData.bounds), 0.045);
+      expectFollows(checkFollows(grass, pinesGroundTint, 0.8, GRASS_STYLES.pines, areaData.bounds), 0.06); // 0.045 -> 0.06: the Pines beauty round's frost patches (PIN-2) vary the ground colour faster than a tuft samples it
       for (let i = 0; i < grass.mesh.count; i++) {
         grass.mesh.getMatrixAt(i, m);
         p.setFromMatrixPosition(m);
