@@ -237,11 +237,11 @@ export const GOLD_MICE = {
     { id: 'gm-crystal-5', x: -25, z: 19.5, y: 1.0 }, // C2: on the forge's stone shelf (src/world/crystalgrottoplan.js SHELF), one hop of 1.0 from the floor
   ],
   // Snowville (milestone V3; src/world/snowvillefindsplan.js SNOWVILLE_GOLD holds the same three, test/snowvillefinds.test.js; bounds 80 x 72 m): on the snow behind the baker's house, in the pond-side stump's
-  // hollow, and by the sled hill's rock. All three are on foot for now; the rock itself is drawn with the hill (V5), which lifts the last to one hop. Not in KEEP_OUT (it already holds their places).
+  // hollow, and by the sled hill's rock. The first two are on foot; V5 drew the hill rock (src/world/snowvillewingplan.js HILL_ROCK, 1.0 m, one hop from the snow beside it) and lifted the last onto it. Not in KEEP_OUT (it already holds their places).
   snowville: [
     { id: 'gm-snowville-1', x: 16, z: -1, y: 0 },
     { id: 'gm-snowville-2', x: -26, z: -4, y: 0 },
-    { id: 'gm-snowville-3', x: 26, z: -26, y: 0 },
+    { id: 'gm-snowville-3', x: 26, z: -26, y: 1.0 }, // V5: on the hill rock, one hop (y is metres over the snow under it)
   ],
 };
 

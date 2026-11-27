@@ -25,7 +25,7 @@ import { ST } from './snowvillestages.js';
 export const RING = Object.freeze({ secs: 6, bubble: 4, points: 30 }); // how long the meow's ring and the picture stay
 export const LANTERN_LOOK = Object.freeze({ off: 0x8fa3ba, on: 0xffd78a, halo: 5, haloHigh: 0.55, rise: 1.4 });
 const COLORS = Object.freeze({ fur: 0xf3f6fb, ear: 0xf0b8c8, eye: 0x2c2a38, cheek: 0xff9fb4, scarf: 0xc0453f, wood: 0x6a5242, wax: 0xfff1d2, glint: 0xfff2c0 });
-const ICON_KEY = Object.freeze({ lantern: 'lantern', spark: 'spark', heart: 'heart' });
+const ICON_KEY = Object.freeze({ lantern: 'lantern', spark: 'spark', heart: 'heart', fire: 'fire', star: 'star' });
 const smooth = (k) => { const t = Math.min(1, Math.max(0, k)); return t * t * (3 - 2 * t); };
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const say = (key, label) => bus.emit('discovery', { type: 'greenhousenote', key, label, points: 0, repeat: false });
@@ -156,6 +156,8 @@ export function createTilly(ctx) {
   const progression = ctx.progression ?? null;
   const audio = ctx.audio ?? null;
   const colliders = ctx.colliders ?? S.storyColliders();
+  const CAND = S.allCandles(); // all three once stage B is in (milestone V5)
+  const LANT = S.allLanterns();
   const rec = () => M.normalize(progression?.state?.snowville);
 
   let clock = 0;
@@ -170,14 +172,14 @@ export function createTilly(ctx) {
   let goalAt = -100;
   const told = new Set();
   const tilly = { x: S.TILLY.start.x, z: S.TILLY.start.z, yaw: Math.PI, moving: false, chasing: false };
-  const lit = S.LANTERNS.map((l) => (M.candleLit(progression?.state?.snowville, l.id) ? 1 : 0)); // each lantern's light, 0 to 1 (rises when lit)
+  const lit = LANT.map((l) => (M.candleLit(progression?.state?.snowville, l.id) ? 1 : 0)); // each lantern's light, 0 to 1 (rises when lit)
 
   const group = makeTilly();
   const tex = dotTexture();
-  const candles = S.CANDLES.map(() => makeCandle());
-  const glints = S.CANDLES.map(() => { const s = glow(COLORS.glint, 0.8, 0.6, tex); s.name = 'snowville:candle:glint'; return s; });
-  const lanterns = S.LANTERNS.map(makeLantern);
-  const halos = S.LANTERNS.map((l) => { const h = glow(LANTERN_LOOK.on, 0, LANTERN_LOOK.halo, tex); h.name = `snowville:lantern${l.id}:halo`; h.visible = false; return h; });
+  const candles = CAND.map(() => makeCandle());
+  const glints = CAND.map(() => { const s = glow(COLORS.glint, 0.8, 0.6, tex); s.name = 'snowville:candle:glint'; return s; });
+  const lanterns = LANT.map(makeLantern);
+  const halos = LANT.map((l) => { const h = glow(LANTERN_LOOK.on, 0, LANTERN_LOOK.halo, tex); h.name = `snowville:lantern${l.id}:halo`; h.visible = false; return h; });
   const bubble = makeBubble();
   const ring = sparkles(RING.points, 0.2, 0xfff0d0, 0.9, tex);
   ring.name = 'snowville:meowRing';
@@ -190,10 +192,12 @@ export function createTilly(ctx) {
   // The goal now: where the meow's ring rises and which picture Tilly shows. { g: { kind, candle?, icon }, x, z, y }
   function goalPoint() {
     const g = M.nextGoal(progression?.state?.snowville, carrying);
-    const c = g.candle !== undefined ? S.CANDLES[g.candle] : null;
-    const l = g.candle !== undefined ? S.LANTERNS[g.candle] : null;
+    const c = g.candle !== undefined ? CAND[g.candle] : null;
+    const l = g.candle !== undefined ? LANT[g.candle] : null;
     if (g.kind === 'candle' && c) return { g, x: c.x, z: c.z, y: S.candleWorldY(c) };
     if (g.kind === 'deliver' && l) return { g, x: l.x + 0.5, z: l.z, y: snowY(l.x, l.z) + l.h * 0.6 };
+    const sp = ST.b?.story?.spots?.[g.kind]; // the hearth, the village fir: stage B's
+    if (sp) return { g, x: sp.x, z: sp.z, y: snowY(sp.x, sp.z) + (sp.up ?? 0) };
     return { g, x: tilly.x, z: tilly.z, y: snowY(tilly.x, tilly.z) };
   }
   const goal = () => (goalCur ?? (goalCur = goalPoint()));
@@ -207,8 +211,10 @@ export function createTilly(ctx) {
   function perform(ev, { remote = false } = {}) {
     const r = remote ? M.credit(progression?.state?.snowville, ev) : M.apply(progression?.state?.snowville, ev);
     if (!r.changed) return null;
+    const before = rec().step;
     commit(r.snowville);
     goalCur = null;
+    if (before < M.STEP.third && r.snowville.step >= M.STEP.third) progression?.recordSighting?.('sv7'); // the journal's candles page: all three are lit
     return r.effect;
   }
   function showBubble(kind) { bubble.show(kind); bubbleT = clock; }
@@ -220,7 +226,7 @@ export function createTilly(ctx) {
     const hintKey = 'hint-' + gp.g.kind + (gp.g.candle ?? '');
     if (!told.has(hintKey)) {
       told.add(hintKey);
-      if (gp.g.kind === 'candle') say('snowville-candle-find', phrase('snowville.candle.find'));
+      if (gp.g.kind === 'candle') say('snowville-candle-find' + (gp.g.candle || ''), gp.g.candle === 0 ? phrase('snowville.candle.find') : gp.g.candle === 1 ? phrase('snowville.pond.find') : phrase('snowville.hill.find'));
     }
   }
   const offMeow = bus.on('tip:did', (e) => { if (e && e.id === 'call') meowed = true; });
@@ -231,25 +237,25 @@ export function createTilly(ctx) {
     const r = rec();
     if (r.step < M.STEP.met && dist(catPos, tilly) < S.TILLY.reach) return { kind: 'meet', line: phrase('snowville.tilly.prompt') };
     if (carrying !== null) {
-      const l = S.LANTERNS[carrying];
+      const l = LANT[carrying];
       if (l && dist(catPos, l) < l.reach) return { kind: 'give', candle: carrying, line: phrase('snowville.candle.give') };
     }
     if (carrying === null && wanted() >= 0) {
-      const c = S.CANDLES[wanted()];
+      const c = CAND[wanted()];
       if (c && dist(catPos, c) < c.reach) return { kind: 'pick', candle: c.id, line: phrase('snowville.candle.prompt') };
     }
     return null;
   }
 
   function placeCandle(i, t, catPos, session) {
-    const c = S.CANDLES[i];
+    const c = CAND[i];
     const mode = candleMode(i);
     const g = candles[i];
     let x = c.x; let z = c.z; let y = S.candleWorldY(c) - S.CANDLE_Y + 0.02;
     if (mode === 'carried' && catPos) {
       const yaw = session?.cat?.rotation?.y ?? 0;
       x = catPos.x + Math.sin(yaw) * 0.5; z = catPos.z + Math.cos(yaw) * 0.5; y = catPos.y + 0.18;
-    } else if (mode === 'given') { const l = S.LANTERNS[i]; x = l.x + 0.5; z = l.z; y = snowY(l.x, l.z) + l.h - 0.6; }
+    } else if (mode === 'given') { const l = LANT[i]; x = l.x + 0.5; z = l.z; y = snowY(l.x, l.z) + l.h - 0.6; }
     g.position.set(x, y, z);
     g.visible = mode !== 'given'; // a lit candle is inside its lantern
     const gl = glints[i];
@@ -303,7 +309,7 @@ export function createTilly(ctx) {
   }
 
   return {
-    get state() { return { clock, carrying, tilly: { ...tilly }, record: rec(), candleModes: S.CANDLES.map((c) => candleMode(c.id)), bubble: bubble.icon, lit: [...lit] }; },
+    get state() { return { clock, carrying, tilly: { ...tilly }, record: rec(), candleModes: CAND.map((c) => candleMode(c.id)), bubble: bubble.icon, lit: [...lit] }; },
     get tilly() { return tilly; },
     get group() { return group; },
     get candles() { return candles; },
@@ -312,6 +318,13 @@ export function createTilly(ctx) {
     get bubble() { return bubble; },
     goalNow: goalPoint,
     goal,
+    // a step of the story that is not a button here (stage B's: 'warm' by the hearth): the same effects and the same wire as her own; the show's own steps go with the show
+    step(ev, remote = false) {
+      if (disposed) return null;
+      const effect = perform(ev, { remote });
+      if (effect && !remote && ev.kind === 'warm') ctx.send?.(M.wire(ev));
+      return effect;
+    },
     promptAt(catPos) {
       target = decide(catPos);
       return target ? target.line : null;
@@ -331,7 +344,7 @@ export function createTilly(ctx) {
       } else if (t.kind === 'pick') {
         carrying = t.candle;
         audio?.chime?.();
-        say('snowville-candle-got', phrase('snowville.candle.got'));
+        say('snowville-candle-got' + (t.candle || ''), t.candle === 0 ? phrase('snowville.candle.got') : t.candle === 1 ? phrase('snowville.pond.got') : phrase('snowville.hill.got'));
         showBubble('lantern');
       } else if (t.kind === 'give') {
         const id = t.candle;
@@ -408,9 +421,9 @@ export function createTilly(ctx) {
   };
 }
 
-// The action button's one arbiter for the place: Tilly first, then the stages' own offers (stage slots that answer null until a stage fills them, so later milestones add to the
+// The action button's one arbiter for the place: Tilly first, then stage B's wing (Lantern Night), then the sled run's slot (answers null until the stage fills it, so later milestones add to the
 // list and never fight over it).
-export function createSnowvillePrompts(tilly) {
+export function createSnowvillePrompts(tilly, wing = null) {
   const slot = (get) => ({ promptAt: (p) => get()?.promptAt?.(p) ?? null, interact: () => get()?.interact?.() ?? null });
-  return createPromptArbiter([tilly, slot(() => ST.b), slot(() => ST.c)]);
+  return createPromptArbiter([tilly, slot(() => wing), slot(() => ST.c)]);
 }

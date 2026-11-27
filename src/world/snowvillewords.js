@@ -17,6 +17,10 @@ export const LINES = Object.freeze({
   'snowville.candle.find': 'Look for a little glint in a window box.',
   'snowville.candle.got': 'Carry the candle to the lantern by the big fir!',
   'snowville.candle.give': 'Light the lantern',
+  'snowville.pond.got': 'Carry the candle to the lantern by the skating pond!',
+  'snowville.hill.got': 'Carry the candle down to the lantern at the foot of the sled hill!',
+  'snowville.pond.find': 'Look for a little glint on a stump by the pond.',
+  'snowville.hill.find': 'Look for a little glint on the rock at the top of the sled hill.',
   'snowville.lantern.lit': `The lantern glows! ${T} twirls with joy.`,
 });
 addPhrases(LINES);

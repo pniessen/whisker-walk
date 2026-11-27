@@ -250,13 +250,13 @@ describe('three golden mice', () => {
     const area = build(new THREE.Scene());
     for (const m of GOLD) {
       expect(m.x > b.minX + 2 && m.x < b.maxX - 2 && m.z > b.minZ + 2 && m.z < b.maxZ - 2, m.id).toBe(true);
-      expect(m.y).toBe(0);
-      for (const c of area0.colliders) expect(near(m, c), m.id).toBeGreaterThan(c.r + 0.5);
+      expect(m.y).toBe(m.id === 'gm-snowville-3' ? 1.0 : 0); // V5: the third is on the hill rock, one hop (test/snowvillewing.test.js climbs it)
+      if (m.y === 0) for (const c of area0.colliders) expect(near(m, c), m.id).toBeGreaterThan(c.r + 0.5);
       for (const z of Object.values(Z).flat()) expect(near(m, z), `${m.id} vs a find`).toBeGreaterThan(Math.max(2, z.r + 1));
       for (const k of area.collectibles) expect(near(m, k), `${m.id} vs ${k.id}`).toBeGreaterThan(2);
       for (const s of spotsIn('snowville')) expect(near(m, s), `${m.id} vs ${s.id}`).toBeGreaterThanOrEqual(2);
       expect(near(m, area0.spawn), m.id).toBeGreaterThan(15);
-      expect(flood.reachesWithin(m.x, m.z, 0.9), `${m.id} reached`).toBe(true);
+      if (m.y === 0) expect(flood.reachesWithin(m.x, m.z, 0.9), `${m.id} reached`).toBe(true);
     }
   });
   it('the totals are 68 (Clan) and 44 (everyday): the three count in both editions', () => {
@@ -287,7 +287,7 @@ describe('the six live journal pages', () => {
   afterEach(() => setSnowville(null));
   it('sv1..sv6 are live (named, hinted once the chunk is in), the other eight stay hidden placeholders', () => {
     const sv = CRITTER_INFO.filter((c) => /^s[vw]\d$/.test(c.id));
-    const LIVE = [...SNOWVILLE_PAGE_IDS, 'sw1', 'sw2', 'sw3']; // V4 made the first three life pages live too (test/snowvillecritters.test.js)
+    const LIVE = [...SNOWVILLE_PAGE_IDS, 'sw1', 'sw2', 'sw3', 'sv7', 'sv8']; // V5 made the two story pages live (test/snowvillewing.test.js) // V4 made the first three life pages live too (test/snowvillecritters.test.js)
     expect(sv).toHaveLength(17);
     for (const c of sv) {
       if (LIVE.includes(c.id)) { expect(c.later, c.id).toBeFalsy(); expect(c.snowville).toBe(true); expect(c.hint).toMatch(/\S/); } else expect(c.later, c.id).toBe(true);
