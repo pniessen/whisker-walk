@@ -1,6 +1,6 @@
-// The test files that take ~20 s or more of one worker each in a full run,
-// with those seconds (measured in a full run, 2026-11-26, with other builds
-// running on the same Mac, so inflated but in proportion; regenerate with
+// The test files that take ~15 s or more of one worker each in a full run,
+// with those seconds (measured in a full run, 2026-11-27, on the Mac with ten workers,
+// so inflated but in proportion; every file over 15 s is listed; regenerate with
 // `node scripts/heavycost.mjs <vitest --reporter=json report>`, longest first): whole-cat pose
 // sweeps that raycast every vertex against the fur, and whole built territories. Three uses, all through vite.config.js:
 //
@@ -20,44 +20,81 @@
 // ordinary file when the shards are dealt. The seconds only need to be right
 // relative to each other.
 export const HEAVY_COST = [
-  ['fairgames.test.js', 178],
-  ['housecamera.test.js', 140], // 28 before the east wing's rooms and ledges joined its sweeps
-  ['folds.test.js', 130],
-  ['gorge.test.js', 124],
-  ['fightcamworld.pines.test.js', 100],
-  ['fightcamworld.moor.test.js', 94],
-  ['fightcamworld.test.js', 84],
-  ['farmjobs.test.js', 77],
-  ['catnap.test.js', 75],
-  ['builder.test.js', 74],
-  ['fightcamworld.river.test.js', 66],
-  ['catballoon.test.js', 63],
-  ['reeflabshow.test.js', 58],
-  ['reefridelive.test.js', 57],
-  ['catmodel.test.js', 50],
-  ['marketlive.test.js', 40],
-  ['foundwearfit.test.js', 38],
-  ['dencats-den.test.js', 33],
-  ['walkon.test.js', 30],
-  ['roofs.test.js', 29],
-  ['straycats.test.js', 29],
-  ['bumps.test.js', 28],
-  ['catsitupright.items.test.js', 28],
-  ['housebudget.test.js', 24],
-  ['houseguards.test.js', 24],
-  ['fairshow.people.test.js', 23],
-  ['people.reach.test.js', 21],
-  // every shipped map traced again in the everyday words (series A3): 9 s in
-  // a full run, 2026-11-26, lighter than the rest but a whole-world build; listed
-  // so it starts early beside its family-words twin instead of last
-  ['flattrace.offwords.test.js', 9],
-  // two whole builds (public and family) searched for the private edition's tokens: 1 s alone, more with the suite running
-  ['privateedition.test.js', 5],
+  ['fairgames.test.js', 237],
+  ['housecamera.test.js', 223],
+  ['folds.test.js', 128],
+  ['reefridelive.test.js', 118],
+  ['reeflabshow.test.js', 117],
+  ['gorge.test.js', 109],
+  ['foundwearfit.test.js', 87],
+  ['fightcamworld.pines.test.js', 86],
+  ['fightcamworld.moor.test.js', 81],
+  ['houseguards.test.js', 79],
+  ['catmodel.test.js', 73],
+  ['fightcamworld.test.js', 72],
+  ['walkon.test.js', 68],
+  ['farmjobs.test.js', 65],
+  ['catballoon.test.js', 64],
+  ['fightcamworld.river.test.js', 63],
+  ['builder.test.js', 63],
+  ['catnap.test.js', 63],
+  ['roofs.test.js', 56],
+  ['housebudget.test.js', 55],
+  ['bumps.test.js', 53],
+  ['marketlive.test.js', 53],
+  ['people.reach.test.js', 52],
+  ['dencats-den.test.js', 48],
+  ['fairshow.people.test.js', 47],
+  ['straycats.test.js', 47],
+  ['housegame.test.js', 42],
+  ['catdrape.test.js', 41],
+  ['budget.test.js', 38],
+  ['walkcast.test.js', 36],
+  ['dogs.test.js', 35],
+  ['holidaywear.test.js', 35],
+  ['housefinds.test.js', 33],
+  ['catface3.test.js', 31],
+  ['catcape.test.js', 30],
+  ['roofsbeampad.test.js', 29],
+  ['moonidlelive.test.js', 28],
+  ['groundsystems.test.js', 28],
+  ['moonguidelive.test.js', 28],
+  ['reeflabstory.test.js', 26],
+  ['farmsim.test.js', 26],
+  ['coopm5jungle.test.js', 26],
+  ['reeflab.test.js', 26],
+  ['housewonder.test.js', 25],
+  ['gorgelife.test.js', 25],
+  ['catrealposes.test.js', 24],
+  ['serieswords.world.test.js', 24],
+  ['scarmesh.test.js', 23],
+  ['catsitupright.items.test.js', 23],
+  ['moonrobots.test.js', 23],
+  ['stalktail.test.js', 22],
+  ['walkready.test.js', 22],
+  ['mergeprops.test.js', 21],
+  ['catcodes.test.js', 20],
+  ['wadingroutes.test.js', 20],
+  ['moonlaunchlive.test.js', 19],
+  ['pines.test.js', 19],
+  ['coopm5places.test.js', 19],
+  ['marketlive-hop.test.js', 18],
+  ['moonflowlive.test.js', 18],
+  ['areas.test.js', 18],
+  ['clancats.test.js', 18],
+  ['grass.test.js', 17],
+  ['straywater.test.js', 17],
+  ['catbackitems.test.js', 17],
+  ['moonroverlive.test.js', 16],
+  ['fightcam.test.js', 16],
+  ['ambient.test.js', 16],
+  ['greenhouserooms.test.js', 15],
+  ['waterdress.test.js', 15],
 ];
 
 export const HEAVY_TESTS = HEAVY_COST.map(([file]) => file);
 
-// Every other file, on average, in the same run (365 files, about 620 s).
+// Every other file, on average, in the same run (789 files, about 1.9 s each, 2026-11-27).
 export const LIGHT_COST = 2;
 
 const COST = new Map(HEAVY_COST);
