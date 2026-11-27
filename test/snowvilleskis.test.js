@@ -17,6 +17,7 @@ const D = await import('../src/world/snowvilledetailplan.js');
 const W = await import('../src/world/snowvillewingplan.js');
 const P = await import('../src/world/snowvilleplan.js');
 const Q = await import('../src/world/snowvillefindsplan.js');
+const { strayHomes } = await import('../src/world/snowvillestrays.js');
 
 const area = build(new THREE.Scene());
 const B = P.SNOWVILLE_BOUNDS;
@@ -44,6 +45,8 @@ describe('the plan', () => {
       for (const z of Object.values(Q.SNOWVILLE_FIND_ZONES).flat()) expect(Math.hypot(p.x - z.x, p.z - z.z)).toBeGreaterThan(z.r + 1.0);
       for (const m of [...Q.SNOWVILLE_GOLD, ...Q.SNOWVILLE_COLLECTIBLES]) expect(Math.hypot(p.x - m.x, p.z - m.z)).toBeGreaterThan(1.8);
     }
+    // the friendly strays at their homes (snowvillestrays.js): the lane and their roaming ground never meet
+    for (const h of strayHomes()) for (let s = 0; s <= K.SKI_LEN; s += 0.5) { const p = K.skiPos(s); expect(Math.hypot(p.x - h.x, p.z - h.z), `${h.id} at s ${s}`).toBeGreaterThan(h.roam + K.SKI_SPEC.laneHalf); }
     expect(Math.hypot(W.HILL_LANTERN.x - K.START.x, W.HILL_LANTERN.z - K.START.z)).toBeGreaterThan(8);
     expect(Math.hypot(W.SUMMIT.x - K.START.x, W.SUMMIT.z - K.START.z)).toBeGreaterThan(6);
   });

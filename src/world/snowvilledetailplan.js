@@ -28,7 +28,7 @@ const SPOTS = [
 /** The sled run's corridor is kept clear too: its corner points (the sled plan reads this same list, so the two never differ). */
 export const SLED_KEEP = f([[22.4, -15.2], [26.2, -13.2], [27.6, -10.2], [26.0, -7.2], [27.0, -3.8], [24.6, -0.6], [22.2, 1.4]]); // the sled run's corner points (snowvillesledplan.js smooths them)
 /** The ski slope's corridor on the hill's west flank is kept clear too (snowvilleskisplan.js smooths these corner points). */
-export const SKI_KEEP = f([[20.4, -27.4], [18.6, -24.4], [16.0, -21.4], [16.8, -18.2], [14.6, -15.2], [15.6, -12.2], [14.2, -9.8], [13.8, -8.4]]);
+export const SKI_KEEP = f([[20.4, -27.4], [18.6, -24.4], [16.0, -21.4], [13.8, -18.4], [11.8, -15.4], [11.4, -12.4], [12.6, -9.8], [13.0, -8.4]]);
 let _solid = null;
 const solids = () => (_solid ??= [...P.snowvilleColliders(), ...wingColliders()]);
 export function isOpen(x, z, clear = 1.2, placed = []) {

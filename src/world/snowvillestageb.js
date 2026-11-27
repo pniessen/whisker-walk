@@ -14,6 +14,7 @@ import { createSnowErrandLive } from './snowvillejoblive.js';
 import { strayHomes, createStrayNotes } from './snowvillestrays.js';
 import { createSledLive } from './snowvillesledlive.js';
 import { drawRun } from './snowvillesledparts.js';
+import { drawSkis } from './snowvilleskisparts.js';
 
 Object.assign(ST, {
   b: Object.freeze({
@@ -22,7 +23,7 @@ Object.assign(ST, {
     colliders: () => [...wingColliders(), ...detailColliders(), ...skiColliders()],
     perches: wingPerches,
     story: wingStory(),
-    draw: (kit, M, opts) => { drawWing(kit, M); drawDetail(kit, M, opts); drawRun(kit, M); }, // the wing's drawing and the round-two detail (houses, trees, notices, village)
+    draw: (kit, M, opts) => { drawWing(kit, M); drawDetail(kit, M, opts); drawRun(kit, M); drawSkis(kit, M); }, // the wing's drawing and the round-two detail (houses, trees, notices, village)
     wing: createWing,
     strayHomes, // four friendly cats at their own homes (round two)
     strayNotes: createStrayNotes,
