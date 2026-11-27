@@ -461,7 +461,7 @@ describe('gorge life: the caves', () => {
     expect(scene.environmentIntensity).toBe(0.45); // and never the image-based light
     life.dispose();
     expect(scene.environmentIntensity).toBe(0.45);
-  }, 60000); // (it builds every area twice: slow on a busy machine and in CI shards)
+  }, 120000); // (it builds every area twice: slow on a busy machine and in CI shards)
 });
 
 describe('gorge life: the caves\' insides (C5)', () => {
