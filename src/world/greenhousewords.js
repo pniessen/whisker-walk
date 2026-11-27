@@ -21,6 +21,10 @@ export const HINTS = Object.freeze({
 });
 
 export const LINES = Object.freeze({
+  // the arrival card on a first visit (world/greenhouseintro.js)
+  'greenhouse.intro1': 'Welcome to the Greenhouse! A warm, quiet garden under glass.',
+  'greenhouse.intro2': 'Look around: butterflies, a pond, rooms to explore.',
+  'greenhouse.intro3': 'Try the seed job at the potting bench and the watering job.',
   // the seed job: the gardener's lost packets, the count, the end, the seed tray's prompt and the sprouts
   'greenhouse.seed.offer': 'The gardener’s seed packets blew away! Five of them are lying about. 🌱',
   'greenhouse.seed.found': (n) => `A seed packet! ${n} of 5. 🌱`,

@@ -32,6 +32,9 @@ export const HINTS = Object.freeze({
 
 export const LINES = Object.freeze({
   // the story and the place (the spec's samples)
+  'moon.intro1': 'Welcome to the Moon! A little robot named Pip has been asleep by the lander.',
+  'moon.intro2': 'Wake him, then find two power cells and take them to the dome.',
+  'moon.intro3': 'Once the base is awake, you can send a postcard to Earth!',
   'moon.arrive': clan('Welcome to the Moon!', 'Welcome to the Moon! The stars are out.'),
   'moon.pip.wake': 'Beep! Hello!',
   'moon.pip.goal': 'Let’s say hello to Earth!',

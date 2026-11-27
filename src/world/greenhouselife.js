@@ -35,6 +35,7 @@ import * as G from './greenhouseglass.js';
 import { findAt, noteGreenhouseFind } from './greenhousefinds.js';
 import { createGreenhouseSound } from './greenhousesound.js';
 import './greenhousewords.js';
+import { createGreenhouseIntro } from './greenhouseintro.js';
 
 export const GH_SEED_SALT = 0x6e5d1;
 export const GH_WATER_SALT = 0x6e5d2;
@@ -171,6 +172,8 @@ export function createGreenhouseLife(ctx) {
     return null;
   }
 
+  const intro = createGreenhouseIntro({ progression, visits: ctx.visits ?? 0, state: () => ({ seeds, watered: wateredCount() }) }); // the first-visit arrival card
+
   return {
     get state() { return { seeds, seedState, held, watered: wateredCount(), thirsty: thirsty.slice(), set: set.map((s) => ({ ...s })), allWatered }; },
     get meshes() { return { packets, sprouts, can, pots: pots.map((p) => p.leaves), clouds: pots.map((p) => p.cloud) }; },
@@ -215,6 +218,7 @@ export function createGreenhouseLife(ctx) {
       if (shafts) shafts.rotation.z = G.shaftAngle(t, reducedMotion);
       for (const sh of roomShafts) sh.rotation.z = G.shaftAngle(t, reducedMotion);
       butterflies?.update(dt, t, catPos);
+      intro.update(dt);
       if (koi) koi.userData.koi.uTime.value = reducedMotion ? KOI_FROZEN_TIME : t;
 
       if (catPos) {
@@ -299,6 +303,7 @@ export function createGreenhouseLife(ctx) {
     },
     dispose() {
       disposed = true;
+      intro.dispose();
       sound?.dispose();
       if (sheltered) { sheltered = false; weather?.setSheltered(false); }
       for (const m of [...packets, sprouts, can, dropMesh, ...pots.map((p) => p.cloud)]) {
