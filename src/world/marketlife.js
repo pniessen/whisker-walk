@@ -274,6 +274,8 @@ export function createMarketLife(area, ctx = {}) {
   return {
     get musician() { return musician; },
     get sound() { return sound; },
+    // Couch play's cat two (src/coop/finds.js), once a frame: its spot, speed and mouth for the six missions; null when it leaves.
+    second(p, session = null) { errands?.second(p, session); },
     update(dt, t, catPos = null, camera = null, session = null) {
       if (disposed) return;
       musician?.update(t);
