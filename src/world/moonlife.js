@@ -35,13 +35,7 @@ import { pounceArc, hopOffset } from '../player.js';
 import { placeArc } from '../placephysics.js';
 import { createMoonSky } from './moonsky.js';
 import { createBaseLife } from './moonbaselive.js';
-import { createRoverLive } from './moonroverlive.js';
-import { createStarLive } from './moonstarlive.js';
-import { createLaunchLive } from './moonlaunchlive.js';
-import { createJumpLive } from './moonjumplive.js';
-import { createBoundLive } from './moonboundlive.js';
 import { createDeepLive } from './moondeeplive.js';
-import { createJobLive } from './moonjoblive.js';
 import { MOON_SPAWN, AIRLOCK, RETURN_GATE, DOME } from './moonplan.js';
 import { createCatRim } from './moonrim.js';
 import { IDLE, idleStart, nextIdleRing, idlePaused, progressMark } from './moonidle.js';
@@ -49,6 +43,8 @@ import { FINALE_LENGTH } from './moondeeplive.js';
 import { createGuideLive } from './moonguidelive.js';
 import { createMoonIntro } from './moonintro.js';
 import { createFlowLive } from './moonflowlive.js';
+import { ST, loadMoonStages } from './moonstages.js'; // the staged pieces (star hill, launch, rover): loaded before the walk starts
+if (import.meta.env?.VITEST) await loadMoonStages(); // tests that import this file alone get the whole Moon (a build drops this line)
 
 export const CAMERA_FOLLOW = 0.6; // the camera rises this much of a hop's height
 export const SKIP_HEIGHT = 0.1; // m, the bounce of one stride
@@ -116,20 +112,20 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
     beaconHold: () => { const fin = deepLive?.state.finale; return !!launch?.state.flight || (fin !== null && fin !== undefined && fin < FINALE_LENGTH); } });
   // (milestone 3) Dot: hop in at the depot, steer by the stick, hop out; she hooks the walk's session.fair on the first frame (moonroverlive.js)
   // (milestone 5) Star Hill: the telescope, the star pictures, the Old Dish's turn (moonstarlive.js); the rover's walk hook hands it the player each frame
-  const star = createStarLive({ scene, reducedMotion, ground, tier, audio, progression, doc, win });
+  const star = ST.createStarLive({ scene, reducedMotion, ground, tier, audio, progression, doc, win });
   // (milestone 6) the Launch Complex: the postcard, the rocket, the reply (moonlaunchlive.js); the rover's walk hook hands it the player each frame as well
-  launch = createLaunchLive({ scene, reducedMotion, ground, tier, audio, progression, log, doc, win, clock, pads, pip: base.pip, sky });
+  launch = ST.createLaunchLive({ scene, reducedMotion, ground, tier, audio, progression, log, doc, win, clock, pads, pip: base.pip, sky });
   // (milestone 7a) the course lamps and the hop board (moonjumplive.js)
   let bound = null; // (milestone 7b) made below: the board reads her height in the air from it
-  const jump = createJumpLive({ scene, reducedMotion, ground, audio, progression, doc, air: () => bound?.boundY ?? 0, onHop: (h) => job?.onHop(h) });
+  const jump = ST.createJumpLive({ scene, reducedMotion, ground, audio, progression, doc, air: () => bound?.boundY ?? 0, onHop: (h) => job?.onHop(h) });
   // (milestone 7b) the bound and the ring gates (moonboundlive.js; an inert stand-in when world/moonswitch.js is off); a lit ring counts the journal's Long Jump page with the board's
-  bound = createBoundLive({ scene, reducedMotion, ground, colliders, perches, audio, progression, count: () => jump.count() });
+  bound = ST.createBoundLive({ scene, reducedMotion, ground, colliders, perches, audio, progression, count: () => jump.count() });
   // (milestone 8) the Lava Tube's zone and the Deep Cell's bloom and finale (moondeeplive.js); the cell itself is the base's (moonbaselive.js)
   const deep = createDeepLive({ scene, reducedMotion, ground, audio, progression, sky, launch, pip: base.pip });
   deepLive = deep;
-  const rover = createRoverLive({ scene, reducedMotion, ground, colliders, perches, tier, audio, progression, onDismount: () => base.pip.rejoin(), onFrame: (dt, t, ctx) => { star.frame(dt, t, ctx); launch.frame(dt, t, ctx); } });
+  const rover = ST.createRoverLive({ scene, reducedMotion, ground, colliders, perches, tier, audio, progression, onDismount: () => base.pip.rejoin(), onFrame: (dt, t, ctx) => { star.frame(dt, t, ctx); launch.frame(dt, t, ctx); } });
   // (milestone 9) Pip's postcard of the day and the album (moonjoblive.js): after the rover, whose position it reads, and the star hill and the launch it asks things of
-  job = createJobLive({ scene, reducedMotion, ground, progression, log, audio, roomSeed, visits, boundOn, base, star, launch, rover });
+  job = ST.createJobLive({ scene, reducedMotion, ground, progression, log, audio, roomSeed, visits, boundOn, base, star, launch, rover });
   // (guide cues) the written guide: the goal line, the edge arrow and the words beside Pip's picture (moonguidelive.js); its own DOM, one goal (base.goal()) shared with the gold ring and light column
   const guide = createGuideLive({ doc, win, base, job, launch, star, deep, rover, progression, reducedMotion });
   // (story flow) the connective tissue: what comes next and why, the call-to-action pill by the rocket and the big red button (moonflowlive.js)

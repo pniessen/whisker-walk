@@ -62,7 +62,7 @@ const loaders = {
   // The Greenhouse (a catalog row, behind the gates switch, and the Park's archway since its milestone G4; ?greenhouse=1 stays a developer shortcut).
   greenhouse: () => import('./greenhouse.js').then((w) => own('greenhouse', w)),
   // The Moon (?moon=1 only: no catalog row, no gate; its milestone 0 is the seams and a bare plain).
-  moon: () => import('./moon.js').then((w) => own('moon', w)),
+  moon: () => Promise.all([import('./moon.js'), import('./moonstages.js').then((s) => s.loadMoonStages())]).then(([w]) => own('moon', w)),
   // The Reef (a catalog row, behind the gates switch, and the Seaside's rock cleft since its milestone R6; ?reef=1 stays a developer shortcut).
   reef: () => import('./reef.js').then((w) => own('reef', w)),
   // The Crystal Cave (?crystal=1 and a catalog row behind the gates switch; milestone C0 is the seams and a stub floor).
@@ -96,7 +96,7 @@ const entryModules = {
   house: Object.freeze(['src/world/house.js']),
   lighthouse: Object.freeze(['src/world/lighthouse.js']),
   greenhouse: Object.freeze(['src/world/greenhouse.js']),
-  moon: Object.freeze(['src/world/moon.js']),
+  moon: Object.freeze(['src/world/moon.js']), // stage A; the three later stages are MOON_STAGE_ENTRY_MODULES (scripts/buildjson.mjs), loaded with it by the loader above
   reef: Object.freeze(['src/world/reef.js']),
   crystal: Object.freeze(['src/world/crystal.js']),
 };
