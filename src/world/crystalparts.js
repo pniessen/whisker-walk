@@ -345,7 +345,46 @@ export function clusterGeometry(k, i) {
 }
 
 export function drawClusters(kit, M) {
-  P.scatterClusters().forEach((k, i) => { for (const g of clusterGeometry(k, i)) kit.put(`hue:${k.hue}`, M.hue[k.hue], g, { noCast: true, pulse: { hue: k.hue } }); });
+  P.scatterClusters().forEach((k, i) => { if (k.great) return; for (const g of clusterGeometry(k, i)) kit.put(`hue:${k.hue}`, M.hue[k.hue], g, { noCast: true, pulse: { hue: k.hue } }); });
+}
+
+// ---- the three great crystals: ONE mesh, each its own unlit and lit look ---------------------------------------------------------------
+// Unlit they are muted and a little grey with a faint inner glow; lit they are saturated and bright, breathing a little. The vertex shader mixes the two by
+// uLit (rose, sky, gold: 0 to 1, eased by the life) and uPulse, so the whole change is a pair of uniforms: no new light, no per-frame geometry.
+export const GREATS_UNLIT = Object.freeze({ grey: 0.5, dim: 0.5, glow: 0.07 });
+export function greatsMaterial() {
+  const mat = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const u = { uLit: { value: new THREE.Vector3(0, 0, 0) }, uPulse: { value: 0 } };
+  mat.userData.great = u;
+  mat.customProgramCacheKey = () => 'crystal-greats';
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uLit = u.uLit; sh.uniforms.uPulse = u.uPulse;
+    sh.vertexShader = sh.vertexShader
+      .replace('void main() {', 'attribute float aGreat;\nuniform vec3 uLit;\nuniform float uPulse;\nvoid main() {')
+      .replace('#include <color_vertex>', `#include <color_vertex>
+  vec3 selG = vec3(step(abs(aGreat), 0.5), step(abs(aGreat - 1.0), 0.5), step(abs(aGreat - 2.0), 0.5));
+  float litG = dot(selG, uLit);
+  float lumG = dot(vColor.rgb, vec3(0.3, 0.59, 0.11));
+  vec3 dullG = mix(vec3(lumG), vColor.rgb, ${GREATS_UNLIT.grey.toFixed(2)}) * ${GREATS_UNLIT.dim.toFixed(2)} + vColor.rgb * ${GREATS_UNLIT.glow.toFixed(2)};
+  vec3 brightG = mix(vec3(lumG), vColor.rgb, 1.25) * (1.14 + 0.1 * uPulse);
+  vColor.rgb = mix(dullG, brightG, litG);`);
+  };
+  return mat;
+}
+// drawGreats([{ k, i, g }]) -> the one mesh (g: 0 rose, 1 sky, 2 gold; i: the cluster's own seed, so the shapes are the ones always drawn)
+export function drawGreats(list) {
+  const parts = [];
+  for (const { k, i, g } of list) {
+    for (const geo of clusterGeometry(k, i)) {
+      geo.setAttribute('aGreat', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(g), 1));
+      parts.push(geo);
+    }
+  }
+  const m = new THREE.Mesh(mergeGeometries(parts), greatsMaterial());
+  m.name = 'crystal:greats';
+  m.castShadow = false; m.receiveShadow = false;
+  Object.assign(m.userData, { noCast: true, noContactShadow: true, noMerge: true });
+  return m;
 }
 
 // ---- rocks ---------------------------------------------------------------------------------------------------------------------

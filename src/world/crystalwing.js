@@ -184,12 +184,27 @@ export function createWing(ctx) {
     return p;
   }
 
+  // each passage wakes as its great crystal lights (rose lights the way to the pool, sky the way to the gold, gold the way to the Heart); all the way on once the passages light
+  const lampCol = lamps?.geometry?.attributes?.color ?? null;
+  const lampBase = lampCol ? Float32Array.from(lampCol.array) : null;
+  const lampPass = W.PASSAGES.flatMap((p, pi) => p.lamps.map(() => pi));
+  const lampEase = [0, 0, 0];
   function placeLamps(t, dt) {
     const want = rec().step >= M.STEP.lit ? 1 : 0;
     lampLevel += Math.sign(want - lampLevel) * Math.min(Math.abs(want - lampLevel), reducedMotion ? 1 : dt / 1.6);
-    if (lamps) {
-      lamps.visible = lampLevel > 0.001;
-      lamps.material.opacity = 0.9 * smooth(lampLevel) * (reducedMotion ? 1 : 0.85 + 0.15 * Math.sin(t * 2.6));
+    if (!lamps) return;
+    const gl = lumi.glows ?? [];
+    let any = lampLevel;
+    for (let pi = 0; pi < 3; pi++) {
+      const w = Math.max(smooth(gl[pi] ?? 0), smooth(lampLevel));
+      lampEase[pi] = reducedMotion ? w : lampEase[pi] + (w - lampEase[pi]) * Math.min(1, dt * 3);
+      any = Math.max(any, lampEase[pi]);
+    }
+    lamps.visible = any > 0.001;
+    lamps.material.opacity = 0.9 * (reducedMotion ? 1 : 0.85 + 0.15 * Math.sin(t * 2.6));
+    if (lampCol) { // additive: a lamp's colour scaled down is a lamp turned down
+      for (let i = 0; i < lampPass.length; i++) { const k = lampEase[lampPass[i]] * (reducedMotion ? 1 : 0.9 + 0.1 * Math.sin(t * 1.9 + i * 0.7)); for (let c = 0; c < 3; c++) lampCol.array[i * 3 + c] = lampBase[i * 3 + c] * k; }
+      lampCol.needsUpdate = true;
     }
   }
 

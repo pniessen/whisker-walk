@@ -122,10 +122,8 @@ function putSeams(kit, M, s, i) {
   }
 }
 
-// drawWing(kit, M) -> [the pool, the Heart, the lamps]: objects for the scene (the rest are in the kit)
+// drawWing(kit, M) -> [the pool, the Heart, the lamps, the three great crystals]: objects for the scene (the rest are in the kit)
 export function drawWing(kit, M) {
-  putCluster(kit, M, W.BLUE_GREAT, 100);
-  putCluster(kit, M, W.GOLD_GREAT, 101);
   W.POOL_RING.forEach((k, i) => putCluster(kit, M, k, 110 + i));
   W.GOLD_ROW.forEach((k, i) => putCluster(kit, M, k, 130 + i));
   W.HEART_RING.forEach((k, i) => putCluster(kit, M, k, 150 + i));
@@ -138,7 +136,9 @@ export function drawWing(kit, M) {
     const cap = K.paint(K.at(cyl(s.r * 0.7, s.r * 0.82, 0.08, 6).translate(0, s.h + 0.04, 0), s.x, s.z, 0, i), i % 2 ? 0xbfe6ff : 0xd2eeff);
     kit.put('hue:blue', M.hue.blue, cap, { noCast: true, pulse: { hue: 'blue' } });
   });
-  return [drawPool(), drawHeart(), drawPassageLamps()];
+  const rose = P.scatterClusters().findIndex((k) => k.great);
+  const greats = K.drawGreats([{ k: P.scatterClusters()[rose], i: rose, g: 0 }, { k: W.BLUE_GREAT, i: 100, g: 1 }, { k: W.GOLD_GREAT, i: 101, g: 2 }]);
+  return [drawPool(), drawHeart(), drawPassageLamps(), greats];
 }
 
 // the clusters wing B adds (for the floor's tint of coloured light: the great crystals pool their hue on the stone)
