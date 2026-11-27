@@ -432,6 +432,9 @@ export const CATALOG = {
     // The Reef (docs/superpowers/plans/2026-11-26-reef.md, R6): the same rule. Reached only by the Seaside's rock cleft at the pier foot
     // (src/teleport.js), free, after 2 Seaside walks, in both editions (no `edition` key); hidden while the gates switch is off.
     reef: { name: 'The Reef', price: 0, requires: { area: 'seaside', walks: 2 }, gate: 'tele' },
+    // The Moon (docs/superpowers/plans/2026-11-27-connect-and-areas-decisions.md, section 1): the same rule, reached by the Park's stone ring
+    // (src/teleport.js), free, after 2 Park walks, both editions; hidden while the gates switch is off.
+    moon: { name: 'The Moon', price: 0, requires: { area: 'park', walks: 2 }, gate: 'tele' },
     // The Crystal Cave (docs/superpowers/plans/2026-11-26-crystal-cave.md, C0): the same rule, reached by a Docks gate (milestone C6), free,
     // after 2 Docks walks, both editions; hidden while the gates switch is off.
     crystal: { name: 'The Crystal Cave', price: 0, requires: { area: 'docks', walks: 2 }, gate: 'tele' },

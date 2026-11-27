@@ -12,8 +12,8 @@ import { pickNext } from '../src/gamepadnavcore.js';
 
 const save = (walks = {}, edition = 'canon') => ({
   edition, points: 0,
-  walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, reef: 0, crystal: 0, ...walks },
-  unlocked: { cats: ['tabby'], accessories: [], areas: ['neighborhood', 'park', 'docks', 'seaside', 'reef', 'crystal'] },
+  walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, reef: 0, crystal: 0, moon: 0, ...walks },
+  unlocked: { cats: ['tabby'], accessories: [], areas: ['neighborhood', 'park', 'docks', 'seaside', 'reef', 'crystal', 'moon'] },
   equipped: { cat: 'tabby' }, area: 'neighborhood',
 });
 const find = (m, id) => m.regions.find((r) => r.id === id);
@@ -46,7 +46,7 @@ const gap = (a, b) => Math.max(b.x0 - a.x1, a.x0 - b.x1, b.y0 - a.y1, a.y0 - b.y
 describe('world map: gate place circles (I1)', () => {
   it('a circle shows only once she has walked the place', () => {
     setTele(true);
-    for (const id of ['reef', 'crystal']) {
+    for (const id of ['reef', 'crystal', 'moon']) {
       expect(find(worldMapModel(save(), CATALOG), id), `${id} unwalked`).toBeUndefined();
       expect(find(worldMapModel(save({ [id]: 1 }), CATALOG), id), `${id} walked`).toMatchObject({ kind: 'gate', areaId: id, owned: true });
       expect(find(worldMapModel(save({ [id]: 5 }), CATALOG), id)).toBeTruthy();
@@ -63,29 +63,31 @@ describe('world map: gate place circles (I1)', () => {
     setTele(true);
     const m = worldMapModel(save(), CATALOG);
     expect(tapTargets(m).some((t) => t.areaId === 'reef' || t.areaId === 'crystal')).toBe(false);
-    expect(renderWorldMapHtml(m)).not.toMatch(/reef|crystal/i);
+    expect(renderWorldMapHtml(m)).not.toMatch(/reef|crystal|moon/i);
     setTele(false);
-    const off = worldMapModel(save({ reef: 3, crystal: 3 }), CATALOG);
+    const off = worldMapModel(save({ reef: 3, crystal: 3, moon: 3 }), CATALOG);
     expect(off.regions.some((r) => r.kind === 'gate')).toBe(false);
   });
 
   it('both editions, both word sets', () => {
     setTele(true);
     for (const edition of ['canon', 'legacy']) {
-      const m = worldMapModel(save({ reef: 1, crystal: 1 }, edition), CATALOG);
+      const m = worldMapModel(save({ reef: 1, crystal: 1, moon: 1 }, edition), CATALOG);
       expect(find(m, 'reef').name, edition).toBe('The Reef');
       expect(find(m, 'crystal').name, edition).toBe('The Crystal Cave');
+      expect(find(m, 'moon').name, edition).toBe('The Moon');
     }
     withOffWords(() => {
-      const html = renderWorldMapHtml(worldMapModel(save({ reef: 1, crystal: 1 }), CATALOG));
+      const html = renderWorldMapHtml(worldMapModel(save({ reef: 1, crystal: 1, moon: 1 }), CATALOG));
       expect(html).toContain('The Reef');
       expect(html).toContain('The Crystal Cave');
+      expect(html).toContain('The Moon');
     });
   });
 
   it('placement: inside the world, every circle at least 46 (92 across), clear of every other circle, the star and the roads', () => {
     setTele(true);
-    const m = worldMapModel(save({ reef: 1, crystal: 1 }), CATALOG);
+    const m = worldMapModel(save({ reef: 1, crystal: 1, moon: 1 }), CATALOG);
     for (const p of GATE_PLACES) {
       const me = find(m, p.id);
       expect(me.r).toBeGreaterThanOrEqual(46);
@@ -98,7 +100,8 @@ describe('world map: gate place circles (I1)', () => {
   });
 
   it('the Reef is out in the sea, east of the whole coast; the Crystal Cave is by the Docks', () => {
-    const [reef, crystal] = GATE_PLACES;
+    const [reef, crystal, moon] = GATE_PLACES;
+    expect(moon.y - moon.r).toBeLessThan(40); // the Moon is in the top margin
     for (const [px] of COAST) expect(px, 'coast').toBeLessThan(reef.x - reef.r);
     const docks = { x: 900, y: 770 };
     expect(dist(crystal.x, crystal.y, docks.x, docks.y)).toBeLessThan(220);
@@ -106,8 +109,8 @@ describe('world map: gate place circles (I1)', () => {
 
   it('hit targets: never under 44 px at the zoom-out floor, and the floor does not move', () => {
     setTele(true);
-    const t = tapTargets(worldMapModel(save({ reef: 1, crystal: 1 }), CATALOG));
-    expect(t).toHaveLength(tapTargets(worldMapModel(save(), CATALOG)).length + 2);
+    const t = tapTargets(worldMapModel(save({ reef: 1, crystal: 1, moon: 1 }), CATALOG));
+    expect(t).toHaveLength(tapTargets(worldMapModel(save(), CATALOG)).length + 3);
     expect(Math.min(...t.map((x) => 2 * x.r))).toBe(92);
     const floor = minScaleFor(t);
     for (const x of t) expect(2 * x.r * floor).toBeGreaterThanOrEqual(MIN_TARGET_PX - 1e-9);
@@ -116,7 +119,7 @@ describe('world map: gate place circles (I1)', () => {
 
   it('markup: a labelled button with its own land, icon and anchor', () => {
     setTele(true);
-    const html = renderWorldMapHtml(worldMapModel(save({ reef: 1, crystal: 1 }), CATALOG));
+    const html = renderWorldMapHtml(worldMapModel(save({ reef: 1, crystal: 1, moon: 1 }), CATALOG));
     expect(html).toContain('data-dr-map-place="reef" data-x="1415" data-y="690"');
     expect(html).toContain('data-dr-map-place="crystal" data-x="710" data-y="810"');
     expect(html).toContain('fill="#9fd6dc"');
@@ -125,9 +128,9 @@ describe('world map: gate place circles (I1)', () => {
 
   it('a tap gives the normal place card, and "Go" starts the place (no purchase for a free place)', () => {
     setTele(true);
-    const s = save({ reef: 1, crystal: 1 });
+    const s = save({ reef: 1, crystal: 1, moon: 1 });
     const m = worldMapModel(s, CATALOG);
-    for (const id of ['reef', 'crystal']) {
+    for (const id of ['reef', 'crystal', 'moon']) {
       const card = placeCardFor(m, id);
       expect(card, id).toBeTruthy();
       expect(JSON.stringify(card)).not.toMatch(/Get it\?/);
@@ -137,7 +140,7 @@ describe('world map: gate place circles (I1)', () => {
 
   it('pad hops reach both circles from the town and back', () => {
     setTele(true);
-    const m = worldMapModel(save({ reef: 1, crystal: 1 }), CATALOG);
+    const m = worldMapModel(save({ reef: 1, crystal: 1, moon: 1 }), CATALOG);
     const boxes = [
       ...m.regions.map((r) => ({ id: r.id, rect: { x: r.x - r.r, y: r.y - r.r, w: 2 * r.r, h: 2 * r.r } })),
       { id: 'island', rect: { x: m.star.x - ISLAND_HIT_R, y: m.star.y - ISLAND_HIT_R, w: 2 * ISLAND_HIT_R, h: 2 * ISLAND_HIT_R } },
@@ -159,12 +162,12 @@ describe('world map: gate place circles (I1)', () => {
   it('the words of each circle stay in the world and clear every other place\'s words and circle, in both word sets and both states', () => {
     setTele(true);
     const check = () => {
-      for (const walks of [{ reef: 1, crystal: 1 }, { reef: 1, crystal: 1, seaside: 2, docks: 2 }]) {
+      for (const walks of [{ reef: 1, crystal: 1, moon: 1 }, { reef: 1, crystal: 1, moon: 1, seaside: 2, docks: 2 }]) {
         const s = save(walks);
         s.area = 'reef';
         const m = worldMapModel(s, CATALOG);
         const html = renderWorldMapHtml(m);
-        for (const id of ['reef', 'crystal']) {
+        for (const id of ['reef', 'crystal', 'moon']) {
           const me = find(m, id);
           for (const a of rowsOf(html, id)) {
             expect(a.x0, `${id} ${a.words}`).toBeGreaterThanOrEqual(0);
