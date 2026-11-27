@@ -129,6 +129,8 @@ export function woodsFloorTint(trees, clearing, { edge = null } = {}) {
 const NEEDLE = [1.65, 0.66, 0.44];
 const PINE_MOSS = [0.86, 1.14, 0.84];
 const NEEDLE_SHADE = 1;
+const NEEDLE_DRIFT = [1.3, 0.8, 0.6]; // a lighter, tawnier litter than the beds' rust
+const SUN_POOL = [1.12, 1.08, 0.88]; // a patch of sun on the open floor
 
 // Where the Pines' moss patches lie, 0-1: a broad noise field (seed 113, 9 m
 // waves). The ground tint paints its green from it and pines.js lays its moss
@@ -143,9 +145,18 @@ export const pinesMossField = (x, z) => smoothstep(0.25, 0.65, smoothField(x, z,
 export function pinesFloorTint(trees, { edge = null, plain = [] } = {}) {
   return (x, z) => {
     const shade = canopyShade(trees, x, z);
+    // beauty PIN-1: needle drifts lie further out than the canopy's shade
+    // (wobbly litter, lighter than the beds), a darker and a paler needle tone
+    // wander through them, and sun pools warm the open ground between.
+    // Vertex colour only: no triangles.
+    const litter = litterDepth(trees, x, z, { outer: 2.6 }) * (1 - shade);
+    const drift = smoothField(x, z, 127, 2.1);
     let m = lerp3(ONE, NEEDLE, shade * NEEDLE_SHADE);
-    const moss = pinesMossField(x, z) * (1 - shade);
+    m = mul3(m, lerp3(ONE, NEEDLE_DRIFT, litter * (0.45 + 0.45 * drift)));
+    const moss = pinesMossField(x, z) * (1 - Math.max(shade, litter * 0.7));
     m = mul3(m, lerp3(ONE, PINE_MOSS, moss));
+    const pool = smoothstep(0.35, 0.7, smoothField(x, z, 139, 6)) * (1 - Math.max(shade, litter));
+    m = mul3(m, lerp3(ONE, SUN_POOL, pool));
     let k = 1;
     if (edge != null) k *= 1 - smoothstep(edge - 8, edge - 1, Math.max(Math.abs(x), Math.abs(z)));
     for (const d of plain) k *= smoothstep(d.r, d.r + 1.5, Math.hypot(x - d.x, z - d.z));

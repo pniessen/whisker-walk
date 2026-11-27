@@ -20,6 +20,7 @@ import { addCamp } from './camp.js';
 import { withLocalUuids } from './localuuids.js';
 import { DISCS } from '../rivalclans.js';
 import { tintGround, once } from './dressing.js';
+import { addPinesShafts, pinesShaftPlan } from './pinesshafts.js';
 import { forestFloorMesh, pinesFloorTint, pinesMossField, canopyShade } from './forestfloor.js';
 import { standingStoneData, lightningStumpData, frogStoneData, fillGeometry } from './pineslandmarks.js';
 import { growOn } from '../grow.js';
@@ -1022,6 +1023,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // perches keep their order; wholly under local uuids, so the build's
   // Math.random draws are the same with the switch on.
   let standFade = null;
+  let shafts = null;
   if (G) {
     // The core's scatter, tagged to stream (world/streamcore.js): the swaying
     // pines, the ferns and the reeds (the fine layer: a fern is 91 triangles,
@@ -1037,6 +1039,13 @@ export function build(scene, { water = {}, wind } = {}) {
     const strips = grow.addPinesStrips(scene, { groundMesh, water, wind });
     waterFx.push(...strips.waterFx);
     standFade = strips.stand;
+    // Beauty PIN-1: the sun shafts, one more strip object (local uuids, so no
+    // Math.random draw moves; none with the switch off, which keeps the old Pines)
+    shafts = withLocalUuids('pines-shafts', () => addPinesShafts(scene, pinesShaftPlan(
+      (x, z) => floorFits(x, z, []),
+      (() => { const { near, stand } = placedPines(); return [...near, ...stand]; })(),
+    )));
+    if (shafts) shafts.mesh.userData.strip = 'strips';
     for (const c of [...grow.stripPineColliders(), ...north.NORTH_COLLIDERS, ...west.WEST_COLLIDERS]) addC(c.x, c.z, c.r);
     perches.push(...north.NORTH_PERCHES, ...west.WEST_PERCHES);
   }
@@ -1081,7 +1090,15 @@ export function build(scene, { water = {}, wind } = {}) {
     keepOut: PINES_KEEP_OUT,
     // Bigger areas: the strips' still stand fades tree by tree as the core's
     // does (pinesstrips.js createStandFade), run by walk.js once a walk.
-    ...(standFade ? { life: (ctx) => grow.createStandFade(scene, standFade, { reducedMotion: ctx?.reducedMotion }) } : {}),
+    // Beauty PIN-1: the sun shafts' life (LOW/LITE hide them, reduced motion holds them) beside the stand fade's.
+    ...(standFade || shafts ? { life: (ctx) => {
+      const parts = [standFade ? grow.createStandFade(scene, standFade, { reducedMotion: ctx?.reducedMotion }) : null, shafts ? shafts.life(ctx) : null].filter(Boolean);
+      return {
+        ...Object.assign({}, ...parts),
+        update: (...a) => { for (const p of parts) p.update?.(...a); },
+        dispose: () => { for (const p of parts) p.dispose?.(); },
+      };
+    } } : {}),
   };
 }
 
