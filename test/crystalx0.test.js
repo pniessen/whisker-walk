@@ -129,7 +129,7 @@ describe('the prompt arbiter and the stages', () => {
     const a = S.loadCrystalStages();
     expect(S.loadCrystalStages()).toBe(a);
     await a;
-    expect(Object.keys(S.ST).sort()).toEqual(['play', 'wingc']);
+    expect(Object.keys(S.ST).sort()).toEqual(['grotto', 'play', 'wingc']); // (grotto: the C2 grotto and forge shell, filled by crystalgrottostage.js)
     expect(S.CRYSTAL_STAGE_MODULES).toHaveLength(2);
   });
 });
