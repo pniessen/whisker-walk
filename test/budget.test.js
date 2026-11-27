@@ -588,7 +588,10 @@ const AREAS = [
   // mesh), +12%: 9 / 4 / 28,600. The plan's stage figures (about 30,000 triangles for A and B together) hold. The lantern glows, candles, window halos, strings of lights, fireflies, sloth, rain
   // and rainbow are the walk's life, not in this count.
   ['jungle', buildJungle, 9, 4, 28600],
-  ['snowville', buildSnowville, 6, 3, 21500],
+  // Milestone V8 (2026-11-27, the beauty pass: sixteen holly-and-snow shrub clumps, four woodpiles, four crate-and-barrel corners, icicles and a wreath at every cottage, two strings of
+  // pennants and a 28-peak far ridge, all in the merged buckets plus the ridge's own non-casting bucket (the 6 / 3 draw caps held: the ridge shares the treeline's slot); the ground's new
+  // tones are per-vertex colour, no triangle) measured 6 / 3 / 27,905 built (+8,739 triangles), +12%: 6 / 3 / 31,300.
+  ['snowville', buildSnowville, 6, 3, 31300],
   // Milestone R2 (Marlo and chapter one) adds only the coral ledge (no mesh more; about 200 triangles measured on top of R3: 7 / 2 / 10,700). Marlo, the shells, their glints, the picture bubble, the meow's ring and the air pockets are the walk's life, counted in test/reefmarlo.test.js
 ];
 

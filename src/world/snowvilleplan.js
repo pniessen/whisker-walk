@@ -117,6 +117,9 @@ export const HEARTH = Object.freeze({ x: -1.5, z: 3, r: 3.2 }); // the village h
 // Places that warm her cheeks (themed only; src/world/snowvillewarmth.js): [x, z, r].
 export const WARM_SPOTS = Object.freeze([[BRAZIER.x, BRAZIER.z, 3.4], [STALL.x - 1.2, STALL.z, 3.2], [HEARTH.x, HEARTH.z, HEARTH.r]].map((k) => Object.freeze(k)));
 
+// Door hues by zone (the beauty pass, V8): the gate court's two are teal, the square's red and gold, the west and north rows each their own.
+export const DOOR_HUE = Object.freeze({ baker: 0xc8483f, west1: 0x3f7f9a, west2: 0xd69a2e, east1: 0x7a4a8a, north1: 0x3f8a6a, gate1: 0x2f8f8a, gate2: 0x2f8f8a });
+
 // ---- where nothing small may stand -------------------------------------------------------------------------------------------
 // Round the spawn, the arch, every zone's middle and what later milestones put down (Tilly's spot, the three lanterns' feet, the three candles, the four found-scarf spots
 // and the three golden mice are all within these), and a margin at the walk's edge. [x, z, r].
@@ -128,7 +131,7 @@ export const KEEP_OUT = Object.freeze([
   [BRAZIER.x, BRAZIER.z, 2.5], [STALL.x, STALL.z, 3.4],
 ].map((k) => Object.freeze(k)));
 
-function clearOf(x, z, extra = 0) {
+export function clearOf(x, z, extra = 0) {
   for (const [kx, kz, kr] of KEEP_OUT) if (Math.hypot(x - kx, z - kz) < kr + extra) return false;
   for (const c of COTTAGES) if (Math.hypot(x - c.x, z - c.z) < Math.hypot(c.w, c.d) / 2 + 1 + extra) return false;
   const m = 2.5;
