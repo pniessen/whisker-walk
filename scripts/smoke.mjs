@@ -11,7 +11,7 @@
 // The whole check retries until the deadline, because the Pages CDN can lag.
 import { pathToFileURL } from 'node:url';
 
-const MIN_ASSET_BYTES = 100;
+const MIN_ASSET_BYTES = 50; // an empty stage chunk (a stage slot not built yet) is about 90 bytes; a cut-off or blank file is far less
 
 // Every URL the HTML pulls in that must exist: <script src>, and <link> with
 // rel stylesheet / modulepreload / manifest. Inline scripts are skipped.
