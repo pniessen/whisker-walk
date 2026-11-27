@@ -203,12 +203,12 @@ export function createStoryCard({ doc = globalThis.document, win = globalThis.wi
   const toggle = () => (live.open ? close() : open());
   ok.addEventListener?.('click', close);
 
-  // E or Enter closes it (a mouse-locked player cannot click); B opens it again during a walk (not while the pause card is up, not while typing)
+  // E, Enter or Escape closes it (a mouse-locked player cannot click); B opens it again during a walk (not while the pause card is up, not while typing)
   const onKey = (e) => {
     if (gone || e.repeat) return;
     const typing = /^(INPUT|TEXTAREA)$/.test(doc.activeElement?.tagName || '');
     if (typing) return;
-    if (live.open && (e.code === 'KeyE' || e.code === 'Enter')) close();
+    if (live.open && (e.code === 'KeyE' || e.code === 'Enter' || e.code === 'Escape')) close();
     else if (e.code === 'KeyB' && !doc.querySelector?.('#btn-resume')) toggle();
   };
   doc.addEventListener?.('keydown', onKey);

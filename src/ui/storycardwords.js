@@ -140,7 +140,7 @@ export const CLAN_LINES = Object.freeze({
   moon: { done: ['Earth answered your postcard, and Silverpelt shines beside it! The story is done.', 'Pip has an errand for you each walk.'] },
 });
 
-export const BUTTONS = Object.freeze({ ok: 'OK', openLabel: 'Story so far', footerKeys: 'Press E to close', footerPad: 'Press a button to close' });
+export const BUTTONS = Object.freeze({ ok: 'OK', openLabel: 'Story so far', footerKeys: 'Press E or Esc to close', footerPad: 'Press a button to close' });
 
 // The lines of one chapter in the set in use. Read WHEN SHOWN (never kept), so a change of words shows at once.
 export function chapterLines(place, key) {

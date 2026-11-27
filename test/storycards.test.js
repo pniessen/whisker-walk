@@ -221,12 +221,13 @@ describe('the card on a walk', () => {
     const c = createStoryCard({ doc: p.doc, win: p.win, place: 'moon', progression: prog('moon', rec('moon', { step: 2, cells: 1 })), visits: 1 });
     expect(c.els.card.children[1].children[1].textContent).toContain('1 of 2');
   });
-  it('closes with E, Enter or a pad button; the pad\'s Select opens it; B does nothing under the pause card', () => {
+  it('closes with E, Enter, Escape or a pad button; the pad\'s Select opens it; B does nothing under the pause card', () => {
     const p = page();
     const nav = pad([]);
     const c = createStoryCard({ doc: p.doc, win: p.win, nav, place: 'reef', progression: prog('reef'), visits: 0 });
     p.key('KeyE'); expect(c.isOpen()).toBe(false);
     c.open(); p.key('Enter'); expect(c.isOpen()).toBe(false);
+    c.open(); p.key('Escape'); expect(c.isOpen()).toBe(false);
     c.open();
     c.update(0.1);
     c.update(0.1); expect(c.isOpen()).toBe(true);
