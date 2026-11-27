@@ -27,11 +27,11 @@ export const DEEP_CLEARS = f([HALL_CLEAR, NOOK_CLEAR]);
 
 // ---- the prisms and the door -----------------------------------------------------------------------------------------------------------------
 // Faces 0 rose, 1 blue, 2 gold; the shape is the same index (0 circle, 1 diamond, 2 star), so colour alone is never the clue. DOOR_PATTERN is what the drawn door shows
-// until the prism rules (C1, wired in C3) say otherwise: stand i must show face DOOR_PATTERN[i].
+// stand i must show face DOOR_PATTERN[i].
 export const FACES = f(['rose', 'blue', 'gold']);
 export const SHAPES = f(['circle', 'diamond', 'star']);
 export const FACE_COLOURS = f([0xff6fa8, 0x62b8ff, 0xffc65a]);
-export const DOOR_PATTERN = f([0, 1, 2]);
+export const DOOR_PATTERN = f([1, 2, 0]); // the same as the prism puzzle target (crystaldeepprism.js TARGET; a test holds them equal)
 export const STANDS = f([f({ x: -30.4, z: -26, i: 0 }), f({ x: -25.6, z: -26, i: 1 }), f({ x: -28, z: -28.2, i: 2 })]);
 export const DOOR = f({ x: -28, z: -30.8, h: 2.3, w: 1.3 });
 export const NEST = f({ x: -31, z: -28, w: 1.7, d: 1.5, h: 0.9, reachFrom: f({ x: -29.4, z: -27.2 }) });
@@ -67,6 +67,31 @@ export const NOOK_COLLIDERS = f([...NOOK_PILLARS, f({ x: PEDESTAL.x, z: PEDESTAL
 
 export const deepColliders = () => [...HALL_WALLS, ...PASSAGE_WALLS, ...STAND_COLLIDERS, ...DOOR_COLLIDERS, ...NEST_COLLIDERS, ...NOOK_COLLIDERS].map((c) => ({ ...c }));
 export const deepPerches = () => [{ ...NEST_PERCH }];
+
+// ---- the singing wall (C3): a slab across the passage mouth, closed until the welcome phrase is echoed; its plug of two circles is added to the live colliders while it is closed ----
+export const WALL = f({ x: -28, z: -21.3, w: 3.0, h: 1.9, d: 0.6, reach: 3.2 });
+export const WALL_PLUG = f([f({ x: r2(WALL.x - 0.6), z: WALL.z, r: 0.75 }), f({ x: r2(WALL.x + 0.6), z: WALL.z, r: 0.75 })]);
+// the singing chamber pads, copied in small (so the deep stage shares no chunk with the song stage; a test holds them equal to crystalsongplan.js)
+export const CH = f({ x: -27, z: -16 }); // the chamber middle
+export const PAD_COUNT = 7;
+export const PAD_TRIGGER = 0.72;
+export const PADS = f(Array.from({ length: PAD_COUNT }, (_, i) => { const a = -1.485 + (i * Math.PI * 2) / PAD_COUNT; return f({ i, x: r2(CH.x + Math.cos(a) * 2.9), z: r2(CH.z + Math.sin(a) * 2.9) }); }));
+export const PAD_FREQS = f([0, 2, 4, 7, 9, 12, 14].map((s) => r2(392 * 2 ** (s / 12))));
+/** The pad she stands on (the nearest within PAD_TRIGGER), or -1. */
+export function padAt(x, z) {
+  let best = -1;
+  let bd = PAD_TRIGGER;
+  for (const p of PADS) { const d = Math.hypot(x - p.x, z - p.z); if (d <= bd) { bd = d; best = p.i; } }
+  return best;
+}
+export const STAND_REACH = 1.6;
+/** The prism stand nearest to (x, z) within STAND_REACH, or -1. */
+export function standAt(x, z) {
+  let best = -1;
+  let bd = STAND_REACH;
+  for (const s of STANDS) { const d = Math.hypot(x - s.x, z - s.z); if (d <= bd) { bd = d; best = s.i; } }
+  return best;
+}
 
 // Every solid or drawn piece footprint as [x, z, r]: what the tests keep clear of the finds, the mice, the stones, Lumi, the arch, the pool and the wander points.
 export const footprint = () => [[HALL.x, HALL.z, HALL.r + 0.4], [NOOK.x, NOOK.z, NOOK.pillarGap + 0.6]];

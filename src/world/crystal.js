@@ -93,7 +93,7 @@ export function build(scene) {
         const wingLife = createWing({ scene: ctx.scene, lumi, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
         const finds = createCrystalFindsLife(ctx); // the six discoveries (milestone C3)
         const grotto = ST.grotto?.life(ctx) ?? null; // wing C's grotto and forge shell (C2)
-        const deep = ST.deep?.life?.(ctx) ?? null; // the Echo Deep's hall shell (second story C2, behind ?deep=1)
+        const deep = ST.deep?.life?.({ ...ctx, colliders: area.colliders }) ?? null; // the Echo Deep's hall shell (second story C2, behind ?deep=1)
         const song = ST.play?.createSong?.(ctx) ?? null; // wing C's singing chamber (C5): the pads, the tunes
         const critters = createCrystalCritters(ctx); // glow-bugs, dust, drips (milestone C4)
         const sound = createCrystalSound(ctx); // the hum, the plinks, the crystals' notes
@@ -111,7 +111,7 @@ export function build(scene) {
         const cart = ST.play?.createCartLive?.({ scene: ctx.scene, ground: area.ground, player: ctx.player, reducedMotion: ctx.reducedMotion, tier: ctx.tier, progression: ctx.progression }) ?? null;
         forgeJob = ST.wingc?.createForgeJobLive?.({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, log: ctx.log, send: ctx.sendEvent, isRiding: () => !!river?.riding || !!cart?.riding, errand }) ?? null; // C3: the forge job
         const riding = { promptAt: (p) => (river?.riding ? river.promptAt(p) : cart?.riding ? cart.promptAt(p) : null), interact: () => river?.interact() ?? cart?.interact() ?? null };
-        const arbiter = createPromptArbiter([riding, lumi, errand, wingLife, slot(() => river), slot(() => cart), slot(() => forgeJob), slot(() => ST.play?.pads), slot(() => ST.deep)]);
+        const arbiter = createPromptArbiter([riding, lumi, errand, wingLife, slot(() => river), slot(() => cart), slot(() => forgeJob), slot(() => ST.deep), slot(() => ST.play?.pads)]);
         return {
           light,
           critters,

@@ -112,13 +112,11 @@ export function deepGeometries(rung = 'high') {
     const a = (deg * Math.PI) / 180;
     solid.push(put(crystal(D.FACE_COLOURS[i % 3], 0.16 + 0.1 * wob(i, 6), 0.55 + 0.5 * wob(i, 7)), H.x + Math.cos(a) * 4.15, H.z + Math.sin(a) * 4.15, -0.05));
   }
-  // the three prism stands: a stone base, a three-faced prism (one face rose, one blue, one gold) and the emblem of the colour the door asks for, glowing above
+  // the three prism stands: a stone base and the emblem (shape and colour) of the face the door asks for, glowing above; the three-faced prisms themselves are moving pieces (below)
   for (const s of D.STANDS) {
     solid.push(put(shade(new THREE.CylinderGeometry(0.4, 0.46, 0.42, 8).translate(0, 0.21, 0), flat(STONE_LIGHT)), s.x, s.z));
-    const pr = new THREE.CylinderGeometry(0.3, 0.3, 0.85, 3, 1, false).translate(0, 0.85, 0);
-    solid.push(put(shade(pr, (x, y, z) => { const f = Math.floor(((Math.atan2(x, z) + Math.PI) / (Math.PI * 2)) * 3 + 0.5) % 3; return _a.setHex(D.FACE_COLOURS[f]).multiplyScalar(0.8 + 0.2 * Math.min(1, (y - 0.4) / 0.9)); }), s.x, s.z));
     const want = D.DOOR_PATTERN[s.i];
-    glow.push(shade(put(emblem(s.i, 0.2).translate(0, 1.65, 0), s.x, s.z), flat(D.FACE_COLOURS[want], -0.02)));
+    glow.push(shade(put(emblem(want, 0.2).translate(0, 1.65, 0), s.x, s.z), flat(D.FACE_COLOURS[want], -0.02)));
     glow.push(glowDisc(s.x, s.z, 1.15, D.FACE_COLOURS[want], 0.3, 0.06, 3, 14));
   }
   // the door-crystal: two tall crystals leaning together over a stone base, three sockets (emblem and colour each) on its face
@@ -126,7 +124,7 @@ export function deepGeometries(rung = 'high') {
   solid.push(put(shade(new THREE.BoxGeometry(Dr.w + 0.5, 0.35, 0.8).translate(0, 0.17, 0), flat(STONE_LIGHT)), Dr.x, Dr.z));
   solid.push(put(crystal(0xc9a8ff, 0.5, Dr.h).rotateZ(0.08).translate(-0.4, 0.3, 0), Dr.x, Dr.z));
   solid.push(put(crystal(0xa890f0, 0.45, Dr.h - 0.4).rotateZ(-0.1).translate(0.45, 0.3, 0), Dr.x, Dr.z));
-  for (let i = 0; i < 3; i++) glow.push(shade(put(emblem(i, 0.13).translate(-0.45 + i * 0.45, 1.05, 0.55), Dr.x, Dr.z), flat(D.FACE_COLOURS[D.DOOR_PATTERN[i]], -0.02)));
+  for (let i = 0; i < 3; i++) glow.push(shade(put(emblem(D.DOOR_PATTERN[i], 0.13).translate(-0.45 + i * 0.45, 1.05, 0.55), Dr.x, Dr.z), flat(D.FACE_COLOURS[D.DOOR_PATTERN[i]], -0.02)));
   glow.push(glowDisc(Dr.x, Dr.z + 0.6, 1.8, 0xc9a8ff, 0.3, 0.06, 3, 14));
   // the nest of Tink: a stone ledge (one hop, 0.9 m), a ring of dry grass and a soft pad on it
   const N = D.NEST;
@@ -149,7 +147,31 @@ export function deepGeometries(rung = 'high') {
   glow.push(glowDisc(K.x, K.z, 2.6, 0xffc4e0, 0.3, 0.06, 4, 16));
   // the own pool of the hall of soft light, over the whole floor
   glow.push(glowDisc(H.x, H.z, 4.4, 0xb89cff, 0.26, 0.05, 5, low ? 16 : 24));
-  return { solid: mergeGeometries(solid), glow: mergeGeometries(glow) };
+  // ---- the moving pieces, LAST in each merged mesh (their vertex ranges are rewritten in place by crystaldeepwalllive.js; nothing is added to the draw count) ------------------------
+  const count = (list) => list.reduce((n, g) => n + g.attributes.position.count, 0);
+  const dyn = { wall: null, prisms: [], pads: [], rings: [], door: null };
+  // the singing wall: a slab across the passage mouth that sinks into the floor when it opens
+  const Wl = D.WALL;
+  const slab = put(shade(new THREE.BoxGeometry(Wl.w, Wl.h, Wl.d).translate(0, Wl.h / 2 - 0.05, 0), (x, y) => _a.setHex(STONE).lerp(new THREE.Color(STONE_LIGHT), Math.min(1, Math.max(0, y / Wl.h)) * 0.6)), Wl.x, Wl.z);
+  dyn.wall = { start: count(solid), count: slab.attributes.position.count, base: slab.attributes.position.array.slice() };
+  solid.push(slab);
+  // the three prisms: a three-sided post (each side one face colour) and a pale cap; face f turns to the front when the post is yawed by -f thirds of a turn
+  for (const s of D.STANDS) {
+    const sides = [0, 1, 2].map((k) => shade(new THREE.PlaneGeometry(0.52, 0.8).translate(0, 0, 0.15).rotateY((k * Math.PI * 2) / 3).translate(0, 0.85, 0), flat(D.FACE_COLOURS[k], 0)));
+    const cap = shade(new THREE.CylinderGeometry(0.3, 0.3, 0.04, 3).rotateY(Math.PI / 3).translate(0, 1.27, 0), flat(0xfff3d8));
+    const post = mergeGeometries([...sides, cap]);
+    const piece = { start: count(solid), count: post.attributes.position.count, x: s.x, z: s.z, y: crystalY(s.x, s.z), pos: post.attributes.position.array.slice(), nor: post.attributes.normal.array.slice() };
+    post.translate(s.x, piece.y, s.z);
+    dyn.prisms.push(piece);
+    solid.push(post);
+  }
+  const solidGeo = mergeGeometries(solid);
+  // the glow of the moving pieces: seven pad flashes, three rings that light when a prism fits, one light round the door-crystal (colours rewritten as base times a level)
+  const gpiece = (geo) => ({ start: count(glow), count: geo.attributes.position.count, base: geo.attributes.color.array.slice() });
+  for (const p of D.PADS) { const g = glowDisc(p.x, p.z, 0.95, 0xfff0c8, 0.9, 0.1, 1, low ? 6 : 10); dyn.pads.push(gpiece(g)); glow.push(g); }
+  for (const s of D.STANDS) { const g = glowDisc(s.x, s.z, 0.8, D.FACE_COLOURS[D.DOOR_PATTERN[s.i]], 0.8, 0.09, 2, low ? 8 : 12); dyn.rings.push(gpiece(g)); glow.push(g); }
+  { const g = glowDisc(Dr.x, Dr.z + 0.3, 2.4, 0xfff0c8, 0.9, 0.09, 3, 14); dyn.door = gpiece(g); glow.push(g); }
+  return { solid: solidGeo, glow: mergeGeometries(glow), dyn };
 }
 // the far stand-in: two soft discs (the hall and the nook), nothing else
 export function standInGeometry() {
@@ -172,5 +194,5 @@ export function drawDeep(rung = 'high') {
   glow.renderOrder = 2;
   const standIn = mark(new THREE.Mesh(standInGeometry(), addMat()), 'crystal:deepfar');
   standIn.renderOrder = 2;
-  return { meshes: [stone, glow, standIn], stone, glow, standIn };
+  return { meshes: [stone, glow, standIn], stone, glow, standIn, dyn: g.dyn };
 }

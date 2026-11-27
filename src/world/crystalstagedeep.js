@@ -10,10 +10,15 @@ import { createDeepLife } from './crystaldeeplive.js';
 
 if (crystalDeepOn()) for (const c of DEEP_CLEARS) if (!CRYSTAL_CLEARS.includes(c)) CRYSTAL_CLEARS.push(c);
 
+let current = null; // the live of this walk
+function track(live) { const end = live.dispose; current = live; live.dispose = () => { if (current === live) current = null; end(); }; return live; }
+
 Object.assign(ST, {
   deep: Object.freeze({
     colliders: () => (crystalDeepOn() ? deepColliders() : []),
     perches: () => (crystalDeepOn() ? deepPerches() : []),
-    life: (ctx) => (crystalDeepOn() ? createDeepLife(ctx) : null),
+    life: (ctx) => (crystalDeepOn() ? track(createDeepLife(ctx)) : null),
   }),
 });
+// C3: the prompt, the action button and a partner step reach the live made for this walk (the arbiter slot and crystal.js read them here); C4 adds Tink in the same way
+Object.assign(ST, { deep: Object.freeze({ ...ST.deep, promptAt: (p) => current?.promptAt(p) ?? null, interact: () => current?.interact() ?? null, credit: (ev) => current?.credit(ev) ?? null }) });
