@@ -12,7 +12,7 @@ Advisor window (Opus) over `2026-11-27-area-interconnectivity.md` and `2026-11-2
 
 ## 1. Interconnectivity
 
-- **Regions as data:** a pure `REGIONS` table with four regions: Town and fields (with Greenhouse and Treehouse), Shore (with Reef and Crystal), Clan lands, Faraway (Moon, Snowville, Jungle). One-place regions are not allowed. A test fails if any catalog place or `TELE_ENDS` place has no region.
+- **Regions as data (owner's grouping, 2026-11-27):** a pure `REGIONS` table with five regions: **Urban** (Town, Park, Rooftops, Market, Greenhouse); **Suburban and rural** (Farm, Fairground, Old House, Treehouse village); **Shore** (Docks, Seaside, Lighthouse, Reef, Crystal Cave); **Clan lands** (Woods, River, Moor, Pines, Gorge); **Faraway** (Moon, Snowville, Jungle lodge). The Treehouse gate stays in the Park, so it crosses from Urban into the rural region; Snowville's archway at the Farm and the Jungle's stone ring at the Greenhouse lead into Faraway. A test fails if any catalog place or `TELE_ENDS` place has no region. (The advisor had proposed four regions with the Greenhouse in Town and fields and the Fairground, Farm and Old House there too; the owner split Town and fields into Urban and Suburban/rural.)
 - **The map is the everyday travel, gates are the story:** a map "Go there" starts at the place's normal spawn (`suitFor(areaId)` already dresses her by place, so milestone I2 is almost nothing).
 - **Map circles for Reef, Crystal and Moon:** shown only once `walks[id] >= 1`, so the map never gives away a gate before she finds it. Greenhouse circle unchanged. Rough spots: Reef out in the sea east of the coast, Crystal as a small pennant near the Docks, Moon in the top margin; final spots from a map picture. Risk: placement checks in `test/worldmap.test.js`.
 - **Moon catalog row** (after the Moon's wave 2 X0): `{ price: 0, requires: { area: 'park', walks: 2 }, gate: 'tele' }`, and remove the special Moon case in `placeLive`. Risks: a walk into the Moon changes from "visit once" (override) to "take", so 'moon' joins her places; a Moon card appears in the home-base picker; the equality test with `MOON_NEED_WALKS` moves.
@@ -39,7 +39,7 @@ Pinned tests that will move: about 17 gold-total files, `teleport.test.js:76` (p
 
 ## Owner questions (one-word answers; owner to confirm)
 
-Interconnectivity: 1 passport Yes; 2 hub or gates Gates; 3 gates stay story moments Yes; 4 map circles for Reef, Crystal, Moon Yes; 5 Moon catalog row Yes; 6 regions Four; 7 online rooms through gates Yes; 8 couch play through gates Wait; 9 Back button Yes; 10 entries for the three new areas Plan's.
+Interconnectivity: 1 passport Yes; 2 hub or gates Gates; 3 gates stay story moments Yes; 4 map circles for Reef, Crystal, Moon Yes; 5 Moon catalog row Yes; 6 regions Five (owner's grouping above); 7 online rooms through gates Yes; 8 couch play through gates Wait; 9 Back button Yes; 10 entries for the three new areas Plan's.
 
 New areas: O1 gate cap 8; O2 Snowville season Always; O3 Treehouse entry Park; O4 Jungle Separate; O5 daughter names the characters Yes; O6 build order Snowville-first; O7 rides Later; O8 cheeks theme Tint-only; O9 both editions Yes; O10 flags default on Yes.
 
