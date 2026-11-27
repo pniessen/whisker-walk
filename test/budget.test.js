@@ -28,6 +28,7 @@ const { build: buildTreehouse } = await import('../src/world/treehouse.js');
 const { loadSnowvilleStages } = await import('../src/world/snowvillestages.js');
 await loadSnowvilleStages(); // stage B's drawing (the pond, hill, hearth, Great Fir) is part of Snowville's build from milestone V5
 const { build: buildSnowville } = await import('../src/world/snowville.js');
+const { build: buildJungle } = await import('../src/world/jungle.js');
 const { HOUSE_LEVELS } = await import('../src/world/houseplan.js');
 const { measureHouse } = await import('./helpers/housebudget.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -570,6 +571,11 @@ const AREAS = [
   // Milestone V5 (2026-11-27, wing B, stage B's drawing put into the same merged buckets: the pond's ice disc, skate marks, bank stones, reeds and stump, the sled hill's summit rock, runner
   // lines, sled and hill rock, the village hearth, the Great Fir and the hare's burrow; no mesh of its own) measured 5 / 2 / 19,166 built (+3,058 triangles, no mesh), +12%: 6 / 3 / 21,500.
   // The plan's stage figures (about 25,000 triangles for A and B together) hold. The show's strings, bulbs, window glows and sparks are the walk's life, not in this count.
+  // The Jungle lodge. Milestone J1 (2026-11-27, the jungle world: the ground heightfield with the river bed, the brown water ribbon, then the stone ring, signpost and moss pool, the
+  // stilted lodge, the log bridge and stepping stones, the giant leaves, about 40 trees and a 70-tree green wall, 110 fern clumps and the mossy stones in a few merged buckets (paint,
+  // glow, tree and their non-casting twins); the mist, the rain, the rainbow and the lantern's glow are the walk's life, not in this count) measured 8 / 3 / 23,540 built, +12%: 9 / 4 / 26,400.
+  // The plan expected about 30,000 triangles for stage A. The Greenhouse with its new stone ring (3 meshes, +441 triangles, +1 caster) is re-measured in the same file.
+  ['jungle', buildJungle, 9, 4, 26400],
   ['snowville', buildSnowville, 6, 3, 21500],
   // Milestone R2 (Marlo and chapter one) adds only the coral ledge (no mesh more; about 200 triangles measured on top of R3: 7 / 2 / 10,700). Marlo, the shells, their glints, the picture bubble, the meow's ring and the air pockets are the walk's life, counted in test/reefmarlo.test.js
 ];
@@ -618,7 +624,7 @@ const MERGED_AREAS = [
   ['fair', buildFair, 200, 140], // measured 178 / 124
   ['roofs', buildRoofs, 64, 34], // measured 60 / 30 (59 / 30 before the Rooftops step 5 fix wave's vane, its own mesh so the tower view can fade it, never merged; 57 / 30 before Rooftops step 3's two sleeping cats, Task 6, never merged; 56 / 30 before round two's lamp halo, Task G; 55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
   ['market', buildMarket, 156, 36], // 2026-11-22: re-measured on purpose for the four new stalls (toys, plants, bric-a-brac, butcher): 139 / 32 merged, +12% (the same ruling); ceilings 280 / 210 / 62000 unchanged. Earlier: measured 98 / 24 after Task 6's rework and review (its clutter, the controller's ruling), +12%; 76 / 23 before; 108 / 24 after step 3's Task 8 (the café front's paint and its chalkboard's contact-shadow box), ceiling unchanged; 110 / 25 with step 4's gate (its body and its bar), re-pinned at +12% (the same ruling)
-  ['greenhouse', buildGreenhouse, 77, 7], // 2026-11-26: milestone G6 (the three rooms) measured 68 / 6 merged (74 / 7 built: the rooms' glass, frames, mist, shafts, butterflies and opening flowers never merge), +12%; milestone G4 measured 38 / 6 merged (44 / 7 built: the return arch's two meshes never merge), +12% (the Farm's and the Market's ruling); G3 measured 36 / 6 merged (42 / 7 built) and set 41 / 7; 33 / 5 at milestone 1 (29 / 4 measured); the plan's gate is about 80 / 40
+  ['greenhouse', buildGreenhouse, 77, 7], // Jungle J6 (2026-11-27): the ring added 3 meshes, 1 caster, +188 triangles (71 / 7 merged), under these unchanged ceilings (test/junglegate.test.js); 2026-11-26: milestone G6 (the three rooms) measured 68 / 6 merged (74 / 7 built: the rooms' glass, frames, mist, shafts, butterflies and opening flowers never merge), +12%; milestone G4 measured 38 / 6 merged (44 / 7 built: the return arch's two meshes never merge), +12% (the Farm's and the Market's ruling); G3 measured 36 / 6 merged (42 / 7 built) and set 41 / 7; 33 / 5 at milestone 1 (29 / 4 measured); the plan's gate is about 80 / 40
   ['lighthouse', buildLighthouse, 32, 11], // 2026-11-22: milestone 3 measured 28 / 9 merged (26 / 9 at milestone 2, 23 / 9 at milestone 1: the fog bell is two meshes of its own so it can swing), +12% (the Farm's and the Market's ruling); the plan's gate is 70 / 36. Beauty pass 2026-11-23 measured 30 / 10 merged (the cliff faces and the lawn carry the game's own gravel and grass textures, two more merged meshes, one caster more), ceilings unchanged
 ];
 

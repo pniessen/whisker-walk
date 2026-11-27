@@ -2,6 +2,7 @@
 // The Moon has no catalog row yet, so it has no circle (a later milestone).
 import { describe, it, expect, afterEach } from 'vitest';
 import { setTele } from '../src/teleflag.js';
+import { setJungle } from '../src/jungleflag.js';
 import { CATALOG } from '../src/progression.js';
 import { WORLD, GATE_PLACES, GATE_LAND, COAST, GATEWAYS, ISLAND_HIT_R, worldMapModel, tapTargets } from '../src/worldmap.js';
 import { renderWorldMapHtml } from '../src/ui/territorymap.js';
@@ -18,7 +19,7 @@ const save = (walks = {}, edition = 'canon') => ({
 });
 const find = (m, id) => m.regions.find((r) => r.id === id);
 const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
-afterEach(() => setTele(null));
+afterEach(() => { setTele(null); setJungle(null); });
 
 // Each row of a place's label boxed from its baseline, as test/worldmap.test.js (Chalkboard SE widths, an unlisted glyph 0.8 em).
 const EM = { a: 0.56, b: 0.58, c: 0.51, d: 0.6, e: 0.55, f: 0.45, g: 0.55, h: 0.57, i: 0.27, j: 0.41, k: 0.55, l: 0.32, m: 0.76, n: 0.53, o: 0.51, p: 0.55, q: 0.54, r: 0.46, s: 0.45, t: 0.48, u: 0.55, v: 0.49, w: 0.74, x: 0.58, y: 0.56, z: 0.56,
@@ -85,9 +86,9 @@ describe('world map: gate place circles (I1)', () => {
     });
   });
 
-  it('placement: inside the world, every circle at least 46 (92 across), clear of every other circle, the star and the roads', () => {
-    setTele(true);
-    const m = worldMapModel(save({ reef: 1, crystal: 1, moon: 1 }), CATALOG);
+  it('placement: inside the world, every circle at least 46 (92 across), clear of every other circle, the star and the roads (the Jungle lodge\'s too, with its switch on)', () => {
+    setTele(true); setJungle(true);
+    const m = worldMapModel(save({ reef: 1, crystal: 1, moon: 1, jungle: 1 }), CATALOG);
     for (const p of GATE_PLACES) {
       const me = find(m, p.id);
       expect(me.r).toBeGreaterThanOrEqual(46);
@@ -97,6 +98,21 @@ describe('world map: gate place circles (I1)', () => {
       expect(GATEWAYS.some((g) => g.from === p.id || g.to === p.id)).toBe(false);
       for (const g of GATEWAYS) for (const [rx, ry] of g.road) expect(dist(me.x, me.y, rx, ry), `${p.id} / road ${g.id}`).toBeGreaterThan(me.r + 10);
     }
+  });
+
+  it('the Jungle lodge: no circle until its switch is on AND she has walked it; then one, east of the Greenhouse, with its own land and the palm icon', () => {
+    setTele(true);
+    expect(find(worldMapModel(save({ jungle: 3 }), CATALOG), 'jungle')).toBeUndefined(); // (the switch is off)
+    setJungle(true);
+    expect(find(worldMapModel(save({ jungle: 0 }), CATALOG), 'jungle')).toBeUndefined(); // (never walked)
+    const j = find(worldMapModel(save({ jungle: 1 }), CATALOG), 'jungle');
+    expect(j).toMatchObject({ x: 1395, y: 150, r: 46, areaId: 'jungle' });
+    expect(GATE_LAND.jungle).toBeTruthy();
+    const html = renderWorldMapHtml(worldMapModel(save({ jungle: 1 }), CATALOG));
+    expect(html).toContain('data-dr-map-place="jungle" data-x="1395" data-y="150"');
+    expect(html).toContain('🌴');
+    setTele(false);
+    expect(find(worldMapModel(save({ jungle: 1 }), CATALOG), 'jungle')).toBeUndefined(); // (the gates switch is off)
   });
 
   it('the Reef is out in the sea, east of the whole coast; the Crystal Cave is by the Docks', () => {

@@ -12,6 +12,7 @@
 // map, the walk's gate dressing, a room's walk-on) can see one; teleRow defaults and checks the fields only they have.
 import { gatewayEnd, endById, arrivalFor, GATE_REACH, GATE_PREFETCH_REACH } from './gateways.js';
 import { phrase } from './clanphrases.js';
+import { jungleOn } from './jungleflag.js'; // (a tiny start-up module already: edition.js reads it)
 import { suitKit } from './cat/model.js'; // (through model.js, so the build adds no shared chunk to start-up)
 import * as ui from './teleui.js';
 import { addTeleGates, discTint } from './world/telegate.js';
@@ -30,6 +31,8 @@ export const REEF_NEED_WALKS = 2;
 export const CRYSTAL_NEED_WALKS = 2;
 // Farm walks before Snowville's archway wakes (the plan's rule: 2; CATALOG.areas.snowville.requires says it too, and a test keeps them equal).
 export const SNOWVILLE_NEED_WALKS = 2;
+// Greenhouse walks before the Jungle lodge's mossy stone ring wakes (the plan's JUNGLE_NEED_WALKS: 2; CATALOG.areas.jungle.requires says it too, and a test keeps them equal).
+export const JUNGLE_NEED_WALKS = 2;
 
 let H = null;
 // host: { teleOn, greenhouseOn, placeName, walkOnMove, lower, padTag, escapeHtml, coopReady, catalog, isClan, couch }
@@ -62,7 +65,7 @@ const end = teleRow;
 // Each end's look, by id: 'stonering' (five mossy standing stones round a light disc), 'archway' (a little stone arch in a
 // hedge, with a lantern) or 'hollow' (a trunk with a glowing hole) or 'cleft' (the same in rock, with a ladder and a ring buoy). Pictures of all three in the Park and the Greenhouse:
 // verify-teleport-gates-m1.html. The plan's recommendation for the real pairs: stones for the Moon, hollow for the Reef.
-export const TELE_LOOK = Object.freeze({ 'park-greenhouse': 'archway', 'greenhouse-park': 'archway', 'park-moon': 'stonering', 'moon-park': 'stonering', 'seaside-reef': 'hatch', 'reef-seaside': 'cleft', 'docks-crystal': 'grotto', 'crystal-docks': 'grotto', 'farm-snowville': 'archway', 'snowville-farm': 'archway' });
+export const TELE_LOOK = Object.freeze({ 'park-greenhouse': 'archway', 'greenhouse-park': 'archway', 'park-moon': 'stonering', 'moon-park': 'stonering', 'seaside-reef': 'hatch', 'reef-seaside': 'cleft', 'docks-crystal': 'grotto', 'crystal-docks': 'grotto', 'farm-snowville': 'archway', 'snowville-farm': 'archway', 'greenhouse-jungle': 'stonering', 'jungle-greenhouse': 'stonering' });
 // Where she lands, and facing which way: 'toward' (the milestone 0 choice: 3.6 m out, FACING the gate she stepped out of; the
 // camera stands 4.4 m behind her, so it looks at the way home) or 'away' (the spec's "facing in": 7 m out, looking into
 // the place, the gate behind her; further, so the camera does not stand inside the stones).
@@ -84,6 +87,7 @@ export function arriveFor(faces, x, z, mode = TELE_ARRIVAL_FACING) {
 // golden mouse (test/teleport.test.js). The cat walks up heading west and lands 3.6 m east of the other end, facing it
 // (arriveFor). The Park's archway is awake after two Park walks; the Greenhouse's own return arch (greenhouseparts.js
 // returnArch, `own`) is always awake, as the Moon's ring is.
+const GX = 9; const GZ = 20; // the Greenhouse's stone ring: open lawn east of the fountain walk (checked by test/junglegate.test.js against the Greenhouse's colliders, finds and spawn)
 export const TELE_ENDS = Object.freeze({
   park: Object.freeze([
     end({ id: 'park-greenhouse', gateway: 'tele-park-greenhouse', x: -10, z: 44, faces: 'west', to: 'greenhouse', twin: 'greenhouse-park', look: TELE_LOOK['park-greenhouse'],
@@ -135,13 +139,21 @@ export const TELE_ENDS = Object.freeze({
   greenhouse: Object.freeze([
     end({ id: 'greenhouse-park', gateway: 'tele-park-greenhouse', x: -10, z: 29, faces: 'west', to: 'park', twin: 'park-greenhouse', look: TELE_LOOK['greenhouse-park'],
       placement: 'inside', arrive: arriveFor('west', -10, 29), edition: 'all', own: true }),
+    end({ id: 'greenhouse-jungle', gateway: 'tele-greenhouse-jungle', x: GX, z: GZ, faces: 'west', to: 'jungle', twin: 'jungle-greenhouse', look: TELE_LOOK['greenhouse-jungle'],
+      placement: 'inside', arrive: arriveFor('west', GX, GZ), edition: 'all', needWalks: JUNGLE_NEED_WALKS }),
+  ]),
+  // The Jungle lodge pair (Jungle milestone J6): the Greenhouse's old mossy stone ring on the lawn, awake after two Greenhouse walks, both editions, no suit, and the lodge's own return
+  // ring in its spawn court (`own`: the jungle draws it). Both ends are hidden while ?jungle=1 is off (liveTeleEnds).
+  jungle: Object.freeze([
+    end({ id: 'jungle-greenhouse', gateway: 'tele-greenhouse-jungle', x: 0, z: 28, faces: 'north', to: 'greenhouse', twin: 'greenhouse-jungle', look: TELE_LOOK['jungle-greenhouse'],
+      placement: 'inside', arrive: arriveFor('north', 0, 28), edition: 'all', own: true }),
   ]),
 });
 
 export const teleEnds = (areaId) => (typeof areaId === 'string' && Object.hasOwn(TELE_ENDS, areaId) ? TELE_ENDS[areaId] : []);
 
 // Every gate place has a catalog row now (its `gate: 'tele'` keeps it out of the cards while the switch is off); these names are the fallback.
-const NAMES = { greenhouse: 'The Greenhouse', reef: 'The Reef', crystal: 'The Crystal Cave', snowville: 'Snowville', moon: 'The Moon' };
+const NAMES = { greenhouse: 'The Greenhouse', reef: 'The Reef', crystal: 'The Crystal Cave', snowville: 'Snowville', jungle: 'The Jungle Lodge', moon: 'The Moon' };
 export function placeLive(to, catalog) {
   const areas = catalog && catalog.areas;
   return !!areas && Object.hasOwn(areas, to);
@@ -152,7 +164,7 @@ export const teleName = (to, edition, catalog) => H.placeName(to, edition, catal
 // good (as liveEndsFor); a 'canon' row only in the main edition, an 'all' row in both.
 export function liveTeleEnds(areaId, catalog, { clan = true } = {}) {
   if (!H.teleOn()) return [];
-  return teleEnds(areaId).filter((e) => placeLive(e.to, catalog) && (e.edition === 'all' || clan));
+  return teleEnds(areaId).filter((e) => placeLive(e.to, catalog) && (e.edition === 'all' || clan) && !(e.to === 'jungle' && !jungleOn()));
 }
 
 export function teleNear(areaId, x, z, catalog, { clan = true, reach = GATE_REACH } = {}) {

@@ -447,8 +447,8 @@ describe('gorge life: the caves', () => {
         setGrow(null);
       }
     };
-    expect(withLife(false)).toEqual(['crystal', 'gorge', 'greenhouse', 'house', 'lighthouse', 'market', 'moon', 'reef', 'river', 'roofs', 'seaside', 'snowville', 'treehouse']); // the Treehouse village's light (its dapple and its one real light, milestone T1) joins; the Seaside's life (bathers, gulls, vendors) joins; the Moon's life (the sky, the camera's ease, the skip, the landing dust) joined in its milestone 1
-    expect(withLife(true)).toEqual(['crystal', 'gorge', 'greenhouse', 'house', 'lighthouse', 'market', 'moon', 'pines', 'reef', 'river', 'roofs', 'seaside', 'snowville', 'treehouse']);
+    expect(withLife(false)).toEqual(['crystal', 'gorge', 'greenhouse', 'house', 'jungle', 'lighthouse', 'market', 'moon', 'reef', 'river', 'roofs', 'seaside', 'snowville', 'treehouse']); // the Jungle's light (its rain, its mist) joins; the Treehouse village's light (its dapple and its one real light, milestone T1) joins; the Seaside's life (bathers, gulls, vendors) joins; the Moon's life (the sky, the camera's ease, the skip, the landing dust) joined in its milestone 1
+    expect(withLife(true)).toEqual(['crystal', 'gorge', 'greenhouse', 'house', 'jungle', 'lighthouse', 'market', 'moon', 'pines', 'reef', 'river', 'roofs', 'seaside', 'snowville', 'treehouse']);
     expect(readFileSync(new URL('marshlife.js', dir), 'utf8')).not.toMatch(/Light\(/);
     const walk = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
     expect(walk).toMatch(/areaData\.life\?\.\(\{[^}]*\bweather\b[^}]*\}\) \?\? NO_AREA_LIFE/);

@@ -619,6 +619,10 @@ const YARN_SPOTS = {
     { x: -4, z: 19, where: 'on the leafy roots' },
     { x: 12, z: 10, where: 'under the far branches' },
   ],
+  jungle: [
+    { x: 8, z: 24, where: 'by the mossy stones' },
+    { x: -22, z: 14, where: 'in the ferns' },
+  ],
   snowville: [
     { x: 8, z: 22, where: 'in the fresh snow' },
     { x: -22, z: 12, where: 'by the cottages' },

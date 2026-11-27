@@ -63,8 +63,9 @@ export const GATE_PLACES = freezeAll([
   { id: 'reef', areaId: 'reef', x: 1415, y: 690, r: 46 },
   { id: 'crystal', areaId: 'crystal', x: 710, y: 810, r: 46 },
   { id: 'moon', areaId: 'moon', x: 900, y: 52, r: 46 },
+  { id: 'jungle', areaId: 'jungle', x: 1395, y: 150, r: 46 }, // the Jungle lodge, east of the Greenhouse in the sea's margin (the Greenhouse's stone ring is its way in)
 ]);
-export const GATE_LAND = Object.freeze({ reef: '#9fd6dc', crystal: '#d9c4ec', moon: '#cfd3e6' });
+export const GATE_LAND = Object.freeze({ reef: '#9fd6dc', crystal: '#d9c4ec', moon: '#cfd3e6', jungle: '#a3d49a' });
 
 // Places inside the town, drawn on top of it: the Rooftops, up the back
 // alley's fire escape (draft 2's "Rooftops"), and the Market Square, on the
