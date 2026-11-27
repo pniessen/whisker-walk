@@ -553,6 +553,7 @@ const LATER = Object.freeze({
   'roofs.find.vane': 'The very top! You can see the whole town. 🌇',
   'roofs.find.skylight': 'A peek in the attic window. Someone is reading a bedtime story. 📖',
   'roofs.find.telescope': 'You look through the telescope. Hello, moon! 🌕',
+  'roofs.sleeper.stir': 'You woke a sleepy house cat. It yawns and dozes off again. 🐱',
   'roofs.find.chimney': 'A warm chimney! Puff, a smoke ring. What a cosy spot. 💨',
 
   // ---- the Market Square (2026-11-20): its own words, the same in every set ----
