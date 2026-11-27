@@ -265,6 +265,8 @@ function subdivide(geo, levels) {
 const KERCHIEFS = {
   neckerchief: { cloth: [0xf7f2ea, 0xe87a78, 0xd8403a], band: [0xd8403a, 0xc0302a], knot: [0xe85a50, 0xc0302a] },
   stringbagscarf: { cloth: [0x245a48, 0x8fd0ac], net: 1, band: [0xf0ead0, 0x6fb894], knot: [0x9fd4b4, 0x4f9a7a] },
+  // the Captain's Chest (the Reef): a red cloth with white spots, the gingham's three tones as spots on red; a black-blue band
+  piratebandana: { cloth: [0xc8322c, 0xf2ece0, 0xa8221e], band: [0x1c2a4a, 0x2a3a5e], knot: [0x2a3a5e, 0x1c2a4a] },
 };
 const ginghamAt = (L, u, v, cell) => (L.net ? L.cloth[1] : L.cloth[(Math.floor(u / cell) & 1) + (Math.floor(v / cell) & 1)]);
 
@@ -380,6 +382,7 @@ export const FOUND_NECKS = Object.freeze({
   ticketgarland: addTicketGarland,
   bdayrosette: addBirthdayRosette,
   stringbagscarf: kerchief('stringbagscarf'),
+  piratebandana: kerchief('piratebandana'),
 });
 // ---- Collars --------------------------------------------------------------
 

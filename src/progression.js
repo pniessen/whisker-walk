@@ -326,6 +326,8 @@ const BASE_ACCESSORIES = {
   tailballoon: { name: 'Tail Balloon', slot: 'back', price: 0, prize: true, fair: 'bell' },
   // The Moon's story prize (a collar, src/cat/foundneck.js FOUND_COLLARS): owned once the story's page has a count (mnstory).
   moonbadge: { name: 'Moon Badge', slot: 'collar', price: 0, prize: true, moon: 'story' },
+  // The Reef's Captain's Chest (a neckerchief, src/cat/foundneck.js FOUND_NECKS): owned once the galleon's hunt is done (reef.wreck bit 4); never found on the ground.
+  piratebandana: { name: 'Pirate Bandana', slot: 'neck', price: 0, prize: true, reef: 'chest' },
 };
 // Their ids: every id a found outfit must not take (test/foundwear.test.js).
 export const BASE_ACCESSORY_IDS = Object.freeze(Object.keys(BASE_ACCESSORIES));
@@ -1207,6 +1209,8 @@ function sanitizeState(parsed) {
   const journalNow = sanitizeJournal(parsed.journal);
   for (const id of fairPrizesWonBy(journalNow)) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);
   if (journalNow.mnstory > 0 && !unlockedAcc.includes('moonbadge')) unlockedAcc.push('moonbadge');
+  // The Captain's Chest likewise: the hunt's last bit (a merge ORs the devices' bits first) is the record, so the bandana is owned.
+  if ((sanitizeReef(parsed.reef).wreck & 16) !== 0 && !unlockedAcc.includes('piratebandana')) unlockedAcc.push('piratebandana');
   // And every found outfit: foundWear is the record, so it is owned.
   const foundWear = sanitizeFoundWear(parsed.foundWear);
   for (const id of foundWear) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);

@@ -19,7 +19,8 @@ import { LINES as LIFE_LINES } from '../src/world/reeflifewords.js';
 import { LINES as LAB_LINES } from '../src/world/reeflabwords.js'; // R13: the Sealab's hatch
 import { LINES as WRECK_LINES } from '../src/world/reefwreckwords.js';
 import { LINES as RIDE_LINES } from '../src/world/reefridewords.js'; // R12: the two mounts
-const LINES = { ...STORY_LINES, ...FIND_LINES, ...ERRAND_LINES, ...DEEP_LINES, ...LIFE_LINES, ...LAB_LINES, ...WRECK_LINES, ...RIDE_LINES };
+import { LINES as HUNT_LINES } from '../src/world/reefhuntwords.js'; // R17: the galleon's hunt
+const LINES = { ...STORY_LINES, ...FIND_LINES, ...ERRAND_LINES, ...DEEP_LINES, ...LIFE_LINES, ...LAB_LINES, ...WRECK_LINES, ...RIDE_LINES, ...HUNT_LINES };
 import { phrase } from '../src/clanphrases.js';
 import { withOffWords, bannedIn } from './helpers/offwords.js';
 import { readFileSync, globSync } from 'node:fs';

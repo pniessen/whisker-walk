@@ -119,3 +119,12 @@ export const WRECK_CLUES = Object.freeze([
   Object.freeze({ id: 'boat', x: -31.8, z: -27.9 }),
   Object.freeze({ id: 'lantern', x: 21.2, z: -16.4 }),
 ]);
+
+// ---- the hunt's places (milestone R17; the rules are world/reefwreck.js's) -------------------------------------------------------------------------------
+// The torn map lies on the cabin floor beside the table (it is picked up by standing within MAP_SPOT.reach); each clue is touched within CLUE_REACH of its
+// place, in order; the Captain's Chest is buried on open sand far to the east of the dunes (the X marks it once the three clues are in) and is dug up
+// within CHEST_SPOT.reach. Horizontal distances only: how high she floats never matters.
+export const MAP_SPOT = Object.freeze({ x: 32.6, z: -35.0, reach: 1.5 });
+export const CLUE_REACH = 2.4;
+export const CHEST_SPOT = Object.freeze({ x: 42, z: 2, reach: 1.8 });
+

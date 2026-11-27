@@ -243,9 +243,9 @@ describe('the flag and the drawing', () => {
 
 describe('the stage stands alone', () => {
   it('the wreck stage\'s files import nothing of the base chunk (reef.js hands in what they need), so no file is split out of it', () => {
-    for (const f of ['reefwreckplan', 'reefwreckparts', 'reefwrecklife', 'reefwreckwords', 'reefstagewreck']) {
+    for (const f of ['reefwreckplan', 'reefwreckparts', 'reefwrecklife', 'reefwreckwords', 'reefstagewreck', 'reefwreck', 'reefhuntlive', 'reefhuntwords']) {
       const text = readFileSync(`src/world/${f}.js`, 'utf8');
-      for (const [, spec] of text.matchAll(/^import .*?from '(.+?)';/gm)) expect(spec, `${f} imports ${spec}`).toMatch(/^(\.\/reefwreck\w+\.js|\.\/reefstages\.js|\.\.\/clanphrases\.js|\.\.\/wordset\.js)$/);
+      for (const [, spec] of text.matchAll(/^import .*?from '(.+?)';/gm)) expect(spec, `${f} imports ${spec}`).toMatch(/^(\.\/reefwreck\w*\.js|\.\/reefhunt\w+\.js|\.\/reefstages\.js|\.\.\/clanphrases\.js|\.\.\/wordset\.js)$/);
     }
   });
 });
@@ -258,7 +258,7 @@ describe('the words and the source rules', () => {
   });
   it('the files draw no random number, read no clock, add no PointLight, and use no banned word', () => {
     const banned = /\b(dark|lost forever|trapped|stuck|collapse|cave-in|scary|Zissou|Belafonte|Aquatic|cap|beanie)\b/i;
-    for (const f of ['reefwreckplan', 'reefwreckparts', 'reefwrecklife', 'reefwreckwords', 'reefstagewreck']) {
+    for (const f of ['reefwreckplan', 'reefwreckparts', 'reefwrecklife', 'reefwreckwords', 'reefstagewreck', 'reefwreck', 'reefhuntlive', 'reefhuntwords']) {
       const text = readFileSync(`src/world/${f}.js`, 'utf8').replace(/\/\/.*$/gm, ''); // the code, not the comments that name the rules
       expect(text, f).not.toMatch(/Math\.random|Date\.now|performance\.now|new Date|PointLight|SpotLight/);
       expect(text, f).not.toMatch(banned);
