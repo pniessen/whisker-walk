@@ -24,6 +24,9 @@ export const HINTS = Object.freeze({
 });
 
 export const LINES = Object.freeze({
+  'crystal.intro1': 'Welcome to the Crystal Cave! A baby glow-worm named Lumi has lost her glow.',
+  'crystal.intro2': 'Find three spark stones: rose, sky blue and gold.',
+  'crystal.intro3': 'Carry each one to its great crystal and light up the cave.',
   'crystal.arrive': clan('Welcome to the Crystal Cave!', 'Welcome to the Crystal Cave! The crystals glimmer like Silverpelt.'),
   'crystal.lumi.hello': 'A tiny glow-worm peeks out. Say hello!',
   'crystal.stone.hint': 'A spark stone! Carry it to a great crystal.',

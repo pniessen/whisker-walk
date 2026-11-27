@@ -47,6 +47,7 @@ import { createCatRim } from './moonrim.js';
 import { IDLE, idleStart, nextIdleRing, idlePaused, progressMark } from './moonidle.js';
 import { FINALE_LENGTH } from './moondeeplive.js';
 import { createGuideLive } from './moonguidelive.js';
+import { createMoonIntro } from './moonintro.js';
 import { createFlowLive } from './moonflowlive.js';
 
 export const CAMERA_FOLLOW = 0.6; // the camera rises this much of a hop's height
@@ -132,6 +133,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
   // (guide cues) the written guide: the goal line, the edge arrow and the words beside Pip's picture (moonguidelive.js); its own DOM, one goal (base.goal()) shared with the gold ring and light column
   const guide = createGuideLive({ doc, win, base, job, launch, star, deep, rover, progression, reducedMotion });
   // (story flow) the connective tissue: what comes next and why, the call-to-action pill by the rocket and the big red button (moonflowlive.js)
+  const intro = createMoonIntro({ doc, win, progression }); // the arrival card (step 0 only)
   const flow = createFlowLive({ ground, doc, win, audio, base, launch, star, job, deep, progression, reducedMotion });
   // placed for the Ready card, before the first frame of the walk moves the camera (it looks north from behind the spawn)
   const first = new THREE.PerspectiveCamera();
@@ -233,6 +235,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       deep.update(dt, t, catPos, camera, session);
       job.update(dt, t, catPos, camera, session);
       guide.update(dt, t, catPos, camera, session);
+      intro.update(dt);
       flow.update(dt, t, catPos, camera, session);
       catRim.update(dt, camera, session.cat); // (beauty round 3) the suit's rim and the fill swell while she is backlit
       cullFar(catPos, session, deep.inside ? 0 : DRAW_NEAR); // deep in the tube nothing outside is drawn: the walk's pebbles and mice too
@@ -242,6 +245,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
     dispose() {
       flow.dispose();
       guide.dispose();
+      intro.dispose();
       job.dispose();
       deep.dispose();
       bound.dispose();
