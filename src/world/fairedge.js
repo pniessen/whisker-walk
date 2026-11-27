@@ -17,7 +17,7 @@ const C = FAIR_PAINT;
 // A flat polygon of n corners, radius r, centred at (x, y, z), facing up;
 // `tilt` leans its face outward, towards the angle `a` (a flower head on a
 // mound). One face: the kit's solid mesh draws front faces only.
-function lid(P, r, y, hex, n = 7, x = 0, z = 0, turn = 0, tilt = 0, a = 0) {
+export function lid(P, r, y, hex, n = 7, x = 0, z = 0, turn = 0, tilt = 0, a = 0) {
   // the face's normal, and two directions in its plane whose cross product is it
   const nx = Math.sin(tilt) * Math.cos(a);
   const ny = Math.cos(tilt);

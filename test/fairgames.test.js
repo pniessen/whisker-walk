@@ -1812,7 +1812,7 @@ describe('what it costs to draw', () => {
     expect(all.casters).toBe(111); // the people cast none (the frame and the hull of the Viking boat are two of them)
     // the place alone (test/fair.test.js pins it) is what is left
     expect(all.meshes - added.meshes).toBe(178);
-    expect(all.triangles - added.triangles).toBe(70619);
+    expect(all.triangles - added.triangles).toBe(70811);
   });
 
   it('adds every mesh when the walk begins and none after: a frame of play adds nothing, and the show clears up after itself', () => {

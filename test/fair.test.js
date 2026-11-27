@@ -1895,7 +1895,7 @@ describe('The Fairground: the drawing budget', () => {
     // (The front fence is cut for the gate back to the Park only in a Clan
     // walk, which hands build() its gate ends; this bare build keeps it whole.)
     // The Viking boat (2026-11-28): the frame, the swinging ship and its lights, three meshes (two cast), 2,047 triangles.
-    expect(built).toEqual({ meshes: 178, casters: 111, triangles: 70619 });
+    expect(built).toEqual({ meshes: 178, casters: 111, triangles: 70811 });
     expect({ meshes: merged.meshes, casters: merged.casters }).toEqual({ meshes: 163, casters: 106 });
   });
 

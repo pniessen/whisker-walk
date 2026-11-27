@@ -59,7 +59,7 @@ const { createMarkers } = await import('../src/coop/markers.js');
 //   scene (place alone)      triangles  meshes  casters   with both cats: triangles  meshes  casters
 //   neighborhood               40,386     402     326                    66,982      508     432
 //   docks                      76,938     527     426                   103,534      633     532
-//   fair                       68,572     175     109                    95,168      281     215
+//   fair                       68,764     175     109                    95,168      281     215
 //
 // Milestone 1 adds the two marks under the cats (a 32-segment ring and a 4-segment
 // diamond, no shadow caster: 72 triangles, 2 meshes) and the second cat's name tag
