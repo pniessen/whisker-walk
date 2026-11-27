@@ -166,11 +166,11 @@ export const BUNK_SPOT = Object.freeze({ x: 2.4, z: -37.1 }); // an open spot of
 
 // ---- the fuses (R14) -----------------------------------------------------------------------------------------------------------------------------
 // Three loose fuses, found where they lie and carried to the panel in the control room in any order: one in the bunk room, one in the aquarium hall, one
-// on the open sand west of the hatch (6.6 m from the ring, so the hatch's offer and the fuse's never share a spot). `inside`: its home is under the roof.
+// on the open sand east of the hatch and north of the mounts racks (clear of the hatch ring and of both racks, so no two offers share a spot). `inside`: its home is under the roof.
 export const FUSE_SPOTS = Object.freeze([
   Object.freeze({ id: 0, x: 6.6, z: -36.9, inside: true, room: 'bunk' }),
   Object.freeze({ id: 1, x: 12.0, z: -36.6, inside: true, room: 'aquarium' }),
-  Object.freeze({ id: 2, x: -20.5, z: -35.0, inside: false, room: null }),
+  Object.freeze({ id: 2, x: -14.0, z: -27.0, inside: false, room: null }),
 ]);
 export const FUSE_REACH = 1.5;
 export const PANEL = Object.freeze({ x: 7.3, z: -31.4, reach: 2.2 }); // where she stands to put a fuse in (the sockets are 1.4 m north)
