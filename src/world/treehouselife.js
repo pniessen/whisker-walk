@@ -152,6 +152,8 @@ export function createNutmeg(ctx) {
   const light = ctx.light ?? null;
   const lowTier = isLowTier(ctx.tier);
   const rec = () => M.normalize(progression?.state?.treehouse);
+  const LETTERS = S.allLetters(); // all three once the branches stage is in (milestone T5)
+  const HOUSES = S.allHouses();
 
   let clock = 0;
   let disposed = false;
@@ -165,14 +167,14 @@ export function createNutmeg(ctx) {
   let goalAt = -100;
   const told = new Set();
   const nutmeg = { x: S.NUTMEG.start.x, z: S.NUTMEG.start.z, yaw: Math.PI, moving: false };
-  const lit = S.HOUSES.map((h) => (M.delivered(progression?.state?.treehouse, h.id) ? 1 : 0)); // each window's light, 0 to 1 (rises when posted)
+  const lit = HOUSES.map((h) => (M.delivered(progression?.state?.treehouse, h.id) ? 1 : 0)); // each window's light, 0 to 1 (rises when posted)
 
   const group = makeNutmeg();
   group.position.set(nutmeg.x, 0, nutmeg.z);
   const tex = dotTexture();
-  const letters = S.LETTERS.map(() => makeLetter());
-  const glints = S.LETTERS.map(() => { const s = glow(COLORS.glint, 0.8, 0.6, tex); s.name = 'treehouse:letter:glint'; return s; });
-  const halos = S.HOUSES.map((h) => { const s = glow(WINDOW_LOOK.on, 0, WINDOW_LOOK.halo, tex); s.name = `treehouse:window${h.id}:halo`; s.visible = false; s.position.set(h.glow.x, h.glow.y, h.glow.z); return s; });
+  const letters = LETTERS.map(() => makeLetter());
+  const glints = LETTERS.map(() => { const s = glow(COLORS.glint, 0.8, 0.6, tex); s.name = 'treehouse:letter:glint'; return s; });
+  const halos = HOUSES.map((h) => { const s = glow(WINDOW_LOOK.on, 0, WINDOW_LOOK.halo, tex); s.name = `treehouse:window${h.id}:halo`; s.visible = false; s.position.set(h.glow.x, h.glow.y, h.glow.z); return s; });
   const bubble = makeBubble();
   const ring = sparkles(RING.points, 0.2, 0xfff0d0, 0.9, tex);
   ring.name = 'treehouse:meowRing';
@@ -185,10 +187,12 @@ export function createNutmeg(ctx) {
   // The goal now: where the meow's ring rises and which picture Nutmeg shows. { g: { kind, letter?, icon }, x, z, y }
   function goalPoint() {
     const g = M.nextGoal(progression?.state?.treehouse, carrying);
-    const l = g.letter !== undefined ? S.LETTERS[g.letter] : null;
-    const h = g.letter !== undefined ? S.HOUSES[g.letter] : null;
-    if (g.kind === 'letter' && l) return { g, x: l.x, z: l.z, y: 0.9 };
+    const l = g.letter !== undefined ? LETTERS[g.letter] : null;
+    const h = g.letter !== undefined ? HOUSES[g.letter] : null;
+    if (g.kind === 'letter' && l) return { g, x: l.x, z: l.z, y: l.ring ?? 0.9 };
     if (g.kind === 'deliver' && h) return { g, x: h.x, z: h.z, y: h.y };
+    const sp = ST.branches?.story?.spots?.[g.kind]; // the bell, the supper table: the branches stage's
+    if (sp) return { g, x: sp.x, z: sp.z, y: sp.up ?? 0 };
     return { g, x: nutmeg.x, z: nutmeg.z, y: 0 };
   }
   const goal = () => (goalCur ?? (goalCur = goalPoint()));
@@ -202,8 +206,10 @@ export function createNutmeg(ctx) {
   function perform(ev, { remote = false } = {}) {
     const r = remote ? M.credit(progression?.state?.treehouse, ev) : M.apply(progression?.state?.treehouse, ev);
     if (!r.changed) return null;
+    const before = rec().step;
     commit(r.treehouse);
     goalCur = null;
+    if (before < M.STEP.third && r.treehouse.step >= M.STEP.third) progression?.recordSighting?.('th7'); // the journal's letters page: all three are delivered
     return r.effect;
   }
   function showBubble(kind) { bubble.show(kind); bubbleT = clock; }
@@ -215,7 +221,7 @@ export function createNutmeg(ctx) {
     const hintKey = 'hint-' + gp.g.kind + (gp.g.letter ?? '');
     if (!told.has(hintKey)) {
       told.add(hintKey);
-      if (gp.g.kind === 'letter') say('treehouse-letter-find', phrase('treehouse.letter.find'));
+      if (gp.g.kind === 'letter') say('treehouse-letter-find' + (gp.g.letter || ''), gp.g.letter === 0 ? phrase('treehouse.letter.find') : gp.g.letter === 1 ? phrase('treehouse.basket.find') : phrase('treehouse.bag.find'));
     }
   }
   const offMeow = bus.on('tip:did', (e) => { if (e && e.id === 'call') meowed = true; });
@@ -226,25 +232,25 @@ export function createNutmeg(ctx) {
     const r = rec();
     if (r.step < M.STEP.met && dist(catPos, nutmeg) < S.NUTMEG.reach) return { kind: 'meet', line: phrase('treehouse.nutmeg.prompt') };
     if (carrying !== null) {
-      const h = S.HOUSES[carrying];
+      const h = HOUSES[carrying];
       if (h && dist(catPos, h) < h.reach && (catPos.y ?? h.y) >= h.minY) return { kind: 'give', letter: carrying, line: phrase('treehouse.letter.give') };
     }
     if (carrying === null && wanted() >= 0) {
-      const l = S.LETTERS[wanted()];
-      if (l && dist(catPos, l) < l.reach) return { kind: 'pick', letter: l.id, line: phrase('treehouse.letter.prompt') };
+      const l = LETTERS[wanted()];
+      if (l && dist(catPos, l) < l.reach && (catPos.y ?? l.y) >= (l.minY ?? -1)) return { kind: 'pick', letter: l.id, line: phrase('treehouse.letter.prompt') };
     }
     return null;
   }
 
   function placeLetter(i, t, catPos, session) {
-    const l = S.LETTERS[i];
+    const l = LETTERS[i];
     const mode = letterMode(i);
     const g = letters[i];
     let x = l.x; let z = l.z; let y = l.y + 0.02;
     if (mode === 'carried' && catPos) {
       const yaw = session?.cat?.rotation?.y ?? 0;
       x = catPos.x + Math.sin(yaw) * 0.5; z = catPos.z + Math.cos(yaw) * 0.5; y = (catPos.y ?? 0) + 0.18;
-    } else if (mode === 'posted') { const h = S.HOUSES[i]; x = h.sill.x; y = h.sill.y; z = h.sill.z; }
+    } else if (mode === 'posted') { const h = HOUSES[i]; x = h.sill.x; y = h.sill.y; z = h.sill.z; }
     g.position.set(x, y, z);
     g.visible = true;
     const gl = glints[i];
@@ -265,7 +271,7 @@ export function createNutmeg(ctx) {
       const h = halos[i];
       h.visible = lit[i] > 0.001;
       h.material.opacity = WINDOW_LOOK.haloHigh * k;
-      if (k >= top && k > 0) { top = k; at = S.HOUSES[i]; }
+      if (k >= top && k > 0) { top = k; at = HOUSES[i]; }
     }
     // the village's one light sits at the newest lit window (not on the low rungs: the glow sprite is enough there)
     if (light && !lowTier) {
@@ -304,7 +310,7 @@ export function createNutmeg(ctx) {
   }
 
   return {
-    get state() { return { clock, carrying, nutmeg: { ...nutmeg }, record: rec(), letterModes: S.LETTERS.map((l) => letterMode(l.id)), bubble: bubble.icon, lit: [...lit] }; },
+    get state() { return { clock, carrying, nutmeg: { ...nutmeg }, record: rec(), letterModes: LETTERS.map((l) => letterMode(l.id)), bubble: bubble.icon, lit: [...lit] }; },
     get nutmeg() { return nutmeg; },
     get group() { return group; },
     get letters() { return letters; },
@@ -312,6 +318,13 @@ export function createNutmeg(ctx) {
     get bubble() { return bubble; },
     goalNow: goalPoint,
     goal,
+    // a step of the story that is not a button here (the branches stage's: 'ring' at the bell): the same effects and the same wire as her own; the supper's own steps go with the supper
+    step(ev, remote = false) {
+      if (disposed) return null;
+      const effect = perform(ev, { remote });
+      if (effect && !remote && ev.kind === 'ring') ctx.send?.(M.wire(ev));
+      return effect;
+    },
     promptAt(catPos) {
       target = decide(catPos);
       return target ? target.line : null;
@@ -331,7 +344,7 @@ export function createNutmeg(ctx) {
       } else if (t.kind === 'pick') {
         carrying = t.letter;
         audio?.chime?.();
-        say('treehouse-letter-got', phrase('treehouse.letter.got'));
+        say('treehouse-letter-got' + (t.letter || ''), t.letter === 0 ? phrase('treehouse.letter.got') : t.letter === 1 ? phrase('treehouse.basket.got') : phrase('treehouse.bag.got'));
         showBubble('house');
       } else if (t.kind === 'give') {
         const id = t.letter;
@@ -341,7 +354,7 @@ export function createNutmeg(ctx) {
         if (effect) {
           ctx.send?.(M.wire({ kind: 'deliver', letter: id }));
           audio?.chime?.();
-          say('treehouse-bakery-delivered', phrase('treehouse.bakery.delivered'));
+          say(['treehouse-bakery-delivered', 'treehouse-bookshop-delivered', 'treehouse-belltower-delivered'][id], id === 0 ? phrase('treehouse.bakery.delivered') : id === 1 ? phrase('treehouse.bookshop.delivered') : phrase('treehouse.belltower.delivered'));
           showBubble('heart');
         }
       }
@@ -408,9 +421,9 @@ export function createNutmeg(ctx) {
   };
 }
 
-// The action button's one arbiter for the place: Nutmeg first, then the stages' own offers (stage slots that answer null until a stage fills them, so later milestones add to the
-// list and never fight over it).
-export function createTreehousePrompts(nutmeg) {
+// The action button's one arbiter for the place: Nutmeg first, then the branches stage's wing (the bell and the firefly supper), then the lift's slot (answers null until the stage fills it, so
+// later milestones add to the list and never fight over it).
+export function createTreehousePrompts(nutmeg, wing = null) {
   const slot = (get) => ({ promptAt: (p) => get()?.promptAt?.(p) ?? null, interact: () => get()?.interact?.() ?? null });
-  return createPromptArbiter([nutmeg, slot(() => ST.branches), slot(() => ST.lift)]);
+  return createPromptArbiter([nutmeg, slot(() => wing), slot(() => ST.lift)]);
 }

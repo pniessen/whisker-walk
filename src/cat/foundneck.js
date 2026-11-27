@@ -559,12 +559,19 @@ const dressClasp = charm([0x8cb8e6, 0xf6faff], (u) => [
   ...[0, 1, 2].map((i) => colour(new THREE.BoxGeometry(1.3 * u, 0.16 * u, 0.1 * u).rotateZ((i * Math.PI) / 3).translate(0, 0, -0.12 * u), () => (i ? 0xa9d0f2 : 0xc4e0f8))),
 ]);
 
+// Acorn Locket (the Treehouse village's story prize): a leaf-green band piped cream, and at the throat a small brown acorn (a squashed ball with a darker cap) on a cream disc. Faces -z, one mesh.
+const dressLocket = charm([0x6aa84f, 0xf4ecd6], (u) => [
+  colour(new THREE.CylinderGeometry(0.62 * u, 0.62 * u, 0.16 * u, 10, 1).rotateX(Math.PI / 2), 0xf4ecd6),
+  colour(new THREE.SphereGeometry(0.42 * u, 7, 5).scale(1, 1.1, 0.7).translate(0, -0.1 * u, -0.16 * u), (x, y) => (y > 0.1 * u ? 0x6a4a28 : 0xb07a3a)),
+]);
+
 export const FOUND_COLLARS = Object.freeze({
   glimmercollar: Object.freeze({ ring: 0x8a6ac0, charmed: true, dress: dressGlimmer }),
   pearlcollar: Object.freeze({ ring: 0xa8d8cf, charmed: true, dress: dressPearl }),
   moonbadge: Object.freeze({ ring: 0x8e98b0, charmed: true, dress: dressMoonBadge }),
   signaltag: Object.freeze({ ring: 0x3fb8a8, charmed: true, dress: dressSignalTag }),
   snowclasp: Object.freeze({ ring: 0x8cb8e6, charmed: true, dress: dressClasp }),
+  acornlocket: Object.freeze({ ring: 0x6aa84f, charmed: true, dress: dressLocket }),
   bottletopcollar: Object.freeze({ ring: 0x3a3a42, charmed: false, dress: dressBottleTops }),
   ropecollar: Object.freeze({ ring: 0xc8a46a, charmed: true, dress: dressRope }),
   anchorcharm: Object.freeze({ ring: 0x24365c, charmed: true, dress: dressAnchor }),

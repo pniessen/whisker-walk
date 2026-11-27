@@ -60,22 +60,22 @@ export function treehouseMaterials() {
 }
 
 // ---- small shapes, placed and painted (each returns a geometry in world space) ----------------------------------------------
-const M4 = new THREE.Matrix4();
+export const M4 = new THREE.Matrix4();
 const Q = new THREE.Quaternion();
 const E = new THREE.Euler();
 const S = new THREE.Vector3();
 const V = new THREE.Vector3();
-function placed(geo, x, y, z, { yaw = 0, pitch = 0, sx = 1, sy = 1, sz = 1 } = {}) {
+export function placed(geo, x, y, z, { yaw = 0, pitch = 0, sx = 1, sy = 1, sz = 1 } = {}) {
   Q.setFromEuler(E.set(pitch, yaw, 0, 'YXZ'));
   geo.applyMatrix4(M4.compose(V.set(x, y, z), Q, S.set(sx, sy, sz)));
   return geo;
 }
 // A box with its centre at (x, y, z).
-const slab = (x, y, z, w, h, d, hex, { yaw = 0, pitch = 0, jitter = 0 } = {}) => paint(placed(new THREE.BoxGeometry(w, h, d), x, y, z, { yaw, pitch }), hex, jitter);
+export const slab = (x, y, z, w, h, d, hex, { yaw = 0, pitch = 0, jitter = 0 } = {}) => paint(placed(new THREE.BoxGeometry(w, h, d), x, y, z, { yaw, pitch }), hex, jitter);
 // A cylinder standing from y0 to y1.
-const post = (x, z, y0, y1, r0, r1, hex, sides = 8, jitter = 0) => paint(placed(new THREE.CylinderGeometry(r1, r0, y1 - y0, sides), x, (y0 + y1) / 2, z), hex, jitter);
+export const post = (x, z, y0, y1, r0, r1, hex, sides = 8, jitter = 0) => paint(placed(new THREE.CylinderGeometry(r1, r0, y1 - y0, sides), x, (y0 + y1) / 2, z), hex, jitter);
 // A beam from (x0,y0,z0) to (x1,y1,z1), `t` thick.
-function beam(x0, y0, z0, x1, y1, z1, t, hex, jitter = 0) {
+export function beam(x0, y0, z0, x1, y1, z1, t, hex, jitter = 0) {
   const dx = x1 - x0; const dy = y1 - y0; const dz = z1 - z0;
   const len = Math.hypot(dx, dy, dz);
   const g = new THREE.BoxGeometry(t, t, len);
@@ -83,7 +83,7 @@ function beam(x0, y0, z0, x1, y1, z1, t, hex, jitter = 0) {
   g.applyMatrix4(M4.compose(V.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), Q, S.set(1, 1, 1)));
   return paint(g, hex, jitter);
 }
-const blob = (x, y, z, s, hex, jitter, detail = 1, squash = 0.78) => paint(placed(new THREE.IcosahedronGeometry(1, detail), x, y, z, { sx: s, sy: s * squash, sz: s, yaw: (x * 7 + z * 3) % 6.28 }), hex, jitter);
+export const blob = (x, y, z, s, hex, jitter, detail = 1, squash = 0.78) => paint(placed(new THREE.IcosahedronGeometry(1, detail), x, y, z, { sx: s, sy: s * squash, sz: s, yaw: (x * 7 + z * 3) % 6.28 }), hex, jitter);
 
 // ---- the floor ------------------------------------------------------------------------------------------------------
 export function drawGround() {
@@ -129,7 +129,7 @@ function rail(kit, M, x0, z0, x1, z1, y) {
   kit.put('paint', M.paint, beam(x0, y + P.RAIL_H, z0, x1, y + P.RAIL_H, z1, 0.07, L.plank));
   kit.put('paint', M.paint, beam(x0, y + P.RAIL_H * 0.5, z0, x1, y + P.RAIL_H * 0.5, z1, 0.04, L.rope));
 }
-function lantern(kit, M, x, y, z) {
+export function lantern(kit, M, x, y, z) {
   kit.put('glow', M.glow, paint(placed(new THREE.SphereGeometry(0.13, 6, 5), x, y, z), L.glow), { noCast: true });
   kit.put('paint', M.paint, beam(x, y + 0.13, z, x, y + 0.55, z, 0.025, L.trunkDark));
 }
