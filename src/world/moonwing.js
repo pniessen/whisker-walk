@@ -110,6 +110,12 @@ export function drawWing(mainKit, M) {
   const inn = domeCap(O.dome, O.domeRise, slitMid, 0.55, 0.12);
   inn.g.translate(O.x, fy + O.pillarH, O.z);
   kit.put('paint', M.paint, paint(flip(inn.g), WING_COL.navy), { noCast: true });
+  // (buildings beauty) a hazard band under the dome's ring and eight pale lit slits between the pillars
+  kit.put('paint', M.paint, paint(new THREE.TorusGeometry(O.ring, 0.05, 3, 28).rotateX(Math.PI / 2).translate(O.x, fy + O.pillarH - 0.2, O.z), WING_COL.hazard), { noCast: true });
+  for (let i = 0; i < O.pillars; i++) {
+    const a = (i / O.pillars) * Math.PI * 2;
+    kit.put('paint', M.paint, paint(new THREE.BoxGeometry(0.5, 0.14, 0.05).rotateY(-a - Math.PI / 2).translate(O.x + Math.cos(a) * (O.ring + 0.05), fy + 0.7, O.z + Math.sin(a) * (O.ring + 0.05)), WING_COL.lamp), { noCast: true }); // (a bright paint, not a glow mesh: the wing group's draw count stays at its two)
+  }
   // the telescope's pedestal and mount (the tube is a mesh of its own)
   kit.put('paint', M.paint, paint(new THREE.CylinderGeometry(0.55, 0.7, 0.5, 10).translate(O.x, fy + 0.3, O.z), WING_COL.steel));
   kit.put('paint', M.paint, paint(new THREE.CylinderGeometry(0.16, 0.22, 1.1, 8).translate(O.x, fy + 1.0, O.z), WING_COL.white));

@@ -139,6 +139,15 @@ export function drawDepot(kit, M, T) {
   kit.put('paint', M.paint, paint(at(box(0.3, 0.3, d - 0.5), x + w / 2 + 0.1, z, h - 0.45), BASE_COL.hazard));
   kit.put('paint', M.paint, paint(at(cyl(0.05, 0.07, 3.4, 5), x + w / 2 + 0.9, z + d / 2 - 0.2, 1.7), BASE_COL.core));
   kit.put('glow', M.glow, paint(at(new THREE.SphereGeometry(0.2, 8, 6), x + w / 2 + 0.9, z + d / 2 - 0.2, 3.5), 0xfff0c4), { noCast: true });
+  // (buildings beauty) panel seams on the long walls, a hazard band at the foot, a lit window and a number on the west wall, vent slats on the roof
+  for (const s of [-1, 1]) {
+    for (const sz of [-1.4, 0, 1.4]) kit.put('paint', M.paint, paint(at(box(0.06, h - 0.3, 0.04), x - w / 2 + 0.2 + (sz + 1.4) * 0.0 + 0.0, z + sz, h / 2 + 0.05).translate(-0.12, 0, 0), 0x8a93a3), { noCast: true });
+    kit.put('paint', M.paint, paint(at(box(w, 0.16, 0.05), x, z + s * (d / 2 + 0.02), 0.2), BASE_COL.hazard), { noCast: true });
+    kit.put('paint', M.paint, paint(at(box(w - 0.6, 0.05, 0.04), x, z + s * (d / 2 + 0.02), h - 0.55), 0x8a93a3), { noCast: true });
+  }
+  kit.put('glow', M.glow, paint(at(box(0.04, 0.4, 1.0), x - w / 2 - 0.03, z, 2.0), 0xffd987), { noCast: true });
+  kit.put('paint', M.paint, paint(at(box(0.04, 0.5, 0.12), x - w / 2 - 0.03, z + 1.6, 1.0), 0xd8503c), { noCast: true });
+  for (let i = 0; i < 4; i++) kit.put('paint', M.paint, paint(at(box(w - 0.8, 0.04, 0.1), x, z - 1.2 + i * 0.8, h + 0.26), 0x30343c), { noCast: true });
   // a tool crate and a spare wheel beside it
   kit.put('paint', M.paint, paint(at(box(0.9, 0.7, 0.7), x + w / 2 + 0.7, z - d / 2 + 0.2, 0.35), BASE_COL.hazard));
   kit.put('paint', M.paint, paint(at(cyl(0.34, 0.34, 0.24, 10).rotateX(Math.PI / 2), x - 0.3, z + d / 2 + 0.2, 0.34), 0x30343c));
