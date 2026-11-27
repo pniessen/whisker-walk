@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import * as P from '../src/world/moonplan.js';
 import * as S from '../src/world/moonstationplan.js';
+import * as SL from '../src/world/moonsledplan.js';
 import * as MP from '../src/world/moonparts.js';
 import * as B from '../src/world/moonbeautyplan.js';
 import { build } from '../src/world/moon.js';
@@ -190,7 +191,7 @@ describe('the place is closed off until its stage arrives, then opens', () => {
     const ring0 = area.colliders.filter((c) => c.station).length;
     arriveStation(frame);
     expect(area.colliders.filter((c) => c.station)).toEqual([]);
-    expect(area.colliders.length).toBe(before - ring0 + S.STATION_COLLIDERS.length);
+    expect(area.colliders.length).toBe(before - ring0 + S.STATION_COLLIDERS.length + 3); // (+ the sled's rack: two posts and the parked sled, M2)
     for (const c of S.STATION_COLLIDERS) expect(area.colliders.some((o) => o.x === c.x && o.z === c.z && o.r === c.r), JSON.stringify(c)).toBe(true);
     expect(area.perches.filter((p) => p.x === 44 && p.z === 36 && p.y === 3)).toHaveLength(1);
     const g = scene.getObjectByName('moon:stationE');
@@ -263,12 +264,12 @@ describe('the rocks in the footprint', () => {
     expect(P.MOON_CLEARS).toEqual([]);
     const drawn = grab();
     arriveStation(frame);
-    expect(P.MOON_CLEARS).toEqual([S.CLEAR]);
+    expect(P.MOON_CLEARS).toEqual([S.CLEAR, SL.CLEAR]); // (the station's, then the sled lane's, M2)
     const gone = grab().reduce((n, arr, m) => { for (let i = 0; i < arr.length / 16; i++) if (!arr.slice(i * 16, i * 16 + 16).every((v, j) => v === drawn[m][i * 16 + j])) n++; return n; }, 0);
     expect(gone).toBeGreaterThan(0); // (the rocks drawn in the footprint before the stage came in are gone with it)
     life.dispose();
     const again = setup({ reducedMotion: true, held: false });
-    expect(P.MOON_CLEARS).toEqual([S.CLEAR]);
+    expect(P.MOON_CLEARS).toEqual([S.CLEAR, SL.CLEAR]); // (the station's, then the sled lane's, M2)
     again.life.dispose();
     P.MOON_CLEARS.length = 0;
   });
@@ -335,7 +336,7 @@ describe('the words and the pages', () => {
     for (const w of ['collapse', 'trapped', 'stuck', 'dark']) expect(phrase(id).toLowerCase()).not.toContain(w);
   });
   it('the station\'s page is live; the relay\'s (M3), the sled\'s and the signal\'s are still hidden', () => {
-    expect(WING_LIVE).toMatchObject({ mnstation: true, mnsignal: false, mnrelay: false, mnsled: false, mnlap: false });
+    expect(WING_LIVE).toMatchObject({ mnstation: true, mnsignal: false, mnrelay: false, mnsled: true, mnlap: true });
     expect(wingPageShown('mnstation')).toBe(true);
     expect(wingPageShown('mnrelay')).toBe(false);
   });

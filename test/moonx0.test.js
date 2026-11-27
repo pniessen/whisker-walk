@@ -192,7 +192,7 @@ describe('the station stage', () => {
     expect(order).toHaveLength(4);
     await import('../src/world/moonstagestation.js');
     expect(ST.station).toEqual({});
-    expect(Object.isFrozen(ST.station)).toBe(true);
+    expect(Object.keys(ST.station)).toEqual([]); // (the slots are filled by a live, only while it is up: M2's sled)
     const { STAGE_ORDER } = await import('../src/world/moonstages.js');
     expect(STAGE_ORDER).toEqual(['rover', 'hill', 'launch']); // the station has no ring, no stand-in and no region
   });
