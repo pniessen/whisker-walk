@@ -19,7 +19,7 @@ import { SKULL } from './torso.js';
 // the cat's head slot builds these.
 
 export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown', 'acorncap',
-  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap', 'keepercap', 'gardenerhat'];
+  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap', 'keepercap', 'gardenerhat', 'crystalcirclet'];
 
 // Palette. The three shop hats' colours are model.js's own (it imports these
 // for Hagrid's hats); the prize colours are the same hexes as model.js's
@@ -1233,7 +1233,15 @@ function birthdayhat(simple) {
   return finish('birthdayhat', parts);
 }
 
-const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap, keepercap, gardenerhat };
+// Crystal Circlet (the Crystal Cave's forge prize): a thin silver band, its bottom edge on the skull ring at the brow, three small crystals (sky, rose, gold) across the front.
+function crystalcirclet(simple) {
+  const cols = simple ? 12 : 20, ring = (phi, h) => { const p = ringPoint(phi, 0.14), n = skullNormal(p); return p.addScaledVector(n, 0.003).add(new THREE.Vector3(0, h, 0)); };
+  const band = grid(cols, 2, { wrapU: true }, (i, j) => { const phi = (i / cols) * Math.PI * 2; return { p: ring(phi, j * 0.014), c: j ? 0xe4e9f2 : 0xaab3c4, out: new THREE.Vector3(Math.sin(phi), 0, -Math.cos(phi)) }; });
+  const gems = [-0.3, 0, 0.3].map((phi, k) => blob(k === 1 ? 0.016 : 0.012, simple ? 4 : 6, simple ? 3 : 4, ring(phi, 0.01 + (k === 1 ? 0.004 : 0)).addScaledVector(new THREE.Vector3(Math.sin(phi), 0, -Math.cos(phi)), 0.007), [1, 1.25, 0.8], [0x62b8ff, 0xff6fa8, 0xffc65a][k]));
+  return finish('crystalcirclet', [band, backFace(band), ...gems]);
+}
+
+const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap, keepercap, gardenerhat, crystalcirclet };
 
 // The clips' ground looks (src/foundwear/display.js): the clip as worn (the
 // simple build), turned so its face is up and propped toward -z, as if

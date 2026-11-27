@@ -114,7 +114,7 @@ describe('the prompt arbiter and the stages', () => {
   });
   it('crystal.js routes the source order and the wc- events; empty stages change nothing', () => {
     const code = readFileSync(new URL('../src/world/crystal.js', import.meta.url), 'utf8');
-    expect(code).toContain("createPromptArbiter([riding, lumi, errand, wingLife, slot(() => river), slot(() => cart), slot(() => ST.wingc?.forge), slot(() => ST.play?.pads)])");
+    expect(code).toContain("createPromptArbiter([riding, lumi, errand, wingLife, slot(() => river), slot(() => cart), slot(() => forgeJob), slot(() => ST.play?.pads)])");
     expect(code).toContain("startsWith('wc-')");
   });
   it('the clears hook starts empty and takes rim rocks and pebbles away after the scatter', async () => {
