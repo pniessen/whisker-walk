@@ -1,8 +1,7 @@
 // The start-up side of couch play (two cats, one screen): a flag and one slot
-// for the chunk (src/coop/*, loaded only when couch play is on). No imports, and nothing
-// here may import src/coop/: the build fails if the chunk joins start-up
-// (scripts/buildjson.mjs). With the flag off `poll` stays null, so the frame
-// loop's one extra line does nothing and solo play is today's.
-export const coop = { two: false, poll: null, pad: null, frame: null, late: null }; // poll(dt): the chunk's per-frame work, null = nobody listens; pad: the pad cat one's walk reads (null = as today); frame(dt): after player.update; late(dt): after the walk's own interactions
-export const coopWanted = (search) => /[?&]coop=1\b/.test(search); // this page load only, never saved
-export const coopMode = (search, on) => !/[?&]coop=0\b/.test(search) && (coopWanted(search) || on === true); // ?coop=0/1 win over the per-device Settings switch
+// for the chunk (src/coop/*, loaded only when couch play is on). No imports, and
+// nothing here may import src/coop/ (scripts/buildjson.mjs fails the build).
+// Off: `poll` stays null, so the frame loop's extra line does nothing.
+export const coop = { two: false, poll: null, pad: null, frame: null, late: null }; // poll(dt): the chunk's per-frame work; pad: cat one's pad (null = as today); frame/late: after player.update / the walk's interactions
+export const coopWanted = (search) => /[?&]coop=1\b/.test(search);
+export const coopMode = (search, on) => !/[?&]coop=0\b/.test(search) && (coopWanted(search) || on === true); // ?coop=0/1 beat the Settings switch
