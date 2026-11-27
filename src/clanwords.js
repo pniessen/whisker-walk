@@ -199,7 +199,7 @@ export const OUTSIDE_WORDS = Object.freeze({
   house: 'kittypet',
   // The people of the town (the Market's musician line).
   people: 'Twolegs',
-  // The Old House's east wing: its children, and its bathroom (housewingwords.js).
+  // The Old House east wing: its children, and its bathroom (housewingwords.js).
   kids: 'Twoleg kits',
   wash: 'washing-place',
 });
