@@ -152,7 +152,10 @@ describe('the River marsh dressing', () => {
       expect(m.userData.noCast).toBe(true);
       expect(m.castShadow).toBe(false);
     }
-    expect(triCount(dress.geometry) + triCount(paint.geometry)).toBeLessThanOrEqual(7300);
+    // 2026-11-27, the River beauty round (riverbeauty.js folds its foam and ripple
+    // slivers into the dressing mesh): 7,300 -> 7,400 (it measures 7,318 with the 618
+    // new triangles; the stepping stones lost 224 hidden bottom triangles).
+    expect(triCount(dress.geometry) + triCount(paint.geometry)).toBeLessThanOrEqual(7400);
     const p = paint.geometry.attributes.position;
     for (let i = 0; i < p.count; i++) expect(p.getY(i)).toBe(Math.fround(0.005));
     // blades seen from behind are lit like their front, not flipped dark
@@ -174,8 +177,10 @@ describe('the River marsh dressing', () => {
     // polish-camps6: the camp's six nests are moss cups, 20 triangles more
     // each (+120)
     // polish-bushes: the 3 hidden-mouse bushes wear leaf cards (+544)
-    expect(stats.triangles - life).toBeLessThanOrEqual(63150);
-    expect(stats.triangles).toBeLessThanOrEqual(64044);
+    // 2026-11-27, the River beauty round: +600 foam and ripple triangles in the
+    // dressing, -224 hidden stone bottoms (net +376): 63,150 -> 63,500, 64,044 -> 64,200
+    expect(stats.triangles - life).toBeLessThanOrEqual(63500);
+    expect(stats.triangles).toBeLessThanOrEqual(64200);
   }, 120_000);
 
   it('the flower cups are lit from the side the camera sees (inside, from above)', () => {

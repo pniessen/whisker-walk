@@ -17,6 +17,7 @@ import {
 import { marshMist, dragonflies, riverDragonflyHomes, createMarshLife } from './marshlife.js';
 import { phrase } from '../clanphrases.js';
 import { growOn } from '../grow.js';
+import { dropHiddenBottoms } from './riverbeauty.js';
 import * as west from './riverwest.js';
 import * as south from './riversouth.js';
 import { coreStreams, streamTree, streamSmall } from './streamcore.js';
@@ -604,6 +605,7 @@ export function build(scene, { water = {}, wind } = {}) {
   bridge.name = 'logBridge';
   scene.add(bridge);
   const stones = b.steppingStones(STONES_X, -15, STONES_X, -8, STONES.n, STONES);
+  dropHiddenBottoms(stones);
   stones.name = 'steppingStones';
   scene.add(stones);
 
