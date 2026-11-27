@@ -22,6 +22,8 @@ import { drawCave, drawLanternStalks, drawWingClumps, drawSpires } from './reefw
 import { REEF_SCENICS } from './reeffindsplan.js';
 import { drawDeep } from './reefdeepparts.js';
 import { createReefDeepLife } from './reefdeeplife.js';
+import { createReefSealsLife } from './reefsealslive.js';
+import { lifeColliders } from './reefseals.js';
 import './reefwords.js';
 
 export { REEF_NAME, REEF_BOUNDS, REEF_SPAWN } from './reefplan.js';
@@ -59,7 +61,7 @@ export function build(scene) {
       name: P.REEF_NAME,
       bounds: P.REEF_BOUNDS,
       spawn: P.REEF_SPAWN,
-      colliders: [...P.reefColliders(), ...storyColliders()].map((c) => ({ ...c })),
+      colliders: [...P.reefColliders(), ...storyColliders(), ...lifeColliders()].map((c) => ({ ...c })),
       waters: [],
       waterFx: [],
       perches: [],
@@ -87,10 +89,12 @@ export function build(scene) {
         const base = createReefStoryLife(ctx); // the light, the kelp, the gauge, Marlo and chapter one (milestone R2)
         const finds = createReefFindsLife(ctx); // the six discoveries (milestone R3)
         const deep = createReefDeepLife({ ...ctx, say: base.say }); // the plankton and the Deep's three soft lines (R8)
+        const sea = createReefSealsLife(ctx); // the seals, octopuses and dolphin family (photo and journal subjects through `spottable`)
         return {
           ...base,
-          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); },
-          dispose() { deep.dispose(); finds.dispose(); base.dispose(); },
+          spottable: sea.spottable,
+          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); },
+          dispose() { sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
         };
       },
     };

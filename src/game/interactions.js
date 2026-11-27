@@ -780,13 +780,13 @@ export function createInteractions({
     // Appletree Farm's animals: met the same way (6 m, looking at one), the
     // same critter award and journal page, once a walk for each KIND of
     // animal, so a yard of hens is one meeting and not five.
-    for (const a of s.farm?.spottable ?? []) {
+    for (const a of [...(s.farm?.spottable ?? []), ...(s.areaLife?.spottable ?? [])]) { // (an area's own animals too: the Reef's sea life, each with its label and range)
       const dx = a.pos.x - catP.x;
       const dz = a.pos.z - catP.z;
       const d = Math.hypot(dx, dz);
       const f = player.forward();
-      if (d < 6 && d > 1e-6 && (dx * f.x + dz * f.z) / d > 0.5) {
-        if (log.awardOnce('critter', `spot-farm-${a.type}`, labelFor(a.type)) > 0) progression.recordSighting(a.type);
+      if (d < (a.range ?? 6) && d > 1e-6 && (dx * f.x + dz * f.z) / d > 0.5) {
+        if (log.awardOnce('critter', `spot-farm-${a.type}`, a.label ?? labelFor(a.type)) > 0) progression.recordSighting(a.type);
       }
     }
     // v21 3b Task 16: the yard dog is spotted like the critter dog it
