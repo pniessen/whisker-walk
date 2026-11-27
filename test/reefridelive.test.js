@@ -263,7 +263,7 @@ describe('on a walk', () => {
       k.tick(30 * 30);
       for (let i = 0; i < 30 * 20; i++) { k.player.dir = { x: 1, z: 0.6 }; k.tick(1); const inside = s2.x > g.minX && s2.x < g.maxX && s2.z > g.minZ && s2.z < g.maxZ; if (inside) throw new Error('entered the galleon\'s keepOut'); }
     } finally { ST.wreck = wreck; }
-  });
+  }, 90000); // heavy sim; the CI shards run it near the 30 s default under load
 
   it('a walk that ends while she rides sets her on free ground, the gauge running, the walk\'s own fair back, the parked mounts gone from the list', () => {
     for (const at of ['scooter', 'saucer']) {
