@@ -153,13 +153,13 @@ export function createFinds({ ctx, drawn, said = () => {}, pick, tally = [0, 0] 
       count(1, 'a GOLDEN MOUSE! 🥇', paid);
     }
     if (hopping && s.critters) { // cat two's own hop: butterflies and fireflies in the air, critters at the paws
-      const caught = s.critters.catchAt(air.set(p.x, (s.ground.flat ? 0 : s.ground.y(p.x, p.z)) + 0.8, p.z));
+      const caught = s.critters.catchAt?.(air.set(p.x, (s.ground.flat ? 0 : s.ground.y(p.x, p.z)) + 0.8, p.z));
       if (caught) {
         const paid = ctx.log.award('perk', 'catch', 'a mid-air catch!');
         ctx.progression.recordSighting(caught.type);
         count(1, 'a mid-air catch!', paid);
       }
-      const hunted = s.critters.pounceCatch(paws.set(p.x, y, p.z));
+      const hunted = s.critters.pounceCatch?.(paws.set(p.x, y, p.z));
       if (hunted) {
         const paid = ctx.log.award('hunt', `hunt-${hunted.type}`, `you pounce-tagged ${critterLabel(hunted)}!`);
         ctx.progression.recordSighting(hunted.type);

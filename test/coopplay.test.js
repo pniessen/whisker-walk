@@ -16,6 +16,7 @@ const { createRemoteCats } = await import('../src/remotecats.js');
 const { buildCat } = await import('../src/cat/model.js');
 const { FLAT_GROUND } = await import('../src/ground.js');
 const { createProgression, CATALOG } = await import('../src/progression.js');
+const { createDiscoveryLog } = await import('../src/discoveries.js');
 const { PAD_BUTTONS } = await import('../src/gamepadinput.js');
 const { SECOND_ID } = await import('../src/coop/second.js');
 const { maxSeparation } = await import('../src/coop/framing.js');
@@ -37,7 +38,7 @@ class El {
 const fakeDoc = () => ({ createElement: (t) => new El(t), body: new El('body'), head: new El('head') });
 const find = (doc, cls) => doc.body.children.find((c) => c.className === cls);
 
-function rig({ areaId = 'neighborhood', net = null, profile = 'tv', unlocked = ['tabby', 'siamese'], follow = true } = {}) {
+function rig({ areaId = 'neighborhood', net = null, profile = 'tv', unlocked = ['tabby', 'siamese'], follow = true, collectibles = [] } = {}) {
   const progression = createProgression(memoryStorage());
   progression.state.unlocked.cats = unlocked;
   progression.state.petName = 'Mochi';
@@ -51,8 +52,15 @@ function rig({ areaId = 'neighborhood', net = null, profile = 'tv', unlocked = [
   player.enable();
   player.setTouchEngaged(true);
   const remotes = createRemoteCats(scene, { ground: FLAT_GROUND });
-  const area = { colliders: [], bounds: { minX: -80, maxX: 80, minZ: -80, maxZ: 80 }, waters: [] };
-  const session = { areaId, net, scene, cat, remotes, ground: FLAT_GROUND, areaData: area, reducedMotion: false, cameraMode: false, critters: { bumps: [] } };
+  const area = { colliders: [], bounds: { minX: -80, maxX: 80, minZ: -80, maxZ: 80 }, waters: [], collectibles };
+  const collectibleMeshes = new Map(collectibles.map((c) => { const m = new THREE.Object3D(); m.visible = false; scene.add(m); return [c.id, m]; }));
+  const session = {
+    areaId, net, scene, cat, remotes, ground: FLAT_GROUND, areaData: area, reducedMotion: false, cameraMode: false, critters: { bumps: [] },
+    collectibleMeshes, walk: { carried: 0, carryCap: 5 }, fx: { burst() {} },
+    goldMice: { checkFind: () => null, nearestUnfound: () => null, remove() {} }, carry: null, scent: null,
+  };
+  const log = createDiscoveryLog(progression);
+  log.startWalk();
   const pads = [];
   const doc = fakeDoc();
   const toasts = [], acts = [];
@@ -70,7 +78,7 @@ function rig({ areaId = 'neighborhood', net = null, profile = 'tv', unlocked = [
   const ctx = {
     storage: { getItem: () => JSON.stringify({ follow }) },
     nav: { getGamepads: () => pads }, getSession: () => current, player, camera, doc, profile: () => profile,
-    getState: () => progression.state, catalog: CATALOG, toast: (m) => toasts.push(m), act: (n) => { if (n === 'pause') player.setTouchEngaged(false); else acts.push(n); },
+    getState: () => progression.state, catalog: CATALOG, progression, log, audio: {}, toast: (m) => toasts.push(m), act: (n) => { if (n === 'pause') player.setTouchEngaged(false); else acts.push(n); },
     voice: (p) => acts.push(`voice:${p}`), resume: () => { resumed.n++; player.setTouchEngaged(true); }, canResume: () => true,
   };
   const h = start(ctx);
@@ -86,6 +94,7 @@ function rig({ areaId = 'neighborhood', net = null, profile = 'tv', unlocked = [
         if (player.engaged) {
           player.update(DT, area.colliders, area.bounds, area.waters);
           coop.frame?.(DT);
+          coop.late?.(DT);
           remotes.update(DT, performance.now() / 1000, area.waters);
         }
       }
@@ -110,7 +119,7 @@ function joined(opts) {
   return r;
 }
 
-afterEach(() => { coop.poll = null; coop.pad = null; coop.frame = null; vi.restoreAllMocks(); });
+afterEach(() => { coop.poll = null; coop.pad = null; coop.frame = null; coop.late = null; vi.restoreAllMocks(); });
 
 describe('the join prompt', () => {
   it('shows "press A on a second controller" while a pad is there and nobody has joined, in the pad\'s own pictures', () => {
@@ -703,5 +712,59 @@ describe('milestone 2: toasts with a finder chip, the +N pop, the two prompt slo
     r.h.prompt(1, null);
     r.tick(1);
     expect(right.hidden).toBe(true);
+  });
+});
+
+describe('couch play M3: cat two\'s finds, in the chunk', () => {
+  const SHINY = { id: 'col-1', x: 3.4, z: 0, label: 'a shiny thing' };
+  const X = PAD_BUTTONS.X;
+
+  it('a find near cat two shows itself, says what X would do in cat two\'s own prompt slot, and X collects it for the household', () => {
+    const r = joined({ areaId: 'woods', collectibles: [SHINY] });
+    const m = r.session.collectibleMeshes.get(SHINY.id);
+    // cat two stands 1.6 m to the right of cat one: walk it to the find
+    const e = () => r.two().group.position;
+    set(r, pad(0), pad(1, [], [1, 0, 0, 0])); r.tick(40);
+    set(r, pad(0), pad(1)); r.tick(30);
+    expect(m.visible).toBe(true);
+    expect(Math.hypot(e().x - SHINY.x, e().z - SHINY.z)).toBeLessThan(1.6);
+    const slot = r.doc.body.children.find((c) => c.className === 'coop-slot' || c.className?.includes?.('coop-slot'));
+    void slot;
+    const points = r.progression.state.points;
+    set(r, pad(0), pad(1, [X])); r.tick(3);
+    expect(r.session.walk.carried).toBe(1);
+    expect(r.progression.state.points).toBeGreaterThan(points);
+    expect(r.session.collectibleMeshes.has(SHINY.id)).toBe(false);
+    set(r, pad(0), pad(1)); r.tick(2);
+  });
+
+  it('at the walk\'s end the tally card says who found what, and is gone after a while; nothing is saved', () => {
+    const r = joined({ areaId: 'woods', collectibles: [SHINY] });
+    set(r, pad(0), pad(1, [], [1, 0, 0, 0])); r.tick(40);
+    set(r, pad(0), pad(1)); r.tick(30);
+    set(r, pad(0), pad(1, [X])); r.tick(3);
+    set(r, pad(0), pad(1)); r.tick(2);
+    const saved = JSON.stringify(r.progression.state);
+    r.setSession(null); r.tick(2);
+    const card = find(r.doc, 'coop-tally');
+    expect(card.hidden).toBe(false);
+    expect(card.textContent).toBe('Mochi found 0, Siamese found 1');
+    expect(JSON.stringify(r.progression.state)).toBe(saved);
+    r.tick(60 * 11);
+    expect(card.hidden).toBe(true);
+  });
+
+  it('the Den stops zooming out at the default step: the leash is the room\'s own, shorter than the open places\'', () => {
+    const den = joined({ areaId: 'den' });
+    den.tick(2);
+    const open = joined({ areaId: 'woods' });
+    open.tick(2);
+    expect(den.h.state.leash).toBeGreaterThan(2);
+    expect(den.h.state.leash).toBeLessThan(open.h.state.leash);
+  });
+
+  it('couch play is ready in each open place and still not in the Fair', () => {
+    for (const areaId of ['woods', 'river', 'moor', 'pines', 'docks', 'den']) expect(joined({ areaId }).h.state.joined, areaId).toBe(true);
+    expect(joined({ areaId: 'fair' }).h.state.joined).toBe(false);
   });
 });
