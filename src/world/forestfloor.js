@@ -92,6 +92,8 @@ const WOOD_DIM = 0.8;
 const WOOD_COOL = [0.94, 1, 1.07];
 const WOODS_SHADE_REACH = Object.freeze({ inner: 1.0, outer: 4.6 });
 const WOODS_LITTER_REACH = Object.freeze({ outer: 4.8 });
+const DAPPLE = [1.32, 1.28, 0.95];
+const FERNY = [0.88, 1.1, 0.84];
 const clampTint = (v) => (v < 0.5 ? 0.5 : v > 1.5 ? 1.5 : v);
 const mul3 = (a, b) => [a[0] * b[0], a[1] * b[1], a[2] * b[2]];
 const ONE = [1, 1, 1];
@@ -114,6 +116,12 @@ export function woodsFloorTint(trees, clearing, { edge = null } = {}) {
     const moss = smoothstep(0.3, 0.7, smoothField(x, z, 97, 8)) * (1 - litter);
     m = mul3(m, lerp3(ONE, MOSS_TINT, moss));
     m = scale3(mul3(m, WOOD_COOL), WOOD_DIM);
+    // beauty WDS-1: sun dapples where the canopy lets light through (warm,
+    // brighter, strongest where it is not under a trunk) and a yellower
+    // green here and there; colour only, no triangles
+    const dapple = smoothstep(0.0, 0.6, smoothField(x, z, 151, 6)) * (1 - shade * 0.6);
+    m = mul3(m, lerp3(ONE, DAPPLE, dapple));
+    m = mul3(m, lerp3(ONE, FERNY, smoothstep(0.15, 0.5, smoothField(x, z, 163, 7)) * (1 - litter)));
     // the wood's look fades out over the clearing's last 3 m
     let wood = smoothstep(clearing.r - 3, clearing.r, Math.hypot(x - clearing.x, z - clearing.z));
     if (edge != null) wood *= 1 - smoothstep(edge - 8, edge - 1, Math.max(Math.abs(x), Math.abs(z)));
@@ -190,7 +198,7 @@ const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a
 
 // One flat-shaded triangle. With `out` (a point inside a closed shape), the
 // normal is turned to face away from it; otherwise it is the winding's.
-function tri(t, A, B, C, color, out) {
+export function tri(t, A, B, C, color, out) {
   let n = unit(...cross(sub(B, A), sub(C, A)));
   if (out) {
     const mid = [(A[0] + B[0] + C[0]) / 3, (A[1] + B[1] + C[1]) / 3, (A[2] + B[2] + C[2]) / 3];
@@ -203,7 +211,7 @@ function tri(t, A, B, C, color, out) {
 }
 // A thin standing piece (a stem): lit as if it faced mostly up, so it never
 // goes black edge-on.
-function sliver(t, A, B, C, color) {
+export function sliver(t, A, B, C, color) {
   const n = unit(...cross(sub(B, A), sub(C, A)));
   const up = unit(n[0] * 0.5, 0.85, n[2] * 0.5);
   for (const P of [A, B, C]) t.v(P[0], P[1], P[2], up, color);
@@ -488,11 +496,13 @@ const SHAPES = { leaves: leaf, needles: needle, moss, mushrooms, bluebells, foxg
 // the normals as built on both faces (dressing.js bothSidesLit): thin
 // edge-on pieces under a standard material showed a pale grey sheen (the
 // fern pass found the same), Lambert keeps their true colours.
-export function forestFloorMesh(parts, { name = 'forestFloor' } = {}) {
+export function forestFloorMesh(parts, { name = 'forestFloor', extra = null } = {}) {
   const t = new Tris();
   for (const [kind, draw] of Object.entries(SHAPES)) {
     for (const p of parts?.[kind] ?? []) draw(t, p);
   }
+  // the bits of a beauty round (woodsbeauty.js), drawn into the same geometry: no new mesh
+  if (extra) extra(t);
   const material = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
   bothSidesLit(material);
   const mesh = new THREE.Mesh(t.geometry(), material);

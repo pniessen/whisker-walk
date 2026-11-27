@@ -14,6 +14,7 @@ import { withLocalUuids } from './localuuids.js';
 import { DISCS } from '../rivalclans.js';
 import { tintGround, once } from './dressing.js';
 import { forestFloorMesh, woodsFloorTint } from './forestfloor.js';
+import { woodsBeauty } from './woodsbeauty.js';
 import { phrase } from '../clanphrases.js';
 import { growOn } from '../grow.js';
 import { coreStreams, streamTree, streamSmall } from './streamcore.js';
@@ -400,6 +401,15 @@ function besideFits(x, z) {
   if (KEEP_CLEAR.some(([px, pz]) => Math.hypot(x - px, z - pz) < FERN.clear)) return false;
   return Math.hypot(x - SPAWN.x, z - SPAWN.z) >= FERN.spawn;
 }
+// Beside a path (beauty round): just off the track, off the water, the decks,
+// the camp, every find and the spawn.
+function edgeFits(x, z) {
+  if (!inBounds(x, z) || inCamp(x, z)) return false;
+  if (waterDist(x, z) < 1) return false;
+  if (DECKS.some((d) => rectDist(d, x, z) < 1.5)) return false;
+  if (KEEP_CLEAR.some(([px, pz]) => Math.hypot(x - px, z - pz) < 1.6)) return false;
+  return Math.hypot(x - SPAWN.x, z - SPAWN.z) >= 3;
+}
 const floorFits = (x, z, trees) => !inCamp(x, z) && undergrowthFits(x, z, FERN, trees);
 const r3 = (v) => Math.round(v * 1000) / 1000;
 export function woodsFloor() {
@@ -784,7 +794,18 @@ export function build(scene, { water = {}, wind } = {}) {
   // The forest floor: leaves, moss, mushrooms, bluebells, foxgloves, one
   // non-casting mesh made on its own uuid stream (the pinned draw count).
   const floor = woodsFloor();
-  const floorMesh = withLocalUuids('woods-floor-uuids', () => forestFloorMesh(floor));
+  // Beauty round: twigs, roots, fairy rings and path-edge tufts, drawn into
+  // this same mesh (woodsbeauty.js), so no new mesh or draw.
+  const beautyTrees = woodsTreeSpots();
+  const beauty = woodsBeauty({
+    trees: beautyTrees,
+    ok: leafFits,
+    okTall: (x, z) => floorFits(x, z, beautyTrees),
+    okEdge: edgeFits,
+    paths: WOODS_PATHS,
+  });
+
+  const floorMesh = withLocalUuids('woods-floor-uuids', () => forestFloorMesh(floor, { extra: beauty.draw }));
   scene.add(floorMesh);
 
   // --- the trees ----------------------------------------------------------------
@@ -887,7 +908,7 @@ export function build(scene, { water = {}, wind } = {}) {
     streamSmall(reedMesh, reeds, { layer: 'fine' });
     streamSmall(fernMesh, south.fernItems(ferns));
     streamSmall(brambleMesh, south.brambleItems(brambles));
-    streamSmall(floorMesh, south.floorItems(floor));
+    streamSmall(floorMesh, [...south.floorItems(floor), ...beauty.items]);
     strip = south.addSouthStrip(scene, { groundMesh, groundTint: woodsGroundTint, water, waters: G.waters, waterColor: WATER_COLOR });
     waterFx.push(strip.waterFx);
     for (const c of [...south.southTreeColliders(), ...south.SOUTH_COLLIDERS]) addC(c.x, c.z, c.r);

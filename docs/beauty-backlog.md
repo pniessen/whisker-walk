@@ -51,6 +51,7 @@ Top entries by score; ties broken by lower budget risk. Each entry's full brief 
 | Rank | ID | Score | Impact/size | One line |
 |---|---|---|---|---|
 | 2026-11-27 | ~~PIN-1~~ | see git log | pines chunk 43.9; start-up 0 | Needle-litter and sun-pool vertex colour (0 triangles); one noCast additive shaft mesh, strips only (worst spot 67,597 -> 67,697 triangles, 145 -> 146 meshes; row ceilings 152/80/70,000 unchanged); LOW/LITE hide, still under reduced motion; no picture page |
+| 2026-11-27 | ~~WDS-1~~, WDS-3 part | see git log | woods chunk 30.0 -> 31.7; start-up 0 | Sun dapples and yellower greens as ground colour (0 triangles); fallen twigs, tree roots, three fairy rings, path-edge tufts and wood anemones folded into the forestFloor mesh (+569 triangles, 68,810 -> 69,379; no new mesh or draw; row 70,000 untouched); picture page verify-woods-beauty.html |
 | 1 | NBH-1 | 3.0 | H/S | Front-garden flower clumps and lawn colour patches on the Neighborhood street |
 | 2 | NBH-2 | 3.0 | H/S | Dusk window glows and porch-lamp light pools on the street houses |
 | 3 | PRK-1 | 3.0 | H/S | Park flower beds and meadow clumps |
