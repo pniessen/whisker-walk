@@ -11,6 +11,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { crystalY } from './crystalplan.js';
 import { litMaterial } from '../render/materials.js';
 import * as D from './crystaldeepplan.js';
+import { drawLight } from './crystalparts.js'; // already in the cave chunk set: sharing it keeps the plan module in the chunk where it was (a chunk split costs 0.6 kB)
+void drawLight;
 
 const _a = new THREE.Color();
 const STONE = 0x8a7a88;
