@@ -129,6 +129,22 @@ function rail(kit, M, x0, z0, x1, z1, y) {
   kit.put('paint', M.paint, beam(x0, y + P.RAIL_H, z0, x1, y + P.RAIL_H, z1, 0.07, L.plank));
   kit.put('paint', M.paint, beam(x0, y + P.RAIL_H * 0.5, z0, x1, y + P.RAIL_H * 0.5, z1, 0.04, L.rope));
 }
+// A rail along one deck edge with openings (where a flight or a bridge meets it): `opens` are centres along the edge, each 1.3 m wide.
+function railOpen(kit, M, x0, z0, x1, z1, y, opens = []) {
+  const alongX = z0 === z1;
+  const a = alongX ? x0 : z0; const e = alongX ? x1 : z1;
+  const cuts = [...opens].sort((p, q) => p - q);
+  let from = a;
+  const put = (u, v) => { if (v - u > 0.05) rail(kit, M, alongX ? u : x0, alongX ? z0 : u, alongX ? v : x0, alongX ? z0 : v, y); };
+  for (const c of cuts) { put(from, c - 0.65); from = c + 0.65; }
+  put(from, e);
+}
+// Where each deck's edges open for a flight or a bridge (the south edge keeps its own 2.4 m gap): n is the north edge (z0), w the west (x0), e the east (x1).
+const EDGE_OPENS = Object.freeze({
+  bakery: { e: [8.2] },
+  books: { n: [7.7], w: [1.1] },
+  far: { w: [-7.6] },
+});
 export function lantern(kit, M, x, y, z) {
   kit.put('glow', M.glow, paint(placed(new THREE.SphereGeometry(0.13, 6, 5), x, y, z), L.glow), { noCast: true });
   kit.put('paint', M.paint, beam(x, y + 0.13, z, x, y + 0.55, z, 0.025, L.trunkDark));
@@ -140,9 +156,10 @@ export function drawDecks(kit, M) {
     for (let i = 1; i < k.w; i++) kit.put('paint', M.paint, slab(x0 + i, k.y + 0.005, k.z, 0.03, 0.01, k.d, L.plankDark)); // plank seams
     for (const [x, z] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) kit.put('paint', M.paint, post(x, z, 0, k.y + P.RAIL_H, 0.22, 0.22, L.trunk, 7, 1)); // the stilts, carried up as the railing's corner posts
     // the railing; the front edge (the south side) keeps a gap of 2.4 m where the hops come in
-    rail(kit, M, x0, z0, x1, z0, k.y);
-    rail(kit, M, x0, z0, x0, z1, k.y);
-    rail(kit, M, x1, z0, x1, z1, k.y);
+    const o = EDGE_OPENS[k.id] ?? {};
+    railOpen(kit, M, x0, z0, x1, z0, k.y, o.n);
+    railOpen(kit, M, x0, z0, x0, z1, k.y, o.w);
+    railOpen(kit, M, x1, z0, x1, z1, k.y, o.e);
     const gap = 1.2;
     rail(kit, M, x0, z1, k.x - gap, z1, k.y);
     rail(kit, M, k.x + gap, z1, x1, z1, k.y);
@@ -170,14 +187,24 @@ function drawHut(kit, M, deck) {
 }
 
 // ---- stairs and ladders, and the rope bridges --------------------------------------------------------------------------------
-function stairs(kit, M, x0, z0, y0, x1, z1, y1, w = 0.9) {
-  const n = Math.max(2, Math.ceil((y1 - y0) / 0.32));
+// A flight: treads that follow the ground's ramp (treehouseplan.js STAIRS, the strip she walks up): each tread's top is the ramp's height at its middle, so her paws rest on it, with a
+// stringer under each side and a handrail over it (the strip's rim is the wall, so the rail is only for the eye).
+function stairs(kit, M, k) {
+  const { x0, z0, y0, x1, z1, y1, w } = k;
+  const rise = y1 - y0;
+  const n = Math.max(2, Math.ceil(rise / 0.25));
+  const len = Math.hypot(x1 - x0, z1 - z0);
   const yaw = Math.atan2(x1 - x0, z1 - z0);
-  for (let i = 1; i <= n; i++) {
-    const t = i / (n + 1);
-    kit.put('paint', M.paint, slab(x0 + (x1 - x0) * t, y0 + ((y1 - y0) * i) / n - 0.05, z0 + (z1 - z0) * t, w, 0.1, 0.5, L.plank, { yaw, jitter: i }));
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n;
+    kit.put('paint', M.paint, slab(x0 + (x1 - x0) * t, y0 + rise * t - 0.1 + 0.03, z0 + (z1 - z0) * t, w, 0.2, (len / n) * 1.04, L.plank, { yaw, jitter: i }));
   }
-  const side = (s) => { const ox = Math.cos(yaw) * (w / 2) * s; const oz = -Math.sin(yaw) * (w / 2) * s; kit.put('paint', M.paint, beam(x0 + ox, y0, z0 + oz, x1 + ox, y1, z1 + oz, 0.07, L.trunkDark)); };
+  const side = (s) => {
+    const ox = Math.cos(yaw) * (w / 2) * s; const oz = -Math.sin(yaw) * (w / 2) * s;
+    kit.put('paint', M.paint, beam(x0 + ox, y0 - 0.1, z0 + oz, x1 + ox, y1 - 0.1, z1 + oz, 0.1, L.trunkDark));
+    kit.put('paint', M.paint, beam(x0 + ox, y0 + 0.85, z0 + oz, x1 + ox, y1 + 0.85, z1 + oz, 0.05, L.plank));
+    for (const [px, pz, py] of [[x0 + ox, z0 + oz, y0], [x1 + ox, z1 + oz, y1]]) kit.put('paint', M.paint, post(px, pz, py, py + 0.85, 0.04, 0.04, L.plankDark, 4));
+  };
   side(1); side(-1);
 }
 function bridge(kit, M, line) {
@@ -203,12 +230,10 @@ export function drawWalks(kit, M) {
   bridge(kit, M, A);
   bridge(kit, M, B);
   // the way up: a ladder-stair at the Bakery deck's front, the stair from the deck to the branch walk, one from the Bookshop to the far platform, one up to the Crown
-  stairs(kit, M, -7.4, 13.8, 0, -7.4, 12.6, 1.4);
-  stairs(kit, M, -6.4, 9.2, 1.4, -4.4, 8.0, 2.8);
-  stairs(kit, M, 7.2, -1.1, 2.8, 7.0, -3.4, 4.2, 1.1);
-  stairs(kit, M, 2.6, -11.5, 4.2, 1.4, -13.2, 5.6);
+  for (const k of P.STAIRS) stairs(kit, M, k);
   // the walk's first plank is a small landing on stilts, and the rope bridge's middle hangs from the oak's limbs (a thin rope up from each post)
-  kit.put('paint', M.paint, slab(-4.4, 2.8 - 0.1, 8.0, 1.6, 0.18, 1.6, L.plank));
+  const G = P.LANDING;
+  kit.put('paint', M.paint, slab(G.x, G.y - 0.1, G.z, G.w, 0.18, G.d, L.plank));
   for (const [x, z] of [[-5.1, 7.3], [-3.7, 8.7]]) kit.put('paint', M.paint, post(x, z, 0, 2.8, 0.1, 0.1, L.trunk, 6));
   for (const p of [BRIDGE_ROPES[0], BRIDGE_ROPES[1]]) kit.put('paint', M.paint, beam(p.x, p.y, p.z, p.x, p.y + 6, p.z, 0.03, L.rope));
 }

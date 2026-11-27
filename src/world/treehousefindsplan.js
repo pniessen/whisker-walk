@@ -30,6 +30,6 @@ export const TREEHOUSE_COLLECTIBLES = Object.freeze([
 // ---- the three golden mice (y is metres over the ground): on the roots, on the far platform, on the crown deck by the bell. Each stands on a perch of the plan (f2, k1). ----
 export const TREEHOUSE_GOLD = Object.freeze([
   Object.freeze({ id: 'gm-treehouse-1', x: -5.5, z: -2.5, y: 0 }),
-  Object.freeze({ id: 'gm-treehouse-2', x: 6.2, z: -5.6, y: 4.2 }),
-  Object.freeze({ id: 'gm-treehouse-3', x: 1.4, z: -13.2, y: 5.6 }),
+  Object.freeze({ id: 'gm-treehouse-2', x: 6.2, z: -5.6, y: 0 }),
+  Object.freeze({ id: 'gm-treehouse-3', x: 1.4, z: -13.2, y: 0 }),
 ]);

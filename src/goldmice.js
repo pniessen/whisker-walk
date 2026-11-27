@@ -244,11 +244,11 @@ export const GOLD_MICE = {
     { id: 'gm-snowville-3', x: 26, z: -26, y: 1.0 }, // V5: on the hill rock, one hop (y is metres over the snow under it)
   ],
   // The Treehouse village (milestone T3; src/world/treehousefindsplan.js TREEHOUSE_GOLD holds the same three, test/treehousefinds.test.js; bounds 64 x 64 m): on the roots (ground), on the far platform
-  // (perch f2, 4.2 m) and on the crown deck by the bell (perch k1, 5.6 m), so two are climbed (never by a hop over 1.4 m). Not in KEEP_OUT (it already holds their places).
+  // (the deck's own ground, 4.2 m up) and on the crown deck by the bell (5.6 m up), so two are climbed by the flights of stairs (y is metres over the deck under each). Not in KEEP_OUT (it already holds their places).
   treehouse: [
     { id: 'gm-treehouse-1', x: -5.5, z: -2.5, y: 0 },
-    { id: 'gm-treehouse-2', x: 6.2, z: -5.6, y: 4.2 },
-    { id: 'gm-treehouse-3', x: 1.4, z: -13.2, y: 5.6 },
+    { id: 'gm-treehouse-2', x: 6.2, z: -5.6, y: 0 },
+    { id: 'gm-treehouse-3', x: 1.4, z: -13.2, y: 0 },
   ],
   // The Jungle lodge (milestone J3; src/world/junglefindsplan.js JUNGLE_GOLD holds the same three, test/junglefinds.test.js; bounds 88 x 76 m): on the veranda boards, under the giant leaf by the river and on the
   // canopy walk's hill: J5 drew the low branch there (src/world/junglewingplan.js BRANCH, 1.0 m, one hop from the ground beside it) and lifted the third onto it. The first two are on foot. Not in KEEP_OUT (it already holds their places).
