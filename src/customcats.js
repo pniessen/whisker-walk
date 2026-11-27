@@ -43,6 +43,9 @@ export const EYES = table({
 
 const pairs = (a) => Object.freeze(a.map((p) => Object.freeze(p)));
 export const PATTERNS = pairs([['solid', 'Solid'], ['stripes', 'Tabby stripes'], ['points', 'Pointed'], ['patches', 'Patches'], ['socks', 'White socks']]);
+// Scars a child can give her cat (builder-scars, 2026-11-27): one small healed
+// mark, always on the cat's right. 'none' is the default and is never saved.
+export const SCARS = pairs([['none', 'No scar'], ['nose', 'Nose scratch'], ['brow', 'Over the eye'], ['cheek', 'Cheek scratch'], ['nick', 'Nicked ear'], ['tip', 'Torn ear tip']]);
 export const FURS = pairs([['short', 'Short'], ['fluffy', 'Fluffy'], ['long', 'Long-haired']]);
 export const PERSONALITY_CHOICES = pairs([['keenNose', 'Keen nose'], ['chaser', 'Chaser'], ['pouncer', 'Pouncer'], ['napper', 'Napper'], ['fearless', 'Fearless'], ['steady', 'Steady']]);
 export const CUSTOM_PERSONALITIES = Object.freeze({
@@ -62,11 +65,14 @@ export function sanitizeLook(raw) {
   const eyes = pick(own(raw, 'eyes'), (v) => Object.hasOwn(EYES, v), DEFAULT_LOOK.eyes);
   const pattern = pick(own(raw, 'pattern'), (v) => PATTERNS.some((p) => p[0] === v), DEFAULT_LOOK.pattern);
   const fur = pick(own(raw, 'fur'), (v) => FURS.some((p) => p[0] === v), DEFAULT_LOOK.fur);
+  const scarRaw = own(raw, 'scar');
+  const scar = pick(scarRaw, (v) => v !== 'none' && SCARS.some((p) => p[0] === v), null);
   const s = own(raw, 'size');
   const size = typeof s === 'number' && Number.isFinite(s)
     ? Math.round(Math.min(SIZE.MAX, Math.max(SIZE.MIN, s)) * 20) / 20
     : DEFAULT_LOOK.size;
-  return { coat, marks, pattern, fur, eyes, size };
+  // additive: an unscarred look stays exactly the six keys it always was
+  return scar ? { coat, marks, pattern, fur, eyes, size, scar } : { coat, marks, pattern, fur, eyes, size };
 }
 
 export function sanitizeCustomCats(raw) {
@@ -105,6 +111,7 @@ export function lookToStyle(look) {
   else if (l.pattern === 'points') s.points = true;
   else if (l.pattern === 'patches') { s.patches = true; s.patch2 = accent; s.headPatch = accent; }
   else if (l.pattern === 'socks') { s.socks = true; s.chin = true; s.bib = true; }
+  if (l.scar) s.scarMark = l.scar;
   if (l.fur === 'fluffy') s.fluffy = true;
   else if (l.fur === 'long') { s.fluffy = true; s.tufts = true; s.tailFluff = TAIL_FLUFF; }
   return Object.freeze(s);
@@ -112,7 +119,7 @@ export function lookToStyle(look) {
 
 export function lookKey(look) {
   const l = sanitizeLook(look);
-  return JSON.stringify({ coat: l.coat, marks: l.marks, pattern: l.pattern, fur: l.fur, eyes: l.eyes, size: l.size });
+  return JSON.stringify({ coat: l.coat, marks: l.marks, pattern: l.pattern, fur: l.fur, eyes: l.eyes, size: l.size, ...(l.scar && { scar: l.scar }) });
 }
 
 export function activeCat(state) {
