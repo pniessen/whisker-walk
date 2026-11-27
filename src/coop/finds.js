@@ -43,7 +43,7 @@ export function createFinds({ ctx, drawn, said = () => {}, pick, tally = [0, 0] 
   const now = () => performance.now() / 1000;
   const count = (slot, label, points = 0) => { tally[slot]++; said(slot, label, points); };
 
-  const pawsY = (s, body, mover) => (s.ground.flat ? 0 : s.ground.y(body.position.x, body.position.z)) + mover.player.perchY + (+mover.player.floatY || 0);
+  const pawsY = (s, body, mover) => (s.ground.flat ? 0 : s.ground.y(body.position.x, body.position.z)) + mover.player.perchY; // the Reef is not a couch place: no float height here
 
   function nearestCollectible(s, p, y, g) {
     let best = null, bestD = COLLECT_REACH;
