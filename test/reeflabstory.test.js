@@ -425,7 +425,7 @@ describe('the guide, the words and the journal', () => {
       expect(RP.wingPageShown(id, { rfshow: 1 })).toBe(true);
     }
     expect(RP.wingPageShown('rfshow')).toBe(false); // R15: the show page waits until the show has been seen
-    expect(RP.wingPageShown('rfgalleon')).toBe(false);
+    expect(RP.wingPageShown('rfgalleon')).toBe(true); // (shown since the hunt shipped, R17)
     const p = createProgression(memoryStorage());
     for (const id of ['rflab', 'rffuses', 'rfshark']) { p.recordSighting(id); expect(p.state.journal?.[id] ?? p.state.sightings?.[id] ?? 1).toBeGreaterThan(0); }
   });
