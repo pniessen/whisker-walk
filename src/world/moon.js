@@ -18,16 +18,15 @@ import { installSuitKit } from '../cat/suitkit.js';
 import * as P from './moonplan.js';
 import * as K from './moonparts.js';
 import { drawBase } from './moonbase.js';
-import { drawRoverCourse } from './moonroverparts.js';
 import { drawFinds } from './moonfindparts.js';
-import { drawWing } from './moonwing.js';
-import { drawLaunchStanding, drawLaunchWing } from './moonlaunchparts.js';
-import { drawBeams, drawLane } from './moonjumpparts.js';
-import { drawRifts, drawRingPosts } from './moonboundparts.js';
-import { drawMassif, drawCave, drawFill, drawLavaKit } from './moonlavaparts.js';
 import { createMoonLife } from './moonlife.js';
 import { moonPebbles } from './moonfinds.js';
 import './moonwords.js';
+import { ST, loadMoonStages } from './moonstages.js';
+
+// Under vitest the stages load here, so every test that imports this file gets the whole Moon; the game's own loader awaits them (areas.js).
+// (The flag is undefined in a build, so this line and its top-level await are dropped.)
+if (import.meta.env?.VITEST) await loadMoonStages();
 
 export { MOON_NAME, MOON_BOUNDS, MOON_SPAWN } from './moonplan.js';
 
@@ -55,32 +54,32 @@ export function build(scene, { water = {} } = {}) {
     K.drawGateRing(kit, M);
     const B = drawBase(kit, M);
     drawFinds(kit, M); // Earthrise Rock, the pit's rock, the cheese, the echo studs and the plain's posts (milestone 4)
-    drawRoverCourse(kit, M, B); // the depot, the track's lit posts and the Far Beacon (milestone 3; Dot herself is the walk's)
+    ST.drawRoverCourse(kit, M, B); // the depot, the track's lit posts and the Far Beacon (milestone 3; Dot herself is the walk's)
     // Star Hill (milestone 5): the tower and its ramp go into the kit's stone (the stand-in: always drawn, no draw call of its own); the observatory, the
     // lamps, the table and the ceiling are the wing group, drawn only within 55 m (moonzones.js)
-    const W = drawWing(kit, M);
+    const W = ST.drawWing(kit, M);
     // Launch Complex (milestone 6): the pad, gantry tower, tanks, desks and the mound's benches go into the kit (no draw call of their own); the rocket, the gantry's arm,
     // the plume and the smoke are the wing C group below (world/moonlaunchlive.js moves them)
-    drawLaunchStanding(kit, M);
+    ST.drawLaunchStanding(kit, M);
     // Bounce Park (milestone 7a): the eight Beam Hops and the hop board's lane go into the kit too (the lamps and the board's screen are the life's)
-    drawBeams(kit, M);
-    drawLane(kit, M);
+    ST.drawBeams(kit, M);
+    ST.drawLane(kit, M);
     // the bound's courses (milestone 7b, nothing when world/moonswitch.js is off): the three rifts and the ring gates' posts, also in the kit
-    drawRifts(kit, M);
-    drawRingPosts(kit, M);
+    ST.drawRifts(kit, M);
+    ST.drawRingPosts(kit, M);
     // the Lava Tube (milestone 8): the Old Dish's ledge and the Core's third socket go into the kit; the massif, the shell and the cave's floor and crystals are three meshes below
-    drawLavaKit(kit, M, B);
+    ST.drawLavaKit(kit, M, B);
     const place = new THREE.Group();
     place.name = 'moonPlace';
     for (const m of kit.meshes()) place.add(m);
     scene.add(place);
-    scene.add(drawMassif(M), drawCave()); // the massif seen from outside, the tube and room seen from inside (always drawn: the wing's stand-in)
-    const fill = drawFill(); // the cave's floor, crystals and pedestal: drawn only within the wing's reach (world/moondeeplive.js)
+    scene.add(ST.drawMassif(M), ST.drawCave()); // the massif seen from outside, the tube and room seen from inside (always drawn: the wing's stand-in)
+    const fill = ST.drawFill(); // the cave's floor, crystals and pedestal: drawn only within the wing's reach (world/moondeeplive.js)
     fill.visible = false;
     scene.add(fill);
     W.wing.visible = false; // the spawn is 77 m away; the life shows it when she is near
     scene.add(W.wing);
-    const C = drawLaunchWing(M, { lite: quality?.shadows === false, low: lowTier && quality?.shadows !== false });
+    const C = ST.drawLaunchWing(M, { lite: quality?.shadows === false, low: lowTier && quality?.shadows !== false });
     C.arm.visible = false; // the life shows the arm within 55 m of the pad or while a rocket is in flight; the rocket itself is only ever drawn when it is in view
     scene.add(C.group);
     for (const rocks of K.drawRocks(lowTier)) scene.add(rocks);
