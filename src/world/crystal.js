@@ -110,7 +110,7 @@ export function build(scene) {
         const cart = ST.play?.createCartLive?.({ scene: ctx.scene, ground: area.ground, player: ctx.player, reducedMotion: ctx.reducedMotion, tier: ctx.tier, progression: ctx.progression }) ?? null;
         forgeJob = ST.wingc?.createForgeJobLive?.({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, log: ctx.log, send: ctx.sendEvent, isRiding: () => !!river?.riding || !!cart?.riding, errand }) ?? null; // C3: the forge job
         const riding = { promptAt: (p) => (river?.riding ? river.promptAt(p) : cart?.riding ? cart.promptAt(p) : null), interact: () => river?.interact() ?? cart?.interact() ?? null };
-        const arbiter = createPromptArbiter([riding, lumi, errand, wingLife, slot(() => river), slot(() => cart), slot(() => forgeJob), slot(() => ST.play?.pads)]);
+        const arbiter = createPromptArbiter([riding, lumi, errand, wingLife, slot(() => river), slot(() => cart), slot(() => forgeJob), slot(() => ST.play?.pads), slot(() => ST.deep)]);
         return {
           light,
           critters,
@@ -128,6 +128,7 @@ export function build(scene) {
           credit: (ev) => {
             if (ev?.kind === 'show') return wingLife.credit(ev);
             if (typeof ev?.kind === 'string' && ev.kind.startsWith('wc-')) return forgeJob?.credit(ev) ?? ST.wingc?.credit?.(ev) ?? ST.play?.credit?.(ev);
+            if (typeof ev?.kind === 'string' && ev.kind.startsWith('wd-')) return ST.deep?.credit?.(ev); // the Echo Deep (second story): its steps, never Lumi's
             return lumi.credit(ev);
           },
           update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); cave.update(dt, t); sound.update(dt, catPos); errand.update(dt, t, catPos, camera, session); river?.update(dt, t, catPos, camera, session); cart?.update(dt, t, catPos, camera, session); forgeJob?.update(dt, t, catPos, camera, session); grotto?.update(dt); song?.update(dt, t, catPos); intro.update(dt); guide.update(dt, t, catPos, camera); },

@@ -272,6 +272,8 @@ const KERCHIEFS = {
   candyscarf: { cloth: [0xfaf6ec, 0xf0a09c, 0xd8303c], stripe: 1, band: [0xd8303c, 0xfaf6ec], knot: [0xd8303c, 0xfaf6ec] },
   // The Blue-and-Silver Scarf (a Hanukkah shop item): blue and silver stripes, a silver and blue band
   bluescarf: { cloth: [0xdfe6ee, 0x9bb4dc, 0x2f5fb0], stripe: 1, band: [0x2f5fb0, 0xdfe6ee], knot: [0x2f5fb0, 0xdfe6ee] },
+  // The Prism Charm (the Crystal Cave's second story): pale rose, blue and gold checks on a violet band
+  prismcharm: { cloth: [0xf2c4d8, 0xa8c8f0, 0xf2d27a], band: [0x7a5ab0, 0x9a7ad0], knot: [0xf2c4d8, 0xa8c8f0] },
   piratebandana: { cloth: [0xc8322c, 0xf2ece0, 0xa8221e], band: [0x1c2a4a, 0x2a3a5e], knot: [0x2a3a5e, 0x1c2a4a] },
 };
 const ginghamAt = (L, u, v, cell) => (L.net ? L.cloth[1] : L.stripe ? L.cloth[(Math.floor(v / cell) & 1) * 2] : L.cloth[(Math.floor(u / cell) & 1) + (Math.floor(v / cell) & 1)]);
@@ -409,6 +411,7 @@ export const FOUND_NECKS = Object.freeze({
   bdayrosette: addBirthdayRosette,
   stringbagscarf: kerchief('stringbagscarf'),
   piratebandana: kerchief('piratebandana'),
+  prismcharm: kerchief('prismcharm'),
   snowflakescarf: kerchief('snowflakescarf'),
   // the holiday outfits (src/foundwear/holidaywear.js)
   lightscarf: addLightScarf,

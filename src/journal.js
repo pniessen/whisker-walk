@@ -9,7 +9,7 @@ import { MOON_PAGES, MOON_LIFE_PAGES, MOON_WING_PAGES, MOON_PAGE_WORDS, wingPage
 import { moonOn } from './moonflag.js';
 import { REEF_PAGES, REEF_LIFE_PAGES, REEF_WING_PAGES, REEF_PAGE_WORDS, wingPageShown } from './reefpages.js';
 import { reefOn } from './reefflag.js';
-import { CRYSTAL_PAGES, CAVE_LIFE_PAGES, CRYSTAL_WING_PAGES, CRYSTAL_PAGE_WORDS, wingPageShown as crystalWingShown } from './crystalpages.js';
+import { CRYSTAL_PAGES, CAVE_LIFE_PAGES, CRYSTAL_WING_PAGES, CRYSTAL_DEEP_PAGES, CRYSTAL_PAGE_WORDS, wingPageShown as crystalWingShown } from './crystalpages.js';
 import { crystalOn } from './crystalflag.js';
 import { SNOWVILLE_LIVE_PAGES, SNOWVILLE_HINTS } from './snowvillepages.js';
 import { snowvilleOn } from './snowvilleflag.js';
@@ -104,7 +104,7 @@ export const CRITTER_INFO = [
   // The Reef's twelve pages (src/reefpages.js): drawn only behind ?reef=1 until the gate hand-off.
   ...[...REEF_PAGES, ...REEF_LIFE_PAGES, ...REEF_WING_PAGES].map(([id, emoji]) => ({ id, emoji, reef: true, get name() { return REEF_PAGE_WORDS[id].name(); }, get hint() { return REEF_PAGE_WORDS[id].hint(); } })),
   // The Crystal Cave's twelve pages (src/crystalpages.js): drawn only behind ?crystal=1 until the gate hand-off.
-  ...[...CRYSTAL_PAGES, ...CAVE_LIFE_PAGES, ...CRYSTAL_WING_PAGES].map(([id, emoji]) => ({ id, emoji, crystal: true, get name() { return CRYSTAL_PAGE_WORDS[id].name(); }, get hint() { return CRYSTAL_PAGE_WORDS[id].hint(); } })),
+  ...[...CRYSTAL_PAGES, ...CAVE_LIFE_PAGES, ...CRYSTAL_WING_PAGES, ...CRYSTAL_DEEP_PAGES].map(([id, emoji]) => ({ id, emoji, crystal: true, get name() { return CRYSTAL_PAGE_WORDS[id].name(); }, get hint() { return CRYSTAL_PAGE_WORDS[id].hint(); } })),
   // The Greenhouse's eight pages (src/greenhousepages.js): drawn only behind ?greenhouse=1 until the place is in the game.
   ...GREENHOUSE_PAGES.map(([id, emoji]) => ({ id, emoji, greenhouse: true, get name() { return GREENHOUSE_PAGE_WORDS[id].name(); }, get hint() { return GREENHOUSE_PAGE_WORDS[id].hint(); } })),
   // N0 (Snowville, Treehouse, Jungle): 17 placeholder pages each, never drawn (later: true) until their area's milestones give them words.

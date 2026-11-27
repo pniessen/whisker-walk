@@ -18,7 +18,7 @@ import { AREA_LOADERS, AREA_ENTRY_MODULES } from '../src/world/areas.js';
 import { GOLD_MICE, GOLD_TOTAL, KNOWN_GOLD } from '../src/goldmice.js';
 import { CRYSTAL_NEED_WALKS } from '../src/teleport.js';
 import { phrase, hasPhrase, PHRASE_IDS, LATER_PHRASE_IDS } from '../src/clanphrases.js';
-import { CRYSTAL_PAGES, CRYSTAL_JOURNAL_TYPES, CRYSTAL_PAGE_WORDS, CRYSTAL_WING_PAGES } from '../src/crystalpages.js';
+import { CRYSTAL_PAGES, CRYSTAL_JOURNAL_TYPES, CRYSTAL_PAGE_WORDS, CRYSTAL_WING_PAGES, CRYSTAL_DEEP_PAGES } from '../src/crystalpages.js';
 import { LINES, HINTS } from '../src/world/crystalwords.js';
 import { createGoals } from '../src/goals.js';
 import { withOffWords, bannedIn } from './helpers/offwords.js';
@@ -51,13 +51,13 @@ describe('the flag', () => {
 
 describe('the save key', () => {
   it('a fresh save has the default and the walk counter; the key is in the key list', () => {
-    expect(fresh().crystal).toEqual({ step: 0, sparks: 0, album: 0, forge: 0, songs: 0 });
+    expect(fresh().crystal).toEqual({ step: 0, sparks: 0, album: 0, forge: 0, songs: 0, deep: 0, chimes: 0 });
     expect(fresh().walks.crystal).toBe(0);
     expect(freshStateKeys()).toContain('crystal');
     expect(fresh().version).toBe(4);
   });
   it('a good value round trips', () => {
-    const crystal = { step: 7, sparks: 7, album: 2730, forge: 15, songs: 5 };
+    const crystal = { step: 7, sparks: 7, album: 2730, forge: 15, songs: 5, deep: 7, chimes: 1365 };
     expect(fresh({ crystal }).crystal).toEqual(crystal);
   });
   it('the sparks are derived from the step: a later step never has an earlier stone missing', () => {
@@ -67,20 +67,20 @@ describe('the save key', () => {
     expect(fresh({ crystal: { step: 1, sparks: 4 } }).crystal.sparks).toBe(4);
   });
   it('a hostile value is cut back, never trusted', () => {
-    expect(fresh({ crystal: { step: 99, sparks: 255, album: 99999 } }).crystal).toEqual({ step: 7, sparks: 7, album: 4095, forge: 0, songs: 0 });
+    expect(fresh({ crystal: { step: 99, sparks: 255, album: 99999 } }).crystal).toEqual({ step: 7, sparks: 7, album: 4095, forge: 0, songs: 0, deep: 0, chimes: 0 });
     for (const junk of [null, 5, 'crystal', [], [1, 2], { step: 'x', sparks: NaN, album: Infinity }, { step: -3, sparks: -1, album: -9 }]) {
-      expect(fresh({ crystal: junk }).crystal, JSON.stringify(junk)).toEqual({ step: 0, sparks: 0, album: 0, forge: 0, songs: 0 });
+      expect(fresh({ crystal: junk }).crystal, JSON.stringify(junk)).toEqual({ step: 0, sparks: 0, album: 0, forge: 0, songs: 0, deep: 0, chimes: 0 });
     }
   });
   it('goes through the real save and load, and a v3 payload gets the default', () => {
     const storage = memoryStorage();
     const p = createProgression(storage);
     p.replaceFromPayload({ version: 4, crystal: { step: 4, sparks: 3, album: 5 } });
-    expect(p.state.crystal).toEqual({ step: 4, sparks: 7, album: 5, forge: 0, songs: 0 });
+    expect(p.state.crystal).toEqual({ step: 4, sparks: 7, album: 5, forge: 0, songs: 0, deep: 0, chimes: 0 });
     expect(JSON.parse(storage.getItem(SAVE_KEY)).crystal.step).toBe(4);
     expect(createProgression(storage).state.crystal).toEqual(p.state.crystal);
     p.replaceFromPayload({ version: 3 });
-    expect(p.state.crystal).toEqual({ step: 0, sparks: 0, album: 0, forge: 0, songs: 0 });
+    expect(p.state.crystal).toEqual({ step: 0, sparks: 0, album: 0, forge: 0, songs: 0, deep: 0, chimes: 0 });
   });
 });
 
@@ -102,7 +102,7 @@ describe('merging two devices', () => {
       expect(r.step).toBeLessThanOrEqual(7);
       expect(r.sparks).toBeLessThanOrEqual(7);
       expect(r.album).toBeLessThanOrEqual(4095);
-      expect(Object.keys(r).sort()).toEqual(['album', 'forge', 'songs', 'sparks', 'step']);
+      expect(Object.keys(r).sort()).toEqual(['album', 'chimes', 'deep', 'forge', 'songs', 'sparks', 'step']);
     }
   });
   it('merging a save with itself changes nothing and the merge is stable', () => {
@@ -121,7 +121,7 @@ describe('the reserved ids', () => {
     expect(new Set(JOURNAL_TYPES).size).toBe(JOURNAL_TYPES.length);
     const at = JOURNAL_TYPES.indexOf(CRYSTAL_JOURNAL_TYPES[0]); // by position of its first id, so later areas' pages (the Reef's sea life) do not move it
     expect(JOURNAL_TYPES.slice(at, at + CRYSTAL_JOURNAL_TYPES.length)).toEqual(CRYSTAL_JOURNAL_TYPES);
-    expect(JOURNAL_TYPES.filter((t) => t.startsWith('cc'))).toEqual([...CRYSTAL_JOURNAL_TYPES, ...CRYSTAL_WING_PAGES.map((p) => p[0])]); // (wing C's six are appended at the end: crystalx0.test.js)
+    expect(JOURNAL_TYPES.filter((t) => t.startsWith('cc'))).toEqual([...CRYSTAL_JOURNAL_TYPES, ...CRYSTAL_WING_PAGES.map((p) => p[0]), ...CRYSTAL_DEEP_PAGES.map((p) => p[0])]); // (wing C's six, then the second story's five, are appended at the end: crystalx0.test.js)
   });
   it('a journal page counts like any other (the sanitiser keeps it)', () => {
     expect(fresh({ journal: { ccshow: 2, ccnope: 4 } }).journal).toEqual({ ccshow: 2 });
@@ -135,9 +135,9 @@ describe('the reserved ids', () => {
 });
 
 describe('the golden mice', () => {
-  it('five stub mice inside the bounds (4 and 5 are for wing C), and the totals are 71 and 47', async () => {
+  it('seven stub mice inside the bounds (4 and 5 are for wing C, 6 and 7 for the second story), and the totals are 71 and 47', async () => {
     const { CRYSTAL_BOUNDS } = await import('../src/world/crystal.js');
-    expect(GOLD_MICE.crystal.map((x) => x.id)).toEqual(['gm-crystal-1', 'gm-crystal-2', 'gm-crystal-3', 'gm-crystal-4', 'gm-crystal-5']);
+    expect(GOLD_MICE.crystal.map((x) => x.id)).toEqual(['gm-crystal-1', 'gm-crystal-2', 'gm-crystal-3', 'gm-crystal-4', 'gm-crystal-5', 'gm-crystal-6', 'gm-crystal-7']);
     expect(GOLD_TOTAL).toBe(CLAN_TOTAL);
     for (const mouse of GOLD_MICE.crystal) {
       expect(KNOWN_GOLD.has(mouse.id)).toBe(true);

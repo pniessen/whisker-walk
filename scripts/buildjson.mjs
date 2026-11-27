@@ -102,6 +102,7 @@ export const STAGED_AREAS = Object.freeze([
   { id: 'crystal', label: 'crystal stages ', stageCeiling: 65, totalCeiling: 120, stages: [
     ['crystalwingc', 'wingc', ['src/world/crystalstagewingc.js']],
     ['crystalplay', 'play', ['src/world/crystalstageplay.js']],
+    ['crystaldeep', 'deep', ['src/world/crystalstagedeep.js']], // the second story (the Echo Deep): empty until C1 to C7
   ] },
   { id: 'treehouse', label: 'treehouse     ', stageCeiling: 65, totalCeiling: 150, stages: [
     ['treehousebranches', 'branches', ['src/world/treehousestagebranches.js']],

@@ -35,6 +35,9 @@ export const CRYSTAL_GOLD = Object.freeze([
   // wing C stubs (X0; the same two as src/goldmice.js): the scatter reads only the first three by name (crystaldecor.js CRYSTAL_GOLD_SCATTER_IDS), so nothing reshuffles
   Object.freeze({ id: 'gm-crystal-4', x: 25, z: 12, y: 0 }),
   Object.freeze({ id: 'gm-crystal-5', x: -25, z: 19.5, y: 1.0 }), // (on the forge shelf since C2)
+  // second story stubs (C0; the same two as src/goldmice.js, placed for real in C7): the scatter reads only the first three by name
+  Object.freeze({ id: 'gm-crystal-6', x: -28, z: -26, y: 0 }),
+  Object.freeze({ id: 'gm-crystal-7', x: -31, z: -28, y: 0 }),
 ]);
 
 // ---- scenic spots (the daily goal "visit a scenic spot"; plain nouns, the same in both word sets) --------------------------------------------------

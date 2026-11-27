@@ -8,11 +8,11 @@ import { CATALOG } from '../src/progression.js';
 const GOLD_ID_PATTERN = /^gm-[a-z]{1,24}-[1-9]$/;
 
 describe('GOLD_MICE', () => {
-  it('has exactly 76 mice total, 3 per area (five in the Old House: one on its top bunk, one on the cat tree\'s crown), 6 in the Pines (its island holds three) and 5 in the Reef (two stubs for the Sealab and the galleon)', () => {
+  it('has exactly 78 mice total, 3 per area (five in the Old House: one on its top bunk, one on the cat tree\'s crown), 6 in the Pines (its island holds three) and 5 in the Reef (two stubs for the Sealab and the galleon)', () => {
     const all = Object.values(GOLD_MICE).flat();
-    expect(all.length).toBe(76); // 75 until the Old House's secret wonder room put one on its cat tree's crown, 74 until the Old House's east wing put a mouse on the kids' top bunk, 71 until the Jungle added its three, 54 until the Reef added its three, 51 until the Greenhouse added its three, 48 until the Moon added its three, 45 until Lighthouse Point added its three, 42 until the Old House added its three, 39 until the Market added its three, 36 until the Rooftops added its three
+    expect(all.length).toBe(78); // 75 until the Old House's secret wonder room put one on its cat tree's crown, 74 until the Old House's east wing put a mouse on the kids' top bunk, 71 until the Jungle added its three, 54 until the Reef added its three, 51 until the Greenhouse added its three, 48 until the Moon added its three, 45 until Lighthouse Point added its three, 42 until the Old House added its three, 39 until the Market added its three, 36 until the Rooftops added its three
     expect(Object.keys(GOLD_MICE)).toEqual(['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'gorge', 'farm', 'fair', 'roofs', 'market', 'house', 'lighthouse', 'moon', 'greenhouse', 'reef', 'crystal', 'snowville', 'treehouse', 'jungle']);
-    for (const [area, mice] of Object.entries(GOLD_MICE)) expect(mice.length, area).toBe(area === 'pines' ? 6 : area === 'house' ? 5 : area === "reef" || area === "crystal" ? 5 : area === "moon" ? 4 : 3);
+    for (const [area, mice] of Object.entries(GOLD_MICE)) expect(mice.length, area).toBe(area === 'pines' ? 6 : area === 'house' ? 5 : area === "reef" ? 5 : area === "crystal" ? 7 : area === "moon" ? 4 : 3);
     expect(GOLD_MICE.woods.map((m) => m.id)).toEqual(['gm-woods-1', 'gm-woods-2', 'gm-woods-3']);
     expect(GOLD_MICE.river.map((m) => m.id)).toEqual(['gm-river-1', 'gm-river-2', 'gm-river-3']);
     expect(GOLD_MICE.moor.map((m) => m.id)).toEqual(['gm-moor-1', 'gm-moor-2', 'gm-moor-3']);
@@ -46,18 +46,18 @@ describe('GOLD_MICE', () => {
     }
   });
 
-  it('KNOWN_GOLD contains exactly the 76 GOLD_MICE ids, no more no less', () => {
+  it('KNOWN_GOLD contains exactly the 78 GOLD_MICE ids, no more no less', () => {
     const ids = Object.values(GOLD_MICE).flat().map((m) => m.id);
-    expect(KNOWN_GOLD.size).toBe(76); // 75 until the cat tree's crown, 74 until the east wing's top bunk, 71 until the Jungle added its three, 54 until the Reef added its three, 51 until the Greenhouse added its three, 48 until the Moon added its three, 45 until Lighthouse Point added its three, 42 until the Old House added its three, 39 until the Market added its three
+    expect(KNOWN_GOLD.size).toBe(78); // 75 until the cat tree's crown, 74 until the east wing's top bunk, 71 until the Jungle added its three, 54 until the Reef added its three, 51 until the Greenhouse added its three, 48 until the Moon added its three, 45 until Lighthouse Point added its three, 42 until the Old House added its three, 39 until the Market added its three
     for (const id of ids) expect(KNOWN_GOLD.has(id)).toBe(true);
   });
 
-  it('the Legacy (everyday) total is pinned here and nowhere else: 50', () => {
-    expect(goldForEdition('legacy', CATALOG).size).toBe(50);
+  it('the Legacy (everyday) total is pinned here and nowhere else: 52', () => {
+    expect(goldForEdition('legacy', CATALOG).size).toBe(52);
   });
 
-  it('GOLD_TOTAL is 76', () => {
-    expect(GOLD_TOTAL).toBe(76); // 75 until the cat tree's crown, 74 until the east wing's top bunk, 71 until the Jungle added its three, 51 until the Greenhouse added its three, 48 until the Moon added its three, 45 until Lighthouse Point added its three, 42 until the Old House added its three, 39 until the Market added its three
+  it('GOLD_TOTAL is 78', () => {
+    expect(GOLD_TOTAL).toBe(78); // 75 until the cat tree's crown, 74 until the east wing's top bunk, 71 until the Jungle added its three, 51 until the Greenhouse added its three, 48 until the Moon added its three, 45 until Lighthouse Point added its three, 42 until the Old House added its three, 39 until the Market added its three
   });
 });
 

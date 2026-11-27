@@ -196,7 +196,7 @@ export const MERGE_RULES = Object.freeze({
   // The Crystal Cave: the story only moves on (step max), spark stones, rubbings, forge ingredients and tunes are unions of bits (the sanitiser fills the bits the circlet implies).
   crystal: (r) => ({
     step: Math.max(r.L.crystal.step, r.C.crystal.step), sparks: r.L.crystal.sparks | r.C.crystal.sparks, album: r.L.crystal.album | r.C.crystal.album,
-    forge: r.L.crystal.forge | r.C.crystal.forge, songs: r.L.crystal.songs | r.C.crystal.songs,
+    forge: r.L.crystal.forge | r.C.crystal.forge, songs: r.L.crystal.songs | r.C.crystal.songs, deep: r.L.crystal.deep | r.C.crystal.deep, chimes: r.L.crystal.chimes | r.C.crystal.chimes,
   }),
   // Snowville: the story only moves on (step max), the candles and the album are unions of bits (the sanitiser fills the candles the step implies).
   snowville: (r) => ({ step: Math.max(r.L.snowville.step, r.C.snowville.step), candles: r.L.snowville.candles | r.C.snowville.candles, album: r.L.snowville.album | r.C.snowville.album }),

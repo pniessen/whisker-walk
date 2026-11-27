@@ -3,14 +3,15 @@
 // slots (each stage is empty but valid); the wing C milestones fill them. Each piece grows under its own budget (scripts/buildjson.mjs, CRYSTAL_STAGE_ENTRY_MODULES).
 //   crystalwingc: the river, the falls, the boat, the mushroom grotto and the forge (C1 to C3)
 //   crystalplay:  Lumi's cart on the old tracks and the singing chamber (C4, C5)
-// The prompt sources read ST.wingc / ST.play; a slot with nothing in it answers null, so a later milestone never edits crystal.js.
+//   crystaldeep:  the second story, the Echo Deep behind the singing wall (C0 reserves the slot; empty until its milestones fill it)
+// The prompt sources read ST.wingc / ST.play / ST.deep; a slot with nothing in it answers null, so a later milestone never edits crystal.js.
 export const ST = {};
 
-export const CRYSTAL_STAGE_MODULES = Object.freeze(['src/world/crystalstagewingc.js', 'src/world/crystalstageplay.js']);
+export const CRYSTAL_STAGE_MODULES = Object.freeze(['src/world/crystalstagewingc.js', 'src/world/crystalstageplay.js', 'src/world/crystalstagedeep.js']);
 
 let loading = null;
-/** Loads the two stages together; the same promise every time. */
+/** Loads the three stages together; the same promise every time. */
 export function loadCrystalStages() {
-  loading ??= Promise.all([import('./crystalstagewingc.js'), import('./crystalstageplay.js')]).then(() => ST).catch((e) => { loading = null; throw e; });
+  loading ??= Promise.all([import('./crystalstagewingc.js'), import('./crystalstageplay.js'), import('./crystalstagedeep.js')]).then(() => ST).catch((e) => { loading = null; throw e; });
   return loading;
 }

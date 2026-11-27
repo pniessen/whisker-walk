@@ -120,7 +120,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   'mnstation', 'mnsignal', 'mnrelay', 'mnsled', 'mnlap',
   // Milestone N0 (docs/superpowers/plans/2026-11-27-connect-and-areas-decisions.md): 17 empty-ready ids per new area, appended as blocks
   // (sv1..sv9 + sw1..sw8 Snowville, th/tl the Treehouse, jl/jw the Jungle). Nothing shows or earns them yet.
-  ...[['sv', 'sw'], ['th', 'tl'], ['jl', 'jw']].flatMap(([a, b]) => [...Array(9)].map((_, i) => a + (i + 1)).concat([...Array(8)].map((_, i) => b + (i + 1))))];
+  ...[['sv', 'sw'], ['th', 'tl'], ['jl', 'jw']].flatMap(([a, b]) => [...Array(9)].map((_, i) => a + (i + 1)).concat([...Array(8)].map((_, i) => b + (i + 1)))),
+  // The Crystal Cave's second story (src/crystalpages.js CRYSTAL_DEEP_PAGES; ids reserved in its milestone C0): the wall, the Deep, the prisms, Tink, the chime charms.
+  'ccwall', 'ccdeep', 'ccprism', 'cctink', 'ccchimes'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
@@ -343,6 +345,8 @@ const BASE_ACCESSORIES = {
   piratebandana: { name: 'Pirate Bandana', slot: 'neck', price: 0, prize: true, reef: 'chest' },
   // The Crystal Cave's forge (wing C): owned once the circlet is made (crystal.forge bit 3); never found on the ground.
   crystalcirclet: { name: 'Crystal Circlet', slot: 'head', price: 0, prize: true, crystal: 'forge' },
+  // The Crystal Cave's second story (the Echo Deep): owned once Tink is home (crystal.deep bit 3); never found on the ground.
+  prismcharm: { name: 'Prism Charm', slot: 'neck', price: 0, prize: true, crystal: 'deep' },
   // The Moon's Old Relay Station (wing E): owned once the far station answers (moon.relay bit 4).
   signaltag: { name: 'Signal Tag', slot: 'collar', price: 0, prize: true, moon: 'relay' },
   // Snowville's story prize (a collar, src/cat/foundneck.js FOUND_COLLARS): owned once Lantern Night has been told (snowville.step 7).
@@ -623,7 +627,7 @@ function defaultState() {
     reef: { step: 0, shells: 0, album: 0, lab: 0, wreck: 0 },
     // The Crystal Cave (docs/superpowers/plans/2026-11-26-crystal-cave.md, C0): the story's step (0 to 7), the spark stones carried (3 bits) and the
     // rubbings album (12 bits). Additive: SAVE_VERSION stays 4.
-    crystal: { step: 0, sparks: 0, album: 0, forge: 0, songs: 0 },
+    crystal: { step: 0, sparks: 0, album: 0, forge: 0, songs: 0, deep: 0, chimes: 0 },
     // Snowville, the Treehouse and the Jungle (milestone N0): each a story step and an album bitmask, nothing earns them yet.
     snowville: { step: 0, candles: 0, album: 0 }, treehouse: { step: 0, letters: 0, album: 0 }, jungle: { step: 0, fruit: 0, album: 0 },
     den: { owned: [], placed: {} },
@@ -987,11 +991,13 @@ function sanitizeMoon(v) {
 // and 4 each delivered a shell), so a save cannot hold a later step with an earlier shell missing.
 const REEF_SHELLS_AT = [0, 0, 1, 3, 7, 7, 7, 7];
 const CRYSTAL_SPARKS_AT = [0, 0, 1, 3, 7, 7, 7, 7];
+const crystalDeep = (b) => (b & 8 ? 15 : b & 4 ? 7 : b & 2 ? 3 : b & 1);
 function sanitizeCrystal(v) {
   const n = (x, hi) => Math.min(hi, asFiniteNonNegInt(x, 0));
   const step = n(v?.step, 7);
   // forge: bits 0-2 the three ingredients, bit 3 the circlet made (implies all three); songs: bits 0-2 the three tunes learned.
-  return { step, sparks: n(v?.sparks, 7) | CRYSTAL_SPARKS_AT[step], album: n(v?.album, 4095), forge: reefLab(n(v?.forge, 15)), songs: n(v?.songs, 7) };
+  // deep (second story): bits 0 wall open, 1 prisms set, 2 Tink found, 3 Tink home and the charm given; each bit implies the ones before it. chimes: the 12-bit charm album.
+  return { step, sparks: n(v?.sparks, 7) | CRYSTAL_SPARKS_AT[step], album: n(v?.album, 4095), forge: reefLab(n(v?.forge, 15)), songs: n(v?.songs, 7), deep: crystalDeep(n(v?.deep, 15)), chimes: n(v?.chimes, 4095) };
 }
 const SNOWVILLE_CANDLES_AT = [0, 0, 1, 3, 7, 7, 7, 7]; // the candles each step implies (src/world/snowvillemission.js pins the same table)
 function sanitizeSnowville(v) {
@@ -1278,6 +1284,7 @@ function sanitizeState(parsed) {
   // The Captain's Chest likewise: the hunt's last bit (a merge ORs the devices' bits first) is the record, so the bandana is owned.
   if ((sanitizeReef(parsed.reef).wreck & 16) !== 0 && !unlockedAcc.includes('piratebandana')) unlockedAcc.push('piratebandana');
   if ((sanitizeCrystal(parsed.crystal).forge & 8) !== 0 && !unlockedAcc.includes('crystalcirclet')) unlockedAcc.push('crystalcirclet');
+  if ((sanitizeCrystal(parsed.crystal).deep & 8) !== 0 && !unlockedAcc.includes('prismcharm')) unlockedAcc.push('prismcharm');
   if ((sanitizeMoon(parsed.moon).relay & 16) !== 0 && !unlockedAcc.includes('signaltag')) unlockedAcc.push('signaltag');
   if (sanitizeSnowville(parsed.snowville).step >= 7 && !unlockedAcc.includes('snowclasp')) unlockedAcc.push('snowclasp');
   if (sanitizeTreehouse(parsed.treehouse).step >= 7 && !unlockedAcc.includes('acornlocket')) unlockedAcc.push('acornlocket');

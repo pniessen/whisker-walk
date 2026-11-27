@@ -25,7 +25,7 @@ const sha = (v) => createHash('sha256').update(JSON.stringify(v, (k, x) => (type
 
 describe('the save keys', () => {
   it('forge and songs are in the default and round trip', () => {
-    expect(fresh().crystal).toEqual({ step: 0, sparks: 0, album: 0, forge: 0, songs: 0 });
+    expect(fresh().crystal).toEqual({ step: 0, sparks: 0, album: 0, forge: 0, songs: 0, deep: 0, chimes: 0 });
     expect(fresh({ crystal: { step: 7, sparks: 7, album: 1, forge: 5, songs: 6 } }).crystal).toMatchObject({ forge: 5, songs: 6 });
   });
   it('the circlet bit implies all three ingredients; bits are cut to 4 and 3', () => {
@@ -50,7 +50,7 @@ describe('the save keys', () => {
       expect(r.forge).toBeLessThanOrEqual(15);
       expect(r.songs).toBeLessThanOrEqual(7);
       expect(r.forge & 1).toBe(1); // the local bit is never lost
-      expect(Object.keys(r).sort()).toEqual(['album', 'forge', 'songs', 'sparks', 'step']);
+      expect(Object.keys(r).sort()).toEqual(['album', 'chimes', 'deep', 'forge', 'songs', 'sparks', 'step']);
     }
   });
 });
@@ -80,7 +80,7 @@ describe('the gold stubs and the scatters', () => {
   it('gm-crystal-4 and 5 are in the mice lists, in the plan list, and not in KEEP_OUT', async () => {
     const { CRYSTAL_GOLD } = await import('../src/world/crystalfindsplan.js');
     const P = await import('../src/world/crystalplan.js');
-    expect(GOLD_MICE.crystal.map((m) => m.id)).toEqual(['gm-crystal-1', 'gm-crystal-2', 'gm-crystal-3', 'gm-crystal-4', 'gm-crystal-5']);
+    expect(GOLD_MICE.crystal.map((m) => m.id)).toEqual(['gm-crystal-1', 'gm-crystal-2', 'gm-crystal-3', 'gm-crystal-4', 'gm-crystal-5', 'gm-crystal-6', 'gm-crystal-7']);
     expect(CRYSTAL_GOLD.map((m) => ({ ...m }))).toEqual(GOLD_MICE.crystal);
     expect(KNOWN_GOLD.has('gm-crystal-4') && KNOWN_GOLD.has('gm-crystal-5')).toBe(true);
     for (const m of GOLD_MICE.crystal.slice(3)) expect(P.KEEP_OUT.some((k) => k[0] === m.x && k[1] === m.z), m.id).toBe(false);
@@ -114,7 +114,8 @@ describe('the prompt arbiter and the stages', () => {
   });
   it('crystal.js routes the source order and the wc- events; empty stages change nothing', () => {
     const code = readFileSync(new URL('../src/world/crystal.js', import.meta.url), 'utf8');
-    expect(code).toContain("createPromptArbiter([riding, lumi, errand, wingLife, slot(() => river), slot(() => cart), slot(() => forgeJob), slot(() => ST.play?.pads)])");
+    expect(code).toContain("createPromptArbiter([riding, lumi, errand, wingLife, slot(() => river), slot(() => cart), slot(() => forgeJob), slot(() => ST.play?.pads), slot(() => ST.deep)])");
+    expect(code).toContain("startsWith('wd-')");
     expect(code).toContain("startsWith('wc-')");
   });
   it('the clears hook starts empty and takes rim rocks and pebbles away after the scatter', async () => {
@@ -125,13 +126,13 @@ describe('the prompt arbiter and the stages', () => {
     try { expect(P.scatterRim()).toEqual([]); expect(P.scatterPebbles()).toEqual([]); } finally { P.CRYSTAL_CLEARS.length = 0; }
     expect(P.scatterRim()).toEqual(rim); expect(P.scatterPebbles()).toEqual(peb);
   });
-  it('the two stages are reserved, empty but valid, and load together once', async () => {
+  it('the stages are reserved, empty but valid, and load together once', async () => {
     const S = await import('../src/world/crystalstages.js');
     const a = S.loadCrystalStages();
     expect(S.loadCrystalStages()).toBe(a);
     await a;
-    expect(Object.keys(S.ST).sort()).toEqual(['grotto', 'play', 'wingc']); // (grotto: the C2 grotto and forge shell, filled by crystalgrottostage.js)
-    expect(S.CRYSTAL_STAGE_MODULES).toHaveLength(2);
+    expect(Object.keys(S.ST).sort()).toEqual(['deep', 'grotto', 'play', 'wingc']); // (grotto: the C2 grotto and forge shell, filled by crystalgrottostage.js)
+    expect(S.CRYSTAL_STAGE_MODULES).toHaveLength(3); // (the third, crystaldeep, is the second story's empty slot)
   });
 });
 

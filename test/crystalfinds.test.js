@@ -241,8 +241,8 @@ describe('the life notes a find while she stands still', () => {
 
 describe('three golden mice', () => {
   const GOLD = GOLD_MICE.crystal;
-  it('ids gm-crystal-1..5 (4 and 5 are wing C stubs since X0), valid, known, and the plan holds the same five', () => {
-    expect(GOLD.map((m) => m.id)).toEqual(['gm-crystal-1', 'gm-crystal-2', 'gm-crystal-3', 'gm-crystal-4', 'gm-crystal-5']);
+  it('ids gm-crystal-1..7 (4 and 5 are wing C stubs since X0, 6 and 7 the second story stubs since C0), valid, known, and the plan holds the same seven', () => {
+    expect(GOLD.map((m) => m.id)).toEqual(['gm-crystal-1', 'gm-crystal-2', 'gm-crystal-3', 'gm-crystal-4', 'gm-crystal-5', 'gm-crystal-6', 'gm-crystal-7']);
     for (const m of GOLD) { expect(m.id).toMatch(/^gm-[a-z]{1,24}-[1-9]$/); expect(KNOWN_GOLD.has(m.id)).toBe(true); }
     expect(Q.CRYSTAL_GOLD.map((m) => ({ ...m }))).toEqual(GOLD);
   });
@@ -250,7 +250,7 @@ describe('three golden mice', () => {
     const b = area0.bounds;
     for (const m of GOLD) {
       expect(m.x > b.minX + 2 && m.x < b.maxX - 2 && m.z > b.minZ + 2 && m.z < b.maxZ - 2, m.id).toBe(true);
-      expect(m.y).toBe(m.id === 'gm-crystal-5' ? 1 : 0); // (the forge's mouse sits on the stone shelf: one hop up, C2; the shelf's own colliders are under it)
+      expect(m.y).toBe(m.id === 'gm-crystal-5' ? 1 : 0); // (6 and 7 are floor stubs until C7) // (the forge's mouse sits on the stone shelf: one hop up, C2; the shelf's own colliders are under it)
       if (m.id !== 'gm-crystal-5') for (const c of area0.colliders) expect(near(m, c), m.id).toBeGreaterThan(c.r + 0.5);
       for (const z of Object.values(Z).flat()) expect(near(m, z), `${m.id} vs a find`).toBeGreaterThan(Math.max(2, z.r + 1));
       for (const k of area0.collectibles) expect(near(m, k), `${m.id} vs ${k.id}`).toBeGreaterThan(2);

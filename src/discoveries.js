@@ -61,6 +61,8 @@ export const AWARDS = {
   cavefind: 12,
   crystalstory: 40,
   crystalforge: 40, // the Crystal Circlet made at the forge, once ever (wing C, C3)
+  crystaldeep: 40, // the Prism Charm given when Tink is home, once ever (the second story)
+  deepjob: 25, // Tink's errand of the day, once a walk
   cavejob: 25,
   // The Greenhouse (ids reserved in milestone G2): one of its six finds, paid the first time ever; a job done (seeds sown, plants
   // watered), once a walk.

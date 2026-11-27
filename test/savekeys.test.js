@@ -50,7 +50,7 @@ const SENTINELS = {
   race: { date: '2026-01-01', area: 'park', bestMs: 5000 },
   moon: { step: 1 },
   reef: { step: 1 },
-  crystal: { step: 1 },
+  crystal: { step: 1, deep: 1, chimes: 1 },
   snowville: { step: 2, candles: 1 },
   treehouse: { step: 2, letters: 1 },
   jungle: { step: 2, fruit: 1 },
