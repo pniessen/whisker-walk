@@ -82,8 +82,8 @@
       "name": "fair",
       "meshes": 250,
       "casters": 180,
-      "triangles": 75000,
-      "note": "The Fairground (2026-11-18), the static place as step 1 built it: measured 221 / 157 / 69,452; after the polish pass (2026-11-19) 174 / 109 / 66,692 (test/fair.test.js pins the exact numbers). The rides are the densest things in the game and their moving parts cannot be merged: 12 horses, 8 gondolas, 6 cups and 4 coaster cars are a mesh each. Meshes and casters at a small headroom over that. The triangle ceiling, 75,000, is PROVISIONAL: the owner approved 75,000 for the Farm (place, animals and jobs); for the Fairground it is the coordinator's call, flagged to the owner and his to change."
+      "triangles": 80000,
+      "note": "RAISED 75,000 -> 80,000 on 2026-11-28 by the owner (for the Viking boat and one or two more rides). The Fairground (2026-11-18), the static place as step 1 built it: measured 221 / 157 / 69,452; after the polish pass (2026-11-19) 174 / 109 / 66,692 (test/fair.test.js pins the exact numbers). The rides are the densest things in the game and their moving parts cannot be merged: 12 horses, 8 gondolas, 6 cups and 4 coaster cars are a mesh each. Meshes and casters at a small headroom over that. The triangle ceiling, 75,000, is PROVISIONAL: the owner approved 75,000 for the Farm (place, animals and jobs); for the Fairground it is the coordinator's call, flagged to the owner and his to change."
     },
     {
       "name": "roofs",

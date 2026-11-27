@@ -1802,12 +1802,12 @@ describe('what it costs to draw', () => {
     expect(high.triangles).toBeLessThanOrEqual(SHOW_CAP);
   });
 
-  it('as lifelike people with the place itself, stays inside the owner\'s 75,000 on the high tier, and under 74,500 (ruling R21)', () => {
+  it('as lifelike people with the place itself, stays inside the owner\'s 80,000 on the high tier (raised from 75,000 on 2026-11-28), and under 79,500 (ruling R21)', () => {
     const { scene, show } = showFor(22);
     const all = stats(scene.children);
     const added = stats(show.meshes);
-    expect(all.triangles).toBeLessThanOrEqual(75000);
-    expect(all.triangles).toBeLessThanOrEqual(74500); // room left for the Fairground's other builders
+    expect(all.triangles).toBeLessThanOrEqual(80000);
+    expect(all.triangles).toBeLessThanOrEqual(79500); // room left for the Fairground's other builders
     expect(all.meshes).toBeLessThanOrEqual(260);
     expect(all.casters).toBe(109); // the people cast none
     // the place alone (test/fair.test.js pins it) is what is left
