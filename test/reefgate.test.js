@@ -43,11 +43,11 @@ const save = (o = {}) => {
 
 describe('the gate table', () => {
   it('is one pair: the Seaside cleft (suit dive, awake after 2 Seaside walks, both editions) and the Reef\'s own return arch', () => {
-    expect(SR).toMatchObject({ id: 'seaside-reef', to: 'reef', twin: 'reef-seaside', look: 'cleft', suit: 'dive', placement: 'inside', edition: 'all', needWalks: 2, own: false, kind: 'tele' });
+    expect(SR).toMatchObject({ id: 'seaside-reef', to: 'reef', twin: 'reef-seaside', look: 'hatch', suit: 'dive', placement: 'inside', edition: 'all', needWalks: 2, own: false, kind: 'tele' });
     expect(RS).toMatchObject({ id: 'reef-seaside', to: 'seaside', twin: 'seaside-reef', look: 'cleft', suit: null, edition: 'all', needWalks: 0, own: true, x: 0, z: 31, faces: 'north' });
     expect(T.REEF_NEED_WALKS).toBe(CATALOG.areas.reef.requires.walks);
     expect(SR.needWalks).toBe(CATALOG.areas.reef.requires.walks);
-    expect(T.TELE_LOOK['seaside-reef']).toBe('cleft');
+    expect(T.TELE_LOOK['seaside-reef']).toBe('hatch');
     // no map road joins them, and the map's gate list does not carry the pair
     expect(GATEWAYS.some((g) => [g.from, g.to].sort().join() === 'reef,seaside')).toBe(false);
     expect(GATEWAYS.some((g) => g.id === SR.gateway)).toBe(false);
@@ -114,7 +114,7 @@ describe('where the cleft stands and what it costs', () => {
     expect(tris).toBeLessThanOrEqual(LOOK_BUDGET.triangles);
     expect(tris).toBeLessThanOrEqual(450);
     expect(meshes.filter((m) => m.material.transparent)).toHaveLength(LOOK_BUDGET.transparent);
-    expect(g.userData.look).toBe('cleft');
+    expect(g.userData.look).toBe('hatch');
   });
 });
 

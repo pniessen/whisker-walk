@@ -10,6 +10,8 @@
 //   'hollow'     a great trunk with a glowing hole, a sea-cave or a hollow tree: nearest to "doors live in natural things"
 //   'cleft'      the hollow's rock cousin (the Seaside's way down to the Reef): two grey rocks and a cleft between them, a brass
 //                ladder on one and a ring buoy on the other, a blue glow in the gap
+//   'hatch'      the Seaside's dive hatch (the way down to the Reef): two weathered pier posts and a lintel round a planked door with a
+//                round brass-rimmed porthole, a ring buoy, coiled rope, a ladder, barnacles and algae; the disc is the porthole's blue-green glow
 // Every look is the same three meshes:
 //   body    the stones / the arch / the trunk and its leaves: one vertex-coloured geometry, one lit material (opaque)
 //   disc    the one transparent draw: a soft additive disc with a turning swirl painted on it, light and warm, never a
@@ -24,7 +26,7 @@ import { litMaterial } from '../render/materials.js';
 import { FLAT_GROUND } from '../ground.js';
 
 export const LOOK_BUDGET = Object.freeze({ meshes: 6, triangles: 480, transparent: 1 });
-export const LOOK_NAMES = Object.freeze(['stonering', 'archway', 'hollow', 'cleft', 'grotto']);
+export const LOOK_NAMES = Object.freeze(['stonering', 'archway', 'hollow', 'cleft', 'grotto', 'hatch']);
 const OUT_YAW = { north: 0, south: Math.PI, east: -Math.PI / 2, west: Math.PI / 2 };
 
 // What each look is made of that she cannot walk through: circles in the gate's own frame (lx along its width, lz along
@@ -35,14 +37,15 @@ export const LOOK_SOLIDS = Object.freeze({
   hollow: Object.freeze([{ lx: 0, lz: -1.3, r: 1.1 }]),
   cleft: Object.freeze([{ lx: -1.35, lz: -1.0, r: 0.95 }, { lx: 1.35, lz: -1.0, r: 0.95 }, { lx: 0, lz: -2.2, r: 1.2 }]),
   grotto: Object.freeze([{ lx: -1.35, lz: -1.0, r: 0.95 }, { lx: 1.35, lz: -1.0, r: 0.95 }, { lx: 0, lz: -2.2, r: 1.2 }]),
+  hatch: Object.freeze([{ lx: -1.35, lz: -1.0, r: 0.95 }, { lx: 1.35, lz: -1.0, r: 0.95 }, { lx: 0, lz: -2.2, r: 1.2 }]), // the cleft's footprint, so the landing and the pier stay as they were
 });
 export const STONE_COLLIDER_R = 0.35;
 
 // The disc and the motes: colour by look, and by the suit the place beyond puts on her (the dive's is bluer, the
 // Moon's paler and cooler).
-const LOOK_TINT = { stonering: 0xffeeb4, archway: 0xffe2a0, hollow: 0xcdeeff, cleft: 0xbfe6ff, grotto: 0xe3c8ff };
+const LOOK_TINT = { stonering: 0xffeeb4, archway: 0xffe2a0, hollow: 0xcdeeff, cleft: 0xbfe6ff, grotto: 0xe3c8ff, hatch: 0xbff5e8 };
 const SUIT_TINT = { space: 0xe6e2ff, dive: 0x9fd8ff };
-const MOTE_COLOUR = { stonering: 0xfff3b0, archway: 0xffe9a8, hollow: 0xd8f4ff, cleft: 0xd8f4ff, grotto: 0xf0dcff };
+const MOTE_COLOUR = { stonering: 0xfff3b0, archway: 0xffe9a8, hollow: 0xd8f4ff, cleft: 0xd8f4ff, grotto: 0xf0dcff, hatch: 0xc8f4ea };
 export const discTint = (end) => SUIT_TINT[end.suit] ?? LOOK_TINT[end.look] ?? LOOK_TINT.stonering;
 
 // ---- time: one clock the whole look reads (a picture page sets its own, so a frame is the same every time) ----
@@ -216,6 +219,37 @@ function cleftBody(grotto = false) {
   parts.push(piece(new THREE.TorusGeometry(0.27, 0.08, 4, 8), { x: 1.35, y: 1.45, z: 0.0, tint: 0xd9402f }));
   return buryFoot(mergeGeometries(parts, false));
 }
+// the hatch ----------------------------------------------------------------------------------------------------------
+const HATCH_Z = -0.86; // m, the porthole's middle (the planks are just behind it)
+const HATCH_Y = 1.5;
+function hatchBody(awake) {
+  const wood = [0x8a7a66, 0x7d6e5c];
+  const brass = awake ? 0xd2a944 : 0x8e7a50;
+  const parts = [];
+  // two pier posts, a lintel across them and the planked door between
+  [-1, 1].forEach((sx, i) => parts.push(piece(new THREE.CylinderGeometry(0.17, 0.2, 3.0, 6, 1), { x: sx * 1.05, y: 1.4, z: -0.7, tint: wood[i], moss: 1, mossTo: 0.7, wob: 0.025, salt: 80 + i })));
+  parts.push(piece(box(2.85, 0.28, 0.4), { x: 0, y: 2.78, z: -0.7, tint: 0x75665a, wob: 0.02, salt: 83 }));
+  parts.push(piece(box(1.95, 2.55, 0.1), { x: 0, y: 1.25, z: -0.97, tint: 0x66584a, wob: 0.015, salt: 84 }));
+  // the porthole: dark glass (the glow is drawn over it) in a brass rim
+  parts.push(piece(new THREE.CircleGeometry(0.6, 12), { x: 0, y: HATCH_Y, z: HATCH_Z - 0.01, tint: 0x1d4a4f }));
+  parts.push(piece(new THREE.TorusGeometry(0.66, 0.07, 4, 10), { x: 0, y: HATCH_Y, z: HATCH_Z, tint: brass }));
+  // the ring buoy on the right post, a coil of rope on the left
+  parts.push(piece(new THREE.TorusGeometry(0.27, 0.08, 3, 8), { x: 1.05, y: 1.75, z: -0.46, tint: awake ? 0xd9402f : 0x9a5a50 }));
+  parts.push(piece(box(0.12, 0.1, 0.12), { x: 1.05, y: 2.02, z: -0.46, tint: 0xe8e2d4 }));
+  parts.push(piece(new THREE.TorusGeometry(0.24, 0.05, 3, 6), { x: -1.05, y: 1.1, z: -0.7, rx: Math.PI / 2, tint: 0xc7b48a }));
+  // a short ladder going down the right-hand side
+  for (const dz of [-0.14, 0.14]) parts.push(piece(box(0.05, 1.7, 0.05), { x: 1.5, y: 0.85, z: -0.7 + dz, tint: 0xb08d4a }));
+  for (const y of [0.35, 0.8, 1.25]) parts.push(piece(box(0.05, 0.05, 0.33), { x: 1.5, y, z: -0.7, tint: 0xc29f58 }));
+  // barnacles low on the posts, green algae at their feet
+  for (const [x, y, z] of [[-1.05, 0.35, -0.53], [1.05, 0.3, -0.52], [1.16, 0.5, -0.56]]) parts.push(piece(new THREE.OctahedronGeometry(0.06, 0), { x, y, z, tint: 0xc9c6b8 }));
+  for (const [x, z, s] of [[-1.15, -0.5, 0.2], [1.1, -0.5, 0.18]]) parts.push(piece(new THREE.IcosahedronGeometry(s, 0).scale(1.3, 0.45, 1), { x, y: 0.06, z, tint: 0x4f9a4f }));
+  return buryFoot(mergeGeometries(parts, false));
+}
+function hatchDisc() {
+  const g = new THREE.CircleGeometry(0.6, 20);
+  g.translate(0, HATCH_Y, HATCH_Z + 0.06);
+  return g;
+}
 function cleftDisc() {
   const g = new THREE.CircleGeometry(0.58, 24);
   g.scale(1, 1.8, 1);
@@ -290,7 +324,8 @@ export function buildTeleGate(end, { ground = FLAT_GROUND, awake = true, calm = 
   else if (look === 'hollow') {
     const h = hollowBody();
     bodyGeo = h.geo; discGeo = hollowDisc(h.front); moteY = 1.6;
-  } else if (look === 'cleft' || look === 'grotto') { bodyGeo = cleftBody(look === 'grotto'); discGeo = cleftDisc(); moteY = 1.6; }
+  } else if (look === 'hatch') { bodyGeo = hatchBody(awake); discGeo = hatchDisc(); moteY = 1.6; }
+  else if (look === 'cleft' || look === 'grotto') { bodyGeo = cleftBody(look === 'grotto'); discGeo = cleftDisc(); moteY = 1.6; }
   else { bodyGeo = ringBody(); discGeo = ringDisc(); }
 
   const body = new THREE.Mesh(bodyGeo, litMaterial(awake ? 0xffffff : 0xbcc2c4, { vertexColors: true, roughness: 0.95 }));

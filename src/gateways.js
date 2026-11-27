@@ -56,7 +56,7 @@ export const GATE_HALF = 1.4; // m, centre to each gate post along the edge
 export const GATE_POST_R = 0.15;
 export const ARRIVE_IN = GATE_REACH + 2;
 // 'stonering', 'archway', 'hollow' and 'cleft' are the teleport gates' looks (src/teleport.js, src/world/telegate.js).
-export const GATE_LOOKS = Object.freeze(['signpost', 'fairgate', 'farmgate', 'promenade', 'alleydoor', 'none', 'stonering', 'archway', 'hollow', 'cleft', 'grotto']);
+export const GATE_LOOKS = Object.freeze(['signpost', 'fairgate', 'farmgate', 'promenade', 'alleydoor', 'none', 'stonering', 'archway', 'hollow', 'cleft', 'grotto', 'hatch']);
 export const PLACEMENTS = Object.freeze(['edge', 'inside']);
 export const LANE_LOOKS = Object.freeze(['gravel', 'paving']);
 // The cat's rotation.y facing into the area (rotation 0 faces -z).

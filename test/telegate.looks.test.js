@@ -35,7 +35,7 @@ afterEach(() => setTeleClock(null));
 
 describe('the three looks, in the plan\'s budget', () => {
   it('the looks are the three names the plan gives, all in the gate table\'s vocabulary', () => {
-    expect([...LOOK_NAMES]).toEqual(['stonering', 'archway', 'hollow', 'cleft', 'grotto']);
+    expect([...LOOK_NAMES]).toEqual(['stonering', 'archway', 'hollow', 'cleft', 'grotto', 'hatch']);
     expect(LOOK_BUDGET).toEqual({ meshes: 6, triangles: 480, transparent: 1 });
   });
   for (const look of LOOK_NAMES) {

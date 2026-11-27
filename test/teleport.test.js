@@ -58,7 +58,7 @@ describe('the gate table', () => {
     expect(new Set(ALL.map((e) => e.id)).size).toBe(ALL.length);
     for (const e of ALL) {
       expect(e.kind, e.id).toBe('tele');
-      expect(e.look, e.id).toBe(e.id.includes('moon') ? 'stonering' : e.id.includes('reef') ? 'cleft' : e.id.includes('crystal') ? 'grotto' : 'archway');
+      expect(e.look, e.id).toBe(e.id.includes('moon') ? 'stonering' : e.id === 'seaside-reef' ? 'hatch' : e.id.includes('reef') ? 'cleft' : e.id.includes('crystal') ? 'grotto' : 'archway');
       expect(e.placement, e.id).toBe('inside');
       expect(e.edition, e.id).toBe('all'); // both editions
       expect(e.wake, e.id).toBe(false);
@@ -114,13 +114,13 @@ describe('the gate table', () => {
       { suit: 'moon' }, { edition: 'both' }, { needWalks: -1 }, { needWalks: 1.5 }, { look: 'signpost' }, { look: 'arch' },
       { placement: 'edge' }, { arrive: null },
     ]) expect(() => teleRow({ ...ok, ...bad }), JSON.stringify(bad)).toThrow(/tele gate x/);
-    for (const look of ['stonering', 'archway', 'hollow', 'cleft', 'grotto']) expect(GATE_LOOKS).toContain(look);
+    for (const look of ['stonering', 'archway', 'hollow', 'cleft', 'grotto', 'hatch']) expect(GATE_LOOKS).toContain(look);
     // none of the eighteen map rows gained a key: a teleport gate's fields are its own
     const mapRows = Object.values(GATEWAY_ENDS).flat();
     expect(mapRows).toHaveLength(18);
     for (const e of mapRows) {
       for (const k of ['kind', 'suit', 'wake', 'edition', 'needWalks']) expect(Object.hasOwn(e, k), `${e.id}.${k}`).toBe(false);
-      expect(['stonering', 'archway', 'hollow', 'cleft', 'grotto']).not.toContain(e.look);
+      expect(['stonering', 'archway', 'hollow', 'cleft', 'grotto', 'hatch']).not.toContain(e.look);
     }
     // and no map lookup can see a teleport gate
     expect(endById(PG.id)).toBeNull();
@@ -462,7 +462,7 @@ describe('the words', () => {
     }
     // the card and the swirl, whole
     withOffWords(() => {
-      for (const look of ['stonering', 'archway', 'hollow', 'cleft', 'grotto']) expect(bannedIn(UI.cardHtml({ name: 'The Greenhouse', look })), look).toBeNull();
+      for (const look of ['stonering', 'archway', 'hollow', 'cleft', 'grotto', 'hatch']) expect(bannedIn(UI.cardHtml({ name: 'The Greenhouse', look })), look).toBeNull();
       expect(bannedIn(UI.swirlHtml({ name: 'The Greenhouse' }))).toBeNull();
     });
   });
