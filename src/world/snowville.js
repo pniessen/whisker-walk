@@ -44,13 +44,14 @@ export function build(scene, opts = {}) {
     K.drawRocks(kit, M);
     drawBeauty(kit, M); // V8: shrubs, woodpiles, crates, icicles, wreaths, pennants and the far ridge
     ST.b?.draw?.(kit, M, { low }); // the pond and its ice, the sled hill, the hearth, the Great Fir and the burrow (milestone V5, in the merged buckets)
+    ST.c?.draw?.(kit, M, { low }); // the snowmobile's ring, marks, garage and bench (round four, stage c, in the merged buckets)
     for (const m of kit.meshes()) scene.add(m);
     scene.add(K.drawLight()); // the place's one real light (the brazier's)
     const area = {
       name: P.SNOWVILLE_NAME,
       bounds: P.SNOWVILLE_BOUNDS,
       spawn: P.SNOWVILLE_SPAWN,
-      colliders: [...P.snowvilleColliders(), ...(ST.b?.colliders?.() ?? [])].map((c) => ({ ...c })),
+      colliders: [...P.snowvilleColliders(), ...(ST.b?.colliders?.() ?? []), ...(ST.c?.colliders?.() ?? [])].map((c) => ({ ...c })),
       waters: [],
       waterFx: [],
       perches: [...(ST.b?.perches?.() ?? [])],
@@ -81,7 +82,8 @@ export function build(scene, opts = {}) {
         const errand = ST.b?.errand?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, tilly, send: ctx.sendEvent }); // Tilly's errand of the day (milestone V7, in stage b)
         const sled = ST.b?.sled?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, tier: ctx.tier }); // the sled run down the hill (round two, stage b)
         const skis = ST.b?.skis?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, tier: ctx.tier, audio: ctx.audio, progression: ctx.progression }); // the ski slope on the hill's west flank (round three, stage b)
-        const prompts = createSnowvillePrompts(tilly, wing, errand, sled, skis);
+        const mobile = ST.c?.mobile?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, tier: ctx.tier, audio: ctx.audio, progression: ctx.progression }); // the snowmobile by the garage (round four, stage c)
+        const prompts = createSnowvillePrompts(tilly, wing, errand, sled, skis, mobile);
         const finds = ST.b?.finds?.life(ctx); // the six discoveries (milestone V3)
         const strayNotes = ST.b?.strayNotes?.(); // a line the first time she meets each of the four friendly strays (round two)
         const critters = ST.b?.critters?.(ctx); // the otters, hare, robin, fox kit, smoke, bells and crunch (milestone V4)
@@ -94,8 +96,8 @@ export function build(scene, opts = {}) {
           wing,
           // a step done by anyone in the room (an `sv-` event): an errand done by a partner is credited to ours, a show begun by a partner starts ours, any other step is Tilly's
           credit: (ev) => errand?.credit(ev) ?? wing?.credit(ev) ?? tilly.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); wing?.update(dt, t, catPos); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); strayNotes?.update(catPos, session); sled?.frame(dt, t, catPos, camera, session); skis?.frame(dt, t, catPos, camera, session); },
-          dispose() { skis?.dispose(); sled?.dispose(); errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); tilly.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); wing?.update(dt, t, catPos); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); strayNotes?.update(catPos, session); sled?.frame(dt, t, catPos, camera, session); skis?.frame(dt, t, catPos, camera, session); mobile?.frame(dt, t, catPos, camera, session); },
+          dispose() { mobile?.dispose(); skis?.dispose(); sled?.dispose(); errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); tilly.dispose(); light.dispose(); },
         };
       },
     };

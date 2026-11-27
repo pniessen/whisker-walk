@@ -19,7 +19,7 @@ import { SKULL } from './torso.js';
 // the cat's head slot builds these.
 
 export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown', 'acorncap',
-  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap', 'keepercap', 'gardenerhat', 'crystalcirclet', 'canopycap', 'redcozyhat', 'snowcap', 'reindeerantlers', 'bluestarbeanie'];
+  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap', 'keepercap', 'gardenerhat', 'crystalcirclet', 'canopycap', 'redcozyhat', 'snowcap', 'reindeerantlers', 'bluestarbeanie', 'snowhelmet'];
 
 // Palette. The three shop hats' colours are model.js's own (it imports these
 // for Hagrid's hats); the prize colours are the same hexes as model.js's
@@ -1007,6 +1007,8 @@ const CAP_LOOKS = {
   keepercap: { panel: [0x24365a, 0x1b2a47], peak: 0x141d30, stitch: 0xc9a24a, button: 0xc9a24a },
   // The Treehouse village's Canopy Cap (milestone T3): the same cap in leaf green, a bark-brown peak and an acorn-brown button.
   canopycap: { panel: [0x4f9a48, 0x3f8040], peak: 0x7a5a3c, stitch: 0xe3c98a, button: 0xb98a5a },
+  // Snowville's snowmobile (round four): the Snowmobile Helmet, the same rounded cap in machine-red with a dark visor, white stitching and a dark button.
+  snowhelmet: { panel: [0xc23a30, 0xa82f27], peak: 0x2f3a4e, stitch: 0xf5f8fc, button: 0x2f3a4e },
 };
 const paperboyRim = (phi) => (PAPERBOY.rimFront + PAPERBOY.rimBack) / 2 + ((PAPERBOY.rimFront - PAPERBOY.rimBack) / 2) * Math.cos(phi);
 function peakedCap(id, simple) {
@@ -1043,6 +1045,7 @@ const paperboycap = (simple) => peakedCap('paperboycap', simple);
 const tradercap = (simple) => peakedCap('tradercap', simple);
 const keepercap = (simple) => peakedCap('keepercap', simple);
 const canopycap = (simple) => peakedCap('canopycap', simple);
+const snowhelmet = (simple) => peakedCap('snowhelmet', simple);
 
 // --- clips (found outfits step 2, lane H, Task 3; beauty pass) ---------------
 //
@@ -1272,7 +1275,7 @@ function reindeerantlers(simple) {
   return finish('reindeerantlers', parts);
 }
 
-const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap, keepercap, gardenerhat, crystalcirclet, canopycap, redcozyhat, snowcap, reindeerantlers, bluestarbeanie };
+const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap, keepercap, gardenerhat, crystalcirclet, canopycap, redcozyhat, snowcap, reindeerantlers, bluestarbeanie, snowhelmet };
 
 // The clips' ground looks (src/foundwear/display.js): the clip as worn (the
 // simple build), turned so its face is up and propped toward -z, as if
