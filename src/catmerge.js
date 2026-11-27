@@ -193,8 +193,8 @@ export const MERGE_RULES = Object.freeze({
   snowville: (r) => ({ step: Math.max(r.L.snowville.step, r.C.snowville.step), candles: r.L.snowville.candles | r.C.snowville.candles, album: r.L.snowville.album | r.C.snowville.album }),
   // The Treehouse: the story only moves on (step max), the letters and the album are unions of bits (the sanitiser fills the letters the step implies).
   treehouse: (r) => ({ step: Math.max(r.L.treehouse.step, r.C.treehouse.step), letters: r.L.treehouse.letters | r.C.treehouse.letters, album: r.L.treehouse.album | r.C.treehouse.album }),
-  // The Jungle (N0): the story only moves on (step max), the album is a union of bits.
-  ...Object.fromEntries(['jungle'].map((k) => [k, (r) => ({ step: Math.max(r.L[k].step, r.C[k].step), album: r.L[k].album | r.C[k].album })])),
+  // The Jungle: the story only moves on (step max), the fruit and the album are unions of bits (the sanitiser fills the fruit the step implies).
+  jungle: (r) => ({ step: Math.max(r.L.jungle.step, r.C.jungle.step), fruit: r.L.jungle.fruit | r.C.jungle.fruit, album: r.L.jungle.album | r.C.jungle.album }),
   den: (r) => ({
     owned: union(r.L.den.owned, r.C.den.owned),
     placed: newer(r.L.den.placed, r.C.den.placed, r.B?.den?.placed, r.ctx),

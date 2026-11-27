@@ -271,12 +271,17 @@ export const RAINBOW = Object.freeze({ x: 0, z: -60, r: 26, w: 3.2 });
 // ---- everything solid --------------------------------------------------------------------------------------------------------------
 // The ring's five stones, the lodge's body and its veranda posts, the leaves' stalks, the signpost, the trees and the big mossy stones.
 export const LODGE_POSTS = Object.freeze([-11.2, -8.7, -6 - STEPS.w / 2 - 0.1, -6 + STEPS.w / 2 + 0.1, -3.3, -0.8].map((x) => Object.freeze({ x, z: LODGE.z1 - 0.2 })));
+// The story's three solid places (milestone J2): the mango tree in the grove, the kitchen table on the veranda and Mossy herself (she stays where she is).
+export const MANGO_TREE = Object.freeze({ x: -27.4, z: 1.2, r: 0.55 });
+export const KITCHEN_TABLE = Object.freeze({ x: -9.4, z: 16.6, r: 0.65 });
+export const MOSSY_SPOT = Object.freeze({ x: -5.8, z: 15.4, r: 0.4 });
 export const jungleColliders = () => [
   ...RING_STONES.map((s, i) => Object.freeze({ x: s.x, z: s.z, r: i < 2 ? 0.4 : 0.5 })),
   ...[-9, -6, -3].map((x) => Object.freeze({ x, z: 11.6, r: 2.9 })), // the lodge's body, a chain along its width
   ...LODGE_POSTS.map((p) => Object.freeze({ x: p.x, z: p.z, r: 0.2 })),
   ...LEAVES.map((l) => Object.freeze({ x: l.x, z: l.z, r: 0.22 })),
   Object.freeze({ x: SIGNPOST.x, z: SIGNPOST.z, r: 0.3 }),
+  MANGO_TREE, KITCHEN_TABLE, MOSSY_SPOT,
   ...treeColliders(),
   ...stoneColliders(),
 ];
