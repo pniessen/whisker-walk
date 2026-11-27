@@ -4,6 +4,8 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { stubCanvasDocument } from './helpers/canvas.js';
 import { floodFrom } from './helpers/flood.js';
+import { withOffWords, bannedIn } from './helpers/offwords.js';
+import { memoryStorage } from './helpers/storage.js';
 
 stubCanvasDocument();
 const { isWalkableAt } = await import('../src/player.js');
@@ -24,6 +26,9 @@ const { createSkisLive } = await import('../src/world/snowvilleskislive.js');
 const { createSledLive } = await import('../src/world/snowvillesledlive.js');
 const { createSnowvillePrompts } = await import('../src/world/snowvillelife.js');
 const { phrase } = await import('../src/clanphrases.js');
+const { createProgression, CATALOG } = await import('../src/progression.js');
+const { MOBILE_LINES } = await import('../src/world/snowvillemobilewords.js');
+const { measureWithLife, } = await import('./helpers/lifebudget.js');
 
 const area = build(new THREE.Scene());
 const B = P.SNOWVILLE_BOUNDS;
@@ -382,5 +387,74 @@ describe('the second seat (co-walk)', () => {
   });
   it('the seat ids pass the remote cats\' check (letters, dashes and at most two digits, 24 characters)', () => {
     for (const id of M.SEAT_IDS) { expect(id.length).toBeLessThanOrEqual(24); expect(/^[a-z]+(-[a-z]+)*(-\d{1,2})?$/.test(id)).toBe(true); }
+  });
+});
+
+describe('the Snowmobile Helmet: the first ride home, or the garage bench, once', () => {
+  const real = () => createProgression(memoryStorage());
+  it('a ride that comes home gives it (a fanfare and a line), once; a ride she hops off early gives nothing', () => {
+    const pr = real();
+    const r = rig(false, { progression: pr });
+    r.tick(); press(r);
+    for (let i = 0; i < 60; i++) r.tick();
+    press(r); // hop off early
+    expect(pr.state.unlocked.accessories).not.toContain('snowhelmet');
+    expect(r.ticks.filter((x) => x === 'fanfare').length).toBe(0);
+    r.home(); r.tick(); press(r);
+    drive(r, null);
+    expect(r.live.rides).toBe(2);
+    expect(pr.state.unlocked.accessories).toContain('snowhelmet');
+    expect(pr.state.foundWear).toContain('snowhelmet');
+    expect(r.ticks.filter((x) => x === 'fanfare').length).toBe(1);
+    r.home(); r.tick(); press(r);
+    drive(r, null);
+    expect(r.ticks.filter((x) => x === 'fanfare').length).toBe(1);
+    r.live.dispose();
+  });
+  it('the bench: no helmet on it until she has ridden three times, then "Take the helmet from the bench" once; an owned helmet is not offered again', () => {
+    const pr = real();
+    const r = rig(false, { progression: pr });
+    const atBench = () => r.cat.position.set(M.BENCH.x + 1.0 * Math.cos(M.BENCH.yaw), area.ground.y(M.BENCH.x, M.BENCH.z), M.BENCH.z - 1.0 * Math.sin(M.BENCH.yaw));
+    atBench(); r.tick();
+    expect(r.live.slots.mobile.promptAt(r.cat.position)).not.toBe('Take the helmet from the bench');
+    for (let i = 0; i < M.HELMET_RIDES; i++) { r.home(); r.tick(); press(r); for (let k = 0; k < 20; k++) r.tick(); press(r); } // three early hop-offs
+    expect(r.live.rides).toBe(M.HELMET_RIDES);
+    expect(pr.state.unlocked.accessories).not.toContain('snowhelmet');
+    atBench(); r.tick();
+    expect(r.live.slots.mobile.promptAt(r.cat.position)).toBe('Take the helmet from the bench');
+    r.live.interact(); r.tick();
+    expect(pr.state.unlocked.accessories).toContain('snowhelmet');
+    expect(r.live.slots.mobile.promptAt(r.cat.position)).not.toBe('Take the helmet from the bench');
+    r.live.dispose();
+  });
+  it('it is a free found outfit in the catalog (a head piece for Snowville) and a hat the cat can wear', () => {
+    expect(CATALOG.accessories.snowhelmet).toMatchObject({ slot: 'head', price: 0, prize: true, find: 'snowville' });
+  });
+});
+
+describe('the words', () => {
+  it('every snowmobile line, in both word sets, plain, with no banned word', () => {
+    for (const id of Object.keys(MOBILE_LINES)) {
+      const on = phrase(id);
+      expect(on, id).toBe(MOBILE_LINES[id]);
+      const off = withOffWords(() => phrase(id));
+      expect(off, id).toBe(MOBILE_LINES[id]);
+      expect(withOffWords(() => bannedIn(off)), id).toBeNull();
+      expect(/dark|lost forever|trapped|stuck|collapse|scary/i.test(MOBILE_LINES[id])).toBe(false);
+    }
+    for (const word of ['Snowmobile Helmet']) expect(withOffWords(() => bannedIn(word))).toBeNull();
+  });
+});
+
+describe('the row', () => {
+  it('the machine is the one new mesh of the walk\'s life: build 6 meshes / 2 casters, whole frame 37 / 3, under the ring\'s bound', () => {
+    const r = measureWithLife(build);
+    expect(r.build.meshes).toBe(6);
+    expect(r.build.casters).toBe(2);
+    expect(r.life.meshes).toBe(31);
+    expect(r.whole.meshes).toBe(37);
+    expect(r.whole.casters).toBe(3);
+    expect(r.whole.triangles).toBeLessThanOrEqual(49620);
+    expect(r.build.triangles).toBeLessThanOrEqual(47400);
   });
 });
