@@ -963,3 +963,76 @@ describe('main.js wires the bridge', () => {
     expect(src).toContain('if (e.detail?.memoryWarning === true) releaseThumbnails();');
   });
 });
+
+describe('couch play on a slow device', () => {
+  const start = (opts, override = 'auto') => {
+    const h = setup(opts);
+    const session = lowSession();
+    h.adapter.beginWalk({ override, reducedMotion: false, nowMs: 0 });
+    return { ...h, session };
+  };
+
+  it('a slow device (LOW rung) starts couch one rung lower: the small parts stop casting', () => {
+    const { adapter, storage, session } = start({ memory: atLow });
+    adapter.couch(true, session);
+    expect(adapter.status.rung).toBe(4);
+    expect(session.small.castShadow).toBe(false);
+    expect(session.big.castShadow).toBe(true);
+    expect(stored(storage).rung).toBe(3); // the memory is the solo one
+  });
+
+  it('a fast device is unchanged', () => {
+    for (const rung of [0, 1, 2]) {
+      const { adapter, storage, session } = start({ memory: { ...atLow, rung } });
+      adapter.couch(true, session);
+      expect(adapter.status.rung).toBe(rung);
+      expect(session.small.castShadow).toBe(true);
+      expect(stored(storage).rung).toBe(rung);
+    }
+  });
+
+  it('leaving couch restores the solo rung and the shadows', () => {
+    const { adapter, storage, session } = start({ memory: atLow });
+    adapter.couch(true, session);
+    adapter.couch(false, session);
+    expect(adapter.status.rung).toBe(3);
+    expect(session.small.castShadow).toBe(true);
+    expect(stored(storage).rung).toBe(3);
+  });
+
+  it('an explicit LOW or HIGH choice stays as it is', () => {
+    for (const override of ['low', 'high']) {
+      const { adapter, session } = start({ memory: atLow }, override);
+      const before = adapter.status.rung;
+      adapter.couch(true, session);
+      expect(adapter.status.rung).toBe(before);
+      expect(session.small.castShadow).toBe(true);
+    }
+  });
+
+  it('a walk already on shadow-light keeps its rung and trims cat two as it joins', () => {
+    const { adapter, session } = start({ memory: { ...atLow, rung: 4 } });
+    session.small.castShadow = true;
+    adapter.couch(true, session);
+    expect(adapter.status.rung).toBe(4);
+    expect(session.small.castShadow).toBe(false);
+    adapter.couch(false, session);
+    expect(adapter.status.rung).toBe(4);
+  });
+
+  it('Auto keeps stepping on top: a slow couch walk goes on to the lite rung and leaving does not undo it', () => {
+    const { adapter, session } = start({ memory: atLow });
+    adapter.couch(true, session);
+    run(adapter, session, 1000, 120_000, 40);
+    expect(adapter.status.rung).toBeGreaterThanOrEqual(5);
+    adapter.couch(false, session, 121_000);
+    expect(adapter.status.rung).toBeGreaterThanOrEqual(5);
+  });
+
+  it('the next walk starts on the solo rung again', () => {
+    const { adapter, session } = start({ memory: atLow });
+    adapter.couch(true, session);
+    adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 9000 });
+    expect(adapter.status.startRung).toBe(3);
+  });
+});

@@ -390,7 +390,7 @@ function init() {
     },
   });
   // ?coop=1 (couch play, src/coop/): this page load only.
-  if (coopWanted(location.search)) import('./coop/index.js').then((m) => m.start({ nav: navigator, getSession: () => session, player, camera, getState: () => progression.state, catalog: CATALOG, progression, log, audio, act: (n) => handleTouchAction(n), voice: (p) => catVoice(p), toast: (m, p, o) => hud.toast(m, p, o), resume: () => player.setTouchEngaged(true), canResume: () => !!session && !session.walkingOn && !!overlay.querySelector('#btn-resume') })).catch((err) => note('coop', err));
+  if (coopWanted(location.search)) import('./coop/index.js').then((m) => m.start({ nav: navigator, getSession: () => session, player, camera, getState: () => progression.state, catalog: CATALOG, progression, log, audio, act: (n) => handleTouchAction(n), couch: qualityAdapter.couch, voice: (p) => catVoice(p), toast: (m, p, o) => hud.toast(m, p, o), resume: () => player.setTouchEngaged(true), canResume: () => !!session && !session.walkingOn && !!overlay.querySelector('#btn-resume') })).catch((err) => note('coop', err));
   // ?tv=1 / ?tv=0 force it for this page load only, never saved (like ?perf).
   tvLoader.apply(tvWanted(location.search, settings.get('tvMode')), /[?&]tv=[01]\b/.test(location.search));
   // The pause card's Sound and Music switches (walk.js pauseCardFor) change

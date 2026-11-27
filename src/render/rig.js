@@ -446,7 +446,7 @@ function largestSide(box) {
   return Math.max(trimSize.x, trimSize.y, trimSize.z);
 }
 
-export function trimShadowCasters(scene, minPart) {
+export function trimShadowCasters(scene, minPart, undo = null) {
   let trimmed = 0;
   let casters = 0;
   if (!(minPart > 0) || !scene?.children) return { trimmed, casters };
@@ -471,7 +471,7 @@ export function trimShadowCasters(scene, minPart) {
         trimBox.copy(obj.geometry.boundingBox).applyMatrix4(obj.matrixWorld);
         small = largestSide(trimBox) < keepFrom;
       }
-      if (small) { obj.castShadow = false; trimmed++; } else casters++;
+      if (small) { obj.castShadow = false; undo?.push(obj); trimmed++; } else casters++;
     });
   }
   return { trimmed, casters };

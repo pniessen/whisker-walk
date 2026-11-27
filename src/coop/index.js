@@ -203,6 +203,7 @@ export function start(ctx) {
     if (mover) { mover.player.setTouchMove(null); mover.player.disable(); }
     mover = null;
     s?.remotes?.remove?.(SECOND_ID);
+    ctx.couch?.(false, s);
     markers?.dispose();
     markers = null;
     if (tag) { tag.parent?.remove(tag); tag.material?.map?.dispose(); tag.material?.dispose(); if (s?.cat?.userData?.ownTag === tag) delete s.cat.userData.ownTag; tag = null; }
@@ -268,6 +269,7 @@ export function start(ctx) {
     const st = ctx.getState?.();
     pick = pickSecond(st, ctx.catalog, settings.outfit);
     const entry = s.remotes.upsert(profileOf(pick));
+    ctx.couch?.(true, s); // a slow device draws the shadow-light rung while two cats are out
     entry.local = true; // drawn where it is, with no network's half-second of smoothing
     const yaw0 = ctx.player.viewYaw();
     heading.yaw = yaw0;

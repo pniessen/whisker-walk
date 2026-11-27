@@ -112,6 +112,11 @@ export function createQualityAdapter({
   let tempDrop = 0;
   let pendingDrops = 0;
   let pendingWhy = '';
+  // Couch play on a slow device: one more rung for as long as cat two is
+  // there, never written to the memory. couchUndo holds the parts it stopped
+  // casting, so leaving can switch them back on.
+  let couchDrop = 0;
+  let couchUndo = null;
   let walking = false; // between an Auto beginWalk and the next beginWalk
 
   const tempWanted = () => (isHot(device?.thermal) ? 1 : 0) + (memoryPressed ? 1 : 0);
@@ -140,6 +145,8 @@ export function createQualityAdapter({
     let startRung = -1;
     tempDrop = 0;
     pendingDrops = 0;
+    couchDrop = 0;
+    couchUndo = null;
     if (adaptive && forcedRung != null) {
       // Forced: Auto's ladder, but no governor and no memory. `adaptive` off
       // is what keeps frame() from sampling; storage is not even read.
@@ -276,10 +283,45 @@ export function createQualityAdapter({
     }
     // Never more temporary rungs than there are reasons for right now: a
     // device that cools and heats again within one walk already has its rung.
-    const room = tempWanted() - tempDrop - pendingDrops;
+    const room = tempWanted() - (tempDrop - couchDrop) - pendingDrops;
     if (walking && asks.length > 0 && room > 0) {
       pendingDrops += Math.min(asks.length, room);
       pendingWhy = asks.join(', ');
+    }
+  }
+
+  // Couch play (src/coop/): cat two has joined (on) or gone (off). On Auto, on
+  // the walk's LOW rung, the walk steps to the shadow-light rung while two
+  // cats are drawn, so the small parts of both stop casting. A fast device
+  // (rung 0 to 2), a manual High or Low, a forced rung and a walk already on
+  // rung 4 or lower are left as they are, except that a trim already on is
+  // run again over cat two. Nothing is written: the setting and the memory
+  // are the solo ones, and the next walk starts from them. Leaving puts the
+  // trimmed parts back unless Auto has stepped on in the meantime.
+  function couch(on, session) {
+    if (!adaptive || !session) return;
+    const nowMs = performance.now();
+    if (on) {
+      if (couchDrop === 0 && status.rung === LOW_RUNG) {
+        couchDrop = 1;
+        tempDrop += 1;
+        couchUndo = [];
+        status.rung = LOW_RUNG + 1;
+        status.change = '3→4: couch play';
+        governor.restart(nowMs, ADAPT.settleMs);
+      }
+      const min = LADDER[Math.min(status.rung, FLOOR_RUNG)].shadowMinPart;
+      if (min > 0 && session.scene && status.rung < FLOOR_RUNG) trimShadowCasters(session.scene, min, couchUndo);
+    } else if (couchDrop > 0) {
+      couchDrop = 0;
+      tempDrop -= 1;
+      if (status.rung === LOW_RUNG + 1) {
+        for (const m of couchUndo ?? []) m.castShadow = true;
+        status.rung = LOW_RUNG;
+        status.change = 'couch over';
+        governor.restart(nowMs, ADAPT.settleMs);
+      }
+      couchUndo = null;
     }
   }
 
@@ -397,5 +439,5 @@ export function createQualityAdapter({
     return !status.cap30 || pacer.due(nowMs);
   }
 
-  return { beginWalk, frame, shouldRender, deviceChanged, status };
+  return { beginWalk, frame, shouldRender, deviceChanged, couch, status };
 }
