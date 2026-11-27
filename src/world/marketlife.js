@@ -83,6 +83,7 @@ import { createMusician } from './marketfolk.js';
 import { createMarketSound, BELL } from './marketsound.js';
 import { loudness } from './roofssound.js';
 import { findAt, noteMarketFind, MARKET_FIND_ANCHORS } from './marketfinds.js';
+import { createErrands } from './marketerrandlive.js';
 
 export const MARKET_BUCKET_ID = 'market-bucket-1';
 const CRATE_KIND = 'applecrate';
@@ -168,6 +169,9 @@ export function createMarketLife(area, ctx = {}) {
   const last = { x: 0, z: 0, set: false, speed: 0 };
   let crateWas = null; // the crate's `tipped` last frame, once it is found
 
+  // the six missions (marketerrandlive.js): only on a walk with a scene
+  const errands = scene ? createErrands({ scene, ground: ctx.ground, area, log, progression, reducedMotion }) : null;
+
   // the bicycle
   const bicycle = area?.bicycle ?? null;
   const rockFrom = bicycle ? bicycle.rotation.x : 0;
@@ -246,6 +250,7 @@ export function createMarketLife(area, ctx = {}) {
   function basket(catPos, session) {
     const now = atBasket(session?.perched);
     if (now && !inBasket) {
+      errands?.bellRung();
       rock();
       sound?.bell(1);
     }
@@ -281,6 +286,7 @@ export function createMarketLife(area, ctx = {}) {
       const up = pigeonsUp(catPos);
       basket(catPos, session);
       rocking(dt);
+      if (catPos) errands?.update(dt, t, catPos, session);
       if (catPos) {
         const resting = !!session?.rest;
         stillness(dt, catPos, resting);
@@ -342,6 +348,7 @@ export function createMarketLife(area, ctx = {}) {
       blooms?.dispose();
       musician?.dispose();
       sound?.dispose();
+      errands?.dispose();
       apples = null;
       wool = null;
       petals = null;

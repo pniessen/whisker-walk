@@ -35,6 +35,8 @@ export const AWARDS = {
   // The Market Square (2026-11-21): one of its six finds, paid the first time
   // ever (world/marketfinds.js noteMarketFind).
   marketfind: 12,
+  // ...and one of its six missions done, once a walk each (world/marketerrandlive.js; what the Farm's jobs pay).
+  marketjob: 25,
   // Lighthouse Point (2026-11-22): the lamp lit, once a walk (world/lighthouselife.js; what the Farm's jobs pay).
   lighthousejob: 25,
   // ...and one of its six finds, paid the first time ever (world/lighthousefinds.js noteLighthouseFind).

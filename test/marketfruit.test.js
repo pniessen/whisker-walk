@@ -409,7 +409,7 @@ describe('the market life', () => {
     session.tippables.tip(session.tippables.list[0]);
     session.knockables.knockById('market-bucket-1');
     frames(life, session, 90);
-    const added = meshesOf(scene).length - before;
+    const added = meshesOf(scene).filter((m) => !m.userData.errand).length - before; // (the six missions' props have their own budget: test/marketerrands.test.js)
     expect(added).toBeLessThanOrEqual(3);
     for (const name of ['marketApples', 'marketPetals']) {
       const m = scene.getObjectByName(name);

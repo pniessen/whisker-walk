@@ -181,7 +181,20 @@ describe('the plan of the Market Square', () => {
       // her own cat is never kept out of a hide
       expect(isWalkableAt(a, s.hide.x, s.hide.z), id).toBe(true);
     }
-    expect(MARKET_KEEPOUT.capsules.length).toBe(2 * TREAT_STALLS.length);
+    expect(MARKET_KEEPOUT.capsules.length).toBe(2 * TREAT_STALLS.length + MARKET_COLLIDERS.length);
+  });
+
+  it('strays are kept out of every solid prop (they walked through them once)', () => {
+    for (const c of MARKET_COLLIDERS) {
+      for (const k of [0, 1.3, 2.6, 4]) {
+        for (const d of [0, 0.5 * c.r, 0.9 * c.r]) {
+          const q = keepOutPoint(a, c.x + d * Math.cos(k), c.z + d * Math.sin(k));
+          expect(Math.hypot(q.x - c.x, q.z - c.z), `${c.x},${c.z}`).toBeGreaterThanOrEqual(c.r - 1e-6);
+        }
+      }
+    }
+    const f = keepOutPoint(a, 0.3, 0.2); // the fountain's middle
+    expect(Math.hypot(f.x, f.z)).toBeGreaterThanOrEqual(3.4);
   });
 
   it('has 12 POIs and 5 collectibles on free cobbles, 3 m from every collider', () => {
