@@ -160,7 +160,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
   spottable = [];
   robots = pick('hill', 'robots', mkRobots, spottable);
   // (milestone 9) Pip's postcard of the day and the album (moonjoblive.js): after the rover, whose position it reads, and the star hill and the launch it asks things of; with all three stages in
-  job = closed.size ? slot('job', stubs.job()) : mkJob();
+  job = closed.size ? slot('job', createStubs().job()) : mkJob();
   // (guide cues) the written guide: the goal line, the edge arrow and the words beside Pip's picture (moonguidelive.js); its own DOM, one goal (base.goal()) shared with the gold ring and light column
   const guide = createGuideLive({ doc, win, base, job, launch, star, deep, rover, progression, reducedMotion });
   // (story flow) the connective tissue: what comes next and why, the call-to-action pill by the rocket and the big red button (moonflowlive.js)
