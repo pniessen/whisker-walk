@@ -48,6 +48,8 @@
 // hall's front door, whose leaves swing open as she comes, houselife.js); both
 // 'inside' and look 'none' (Old House step 4).
 
+import { treehouseOn } from './treehouseflag.js';
+
 export const GATE_REACH = 1.6; // m, cat centre to gate centre
 // m: nearer than this to a gate she can go through or open, the place beyond
 // starts downloading (once per gate per walk), so a yes rarely waits for it.
@@ -121,6 +123,8 @@ export const GATEWAY_ENDS = Object.freeze({
   farm: Object.freeze([
     // Set into the front picket fence (z 45, farm.js cuts it with cutForGates).
     end({ id: 'farm-park', gateway: 'park-farm', x: -8, z: 45, faces: 'south', to: 'park', twin: 'park-farm', look: 'farmgate' }),
+    // The Farm's far edge (north), on the open ground east of the wheat: a signpost with its painted name board to the Treehouse village (suburban to rural to forest).
+    end({ id: 'farm-treehouse', gateway: 'farm-treehouse', x: 30, z: -41, faces: 'north', to: 'treehouse', twin: 'treehouse-farm', look: 'signpost', sign: true }),
   ]),
   docks: Object.freeze([
     end({ id: 'docks-town', gateway: 'town-docks', x: -10, z: -37, faces: 'north', to: 'neighborhood', twin: 'town-docks', look: 'signpost' }),
@@ -136,6 +140,10 @@ export const GATEWAY_ENDS = Object.freeze({
     // On the open north-east sand, 2.5 m inside the north bounds (z -34) and clear of the lamp at
     // (20, -30): the bluff's colliders stand at z -37. A signpost with its painted name board.
     end({ id: 'seaside-lighthouse', gateway: 'seaside-lighthouse', x: 12, z: -31.5, faces: 'north', to: 'lighthouse', twin: 'lighthouse-seaside', look: 'signpost', sign: true }),
+  ]),
+  treehouse: Object.freeze([
+    // On the roots' south edge (bounds z 32), facing south; she lands 3.6 m in at (0, 25.9), facing north, the great oak ahead (the spawn is (0, 25)).
+    end({ id: 'treehouse-farm', gateway: 'farm-treehouse', x: 0, z: 29.5, faces: 'south', to: 'farm', twin: 'farm-treehouse', look: 'signpost' }),
   ]),
   lighthouse: Object.freeze([
     // On the cove's south edge (bounds z 44), facing south; she lands 3.65 m in at (14, 37.4), facing north,
@@ -176,7 +184,8 @@ export function endById(id, table = GATEWAY_ENDS) {
 
 export function liveEndsFor(areaId, catalog, table = GATEWAY_ENDS) {
   const areas = catalog && catalog.areas;
-  return endsFor(areaId, table).filter((e) => own(areas, e.to));
+  // a place behind its own switch (the Treehouse village, `flag: 'treehouse'`) has no live end until the switch is on
+  return endsFor(areaId, table).filter((e) => own(areas, e.to) && !(areas[e.to].flag === 'treehouse' && !treehouseOn()));
 }
 
 export function gatewayNear(areaId, x, z, catalog, { reach = GATE_REACH, table = GATEWAY_ENDS } = {}) {

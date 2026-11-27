@@ -24,6 +24,7 @@ const { build: buildGreenhouse } = await import('../src/world/greenhouse.js');
 const { build: buildMoon } = await import('../src/world/moon.js');
 const { build: buildReef } = await import('../src/world/reef.js');
 const { build: buildCrystal } = await import('../src/world/crystal.js');
+const { build: buildTreehouse } = await import('../src/world/treehouse.js');
 const { build: buildSnowville } = await import('../src/world/snowville.js');
 const { HOUSE_LEVELS } = await import('../src/world/houseplan.js');
 const { measureHouse } = await import('./helpers/housebudget.js');
@@ -555,6 +556,11 @@ const AREAS = [
   // Milestone C3 (2026-11-26, the finds: the Echo Wall slab, the Crystal Garden's five tiny crystals and the Gold Vein rock in ONE merged vertex-coloured mesh, no caster) measured 10 / 1 / 14,634 built (+326 triangles, +1 mesh), +12%: 11 / 2 / 16,400. The finds' glow is the walk's life, not in this count.
   // Milestone C5 (2026-11-26, wing B: the Blue Pool disc, six stepping crystals, the Blue, Gold and Heart great crystals and their small rings, the Gold Gallery's nine vein slabs and three nook rocks with their gold seams, the Heart as its own dormant mesh, the passages' lamps as one Points object) measured 12 / 2 / 19,786 built (+5,152 triangles, +2 meshes: the pool and the Heart; the lamps are Points), +12%: 13 / 2 / 22,200. The plan expected about 35,000 triangles at most for the whole place. The Heart's halo, the nook's glints, the show's motes and the lamps' glow are the walk's life, not in this count.
   ['crystal', buildCrystal, 13, 2, 22200],
+  // The Treehouse village. Milestone T1 (2026-11-27, the tree world: the leafy floor, the great oak, the four decks with their stilts, railings, lanterns and huts' shells, the two
+  // rope bridges, the stairs, the post box, the forest rim and the leaf canopy; merged by material into ONE caster mesh, one non-casting leaf mesh and one lantern-glow mesh, on the
+  // floor) measured 4 meshes / 1 caster / 27,704 triangles built, +12%: 5 / 2 / 31,100 (the plan expected about 28,000 for stage A). The dapple and the one light are the
+  // walk's life, not in this count. Row B (the Bell Tower's show, the rope bridge to the Bookshop) comes with milestone T5: measured, then set.
+  ['treehouse', buildTreehouse, 5, 2, 31100],
   // Snowville. Milestone V1 (2026-11-27, the snow world: the ground heightfield, then the arch, brazier, seven cottages, the square and the 100-odd firs, drifts and rocks in three
   // merged buckets (paint, glow, tree) and the treeline's own non-casting bucket; the flakes, glints and cheeks are the walk's life, not in this count) measured 5 / 2 / 16,108 built
   // (the same merged), +12%: 6 / 3 / 18,100. The plan's stage A figures were about 25,000 triangles: under them. The Farm with its new gate (3 meshes, +441 triangles, +1 caster)

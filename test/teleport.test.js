@@ -117,7 +117,7 @@ describe('the gate table', () => {
     for (const look of ['stonering', 'archway', 'hollow', 'cleft', 'grotto', 'hatch']) expect(GATE_LOOKS).toContain(look);
     // none of the eighteen map rows gained a key: a teleport gate's fields are its own
     const mapRows = Object.values(GATEWAY_ENDS).flat();
-    expect(mapRows).toHaveLength(18);
+    expect(mapRows).toHaveLength(20);
     for (const e of mapRows) {
       for (const k of ['kind', 'suit', 'wake', 'edition', 'needWalks']) expect(Object.hasOwn(e, k), `${e.id}.${k}`).toBe(false);
       expect(['stonering', 'archway', 'hollow', 'cleft', 'grotto', 'hatch']).not.toContain(e.look);

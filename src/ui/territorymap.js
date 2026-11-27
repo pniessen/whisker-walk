@@ -84,8 +84,8 @@ export const ICON = { town: '🏠', woods: '🌳', moor: '🌾', river: '🌿', 
 // Where each name sits, nudged off her water and paths where they cross the centre.
 const LABEL_AT = { town: [862, 572], woods: [556, 540], moor: [655, 92], river: [205, 548], pines: [290, 172], gorge: [815, 300] };
 // The world map's street places: their icons, and where draft 2 puts their names.
-export const STREET_ICON = { park: '⛲', fair: '🎡', farm: '🚜', docks: '⚓', seaside: '🏖️', roofs: '🕊️', market: '🧺', house: '🕰️', lighthouse: '🗼', greenhouse: '🌿', reef: '🐠', crystal: '💎', moon: '🌙', snowville: '❄️' };
-const STREET_LABEL_AT = { park: [1080, 478], fair: [1060, 236], farm: [1235, 326], docks: [900, 778], seaside: [1170, 688], lighthouse: [1268, 531], greenhouse: [1255, 150], reef: [1390, 690], crystal: [700, 812], moon: [900, 60] };
+export const STREET_ICON = { park: '⛲', fair: '🎡', farm: '🚜', docks: '⚓', seaside: '🏖️', roofs: '🕊️', market: '🧺', house: '🕰️', lighthouse: '🗼', greenhouse: '🌿', treehouse: '🌳', reef: '🐠', crystal: '💎', moon: '🌙', snowville: '❄️' };
+const STREET_LABEL_AT = { park: [1080, 478], fair: [1060, 236], farm: [1235, 326], docks: [900, 778], seaside: [1170, 688], lighthouse: [1268, 531], greenhouse: [1255, 150], treehouse: [1088, 75], reef: [1390, 690], crystal: [700, 812], moon: [900, 60] };
 // Places inside the town whose names sit off their centre: the Market's, just
 // east of its circle, in the one gap that keeps its icon, name and line off
 // the town's own name and line, the Docks', the Park's and the Seaside's
@@ -103,7 +103,8 @@ function labelHtml(r, { small = false } = {}) {
   const [lx, ly] = LABEL_AT[r.id] ?? STREET_LABEL_AT[r.id] ?? TOWN_LABEL_AT[r.id] ?? [r.x, r.y];
   // a place drawn inside the town (the Rooftops) is smaller still, so its
   // name and line stay clear of the town's own label
-  const tiny = r.kind === 'town';
+  // (the Treehouse village is a street place with no room round it, between the Fairground and the Greenhouse: its words are as small)
+  const tiny = r.kind === 'town' || r.id === 'treehouse';
   const name = wrap(`${r.locked ? '🔒 ' : ''}${r.name}`, tiny ? 8 : small ? 12 : 14);
   // ...and has room for a short line only (two short rows clear the town's
   // icon): a locked one shows its lock alone, one she is still finding the

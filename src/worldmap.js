@@ -47,10 +47,13 @@ export const STREET_PLACES = freezeAll([
   // The Greenhouse (G4): north of the Farm, west of the coast, with no road: the Park's archway gate is its way in (the map's
   // roads are on foot). Shown only while the gates switch is on (edition.js areaShown, the row's `gate: 'tele'`).
   { id: 'greenhouse', areaId: 'greenhouse', x: 1215, y: 150, r: 60 },
+  // The Treehouse village (T1): north-west of the Farm in the gap above the Fairground, beyond the Greenhouse's west edge; its road leaves the Farm's north-west rim and
+  // runs up between the Fairground and the Greenhouse. Shown only while its switch is on (edition.js areaShown, the row's `flag: 'treehouse'`).
+  { id: 'treehouse', areaId: 'treehouse', x: 1110, y: 75, r: 46 },
 ]);
 
 // Land colours for the street places, as territories.js's LAND is for hers.
-export const STREET_LAND = Object.freeze({ park: '#b9dc8f', fair: '#e9b7c9', farm: '#e3cf7e', docks: '#b7b9bf', seaside: '#ecdca8', lighthouse: '#cfdad2', greenhouse: '#bfe3b5' });
+export const STREET_LAND = Object.freeze({ park: '#b9dc8f', fair: '#e9b7c9', farm: '#e3cf7e', treehouse: '#a6cf86', docks: '#b7b9bf', seaside: '#ecdca8', lighthouse: '#cfdad2', greenhouse: '#bfe3b5' });
 
 // Places she reaches by a teleport gate and may then go back to by the map: the Reef, out in the sea east of the coast, and the
 // Crystal Cave, a small pennant by the Docks (interconnectivity I1). A circle is drawn ONLY once she has walked the place
@@ -109,6 +112,8 @@ export const GATEWAYS = Object.freeze([
   // gap from the Seaside's north-east rim to the Lighthouse's south-west rim.
   { id: 'seaside-lighthouse', from: 'seaside', to: 'lighthouse', road: [[1229, 598], [1233, 587], [1241, 577], [1248, 566]] },
   { id: 'town-house', from: 'neighborhood', to: 'house', road: [[834, 676], [830, 692], [810, 702], [794, 690]] },
+  // The Treehouse village's road runs from the Farm's north-west rim up the gap between the Fairground and the Greenhouse (the Farm is entered from its south, this leaves from its north).
+  { id: 'farm-treehouse', from: 'farm', to: 'treehouse', road: [[1180, 257], [1165, 215], [1148, 165], [1126.5, 118]] },
 ].map((g) => Object.freeze({ ...g, road: pts(g.road) })));
 
 // A camp the world map draws somewhere other than CAMP_AT. The Moor's: on

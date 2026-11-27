@@ -427,6 +427,10 @@ export const CATALOG = {
     // paws after 2 Seaside walks, not a kept offer. A place on the coast beyond the Seaside on the
     // world map; its name is the one here (no word set renames it).
     lighthouse: { name: 'Lighthouse Point', price: 150, requires: { area: 'seaside', walks: 2 } },
+    // The Treehouse village (docs/superpowers/plans/2026-11-27-new-areas-snowville-treehouse-jungle.md section 2, T1, as 2026-11-27-connect-and-areas-decisions.md changes it): an
+    // ordinary map place of the Suburban and rural region, opened after the Farm (in this list after Lighthouse Point, so the older places keep their order), free, after 2 Farm walks, both editions, entered by the Farm's north signpost (no gate, no teleport
+    // pair). `flag: 'treehouse'` keeps it out of every card, map and signpost until its release pass (src/edition.js areaShown, src/gateways.js liveEndsFor).
+    treehouse: { name: 'Treehouse Village', price: 0, requires: { area: 'farm', walks: 2 }, flag: 'treehouse' },
     // The Greenhouse (docs/superpowers/plans/2026-11-26-greenhouse-remaining.md, G4; advisor answer 1): reached only by the
     // Park's archway gate (src/teleport.js), free, after 2 Park walks, in both editions. `gate: 'tele'` keeps it out of every
     // card, map and purchase while the gates switch (?gates=1) is off (edition.js areaShown); walking through the gate
@@ -569,7 +573,7 @@ function defaultState() {
     // the River: a save with no 'river' key would pin state.walks.river at NaN. And the Moor, the Pines and the Gorge: no 'moor', 'pines' or 'gorge' key, same NaN.
     // And the Farm: a save from before it loads with farm: 0. And the Fairground: fair: 0. And the Rooftops (in CATALOG.areas since Rooftops step 4): roofs: 0. And the Market Square (in CATALOG.areas since Market step 4): market: 0. And the Old House (in CATALOG.areas since its step 4): house: 0.
     // And Lighthouse Point (in CATALOG.areas since Lighthouse milestone 4): lighthouse: 0. And the Greenhouse (in CATALOG.areas since its G4, behind the gates switch): greenhouse: 0.
-    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0, snowville: 0 },
+    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0, snowville: 0, treehouse: 0 },
     // A COPY of STARTER_ACCESSORIES: buy() pushes into this array.
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: [...STARTER_ACCESSORIES], areas: ['neighborhood'] },
     equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null },

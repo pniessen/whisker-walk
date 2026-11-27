@@ -51,7 +51,8 @@ export function clampZoomStep(step, max = MAX_ZOOM_STEP) {
 
 // Places that stop short of the farthest step. The Crystal Cave's dome is 9 m over its floor at its lowest and step 3 reaches about that high, so the
 // cave stops at step 2 (advisor answer 2, docs/superpowers/plans/2026-11-26-crystal-cave.md). Every other place is the full range.
-export const ZOOM_CAPPED_AREAS = Object.freeze({ den: DEN_MAX_ZOOM_STEP, crystal: 2 });
+// The Treehouse village stops at step 2 too: step 3 would put the camera about 12 m up over the Crown deck, among the leaves (plan section 2.6; no `ground.ceil`).
+export const ZOOM_CAPPED_AREAS = Object.freeze({ den: DEN_MAX_ZOOM_STEP, crystal: 2, treehouse: 2 });
 
 // The farthest step allowed in an area. Takes the area's id; `true` still means the den (the old boolean).
 export function maxZoomStep(area) {

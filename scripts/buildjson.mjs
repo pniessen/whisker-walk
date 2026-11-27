@@ -127,6 +127,14 @@ export const CRYSTAL_STAGE_GZIP_CEILING_KB = 65;
 export const CRYSTAL_TOTAL_GZIP_CEILING_KB = 120;
 export const crystalDownloads = (manifest) => stagedDownloads(manifest, 'crystal', CRYSTAL_STAGE_ENTRY_MODULES);
 
+// The Treehouse village is the same shape (src/world/treehousestages.js): stage A (treehouse.js) and two stage chunks, each under TREEHOUSE_STAGE_GZIP_CEILING_KB, all three under the total.
+export const TREEHOUSE_STAGE_ENTRY_MODULES = Object.freeze({
+  treehousebranches: Object.freeze(['src/world/treehousestagebranches.js']),
+  treehouselift: Object.freeze(['src/world/treehousestagelift.js']),
+});
+export const TREEHOUSE_STAGE_GZIP_CEILING_KB = 65;
+export const TREEHOUSE_TOTAL_GZIP_CEILING_KB = 150;
+export const treehouseDownloads = (manifest) => stagedDownloads(manifest, 'treehouse', TREEHOUSE_STAGE_ENTRY_MODULES);
 // Snowville is the same shape (src/world/snowvillestages.js): stage A (snowville.js: the square and the spawn court) and two stage chunks (B: the pond, the hill and Lantern Night;
 // C: the sled run), each under SNOWVILLE_STAGE_GZIP_CEILING_KB, all three under the total.
 export const SNOWVILLE_STAGE_ENTRY_MODULES = Object.freeze({
@@ -230,6 +238,10 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   const { total: crTotal, ...crParts } = crKb;
   problems.push(...areaSizeProblems(crParts, CRYSTAL_STAGE_GZIP_CEILING_KB), ...areaSizeProblems({ 'crystal (all stages)': crTotal }, CRYSTAL_TOTAL_GZIP_CEILING_KB));
   problems.push(...lazyProblems(manifest, CRYSTAL_STAGE_ENTRY_MODULES));
+  const thKb = Object.fromEntries(Object.entries(treehouseDownloads(manifest)).map(([id, fs]) => [id, fs.reduce((n, f) => n + gzipOf(dir, f), 0) / 1000]));
+  const { total: thTotal, ...thParts } = thKb;
+  problems.push(...areaSizeProblems(thParts, TREEHOUSE_STAGE_GZIP_CEILING_KB), ...areaSizeProblems({ 'treehouse (all stages)': thTotal }, TREEHOUSE_TOTAL_GZIP_CEILING_KB));
+  problems.push(...lazyProblems(manifest, TREEHOUSE_STAGE_ENTRY_MODULES));
   const svKb = Object.fromEntries(Object.entries(snowvilleDownloads(manifest)).map(([id, fs]) => [id, fs.reduce((n, f) => n + gzipOf(dir, f), 0) / 1000]));
   const { total: svTotal, ...svParts } = svKb;
   problems.push(...areaSizeProblems(svParts, SNOWVILLE_STAGE_GZIP_CEILING_KB), ...areaSizeProblems({ 'snowville (all stages)': svTotal }, SNOWVILLE_TOTAL_GZIP_CEILING_KB));
@@ -240,6 +252,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   for (const [id, v] of Object.entries(kb)) console.log(`  ${id.padEnd(13)} ${v.toFixed(1)} kB gzipped (ceiling ${AREA_GZIP_CEILING_KB} kB)`);
   console.log(`  reef stages   A ${reefKb.reef.toFixed(1)}, lab ${reefKb.reeflab.toFixed(1)}, wreck ${reefKb.reefwreck.toFixed(1)}, ride ${reefKb.reefride.toFixed(1)}, all ${reefTotal.toFixed(1)} kB gzipped (ceiling ${REEF_STAGE_GZIP_CEILING_KB} each, ${REEF_TOTAL_GZIP_CEILING_KB} all)`);
   console.log(`  crystal stages A ${crKb.crystal.toFixed(1)}, wingc ${crKb.crystalwingc.toFixed(1)}, play ${crKb.crystalplay.toFixed(1)}, all ${crTotal.toFixed(1)} kB gzipped (ceiling ${CRYSTAL_STAGE_GZIP_CEILING_KB} each, ${CRYSTAL_TOTAL_GZIP_CEILING_KB} all)`);
+  console.log(`  treehouse     A ${thKb.treehouse.toFixed(1)}, branches ${thKb.treehousebranches.toFixed(1)}, lift ${thKb.treehouselift.toFixed(1)}, all ${thTotal.toFixed(1)} kB gzipped (ceiling ${TREEHOUSE_STAGE_GZIP_CEILING_KB} each, ${TREEHOUSE_TOTAL_GZIP_CEILING_KB} all)`);
   console.log(`  snowville stages A ${svKb.snowville.toFixed(1)}, b ${svKb.snowvilleb.toFixed(1)}, c ${svKb.snowvillec.toFixed(1)}, all ${svTotal.toFixed(1)} kB gzipped (ceiling ${SNOWVILLE_STAGE_GZIP_CEILING_KB} each, ${SNOWVILLE_TOTAL_GZIP_CEILING_KB} all)`);
   console.log(`  moon stages   A ${moonKb.moon.toFixed(1)}, hill ${moonKb.moonhill.toFixed(1)}, launch ${moonKb.moonlaunch.toFixed(1)}, rover ${moonKb.moonrover.toFixed(1)}, station ${moonKb.moonstation.toFixed(1)}, late ${moonKb.moonlate.toFixed(1)}, all ${moonTotal.toFixed(1)} kB gzipped (ceiling ${MOON_STAGE_GZIP_CEILING_KB} each, ${MOON_TOTAL_GZIP_CEILING_KB} all)`);
   console.log(`  tv chunk      ${tvKb.toFixed(1)} kB gzipped (ceiling ${TV_GZIP_CEILING_KB} kB)`);
