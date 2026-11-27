@@ -469,6 +469,10 @@ const LATER = Object.freeze({
   'wear.pouch.partner': (partnerName) => `${partnerName} found it, and there was a little pouch of 🐾 for you too!`,
   'wear.foundIn': (place) => `Found in ${place}`,
   'wear.notYet': 'Not found yet',
+  // An earned holiday piece not earned yet (src/foundwear/holidaywear.js): the same plain words in every set.
+  'wear.holidayPrize.winter': 'Earned in Winter Lights',
+  'wear.holidayPrize.christmas': 'Earned at Christmas',
+  'wear.holidayPrize.hanukkah': 'Earned at Hanukkah',
   // Dress up's "Remove all accessories", and the cat builder's slots 4 and 5.
   'wear.removeAll': 'Remove all accessories',
   'slots.buy': (price) => `2 more cat slots — ${price}`,
@@ -636,6 +640,25 @@ const LATER = Object.freeze({
   'wear.snowflakescarf.name': 'Snowflake Scarf',
   // The Treehouse village's found cap (a placeholder name, the same in every set)
   'wear.canopycap.name': 'Canopy Cap',
+  // The holiday outfits (src/foundwear/holidaywear.js): real-world holiday words, the same in every set. Winter Lights, earned.
+  'wear.lanterncharm.name': 'Lantern Charm',
+  'wear.snowcap.name': 'Snow Cap',
+  'wear.lightscarf.name': 'Light-string Scarf',
+  'wear.startopper.name': 'Star Topper Halo',
+  // Christmas: the shop's five and the earned star.
+  'wear.redcozyhat.name': 'Red Cozy Hat',
+  'wear.reindeerantlers.name': 'Reindeer Antlers',
+  'wear.jinglecollar.name': 'Jingle Collar',
+  'wear.candyscarf.name': 'Candy-stripe Scarf',
+  'wear.evergreensweater.name': 'Evergreen Sweater',
+  'wear.littlegoldstar.name': 'Little Gold Star',
+  // Hanukkah: the shop's five and the earned menorah.
+  'wear.bluestarbeanie.name': 'Blue Star Beanie',
+  'wear.dreidelcharm.name': 'Dreidel Charm',
+  'wear.bluescarf.name': 'Blue-and-Silver Scarf',
+  'wear.geltpouch.name': 'Gelt Pouch',
+  'wear.snowflakesweater.name': 'Silver Snowflake Sweater',
+  'wear.menorahglow.name': 'Menorah Glow',
   // The Jungle lodge's found anklets (a placeholder name, the same in every set)
   'wear.fernanklet.name': 'Fern Anklet',
   // Lighthouse Point's journal pages (src/lighthousepages.js): drawn before the place is ever walked, so they are

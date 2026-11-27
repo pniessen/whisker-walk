@@ -281,6 +281,8 @@ export const MERGE_RULES = Object.freeze({
   scarredIntruders: (r) => union(r.L.scarredIntruders, r.C.scarredIntruders),
   foundWear: (r) => union(r.L.foundWear, r.C.foundWear),
   events: (r) => union(r.L.events, r.C.events),
+  // Holiday pieces earned: each key's bitmask is the OR of both sides', so nothing earned on either device is lost.
+  holidays: (r) => perKey(r.L.holidays, r.C.holidays, (l, c) => num(l) | num(c)),
   sleepingCats: (r) => r.sleeping,
 });
 
