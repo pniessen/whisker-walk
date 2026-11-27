@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { CLAN_TOTAL, EVERYDAY_TOTAL } from './helpers/goldtotals.js';
 import { GOLD_MICE, KNOWN_GOLD, GOLD_TOTAL, goldForEdition } from '../src/goldmice.js';
 import { CATALOG } from '../src/progression.js';
 import { goldenFound, renderGoldenTallyHtml } from '../src/ui/hometabs.js';
@@ -19,7 +20,7 @@ describe('golden mice per edition', () => {
     const set = goldForEdition('canon', CATALOG);
     expect([...set].sort()).toEqual([...KNOWN_GOLD].sort());
     expect(set.size).toBe(GOLD_TOTAL);
-    expect(set.size).toBe(71); // 54 until the Reef added its three, 48 until the Moon added its three, 42 until the Old House added its three, 39 until the Market added its three, 36 until the Rooftops added its three
+    expect(set.size).toBe(CLAN_TOTAL); // 54 until the Reef added its three, 48 until the Moon added its three, 42 until the Old House added its three, 39 until the Market added its three, 36 until the Rooftops added its three
   });
 
   it("the house's mice count in Clan Edition only", () => {
@@ -41,7 +42,7 @@ describe('golden mice per edition', () => {
   it('Legacy counts only the mice in the places Legacy shows', () => {
     const set = goldForEdition('legacy', CATALOG);
     expect([...set].sort()).toEqual(idsIn(legacyAreas).sort());
-    expect(set.size).toBe(47); // 30 until the Reef added its three, 24 until the Moon added its three (it has no catalog row yet, so both editions count it). 24 while the Market had no catalog row; its Clan-only row (Market step 4) keeps its three out: 21 again. 18 until the Rooftops added its three (the four street areas, the Farm, the Fairground and the Rooftops)
+    expect(set.size).toBe(EVERYDAY_TOTAL); // 30 until the Reef added its three, 24 until the Moon added its three (it has no catalog row yet, so both editions count it). 24 while the Market had no catalog row; its Clan-only row (Market step 4) keeps its three out: 21 again. 18 until the Rooftops added its three (the four street areas, the Farm, the Fairground and the Rooftops)
     expect(set.size).toBeLessThan(GOLD_TOTAL);
     for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) {
       for (const m of GOLD_MICE[a]) expect(set.has(m.id)).toBe(false);

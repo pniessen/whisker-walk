@@ -74,7 +74,7 @@ describe('the Moon is a landing chunk, four stage chunks and the late arrivals c
 });
 
 describe('the Reef is four chunks fetched together (R10 stage slots)', () => {
-  it('stage A and the lab, wreck and ride stages are each under their ceiling, all four under the total, and start-up grew under 1 kB (658.0 kB before R10)', async () => {
+  it('stage A and the lab, wreck and ride stages are each under their ceiling, all four under the total, and start-up is within the recorded figure', async () => {
     const { reefDownloads, REEF_STAGE_ENTRY_MODULES, lazyProblems: lp, REEF_STAGE_GZIP_CEILING_KB, REEF_TOTAL_GZIP_CEILING_KB } = await import('../scripts/buildjson.mjs');
     expect(lp(b.manifest, REEF_STAGE_ENTRY_MODULES)).toEqual([]);
     const dl = reefDownloads(b.manifest);
@@ -85,7 +85,8 @@ describe('the Reef is four chunks fetched together (R10 stage slots)', () => {
     }
     expect(kb.total).toBeLessThanOrEqual(REEF_TOTAL_GZIP_CEILING_KB);
     const startKb = startupFiles(b.manifest).reduce((n, f) => n + b.gz(f), 0) / 1000;
-    expect(startKb).toBeLessThan(658.0 + 7.1); // +0.3 for the Jungle lodge J1 (catalog row, region, flag, the Greenhouse ring's gate rows and the walk shortcut: measured +0.3), +0.2 for Snowville wing B (V5: the clasp's collar drawing), +0.4 for the Treehouse's finds (T3: six page names, an award, three mice, four cap spots, the Canopy Cap's look; measured +0.37, 0.07 over the brief's 0.3), +0.1 for Snowville life and sound (V4), +0.1 for Nutmeg and chapter one (T2), +0.1 slack for their merge: +0.3 for Snowville's finds (V3: measured +0.3), +0.4 for the Treehouse village's milestone T1 (its catalog row, map place and signpost behind their own switch: measured +0.4), +0.2 for N0 (ids, three save keys, placeholder journal pages), +0.1 for the Moon's catalog row and map circle, +0.3 for rooms through tele gates (I3: measured +0.2), +1 for the R10 seams, +1.2 for the area-music chunk link, +0.3 for the Crystal wing seams (X0), +0.3 for the Crystal Circlet's drawing (C3: measured +0.2), +0.5 for the passport page and the Back button (I4: measured +0.49)
+    const { kb: pinnedKb, slack } = JSON.parse(readFileSync(new URL('./fixtures/startup-kb.json', import.meta.url), 'utf8'));
+    expect(startKb).toBeLessThanOrEqual(pinnedKb + slack); // the figure lives in test/fixtures/startup-kb.json (history in its "history" key); re-record with scripts/recordstartup.mjs
   });
 });
 

@@ -1,6 +1,7 @@
 // The Moon, wave 2, milestone X0 (the seams) (docs/superpowers/plans/2026-11-27-crystal-moon-wave2.md): the save key `relay`, the five reserved journal ids, the relay tower's gold stub that
 // the beauty scatter must not see, the signal tag prize, the prompt arbiter's source order, the `relay-` partner events, the rock clears hook and the empty station stage.
 import { describe, it, expect, afterEach } from 'vitest';
+import { CLAN_TOTAL, EVERYDAY_TOTAL } from './helpers/goldtotals.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
@@ -90,9 +91,9 @@ describe('the gold stub and the beauty scatter', () => {
     const m4 = P.MOON_MICE[3];
     expect(m4.y).toBe(3);
     expect(P.ROCK_KEEP_OUT.some((k) => k[0] === m4.x && k[1] === m4.z)).toBe(false);
-    expect(Object.values(GOLD_MICE).flat().length).toBe(71);
-    expect(goldForEdition('canon', CATALOG).size).toBe(71);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(47);
+    expect(Object.values(GOLD_MICE).flat().length).toBe(CLAN_TOTAL);
+    expect(goldForEdition('canon', CATALOG).size).toBe(CLAN_TOTAL);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(EVERYDAY_TOTAL);
   });
   it('the beauty scatters and the rocks are byte-identical to main (recorded hashes)', () => {
     expect(B.SCATTER_MICE).toEqual(['gm-moon-1', 'gm-moon-2', 'gm-moon-3']);

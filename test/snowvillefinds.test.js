@@ -1,6 +1,7 @@
 // Snowville, milestone V3: the six discoveries (rule, pay, words, both sets), the six collectibles, three scenic spots, the three golden mice (71 and 47), the six live journal pages and the
 // Snowflake Scarf's four spots. Plan: docs/superpowers/plans/2026-11-27-new-areas-snowville-treehouse-jungle.md 1.7, 1.8, 1.10.
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { CLAN_TOTAL, EVERYDAY_TOTAL } from './helpers/goldtotals.js';
 import * as THREE from 'three';
 import { readFileSync, globSync } from 'node:fs';
 import { stubCanvasDocument } from './helpers/canvas.js';
@@ -260,9 +261,9 @@ describe('three golden mice', () => {
     }
   });
   it('the totals are 71 (Clan) and 47 (everyday): the three count in both editions', () => {
-    expect(GOLD_TOTAL).toBe(71);
-    expect(goldForEdition('canon', CATALOG).size).toBe(71);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(47);
+    expect(GOLD_TOTAL).toBe(CLAN_TOTAL);
+    expect(goldForEdition('canon', CATALOG).size).toBe(CLAN_TOTAL);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(EVERYDAY_TOTAL);
     expect(goldForEdition('legacy', CATALOG).has('gm-snowville-1')).toBe(true);
   });
 });

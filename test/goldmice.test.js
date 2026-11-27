@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { GOLD_MICE, KNOWN_GOLD, GOLD_TOTAL, createGoldMice } from '../src/goldmice.js';
+import { GOLD_MICE, KNOWN_GOLD, GOLD_TOTAL, createGoldMice, goldForEdition } from '../src/goldmice.js';
+import { CATALOG } from '../src/progression.js';
 
 // mirrors progression.js's GOLD_ID_PATTERN — every id here must survive
 // sanitizeGolden's shape check or a real find would get silently dropped
@@ -49,6 +50,10 @@ describe('GOLD_MICE', () => {
     const ids = Object.values(GOLD_MICE).flat().map((m) => m.id);
     expect(KNOWN_GOLD.size).toBe(71); // 54 until the Reef added its three, 51 until the Greenhouse added its three, 48 until the Moon added its three, 45 until Lighthouse Point added its three, 42 until the Old House added its three, 39 until the Market added its three
     for (const id of ids) expect(KNOWN_GOLD.has(id)).toBe(true);
+  });
+
+  it('the Legacy (everyday) total is pinned here and nowhere else: 47', () => {
+    expect(goldForEdition('legacy', CATALOG).size).toBe(47);
   });
 
   it('GOLD_TOTAL is 71', () => {

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { CLAN_TOTAL, EVERYDAY_TOTAL } from './helpers/goldtotals.js';
 import * as THREE from 'three';
 import { stubCanvasDocument } from './helpers/canvas.js';
 
@@ -2775,9 +2776,9 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
 
   it('the gold count is 48, and the Rooftops is in Legacy', async () => {
     const { GOLD_TOTAL, goldForEdition } = await import('../src/goldmice.js');
-    expect(GOLD_TOTAL).toBe(71); // 45 until Lighthouse Point added its three
-    expect(goldForEdition('canon', CATALOG).size).toBe(71); // 42 until the Old House added its three, 39 until the Market added its three
-    expect(goldForEdition('legacy', CATALOG).size).toBe(47); // 21 until Lighthouse Point (no edition key); 24 while the Market had no catalog row (an area not in the catalog is counted); its Clan-only row (Market step 4) keeps its three out of Legacy
+    expect(GOLD_TOTAL).toBe(CLAN_TOTAL); // 45 until Lighthouse Point added its three
+    expect(goldForEdition('canon', CATALOG).size).toBe(CLAN_TOTAL); // 42 until the Old House added its three, 39 until the Market added its three
+    expect(goldForEdition('legacy', CATALOG).size).toBe(EVERYDAY_TOTAL); // 21 until Lighthouse Point (no edition key); 24 while the Market had no catalog row (an area not in the catalog is counted); its Clan-only row (Market step 4) keeps its three out of Legacy
   });
 
   it('an old save loads with walks.roofs 0 and marks.roofs []', () => {

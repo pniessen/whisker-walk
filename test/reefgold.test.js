@@ -1,6 +1,7 @@
 // The Reef, milestone R3: three golden mice (one on the sand behind the boat, two at float height in bubble columns) and the Pearl Collar's four spots. The
 // totals stay 57 (Clan) and 33 (everyday): the R0 stubs already counted the three ids.
 import { describe, it, expect } from 'vitest';
+import { CLAN_TOTAL, EVERYDAY_TOTAL } from './helpers/goldtotals.js';
 import * as THREE from 'three';
 import { stubCanvasDocument } from './helpers/canvas.js';
 import { memoryStorage } from './helpers/storage.js';
@@ -63,9 +64,9 @@ describe('three golden mice', () => {
 
 describe('the totals', () => {
   it('Clan Edition counts 65 and the everyday edition 41 (the Reef row, gate-only, has no edition key: it counts in both)', () => {
-    expect(GOLD_TOTAL).toBe(71);
-    expect(goldForEdition('canon', CATALOG).size).toBe(71);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(47);
+    expect(GOLD_TOTAL).toBe(CLAN_TOTAL);
+    expect(goldForEdition('canon', CATALOG).size).toBe(CLAN_TOTAL);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(EVERYDAY_TOTAL);
     for (const e of ['canon', 'legacy']) for (const m of GOLD) expect(goldForEdition(e, CATALOG).has(m.id), `${e} ${m.id}`).toBe(true);
     expect(CATALOG.areas.reef.edition).toBeUndefined();
   });

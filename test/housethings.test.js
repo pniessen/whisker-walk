@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { CLAN_TOTAL } from './helpers/goldtotals.js';
 import * as THREE from 'three';
 import { canvasStub } from './helpers/growriver.js';
 
@@ -79,7 +80,7 @@ describe('the golden mice (D5)', () => {
       expect(m.id).toMatch(/^gm-[a-z]{1,24}-[1-9]$/);
       expect(m.y, m.id).toBe(0);
     }
-    expect(GOLD_TOTAL).toBe(71); // 42 until the Old House's three joined the count
+    expect(GOLD_TOTAL).toBe(CLAN_TOTAL); // 42 until the Old House's three joined the count
     const [one, two, three] = HOUSE_GOLD_MICE;
     for (const [m, id] of [[one, 'library-books-w'], [two, 'bedroom-wardrobe']]) {
       const l = ledgeById(id);

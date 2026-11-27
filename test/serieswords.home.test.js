@@ -14,6 +14,7 @@
 // when the owner or the older playtester has asked for a wording change in
 // the "on" game:  UPDATE_SERIES_SNAPSHOT=1 npx vitest run test/serieswords
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { CLAN_TOTAL, EVERYDAY_TOTAL } from './helpers/goldtotals.js';
 import { memoryStorage as memStorage } from './helpers/storage.js';
 
 // The home base's WebGL pieces cannot run in node: stub the thumbnails, the
@@ -108,7 +109,7 @@ function homeFor(edition, { mine = null, keep = seriesKeep } = {}) {
 // `keep` picks the segments of each screen that are recorded: the series
 // ones for the fixture, every one for the stand-in run below.
 function snapshot(keep = seriesKeep) {
-  return {
+  return goldTotalsAsNames({
     about: 'The series words on the home screen. Recorded by test/serieswords.home.test.js; see test/serieswords.test.js before re-recording.',
     ownGroupTitleOfThisSave: clanTitleFor(ME),
     clanEdition: {
@@ -116,7 +117,17 @@ function snapshot(keep = seriesKeep) {
       picked: Object.fromEntries(CLANS.map((id) => [id, homeFor('canon', { mine: id, keep }).colony])),
     },
     legacyEdition: homeFor('legacy', { keep }),
-  };
+  });
+}
+
+// The golden-mouse totals on the screen ("Golden mice: 0/71") are the game's own
+// numbers, not words: the fixture holds {all} and {shown in everyday} in their place,
+// so adding an area's three mice does not re-record it (test/goldmice.test.js
+// pins the totals). A screen showing any other total still fails.
+function goldTotalsAsNames(snap) {
+  return JSON.parse(JSON.stringify(snap)
+    .replaceAll(`Golden mice: 0/${CLAN_TOTAL}`, 'Golden mice: 0/{all}')
+    .replaceAll(`Golden mice: 0/${EVERYDAY_TOTAL}`, 'Golden mice: 0/{shown in everyday}'));
 }
 
 describe('series words on the home screen, pinned', () => {

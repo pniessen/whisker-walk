@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { CLAN_TOTAL, EVERYDAY_TOTAL } from './helpers/goldtotals.js';
 import * as THREE from 'three';
 import { stubCanvasDocument } from './helpers/canvas.js';
 
@@ -81,9 +82,9 @@ describe('three golden mice', () => {
 
 describe('the totals', () => {
   it('Clan Edition counts 54 and Legacy 30 (three more from the Moon), with the place in the catalog (it has no edition key: both editions)', () => {
-    expect(GOLD_TOTAL).toBe(71);
-    expect(goldForEdition('canon', CATALOG).size).toBe(71);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(47);
+    expect(GOLD_TOTAL).toBe(CLAN_TOTAL);
+    expect(goldForEdition('canon', CATALOG).size).toBe(CLAN_TOTAL);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(EVERYDAY_TOTAL);
     for (const e of ['canon', 'legacy']) for (const m of GOLD) expect(goldForEdition(e, CATALOG).has(m.id), `${e} ${m.id}`).toBe(true);
     expect(Object.hasOwn(CATALOG.areas, 'lighthouse')).toBe(true); // milestone 4's row: no edition key, so both editions count it
   });
