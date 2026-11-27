@@ -27,6 +27,7 @@ export function scatterShrubs() {
     const n = 3 + Math.floor(rng() * 2);
     const yaw = rng() * 6.28;
     if (!P.clearOf(x, z, 1.8) || laneDist(x, z) < 3) continue;
+    if (x > 17 && x < 30 && z > 4 && z < 30) continue; // the snowmobile's lawn (its ring and garage) stays clear of shrubs
     if (out.some((o) => Math.hypot(o.x - x, o.z - z) < 7)) continue;
     out.push({ x, z, n, yaw });
   }
