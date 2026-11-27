@@ -1,4 +1,4 @@
-// DEFAULT: OFF (?treehouse=1 turns it on), in a browser and in node tests alike.
+// DEFAULT: ON in a browser (?treehouse=0 turns it off); OFF in node tests unless forced. Switched on 2026-11-27 (owner).
 // The Treehouse village switch. Milestone T1 puts the place in the catalog and on the map, so until its release pass the village is OFF for everyone: ?treehouse=1 turns it on
 // (the catalog row, its map circle, the Farm's north signpost and the walk are all behind it: src/edition.js areaShown, src/gateways.js liveEndsFor). The release milestone
 // flips the default to on (?treehouse=0 then turns it off), as the Crystal Cave's was. Without an address bar (node tests) it stays off unless a test forces it.
@@ -7,7 +7,7 @@ export function treehouseOn() {
   if (forced !== null) return forced;
   try {
     const search = globalThis.location?.search;
-    return typeof search === 'string' && new URLSearchParams(search).get('treehouse') === '1';
+    return typeof search === 'string' && new URLSearchParams(search).get('treehouse') !== '0';
   } catch {
     return false;
   }

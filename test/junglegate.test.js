@@ -121,7 +121,7 @@ describe('behind ?jungle=1 (and the gates switch)', () => {
     expect(areaShown(CATALOG.areas.jungle, 'canon')).toBe(false);
     expect(liveTeleEnds('greenhouse', CATALOG)).toEqual([]);
   });
-  it('the flag defaults off without an address bar and only ?jungle=1 turns it on', async () => {
+  it('the flag is on in a browser (?jungle=0 turns it off), off without an address bar, and the shortcut needs ?jungle=1', async () => {
     const { jungleOn, jungleShortcut } = await import('../src/jungleflag.js');
     expect(jungleOn()).toBe(false);
     expect(jungleShortcut()).toBe(false);
@@ -129,7 +129,7 @@ describe('behind ?jungle=1 (and the gates switch)', () => {
     expect(jungleShortcut()).toBe(true);
     const was = globalThis.location;
     try {
-      for (const [search, on] of [['?jungle=1', true], ['?jungle=0', false], ['', false], ['?gates=1', false]]) {
+      for (const [search, on] of [['?jungle=1', true], ['?jungle=0', false], ['', true], ['?gates=1', true]]) {
         setJungle(null);
         Object.defineProperty(globalThis, 'location', { value: { search }, configurable: true });
         expect(jungleOn(), search).toBe(on);
