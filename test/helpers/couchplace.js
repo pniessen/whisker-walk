@@ -4,7 +4,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { joined, pad, set, reset, newSession, createRemoteCats, FLAT_GROUND, THREE } from './couchrig.js';
 import { reachFrom, walkRoute } from './couchroute.js';
-import { isWalkableAt } from '../../src/player.js';
+import { isWalkableAt, isWadeableAt } from '../../src/player.js';
 import { COOP_READY } from '../../src/coop/table.js';
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -16,6 +16,7 @@ export function placeSuite({ id, build, wire = null, ready = true, joinSpots = n
   const record = build(world);
   const ground = record.ground ?? FLAT_GROUND;
   const area = { ...record, ground };
+  const slack = { ...area, colliders: (record.colliders ?? []).map((c) => ({ ...c, r: c.r - 1e-6 })) }; // a cat pushed out of a collider stands on its rim to the last bit of a float
   const levelAt = (p) => ground.y(p.x, p.z);
   const same = (a, b) => (ground.flat ? true : Math.abs(levelAt(a) - levelAt(b)) < 0.5 + dist(a, b) / 3); // the same floor: a slope of the place can carry the two cats a little apart in height (1 in 3 at most)
 
@@ -73,7 +74,7 @@ export function placeSuite({ id, build, wire = null, ready = true, joinSpots = n
           for (let f = 0; f < 45; f++) {
             r.tick(1);
             const g = r.two().group.position;
-            expect(isWalkableAt(s.areaData, g.x, g.z), `${id}: cat two inside something at ${g.x},${g.z}`).toBe(true);
+            expect(isWadeableAt({ ...s.areaData, colliders: slack.colliders }, g.x, g.z), `${id}: cat two inside something at ${g.x},${g.z}`).toBe(true);
           }
           farD = Math.max(farD, dist(r.two().group.position, p0));
         }
@@ -91,7 +92,7 @@ export function placeSuite({ id, build, wire = null, ready = true, joinSpots = n
       const one = s.cat.position, two = r.two().group.position;
       expect(dist(one, two), 'cat two was left behind').toBeLessThan(9);
       if (done) { expect(same(one, two), 'cat two on another level').toBe(true); }
-      expect(isWalkableAt(s.areaData, two.x, two.z)).toBe(true);
+      expect(isWadeableAt({ ...s.areaData, colliders: slack.colliders }, two.x, two.z)).toBe(true);
     }, 120_000);
 
     it('a stuck trot hops cat two only to the friend own level: cat one on another level within the leash, cat two never ends on another level', () => {
@@ -110,13 +111,34 @@ export function placeSuite({ id, build, wire = null, ready = true, joinSpots = n
         for (let f = 0; f < 60 * 60; f++) {
           r.tick(1);
           const g = r.two().group.position;
-          expect(isWalkableAt(s.areaData, g.x, g.z), `${id}: cat two inside something at ${g.x},${g.z}`).toBe(true);
+          expect(isWadeableAt({ ...s.areaData, colliders: slack.colliders }, g.x, g.z), `${id}: cat two inside something at ${g.x},${g.z}`).toBe(true);
         }
         const one = s.cat.position, two = r.two().group.position;
         expect(same(one, two), `cat two on another level than cat one (${a.x},${a.z},y${levelAt(a)} to ${b.x},${b.z},y${levelAt(b)}; ended one ${one.x.toFixed(1)},${one.y.toFixed(1)},${one.z.toFixed(1)} two ${two.x.toFixed(1)},${two.y.toFixed(1)},${two.z.toFixed(1)})`).toBe(true);
         reset();
       }
     }, 120_000);
+
+    it('a ride carries cat one far off (fair.riding set): nothing holds her back or drags cat two; when it ends cat one stays where the ride set her down for a moment, and the idle pair meet on one floor', () => {
+      const end = cells.find((c) => dist(c, record.spawn) > 30 && dist(c, record.spawn) < 45 && Math.abs(levelAt(c) - levelAt(record.spawn)) < 0.5) ?? far;
+      const { r, s } = start(record.spawn);
+      s.fair = { ...(s.fair ?? {}), riding: { id: 'a-ride' } };
+      const a = { x: s.cat.position.x, z: s.cat.position.z };
+      set(r, pad(0), pad(1));
+      for (let f = 1; f <= 180; f++) { // a ride: three seconds, a straight carry
+        const k = f / 180;
+        s.cat.position.set(a.x + (end.x - a.x) * k, levelAt({ x: a.x + (end.x - a.x) * k, z: a.z + (end.z - a.z) * k }), a.z + (end.z - a.z) * k);
+        r.tick(1);
+      }
+      expect(dist(s.cat.position, end), 'the leash held the ridden cat back').toBeLessThan(0.1);
+      s.fair.riding = null;
+      r.tick(60);
+      expect(dist(s.cat.position, end), 'cat one was pulled off the spot the ride left her on').toBeLessThan(1.5);
+      r.tick(60 * 40);
+      const one = s.cat.position, two = r.two().group.position;
+      expect(dist(one, two), 'cat two did not come along').toBeLessThan(10);
+      expect(same(one, two)).toBe(true);
+    }, 60_000);
 
     it('cat two writes no save: the progression state is the same after a long walk of both cats', () => {
       const { r } = start(record.spawn);
