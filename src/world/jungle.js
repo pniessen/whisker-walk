@@ -13,6 +13,7 @@ import { withLocalUuids } from './localuuids.js';
 import * as P from './jungleplan.js';
 import * as K from './jungleparts.js';
 import { createJungleLight } from './junglelight.js';
+import { createRainSchedule, RAIN_SEED } from './jungleplan.js';
 import { createMossy, createJunglePrompts } from './junglelife.js';
 import './junglewords.js';
 import { ST } from './junglestages.js'; // the two stages' slots (filled by their chunks, loaded with this one: areas.js)
@@ -41,6 +42,7 @@ export function build(scene) {
     K.drawTrees(kit, M);
     K.drawFerns(kit, M);
     K.drawStones(kit, M);
+    ST.b?.draw?.(kit, M); // the banana plant, the low branch, the canopy walk, the sloth's tree, the orchid and the supper's lanterns (milestone J5, in the merged buckets)
     for (const m of kit.meshes()) scene.add(m);
     scene.add(K.drawLight()); // the place's one real light (the veranda lantern's)
     const area = {
@@ -71,21 +73,23 @@ export function build(scene) {
       ground: P.createJungleGround(),
       // the mist, the rain and its rainbow, the lantern's glow, and Mossy with chapter one (junglemission.js)
       life: (ctx) => {
-        const light = createJungleLight(ctx);
+        const light = createJungleLight(ctx.roomSeed === undefined ? ctx : { ...ctx, schedule: createRainSchedule((ctx.roomSeed ^ RAIN_SEED) >>> 0) }); // in a room the showers are the room's (the same on every device)
         const mossy = createMossy({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
-        const prompts = createJunglePrompts(mossy);
+        const wing = ST.b?.wing?.({ scene: ctx.scene, mossy, light, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent }); // the table, the strings of lights and the Rain Supper (milestone J5)
+        const prompts = createJunglePrompts(mossy, wing);
         const finds = ST.b?.finds?.life(ctx); // the six discoveries (milestone J3)
         const critters = ST.b?.critters?.(ctx); // the macaws, toucan, frogs and the rain's patter (milestone J4)
         return {
           light,
           spottable: critters?.spottable ?? [],
           mossy,
+          wing,
           promptAt: (catPos) => prompts.promptAt(catPos),
           interact: () => prompts.interact(),
-          // a step done by anyone in the room (a `jl-` event); a stage's own steps join this line with their stage
-          credit: (ev) => mossy.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); mossy.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos, light.state); },
-          dispose() { critters?.dispose(); finds?.dispose(); mossy.dispose(); light.dispose(); },
+          // a step done by anyone in the room (a `jl-` event): a supper begun by a partner starts ours, any other step is Mossy's
+          credit: (ev) => wing?.credit(ev) ?? mossy.credit(ev),
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); mossy.update(dt, t, catPos, camera, session); wing?.update(dt, t); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos, light.state); },
+          dispose() { critters?.dispose(); finds?.dispose(); wing?.dispose(); mossy.dispose(); light.dispose(); },
         };
       },
     };

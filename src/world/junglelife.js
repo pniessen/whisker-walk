@@ -97,6 +97,8 @@ function makeMango() {
   g.add(mark(new THREE.Mesh(mangoGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true }))));
   return g;
 }
+// The banana bunch and the cacao pod are stage b's (junglewingparts.js fruitModel); a stage that is not in leaves a mango in their place (never reached: their steps are stage b's).
+const makeFruit = (kind) => (kind === 'mango' ? makeMango() : ST.b?.fruitModel?.(kind) ?? makeMango());
 
 // ---- the mango tree in the grove: a thick trunk, a broad green crown of five lumps, three mangoes hanging. One mesh.
 export function treeGeometry() {
@@ -163,7 +165,10 @@ const glow = (color, opacity, scale, map) => {
   return sp;
 };
 
-// createMossy(ctx) -> { promptAt, interact, credit, update, goalNow, goal, state, dispose, group }
+const findLine = (i) => (i === 1 ? phrase('jungle.banana.find') : i === 2 ? phrase('jungle.cacao.find') : phrase('jungle.fruit.find'));
+const gotLine = (i) => (i === 1 ? phrase('jungle.banana.got') : i === 2 ? phrase('jungle.cacao.got') : phrase('jungle.fruit.got'));
+
+// createMossy(ctx) -> { promptAt, interact, credit, step, update, goalNow, goal, state, dispose, group }
 // ctx: { scene, progression, audio, reducedMotion, send }
 export function createMossy(ctx) {
   const { scene, reducedMotion = false } = ctx;
@@ -174,7 +179,7 @@ export function createMossy(ctx) {
   let clock = 0;
   let disposed = false;
   let target = null; // what the action button would do now
-  let carrying = null; // the fruit in her mouth: 0 or null (NEVER saved)
+  let carrying = null; // the fruit in her mouth: 0, 1, 2 or null (NEVER saved)
   let meowed = false;
   let ringT = -100;
   let bubbleT = -100;
@@ -185,6 +190,7 @@ export function createMossy(ctx) {
   const mossy = { x: S.MOSSY.start.x, z: S.MOSSY.start.z, yaw: Math.PI, moving: false };
   let lit = M.delivered(progression?.state?.jungle, 0) ? 1 : 0; // the table's glow, 0 to 1 (rises when the fruit is set down)
 
+  const FR = S.allFruits(); // the mango, and the banana and the cacao once stage b is in (milestone J5)
   const group = makeMossy();
   group.position.set(mossy.x, S.TABLE.y, mossy.z);
   const tex = dotTexture();
@@ -194,8 +200,8 @@ export function createMossy(ctx) {
   ];
   scenery[0].position.set(P.MANGO_TREE.x, P.jungleY(P.MANGO_TREE.x, P.MANGO_TREE.z), P.MANGO_TREE.z);
   scenery[1].position.set(S.TABLE.x, S.TABLE.y, S.TABLE.z);
-  const fruits = S.FRUITS.map(() => makeMango());
-  const glints = S.FRUITS.map(() => { const s = glow(COLORS.glint, 0.8, 0.6, tex); s.name = 'jungle:fruit:glint'; return s; });
+  const fruits = FR.map((f) => makeFruit(f.kind));
+  const glints = FR.map(() => { const s = glow(COLORS.glint, 0.8, 0.6, tex); s.name = 'jungle:fruit:glint'; return s; });
   const halo = glow(0xffd78a, 0, TABLE_LOOK.halo, tex);
   halo.name = 'jungle:table:halo';
   halo.visible = false;
@@ -212,9 +218,9 @@ export function createMossy(ctx) {
   // The goal now: where the meow's ring rises and which picture Mossy shows. { g: { kind, fruit?, icon }, x, z, y }
   function goalPoint() {
     const g = M.nextGoal(progression?.state?.jungle, carrying);
-    const f = g.fruit !== undefined ? S.FRUITS[g.fruit] : null;
-    if (g.kind === 'fruit' && f) return { g, x: f.x, z: f.z, y: P.jungleY(f.x, f.z) + 0.6 };
-    if (g.kind === 'deliver') return { g, x: S.TABLE.x, z: S.TABLE.z, y: S.TABLE.y };
+    const f = g.fruit !== undefined ? FR[g.fruit] : null;
+    if (g.kind === 'fruit' && f) return { g, x: f.x, z: f.z, y: P.jungleY(f.x, f.z) + f.y + 0.45 };
+    if (g.kind === 'deliver' || g.kind === 'set') return { g, x: S.TABLE.x, z: S.TABLE.z, y: S.TABLE.y };
     return { g, x: mossy.x, z: mossy.z, y: S.TABLE.y };
   }
   const goal = () => (goalCur ?? (goalCur = goalPoint()));
@@ -228,8 +234,10 @@ export function createMossy(ctx) {
   function perform(ev, { remote = false } = {}) {
     const r = remote ? M.credit(progression?.state?.jungle, ev) : M.apply(progression?.state?.jungle, ev);
     if (!r.changed) return null;
+    const before = rec().step;
     commit(r.jungle);
     goalCur = null;
+    if (before < M.STEP.third && r.jungle.step >= M.STEP.third) progression?.recordSighting?.('jl7'); // the journal's fruit page: all three are delivered
     return r.effect;
   }
   function showBubble(kind) { bubble.show(kind); bubbleT = clock; }
@@ -241,7 +249,7 @@ export function createMossy(ctx) {
     const hintKey = 'hint-' + gp.g.kind + (gp.g.fruit ?? '');
     if (!told.has(hintKey)) {
       told.add(hintKey);
-      if (gp.g.kind === 'fruit') say('jungle-fruit-find', phrase('jungle.fruit.find'));
+      if (gp.g.kind === 'fruit') say('jungle-fruit-find' + (gp.g.fruit || ''), findLine(gp.g.fruit));
     }
   }
   const offMeow = bus.on('tip:did', (e) => { if (e && e.id === 'call') meowed = true; });
@@ -253,14 +261,14 @@ export function createMossy(ctx) {
     if (r.step < M.STEP.met && dist(catPos, mossy) < S.MOSSY.reach) return { kind: 'meet', line: phrase('jungle.mossy.prompt') };
     if (carrying !== null && dist(catPos, S.TABLE) < S.TABLE.reach && (catPos.y ?? S.TABLE.y) >= S.TABLE.minY) return { kind: 'give', fruit: carrying, line: phrase('jungle.fruit.give') };
     if (carrying === null && wanted() >= 0) {
-      const f = S.FRUITS[wanted()];
-      if (f && dist(catPos, f) < f.reach) return { kind: 'pick', fruit: f.id, line: phrase('jungle.fruit.prompt') };
+      const f = FR[wanted()];
+      if (f && dist(catPos, f) < f.reach && (catPos.y ?? 0) >= (f.minY ?? -Infinity)) return { kind: 'pick', fruit: f.id, line: phrase('jungle.fruit.prompt') };
     }
     return null;
   }
 
   function placeFruit(i, t, catPos, session) {
-    const f = S.FRUITS[i];
+    const f = FR[i];
     const mode = fruitMode(i);
     const g = fruits[i];
     let x = f.x; let z = f.z; let y = P.jungleY(f.x, f.z) + f.y;
@@ -314,7 +322,7 @@ export function createMossy(ctx) {
   }
 
   return {
-    get state() { return { clock, carrying, mossy: { ...mossy }, record: rec(), fruitModes: S.FRUITS.map((f) => fruitMode(f.id)), bubble: bubble.icon, lit }; },
+    get state() { return { clock, carrying, mossy: { ...mossy }, record: rec(), fruitModes: FR.map((f) => fruitMode(f.id)), bubble: bubble.icon, lit }; },
     get mossy() { return mossy; },
     get group() { return group; },
     get fruits() { return fruits; },
@@ -322,6 +330,13 @@ export function createMossy(ctx) {
     get bubble() { return bubble; },
     goalNow: goalPoint,
     goal,
+    // a step of the story that is not a button here (stage b's: 'set' at the table, and the supper's own steps): the same effects and the same wire as her own
+    step(ev, remote = false) {
+      if (disposed) return null;
+      const effect = perform(ev, { remote });
+      if (effect && !remote && ev.kind === 'set') ctx.send?.(M.wire(ev));
+      return effect;
+    },
     promptAt(catPos) {
       target = decide(catPos);
       return target ? target.line : null;
@@ -341,7 +356,7 @@ export function createMossy(ctx) {
       } else if (t.kind === 'pick') {
         carrying = t.fruit;
         audio?.chime?.();
-        say('jungle-fruit-got', phrase('jungle.fruit.got'));
+        say('jungle-fruit-got' + (t.fruit || ''), gotLine(t.fruit));
         showBubble('table');
       } else if (t.kind === 'give') {
         const id = t.fruit;
@@ -420,7 +435,7 @@ export function createMossy(ctx) {
 
 // The action button's one arbiter for the place: Mossy first, then the stages' own offers (stage slots that answer null until a stage fills them, so later milestones add to the
 // list and never fight over it).
-export function createJunglePrompts(mossy) {
+export function createJunglePrompts(mossy, wing = null) {
   const slot = (get) => ({ promptAt: (p) => get()?.promptAt?.(p) ?? null, interact: () => get()?.interact?.() ?? null });
-  return createPromptArbiter([mossy, slot(() => ST.b), slot(() => ST.c)]);
+  return createPromptArbiter([mossy, slot(() => wing), slot(() => ST.c)]);
 }

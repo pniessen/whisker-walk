@@ -30,6 +30,8 @@ const { build: buildTreehouse } = await import('../src/world/treehouse.js');
 const { loadSnowvilleStages } = await import('../src/world/snowvillestages.js');
 await loadSnowvilleStages(); // stage B's drawing (the pond, hill, hearth, Great Fir) is part of Snowville's build from milestone V5
 const { build: buildSnowville } = await import('../src/world/snowville.js');
+const { loadJungleStages } = await import('../src/world/junglestages.js');
+await loadJungleStages(); // stage b's drawing (the banana plant, the low branch, the canopy walk, the sloth's tree, the orchid, the supper's lanterns) is part of the Jungle's build from milestone J5
 const { build: buildJungle } = await import('../src/world/jungle.js');
 const { HOUSE_LEVELS } = await import('../src/world/houseplan.js');
 const { measureHouse } = await import('./helpers/housebudget.js');
@@ -581,7 +583,11 @@ const AREAS = [
   // stilted lodge, the log bridge and stepping stones, the giant leaves, about 40 trees and a 70-tree green wall, 110 fern clumps and the mossy stones in a few merged buckets (paint,
   // glow, tree and their non-casting twins); the mist, the rain, the rainbow and the lantern's glow are the walk's life, not in this count) measured 8 / 3 / 23,540 built, +12%: 9 / 4 / 26,400.
   // The plan expected about 30,000 triangles for stage A. The Greenhouse with its new stone ring (3 meshes, +441 triangles, +1 caster) is re-measured in the same file.
-  ['jungle', buildJungle, 9, 4, 26400],
+  // Milestone J5 (2026-11-27, wing B, stage b's drawing put into the same merged buckets: the banana plant, the big tree with the low branch, the canopy walk's two trunks, planks, rails and
+  // lookout, the vine swing, the sloth's tree and limb, the orchid on its stump and the ring of hanging lantern glasses; no mesh of its own) measured 8 / 3 / 25,462 built (+1,922 triangles, no
+  // mesh), +12%: 9 / 4 / 28,600. The plan's stage figures (about 30,000 triangles for A and B together) hold. The lantern glows, candles, window halos, strings of lights, fireflies, sloth, rain
+  // and rainbow are the walk's life, not in this count.
+  ['jungle', buildJungle, 9, 4, 28600],
   ['snowville', buildSnowville, 6, 3, 21500],
   // Milestone R2 (Marlo and chapter one) adds only the coral ledge (no mesh more; about 200 triangles measured on top of R3: 7 / 2 / 10,700). Marlo, the shells, their glints, the picture bubble, the meow's ring and the air pockets are the walk's life, counted in test/reefmarlo.test.js
 ];

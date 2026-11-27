@@ -251,11 +251,11 @@ export const GOLD_MICE = {
     { id: 'gm-treehouse-3', x: 1.4, z: -13.2, y: 5.6 },
   ],
   // The Jungle lodge (milestone J3; src/world/junglefindsplan.js JUNGLE_GOLD holds the same three, test/junglefinds.test.js; bounds 88 x 76 m): on the veranda boards, under the giant leaf by the river and on the
-  // canopy walk's hill (J5 draws the low branch there and lifts the third onto it, one hop). All three are on foot. Not in KEEP_OUT (it already holds their places).
+  // canopy walk's hill: J5 drew the low branch there (src/world/junglewingplan.js BRANCH, 1.0 m, one hop from the ground beside it) and lifted the third onto it. The first two are on foot. Not in KEEP_OUT (it already holds their places).
   jungle: [
     { id: 'gm-jungle-1', x: -3.4, z: 17.2, y: 0 },
     { id: 'gm-jungle-2', x: 6.2, z: -3.8, y: 0 },
-    { id: 'gm-jungle-3', x: 26, z: -26, y: 0 },
+    { id: 'gm-jungle-3', x: 26, z: -26, y: 1.0 }, // J5: on the canopy walk's low branch, one hop (y is metres over the ground under it)
   ],
 };
 

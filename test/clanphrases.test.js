@@ -25,6 +25,7 @@ import { TREEHOUSE_JOB_LINES } from '../src/world/treehousejobwords.js';
 import { TREEHOUSE_FIND_LINES } from '../src/world/treehousefindwords.js';
 import { JUNGLE_FIND_LINES } from '../src/world/junglefindwords.js';
 import { LINES as JUNGLE_CRITTER_LINES } from '../src/world/junglecritterwords.js';
+import { WING_LINES as JUNGLE_WING_LINES } from '../src/world/junglewingwords.js';
 import { FIND_LINES as REEF_FIND_LINES } from '../src/world/reeffindwords.js';
 import { CRYSTAL_FIND_LINES } from '../src/world/crystalfindwords.js';
 import { CRYSTAL_WING_LINES } from '../src/world/crystalwingwords.js';
@@ -71,6 +72,7 @@ addPhrases(JUNGLE_LINES); // (the Jungle lodge's two weather lines, milestone J1
 addPhrases(SNOWVILLE_LINES); // (Snowville's cheeks line, milestone V1: src/world/snowvillewords.js)
 addPhrases(JUNGLE_FIND_LINES); // (the Jungle's find lines, milestone J3: src/world/junglefindwords.js)
 addPhrases(TREEHOUSE_JOB_LINES); // (Nutmeg's post round, milestone T7: src/world/treehousejobwords.js)
+addPhrases(JUNGLE_WING_LINES); // (the Jungle's banana, cacao, table, Rain Supper and charm, milestone J5: src/world/junglewingwords.js)
 addPhrases(JUNGLE_CRITTER_LINES); // (the Jungle's friendly life, milestone J4: src/world/junglecritterwords.js)
 addPhrases(TREEHOUSE_FIND_LINES); // (the Treehouse's find lines, milestone T3: src/world/treehousefindwords.js)
 addPhrases(TREEHOUSE_CRITTER_LINES); // (the Treehouse's friendly life, milestone T4: src/world/treehousecritterwords.js)

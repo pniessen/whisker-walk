@@ -345,6 +345,8 @@ const BASE_ACCESSORIES = {
   snowclasp: { name: 'Snowflake Clasp', slot: 'collar', price: 0, prize: true, snowville: 'story' },
   // The Treehouse village's story prize (a collar, src/cat/foundneck.js FOUND_COLLARS): owned once the firefly supper has been told (treehouse.step 7). A placeholder name.
   acornlocket: { name: 'Acorn Locket', slot: 'collar', price: 0, prize: true, treehouse: 'story' },
+  // The Jungle lodge's story prize (a collar, src/cat/foundneck.js FOUND_COLLARS): owned once the Rain Supper has been told (jungle.step 7). A placeholder name (the one place to rename it, with world/junglewingwords.js's line).
+  rainlily: { name: 'Rain Lily Charm', slot: 'collar', price: 0, prize: true, jungle: 'story' },
 };
 // Their ids: every id a found outfit must not take (test/foundwear.test.js).
 export const BASE_ACCESSORY_IDS = Object.freeze(Object.keys(BASE_ACCESSORIES));
@@ -1269,6 +1271,7 @@ function sanitizeState(parsed) {
   if ((sanitizeMoon(parsed.moon).relay & 16) !== 0 && !unlockedAcc.includes('signaltag')) unlockedAcc.push('signaltag');
   if (sanitizeSnowville(parsed.snowville).step >= 7 && !unlockedAcc.includes('snowclasp')) unlockedAcc.push('snowclasp');
   if (sanitizeTreehouse(parsed.treehouse).step >= 7 && !unlockedAcc.includes('acornlocket')) unlockedAcc.push('acornlocket');
+  if (sanitizeJungle(parsed.jungle).step >= 7 && !unlockedAcc.includes('rainlily')) unlockedAcc.push('rainlily');
   // And every found outfit: foundWear is the record, so it is owned.
   const foundWear = sanitizeFoundWear(parsed.foundWear);
   for (const id of foundWear) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);

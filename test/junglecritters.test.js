@@ -170,7 +170,7 @@ describe('the sound', () => {
 describe('the life pages, both word sets', () => {
   it('jw1, jw2, jw5 are live, named alike in both sets, hidden behind the flag; hints and lines exist and are kind', () => {
     expect(JUNGLE_LIFE_PAGES.map((p) => p[0])).toEqual(['jw1', 'jw2', 'jw5']);
-    expect(JUNGLE_LIVE_PAGES).toHaveLength(9);
+    expect(JUNGLE_LIVE_PAGES).toHaveLength(11); // (jl7 and jl8, the story pages, are J5's: test/junglewing.test.js)
     for (const [id, , , name] of JUNGLE_LIFE_PAGES) {
       expect(HINTS[id]).toMatch(/\S/); expect(JUNGLE_HINTS[id]).toBe(HINTS[id]);
       const card = CRITTER_INFO.find((c) => c.id === id);

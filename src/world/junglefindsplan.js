@@ -31,5 +31,5 @@ export const JUNGLE_COLLECTIBLES = Object.freeze([
 export const JUNGLE_GOLD = Object.freeze([
   Object.freeze({ id: 'gm-jungle-1', x: -3.4, z: 17.2, y: 0 }),
   Object.freeze({ id: 'gm-jungle-2', x: 6.2, z: -3.8, y: 0 }),
-  Object.freeze({ id: 'gm-jungle-3', x: 26, z: -26, y: 0 }),
+  Object.freeze({ id: 'gm-jungle-3', x: 26, z: -26, y: 1.0 }), // on the low branch (J5), one hop up
 ]);

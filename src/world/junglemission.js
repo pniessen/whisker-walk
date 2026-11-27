@@ -9,7 +9,9 @@
 //   step 2  the mango (under the mango tree in the grove) is carried to the kitchen table on the veranda (fruit bit 0): the table glows. Chapter 1 is done.
 //   step 3  the banana bunch is carried across the log bridge and back to the table (bit 1)      (milestone J5)
 //   step 4  the cacao pod from the low branch is carried to the table (bit 2)                     (milestone J5)
-//   steps 5 to 7: set the table, the Rain Supper, the story pays                                  (milestone J5)
+//   step 5  the table is set (event 'set': Interact at the kitchen table, plates and cloth out, the lights come on along the log bridge and the eave)
+//   step 6  the Rain Supper begins (event 'supper': the 20-second show, world/junglesupper.js; it can be seen again whenever she likes)
+//   step 7  the supper reaches its pay moment (event 'done'): junglestory pays once and Mossy gives the Rain Lily Charm. The story is over.
 // (this machine never lowers a step and never raises one past STEP.rest.)
 //
 // A fruit she is CARRYING is never saved, and is never in the walk's mouth: it is back where it grew on the next walk, whatever ends a walk. A step done by ANYONE in the
@@ -17,7 +19,7 @@
 // can fail her: no failure event exists.
 // =============================================================================
 
-export const STEP = Object.freeze({ unmet: 0, met: 1, first: 2, second: 3, third: 4, bell: 5, supper: 6, done: 7, rest: 7 });
+export const STEP = Object.freeze({ unmet: 0, met: 1, first: 2, second: 3, third: 4, set: 5, supper: 6, done: 7, rest: 7 });
 export const FRUIT_COUNT = 3;
 export const FRUIT_STEP = Object.freeze([2, 3, 4]); // the step a fruit's delivery lands on
 export const FRUIT_AT = Object.freeze([0, 0, 1, 3, 7, 7, 7, 7]); // the table the sanitiser holds (test/junglemission.test.js pins the two)
@@ -45,12 +47,13 @@ export function wantedFruit(rec) {
   return step >= STEP.met && step <= STEP.second ? step - 1 : -1;
 }
 
-const LADDER = Object.freeze([Object.freeze({ kind: 'meet' }), ...[0, 1, 2].map((fruit) => Object.freeze({ kind: 'deliver', fruit }))]);
+const LADDER = Object.freeze([Object.freeze({ kind: 'meet' }), ...[0, 1, 2].map((fruit) => Object.freeze({ kind: 'deliver', fruit })), ...['set', 'supper', 'done'].map((kind) => Object.freeze({ kind }))]);
 const rungOf = (ev) => LADDER.findIndex((e) => e.kind === ev.kind && e.fruit === ev.fruit);
 
 // The next record after an event; `rec` itself is never touched and the other keys of the save record come back as they were.
 // events: { kind: 'meet' } (she said hello), { kind: 'deliver', fruit: 0 | 1 | 2 } (a fruit was set down on the table). Anything else, a fruit out of order, a fruit
-// before Mossy is met: no change. effect: 'met' | 'first' | 'second' | 'third' | null.
+// before Mossy is met: no change. Also { kind: 'set' } (the table), { kind: 'supper' } (the supper began) and { kind: 'done' } (its pay moment), each only in its turn.
+// effect: 'met' | 'first' | 'second' | 'third' | 'set' | 'supper' | 'done' | null.
 export function apply(rec, ev) {
   const cur = normalize(rec);
   const base = rec && typeof rec === 'object' ? rec : {};
@@ -62,6 +65,8 @@ export function apply(rec, ev) {
     const step = FRUIT_STEP[ev.fruit];
     return { jungle: { ...base, step, fruit: cur.fruit | (1 << ev.fruit) | FRUIT_AT[step] }, changed: true, effect: ['first', 'second', 'third'][ev.fruit] };
   }
+  const to = { set: [STEP.third, STEP.set], supper: [STEP.set, STEP.supper], done: [STEP.supper, STEP.done] }[kind];
+  if (to && cur.step === to[0]) return { jungle: { ...base, step: to[1], fruit: cur.fruit | FRUIT_AT[to[1]] }, changed: true, effect: kind };
   return none;
 }
 
@@ -81,25 +86,29 @@ export function credit(rec, ev) {
 }
 
 // The one thing to do next, for the picture bubble and the meow's ring. { kind, fruit?, icon }:
-//   'mossy' (say hello), 'fruit' (fetch fruit `fruit`), 'deliver' (carry it to the table), 'rest' (nothing more to do yet).
+//   'mossy' (say hello), 'fruit' (fetch fruit `fruit`), 'deliver' (carry it to the table), 'set' (set the table), 'supper' (begin the supper), 'rest' (nothing more to do).
 // `carrying`: the fruit in her mouth (0, 1, 2) or null. Pictures only, never text.
-export const ICON = Object.freeze({ mossy: 'fruit', fruit: 'fruit', deliver: 'table', rest: 'heart' });
+export const ICON = Object.freeze({ mossy: 'fruit', fruit: 'fruit', deliver: 'table', set: 'table', supper: 'spark', rest: 'heart' });
 export function nextGoal(rec, carrying = null) {
   const { step } = normalize(rec);
   const want = wantedFruit(rec);
   if (step < STEP.met) return { kind: 'mossy', icon: ICON.mossy };
   if (want >= 0) return carrying === want ? { kind: 'deliver', fruit: want, icon: ICON.deliver } : { kind: 'fruit', fruit: want, icon: ICON.fruit };
+  if (step === STEP.third) return { kind: 'set', icon: ICON.set };
+  if (step === STEP.set || step === STEP.supper) return { kind: 'supper', icon: ICON.supper };
   return { kind: 'rest', icon: ICON.rest };
 }
 
 // A fruit may be picked up when it is the one Mossy wants and her mouth is empty (no fail, no stuck state).
 export const canPick = (rec, fruit, carrying = null) => carrying === null && wantedFruit(rec) === fruit;
 
-// The wire form of a step (the one place that reads a partner's event, `jl-` events only): { kind: 'jl-meet' } or { kind: 'jl-deliver', fruit }; anything else is nothing.
-export const wire = (step) => (step.kind === 'meet' ? { kind: 'jl-meet' } : { kind: 'jl-deliver', fruit: step.fruit });
+// The wire form of a step (the one place that reads a partner's event, `jl-` events only): { kind: 'jl-meet' }, { kind: 'jl-set' } or { kind: 'jl-deliver', fruit }; the supper goes as
+// { kind: 'jl-supper', elapsed } (world/junglewinglive.js); anything else is nothing.
+export const wire = (step) => (step.kind === 'meet' ? { kind: 'jl-meet' } : step.kind === 'set' ? { kind: 'jl-set' } : { kind: 'jl-deliver', fruit: step.fruit });
 export function toStep(ev) {
   if (!ev || typeof ev !== 'object' || typeof ev.kind !== 'string') return null;
   if (ev.kind === 'jl-meet') return { kind: 'meet' };
+  if (ev.kind === 'jl-set') return { kind: 'set' };
   if (ev.kind === 'jl-deliver' && (ev.fruit === 0 || ev.fruit === 1 || ev.fruit === 2)) return { kind: 'deliver', fruit: ev.fruit };
   return null;
 }

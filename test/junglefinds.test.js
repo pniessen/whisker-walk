@@ -240,7 +240,7 @@ describe('three golden mice', () => {
     const area = build(new THREE.Scene());
     for (const m of GOLD) {
       expect(m.x > b.minX + 2 && m.x < b.maxX - 2 && m.z > b.minZ + 2 && m.z < b.maxZ - 2, m.id).toBe(true);
-      expect(m.y, m.id).toBe(0); // all three on foot until J5 draws the canopy walk's low branch
+      expect(m.y, m.id).toBe(m.id === 'gm-jungle-3' ? 1.0 : 0); // two on foot, the third on the canopy walk's low branch (J5, one hop: test/junglewing.test.js)
       for (const c of area0.colliders) expect(near(m, c), m.id).toBeGreaterThan(c.r + 0.5);
       for (const z of Object.values(Z).flat()) expect(near(m, z), `${m.id} vs a find`).toBeGreaterThan(Math.max(2, z.r + 1));
       for (const k of area.collectibles) expect(near(m, k), `${m.id} vs ${k.id}`).toBeGreaterThan(2);
@@ -278,7 +278,7 @@ describe('the six live journal pages', () => {
     const jl = CRITTER_INFO.filter((c) => /^j[lw]\d$/.test(c.id));
     expect(jl).toHaveLength(17);
     for (const c of jl) {
-      if ([...JUNGLE_PAGE_IDS, 'jw1', 'jw2', 'jw5'].includes(c.id)) { expect(c.later, c.id).toBeFalsy(); expect(c.jungle).toBe(true); expect(c.hint).toMatch(/\S/); } else expect(c.later, c.id).toBe(true);
+      if ([...JUNGLE_PAGE_IDS, 'jw1', 'jw2', 'jw5', 'jl7', 'jl8'].includes(c.id)) { expect(c.later, c.id).toBeFalsy(); expect(c.jungle).toBe(true); expect(c.hint).toMatch(/\S/); } else expect(c.later, c.id).toBe(true);
     }
     expect(jl.filter((c) => JUNGLE_PAGE_IDS.includes(c.id)).map((c) => c.name)).toEqual(JUNGLE_PAGES.map((p) => p[3]));
   });
