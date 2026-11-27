@@ -250,7 +250,7 @@ describe('three golden mice', () => {
     const b = area0.bounds;
     for (const m of GOLD) {
       expect(m.x > b.minX + 2 && m.x < b.maxX - 2 && m.z > b.minZ + 2 && m.z < b.maxZ - 2, m.id).toBe(true);
-      expect(m.y).toBe(m.id === 'gm-crystal-5' ? 1 : 0); // (6 and 7 are floor stubs until C7) // (the forge's mouse sits on the stone shelf: one hop up, C2; the shelf's own colliders are under it)
+      expect(m.y).toBe(m.id === 'gm-crystal-5' ? 1 : m.id === 'gm-crystal-7' ? 0.9 : 0); // (7 sits on the nest ledge, one hop of 0.9, C7) (the forge's mouse sits on the stone shelf: one hop up, C2; the shelf's own colliders are under it)
       if (m.id !== 'gm-crystal-5') for (const c of area0.colliders) expect(near(m, c), m.id).toBeGreaterThan(c.r + 0.5);
       for (const z of Object.values(Z).flat()) expect(near(m, z), `${m.id} vs a find`).toBeGreaterThan(Math.max(2, z.r + 1));
       for (const k of area0.collectibles) expect(near(m, k), `${m.id} vs ${k.id}`).toBeGreaterThan(2);
