@@ -151,7 +151,7 @@ describe('the Market life finds the six', () => {
     drinkAt(w, DRINK, 0);
     w.secs(1);
     expect(s.progression.state.journal.marketfountain).toBe(1);
-    expect(found.mock.calls.filter((c) => c[0] === 'discovery')).toHaveLength(1);
+    expect(found.mock.calls.filter((c) => c[0] === 'discovery' && c[1]?.type !== 'marketnote')).toHaveLength(1);
     // the fountain only: never the musician, 2 m off, however she faces
     expect(s.progression.state.journal.marketmusician ?? 0).toBe(0);
     drinkAt(w, DRINK, faceTo(DRINK, MUSICIAN));
@@ -257,7 +257,7 @@ describe('the Market life finds the six', () => {
     napAt(w);
     expect(s.progression.state.journal.marketsacks).toBe(1);
     expect(s.progression.state.points).toBe(12);
-    expect(spy.mock.calls.filter((c) => c[0] === 'discovery')).toHaveLength(0);
+    expect(spy.mock.calls.filter((c) => c[0] === 'discovery' && c[1]?.type !== 'marketnote')).toHaveLength(0);
     w.life.dispose();
   });
 
@@ -403,7 +403,7 @@ describe('the Market life finds the six', () => {
     let rocked = 0;
     w.secs(1, () => { rocked = Math.max(rocked, Math.abs(w.area.bicycle.rotation.x - base)); });
     expect(rocked).toBeGreaterThan(0.01); // the moment still plays
-    expect(spy.mock.calls.filter((c) => c[0] === 'discovery')).toHaveLength(0);
+    expect(spy.mock.calls.filter((c) => c[0] === 'discovery' && c[1]?.type !== 'marketnote')).toHaveLength(0);
     // and no session, no cat: nothing breaks
     w.life.update(DT, w.t, null, null, null);
     w.life.update(DT, w.t, w.cat.position, null, {});

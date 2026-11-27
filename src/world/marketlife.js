@@ -170,7 +170,7 @@ export function createMarketLife(area, ctx = {}) {
   let crateWas = null; // the crate's `tipped` last frame, once it is found
 
   // the six missions (marketerrandlive.js): only on a walk with a scene
-  const errands = scene ? createErrands({ scene, ground: ctx.ground, log, progression, reducedMotion }) : null;
+  const errands = scene ? createErrands({ scene, ground: ctx.ground, area, log, progression, reducedMotion }) : null;
 
   // the bicycle
   const bicycle = area?.bicycle ?? null;
@@ -250,6 +250,7 @@ export function createMarketLife(area, ctx = {}) {
   function basket(catPos, session) {
     const now = atBasket(session?.perched);
     if (now && !inBasket) {
+      errands?.bellRung();
       rock();
       sound?.bell(1);
     }

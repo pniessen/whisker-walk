@@ -17,7 +17,7 @@ Each is a pure step machine (`src/world/marketerrands.js`), carried out by `src/
 | Pigeons off the cafe tables | Three pigeons sit on the three cafe tables. Coming within 1.7 m of a table sends its pigeon up and away (the walk's own seeded flap, no random). All three gone and the waiter nods. |
 | Rooftop run on the awnings | Landing in the bicycle basket rings the bell. For 30 s after it, landing on three different stall awnings counts (an awning is a `roof` perch). Too slow: the run just stops; ring the bell again. |
 | The hungry stray | A thin stray sits behind the fish stall (a real cat model, drawn only near). Coming within 4 m of him shows him hungry and puts a fish head in the bin by the fish stall's back corner (a carryable, never sent, never a mark). Carry it to him (within 1.6 m): he eats, purrs, sits. Fed once ever (journal `mkstray` above 0): on every later Market walk he is already following her, 2.2 m behind, kept off props by the same keep-out. |
-| Sit through the fiddler's song | Within 3.2 m of the musician and still (under 0.25 m/s) for 14 s. Moving starts it again. At 2 s a toast says a song has begun. |
+| Sit through the fiddler's song | Within 3.2 m of the musician and still (under 0.25 m/s) for 14 s. Moving starts it again; a drink at the fountain, 2 m off, does not count (it is the fountain's own find). At 2 s a toast says a song has begun. |
 
 ## Defaults chosen
 

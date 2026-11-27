@@ -145,6 +145,65 @@ describe('on a walk', () => {
     expect(scene.children.filter((c) => c.name === 'marketErrandPigeon').every((p) => !p.visible)).toBe(true);
     expect(sightings).toEqual(['mkpigeons']);
   });
+  it('the bell: three awnings in the run pay; a slow run stops', () => {
+    const { errands, sightings } = rig();
+    const cat = at(ERRAND.MOUSE_SPOTS[3]);
+    errands.bellRung();
+    expect(errands.state.bell.t).toBe(0);
+    for (let i = 0; i < 3; i++) errands.update(0.1, 0, cat, { perched: { x: AWNINGS[i].x, z: AWNINGS[i].z, y: AWNINGS[i].y } });
+    expect(sightings).toEqual(['mkbell']);
+    const slow = rig();
+    slow.errands.bellRung();
+    for (let i = 0; i < 400; i++) slow.errands.update(0.1, i * 0.1, cat, null);
+    expect(slow.errands.state.bell.t).toBe(-1);
+    expect(slow.sightings).toEqual([]);
+  });
+  it('the hungry stray: seen, fed the fish head from her mouth, pays once', () => {
+    const { errands, sightings, scene } = rig();
+    const items = { added: [], addHidden(c) { this.added.push(c.id); return c; }, placeAt(id, x, z) { this.placed = [id, x, z]; }, take(id) { this.taken = id; } };
+    const session = { carry: { mouth: { held: null, grip: 0 }, items } };
+    errands.update(0.1, 0, at(ERRAND.STRAY_SPOT), session);
+    expect(errands.state.stray.stage).toBe(1);
+    expect(items.placed[0]).toBe(ERRAND.FISH_HEAD_ID);
+    expect(scene.getObjectByName('marketStray')).toBeTruthy();
+    errands.update(0.1, 1, at(ERRAND.STRAY_SPOT), session); // empty mouth: not fed
+    expect(errands.state.stray.stage).toBe(1);
+    session.carry.mouth.held = { id: ERRAND.FISH_HEAD_ID, kind: 'fishhead', job: true };
+    errands.update(0.1, 2, at(ERRAND.STRAY_SPOT), session);
+    expect(errands.state.stray.stage).toBe(2);
+    expect(session.carry.mouth.held).toBe(null);
+    expect(items.taken).toBe(ERRAND.FISH_HEAD_ID);
+    expect(sightings).toEqual(['mkstray']);
+  });
+  it('a stray fed on an earlier walk follows her from the start and stays off the props', () => {
+    const scene = new THREE.Scene();
+    const area = marketArea();
+    const progression = { state: { journal: { mkstray: 1 } }, recordSighting() {} };
+    const e = createErrands({ scene, ground: null, area, log: null, progression });
+    expect(e.state.stray.stage).toBe(2);
+    const cat = { x: 0, y: 0, z: 20 };
+    for (let i = 0; i < 20; i++) e.update(0.1, i * 0.1, cat, null);
+    const stray = scene.getObjectByName('marketStray');
+    expect(stray).toBeTruthy();
+    expect(Math.hypot(stray.position.x - cat.x, stray.position.z - cat.z)).toBeLessThan(ERRAND.FOLLOW_GAP + 0.6);
+    // drag her through the stalls: he is never inside one
+    for (let i = 0; i < 400; i++) {
+      cat.x = -12 + i * 0.06; cat.z = 3 - i * 0.02;
+      e.update(0.05, i * 0.05, cat, null);
+      for (const c of MARKET_COLLIDERS) expect(Math.hypot(stray.position.x - c.x, stray.position.z - c.z), `step ${i}`).toBeGreaterThanOrEqual(c.r - 1e-6);
+    }
+    e.dispose();
+  });
+  it('the song: still by the fiddler for SONG_S seconds pays; moving starts it again', () => {
+    const { errands, sightings } = rig();
+    const m = { x: E.musicianSpot.x + 1, y: 0, z: E.musicianSpot.z + 1 };
+    for (let i = 0; i < 20; i++) errands.update(0.1, i * 0.1, m, null);
+    expect(errands.state.fiddle.secs).toBeGreaterThan(1.5);
+    errands.update(0.1, 3, { ...m, x: m.x + 0.1 }, null); // a step at 1 m/s
+    expect(errands.state.fiddle.secs).toBe(0);
+    for (let i = 0; i < ERRAND.SONG_S * 10 + 5; i++) errands.update(0.1, 5 + i * 0.1, m, null);
+    expect(sightings).toEqual(['mkfiddle']);
+  });
   it('a walk that already paid a mission finds it finished', () => {
     const scene = new THREE.Scene();
     const log = createDiscoveryLog({ addPoints() {} });
