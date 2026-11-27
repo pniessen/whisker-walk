@@ -57,8 +57,11 @@ const AREAS = [
   // Appletree Farm: its buildings, bales, trees and small props.
   ['farm', buildFarm, 51, false],
   // The Fairground: its stalls, tents, rides' bases, trees and small props.
-  // (41 -> 37 in the polish pass: the four flower patches became tubs in the props' mesh)
-  ['fair', buildFair, 37, false],
+  // (41 -> 37 in the polish pass: the four flower patches became tubs in the props' mesh;
+  // 37 -> 36 on 2026-11-28: the Viking boat is a no-merge group and takes no decal, and the oak
+  // moved out of its way from (31.5, 6) to (33.5, 17.5) takes one fewer there. Measured with the oak
+  // alone moved back: 37 again)
+  ['fair', buildFair, 36, false],
   // The Rooftops: the four lamp posts (the alley's and three in the street below).
   ['roofs', buildRoofs, 4, false],
 ];
