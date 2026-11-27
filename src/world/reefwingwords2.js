@@ -13,6 +13,10 @@ export const HINTS = Object.freeze({
   rfcaptchest: 'X marks where a chest lies buried.',
   rfscooter: 'A little scooter waits on a rack.',
   rfsaucer: 'A yellow saucer waits on a rack.',
+  // R18 (the divers, the research ship and the big spotted shark: the lines are in reefdiverswords.js)
+  rfdivers: 'Friendly divers drift over the sand. Come close and they wave.',
+  rfvessel: 'Look up through the shimmer to see a ship floating on top.',
+  rfwhaleshark: 'A huge, gentle spotted shark glides in wide circles, far out in the blue.',
 });
 
 Object.assign(REEF_HINTS, HINTS);

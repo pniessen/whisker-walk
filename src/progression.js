@@ -107,7 +107,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   // The Crystal Cave's friendly life (src/crystalpages.js CAVE_LIFE_PAGES): cave fish, bat, firefly, moth, salamander, beetle, crab.
   'clfish', 'clbat', 'clfirefly', 'clmoth', 'clsalamander', 'clbeetle', 'clcrab',
   // the Moon's friendly robots and light (src/moonpages.js MOON_LIFE_PAGES): the walks each was spotted on
-  'mldrone', 'mlcleaner', 'mlconvoy', 'mlmoth', 'mlpixel', 'mlmoonling'];
+  'mldrone', 'mlcleaner', 'mlconvoy', 'mlmoth', 'mlpixel', 'mlmoonling',
+  // The Reef's divers, research ship and big spotted shark (src/reefpages.js REEF_WING_PAGES; R18). Appended here so the ids before keep their places.
+  'rfdivers', 'rfvessel', 'rfwhaleshark'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
