@@ -52,7 +52,7 @@ const DUSK_LIGHT = Object.freeze({
   lawnTint: Object.freeze({ desat: 0, dark: 1, cool: Object.freeze([1, 1, 1]) }),
 });
 
-export function build(scene) {
+export function build(scene, opts) {
   ST.wreck.install?.({ reefY: P.reefY, reefBaseY: P.reefBaseY, raise: P.REEF_RAISE_REGIONS, ceil: P.REEF_CEIL_REGIONS }); // the galleon's deck and cabin join the ground (R16)
   installSuitKit(); // the dive suit her cat is drawn with here (game/walk.js asks the registered kit)
   return withLocalUuids('reef-build', () => {
@@ -70,10 +70,10 @@ export function build(scene) {
     drawLanternStalks(kit, M);
     drawWingClumps(kit, M);
     drawDeep(kit, M); // wing C (R8): the Sunken Boat, the Old Anchor and the Glow Cave, into the same two buckets
-    ST.lab.buildLab(scene, P.reefY); // the Sealab (R13, stage 'lab'): the station inside, its hull outside, the hatch beside the Boat and the ONE light
+    ST.lab.buildLab(scene, P.reefY, opts?.water?.quality); // the Sealab (R13, stage 'lab'): the station inside, its hull outside, the hatch beside the Boat and the ONE light
     ST.wreck.draw?.(kit, M, { paint: K.paint, COL: K.COL, THREE }); // the galleon (R16, the wreck stage): hull, deck, cabin, mast, cannons and the brass suit, into the same buckets
     const rideKit = { THREE: K.T3, mergeGeometries: K.mergeGeometries };
-    ST.ride.buildRacks(scene, rideKit, P.reefY); // the two mounts' racks and the mounts on them (R12, stage 'ride')
+    ST.ride.buildRacks(scene, rideKit, P.reefY, opts?.water?.quality); // the two mounts' racks and the mounts on them (R12, stage 'ride')
     for (const m of kit.meshes()) scene.add(m);
     const kelp = K.drawKelp();
     scene.add(kelp);

@@ -86,7 +86,7 @@ export function drawPolish(kit, M) {
     put(stand(new THREE.CylinderGeometry(l.r * 0.9, l.r * 0.9, 0.04, 6).rotateZ(Math.PI / 2).translate(l.len / 2, 0, 0), l.x, l.z, l.r * 0.9, l.yaw), 0xc8a070);
   });
   // under the crowns of the bigger trees: buttress roots at the foot, a bromeliad tuft on the trunk (each zone's accent), and a liana looped to the next big tree
-  const big = P.scatterTrees().filter((k) => !k.rim && k.s > 1.15 && k.kind === 'broad');
+  const big = P.scatterTrees().filter((k) => !k.rim && k.s > 1.15 && (k.shape === 'broad' || k.shape === 'emergent'));
   big.forEach((k, i) => {
     const acc = ZONE_ACCENT[zoneNear(k.x, k.z)];
     for (let r = 0; r < 4; r++) {
@@ -102,7 +102,7 @@ export function drawPolish(kit, M) {
     const next = big[(i + 1) % big.length];
     const dist = Math.hypot(next.x - k.x, next.z - k.z);
     if (dist > 4 && dist < 15) { // three drooping segments between the two crowns
-      const ax = k.x; const az = k.z; const ah = P.jungleY(k.x, k.z) + 4.3 * k.s; const bh = P.jungleY(next.x, next.z) + 4.3 * next.s;
+      const ax = k.x; const az = k.z; const ah = P.jungleY(k.x, k.z) + k.top - 1.4 * k.s; const bh = P.jungleY(next.x, next.z) + next.top - 1.4 * next.s;
       let px = ax; let pz = az; let ph = ah;
       for (let sgm = 1; sgm <= 4; sgm++) {
         const t = sgm / 4;

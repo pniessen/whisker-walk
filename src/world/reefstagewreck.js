@@ -4,5 +4,6 @@ import { ST } from './reefstages.js';
 import { installWreckGround, wreckColliders, WRECK_CLUES } from './reefwreckplan.js';
 import { drawWreck } from './reefwreckparts.js';
 import { createReefWreckLife } from './reefwrecklife.js';
+import { drawBoat, drawAnchor } from './reefwreckdeep.js';
 
-Object.assign(ST, { wreck: Object.freeze({ install: installWreckGround, draw: drawWreck, colliders: wreckColliders, life: createReefWreckLife, clues: WRECK_CLUES }) });
+Object.assign(ST, { wreck: Object.freeze({ install: installWreckGround, draw: drawWreck, colliders: wreckColliders, life: createReefWreckLife, clues: WRECK_CLUES, drawBoat, drawAnchor }) });

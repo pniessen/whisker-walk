@@ -30,7 +30,7 @@ const HOME = Object.freeze({ x: -4, z: 8 });
 let crownList = null;
 export function crowns() {
   crownList ??= P.scatterTrees().filter((k) => !k.rim && k.kind === 'broad').sort((a, b) => Math.hypot(a.x - HOME.x, a.z - HOME.z) - Math.hypot(b.x - HOME.x, b.z - HOME.z)).slice(0, 8)
-    .map((k) => Object.freeze({ x: k.x, z: k.z, y: P.jungleY(k.x, k.z) + 7.4 * k.s }));
+    .map((k) => Object.freeze({ x: k.x, z: k.z, y: P.jungleY(k.x, k.z) + (k.top ?? 7.4 * k.s) - 0.1 }));
   return crownList;
 }
 // A bird's two perches: bird i (the toucan is index 3) goes between two of the near crowns, each pair different.

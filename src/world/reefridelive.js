@@ -40,6 +40,8 @@ export function createRideLive(ctx) {
   const get = (n) => scene.getObjectByName(n) ?? null;
   const bodies = {};
   const prop = get('ride:scooter:prop');
+  const legs = get('ride:saucer:legs'); // the saucer's landing gear: telescoped up into the hull while she rides, down when it is parked
+  let gear = 1; // 1 down, 0 folded: a short smooth motion (about a third of a second each way), kept under reduced motion too (it is a change of state, not a decoration)
   const sims = {};
   const parkCol = {};
   for (const id of RACK_IDS) {
@@ -125,6 +127,9 @@ export function createRideLive(ctx) {
       g.position.set(sim.x, sim.y + bob, sim.z);
       g.rotation.y = sim.yaw;
     }
+    gear += ((riding?.id === 'saucer' ? 0 : 1) - gear) * Math.min(1, Math.max(0, dt) * 5);
+    if (Math.abs(gear - (riding?.id === 'saucer' ? 0 : 1)) < 0.002) gear = riding?.id === 'saucer' ? 0 : 1;
+    if (legs) legs.scale.y = 0.02 + 0.98 * gear * gear * (3 - 2 * gear);
     if (prop && !reducedMotion) prop.rotation.z += (riding?.id === 'scooter' ? 9 + sims.scooter.speed * 3 : 0.6) * dt;
   }
 

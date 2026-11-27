@@ -63,7 +63,7 @@ describe('the plan (reefrideplan.js)', () => {
     expect(lights).toBe(1); // the Sealab's one
     let tris = 0;
     for (const n of ['ride:racks', 'ride:scooter', 'ride:saucer']) sc.getObjectByName(n).traverse((o) => { if (o.isMesh) tris += o.geometry.attributes.position.count / 3; });
-    expect(tris).toBeLessThan(1500);
+    expect(tris).toBeLessThan(2210); // (the saucer's polish round: 1,972 measured, +12%)
   });
 });
 
@@ -120,6 +120,28 @@ describe('on a walk', () => {
     const s = make({ at: 'saucer' });
     s.tick(2);
     expect(s.life.promptAt(s.cat.position)).toBe('Climb into the Diving Saucer');
+  });
+
+  it('the saucer\'s landing gear: down while it is parked, telescopes up into the hull within a second of lift-off, comes down again on landing (also under reduced motion)', () => {
+    for (const reducedMotion of [false, true]) {
+      const m = make({ at: 'saucer', extra: { reducedMotion } });
+      const legs = m.scene.getObjectByName('ride:saucer:legs');
+      expect(legs).toBeTruthy();
+      expect(legs.children).toHaveLength(1); // one mesh for all three legs
+      m.tick(2);
+      expect(legs.scale.y).toBe(1);
+      m.board();
+      m.tick(30); // a second
+      expect(legs.scale.y).toBeLessThan(0.1);
+      m.hopOff();
+      m.tick(30);
+      expect(legs.scale.y).toBeGreaterThan(0.95);
+      // a short smooth motion, not a jump: partway through, the gear is between the two
+      m.board();
+      m.tick(3);
+      expect(legs.scale.y).toBeLessThan(1);
+      expect(legs.scale.y).toBeGreaterThan(0.1);
+    }
   });
 
   it('hop on: the walk\'s seat record (sits, swims), the seat height as perchY, the co-walk seat id, the journal count once, the first soft line; hop off puts it all back', () => {

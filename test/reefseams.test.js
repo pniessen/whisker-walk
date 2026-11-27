@@ -270,7 +270,7 @@ describe('the pack', () => {
     expect(area.scenics).toHaveLength(5); // three, and the Deep's boat and cave (R8)
     for (const key of ['perches', 'tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
     let meshes = 0; scene.traverse((o) => { if (o.isMesh) meshes++; });
-    expect(meshes).toBeLessThanOrEqual(22); // R12 adds the racks, two mount meshes and the saucer's glass (five); R13 adds the Sealab's eight (walls, fixtures, detail, glow, glass, roof, outside hull, hatch); before it: R1's five, plus R3's finds marker mesh and bubble-column mesh (two merged meshes), plus the seabed decor's two (tufts, decor)
+    expect(meshes).toBeLessThanOrEqual(23); // the polish round adds the Diving Saucer's landing gear (one mesh on its own hinge group: it telescopes); R12 adds the racks, two mount meshes and the saucer's glass (five); R13 adds the Sealab's eight (walls, fixtures, detail, glow, glass, roof, outside hull, hatch); before it: R1's five, plus R3's finds marker mesh and bubble-column mesh (two merged meshes), plus the seabed decor's two (tufts, decor)
     const goals = createGoals(() => 0.5, area).goals;
     expect(goals).toHaveLength(3);
     for (const g of goals) expect(area.goalTypes).toContain(g.type);

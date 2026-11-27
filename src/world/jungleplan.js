@@ -39,6 +39,10 @@ export const MOSS_POOL = Object.freeze({ x: -6.2, z: 31.5, r: 2.1 }); // a small
 
 // ---- the lodge on stilts: a deck raised 0.55 m, a body at the back and a roofed veranda in front --------------------------------
 export const LODGE = Object.freeze({ x0: -11.5, x1: -0.5, z0: 9, z1: 19, wallZ: 14.5, deck: 0.55, roofY: 3.4, skirt: 3.2 });
+// The body's walls and the roof share ONE height: the walls stand from the deck's boards (wallBase) to wallTop, and the roof's base (its eaves and its soffit) sits exactly on wallTop,
+// overhanging every wall (test/junglelodge.test.js). jungleparts.js draws both from these numbers, so a gap cannot come back.
+export const LODGE_WALL = Object.freeze({ x0: LODGE.x0, x1: LODGE.x1, z0: LODGE.z0, z1: LODGE.wallZ, base: LODGE.deck + 0.07, top: LODGE.deck + 0.07 + 2.9 });
+export const LODGE_ROOF = Object.freeze({ x0: LODGE.x0 - 0.8, x1: LODGE.x1 + 0.8, z0: LODGE.z0 - 0.8, z1: LODGE.z1 + 1.0, base: LODGE_WALL.top, rise: 2.1, rows: 7 });
 export const VERANDA = Object.freeze({ x0: -11.5, x1: -0.5, z0: LODGE.wallZ, z1: LODGE.z1 }); // under the roof: the rain's shelter
 export const STEPS = Object.freeze({ x: -6, z: LODGE.z1, w: 3 }); // the open gap in the front rail, where the deck's ramp comes down
 export const LANTERN = Object.freeze({ x: -6, z: 16.6, y: 2.9 }); // the veranda's one real light hangs here
@@ -177,7 +181,22 @@ export function scatterTrees() {
   side(14, (t) => [B.minX - off(), B.minZ + t * (B.maxZ - B.minZ)]);
   side(14, (t) => [B.maxX + off(), B.minZ + t * (B.maxZ - B.minZ)]);
   // the ring's own gap stays open
-  return out.filter((k) => !k.rim || Math.hypot(k.x - RING.x, k.z - RING.z) > 6);
+  return out.filter((k) => !k.rim || Math.hypot(k.x - RING.x, k.z - RING.z) > 6).map(shaped());
+}
+// Round two (the owner's live play): the trees inside the walk take several shapes and heights. Assigned in scatter order AFTER the stream is spent (no draw, so every existing layout stays put).
+// [trunk height in scales (1 scale = 1 unit of `s`), crown reach above the trunk]: a tree's top is (trunk * tall + reach) * s. The green wall (rim) keeps its plain look.
+export const TREE_SHAPES = Object.freeze({ broad: [5, 2.5], emergent: [8.2, 2.2], lean: [4.4, 2.5], fork: [3.4, 3.7], snag: [4.8, 0.6], palm: [6.4, 0.5] });
+const SHAPE_ORDER = Object.freeze(['broad', 'emergent', 'lean', 'fork', 'broad', 'snag', 'emergent', 'lean', 'broad', 'fork']);
+const TALL = Object.freeze([0.9, 1.15, 1.0, 1.25, 0.85, 1.1]);
+function shaped() {
+  let j = 0; let p = 0;
+  return (k) => {
+    if (k.rim) return k;
+    const i = k.kind === 'palm' ? p++ : j++;
+    const shape = k.kind === 'palm' ? 'palm' : SHAPE_ORDER[i % SHAPE_ORDER.length];
+    const tall = TALL[(i * 5 + (k.kind === 'palm' ? 1 : 3)) % TALL.length];
+    return { ...k, shape, variant: k.kind === 'palm' ? i % 2 : 0, tall, top: (TREE_SHAPES[shape][0] * tall + TREE_SHAPES[shape][1]) * k.s };
+  };
 }
 export const treeColliders = () => scatterTrees().filter((k) => !k.rim).map((k) => Object.freeze({ x: Math.round(k.x * 100) / 100, z: Math.round(k.z * 100) / 100, r: Math.round(0.36 * k.s * 100) / 100 + 0.08 }));
 
