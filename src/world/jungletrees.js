@@ -11,12 +11,20 @@ const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 
+/** A cylinder without its bottom cap (the foot that stands on the ground or sits in a trunk is never seen: a six-sided trunk saves six triangles, a limb saves its sides over two). */
+export function noBase(g) {
+  const bottom = g.groups[2];
+  if (bottom) g.setIndex(Array.from(g.index.array).slice(0, bottom.start));
+  g.clearGroups();
+  return g;
+}
+
 /** A tapered limb from (ax, ay, az) to (bx, by, bz): radius r0 at the start, r1 at the end. */
 export function limb(ax, ay, az, bx, by, bz, r0, r1, seg = 5) {
   _a.set(ax, ay, az);
   _b.set(bx - ax, by - ay, bz - az);
   const len = _b.length();
-  const g = new THREE.CylinderGeometry(r1, r0, len, seg, 1).translate(0, len / 2, 0);
+  const g = noBase(new THREE.CylinderGeometry(r1, r0, len, seg, 1)).translate(0, len / 2, 0); // the start cap sits in the trunk or on the ground
   g.applyQuaternion(_q.setFromUnitVectors(UP, _b.normalize()));
   return g.translate(_a.x, _a.y, _a.z);
 }
@@ -28,7 +36,7 @@ export function shapedTreeParts(k, C) {
   const s = k.s;
   const T = (k.tall ?? 1);
   const parts = [];
-  const trunk = (r0, r1, h) => parts.push([new THREE.CylinderGeometry(r1 * s, r0 * s, h * s, 6, 1).translate(0, (h * s) / 2, 0), C.trunk]);
+  const trunk = (r0, r1, h) => parts.push([noBase(new THREE.CylinderGeometry(r1 * s, r0 * s, h * s, 6, 1)).translate(0, (h * s) / 2, 0), C.trunk]);
   switch (k.shape) {
     case 'emergent': {
       const H = 8.2 * T;
@@ -64,7 +72,7 @@ export function shapedTreeParts(k, C) {
     case 'snag': { // dead: grey wood, a broken top, bare limbs, a bracket fungus and a little moss
       const H = 4.8 * T;
       const dead = C.dead;
-      parts.push([new THREE.CylinderGeometry(0.12 * s, 0.3 * s, H * s, 6, 1).translate(0, (H * s) / 2, 0), dead]);
+      parts.push([noBase(new THREE.CylinderGeometry(0.12 * s, 0.3 * s, H * s, 6, 1)).translate(0, (H * s) / 2, 0), dead]);
       parts.push([new THREE.ConeGeometry(0.12 * s, 0.7 * s, 5).translate(0, (H + 0.35) * s, 0).rotateZ(0.25), dead]); // the broken point
       for (let i = 0; i < 3; i++) {
         const a = k.x + i * 2.1;
