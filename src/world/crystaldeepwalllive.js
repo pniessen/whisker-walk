@@ -100,9 +100,10 @@ export function createDeepSteps(ctx) {
     sight(step.kind === 'wall' ? 'ccwall' : 'ccprism');
     return r.effect;
   };
-  const matched = () => PR.matches(faces);
-  // the prisms turn on to the door pattern (each by the turns it still needs)
-  const settle = () => { const old = faces; faces = [...PR.TARGET]; for (let k = 0; k < 3; k++) goal[k] -= ((((faces[k] - old[k]) % 3) + 3) % 3) * THIRD; };
+  let etarget = null; // the day faces of Tink errand of the day (C6), or null: then the stands hold the door pattern
+  const matched = () => PR.matches(faces, etarget ?? PR.TARGET);
+  // the prisms turn on to the given pattern (each by the turns it still needs)
+  const settle = (to = PR.TARGET) => { const old = faces; faces = [...to]; for (let k = 0; k < 3; k++) goal[k] -= ((((faces[k] - old[k]) % 3) + 3) % 3) * THIRD; };
 
   function openWall() {
     wall = null; held.fill(false);
@@ -194,6 +195,21 @@ export function createDeepSteps(ctx) {
   return {
     get state() { return { wall: wallK, faces: [...faces], doorLevel, running: !!wall, record: rec() }; },
     get faces() { return [...faces]; },
+    // the errand of the day (C6): the stands take the day faces for a while. begin(target) turns them on to the start faces; turn(i) turns one stand and answers true once they fit; end() lets them go back to the door pattern
+    errand: {
+      begin(target) { etarget = PR.clean(target); settle(PR.START.map((v, i) => (v === etarget[i] ? (v + 1) % 3 : v))); },
+      turn(i) {
+        if (!etarget || PR.solved(faces, etarget)) return false;
+        const before = matched()[i];
+        faces = PR.turn(faces, i, etarget);
+        goal[i] -= THIRD;
+        tone(audio, D.PAD_FREQS[(faces[i] * 2 + i) % D.PAD_COUNT], 0.028);
+        if (matched()[i] && !before) say('crystal-deep-fits', phrase('crystal.deep.prism.fits'));
+        return PR.solved(faces, etarget);
+      },
+      end() { if (etarget) { etarget = null; settle(); } },
+      get on() { return !!etarget; },
+    },
     promptAt(p) { if (p) cat = p; target = decide(p); return target ? target.line : null; },
     interact() {
       if (!target) return null;
@@ -224,7 +240,7 @@ export function createDeepSteps(ctx) {
       if (catPos) cat = catPos;
       // what the save says now (a partner step, or this walk own): the wall and the prisms follow it
       const b = bits();
-      if ((b & M.PRISMS) && !PR.solved(faces)) settle();
+      if ((b & M.PRISMS) && !etarget && !PR.solved(faces)) settle();
       // the welcome phrase, and her steps on the pads
       if (wall && cat) {
         const onFloor = !Number.isFinite(cat.y) || cat.y - crystalY(cat.x, cat.z) < 0.4;
