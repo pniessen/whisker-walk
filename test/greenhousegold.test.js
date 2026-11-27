@@ -52,12 +52,12 @@ describe('three golden mice', () => {
 
 describe('the totals', () => {
   it('Clan Edition counts 57 and Legacy 33 (the Reef joined) (the Greenhouse has no edition key), whatever the gates switch says: the total counts by edition alone, as it counts the Moon', () => {
-    expect(GOLD_TOTAL).toBe(64);
+    expect(GOLD_TOTAL).toBe(65);
     for (const on of [true, false]) {
       setTele(on);
       try {
-        expect(goldForEdition('canon', CATALOG).size).toBe(64);
-        expect(goldForEdition('legacy', CATALOG).size).toBe(40);
+        expect(goldForEdition('canon', CATALOG).size).toBe(65);
+        expect(goldForEdition('legacy', CATALOG).size).toBe(41);
         for (const e of ['canon', 'legacy']) for (const m of GOLD) expect(goldForEdition(e, CATALOG).has(m.id), `${e} ${m.id}`).toBe(true);
       } finally { setTele(null); }
     }

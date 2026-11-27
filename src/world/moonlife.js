@@ -38,20 +38,20 @@ import { createBaseLife } from './moonbaselive.js';
 import { createDeepLive } from './moondeeplive.js';
 import { MOON_SPAWN, AIRLOCK, RETURN_GATE, DOME } from './moonplan.js';
 import { createCatRim } from './moonrim.js';
-import { IDLE, idleStart, nextIdleRing, idlePaused, progressMark } from './moonidle.js';
 import { FINALE_LENGTH } from './moondeeplive.js';
 import { createGuideLive } from './moonguidelive.js';
 import { createMoonIntro } from './moonintro.js';
 import { createFlowLive } from './moonflowlive.js';
 import { ST, loadMoonStages, STAGE_ORDER } from './moonstages.js'; // the staged pieces (star hill, launch, rover): fetched after the landing (background loading)
 import { createStubs } from './moonstubs.js';
+import { createPromptArbiter } from './promptarbiter.js';
 
 if (import.meta.env?.VITEST) await loadMoonStages(); // tests that import this file alone get the whole Moon (a build drops this line)
+const lateTop = import.meta.env?.VITEST ? await import('./moonlate.js') : null; // (and the late file's idle ring at once)
 
 export const CAMERA_FOLLOW = 0.6; // the camera rises this much of a hop's height
 export const SKIP_HEIGHT = 0.1; // m, the bounce of one stride
 export const SKIP_STRIDE = 1.1; // m walked per stride
-export const IDLE_LOOK = 0.5; // s: the idle ring looks at the goal and what changed this often (not every frame)
 export const DRAW_NEAR = 50; // m: the walk's pebbles and golden mice farther than this from her are not drawn (milestone 4's draw budget)
 export const DUST = Object.freeze({ count: 10, lite: 5, ttl: 1.2, gravity: 0.35, speed: 0.9, size: 0.14, color: 0xb9b3aa });
 // (milestone 5) The base's small parts are meshes of their own (they animate or change colour), and a frame on this wide plain drew every one of them
@@ -176,31 +176,13 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
   let phase = 0;
   let wasUp = false;
   let held = null;
-  let owner = null; // whose offer the action button is showing: 'base' | 'star' | 'rover' | null
-  // (idle ring) what moved her on since the last look (a mark that changes), the schedule's state, and the half-second the goal is looked at
-  let idle = idleStart();
-  let idleMark = null;
-  let idleAcc = 0;
-  function idleStep(dt, catPos, session) {
-    idleAcc += dt;
-    if (idleAcc < IDLE_LOOK) return;
-    const span = Math.min(idleAcc, 1); // a stalled frame (a hidden tab) is not half a minute of idling
-    idleAcc = 0;
-    const b = base.state;
-    const rec = b.record;
-    const lf = launch.state;
-    const gp = base.goalNow();
-    const mark = progressMark({ step: rec.step, cells: rec.cells, scope: progression?.state?.moon?.scope ?? 0, stamp: progression?.state?.moon?.stamp ?? -1, carrying: b.carrying ?? -1, pip: b.pip, riding: rover.riding,
-      card: lf.carryingCard, flight: !!lf.flight, reply: lf.reply, job: JSON.stringify([job.state.taken, job.state.next, job.state.glove, job.state.done]), finds: base.finds + (session?.collectibleMeshes?.size ?? 0), calls: base.calls, hops: JSON.stringify(jump.last ?? null) });
-    const reached = !!catPos && Math.hypot(catPos.x - gp.x, catPos.z - gp.z) < IDLE.reach;
-    const progress = (idleMark !== null && mark !== idleMark) || reached;
-    idleMark = mark;
-    const fin = deep.state.finale;
-    const paused = idlePaused({ open: star.state.open || lf.open, flight: !!lf.flight, beat: b.beat, finale: fin !== null && fin < FINALE_LENGTH, riding: rover.riding, goal: gp.g });
-    const r = nextIdleRing(idle, span, { progress, paused, target: gp.g.kind !== 'done' });
-    idle = r.state;
-    if (r.ring) base.autoCall(r.first);
-  }
+  const st = (k) => ({ promptAt: (p) => ST.station?.[k]?.promptAt?.(p) ?? null, interact: () => ST.station?.[k]?.interact?.() ?? null }); // a station slot: null until its stage fills it
+  const arbiter = createPromptArbiter([{ promptAt: (p) => (rover.riding ? rover.promptAt(p) : null), interact: () => rover.interact() }, st('riding'), base, job, star, launch, st('relay'), rover, st('sled')]);
+  // (idle ring) the schedule's own step lives in moonlate.js (a lazy file: the ring waits 30 s anyway); it is bound here when that file is in
+  let idleStep = null;
+  const bindIdle = (m) => { idleStep = m.createIdle({ base, launch, star, job, rover, jump, deep, progression, finale: FINALE_LENGTH }); };
+  if (lateTop) bindIdle(lateTop);
+  else if (!closed.size) import('./moonlate.js').then(bindIdle);
   const parts = new Map(PART_NEAR.flatMap((r) => r.names).map((n) => [n, scene.getObjectByName(n)]).filter(([, m]) => m));
 
   // (background loading) a stage arrives: its drawing is added and fades in, its lives wake in the stand-ins' places, its region opens (one stage a frame, so no frame carries two builds)
@@ -209,7 +191,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
   let late = null;
   let fader = null;
   const L = { scene, stages, colliders, closed, rings: new Map(), said: new Set(), slots, spottable, base, deep, mk: { star: mkStar, robots: mkRobots, launch: mkLaunch, jump: mkJump, bound: mkBound, rover: mkRover, job: mkJob } };
-  const lateReady = closed.size && import('./moonlate.js').then((m) => { late = m; L.fader = fader = m.createFader({ reducedMotion }); m.closeRings(L); m.startMoonStages(); });
+  const lateReady = closed.size && import('./moonlate.js').then((m) => { late = m; bindIdle(m); L.fader = fader = m.createFader({ reducedMotion }); m.closeRings(L); m.startMoonStages(); });
 
   return {
     sky,
@@ -225,18 +207,14 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
     guide,
     flow,
     spottable: absent.hill ? spottable : robots.spottable,
-    // the action button: Dot's "Hop in" / "Hop out" first (riding), else the base's own offers, else "Hop in" when nothing else is asked
-    promptAt(catPos) {
-      const b = base.promptAt(catPos);
-      const s = star.promptAt(catPos);
-      const l = launch.promptAt(catPos);
-      const r = rover.promptAt(catPos);
-      const j = job.promptAt(catPos);
-      owner = rover.riding ? 'rover' : b ? 'base' : j ? 'job' : s ? 'star' : l ? 'launch' : r ? 'rover' : null;
-      return owner === 'rover' ? r : owner === 'base' ? b : owner === 'job' ? j : owner === 'star' ? s : owner === 'launch' ? l : null;
+    // the action button (src/world/promptarbiter.js): riding first (Dot, then the sled), then the base, the job, the star, the launch, the station's relay, and the hop-in offers
+    promptAt: (catPos) => arbiter.promptAt(catPos),
+    interact: () => arbiter.interact(),
+    // 'relay-' events go to the station (dropped while it is not in, never to the base); the rest as before
+    credit(ev) {
+      const k = `${ev?.kind}`;
+      return k.startsWith('relay-') ? ST.station?.relay?.credit?.(ev) ?? null : k.startsWith('rover-') ? rover.credit(ev) : k === 'launch' ? launch.credit(ev) : k === 'job' ? job.credit(ev) : base.credit(ev);
     },
-    interact() { return owner === 'rover' ? rover.interact() : owner === 'job' ? job.interact() : owner === 'star' ? star.interact() : owner === 'launch' ? launch.interact() : base.interact(); },
-    credit: (ev) => (typeof ev?.kind === 'string' && ev.kind.startsWith('rover-') ? rover.credit(ev) : ev?.kind === 'launch' ? launch.credit(ev) : ev?.kind === 'job' ? job.credit(ev) : base.credit(ev)),
     update(dt, t, catPos, camera, session) {
       held = session;
       if (stages) {
@@ -287,7 +265,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       catRim.update(dt, camera, session.cat); // (beauty round 3) the suit's rim and the fill swell while she is backlit
       cullFar(catPos, session, deep.inside ? 0 : DRAW_NEAR); // deep in the tube nothing outside is drawn: the walk's pebbles and mice too
       cullParts(parts, catPos);
-      idleStep(dt, catPos, session);
+      idleStep?.(dt, catPos, session);
     },
     dispose() {
       disposed = true;

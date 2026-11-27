@@ -246,7 +246,7 @@ describe('on a walk: the tunes', () => {
     expect(sent).toEqual([{ kind: 'wc-song', tune: 0 }]);
     expect(life.run).toBeNull();
     expect(say.filter((e) => e.key === 'crystal-song-learned')).toHaveLength(1);
-    expect(progression.seen).toEqual([]); // the page waits for the third tune
+    expect(progression.seen).toEqual(['ccsong']); // the page shows once the first tune is learned
     off?.();
   });
   it('a wrong step only fades and replays: no extra event, no bit, then the second try finishes', () => {
@@ -270,7 +270,7 @@ describe('on a walk: the tunes', () => {
     life.update(0.1, 3.4, mid); life.interact(); life.dispose();
     expect(progression.state.crystal.songs).toBe(0); expect(life.promptAt(mid)).toBeNull();
   });
-  it('the third tune adds the flourish and the journal page; a tune already learned is only a glow (no event, no second page)', () => {
+  it('the third tune adds the flourish (the page came with the first tune and is not repeated); a tune already learned is only a glow', () => {
     const p = stand(); p.state.crystal.songs = 3;
     const au = mockAudio(); const { life, sent, progression } = mk({ progression: p, audio: au });
     life.update(0.1, 0.1, mid); life.interact();
@@ -278,14 +278,14 @@ describe('on a walk: the tunes', () => {
     const t = echo(life, 1, S.TUNES[2]);
     expect(progression.state.crystal.songs).toBe(7);
     expect(sent).toEqual([{ kind: 'wc-song', tune: 2 }]);
-    expect(progression.seen).toEqual(['ccsong']);
+    expect(progression.seen).toEqual([]);
     const n0 = au.made.osc.length;
     for (let k = 0; k < 40; k++) life.update(0.1, t + 0.1 * k, mid); // the flourish plays its seven notes
     expect(au.made.osc.length - n0).toBe(14);
     expect(Math.max(...life.levels)).toBeGreaterThan(0.9);
     // a replay: the chamber plays a tune for fun, nothing more is sent or saved
     life.update(0.1, 50, mid); life.interact(); echo(life, 51, S.TUNES[life.run.tune === S.TUNES[0] ? 0 : S.nextTune(7, 0)]);
-    expect(sent).toHaveLength(1); expect(progression.seen).toEqual(['ccsong']); expect(progression.state.crystal.songs).toBe(7);
+    expect(sent).toHaveLength(1); expect(progression.seen).toEqual([]); expect(progression.state.crystal.songs).toBe(7);
   });
   it('the flourish in reduced motion is a still glow of all seven pads', () => {
     const p = stand(); p.state.crystal.songs = 3; const { life } = mk({ progression: p, reducedMotion: true });
@@ -312,10 +312,12 @@ describe('the partner and the save', () => {
     expect(sent).toEqual([]); // (a credited tune is never sent on again)
     off?.();
   });
-  it('the third credited tune gives the flourish and the page', () => {
+  it('the first credited tune shows the page, once; the third gives the flourish', () => {
     const p = stand(); p.state.crystal.songs = 3; const { life, progression } = mk({ progression: p });
     life.credit({ kind: 'wc-song', tune: 2 });
-    expect(progression.state.crystal.songs).toBe(7); expect(progression.seen).toEqual(['ccsong']);
+    expect(progression.state.crystal.songs).toBe(7); expect(progression.seen).toEqual([]);
+    const q = stand(); const l2 = mk({ progression: q }).life; l2.credit({ kind: 'wc-song', tune: 1 }); l2.credit({ kind: 'wc-song', tune: 0 });
+    expect(q.seen).toEqual(['ccsong']);
   });
   it('the stage slots: pads, credit and createSong; the arbiter line and the wc- routing in crystal.js are untouched', () => {
     expect(ST.play.pads.promptAt(mid)).toBeNull(); // (no live yet)

@@ -485,7 +485,7 @@ describe('the walk end', () => {
     q.dispose();
     expect(q.life.launch.second).toBe(null);
     const keys = Object.keys(q.progression.state.moon).sort();
-    expect(keys).toEqual(['cells', 'jump', 'scope', 'stamp', 'step']);
+    expect(keys).toEqual(['cells', 'jump', 'relay', 'scope', 'stamp', 'step']);
   });
   it('an errand never saves a step, a cell, a stamp or a scope bit: a whole day of each errand leaves the moon record as it was', () => {
     for (const kind of J.JOB_KINDS) {

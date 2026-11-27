@@ -79,7 +79,7 @@ describe('the golden mice (D5)', () => {
       expect(m.id).toMatch(/^gm-[a-z]{1,24}-[1-9]$/);
       expect(m.y, m.id).toBe(0);
     }
-    expect(GOLD_TOTAL).toBe(64); // 42 until the Old House's three joined the count
+    expect(GOLD_TOTAL).toBe(65); // 42 until the Old House's three joined the count
     const [one, two, three] = HOUSE_GOLD_MICE;
     for (const [m, id] of [[one, 'library-books-w'], [two, 'bedroom-wardrobe']]) {
       const l = ledgeById(id);

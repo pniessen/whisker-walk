@@ -57,17 +57,18 @@ describe('the real website build is split into start-up and places', () => {
   });
 });
 
-describe('the Moon is a landing chunk, three stage chunks and the late arrivals code', () => {
+describe('the Moon is a landing chunk, four stage chunks and the late arrivals code', () => {
   it('stage A (the landing) and each later stage are under their own ceiling, and all together under the total', async () => {
     const { moonDownloads, MOON_STAGE_ENTRY_MODULES, lazyProblems: lp, MOON_STAGE_GZIP_CEILING_KB, MOON_TOTAL_GZIP_CEILING_KB } = await import('../scripts/buildjson.mjs');
     expect(lp(b.manifest, MOON_STAGE_ENTRY_MODULES)).toEqual([]);
     const dl = moonDownloads(b.manifest);
     const kb = Object.fromEntries(Object.entries(dl).map(([id, fs]) => [id, fs.reduce((n, f) => n + b.gz(f), 0) / 1000]));
-    for (const id of ['moon', 'moonhill', 'moonlaunch', 'moonrover', 'moonlate']) {
+    for (const id of ['moon', 'moonhill', 'moonlaunch', 'moonrover', 'moonstation', 'moonlate']) {
       expect(dl[id].length, id).toBeGreaterThan(0);
       expect(kb[id], id).toBeLessThanOrEqual(MOON_STAGE_GZIP_CEILING_KB);
     }
-    expect(kb.moon).toBeLessThanOrEqual(65); // stage A, the landing, alone
+    expect(kb.moon).toBeLessThanOrEqual(64.98); // stage A, the landing, alone: 64.98 kB before X0's seams (the empty station slot must not grow it)
+    expect(startupFiles(b.manifest).some((f) => f.includes('moonstage'))).toBe(false);
     expect(kb.total).toBeLessThanOrEqual(MOON_TOTAL_GZIP_CEILING_KB);
   });
 });
@@ -84,7 +85,7 @@ describe('the Reef is four chunks fetched together (R10 stage slots)', () => {
     }
     expect(kb.total).toBeLessThanOrEqual(REEF_TOTAL_GZIP_CEILING_KB);
     const startKb = startupFiles(b.manifest).reduce((n, f) => n + b.gz(f), 0) / 1000;
-    expect(startKb).toBeLessThan(658.0 + 2.8); // +1 for the R10 seams, +1.2 for the area-music chunk link, +0.3 for the Crystal wing seams (X0)
+    expect(startKb).toBeLessThan(658.0 + 3.1); // +0.3 for the Moon's relay seams (X0), +1 for the R10 seams, +1.2 for the area-music chunk link, +0.3 for the Crystal wing seams (X0)
   });
 });
 

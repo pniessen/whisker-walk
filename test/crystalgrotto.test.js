@@ -141,7 +141,7 @@ describe('the drawing', () => {
     expect(life.spottable.map((s) => s.type)).toEqual(['ccgrotto', 'ccforge']);
     for (const s of life.spottable) { expect(s.label).toMatch(/\S/); expect(s.range).toBeGreaterThan(3); expect(CRYSTAL_HINTS[s.type]).toMatch(/\S/); expect(wingPageShown(s.type)).toBe(true); }
     expect(WING_LIVE.grotto && WING_LIVE.forge).toBe(true);
-    expect([WING_LIVE.cart, WING_LIVE.song]).toEqual([false, true]); // boat and falls are the river's, live when both stages load
+    expect([WING_LIVE.cart, WING_LIVE.song]).toEqual([true, true]); // the cart (C4) and the singing chamber (C5) are live; boat and falls are the river's, live when both stages load
     const everyday = withOffWords(() => Object.keys(CRYSTAL_GROTTO_LINES).map((k) => phrase(k)));
     const clan = Object.keys(CRYSTAL_GROTTO_LINES).map((k) => phrase(k));
     for (const t of [...everyday, ...clan, CRYSTAL_HINTS.ccgrotto, CRYSTAL_HINTS.ccforge]) expect(bannedIn(t) ?? [], t).toEqual([]);

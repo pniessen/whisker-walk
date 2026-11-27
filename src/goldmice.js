@@ -206,6 +206,7 @@ export const GOLD_MICE = {
     { id: 'gm-moon-1', x: 0, z: 40.6, y: 3 },
     { id: 'gm-moon-2', x: -2, z: -46, y: 3 },
     { id: 'gm-moon-3', x: 30.8, z: -9.6, y: 0 },
+    { id: 'gm-moon-4', x: 44, z: 36, y: 3 }, // the Old Relay Station's tower ledge (wing E stub, X0)
   ],
   // The Greenhouse (src/world/greenhouseplan.js GREENHOUSE_GOLD; test/greenhousegold.test.js holds the two equal), none needing a
   // skill: the potting shed's roof (ground -> pot stack -> rain barrel -> roof, three hops), the hall's north-west corner behind
@@ -238,7 +239,7 @@ export const GOLD_MICE = {
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 64 (the Crystal Cave's two wing C stubs joined in X0; 62 (the Reef's two Sealab/galleon mice joined in R10; 60 was nineteen areas x three, and the island's three; 57 before the Crystal Cave, 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 65 (the Moon's relay tower stub joined in X0; 64 (the Crystal Cave's two wing C stubs joined in X0; 62 (the Reef's two Sealab/galleon mice joined in R10; 60 was nineteen areas x three, and the island's three; 57 before the Crystal Cave, 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
 
 // The golden mice a player of `edition` can reach: those in the areas the
 // edition shows (Legacy hides the Clan Edition territories; see edition.js).

@@ -3,8 +3,8 @@
 // on them (each pad its own soft pentatonic note on humNote's root, from tone() here; humNote itself is not touched, and a muted walk is silent), and runs the three echo tunes:
 // standing in the chamber, "Wake the singing stones" starts the first tune not yet learned; the chamber plays 3 to 5 notes with the pads lighting in order; she steps the same
 // pads to echo it. There is NO fail sound: a wrong step, or a long wait, only lets the pads fade and the phrase plays again. Finishing a tune sets its bit in state.crystal.songs
-// once and sends ONE `wc-song` event (never a single note); the third tune also gives a soft light-show flourish and the journal page ccsong. A partner's finished tune
-// (credit) sets the same bit here, lights its notes in order and, on the third, gives the flourish and the page too. Walking away mid-tune lets it go; nothing is saved.
+// once and sends ONE `wc-song` event (never a single note); the first tune learned shows the journal page ccsong, and the third gives a soft light-show flourish. A partner's finished tune
+// (credit) sets the same bit here, lights its notes in order and, on the third, gives the flourish (and the page, if it is her first tune). Walking away mid-tune lets it go; nothing is saved.
 // REDUCED MOTION freezes the pads' slow breath and snaps every light on and off (the flourish is a still glow of all seven); LOW drops the halo. Draws no random number and
 // reads no clock (the walk's own dt only). Adds no light.
 // =============================================================================
@@ -97,7 +97,8 @@ export function createSongLive(ctx) {
     const after = S.learn(before, i);
     setSongs(after);
     send({ kind: 'wc-song', tune: i });
-    if (reached(before, after)) { flourish(); page(); say('crystal-song-all', phrase('crystal.wc.song.all')); } else { for (const p of S.PADS) lit[p.i] = 1.4; say('crystal-song-learned', phrase('crystal.wc.song.learned')); }
+    if (before === 0) page(); // the journal page shows once the first tune is learned
+    if (reached(before, after)) { flourish(); say('crystal-song-all', phrase('crystal.wc.song.all')); } else { for (const p of S.PADS) lit[p.i] = 1.4; say('crystal-song-learned', phrase('crystal.wc.song.learned')); }
   }
 
   function handle(events) {
@@ -142,7 +143,8 @@ export function createSongLive(ctx) {
       const after = S.learn(before, ev.tune);
       setSongs(after);
       say('crystal-song-partner', phrase('crystal.wc.song.partner'));
-      if (reached(before, after)) { flourish(); page(); } else ghost(ev.tune);
+      if (before === 0) page();
+      if (reached(before, after)) flourish(); else ghost(ev.tune);
       return 'song';
     },
     update(dt, t, catPos) {

@@ -2775,9 +2775,9 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
 
   it('the gold count is 48, and the Rooftops is in Legacy', async () => {
     const { GOLD_TOTAL, goldForEdition } = await import('../src/goldmice.js');
-    expect(GOLD_TOTAL).toBe(64); // 45 until Lighthouse Point added its three
-    expect(goldForEdition('canon', CATALOG).size).toBe(64); // 42 until the Old House added its three, 39 until the Market added its three
-    expect(goldForEdition('legacy', CATALOG).size).toBe(40); // 21 until Lighthouse Point (no edition key); 24 while the Market had no catalog row (an area not in the catalog is counted); its Clan-only row (Market step 4) keeps its three out of Legacy
+    expect(GOLD_TOTAL).toBe(65); // 45 until Lighthouse Point added its three
+    expect(goldForEdition('canon', CATALOG).size).toBe(65); // 42 until the Old House added its three, 39 until the Market added its three
+    expect(goldForEdition('legacy', CATALOG).size).toBe(41); // 21 until Lighthouse Point (no edition key); 24 while the Market had no catalog row (an area not in the catalog is counted); its Clan-only row (Market step 4) keeps its three out of Legacy
   });
 
   it('an old save loads with walks.roofs 0 and marks.roofs []', () => {

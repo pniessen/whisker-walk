@@ -28,7 +28,7 @@ export const HINTS = Object.freeze({
 });
 
 export const LINES = Object.freeze({
-  'reef.arrive': clan('Welcome to the Reef!', 'Welcome to the Reef! The water shimmers like Silverpelt.'),
+  'reef.arrive': clan('Welcome to the Reef!', 'Welcome to the Reef! The water is warm and bright.'),
   'reef.marlo.hello': 'A little crab waves a claw. Say hello!',
   'reef.marlo.prompt': 'Say hello to the little crab',
   'reef.marlo.met': 'Marlo needs a new shell. Meow and he will show you where to look.',
@@ -76,7 +76,7 @@ export const LINES = Object.freeze({
   'reef.guide.chip.errand': 'Marlo has an errand',
   'reef.guide.at': '{d} of the ladder',
   'reef.guide.dirs': 'north|north-east|east|south-east|south|south-west|west|north-west',
-  'reef.guide.arrive1': clan('Welcome to the Reef!', 'Welcome to the Reef! The water shimmers like Silverpelt.'),
+  'reef.guide.arrive1': clan('Welcome to the Reef!', 'Welcome to the Reef! The water is warm and bright.'),
   'reef.guide.arrive2': 'A shy crab named Marlo needs a new shell.',
   'reef.guide.arrive3': 'Look for three shells: one in the kelp, one up high on a ledge and one in a cave.',
   'reef.guide.close': 'OK',

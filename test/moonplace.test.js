@@ -482,7 +482,7 @@ describe('what stays as it was', () => {
     for (const f of ['moon', 'moonplan', 'moonparts', 'moonsky', 'moonlife']) {
       const src = readFileSync(`src/world/${f}.js`, 'utf8');
       for (const m of src.matchAll(/^import .*?from '(.+?)';/gm)) {
-        expect(m[1], `${f} imports ${m[1]}`).toMatch(/^(three|three\/examples\/jsm\/utils\/BufferGeometryUtils\.js|\.\/(builder|localuuids|moon[a-z]*)\.js|\.\.\/(ground|rng|player|placephysics)\.js|\.\.\/render\/materials\.js|\.\.\/cat\/suitkit\.js)$/);
+        expect(m[1], `${f} imports ${m[1]}`).toMatch(/^(three|three\/examples\/jsm\/utils\/BufferGeometryUtils\.js|\.\/(builder|localuuids|promptarbiter|moon[a-z]*)\.js|\.\.\/(ground|rng|player|placephysics)\.js|\.\.\/render\/materials\.js|\.\.\/cat\/suitkit\.js)$/);
       }
     }
   });
