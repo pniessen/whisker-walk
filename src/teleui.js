@@ -97,12 +97,13 @@ export function opening({ calm = false, doc = globalThis.document, later = setTi
 
 // The question at a gate she can go through; the buttons are the crossing card's own (crossing.js wires them by id),
 // 48 px high, with the pad's tags.
-export function cardHtml({ name, look = 'stonering', tint = 0xffe7a6 }) {
+export function cardHtml({ name, look = 'stonering', tint = 0xffe7a6, extras = [] }) {
   ensureStyle();
   const kind = ['stonering', 'archway', 'hollow', 'cleft', 'grotto', 'hatch'].includes(look) ? look : 'stonering';
   return `<div class="pause-card cross-card tele-card" style="--tele-a:${hex(tint)}">
       <div class="tele-emblem tele-emblem-${kind}" aria-hidden="true"></div>
       <h2>${escapeHtml(phrase('tele.prompt', lower(name), kind))}</h2>
+      ${(Array.isArray(extras) ? extras : []).map((e) => `<p>${escapeHtml(e)}</p>`).join('')}
       <button id="btn-cross-yes" class="btn" type="button">${escapeHtml(phrase('tele.go'))}${padTag('⟦confirm⟧')}</button>
       <button id="btn-cross-no" class="btn" type="button">${escapeHtml(phrase('tele.notnow'))}${padTag('⟦back⟧')}</button>
     </div>`;

@@ -421,6 +421,7 @@ export function start(ctx) {
 
   coop.poll = (dt) => {
     clock += dt;
+    coop.two = state.joined || carry; // the gates ask: is cat two in this walk, or waiting to come along
     toasts.tick(dt);
     hud?.step(dt);
     if (tallyLeft > 0 && (tallyLeft -= dt) <= 0) cards?.hideTally();
@@ -705,7 +706,7 @@ export function start(ctx) {
       leave(false);
       cards?.dispose();
       hud?.dispose();
-      coop.poll = null; coop.pad = null; coop.frame = null; coop.late = null;
+      coop.poll = null; coop.two = false; coop.pad = null; coop.frame = null; coop.late = null;
     },
   };
   if (import.meta.env?.DEV) globalThis.__coop = handle; // the browser pane's handle (development server only; not in a build)

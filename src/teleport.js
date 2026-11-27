@@ -179,8 +179,9 @@ export function teleNear(areaId, x, z, catalog, { clan = true, reach = GATE_REAC
 }
 
 // { kind: 'go' | 'dormant' | 'coop', to, name, lineId } for one gate. 'dormant': the host place has not been
-// walked `needWalks` times (a row's default 0 is always awake). 'room': a gate is refused in an online room (milestone
-// 0 keeps it simple). 'coop': couch play stays out of a gate until both places have their couch row true. lineId is
+// walked `needWalks` times (a row's default 0 is always awake). An online room is no longer refused (I3: the host's yes
+// takes the room through, as at a map gate). 'coop': a cat two on the couch stays out of a gate only while one of the
+// two places is not couch-ready yet (then she has nowhere to play); `couch` means cat two is in the walk. lineId is
 // the phrase the refusal says.
 export function teleStatus(end, state, catalog, { couch = false } = {}) {
   const to = end.to;
@@ -308,7 +309,7 @@ export function prompt(s, catP, state, inRoom, prefetch, free, isHost = true) {
   if (status.kind === 'dormant') return null;
   // A room's guest reads the sign only: the host chooses (as at the map's gates).
   if (inRoom && !isHost && status.kind === 'go') return { text: phrase('tele.guest', status.name), prompt: { kind: 'gate-info', data: { end: near, status } } };
-  if (status.kind === 'go') return { text: `E — ${phrase('tele.go')}`, prompt: { kind: 'gate', data: { end: near, status, card: () => ui.cardHtml({ name: status.name, look: near.look, tint: discTint(near) }) } } };
+  if (status.kind === 'go') return { text: `E — ${phrase('tele.go')}`, prompt: { kind: 'gate', data: { end: near, status, card: (extras) => ui.cardHtml({ extras, name: status.name, look: near.look, tint: discTint(near) }) } } };
   return { text: phrase('tele.coop'), prompt: { kind: 'gate-info', data: { end: near, status } } };
 }
 

@@ -159,7 +159,7 @@ export function createCrossing({
     const { to, name } = data.status;
     prefetchArea(to);
     // A teleport gate's question is its own card (src/teleui.js).
-    showCrossing(s, { to, name, via: data.end.id, kind: 'gate', card: data.card?.() });
+    showCrossing(s, { to, name, via: data.end.id, kind: 'gate', card: data.card?.(extrasFor(s, { kind: 'gate', endsHere: false, via: data.end.id })) });
   }
 
   // A gate to a place she can open now: the usual "Get it?" card first.
