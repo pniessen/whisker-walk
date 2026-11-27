@@ -544,7 +544,8 @@ const AREAS = [
   // Milestone R13 (2026-11-27, the Sealab's shell: eight meshes of its own, none a caster: the inside walls with a material for each room, the fixtures, the small props
   // (the lower rungs leave them out), the glow, the glass, the roof, the outside hull and the hatch beside the Boat) measured 17 / 2 / 36,841 built (+8 meshes, +7,273
   // triangles), +12%: 19 / 2 / 41,300. The inside meshes are hidden until she climbs in, the hull while she is inside, so a frame draws about half of them.
-  ['reef', buildReef, 19, 2, 41300],
+  ['reef', buildReef, 25, 2, 46200],
+  // (R12 racks + R16 galleon on top of the Sealab: measured 22 meshes, set at +12 percent; triangles checked below)
   // The Crystal Cave. Milestone C0 (2026-11-26, the seams) is a stub floor: the 100 m ground plane alone, 1 / 0 / 5,408 like the Reef's stub, +12%: 2 / 1 / 6,100.
   // Milestone C1 (2026-11-26, the cave world: the stone floor in one vertex-coloured mesh, the dome as one inside-only lathe, the stalactites as ONE InstancedMesh, the
   // arch, rim rocks and pebbles in the paint bucket, the arch's door of light, one merged glow mesh per crystal hue; the pulse, the glints and the fog are the walk's life,
