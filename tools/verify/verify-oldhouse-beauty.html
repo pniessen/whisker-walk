@@ -1,0 +1,752 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Old House beauty round</title>
+<!-- The Old House's picture page (Old House step 1): the house
+     (src/world/house.js) drawn through the game's rig, with the real cat and
+     the real player, built and run as game/walk.js and main.js do it: the
+     contact-shadow scan, then mergeStaticProps, the caster sweep, the house's
+     own life (areaData.life: the walls between the camera and her sink, the
+     levels are drawn for hers) and the tree fade over every findOccluders and
+     findFadeOccluders entry. Per frame, main.js's order: player.update, the
+     house life, the tree fade, the shadow fit (then the cat's contact decal).
+     For the owner's pictures and films (scripts/record-page.mjs makes them
+     headless). No sound at all: the page makes no audio.
+     Step 2 (things to do): the walk's own things, rebuilt from the record for every
+     walk as game/walk.js adds them (test/helpers/housebudget.js houseWalkThings): the
+     knock-overs, the golden mice, the mice with their cover and the yarn ball at its
+     spot; the moves runtime (createTraversalLive) on the house's climbs; the house
+     life with a stub log and HUD, whose toast line is the caption for a moment. The
+     frame then runs in main.js's order: the moves, player.update, the mice, the ball,
+     the house life (the finds, the air, the ball kept out of the walls), the golden
+     mice's bob, the tree fade, a golden mouse found, the knock-overs' falls, the
+     shadow fit, the corner map, the contact decals, the cat's pose (and a ball batted
+     she runs into), the moves' late touches.
+     URL params:
+       dusk=1               the walk's dusk look: applyDusk (the house's own lamplight
+                            duskLight and skyDusk), the lawn tinted, createLampPools
+       rm=1                 reduced motion (the player, the sink, the fade, the pose)
+       zoom=0..3            the zoom step she starts at (free play; shots and tours set their own)
+       sink=0               the "before": the walls never sink (the level drawing still runs)
+       tour=grand|film|sink play that tour in real time (HOUSE_TOURS, and this page's own
+                            short "sink" tour: a wall going down in front of her and back up),
+                            walked by createHousePilot with the stick alone
+       drive=1              no rAF loop: window.__frame() drives
+       size=WxH             the picture's size (default 960x540)
+       bare                 no HUD (a tour's caption still shows)
+       resume=x,z,yaw       where the page's "resume" shot picks a walk up (default the attic,
+                            -19,-10, looking west), as game/walk.js's resume branch places her
+       open=1               (step 2) every walk starts with the secret bookcase open (opened the
+                            walk's own way, then the toast cleared)
+       hud=1                (step 2) the game's corner map (createMinimap over buildMapLayer of
+                            the record), top right, and the day's three goals (createGoals(
+                            ownStream(seed, 1), record)) as plain text, top left, where the
+                            game shows them; a shot with `hud` shows them without it
+       seed=N               (step 2) the walk's seed: the goals, the mice's and the golden mice's
+                            own streams (default 20261121)
+       yarn=0|1             (step 2) the yarn ball's spot: the hall (0, default) or the kitchen
+       now=H|date           (step 2) the clock the grandfather clock strikes by: an hour 0-23 or a
+                            date; by default 3 o'clock, so pictures and films strike 3
+       label=0              (step 2) no caption under a shot (by default a shot shows its own
+                            caption, or a find's toast when one paid while it settled)
+       tour=…|climb|things|bookcase|cellar   (step 2) HOUSE_TOURS' climb and things, and this
+                            page's own short bookcase clip and the cellar's lid and mice
+       partner=x,z          (step 4) a co-walk: a partner's cat (a stand-in profile, "Juniper",
+                            calico) sits waiting at x, z, at the house's ground there (its
+                            floor, or the top she stands on), made by createRemoteCats from one
+                            state as a co-walker is, and handed to the house life as the walk's
+                            session ({ remotes }), so her name tag draws over the walls; she
+                            stays through every shot and tour. tour=cowalk with partner=25,-5:
+                            her up the big stair to the bedroom, the partner in the cellar
+     With no tour she starts at the front door: the arrows or W-A-S-D walk her,
+     + / = zoom in and - zooms out (camzoom.js keyZoomDir). Space presses the jump
+     button: a climb, drop or leap where there is one (the moves first, as the game asks
+     them), else onto the nearest knock-over perch or down off the one she is on; E
+     knocks over the thing beside her on a perch.
+     Window API:
+       __ready              true after the first frame
+       __shot(name) → name  one of HOUSE_SHOTS (src/world/housetour.js), or this page's own
+                            "standins" (from the attic at Farther, back over the far levels'
+                            stand-ins): a fresh walk at the shot's spot, facing, and zoom step,
+                            settled at once as a walk's start is (game/walk.js), run
+                            SETTLE s in fixed 1/30 s steps with her standing, then rendered;
+                            step 2: on the shot's `ledge` (its top is her ground there), on its
+                            `perch` (as the jump button puts her there), with the bookcase
+                            `open`, the map and goals shown for `hud`; this page's own
+                            "knocked" (the cup mid-fall), "bookcase-swing" (the leaf as it
+                            starts to swing), "bookcase-shut" and "bookcase-far" (the shut
+                            bookcase, near and across the library), "yarn" (the ball in the
+                            hall), and the ledger's side views "overhang-n2", "clip-keys",
+                            "clip-chest" and "keys-piano" (a thumb held off a top, into a low
+                            piece, or from the keys toward the piano);
+                            or "resume": a walk picked up again, as its "Welcome back!" card
+                            shows it (game/walk.js: placed, settled, no frame run)
+       __tour(name) → name  starts a tour from its start, for __frame to drive
+       __frame() → { done, caption }   one fixed 1/30 s step (the tour's pilot first, if
+                            one is running) plus a render
+       __snap(q) → a JPEG data URL of the view
+       __place(x, z, fx, fz, zoom) → __info()   a shot at any spot (for looking around)
+       __info() → { level, full, down, lid, blockers, move, perched, paid, gold, mice, open }   her
+                            level, the levels drawn in full, the wall sections not standing,
+                            the cellar's lid on or off, and the sections (at their present
+                            height, and the lid when it is on) between the camera and her look
+                            or paws; step 2: the move she is on, her perch, what paid this walk,
+                            the golden mice still there, where each mouse is (or hidden), and
+                            whether the bookcase is open
+       __jump() → bool      the jump button (Space) -->
+<style>
+  html, body { margin: 0; background: #1c2431; overflow: hidden; font: 12px/1.35 Avenir, system-ui, sans-serif; color: #f1e0c2; }
+  canvas { position: fixed; left: 0; top: 0; display: block; }
+  #hud { position: fixed; left: 0; top: 0; padding: 6px 10px; background: rgba(20, 26, 36, .72); white-space: pre; pointer-events: none; }
+  #caption { position: fixed; left: 0; right: 0; bottom: 18px; text-align: center; pointer-events: none; }
+  #caption span { display: inline-block; padding: 6px 16px; border-radius: 8px; background: rgba(20, 26, 36, .78);
+                  color: #fff6e6; font-size: 22px; font-weight: 600; }
+  #caption:empty { display: none; }
+  /* the game's corner map, top right (style.css .hud-map, .hud-map-disc), and its goals, top left */
+  #map { position: fixed; top: 16px; right: 16px; width: 150px; }
+  .hud-map-disc { position: static; display: block; width: 150px; height: 150px; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
+  #goals { position: fixed; top: 16px; left: 16px; padding: 6px 12px; border-radius: 10px; background: rgba(20, 26, 38, .62);
+           color: #fff6e6; font-size: 14px; line-height: 1.5; white-space: normal; }
+  #hud ~ #goals { top: 110px; } /* under the page's own readout, when it is shown */
+  #map.off, #goals.off { display: none; }
+</style>
+</head>
+<body>
+<div id="hud">loading…</div>
+<div id="caption"></div>
+<div id="map" class="off"></div>
+<div id="goals" class="off"></div>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier } from '/src/render/textures.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { createContactShadows } from '/src/render/contactshadows.js';
+  import { mergeStaticProps } from '/src/render/mergeprops.js';
+  import { applyDusk, duskEnv, tintDuskLawn, createLampPools } from '/src/render/dusk.js';
+  import { findOccluders } from '/src/fightcam.js';
+  import { createTreeFade, findFadeOccluders } from '/src/treefade.js';
+  import { buildCat, CAT_LOOK_Y } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { createPlayer } from '/src/player.js';
+  import { keyZoomDir, clampZoomStep, zoomView } from '/src/camzoom.js';
+  import { cameraOffset } from '/src/catcam.js';
+  import { facingYaw, behindYaw, stickToWorld } from '/src/traversal.js';
+  import { build as buildHouse } from '/src/world/house.js';
+  import { HOUSE_SHOTS, HOUSE_TOURS, createHousePilot } from '/src/world/housetour.js';
+  import { makeView, lidInLine, blockers as blockersOf } from '/src/housewalls.js';
+  import { createTraversalLive } from '/src/traversallive.js';
+  import { createKnockables } from '/src/knockables.js';
+  import { createGoldMice } from '/src/goldmice.js';
+  import { createCritters } from '/src/critters.js';
+  import { createToy } from '/src/toy.js';
+  import { createGoals } from '/src/goals.js';
+  import { mulberry32 } from '/src/rng.js';
+  import { createMinimap, buildMapLayer } from '/src/ui/minimap.js';
+  import { createRemoteCats } from '/src/remotecats.js';
+
+  await (await import('/src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage fills the wing slots before build()
+
+  const params = new URLSearchParams(location.search);
+  const DUSK = params.get('dusk') === '1';
+  const rm = params.get('rm') === '1';
+  const SINK_ON = params.get('sink') !== '0';
+  const START_ZOOM = clampZoomStep(params.has('zoom') ? Number(params.get('zoom')) : 1);
+  const [W, H] = (params.get('size') || '960x540').split('x').map(Number);
+  const DRIVE = params.get('drive') === '1';
+  const BARE = params.has('bare');
+  const RESUME = (params.get('resume') || '-19,-10,' + behindYaw(-1, 0)).split(',').map(Number);
+  const OPEN = params.get('open') === '1';
+  const HUD = params.get('hud') === '1';
+  const SEED = params.has('seed') ? Number(params.get('seed')) >>> 0 : 20261121;
+  const YARN = params.get('yarn') === '1' ? 1 : 0;
+  const LABEL = params.get('label') !== '0';
+  // Step 4: a partner on a co-walk, sitting at x, z (null: none)
+  const PARTNER = (() => {
+    const v = (params.get('partner') || '').split(',').map(Number);
+    return v.length === 2 && v.every(Number.isFinite) ? v : null;
+  })();
+  // The clock strikes by this, not the device's clock, so a film strikes the same count every
+  // time: 3 o'clock (3 bongs) unless `now` gives an hour (0-23) or a date the browser reads.
+  const NOW_AT = (() => {
+    const v = params.get('now');
+    if (v && /^\d{1,2}$/.test(v)) return new Date(2026, 10, 21, Number(v), 0);
+    const d = v ? new Date(v) : null;
+    return d && !Number.isNaN(d.getTime()) ? d : new Date(2026, 10, 21, 15, 0);
+  })();
+  const now = () => NOW_AT;
+  const TOAST_S = 2.5; // s a find's line stays up as the caption
+  const KNOCK_REACH = 1.0; // game/interactions.js
+  const PERCH_REACH = 1.3; // m: Space hops onto a perch this near
+  // game/walk.js ownStream: a walk's own salted stream from its seed
+  const ownStream = (seed, salt) => mulberry32(((seed >>> 0) ^ salt) >>> 0);
+  const DT = 1 / 30; // the fixed step of shots, tours and __frame
+  const SETTLE = 1.5; // s a shot runs with her standing: the sink, the fade and the shadow fit settle
+  const TAIL = 1.0; // s of film after a tour ends
+  const BREED = 'tabby';
+  const PACE = 3.5; // her walk, m/s (test/helpers/housewalk.js's, so the tours run as tested)
+
+  // This page's own short tour (not the game's), for judging the sink's calm:
+  // just inside the front door the camera hangs outside the hall's south wall,
+  // which is down from the first frame (the walk's start settles it, as the
+  // game's does); she walks into the hall (the camera comes inside, and the wall
+  // rises behind it, out of sight); the Far step cuts the near walls away
+  // (down), the Middle step brings them back (up).
+  const f = Object.freeze;
+  const PAGE_TOURS = f({
+    sink: f({
+      start: f({ x: 0, z: 10.5, face: f([0, -1]) }),
+      steps: f([
+        f({ zoom: 1, hold: 1.2, caption: 'The front wall is down' }),
+        f({ to: f([0, 6.5]), caption: 'She walks in' }),
+        f({ zoom: 1, hold: 1.2 }),
+        f({ zoom: 2, hold: 1.8, caption: 'Farther out: the near walls go down' }),
+        f({ zoom: 1, hold: 1.8, caption: 'Closer again: they come back up' }),
+      ]),
+    }),
+  });
+  // Step 2: the bookcase opening, close up, and she goes through; and down to the
+  // cellar, past the mice and back up, for the turf lid going off and on.
+  const st = (x, z, caption) => f(caption ? { to: f([x, z]), caption } : { to: f([x, z]) });
+  const PAGE_TOURS_2 = f({
+    bookcase: f({
+      start: f({ x: -5.2, z: 6.0, face: f([-0.3, -1]) }),
+      steps: f([st(-6.0, 2.8, 'A bookcase that opens'), f({ wait: 2.2 }), st(-6.0, -1.5, 'A secret stair!'), f({ wait: 0.6 })]),
+    }),
+    cellar: f({
+      start: f({ x: 11.0, z: -1.5, face: f([0.3, -1]) }),
+      steps: f([
+        st(12.0, -5, 'Down to the cellar'), st(14, -5), st(20, -5), st(22.5, -4.0, 'Mice in the cellar'), f({ wait: 1.5 }),
+        st(20, -5, 'Back up'), st(14, -5), st(12, -5), st(11.0, -2.0), f({ wait: 0.8 }),
+      ]),
+    }),
+  });
+  const TOURS = { ...HOUSE_TOURS, ...PAGE_TOURS, ...PAGE_TOURS_2 };
+  // This page's own extra shot: from the attic at Farther, looking back over the
+  // house, so the far levels' plain stand-ins (the ground floor, the cellar) show.
+  // Step 2's own: the cup on counter A knocked and mid-fall; the bookcase leaf as its swing
+  // begins (she has held at it 0.6 s, and its 1.2 s swing is under a third through); the
+  // yarn ball lying in the hall ahead of her.
+  const PAGE_SHOTS = f({
+    // the beauty round's garden shots (outside the walls: the front path, the gate, the hedge corners, the lawn behind)
+    'g-front': f({ at: f([0, 10.8]), face: f([0, 1]), zoom: 1, caption: 'Out the front door, the path and the gate' }),
+    'g-front-far': f({ at: f([0, 10.8]), face: f([0, 1]), zoom: 2, caption: 'The front garden from the door' }),
+    'g-front-w': f({ at: f([-12, 11.4]), face: f([0.5, 1]), zoom: 1, caption: 'The front lawn, west of the path' }),
+    'g-east': f({ at: f([50, 0]), face: f([1, 0]), zoom: 1, caption: 'The east side' }),
+    'g-west': f({ at: f([-22, 0]), face: f([-1, 0]), zoom: 1, caption: 'The west side' }),
+    'g-back': f({ at: f([10, -14.8]), face: f([0, -1]), zoom: 1, caption: 'The back garden' }),
+    'g-back-far': f({ at: f([10, -14.8]), face: f([0, -1]), zoom: 2, caption: 'The back garden, nearer the house' }),
+    standins: f({ at: f([-17, -10]), face: f([1, 0.3]), zoom: 3 }),
+    knocked: f({ ...HOUSE_SHOTS.knock, caption: 'Knocked over!', then: 'knock', after: 0.3 }),
+    'bookcase-swing': f({ at: f([-6.0, 2.8]), face: f([0, -1]), zoom: 1, caption: 'The bookcase swings open', settle: 0.95 }),
+    yarn: f({ at: f([0.4, 7.8]), face: f([-0.15, -1]), zoom: 1, caption: 'A ball of yarn' }),
+    // the ledger's looks (the plan's Task 2-3 notes): a thumb held off the front of a bookcase
+    // top (her body over its edge), and walking into the piano keys and the bedroom chest from
+    // the floor (the cliff stops her middle at the edge); each seen from the side (`look`)
+    'overhang-n2': f({ at: f([-9.3, 2.6]), face: f([0, 1]), zoom: 0, caption: 'At the front of a bookcase top', push: f([0, 1]), pushS: 0.8, look: f([1, 0]) }),
+    'clip-keys': f({ at: f([8.7, 9.6]), face: f([0, 1]), zoom: 0, caption: 'Walking into the piano keys', push: f([0, 1]), pushS: 1.0, look: f([1, 0]) }),
+    // (the keys and the chest stand further out since the rough edges: she starts 1.1 m off them)
+    'clip-chest': f({ at: f([-4.2, -12.9]), face: f([0, -1]), zoom: 0, caption: 'Walking into the chest', push: f([0, -1]), pushS: 1.0, look: f([-1, 0]) }),
+    // the review of the rough edges: on the piano keys, a thumb held toward the piano (her head
+    // passes over its low case, her body is held off it)
+    'keys-piano': f({ at: f([8.7, 10.74]), face: f([0, 1]), zoom: 0, caption: 'On the keys, toward the piano', push: f([0, 1]), pushS: 1.0, look: f([1, 0]), ledge: 'parlour-keys' }),
+    // the shut bookcase, from just out of its reach and from across the library
+    'bookcase-shut': f({ at: f([-6.0, 3.3]), face: f([0, -1]), zoom: 1, caption: 'A bookcase in the wall' }),
+    'bookcase-far': f({ at: f([-6.6, 7.0]), face: f([0.1, -1]), zoom: 1, caption: 'The library\'s north wall' }),
+  });
+  const SHOTS = { ...HOUSE_SHOTS, ...PAGE_SHOTS };
+
+  // ---- The rig, as verify-places.html builds it ----
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  document.body.prepend(renderer.domElement);
+  const tier = { name: 'high', envIntensity: 0.45 };
+  setTextureTier(tier);
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+  const sun = createSun();
+  scene.add(sun);
+
+  // ---- The house, built as game/walk.js builds a walk ----
+  const area = buildHouse(scene); // sets the sky and the fog itself (builder.js applySky)
+  const ground = area.ground;
+  const fill = createFill(area.groundBounce);
+  scene.add(fill);
+  // The contact-shadow scan while the scene holds the area's props and nothing
+  // else, then the prop merge (walk.js's order, and why, at its call).
+  const decals = createContactShadows(scene, { ground });
+  mergeStaticProps(scene);
+  const cat = buildCat(BREED);
+  scene.add(cat);
+  // The dusk look, as walk.js gives it (no Night Eyes: the base exposure).
+  const duskLook = DUSK ? applyDusk({ scene, sun, fill, areaData: area }) : null;
+  if (duskLook) scene.environmentIntensity = duskEnv(scene.environmentIntensity, duskLook);
+  const duskGround = duskLook ? scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint || c.name === 'path' || c.name === 'horizonBand' || c.name === 'steppingStones')) : [];
+  decals.follow(cat);
+  // Step 4: the partner, as a co-walker is drawn (src/remotecats.js): a stand-in profile and
+  // one state, kept fresh each frame (as the 8 Hz states would keep her) so she never times
+  // out. Her ground is the house's own, so she stands on the floor (or the top) at x, z. The
+  // walk's session hands her to the house life, which draws her tag over the walls.
+  const remotes = createRemoteCats(scene, { reducedMotion: rm, ground });
+  const PARTNER_ID = 'partner-1';
+  const partnerState = PARTNER ? { id: PARTNER_ID, pos: PARTNER, yaw: behindYaw(0, -1), pose: 'perch', speed: 0 } : null;
+  if (PARTNER) {
+    remotes.upsert({ playerId: PARTNER_ID, petName: 'Juniper', breed: 'calico', accessories: {} }, 0);
+    remotes.applyState(partnerState, 0);
+    remotes.update(0, 0);
+    decals.follow(remotes.list[0].group);
+  }
+  const lifeSession = { remotes };
+  const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
+  const shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
+  sun.shadow.bias = SUN_BIAS;
+  assignShadowCasters(scene);
+  if (duskLook) {
+    tintDuskLawn({ ground: duskGround, grass: null, look: duskLook });
+    createLampPools(scene);
+  }
+  // The tree fade over everything walk.js hands it (the house's tall furniture
+  // carries fadeOccluder; the neighbours and the garden trees their own tags).
+  const fade = createTreeFade([...findOccluders(scene), ...findFadeOccluders(scene)], { reducedMotion: rm });
+  const fadeLook = { x: 0, y: 0, z: 0 };
+
+  // The house's life: made fresh for every walk (reset), so each shot and tour
+  // starts from its own settled view, never helped by walls the last one left.
+  let life = null;
+  const standing = { fraction: () => 1, isDown: () => false }; // sink=0
+  const sinkNow = () => (SINK_ON ? life.sink : standing);
+
+  // ---- The walk: the real player ----
+  const player = createPlayer(camera, renderer.domElement);
+  player.setReducedMotion(rm);
+  let t = 0;
+
+  // ---- Step 2: the walk's own things, the moves, the log and the HUD ----
+  // The stub log and HUD: a line paid (once a walk, the log's own rule) or toasted is
+  // the caption for TOAST_S seconds.
+  let paid = new Set();
+  let toastText = null;
+  let toastUntil = -1;
+  const toast = (text) => { toastText = text; toastUntil = t + TOAST_S; };
+  const log = { awardOnce(type, key, line) { if (paid.has(key)) return 0; paid.add(key); toast(line); return 12; } };
+  const hudStub = { toast };
+  // The yarn ball, made once like the walk's; each walk lays it at its spot again.
+  const toy = createToy(scene, { ground, rng: ownStream(SEED, 0x7a11) });
+  // The traversal's context (main.js moveCtx) and the session fields the moves read.
+  const session = { perched: null, fight: null, chasing: false, idleTime: 0 };
+  const moveCtx = { cat, player, session };
+  let live = null; // the moves runtime, fresh for every walk
+  let things = null; // { knockables, goldMice, critters }
+  let batReady = true;
+  const scenicsVisited = new Set();
+  // The corner map and the goals (hud=1, or a shot with `hud`), made once.
+  const mapEl = document.getElementById('map');
+  let minimap = null;
+  const mapView = { cx: 0, cz: 0, heading: 0 };
+  const mapFrame = { race: null, quest: null, scenics: area.scenics, visitedScenics: scenicsVisited, camp: null, posts: null, remotes: [] };
+  const mapLayer = buildMapLayer(area, scene); // as walk.js builds it, from the record and the built scene
+  function showHud(on) {
+    mapEl.classList.toggle('off', !on);
+    document.getElementById('goals').classList.toggle('off', !on);
+    if (on && !minimap) {
+      minimap = createMinimap(mapEl, { areaId: 'house', layer: mapLayer, mode: 'north' });
+      const goals = createGoals(ownStream(SEED, 1), area).goals;
+      const box = document.getElementById('goals');
+      box.replaceChildren(...goals.map((g) => {
+        const d = document.createElement('div');
+        d.textContent = `○ ${g.text}${g.target > 1 ? ` — 0/${g.target}` : ''}`;
+        return d;
+      }));
+    }
+  }
+  function mapUpdate() {
+    if (!minimap || mapEl.classList.contains('off')) return;
+    const fw = player.forward();
+    mapView.cx = cat.position.x;
+    mapView.cz = cat.position.z;
+    mapView.heading = Math.atan2(-fw.x, -fw.z);
+    minimap.update(mapView, mapFrame);
+  }
+
+  // The walk's things, rebuilt from the record (game/walk.js's order and streams).
+  function freshThings() {
+    if (things) {
+      things.knockables.dispose();
+      things.goldMice.dispose();
+      things.critters.dispose();
+    }
+    things = {
+      knockables: createKnockables(scene, area.knockables, { ground }),
+      goldMice: createGoldMice(scene, 'house', new Set(), { ground, rng: ownStream(SEED, 0x601d), list: area.goldMice }),
+      critters: createCritters(scene, area.critterSpawns, {
+        ground, rng: ownStream(SEED, 0xc417), motionRng: ownStream(SEED, 0x3071), hides: area.hides,
+      }),
+    };
+    toy.retrieve();
+    const spot = area.yarnSpots[YARN];
+    toy.spot = { x: spot.x, z: spot.z };
+    toy.placeAt(spot);
+    batReady = true;
+    live?.dispose();
+    live = createTraversalLive(area.traversal, { ground, reducedMotion: rm });
+    session.perched = null;
+    session.idleTime = 0;
+    player.perchY = 0;
+    paid = new Set();
+    scenicsVisited.clear();
+    toastText = null;
+    toastUntil = -1;
+  }
+
+  // A shot's cat has been sitting there a while: the mice take her for a still cat, which
+  // they notice only at critters.js PREY_NOTICE_STALKED (1.2 m), not PREY_NOTICE (3.5 m).
+  // Their first look counts a cat as moving, so they first see her far off and still, then
+  // here (a step too long to be a walk keeps that reading, as for a perch snap).
+  const FAR = new THREE.Vector3();
+  function stillForMice() {
+    FAR.set(cat.position.x + 500, cat.position.y, cat.position.z + 500);
+    things.critters.update(DT, t, FAR, FAR);
+    things.critters.update(DT, t + DT, FAR, FAR);
+  }
+
+  // The bookcase opened the walk's own way: she holds at it, the house life runs
+  // (its hold, then its swing), then the line it paid is put away.
+  function openBookcase() {
+    const fnd = area.house.finds.find((x) => x.trigger === 'secret');
+    const at = new THREE.Vector3(fnd.x, 0, fnd.z);
+    for (let k = 0; k < Math.ceil(2.2 / DT); k++) life.update(DT, t + k * DT, at, camera);
+    toastText = null;
+  }
+
+  // The kids' wardrobe opens the walk's own way (the wonder room, milestone 3): she holds at its spot from the kids' room until it has swung.
+  function openWardrobe() {
+    const fnd = area.house.wingFinds.find((x) => x.trigger === 'secret');
+    const at = new THREE.Vector3(fnd.x, area.house.floor.y(fnd.x, fnd.z + 0.9), fnd.z + 0.9);
+    for (let k = 0; k < Math.ceil(2.4 / DT); k++) life.update(DT, t + k * DT, at, camera);
+    toastText = null;
+  }
+
+  // A fresh walk at (x, z), facing (fx, fz), the view behind her at zoom step `zoom`;
+  // on a perch (an entry of area.perches) when given one.
+  function reset(x, z, fx, fz, zoom, { perch = null, open = OPEN, wardrobe = false } = {}) {
+    life?.dispose();
+    freshThings();
+    life = area.life({ scene, sun, fill, ground, reducedMotion: rm, log, hud: hudStub, audio: null, toy, dusk: DUSK, now });
+    if (open) openBookcase();
+    if (wardrobe) openWardrobe();
+    cat.position.set(x, ground.y(x, z) + (perch ? perch.y : 0), z);
+    cat.rotation.set(0, facingYaw(fx, fz), 0);
+    player.setAvatar(cat, PACE);
+    player.setGround(ground);
+    player.setCameraGround(area.cameraGround);
+    player.setViewYaw(behindYaw(fx, fz));
+    player.setCameraZoom(zoom, { instant: true });
+    player.setTouchMove(null);
+    player.enable();
+    if (perch) { session.perched = perch; player.perchY = perch.y; }
+    player.speedFactor = session.perched ? 0 : 1;
+    player.update(0, area.colliders, area.bounds, area.waters ?? []); // the camera on her spot
+    // settled on that view at once, as game/walk.js does at a walk's start
+    if (SINK_ON) life.settle(cat.position, camera);
+    else life.drawing.settle(cat.position.y);
+    shadows.update(ground.y(x, z), 1e3); // the shadow fit settled on her level at once
+  }
+
+  function lifeStep(dt) {
+    if (SINK_ON) life.update(dt, t, cat.position, camera, lifeSession);
+    else life.drawing.update(cat.position.y); // the "before": the levels as ever, no wall sinks
+  }
+
+  // The jump button (game/interactions.js asks the moves first): a climb, drop or leap;
+  // else down off her perch, or up onto the nearest perch (climbing.js's hop, at once).
+  function jump() {
+    if (live.jump(moveCtx)) return true;
+    if (session.perched) {
+      session.perched = null;
+      player.perchY = 0;
+      cat.position.y = ground.y(cat.position.x, cat.position.z);
+      return true;
+    }
+    const p = area.perches.find((q) => Math.hypot(q.x - cat.position.x, q.z - cat.position.z) <= PERCH_REACH
+      && Math.abs(ground.y(q.x, q.z) - ground.y(cat.position.x, cat.position.z)) < 0.3);
+    if (!p) return false;
+    session.perched = p;
+    player.perchY = p.y;
+    cat.position.set(p.x, ground.y(p.x, p.z) + p.y, p.z);
+    return true;
+  }
+  // E: knock the thing beside her on a perch (game/interactions.js's knock prompt).
+  function knock() {
+    if (!session.perched) return false;
+    const thing = things.knockables.nearest(cat.position, ground.y(cat.position.x, cat.position.z) + player.perchY, KNOCK_REACH);
+    if (!thing || !things.knockables.knock(thing)) return false;
+    log.awardOnce('mischief', `knock-${thing.id}`, 'Knocked it off! 😼');
+    return true;
+  }
+
+  // One frame, as main.js orders it.
+  function frame(dt) {
+    t += dt;
+    live.update(dt, t, moveCtx);
+    player.update(dt, area.colliders, area.bounds, area.waters ?? []);
+    player.speedFactor = session.perched ? 0 : 1; // game/avatar.js writes it after player.update
+    if (partnerState) remotes.applyState(partnerState, t); // main.js: remotes.update after player.update
+    remotes.update(dt, t);
+    things.critters.update(dt, t, cat.position, cat.position);
+    toy.update(dt, area.bounds);
+    lifeStep(dt);
+    things.goldMice.update(t);
+    fadeLook.x = cat.position.x;
+    fadeLook.y = cat.position.y + CAT_LOOK_Y;
+    fadeLook.z = cat.position.z;
+    fade.update(dt, camera, fadeLook);
+    const pawsY = ground.y(cat.position.x, cat.position.z) + player.perchY;
+    const gm = things.goldMice.checkFind(cat.position, pawsY);
+    if (gm) {
+      log.awardOnce('legend', gm.id, 'a GOLDEN MOUSE! 🥇');
+      things.goldMice.remove(gm.id);
+    }
+    // a special place visited (game/interactions.js's 4 m scenic check)
+    for (const sc of area.scenics) {
+      if (!scenicsVisited.has(sc.id) && Math.hypot(sc.x - cat.position.x, sc.z - cat.position.z) < 4
+        && Math.abs(ground.y(sc.x, sc.z) - ground.y(cat.position.x, cat.position.z)) < 1) scenicsVisited.add(sc.id);
+    }
+    things.knockables.update(dt);
+    shadows.update(ground.y(cat.position.x, cat.position.z), dt);
+    mapUpdate();
+    decals.update();
+    // the cat's pose (game/avatar.js): the moves say their own, a perch sits
+    const speed = live.busy ? live.speed : player.speed;
+    animateCat(cat, live.pose ?? (session.perched ? 'perch' : 'follow'), t, speed, rm);
+    cat.rotation.x = 0; // the moves' late() leans her itself
+    cat.rotation.z = 0;
+    // run into the ball and she bats it (game/avatar.js)
+    if (toy.active && !toy.held) {
+      const d = cat.position.distanceTo(toy.mesh.position);
+      if (d < 0.5 && batReady) { toy.bat(cat.position); batReady = false; } else if (d > 1.1) batReady = true;
+    }
+    live.late(dt, t, moveCtx);
+    render();
+  }
+
+  const view = {};
+  function info() {
+    makeView(cat.position, camera.position, CAT_LOOK_Y, view);
+    const sink = sinkNow();
+    const blockers = blockersOf(area.house.sections, sink, view);
+    // the cellar's lid, when it is drawn and in the line (owner's fix B; under sink=0 it never hides)
+    const lidOn = SINK_ON ? life.lid.shown : true;
+    if (lidOn && lidInLine(area.house.lid, view)) blockers.push('cellarLid');
+    return {
+      level: life.drawing.current,
+      full: [...life.drawing.full],
+      down: area.house.sections.filter((s) => sink.isDown(s.id)).map((s) => s.id),
+      lid: lidOn ? 'on' : 'off',
+      blockers,
+      move: live.crossing?.id ?? live.hop?.id ?? null,
+      perched: session.perched?.id ?? null,
+      paid: [...paid],
+      gold: things.goldMice.list.map((m) => m.id),
+      mice: things.critters.list.filter((c) => c.type === 'mouse').map((c) => (c.hidden ? 'hidden'
+        : `${c.group.position.x.toFixed(1)},${c.group.position.z.toFixed(1)}${c.group.visible ? '' : ' (not drawn)'}`)),
+      open: life.finds?.open ?? false,
+    };
+  }
+
+  const hud = document.getElementById('hud');
+  if (BARE) hud.remove();
+  const captionEl = document.getElementById('caption');
+  let caption = null;
+  let shotCaption = null; // a shot's own caption, under its picture
+  function setCaption(text) {
+    if (text === caption) return;
+    caption = text;
+    captionEl.replaceChildren();
+    if (text) {
+      const span = document.createElement('span');
+      span.textContent = text;
+      captionEl.append(span);
+    }
+  }
+  // The caption shown: a toast while it is up, else the tour's or the shot's own.
+  function showCaption(own) {
+    setCaption(toastText && t < toastUntil ? toastText : own);
+  }
+  function render() {
+    renderer.render(scene, camera);
+    if (BARE) return;
+    const p = cat.position;
+    const i = info();
+    hud.textContent = [
+      `${DUSK ? 'dusk' : 'day'} · walls ${SINK_ON ? 'sink' : 'never sink (before)'}${rm ? ' · reduced motion' : ''} · zoom ${player.cameraZoomStep}`,
+      `at ${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)} · level ${i.level} (full: ${i.full.join(', ')})`,
+      `down ${i.down.join(' ') || '-'} · cellar lid ${i.lid}`,
+      `blockers ${i.blockers.join(' ') || '-'}`,
+      `move ${i.move ?? '-'} · perch ${i.perched ?? '-'} · bookcase ${i.open ? 'open' : 'shut'} · golden mice ${i.gold.length}`,
+      tour ? '' : 'arrows or W-A-S-D walk · + and - zoom · Space jump · E knock it off',
+    ].filter(Boolean).join('\n');
+  }
+
+  // ---- The shots ----
+  // A fresh walk at the spot, settled for SETTLE s (or the shot's own) as a shot is.
+  function settleAt(label, x, z, fx, fz, zoom, s = {}) {
+    tour = null;
+    setCaption(null);
+    showHud(HUD || !!s.hud);
+    const perch = s.perch ? area.perches.find((q) => q.id === s.perch) : null;
+    if (s.perch && !perch) throw new Error(`shot ${label}: no perch ${s.perch}`);
+    reset(x, z, fx, fz, zoom, { perch, open: OPEN || !!s.open, wardrobe: !!s.wardrobe });
+    stillForMice();
+    if (s.ledge) {
+      const top = area.house.floor.y(x, z) !== ground.y(x, z);
+      if (!top) console.error(`shot ${label}: ${x}, ${z} is not on a furniture top (${s.ledge})`);
+    }
+    // a page shot's own camera side (`look`: the view looks that way) and a thumb held (`push`)
+    if (s.look) player.setViewYaw(behindYaw(s.look[0], s.look[1]));
+    if (s.push) {
+      const st = { x: 0, z: 0 };
+      stickToWorld(s.push[0], s.push[1], -player.viewYaw(), st);
+      player.setTouchMove({ x: st.x, z: st.z, mag: 1 });
+      for (let k = 0; k < Math.round((s.pushS ?? 1) / DT); k++) frame(DT);
+      player.setTouchMove(null);
+    }
+    const settle = s.settle ?? SETTLE;
+    for (let k = 0; k < Math.round(settle / DT); k++) frame(DT);
+    if (s.then === 'knock') {
+      if (!knock()) console.error(`shot ${label}: nothing to knock over beside her`);
+      for (let k = 0; k < Math.round((s.after ?? 0) / DT); k++) frame(DT);
+    }
+    const b = info().blockers;
+    // under sink=0 a wall in the way is the "before" itself, not a fault
+    if (b.length && SINK_ON) console.error(`shot ${label}: a wall stands between the camera and her: ${b.join(' ')}`);
+    shotCaption = LABEL ? s.caption ?? null : null;
+    showCaption(shotCaption);
+    render();
+  }
+  window.__shot = (name) => {
+    if (name === 'resume') { resumeAt(RESUME[0], RESUME[1], RESUME[2]); return name; }
+    const s = SHOTS[name];
+    if (!s) throw new Error(`no shot "${name}"; there are ${Object.keys(SHOTS).join(', ')}`);
+    settleAt(name, s.at[0], s.at[1], s.face[0], s.face[1], s.zoom, s);
+    return name;
+  };
+  window.__place = (x, z, fx, fz, zoom = 1) => { settleAt(`at ${x}, ${z}`, x, z, fx, fz, zoom); return info(); };
+
+  // A walk picked up again (the "resume" shot), placed as game/walk.js's resume
+  // branch places her: at the note's spot, she and the view turned to the
+  // note's yaw, the camera behind her at the start view, then the house life
+  // settled. The
+  // "Welcome back!" card is paused, so no frame runs before the picture.
+  function resumeAt(x, z, yaw, zoom = START_ZOOM) {
+    tour = null;
+    setCaption(null);
+    life?.dispose();
+    freshThings();
+    life = area.life({ scene, sun, fill, ground, reducedMotion: rm, log, hud: hudStub, audio: null, toy, dusk: DUSK, now });
+    cat.position.set(x, ground.y(x, z), z);
+    cat.rotation.set(0, yaw, 0); // she faces the way the note looked (walk.js, owner's fix C)
+    player.setAvatar(cat, PACE);
+    player.setGround(ground);
+    player.setCameraGround(area.cameraGround);
+    player.setViewYaw(yaw);
+    player.setCameraZoom(zoom, { instant: true });
+    player.setTouchMove(null);
+    const v = zoomView(zoom);
+    camera.position.copy(cat.position).add(cameraOffset(yaw, 0.18, v.dist, v.height));
+    camera.lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
+    if (SINK_ON) life.settle(cat.position, camera);
+    else life.drawing.settle(cat.position.y);
+    shadows.update(ground.y(x, z), 1e3);
+    render();
+  }
+
+  // ---- The tours ----
+  let tour = null; // { name, pilot, ended } while one runs
+
+  window.__tour = (name) => {
+    const spec = TOURS[name];
+    if (!spec) throw new Error(`no tour "${name}"; there are ${Object.keys(TOURS).join(', ')}`);
+    showHud(HUD);
+    reset(spec.start.x, spec.start.z, spec.start.face[0], spec.start.face[1], 1);
+    tour = { name, pilot: createHousePilot(spec), ended: null, w: { player, cat, live, ctx: moveCtx } };
+    setCaption(null);
+    render();
+    return name;
+  };
+
+  function tourStep() {
+    let own = caption;
+    if (tour.ended === null) {
+      const r = tour.pilot.step(DT, tour.w);
+      own = r.caption;
+      tour.own = own;
+      if (r.done) {
+        if (r.failed !== null) console.error(`tour ${tour.name}: the pilot gave up on step ${r.failed}`);
+        tour.ended = t;
+      }
+    }
+    frame(DT);
+    showCaption(tour.own ?? null);
+    return { done: tour.ended !== null && t - tour.ended >= TAIL - 1e-9, caption };
+  }
+
+  window.__frame = () => {
+    if (tour) return tourStep();
+    frame(DT);
+    showCaption(shotCaption);
+    return { done: false, caption };
+  };
+  window.__snap = (q = 0.85) => { render(); return renderer.domElement.toDataURL('image/jpeg', q); };
+  window.__info = info;
+  window.__jump = jump;
+  window.__player = player;
+  window.__cat = cat;
+
+  // + / = and -: the zoom steps, as the game's keys. Space: the jump button; E: knock it off.
+  document.addEventListener('keydown', (e) => {
+    if (tour) return;
+    if (e.code === 'Space') { e.preventDefault(); jump(); return; }
+    if (e.code === 'KeyE') { e.preventDefault(); knock(); return; }
+    const dir = keyZoomDir(e.key, e.code);
+    if (!dir) return;
+    e.preventDefault();
+    player.setCameraZoom(player.cameraZoomStep + dir);
+  });
+
+  // ---- Start ----
+  const tourName = params.get('tour');
+  if (tourName) window.__tour(tourName);
+  else { showHud(HUD); reset(area.spawn.x, area.spawn.z, 0, -1, START_ZOOM); }
+  render();
+  window.__ready = true;
+
+  if (!DRIVE) {
+    // Real time: a tour in fixed steps of the time that has passed; free play
+    // at the frame's own (capped) dt.
+    const clock = new THREE.Clock();
+    let owed = 0;
+    let finished = false;
+    const loop = () => {
+      requestAnimationFrame(loop);
+      const dt = Math.min(clock.getDelta(), 0.1);
+      if (!tour) { frame(Math.min(dt, 0.05)); showCaption(shotCaption); return; }
+      if (finished) return;
+      owed += dt;
+      while (owed >= DT && !finished) {
+        owed -= DT;
+        finished = tourStep().done;
+      }
+    };
+    requestAnimationFrame(loop);
+  }
+</script>
+</body>
