@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import * as P from './jungleplan.js';
-import { shapedTreeParts } from './jungletrees.js';
+import { shapedTreeParts, noBase } from './jungletrees.js';
 
 export const COL = Object.freeze({
   wood: 0xa87a4c, woodDark: 0x6a4a2e, thatch: 0xb59c58, thatchDark: 0x8a7640, trunk: 0x7a5a3a, leaf: 0x3f8a3e, leafLight: 0x6ab04a, leafDeep: 0x2c6a36, stone: 0x8c9486, moss: 0x5f9a46,
@@ -184,6 +184,8 @@ const stand = (geo, x, z, dy = 0, ry = 0) => {
 };
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const cyl = (rt, rb, h, seg = 6) => new THREE.CylinderGeometry(rt, rb, h, seg, 1);
+// A flat pad, n sides, face up at the origin: a ground slab needs no walls and no underside (a closed cylinder costs 4n triangles, a pad n).
+export const pad = (n) => new THREE.CircleGeometry(1, n).rotateX(-Math.PI / 2);
 const ball = (r, ws = 7, hs = 5) => new THREE.SphereGeometry(r, ws, hs);
 
 // A gabled prism with its ridge along x: width w (ridge length), depth d (eave to eave), eaves at y 0, ridge at y rise. Faces are wound outward by a reference point inside.
@@ -281,7 +283,7 @@ export function drawSpawn(kit, M) {
   if (!dg.attributes.uv) dg.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(dp.count * 2), 2));
   kit.put('glow', M.glow, dg, { noCast: true });
   // a flat footing of old flagstones in front of the ring
-  for (let i = 0; i < 5; i++) kit.put('paint', M.paint, paint(stand(cyl(0.5, 0.55, 0.08, 7), R.x - 1.6 + i * 0.8, R.z + 2.2 + Math.sin(i * 1.7) * 0.25, 0.04), COL.stone, i), { noCast: true });
+  for (let i = 0; i < 5; i++) kit.put('paint', M.paint, paint(stand(pad(7).scale(0.52, 1, 0.52), R.x - 1.6 + i * 0.8, R.z + 2.2 + Math.sin(i * 1.7) * 0.25, 0.08), COL.stone, i), { noCast: true });
   // Mossy's signpost: a post and two pointing planks
   const S = P.SIGNPOST;
   kit.put('paint', M.paint, paint(stand(cyl(0.07, 0.09, 2.1, 6), S.x, S.z, 1.05), COL.woodDark));
@@ -289,7 +291,7 @@ export function drawSpawn(kit, M) {
   kit.put('paint', M.paint, paint(stand(box(0.95, 0.24, 0.05).translate(-0.15, 0, 0.08), S.x, S.z, 1.5, S.yaw + 0.3), COL.thatch));
   // the moss pool: a shallow disc with a ring of stones
   const Q = P.MOSS_POOL;
-  kit.put('paint', M.paint, paint(stand(cyl(Q.r, Q.r, 0.04, 14), Q.x, Q.z, 0.02), 0x5fa6a0), { noCast: true });
+  kit.put('paint', M.paint, paint(stand(pad(14).scale(Q.r, 1, Q.r), Q.x, Q.z, 0.04), 0x5fa6a0), { noCast: true });
   for (let i = 0; i < 9; i++) {
     const a = (i / 9) * Math.PI * 2 + 0.3;
     kit.put('paint', M.paint, paint(stand(ball(0.26 + 0.05 * Math.sin(i * 3), 5, 4).scale(1, 0.6, 1), Q.x + Math.cos(a) * (Q.r + 0.15), Q.z + Math.sin(a) * (Q.r + 0.15), 0.08), COL.stone, i));
@@ -383,13 +385,13 @@ export function drawCrossings(kit, M) {
     kit.put('paint', M.paint, paint(stand(cyl(0.05, 0.06, 1.3, 5), B.x + 0.75, B.z + sz * (B.len / 2 - 0.5), 0.65), COL.woodDark));
   }
   kit.put('paint', M.paint, paint(cyl(0.02, 0.02, B.len - 1, 4).rotateX(Math.PI / 2).translate(B.x + 0.75, P.jungleY(B.x, B.z) + 1.15, B.z), COL.rope), { noCast: true });
-  P.STEPPING.forEach((s, i) => kit.put('paint', M.paint, paint(stand(cyl(0.55, 0.62, 0.3, 7), s.x, s.z, -0.05, i), COL.stone, i), { noCast: true }));
+  P.STEPPING.forEach((s, i) => kit.put('paint', M.paint, paint(stand(noBase(cyl(0.55, 0.62, 0.3, 7)), s.x, s.z, -0.05, i), COL.stone, i), { noCast: true }));
 }
 
 // ---- giant leaves, trees, ferns and mossy stones -------------------------------------------------------------------------------------
 export function drawLeaves(kit, M) {
   P.LEAVES.forEach((l, i) => {
-    kit.put('paint', M.paint, paint(stand(cyl(0.07, 0.1, l.h, 5), l.x, l.z, l.h / 2), COL.leafDeep));
+    kit.put('paint', M.paint, paint(stand(noBase(cyl(0.07, 0.1, l.h, 5)), l.x, l.z, l.h / 2), COL.leafDeep));
     const cone = new THREE.ConeGeometry(l.r, 0.7, 10, 1, true).scale(1, 1, 0.8).translate(0, l.h + 0.15, 0);
     kit.put('paint', M.paint, paint(stand(cone, l.x, l.z, 0, l.yaw), i % 2 ? COL.leaf : COL.leafLight, i));
   });
@@ -403,7 +405,7 @@ export function treeParts(k) {
   const s = k.s;
   if (k.kind === 'palm') {
     const H = 6.4 * s;
-    parts.push([cyl(0.1 * s, 0.17 * s, H, 6).translate(0, H / 2, 0), COL.trunk]);
+    parts.push([noBase(cyl(0.1 * s, 0.17 * s, H, 6)).translate(0, H / 2, 0), COL.trunk]);
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2 + k.x;
       const frond = new THREE.ConeGeometry(0.3 * s, 3 * s, 4).scale(1, 1, 0.3).translate(0, 1.5 * s, 0).rotateZ(-1.15).rotateY(a).translate(0, H, 0);
@@ -412,7 +414,7 @@ export function treeParts(k) {
     return parts;
   }
   const H = 5 * s;
-  parts.push([cyl(0.2 * s, 0.34 * s, H, 6).translate(0, H / 2, 0), COL.trunk]);
+  parts.push([noBase(cyl(0.2 * s, 0.34 * s, H, 6)).translate(0, H / 2, 0), COL.trunk]);
   const lumps = [[0, H + 0.8 * s, 0, 2.3], [-1.2, H + 0.1 * s, 0.6, 1.8], [1.3, H + 0.3 * s, -0.5, 1.9]];
   lumps.forEach(([lx, ly, lz, r], i) => parts.push([new THREE.IcosahedronGeometry(r * s, 0).scale(1, 0.75, 1).translate(lx * s, ly, lz * s), i === 0 ? COL.leafLight : i === 1 ? COL.leaf : COL.leafDeep]));
   return parts;
