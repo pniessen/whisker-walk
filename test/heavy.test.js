@@ -50,7 +50,7 @@ describe('the heavy list', () => {
   });
 
   it('counts a file it does not list as a light file', () => {
-    expect(costOf('/x/test/gorge.test.js')).toBe(124);
+    expect(costOf('/x/test/gorge.test.js')).toBe(109);
     expect(costOf('/x/test/somethingnew.test.js')).toBe(LIGHT_COST);
   });
 });
