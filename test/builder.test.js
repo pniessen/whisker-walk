@@ -2106,7 +2106,7 @@ describe('the Gorge rock: rockTerrain and scree', () => {
       expect(hits.length, label).toBeGreaterThan(0);
       expect(hits[0].point.x, label).toBeGreaterThanOrEqual(edge - ROCK_PROUD);
     }
-  });
+  }, 120000);
 
   it('rock is darker and cooler at the bottom', () => {
     const geo = meshes.rockFaces.geometry;

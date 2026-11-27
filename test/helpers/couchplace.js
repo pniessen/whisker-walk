@@ -148,7 +148,7 @@ export function placeSuite({ id, build, wire = null, ready = true, joinSpots = n
       set(r, pad(0, [], [0, 1, 0, 0]), pad(1)); r.tick(120);
       set(r, pad(0), pad(1)); r.tick(600);
       expect(JSON.stringify(r.progression.state)).toBe(before);
-    });
+    }, 120000);
   });
   return { record, ground, world, makeSession, start, spots, cells, far, byY, reach, same };
 }

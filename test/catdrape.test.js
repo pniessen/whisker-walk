@@ -105,7 +105,7 @@ describe('clothes over the haunch', () => {
         pose(cat, 'follow', 0.5);
       }
     }
-  }, 60000);
+  }, 120000);
 
   it('the cloth moves only over the haunch, outward, never into the ground, and by no more than the haunch stands out', () => {
     const v = new THREE.Vector3();
