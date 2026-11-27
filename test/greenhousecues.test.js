@@ -2,7 +2,7 @@
 // child meets them: the seeds job (offer, five packets, the tray), the watering job (the can, four pots), and six finds (palm, koi, catnip, then the three rooms' orchid, cactus,
 // butterfly). For each: it can be played from the start with no skills and pays what it should; the target is in the plan, in bounds, reachable on foot and not in a collider; there is a
 // cue that points at it, in both word sets with no banned word; the distance is within sight of that cue; and nothing carried is ever saved.
-// What the code has no concept of (a guide ring, arrow or marker: the Greenhouse has none) is written as it.todo with the reason.
+// What the code has no concept of is written as it.todo with the reason (the six finds have no on-ground cue yet; the jobs pay and the guide ring points at the bench and the packets).
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
 import { stubCanvasDocument } from './helpers/canvas.js';
@@ -146,7 +146,41 @@ describe('(a) a scripted playthrough from the spawn, no skills: both jobs and al
     const second = F.noteGreenhouseFind('koi', { log, progression });
     expect(second.points, 'another find ever is its own first').toBe(12);
   });
-  it.todo('the two jobs pay: src/world/greenhouselife.js finishes the seed and watering jobs with a toast only (points 0, repeat false); AWARDS.greenhousejob (25) and the journal pages ghjobseeds / ghjobwater are reserved but never paid or counted');
+  it('the two jobs pay AWARDS.greenhousejob (25) once a walk each and count their journal pages', () => {
+    const { life, log, progression } = rig(0);
+    expect(AWARDS.greenhousejob).toBe(25);
+    const before = progression.state.points;
+    const pays = () => heard.filter((e) => e.type === 'greenhousejob');
+    for (const s of life.state.set) tick(life, standHere(s, L.PICK_R - 0.2));
+    life.promptAt(standHere(P.POTTING.tray, L.TRAY_R - 0.2)); life.interact();
+    expect(pays()).toHaveLength(1);
+    expect(pays()[0]).toMatchObject({ points: 25, repeat: false, label: phrase('greenhouse.seed.sown') });
+    expect(progression.state.journal.ghjobseeds).toBe(1);
+    expect(log.count(L.JOB_KEYS.seeds)).toBe(1);
+    life.promptAt(standHere(P.POTTING.canHome, L.CAN_R - 0.2)); life.interact();
+    for (const i of life.state.thirsty) { life.promptAt(standHere(P.ALL_POT_SPOTS[i], L.POT_R - 0.2)); life.interact(); }
+    expect(pays()).toHaveLength(2);
+    expect(pays()[1]).toMatchObject({ points: 25, label: phrase('greenhouse.water.all') });
+    expect(progression.state.journal.ghjobwater).toBe(1);
+    expect(progression.state.points - before).toBeGreaterThanOrEqual(50);
+    expect(progression.state.journal.ghjobseeds, 'no second count').toBe(1);
+  });
+  it('a resumed walk (the log already holds the job keys) pays and counts nothing twice; a new walk pays again', () => {
+    const { life, log, progression } = rig(0);
+    log.restore([[L.JOB_KEYS.seeds, 1]]);
+    for (const s of life.state.set) tick(life, standHere(s, L.PICK_R - 0.2));
+    life.promptAt(standHere(P.POTTING.tray, L.TRAY_R - 0.2)); life.interact();
+    expect(heard.filter((e) => e.type === 'greenhousejob')).toHaveLength(0);
+    expect(progression.state.journal.ghjobseeds ?? 0).toBe(0);
+    log.startWalk();
+    expect(log.awardOnce('greenhousejob', L.JOB_KEYS.seeds, 'x')).toBe(25);
+  });
+  it('the job lines read the same way in both word sets, and a bare life with no log still toasts', () => {
+    const bare = build(new THREE.Scene()).life({ reducedMotion: false, visits: 0 });
+    for (const s of bare.state.set) bare.update(0.05, 0, standHere(s, L.PICK_R - 0.2), null, { cat: { rotation: { y: 0 } } });
+    bare.promptAt(standHere(P.POTTING.tray, L.TRAY_R - 0.2)); bare.interact();
+    expect(heard.some((e) => e.label === phrase('greenhouse.seed.sown'))).toBe(true);
+  });
 });
 
 // ---- (b) every target in bounds, reachable on foot, not in a collider ----------------------------------------------------------------------------------
@@ -225,8 +259,19 @@ describe('(c) cue coverage: every step has at least one cue (a spoken line, a pr
       for (const c of life.meshes.clouds) expect(c.visible).toBe(true);
     }
   });
-  it.todo('a ring, arrow, glint or marker that points at the next target: the Greenhouse has none (only the bench\'s spoken offer within 10 m and the thirst clouds); the journal hints say what, never where');
-  it.todo('the seed packets and the six finds have no on-ground cue before she is on them (a packet is a small mesh; a find\'s zone is unmarked)');
+  it('a gold ring and a goal line point at the next target, with a written line in both word sets (greenhouseguide.test.js has the rules)', () => {
+    const { life } = rig(0);
+    life.update(0.3, 0, catAt(SPAWN.x, SPAWN.z), null, null);
+    expect(life.guide.ring.visible).toBe(true);
+    expect(life.guide.state.text).toBe(phrase('greenhouse.guide.bench'));
+    life.update(0.3, 0.3, standHere(P.POTTING, L.OFFER_R - 1), null, null);
+    life.update(0.3, 0.6, standHere(P.POTTING, L.OFFER_R - 1), null, null);
+    const next = life.guide.state.goal;
+    expect(next.kind).toBe('packet');
+    expect(life.state.set.some((s) => s.x === next.x && s.z === next.z), 'the ring is on one of this walk\'s packets').toBe(true);
+    expect(life.guide.state.text).toBe('Find the seed packets (0 of 5)');
+  });
+  it.todo('the six finds have no on-ground cue before she is on them (a find\'s zone is unmarked; the packets now have the guide ring)');
 });
 
 // ---- (d) distance and sight --------------------------------------------------------------------------------------------------------------------------
@@ -245,7 +290,14 @@ describe('(d) distance and sight: the spawn (or the previous spot) to each targe
     expect(dist(P.POTTING, P.POTTING.canHome)).toBeLessThan(L.OFFER_R * 0.6); // the can is inside its own offer radius
     expect(dist(P.POTTING, P.POTTING.tray)).toBeLessThan(L.OFFER_R * 0.6);
   });
-  it.todo('no cue reaches from the spawn to the bench: the spawn is ~27 m from the potting bench and the offer line only speaks inside 10 m, so a child who never wanders east is never told about the seeds');
+  it('the ring leads from the spawn to the bench: it stands on the bench and the arrow reads about 25 m', () => {
+    const { life } = rig(0);
+    const cam = { position: new THREE.Vector3(SPAWN.x, 3, SPAWN.z + 3), quaternion: new THREE.Quaternion(), fov: 50, aspect: 1.6 };
+    life.update(0.3, 0, catAt(SPAWN.x, SPAWN.z), cam, null);
+    expect(dist(life.guide.ring.position, P.POTTING)).toBeLessThan(0.01);
+    expect(life.guide.state.arrowOn).toBe(true);
+    expect(life.guide.state.metres).toBe(Math.round(dist(SPAWN, P.POTTING) / 5) * 5);
+  });
 });
 
 // ---- (e) stuck-state sweep ------------------------------------------------------------------------------------------------------------------------
