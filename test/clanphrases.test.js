@@ -19,6 +19,7 @@ import { CRYSTAL_ERRAND_LINES } from '../src/world/crystalerrandwords.js';
 import { LINES as REEF_ERRAND_LINES } from '../src/world/reeferrandwords.js';
 import { LINES as REEF_DEEP_LINES } from '../src/world/reefdeepwords.js';
 import { LINES as REEF_LIFE_LINES } from '../src/world/reeflifewords.js';
+import { LINES as CAVE_LIFE_LINES } from '../src/world/cavelifewords.js';
 import { LINES as MOON_LINES, FLOW_LINES as MOON_FLOW_LINES } from '../src/world/moonwords.js';
 import { LINES as SKILLBADGE_LINES } from '../src/ui/skillbadgewords.js';
 import { LINES as COOP_LINES } from '../src/coop/words.js';
@@ -37,6 +38,7 @@ addPhrases(CRYSTAL_WING_LINES); // (the Crystal Cave's wing B lines, milestone C
 addPhrases(CRYSTAL_ERRAND_LINES); // (and Lumi's errand lines, milestone C7: src/world/crystalerrandwords.js)
 addPhrases(REEF_ERRAND_LINES); // (and Marlo's errand lines, milestone R7: src/world/reeferrandwords.js)
 addPhrases(REEF_LIFE_LINES); // (and the sea life's labels: src/world/reeflifewords.js)
+addPhrases(CAVE_LIFE_LINES); // (and the cave life's labels: src/world/cavelifewords.js)
 addPhrases(REEF_DEEP_LINES); // (and the Deep's soft lines, milestone R8: src/world/reefdeepwords.js)
 addPhrases(COOP_LINES); // couch play's chunk (src/coop/words.js)
 addPhrases(TELE_LINES); // the teleport gates' chunk (src/teleui.js adds its own on import)
