@@ -32,7 +32,7 @@ describe('the prize catalog', () => {
     // (the Fairground's three prizes are flagged `prize` too, and `fair`: test/fairgames.test.js)
     // (the gift outfits are flagged `prize` and `code`: test/giftwearfit.test.js)
     // (the Moon Badge is flagged `prize` and `moon`: test/moonfinds.test.js; the Pirate Bandana `prize` and `reef`: test/reefhunt.test.js)
-    const prizes = Object.keys(CATALOG.accessories).filter((id) => CATALOG.accessories[id].prize && !CATALOG.accessories[id].fair && !CATALOG.accessories[id].find && !CATALOG.accessories[id].code && !CATALOG.accessories[id].moon && !CATALOG.accessories[id].reef && !CATALOG.accessories[id].crystal);
+    const prizes = Object.keys(CATALOG.accessories).filter((id) => CATALOG.accessories[id].prize && !CATALOG.accessories[id].fair && !CATALOG.accessories[id].find && !CATALOG.accessories[id].code && !CATALOG.accessories[id].moon && !CATALOG.accessories[id].reef && !CATALOG.accessories[id].crystal && !CATALOG.accessories[id].snowville);
     expect(prizes.sort()).toEqual([...VISIT_PRIZES].sort());
   });
 
