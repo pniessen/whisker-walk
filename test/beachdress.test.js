@@ -301,6 +301,7 @@ describe('beach dressing', () => {
     let tris = 0;
     scene.traverse((o) => {
       if (!o.isMesh) return;
+      if (o.name === 'seasideSandwork' || o.name === 'seasideStands') return; // the holiday decor has its own budget row (test/budget.test.js)
       meshes++;
       const g = o.geometry;
       tris += (g.index ? g.index.count : g.attributes.position.count) / 3;

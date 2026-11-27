@@ -9,6 +9,8 @@ import { tintGround } from './dressing.js';
 import { propsFor } from '../propsets.js';
 import { sandTint, dressBeach, KERB_COL } from './beachdress.js';
 import { wetness } from './seasidewet.js';
+import { dressSeasideLife } from './seasidedecor.js';
+import { createSeasideLife } from './seasidelife.js';
 
 export { wetness } from './seasidewet.js';
 
@@ -864,6 +866,10 @@ export function build(scene, { water = {}, wind } = {}) {
   // The painted beach (beachdress.js): looks only, built from the record
   // it is about to return so its keep-outs are the real ones.
   dressBeach(scene, area, { ground: g });
+  // The bathers' towels, the sand castles, the vendors' stands and the gulls' posts; the people and the gulls
+  // themselves are the walk's life (seasidelife.js, areaData.life), the one thing that moves.
+  dressSeasideLife(scene, { sandTint: SAND_DUSK_TINT, standTint: HUT_DUSK_TINT });
+  area.life = (ctx) => createSeasideLife(ctx);
   // polish-sheen: the paint lying on the sand (shade, towel, moats, ripples)
   // darkens with it at dusk, or it glows as a pale patch on the darker beach
   const paint = scene.getObjectByName?.('beachPaint');

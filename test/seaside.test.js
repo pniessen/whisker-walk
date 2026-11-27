@@ -303,7 +303,7 @@ describe('Seaside — the dunes’ edge and the boardwalk’s end', () => {
       const g = o.geometry;
       tris += (g.index ? g.index.count : g.attributes.position.count) / 3;
     });
-    expect(tris).toBeLessThanOrEqual(30000);
+    expect(tris).toBeLessThanOrEqual(34900); // 30000 until seaside-life's holiday decor (test/budget.test.js)
     expect(meshes).toBeLessThanOrEqual(85);
   });
 
