@@ -8,7 +8,7 @@ import { addPhrases } from '../clanphrases.js';
 import * as K from './moonparts.js';
 import { ST, stageReady, stageEvent, HELD, STAGE_ORDER } from './moonstages.js';
 import { createFader, materialsOf } from './moonfade.js';
-import { REGIONS, ringFor, nearRegion } from './moonregions.js';
+import { REGIONS, ringFor, nearRegion, WAIT_NEAR } from './moonregions.js';
 import { IDLE, idleStart, nextIdleRing, idlePaused, progressMark } from './moonidle.js';
 
 export { createFader };
@@ -28,7 +28,7 @@ async function fetchStage(id, imports) {
 }
 /** Fetches the stages not yet in, in STAGE_ORDER, all at once (so on a normal connection nothing is ever seen arriving); the same promise every time. */
 export function startMoonStages({ imports = IMPORTS } = {}) {
-  started ??= Promise.all(STAGE_ORDER.filter((id) => !stageReady(id)).map((id) => fetchStage(id, imports))).then(() => Promise.resolve(imports.station?.()).catch(() => null)).then(() => ST); // the Old Relay Station (wing E) comes last: no ring, no stand-in, its slot reads null until it is in
+  started ??= Promise.all(STAGE_ORDER.filter((id) => !stageReady(id)).map((id) => fetchStage(id, imports))).then(() => (imports.station ? fetchStage('station', imports) : null)).then(() => ST); // the Old Relay Station (wing E) comes last (its own closed-off disc and arrival: stationBegin, applyStation below; its relay, sled and riding slots read null until it is in)
   return started;
 }
 /** Test hook: lets a held stage in and says so. */
@@ -51,10 +51,48 @@ export function openRegion(id, L) {
   L.rings.delete(id);
 }
 /** waiting(L, catPos): a friendly line, once for each shut place a cat reaches (the same line for one still arriving and one that did not come). */
-export function waiting(L, catPos) {
+export function waiting(L, catPos, dt = 0, t = 0) {
+  const w = L.st; // the Old Relay Station: its fade, its blink and its zone, and the same line near its closed-off disc
+  if (w) {
+    w.fader?.update(dt);
+    w.live?.update(dt, t, catPos);
+    if (!w.live && catPos && !w.said && nearRegion(catPos.x, catPos.z, ['s'], WAIT_NEAR, { s: [STATION_GATE] })) { w.said = true; L.base.notice('station'); }
+  }
   if (!L.closed.size || !catPos) return;
   const id = nearRegion(catPos.x, catPos.z, [...L.closed]);
   if (id && !L.said.has(id)) { L.said.add(id); L.base.notice(id); }
+}
+
+// ---- the Old Relay Station (wing E, milestone M1): not one of the three landing stages (no stand-in life, no part of the job's "all three"); its place is shut by a ring until it is in ----
+const STATION_GATE = Object.freeze({ x: 44, z: 36, r: 8.2 }); // equals world/moonstationplan.js GATE (the plan is in the stage, which is not in yet)
+/** stationBegin(L): called by the life when this file is in. In (a later walk): drawn at once. Not in: its place is shut and (outside tests) the fetch is started. */
+export function stationBegin(L) {
+  if (!L.stages || L.st) return;
+  L.st = { rings: [], said: false, fader: null, live: null };
+  if (stageReady('station')) { applyStation(L); return; }
+  L.st.rings = ringFor(STATION_GATE).map((c) => ({ ...c, station: true })); // (marked: the three landing stages' rings are counted without these)
+  for (const c of L.st.rings) L.colliders.push(c);
+  if (!import.meta.env?.VITEST) startMoonStages(); // (a test calls arrive() itself)
+}
+/** applyStation(L): the stage is in: the ring comes out and the station goes up (fading in; at once in reduced motion). */
+export function applyStation(L) {
+  const w = L.st;
+  if (!w || w.live || !ST.createStationLive) return;
+  for (const c of w.rings) { const i = L.colliders.indexOf(c); if (i >= 0) L.colliders.splice(i, 1); }
+  w.rings = [];
+  const known = materialsOf(L.scene);
+  w.live = ST.createStationLive({ scene: L.scene, reducedMotion: L.reducedMotion, tier: L.tier, colliders: L.colliders, perches: L.perches, spot: L.spot });
+  if (!L.reducedMotion) { w.fader = createFader({ reducedMotion: false }); w.fader.add([w.live.group], known); }
+  L.base.refresh?.();
+}
+/** stationEnd(L): the walk is over: the fade is finished, the station taken down, its ring out. */
+export function stationEnd(L) {
+  const w = L.st;
+  if (!w) return;
+  w.fader?.flush();
+  w.live?.dispose();
+  for (const c of w.rings) { const i = L.colliders.indexOf(c); if (i >= 0) L.colliders.splice(i, 1); }
+  L.st = null;
 }
 
 /** drawLate(id, env) -> the group of what stage `id` brings (not yet in the scene). env: { B, wingOpts, decor } from build(). */
@@ -91,6 +129,7 @@ export function drawLate(id, { B, wingOpts, decor }) {
 /** applyStage(id, L): stage `id` is in. L is the life's own: { scene, stages, closed, slots, spottable, fader, mk, open, base, deep }. */
 export function applyStage(id, L) {
   const { scene, slots, mk } = L;
+  if (id === 'station') { applyStation(L); return; }
   if (!L.closed.has(id)) return;
   const known = materialsOf(scene);
   const group = drawLate(id, L.stages.env);

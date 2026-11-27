@@ -18,6 +18,7 @@ export const MOON_STATION_LINES = Object.freeze({
   'moon.ws.relay.hint': HINTS.mnrelay,
   'moon.ws.sled.hint': HINTS.mnsled,
   'moon.ws.lap.hint': HINTS.mnlap,
+  'moon.ws.station.photo': 'the Old Relay Station', // the photo and journal subject's label (milestone M1)
 });
 
 Object.assign(MOON_HINTS, HINTS);
