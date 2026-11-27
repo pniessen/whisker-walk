@@ -238,7 +238,7 @@ describe('the pack', () => {
     expect(area.scenics).toHaveLength(5); // three, and the Deep's boat and cave (R8)
     for (const key of ['perches', 'tippables', 'boxes', 'critterSpawns', 'moments', 'puddles']) expect(area[key], key).toEqual([]);
     let meshes = 0; scene.traverse((o) => { if (o.isMesh) meshes++; });
-    expect(meshes).toBeLessThanOrEqual(7); // R1's five, plus R3's finds marker mesh and bubble-column mesh (two merged meshes)
+    expect(meshes).toBeLessThanOrEqual(9); // R1's five, plus R3's finds marker mesh and bubble-column mesh (two merged meshes), plus the seabed decor's two (tufts, decor)
     const goals = createGoals(() => 0.5, area).goals;
     expect(goals).toHaveLength(3);
     for (const g of goals) expect(area.goalTypes).toContain(g.type);
@@ -246,7 +246,7 @@ describe('the pack', () => {
   it('the Reef\'s files import no other place (the chunk stays small); the dive suit is the shared lazy kit', () => {
     const src = read('src/world/reef.js');
     const imports = [...src.matchAll(/^import .*?from '(.+?)';/gm)].map((x) => x[1]);
-    expect(imports.sort()).toEqual(['../cat/suitkit.js', './builder.js', './localuuids.js', './reefparts.js', './reefplan.js', './reefstorylife.js', './reefmarlo.js', './reefstory.js', './reeffinds.js', './reeffindparts.js', './reeffindsplan.js', './reefwingparts.js', './reefdeepparts.js', './reefdeeplife.js', './reefguidelive.js'].sort());
+    expect(imports.sort()).toEqual(['../cat/suitkit.js', './builder.js', './localuuids.js', './reefparts.js', './reefplan.js', './reefstorylife.js', './reefmarlo.js', './reefstory.js', './reeffinds.js', './reeffindparts.js', './reeffindsplan.js', './reefwingparts.js', './reefdeepparts.js', './reefdeeplife.js', './reefguidelive.js', './reefdecorparts.js'].sort());
     expect(src).toMatch(/import '\.\/reefwords\.js'/);
     for (const f of globSync('src/world/reef*.js')) {
       for (const [, spec] of read(f).matchAll(/^import .*?from '(.+?)';/gm)) expect(spec, `${f} imports ${spec}`).not.toMatch(/(moon|greenhouse|seaside|park|docks)/);

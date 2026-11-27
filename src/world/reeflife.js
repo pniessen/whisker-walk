@@ -55,6 +55,10 @@ export function createReefLife({ scene, reducedMotion = false, tier, visits = 0,
   const sound = createReefSound({ audio }); // (R4) the hum and the bubbles' blips; nothing asked of the context while muted
   const kelp = scene.getObjectByName('reef:kelp');
   const kelpTime = kelp?.material?.userData?.kelpTime ?? null;
+  const tufts = scene.getObjectByName('reef:tufts'); // seabed decor: the lower rungs draw only the first half of everything
+  const decor = scene.getObjectByName('reef:decor');
+  if (lowTier && tufts) tufts.count = tufts.userData.baseCount;
+  if (lowTier && decor) decor.geometry.setDrawRange(0, decor.userData.baseVerts);
   const air = createAir({ firstVisit: !visits });
   const gauge = mountGauge(doc);
   let lineLeft = 0;

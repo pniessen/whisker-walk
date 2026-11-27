@@ -21,6 +21,7 @@ import { drawFindMarks, drawBubbleColumns } from './reeffindparts.js';
 import { drawCave, drawLanternStalks, drawWingClumps, drawSpires } from './reefwingparts.js';
 import { REEF_SCENICS } from './reeffindsplan.js';
 import { drawDeep } from './reefdeepparts.js';
+import { drawTufts, drawDecor } from './reefdecorparts.js';
 import { createReefDeepLife } from './reefdeeplife.js';
 import { createReefGuideLive } from './reefguidelive.js';
 import './reefwords.js';
@@ -52,7 +53,10 @@ export function build(scene) {
     drawWingClumps(kit, M);
     drawDeep(kit, M); // wing C (R8): the Sunken Boat, the Old Anchor and the Glow Cave, into the same two buckets
     for (const m of kit.meshes()) scene.add(m);
-    scene.add(K.drawKelp());
+    const kelp = K.drawKelp();
+    scene.add(kelp);
+    scene.add(drawTufts(kelp.material.userData.kelpTime)); // seabed decor: seagrass and anemone tufts, one InstancedMesh on the kelp's own sway
+    scene.add(drawDecor(M)); // seabed decor: fans, heads, sponges, arches, urchins, stars, shells, pebbles, rock piles, driftwood and ripples, one merged mesh
     scene.add(drawSpires()); // the tall coral spires: one InstancedMesh (R5)
     for (const m of drawFindMarks()) scene.add(m); // the oyster, the seahorse and the chest (milestone R3)
     scene.add(drawBubbleColumns()); // the two floating golden mice's columns

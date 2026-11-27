@@ -536,7 +536,10 @@ const AREAS = [
   // every kelp blade and spire instance), +12%: 8 / 2 / 16,700. The plan's wing C figures were about 150 / 80 / 36,000: far under them on every count.
   // Beauty round 2 (2026-11-26: 70 strewn pebbles and shells, eight triangles each, in the existing 'paint' bucket) measured 7 / 1 / 15,405 built (+560), +12%: 8 / 2 / 17,200.
   // Beauty rounds 5-6 (2026-11-26): coral buds and rims, seagrass, starfish and urchins; measured 7 / 1 / 17,828, +12%: 8 / 2 / 20,000.
-  ['reef', buildReef, 8, 2, 20000],
+  // Seabed decor (2026-11-26: seagrass and anemone tufts as ONE InstancedMesh on the kelp's sway, and every still piece, about 700 sea fans, coral heads, sponge tubes, arches,
+  // urchins, starfish, shells, sand dollars, pebbles, rock piles, driftwood and ripples, as ONE merged non-casting mesh; the sand's patches are vertex colour) measured 9 / 2 / 29,568
+  // built (+2 meshes, +11,740 triangles; no caster more), +12%: 10 / 2 / 33,100.
+  ['reef', buildReef, 10, 2, 33100],
   // The Crystal Cave. Milestone C0 (2026-11-26, the seams) is a stub floor: the 100 m ground plane alone, 1 / 0 / 5,408 like the Reef's stub, +12%: 2 / 1 / 6,100.
   // Milestone C1 (2026-11-26, the cave world: the stone floor in one vertex-coloured mesh, the dome as one inside-only lathe, the stalactites as ONE InstancedMesh, the
   // arch, rim rocks and pebbles in the paint bucket, the arch's door of light, one merged glow mesh per crystal hue; the pulse, the glints and the fog are the walk's life,

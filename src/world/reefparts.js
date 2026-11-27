@@ -15,6 +15,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { litMaterial } from '../render/materials.js';
 import { mulberry32 } from '../rng.js';
 import * as P from './reefplan.js';
+import { sandPatch } from './reefdecor.js';
 
 // beauty round 4: the rocks are not all one grey: mossy, blue, warm and plain stones to pick from by index
 export const STONES = Object.freeze([0x8fa3a0, 0x8da59a, 0x93a1ad, 0xa0a496, 0x86a0a4]);
@@ -78,13 +79,16 @@ export function groundGeometry() {
       const net = Math.max(0, 1 - Math.abs(Math.sin(x * 0.55 + Math.sin(z * 0.4) * 1.6) + Math.sin(z * 0.5 + Math.sin(x * 0.45 + 1) * 1.6)) / 0.5);
       const tone = P.rippleTone(x, z) * (1 + 0.1 * net * net) * (1 - 0.08 * drift);
       const settle = 1 - 0.4 * settleAt(x, z);
+      // seabed decor: silty darker patches (under the seagrass beds and a few out in the open) and paler swept ones, a soft blob each
+      const sp = sandPatch(x, z);
+      const patch = 1 - 0.2 * sp.dark + 0.07 * sp.pale;
       // round 3: the Deep's sand is its own: cooler and a touch darker with silt patches and pale cream swept round the boat's bow and the cave's mouth
       const dd = Math.hypot(x + 34, z + 33) / 15;
       const dw = dd < 1 ? (1 - dd * dd) ** 2 : 0;
       const silt = 0.5 + 0.5 * Math.sin(x * 0.37 + Math.sin(z * 0.23) * 2.1) * Math.sin(z * 0.31 - 0.8 + Math.cos(x * 0.2));
       const swept = Math.max(0, 1 - Math.hypot(x + 38.8, z + 37) / 3.2) + Math.max(0, 1 - Math.hypot(x + 28, z + 33.5) / 2.6);
       const dk = 1 - dw * (0.1 + 0.14 * silt * silt) + 0.1 * Math.min(1, swept);
-      col[k * 3] = _c.r * tone * settle * (1 + 0.1 * drift) * dk * (1 - 0.1 * dw); col[k * 3 + 1] = _c.g * tone * settle * dk * (1 + 0.02 * dw); col[k * 3 + 2] = _c.b * tone * settle * (1 - 0.1 * drift) * (1 + 0.04 * (1 - settle) * 5) * dk * (1 + 0.1 * dw);
+      col[k * 3] = patch * (1 + 0.02 * sp.dark) * _c.r * tone * settle * (1 + 0.1 * drift) * dk * (1 - 0.1 * dw); col[k * 3 + 1] = patch * _c.g * tone * settle * dk * (1 + 0.02 * dw); col[k * 3 + 2] = patch * (1 + 0.02 * sp.dark) * _c.b * tone * settle * (1 - 0.1 * drift) * (1 + 0.04 * (1 - settle) * 5) * dk * (1 + 0.1 * dw);
     }
   }
   for (let j = 0; j < nz - 1; j++) {
@@ -320,9 +324,8 @@ export function bladeGeometry() {
 export const SWAY = Object.freeze({ amp: 0.4, speed: 0.9, rest: 0.5 });
 // The kelp's material: lit, vertex-coloured, two-sided, its sway a time uniform (kelp.time.value) the life advances. At time 0 the blades stand at rest
 // (a little bent: SWAY.rest of the way), which is also what reduced motion shows.
-export function kelpMaterial() {
+export function kelpMaterial(time = { value: 0 }) {
   const mat = litMaterial(0xffffff, { vertexColors: true, roughness: 0.8, side: THREE.DoubleSide });
-  const time = { value: 0 };
   mat.userData.kelpTime = time;
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uReefT = time;
