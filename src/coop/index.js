@@ -20,6 +20,8 @@ import { bandFactor, createFollow, edgeMarker, createToastQueue, FOLLOW_STOP } f
 import { createCoopHud } from './hud.js';
 import { createCards } from './cards.js';
 import { createFinds } from './finds.js';
+import { createFights } from './fights.js';
+import { createGroom, createTag, GROOM_CALM_S, GROOM_NEAR } from './verbs.js';
 import { bus } from '../events.js';
 import { pickSecond, profileOf, createMover, SECOND_ID } from './second.js';
 import './words.js';
@@ -79,6 +81,9 @@ function stop(pos, was, other, limit) {
   if (excess > 0) { pos.x -= ux * excess; pos.z -= uz * excess; }
 }
 
+// The fight's new poses as the states every cat draws (src/fightactions.js WIRE_POSE: a test pins the two alike; that file is not start-up, so it is not imported here).
+export const WIRE_POSE = Object.freeze({ arch: 'cross', rearUp: 'swipe', flinch: 'scared', pinned: 'scared', pinning: 'stalk', roll: 'pounce' });
+
 const SETTINGS_KEY = 'whisker-walk-coop'; // couch settings, per device (like the TV switch), never the save
 /** Couch settings from this device: { follow, outfit } (follow when idle, on unless switched off; cat two's saved outfit by index, -1 plain, else the first one cat one is not wearing). */
 export function readSettings(storage) {
@@ -101,7 +106,7 @@ function ahead(p, v) {
  */
 export function start(ctx) {
   const state = {
-    pads: 0, ready: false, couch: false, joined: false, following: [false, false], seats: [null, null], second: null, yaw: 0, level: 0, apart: 0, leash: 0, tight: false,
+    pads: 0, ready: false, couch: false, joined: false, following: [false, false], seats: [null, null], owner: 0, second: null, yaw: 0, level: 0, apart: 0, leash: 0, tight: false,
   };
   const hub = createPadHub();
   const heading = createHeading();
@@ -124,6 +129,10 @@ export function start(ctx) {
     },
   });
   const profile = ctx.profile ?? getProfile;
+  const fights = createFights({ ctx }); // one fight at a time; the challenger's pad drives (src/coop/fights.js)
+  let fightSaid = false; // the line for the fight on screen was said
+  const groom = createGroom(), tagGame = createTag();
+  const air = [false, false]; // each cat was in the air last frame (a landing beside the friend is a tag)
 
   let cur = null; // the session this chunk is working in
   let mover = null; // { player, body }
@@ -145,7 +154,8 @@ export function start(ctx) {
   let tight = false; // the camera could not frame both cats last frame
   const settings = readSettings(ctx.storage ?? globalThis.localStorage);
   const follow = settings.follow; // the Settings switch for follow-when-idle
-  let menuOwner = 0; // the slot whose pad moves the pause card's focus
+  let menuOwner = 0; // the slot whose pad opened the menu: its pad moves the focus and answers every card
+  let carry = false; // cat two came along when the walk changed place: it is brought into the next ready place
   let dismissed = false; // "Wait for it" was chosen for the card on screen
   let heldOne = false, heldTwo = false; // a stick held through a turn keeps its world direction
   let padKindNow = 'ps';
@@ -169,11 +179,20 @@ export function start(ctx) {
   };
   const nameTwo = () => pick?.name ?? '';
 
-  function leave(toast) {
+  /** The slot whose pad owns the menus now: the one that opened them, or the other when that one's pad is away. */
+  function ownerSlot() {
+    const ok = (i) => !!state.seats[i] && !state.seats[i].lost;
+    return ok(menuOwner) || !ok(1 - menuOwner) ? menuOwner : 1 - menuOwner;
+  }
+
+  function leave(toast, keep = false) {
+    if (!keep) carry = false;
     if (!state.joined) return;
     const s = cur;
     release();
     if (finds && mover && s) finds.letGo(s, mover.body);
+    fights.detach(); fightSaid = false;
+    groom.cancel(); tagGame.reset(); air[0] = air[1] = false; own[0] = null;
     finds = null; offBus?.(); offBus = null; own[1] = null;
     if (mover) { mover.player.setTouchMove(null); mover.player.disable(); }
     mover = null;
@@ -203,6 +222,8 @@ export function start(ctx) {
 
   function switchSession(next) {
     sayTally();
+    fights.detach(); fightSaid = false;
+    groom.cancel(); tagGame.reset(); air[0] = air[1] = false; own[0] = null;
     if (state.joined) { // its scene is being thrown away: nothing of the old walk is touched
       finds = null; offBus?.(); offBus = null; own[1] = null;
       mover?.player.disable();
@@ -210,12 +231,26 @@ export function start(ctx) {
       state.joined = false; state.second = null;
       heldOne = heldTwo = false;
     }
-    hub.reset();
+    if (!carry) hub.reset(); // a walk that goes on in the next place keeps the pads' seats
     cards?.hideJoin();
     cards?.hideLost();
     cur = next;
     menuOwner = 0;
     dismissed = false;
+  }
+
+  /** Where cat two stands beside cat one: to its right when that is clear, else the nearest clear ring spot round it. */
+  function spotBeside(s, p) {
+    const right = { x: p.x + Math.cos(heading.target) * START_APART, z: p.z - Math.sin(heading.target) * START_APART };
+    if (isWalkableAt(s.areaData, right.x, right.z)) return right;
+    for (const radius of [START_APART, 2.4, 3.2]) {
+      for (let i = 0; i < 8; i++) {
+        const a = heading.target + (i * Math.PI) / 4;
+        const x = p.x + Math.sin(a) * radius, z = p.z + Math.cos(a) * radius;
+        if (isWalkableAt(s.areaData, x, z)) return { x, z };
+      }
+    }
+    return right;
   }
 
   function join() {
@@ -227,9 +262,8 @@ export function start(ctx) {
     const yaw0 = ctx.player.viewYaw();
     heading.yaw = yaw0;
     heading.square(yaw0);
-    const right = { x: Math.cos(heading.target), z: -Math.sin(heading.target) };
     const p = s.cat.position;
-    const at = { x: p.x + right.x * START_APART, z: p.z + right.z * START_APART, yaw: s.cat.rotation.y };
+    const at = { ...spotBeside(s, p), yaw: s.cat.rotation.y };
     mover = createMover({ ground: s.ground, state: st, pick, at, reducedMotion: !!s.reducedMotion });
     markers = createMarkers(s.scene);
     if (!s.cat.userData.ownTag) { // cat one's name, so both cats read
@@ -252,10 +286,12 @@ export function start(ctx) {
       // cat one's finds are the walk's own awards: counted here, so the summary says who found what
       offBus = bus.on('discovery', (e) => { if (finds && !finds.busy && isFind(e)) tally[0]++; });
     }
+    fights.attach(s, { drawn: () => cur?.remotes?.list.find((e) => e.playerId === SECOND_ID)?.group, key: () => pick?.key, joined: () => state.joined && !!mover });
     cards?.hideTally(); tallyLeft = 0;
     idle = 0; level = ctx.player.cameraZoomLevel ?? 1; pull = 1;
     prev.a.set(p.x, p.z); prev.b.set(at.x, at.z);
     state.joined = true;
+    carry = true;
     state.second = { key: pick.key, name: pick.name };
     toasts.push({ slot: 1, one: phrase('coop.joined', nameTwo()), found: false });
   }
@@ -272,10 +308,11 @@ export function start(ctx) {
     else if (ev.type === 'lost') { if (state.joined) { dismissed = false; if (engaged) ctx.act?.('pause'); } }
     else if (ev.type === 'back') dismissed = false;
     else if (ev.type === 'hop') { if (state.joined && engaged) hopFriend(ev.slot); }
-    else if (ev.type === 'turn') { if (state.joined && engaged) turn(ev.dir); }
+    else if (ev.type === 'groom') { if (state.joined && engaged && !fights.on && mover) groom.start(state.apart, calm()); }
+    else if (ev.type === 'turn') { if (state.joined && engaged && !fights.on) turn(ev.dir); }
     else if (ev.type === 'start') {
       if (engaged) { menuOwner = ev.slot; if (ev.slot === 1) ctx.act?.('pause'); } // pad one's own Start is the walk's
-      else if (ctx.canResume?.()) ctx.resume?.();
+      else if (ev.slot === ownerSlot() && ctx.canResume?.()) ctx.resume?.(); // the owner pad only: the other pad's Start does nothing in a menu
     }
   }
 
@@ -371,8 +408,9 @@ export function start(ctx) {
     if (!ctx.player) return;
     const live = state.couch && state.ready;
     if (!live) {
-      if (state.joined) leave(false);
-      hub.reset();
+      if (state.joined) leave(false, state.couch); // a place that is not ready yet: cat two waits, and is brought back to the next ready one
+      if (!state.couch) carry = false;
+      if (!carry) hub.reset();
       cards?.hideLost();
       hud?.hideAll();
       joinPill(pads, !!ctx.player.engaged, state.couch);
@@ -380,14 +418,20 @@ export function start(ctx) {
     }
     const engaged = !!ctx.player.engaged;
     if (engaged) menuOwner = 0;
-    const playing = engaged && !s.cameraMode;
+    const fightOn = state.joined && fights.on; // a fight sheet is up: the challenger's pad plays it, the other cat sits
+    const playing = engaged && !s.cameraMode && !fightOn;
     const { events, two: pad2 } = hub.step(pads, { joinOpen: engaged && !state.joined && !!hub.seats()[0] && !hub.seats()[0].lost, engaged: playing, dt });
     for (const ev of events) onEvent(ev, engaged);
     state.seats = hub.seats();
+    if (carry && !state.joined && playing) { // the walk moved to a new place: cat two arrives beside cat one
+      if (!state.seats[1]) carry = false;
+      else if (!state.seats[1].lost && state.seats[0] && !state.seats[0].lost) join();
+    }
     if (state.joined && mover) {
       if (pad2) {
         if (pad2.move !== undefined) mover.player.setTouchMove(pad2.move);
         for (const a of pad2.actions) {
+          if ((a === 'interact' || a === 'meow') && fights.answer(a)) continue; // the pill is cat two's: its Square and Circle answer it
           if (a === 'pounce') hop();
           else if (a === 'meow') { ctx.voice?.(1.26); finds?.meow(cur, mover.body); }
           else if (a === 'interact') interact();
@@ -415,8 +459,11 @@ export function start(ctx) {
     const p0 = hub.padOf(0, pads);
     const p1 = hub.padOf(1, pads);
     const live2 = !!ctx.player.engaged; // a pause pressed just now counts
-    const owner = !live2 && (menuOwner === 1 || (state.seats[0]?.lost)) && p1 ? p1 : p0;
-    coop.pad = owner ? padForWalk(owner, live2 && state.joined) : null;
+    const own0 = ownerSlot();
+    state.owner = own0;
+    const owner = !live2 && own0 === 1 && p1 ? p1 : p0;
+    const walkPad = owner ? padForWalk(owner, live2 && state.joined) : null;
+    coop.pad = state.joined ? fights.padFor(p0, p1, walkPad) : walkPad; // while a fight sheet is up the challenger's pad is the one read
     if (owner) padKindNow = padKind(owner.id);
     if (p0) kinds[0] = padKind(p0.id);
     if (p1) kinds[1] = padKind(p1.id);
@@ -424,11 +471,64 @@ export function start(ctx) {
     joinPill(pads, live2, true);
   };
 
+  // Both cats have stood still a moment: the time for a groom.
+  const calm = () => idle >= GROOM_CALM_S && (cur?.idleTime ?? 0) >= GROOM_CALM_S && !ctx.player.inputActive && !mover?.player.inputActive;
+
+  // Grooming and tag, every frame the second cat is in the walk (src/coop/verbs.js).
+  function verbs(s, dt) {
+    const names = [nameOne(), nameTwo()];
+    tagGame.tick(dt);
+    const hopping = [ctx.player.hopY > 0.01, mover.player.hopY > 0.01];
+    for (let i = 0; i < 2; i++) {
+      if (air[i] && !hopping[i]) { // landed: beside the friend is a tag
+        const r = tagGame.land(i, state.apart);
+        if (r === 'start') toasts.push({ slot: i, one: phrase('coop.tagstart', names[i], names[1 - i]), found: false });
+        else if (r === 'done') {
+          const line = phrase('coop.tagdone', names[0], names[1]);
+          ctx.log?.awardOnce('tag', 'tag-couch', line);
+          s.fx?.burst?.(s.cat.position, 0xffd166, 10);
+          toasts.push({ slot: i, one: line, found: false });
+        }
+      }
+      air[i] = hopping[i];
+    }
+    if (fights.on) groom.cancel();
+    if (groom.active) { // both cats groom: the walk's own idle ladder, held at its groom rung
+      idle = GROOM_AT + 0.2;
+      s.idleTime = GROOM_AT + 0.2;
+    }
+    const g = groom.step(dt, { apart: state.apart, moving: ctx.player.inputActive || mover.player.inputActive || hopping[0] || hopping[1] });
+    if (g.done) {
+      const line = phrase('coop.groomed', names[0], names[1]);
+      ctx.log?.awardOnce('groom', 'groom-couch', line);
+      s.fx?.burst?.(s.cat.position, 0xd8b4e2, 8);
+      toasts.push({ slot: 0, one: line, found: false });
+    }
+  }
+
+  // The fight sheet came up: one line says who fights and who cheers.
+  function announceFight(s) {
+    if (!fights.on) { fightSaid = false; return; }
+    if (fightSaid) return;
+    fightSaid = true;
+    const f = fights.fighter, names = [nameOne(), nameTwo()];
+    toasts.push({ slot: f, one: phrase('coop.fightstart', names[f], names[1 - f]), found: false });
+  }
+
   // After the walk's own interactions: what cat two reaches, finds and smells, and the finds' prompt.
   coop.late = (dt) => {
     const s = cur;
-    if (!state.joined || !mover || !s || !finds) return;
+    if (!state.joined || !mover || !s) return;
     const body = mover.body;
+    announceFight(s);
+    if (fights.twoFights) { // the fight wrote cat two's picture: its body follows, and cat one sits and cheers
+      const g = s.remotes.list.find((e) => e.playerId === SECOND_ID)?.group;
+      if (g) { body.position.x = g.position.x; body.position.z = g.position.z; body.rotation.y = g.rotation.y; }
+      s.idleTime = SIT_AT + 0.5;
+    }
+    const near = !fights.showing && !groom.active && state.apart <= GROOM_NEAR && calm();
+    own[0] = near && !s.prompt ? phrase('coop.groomhint', nameTwo()) : null; // cat one's own prompt wins
+    if (!finds) { own[1] = near ? phrase('coop.groomhint', nameOne()) : null; return; }
     hopT = Math.max(0, hopT - dt);
     const reveal = (PERSONALITIES[pick?.breed]?.special === 'keenNose' ? 14 : 7);
     for (const [id, m] of s.collectibleMeshes) { // a find lying near cat two shows, as it does near cat one
@@ -439,7 +539,7 @@ export function start(ctx) {
     finds.frame(dt, s, mover, body, hopT > 0 || mover.player.hopY > 0.01);
     const r = finds.reach(s, mover, body);
     const text = !r ? null : r.kind === 'collect' ? phrase('coop.pick', r.label) : r.kind === 'carry' ? phrase('coop.carry', r.label) : r.kind === 'drop' ? phrase('coop.drop', r.label) : r.kind === 'dig' ? phrase('coop.dig') : null;
-    own[1] = text;
+    own[1] = text ?? (near ? phrase('coop.groomhint', nameOne()) : null);
   };
 
   // After cat one's player.update: cat two's step, the leash, the picture of both.
@@ -448,7 +548,9 @@ export function start(ctx) {
     if (!state.joined || !mover || !s) return;
     const cat = s.cat;
     const area = s.areaData;
-    mover.player.update(dt, area.colliders, area.bounds, area.waters, s.fair?.show?.bumps ?? s.critters?.bumps);
+    const fightAny = fights.on, fightTwo = fights.twoFights;
+    if (fightTwo) ctx.player.halt?.(); // cat one watches: the fight is cat two's
+    else mover.player.update(dt, area.colliders, area.bounds, area.waters, s.fair?.show?.bumps ?? s.critters?.bumps);
     const body = mover.body;
     lens.fov = ctx.camera.fov;
     lens.aspect = ctx.camera.aspect;
@@ -462,13 +564,16 @@ export function start(ctx) {
     const wide = maxSeparation(lens, top) * LEASH_MARGIN;
     const limit = tight ? Math.min(wide, Math.max(state.apart, 2)) : wide;
     state.leash = limit;
-    stop(cat.position, prev.a, prev.b, limit);
-    stop(body.position, prev.b, prev.a, limit);
+    if (!fightAny) { // a fight puts the fighter where it stands and the other cat sits: no leash then
+      stop(cat.position, prev.a, prev.b, limit);
+      stop(body.position, prev.b, prev.a, limit);
+    }
     vel.a.set((cat.position.x - prev.a.x) / Math.max(dt, 1e-3), (cat.position.z - prev.a.y) / Math.max(dt, 1e-3));
     vel.b.set((body.position.x - prev.b.x) / Math.max(dt, 1e-3), (body.position.z - prev.b.y) / Math.max(dt, 1e-3));
     prev.a.set(cat.position.x, cat.position.z);
     prev.b.set(body.position.x, body.position.z);
     state.apart = Math.hypot(cat.position.x - body.position.x, cat.position.z - body.position.z);
+    verbs(s, dt);
     // Pushing on at the stretch of the band: this cat's own hint says how to hop to the friend.
     const pushing = [ctx.player.inputActive && !trotting[0], mover.player.inputActive && !trotting[1]];
     for (let i = 0; i < 2; i++) {
@@ -481,7 +586,8 @@ export function start(ctx) {
     // Cat two, drawn: where its walker stands, how it stands.
     const gy = s.ground.y(body.position.x, body.position.z);
     const speed = mover.player.speed;
-    if (speed > 0.3 || mover.player.inputActive || mover.player.hopY > 0.01) idle = 0; else idle += dt;
+    if (fightAny && !fightTwo) idle = SIT_AT + 0.5; // cat two sits and cheers
+    else if (speed > 0.3 || mover.player.inputActive || mover.player.hopY > 0.01) idle = 0; else idle += dt;
     msg.pos[0] = body.position.x; msg.pos[1] = body.position.z;
     msg.yaw = body.rotation.y;
     msg.speed = speed;
@@ -489,6 +595,10 @@ export function start(ctx) {
     msg.pose = mover.player.hopY > 0.01 ? 'pounce'
       : speed > 0.3 ? (mover.player.stalking ? 'stalk' : 'follow')
         : idle > NAP_AT ? 'nap' : idle > SIT_AT ? 'requestPet' : idle > GROOM_AT ? 'groom' : 'follow';
+    if (fightTwo) { // the fight's pose, lift and pace, on cat two's picture
+      const st = fights.stage;
+      msg.pose = WIRE_POSE[st?.fightPose] ?? (st?.fightPose || 'follow'); msg.h = st?.fightLift ?? 0; msg.speed = st?.fightGait ?? 0;
+    }
     s.remotes.applyState(msg, nowSec());
 
     // The marks under the two cats.
@@ -535,6 +645,7 @@ export function start(ctx) {
     state,
     hub,
     ctx,
+    fights,
     /** A find by cat `slot` (0 or 1): a toast with the finder's chip; two cats finding the same `key` within 1.5 s fold into "You both found". */
     found(slot, what, key = null) {
       toasts.push({ key, slot, one: phrase('coop.found', slot ? nameTwo() : nameOne(), what), both: phrase('coop.foundboth', what) });

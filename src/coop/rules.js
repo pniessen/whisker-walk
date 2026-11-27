@@ -40,6 +40,7 @@ export const HOLD_S = 0.8;
 export const TAP_MAX_S = 0.3; // a press this short is a tap
 export const TAP_GAP_S = 0.45; // two taps this close are the "tap twice" way
 export const DPAD_DOWN = 13;
+export const DPAD_LEFT = 14; // the groom button
 
 /** One per pad. step(dt, down) -> { progress 0..1, fired }: fired once per hold (after HOLD_S) or on the second of two quick taps. */
 export function createHold() {

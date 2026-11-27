@@ -228,13 +228,17 @@ describe('pause: either pad', () => {
     expect(coop.pad.index).toBe(1); // pad two's pad is the one the menu reads
   });
 
-  it('Start on pad one pauses it, and either pad\'s Start resumes', () => {
+  it('Start on pad one pauses it, and only the owner pad\'s Start resumes (the other pad\'s does nothing)', () => {
     const r = joined();
     set(r, pad(0, [START]), pad(1)); r.tick(1);
     expect(r.player.engaged).toBe(false);
     set(r, pad(0), pad(1)); r.tick(1);
     expect(coop.pad.index).toBe(0);
     set(r, pad(0), pad(1, [START])); r.tick(1);
+    expect(r.player.engaged).toBe(false);
+    expect(r.resumed.n).toBe(0);
+    set(r, pad(0), pad(1)); r.tick(1);
+    set(r, pad(0, [START]), pad(1)); r.tick(1);
     expect(r.player.engaged).toBe(true);
     expect(r.resumed.n).toBeGreaterThan(0);
   });
@@ -502,8 +506,12 @@ describe('where couch play does not exist', () => {
     expect(r.two()).toBeUndefined();
   });
 
-  it('a new walk starts clean: nothing of the last walk\'s second cat is touched', () => {
+  it('a new walk starts clean once cat two was sent away: nothing of the last walk\'s second cat is touched', () => {
     const r = joined();
+    set(r, pad(0)); r.tick(1);
+    find(r.doc, 'coop-lost').children[0].children[2].children[1].click(); // "Play without it"
+    r.player.setTouchEngaged(true);
+    set(r, pad(0), pad(1)); r.tick(2);
     const old = r.session;
     const fresh = { ...old, remotes: createRemoteCats(new THREE.Scene(), { ground: FLAT_GROUND }), scene: new THREE.Scene() };
     r.setSession(fresh);
