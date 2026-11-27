@@ -65,7 +65,7 @@ describe('the seam is identity when couch play is off', () => {
   });
 
   it('every slot starts empty: with no chunk the pad glue gets null and reads its own pad, as today', () => {
-    expect(coop).toEqual({ poll: null, pad: null, frame: null, late: null });
+    expect(coop).toEqual({ two: false, poll: null, pad: null, frame: null, late: null });
   });
 
   it('the seam file imports nothing and stays tiny', () => {
