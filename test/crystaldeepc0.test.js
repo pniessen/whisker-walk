@@ -62,14 +62,13 @@ describe('crystal deep: pages, flag and the empty stage', () => {
     expect(crystalDeepOn()).toBe(false);
     setCrystalDeep(true); expect(crystalDeepOn()).toBe(true); setCrystalDeep(null); expect(crystalDeepOn()).toBe(false);
   });
-  it('the third stage is empty but valid and loads with the others', async () => {
+  it('the third stage is valid and loads with the others (C2 filled the hall shell; no prompt or credit yet, so the arbiter still gets null)', async () => {
     const S = await import('../src/world/crystalstages.js');
     await S.loadCrystalStages();
-    expect(S.ST.deep).toEqual({}); expect(Object.isFrozen(S.ST.deep)).toBe(true);
+    expect(Object.isFrozen(S.ST.deep)).toBe(true); expect(S.ST.deep.promptAt).toBeUndefined(); expect(S.ST.deep.credit).toBeUndefined();
     expect(S.CRYSTAL_STAGE_MODULES).toContain('src/world/crystalstagedeep.js');
     const code = readFileSync(new URL('../src/world/crystalstagedeep.js', import.meta.url), 'utf8');
-    expect(code.split('\n').filter((l) => /^import/.test(l))).toHaveLength(1); // only the slot table: never code in an empty stage
-    expect(code.length).toBeLessThan(400);
+    expect(code).toMatch(/crystalDeepOn/); // behind the flag
   });
   it('an empty slot answers null to the arbiter shape', () => {
     const slot = (get) => ({ promptAt: (p) => get()?.promptAt?.(p) ?? null, interact: () => get()?.interact?.() ?? null });
