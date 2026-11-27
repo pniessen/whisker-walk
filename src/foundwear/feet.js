@@ -23,4 +23,6 @@ import { phrase } from '../clanphrases.js';
 export const FEET_WEAR = Object.freeze([
   // the Park: tall yellow wellies (src/cat/foundfeet.js builds them)
   Object.freeze({ id: 'puddlewellies', slot: 'feet', find: 'park', emoji: '👢', name: () => phrase('wear.puddlewellies.name') }),
+  // The Jungle lodge (2026-11-27): a green band of fern fronds round each ankle, hidden in four places in the forest, behind ?jungle=1 (a placeholder name)
+  Object.freeze({ id: 'fernanklet', slot: 'feet', find: 'jungle', emoji: '🌿', name: () => phrase('wear.fernanklet.name') }),
 ]);

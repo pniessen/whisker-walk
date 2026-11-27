@@ -67,6 +67,8 @@ export const AWARDS = {
   snowjob: 25, // Tilly's errand of the day, once a walk after the story (world/snowvillejoblive.js)
   // The Treehouse village (2026-11-27): one of its six finds, paid the first time ever (world/treehousefinds.js).
   treefind: 12,
+  // The Jungle lodge (2026-11-27): one of its six finds, paid the first time ever (world/junglefinds.js).
+  junglefind: 12,
   treestory: 40, // the firefly supper (the supper's pay moment), once ever (world/treehousewinglive.js)
   snowstory: 40, // Lantern Night (the show's pay moment), once ever (world/snowvillewinglive.js)
   // Found outfits (2026-11-19): the walk's find when everything hidden in the

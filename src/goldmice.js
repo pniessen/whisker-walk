@@ -250,10 +250,17 @@ export const GOLD_MICE = {
     { id: 'gm-treehouse-2', x: 6.2, z: -5.6, y: 4.2 },
     { id: 'gm-treehouse-3', x: 1.4, z: -13.2, y: 5.6 },
   ],
+  // The Jungle lodge (milestone J3; src/world/junglefindsplan.js JUNGLE_GOLD holds the same three, test/junglefinds.test.js; bounds 88 x 76 m): on the veranda boards, under the giant leaf by the river and on the
+  // canopy walk's hill (J5 draws the low branch there and lifts the third onto it, one hop). All three are on foot. Not in KEEP_OUT (it already holds their places).
+  jungle: [
+    { id: 'gm-jungle-1', x: -3.4, z: 17.2, y: 0 },
+    { id: 'gm-jungle-2', x: 6.2, z: -3.8, y: 0 },
+    { id: 'gm-jungle-3', x: 26, z: -26, y: 0 },
+  ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 71 (the Treehouse's three joined in T3; 68 (Snowville's three joined in V3; 65 (the Moon's relay tower stub joined in X0; 64 (the Crystal Cave's two wing C stubs joined in X0; 62 (the Reef's two Sealab/galleon mice joined in R10; 60 was nineteen areas x three, and the island's three; 57 before the Crystal Cave, 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 74 (the Jungle's three joined in J3; 71 (the Treehouse's three joined in T3; 68 (Snowville's three joined in V3; 65 (the Moon's relay tower stub joined in X0; 64 (the Crystal Cave's two wing C stubs joined in X0; 62 (the Reef's two Sealab/galleon mice joined in R10; 60 was nineteen areas x three, and the island's three; 57 before the Crystal Cave, 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
 
 // The golden mice a player of `edition` can reach: those in the areas the
 // edition shows (Legacy hides the Clan Edition territories; see edition.js).

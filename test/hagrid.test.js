@@ -50,6 +50,8 @@ const DELTA = {
   canopycap: 1,
   // Snowville (2026-11-27): the snowflake scarf's ring + cloth (the neckerchief's)
   snowflakescarf: 2,
+  // The Jungle lodge (2026-11-27): the fern anklet (Hagrid wears no feet item)
+  fernanklet: 0,
 };
 
 const hen = (acc = BARE) => {

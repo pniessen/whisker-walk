@@ -78,4 +78,18 @@ export const FOUND_FEET = Object.freeze({
       leg.add(band);
     }
   },
+  // The Fern Anklet (the Jungle lodge's): a soft green band round each ankle with two little fern fronds fanned out in front, one mesh per leg (the outfit's four). The paw is
+  // the plain paw, otherwise untouched; the band sits just above it and the fronds lean out and up, so nothing reaches the ground.
+  fernanklet(legs, { plainPaw, PAW_Y, mat }) {
+    const leaf = (yaw) => new THREE.BoxGeometry(0.01, 0.003, 0.034).translate(0, 0, 0.02).rotateX(-0.5).rotateY(yaw).translate(0, 0.036, 0).toNonIndexed();
+    const gs = [new THREE.CylinderGeometry(0.052, 0.052, 0.016, 8, 1, true).translate(0, 0.034, 0).toNonIndexed(), leaf(-0.35), leaf(0.35)];
+    for (const g of gs) g.deleteAttribute('uv');
+    const geometry = mergeGeometries(gs);
+    for (const leg of legs) {
+      const paw = plainPaw(leg);
+      const m = new THREE.Mesh(geometry, mat(0x5a9a4a));
+      m.position.set(paw.position.x, PAW_Y, paw.position.z);
+      leg.add(m);
+    }
+  },
 });

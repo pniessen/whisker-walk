@@ -4,7 +4,7 @@ import { CRITTER_INFO, renderJournalHtml } from '../src/journal.js';
 import { JOURNAL_TYPES } from '../src/progression.js';
 
 // the pages a child sees today: the Moon's twelve are drawn only behind ?moon=1 (src/moonpages.js)
-const SHOWN = CRITTER_INFO.filter((c) => !c.moon && !c.greenhouse && !c.reef && !c.crystal && !c.later && !c.snowville && !c.treehouse);
+const SHOWN = CRITTER_INFO.filter((c) => !c.moon && !c.greenhouse && !c.reef && !c.crystal && !c.later && !c.snowville && !c.treehouse && !c.jungle);
 
 describe('CRITTER_INFO', () => {
   it('has all 154 journal pages with kid-friendly entries', () => {
@@ -96,7 +96,7 @@ describe('renderJournalHtml', () => {
       expect(renderJournalHtml({ mnstory: 1 }, 0, 9)).not.toContain('Hello, Earth!');
       setMoon(true);
       expect(renderJournalHtml({ mnstory: 1 }, 0, 9)).toContain('Hello, Earth!');
-      expect(renderJournalHtml({}, 0, 9).match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.filter((c) => !c.greenhouse && !c.reef && !c.crystal && !c.later && !c.snowville && !c.treehouse).length);
+      expect(renderJournalHtml({}, 0, 9).match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.filter((c) => !c.greenhouse && !c.reef && !c.crystal && !c.later && !c.snowville && !c.treehouse && !c.jungle).length);
     } finally {
       setMoon(null);
     }

@@ -35,6 +35,7 @@ import { REEF_SPOTS } from './reef.js';
 import { SEASIDE_SPOTS } from './seaside.js';
 import { SNOWVILLE_SPOTS } from './snowville.js';
 import { TREEHOUSE_SPOTS } from './treehouse.js';
+import { JUNGLE_SPOTS } from './jungle.js';
 import { WOODS_SPOTS } from './woods.js';
 
 // How a find sits in its nook: on a post, hung on a branch, in grass, at the
@@ -42,7 +43,7 @@ import { WOODS_SPOTS } from './woods.js';
 export const FIND_LOOKS = Object.freeze(['post', 'branch', 'grass', 'water', 'perch']);
 export const SPOT_ID = /^fw-[a-z]{2,12}-\d{1,2}$/;
 
-export const FIND_SPOTS = Object.freeze({ crystal: CRYSTAL_SPOTS, docks: DOCKS_SPOTS, fair: FAIR_SPOTS, farm: FARM_SPOTS, greenhouse: GREENHOUSE_SPOTS, lighthouse: LIGHTHOUSE_SPOTS, market: MARKET_SPOTS, moon: MOON_SPOTS, neighborhood: NEIGHBORHOOD_SPOTS, park: PARK_SPOTS, reef: REEF_SPOTS, seaside: SEASIDE_SPOTS, snowville: SNOWVILLE_SPOTS, treehouse: TREEHOUSE_SPOTS, woods: WOODS_SPOTS });
+export const FIND_SPOTS = Object.freeze({ crystal: CRYSTAL_SPOTS, docks: DOCKS_SPOTS, fair: FAIR_SPOTS, farm: FARM_SPOTS, greenhouse: GREENHOUSE_SPOTS, jungle: JUNGLE_SPOTS, lighthouse: LIGHTHOUSE_SPOTS, market: MARKET_SPOTS, moon: MOON_SPOTS, neighborhood: NEIGHBORHOOD_SPOTS, park: PARK_SPOTS, reef: REEF_SPOTS, seaside: SEASIDE_SPOTS, snowville: SNOWVILLE_SPOTS, treehouse: TREEHOUSE_SPOTS, woods: WOODS_SPOTS });
 
 // spotsIn(areaId) -> that area's spots, or [] (own keys only).
 const NONE = Object.freeze([]);

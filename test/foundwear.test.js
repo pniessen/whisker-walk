@@ -115,6 +115,14 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(CATALOG.accessories.canopycap.emoji).not.toBe(CATALOG.accessories.acorncap.emoji);
     expect(spotsIn('treehouse').map((x) => x.id)).toEqual(['fw-treehouse-1', 'fw-treehouse-2', 'fw-treehouse-3', 'fw-treehouse-4']);
   });
+  // The Jungle lodge milestone J3 (2026-11-27): one feet piece (an anklet), hidden in four places in the forest
+  it('the Jungle hides one outfit, the Fern Anklet, a feet piece with a plain name in either set, in four spots', () => {
+    expect(foundWearIn('jungle').map((r) => [r.id, r.slot])).toEqual([['fernanklet', 'feet']]);
+    expect(foundWearIn('jungle').map((r) => r.name())).toEqual(['Fern Anklet']);
+    expect(withOffWords(() => foundWearIn('jungle').map((r) => r.name()))).toEqual(['Fern Anklet']);
+    expect(CATALOG.accessories.fernanklet).toMatchObject({ slot: 'feet', price: 0, prize: true, find: 'jungle' });
+    expect(spotsIn('jungle').map((x) => x.id)).toEqual(['fw-jungle-1', 'fw-jungle-2', 'fw-jungle-3', 'fw-jungle-4']);
+  });
   it('step 2: every street place has its four, and the places held back have none yet', () => {
     const ids = (a) => foundWearIn(a).map((r) => r.id);
     expect(ids('neighborhood')).toEqual(['paperboycap', 'gardenglovescarf', 'bottletopcollar', 'doormatcape']);
@@ -124,7 +132,7 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(ids('farm')).toEqual(['strawhat', 'featherplume', 'neckerchief', 'haybalepack']);
     expect(ids('fair')).toEqual(['stripedboater', 'heartglasses', 'ticketgarland', 'candyflosspuff']);
     for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) expect(ids(a)).toEqual([]);   // Legacy's retirement first
-    expect(FOUND_WEAR).toHaveLength(35);   // the street places' 24, the Market's four, Lighthouse Point's keeper's cap, the Moon's cape and the Greenhouse's gardener's hat
+    expect(FOUND_WEAR).toHaveLength(36);   // the street places' 24, the Market's four, Lighthouse Point's keeper's cap, the Moon's cape and the Greenhouse's gardener's hat
   });
   // Market step 4 (2026-11-21): a hat, a neck piece, a collar charm and a
   // back item, the names placeholders the owner and his daughter will rename

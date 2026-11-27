@@ -15,6 +15,8 @@ import { SNOWVILLE_LIVE_PAGES, SNOWVILLE_HINTS } from './snowvillepages.js';
 import { snowvilleOn } from './snowvilleflag.js';
 import { TREEHOUSE_LIVE_PAGES, TREEHOUSE_HINTS } from './treehousepages.js';
 import { treehouseOn } from './treehouseflag.js';
+import { JUNGLE_LIVE_PAGES, JUNGLE_HINTS } from './junglepages.js';
+import { jungleOn } from './jungleflag.js';
 import { GREENHOUSE_PAGES, GREENHOUSE_PAGE_WORDS } from './greenhousepages.js';
 import { greenhouseOn } from './greenhouseflag.js';
 import { RIDE_PAGE_WORDS, FAIR_PAGE_WORDS } from './fairwords.js';
@@ -104,7 +106,7 @@ export const CRITTER_INFO = [
   // The Greenhouse's eight pages (src/greenhousepages.js): drawn only behind ?greenhouse=1 until the place is in the game.
   ...GREENHOUSE_PAGES.map(([id, emoji]) => ({ id, emoji, greenhouse: true, get name() { return GREENHOUSE_PAGE_WORDS[id].name(); }, get hint() { return GREENHOUSE_PAGE_WORDS[id].hint(); } })),
   // N0 (Snowville, Treehouse, Jungle): 17 placeholder pages each, never drawn (later: true) until their area's milestones give them words.
-  ...[['sv', 'sw', '❄️', 'Snowville'], ['th', 'tl', '🌳', 'Treehouse'], ['jl', 'jw', '🌴', 'Jungle']].flatMap(([a, b, emoji, place]) => [...Array(17)].map((_, i) => ({ id: (i < 9 ? a + (i + 1) : b + (i - 8)), emoji, name: place + ' page', hint: 'Not found yet.', later: true }))).map(livePages(SNOWVILLE_LIVE_PAGES, SNOWVILLE_HINTS, 'snowville', 3)).map(livePages(TREEHOUSE_LIVE_PAGES, TREEHOUSE_HINTS, 'treehouse', 2)), // T3/T4: the Treehouse's six discoveries and three life pages are live (only behind ?treehouse=1), as V3 did Snowville's (behind ?snowville=0 they hide)
+  ...[['sv', 'sw', '❄️', 'Snowville'], ['th', 'tl', '🌳', 'Treehouse'], ['jl', 'jw', '🌴', 'Jungle']].flatMap(([a, b, emoji, place]) => [...Array(17)].map((_, i) => ({ id: (i < 9 ? a + (i + 1) : b + (i - 8)), emoji, name: place + ' page', hint: 'Not found yet.', later: true }))).map(livePages(SNOWVILLE_LIVE_PAGES, SNOWVILLE_HINTS, 'snowville', 3)).map(livePages(TREEHOUSE_LIVE_PAGES, TREEHOUSE_HINTS, 'treehouse', 2)).map(livePages(JUNGLE_LIVE_PAGES, JUNGLE_HINTS, 'jungle', 3)), // T3/T4: the Treehouse's six discoveries and three life pages are live (only behind ?treehouse=1), as V3 did Snowville's (behind ?snowville=0 they hide)
 ];
 
 // renderJournalHtml(journal, goldenFound, goldenTotal) → HTML string.
@@ -120,7 +122,7 @@ export function renderJournalHtml(journal, goldenFound, goldenTotal, { chasedOff
   const j = journal && typeof journal === 'object' ? journal : {};
   const found = Number.isFinite(goldenFound) ? goldenFound : 0;
   const total = Number.isFinite(goldenTotal) ? goldenTotal : 0;
-  const cards = CRITTER_INFO.filter((c) => !c.later && (!c.moon || (moonOn() && moonWingShown(c.id))) && (!c.greenhouse || greenhouseOn()) && (!c.reef || (reefOn() && wingPageShown(c.id, j))) && (!c.crystal || (crystalOn() && crystalWingShown(c.id))) && (!c.snowville || snowvilleOn()) && (!c.treehouse || treehouseOn())).map((c) => {
+  const cards = CRITTER_INFO.filter((c) => !c.later && (!c.moon || (moonOn() && moonWingShown(c.id))) && (!c.greenhouse || greenhouseOn()) && (!c.reef || (reefOn() && wingPageShown(c.id, j))) && (!c.crystal || (crystalOn() && crystalWingShown(c.id))) && (!c.snowville || snowvilleOn()) && (!c.treehouse || treehouseOn()) && (!c.jungle || jungleOn())).map((c) => {
     const raw = j[c.id];
     const count = Number.isFinite(raw) ? raw : 0;
     if (count > 0) {

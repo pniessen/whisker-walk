@@ -631,6 +631,8 @@ const LATER = Object.freeze({
   'wear.snowflakescarf.name': 'Snowflake Scarf',
   // The Treehouse village's found cap (a placeholder name, the same in every set)
   'wear.canopycap.name': 'Canopy Cap',
+  // The Jungle lodge's found anklets (a placeholder name, the same in every set)
+  'wear.fernanklet.name': 'Fern Anklet',
   // Lighthouse Point's journal pages (src/lighthousepages.js): drawn before the place is ever walked, so they are
   // here; its other lines are in the place's lazy file (src/world/lighthousewords.js)
   'lighthouse.page.lamproom.name': 'The Lamp Room',
