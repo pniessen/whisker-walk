@@ -189,6 +189,8 @@ export const MERGE_RULES = Object.freeze({
     step: Math.max(r.L.crystal.step, r.C.crystal.step), sparks: r.L.crystal.sparks | r.C.crystal.sparks, album: r.L.crystal.album | r.C.crystal.album,
     forge: r.L.crystal.forge | r.C.crystal.forge, songs: r.L.crystal.songs | r.C.crystal.songs,
   }),
+  // Snowville, the Treehouse, the Jungle (N0): the story only moves on (step max), the album is a union of bits.
+  ...Object.fromEntries(['snowville', 'treehouse', 'jungle'].map((k) => [k, (r) => ({ step: Math.max(r.L[k].step, r.C[k].step), album: r.L[k].album | r.C[k].album })])),
   den: (r) => ({
     owned: union(r.L.den.owned, r.C.den.owned),
     placed: newer(r.L.den.placed, r.C.den.placed, r.B?.den?.placed, r.ctx),
@@ -273,7 +275,7 @@ export const MERGE_RULES = Object.freeze({
 // (Object keys, not strings: the word tests read string literals, and `clan` is a key here.)
 const BASE_WANTED = {
   points: 1, walks: 1, unlocked: 1, equipped: 1, customCats: 1, area: 1, lifetimePoints: 1, petName: 1, den: 1,
-  duskWalks: 1, moon: 1, reef: 1, crystal: 1, clan: 1, visits: 1, visitPrizesSeen: 1, visitPrizePending: 1, mapMode: 1, edition: 1, clanPick: 1, fightsWon: 1,
+  duskWalks: 1, moon: 1, reef: 1, crystal: 1, snowville: 1, treehouse: 1, jungle: 1, clan: 1, visits: 1, visitPrizesSeen: 1, visitPrizePending: 1, mapMode: 1, edition: 1, clanPick: 1, fightsWon: 1,
 };
 export const BASE_KEYS = Object.freeze(Object.keys(BASE_WANTED));
 

@@ -19,7 +19,7 @@ import { addTeleGates, discTint } from './world/telegate.js';
 export const TELE_SWIRL_MS = 1200; // the swirl, full motion
 export const TELE_FADE_MS = 400; // the gentle fade, reduced motion
 export const TELE_SLOW_MS = 1500; // a place still not here by now: "Nearly there!"
-export const TELE_PAIR_CAP = 6; // gate pairs per release (a test constant)
+export const TELE_PAIR_CAP = 8; // gate pairs per release (a test constant)
 // Park walks before the Moon gate wakes (the Moon plan's rule: 2). CATALOG.areas.moon.requires says it too; the number lives here; a test keeps the rule honest.
 export const MOON_NEED_WALKS = 2;
 // Park walks before the Greenhouse's archway wakes (the same rule; CATALOG.areas.greenhouse.requires says it too, and a test keeps them equal).

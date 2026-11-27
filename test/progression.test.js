@@ -776,6 +776,7 @@ describe('createProgression', () => {
         race: { date: null, area: null, bestMs: null },
         moon: { step: 0, cells: 0, stamp: -1, scope: 0, jump: {}, relay: 0 },
         reef: { step: 0, shells: 0, album: 0, lab: 0, wreck: 0 }, crystal: { step: 0, sparks: 0, album: 0, forge: 0, songs: 0 },
+        snowville: { step: 0, album: 0 }, treehouse: { step: 0, album: 0 }, jungle: { step: 0, album: 0 },
         den: { owned: [], placed: {} },
         skills: [], feats: {}, duskWalks: 0, gifts: [], grudges: [],
         colony: {
@@ -1116,7 +1117,7 @@ describe('v15 journal/golden/streak/kitten save fields', () => {
     expect(p.state.golden).toEqual(['gm-park-1', 'gm-park-2']);
   });
 
-  it('caps golden ids at 72 even when a hostile payload supplies 100 unique valid-shaped ids', () => {
+  it('caps golden ids at 120 even when a hostile payload supplies 150 unique valid-shaped ids', () => {
     // Spreadsheet-column-style base-26 letters (a, b, ..., z, aa, ab, ...) —
     // guarantees 100 distinct all-lowercase middle segments that genuinely
     // satisfy GOLD_ID_PATTERN's [a-z]{1,24}. (A prior version of this test
@@ -1133,10 +1134,10 @@ describe('v15 journal/golden/streak/kitten save fields', () => {
       }
       return s;
     };
-    const golden = Array.from({ length: 100 }, (_, i) => `gm-${toLetters(i)}-1`);
+    const golden = Array.from({ length: 150 }, (_, i) => `gm-${toLetters(i)}-1`);
     const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, golden }) });
     const p = createProgression(storage);
-    expect(p.state.golden.length).toBe(72); // exact — proves the cap actually bites
+    expect(p.state.golden.length).toBe(120); // exact — proves the cap actually bites
   });
 
   it('drops a golden id whose middle segment is a 100-char bloat attempt', () => {
@@ -2424,7 +2425,7 @@ describe('the colony save key', () => {
     expect(clanRoles).toEqual({ medicine: null, deputy: null });
     expect(marks).toEqual({ neighborhood: [], park: [], seaside: [], docks: [], woods: [], river: [], moor: [], pines: [], gorge: [], farm: [], fair: [], roofs: [], market: [], lighthouse: [], den: [] });
     expect([visits, visitPrizesSeen, visitPrizePending, mapMode]).toEqual([0, 0, null, 'north']);
-    expect(rest).toEqual({ ...v20, equipped: { ...v20.equipped, custom: null }, walks: { ...v20.walks, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0 }, moon: { step: 0, cells: 0, stamp: -1, scope: 0, jump: {}, relay: 0 }, reef: { step: 0, shells: 0, album: 0, lab: 0, wreck: 0 }, crystal: { step: 0, sparks: 0, album: 0, forge: 0, songs: 0 } });
+    expect(rest).toEqual({ ...v20, equipped: { ...v20.equipped, custom: null }, walks: { ...v20.walks, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0 }, moon: { step: 0, cells: 0, stamp: -1, scope: 0, jump: {}, relay: 0 }, reef: { step: 0, shells: 0, album: 0, lab: 0, wreck: 0 }, crystal: { step: 0, sparks: 0, album: 0, forge: 0, songs: 0 }, snowville: { step: 0, album: 0 }, treehouse: { step: 0, album: 0 }, jungle: { step: 0, album: 0 } });
   });
 
   it('a fresh save starts with the starter accessories and an empty colony', () => {

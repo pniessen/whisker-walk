@@ -6,6 +6,7 @@ export const COOP_READY = {
   park: false, seaside: false, woods: false, river: false, moor: false, pines: false,
   docks: false, den: false, gorge: false, farm: false, fair: false, roofs: false,
   market: false, house: false, lighthouse: false, greenhouse: false, moon: false, reef: false, crystal: false,
+  snowville: false, treehouse: false, jungle: false,
 };
 
 export const coopReady = (areaId) => COOP_READY[areaId] === true;

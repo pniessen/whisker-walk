@@ -113,7 +113,10 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   // The Crystal Cave's wing C pages (src/crystalpages.js CRYSTAL_WING_PAGES; ids reserved in its milestone X0): boat, grotto, falls, forge, cart, singing chamber.
   'ccboat', 'ccgrotto', 'ccfalls', 'ccforge', 'cccart', 'ccsong',
   // The Moon's Old Relay Station pages (src/moonpages.js MOON_WING_PAGES; ids reserved in its milestone X0): station, signal, relay, sled, lap.
-  'mnstation', 'mnsignal', 'mnrelay', 'mnsled', 'mnlap'];
+  'mnstation', 'mnsignal', 'mnrelay', 'mnsled', 'mnlap',
+  // Milestone N0 (docs/superpowers/plans/2026-11-27-connect-and-areas-decisions.md): 17 empty-ready ids per new area, appended as blocks
+  // (sv1..sv9 + sw1..sw8 Snowville, th/tl the Treehouse, jl/jw the Jungle). Nothing shows or earns them yet.
+  ...[['sv', 'sw'], ['th', 'tl'], ['jl', 'jw']].flatMap(([a, b]) => [...Array(9)].map((_, i) => a + (i + 1)).concat([...Array(8)].map((_, i) => b + (i + 1))))];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
@@ -134,7 +137,7 @@ const YMD_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 // headroom for future additions — its real job is capping the array so a
 // hostile cloud payload can't pad state.golden with thousands of
 // valid-shaped-but-fake ids and bloat the save past the localStorage quota.
-const GOLD_MAX_COUNT = 72;
+const GOLD_MAX_COUNT = 120;
 // Ceiling on state.streak.count: a ten-year unbroken daily streak. Matches
 // kitten.stage's Math.min clamp just below — asFiniteNonNegInt alone accepts
 // any finite non-negative integer (e.g. 1e15), which is a meaningless streak
@@ -598,6 +601,8 @@ function defaultState() {
     // The Crystal Cave (docs/superpowers/plans/2026-11-26-crystal-cave.md, C0): the story's step (0 to 7), the spark stones carried (3 bits) and the
     // rubbings album (12 bits). Additive: SAVE_VERSION stays 4.
     crystal: { step: 0, sparks: 0, album: 0, forge: 0, songs: 0 },
+    // Snowville, the Treehouse and the Jungle (milestone N0): each a story step and an album bitmask, nothing earns them yet.
+    snowville: { step: 0, album: 0 }, treehouse: { step: 0, album: 0 }, jungle: { step: 0, album: 0 },
     den: { owned: [], placed: {} },
     // v18 Cat Skills. `skills` is the list of ability ids already earned —
     // stored rather than derived so a later threshold change can never
@@ -961,6 +966,10 @@ function sanitizeCrystal(v) {
   // forge: bits 0-2 the three ingredients, bit 3 the circlet made (implies all three); songs: bits 0-2 the three tunes learned.
   return { step, sparks: n(v?.sparks, 7) | CRYSTAL_SPARKS_AT[step], album: n(v?.album, 4095), forge: reefLab(n(v?.forge, 15)), songs: n(v?.songs, 7) };
 }
+function sanitizeNewArea(v) {
+  const n = (x, hi) => Math.min(hi, asFiniteNonNegInt(x, 0));
+  return { step: n(v?.step, 7), album: n(v?.album, 4095) };
+}
 function sanitizeReef(v) {
   const n = (x, hi) => Math.min(hi, asFiniteNonNegInt(x, 0));
   const step = n(v?.step, 7);
@@ -1295,6 +1304,9 @@ function sanitizeState(parsed) {
     moon: sanitizeMoon(parsed.moon),
     reef: sanitizeReef(parsed.reef),
     crystal: sanitizeCrystal(parsed.crystal),
+    snowville: sanitizeNewArea(parsed.snowville),
+    treehouse: sanitizeNewArea(parsed.treehouse),
+    jungle: sanitizeNewArea(parsed.jungle),
     den: sanitizeDen(parsed.den),
     skills: sanitizeSkills(parsed.skills),
     feats,
