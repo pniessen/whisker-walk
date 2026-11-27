@@ -38,6 +38,7 @@
 import * as THREE from 'three';
 import { litMaterial } from '../render/materials.js';
 import { mulberry32, seedFromCode } from '../rng.js';
+import { addDenDetail } from './dendetail.js';
 
 export const DEN_DOOR = Object.freeze({ x: -7.3, w: 0.95, h: 2.1 });
 export const RAG_RUG = Object.freeze({ x: -7.3, z: -7.55, rx: 0.75, rz: 0.48 });
@@ -418,6 +419,7 @@ function ragRug(rnd) {
       }
     }
   }
+  addDenDetail(s); // den-beauty: floor, nests, prints and wall dressing, same mesh
   return s.build();
 }
 

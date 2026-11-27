@@ -139,7 +139,11 @@ describe('den cosy shell (polish-cosy)', () => {
 
   it('lays the rag rug flat under any placed rug, far from every anchor spot', () => {
     const rug = meshes(cosyShell()).find((m) => m.name === 'denRagRug');
-    for (const [, y] of worldVerts(rug)) expect(y).toBeLessThan(0.02);
+    // den-beauty folded the wall herbs and scratches into this mesh: every
+    // vertex is either flat on the boards (under 2 cm) or within 5 cm of a wall plane
+    for (const [x, y, z] of worldVerts(rug)) {
+      if (y >= 0.02) expect(Math.max(Math.abs(x), Math.abs(z)), `wall dressing at ${x},${y},${z}`).toBeGreaterThan(8.8);
+    }
     for (const spot of DEN_SPOTS) {
       expect(Math.hypot(spot.x - RAG_RUG.x, spot.z - RAG_RUG.z), spot.id).toBeGreaterThanOrEqual(1.8);
     }
