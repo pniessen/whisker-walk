@@ -16,6 +16,7 @@ import { STEP_MAX } from '../ground.js';
 import { createRoofsLife, mixHex } from '../roofslife.js';
 import { DRAWN_ID, ROOFS_BIRDS, flockPerches, perchIndex, roofsCritterSpawns } from './roofsflock.js';
 import { handAngles } from './clockhands.js';
+import { roofsBeauty } from './roofsbeauty.js';
 import { makeWashMaterial, swayAttribute, downwindSide } from './roofsair.js';
 
 // =============================================================================
@@ -551,6 +552,13 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     drawAlley(AK, alley, M, ground);
     const drawn = []; // the birds' drawn perches (the header)
     drawYards(AK, alley, M, drawn);
+    // the beauty round (roofsbeauty.js): moss, litter, splashes, weeds and pot plants, into the alley kit paint bucket
+    roofsBeauty({
+      roofs: BLOCKS.filter((k) => k.kind === 'flat' && (FELT_PATCHES[k.id] ?? FELT_PATCHES[k.id.split('-')[0]] ?? GARDEN_ROOFS.has(k.id))),
+      put: (geo, color) => AK.put('paint', M.paint, geo, { color, noCast: true }),
+      clear: (roof, x, z, r, avoid) => feltClear(ground, roof.y, x, z, r, avoid),
+      avoid: FELT_KEEP_OUT,
+    });
     for (const m of AK.meshes()) alley.add(m);
     const terrace = new THREE.Group();
     terrace.name = 'roofsTerrace';
@@ -707,6 +715,7 @@ const FELT = Object.freeze({
 // how many patches each roof gets (by its id, or its kind's prefix)
 const FELT_PATCHES = Object.freeze({ garages: 3, shed: 1, ext: 3, out: 1, flatHouse: 2, dormer: 1, cornerShop: 3, warehouse: 12 });
 // and their size, times FELT.patchR, on the two big roofs
+const GARDEN_ROOFS = new Set(['roofTerrace']);
 const FELT_PATCH_SIZE = Object.freeze({ cornerShop: 1.3, warehouse: 1.7 });
 const TAKEOFFS = Object.freeze([...ROOFS_TRAVERSAL.gaps, ...ROOFS_TRAVERSAL.climbs, ...ROOFS_TRAVERSAL.drops].map((h) => {
   const len = Math.hypot(h.to.x - h.from.x, h.to.z - h.from.z) || 1;
