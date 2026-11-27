@@ -469,6 +469,10 @@ const LATER = Object.freeze({
   'wear.pouch.partner': (partnerName) => `${partnerName} found it, and there was a little pouch of 🐾 for you too!`,
   'wear.foundIn': (place) => `Found in ${place}`,
   'wear.notYet': 'Not found yet',
+  // An earned holiday piece not earned yet (src/foundwear/holidaywear.js): the same plain words in every set.
+  'wear.holidayPrize.winter': 'Earned in Winter Lights',
+  'wear.holidayPrize.christmas': 'Earned at Christmas',
+  'wear.holidayPrize.hanukkah': 'Earned at Hanukkah',
   // Dress up's "Remove all accessories", and the cat builder's slots 4 and 5.
   'wear.removeAll': 'Remove all accessories',
   'slots.buy': (price) => `2 more cat slots — ${price}`,

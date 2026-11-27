@@ -22,6 +22,7 @@ import { sanitizeOutfits, wornNow, sameWear, canSaveOutfit, OUTFIT_SLOTS, OUTFIT
 import { escapeHtml } from '../escapehtml.js';
 import { areaOffer } from '../areaoffer.js';
 import { spotsIn } from '../foundwear/spots/index.js';
+import { shelfShows } from '../foundwear/holidaywear.js';
 
 // Launch A (2026-11-05): home holds the cat, the place and Start; every other
 // screen is a sheet behind one of three doors. `menu` and `places` are the
@@ -210,7 +211,8 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard,
     };
   }
 
-  const shopIds = Object.keys(catalog.accessories).filter((id) => !catalog.accessories[id].prize);
+  // (a seasonal item is in the count only while its shelf is open, or once she owns it)
+  const shopIds = Object.keys(catalog.accessories).filter((id) => !catalog.accessories[id].prize && shelfShows(catalog.accessories[id], ownedAcc.includes(id)));
 
   // Saved outfits (src/outfits.js): each with its items for the pictures, and
   // whether it is what she has on now (the worn look, never a try-on).
@@ -270,6 +272,8 @@ export function renderSlotPickerHtml(state, catalog, slot, tryOn, thumbs) {
   const worn = equippedId(state, catalog, slot);
   return Object.entries(catalog.accessories).filter(([, a]) => a.slot === slot).map(([id, a]) => {
     const owned = ownedAcc.includes(id);
+    // A seasonal item whose shelf is closed: not shown at all (an owned one always is).
+    if (!shelfShows(a, owned)) return '';
     const price = num(a.price);
     const on = owned && worn === id && !(t && t.slot === slot && t.id !== id);
     const trying = !!t && t.slot === slot && t.id === id;
@@ -294,7 +298,7 @@ export function renderSlotPickerHtml(state, catalog, slot, tryOn, thumbs) {
     // it), no price, no try-on.
     if (a.prize && !owned) {
       // (a Fairground prize is won at one of its games, not by visiting)
-      const how = a.fair ? phrase('fair.prize.locked') : prizeVisit(id) == null ? phrase('wear.areaPrize') : `A surprise at visit ${prizeVisit(id)}`;
+      const how = a.holiday ? phrase(`wear.holidayPrize.${a.holiday}`) : a.fair ? phrase('fair.prize.locked') : prizeVisit(id) == null ? phrase('wear.areaPrize') : `A surprise at visit ${prizeVisit(id)}`;
       return `<div class="dr-pick locked prize-surprise"><span class="gift" aria-hidden="true">🎁</span><span>${escapeHtml(how)}</span></div>`;
     }
     if (on) {

@@ -39,6 +39,8 @@ import { latestMilestoneUpTo, milestoneIndex, styleFor, prizeFor, prizesWonBy } 
 import { FAIR_GAME_IDS, FAIR_PRIZES, gameJournalId, fairPrizesWonBy } from './fairprizes.js';
 import { FOUND_CATALOG } from './foundwear/index.js';
 import { GIFT_CATALOG } from './foundwear/gifts.js';
+import { HOLIDAY_CATALOG, sanitizeHolidays, mergeHolidays, holidayPiecesOwned, withHolidayBit, holidayPrizeIds } from './foundwear/holidaywear.js';
+import { shelfOpen, holidayYear } from './holidays.js';
 import { sanitizeEvents, eventWear, eventWearOnOpen, isEventId, eventPresent } from './giftevents.js';
 // v21 Stream 3b: private per-area marks. marks.js is the pure rules half (its only
 // import is propsets.js, a zero-import leaf), so the edge is cycle-free. Every
@@ -387,7 +389,9 @@ export const CATALOG = {
   // getter that reads the phrase table when shown.
   // The gift outfits (src/foundwear/gifts.js) sit between the two: a gift
   // code gives them (`code`), nothing sells or hides them.
-  accessories: accessoriesWithFound(accessoriesWithFound(BASE_ACCESSORIES, GIFT_CATALOG), FOUND_CATALOG),
+  // The holiday outfits (src/foundwear/holidaywear.js) come last: earned pieces (`holiday`, prizes) and shop pieces
+  // with a `season` (sold only while that holiday's shelf is open, see canBuy).
+  accessories: accessoriesWithFound(accessoriesWithFound(accessoriesWithFound(BASE_ACCESSORIES, GIFT_CATALOG), FOUND_CATALOG), HOLIDAY_CATALOG),
   areas: {
     neighborhood: { name: 'Cozy Neighborhood', price: 0 },
     park: { name: 'City Park', price: 50, requires: { area: 'neighborhood', walks: 2 } },
@@ -773,6 +777,10 @@ function defaultState() {
     // outfits are rebuilt into owned on every load. Additive, so SAVE_VERSION
     // stays 4: an older save starts with none.
     events: [],
+    // Holiday pieces earned (src/foundwear/holidaywear.js): { winter2026: bitmask }, one key per holiday and window
+    // year, a bit per earned piece. Rebuilt into owned on every load; a merge ORs the masks. Additive, so SAVE_VERSION
+    // stays 4: an older save starts with none.
+    holidays: {},
     // Her own cats that a cat-login merge had no free slot for (src/catmerge.js).
     // Never deleted: one wakes into a slot when a slot is free. Additive, so
     // SAVE_VERSION stays 4: an older save has none.
@@ -1278,6 +1286,9 @@ function sanitizeState(parsed) {
   // And every gift event's outfits: the event is the record, so they are owned.
   const events = sanitizeEvents(parsed.events);
   for (const ev of events) for (const id of eventWear(ev)) if (knownAcc.has(id) && !unlockedAcc.includes(id)) unlockedAcc.push(id);
+  // And every holiday piece earned: the `holidays` record is the truth, so each is owned.
+  const holidays = sanitizeHolidays(parsed.holidays);
+  for (const id of holidayPiecesOwned(holidays)) if (knownAcc.has(id) && !unlockedAcc.includes(id)) unlockedAcc.push(id);
 
   const equippedCat = typeof parsed.equipped?.cat === 'string' && unlockedCats.includes(parsed.equipped.cat)
     ? parsed.equipped.cat : d.equipped.cat;
@@ -1372,6 +1383,7 @@ function sanitizeState(parsed) {
     scarredIntruders: sanitizeScarredIntruders(parsed.scarredIntruders),
     foundWear,
     events,
+    holidays,
     sleepingCats: sanitizeSleepingCats(parsed.sleepingCats),
   };
   if (fm.added.length > 0) ADDED_MOVES.set(result, fm.added);
@@ -1747,6 +1759,8 @@ export function createProgression(storage) {
     canBuy(kind, id) {
       const item = CATALOG[kind][id];
       if (!item || item.prize || api.isUnlocked(kind, id)) return false;
+      // A seasonal shop item is sold only while its shelf is open (its holiday's window and the week before).
+      if (kind === 'accessories' && item.season && !shelfOpen(item.season, new Date())) return false;
       // A place asks areaOffer, which knows a kept offer; cats and wear their catalog entry.
       const offer = kind === 'areas' ? areaOffer(state, CATALOG, id) : item;
       if (!offer || state.points < offer.price) return false;
@@ -2291,6 +2305,20 @@ export function createProgression(storage) {
       const inRecord = state.foundWear.includes(id);
       if (!isNew && inRecord) return false;
       if (!inRecord) state.foundWear.push(id);
+      if (isNew) state.unlocked.accessories.push(id);
+      save();
+      return isNew;
+    },
+    // earnHolidayPiece(holiday, bit[, now]) — an earned holiday piece (src/foundwear/holidaywear.js): its bit is set in
+    // the `holidays` record for this window's year (and kept for good), and the piece is owned in the same save().
+    // Never put on. True when she did not own it before; an unknown holiday or bit, or a holiday outside its window
+    // (unless a ?holiday= override pins it), is false and writes nothing.
+    earnHolidayPiece(holiday, bit, now = new Date()) {
+      const id = holidayPrizeIds(holiday)[bit];
+      const year = holidayYear(holiday, now);
+      if (!id || year === null || !Object.hasOwn(CATALOG.accessories, id)) return false;
+      state.holidays = withHolidayBit(state.holidays, holiday, year, bit);
+      const isNew = !state.unlocked.accessories.includes(id);
       if (isNew) state.unlocked.accessories.push(id);
       save();
       return isNew;
@@ -2851,6 +2879,7 @@ export function createProgression(storage) {
     replaceFromPayload(rawSaveObject) {
       const localFound = state.foundWear;
       const localEvents = state.events;
+      const localHolidays = state.holidays;
       const localVisits = state.visits;
       const localSeen = state.visitPrizesSeen;
       const localCustomCats = state.customCats;
@@ -2894,6 +2923,11 @@ export function createProgression(storage) {
       state.events = sanitizeEvents([...localEvents, ...state.events]);
       for (const ev of state.events) {
         for (const id of eventWear(ev)) if (!state.unlocked.accessories.includes(id)) state.unlocked.accessories.push(id);
+      }
+      // Holiday pieces likewise: either side's earned bits are kept, and their pieces owned.
+      state.holidays = mergeHolidays(localHolidays, state.holidays);
+      for (const id of holidayPiecesOwned(state.holidays)) {
+        if (!state.unlocked.accessories.includes(id)) state.unlocked.accessories.push(id);
       }
       // R3: fights won never go down and moves are never taken away.
       state.fightsWon = Math.max(localFights, state.fightsWon);

@@ -80,6 +80,7 @@ const SENTINELS = {
   tutorial: { first: 'part' },
   foundWear: [FIND_ACC],
   events: [EVENT_IDS[0]],
+  holidays: { winter2026: 3 },
   sleepingCats: [{ id: CUSTOM_IDS[1], name: 'Zzz', personality: Object.keys(CUSTOM_PERSONALITIES)[0], look: LOOK }],
 };
 
