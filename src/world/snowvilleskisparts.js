@@ -102,3 +102,26 @@ export function drawSkis(kit, M) {
   put(paint(stand(box(0.62, 0.34, 0.02), F.x + 0.31 * Math.cos(F.yaw), F.z - 0.31 * Math.sin(F.yaw), 1.78, F.yaw), SKI_COL.cream));
   put(paint(stand(box(0.62, 0.1, 0.03), F.x + 0.31 * Math.cos(F.yaw), F.z - 0.31 * Math.sin(F.yaw), 1.78, F.yaw), SKI_COL.blue));
 }
+
+// ---- the skis on her feet (the live's one small moving mesh) --------------------------------------------------------------------------------------
+// Two thin skis side by side, each a long flat board with its tip curled up, built facing +z and standing on the ground at the origin; the live sets them under her. Not a caster.
+export function buildSkis() {
+  const parts = [];
+  const L = K.SKIS.len; const half = K.SKIS.gap / 2 + 0.05;
+  for (const [sx, hex] of [[-1, SKI_COL.skiA], [1, SKI_COL.skiB]]) {
+    parts.push(paint(box(0.09, 0.025, L).translate(sx * half, 0.03, 0), hex));
+    parts.push(paint(box(0.09, 0.025, 0.2).rotateX(-0.5).translate(sx * half, 0.055, L / 2 + 0.07), hex)); // the curled tip
+    parts.push(paint(box(0.07, 0.035, 0.18).translate(sx * half, 0.065, 0.02), SKI_COL.iron)); // the binding
+  }
+  let n = 0;
+  for (const g of parts) n += g.attributes.position.count;
+  const out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'uv', 'color']) {
+    const size = parts[0].attributes[name].itemSize;
+    const arr = new Float32Array(n * size);
+    let o = 0;
+    for (const g of parts) { arr.set(g.attributes[name].array, o); o += g.attributes[name].array.length; }
+    out.setAttribute(name, new THREE.BufferAttribute(arr, size));
+  }
+  return out;
+}

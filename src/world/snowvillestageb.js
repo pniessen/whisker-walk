@@ -15,6 +15,7 @@ import { strayHomes, createStrayNotes } from './snowvillestrays.js';
 import { createSledLive } from './snowvillesledlive.js';
 import { drawRun } from './snowvillesledparts.js';
 import { drawSkis } from './snowvilleskisparts.js';
+import { createSkisLive } from './snowvilleskislive.js';
 
 Object.assign(ST, {
   b: Object.freeze({
@@ -28,6 +29,7 @@ Object.assign(ST, {
     strayHomes, // four friendly cats at their own homes (round two)
     strayNotes: createStrayNotes,
     sled: createSledLive, // the sled run down the hill (round two)
+    skis: createSkisLive, // the ski slope on the hill's west flank (round three)
     errand: createSnowErrandLive, // Tilly's errand of the day and its album (milestone V7)
   }),
 });
