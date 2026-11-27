@@ -12,6 +12,7 @@ const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor } = await import('../src/world/moor.js');
 const { build: buildPines } = await import('../src/world/pines.js');
+const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const { buildCat } = await import('../src/cat/model.js');
 const { CATALOG } = await import('../src/progression.js');
@@ -106,6 +107,7 @@ const SCENES = [
   ['moor', buildMoor, 95350, 207, 162],
   ['pines', buildPines, 98800, 244, 186],
   ['den', buildDen, 45110, 417, 294],
+  ['farm', buildFarm, 83940, 371, 297],
 ];
 
 const markScene = (withPuff = false) => {
