@@ -571,7 +571,9 @@ const AREAS = [
   // the bell rope and its beam, a lantern at each bridge's middle, the supper table with its cloth, stools, cups, candles and acorn basket, and the ring of hanging lanterns; no mesh of its
   // own) measured 4 / 1 / 29,154 built (+1,450 triangles, no mesh), +12%: 5 / 2 / 32,700. The plan's stage figures (about 28,000 triangles for A and B together) hold within the same margin. The
   // strings of lights, lantern glows, candle flames, fireflies and the bell's ring are the walk's life, not in this count.
-  ['treehouse', buildTreehouse, 5, 2, 32700],
+  // Milestone T8 (2026-11-27, the beauty round, treehousebeauty.js in the lift stage: ground tones and the worn track, flower clumps in each zone's hue, mushrooms, stumps, logs, pennants, vines,
+  // autumn leaves, all in the same merged buckets, plus ONE non-casting additive mesh for the shafts of sun) measured 5 / 1 / 44,825 built (+12,000 triangles, +1 mesh, no caster), +12%: 6 / 2 / 50,200.
+  ['treehouse', buildTreehouse, 6, 2, 50200],
   // Snowville. Milestone V1 (2026-11-27, the snow world: the ground heightfield, then the arch, brazier, seven cottages, the square and the 100-odd firs, drifts and rocks in three
   // merged buckets (paint, glow, tree) and the treeline's own non-casting bucket; the flakes, glints and cheeks are the walk's life, not in this count) measured 5 / 2 / 16,108 built
   // (the same merged), +12%: 6 / 3 / 18,100. The plan's stage A figures were about 25,000 triangles: under them. The Farm with its new gate (3 meshes, +441 triangles, +1 caster)
