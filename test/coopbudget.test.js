@@ -18,6 +18,18 @@ const { build: buildGorge } = await import('../src/world/gorge.js');
 await (await import('../src/world/housestages.js')).loadHouseStages(); // the house's wing stage fills its wing slots
 const { build: buildHouse } = await import('../src/world/house.js');
 const { build: buildRoofs } = await import('../src/world/roofs.js');
+const { build: buildPark } = await import('../src/world/park.js');
+const { build: buildSeaside } = await import('../src/world/seaside.js');
+const { build: buildGreenhouse } = await import('../src/world/greenhouse.js');
+await (await import('../src/world/treehousestages.js')).loadTreehouseStages();
+const { build: buildTreehouse } = await import('../src/world/treehouse.js');
+await (await import('../src/world/junglestages.js')).loadJungleStages();
+const { build: buildJungle } = await import('../src/world/jungle.js');
+await (await import('../src/world/snowvillestages.js')).loadSnowvilleStages();
+const { build: buildSnowville } = await import('../src/world/snowville.js');
+await (await import('../src/world/crystalstages.js')).loadCrystalStages();
+const { build: buildCrystal } = await import('../src/world/crystal.js');
+const { build: buildLighthouse } = await import('../src/world/lighthouse.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const { buildCat } = await import('../src/cat/model.js');
 const { CATALOG } = await import('../src/progression.js');
@@ -116,7 +128,15 @@ const SCENES = [
   ['market', buildMarket, 77940, 267, 148],
   ['gorge', buildGorge, 97900, 180, 150],
   ['roofs', buildRoofs, 67250, 238, 183], // 64,019 / 226 / 174 measured: the whole scene (no zone culling) with both dressed cats, under the 70,000 of the place alone,
-  ['house', buildHouse, 102100, 514, 382] // the whole scene, every level's detail and stand-in at once: the worst spot (drawn set) is test/coopm5house.test.js's,
+  ['house', buildHouse, 102100, 514, 382], // the whole scene, every level's detail and stand-in at once: the worst spot (drawn set) is test/coopm5house.test.js's,
+  ['lighthouse', buildLighthouse, 81500, 172, 125], // 80,912 / 168 / 121 measured: the whole scene with both dressed cats
+  ['park', buildPark, 54950, 291, 245], // 54,898 / 287 / 241 measured: the whole scene with both dressed cats
+  ['seaside', buildSeaside, 57850, 185, 141], // 57,777 / 181 / 137 measured: the whole scene with both dressed cats
+  ['greenhouse', buildGreenhouse, 85350, 187, 117], // 85,267 / 183 / 113 measured: the whole scene with both dressed cats
+  ['treehouse', buildTreehouse, 83450, 119, 111], // 83,373 / 115 / 107 measured: the whole scene with both dressed cats
+  ['jungle', buildJungle, 76650, 121, 113], // 76,578 / 117 / 109 measured: the whole scene with both dressed cats
+  ['snowville', buildSnowville, 70400, 119, 112], // 70,348 / 115 / 108 measured: the whole scene with both dressed cats
+  ['crystal', buildCrystal, 46850, 126, 111], // 46,782 / 122 / 107 measured: the whole scene with both dressed cats
 ];
 
 const markScene = (withPuff = false) => {

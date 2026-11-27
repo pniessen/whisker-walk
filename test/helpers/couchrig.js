@@ -105,8 +105,8 @@ export function rig({ areaId = 'neighborhood', profile = 'tv', unlocked = ['tabb
           current.fair?.late?.(DT, 0, { cat: current.cat, player, session: current });
           current.traversal?.late?.(DT, 0, { cat: current.cat, player, session: current });
           current.clanFight?.update?.(DT, current); // main.js: the fight, after everything that moves the cat
+          current.remotes.update(DT, performance.now() / 1000, a.waters, current.fair); // main.js: the remote cats move before coop.late draws on top of them
           coop.late?.(DT);
-          current.remotes.update(DT, performance.now() / 1000, a.waters, current.fair);
         } else current.clanFight?.update?.(DT, current);
       }
     },

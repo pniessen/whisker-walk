@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { coop, joined, pad, set, reset, newSession, createRemoteCats, THREE, PAD_BUTTONS, SECOND_ID } from './helpers/couchrig.js';
 import { stubCanvasDocument } from './helpers/canvas.js';
 
@@ -77,6 +77,8 @@ describe('couch play: the gaps of the Fairground rides', () => {
   });
 
   it('cat two drawn sways after stepping out of a teacup, then stands straight', () => {
+    let tick = 0; // a clock that moves with the frames, so the sway (drawn on the wall clock) is the same on every run
+    const clockSpy = vi.spyOn(performance, 'now').mockImplementation(() => (tick += 4) * (1000 / 60) / 4);
     const sim0 = createFairLive(world, area, { now: () => 3000 }).sim;
     const at = ring(sim0.cups.cx, sim0.cups.cz, sim0.cups.baseR, 1.1);
     const w = fairWalk(at);
@@ -86,11 +88,12 @@ describe('couch play: the gaps of the Fairground rides', () => {
     w.stickTwo(0, 0); w.tick(3);
     w.stickTwo(0, -1);
     let max = 0;
-    for (let i = 0; i < 60 * 2; i++) { w.tick(1); coop.late(DT); max = Math.max(max, Math.abs(w.r.two()?.group.rotation.z ?? 0)); }
+    for (let i = 0; i < 60 * 2; i++) { w.tick(1); max = Math.max(max, Math.abs(w.r.two()?.group.rotation.z ?? 0)); }
     expect(max).toBeGreaterThan(0.02);
     w.stickTwo(0, 0);
-    w.tick(60 * 5); coop.late(DT);
+    w.tick(60 * 5);
     expect(Math.abs(w.r.two().group.rotation.z)).toBeLessThan(0.01);
+    clockSpy.mockRestore();
   }, 60_000);
 
   it('cat two sways after a teacup and lays her ears back on the coaster seat (drawn only)', async () => {

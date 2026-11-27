@@ -473,8 +473,10 @@ export function start(ctx) {
       const sticks = [STICK(hub.padOf(0, pads)), STICK(hub.padOf(1, pads))];
       const seat0 = state.seats[0] && !state.seats[0].lost;
       const reach = tight ? TIGHT_FOLLOW : null; // a tight place holds the pair as close as they stand: the idle cat comes along at once, or the walking one is pinned
-      const goA = follows[0].step(dt, { stick: sticks[0], apart: state.apart, on: on && seat0, ...reach });
-      const goB = follows[1].step(dt, { stick: sticks[1], apart: state.apart, on, ...reach });
+      const lv = !s.ground.flat && !s.ground.sameLevel(s.cat.position.x, s.cat.position.z, mover.body.position.x, mover.body.position.z); // a friend on another floor (a stair round a tower, a ledge above) is far however close it stands on the map
+      const apart = lv ? Math.max(state.apart, 99) : state.apart;
+      const goA = follows[0].step(dt, { stick: sticks[0], apart, on: on && seat0, ...reach });
+      const goB = follows[1].step(dt, { stick: sticks[1], apart, on, ...reach });
       if (goA || trotting[0]) trot(0, goA, s.cat.position, mover.body.position, sticks[0], dt);
       if (goB || trotting[1]) trot(1, goB, mover.body.position, s.cat.position, sticks[1], dt);
       state.following = [goA, goB];
@@ -549,7 +551,7 @@ export function start(ctx) {
     rides.look(dt, nowSec(), s, s.remotes.list.find((e) => e.playerId === SECOND_ID)?.group);
     if (fights.twoFights) { // the fight wrote cat two's picture: its body follows, and cat one sits and cheers
       const g = s.remotes.list.find((e) => e.playerId === SECOND_ID)?.group;
-      if (g) { body.position.x = g.position.x; body.position.z = g.position.z; body.rotation.y = g.rotation.y; }
+      if (g) { g.position.x = fights.spot.x; g.position.z = fights.spot.z; g.rotation.y = fights.spot.yaw; body.position.x = g.position.x; body.position.z = g.position.z; body.rotation.y = g.rotation.y; }
       s.idleTime = SIT_AT + 0.5;
     }
     const near = !fights.showing && !groom.active && state.apart <= GROOM_NEAR && calm();
