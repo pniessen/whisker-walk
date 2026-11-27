@@ -14,7 +14,7 @@
 import * as THREE from 'three';
 import { mulberry32 } from '../rng.js';
 import * as P from './treehouseplan.js';
-import { paint, placed, post, blob } from './treehouseparts.js';
+import { paint, placed, post, blob, pad } from './treehouseparts.js';
 import { SHAFT_OPACITY, SHAFT_VERTS } from './treehouselight.js';
 import { canopyLumps } from './treehousenature.js';
 
@@ -129,7 +129,7 @@ export function planBeauty() {
 
 // The ground's tones, drawn as thin slabs just over the floor (layered by height, so none flickers over another).
 function drawGround(kit, M, plan) {
-  const flat = (x, z, sx, sz, y, hex, jit = 0, yaw = 0) => kit.put('paint', M.paint, paint(placed(new THREE.CylinderGeometry(1, 1, 0.012, 14), x, y, z, { sx, sz, yaw }), hex, jit));
+  const flat = (x, z, sx, sz, y, hex, jit = 0, yaw = 0) => kit.put('paint', M.paint, paint(placed(pad(14), x, y + 0.006, z, { sx, sz, yaw }), hex, jit));
   for (const p of plan.patches) flat(p.x, p.z, p.sx, p.sz, p.y, p.hex, p.tone, p.yaw);
   for (const k of P.DECKS) flat(k.x, k.z, k.w * 0.62, k.d * 0.62, 0.021, 0x3d6636, 0); // the shade under each deck
   flat(P.OAK.x, P.OAK.z, P.OAK.r + 2.8, P.OAK.r + 2.8, 0.022, 0x4a7038, 0); // the shade at the oak's foot
@@ -160,7 +160,7 @@ function drawClutter(kit, M, plan) {
   }
   for (const s of plan.stumps) {
     kit.put('paint', M.paint, post(s.x, s.z, 0, s.h, s.r, s.r * 1.12, L.trunk, 8, 1));
-    kit.put('paint', M.paint, paint(placed(new THREE.CylinderGeometry(s.r * 0.9, s.r * 0.9, 0.02, 8), s.x, s.h + 0.012, s.z), 0xc9a070));
+    kit.put('paint', M.paint, paint(placed(pad(8), s.x, s.h + 0.022, s.z, { sx: s.r * 0.9, sz: s.r * 0.9 }), 0xc9a070));
   }
   for (const l of plan.logs) {
     kit.put('paint', M.paint, paint(placed(new THREE.CylinderGeometry(l.r, l.r, l.len, 7), l.x, l.r * 0.9, l.z, { pitch: Math.PI / 2, yaw: l.yaw }), L.trunkDark, 1));

@@ -70,6 +70,8 @@ export function placed(geo, x, y, z, { yaw = 0, pitch = 0, sx = 1, sy = 1, sz = 
   geo.applyMatrix4(M4.compose(V.set(x, y, z), Q, S.set(sx, sy, sz)));
   return geo;
 }
+// A flat pad, n sides, lying face up at the origin: a ground slab needs no walls or underside (the closed cylinder it replaces cost 4n triangles, a pad costs n).
+export const pad = (n) => new THREE.CircleGeometry(1, n).rotateX(-Math.PI / 2);
 // A box with its centre at (x, y, z).
 export const slab = (x, y, z, w, h, d, hex, { yaw = 0, pitch = 0, jitter = 0 } = {}) => paint(placed(new THREE.BoxGeometry(w, h, d), x, y, z, { yaw, pitch }), hex, jitter);
 // A cylinder standing from y0 to y1.
