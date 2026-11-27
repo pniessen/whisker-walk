@@ -13,6 +13,7 @@ import { phrase } from './clanphrases.js';
 import { rivalFor } from './rivalclans.js';
 import { teleOn } from './teleflag.js';
 import { treehouseOn } from './treehouseflag.js';
+import { jungleOn } from './jungleflag.js';
 
 export const EDITIONS = Object.freeze(['canon', 'legacy']);
 export const DEFAULT_EDITION = 'canon';
@@ -48,6 +49,7 @@ export function areaInEdition(entry, edition) {
 export function areaShown(entry, edition) {
   if (entry && entry.gate === 'tele' && !teleOn()) return false;
   if (entry && entry.flag === 'treehouse' && !treehouseOn()) return false; // the Treehouse village: behind its own switch until its release pass
+  if (entry && entry.flag === 'jungle' && !jungleOn()) return false; // the Jungle lodge: behind its own switch until its release pass
   return areaInEdition(entry, edition);
 }
 

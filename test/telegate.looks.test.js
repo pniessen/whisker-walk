@@ -180,7 +180,7 @@ describe('what is solid', () => {
 
 describe('the owner\'s two choices, as constants', () => {
   it('each gate\'s look is named in TELE_LOOK, a real look, and is what its table row says', () => {
-    expect(Object.keys(TELE_LOOK).sort()).toEqual(['greenhouse-park', 'moon-park', 'park-greenhouse', 'park-moon', 'reef-seaside', 'seaside-reef', 'crystal-docks', 'docks-crystal', 'farm-snowville', 'snowville-farm'].sort());
+    expect(Object.keys(TELE_LOOK).sort()).toEqual(['greenhouse-park', 'moon-park', 'park-greenhouse', 'park-moon', 'reef-seaside', 'seaside-reef', 'crystal-docks', 'docks-crystal', 'farm-snowville', 'snowville-farm', 'greenhouse-jungle', 'jungle-greenhouse'].sort());
     for (const e of [PG, GP]) {
       expect(LOOK_NAMES, e.id).toContain(TELE_LOOK[e.id]);
       expect(e.look, e.id).toBe(TELE_LOOK[e.id]);

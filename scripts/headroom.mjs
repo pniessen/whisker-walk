@@ -18,7 +18,7 @@ export function statusOf(spare) {
 const row = (name, kb, ceiling) => ({ name, kb, ceiling, spare: ceiling - kb, status: statusOf(ceiling - kb) });
 
 /**
- * Pure. data = { startKb, areas: {id: kb}, stages: {moon|reef|crystal|snowville: {part: kb, total: kb}} }
+ * Pure. data = { startKb, areas: {id: kb}, stages: {moon|reef|crystal|snowville|jungle: {part: kb, total: kb}} }
  * ceilings = { start, area, stage: {group: {each, total}} }. Returns rows in table order.
  */
 export function buildRows(data, ceilings) {
@@ -58,6 +58,7 @@ export const CEILINGS = {
     reef: { each: B.REEF_STAGE_GZIP_CEILING_KB, total: B.REEF_TOTAL_GZIP_CEILING_KB },
     crystal: { each: B.CRYSTAL_STAGE_GZIP_CEILING_KB, total: B.CRYSTAL_TOTAL_GZIP_CEILING_KB },
     snowville: { each: B.SNOWVILLE_STAGE_GZIP_CEILING_KB, total: B.SNOWVILLE_TOTAL_GZIP_CEILING_KB },
+    jungle: { each: B.JUNGLE_STAGE_GZIP_CEILING_KB, total: B.JUNGLE_TOTAL_GZIP_CEILING_KB },
   },
 };
 
@@ -68,7 +69,7 @@ export function measure(dir) {
   return {
     startKb: kbOf(B.startupFiles(manifest)),
     areas: mapKb(B.areaDownloads(manifest)),
-    stages: { moon: mapKb(B.moonDownloads(manifest)), reef: mapKb(B.reefDownloads(manifest)), crystal: mapKb(B.crystalDownloads(manifest)), snowville: mapKb(B.snowvilleDownloads(manifest)) },
+    stages: { moon: mapKb(B.moonDownloads(manifest)), reef: mapKb(B.reefDownloads(manifest)), crystal: mapKb(B.crystalDownloads(manifest)), snowville: mapKb(B.snowvilleDownloads(manifest)), jungle: mapKb(B.jungleDownloads(manifest)) },
   };
 }
 

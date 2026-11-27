@@ -49,8 +49,8 @@ afterEach(() => { setTele(null); setGreenhouse(null); });
 
 describe('the gate table', () => {
   it('is the Greenhouse pair (the Park\'s archway, awake after 2 Park walks, and the Greenhouse\'s own return arch) and the Moon pair, each end the other\'s twin', () => {
-    expect(Object.keys(TELE_ENDS)).toEqual(['park', 'moon', 'seaside', 'reef', 'docks', 'crystal', 'farm', 'snowville', 'greenhouse']);
-    expect(ALL.map((e) => e.id)).toEqual(['park-greenhouse', 'park-moon', 'moon-park', 'seaside-reef', 'reef-seaside', 'docks-crystal', 'crystal-docks', 'farm-snowville', 'snowville-farm', 'greenhouse-park']);
+    expect(Object.keys(TELE_ENDS)).toEqual(['park', 'moon', 'seaside', 'reef', 'docks', 'crystal', 'farm', 'snowville', 'greenhouse', 'jungle']);
+    expect(ALL.map((e) => e.id)).toEqual(['park-greenhouse', 'park-moon', 'moon-park', 'seaside-reef', 'reef-seaside', 'docks-crystal', 'crystal-docks', 'farm-snowville', 'snowville-farm', 'greenhouse-park', 'greenhouse-jungle', 'jungle-greenhouse']);
     expect(PG.twin).toBe(GP.id);
     expect(GP.twin).toBe(PG.id);
     expect(PG.to).toBe('greenhouse');
@@ -58,11 +58,11 @@ describe('the gate table', () => {
     expect(new Set(ALL.map((e) => e.id)).size).toBe(ALL.length);
     for (const e of ALL) {
       expect(e.kind, e.id).toBe('tele');
-      expect(e.look, e.id).toBe(e.id.includes('moon') ? 'stonering' : e.id === 'seaside-reef' ? 'hatch' : e.id.includes('reef') ? 'cleft' : e.id.includes('crystal') ? 'grotto' : 'archway'); // (the Snowville pair is the same archway with an icy disc: test/snowvilleworld.test.js)
+      expect(e.look, e.id).toBe(e.id.includes('moon') || e.id.includes('jungle') ? 'stonering' : e.id === 'seaside-reef' ? 'hatch' : e.id.includes('reef') ? 'cleft' : e.id.includes('crystal') ? 'grotto' : 'archway'); // (the Snowville pair is the same archway with an icy disc: test/snowvilleworld.test.js)
       expect(e.placement, e.id).toBe('inside');
       expect(e.edition, e.id).toBe('all'); // both editions
       expect(e.wake, e.id).toBe(false);
-      if (e.id.includes('moon') || e.id.includes('reef') || e.id.includes('crystal') || e.id.includes('snowville')) continue; // (the Moon pair: describe 'the Moon gate'; the Reef pair: test/reefgate.test.js; the Crystal pair: test/crystalgate.test.js)
+      if (e.id.includes('moon') || e.id.includes('reef') || e.id.includes('crystal') || e.id.includes('snowville') || e.id.includes('jungle')) continue; // (the Jungle pair: test/junglegate.test.js; the Moon pair: describe 'the Moon gate'; the Reef pair: test/reefgate.test.js; the Crystal pair: test/crystalgate.test.js)
       expect(e.suit, e.id).toBeNull();
       expect(e.needWalks, e.id).toBe(e.id === 'park-greenhouse' ? T.GREENHOUSE_NEED_WALKS : 0);
       expect(e.own, e.id).toBe(e.id === 'greenhouse-park'); // the Greenhouse draws its own return arch, as the Moon its ring
@@ -99,7 +99,7 @@ describe('the gate table', () => {
       // (the Park's Moon gate faces east: she lands west of it, facing east)
       if (e.id === 'park-moon') { expect(e.faces).toBe('east'); expect(a.yaw).toBe(-Math.PI / 2); expect(a.x).toBeLessThan(e.x); continue; }
       if (e.id === 'moon-park') { expect(e.faces).toBe('north'); expect(a.yaw).toBe(0); expect(a.z).toBeGreaterThan(e.z); continue; } // lands south of it, facing -z, toward it
-      if (e.id.includes('reef') || e.id.includes('crystal') || e.id.includes('snowville')) continue; // (the Snowville pair is checked in test/snowvilleworld.test.js and test/snowvillegate.test.js; the Reef pair is checked in test/reefgate.test.js)
+      if (e.id.includes('reef') || e.id.includes('crystal') || e.id.includes('snowville') || e.id.includes('jungle')) continue; // (the Jungle pair is checked in test/junglegate.test.js; the Snowville pair is checked in test/snowvilleworld.test.js and test/snowvillegate.test.js; the Reef pair is checked in test/reefgate.test.js)
       expect(e.faces).toBe('west');
       expect(a.yaw).toBe(Math.PI / 2);
       expect(a.x).toBeGreaterThan(e.x);
@@ -132,7 +132,7 @@ describe('the gate table', () => {
   it('teleEnds is the table, safe for any place name', () => {
     expect(teleEnds('park')).toEqual([PG, PM]);
     expect(teleEnds('moon')).toEqual([MP]);
-    expect(teleEnds('greenhouse')).toEqual([GP]);
+    expect(teleEnds('greenhouse')).toEqual([GP, TELE_ENDS.greenhouse[1]]); // (the second is the Jungle lodge's stone ring)
     expect(teleEnds('seaside')).toEqual([TELE_ENDS.seaside[0]]);
     expect(teleEnds('reef')).toEqual([TELE_ENDS.reef[0]]);
     expect(teleEnds('docks')).toEqual([TELE_ENDS.docks[0]]);
@@ -259,7 +259,7 @@ describe('what a gate says (teleStatus)', () => {
     expect(teleStatus({ ...GP, needWalks: 1 }, state({ greenhouse: 1 }), CATALOG).kind).toBe('go');
   });
   it('room: an online room is no longer refused (I3), either end; the host\'s save decides, nothing else', () => {
-    for (const e of ALL) expect(teleStatus(e, state({ park: 9, seaside: 9, docks: 9, farm: 9 }), CATALOG, { inRoom: true }).kind).toBe('go');
+    for (const e of ALL) expect(teleStatus(e, state({ park: 9, seaside: 9, docks: 9, farm: 9, greenhouse: 9 }), CATALOG, { inRoom: true }).kind).toBe('go');
   });
   it('coop: couch play stays out of the gate while the destination\'s (or the host\'s) COOP_READY row is false', () => {
     expect(COOP_READY.park).toBe(false);

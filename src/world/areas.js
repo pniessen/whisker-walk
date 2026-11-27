@@ -71,6 +71,8 @@ const loaders = {
   // The Treehouse village (a catalog row, an ordinary place after the Farm; milestone T1 is the tree world and two empty stage slots).
   treehouse: () => Promise.all([import('./treehouse.js'), import('./treehousestages.js').then((s) => s.loadTreehouseStages())]).then(([w]) => own('treehouse', w)),
   // Snowville (?snowville=1 and a catalog row behind the gates switch; milestone V1 is the snow world: the village square, the spawn court and its return arch).
+  // The Jungle lodge (?jungle=1 and a catalog row behind the gates switch; milestone J1 is the jungle world: the lodge, the ring, the river and the rain).
+  jungle: () => Promise.all([import('./jungle.js'), import('./junglestages.js').then((s) => s.loadJungleStages())]).then(([w]) => own('jungle', w)),
   snowville: () => Promise.all([import('./snowville.js'), import('./snowvillestages.js').then((s) => s.loadSnowvilleStages())]).then(([w]) => own('snowville', w)),
 };
 
@@ -105,6 +107,7 @@ const entryModules = {
   reef: Object.freeze(['src/world/reef.js']), // stage A; the three stages are REEF_STAGE_ENTRY_MODULES (scripts/buildjson.mjs), loaded with it by the loader above
   treehouse: Object.freeze(['src/world/treehouse.js']), // stage A; the two stages are TREEHOUSE_STAGE_ENTRY_MODULES (scripts/buildjson.mjs), loaded with it by the loader above
   crystal: Object.freeze(['src/world/crystal.js']), // stage A; the two stages are CRYSTAL_STAGE_ENTRY_MODULES (scripts/buildjson.mjs), loaded with it by the loader above
+  jungle: Object.freeze(['src/world/jungle.js']), // stage A; the two stages are JUNGLE_STAGE_ENTRY_MODULES (scripts/buildjson.mjs), loaded with it by the loader above
   snowville: Object.freeze(['src/world/snowville.js']), // stage A; the two stages are SNOWVILLE_STAGE_ENTRY_MODULES (scripts/buildjson.mjs), loaded with it by the loader above
 };
 if (typeof __PRIVATE_FAMILY__ !== 'undefined' && __PRIVATE_FAMILY__) {
