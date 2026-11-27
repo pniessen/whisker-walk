@@ -83,5 +83,5 @@ export function aimHead(cat, target, dt, pose, moveSpeed = 0) {
   head.rotation.y += Math.asin(clamp(sa * cb, -1, 1));
   head.rotation.z += Math.atan2(-sa * sb, ca);
   refitNeck(cat, pose);
-  if (ud.parts.scars) fitScars(cat);
+  if (ud.parts.scars || ud.parts.marks) fitScars(cat);
 }
