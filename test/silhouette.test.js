@@ -156,7 +156,8 @@ describe('builder — roundedBox (Wave 4.1)', () => {
     // grille) and tail-lamp meshes (2 x 2 cars).
     // Docks 519 -> 521: polish-quayside's barges each gain one vertex-coloured
     // dressing mesh (wheelhouse, windows, rails, life rings).
-    const expected = { neighborhood: 400, park: 176, docks: 521, seaside: 70, den: 288 };
+    // Park 176 -> 177: the Park beauty round's one merged noCast mesh (parkBeauty: armrests, plinths, flower beds, pond edge, mulch, wildflowers).
+    const expected = { neighborhood: 400, park: 177, docks: 521, seaside: 70, den: 288 };
     const builds = {
       neighborhood: buildNeighborhood, park: buildPark, docks: buildDocks,
       seaside: buildSeaside, den: buildDen,
