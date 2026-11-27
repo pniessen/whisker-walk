@@ -28,6 +28,7 @@ export const LINES = Object.freeze({
   'coop.nosniff': 'Nothing on the breeze.',
   'coop.tally': (a, na, b, nb) => `${a} found ${na}, ${b} found ${nb}`,
   'coop.left': (name) => `${name} waves goodbye.`,
+  'coop.fightstart': (name, other) => `${name} takes the fight, and ${other} sits and cheers!`,
 });
 
 addPhrases(LINES);
