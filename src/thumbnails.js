@@ -5,6 +5,7 @@ import { CATALOG } from './progression.js';
 import { activeCat } from './customcats.js';
 import { mulberry32, seedFromCode } from './rng.js';
 import { note } from './diagnostics.js';
+import { shelfOpen } from './holidays.js';
 
 // Renders menu thumbnails from the real in-game models, so the shop pictures
 // always match what you get. One throwaway WebGL context renders everything
@@ -76,15 +77,17 @@ function renderAll() {
 // Every accessory id the menu draws at once: the shop's, not the found
 // outfits (a record with `find`) nor the gift outfits (`code`), which are
 // drawn once she owns them.
-const drawnWhenOwned = (a) => !!(a?.find || a?.code);
-export function thumbnailIds(catalog) {
-  return Object.keys(catalog.accessories).filter((id) => !drawnWhenOwned(catalog.accessories[id]));
+// The holiday outfits: an earned piece (`holiday`) is drawn once owned; a seasonal shop item (`season`) at once while its
+// shelf is open and once owned after that.
+const drawnWhenOwned = (a, now) => !!(a?.find || a?.code || a?.holiday || (a?.season && !shelfOpen(a.season, now)));
+export function thumbnailIds(catalog, now = new Date()) {
+  return Object.keys(catalog.accessories).filter((id) => !drawnWhenOwned(catalog.accessories[id], now));
 }
 
 // Owned found (or gift) outfits that have no picture yet and have not been
 // tried (a failed draw is not retried at every render).
 export function missingFoundThumbs(thumbs, owned, catalog, tried = new Set()) {
-  return (owned || []).filter((id) => drawnWhenOwned(catalog.accessories[id]) && !thumbs?.accessories?.[id] && !tried.has(id));
+  return (owned || []).filter((id) => drawnWhenOwned(catalog.accessories[id], new Date()) && !thumbs?.accessories?.[id] && !tried.has(id));
 }
 
 const foundTried = new Set();

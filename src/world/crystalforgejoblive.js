@@ -15,7 +15,6 @@ import { bus } from '../events.js';
 import * as J from './crystalforgejob.js';
 import * as D from './crystalforgejobplan.js';
 import { crystalY } from './crystalplan.js';
-import { atWords } from './crystalguide.js';
 import './crystalforgejobwords.js';
 
 const SILVER = 0xd5dbe6;
@@ -133,7 +132,7 @@ export function createForgeJobLive(ctx) {
     const r = rec();
     const g = J.nextGoal(r, carrying);
     if (g.kind === 'rest') return null;
-    const at = (p, line, chip) => ({ g: { kind: 'forge', icon: 'spark', line: line.replace('{at}', atWords(p.x, p.z)), chip }, x: p.x, z: p.z, y: crystalY(p.x, p.z) + 0.5 });
+    const at = (p, line, chip) => ({ g: { kind: 'forge', icon: 'spark', line, chip }, x: p.x, z: p.z, y: crystalY(p.x, p.z) + 0.5 });
     if (g.kind === 'make') return at(D.ANVIL_AT, phrase('crystal.wc.guide.make'), phrase('crystal.wc.guide.chip.give'));
     if (g.kind === 'give') return at(D.ANVIL_AT, phrase('crystal.wc.guide.give'), phrase('crystal.wc.guide.chip.give'));
     const s = D.ITEMS[g.item];

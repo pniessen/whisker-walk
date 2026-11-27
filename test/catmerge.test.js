@@ -297,3 +297,15 @@ describe('applyMerged keeps a copy and refuses a newer-version save', () => {
     expect(storage.getItem('whisker-walk-save')).toBe(newer);
   });
 });
+
+describe('builder scar sub-key (builder-scars)', () => {
+  it('a scar added on one device reaches the merged cat, and a scarred and an unscarred cat stay two looks', () => {
+    const plain = cat('mine1', 'Pip');
+    const scarred = { ...plain, look: { ...plain.look, scar: 'brow' } };
+    const r = merge({ customCats: [scarred] }, { customCats: [scarred] });
+    expect(r.save.customCats[0].look.scar).toBe('brow');
+    const both = merge({ customCats: [scarred] }, { customCats: [plain] });
+    expect(both.save.customCats.length).toBeGreaterThanOrEqual(1);
+    expect(mergeSaves({ local: both.save, cloud: both.save }).save).toEqual(both.save);
+  });
+});

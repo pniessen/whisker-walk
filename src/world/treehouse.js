@@ -3,11 +3,12 @@
 // branch walk (a rope bridge) to the Bookshop deck, the far platform, the rope bridge on to the Crown deck with its Bell Tower, a forest rim and leaves overhead. The levels
 // are PERCHES (the engine has no multi-storey ground): every hop gains at most 1.4 m and reaches at most 2.4 m across, so an ordinary cat reaches every deck with no skill,
 // and there is always a railing. An ordinary map place of the Suburban and rural region, entered by the Farm's north signpost (no gate, no teleport pair). Milestone T2 adds Nutmeg and chapter one (world/treehousemission.js). T3 adds the six discoveries, their collectibles and the three golden mice (world/treehousefinds.js, in the branches stage). T4 adds the friendly life and the sound (world/treehousecritters.js, in the branches stage) and the music theme. Draws no random number and reads no clock; builds in withLocalUuids.
-// HARD RULES (plan 2.6): camera zoom stops at step 2 here (src/camzoom.js ZOOM_CAPPED_AREAS); NO real `ground.ceil` (the ground is flat, the walk's FLAT_GROUND); the leaves
+// HARD RULES (plan 2.6): camera zoom stops at step 2 here (src/camzoom.js ZOOM_CAPPED_AREAS); NO real `ground.ceil` (the ground has strips only, and the camera's ground is FLAT_GROUND); the leaves
 // stand above CANOPY_MIN_Y (11 m) so step 2 never clips them; at most ONE PointLight in the whole place, made at build with intensity 0.
 // =============================================================================
 
 import * as b from './builder.js';
+import { FLAT_GROUND } from '../ground.js';
 import { withLocalUuids } from './localuuids.js';
 import * as P from './treehouseplan.js';
 import * as K from './treehouseparts.js';
@@ -29,9 +30,7 @@ export function build(scene) {
     K.drawDecks(kit, M);
     K.drawWalks(kit, M);
     K.drawPostBox(kit, M);
-    K.drawFerns(kit, M);
-    K.drawRim(kit, M);
-    K.drawCanopy(kit, M);
+    if (!ST.lift?.draw) { K.drawFerns(kit, M); K.drawRim(kit, M); K.drawCanopy(kit, M); } // (the lift stage draws the realistic trees, shrubs and canopy in their place)
     ST.branches?.draw?.(kit, M); // the baskets, the Bookshop's sign, the bell rope and the supper table (milestone T5, in the merged buckets)
     ST.lift?.draw?.(kit, M); // the beauty round: ground tones, clutter, pennants, vines, autumn leaves and the shafts of light (milestone T8, in the lift stage)
     for (const m of kit.meshes()) scene.add(m);
@@ -43,7 +42,11 @@ export function build(scene) {
       colliders: [...P.treehouseColliders(), ...(ST.branches?.colliders?.() ?? [])].map((c) => ({ ...c })),
       waters: [],
       waterFx: [],
-      perches: [...P.TREEHOUSE_PERCHES, ...(ST.branches?.perches?.() ?? [])].map((p) => ({ x: p.x, z: p.z, y: p.y, kind: p.kind })),
+      // the plan's perches are the hop proof (treehouseplan.js reachReport); in the walk every deck, bridge and landing is real ground, so a perch there stands at 0 over it and is not offered
+      // (a hop is metres over the ground under the perch, ground.js). A perch that stands above its own ground is still one.
+      perches: [...P.TREEHOUSE_PERCHES, ...(ST.branches?.perches?.() ?? [])].map((p) => ({ x: p.x, z: p.z, y: p.y - P.TREEHOUSE_GROUND.y(p.x, p.z), kind: p.kind })).filter((p) => p.y > 0.05),
+      ground: P.TREEHOUSE_GROUND, // the decks, the landing, the bridges and the four flights of stairs, raised and walkable (no ceiling)
+      cameraGround: FLAT_GROUND, // the camera keeps the flat ground it always had: nothing pulls it in on a stair or a deck
       pois: P.TREEHOUSE_POIS.map((p) => ({ ...p })),
       collectibles: ST.branches?.finds?.collectibles() ?? [], // six (milestone T3, the finds in the branches stage)
       scenics: P.TREEHOUSE_SCENICS.map((k) => ({ ...k })),
@@ -57,7 +60,7 @@ export function build(scene) {
       // no strays, and with them no ghosts, no wanderer, no rival, no clan cats; the goals that fit a place with no animals yet
       strays: false,
       goalTypes: Object.freeze(['photo', 'scenic', 'play', 'treasure']),
-      // the flat ground (the walk's FLAT_GROUND): no `ground` key, so no ceiling ever pulls the camera in
+      // `ground` has no ceilings, and the camera keeps FLAT_GROUND (cameraGround above), so no ceiling ever pulls the camera in
       life: (ctx) => {
         const light = createTreehouseLight(ctx);
         const nutmeg = createNutmeg({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent, light, tier: ctx.tier });

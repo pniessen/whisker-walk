@@ -37,6 +37,7 @@ it('walk.js builds it only for an area that places moves, and disposes it', () =
 });
 
 it('only the Rooftops, the Old House and Lighthouse Point place moves', async () => {
+  await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage fills the house's wing slots (housestagewing.js)
   // Every place a walk can go (a fresh save's walks, the den included), each
   // built as walk.js builds it: only the Rooftops' record and the house's have
   // `traversal` (Lighthouse Point's stair, milestone 2; the house's climbs up the furniture: Old House step 2, ruling

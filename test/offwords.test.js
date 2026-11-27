@@ -107,7 +107,7 @@ describe('the everyday set is whole, and is not in any build yet', () => {
       expect(clanTitleFor(ME)).toMatch(/^[A-Z][a-z]+ Crew$/);
       const K = RANK_KEYS;
       expect([K.kit, K.apprentice, K.warrior, K.elder, K.leader, K.medicine].map(rankWord)).toEqual(['kitten', 'scout', 'ranger', 'wise cat', 'first cat', 'doc']);
-      expect({ ...words().OUTSIDE_WORDS }).toEqual({ met: 'roamer', grudge: 'loner', player: '', house: 'house cat', people: 'townspeople' });
+      expect({ ...words().OUTSIDE_WORDS }).toEqual({ met: 'roamer', grudge: 'loner', player: '', house: 'house cat', people: 'townspeople', kids: 'kids', wash: 'bathroom' });
       expect(placeName('neighborhood', 'canon', CATALOG)).toBe('Peopleville');
       expect(TERRITORIES.find((t) => t.id === 'town').name).toBe('Peopleville');
       expect(words().PLACE_WORDS.seat).toBe('High Stone');

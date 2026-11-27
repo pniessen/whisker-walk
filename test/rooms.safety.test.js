@@ -34,7 +34,7 @@ describe('rooms: names and members', () => {
     const kid = client(hub, 'bbbb', 'Robin');
     const res = await kid.rooms.host();
     const bad = createNet(hub.transport());
-    await bad.join(res.code, { playerId: 'aaaa', petName: '<img src=x onerror=alert(1)>' });
+    await bad.join(res.code, { playerId: 'aaaa', petName: '<img src=x onerror=alert(1)>', proto: 2 });
     bad.sendState({ v: 1, id: 'aaaa', pos: [1, 2], yaw: 0, pose: 'follow', speed: 1 });
     expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
     expect(kid.toasts).toEqual(['Your friend is exploring. Click Explore when they’re back.']);

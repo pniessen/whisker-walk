@@ -109,7 +109,7 @@
   "@media (max-width: 260px) | flex-wrap: wrap;gap: 4px 10px"
  ],
  ".dr .dr-pick": [
-  "background: var(--panel);border-radius: 9px;padding: 6px;font-size: 11px;text-align: center;display: flex;flex-direction: column;align-items: center;min-height: 44px",
+  "background: var(--panel);border-radius: 9px;padding: 6px;font-size: 12px;text-align: center;display: flex;flex-direction: column;align-items: center;min-height: 44px",
   "@media (max-width: 600px), (orientation: portrait) and (max-width: 1100px) | flex: none;width: 108px;padding: 5px"
  ],
  ".dr .dr-portrait": [
@@ -286,8 +286,8 @@
   "@media (max-width: 600px), (orientation: portrait) and (max-width: 1100px) | top: 50%;right: 6px;left: auto;transform: translateY(-50%)"
  ],
  ".dr-today-extras .dusk": [
-  "display: inline-flex;align-items: center;gap: 6px;min-height: 36px;padding: 6px 14px;border-radius: 999px;background: rgba(20, 26, 38, .72);color: #fff;font-weight: 700;font-size: 14px;cursor: pointer",
-  "@media (max-width: 600px), (orientation: portrait) and (max-width: 1100px) | width: 40px;height: 40px;min-height: 40px;padding: 0;justify-content: center;font-size: 18px"
+  "display: inline-flex;align-items: center;gap: 6px;min-height: 44px;padding: 6px 14px;border-radius: 999px;background: rgba(20, 26, 38, .72);color: #fff;font-weight: 700;font-size: 14px;cursor: pointer",
+  "@media (max-width: 600px), (orientation: portrait) and (max-width: 1100px) | width: 44px;height: 44px;min-height: 44px;padding: 0;justify-content: center;font-size: 18px"
  ],
  ".dr-today-extras .dusk-word": [
   "@media (max-width: 600px), (orientation: portrait) and (max-width: 1100px) | display: none"
@@ -963,10 +963,14 @@
   "html.phone body.touch-mode | --map-size: 88px",
   "html.phone body.touch-mode .hud-map | width: auto;align-items: flex-end",
   "html.phone body.touch-mode .hud-area | font-size: 0.74rem;padding: 1px 7px",
-  "html.phone .toast | padding: 6px 12px",
-  "html.phone #hud:not(.lesson-on) .hud-hint:not(.chip) | font-size: 15px;line-height: 1.25;padding: 6px 12px;gap: 8px;border-radius: 14px",
+  "html.phone .toast | padding: 4px 12px;position: relative",
+  "html.phone .toast::before | content: \"\";position: absolute;inset: -8px 0",
+  "html.phone .toast[data-more]:not([data-more=\"\"])::after | content: \"+\" attr(data-more);margin-left: 8px;padding: 0 6px;border-radius: 999px;background: rgba(255,255,255,0.22);font-size: 0.8em;font-weight: 700",
+  "html.phone body.touch-mode .hud-objective | padding: 3px 12px",
+  "html.phone #hud:not(.lesson-on) .hud-hint:not(.chip) | font-size: 15px;line-height: 1.2;padding: 4px 10px;gap: 8px;border-radius: 14px",
   "html.phone #hud:not(.lesson-on) .hud-hint:not(.chip) .hud-hint-pic | font-size: 18px",
-  "html.phone #hud:not(.lesson-on) .hud-goals | pointer-events: auto;cursor: pointer;outline: none",
+  "html.phone #hud:not(.lesson-on) .hud-goals | pointer-events: auto;cursor: pointer;outline: none;padding: 4px 10px",
+  "html.phone #hud:not(.lesson-on) .hud-goals:not(:focus)::before | content: \"\";position: absolute;inset: -8px",
   "html.phone #hud:not(.lesson-on) .hud-goals:not(:focus) .goal-how | display: none",
   "html.phone #hud:not(.lesson-on) .hud-goals:not(:focus):has(.goal.next) .goal:not(.next) | display: none",
   "html.phone #hud:not(.lesson-on) .hud-goals:not(:focus) .goal.next::after | content: \" \\25BE\";opacity: 0.7",

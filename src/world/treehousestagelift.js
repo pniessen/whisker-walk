@@ -2,5 +2,9 @@
 // treehousebeauty.js: the ground's tones and track, flowers, mushrooms, stumps, logs, pennants, vines, autumn leaves and the shafts of light). Read by treehouse.js through ST.lift.
 import { ST } from './treehousestages.js';
 import { drawBeauty } from './treehousebeauty.js';
+import { drawNature } from './treehousenature.js';
+import { drawGrass } from './treehousegrass.js';
 
-Object.assign(ST, { lift: Object.freeze({ draw: drawBeauty }) });
+// Round two (2026-11-27): realistic trees, shrubs, the leaf canopy and the houses' dressing (treehousenature.js), then grass (treehousegrass.js); treehouse.js leaves its plain rim, ferns and canopy out when this is in.
+function draw(kit, M) { drawBeauty(kit, M); drawNature(kit, M); drawGrass(kit, M); }
+Object.assign(ST, { lift: Object.freeze({ draw }) });

@@ -19,6 +19,7 @@ const { withOffWords } = await import('./helpers/offwords.js');
 const { bannedIn } = await import('./helpers/offwords.js');
 const { findFadeOccluders, createTreeFade } = await import('../src/treefade.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
 const { build } = await import('../src/world/house.js');
 
 // =============================================================================

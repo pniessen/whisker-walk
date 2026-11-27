@@ -261,3 +261,13 @@ describe('compassLetters', () => {
     for (const l of L) expect(Math.hypot(l.u, l.v)).toBeCloseTo(46, 6);
   });
 });
+
+describe('mapMarkers ladder', () => {
+  it('the Reef frame draws one ladder mark at the plan\'s ladder, other frames none', async () => {
+    const { LADDER } = await import('../src/world/reefplan.js');
+    const base = { race: null, quest: null, scenics: [], visitedScenics: new Set(), remotes: [] };
+    expect(mapMarkers({ ...base, ladder: true }).filter((m) => m.kind === 'ladder')).toEqual([{ kind: 'ladder', x: LADDER.x, z: LADDER.z }]);
+    expect(mapMarkers({ ...base, ladder: false }).some((m) => m.kind === 'ladder')).toBe(false);
+    expect(mapMarkers(base).some((m) => m.kind === 'ladder')).toBe(false);
+  });
+});

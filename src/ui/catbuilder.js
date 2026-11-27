@@ -2,7 +2,7 @@
 // DOM-free and THREE-free; the controller wires the data-cb-* hooks.
 
 import {
-  COATS, MARKS, EYES, PATTERNS, FURS, PERSONALITY_CHOICES, CUSTOM_PERSONALITIES,
+  COATS, MARKS, EYES, PATTERNS, FURS, SCARS, PERSONALITY_CHOICES, CUSTOM_PERSONALITIES,
   SIZE, DEFAULT_LOOK, DEFAULT_PERSONALITY, sanitizeLook, presetFor, lookKey,
 } from '../customcats.js';
 import { validPetName } from '../net.js';
@@ -11,7 +11,7 @@ import { escapeHtml } from '../game/util.js';
 
 const NAME_MAX = 16;
 const TABLES = { coat: COATS, marks: MARKS, eyes: EYES };
-const LISTS = { pattern: PATTERNS, fur: FURS };
+const LISTS = { pattern: PATTERNS, fur: FURS, scar: SCARS };
 
 const fields = (name, personality, look) => ({ name, personality, look: sanitizeLook(look) });
 
@@ -36,7 +36,8 @@ export function reduceBuilder(b, action) {
       if (typeof value !== 'string') return b;
       const ok = Object.hasOwn(TABLES, field) ? Object.hasOwn(TABLES[field], value)
         : Object.hasOwn(LISTS, field) ? LISTS[field].some((p) => p[0] === value) : false;
-      if (!ok || draft.look[field] === value) return b;
+      if (!ok || (draft.look[field] ?? 'none') === value) return b;
+      if (field === 'scar' && value === 'none') { const { scar, ...rest } = draft.look; return withDraft(b, { look: rest }); }
       return withDraft(b, { look: { ...draft.look, [field]: value } });
     }
     case 'personality':
@@ -76,6 +77,7 @@ export function buildBuilderModel(b) {
     { key: 'marks', title: 'Markings colour', kind: 'swatch', options: swatches('marks', MARKS), value: look.marks, dimmed: !!marksNote, note: marksNote },
     { key: 'pattern', title: 'Pattern', kind: 'pill', options: pills(PATTERNS), value: look.pattern },
     { key: 'fur', title: 'Fur', kind: 'pill', options: pills(FURS), value: look.fur },
+    { key: 'scar', title: 'Scar', kind: 'pill', options: pills(SCARS), value: look.scar ?? 'none' },
     { key: 'eyes', title: 'Eyes', kind: 'swatch', options: swatches('eyes', EYES), value: look.eyes },
     { key: 'size', title: 'Size', kind: 'range', value: look.size },
     { key: 'personality', title: 'Personality', kind: 'personality', options: pills(PERSONALITY_CHOICES), value: draft.personality },

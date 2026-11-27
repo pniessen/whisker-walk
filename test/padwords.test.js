@@ -12,7 +12,7 @@ const SERIES = ['clan', 'warrior', 'kit', 'apprentice', 'kittypet', 'twoleg', 'p
 // The lines whose keyboard form names a key or the mouse: each needs a pad form.
 const KEYISH = /\bPress\b|\bHold\b|\bSpace\b|\bEsc\b|\bEnter\b|\bShift\b|\bClick\b|\bScroll\b|\bthe mouse\b|\bWASD\b|\b[Aa]rrow keys\b|\b[A-Z]\b\.|\bpress [A-Z]\b/;
 // Lists of controls, one piece each: the sentence limits are for sentences.
-const LISTS = new Set(['pad.strip', 'pad.pause.controls']);
+const LISTS = new Set(['pad.strip', 'pad.strip.reef', 'pad.pause.controls']);
 
 const inBoth = (fn) => { fn('on'); withOffWords(() => fn('off')); };
 

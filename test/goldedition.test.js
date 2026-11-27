@@ -25,14 +25,14 @@ describe('golden mice per edition', () => {
 
   it("the house's mice count in Clan Edition only", () => {
     const houseIds = GOLD_MICE.house.map((m) => m.id);
-    expect(houseIds).toEqual(['gm-house-1', 'gm-house-2', 'gm-house-3']);
+    expect(houseIds).toEqual(['gm-house-1', 'gm-house-2', 'gm-house-3', 'gm-house-4', 'gm-house-5']);
     const canon = goldForEdition('canon', CATALOG);
     for (const id of houseIds) expect(canon.has(id)).toBe(true);
     const legacy = goldForEdition('legacy', CATALOG);
     for (const id of houseIds) expect(legacy.has(id)).toBe(false);
     const { house, ...rest } = CATALOG.areas; // eslint-disable-line no-unused-vars
     expect(house).toBeDefined();
-    expect(legacy.size).toBe(goldForEdition('legacy', { ...CATALOG, areas: rest }).size - 3); // without a house row its three are counted
+    expect(legacy.size).toBe(goldForEdition('legacy', { ...CATALOG, areas: rest }).size - 5); // without a house row its five (three, the east wing's top bunk and the wonder room's cat tree) are counted
   });
 
   it('a missing edition is Clan Edition', () => {

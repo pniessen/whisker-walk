@@ -279,7 +279,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   slideHood(cat);
   lids(cat, state, t, moveSpeed);
   // Last: a scar rides the head and torso where everything above left them.
-  if (cat.userData.parts.scars) fitScars(cat);
+  if (cat.userData.parts.scars || cat.userData.parts.marks) fitScars(cat);
 }
 
 // THE LIDS (cat-beauty). A cat that never blinks reads as a toy, and one that

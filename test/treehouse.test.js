@@ -26,7 +26,7 @@ const { TELE_ENDS } = await import('../src/teleport.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 
 const read = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
-const FILES = ['src/world/treehouseplan.js', 'src/world/treehouseparts.js', 'src/world/treehouselight.js', 'src/world/treehouse.js', 'src/world/treehousestages.js', 'src/world/treehousestagebranches.js', 'src/world/treehousestagelift.js', 'src/treehouseflag.js'];
+const FILES = ['src/world/treehouseplan.js', 'src/world/treehouseparts.js', 'src/world/treehouselight.js', 'src/world/treehouse.js', 'src/world/treehousestages.js', 'src/world/treehousestagebranches.js', 'src/world/treehousestagelift.js', 'src/world/treehousebeauty.js', 'src/world/treehousenature.js', 'src/world/treehousegrass.js', 'src/treehouseflag.js'];
 
 describe('the plan: the climb', () => {
   const area = build(new THREE.Scene());
@@ -90,7 +90,7 @@ describe('the plan: the climb', () => {
       expect(c.x).toBeGreaterThan(P.TREEHOUSE_BOUNDS.minX); expect(c.x).toBeLessThan(P.TREEHOUSE_BOUNDS.maxX);
       expect(c.z).toBeGreaterThan(P.TREEHOUSE_BOUNDS.minZ); expect(c.z).toBeLessThan(P.TREEHOUSE_BOUNDS.maxZ);
     }
-    expect(area.colliders).toHaveLength(1 + P.DECKS.length * 4 + P.FRIEND_TREES.length);
+    expect(area.colliders).toHaveLength(1 + P.DECKS.length * 4 + P.DECKS.filter((k) => k.hut).length + P.FRIEND_TREES.length); // the oak, the stilts, the three huts, the friend trees
     for (const poi of area.pois) expect(isWalkableAt(area, poi.x, poi.z)).toBe(true);
     expect(area.pois.length).toBeGreaterThanOrEqual(10);
   });
@@ -119,12 +119,12 @@ describe('the camera spike (plan 2.6)', () => {
     expect(ZOOM_CAPPED_AREAS).toEqual({ den: 1, crystal: 2, treehouse: 2 });
     expect(maxZoomStep('farm')).toBe(3);
   });
-  it('the walk has no ceiling: the record has no ground (the walk\'s flat ground), so no `ceil` ever pulls the camera in', () => {
+  it('the walk has no ceiling and the camera keeps the flat ground: strips only, so no `ceil` ever pulls the camera in', () => {
     const area = build(new THREE.Scene());
-    expect(Object.hasOwn(area, 'ground')).toBe(false);
-    expect(groundOf(area)).toBe(FLAT_GROUND);
-    expect(groundOf(area).ceil(0, 0)).toBe(Infinity);
-    expect(P.TREEHOUSE_GROUND).toBeNull();
+    expect(groundOf(area)).toBe(P.TREEHOUSE_GROUND);
+    expect(area.cameraGround).toBe(FLAT_GROUND);
+    for (const [x, z] of [[0, 0], [-9, 13], [7, -5.7], [0, -16], [1.5, 4.7]]) expect(groundOf(area).ceil(x, z)).toBe(Infinity);
+    expect(P.treehouseGroundSpec().ceilings).toEqual([]);
   });
 });
 
@@ -271,6 +271,122 @@ describe('the two stage slots', () => {
     expect(Object.keys(ST.branches)).toEqual(['finds', 'critters', 'colliders', 'perches', 'story', 'draw', 'wing', 'errand']);
     expect(Object.keys(ST.lift)).toEqual(['draw']); // the beauty round (T8)
     const area = build(new THREE.Scene());
-    expect(area.perches).toHaveLength(P.TREEHOUSE_PERCHES.length);
+    // every plan perch stands on a deck, a bridge or the landing, which is ground in the walk now (0 over it): none is offered as a hop
+    expect(area.perches).toHaveLength(0);
+    for (const p of P.TREEHOUSE_PERCHES) expect(P.TREEHOUSE_GROUND.y(p.x, p.z), p.id).toBeGreaterThanOrEqual(p.y - 1e-9); // (a2 stands under the Bakery's flight, which is higher there)
+  });
+});
+
+// ---- the stairs are real: walked up, walked down, never walked through ----------------------------------------------------------------------------------------
+describe('the stairs: walkable ramps on the walk\'s ground (a cat on foot, no hop, no skill)', () => {
+  const G = P.TREEHOUSE_GROUND;
+  const area = build(new THREE.Scene());
+  const walked = P.walkFlood({ colliders: area.colliders });
+  const reaches = (x, z, y, tol = 0.35) => walked.some((c) => Math.hypot(c.x - x, c.z - z) <= tol && Math.abs(c.y - y) < 0.15);
+  const along = (k, t, off = 0) => {
+    const len = Math.hypot(k.x1 - k.x0, k.z1 - k.z0);
+    return { x: k.x0 + (k.x1 - k.x0) * t - ((k.z1 - k.z0) / len) * off, z: k.z0 + (k.z1 - k.z0) * t + ((k.x1 - k.x0) / len) * off };
+  };
+  // a stick-walker: a point that follows a polyline in 0.1 m strokes, every stroke asked of the ground's own slide (what the player does each frame)
+  const walk = (pts) => {
+    const pos = { x: pts[0].x, y: G.y(pts[0].x, pts[0].z), z: pts[0].z };
+    let stuck = 0;
+    for (const to of pts.slice(1)) {
+      for (let guard = 0; guard < 400 && Math.hypot(to.x - pos.x, to.z - pos.z) > 0.05; guard++) {
+        const d = Math.hypot(to.x - pos.x, to.z - pos.z);
+        const s = Math.min(0.1, d);
+        const next = { x: pos.x + ((to.x - pos.x) / d) * s, z: pos.z + ((to.z - pos.z) / d) * s };
+        if (G.slide(pos.x, pos.z, next)) stuck++;
+        pos.x = next.x; pos.z = next.z; pos.y = G.y(pos.x, pos.z);
+      }
+    }
+    return { ...pos, stuck };
+  };
+
+  it('four flights: the Bakery front, the Bakery to the landing, the Bookshop to the far platform, the rope bridge up to the Crown deck', () => {
+    expect(P.STAIRS.map((k) => k.id)).toEqual(['bakery-front', 'bakery-landing', 'books-far', 'far-crown']);
+  });
+
+  it('none is steeper than 1 in 3, each rises exactly one level, and the ramp meets the level above flush (the top end stands on that level\'s own ground)', () => {
+    for (const k of P.STAIRS) {
+      expect(P.stairGrade(k), k.id).toBeLessThanOrEqual(P.STAIR_GRADE_MAX + 1e-9);
+      expect(k.y1 - k.y0, k.id).toBeCloseTo(1.4, 9);
+      expect(G.y(k.x1, k.z1), `${k.id} top`).toBeCloseTo(k.y1, 6);
+      expect(G.y(k.x0, k.z0), `${k.id} foot`).toBeCloseTo(k.y0, 6);
+      // a hair before the top the ramp is within a step (0.12 + 0.5 per m) of the level it meets
+      const near = along(k, 0.97);
+      expect(Math.abs(G.y(near.x, near.z) - k.y1), k.id).toBeLessThan(0.12);
+    }
+  });
+
+  it('a walker from the foot of each flight reaches its top by walking, and walks back down to where it started', () => {
+    for (const k of P.STAIRS) {
+      const up = walk([{ x: k.x0, z: k.z0 }, ...[0.25, 0.5, 0.75, 1].map((t) => along(k, t))]);
+      expect(up.stuck, `${k.id} up`).toBe(0);
+      expect(up.y, `${k.id} up y`).toBeCloseTo(k.y1, 1);
+      const down = walk([{ x: k.x1, z: k.z1 }, ...[0.75, 0.5, 0.25, 0].map((t) => along(k, t))]);
+      expect(down.stuck, `${k.id} down`).toBe(0);
+      expect(down.y, `${k.id} down y`).toBeCloseTo(k.y0, 1);
+    }
+  });
+
+  it('the first flight starts on the open ground the cat walks on from the spawn', () => {
+    const k = P.stairOf('bakery-front');
+    expect(G.y(k.x0, k.z0)).toBe(0);
+    expect(reaches(k.x0, k.z0, 0)).toBe(true);
+  });
+
+  it('from the spawn she walks to every deck, the landing, both bridges and every perch of the plan, at that level\'s height', () => {
+    for (const k of P.DECKS) expect(walked.some((c) => Math.abs(c.x - k.x) <= k.w / 2 && Math.abs(c.z - k.z) <= k.d / 2 && c.y === k.y), k.id).toBe(true);
+    expect(reaches(P.LANDING.x, P.LANDING.z, P.LANDING.y)).toBe(true);
+    for (const p of P.TREEHOUSE_PERCHES.filter((q) => Math.abs(G.y(q.x, q.z) - q.y) < 1e-9)) expect(reaches(p.x, p.z, p.y), p.id).toBe(true); // (a perch under a flight stands lower than the flight above it: a2, b1)
+    for (const line of P.BRIDGE_LINES) for (const p of line.filter((q) => Math.abs(G.y(q.x, q.z) - q.y) < 1e-9)) expect(reaches(p.x, p.z, p.y), `${p.x},${p.z}`).toBe(true);
+    expect(Math.max(...walked.map((c) => c.y))).toBeCloseTo(5.6, 6);
+  });
+
+  it('never stuck: from the Crown deck and from every cell she can walk to, the spawn is walked back to (the same flood, begun on the crown, holds the spawn)', () => {
+    const back = P.walkFlood({ colliders: area.colliders, spawn: { x: 0, z: -14.6 } });
+    expect(back.some((c) => Math.hypot(c.x - P.TREEHOUSE_SPAWN.x, c.z - P.TREEHOUSE_SPAWN.z) < 0.3 && c.y === 0)).toBe(true);
+    expect(back.length).toBe(walked.length);
+  });
+
+  it('a stair has no walk-through gap: a step off the side of a flight where it stands over 0.4 m high is a wall, and the foot is open on three sides', () => {
+    for (const k of P.STAIRS) {
+      const t = 0.85;
+      const here = along(k, t);
+      const h = k.y0 + (k.y1 - k.y0) * t;
+      for (const s of [-1, 1]) {
+        const out = along(k, t, s * (k.w / 2 + 0.2));
+        if (h - G.y(out.x, out.z) > 0.4) expect(G.canStep(here.x, here.z, out.x, out.z), `${k.id} side ${s}`).toBe(false);
+      }
+    }
+    const f = P.stairOf('bakery-front');
+    expect(G.canStep(f.x0, f.z0, f.x0 - 0.7, f.z0 + 0.2)).toBe(true); // the foot: she steps on from the side at ground height, off it too
+    expect(G.canStep(f.x0, f.z0 + 0.5, f.x0, f.z0 - 0.5)).toBe(true);
+  });
+
+  it('the drawn treads are under her paws: the paint mesh has a tread top within 0.17 m of the ramp (its corners slope that much) at every flight\'s quarter points', () => {
+    const scene = new THREE.Scene();
+    build(scene);
+    const mesh = scene.getObjectByName('treehouse:paint');
+    const pos = mesh.geometry.attributes.position;
+    for (const k of P.STAIRS) {
+      for (const t of [0.25, 0.5, 0.75]) {
+        const c = along(k, t);
+        const want = G.y(c.x, c.z);
+        let best = Infinity;
+        for (let i = 0; i < pos.count; i++) {
+          if (Math.abs(pos.getX(i) - c.x) < 0.7 && Math.abs(pos.getZ(i) - c.z) < 0.7) best = Math.min(best, Math.abs(pos.getY(i) - (want + 0.03)));
+        }
+        expect(best, `${k.id} at ${t}`).toBeLessThan(0.17);
+      }
+    }
+  });
+
+  it('no flight or deck strip carries a ceiling, and the plan\'s hop proof still stands beside the walk (reachReport clean)', () => {
+    expect(P.treehouseGroundSpec().strips.every((s) => s.width > 0)).toBe(true);
+    const r = P.reachReport({ ground: P.groundFlood(area.colliders, area.bounds, area.spawn) });
+    expect(r.missing).toEqual([]);
+    expect(r.down).toEqual([]);
   });
 });

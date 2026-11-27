@@ -274,7 +274,7 @@ export function createRests(scene, rests, { ground = FLAT_GROUND } = {}) {
         added.push(decal);
       }
     }
-    list.push({ id: r.id, kind: r.kind, x: r.x, z: r.z, group });
+    list.push({ id: r.id, kind: r.kind, x: r.x, z: r.z, group, y: Number.isFinite(r.y) ? r.y : null });
   } };
   addAll(rests);
 
@@ -291,6 +291,8 @@ export function createRests(scene, rests, { ground = FLAT_GROUND } = {}) {
       let bestD = maxDist;
       for (const e of list) {
         const d = Math.hypot(e.x - pos.x, e.z - pos.z);
+        // a rest with a `y` (the Old House's sofa seat) is offered only to paws that high: not from the floor in front of it
+        if (e.y !== null && pos.y < e.y) continue;
         if (d < bestD) {
           bestD = d;
           best = e;

@@ -173,6 +173,10 @@
    "touch": "Creep close. Then tap the paw.",
    "keys": "Hold Shift to creep close. Then press Space."
   },
+  "how.house-wing": {
+   "touch": "Visit the rooms past the parlour. Lie in a sunny patch.",
+   "keys": "Visit the rooms past the parlour. Lie in a sunny patch."
+  },
   "home.present": {
    "touch": "Tap the present! 🎁",
    "keys": "Click the present! 🎁"
@@ -531,6 +535,10 @@
   "how.pounce-play": {
    "touch": "Creep close. Then tap the paw.",
    "keys": "Hold Shift to creep close. Then press Space."
+  },
+  "how.house-wing": {
+   "touch": "Visit the rooms past the parlour. Lie in a sunny patch.",
+   "keys": "Visit the rooms past the parlour. Lie in a sunny patch."
   },
   "home.present": {
    "touch": "Tap the present! 🎁",

@@ -154,6 +154,8 @@ export const OUTSIDE_WORDS = Object.freeze({
   player: '',
   house: 'house cat',
   people: 'townspeople',
+  kids: 'kids',
+  wash: 'bathroom',
 });
 
 // roofs: the Rooftops, in plain words in both sets.

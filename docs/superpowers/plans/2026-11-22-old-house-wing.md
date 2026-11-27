@@ -261,6 +261,13 @@ Implementation: one watcher per cat (as `createHouseFinds`), the new `nap` trigg
 
 ## Milestone 3: the secret wonder room (mergeable)
 
+**Built (2026-11-27, branch house-wing-m2).** Tasks 18 to 22 are in. The foreman's decision at the start: the wing's code moved into its own lazy stage chunk first (`src/world/housestages.js`, `housestagewing.js`, one row in `STAGED_AREAS`; the house landing 56.5 -> 48.2 kB, the stage 11.0 kB), so the wonder room's code lives in that stage (landing 50.3 kB, stage 13.9 kB at the end). Where the build differs from the text below:
+- The stair is `wonderstair` (not `wonder`: a room has that id). The wardrobe pays `housefind`'s 12 (every other find pays the wing's 8).
+- The tree is a row of four 0.9 m squares going east along z -11.35, 0.92 m apart (so no guard rings overlap and the wall strip stays open to the north); the hammock is on the north wall above the second platform (a 2.1 m leap north, a drop to the first platform, then the tree's own way down); there is no pouf, no wonder lamp (a 3.4 m pool does not fit) and no second yarn spot (a ball in a room she cannot enter yet would be a trap): the string lights and the skylight's pool light the room.
+- The tunnel is an L (3.0 m) along the east wall, its colliders 1.1 m apart so a Maine Coon's body (r 0.35) fits; she moves at 0.75 inside and crinkles every half metre (`areaLife.pace` is read by `game/avatar.js`).
+- The wonder zone is 6,200 triangles, 38 meshes, 25 casters (design: 3,600 / 35 / 20; the room is 11 x 10 and 4.2 m up); its worst pair (kids + wonder, wardrobe open) is 61,900 / 359 meshes / 194 casters by day, inside the hard ceilings (70,000 / 450 / 380).
+- Not built here: the owner's pictures, the film, before/after pictures (shots `wonder`, `wardrobe-shut`, `wardrobe-open`, `tree-crown`, `tunnel`, `wonder-outside` are in `housetour.js`; the `wing` tour does not enter the wonder room).
+
 Result: the wardrobe, the secret stair, the wonder room, the tree, the tunnel, the toys, the last finds, the crown's golden mouse; the whole wing inside the budget.
 
 ### Task 18: The secret stair, the wardrobe and the room's plan data

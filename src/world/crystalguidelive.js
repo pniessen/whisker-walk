@@ -67,6 +67,7 @@ export function createCrystalGuideLive(ctx) {
   let disposed = false;
   let lineH = 0;
   let cat = null;
+  let lastCam = null;
   let gp = null; // the goal as of the last look (four times a second): the arrow and the chip read it each frame
   const last = { deg: 1e9, x: 0, y: 0, m: 0, cx: 1e9, cy: 0, flip: 0, a: 0 };
 
@@ -113,7 +114,8 @@ export function createCrystalGuideLive(ctx) {
   function look() {
     if ((win?.innerWidth || 960) !== size.W || (win?.innerHeight || 540) !== size.H) layout();
     gp = lumi.goalNow();
-    const text = goalWords({ goal: gp, metres: cat ? dist(cat, gp) : 0, step: stepOf(), errand: errandWaits() });
+    if (lastCam) viewOf(lastCam, view);
+    const text = goalWords({ goal: gp, cat, fx: view.fx, fz: view.fz, metres: cat ? dist(cat, gp) : 0, step: stepOf(), errand: errandWaits() });
     if (text !== live.text) {
       live.text = text;
       line.textContent = text;
@@ -201,6 +203,7 @@ export function createCrystalGuideLive(ctx) {
       if (disposed) return;
       lastAt = Date.now();
       cat = catPos ?? cat;
+      lastCam = camera ?? lastCam;
       acc += dt > 0 ? dt : 0;
       if (acc >= LOOK_EVERY) { acc = 0; look(); } else if (!shown) show(true);
       frameArrow(catPos, camera);

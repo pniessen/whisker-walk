@@ -18,6 +18,7 @@ const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildFair } = await import('../src/world/fair.js');
 const { build: buildRoofs } = await import('../src/world/roofs.js');
 const { build: buildMarket } = await import('../src/world/market.js');
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
 const { build: buildHouse } = await import('../src/world/house.js');
 const { build: buildLighthouse } = await import('../src/world/lighthouse.js');
 const { build: buildGreenhouse } = await import('../src/world/greenhouse.js');
@@ -573,7 +574,10 @@ const AREAS = [
   // strings of lights, lantern glows, candle flames, fireflies and the bell's ring are the walk's life, not in this count.
   // Milestone T8 (2026-11-27, the beauty round, treehousebeauty.js in the lift stage: ground tones and the worn track, flower clumps in each zone's hue, mushrooms, stumps, logs, pennants, vines,
   // autumn leaves, all in the same merged buckets, plus ONE non-casting additive mesh for the shafts of sun) measured 5 / 1 / 44,825 built (+12,000 triangles, +1 mesh, no caster), +12%: 6 / 2 / 50,200.
-  ['treehouse', buildTreehouse, 6, 2, 50200],
+  // Beauty round two (2026-11-27, the lift stage: realistic rim trees in four shared variants, shrubs and ferns, the canopy as three lumps a clump, the houses' shingle rows, plank lines, frames, shutters and trim,
+  // ground-tone patches, blade tufts and wildflower specks in ONE more non-casting mesh, and the sun shafts opening at the canopy's gaps) measured 6 / 1 / 56,689 built (+11,900 triangles; the tufts, 3,551, are hidden
+  // on LOW and LITE; the same meshes, no caster), +12%: 6 / 2 / 63,500.
+  ['treehouse', buildTreehouse, 6, 2, 63500],
   // Snowville. Milestone V1 (2026-11-27, the snow world: the ground heightfield, then the arch, brazier, seven cottages, the square and the 100-odd firs, drifts and rocks in three
   // merged buckets (paint, glow, tree) and the treeline's own non-casting bucket; the flakes, glints and cheeks are the walk's life, not in this count) measured 5 / 2 / 16,108 built
   // (the same merged), +12%: 6 / 3 / 18,100. The plan's stage A figures were about 25,000 triangles: under them. The Farm with its new gate (3 meshes, +441 triangles, +1 caster)

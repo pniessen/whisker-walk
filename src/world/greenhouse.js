@@ -52,7 +52,7 @@ export function build(scene, { water = {}, wind } = {}) {
 
     const H = P.PALM_HOUSE;
     scene.add(G.floorQuad(H));
-    const house = G.glassHouse(H, P.PALM_DOORS, { name: 'palmHouse' });
+    const house = G.glassHouse(H, P.PALM_DOORS, { name: 'palmHouse', quality });
     scene.add(house.group);
     scene.add(G.dappleQuad(H));
     // the low tier drops the mist and the shafts and keeps the frame, the one glass layer and the dapple
@@ -66,7 +66,7 @@ export function build(scene, { water = {}, wind } = {}) {
     const roomShafts = [];
     for (const r of Rooms.ROOMS) {
       scene.add(G.floorQuad(r.house, r.id === 'cactus' ? Rooms.CACTUS_SAND : undefined, `${r.id}Floor`));
-      scene.add(G.glassHouse(r.house, r.doors, { name: `${r.id}House` }).group);
+      scene.add(G.glassHouse(r.house, r.doors, { name: `${r.id}House`, quality }).group);
       scene.add(G.dappleQuad(r.house, { name: `${r.id}Dapple` }));
       if (quality !== 'low') {
         const spots = { orchid: Rooms.ORCHID_SHAFT_SPOTS, cactus: Rooms.CACTUS_SHAFT_SPOTS, butterfly: Rooms.BUTTERFLY_SHAFT_SPOTS }[r.id];

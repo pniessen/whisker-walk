@@ -263,7 +263,7 @@ describe('Settings: switches, soft sliders, pill selects', () => {
     expect(sel).toContain('#2c3d58');
     expect(sel).toContain('1px solid #8c9bb4');
     expect(sel).toContain('padding-right: 34px');
-    expect(sel).toContain('min-height: 40px');
+    expect(sel).toContain('min-height: 44px'); // (44 since the touch-target lint: A1)
     expect(sel).toContain('data:image/svg+xml');
     expect(css()).toMatch(/\.settings-section select:focus-visible[^{]*\{[^}]*outline:\s*3px solid #fff/);
     const reset = rule('.settings-section .danger {');

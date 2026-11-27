@@ -44,6 +44,11 @@ describe('the goal line, in both word sets', () => {
     expect(G.goalWords(goals[4])).toBe('Water the thirsty plants (3 of 4)');
     expect(G.goalWords(null)).toBe('');
   });
+  it('with her position and heading it adds where the goal is, to 5 m', () => {
+    const from = (z, fz) => ({ cat: { x: 0, z }, fx: 0, fz });
+    expect(G.goalWords({ kind: 'packet', x: 0, z: 0, n: 2, total: 5 }, from(10, -1))).toBe('Find the seed packets (2 of 5), about 10 m ahead.');
+    expect(G.goalWords({ kind: 'can', x: 0, z: 0, n: 0, total: 4 }, from(10, 1))).toBe('Pick up the watering can by the potting bench, about 10 m behind you.');
+  });
   it('every line is the same in both sets and has no banned or series word', () => {
     const clan = goals.map((g) => G.goalWords(g));
     const plain = withOffWords(() => goals.map((g) => G.goalWords(g)));
@@ -87,7 +92,7 @@ describe('the live ring', () => {
     expect(guide.ring.visible).toBe(true);
     expect(guide.ring.position.x).toBe(P.POTTING.x);
     expect(guide.ring.position.z).toBe(P.POTTING.z);
-    expect(guide.state.text).toBe(phrase('greenhouse.guide.bench'));
+    expect(guide.state.text).toMatch(/^Go to the potting bench: .*there, about \d+ m /);
     expect(guide.state.arrowOn).toBe(true);
     expect(guide.state.metres).toBe(25);
   });
@@ -95,7 +100,7 @@ describe('the live ring', () => {
     const { guide } = rig();
     guide.update(0.3, 1, { x: P.POTTING.x, y: 0, z: P.POTTING.z + 5 }, null);
     guide.update(0.3, 2, { x: P.POTTING.x, y: 0, z: P.POTTING.z + 5 }, null);
-    expect(guide.state.text).toBe('Find the seed packets (0 of 5)');
+    expect(guide.state.text).toMatch(/^Find the seed packets \(0 of 5\), about \d+ m (ahead|behind you|to your (left|right))\.$/);
   });
   it('reduced motion holds the ring still', () => {
     const a = rig(true).guide;

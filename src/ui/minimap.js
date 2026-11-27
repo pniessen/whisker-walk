@@ -44,7 +44,8 @@ const TAP_MS = 300;
 // Gorge's ledges and floor, FLAT_GROUND everywhere else).
 export function buildMapLayer(areaData, scene) {
   const ground = '#' + (areaData.mapGround ?? areaData.groundBounce ?? 0x6cb058).toString(16).padStart(6, '0');
-  return {
+  const rockOf = () => (areaData.mapShapes ?? []).map(({ minX, maxX, minZ, maxZ, tone }) => ({ minX, maxX, minZ, maxZ, tone }));
+  const layer = {
     ground,
     edge: areaData.bounds,
     // Decks (the Docks' bridges, the Seaside pier) are dry crossings over
@@ -66,7 +67,10 @@ export function buildMapLayer(areaData, scene) {
     paths: flatFootprints(scene, groundOf(areaData)).filter((f) => f.kind === 'strip'),
     // The Gorge's rock and ledges as plain rectangles, drawn under the paths.
     // Empty on every other map, so they paint exactly as before.
-    rock: (areaData.mapShapes ?? []).map(({ minX, maxX, minZ, maxZ, tone }) => ({ minX, maxX, minZ, maxZ, tone })),
+    rock: rockOf(),
+    // A place whose floor plan grows mid-walk (the Old House's wonder room, once its wardrobe is opened) swaps areaData.mapShapes and bumps
+    // areaData.mapVersion; refresh() re-reads the shapes then, and the minimap repaints.
+    mapVersion: areaData.mapVersion ?? 0,
     // The Gorge's deep caves, by their mouths, drawn as small dark arches.
     // Empty on every other map, so they paint exactly as before.
     caves: (areaData.caves ?? []).map(({ mouth }) => ({ x: mouth.x, z: mouth.z })),
@@ -79,6 +83,13 @@ export function buildMapLayer(areaData, scene) {
     // a block (the Pines' Old Ash) is left to the block.
     trees: treesFor(areaData, scene),
   };
+  layer.refresh = () => {
+    const v = areaData.mapVersion ?? 0;
+    if (v === layer.mapVersion) return;
+    layer.mapVersion = v;
+    layer.rock = rockOf();
+  };
+  return layer;
 }
 
 function treesFor(areaData, scene) {
@@ -433,6 +444,18 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle,
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(String(m.n), x, y + 0.5);
+    } else if (m.kind === 'ladder') {
+      // The Reef's ladder: two rails and three rungs, small and white-on-ink.
+      ctx.lineCap = 'round';
+      for (const [col, w] of [[INK, 3.4], ['#fff', 1.8]]) {
+        ctx.strokeStyle = col;
+        ctx.lineWidth = w;
+        ctx.beginPath();
+        ctx.moveTo(x - 3, y - 6); ctx.lineTo(x - 3, y + 6);
+        ctx.moveTo(x + 3, y - 6); ctx.lineTo(x + 3, y + 6);
+        for (const dy of [-3.5, 0, 3.5]) { ctx.moveTo(x - 3, y + dy); ctx.lineTo(x + 3, y + dy); }
+        ctx.stroke();
+      }
     } else if (m.kind === 'pad') {
       ctx.beginPath();
       ctx.arc(x, y, 5.5, 0, Math.PI * 2);
@@ -580,6 +603,7 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle,
       // is still seen by the first call after the gap.
       const now = performance.now();
       if (now - lastPaintAt < MIN_FRAME_MS) return;
+      layer?.refresh?.();
       const markers = mapMarkers(frame);
       const key = markersKey(markers);
       const size = cssSize(canvas);
@@ -587,11 +611,12 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle,
         || last.mode !== currentMode
         || last.size !== size
         || last.key !== key
+        || last.ver !== layer?.mapVersion
         || Math.hypot(view.cx - last.cx, view.cz - last.cz) > 0.05
         || Math.abs(view.heading - last.heading) > 0.01;
       if (!changed) return;
       lastPaintAt = now;
-      last = { cx: view.cx, cz: view.cz, heading: view.heading, key, mode: currentMode, size };
+      last = { cx: view.cx, cz: view.cz, heading: view.heading, key, mode: currentMode, size, ver: layer?.mapVersion };
       paint(view, markers, size);
     },
     setMode(next) {

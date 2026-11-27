@@ -8,6 +8,11 @@ stubCanvasDocument();
 const { build: buildNeighborhood } = await import('../src/world/neighborhood.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildFair } = await import('../src/world/fair.js');
+const { build: buildWoods } = await import('../src/world/woods.js');
+const { build: buildRiver } = await import('../src/world/river.js');
+const { build: buildMoor } = await import('../src/world/moor.js');
+const { build: buildPines } = await import('../src/world/pines.js');
+const { build: buildDen } = await import('../src/world/den.js');
 const { buildCat } = await import('../src/cat/model.js');
 const { CATALOG } = await import('../src/progression.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
@@ -96,6 +101,11 @@ const SCENES = [
   ['neighborhood', buildNeighborhood, 70350, 534, 454],
   ['docks', buildDocks, 108750, 665, 559],
   ['fair', buildFair, 99950, 296, 226],
+  ['woods', buildWoods, 100270, 308, 273],
+  ['river', buildRiver, 94990, 296, 254],
+  ['moor', buildMoor, 95350, 207, 162],
+  ['pines', buildPines, 98800, 244, 186],
+  ['den', buildDen, 45110, 417, 294],
 ];
 
 const markScene = (withPuff = false) => {

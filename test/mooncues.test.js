@@ -232,7 +232,7 @@ describe('(c) cue coverage: every step has a cue that points at the next target'
   it('every phrase id the story cues use resolves in both word sets and holds no banned word', () => {
     const ids = ['moon.pip.prompt', 'moon.pip.hint', 'moon.meow.hint', 'moon.pip.wake', 'moon.cell.prompt', 'moon.core.prompt', 'moon.core.on', 'moon.pip.goal', 'moon.stamp.ask', 'moon.reply', 'moon.story.pay', 'moon.badge',
       'moon.guide.pip', 'moon.guide.cell0', 'moon.guide.cell1', 'moon.guide.core', 'moon.guide.deep', 'moon.guide.both', 'moon.guide.hill', 'moon.guide.top', 'moon.guide.t.both', 'moon.guide.t.cat', 'moon.guide.t.mouse',
-      'moon.guide.desk', 'moon.guide.rocket', 'moon.guide.button', 'moon.guide.reply', 'moon.guide.cave', 'moon.guide.tunnel', 'moon.guide.done', 'moon.guide.at.dirs', 'moon.guide.at.of', 'moon.guide.at.near',
+      'moon.guide.desk', 'moon.guide.rocket', 'moon.guide.button', 'moon.guide.reply', 'moon.guide.cave', 'moon.guide.tunnel', 'moon.guide.done',
       'moon.chip.a', 'moon.chip.b', 'moon.chip.c', 'moon.chip.d', 'moon.chip.e'];
     for (const id of ids) expect(typeof phrase(id), id).toBe('string');
     withOffWords(() => { for (const id of ids) { expect(typeof phrase(id), id).toBe('string'); expect(bannedIn(phrase(id)), id).toBeNull(); } });
@@ -270,12 +270,12 @@ describe('(d) distance and sight: the previous spot to the next target against t
   it('every leg is inside the bounds\' own diagonal (the largest value the plan implies)', () => {
     for (const l of legs) expect(l.d, `${l.s.what} leg`).toBeLessThanOrEqual(MAX_LEG);
   });
-  it('a leg past the ring\'s 60 m still has the three far cues: the column, the arrow (past ARRIVED) and a compass word', () => {
+  it('a leg past the ring\'s 60 m still has the three far cues: the column, the arrow (past ARRIVED) and where from her', () => {
     const far = legs.filter((l) => l.d >= BEACON.near);
     expect(far.length).toBeGreaterThan(0); // the Moon really has long legs: the guide is not decoration
     for (const l of far) {
       expect(l.d, l.s.what).toBeGreaterThan(ARRIVED);
-      if (l.s.kind === 'cell' || l.s.kind === 'scope' || l.s.kind === 'reply') expect(goalWords({ goal: { g: { kind: l.s.kind, cell: l.s.step === 1 ? 0 : 1 }, x: l.s.to.x, z: l.s.to.z, y: 0 }, record: M.normalize({ step: l.s.step, cells: 0 }), scope: 0 }), l.s.what).toMatch(/lander/);
+      if (l.s.kind === 'cell' || l.s.kind === 'scope' || l.s.kind === 'reply') expect(goalWords({ goal: { g: { kind: l.s.kind, cell: l.s.step === 1 ? 0 : 1 }, x: l.s.to.x, z: l.s.to.z, y: 0 }, record: M.normalize({ step: l.s.step, cells: 0 }), scope: 0 }), l.s.what).toMatch(/about \d+ m/);
     }
   });
   it('the real guide shows its edge arrow at the longest leg (spawn to the Ridge cell, looking south)', () => {

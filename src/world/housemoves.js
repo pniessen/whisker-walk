@@ -31,7 +31,7 @@
 
 import { createTraversal } from '../traversal.js';
 import { houseArea } from './houseplan.js';
-import { WING_CLIMBS, WING_DROPS, WING_ROUTES, WING_PERCHES } from './housewingmoves.js';
+import { WING_CLIMBS, WING_DROPS, WING_GAPS, WING_ROUTES, WING_PERCHES } from './housewingmoves.js';
 
 const P = (x, z, y) => ({ x, z, y });
 const S = (x, z) => ({ x, z });
@@ -70,6 +70,7 @@ const gaps = [
   // end; each lands her on the other's take-off, the route's next step
   hop('bedroom-shelf-wardrobe', S(-4.6, -15.4), S(-6.4, -15.4)),
   hop('bedroom-wardrobe-shelf', S(-6.4, -15.4), S(-4.15, -15.4)),
+  ...WING_GAPS, // the east wing's: onto the wonder room's hammock shelf and back
 ];
 
 const drops = [
@@ -100,7 +101,7 @@ export const HOUSE_ROUTES = deepFreeze({
   bedroom: ['bedroom-floor-chest', 'bedroom-chest-shelf', 'bedroom-shelf-wardrobe', 'bedroom-wardrobe-shelf', 'bedroom-shelf-chest', 'bedroom-chest-floor'],
   attic: ['attic-floor-seat', 'attic-seat-floor'],
   piano: ['parlour-floor-keys', 'parlour-keys-floor'],
-  ...WING_ROUTES, // the east wing's three: the sofa, the bunks, the tub
+  ...WING_ROUTES, // the east wing's: the sofa, the bunks, the tub, the cat tree, the hammock
 });
 
 // The knock-over perches (D4): on top of each piece, `y` metres over its floor. The ids are

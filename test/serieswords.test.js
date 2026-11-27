@@ -58,6 +58,7 @@ import { targetName, postStatus, promptFor, crossCardHtml, crossExtras, crossing
 import { discoveryText } from '../src/ui/hud.js';
 import { renderJournalHtml } from '../src/journal.js';
 import { styleFor, prizeVisit, VISIT_PRIZES } from '../src/visits.js';
+import '../src/world/housewingwords.js'; // the Old House east wing's lines join the phrase table (the three that take a set's word are recorded below)
 import { celebrationHtml } from '../src/ui/visitcelebration.js';
 import { FIGHT_TEACH, FIGHT_READ, FIGHT_LINES, renderChallengeHtml, renderFightHtml } from '../src/ui/fightui.js';
 import { renderFightMovesHtml, renderStarNamePicker } from '../src/ui/hometabs.js';
@@ -395,6 +396,7 @@ function lines() {
     homeWelcomeElsewhere: homeWelcome('moor', save({ mine: 'woods' })),
     landOfTodaysWalk: Object.fromEntries(AREAS.map((id) => [id, buildDressingModel(save({ open: true, area: id }), CATALOG).currentPlace.line])),
     marketMusician: phrase('market.find.musician', words().OUTSIDE_WORDS.people), // the one Market line that takes a set's word
+    houseWing: { bunk: phrase('house.find.bunk', words().OUTSIDE_WORDS.kids), hintKids: phrase('house.hint.kids', words().OUTSIDE_WORDS.kids), hintBath: phrase('house.hint.bath', words().OUTSIDE_WORDS.wash) }, // the east wing's three lines that take a set's word
     campOnTheMap: Object.fromEntries(CLANS.map((id) => [id, `${clanName(id)} camp`])),
     scentedOverYourMark: Object.fromEntries(groupNames.map((n) => [n, { scratch: contestToast(n, 'scratch'), dig: contestToast(n, 'dig'), drop: contestToast(n, 'drop') }])),
     wandererStays: Object.fromEntries(AREAS.map((id) => [id, wanderStayLine(PET, placeName(id, 'canon', CATALOG))])),

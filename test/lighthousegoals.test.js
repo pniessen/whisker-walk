@@ -41,7 +41,7 @@ describe('the daily goals', () => {
     expect(seen.has('get-scratches')).toBe(false);
     expect(goalFits(GOAL_POOL.find((g) => g.id === 'get-scratches'), area)).toBe(false);
     for (const id of ['tip-things', 'box-sit', 'spot-critters', 'collect', 'scenic-spots', 'pounce-play', 'yarn-play']) expect(seen.has(id), id).toBe(true);
-    expect(seen.size).toBe(GOAL_POOL.length - 1);
+    expect(seen.size).toBe(GOAL_POOL.length - 2);
   });
   it('what the place has is enough: seven things to knock over, two boxes, ten animals, five treasures, four places a cat can walk to, two yarn spots', () => {
     expect(area.tippables).toHaveLength(7);

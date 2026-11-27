@@ -68,7 +68,7 @@ function pointSeg(px, pz, ax, az, bx, bz) {
   return Math.hypot(px - (ax + dx * k), pz - (az + dz * k));
 }
 // The least distance, seen from above, between the segments a-b and c-d (0 when they cross).
-function segSeg(ax, az, bx, bz, cx, cz, dx, dz) {
+export function segSeg(ax, az, bx, bz, cx, cz, dx, dz) {
   const side = (px, pz, qx, qz, rx, rz) => (qx - px) * (rz - pz) - (qz - pz) * (rx - px);
   const d1 = side(cx, cz, dx, dz, ax, az), d2 = side(cx, cz, dx, dz, bx, bz);
   const d3 = side(ax, az, bx, bz, cx, cz), d4 = side(ax, az, bx, bz, dx, dz);

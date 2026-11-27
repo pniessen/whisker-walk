@@ -80,9 +80,18 @@ const SENTINELS = {
   tutorial: { first: 'part' },
   foundWear: [FIND_ACC],
   events: [EVENT_IDS[0]],
+  holidays: { winter2026: 3 },
   sleepingCats: [{ id: CUSTOM_IDS[1], name: 'Zzz', personality: Object.keys(CUSTOM_PERSONALITIES)[0], look: LOOK }],
 };
 
+
+describe('the builder scar sub-key of a custom cat look', () => {
+  it('is kept, and a bad one is dropped', () => {
+    const cats = (scar) => [{ id: CUSTOM_IDS[0], name: 'Pip', personality: Object.keys(CUSTOM_PERSONALITIES)[0], look: { ...LOOK, scar } }];
+    expect(sanitizeSave({ version: 4, customCats: cats('nick') }).customCats[0].look.scar).toBe('nick');
+    expect(sanitizeSave({ version: 4, customCats: cats('x') }).customCats[0].look.scar).toBeUndefined();
+  });
+});
 
 describe('every save key survives the sanitiser', () => {
   const keys = freshStateKeys();

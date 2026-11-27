@@ -66,6 +66,8 @@ export function createGuideLive(ctx) {
   let acc = LOOK_EVERY;
   let lastAt = Date.now();
   let quiet = false;
+  let cat = null;
+  let lastCam = null;
   let shown = false;
   let disposed = false;
   let lineH = 0;
@@ -132,8 +134,9 @@ export function createGuideLive(ctx) {
     live.quiet = quiet;
     const gp = base.goal();
     const js = job?.state;
+    if (lastCam) viewOf(lastCam, view);
     const text = quiet ? '' : goalWords({
-      goal: gp, record: rec(), scope: progression?.state?.moon?.scope ?? 0,
+      goal: gp, cat, fx: view.fx, fz: view.fz, record: rec(), scope: progression?.state?.moon?.scope ?? 0,
       job: { kind: js?.kind, taken: js?.taken ?? 0, next: js?.next ?? 0, glove: js?.glove, stage: launch?.second?.stage ?? 0 }, riding: !!rover?.state?.riding,
     });
     if (text !== live.text) {
@@ -229,6 +232,8 @@ export function createGuideLive(ctx) {
     update(dt, t, catPos, camera) {
       if (disposed) return;
       lastAt = Date.now();
+      cat = catPos ?? cat;
+      lastCam = camera ?? lastCam;
       acc += dt > 0 ? dt : 0;
       if (acc >= LOOK_EVERY) { acc = 0; look(); } else if (!shown && !quiet) show(true);
       if (quiet) { paintArrow(false); frameChip(null); return; }

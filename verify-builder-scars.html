@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Builder scars</title>
+<!-- Builder scar picture page: real buildCat() cats wearing each builder scar (customcats.js SCARS) on a row of coats.
+       mark=nose|brow|cheek|nick|tip   default: all five, one row each is too many, so one mark a page
+       coats=ginger,black,...         default: ginger,black,cream,silver,bluegrey
+       view=front|three|rear          default front (close on the head); zoom=1 multiplier on distance
+     window.__ready is true after the first frame; window.__shot(name) is a no-op (the page is static). -->
+<style>html,body{margin:0;height:100%;background:#cfd3d8;overflow:hidden}#gl{position:fixed;inset:0;width:100vw;height:100vh}</style>
+</head>
+<body>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { DEFAULT_LOOK } from '/src/customcats.js';
+  const q = new URLSearchParams(location.search);
+  const mark = q.get('mark') || 'nose';
+  const coats = (q.get('coats') || 'ginger,black,cream,silver,bluegrey').split(',');
+  const view = q.get('view') || 'front';
+  const zoom = Number(q.get('zoom') || 1);
+  const canvas = document.createElement('canvas'); canvas.id = 'gl'; document.body.appendChild(canvas);
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(innerWidth, innerHeight, false);
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(0xcfd3d8);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 1.6));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(2, 4, -3); scene.add(sun);
+  const gap = 0.55;
+  const cats = coats.map((coat, i) => {
+    const cat = buildCat('tabby', undefined, { look: { ...DEFAULT_LOOK, coat, pattern: i % 2 ? 'solid' : 'stripes', scar: mark } });
+    cat.position.x = (i - (coats.length - 1) / 2) * gap;
+    scene.add(cat);
+    return cat;
+  });
+  const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.05, 50);
+  const target = new THREE.Vector3(0, Number(q.get("y") || 0.42), 0);
+  const d = (coats.length * gap + 0.6) * 1.7 * zoom;
+  const dirs = { front: [0.25, 0.12, -1], three: [0.9, 0.3, -1], rear: [-0.3, 0.7, 1] };
+  camera.position.copy(target).addScaledVector(new THREE.Vector3(...dirs[view]).normalize(), d);
+  camera.lookAt(target);
+  await Promise.all(cats.map((c) => c.userData.markReady));
+  for (const c of cats) animateCat(c, 'follow', 1.3, 0, false);
+  renderer.render(scene, camera);
+  window.__shot = (n) => n;
+  window.__ready = true;
+</script>
+</body>
+</html>

@@ -192,7 +192,7 @@ export const LINES = Object.freeze({
   'moon.guest.rocket': 'You drew a Rocket!',
   'moon.guest.key': 'You drew a Key!',
   'moon.guest.cup': 'You drew a Cup!',
-  // (guide cues) the goal line at the top and the words beside Pip's picture. {n} is a count and {at} a place by the lander (moon.guide.at.*), filled in by world/moonguide.js.
+  // (guide cues) the goal line at the top and the words beside Pip's picture. {n} is a count and {at} a place said from where she stands now (nowWords in reefpages.js: "about 25 m ahead"), filled in by world/moonguide.js.
   'moon.guide.pip': 'Wake Pip, the little robot asleep by the lander.',
   'moon.guide.cell0': 'Find a power cell ({n} of 2): on the tall rocks, {at}.',
   'moon.guide.cell1': 'Find a power cell ({n} of 2): at the far beacon, {at}.',
@@ -221,9 +221,6 @@ export const LINES = Object.freeze({
   'moon.guide.card2': 'Post the new postcard in the rocket, {at}.',
   'moon.guide.glove': 'Earth lost a glove. Find it, {at}.',
   'moon.guide.glove2': 'Take the glove to Pip.',
-  'moon.guide.at.dirs': 'north|north-east|east|south-east|south|south-west|west|north-west', // (the eight points, in order, said before "of the lander")
-  'moon.guide.at.of': '{d} of the lander',
-  'moon.guide.at.near': 'close to the lander',
   // the words beside Pip's picture, five short lists in the order world/moonguide.js reads them
   'moon.chip.a': 'Pip is asleep. Wake him up!|Pip needs a power cell|Plug it into the Core',
   'moon.chip.b': 'Pip wants to look at Earth|Time to send a postcard|Post it in the rocket',
