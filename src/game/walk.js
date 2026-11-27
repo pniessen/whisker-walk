@@ -651,7 +651,8 @@ export function createWalkLifecycle({
   // waiting path rejects it.
   let waiting = null; // the token of the start now waiting, else null
   // Holiday decor (src/world/holidaydecor.js, a lazy chunk): fetched only inside a window while the Settings choice is not Off,
-  // and only once. A walk waits for it (a 5 kB file); if it fails (offline) the walk starts without it.
+  // and only once. A walk waits for it (a 5 kB file) for at most 4 s; if it fails (offline)
+  // or hangs, the walk starts without it (a later walk finds the chunk bound, if it came by then).
   let decorMod = null;
   let decorLoad = null;
   function loadHolidayDecor() {
@@ -692,7 +693,7 @@ export function createWalkLifecycle({
       if (waiting === token) waiting = null;
       getHomebase()?.setGettingReady?.(false);
     };
-    return Promise.all([areas.ensure(areaId), decorP]).then(
+    return Promise.all([areas.ensure(areaId), decorP && Promise.race([decorP, new Promise((r) => setTimeout(r, 4000))])]).then(
       () => {
         const stale = waiting !== token;
         done();
