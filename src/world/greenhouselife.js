@@ -19,7 +19,7 @@
 // ever, counted once a walk), the catnip bed's purr line when she nibbles there, and the rain shelter (weather.setSheltered while
 // the camera is under the Palm House's glass; put back on dispose). All of it is optional in ctx: a bare test life skips it.
 // The can and packets are this life's own meshes (a carried "job" item without the walk's mouth, which the later
-// milestone wires with the rain-slip rule). Nothing here pays yet (the awards are the next milestone's), draws no
+// milestone wires with the rain-slip rule). Each job pays AWARDS.greenhousejob once a walk and counts its journal page (jobDone); draws no
 // random number and reads no clock.
 // =============================================================================
 
@@ -78,6 +78,7 @@ export function thirstyPots(roomSeed, visits = 0) {
 
 const say = (key, label) => bus.emit('discovery', { type: 'greenhousenote', key, label, points: 0, repeat: false });
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+export const JOB_KEYS = Object.freeze({ seeds: 'greenhouse-job-seeds', water: 'greenhouse-job-water' });
 const smooth = (k) => { const t = Math.min(1, Math.max(0, k)); return t * t * (3 - 2 * t); };
 
 // ctx: { scene, ground, reducedMotion, roomSeed, visits, mist, shafts, koi, sound, rooms, roomMist, roomShafts, butterflies, shyOrchid, cactusFlower }
@@ -152,6 +153,11 @@ export function createGreenhouseLife(ctx) {
   let allWatered = false;
   let target = null; // what the action button would do now: { kind, pot? }
 
+  // a job done: pays AWARDS.greenhousejob once a walk (the walk's own once-a-walk rule: a resumed walk keeps it), counts its journal page when paid, and its line is the toast
+  function jobDone(job, page, key, label) {
+    const paid = log ? log.awardOnce('greenhousejob', JOB_KEYS[job], label) : 0;
+    if (paid > 0) { try { progression?.recordSighting?.(page); } catch { /* a stand-in save */ } } else if (!log) say(key, label);
+  }
   const wateredCount = () => pots.filter((p) => p.watered).length;
   const thirstyNear = (pos) => pots.find((p) => !p.watered && dist(pos, p.sp) < POT_R);
 
@@ -180,7 +186,7 @@ export function createGreenhouseLife(ctx) {
         seedState = 'sown';
         sowAt = clock;
         sprouts.visible = true;
-        say('greenhouse-seed-sown', phrase('greenhouse.seed.sown'));
+        jobDone('seeds', 'ghjobseeds', 'greenhouse-seed-sown', phrase('greenhouse.seed.sown'));
       } else if (t.kind === 'can') {
         held = true;
       } else if (t.kind === 'water') {
@@ -194,7 +200,7 @@ export function createGreenhouseLife(ctx) {
           held = false;
           can.position.set(home.x, ground.y(home.x, home.z), home.z);
           can.rotation.set(0, -0.6, 0);
-          say('greenhouse-water-all', phrase('greenhouse.water.all'));
+          jobDone('water', 'ghjobwater', 'greenhouse-water-all', phrase('greenhouse.water.all'));
         } else say(`greenhouse-water-${wateredCount()}`, phrase('greenhouse.water.done'));
       }
       return t.kind;
