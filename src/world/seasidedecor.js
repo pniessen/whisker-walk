@@ -14,6 +14,7 @@
 // =============================================================================
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { seasideBeautyParts } from './seasidebeauty.js';
 import { withLocalUuids } from './localuuids.js';
 import { litMaterial } from '../render/materials.js';
 import {
@@ -198,6 +199,7 @@ export function dressSeasideLife(scene, { sandTint, standTint }) {
       if (p.adultAt) patch(p.adultAt.x, p.adultAt.z, 0.34, sand);
     }
     for (const v of SEASIDE_VENDORS) patch(v.vendorAt.x, v.vendorAt.z, 0.34, sand);
+    for (const g of seasideBeautyParts()) sand.push(g);
     const stands = [];
     beachUmbrella(SEASIDE_UMBRELLA, stands);
     for (const v of SEASIDE_VENDORS) (v.kind === 'cart' ? iceCreamCart : lemonadeStand)(v, stands);
