@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SEASIDE_VENDORS } from './seasideplan.js';
 import * as b from './builder.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { withLocalUuids } from './localuuids.js';
@@ -722,6 +723,10 @@ export function build(scene, { water = {}, wind } = {}) {
 
   scene.add(b.billboard(BILLBOARD.x, BILLBOARD.z, BILLBOARD.yaw));
   addC(BILLBOARD.x, BILLBOARD.z, 2.3);
+  // The vendors' stands are solid: the cart/stand (r 0.8, so its edge reaches
+  // x 18.0, the boardwalk's kerb, and no further) and the vendor behind it
+  // (r 0.4). Appended last so the earlier colliders keep their order.
+  for (const v of SEASIDE_VENDORS) { addC(v.x, v.z, 0.8); addC(v.vendorAt.x, v.vendorAt.z, 0.4); }
   // beach plants — marram grass clumps and sea holly (builder.bush's 'beach'
   // style picks the kind per spot), in place of the garden shrubs that used
   // to sit on the sand. They are the area's only foliage, and therefore the

@@ -325,9 +325,9 @@ describe('Seaside — the dunes’ edge and the boardwalk’s end', () => {
     // (sha256 of their JSON, recorded off the build before this pass).
     expect(rec.colliders.some((c) => Math.hypot(c.x - 20, c.z - 45.3) < 3)).toBe(false);
     const { createHash } = await import('node:crypto');
-    expect(rec.colliders).toHaveLength(15);
+    expect(rec.colliders).toHaveLength(19); // 15 + the vendors' stands and vendors (seaside-colliders)
     expect(createHash('sha256').update(JSON.stringify(rec.colliders)).digest('hex'))
-      .toBe('de2eb599e0d9674d809f13617caac4e30d644e80ee04e1ae752eb164f3040ef0');
+      .toBe('0154feefb1d696b2352c5bd7d8079002ef44d958d0ffd89af6c31c0e6880d6d4');
   });
 });
 
