@@ -5,9 +5,11 @@ export const COOP_READY = {
   neighborhood: true, // milestone 1: two pads, two cats, one shared camera (src/coop/index.js)
   woods: true, river: true, moor: true, pines: true, docks: true, den: true, // milestone 3: the open places (test/coopm3.test.js, test/coopbudget.test.js)
   farm: true, // M5(b): test/coopm5farm.test.js
-  park: false, seaside: false, gorge: false, fair: false, roofs: false,
+  park: false, seaside: false, fair: false, roofs: false,
+  gorge: true, // M5(c): test/coopm5gorge.test.js
   market: true, // M5(b): test/coopm5market.test.js
-  house: false, lighthouse: false, greenhouse: false, moon: false, reef: false, crystal: false,
+  house: true, // M5(d): test/coopm5house.test.js
+  lighthouse: false, greenhouse: false, moon: false, reef: false, crystal: false,
   snowville: false, treehouse: false, jungle: false,
 };
 

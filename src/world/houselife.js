@@ -50,7 +50,9 @@
 // partners (session.remotes.list) are watched by the finds and the front door too, and each
 // frame every partner's name tag draws over the walls (no depth test, at HOUSE_TAG_ORDER), so
 // she is seen wherever she is in the house. dispose puts back what each tag had. The walls
-// still sink, and the levels are drawn, for this child's cat alone.
+// still sink, and the levels are drawn, for this child's cat alone; except in couch play (a
+// partner marked `local`, src/coop/second.js), where the one camera shows both cats: the walls
+// sink for either and the levels either stands on are drawn (M5(d)).
 
 import { makeView, createWallSink, createCellarLid, SINK } from '../housewalls.js';
 import { createLevelDrawing } from '../houselevels.js';
@@ -146,6 +148,8 @@ export function createHouseLife(scene, house, {
   const paneRest = paneLists.map((list) => list.map((p) => p.position.y)); // each pane's standing height
   const paneZone = paneLists.map((list) => list.map((p) => p.userData.paneZone ?? null)); // a wing pane is shown with its zone
   const view = {};
+  const view2 = {}, pos2 = { x: 0, y: 0, z: 0 }; // couch play's second cat: its own view of the same camera, and its floor
+  const second = (partners) => { for (let i = 0; i < partners.length; i++) if (partners[i].local && partners[i].group) return partners[i].group.position; return null; };
   let settled = false;
   const finds = createHouseFinds({
     finds: house.finds ?? [], secret: house.secret, colliders, parts: house.parts, log, audio, reducedMotion, now,
@@ -221,6 +225,7 @@ export function createHouseLife(scene, house, {
     ballZ = p.z;
   }
 
+  const at2 = (p) => { pos2.x = p.x; pos2.y = floorY(p); pos2.z = p.z; return pos2; };
   // The meshes and the panes, as the sink stands now.
   function write() {
     for (let i = 0; i < ids.length; i++) {
@@ -242,13 +247,14 @@ export function createHouseLife(scene, house, {
     for (let i = 0; i < lidMeshes.length; i++) lidMeshes[i].visible = lid.shown;
   }
 
-  function settle(catPos, camera) {
+  function settle(catPos, camera, two = null) {
     settled = true;
     makeView(catPos, camera.position, CAT_LOOK_Y, view);
-    lid?.look(view);
-    sink.settle(view);
+    const v2 = two ? makeView(two, camera.position, CAT_LOOK_Y, view2) : null;
+    lid?.look(view, v2);
+    sink.settle(view, v2);
     lid?.settle(sink);
-    drawing.settle(floorY(catPos), catPos.x, catPos.z, camera.position.x, camera.position.z);
+    drawing.settle(floorY(catPos), catPos.x, catPos.z, camera.position.x, camera.position.z, two && at2(two));
     write();
     air.update(0, 0, drawing.full);
     holdFades(catPos, camera.position);
@@ -269,12 +275,14 @@ export function createHouseLife(scene, house, {
     update(dt, t, catPos, camera, session) {
       const partners = session?.remotes?.list ?? NONE;
       tags(partners);
-      if (!settled) { settle(catPos, camera); return; }
+      const two = second(partners);
+      if (!settled) { settle(catPos, camera, two); return; }
       makeView(catPos, camera.position, CAT_LOOK_Y, view);
-      lid?.look(view);
-      sink.update(dt, view);
+      const v2 = two ? makeView(two, camera.position, CAT_LOOK_Y, view2) : null; // couch play: the walls sink, and the levels draw, for BOTH cats
+      lid?.look(view, v2);
+      sink.update(dt, view, v2);
       lid?.update(dt, sink);
-      drawing.update(floorY(catPos), catPos.x, catPos.z, camera.position.x, camera.position.z);
+      drawing.update(floorY(catPos), catPos.x, catPos.z, camera.position.x, camera.position.z, two && at2(two));
       write();
       air.update(dt, t, drawing.full);
       finds.update(dt, t, catPos, camera.position, partners); // after the camera's move: the bookcase's fade hold

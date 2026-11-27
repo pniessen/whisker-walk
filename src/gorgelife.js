@@ -220,7 +220,7 @@ function createGlow(scene) {
 // `caves` is gorge.js's GORGE_CAVES (none: nowhere is a cave). `weather` is
 // the walk's weather (setSheltered); without it the shelter is skipped.
 // `interiors` are the caves' inside groups, each with userData.caveId.
-// update(dt, t, catPos, camera): `camera` (its position) for the shelter.
+// update(dt, t, catPos, camera, session): `camera` (its position) for the shelter; the session for couch play's second cat.
 export function createGorgeLife({ scene, sun, fill, ground, reducedMotion = false, audio = null, caves = null, weather = null, interiors = [], dusk = false }) {
   const sunState = lightState(sun);
   const fillState = lightState(fill);
@@ -254,7 +254,16 @@ export function createGorgeLife({ scene, sun, fill, ground, reducedMotion = fals
     get shade() { return shade; },
     // How deep she is, eased: the depth the light factor stands for.
     get depth() { return depthFor(dark); },
-    update(dt, t, catPos, camera) {
+    update(dt, t, one, camera, session) {
+      // couch play: the light, the glow and the crystals follow whichever of the two cats is deeper in a cave (a partner marked `local`, src/coop/second.js)
+      let catPos = one;
+      const list = session?.remotes?.list;
+      if (list) {
+        for (let i = 0; i < list.length; i++) {
+          const g = list[i].local && list[i].group?.position;
+          if (g && caveDepth(caves, g.x, g.z) > caveDepth(caves, catPos.x, catPos.z)) catPos = g;
+        }
+      }
       const groundY = ground.y(catPos.x, catPos.z);
       const target = shadeFor(groundY, dusk);
       const depth = caveDepth(caves, catPos.x, catPos.z);

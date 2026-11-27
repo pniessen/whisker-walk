@@ -79,6 +79,7 @@ export function createLevelDrawing(scene, { levels, links, start, wing = null, j
   let nearKey = '';
   const on = new Set(); // join ids that are near, with hysteresis
   const partial = new Map(); // old level id -> the rooms kept in full (the join's keep), while a wing join is near
+  let extraId = null; // couch play's second cat: the zone it stands in is drawn too
   const apply = (id) => {
     current = id;
     full = wing && wing.isWing(id) ? new Set([id]) : fullLevels(id, links);
@@ -90,6 +91,7 @@ export function createLevelDrawing(scene, { levels, links, start, wing = null, j
         else if (j.b === id) full.add(j.a);
       }
     }
+    if (extraId && !full.has(extraId)) full = new Set([id, extraId]); // the two cats' own zones, no neighbours: two plain cats' worst pair is 69,648 (ground and the wonder room), never the 70,022 of all four levels
     nearKey = [...on].join(',');
     // a level drawn only for the wing at its door keeps just the rooms the join names
     partial.clear();
@@ -143,28 +145,37 @@ export function createLevelDrawing(scene, { levels, links, start, wing = null, j
   };
   const hasPos = (x, z) => wing && typeof x === 'number' && typeof z === 'number';
   const hasCam = (cx, cz) => typeof cx === 'number' && typeof cz === 'number';
+  // The second cat's level (couch play): { y: its floor, x, z } or null. True when the set it adds changed.
+  function other(two) {
+    const id = two ? (hasPos(two.x, two.z) ? wing.zoneAt(two.x, two.z) : null) ?? nearest(two.y) : null;
+    if (id === extraId) return false;
+    extraId = id;
+    return true;
+  }
   apply(start);
 
   return {
-    update(pawsY, x, z, cx, cz) {
+    update(pawsY, x, z, cx, cz, two = null) {
+      const moved = other(two);
       if (!hasPos(x, z)) {
         const id = nextLevel(current, pawsY, levels);
-        if (id !== current) apply(id);
+        if (id !== current || moved) apply(id);
         return;
       }
       const wz = wing.zoneAt(x, z);
       // out of the wing she is on the level her paws are on (they are at a floor's height)
       const id = wz ?? (wing.isWing(current) ? nearest(pawsY) : nextLevel(current, pawsY, levels));
       const changed = nearJoins(id, x, z, cx, cz);
-      if (id !== current || changed) apply(id);
+      if (id !== current || changed || moved) apply(id);
     },
     // The start of a walk (final fix F1): the level whose floor is nearest her paws, at once,
     // with no 0.3 m hold, so a walk picked up in the attic opens on the attic drawn in full.
-    settle(pawsY, x, z, cx, cz) {
+    settle(pawsY, x, z, cx, cz, two = null) {
+      const moved = other(two);
       const wz = hasPos(x, z) ? wing.zoneAt(x, z) : null;
       const id = wz ?? nearest(pawsY);
       const changed = hasPos(x, z) ? nearJoins(id, x, z, cx, cz) : false;
-      if (id !== current || changed) apply(id);
+      if (id !== current || changed || moved) apply(id);
     },
     get current() { return current; },
     get full() { return full; },

@@ -19,16 +19,16 @@ export const FOLLOW_IDLE_S = 3; // seconds with no stick before it starts
 export const FOLLOW_FAR = 8; // metres apart before it starts
 export const FOLLOW_STOP = 3; // metres from the friend where it stops
 
-/** One per cat. step(dt, { stick, apart, on }) -> true while the cat should trot toward its friend. Any stick at all ends it at once. */
+/** One per cat. step(dt, { stick, apart, on, far, stop }) -> true while the cat should trot toward its friend (from `far` apart to `stop`; a tight place, where the leash holds the pair as close as they stand, gives short ones). Any stick at all ends it at once. */
 export function createFollow() {
   let idle = 0, going = false;
   return {
     get going() { return going; },
-    step(dt, { stick = 0, apart = 0, on = true } = {}) {
+    step(dt, { stick = 0, apart = 0, on = true, far = FOLLOW_FAR, stop = FOLLOW_STOP } = {}) {
       if (!on || stick > 0) { idle = 0; going = false; return false; }
       idle += Math.max(dt, 0);
-      if (going) { if (apart <= FOLLOW_STOP) going = false; }
-      else if (idle >= FOLLOW_IDLE_S && apart > FOLLOW_FAR) going = true;
+      if (going) { if (apart <= stop) going = false; }
+      else if (idle >= FOLLOW_IDLE_S && apart > far) going = true;
       return going;
     },
     reset() { idle = 0; going = false; },

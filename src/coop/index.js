@@ -33,7 +33,8 @@ import { PERSONALITIES } from '../cat/brain.js';
 import { applyDeadZone } from '../gamepadinput.js';
 import { tvToastTiming } from '../tv/toasttime.js';
 import { CAT_LOOK_Y } from '../cat/model.js';
-import { MIN_CAMERA_Y, cameraPullScale, maxZoomStep } from '../camzoom.js';
+import { MIN_CAMERA_Y, cameraPullScale, maxZoomStep, cameraClearFraction, CAM_CEIL_CLEAR, MIN_CAM_DIST, CAVE_VIEW } from '../camzoom.js';
+import { underCeiling } from '../caves.js';
 import { makeNameTag } from '../nametag.js';
 import { activeCat } from '../customcats.js';
 import * as THREE from 'three';
@@ -51,6 +52,7 @@ const GROOM_AT = 6;
 const NAP_AT = 16;
 const START_APART = 1.6; // metres: where cat two appears, to cat one's right
 const LEASH_MARGIN = 0.95;
+const TIGHT_FOLLOW = Object.freeze({ far: 1.9, stop: 1.2 }); // follow-when-idle in a tight place (metres)
 const TIGHT_PULL = 0.6; // the camera pulled in below this share: the tight-place rule
 const TAG_SCALE = 0.75; // cat one's own name tag, as game/owntag.js
 
@@ -166,6 +168,7 @@ export function start(ctx) {
   const vel = { a: new THREE.Vector2(), b: new THREE.Vector2() }; // metres a second, for the camera to look ahead
   const mid = new THREE.Vector3();
   const off = new THREE.Vector3();
+  const look = new THREE.Vector3(), wish = new THREE.Vector3(); // the camera's look point and wanted spot, for the ground checks
   const one = new THREE.Vector3();
   const two = new THREE.Vector3();
   const soon1 = new THREE.Vector3();
@@ -239,15 +242,18 @@ export function start(ctx) {
     dismissed = false;
   }
 
+  // A spot a cat can stand beside the friend at (x, z): clear ground, and on the friend's own level where the ground is raised (never inside a cave's rock or up on a ledge over it).
+  const landsAt = (s, from, x, z) => isWalkableAt(s.areaData, x, z) && (s.ground.flat || (s.ground.sameLevel(from.x, from.z, x, z) && s.ground.canStep(from.x, from.z, x, z)));
+
   /** Where cat two stands beside cat one: to its right when that is clear, else the nearest clear ring spot round it. */
   function spotBeside(s, p) {
     const right = { x: p.x + Math.cos(heading.target) * START_APART, z: p.z - Math.sin(heading.target) * START_APART };
-    if (isWalkableAt(s.areaData, right.x, right.z)) return right;
+    if (landsAt(s, p, right.x, right.z)) return right;
     for (const radius of [START_APART, 2.4, 3.2]) {
       for (let i = 0; i < 8; i++) {
         const a = heading.target + (i * Math.PI) / 4;
         const x = p.x + Math.sin(a) * radius, z = p.z + Math.cos(a) * radius;
-        if (isWalkableAt(s.areaData, x, z)) return { x, z };
+        if (landsAt(s, p, x, z)) return { x, z };
       }
     }
     return right;
@@ -336,13 +342,12 @@ export function start(ctx) {
     if (!s || !mover) return;
     const me = slot === 0 ? s.cat : mover.body;
     const friend = slot === 0 ? mover.body : s.cat;
-    const area = s.areaData;
     let spot = null;
     for (const radius of [1.3, 2.2, 3.2]) {
       for (let i = 0; i < 8 && !spot; i++) {
         const a = heading.target + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * (Math.PI / 4) + Math.PI; // behind the friend first, then round
         const x = friend.position.x + Math.sin(a) * radius, z = friend.position.z + Math.cos(a) * radius;
-        if (isWalkableAt(area, x, z)) spot = { x, z };
+        if (landsAt(s, friend.position, x, z)) spot = { x, z };
       }
       if (spot) break;
     }
@@ -355,9 +360,13 @@ export function start(ctx) {
   }
 
   /** Trot cat `slot` toward its friend, or give its stick back. */
-  function trot(slot, on, from, to, stick) {
+  const stuck = [{ t: 0, x: 0, z: 0 }, { t: 0, x: 0, z: 0 }]; // a trotting cat that gets nowhere (a cave's wall, a cliff) hops to its friend instead of staying outside
+  function trot(slot, on, from, to, stick, dt = 0) {
     const pl = slot === 0 ? ctx.player : mover.player;
     if (on) {
+      const k = stuck[slot];
+      if (!trotting[slot] || Math.hypot(from.x - k.x, from.z - k.z) > 0.4) { k.x = from.x; k.z = from.z; k.t = 0; }
+      else if ((k.t += dt) > 1.5) { k.t = 0; pl.setTouchMove(null); trotting[slot] = false; hopFriend(slot); return; }
       const dx = to.x - from.x, dz = to.z - from.z, d = Math.hypot(dx, dz) || 1;
       // the world way to the friend, turned back into the stick's screen space
       const c = Math.cos(heading.yaw), sn = Math.sin(heading.yaw);
@@ -448,10 +457,11 @@ export function start(ctx) {
       const on = follow && playing && !s.cameraMode;
       const sticks = [STICK(hub.padOf(0, pads)), STICK(hub.padOf(1, pads))];
       const seat0 = state.seats[0] && !state.seats[0].lost;
-      const goA = follows[0].step(dt, { stick: sticks[0], apart: state.apart, on: on && seat0 });
-      const goB = follows[1].step(dt, { stick: sticks[1], apart: state.apart, on });
-      if (goA || trotting[0]) trot(0, goA, s.cat.position, mover.body.position, sticks[0]);
-      if (goB || trotting[1]) trot(1, goB, mover.body.position, s.cat.position, sticks[1]);
+      const reach = tight ? TIGHT_FOLLOW : null; // a tight place holds the pair as close as they stand: the idle cat comes along at once, or the walking one is pinned
+      const goA = follows[0].step(dt, { stick: sticks[0], apart: state.apart, on: on && seat0, ...reach });
+      const goB = follows[1].step(dt, { stick: sticks[1], apart: state.apart, on, ...reach });
+      if (goA || trotting[0]) trot(0, goA, s.cat.position, mover.body.position, sticks[0], dt);
+      if (goB || trotting[1]) trot(1, goB, mover.body.position, s.cat.position, sticks[1], dt);
       state.following = [goA, goB];
     } else { state.following = [false, false]; }
     hud?.setOn(state.joined);
@@ -618,10 +628,22 @@ export function start(ctx) {
     state.level = level;
     offsetAt(level, heading.yaw, DEFAULT_PITCH, off);
     const dist = Math.hypot(off.x, off.z);
-    const want = cameraPullScale(mid, off, dist, area.colliders, area.bounds);
+    let want = cameraPullScale(mid, off, dist, area.colliders, area.bounds);
+    const gnd = area.cameraGround ?? s.ground;
+    if (!gnd.flat) { // raised ground (the Gorge, the Old House): the camera keeps out of rock and under ceilings, and comes in close under a cave's roof, as cat one's own does (M5)
+      look.set(mid.x, mid.y + CAT_LOOK_Y, mid.z);
+      wish.set(mid.x + off.x, Math.max(MIN_CAMERA_Y, mid.y + off.y), mid.z + off.z);
+      want = Math.min(want, cameraClearFraction(look, wish, gnd));
+      if (underCeiling(s.ground, cat.position.x, cat.position.y, cat.position.z) || underCeiling(s.ground, body.position.x, body.position.y, body.position.z)) want = Math.min(want, CAVE_VIEW.dist / dist);
+      want = Math.max(want, MIN_CAM_DIST / Math.hypot(off.x, off.y, off.z));
+    }
     pull = want < pull ? pull + (want - pull) * (1 - Math.exp(-20 * dt)) : pull + (want - pull) * (1 - Math.exp(-2 * dt));
     if (s.reducedMotion) pull = want;
     ctx.camera.position.set(mid.x + off.x * pull, Math.max(MIN_CAMERA_Y, mid.y + off.y * pull), mid.z + off.z * pull);
+    if (!gnd.flat) {
+      const cp = ctx.camera.position;
+      cp.y = Math.min(Math.max(cp.y, gnd.y(cp.x, cp.z) + MIN_CAMERA_Y), gnd.ceil(cp.x, cp.z) - CAM_CEIL_CLEAR);
+    }
     ctx.camera.lookAt(mid.x, mid.y + CAT_LOOK_Y, mid.z);
     ctx.camera.updateMatrixWorld(true);
     tight = pull < TIGHT_PULL || !inBox(catPoints(one, two), ctx.camera); // a building has pulled the camera in, or a cat is out of the safe box
