@@ -7,9 +7,9 @@ import { useKit, buildRacks } from './reefrideparts.js';
 import { createRideLive } from './reefridelive.js';
 import { createReefDiversLive } from './reefdiverslive.js';
 
-function draw(scene, kit, reefY) {
+function draw(scene, kit, reefY, tier) {
   useKit(kit);
-  return buildRacks(scene, reefY);
+  return buildRacks(scene, reefY, !!tier && (tier.name === 'low' || tier.shadows === false || (tier.rung ?? 0) >= 3));
 }
 // The Reef's life hands over its own pieces: the walk's ctx, the area record (the live colliders and the ground), the story's base life and the plan P.
 function live(kit, ctx, area, base, P) {

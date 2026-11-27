@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reef polish round picture page</title>
+<!-- The Reef (real build and real life), picture page for the polish round: Sealab, saucer (legs down and folded), anchor, boat, moray eel. NOT in the game's page.
+     URL params: size=WxH (default 960x540). window.__shot(name) with scripts/record-page.mjs. Shots: lab labnear saucer saucerup anchor boat eel eelopen. -->
+<style>html,body{margin:0;background:#0b2a3a;overflow:hidden}canvas{position:fixed;left:0;top:0;display:block}</style>
+</head>
+<body>
+<script type="module">
+  import * as THREE from 'three';
+  import { loadReefStages } from '/src/world/reefstages.js';
+  const params = new URLSearchParams(location.search);
+  const [W, H] = (params.get('size') || '960x540').split('x').map(Number);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H); renderer.setPixelRatio(1);
+  document.body.prepend(renderer.domElement);
+  await loadReefStages();
+  const { build } = await import('/src/world/reef.js');
+  const P = await import('/src/world/reefplan.js');
+  const { createProgression } = await import('/src/progression.js');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1f6a80);
+  scene.fog = new THREE.FogExp2(0x1f6a80, 0.012);
+  scene.add(new THREE.HemisphereLight(0xcdeeff, 0x2a5a60, 1.6));
+  const sun = new THREE.DirectionalLight(0xfff2d0, 2.4); sun.position.set(-30, 60, 20); scene.add(sun);
+  const area = build(scene, { water: { quality: { name: 'high', shadows: true } } });
+  const memory = { _m: {}, getItem(k) { return this._m[k] ?? null; }, setItem(k, v) { this._m[k] = String(v); }, removeItem(k) { delete this._m[k]; } };
+  const camera = new THREE.PerspectiveCamera(55, W / H, 0.1, 300);
+  const cat = new THREE.Group(); cat.position.set(0, 0, 30);
+  const player = { perchY: 0, floatY: 0, inputActive: false, kickHeld: false, dir: { x: 0, z: 0 }, halt() {}, clearFloat() {}, inputDirection() { return { x: 0, z: 0 }; } };
+  let life = null; let t = 0;
+  try { life = area.life({ scene, progression: createProgression(memory), player, reducedMotion: false, visits: 1, doc: null }); } catch (e) { console.warn('no life', e); }
+  const session = { cat, perched: null, perchHold: null, idleTime: 0, fair: { riding: null } };
+  const step = (n) => { for (let i = 0; i < n; i++) { t += 1 / 30; life?.update(1 / 30, t, cat.position, camera, session); session.fair?.update?.(1 / 30, t, { cat, player, session }); } };
+  const look = (pos, tgt, fov = 55) => { camera.fov = fov; camera.updateProjectionMatrix(); camera.position.set(...pos); camera.lookAt(...tgt); renderer.render(scene, camera); };
+  const Y = (x, z) => P.reefY(x, z);
+  const shots = {
+    lab: () => look([-14, 9, -12], [9, 2.5, -34.5], 60),
+    labnear: () => look([22, 5, -22], [9, 2, -34.5], 60),
+    saucer: () => { const r = { x: -21.5, z: -36.5 }; look([r.x + 4.5, Y(r.x, r.z) + 2.2, r.z + 3.5], [r.x, Y(r.x, r.z) + 0.6, r.z], 55); },
+    saucerup: () => { const r = { x: -21.5, z: -36.5 }; look([r.x + 4.5, Y(r.x, r.z) + 2.2, r.z + 3.5], [r.x, Y(r.x, r.z) + 0.6, r.z], 55); },
+    anchor: () => look([-20.5, Y(-23.5, -29.5) + 3, -26.5], [-23.5, Y(-23.5, -29.5) + 0.3, -29.5], 55),
+    boat: () => look([-26, Y(-32.8, -31.5) + 5, -24.5], [-32.8, Y(-32.8, -31.5) + 0.6, -31.5], 60),
+    eel: () => look([7.4 + 3.2, Y(7, -10) + 1.2, -10 + 3.6], [7, Y(7, -10) + 0.5, -10], 50),
+    eelopen: () => look([7.4 + 3.2, Y(7, -10) + 1.2, -10 + 3.6], [7, Y(7, -10) + 0.5, -10], 50),
+  };
+  window.__shot = (name) => {
+    if (name === 'saucerup') { const r = { x: -21.5, z: -36.5 }; for (let i = 0; i < 3; i++) { const l = scene.getObjectByName(`ride:saucer:leg${i}`); if (l) l.rotation.x = 1.86; } }
+    if (name.startsWith('eel')) step(name === 'eel' ? 20 : 160);
+    shots[name]?.();
+    return name;
+  };
+  window.__scene = scene; window.__area = area; window.__life = life; window.__step = step;
+  window.__ready = true;
+</script>
+</body>
+</html>

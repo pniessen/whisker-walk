@@ -21,6 +21,7 @@
 import { phrase } from '../clanphrases.js';
 import { RIDES, RIDE, createRide, stepRide, dismountSpot } from './reefride.js';
 import { RACKS, RACK_IDS, REST, rideKeepOut } from './reefrideplan.js';
+import { LEG_FOLD } from './reefrideparts.js';
 import './reefridewords.js';
 
 export const SEAT_FRAME = Object.freeze({ camOut: 0.4, camUp: 0.45, camEase: 2.4, lead: 1.2 });
@@ -40,6 +41,8 @@ export function createRideLive(ctx) {
   const get = (n) => scene.getObjectByName(n) ?? null;
   const bodies = {};
   const prop = get('ride:scooter:prop');
+  const legs = [0, 1, 2].map((i) => get(`ride:saucer:leg${i}`)).filter(Boolean); // the saucer's landing gear: folded up while she rides, down when it is parked
+  let gear = 1; // 1 down, 0 folded: a short smooth motion (about a third of a second each way), kept under reduced motion too (it is a change of state, not a decoration)
   const sims = {};
   const parkCol = {};
   for (const id of RACK_IDS) {
@@ -125,6 +128,10 @@ export function createRideLive(ctx) {
       g.position.set(sim.x, sim.y + bob, sim.z);
       g.rotation.y = sim.yaw;
     }
+    gear += ((riding?.id === 'saucer' ? 0 : 1) - gear) * Math.min(1, Math.max(0, dt) * 5);
+    if (Math.abs(gear - (riding?.id === 'saucer' ? 0 : 1)) < 0.002) gear = riding?.id === 'saucer' ? 0 : 1;
+    const fold = LEG_FOLD * (1 - gear * gear * (3 - 2 * gear));
+    for (const leg of legs) leg.rotation.x = fold;
     if (prop && !reducedMotion) prop.rotation.z += (riding?.id === 'scooter' ? 9 + sims.scooter.speed * 3 : 0.6) * dt;
   }
 

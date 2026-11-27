@@ -278,6 +278,34 @@ describe('the one real light, and the shadows', () => {
     expect(scene.getObjectByName('lab:interior').visible).toBe(false); // she starts outside: the inside is hidden, the hull shown
     expect(scene.getObjectByName('lab:hull').visible).toBe(true);
   });
+  it('the Sealab from outside is a rounded pressure hull: all faces point out of the body, it stays near its footprint, its growth and lamps are there, and the low rung draws less', () => {
+    const tris = (sc, n) => sc.getObjectByName(n).geometry.attributes.position.count / 3;
+    const hull = scene.getObjectByName('lab:hull');
+    const hatch = scene.getObjectByName('lab:hatch');
+    expect(tris(scene, 'lab:hull') + tris(scene, 'lab:hatch')).toBeLessThan(3000); // (the old box with its brass strips was 1,512; the round hull is 2,762)
+    hull.geometry.computeBoundingBox();
+    const bb = hull.geometry.boundingBox;
+    const b = L.LAB_BUILD;
+    expect(bb.min.x).toBeGreaterThan(b.minX - 0.3); expect(bb.max.x).toBeLessThan(b.maxX + 0.3); // the body's rounded corners and its ornaments stay near the footprint
+    expect(bb.min.z).toBeGreaterThan(b.minZ - 0.3); expect(bb.max.z).toBeLessThan(b.maxZ + 0.3);
+    expect(bb.max.y).toBeGreaterThan(L.LAB_DOME_CEIL); // the dome's crown and the whips stand over the roof
+    // the body's faces (the first part of the mesh) face out: each face's winding agrees with its normal
+    const p = hull.geometry.attributes.position; const n = hull.geometry.attributes.normal;
+    let bad = 0;
+    const a = new THREE.Vector3(); const c1 = new THREE.Vector3(); const c2 = new THREE.Vector3(); const nn = new THREE.Vector3();
+    for (let i = 0; i < Math.min(p.count, 900); i += 3) { a.fromBufferAttribute(p, i); c1.fromBufferAttribute(p, i + 1).sub(a); c2.fromBufferAttribute(p, i + 2).sub(a); nn.fromBufferAttribute(n, i); if (c1.cross(c2).dot(nn) < 0) bad++; }
+    expect(bad).toBe(0);
+    // the lamps and panes are unlit vertex colour in the hatch mesh (more than the hatch's own few parts)
+    expect(tris(scene, 'lab:hatch')).toBeGreaterThan(300);
+    expect(hatch.material.isMeshBasicMaterial).toBe(true);
+    const lowScene = new THREE.Scene();
+    build(lowScene, { water: { quality: { name: 'low', shadows: false, rung: 3 } } });
+    expect(tris(lowScene, 'lab:hull')).toBeLessThan(tris(scene, 'lab:hull'));
+    expect(tris(lowScene, 'lab:hatch')).toBeLessThan(tris(scene, 'lab:hatch'));
+    const twice = new THREE.Scene();
+    build(twice);
+    expect(Array.from(twice.getObjectByName('lab:hull').geometry.attributes.position.array.slice(0, 600))).toEqual(Array.from(p.array.slice(0, 600))); // its own seeded stream: the same hull every time
+  });
   it('the wall faces all look toward their own room (a wall seen from the next room is not drawn in the way)', () => {
     const walls = scene.getObjectByName('lab:walls');
     const pos = walls.geometry.attributes.position;

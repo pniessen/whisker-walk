@@ -63,7 +63,7 @@ describe('the plan (reefrideplan.js)', () => {
     expect(lights).toBe(1); // the Sealab's one
     let tris = 0;
     for (const n of ['ride:racks', 'ride:scooter', 'ride:saucer']) sc.getObjectByName(n).traverse((o) => { if (o.isMesh) tris += o.geometry.attributes.position.count / 3; });
-    expect(tris).toBeLessThan(1500);
+    expect(tris).toBeLessThan(2210); // (the saucer's polish round: 1,972 measured, +12%)
   });
 });
 
@@ -120,6 +120,30 @@ describe('on a walk', () => {
     const s = make({ at: 'saucer' });
     s.tick(2);
     expect(s.life.promptAt(s.cat.position)).toBe('Climb into the Diving Saucer');
+  });
+
+  it('the saucer\'s landing gear: down while it is parked, folds up into the hull within a second of lift-off, comes down again on landing (also under reduced motion)', () => {
+    for (const reducedMotion of [false, true]) {
+      const m = make({ at: 'saucer', extra: { reducedMotion } });
+      const legs = [0, 1, 2].map((i) => m.scene.getObjectByName(`ride:saucer:leg${i}`));
+      for (const l of legs) expect(l, 'leg').toBeTruthy();
+      m.tick(2);
+      expect(legs.map((l) => l.rotation.x)).toEqual([0, 0, 0]);
+      m.board();
+      m.tick(30); // a second
+      for (const l of legs) expect(l.rotation.x).toBeGreaterThan(1.8);
+      // folded, a foot is up inside the hull (the leg's end is above the hinge's own height)
+      for (const l of legs) { const end = new THREE.Vector3(0, -0.53, 0).applyMatrix4(l.matrix.clone().compose(l.position, l.quaternion, l.scale)); expect(end.y).toBeGreaterThan(l.position.y); expect(Math.hypot(end.x, end.z)).toBeLessThan(0.7); }
+      m.hopOff();
+      m.tick(30);
+      for (const l of legs) expect(l.rotation.x).toBeCloseTo(0, 2);
+      // a short smooth motion, not a jump: partway through, the fold is between the two
+      m.board();
+      m.tick(3);
+      const part = legs[0].rotation.x;
+      expect(part).toBeGreaterThan(0);
+      expect(part).toBeLessThan(1.86);
+    }
   });
 
   it('hop on: the walk\'s seat record (sits, swims), the seat height as perchY, the co-walk seat id, the journal count once, the first soft line; hop off puts it all back', () => {
