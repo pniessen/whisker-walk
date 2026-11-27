@@ -23,7 +23,7 @@ const goalAt = (step, carrying = null) => {
 const words = (step, extra = {}, carrying = null) => G.goalWords({ goal: goalAt(step, carrying), metres: 30, step, errand: false, ...extra });
 const BANNED = /\b(dark|lost forever|trapped|stuck|collapse|cave-in|scary)\b/i;
 const EXPECT = [
-  [0, /Say hello to Lumi/], [1, /rose spark stone.*behind the crystals in the Rose hall, north-west of the entrance arch/], [2, /sky spark stone: across the Blue Pool/],
+  [0, /Say hello to Lumi/], [1, /rose spark stone.*behind the crystals in the Rose hall, about \d+ m (ahead|to your \w+|behind you)/], [2, /sky spark stone: across the Blue Pool/],
   [3, /gold spark stone.*Gold Gallery/], [4, /Wake the Heart Crystal.*north-east \(30 m\)/], [5, /Wake the Heart Crystal/], [6, /light show|lights dance/],
 ];
 
@@ -31,7 +31,7 @@ describe('goalWords: every step, both word sets', () => {
   for (const [step, re] of EXPECT) {
     it(`step ${step} says what to do`, () => {
       expect(words(step)).toMatch(re);
-      withOffWords(() => { const t = words(step); expect(t).toMatch(re.source.includes('north-west of the entrance') ? /Rose hall/ : re); expect(bannedIn(t)).toBeNull(); expect(t).not.toMatch(BANNED); });
+      withOffWords(() => { const t = words(step); expect(t).toMatch(re.source.includes('Rose hall') ? /Rose hall/ : re); expect(bannedIn(t)).toBeNull(); expect(t).not.toMatch(BANNED); });
     });
   }
   it('step 7 says nothing without an errand, and the errand hint with one', () => {
@@ -47,11 +47,20 @@ describe('goalWords: every step, both word sets', () => {
       withOffWords(() => expect(bannedIn(words(s, { metres: 23 }, s - 1))).toBeNull());
     }
   });
-  it('the compass word comes from the plan (+x east, -z north, the arch at (0, 24.5))', () => {
-    expect(G.compassKey(10, 0)).toBe('e');
-    expect(G.compassKey(0, -10)).toBe('n');
-    expect(G.compassKey(-10, 10)).toBe('sw');
-    expect(G.atWords(S.STONES[0].x, S.STONES[0].z)).toBe('north-west of the entrance arch');
+  it('a place is said from where she stands now: ahead, to your right, behind you, to your left, to 5 m', () => {
+    const st = S.STONES[0];
+    const at = (cat, fx, fz) => words(1, { cat, fx, fz });
+    const south = { x: st.x, z: st.z + 25 };
+    expect(at(south, 0, -1)).toMatch(/Rose hall, about 25 m ahead\.$/);
+    expect(at(south, 0, 1)).toMatch(/about 25 m behind you\.$/);
+    expect(at(south, 1, 0)).toMatch(/about 25 m to your left\.$/);
+    expect(at(south, -1, 0)).toMatch(/about 25 m to your right\.$/);
+    expect(at({ x: south.x, z: south.z + 1 }, 0, -1)).toBe(at(south, 0, -1)); // same bucket, same words
+    withOffWords(() => expect(at(south, 0, -1)).toMatch(/Rose hall, about 25 m ahead\./));
+  });
+  it('the forge job line fills its place the same way', () => {
+    const goal = { g: { kind: 'forge', line: 'Take it to the forge: {at}.', chip: 'x' }, x: 0, z: 0 };
+    expect(G.goalWords({ goal, cat: { x: 0, z: 20 }, fx: 0, fz: -1, metres: 20, step: 7 })).toBe('Take it to the forge: about 20 m ahead.');
   });
   it('every guide line resolves in both sets with no banned or series words', () => {
     const ids = Object.keys(LINES).filter((k) => k.startsWith('crystal.guide.'));

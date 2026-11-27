@@ -13,6 +13,8 @@
 import { phrase } from '../clanphrases.js';
 import './greenhousewords.js'; // (the guide's lines are greenhouse.guide.* there)
 import * as P from './greenhouseplan.js';
+import { nowWords } from '../reefpages.js';
+export { nowWords };
 
 export const SEEDS = 5; // the same numbers as greenhouselife.js (kept here so the pure file stays light)
 export const THIRSTY = 4;
@@ -47,13 +49,15 @@ export function goalOf(info) {
 }
 
 const fill = (text, g) => text.replace('{n}', String(g.n)).replace('{total}', String(g.total));
-export function goalWords(g) {
+// `from` { cat: { x, z }, fx, fz } (where she stands and which way she faces) adds where the goal is, from there: "Find the seed packets (2 of 5), about 10 m ahead". Without it the line is just what to do.
+const where = (t, g, from) => (from?.cat ? `${t.replace(/\.$/, '')}, ${nowWords(g.x, g.z, from.cat, from.fx ?? 0, from.fz ?? -1)}.` : t);
+export function goalWords(g, from = null) {
   switch (g?.kind) {
-    case 'bench': return phrase('greenhouse.guide.bench');
-    case 'packet': return fill(phrase('greenhouse.guide.seeds'), g);
-    case 'tray': return phrase('greenhouse.guide.tray');
-    case 'can': return phrase('greenhouse.guide.can');
-    case 'pot': return fill(phrase('greenhouse.guide.water'), g);
+    case 'bench': return where(phrase('greenhouse.guide.bench'), g, from);
+    case 'packet': return where(fill(phrase('greenhouse.guide.seeds'), g), g, from);
+    case 'tray': return where(phrase('greenhouse.guide.tray'), g, from);
+    case 'can': return where(phrase('greenhouse.guide.can'), g, from);
+    case 'pot': return where(fill(phrase('greenhouse.guide.water'), g), g, from);
     default: return '';
   }
 }

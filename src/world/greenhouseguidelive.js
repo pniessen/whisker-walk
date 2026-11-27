@@ -43,6 +43,7 @@ export function createGreenhouseGuideLive(ctx) {
   let arrived = false;
   let gp = null;
   let cat = null;
+  let lastCam = null;
   let acc = LOOK_EVERY;
   let frames = 0;
   let seenFrames = 0;
@@ -116,7 +117,8 @@ export function createGreenhouseGuideLive(ctx) {
     const g = cat ? goalOf({ state: life.state, packets: packetsOf(), pots: potsOf(), cat, arrived }) : null;
     gp = g ? { ...g, y: ground.y(g.x, g.z) } : null;
     live.goal = gp;
-    const text = g ? goalWords(g) : '';
+    if (lastCam) viewOf(lastCam, view);
+    const text = g ? goalWords(g, { cat, fx: view.fx, fz: view.fz }) : '';
     if (text !== live.text) {
       live.text = text;
       if (line) { line.textContent = text; line.style.display = text ? 'block' : 'none'; }
@@ -182,6 +184,7 @@ export function createGreenhouseGuideLive(ctx) {
       if (disposed) return;
       frames++;
       cat = catPos ?? cat;
+      lastCam = camera ?? lastCam;
       if (cat && !arrived && Math.hypot(cat.x - P.POTTING.x, cat.z - P.POTTING.z) < OFFER_R) arrived = true;
       acc += dt > 0 ? dt : 0;
       if (acc >= LOOK_EVERY) { acc = 0; look(); } else if (!shown) show(true);

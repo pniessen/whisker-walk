@@ -10,7 +10,7 @@ import { phrase } from '../src/clanphrases.js';
 import '../src/world/moonwords.js';
 import { LINES } from '../src/world/moonwords.js';
 import { withOffWords, bannedIn } from './helpers/offwords.js';
-import { compassKey, atWords, goalWords, chipWords, round5, makeView, viewOf, makeArrow, arrowFor, edgePoint, projectPoint, ARRIVED, NEAR_LANDER } from '../src/world/moonguide.js';
+import { nowWords, goalWords, chipWords, round5, makeView, viewOf, makeArrow, arrowFor, edgePoint, projectPoint, ARRIVED } from '../src/world/moonguide.js';
 
 const read = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
 const pt = (p) => ({ x: p.x, z: p.z });
@@ -18,36 +18,23 @@ const gp = (g, p) => ({ g, x: p.x, z: p.z, y: 0 });
 const rampMouth = P.rampPoint(0.04, 0);
 const HILL = { x: P.STAR_HILL.x, z: P.STAR_HILL.z };
 
-describe('where: a compass word from the plan\'s own coordinates', () => {
-  it('+x is east and -z is north (the spawn looks north from behind the lander)', () => {
-    expect(compassKey(0, -10)).toBe('n');
-    expect(compassKey(10, 0)).toBe('e');
-    expect(compassKey(0, 10)).toBe('s');
-    expect(compassKey(-10, 0)).toBe('w');
-    expect(compassKey(10, -10)).toBe('ne');
-    expect(compassKey(-10, -10)).toBe('nw');
-    expect(compassKey(10, 10)).toBe('se');
-    expect(compassKey(-10, 10)).toBe('sw');
+describe('where: from where she stands now', () => {
+  const L = { x: P.LANDER.x, z: P.LANDER.z };
+  it('ahead, to your right, behind you and to your left, to the nearest 5 m, from a fake position and heading', () => {
+    const goal = { x: L.x, z: L.z - 25 }; // 25 m north of the lander
+    expect(nowWords(goal.x, goal.z, L, 0, -1)).toBe('about 25 m ahead'); // facing north
+    expect(nowWords(goal.x, goal.z, L, 0, 1)).toBe('about 25 m behind you');
+    expect(nowWords(goal.x, goal.z, L, 1, 0)).toBe('about 25 m to your left'); // facing east, a north goal is on her left
+    expect(nowWords(goal.x, goal.z, L, -1, 0)).toBe('about 25 m to your right');
+    expect(nowWords(L.x + 3, L.z + 4, L, 0, -1)).toBe('about 5 m behind you');
   });
-  it('the named places of the story, from the lander, say what a child walking sees', () => {
-    const AT = (p) => atWords(p.x, p.z);
-    expect(AT(P.RIDGE_CELL)).toBe('north of the lander'); // the tall rocks: far ahead of the spawn
-    expect(AT(P.ROVER_CELL)).toBe('north-east of the lander'); // the far beacon
-    expect(AT(P.CORE)).toMatch(/^west|^north-west/); // the dome
-    expect(AT(P.DEPOT)).toBe('east of the lander');
-    expect(AT(P.STAR_HILL)).toBe('north-west of the lander');
-    expect(AT(P.ROCKET_SLOT)).toBe('north-east of the lander');
-    expect(AT(P.LAUNCH_DESK)).toBe('north-east of the lander');
-    expect(AT(P.ROCK_LEDGES[0])).toBe('north of the lander');
-    expect(AT(P.MOUTH_FRONT)).toBe('north-west of the lander');
-    expect(AT(P.JUMP_LANE.z ? { x: P.JUMP_LANE.x0, z: P.JUMP_LANE.z } : P.LANDER)).toBe('north of the lander');
-    expect(AT({ x: P.LANDER.x + 3, z: P.LANDER.z + 4 })).toBe('close to the lander');
-    expect(NEAR_LANDER).toBeGreaterThan(8);
-  });
-  it('the words agree with the bearing a ruler would give: a point 60 m away in each of eight ways', () => {
-    for (const [dx, dz, w] of [[0, -60, 'north'], [42, -42, 'north-east'], [60, 0, 'east'], [42, 42, 'south-east'], [0, 60, 'south'], [-42, 42, 'south-west'], [-60, 0, 'west'], [-42, -42, 'north-west']]) {
-      expect(atWords(P.LANDER.x + dx, P.LANDER.z + dz)).toBe(`${w} of the lander`);
-    }
+  it('the goal line says it from her position and changes only when the 5 m bucket does', () => {
+    const info = (cat, fx = 0, fz = -1) => ({ goal: gp({ kind: 'cell', cell: 0 }, { x: P.RIDGE_CELL.x, z: P.RIDGE_CELL.z }), ...rec(1, 0), cat, fx, fz });
+    const near = { x: P.RIDGE_CELL.x, z: P.RIDGE_CELL.z + 25 };
+    expect(goalWords(info(near))).toBe('Find a power cell (0 of 2): on the tall rocks, about 25 m ahead.');
+    expect(goalWords(info({ x: near.x, z: near.z + 1 }))).toBe(goalWords(info(near)));
+    expect(goalWords(info(near, 0, 1))).toMatch(/about 25 m behind you\.$/);
+    withOffWords(() => expect(goalWords(info(near))).toMatch(/on the tall rocks, about 25 m ahead\./));
   });
   it('round5 rounds metres to the nearest five', () => {
     expect([0, 1, 2.4, 2.6, 7, 12, 38, 41, 43.5, 999].map(round5)).toEqual([0, 0, 0, 5, 5, 10, 40, 40, 45, 1000]);
@@ -60,19 +47,19 @@ describe('where: a compass word from the plan\'s own coordinates', () => {
 const rec = (step, cells, extra = {}) => ({ record: M.normalize({ step, cells }), scope: 0, ...extra });
 const STAGES = [
   ['Pip asleep', { goal: gp({ kind: 'pip' }, P.PIP_SLEEP), ...rec(0, 0) }, /Wake Pip/],
-  ['the Ridge cell, none in', { goal: gp({ kind: 'cell', cell: 0 }, P.RIDGE_CELL), ...rec(1, 0) }, /Find a power cell \(0 of 2\): on the tall rocks, north of the lander\./],
-  ['the Rover cell, one in', { goal: gp({ kind: 'cell', cell: 1 }, P.ROVER_CELL), ...rec(2, 1) }, /\(1 of 2\): at the far beacon, north-east of the lander\./],
-  ['a cell in her mouth', { goal: gp({ kind: 'core', cell: 0 }, P.CORE), ...rec(1, 0) }, /Take the power cell to the Core in the dome, (west|north-west) of the lander\./],
+  ['the Ridge cell, none in', { goal: gp({ kind: 'cell', cell: 0 }, P.RIDGE_CELL), ...rec(1, 0) }, /Find a power cell \(0 of 2\): on the tall rocks, about \d+ m (?:ahead|behind you|to your (?:left|right))\./],
+  ['the Rover cell, one in', { goal: gp({ kind: 'cell', cell: 1 }, P.ROVER_CELL), ...rec(2, 1) }, /\(1 of 2\): at the far beacon, about \d+ m (?:ahead|behind you|to your (?:left|right))\./],
+  ['a cell in her mouth', { goal: gp({ kind: 'core', cell: 0 }, P.CORE), ...rec(1, 0) }, /Take the power cell to the Core in the dome, about \d+ m (?:ahead|behind you|to your (?:left|right))\./],
   ['both in, the beat not seen', { goal: gp({ kind: 'done' }, { x: P.BOARD.x + 1.6, z: P.BOARD.z }), ...rec(3, 3) }, /Both power cells are in! Go to the dome/],
-  ['the base awake: Star Hill, nothing traced', { goal: gp({ kind: 'scope' }, rampMouth), ...rec(4, 3) }, /Climb Star Hill, north-west of the lander\. Join the stars: Mouse, then Cat\./],
+  ['the base awake: Star Hill, nothing traced', { goal: gp({ kind: 'scope' }, rampMouth), ...rec(4, 3) }, /Climb Star Hill, about \d+ m (?:ahead|behind you|to your (?:left|right))\. Join the stars: Mouse, then Cat\./],
   ['the Mouse traced', { goal: gp({ kind: 'scope' }, rampMouth), ...rec(4, 3), scope: 1 }, /Climb Star Hill, .* Now join the Cat stars\./],
   ['the Cat traced', { goal: gp({ kind: 'scope' }, rampMouth), ...rec(4, 3), scope: 2 }, /Now join the Mouse stars\./],
   ['on the hill', { goal: gp({ kind: 'scope' }, HILL), ...rec(4, 3) }, /The telescope is at the top of the hill\. Join the/],
   ['Earth found: the Message Desk', { goal: gp({ kind: 'desk' }, P.MESSAGE_DESK), ...rec(5, 3) }, /Write a postcard at the Message Desk in the dome, /],
-  ['the postcard in her mouth', { goal: gp({ kind: 'rocket' }, P.ROCKET_SLOT), ...rec(5, 3) }, /Take the postcard to the rocket and post it, north-east of the lander\./],
-  ['the postcard in the rocket', { goal: gp({ kind: 'button' }, P.LAUNCH_DESK), ...rec(6, 3) }, /Press the big red button at the launch desk, north-east of the lander\./],
-  ['sent: wait for the reply', { goal: gp({ kind: 'reply' }, P.ROCK_LEDGES[0]), ...rec(7, 3) }, /Wait on Earthrise Rock, north of the lander\. Earth will answer!/],
-  ['the cave', { goal: gp({ kind: 'cave' }, P.MOUTH_FRONT), ...rec(8, 3) }, /A glowing cell waits in the cave, north-west of the lander\./],
+  ['the postcard in her mouth', { goal: gp({ kind: 'rocket' }, P.ROCKET_SLOT), ...rec(5, 3) }, /Take the postcard to the rocket and post it, about \d+ m (?:ahead|behind you|to your (?:left|right))\./],
+  ['the postcard in the rocket', { goal: gp({ kind: 'button' }, P.LAUNCH_DESK), ...rec(6, 3) }, /Press the big red button at the launch desk, about \d+ m (?:ahead|behind you|to your (?:left|right))\./],
+  ['sent: wait for the reply', { goal: gp({ kind: 'reply' }, P.ROCK_LEDGES[0]), ...rec(7, 3) }, /Wait on Earthrise Rock, about \d+ m (?:ahead|behind you|to your (?:left|right))\. Earth will answer!/],
+  ['the cave', { goal: gp({ kind: 'cave' }, P.MOUTH_FRONT), ...rec(8, 3) }, /A glowing cell waits in the cave, about \d+ m (?:ahead|behind you|to your (?:left|right))\./],
   ['in the tunnel', { goal: gp({ kind: 'cave' }, P.DEEP_CELL), ...rec(8, 3) }, /Follow the tunnel to the glowing cell\./],
   ['the Deep Cell in her mouth', { goal: gp({ kind: 'core', cell: M.DEEP }, P.CORE), ...rec(8, 3) }, /Take the Deep Cell to the Core in the dome, /],
   ['everything done', { goal: gp({ kind: 'done' }, { x: P.BOARD.x + 1.6, z: P.BOARD.z }), ...rec(8, 7) }, /The base is awake! Look around/],
@@ -80,13 +67,13 @@ const STAGES = [
 const JOBS = [
   ['pebbles, none', { kind: 'pebbles', taken: 0 }, /Pip needs glowing pebbles \(0 of 3\)\. Look /, P.PEBBLES[0]],
   ['pebbles, three', { kind: 'pebbles', taken: 3 }, /Put the pebbles in Pip’s tray, /, J.SAMPLE_TRAY],
-  ['rounds, on foot', { kind: 'rounds', next: 0 }, /Hop in Dot at the depot, east of the lander\. Drive past the lit posts\./, P.DOT_PARK],
+  ['rounds, on foot', { kind: 'rounds', next: 0 }, /Hop in Dot at the depot, about \d+ m (?:ahead|behind you|to your (?:left|right))\. Drive past the lit posts\./, P.DOT_PARK],
   ['rounds, driving', { kind: 'rounds', next: 2 }, /Drive Dot past the lit posts in order \(2 of 5\)\./, J.ROUND_POSTS[2], true],
-  ['guest, far', { kind: 'guest' }, /Climb Star Hill, north-west of the lander\. Trace the new star picture\./, rampMouth],
+  ['guest, far', { kind: 'guest' }, /Climb Star Hill, about \d+ m (?:ahead|behind you|to your (?:left|right))\. Trace the new star picture\./, rampMouth],
   ['guest, on the hill', { kind: 'guest' }, /The telescope is at the top of the hill\. Trace the new star picture\./, HILL],
-  ['bound', { kind: 'bound' }, /Jump farther than your best on the hop lane, north of the lander\./, { x: P.JUMP_LANE.x0, z: P.JUMP_LANE.z }],
+  ['bound', { kind: 'bound' }, /Jump farther than your best on the hop lane, about \d+ m (?:ahead|behind you|to your (?:left|right))\./, { x: P.JUMP_LANE.x0, z: P.JUMP_LANE.z }],
   ['rocket 0', { kind: 'rocket', stage: 0 }, /Write another postcard at the Message Desk, /, P.MESSAGE_DESK],
-  ['rocket 1', { kind: 'rocket', stage: 1 }, /Post the new postcard in the rocket, north-east of the lander\./, P.ROCKET_SLOT],
+  ['rocket 1', { kind: 'rocket', stage: 1 }, /Post the new postcard in the rocket, about \d+ m (?:ahead|behind you|to your (?:left|right))\./, P.ROCKET_SLOT],
   ['rocket 2', { kind: 'rocket', stage: 2 }, /Press the big red button at the launch desk, /, P.LAUNCH_DESK],
   ['glove', { kind: 'glove', glove: 'home' }, /Earth lost a glove\. Find it, /, J.GLOVE_SPOTS[0]],
   ['glove carried', { kind: 'glove', glove: 'carried' }, /Take the glove to Pip\./, P.PIP_SLEEP],
@@ -141,7 +128,7 @@ describe('the goal line: WHAT and WHERE at every stage, in both word sets', () =
       expect(phrase(id), id).not.toMatch(/\b(drown|die|dead|scared|scary|dark|hurt|danger|afraid|lost forever|too late|hurry|fail)\b/i);
     }
     withOffWords(() => { for (const id of defined) expect(bannedIn(phrase(id)), id).toBeNull(); });
-    expect(defined.length).toBe(36);
+    expect(defined.length).toBe(33);
   });
 });
 
