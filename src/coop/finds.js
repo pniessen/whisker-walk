@@ -9,6 +9,9 @@
 //   sniff      scent.sniff, scent.digAt (keen-nose breeds smell farther);
 //   talk       the meow's reactions (strays, critters, farm, the fair) and the
 //              Far Call skill's wider reach;
+//   farm       the Farm's offers, saucer and scarecrow, and its mice and eggs (src/farmanimals.js
+//              secondStep/secondAction/secondAct): the jobs' animals stay cat one's;
+//   market     the Market's six missions, from cat two's spot and mouth (world/marketerrandlive.js second());
 //   carry      cat two's own mouth (src/carry.js), the held thing drawn at its
 //              head; a thing it puts down is also noted on cat one's mouth, so
 //              the walk-end marks are what a solo walk would write.
@@ -21,15 +24,20 @@ import { createMouth, pick as pickUp, drop as putDown, carryLabel } from '../car
 import { hasSkill } from '../skills.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { critterLabel } from '../game/labels.js';
+import { farmPromptText } from '../game/farmplay.js';
 
 export const COLLECT_REACH = 1.6; // metres: cat one's own (game/interactions.js)
 export const CARRY_REACH = 1.2;
+export const FISH_HEAD_ID = 'market-fishhead-1'; // the Market stray's supper: a job item cat two may carry (test/coopm5market.test.js holds it to the mission's own id)
+const takes = (it) => it && (!it.job || it.id === FISH_HEAD_ID);
 export const MOUND_REACH = 1.2;
 const GOLD = 0xf2c14e;
 const NOSE_RANGE = 22, NOSE_TRAIL_DIST = 6, NOSE_REFRESH = 3.5, NOSE_RETRY = 1;
 const WHISKER_RANGE = 12, WHISKER_MIN_GAP = 0.6, WHISKER_MAX_GAP = 2.6;
 
 const air = new THREE.Vector3(), paws = new THREE.Vector3();
+/** The button's own words for a place's line: the walk's "E — ..." in the pad's picture. */
+export const padText = (text) => (text ? `⟦interact⟧ ${text.replace(/^E\s*[—-]\s*/, '')}` : null);
 export const sniffRange = (breed) => (PERSONALITIES[breed]?.special === 'keenNose' ? 30 : 18);
 
 /**
@@ -57,6 +65,11 @@ export function createFinds({ ctx, drawn, said = () => {}, pick, tally = [0, 0] 
     return best;
   }
 
+  // What the Farm reads of cat two: where it stands and faces, on the ground (it does not climb).
+  const farmCat = (body, mover) => ({ x: body.position.x, z: body.position.z, fx: -Math.sin(body.rotation.y), fz: -Math.cos(body.rotation.y), perched: mover.player.perchY > 0.05, inWater: !!mover.player.inWater });
+
+  const release = (id) => { if (mouth.held?.id === id) { mouth.held = null; mouth.grip = 0; } }; // a mission took what cat two held
+
   /** What cat two's X would do here: { kind, item, label } or null. Never touches anything. */
   function reach(s, mover, body) {
     if (!s?.walk) return null;
@@ -70,9 +83,11 @@ export function createFinds({ ctx, drawn, said = () => {}, pick, tally = [0, 0] 
     if (mound?.revealed) return { kind: 'dig' };
     if (!mouth.held && !perched) {
       const it = s.carry?.items.nearest(p, CARRY_REACH);
-      if (it && !it.job) return { kind: 'carry', item: it, label: carryLabel(it.kind) };
+      if (takes(it)) return { kind: 'carry', item: it, label: carryLabel(it.kind) };
     }
-    if (mouth.held && !mouth.held.treat && !mouth.held.toy && !mouth.held.job && !perched && !mover.player.inWater) return { kind: 'drop', label: carryLabel(mouth.held.kind) };
+    if (mouth.held && !mouth.held.treat && !mouth.held.toy && (!mouth.held.job || mouth.held.id === FISH_HEAD_ID) && !perched && !mover.player.inWater) return { kind: 'drop', label: carryLabel(mouth.held.kind) };
+    const fa = !perched ? s.farm?.secondAction?.(farmCat(body, mover)) : null;
+    if (fa) return { kind: 'farm', action: fa, label: padText(farmPromptText(fa)) };
     return null;
   }
 
@@ -97,6 +112,8 @@ export function createFinds({ ctx, drawn, said = () => {}, pick, tally = [0, 0] 
       const paid = ctx.log.awardOnce('collectible', `col-${c.id}`, c.label);
       s.fx?.burst(p, GOLD, 12);
       count(1, c.label, paid);
+    } else if (r.kind === 'farm') {
+      s.farm.secondAct(r.action, farmCat(body, mover));
     } else if (r.kind === 'dig') {
       const treat = s.scent.digAt(p);
       if (treat) {
@@ -138,9 +155,11 @@ export function createFinds({ ctx, drawn, said = () => {}, pick, tally = [0, 0] 
   /** Every frame while cat two is in the walk (after the walk's own updates): golden mice, catches, senses. */
   function frame(dt, s, mover, body, hopping) {
     busy = true;
-    try { doFrame(s, mover, body, hopping); } finally { busy = false; }
+    try { doFrame(dt, s, mover, body, hopping); } finally { busy = false; }
   }
-  function doFrame(s, mover, body, hopping) {
+  function doFrame(dt, s, mover, body, hopping) {
+    s?.farm?.secondStep?.(dt, farmCat(body, mover));
+    s?.areaLife?.second?.({ x: body.position.x, z: body.position.z, speed: mover.player.speed ?? 0, heldId: mouth.held?.id ?? null, release }, s);
     if (!s?.goldMice) return;
     const p = body.position;
     const y = pawsY(s, body, mover);

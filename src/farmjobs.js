@@ -338,6 +338,7 @@ export function createFarmJobs(area, sim, { seed = 'farm-jobs' } = {}) {
   // ---- the finds ---------------------------------------------------------------
   const loftY = A.hayloft.y - 0.4;
   const at = { loftcats: false, eggs: false, owl: false, apples: null, ducklings: false };
+  const at2 = { eggs: false }; // cat two's own edge (couch play)
   const owl = { peek: 0 };
   const loft = { visitor: false };
   const scarecrow = { worn: false, found: false };
@@ -421,6 +422,21 @@ export function createFarmJobs(area, sim, { seed = 'farm-jobs' } = {}) {
       stepGoatCall();
       stepMice(step, cat);
       stepFinds(step, cat);
+    },
+
+    // Couch play's cat two (src/coop/finds.js): the ground half of what a walker does here. It scares a mouse out and
+    // reaches the eggs, by its OWN edges (at2), so two cats on the same find are one find (the caller pays by key). The
+    // jobs' animals, the loft, the owl and the trees stay cat one's: cat two does not climb.
+    second(dt, cat) {
+      if (!(dt > 0)) return;
+      if (state.mice === 'active') {
+        for (const m of mice) {
+          if (m.mode === 'idle' && dist(cat, m) < JOB.MOUSE_FLEE) { m.mode = 'run'; events.push({ type: 'mouse-run', id: m.id }); }
+        }
+      }
+      const eggs = !cat.perched && dist(cat, A.tractorNest) < JOB.EGGS_R;
+      if (eggs && !at2.eggs) find('eggs');
+      at2.eggs = eggs;
     },
 
     // What E would do here, or null: { kind: 'offer', job } | { kind: 'milk' } |

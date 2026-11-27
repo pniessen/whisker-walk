@@ -28,7 +28,7 @@ import { placeName, areaInEdition, areaShown } from './edition.js';
 import { words } from './wordset.js';
 import { STAR, territoryMapModel, placeState } from './territories.js';
 
-export const WORLD = Object.freeze({ w: 1500, h: 880 });
+export const WORLD = Object.freeze({ w: 1700, h: 880 });
 
 const freezeAll = (list) => Object.freeze(list.map((t) => Object.freeze(t)));
 const pts = (list) => Object.freeze(list.map((p) => Object.freeze(p)));
@@ -60,13 +60,16 @@ export const STREET_LAND = Object.freeze({ park: '#b9dc8f', fair: '#e9b7c9', far
 // (state.walks[id] >= 1), so the map never gives away a gate before she finds it; it is shown by areaShown like the Greenhouse's.
 // r 46 as the smallest circles (the pan's zoom-out floor keeps that 44 px across). The Moon's is in the top margin, in the sky.
 export const GATE_PLACES = freezeAll([
-  { id: 'reef', areaId: 'reef', x: 1415, y: 690, r: 46 },
-  { id: 'crystal', areaId: 'crystal', x: 710, y: 810, r: 46 },
-  { id: 'moon', areaId: 'moon', x: 900, y: 52, r: 46 },
-  { id: 'snowville', areaId: 'snowville', x: 1300, y: 56, r: 46 }, // Snowville, in the north margin above the Farm (the Farm's icy archway is its way in; it was missing from the map until 2026-11-27)
-  { id: 'jungle', areaId: 'jungle', x: 1395, y: 150, r: 46 }, // the Jungle lodge, east of the Greenhouse in the sea's margin (the Greenhouse's stone ring is its way in)
+  { id: 'reef', areaId: 'reef', x: 1560, y: 700, r: 46 },
+  { id: 'crystal', areaId: 'crystal', x: 540, y: 800, r: 46 },
+  { id: 'moon', areaId: 'moon', x: 1450, y: 52, r: 46 },
+  { id: 'jungle', areaId: 'jungle', x: 1560, y: 250, r: 46 }, // the Jungle lodge, on its own islet well out in the sea east of the Greenhouse (the Greenhouse's stone ring is its way in)
+  { id: 'snowville', areaId: 'snowville', x: 1585, y: 470, r: 46 }, // Snowville, on an islet in the sea between the Jungle and the Reef (the Farm's archway is its way in)
 ]);
-export const GATE_LAND = Object.freeze({ reef: '#9fd6dc', crystal: '#d9c4ec', moon: '#cfd3e6', snowville: '#dfeaf2', jungle: '#a3d49a' });
+export const GATE_LAND = Object.freeze({ reef: '#9fd6dc', crystal: '#d9c4ec', moon: '#cfd3e6', jungle: '#a3d49a', snowville: '#dfeaf2' });
+// The sea-side gate places stand on a small island of their own (a soft blob behind the circle, drawn by the renderer), like a place across water.
+export const ISLET_IDS = Object.freeze(['jungle', 'snowville', 'reef']);
+export const ISLET_PAD = 34;
 
 // Places inside the town, drawn on top of it: the Rooftops, up the back
 // alley's fire escape (draft 2's "Rooftops"), and the Market Square, on the
@@ -151,7 +154,7 @@ export function worldMapModel(state, catalog, { touch = false } = {}) {
     })),
     ...GATE_PLACES.filter((p) => areaShown(catalog?.areas?.[p.areaId], edition) && Number(state?.walks?.[p.id]) >= 1).map((p) => ({
       id: p.id, areaId: p.areaId, x: p.x, y: p.y, r: p.r,
-      kind: 'gate', name: placeName(p.areaId, edition, catalog), status: 'built', camp: null,
+      kind: 'gate', islet: ISLET_IDS.includes(p.id), name: placeName(p.areaId, edition, catalog), status: 'built', camp: null,
       ...placeState(state, catalog, p.areaId, { touch }),
     })),
     ...TOWN_PLACES.filter((p) => areaInEdition(catalog?.areas?.[p.areaId], edition)).map((p) => ({

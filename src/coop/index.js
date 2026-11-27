@@ -538,7 +538,7 @@ export function start(ctx) {
     }
     finds.frame(dt, s, mover, body, hopT > 0 || mover.player.hopY > 0.01);
     const r = finds.reach(s, mover, body);
-    const text = !r ? null : r.kind === 'collect' ? phrase('coop.pick', r.label) : r.kind === 'carry' ? phrase('coop.carry', r.label) : r.kind === 'drop' ? phrase('coop.drop', r.label) : r.kind === 'dig' ? phrase('coop.dig') : null;
+    const text = !r ? null : r.kind === 'collect' ? phrase('coop.pick', r.label) : r.kind === 'carry' ? phrase('coop.carry', r.label) : r.kind === 'drop' ? phrase('coop.drop', r.label) : r.kind === 'dig' ? phrase('coop.dig') : r.kind === 'farm' ? r.label : null;
     own[1] = text ?? (near ? phrase('coop.groomhint', nameOne()) : null);
   };
 
