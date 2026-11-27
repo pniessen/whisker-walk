@@ -681,8 +681,8 @@ export function structures(s) {
 
 // ---- low dressing (one mesh, no shadow) ----------------------------------------------------------
 // Vegetable rows inside each bed, and a few apples in the grass.
-export function crops(beds) {
-  const P = [];
+export function crops(beds, extra = []) {
+  const P = [...extra];
   beds.forEach((b, bi) => {
     const rows = Math.max(1, Math.floor((b.maxZ - b.minZ - 0.4) / 0.9));
     for (let r = 0; r < rows; r++) {
@@ -736,10 +736,16 @@ export function wheat(spots) {
   const col = [];
   const gold = new THREE.Color(C.wheat);
   const foot = new THREE.Color(C.wheatBase);
+  const WHEAT_GREEN = new THREE.Color(0xbfae52), WHEAT_WARM = new THREE.Color(0xc98f3a);
   for (const s of spots) {
     const h = WHEAT.hMin + (WHEAT.hMax - WHEAT.hMin) * hash01(s.x, s.z, 23);
     const yaw0 = hash01(s.x, s.z, 24) * Math.PI;
-    const tone = 0.86 + 0.24 * hash01(s.x, s.z, 25);
+    // slow patches of ripeness (paler, greener, warmer) and a darker band
+    // where the tractor drove, every 2 m: colour only, no triangles
+    const patch = hash01(Math.floor(s.x / 3.6), Math.floor(s.z / 3.6), 26);
+    const band = Math.floor(s.z / 1.9) % 2 ? 0.93 : 1;
+    const tone = (0.86 + 0.24 * hash01(s.x, s.z, 25)) * band;
+    const tint = patch < 0.3 ? WHEAT_GREEN : patch > 0.72 ? WHEAT_WARM : null;
     for (let f = 0; f < 2; f++) {
       const yaw = yaw0 + f * Math.PI / 2;
       const ux = Math.cos(yaw);
@@ -755,7 +761,7 @@ export function wheat(spots) {
         pos.push(bx - ux * hw, 0, bz - uz * hw, bx + ux * hw, 0, bz + uz * hw, tipX, hk, tipZ);
         for (let v = 0; v < 3; v++) nrm.push(0, 1, 0);
         col.push(foot.r * tone, foot.g * tone, foot.b * tone, foot.r * tone, foot.g * tone, foot.b * tone,
-          gold.r * tone, gold.g * tone, gold.b * tone);
+          (tint ?? gold).r * tone, (tint ?? gold).g * tone, (tint ?? gold).b * tone);
       }
     }
   }

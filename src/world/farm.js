@@ -9,6 +9,7 @@ import { seedFromCode } from '../rng.js';
 import * as parts from './farmparts.js';
 import { BARN, BALE, TRACTOR, STAND, SCARECROW, GRAIN_STORE, FARM_COLORS } from './farmparts.js';
 import { cutForGates } from '../gateways.js';
+import { farmBeautyParts } from './farmbeauty.js';
 
 // =============================================================================
 // Appletree Farm (docs/superpowers/specs/2026-11-18-farm-design.md), step 1:
@@ -349,7 +350,11 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) {
       well: WELL_AT,
       beds: VEG_BEDS,
     }),
-    crops: parts.crops(VEG_BEDS),
+    // the vegetable rows, with the beauty round folded in (farmbeauty.js): one mesh
+    crops: parts.crops(VEG_BEDS, farmBeautyParts({
+      wheat: WHEAT_FIELD, wheatTrack: WHEAT_TRACK, pasture: PASTURE, paddock: GOAT_PADDOCK, henRun: HEN_RUN,
+      pastureGate: PASTURE_GATE, goatGate: GOAT_GATE, beds: VEG_BEDS, pond: POND, jetty: JETTY,
+    })),
     wheat: parts.wheat(parts.wheatSpots(WHEAT_FIELD, (x, z) => !wheatGrowsAt(x, z))),
   }));
   for (const m of Object.values(made)) scene.add(m);
