@@ -233,8 +233,62 @@ function frameGeometry(h, doors) {
   return g;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Condensation (beauty GRN-1): small beads and a few slow runnels on the existing glass material, in the fragment shader
+// only (no mesh, no triangle). Thicker near the ground; the beads sit still, the runnels creep on ONE shared clock
+// (COND_TIME, set from the walk's clock by greenhouselife; reduced motion holds it at 0, so they show still).
+// Its own fixed hash seed, never the walk's stream. The low tier draws none; every other non-high tier draws beads only.
+export const COND_TIME = { value: 0 };
+export function condensation(material, quality = 'high') {
+  if (quality === 'low') return material;
+  const runnels = quality === 'high';
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uCondTime = COND_TIME;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vCondW;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvCondW = (modelMatrix * vec4(position, 1.0)).xyz;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+uniform float uCondTime;
+varying vec3 vCondW;
+float cH(vec2 q) { return fract(sin(dot(q, vec2(91.7, 263.3)) + 17.31) * 24634.6345); }`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+{
+  float fade = 1.0 - smoothstep(14.0, 30.0, distance(cameraPosition, vCondW));
+  if (fade > 0.01) {
+    vec2 q = vec2(vCondW.x + vCondW.z, vCondW.y);
+    float damp = mix(0.5, 0.1, smoothstep(0.2, 3.2, vCondW.y));
+    vec2 cell = floor(q / 0.2), f = fract(q / 0.2);
+    float h1 = cH(cell), h2 = cH(cell + 7.0);
+    float r = 0.1 + 0.12 * h2;
+    vec2 c = vec2(0.3 + 0.4 * cH(cell + 3.0), 0.3 + 0.4 * cH(cell + 5.0));
+    float bead = (h1 < damp ? 1.0 : 0.0) * (1.0 - smoothstep(r * 0.6, r, length(f - c)));
+    float lit = bead * smoothstep(0.0, 0.05, c.y + r * 0.35 - f.y + 0.1);
+    float run = 0.0;
+${runnels ? `    vec2 col = vec2(floor(q.x / 0.7), 0.0);
+    float k1 = cH(col + 11.0), k2 = cH(col + 13.0), k3 = cH(col + 17.0);
+    if (k1 < 0.22) {
+      float cx = (col.x + 0.2 + 0.6 * k2) * 0.7;
+      float ph = fract(k3 + uCondTime * 0.004 * (0.6 + k2));
+      float head = 3.4 * (1.0 - ph) + 0.15;
+      float trail = clamp((q.y - head) / 0.9, 0.0, 1.0);
+      float w = 0.012 + 0.012 * (1.0 - trail);
+      run = (1.0 - smoothstep(w * 0.5, w, abs(q.x - cx))) * (1.0 - trail) * step(head, q.y) * step(q.y, head + 0.9) * 0.55;
+      float hd = length(vec2((q.x - cx) * 1.0, (q.y - head) * 0.7));
+      run = max(run, 1.0 - smoothstep(0.018, 0.03, hd));
+    }` : ''}
+    float cov = clamp(max(bead, run), 0.0, 1.0) * fade;
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 1.0, 0.96), 0.55 * cov + 0.3 * lit * fade);
+    diffuseColor.a = min(1.0, diffuseColor.a + 0.34 * cov);
+  }
+}`);
+  };
+  material.customProgramCacheKey = () => `greenhouse-condensation-${runnels ? 'r' : 'b'}-v1`;
+  return material;
+}
+
 // The whole house: frame + glass in one top-level group (the building the camera fades).
-export function glassHouse(h, doors, { name = 'glassHouse' } = {}) {
+export function glassHouse(h, doors, { name = 'glassHouse', quality = 'high' } = {}) {
   const group = new THREE.Group();
   group.name = name;
   const frame = new THREE.Mesh(frameGeometry(h, doors), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.15 }));
@@ -242,9 +296,11 @@ export function glassHouse(h, doors, { name = 'glassHouse' } = {}) {
   frame.userData.noCast = true; // a thin lattice would cost a shadow draw for no look: the floor gets the dapple instead
   frame.userData.noMerge = true;
   frame.castShadow = false;
-  const glass = new THREE.Mesh(glassGeometry(h, doors), new THREE.MeshBasicMaterial({
+  const glassMat = new THREE.MeshBasicMaterial({
     vertexColors: true, transparent: true, depthWrite: false, side: THREE.FrontSide, fog: true,
-  }));
+  });
+  condensation(glassMat, quality);
+  const glass = new THREE.Mesh(glassGeometry(h, doors), glassMat);
   glass.name = `${name}-glass`;
   glass.userData.glassHouse = true; // (no userData.window: neither the building fade nor the dusk swap may touch it)
   glass.userData.noCast = true;
