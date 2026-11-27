@@ -152,7 +152,7 @@ export function deepGeometries(rung = 'high') {
   const dyn = { wall: null, prisms: [], pads: [], rings: [], door: null };
   // the singing wall: a slab across the passage mouth that sinks into the floor when it opens
   const Wl = D.WALL;
-  const slab = put(shade(new THREE.BoxGeometry(Wl.w, Wl.h, Wl.d).translate(0, Wl.h / 2 - 0.05, 0), (x, y) => _a.setHex(STONE).lerp(new THREE.Color(STONE_LIGHT), Math.min(1, Math.max(0, y / Wl.h)) * 0.6)), Wl.x, Wl.z);
+  const slab = put(shade(new THREE.BoxGeometry(Wl.w, Wl.h, Wl.d).translate(0, Wl.h / 2 - 0.05, 0), (x, y) => _a.setHex(0x6a5896).lerp(new THREE.Color(0xd8c4ff), Math.min(1, Math.max(0, y / Wl.h)) ** 1.3 * 0.85)), Wl.x, Wl.z); // violet, lighter at the top: it reads as a door, not as one more rock
   dyn.wall = { start: count(solid), count: slab.attributes.position.count, base: slab.attributes.position.array.slice() };
   solid.push(slab);
   // the three prisms: a three-sided post (each side one face colour) and a pale cap; face f turns to the front when the post is yawed by -f thirds of a turn
