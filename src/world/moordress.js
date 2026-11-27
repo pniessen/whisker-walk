@@ -10,6 +10,7 @@ import {
   MOOR_WATERS, MOOR_PATHS, MOOR_TRAIL, MOOR_GORGE_TRAIL, MOOR_KEEP_CLEAR, MOOR_DECKS, MOOR_LAKE,
   MOOR_RIVER_MOUTH, HIGH_TOR, MOOR_CHAIN_ROCKS, TORS, SPAWN, moorTrunks, moorReeds, moorHeather, moorGorse,
 } from './moor.js';
+import { moorBeautyParts } from './moorbeauty.js';
 
 // =============================================================================
 // The Moor's dressing (polish-rivermoor Task 4).
@@ -50,6 +51,15 @@ const waterDist = (x, z) => {
 const nearest = (list, x, z) => {
   let m = Infinity;
   for (const p of list) m = Math.min(m, Math.hypot(x - p.x, z - p.z));
+  return m;
+};
+
+// The nearest distance from (x, z) to any of the polylines (lists of [x, z]).
+const nearestLine = (lines, x, z) => {
+  let m = Infinity;
+  for (const pts of lines) {
+    for (let i = 0; i < pts.length - 1; i++) m = Math.min(m, segDist(x, z, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]));
+  }
   return m;
 };
 
@@ -480,7 +490,7 @@ function farTorParts() {
       const z = t.z + Math.sin(a) * t.r * drift;
       parts.push(rockPart(x, z, t.r * rs, t.h * tall, 1711 + i * 7 + k, { buried: k === 0 ? 0.4 : 0.15, y0: t.h * foot }));
     });
-    for (let k = 0; k < 2; k++) {
+    for (let k = 0; k < 1; k++) { // beauty-moor: one fallen rock, not two (far and past the bounds)
       const a = hash01(t.z, t.x + k, 1771) * Math.PI * 2;
       const d = t.r * (1.15 + 0.35 * hash01(t.x + k, t.z, 1785));
       const rr = 0.4 + 0.35 * hash01(k, t.x, 1799);
@@ -547,9 +557,14 @@ function paintParts() {
 export function addMoorDressing(scene) {
   const tris = new Tris();
   addGrass(tris);
-  const dressing = dressMesh([tris.geometry(), ...rockParts(), ...farTorParts()], { name: 'dressing', side: THREE.DoubleSide });
+  // the beauty round (moorbeauty.js) is folded into these same two meshes
+  const beauty = moorBeautyParts({
+    fits: fitsMoor, waterDist, nearest, nearestLine,
+    heather: heather(), gorse: gorse(), reeds: reeds(), boulders: moorBoulders(), sheepLines: sheepPathLines(),
+  });
+  const dressing = dressMesh([tris.geometry(), ...rockParts(), ...farTorParts(), ...beauty.dress], { name: 'dressing', side: THREE.DoubleSide });
   bothSidesLit(dressing.material);
-  const paint = paintMesh(paintParts(), { name: 'groundPaint' });
+  const paint = paintMesh([...paintParts(), ...beauty.paint], { name: 'groundPaint' });
   scene.add(paint);
   scene.add(dressing);
   return { dressing, paint };

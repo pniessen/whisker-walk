@@ -222,7 +222,8 @@ describe('the Moor dressing', () => {
       expect(m.userData.noCast).toBe(true);
       expect(m.castShadow).toBe(false);
     }
-    expect(triCount(dress.geometry) + triCount(paint.geometry)).toBeLessThanOrEqual(5500);
+    // beauty-moor (moorbeauty.js folded in): 5,500 -> 6,250 (measured 6,162)
+    expect(triCount(dress.geometry) + triCount(paint.geometry)).toBeLessThanOrEqual(6250);
     const p = paint.geometry.attributes.position;
     for (let i = 0; i < p.count; i++) expect(p.getY(i)).toBe(Math.fround(0.005));
     expect(dress.material.side).toBe(THREE.DoubleSide);
@@ -232,7 +233,8 @@ describe('the Moor dressing', () => {
     // more triangles (+3,000); +900 for polish-canopies' oak, birch and round crowns
     // +500 for polish-pines2's tiered pines (+319) and polish-camps5's Highrock (+174)
     // polish-bushes: the 3 hidden-mouse bushes wear leaf cards (+506)
-    expect(stats.triangles).toBeLessThanOrEqual(64306);
+    // beauty-moor: +750 (64,120 -> 64,870)
+    expect(stats.triangles).toBeLessThanOrEqual(65056);
     expect(stats.meshes).toBe(85 + 2 + 1); // +1: polish-paths' one pathTrail mesh (the hidden path strips were already counted)
     expect(stats.casters).toBe(48);
   }, 120_000);
