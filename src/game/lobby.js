@@ -52,6 +52,28 @@ export function rosterIsPartnerOnly(rosterIds, selfId, partnerId) {
 //     A config's seed must be a finite number, because startWalk reads a
 //     missing roomSeed as a SOLO walk (colony cats, ghosts) inside a room.
 //   * Total over garbage: anything malformed is null rather than a throw.
+// The co-walk protocol this build speaks. Presence carries { build, proto }; the wire messages stay v: 1.
+// A partner with no proto (a build from before this) or a lower one is older. Total over garbage.
+export const COOP_PROTO = 2;
+export function partnerOlder(roster, selfId) {
+  if (!Array.isArray(roster)) return null;
+  for (const p of roster) {
+    if (!p || typeof p !== 'object' || typeof p.playerId !== 'string' || p.playerId === selfId) continue;
+    if (!Number.isFinite(p.proto) || p.proto < COOP_PROTO) return p;
+  }
+  return null;
+}
+
+// unknownPlaceFrom(ev, { roster, selfId, inWalk, knownAreas }) → the sender's id when a walk-config
+// from a room member names a place this build does not know (decideLobbyEvent drops it), else null.
+export function unknownPlaceFrom(ev, { roster, selfId, inWalk, knownAreas } = {}) {
+  if (!ev || typeof ev !== 'object' || inWalk || ev.type !== 'walk-config') return null;
+  if (typeof ev.id !== 'string' || ev.id === '' || ev.id === selfId) return null;
+  if (!Array.isArray(roster) || !Array.isArray(knownAreas)) return null;
+  if (typeof ev.area !== 'string' || ev.area === '' || ev.area.length > 32 || knownAreas.includes(ev.area)) return null;
+  return roster.some((p) => p?.playerId === ev.id) ? ev.id : null;
+}
+
 export function decideLobbyEvent(ev, { roster, selfId, inWalk, knownAreas, unlockedAreas } = {}) {
   if (!ev || typeof ev !== 'object' || inWalk) return null;
   if (typeof ev.id !== 'string' || ev.id === '' || ev.id === selfId) return null;

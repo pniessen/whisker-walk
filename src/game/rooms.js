@@ -18,7 +18,10 @@ import { seedFromCode } from '../rng.js';
 import { note } from '../diagnostics.js';
 import { catProfileFields, scarKey } from '../customcats.js';
 import { roomAreaMove } from '../edition.js';
-import { decideLobbyEvent, pickRoomStart, walkersIn, START_GATHER_MS, MEMBER_GATHER_MS } from './lobby.js';
+import { BUILD_STAMP } from '../buildstamp.js';
+import { phrase } from '../clanphrases.js';
+import '../coopversionwords.js';
+import { decideLobbyEvent, partnerOlder, unknownPlaceFrom, COOP_PROTO, pickRoomStart, walkersIn, START_GATHER_MS, MEMBER_GATHER_MS } from './lobby.js';
 import { WALK_ON } from '../gatecross.js';
 import { FIND_KEY } from '../foundwear/spots/index.js';
 
@@ -92,7 +95,7 @@ export function createRooms({
     const st = progression.state;
     // finds: this build's find-spots key (foundwear/spots/index.js), a number.
     // A room walk has finds only when every member carries the same one.
-    return { playerId: pid, petName: st.petName, ...catProfileFields(st, progression.catScars(scarKey(st))), finds: FIND_KEY, walkOn: WALK_ON };
+    return { playerId: pid, petName: st.petName, ...catProfileFields(st, progression.catScars(scarKey(st))), finds: FIND_KEY, walkOn: WALK_ON, build: BUILD_STAMP, proto: COOP_PROTO };
   }
 
   // Re-publish the room profile (a cat or accessory changed while a room is
@@ -253,18 +256,25 @@ export function createRooms({
   function handleLobbyEvent(ev) {
     // A start already on its way (its place loading) takes no other.
     if (!pendingRoom || starting()) return;
-    const d = decideLobbyEvent(ev, {
+    const ctx = {
       roster: pendingRoom.roster,
       selfId: pid,
       inWalk: !!getSession(),
       knownAreas: Object.keys(CATALOG.areas),
       unlockedAreas: progression.state.unlocked.areas,
-    });
-    if (!d) return;
+    };
+    const d = decideLobbyEvent(ev, ctx);
+    if (!d) {
+      // A Start for a place this build has never heard of: say so, once, rather than nothing.
+      if (unknownPlaceFrom(ev, ctx)) say(phrase('coop.partnerNoPlace'));
+      return;
+    }
     if (d.kind === 'propose') gather({ from: d.from, area: d.area, dusk: d.dusk, seed: d.seed });
     // A previous-version member asks the host instead of proposing.
     else if (d.kind === 'config') startRoomTogether(d);
   }
+
+  function say(text) { try { toast?.(text); } catch { /* a toast is never worth a crash */ } }
 
   function setupRoomNet(net, code, pair = false) {
     // lastStateAt: playerId → when I last heard their walk state (they're out walking).
@@ -276,6 +286,9 @@ export function createRooms({
     net.onRoster((roster) => {
       if (!pendingRoom) return; // left/torn down between the send and this callback
       pendingRoom.roster = roster;
+      // One friendly line per room when a partner's game is older (no stamp, or proto below mine).
+      const older = partnerOlder(roster, pid);
+      if (older && !room.toldOlder) { room.toldOlder = true; say(phrase('coop.partnerOlder')); }
       notifyRoomChange();
     });
     net.onEvent(handleLobbyEvent);
