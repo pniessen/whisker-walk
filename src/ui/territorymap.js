@@ -12,7 +12,7 @@
 
 import { clanName } from '../clanhomes.js';
 import { LAND } from '../territories.js';
-import { STREET_LAND, TOWN_LAND, GATE_LAND, ISLAND_HIT_R } from '../worldmap.js';
+import { STREET_LAND, TOWN_LAND, GATE_LAND, ISLAND_HIT_R, ISLET_PAD } from '../worldmap.js';
 import { escapeHtml } from '../escapehtml.js';
 import { phrase } from '../clanphrases.js';
 import { countrysideHtml, countryFadeDefs } from './countryside.js';
@@ -85,7 +85,7 @@ export const ICON = { town: '🏠', woods: '🌳', moor: '🌾', river: '🌿', 
 const LABEL_AT = { town: [862, 572], woods: [556, 540], moor: [655, 92], river: [205, 548], pines: [290, 172], gorge: [815, 300] };
 // The world map's street places: their icons, and where draft 2 puts their names.
 export const STREET_ICON = { park: '⛲', fair: '🎡', farm: '🚜', docks: '⚓', seaside: '🏖️', roofs: '🕊️', market: '🧺', house: '🕰️', lighthouse: '🗼', greenhouse: '🌿', treehouse: '🌳', reef: '🐠', crystal: '💎', moon: '🌙', snowville: '❄️', jungle: '🌴' };
-const STREET_LABEL_AT = { park: [1080, 478], fair: [1060, 236], farm: [1235, 326], docks: [900, 778], seaside: [1170, 688], lighthouse: [1268, 531], greenhouse: [1255, 150], treehouse: [1088, 75], reef: [1390, 690], crystal: [700, 812], moon: [900, 60], jungle: [1370, 150] };
+const STREET_LABEL_AT = { park: [1080, 478], fair: [1060, 236], farm: [1235, 326], docks: [900, 778], seaside: [1170, 688], lighthouse: [1268, 531], greenhouse: [1255, 150], treehouse: [1088, 75], reef: [1560, 700], crystal: [540, 792], moon: [1450, 60], jungle: [1560, 250], snowville: [1585, 470] };
 // Places inside the town whose names sit off their centre: the Market's, just
 // east of its circle, in the one gap that keeps its icon, name and line off
 // the town's own name and line, the Docks', the Park's and the Seaside's
@@ -161,7 +161,7 @@ const stateClasses = (r) => `${r.status}${r.locked ? ' locked' : ''}${r.selected
 // The world map's drawn box: the 1500 x 880 world, with a margin above it so
 // her Moor, whose rough edge reaches about 7 units above the world's top (its
 // circle 4), is never clipped, its selected ring and focus outline included.
-export const WORLD_VIEW = Object.freeze({ x: 0, y: -20, w: 1500, h: 900 });
+export const WORLD_VIEW = Object.freeze({ x: 0, y: -20, w: 1700, h: 900 });
 
 const pt = ([x, y]) => `${n(x)} ${n(y)}`;
 const SMALL_R = 140;
@@ -178,7 +178,9 @@ const BEYOND = 6000;
 // it does on the paper. Decoration: aria-hidden, no taps (style.css).
 function placeRimsHtml(regions) {
   const d = regions.map((r) => blobPath(r.id, r.x, r.y, r.r)).join('');
-  return `<g class="wm-rims" aria-hidden="true"><path class="wm-shadow" transform="translate(4 7)" d="${d}"/><path class="wm-rim" d="${d}"/></g>`;
+  const islets = regions.filter((r) => r.islet).map((r) => blobPath(`${r.id}-islet`, r.x, r.y, r.r + ISLET_PAD)).join('');
+  const isles = islets ? `<path class="wm-islet-shadow" transform="translate(4 7)" d="${islets}"/><path class="wm-islet" d="${islets}"/>` : '';
+  return `<g class="wm-rims" aria-hidden="true">${isles}<path class="wm-shadow" transform="translate(4 7)" d="${d}"/><path class="wm-rim" d="${d}"/></g>`;
 }
 
 // The world map (Change place): her board exactly as the territory map draws

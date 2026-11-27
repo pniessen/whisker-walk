@@ -4,6 +4,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { setTele } from '../src/teleflag.js';
 import { setTreehouse } from '../src/treehouseflag.js';
+import { setJungle } from '../src/jungleflag.js';
 import { CATALOG } from '../src/progression.js';
 import {
   BOARD, TERRITORIES, LAKE, POND, RIVER, PATHS, BRIDGE, STAR, CAMP_AT, placeState, territoryMapModel, shortLockLine, opensAfterLine,
@@ -91,7 +92,7 @@ describe('world map: the world as data', () => {
   });
 
   it("draft 2's street places, world and coast", () => {
-    expect(WORLD).toEqual({ w: 1500, h: 880 });
+    expect(WORLD).toEqual({ w: 1700, h: 880 }) // (was 1500: widened for the sea-side gate places);
     expect(STREET_PLACES.map(({ id, x, y, r }) => [id, x, y, r])).toEqual([
       ['park', 1080, 470, 90], ['fair', 1060, 230, 85], ['farm', 1235, 320, 85], ['docks', 900, 770, 80], ['seaside', 1185, 680, 90], ['lighthouse', 1268, 525, 46], ['greenhouse', 1215, 150, 60], ['treehouse', 1110, 75, 46]]);
     expect(STREET_PLACES.every((p) => p.areaId === p.id)).toBe(true);
@@ -111,7 +112,7 @@ describe('world map: the world as data', () => {
     // is allowed, and pinned so no other place gets one.
     const top = (r) => (r.id === 'moor' ? -4 : 0);
     expect(regionOf(m, 'moor').y - regionOf(m, 'moor').r).toBe(-4);
-    for (const r of m.regions) expect(r.x - r.r >= 0 && r.y - r.r >= top(r) && r.x + r.r <= 1500 && r.y + r.r <= 880, r.id).toBe(true);
+    for (const r of m.regions) expect(r.x - r.r >= 0 && r.y - r.r >= top(r) && r.x + r.r <= 1700 && r.y + r.r <= 880, r.id).toBe(true);
     expect(m.world).toEqual(WORLD);
   });
 
@@ -262,13 +263,13 @@ describe('drawing the world', () => {
   const pick = (mine, partner = null) => ({ ...fresh(), clanPick: { mine, partner, partnerId: partner ? 'p1' : null }, colony: { partner: partner ? { playerId: 'p1' } : null } });
 
   it('one SVG, labelled, the whole world', () => {
-    expect(html.startsWith('<svg viewBox="0 -20 1500 900" class="territory-map world-map" role="group" aria-label="Map of the world"')).toBe(true);
+    expect(html.startsWith('<svg viewBox="0 -20 1700 900" class="territory-map world-map" role="group" aria-label="Map of the world"')).toBe(true);
     // the paper and the sea run far past the world (6000 units each way), so
     // a screen whose shape is not the world's shows more map round it, never
     // the page behind: the sea carries on up, right and down from her coast
-    expect(html).toContain('<rect class="tm-paper" x="-6000" y="-6000" width="13500" height="12880"/>');
+    expect(html).toContain('<rect class="tm-paper" x="-6000" y="-6000" width="13700" height="12880"/>');
     expect(html).toContain('<path class="tm-sea" d="M1340 -6000 L1340 0 C1320 160 1360 300 1335 430 C1315 540 1350 640 1310 730 C1280 800 1180 860 1000 880'
-      + ' C820 900 760 960 750 1100 L750 6880 L7500 6880 L7500 -6000 Z"/>');
+      + ' C820 900 760 960 750 1100 L750 6880 L7700 6880 L7700 -6000 Z"/>');
     expect(html.endsWith('</svg>')).toBe(true);
     expect(html).not.toContain('role="img"');
   });
@@ -947,5 +948,50 @@ describe('world map: the Treehouse village circle (T1)', () => {
     const walked = (n) => ({ ...s, walks: { ...s.walks, farm: n }, unlocked: { ...s.unlocked, areas: [...s.unlocked.areas, 'farm'] } });
     expect(th(walked(1))).toMatchObject({ locked: true, price: 0 });
     expect(th(walked(2))).toMatchObject({ locked: false, price: 0 });
+  });
+});
+
+// Every gate place on at once: the sea-side ones (Jungle, Snowville, Reef) on islets in the widened sea, the Crystal Cave and the Moon
+// where they were. Nothing overlaps, and every one is inside the (1700 wide) world.
+describe('world map: every gate place on, nothing overlaps', () => {
+  afterEach(() => { setTele(null); setTreehouse(null); setJungle(null); });
+  const all = () => {
+    setTele(true); setTreehouse(true); setJungle(true);
+    const s = fresh();
+    for (const id of ['moon', 'reef', 'crystal', 'snowville', 'jungle']) s.walks[id] = 1;
+    return worldMapModel(s, CATALOG);
+  };
+  it('draws Snowville (icy, walked only) and every gate place inside the widened map', () => {
+    setTele(true);
+    expect(regionOf(worldMapModel(fresh(), CATALOG), 'snowville')).toBeUndefined();
+    const m = all();
+    for (const id of ['moon', 'reef', 'crystal', 'snowville', 'jungle']) {
+      const me = regionOf(m, id);
+      expect(me, id).toMatchObject({ kind: 'gate' });
+      expect(me.x - me.r >= 0 && me.x + me.r <= WORLD.w && me.y - me.r >= 0 && me.y + me.r <= WORLD.h, id).toBe(true);
+    }
+    expect(WORLD.w).toBe(1700);
+    expect(regionHtml(renderWorldMapHtml(m), 'snowville')).toContain('❄️');
+  });
+  it('no two circles overlap, and no label row touches another place\'s circle or label', () => {
+    const m = all();
+    const html = renderWorldMapHtml(m);
+    for (const a of m.regions) for (const b of m.regions) if (a.id < b.id && (a.kind === 'gate' || b.kind === 'gate')) expect(dist(a.x, a.y, b.x, b.y), `${a.id} / ${b.id}`).toBeGreaterThan(a.r + b.r);
+    const rows = Object.fromEntries(m.regions.map((r) => [r.id, rowsOf(html, r.id)]));
+    for (const a of Object.keys(rows)) {
+      for (const o of m.regions) {
+        if (o.id === a) continue;
+        if (regionOf(m, a).kind !== 'gate' && o.kind !== 'gate') continue; // (the older places' own pairs are checked in their own describes)
+        for (const q of rows[a]) {
+          expect(dist(Math.max(q.x0, Math.min(o.x, q.x1)), Math.max(q.y0, Math.min(o.y, q.y1)), o.x, o.y), `${a} "${q.words}" / circle ${o.id}`).toBeGreaterThan(o.r);
+          if (o.id > a) for (const p of rows[o.id]) expect(gap(q, p), `${a} "${q.words}" / ${o.id} "${p.words}"`).toBeGreaterThan(4);
+        }
+      }
+    }
+  });
+  it('the islets are drawn behind the three sea-side places only', () => {
+    const html = renderWorldMapHtml(all());
+    expect(html).toContain('class="wm-islet"');
+    expect(worldMapModel({ ...fresh(), walks: { ...fresh().walks, crystal: 1, moon: 1 } }, CATALOG).regions.some((r) => r.islet)).toBe(false);
   });
 });

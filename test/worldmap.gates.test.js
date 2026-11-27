@@ -88,7 +88,7 @@ describe('world map: gate place circles (I1)', () => {
 
   it('placement: inside the world, every circle at least 46 (92 across), clear of every other circle, the star and the roads (the Jungle lodge\'s too, with its switch on)', () => {
     setTele(true); setJungle(true);
-    const m = worldMapModel(save({ reef: 1, crystal: 1, moon: 1, jungle: 1 }), CATALOG);
+    const m = worldMapModel(save({ reef: 1, crystal: 1, moon: 1, jungle: 1, snowville: 1 }), CATALOG);
     for (const p of GATE_PLACES) {
       const me = find(m, p.id);
       expect(me.r).toBeGreaterThanOrEqual(46);
@@ -106,10 +106,10 @@ describe('world map: gate place circles (I1)', () => {
     setJungle(true);
     expect(find(worldMapModel(save({ jungle: 0 }), CATALOG), 'jungle')).toBeUndefined(); // (never walked)
     const j = find(worldMapModel(save({ jungle: 1 }), CATALOG), 'jungle');
-    expect(j).toMatchObject({ x: 1395, y: 150, r: 46, areaId: 'jungle' });
+    expect(j).toMatchObject({ x: 1560, y: 250, r: 46, areaId: 'jungle' });
     expect(GATE_LAND.jungle).toBeTruthy();
     const html = renderWorldMapHtml(worldMapModel(save({ jungle: 1 }), CATALOG));
-    expect(html).toContain('data-dr-map-place="jungle" data-x="1395" data-y="150"');
+    expect(html).toContain('data-dr-map-place="jungle" data-x="1560" data-y="250"');
     expect(html).toContain('🌴');
     setTele(false);
     expect(find(worldMapModel(save({ jungle: 1 }), CATALOG), 'jungle')).toBeUndefined(); // (the gates switch is off)
@@ -120,7 +120,7 @@ describe('world map: gate place circles (I1)', () => {
     expect(moon.y - moon.r).toBeLessThan(40); // the Moon is in the top margin
     for (const [px] of COAST) expect(px, 'coast').toBeLessThan(reef.x - reef.r);
     const docks = { x: 900, y: 770 };
-    expect(dist(crystal.x, crystal.y, docks.x, docks.y)).toBeLessThan(220);
+    expect(dist(crystal.x, crystal.y, docks.x, docks.y)).toBeLessThan(400); // (was 220: moved west to clear the Docks' and the Old House's words)
   });
 
   it('hit targets: never under 44 px at the zoom-out floor, and the floor does not move', () => {
@@ -136,8 +136,8 @@ describe('world map: gate place circles (I1)', () => {
   it('markup: a labelled button with its own land, icon and anchor', () => {
     setTele(true);
     const html = renderWorldMapHtml(worldMapModel(save({ reef: 1, crystal: 1, moon: 1 }), CATALOG));
-    expect(html).toContain('data-dr-map-place="reef" data-x="1415" data-y="690"');
-    expect(html).toContain('data-dr-map-place="crystal" data-x="710" data-y="810"');
+    expect(html).toContain('data-dr-map-place="reef" data-x="1560" data-y="700"');
+    expect(html).toContain('data-dr-map-place="crystal" data-x="540" data-y="800"');
     expect(html).toContain('fill="#9fd6dc"');
     expect(html).toContain('fill="#d9c4ec"');
   });

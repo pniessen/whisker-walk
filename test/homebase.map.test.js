@@ -179,8 +179,8 @@ describe('Change place: the world map on the home screen', () => {
     expect(doc.root.innerHTML).toContain('data-sheet="places"');
     const opts = attaches.at(-1);
     expect(opts).toBeTruthy();
-    // the drawn box, with the Moor's top margin (never the bare 1500 x 880)
-    expect(opts.world).toEqual({ x: 0, y: -20, w: 1500, h: 900 });
+    // the drawn box, with the Moor's top margin (never the bare 1700 x 880)
+    expect(opts.world).toEqual({ x: 0, y: -20, w: 1700, h: 900 });
     expect(opts.view).toBeNull();
     expect(opts.focus).toEqual([843, 566]);
     expect(opts.targets).toHaveLength(16); // the Market's and the Old House's places among them (Market step 4, Old House step 4)

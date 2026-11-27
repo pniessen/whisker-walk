@@ -1931,6 +1931,8 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .world-map .tm-sea { stroke: #ecdcab; stroke-width: 16; stroke-linejoin: round; }
 .world-map .wm-shadow { fill: #b7ca93; stroke: #b7ca93; stroke-width: 16; stroke-linejoin: round; }
 .world-map .wm-rim { fill: #f3e4c4; stroke: #f6ecd2; stroke-width: 16; stroke-linejoin: round; }
+.world-map .wm-islet-shadow { fill: #8fb6c4; stroke: #8fb6c4; stroke-width: 10; stroke-linejoin: round; opacity: 0.55; }
+.world-map .wm-islet { fill: #efe3c0; stroke: #f7f0d8; stroke-width: 10; stroke-linejoin: round; }
 /* Zoom in / Zoom out: two round buttons at the map's top right */
 .wm-zoom { position: absolute; top: 8px; right: 8px; z-index: 2; display: flex; flex-direction: column; gap: 8px; }
 .wm-frame .wm-zoom button { width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 1.5px solid #5b6c88;
