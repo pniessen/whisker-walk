@@ -40,7 +40,7 @@ import { HOUSE_WING_FINDS, HOUSE_WING_SLOTS, HOUSE_WING_RESTS, SLOT_SIZE } from 
 import './housewingwords.js';
 import { houseMovesArea, bareMovesArea } from './housemoves.js';
 import {
-  HOUSE_ATLAS_CELLS as CELL, createHouseAtlas, houseMaterial, sectionMesh, paneMesh, floorMesh, stairMesh,
+  HOUSE_ATLAS_CELLS as CELL, cellUV, createHouseAtlas, houseMaterial, sectionMesh, paneMesh, floorMesh, stairMesh,
   skirtMesh, lampGroup, partsKit, kitBox, kitFace, kitMesh, FRONT_DOOR_W, furnitureMesh, flatsMesh, standInMesh,
   cellarLidMeshes, secretBookcaseGroup, plankMesh, pawMarksMesh, findParts, houseSconceSpots,
 } from './houseparts.js';
@@ -174,13 +174,53 @@ function drawLawn(scene) {
   scene.add(mesh);
 }
 
+// A box without its underside (BoxGeometry's faces are px, nx, py, ny, pz, nz, six indices each): the hedge sits on the lawn.
+function noBottom(g) {
+  g.setIndex(Array.from(g.index.array).filter((_, i) => i < 18 || i > 23));
+  g.clearGroups();
+  return g;
+}
+
+// The garden's small things, folded into the front garden's own non-casting atlas mesh (no mesh, draw or caster more; the hedge
+// mesh must stay 8 m out): flower beds along the house's walls
+// (earth and leaf-green pads with blossoms of one flat colour each, a cell's middle; blossoms are three-sided cones).
+function gardenDetail(kit) {
+  const B = activePlan().bounds;
+  const gx = HOUSE_FRONT_DOOR.x;
+  const pw = FRONT_DOOR_W / 2 + 0.1;
+  const pad = (x, z, w, d, rot, cell) => {
+    const c = Math.cos(rot), n = Math.sin(rot);
+    const pts = [[-w, -d], [w, -d], [w, d], [-w, d]].map(([u, v]) => [x + (u * c - v * n) / 2, 0.03, z + (u * n + v * c) / 2]);
+    kit.fan(pts, pts.map(() => cellUV(cell, 0.5, 0.5)), [0, 1, 0]);
+  };
+  const bloom = (x, z, r, h, cell) => {
+    const at = (k) => [x + r * Math.cos(k * 2.09), 0.03, z + r * Math.sin(k * 2.09)];
+    for (let k = 0; k < 3; k++) kit.fan([at(k), at(k + 1), [x, 0.03 + h, z]], [0, 1, 2].map(() => cellUV(cell, 0.5, 0.5)));
+  };
+  const FLOWERS = [CELL.curtainRed, CELL.brass, CELL.plaster, CELL.curtainBlue];
+  const bed = (x, z, w, salt) => {
+    pad(x, z, w, 1, 0, CELL.darkWood);
+    pad(x, z, w - 0.3, 0.7, 0, CELL.curtainGreen);
+    for (let i = 0; i < 5; i++) {
+      const h = hash01(x + i, z, salt);
+      bloom(x + (h - 0.5) * (w - 0.2), z + (hash01(x, z + i, salt) - 0.5) * 0.8, 0.1 + 0.1 * h, 0.2, FLOWERS[Math.floor(h * 4)]);
+    }
+  };
+  // a bed in front of the house keeps clear of the path
+  const ok = (x, z) => Math.abs(x - gx) > pw + 3 || z < B.maxZ;
+  // foundation beds along the walls, where she sees the lawn
+  const found = (x, z, salt) => { if (ok(x, z)) bed(x, z, 2.6 + hash01(x, z, salt) * 1.2, salt); };
+  for (let x = B.minX + 4; x < B.maxX - 3; x += 7.5 + 3 * hash01(x, 1, 71)) { found(x, B.minZ - 1.5, 72); found(x + 2, B.maxZ + 1.5, 73); }
+  for (let z = B.minZ + 3; z < B.maxZ - 2; z += 7 + 3 * hash01(1, z, 74)) { found(B.minX - 1.5, z, 75); found(B.maxX + 1.5, z, 76); }
+}
+
 // The hedge ring: clipped runs of slightly different heights and greens, one mesh.
 function drawHedge(scene) {
   const geos = [];
   const c = new THREE.Color();
   const piece = (cx, cz, along, w, h, d, k) => {
     for (const [bw, bh, bd, by] of [[w, h, d, h / 2], [w * 0.82, 0.22, d * 0.8, h + 0.08]]) {
-      const g = along === 'x' ? new THREE.BoxGeometry(bw, bh, bd) : new THREE.BoxGeometry(bd, bh, bw);
+      const g = noBottom(along === 'x' ? new THREE.BoxGeometry(bw, bh, bd) : new THREE.BoxGeometry(bd, bh, bw)); // the underside is never seen
       g.translate(cx, by, cz);
       c.setHex(HEDGE_COLOR).multiplyScalar(k);
       const col = new Float32Array(g.attributes.position.count * 3);
@@ -237,6 +277,7 @@ function drawGarden(scene, material) {
     const top = 1.0 + 0.06 * Math.cos(((i - (slats - 1) / 2) / ((slats - 1) / 2)) * (Math.PI / 2));
     kitBox(kit, x - 0.045, x + 0.045, 0.12, top, zg + 0.03, zg + 0.06, CELL.lightWood, { skip: ['y-'] });
   }
+  gardenDetail(kit);
   scene.add(kitMesh(kit, material, 'houseGarden', { cast: false }));
 }
 
