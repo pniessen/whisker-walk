@@ -55,8 +55,6 @@ export const LINES = Object.freeze({
   'crystal.guide.chip.deliver': 'Take it to the great crystal',
   'crystal.guide.chip.heart': 'Wake the Heart Crystal',
   'crystal.guide.chip.errand': 'Lumi has an errand',
-  'crystal.guide.at': '{d} of the entrance arch',
-  'crystal.guide.dirs': 'north|north-east|east|south-east|south|south-west|west|north-west',
   'crystal.home': 'Home again, warm and cosy.',
 });
 

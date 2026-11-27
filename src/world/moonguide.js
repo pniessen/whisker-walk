@@ -3,9 +3,9 @@
 // and the gold ring can still ask "what am I meant to do?": this file says it in words, and says where, from the same goal the ring and the light
 // column stand on (world/moonbaselive.js goalPoint(), read through base.goal()), so the words, the arrow and the beacon can never disagree.
 //
-//   goalWords(info)      the goal line: WHAT and WHERE, one or two short sentences ("Find a power cell (0 of 2): on the tall rocks, north of the lander.")
+//   goalWords(info)      the goal line: WHAT and WHERE, one or two short sentences ("Find a power cell (0 of 2): on the tall rocks, about 25 m ahead.")
 //   chipWords(goal, job) the few words beside Pip's picture ("Pip needs a power cell")
-//   atWords(x, z)        a place by the lander: compass word from the plan's own coordinates (+x is east, -z is north)
+//   nowWords(x, z, cat, fx, fz)   a place from where she stands now ("about 25 m to your left")
 //   round5(m)            the arrow's metres, to the nearest 5
 //   viewOf / arrowFor / edgePoint / projectPoint   the edge arrow's geometry from a camera's own position, turn and field of view
 // Every line is a literal phrase('...') so the phrase table's scan reads it; the Clan set's light flavour is in world/moonwords.js (two lines).
@@ -15,25 +15,15 @@
 import { phrase } from '../clanphrases.js';
 import * as P from './moonplan.js';
 import * as M from './moonmission.js';
+import { nowWords } from '../reefpages.js';
+export { nowWords };
 export { ARRIVED, SCREEN_EDGE, round5, makeView, viewOf, makeArrow, arrowFor, edgePoint, projectPoint } from './guidegeo.js'; // the arrow's geometry is shared with the Reef's guide
 
 export const LANDER_AT = Object.freeze({ x: P.LANDER.x, z: P.LANDER.z });
-export const NEAR_LANDER = 14; // m: a goal this close to the lander is "close to the lander", not a compass word
 
-// ---- where: a compass word from the plan's own coordinates -------------------------------------------------------------------------------------
-// +x is east and -z is north (the camera at the spawn looks north from behind the lander, so "ahead" is -z). The eight points are 45-degree sectors.
-const POINTS = Object.freeze(['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw']);
-export function compassKey(dx, dz) {
-  const bearing = (Math.atan2(dx, -dz) * 180) / Math.PI; // 0 north, 90 east, 180 south, -90 west
-  return POINTS[(((Math.round(bearing / 45) % 8) + 8) % 8)];
-}
-// "north of the lander" for a place on the plan; "close to the lander" within NEAR_LANDER metres of it.
-export function atWords(x, z) {
-  const dx = x - LANDER_AT.x;
-  const dz = z - LANDER_AT.z;
-  if (Math.hypot(dx, dz) < NEAR_LANDER) return phrase('moon.guide.at.near');
-  return phrase('moon.guide.at.of').replace('{d}', phrase('moon.guide.at.dirs').split('|')[POINTS.indexOf(compassKey(dx, dz))]);
-}
+// ---- where: from where she stands now ---------------------------------------------------------------------------------------------------------
+// "about 25 m to your left" (nowWords, start-up file reefpages.js); info carries cat { x, z } and fx, fz (which way she faces). Without them (a test, a first frame): from the lander, facing north.
+const placeWords = (i, g) => nowWords(g.x, g.z, i.cat ?? LANDER_AT, i.fx ?? 0, i.fz ?? -1);
 const fill = (text, n, at) => text.replace('{n}', String(n)).replace('{at}', at);
 
 const onHill = (g) => g.x === P.STAR_HILL.x && g.z === P.STAR_HILL.z; // the goal is the telescope itself (she is on the ramp or the top)
@@ -47,7 +37,7 @@ export function goalWords(info) {
   if (!gp || !gp.g) return '';
   const g = gp.g;
   const rec = info.record ?? { step: 0, cells: 0 };
-  const at = atWords(gp.x, gp.z);
+  const at = placeWords(info, gp);
   const scopeTail = () => {
     const have = (info.scope ?? 0) & M.STORY_SCOPE;
     return (have === 1 ? phrase('moon.guide.t.cat') : have === 2 ? phrase('moon.guide.t.mouse') : phrase('moon.guide.t.both'));

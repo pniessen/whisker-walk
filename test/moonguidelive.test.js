@@ -15,7 +15,7 @@ import { mem } from './helpers/lighthouselife.js';
 import { fakePage } from './helpers/moonpage.js';
 import { withOffWords, bannedIn } from './helpers/offwords.js';
 import { RING, BEACON } from '../src/world/moonbaselive.js';
-import { goalWords, atWords, chipWords, viewOf, makeArrow, arrowFor, round5, ARRIVED } from '../src/world/moonguide.js';
+import { goalWords, chipWords, viewOf, makeArrow, arrowFor, round5, ARRIVED } from '../src/world/moonguide.js';
 
 const gy = (x, z) => P.moonY(x, z);
 const NOT_DEMO = () => 250;
@@ -70,17 +70,17 @@ const FAR = { x: -30, z: 60, y: 0 };
 const carryFrom = (cellPoint, then) => (r) => { r.step(0.3, { x: cellPoint.x + 0.5, z: cellPoint.z, y: cellPoint.y }); r.press(); then?.(r); };
 const STAGES = [
   ['Pip asleep', null, null, /^Wake Pip/],
-  ['the Ridge cell', { step: 1, cells: 0 }, null, /^Find a power cell \(0 of 2\): on the tall rocks, north of the lander\.$/],
-  ['the Rover cell', { step: 2, cells: 1 }, null, /^Find a power cell \(1 of 2\): at the far beacon, north-east of the lander\.$/],
+  ['the Ridge cell', { step: 1, cells: 0 }, null, /^Find a power cell \(0 of 2\): on the tall rocks, about \d+ m (?:ahead|behind you|to your (?:left|right))\.$/],
+  ['the Rover cell', { step: 2, cells: 1 }, null, /^Find a power cell \(1 of 2\): at the far beacon, about \d+ m (?:ahead|behind you|to your (?:left|right))\.$/],
   ['a cell in her mouth', { step: 2, cells: 1 }, carryFrom({ x: P.ROVER_CELL.x, z: P.ROVER_CELL.z, y: P.ROVER_CELL.y }), /^Take the power cell to the Core in the dome, /],
   ['both cells in', { step: 3, cells: 3 }, null, /^Both power cells are in! Go to the dome, /],
-  ['the base awake: Star Hill', AWAKE, null, /^Climb Star Hill, north-west of the lander\. Join the stars: Mouse, then Cat\.$/],
+  ['the base awake: Star Hill', AWAKE, null, /^Climb Star Hill, about \d+ m (?:ahead|behind you|to your (?:left|right))\. Join the stars: Mouse, then Cat\.$/],
   ['the Mouse traced', { ...AWAKE, scope: 1 }, null, /Now join the Cat stars\.$/],
   ['the Message Desk', AT5, null, /^Write a postcard at the Message Desk in the dome, /],
-  ['the postcard in her mouth', AT5, (r) => { r.step(0.1, { x: P.MESSAGE_DESK.x + 1.4, z: P.MESSAGE_DESK.z, y: gy(P.MESSAGE_DESK.x, P.MESSAGE_DESK.z) }); r.press(); r.page.win.fire('keydown', { code: 'Digit2' }); }, /^Take the postcard to the rocket and post it, north-east of the lander\.$/],
-  ['the red button', { ...AT5, step: 6, stamp: 1 }, null, /^Press the big red button at the launch desk, north-east of the lander\.$/],
-  ['waiting for the reply', { ...AT5, step: 7, stamp: 1 }, null, /^Wait on Earthrise Rock, north of the lander\. Earth will answer!$/],
-  ['the cave', DONE, null, /^A glowing cell waits in the cave, north-west of the lander\.$/],
+  ['the postcard in her mouth', AT5, (r) => { r.step(0.1, { x: P.MESSAGE_DESK.x + 1.4, z: P.MESSAGE_DESK.z, y: gy(P.MESSAGE_DESK.x, P.MESSAGE_DESK.z) }); r.press(); r.page.win.fire('keydown', { code: 'Digit2' }); }, /^Take the postcard to the rocket and post it, about \d+ m (?:ahead|behind you|to your (?:left|right))\.$/],
+  ['the red button', { ...AT5, step: 6, stamp: 1 }, null, /^Press the big red button at the launch desk, about \d+ m (?:ahead|behind you|to your (?:left|right))\.$/],
+  ['waiting for the reply', { ...AT5, step: 7, stamp: 1 }, null, /^Wait on Earthrise Rock, about \d+ m (?:ahead|behind you|to your (?:left|right))\. Earth will answer!$/],
+  ['the cave', DONE, null, /^A glowing cell waits in the cave, about \d+ m (?:ahead|behind you|to your (?:left|right))\.$/],
 ];
 const stage = ([, moon, prep, re], opts = {}) => {
   const r = rig({ moon, restore: [[J.JOB_KEY, 1]], ...opts }); // the day's errand is already done in these walks: the story's own goal shows
@@ -141,14 +141,14 @@ describe('the goal line says WHAT and WHERE at each stage (Clan set, then the ev
     r.dispose();
   });
   it('Pip\'s errand of the day, once the story is told: the errand line with its place (six kinds, each by the same goal the ring has)', () => {
-    for (const [kind, re] of [['pebbles', /^Pip needs glowing pebbles \(0 of 3\)\. Look /], ['rounds', /^Hop in Dot at the depot, east of the lander/], ['guest', /^Climb Star Hill, north-west of the lander\. Trace the new star picture\.$/],
+    for (const [kind, re] of [['pebbles', /^Pip needs glowing pebbles \(0 of 3\)\. Look /], ['rounds', /^Hop in Dot at the depot, about \d+ m (?:ahead|behind you|to your (?:left|right))/], ['guest', /^Climb Star Hill, about \d+ m (?:ahead|behind you|to your (?:left|right))\. Trace the new star picture\.$/],
       ['bound', /^Jump farther than your best on the hop lane/], ['rocket', /^Write another postcard at the Message Desk/], ['glove', /^Earth lost a glove\. Find it, /]]) {
       const r = rig({ moon: { ...DONE, cells: 7, jump: { tabby: 600 } }, visits: visitsFor(kind) });
       r.step(2.6, { ...FAR, y: gy(FAR.x, FAR.z) });
       expect(r.life.job.state.kind).toBe(kind);
       expect(r.text(), kind).toMatch(re);
       expect(near(r.shaft().position, r.goal())).toBe(true);
-      expect(r.text(), kind).toContain(atWords(r.goal().x, r.goal().z));
+      expect(r.text(), kind).toMatch(/about \d+ m (ahead|behind you|to your (left|right))/);
       r.dispose();
     }
   });
@@ -174,7 +174,7 @@ describe('the words, the arrow and the beacon always agree', () => {
       expect(r.shaft().visible).toBe(true);
       // the words name the place the goal is at (every line with a place)
       if (!['pip'].includes(goal.g.kind)) {
-        if (/\blander\b/.test(r.text())) expect(r.text()).toContain(atWords(goal.x, goal.z));
+        if (/about \d+ m/.test(r.text())) expect(r.text()).toMatch(/about \d+ m (ahead|behind you|to your (left|right))/);
       }
       // the arrow points at the same point: face away from it and compare with a hand-made arrow
       r.look.yaw = 180;
@@ -183,7 +183,8 @@ describe('the words, the arrow and the beacon always agree', () => {
       expect(r.g.state.arrowOn).toBe(a.show);
       if (a.show) { expect(r.g.state.rel).toBeCloseTo(a.rel, 2); expect(r.g.state.metres).toBe(Math.max(5, round5(a.dist))); expect(r.arrow.style.display).toBe('block'); }
       // and the words are what goalWords says of that same goal
-      const info = { goal, record: M.normalize(r.progression.state.moon), scope: r.progression.state.moon.scope ?? 0, job: {}, riding: false };
+      const vw = viewOf(r.camera);
+      const info = { goal, cat: r.where, fx: vw.fx, fz: vw.fz, record: M.normalize(r.progression.state.moon), scope: r.progression.state.moon.scope ?? 0, job: {}, riding: false };
       if (!['core'].includes(goal.g.kind)) expect(goalWords(info)).toBe(r.text());
       r.dispose();
     });

@@ -264,13 +264,13 @@ describe('(c) cue coverage: every step has at least one cue (a spoken line, a pr
     const { life } = rig(0);
     life.update(0.3, 0, catAt(SPAWN.x, SPAWN.z), null, null);
     expect(life.guide.ring.visible).toBe(true);
-    expect(life.guide.state.text).toBe(phrase('greenhouse.guide.bench'));
+    expect(life.guide.state.text).toMatch(/^Go to the potting bench: .*there, about \d+ m /);
     life.update(0.3, 0.3, standHere(P.POTTING, L.OFFER_R - 1), null, null);
     life.update(0.3, 0.6, standHere(P.POTTING, L.OFFER_R - 1), null, null);
     const next = life.guide.state.goal;
     expect(next.kind).toBe('packet');
     expect(life.state.set.some((s) => s.x === next.x && s.z === next.z), 'the ring is on one of this walk\'s packets').toBe(true);
-    expect(life.guide.state.text).toBe('Find the seed packets (0 of 5)');
+    expect(life.guide.state.text).toMatch(/^Find the seed packets \(0 of 5\), about \d+ m /);
   });
   it('each of the six finds has a gold mote cue at its zone (one mesh, one draw call); a found find stops cueing; reduced motion freezes the twinkle; LOW draws fewer', () => {
     const { life, scene } = rig(0);
