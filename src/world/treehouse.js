@@ -61,7 +61,8 @@ export function build(scene) {
         const light = createTreehouseLight(ctx);
         const nutmeg = createNutmeg({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent, light, tier: ctx.tier });
         const wing = ST.branches?.wing?.({ scene: ctx.scene, nutmeg, light, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent }); // the bell, the strings of lights and the firefly supper (milestone T5)
-        const prompts = createTreehousePrompts(nutmeg, wing);
+        const errand = ST.branches?.errand?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, send: ctx.sendEvent }); // Nutmeg's post round of the day (milestone T7, in the branches stage)
+        const prompts = createTreehousePrompts(nutmeg, wing, errand);
         const finds = ST.branches?.finds?.life(ctx); // the six discoveries (milestone T3)
         const critters = ST.branches?.critters?.(ctx); // the songbirds, owl, fireflies, leaves, creak and chime (milestone T4)
         return {
@@ -71,10 +72,10 @@ export function build(scene) {
           wing,
           promptAt: (catPos) => prompts.promptAt(catPos),
           interact: () => prompts.interact(),
-          // a step done by anyone in the room (a `th-` event): a supper begun by a partner starts ours, any other step is Nutmeg's
-          credit: (ev) => wing?.credit(ev) ?? nutmeg.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t); nutmeg.update(dt, t, catPos, camera, session); wing?.update(dt, t); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); },
-          dispose() { critters?.dispose(); finds?.dispose(); wing?.dispose(); nutmeg.dispose(); light.dispose(); },
+          // a step done by anyone in the room (a `th-` event): a round done by a partner is credited to ours, a supper begun by a partner starts ours, any other step is Nutmeg's
+          credit: (ev) => errand?.credit(ev) ?? wing?.credit(ev) ?? nutmeg.credit(ev),
+          update(dt, t, catPos, camera, session) { light.update(dt, t); nutmeg.update(dt, t, catPos, camera, session); wing?.update(dt, t); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); },
+          dispose() { errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); nutmeg.dispose(); light.dispose(); },
         };
       },
     };

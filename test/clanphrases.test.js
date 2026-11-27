@@ -21,6 +21,7 @@ import { WING_LINES as SNOWVILLE_WING_LINES } from '../src/world/snowvillewingwo
 import { LINES as TREEHOUSE_LINES } from '../src/world/treehousewords.js';
 import { WING_LINES as TREEHOUSE_WING_LINES } from '../src/world/treehousewingwords.js';
 import { LINES as TREEHOUSE_CRITTER_LINES } from '../src/world/treehousecritterwords.js';
+import { TREEHOUSE_JOB_LINES } from '../src/world/treehousejobwords.js';
 import { TREEHOUSE_FIND_LINES } from '../src/world/treehousefindwords.js';
 import { JUNGLE_FIND_LINES } from '../src/world/junglefindwords.js';
 import { FIND_LINES as REEF_FIND_LINES } from '../src/world/reeffindwords.js';
@@ -68,6 +69,7 @@ addPhrases(SNOWVILLE_CRITTER_LINES); // (Snowville's friendly life, milestone V4
 addPhrases(JUNGLE_LINES); // (the Jungle lodge's two weather lines, milestone J1: src/world/junglewords.js)
 addPhrases(SNOWVILLE_LINES); // (Snowville's cheeks line, milestone V1: src/world/snowvillewords.js)
 addPhrases(JUNGLE_FIND_LINES); // (the Jungle's find lines, milestone J3: src/world/junglefindwords.js)
+addPhrases(TREEHOUSE_JOB_LINES); // (Nutmeg's post round, milestone T7: src/world/treehousejobwords.js)
 addPhrases(TREEHOUSE_FIND_LINES); // (the Treehouse's find lines, milestone T3: src/world/treehousefindwords.js)
 addPhrases(TREEHOUSE_CRITTER_LINES); // (the Treehouse's friendly life, milestone T4: src/world/treehousecritterwords.js)
 addPhrases(TREEHOUSE_WING_LINES); // (the Treehouse's letters, bell, supper and locket, milestone T5: src/world/treehousewingwords.js)
