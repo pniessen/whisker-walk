@@ -16,6 +16,7 @@ stubCanvasDocument();
 const { build } = await import('../src/world/reef.js');
 const P = await import('../src/world/reefplan.js');
 const W = await import('../src/world/reefwreckplan.js');
+const LF = (await import('../src/world/reeflabplan.js')).LAB_FOOT;
 const Q = await import('../src/world/reeffindsplan.js');
 const D = await import('../src/world/reefdeep.js');
 const { createReefWreckLife, flagCloth, flagWave } = await import('../src/world/reefwrecklife.js');
@@ -74,6 +75,7 @@ describe('the ground', () => {
     let moved = 0; let inside = 0;
     for (let x = B.minX - 6; x <= B.maxX + 6; x += 0.7) for (let z = B.minZ - 6; z <= B.maxZ + 6; z += 0.7) {
       if (W.deckInside(x, z)) { inside++; continue; }
+      if (x > LF.minX - 1 && x < LF.maxX + 1 && z > LF.minZ - 1 && z < LF.maxZ + 1) continue; // the Sealab's flats (R13)
       if (P.reefY(x, z) !== hasBase(x, z)) moved++;
     }
     expect(moved).toBe(0);
@@ -184,9 +186,9 @@ describe('the gold mouse, the page and the prop', () => {
   it('the other places and the traces: the stage adds only to the Reef (the plan reads reefBaseY and nothing else moved)', () => {
     expect(Object.keys(ST.wreck).sort()).toEqual(['clues', 'colliders', 'draw', 'install', 'life']);
     expect(P.REEF_RAISE_REGIONS).toHaveLength(1);
-    expect(P.REEF_CEIL_REGIONS).toHaveLength(1);
+    expect(P.REEF_CEIL_REGIONS).toHaveLength(2); // the Sealab's and the cabin's
     expect(D.BOAT.x).toBe(-32.8);
-    const raised = []; for (let x = 20; x <= 48; x += 0.5) for (let z = -42; z <= -20; z += 0.5) if (P.reefY(x, z) !== hasBase(x, z)) raised.push([x, z]);
+    const raised = []; for (let x = 20; x <= 48; x += 0.5) for (let z = -42; z <= -20; z += 0.5) { if (x < LF.maxX + 1 && z > LF.minZ - 1 && z < LF.maxZ + 1) continue; if (P.reefY(x, z) !== hasBase(x, z)) raised.push([x, z]); }
     expect(raised.every(([x, z]) => W.deckInside(x, z))).toBe(true);
   });
 });

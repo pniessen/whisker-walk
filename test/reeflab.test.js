@@ -18,6 +18,7 @@ const { build } = await import('../src/world/reef.js');
 const L = await import('../src/world/reeflabplan.js');
 const P = await import('../src/world/reefplan.js');
 const W = await import('../src/world/reefwing.js');
+const WP = await import('../src/world/reefwreckplan.js');
 const D = await import('../src/world/reefdecor.js');
 const S = await import('../src/world/reefstory.js');
 const Q = await import('../src/world/reeffindsplan.js');
@@ -158,6 +159,7 @@ describe('the seabed', () => {
     for (let x = B.minX - 20; x <= B.maxX + 20; x += 0.7) {
       for (let z = B.minZ - 20; z <= B.maxZ + 20; z += 0.7) {
         if (inFoot(x, z) && x > F.minX && x < F.maxX && z > F.minZ && z < F.maxZ) continue;
+        if (WP.deckInside(x, z)) continue; // the galleon (R16) raises its own deck
         n++;
         if (!Object.is(P.reefY(x, z), P.reefBaseY(x, z))) throw new Error(`reefY(${x}, ${z}) moved`);
       }
@@ -223,7 +225,7 @@ describe('the ceiling and the camera under it', () => {
     const g = area.ground;
     for (const [x, z] of [[2.4, -32.2], [3, -37], [13, -37], [11.7, -32.4], [8.1, -37.1]]) expect(g.ceil(x, z)).toBe(L.LAB_FLOOR_Y + 4.5);
     for (const [x, z] of [[15.6, -32.4], [14, -33.5], [16.9, -31.5]]) expect(g.ceil(x, z)).toBe(L.LAB_FLOOR_Y + 7);
-    for (const [x, z] of [[0, 0], [-5, -34], [30, -30], [10, -28], [-27, -32]]) expect(g.ceil(x, z)).toBe(Infinity);
+    for (const [x, z] of [[0, 0], [-5, -34], [10, -28], [-27, -32]]) expect(g.ceil(x, z)).toBe(Infinity);
   });
   const rigAt = (x, z, step, y = L.LAB_FLOOR_Y) => {
     const camera = new THREE.PerspectiveCamera();
@@ -523,6 +525,6 @@ describe('the words, the journal and the source rules', () => {
     const sc = new THREE.Scene(); build(sc); build(new THREE.Scene());
     expect(P.REEF_FLATS.length).toBe(before);
     expect(P.REEF_CLEARS.length).toBe(2);
-    expect(P.REEF_CEIL_REGIONS.length).toBe(1);
+    expect(P.REEF_CEIL_REGIONS.length).toBe(2); // the lab's and the galleon's cabin
   });
 });
