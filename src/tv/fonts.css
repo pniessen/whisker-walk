@@ -23,6 +23,8 @@ html.tv .tui-label { font-size: calc(20px * var(--tv-s, 1)) !important; }
 html.tv .photos figcaption { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .dr-pick.found-silhouette .found-shape { font-size: calc(30px * var(--tv-s, 1)) !important; }
 html.tv .wear-area h4 { font-size: calc(24px * var(--tv-s, 1)) !important; }
+html.tv .passport-region h4 { font-size: calc(24px * var(--tv-s, 1)) !important; }
+html.tv .passport-empty { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .journal-name { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .journal-count { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .journal-hint { font-size: calc(24px * var(--tv-s, 1)) !important; }
