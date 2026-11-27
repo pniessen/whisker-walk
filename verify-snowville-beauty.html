@@ -6,7 +6,7 @@
 <title>Snowville beauty picture page (round 2)</title>
 <!-- Snowville (flag-only place), picture page for round 2: the REAL build and life, the walk's own tone mapping (ACES, exposure 1.1), its image light and its bloom pass on the high tier. NOT in the game's page.
      URL params: size=WxH (default 960x540), tier=high|low|lite, time=morning|noon|dusk (the walk has ONE look; this only moves the sun so the exposure can be judged from three angles), bloom=0 (leave bloom out).
-     window.__shot(name) with scripts/record-page.mjs. Shots: spawn square houses trees board pond hill strays sled phone. -->
+     window.__shot(name) with scripts/record-page.mjs. Shots: spawn square houses trees board pond hill fir hearth strays sled parka phone. wear=<body id> dresses the cat (e.g. wear=snowparka). -->
 <style>html,body{margin:0;background:#cfdcec;overflow:hidden}canvas{position:fixed;left:0;top:0;display:block}</style>
 </head>
 <body>
@@ -28,6 +28,7 @@
   import { createProgression } from '/src/progression.js';
   import { createDiscoveryLog } from '/src/discoveries.js';
   import { createFx } from '/src/fx.js';
+  import { createStrayCats, strayStream } from '/src/straycats.js';
 
   const params = new URLSearchParams(location.search);
   const [W0, H0] = (params.get('size') || '960x540').split('x').map(Number);
@@ -58,7 +59,7 @@
   if (sp[3]) sun.color.set(sp[3]);
   sun.intensity *= sp[4];
   const ground = area.ground;
-  const wear = effectiveWear({ collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }, 'snowville');
+  const wear = effectiveWear({ collar: null, head: null, face: null, neck: null, body: params.get('wear') || null, back: null, feet: null }, 'snowville');
   const cat = buildCat('tabby', wear); scene.add(cat);
   const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
   const shadows = tier.shadows ? createShadowFit(sun, camera, { radius: 20, mapSize: tier.rung >= 3 ? 1024 : 2048 }) : null;
@@ -74,6 +75,7 @@
   const log = createDiscoveryLog(progression); log.startWalk();
   const player = { floatY: 0 };
   const life = area.life({ roomSeed: 7, sendEvent: () => {}, scene, sun, fill, ground, reducedMotion: false, tier, progression, log, audio: null, doc: document, win: window, clock: () => 250, visits: 3, player });
+  const strayCats = createStrayCats(scene, area, 4, strayStream(7), { roomSeed: 7, homes: area.strayHomes ?? [] }); // the four friendly strays (standing at their homes: not stepped here)
   let t = 0;
   const lookAt = (pos, tgt, fov = 70) => { camera.fov = fov; camera.updateProjectionMatrix(); camera.position.set(...pos); camera.lookAt(...tgt); };
   let lock = null;
@@ -103,6 +105,11 @@
     hill: [20, -3, 0, -1, 0, [15, 2.6, 4], [22, 1.6, -14], 68],
     fir: [8, -24, 0, -1, 0, [4, 2.2, -20], [8, 4.0, -33], 66],
     hearth: [-4, 6, 1, -1, 0, [-5, 2.0, 11], [-1.5, 1.0, 3], 64],
+    strays: [-1, 10, 0, -1, 0, [-7.5, 1.5, 9.5], [-3.9, 0.45, 4.9], 50],
+    strays2: [15, -6, 0, -1, 0, [13.4, 1.4, -8.5], [17.2, 0.45, -12.6], 50],
+    strays3: [8, -26, 0, -1, 0, [1.8, 1.6, -29.5], [4.2, 0.5, -33.2], 50],
+    strays4: [13, 17, 0, -1, 0, [12.4, 1.5, 20.2], [10.4, 0.5, 18.6], 50],
+    parka: [0, 24, 0, -1, 0, [2.2, 1.0, 21.4], [0, 0.5, 24], 40],
     phone: [0, 29, 0, -1, 0, [0, 2.8, 35], [0, 1.4, 20], 62, [390, 760]],
   };
   window.__shot = (name) => {

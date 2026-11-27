@@ -99,10 +99,12 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(spotsIn('crystal').map((x) => x.id)).toEqual(['fw-crystal-1', 'fw-crystal-2', 'fw-crystal-3', 'fw-crystal-4']);
   });
   // Snowville milestone V3 (2026-11-27): one neck piece (a scarf), hidden in four places in the snow
-  it('Snowville hides one outfit, the Snowflake Scarf, a neck piece with a plain name in either set, in four spots', () => {
-    expect(foundWearIn('snowville').map((r) => [r.id, r.slot])).toEqual([['snowflakescarf', 'neck']]);
-    expect(foundWearIn('snowville').map((r) => r.name())).toEqual(['Snowflake Scarf']);
-    expect(withOffWords(() => foundWearIn('snowville').map((r) => r.name()))).toEqual(['Snowflake Scarf']);
+  // round two (2026-11-27): a second one, the Snow Parka (a body piece, a fitted jacket with a fur-trimmed hood), in the same four spots
+  it('Snowville hides two outfits, the Snowflake Scarf (a neck piece) and the Snow Parka (a body piece), plain names in either set, in four spots', () => {
+    expect(foundWearIn('snowville').map((r) => [r.id, r.slot])).toEqual([['snowflakescarf', 'neck'], ['snowparka', 'body']]);
+    expect(foundWearIn('snowville').map((r) => r.name())).toEqual(['Snowflake Scarf', 'Snow Parka']);
+    expect(withOffWords(() => foundWearIn('snowville').map((r) => r.name()))).toEqual(['Snowflake Scarf', 'Snow Parka']);
+    expect(CATALOG.accessories.snowparka).toMatchObject({ slot: 'body', price: 0, prize: true, find: 'snowville' });
     expect(CATALOG.accessories.snowflakescarf).toMatchObject({ slot: 'neck', price: 0, prize: true, find: 'snowville' });
     expect(spotsIn('snowville').map((x) => x.id)).toEqual(['fw-snowville-1', 'fw-snowville-2', 'fw-snowville-3', 'fw-snowville-4']);
   });
@@ -132,7 +134,7 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(ids('farm')).toEqual(['strawhat', 'featherplume', 'neckerchief', 'haybalepack']);
     expect(ids('fair')).toEqual(['stripedboater', 'heartglasses', 'ticketgarland', 'candyflosspuff']);
     for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) expect(ids(a)).toEqual([]);   // Legacy's retirement first
-    expect(FOUND_WEAR).toHaveLength(36);   // the street places' 24, the Market's four, Lighthouse Point's keeper's cap, the Moon's cape and the Greenhouse's gardener's hat
+    expect(FOUND_WEAR).toHaveLength(37);   // the street places' 24, the Market's four, Lighthouse Point's keeper's cap, the Moon's cape and the Greenhouse's gardener's hat
   });
   // Market step 4 (2026-11-21): a hat, a neck piece, a collar charm and a
   // back item, the names placeholders the owner and his daughter will rename

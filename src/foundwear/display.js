@@ -15,7 +15,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildHat, lyingClip } from '../cat/hats.js';
 import { buildCat } from '../cat/model.js';
-import { buildFoldedJumper } from '../cat/foundbody.js';
+import { buildFoldedJumper, buildFoldedParka } from '../cat/foundbody.js';
 import { STRAP_GREY } from '../cat/backitems.js';
 import { bodyKind } from '../cat/wearkind.js';
 import { animateCat } from '../cat/animator.js';
@@ -118,6 +118,7 @@ export function buildLyingHayBale(id = 'haybalepack') {
 
 export const DISPLAY_BY_ID = Object.freeze({
   fishermansjumper: buildFoldedJumper,
+  snowparka: buildFoldedParka, // folded, its fur-trimmed hood on top
   haybalepack: buildLyingHayBale,
   // the Market's Flower Basket is the bale's shape: it lies the same way, without its straps
   flowerbasket: buildLyingHayBale,
