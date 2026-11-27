@@ -31,7 +31,7 @@ const AQUA = '#7fe0e6';
 const INK = 'rgba(12,38,52,.88)';
 
 export function createReefGuideLive(ctx) {
-  const { doc, win, marlo, errand, progression } = ctx;
+  const { doc, win, marlo, errand, progression, lab = null } = ctx;
   const live = { text: '', lineOn: false, arrowOn: false, rel: 0, metres: 0, x: 0, y: 0, chip: '', chipOn: false, hidden: false, cardOn: false };
   const els = { root: null, line: null, arrow: null, disc: null, tri: null, label: null, chip: null, card: null };
   if (!doc?.body || typeof doc.createElement !== 'function' || !marlo) return { state: live, els, update() {}, dispose() {}, look() {}, closeCard() {} };
@@ -140,6 +140,9 @@ export function createReefGuideLive(ctx) {
   function look() {
     if ((win?.innerWidth || 960) !== size.W || (win?.innerHeight || 540) !== size.H) layout();
     gp = marlo.goalNow();
+    // the Sealab's fuses (R14) speak once Marlo has nothing to say (the story is told and no errand waits), or while she is in the station or has a fuse in her mouth
+    const lg = lab?.goalNow?.();
+    if (lg && ((gp?.g?.kind === 'rest' && !errandWaits()) || lab.state.inside || lab.carrying !== null)) gp = lg;
     const text = goalWords({ goal: gp, metres: cat ? dist(cat, marlo.marlo) : 0, errand: errandWaits() });
     if (text !== live.text) {
       live.text = text;

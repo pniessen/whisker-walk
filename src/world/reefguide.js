@@ -40,6 +40,13 @@ export function goalWords(info) {
     case 'lantern': return phrase('reef.guide.lantern').replace('{n}', String(Math.max(0, Math.min(3, g.lantern | 0))));
     case 'parade': return phrase('reef.guide.parade');
     case 'rest': return info.errand ? phrase('reef.guide.errand') : '';
+    // the Sealab's fuses (R14: world/reeflabstory.js goalNow())
+    case 'labhatch': return phrase('reef.guide.lab.hatch');
+    case 'labfuse': return phrase('reef.guide.lab.fuse').replace('{n}', String(Math.max(0, Math.min(3, g.n | 0))));
+    case 'labsand': return phrase('reef.guide.lab.sand').replace('{at}', atWords(gp.x, gp.z));
+    case 'labdeliver': return phrase('reef.guide.lab.deliver');
+    case 'labdown': return phrase('reef.guide.lab.down');
+    case 'labup': return phrase('reef.guide.lab.up');
     default: return '';
   }
 }

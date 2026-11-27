@@ -6,6 +6,7 @@ import { ST } from './reefstages.js';
 import * as plan from './reeflabplan.js';
 import { buildLab, useKit } from './reeflabparts.js';
 import { createLabLive } from './reeflablive.js';
+import { createLabStory } from './reeflabstory.js';
 
 function register(P, kit) {
   useKit(kit);
@@ -15,4 +16,4 @@ function register(P, kit) {
   P.REEF_CEIL_REGIONS.push(plan.labCeilRegion());
 }
 
-Object.assign(ST, { lab: Object.freeze({ plan, register, buildLab, createLabLive, colliders: plan.labColliders }) });
+Object.assign(ST, { lab: Object.freeze({ plan, register, buildLab, createLabLive, createLabStory, colliders: plan.labColliders }) });

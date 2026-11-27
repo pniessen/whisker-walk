@@ -164,6 +164,59 @@ export const TANKS = Object.freeze([10.6, 13.5, 16.4].map((x, i) => Object.freez
 export const DOME_BENCH = Object.freeze({ x: 15.6, z: -31.2 }); // where she stands to sit by the dome's bench (a place for the light show to come)
 export const BUNK_SPOT = Object.freeze({ x: 2.4, z: -37.1 }); // an open spot of the bunk room's floor (the golden mouse's place, R14)
 
+// ---- the fuses (R14) -----------------------------------------------------------------------------------------------------------------------------
+// Three loose fuses, found where they lie and carried to the panel in the control room in any order: one in the bunk room, one in the aquarium hall, one
+// on the open sand west of the hatch (6.6 m from the ring, so the hatch's offer and the fuse's never share a spot). `inside`: its home is under the roof.
+export const FUSE_SPOTS = Object.freeze([
+  Object.freeze({ id: 0, x: 6.6, z: -36.9, inside: true, room: 'bunk' }),
+  Object.freeze({ id: 1, x: 12.0, z: -36.6, inside: true, room: 'aquarium' }),
+  Object.freeze({ id: 2, x: -20.5, z: -35.0, inside: false, room: null }),
+]);
+export const FUSE_REACH = 1.5;
+export const PANEL = Object.freeze({ x: 7.3, z: -31.4, reach: 2.2 }); // where she stands to put a fuse in (the sockets are 1.4 m north)
+
+// ---- the aquarium's fish (a pure pose for fish i of a tank at time t: a slow glide back and forth, turning at the ends) ---------------------------------
+export const FISH_PER_TANK = 3;
+const fract = (v) => v - Math.floor(v);
+export function fishAt(tank, i, t, out = {}) {
+  const k = tank.id * FISH_PER_TANK + i;
+  const speed = 0.28 + 0.07 * (k % 4);
+  const ph = fract(Math.sin((k + 1) * 12.9898) * 43758.5453) * Math.PI * 2;
+  const a = t * speed + ph;
+  const half = tank.w / 2 - 0.4;
+  out.x = tank.x + Math.sin(a) * half;
+  out.y = 1.05 + 0.18 * i + 0.07 * Math.sin(a * 1.7 + k); // over the floor; the tank's sand is at 0.9 and its glass runs to 1.7
+  out.z = tank.z + (i - 1) * 0.16;
+  out.dir = Math.cos(a) >= 0 ? 1 : -1; // +1 swimming toward +x
+  return out;
+}
+
+// ---- the shy shark (a pure pose: a slow loop on the sea side of the dome's glass; when she is outside and near it keeps away) ----------------------------
+// Offsets over the seabed (the live adds reefY). It never comes nearer than x 21.5, so it is never in the building; a cat outside within SHY.r pushes it off
+// by up to SHY.push metres and it rises a little. It is never fast and never turns on her.
+export const SHARK = Object.freeze({ cx: 26, cz: -31, rx: 5, rz: 7, y: 2.3, period: 80, spots: 7 });
+export const SHY = Object.freeze({ r: 9, ease: 4, push: 6, rise: 0.9, minX: 21.5 });
+const smooth01 = (v) => { const t = Math.min(1, Math.max(0, v)); return t * t * (3 - 2 * t); };
+export function sharkAt(t, cat = null, out = {}) {
+  const a = (t * Math.PI * 2) / SHARK.period;
+  let x = SHARK.cx + SHARK.rx * Math.cos(a);
+  let z = SHARK.cz + SHARK.rz * Math.sin(a);
+  let y = SHARK.y + 0.3 * Math.sin(a * 3);
+  let hx = -SHARK.rx * Math.sin(a);
+  let hz = SHARK.rz * Math.cos(a);
+  if (cat && !insideLab(cat.x, cat.z, 1.0)) {
+    const d = Math.hypot(x - cat.x, z - cat.z);
+    const f = smooth01((SHY.r - d) / SHY.ease);
+    if (f > 0 && d > 1e-6) {
+      x += ((x - cat.x) / d) * f * SHY.push; z += ((z - cat.z) / d) * f * SHY.push; y += f * SHY.rise;
+      if (x < SHY.minX) { z += (z >= cat.z ? 1 : -1) * (SHY.minX - x); x = SHY.minX; } // the wall of the building is in the way: what is left of the push goes sideways
+    }
+  }
+  out.x = Math.max(SHY.minX, x); out.y = y; out.z = z;
+  out.yaw = Math.atan2(-hz, hx); // the three.js yaw that turns +x toward the way it swims
+  return out;
+}
+
 // What each room shows of itself: the rooms whose wall faces are drawn while she stands at (x, z): her own, plus any room whose doorway is within 1.8 m
 // (so the room beyond a doorway shows when she is in it). The camera sits behind her; a neighbouring room's faces would stand between it and her.
 export function visibleRooms(x, z) {

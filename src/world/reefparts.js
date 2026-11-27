@@ -23,6 +23,7 @@ export const T3 = Object.freeze({ // (named members only: the whole namespace ob
   BufferGeometry: THREE.BufferGeometry, BufferAttribute: THREE.BufferAttribute, Color: THREE.Color, BoxGeometry: THREE.BoxGeometry, CylinderGeometry: THREE.CylinderGeometry,
   CircleGeometry: THREE.CircleGeometry, RingGeometry: THREE.RingGeometry, PlaneGeometry: THREE.PlaneGeometry, TorusGeometry: THREE.TorusGeometry, ConeGeometry: THREE.ConeGeometry, SphereGeometry: THREE.SphereGeometry,
   Mesh: THREE.Mesh, Group: THREE.Group, PointLight: THREE.PointLight, MeshStandardMaterial: THREE.MeshStandardMaterial, MeshBasicMaterial: THREE.MeshBasicMaterial, DoubleSide: THREE.DoubleSide,
+  InstancedMesh: THREE.InstancedMesh, MeshLambertMaterial: THREE.MeshLambertMaterial, Vector3: THREE.Vector3, // (R14: the aquarium's fish and the shy shark)
 });
 export { mergeGeometries };
 
