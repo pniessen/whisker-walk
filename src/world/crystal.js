@@ -97,14 +97,17 @@ export function build(scene) {
         const sound = createCrystalSound(ctx); // the hum, the plinks, the crystals' notes
         const errand = createCaveErrandLive({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, lumi }); // C7
         const intro = createCrystalIntro(ctx); // the arrival card (step 0 only)
-        const guide = createCrystalGuideLive({ doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, lumi, errand, progression: ctx.progression });
+        let forgeJob = null; // the forge job (C3), made below: the guide reads its goal when Lumi's is 'rest'
+        const guideLumi = Object.create(lumi, { goalNow: { value: () => (forgeJob ? forgeJob.goalFor(lumi.goalNow()) : lumi.goalNow()) } });
+        const guide = createCrystalGuideLive({ doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, lumi: guideLumi, errand, progression: ctx.progression });
         // One arbiter picks the action button's line: Lumi, the errand's hand-in (it wins over the Heart's replay), wing B, then wing C's boat, cart, forge and pads
         // (stage slots that answer null until the stage fills them, so later milestones never edit this file).
         const slot = (get) => ({ promptAt: (p) => get()?.promptAt?.(p) ?? null, interact: () => get()?.interact?.() ?? null });
         // C1: the river boat (a live made here from the stage's factory); while she rides, its "Hop off" comes first, like the Moon's riding source
         const river = ST.wingc?.createRiverLive?.({ scene: ctx.scene, ground: area.ground, colliders: area.colliders, player: ctx.player, reducedMotion: ctx.reducedMotion, tier: ctx.tier, progression: ctx.progression }) ?? null;
         const riding = { promptAt: (p) => (river?.riding ? river.promptAt(p) : null), interact: () => river?.interact() ?? null };
-        const arbiter = createPromptArbiter([riding, lumi, errand, wingLife, slot(() => river), slot(() => ST.play?.cart), slot(() => ST.wingc?.forge), slot(() => ST.play?.pads)]);
+        forgeJob = ST.wingc?.createForgeJobLive?.({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, log: ctx.log, send: ctx.sendEvent, isRiding: () => !!river?.riding, errand }) ?? null; // C3: the forge job
+        const arbiter = createPromptArbiter([riding, lumi, errand, wingLife, slot(() => river), slot(() => ST.play?.cart), slot(() => forgeJob), slot(() => ST.play?.pads)]);
         return {
           light,
           critters,
@@ -121,11 +124,11 @@ export function build(scene) {
           // kinds starting 'wc-' (wing C: a forge find, a finished tune) go to its stage slots, never to Lumi; a stage not yet loaded just drops them
           credit: (ev) => {
             if (ev?.kind === 'show') return wingLife.credit(ev);
-            if (typeof ev?.kind === 'string' && ev.kind.startsWith('wc-')) return ST.wingc?.credit?.(ev) ?? ST.play?.credit?.(ev);
+            if (typeof ev?.kind === 'string' && ev.kind.startsWith('wc-')) return forgeJob?.credit(ev) ?? ST.wingc?.credit?.(ev) ?? ST.play?.credit?.(ev);
             return lumi.credit(ev);
           },
-          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); cave.update(dt, t); sound.update(dt, catPos); errand.update(dt, t, catPos, camera, session); river?.update(dt, t, catPos, camera, session); grotto?.update(dt); intro.update(dt); guide.update(dt, t, catPos, camera); },
-          dispose() { grotto?.dispose(); river?.dispose(); cave.dispose(); decor.dispose(); guide.dispose(); intro.dispose(); errand.dispose(); sound.dispose(); critters.dispose(); finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); cave.update(dt, t); sound.update(dt, catPos); errand.update(dt, t, catPos, camera, session); river?.update(dt, t, catPos, camera, session); forgeJob?.update(dt, t, catPos, camera, session); grotto?.update(dt); intro.update(dt); guide.update(dt, t, catPos, camera); },
+          dispose() { forgeJob?.dispose(); grotto?.dispose(); river?.dispose(); cave.dispose(); decor.dispose(); guide.dispose(); intro.dispose(); errand.dispose(); sound.dispose(); critters.dispose(); finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
         };
       },
     };

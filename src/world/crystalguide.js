@@ -37,6 +37,7 @@ export function goalWords(info) {
       return (m > 0 ? phrase('crystal.guide.carry').replace('{m}', String(m)) : phrase('crystal.guide.carry.near')).replace('{c}', c);
     }
     case 'heart': return info.step >= 6 ? phrase('crystal.guide.show') : m > 0 ? phrase('crystal.guide.heart').replace('{m}', String(m)) : phrase('crystal.guide.heart.near');
+    case 'forge': return g.line; // the forge job's own line (world/crystalforgejoblive.js)
     case 'rest': return info.errand ? phrase('crystal.guide.errand') : '';
     default: return '';
   }
@@ -49,6 +50,7 @@ export function chipWords(g, errand = false) {
     case 'stone': return phrase('crystal.guide.chip.stone');
     case 'deliver': return phrase('crystal.guide.chip.deliver');
     case 'heart': return phrase('crystal.guide.chip.heart');
+    case 'forge': return g.chip;
     case 'rest': return errand ? phrase('crystal.guide.chip.errand') : '';
     default: return '';
   }

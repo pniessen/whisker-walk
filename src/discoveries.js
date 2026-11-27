@@ -55,6 +55,7 @@ export const AWARDS = {
   // day, once a walk; and the story's end (the Heart Crystal wakes), once ever.
   cavefind: 12,
   crystalstory: 40,
+  crystalforge: 40, // the Crystal Circlet made at the forge, once ever (wing C, C3)
   cavejob: 25,
   // The Greenhouse (ids reserved in milestone G2): one of its six finds, paid the first time ever; a job done (seeds sown, plants
   // watered), once a walk.
