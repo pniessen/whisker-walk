@@ -19,7 +19,9 @@ export const PAL = Object.freeze({ base: [124, 123, 121], pale: [196, 192, 184],
 
 const hyp = Math.hypot;
 const L = P.JUMP_LANE;
-const props = [...P.MOON_COLLIDERS, ...P.MOON_PERCHES, ...P.MOON_POIS, ...P.PEBBLES, ...P.MOON_MICE, ...P.JOB_POINTS, ...P.POLES, P.FLAG, P.PIT_ROCK, P.CHEESE, P.ECHO];
+// the mice the scatter keeps clear of: the original three, by name (a later mouse never reshuffles the beauty scatter; test/moonx0.test.js)
+export const SCATTER_MICE = Object.freeze(['gm-moon-1', 'gm-moon-2', 'gm-moon-3']);
+const props = [...P.MOON_COLLIDERS, ...P.MOON_PERCHES, ...P.MOON_POIS, ...P.PEBBLES, ...P.MOON_MICE.filter((m) => SCATTER_MICE.includes(m.id)), ...P.JOB_POINTS, ...P.POLES, P.FLAG, P.PIT_ROCK, P.CHEESE, P.ECHO];
 
 // Is a disc of radius r at (x, z) clear of everything a child plays with? (`gap` is the margin over each prop's own radius; `ks` the share of the plan's keep-out
 // circles kept clear: half for a flat decal, all of it for a standing rock; `trackGap` the room kept round the rover's track: the mini-rovers' line passes it.)

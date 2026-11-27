@@ -62,10 +62,10 @@ describe('three golden mice', () => {
 });
 
 describe('the totals', () => {
-  it('Clan Edition counts 64 and the everyday edition 40 (the Reef row, gate-only, has no edition key: it counts in both)', () => {
-    expect(GOLD_TOTAL).toBe(64);
-    expect(goldForEdition('canon', CATALOG).size).toBe(64);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(40);
+  it('Clan Edition counts 65 and the everyday edition 41 (the Reef row, gate-only, has no edition key: it counts in both)', () => {
+    expect(GOLD_TOTAL).toBe(65);
+    expect(goldForEdition('canon', CATALOG).size).toBe(65);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(41);
     for (const e of ['canon', 'legacy']) for (const m of GOLD) expect(goldForEdition(e, CATALOG).has(m.id), `${e} ${m.id}`).toBe(true);
     expect(CATALOG.areas.reef.edition).toBeUndefined();
   });

@@ -46,7 +46,7 @@ describe('the catalog row', () => {
       p.setArea('greenhouse');
       expect(p.state.area).not.toBe('greenhouse');
       expect(p.pickPlace('greenhouse')).toBe(false);
-      expect(goldForEdition(edition, CATALOG).size).toBe(edition === 'canon' ? 64 : 40); // (the total counts by edition, as it counts the Moon)
+      expect(goldForEdition(edition, CATALOG).size).toBe(edition === 'canon' ? 65 : 41); // (the total counts by edition, as it counts the Moon)
     }
     expect(effectiveArea({ area: 'greenhouse', edition: 'canon' }, CATALOG)).toBe('neighborhood'); // a save that somehow stands there walks the town
     expect(JSON.stringify(nextThing(save().state, { catalog: CATALOG }) ?? null)).not.toMatch(/greenhouse/i);

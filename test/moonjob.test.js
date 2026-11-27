@@ -201,7 +201,7 @@ describe('the album', () => {
     p.recordSighting('mnjob');
     p.recordSighting('mnjob');
     expect(p.state.journal.mnjob).toBe(2);
-    expect(Object.keys(p.state.moon).sort()).toEqual(['cells', 'jump', 'scope', 'stamp', 'step']);
+    expect(Object.keys(p.state.moon).sort()).toEqual(['cells', 'jump', 'relay', 'scope', 'stamp', 'step']);
   });
 });
 

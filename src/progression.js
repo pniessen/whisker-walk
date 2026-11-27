@@ -111,7 +111,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   // The Reef's divers, research ship and big spotted shark (src/reefpages.js REEF_WING_PAGES; R18). Appended here so the ids before keep their places.
   'rfdivers', 'rfvessel', 'rfwhaleshark',
   // The Crystal Cave's wing C pages (src/crystalpages.js CRYSTAL_WING_PAGES; ids reserved in its milestone X0): boat, grotto, falls, forge, cart, singing chamber.
-  'ccboat', 'ccgrotto', 'ccfalls', 'ccforge', 'cccart', 'ccsong'];
+  'ccboat', 'ccgrotto', 'ccfalls', 'ccforge', 'cccart', 'ccsong',
+  // The Moon's Old Relay Station pages (src/moonpages.js MOON_WING_PAGES; ids reserved in its milestone X0): station, signal, relay, sled, lap.
+  'mnstation', 'mnsignal', 'mnrelay', 'mnsled', 'mnlap'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
@@ -334,6 +336,8 @@ const BASE_ACCESSORIES = {
   piratebandana: { name: 'Pirate Bandana', slot: 'neck', price: 0, prize: true, reef: 'chest' },
   // The Crystal Cave's forge (wing C): owned once the circlet is made (crystal.forge bit 3); never found on the ground.
   crystalcirclet: { name: 'Crystal Circlet', slot: 'head', price: 0, prize: true, crystal: 'forge' },
+  // The Moon's Old Relay Station (wing E): owned once the far station answers (moon.relay bit 4).
+  signaltag: { name: 'Signal Tag', slot: 'collar', price: 0, prize: true, moon: 'relay' },
 };
 // Their ids: every id a found outfit must not take (test/foundwear.test.js).
 export const BASE_ACCESSORY_IDS = Object.freeze(Object.keys(BASE_ACCESSORIES));
@@ -584,7 +588,7 @@ function defaultState() {
     race: { date: null, area: null, bestMs: null },
     // The Moon (docs/superpowers/plans/2026-11-23-moon.md, milestone 0): the story's step, the power cells carried home (bits),
     // the postcard's stamp (-1 none), the star pictures traced (bits) and each cat's long-jump record in cm. Additive: SAVE_VERSION stays 4.
-    moon: { step: 0, cells: 0, stamp: -1, scope: 0, jump: {} },
+    moon: { step: 0, cells: 0, stamp: -1, scope: 0, jump: {}, relay: 0 },
     // The Reef (docs/superpowers/plans/2026-11-26-reef.md, milestone R0): the story's step (0 to 7), the shells carried to Marlo (3 bits) and
     // the postcard album (12 bits). No errand: the day's errand is derived from the room seed. Additive: SAVE_VERSION stays 4.
     reef: { step: 0, shells: 0, album: 0, lab: 0, wreck: 0 },
@@ -931,6 +935,8 @@ function sanitizeRace(v) {
 
 // The Moon's save key: every number clamped (a step over 9, a cell or scope bit that does not exist, a jump over
 // 2000 cm are cut back), the jump record kept for at most six cats whose ids look like a cat's.
+// The Relay Station's bits: 0-2 three relay parts, 3 the station awake (implies the parts), 4 the far station answered (implies all).
+export const moonRelay = (b) => (b & 16 ? 31 : b & 8 ? 15 : b & 7);
 function sanitizeMoon(v) {
   const n = (x, hi) => Math.min(hi, asFiniteNonNegInt(x, 0));
   const jump = {};
@@ -939,7 +945,7 @@ function sanitizeMoon(v) {
       if (Object.keys(jump).length < 6 && /^[a-z][a-z0-9]{1,15}$/.test(id)) jump[id] = n(cm, 2000);
     }
   }
-  return { step: n(v?.step, 9), cells: n(v?.cells, 7), stamp: [0, 1, 2].includes(v?.stamp) ? v.stamp : -1, scope: n(v?.scope, 31), jump };
+  return { step: n(v?.step, 9), cells: n(v?.cells, 7), stamp: [0, 1, 2].includes(v?.stamp) ? v.stamp : -1, scope: n(v?.scope, 31), jump, relay: moonRelay(n(v?.relay, 31)) };
 }
 
 // The Reef's save key: step capped at 7, shells at 3 bits, album at 12 bits. The shells are never fewer than the step implies (steps 2, 3
@@ -1219,6 +1225,7 @@ function sanitizeState(parsed) {
   // The Captain's Chest likewise: the hunt's last bit (a merge ORs the devices' bits first) is the record, so the bandana is owned.
   if ((sanitizeReef(parsed.reef).wreck & 16) !== 0 && !unlockedAcc.includes('piratebandana')) unlockedAcc.push('piratebandana');
   if ((sanitizeCrystal(parsed.crystal).forge & 8) !== 0 && !unlockedAcc.includes('crystalcirclet')) unlockedAcc.push('crystalcirclet');
+  if ((sanitizeMoon(parsed.moon).relay & 16) !== 0 && !unlockedAcc.includes('signaltag')) unlockedAcc.push('signaltag');
   // And every found outfit: foundWear is the record, so it is owned.
   const foundWear = sanitizeFoundWear(parsed.foundWear);
   for (const id of foundWear) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);

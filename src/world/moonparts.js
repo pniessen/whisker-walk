@@ -144,9 +144,11 @@ export function scatterRocks(lowTier = false) {
 }
 
 // Every rock that stands on the dust, by class: the plan's scatter and (beauty round 1) the pebble fields and the chunks on the bowls' rims. { x, z, s, ... }
-function rockLists(lowTier) {
+export function rockLists(lowTier) {
   const r = scatterRocks(lowTier);
-  return { small: [...r.small, ...BP.pebbles(lowTier)], medium: r.medium, large: r.large, boulder: r.boulder, rim: BP.rimChunks(lowTier) };
+  const out = { small: [...r.small, ...BP.pebbles(lowTier)], medium: r.medium, large: r.large, boulder: r.boulder, rim: BP.rimChunks(lowTier) };
+  for (const k of ['small', 'medium', 'large', 'rim']) out[k] = out[k].filter((t) => !P.MOON_CLEARS.some((f) => t.x + t.s > f.minX && t.x - t.s < f.maxX && t.z + t.s > f.minZ && t.z - t.s < f.maxZ)); // a wing's footprint is cleared after the scatter (boulders are colliders: they stay)
+  return out;
 }
 
 // Two InstancedMeshes (milestone 4 merged the medium, large and boulder meshes into one, `big`: they were three draws in the picture and

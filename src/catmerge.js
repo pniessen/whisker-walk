@@ -174,7 +174,7 @@ export const MERGE_RULES = Object.freeze({
     return {
       step: Math.max(l.step, c.step), cells: l.cells | c.cells, scope: l.scope | c.scope,
       stamp: l.stamp < 0 || l.stamp === c.stamp ? c.stamp : c.stamp < 0 ? l.stamp : newer(l.stamp, c.stamp, r.B?.moon?.stamp, r.ctx),
-      jump: perKey(l.jump, c.jump, (x, y) => Math.max(num(x), num(y))),
+      jump: perKey(l.jump, c.jump, (x, y) => Math.max(num(x), num(y))), relay: l.relay | c.relay, // (the sanitiser fills the bits the station's rules imply)
     };
   },
   // The Reef: the story only moves on (step max), shells and album postcards are unions of bits (the sanitiser then makes the shells

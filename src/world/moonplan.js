@@ -140,6 +140,8 @@ export const MOON_MICE = Object.freeze([
   Object.freeze({ id: 'gm-moon-1', x: 0, z: 40.6, y: 3 }),
   Object.freeze({ id: 'gm-moon-2', x: -2, z: -46, y: 3 }),
   Object.freeze({ id: 'gm-moon-3', x: 30.8, z: -9.6, y: 0 }),
+  // wing E stub (milestone X0; the position is a first guess, tuned in M1): the Old Relay Station's tower ledge, one Moon hop up. NOT in ROCK_KEEP_OUT; the beauty scatter reads the first three by name.
+  Object.freeze({ id: 'gm-moon-4', x: 44, z: 36, y: 3 }),
 ]);
 // The three finds that stand on ground (the first three are milestone 2's). Echo: stand in the crater's middle (the floor is `d` under the dust) and meow.
 export const ECHO = Object.freeze({ x: 16, z: 12, r: 3.2 });
@@ -367,6 +369,10 @@ export const ROCK_KEEP_OUT = Object.freeze([
   ...LAVA_KEEP_OUT, [-41.6, 15.6, 3.2], // (milestone 8) the Cave Massif, its mouth and the Old Dish's ledge
   ...(MOON_BOUND_ON ? [[23, -12.5, 7.5], [-20, -30, 7.5], [48.5, 11.5, 9], [0, -17.5, 16.5]] : []), // (milestone 7b) the rifts and the ring gates' row
 ]);
+
+// Rectangles { minX, maxX, minZ, maxZ } where the rocks, pebbles and rim chunks are taken away AFTER they are scattered (a stage pushes its footprint here; never through ROCK_KEEP_OUT, which
+// would move every rock): every stream and every other item stays exactly as it was. Empty until a wing fills it (X0 only reserves the hook, as the Reef and the Crystal Cave do).
+export const MOON_CLEARS = [];
 
 // ---- the heightfield -------------------------------------------------------------------------------------------------
 

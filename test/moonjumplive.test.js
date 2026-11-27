@@ -73,7 +73,7 @@ describe('the hop board', () => {
     const r = rig({ moon: { step: 8, cells: 7, stamp: 2, scope: 31 } });
     const spy = vi.spyOn(r.progression, 'addPoints');
     r.hop(-0.4, 5.4);
-    expect(r.progression.state.moon).toEqual({ step: 8, cells: 7, stamp: 2, scope: 31, jump: { tabby: 500 } });
+    expect(r.progression.state.moon).toEqual({ step: 8, cells: 7, stamp: 2, scope: 31, jump: { tabby: 500 }, relay: 0 });
     expect(spy).toHaveBeenCalledWith(0);
     r.dispose();
   });
