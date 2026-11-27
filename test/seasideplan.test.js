@@ -67,6 +67,8 @@ describe('seaside plan', () => {
     for (const s of spots) {
       for (const k of [...keep, ...extra]) expect(hits(s, k.x, k.z, k.r), `${s.id} / keep ${k.x},${k.z}`).toBe(false);
       for (const c of area.colliders) {
+        // The vendors' stands and the vendors are themselves the new colliders (seaside-colliders).
+        if (/^(ice-cream|lemonade)/.test(s.id) && Math.hypot(s.x - c.x, s.z - c.z) < 1) continue;
         expect(hits(s, c.x, c.z, c.r), `${s.id} / collider ${c.x},${c.z}`).toBe(false);
       }
     }

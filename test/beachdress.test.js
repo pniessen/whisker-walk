@@ -109,10 +109,10 @@ describe('beach paint', () => {
     const fresh = new THREE.Scene();
     dressBeach(fresh, rec, { ground: first.children.find((c) => c.isMesh && c.userData.ground && c.geometry?.parameters?.width === 140) });
     expect(JSON.parse(plain(rec))).toEqual(copy);
-    // And the record is what seaside.js has always returned (pinned).
-    expect(rec.colliders).toHaveLength(15);
+    // And the record is what seaside.js has always returned (pinned; re-pinned for the four vendor colliders appended by seaside-colliders).
+    expect(rec.colliders).toHaveLength(19); // 15 + the two vendor stands and their vendors (seaside-colliders)
     expect(createHash('sha256').update(JSON.stringify(rec.colliders)).digest('hex'))
-      .toBe('de2eb599e0d9674d809f13617caac4e30d644e80ee04e1ae752eb164f3040ef0');
+      .toBe('0154feefb1d696b2352c5bd7d8079002ef44d958d0ffd89af6c31c0e6880d6d4');
     expect(rec.bounds).toEqual({ minX: -48, maxX: 36, minZ: -34, maxZ: 48 });
     expect(rec.spawn).toEqual({ x: 18, z: 42 });
     expect(rec.pois).toHaveLength(8);
