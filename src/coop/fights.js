@@ -16,7 +16,6 @@
 // Cat two as the challenger: the fight is handed a stage, the session with cat two's drawn
 // cat as `cat`, for that fight only; its writes (spot, pose) come back out through
 // stage.* and index.js carries them onto cat two's body and picture.
-import { answerChallenge } from '../ui/fightui.js';
 import { setCatScars } from '../cat/scarmesh.js';
 
 export const QUIET_S = 1.5; // seconds with nothing to challenge before the challenger may change
@@ -113,7 +112,9 @@ export function createFights({ ctx }) {
     /** Pad two pressed Square (interact) or Circle (meow) while the pill is cat two's: it answers the pill. True when consumed. */
     answer(name) {
       if (!cf || state.fighter !== 1 || cf.uiShowing !== 'challenge') return false;
-      return answerChallenge(cf, name);
+      if (name !== 'interact' && name !== 'meow') return false; // ui/fightui.js answerChallenge, the walk's own rule: Square is Fight!, Circle is Back off
+      cf.key(name === 'interact' ? 'e' : 'q');
+      return true;
     },
     /** The walk's pad for this frame: the challenger's own while its sheet is up; cat one's with the pill's buttons taken away while the pill is cat two's. */
     padFor(p0, p1, current) {

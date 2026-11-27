@@ -21,7 +21,7 @@ import { createCoopHud } from './hud.js';
 import { createCards } from './cards.js';
 import { createFinds } from './finds.js';
 import { createFights } from './fights.js';
-import { wirePose } from '../fightactions.js';
+import { createGroom, createTag, GROOM_CALM_S, GROOM_NEAR } from './verbs.js';
 import { bus } from '../events.js';
 import { pickSecond, profileOf, createMover, SECOND_ID } from './second.js';
 import './words.js';
@@ -81,6 +81,9 @@ function stop(pos, was, other, limit) {
   if (excess > 0) { pos.x -= ux * excess; pos.z -= uz * excess; }
 }
 
+// The fight's new poses as the states every cat draws (src/fightactions.js WIRE_POSE: a test pins the two alike; that file is not start-up, so it is not imported here).
+export const WIRE_POSE = Object.freeze({ arch: 'cross', rearUp: 'swipe', flinch: 'scared', pinned: 'scared', pinning: 'stalk', roll: 'pounce' });
+
 const SETTINGS_KEY = 'whisker-walk-coop'; // couch settings, per device (like the TV switch), never the save
 /** Couch settings from this device: { follow, outfit } (follow when idle, on unless switched off; cat two's saved outfit by index, -1 plain, else the first one cat one is not wearing). */
 export function readSettings(storage) {
@@ -128,6 +131,8 @@ export function start(ctx) {
   const profile = ctx.profile ?? getProfile;
   const fights = createFights({ ctx }); // one fight at a time; the challenger's pad drives (src/coop/fights.js)
   let fightSaid = false; // the line for the fight on screen was said
+  const groom = createGroom(), tagGame = createTag();
+  const air = [false, false]; // each cat was in the air last frame (a landing beside the friend is a tag)
 
   let cur = null; // the session this chunk is working in
   let mover = null; // { player, body }
@@ -187,6 +192,7 @@ export function start(ctx) {
     release();
     if (finds && mover && s) finds.letGo(s, mover.body);
     fights.detach(); fightSaid = false;
+    groom.cancel(); tagGame.reset(); air[0] = air[1] = false; own[0] = null;
     finds = null; offBus?.(); offBus = null; own[1] = null;
     if (mover) { mover.player.setTouchMove(null); mover.player.disable(); }
     mover = null;
@@ -217,6 +223,7 @@ export function start(ctx) {
   function switchSession(next) {
     sayTally();
     fights.detach(); fightSaid = false;
+    groom.cancel(); tagGame.reset(); air[0] = air[1] = false; own[0] = null;
     if (state.joined) { // its scene is being thrown away: nothing of the old walk is touched
       finds = null; offBus?.(); offBus = null; own[1] = null;
       mover?.player.disable();
@@ -301,6 +308,7 @@ export function start(ctx) {
     else if (ev.type === 'lost') { if (state.joined) { dismissed = false; if (engaged) ctx.act?.('pause'); } }
     else if (ev.type === 'back') dismissed = false;
     else if (ev.type === 'hop') { if (state.joined && engaged) hopFriend(ev.slot); }
+    else if (ev.type === 'groom') { if (state.joined && engaged && !fights.on && mover) groom.start(state.apart, calm()); }
     else if (ev.type === 'turn') { if (state.joined && engaged && !fights.on) turn(ev.dir); }
     else if (ev.type === 'start') {
       if (engaged) { menuOwner = ev.slot; if (ev.slot === 1) ctx.act?.('pause'); } // pad one's own Start is the walk's
@@ -463,6 +471,41 @@ export function start(ctx) {
     joinPill(pads, live2, true);
   };
 
+  // Both cats have stood still a moment: the time for a groom.
+  const calm = () => idle >= GROOM_CALM_S && (cur?.idleTime ?? 0) >= GROOM_CALM_S && !ctx.player.inputActive && !mover?.player.inputActive;
+
+  // Grooming and tag, every frame the second cat is in the walk (src/coop/verbs.js).
+  function verbs(s, dt) {
+    const names = [nameOne(), nameTwo()];
+    tagGame.tick(dt);
+    const hopping = [ctx.player.hopY > 0.01, mover.player.hopY > 0.01];
+    for (let i = 0; i < 2; i++) {
+      if (air[i] && !hopping[i]) { // landed: beside the friend is a tag
+        const r = tagGame.land(i, state.apart);
+        if (r === 'start') toasts.push({ slot: i, one: phrase('coop.tagstart', names[i], names[1 - i]), found: false });
+        else if (r === 'done') {
+          const line = phrase('coop.tagdone', names[0], names[1]);
+          ctx.log?.awardOnce('tag', 'tag-couch', line);
+          s.fx?.burst?.(s.cat.position, 0xffd166, 10);
+          toasts.push({ slot: i, one: line, found: false });
+        }
+      }
+      air[i] = hopping[i];
+    }
+    if (fights.on) groom.cancel();
+    if (groom.active) { // both cats groom: the walk's own idle ladder, held at its groom rung
+      idle = GROOM_AT + 0.2;
+      s.idleTime = GROOM_AT + 0.2;
+    }
+    const g = groom.step(dt, { apart: state.apart, moving: ctx.player.inputActive || mover.player.inputActive || hopping[0] || hopping[1] });
+    if (g.done) {
+      const line = phrase('coop.groomed', names[0], names[1]);
+      ctx.log?.awardOnce('groom', 'groom-couch', line);
+      s.fx?.burst?.(s.cat.position, 0xd8b4e2, 8);
+      toasts.push({ slot: 0, one: line, found: false });
+    }
+  }
+
   // The fight sheet came up: one line says who fights and who cheers.
   function announceFight(s) {
     if (!fights.on) { fightSaid = false; return; }
@@ -483,7 +526,9 @@ export function start(ctx) {
       if (g) { body.position.x = g.position.x; body.position.z = g.position.z; body.rotation.y = g.rotation.y; }
       s.idleTime = SIT_AT + 0.5;
     }
-    if (!finds) return;
+    const near = !fights.showing && !groom.active && state.apart <= GROOM_NEAR && calm();
+    own[0] = near && !s.prompt ? phrase('coop.groomhint', nameTwo()) : null; // cat one's own prompt wins
+    if (!finds) { own[1] = near ? phrase('coop.groomhint', nameOne()) : null; return; }
     hopT = Math.max(0, hopT - dt);
     const reveal = (PERSONALITIES[pick?.breed]?.special === 'keenNose' ? 14 : 7);
     for (const [id, m] of s.collectibleMeshes) { // a find lying near cat two shows, as it does near cat one
@@ -494,7 +539,7 @@ export function start(ctx) {
     finds.frame(dt, s, mover, body, hopT > 0 || mover.player.hopY > 0.01);
     const r = finds.reach(s, mover, body);
     const text = !r ? null : r.kind === 'collect' ? phrase('coop.pick', r.label) : r.kind === 'carry' ? phrase('coop.carry', r.label) : r.kind === 'drop' ? phrase('coop.drop', r.label) : r.kind === 'dig' ? phrase('coop.dig') : null;
-    own[1] = text;
+    own[1] = text ?? (near ? phrase('coop.groomhint', nameOne()) : null);
   };
 
   // After cat one's player.update: cat two's step, the leash, the picture of both.
@@ -528,6 +573,7 @@ export function start(ctx) {
     prev.a.set(cat.position.x, cat.position.z);
     prev.b.set(body.position.x, body.position.z);
     state.apart = Math.hypot(cat.position.x - body.position.x, cat.position.z - body.position.z);
+    verbs(s, dt);
     // Pushing on at the stretch of the band: this cat's own hint says how to hop to the friend.
     const pushing = [ctx.player.inputActive && !trotting[0], mover.player.inputActive && !trotting[1]];
     for (let i = 0; i < 2; i++) {
@@ -551,7 +597,7 @@ export function start(ctx) {
         : idle > NAP_AT ? 'nap' : idle > SIT_AT ? 'requestPet' : idle > GROOM_AT ? 'groom' : 'follow';
     if (fightTwo) { // the fight's pose, lift and pace, on cat two's picture
       const st = fights.stage;
-      msg.pose = wirePose(st?.fightPose || 'follow'); msg.h = st?.fightLift ?? 0; msg.speed = st?.fightGait ?? 0;
+      msg.pose = WIRE_POSE[st?.fightPose] ?? (st?.fightPose || 'follow'); msg.h = st?.fightLift ?? 0; msg.speed = st?.fightGait ?? 0;
     }
     s.remotes.applyState(msg, nowSec());
 

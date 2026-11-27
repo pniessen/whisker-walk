@@ -11,6 +11,11 @@ const { A, X, B } = PAD_BUTTONS;
 afterEach(reset);
 
 describe('who challenges (pure)', () => {
+  it('the chunk\'s pose table is the fight\'s own wire table', async () => {
+    const { WIRE_POSE } = await import('../src/coop/index.js');
+    const mine = await import('../src/fightactions.js');
+    expect(WIRE_POSE).toEqual(mine.WIRE_POSE);
+  });
   it('cat one if both could; cat two only when alone; a busy pill or fight keeps its challenger', () => {
     expect(pickFighter(0, { oneCan: true, twoCan: true })).toBe(0);
     expect(pickFighter(0, { twoCan: true })).toBe(1);

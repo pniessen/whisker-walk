@@ -10,7 +10,7 @@
 //   slot 1 (cat two): A on a pad that is not seated, while joining is open.
 // A button held when a pad is seated is ignored until it is let go, so the
 // press that joined never also hops.
-import { createHold, DPAD_DOWN } from './rules.js';
+import { createHold, DPAD_DOWN, DPAD_LEFT } from './rules.js';
 import { createPadState, stepPad, isPressed, pressedEdges, PAD_BUTTONS } from '../gamepadinput.js';
 
 const FIRM = 0.5; // a stick push that counts as "somebody is there"
@@ -43,7 +43,7 @@ export function createPadHub() {
     /**
      * One frame. `pads`: the connected standard pads. opts: joinOpen (a second
      * cat may join), engaged (the walk is live for cat two's pad), dt.
-     * Returns { events, two }: events are { type: 'seat' | 'join' | 'back' | 'lost' | 'turn' | 'start' | 'hop', slot, dir? };
+     * Returns { events, two }: events are { type: 'seat' | 'join' | 'back' | 'lost' | 'turn' | 'start' | 'hop' | 'groom', slot, dir? };
      * `two` is stepPad's answer for slot 1's pad ({ move, actions }) or null.
      */
     step(pads, { joinOpen = false, engaged = true, dt = 1 / 60 } = {}) {
@@ -76,6 +76,7 @@ export function createPadHub() {
           if (b === PAD_BUTTONS.L1) events.push({ type: 'turn', slot: i, dir: 1 });
           else if (b === PAD_BUTTONS.R1) events.push({ type: 'turn', slot: i, dir: -1 });
           else if (b === PAD_BUTTONS.START) events.push({ type: 'start', slot: i });
+          else if (b === DPAD_LEFT) events.push({ type: 'groom', slot: i });
         }
         s.prev = cur;
         if (engaged) { // D-pad Down held: hop to my friend (a hold, or two quick taps)

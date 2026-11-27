@@ -28,6 +28,10 @@ export const LINES = Object.freeze({
   'coop.nosniff': 'Nothing on the breeze.',
   'coop.tally': (a, na, b, nb) => `${a} found ${na}, ${b} found ${nb}`,
   'coop.left': (name) => `${name} waves goodbye.`,
+  'coop.groomhint': (name) => `⟦dpad⟧ left to groom ${name}`,
+  'coop.groomed': (a, b) => `${a} and ${b} groom each other 🫧`,
+  'coop.tagstart': (by, other) => `${by} tagged ${other}! Pounce back! 🐾`,
+  'coop.tagdone': (a, b) => `${a} and ${b} play tag! 🏃`,
   'coop.fightstart': (name, other) => `${name} takes the fight, and ${other} sits and cheers!`,
 });
 
