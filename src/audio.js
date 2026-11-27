@@ -8,6 +8,35 @@ const WATER_SPLASHES = Object.freeze({
   shake: Object.freeze({ dur: 0.5, from: 1800, to: 1800, gain: 0.035, flutter: 8 }),
 });
 
+// The meow's shape, pure (so it is testable and never needs a context). kind:
+// 'meow' (the standard), 'call' (long), 'chirp' (short), 'mew' (soft).
+// pitch/rate/gain are the cat's voice (a kitten is higher and quicker, an
+// older cat lower and slower); a smaller throat also lifts the vowel peaks
+// (formants follow pitch at the 0.6 power, so a kitten is smaller, not just
+// shifted). f is the pitch contour Hz [start, peak, end], peakAt where in the
+// note the peak falls, f1/f2 the two vowel bands' sweeps ('ee' high to 'ow'
+// low), breath the share of the amplitude in the noise puff.
+const MEOW_KINDS = Object.freeze({
+  meow: { dur: 0.5, f: [300, 520, 240], peakAt: 0.35, f1: [420, 700], f2: [2300, 1000], vib: 6.5, vd: 0.03, breath: 0.12, amp: 1 },
+  call: { dur: 0.85, f: [280, 470, 210], peakAt: 0.3, f1: [380, 640], f2: [2200, 900], vib: 5.5, vd: 0.04, breath: 0.1, amp: 1 },
+  chirp: { dur: 0.2, f: [420, 640, 560], peakAt: 0.55, f1: [420, 520], f2: [2500, 2100], vib: 12, vd: 0.015, breath: 0.06, amp: 0.8 },
+  mew: { dur: 0.45, f: [520, 650, 450], peakAt: 0.4, f1: [400, 560], f2: [2400, 1500], vib: 7.5, vd: 0.02, breath: 0.22, amp: 0.6 },
+});
+export function meowParams(kind = 'meow', { volume = 1, pitch = 1, rate = 1, gain = 1 } = {}) {
+  const k = MEOW_KINDS[kind] ?? MEOW_KINDS.meow;
+  const sf = (x) => (Number.isFinite(x) && x > 0 ? x : 1);
+  const p = sf(pitch), r = sf(rate), formant = Math.pow(p, 0.6);
+  return {
+    dur: k.dur / r,
+    f: k.f.map((x) => x * p),
+    peakAt: k.peakAt,
+    f1: k.f1.map((x) => x * formant),
+    f2: k.f2.map((x) => x * formant),
+    vib: k.vib, vd: k.vd, breath: k.breath,
+    amp: Math.max(0.0001, 0.16 * (Number.isFinite(volume) ? volume : 1) * sf(gain) * k.amp),
+  };
+}
+
 export function createAudio({ contextFactory = () => new (window.AudioContext || window.webkitAudioContext)() } = {}) {
   let ctx = null;
   let muted = false;
@@ -20,6 +49,8 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
   // rather than silence.
   let volume = 1;
   let ambient = null;
+  let voiceHook = null; // music.duck(): a meow takes the music down a little
+  let breathBuffer = null;
   // The last setAmbientMix(m), applied to every ambience started after it, so
   // a restarted ambience (a mute toggle) keeps the mix she is standing in.
   let ambientMix = null;
@@ -141,6 +172,74 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     osc.connect(bp).connect(g).connect(master);
     osc.start(t0); vib.start(t0);
     osc.stop(t0 + dur + 0.05); vib.stop(t0 + dur + 0.05);
+  }
+
+  // The layered meow: a sawtooth with an octave and a twelfth over it, all on
+  // one pitch contour and vibrato, through two vowel bands (F1 + F2) that sweep
+  // from 'ee' to 'ow', plus a short breath of filtered noise.
+  function meowVoice(P) {
+    if (muted) return;
+    const ac = ensure();
+    const t0 = ac.currentTime;
+    const { dur } = P;
+    const [a, b, c] = P.f;
+    const mix = ac.createGain();
+    const amp = P.amp;
+    mix.gain.setValueAtTime(0.0001, t0);
+    mix.gain.exponentialRampToValueAtTime(amp, t0 + 0.035);
+    mix.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    mix.connect(master);
+    const vib = ac.createOscillator();
+    vib.frequency.value = P.vib;
+    const stops = [vib];
+    // two vowel bands in parallel; F2 quieter
+    const bands = [[P.f1, 4, 1], [P.f2, 5, 0.45]].map(([sw, q, lvl]) => {
+      const bp = ac.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.Q.value = q;
+      bp.frequency.setValueAtTime(sw[0], t0);
+      bp.frequency.linearRampToValueAtTime(sw[1], t0 + dur);
+      const bg = ac.createGain();
+      bg.gain.value = lvl;
+      bp.connect(bg).connect(mix);
+      return bp;
+    });
+    [['sawtooth', 1, 1], ['sawtooth', 2, 0.3], ['sine', 3, 0.12]].forEach(([type, mul, lvl]) => {
+      const o = ac.createOscillator();
+      o.type = type;
+      o.frequency.setValueAtTime(a * mul, t0);
+      o.frequency.linearRampToValueAtTime(b * mul, t0 + dur * P.peakAt);
+      o.frequency.linearRampToValueAtTime(c * mul, t0 + dur);
+      const vg = ac.createGain();
+      vg.gain.value = a * mul * P.vd;
+      vib.connect(vg).connect(o.frequency);
+      const lg = ac.createGain();
+      lg.gain.value = lvl * 0.8;
+      o.connect(lg);
+      for (const bp of bands) lg.connect(bp);
+      o.start(t0); o.stop(t0 + dur + 0.05);
+    });
+    vib.start(t0); vib.stop(t0 + dur + 0.05);
+    // the breath: a short puff of high noise at the start and a little at the tail
+    if (!breathBuffer) {
+      const n = Math.floor(ac.sampleRate * 0.5);
+      breathBuffer = ac.createBuffer(1, n, ac.sampleRate);
+      const d = breathBuffer.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    }
+    const ns = ac.createBufferSource();
+    ns.buffer = breathBuffer;
+    const nf = ac.createBiquadFilter();
+    nf.type = 'bandpass';
+    nf.frequency.value = Math.max(1500, P.f2[0]);
+    nf.Q.value = 0.8;
+    const ng = ac.createGain();
+    const bl = amp * P.breath;
+    ng.gain.setValueAtTime(0.0001, t0);
+    ng.gain.exponentialRampToValueAtTime(bl, t0 + 0.03);
+    ng.gain.exponentialRampToValueAtTime(0.0005, t0 + Math.min(dur, 0.18));
+    ns.connect(nf).connect(ng).connect(mix);
+    ns.start(t0); ns.stop(t0 + Math.min(dur, 0.5));
   }
 
   // --- Ambient layers -------------------------------------------------
@@ -488,12 +587,13 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       tone(650 * pitch, 0.1, { type: 'square', gain: 0.06 * volume, slideTo: 420 * pitch, delay: 0.12 });
       tone(760 * pitch, 0.07, { type: 'square', gain: 0.05 * volume, slideTo: 520 * pitch, delay: 0.26 });
     },
-    meow(volume = 1, pitch = 1, voice = {}) {
-      const p = pitch * (voice.pitch ?? 1);
-      const dur = 0.5 / (voice.rate ?? 1);
-      const amp = 0.16 * volume * (voice.gain ?? 1);
-      vocal({ f0: 300 * p, f1: 520 * p, f2: 240 * p, filt0: 1150 * p, filt1: 620 * p, dur, gain: amp });
+    // kind (optional): 'meow' (default), 'call', 'chirp' or 'mew'; see meowParams().
+    meow(volume = 1, pitch = 1, voice = {}, kind = 'meow') {
+      if (muted) return;
+      meowVoice(meowParams(kind, { volume, pitch: pitch * (voice?.pitch ?? 1), rate: voice?.rate ?? 1, gain: voice?.gain ?? 1 }));
+      try { voiceHook?.(); } catch { /* music is optional */ }
     },
+    setVoiceHook(fn) { voiceHook = typeof fn === 'function' ? fn : null; },
     trill(volume = 1, pitch = 1) {
       // "brrrup?" — short rising note with a fast pitch wobble
       vocal({ f0: 340 * pitch, f1: 560 * pitch, f2: 620 * pitch, filt0: 900 * pitch, filt1: 1400 * pitch, dur: 0.28, gain: 0.1 * volume, vibrato: 26 });
