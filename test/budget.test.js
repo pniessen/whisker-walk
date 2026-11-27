@@ -414,6 +414,10 @@ function budgetStats(scene) {
 
 const AREAS = [
   // name, builder, [meshCeiling, casterCeiling, triangleCeiling]
+  // Holiday decor (H6, 2026-11-27) is dressed on by the walk AFTER the merge, inside a season only (src/world/holidaydecor.js): at most two
+  // merged noCast meshes in the Neighborhood, Park, Farm and Market (four in the Old House), 0 casters, and 620 to 2,200 triangles (Neighborhood
+  // 2,002, Park 686, Farm 620, Market 2,198, measured with both holidays at night 8). Every row below is unchanged; test/holidaydecor.test.js holds each
+  // place to its own row with the decor on it, built and merged.
   ['neighborhood', buildNeighborhood, 450, 380, 70000],
   ['park', buildPark, 210, 170, 40000],
   ['docks', buildDocks, 600, 500, 90000],
