@@ -415,7 +415,7 @@ describe('the budget, switch on: the most the River puts on screen at once', () 
 
   it('everything there is, drawn at once, is what it is with nothing streamed: nothing lost, nothing twice', () => {
     if (process.env.BUDGET_LOG) console.log('stream budget', JSON.stringify({ fixed: m.fixed, always: m.always, all, worst }));
-    expect(m.fixed.triangles + m.always + all).toBe(84017);
+    expect(m.fixed.triangles + m.always + all).toBe(84393); // 84,017 -> 84,393: the River beauty round (foam collars, ripple slivers; the stones' hidden caps dropped), +376
     // and it is the whole scene's own count, every tile built, but for the stand-ins
     expect(m.fixed.triangles + m.always + all).toBe(budgetOf(built.scene.children.filter((c) => c !== tiles.standIns.mesh), rig).triangles);
   });
