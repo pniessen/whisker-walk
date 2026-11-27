@@ -41,6 +41,7 @@ import { LINES as SKILLBADGE_LINES } from '../src/ui/skillbadgewords.js';
 import { LINES as COOP_LINES } from '../src/coop/words.js';
 import { LINES as TELE_LINES } from '../src/teleui.js';
 import { REGION_LINES } from '../src/regions.js';
+import { PASSPORT_LINES } from '../src/passport.js';
 
 // the My cat sheet's lazy chunk adds its lines when it arrives; the scan below reads src/ for every id it uses
 addPhrases(CATLOGIN_LINES);
@@ -73,6 +74,7 @@ addPhrases(CAVE_LIFE_LINES); // (and the cave life's labels: src/world/cavelifew
 addPhrases(REEF_LAB_LINES); // (the Sealab's hatch and fuses, milestones R13 and R14: src/world/reeflabwords.js)
 addPhrases(REEF_DEEP_LINES); // (and the Deep's soft lines, milestone R8: src/world/reefdeepwords.js)
 addPhrases(COOP_LINES); // couch play's chunk (src/coop/words.js)
+addPhrases(PASSPORT_LINES); // (the passport page's title and empty line, milestone I4: src/passport.js adds its own on import)
 addPhrases(REGION_LINES); // (the regions' names, milestone I0: src/regions.js adds its own on import)
 addPhrases(TELE_LINES); // the teleport gates' chunk (src/teleui.js adds its own on import)
 addPhrases(MOON_LINES); // (the Moon's chunk adds its own on import: src/world/moonwords.js)

@@ -613,6 +613,13 @@ body.touch-mode:not(.left-handed) .hud-top {
 .wear-section { margin-top: 18px; }
 .wear-section h3 { font-size: 1rem; color: #a8c0e0; margin: 0 0 8px; font-weight: 700; }
 .wear-area h4 { font-size: 0.85rem; color: #f1e0c2; margin: 10px 0 6px; font-weight: 700; }
+/* The passport page: one picture-book stamp for each place she has walked in (src/passport.js). */
+.passport-section { margin-top: 18px; }
+.passport-section h3 { font-size: 1rem; color: #a8c0e0; margin: 0 0 8px; font-weight: 700; }
+.passport-region h4 { font-size: 0.85rem; color: #f1e0c2; margin: 10px 0 6px; font-weight: 700; }
+.passport-stamp { border: 2px dashed #f2c14e; background: rgba(242,193,78,0.08); transform: rotate(-1.5deg); }
+.passport-stamp:nth-child(even) { transform: rotate(1.5deg); }
+.passport-empty { margin: 0; color: #f1e0c2; font-size: 0.9rem; }
 .journal-name { font-size: 0.8rem; font-weight: 700; }
 .journal-count { font-size: 0.75rem; color: #f2c14e; font-weight: 700; }
 .journal-hint { font-size: 0.72rem; color: #a8c0e0; }
