@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { withLocalUuids } from './localuuids.js';
+import { docksBeautyParts } from './docksbeauty.js';
 
 export { withLocalUuids };
 
@@ -1041,6 +1042,10 @@ export function warmStone(ground) {
   col.needsUpdate = true;
 }
 
+// Where the lamp posts stand (docks.js: the alley lamp and the twelve along the
+// quays and map edges), for the worn rings under them.
+const LAMP_FEET = Object.freeze([[-14, 20.5], [-28, 8], [-12, 8], [4, 8], [22, 8], [-28, -8], [-12, -8],
+  [4, -8], [22, -8], [0, 24], [0, -24], [-33, 26], [26, -30]]);
 const GLINT_Y = 0.026, PATCH_Y = 0.018;
 const PATCH_HEX = 0x3e4a58;
 const STREAK_HEX = [0x9cb0c4, 0xaabdd0, 0x90a6bc];
@@ -1100,6 +1105,11 @@ function glintMesh(puddles) {
     wetPatch(out, p);
     streaks(out, p, 201);
   }
+  // the beauty round (docksbeauty.js): canal glints, lamp reflections and
+  // lamp-foot rings, folded into this same flat mesh
+  const extra = docksBeautyParts(LAMP_FEET);
+  out.pos.push(...extra.pos);
+  out.col.push(...extra.col);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(out.pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(out.col, 3));
