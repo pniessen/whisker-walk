@@ -213,3 +213,32 @@ describe('the Christmas shelf (H3)', () => {
     expect(buildDressingModel(state([]), CATALOG, {}).accessoryTotal).toBeGreaterThan(0);
   });
 });
+
+describe('Hanukkah pieces', () => {
+  const lights = (id) => { const cat = buildCat('tabby', { ...BARE, back: id }); const out = []; cat.traverse((o) => { if (isPieceOf(o, id)) out.push(o); }); return out; };
+  const triOf = (m) => (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
+  it('five shop items on the Hanukkah shelf (25, 25, 30, 30, 35) and Menorah Glow earned', () => {
+    const shop = HOLIDAY_WEAR.filter((r) => r.season === 'hanukkah');
+    expect(shop.map((r) => r.price).sort()).toEqual([25, 25, 30, 30, 35]);
+    expect(HOLIDAY_WEAR.filter((r) => r.holiday === 'hanukkah').map((r) => r.id)).toEqual(['menorahglow']);
+    expect(thumbnailIds(CATALOG, new Date(2026, 6, 4))).not.toContain('geltpouch');
+    expect(thumbnailIds(CATALOG, new Date(2026, 11, 5, 12))).toContain('geltpouch');
+  });
+  it('the menorah glows by the night: nine lights, the shamash always, one more candle each night', () => {
+    const flameTris = (n) => {
+      setHolidayOverride({ holiday: 'hanukkah', night: n });
+      try { const parts = lights('menorahglow').filter((m) => m.material.color.getHex() === 0xffc247); return parts.length ? triOf(parts[0]) : 0; } finally { setHolidayOverride(null); }
+    };
+    const per = flameTris(1) / 2; // shamash + night 1
+    expect(per).toBeGreaterThan(0);
+    for (let n = 1; n <= 8; n++) expect(flameTris(n)).toBe(per * (n + 1));
+    expect(lights('menorahglow').find((m) => m.material.color.getHex() === 0xc9d3e0)).toBeTruthy();
+    expect(flameTris(8) / per).toBe(9);
+  });
+  it('no piece is drawn with a six-pointed star: no cone, tube or star mesh with six sides in the gelt pouch, menorah or sweater', () => {
+    for (const [id, slot] of [['geltpouch', 'back'], ['menorahglow', 'back'], ['snowflakesweater', 'body']]) {
+      const cat = buildCat('tabby', { ...BARE, [slot]: id });
+      cat.traverse((o) => { if (isPieceOf(o, id)) expect(o.geometry.type).not.toMatch(/Extrude/); });
+    }
+  });
+});

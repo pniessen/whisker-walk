@@ -19,7 +19,7 @@ import { SKULL } from './torso.js';
 // the cat's head slot builds these.
 
 export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown', 'acorncap',
-  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap', 'keepercap', 'gardenerhat', 'crystalcirclet', 'canopycap', 'redcozyhat', 'snowcap', 'reindeerantlers'];
+  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap', 'keepercap', 'gardenerhat', 'crystalcirclet', 'canopycap', 'redcozyhat', 'snowcap', 'reindeerantlers', 'bluestarbeanie'];
 
 // Palette. The three shop hats' colours are model.js's own (it imports these
 // for Hagrid's hats); the prize colours are the same hexes as model.js's
@@ -344,6 +344,7 @@ const BEANIE = { shell: 1.06, rimFront: 0.09, rimBack: 0.02, cuffH: 0.036, cuffO
 // The holiday caps (src/foundwear/holidaywear.js) are this cap in other colours: a white cuff and pompom on red, an icy knit with a blue cuff.
 const BEANIE_LOOK = { body: BEANIE_COLOR, pom: POMPOM };
 const redcozyhat = (simple) => beanie(simple, 'redcozyhat', { body: 0xc8303a, cuff: 0xf5f1e8, pom: 0xfbfaf6 });
+const bluestarbeanie = (simple) => beanie(simple, 'bluestarbeanie', { body: 0x2f5fb0, cuff: 0xdfe6ee, pom: 0xf4f7fb });
 const snowcap = (simple) => beanie(simple, 'snowcap', { body: 0xe6eef8, cuff: 0x7aaee0, pom: 0xffffff });
 const beanieRim = (phi) => (BEANIE.rimFront + BEANIE.rimBack) / 2 + ((BEANIE.rimFront - BEANIE.rimBack) / 2) * Math.cos(phi);
 function beanie(simple, id = 'beanie', L = BEANIE_LOOK) {
@@ -1271,7 +1272,7 @@ function reindeerantlers(simple) {
   return finish('reindeerantlers', parts);
 }
 
-const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap, keepercap, gardenerhat, crystalcirclet, canopycap, redcozyhat, snowcap, reindeerantlers };
+const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap, keepercap, gardenerhat, crystalcirclet, canopycap, redcozyhat, snowcap, reindeerantlers, bluestarbeanie };
 
 // The clips' ground looks (src/foundwear/display.js): the clip as worn (the
 // simple build), turned so its face is up and propped toward -z, as if

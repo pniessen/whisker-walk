@@ -35,6 +35,15 @@ export const HOLIDAY_WEAR = Object.freeze([
   sold('candyscarf', 'neck', '🍬', 'christmas', 30, () => phrase('wear.candyscarf.name')),
   sold('evergreensweater', 'body', '🎄', 'christmas', 35, () => phrase('wear.evergreensweater.name')),
   earned('littlegoldstar', 'back', '🌟', 'christmas', 0, () => phrase('wear.littlegoldstar.name')),
+  // Hanukkah: five shop items (the Hanukkah shelf, its eight days and the week before) and one earned piece (the errand, H7). No
+  // six-pointed star anywhere. Meshes: hats.js (bluestarbeanie), foundneck.js (bluescarf, dreidelcharm), foundbody.js (snowflakesweater,
+  // geltpouch, menorahglow, lit by nightOf).
+  sold('bluestarbeanie', 'head', '🧢', 'hanukkah', 25, () => phrase('wear.bluestarbeanie.name')),
+  sold('dreidelcharm', 'collar', '🪀', 'hanukkah', 25, () => phrase('wear.dreidelcharm.name')),
+  sold('bluescarf', 'neck', '🧣', 'hanukkah', 30, () => phrase('wear.bluescarf.name')),
+  sold('geltpouch', 'back', '👝', 'hanukkah', 30, () => phrase('wear.geltpouch.name')),
+  sold('snowflakesweater', 'body', '❄️', 'hanukkah', 35, () => phrase('wear.snowflakesweater.name')),
+  earned('menorahglow', 'back', '🕎', 'hanukkah', 0, () => phrase('wear.menorahglow.name')),
 ]);
 export const HOLIDAY_WEAR_IDS = Object.freeze(HOLIDAY_WEAR.map((r) => r.id));
 

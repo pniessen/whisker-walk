@@ -270,6 +270,8 @@ const KERCHIEFS = {
   snowflakescarf: { cloth: [0xf2f7fc, 0xb4d4f0, 0x7aaee0], band: [0x6a9ad0, 0x8cb6e4], knot: [0xf2f7fc, 0xb4d4f0] },
   // The Candy-stripe Scarf (a Christmas shop item): red and white stripes across the cloth, a red and white striped band
   candyscarf: { cloth: [0xfaf6ec, 0xf0a09c, 0xd8303c], stripe: 1, band: [0xd8303c, 0xfaf6ec], knot: [0xd8303c, 0xfaf6ec] },
+  // The Blue-and-Silver Scarf (a Hanukkah shop item): blue and silver stripes, a silver and blue band
+  bluescarf: { cloth: [0xdfe6ee, 0x9bb4dc, 0x2f5fb0], stripe: 1, band: [0x2f5fb0, 0xdfe6ee], knot: [0x2f5fb0, 0xdfe6ee] },
   piratebandana: { cloth: [0xc8322c, 0xf2ece0, 0xa8221e], band: [0x1c2a4a, 0x2a3a5e], knot: [0x2a3a5e, 0x1c2a4a] },
 };
 const ginghamAt = (L, u, v, cell) => (L.net ? L.cloth[1] : L.stripe ? L.cloth[(Math.floor(v / cell) & 1) * 2] : L.cloth[(Math.floor(u / cell) & 1) + (Math.floor(v / cell) & 1)]);
@@ -411,6 +413,7 @@ export const FOUND_NECKS = Object.freeze({
   // the holiday outfits (src/foundwear/holidaywear.js)
   lightscarf: addLightScarf,
   candyscarf: kerchief('candyscarf'),
+  bluescarf: kerchief('bluescarf'),
 });
 // ---- Collars --------------------------------------------------------------
 
@@ -616,7 +619,17 @@ const dressJingle = charm([0xc8303a, 0xf6f2e8], (u) => [
   colour(new THREE.BoxGeometry(0.7 * u, 0.07 * u, 0.1 * u).translate(0, -0.12 * u, -0.6 * u), 0x6b4a1a),
 ]);
 
+// Dreidel Charm (a Hanukkah shop item): a blue band piped silver, and at the throat a small spinning top: a four-sided blue body
+// with plain pale marks on its faces (no letters), a cone point below, a stem and knob above. Faces -z, one mesh.
+const dressDreidel = charm([0x2f5fb0, 0xdfe6ee], (u) => [
+  colour(new THREE.BoxGeometry(0.8 * u, 0.7 * u, 0.8 * u).translate(0, 0.15 * u, 0), (x, y, z) => (z < -0.38 * u && Math.abs(x) < 0.16 * u && Math.abs(y - 0.15 * u) < 0.2 * u ? 0xdfe6ee : 0x2f5fb0)),
+  colour(new THREE.ConeGeometry(0.56 * u, 0.5 * u, 4).rotateX(Math.PI).rotateY(Math.PI / 4).translate(0, -0.45 * u, 0), 0x244c90),
+  colour(new THREE.CylinderGeometry(0.07 * u, 0.07 * u, 0.4 * u, 4).translate(0, 0.7 * u, 0), 0xc9d3e0),
+  colour(new THREE.SphereGeometry(0.12 * u, 4, 3).translate(0, 0.95 * u, 0), 0xc9d3e0),
+]);
+
 export const FOUND_COLLARS = Object.freeze({
+  dreidelcharm: Object.freeze({ ring: 0x2f5fb0, charmed: true, dress: dressDreidel }),
   lanterncharm: Object.freeze({ ring: 0xd9a441, charmed: true, dress: dressLantern }),
   jinglecollar: Object.freeze({ ring: 0xc8303a, charmed: true, dress: dressJingle }),
   glimmercollar: Object.freeze({ ring: 0x8a6ac0, charmed: true, dress: dressGlimmer }),

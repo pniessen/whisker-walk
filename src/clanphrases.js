@@ -647,6 +647,13 @@ const LATER = Object.freeze({
   'wear.candyscarf.name': 'Candy-stripe Scarf',
   'wear.evergreensweater.name': 'Evergreen Sweater',
   'wear.littlegoldstar.name': 'Little Gold Star',
+  // Hanukkah: the shop's five and the earned menorah.
+  'wear.bluestarbeanie.name': 'Blue Star Beanie',
+  'wear.dreidelcharm.name': 'Dreidel Charm',
+  'wear.bluescarf.name': 'Blue-and-Silver Scarf',
+  'wear.geltpouch.name': 'Gelt Pouch',
+  'wear.snowflakesweater.name': 'Silver Snowflake Sweater',
+  'wear.menorahglow.name': 'Menorah Glow',
   // The Jungle lodge's found anklets (a placeholder name, the same in every set)
   'wear.fernanklet.name': 'Fern Anklet',
   // Lighthouse Point's journal pages (src/lighthousepages.js): drawn before the place is ever walked, so they are
