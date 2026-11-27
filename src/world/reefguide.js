@@ -5,7 +5,7 @@
 //
 //   goalWords(info)   the goal line: WHAT and WHERE ("Find shell 1 of 3: in the Kelp Garden, north-west of the ladder.")
 //   chipWords(g, on)  the few words beside Marlo's picture ("Marlo needs a shell")
-//   atWords(x, z)     a place by the ladder: a compass word from the plan's own coordinates (+x is east, -z is north)
+//   nowWords(x, z, cat, fx, fz)   a place from where she stands now: "about 25 m to your left"
 //   ARRIVAL           the three ids of the arrival card, said once at the start of a first visit
 // The arrow's geometry is shared with the Moon (world/guidegeo.js). Every line is a literal phrase id (reef.guide.…); the words are in world/reefwords.js.
 // =============================================================================
@@ -15,18 +15,21 @@ import { REEF_SPAWN } from './reefplan.js';
 export { ARRIVED, SCREEN_EDGE, round5, makeView, viewOf, makeArrow, arrowFor, edgePoint, projectPoint } from './guidegeo.js';
 import { round5 } from './guidegeo.js';
 
-const POINTS = Object.freeze(['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw']);
-export function compassKey(dx, dz) {
-  const bearing = (Math.atan2(dx, -dz) * 180) / Math.PI; // 0 north, 90 east, 180 south, -90 west
-  return POINTS[(((Math.round(bearing / 45) % 8) + 8) % 8)];
+// "about 25 m to your left" for a place on the plan, from where she stands now: `cat` { x, z } and the way she faces (fx, fz: the camera's forward on the ground, -z is north).
+// Four 90-degree turns (ahead, to your right, behind you, to your left) and the distance to the nearest 5 m; under 2.5 m it says 5. Pure: nothing is read but the arguments.
+export function nowWords(x, z, cat, fx, fz) {
+  const dx = x - cat.x; const dz = z - cat.z;
+  const m = round5(Math.hypot(dx, dz)) || 5;
+  const rel = Math.atan2(dz * fx - dx * fz, dx * fx + dz * fz); // 0 ahead, positive toward her right (guidegeo.js arrowFor)
+  return phrase('reef.guide.now').replace('{m}', m).replace('{d}', phrase('reef.guide.sides').split('|')[(Math.round(rel / (Math.PI / 2)) + 4) % 4]);
 }
-// "north-west of the ladder" for a place on the plan, from where she comes in (the spawn by the ladder).
-export const atWords = (x, z) => phrase('reef.guide.at').replace('{d}', phrase('reef.guide.dirs').split('|')[POINTS.indexOf(compassKey(x - REEF_SPAWN.x, z - REEF_SPAWN.z))]);
+// without her position (a test, a first frame) a place is said from the spawn, facing north
+const placeWords = (i, g) => nowWords(g.x, g.z, i.cat ?? REEF_SPAWN, i.fx ?? 0, i.fz ?? -1);
 
 // The arrival card's three lines, in order (the live part draws them once, at the start of a first visit).
 export const arrivalWords = () => [phrase('reef.guide.arrive1'), phrase('reef.guide.arrive2'), phrase('reef.guide.arrive3')];
 
-// What the goal line says. info: { goal: { g: { kind, shell?, lantern? }, x, z } (marlo.goalNow()), metres: how far Marlo is (deliver), errand: today's errand is waiting }.
+// What the goal line says. info: { goal: { g: { kind, shell?, lantern? }, x, z } (marlo.goalNow()), metres: how far Marlo is (deliver), cat { x, z } + fx, fz (which way she faces: the goal's place is said from there; without them, from the ladder), errand: today's errand is waiting }.
 // '' when there is nothing to say (the story is told and today's errand is done or not offered).
 export function goalWords(info) {
   const gp = info?.goal;
@@ -34,7 +37,7 @@ export function goalWords(info) {
   if (!g) return '';
   switch (g.kind) {
     case 'marlo': return phrase('reef.guide.hello');
-    case 'shell': return g.shell === 0 ? phrase('reef.guide.shell0').replace('{at}', atWords(gp.x, gp.z)) : g.shell === 1 ? phrase('reef.guide.shell1') : phrase('reef.guide.shell2');
+    case 'shell': return g.shell === 0 ? phrase('reef.guide.shell0').replace('{at}', placeWords(info, gp)) : g.shell === 1 ? phrase('reef.guide.shell1') : phrase('reef.guide.shell2');
     case 'deliver': { const m = round5(info.metres); return m > 0 ? phrase('reef.guide.carry').replace('{m}', String(m)) : phrase('reef.guide.carry.near'); }
     case 'tryon': return phrase('reef.guide.tryon');
     case 'lantern': return phrase('reef.guide.lantern').replace('{n}', String(Math.max(0, Math.min(3, g.lantern | 0))));
@@ -43,7 +46,7 @@ export function goalWords(info) {
     // the Sealab's fuses (R14: world/reeflabstory.js goalNow())
     case 'labhatch': return phrase('reef.guide.lab.hatch');
     case 'labfuse': return phrase('reef.guide.lab.fuse').replace('{n}', String(Math.max(0, Math.min(3, g.n | 0))));
-    case 'labsand': return phrase('reef.guide.lab.sand').replace('{at}', atWords(gp.x, gp.z));
+    case 'labsand': return phrase('reef.guide.lab.sand').replace('{at}', placeWords(info, gp));
     case 'labdeliver': return phrase('reef.guide.lab.deliver');
     case 'labdown': return phrase('reef.guide.lab.down');
     case 'labup': return phrase('reef.guide.lab.up');

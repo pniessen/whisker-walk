@@ -1608,6 +1608,7 @@ function init() {
         mapFrame.visitedScenics = session.scenicsVisited;
         mapFrame.camp = session.campMarker;
         mapFrame.posts = session.postMarkers;
+        mapFrame.ladder = session.areaId === 'reef';
         mapRemotes.length = 0;
         // a co-walker's dot from its first state, as its cat is drawn (remotecats.js)
         for (const r of session.remotes.placed) {
@@ -1687,6 +1688,7 @@ function init() {
         session.climbAccum = 0;
         touchUI.setClimb(isTouch ? climbBadge(session, player, progression.state) : null);
         touchUI.setKick(isTouch && player.canFloat); // the Reef: the pounce slot is the held kick button
+        hud.setFloat(player.canFloat); // and the key strip says hold Space to float
       }
       updateMoments(session, dt);
       if (session.questGiver?.marker?.visible) {

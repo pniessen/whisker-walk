@@ -433,6 +433,18 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle,
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(String(m.n), x, y + 0.5);
+    } else if (m.kind === 'ladder') {
+      // The Reef's ladder: two rails and three rungs, small and white-on-ink.
+      ctx.lineCap = 'round';
+      for (const [col, w] of [[INK, 3.4], ['#fff', 1.8]]) {
+        ctx.strokeStyle = col;
+        ctx.lineWidth = w;
+        ctx.beginPath();
+        ctx.moveTo(x - 3, y - 6); ctx.lineTo(x - 3, y + 6);
+        ctx.moveTo(x + 3, y - 6); ctx.lineTo(x + 3, y + 6);
+        for (const dy of [-3.5, 0, 3.5]) { ctx.moveTo(x - 3, y + dy); ctx.lineTo(x + 3, y + dy); }
+        ctx.stroke();
+      }
     } else if (m.kind === 'pad') {
       ctx.beginPath();
       ctx.arc(x, y, 5.5, 0, Math.PI * 2);
