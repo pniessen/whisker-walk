@@ -65,8 +65,8 @@ describe('the journal ids', () => {
   const IDS = ['mnstation', 'mnsignal', 'mnrelay', 'mnsled', 'mnlap'];
   it('five ids at the very end of JOURNAL_TYPES, with names, hidden until their wing is live', () => {
     expect(MOON_WING_PAGES.map((p) => p[0])).toEqual(IDS);
-    expect(JOURNAL_TYPES.slice(-5)).toEqual(IDS);
-    expect(JOURNAL_TYPES.indexOf('ccsong')).toBe(JOURNAL_TYPES.length - 6); // the Crystal Cave's six come first
+    expect(JOURNAL_TYPES.slice(JOURNAL_TYPES.indexOf('mnstation'), JOURNAL_TYPES.indexOf('mnstation') + 5)).toEqual(IDS); // (N0's placeholder ids follow)
+    expect(JOURNAL_TYPES.indexOf('ccsong')).toBe(JOURNAL_TYPES.indexOf('mnstation') - 1); // the Crystal Cave's six come first
     expect(new Set(JOURNAL_TYPES).size).toBe(JOURNAL_TYPES.length);
     for (const id of IDS) { expect(MOON_PAGE_WORDS[id].name()).toMatch(/\S/); expect(wingPageShown(id), id).toBe(!!WING_LIVE[id]); }
     expect(wingPageShown('mnstory')).toBe(true);
