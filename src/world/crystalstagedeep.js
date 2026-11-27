@@ -8,22 +8,34 @@ import { crystalDeepOn } from '../crystalflag.js';
 import { DEEP_CLEARS, deepColliders, deepPerches } from './crystaldeepplan.js';
 import { createDeepLife } from './crystaldeeplive.js';
 import { withLiving, LIVING_SLOT } from './crystaldeeptinklive.js'; // C4: the creature of the story (prompt, interact, credit, goalFor)
+import { createDeepErrand } from './crystaldeeperrandlive.js'; // C6: Tink errand of the day
 
 if (crystalDeepOn()) for (const c of DEEP_CLEARS) if (!CRYSTAL_CLEARS.includes(c)) CRYSTAL_CLEARS.push(c);
 
 let current = null; // the live of this walk
+let errandNow = null; // the errand of this walk (C6)
 function track(live) { const end = live.dispose; current = live; live.dispose = () => { if (current === live) current = null; end(); }; return live; }
 
 Object.assign(ST, {
   deep: Object.freeze({
     colliders: () => (crystalDeepOn() ? deepColliders() : []),
     perches: () => (crystalDeepOn() ? deepPerches() : []),
-    life: (ctx) => (crystalDeepOn() ? withLiving(ctx, track(createDeepLife(ctx))) : null),
-    goalFor: LIVING_SLOT.goalFor,
+    life: (ctx) => {
+      if (!crystalDeepOn()) return null;
+      const base = track(createDeepLife(ctx));
+      const live = withLiving(ctx, base);
+      const errand = createDeepErrand({ ...ctx, steps: base.steps });
+      errandNow = errand;
+      return Object.create(live, {
+        update: { value: (dt, t, catPos) => { live.update(dt, t, catPos); errand.update(dt, t, catPos); } },
+        dispose: { value: () => { if (errandNow === errand) errandNow = null; errand.dispose(); live.dispose(); } },
+      });
+    },
+    goalFor: (prev, errand) => { const g = LIVING_SLOT.goalFor(prev, errand); return g !== prev ? g : errandNow?.goalFor(prev, errand) ?? prev; },
   }),
 });
 // C3 (the wall and prisms) and C4 (the creature): the prompt, the action button and a partner step reach both lives made for this walk. Both prompts are asked every frame so each keeps its own target; the wall answers first.
 Object.assign(ST, { deep: Object.freeze({ ...ST.deep,
-  promptAt: (p) => { const w = current?.promptAt(p) ?? null; const t = LIVING_SLOT.promptAt(p); return w ?? t; },
-  interact: () => current?.interact() ?? LIVING_SLOT.interact(),
-  credit: (ev) => current?.credit(ev) ?? LIVING_SLOT.credit(ev) }) });
+  promptAt: (p) => { const w = current?.promptAt(p) ?? null; const t = LIVING_SLOT.promptAt(p); const e = errandNow?.promptAt(p) ?? null; return w ?? t ?? e; },
+  interact: () => current?.interact() ?? LIVING_SLOT.interact() ?? errandNow?.interact() ?? null,
+  credit: (ev) => current?.credit(ev) ?? LIVING_SLOT.credit(ev) ?? errandNow?.credit(ev) ?? null }) });
