@@ -320,9 +320,8 @@ export function bladeGeometry() {
 export const SWAY = Object.freeze({ amp: 0.4, speed: 0.9, rest: 0.5 });
 // The kelp's material: lit, vertex-coloured, two-sided, its sway a time uniform (kelp.time.value) the life advances. At time 0 the blades stand at rest
 // (a little bent: SWAY.rest of the way), which is also what reduced motion shows.
-export function kelpMaterial() {
+export function kelpMaterial(time = { value: 0 }) {
   const mat = litMaterial(0xffffff, { vertexColors: true, roughness: 0.8, side: THREE.DoubleSide });
-  const time = { value: 0 };
   mat.userData.kelpTime = time;
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uReefT = time;
