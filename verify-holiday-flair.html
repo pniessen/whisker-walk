@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Holiday flair: home and Menu pictures</title>
+<!-- Holiday keepsakes H5 (docs/superpowers/plans/2026-11-27-holiday-merch.md): the home screen's light strip, badge and greeting, and the Menu header,
+     drawn by the real src/ui/holidayflair.js over the real style.css on a stand-in of the home markup (the real home needs a cat and a save).
+     Pass ?shot=<holiday>[-<form>]: holiday is christmas | hanukkah | winter (hanukkah shows night 3), form is home (default) | menu | phone | tv | still.
+     Contract for scripts/record-page.mjs: window.__ready is true after the first frame; window.__shot(name) returns name once drawn. -->
+<style>html, body { margin: 0; height: 100%; background: #1c2431; }</style>
+</head>
+<body>
+<div id="homebase"></div>
+<script type="module">
+  import '/src/style.css';
+  import { mountFlair } from '/src/ui/holidayflair.js';
+  import { setHolidayOverride } from '/src/holidays.js';
+
+  const HOME = `<div class="dr dr-view-home" id="dr"><header class="dr-top"><h1 class="dr-title">🐾 Whisker Walk 2 · <span class="dr-edition">Clan</span></h1>
+    <div class="hb-pill hb-points">🐾 142</div><div class="hb-pill hb-rank">🏆 Warrior</div><div class="hb-pill dr-visit">🐾 Visit 23</div>
+    <button class="hb-menu-btn" aria-label="Menu"><span aria-hidden="true">☰</span><span class="hb-menu-word"> Menu</span></button></header>
+    <section class="dr-hero"><div class="dr-stage" id="dr-stage"><div class="dr-hero-text"><div class="dr-hero-name">Mittens</div><div class="dr-hero-blurb">A fluffy ginger tabby.</div><div class="dr-hero-rank">Warrior</div></div></div></section>
+    <footer class="dr-dock"><button id="btn-start" class="start">Start the walk</button></footer></div>`;
+  const MENU = `<section class="hb-menu"><h2 id="hb-menu-title">Menu</h2><p class="hb-menu-stats"><span>🐾 142 paws</span><span>Visit 23</span></p>
+    <div class="hb-tiles"><button class="hb-tile"><span class="hb-tile-icon">🎒</span><span class="hb-tile-name">Skills</span></button><button class="hb-tile"><span class="hb-tile-icon">📖</span><span class="hb-tile-name">Journal</span></button></div></section>`;
+
+  function shot(name) {
+    const [holiday, form = 'home'] = name.split('-');
+    const html = document.documentElement;
+    html.classList.remove('phone', 'tv', 'hf-still');
+    if (form === 'phone') html.classList.add('phone');
+    if (form === 'tv') { html.classList.add('tv'); html.style.setProperty('--tv-s', '1.4'); }
+    setHolidayOverride({ holiday, night: holiday === 'hanukkah' ? 3 : null });
+    const host = document.getElementById('homebase');
+    host.innerHTML = form === 'menu' ? `<div style="padding:24px;max-width:560px">${MENU}</div>` : HOME;
+    mountFlair(host, { pick: 'auto', reduced: form === 'still' });
+    return name;
+  }
+  window.__shot = shot;
+  window.__ready = false;
+  shot(new URLSearchParams(location.search).get('shot') ?? 'hanukkah-home');
+  requestAnimationFrame(() => requestAnimationFrame(() => { window.__ready = true; }));
+</script>
+</body>
+</html>

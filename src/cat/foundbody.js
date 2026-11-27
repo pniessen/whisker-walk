@@ -266,7 +266,7 @@ function geltPouch({ onBack, floatOn, floatString }) {
   const put = (geo, hex, y) => { const m = new THREE.Mesh(geo.scale(1.5, 1.5, 1.5), litMaterial(hex)); m.position.set(0, y, 0.4); floatOn(m, foot); };
   floatString(foot, top, 0.0035);
   put(new THREE.SphereGeometry(0.05, 7, 5), 0x2f5fb0, 0.87);
-  put(mergeGeometries([0, 1, 2].map((i) => new THREE.CylinderGeometry(0.017, 0.017, 0.005, 8).rotateX(1.27 + i * 0.3).translate(i * 0.016 - 0.016, 0.03 + i % 2 * 0.008, i * 0.01))), 0xf2c14e, 0.9);
+  put(mergeGeometries([0, 1].map((i) => new THREE.CylinderGeometry(0.017, 0.017, 0.005, 8).rotateX(1.3 + i * 0.4).translate(i * 0.03 - 0.015, 0.03, 0))), 0xf2c14e, 0.9);
 }
 // Menorah Glow (a Hanukkah earned piece): a small silver menorah floating on a string over the shoulders: nine lights, eight in a row
 // and the shamash standing higher in the middle, lit by the night (nightOf): the shamash always, and one more candle each night,

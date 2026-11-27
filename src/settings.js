@@ -35,9 +35,12 @@ const DEFAULTS = {
   tvOfferDeclined: false,
   // "Screen layout" (src/profile.js): auto reads the device. Per device, like the rest of this file.
   profileOverride: 'auto',
+  // "Holiday decorations" (src/ui/holidayflair.js): auto shows the holiday that is on; or Christmas, Hanukkah, off. Per device.
+  holidayDecor: 'auto',
 };
 
 const PROFILE_OVERRIDE = ['auto', 'phone', 'tablet', 'laptop', 'tv'];
+const HOLIDAY_DECOR = ['auto', 'christmas', 'hanukkah', 'off'];
 
 // Resolved into a render tier by src/render/quality.js (resolveQuality) —
 // 'auto' starts every device on the high rung and adapts to its frame times
@@ -86,6 +89,7 @@ function sanitize(raw) {
     tvMode: typeof raw.tvMode === 'boolean' ? raw.tvMode : DEFAULTS.tvMode,
     tvOfferDeclined: typeof raw.tvOfferDeclined === 'boolean' ? raw.tvOfferDeclined : DEFAULTS.tvOfferDeclined,
     profileOverride: clampEnum(raw.profileOverride, PROFILE_OVERRIDE, DEFAULTS.profileOverride),
+    holidayDecor: clampEnum(raw.holidayDecor, HOLIDAY_DECOR, DEFAULTS.holidayDecor),
   };
 }
 
@@ -128,6 +132,7 @@ export function createSettings(storage) {
       if (key === 'volume') state = { ...state, volume: clampVolume(val, state.volume) };
       else if (key === 'musicVolume') state = { ...state, musicVolume: clampVolume(val, state.musicVolume) };
       else if (key === 'quality') state = { ...state, quality: clampEnum(val, QUALITY, state.quality) };
+      else if (key === 'holidayDecor') state = { ...state, holidayDecor: clampEnum(val, HOLIDAY_DECOR, state.holidayDecor) };
       else if (key === 'profileOverride') state = { ...state, profileOverride: clampEnum(val, PROFILE_OVERRIDE, state.profileOverride) };
       else if (key === 'cameraZoom') state = { ...state, cameraZoom: zoomStep(val, state.cameraZoom) };
       else state = { ...state, [key]: !!val };

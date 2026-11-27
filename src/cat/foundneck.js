@@ -620,12 +620,11 @@ const dressJingle = charm([0xc8303a, 0xf6f2e8], (u) => [
 ]);
 
 // Dreidel Charm (a Hanukkah shop item): a blue band piped silver, and at the throat a small spinning top: a four-sided blue body
-// with plain pale marks on its faces (no letters), a cone point below, a stem and knob above. Faces -z, one mesh.
+// with plain pale marks on its faces (no letters), a cone point below, a stem above. Faces -z, one mesh.
 const dressDreidel = charm([0x2f5fb0, 0xdfe6ee], (u) => [
   colour(new THREE.BoxGeometry(0.8 * u, 0.7 * u, 0.8 * u).translate(0, 0.15 * u, 0), (x, y, z) => (z < -0.38 * u && Math.abs(x) < 0.16 * u && Math.abs(y - 0.15 * u) < 0.2 * u ? 0xdfe6ee : 0x2f5fb0)),
   colour(new THREE.ConeGeometry(0.56 * u, 0.5 * u, 4).rotateX(Math.PI).rotateY(Math.PI / 4).translate(0, -0.45 * u, 0), 0x244c90),
-  colour(new THREE.CylinderGeometry(0.07 * u, 0.07 * u, 0.4 * u, 4).translate(0, 0.7 * u, 0), 0xc9d3e0),
-  colour(new THREE.SphereGeometry(0.12 * u, 4, 3).translate(0, 0.95 * u, 0), 0xc9d3e0),
+  colour(new THREE.CylinderGeometry(0.1 * u, 0.1 * u, 0.5 * u, 4).translate(0, 0.75 * u, 0), 0xc9d3e0),
 ]);
 
 export const FOUND_COLLARS = Object.freeze({
