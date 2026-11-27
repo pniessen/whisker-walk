@@ -105,7 +105,7 @@ const FLAG_RING = Object.freeze({ r0: 3.15, r1: 5.4, y: 0.012, color: 0x9a9284 }
 // The far town, round the shop fronts: blocks hazed by the fog, some tall
 // enough to show over the roofs.
 export const MARKET_HORIZON = Object.freeze({
-  kind: 'skyline', inner: 32, outer: 92, height: 16, wavelength: 40, blocks: 56, color: 0x8f8584, salt: 67,
+  kind: 'skyline', inner: 32, outer: 92, height: 16, wavelength: 40, blocks: 26, color: 0x8f8584, salt: 67,
 });
 
 // The fountain: the Park's (r 2.65 at its plinth) scaled to the plan's r 3.2,
@@ -1553,13 +1553,24 @@ function house(put, lit, cube, plane, u, w, k, si, K) {
   put(wb, mat4(mid, 0, -FRONT_DEPTH / 2, { sx: w, sy: h, sz: FRONT_DEPTH }), wall, true);
   wb.dispose();
   const rise = 1.6 + 1.0 * hash01(u, si, 89);
+  // each roof its own tone, a shade either way
+  const roofTone = shade(roof, 0.92 + 0.16 * hash01(u, si, 141));
   const prism = roofPrism(w, FRONT_DEPTH, rise, 0.3);
-  put(prism, mat4(u, h, 0), roof);
+  put(prism, mat4(u, h, 0), roofTone);
   prism.dispose();
-  // tile courses along the front slope
+  // tile courses along the front slope, a gutter on the eave and a cap along the ridge
   const slope = -Math.atan2(3.3, rise);
-  for (const t of [0.22, 0.5, 0.78]) put(plane, mat4(mid, h + rise * t + 0.05, 0.3 - 3.3 * t + 0.05 * rise / 3.3, { pitch: slope, sx: w, sy: 0.09 }), shade(roof, 0.8));
-  if (hash01(u, si, 91) < 0.6) put(cube, mat4(u + w * (0.25 + 0.5 * hash01(u, si, 93)), h + rise * 0.55, -FRONT_DEPTH / 2, { sx: 0.5, sy: rise * 0.45 + 0.9, sz: 0.6 }), 0x7a4a3a);
+  for (const t of [0.12, 0.3, 0.48, 0.66, 0.84]) put(plane, mat4(mid, h + rise * t + 0.05, 0.3 - 3.3 * t + 0.05 * rise / 3.3, { pitch: slope, sx: w, sy: 0.09 }), shade(roofTone, t > 0.5 ? 0.78 : 0.86));
+  put(cube, mat4(mid, h - 0.07, 0.3, { sx: w, sy: 0.1, sz: 0.1 }), 0x4a4f58);
+  put(cube, mat4(mid, h + rise - 0.02, -FRONT_DEPTH / 2, { sx: w, sy: 0.14, sz: 0.3 }), shade(roofTone, 0.68));
+  if (hash01(u, si, 91) < 0.6) {
+    // the chimney stack with its cap and a pot
+    const cx = u + w * (0.25 + 0.5 * hash01(u, si, 93));
+    const cy = h + rise * 0.55, ch = rise * 0.45 + 0.9;
+    put(cube, mat4(cx, cy, -FRONT_DEPTH / 2, { sx: 0.5, sy: ch, sz: 0.6 }), 0x7a4a3a);
+    put(cube, mat4(cx, cy + ch, -FRONT_DEPTH / 2, { sx: 0.66, sy: 0.12, sz: 0.76 }), 0xb9ad9a);
+    put(cube, mat4(cx, cy + ch + 0.12, -FRONT_DEPTH / 2, { sx: 0.2, sy: 0.28, sz: 0.2 }), 0xb5693f);
+  }
   // a dormer on some of the roofs, lit at dusk on half of them
   if (hash01(u, si, 101) < 0.34) {
     const dx = u + w * (0.3 + 0.4 * hash01(u, si, 103));
@@ -1578,6 +1589,9 @@ function house(put, lit, cube, plane, u, w, k, si, K) {
   put(plane, mat4(mid, h - 0.16, 0.03, { sx: w, sy: 0.3 }), light);
   put(plane, mat4(mid, h - 0.38, 0.025, { sx: w, sy: 0.14 }), dark);
   for (const px of [u + 0.14, u + w - 0.14]) put(plane, mat4(px, h / 2, 0.012, { sx: 0.28, sy: h }), light);
+  // brick courses on the brick-red walls, a drainpipe on some houses
+  if (wall === WALLS[2] || wall === WALLS[5]) for (let y = 3.7; y < h - 0.5; y += 0.5) put(plane, mat4(mid, y, 0.008, { sx: w - 0.3, sy: 0.04 }), shade(wall, 0.76));
+  if (hash01(u, si, 143) < 0.4) put(cube, mat4(u + w - 0.42, 0, 0.06, { sx: 0.1, sy: h - 0.1, sz: 0.1 }), shade(wall, 0.5));
   // the shop: a window, a door, a painted fascia band
   const doorLeft = hash01(u, si, 95) < 0.5;
   const dx = doorLeft ? u + 0.9 : u + w - 0.9;
