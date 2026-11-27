@@ -50,15 +50,12 @@ export function formatTable(rows, markdown = false) {
   return [line(head), w.map((n) => '-'.repeat(n)).join('  '), ...body.map(line)].join('\n') + '\n';
 }
 
+const HEADROOM_STAGED = ['moon', 'reef', 'crystal', 'snowville', 'jungle']; // the places this table lists, in its order
 export const CEILINGS = {
   start: B.MAIN_GZIP_CEILING_KB,
   area: B.AREA_GZIP_CEILING_KB,
   stage: {
-    moon: { each: B.MOON_STAGE_GZIP_CEILING_KB, total: B.MOON_TOTAL_GZIP_CEILING_KB },
-    reef: { each: B.REEF_STAGE_GZIP_CEILING_KB, total: B.REEF_TOTAL_GZIP_CEILING_KB },
-    crystal: { each: B.CRYSTAL_STAGE_GZIP_CEILING_KB, total: B.CRYSTAL_TOTAL_GZIP_CEILING_KB },
-    snowville: { each: B.SNOWVILLE_STAGE_GZIP_CEILING_KB, total: B.SNOWVILLE_TOTAL_GZIP_CEILING_KB },
-    jungle: { each: B.JUNGLE_STAGE_GZIP_CEILING_KB, total: B.JUNGLE_TOTAL_GZIP_CEILING_KB },
+    ...Object.fromEntries(HEADROOM_STAGED.map((id) => { const a = B.STAGED_AREAS.find((x) => x.id === id); return [id, { each: a.stageCeiling, total: a.totalCeiling }]; })),
   },
 };
 
@@ -69,7 +66,7 @@ export function measure(dir) {
   return {
     startKb: kbOf(B.startupFiles(manifest)),
     areas: mapKb(B.areaDownloads(manifest)),
-    stages: { moon: mapKb(B.moonDownloads(manifest)), reef: mapKb(B.reefDownloads(manifest)), crystal: mapKb(B.crystalDownloads(manifest)), snowville: mapKb(B.snowvilleDownloads(manifest)), jungle: mapKb(B.jungleDownloads(manifest)) },
+    stages: Object.fromEntries(HEADROOM_STAGED.map((id) => [id, mapKb(B.stagedAreaDownloads(manifest, B.STAGED_AREAS.find((x) => x.id === id)))])),
   };
 }
 

@@ -1,15 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createAreaLoader } from '../src/game/areaload.js';
+import { STAGED_AREAS } from '../scripts/buildjson.mjs';
 
 // A stage chunk that fails once (an offline blip) must not stay failed: the next ask refetches.
-const CASES = [
-  ['reef', '../src/world/reefstages.js', 'loadReefStages', '../src/world/reefstagewreck.js'],
-  ['crystal', '../src/world/crystalstages.js', 'loadCrystalStages', '../src/world/crystalstageplay.js'],
-  ['moon', '../src/world/moonstages.js', 'loadMoonStages', '../src/world/moonstagerover.js'],
-];
+// One case per row of STAGED_AREAS (scripts/buildjson.mjs): the loader is src/world/<id>stages.js, load<Id>Stages, and the chunk that goes offline is the place's first stage.
+const cap = (id) => id[0].toUpperCase() + id.slice(1);
+const CASES = STAGED_AREAS.map((a) => [a.id, `../src/world/${a.id}stages.js`, `load${cap(a.id)}Stages`, `../${a.stages[0][2][0]}`]);
 
 describe('stage loaders retry after a failed download', () => {
-  beforeEach(() => { vi.resetModules(); vi.doUnmock('../src/world/reefstagewreck.js'); });
+  beforeEach(() => { vi.resetModules(); for (const c of CASES) vi.doUnmock(c[3]); });
   for (const [name, mod, fn, dep] of CASES) {
     it(`${name}: the second call succeeds after the first import rejects`, async () => {
       let fail = true;
@@ -25,13 +24,16 @@ describe('stage loaders retry after a failed download', () => {
       vi.doUnmock(dep);
     });
   }
-  it('through the area loader: a failure then a retry loads the stage', async () => {
-    let fail = true;
-    vi.doMock('../src/world/reefstagewreck.js', () => { if (fail) throw new Error('offline'); return {}; });
-    const s = await import('../src/world/reefstages.js');
-    const loader = createAreaLoader({ loaders: { reef: () => s.loadReefStages().then(() => ({ id: 'reef', world: {}, life: {} })) } });
-    await expect(loader.ensure('reef')).rejects.toMatchObject({ kind: 'failed' });
-    fail = false;
-    expect((await loader.ensure('reef')).id).toBe('reef');
-  });
+  for (const [name, mod, fn, dep] of CASES) {
+    it(`${name}, through the area loader: a failure then a retry loads the stage`, async () => {
+      let fail = true;
+      vi.doMock(dep, () => { if (fail) throw new Error('offline'); return {}; });
+      const s = await import(mod);
+      const loader = createAreaLoader({ loaders: { [name]: () => s[fn]().then(() => ({ id: name, world: {}, life: {} })) } });
+      await expect(loader.ensure(name)).rejects.toMatchObject({ kind: 'failed' });
+      fail = false;
+      expect((await loader.ensure(name)).id).toBe(name);
+      vi.doUnmock(dep);
+    });
+  }
 });

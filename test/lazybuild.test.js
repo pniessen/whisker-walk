@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { realBuild } from './helpers/realbuild.js';
 import { AREA_ENTRY_MODULES } from '../src/world/areas.js';
-import { startupFiles, areaDownloads, lazyProblems, areaSizeProblems, sizeProblem } from '../scripts/buildjson.mjs';
+import { startupFiles, areaDownloads, lazyProblems, areaSizeProblems, sizeProblem, STAGED_AREAS, stageEntryModules, stagedAreaDownloads } from '../scripts/buildjson.mjs';
 
 let b;
 beforeAll(async () => { b = await realBuild('production'); }, 600_000);
@@ -57,50 +57,30 @@ describe('the real website build is split into start-up and places', () => {
   });
 });
 
-describe('the Moon is a landing chunk, four stage chunks and the late arrivals code', () => {
-  it('stage A (the landing) and each later stage are under their own ceiling, and all together under the total', async () => {
-    const { moonDownloads, MOON_STAGE_ENTRY_MODULES, lazyProblems: lp, MOON_STAGE_GZIP_CEILING_KB, MOON_TOTAL_GZIP_CEILING_KB } = await import('../scripts/buildjson.mjs');
-    expect(lp(b.manifest, MOON_STAGE_ENTRY_MODULES)).toEqual([]);
-    const dl = moonDownloads(b.manifest);
-    const kb = Object.fromEntries(Object.entries(dl).map(([id, fs]) => [id, fs.reduce((n, f) => n + b.gz(f), 0) / 1000]));
-    for (const id of ['moon', 'moonhill', 'moonlaunch', 'moonrover', 'moonstation', 'moonlate']) {
-      expect(dl[id].length, id).toBeGreaterThan(0);
-      expect(kb[id], id).toBeLessThanOrEqual(MOON_STAGE_GZIP_CEILING_KB);
-    }
-    expect(kb.moon).toBeLessThanOrEqual(64.98); // stage A, the landing, alone: 64.98 kB before X0's seams (the empty station slot must not grow it)
-    expect(startupFiles(b.manifest).some((f) => f.includes('moonstage'))).toBe(false);
-    expect(kb.total).toBeLessThanOrEqual(MOON_TOTAL_GZIP_CEILING_KB);
-  });
-});
+describe('every staged place is a landing chunk plus lazy stage chunks (STAGED_AREAS)', () => {
+  for (const area of STAGED_AREAS) {
+    it(`${area.id}: stage A and each later stage are under their ceiling, all together under the total, each stage lazy and out of start-up`, () => {
+      expect(lazyProblems(b.manifest, stageEntryModules(area))).toEqual([]);
+      const dl = stagedAreaDownloads(b.manifest, area);
+      const kb = Object.fromEntries(Object.entries(dl).map(([id, fs]) => [id, fs.reduce((n, f) => n + b.gz(f), 0) / 1000]));
+      for (const id of [area.id, ...area.stages.map(([name]) => name)]) {
+        expect(dl[id].length, id).toBeGreaterThan(0);
+        expect(kb[id], id).toBeLessThanOrEqual(area.stageCeiling);
+      }
+      expect(kb.total).toBeLessThanOrEqual(area.totalCeiling);
+      expect(startupFiles(b.manifest).some((f) => f.includes(`${area.id}stage`))).toBe(false);
+    });
+  }
 
-describe('the Reef is four chunks fetched together (R10 stage slots)', () => {
-  it('stage A and the lab, wreck and ride stages are each under their ceiling, all four under the total, and start-up is within the recorded figure', async () => {
-    const { reefDownloads, REEF_STAGE_ENTRY_MODULES, lazyProblems: lp, REEF_STAGE_GZIP_CEILING_KB, REEF_TOTAL_GZIP_CEILING_KB } = await import('../scripts/buildjson.mjs');
-    expect(lp(b.manifest, REEF_STAGE_ENTRY_MODULES)).toEqual([]);
-    const dl = reefDownloads(b.manifest);
-    const kb = Object.fromEntries(Object.entries(dl).map(([id, fs]) => [id, fs.reduce((n, f) => n + b.gz(f), 0) / 1000]));
-    for (const id of ['reef', 'reeflab', 'reefwreck', 'reefride']) {
-      expect(dl[id].length, id).toBeGreaterThan(0);
-      expect(kb[id], id).toBeLessThanOrEqual(REEF_STAGE_GZIP_CEILING_KB);
-    }
-    expect(kb.total).toBeLessThanOrEqual(REEF_TOTAL_GZIP_CEILING_KB);
+  it('the Moon landing alone stays at 64.98 kB or less (the empty station slot must not grow it)', () => {
+    const area = STAGED_AREAS.find((a) => a.id === 'moon');
+    const kb = stagedAreaDownloads(b.manifest, area).moon.reduce((n, f) => n + b.gz(f), 0) / 1000;
+    expect(kb).toBeLessThanOrEqual(64.98); // 64.98 kB before X0's seams
+  });
+
+  it('start-up is within the recorded figure', () => {
     const startKb = startupFiles(b.manifest).reduce((n, f) => n + b.gz(f), 0) / 1000;
     const { kb: pinnedKb, slack } = JSON.parse(readFileSync(new URL('./fixtures/startup-kb.json', import.meta.url), 'utf8'));
     expect(startKb).toBeLessThanOrEqual(pinnedKb + slack); // the figure lives in test/fixtures/startup-kb.json (history in its "history" key); re-record with scripts/recordstartup.mjs
-  });
-});
-
-describe('the Crystal Cave is three chunks fetched together (X0 stage slots)', () => {
-  it('stage A and the two wing C stages are each under their ceiling, all three under the total, each stage lazy, and start-up grew by 0.3 kB or less', async () => {
-    const { crystalDownloads, CRYSTAL_STAGE_ENTRY_MODULES, lazyProblems: lp, CRYSTAL_STAGE_GZIP_CEILING_KB, CRYSTAL_TOTAL_GZIP_CEILING_KB } = await import('../scripts/buildjson.mjs');
-    expect(lp(b.manifest, CRYSTAL_STAGE_ENTRY_MODULES)).toEqual([]);
-    const dl = crystalDownloads(b.manifest);
-    const kb = Object.fromEntries(Object.entries(dl).map(([id, fs]) => [id, fs.reduce((n, f) => n + b.gz(f), 0) / 1000]));
-    for (const id of ['crystal', 'crystalwingc', 'crystalplay']) {
-      expect(dl[id].length, id).toBeGreaterThan(0);
-      expect(kb[id], id).toBeLessThanOrEqual(CRYSTAL_STAGE_GZIP_CEILING_KB);
-    }
-    expect(kb.total).toBeLessThanOrEqual(CRYSTAL_TOTAL_GZIP_CEILING_KB);
-    expect(startupFiles(b.manifest).some((f) => f.includes('crystalstage'))).toBe(false);
   });
 });
