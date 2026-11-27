@@ -15,9 +15,9 @@ export const PASSAGE_GAP_DEG = 24; // half the hall wall opening at the passage,
 export const NEAR = 26; // the detail is drawn only within this of a site; beyond it a low stand-in glow stands in (the iPad 7 floor)
 export const HALL = f({ x: -28, z: -27, r: 4.5 });
 export const PASSAGE = f({ x: -28, z0: -21, z1: -22.6, halfW: 1.2 }); // the open width is 2 * halfW = 2.4 m
-// the golden mice stay where src/goldmice.js has them (C7 places them for good): gm-crystal-6 in the hall, gm-crystal-7 on the nest ledge
+// the golden mice stay where src/goldmice.js has them (C7 placed them for good): gm-crystal-6 in the hall, gm-crystal-7 on the nest ledge
 export const HALL_MOUSE = f({ id: 'gm-crystal-6', x: -28, z: -26, y: 0 });
-export const NEST_MOUSE = f({ id: 'gm-crystal-7', x: -31, z: -28, y: 0 });
+export const NEST_MOUSE = f({ id: 'gm-crystal-7', x: -31, z: -28, y: 0.9 });
 
 // ---- the rectangles the rim rocks and pebbles are taken out of (after the scatter) ----------------------------------------------------------
 export const HALL_CLEAR = f({ minX: -34, maxX: -22, minZ: -33, maxZ: -20.5 });

@@ -239,9 +239,9 @@ export const GOLD_MICE = {
     // wing C stubs (milestone X0; placed in C2): the mushroom grotto's floor (on foot) and the forge's shelf (one hop, within perch reach).
     { id: 'gm-crystal-4', x: 25, z: 12, y: 0 },
     { id: 'gm-crystal-5', x: -25, z: 19.5, y: 1.0 }, // C2: on the forge's stone shelf (src/world/crystalgrottoplan.js SHELF), one hop of 1.0 from the floor
-    // second story stubs (C0; placed for real in C7): the Echo Deep's hall floor and Tink's nest ledge (lifted one hop in C7), in the south-west pocket the hall will fill
+    // second story (C7 placed them): the Echo Deep's hall floor and Tink's nest ledge (lifted one hop of 0.9 in C7), in the south-west pocket the hall will fill
     { id: 'gm-crystal-6', x: -28, z: -26, y: 0 },
-    { id: 'gm-crystal-7', x: -31, z: -28, y: 0 },
+    { id: 'gm-crystal-7', x: -31, z: -28, y: 0.9 },
   ],
   // Snowville (milestone V3; src/world/snowvillefindsplan.js SNOWVILLE_GOLD holds the same three, test/snowvillefinds.test.js; bounds 80 x 72 m): on the snow behind the baker's house, in the pond-side stump's
   // hollow, and by the sled hill's rock. The first two are on foot; V5 drew the hill rock (src/world/snowvillewingplan.js HILL_ROCK, 1.0 m, one hop from the snow beside it) and lifted the last onto it. Not in KEEP_OUT (it already holds their places).
