@@ -8,6 +8,7 @@ describe('navigation timeout (L1)', () => {
     const env = makeEnv();
     env.net.deploy('b1', ['assets/a.js']);
     env.net.serve('index.html', '<html>shell</html>');
+    env.net.serve('', '<html>shell</html>'); // (the scope URL and index.html are the same page; the worker caches both)
     const w = await deployWorker(env);
     env.net.fetch = () => new Promise(() => {});
     vi.useFakeTimers();
