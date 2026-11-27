@@ -47,10 +47,10 @@ describe('the table', () => {
     expect(PM.own).toBe(false);
     expect(MP.own).toBe(true); // the Moon draws its own ring stones
   });
-  it('needWalks is the Moon plan\'s rule: two Park walks (no catalog row yet: it would put a Moon card in the home-base picker)', () => {
+  it('needWalks is the Moon plan\'s rule: two Park walks (the catalog row says it too)', () => {
     expect(PM.needWalks).toBe(2);
     expect(T.MOON_NEED_WALKS).toBe(2);
-    expect(Object.hasOwn(CATALOG.areas, 'moon')).toBe(false);
+    expect(CATALOG.areas.moon).toEqual({ name: 'The Moon', price: 0, requires: { area: 'park', walks: T.MOON_NEED_WALKS }, gate: 'tele' });
   });
   it('she lands beside the ring she came out of: 3.6 m out, facing it (TELE_ARRIVAL_FACING toward), both ways', () => {
     expect(T.TELE_ARRIVAL_FACING).toBe('toward');
@@ -221,7 +221,7 @@ describe('through the whole walk and home again', () => {
     vi.advanceTimersByTime(GATE_MOMENT_MS);
     let s = h.getSession();
     expect(s.areaId).toBe('moon');
-    expect(h.progression.state.area).toBe('park'); // an override: the Moon has no catalog row, nothing bought, no area changed
+    expect(h.progression.state.area).toBe('moon'); // a walk into the Moon is a 'take' now (it has a catalog row, price 0)
     const p = s.cat.position;
     expect(Math.hypot(p.x - MP.arrive.x, p.z - MP.arrive.z)).toBeLessThan(1);
     expect(s.cat.rotation.y).toBeCloseTo(0, 5); // facing the ring (rotation 0 faces -z)

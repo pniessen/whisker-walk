@@ -20,8 +20,7 @@ export const TELE_SWIRL_MS = 1200; // the swirl, full motion
 export const TELE_FADE_MS = 400; // the gentle fade, reduced motion
 export const TELE_SLOW_MS = 1500; // a place still not here by now: "Nearly there!"
 export const TELE_PAIR_CAP = 6; // gate pairs per release (a test constant)
-// Park walks before the Moon gate wakes (the Moon plan's rule: 2). The Moon has no catalog row until the map milestone (a row
-// would put a Moon card in the home-base picker), so the number lives here; a test keeps the rule honest.
+// Park walks before the Moon gate wakes (the Moon plan's rule: 2). CATALOG.areas.moon.requires says it too; the number lives here; a test keeps the rule honest.
 export const MOON_NEED_WALKS = 2;
 // Park walks before the Greenhouse's archway wakes (the same rule; CATALOG.areas.greenhouse.requires says it too, and a test keeps them equal).
 export const GREENHOUSE_NEED_WALKS = 2;
@@ -129,12 +128,11 @@ export const TELE_ENDS = Object.freeze({
 
 export const teleEnds = (areaId) => (typeof areaId === 'string' && Object.hasOwn(TELE_ENDS, areaId) ? TELE_ENDS[areaId] : []);
 
-// A place with no catalog row (the Moon) counts as built behind the gates switch, and has no name in the catalog, so its
-// name is here. (The Greenhouse has its row since G4; its `gate: 'tele'` keeps it out of the cards while the switch is off.)
+// Every gate place has a catalog row now (its `gate: 'tele'` keeps it out of the cards while the switch is off); these names are the fallback.
 const NAMES = { greenhouse: 'The Greenhouse', reef: 'The Reef', crystal: 'The Crystal Cave', moon: 'The Moon' };
 export function placeLive(to, catalog) {
   const areas = catalog && catalog.areas;
-  return (!!areas && Object.hasOwn(areas, to)) || to === 'moon'; // (the Moon: behind ?gates=1 already)
+  return !!areas && Object.hasOwn(areas, to);
 }
 export const teleName = (to, edition, catalog) => H.placeName(to, edition, catalog) || NAMES[to] || '';
 

@@ -148,7 +148,7 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(foundWearIn('moon').map((r) => r.name())).toEqual(['Starlight Cape']);
     expect(withOffWords(() => foundWearIn('moon').map((r) => r.name()))).toEqual(['Starlight Cape']);
     expect(CATALOG.accessories.starlightcape).toMatchObject({ slot: 'body', price: 0, prize: true, find: 'moon' });
-    expect(Object.hasOwn(CATALOG.areas, 'moon')).toBe(false);
+    expect(Object.hasOwn(CATALOG.areas, 'moon')).toBe(true);
   });
   // Reef milestone R3 (2026-11-26): one collar (a pearl charm), hidden in four places under the sea, behind ?reef=1 (no catalog place yet)
   it('the Reef hides one outfit, the Pearl Collar, a collar with a plain name in either set, in four spots; the Reef has a catalog row, hidden while the gates switch is off', () => {

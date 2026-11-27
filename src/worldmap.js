@@ -52,6 +52,17 @@ export const STREET_PLACES = freezeAll([
 // Land colours for the street places, as territories.js's LAND is for hers.
 export const STREET_LAND = Object.freeze({ park: '#b9dc8f', fair: '#e9b7c9', farm: '#e3cf7e', docks: '#b7b9bf', seaside: '#ecdca8', lighthouse: '#cfdad2', greenhouse: '#bfe3b5' });
 
+// Places she reaches by a teleport gate and may then go back to by the map: the Reef, out in the sea east of the coast, and the
+// Crystal Cave, a small pennant by the Docks (interconnectivity I1). A circle is drawn ONLY once she has walked the place
+// (state.walks[id] >= 1), so the map never gives away a gate before she finds it; it is shown by areaShown like the Greenhouse's.
+// r 46 as the smallest circles (the pan's zoom-out floor keeps that 44 px across). The Moon's is in the top margin, in the sky.
+export const GATE_PLACES = freezeAll([
+  { id: 'reef', areaId: 'reef', x: 1415, y: 690, r: 46 },
+  { id: 'crystal', areaId: 'crystal', x: 710, y: 810, r: 46 },
+  { id: 'moon', areaId: 'moon', x: 900, y: 52, r: 46 },
+]);
+export const GATE_LAND = Object.freeze({ reef: '#9fd6dc', crystal: '#d9c4ec', moon: '#cfd3e6' });
+
 // Places inside the town, drawn on top of it: the Rooftops, up the back
 // alley's fire escape (draft 2's "Rooftops"), and the Market Square, on the
 // town's south-east rim (Market step 4, V19; r 46 as the Rooftops', not the
@@ -129,6 +140,11 @@ export function worldMapModel(state, catalog, { touch = false } = {}) {
       id: p.id, areaId: p.areaId, x: p.x, y: p.y, r: p.r,
       // (a street place the catalog does not have yet is not built)
       kind: 'street', name: placeName(p.areaId, edition, catalog), status: catalog?.areas?.[p.areaId] ? 'built' : 'soon', camp: null,
+      ...placeState(state, catalog, p.areaId, { touch }),
+    })),
+    ...GATE_PLACES.filter((p) => areaShown(catalog?.areas?.[p.areaId], edition) && Number(state?.walks?.[p.id]) >= 1).map((p) => ({
+      id: p.id, areaId: p.areaId, x: p.x, y: p.y, r: p.r,
+      kind: 'gate', name: placeName(p.areaId, edition, catalog), status: 'built', camp: null,
       ...placeState(state, catalog, p.areaId, { touch }),
     })),
     ...TOWN_PLACES.filter((p) => areaInEdition(catalog?.areas?.[p.areaId], edition)).map((p) => ({
