@@ -189,8 +189,10 @@ export const MERGE_RULES = Object.freeze({
     step: Math.max(r.L.crystal.step, r.C.crystal.step), sparks: r.L.crystal.sparks | r.C.crystal.sparks, album: r.L.crystal.album | r.C.crystal.album,
     forge: r.L.crystal.forge | r.C.crystal.forge, songs: r.L.crystal.songs | r.C.crystal.songs,
   }),
-  // Snowville, the Treehouse, the Jungle (N0): the story only moves on (step max), the album is a union of bits.
-  ...Object.fromEntries(['snowville', 'treehouse', 'jungle'].map((k) => [k, (r) => ({ step: Math.max(r.L[k].step, r.C[k].step), album: r.L[k].album | r.C[k].album })])),
+  // Snowville: the story only moves on (step max), the candles and the album are unions of bits (the sanitiser fills the candles the step implies).
+  snowville: (r) => ({ step: Math.max(r.L.snowville.step, r.C.snowville.step), candles: r.L.snowville.candles | r.C.snowville.candles, album: r.L.snowville.album | r.C.snowville.album }),
+  // The Treehouse, the Jungle (N0): the story only moves on (step max), the album is a union of bits.
+  ...Object.fromEntries(['treehouse', 'jungle'].map((k) => [k, (r) => ({ step: Math.max(r.L[k].step, r.C[k].step), album: r.L[k].album | r.C[k].album })])),
   den: (r) => ({
     owned: union(r.L.den.owned, r.C.den.owned),
     placed: newer(r.L.den.placed, r.C.den.placed, r.B?.den?.placed, r.ctx),

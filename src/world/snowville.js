@@ -13,6 +13,7 @@ import { withLocalUuids } from './localuuids.js';
 import * as P from './snowvilleplan.js';
 import * as K from './snowvilleparts.js';
 import { createSnowvilleLight } from './snowvillelight.js';
+import { createTilly, createSnowvillePrompts } from './snowvillelife.js';
 import './snowvillewords.js';
 import { ST } from './snowvillestages.js'; // the two stages' slots (filled by their chunks, loaded with this one: areas.js)
 
@@ -67,13 +68,20 @@ export function build(scene) {
       strays: false,
       goalTypes: Object.freeze(['collectible', 'photo', 'scenic']),
       ground: P.createSnowvilleGround(),
-      // the flakes, the glints, the brazier's glow and her cheeks; Tilly and the story come with the next milestone
+      // the flakes, the glints, the brazier's glow and her cheeks, with Tilly and chapter one (milestone V2) on top
       life: (ctx) => {
         const light = createSnowvilleLight(ctx);
+        const tilly = createTilly({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
+        const prompts = createSnowvillePrompts(tilly);
         return {
           light,
-          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); },
-          dispose() { light.dispose(); },
+          tilly,
+          promptAt: (catPos) => prompts.promptAt(catPos),
+          interact: () => prompts.interact(),
+          // a step done by anyone in the room (an `sv-` event); a stage's own steps join this line with their stage
+          credit: (ev) => tilly.credit(ev),
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); },
+          dispose() { tilly.dispose(); light.dispose(); },
         };
       },
     };

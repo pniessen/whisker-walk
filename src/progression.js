@@ -605,7 +605,7 @@ function defaultState() {
     // rubbings album (12 bits). Additive: SAVE_VERSION stays 4.
     crystal: { step: 0, sparks: 0, album: 0, forge: 0, songs: 0 },
     // Snowville, the Treehouse and the Jungle (milestone N0): each a story step and an album bitmask, nothing earns them yet.
-    snowville: { step: 0, album: 0 }, treehouse: { step: 0, album: 0 }, jungle: { step: 0, album: 0 },
+    snowville: { step: 0, candles: 0, album: 0 }, treehouse: { step: 0, album: 0 }, jungle: { step: 0, album: 0 },
     den: { owned: [], placed: {} },
     // v18 Cat Skills. `skills` is the list of ability ids already earned —
     // stored rather than derived so a later threshold change can never
@@ -969,6 +969,12 @@ function sanitizeCrystal(v) {
   // forge: bits 0-2 the three ingredients, bit 3 the circlet made (implies all three); songs: bits 0-2 the three tunes learned.
   return { step, sparks: n(v?.sparks, 7) | CRYSTAL_SPARKS_AT[step], album: n(v?.album, 4095), forge: reefLab(n(v?.forge, 15)), songs: n(v?.songs, 7) };
 }
+const SNOWVILLE_CANDLES_AT = [0, 0, 1, 3, 7, 7, 7, 7]; // the candles each step implies (src/world/snowvillemission.js pins the same table)
+function sanitizeSnowville(v) {
+  const n = (x, hi) => Math.min(hi, asFiniteNonNegInt(x, 0));
+  const step = n(v?.step, 7);
+  return { step, candles: n(v?.candles, 7) | SNOWVILLE_CANDLES_AT[step], album: n(v?.album, 4095) };
+}
 function sanitizeNewArea(v) {
   const n = (x, hi) => Math.min(hi, asFiniteNonNegInt(x, 0));
   return { step: n(v?.step, 7), album: n(v?.album, 4095) };
@@ -1307,7 +1313,7 @@ function sanitizeState(parsed) {
     moon: sanitizeMoon(parsed.moon),
     reef: sanitizeReef(parsed.reef),
     crystal: sanitizeCrystal(parsed.crystal),
-    snowville: sanitizeNewArea(parsed.snowville),
+    snowville: sanitizeSnowville(parsed.snowville),
     treehouse: sanitizeNewArea(parsed.treehouse),
     jungle: sanitizeNewArea(parsed.jungle),
     den: sanitizeDen(parsed.den),
