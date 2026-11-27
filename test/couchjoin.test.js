@@ -44,7 +44,7 @@ describe('joining before the walk starts', () => {
     const r = readyRig();
     seatBoth(r);
     expect(r.h.state.joined).toBe(true);
-    expect(r.line().attrs['aria-label']).toBe('Mochi and Siamese are both in.');
+    expect(r.line().attrs['aria-label']).toBe('Mochi and Siamese are both in. Second player: press △ to swap cats.');
     expect(find(r.doc, 'coop-join').hidden).toBe(true);
     r.player.setTouchEngaged(true); r.kind.v = 'walk'; r.tick(3);
     expect(r.h.state.joined).toBe(true);
