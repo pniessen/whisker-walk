@@ -6,6 +6,7 @@
 <!-- Holiday keepsakes H6 (docs/superpowers/plans/2026-11-27-holiday-merch.md): the real area builders dressed by the real src/world/holidaydecor.js,
      in the game's own light rig (the sun, the fill, the shadow fit), seen from a hand-picked camera.
      Pass ?shot=<place>-<holiday>-<view>: place is neighborhood | park | farm | market | house; holiday is christmas | hanukkah | winter (hanukkah shows night 3);
+     the finds (H7): ?shot=park-christmas-finds draws an ornament, a dreidel and a gold coin close up on the Park's lawn;
      views: neighborhood street | park tree, menorah, fountain | farm barn, yard | market square, stalls, dreidel | house parlour, sill.
      Contract for scripts/record-page.mjs: window.__ready is true after the first frame; window.__shot(name) returns name once drawn. -->
 <style>html, body { margin: 0; background: #223; }</style>
@@ -20,7 +21,7 @@
   import { createShadowFit } from '/src/render/shadowfit.js';
   import { mergeStaticProps } from '/src/render/mergeprops.js';
   import { setHolidayOverride } from '/src/holidays.js';
-  import * as decor from '/src/world/holidaydecor.js';
+  import * as decor from '/src/world/holidayfinds.js';
   import { loadHouseStages } from '/src/world/housestages.js';
 
   const W = 960, H = 540;
@@ -59,6 +60,7 @@
     'market-dreidel': [[14, 2.6, -15.5], [20.2, 1.1, -13]],
     'house-parlour': [[8.5, 1.9, 4.2], [13.4, 0.9, 7]],
     'house-sill': [[7, 1.5, 8.5], [5.7, 1.0, 11.8]],
+    'park-finds': [[0, 0.75, 33], [0, 0.4, 36]],
   };
 
   let sun = null;
@@ -77,6 +79,10 @@
     setHolidayOverride({ holiday, night: holiday === 'hanukkah' ? 3 : null });
     decor.dress(place, scene, area, { pick: 'auto', reducedMotion: true });
     setHolidayOverride(null);
+    if (view === 'finds') {
+      const plan = [['ornament', -0.5], ['dreidel', 0.1], ['gelt', 0.7]].map(([kind, x]) => ({ id: `hf-demo-${kind}`, kind, holiday: kind === 'ornament' ? 'christmas' : 'hanukkah', x, z: 36 }));
+      decor.createHolidayFinds(scene, { plan, reducedMotion: true });
+    }
     const [pos, look] = VIEWS[`${place}-${view}`];
     const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
     camera.position.set(...pos);

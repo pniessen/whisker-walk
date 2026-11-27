@@ -16,7 +16,7 @@
 // imports `three` itself makes the bundler split three.core out of the start-up bundle, which costs a kilobyte of start-up for a
 // chunk the walk fetches only in a season. (Handing in the whole namespace would defeat tree-shaking: 35 kB. Only these.)
 let THREE = null;
-export const NEEDS = Object.freeze(['BufferGeometry', 'BufferAttribute', 'BoxGeometry', 'ConeGeometry', 'CylinderGeometry', 'OctahedronGeometry', 'TorusGeometry', 'Mesh', 'MeshStandardMaterial', 'MeshBasicMaterial']);
+export const NEEDS = Object.freeze(['BufferGeometry', 'BufferAttribute', 'BoxGeometry', 'ConeGeometry', 'CylinderGeometry', 'OctahedronGeometry', 'TorusGeometry', 'Mesh', 'MeshStandardMaterial', 'MeshBasicMaterial', 'Group']);
 // `classes` are those, in NEEDS order (an array: the names are not repeated in the start-up bundle)
 export function bind(classes) { THREE = Object.fromEntries(NEEDS.map((k, i) => [k, classes[i]])); }
 import { activeHolidays, nightOf } from '../holidays.js';
@@ -200,10 +200,20 @@ function dreidel(kit, x, y, z, yaw, s, hex) {
   F.cyl(0.012, 0.012, 0.09, 4, 0, 0.245, 0, SILVER);
   kit.items.push({ kind: 'dreidel', x, y, z });
 }
-function gelt(kit, x, y, z, n) {
-  const F = kit.at(x, y, z);
+function gelt(kit, x, y, z, n, s = 1) {
+  const F = kit.at(x, y, z, 0, s);
   for (let i = 0; i < n; i++) F.cyl(0.04, 0.04, 0.012, 6, (i % 2) * 0.012, 0.006 + i * 0.013, 0, GOLD);
   kit.items.push({ kind: 'gelt', x, y, z });
+}
+
+// A bauble about 0.22 high at scale 1: two cones base to base, a gold cap and a loop.
+function ornament(kit, x, y, z, yaw, s, hex) {
+  const F = kit.at(x, y, z, yaw, s);
+  F.cone(0.11, 0.1, 8, 0, 0.05, 0, hex);
+  F.cone(0.11, 0.1, 8, 0, -0.05, 0, hex, { down: true });
+  F.cyl(0.035, 0.035, 0.05, 6, 0, 0.125, 0, GOLD);
+  F.box(0.015, 0.05, 0.015, 0, 0.17, 0, GOLD);
+  kit.items.push({ kind: 'ornament', x, y, z });
 }
 
 // A string of steady bulbs along a line from a to b, sagging by `sag` in the middle; n bulbs. The wire is a thin box per gap.
@@ -424,3 +434,6 @@ function dressNow(areaId, scene, areaData, set, { reducedMotion, sparse }) {
   }
   return { meshes, items, set };
 }
+
+// What the finds module (holidayfinds.js, the same chunk) draws with.
+export const KIT = { makeKit, ornament, dreidel, gelt, meshesOf, withLocalUuids, mulberry32, seedFromCode, three: () => THREE, RED, GOLD, BLUE, SILVER, WHITE, GREEN };

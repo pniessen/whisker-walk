@@ -39,7 +39,7 @@ import { latestMilestoneUpTo, milestoneIndex, styleFor, prizeFor, prizesWonBy } 
 import { FAIR_GAME_IDS, FAIR_PRIZES, gameJournalId, fairPrizesWonBy } from './fairprizes.js';
 import { FOUND_CATALOG } from './foundwear/index.js';
 import { GIFT_CATALOG } from './foundwear/gifts.js';
-import { HOLIDAY_CATALOG, sanitizeHolidays, mergeHolidays, holidayPiecesOwned, withHolidayBit, holidayPrizeIds } from './foundwear/holidaywear.js';
+import { HOLIDAY_CATALOG, sanitizeHolidays, mergeHolidays, holidayPiecesOwned, withHolidayBit, holidayPrizeIds, sanitizeHolidayFinds, mergeHolidayFinds, holidayKey, HOLIDAY_FINDS_NEEDED } from './foundwear/holidaywear.js';
 import { shelfOpen, holidayYear } from './holidays.js';
 import { sanitizeEvents, eventWear, eventWearOnOpen, isEventId, eventPresent } from './giftevents.js';
 // v21 Stream 3b: private per-area marks. marks.js is the pure rules half (its only
@@ -783,6 +783,9 @@ function defaultState() {
     // year, a bit per earned piece. Rebuilt into owned on every load; a merge ORs the masks. Additive, so SAVE_VERSION
     // stays 4: an older save starts with none.
     holidays: {},
+    // The holiday errand's counter (src/world/holidayfinds.js): { christmas2026: 2 }, the finds kept this window, one a walk, up to 3
+    // (then the earned piece is hers). A merge keeps the larger. Additive, so SAVE_VERSION stays 4: an older save starts with none.
+    holidayFinds: {},
     // Her own cats that a cat-login merge had no free slot for (src/catmerge.js).
     // Never deleted: one wakes into a slot when a slot is free. Additive, so
     // SAVE_VERSION stays 4: an older save has none.
@@ -1386,6 +1389,7 @@ function sanitizeState(parsed) {
     foundWear,
     events,
     holidays,
+    holidayFinds: sanitizeHolidayFinds(parsed.holidayFinds),
     sleepingCats: sanitizeSleepingCats(parsed.sleepingCats),
   };
   if (fm.added.length > 0) ADDED_MOVES.set(result, fm.added);
@@ -2342,6 +2346,20 @@ export function createProgression(storage) {
       save();
       return isNew;
     },
+    // recordHolidayFind(holiday[, now]) — one find of the holiday errand kept (an ornament, a dreidel or a gelt coin; the walk counts one a
+    // walk): { count, done, earned }. The third gives the holiday's earned piece (earned: true when it is new to her); more after that
+    // change nothing. Null outside the holiday's window (a ?holiday= override counts) or for Winter Lights. No paws.
+    recordHolidayFind(holiday, now = new Date()) {
+      const year = holiday === 'winter' ? null : holidayYear(holiday, now);
+      if (year === null) return null;
+      const key = holidayKey(holiday, year);
+      const had = state.holidayFinds[key] ?? 0;
+      if (had >= HOLIDAY_FINDS_NEEDED) return { count: had, done: true, earned: false };
+      const count = had + 1;
+      state.holidayFinds = { ...state.holidayFinds, [key]: count };
+      if (count < HOLIDAY_FINDS_NEEDED) { save(); return { count, done: false, earned: false }; }
+      return { count, done: true, earned: api.earnHolidayPiece(holiday, 0, now) };
+    },
     // recordFeat(type) — v18. Bumps the lifetime tally for one discovery
     // type by one. Its PRIMARY caller is pay() in discoveries.js, the single
     // funnel every award() / awardOnce() in the game already passes through.
@@ -2899,6 +2917,7 @@ export function createProgression(storage) {
       const localFound = state.foundWear;
       const localEvents = state.events;
       const localHolidays = state.holidays;
+      const localHolidayFinds = state.holidayFinds;
       const localVisits = state.visits;
       const localSeen = state.visitPrizesSeen;
       const localCustomCats = state.customCats;
@@ -2945,6 +2964,7 @@ export function createProgression(storage) {
       }
       // Holiday pieces likewise: either side's earned bits are kept, and their pieces owned.
       state.holidays = mergeHolidays(localHolidays, state.holidays);
+      state.holidayFinds = mergeHolidayFinds(localHolidayFinds, state.holidayFinds);
       for (const id of holidayPiecesOwned(state.holidays)) {
         if (!state.unlocked.accessories.includes(id)) state.unlocked.accessories.push(id);
       }

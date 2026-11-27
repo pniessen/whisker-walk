@@ -64,3 +64,15 @@ export const HOUSE = Object.freeze({
   tree: Object.freeze({ x: 13.2, z: 3.3, s: 0.55 }),
   sill: Object.freeze({ section: 'parlour-s-0', x: 5.7, y: 0.92, z: 11.78, yaw: 0, s: 0.75 }),
 });
+
+// The errand's finds (H7): hand-placed ground spots, four a place (three in the Old House), of which a walk shows at most two (an
+// ornament in the Christmas window, a dreidel or a gelt coin in the Hanukkah window). Ground level, on open ground a cat reaches on
+// foot from the spawn with no skill, none within 15 m of the spawn, none on a collider, collectible, golden mouse or found-outfit
+// spot of its place, and well clear of the decor (test/holidayfinds.test.js proves each against the built place).
+export const HOLIDAY_FIND_SPOTS = Object.freeze({
+  neighborhood: Object.freeze([[-7, 3], [20, 22], [-20, 12], [-14, -38]]),
+  park: Object.freeze([[8, 22], [-18, 26], [-5.5, 12], [16, -16]]),
+  farm: Object.freeze([[-9, 14], [10, 14], [-3, -4], [9, -18]]),
+  market: Object.freeze([[5, -3], [9, 3], [-15, 5], [3, -13]]),
+  house: Object.freeze([[11.5, -6], [7, -6], [12.5, -3.5]]), // the kitchen, on the ground level
+});

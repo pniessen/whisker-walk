@@ -26,9 +26,9 @@ import { lighthouseOn } from '../lighthouseflag.js';
 import { greenhouseShortcut } from '../greenhouseflag.js';
 import { tele } from '../telehook.js';
 import { activeHolidays } from '../holidays.js';
-import { BufferGeometry, BufferAttribute, BoxGeometry, ConeGeometry, CylinderGeometry, OctahedronGeometry, TorusGeometry, Mesh, MeshStandardMaterial, MeshBasicMaterial } from 'three';
+import { BufferGeometry, BufferAttribute, BoxGeometry, ConeGeometry, CylinderGeometry, OctahedronGeometry, TorusGeometry, Mesh, MeshStandardMaterial, MeshBasicMaterial, Group } from 'three';
 // the classes the holiday decor chunk draws with (it imports no three.js itself: see world/holidaydecor.js)
-const DECOR_THREE = [BufferGeometry, BufferAttribute, BoxGeometry, ConeGeometry, CylinderGeometry, OctahedronGeometry, TorusGeometry, Mesh, MeshStandardMaterial, MeshBasicMaterial];
+const DECOR_THREE = [BufferGeometry, BufferAttribute, BoxGeometry, ConeGeometry, CylinderGeometry, OctahedronGeometry, TorusGeometry, Mesh, MeshStandardMaterial, MeshBasicMaterial, Group];
 import { moonShortcut } from '../moonflag.js';
 import { reefShortcut } from '../reefflag.js';
 import { crystalShortcut } from '../crystalflag.js';
@@ -656,7 +656,7 @@ export function createWalkLifecycle({
   let decorLoad = null;
   function loadHolidayDecor() {
     if (decorMod || !/^(auto|christmas|hanukkah)$/.test(settings.get('holidayDecor')) || !activeHolidays().length) return null;
-    decorLoad ??= import('../world/holidaydecor.js').then((m) => { m.bind(DECOR_THREE); decorMod = m; }, () => { decorLoad = null; });
+    decorLoad ??= import('../world/holidayfinds.js').then((m) => { m.bind(DECOR_THREE); decorMod = m; }, () => { decorLoad = null; });
     return decorLoad;
   }
   // Every startWalk counts itself, so a walk-on's moment can tell whether a
@@ -2120,6 +2120,11 @@ export function createWalkLifecycle({
         ground, reducedMotion, onNear: () => audio.findChime?.(),
       })
       : NO_FIND;
+    // The holiday errand's finds (world/holidayfinds.js, only when its chunk came): off the same seed as the outfit find, its own stream.
+    session.holidayFinds = null;
+    if (decorMod) {
+      try { session.holidayFinds = decorMod.holidayFinds(scene, { areaId, pick: settings.get('holidayDecor'), seed: roomSeed ?? soloSeed, isDen, lessonKind: lessonPlan?.kind ?? null, ground, reducedMotion, onNear: () => audio.findChime?.() }); } catch (err) { note('area', err); }
+    }
 
     // v21 3b Task 12 — the rival border marks I scented over on earlier walks,
     // by saved id (`<area>-border-<ring>`), read here, BEFORE the rival slice
@@ -2804,6 +2809,7 @@ export function createWalkLifecycle({
     if (resume) restoreMarket(market, log);
     // ...and the find it had found is not on the ground.
     if (resume) restoreFind(session.find, { log });
+    if (resume) session.holidayFinds?.restore(log);
     hud.show();
     hud.setArea(placeName(areaId, progression.state.edition, CATALOG) || areaData.name);
     // Kittypets: the arrival line waits for the walk to start (the Ready? card
@@ -3071,6 +3077,7 @@ export function createWalkLifecycle({
     session.traversal?.dispose();
     session.goldMice.dispose();
     session.find.dispose();
+    session.holidayFinds?.dispose();
     session.rival.dispose();
     session.chasing = false;
     session.kittenEnc.dispose();

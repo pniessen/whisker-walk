@@ -799,6 +799,7 @@ describe('createProgression', () => {
         // 2026-11-21, gift events: nor opened any.
         events: [],
         holidays: {},
+        holidayFinds: {},
         sleepingCats: [],
       });
       // and it's genuinely playable, not just shaped right
@@ -2408,7 +2409,7 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, clanPick, customCats, moreCatSlots, outfits, usage, fightsWon, fightMoves, scars, scarredIntruders, tutorial, foundWear, events, holidays, sleepingCats, keptOffers, ...rest } = p.state;
+    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, clanPick, customCats, moreCatSlots, outfits, usage, fightsWon, fightMoves, scars, scarredIntruders, tutorial, foundWear, events, holidays, holidayFinds, sleepingCats, keptOffers, ...rest } = p.state;
     // World map step 1: 2 Park walks and no Seaside, so this old save keeps the old offer (after the Park, for 100).
     expect(keptOffers).toEqual(['seaside']);
     // 2026-11-15, guided-first-walk design (section 8): this save has points, so it is an existing player's.
@@ -2417,6 +2418,7 @@ describe('the colony save key', () => {
     expect(foundWear).toEqual([]);
     expect(events).toEqual([]);
     expect(holidays).toEqual({});
+    expect(holidayFinds).toEqual({});
     expect(sleepingCats).toEqual([]);
     expect(edition).toBe('canon');
     expect(customCats).toEqual([]);
