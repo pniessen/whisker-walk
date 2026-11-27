@@ -1,6 +1,7 @@
 // The words of the Echo Deep wall and prisms (second story, milestone C3): the offer at the singing wall, its toasts, the prism offer and its toasts. A lazy file (the deep stage chunk,
 // never start-up). Both word sets read the same plain lines (no series word, none of the banned words); every id is a literal (the phrase table scan reads them).
 import { addPhrases } from '../clanphrases.js';
+import { CRYSTAL_HINTS } from '../crystalpages.js';
 
 const same = (line) => () => line;
 
@@ -13,6 +14,12 @@ export const CRYSTAL_DEEP_WALL_LINES = Object.freeze({
   'crystal.deep.prism.fits': same('That one fits, and it glows.'),
   'crystal.deep.prism.done': same('The three prisms agree, and the door-crystal lights up!'),
   'crystal.deep.prism.partner': same('Your friend set the prisms, and the door-crystal glows.'),
+});
+
+// the hints of the journal for the two pages this walk fills
+Object.assign(CRYSTAL_HINTS, {
+  ccwall: 'The singing wall hums a little tune. Hum it back.',
+  ccprism: 'Three prisms fit one door. Turn each to match.',
 });
 
 addPhrases(CRYSTAL_DEEP_WALL_LINES);

@@ -13,6 +13,8 @@
 // =============================================================================
 import { phrase } from '../clanphrases.js';
 import { bus } from '../events.js';
+import { crystalDeepOn } from '../crystalflag.js';
+import { WING_LIVE } from '../crystalpages.js';
 import { crystalY } from './crystalplan.js';
 import * as D from './crystaldeepplan.js';
 import * as M from './crystaldeepmission.js';
@@ -22,6 +24,7 @@ import './crystaldeepwallwords.js';
 
 const say = (key, label) => bus.emit('discovery', { type: 'greenhousenote', key, label, points: 0, repeat: false });
 const THIRD = (Math.PI * 2) / 3;
+if (crystalDeepOn()) { WING_LIVE.wall = true; WING_LIVE.prism = true; } // the journal pages of the wall and the prisms show once the story is in the game (lazy file: no start-up growth)
 export const FLASH_HOLD = 0.9; // seconds a pad flash lasts
 export const OPEN_SECS = 2.5; // the wall slides open over this long
 export const LEAVE_R = 8; // a tune in the middle of being played is let go beyond this far from the chamber middle
