@@ -32,7 +32,7 @@ describe('seaside folk', () => {
 
   it('dresses them in swimwear: shorts, short sleeves, bare feet; the bare-chested top is skin', () => {
     const f = make();
-    for (const fig of f.figures) {
+    for (const fig of f.figures.filter((x) => x.role !== 'vendor')) {
       const look = fig.person.look;
       expect(look.bottom.kind, fig.id).toBe('shorts');
       expect(look.top.kind, fig.id).toBe('tshirt');
@@ -45,6 +45,20 @@ describe('seaside folk', () => {
     const adult = f.figures.find((x) => x.id === 'toss-adult').person.look;
     expect(kid.kind).toBe('child');
     expect(kid.height).toBeLessThan(adult.height - 0.2);
+    f.dispose();
+  });
+
+  it('puts a vendor behind each stand, in everyday clothes, and waves only when her cat is near', () => {
+    const f = make();
+    const vendors = f.figures.filter((x) => x.role === 'vendor');
+    expect(vendors).toHaveLength(2);
+    for (const v of vendors) expect(v.person.look.top.kind).toBe('tshirt');
+    const arm = (v) => v.person.bones.upperArmR.rotation.z;
+    const rest = arm(vendors[0]);
+    f.update(0.016, 1, { x: 0, z: 0 });
+    for (let i = 0; i < 40; i++) f.update(0.05, 2 + i * 0.05, vendors[0].group.position.clone().add(new THREE.Vector3(3, 0, 0)));
+    expect(Math.abs(arm(vendors[0]) - rest)).toBeGreaterThan(0.2);
+    expect(vendors[0].group.position.x).toBeCloseTo(plan.SEASIDE_VENDORS[0].vendorAt.x, 5);
     f.dispose();
   });
 

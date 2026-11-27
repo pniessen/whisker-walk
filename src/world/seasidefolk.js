@@ -36,7 +36,7 @@ import * as THREE from 'three';
 import { withLocalUuids } from './localuuids.js';
 import { litMaterial } from '../render/materials.js';
 import { part } from './seasidedecor.js';
-import { SEASIDE_FOLK, RANK_FOR_RUNG, footY } from './seasideplan.js';
+import { SEASIDE_FOLK, SEASIDE_VENDORS, RANK_FOR_RUNG, footY, SEA_YAW } from './seasideplan.js';
 
 export const WAVE_NEAR = 6;
 const FAR_POSE = 32;
@@ -131,6 +131,17 @@ export function createSeasideFolk({ people, lodNear, reducedMotion = false, rung
     }
   }
 
+  // the two vendors, each behind the counter, facing the boardwalk
+  for (const v of SEASIDE_VENDORS) {
+    const def = {
+      x: v.vendorAt.x, z: v.vendorAt.z, kind: 'adult', sex: v.sex, skin: v.skin,
+      top: { kind: 'tshirt', color: v.top }, bottom: { kind: 'trousers', color: v.bottom },
+      hat: { kind: v.sex === 'm' ? 'cap' : 'sunhat', color: v.hat }, glasses: false,
+    };
+    const f = add(`${v.id}-vendor`, 'vendor', def, 'adult', v.vendorAt, v.yaw ?? SEA_YAW, v.rank);
+    if (f) pose(f, 'stand', 0, 0);
+  }
+
   // the ball: one mesh, six stripes, thrown from one to the other
   const tossers = figures.filter((f) => f.role === 'toss');
   let ball = null;
@@ -166,6 +177,7 @@ export function createSeasideFolk({ people, lodNear, reducedMotion = false, rung
       if (d >= near + HYSTERESIS) { if (p.detail !== 'far') p.setDetail('far'); } else if (d <= near - HYSTERESIS) { if (p.detail !== 'near') p.setDetail('near'); }
       if (d > FAR_POSE || reducedMotion) continue;
       if (f.role === 'stand' || f.role === 'wade') pose(f, 'stand', t, dt);
+      else if (f.role === 'vendor') pose(f, d < WAVE_NEAR ? 'wave' : 'stand', t, dt);
       else if (f.role === 'sit' && f.neck) f.neck.rotation.y = 0.35 * Math.sin(t * 0.35 + f.seed * 6.2832);
     }
     if (ball) placeBall(t);
