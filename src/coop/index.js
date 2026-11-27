@@ -429,7 +429,9 @@ export function start(ctx) {
     state.pads = pads.length;
     state.ready = !!s && !s.net && coopReady(s.areaId);
     const prof = profile();
-    state.couch = prof === 'tv' || prof === 'laptop'; // a phone or a tablet never shows couch play
+    // A phone or a tablet shows couch play only when the device's Settings switch is on and a second pad is there (or already in the walk); ?coop=0 and the switch turn it off.
+    const wanted = ctx.enabled ? !!ctx.enabled() : true;
+    state.couch = wanted && (prof === 'tv' || prof === 'laptop' || (!!ctx.touchOk?.() && (pads.length >= 2 || !!state.seats[1])));
     coop.pad = null;
     if (!ctx.player) return;
     const live = state.couch && state.ready;

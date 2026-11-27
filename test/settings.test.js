@@ -23,6 +23,7 @@ describe('createSettings', () => {
       tvOfferDeclined: false,
       profileOverride: 'auto',
       holidayDecor: 'auto',
+      couchMode: false, // 2026-11-28, couch play: off until a grown-up turns it on
     });
     expect(settings.get('volume')).toBe(0.8);
   });
@@ -60,7 +61,7 @@ describe('createSettings', () => {
       tvMode: false, // 2026-11-22, TV mode: off until a grown-up turns it on
       tvOfferDeclined: false,
       profileOverride: 'auto',
-      holidayDecor: 'auto',
+      holidayDecor: 'auto', couchMode: false,
     });
   });
 
@@ -84,7 +85,7 @@ describe('createSettings', () => {
       tvMode: false, // 2026-11-22, TV mode: off until a grown-up turns it on
       tvOfferDeclined: false,
       profileOverride: 'auto',
-      holidayDecor: 'auto',
+      holidayDecor: 'auto', couchMode: false,
     });
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();

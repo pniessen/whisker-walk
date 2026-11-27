@@ -47,13 +47,14 @@ export function newSession(areaId, { ground = FLAT_GROUND } = {}) {
   };
 }
 
-export function rig({ areaId = 'neighborhood', profile = 'tv', unlocked = ['tabby', 'siamese'], clanFight = null } = {}) {
+export function rig({ areaId = 'neighborhood', profile = 'tv', unlocked = ['tabby', 'siamese'], clanFight = null, ctxExtra = {}, sessionExtra = {} } = {}) {
   const progression = createProgression(memoryStorage());
   progression.state.unlocked.cats = unlocked;
   progression.state.petName = 'Mochi';
   const camera = new THREE.PerspectiveCamera(70, 16 / 9, 0.1, 500);
   const session = newSession(areaId);
   if (clanFight) session.clanFight = clanFight;
+  Object.assign(session, sessionExtra);
   const cat = session.cat;
   const player = createPlayer(camera, { addEventListener() {} });
   player.setAvatar(cat, 3.5);
@@ -85,6 +86,7 @@ export function rig({ areaId = 'neighborhood', profile = 'tv', unlocked = ['tabb
     getState: () => progression.state, catalog: CATALOG, progression, log, audio: {}, toast: (m) => toasts.push(m),
     act: (n) => { if (n === 'pause') player.setTouchEngaged(false); else acts.push(n); },
     voice: (p) => acts.push(`voice:${p}`), resume: () => { resumed.n++; player.setTouchEngaged(true); }, canResume: () => true,
+    ...ctxExtra,
   };
   const h = start(ctx);
   const r = {
