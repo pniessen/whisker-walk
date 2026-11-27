@@ -136,6 +136,7 @@ export function woodsFloorTint(trees, clearing, { edge = null } = {}) {
 // Pines' 0x56603e is a rust-brown (the clamp stops it at 0.5/1.5).
 const NEEDLE = [1.65, 0.66, 0.44];
 const PINE_MOSS = [0.86, 1.14, 0.84];
+const FROST = [0.82, 0.98, 1.22]; // beauty PIN-2: a pale cool frost on the open floor
 const NEEDLE_SHADE = 1;
 const NEEDLE_DRIFT = [1.3, 0.8, 0.6]; // a lighter, tawnier litter than the beds' rust
 const SUN_POOL = [1.12, 1.08, 0.88]; // a patch of sun on the open floor
@@ -165,6 +166,8 @@ export function pinesFloorTint(trees, { edge = null, plain = [] } = {}) {
     m = mul3(m, lerp3(ONE, PINE_MOSS, moss));
     const pool = smoothstep(0.35, 0.7, smoothField(x, z, 139, 6)) * (1 - Math.max(shade, litter));
     m = mul3(m, lerp3(ONE, SUN_POOL, pool));
+    // beauty PIN-2: frost-tint patches in the shade between the pools, vertex colour only
+    m = mul3(m, lerp3(ONE, FROST, smoothstep(0.3, 0.65, smoothField(x, z, 173, 6)) * (1 - pool * 0.6) * (1 - litter * 0.5)));
     let k = 1;
     if (edge != null) k *= 1 - smoothstep(edge - 8, edge - 1, Math.max(Math.abs(x), Math.abs(z)));
     for (const d of plain) k *= smoothstep(d.r, d.r + 1.5, Math.hypot(x - d.x, z - d.z));

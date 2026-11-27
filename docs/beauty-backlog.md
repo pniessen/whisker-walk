@@ -50,6 +50,7 @@ Top entries by score; ties broken by lower budget risk. Each entry's full brief 
 
 | Rank | ID | Score | Impact/size | One line |
 |---|---|---|---|---|
+| 2026-11-27 | ~~PIN-2~~ | see git log | pines chunk 43.9 -> 48.0 kB; start-up 0 | Frost-tint patches (vertex colour) plus fallen twigs, tree roots, three amber fairy rings and path-edge tufts with harebells, folded into the pines floor mesh (no new mesh or draw; place triangles 67,403 -> 68,313, row 70,000 unchanged); picture page verify-pines-beauty.html |
 | 2026-11-27 | ~~PIN-1~~ | see git log | pines chunk 43.9; start-up 0 | Needle-litter and sun-pool vertex colour (0 triangles); one noCast additive shaft mesh, strips only (worst spot 67,597 -> 67,697 triangles, 145 -> 146 meshes; row ceilings 152/80/70,000 unchanged); LOW/LITE hide, still under reduced motion; no picture page |
 | 2026-11-27 | ~~WDS-1~~, WDS-3 part | see git log | woods chunk 30.0 -> 31.7; start-up 0 | Sun dapples and yellower greens as ground colour (0 triangles); fallen twigs, tree roots, three fairy rings, path-edge tufts and wood anemones folded into the forestFloor mesh (+569 triangles, 68,810 -> 69,379; no new mesh or draw; row 70,000 untouched); picture page verify-woods-beauty.html |
 | 1 | NBH-1 | 3.0 | H/S | Front-garden flower clumps and lawn colour patches on the Neighborhood street |
@@ -303,7 +304,7 @@ Sparseness columns are estimates: triangles and meshes per 1000 m2 from the tabl
   - **MOR-2** (H/M, 1.5): cloud shadows sliding across the ground (a shader scroll; frozen under reduced motion).
   - **MOR-3** (M/S, 2.0): standing stones and cairns (instanced, in `moordress.js`).
   - ~~**PIN-1** (H/S, 3.0): needle-litter ground and sun shafts.~~ Done 2026-11-27 (section 8).
-  - **PIN-2** (M/S, 2.0): frost-tint patches (vertex colour; a seasonal/dawn feel).
+  - ~~**PIN-2** (M/S, 2.0): frost-tint patches.~~ Done 2026-11-27.
   - **PIN-3** (M/S, 2.0): mushrooms and ferns (about 2.6k triangles left; keep to 2k).
   - **GRG-1** (H/S, 3.0): strata bands and wet streaks on cliff walls (vertex or shader; 0 triangles).
   - **GRG-2** (M/S, 2.0): hanging ferns and vines in crevices (instanced, under 3k triangles).
