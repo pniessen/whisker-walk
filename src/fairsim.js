@@ -28,7 +28,7 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // player.js's CAT_RADIUS (not imported: player.js loads THREE).
 export const CAT_RADIUS = 0.35;
 
-export const RIDE_IDS = Object.freeze(['mgr', 'wheel', 'cups', 'slide', 'coaster']);
+export const RIDE_IDS = Object.freeze(['mgr', 'wheel', 'cups', 'slide', 'coaster', 'boat']);
 
 export const RIDE = Object.freeze({
   // ---- the merry-go-round ----
@@ -97,6 +97,17 @@ export const RIDE = Object.freeze({
   STATION_CAR: 5.8,
   // the camera that follows the train: behind and above, eased
   CHASE_BACK: 5.4, CHASE_UP: 2.7, CHASE_TURN: 0.7, CHASE_MOVE: 0.3, CHASE_LOOK: 0.15,
+  // ---- the Viking boat ----
+  // One lap: still for BOAT_WAIT (the time to climb aboard), the swing builds over
+  // BOAT_UP, holds for BOAT_HOLD, and settles over BOAT_DOWN. Gentle on purpose.
+  BOAT_WAIT: 6, BOAT_UP: 7, BOAT_HOLD: 9, BOAT_DOWN: 7,
+  BOAT_PERIOD: 4.8,    // seconds for one full swing there and back
+  BOAT_AMP: 0.5,       // radians at the top of the ride (about 29 degrees)
+  BOAT_AMP_SMALL: 0.2, // and with reduced motion
+  BOAT_CALM: 0.06,     // she can climb aboard while the swing is under this much of its height
+  BOAT_EARS: 0.8,      // ears go back past this much of the reach of the swing
+  BOAT_ZONE_X: 3.6, BOAT_ZONE_Z: 4.6, // from this far round the stage, a jump boards
+  BOAT_SWEEP_X: 2.8, BOAT_SWEEP_Z: 5.1, // nobody lands this near the path of the hull
   // ---- the jump and the paw ----
   // How much further a JUMP reaches than the paw's 'up' says (src/game/tips.js
   // asks with none). The paw is redrawn four times a second and a seat keeps
@@ -132,10 +143,10 @@ const FAN_AHEAD = 7; // the first seven: straight on, and up to 67.5 degrees eit
 //   area   src/world/fair.js's record: rides, anchors, colliders, bounds, waters, perches.
 // Read once, while the models stand as they were built (the horses' places,
 // the gondolas' angles); nothing of the models is kept but numbers.
-export function createFairSim(area) {
+export function createFairSim(area, { reducedMotion = false } = {}) {
   const R = area.rides;
   const seats = [];
-  const angles = { mgr: 0, mgrDrum: 0, mgrBob: new Float64Array(R.merryGoRound.horses.length), wheel: 0, cups: 0, cupSpin: 0 };
+  const angles = { boat: 0, mgr: 0, mgrDrum: 0, mgrBob: new Float64Array(R.merryGoRound.horses.length), wheel: 0, cups: 0, cupSpin: 0 };
   const pose = { x: 0, y: 0, z: 0, tx: 0, ty: 0, tz: 1 };
   // One of the area's own perches, by where it is (the boarding deck, the coaster's platform).
   const areaPerch = (at) => (area.perches ?? []).find((p) => Math.abs(p.x - at.x) < 1e-6 && Math.abs(p.z - at.z) < 1e-6 && Math.abs(p.y - at.y) < 1e-6) ?? null;
@@ -242,6 +253,45 @@ export function createFairSim(area) {
       s.x = cups.cx + Math.cos(at) * s.r;
       s.z = cups.cz + Math.sin(at) * s.r;
       s.yaw = cups.yaw0 + alpha + s.spin0 + spin + Math.PI;
+    }
+  }
+
+  // ---- the Viking boat ---------------------------------------------------------------
+  // A pendulum about the beam (the x axis of the swing Group); the hull lies along z with its
+  // bow on +z and the two benches are the seats. A pure function of T like the rest.
+  const boat = (() => {
+    const g = R.boat;
+    const list = g.seats.map((b, i) => makeSeat(`boat-seat-${i}`, 'boat', 'boat', i, { ly: b.y, lz: b.z, yaw: Math.PI }));
+    const o = { cx: g.group.position.x, cz: g.group.position.z, pivotY: g.pivotY, list, theta: 0, env: 0, calm: true };
+    return o;
+  })();
+  seats.push(...boat.list);
+  const smooth = (u) => { const k = Math.min(1, Math.max(0, u)); return k * k * (3 - 2 * k); };
+  const boatLap = RIDE.BOAT_WAIT + RIDE.BOAT_UP + RIDE.BOAT_HOLD + RIDE.BOAT_DOWN;
+  // 0 while it stands, 1 at the top of the ride (a function of the clock alone)
+  function boatReach(T) {
+    const c = ((T % boatLap) + boatLap) % boatLap - RIDE.BOAT_WAIT;
+    if (c < 0) return 0;
+    if (c < RIDE.BOAT_UP) return smooth(c / RIDE.BOAT_UP);
+    if (c < RIDE.BOAT_UP + RIDE.BOAT_HOLD) return 1;
+    return 1 - smooth((c - RIDE.BOAT_UP - RIDE.BOAT_HOLD) / RIDE.BOAT_DOWN);
+  }
+  function setBoat(T) {
+    const amp = reducedMotion ? RIDE.BOAT_AMP_SMALL : RIDE.BOAT_AMP;
+    const env = boatReach(T);
+    const th = amp * env * Math.sin((TAU * T) / RIDE.BOAT_PERIOD);
+    boat.env = env;
+    boat.theta = th;
+    boat.calm = env < RIDE.BOAT_CALM;
+    angles.boat = th;
+    const c = Math.cos(th), sn = Math.sin(th);
+    for (const s of boat.list) {
+      // the seat turns with the hull about the beam: rotation.x, so the bow (+z) goes down for a positive angle
+      s.x = boat.cx;
+      s.y = boat.pivotY + s.ly * c - s.lz * sn;
+      s.z = boat.cz + s.ly * sn + s.lz * c;
+      s.pitch = -th; // a cat on the bench leans with the hull: bow up is nose up
+      s.ears = reducedMotion ? false : env > 0.6 && Math.abs(th) > RIDE.BOAT_EARS * amp * env;
     }
   }
 
@@ -466,6 +516,7 @@ export function createFairSim(area) {
     setMgr(now);
     setWheel(now);
     setCups(now);
+    setBoat(now);
     setSlide(now);
     setCoaster(now);
   }
@@ -596,6 +647,13 @@ export function createFairSim(area) {
         if (d < bestD) { best = g; bestD = d; }
       }
     }
+    // the Viking boat: from the stage round it, while it stands (or has all but stopped)
+    if (boat.calm && (cat.y ?? 0) < 0.6 && Math.abs(cat.x - boat.cx) < RIDE.BOAT_ZONE_X + slack && Math.abs(cat.z - boat.cz) < RIDE.BOAT_ZONE_Z + slack) {
+      for (let i = 0; i < boat.list.length; i++) {
+        const d = flat(boat.list[i], cat);
+        if (d < bestD && boat.list[i] !== taken) { best = boat.list[i]; bestD = d; }
+      }
+    }
     if (coaster.speed <= RIDE.BOARD_SPEED) {
       for (let i = 0; i < coaster.cars.length; i++) {
         const c = coaster.cars[i];
@@ -634,6 +692,8 @@ export function createFairSim(area) {
     for (let i = 0; i < slide.low.length; i++) {
       if (Math.hypot(x - slide.low[i].x, z - slide.low[i].z) < RIDE.SLIDE_SWEEP + CAT_RADIUS) return true;
     }
+    // the ground under the swing of the Viking boat
+    if (Math.abs(x - boat.cx) < RIDE.BOAT_SWEEP_X + CAT_RADIUS && Math.abs(z - boat.cz) < RIDE.BOAT_SWEEP_Z + CAT_RADIUS) return true;
     // the strip the big wheel and its gondolas turn over
     if (Math.abs(x - wheel.cx) < wheel.sweepX + CAT_RADIUS && Math.abs(z - wheel.cz) < wheel.sweepZ + CAT_RADIUS) return true;
     return false;
@@ -662,6 +722,7 @@ export function createFairSim(area) {
     if (seat.rideId === 'mgr') { out.x = seat.x - mgr.cx; out.z = seat.z - mgr.cz; }
     else if (seat.rideId === 'cups') { out.x = seat.x - cups.cx; out.z = seat.z - cups.cz; }
     else if (seat.rideId === 'slide') { out.x = seat.x - slide.cx; out.z = seat.z - slide.cz; }
+    else if (seat.rideId === 'boat') { out.x = -1; out.z = 0; } // the ticket post side
     else if (seat.rideId === 'coaster') { out.x = -1; out.z = 0; } // the plaza's side
     else { out.x = 0; out.z = 1; }
     return out;
@@ -703,6 +764,7 @@ export function createFairSim(area) {
     mgr,
     wheel,
     cups,
+    boat,
     slide,
     startSlide,
     endSlide,

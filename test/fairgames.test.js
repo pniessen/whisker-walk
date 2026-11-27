@@ -1809,10 +1809,10 @@ describe('what it costs to draw', () => {
     expect(all.triangles).toBeLessThanOrEqual(80000);
     expect(all.triangles).toBeLessThanOrEqual(79500); // room left for the Fairground's other builders
     expect(all.meshes).toBeLessThanOrEqual(260);
-    expect(all.casters).toBe(109); // the people cast none
+    expect(all.casters).toBe(111); // the people cast none (the frame and the hull of the Viking boat are two of them)
     // the place alone (test/fair.test.js pins it) is what is left
-    expect(all.meshes - added.meshes).toBe(175);
-    expect(all.triangles - added.triangles).toBe(68572);
+    expect(all.meshes - added.meshes).toBe(178);
+    expect(all.triangles - added.triangles).toBe(70619);
   });
 
   it('adds every mesh when the walk begins and none after: a frame of play adds nothing, and the show clears up after itself', () => {

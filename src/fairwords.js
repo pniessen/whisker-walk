@@ -16,6 +16,7 @@ export const RIDE_TOASTS = Object.freeze({
   cups: () => phrase('fair.toast.cups'),
   slide: () => phrase('fair.toast.slide'),
   coaster: () => phrase('fair.toast.coaster'),
+  boat: () => phrase('fair.toast.boat'), // once a walk, no journal page (game/fairplay.js)
 });
 
 // The journal's pages (src/journal.js), by journal id.

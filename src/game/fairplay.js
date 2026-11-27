@@ -116,8 +116,13 @@ export function handleFairEvent(e, ctx) {
   };
   switch (e.type) {
     case 'note': audio.musicBoxNote?.(e.freq, e.volume); break;
-    case 'ride': noteRide(e.ride, ctx); break;
+    case 'ride':
+      if (e.ride === 'boat') once('fair-boat', RIDE_TOASTS.boat());
+      else noteRide(e.ride, ctx);
+      break;
     case 'slide': audio.pounceWhoosh?.(); break;
+    case 'boat-whoosh': audio.pounceWhoosh?.(); break;
+    case 'boat-creak': audio.creak?.(e.volume); break;
     case 'slide-end': audio.landThump?.(); break;
     case 'dismount': session?.fx?.burst(session.cat.position, 0xcbb8a0, 8); break;
     // ---- the games ----
