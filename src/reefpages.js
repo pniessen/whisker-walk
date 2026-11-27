@@ -9,7 +9,7 @@ export const REEF_PAGES = Object.freeze([
   ['rfalbum', '🖼️', 'album', 'Reef Postcards'], ['rferrand', '🦀', 'errand', 'Marlo’s Errand'], ['rfrings', '🫧', 'rings', 'Bubble Rings'],
 ].map((p) => Object.freeze(p)));
 // Three more pages, the friendly sea life (world/reefseals.js): spotted like a farm animal (6 m, looking at one; a dolphin from 12 m), each page counting the walks.
-export const REEF_LIFE_PAGES = Object.freeze([['rfseal', '🦭', 'seal', 'Curious Seal'], ['rfoctopus', '🐙', 'octopus', 'Shy Octopus']].map((p) => Object.freeze(p)));
+export const REEF_LIFE_PAGES = Object.freeze([['rfseal', '🦭', 'seal', 'Curious Seal'], ['rfoctopus', '🐙', 'octopus', 'Shy Octopus'], ['rfdolphin', '🐬', 'dolphin', 'Dolphin Family']].map((p) => Object.freeze(p)));
 export const REEF_JOURNAL_TYPES = Object.freeze(REEF_PAGES.map((p) => p[0]));
 
 // The hints by journal id: empty here, filled by the Reef's lazy file (world/reefwords.js) when its chunk arrives.

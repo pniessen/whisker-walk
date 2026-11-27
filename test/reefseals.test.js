@@ -39,6 +39,7 @@ describe('the plans', () => {
     const a = { x: 3, z: -4 }; const cat = { x: 1, z: -2 };
     for (const s of S.SEALS.filter((q) => q.kind === 'swim')) expect(S.sealPose(s, 41.3, a, cat, {})).toEqual(S.sealPose(s, 41.3, a, cat, {}));
     for (const o of S.OCTOPI) expect(S.octopusPose(o, 9, 0.3, { tone: [0, 0, 0] })).toEqual(S.octopusPose(o, 9, 0.3, { tone: [0, 0, 0] }));
+    for (const d of S.DOLPHINS) expect(S.dolphinPose(d, 12, a, {})).toEqual(S.dolphinPose(d, 12, a, {}));
   });
   it('the three rocks (the two dens and the sleeper\'s) are in bounds and clear of every collider, find, story point, spawn court, ladder and the kelp', () => {
     const own = S.lifeColliders().map((c) => [c.x, c.z, c.r]);
@@ -60,9 +61,9 @@ describe('the plans', () => {
   it('the rocks are colliders of the Reef\'s area, so she cannot float through them', () => {
     for (const c of S.lifeColliders()) expect(area.colliders.some((q) => q.x === c.x && q.z === c.z && q.r === c.r)).toBe(true);
   });
-  it('the rungs: two seals, a sleeper, two octopuses; low and lite keep one swimming seal and one octopus', () => {
-    expect(S.LIFE_COUNT.high).toEqual({ swimmers: 2, sleeper: 1, octopuses: 2, dolphins: 0 });
-    for (const r of ['low', 'lite']) expect(S.LIFE_COUNT[r]).toEqual({ swimmers: 1, sleeper: 0, octopuses: 1, dolphins: 0 });
+  it('the rungs: two seals, a sleeper, two octopuses, three dolphins; low and lite keep one swimming seal, one octopus, a parent and one calf', () => {
+    expect(S.LIFE_COUNT.high).toEqual({ swimmers: 2, sleeper: 1, octopuses: 2, dolphins: 3 });
+    for (const r of ['low', 'lite']) expect(S.LIFE_COUNT[r]).toEqual({ swimmers: 1, sleeper: 0, octopuses: 1, dolphins: 2 });
     expect(S.lifeRung(null)).toBe('high'); expect(S.lifeRung({ name: 'low', rung: 3 })).toBe('low'); expect(S.lifeRung({ shadows: false })).toBe('lite');
   });
 });
@@ -144,6 +145,28 @@ describe('the octopuses', () => {
   });
 });
 
+describe('the dolphins', () => {
+  it('glide a loop above the float ceiling (3 to 6 m over the seabed), in bounds, with the calves close beside the parent', () => {
+    const anchors = [{ x: 0, z: 0 }, { x: -46, z: 40 }, { x: 46, z: -40 }, { x: 20, z: -20 }];
+    for (const a of anchors) for (let t = 0; t < 90; t += 1.3) {
+      const parent = S.dolphinPose(S.DOLPHINS[0], t, a, {});
+      for (const d of S.DOLPHINS) {
+        const p = S.dolphinPose(d, t, a, {});
+        const up = p.y - P.reefY(p.x, p.z);
+        expect(up).toBeGreaterThan(3.3); expect(up).toBeLessThan(6.1);
+        expect(p.x).toBeGreaterThan(B.minX); expect(p.x).toBeLessThan(B.maxX); expect(p.z).toBeGreaterThan(B.minZ); expect(p.z).toBeLessThan(B.maxZ);
+        if (d.role === 'calf') expect(Math.hypot(p.x - parent.x, p.z - parent.z)).toBeLessThan(2.4);
+      }
+    }
+    expect(S.DOLPHIN_LEVEL - 0.8).toBeGreaterThan(2.2 + 1); // the lowest arch is well above where she can float
+  });
+  it('arch in and out of a wave line: the height rises and falls round DOLPHIN_LEVEL', () => {
+    let lo = Infinity; let hi = -Infinity;
+    for (let t = 0; t < 30; t += 0.1) { const p = S.dolphinPose(S.DOLPHINS[0], t, { x: -40, z: 30 }, {}); const up = p.y - P.reefY(p.x, p.z); lo = Math.min(lo, up); hi = Math.max(hi, up); }
+    expect(lo).toBeLessThan(S.DOLPHIN_LEVEL - 0.5); expect(hi).toBeGreaterThan(S.DOLPHIN_LEVEL + 0.5);
+  });
+});
+
 describe('the drawing', () => {
   it('writes outward-wound triangles with matching normals, a few hundred a seal, an octopus and a dolphin', () => {
     const soup = new D.Soup(); soup.begin();
@@ -152,8 +175,11 @@ describe('the drawing', () => {
     const seal = triangles(soup); let k = soup.k;
     const op = { tone: [0, 0, 0] }; S.octopusPose(S.OCTOPI[0], 5, 0, op); D.drawOctopus(soup, S.OCTOPI[0], op, 5, () => 0);
     const octo = (soup.k - k) / 3; k = soup.k;
-        expect(seal).toBeGreaterThan(300); expect(seal).toBeLessThan(900);
+    S.dolphinPose(S.DOLPHINS[0], 5, a, pose); D.drawDolphin(soup, S.DOLPHINS[0], pose, false);
+    const dol = (soup.k - k) / 3;
+    expect(seal).toBeGreaterThan(300); expect(seal).toBeLessThan(900);
     expect(octo).toBeGreaterThan(300); expect(octo).toBeLessThan(1200);
+    expect(dol).toBeGreaterThan(200); expect(dol).toBeLessThan(900);
     let good = 0; let bad = 0;
     for (let i = 0; i < soup.k; i += 3) {
       const v = (j) => [soup.p[(i + j) * 3], soup.p[(i + j) * 3 + 1], soup.p[(i + j) * 3 + 2]];
@@ -173,12 +199,12 @@ describe('the life on a walk', () => {
   const draws = (scene) => { let n = 0; scene.traverse((o) => { if (o.isMesh) n++; }); return n; };
   const snapshot = (scene) => { const out = []; scene.traverse((o) => { if (o.isMesh) out.push(Array.from(o.geometry.attributes.position.array.slice(0, 600))); }); return out; };
 
-  it('is three draws and counts the rungs', () => {
-    for (const [tier, c] of [[null, { seals: 3, octopuses: 2, dolphins: 0 }], [{ name: 'low', rung: 3 }, { seals: 1, octopuses: 1, dolphins: 0 }], [{ shadows: false }, { seals: 1, octopuses: 1, dolphins: 0 }]]) {
+  it('is four draws and counts the rungs', () => {
+    for (const [tier, c] of [[null, { seals: 3, octopuses: 2, dolphins: 3 }], [{ name: 'low', rung: 3 }, { seals: 1, octopuses: 1, dolphins: 2 }], [{ shadows: false }, { seals: 1, octopuses: 1, dolphins: 2 }]]) {
       const { scene, life } = walk({ tier });
-      expect(draws(scene)).toBe(3);
+      expect(draws(scene)).toBe(4);
       expect(life.counts).toMatchObject(c);
-      expect(life.spottable).toHaveLength(c.seals + c.octopuses);
+      expect(life.spottable).toHaveLength(c.seals + c.octopuses + c.dolphins);
       life.dispose(); expect(draws(scene)).toBe(0);
     }
   });
@@ -214,7 +240,7 @@ describe('the life on a walk', () => {
   });
   it('registers each animal as a photo and journal subject, with a label and a range', () => {
     const { life } = walk({});
-    expect(new Set(life.spottable.map((a) => a.type))).toEqual(new Set(['rfseal', 'rfoctopus']));
+    expect(new Set(life.spottable.map((a) => a.type))).toEqual(new Set(['rfseal', 'rfoctopus', 'rfdolphin']));
     for (const a of life.spottable) { expect(a.pos).toBeInstanceOf(THREE.Vector3); expect(a.label).toMatch(/^a /); expect(a.range).toBeGreaterThanOrEqual(6); expect(JOURNAL_TYPES).toContain(a.type); }
     expect(area.life).toBeTypeOf('function');
   });
@@ -222,7 +248,7 @@ describe('the life on a walk', () => {
 
 describe('the journal pages', () => {
   it('three more cards in the Reef\'s set, with names from start-up and hints from the lazy words, and the ids saved by the progression', () => {
-    expect(REEF_LIFE_PAGES.map((p) => p[0])).toEqual(['rfseal', 'rfoctopus']);
+    expect(REEF_LIFE_PAGES.map((p) => p[0])).toEqual(['rfseal', 'rfoctopus', 'rfdolphin']);
     for (const [id, , , name] of REEF_LIFE_PAGES) {
       const card = CRITTER_INFO.find((c) => c.id === id);
       expect(card.reef).toBe(true); expect(card.name).toBe(name); expect(card.hint).toBe(HINTS[id]); expect(REEF_HINTS[id]).toBe(HINTS[id]);
@@ -231,8 +257,8 @@ describe('the journal pages', () => {
       withOffWords(() => expect(bannedIn(`${card.name} ${card.hint}`)).toBeNull());
     }
     const p = createProgression(memoryStorage());
-    p.recordSighting('rfseal'); p.recordSighting('rfoctopus'); p.recordSighting('rfoctopus');
-    expect(p.state.journal).toMatchObject({ rfseal: 1, rfoctopus: 2 });
+    p.recordSighting('rfseal'); p.recordSighting('rfdolphin'); p.recordSighting('rfdolphin');
+    expect(p.state.journal).toMatchObject({ rfseal: 1, rfdolphin: 2 });
     p.recordSighting('rfnope'); expect(p.state.journal.rfnope).toBeUndefined();
   });
   it('the journal draws the three cards only with the Reef on', () => {
@@ -245,13 +271,13 @@ describe('the words, in both sets', () => {
   const ids = Object.keys(LINES);
   const scary = /\b(drown\w*|die|dies|dead|hurt\w*|panic\w*|gasp\w*|choke\w*|scared|scary|afraid|danger\w*|dark|lost forever|trapped|stuck|collapse\w*|lonely|fail\w*)\b/i;
   it('three labels in the phrase table, short and kind, the same plain base in the everyday set with no series word', () => {
-    expect(ids).toEqual(['reef.life.seal', 'reef.life.octopus']);
+    expect(ids).toEqual(['reef.life.seal', 'reef.life.octopus', 'reef.life.dolphin']);
     for (const id of ids) {
       expect(hasPhrase(id), id).toBe(true);
       const s = phrase(id); expect(s).toMatch(/^a /); expect(s.length).toBeLessThanOrEqual(60); expect(s).not.toMatch(scary);
       withOffWords(() => { expect(bannedIn(phrase(id)), id).toBeNull(); expect(phrase(id)).not.toMatch(scary); });
     }
-    withOffWords(() => { expect(phrase('reef.life.seal')).toBe('a curious seal'); expect(phrase('reef.life.octopus')).toBe('a shy octopus'); });
+    withOffWords(() => { expect(phrase('reef.life.seal')).toBe('a curious seal'); expect(phrase('reef.life.octopus')).toBe('a shy octopus'); expect(phrase('reef.life.dolphin')).toBe('a dolphin family'); });
     for (const h of Object.values(HINTS)) { expect(h).not.toMatch(scary); expect(h.length).toBeLessThanOrEqual(90); }
   });
   it('every phrase(...) call in the sea life\'s files is a literal id in the table', () => {

@@ -192,7 +192,7 @@ describe('the reserved ids', () => {
     expect(REEF_JOURNAL_TYPES).toEqual(['rfboat', 'rfoyster', 'rfseahorse', 'rfcave', 'rfchest', 'rfanchor', 'rfshells', 'rflanterns', 'rfparade', 'rfalbum', 'rferrand', 'rfrings']);
     for (const id of REEF_JOURNAL_TYPES) { expect(JOURNAL_TYPES).toContain(id); expect(REEF_PAGE_WORDS[id].name()).toMatch(/\S/); }
     expect(new Set(JOURNAL_TYPES).size).toBe(JOURNAL_TYPES.length);
-    expect(JOURNAL_TYPES.slice(-26, -14)).toEqual(REEF_JOURNAL_TYPES);
+    expect(JOURNAL_TYPES.slice(-27, -15)).toEqual(REEF_JOURNAL_TYPES);
   });
   it('a journal page counts like any other (the sanitiser keeps it)', () => {
     expect(fresh({ journal: { rfparade: 2, rfnope: 4 } }).journal).toEqual({ rfparade: 2 });

@@ -1,11 +1,12 @@
 // =============================================================================
-// THE REEF: ITS FRIENDLY SEA LIFE, THE PLANS (seals and octopuses). Pure data and pure functions, no THREE, no rng, no clock: every pose is a
+// THE REEF: ITS FRIENDLY SEA LIFE, THE PLANS (seals, octopuses, a dolphin family). Pure data and pure functions, no THREE, no rng, no clock: every pose is a
 // function of the time handed in, a hashed phase and (for the animals that keep her company) where she is. Drawing is world/reefsealsparts.js, the walk's
 // life world/reefsealslive.js. All of it is decoration: none of it is a rule, a find or a danger, and none of it ever touches her or chases her.
 //   * SEALS: two swim a slow loop round a point that lags her (3 to 6 m out, now and then drifting in to look at her and away again, a loop or a roll
 //     now and then), a third sleeps on a rock by the Sandy Flats. They are pushed clear of the coral and the rocks, never of her path.
 //   * OCTOPUSES: two, each in its own rock den (the Coral Garden's and the Kelp Garden's): eyes at the den's mouth, arms that undulate, a peek out now and
 //     then with a wave and a slow change of colour (orange, red, purple); a shy step back if she comes within 1.5 m.
+//   * DOLPHINS: a parent and two calves gliding a loop high in the water, above where she can float, arching in and out of a wave line.
 // docs/superpowers/plans/2026-11-26-reef.md.
 // =============================================================================
 
@@ -43,9 +44,9 @@ export function lifeRung(tier) {
 }
 // How many of each a rung keeps: the low rungs have one swimming seal (no sleeper), one octopus, and a parent with one calf.
 export const LIFE_COUNT = Object.freeze({
-  high: Object.freeze({ swimmers: 2, sleeper: 1, octopuses: 2, dolphins: 0 }),
-  low: Object.freeze({ swimmers: 1, sleeper: 0, octopuses: 1, dolphins: 0 }),
-  lite: Object.freeze({ swimmers: 1, sleeper: 0, octopuses: 1, dolphins: 0 }),
+  high: Object.freeze({ swimmers: 2, sleeper: 1, octopuses: 2, dolphins: 3 }),
+  low: Object.freeze({ swimmers: 1, sleeper: 0, octopuses: 1, dolphins: 2 }),
+  lite: Object.freeze({ swimmers: 1, sleeper: 0, octopuses: 1, dolphins: 2 }),
 });
 
 // ---- the plans --------------------------------------------------------------------------------------------------------
@@ -60,8 +61,14 @@ export const OCTOPI = Object.freeze([
   Object.freeze({ id: 0, x: 10.5, z: -7, yaw: 0.67, r: 1.05, name: 'coral' }), // by the Coral Garden
   Object.freeze({ id: 1, x: -27.5, z: 10.5, yaw: 0.57, r: 1.05, name: 'kelp' }), // in the Kelp Garden
 ]);
+export const DOLPHINS = Object.freeze([
+  Object.freeze({ id: 0, role: 'parent', size: 1 }),
+  Object.freeze({ id: 1, role: 'calf', size: 0.58, side: 1, back: 0.09 }),
+  Object.freeze({ id: 2, role: 'calf', size: 0.52, side: -1, back: 0.14 }),
+]);
 export const SHY_RANGE = 1.5; // an octopus steps back when she is this near its den's mouth
 export const SEAL_KEEP = 2.1; // a swimming seal never comes nearer to her than this (horizontally)
+export const DOLPHIN_LEVEL = 4.35; // metres over the seabed: above the float ceiling (2.2) and under the shimmer
 
 // What a hole in the plan's rocks and den circles looks like to everything else (the walk's colliders): the three rocks, each a small round collider.
 export const lifeColliders = () => [
@@ -208,3 +215,42 @@ export function armSpine(o, pose, i, s, t, out = {}) {
 }
 // How far she is from an octopus's mouth (the place to measure shyness from): a metre out along the den's facing.
 export const denMouth = (o) => ({ x: o.x + Math.sin(o.yaw) * 0.9, z: o.z + Math.cos(o.yaw) * 0.9 });
+
+// ---- the dolphins -------------------------------------------------------------------------------------------------------
+const LOOP = Object.freeze({ a: 10.5, b: 6.8, rot: 0.5, w: 0.29, archW: 0.95, arch: 0.8 });
+// The loop's middle: her lagging point, kept so the whole loop stays inside the bounds.
+export const dolphinCentre = (anchor, out = {}) => {
+  out.x = clamp(anchor.x, REEF_BOUNDS.minX + 14, REEF_BOUNDS.maxX - 14);
+  out.z = clamp(anchor.z, REEF_BOUNDS.minZ + 12, REEF_BOUNDS.maxZ - 12);
+  return out;
+};
+const loopAt = (c, th, out) => {
+  const ex = LOOP.a * Math.cos(th); const ez = LOOP.b * Math.sin(th);
+  const dx = -LOOP.a * Math.sin(th); const dz = LOOP.b * Math.cos(th);
+  const cs = Math.cos(LOOP.rot); const sn = Math.sin(LOOP.rot);
+  out.x = c.x + ex * cs - ez * sn; out.z = c.z + ex * sn + ez * cs;
+  out.tx = dx * cs - dz * sn; out.tz = dx * sn + dz * cs;
+  return out;
+};
+// dolphinPose(d, t, anchor, out): { x, y, z, yaw, pitch, roll, beat, size }. The parent glides the loop and arches in and out of a wave line (a sine, 0.8 m
+// either side of DOLPHIN_LEVEL over the seabed); a calf rides beside it, a little behind, arching a little after.
+export function dolphinPose(d, t, anchor, out = {}) {
+  const T = Math.max(0, t);
+  const c = dolphinCentre(anchor, {});
+  const th = LOOP.w * T + hash01(7, SALTS.dolphin) * TAU - (d.back ?? 0);
+  const p = loopAt(c, th, {});
+  const sp = Math.hypot(p.tx, p.tz) || 1;
+  const side = d.side ?? 0;
+  const off = side * 1.25; // a calf beside, along the path's normal
+  const x = p.x + (p.tz / sp) * off; const z = p.z - (p.tx / sp) * off;
+  const arc = T * LOOP.archW + (d.role === 'calf' ? 0.55 + 0.35 * d.id : 0);
+  const lift = 0.8 * smooth((14 - Math.hypot(x - 20, z + 20)) / 4); // over the wing's spires and the stage a little higher
+  out.x = x; out.z = z;
+  out.y = reefY(x, z) + DOLPHIN_LEVEL + LOOP.arch * Math.sin(arc) + lift;
+  out.yaw = Math.atan2(p.tx, p.tz);
+  out.pitch = Math.atan2(LOOP.arch * LOOP.archW * Math.cos(arc), LOOP.w * sp);
+  out.roll = 0.07 * Math.sin(arc * 0.5 + d.id);
+  out.beat = T * 5.4 + d.id * 1.3;
+  out.size = d.size;
+  return out;
+}

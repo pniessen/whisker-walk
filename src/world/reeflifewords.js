@@ -12,11 +12,13 @@ const clan = (everyday, flavoured) => () => (seriesMode() === SERIES_ON ? flavou
 export const LINES = Object.freeze({
   'reef.life.seal': clan('a curious seal', 'a curious seal, sleek as river-water'),
   'reef.life.octopus': clan('a shy octopus', 'a shy octopus, colours drifting'),
+  'reef.life.dolphin': clan('a dolphin family', 'a dolphin family, leaping through starlit water'),
 });
 
 export const HINTS = Object.freeze({
   rfseal: 'Seals play in the open water. One naps on a rock by the sandy flats.',
   rfoctopus: 'Look for a shy octopus peeking out of a rock den.',
+  rfdolphin: 'A dolphin family glides high above the reef.',
 });
 
 addPhrases(LINES);

@@ -168,6 +168,25 @@ export function drawOctopus(soup, o, pose, t, groundY) {
   }
 }
 
+// ---- the dolphins -------------------------------------------------------------------------------------------------------
+const DOL_BODY = [[0, 0.015], [0.05, 0.04], [0.16, 0.055], [0.22, 0.12], [0.32, 0.215], [0.45, 0.255], [0.62, 0.21], [0.8, 0.1], [0.95, 0.04], [1, 0.02]];
+export function drawDolphin(soup, d, pose, calf) {
+  const col = calf ? { top: [112, 140, 160], bot: [236, 242, 244] } : { top: [78, 104, 124], bot: [226, 234, 238] };
+  const m = bodyMatrix(pose.x, pose.y, pose.z, pose.yaw, pose.pitch, pose.roll, pose.size);
+  const beat = pose.beat;
+  const flex = (s) => (s > 0.4 ? ((s - 0.4) / 0.6) ** 2 : 0);
+  const spine = (s, o) => { o.x = 0; o.y = 0.2 * flex(s) * Math.sin(beat - 2.6 * s); o.z = 1.05 - 2.2 * s; };
+  tube(soup, spine, (s) => { const r = interp(DOL_BODY, s); return [r, r * 1.04]; }, 14, 9, m, col);
+  const tail = {}; spine(1, tail);
+  ellipsoid(soup, m, 0, 0.0, 0.93, 0.045, 0.04, 0.045, { top: [60, 80, 96], bot: [60, 80, 96] }, 3, 5); // the beak's tip
+  for (const sx of [-1, 1]) {
+    ellipsoid(soup, m, sx * 0.135, 0.11, 0.55, 0.032, 0.034, 0.032, { top: DARK, bot: DARK }, 3, 5); // an eye
+    paddle(soup, m, [sx * 0.19, -0.1, 0.36], [sx * 0.42, -0.3, 0.1], 0.09, 0.02, col, 4, 5); // a pectoral fin
+    paddle(soup, m, [0, tail.y, tail.z + 0.05], [sx * 0.38, tail.y + 0.05 * Math.sin(beat - 3), tail.z - 0.22], 0.11, 0.025, col, 4, 5); // a fluke
+  }
+  paddle(soup, m, [0, 0.22, 0.12], [0, 0.46, -0.22], 0.1, 0.022, col, 4, 5); // the dorsal fin
+}
+
 // A soup to a mesh: the geometry's three attributes are the soup's own arrays, rewritten each frame by commit().
 export function soupMesh(soup, name) {
   const g = new THREE.BufferGeometry();
