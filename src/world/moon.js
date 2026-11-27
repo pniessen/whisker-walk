@@ -21,6 +21,7 @@ import { drawBase } from './moonbase.js';
 import { drawFinds } from './moonfindparts.js';
 import { createMoonLife } from './moonlife.js';
 import { moonPebbles } from './moonfinds.js';
+import { decorList } from './moondecor.js';
 import './moonwords.js';
 import { ST, loadMoonStages } from './moonstages.js';
 
@@ -54,6 +55,8 @@ export function build(scene, { water = {} } = {}) {
     K.drawGateRing(kit, M);
     const B = drawBase(kit, M);
     drawFinds(kit, M); // Earthrise Rock, the pit's rock, the cheese, the echo studs and the plain's posts (milestone 4)
+    // (decor) the props, cables and footprints of the base and of each stage's area, in the kit's buckets (no draw call of their own; the lower rungs get about half)
+    for (const g of ['base', 'hill', 'launch', 'rover']) ST.drawDecor(kit, M, decorList(g, ST.decorRows[g], lowTier));
     ST.drawRoverCourse(kit, M, B); // the depot, the track's lit posts and the Far Beacon (milestone 3; Dot herself is the walk's)
     // Star Hill (milestone 5): the tower and its ramp go into the kit's stone (the stand-in: always drawn, no draw call of its own); the observatory, the
     // lamps, the table and the ceiling are the wing group, drawn only within 55 m (moonzones.js)
