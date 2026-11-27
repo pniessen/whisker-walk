@@ -159,7 +159,6 @@ describe.each(Object.keys(BUILDERS))('%s find spots', (areaId) => {
   });
   it('never beside the yarn ball: 3 m from both its spots', () => {
     const yarn = yarnSpotsFor(areaId);
-    if (areaId === 'moon') { expect(yarn).toEqual([]); return; } // the yarn ball is off on the Moon (spec 5.3)
     expect(yarn.length).toBe(2);
     for (const s of spots()) {
       for (const y of yarn) expect(Math.hypot(s.x - y.x, s.z - y.z), s.id).toBeGreaterThanOrEqual(YARN_CLEAR);
