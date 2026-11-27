@@ -133,12 +133,13 @@ describe('what the gates say', () => {
     expect(T.liveTeleEnds('park', CATALOG)).toEqual([]);
     expect(T.liveTeleEnds('moon', CATALOG)).toEqual([]);
   });
-  it('a room may cross (I3) and couch play stays closed (the Moon is solo: COOP_READY.moon is false), both ways', async () => {
-    expect(COOP_READY.moon).toBe(false);
+  it('a room may cross (I3) and couch play stays closed while a destination row is false (the table is handed in closed), both ways', async () => {
+    await teleKit({ coopReady: () => false });
     for (const e of [PM, MP]) {
       expect(T.teleStatus(e, state({ park: 5 }), CATALOG, { inRoom: true }).kind).toBe('go');
       expect(T.teleStatus(e, state({ park: 5 }), CATALOG, { couch: true })).toMatchObject({ kind: 'coop', lineId: 'tele.coop' });
     }
+    await teleKit();
   });
   it('the prompt: nothing while dormant, then "Go through" with the Moon\'s card', () => {
     const near = (e, walks) => T.prompt({ areaId: e.id === 'moon-park' ? 'moon' : 'park' }, { x: e.x + 0.5, z: e.z }, state(walks), false, () => {}, true);

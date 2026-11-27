@@ -230,7 +230,7 @@ describe('the reserved ids', () => {
   it('the three awards have the owner\'s numbers', () => {
     expect([AWARDS.moonfind, AWARDS.moonjob, AWARDS.moonstory]).toEqual([12, 25, 40]);
   });
-  it('couch play is not ready on the Moon', () => { expect(COOP_READY.moon).toBe(false); });
+  it('couch play is ready on the Moon (the lip at (-35,-37) is smoothed; test/coopm5moon.test.js)', () => { expect(COOP_READY.moon).toBe(true); });
   it('the Moon has a gate-only catalog row (free, no home card while the gates are off) and its three golden mice are in (54 in all, 30 for the everyday edition)', async () => {
     expect(Object.hasOwn(CATALOG.areas, 'moon')).toBe(true); // (its row came with the map circle: gate-only, free)
     const { GOLD_TOTAL, GOLD_MICE } = await import('../src/goldmice.js');
