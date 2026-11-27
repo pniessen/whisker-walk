@@ -95,7 +95,7 @@ describe('make-code areas', () => {
     const a = parseArgs(['--area', 'docks']);
     expect(a.areas).toEqual(['docks']);
     expect(validateReward(a)).toEqual([]);
-    expect(validateReward(parseArgs(['--area', 'moon'])).join('|')).toMatch(/Unknown area "moon"/);
+    expect(validateReward(parseArgs(['--area', 'nowhere'])).join('|')).toMatch(/Unknown area "nowhere"/);
     expect(entryLine('a'.repeat(64), a)).toContain('areas: ["docks"]');
     expect(entryLine('a'.repeat(64), parseArgs(['--points', '5']))).not.toContain('areas');
   });
