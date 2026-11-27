@@ -122,7 +122,7 @@ export function build(scene, { water = {}, wind } = {}) {
       // their prompts are the life's (game/interactions.js asks it for promptAt and interact)
       life: (ctx = {}) => {
         const sc = ctx.scene ?? scene;
-        const life = createGreenhouseLife({ ...ctx, scene: sc, mist, shafts, koi, rooms: true, roomMist, roomShafts, butterflies, shyOrchid, cactusFlower });
+        const life = createGreenhouseLife({ quality: water.quality ?? 'high', ...ctx, scene: sc, mist, shafts, koi, rooms: true, roomMist, roomShafts, butterflies, shyOrchid, cactusFlower });
         // the written guide (greenhouseguidelive.js): the gold ring, the goal line and the edge arrow, read from this life's own state
         const guide = createGreenhouseGuideLive({ scene: sc, life, ground: ctx.ground, doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, reducedMotion: ctx.reducedMotion ?? false });
         const update = life.update;
