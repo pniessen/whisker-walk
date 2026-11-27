@@ -27,7 +27,7 @@ const ROWS = [
   ['reef', buildReef, 101, 2, 74200],
   ['crystal', buildCrystal, 32, 2, 36900],
   ['treehouse', buildTreehouse, 23, 2, 66200],
-  ['snowville', buildSnowville, 36, 3, 47700], // 46,500 before the ski slope (round three, +1,356 built)
+  ['snowville', buildSnowville, 36, 3, 48930], // 46,500 before the ski slope (round three, +1,356 built), 47,700 after it; the snowmobile ring, marks and garage (round four) +1,162 built (measured 48,828)
   ['jungle', buildJungle, 31, 4, 55700],
 ];
 

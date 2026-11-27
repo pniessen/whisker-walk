@@ -44,13 +44,14 @@ export function build(scene, opts = {}) {
     K.drawRocks(kit, M);
     drawBeauty(kit, M); // V8: shrubs, woodpiles, crates, icicles, wreaths, pennants and the far ridge
     ST.b?.draw?.(kit, M, { low }); // the pond and its ice, the sled hill, the hearth, the Great Fir and the burrow (milestone V5, in the merged buckets)
+    ST.c?.draw?.(kit, M, { low }); // the snowmobile's ring, marks, garage and bench (round four, stage c, in the merged buckets)
     for (const m of kit.meshes()) scene.add(m);
     scene.add(K.drawLight()); // the place's one real light (the brazier's)
     const area = {
       name: P.SNOWVILLE_NAME,
       bounds: P.SNOWVILLE_BOUNDS,
       spawn: P.SNOWVILLE_SPAWN,
-      colliders: [...P.snowvilleColliders(), ...(ST.b?.colliders?.() ?? [])].map((c) => ({ ...c })),
+      colliders: [...P.snowvilleColliders(), ...(ST.b?.colliders?.() ?? []), ...(ST.c?.colliders?.() ?? [])].map((c) => ({ ...c })),
       waters: [],
       waterFx: [],
       perches: [...(ST.b?.perches?.() ?? [])],

@@ -106,3 +106,33 @@ describe('the ride', () => {
     }
   });
 });
+
+// ---- M2: the drawing ---------------------------------------------------------------------------------------------------------------------
+const { buildMobile, buildMobileGeometry } = await import('../src/world/snowvillemobileparts.js');
+const { snowvilleMaterials } = await import('../src/world/snowvilleparts.js');
+
+describe('the drawing', () => {
+  it('the garage and the bench are solid in the place (stage c fills its slot), and the ring adds no mesh and no caster to the build', () => {
+    for (const t of [M.GARAGE, M.BENCH]) expect(area.colliders.some((c) => c.x === t.x && c.z === t.z)).toBe(true);
+    const scene = new THREE.Scene();
+    build(scene);
+    expect(scene.children.filter((o) => o.isMesh).length).toBe(6);
+  });
+  it('the machine is one vertex-coloured mesh, not a caster, a chunky size, standing on the ground facing +z, and small enough to fit the row', () => {
+    const m = buildMobile(snowvilleMaterials());
+    expect(m.isMesh).toBe(true);
+    expect(m.castShadow).toBe(false);
+    expect(m.userData.noCast).toBe(true);
+    const tris = m.geometry.attributes.position.count / 3;
+    expect(tris).toBeGreaterThan(500);
+    expect(tris).toBeLessThan(1200);
+    m.geometry.computeBoundingBox();
+    const bb = m.geometry.boundingBox;
+    expect(bb.min.y).toBeGreaterThanOrEqual(-0.001);
+    expect(bb.min.y).toBeLessThan(0.1);
+    expect(bb.max.z).toBeGreaterThan(1); // the skis curl out in front
+    expect(bb.max.z - bb.min.z).toBeGreaterThan(M.MOBILE.len - 0.4);
+    expect(bb.max.x - bb.min.x).toBeLessThan(1.1);
+    for (const n of ['position', 'normal', 'uv', 'color']) expect(buildMobileGeometry().attributes[n]).toBeTruthy();
+  });
+});
