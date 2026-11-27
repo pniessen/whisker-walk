@@ -15,3 +15,14 @@ export function reefOn() {
 export function setReef(value) {
   forced = value === null || value === undefined ? null : !!value;
 }
+
+// The developer shortcut (walk.js beginWalkFromHomebase): ?reef=1 EXPLICITLY in the address starts a solo walk here. Never true just because the area is released.
+export function reefShortcut() {
+  if (forced !== null) return forced;
+  try {
+    const search = globalThis.location?.search;
+    return typeof search === 'string' && new URLSearchParams(search).get('reef') === '1';
+  } catch {
+    return false;
+  }
+}

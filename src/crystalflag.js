@@ -15,3 +15,14 @@ export function crystalOn() {
 export function setCrystal(value) {
   forced = value === null || value === undefined ? null : !!value;
 }
+
+// The developer shortcut (walk.js beginWalkFromHomebase): ?crystal=1 EXPLICITLY in the address starts a solo walk here. Never true just because the area is released.
+export function crystalShortcut() {
+  if (forced !== null) return forced;
+  try {
+    const search = globalThis.location?.search;
+    return typeof search === 'string' && new URLSearchParams(search).get('crystal') === '1';
+  } catch {
+    return false;
+  }
+}
