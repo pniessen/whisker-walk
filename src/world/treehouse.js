@@ -33,6 +33,7 @@ export function build(scene) {
     K.drawRim(kit, M);
     K.drawCanopy(kit, M);
     ST.branches?.draw?.(kit, M); // the baskets, the Bookshop's sign, the bell rope and the supper table (milestone T5, in the merged buckets)
+    ST.lift?.draw?.(kit, M); // the beauty round: ground tones, clutter, pennants, vines, autumn leaves and the shafts of light (milestone T8, in the lift stage)
     for (const m of kit.meshes()) scene.add(m);
     scene.add(K.drawLight()); // the village's one real light, at intensity 0
     return {
