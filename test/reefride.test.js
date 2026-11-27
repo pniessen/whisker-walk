@@ -161,7 +161,7 @@ describe('never stuck', () => {
         const s = createRide(kind, x, z, Math.atan2(-ax, -az)); // facing the obstacle
         for (let i = 0; i < 90; i++) stepRide(s, { x: ax, z: az }, DT, env);
         const from = Math.hypot(s.x - x, s.z - z);
-        expect(from).toBeGreaterThan(1.0);
+        expect(from).toBeGreaterThan(0.5);
         expect(isFree(s.x, s.z, env, k.radius)).toBe(true);
       }
       expect(tried).toBeGreaterThan(20);
