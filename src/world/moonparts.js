@@ -288,6 +288,15 @@ export function drawLander(kit, M) {
   kit.put('paint', M.paint, paint(at(cyl(0.5, 0.8, 0.7, 8), x, z, 1.0), COL.steel));
   kit.put('paint', M.paint, paint(at(cyl(0.04, 0.04, 1.4, 5), x - 0.7, z - 0.5, deck + 0.7), COL.steel));
   kit.put('paint', M.paint, paint(at(new THREE.SphereGeometry(0.4, 8, 4, 0, Math.PI * 2, 0, 0.9), x + 0.5, z - 0.3, deck + 0.35, 0, Math.PI), COL.white));
+  // (buildings beauty) a seam round the drum, four window glows (an emissive tint, no light) and a number decal by the hatch, a hazard stripe on the deck's edge
+  kit.put('paint', M.paint, paint(at(cyl(r + 0.1, r + 0.1, 0.05, 8), x, z, 2.7), 0x8a93a3));
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 8 + (i * Math.PI) / 2 + Math.PI / 4;
+    kit.put('glow', M.glow, paint(at(box(0.05, 0.24, 0.34), x + Math.cos(a) * (0.924 * (r + 0.1) + 0.03), z + Math.sin(a) * (0.924 * (r + 0.1) + 0.03), 2.4, -a), 0xffd987), { noCast: true });
+  }
+  kit.put('paint', M.paint, paint(at(box(0.5, 0.1, 0.05), x - 0.9, z + r + 0.12, 2.5), COL.red));
+  kit.put('paint', M.paint, paint(at(box(0.1, 0.3, 0.05), x - 0.7, z + r + 0.12, 2.35), COL.red));
+  kit.put('paint', M.paint, paint(at(cyl(r + 0.02, r + 0.02, 0.04, 8), x, z, deck - 0.14), COL.yellow));
   // four legs and their pads
   for (let i = 0; i < 4; i++) {
     const a = Math.PI / 4 + (i * Math.PI) / 2;

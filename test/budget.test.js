@@ -521,7 +521,8 @@ const AREAS = [
   // Milestone 8 (the Lava Tube: the Cave Massif, the tube's shell and its floor and crystals are three meshes of their own, none a caster; the Old Dish's ledge and the
   // Core's third socket are in the kit's buckets) measured 25 / 8 / 27,586 built (34,486 counting every rock instance), +12%: 28 / 9 / 30,900. The plan's row D (end of milestone 8) is 184 / 100 / 46,500.
   // Decor (2026-11-26, the base props, cables and footprints in the kit's existing paint, floor and glow buckets: no mesh more) measured 25 / 8 / 35,208 built (+7,622; 48,008 counting every rock instance), +12%: 28 / 9 / 39,500.
-  ['moon', buildMoon, 28, 9, 39500],
+  // Buildings beauty (the lander's, dome's, tunnel's, dish's, shed's, observatory's, gantry's, tanks' and desk's seams, window glows, bands and decals, same buckets) measured 25 / 8 / 36,816 built (49,616 counting every rock instance), +12%: 28 / 9 / 41,200.
+  ['moon', buildMoon, 28, 9, 41200],
   // The Reef. Milestone R0 (2026-11-26, the seams) is a stub seabed: the 130 m ground plane alone, measured 1 / 0 / 5,408, +12%: 2 / 1 / 6,100.
   // Milestone R1 (2026-11-26, the water world: the dune seabed in one vertex-coloured mesh, 6,300 triangles; the spawn arch, ladder, ring buoy, coral and pebbles in two
   // merged buckets, paint and glow; the kelp as ONE InstancedMesh of one blade) measured 4 / 1 / 7,934 built (10,646 counting every kelp instance), +12% (the Farm's and the

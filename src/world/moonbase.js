@@ -47,6 +47,12 @@ export function drawDome(kit, M, B) {
     rib.scale(1, glass / wall, 1);
     kit.put('floor', M.paint, paint(at(rib, x, z, 1.15, (i / 6) * Math.PI), BASE_COL.rail), { noCast: true });
   }
+  // (buildings beauty) a lit window strip on each wall pillar's outer face (the lamp mesh, so they wake with the base), and a teal band round the wall's foot
+  for (const k of P.DOME_RING) {
+    const a = Math.atan2(k.z - z, k.x - x);
+    kit.put('lamp', B.lamp, paint(at(box(0.06, 0.16, 0.5), k.x + Math.cos(a) * 0.46, k.z + Math.sin(a) * 0.46, 0.6, -a), 0xffffff), { noCast: true });
+  }
+  kit.put('floor', M.paint, paint(at(ringFlat(wall + 0.15, wall + 0.55, 40), x, z, 0.05), BASE_COL.teal), { noCast: true });
   // sixteen floor lamps round the inside of the wall (one mesh, dim until the base wakes)
   for (let i = 0; i < 16; i++) {
     const a = ((i + 0.5) / 16) * Math.PI * 2;
@@ -71,6 +77,10 @@ export function drawAirlock(kit, M, B) {
     for (const wx of [mid - 1.0, mid + 0.9]) kit.put('paint', M.paint, paint(at(box(0.9, 0.6, 0.06), wx, z + s * (half + 0.36), 1.55), 0x1c2a3a));
     kit.put('paint', M.paint, paint(at(box(len, 0.16, 0.08), mid, z + s * (half + 0.36), 0.5), BASE_COL.hazard));
   }
+  // (buildings beauty) three dark ribs over the roof, a lit pane in each window, a number decal over the door
+  for (const rx of [mid - 1.4, mid, mid + 1.4]) kit.put('paint', M.paint, paint(at(box(0.1, 0.06, half * 2 + 0.95), rx, z, 2.82), 0x8a93a3));
+  for (const s of [-1, 1]) for (const wx of [mid - 1.0, mid + 0.9]) kit.put('lamp', B.lamp, paint(at(box(0.7, 0.4, 0.02), wx, z + s * (half + 0.4), 1.55), 0xffffff), { noCast: true });
+  kit.put('paint', M.paint, paint(at(box(0.5, 0.1, 0.05), x1 - 0.05, z + half + 0.05, 2.0).rotateY(0), 0x1c2a3a));
   // two door leaves that slide apart as she comes (a mesh each, so the life can move them)
   for (const [key, s] of [['doorL', -1], ['doorR', 1]]) kit.put(key, M.paint, paint(at(box(0.14, 2.1, half - 0.1), x1, z + s * (half / 2 - 0.05), 1.05), BASE_COL.rail), { noCast: true }); // (beauty round 1) a sliding leaf casts no shadow: two draws fewer
 }
@@ -111,6 +121,8 @@ export function drawDish(kit, M, B) {
   const { x, z, post, bowl } = P.OLD_DISH;
   kit.put('paint', M.paint, paint(at(box(1.8, 0.5, 1.8), x, z, 0.25), BASE_COL.core));
   kit.put('paint', M.paint, paint(at(cyl(0.3, 0.38, post, 8), x, z, post / 2 + 0.2), BASE_COL.rail));
+  kit.put('paint', M.paint, paint(at(cyl(0.4, 0.4, 0.2, 8), x, z, 0.62), BASE_COL.hazard)); // (buildings beauty) a hazard band at the post's foot and a status light
+  kit.put('glow', M.glow, paint(at(oct(0.1), x + 0.95, z, 0.6), BASE_COL.mint), { noCast: true });
   const R = bowl * 1.36; // a cap of a sphere whose rim is `bowl` wide (rim angle 0.82 rad)
   const cap = new THREE.SphereGeometry(R, 20, 4, 0, Math.PI * 2, Math.PI - 0.82, 0.82); // the bottom cap: a bowl, opening up
   cap.translate(0, R, 0); // its middle at the origin

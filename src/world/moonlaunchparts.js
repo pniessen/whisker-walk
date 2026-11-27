@@ -56,6 +56,11 @@ export function drawLaunchStanding(kit, M) {
     for (const sx of [-1, 1]) kit.put('paint', M.paint, paint(at(box(0.16, 0.16, 2 * hw), g.x + sx * hw, g.z, y), L.red));
   }
   kit.put('paint', M.paint, paint(at(box(0.7, 0.35, 0.7), g.x, g.z, g.h + 0.2), L.steel));
+  // (buildings beauty) a hazard band at each leg's foot, a stencilled number on the tower's face and three amber strobe studs up one leg (still glow tints)
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) kit.put('paint', M.paint, paint(at(box(0.27, 0.5, 0.27), g.x + sx * hw, g.z + sz * hw, 0.3), L.yellow));
+  kit.put('paint', M.paint, paint(at(box(0.6, 0.12, 0.05), g.x, g.z + hw + 0.14, 2.2), L.white));
+  kit.put('paint', M.paint, paint(at(box(0.12, 0.5, 0.05), g.x - 0.35, g.z + hw + 0.14, 2.0), L.white));
+  for (const y of [4.8, 8.0, 11.2]) kit.put('glow', M.glow, paint(at(new THREE.OctahedronGeometry(0.1, 0), g.x - hw, g.z + hw + 0.16, y), 0xffb23c), { noCast: true });
   kit.put('glow', M.glow, paint(at(new THREE.SphereGeometry(0.22, 8, 6), g.x, g.z, g.h + 0.6), 0xff6a4a), { noCast: true });
   void GANTRY;
 
@@ -63,6 +68,10 @@ export function drawLaunchStanding(kit, M) {
   for (const t of TANKS) {
     kit.put('paint', M.paint, paint(at(new THREE.SphereGeometry(t.r, 12, 9), t.x, t.z, t.r + 0.5), L.white));
     kit.put('paint', M.paint, paint(at(cyl(t.r + 0.03, t.r + 0.03, 0.2, 12), t.x, t.z, t.r + 0.5), L.yellow));
+    kit.put('paint', M.paint, paint(at(cyl(t.r + 0.02, t.r + 0.02, 0.07, 12), t.x, t.z, t.r + 1.0), 0x8a93a3)); // (buildings beauty) a seam, a red band and a gauge glow, and the dust apron at its feet
+    kit.put('paint', M.paint, paint(at(cyl(t.r * 0.86, t.r * 0.86, 0.16, 12), t.x, t.z, t.r + 1.2), L.red));
+    kit.put('glow', M.glow, paint(at(new THREE.OctahedronGeometry(0.1, 0), t.x + t.r * 0.97, t.z, t.r + 0.5), 0x8affc0), { noCast: true });
+    kit.put('floor', M.paint, paint(at(new THREE.CircleGeometry(t.r + 0.9, 14).rotateX(-Math.PI / 2), t.x, t.z, 0.04), 0x8a8780), { noCast: true });
     for (let i = 0; i < 3; i++) {
       const a = (i / 3) * Math.PI * 2 + 0.5;
       kit.put('paint', M.paint, paint(at(cyl(0.1, 0.1, t.r * 0.9, 5), t.x + Math.cos(a) * t.r * 0.8, t.z + Math.sin(a) * t.r * 0.8, (t.r * 0.9) / 2 + 0.05), L.steel));
@@ -81,6 +90,8 @@ export function drawLaunchStanding(kit, M) {
   kit.put('paint', M.paint, paint(at(box(1.8, 0.14, 1.0), d.x, d.z, 1.0, yawD), L.white));
   kit.put('paint', M.paint, paint(at(cyl(0.34, 0.38, 0.1, 14), d.x, d.z, 1.1), L.yellow));
   kit.put('glow', M.glow, paint(at(new THREE.SphereGeometry(0.26, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), d.x, d.z, 1.14), L.button), { noCast: true });
+  kit.put('glow', M.glow, paint(at(box(0.8, 0.03, 0.4), d.x, d.z, 1.1, yawD), 0x7ae8d8), { noCast: true }); // (buildings beauty) the console's lit screen and a hazard stripe along its foot
+  kit.put('paint', M.paint, paint(at(box(1.72, 0.12, 0.06), d.x + Math.sin(yawD) * 0.46, d.z + Math.cos(yawD) * 0.46, 0.15, yawD), L.yellow));
   kit.put('paint', M.paint, paint(at(box(0.1, 1.9, 0.1), d.x - 0.95, d.z, 0.95, yawD), L.steel));
   kit.put('paint', M.paint, paint(at(box(0.62, 0.42, 0.06), d.x - 0.95, d.z, 1.9, yawD), L.yellow));
 
