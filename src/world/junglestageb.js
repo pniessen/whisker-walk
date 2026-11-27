@@ -8,17 +8,35 @@ import { jungleCollectibles, createJungleFindsLife } from './junglefinds.js';
 import { wingColliders, wingPerches, wingStory } from './junglewingplan.js';
 import { drawWing, fruitModel } from './junglewingparts.js';
 import { drawPolish } from './junglepolish.js';
+import { drawFoliage } from './junglefoliage.js';
+import { drawHouse } from './junglehouse.js';
+import { drawProps, propColliders } from './jungleprops.js';
 import { createWing } from './junglewinglive.js';
 import { createJungleErrandLive } from './junglejoblive.js';
+
+// junglestrays.js reaches the walk's stray module, so it stays a file of its own, asked for when the life starts (the stage chunk itself never imports it).
+function createStraysLazy(ctx) {
+  let inner = null;
+  let gone = false;
+  const ready = import('./junglestrays.js').then((m) => { if (!gone) inner = m.createJungleStrays(ctx); return inner?.ready; }).catch(() => {});
+  return {
+    ready,
+    promptAt: (p) => inner?.promptAt(p) ?? null,
+    interact: () => inner?.interact() ?? null,
+    update: (dt, t, p) => inner?.update(dt, t, p),
+    dispose() { gone = true; inner?.dispose(); },
+  };
+}
 
 Object.assign(ST, {
   b: Object.freeze({
     finds: Object.freeze({ collectibles: jungleCollectibles, life: createJungleFindsLife }),
     critters: createJungleCritters,
-    colliders: wingColliders,
+    strays: createStraysLazy, // four friendly jungle cats made by the walk's own stray system (round two; junglestrays.js is its own lazy file)
+    colliders: () => [...wingColliders(), ...propColliders()], // the wing's, and the crates, barrels and drying rack beside the lodge
     perches: wingPerches,
     story: wingStory(),
-    draw: (kit, M) => { drawWing(kit, M); drawPolish(kit, M); }, // the wing, then the J8 beauty round (shrubs, tufts, logs, roots, bromeliads, lianas)
+    draw: (kit, M) => { drawWing(kit, M); drawPolish(kit, M); drawHouse(kit, M); drawFoliage(kit, M); drawProps(kit, M); }, // the wing, the J8 beauty round (shrubs, tufts, logs, roots, bromeliads, lianas), then round two: the lodge's detail, the foliage and the lived-in props
     fruitModel,
     wing: createWing,
     errand: createJungleErrandLive, // Mossy's errand of the day and its leaf album (milestone J7)
