@@ -84,8 +84,8 @@ describe('Sela, the crabs, the bubbles', () => {
     const { scene, c } = make(HIGH);
     let meshes = 0; let tri = 0; let casters = 0;
     scene.traverse((o) => { if (o.isMesh || o.isPoints) { meshes++; if (o.isMesh) tri += tris(o); } if (o.castShadow) casters++; });
-    // measured 2026-11-26: 6 meshes (fish, Sela's three, crabs, bubbles), 1,412 triangles counting every instance, 42 fish, 7 crabs
-    expect([meshes, tri, c.counts.fish, c.counts.crabs]).toEqual([6, 1412, 42, 7]);
+    // measured 2026-11-26: 6 meshes (fish, Sela's three, crabs, bubbles), 1,412 triangles counting every instance, 42 fish, 7 crabs; after the marine-life beauty pass (tapered forked fish, scuted Sela, legged crabs) 2,968
+    expect([meshes, tri, c.counts.fish, c.counts.crabs]).toEqual([6, 2968, 42, 7]);
     expect(meshes).toBeLessThanOrEqual(8); expect(casters).toBe(0); expect(tri).toBeLessThanOrEqual(3000);
     c.dispose();
     expect(scene.children.length).toBe(0);

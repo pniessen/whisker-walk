@@ -59,10 +59,11 @@ export function fishTable(rung) {
 export function fishPose(fish, t, out = {}) {
   const { school: s, id, big } = fish;
   const ph = hash01(id, SALTS.fish) * Math.PI * 2;
-  const along = s.w * t + ph * 0.16 + (big ? hash01(id, SALTS.school) * 0.5 : 0); // the school's own turn plus a little spread along the loop
+  const along = s.w * t + 0.05 * Math.sin(t * 0.21 + s.x * 0.9) + ph * 0.16 + (big ? hash01(id, SALTS.school) * 0.5 : 0); // the school's own turn plus a little spread along the loop
   const spread = (big ? 0.18 : 0.34) * (hash01(id + 7, SALTS.fish) - 0.5);
-  const rx = s.rx * (1 + spread);
-  const rz = s.rz * (1 + spread);
+  const breathe = 1 + 0.1 * Math.sin(t * 0.17 + s.x * 0.7 + (big ? 0 : ph * 0.12)); // the school swells and narrows as it turns, each fish a little out of step
+  const rx = s.rx * (1 + spread) * breathe;
+  const rz = s.rz * (1 - spread * 0.5) * (2 - breathe);
   const a = along * Math.PI * 2;
   const wob = (big ? 0.6 : 1.1) * Math.sin(t * 0.7 + ph) * 0.5;
   out.x = s.x + Math.cos(a) * rx + Math.sin(t * 0.5 + ph * 2) * (big ? 0.5 : 0.8) + wob * 0.4;
@@ -88,12 +89,30 @@ function paint(g, hex) {
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
 }
-// A body (a squashed eight-sided bead) and a tail (two thin triangles' worth): 16 triangles; length 1 along +z.
+// Paint a geometry by a function of each vertex (x, y, z) -> grey (0..1) times a tint: the instance's own colour multiplies it, so a dark back, a pale belly,
+// a stripe band and a tinted tail are all in the one vertex-coloured geometry (no new draw, no texture).
+function shade(g, fn) {
+  const pos = g.attributes.position;
+  const col = new Float32Array(pos.count * 3);
+  const c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) { c.set(fn(pos.getX(i), pos.getY(i), pos.getZ(i))); col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+// A fish, length 1 along +z (nose at +z): a spindle body that tapers to the tail (dark back, pale belly, one darker stripe band), a forked tail
+// (two lobes) and a dorsal fin: 36 triangles.
 export function fishGeometry() {
-  const body = new THREE.OctahedronGeometry(0.5, 0).scale(0.28, 0.4, 1);
-  const tail = new THREE.OctahedronGeometry(0.5, 0).scale(0.08, 0.38, 0.4).translate(0, 0, -0.62);
-  for (const g of [body, tail]) { g.deleteAttribute('uv'); }
-  return mergeGeometries([paint(body, 0xffffff), paint(tail, 0xe8e8e8)], false);
+  const body = new THREE.SphereGeometry(0.5, 6, 3).toNonIndexed(); body.rotateX(Math.PI / 2); body.scale(0.3, 0.46, 1);
+  const bp = body.attributes.position;
+  for (let i = 0; i < bp.count; i++) { const k = 0.5 + 0.5 * Math.min(1, Math.max(0, bp.getZ(i) + 0.5)); bp.setX(i, bp.getX(i) * k); bp.setY(i, bp.getY(i) * (0.7 + 0.3 * k)); }
+  body.deleteAttribute('uv'); body.deleteAttribute('normal');
+  shade(body, (x, y, z) => (Math.abs(z - 0.08) < 0.14 ? 0x8a8a8a : y > 0.05 ? 0xb4b4b4 : y < -0.06 ? 0xffffff : 0xdcdcdc));
+  const lobe = (sy) => { const g = new THREE.TetrahedronGeometry(0.3, 0); g.scale(0.06, 0.5, 0.9); g.rotateX(sy * 0.45); g.translate(0, sy * 0.16, -0.64); g.deleteAttribute('uv'); g.deleteAttribute('normal'); return shade(g, () => 0xc8c8c8); };
+  const fin = new THREE.TetrahedronGeometry(0.22, 0); fin.scale(0.08, 0.9, 1.3); fin.translate(0, 0.42, -0.05); fin.deleteAttribute('uv'); fin.deleteAttribute('normal');
+  shade(fin, () => 0x9a9a9a);
+  const g = mergeGeometries([body, lobe(1), lobe(-1), fin], false);
+  g.computeVertexNormals();
+  return g;
 }
 
 function createFish(scene, rung) {
@@ -108,7 +127,7 @@ function createFish(scene, rung) {
   const color = new THREE.Color();
   table.forEach((f, i) => {
     const pal = f.big ? BIG_COLOURS : FISH_COLOURS;
-    mesh.setColorAt(i, color.set(pal[Math.floor(hash01(f.id + 5, SALTS.fish) * pal.length) % pal.length]));
+    mesh.setColorAt(i, color.set(pal[Math.floor(hash01(f.id + 5, SALTS.fish) * pal.length) % pal.length]).offsetHSL((hash01(f.id + 21, SALTS.fish) - 0.5) * 0.05, 0, (hash01(f.id + 31, SALTS.fish) - 0.5) * 0.12));
   });
   scene.add(mesh);
   const dummy = new THREE.Object3D();
@@ -120,9 +139,9 @@ function createFish(scene, rung) {
       for (let i = 0; i < n; i++) {
         fishPose(table[i], t, pose);
         dummy.position.set(pose.x, pose.y, pose.z);
-        dummy.rotation.set(0, pose.yaw, 0);
-        // a flick of the whole body, its tail beat, as a little roll
-        dummy.rotation.z = 0.12 * Math.sin(t * 5 + i * 1.7);
+        // the tail beat: the whole body swings a little side to side at its own phase and speed (bigger fish beat slower), with a small roll
+        const beat = t * (table[i].big ? 3.2 : 6) + hash01(table[i].id + 41, SALTS.fish) * 6.28;
+        dummy.rotation.set(0, pose.yaw + 0.16 * Math.sin(beat), 0.1 * Math.sin(beat + 1.2));
         dummy.scale.setScalar(pose.size);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
@@ -154,7 +173,7 @@ export function selaPose(t, out = {}) {
   const dx = dcrom(p0.x, p1.x, p2.x, p3.x, u);
   const dz = dcrom(p0.z, p1.z, p2.z, p3.z, u);
   out.yaw = Math.atan2(dx, dz);
-  out.y = P.reefY(out.x, out.z) + 1.5 + 0.25 * Math.sin(t * 0.35 + hash01(2, SALTS.turtle) * 6);
+  out.y = P.reefY(out.x, out.z) + 1.5 + 0.25 * Math.sin(t * 0.35 + hash01(2, SALTS.turtle) * 6) + 0.06 * Math.sin(t * 1.3 + 0.5);
   return out;
 }
 
@@ -165,14 +184,21 @@ function sphere(w, h, d, r, x, y, z, hex, seg = 8, rings = 5) {
 }
 function createTurtle(scene) {
   const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
-  const body = mergeGeometries([
-    sphere(1, 0.5, 1.25, 0.5, 0, 0.05, 0, 0x6f9a5a, 10, 6), // the shell
+  const parts = [
+    sphere(1, 0.5, 1.25, 0.5, 0, 0.05, 0, 0x5f8f50, 10, 6), // the shell
     sphere(1, 0.35, 1.15, 0.5, 0, -0.1, 0, 0xe8dca0, 8, 4), // the belly under it
     sphere(0.5, 0.5, 0.6, 0.3, 0, 0.0, 0.78, 0x9cc27a, 6, 4), // the head
+    sphere(0.12, 0.12, 0.12, 0.3, 0.1, 0.05, 0.99, 0x1f2a1c, 4, 3), // eyes
+    sphere(0.12, 0.12, 0.12, 0.3, -0.1, 0.05, 0.99, 0x1f2a1c, 4, 3),
     sphere(0.14, 0.05, 0.16, 0.3, -0.18, -0.02, -0.6, 0x7aa467, 5, 3), // hind flippers
     sphere(0.14, 0.05, 0.16, 0.3, 0.18, -0.02, -0.6, 0x7aa467, 5, 3),
-  ], false);
-  const flipGeo = sphere(0.9, 0.12, 0.4, 0.3, 0.27, 0, 0, 0x7aa467, 5, 3); // one front flipper (right), pivoting at the shoulder
+    sphere(0.16, 0.14, 0.2, 0.3, 0, 0.03, -0.72, 0x7aa467, 4, 3), // a short tail
+  ];
+  // the shell's scutes: a ridge of darker, flattened plates down the middle and two rows at the sides, each a lighter rim than its middle
+  const SCUTES = [[0, 0.5, 0.42, 0.2], [0, 0.55, 0.0, 0.23], [0, 0.5, -0.4, 0.19], [-0.3, 0.42, 0.3, 0.15], [0.3, 0.42, 0.3, 0.15], [-0.34, 0.4, -0.1, 0.16], [0.34, 0.4, -0.1, 0.16], [-0.26, 0.4, -0.45, 0.13], [0.26, 0.4, -0.45, 0.13]];
+  for (const [x, y, z, r] of SCUTES) parts.push(sphere(1, 0.3, 1, r, x, y * 0.5 + 0.1, z, 0x3d6b3a, 5, 2));
+  const body = mergeGeometries(parts, false);
+  const flipGeo = mergeGeometries([sphere(1.0, 0.1, 0.34, 0.3, 0.3, 0, 0.0, 0x7aa467, 5, 3), sphere(0.7, 0.08, 0.2, 0.3, 0.52, 0, -0.1, 0x8cb776, 4, 3)], false); // one front flipper (right): broad at the shoulder, narrow to a pointed tip
   const group = new THREE.Group();
   group.name = 'reef:sela';
   const hull = new THREE.Mesh(body, mat);
@@ -191,10 +217,12 @@ function createTurtle(scene) {
     update(t, still) {
       selaPose(still ? 0 : t, pose);
       group.position.set(pose.x, pose.y, pose.z);
-      group.rotation.set(0, pose.yaw, 0.04 * Math.sin(t * 0.35));
-      const flap = still ? 0 : 0.35 * Math.sin(t * 1.3);
-      right.rotation.set(0, 0, flap);
-      left.rotation.set(0, 0, -flap);
+      const tt = still ? 0 : t;
+      group.rotation.set(0.05 * Math.sin(tt * 0.5 + 1), pose.yaw, 0.04 * Math.sin(tt * 0.35)); // a gentle nod and sway as she swims
+      const flap = still ? 0 : 0.4 * Math.sin(t * 1.3);
+      const sweep = still ? 0 : 0.18 * Math.sin(t * 1.3 - 0.8); // the stroke also rows back and forward, a beat behind the lift
+      right.rotation.set(0, sweep, flap);
+      left.rotation.set(0, sweep, -flap);
     },
     dispose() { scene.remove(group); body.dispose(); flipGeo.dispose(); mat.dispose(); },
   };
@@ -216,16 +244,25 @@ export function crabPose(home, t, out = {}) {
 }
 function createCrabs(scene, rung) {
   const homes = CRAB_HOMES.slice(0, CRAB_COUNT[rung] ?? CRAB_COUNT.high);
-  const geo = mergeGeometries([
-    sphere(1, 0.45, 0.8, 0.14, 0, 0.1, 0, 0xe0674a, 6, 4),
-    sphere(1, 0.8, 0.8, 0.06, -0.17, 0.12, 0.13, 0xf08a5d, 4, 3),
-    sphere(1, 0.8, 0.8, 0.06, 0.17, 0.12, 0.13, 0xf08a5d, 4, 3),
-  ], false);
+  const parts = [
+    sphere(1.15, 0.45, 0.8, 0.14, 0, 0.1, 0, 0xd8573c, 6, 3), // the shell, wide
+    sphere(0.8, 0.3, 0.5, 0.1, 0, 0.14, 0, 0xea7a55, 5, 2), // a paler crown on it
+  ];
+  for (const sx of [-1, 1]) {
+    parts.push(sphere(0.5, 0.5, 2.2, 0.04, sx * 0.07, 0.19, 0.14, 0x6a3a2a, 3, 2)); // an eye stalk
+    parts.push(sphere(1, 1, 1, 0.025, sx * 0.07, 0.235, 0.15, 0x101010, 3, 2)); // its eye
+    parts.push(sphere(0.5, 0.4, 2.4, 0.05, sx * 0.17, 0.1, 0.12, 0xd8573c, 3, 2)); // the arm
+    parts.push(sphere(1.2, 0.7, 1, 0.07, sx * 0.2, 0.12, 0.25, 0xf08a5d, 5, 3)); // the claw (two pincers' worth of bulk)
+    for (const k of [0, 1, 2]) parts.push(sphere(2.2, 0.3, 0.3, 0.05, sx * 0.19, 0.04, -0.07 + k * 0.07, 0x9c3f2c, 3, 2)); // three legs a side
+  }
+  const geo = mergeGeometries(parts, false);
   const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
   const mesh = new THREE.InstancedMesh(geo, mat, homes.length);
   mesh.name = 'reef:crabs';
   mesh.frustumCulled = false;
   Object.assign(mesh.userData, { noCast: true, noContactShadow: true, noMerge: true });
+  const tone = new THREE.Color();
+  homes.forEach((h, i) => mesh.setColorAt(i, tone.setRGB(0.8 + 0.4 * hash01(h.id + 60, SALTS.crab), 0.85 + 0.3 * hash01(h.id + 70, SALTS.crab), 0.85 + 0.25 * hash01(h.id + 80, SALTS.crab)))); // each crab a little redder, browner or paler
   scene.add(mesh);
   const dummy = new THREE.Object3D();
   const pose = {};
@@ -273,6 +310,13 @@ function createBubbles(scene, reducedMotion) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
   const mat = new THREE.PointsMaterial({ map: softDisc(), alphaTest: 0.02, size: 0.14, sizeAttenuation: true, color: 0xdffcff, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending, fog: true });
+  // each bubble its own size: a per-point scale in the one Points (no new draw)
+  const sizes = new Float32Array(n);
+  for (let i = 0; i < n; i++) sizes[i] = 0.55 + 1.35 * hash01(i + 400, SALTS.bubble) ** 2;
+  geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aSize;').replace('gl_PointSize = size;', 'gl_PointSize = size * aSize;');
+  };
   const pts = new THREE.Points(geo, mat);
   pts.name = 'reef:bubbles';
   pts.frustumCulled = false;

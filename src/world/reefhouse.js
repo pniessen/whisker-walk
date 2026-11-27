@@ -54,13 +54,30 @@ function makeManta(mat) {
   const parts = [K.paint(body, 0x2f4a5c), K.paint(head, 0x2f4a5c), K.paint(tail, 0x2f4a5c), K.paint(belly, 0xf2efe6)];
   const main = new THREE.Mesh(mergeGeometries(parts), mat);
   main.name = 'reef:manta:body';
+  // a wing: a swept, drooping strip of three spans out to a pointed tip, dark above and pale below (leading edge ahead, trailing edge behind; tips curl down)
   const wing = (sx) => {
+    const cols = [[0, 0.9, -0.9, 0], [1.1, 0.75, -0.75, -0.05], [2.1, 0.3, -0.62, -0.2]]; // [span, leading z, trailing z, droop]
+    const tip = [3.1, -0.5, -0.5, -0.42];
+    const v = []; const idx = []; const col = [];
+    const top = new THREE.Color(0x2f4a5c); const edge = new THREE.Color(0x4f7189); const pale = new THREE.Color(0xf2efe6);
+    cols.forEach(([x, zl, zt, y]) => { v.push(sx * x, y + 0.1, zl, sx * x, y + 0.1, zt); });
+    v.push(sx * tip[0], tip[3] + 0.1, tip[1]);
+    cols.forEach(([x, zl, zt, y]) => { v.push(sx * x, y, zl, sx * x, y, zt); });
+    v.push(sx * tip[0], tip[3], tip[1]);
+    const up = [0, 1, 2, 3, 4, 5, 6]; const dn = up.map((i) => i + 7);
+    const tris = (L, flip) => {
+      const q = (a, b2, c, d) => (flip ? [a, c, b2, a, d, c] : [a, b2, c, a, c, d]);
+      return [...q(L[0], L[1], L[3], L[2]), ...q(L[2], L[3], L[5], L[4]), ...(flip ? [L[4], L[6], L[5]] : [L[4], L[5], L[6]])];
+    };
+    const f = sx > 0;
+    idx.push(...tris(up, f), ...tris(dn, !f));
+    for (let i = 0; i < 14; i++) { const c = i < 7 ? (i < 2 ? top : i < 4 ? top : edge) : pale; col.push(c.r, c.g, c.b); }
     const w = new THREE.BufferGeometry();
-    const v = new Float32Array([0, 0, 0.9, sx * 3.0, 0, -0.5, 0, 0, -0.9, 0, 0.1, 0.9, sx * 3.0, 0.1, -0.5, 0, 0.1, -0.9]);
-    w.setAttribute('position', new THREE.BufferAttribute(v, 3));
-    w.setIndex(sx > 0 ? [0, 2, 1, 3, 4, 5] : [0, 1, 2, 3, 5, 4]);
+    w.setAttribute('position', new THREE.BufferAttribute(new Float32Array(v), 3));
+    w.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 3));
+    w.setIndex(idx);
     w.computeVertexNormals();
-    const m = new THREE.Mesh(K.paint(w, 0x2f4a5c), mat);
+    const m = new THREE.Mesh(w, mat);
     m.name = `reef:manta:wing${sx > 0 ? 'R' : 'L'}`;
     return m;
   };
@@ -91,8 +108,8 @@ function makeTurtle(mat) {
 
 function makeShoal(mat, n) {
   const body = new THREE.ConeGeometry(0.11, 0.42, 5); body.rotateX(Math.PI / 2); // nose along +z
-  const tail = new THREE.ConeGeometry(0.1, 0.18, 4); tail.rotateX(-Math.PI / 2); tail.translate(0, 0, -0.28);
-  const geo = mergeGeometries([K.paint(body, 0xffffff), K.paint(tail, 0xffffff)]);
+  const lobe = (sy) => { const g = new THREE.ConeGeometry(0.05, 0.2, 3); g.rotateX(-Math.PI / 2); g.rotateX(sy * 0.5); g.translate(0, sy * 0.05, -0.3); return K.paint(g, 0xdddddd); }; // a forked tail
+  const geo = mergeGeometries([K.paint(body, 0xffffff), lobe(1), lobe(-1)]);
   const mesh = new THREE.InstancedMesh(geo, mat, n);
   mesh.name = 'reef:shoal';
   const tint = new THREE.Color();
@@ -227,8 +244,8 @@ export function createHousewarming(ctx) {
     for (let i = 0; i < fishN; i++) {
       const f = p.shoal[i];
       dummy.position.set(f.x, reefY(f.x, f.z) + f.y, f.z);
-      dummy.rotation.set(0, f.yaw, 0);
-      dummy.scale.setScalar(0.4 + 0.6 * f.show);
+      dummy.rotation.set(0, f.yaw + (reducedMotion ? 0 : 0.18 * Math.sin(k * 7 + i * 2.1)), 0); // the tail beat at each fish's own phase
+      dummy.scale.setScalar((0.4 + 0.6 * f.show) * (0.85 + 0.3 * ((i * 0.618) % 1)));
       dummy.updateMatrix();
       shoal.setMatrixAt(i, dummy.matrix);
     }
