@@ -317,6 +317,8 @@ export function villagerPos(c, out) {
 const _vp = new THREE.Vector3();
 const _head = new THREE.Vector3();
 const _top = new THREE.Vector3();
+const _s1 = new THREE.Vector3(); // scratch for the per-frame movement branches
+const _s2 = new THREE.Vector3();
 
 export function createCritters(scene, spawns, opts = {}) {
   const fleeScale = opts.fleeScale ?? 1;
@@ -780,7 +782,7 @@ export function createCritters(scene, spawns, opts = {}) {
         const anchorGoal = c.anchorTo ?? c.anchorHome;
         if (!c.anchor.equals(anchorGoal)) {
           const step = ANCHOR_SPEED * dt;
-          const toGoal = anchorGoal.clone().sub(c.anchor);
+          const toGoal = _s1.copy(anchorGoal).sub(c.anchor);
           if (toGoal.length() <= step) c.anchor.copy(anchorGoal);
           else c.anchor.addScaledVector(toGoal.normalize(), step);
         }
@@ -789,8 +791,8 @@ export function createCritters(scene, spawns, opts = {}) {
           // scripted dash: out 3s, back 3s, then despawn
           c.moment.t += dt;
           const target = c.moment.t < 3 ? c.moment.target
-            : c.anchor.clone();
-          const dir = target.clone().sub(p).setY(0);
+            : c.anchor;
+          const dir = _s1.copy(target).sub(p).setY(0);
           if (dir.length() > 0.2) {
             p.addScaledVector(dir.normalize(), dt * 5);
             onGround(p, px, pz);
@@ -845,7 +847,7 @@ export function createCritters(scene, spawns, opts = {}) {
             c.startleT -= dt; // frozen to the spot
           } else if (c.fleeing && c.hideAt) {
             // running for cover: straight there, at the dash speed, until it is in
-            const to = c.hideAt.clone().sub(p).setY(0);
+            const to = _s1.copy(c.hideAt).sub(p).setY(0);
             const d = to.length();
             if (d > HIDE_REACH) {
               p.addScaledVector(to.normalize(), Math.min(dt * fleeSpeed, d));
@@ -854,7 +856,7 @@ export function createCritters(scene, spawns, opts = {}) {
             if (p.distanceTo(c.hideAt) <= HIDE_REACH) hide(c);
           } else if (c.fleeing) {
             // pounce-tagged: dash away from the cat for a few seconds, then resume patrol
-            const away = p.clone().sub(catPos).setY(0);
+            const away = _s1.copy(p).sub(catPos).setY(0);
             if (away.lengthSq() < 1e-4) away.set(1, 0, 0);
             away.normalize();
             p.addScaledVector(away, dt * fleeSpeed);
@@ -868,7 +870,7 @@ export function createCritters(scene, spawns, opts = {}) {
             }
           } else {
             const a = c.anchor;
-            const bPt = a.clone().add(c.patrolSpan);
+            const bPt = _s1.copy(a).add(c.patrolSpan);
             const k = (Math.sin(t * 0.6 + c.phase) + 1) / 2;
             p.lerpVectors(a, bPt, k);
             if (!ground.flat) p.y = ground.y(p.x, p.z);
