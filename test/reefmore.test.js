@@ -310,7 +310,7 @@ describe('the life on a walk', () => {
     for (const a of life.spottable) { expect(a.pos).toBeInstanceOf(THREE.Vector3); expect(a.label).toMatch(/^a /); expect(a.range).toBeGreaterThanOrEqual(5); expect(JOURNAL_TYPES).toContain(a.type); }
     expect(life.spottable.find((a) => a.type === 'rfwhale').range).toBeGreaterThanOrEqual(20);
     const src = read('src/world/reef.js');
-    expect(src).toMatch(/spottable: \[\.\.\.sea\.spottable, \.\.\.more\.spottable\]/);
+    expect(src).toMatch(/spottable: \[\.\.\.sea\.spottable, \.\.\.more\.spottable(, \.\.\.\(wreck\?\.spottable \?\? \[\]\))?\]/);
     expect(src).toMatch(/more\.update\(\.\.\.a\)/); expect(src).toMatch(/more\.dispose\(\)/);
   });
 });

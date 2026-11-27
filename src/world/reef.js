@@ -8,6 +8,7 @@
 // docs/superpowers/plans/2026-11-26-reef.md.
 // =============================================================================
 
+import { BoxGeometry, CylinderGeometry, SphereGeometry, TorusGeometry, CircleGeometry, BufferGeometry, BufferAttribute, Mesh, MeshBasicMaterial, DoubleSide, Vector3 } from 'three';
 import * as b from './builder.js';
 import { withLocalUuids } from './localuuids.js';
 import { installSuitKit } from '../cat/suitkit.js';
@@ -29,7 +30,10 @@ import { createReefMoreLife } from './reefmorelive.js';
 import { lifeColliders } from './reefseals.js';
 import './reefwords.js';
 import './reefwingwords2.js';
-import { loadReefStages } from './reefstages.js';
+import { loadReefStages, ST } from './reefstages.js';
+
+// The few three.js classes the wreck stage uses, handed in (the stage imports nothing of three's: it would split three's core out of the start-up chunk).
+const THREE = { BoxGeometry, CylinderGeometry, SphereGeometry, TorusGeometry, CircleGeometry, BufferGeometry, BufferAttribute, Mesh, MeshBasicMaterial, DoubleSide, Vector3 };
 
 // Under vitest the stages load here, so every test that imports this file gets the whole Reef; the game's own loader awaits them (areas.js).
 // (The flag is undefined in a build, so this line and its top-level await are dropped.)
@@ -46,6 +50,7 @@ const DUSK_LIGHT = Object.freeze({
 });
 
 export function build(scene) {
+  ST.wreck.install?.({ reefY: P.reefY, reefBaseY: P.reefBaseY, raise: P.REEF_RAISE_REGIONS, ceil: P.REEF_CEIL_REGIONS }); // the galleon's deck and cabin join the ground (R16)
   installSuitKit(); // the dive suit her cat is drawn with here (game/walk.js asks the registered kit)
   return withLocalUuids('reef-build', () => {
     b.applySky(scene, SKY.top, SKY.horizon);
@@ -61,6 +66,7 @@ export function build(scene) {
     drawLanternStalks(kit, M);
     drawWingClumps(kit, M);
     drawDeep(kit, M); // wing C (R8): the Sunken Boat, the Old Anchor and the Glow Cave, into the same two buckets
+    ST.wreck.draw?.(kit, M, { paint: K.paint, COL: K.COL, THREE }); // the galleon (R16, the wreck stage): hull, deck, cabin, mast, cannons and the brass suit, into the same buckets
     for (const m of kit.meshes()) scene.add(m);
     const kelp = K.drawKelp();
     scene.add(kelp);
@@ -73,7 +79,7 @@ export function build(scene) {
       name: P.REEF_NAME,
       bounds: P.REEF_BOUNDS,
       spawn: P.REEF_SPAWN,
-      colliders: [...P.reefColliders(), ...storyColliders(), ...lifeColliders()].map((c) => ({ ...c })),
+      colliders: [...P.reefColliders(), ...storyColliders(), ...lifeColliders(), ...(ST.wreck.colliders?.() ?? [])].map((c) => ({ ...c })),
       waters: [],
       waterFx: [],
       perches: [],
@@ -104,12 +110,13 @@ export function build(scene) {
         const guide = createReefGuideLive({ doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, marlo: base.marlo, errand: base.errand, progression: ctx.progression }); // the written guide: goal line, arrow, chip, arrival card
         const sea = createReefSealsLife(ctx); // the seals, octopuses and dolphin family (photo and journal subjects through `spottable`)
         const more = createReefMoreLife(ctx); // jellyfish, clownfish, seahorses, mantas, a whale, moray eels and squid
+        const wreck = ST.wreck.life?.({ ...ctx, say: base.say, THREE }); // the galleon's flag, journal spot and soft lines (R16)
         return {
           ...base,
           guide,
-          spottable: [...sea.spottable, ...more.spottable],
-          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); more.update(...a); guide.update(...a); },
-          dispose() { guide.dispose(); more.dispose(); sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
+          spottable: [...sea.spottable, ...more.spottable, ...(wreck?.spottable ?? [])],
+          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); more.update(...a); wreck?.update(...a); guide.update(...a); },
+          dispose() { guide.dispose(); wreck?.dispose(); more.dispose(); sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
         };
       },
     };

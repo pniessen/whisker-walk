@@ -2,5 +2,7 @@
 // ceiling join the ground, once, first thing in build), draw(kit, M, K), colliders(), life(ctx). R17 adds the map and the Captain's Chest here.
 import { ST } from './reefstages.js';
 import { installWreckGround, wreckColliders, WRECK_CLUES } from './reefwreckplan.js';
+import { drawWreck } from './reefwreckparts.js';
+import { createReefWreckLife } from './reefwrecklife.js';
 
-Object.assign(ST, { wreck: Object.freeze({ install: installWreckGround, colliders: wreckColliders, clues: WRECK_CLUES }) });
+Object.assign(ST, { wreck: Object.freeze({ install: installWreckGround, draw: drawWreck, colliders: wreckColliders, life: createReefWreckLife, clues: WRECK_CLUES }) });
