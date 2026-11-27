@@ -43,7 +43,7 @@ Pinned tests that will move: about 17 gold-total files, `teleport.test.js:76` (p
 
 Interconnectivity: 1 passport Yes; 2 hub or gates Gates; 3 gates stay story moments Yes; 4 map circles for Reef, Crystal, Moon Yes; 5 Moon catalog row Yes; 6 regions Five (owner's grouping above, with Other worlds); 7 online rooms through gates Yes; 8 couch play through gates Wait; 9 Back button Yes; 10 entries for the three new areas Plan's.
 
-New areas: O1 gate cap 8; O2 Snowville season Always; O3 Treehouse entry Park; O4 Jungle Separate; O5 daughter names the characters Yes; O6 build order Snowville-first; O7 rides Later; O8 cheeks theme Tint-only; O9 both editions Yes; O10 flags default on Yes.
+New areas: O1 gate cap 8; O2 Snowville season Always; O3 Treehouse entry: by walking from the Farm (no gate); O4 Jungle Separate; O5 daughter names the characters Yes; O6 build order Snowville-first; O7 rides Later; O8 cheeks theme Tint-only; O9 both editions Yes; O10 flags default on Yes.
 
 Wave 2: Moon ceiling 150 kB: Yes.
 
