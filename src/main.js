@@ -923,6 +923,7 @@ function init() {
     }
     // "Skip the lesson": one tap, nothing asked; the card is redrawn without it.
     if (e.target.id === SKIP_LESSON_ID && session) guideWalk.skip(session);
+    if (e.target.id === 'btn-back') crossing.back();
     if (e.target.id === 'btn-cross-yes') crossing.confirm();
     if (e.target.id === 'btn-cross-no') crossing.cancel();
     // A gate's "Get it?" card (gatecross.js gateBuyHtml): Yes only from a

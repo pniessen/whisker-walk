@@ -254,6 +254,8 @@ export function pauseCardFor(s, touch, sound = null, note = null) {
     skip: !!L && !L.finished && !L.skipped,
     oneLine: mode === 'ready' && !touch && L?.kind === 'first' && !L.skipped,
     sound, view, room: !!s.net, note,
+    // Back to where she came from: only after a gate or a gateway, started walk, solo or a room's host.
+    back: mode === 'paused' && s.arrivedVia && s.backName && (!s.net || s.net.isHost?.()) ? s.backName : null,
   });
 }
 // The switches' state from settings: Sound is "Mute all sound" turned round,
@@ -277,7 +279,7 @@ function pauseViewHtml({ step, max }) {
   return `
       <div class="pause-view" role="group" aria-label="View"><span class="pause-view-label">👀 View</span><div class="pause-view-chips">${chips}</div></div>`;
 }
-export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false, sound = null, view = null, room = false, note = null }) {
+export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false, sound = null, view = null, room = false, note = null, back = null }) {
   // TV mode with the pad as the input: the pad's words, with button pictures (src/tv/padwords.js).
   const pad = (id) => (tvState.input === 'pad' ? tvState.padLine?.(id) : null);
   const padSegs = pad(oneLine ? 'ready.keys' : 'pad.pause.controls')?.split(' · ');
@@ -289,7 +291,7 @@ export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready',
     <p class="pause-note" role="status">${escapeHtml(note)}</p>` : ''}
     <div class="screen-actions">
       <button id="btn-resume" class="primary">${(go && padHtml(go)) || resumeLabel(mode, touch)}</button>${sound && mode !== 'ready' ? pauseSoundHtml(sound, view) : ''}
-      <button id="btn-end" class="secondary">Head home</button>${skip ? `
+      ${back ? `<button id="btn-back" class="secondary">${escapeHtml(phrase('walk.back', back))}</button>` : ''}<button id="btn-end" class="secondary">Head home</button>${skip ? `
       <button id="${SKIP_LESSON_ID}" class="quiet">${escapeHtml(tutorialLine('guide.skip'))}</button>` : ''}
     </div>
     <p class="controls-hint">${hintHtml(padSegs ?? (oneLine ? [tutorialLine('ready.keys')] : touch ? TOUCH_HINT : room ? [...KEYS_HINT, ...ROOM_KEYS_HINT] : KEYS_HINT))}</p></div></div></div>`;
@@ -708,7 +710,7 @@ export function createWalkLifecycle({
   // wins over the arrival's yaw); the spawn still seeds the race pad, the
   // kitten, the wanderer and the guided walk, and no stream is drawn from
   // differently.
-  function startWalk({ duskMode = false, roomSeed, areaOverride, resume = null, arrive = null, birthday = false, suitUp = false } = {}) {
+  function startWalk({ duskMode = false, roomSeed, areaOverride, resume = null, arrive = null, birthday = false, suitUp = false, cameFrom = null } = {}) {
     walksStarted += 1;
     // The place's pack (F6), before anything touches the save: a start whose
     // place has not come is a mistake in the caller (every start goes
@@ -1898,6 +1900,9 @@ export function createWalkLifecycle({
       // (walkOn sets it), and no walk-on under way yet.
       gates,
       arrivedVia: null,
+      // The place she walked on from by a gate or a map gateway (walkOn), for the pause card's Back button; session only.
+      cameFrom,
+      backName: cameFrom && placeName(cameFrom, state.edition, CATALOG),
       walkingOn: false,
       // The room walk's seed (undefined solo), which a walk-on derives the
       // next room walk's from, and the removers of this walk's net handlers.
@@ -2859,15 +2864,15 @@ export function createWalkLifecycle({
     // show them: no guided walk starts by itself after it (the menu's "Play
     // the first walk again" still does).
     if (session.net && progression.state.tutorial?.first === null) progression.setTutorialFirst('skipped');
+    const stampBefore = progression.state.walks[session.areaId];
     progression.completeWalk(session.areaId, { dusk: session.countsDusk, countArea: !session.birthdayVisit });
+    // The passport's new stamp: her first walk in a place (this session's line only; nothing is saved for it).
+    const stampName = !(stampBefore >= 1) && progression.state.walks[session.areaId] >= 1 ? placeName(session.areaId, progression.state.edition, CATALOG) : '';
     if (JSON.stringify(progression.catScars(scarKey(progression.state))) !== scarsBefore) onScarsChanged();
     // A crossing: this walk counted toward the gate above; now pick the place.
     let crossLines = [];
     lastCrossing = null;
-    const stampBefore = progression.state.walks[session.areaId];
     if (crossTo) {
-    // The passport's new stamp: her first walk in a place (this session's line only; nothing is saved for it).
-    const stampName = !(stampBefore >= 1) && progression.state.walks[session.areaId] >= 1 ? placeName(session.areaId, progression.state.edition, CATALOG) : '';
       const clan = isClanEdition(progression.state);
       const out = crossingOutcome({ crossTo, ledBy, together: together ?? walkedWithNames, clan, pick: (id) => pickOnCrossing(progression, CATALOG, id, { guest: !!ledBy }), catalog: CATALOG, edition: progression.state.edition, touch: !!getIsTouch() });
       crossLines = out.lines;
@@ -3256,7 +3261,7 @@ export function createWalkLifecycle({
       setTimeout(() => {
         if (getSession() || walksStarted !== startsAtMoment) return;
         try {
-          startWalk({ duskMode, roomSeed, areaOverride: progression.state.area === to ? undefined : to, arrive, suitUp: !!tp?.montage });
+          startWalk({ duskMode, roomSeed, areaOverride: progression.state.area === to ? undefined : to, arrive, suitUp: !!tp?.montage, cameFrom: post || !twin ? null : plan.from });
         } catch (err) {
           cannotStart(err);
           return;

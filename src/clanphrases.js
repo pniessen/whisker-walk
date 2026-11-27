@@ -489,6 +489,7 @@ const LATER = Object.freeze({
 
   // ---- the passport's new-stamp line and the pause card's Back button (interconnectivity I4) ----
   'passport.stamp': (place) => `A new stamp: ${place}`,
+  'walk.back': (place) => `Back to ${place}`,
 
   // ---- the My cats sheet, in plain words for the everyday game (follow-up 2026-11-20) ----
   // Each line's family text is exactly what the sheet always said.

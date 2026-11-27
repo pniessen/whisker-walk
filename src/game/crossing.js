@@ -37,6 +37,7 @@ import { endById } from '../gateways.js';
 import { tele as teleHook } from '../telehook.js';
 import { deliberateTap } from '../ui/confirmcard.js';
 import { phrase } from '../clanphrases.js';
+import { placeName } from '../edition.js';
 import { pauseCardFor } from './walk.js';
 
 export const CROSS_RESEND_MS = 150;
@@ -194,6 +195,18 @@ export function createCrossing({
     s.crossing = null;
     askGate(s, { end, status: gateStatus(end, progression.state, catalog) });
     if (!s.crossing) { restoreCard(s); resumeWalk(); }
+  }
+
+  // The pause card's "Back to <place>": the return arch's own crossing (suit and gear come off, the walk counts as any
+  // walk-on's), asked for with the button instead of a walk into the arch, so it has no card of its own. Solo or a room's host.
+  function back() {
+    const s = getSession();
+    if (!s?.cameFrom || !s.arrivedVia || !mayAsk(s)) return;
+    const via = s.arrivedVia;
+    if (s.net && teleLook()?.areaOf(via) && !roomWalksOn(getRoster(), WALK_ON)) { restoreCard(s, phrase('tele.older')); return; }
+    const to = s.cameFrom;
+    s.crossing = { to, name: placeName(to, getEdition(), catalog), via, kind: 'gate', endsHere: !!s.net && !roomWalksOn(getRoster(), needFor(via)) };
+    confirmGate(s);
   }
 
   // A gate's yes, and a post's: walk on. walk.js shows the moment and, when
@@ -438,5 +451,5 @@ export function createCrossing({
     setTimeout(() => { if (getSession() === s) endWalk({ crossTo: d.to, ledBy: name, together }); }, LED_DELAY_MS);
   }
 
-  return { ask, askGate, askGateBuy, buyYes, confirm, cancel, onLockChange, onRemote, onRemoteWalkOn, onWalkOnAsk, onWalkOnHave };
+  return { ask, askGate, askGateBuy, back, buyYes, confirm, cancel, onLockChange, onRemote, onRemoteWalkOn, onWalkOnAsk, onWalkOnHave };
 }

@@ -130,6 +130,8 @@ const FIELDS = [
   ['walkOnWatch', "late (crossing.js): the remover of a guest's watch for the host's state from the place she last said yes to (ruling R18), or null"],
   ['gates', "the gateways drawn at this place's edges (world/gateway.js addGatewayDressing), or NO_GATES (the den, Legacy)"],
   ['arrivedVia', 'late (walk.js): the gate end or border post she came in by on a walk-on, or null (none, or the spawn)'],
+  ['cameFrom', 'the place walked on from (Back button), or null'],
+  ['backName', 'late (walk.js): its name, or null'],
   ['walkingOn', 'late (walk.js): a walk-on is waiting for its place to load (the moment is up over this walk), else false'],
 
   // ── Things in the world ─────────────────────────────────────────────────
