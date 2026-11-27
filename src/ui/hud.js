@@ -194,10 +194,20 @@ export function createHud() {
     clearTimeout(t.ripeTimer);
     startToastLife(t);
   };
+  // A phone drops the leading "You " of a discovery line ("Spotted a squirrel"): a shorter pill.
+  const words = (item) => {
+    const s = padText(padFix(item.build(item.count, item.points)));
+    return getProfile() == 'phone' ? s.replace(/^You (?=[a-z]+ )(.)/, (_, c) => c.toUpperCase()) : s;
+  };
+  // Lines waiting behind the shown one fold into a small "+N" on a phone (CSS: .toast[data-more]).
+  const fold = () => {
+    const e = liveToasts[liveToasts.length - 1]?.el;
+    e?.setAttribute?.('data-more', toastQueue.length || '');
+  };
   const showToast = (item) => {
     const el = document.createElement('div');
     el.className = 'toast';
-    el.textContent = padText(padFix(item.build(item.count, item.points)));
+    el.textContent = words(item);
     toastsEl.appendChild(el);
     const t = { ...item, el, shownAt: Date.now(), ripe: false, held: false, life: null, ripeTimer: null, gone: null };
     el.addEventListener?.('click', () => tapToast(t));
@@ -213,6 +223,7 @@ export function createHud() {
     while (liveToasts.length < cap() && toastQueue.length) showToast(toastQueue.shift());
     const oldest = liveToasts.find((t) => !t.held);
     if (toastQueue.length && oldest?.ripe) retireToast(oldest);
+    fold();
   };
 
   // The earned-skill badge strip is a lazy chunk (src/ui/skillbadges.js): nothing loads until a walk has a skill to show.
@@ -295,7 +306,7 @@ export function createHud() {
         if (newest && newest.key === key) {
           newest.count += 1;
           newest.points += points || 0;
-          newest.el.textContent = padText(padFix(newest.build(newest.count, newest.points)));
+          newest.el.textContent = words(newest);
           startToastLife(newest);
           return;
         }

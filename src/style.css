@@ -2856,10 +2856,14 @@ body.touch-mode .fight-key { display: none; }
 html.phone body.touch-mode { --map-size: 88px; }
 html.phone body.touch-mode .hud-map { width: auto; align-items: flex-end; }
 html.phone body.touch-mode .hud-area { font-size: 0.74rem; padding: 1px 7px; }
-html.phone .toast { padding: 6px 12px; }
-html.phone #hud:not(.lesson-on) .hud-hint:not(.chip) { font-size: 15px; line-height: 1.25; padding: 6px 12px; gap: 8px; border-radius: 14px; }
+html.phone .toast { padding: 4px 12px; position: relative; }
+html.phone .toast::before { content: ""; position: absolute; inset: -8px 0; } /* 44 px to tap, 28 px to see */
+html.phone .toast[data-more]:not([data-more=""])::after { content: "+" attr(data-more); margin-left: 8px; padding: 0 6px; border-radius: 999px; background: rgba(255,255,255,0.22); font-size: 0.8em; font-weight: 700; }
+html.phone body.touch-mode .hud-objective { padding: 3px 12px; }
+html.phone #hud:not(.lesson-on) .hud-hint:not(.chip) { font-size: 15px; line-height: 1.2; padding: 4px 10px; gap: 8px; border-radius: 14px; }
 html.phone #hud:not(.lesson-on) .hud-hint:not(.chip) .hud-hint-pic { font-size: 18px; }
-html.phone #hud:not(.lesson-on) .hud-goals { pointer-events: auto; cursor: pointer; outline: none; }
+html.phone #hud:not(.lesson-on) .hud-goals { pointer-events: auto; cursor: pointer; outline: none; padding: 4px 10px; }
+html.phone #hud:not(.lesson-on) .hud-goals:not(:focus)::before { content: ""; position: absolute; inset: -8px; } /* a 44 px hit area round the small pill */
 html.phone #hud:not(.lesson-on) .hud-goals:not(:focus) .goal-how { display: none; }
 html.phone #hud:not(.lesson-on) .hud-goals:not(:focus):has(.goal.next) .goal:not(.next) { display: none; }
 html.phone #hud:not(.lesson-on) .hud-goals:not(:focus) .goal.next::after { content: " \25BE"; opacity: 0.7; }

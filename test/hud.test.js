@@ -957,5 +957,12 @@ describe('messages at once, by layout profile', () => {
   it('phone, guided step cap null: still one', async () => { await on(true, 390, 844); const h = three(); h.setToastCap(null); expect(shown()).toBe(1); });
   it('tablet: two', async () => { await on(true, 1180, 820); three(); expect(shown()).toBe(2); });
   it('laptop: two', async () => { await on(false, 1440, 900); three(); expect(shown()).toBe(2); });
+  it('phone: the lead "You" drops, a laptop keeps the full line', async () => {
+    await on(true, 390, 844);
+    const hud = createHud(); hud.toast('You spotted a daisy'); hud.toast('two'); hud.toast('three');
+    const el = byId.get('hud-toasts').children[0];
+    expect(el.textContent).toBe('Spotted a daisy');
+  });
+  it('laptop: the line stays whole', async () => { await on(false, 1440, 900); createHud().toast('You spotted a daisy'); expect(byId.get('hud-toasts').children[0].textContent).toBe('You spotted a daisy'); });
   it('the table says the same', async () => { const { VALUES } = await import('../src/profilevalues.js'); expect([VALUES.phone.toasts, VALUES.tablet.toasts, VALUES.laptop.toasts]).toEqual([1, 2, 2]); });
 });
