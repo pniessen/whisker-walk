@@ -94,6 +94,23 @@ export function drawPassageLamps() {
 // ---- the Heart: its own mesh and material (the life raises its colour scalar from dormant to awake) ------------------------------------------------------
 export function drawHeart() {
   const parts = K.clusterGeometry(W.HEART_GREAT, 77);
+  const H = W.HEART_GREAT;
+  for (let n = 0; n < 7; n++) { // a crown of slender outer spires, each leaning out and cut to its own height
+    const a = n * 0.9 + 0.3;
+    const g = K.crystalPrism(0.13 + 0.03 * (n % 3), 1.5 + 0.55 * ((n * 5) % 4), 'heart', 0, 0, 0, a, true, Math.sin(n * 2.1));
+    g.rotateZ(0.34 * Math.cos(a)).rotateX(0.34 * Math.sin(a));
+    const x = H.x + Math.cos(a) * 1.5; const z = H.z + Math.sin(a) * 1.5;
+    g.translate(x, P.crystalY(x, z) - 0.05, z);
+    parts.push(g);
+  }
+  for (let n = 0; n < 6; n++) { // a few floating shards, turning slowly nowhere: they just hang about it
+    const a = n * 1.05 + 0.5; const rr = 2.3 + 0.5 * (n % 3);
+    const g = K.gradient(new THREE.OctahedronGeometry(0.2 + 0.05 * (n % 3), 0).scale(0.55, 1.5, 0.55).rotateZ(0.4 * Math.sin(n)).rotateY(n), 0xc86ad8, 0xffd8ff, 0.7, Math.sin(n * 1.7));
+    g.translate(0, 0.35, 0);
+    const x = H.x + Math.cos(a) * rr; const z = H.z + Math.sin(a) * rr;
+    g.translate(x, P.crystalY(x, z) + 2.4 + 0.8 * ((n * 3) % 4) / 3, z);
+    parts.push(g);
+  }
   const mat = new THREE.MeshBasicMaterial({ vertexColors: true });
   mat.color.setScalar(HEART_DORMANT);
   const m = new THREE.Mesh(mergeGeometries(parts), mat);
