@@ -28,7 +28,11 @@ export function crystalShortcut() {
   }
 }
 
-// The second story (the Echo Deep) switch: OFF unless ?deep=1 is in the address or a test forces it. Nothing a child sees offers it until a later milestone turns it on.
+// The second story (the Echo Deep) switch. RELEASE (2026-11-28, owner decision): ON for everyone in a browser; ?deep=0 turns it off. Without an address bar (node tests) it stays off unless a test forces it.
 let deepForced = null;
-export const crystalDeepOn = () => deepForced ?? /[?&]deep=1(&|$)/.test(String(globalThis.location?.search ?? ''));
+export const crystalDeepOn = () => {
+  if (deepForced !== null) return deepForced;
+  const search = globalThis.location?.search;
+  return typeof search === 'string' && !/[?&]deep=0(&|$)/.test(search);
+};
 export const setCrystalDeep = (v) => { deepForced = v == null ? null : !!v; };

@@ -1,9 +1,9 @@
 # Echo Deep: device checklist (iPad 7 and iPhone, with a child)
 
-One page for the owner. The Deep is behind a switch and is not offered to anyone yet.
+One page for the owner. ON for everyone since 2026-11-28 (owner decision); device checks still pending. `?deep=0` turns it off.
 
-## Switch it on
-- Browser: open the game with `?deep=1` on the end of the address (for example `https://whiskerwalk.org/?deep=1`). Add `&crystal=1` to start a solo walk straight in the Crystal Cave.
+## Switch it on or off
+- Browser: it is on by default; `?deep=0` turns it off. Add `?crystal=1` to start a solo walk straight in the Crystal Cave.
 - The story opens only for a save that has told the first Crystal story, learned all three tunes in the singing chamber, and found at least two of Lumi's rubbings. Use the child's real cat, or one that is already that far.
 - Reduced motion: switch it on in the device's Accessibility settings (Reduce Motion) before opening the page. LOW: leave Quality on Auto, or set it to Low in Settings.
 

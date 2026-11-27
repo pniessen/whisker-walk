@@ -58,6 +58,23 @@ describe('crystal deep: pages, flag and the empty stage', () => {
     for (const [id, , , name] of CRYSTAL_DEEP_PAGES) { expect(wingPageShown(id)).toBe(false); expect(CRYSTAL_PAGE_WORDS[id].name()).toBe(name); }
     for (const k of ['wall', 'deep', 'prism', 'tink', 'chimes']) expect(WING_LIVE[k]).toBeFalsy();
   });
+  it('in a browser the flag is ON unless ?deep=0 (release 2026-11-28); a save mid-first-story stays shut and unharmed', async () => {
+    const M = await import('../src/world/crystaldeepmission.js');
+    const was = globalThis.location;
+    try {
+      for (const [search, want] of [['', true], ['?crystal=1', true], ['?deep=1', true], ['?deep=0', false], ['?a=1&deep=0', false], ['?deep=00', true]]) {
+        globalThis.location = { search };
+        expect(crystalDeepOn(), search).toBe(want);
+      }
+      globalThis.location = { search: '?deep=0' }; setCrystalDeep(true); expect(crystalDeepOn()).toBe(true); setCrystalDeep(null);
+    } finally { if (was === undefined) delete globalThis.location; else globalThis.location = was; }
+    // an old save in the middle of the first story (step 5, two tunes, one rubbing), and one with no deep key at all
+    for (const rec of [{ step: 5, songs: 3, album: 1 }, { step: 6, songs: 7, album: 1 }, {}, undefined, null, { step: 7, songs: 7, album: 3 }.deep]) {
+      expect(M.isOpen(rec)).toBe(false); expect(M.unlocked(rec)).toBe(false); expect(M.deepBits(rec)).toBe(0);
+      expect(M.apply(rec, { kind: 'wall' }).changed).toBe(false); expect(M.nextGoal(rec).kind).toBe('rest');
+    }
+    expect(M.isOpen({ step: 7, songs: 7, album: 3 })).toBe(true); // opens only after the first story, all tunes and two rubbings
+  });
   it('the flag is off by default and can be forced', () => {
     expect(crystalDeepOn()).toBe(false);
     setCrystalDeep(true); expect(crystalDeepOn()).toBe(true); setCrystalDeep(null); expect(crystalDeepOn()).toBe(false);
