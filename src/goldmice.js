@@ -231,11 +231,14 @@ export const GOLD_MICE = {
     { id: 'gm-crystal-1', x: -28, z: 4, y: 0 },
     { id: 'gm-crystal-2', x: 14, z: -4, y: 0 },
     { id: 'gm-crystal-3', x: 26, z: -26, y: 0 },
+    // wing C stubs (milestone X0; positions are first guesses, tuned in C2): the mushroom grotto's floor (on foot) and the forge's shelf (one hop, within perch reach).
+    { id: 'gm-crystal-4', x: 25, z: 12, y: 0 },
+    { id: 'gm-crystal-5', x: -25, z: 19.5, y: 0 },
   ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 62 (the Reef's two Sealab/galleon mice joined in R10; 60 was nineteen areas x three, and the island's three; 57 before the Crystal Cave, 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 64 (the Crystal Cave's two wing C stubs joined in X0; 62 (the Reef's two Sealab/galleon mice joined in R10; 60 was nineteen areas x three, and the island's three; 57 before the Crystal Cave, 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
 
 // The golden mice a player of `edition` can reach: those in the areas the
 // edition shows (Legacy hides the Clan Edition territories; see edition.js).

@@ -25,6 +25,9 @@ export const DECOR_COUNT = Object.freeze({
 });
 export const decorRung = (tier) => (tier && (tier.shadows === false || tier.name === 'low' || (tier.rung ?? 0) >= 3) ? 'low' : 'high');
 
+// The mice the scatter keeps out of: the original three. A later mouse never reshuffles the decor (test/crystalx0.test.js).
+export const CRYSTAL_GOLD_SCATTER_IDS = Object.freeze(['gm-crystal-1', 'gm-crystal-2', 'gm-crystal-3']);
+
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
 // Every disc the small decor keeps out of: [x, z, r]. Solid things and everything a cat or Lumi comes to.
@@ -36,7 +39,7 @@ export function decorAvoid() {
   for (const k of P.KEEP_OUT) d.push([k[0], k[1], k[2]]);
   for (const k of Object.values(CRYSTAL_FIND_ZONES).flat()) d.push([k.x, k.z, k.r + 1.2]);
   for (const k of CRYSTAL_COLLECTIBLES) d.push([k.x, k.z, 1.4]);
-  for (const k of CRYSTAL_GOLD) d.push([k.x, k.z, 2.2]);
+  for (const k of CRYSTAL_GOLD.filter((m) => CRYSTAL_GOLD_SCATTER_IDS.includes(m.id))) d.push([k.x, k.z, 2.2]); // (the first three, by name: wing C's stubs must not move the scatter)
   for (const k of STONES) d.push([k.x, k.z, 2.2]);
   for (const k of [LUMI.start, STONE, BUG, SPARK.start, ...SPOTS]) d.push([k.x, k.z, 2]);
   d.push([SPARK.ring.x, SPARK.ring.z, SPARK.ring.r + 1.5]);

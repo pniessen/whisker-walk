@@ -122,13 +122,13 @@ describe('the plan\'s data', () => {
     expect(flood.reaches(L.PANEL.x, L.PANEL.z)).toBe(true);
     for (const k of L.FUSE_SOCKETS) expect(Math.hypot(k.x - L.PANEL.x, k.z - L.PANEL.z)).toBeLessThan(L.PANEL.reach + 0.5);
   });
-  it('gm-reef-4 is in the bunk room on the floor, on foot; the totals are unchanged (62), and it is not in KEEP_OUT', () => {
+  it('gm-reef-4 is in the bunk room on the floor, on foot; the totals are unchanged (64), and it is not in KEEP_OUT', () => {
     const m4 = GOLD_MICE.reef.find((m) => m.id === 'gm-reef-4');
     expect(m4).toMatchObject({ x: L.BUNK_SPOT.x, z: L.BUNK_SPOT.z, y: 0 });
     expect(L.roomAt(m4.x, m4.z)).toBe('bunk');
     expect(flood.reaches(m4.x, m4.z)).toBe(true);
     expect(Q.REEF_GOLD.find((m) => m.id === 'gm-reef-4')).toMatchObject({ x: m4.x, z: m4.z, y: 0 });
-    expect(GOLD_TOTAL).toBe(62);
+    expect(GOLD_TOTAL).toBe(64);
     expect(P.KEEP_OUT.some(([x, z]) => x === m4.x && z === m4.z)).toBe(false);
     for (const c of L.PROP_COLLIDERS) expect(Math.hypot(c.x - m4.x, c.z - m4.z)).toBeGreaterThan(c.r + 0.5);
   });

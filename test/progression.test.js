@@ -775,7 +775,7 @@ describe('createProgression', () => {
         journal: {}, golden: [], streak: { last: null, count: 0 }, kitten: { stage: 0 },
         race: { date: null, area: null, bestMs: null },
         moon: { step: 0, cells: 0, stamp: -1, scope: 0, jump: {} },
-        reef: { step: 0, shells: 0, album: 0, lab: 0, wreck: 0 }, crystal: { step: 0, sparks: 0, album: 0 },
+        reef: { step: 0, shells: 0, album: 0, lab: 0, wreck: 0 }, crystal: { step: 0, sparks: 0, album: 0, forge: 0, songs: 0 },
         den: { owned: [], placed: {} },
         skills: [], feats: {}, duskWalks: 0, gifts: [], grudges: [],
         colony: {
@@ -2424,7 +2424,7 @@ describe('the colony save key', () => {
     expect(clanRoles).toEqual({ medicine: null, deputy: null });
     expect(marks).toEqual({ neighborhood: [], park: [], seaside: [], docks: [], woods: [], river: [], moor: [], pines: [], gorge: [], farm: [], fair: [], roofs: [], market: [], lighthouse: [], den: [] });
     expect([visits, visitPrizesSeen, visitPrizePending, mapMode]).toEqual([0, 0, null, 'north']);
-    expect(rest).toEqual({ ...v20, equipped: { ...v20.equipped, custom: null }, walks: { ...v20.walks, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0 }, moon: { step: 0, cells: 0, stamp: -1, scope: 0, jump: {} }, reef: { step: 0, shells: 0, album: 0, lab: 0, wreck: 0 }, crystal: { step: 0, sparks: 0, album: 0 } });
+    expect(rest).toEqual({ ...v20, equipped: { ...v20.equipped, custom: null }, walks: { ...v20.walks, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0, roofs: 0, market: 0, house: 0, lighthouse: 0, greenhouse: 0, moon: 0, reef: 0, crystal: 0 }, moon: { step: 0, cells: 0, stamp: -1, scope: 0, jump: {} }, reef: { step: 0, shells: 0, album: 0, lab: 0, wreck: 0 }, crystal: { step: 0, sparks: 0, album: 0, forge: 0, songs: 0 } });
   });
 
   it('a fresh save starts with the starter accessories and an empty colony', () => {

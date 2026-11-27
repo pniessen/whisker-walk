@@ -240,8 +240,8 @@ describe('the life notes a find while she stands still', () => {
 
 describe('three golden mice', () => {
   const GOLD = GOLD_MICE.crystal;
-  it('ids gm-crystal-1..3, valid, known, and the plan holds the same three', () => {
-    expect(GOLD.map((m) => m.id)).toEqual(['gm-crystal-1', 'gm-crystal-2', 'gm-crystal-3']);
+  it('ids gm-crystal-1..5 (4 and 5 are wing C stubs since X0), valid, known, and the plan holds the same five', () => {
+    expect(GOLD.map((m) => m.id)).toEqual(['gm-crystal-1', 'gm-crystal-2', 'gm-crystal-3', 'gm-crystal-4', 'gm-crystal-5']);
     for (const m of GOLD) { expect(m.id).toMatch(/^gm-[a-z]{1,24}-[1-9]$/); expect(KNOWN_GOLD.has(m.id)).toBe(true); }
     expect(Q.CRYSTAL_GOLD.map((m) => ({ ...m }))).toEqual(GOLD);
   });
@@ -258,10 +258,10 @@ describe('three golden mice', () => {
       expect(flood.reachesWithin(m.x, m.z, 0.9), `${m.id} reached`).toBe(true);
     }
   });
-  it('the totals stay 60 (Clan) and 36 (everyday)', () => {
-    expect(GOLD_TOTAL).toBe(62);
-    expect(goldForEdition('canon', CATALOG).size).toBe(62);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(38);
+  it('the totals stay 64 (Clan) and 40 (everyday)', () => {
+    expect(GOLD_TOTAL).toBe(64);
+    expect(goldForEdition('canon', CATALOG).size).toBe(64);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(40);
   });
 });
 

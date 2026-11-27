@@ -9,7 +9,7 @@ import { MOON_PAGES, MOON_LIFE_PAGES, MOON_PAGE_WORDS } from './moonpages.js';
 import { moonOn } from './moonflag.js';
 import { REEF_PAGES, REEF_LIFE_PAGES, REEF_WING_PAGES, REEF_PAGE_WORDS, wingPageShown } from './reefpages.js';
 import { reefOn } from './reefflag.js';
-import { CRYSTAL_PAGES, CAVE_LIFE_PAGES, CRYSTAL_PAGE_WORDS } from './crystalpages.js';
+import { CRYSTAL_PAGES, CAVE_LIFE_PAGES, CRYSTAL_WING_PAGES, CRYSTAL_PAGE_WORDS, wingPageShown as crystalWingShown } from './crystalpages.js';
 import { crystalOn } from './crystalflag.js';
 import { GREENHOUSE_PAGES, GREENHOUSE_PAGE_WORDS } from './greenhousepages.js';
 import { greenhouseOn } from './greenhouseflag.js';
@@ -93,7 +93,7 @@ export const CRITTER_INFO = [
   // The Reef's twelve pages (src/reefpages.js): drawn only behind ?reef=1 until the gate hand-off.
   ...[...REEF_PAGES, ...REEF_LIFE_PAGES, ...REEF_WING_PAGES].map(([id, emoji]) => ({ id, emoji, reef: true, get name() { return REEF_PAGE_WORDS[id].name(); }, get hint() { return REEF_PAGE_WORDS[id].hint(); } })),
   // The Crystal Cave's twelve pages (src/crystalpages.js): drawn only behind ?crystal=1 until the gate hand-off.
-  ...[...CRYSTAL_PAGES, ...CAVE_LIFE_PAGES].map(([id, emoji]) => ({ id, emoji, crystal: true, get name() { return CRYSTAL_PAGE_WORDS[id].name(); }, get hint() { return CRYSTAL_PAGE_WORDS[id].hint(); } })),
+  ...[...CRYSTAL_PAGES, ...CAVE_LIFE_PAGES, ...CRYSTAL_WING_PAGES].map(([id, emoji]) => ({ id, emoji, crystal: true, get name() { return CRYSTAL_PAGE_WORDS[id].name(); }, get hint() { return CRYSTAL_PAGE_WORDS[id].hint(); } })),
   // The Greenhouse's eight pages (src/greenhousepages.js): drawn only behind ?greenhouse=1 until the place is in the game.
   ...GREENHOUSE_PAGES.map(([id, emoji]) => ({ id, emoji, greenhouse: true, get name() { return GREENHOUSE_PAGE_WORDS[id].name(); }, get hint() { return GREENHOUSE_PAGE_WORDS[id].hint(); } })),
 ];
@@ -111,7 +111,7 @@ export function renderJournalHtml(journal, goldenFound, goldenTotal, { chasedOff
   const j = journal && typeof journal === 'object' ? journal : {};
   const found = Number.isFinite(goldenFound) ? goldenFound : 0;
   const total = Number.isFinite(goldenTotal) ? goldenTotal : 0;
-  const cards = CRITTER_INFO.filter((c) => (!c.moon || moonOn()) && (!c.greenhouse || greenhouseOn()) && (!c.reef || (reefOn() && wingPageShown(c.id, j))) && (!c.crystal || crystalOn())).map((c) => {
+  const cards = CRITTER_INFO.filter((c) => (!c.moon || moonOn()) && (!c.greenhouse || greenhouseOn()) && (!c.reef || (reefOn() && wingPageShown(c.id, j))) && (!c.crystal || (crystalOn() && crystalWingShown(c.id)))).map((c) => {
     const raw = j[c.id];
     const count = Number.isFinite(raw) ? raw : 0;
     if (count > 0) {
