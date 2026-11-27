@@ -6,6 +6,7 @@ import { ST } from './crystalstages.js';
 import { CRYSTAL_CLEARS } from './crystalplan.js';
 import * as plan from './crystalriverplan.js';
 import { createRiverLive } from './crystalriverlive.js';
+import './crystalgrottostage.js'; // milestone C2: the mushroom grotto and the forge shell (its own files)
 
 for (const r of plan.CLEARS) if (!CRYSTAL_CLEARS.some((c) => c.minX === r.minX && c.minZ === r.minZ)) CRYSTAL_CLEARS.push({ ...r });
 
