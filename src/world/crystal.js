@@ -103,8 +103,10 @@ export function build(scene) {
         const slot = (get) => ({ promptAt: (p) => get()?.promptAt?.(p) ?? null, interact: () => get()?.interact?.() ?? null });
         // C1: the river boat (a live made here from the stage's factory); while she rides, its "Hop off" comes first, like the Moon's riding source
         const river = ST.wingc?.createRiverLive?.({ scene: ctx.scene, ground: area.ground, colliders: area.colliders, player: ctx.player, reducedMotion: ctx.reducedMotion, tier: ctx.tier, progression: ctx.progression }) ?? null;
-        const riding = { promptAt: (p) => (river?.riding ? river.promptAt(p) : null), interact: () => river?.interact() ?? null };
-        const arbiter = createPromptArbiter([riding, lumi, errand, wingLife, slot(() => river), slot(() => ST.play?.cart), slot(() => ST.wingc?.forge), slot(() => ST.play?.pads)]);
+        // C4: Lumi's cart (the play stage's factory); its "Hop off" comes first too while she rides it
+        const cart = ST.play?.createCartLive?.({ scene: ctx.scene, ground: area.ground, player: ctx.player, reducedMotion: ctx.reducedMotion, tier: ctx.tier, progression: ctx.progression }) ?? null;
+        const riding = { promptAt: (p) => (river?.riding ? river.promptAt(p) : cart?.riding ? cart.promptAt(p) : null), interact: () => river?.interact() ?? cart?.interact() ?? null };
+        const arbiter = createPromptArbiter([riding, lumi, errand, wingLife, slot(() => river), slot(() => cart), slot(() => ST.wingc?.forge), slot(() => ST.play?.pads)]);
         return {
           light,
           critters,
@@ -114,7 +116,7 @@ export function build(scene) {
           guide,
           wing: wingLife,
           errand,
-          spottable: [...cave.spottable, ...(grotto?.spottable ?? [])], // the creatures: photo and journal subjects (cavelifelive.js)
+          spottable: [...cave.spottable, ...(grotto?.spottable ?? []), ...(cart?.spottable ?? [])], // the creatures: photo and journal subjects (cavelifelive.js)
           promptAt: (catPos) => arbiter.promptAt(catPos),
           interact: () => arbiter.interact(),
           // a show begun by anyone in the room starts ours (the shared T0); every other step is Lumi's, credited in order
@@ -124,8 +126,8 @@ export function build(scene) {
             if (typeof ev?.kind === 'string' && ev.kind.startsWith('wc-')) return ST.wingc?.credit?.(ev) ?? ST.play?.credit?.(ev);
             return lumi.credit(ev);
           },
-          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); cave.update(dt, t); sound.update(dt, catPos); errand.update(dt, t, catPos, camera, session); river?.update(dt, t, catPos, camera, session); grotto?.update(dt); intro.update(dt); guide.update(dt, t, catPos, camera); },
-          dispose() { grotto?.dispose(); river?.dispose(); cave.dispose(); decor.dispose(); guide.dispose(); intro.dispose(); errand.dispose(); sound.dispose(); critters.dispose(); finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); cave.update(dt, t); sound.update(dt, catPos); errand.update(dt, t, catPos, camera, session); river?.update(dt, t, catPos, camera, session); cart?.update(dt, t, catPos, camera, session); grotto?.update(dt); intro.update(dt); guide.update(dt, t, catPos, camera); },
+          dispose() { cart?.dispose(); grotto?.dispose(); river?.dispose(); cave.dispose(); decor.dispose(); guide.dispose(); intro.dispose(); errand.dispose(); sound.dispose(); critters.dispose(); finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
         };
       },
     };

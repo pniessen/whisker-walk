@@ -1,5 +1,11 @@
-// Stage "crystalplay" of the Crystal Cave (see crystalstages.js): Lumi's cart on the old tracks and the singing chamber. Empty in X0: the slot is reserved,
-// the milestones C4 and C5 fill it (read by crystal.js through ST.play).
+// Stage "crystalplay" of the Crystal Cave (see crystalstages.js): Lumi's cart on the old tracks (C4) and the singing chamber (C5, not yet). It fills ST.play with what crystal.js reads:
+// { plan, createCartLive(ctx), credit(ev) }; the live a cave makes with it is the prompt arbiter's cart source and a spottable. This chunk also clears the rim rocks and pebbles from
+// the track's strip, AFTER they are scattered (never through KEEP_OUT): CRYSTAL_CLEARS, like the Reef's and the river's.
 import { ST } from './crystalstages.js';
+import { CRYSTAL_CLEARS } from './crystalplan.js';
+import * as plan from './crystalcartplan.js';
+import { createCartLive } from './crystalcartlive.js';
 
-Object.assign(ST, { play: Object.freeze({}) });
+for (const r of plan.CLEARS) if (!CRYSTAL_CLEARS.some((c) => c.minX === r.minX && c.minZ === r.minZ)) CRYSTAL_CLEARS.push({ ...r });
+
+Object.assign(ST, { play: Object.freeze({ plan, createCartLive, credit: () => null }) });
