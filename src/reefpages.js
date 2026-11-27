@@ -37,3 +37,13 @@ export const REEF_PAGE_WORDS = Object.freeze(Object.fromEntries([...REEF_PAGES, 
   name: () => name,
   hint: () => REEF_HINTS[id] ?? '',
 })])));
+
+// Start-up code (the words are the same in both word sets, so they are not phrase ids): keeps Reef stage A under its ceiling.
+// "about 25 m to your left" for a place on the plan, from where she stands now: `cat` { x, z } and the way she faces (fx, fz: the camera's forward on the ground, -z is north).
+// Four 90-degree turns (ahead, to your right, behind you, to your left) and the distance to the nearest 5 m; under 2.5 m it says 5. Pure: nothing is read but the arguments.
+export function nowWords(x, z, cat, fx, fz) {
+  const dx = x - cat.x; const dz = z - cat.z;
+  const m = Math.round(Math.hypot(dx, dz) / 5) * 5 || 5;
+  const rel = Math.atan2(dz * fx - dx * fz, dx * fx + dz * fz); // 0 ahead, positive toward her right (guidegeo.js arrowFor)
+  return `about ${m} m ${['ahead', 'to your right', 'behind you', 'to your left'][(Math.round(rel / (Math.PI / 2)) + 4) % 4]}`;
+}

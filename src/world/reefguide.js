@@ -14,15 +14,9 @@ import { phrase } from '../clanphrases.js';
 import { REEF_SPAWN } from './reefplan.js';
 export { ARRIVED, SCREEN_EDGE, round5, makeView, viewOf, makeArrow, arrowFor, edgePoint, projectPoint } from './guidegeo.js';
 import { round5 } from './guidegeo.js';
+import { nowWords } from '../reefpages.js';
+export { nowWords };
 
-// "about 25 m to your left" for a place on the plan, from where she stands now: `cat` { x, z } and the way she faces (fx, fz: the camera's forward on the ground, -z is north).
-// Four 90-degree turns (ahead, to your right, behind you, to your left) and the distance to the nearest 5 m; under 2.5 m it says 5. Pure: nothing is read but the arguments.
-export function nowWords(x, z, cat, fx, fz) {
-  const dx = x - cat.x; const dz = z - cat.z;
-  const m = round5(Math.hypot(dx, dz)) || 5;
-  const rel = Math.atan2(dz * fx - dx * fz, dx * fx + dz * fz); // 0 ahead, positive toward her right (guidegeo.js arrowFor)
-  return phrase('reef.guide.now').replace('{m}', m).replace('{d}', phrase('reef.guide.sides').split('|')[(Math.round(rel / (Math.PI / 2)) + 4) % 4]);
-}
 // without her position (a test, a first frame) a place is said from the spawn, facing north
 const placeWords = (i, g) => nowWords(g.x, g.z, i.cat ?? REEF_SPAWN, i.fx ?? 0, i.fz ?? -1);
 
