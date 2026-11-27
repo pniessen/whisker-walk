@@ -74,7 +74,8 @@ export function build(scene) {
         const light = createSnowvilleLight(ctx);
         const tilly = createTilly({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
         const wing = ST.b?.wing?.({ scene: ctx.scene, tilly, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent }); // the hearth, the strings of lights and Lantern Night (milestone V5)
-        const prompts = createSnowvillePrompts(tilly, wing);
+        const errand = ST.b?.errand?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, tilly, send: ctx.sendEvent }); // Tilly's errand of the day (milestone V7, in stage b)
+        const prompts = createSnowvillePrompts(tilly, wing, errand);
         const finds = ST.b?.finds?.life(ctx); // the six discoveries (milestone V3)
         const critters = ST.b?.critters?.(ctx); // the otters, hare, robin, fox kit, smoke, bells and crunch (milestone V4)
         return {
@@ -84,10 +85,10 @@ export function build(scene) {
           promptAt: (catPos) => prompts.promptAt(catPos),
           interact: () => prompts.interact(),
           wing,
-          // a step done by anyone in the room (an `sv-` event): a show begun by a partner starts ours, any other step is Tilly's
-          credit: (ev) => wing?.credit(ev) ?? tilly.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); wing?.update(dt, t, catPos); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); },
-          dispose() { critters?.dispose(); finds?.dispose(); wing?.dispose(); tilly.dispose(); light.dispose(); },
+          // a step done by anyone in the room (an `sv-` event): an errand done by a partner is credited to ours, a show begun by a partner starts ours, any other step is Tilly's
+          credit: (ev) => errand?.credit(ev) ?? wing?.credit(ev) ?? tilly.credit(ev),
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); wing?.update(dt, t, catPos); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); },
+          dispose() { errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); tilly.dispose(); light.dispose(); },
         };
       },
     };

@@ -145,7 +145,7 @@ describe('the sound', () => {
 describe('the life pages, both word sets', () => {
   it('sw1..sw3 are live, named alike in both sets, hidden behind the flag; hints and lines exist and are kind', () => {
     expect(SNOWVILLE_LIFE_PAGES.map((p) => p[0])).toEqual(['sw1', 'sw2', 'sw3']);
-    expect(SNOWVILLE_LIVE_PAGES).toHaveLength(11); // (nine, and V5's two story pages sv7, sv8)
+    expect(SNOWVILLE_LIVE_PAGES).toHaveLength(13); // (nine, V5's two story pages sv7, sv8 and V7's two activity pages sw4, sw5)
     for (const [id, , , name] of SNOWVILLE_LIFE_PAGES) {
       expect(HINTS[id]).toMatch(/\S/); expect(SNOWVILLE_HINTS[id]).toBe(HINTS[id]);
       const card = CRITTER_INFO.find((c) => c.id === id);

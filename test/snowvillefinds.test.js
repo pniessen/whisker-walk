@@ -287,7 +287,7 @@ describe('the six live journal pages', () => {
   afterEach(() => setSnowville(null));
   it('sv1..sv6 are live (named, hinted once the chunk is in), the other eight stay hidden placeholders', () => {
     const sv = CRITTER_INFO.filter((c) => /^s[vw]\d$/.test(c.id));
-    const LIVE = [...SNOWVILLE_PAGE_IDS, 'sw1', 'sw2', 'sw3', 'sv7', 'sv8']; // V5 made the two story pages live (test/snowvillewing.test.js) // V4 made the first three life pages live too (test/snowvillecritters.test.js)
+    const LIVE = [...SNOWVILLE_PAGE_IDS, 'sw1', 'sw2', 'sw3', 'sv7', 'sv8', 'sw4', 'sw5']; // V7 made the two activity pages live (test/snowvillejob.test.js) // V5 made the two story pages live (test/snowvillewing.test.js) // V4 made the first three life pages live too (test/snowvillecritters.test.js)
     expect(sv).toHaveLength(17);
     for (const c of sv) {
       if (LIVE.includes(c.id)) { expect(c.later, c.id).toBeFalsy(); expect(c.snowville).toBe(true); expect(c.hint).toMatch(/\S/); } else expect(c.later, c.id).toBe(true);

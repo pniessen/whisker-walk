@@ -64,6 +64,7 @@ export const AWARDS = {
   greenhousejob: 25,
   // Snowville (2026-11-27): one of its six finds, paid the first time ever (world/snowvillefinds.js).
   snowfind: 12,
+  snowjob: 25, // Tilly's errand of the day, once a walk after the story (world/snowvillejoblive.js)
   // The Treehouse village (2026-11-27): one of its six finds, paid the first time ever (world/treehousefinds.js).
   treefind: 12,
   snowstory: 40, // Lantern Night (the show's pay moment), once ever (world/snowvillewinglive.js)
