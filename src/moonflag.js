@@ -1,3 +1,4 @@
+// DEFAULT: ON in a browser (?moon=0 turns it off); OFF in node tests unless forced.
 // RELEASE (2026-11-26): ON for everyone in a browser; ?moon=0 turns it off. Without an address bar (node tests) it stays off unless a test forces it.
 // The Moon switch: ?moon=1 (or a test's setMoon(true)) starts a solo walk on the Moon, either edition, never in a
 // room. Until the gate hand-off nothing a child sees offers it. Read at call time, never at import.

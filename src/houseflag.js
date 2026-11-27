@@ -1,3 +1,4 @@
+// DEFAULT: OFF (?house=1 turns it on); a developer shortcut only, the place itself is unlocked like any other.
 // The Old House switch (Old House step 1, ruling H7; a developer shortcut
 // since Old House step 4, docs/superpowers/plans/2026-11-21-old-house-step4-into-the-game.md,
 // ruling W3).

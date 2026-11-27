@@ -1,3 +1,4 @@
+// DEFAULT: ON in a browser (?crystal=0 turns it off); OFF in node tests unless forced.
 // RELEASE (2026-11-26): ON for everyone in a browser; ?crystal=0 turns it off. Without an address bar (node tests) it stays off unless a test forces it.
 // The Crystal Cave switch: ?crystal=1 (or a test's setCrystal(true)) starts a solo walk in the cave, either edition, never in a room.
 // Until the gate hand-off (milestone C6) nothing a child sees offers it. Read at call time, never at import.
