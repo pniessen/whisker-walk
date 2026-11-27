@@ -28,6 +28,8 @@ import { createReefGuideLive } from './reefguidelive.js';
 import { createReefSealsLife } from './reefsealslive.js';
 import { createReefMoreLife } from './reefmorelive.js';
 import { lifeColliders } from './reefseals.js';
+import { Soup, moreMesh } from './reefmoreparts.js';
+import { tube, ellipsoid, paddle, bodyMatrix } from './reefsealsparts.js';
 import './reefwords.js';
 import './reefwingwords2.js';
 import { ST, loadReefStages } from './reefstages.js';
@@ -130,6 +132,7 @@ export function build(scene) {
         const guide = createReefGuideLive({ doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, marlo: base.marlo, errand: base.errand, progression: ctx.progression, lab: story }); // the written guide: goal line, arrow, chip, arrival card
         const ride = ST.ride.createRideLive(rideKit, ctx, area, base, P); // the two mounts (R12)
         const prompt = createPromptArbiter([ride, base, story, lab]); // "Hop off" (and "Hop on" at a rack) come first; // Marlo's and the errand's offers win, then a fuse's, and the hatch is the lowest
+        const divers = ST.ride.createDiversLive([Soup, moreMesh, tube, ellipsoid, paddle, bodyMatrix, P.reefY], { scene: ctx.scene, Vec3: K.T3.Vector3, reducedMotion: ctx.reducedMotion, tier: ctx.tier, say: base.say }); // the divers, the research ship and the big spotted shark (R18)
         const wreck = ST.wreck.life?.({ ...ctx, say: base.say, THREE }); // the galleon's flag, journal spot and soft lines (R16)
         return {
           ...base,
@@ -140,9 +143,9 @@ export function build(scene) {
           ride,
           guide,
           credit: (ev) => (ev?.kind === 'fuse' || ev?.kind === 'labshow' ? story.credit(ev) : ev?.kind === 'map' || ev?.kind === 'clue' || ev?.kind === 'chest' ? wreck?.credit(ev) : base.credit(ev)), // a fuse (R14) or a hunt step (R17) done by anyone in the room; every other step is Marlo's
-          spottable: [...sea.spottable, ...more.spottable, ...story.spottable, ...(wreck?.spottable ?? [])],
-          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); more.update(...a); wreck?.update(...a); ride.update(...a); lab.update(...a); story.update(...a); guide.update(...a); },
-          dispose() { guide.dispose(); ride.dispose(); wreck?.dispose(); story.dispose(); lab.dispose(); more.dispose(); sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
+          spottable: [...sea.spottable, ...more.spottable, ...story.spottable, ...(wreck?.spottable ?? []), ...divers.spottable],
+          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); more.update(...a); wreck?.update(...a); divers.update(...a); ride.update(...a); lab.update(...a); story.update(...a); guide.update(...a); },
+          dispose() { guide.dispose(); ride.dispose(); divers.dispose(); wreck?.dispose(); story.dispose(); lab.dispose(); more.dispose(); sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
         };
       },
     };

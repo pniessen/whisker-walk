@@ -17,7 +17,9 @@ export const REEF_LIFE_PAGES = Object.freeze([['rfseal', '🦭', 'seal', 'Curiou
 // the spotted shark, the sunken galleon, the torn map, the Captain's Chest and the two mounts. Short names: they are start-up constants.
 export const REEF_WING_PAGES = Object.freeze([['rflab', '🔬', 'lab', 'The Sealab'], ['rffuses', '🔌', 'fuses', 'Three Fuses'], ['rfshow', '🌌', 'show', 'Dome Lights'],
   ['rfshark', '🦈', 'shark', 'Spotted Shark'], ['rfgalleon', '🏴‍☠️', 'galleon', 'The Galleon'], ['rfmap', '🗺️', 'map', 'The Torn Map'],
-  ['rfcaptchest', '👑', 'captchest', 'Captain’s Chest'], ['rfscooter', '🛵', 'scooter', 'Sea Scooter'], ['rfsaucer', '🛸', 'saucer', 'Diving Saucer']].map((p) => Object.freeze(p)));
+  ['rfcaptchest', '👑', 'captchest', 'Captain’s Chest'], ['rfscooter', '🛵', 'scooter', 'Sea Scooter'], ['rfsaucer', '🛸', 'saucer', 'Diving Saucer'],
+  // R18: the friendly divers, the research ship above the shimmer and the big spotted shark far out (world/reefdivers.js). Always shown (no wing switch).
+  ['rfdivers', '🤿', 'divers', 'Friendly Divers'], ['rfvessel', '🛥️', 'vessel', 'Research Ship'], ['rfwhaleshark', '🦈', 'whaleshark', 'Big Spotted Shark']].map((p) => Object.freeze(p)));
 // Which wings are open: a wing's pages stay out of the journal until its hatch, rack or ship is in the game (the owner's note: no silhouettes of places that are
 // not there). 'lab' opened with R13 (the Sealab's hatch); the galleon (R16), the scooter and the saucer opened with R12 (their racks); the galleon (R16) follows, a switch to true in its own milestone.
 export const WING_LIVE = { lab: true, wreck: true, scooter: true, saucer: true };

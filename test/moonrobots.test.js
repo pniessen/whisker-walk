@@ -213,7 +213,7 @@ describe('photo targets and journal cards', () => {
       expect(JOURNAL_TYPES).toContain(k);
     }
     expect(MOON_LIFE_PAGES.map((p) => p[0])).toEqual(KINDS);
-    expect(JOURNAL_TYPES.slice(-6)).toEqual(KINDS); // appended at the end
+    const at = JOURNAL_TYPES.indexOf(KINDS[0]); expect(JOURNAL_TYPES.slice(at, at + 6)).toEqual(KINDS); // appended in a block (the Reef's R18 ids come after)
   });
   it('the cards carry their names from start-up and their hints from the lazy words, and the progression saves the ids', () => {
     for (const [id, , , name] of MOON_LIFE_PAGES) {
