@@ -13,7 +13,7 @@ export const COOP_READY = {
   house: true, // M5(d): test/coopm5house.test.js
   lighthouse: true, // M5(d): test/coopm5lighthouse.test.js
   greenhouse: true, moon: false, reef: false, crystal: false,
-  snowville: false, treehouse: false, jungle: false,
+  snowville: false, treehouse: true, jungle: false,
 };
 
 export const coopReady = (areaId) => COOP_READY[areaId] === true;
