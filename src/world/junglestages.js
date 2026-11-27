@@ -2,7 +2,7 @@
 // fills ST when it loads, so a stage is always in before build() or the life runs (the area loader awaits them together, in parallel). J1 only reserves the slots (each
 // stage is empty but valid); the later milestones fill them. Each piece grows under its own budget (scripts/buildjson.mjs, JUNGLE_STAGE_ENTRY_MODULES).
 //   jungleb: the river's far bank, the canopy walk and the Rain Supper (J5)
-//   junglec: the raft (J7)
+//   junglec: the raft (not built in J7: Mossy's errand is stage b's, so this slot stays empty)
 // A slot with nothing in it answers null, so a later milestone never edits jungle.js.
 export const ST = {};
 

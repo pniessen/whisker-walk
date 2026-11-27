@@ -70,6 +70,7 @@ export const AWARDS = {
   treejob: 25, // Nutmeg's post round of the day, once a walk after the story (world/treehousejoblive.js)
   // The Jungle lodge (2026-11-27): one of its six finds, paid the first time ever (world/junglefinds.js).
   junglefind: 12,
+  junglejob: 25, // Mossy's errand of the day, once a walk after the story (world/junglejoblive.js)
   junglestory: 40, // the Rain Supper (the supper's pay moment), once ever (world/junglewinglive.js)
   treestory: 40, // the firefly supper (the supper's pay moment), once ever (world/treehousewinglive.js)
   snowstory: 40, // Lantern Night (the show's pay moment), once ever (world/snowvillewinglive.js)

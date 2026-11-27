@@ -278,7 +278,7 @@ describe('the six live journal pages', () => {
     const jl = CRITTER_INFO.filter((c) => /^j[lw]\d$/.test(c.id));
     expect(jl).toHaveLength(17);
     for (const c of jl) {
-      if ([...JUNGLE_PAGE_IDS, 'jw1', 'jw2', 'jw5', 'jl7', 'jl8'].includes(c.id)) { expect(c.later, c.id).toBeFalsy(); expect(c.jungle).toBe(true); expect(c.hint).toMatch(/\S/); } else expect(c.later, c.id).toBe(true);
+      if ([...JUNGLE_PAGE_IDS, 'jw1', 'jw2', 'jw5', 'jl7', 'jl8', 'jw6', 'jw7'].includes(c.id)) { expect(c.later, c.id).toBeFalsy(); expect(c.jungle).toBe(true); expect(c.hint).toMatch(/\S/); } else expect(c.later, c.id).toBe(true);
     }
     expect(jl.filter((c) => JUNGLE_PAGE_IDS.includes(c.id)).map((c) => c.name)).toEqual(JUNGLE_PAGES.map((p) => p[3]));
   });

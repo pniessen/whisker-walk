@@ -76,7 +76,8 @@ export function build(scene) {
         const light = createJungleLight(ctx.roomSeed === undefined ? ctx : { ...ctx, schedule: createRainSchedule((ctx.roomSeed ^ RAIN_SEED) >>> 0) }); // in a room the showers are the room's (the same on every device)
         const mossy = createMossy({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
         const wing = ST.b?.wing?.({ scene: ctx.scene, mossy, light, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent }); // the table, the strings of lights and the Rain Supper (milestone J5)
-        const prompts = createJunglePrompts(mossy, wing);
+        const errand = ST.b?.errand?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, send: ctx.sendEvent }); // Mossy's errand of the day (milestone J7, in stage b)
+        const prompts = createJunglePrompts(mossy, wing, errand);
         const finds = ST.b?.finds?.life(ctx); // the six discoveries (milestone J3)
         const critters = ST.b?.critters?.(ctx); // the macaws, toucan, frogs and the rain's patter (milestone J4)
         return {
@@ -86,10 +87,10 @@ export function build(scene) {
           wing,
           promptAt: (catPos) => prompts.promptAt(catPos),
           interact: () => prompts.interact(),
-          // a step done by anyone in the room (a `jl-` event): a supper begun by a partner starts ours, any other step is Mossy's
-          credit: (ev) => wing?.credit(ev) ?? mossy.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); mossy.update(dt, t, catPos, camera, session); wing?.update(dt, t); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos, light.state); },
-          dispose() { critters?.dispose(); finds?.dispose(); wing?.dispose(); mossy.dispose(); light.dispose(); },
+          // a step done by anyone in the room (a `jl-` event): an errand done by a partner is credited to ours, a supper begun by a partner starts ours, any other step is Mossy's
+          credit: (ev) => errand?.credit(ev) ?? wing?.credit(ev) ?? mossy.credit(ev),
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); mossy.update(dt, t, catPos, camera, session); wing?.update(dt, t); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos, light.state); },
+          dispose() { errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); mossy.dispose(); light.dispose(); },
         };
       },
     };

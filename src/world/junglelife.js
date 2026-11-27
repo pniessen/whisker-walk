@@ -435,7 +435,7 @@ export function createMossy(ctx) {
 
 // The action button's one arbiter for the place: Mossy first, then the stages' own offers (stage slots that answer null until a stage fills them, so later milestones add to the
 // list and never fight over it).
-export function createJunglePrompts(mossy, wing = null) {
+export function createJunglePrompts(mossy, wing = null, errand = null) {
   const slot = (get) => ({ promptAt: (p) => get()?.promptAt?.(p) ?? null, interact: () => get()?.interact?.() ?? null });
-  return createPromptArbiter([mossy, slot(() => wing), slot(() => ST.c)]);
+  return createPromptArbiter([mossy, slot(() => errand), slot(() => wing), slot(() => ST.c)]);
 }
