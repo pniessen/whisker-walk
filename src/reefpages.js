@@ -13,13 +13,18 @@ export const REEF_LIFE_PAGES = Object.freeze([['rfseal', '🦭', 'seal', 'Curiou
   // seven more (world/reefmore.js): a jellyfish, a clownfish pair, a kelp seahorse, a manta, a whale, a moray eel and the squid school
   ['rfjelly', '🪼', 'jelly', 'Moon Jellyfish'], ['rfclown', '🐠', 'clown', 'Clownfish Pair'], ['rfhorse', '🐴', 'horse', 'Kelp Seahorse'], ['rfmanta', '🐟', 'manta', 'Gliding Manta'],
   ['rfwhale', '🐋', 'whale', 'Gentle Whale'], ['rfmoray', '🐍', 'moray', 'Smiling Moray'], ['rfsquid', '🦑', 'squid', 'Squid School']].map((p) => Object.freeze(p)));
+// Nine more pages for the second wave (R10 reserves the ids; the wings that earn them come later): the Sealab, its three fuses, the dome show,
+// the spotted shark, the sunken galleon, the torn map, the Captain's Chest and the two mounts. Short names: they are start-up constants.
+export const REEF_WING_PAGES = Object.freeze([['rflab', '🔬', 'lab', 'The Sealab'], ['rffuses', '🔌', 'fuses', 'Three Fuses'], ['rfshow', '🌌', 'show', 'Dome Lights'],
+  ['rfshark', '🦈', 'shark', 'Spotted Shark'], ['rfgalleon', '🏴‍☠️', 'galleon', 'The Galleon'], ['rfmap', '🗺️', 'map', 'The Torn Map'],
+  ['rfcaptchest', '👑', 'captchest', 'Captain’s Chest'], ['rfscooter', '🛵', 'scooter', 'Sea Scooter'], ['rfsaucer', '🛸', 'saucer', 'Diving Saucer']].map((p) => Object.freeze(p)));
 export const REEF_JOURNAL_TYPES = Object.freeze(REEF_PAGES.map((p) => p[0]));
 
 // The hints by journal id: empty here, filled by the Reef's lazy file (world/reefwords.js) when its chunk arrives.
 export const REEF_HINTS = {};
 
 // The journal's pages, by journal id.
-export const REEF_PAGE_WORDS = Object.freeze(Object.fromEntries([...REEF_PAGES, ...REEF_LIFE_PAGES].map(([id, , , name]) => [id, Object.freeze({
+export const REEF_PAGE_WORDS = Object.freeze(Object.fromEntries([...REEF_PAGES, ...REEF_LIFE_PAGES, ...REEF_WING_PAGES].map(([id, , , name]) => [id, Object.freeze({
   name: () => name,
   hint: () => REEF_HINTS[id] ?? '',
 })])));

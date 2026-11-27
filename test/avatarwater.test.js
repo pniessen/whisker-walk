@@ -263,3 +263,20 @@ describe('the fight pose is drawn as a hen for Hagrid only', () => {
     expect(h.cat.userData.henRig).toBeUndefined();
   });
 });
+
+describe('a mount that swims her (perched.swim)', () => {
+  // s.swim.k is the swim blend (0 to 1) the Reef's swim pose reads; it only rises while `floating` is true.
+  const blend = async (perched) => {
+    const h = harness(); h.player.canFloat = true; h.player.floatY = 0; h.at(10); h.s.perched = perched;
+    h.tick(1); await new Promise((r) => setTimeout(r, 50)); h.tick(60);
+    return h.s.swim?.k;
+  };
+  it('changes nothing where perched.swim is unset: no blend with a plain perch or none', async () => {
+    expect(await blend({})).toBe(0);
+    expect(await blend({ swim: false })).toBe(0);
+    expect(await blend(null)).toBe(0);
+  });
+  it('swims her when it is set', async () => {
+    expect(await blend({ swim: true })).toBe(1);
+  });
+});

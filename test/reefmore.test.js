@@ -318,7 +318,8 @@ describe('the life on a walk', () => {
 describe('the journal pages', () => {
   it('seven more cards in the Reef\'s set, with names from start-up and hints from the lazy words, and the ids saved by the progression', () => {
     expect(REEF_LIFE_PAGES.map((p) => p[0]).slice(3)).toEqual(NEW_IDS);
-    expect(JOURNAL_TYPES.slice(-7)).toEqual(NEW_IDS);
+    const at = JOURNAL_TYPES.indexOf(NEW_IDS[0]);
+    expect(JOURNAL_TYPES.slice(at, at + 7)).toEqual(NEW_IDS);
     for (const id of NEW_IDS) {
       const page = REEF_LIFE_PAGES.find((p) => p[0] === id); const card = CRITTER_INFO.find((c) => c.id === id);
       expect(card.reef).toBe(true); expect(card.name).toBe(page[3]); expect(card.hint).toBe(HINTS[id]); expect(REEF_HINTS[id]).toBe(HINTS[id]);

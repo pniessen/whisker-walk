@@ -101,7 +101,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   // The Reef's friendly sea life (src/reefpages.js REEF_LIFE_PAGES): the walks each was spotted on.
   'rfseal', 'rfoctopus', 'rfdolphin',
   // seven more sea creatures (world/reefmore.js)
-  'rfjelly', 'rfclown', 'rfhorse', 'rfmanta', 'rfwhale', 'rfmoray', 'rfsquid'];
+  'rfjelly', 'rfclown', 'rfhorse', 'rfmanta', 'rfwhale', 'rfmoray', 'rfsquid',
+  // The Reef's second wave (src/reefpages.js REEF_WING_PAGES; ids reserved in its milestone R10): Sealab, galleon, two mounts.
+  'rflab', 'rffuses', 'rfshow', 'rfshark', 'rfgalleon', 'rfmap', 'rfcaptchest', 'rfscooter', 'rfsaucer'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
@@ -573,7 +575,7 @@ function defaultState() {
     moon: { step: 0, cells: 0, stamp: -1, scope: 0, jump: {} },
     // The Reef (docs/superpowers/plans/2026-11-26-reef.md, milestone R0): the story's step (0 to 7), the shells carried to Marlo (3 bits) and
     // the postcard album (12 bits). No errand: the day's errand is derived from the room seed. Additive: SAVE_VERSION stays 4.
-    reef: { step: 0, shells: 0, album: 0 },
+    reef: { step: 0, shells: 0, album: 0, lab: 0, wreck: 0 },
     // The Crystal Cave (docs/superpowers/plans/2026-11-26-crystal-cave.md, C0): the story's step (0 to 7), the spark stones carried (3 bits) and the
     // rubbings album (12 bits). Additive: SAVE_VERSION stays 4.
     crystal: { step: 0, sparks: 0, album: 0 },
@@ -940,8 +942,12 @@ function sanitizeCrystal(v) {
 function sanitizeReef(v) {
   const n = (x, hi) => Math.min(hi, asFiniteNonNegInt(x, 0));
   const step = n(v?.step, 7);
-  return { step, shells: n(v?.shells, 7) | REEF_SHELLS_AT[step], album: n(v?.album, 4095) };
+  return { step, shells: n(v?.shells, 7) | REEF_SHELLS_AT[step], album: n(v?.album, 4095), lab: reefLab(n(v?.lab, 15)), wreck: reefWreck(n(v?.wreck, 31)) };
 }
+// The Reef's wings (R10 seams): lab = bits 0-2 the three fuses, bit 3 the dome show seen (which implies all three fuses); wreck = bit 0 the torn
+// map, bits 1-3 the clues in order, bit 4 the Captain's Chest (any set bit fills every bit below it). Also used by the merge after the OR.
+export const reefLab = (b) => (b & 8 ? 15 : b & 7);
+export const reefWreck = (b) => (b ? (1 << (32 - Math.clz32(b))) - 1 : 0);
 
 // Cloud-loaded (or otherwise externally supplied) den field: same untrusted
 // threat model as every other field in sanitizeState. owned is filtered to

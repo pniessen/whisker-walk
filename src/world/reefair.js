@@ -32,8 +32,9 @@ export function refill(s) {
   s.soft = false;
 }
 
-// Advances the gauge by dt seconds. Returns the one event of this step ('low', 'lift', 'landed') or null.
-export function stepAir(s, dtRaw) {
+// Advances the gauge by dt seconds. Returns the one event of this step ('low', 'lift', 'landed') or null. `paused` (inside the Sealab,
+// riding a mount) freezes the gauge: the clock still runs but nothing is used and no event fires.
+export function stepAir(s, dtRaw, paused = false) {
   const dt = clean(dtRaw);
   s.t += dt;
   if (s.lift !== null) {
@@ -41,7 +42,7 @@ export function stepAir(s, dtRaw) {
     if (s.lift >= AIR.lift) { s.lift = null; return 'landed'; }
     return null;
   }
-  if (airHidden(s)) return null;
+  if (paused || airHidden(s)) return null;
   s.used += dt;
   if (s.used >= AIR.seconds) {
     refill(s);

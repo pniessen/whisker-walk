@@ -22,6 +22,26 @@ describe('the numbers', () => {
   });
 });
 
+describe('a paused gauge', () => {
+  it('freezes: nothing is used and no event fires, but the clock runs; it resumes after', () => {
+    const s = createAir({ firstVisit: false });
+    for (let i = 0; i < 200; i++) expect(stepAir(s, 1, true)).toBe(null);
+    expect(s.used).toBe(0);
+    expect(s.t).toBe(200);
+    expect(bubblesLeft(s)).toBe(5);
+    stepAir(s, 1);
+    expect(s.used).toBe(1);
+    expect(stepAir(s, 1, false)).toBe(null);
+  });
+  it('does not stop a lift already under way', () => {
+    const s = createAir({ firstVisit: false });
+    s.used = AIR.seconds - 0.1;
+    expect(stepAir(s, 1)).toBe('lift');
+    let ev = null; for (let i = 0; i < 100 && ev !== 'landed'; i++) ev = stepAir(s, 0.5, true);
+    expect(ev).toBe('landed');
+  });
+});
+
 describe('the gauge', () => {
   it('starts full; on a first visit it is hidden and does not drain for the first 20 s', () => {
     const s = createAir({ firstVisit: true });

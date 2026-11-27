@@ -179,8 +179,10 @@ export const MERGE_RULES = Object.freeze({
   },
   // The Reef: the story only moves on (step max), shells and album postcards are unions of bits (the sanitiser then makes the shells
   // at least what the step implies).
+  // The Sealab and galleon bitmasks (lab, wreck) are OR-ed too; the sanitiser then fills the bits their rules imply.
   reef: (r) => ({
     step: Math.max(r.L.reef.step, r.C.reef.step), shells: r.L.reef.shells | r.C.reef.shells, album: r.L.reef.album | r.C.reef.album,
+    lab: r.L.reef.lab | r.C.reef.lab, wreck: r.L.reef.wreck | r.C.reef.wreck,
   }),
   // The Crystal Cave: the story only moves on (step max), spark stones and rubbings are unions of bits.
   crystal: (r) => ({

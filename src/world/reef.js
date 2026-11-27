@@ -28,6 +28,12 @@ import { createReefSealsLife } from './reefsealslive.js';
 import { createReefMoreLife } from './reefmorelive.js';
 import { lifeColliders } from './reefseals.js';
 import './reefwords.js';
+import './reefwingwords2.js';
+import { loadReefStages } from './reefstages.js';
+
+// Under vitest the stages load here, so every test that imports this file gets the whole Reef; the game's own loader awaits them (areas.js).
+// (The flag is undefined in a build, so this line and its top-level await are dropped.)
+if (import.meta.env?.VITEST) await loadReefStages();
 
 export { REEF_NAME, REEF_BOUNDS, REEF_SPAWN } from './reefplan.js';
 

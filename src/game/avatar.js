@@ -242,7 +242,8 @@ export function createAvatarUpdater({
       if (napping && !s.rest) bus.emit('purr:end');
     }
     // Under the sea (the Reef): a rest, a nap or a perch puts her back on the sand; while she floats she is never idle, and above 0.3 m she paddles.
-    const floating = player.floatY > FLOAT_PADDLE;
+    let floating = player.floatY > FLOAT_PADDLE;
+    floating ||= !!s.perched?.swim; // a mount in the Reef swims her (nothing else sets perched.swim)
     if (player.floatY > 0) {
       if (s.rest || s.perched) player.clearFloat();
       else s.idleTime = 0;

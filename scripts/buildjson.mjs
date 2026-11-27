@@ -94,16 +94,27 @@ export const MOON_STAGE_ENTRY_MODULES = Object.freeze({
 export const MOON_STAGE_GZIP_CEILING_KB = 65;
 export const MOON_TOTAL_GZIP_CEILING_KB = 135;
 
-/** { moon, moonhill, ..., total } files: stage A, each stage's own files beyond stage A, and every file the Moon downloads. */
-export function moonDownloads(manifest) {
-  const a = new Set(areaDownloads(manifest).moon);
-  const st = areaDownloads(manifest, MOON_STAGE_ENTRY_MODULES);
-  const out = { moon: [...a] };
+/** The staged-downloads helper: { [id], ...stage ids, total }: stage A (the place's own files), each stage's own files beyond stage A, and every file the place downloads. */
+export function stagedDownloads(manifest, id, stageEntries) {
+  const a = new Set(areaDownloads(manifest)[id]);
+  const st = areaDownloads(manifest, stageEntries);
+  const out = { [id]: [...a] };
   const all = new Set(a);
-  for (const [id, fs] of Object.entries(st)) { out[id] = fs.filter((f) => !a.has(f)); for (const f of fs) all.add(f); }
+  for (const [sid, fs] of Object.entries(st)) { out[sid] = fs.filter((f) => !a.has(f)); for (const f of fs) all.add(f); }
   out.total = [...all];
   return out;
 }
+export const moonDownloads = (manifest) => stagedDownloads(manifest, 'moon', MOON_STAGE_ENTRY_MODULES);
+
+// The Reef is the same shape (src/world/reefstages.js): stage A (reef.js) and three stage chunks, each under REEF_STAGE_GZIP_CEILING_KB, all four under the total.
+export const REEF_STAGE_ENTRY_MODULES = Object.freeze({
+  reeflab: Object.freeze(['src/world/reefstagelab.js']),
+  reefwreck: Object.freeze(['src/world/reefstagewreck.js']),
+  reefride: Object.freeze(['src/world/reefstageride.js']),
+});
+export const REEF_STAGE_GZIP_CEILING_KB = 65;
+export const REEF_TOTAL_GZIP_CEILING_KB = 150;
+export const reefDownloads = (manifest) => stagedDownloads(manifest, 'reef', REEF_STAGE_ENTRY_MODULES);
 
 /** One line per place over its ceiling; kbById is gzipped kB per place. */
 export function areaSizeProblems(kbById, ceilingKb = AREA_GZIP_CEILING_KB) {
@@ -190,10 +201,15 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   const { total: moonTotal, ...moonParts } = moonKb;
   problems.push(...areaSizeProblems(moonParts, MOON_STAGE_GZIP_CEILING_KB), ...areaSizeProblems({ 'moon (all stages)': moonTotal }, MOON_TOTAL_GZIP_CEILING_KB));
   problems.push(...lazyProblems(manifest, MOON_STAGE_ENTRY_MODULES));
+  const reefKb = Object.fromEntries(Object.entries(reefDownloads(manifest)).map(([id, fs]) => [id, fs.reduce((n, f) => n + gzipOf(dir, f), 0) / 1000]));
+  const { total: reefTotal, ...reefParts } = reefKb;
+  problems.push(...areaSizeProblems(reefParts, REEF_STAGE_GZIP_CEILING_KB), ...areaSizeProblems({ 'reef (all stages)': reefTotal }, REEF_TOTAL_GZIP_CEILING_KB));
+  problems.push(...lazyProblems(manifest, REEF_STAGE_ENTRY_MODULES));
   const tvKb = tvDownloads(manifest).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000;
   problems.push(...areaSizeProblems({ tv: tvKb }, TV_GZIP_CEILING_KB));
   console.log(`start-up ${(startBytes / 1000).toFixed(1)} kB gzipped (ceiling ${MAIN_GZIP_CEILING_KB} kB), ${start.length} files`);
   for (const [id, v] of Object.entries(kb)) console.log(`  ${id.padEnd(13)} ${v.toFixed(1)} kB gzipped (ceiling ${AREA_GZIP_CEILING_KB} kB)`);
+  console.log(`  reef stages   A ${reefKb.reef.toFixed(1)}, lab ${reefKb.reeflab.toFixed(1)}, wreck ${reefKb.reefwreck.toFixed(1)}, ride ${reefKb.reefride.toFixed(1)}, all ${reefTotal.toFixed(1)} kB gzipped (ceiling ${REEF_STAGE_GZIP_CEILING_KB} each, ${REEF_TOTAL_GZIP_CEILING_KB} all)`);
   console.log(`  moon stages   A ${moonKb.moon.toFixed(1)}, hill ${moonKb.moonhill.toFixed(1)}, launch ${moonKb.moonlaunch.toFixed(1)}, rover ${moonKb.moonrover.toFixed(1)}, all ${moonTotal.toFixed(1)} kB gzipped (ceiling ${MOON_STAGE_GZIP_CEILING_KB} each, ${MOON_TOTAL_GZIP_CEILING_KB} all)`);
   console.log(`  tv chunk      ${tvKb.toFixed(1)} kB gzipped (ceiling ${TV_GZIP_CEILING_KB} kB)`);
   const coopKb = (areaDownloads(manifest, COOP_ENTRY_MODULES).coop ?? []).reduce((n, f) => n + gzipOf(dir, f), 0) / 1000;
