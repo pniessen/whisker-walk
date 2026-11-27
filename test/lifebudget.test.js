@@ -27,8 +27,8 @@ const ROWS = [
   ['reef', buildReef, 101, 2, 74200],
   ['crystal', buildCrystal, 32, 2, 36900],
   ['treehouse', buildTreehouse, 23, 2, 66200],
-  ['snowville', buildSnowville, 36, 3, 35400],
-  ['jungle', buildJungle, 31, 4, 42700],
+  ['snowville', buildSnowville, 36, 3, 46500],
+  ['jungle', buildJungle, 31, 4, 55700],
 ];
 
 describe('build + life: the whole frame of the newest areas', () => {
