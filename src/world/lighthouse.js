@@ -20,6 +20,7 @@ import { createWater, WATER_TUNING } from '../render/water.js';
 import * as P from './lighthouseplan.js';
 import * as K from './lighthouseparts.js';
 import { drawBeauty } from './lighthousebeauty.js';
+import { drawDetail } from './lighthousedetail.js';
 import { createLighthouseLife } from './lighthouselife.js';
 import './lighthousewords.js';
 import { phrase } from '../clanphrases.js';
@@ -76,6 +77,7 @@ export function build(scene, { water = {}, wind } = {}) {
     K.drawGullRock(kit, M);
     K.drawMarks(kit, M, plan.ground);
     drawBeauty(kit, M);
+    drawDetail(kit, M);
     const place = new THREE.Group();
     place.name = 'lighthousePlace';
     for (const m of kit.meshes()) place.add(m);

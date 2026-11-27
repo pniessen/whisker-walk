@@ -14,13 +14,13 @@ import * as P from './lighthouseplan.js';
 import { COL, paint, paintBy, bx, bm, cy, sp, boulder, PLATEAU_PATH_LINES } from './lighthouseparts.js';
 
 const _c = new THREE.Color();
-const mixHex = (a, b, t) => new THREE.Color(a).lerp(new THREE.Color(b), t).getHex();
-const shadeHex = (hex, k) => new THREE.Color(hex).multiplyScalar(k).getHex();
+export const mixHex = (a, b, t) => new THREE.Color(a).lerp(new THREE.Color(b), t).getHex();
+export const shadeHex = (hex, k) => new THREE.Color(hex).multiplyScalar(k).getHex();
 const h01 = hash01;
 const UP = [0, 1, 0];
 
 // A soup of loose triangles with a colour per corner and a fixed normal (flat things lit like the ground under them).
-class Soup {
+export class Soup {
   constructor() { this.pos = []; this.col = []; this.nor = []; }
   tri(a, b, c, ha, hb = ha, hc = ha, n = UP) {
     for (const [p, h] of [[a, ha], [b, hb], [c, hc]]) {
@@ -51,7 +51,7 @@ class Soup {
 
 // A tuft of `n` blades radiating from one root, each a thin triangle that leans outward, dark at the root and sun-caught at the
 // tip. Single-sided (it faces up and out), so the sky-side camera always sees most of them.
-function tuft(S, x, y, z, seed, h, base, tip, n = 4) {
+export function tuft(S, x, y, z, seed, h, base, tip, n = 4) {
   const a0 = h01(seed, 0, 201) * 6.283;
   for (let k = 0; k < n; k++) {
     const a = a0 + (k / n) * 6.283 + 0.5 * (h01(seed, k, 203) - 0.5);
@@ -80,7 +80,7 @@ function flower(S, x, y, z, seed, hex, r = 0.05, stem = 0.16) {
 }
 
 // An irregular flat patch (seaweed, a stain, a puddle's edge): a fan of `seg` points round (x, z), radii wobbling.
-function patch(S, x, y, z, r, seed, ha, hb = ha, seg = 6, sx = 1, sz = 1) {
+export function patch(S, x, y, z, r, seed, ha, hb = ha, seg = 6, sx = 1, sz = 1) {
   const pts = [];
   for (let k = 0; k < seg; k++) {
     const a = (k / seg) * 6.283;
@@ -91,7 +91,7 @@ function patch(S, x, y, z, r, seed, ha, hb = ha, seg = 6, sx = 1, sz = 1) {
 }
 
 // A flat ribbon along a polyline of [x, z] points at height y, `w` wide, with a colour per end of each piece.
-function ribbon(S, pts, y, w, ha, hb = ha) {
+export function ribbon(S, pts, y, w, ha, hb = ha) {
   for (let i = 0; i + 1 < pts.length; i++) {
     const [ax, az] = pts[i]; const [bx2, bz] = pts[i + 1];
     const l = Math.hypot(bx2 - ax, bz - az) || 1;
@@ -102,7 +102,7 @@ function ribbon(S, pts, y, w, ha, hb = ha) {
 }
 
 // A low cone (a shell or a limpet): `seg` sides, a rim and an apex.
-function shell(S, x, y, z, r, seed, hex) {
+export function shell(S, x, y, z, r, seed, hex) {
   const seg = 5;
   const apex = [x, y + r * 0.7, z];
   for (let k = 0; k < seg; k++) {
@@ -141,18 +141,18 @@ const segDist = (px, pz, ax, az, bx2, bz) => {
   const t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / (dx * dx + dz * dz || 1)));
   return Math.hypot(px - (ax + t * dx), pz - (az + t * dz));
 };
-const nearCollider = (x, z, pad) => P.LIGHTHOUSE_COLLIDERS.some((q) => Math.hypot(x - q.x, z - q.z) < q.r + pad);
+export const nearCollider = (x, z, pad) => P.LIGHTHOUSE_COLLIDERS.some((q) => Math.hypot(x - q.x, z - q.z) < q.r + pad);
 const nearPath = (x, z, pad) => PLATEAU_PATH_LINES.some(([pts, w]) => pts.some((p, i) => i + 1 < pts.length && segDist(x, z, p[0], p[1], pts[i + 1][0], pts[i + 1][1]) < w / 2 + pad));
 const C0 = P.COTTAGE;
 const CX0 = C0.x - C0.w / 2; const CX1 = C0.x + C0.w / 2; const CZ0 = C0.z - C0.d / 2; const CZ1 = C0.z + C0.d / 2;
-const lawnOk = (x, z) => x > -39.6 && x < -6.9 && z < 3.5 && z > -62
+export const lawnOk = (x, z) => x > -39.6 && x < -6.9 && z < 3.5 && z > -62
   && !(x > -16.8 && z > -22.4 && z < -15.6)
   && Math.hypot(x - P.TOWER.x, z - P.TOWER.z) > 4.6
   && !(x > CX0 - 0.7 && x < CX1 + 2.7 && z > CZ0 - 0.7 && z < CZ1 + 0.9)
   && !(x > P.GARDEN.minX - 1 && x < P.GARDEN.maxX + 1 && z > P.GARDEN.minZ - 1)
   && !nearPath(x, z, 0.35) && !nearCollider(x, z, 0.45);
-const poolNear = (x, z, pad) => P.POOLS.some((q) => Math.hypot(x - q.x, z - q.z) < q.r + pad);
-const sandOk = (x, z) => ((x > -5.4 && x < 35.2) || (z > 5.4 && x > -38.5 && x < 35.2))
+export const poolNear = (x, z, pad) => P.POOLS.some((q) => Math.hypot(x - q.x, z - q.z) < q.r + pad);
+export const sandOk = (x, z) => ((x > -5.4 && x < 35.2) || (z > 5.4 && x > -38.5 && x < 35.2))
   && !poolNear(x, z, 1.9) && !nearCollider(x, z, 0.5)
   && !(Math.abs(z - 16) < 2.6 && x > -26 && x < -0.5)
   && !(z < 5 && x < -4.6)

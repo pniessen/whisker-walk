@@ -625,7 +625,7 @@ export function drawPools(kit, M) {
       const d = Math.abs(((a - gapA + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
       const d2 = Math.abs(((a - gapA - Math.PI + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
       if (Math.min(d, d2) < 0.42) continue;
-      kit.put('rocks', M.stone, boulder(p.x + (p.r + 0.15) * Math.cos(a), 0.03, p.z + (p.r + 0.15) * Math.sin(a), 0.26 + 0.14 * hash01(k, i, 73), 0.2 + 0.16 * hash01(k, i, 75), 80 + k + i * 11, [COL.rock[0], COL.rock[1], 0x6f7469]), { noCast: true });
+      kit.put('rocks', M.stone, boulder(p.x + (p.r + 0.15) * Math.cos(a), 0.03, p.z + (p.r + 0.15) * Math.sin(a), 0.26 + 0.14 * hash01(k, i, 73), 0.2 + 0.16 * hash01(k, i, 75), 80 + k + i * 11, [COL.rock[0], COL.rock[1], 0x6f7469], hash01(k, i, 73) < 0.4 ? 0 : 1), { noCast: true });
     }
   });
 }
@@ -653,7 +653,7 @@ export function drawBeach(kit, M) {
     const z = P.LIGHTHOUSE_BOUNDS.minZ + hash01(i, 2, 91) * (P.LIGHTHOUSE_BOUNDS.maxZ - P.LIGHTHOUSE_BOUNDS.minZ);
     if (!clear(x, z)) continue;
     const r = 0.18 + 0.28 * hash01(i, 3, 91);
-    kit.put('rocks', M.stone, boulder(x, 0, z, r, r * 0.7, 120 + i), { noCast: true });
+    kit.put('rocks', M.stone, boulder(x, 0, z, r, r * 0.7, 120 + i, COL.rock, r < 0.3 ? 0 : 1), { noCast: true });
     placed++;
   }
   // the plateau's stones
@@ -661,7 +661,7 @@ export function drawBeach(kit, M) {
     const x = -38 + hash01(i, 5, 93) * 30; const z = -42 + hash01(i, 6, 93) * 44;
     if (Math.hypot(x - P.TOWER.x, z - P.TOWER.z) < 6.5 || (x > -17 && z > -23 && z < -15) || !P.LIGHTHOUSE_COLLIDERS.every((q) => Math.hypot(x - q.x, z - q.z) > q.r + 0.7)) continue;
     const r = 0.16 + 0.22 * hash01(i, 7, 93);
-    kit.put('rocks', M.stone, boulder(x, P.PLATEAU_Y, z, r, r * 0.7, 160 + i), { noCast: true });
+    kit.put('rocks', M.stone, boulder(x, P.PLATEAU_Y, z, r, r * 0.7, 160 + i, COL.rock, r < 0.3 ? 0 : 1), { noCast: true });
   }
 }
 
@@ -732,7 +732,7 @@ export function drawCaveFittings(kit, M) {
   for (let i = 0; i < 12; i++) {
     const px = P.CAVE.minX + 1 + hash01(i, 1, 97) * 9; const pz = P.CAVE.minZ + 0.5 + hash01(i, 2, 97) * 5;
     const r = 0.06 + 0.1 * hash01(i, 3, 97);
-    kit.put('rocks', M.stone, boulder(px, 0, pz, r, r * 0.8, 200 + i, [0xcfc3a8, 0xb8ad98, 0x8c8479]), { noCast: true });
+    kit.put('rocks', M.stone, boulder(px, 0, pz, r, r * 0.8, 200 + i, [0xcfc3a8, 0xb8ad98, 0x8c8479], 0), { noCast: true });
   }
 }
 
