@@ -22,6 +22,7 @@ import { drawCave, drawLanternStalks, drawWingClumps, drawSpires } from './reefw
 import { REEF_SCENICS } from './reeffindsplan.js';
 import { drawDeep } from './reefdeepparts.js';
 import { createReefDeepLife } from './reefdeeplife.js';
+import { createReefGuideLive } from './reefguidelive.js';
 import './reefwords.js';
 
 export { REEF_NAME, REEF_BOUNDS, REEF_SPAWN } from './reefplan.js';
@@ -87,10 +88,12 @@ export function build(scene) {
         const base = createReefStoryLife(ctx); // the light, the kelp, the gauge, Marlo and chapter one (milestone R2)
         const finds = createReefFindsLife(ctx); // the six discoveries (milestone R3)
         const deep = createReefDeepLife({ ...ctx, say: base.say }); // the plankton and the Deep's three soft lines (R8)
+        const guide = createReefGuideLive({ doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, marlo: base.marlo, errand: base.errand, progression: ctx.progression }); // the written guide: goal line, arrow, chip, arrival card
         return {
           ...base,
-          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); },
-          dispose() { deep.dispose(); finds.dispose(); base.dispose(); },
+          guide,
+          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); guide.update(...a); },
+          dispose() { guide.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
         };
       },
     };

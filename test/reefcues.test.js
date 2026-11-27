@@ -199,16 +199,16 @@ describe('(b) every step\'s target exists, is in bounds, can be walked to with n
 // For each step: the thing the ring should point at, the lines that tell her (each must be wired in the live code), the journal hint page, and whether a glint hangs there.
 const lantern = (i) => W.LANTERNS[i];
 const CUES = [
-  { step: 0, goal: 'marlo', icon: 'question', target: (t) => t.marlo, lines: ['reef.marlo.hello', 'reef.marlo.prompt'], journal: 'rfshells' },
-  { step: 1, goal: 'shell', icon: 'shell', target: () => S.STORY_SHELLS[0], lines: ['reef.marlo.met', 'reef.shell.find', 'reef.shell.prompt', 'reef.shell.got'], journal: 'rfshells', glint: true },
-  { step: 2, goal: 'shell', icon: 'shell', target: () => S.STORY_SHELLS[1], lines: ['reef.marlo.small', 'reef.shell.float'], journal: 'rfshells', glint: true },
-  { step: 3, goal: 'shell', icon: 'shell', target: () => S.STORY_SHELLS[2], lines: ['reef.marlo.big', 'reef.shell.cave'], journal: 'rfshells', glint: true },
-  { step: 4, goal: 'tryon', icon: 'heart', target: (t) => t.marlo, lines: ['reef.marlo.third', 'reef.marlo.tried'], journal: 'rfshells' },
-  { step: 5, goal: 'lantern', icon: 'question', target: (t) => lantern(t.goal.g.lantern), lines: ['reef.lantern.hint', 'reef.lantern.lit'], journal: 'rflanterns' },
-  { step: 6, goal: 'parade', icon: 'heart', target: (t) => t.marlo, lines: ['reef.lantern.all', 'reef.parade.prompt', 'reef.parade.start'], journal: 'rfparade' },
-  { step: 7, goal: 'rest', icon: 'heart', target: null, lines: ['reef.parade.pay', 'reef.pearl', 'reef.parade.replay'], journal: 'rferrand' },
+  { step: 0, goal: 'marlo', icon: 'question', target: (t) => t.marlo, lines: ['reef.marlo.hello', 'reef.marlo.prompt', 'reef.guide.hello'], journal: 'rfshells' },
+  { step: 1, goal: 'shell', icon: 'shell', target: () => S.STORY_SHELLS[0], lines: ['reef.marlo.met', 'reef.shell.find', 'reef.shell.prompt', 'reef.shell.got', 'reef.guide.shell0'], journal: 'rfshells', glint: true },
+  { step: 2, goal: 'shell', icon: 'shell', target: () => S.STORY_SHELLS[1], lines: ['reef.marlo.small', 'reef.shell.float', 'reef.guide.shell1'], journal: 'rfshells', glint: true },
+  { step: 3, goal: 'shell', icon: 'shell', target: () => S.STORY_SHELLS[2], lines: ['reef.marlo.big', 'reef.shell.cave', 'reef.guide.shell2'], journal: 'rfshells', glint: true },
+  { step: 4, goal: 'tryon', icon: 'heart', target: (t) => t.marlo, lines: ['reef.marlo.third', 'reef.marlo.tried', 'reef.guide.tryon'], journal: 'rfshells' },
+  { step: 5, goal: 'lantern', icon: 'question', target: (t) => lantern(t.goal.g.lantern), lines: ['reef.lantern.hint', 'reef.lantern.lit', 'reef.guide.lantern'], journal: 'rflanterns' },
+  { step: 6, goal: 'parade', icon: 'heart', target: (t) => t.marlo, lines: ['reef.lantern.all', 'reef.parade.prompt', 'reef.parade.start', 'reef.guide.parade'], journal: 'rfparade' },
+  { step: 7, goal: 'rest', icon: 'heart', target: null, lines: ['reef.parade.pay', 'reef.pearl', 'reef.parade.replay', 'reef.guide.errand'], journal: 'rferrand' },
 ];
-const LIVE_SRC = ['reefmarlo.js', 'reefhouse.js', 'reefstorylife.js'].map((f) => readFileSync(new URL(`../src/world/${f}`, import.meta.url), 'utf8').replace(/\/\/.*$/gm, '')).join('\n');
+const LIVE_SRC = ['reefmarlo.js', 'reefhouse.js', 'reefstorylife.js', 'reefguide.js'].map((f) => readFileSync(new URL(`../src/world/${f}`, import.meta.url), 'utf8').replace(/\/\/.*$/gm, '')).join('\n');
 
 describe('(c) every step has a cue that points at the next target, and every cue resolves in both word sets with no banned word', () => {
   const trail = play(rig());
