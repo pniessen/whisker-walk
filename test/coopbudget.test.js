@@ -29,6 +29,8 @@ await (await import('../src/world/snowvillestages.js')).loadSnowvilleStages();
 const { build: buildSnowville } = await import('../src/world/snowville.js');
 await (await import('../src/world/crystalstages.js')).loadCrystalStages();
 const { build: buildCrystal } = await import('../src/world/crystal.js');
+await (await import('../src/world/moonstages.js')).loadMoonStages();
+const { build: buildMoon } = await import('../src/world/moon.js');
 const { build: buildLighthouse } = await import('../src/world/lighthouse.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const { buildCat } = await import('../src/cat/model.js');
@@ -137,6 +139,7 @@ const SCENES = [
   ['jungle', buildJungle, 76650, 121, 113], // 76,578 / 117 / 109 measured: the whole scene with both dressed cats
   ['snowville', buildSnowville, 71650, 119, 112], // 71,602 (70,348 before the snowmobile, 1,162 + holiday) / 115 / 108 measured: the whole scene with both dressed cats
   ['crystal', buildCrystal, 46850, 126, 111], // 46,782 / 122 / 107 measured: the whole scene with both dressed cats
+  ['moon', buildMoon, 66700, 141, 118], // 63,500 / 134 / 112 measured: the whole scene (all stages loaded) with both dressed cats, under the 70,000 of the place alone
 ];
 
 const markScene = (withPuff = false) => {

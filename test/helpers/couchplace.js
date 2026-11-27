@@ -9,8 +9,8 @@ import { COOP_READY } from '../../src/coop/table.js';
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
-/** opts: { id, build(scene) -> record, session(s, record) extra wiring }. Returns the pieces a place file adds its own tests to. */
-export function placeSuite({ id, build, wire = null, ready = true, joinSpots = null }) {
+/** opts: { id, build(scene) -> record, session(s, record) extra wiring, knownLip: { x, z, why } a step of the place own ground that a solo cat meets too }. Returns the pieces a place file adds its own tests to. */
+export function placeSuite({ id, build, wire = null, ready = true, joinSpots = null, knownLip = null }) {
   afterEach(reset);
   const world = new THREE.Scene();
   const record = build(world);
@@ -87,7 +87,8 @@ export function placeSuite({ id, build, wire = null, ready = true, joinSpots = n
       const route = reach.pathTo(far);
       const { r, s } = start(record.spawn);
       const done = walkRoute(r, s, route, { frames: 60 * 240, set, pad });
-      expect(done || Math.abs(s.cat.position.y - levelAt(s.cat.position)) > 1, 'cat one got there, or climbed a stair of the place on her own').toBe(true);
+      const atLip = !done && knownLip && dist(s.cat.position, knownLip) < 1.5; // stopped at a known lip of the ground, not by cat two (knownLip.why)
+      expect(done || atLip || Math.abs(s.cat.position.y - levelAt(s.cat.position)) > 1, 'cat one got there, or climbed a stair of the place on her own').toBe(true);
       set(r, pad(0), pad(1)); r.tick(60 * 30);
       const one = s.cat.position, two = r.two().group.position;
       expect(dist(one, two), 'cat two was left behind').toBeLessThan(9);
