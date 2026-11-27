@@ -1467,6 +1467,9 @@ function init() {
       // few-second note): a walk picked up after the page is closed knows it
       // is taken and never gives a second one (restoreFind).
       if (arrival && handleFindArrival(session, arrival, { progression, log, hud, audio, card: findCard })) noteWalk();
+      // The holiday errand's finds (a lazy chunk; none outside a window): the same frame, its own arrivals.
+      const holidayArrival = session.holidayFinds?.update(dt, t, findFrame);
+      if (holidayArrival && session.holidayFinds.handle(holidayArrival, { progression, log, hud, audio, fx: session.fx, cat: session.cat })) noteWalk();
       session.kittenEnc.update(dt, session.cat.position);
       // Daily zoomies race: advance the ring timer/crossing checks, then
       // reflect it in the HUD objective (throttled to actual ring changes)

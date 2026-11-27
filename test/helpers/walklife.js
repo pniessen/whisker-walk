@@ -73,7 +73,7 @@ export function controlledLoader() {
 // `blockList`: the hidden visitors (src/blocklist.js), a Set of player ids.
 // `storage`: the save's storage (a fresh one by default; a test may seed a
 // save in it first). `coarse`: the device's pointer. `tier`: the quality tier
-// every walk begins on (HIGH by default). `player`: the walk's player (no-ops by
+// every walk begins on (HIGH by default). `settings`: extra Settings values by key (null otherwise). `player`: the walk's player (no-ops by
 // default; a test may record what the walk hands it). `log`: the discovery log (a
 // recorder by default; a test may hand a real one). `realLog`: the walk gets a
 // real discovery log (discoveries.js, as main.js makes one) instead of a
@@ -82,7 +82,7 @@ export function controlledLoader() {
 export function lifecycle({
   collar = false, areas = createAreaLoader(), online = () => true, blockList = new Set(),
   storage = memStorage(), coarse = false, tier = resolveQuality({ override: 'high' }),
-  player = anything(), log: givenLog = null, realLog = false,
+  player = anything(), log: givenLog = null, realLog = false, settings: extraSettings = {},
 } = {}) {
   let session = null;
   let pendingRoom = null;
@@ -103,7 +103,7 @@ export function lifecycle({
     renderer: null, camera,
     composerRig: anything({ applyLighting: (_scene, o) => rec.lighting.push(o.dusk) }),
     player, progression,
-    settings: { get: (k) => (k === 'muted' ? true : null) },
+    settings: { get: (k) => (k === 'muted' ? true : extraSettings[k] ?? null) },
     hud,
     audio: anything({ startAmbient: (areaId, o) => rec.sound.push({ areaId, ...o }), getContext: () => { rec.soundContexts++; } }),
     music: anything({ start: (_seed, mood) => rec.music.push(mood) }),

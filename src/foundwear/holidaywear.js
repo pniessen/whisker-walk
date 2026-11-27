@@ -102,6 +102,30 @@ export function mergeHolidays(a, b) {
   return out;
 }
 
+// ---- the errand's counter: { christmas2026: 2 } ----
+// How many of the holiday's finds she has kept in this window's year (one counts a walk), up to HOLIDAY_FINDS_NEEDED, when the earned
+// piece is hers. Christmas and Hanukkah only. A merge keeps the larger of each side's count.
+export const HOLIDAY_FINDS_NEEDED = 3;
+export function sanitizeHolidayFinds(v) {
+  const out = {};
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return out;
+  let n = 0;
+  for (const key of Object.keys(v)) {
+    if (n >= HOLIDAYS_MAX) break;
+    const k = parseHolidayKey(key);
+    const c = Number(v[key]);
+    if (!k || k.holiday === 'winter' || !Number.isInteger(c) || c < 1) continue;
+    out[key] = Math.min(c, HOLIDAY_FINDS_NEEDED);
+    n += 1;
+  }
+  return out;
+}
+export function mergeHolidayFinds(a, b) {
+  const x = sanitizeHolidayFinds(a), y = sanitizeHolidayFinds(b), out = {};
+  for (const key of new Set([...Object.keys(x), ...Object.keys(y)])) out[key] = Math.max(x[key] ?? 0, y[key] ?? 0);
+  return out;
+}
+
 // The accessory ids a record owns: every bit set, in any year, names that holiday's piece.
 export function holidayPiecesOwned(holidays, wear = HOLIDAY_WEAR) {
   const out = new Set();
