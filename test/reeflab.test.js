@@ -494,13 +494,13 @@ describe('the words, the journal and the source rules', () => {
     }
     for (const id of ['rflab', 'rffuses', 'rfshow', 'rfshark']) { expect(RP.REEF_PAGE_WORDS[id].hint()).not.toMatch(BAD); expect(RP.REEF_PAGE_WORDS[id].name()).not.toMatch(BAD); }
   });
-  it('the journal shows the Sealab\'s four pages and keeps the galleon, map, chest, scooter and saucer out until their wings exist', () => {
+  it('the journal shows the Sealab\'s four pages and keeps the galleon, map and chest (the scooter and saucer opened with R12) out until their wings exist', () => {
     setReef(true);
     try {
       const html = renderJournalHtml({}, 0, 0);
       for (const id of ['rflab', 'rffuses', 'rfshow', 'rfshark']) expect(html, id).toContain(RP.REEF_PAGE_WORDS[id].hint());
-      for (const id of ['rfgalleon', 'rfmap', 'rfcaptchest', 'rfscooter', 'rfsaucer']) expect(html, id).not.toContain(RP.REEF_PAGE_WORDS[id].hint());
-      expect(RP.WING_LIVE).toEqual({ lab: true, wreck: false, scooter: false, saucer: false });
+      for (const id of ['rfgalleon', 'rfmap', 'rfcaptchest']) expect(html, id).not.toContain(RP.REEF_PAGE_WORDS[id].hint());
+      expect(RP.WING_LIVE).toEqual({ lab: true, wreck: false, scooter: true, saucer: true });
       RP.WING_LIVE.wreck = true;
       expect(renderJournalHtml({}, 0, 0)).toContain(RP.REEF_PAGE_WORDS.rfgalleon.hint());
       RP.WING_LIVE.wreck = false;
