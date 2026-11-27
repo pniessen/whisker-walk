@@ -947,7 +947,7 @@ describe('v11 slots + save migration', () => {
   it('every slot offers 4-5 shop choices so no category feels thin', () => {
     // Visit prizes are won, not bought, so they are not shop choices.
     for (const slot of ['collar', ...SLOTS]) {
-      const count = Object.values(CATALOG.accessories).filter((a) => a.slot === slot && !a.prize).length;
+      const count = Object.values(CATALOG.accessories).filter((a) => a.slot === slot && !a.prize && !a.season).length; // (a seasonal shelf item is not an everyday choice)
       expect(count, `slot "${slot}" has ${count} items`).toBeGreaterThanOrEqual(4);
       expect(count, `slot "${slot}" has ${count} items`).toBeLessThanOrEqual(5);
     }

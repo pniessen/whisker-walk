@@ -22,7 +22,7 @@ import { sanitizeOutfits, wornNow, sameWear, canSaveOutfit, OUTFIT_SLOTS, OUTFIT
 import { escapeHtml } from '../escapehtml.js';
 import { areaOffer } from '../areaoffer.js';
 import { spotsIn } from '../foundwear/spots/index.js';
-import { shelfShows } from '../foundwear/holidaywear.js';
+import { shelfShows, holidayPrizeLine } from '../foundwear/holidaywear.js';
 
 // Launch A (2026-11-05): home holds the cat, the place and Start; every other
 // screen is a sheet behind one of three doors. `menu` and `places` are the
@@ -298,7 +298,7 @@ export function renderSlotPickerHtml(state, catalog, slot, tryOn, thumbs) {
     // it), no price, no try-on.
     if (a.prize && !owned) {
       // (a Fairground prize is won at one of its games, not by visiting)
-      const how = a.holiday ? phrase(`wear.holidayPrize.${a.holiday}`) : a.fair ? phrase('fair.prize.locked') : prizeVisit(id) == null ? phrase('wear.areaPrize') : `A surprise at visit ${prizeVisit(id)}`;
+      const how = a.holiday ? holidayPrizeLine(a.holiday) : a.fair ? phrase('fair.prize.locked') : prizeVisit(id) == null ? phrase('wear.areaPrize') : `A surprise at visit ${prizeVisit(id)}`;
       return `<div class="dr-pick locked prize-surprise"><span class="gift" aria-hidden="true">🎁</span><span>${escapeHtml(how)}</span></div>`;
     }
     if (on) {

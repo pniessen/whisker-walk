@@ -389,9 +389,9 @@ export const CATALOG = {
   // getter that reads the phrase table when shown.
   // The gift outfits (src/foundwear/gifts.js) sit between the two: a gift
   // code gives them (`code`), nothing sells or hides them.
-  // The holiday outfits (src/foundwear/holidaywear.js) come last: earned pieces (`holiday`, prizes) and shop pieces
+  // The holiday outfits (src/foundwear/holidaywear.js) come after the gift ones, before the found: earned pieces (`holiday`, prizes) and shop pieces
   // with a `season` (sold only while that holiday's shelf is open, see canBuy).
-  accessories: accessoriesWithFound(accessoriesWithFound(accessoriesWithFound(BASE_ACCESSORIES, GIFT_CATALOG), FOUND_CATALOG), HOLIDAY_CATALOG),
+  accessories: accessoriesWithFound(accessoriesWithFound(accessoriesWithFound(BASE_ACCESSORIES, GIFT_CATALOG), HOLIDAY_CATALOG), FOUND_CATALOG),
   areas: {
     neighborhood: { name: 'Cozy Neighborhood', price: 0 },
     park: { name: 'City Park', price: 50, requires: { area: 'neighborhood', walks: 2 } },

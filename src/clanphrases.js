@@ -635,6 +635,11 @@ const LATER = Object.freeze({
   'wear.snowflakescarf.name': 'Snowflake Scarf',
   // The Treehouse village's found cap (a placeholder name, the same in every set)
   'wear.canopycap.name': 'Canopy Cap',
+  // The holiday outfits (src/foundwear/holidaywear.js): real-world holiday words, the same in every set. Winter Lights, earned.
+  'wear.lanterncharm.name': 'Lantern Charm',
+  'wear.snowcap.name': 'Snow Cap',
+  'wear.lightscarf.name': 'Light-string Scarf',
+  'wear.startopper.name': 'Star Topper Halo',
   // The Jungle lodge's found anklets (a placeholder name, the same in every set)
   'wear.fernanklet.name': 'Fern Anklet',
   // Lighthouse Point's journal pages (src/lighthousepages.js): drawn before the place is ever walked, so they are

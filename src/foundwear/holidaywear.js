@@ -16,7 +16,17 @@
 import { phrase } from '../clanphrases.js';
 import { HOLIDAY_IDS, shelfOpen } from '../holidays.js';
 
+const earned = (id, slot, emoji, holiday, bit, name) => Object.freeze({ id, slot, emoji, holiday, bit, name });
+
+const sold = (id, slot, emoji, season, price, name) => Object.freeze({ id, slot, emoji, season, price, name });
+
 export const HOLIDAY_WEAR = Object.freeze([
+  // Winter Lights, the umbrella: four earned pieces (the errand's basket, H7). Meshes: hats.js (snowcap), foundneck.js (lightscarf,
+  // lanterncharm), foundbody.js (startopper).
+  earned('lanterncharm', 'collar', '🏮', 'winter', 0, () => phrase('wear.lanterncharm.name')),
+  earned('snowcap', 'head', '❄️', 'winter', 1, () => phrase('wear.snowcap.name')),
+  earned('lightscarf', 'neck', '💡', 'winter', 2, () => phrase('wear.lightscarf.name')),
+  earned('startopper', 'back', '⭐', 'winter', 3, () => phrase('wear.startopper.name')),
 ]);
 export const HOLIDAY_WEAR_IDS = Object.freeze(HOLIDAY_WEAR.map((r) => r.id));
 
@@ -101,3 +111,11 @@ export function shelfShows(entry, owned, now = new Date()) {
   if (!entry?.season) return true;
   return owned === true || shelfOpen(entry.season, now);
 }
+
+// The line a not-yet-earned holiday piece shows in the picker ("Earned in Winter Lights"); the same words in every set.
+const PRIZE_LINES = {
+  winter: () => phrase('wear.holidayPrize.winter'),
+  christmas: () => phrase('wear.holidayPrize.christmas'),
+  hanukkah: () => phrase('wear.holidayPrize.hanukkah'),
+};
+export const holidayPrizeLine = (holiday) => (Object.hasOwn(PRIZE_LINES, holiday) ? PRIZE_LINES[holiday]() : '');

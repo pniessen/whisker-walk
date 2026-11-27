@@ -268,9 +268,11 @@ const KERCHIEFS = {
   // the Captain's Chest (the Reef): a red cloth with white spots, the gingham's three tones as spots on red; a black-blue band
   // Snowville's Snowflake Scarf: white and ice-blue checks on a pale blue band
   snowflakescarf: { cloth: [0xf2f7fc, 0xb4d4f0, 0x7aaee0], band: [0x6a9ad0, 0x8cb6e4], knot: [0xf2f7fc, 0xb4d4f0] },
+  // The Candy-stripe Scarf (a Christmas shop item): red and white stripes across the cloth, a red and white striped band
+  candyscarf: { cloth: [0xfaf6ec, 0xf0a09c, 0xd8303c], stripe: 1, band: [0xd8303c, 0xfaf6ec], knot: [0xd8303c, 0xfaf6ec] },
   piratebandana: { cloth: [0xc8322c, 0xf2ece0, 0xa8221e], band: [0x1c2a4a, 0x2a3a5e], knot: [0x2a3a5e, 0x1c2a4a] },
 };
-const ginghamAt = (L, u, v, cell) => (L.net ? L.cloth[1] : L.cloth[(Math.floor(u / cell) & 1) + (Math.floor(v / cell) & 1)]);
+const ginghamAt = (L, u, v, cell) => (L.net ? L.cloth[1] : L.stripe ? L.cloth[(Math.floor(v / cell) & 1) * 2] : L.cloth[(Math.floor(u / cell) & 1) + (Math.floor(v / cell) & 1)]);
 
 // The bandana's cone (three sides, point down), flattened onto the chest and
 // cut into small triangles, each painted by where its centre falls on the
@@ -295,7 +297,7 @@ const kerchief = (id) => (head, a) => {
   const L = KERCHIEFS[id], { k, y, z, ringR } = a, [B0, B1] = L.band;
   neckRing(head, a, paintedTorus(ringR, 0.012 * k, 4, 14, (u) => (((u * 14 / Math.PI) | 0) % 2 ? B0 : B1)), painted());
   const cat = k === 1, R = cat ? 0.145 : 0.125, H = cat ? 0.175 : 0.155;
-  const cloth = ginghamCone(L, R, H, 0.021 * k);
+  const cloth = ginghamCone(L, R, H, (L.stripe ? 0.012 : 0.021) * k);
   cloth.scale(1, 1, 0.85);
   // the knot and its two ends, at the cone's base (y = -H / 2: the throat, once
   // turned point down), on its front (-z: the face away from the neck)
@@ -376,6 +378,26 @@ function addBirthdayRosette(head, a) {
   neckRing(head, { ...a, ringR }, paintedTorus(ringR, tube, 4, 16, (u, v) => (Math.abs(Math.sin(v)) > 0.85 ? ROSETTE_GOLD : ROSETTE_RIBBON)), painted(), [rosette], { side: THREE.DoubleSide });
 }
 
+
+// Light-string Scarf (Winter Lights): a thin dark-green wire round the neck, eight small round bulbs strung along it (red, gold,
+// green and sky blue in turn, each with a tiny dark cap), and two strands hanging at the front, each ending in a bulb. One ring
+// mesh and one bulb mesh. Bulbs only light by their colour: nothing is emissive.
+const BULBS = [0xd8303c, 0xf2c14e, 0x3fae5e, 0x3f8fd8];
+function addLightScarf(head, a) {
+  const { k } = a, ringR = a.ringR + 0.004 * k, parts = [];
+  const bulb = (x, y, z, hex, cap = true) => {
+    parts.push(colour(new THREE.SphereGeometry(0.018 * k, 5, 3).scale(1, 1, 1.2).translate(x, y, z), hex));
+    if (cap) parts.push(colour(new THREE.ConeGeometry(0.007 * k, 0.012 * k, 3).rotateX(-Math.PI / 2).translate(x, y, z - 0.016 * k), 0x3a3a42));
+  };
+  for (let i = 0; i < 8; i++) { const t = (i / 8) * Math.PI * 2 + 0.4; bulb(Math.cos(t) * ringR, Math.sin(t) * ringR, 0.012 * k, BULBS[i % 4]); }
+  // the two hanging strands at the front (theta -pi/2), hung down the chest (+z in the ring's frame), a bulb at each end
+  for (const [s, len, hex] of [[-1, 0.07, BULBS[1]], [1, 0.1, BULBS[0]]]) {
+    parts.push(colour(new THREE.CylinderGeometry(0.0035 * k, 0.0035 * k, len * k, 4).rotateX(Math.PI / 2).translate(s * 0.022 * k, -ringR, len * k / 2), 0x2f5a3c));
+    bulb(s * 0.022 * k, -ringR, len * k + 0.01 * k, hex, false);
+  }
+  neckRing(head, { ...a, ringR }, paintedTorus(ringR, 0.0055 * k, 3, 12, () => 0x2f5a3c), painted(), [mergeGeometries(parts)]);
+}
+
 export const FOUND_NECKS = Object.freeze({
   daisychain: addDaisyChain,
   gardenglovescarf: addGardenGloveScarf,
@@ -386,6 +408,9 @@ export const FOUND_NECKS = Object.freeze({
   stringbagscarf: kerchief('stringbagscarf'),
   piratebandana: kerchief('piratebandana'),
   snowflakescarf: kerchief('snowflakescarf'),
+  // the holiday outfits (src/foundwear/holidaywear.js)
+  lightscarf: addLightScarf,
+  candyscarf: kerchief('candyscarf'),
 });
 // ---- Collars --------------------------------------------------------------
 
@@ -572,7 +597,28 @@ const dressRainLily = charm([0x4f9a4a, 0xf4ecd6], (u) => [
   colour(new THREE.SphereGeometry(0.12 * u, 5, 4).translate(0, 0, -0.2 * u), () => 0xf2c14e),
 ]);
 
+
+// Lantern Charm (Winter Lights): an amber band piped cream, and at the throat a small six-sided lantern, a dark cap and base, a
+// ring to hang it by, pale gold glass and a little flame inside. Faces -z, one mesh.
+const dressLantern = charm([0xd9a441, 0xf6ecd0], (u) => [
+  colour(new THREE.TorusGeometry(0.22 * u, 0.07 * u, 4, 8).translate(0, 1.12 * u, 0), 0x3a3a42),
+  colour(new THREE.ConeGeometry(0.62 * u, 0.4 * u, 6).translate(0, 0.78 * u, 0), 0x3a3a42),
+  colour(new THREE.CylinderGeometry(0.46 * u, 0.4 * u, 0.95 * u, 6).translate(0, 0.08 * u, 0), (x, y, z) => (z < -0.2 * u ? 0xffe9a8 : 0xf2c86a)),
+  colour(new THREE.CylinderGeometry(0.46 * u, 0.5 * u, 0.12 * u, 6).translate(0, -0.46 * u, 0), 0x3a3a42),
+  colour(new THREE.SphereGeometry(0.15 * u, 5, 4).scale(1, 1.4, 1).translate(0, 0.02 * u, -0.1 * u), 0xff9a2e),
+]);
+
+// Jingle Collar (a Christmas shop item): a red band piped white, and at the throat one round gold bell with a dark slit and a
+// small shine, a loop to hang it by. Faces -z, one mesh.
+const dressJingle = charm([0xc8303a, 0xf6f2e8], (u) => [
+  colour(new THREE.TorusGeometry(0.2 * u, 0.06 * u, 4, 8).translate(0, 0.92 * u, 0), 0xc8952a),
+  colour(new THREE.SphereGeometry(0.62 * u, 8, 6).translate(0, 0.1 * u, 0), (x, y, z) => (z < -0.3 * u && y > 0.2 * u ? 0xfff0a8 : 0xf2c14e)),
+  colour(new THREE.BoxGeometry(0.7 * u, 0.07 * u, 0.1 * u).translate(0, -0.12 * u, -0.6 * u), 0x6b4a1a),
+]);
+
 export const FOUND_COLLARS = Object.freeze({
+  lanterncharm: Object.freeze({ ring: 0xd9a441, charmed: true, dress: dressLantern }),
+  jinglecollar: Object.freeze({ ring: 0xc8303a, charmed: true, dress: dressJingle }),
   glimmercollar: Object.freeze({ ring: 0x8a6ac0, charmed: true, dress: dressGlimmer }),
   pearlcollar: Object.freeze({ ring: 0xa8d8cf, charmed: true, dress: dressPearl }),
   moonbadge: Object.freeze({ ring: 0x8e98b0, charmed: true, dress: dressMoonBadge }),

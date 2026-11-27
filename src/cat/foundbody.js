@@ -104,11 +104,22 @@ function starlightPaint(a, s) {
   return s > 0.6 ? NIGHT_LOW : NIGHT;
 }
 
+
+// The Evergreen Sweater (a Christmas shop item): deep evergreen knit, ribbed at the neck and hem, a band of small red and cream
+// diamonds round the chest. Painted by uz (along the body) like the jumper's bands, so the shell's grid draws it cleanly.
+const EVERGREEN = 0x2f7a4a, EVERGREEN_KNIT = 0x3a8a58, EVERGREEN_SHADOW = 0x24623b, SWEATER_RED = 0xc8303a, SWEATER_CREAM = 0xf3ead2;
+function evergreenPaint(ux, uy, uz) {
+  if (uz > 0.82 || uz < -0.72) return Math.round(Math.atan2(ux, uy) * 12) % 2 ? EVERGREEN : EVERGREEN_SHADOW;
+  if (Math.abs(uz - 0.12) < 0.1) return (Math.round(Math.atan2(ux, uy) * 7) + Math.round(uz * 20)) % 2 ? SWEATER_RED : SWEATER_CREAM;
+  return Math.round(uz * 16) % 2 ? EVERGREEN : EVERGREEN_KNIT;
+}
+
 export const FOUND_BODY = Object.freeze({
   doormatcape: Object.freeze({ kind: 'cape', colour: COIR, accent: COIR_BORDER, paint: doormatPaint }),
   beachtowelcape: Object.freeze({ kind: 'cape', colour: 0xf2763c, accent: 0xf2c14e, paint: towelPaint }),
   fishermansjumper: Object.freeze({ kind: 'shell', colour: JUMPER, paint: jumperPaint }),
   starlightcape: Object.freeze({ kind: 'cape', colour: NIGHT, accent: STAR_ICE, paint: starlightPaint }),
+  evergreensweater: Object.freeze({ kind: 'shell', colour: EVERGREEN, paint: evergreenPaint }),
 });
 
 // The Kite-tail Ribbon: a little diamond kite flying up behind her on a white
@@ -212,7 +223,38 @@ function birthdayBalloon({ onBack, floatOn, floatString, ball }) {
   balloon.position.set(0.05, 0.965, 0.42);
   floatOn(balloon, foot);
 }
-export const FOUND_FLOATS = Object.freeze({ kitetailribbon: kiteTail, candyflosspuff: candyfloss, bdayballoon: birthdayBalloon });
+
+// A flat five-pointed star, `depth` thick, facing -z (the back's open side) once hung: one mesh, its points straight up.
+function starMesh(outer, inner, depth, hex) {
+  const shape = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 ? inner : outer, a = Math.PI / 2 + (i / 10) * Math.PI * 2;
+    if (i === 0) shape.moveTo(Math.cos(a) * r, Math.sin(a) * r); else shape.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false }).translate(0, 0, -depth / 2);
+  geo.deleteAttribute('uv');
+  return new THREE.Mesh(geo, litMaterial(hex));
+}
+// Little Gold Star (a Christmas earned piece): one gold star hovering over her shoulders on a white string tied where the tail begins.
+function littleGoldStar({ onBack, floatOn, floatString }) {
+  const foot = new THREE.Vector3(...onBack(0, 0.5, 0.31)), top = new THREE.Vector3(0, 0.84, 0.4);
+  floatString(foot, top, 0.0035);
+  const star = starMesh(0.058, 0.026, 0.014, 0xf2c14e);
+  star.position.set(0, 0.9, 0.4);
+  floatOn(star, foot);
+}
+// Star Topper Halo (a Winter Lights earned piece): a thin gold ring lying flat over the shoulders with a small pale-gold star standing on it.
+function starTopperHalo({ onBack, floatOn, floatString }) {
+  const foot = new THREE.Vector3(...onBack(0, 0.5, 0.31)), top = new THREE.Vector3(0, 0.8, 0.4);
+  floatString(foot, top, 0.0035);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.009, 4, 14).rotateX(Math.PI / 2), litMaterial(0xe0a82e));
+  ring.position.set(0, 0.84, 0.4);
+  floatOn(ring, foot);
+  const star = starMesh(0.036, 0.016, 0.01, 0xffe08a);
+  star.position.set(0, 0.9, 0.4);
+  floatOn(star, foot);
+}
+export const FOUND_FLOATS = Object.freeze({ kitetailribbon: kiteTail, candyflosspuff: candyfloss, bdayballoon: birthdayBalloon, littlegoldstar: littleGoldStar, startopper: starTopperHalo });
 
 function paintedGeo(geo, hexOf) {
   const p = geo.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color();
