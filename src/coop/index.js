@@ -441,6 +441,14 @@ export function start(ctx) {
     }
   }
 
+  // The standing strip of each player's own buttons, in that player's own pad pictures, while two cats walk.
+  function hintStrip(show) {
+    if (!cards) return;
+    if (!show) { cards.showHints(null); return; }
+    const t = [phrase('coop.hints.one', nameOne()), phrase('coop.hints.two', nameTwo())];
+    cards.showHints(t.map((x, i) => glyphify(x, kinds[i])), t.map((x, i) => plainify(x, kinds[i])));
+  }
+
   function joinPill(pads, engaged, couch) {
     if (!cards) return;
     if (!couch || !cur || !engaged || state.joined || pads.length === 0) { cards.hideJoin(); return; }
@@ -475,6 +483,7 @@ export function start(ctx) {
       if (!state.couch) carry = false;
       if (!carry) hub.reset();
       cards?.hideLost();
+      cards?.showHints(null);
       hud?.hideAll();
       joinPill(pads, !!ctx.player.engaged, state.couch);
       readyLine(false);
@@ -545,6 +554,7 @@ export function start(ctx) {
     if (p0) kinds[0] = padKind(p0.id);
     if (p1) kinds[1] = padKind(p1.id);
     lostCard();
+    hintStrip(live2 && state.joined && !fights.on);
     joinPill(pads, live2 || ready, true); // in the walk, and on the Ready card before it starts
     readyLine(ready && pads.length > 0);
   };

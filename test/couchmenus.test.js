@@ -115,3 +115,38 @@ describe('the per-cat prompt chip and the Pause card', () => {
     expect(find(r.doc, 'coop-slot left').hidden).toBe(false);
   });
 });
+
+describe('the standing hint strip', () => {
+  const strip = (r) => find(r.doc, 'coop-hints');
+  it('shows each player\'s own buttons in the walk once two cats are in, and hides on the Pause card', () => {
+    const r = menuRig('walk');
+    const el = strip(r);
+    expect(el.hidden).toBe(false);
+    const t = el.attrs['aria-label'];
+    expect(t).toContain('Mochi: L walk · ✕ pounce · □ pick up · ☰ pause');
+    expect(t).toContain('Siamese:');
+    expect(t).toContain('hold ▭ step out');
+    expect(el.children[0].innerHTML).toContain('<svg');
+    r.pause('pause');
+    expect(strip(r).hidden).toBe(true);
+  });
+
+  it('is not there with one cat, and not there when couch play is off', () => {
+    const solo = rig({ profile: 'laptop', ctxExtra: { enabled: () => true } });
+    set(solo, pad(0, [X])); solo.tick(3);
+    expect(strip(solo).hidden).toBe(true);
+    let on = true;
+    const r = rig({ profile: 'laptop', ctxExtra: { enabled: () => on } });
+    set(r, pad(0, [X]), pad(1)); r.tick(2); set(r, pad(0), pad(1)); r.tick(2); set(r, pad(0), pad(1, [A])); r.tick(3);
+    expect(strip(r).hidden).toBe(false);
+    on = false; r.tick(3);
+    expect(strip(r).hidden).toBe(true);
+  });
+
+  it('gives an Xbox pad its own letters', () => {
+    const r = menuRig('walk');
+    r.pads[1].id = 'Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)';
+    r.tick(3);
+    expect(strip(r).attrs['aria-label']).toContain('Siamese: L walk · A pounce · X pick up · ☰ pause · hold ▭ step out');
+  });
+});
