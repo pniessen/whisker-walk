@@ -153,6 +153,8 @@ export function createCrossing({
   function askGate(s, data) {
     if (!s || !data || !data.end || data.status?.kind !== 'go') return;
     if (!mayAsk(s)) return;
+    // A teleport gate stays shut for the host while any member is on an older build: nobody is split, nobody moves.
+    if (s.net && teleLook()?.areaOf(data.end.id) && !roomWalksOn(getRoster(), WALK_ON)) { hud.toast(phrase('tele.older')); return; }
     const { to, name } = data.status;
     prefetchArea(to);
     // A teleport gate's question is its own card (src/teleui.js).

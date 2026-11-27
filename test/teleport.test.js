@@ -448,7 +448,7 @@ describe('the words', () => {
   const say = (id, ...more) => phrase(id, ...(more.length ? more : ARGS[id] ?? []));
   const FLAVOURED = ['tele.home', 'tele.prompt', 'tele.wake'];
   it('every line is in the phrase table once the lazy file has come, and none is empty', () => {
-    expect([...IDS].sort()).toEqual(['tele.coop', 'tele.go', 'tele.guest', 'tele.hint', 'tele.home', 'tele.notnow', 'tele.prompt', 'tele.slow', 'tele.suit', 'tele.wake']);
+    expect([...IDS].sort()).toEqual(['tele.coop', 'tele.go', 'tele.guest', 'tele.hint', 'tele.home', 'tele.notnow', 'tele.older', 'tele.prompt', 'tele.slow', 'tele.suit', 'tele.wake']);
     for (const id of IDS) expect(say(id), id).toMatch(/\S/);
   });
   it('both word sets say every line; only the three flavoured ones differ, and the everyday set never shows a series word', () => {

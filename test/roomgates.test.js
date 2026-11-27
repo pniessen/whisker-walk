@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createCrossing, CROSS_RESEND_MS } from '../src/game/crossing.js';
 import { decideWalkOnAsk, decideWalkOn, decideWalkOnHave, roomWalksOn, WALK_ON, WALK_ON_MAP, nextRoomSeed } from '../src/gatecross.js';
+import { phrase } from '../src/clanphrases.js';
 import { CATALOG } from '../src/progression.js';
 import { setTele } from '../src/teleflag.js';
 import { tele } from '../src/telehook.js';
@@ -78,12 +79,12 @@ describe('a room crosses a teleport gate (I3)', () => {
     expect(r.guest.walkOn).toHaveBeenCalledWith({ via: BACK, ledBy: 'Pip', guest: true });
   });
 
-  it('a member on an older build: the walk ends there, nobody walks on (no split mid-gate)', async () => {
+  it('a member on an older build: the gate stays shut for the host with a gentle line, nobody moves', async () => {
     const r = room({ guestWalkOn: WALK_ON_MAP });
     r.hostCross();
-    expect(r.host.s.crossing.endsHere).toBe(true);
-    expect(r.host.sent.some((e) => e.type === 'walk-on-ask')).toBe(false);
-    expect(r.host.sent.some((e) => e.type === 'border-cross')).toBe(true);
+    expect(r.host.s.crossing ?? null).toBeNull();
+    expect(r.host.toasts).toEqual([phrase('tele.older')]);
+    expect(r.host.sent).toEqual([]);
     expect(r.host.walkOn).not.toHaveBeenCalled();
     expect(r.guest.walkOn).not.toHaveBeenCalled();
   });

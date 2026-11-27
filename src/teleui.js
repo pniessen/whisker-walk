@@ -22,6 +22,7 @@ export const LINES = Object.freeze({
   'tele.hint': (host) => `Find the gate in ${host}.`, // the map's card (milestone 5)
   'tele.guest': (name) => `This way to ${name}.`, // a friend in a room reads the sign; the host chooses
   'tele.coop': 'The gate is waiting. Two cats go together when we’re ready!',
+  'tele.older': 'This gate needs everyone on the newest game.',
   'tele.slow': 'Nearly there!',
 });
 addPhrases(LINES);
