@@ -241,7 +241,8 @@ const CLUMPS = [
 const BUSHES = [[30, 330], [200, 812], [560, 840], [702, 852], [930, 150], [1190, 70], [1300, 470], [1070, 735], [-90, 70], [250, 20]];
 // The east one moved north (1266, 515 -> 1248, 128) when Lighthouse Point's circle took the coast it stood on, and again
 // (1248, 128 -> 1118, 44) when the Greenhouse's circle (1215, 150, r 60) took that spot.
-const PONDS_AT = [[1118, 44, 20, 13], [-70, 690, 26, 16]];
+// (the first pond moved from (1118, 44) when the Treehouse village's circle took that corner)
+const PONDS_AT = [[1010, 40, 20, 13], [-70, 690, 26, 16]];
 
 function makeTrees() {
   const trees = [];
