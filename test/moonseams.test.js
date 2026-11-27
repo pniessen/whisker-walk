@@ -130,13 +130,13 @@ describe('the pounce, as the game presses it', () => {
 
 describe('the save key', () => {
   it('a fresh save has the default and the walk counter; the key is in the key list', () => {
-    expect(fresh().moon).toEqual({ step: 0, cells: 0, stamp: -1, scope: 0, jump: {} });
+    expect(fresh().moon).toEqual({ step: 0, cells: 0, stamp: -1, scope: 0, jump: {}, relay: 0 });
     expect(fresh().walks.moon).toBe(0);
     expect(freshStateKeys()).toContain('moon');
     expect(fresh().version).toBe(4);
   });
   it('a good value round trips', () => {
-    const moon = { step: 7, cells: 5, stamp: 2, scope: 21, jump: { tabby: 312, mine1: 40 } };
+    const moon = { step: 7, cells: 5, stamp: 2, scope: 21, jump: { tabby: 312, mine1: 40 }, relay: 5 };
     expect(fresh({ moon }).moon).toEqual(moon);
   });
   it('a hostile value is cut back, never trusted', () => {
@@ -155,20 +155,20 @@ describe('the save key', () => {
     expect(Object.getPrototypeOf(m.jump)).toBe(Object.prototype);
     expect(({}).polluted).toBeUndefined();
     for (const junk of [null, 5, 'moon', [], [1, 2], { step: 'x', cells: NaN, stamp: '1', scope: Infinity, jump: [3] }]) {
-      expect(fresh({ moon: junk }).moon, JSON.stringify(junk)).toEqual({ step: 0, cells: 0, stamp: -1, scope: 0, jump: {} });
+      expect(fresh({ moon: junk }).moon, JSON.stringify(junk)).toEqual({ step: 0, cells: 0, stamp: -1, scope: 0, jump: {}, relay: 0 });
     }
   });
   it('the key goes through the real save and load, and a v3 payload gets the default', () => {
     const storage = memoryStorage();
     const p = createProgression(storage);
     p.replaceFromPayload({ version: 4, moon: { step: 4, cells: 2, stamp: 1, scope: 3, jump: { tabby: 250 } } });
-    expect(p.state.moon).toEqual({ step: 4, cells: 2, stamp: 1, scope: 3, jump: { tabby: 250 } });
+    expect(p.state.moon).toEqual({ step: 4, cells: 2, stamp: 1, scope: 3, jump: { tabby: 250 }, relay: 0 });
     const stored = JSON.parse(storage.getItem(SAVE_KEY));
     expect(stored.moon.step).toBe(4);
     expect(stored.version).toBe(4);
     expect(createProgression(storage).state.moon).toEqual(p.state.moon);
     p.replaceFromPayload({ version: 3 });
-    expect(p.state.moon).toEqual({ step: 0, cells: 0, stamp: -1, scope: 0, jump: {} });
+    expect(p.state.moon).toEqual({ step: 0, cells: 0, stamp: -1, scope: 0, jump: {}, relay: 0 });
   });
 });
 
@@ -233,8 +233,8 @@ describe('the reserved ids', () => {
   it('the Moon is in no catalog (no card, no price, no map place) and its three golden mice are in (54 in all, 30 for the everyday edition)', async () => {
     expect(Object.hasOwn(CATALOG.areas, 'moon')).toBe(false);
     const { GOLD_TOTAL, GOLD_MICE } = await import('../src/goldmice.js');
-    expect(GOLD_TOTAL).toBe(64); // milestone 4's three mice (48 before)
-    expect(GOLD_MICE.moon.map((m) => m.id)).toEqual(['gm-moon-1', 'gm-moon-2', 'gm-moon-3']);
+    expect(GOLD_TOTAL).toBe(65); // milestone 4's three mice (48 before)
+    expect(GOLD_MICE.moon.map((m) => m.id)).toEqual(['gm-moon-1', 'gm-moon-2', 'gm-moon-3', 'gm-moon-4']);
   });
 });
 

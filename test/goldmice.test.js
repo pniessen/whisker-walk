@@ -7,11 +7,11 @@ import { GOLD_MICE, KNOWN_GOLD, GOLD_TOTAL, createGoldMice } from '../src/goldmi
 const GOLD_ID_PATTERN = /^gm-[a-z]{1,24}-[1-9]$/;
 
 describe('GOLD_MICE', () => {
-  it('has exactly 64 mice total, 3 per area, 6 in the Pines (its island holds three) and 5 in the Reef (two stubs for the Sealab and the galleon)', () => {
+  it('has exactly 65 mice total, 3 per area, 6 in the Pines (its island holds three) and 5 in the Reef (two stubs for the Sealab and the galleon)', () => {
     const all = Object.values(GOLD_MICE).flat();
-    expect(all.length).toBe(64); // 54 until the Reef added its three, 51 until the Greenhouse added its three, 48 until the Moon added its three, 45 until Lighthouse Point added its three, 42 until the Old House added its three, 39 until the Market added its three, 36 until the Rooftops added its three
+    expect(all.length).toBe(65); // 54 until the Reef added its three, 51 until the Greenhouse added its three, 48 until the Moon added its three, 45 until Lighthouse Point added its three, 42 until the Old House added its three, 39 until the Market added its three, 36 until the Rooftops added its three
     expect(Object.keys(GOLD_MICE)).toEqual(['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'gorge', 'farm', 'fair', 'roofs', 'market', 'house', 'lighthouse', 'moon', 'greenhouse', 'reef', 'crystal']);
-    for (const [area, mice] of Object.entries(GOLD_MICE)) expect(mice.length, area).toBe(area === 'pines' ? 6 : area === 'reef' || area === 'crystal' ? 5 : 3);
+    for (const [area, mice] of Object.entries(GOLD_MICE)) expect(mice.length, area).toBe(area === 'pines' ? 6 : area === "reef" || area === "crystal" ? 5 : area === "moon" ? 4 : 3);
     expect(GOLD_MICE.woods.map((m) => m.id)).toEqual(['gm-woods-1', 'gm-woods-2', 'gm-woods-3']);
     expect(GOLD_MICE.river.map((m) => m.id)).toEqual(['gm-river-1', 'gm-river-2', 'gm-river-3']);
     expect(GOLD_MICE.moor.map((m) => m.id)).toEqual(['gm-moor-1', 'gm-moor-2', 'gm-moor-3']);
@@ -22,7 +22,7 @@ describe('GOLD_MICE', () => {
     expect(GOLD_MICE.roofs.map((m) => m.id)).toEqual(['gm-roofs-1', 'gm-roofs-2', 'gm-roofs-3']);
     expect(GOLD_MICE.market.map((m) => m.id)).toEqual(['gm-market-1', 'gm-market-2', 'gm-market-3']);
     expect(GOLD_MICE.house.map((m) => m.id)).toEqual(['gm-house-1', 'gm-house-2', 'gm-house-3']);
-    expect(GOLD_MICE.moon.map((m) => m.id)).toEqual(['gm-moon-1', 'gm-moon-2', 'gm-moon-3']);
+    expect(GOLD_MICE.moon.map((m) => m.id)).toEqual(['gm-moon-1', 'gm-moon-2', 'gm-moon-3', 'gm-moon-4']);
     expect(GOLD_MICE.greenhouse.map((m) => m.id)).toEqual(['gm-green-1', 'gm-green-2', 'gm-green-3']);
     expect(GOLD_MICE.reef.map((m) => m.id)).toEqual(['gm-reef-1', 'gm-reef-2', 'gm-reef-3', 'gm-reef-4', 'gm-reef-5']);
   });
@@ -45,14 +45,14 @@ describe('GOLD_MICE', () => {
     }
   });
 
-  it('KNOWN_GOLD contains exactly the 64 GOLD_MICE ids, no more no less', () => {
+  it('KNOWN_GOLD contains exactly the 65 GOLD_MICE ids, no more no less', () => {
     const ids = Object.values(GOLD_MICE).flat().map((m) => m.id);
-    expect(KNOWN_GOLD.size).toBe(64); // 54 until the Reef added its three, 51 until the Greenhouse added its three, 48 until the Moon added its three, 45 until Lighthouse Point added its three, 42 until the Old House added its three, 39 until the Market added its three
+    expect(KNOWN_GOLD.size).toBe(65); // 54 until the Reef added its three, 51 until the Greenhouse added its three, 48 until the Moon added its three, 45 until Lighthouse Point added its three, 42 until the Old House added its three, 39 until the Market added its three
     for (const id of ids) expect(KNOWN_GOLD.has(id)).toBe(true);
   });
 
-  it('GOLD_TOTAL is 64', () => {
-    expect(GOLD_TOTAL).toBe(64); // 51 until the Greenhouse added its three, 48 until the Moon added its three, 45 until Lighthouse Point added its three, 42 until the Old House added its three, 39 until the Market added its three
+  it('GOLD_TOTAL is 65', () => {
+    expect(GOLD_TOTAL).toBe(65); // 51 until the Greenhouse added its three, 48 until the Moon added its three, 45 until Lighthouse Point added its three, 42 until the Old House added its three, 39 until the Market added its three
   });
 });
 

@@ -9,6 +9,7 @@ import * as K from './moonparts.js';
 import { ST, stageReady, stageEvent, HELD, STAGE_ORDER } from './moonstages.js';
 import { createFader, materialsOf } from './moonfade.js';
 import { REGIONS, ringFor, nearRegion } from './moonregions.js';
+import { IDLE, idleStart, nextIdleRing, idlePaused, progressMark } from './moonidle.js';
 
 export { createFader };
 
@@ -16,7 +17,7 @@ export { createFader };
 export const STAGE_LINES = Object.freeze({ 'moon.stage.wait': 'The path ahead is still waking up.' });
 addPhrases(STAGE_LINES);
 
-const IMPORTS = { hill: () => import('./moonstagehill.js'), launch: () => import('./moonstagelaunch.js'), rover: () => import('./moonstagerover.js') };
+const IMPORTS = { hill: () => import('./moonstagehill.js'), launch: () => import('./moonstagelaunch.js'), rover: () => import('./moonstagerover.js'), station: () => import('./moonstagestation.js') };
 let started = null;
 async function fetchStage(id, imports) {
   for (let attempt = 0; attempt < 2; attempt++) { // one retry, then the area stays closed off (never an error screen)
@@ -27,7 +28,7 @@ async function fetchStage(id, imports) {
 }
 /** Fetches the stages not yet in, in STAGE_ORDER, all at once (so on a normal connection nothing is ever seen arriving); the same promise every time. */
 export function startMoonStages({ imports = IMPORTS } = {}) {
-  started ??= Promise.all(STAGE_ORDER.filter((id) => !stageReady(id)).map((id) => fetchStage(id, imports))).then(() => ST);
+  started ??= Promise.all(STAGE_ORDER.filter((id) => !stageReady(id)).map((id) => fetchStage(id, imports))).then(() => Promise.resolve(imports.station?.()).catch(() => null)).then(() => ST); // the Old Relay Station (wing E) comes last: no ring, no stand-in, its slot reads null until it is in
   return started;
 }
 /** Test hook: lets a held stage in and says so. */
@@ -103,4 +104,33 @@ export function applyStage(id, L) {
   L.base.refresh?.();
   L.deep.refresh?.();
   L.fader.add([group, ...scene.children.filter((c) => !before.has(c) && c !== group)], known);
+}
+
+export const IDLE_LOOK = 0.5; // s: the idle ring looks at the goal and what changed this often (not every frame)
+/** createIdle(life) -> step(dt, catPos, session): the idle ring's schedule (moved here from moonlife.js to keep the landing's chunk small). */
+export function createIdle({ base, launch, star, job, rover, jump, deep, progression, finale }) {
+  // what moved her on since the last look (a mark that changes), the schedule's state, and the half-second the goal is looked at
+  let idle = idleStart();
+  let idleMark = null;
+  let idleAcc = 0;
+  return function idleStep(dt, catPos, session) {
+    idleAcc += dt;
+    if (idleAcc < IDLE_LOOK) return;
+    const span = Math.min(idleAcc, 1); // a stalled frame (a hidden tab) is not half a minute of idling
+    idleAcc = 0;
+    const b = base.state;
+    const rec = b.record;
+    const lf = launch.state;
+    const gp = base.goalNow();
+    const mark = progressMark({ step: rec.step, cells: rec.cells, scope: progression?.state?.moon?.scope ?? 0, stamp: progression?.state?.moon?.stamp ?? -1, carrying: b.carrying ?? -1, pip: b.pip, riding: rover.riding,
+      card: lf.carryingCard, flight: !!lf.flight, reply: lf.reply, job: JSON.stringify([job.state.taken, job.state.next, job.state.glove, job.state.done]), finds: base.finds + (session?.collectibleMeshes?.size ?? 0), calls: base.calls, hops: JSON.stringify(jump.last ?? null) });
+    const reached = !!catPos && Math.hypot(catPos.x - gp.x, catPos.z - gp.z) < IDLE.reach;
+    const progress = (idleMark !== null && mark !== idleMark) || reached;
+    idleMark = mark;
+    const fin = deep.state.finale;
+    const paused = idlePaused({ open: star.state.open || lf.open, flight: !!lf.flight, beat: b.beat, finale: fin !== null && fin < finale, riding: rover.riding, goal: gp.g });
+    const r = nextIdleRing(idle, span, { progress, paused, target: gp.g.kind !== 'done' });
+    idle = r.state;
+    if (r.ring) base.autoCall(r.first);
+  };
 }

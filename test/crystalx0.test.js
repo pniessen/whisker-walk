@@ -58,7 +58,7 @@ describe('the journal ids', () => {
   const IDS = ['ccboat', 'ccgrotto', 'ccfalls', 'ccforge', 'cccart', 'ccsong'];
   it('six ids at the very end of JOURNAL_TYPES, with names and hints, hidden until their wing is live', () => {
     expect(CRYSTAL_WING_PAGES.map((p) => p[0])).toEqual(IDS);
-    expect(JOURNAL_TYPES.slice(-6)).toEqual(IDS);
+    expect(JOURNAL_TYPES.slice(JOURNAL_TYPES.indexOf('ccboat'), JOURNAL_TYPES.indexOf('ccboat') + 6)).toEqual(IDS); // (the Moon's five follow)
     expect(new Set(JOURNAL_TYPES).size).toBe(JOURNAL_TYPES.length);
     for (const id of IDS) { expect(CRYSTAL_PAGE_WORDS[id].name()).toMatch(/\S/); expect(wingPageShown(id), id).toBe(!!WING_LIVE[{ ccboat: 'boat', ccgrotto: 'grotto', ccfalls: 'falls', ccforge: 'forge', cccart: 'cart', ccsong: 'song' }[id]]); }
     expect(wingPageShown('ccrose')).toBe(true);

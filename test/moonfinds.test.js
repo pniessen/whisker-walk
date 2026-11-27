@@ -224,19 +224,19 @@ describe('the three golden mice', () => {
   const { area } = { area: build(new THREE.Scene()) };
   const MICE = GOLD_MICE.moon;
   it('are the plan\'s three (ids gm-moon-1 to 3), and the totals are 54 and 30', () => {
-    expect(MICE.map((m) => m.id)).toEqual(['gm-moon-1', 'gm-moon-2', 'gm-moon-3']);
+    expect(MICE.map((m) => m.id)).toEqual(['gm-moon-1', 'gm-moon-2', 'gm-moon-3', 'gm-moon-4']); // (the fourth is the Old Relay Station's tower ledge, a stub from X0)
     expect(MICE).toEqual(P.MOON_MICE.map((m) => ({ ...m })));
     const total = Object.values(GOLD_MICE).flat().length;
-    expect(total).toBe(64);
-    expect(goldForEdition('canon', CATALOG).size).toBe(64);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(40);
+    expect(total).toBe(65);
+    expect(goldForEdition('canon', CATALOG).size).toBe(65);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(41);
     // the Moon has no catalog row yet, so its three count in both editions; with a row and no edition key they still do
-    expect(goldForEdition('legacy', { ...CATALOG, areas: { ...CATALOG.areas, moon: { name: 'The Moon' } } }).size).toBe(40);
+    expect(goldForEdition('legacy', { ...CATALOG, areas: { ...CATALOG.areas, moon: { name: 'The Moon' } } }).size).toBe(41);
   });
   it('each is inside the bounds, over open ground (clear of every collider) and in the walk\'s own spawn list', () => {
     const scene = { add() {}, remove() {} };
     const mice = createGoldMice(scene, 'moon', new Set(), { ground: area.ground });
-    expect(mice.list).toHaveLength(3);
+    expect(mice.list).toHaveLength(4);
     for (const m of MICE) {
       expect(m.x).toBeGreaterThan(P.MOON_BOUNDS.minX); expect(m.x).toBeLessThan(P.MOON_BOUNDS.maxX);
       expect(m.z).toBeGreaterThan(P.MOON_BOUNDS.minZ); expect(m.z).toBeLessThan(P.MOON_BOUNDS.maxZ);
@@ -433,11 +433,11 @@ describe('the draw budget: the walk\'s far pebbles and mice are not drawn', () =
       expect(m.visible, id).toBe(Math.hypot(p.x - 0, p.z - 45) <= DRAW_NEAR);
     }
     expect(s.collectibleMeshes.size).toBe(8);
-    expect(s.goldMice.list).toHaveLength(3);
+    expect(s.goldMice.list).toHaveLength(4);
     // at the spawn only mouse 1 (on the lander) is near of the three mice; a walk to the far side brings the others in and takes it out
-    expect(s.goldMice.list.map((m) => m.group.visible)).toEqual([true, false, false]);
+    expect(s.goldMice.list.map((m) => m.group.visible)).toEqual([true, false, false, true]); // (the station's tower mouse is 45 m from the spawn: inside DRAW_NEAR)
     cullFar({ x: 0, z: -40 }, s);
-    expect(s.goldMice.list.map((m) => m.group.visible)).toEqual([false, true, true]); // (the pit is 43 m off)
+    expect(s.goldMice.list.map((m) => m.group.visible)).toEqual([false, true, true, false]); // (the pit is 43 m off)
     expect(DRAW_NEAR).toBeGreaterThanOrEqual(40);
   });
   it('a session with no pebbles or mice (the picture page, an older walk) is fine, and the life puts every mesh back when it is disposed', () => {
