@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { mulberry32 } from '../rng.js';
 
 export const DAPPLE = Object.freeze({ size: 72, opacity: 0.2, drift: 0.004, tile: 3 }); // metres across, how dark, texture turns a second, how many times it repeats
+export const SHAFT_OPACITY = 0.2; // the shafts' drawn strength (the same number as treehousebeauty.js's, kept here so stage A never imports the lift stage)
 export const isLowTier = (tier) => !!tier && (tier.name === 'low' || tier.name === 'lite' || tier.shadows === false || (tier.rung ?? 0) >= 3);
 
 let _tex = null;
@@ -64,11 +65,15 @@ export function createTreehouseLight({ scene, tier = null, reducedMotion = false
     scene.add(dapple);
   }
   const light = scene.getObjectByName('treehouse:light') ?? null;
+  // the shafts of sun (milestone T8, drawn in treehousebeauty.js): LOW and LITE hide them, the rest breathe slowly, reduced motion holds them at their drawn strength
+  const shafts = scene.getObjectByName('treehouse:shafts') ?? null;
+  if (shafts) { shafts.renderOrder = 2; shafts.visible = !low; }
   return {
     dapple,
     light,
     setGlow(x, y, z, intensity) { if (light) { light.position.set(x, y, z); light.intensity = intensity; } },
     update(_dt, t) {
+      if (shafts && !low && !reducedMotion) shafts.material.opacity = SHAFT_OPACITY * (0.88 + 0.12 * Math.sin(t * 0.25));
       if (!map || reducedMotion) return;
       map.offset.set((t * DAPPLE.drift) % 1, (t * DAPPLE.drift * 0.6) % 1);
     },

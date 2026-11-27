@@ -264,12 +264,12 @@ describe('the way in: a catalog row after the Farm, a region, a map place, the F
 });
 
 describe('the two stage slots', () => {
-  it('load together, once, and fill ST.branches (the finds, T3; the bridge and supper come with T5) and ST.lift (empty, valid)', async () => {
+  it('load together, once, and fill ST.branches (the finds, T3; the bridge and supper come with T5) and ST.lift (the beauty round draw)', async () => {
     const a = loadTreehouseStages();
     expect(loadTreehouseStages()).toBe(a);
     expect(await a).toBe(ST);
     expect(Object.keys(ST.branches)).toEqual(['finds', 'critters', 'colliders', 'perches', 'story', 'draw', 'wing', 'errand']);
-    expect(ST.lift).toEqual({});
+    expect(Object.keys(ST.lift)).toEqual(['draw']); // the beauty round (T8)
     const area = build(new THREE.Scene());
     expect(area.perches).toHaveLength(P.TREEHOUSE_PERCHES.length);
   });
