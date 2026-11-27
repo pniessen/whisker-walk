@@ -417,13 +417,22 @@
     toastText = null;
   }
 
+  // The kids' wardrobe opens the walk's own way (the wonder room, milestone 3): she holds at its spot from the kids' room until it has swung.
+  function openWardrobe() {
+    const fnd = area.house.wingFinds.find((x) => x.trigger === 'secret');
+    const at = new THREE.Vector3(fnd.x, area.house.floor.y(fnd.x, fnd.z + 0.9), fnd.z + 0.9);
+    for (let k = 0; k < Math.ceil(2.4 / DT); k++) life.update(DT, t + k * DT, at, camera);
+    toastText = null;
+  }
+
   // A fresh walk at (x, z), facing (fx, fz), the view behind her at zoom step `zoom`;
   // on a perch (an entry of area.perches) when given one.
-  function reset(x, z, fx, fz, zoom, { perch = null, open = OPEN } = {}) {
+  function reset(x, z, fx, fz, zoom, { perch = null, open = OPEN, wardrobe = false } = {}) {
     life?.dispose();
     freshThings();
     life = area.life({ scene, sun, fill, ground, reducedMotion: rm, log, hud: hudStub, audio: null, toy, dusk: DUSK, now });
     if (open) openBookcase();
+    if (wardrobe) openWardrobe();
     cat.position.set(x, ground.y(x, z) + (perch ? perch.y : 0), z);
     cat.rotation.set(0, facingYaw(fx, fz), 0);
     player.setAvatar(cat, PACE);
@@ -585,7 +594,7 @@
     showHud(HUD || !!s.hud);
     const perch = s.perch ? area.perches.find((q) => q.id === s.perch) : null;
     if (s.perch && !perch) throw new Error(`shot ${label}: no perch ${s.perch}`);
-    reset(x, z, fx, fz, zoom, { perch, open: OPEN || !!s.open });
+    reset(x, z, fx, fz, zoom, { perch, open: OPEN || !!s.open, wardrobe: !!s.wardrobe });
     stillForMice();
     if (s.ledge) {
       const top = area.house.floor.y(x, z) !== ground.y(x, z);

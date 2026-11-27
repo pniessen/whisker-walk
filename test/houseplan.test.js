@@ -232,7 +232,7 @@ describe('the plan of the house', () => {
     expect(isWalkableAt(area, door.arrive.x, door.arrive.z)).toBe(true);
     expect(f.reaches(door.arrive.x, door.arrive.z)).toBe(true);
     expect(roomAt(door.arrive.x, door.arrive.z)).toBe('hall');
-    expect(HOUSE_BOUNDS).toEqual({ minX: -24, maxX: 50, minZ: -16, maxZ: 12 }); // east wing: the kids' room reaches x 48
+    expect(HOUSE_BOUNDS).toEqual({ minX: -24, maxX: 52, minZ: -16, maxZ: 12 }); // 50 until the wonder room // east wing: the kids' room reaches x 48
   });
 });
 
@@ -277,7 +277,8 @@ describe('the furniture', () => {
   });
 
   it('stands every tall piece with its back to its room\'s wall', () => {
-    const tall = HOUSE_FURNITURE.filter((f) => f.h >= TALL_H);
+    // (the wonder room's cat tree stands free, two of its platforms tall, and the feather wand's beam stands out on the floor)
+    const tall = HOUSE_FURNITURE.filter((f) => f.h >= TALL_H && !['wonder-tree-p2', 'wonder-tree-crown', 'wonder-wandbeam'].includes(f.id));
     expect(tall.length).toBeGreaterThanOrEqual(8);
     for (const f of tall) {
       const d = edgeDistances(roomOf(f.room), f.x, f.z);
@@ -310,7 +311,7 @@ describe('the furniture', () => {
   it('gives every solid piece colliders on its own level, and walks over the flat ones', () => {
     for (const f of HOUSE_FURNITURE) {
       const near = area.colliders.filter((c) => c.r === f.r && Math.hypot(c.x - f.x, c.z - f.z) <= Math.max(f.w, f.d) / 2 + 1e-6);
-      if (f.r === 0) continue;
+      if (f.r === 0 || f.free) continue; // (the tunnel's rings are `free`: its two side rows are its colliders, housewingplan.test.js)
       // step 2 (D18, ruling D1): a ledge piece has none; its top is ground at its height
       if (f.ledge) {
         expect(area.ground.y(f.x, f.z), f.id).toBeCloseTo(levelY(f.level) + f.h, 9);
@@ -350,8 +351,8 @@ describe('the furniture', () => {
 
 describe('the lamps', () => {
   it('stands every lamp in its room, its collider in the plan\'s colliders', () => {
-    // the wing's raised rooms (kids, bath) are lit by sconces: a 3.4 m lamp pool needs a room 7 m wide
-    for (const r of HOUSE_ROOMS.filter((q) => q.id !== 'kids' && q.id !== 'bath')) expect(HOUSE_LAMPS.filter((l) => l.room === r.id).length, r.id).toBeGreaterThanOrEqual(r.id === 'cellar' ? 2 : 1);
+    // the wing's raised rooms (kids, bath) are lit by sconces and the wonder room by its string lights: a 3.4 m lamp pool needs a room 7 m wide
+    for (const r of HOUSE_ROOMS.filter((q) => q.id !== 'kids' && q.id !== 'bath' && q.id !== 'wonder')) expect(HOUSE_LAMPS.filter((l) => l.room === r.id).length, r.id).toBeGreaterThanOrEqual(r.id === 'cellar' ? 2 : 1);
     for (const l of HOUSE_LAMPS) {
       expect(roomAt(l.x, l.z), `${l.room} lamp`).toBe(l.room);
       const c = houseColliders().find((q) => q.x === l.x && q.z === l.z && q.r === LAMP_R);
@@ -363,7 +364,7 @@ describe('the lamps', () => {
   it('keeps a raised room\'s lamp a whole pool radius from its walls, so no glow hangs over the lawn', () => {
     const R = LAMP_LOOK.poolRadius;
     const raised = HOUSE_LAMPS.filter((l) => levelY(roomOf(l.room).level) > LAWN_Y);
-    expect(raised.map((l) => l.room).sort()).toEqual(['attic', 'bedroom']);
+    expect(raised.map((l) => l.room).sort()).toEqual(['attic', 'bedroom']); // (the wonder room has none: its string lights and skylight do it)
     for (const l of raised) {
       for (const [side, d] of Object.entries(edgeDistances(roomOf(l.room), l.x, l.z))) expect(d, `${l.room} ${side}`).toBeGreaterThanOrEqual(R);
     }

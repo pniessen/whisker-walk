@@ -36,10 +36,10 @@ const fullOf = (d) => [...d.full].sort();
 const at = (d, x, z, y) => { d.update(y, x, z); return fullOf(d); };
 
 describe('zone drawing in the east wing', () => {
-  it('knows its four joins: the parlour\'s east door, the living room\'s door to the solarium, the wing stair, the bathroom door', () => {
+  it('knows its five joins: the parlour\'s east door, the living room\'s door to the solarium, the wing stair, the bathroom door and the secret wonder stair', () => {
     expect(ZONE_NEAR).toBe(5);
     expect(ZONE_LEAVE).toBeGreaterThan(ZONE_NEAR);
-    expect(WING_JOINS.filter((j) => !j.outside).map((j) => [j.a, j.b])).toEqual([['ground', 'living'], ['living', 'sun'], ['sun', 'kids'], ['kids', 'bath']]);
+    expect(WING_JOINS.filter((j) => !j.outside).map((j) => [j.a, j.b])).toEqual([['ground', 'living'], ['living', 'sun'], ['sun', 'kids'], ['kids', 'bath'], ['kids', 'wonder']]);
     // and the rooms seen from the lawn: each wing room, the solarium twice (its stair gallery too)
     expect(WING_JOINS.filter((j) => j.outside).map((j) => j.b).sort()).toEqual(['bath', 'kids', 'living', 'sun', 'sun']);
     expect(OUT_NEAR).toBe(5);
@@ -174,19 +174,19 @@ describe('zone drawing in the east wing', () => {
     const far = obj({ houseFar: 'ground' });
     fx.scene.children.push(parlour, far);
     const d = drawing(fx);
-    expect(outdoorsAt(41, -9)).toBe(true); // the lawn north of the bathroom
+    expect(outdoorsAt(40, -9)).toBe(true); // the lawn north of the bathroom (the wonder room starts at x 41)
     expect(outdoorsAt(26, 7)).toBe(false); // the solarium
     expect(outdoorsAt(26, -4)).toBe(false); // the cellar, sunk under the lawn
     d.settle(0, 0, 8);
-    expect(at(d, 41, -9, 0)).toEqual(['cellar', 'ground', 'upstairs']); // 6 m north of the bathroom's wall (z -3): out of reach
+    expect(at(d, 40, -9, 0)).toEqual(['cellar', 'ground', 'upstairs']); // 6 m north of the bathroom's wall (z -3): out of reach
     expect(fx.per.bath.simple.visible).toBe(true);
-    expect(at(d, 41, -6.5, 0)).toEqual(['bath', 'ground']); // 3.5 m north of it: drawn, and the old ground beside it, alone
+    expect(at(d, 40, -6.5, 0)).toEqual(['bath', 'ground']); // 3.5 m north of it: drawn, and the old ground beside it, alone
     expect(parlour.visible).toBe(false); // no room of the old ground in full out on the lawn
     expect(far.visible).toBe(false); // the ordinary stand-in stands for all of it, not the parlour-less one
     expect(fx.per.ground.simple.visible).toBe(true);
-    expect(at(d, 41, -7.8, 0)).toEqual(['bath', 'ground']); // 4.8 m: still drawn
-    expect(at(d, 41, -8.4, 0)).toEqual(['bath', 'ground']); // 5.4 m: on until 6 m, so the line does not flicker
-    expect(at(d, 41, -9.2, 0)).toEqual(['cellar', 'ground', 'upstairs']); // 6.2 m: the old house as ever
+    expect(at(d, 40, -7.8, 0)).toEqual(['bath', 'ground']); // 4.8 m: still drawn
+    expect(at(d, 40, -8.4, 0)).toEqual(['bath', 'ground']); // 5.4 m: on until 6 m, so the line does not flicker
+    expect(at(d, 40, -9.2, 0)).toEqual(['cellar', 'ground', 'upstairs']); // 6.2 m: the old house as ever
     expect(parlour.visible).toBe(true);
     expect(fx.per.ground.simple.visible).toBe(false);
     // in the parlour by the east wall she is not out on the lawn: only the doorway's rule

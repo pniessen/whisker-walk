@@ -53,6 +53,7 @@ const KIND_LOOK = {
   sofa: 0x7f9a7a, sofaback: 0x6f8a6c, bookcase: 0x5b3a26, coffeetable: 0x6b4a32, fishtank: 0x6f9fb0, plant: 0x4f8a4f, basket: 0xc9a46a,
   wickerchair: 0xc9a46a, sidetable: 0x8a6a4a, birdbath: 0x9a9a92, bunklow: 0xe8e1d0, bunktop: 0xd8cdb0, kidbed: 0xe6dfd0, desk: 0x7a5236, chair: 0xb88a52,
   chest: 0x8a5a3a, fort: 0xa8483f, tub: 0xf0f0ec, washbasin: 0xf0f0ec, toilet: 0xf0f0ec, laundrybasket: 0xc9a46a, cushion: 0xc98d84,
+  treebase: 0xa8c4a0, treeplat: 0x5f8ab8, treecrown: 0xc98d84, hammock: 0x8fb4d4, scratchpost: 0xc9a46a, wandbeam: 0x5a3d28, tunnelseg: 0xd9a0a4, castle: 0xc9a46a,
 };
 const looks = (f) => KIND_LOOK[f.kind] ?? 0x8a6a4a;
 const shade = (rgb, k) => [rgb[0] * k, rgb[1] * k, rgb[2] * k];

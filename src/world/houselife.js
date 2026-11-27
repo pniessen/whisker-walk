@@ -56,9 +56,10 @@ import { makeView, createWallSink, createCellarLid, SINK } from '../housewalls.j
 import { createLevelDrawing } from '../houselevels.js';
 import { CAT_LOOK_Y } from '../cat/model.js';
 import { createHouseFinds, HOLD_PAD } from './housefinds.js';
+import { ST } from './housestages.js'; // the wing's discoveries' life and the sun's colours (the lazy wing stage, housestagewing.js)
 import { segmentHitsBox } from '../treefade.js';
 import { toyStop, HOUSE_FINDS } from './housethings.js';
-import { OLD_HOUSE_PLAN } from './houseplan.js';
+import { OLD_HOUSE_PLAN, SECRET_WARDROBE } from './houseplan.js';
 import { createHouseSound } from './housesound.js';
 import { createHouseAir } from './houseair.js';
 import { createLedgeGuards, catScale } from './houseguards.js';
@@ -122,8 +123,8 @@ function createFrontDoor(door, reducedMotion, HOUSE_FRONT_DOOR) {
   };
 }
 const TELEPORT = 25; // m/s: no ball rolls this fast
-const OPEN = Object.freeze({ secretOpen: true });
-const SHUT = Object.freeze({ secretOpen: false });
+// which of the two secret doors stand open (the library's bookcase, the kids' wardrobe), as toyStop reads them
+const DOORS = [false, true].map((a) => [false, true].map((b) => Object.freeze({ secretOpen: a, wardrobeOpen: b })));
 
 export function createHouseLife(scene, house, {
   reducedMotion = false, log = null, audio = null, toy = null, colliders = [], now, dusk = false,
@@ -133,7 +134,7 @@ export function createHouseLife(scene, house, {
   const lid = house.lid ? createCellarLid(house.lid, sections) : null;
   const lidMeshes = lid ? house.lidMeshes ?? [] : [];
   const sink = createWallSink(sections, { reducedMotion, covers: lid ? lid.covers : null });
-  const drawing = createLevelDrawing(scene, { levels: house.levels, links: house.links, start: house.start, wing: house.wing ?? null });
+  const drawing = createLevelDrawing(scene, { levels: house.levels, links: house.links, start: house.start, wing: house.wing ?? null, joinOpen: () => wingFinds.open });
   // step 2 (ruling D3): the levels are drawn for the floor under her, not her paws, so on
   // the wardrobe (4.45 m, nearer the attic's 4.2 than the bedroom's 2.4) she is still upstairs
   const floor = house.floor;
@@ -149,6 +150,17 @@ export function createHouseLife(scene, house, {
   const finds = createHouseFinds({
     finds: house.finds ?? [], secret: house.secret, colliders, parts: house.parts, log, audio, reducedMotion, now,
   });
+  // the east wing's discoveries and its sunny slots (milestone 2): the slots' light is gold by day and pale blue at dusk
+  const wingFinds = ST.wing.createFinds({ finds: house.wingFinds ?? [], slots: house.wingSlots ?? [], log, audio, reducedMotion, wardrobe: house.wardrobe ?? null, colliders, wonder: house.wonder ?? null, reveal: house.reveal ?? null });
+  const lightUnder = house.wonder?.lightUnder ?? null;
+  const sunMat = house.sun?.material ?? null;
+  const sunColour = dusk ? ST.wing.sunDusk : ST.wing.sunDay;
+  const paintSun = (t) => {
+    if (!sunMat) return;
+    const k = wingFinds.pulse(t);
+    sunMat.color.setRGB(sunColour[0] * k, sunColour[1] * k, sunColour[2] * k);
+  };
+  paintSun(0);
   const sound = createHouseSound(audio, {
     clock: (P === OLD_HOUSE_PLAN ? HOUSE_FINDS : house.finds ?? []).find((f) => f.id === 'clock') ?? null,
     stairs: P.stairs,
@@ -199,7 +211,7 @@ export function createHouseLife(scene, house, {
     if (!toy?.active || toy.held) { ballSeen = false; return; }
     const p = toy.mesh.position;
     if (ballSeen && Math.hypot(p.x - ballX, p.z - ballZ) <= TELEPORT * Math.max(dt, 1 / 60)) {
-      const stop = toyStop(ballX, ballZ, p.x, p.z, finds.open ? OPEN : SHUT);
+      const stop = toyStop(ballX, ballZ, p.x, p.z, DOORS[finds.open ? 1 : 0][wingFinds.open ? 1 : 0]);
       // set down on the floor under the stop (toy.setPosition lifts it onto any ledge): the
       // cellar and its stair are below the lawn, so a height of 0 had it fall from up there
       if (stop) { stop.y = floorY(stop); toy.setPosition(stop); }
@@ -249,8 +261,11 @@ export function createHouseLife(scene, house, {
     drawing,
     lid,
     finds,
+    wingFinds,
     settle,
     get frontDoorOpen() { return frontDoor.open; },
+    /** her pace now as a share of her walk: the crinkly tunnel slows her (avatar.js reads it). */
+    get pace() { return wingFinds.pace; },
     update(dt, t, catPos, camera, session) {
       const partners = session?.remotes?.list ?? NONE;
       tags(partners);
@@ -263,8 +278,12 @@ export function createHouseLife(scene, house, {
       write();
       air.update(dt, t, drawing.full);
       finds.update(dt, t, catPos, camera.position, partners); // after the camera's move: the bookcase's fade hold
+      wingFinds.update(dt, t, catPos, partners, camera.position);
+      if (lightUnder) lightUnder.visible = dusk && !wingFinds.open && drawing.full.has('kids') && Math.hypot(catPos.x - SECRET_WARDROBE.x, catPos.z - SECRET_WARDROBE.z) < 12; // the faint light under the shut wardrobe's doors
+      air.setCalm?.(wingFinds.calm);
+      paintSun(t);
       holdFades(catPos, camera.position);
-      sound.update(dt, t, catPos);
+      sound.update(dt, t, catPos, wingFinds.calm);
       keepBall(dt);
       guard(catPos);
       frontDoor.update(dt, catPos, partners);
@@ -275,10 +294,12 @@ export function createHouseLife(scene, house, {
       frontDoor.dispose();
       guards.dispose();
       finds.dispose();
+      wingFinds.dispose();
       sound.dispose();
       air.dispose();
       for (const p of fading) p.obj.userData.fadeHold = false;
       for (const m of lidMeshes) m.visible = true;
+      if (lightUnder) lightUnder.visible = false;
       for (const m of meshes) {
         if (!m) continue;
         m.scale.y = 1;

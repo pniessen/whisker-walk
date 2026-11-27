@@ -23,7 +23,7 @@ export function createHouseSound(audio, { clock, stairs, attic }) {
   let tickIn = 0, stairM = 0, atticS = 0;
 
   return {
-    update(dt, t, catPos) {
+    update(dt, t, catPos, calm = false) {
       if (!audio || !(dt > 0)) return;
       const x = catPos.x, z = catPos.z;
       const step = seen ? Math.hypot(x - px, z - pz) : 0;
@@ -34,7 +34,7 @@ export function createHouseSound(audio, { clock, stairs, attic }) {
 
       const d = clock ? Math.hypot(x - clock.x, z - clock.z) : Infinity; // a plan without a clock never ticks
       if (d < TICK_R) {
-        if (tickIn <= 0) { audio.tick(0.6 * (1 - d / TICK_R)); tickIn += 1; }
+        if (tickIn <= 0) { audio.tick(0.6 * (1 - d / TICK_R) * (calm ? 0.5 : 1)); tickIn += 1; }
         tickIn -= dt;
       } else tickIn = 0;
 

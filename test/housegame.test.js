@@ -390,7 +390,7 @@ describe('a walk in the house', () => {
         };
       },
     });
-    expect(got.gold).toEqual(['gm-house-1', 'gm-house-3']);
+    expect(got.gold).toEqual(['gm-house-1', 'gm-house-3', 'gm-house-4', 'gm-house-5']); // the east wing's top bunk and the wonder room's cat tree crown join the two a walk without skills can reach
     expect(got.knock).toEqual(HOUSE_KNOCKABLES.map((k) => k.id));
     expect(got.mice).toEqual(HOUSE_MICE.map(() => 'mouse'));
     expect(r.hides).toEqual([got.record.hides]);
@@ -442,7 +442,7 @@ describe('a walk in the house', () => {
     }
     expect(found).not.toBe(null);
     expect(found.yarn.howSlots).toEqual({ place: found.where });
-    expect(HOUSE_YARN_SPOTS.length).toBe(2);
+    expect(HOUSE_YARN_SPOTS.length).toBe(3);
   }, 90_000);
 
   it('a golden mouse found in the house is saved and counts: Clan Edition reads 45, Legacy as before', () => {
@@ -511,7 +511,7 @@ describe('a walk in the house', () => {
     // goalFits for every place already built answers as it did with no list: tippables, boxes, a villager
     const before = (g, a) => (g.type === 'mischief' ? (a.tippables?.length ?? 0) >= g.target
       : g.type === 'sits' ? (a.boxes?.length ?? 0) >= g.target
-        : g.type === 'pet' ? (a.critterSpawns ?? []).some((c) => c.type === 'villager') : true);
+        : g.type === 'pet' ? (a.critterSpawns ?? []).some((c) => c.type === 'villager') : g.type === 'housewing' ? false : true); // the east wing's goal is the house's alone
     for (const id of ['park', 'neighborhood', 'den']) {
       const a = records[id];
       expect(a, id).toBeTruthy();

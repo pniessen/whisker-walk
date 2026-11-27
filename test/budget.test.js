@@ -18,6 +18,7 @@ const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildFair } = await import('../src/world/fair.js');
 const { build: buildRoofs } = await import('../src/world/roofs.js');
 const { build: buildMarket } = await import('../src/world/market.js');
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
 const { build: buildHouse } = await import('../src/world/house.js');
 const { build: buildLighthouse } = await import('../src/world/lighthouse.js');
 const { build: buildGreenhouse } = await import('../src/world/greenhouse.js');

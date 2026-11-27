@@ -44,6 +44,7 @@ const { MARKET_SPAWN, MARKET_BOUNDS } = await import('../src/world/marketplan.js
 const { FIND_SPOTS } = await import('../src/foundwear/spots/index.js');
 // The Market's module names its spawn in its plan (marketplan.js).
 const market = { build: marketWorld.build, SPAWN: MARKET_SPAWN };
+await (await import('../src/world/housestages.js')).loadHouseStages(); // the wing's lazy stage (housestagewing.js) fills the house's wing slots
 const houseWorld = await import('../src/world/house.js');
 const { HOUSE_SPAWN, HOUSE_FRONT_DOOR } = await import('../src/world/houseplan.js');
 const { HOUSE_FINDS } = await import('../src/world/housethings.js');

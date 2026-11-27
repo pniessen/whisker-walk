@@ -129,9 +129,15 @@ export function createHouseAir(scene, { windows, rooms, levels, dusk = false, re
     L.placed = true;
   }
 
+  // the Old House's solarium goes calm while she lies in a sunny slot: the motes drift at half speed (their clock loses half of dt)
+  let calm = false;
+  let lost = 0;
   return {
     beams,
-    update(dt, t, full) {
+    setCalm(on) { calm = !!on; },
+    update(dt, t0, full) {
+      if (calm && !reducedMotion) lost += dt * 0.5;
+      const t = t0 - lost;
       for (let i = 0; i < layers.length; i++) {
         const L = layers[i];
         const show = full.has(L.level);
