@@ -64,6 +64,8 @@ export function build(scene) {
     drawWingClumps(kit, M);
     drawDeep(kit, M); // wing C (R8): the Sunken Boat, the Old Anchor and the Glow Cave, into the same two buckets
     ST.lab.buildLab(scene, P.reefY); // the Sealab (R13, stage 'lab'): the station inside, its hull outside, the hatch beside the Boat and the ONE light
+    const rideKit = { THREE: K.T3, mergeGeometries: K.mergeGeometries };
+    ST.ride.buildRacks(scene, rideKit, P.reefY); // the two mounts' racks and the mounts on them (R12, stage 'ride')
     for (const m of kit.meshes()) scene.add(m);
     const kelp = K.drawKelp();
     scene.add(kelp);
@@ -76,7 +78,7 @@ export function build(scene) {
       name: P.REEF_NAME,
       bounds: P.REEF_BOUNDS,
       spawn: P.REEF_SPAWN,
-      colliders: [...P.reefColliders(), ...storyColliders(), ...lifeColliders(), ...ST.lab.colliders()].map((c) => ({ ...c })),
+      colliders: [...P.reefColliders(), ...storyColliders(), ...lifeColliders(), ...ST.lab.colliders(), ...ST.ride.colliders()].map((c) => ({ ...c })),
       waters: [],
       waterFx: [],
       perches: [],
@@ -108,16 +110,18 @@ export function build(scene) {
         const sea = createReefSealsLife(ctx); // the seals, octopuses and dolphin family (photo and journal subjects through `spottable`)
         const more = createReefMoreLife(ctx); // jellyfish, clownfish, seahorses, mantas, a whale, moray eels and squid
         const lab = ST.lab.createLabLive({ scene: ctx.scene, reefY: P.reefY, look: P.WATER_LOOK, player: ctx.player, reducedMotion: ctx.reducedMotion, tier: ctx.tier, say: base.say, setPaused: base.setPaused, doc: ctx.doc ?? globalThis.document }); // the hatch and the inside (R13)
-        const prompt = createPromptArbiter([base, lab]); // Marlo's and the errand's offers win; the hatch is the lowest
+        const ride = ST.ride.createRideLive(rideKit, ctx, area, base, P); // the two mounts (R12)
+        const prompt = createPromptArbiter([ride, base, lab]); // "Hop off" (and "Hop on" at a rack) come first (a mount can always be left); Marlo's and the errand's offers next; the hatch is the lowest
         return {
           ...base,
           promptAt: prompt.promptAt,
           interact: prompt.interact,
           lab,
+          ride,
           guide,
           spottable: [...sea.spottable, ...more.spottable],
-          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); more.update(...a); lab.update(...a); guide.update(...a); },
-          dispose() { guide.dispose(); lab.dispose(); more.dispose(); sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
+          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); more.update(...a); lab.update(...a); ride.update(...a); guide.update(...a); },
+          dispose() { guide.dispose(); ride.dispose(); lab.dispose(); more.dispose(); sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
         };
       },
     };
