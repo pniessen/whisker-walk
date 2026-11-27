@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hash01 } from './warehouselook.js';
 import * as P from './greenhouseplan.js';
+import { lawnDetail } from './greenhousedetail.js';
 
 export const GH_LOOK_SALT = 0x61a3d; // the plants' own hashed look
 export const GH_KOI_SALT = 0x61a5b;
@@ -142,6 +143,15 @@ function trunkGeometry({ h, r0, r1, sides = 7, rings = 6, hex, scar = 0.1, hex2 
 export function stalk(ax, ay, az, bx, by, bz, r, hex) {
   const dx = bx - ax, dy = by - ay, dz = bz - az;
   const len = Math.hypot(dx, dy, dz);
+  if (r <= 0.026) {
+    // beauty round (greenhouse): a stem this thin is two triangles, a ribbon turned across the stalk (the prism cost six)
+    const hl = Math.hypot(dx, dz);
+    const wx = hl > 1e-4 ? dz / hl : 1, wz = hl > 1e-4 ? -dx / hl : 0;
+    const t = new THREE.BufferGeometry();
+    t.setAttribute('position', new THREE.Float32BufferAttribute([ax - wx * r, ay, az - wz * r, ax + wx * r, ay, az + wz * r, bx - wx * r * 0.7, by, bz - wz * r * 0.7, bx + wx * r * 0.7, by, bz + wz * r * 0.7], 3));
+    t.setIndex([0, 1, 2, 1, 3, 2]);
+    return tint(t, hex);
+  }
   const g = new THREE.CylinderGeometry(r * 0.7, r, len, 3, 1, true);
   g.translate(0, len / 2, 0);
   const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx / len, dy / len, dz / len));
@@ -372,6 +382,7 @@ export function foliage() {
   for (const [x, z] of reedClumps()) {
     radial(REED_BLADE(), x, 0, z, 5, { yaw0: h01(x, z, 80) * TAU, scale: lerp(0.8, 1.3, h01(x, z, 81)), seed: 82, tilt: 0 });
   }
+  lawnDetail(col);
   return finishMesh('ghFoliage', col.merged());
 }
 
