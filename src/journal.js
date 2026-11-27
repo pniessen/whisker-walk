@@ -7,7 +7,7 @@ import { MARKET_PAGE_WORDS } from './marketpages.js';
 import { LIGHTHOUSE_PAGE_WORDS } from './lighthousepages.js';
 import { MOON_PAGES, MOON_PAGE_WORDS } from './moonpages.js';
 import { moonOn } from './moonflag.js';
-import { REEF_PAGES, REEF_LIFE_PAGES, REEF_WING_PAGES, REEF_PAGE_WORDS } from './reefpages.js';
+import { REEF_PAGES, REEF_LIFE_PAGES, REEF_WING_PAGES, REEF_PAGE_WORDS, wingPageShown } from './reefpages.js';
 import { reefOn } from './reefflag.js';
 import { CRYSTAL_PAGES, CRYSTAL_PAGE_WORDS } from './crystalpages.js';
 import { crystalOn } from './crystalflag.js';
@@ -111,7 +111,7 @@ export function renderJournalHtml(journal, goldenFound, goldenTotal, { chasedOff
   const j = journal && typeof journal === 'object' ? journal : {};
   const found = Number.isFinite(goldenFound) ? goldenFound : 0;
   const total = Number.isFinite(goldenTotal) ? goldenTotal : 0;
-  const cards = CRITTER_INFO.filter((c) => (!c.moon || moonOn()) && (!c.greenhouse || greenhouseOn()) && (!c.reef || reefOn()) && (!c.crystal || crystalOn())).map((c) => {
+  const cards = CRITTER_INFO.filter((c) => (!c.moon || moonOn()) && (!c.greenhouse || greenhouseOn()) && (!c.reef || (reefOn() && wingPageShown(c.id))) && (!c.crystal || crystalOn())).map((c) => {
     const raw = j[c.id];
     const count = Number.isFinite(raw) ? raw : 0;
     if (count > 0) {

@@ -18,6 +18,11 @@ export const REEF_LIFE_PAGES = Object.freeze([['rfseal', '🦭', 'seal', 'Curiou
 export const REEF_WING_PAGES = Object.freeze([['rflab', '🔬', 'lab', 'The Sealab'], ['rffuses', '🔌', 'fuses', 'Three Fuses'], ['rfshow', '🌌', 'show', 'Dome Lights'],
   ['rfshark', '🦈', 'shark', 'Spotted Shark'], ['rfgalleon', '🏴‍☠️', 'galleon', 'The Galleon'], ['rfmap', '🗺️', 'map', 'The Torn Map'],
   ['rfcaptchest', '👑', 'captchest', 'Captain’s Chest'], ['rfscooter', '🛵', 'scooter', 'Sea Scooter'], ['rfsaucer', '🛸', 'saucer', 'Diving Saucer']].map((p) => Object.freeze(p)));
+// Which wings are open: a wing's pages stay out of the journal until its hatch, rack or ship is in the game (the owner's note: no silhouettes of places that are
+// not there). 'lab' opened with R13 (the Sealab's hatch); the galleon (R16), the scooter and the saucer (R12) follow, each a switch to true in its own milestone.
+export const WING_LIVE = { lab: true, wreck: false, scooter: false, saucer: false };
+export const WING_OF = Object.freeze({ rflab: 'lab', rffuses: 'lab', rfshow: 'lab', rfshark: 'lab', rfgalleon: 'wreck', rfmap: 'wreck', rfcaptchest: 'wreck', rfscooter: 'scooter', rfsaucer: 'saucer' });
+export const wingPageShown = (id) => !WING_OF[id] || !!WING_LIVE[WING_OF[id]];
 export const REEF_JOURNAL_TYPES = Object.freeze(REEF_PAGES.map((p) => p[0]));
 
 // The hints by journal id: empty here, filled by the Reef's lazy file (world/reefwords.js) when its chunk arrives.
