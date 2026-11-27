@@ -2,13 +2,14 @@
 // The Fairground's rides in the walk: what each event of src/fairlive.js says
 // and sounds like.
 //
-// A ride pays nothing and costs nothing. The first time on each ride on a
+// The five rides pay nothing and cost nothing; the Viking boat pays AWARDS.boatride
+// for a swing ridden to the end (noteBoatLap). The first time on each ride on a
 // walk fills its journal page (its count is the walks she has ridden it on);
 // the first time EVER also shows one friendly line. Like every once-a-walk
 // thing it is kept in the discovery log, so a walk picked up again does not
 // count the ride twice.
 // =============================================================================
-import { RIDE_PAGE, RIDE_TOASTS, GAME_WORDS, GAME_AGAIN, PRIZE_WEAR, VISITOR_HELLO, FAIR_FIND_WORDS } from '../fairwords.js';
+import { RIDE_PAGE, RIDE_TOASTS, BOAT_PAID, GAME_WORDS, GAME_AGAIN, PRIZE_WEAR, VISITOR_HELLO, FAIR_FIND_WORDS } from '../fairwords.js';
 import { FAIR_GAME_IDS, gameJournalId, fairFindJournalId } from '../fairprizes.js';
 
 export const rideKey = (ride) => `fair-ride-${ride}`;
@@ -26,6 +27,19 @@ export function noteRide(ride, { log, progression, hud }) {
   progression.recordSighting(page);
   if (first) hud.toast(RIDE_TOASTS[ride]());
   return { fresh: true, first };
+}
+
+// noteBoatLap({ log }) → paws paid. A whole swing ridden with her cat aboard pays
+// AWARDS.boatride, the first BOAT_PAY_CAP rides of a walk (keys in the discovery
+// log, so a walk picked up again does not pay them twice); later swings pay nothing.
+// It runs on each rider's own device for her own cat, so a partner is paid by hers.
+export const BOAT_PAY_CAP = 2;
+export const boatRideKey = (n) => `fair-boat-ride-${n}`;
+export function noteBoatLap({ log }) {
+  for (let n = 1; n <= BOAT_PAY_CAP; n++) {
+    if (log.count(boatRideKey(n)) === 0) return log.awardOnce('boatride', boatRideKey(n), BOAT_PAID());
+  }
+  return 0;
 }
 
 // ---- step 3: the three games and the six finds --------------------------------
@@ -120,6 +134,7 @@ export function handleFairEvent(e, ctx) {
       if (e.ride === 'boat') once('fair-boat', RIDE_TOASTS.boat());
       else noteRide(e.ride, ctx);
       break;
+    case 'boat-lap': noteBoatLap(ctx); break;
     case 'slide': audio.pounceWhoosh?.(); break;
     case 'boat-whoosh': audio.pounceWhoosh?.(); break;
     case 'boat-creak': audio.creak?.(e.volume); break;

@@ -17,6 +17,8 @@ const { propsFor, frameColliders } = await import('../src/propsets.js');
 const { RIDE_TOASTS } = await import('../src/fairwords.js');
 const { handleFairEvent } = await import('../src/game/fairplay.js');
 const { createRides } = await import('../src/coop/rides.js');
+const { noteBoatLap, BOAT_PAY_CAP } = await import('../src/game/fairplay.js');
+const { createDiscoveryLog, AWARDS } = await import('../src/discoveries.js');
 
 const scene = new THREE.Scene();
 const area = build(scene);
@@ -173,7 +175,7 @@ describe('the Viking boat: climbing aboard and getting off', () => {
   });
 });
 
-describe('the Viking boat: one line a walk, no page, no pay', () => {
+describe('the Viking boat: one line a walk, no page, no journal', () => {
   it('says its line once a walk and writes nothing to the journal or the log', () => {
     const said = [];
     const hud = { toast: (t) => said.push(t) };
@@ -216,5 +218,59 @@ describe('the Viking boat: one line a walk, no page, no pay', () => {
     for (let k = 0; k < 40; k++) { T = T0 + 9 + k * 0.2; live.update(0.2, T, { cat, player, session }); }
     expect(events.filter((e) => e.type.startsWith('boat-'))).toEqual([]);
     live.dispose();
+  });
+});
+
+describe('the Viking boat: paws for a ride', () => {
+  const mkLog = () => { const pts = { n: 0 }; return { pts, log: createDiscoveryLog({ addPoints: (p) => { pts.n += p; } }) }; };
+  it('raises one boat-lap event per swing ridden to the end, and none when she gets off early or never boards', () => {
+    const events = [];
+    let T = 0;
+    const live = createFairLive(new THREE.Scene(), area, { now: () => T, onEvent: (e) => events.push(e) });
+    const cat = new THREE.Object3D();
+    const player = { perchY: 0, halt() {}, inputActive: false };
+    const session = { perched: null };
+    cat.position.set(gate.x, 0, gate.z);
+    const run = (from, to, aboard) => { for (T = from; T < to; T += 0.1) { session.perched = aboard ? live.sim.boat.list[0] : null; live.update(0.1, T, { cat, player, session }); } };
+    run(0, LAP * 2, false); // never aboard
+    expect(events.filter((e) => e.type === 'boat-lap')).toEqual([]);
+    const start = LAP * 2 + 1; // calm, a lap's wait
+    run(start, start + RIDE.BOAT_WAIT + RIDE.BOAT_UP + 3, true);
+    run(start + RIDE.BOAT_WAIT + RIDE.BOAT_UP + 3, start + LAP * 1 + 1, false); // got off mid swing
+    expect(events.filter((e) => e.type === 'boat-lap')).toEqual([]);
+    const s2 = LAP * 4 + 1;
+    run(s2, s2 + LAP - 1 + RIDE.BOAT_WAIT, true); // aboard for a whole swing
+    expect(events.filter((e) => e.type === 'boat-lap').length).toBe(1);
+    live.dispose();
+  });
+
+  it('pays AWARDS.boatride for the first two rides of a walk, then nothing', () => {
+    const { pts, log } = mkLog();
+    const paid = [];
+    for (let i = 0; i < 5; i++) paid.push(noteBoatLap({ log }));
+    expect(paid).toEqual([AWARDS.boatride, AWARDS.boatride, 0, 0, 0]);
+    expect(pts.n).toBe(AWARDS.boatride * BOAT_PAY_CAP);
+    expect(AWARDS.boatride).toBeGreaterThanOrEqual(3);
+    expect(AWARDS.boatride).toBeLessThanOrEqual(8);
+  });
+
+  it('is paid through the fair event, once each swing, and a walk picked up again does not pay the same ones twice', () => {
+    const { pts, log } = mkLog();
+    const hud = { toast: () => {} };
+    for (let i = 0; i < 3; i++) handleFairEvent({ type: 'boat-lap' }, { hud, audio: {}, log, progression: {} });
+    expect(pts.n).toBe(AWARDS.boatride * 2);
+    const { pts: p2, log: l2 } = mkLog();
+    l2.restore(log.entries());
+    handleFairEvent({ type: 'boat-lap' }, { hud, audio: {}, log: l2, progression: {} });
+    expect(p2.n).toBe(0);
+  });
+
+  it('pays each rider on her own log: a partner is credited separately, never negative or NaN', () => {
+    const a = mkLog(), b = mkLog();
+    noteBoatLap({ log: a.log });
+    expect(b.pts.n).toBe(0);
+    noteBoatLap({ log: b.log }); noteBoatLap({ log: b.log });
+    expect([a.pts.n, b.pts.n]).toEqual([AWARDS.boatride, AWARDS.boatride * 2]);
+    for (const n of [a.pts.n, b.pts.n]) { expect(Number.isFinite(n)).toBe(true); expect(n).toBeGreaterThanOrEqual(0); }
   });
 });

@@ -19,6 +19,9 @@ export const RIDE_TOASTS = Object.freeze({
   boat: () => phrase('fair.toast.boat'), // once a walk, no journal page (game/fairplay.js)
 });
 
+// A boat ride swung to the end: the line of the award (game/fairplay.js noteBoatLap).
+export const BOAT_PAID = () => phrase('fair.boat.paid');
+
 // The journal's pages (src/journal.js), by journal id.
 export const RIDE_PAGE_WORDS = Object.freeze({
   ridemgr: Object.freeze({ name: () => phrase('fair.page.mgr.name'), hint: () => phrase('fair.page.mgr.hint') }),

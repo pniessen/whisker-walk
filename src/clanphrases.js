@@ -298,6 +298,8 @@ const LATER = Object.freeze({
   'fair.toast.slide': 'Wheee! Down the helter-skelter you go! 🌀',
   'fair.toast.coaster': 'All aboard the caterpillar coaster! 🐛',
   'fair.toast.boat': 'Hold on tight! The Viking boat starts to swing! ⛵',
+  // A swing ridden to the end; pays AWARDS.boatride the first two times a walk (game/fairplay.js).
+  'fair.boat.paid': 'What a swing! The Viking boat sails back to shore. ⛵',
   // The journal's pages for the five rides.
   'fair.page.mgr.name': 'Merry-Go-Round Rider',
   'fair.page.mgr.hint': 'Hop onto the merry-go-round at the fair.',
