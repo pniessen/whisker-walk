@@ -28,7 +28,7 @@ export function buildInfo(env = process.env, now = new Date()) {
 // a child's phone downloads before the game can start. It grew from 632 kB to
 // 801 kB in nine days (Nov 2026) with nothing watching. Owner's choice
 // 2026-11-20: lowered from 900 to 700 once lazy loading landed, with each
-// place its own download under AREA_GZIP_CEILING_KB (100). Owner's choice
+// place its own download under AREA_GZIP_CEILING_KB (100; raised to 110 on 2026-11-28, owner said "raise the cap", for the Fairground and its Viking boat). Owner's choice
 // 2026-11-21: raised to 720 for Market Square and the Old House (start-up
 // reached 697 with the Market). Raise either on purpose, in the same change,
 // rather than to make a build pass.
@@ -48,7 +48,7 @@ export function sizeProblem(gzipBytes, ceilingKb = MAIN_GZIP_CEILING_KB) {
     'Make it smaller, or raise MAIN_GZIP_CEILING_KB in scripts/buildjson.mjs on purpose (for example when a new area lands).';
 }
 
-export const AREA_GZIP_CEILING_KB = 100;
+export const AREA_GZIP_CEILING_KB = 110;
 
 /** The entry file plus every file reached through static `imports`, each once. */
 export function startupFiles(manifest) {

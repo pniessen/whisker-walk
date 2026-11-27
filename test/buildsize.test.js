@@ -55,7 +55,7 @@ describe('start-up and places in a built manifest', () => {
     expect(lazyProblems(M, { x: ['src/world/x.js'] })[0]).toMatch(/src\/world\/x\.js/);
     expect(lazyProblems(M, { woods: ['src/world/woods.js'] })).toEqual([]);
   });
-  it('a place over its ceiling is named with its size', () => expect(areaSizeProblems({ fair: 100.1, park: 5 })).toEqual([expect.stringMatching(/fair.*100\.1 kB.*AREA_GZIP_CEILING_KB/)]));
+  it('a place over its ceiling is named with its size', () => expect(areaSizeProblems({ fair: 110.1, park: 5 })).toEqual([expect.stringMatching(/fair.*110\.1 kB.*AREA_GZIP_CEILING_KB/)]));
   it('precacheManifest lists assets only, sorted, with a build id that follows the files', () => {
     const a = precacheManifest(['index.html', 'assets/b.js', 'assets/a.js', 'assets/a.js', '.vite/manifest.json']);
     expect(a.files).toEqual(['assets/a.js', 'assets/b.js']);
