@@ -15,11 +15,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # A newer push cancels this run, but a shard already running still bills until
+  # it notices. This one-second job asks GitHub what main is now; if it is not
+  # this commit, the run is stale and every job below is skipped. It fails open:
+  # if the lookup fails, or this is a manual run of another branch, the run goes
+  # ahead as before. The newest commit always passes, so it is always tested and
+  # deployed in full. A stale run can never reach deploy (build needs test).
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      current: ${{ steps.check.outputs.current }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=true
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            head=$(git ls-remote "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1) || head=""
+            if [ -n "$head" ] && [ "$head" != "$GITHUB_SHA" ]; then current=false; echo "stale: main is $head"; fi
+          fi
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+
   # The whole suite, split over four machines that run side by side. One
   # machine took about 12 minutes; a quarter each takes about a quarter of
   # that. `--shard` is vitest's own split, so the four parts together are
   # exactly `npm test`. If any part fails, nothing is built or deployed.
   test:
+    needs: gate
+    if: needs.gate.outputs.current == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
