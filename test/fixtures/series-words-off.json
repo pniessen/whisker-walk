@@ -51,7 +51,9 @@
     "grudge": "loner",
     "player": "",
     "house": "house cat",
-    "people": "townspeople"
+    "people": "townspeople",
+    "kids": "kids",
+    "wash": "bathroom"
    },
    "placeWords": {
     "town": "Peopleville",
@@ -3298,6 +3300,11 @@
     "gorge": "Gorge Crew land"
    },
    "marketMusician": "Music! One of the townspeople plays a fiddle just for you. 🎻",
+   "houseWing": {
+    "bunk": "Top bunk! The best view in the kids’ room.",
+    "hintKids": "The kids sleep in bunk beds. The top one has the best view.",
+    "hintBath": "Something drips in the bathroom. Plink, plink."
+   },
    "campOnTheMap": {
     "woods": "Forest Crew camp",
     "river": "River Crew camp",

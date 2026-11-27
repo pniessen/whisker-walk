@@ -465,7 +465,8 @@ describe('the furniture', () => {
     const marked = new Set(area.traversal.hops.map((h) => zoneOf(roomAt(h.x0, h.z0))));
     // + the beauty pass's warm glow, one mesh per level (house.js drawGlow)
     // + the wing's zone details: four wall groups, two lamps, four floors, two brick skirts and the stair
-    expect(tagged.length).toBe(tall.length + HOUSE_ROOMS.length + 1 + marked.size + levelIds.length + 4 + 2 + 4 + 2 + 1);
+    // + the solarium's one decal mesh of sunny slots (the wing's milestone 2)
+    expect(tagged.length).toBe(tall.length + HOUSE_ROOMS.length + 1 + marked.size + levelIds.length + 4 + 2 + 4 + 2 + 1 + 1);
     for (const c of tagged) {
       expect(levelIds).toContain(c.userData.houseLevel);
       let meshes = 0;

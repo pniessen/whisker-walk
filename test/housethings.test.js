@@ -74,14 +74,14 @@ describe('the golden mice (D5)', () => {
     expect(GOLD_MICE.house).toEqual(HOUSE_GOLD_MICE);
   });
 
-  it('three golden mice, two up a climb and one tucked away in the cellar', () => {
-    expect(HOUSE_GOLD_MICE.map((m) => m.id)).toEqual(['gm-house-1', 'gm-house-2', 'gm-house-3']);
+  it('three golden mice, two up a climb and one tucked away in the cellar, and the east wing\'s on the kids\' top bunk', () => {
+    expect(HOUSE_GOLD_MICE.map((m) => m.id)).toEqual(['gm-house-1', 'gm-house-2', 'gm-house-3', 'gm-house-5']);
     for (const m of HOUSE_GOLD_MICE) {
       expect(m.id).toMatch(/^gm-[a-z]{1,24}-[1-9]$/);
       expect(m.y, m.id).toBe(0);
     }
     expect(GOLD_TOTAL).toBe(CLAN_TOTAL); // 42 until the Old House's three joined the count
-    const [one, two, three] = HOUSE_GOLD_MICE;
+    const [one, two, three, five] = HOUSE_GOLD_MICE;
     for (const [m, id] of [[one, 'library-books-w'], [two, 'bedroom-wardrobe']]) {
       const l = ledgeById(id);
       expect(onLedge(l, m.x, m.z), m.id).toBe(true);
@@ -94,6 +94,11 @@ describe('the golden mice (D5)', () => {
     expect(flood.reachesWithin(three.x, three.z, 0.9)).toBe(true);
     // between the barrels and the crates, on the floor
     expect(area.ground.y(three.x, three.z)).toBe(levelY('cellar'));
+    // the top bunk: on its ledge, up the bunk route's two hops from the floor with no skills, a hop's landing within a metre
+    const top = ledgeById('kids-bunk-top');
+    expect(onLedge(top, five.x, five.z)).toBe(true);
+    expect(ledgeReached(top)).toBe(true);
+    expect(Math.min(...moveEnds().filter((e) => onLedge(top, e.x, e.z)).map((e) => Math.hypot(e.x - five.x, e.z - five.z)))).toBeLessThanOrEqual(1.0);
   });
 });
 
@@ -131,9 +136,9 @@ describe('the knock-overs (D4)', () => {
 });
 
 describe('the mice (D10)', () => {
-  it('four mice, two in the kitchen and two in the cellar, each with cover in its room and none nearer elsewhere', () => {
-    expect(HOUSE_MICE.map((m) => m.room)).toEqual(['kitchen', 'kitchen', 'cellar', 'cellar']);
-    expect(HOUSE_HIDES.map((h) => h.room)).toEqual(['kitchen', 'kitchen', 'cellar', 'cellar']);
+  it('six mice, two in the kitchen, two in the cellar, one by the solarium\'s fern and one by the kids\' fort, each with cover in its room and none nearer elsewhere', () => {
+    expect(HOUSE_MICE.map((m) => m.room)).toEqual(['kitchen', 'kitchen', 'cellar', 'cellar', 'solarium', 'kids']);
+    expect(HOUSE_HIDES.map((h) => h.room)).toEqual(['kitchen', 'kitchen', 'cellar', 'cellar', 'solarium', 'kids']);
     for (const h of HOUSE_HIDES) {
       expect(roomAt(h.x, h.z)).toBe(h.room);
       expect(flood.reachesWithin(h.x, h.z, 1.0), `${h.x},${h.z}`).toBe(true);
@@ -183,14 +188,14 @@ describe('the mice (D10)', () => {
         runs++;
       }
     }
-    expect(runs).toBe(32);
+    expect(runs).toBe(48); // six mice, eight sides each
   }, 60_000);
 });
 
 describe('the yarn ball (D14)', () => {
   it('the yarn ball\'s spots are clear floor, and say where in words in both sets', () => {
-    expect(HOUSE_YARN_SPOTS.map((s) => s.words)).toEqual(['house.yarn.hall', 'house.yarn.kitchen']);
-    expect(HOUSE_YARN_SPOTS.map((s) => roomAt(s.x, s.z))).toEqual(['hall', 'kitchen']);
+    expect(HOUSE_YARN_SPOTS.map((s) => s.words)).toEqual(['house.yarn.hall', 'house.yarn.kitchen', 'house.yarn.living']);
+    expect(HOUSE_YARN_SPOTS.map((s) => roomAt(s.x, s.z))).toEqual(['hall', 'kitchen', 'livingroom']);
     for (const s of HOUSE_YARN_SPOTS) {
       expect(flood.reachesWithin(s.x, s.z, 0.3), s.words).toBe(true);
       for (const c of area.colliders) {
@@ -353,11 +358,11 @@ describe('the special places and the discoveries (D6, D13)', () => {
 
 describe('the goals and the corner map (D11, D12)', () => {
   it('each goal type has something to finish in the house', () => {
-    expect(HOUSE_GOAL_TYPES).toEqual(['mischief', 'photo', 'play', 'sits', 'scenic']); // `sits`: the wing's blanket fort and laundry basket
+    expect(HOUSE_GOAL_TYPES).toEqual(['mischief', 'photo', 'play', 'sits', 'scenic', 'housewing']); // `sits`: the wing's blanket fort and laundry basket; `housewing`: its discoveries
     expect(Object.isFrozen(HOUSE_GOAL_TYPES)).toBe(true);
     expect(HOUSE_KNOCKABLES.length).toBeGreaterThanOrEqual(3);
     expect(HOUSE_SCENICS.length).toBeGreaterThanOrEqual(2);
-    expect(HOUSE_YARN_SPOTS.length).toBe(2);
+    expect(HOUSE_YARN_SPOTS.length).toBe(3);
     expect(record.goalTypes).toBe(HOUSE_GOAL_TYPES);
     expect(record.knockables).toBe(HOUSE_KNOCKABLES);
     expect(record.goldMice).toBeUndefined(); // the walk lays them from GOLD_MICE.house

@@ -76,6 +76,7 @@ export const WORDS = Object.freeze({
   'how.box-sit': same('Walk into a cardboard box and stop.'),
   'how.scenic-spots': same('Go to a ☆ on the map.'),
   'how.pounce-play': two('Creep close. Then tap the paw.', 'Hold Shift to creep close. Then press Space.'),
+  'how.house-wing': same('Visit the rooms past the parlour. Lie in a sunny patch.'),
 
   // ---- The home screen's "next thing" line (design section 6) --------------
   // src/ui/nextthing.js has the rules; the number is the rule's. A line that

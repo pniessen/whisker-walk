@@ -25,6 +25,8 @@ export const AWARDS = {
   farmfind: 12,
   // The Old House (step 2, D6): one of its six finds, once a walk.
   housefind: 12,
+  // The Old House's east wing (2026-11-27): one of its discoveries, once a walk (the wardrobe's pays housefind's 12).
+  housewing: 8,
   // The Fairground (2026-11-18): one of its three games won on a later walk
   // than its first win ever (that one gives a prize to wear instead), once a
   // walk for each game; and one of its six finds, paid the first time ever.

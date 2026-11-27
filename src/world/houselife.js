@@ -56,6 +56,8 @@ import { makeView, createWallSink, createCellarLid, SINK } from '../housewalls.j
 import { createLevelDrawing } from '../houselevels.js';
 import { CAT_LOOK_Y } from '../cat/model.js';
 import { createHouseFinds, HOLD_PAD } from './housefinds.js';
+import { createHouseWingFinds } from './housewingfinds.js';
+import { SUN_DAY, SUN_DUSK } from './housewingparts.js';
 import { segmentHitsBox } from '../treefade.js';
 import { toyStop, HOUSE_FINDS } from './housethings.js';
 import { OLD_HOUSE_PLAN } from './houseplan.js';
@@ -149,6 +151,16 @@ export function createHouseLife(scene, house, {
   const finds = createHouseFinds({
     finds: house.finds ?? [], secret: house.secret, colliders, parts: house.parts, log, audio, reducedMotion, now,
   });
+  // the east wing's discoveries and its sunny slots (milestone 2): the slots' light is gold by day and pale blue at dusk
+  const wingFinds = createHouseWingFinds({ finds: house.wingFinds ?? [], slots: house.wingSlots ?? [], log, audio, reducedMotion });
+  const sunMat = house.sun?.material ?? null;
+  const sunColour = dusk ? SUN_DUSK : SUN_DAY;
+  const paintSun = (t) => {
+    if (!sunMat) return;
+    const k = wingFinds.pulse(t);
+    sunMat.color.setRGB(sunColour[0] * k, sunColour[1] * k, sunColour[2] * k);
+  };
+  paintSun(0);
   const sound = createHouseSound(audio, {
     clock: (P === OLD_HOUSE_PLAN ? HOUSE_FINDS : house.finds ?? []).find((f) => f.id === 'clock') ?? null,
     stairs: P.stairs,
@@ -249,6 +261,7 @@ export function createHouseLife(scene, house, {
     drawing,
     lid,
     finds,
+    wingFinds,
     settle,
     get frontDoorOpen() { return frontDoor.open; },
     update(dt, t, catPos, camera, session) {
@@ -263,8 +276,11 @@ export function createHouseLife(scene, house, {
       write();
       air.update(dt, t, drawing.full);
       finds.update(dt, t, catPos, camera.position, partners); // after the camera's move: the bookcase's fade hold
+      wingFinds.update(dt, t, catPos, partners);
+      air.setCalm?.(wingFinds.calm);
+      paintSun(t);
       holdFades(catPos, camera.position);
-      sound.update(dt, t, catPos);
+      sound.update(dt, t, catPos, wingFinds.calm);
       keepBall(dt);
       guard(catPos);
       frontDoor.update(dt, catPos, partners);
@@ -275,6 +291,7 @@ export function createHouseLife(scene, house, {
       frontDoor.dispose();
       guards.dispose();
       finds.dispose();
+      wingFinds.dispose();
       sound.dispose();
       air.dispose();
       for (const p of fading) p.obj.userData.fadeHold = false;

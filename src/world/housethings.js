@@ -10,6 +10,10 @@ import {
   HOUSE_ROOMS, HOUSE_STAIRS, SECRET_BOOKCASE, houseSections, roomAt, stairAt,
 } from './houseplan.js';
 
+import {
+  HOUSE_WING_GOLD, HOUSE_WING_MICE, HOUSE_WING_HIDES, HOUSE_WING_YARN,
+} from './housewingthings.js';
+
 const freeze = Object.freeze;
 const frozenAll = (list) => freeze(list.map((o) => freeze(o)));
 
@@ -21,6 +25,7 @@ export const HOUSE_GOLD_MICE = frozenAll([
   { id: 'gm-house-1', x: -13.6, z: 5.6, y: 0 },
   { id: 'gm-house-2', x: -6.8, z: -15.6, y: 0 },
   { id: 'gm-house-3', x: 27.0, z: -0.7, y: 0 },
+  ...HOUSE_WING_GOLD, // the east wing's: the kids' top bunk (gm-house-5; the cat tree's crown, gm-house-4, comes with the wonder room)
 ]);
 
 // The knock-overs (D4), in propsets.js's knockable shape: each on a perch's piece
@@ -51,6 +56,7 @@ export const HOUSE_HIDES = frozenAll([
   { x: 4.5, z: -3.2, room: 'kitchen' },
   { x: 26.0, z: -0.4, room: 'cellar' },
   { x: 23.2, z: -9.55, room: 'cellar' },
+  ...HOUSE_WING_HIDES,
 ]);
 
 // Four mice, each patrolling a line in its own room (critters.js: from x, z to x2, z2).
@@ -59,12 +65,14 @@ export const HOUSE_MICE = frozenAll([
   { type: 'mouse', x: 11.0, z: 0.9, x2: 12.6, z2: 0.9, room: 'kitchen' },
   { type: 'mouse', x: 22.0, z: -6.5, x2: 24.8, z2: -7.8, room: 'cellar' },
   { type: 'mouse', x: 26.5, z: -4.0, x2: 27.5, z2: -2.2, room: 'cellar' },
+  ...HOUSE_WING_MICE,
 ]);
 
 // The yarn ball's two spots (D14), clear floor; `words` the phrase that says where.
 export const HOUSE_YARN_SPOTS = frozenAll([
   { x: 0, z: 5.2, words: 'house.yarn.hall' },
   { x: 7.9, z: -2.0, words: 'house.yarn.kitchen' },
+  ...HOUSE_WING_YARN,
 ]);
 
 // Three special places (D13): they pay 'scenic' and mark the corner map.
@@ -92,7 +100,7 @@ export const HOUSE_FINDS = frozenAll([
 ]);
 
 // What the daily goals may ask of the house (D11).
-export const HOUSE_GOAL_TYPES = freeze(['mischief', 'photo', 'play', 'sits', 'scenic']);
+export const HOUSE_GOAL_TYPES = freeze(['mischief', 'photo', 'play', 'sits', 'scenic', 'housewing']);
 
 // The wing's boxes she can sit in (the `sits` goal counts them): the kids' blanket fort and the
 // bathroom's laundry basket.

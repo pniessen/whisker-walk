@@ -15,6 +15,8 @@ export const GOAL_POOL = [
   { id: 'box-sit', text: 'Sit in a box', how: 'how.box-sit', type: 'sits', target: 1 },
   { id: 'scenic-spots', text: 'Visit 2 special places', how: 'how.scenic-spots', type: 'scenic', target: 2 },
   { id: 'pounce-play', text: 'Pounce on 2 animals', how: 'how.pounce-play', type: 'hunt', target: 2 },
+  // the Old House's east wing: only an area that lists the type (the house) ever offers it (goalFits)
+  { id: 'house-wing', text: 'Find 2 things in the new rooms', how: 'how.house-wing', type: 'housewing', target: 2 },
 ];
 
 // goalFits(goal, areaData) → false when the area itself has nothing that
@@ -23,6 +25,8 @@ export const GOAL_POOL = [
 // the area's built data, which is the same on both co-walk devices, so both
 // still filter to the same pool. Missing areaData keeps every goal.
 export function goalFits(goal, areaData) {
+  // the east wing's goal is the Old House's alone: no area record, or one that does not list the type, never draws it
+  if (goal.type === 'housewing') return Array.isArray(areaData?.goalTypes) && areaData.goalTypes.includes('housewing');
   if (!areaData) return true;
   // an area may list the goal types it can finish (the Old House, D11)
   if (Array.isArray(areaData.goalTypes)) return areaData.goalTypes.includes(goal.type);

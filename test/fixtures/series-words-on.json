@@ -64,7 +64,9 @@
     "grudge": "rogue",
     "player": "kittypet",
     "house": "kittypet",
-    "people": "Twolegs"
+    "people": "Twolegs",
+    "kids": "Twoleg kits",
+    "wash": "washing-place"
    },
    "placeWords": {
     "town": "Twolegplace",
@@ -3451,6 +3453,11 @@
     "gorge": "CliffClan land"
    },
    "marketMusician": "Music! One of the Twolegs plays a fiddle just for you. 🎻",
+   "houseWing": {
+    "bunk": "Top bunk! The best view in the Twoleg kits’ room.",
+    "hintKids": "The Twoleg kits sleep in bunk beds. The top one has the best view.",
+    "hintBath": "Something drips in the washing-place. Plink, plink."
+   },
    "campOnTheMap": {
     "woods": "StormClan camp",
     "river": "BrookClan camp",

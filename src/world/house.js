@@ -36,6 +36,9 @@ import {
   secretColliders, roomAt, zoneOfRoom, WING_JOINS, OLD_HOUSE_PLAN, planOf, withPlan, activePlan,
 } from './houseplan.js';
 import { wingFarMesh } from './housewingfar.js';
+import { sunPatchMesh } from './housewingparts.js';
+import { HOUSE_WING_FINDS, HOUSE_WING_SLOTS, HOUSE_WING_RESTS, SLOT_SIZE } from './housewingthings.js';
+import './housewingwords.js';
 import { houseMovesArea, bareMovesArea } from './housemoves.js';
 import {
   HOUSE_ATLAS_CELLS as CELL, createHouseAtlas, houseMaterial, sectionMesh, paneMesh, floorMesh, stairMesh,
@@ -264,6 +267,7 @@ function houseWords() {
     'house.scenic.attic-window': phrase('house.scenic.attic-window'),
     'house.yarn.hall': phrase('house.yarn.hall'),
     'house.yarn.kitchen': phrase('house.yarn.kitchen'),
+    'house.yarn.living': phrase('house.yarn.living'),
   };
 }
 
@@ -549,6 +553,13 @@ function buildPlan(scene, P, { wind, gateEnds }) {
     parts.frontDoor = pivots.length === 2 ? { left: pivots[0], right: pivots[1] } : null;
     drawMarks(scene, plan.traversal, START_LEVEL);
     drawGlow(scene, START_LEVEL);
+    // the solarium's sunny slots (the wing's milestone 2): one decal mesh, shown with its zone
+    let sun = null;
+    if (old && P.wing) {
+      sun = sunPatchMesh(HOUSE_WING_SLOTS, levelY('ground'), SLOT_SIZE, 'sun');
+      sun.visible = fullLevels(START_LEVEL, P.links).has('sun');
+      scene.add(sun);
+    }
     // the secret stair's bookcase, shut in the library's north wall (step 2, ruling D9)
     const secretGroup = P.secret ? secretBookcaseGroup(material) : null;
     if (secretGroup) {
@@ -590,6 +601,7 @@ function buildPlan(scene, P, { wind, gateEnds }) {
       mapGround: T.mapGround,
       moments: [],
       puddles: [],
+      rests: old ? HOUSE_WING_RESTS : freeze([]), // the sofa's seat and the four sunny slots: places to nap (rests.js)
       boxes: T.boxes, // the blanket fort and the laundry basket she can sit in (the `sits` goal)
       perches: plan.perches.map((p) => ({ ...p })), // the knock-over pieces' tops (step 2, D4)
       tippables: [],
@@ -620,6 +632,9 @@ function buildPlan(scene, P, { wind, gateEnds }) {
         floor,
         // the six discoveries' spots (step 2, D6) and their moving parts: house life runs them
         finds: T.finds,
+        wingFinds: old ? HOUSE_WING_FINDS : freeze([]), // the east wing's discoveries (housewingfinds.js)
+        wingSlots: old ? HOUSE_WING_SLOTS : freeze([]),
+        sun, // the slots' patch of light (the wing's milestone 2)
         parts,
         // the pieces that fade, with their boxes: house life holds each solid unless it
         // stands between the camera and her (Task 10)

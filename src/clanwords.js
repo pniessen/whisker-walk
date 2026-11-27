@@ -199,6 +199,9 @@ export const OUTSIDE_WORDS = Object.freeze({
   house: 'kittypet',
   // The people of the town (the Market's musician line).
   people: 'Twolegs',
+  // The Old House's east wing: its children, and its bathroom (housewingwords.js).
+  kids: 'Twoleg kits',
+  wash: 'washing-place',
 });
 
 // Place names borrowed from the books. Keyed by the game's own territory id

@@ -105,9 +105,9 @@ describe('the worst spot in the house', () => {
       const { m: withMochi } = await measured(light, 'shut', 1, true);
       for (const id of ids) {
         const s = m.at(id);
-        expect(s.meshes, `${light} ${id}`).toBeLessThanOrEqual(306); // the east wing's re-pin, 300 -> 306: its four stand-ins, a box each (milestone 1)
+        expect(s.meshes, `${light} ${id}`).toBeLessThanOrEqual(314); // the east wing's re-pin, 300 -> 306: its four stand-ins, a box each (milestone 1); 306 -> 314: its two new mice and the kids' top-bunk golden mouse (milestone 2), always drawn (the ceiling is 450)
         expect(s.casters, `${light} ${id}`).toBeLessThanOrEqual(200);
-        expect(s.triangles, `${light} ${id}`).toBeLessThanOrEqual(60000); // the beauty pass's deliberate re-pin: 55,000 -> 59,500 (cornice, wainscot, wall dressing, glow); the wing's far-room fix round, 59,500 -> 60,000 (the four far stand-ins dressed: 52 -> 302 triangles, in view from the hall)
+        expect(s.triangles, `${light} ${id}`).toBeLessThanOrEqual(60300); // milestone 2, 60,000 -> 60,300: its two new mice, always drawn. The beauty pass's deliberate re-pin: 55,000 -> 59,500 (cornice, wainscot, wall dressing, glow); the wing's far-room fix round, 59,500 -> 60,000 (the four far stand-ins dressed: 52 -> 302 triangles, in view from the hall)
         expect(withMochi.at(id).triangles, `${light} ${id}`).toBeGreaterThan(s.triangles); // she is drawn
       }
       if (process.env.BUDGET_LOG) console.log(light, 'with Mochi', JSON.stringify(houseWorstSpot(withMochi, ids)));
@@ -238,7 +238,7 @@ describe('the east wing\'s zones', () => {
         const s = m.atZone(zone, near);
         if (process.env.BUDGET_LOG) console.log(light, 'wing spot', zone, near.join('+'), JSON.stringify(s));
         expect(s.triangles, `${zone}+${near}`).toBeLessThanOrEqual(63000);
-        expect(s.meshes, `${zone}+${near}`).toBeLessThanOrEqual(340); // the design said 330: each room's wall sections are a mesh each (so they can sink), and air, glow and marks come to 338 with two rooms
+        expect(s.meshes, `${zone}+${near}`).toBeLessThanOrEqual(348); // milestone 2: 340 -> 348, its two mice and the sunny slots' patch; the design said 330: each room's wall sections are a mesh each (so they can sink), and air, glow and marks come to 338 with two rooms
         expect(s.casters, `${zone}+${near}`).toBeLessThanOrEqual(190);
       }
     }, 60_000);
@@ -246,8 +246,8 @@ describe('the east wing\'s zones', () => {
     it(`the old house's worst spot barely grew, and the parlour at the new door is under the ceilings (${light})`, async () => {
       const { m } = await measured(light, 'shut', 1, true);
       const worst = houseWorstSpot(m, ids);
-      // four dressed stand-ins (302 triangles), the parlour's east wall dressed on its new face and the wing's four knock-overs: 930 to 1,030 triangles
-      expect(worst.triangles).toBeLessThanOrEqual(OLD_WORST[light] + 1100);
+      // four dressed stand-ins (302 triangles), the parlour's east wall dressed on its new face, the wing's four knock-overs and (milestone 2) its two new mice: 1,200 to 1,300 triangles
+      expect(worst.triangles).toBeLessThanOrEqual(OLD_WORST[light] + 1350);
       expect(worst.triangles).toBeLessThanOrEqual(70000);
       // at the parlour's east door, the living room drawn beside her; her level alone (the stairs' levels step back)
       const door = m.atZone('ground', ['living']);

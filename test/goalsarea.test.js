@@ -52,7 +52,7 @@ describe('goals fit the area', () => {
     expect(seen.has('box-sit')).toBe(false);
     expect(seen.has('get-scratches')).toBe(false);
     // and still offers everything else
-    expect(seen.size).toBe(GOAL_POOL.length - 3);
+    expect(seen.size).toBe(GOAL_POOL.length - 4);
   });
 
   it('the River never offers tipping, a box or head scratches', () => {
@@ -61,7 +61,7 @@ describe('goals fit the area', () => {
     expect(seen.has('tip-things')).toBe(false);
     expect(seen.has('box-sit')).toBe(false);
     expect(seen.has('get-scratches')).toBe(false);
-    expect(seen.size).toBe(GOAL_POOL.length - 3);
+    expect(seen.size).toBe(GOAL_POOL.length - 4);
   });
 
   it('the Moor never offers tipping, a box or head scratches', () => {
@@ -70,7 +70,7 @@ describe('goals fit the area', () => {
     expect(seen.has('tip-things')).toBe(false);
     expect(seen.has('box-sit')).toBe(false);
     expect(seen.has('get-scratches')).toBe(false);
-    expect(seen.size).toBe(GOAL_POOL.length - 3);
+    expect(seen.size).toBe(GOAL_POOL.length - 4);
   });
 
   it('the Pines never offers tipping, a box or head scratches', () => {
@@ -79,7 +79,7 @@ describe('goals fit the area', () => {
     expect(seen.has('tip-things')).toBe(false);
     expect(seen.has('box-sit')).toBe(false);
     expect(seen.has('get-scratches')).toBe(false);
-    expect(seen.size).toBe(GOAL_POOL.length - 3);
+    expect(seen.size).toBe(GOAL_POOL.length - 4);
   });
 
   it('the Gorge never offers tipping, a box or head scratches', () => {
@@ -88,7 +88,7 @@ describe('goals fit the area', () => {
     expect(seen.has('tip-things')).toBe(false);
     expect(seen.has('box-sit')).toBe(false);
     expect(seen.has('get-scratches')).toBe(false);
-    expect(seen.size).toBe(GOAL_POOL.length - 3);
+    expect(seen.size).toBe(GOAL_POOL.length - 4);
   });
 
   it('areas that can finish every goal draw exactly what they drew before', () => {

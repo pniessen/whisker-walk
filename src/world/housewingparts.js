@@ -236,3 +236,42 @@ export const WING_FLAT_BUILDERS = {
     p.box(-0.1, 0.1, 0, 0.05, 0, 0.1, 'gold'); // a torch lying on the floor
   },
 };
+
+// ---- the solarium's sunny slots (milestone 2) ----
+
+// The four patches of sun on the floor: one additive decal mesh for the room, a soft disc each (eight triangles round a bright
+// middle that fades to nothing at its edge, so 32 in all), lifted off the floor and the rug, never casting. The material's
+// colour is the light's: gold by day, pale moon-blue at dusk (house life sets it, and breathes it while she lies in a slot).
+export const SUN_DAY = Object.freeze([1.0, 0.8, 0.42]);
+export const SUN_DUSK = Object.freeze([0.42, 0.56, 0.95]);
+const SUN_SEG = 8;
+const SUN_LIFT = 0.035;
+export function sunPatchMesh(slots, y, size, zone) {
+  const pos = [];
+  const col = [];
+  const index = [];
+  for (const s of slots) {
+    const base = pos.length / 3;
+    pos.push(s.x, y + SUN_LIFT, s.z);
+    col.push(0.5, 0.5, 0.5);
+    for (let i = 0; i < SUN_SEG; i++) {
+      const a = (i / SUN_SEG) * Math.PI * 2 + Math.PI / 8;
+      pos.push(s.x + Math.cos(a) * size * 0.5, y + SUN_LIFT, s.z + Math.sin(a) * size * 0.5);
+      col.push(0, 0, 0);
+      index.push(base, base + 1 + ((i + 1) % SUN_SEG), base + 1 + i);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setIndex(index);
+  geo.computeBoundingSphere();
+  const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  mat.color.setRGB(SUN_DAY[0], SUN_DAY[1], SUN_DAY[2]);
+  const m = new THREE.Mesh(geo, mat);
+  m.name = `houseSun:${zone}`;
+  m.castShadow = false;
+  m.receiveShadow = false;
+  m.userData = { noCast: true, dressing: true, noMerge: true, noContactShadow: true, houseDetail: true, houseLevel: zone };
+  return m;
+}
