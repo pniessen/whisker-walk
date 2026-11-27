@@ -10,13 +10,12 @@ permissions:
   pages: write
   id-token: write
 
-# Not cancel-in-progress: a cancel could kill the deploy job mid-upload (GitHub's
-# own advice for Pages). Staleness is handled by `gate` and by the stale check
-# that opens the test shards and the build job; a newer push waits as the single
-# pending run and the older run's later steps skip themselves.
-concurrency:
-  group: pages
-  cancel-in-progress: false
+# No workflow-level concurrency: that would cancel the deploy job mid-upload.
+# Instead each pre-deploy job (gate, test shard, build) cancels its own older
+# run on the same ref, with a distinct group per job so jobs of one run never
+# queue behind each other (and each shard has its own group). Only `deploy`
+# uses the `pages` group, and it is never cancelled (GitHub's advice for Pages).
+# The stale checks stay as a second line of defence.
 
 jobs:
   # A newer push cancels this run, but a shard already running still bills until
@@ -28,6 +27,9 @@ jobs:
   gate:
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    concurrency:
+      group: ci-gate-${{ github.ref }}
+      cancel-in-progress: true
     outputs:
       current: ${{ steps.check.outputs.current }}
     steps:
@@ -50,6 +52,9 @@ jobs:
     needs: gate
     if: needs.gate.outputs.current == 'true'
     runs-on: ubuntu-latest
+    concurrency:
+      group: ci-test-${{ matrix.shard }}-${{ github.ref }}
+      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
@@ -81,6 +86,9 @@ jobs:
   build:
     needs: test
     runs-on: ubuntu-latest
+    concurrency:
+      group: ci-build-${{ github.ref }}
+      cancel-in-progress: true
     outputs:
       stale: ${{ steps.stale.outputs.stale }}
     steps:
@@ -127,6 +135,9 @@ jobs:
     needs: build
     if: needs.build.outputs.stale != 'true'
     runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     outputs:
       page_url: ${{ steps.deployment.outputs.page_url }}
     environment:
