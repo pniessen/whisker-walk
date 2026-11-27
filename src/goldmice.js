@@ -236,10 +236,17 @@ export const GOLD_MICE = {
     { id: 'gm-crystal-4', x: 25, z: 12, y: 0 },
     { id: 'gm-crystal-5', x: -25, z: 19.5, y: 1.0 }, // C2: on the forge's stone shelf (src/world/crystalgrottoplan.js SHELF), one hop of 1.0 from the floor
   ],
+  // Snowville (milestone V3; src/world/snowvillefindsplan.js SNOWVILLE_GOLD holds the same three, test/snowvillefinds.test.js; bounds 80 x 72 m): on the snow behind the baker's house, in the pond-side stump's
+  // hollow, and by the sled hill's rock. All three are on foot for now; the rock itself is drawn with the hill (V5), which lifts the last to one hop. Not in KEEP_OUT (it already holds their places).
+  snowville: [
+    { id: 'gm-snowville-1', x: 16, z: -1, y: 0 },
+    { id: 'gm-snowville-2', x: -26, z: -4, y: 0 },
+    { id: 'gm-snowville-3', x: 26, z: -26, y: 0 },
+  ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 65 (the Moon's relay tower stub joined in X0; 64 (the Crystal Cave's two wing C stubs joined in X0; 62 (the Reef's two Sealab/galleon mice joined in R10; 60 was nineteen areas x three, and the island's three; 57 before the Crystal Cave, 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 68 (Snowville's three joined in V3; 65 (the Moon's relay tower stub joined in X0; 64 (the Crystal Cave's two wing C stubs joined in X0; 62 (the Reef's two Sealab/galleon mice joined in R10; 60 was nineteen areas x three, and the island's three; 57 before the Crystal Cave, 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
 
 // The golden mice a player of `edition` can reach: those in the areas the
 // edition shows (Legacy hides the Clan Edition territories; see edition.js).

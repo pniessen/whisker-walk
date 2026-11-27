@@ -258,10 +258,10 @@ describe('three golden mice', () => {
       expect(flood.reachesWithin(m.x, m.z, 0.9), `${m.id} reached`).toBe(true);
     }
   });
-  it('the totals stay 65 (Clan) and 41 (everyday)', () => {
-    expect(GOLD_TOTAL).toBe(65);
-    expect(goldForEdition('canon', CATALOG).size).toBe(65);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(41);
+  it('the totals are 68 (Clan) and 44 (everyday) with Snowville\'s three', () => {
+    expect(GOLD_TOTAL).toBe(68);
+    expect(goldForEdition('canon', CATALOG).size).toBe(68);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(44);
   });
 });
 

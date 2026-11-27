@@ -62,6 +62,8 @@ export const AWARDS = {
   // watered), once a walk.
   greenhousefind: 12,
   greenhousejob: 25,
+  // Snowville (2026-11-27): one of its six finds, paid the first time ever (world/snowvillefinds.js).
+  snowfind: 12,
   // Found outfits (2026-11-19): the walk's find when everything hidden in the
   // place is already hers, the spec's "a small coin pouch instead (Claude's
   // call: 5 coins)" (the coins are 🐾). Once a walk (foundwear/play.js), and

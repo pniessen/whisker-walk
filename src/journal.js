@@ -11,6 +11,8 @@ import { REEF_PAGES, REEF_LIFE_PAGES, REEF_WING_PAGES, REEF_PAGE_WORDS, wingPage
 import { reefOn } from './reefflag.js';
 import { CRYSTAL_PAGES, CAVE_LIFE_PAGES, CRYSTAL_WING_PAGES, CRYSTAL_PAGE_WORDS, wingPageShown as crystalWingShown } from './crystalpages.js';
 import { crystalOn } from './crystalflag.js';
+import { SNOWVILLE_PAGES, SNOWVILLE_HINTS } from './snowvillepages.js';
+import { snowvilleOn } from './snowvilleflag.js';
 import { GREENHOUSE_PAGES, GREENHOUSE_PAGE_WORDS } from './greenhousepages.js';
 import { greenhouseOn } from './greenhouseflag.js';
 import { RIDE_PAGE_WORDS, FAIR_PAGE_WORDS } from './fairwords.js';
@@ -97,7 +99,7 @@ export const CRITTER_INFO = [
   // The Greenhouse's eight pages (src/greenhousepages.js): drawn only behind ?greenhouse=1 until the place is in the game.
   ...GREENHOUSE_PAGES.map(([id, emoji]) => ({ id, emoji, greenhouse: true, get name() { return GREENHOUSE_PAGE_WORDS[id].name(); }, get hint() { return GREENHOUSE_PAGE_WORDS[id].hint(); } })),
   // N0 (Snowville, Treehouse, Jungle): 17 placeholder pages each, never drawn (later: true) until their area's milestones give them words.
-  ...[['sv', 'sw', '❄️', 'Snowville'], ['th', 'tl', '🌳', 'Treehouse'], ['jl', 'jw', '🌴', 'Jungle']].flatMap(([a, b, emoji, place]) => [...Array(17)].map((_, i) => ({ id: (i < 9 ? a + (i + 1) : b + (i - 8)), emoji, name: place + ' page', hint: 'Not found yet.', later: true }))),
+  ...[['sv', 'sw', '❄️', 'Snowville'], ['th', 'tl', '🌳', 'Treehouse'], ['jl', 'jw', '🌴', 'Jungle']].flatMap(([a, b, emoji, place]) => [...Array(17)].map((_, i) => ({ id: (i < 9 ? a + (i + 1) : b + (i - 8)), emoji, name: place + ' page', hint: 'Not found yet.', later: true }))).map((c) => { const live = SNOWVILLE_PAGES.find((p) => p[0] === c.id); return live ? { id: c.id, emoji: live[1], snowville: true, name: live[3], get hint() { return SNOWVILLE_HINTS[c.id] ?? ''; } } : c; }), // V3: Snowville's six discoveries are live (behind ?snowville=0 they hide)
 ];
 
 // renderJournalHtml(journal, goldenFound, goldenTotal) → HTML string.
@@ -113,7 +115,7 @@ export function renderJournalHtml(journal, goldenFound, goldenTotal, { chasedOff
   const j = journal && typeof journal === 'object' ? journal : {};
   const found = Number.isFinite(goldenFound) ? goldenFound : 0;
   const total = Number.isFinite(goldenTotal) ? goldenTotal : 0;
-  const cards = CRITTER_INFO.filter((c) => !c.later && (!c.moon || (moonOn() && moonWingShown(c.id))) && (!c.greenhouse || greenhouseOn()) && (!c.reef || (reefOn() && wingPageShown(c.id, j))) && (!c.crystal || (crystalOn() && crystalWingShown(c.id)))).map((c) => {
+  const cards = CRITTER_INFO.filter((c) => !c.later && (!c.moon || (moonOn() && moonWingShown(c.id))) && (!c.greenhouse || greenhouseOn()) && (!c.reef || (reefOn() && wingPageShown(c.id, j))) && (!c.crystal || (crystalOn() && crystalWingShown(c.id))) && (!c.snowville || snowvilleOn())).map((c) => {
     const raw = j[c.id];
     const count = Number.isFinite(raw) ? raw : 0;
     if (count > 0) {

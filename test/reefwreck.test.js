@@ -162,7 +162,7 @@ describe('the gold mouse, the page and the prop', () => {
     expect({ x: a.x, z: a.z, y: a.y }).toEqual({ x: W.CABIN_MOUSE.x, z: W.CABIN_MOUSE.z, y: 0 });
     expect({ x: b.x, z: b.z, y: b.y }).toEqual({ x: W.CABIN_MOUSE.x, z: W.CABIN_MOUSE.z, y: 0 });
     expect(GOLD_MICE.reef).toHaveLength(5);
-    expect(GOLD_TOTAL).toBe(65);
+    expect(GOLD_TOTAL).toBe(68);
     expect(P.KEEP_OUT.some(([x, z]) => Math.hypot(x - a.x, z - a.z) < 1)).toBe(false); // not in KEEP_OUT (the scatters stay where they are)
   });
   it('the journal page rfgalleon is a spotted subject from the life, with its name and hint in both word sets', () => {

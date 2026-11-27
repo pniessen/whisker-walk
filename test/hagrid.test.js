@@ -46,6 +46,8 @@ const DELTA = {
   tradercap: 1, stringbagscarf: 2, applecharm: 2, flowerbasket: 0,
   // Lighthouse Point (2026-11-22): the keeper's cap (the trader's cap's shape in navy, carried onto his skull)
   keepercap: 1,
+  // Snowville (2026-11-27): the snowflake scarf's ring + cloth (the neckerchief's)
+  snowflakescarf: 2,
 };
 
 const hen = (acc = BARE) => {
@@ -517,7 +519,7 @@ describe('Hagrid rebuilt (Task 8)', () => {
     });
 
     it('the found neck pieces ring his neck', () => {
-      const NECKS = ['daisychain', 'gardenglovescarf', 'shellnecklace', 'neckerchief', 'ticketgarland', 'stringbagscarf'];
+      const NECKS = ['daisychain', 'gardenglovescarf', 'shellnecklace', 'neckerchief', 'ticketgarland', 'stringbagscarf', 'snowflakescarf'];
       const { P0, P1, P2 } = hen().userData.parts.head.children[0].geometry.userData.neck;
       const curve = new THREE.QuadraticBezierCurve3(...[P0, P1, P2].map((a) => new THREE.Vector3().fromArray(a)));
       const line = curve.getPoint(0.45); // HEN_SCARF_U (model.js), where the streamer scarf's band rings the neck

@@ -51,8 +51,8 @@ export function build(scene) {
       waterFx: [],
       perches: [...(ST.b?.perches?.() ?? [])],
       pois: P.SNOWVILLE_POIS.map((p) => ({ ...p })),
-      collectibles: [],
-      scenics: [],
+      collectibles: ST.b?.finds?.collectibles() ?? [], // six (milestone V3, the finds in stage b)
+      scenics: ST.b?.finds?.scenics() ?? [],
       tippables: [],
       boxes: [],
       critterSpawns: [],
@@ -73,6 +73,7 @@ export function build(scene) {
         const light = createSnowvilleLight(ctx);
         const tilly = createTilly({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
         const prompts = createSnowvillePrompts(tilly);
+        const finds = ST.b?.finds?.life(ctx); // the six discoveries (milestone V3)
         return {
           light,
           tilly,
@@ -80,8 +81,8 @@ export function build(scene) {
           interact: () => prompts.interact(),
           // a step done by anyone in the room (an `sv-` event); a stage's own steps join this line with their stage
           credit: (ev) => tilly.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); },
-          dispose() { tilly.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); },
+          dispose() { finds?.dispose(); tilly.dispose(); light.dispose(); },
         };
       },
     };

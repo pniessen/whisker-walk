@@ -238,10 +238,10 @@ describe('the reserved ids', () => {
 });
 
 describe('the golden mice', () => {
-  it('five mice (the Sealab and galleon stubs are open sand), two at float height, and the totals are 65 and 41', () => {
+  it('five mice (the Sealab and galleon stubs are open sand), two at float height, and the totals are 68 and 44', () => {
     expect(GOLD_MICE.reef.map((x) => x.id)).toEqual(['gm-reef-1', 'gm-reef-2', 'gm-reef-3', 'gm-reef-4', 'gm-reef-5']);
     expect(GOLD_MICE.reef.filter((x) => x.y >= 1.9).length).toBe(2);
-    expect(GOLD_TOTAL).toBe(65);
+    expect(GOLD_TOTAL).toBe(68);
     for (const mouse of GOLD_MICE.reef) expect(KNOWN_GOLD.has(mouse.id)).toBe(true);
   });
 });
