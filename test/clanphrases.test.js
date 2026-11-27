@@ -13,12 +13,9 @@ import { LINES as GREENHOUSE_LINES } from '../src/world/greenhousewords.js';
 import { LINES as REEF_LINES } from '../src/world/reefwords.js';
 import { LINES as CRYSTAL_LINES } from '../src/world/crystalwords.js';
 import { LINES as SNOWVILLE_LINES } from '../src/world/snowvillewords.js';
-<<<<<<< HEAD
 import { SNOWVILLE_FIND_LINES } from '../src/world/snowvillefindwords.js';
 import { LINES as SNOWVILLE_CRITTER_LINES } from '../src/world/snowvillecritterwords.js';
-=======
 import { LINES as TREEHOUSE_LINES } from '../src/world/treehousewords.js';
->>>>>>> treehouse-t2
 import { FIND_LINES as REEF_FIND_LINES } from '../src/world/reeffindwords.js';
 import { CRYSTAL_FIND_LINES } from '../src/world/crystalfindwords.js';
 import { CRYSTAL_WING_LINES } from '../src/world/crystalwingwords.js';
