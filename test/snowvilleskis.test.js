@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { stubCanvasDocument } from './helpers/canvas.js';
 import { floodFrom } from './helpers/flood.js';
 import { withOffWords, bannedIn } from './helpers/offwords.js';
+import { memoryStorage } from './helpers/storage.js';
 
 stubCanvasDocument();
 const { isWalkableAt } = await import('../src/player.js');
@@ -23,6 +24,7 @@ const { createSkisLive } = await import('../src/world/snowvilleskislive.js');
 const { createSledLive } = await import('../src/world/snowvillesledlive.js');
 const { createSnowvillePrompts } = await import('../src/world/snowvillelife.js');
 const { phrase } = await import('../src/clanphrases.js');
+const { createProgression, CATALOG } = await import('../src/progression.js');
 const { SKI_LINES } = await import('../src/world/snowvilleskiswords.js');
 
 const area = build(new THREE.Scene());
@@ -312,6 +314,62 @@ describe('on a walk', () => {
     expect(r.live.mode).toBe('parked');
     r.live.dispose(); sled.dispose();
     expect(r.session.fair).toBe(r.orig);
+  });
+});
+
+describe('the Ski Goggles: earned on the slope, or taken from the bench, once', () => {
+  const real = () => createProgression(memoryStorage());
+  it('a run through all six gates gives them (a fanfare and a line), once; a run that misses some gives nothing', () => {
+    const pr = real();
+    const fanfares = [];
+    const scene = new THREE.Scene();
+    const audio = { chime() {}, fanfare: () => fanfares.push(1) };
+    const live = createSkisLive({ scene, reducedMotion: false, tier: null, audio, progression: pr });
+    const cat = new THREE.Object3D();
+    const player = { perchY: 0, inputActive: false, dir: { x: 0, z: 0 }, inputDirection() { return this.dir; }, halt() {} };
+    const session = { cat, ground: area.ground, perched: null, perchHold: null, idleTime: 5, fair: { update() {}, late() {}, jump: () => false, pawKind: () => null, groundSpot: () => null, riding: null }, fx: { burst() {} } };
+    const camera = new THREE.PerspectiveCamera();
+    const rr = { live, cat, player, session, camera, tick(dt = 1 / 30) { live.frame(dt, 0, cat.position, camera, session); session.fair.update(dt, 0, { cat, player, session }); session.fair.late(dt, 0, { cat, player, session }); } };
+    cat.position.set(K.RACK.x + 1.4, area.ground.y(K.RACK.x + 1.4, K.RACK.z), K.RACK.z);
+    rr.tick(); press(rr);
+    ski(rr, null);
+    expect(pr.state.unlocked.accessories).not.toContain('skigoggles');
+    expect(fanfares.length).toBe(0);
+    cat.position.set(K.RACK.x + 1.4, area.ground.y(K.RACK.x + 1.4, K.RACK.z), K.RACK.z);
+    rr.tick(); press(rr);
+    ski(rr, () => leanStick(rr));
+    expect(live.runs).toBe(2);
+    expect(pr.state.unlocked.accessories).toContain('skigoggles');
+    expect(pr.state.foundWear).toContain('skigoggles');
+    expect(fanfares.length).toBe(1);
+    // a second clean run: owned already, no second fanfare
+    cat.position.set(K.RACK.x + 1.4, area.ground.y(K.RACK.x + 1.4, K.RACK.z), K.RACK.z);
+    rr.tick(); press(rr);
+    ski(rr, () => leanStick(rr));
+    expect(fanfares.length).toBe(1);
+    live.dispose();
+  });
+  it('the bench: no goggles on it until she has skied three runs, then "Take the goggles from the bench" once; owned goggles are not offered again', () => {
+    const pr = real();
+    const r = rig(false, { progression: pr });
+    const atBench = () => r.cat.position.set(K.BENCH.x + 1.0 * Math.cos(K.BENCH.yaw), area.ground.y(K.BENCH.x, K.BENCH.z), K.BENCH.z - 1.0 * Math.sin(K.BENCH.yaw));
+    atBench(); r.tick();
+    expect(r.live.slots.skis.promptAt(r.cat.position)).not.toBe('Take the goggles from the bench');
+    for (let i = 0; i < K.GOGGLE_RUNS; i++) {
+      r.cat.position.set(K.RACK.x + 1.4, area.ground.y(K.RACK.x + 1.4, K.RACK.z), K.RACK.z);
+      r.tick(); press(r); ski(r, null);
+    }
+    expect(r.live.runs).toBe(K.GOGGLE_RUNS);
+    expect(pr.state.unlocked.accessories).not.toContain('skigoggles');
+    atBench(); r.tick();
+    expect(r.live.slots.skis.promptAt(r.cat.position)).toBe('Take the goggles from the bench');
+    r.live.interact(); r.tick();
+    expect(pr.state.unlocked.accessories).toContain('skigoggles');
+    expect(r.live.slots.skis.promptAt(r.cat.position)).not.toBe('Take the goggles from the bench');
+    r.live.dispose();
+  });
+  it('they are a free found outfit in the catalog (a face piece for Snowville), and not hidden twice from a child who has them', () => {
+    expect(CATALOG.accessories.skigoggles).toMatchObject({ slot: 'face', price: 0, prize: true, find: 'snowville' });
   });
 });
 

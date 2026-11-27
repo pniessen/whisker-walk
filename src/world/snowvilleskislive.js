@@ -66,7 +66,10 @@ export function createSkisLive(ctx) {
     skis.rotation.z = reducedMotion ? 0 : -0.07 * Math.sin(clock * 2.7) * Math.min(1, ride.v / 3);
   }
 
-  const parkNow = () => { ride = createPathRide(K.SKI_PATH, K.SKI_SPEC, 0); mode = 'parked'; };
+  // The Ski Goggles (a found outfit, src/foundwear/face.js): owned for good through the save's own found-outfit path. true when she did not have them yet.
+  const GOGGLES = 'skigoggles';
+  const hasGoggles = () => !!progression?.state?.unlocked?.accessories?.includes(GOGGLES);
+  const giveGoggles = () => !!progression?.recordFoundWear?.(GOGGLES);
 
   // ---- the walk's hooks (session.fair) ---------------------------------------------------------------------------------------
   function standCat(cat, player, session) {
@@ -109,6 +112,7 @@ export function createSkisLive(ctx) {
     if (cheer) {
       say('snowville-skis-land', all ? phrase('snowville.skis.all') : phrase('snowville.skis.land'));
       if (!paid && progression?.addPoints) { paid = true; progression.addPoints(3); say('snowville-skis-paws', phrase('snowville.skis.paws')); }
+      if (all && giveGoggles()) { audio?.fanfare?.(); say('snowville-skis-goggles', phrase('snowville.skis.goggles')); } // every gate on one run: the Ski Goggles, once ever
       api.onRunEnd?.({ cleared: cleared.size, all, runs });
     }
     ride = createPathRide(K.SKI_PATH, K.SKI_SPEC, 0);
@@ -202,6 +206,8 @@ export function createSkisLive(ctx) {
     if (mode === 'riding') return { kind: 'off', line: phrase('snowville.skis.off') };
     if (blocked(hookSession)) return null;
     const near = (a) => dist(catPos, a) <= K.REACH && Math.abs((catPos.y ?? 0) - gy(a.x, a.z)) < 1.2;
+    // the bench's goggles lie out once she has skied a few runs and has not got them (so nobody is shut out of them)
+    if (runs >= K.GOGGLE_RUNS && progression && !hasGoggles() && dist(catPos, K.BENCH) <= K.REACH - 1.0 && Math.abs((catPos.y ?? 0) - gy(K.BENCH.x, K.BENCH.z)) < 1.2) return { kind: 'goggles', line: phrase('snowville.skis.bench') };
     return near(K.RACK) || near(K.START) ? { kind: 'on', line: phrase('snowville.skis.on') } : null;
   }
 
@@ -224,6 +230,7 @@ export function createSkisLive(ctx) {
       const w = want;
       want = null;
       if (!w) return null;
+      if (w.kind === 'goggles') { if (giveGoggles()) { audio?.fanfare?.(); say('snowville-skis-bench', phrase('snowville.skis.bench.got')); } return w.kind; }
       if (w.kind === 'on') wantOn = true; else wantOff = true;
       return w.kind;
     },

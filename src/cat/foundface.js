@@ -114,8 +114,27 @@ function addHeartGlasses(head, { k, x, y, starZ }) {
   }
 }
 
+// Ski Goggles (Snowville): per side a dark round frame round an amber lens, a bridge between, and one blue strap right round the head at the eyes' height. Frames and strap are one vertex-coloured
+// mesh, the lenses another; no emissive, yawed to the cheek like the heart glasses.
+const GOGGLE_FRAME = 0x3a3f4a, GOGGLE_STRAP = 0x2f6fc8, GOGGLE_LENS = 0xf2a93c;
+function addSkiGoggles(head, { k, x, y, starZ, skull }) {
+  const frames = [], lenses = [], R = 0.062 * k;
+  for (const side of [-1, 1]) {
+    const yaw = -side * 0.4;
+    frames.push(place(paint(new THREE.TorusGeometry(R, 0.011 * k, 3, 8), () => GOGGLE_FRAME), yaw, side * x, y, starZ));
+    lenses.push(place(paint(new THREE.CircleGeometry(R, 8).rotateY(Math.PI), () => GOGGLE_LENS), yaw, side * x, y, starZ - 0.003 * k));
+  }
+  frames.push(paint(new THREE.BoxGeometry(0.03 * k, 0.012 * k, 0.012 * k).translate(0, y, starZ + 0.002), () => GOGGLE_FRAME));
+  const strap = new THREE.TorusGeometry(1, 0.012 * k, 3, 14).rotateX(Math.PI / 2).scale(skull[0] * 1.04, 1, skull[2] * 1.04).translate(0, y, 0);
+  frames.push(paint(strap, () => GOGGLE_STRAP));
+  for (const [list, side] of [[frames, THREE.FrontSide], [lenses, THREE.DoubleSide]]) {
+    head.add(new THREE.Mesh(mergeGeometries(list.map((g) => (g.index ? g.toNonIndexed() : g))), litMaterial(0xffffff, { vertexColors: true, roughness: 0.5, side })));
+  }
+}
+
 export const FOUND_FACES = Object.freeze({
   heartglasses: addHeartGlasses,
+  skigoggles: addSkiGoggles,
 });
 
 // The found face piece, if `id` is one; nothing otherwise.

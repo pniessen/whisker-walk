@@ -9,6 +9,9 @@ export const SKI_LINES = Object.freeze({
   'snowville.skis.land': 'Swish! Lovely turns!',
   'snowville.skis.all': 'Every gate! What a skier!',
   'snowville.skis.paws': 'A warm cheer from the slope: +3 paws',
+  'snowville.skis.goggles': 'The Ski Goggles are yours!',
+  'snowville.skis.bench': 'Take the goggles from the bench',
+  'snowville.skis.bench.got': 'Ski Goggles, kept safe in your wardrobe',
 });
 
 addPhrases(SKI_LINES);

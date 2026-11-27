@@ -23,4 +23,6 @@ import { phrase } from '../clanphrases.js';
 export const FACE_WEAR = Object.freeze([
   // the Fairground: two heart lenses on a red frame (src/cat/foundface.js builds them)
   Object.freeze({ id: 'heartglasses', slot: 'face', find: 'fair', emoji: '💕', name: () => phrase('wear.heartglasses.name') }),
+  // Snowville's ski slope (2026-11-27): amber lenses in a dark frame on a blue strap (src/cat/foundface.js); earned on the slope or taken from its bench, and hidden in the place's four spots too
+  Object.freeze({ id: 'skigoggles', slot: 'face', find: 'snowville', emoji: '🥽', name: () => phrase('wear.skigoggles.name') }),
 ]);

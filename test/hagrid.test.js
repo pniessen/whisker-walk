@@ -31,6 +31,8 @@ const DELTA = {
   acorncap: 1, paperboycap: 1, buckethat: 1, sailorcap: 1, strawhat: 1, stripedboater: 1, starfishclip: 1, featherplume: 1,
   // lane F: the heart glasses' frames and lenses
   heartglasses: 2,
+  // Snowville's ski goggles: the frame and strap, and the lenses
+  skigoggles: 2,
   // lane N: the found neck pieces' ring, and what rides it or hangs in front
   daisychain: 2, gardenglovescarf: 3, shellnecklace: 2, neckerchief: 2, ticketgarland: 2,
   // lane N, Task 6: the collars: ring + caps; the rope ring + its knot (beauty pass: the rope is the ring itself); ring + anchor
