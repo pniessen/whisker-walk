@@ -885,8 +885,8 @@ function roofTrim(k, look) {
     const A = 3.9 * Math.SQRT1_2, R = 2;
     for (let q = 0; q < 4; q++) {
       const turn = q * Math.PI / 2;
-      k.box(0.1, 0.1, 2 * A + 0.1, A + 0.04, 2.96, 0, IRON, { turn });
-      for (const t of [0.2, 0.45, 0.7]) {
+      if (q % 2 === 0) k.box(0.08, 0.08, 2 * A - 0.5, A, 2.96, 0, IRON, { turn });
+      if (!look.bareRoof) for (const t of [0.2, 0.45, 0.7]) { // a roof the cat climbs stays bare
         const a = A * (1 - t);
         k.box(0.1, 0.04, 2 * a - 0.1, a + 0.02, 3 + R * t + 0.02, 0, course, { rz: -Math.atan2(R, A), turn });
       }
@@ -895,13 +895,13 @@ function roofTrim(k, look) {
   }
   const { across: A, along: L, turn } = GABLES[look.roof];
   for (const s of [-1, 1]) {
-    k.box(0.1, 0.1, 2 * L, s * (A + 0.04), EAVE_Y - 0.04, 0, IRON, { turn });
+    k.box(0.08, 0.08, 2 * L, s * (A - 0.04), EAVE_Y - 0.04, 0, IRON, { turn });
     for (const t of [0.25, 0.5, 0.75]) {
       k.box(0.1, 0.04, 2 * L - 0.3, s * (A * (1 - t) + 0.02), EAVE_Y + rise * t + 0.02, 0, course,
         { rz: -s * Math.atan2(rise, A), turn });
     }
   }
-  k.box(0.22, 0.12, 2 * L + 0.06, 0, RIDGE_Y + 0.04, 0, cap, { turn });
+  k.box(0.22, 0.12, 2 * L + 0.06, 0, RIDGE_Y - 0.06, 0, cap, { turn });
 }
 
 // Everything on a dressed house that is not glass, as one vertex-coloured
