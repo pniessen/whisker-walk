@@ -106,6 +106,15 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(CATALOG.accessories.snowflakescarf).toMatchObject({ slot: 'neck', price: 0, prize: true, find: 'snowville' });
     expect(spotsIn('snowville').map((x) => x.id)).toEqual(['fw-snowville-1', 'fw-snowville-2', 'fw-snowville-3', 'fw-snowville-4']);
   });
+  // The Treehouse village milestone T3 (2026-11-27): one head piece (a cap), hidden in four places in the village
+  it('the Treehouse hides one outfit, the Canopy Cap, a head piece with a plain name in either set (the Park already has the Acorn Cap), in four spots', () => {
+    expect(foundWearIn('treehouse').map((r) => [r.id, r.slot])).toEqual([['canopycap', 'head']]);
+    expect(foundWearIn('treehouse').map((r) => r.name())).toEqual(['Canopy Cap']);
+    expect(withOffWords(() => foundWearIn('treehouse').map((r) => r.name()))).toEqual(['Canopy Cap']);
+    expect(CATALOG.accessories.canopycap).toMatchObject({ slot: 'head', price: 0, prize: true, find: 'treehouse' });
+    expect(CATALOG.accessories.canopycap.emoji).not.toBe(CATALOG.accessories.acorncap.emoji);
+    expect(spotsIn('treehouse').map((x) => x.id)).toEqual(['fw-treehouse-1', 'fw-treehouse-2', 'fw-treehouse-3', 'fw-treehouse-4']);
+  });
   it('step 2: every street place has its four, and the places held back have none yet', () => {
     const ids = (a) => foundWearIn(a).map((r) => r.id);
     expect(ids('neighborhood')).toEqual(['paperboycap', 'gardenglovescarf', 'bottletopcollar', 'doormatcape']);
@@ -115,7 +124,7 @@ describe('found outfits: the finished catalog (step 2)', () => {
     expect(ids('farm')).toEqual(['strawhat', 'featherplume', 'neckerchief', 'haybalepack']);
     expect(ids('fair')).toEqual(['stripedboater', 'heartglasses', 'ticketgarland', 'candyflosspuff']);
     for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) expect(ids(a)).toEqual([]);   // Legacy's retirement first
-    expect(FOUND_WEAR).toHaveLength(34);   // the street places' 24, the Market's four, Lighthouse Point's keeper's cap, the Moon's cape and the Greenhouse's gardener's hat
+    expect(FOUND_WEAR).toHaveLength(35);   // the street places' 24, the Market's four, Lighthouse Point's keeper's cap, the Moon's cape and the Greenhouse's gardener's hat
   });
   // Market step 4 (2026-11-21): a hat, a neck piece, a collar charm and a
   // back item, the names placeholders the owner and his daughter will rename

@@ -76,6 +76,7 @@ export const FOUND_HEN_HEADS = Object.freeze({
   tradercap: henHat('tradercap', CAP, true),
   keepercap: henHat('keepercap', CAP, true),
   gardenerhat: henHat('gardenerhat', CROWN),
+  canopycap: henHat('canopycap', CAP, true),
   // a gift outfit (src/foundwear/gifts.js), worn as the found hats are
   partyhat: henHat('partyhat', CROWN),
   birthdayhat: henHat('birthdayhat', CROWN),

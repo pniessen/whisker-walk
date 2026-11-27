@@ -134,7 +134,7 @@ describe('the catalog row', () => {
       p.setArea('reef');
       expect(p.state.area).not.toBe('reef');
       expect(p.pickPlace('reef')).toBe(false);
-      expect(goldForEdition(edition, CATALOG).size).toBe(edition === 'canon' ? 68 : 44);
+      expect(goldForEdition(edition, CATALOG).size).toBe(edition === 'canon' ? 71 : 47);
     }
     expect(effectiveArea({ area: 'reef', edition: 'canon' }, CATALOG)).toBe('neighborhood');
     expect(JSON.stringify(nextThing(save().state, { catalog: CATALOG }) ?? null)).not.toMatch(/reef/i);

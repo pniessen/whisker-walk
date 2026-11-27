@@ -243,10 +243,17 @@ export const GOLD_MICE = {
     { id: 'gm-snowville-2', x: -26, z: -4, y: 0 },
     { id: 'gm-snowville-3', x: 26, z: -26, y: 0 },
   ],
+  // The Treehouse village (milestone T3; src/world/treehousefindsplan.js TREEHOUSE_GOLD holds the same three, test/treehousefinds.test.js; bounds 64 x 64 m): on the roots (ground), on the far platform
+  // (perch f2, 4.2 m) and on the crown deck by the bell (perch k1, 5.6 m), so two are climbed (never by a hop over 1.4 m). Not in KEEP_OUT (it already holds their places).
+  treehouse: [
+    { id: 'gm-treehouse-1', x: -5.5, z: -2.5, y: 0 },
+    { id: 'gm-treehouse-2', x: 6.2, z: -5.6, y: 4.2 },
+    { id: 'gm-treehouse-3', x: 1.4, z: -13.2, y: 5.6 },
+  ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 68 (Snowville's three joined in V3; 65 (the Moon's relay tower stub joined in X0; 64 (the Crystal Cave's two wing C stubs joined in X0; 62 (the Reef's two Sealab/galleon mice joined in R10; 60 was nineteen areas x three, and the island's three; 57 before the Crystal Cave, 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 71 (the Treehouse's three joined in T3; 68 (Snowville's three joined in V3; 65 (the Moon's relay tower stub joined in X0; 64 (the Crystal Cave's two wing C stubs joined in X0; 62 (the Reef's two Sealab/galleon mice joined in R10; 60 was nineteen areas x three, and the island's three; 57 before the Crystal Cave, 54 before the Reef, 51 before the Greenhouse, 48 before the Moon)
 
 // The golden mice a player of `edition` can reach: those in the areas the
 // edition shows (Legacy hides the Clan Edition territories; see edition.js).
