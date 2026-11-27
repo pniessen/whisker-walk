@@ -30,6 +30,7 @@ import { LINES as REEF_DIVERS_LINES } from '../src/world/reefdiverswords.js';
 import { LINES as CAVE_LIFE_LINES } from '../src/world/cavelifewords.js';
 import { LINES as MOON_LIFE_LINES } from '../src/world/moonlifewords.js';
 import { LINES as MOON_LINES, FLOW_LINES as MOON_FLOW_LINES } from '../src/world/moonwords.js';
+import { STAGE_LINES as MOON_STAGE_LINES } from '../src/world/moonlate.js';
 import { LINES as SKILLBADGE_LINES } from '../src/ui/skillbadgewords.js';
 import { LINES as COOP_LINES } from '../src/coop/words.js';
 import { LINES as TELE_LINES } from '../src/teleui.js';
@@ -61,6 +62,7 @@ addPhrases(REEF_DEEP_LINES); // (and the Deep's soft lines, milestone R8: src/wo
 addPhrases(COOP_LINES); // couch play's chunk (src/coop/words.js)
 addPhrases(TELE_LINES); // the teleport gates' chunk (src/teleui.js adds its own on import)
 addPhrases(MOON_LINES); // (the Moon's chunk adds its own on import: src/world/moonwords.js)
+addPhrases(MOON_STAGE_LINES); // (background loading: the one line for a stage still arriving)
 addPhrases(MOON_FLOW_LINES); // (so do the story flow's connective lines, in the same file)
 addPhrases(LIGHTHOUSE_LINES); // (so does Lighthouse Point's chunk: src/world/lighthousewords.js adds its own on import)
 import { RANK_WORDS, OUTSIDE_WORDS, PLACE_WORDS, CLAN_SUFFIX } from '../src/clanwords.js';

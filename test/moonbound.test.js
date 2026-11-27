@@ -345,7 +345,7 @@ describe('moonY (the bound\'s height) is read only by the rings and the board', 
   const src = new Map(files.map((f) => [f, readFileSync(f, 'utf8')]));
   it('only the bound\'s own files and the Moon\'s life (which hands the board its reader) name boundY', () => {
     const who = files.filter((f) => /\bboundY\b/.test(src.get(f))).map((f) => f.replace(/^src\//, '')).sort();
-    expect(who).toEqual(['world/moonbound.js', 'world/moonboundlive.js', 'world/moonlife.js']);
+    expect(who).toEqual(['world/moonbound.js', 'world/moonboundlive.js', 'world/moonlife.js', 'world/moonstubs.js']);
   });
   it('nothing that reads perchY, the finds or the mice imports the bound, and nothing outside the Moon\'s files names its files', () => {
     for (const f of files) {
