@@ -46,7 +46,14 @@ export function reefBaseY(x, z) {
   if (d > 0) y += 2.4 * smooth(d / 16);
   return y;
 }
-export const reefY = reefBaseY;
+// Raised ground over the dunes (the galleon's tilted deck; a stage pushes a { contains(x, z), raise(x, z) } entry from its module). Empty means open
+// seabed, so with no stage loaded every point is reefBaseY and nothing outside a region ever changes.
+export const REEF_RAISE_REGIONS = [];
+export function reefY(x, z) {
+  let y = reefBaseY(x, z);
+  for (const r of REEF_RAISE_REGIONS) if (r.contains(x, z)) y += r.raise(x, z);
+  return y;
+}
 
 const EPS = 0.25;
 // The ground in the shape the walk reads (src/ground.js's): made from the heightfield above, a step legal under the same rule as every raised ground.
