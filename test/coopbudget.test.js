@@ -98,16 +98,22 @@ const SCENES = [
   ['fair', buildFair, 99950, 296, 226],
 ];
 
-const markScene = () => {
+const markScene = (withPuff = false) => {
   const root = new THREE.Group();
   const m = createMarkers(root);
   m.place(0, 0, 0, 0); m.place(1, 2, 0, 0);
+  if (!withPuff) root.remove(m.puffMesh);
   return root;
 };
 
 describe('couch play: place + full cat + simple cat, heaviest outfits', () => {
   it('the two marks are 72 triangles, two meshes, and cast no shadow', () => {
     expect(stats(markScene())).toEqual({ meshes: 2, casters: 0, triangles: 72 });
+  });
+
+  it('the hop puff is one more mesh of 16 triangles, no shadow, and only drawn while it plays', () => {
+    const all = stats(markScene(true));
+    expect(all).toEqual({ meshes: 3, casters: 0, triangles: 88 });
   });
 
   it('the outfit is one accessory in every slot', () => {
@@ -131,7 +137,7 @@ describe('couch play: place + full cat + simple cat, heaviest outfits', () => {
       const scene = new THREE.Scene();
       build(scene);
       const place = stats(scene);
-      const marks = stats(markScene());
+      const marks = stats(markScene(true));
       const total = { triangles: place.triangles + FULL.t + SIMPLE.t + marks.triangles, meshes: place.meshes + FULL.m + SIMPLE.m + marks.meshes, casters: place.casters + FULL.m + SIMPLE.m + marks.casters };
       if (process.env.COOP_BUDGET_REPORT) console.log(name, place, total);
       expect(total.triangles).toBeLessThanOrEqual(triCeil);

@@ -37,7 +37,7 @@ class El {
 const fakeDoc = () => ({ createElement: (t) => new El(t), body: new El('body'), head: new El('head') });
 const find = (doc, cls) => doc.body.children.find((c) => c.className === cls);
 
-function rig({ areaId = 'neighborhood', net = null, profile = 'tv', unlocked = ['tabby', 'siamese'] } = {}) {
+function rig({ areaId = 'neighborhood', net = null, profile = 'tv', unlocked = ['tabby', 'siamese'], follow = true } = {}) {
   const progression = createProgression(memoryStorage());
   progression.state.unlocked.cats = unlocked;
   progression.state.petName = 'Mochi';
@@ -68,6 +68,7 @@ function rig({ areaId = 'neighborhood', net = null, profile = 'tv', unlocked = [
     onResume: () => player.setTouchEngaged(true), canResume: () => true,
   });
   const ctx = {
+    storage: { getItem: () => JSON.stringify({ follow }) },
     nav: { getGamepads: () => pads }, getSession: () => current, player, camera, doc, profile: () => profile,
     getState: () => progression.state, catalog: CATALOG, toast: (m) => toasts.push(m), act: (n) => { if (n === 'pause') player.setTouchEngaged(false); else acts.push(n); },
     voice: (p) => acts.push(`voice:${p}`), resume: () => { resumed.n++; player.setTouchEngaged(true); }, canResume: () => true,
@@ -271,6 +272,7 @@ describe('a controller goes to sleep', () => {
     inner.children[2].children[1].click();
     expect(r.h.state.joined).toBe(false);
     expect(r.two()).toBeUndefined();
+    r.tick(400); // the one-line toast queue: the welcome has its turn first
     expect(r.toasts.at(-1)).toBe('Siamese waves goodbye.');
     expect(find(r.doc, 'coop-lost').hidden).toBe(true);
     expect(r.cat.userData.ownTag).toBeUndefined();
@@ -358,7 +360,7 @@ describe('the shared camera', () => {
   });
 
   it('a cat standing still is never pulled by the other one walking away, and a cat at the leash still slides sideways', () => {
-    const r = joined();
+    const r = joined({ follow: false });
     const still = r.two().group.position.clone();
     set(r, pad(0, [], [-1, 0, 0, 0]), pad(1)); r.tick(60 * 10); // cat one walks west, away from cat two, to the leash and on pushing
     expect(r.two().group.position.distanceTo(still)).toBeLessThan(0.01);
@@ -425,7 +427,7 @@ describe('the shared camera', () => {
 describe('the marks under the cats', () => {
   it('a blue circle under cat one and an orange diamond under cat two, both few triangles and not shadow casters', () => {
     const r = joined();
-    const marks = r.scene.children.filter((o) => o.isMesh && o.userData.noCast && o.material.transparent);
+    const marks = r.scene.children.filter((o) => o.isMesh && o.userData.noCast && o.material.transparent && !o.userData.puff);
     expect(marks).toHaveLength(2);
     const [c, d] = marks;
     expect(c.material.color.getHex()).toBe(0x3b82f6);
@@ -526,5 +528,180 @@ describe('couch play is offline', () => {
     expect(calls).toEqual([]);
     vi.unstubAllGlobals();
     stubCanvasDocument({ pointerLock: true, measureText: 10 });
+  });
+});
+
+// ---- milestone 2: the camera's rules and the HUD, over the same fake pads ----
+const DOWN = 13; // D-pad Down
+const gap = (r) => Math.hypot(r.cat.position.x - r.two().group.position.x, r.cat.position.z - r.two().group.position.z);
+const west = (r, n, both = false) => { set(r, pad(0, [], [-1, 0, 0, 0]), pad(1, [], both ? [1, 0, 0, 0] : [0, 0, 0, 0])); r.tick(n); };
+
+describe('milestone 2: follow when idle', () => {
+  it('a cat whose stick rested for 3 s trots toward a friend farther than 8 m, and stops about 3 m away', () => {
+    const r = joined();
+    west(r, 60 * 5, true);
+    set(r, pad(0), pad(1));
+    const far = gap(r);
+    expect(far).toBeGreaterThan(8);
+    r.tick(60 * 2); // 2 s: not yet
+    expect(r.h.state.following).toEqual([false, false]);
+    r.tick(60 * 2); // past 3 s
+    expect(r.h.state.following[1]).toBe(true);
+    r.tick(60 * 12);
+    expect(gap(r)).toBeLessThan(4.2);
+    expect(gap(r)).toBeGreaterThan(1);
+    expect(r.h.state.following).toEqual([false, false]);
+  });
+
+  it('any stick input cancels it at once, and the Settings switch (localStorage) turns it off', () => {
+    const r = joined();
+    west(r, 60 * 5, true);
+    set(r, pad(0), pad(1)); r.tick(60 * 4);
+    expect(r.h.state.following[1]).toBe(true);
+    set(r, pad(0), pad(1, [], [1, 0, 0, 0])); r.tick(1); // cat two pushes away from its friend
+    expect(r.h.state.following[1]).toBe(false);
+    const off = joined({ follow: false });
+    west(off, 60 * 5, true);
+    set(off, pad(0), pad(1)); off.tick(60 * 8);
+    expect(off.h.state.following).toEqual([false, false]);
+    expect(gap(off)).toBeGreaterThan(8);
+  });
+});
+
+describe('milestone 2: hold D-pad Down to hop to my friend', () => {
+  it('a ring fills over the cat for 0.8 s, then it lands beside its friend and the stick is its own again', () => {
+    const r = joined({ follow: false });
+    west(r, 60 * 5);
+    const far = gap(r);
+    expect(far).toBeGreaterThan(8);
+    set(r, pad(0, [DOWN]), pad(1)); r.tick(30);
+    expect(r.h.hub.holds()[0]).toBeGreaterThan(0.5);
+    expect(r.h.hub.holds()[0]).toBeLessThan(1);
+    const ring = r.doc.body.children.filter((c) => c.className === 'coop-ring')[0];
+    expect(ring.hidden).toBe(false);
+    expect(gap(r)).toBeGreaterThan(far - 1); // not yet
+    r.tick(30);
+    expect(gap(r)).toBeLessThan(3.4);
+    expect(gap(r)).toBeGreaterThan(0.8);
+    expect(r.acts).toContain('voice:1.1');
+    set(r, pad(0), pad(1)); r.tick(2);
+    expect(ring.hidden).toBe(true);
+  });
+
+  it('either pad does it for its own cat, and tapping twice is the other way', () => {
+    const r = joined({ follow: false });
+    west(r, 60 * 5);
+    set(r, pad(0), pad(1, [DOWN])); r.tick(4);
+    set(r, pad(0), pad(1)); r.tick(6);
+    expect(gap(r)).toBeGreaterThan(8); // one tap is nothing
+    set(r, pad(0), pad(1, [DOWN])); r.tick(4);
+    set(r, pad(0), pad(1)); r.tick(3);
+    expect(gap(r)).toBeLessThan(3.4);
+  });
+
+  it('lands on clear ground, never inside a collider, and stays put when nothing is clear', () => {
+    const r = joined({ follow: false });
+    west(r, 60 * 5);
+    const friend = r.two().group.position;
+    r.session.areaData.colliders.push({ x: friend.x + 1.3, z: friend.z, r: 1 }, { x: friend.x - 1.3, z: friend.z, r: 1 });
+    set(r, pad(0, [DOWN]), pad(1)); r.tick(60);
+    expect(gap(r)).toBeLessThan(4);
+    for (const c of r.session.areaData.colliders) expect(Math.hypot(r.cat.position.x - c.x, r.cat.position.z - c.z)).toBeGreaterThan(c.r + 0.3);
+  });
+});
+
+describe('milestone 2: the band, the hint and the tight-place rule', () => {
+  it('a cat pushing on at the end of the band reads its own hint with the pad\'s picture, and loses it again', () => {
+    const r = joined({ follow: false });
+    const [left, right] = r.doc.body.children.filter((c) => c.className.startsWith('coop-slot'));
+    expect(left.hidden).toBe(true);
+    west(r, 60 * 8);
+    expect(left.hidden).toBe(false);
+    expect(left.attrs['aria-label']).toContain('hop to your friend');
+    expect(left.innerHTML).toContain('<svg');
+    expect(right.hidden).toBe(true); // cat two was not pushing
+    set(r, pad(0), pad(1)); r.tick(100);
+    expect(left.hidden).toBe(true);
+  });
+
+  it('the band slows the last 3 m: a cat moves less per second near the leash than in the open', () => {
+    const r = joined({ follow: false });
+    west(r, 60 * 3);
+    const open = r.cat.position.x;
+    r.tick(30);
+    const openStep = open - r.cat.position.x;
+    west(r, 60 * 6);
+    const lim = r.h.state.leash;
+    expect(gap(r)).toBeGreaterThan(lim - 3);
+    const x0 = r.cat.position.x;
+    r.tick(30);
+    expect(x0 - r.cat.position.x).toBeLessThan(openStep * 0.5);
+  });
+
+  it('a building ring that pulls the camera in tightens the leash and marks the cat who is out of the safe box', () => {
+    const r = joined({ follow: false });
+    west(r, 60 * 4);
+    r.tick(60);
+    const wide = r.h.state.leash;
+    const m = r.cat.position, b = r.session.areaData.bounds; // a wall close behind the cats: the camera cannot back off
+    b.maxZ = m.z + 1.2; b.minZ = m.z - 1.2;
+    r.tick(60);
+    expect(r.h.state.pull).toBeLessThan(0.6);
+    expect(r.h.state.tight).toBe(true);
+    r.tick(5);
+    expect(r.h.state.leash).toBeLessThan(wide);
+  });
+});
+
+describe('milestone 2: toasts with a finder chip, the +N pop, the two prompt slots', () => {
+  it('a find shows the finder\'s chip (shape, colour and name) with the line', () => {
+    const r = joined();
+    r.tick(400);
+    r.toasts.length = 0;
+    r.h.found(1, 'a golden mouse', 'gm-1');
+    r.tick(2);
+    expect(r.toasts).toEqual(['Siamese found a golden mouse']);
+    const chip = find(r.doc, 'coop-chip');
+    expect(chip.hidden).toBe(false);
+    expect(chip.textContent).toBe('◆ Siamese');
+    expect(chip.style['--c']).toBe('#f59e0b');
+    r.tick(60 * 6);
+    expect(chip.hidden).toBe(true);
+  });
+
+  it('two finds of the same thing within 1.5 s fold into "You both found", one toast', () => {
+    const r = joined();
+    r.tick(400);
+    r.toasts.length = 0;
+    r.h.found(0, 'a golden mouse', 'gm-2');
+    r.tick(1);
+    r.h.found(1, 'a golden mouse', 'gm-2');
+    r.tick(2);
+    expect(r.toasts).toEqual(['Mochi found a golden mouse', 'You both found a golden mouse']);
+  });
+
+  it('+N floats up over the finder in the world and is gone after about a second', () => {
+    const r = joined();
+    r.h.pop(1, 3);
+    const pops = r.doc.body.children.filter((c) => c.className === 'coop-pop');
+    expect(pops).toHaveLength(1);
+    expect(pops[0].textContent).toBe('+3');
+    r.tick(30);
+    expect(pops[0].style.transform).toMatch(/translate\(/);
+    r.tick(60);
+    expect(r.doc.body.children.filter((c) => c.className === 'coop-pop')).toHaveLength(0);
+  });
+
+  it('the two prompt slots are real, separate, and a line in one never shows in the other', () => {
+    const r = joined();
+    const [left, right] = r.doc.body.children.filter((c) => c.className.startsWith('coop-slot'));
+    r.h.prompt(1, 'Press ⟦interact⟧ to sniff');
+    r.tick(1);
+    expect(right.hidden).toBe(false);
+    expect(left.hidden).toBe(true);
+    expect(right.attrs['aria-label']).toBe('Press □ to sniff');
+    r.h.prompt(1, null);
+    r.tick(1);
+    expect(right.hidden).toBe(true);
   });
 });

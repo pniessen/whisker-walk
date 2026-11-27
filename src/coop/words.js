@@ -15,6 +15,11 @@ export const LINES = Object.freeze({
   'coop.lost.hint': 'Press any button on it to wake it up.',
   'coop.lost.wait': 'Wait for it',
   'coop.lost.without': 'Play without it',
+  'coop.hophint': 'Hold ⟦dpad⟧ down to hop to your friend',
+  'coop.following': (name) => `${name} is trotting over`,
+  'coop.found': (name, what) => `${name} found ${what}`,
+  'coop.foundboth': (what) => `You both found ${what}`,
+  'coop.edge': (name) => `${name} is out of sight`,
   'coop.left': (name) => `${name} waves goodbye.`,
 });
 
