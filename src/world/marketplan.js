@@ -378,9 +378,16 @@ function zoneCapsule(s) {
 }
 const hideCapsule = (s) => freeze({ x1: s.hide.x, z1: s.hide.z, x2: s.hide.x, z2: s.hide.z, r: s.hide.r + ZONE_MARGIN });
 const TREAT_STALL_ROWS = TREAT_STALLS.map(stallById);
+// Strays never read the area's colliders (only her own cat does), so before
+// 2026-11-27 they walked straight through the stalls, the fountain, the
+// lamps, the crate stacks and the musician. Every solid circle is now also a
+// keep-out point-capsule, a cat's body (STRAY_BODY) wider than the solid, so a
+// stray's centre stays outside it.
+const STRAY_BODY = 0.35;
+const solidCapsule = (c) => freeze({ x1: c.x, z1: c.z, x2: c.x, z2: c.z, r: c.r + STRAY_BODY });
 export const MARKET_KEEPOUT = freeze({
   rects: freeze([]),
-  capsules: freeze([...TREAT_STALL_ROWS.map(zoneCapsule), ...TREAT_STALL_ROWS.map(hideCapsule)]),
+  capsules: freeze([...TREAT_STALL_ROWS.map(zoneCapsule), ...TREAT_STALL_ROWS.map(hideCapsule), ...MARKET_COLLIDERS.map(solidCapsule)]),
   margin: 0.4,
 });
 

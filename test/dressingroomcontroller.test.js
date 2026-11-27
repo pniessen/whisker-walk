@@ -1223,3 +1223,44 @@ describe('createDressingRoom: more cat slots and Remove all accessories', () => 
     expect(seen).toEqual(['[data-dr-wardrobe-done]']);
   });
 });
+
+describe('createDressingRoom: Remove my other cats', () => {
+  const look = { coat: 'black', marks: 'white', pattern: 'socks', fur: 'long', eyes: 'gold', size: 0.9 };
+  function real() {
+    const map = new Map();
+    const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
+    for (const n of ['Ember', 'Ash', 'Fern']) progression.createCustomCat({ name: n, personality: 'steady', look });
+    const sync = { autoSync: vi.fn() };
+    const asks = [];
+    const dr = createDressingRoom({ progression, sync, onChange: vi.fn(), onProfileChange: vi.fn(), thumbs: { cats: {}, accessories: {}, mine: {} }, confirmSpend: (o) => { asks.push(o); return true; } });
+    return { dr, progression, sync, asks };
+  }
+  it('asks first, keeps the cat she walks as, and only Yes removes the rest', () => {
+    const { dr, progression, sync, asks } = real();
+    progression.equipCustom('mine2');
+    dr.handleClick(click({ drRemoveCats: '' }));
+    expect(asks).toHaveLength(1);
+    expect(asks[0].text).toMatch(/all 2 of your other cats/);
+    expect(asks[0].note).toMatch(/Ash stays\. This cannot be undone/);
+    expect(asks[0].danger).toBe(true);
+    expect(progression.state.customCats).toHaveLength(3);
+    asks[0].onYes();
+    expect(progression.state.customCats.map((c) => c.id)).toEqual(['mine2']);
+    expect(progression.state.equipped.custom).toBe('mine2');
+    expect(sync.autoSync).toHaveBeenCalled();
+  });
+  it('walking a ready-made cat, all of hers go and the ready-made one stays', () => {
+    const { dr, progression, asks } = real();
+    dr.handleClick(click({ drRemoveCats: '' }));
+    asks[0].onYes();
+    expect(progression.state.customCats).toEqual([]);
+    expect(progression.state.equipped.cat).toBe('tabby');
+  });
+  it('nothing to remove: no card', () => {
+    const { dr, progression, asks } = real();
+    progression.state.customCats.splice(1);
+    progression.equipCustom('mine1');
+    dr.handleClick(click({ drRemoveCats: '' }));
+    expect(asks).toHaveLength(0);
+  });
+});

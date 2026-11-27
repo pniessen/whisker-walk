@@ -383,8 +383,8 @@ describe('The Old Docks — catalog, unlock gating and walk counting', () => {
 describe('The Old Docks — the eleventh journal critter', () => {
   it('adds rat to the journal vocabulary and the catalog together', () => {
     expect(JOURNAL_TYPES).toContain('rat');
-    expect(JOURNAL_TYPES).toHaveLength(205); // (five Moon Old Relay Station pages, src/moonpages.js MOON_WING_PAGES) (six Moon robot-and-light pages, src/moonpages.js MOON_LIFE_PAGES) (seven Crystal Cave life pages, src/crystalpages.js CAVE_LIFE_PAGES) (seven more Reef sea creatures: world/reefmore.js) the Reef's twelve pages, the Greenhouse's eight pages; 14, Appletree Farm's six animals, its four jobs and six finds, the Fairground's five rides, three games and six finds, the Rooftops' six finds, and the Market Square's six finds
-    expect(CRITTER_INFO).toHaveLength(205);
+    expect(JOURNAL_TYPES).toHaveLength(211); // (five Moon Old Relay Station pages, src/moonpages.js MOON_WING_PAGES) (six Moon robot-and-light pages, src/moonpages.js MOON_LIFE_PAGES) (seven Crystal Cave life pages, src/crystalpages.js CAVE_LIFE_PAGES) (seven more Reef sea creatures: world/reefmore.js) the Reef's twelve pages, the Greenhouse's eight pages; 14, Appletree Farm's six animals, its four jobs and six finds, the Fairground's five rides, three games and six finds, the Rooftops' six finds, and the Market Square's six finds
+    expect(CRITTER_INFO).toHaveLength(211);
     const rat = CRITTER_INFO.find((c) => c.id === 'rat');
     expect(rat).toBeTruthy();
     expect(rat.emoji).toBeTruthy();

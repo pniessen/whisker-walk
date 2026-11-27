@@ -88,6 +88,8 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   'roofgarden', 'roofloft', 'roofvane', 'roofskylight', 'rooftelescope', 'roofchimney',
   // The Market Square's six finds (src/marketpages.js; walks each was found on).
   'marketfountain', 'marketpigeons', 'marketsacks', 'marketmusician', 'marketbasket', 'marketapples',
+  // The Market Square's six missions (src/marketpages.js MARKET_ERRAND_PAGES; walks each was finished on).
+  'mkmouse', 'mkglove', 'mkpigeons', 'mkbell', 'mkstray', 'mkfiddle',
   // Lighthouse Point's six finds and two jobs (src/lighthousepages.js; walks each was found or finished on).
   'lhlamproom', 'lhpool', 'lhgull', 'lhecho', 'lhbell', 'lhwindow', 'lhjobkitten', 'lhjoblamp',
   // The Moon's six discoveries and six activity pages (src/moonpages.js; ids reserved in its milestone 0).
@@ -1905,6 +1907,23 @@ export function createProgression(storage) {
       cat.look = sanitizeLook(look);
       save();
       return true;
+    },
+    // Dress up's "Remove other cats": every cat she made goes except the one she
+    // is walking as (equipped.custom), so she is never left without one. Walking
+    // a ready-made cat, all of hers go (that cat stays; equipped.cat is always a
+    // preset). Sleeping cats go too, their scars with them. → how many went.
+    // No new save key: the merge reads the base to tell this from a cat the
+    // other device has not seen yet (src/catmerge.js).
+    removeOtherCats() {
+      const keep = state.equipped.custom;
+      const gone = state.customCats.filter((c) => c.id !== keep);
+      const slept = state.sleepingCats.length;
+      if (!gone.length && !slept) return 0;
+      state.customCats = state.customCats.filter((c) => c.id === keep);
+      state.sleepingCats = [];
+      for (const c of gone) delete state.scars[c.id];
+      save();
+      return gone.length + slept;
     },
     equipCustom(id) {
       if (!state.customCats.some((c) => c.id === id)) return false;

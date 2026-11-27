@@ -119,6 +119,7 @@ const LABELS = Object.freeze({
   glove: 'glove',
   ribbon: 'ribbon',
   yarn: 'yarn ball',
+  fishhead: 'fish head',
 });
 
 export function carryLabel(kind) {
