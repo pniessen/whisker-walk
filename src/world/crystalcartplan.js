@@ -19,7 +19,7 @@ export const TRACK_LEN = pathLength(TRACK_PATH, false);
 /** The south end of the line: the forge job (C3) places or reads its rose shard from here. */
 export const TRACK_END = f({ x: TRACK.x, z: TRACK.zSouth });
 /** The rose shard lies on the floor near the south end, in the open beside the platform (the forge's third ingredient, bit 2 of `forge`). */
-export const ROSE_SHARD = f({ x: -31.2, z: -11.8 });
+export const ROSE_SHARD = f({ x: -32.0, z: -10.8 });
 
 export const DWELL = 7; // seconds on each end
 export const STOPS = f([f({ name: 'north', s: 0 }), f({ name: 'south', s: r2(TRACK_LEN) })]);
