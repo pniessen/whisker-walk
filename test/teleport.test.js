@@ -258,8 +258,8 @@ describe('what a gate says (teleStatus)', () => {
     expect(teleStatus({ ...GP, needWalks: 1 }, state({ park: 5 }), CATALOG).kind).toBe('dormant'); // counted on the host (greenhouse) side
     expect(teleStatus({ ...GP, needWalks: 1 }, state({ greenhouse: 1 }), CATALOG).kind).toBe('go');
   });
-  it('room: refused with a kind line in an online room, either end', () => {
-    for (const e of ALL) expect(teleStatus(e, state({ park: 9, seaside: 9, docks: 9 }), CATALOG, { inRoom: true })).toMatchObject({ kind: 'room', lineId: 'tele.room' });
+  it('room: an online room is no longer refused (I3), either end; the host\'s save decides, nothing else', () => {
+    for (const e of ALL) expect(teleStatus(e, state({ park: 9, seaside: 9, docks: 9 }), CATALOG, { inRoom: true }).kind).toBe('go');
   });
   it('coop: couch play stays out of the gate while the destination\'s (or the host\'s) COOP_READY row is false', () => {
     expect(COOP_READY.park).toBe(false);
@@ -276,8 +276,8 @@ describe('what a gate says (teleStatus)', () => {
     expect(teleStatus(PG, state(), CATALOG, { couch: true }).kind).toBe('coop');
     await teleKit();
   });
-  it('a room is refused before couch play is looked at', () => {
-    expect(teleStatus(PG, state(), CATALOG, { inRoom: true, couch: true }).kind).toBe('room');
+  it('couch play is still looked at inside a room', () => {
+    expect(teleStatus(PG, state(), CATALOG, { inRoom: true, couch: true }).kind).toBe('coop');
   });
 });
 
@@ -358,13 +358,14 @@ describe('the prompt, as the walk reads it every frame', () => {
     prompt(walkAt('greenhouse'), { x: GP.x + 4, z: GP.z }, stateOf(newSave()), false, prefetch, true);
     expect(got).toEqual(['park']);
   });
-  it('a room: refused with a kind line (a sign, no card), and nothing fetched', () => {
+  it('a room: the host gets the gate\'s card, a guest the sign only (tele.guest), and the place is fetched', () => {
     const { got, prefetch } = calls();
-    const p = prompt(walkAt(), { x: PG.x + 1, z: PG.z }, stateOf(newSave()), true, prefetch, true);
-    expect(p.prompt.kind).toBe('gate-info');
-    expect(p.text).toBe(phrase('tele.room'));
-    expect(p.text).toMatch(/not ready for friends/);
-    expect(got).toEqual([]);
+    const p = prompt(walkAt(), { x: PG.x + 1, z: PG.z }, stateOf(newSave()), true, prefetch, true, true);
+    expect(p.prompt.kind).toBe('gate');
+    const g = prompt(walkAt(), { x: PG.x + 1, z: PG.z }, stateOf(newSave()), true, prefetch, true, false);
+    expect(g.prompt.kind).toBe('gate-info');
+    expect(g.text).toBe(phrase('tele.guest', 'The Greenhouse'));
+    expect(got).toEqual(['greenhouse', 'greenhouse']);
   });
   it('couch play: closed with a kind line while the destination\'s COOP_READY row is false', async () => {
     await teleKit({ couch: () => true });
@@ -447,7 +448,7 @@ describe('the words', () => {
   const say = (id, ...more) => phrase(id, ...(more.length ? more : ARGS[id] ?? []));
   const FLAVOURED = ['tele.home', 'tele.prompt', 'tele.wake'];
   it('every line is in the phrase table once the lazy file has come, and none is empty', () => {
-    expect([...IDS].sort()).toEqual(['tele.coop', 'tele.go', 'tele.guest', 'tele.hint', 'tele.home', 'tele.notnow', 'tele.prompt', 'tele.room', 'tele.slow', 'tele.suit', 'tele.wake']);
+    expect([...IDS].sort()).toEqual(['tele.coop', 'tele.go', 'tele.guest', 'tele.hint', 'tele.home', 'tele.notnow', 'tele.older', 'tele.prompt', 'tele.slow', 'tele.suit', 'tele.wake']);
     for (const id of IDS) expect(say(id), id).toMatch(/\S/);
   });
   it('both word sets say every line; only the three flavoured ones differ, and the everyday set never shows a series word', () => {

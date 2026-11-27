@@ -1273,9 +1273,9 @@ export function createInteractions({
     }
     // The teleport gates (?gates=1, src/teleport.js, lazy): either edition, just after the map's gates and on the same terms;
     // a gate she can go through is a 'gate' prompt (its own card), a refusal a sign. Couch play is shut out of a gate
-    // until both places' couch rows are ready; a room is refused (milestone 0).
+    // until both places' couch rows are ready; a room's host may take one (a guest reads the sign).
     const tg = tele.kit?.prompt(s, catP, progression.state, !!s.net, prefetchArea,
-      !s.prompt && !s.perched && !player.swimming && !s.fight && !s.clanFight?.uiShowing);
+      !s.prompt && !s.perched && !player.swimming && !s.fight && !s.clanFight?.uiShowing, !s.net || !!s.net.isHost?.());
     if (tg) { s.prompt = tg.prompt; setPrompt(tg.text); }
     // Border crossings: a waymark post, Clan Edition only. After the rest (so
     // anything a kid walked up to comes first) and before gift-leave and the

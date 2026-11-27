@@ -28,12 +28,13 @@ import { CATALOG } from '../progression.js';
 import { carryLabel } from '../carry.js';
 import { crossCardHtml, crossExtras, decideBorderCross, targetName, lower } from '../bordercross.js';
 import {
-  gateStatus, gateCardHtml, gateBuyHtml, gateMomentHtml, nextRoomSeed, roomWalksOn, WALK_ON,
+  gateStatus, gateCardHtml, gateBuyHtml, gateMomentHtml, nextRoomSeed, roomWalksOn, WALK_ON, WALK_ON_MAP,
   decideWalkOn, decideWalkOnAsk, decideWalkOnHave, decideGateCross, decideHostThere,
 } from '../gatecross.js';
 import { safeRemoteName } from '../net.js';
 import { AREA_LOAD_TIMEOUT_MS } from './areaload.js';
 import { endById } from '../gateways.js';
+import { tele as teleHook } from '../telehook.js';
 import { deliberateTap } from '../ui/confirmcard.js';
 import { phrase } from '../clanphrases.js';
 import { pauseCardFor } from './walk.js';
@@ -81,6 +82,11 @@ export function createCrossing({
   ensureArea = () => Promise.resolve(),
   isOnline = () => globalThis.navigator?.onLine !== false,
 }) {
+  // The teleport gates' lookup for the room's decisions (null with the gates off or their code not loaded: a gate id
+  // is then unknown here, and a guest answers no). A teleport gate's walk-on wants every member at WALK_ON.
+  const teleLook = () => teleHook.kit?.roomLook ?? null;
+  const needFor = (via) => (teleLook()?.areaOf(via) ? WALK_ON : WALK_ON_MAP);
+
   // The pause card back; `note` is the line why nobody moved, carried on
   // the card (a toast would sit under it).
   function restoreCard(s, note = null) {
@@ -99,11 +105,11 @@ export function createCrossing({
   // (a room with an older build) is followed only by this build (an older
   // one's check wants a post), so that card lists the roster's members on
   // this build, never a hidden one.
-  function togetherFor(s, { kind, endsHere }) {
+  function togetherFor(s, { kind, endsHere, via }) {
     if (!s.net) return [];
     if (kind === 'gate' && endsHere) {
       return rosterOf()
-        .filter((m) => m && m.walkOn === WALK_ON && m.playerId !== s.playerId && !hiddenIn(s, m.playerId))
+        .filter((m) => m && typeof m.walkOn === 'number' && m.walkOn >= needFor(via) && m.playerId !== s.playerId && !hiddenIn(s, m.playerId))
         .map((m) => petNameOf(s, m.playerId));
     }
     return (s.remotes?.list ?? []).map((r) => r.petName);
@@ -127,9 +133,9 @@ export function createCrossing({
   // reads s.crossing.endsHere, never the roster again, so the card and what
   // happens always agree.
   function showCrossing(s, { to, name, via, kind, card = null }) {
-    const endsHere = !!s.net && !roomWalksOn(getRoster());
+    const endsHere = !!s.net && !roomWalksOn(getRoster(), needFor(via));
     s.crossing = { to, name, via, kind, endsHere };
-    overlay.innerHTML = card ?? (endsHere ? crossCardHtml : gateCardHtml)({ name, extras: extrasFor(s, { kind, endsHere }) });
+    overlay.innerHTML = card ?? (endsHere ? crossCardHtml : gateCardHtml)({ name, extras: extrasFor(s, { kind, endsHere, via }) });
     releaseControl();
   }
 
@@ -147,6 +153,8 @@ export function createCrossing({
   function askGate(s, data) {
     if (!s || !data || !data.end || data.status?.kind !== 'go') return;
     if (!mayAsk(s)) return;
+    // A teleport gate stays shut for the host while any member is on an older build: nobody is split, nobody moves.
+    if (s.net && teleLook()?.areaOf(data.end.id) && !roomWalksOn(getRoster(), WALK_ON)) { hud.toast(phrase('tele.older')); return; }
     const { to, name } = data.status;
     prefetchArea(to);
     // A teleport gate's question is its own card (src/teleui.js).
@@ -263,7 +271,7 @@ export function createCrossing({
     if (room.done || getSession() !== s || s.crossing !== c) { room.off(); return; }
     if (room.failed) { stayHere(s, room, notReadyLine()); return; }
     const d = decideWalkOnHave(room.haves, {
-      areaId: s.areaId, via: c.via, selfId: s.playerId, remoteIds: roomIdsOf(s), catalog, ready: room.ready,
+      areaId: s.areaId, via: c.via, selfId: s.playerId, remoteIds: roomIdsOf(s), catalog, ready: room.ready, tele: teleLook(),
     });
     if (d.kind === 'no') { stayHere(s, room, phrase('gate.friendNotReady', petNameOf(s, d.id))); return; }
     if (d.kind === 'wait') {
@@ -306,7 +314,7 @@ export function createCrossing({
   function onWalkOnAsk(s, ev) {
     // A walk-on of her own under way would refuse the host's: no answer.
     if (!s || !s.net || s.walkingOn) return;
-    const d = decideWalkOnAsk(ev, { areaId: s.areaId, selfId: s.playerId, remoteIds: roomIdsOf(s), catalog });
+    const d = decideWalkOnAsk(ev, { areaId: s.areaId, selfId: s.playerId, remoteIds: roomIdsOf(s), catalog, tele: teleLook() });
     if (!d) return;
     const last = s.walkOnAnswer;
     if (last && last.via === d.via && (last.pending || now() - last.at < ASK_SAME_MS)) return;
@@ -369,7 +377,7 @@ export function createCrossing({
   function onRemoteWalkOn(s, ev) {
     if (!s || !ev || s.crossLed) return;
     const d = decideWalkOn(ev, {
-      areaId: s.areaId, selfId: s.playerId, remoteIds: roomIdsOf(s), catalog, roomSeed: s.roomSeed,
+      areaId: s.areaId, selfId: s.playerId, remoteIds: roomIdsOf(s), catalog, roomSeed: s.roomSeed, tele: teleLook(),
     });
     if (!d) return;
     follow(s, { via: d.via, to: d.to, hostId: ev.id });
@@ -419,7 +427,7 @@ export function createCrossing({
     // A post's or a gate's crossing in a room with an older build. Its room
     // and host are the roster's, as every room decision here is: a host
     // reading its card sends no state, and the drawn cats drop it after 5 s.
-    const ctx = { areaId: s.areaId, selfId: s.playerId, catalog, remoteIds: roomIdsOf(s) };
+    const ctx = { areaId: s.areaId, selfId: s.playerId, catalog, remoteIds: roomIdsOf(s), tele: teleLook() };
     const d = decideBorderCross(ev, ctx) ?? decideGateCross(ev, ctx);
     if (!d) return;
     prefetchArea(d.to);
