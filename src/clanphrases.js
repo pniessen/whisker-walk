@@ -334,6 +334,7 @@ const LATER = Object.freeze({
   'fair.game.again': 'You won again! 🎉',
   'fair.prize.wear': 'Your prize is waiting in the dress-up at home. 🎁',
   'fair.prize.locked': 'A prize to win at the Fairground',
+  'wear.areaPrize': 'A surprise to find on an adventure', // (an area prize: the Reef's bandana, the Crystal Cave's circlet; no visit number)
   // The six things to find: the first time ever, and on any later walk.
   'fair.find.fortune.first': 'The crystal ball shows... you! 🔮',
   'fair.find.fortune.again': 'There you are in the crystal ball again. 🔮',

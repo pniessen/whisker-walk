@@ -181,7 +181,7 @@ describe('the drawing and the walk', () => {
 
 describe('the words and the journal', () => {
   it('three pages appended at the very end of JOURNAL_TYPES, with names from start-up and hints from the lazy words', () => {
-    expect(JOURNAL_TYPES.slice(-3)).toEqual(IDS);
+    expect(JOURNAL_TYPES.slice(JOURNAL_TYPES.indexOf(IDS[0]), JOURNAL_TYPES.indexOf(IDS[0]) + 3)).toEqual(IDS); // (appended as a block; later wings follow)
     expect(new Set(JOURNAL_TYPES).size).toBe(JOURNAL_TYPES.length);
     for (const id of IDS) {
       const card = CRITTER_INFO.find((c) => c.id === id);
