@@ -24,6 +24,9 @@ import { drawDeep } from './reefdeepparts.js';
 import { drawTufts, drawDecor } from './reefdecorparts.js';
 import { createReefDeepLife } from './reefdeeplife.js';
 import { createReefGuideLive } from './reefguidelive.js';
+import { createReefSealsLife } from './reefsealslive.js';
+import { createReefMoreLife } from './reefmorelive.js';
+import { lifeColliders } from './reefseals.js';
 import './reefwords.js';
 
 export { REEF_NAME, REEF_BOUNDS, REEF_SPAWN } from './reefplan.js';
@@ -64,7 +67,7 @@ export function build(scene) {
       name: P.REEF_NAME,
       bounds: P.REEF_BOUNDS,
       spawn: P.REEF_SPAWN,
-      colliders: [...P.reefColliders(), ...storyColliders()].map((c) => ({ ...c })),
+      colliders: [...P.reefColliders(), ...storyColliders(), ...lifeColliders()].map((c) => ({ ...c })),
       waters: [],
       waterFx: [],
       perches: [],
@@ -93,11 +96,14 @@ export function build(scene) {
         const finds = createReefFindsLife(ctx); // the six discoveries (milestone R3)
         const deep = createReefDeepLife({ ...ctx, say: base.say }); // the plankton and the Deep's three soft lines (R8)
         const guide = createReefGuideLive({ doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, marlo: base.marlo, errand: base.errand, progression: ctx.progression }); // the written guide: goal line, arrow, chip, arrival card
+        const sea = createReefSealsLife(ctx); // the seals, octopuses and dolphin family (photo and journal subjects through `spottable`)
+        const more = createReefMoreLife(ctx); // jellyfish, clownfish, seahorses, mantas, a whale, moray eels and squid
         return {
           ...base,
           guide,
-          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); guide.update(...a); },
-          dispose() { guide.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
+          spottable: [...sea.spottable, ...more.spottable],
+          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); more.update(...a); guide.update(...a); },
+          dispose() { guide.dispose(); more.dispose(); sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
         };
       },
     };
