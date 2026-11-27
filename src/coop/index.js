@@ -276,7 +276,7 @@ export function start(ctx) {
     heading.square(yaw0);
     const p = s.cat.position;
     const at = { ...spotBeside(s, p), yaw: s.cat.rotation.y };
-    mover = createMover({ ground: s.ground, state: st, pick, at, reducedMotion: !!s.reducedMotion });
+    mover = createMover({ ground: s.ground, state: st, pick, at, reducedMotion: !!s.reducedMotion, place: s.areaId });
     markers = createMarkers(s.scene);
     if (!s.cat.userData.ownTag) { // cat one's name, so both cats read
       const t = makeNameTag(nameOne(), { fit: true });
@@ -339,6 +339,7 @@ export function start(ctx) {
   function hop() {
     if (mover && cur && rides.jump(cur, mover)) return; // a ride seat in reach: the jump boards it, hops on or gets off
     if (clock < hopAt || !mover) return;
+    if (mover.player.canFloat) return; // under the sea A is the kick (setKick), as for cat one: no pounce hop there
     hopAt = clock + HOP_COOLDOWN;
     mover.player.pounce(pounceArc(ctx.getState?.() ?? {}, { reducedMotion: !!cur.reducedMotion }));
     hopT = 0.35;
@@ -456,6 +457,7 @@ export function start(ctx) {
     if (state.joined && mover) {
       if (pad2) {
         if (pad2.move !== undefined) mover.player.setTouchMove(pad2.move);
+        if (pad2.kick !== undefined) mover.player.setKick(pad2.kick); // the Reef's kick: A held (does nothing where nothing floats)
         for (const a of pad2.actions) {
           if ((a === 'interact' || a === 'meow') && fights.answer(a)) continue; // the pill is cat two's: its Square and Circle answer it
           if (a === 'pounce') hop();
@@ -622,7 +624,7 @@ export function start(ctx) {
     msg.pos[0] = body.position.x; msg.pos[1] = body.position.z;
     msg.yaw = body.rotation.y;
     msg.speed = speed;
-    msg.h = Math.max(0, body.position.y - gy);
+    msg.h = Math.max(0, body.position.y - gy) + mover.player.floatY; // the Reef's float rides the same height, as it does on the wire
     msg.seat = rides.seat?.rideId === 'slide' ? null : rides.seat?.id ?? null; // the slide is slid on the own clock of each device: drawn where she is
     msg.pose = rides.busy ? 'perch' : mover.player.hopY > 0.01 ? 'pounce'
       : speed > 0.3 ? (mover.player.stalking ? 'stalk' : 'follow')
@@ -639,7 +641,7 @@ export function start(ctx) {
 
     // The shared camera: on the middle of the two, widened until both fit.
     one.set(cat.position.x, cat.position.y, cat.position.z);
-    two.set(body.position.x, body.position.y, body.position.z);
+    two.set(body.position.x, body.position.y + mover.player.floatY, body.position.z); // cat one's own y already holds her float
     mid.set((one.x + two.x) / 2, (one.y + two.y) / 2, (one.z + two.z) / 2);
     const base = ctx.player.cameraZoomLevel ?? 1;
     // the widening looks a moment ahead, so cats running apart are not caught by the easing

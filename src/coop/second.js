@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { createPlayer, zoomTuning, canSwim } from '../player.js';
 import { PERSONALITIES } from '../cat/brain.js';
+import { placePace, placeFloat } from '../placephysics.js';
 import { activeCat, sanitizeCustomCats, presetFor } from '../customcats.js';
 import { sanitizeOutfits, sameWear, wornNow } from '../outfits.js';
 
@@ -58,13 +59,14 @@ export function profileOf(pick) {
  * walk sets once per walk, it sets: the ground, the save's swimming and
  * zoomies, reduced motion. Its camera is a dummy that is never drawn.
  */
-export function createMover({ ground, state, pick, at, reducedMotion = false }) {
+export function createMover({ ground, state, pick, at, reducedMotion = false, place = null }) {
   const body = new THREE.Object3D();
   body.position.set(at.x, ground.y(at.x, at.z), at.z);
   body.rotation.y = at.yaw ?? 0;
   const player = createPlayer(new THREE.PerspectiveCamera(), null, { headless: true });
   const pace = 2.2 + (PERSONALITIES[pick.breed]?.speed ?? 2) * 0.8; // the same rule as cat one's pace
-  player.setAvatar(body, pace);
+  player.setAvatar(body, placePace(pace, place)); // the place's own pace and float row (the Reef's slower swim and kick), as cat one's walk sets them
+  player.setFloat(placeFloat(place));
   player.setGround(ground);
   player.setZoomTuning(zoomTuning(state));
   player.setSwim(canSwim(state));
