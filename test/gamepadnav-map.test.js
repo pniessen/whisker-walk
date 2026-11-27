@@ -67,8 +67,9 @@ describe('world map pad hopping', () => {
     expect(misses.length).toBeLessThanOrEqual(Math.floor(total / 2));
   });
 
-  it('model geometry: Docks right is Seaside', () => {
-    expect(hop('docks', 'right')).toBe('seaside');
+  it('model geometry (map rework): Docks right is the Market, and the Market right is the Seaside', () => {
+    expect(hop('docks', 'right')).toBe('market');
+    expect(hop('market', 'right')).toBe('seaside');
   });
 });
 

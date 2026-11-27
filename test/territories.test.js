@@ -6,7 +6,7 @@ import { PLACE_WORDS } from '../src/clanwords.js';
 import {
   BOARD, TERRITORIES, LAKE, ISLAND, STAR, POND, RIVER, PATHS, BRIDGE, CAMP_AT, territoryMapModel,
 } from '../src/territories.js';
-import { renderWorldMapHtml, ISLAND_WHERE } from '../src/ui/territorymap.js';
+import { renderWorldMapHtml, ISLAND_WHERE, WORLD_VIEW } from '../src/ui/territorymap.js';
 import { worldMapModel } from '../src/worldmap.js';
 
 function clanState() {
@@ -216,7 +216,7 @@ describe('territories', () => {
     expect(m.paths).toEqual(PATHS);
     expect(m.bridge).toEqual(BRIDGE);
     const html = renderWorldMapHtml(worldMapModel(clanState(), CATALOG));
-    expect(html.startsWith('<svg viewBox="0 -20 1700 900" class="territory-map world-map" role="group" aria-label="Map of the world"')).toBe(true);
+    expect(html.startsWith(`<svg viewBox="${WORLD_VIEW.x} ${WORLD_VIEW.y} ${WORLD_VIEW.w} ${WORLD_VIEW.h}" class="territory-map world-map" role="group" aria-label="Map of the world"`)).toBe(true);
     for (const cls of ['tm-lake', 'tm-island', 'tm-star', 'tm-pond', 'tm-river', 'tm-bridge']) expect(html).toContain(`class="${cls}`);
     expect((html.match(/class="tm-path"/g) || []).length).toBe(3);
   });

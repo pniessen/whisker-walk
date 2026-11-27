@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { memoryStorage as memStorage } from './helpers/storage.js';
+import { WORLD_VIEW } from '../src/ui/territorymap.js';
+import { LAYOUT } from '../src/worldmap.js';
 
 // The home base's WebGL pieces can't run in node: stub the thumbnails, the hero
 // stage and the dressing-room controller. The controller stub keeps the
@@ -179,10 +181,10 @@ describe('Change place: the world map on the home screen', () => {
     expect(doc.root.innerHTML).toContain('data-sheet="places"');
     const opts = attaches.at(-1);
     expect(opts).toBeTruthy();
-    // the drawn box, with the Moor's top margin (never the bare 1700 x 880)
-    expect(opts.world).toEqual({ x: 0, y: -20, w: 1700, h: 900 });
+    // the drawn box, with the sky above the land (never the bare world)
+    expect(opts.world).toEqual(WORLD_VIEW);
     expect(opts.view).toBeNull();
-    expect(opts.focus).toEqual([843, 566]);
+    expect(opts.focus).toEqual(LAYOUT.town);
     expect(opts.targets).toHaveLength(16); // the Market's and the Old House's places among them (Market step 4, Old House step 4)
     expect(typeof opts.onView).toBe('function');
     expect(stub.restoreFocus).toHaveBeenCalledWith(doc.root, null);
