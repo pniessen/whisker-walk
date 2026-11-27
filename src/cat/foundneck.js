@@ -553,11 +553,18 @@ const dressSignalTag = charm([0x3fb8a8, 0xf1f3f8], (u) => [
   colour(new THREE.TorusGeometry(0.42 * u, 0.09 * u, 4, 8, Math.PI).translate(0, -0.05 * u, -0.14 * u), () => 0x3fb8a8),
 ]);
 
+// Snowflake Clasp (Snowville's story prize): an ice-blue band piped white, and at the throat a pale six-armed snowflake (three crossed bars) on a small white disc. Faces -z, one mesh.
+const dressClasp = charm([0x8cb8e6, 0xf6faff], (u) => [
+  colour(new THREE.CylinderGeometry(0.62 * u, 0.62 * u, 0.16 * u, 10, 1).rotateX(Math.PI / 2), 0xf6faff),
+  ...[0, 1, 2].map((i) => colour(new THREE.BoxGeometry(1.3 * u, 0.16 * u, 0.1 * u).rotateZ((i * Math.PI) / 3).translate(0, 0, -0.12 * u), () => (i ? 0xa9d0f2 : 0xc4e0f8))),
+]);
+
 export const FOUND_COLLARS = Object.freeze({
   glimmercollar: Object.freeze({ ring: 0x8a6ac0, charmed: true, dress: dressGlimmer }),
   pearlcollar: Object.freeze({ ring: 0xa8d8cf, charmed: true, dress: dressPearl }),
   moonbadge: Object.freeze({ ring: 0x8e98b0, charmed: true, dress: dressMoonBadge }),
   signaltag: Object.freeze({ ring: 0x3fb8a8, charmed: true, dress: dressSignalTag }),
+  snowclasp: Object.freeze({ ring: 0x8cb8e6, charmed: true, dress: dressClasp }),
   bottletopcollar: Object.freeze({ ring: 0x3a3a42, charmed: false, dress: dressBottleTops }),
   ropecollar: Object.freeze({ ring: 0xc8a46a, charmed: true, dress: dressRope }),
   anchorcharm: Object.freeze({ ring: 0x24365c, charmed: true, dress: dressAnchor }),

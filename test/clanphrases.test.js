@@ -15,6 +15,7 @@ import { LINES as CRYSTAL_LINES } from '../src/world/crystalwords.js';
 import { LINES as SNOWVILLE_LINES } from '../src/world/snowvillewords.js';
 import { SNOWVILLE_FIND_LINES } from '../src/world/snowvillefindwords.js';
 import { LINES as SNOWVILLE_CRITTER_LINES } from '../src/world/snowvillecritterwords.js';
+import { WING_LINES as SNOWVILLE_WING_LINES } from '../src/world/snowvillewingwords.js';
 import { LINES as TREEHOUSE_LINES } from '../src/world/treehousewords.js';
 import { TREEHOUSE_FIND_LINES } from '../src/world/treehousefindwords.js';
 import { FIND_LINES as REEF_FIND_LINES } from '../src/world/reeffindwords.js';
@@ -56,6 +57,7 @@ addPhrases(FRESH_LINES); // Start a fresh cat's chunk (src/ui/freshcat.js)
 addPhrases(SKILLBADGE_LINES); // the skill badge strip's chunk (src/ui/skillbadges.js)
 addPhrases(GREENHOUSE_LINES); // (the Greenhouse's chunk adds its own on import: src/world/greenhousewords.js)
 addPhrases(SNOWVILLE_FIND_LINES); // (Snowville's find lines, milestone V3: src/world/snowvillefindwords.js)
+addPhrases(SNOWVILLE_WING_LINES); // (Snowville's hearth, Lantern Night and clasp, milestone V5: src/world/snowvillewingwords.js)
 addPhrases(SNOWVILLE_CRITTER_LINES); // (Snowville's friendly life, milestone V4: src/world/snowvillecritterwords.js)
 addPhrases(SNOWVILLE_LINES); // (Snowville's cheeks line, milestone V1: src/world/snowvillewords.js)
 addPhrases(TREEHOUSE_FIND_LINES); // (the Treehouse's find lines, milestone T3: src/world/treehousefindwords.js)

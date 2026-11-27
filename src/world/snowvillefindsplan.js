@@ -30,7 +30,7 @@ export const SNOWVILLE_COLLECTIBLES = Object.freeze([
 export const SNOWVILLE_GOLD = Object.freeze([
   Object.freeze({ id: 'gm-snowville-1', x: 16, z: -1, y: 0 }),
   Object.freeze({ id: 'gm-snowville-2', x: -26, z: -4, y: 0 }),
-  Object.freeze({ id: 'gm-snowville-3', x: 26, z: -26, y: 0 }),
+  Object.freeze({ id: 'gm-snowville-3', x: 26, z: -26, y: 1.0 }), // on the hill rock (V5), one hop up
 ]);
 
 // ---- scenic spots (the daily goal "visit a scenic spot"; plain nouns, the same in both word sets) ------------------------------------------------

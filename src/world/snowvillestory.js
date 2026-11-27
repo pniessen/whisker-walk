@@ -6,6 +6,7 @@
 // =============================================================================
 
 import { SNOWVILLE_BOUNDS, snowY, snowvilleColliders, SQUARE_FIR } from './snowvilleplan.js';
+import { ST } from './snowvillestages.js';
 
 // Tilly, the snow hare (the lamplighter's apprentice): waits by the gate court; once met she follows at a shy distance, hopping.
 export const TILLY = Object.freeze({
@@ -22,13 +23,16 @@ export const TILLY = Object.freeze({
 
 // The three candles, in order (V2 draws the first; the pond's and the hill's belong to stage B). A glint hangs over the wanted one.
 export const CANDLES = Object.freeze([Object.freeze({ id: 0, x: -1, z: 18, reach: 1.9 })]);
-export const CANDLE_Y = 0.35; // m over the snow
+export const CANDLE_Y = 0.35; // m over the snow (and over `up`, the height of the stump or rock a candle stands on)
+// All three, in order: the first is this file's; the second and third (the pond's stump, the hill's summit rock) and their lanterns come from stage B (milestone V5) once it is in.
+export const allCandles = () => [...CANDLES, ...(ST.b?.story?.candles ?? [])];
+export const allLanterns = () => [...LANTERNS, ...(ST.b?.story?.lanterns ?? [])];
 // The three lanterns, in order (V2 stands the Square lantern, beside the village fir; the other two are stage B's).
 export const LANTERNS = Object.freeze([Object.freeze({ id: 0, x: SQUARE_FIR.x - 2.6, z: SQUARE_FIR.z + 1.6, reach: 3.2, h: 2.3 })]);
-export const candleWorldY = (c) => snowY(c.x, c.z) + CANDLE_Y;
+export const candleWorldY = (c) => snowY(c.x, c.z) + (c.up ?? 0) + CANDLE_Y;
 
 // The picture a goal is shown with (never text).
-export const BUBBLE_ICON = Object.freeze({ lantern: '🏮', spark: '✨', heart: '💗' });
+export const BUBBLE_ICON = Object.freeze({ lantern: '🏮', spark: '✨', heart: '💗', fire: '🔥', star: '⭐' });
 
 export const storyColliders = () => snowvilleColliders();
 const hyp = Math.hypot;

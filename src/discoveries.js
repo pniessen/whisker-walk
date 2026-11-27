@@ -66,6 +66,7 @@ export const AWARDS = {
   snowfind: 12,
   // The Treehouse village (2026-11-27): one of its six finds, paid the first time ever (world/treehousefinds.js).
   treefind: 12,
+  snowstory: 40, // Lantern Night (the show's pay moment), once ever (world/snowvillewinglive.js)
   // Found outfits (2026-11-19): the walk's find when everything hidden in the
   // place is already hers, the spec's "a small coin pouch instead (Claude's
   // call: 5 coins)" (the coins are 🐾). Once a walk (foundwear/play.js), and

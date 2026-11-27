@@ -341,6 +341,8 @@ const BASE_ACCESSORIES = {
   crystalcirclet: { name: 'Crystal Circlet', slot: 'head', price: 0, prize: true, crystal: 'forge' },
   // The Moon's Old Relay Station (wing E): owned once the far station answers (moon.relay bit 4).
   signaltag: { name: 'Signal Tag', slot: 'collar', price: 0, prize: true, moon: 'relay' },
+  // Snowville's story prize (a collar, src/cat/foundneck.js FOUND_COLLARS): owned once Lantern Night has been told (snowville.step 7).
+  snowclasp: { name: 'Snowflake Clasp', slot: 'collar', price: 0, prize: true, snowville: 'story' },
 };
 // Their ids: every id a found outfit must not take (test/foundwear.test.js).
 export const BASE_ACCESSORY_IDS = Object.freeze(Object.keys(BASE_ACCESSORIES));
@@ -1257,6 +1259,7 @@ function sanitizeState(parsed) {
   if ((sanitizeReef(parsed.reef).wreck & 16) !== 0 && !unlockedAcc.includes('piratebandana')) unlockedAcc.push('piratebandana');
   if ((sanitizeCrystal(parsed.crystal).forge & 8) !== 0 && !unlockedAcc.includes('crystalcirclet')) unlockedAcc.push('crystalcirclet');
   if ((sanitizeMoon(parsed.moon).relay & 16) !== 0 && !unlockedAcc.includes('signaltag')) unlockedAcc.push('signaltag');
+  if (sanitizeSnowville(parsed.snowville).step >= 7 && !unlockedAcc.includes('snowclasp')) unlockedAcc.push('snowclasp');
   // And every found outfit: foundWear is the record, so it is owned.
   const foundWear = sanitizeFoundWear(parsed.foundWear);
   for (const id of foundWear) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);

@@ -40,6 +40,7 @@ export function build(scene) {
     K.drawFirs(kit, M);
     K.drawDrifts(kit, M);
     K.drawRocks(kit, M);
+    ST.b?.draw?.(kit, M); // the pond and its ice, the sled hill, the hearth, the Great Fir and the burrow (milestone V5, in the merged buckets)
     for (const m of kit.meshes()) scene.add(m);
     scene.add(K.drawLight()); // the place's one real light (the brazier's)
     const area = {
@@ -72,7 +73,8 @@ export function build(scene) {
       life: (ctx) => {
         const light = createSnowvilleLight(ctx);
         const tilly = createTilly({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
-        const prompts = createSnowvillePrompts(tilly);
+        const wing = ST.b?.wing?.({ scene: ctx.scene, tilly, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent }); // the hearth, the strings of lights and Lantern Night (milestone V5)
+        const prompts = createSnowvillePrompts(tilly, wing);
         const finds = ST.b?.finds?.life(ctx); // the six discoveries (milestone V3)
         const critters = ST.b?.critters?.(ctx); // the otters, hare, robin, fox kit, smoke, bells and crunch (milestone V4)
         return {
@@ -81,10 +83,11 @@ export function build(scene) {
           tilly,
           promptAt: (catPos) => prompts.promptAt(catPos),
           interact: () => prompts.interact(),
-          // a step done by anyone in the room (an `sv-` event); a stage's own steps join this line with their stage
-          credit: (ev) => tilly.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); },
-          dispose() { critters?.dispose(); finds?.dispose(); tilly.dispose(); light.dispose(); },
+          wing,
+          // a step done by anyone in the room (an `sv-` event): a show begun by a partner starts ours, any other step is Tilly's
+          credit: (ev) => wing?.credit(ev) ?? tilly.credit(ev),
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); wing?.update(dt, t, catPos); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); },
+          dispose() { critters?.dispose(); finds?.dispose(); wing?.dispose(); tilly.dispose(); light.dispose(); },
         };
       },
     };

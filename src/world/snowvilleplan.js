@@ -112,9 +112,10 @@ export const BOARD = Object.freeze({ x: -9.5, z: 11, yaw: 0.5 }); // the postcar
 export const SNOWMAN = Object.freeze({ x: 4, z: 18 });
 export const LAMPS = Object.freeze([[-3, 23], [3, 20], [-3.5, 14], [2.5, 11], [-9, 5], [7, 3], [-4.5, 31]].map((p) => Object.freeze({ x: p[0], z: p[1] })));
 export const BRAZIER = Object.freeze({ x: 4.5, z: 31 }); // the court's hearth: the first warm spot, and the place of the one PointLight
+export const HEARTH = Object.freeze({ x: -1.5, z: 3, r: 3.2 }); // the village hearth (milestone V5: story step 5; stage B draws it, the cheeks theme knows it from the start)
 
 // Places that warm her cheeks (themed only; src/world/snowvillewarmth.js): [x, z, r].
-export const WARM_SPOTS = Object.freeze([[BRAZIER.x, BRAZIER.z, 3.4], [STALL.x - 1.2, STALL.z, 3.2]].map((k) => Object.freeze(k)));
+export const WARM_SPOTS = Object.freeze([[BRAZIER.x, BRAZIER.z, 3.4], [STALL.x - 1.2, STALL.z, 3.2], [HEARTH.x, HEARTH.z, HEARTH.r]].map((k) => Object.freeze(k)));
 
 // ---- where nothing small may stand -------------------------------------------------------------------------------------------
 // Round the spawn, the arch, every zone's middle and what later milestones put down (Tilly's spot, the three lanterns' feet, the three candles, the four found-scarf spots

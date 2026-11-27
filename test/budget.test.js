@@ -25,6 +25,8 @@ const { build: buildMoon } = await import('../src/world/moon.js');
 const { build: buildReef } = await import('../src/world/reef.js');
 const { build: buildCrystal } = await import('../src/world/crystal.js');
 const { build: buildTreehouse } = await import('../src/world/treehouse.js');
+const { loadSnowvilleStages } = await import('../src/world/snowvillestages.js');
+await loadSnowvilleStages(); // stage B's drawing (the pond, hill, hearth, Great Fir) is part of Snowville's build from milestone V5
 const { build: buildSnowville } = await import('../src/world/snowville.js');
 const { HOUSE_LEVELS } = await import('../src/world/houseplan.js');
 const { measureHouse } = await import('./helpers/housebudget.js');
@@ -565,7 +567,10 @@ const AREAS = [
   // merged buckets (paint, glow, tree) and the treeline's own non-casting bucket; the flakes, glints and cheeks are the walk's life, not in this count) measured 5 / 2 / 16,108 built
   // (the same merged), +12%: 6 / 3 / 18,100. The plan's stage A figures were about 25,000 triangles: under them. The Farm with its new gate (3 meshes, +441 triangles, +1 caster)
   // measured 180 / 120 / 53,700 merged: under its unchanged ceilings (200 / 135 / 62,000).
-  ['snowville', buildSnowville, 6, 3, 18100],
+  // Milestone V5 (2026-11-27, wing B, stage B's drawing put into the same merged buckets: the pond's ice disc, skate marks, bank stones, reeds and stump, the sled hill's summit rock, runner
+  // lines, sled and hill rock, the village hearth, the Great Fir and the hare's burrow; no mesh of its own) measured 5 / 2 / 19,166 built (+3,058 triangles, no mesh), +12%: 6 / 3 / 21,500.
+  // The plan's stage figures (about 25,000 triangles for A and B together) hold. The show's strings, bulbs, window glows and sparks are the walk's life, not in this count.
+  ['snowville', buildSnowville, 6, 3, 21500],
   // Milestone R2 (Marlo and chapter one) adds only the coral ledge (no mesh more; about 200 triangles measured on top of R3: 7 / 2 / 10,700). Marlo, the shells, their glints, the picture bubble, the meow's ring and the air pockets are the walk's life, counted in test/reefmarlo.test.js
 ];
 
