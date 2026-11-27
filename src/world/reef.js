@@ -8,7 +8,7 @@
 // docs/superpowers/plans/2026-11-26-reef.md.
 // =============================================================================
 
-import { BoxGeometry, CylinderGeometry, SphereGeometry, TorusGeometry, CircleGeometry, BufferGeometry, BufferAttribute, Mesh, MeshBasicMaterial, DoubleSide, Vector3 } from 'three';
+import { BoxGeometry, CylinderGeometry, SphereGeometry, TorusGeometry, CircleGeometry, BufferGeometry, BufferAttribute, Mesh, MeshBasicMaterial, MeshStandardMaterial, DoubleSide, Vector3 } from 'three';
 import * as b from './builder.js';
 import { withLocalUuids } from './localuuids.js';
 import { installSuitKit } from '../cat/suitkit.js';
@@ -34,7 +34,7 @@ import { ST, loadReefStages } from './reefstages.js';
 import { createPromptArbiter } from './reefprompt.js';
 
 // The few three.js classes the wreck stage uses, handed in (the stage imports nothing of three's: it would split three's core out of the start-up chunk).
-const THREE = { BoxGeometry, CylinderGeometry, SphereGeometry, TorusGeometry, CircleGeometry, BufferGeometry, BufferAttribute, Mesh, MeshBasicMaterial, DoubleSide, Vector3 };
+const THREE = { BoxGeometry, CylinderGeometry, SphereGeometry, TorusGeometry, CircleGeometry, BufferGeometry, BufferAttribute, Mesh, MeshBasicMaterial, MeshStandardMaterial, DoubleSide, Vector3 };
 
 // Under vitest the stages load here, so every test that imports this file gets the whole Reef; the game's own loader awaits them (areas.js).
 // (The flag is undefined in a build, so this line and its top-level await are dropped.)
@@ -122,6 +122,7 @@ export function build(scene) {
           interact: prompt.interact,
           lab,
           guide,
+          credit: (ev) => (ev?.kind === 'map' || ev?.kind === 'clue' || ev?.kind === 'chest' ? wreck?.credit(ev) : base.credit(ev)), // a hunt step done by anyone in the room (R17), every other step is Marlo's
           spottable: [...sea.spottable, ...more.spottable, ...(wreck?.spottable ?? [])],
           update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); more.update(...a); wreck?.update(...a); lab.update(...a); guide.update(...a); },
           dispose() { guide.dispose(); wreck?.dispose(); lab.dispose(); more.dispose(); sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
