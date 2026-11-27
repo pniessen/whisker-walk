@@ -129,4 +129,4 @@ export function joined(opts) {
   return r;
 }
 export const find = (doc, cls) => doc.body.children.find((c) => c.className === cls);
-export const reset = () => { coop.poll = null; coop.pad = null; coop.frame = null; coop.late = null; };
+export const reset = () => { coop.poll = null; coop.two = false; coop.pad = null; coop.frame = null; coop.late = null; };

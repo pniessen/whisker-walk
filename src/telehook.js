@@ -20,7 +20,7 @@ export function teleLoad(area) {
   if (!teleOn()) return Promise.resolve(null);
   loading ??= Promise.all([import('./teleport.js'), import('./coop/table.js')])
     .then(([t, co]) => {
-      t.setup({ teleOn, greenhouseOn, placeName, walkOnMove, lower, padTag, escapeHtml, coopReady: co.coopReady, catalog: CATALOG, isClan: isClanEdition, couch: () => coop.poll !== null });
+      t.setup({ teleOn, greenhouseOn, placeName, walkOnMove, lower, padTag, escapeHtml, coopReady: co.coopReady, catalog: CATALOG, isClan: isClanEdition, couch: () => coop.two });
       return (tele.kit = t);
     }, () => { loading = null; return null; });
   return loading.then((t) => { if (t && area) t.warm(area); return t; });
