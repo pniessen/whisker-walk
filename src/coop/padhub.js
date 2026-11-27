@@ -13,6 +13,8 @@
 import { createHold, DPAD_DOWN, DPAD_LEFT } from './rules.js';
 import { createPadState, stepPad, isPressed, pressedEdges, PAD_BUTTONS } from '../gamepadinput.js';
 
+const SELECT = 8; // Back / View / Create: held on pad two, it steps out of the walk
+export const LEAVE_HOLD = 0.8; // seconds
 const FIRM = 0.5; // a stick push that counts as "somebody is there"
 
 const live = (pad) => (pad.buttons ?? []).some(isPressed)
@@ -21,14 +23,14 @@ const live = (pad) => (pad.buttons ?? []).some(isPressed)
 
 const downSet = (pad) => new Set((pad.buttons ?? []).flatMap((b, i) => (isPressed(b) ? [i] : [])));
 
-const seat = (index) => ({ index, lost: false, held: new Set(), prev: [], pad: createPadState(), hold: createHold(), progress: 0 });
+const seat = (index) => ({ index, lost: false, held: new Set(), prev: [], pad: createPadState(), hold: createHold(), progress: 0, out: 0 });
 
 export function createPadHub() {
   const slots = [null, null];
 
   const claim = (slot, pad, type, events) => {
     const was = slots[slot];
-    slots[slot] = Object.assign(was ?? seat(pad.index), { index: pad.index, lost: false, held: downSet(pad), prev: [], pad: createPadState(), hold: createHold(), progress: 0 });
+    slots[slot] = Object.assign(was ?? seat(pad.index), { index: pad.index, lost: false, held: downSet(pad), prev: [], pad: createPadState(), hold: createHold(), progress: 0, out: 0 });
     events.push({ type, slot });
   };
 
@@ -40,10 +42,12 @@ export function createPadHub() {
     /** How far each slot's hop-to-friend hold has filled (0 to 1). */
     holds() { return slots.map((s) => (s && !s.lost ? s.progress : 0)); },
     reset() { slots[0] = null; slots[1] = null; },
+    /** The two pads change seats (who is cat one): only when both are seated. */
+    swap() { if (slots[0] && slots[1]) [slots[0], slots[1]] = [slots[1], slots[0]]; },
     /**
      * One frame. `pads`: the connected standard pads. opts: joinOpen (a second
      * cat may join), engaged (the walk is live for cat two's pad), dt.
-     * Returns { events, two }: events are { type: 'seat' | 'join' | 'back' | 'lost' | 'turn' | 'start' | 'hop' | 'groom', slot, dir? };
+     * Returns { events, two, pressed }: `pressed[slot]` says that seat's pad had a new button or a firm stick push this frame (who is using the menu); events are { type: 'seat' | 'join' | 'back' | 'lost' | 'turn' | 'start' | 'hop' | 'groom', slot, dir? };
      * `two` is stepPad's answer for slot 1's pad ({ move, actions }) or null.
      */
     step(pads, { joinOpen = false, engaged = true, dt = 1 / 60 } = {}) {
@@ -65,6 +69,7 @@ export function createPadHub() {
         break;
       }
       let two = null;
+      const pressed = [false, false];
       for (let i = 0; i < 2; i++) {
         const s = slots[i];
         if (!s || s.lost) continue;
@@ -72,13 +77,21 @@ export function createPadHub() {
         const raw = (pad.buttons ?? []).map(isPressed);
         for (const b of [...s.held]) if (!raw[b]) s.held.delete(b);
         const cur = raw.map((d, b) => d && !s.held.has(b));
-        for (const b of pressedEdges(s.prev, cur)) {
-          if (b === PAD_BUTTONS.L1) events.push({ type: 'turn', slot: i, dir: 1 });
+        const edges = pressedEdges(s.prev, cur);
+        pressed[i] = edges.length > 0 || Math.hypot(pad.axes?.[0] || 0, pad.axes?.[1] || 0) > FIRM;
+        for (const b of edges) {
+          if (b === PAD_BUTTONS.Y && i === 1) events.push({ type: 'swap', slot: i });
+          else if (b === PAD_BUTTONS.L1) events.push({ type: 'turn', slot: i, dir: 1 });
           else if (b === PAD_BUTTONS.R1) events.push({ type: 'turn', slot: i, dir: -1 });
           else if (b === PAD_BUTTONS.START) events.push({ type: 'start', slot: i });
           else if (b === DPAD_LEFT) events.push({ type: 'groom', slot: i });
         }
         s.prev = cur;
+        if (i === 1) { // Select held: pad two steps out (one event a hold; let go and hold again to do it twice)
+          const down = !!raw[SELECT];
+          if (!down) s.out = 0;
+          else if (s.out >= 0 && (s.out += dt) >= LEAVE_HOLD) { s.out = -1; events.push({ type: 'leave', slot: i }); }
+        }
         if (engaged) { // D-pad Down held: hop to my friend (a hold, or two quick taps)
           const r = s.hold.step(dt, !!cur[DPAD_DOWN]);
           s.progress = r.progress;
@@ -89,7 +102,7 @@ export function createPadHub() {
           two = stepPad(s.pad, masked, dt, { engaged });
         }
       }
-      return { events, two };
+      return { events, two, pressed };
     },
     /** The pad snapshot cat one's walk code should read (or undefined for "whichever, as today"). */
     padOf(slot, pads) {

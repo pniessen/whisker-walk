@@ -44,7 +44,8 @@ describe('the seam is identity when couch play is off', () => {
       expect(statics.map((m) => m[1]), u.pathname).toEqual([]);
     }
     const main = readFileSync(new URL('main.js', SRC), 'utf8');
-    expect(main).toMatch(/if \(coopWanted\(location\.search\)\) import\('\.\/coop\/index\.js'\)/);
+    expect(main).toMatch(/if \(!couchOn\(\)\) return;\s+loadCouch = null;\s+import\('\.\/coop\/index\.js'\)/); // only through loadCouch(), which runs when coopMode (the Settings switch or ?coop=1) says so
+    expect(main).toMatch(/\};\s+loadCouch\(\);/);
     expect(main.match(/coop\/index\.js/g)).toHaveLength(1);
     expect(main.match(/coop\.poll\?\.\(dt\)/g)).toHaveLength(1);
   });

@@ -37,6 +37,8 @@ const DEFAULTS = {
   profileOverride: 'auto',
   // "Holiday decorations" (src/ui/holidayflair.js): auto shows the holiday that is on; or Christmas, Hanukkah, off. Per device.
   holidayDecor: 'auto',
+  // "Two-player couch mode" (src/coop/): two pads, two cats, one screen. Off unless a grown-up turns it on; ?coop=1 / ?coop=0 override for one page load. Per device.
+  couchMode: false,
 };
 
 const PROFILE_OVERRIDE = ['auto', 'phone', 'tablet', 'laptop', 'tv'];
@@ -90,6 +92,7 @@ function sanitize(raw) {
     tvOfferDeclined: typeof raw.tvOfferDeclined === 'boolean' ? raw.tvOfferDeclined : DEFAULTS.tvOfferDeclined,
     profileOverride: clampEnum(raw.profileOverride, PROFILE_OVERRIDE, DEFAULTS.profileOverride),
     holidayDecor: clampEnum(raw.holidayDecor, HOLIDAY_DECOR, DEFAULTS.holidayDecor),
+    couchMode: raw.couchMode === true,
   };
 }
 

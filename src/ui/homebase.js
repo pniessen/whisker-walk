@@ -653,6 +653,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             <span class="settings-label">Holiday decorations</span>
             <select id="set-holiday">${['auto', 'christmas', 'hanukkah', 'off'].map((v) => `<option value="${v}"${s.holidayDecor === v ? ' selected' : ''}>${v === 'auto' ? 'Automatic' : v[0].toUpperCase() + v.slice(1)}</option>`).join('')}</select>
           </label>
+          <label class="settings-row settings-quality">
+            <span class="settings-label">Two-player couch mode</span>
+            <select id="set-couch"><option>Off</option><option${s.couchMode ? ' selected' : ''}>On</option></select>
+          </label>
           ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
           ${settingsSwitchHtml('set-tv-mode', !!(tvState.on || tvState.pending), tutorialLine('pad.settings.tv'))}
           <p class="settings-note" id="set-tv-note">${escapeHtml(tutorialLine('pad.settings.tv-note', { touch: !!getIsTouch() }))}</p>
@@ -2607,6 +2611,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       render();
       return;
     }
+    if (e.target.id === 'set-couch') { settings.set('couchMode', e.target.value === 'On'); onSettingsChange?.(); return; }
     if (e.target.id === 'set-holiday' && settings) { settings.set('holidayDecor', e.target.value); onSettingsChange?.(); render(); return; }
     if (e.target.id === 'set-map-mode') {
       progression.setMapMode(e.target.value);

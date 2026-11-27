@@ -31,7 +31,7 @@ import { glyphify, plainify, padKind } from '../tv/glyphs.js';
 import { getProfile } from '../profile.js';
 import { pounceArc, DEFAULT_PITCH, isWalkableAt } from '../player.js';
 import { PERSONALITIES } from '../cat/brain.js';
-import { applyDeadZone } from '../gamepadinput.js';
+import { applyDeadZone, PAD_BUTTONS } from '../gamepadinput.js';
 import { tvToastTiming } from '../tv/toasttime.js';
 import { CAT_LOOK_Y } from '../cat/model.js';
 import { MIN_CAMERA_Y, cameraPullScale, maxZoomStep, cameraClearFraction, CAM_CEIL_CLEAR, MIN_CAM_DIST, CAVE_VIEW } from '../camzoom.js';
@@ -92,6 +92,7 @@ const SETTINGS_KEY = 'whisker-walk-coop'; // couch settings, per device (like th
 export function readSettings(storage) {
   try { const j = JSON.parse(storage?.getItem(SETTINGS_KEY) || '{}'); return { follow: j.follow !== false, outfit: Number.isInteger(j.outfit) ? j.outfit : undefined }; } catch { return { follow: true, outfit: undefined }; }
 }
+const SHARED = new Set(['ready', 'pause', 'map']); // the menus either pad may use
 const STICK = (pad) => (pad ? applyDeadZone(pad.axes?.[0] || 0, pad.axes?.[1] || 0).mag : 0);
 
 /** `p` moved a little along the way it is going (a copy-free nudge of the framing point, never of the cat). */
@@ -316,10 +317,12 @@ export function start(ctx) {
     heading.turn(dir);
   }
 
-  function onEvent(ev, engaged) {
+  function onEvent(ev, engaged, kind) {
     if (ev.type === 'join') join();
     else if (ev.type === 'lost') { if (state.joined) { dismissed = false; if (engaged) ctx.act?.('pause'); } }
     else if (ev.type === 'back') dismissed = false;
+    else if (ev.type === 'swap') { if (ev.slot === 1 && kind === 'ready' && state.joined) { hub.swap(); menuOwner = 0; state.seats = hub.seats(); } } // Y on the second pad at the Ready card: the two pads change cats
+    else if (ev.type === 'leave') { if (ev.slot === 1 && state.joined) leave(true); } // pad two held Select: cat two waves and steps out; A on that pad brings it back
     else if (ev.type === 'hop') { if (state.joined && engaged) hopFriend(ev.slot); }
     else if (ev.type === 'groom') { if (state.joined && engaged && !fights.on && mover) groom.start(state.apart, calm()); }
     else if (ev.type === 'turn') { if (state.joined && engaged && !fights.on) turn(ev.dir); }
@@ -407,6 +410,46 @@ export function start(ctx) {
     });
   }
 
+  /** What is on the screen for the pads: 'walk', the Ready card ('ready'), the pause card ('pause'), the world map ('map'), a place card with a price on it ('buy'), or 'other' (home base, the dressing room, the shops). */
+  function menuKind() {
+    if (ctx.menuKind) return ctx.menuKind();
+    if (ctx.player?.engaged) return 'walk';
+    if (typeof doc?.querySelector !== 'function') return 'unknown'; // no page to look at: nothing is shared
+    const q = (x) => doc.querySelector(x);
+    if (q('#btn-resume')) return cur && !cur.started ? 'ready' : 'pause';
+    if (q('[data-sheet="places"]')) return q('.wm-card-buy') ? 'buy' : 'map';
+    return 'other';
+  }
+
+  // The Ready card's own line about two players, put into the card each frame it is missing (the card is rewritten now and then).
+  let readyEl = null, readyHost = null;
+  function readyLine(show) {
+    const host = show ? (ctx.readyHost ? ctx.readyHost() : doc?.querySelector?.('.pause-card .screen-body')) : null;
+    if (!host) { readyEl?.remove?.(); readyEl = null; readyHost = null; return; }
+    if (!readyEl || readyEl.isConnected === false || readyHost !== host) {
+      readyEl?.remove?.();
+      readyEl = doc.createElement('p');
+      readyEl.className = 'coop-ready';
+      readyEl.setAttribute('role', 'status');
+      host.appendChild(readyEl);
+      readyHost = host;
+    }
+    const text = state.joined ? `${phrase('coop.ready.in', nameOne(), nameTwo())} ${phrase('coop.ready.swap')}` : phrase('coop.ready.join');
+    if (readyEl.dataset.text !== text) {
+      readyEl.dataset.text = text;
+      readyEl.innerHTML = glyphify(text, padKindNow);
+      readyEl.setAttribute('aria-label', plainify(text, padKindNow));
+    }
+  }
+
+  // The standing strip of each player's own buttons, in that player's own pad pictures, while two cats walk.
+  function hintStrip(show) {
+    if (!cards) return;
+    if (!show) { cards.showHints(null); return; }
+    const t = [phrase('coop.hints.one', nameOne()), phrase('coop.hints.two', nameTwo())];
+    cards.showHints(t.map((x, i) => glyphify(x, kinds[i])), t.map((x, i) => plainify(x, kinds[i])));
+  }
+
   function joinPill(pads, engaged, couch) {
     if (!cards) return;
     if (!couch || !cur || !engaged || state.joined || pads.length === 0) { cards.hideJoin(); return; }
@@ -431,7 +474,9 @@ export function start(ctx) {
     state.pads = pads.length;
     state.ready = !!s && !s.net && coopReady(s.areaId);
     const prof = profile();
-    state.couch = prof === 'tv' || prof === 'laptop'; // a phone or a tablet never shows couch play
+    // A phone or a tablet shows couch play only when couch play was asked for (the Settings switch, or ?coop=1) and a second pad is there (or already in the walk); ?coop=0 and the switch turn it off.
+    const wanted = ctx.enabled ? !!ctx.enabled() : true;
+    state.couch = wanted && (prof === 'tv' || prof === 'laptop' || (!!ctx.enabled && (pads.length >= 2 || !!state.seats[1])));
     coop.pad = null;
     if (!ctx.player) return;
     const live = state.couch && state.ready;
@@ -440,16 +485,26 @@ export function start(ctx) {
       if (!state.couch) carry = false;
       if (!carry) hub.reset();
       cards?.hideLost();
+      cards?.showHints(null);
       hud?.hideAll();
       joinPill(pads, !!ctx.player.engaged, state.couch);
+      readyLine(false);
       return;
     }
     const engaged = !!ctx.player.engaged;
+    const kind = menuKind();
+    const ready = kind === 'ready';
     if (engaged) menuOwner = 0;
     const fightOn = state.joined && fights.on; // a fight sheet is up: the challenger's pad plays it, the other cat sits
     const playing = engaged && !s.cameraMode && !fightOn;
-    const { events, two: pad2 } = hub.step(pads, { joinOpen: engaged && !state.joined && !!hub.seats()[0] && !hub.seats()[0].lost, engaged: playing, dt });
-    for (const ev of events) onEvent(ev, engaged);
+    const { events, two: pad2, pressed } = hub.step(pads, { joinOpen: (engaged || ready) && !state.joined && !!hub.seats()[0] && !hub.seats()[0].lost, engaged: playing, dt });
+    // Safe menus (the Ready card, the pause card, the map) answer to whichever pad was used last; every other screen (home, dressing room, shops, a place with a price) is pad one's, so the two cannot fight over a purchase.
+    if (!engaged && kind !== 'unknown') {
+      const seated = hub.seats();
+      if (SHARED.has(kind)) { for (const i of [1, 0]) if (pressed[i] && seated[i] && !seated[i].lost) menuOwner = i; }
+      else menuOwner = 0;
+    }
+    for (const ev of events) onEvent(ev, engaged, kind);
     state.seats = hub.seats();
     if (carry && !state.joined && playing) { // the walk moved to a new place: cat two arrives beside cat one
       if (!state.seats[1]) carry = false;
@@ -491,16 +546,20 @@ export function start(ctx) {
     const p0 = hub.padOf(0, pads);
     const p1 = hub.padOf(1, pads);
     const live2 = !!ctx.player.engaged; // a pause pressed just now counts
+    if (!live2) { hud?.prompt(0, null); hud?.prompt(1, null); } // the per-cat prompts belong to the walk: not drawn over the Pause card
     const own0 = ownerSlot();
     state.owner = own0;
     const owner = !live2 && own0 === 1 && p1 ? p1 : p0;
     const walkPad = owner ? padForWalk(owner, live2 && state.joined) : null;
     coop.pad = state.joined ? fights.padFor(p0, p1, walkPad) : walkPad; // while a fight sheet is up the challenger's pad is the one read
+    if (ready && state.joined && coop.pad) coop.pad = { ...coop.pad, buttons: (coop.pad.buttons ?? []).map((b, i) => (i === PAD_BUTTONS.Y ? false : b)) }; // Y swaps the cats here: it is not also a button of the card
     if (owner) padKindNow = padKind(owner.id);
     if (p0) kinds[0] = padKind(p0.id);
     if (p1) kinds[1] = padKind(p1.id);
     lostCard();
-    joinPill(pads, live2, true);
+    hintStrip(live2 && state.joined && !fights.on);
+    joinPill(pads, live2 || ready, true); // in the walk, and on the Ready card before it starts
+    readyLine(ready && pads.length > 0);
   };
 
   // Both cats have stood still a moment: the time for a groom.

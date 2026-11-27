@@ -10,6 +10,12 @@ import { addPhrases } from '../clanphrases.js';
 export const LINES = Object.freeze({
   'coop.join': 'Press ⟦jump⟧ on a second controller to play together',
   'coop.joined': (name) => `${name} is here too!`,
+  'coop.ready.join': 'Two players? Press ⟦jump⟧ on the second controller to join.',
+  'coop.ready.in': (a, b) => `${a} and ${b} are both in.`,
+  'coop.ready.swap': 'Second player: press ⟦photo⟧ to swap cats.',
+  'coop.leavehint': 'Hold ⟦select⟧ to take a break from the walk.',
+  'coop.hints.one': (name) => `${name}: ⟦move⟧ walk · ⟦jump⟧ pounce · ⟦interact⟧ pick up · ⟦pause⟧ pause`,
+  'coop.hints.two': (name) => `${name}: ⟦move⟧ walk · ⟦jump⟧ pounce · ⟦interact⟧ pick up · ⟦pause⟧ pause · hold ⟦select⟧ step out`,
   'coop.notready': 'Two cats do not play here yet',
   'coop.lost.title': (name) => `${name}'s controller went to sleep.`,
   'coop.lost.hint': 'Press any button on it to wake it up.',
