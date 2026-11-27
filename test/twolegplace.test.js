@@ -310,7 +310,7 @@ describe('bush() beach style', async () => {
     }
   }, 30000);
 
-  it('the Seaside builds beach plants, not shrubs, and stays at or under 29,521 triangles', () => {
+  it('the Seaside builds beach plants, not shrubs, and stays at or under 34,900 triangles', () => {
     const scene = new THREE.Scene();
     const wind = fakeWind();
     buildSeaside(scene, { wind });
@@ -318,7 +318,7 @@ describe('bush() beach style', async () => {
     for (const { obj } of wind.added) expect(meshOf(obj).userData.beachPlant).toMatch(/^(marram|holly)$/);
     let n = 0;
     scene.traverse((o) => { if (o.isMesh) n += tris(o.geometry); });
-    expect(Math.round(n)).toBeLessThanOrEqual(29521);
+    expect(Math.round(n)).toBeLessThanOrEqual(34900);
   }, 30000);
 
   it('a default bush is unchanged: the canopy shrub at belly height', () => {

@@ -1,6 +1,6 @@
 // =============================================================================
 // THE SEASIDE'S BATHERS (seasideplan.js SEASIDE_FOLK): jointed people from the
-// pack's people kit (src/people/, the Fairground's and the Market's figure),
+// pack's people crowd (src/people/, the Fairground's and the Market's figure),
 // in swimwear, at their hand-picked spots. Part of the Seaside's chunk;
 // seasidelife.js makes it once a walk when the walk hands it the people
 // factory (ctx.people); no factory (the picture pages, the plain tests) means
@@ -66,15 +66,15 @@ export function createSeasideFolk({ people, lodNear, reducedMotion = false, rung
   const group = withLocalUuids('seaside-folk-group', () => new THREE.Group());
   group.name = 'seasideFolk';
   const figures = [];
-  const kit = withLocalUuids('seaside-folk-kit', () => people({ reducedMotion, lodNear }));
+  const crowd = withLocalUuids('seaside-folk-crowd', () => people({ reducedMotion, lodNear }));
 
-  // one person at the spot: the kit's, the unwanted half of a child's pair freed at once
+  // one person at the spot: the crowd's, the unwanted half of a child's pair freed at once
   function person(def, kind) {
-    const spot = kit.buildSpot(def);
+    const spot = crowd.buildSpot(def);
     const keep = kind === 'child' ? spot.people[1] : spot.people[0];
     for (const p of spot.people) {
       if (p === keep) continue;
-      kit.people.splice(kit.people.indexOf(p), 1);
+      crowd.people.splice(crowd.people.indexOf(p), 1);
       p.dispose();
     }
     return keep;
@@ -85,7 +85,7 @@ export function createSeasideFolk({ people, lodNear, reducedMotion = false, rung
       const p = person(def, kind);
       const g = new THREE.Group();
       g.name = `seasideFolk:${id}`;
-      p.figure.rotation.y = Math.PI; // the kit's figure faces -z; the group's front is +z
+      p.figure.rotation.y = Math.PI; // the crowd's figure faces -z; the group's front is +z
       g.add(p.figure);
       g.position.set(at.x, footY(at.x, at.z), at.z);
       g.rotation.y = yaw;
@@ -97,12 +97,12 @@ export function createSeasideFolk({ people, lodNear, reducedMotion = false, rung
       return f;
     });
   }
-  const pose = (f, mode, t, dt) => { kit.pose(f.person, { mode, t, reducedMotion }); kit.applyPose(f.person, dt); };
+  const pose = (f, mode, t, dt) => { crowd.pose(f.person, { mode, t, reducedMotion }); crowd.applyPose(f.person, dt); };
 
   // legs out in front, hands in the lap: the rotations set on the targets, applied once
   function sit(f) {
     const pr = f.person;
-    kit.pose(pr, { mode: 'stand', t: 0, reducedMotion: true });
+    crowd.pose(pr, { mode: 'stand', t: 0, reducedMotion: true });
     const r = pr.target.rot;
     const J = (n) => pr.skeleton.bones.findIndex((b) => b.name === n) * 3;
     for (const [side, s] of [['L', -1], ['R', 1]]) {
@@ -112,7 +112,7 @@ export function createSeasideFolk({ people, lodNear, reducedMotion = false, rung
       r[J(`forearm${side}`)] = 1.05;
     }
     r[J('chest')] = -0.06;
-    kit.applyPose(pr, 0);
+    crowd.applyPose(pr, 0);
     f.neck = pr.bones.neck;
   }
 
@@ -188,7 +188,7 @@ export function createSeasideFolk({ people, lodNear, reducedMotion = false, rung
     dispose() {
       group.removeFromParent();
       if (ball) { ball.geometry.dispose(); ball.material.dispose(); }
-      kit.dispose();
+      crowd.dispose();
       figures.length = 0;
     },
   };

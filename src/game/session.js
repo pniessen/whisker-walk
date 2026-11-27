@@ -27,6 +27,8 @@ const FIELDS = [
   ['scene', 'the THREE.Scene this walk renders'],
   ['areaData', 'the area definition (bounds, colliders, spawn, scenics…) the walk was built from'],
   ['areaId', 'late (walk.js): the area id, set beside the race'],
+  ['swim', 'late (game/avatar.js): the Reef swim pose blend, 0 on the sand to 1 when floating'],
+  ['swimMod', 'late (game/avatar.js): the lazily loaded swim pose module (src/cat/reefswim.js), null until a place floats'],
   ['ground', "the area's ground (groundOf(areaData)) every system stands on"],
   ['tier', "the render quality tier this walk was built at"],
   ['useComposer', 'whether frames go through the post-fx composer (tier.postFx; adaptquality.js may turn it off)'],
