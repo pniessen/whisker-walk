@@ -30,9 +30,7 @@ export function build(scene) {
     K.drawDecks(kit, M);
     K.drawWalks(kit, M);
     K.drawPostBox(kit, M);
-    K.drawFerns(kit, M);
-    K.drawRim(kit, M);
-    K.drawCanopy(kit, M);
+    if (!ST.lift?.draw) { K.drawFerns(kit, M); K.drawRim(kit, M); K.drawCanopy(kit, M); } // (the lift stage draws the realistic trees, shrubs and canopy in their place)
     ST.branches?.draw?.(kit, M); // the baskets, the Bookshop's sign, the bell rope and the supper table (milestone T5, in the merged buckets)
     ST.lift?.draw?.(kit, M); // the beauty round: ground tones, clutter, pennants, vines, autumn leaves and the shafts of light (milestone T8, in the lift stage)
     for (const m of kit.meshes()) scene.add(m);

@@ -15,7 +15,8 @@ import * as THREE from 'three';
 import { mulberry32 } from '../rng.js';
 import * as P from './treehouseplan.js';
 import { paint, placed, post, blob } from './treehouseparts.js';
-import { SHAFT_OPACITY } from './treehouselight.js';
+import { SHAFT_OPACITY, SHAFT_VERTS } from './treehouselight.js';
+import { canopyLumps } from './treehousenature.js';
 
 const L = P.TREE_LOOK;
 
@@ -105,10 +106,22 @@ export function planBeauty() {
   }
   const shafts = [];
   rng = mulberry32(0x73686166); // 'shaf'
-  for (let i = 0, tries = 0; i < 10 && tries++ < 100;) {
-    const x = (rng() - 0.5) * 50; const z = (rng() - 0.5) * 50 + 2;
-    if (Math.hypot(x - P.OAK.x, z - P.OAK.z) < P.OAK.r + 2.5) continue;
-    shafts.push({ x, z, rTop: 0.5 + rng() * 0.6, rBot: 1.2 + rng() * 1.2, lean: 0.35 + rng() * 0.1, bright: 0.6 + rng() * 0.4 });
+  // each shaft opens at a real gap between the canopy's leaf clumps (round two): a spot no clump's footprint covers, but one that has a clump within two metres
+  const lumps = canopyLumps();
+  const gapAt = (x, z) => {
+    let nearest = Infinity;
+    for (const l of lumps) { const d = Math.hypot(x - l.x, z - l.z) - Math.max(l.rx, l.rz) * 0.92; if (d < 0) return false; nearest = Math.min(nearest, d); }
+    return nearest < 2.2;
+  };
+  for (let i = 0, tries = 0; i < 12 && tries++ < 900;) {
+    const tx = (rng() - 0.5) * 56; const tz = (rng() - 0.5) * 56 - 2;
+    const lean = 0.22 + rng() * 0.26; const lz = 0.15 + rng() * 0.5;
+    const x = tx + lean * TOP_Y; const z = tz + lean * lz * TOP_Y; // where the beam would reach the floor
+    const rTop = 0.3 + rng() * 0.6; const rBot = 0.9 + rng() * 1.5; const bright = 0.5 + rng() * 0.5;
+    const yEnd = rng() < 0.55 ? 0.05 : 0.6 + rng() * 3.4; // some beams are lost in the undergrowth before the floor
+    if (!gapAt(tx, tz) || Math.abs(x) > 29 || Math.abs(z) > 29) continue;
+    if (Math.hypot(x - P.OAK.x, z - P.OAK.z) < P.OAK.r + 2.5 || Math.hypot(tx - P.OAK.x, tz - P.OAK.z) < P.OAK.r + 1) continue;
+    shafts.push({ x, z, tx, tz, rTop, rBot, lean, lz, bright, yEnd, sides: 8, seed: i + 1 });
     i++;
   }
   return { patches, clumps, mushrooms, stumps, logs, vines, leaves, shafts };
@@ -187,22 +200,35 @@ export function shaftMaterial() {
   _mat ??= new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: SHAFT_OPACITY, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
   return _mat;
 }
-const TOP_Y = 12.5;
+export const TOP_Y = 12.2; // where a shaft opens, just under the leaf clumps
+// A shaft: eight sides, four bands. It starts at nothing on the gap (alpha 0), is full strength within a metre, fades along its length and is gone at its foot (additive: black adds nothing),
+// leaning the way the sun does; the ring radii wobble a little so no two read the same. Exactly SHAFT_VERTS vertices (the life's shimmer rewrites them by that count).
 function shaftGeometry(s) {
-  const sides = 7; const pos = []; const col = []; const c = new THREE.Color(0xfff2c0);
-  const ring = (y, r, ox, oz, a) => Array.from({ length: sides }, (_, i) => [s.x + ox + Math.cos((i / sides) * 6.283) * r, y, s.z + oz + Math.sin((i / sides) * 6.283) * r, a]);
-  const top = ring(TOP_Y, s.rTop, -s.lean * TOP_Y, -s.lean * TOP_Y * 0.4, s.bright * 0.5);
-  const bot = ring(0.05, s.rBot, 0, 0, 0);
+  const pos = []; const col = []; const c = new THREE.Color(0xfff2c0);
+  const rng = mulberry32(0x73686100 + s.seed);
+  const span = TOP_Y - s.yEnd;
+  const rows = [[0, 0], [1 / span, 1], [1 / span + (1 - 1 / span) * 0.45, 0.7], [1 / span + (1 - 1 / span) * 0.8, 0.3], [1, 0]]; // [fraction along the beam, alpha]
+  const wob = Array.from({ length: 5 * s.sides }, () => 0.85 + rng() * 0.3);
+  const ring = (r, fr, a) => {
+    const y = TOP_Y - fr * span;
+    const cx = s.tx + (s.x - s.tx) * ((TOP_Y - y) / (TOP_Y - 0.05)); const cz = s.tz + (s.z - s.tz) * ((TOP_Y - y) / (TOP_Y - 0.05));
+    const rad = (s.rTop * 0.8 + (s.rBot - s.rTop * 0.8) * ((TOP_Y - y) / (TOP_Y - 0.05)));
+    return Array.from({ length: s.sides }, (_, i) => [cx + Math.cos((i / s.sides) * 6.283) * rad * wob[r * s.sides + i], y, cz + Math.sin((i / s.sides) * 6.283) * rad * wob[r * s.sides + i], a * s.bright]);
+  };
+  const rings = rows.map(([fr, a], r) => ring(r, fr, a));
   const put = (p) => { pos.push(p[0], p[1], p[2]); col.push(c.r * p[3], c.g * p[3], c.b * p[3]); };
-  for (let i = 0; i < sides; i++) {
-    const j = (i + 1) % sides;
-    for (const p of [top[i], bot[i], top[j], top[j], bot[i], bot[j]]) put(p);
+  for (let r = 0; r + 1 < rings.length; r++) {
+    for (let i = 0; i < s.sides; i++) {
+      const j = (i + 1) % s.sides; const A = rings[r]; const B = rings[r + 1];
+      for (const p of [A[i], B[i], A[j], A[j], B[i], B[j]]) put(p);
+    }
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.computeVertexNormals();
   g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+  if (pos.length / 3 !== SHAFT_VERTS) throw new Error('shaft vertex count');
   return g;
 }
 
