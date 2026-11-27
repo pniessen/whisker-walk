@@ -125,6 +125,9 @@ function makeShell(id, M2) {
   parts.push(K.paint(whorl, dark));
   const lip = new THREE.TorusGeometry(0.11, 0.035, 5, 8); lip.translate(0, 0.16, 0.27);
   parts.push(K.paint(lip, COLORS.white));
+  // the spiral: two growing bands round the whorl (each a tilted ring, one turn further along), and a small dark bead at the shell's tip
+  for (const [r, z, ty] of [[0.17, 0.03, 0.16], [0.13, -0.12, 0.15]]) { const band = new THREE.TorusGeometry(r, 0.022, 4, 10); band.rotateX(0.2); band.translate(0, ty, z); parts.push(K.paint(band, dark)); }
+  const tip = new THREE.SphereGeometry(0.05, 5, 4); tip.translate(0, 0.2, -0.3); parts.push(K.paint(tip, dark));
   const mesh = new THREE.Mesh(mergeGeometries(parts), M2.paint);
   mesh.name = `reef:shell${id}`;
   mesh.castShadow = false; mesh.receiveShadow = false;
