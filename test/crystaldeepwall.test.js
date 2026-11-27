@@ -185,7 +185,7 @@ describe('a partner step and the arbiter slot', () => {
     expect(s.promptAt({ x: -27, z: -10, y: 0 })).toBe(null);
     expect(s.promptAt({ x: -28, z: -19.6, y: 0 })).toBe(phrase('crystal.deep.wall.prompt'));
     expect(s.interact()).toBe('hum');
-    expect(ST.deep.credit({ kind: 'wd-found' })).toBe(null);
+    expect(ST.deep.credit({ kind: 'wd-nothing' })).toBe(null);
     expect(ST.deep.credit({ kind: 'wd-wall' })).toBe('wall'); // the slot reaches the live of this walk
     life.dispose();
     expect(s.promptAt({ x: -28, z: -19.6, y: 0 })).toBe(null);

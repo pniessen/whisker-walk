@@ -100,7 +100,7 @@ export function build(scene) {
         const errand = createCaveErrandLive({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, lumi }); // C7
         const intro = createCrystalIntro(ctx); // the arrival card (step 0 only)
         let forgeJob = null; // the forge job (C3), made below: the guide reads its goal when Lumi's is 'rest'
-        const guideLumi = Object.create(lumi, { goalNow: { value: () => (forgeJob ? forgeJob.goalFor(lumi.goalNow()) : lumi.goalNow()) } });
+        const guideLumi = Object.create(lumi, { goalNow: { value: () => { const g = forgeJob ? forgeJob.goalFor(lumi.goalNow()) : lumi.goalNow(); return ST.deep?.goalFor?.(g, errand.state) ?? g; } } });
         const guide = createCrystalGuideLive({ doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, lumi: guideLumi, errand, progression: ctx.progression });
         // One arbiter picks the action button's line: Lumi, the errand's hand-in (it wins over the Heart's replay), wing B, then wing C's boat, cart, forge and pads
         // (stage slots that answer null until the stage fills them, so later milestones never edit this file).
