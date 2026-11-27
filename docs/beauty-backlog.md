@@ -252,7 +252,7 @@ Sparseness columns are estimates: triangles and meshes per 1000 m2 from the tabl
 - (b) 37.1 kB, 74/83 meshes (9 left), 58.6k/64.7k triangles (6.1k left).
 - (c) 10.2k triangles and 12.8 meshes per 1000 m2 (est.); palette 184; fog (glass cues) yes; life `greenhouselife.js`, `greenhousebutterflies.js`; music `greenhouse`.
 - (d)
-  - **GRN-1** (H/S, 3.0): condensation drops on the glass (shader on the existing glass material, 0 meshes).
+  - ~~**GRN-1**~~ (done 2026-11-27, see section 8): condensation drops on the glass (shader on the existing glass material, 0 meshes).
   - **GRN-2** (M/S, 2.0): bloom colour variety on beds (into the existing flower bucket).
   - **GRN-3** (M/S, 2.0): hanging planters and trailing vines (max +2 meshes; mesh row 83 is nearly full).
   - **GRN-4** (L/S, 1.0): pollen motes in shafts.
@@ -338,6 +338,6 @@ A screenshot from the owner helps most in these eight areas (noon walk, from the
 
 | Date | Entry | Commit | Chunk kB before/after | Notes |
 |---|---|---|---|---|
-| (none yet from this backlog) | | | | |
+| 2026-11-27 | ~~GRN-1~~ | COMMIT | 37.1 / 37.8 (greenhouse); start-up +0.01 | Condensation beads and runnels in the glass material's fragment shader; 0 meshes, 0 triangles, row unchanged; low tier none, medium beads only; runnels frozen under reduced motion; no picture page (shader, not renderable headless); warmth/lamp not wired (no light state) |
 
 Past rounds before this file are listed under each area in section 5.

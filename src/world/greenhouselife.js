@@ -219,6 +219,7 @@ export function createGreenhouseLife(ctx) {
       if (disposed) return;
       clock += dt > 0 ? dt : 0;
       const tt = reducedMotion ? 0 : t;
+      G.COND_TIME.value = tt;
       if (mist) mist.userData.mist.uTime.value = tt;
       if (roomMist) roomMist.userData.mist.uTime.value = tt;
       if (shafts) shafts.rotation.z = G.shaftAngle(t, reducedMotion);
