@@ -49,7 +49,7 @@ export const GLYPHS = Object.freeze({
 // (gamepadinput.js) and the menus' (A = press, B = back).
 const XBOX_TOKENS = Object.freeze({
     confirm: 'a', jump: 'a', back: 'b', meow: 'b', interact: 'x', photo: 'y',
-    zoomOut: 'lb', zoomIn: 'rb', pause: 'menu', move: 'lstick', look: 'rstick', dpad: 'dpad',
+    zoomOut: 'lb', zoomIn: 'rb', pause: 'menu', select: 'view', move: 'lstick', look: 'rstick', dpad: 'dpad',
   });
 export const TOKEN_GLYPH = Object.freeze({
   // A Nintendo pad (vendor 057e) is laid out like an Xbox one but labelled the other way round:
@@ -58,11 +58,11 @@ export const TOKEN_GLYPH = Object.freeze({
   nin: Object.freeze({ ...XBOX_TOKENS, confirm: 'b', jump: 'b', back: 'a', meow: 'a', interact: 'y', photo: 'x' }),
   ps: Object.freeze({
     confirm: 'cross', jump: 'cross', back: 'circle', meow: 'circle', interact: 'square', photo: 'triangle',
-    zoomOut: 'l1', zoomIn: 'r1', pause: 'options', move: 'lstick', look: 'rstick', dpad: 'dpad',
+    zoomOut: 'l1', zoomIn: 'r1', pause: 'options', select: 'create', move: 'lstick', look: 'rstick', dpad: 'dpad',
   }),
   xbox: Object.freeze({
     confirm: 'a', jump: 'a', back: 'b', meow: 'b', interact: 'x', photo: 'y',
-    zoomOut: 'lb', zoomIn: 'rb', pause: 'menu', move: 'lstick', look: 'rstick', dpad: 'dpad',
+    zoomOut: 'lb', zoomIn: 'rb', pause: 'menu', select: 'view', move: 'lstick', look: 'rstick', dpad: 'dpad',
   }),
 });
 

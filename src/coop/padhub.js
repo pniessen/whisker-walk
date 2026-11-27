@@ -13,6 +13,8 @@
 import { createHold, DPAD_DOWN, DPAD_LEFT } from './rules.js';
 import { createPadState, stepPad, isPressed, pressedEdges, PAD_BUTTONS } from '../gamepadinput.js';
 
+const SELECT = 8; // Back / View / Create: held on pad two, it steps out of the walk
+export const LEAVE_HOLD = 0.8; // seconds
 const FIRM = 0.5; // a stick push that counts as "somebody is there"
 
 const live = (pad) => (pad.buttons ?? []).some(isPressed)
@@ -21,14 +23,14 @@ const live = (pad) => (pad.buttons ?? []).some(isPressed)
 
 const downSet = (pad) => new Set((pad.buttons ?? []).flatMap((b, i) => (isPressed(b) ? [i] : [])));
 
-const seat = (index) => ({ index, lost: false, held: new Set(), prev: [], pad: createPadState(), hold: createHold(), progress: 0 });
+const seat = (index) => ({ index, lost: false, held: new Set(), prev: [], pad: createPadState(), hold: createHold(), progress: 0, out: 0 });
 
 export function createPadHub() {
   const slots = [null, null];
 
   const claim = (slot, pad, type, events) => {
     const was = slots[slot];
-    slots[slot] = Object.assign(was ?? seat(pad.index), { index: pad.index, lost: false, held: downSet(pad), prev: [], pad: createPadState(), hold: createHold(), progress: 0 });
+    slots[slot] = Object.assign(was ?? seat(pad.index), { index: pad.index, lost: false, held: downSet(pad), prev: [], pad: createPadState(), hold: createHold(), progress: 0, out: 0 });
     events.push({ type, slot });
   };
 
@@ -79,6 +81,11 @@ export function createPadHub() {
           else if (b === DPAD_LEFT) events.push({ type: 'groom', slot: i });
         }
         s.prev = cur;
+        if (i === 1) { // Select held: pad two steps out (one event a hold; let go and hold again to do it twice)
+          const down = !!raw[SELECT];
+          if (!down) s.out = 0;
+          else if (s.out >= 0 && (s.out += dt) >= LEAVE_HOLD) { s.out = -1; events.push({ type: 'leave', slot: i }); }
+        }
         if (engaged) { // D-pad Down held: hop to my friend (a hold, or two quick taps)
           const r = s.hold.step(dt, !!cur[DPAD_DOWN]);
           s.progress = r.progress;

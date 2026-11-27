@@ -9,6 +9,9 @@ const CSS = `
 .coop-join{position:fixed;left:50%;top:max(13vh,72px);transform:translateX(-50%);z-index:30;max-width:min(90vw,34em);padding:.5em 1em;border-radius:999px;background:rgba(20,26,38,.82);color:#fff;font:600 17px/1.3 Avenir,system-ui,sans-serif;text-align:center;pointer-events:none}
 .coop-join[hidden],.coop-lost[hidden],.coop-tally[hidden]{display:none}
 .coop-tally{position:fixed;left:50%;bottom:max(8vh,48px);transform:translateX(-50%);z-index:30;max-width:min(90vw,34em);padding:.5em 1em;border-radius:999px;background:rgba(20,26,38,.88);color:#fff;font:600 18px/1.3 Avenir,system-ui,sans-serif;text-align:center;pointer-events:none}
+.coop-ready{margin:.7em 0 0;font:600 17px/1.35 Avenir,system-ui,sans-serif;text-align:center}
+.coop-ready .pad-glyph{width:1.3em;height:1.3em;vertical-align:-.3em}
+html.tv .coop-ready{font-size:24px}
 .coop-join .pad-glyph{width:1.3em;height:1.3em;vertical-align:-.3em}
 .coop-lost{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(10,14,22,.55);font:500 18px/1.4 Avenir,system-ui,sans-serif;color:#fff}
 .coop-lost .coop-card{max-width:min(80vw,30em);padding:1.2em 1.6em;border-radius:18px;background:#1c2431;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.4)}
