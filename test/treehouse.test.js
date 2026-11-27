@@ -26,7 +26,7 @@ const { TELE_ENDS } = await import('../src/teleport.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 
 const read = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
-const FILES = ['src/world/treehouseplan.js', 'src/world/treehouseparts.js', 'src/world/treehouselight.js', 'src/world/treehouse.js', 'src/world/treehousestages.js', 'src/world/treehousestagebranches.js', 'src/world/treehousestagelift.js', 'src/treehouseflag.js'];
+const FILES = ['src/world/treehouseplan.js', 'src/world/treehouseparts.js', 'src/world/treehouselight.js', 'src/world/treehouse.js', 'src/world/treehousestages.js', 'src/world/treehousestagebranches.js', 'src/world/treehousestagelift.js', 'src/world/treehousebeauty.js', 'src/world/treehousenature.js', 'src/world/treehousegrass.js', 'src/treehouseflag.js'];
 
 describe('the plan: the climb', () => {
   const area = build(new THREE.Scene());
