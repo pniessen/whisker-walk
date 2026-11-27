@@ -1,0 +1,28 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>World map rework</title>
+<!-- Dev only (like the other verify-*.html). The world map with every place on, drawn from the real model.
+     ?layout=A is the shipped layout; ?layout=old is not available after the rework (see git history).
+     For scripts/record-page.mjs: window.__shot(name) with name `map-full`. -->
+<style>html,body{margin:0;background:#1c2431} #f{position:relative;width:1840px;height:1160px}</style>
+<div id="f" class="wm-frame"></div>
+<script type="module">
+  import '/src/style.css';
+  import { setTele } from '/src/teleflag.js';
+  import { setJungle } from '/src/jungleflag.js';
+  import { setTreehouse } from '/src/treehouseflag.js';
+  import { CATALOG } from '/src/progression.js';
+  import { worldMapModel } from '/src/worldmap.js';
+  import { renderWorldMapHtml } from '/src/ui/territorymap.js';
+  const q = new URLSearchParams(location.search);
+  setTele(true); setJungle(true); setTreehouse(true);
+  const ids = Object.keys(CATALOG.areas);
+  const walks = Object.fromEntries(ids.map((k) => [k, 1]));
+  const edition = q.get('edition') || 'canon';
+  const state = { edition, points: 999, walks, unlocked: { cats: ['tabby'], accessories: [], areas: q.get('locked') ? ['neighborhood'] : ids }, equipped: { cat: 'tabby' }, area: 'neighborhood',
+    clanPick: { mine: 'woods' } };
+  document.getElementById('f').innerHTML = renderWorldMapHtml(worldMapModel(state, CATALOG));
+  document.querySelector('svg').style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
+  window.__shot = (name) => name;
+  window.__ready = true;
+</script>
