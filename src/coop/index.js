@@ -546,6 +546,7 @@ export function start(ctx) {
     if (!state.joined || !mover || !s) return;
     const body = mover.body;
     announceFight(s);
+    rides.look(dt, nowSec(), s, s.remotes.list.find((e) => e.playerId === SECOND_ID)?.group);
     if (fights.twoFights) { // the fight wrote cat two's picture: its body follows, and cat one sits and cheers
       const g = s.remotes.list.find((e) => e.playerId === SECOND_ID)?.group;
       if (g) { body.position.x = g.position.x; body.position.z = g.position.z; body.rotation.y = g.rotation.y; }
@@ -618,7 +619,7 @@ export function start(ctx) {
     msg.yaw = body.rotation.y;
     msg.speed = speed;
     msg.h = Math.max(0, body.position.y - gy);
-    msg.seat = rides.seat?.id ?? null;
+    msg.seat = rides.seat?.rideId === 'slide' ? null : rides.seat?.id ?? null; // the slide is slid on the own clock of each device: drawn where she is
     msg.pose = rides.busy ? 'perch' : mover.player.hopY > 0.01 ? 'pounce'
       : speed > 0.3 ? (mover.player.stalking ? 'stalk' : 'follow')
         : idle > NAP_AT ? 'nap' : idle > SIT_AT ? 'requestPet' : idle > GROOM_AT ? 'groom' : 'follow';
