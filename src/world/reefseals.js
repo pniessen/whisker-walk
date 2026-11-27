@@ -66,6 +66,11 @@ export const DOLPHINS = Object.freeze([
   Object.freeze({ id: 1, role: 'calf', size: 0.58, side: 1, back: 0.09 }),
   Object.freeze({ id: 2, role: 'calf', size: 0.52, side: -1, back: 0.14 }),
 ]);
+// Two rock cracks for the moray eels (world/reefmore.js): one by the Coral Garden's rocks, one by the Sunken Boat. Drawn like a den, solid like one.
+export const EEL_DENS = Object.freeze([
+  Object.freeze({ id: 0, x: 7, z: -10, yaw: 0.45, r: 1.05, name: 'coral' }),
+  Object.freeze({ id: 1, x: -36.3, z: -24.5, yaw: 0.3, r: 1.05, name: 'boat' }),
+]);
 export const SHY_RANGE = 1.5; // an octopus steps back when she is this near its den's mouth
 export const SEAL_KEEP = 2.1; // a swimming seal never comes nearer to her than this (horizontally)
 export const DOLPHIN_LEVEL = 4.35; // metres over the seabed: above the float ceiling (2.2) and under the shimmer
@@ -74,6 +79,7 @@ export const DOLPHIN_LEVEL = 4.35; // metres over the seabed: above the float ce
 export const lifeColliders = () => [
   { x: SEAL_ROCK.x, z: SEAL_ROCK.z, r: SEAL_ROCK.r },
   ...OCTOPI.map((o) => ({ x: o.x, z: o.z, r: o.r })),
+  ...EEL_DENS.map((o) => ({ x: o.x, z: o.z, r: o.r })),
 ];
 
 // ---- what the animals keep clear of --------------------------------------------------------------------------------------

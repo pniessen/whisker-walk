@@ -41,8 +41,9 @@ const SCR = new Float32Array(24 * 16 * 9); // the rings' vertices: x y z nx ny n
 export function tube(soup, spine, rad, rings, sides, m, col) {
   for (let k = 0; k < rings; k++) { const s = k / (rings - 1); const o = P[k] || (P[k] = {}); spine(s, TT); o.x = TT.x; o.y = TT.y; o.z = TT.z; const r = rad(s); o.rx = r[0]; o.ry = r[1]; }
   const sc = Math.hypot(m[0], m[1], m[2]) || 1;
-  const top = col.top; const bot = col.bot;
   for (let k = 0; k < rings; k++) {
+    const cc = col.ring ? col.ring(k / (rings - 1)) : col; // (a colour that changes along the body: a fish's bands)
+    const top = cc.top; const bot = cc.bot;
     const a = P[Math.max(0, k - 1)]; const b = P[Math.min(rings - 1, k + 1)]; const q = P[k];
     let tx = b.x - a.x; let ty = b.y - a.y; let tz = b.z - a.z;
     const tl = Math.hypot(tx, ty, tz) || 1; tx /= tl; ty /= tl; tz /= tl;
@@ -145,6 +146,7 @@ export function drawRocks(soup, dens, rock, groundY) {
     DEN_STONES.forEach(([x, y, z, rx, ry, rz], i) => ellipsoid(soup, m, x, y, z, rx, ry, rz, { ...ROCK, seed: di * 9 + i }, 4, 7));
     ellipsoid(soup, m, 0, 0.36, 0.1, 0.4, 0.34, 0.36, { top: [26, 22, 24], bot: [18, 15, 17] }, 4, 7); // the den's dark mouth
   });
+  if (!rock) return; // (the moray eels' cracks are dens alone)
   const m = frameMatrix(rock.x, groundY(rock.x, rock.z), rock.z, 0);
   ellipsoid(soup, m, 0, rock.h * 0.35, 0, rock.r, rock.h * 0.65, rock.r * 0.9, { ...ROCK, seed: 77 }, 5, 9);
   ellipsoid(soup, m, 0.5, 0.12, 0.45, 0.4, 0.22, 0.35, { ...ROCK, seed: 78 }, 4, 6);

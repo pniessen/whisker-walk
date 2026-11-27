@@ -248,7 +248,7 @@ describe('the life on a walk', () => {
 
 describe('the journal pages', () => {
   it('three more cards in the Reef\'s set, with names from start-up and hints from the lazy words, and the ids saved by the progression', () => {
-    expect(REEF_LIFE_PAGES.map((p) => p[0])).toEqual(['rfseal', 'rfoctopus', 'rfdolphin']);
+    expect(REEF_LIFE_PAGES.map((p) => p[0]).slice(0, 3)).toEqual(['rfseal', 'rfoctopus', 'rfdolphin']); // (seven more follow: test/reefmore.test.js)
     for (const [id, , , name] of REEF_LIFE_PAGES) {
       const card = CRITTER_INFO.find((c) => c.id === id);
       expect(card.reef).toBe(true); expect(card.name).toBe(name); expect(card.hint).toBe(HINTS[id]); expect(REEF_HINTS[id]).toBe(HINTS[id]);
@@ -271,7 +271,7 @@ describe('the words, in both sets', () => {
   const ids = Object.keys(LINES);
   const scary = /\b(drown\w*|die|dies|dead|hurt\w*|panic\w*|gasp\w*|choke\w*|scared|scary|afraid|danger\w*|dark|lost forever|trapped|stuck|collapse\w*|lonely|fail\w*)\b/i;
   it('three labels in the phrase table, short and kind, the same plain base in the everyday set with no series word', () => {
-    expect(ids).toEqual(['reef.life.seal', 'reef.life.octopus', 'reef.life.dolphin']);
+    expect(ids.slice(0, 3)).toEqual(['reef.life.seal', 'reef.life.octopus', 'reef.life.dolphin']); // (seven more follow: test/reefmore.test.js)
     for (const id of ids) {
       expect(hasPhrase(id), id).toBe(true);
       const s = phrase(id); expect(s).toMatch(/^a /); expect(s.length).toBeLessThanOrEqual(60); expect(s).not.toMatch(scary);

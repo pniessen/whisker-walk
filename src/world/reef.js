@@ -23,6 +23,7 @@ import { REEF_SCENICS } from './reeffindsplan.js';
 import { drawDeep } from './reefdeepparts.js';
 import { createReefDeepLife } from './reefdeeplife.js';
 import { createReefSealsLife } from './reefsealslive.js';
+import { createReefMoreLife } from './reefmorelive.js';
 import { lifeColliders } from './reefseals.js';
 import './reefwords.js';
 
@@ -90,11 +91,12 @@ export function build(scene) {
         const finds = createReefFindsLife(ctx); // the six discoveries (milestone R3)
         const deep = createReefDeepLife({ ...ctx, say: base.say }); // the plankton and the Deep's three soft lines (R8)
         const sea = createReefSealsLife(ctx); // the seals, octopuses and dolphin family (photo and journal subjects through `spottable`)
+        const more = createReefMoreLife(ctx); // jellyfish, clownfish, seahorses, mantas, a whale, moray eels and squid
         return {
           ...base,
-          spottable: sea.spottable,
-          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); },
-          dispose() { sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
+          spottable: [...sea.spottable, ...more.spottable],
+          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); more.update(...a); },
+          dispose() { more.dispose(); sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
         };
       },
     };

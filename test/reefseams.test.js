@@ -192,7 +192,7 @@ describe('the reserved ids', () => {
     expect(REEF_JOURNAL_TYPES).toEqual(['rfboat', 'rfoyster', 'rfseahorse', 'rfcave', 'rfchest', 'rfanchor', 'rfshells', 'rflanterns', 'rfparade', 'rfalbum', 'rferrand', 'rfrings']);
     for (const id of REEF_JOURNAL_TYPES) { expect(JOURNAL_TYPES).toContain(id); expect(REEF_PAGE_WORDS[id].name()).toMatch(/\S/); }
     expect(new Set(JOURNAL_TYPES).size).toBe(JOURNAL_TYPES.length);
-    expect(JOURNAL_TYPES.slice(-27, -15)).toEqual(REEF_JOURNAL_TYPES);
+    expect(JOURNAL_TYPES.slice(-34, -22)).toEqual(REEF_JOURNAL_TYPES);
   });
   it('a journal page counts like any other (the sanitiser keeps it)', () => {
     expect(fresh({ journal: { rfparade: 2, rfnope: 4 } }).journal).toEqual({ rfparade: 2 });
@@ -246,7 +246,7 @@ describe('the pack', () => {
   it('the Reef\'s files import no other place (the chunk stays small); the dive suit is the shared lazy kit', () => {
     const src = read('src/world/reef.js');
     const imports = [...src.matchAll(/^import .*?from '(.+?)';/gm)].map((x) => x[1]);
-    expect(imports.sort()).toEqual(['../cat/suitkit.js', './builder.js', './localuuids.js', './reefparts.js', './reefplan.js', './reefstorylife.js', './reefmarlo.js', './reefstory.js', './reeffinds.js', './reeffindparts.js', './reeffindsplan.js', './reefwingparts.js', './reefdeepparts.js', './reefdeeplife.js', './reefsealslive.js', './reefseals.js'].sort());
+    expect(imports.sort()).toEqual(['../cat/suitkit.js', './builder.js', './localuuids.js', './reefparts.js', './reefplan.js', './reefstorylife.js', './reefmarlo.js', './reefstory.js', './reeffinds.js', './reeffindparts.js', './reeffindsplan.js', './reefwingparts.js', './reefdeepparts.js', './reefdeeplife.js', './reefsealslive.js', './reefseals.js', './reefmorelive.js'].sort());
     expect(src).toMatch(/import '\.\/reefwords\.js'/);
     for (const f of globSync('src/world/reef*.js')) {
       for (const [, spec] of read(f).matchAll(/^import .*?from '(.+?)';/gm)) expect(spec, `${f} imports ${spec}`).not.toMatch(/(moon|greenhouse|seaside|park|docks)/);
