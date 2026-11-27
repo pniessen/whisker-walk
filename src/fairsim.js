@@ -570,7 +570,7 @@ export function createFairSim(area) {
       return answer('off');
     }
     // on the helter-skelter's gallery: down the slide
-    if (from && slide.top && from === slide.top) return answer('slide', slide.chute);
+    if (from && slide.top && from === slide.top) return taken === slide.chute ? answer('stay') : answer('slide', slide.chute);
     // not on a ride: the nearest seat that can be boarded from here
     let best = null;
     let bestD = Infinity;
