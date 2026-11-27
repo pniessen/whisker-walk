@@ -141,7 +141,7 @@ describe('the join prompt', () => {
   });
 
   it('says "not here yet" in a place that is not ready, with two pads, and never joins there', () => {
-    const r = rig({ areaId: 'fair' });
+    const r = rig({ areaId: 'seaside' });
     set(r, pad(0, [PAD_BUTTONS.X]), pad(1)); r.tick(2);
     expect(find(r.doc, 'coop-join').attrs['aria-label']).toBe('Two cats do not play here yet');
     set(r, pad(0), pad(1, [A])); r.tick(3);
@@ -489,7 +489,7 @@ describe('where couch play does not exist', () => {
   });
 
   it('an online co-walk and a place that is not ready leave solo play exactly as it is', () => {
-    for (const o of [{ net: {} }, { areaId: 'fair' }]) {
+    for (const o of [{ net: {} }, { areaId: 'seaside' }]) {
       const r = rig(o);
       set(r, pad(0, [PAD_BUTTONS.X]), pad(1)); r.tick(2);
       set(r, pad(0), pad(1, [A])); r.tick(2);
@@ -771,8 +771,8 @@ describe('couch play M3: cat two\'s finds, in the chunk', () => {
     expect(den.h.state.leash).toBeLessThan(open.h.state.leash);
   });
 
-  it('couch play is ready in each open place and still not in the Fair', () => {
+  it('couch play is ready in each open place and still not in the Seaside', () => {
     for (const areaId of ['woods', 'river', 'moor', 'pines', 'docks', 'den']) expect(joined({ areaId }).h.state.joined, areaId).toBe(true);
-    expect(joined({ areaId: 'fair' }).h.state.joined).toBe(false);
+    expect(joined({ areaId: 'seaside' }).h.state.joined).toBe(false);
   });
 });

@@ -248,6 +248,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
   // Step 3: the games, the finds and the visitors (src/fairshow.js), attached
   // by the walk once it has made them. Run here, after the rides have moved her.
   let show = null;
+  let friend = () => null; // couch play: the seat the other cat is on, which a jump does not take (src/coop/rides.js)
 
   // A co-walker's seat by its id (src/remotecats.js, partner-height): every
   // seat but the helter-skelter's, which each device slides on its own clock.
@@ -255,9 +256,11 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
 
   const api = {
     sim,
+    env,
     seatById(id) { return seatIds.get(id) ?? null; },
     get show() { return show; },
     get games() { return show ? show.games : null; },
+    friendSeat(f) { friend = f ?? (() => null); },
     attach(s) { show = s ?? null; return api; },
     actionFor() { return show && !riding && !hop.on ? show.actionFor() : null; },
     act(action) { return show ? show.act(action) : false; },
@@ -280,7 +283,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
     // now? (For the jump hint: game/tips.js.)
     canBoard(cat, player, session) {
       if (hop.on || riding) return false;
-      return sim.jumpTarget(catAt(cat, player), session.perched ?? null, null)?.type === 'board';
+      return sim.jumpTarget(catAt(cat, player), session.perched ?? null, null, 0, friend())?.type === 'board';
     },
 
     // pawKind(cat, player, session) → what the jump button would do on a ride
@@ -292,7 +295,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
     // (RIDE.JUMP_SLACK), so a press always finds the seat the paw promised.
     pawKind(cat, player, session) {
       if (hop.on) return 'none';
-      const t = sim.jumpTarget(catAt(cat, player), session.perched ?? null, lastSeat);
+      const t = sim.jumpTarget(catAt(cat, player), session.perched ?? null, lastSeat, 0, friend());
       if (!t) return null;
       if (t.type === 'board' || t.type === 'hop') return 'up';
       if (t.type === 'stay') return 'none';
@@ -303,7 +306,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
     jump({ cat, player, session }) {
       if (hop.on) return true; // in the air on the way down: nothing to do
       const from = session.perched ?? null;
-      const t = sim.jumpTarget(catAt(cat, player), from, lastSeat, RIDE.JUMP_SLACK);
+      const t = sim.jumpTarget(catAt(cat, player), from, lastSeat, RIDE.JUMP_SLACK, friend());
       if (!t) return false;
       if (t.type === 'board' || t.type === 'hop') {
         lastSeat = t.type === 'hop' ? riding : null;

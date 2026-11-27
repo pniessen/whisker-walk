@@ -21,6 +21,7 @@ import { createCoopHud } from './hud.js';
 import { createCards } from './cards.js';
 import { createFinds } from './finds.js';
 import { createFights } from './fights.js';
+import { createRides } from './rides.js';
 import { createGroom, createTag, GROOM_CALM_S, GROOM_NEAR } from './verbs.js';
 import { bus } from '../events.js';
 import { pickSecond, profileOf, createMover, SECOND_ID } from './second.js';
@@ -134,6 +135,7 @@ export function start(ctx) {
   const fights = createFights({ ctx }); // one fight at a time; the challenger's pad drives (src/coop/fights.js)
   let fightSaid = false; // the line for the fight on screen was said
   const groom = createGroom(), tagGame = createTag();
+  const rides = createRides(); // cat two on the rides of the Fairground (src/coop/rides.js)
   const air = [false, false]; // each cat was in the air last frame (a landing beside the friend is a tag)
 
   let cur = null; // the session this chunk is working in
@@ -194,6 +196,7 @@ export function start(ctx) {
     const s = cur;
     release();
     if (finds && mover && s) finds.letGo(s, mover.body);
+    rides.detach(s);
     fights.detach(); fightSaid = false;
     groom.cancel(); tagGame.reset(); air[0] = air[1] = false; own[0] = null;
     finds = null; offBus?.(); offBus = null; own[1] = null;
@@ -228,6 +231,7 @@ export function start(ctx) {
     fights.detach(); fightSaid = false;
     groom.cancel(); tagGame.reset(); air[0] = air[1] = false; own[0] = null;
     if (state.joined) { // its scene is being thrown away: nothing of the old walk is touched
+      rides.detach(null);
       finds = null; offBus?.(); offBus = null; own[1] = null;
       mover?.player.disable();
       mover = null; markers = null; tag = null; pick = null;
@@ -249,14 +253,14 @@ export function start(ctx) {
   function spotBeside(s, p) {
     const right = { x: p.x + Math.cos(heading.target) * START_APART, z: p.z - Math.sin(heading.target) * START_APART };
     if (landsAt(s, p, right.x, right.z)) return right;
-    for (const radius of [START_APART, 2.4, 3.2]) {
+    for (const radius of [START_APART, 2.4, 3.2, 4.4]) {
       for (let i = 0; i < 8; i++) {
         const a = heading.target + (i * Math.PI) / 4;
         const x = p.x + Math.sin(a) * radius, z = p.z + Math.cos(a) * radius;
         if (landsAt(s, p, x, z)) return { x, z };
       }
     }
-    return right;
+    return s.ground.flat ? right : { x: p.x, z: p.z }; // on a perch with no room beside it (a bin top, a stack): on its own spot, never on the level below
   }
 
   function join() {
@@ -292,6 +296,7 @@ export function start(ctx) {
       // cat one's finds are the walk's own awards: counted here, so the summary says who found what
       offBus = bus.on('discovery', (e) => { if (finds && !finds.busy && isFind(e)) tally[0]++; });
     }
+    rides.attach(s);
     fights.attach(s, { drawn: () => cur?.remotes?.list.find((e) => e.playerId === SECOND_ID)?.group, key: () => pick?.key, joined: () => state.joined && !!mover });
     cards?.hideTally(); tallyLeft = 0;
     idle = 0; level = ctx.player.cameraZoomLevel ?? 1; pull = 1;
@@ -330,6 +335,7 @@ export function start(ctx) {
   }
 
   function hop() {
+    if (mover && cur && rides.jump(cur, mover)) return; // a ride seat in reach: the jump boards it, hops on or gets off
     if (clock < hopAt || !mover) return;
     hopAt = clock + HOP_COOLDOWN;
     mover.player.pounce(pounceArc(ctx.getState?.() ?? {}, { reducedMotion: !!cur.reducedMotion }));
@@ -342,8 +348,10 @@ export function start(ctx) {
     if (!s || !mover) return;
     const me = slot === 0 ? s.cat : mover.body;
     const friend = slot === 0 ? mover.body : s.cat;
+    if (slot === 1 && rides.busy) return; // on a ride she stays on it
+    if (s.traversal?.busy) return; // a crossing or a leap is cat one alone: a hop would land on the plank or in the yard under it
     let spot = null;
-    for (const radius of [1.3, 2.2, 3.2]) {
+    for (const radius of [1.3, 2.2, 3.2, 4.4]) {
       for (let i = 0; i < 8 && !spot; i++) {
         const a = heading.target + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * (Math.PI / 4) + Math.PI; // behind the friend first, then round
         const x = friend.position.x + Math.sin(a) * radius, z = friend.position.z + Math.cos(a) * radius;
@@ -351,6 +359,7 @@ export function start(ctx) {
       }
       if (spot) break;
     }
+    if (!spot && !s.ground.flat && !s.ground.sameLevel(me.position.x, me.position.z, friend.position.x, friend.position.z)) spot = { x: friend.position.x, z: friend.position.z }; // no room on the perch of the friend: on its own spot, same level by being there
     if (!spot) return; // nowhere clear beside the friend: stay put
     me.position.set(spot.x, s.ground.y(spot.x, spot.z), spot.z);
     (slot === 0 ? prev.a : prev.b).set(spot.x, spot.z);
@@ -366,7 +375,13 @@ export function start(ctx) {
     if (on) {
       const k = stuck[slot];
       if (!trotting[slot] || Math.hypot(from.x - k.x, from.z - k.z) > 0.4) { k.x = from.x; k.z = from.z; k.t = 0; }
-      else if ((k.t += dt) > 1.5) { k.t = 0; pl.setTouchMove(null); trotting[slot] = false; hopFriend(slot); return; }
+      else if ((k.t += dt) > 1.5) {
+        k.t = 0; pl.setTouchMove(null); trotting[slot] = false;
+        const g = cur.ground;
+        if (slot === 0 && !g.flat && g.y(to.x, to.z) < g.y(from.x, from.z) - 0.5) follows[0].reset(); // cat one is never called down off a roof or a ledge by its idle trot: only a press of its own hop does that
+        else hopFriend(slot);
+        return;
+      }
       const dx = to.x - from.x, dz = to.z - from.z, d = Math.hypot(dx, dz) || 1;
       // the world way to the friend, turned back into the stick's screen space
       const c = Math.cos(heading.yaw), sn = Math.sin(heading.yaw);
@@ -454,7 +469,7 @@ export function start(ctx) {
       if (heldTwo && !mover.player.inputActive) { mover.player.setInputYaw(null); heldTwo = false; }
       state.yaw = heading.target;
       // Follow when idle: a cat whose stick has rested for 3 s trots to a friend farther than 8 m (any stick ends it).
-      const on = follow && playing && !s.cameraMode;
+      const on = follow && playing && !s.cameraMode && !rides.busy && !s.fair?.riding && !s.fair?.hopping && !s.traversal?.busy; // a cat on a ride or a crossing, or its friend, is not called away: cat two waits at the start
       const sticks = [STICK(hub.padOf(0, pads)), STICK(hub.padOf(1, pads))];
       const seat0 = state.seats[0] && !state.seats[0].lost;
       const reach = tight ? TIGHT_FOLLOW : null; // a tight place holds the pair as close as they stand: the idle cat comes along at once, or the walking one is pinned
@@ -560,7 +575,7 @@ export function start(ctx) {
     const area = s.areaData;
     const fightAny = fights.on, fightTwo = fights.twoFights;
     if (fightTwo) ctx.player.halt?.(); // cat one watches: the fight is cat two's
-    else mover.player.update(dt, area.colliders, area.bounds, area.waters, s.fair?.show?.bumps ?? s.critters?.bumps);
+    else if (!rides.frame(dt, s, mover)) mover.player.update(dt, area.colliders, area.bounds, area.waters, s.fair?.show?.bumps ?? s.critters?.bumps);
     const body = mover.body;
     lens.fov = ctx.camera.fov;
     lens.aspect = ctx.camera.aspect;
@@ -574,7 +589,8 @@ export function start(ctx) {
     const wide = maxSeparation(lens, top) * LEASH_MARGIN;
     const limit = tight ? Math.min(wide, Math.max(state.apart, 2)) : wide;
     state.leash = limit;
-    if (!fightAny) { // a fight puts the fighter where it stands and the other cat sits: no leash then
+    const ride = rides.busy || s.fair?.riding || s.fair?.hopping || s.traversal?.busy; // a ride runs or cat one is on a crossing: the ride or the move carries the cat, so no leash holds it
+    if (!fightAny && !ride) { // a fight puts the fighter where it stands and the other cat sits: no leash then
       stop(cat.position, prev.a, prev.b, limit);
       stop(body.position, prev.b, prev.a, limit);
     }
@@ -597,12 +613,13 @@ export function start(ctx) {
     const gy = s.ground.y(body.position.x, body.position.z);
     const speed = mover.player.speed;
     if (fightAny && !fightTwo) idle = SIT_AT + 0.5; // cat two sits and cheers
-    else if (speed > 0.3 || mover.player.inputActive || mover.player.hopY > 0.01) idle = 0; else idle += dt;
+    else if (rides.busy || speed > 0.3 || mover.player.inputActive || mover.player.hopY > 0.01) idle = 0; else idle += dt;
     msg.pos[0] = body.position.x; msg.pos[1] = body.position.z;
     msg.yaw = body.rotation.y;
     msg.speed = speed;
     msg.h = Math.max(0, body.position.y - gy);
-    msg.pose = mover.player.hopY > 0.01 ? 'pounce'
+    msg.seat = rides.seat?.id ?? null;
+    msg.pose = rides.busy ? 'perch' : mover.player.hopY > 0.01 ? 'pounce'
       : speed > 0.3 ? (mover.player.stalking ? 'stalk' : 'follow')
         : idle > NAP_AT ? 'nap' : idle > SIT_AT ? 'requestPet' : idle > GROOM_AT ? 'groom' : 'follow';
     if (fightTwo) { // the fight's pose, lift and pace, on cat two's picture
@@ -668,6 +685,7 @@ export function start(ctx) {
     hub,
     ctx,
     fights,
+    get mover() { return mover; }, // the walker of cat two (a test places it)
     /** A find by cat `slot` (0 or 1): a toast with the finder's chip; two cats finding the same `key` within 1.5 s fold into "You both found". */
     found(slot, what, key = null) {
       toasts.push({ key, slot, one: phrase('coop.found', slot ? nameTwo() : nameOne(), what), both: phrase('coop.foundboth', what) });

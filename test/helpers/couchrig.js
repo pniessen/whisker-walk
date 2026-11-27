@@ -98,11 +98,15 @@ export function rig({ areaId = 'neighborhood', profile = 'tv', unlocked = ['tabb
         g.poll(DT, coop.pad);
         if (player.engaged) {
           const a = current.areaData;
+          current.traversal?.update?.(DT, 0, { cat: current.cat, player, session: current }); // the moves of a place that has them (the Rooftops), before the player as main.js runs them
           player.update(DT, a.colliders, a.bounds, a.waters);
           coop.frame?.(DT);
+          current.fair?.update?.(DT, 0, { cat: current.cat, player, session: current }); // the rides of the Fairground, as main.js runs them after player.update (a place that has none: nothing)
+          current.fair?.late?.(DT, 0, { cat: current.cat, player, session: current });
+          current.traversal?.late?.(DT, 0, { cat: current.cat, player, session: current });
           current.clanFight?.update?.(DT, current); // main.js: the fight, after everything that moves the cat
           coop.late?.(DT);
-          current.remotes.update(DT, performance.now() / 1000, a.waters);
+          current.remotes.update(DT, performance.now() / 1000, a.waters, current.fair);
         } else current.clanFight?.update?.(DT, current);
       }
     },
