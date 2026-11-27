@@ -1,3 +1,4 @@
+// DEFAULT: OFF (?jungle=1 turns it on), in a browser and in node tests alike.
 // The Jungle lodge switch. Milestone J1 puts the place in the catalog and on the map, so until its release pass the lodge is OFF for everyone: ?jungle=1 turns it on (the
 // catalog row, its map circle, the Greenhouse's stone ring and the walk are all behind it: src/edition.js areaShown, src/teleport.js liveTeleEnds). The release milestone flips the
 // default to on (?jungle=0 then turns it off), as the Treehouse's and the Crystal Cave's were. Without an address bar (node tests) it stays off unless a test forces it.

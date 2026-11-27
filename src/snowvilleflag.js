@@ -1,3 +1,4 @@
+// DEFAULT: ON in a browser (?snowville=0 turns it off); OFF in node tests unless forced. Deliberately ON.
 // N0 seam: ON by default in a browser; ?snowville=0 turns it off. Nothing visible reads it yet. Without an address bar (node tests) it stays off unless forced.
 let forced = null;
 export function snowvilleOn() {

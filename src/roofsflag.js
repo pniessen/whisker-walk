@@ -1,3 +1,4 @@
+// DEFAULT: OFF (?roofs=1 turns it on); a developer shortcut only, the place itself is unlocked like any other.
 // The Rooftops switch (Rooftops step 2, ruling R1; a developer shortcut since
 // Rooftops step 4, ruling T3).
 //

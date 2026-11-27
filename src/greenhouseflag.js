@@ -1,3 +1,4 @@
+// DEFAULT: ON in a browser (?greenhouse=0 turns it off); OFF in node tests unless forced.
 // RELEASE (2026-11-26): ON for everyone in a browser; ?greenhouse=0 turns it off. Without an address bar (node tests) it stays off unless a test forces it.
 // The Greenhouse switch: ?greenhouse=1 (or a test's setGreenhouse(true)) starts a solo walk there, either edition,
 // never in a room. Until its milestone 4 nothing a child sees offers it. Read at call time, never at import.

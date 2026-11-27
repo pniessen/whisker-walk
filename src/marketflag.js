@@ -1,3 +1,4 @@
+// DEFAULT: OFF (?market=1 turns it on); a developer shortcut only, the place itself is unlocked like any other.
 // The Market Square switch (Market step 1; a developer shortcut since Market
 // step 4, ruling V17).
 //

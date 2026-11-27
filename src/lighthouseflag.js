@@ -1,3 +1,4 @@
+// DEFAULT: OFF (?lighthouse=1 turns it on); a developer shortcut only, the place itself is unlocked like any other.
 // The Lighthouse Point switch (Lighthouse milestone 1; a developer shortcut since milestone 4).
 //
 // Lighthouse Point has its CATALOG.areas row, its world-map place and its gates now, so the switch gates

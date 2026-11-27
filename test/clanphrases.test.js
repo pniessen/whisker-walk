@@ -6,116 +6,31 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, globSync } from 'node:fs';
 import { PHRASE_IDS, phrase, hasPhrase, addPhrases } from '../src/clanphrases.js';
-import { LINES as CATLOGIN_LINES } from '../src/ui/catloginwords.js';
-import { LINES as FRESH_LINES } from '../src/ui/freshcatwords.js';
-import { LINES as LIGHTHOUSE_LINES } from '../src/world/lighthousewords.js';
-import { LINES as GREENHOUSE_LINES } from '../src/world/greenhousewords.js';
-import { LINES as REEF_LINES } from '../src/world/reefwords.js';
-import { LINES as CRYSTAL_LINES } from '../src/world/crystalwords.js';
-import { LINES as SNOWVILLE_LINES } from '../src/world/snowvillewords.js';
-import { LINES as JUNGLE_LINES } from '../src/world/junglewords.js';
-import { SNOWVILLE_FIND_LINES } from '../src/world/snowvillefindwords.js';
-import { LINES as SNOWVILLE_CRITTER_LINES } from '../src/world/snowvillecritterwords.js';
-import { SNOWVILLE_JOB_LINES } from '../src/world/snowvillejobwords.js';
-import { WING_LINES as SNOWVILLE_WING_LINES } from '../src/world/snowvillewingwords.js';
-import { LINES as TREEHOUSE_LINES } from '../src/world/treehousewords.js';
-import { WING_LINES as TREEHOUSE_WING_LINES } from '../src/world/treehousewingwords.js';
-import { LINES as TREEHOUSE_CRITTER_LINES } from '../src/world/treehousecritterwords.js';
-import { TREEHOUSE_JOB_LINES } from '../src/world/treehousejobwords.js';
-import { TREEHOUSE_FIND_LINES } from '../src/world/treehousefindwords.js';
-import { JUNGLE_FIND_LINES } from '../src/world/junglefindwords.js';
-import { LINES as JUNGLE_CRITTER_LINES } from '../src/world/junglecritterwords.js';
-import { FIND_LINES as REEF_FIND_LINES } from '../src/world/reeffindwords.js';
-import { CRYSTAL_FIND_LINES } from '../src/world/crystalfindwords.js';
-import { CRYSTAL_WING_LINES } from '../src/world/crystalwingwords.js';
-import { CRYSTAL_WING_C_LINES } from '../src/world/crystalwingcwords.js';
-import { CART_LINES } from '../src/world/crystalcartwords.js';
-import { RIVER_LINES } from '../src/world/crystalriverwords.js';
-import { CRYSTAL_GROTTO_LINES } from '../src/world/crystalgrottowords.js';
-import { CRYSTAL_SONG_LINES } from '../src/world/crystalsongwords.js';
-import { MOON_STATION_LINES } from '../src/world/moonstationwords.js';
-import { SLED_LINES } from '../src/world/moonsledwords.js';
-import { RELAY_LINES } from '../src/world/moonrelaywords.js';
-import { CRYSTAL_FORGE_LINES } from '../src/world/crystalforgejobwords.js';
-import { CRYSTAL_ERRAND_LINES } from '../src/world/crystalerrandwords.js';
-import { LINES as REEF_ERRAND_LINES } from '../src/world/reeferrandwords.js';
-import { LINES as REEF_LAB_LINES } from '../src/world/reeflabwords.js';
-import { LINES as REEF_RIDE_LINES } from '../src/world/reefridewords.js';
-import { LINES as REEF_DEEP_LINES } from '../src/world/reefdeepwords.js';
-import { LINES as REEF_LAB_LINES } from '../src/world/reeflabwords.js';
-import { LINES as REEF_LIFE_LINES } from '../src/world/reeflifewords.js';
-import { LINES as REEF_LAB_LINES } from '../src/world/reeflabwords.js';
-import { LINES as REEF_WRECK_LINES } from '../src/world/reefwreckwords.js';
-import { LINES as REEF_HUNT_LINES } from '../src/world/reefhuntwords.js';
-import { LINES as REEF_DIVERS_LINES } from '../src/world/reefdiverswords.js';
-import { LINES as CAVE_LIFE_LINES } from '../src/world/cavelifewords.js';
-import { LINES as MOON_LIFE_LINES } from '../src/world/moonlifewords.js';
-import { LINES as MOON_LINES, FLOW_LINES as MOON_FLOW_LINES } from '../src/world/moonwords.js';
 import { STAGE_LINES as MOON_STAGE_LINES } from '../src/world/moonlate.js';
-import { LINES as SKILLBADGE_LINES } from '../src/ui/skillbadgewords.js';
-import { LINES as COOP_LINES } from '../src/coop/words.js';
 import { LINES as TELE_LINES } from '../src/teleui.js';
 import { REGION_LINES } from '../src/regions.js';
 import { PASSPORT_LINES } from '../src/passport.js';
-
-// the My cat sheet's lazy chunk adds its lines when it arrives; the scan below reads src/ for every id it uses
-addPhrases(CATLOGIN_LINES);
-addPhrases(FRESH_LINES); // Start a fresh cat's chunk (src/ui/freshcat.js)
-addPhrases(SKILLBADGE_LINES); // the skill badge strip's chunk (src/ui/skillbadges.js)
-addPhrases(GREENHOUSE_LINES); // (the Greenhouse's chunk adds its own on import: src/world/greenhousewords.js)
-addPhrases(SNOWVILLE_JOB_LINES); // (Tilly's errand lines, milestone V7: src/world/snowvillejobwords.js)
-addPhrases(SNOWVILLE_FIND_LINES); // (Snowville's find lines, milestone V3: src/world/snowvillefindwords.js)
-addPhrases(SNOWVILLE_WING_LINES); // (Snowville's hearth, Lantern Night and clasp, milestone V5: src/world/snowvillewingwords.js)
-addPhrases(SNOWVILLE_CRITTER_LINES); // (Snowville's friendly life, milestone V4: src/world/snowvillecritterwords.js)
-addPhrases(JUNGLE_LINES); // (the Jungle lodge's two weather lines, milestone J1: src/world/junglewords.js)
-addPhrases(SNOWVILLE_LINES); // (Snowville's cheeks line, milestone V1: src/world/snowvillewords.js)
-addPhrases(JUNGLE_FIND_LINES); // (the Jungle's find lines, milestone J3: src/world/junglefindwords.js)
-addPhrases(TREEHOUSE_JOB_LINES); // (Nutmeg's post round, milestone T7: src/world/treehousejobwords.js)
-addPhrases(JUNGLE_CRITTER_LINES); // (the Jungle's friendly life, milestone J4: src/world/junglecritterwords.js)
-addPhrases(TREEHOUSE_FIND_LINES); // (the Treehouse's find lines, milestone T3: src/world/treehousefindwords.js)
-addPhrases(TREEHOUSE_CRITTER_LINES); // (the Treehouse's friendly life, milestone T4: src/world/treehousecritterwords.js)
-addPhrases(TREEHOUSE_WING_LINES); // (the Treehouse's letters, bell, supper and locket, milestone T5: src/world/treehousewingwords.js)
-addPhrases(TREEHOUSE_LINES); // (the Treehouse village's Nutmeg and chapter one, milestone T2: src/world/treehousewords.js)
-addPhrases(CRYSTAL_LINES); // (the Crystal Cave's chunk adds its own on import: src/world/crystalwords.js)
-addPhrases(REEF_LINES); // (the Reef's chunk adds its own on import: src/world/reefwords.js)
-addPhrases(REEF_FIND_LINES); // (and its find lines, milestone R3: src/world/reeffindwords.js)
-addPhrases(CRYSTAL_FIND_LINES); // (the Crystal Cave's find lines, milestone C3: src/world/crystalfindwords.js)
-addPhrases(CRYSTAL_FORGE_LINES); // (Lumi's forge job, milestone C3: src/world/crystalforgejobwords.js)
-addPhrases(CRYSTAL_SONG_LINES); // (the singing chamber's lines, milestone C5: src/world/crystalsongwords.js)
-addPhrases(CRYSTAL_GROTTO_LINES); // (the grotto and forge labels, milestone C2: src/world/crystalgrottowords.js)
-addPhrases(SLED_LINES); // (the Moon sled's lines, milestone M2: src/world/moonsledwords.js)
-addPhrases(RELAY_LINES); // (the Moon's relay arc lines, milestone M3: src/world/moonrelaywords.js)
-addPhrases(MOON_STATION_LINES); // (the Moon's Old Relay Station journal lines, milestone X0: src/world/moonstationwords.js)
-addPhrases(CRYSTAL_WING_C_LINES); // (wing C's journal lines, milestone X0: src/world/crystalwingcwords.js)
-addPhrases(CART_LINES); // (Lumi's cart, milestone C4: src/world/crystalcartwords.js)
-addPhrases(RIVER_LINES); // (the river boat's two lines, milestone C1: src/world/crystalriverwords.js)
-addPhrases(CRYSTAL_WING_LINES); // (the Crystal Cave's wing B lines, milestone C5: src/world/crystalwingwords.js)
-addPhrases(CRYSTAL_ERRAND_LINES); // (and Lumi's errand lines, milestone C7: src/world/crystalerrandwords.js)
-addPhrases(REEF_LAB_LINES); // (the Sealab's hatch, R13: src/world/reeflabwords.js)
-addPhrases(REEF_RIDE_LINES); // (the two mounts, R12: src/world/reefridewords.js)
-addPhrases(REEF_ERRAND_LINES); // (and Marlo's errand lines, milestone R7: src/world/reeferrandwords.js)
-addPhrases(MOON_LIFE_LINES); // (the Moon's robots and light: src/world/moonlifewords.js)
-addPhrases(REEF_LIFE_LINES); // (and the sea life's labels: src/world/reeflifewords.js)
-addPhrases(REEF_LAB_LINES); // (the Sealab's lines: src/world/reeflabwords.js)
-addPhrases(REEF_WRECK_LINES); // (the galleon's lines: src/world/reefwreckwords.js)
-addPhrases(REEF_HUNT_LINES); // (the galleon's hunt: src/world/reefhuntwords.js)
-addPhrases(REEF_DIVERS_LINES); // (the divers, the research ship and the big spotted shark: src/world/reefdiverswords.js)
-addPhrases(CAVE_LIFE_LINES); // (and the cave life's labels: src/world/cavelifewords.js)
-addPhrases(REEF_LAB_LINES); // (the Sealab's hatch and fuses, milestones R13 and R14: src/world/reeflabwords.js)
-addPhrases(REEF_DEEP_LINES); // (and the Deep's soft lines, milestone R8: src/world/reefdeepwords.js)
-addPhrases(COOP_LINES); // couch play's chunk (src/coop/words.js)
-addPhrases(PASSPORT_LINES); // (the passport page's title and empty line, milestone I4: src/passport.js adds its own on import)
-addPhrases(REGION_LINES); // (the regions' names, milestone I0: src/regions.js adds its own on import)
-addPhrases(TELE_LINES); // the teleport gates' chunk (src/teleui.js adds its own on import)
-addPhrases(MOON_LINES); // (the Moon's chunk adds its own on import: src/world/moonwords.js)
-addPhrases(MOON_STAGE_LINES); // (background loading: the one line for a stage still arriving)
-addPhrases(MOON_FLOW_LINES); // (so do the story flow's connective lines, in the same file)
-addPhrases(LIGHTHOUSE_LINES); // (so does Lighthouse Point's chunk: src/world/lighthousewords.js adds its own on import)
 import { RANK_WORDS, OUTSIDE_WORDS, PLACE_WORDS, CLAN_SUFFIX } from '../src/clanwords.js';
 import { contestToast } from '../src/markcontest.js';
 import { BORDER_ASK, borderWords } from '../src/game/borderfight.js';
 import { FIGHT_MOVES } from '../src/fightmoves.js';
 import { literalsIn } from './helpers/serieswords.js';
+
+// Every lazy chunk adds its lines when it arrives; the scan below reads src/ for every id it uses,
+// so the test registers them all up front. Same glob as test/allwords.test.js: every export named
+// *LINES of every src/**/*words.js (clanwords.js and offclanwords.js are the word sets themselves,
+// and marketwords.js's MARKET_LINES are not a phrase table; both skipped below). A new word file is picked up with no edit here.
+const WORD_MODULES = import.meta.glob('../src/**/*words.js', { eager: true });
+for (const [file, mod] of Object.entries(WORD_MODULES)) {
+  if (/\/(off)?clanwords\.js$/.test(file)) continue;
+  if (file.endsWith('/marketwords.js')) continue; // MARKET_LINES are callers that return phrase() text, not phrase ids
+  for (const [name, table] of Object.entries(mod)) if (/LINES$/.test(name)) addPhrases(table);
+}
+// Tables the glob cannot infer, because they live outside a *words.js file (each also adds itself on import):
+addPhrases(MOON_STAGE_LINES); // moonlate.js: background loading, the one line for a stage still arriving
+addPhrases(TELE_LINES); // the teleport gates' chunk (src/teleui.js)
+addPhrases(REGION_LINES); // the regions' names (src/regions.js)
+addPhrases(PASSPORT_LINES); // the passport page's title and empty line (src/passport.js)
 
 const FILES = globSync('src/**/*.js').map((f) => f.split('\\').join('/'));
 const read = (f) => readFileSync(f, 'utf8');
