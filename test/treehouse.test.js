@@ -268,7 +268,7 @@ describe('the two stage slots', () => {
     const a = loadTreehouseStages();
     expect(loadTreehouseStages()).toBe(a);
     expect(await a).toBe(ST);
-    expect(Object.keys(ST.branches)).toEqual(['finds']);
+    expect(Object.keys(ST.branches)).toEqual(['finds', 'critters']);
     expect(ST.lift).toEqual({});
     const area = build(new THREE.Scene());
     expect(area.perches).toHaveLength(P.TREEHOUSE_PERCHES.length);

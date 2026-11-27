@@ -297,11 +297,12 @@ describe('the Canopy Cap\'s four spots', () => {
 
 describe('the six live journal pages', () => {
   afterEach(() => setTreehouse(null));
-  it('th1..th6 are live (named, hinted once the chunk is in), the other eleven stay hidden placeholders', () => {
+  it('th1..th6 are live (named, hinted once the chunk is in), the other eight stay hidden placeholders', () => {
     const th = CRITTER_INFO.filter((c) => /^t[hl]\d$/.test(c.id));
     expect(th).toHaveLength(17);
+    const LIVE = [...TREEHOUSE_PAGE_IDS, 'tl1', 'tl2', 'tl3']; // T4 made the first three life pages live too (test/treehousecritters.test.js)
     for (const c of th) {
-      if (TREEHOUSE_PAGE_IDS.includes(c.id)) { expect(c.later, c.id).toBeFalsy(); expect(c.treehouse).toBe(true); expect(c.hint).toMatch(/\S/); } else expect(c.later, c.id).toBe(true);
+      if (LIVE.includes(c.id)) { expect(c.later, c.id).toBeFalsy(); expect(c.treehouse).toBe(true); expect(c.hint).toMatch(/\S/); } else expect(c.later, c.id).toBe(true);
     }
     expect(th.filter((c) => TREEHOUSE_PAGE_IDS.includes(c.id)).map((c) => c.name)).toEqual(TREEHOUSE_PAGES.map((p) => p[2]));
   });
