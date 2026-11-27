@@ -158,7 +158,8 @@ describe('with the switch on, the core did not move', () => {
     const off = budgetOf(offScene.children, rig);
     const on = budgetOf(core(onScene), rig);
     // today's Moor, as test/budget.test.js counts it
-    expect(off).toEqual({ meshes: 87, casters: 47, triangles: 64120 });
+    // beauty-moor: 64,120 -> 64,870 (+750: flowers, cotton-grass, wool, hoof prints, bog and moss patches, folded into the two dressing meshes)
+    expect(off).toEqual({ meshes: 87, casters: 47, triangles: 64870 });
     expect(on.meshes).toBe(off.meshes);
     expect(on.casters).toBe(off.casters);
     const reach = (scene) => scene.children.filter((c) => REACHING.includes(c.name)).reduce((n, c) => n + trianglesOf(c), 0);
@@ -652,7 +653,7 @@ describe('something to find', () => {
 // counts, merged.
 //
 //                                         meshes  casters  triangles
-//   the Moor today (switch off)               87       47     64,120
+//   the Moor today (switch off)               87       47     64,870 (64,120 before beauty-moor)
 //   step 3, at its worst spot (-10, -65),
 //     by the standing stones                 113       52     69,309
 //   the most meshes anywhere ((0, -55),
@@ -700,7 +701,7 @@ describe('the budget, switch on: the most the Moor puts on screen at once', () =
 
   it('from the spawn, in the south-east, the Moor costs no more than today', () => {
     const here = m.at(moor.SPAWN.x, moor.SPAWN.z, LAYERS);
-    expect(here.triangles).toBeLessThan(64120);
+    expect(here.triangles).toBeLessThan(64870); // beauty-moor: 64,120 -> 64,870
     expect(here.meshes).toBeLessThan(87);
   });
 });
