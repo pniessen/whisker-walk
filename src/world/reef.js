@@ -110,21 +110,35 @@ export function build(scene) {
         const base = createReefStoryLife(ctx); // the light, the kelp, the gauge, Marlo and chapter one (milestone R2)
         const finds = createReefFindsLife(ctx); // the six discoveries (milestone R3)
         const deep = createReefDeepLife({ ...ctx, say: base.say }); // the plankton and the Deep's three soft lines (R8)
-        const guide = createReefGuideLive({ doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, marlo: base.marlo, errand: base.errand, progression: ctx.progression }); // the written guide: goal line, arrow, chip, arrival card
         const sea = createReefSealsLife(ctx); // the seals, octopuses and dolphin family (photo and journal subjects through `spottable`)
         const more = createReefMoreLife(ctx); // jellyfish, clownfish, seahorses, mantas, a whale, moray eels and squid
         const lab = ST.lab.createLabLive({ scene: ctx.scene, reefY: P.reefY, look: P.WATER_LOOK, player: ctx.player, reducedMotion: ctx.reducedMotion, tier: ctx.tier, say: base.say, setPaused: base.setPaused, doc: ctx.doc ?? globalThis.document }); // the hatch and the inside (R13)
-        const prompt = createPromptArbiter([base, lab]); // Marlo's and the errand's offers win; the hatch is the lowest
+        const pr = ctx.progression;
+        const story = ST.lab.createLabStory({ // the fuses, the aquarium's fish and the shy shark (R14); the save and the walk reach it only through `io`
+          scene: ctx.scene, reefY: P.reefY, lab, player: ctx.player, reducedMotion: ctx.reducedMotion, tier: ctx.tier, say: base.say, audio: ctx.audio, Vec3: K.T3.Vector3,
+          io: {
+            reef: () => pr?.state?.reef,
+            commit(next) { if (!pr?.state) return; pr.state.reef = { ...(pr.state.reef ?? {}), lab: next.lab }; pr.addPoints?.(0); },
+            sight(id) { pr?.recordSighting?.(id); },
+            award: (kind, key, text) => ctx.log?.awardOnce(kind, key, text),
+            send: (ev) => ctx.sendEvent?.(ev),
+            mouthFree: () => base.marlo.state.carrying == null,
+          },
+        });
+        const guide = createReefGuideLive({ doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, marlo: base.marlo, errand: base.errand, progression: ctx.progression, lab: story }); // the written guide: goal line, arrow, chip, arrival card
+        const prompt = createPromptArbiter([base, story, lab]); // Marlo's and the errand's offers win, then a fuse's, and the hatch is the lowest
         const wreck = ST.wreck.life?.({ ...ctx, say: base.say, THREE }); // the galleon's flag, journal spot and soft lines (R16)
         return {
           ...base,
           promptAt: prompt.promptAt,
           interact: prompt.interact,
           lab,
+          story,
           guide,
-          spottable: [...sea.spottable, ...more.spottable, ...(wreck?.spottable ?? [])],
-          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); more.update(...a); wreck?.update(...a); lab.update(...a); guide.update(...a); },
-          dispose() { guide.dispose(); wreck?.dispose(); lab.dispose(); more.dispose(); sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
+          credit: (ev) => (ev?.kind === 'fuse' ? story.credit(ev) : base.credit(ev)), // a fuse put in by anyone in the room; every other step is Marlo's
+          spottable: [...sea.spottable, ...more.spottable, ...story.spottable, ...(wreck?.spottable ?? [])],
+          update(...a) { base.update(...a); finds.update(...a); deep.update(...a); sea.update(...a); more.update(...a); wreck?.update(...a); lab.update(...a); story.update(...a); guide.update(...a); },
+          dispose() { guide.dispose(); wreck?.dispose(); story.dispose(); lab.dispose(); more.dispose(); sea.dispose(); deep.dispose(); finds.dispose(); base.dispose(); },
         };
       },
     };

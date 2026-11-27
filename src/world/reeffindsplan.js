@@ -36,8 +36,8 @@ export const REEF_GOLD = Object.freeze([
   Object.freeze({ id: 'gm-reef-1', x: -36, z: -30, y: 0 }),
   Object.freeze({ id: 'gm-reef-2', x: 14, z: -4, y: 1.9 }),
   Object.freeze({ id: 'gm-reef-3', x: 20, z: 6, y: 2.0 }),
-  // R10 stubs: gm-reef-4 is open sand now, moving to the Sealab bunk room (R14); gm-reef-5 is on the galleon cabin's floor (R16). Not in KEEP_OUT on purpose (it would move every plant).
-  Object.freeze({ id: 'gm-reef-4', x: -6, z: -36, y: 0 }),
+  // gm-reef-4: the Sealab's bunk room (R14, reeflabplan.js BUNK_SPOT). gm-reef-5 is on the galleon cabin's floor (R16). Not in KEEP_OUT on purpose (it would move every plant).
+  Object.freeze({ id: 'gm-reef-4', x: 2.4, z: -37.1, y: 0 }),
   Object.freeze({ id: 'gm-reef-5', x: 31.6, z: -33.4, y: 0 }),
 ]);
 // The bubble columns the two floating mice hang in: a thin stack of bubbles from the sand up to a little over the mouse.

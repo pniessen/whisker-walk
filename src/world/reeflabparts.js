@@ -26,6 +26,9 @@ export function useKit(kit) {
   _c = new THREE.Color();
 }
 
+// The same kit for the small drawings of the lab's story (world/reeflabcritters.js): the fuses, the aquarium's fish and the shy shark.
+export const kitOf = () => ({ THREE, mergeGeometries, tone, bx, cy });
+
 export const COL = Object.freeze({
   cream: 0xf0e2c0, teal: 0x4fa6a0, tealDark: 0x2f6f73, brass: 0xc99a3a, navy: 0x2e4a52, deckA: 0xdccfb0, deckB: 0x9fc9c4, wood: 0x9a7348, woodDark: 0x6e5034,
   blue: 0x3b7fc4, yellow: 0xf2c53d, glass: 0x8fd4ee, paper: 0xefe9d6, ceiling: 0xe9dfc6, lamp: 0xffe2a8, porthole: 0x9fe0ff, led: 0xffd27a, ledB: 0x7ee8c8,
