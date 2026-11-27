@@ -127,7 +127,7 @@ describe('the reserved ids', () => {
     expect(fresh({ journal: { ccshow: 2, ccnope: 4 } }).journal).toEqual({ ccshow: 2 });
   });
   it('the three awards have the plan\'s numbers', () => { expect([AWARDS.cavefind, AWARDS.crystalstory, AWARDS.cavejob]).toEqual([12, 40, 25]); });
-  it('couch play is not ready in the cave', () => { expect(COOP_READY.crystal).toBe(false); });
+  it('couch play is ready in the cave (M5d: test/coopm5crystal.test.js)', () => { expect(COOP_READY.crystal).toBe(true); });
   it('the catalog row is free and gate-only, after 2 Docks walks, and the teleport rule says the same', () => {
     expect(CATALOG.areas.crystal).toEqual({ name: 'The Crystal Cave', price: 0, requires: { area: 'docks', walks: 2 }, gate: 'tele' });
     expect(CRYSTAL_NEED_WALKS).toBe(CATALOG.areas.crystal.requires.walks);

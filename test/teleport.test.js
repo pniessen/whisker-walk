@@ -261,11 +261,11 @@ describe('what a gate says (teleStatus)', () => {
   it('room: an online room is no longer refused (I3), either end; the host\'s save decides, nothing else', () => {
     for (const e of ALL) expect(teleStatus(e, state({ park: 9, seaside: 9, docks: 9, farm: 9, greenhouse: 9 }), CATALOG, { inRoom: true }).kind).toBe('go');
   });
-  it('coop: couch play stays out of the gate while the destination\'s (or the host\'s) COOP_READY row is false', () => {
-    expect(COOP_READY.park).toBe(false);
-    expect(COOP_READY.greenhouse).toBe(false);
+  it('coop: couch play stays out of the gate while the destination\'s (or the host\'s) COOP_READY row is false', async () => {
+    await teleKit({ coopReady: () => false }); // both rows are true now (M5d), so the table is handed in closed
     expect(teleStatus(PG, state(), CATALOG, { couch: true })).toMatchObject({ kind: 'coop', lineId: 'tele.coop' });
     expect(teleStatus(GP, state(), CATALOG, { couch: true })).toMatchObject({ kind: 'coop', lineId: 'tele.coop' });
+    await teleKit();
   });
   it('coop: it opens once both places\' rows are true (the host\'s teleKit hands the table in)', async () => {
     await teleKit({ coopReady: (id) => id === 'park' || id === 'greenhouse' });
@@ -276,8 +276,10 @@ describe('what a gate says (teleStatus)', () => {
     expect(teleStatus(PG, state(), CATALOG, { couch: true }).kind).toBe('coop');
     await teleKit();
   });
-  it('couch play is still looked at inside a room', () => {
+  it('couch play is still looked at inside a room', async () => {
+    await teleKit({ coopReady: () => false });
     expect(teleStatus(PG, state(), CATALOG, { inRoom: true, couch: true }).kind).toBe('coop');
+    await teleKit();
   });
 });
 
@@ -368,7 +370,7 @@ describe('the prompt, as the walk reads it every frame', () => {
     expect(got).toEqual(['greenhouse', 'greenhouse']);
   });
   it('couch play: closed with a kind line while the destination\'s COOP_READY row is false', async () => {
-    await teleKit({ couch: () => true });
+    await teleKit({ couch: () => true, coopReady: () => false });
     const { got, prefetch } = calls();
     const p = prompt(walkAt(), { x: PG.x + 1, z: PG.z }, stateOf(newSave()), false, prefetch, true);
     expect(p.prompt.kind).toBe('gate-info');

@@ -90,7 +90,7 @@ describe('the gardener\'s hat is found on both screens or on none', () => {
     for (let i = 0; i < 600; i++) used.add(planFind({ areaId: 'greenhouse', seed: Math.floor(rnd() * 2 ** 32) }).spot.id);
     expect(used.size).toBe(12);
   });
-  it('couch play and rooms stay out until the Greenhouse is ready for two (the table says so)', () => {
-    expect(COOP_READY.greenhouse).toBe(false);
+  it('couch play is ready in the Greenhouse (M5d, the table says so)', () => {
+    expect(COOP_READY.greenhouse).toBe(true);
   });
 });
