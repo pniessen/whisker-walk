@@ -4,11 +4,11 @@ import { CRITTER_INFO, renderJournalHtml } from '../src/journal.js';
 import { JOURNAL_TYPES } from '../src/progression.js';
 
 // the pages a child sees today: the Moon's twelve are drawn only behind ?moon=1 (src/moonpages.js)
-const SHOWN = CRITTER_INFO.filter((c) => !c.moon && !c.greenhouse && !c.reef && !c.crystal);
+const SHOWN = CRITTER_INFO.filter((c) => !c.moon && !c.greenhouse && !c.reef && !c.crystal && !c.later);
 
 describe('CRITTER_INFO', () => {
   it('has all 154 journal pages with kid-friendly entries', () => {
-    expect(CRITTER_INFO).toHaveLength(154); // (the Moon's five Old Relay Station pages on top) (the Moon's six robot-and-light pages on top) (the Crystal Cave's seven life pages on top) (the Reef's ten sea-life pages on top) 14 critters, Appletree Farm's six animals, its four jobs and six finds, the Fairground's five rides, three games and six finds, the Rooftops' six finds, the Market Square's six finds, and Lighthouse Point's six finds and two jobs, the Moon's twelve, the Greenhouse's eight and the Reef's twelve (the last three only behind their flags; the Lighthouse's shown only behind ?lighthouse=1 or once one has a count)
+    expect(CRITTER_INFO).toHaveLength(205); // (51 N0 placeholder pages for Snowville, Treehouse and Jungle, never drawn) (the Moon's five Old Relay Station pages on top) (the Moon's six robot-and-light pages on top) (the Crystal Cave's seven life pages on top) (the Reef's ten sea-life pages on top) 14 critters, Appletree Farm's six animals, its four jobs and six finds, the Fairground's five rides, three games and six finds, the Rooftops' six finds, the Market Square's six finds, and Lighthouse Point's six finds and two jobs, the Moon's twelve, the Greenhouse's eight and the Reef's twelve (the last three only behind their flags; the Lighthouse's shown only behind ?lighthouse=1 or once one has a count)
     for (const entry of CRITTER_INFO) {
       expect(typeof entry.id).toBe('string');
       expect(typeof entry.emoji).toBe('string');
@@ -96,7 +96,7 @@ describe('renderJournalHtml', () => {
       expect(renderJournalHtml({ mnstory: 1 }, 0, 9)).not.toContain('Hello, Earth!');
       setMoon(true);
       expect(renderJournalHtml({ mnstory: 1 }, 0, 9)).toContain('Hello, Earth!');
-      expect(renderJournalHtml({}, 0, 9).match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.filter((c) => !c.greenhouse && !c.reef && !c.crystal).length);
+      expect(renderJournalHtml({}, 0, 9).match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.filter((c) => !c.greenhouse && !c.reef && !c.crystal && !c.later).length);
     } finally {
       setMoon(null);
     }
