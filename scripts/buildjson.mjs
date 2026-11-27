@@ -94,7 +94,7 @@ export const MOON_STAGE_ENTRY_MODULES = Object.freeze({
   moonlate: Object.freeze(['src/world/moonlate.js']), // the late arrivals' own code (draw, fade, wake): fetched with the walk's start, only while a stage is still on its way
 });
 export const MOON_STAGE_GZIP_CEILING_KB = 65;
-export const MOON_TOTAL_GZIP_CEILING_KB = 135;
+export const MOON_TOTAL_GZIP_CEILING_KB = 150; // 135 until the Old Relay Station: its stage adds about 20 kB (121 kB now); stage A stays 65 and is the only download the landing waits for (Reef parity)
 
 /** The staged-downloads helper: { [id], ...stage ids, total }: stage A (the place's own files), each stage's own files beyond stage A, and every file the place downloads. */
 export function stagedDownloads(manifest, id, stageEntries) {
