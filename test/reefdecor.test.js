@@ -9,7 +9,7 @@ const P = await import('../src/world/reefplan.js');
 const { build } = await import('../src/world/reef.js');
 const { decorGeometries } = await import('../src/world/reefdecorparts.js');
 
-const FAMILIES = ['arch', 'fan', 'head', 'sponge', 'anem', 'grass', 'star', 'urchin'];
+const FAMILIES = ['arch', 'pile', 'wood', 'fan', 'head', 'sponge', 'anem', 'grass', 'star', 'urchin', 'shell', 'dollar', 'pebble', 'ripple'];
 
 describe('the Reef seabed decor plan', () => {
   const d = D.scatterDecor();
@@ -53,6 +53,9 @@ describe('the Reef seabed decor plan', () => {
     expect(half).toBeGreaterThan(t.length * 0.4);
     expect(half).toBeLessThan(t.length * 0.6);
     for (const k of t) for (const c of k.tint) expect(c).toBeGreaterThan(0);
+    let max = 0;
+    for (let x = -46; x < 46; x += 1) for (let z = -40; z < 40; z += 1) { const s = D.sandPatch(x, z); max = Math.max(max, s.dark, s.pale); expect(s.dark).toBeGreaterThanOrEqual(0); expect(s.dark).toBeLessThanOrEqual(1); }
+    expect(max).toBeGreaterThan(0.3);
   });
   it('draws two meshes, with the lower rungs a half of each, and nothing taller than a small rock pile', () => {
     const { a, b } = decorGeometries();

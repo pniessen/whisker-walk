@@ -134,6 +134,28 @@ export function decorGeometries() {
     put(it, new THREE.DodecahedronGeometry(tube * 1.8, 0).scale(1, 0.5, 1).translate(-R, 0, 0), it.x, it.z, 0.02, it.yaw, 0, c2); // a foot on each side
     put(it, new THREE.DodecahedronGeometry(tube * 1.8, 0).scale(1, 0.5, 1).translate(R, 0, 0), it.x, it.z, 0.02, it.yaw, 0, c2);
   }
+  for (const it of d.pile) {
+    const stones = D.STONE_TONES[it.zone];
+    const algae = D.ALGAE[it.zone];
+    const n = 3 + Math.floor(it.s * 3);
+    for (let i = 0; i < n; i++) {
+      const ang = it.yaw + i * 2.2;
+      const top = i === n - 1;
+      const r = top ? 0.13 + 0.05 * it.t : 0.16 + 0.12 * ((it.c * (i + 3)) % 7) / 7;
+      const ox = top ? 0 : Math.cos(ang) * 0.27;
+      const oz = top ? 0 : Math.sin(ang) * 0.27;
+      put(it, new THREE.IcosahedronGeometry(r, 0).scale(1.15, 0.58, 0.95).rotateY(ang).translate(ox, top ? 0.2 : r * 0.38, oz), it.x, it.z, -0.02, 0, 0, jit(stones[(it.c + i) % stones.length], it));
+      if (i < 2) put(it, new THREE.OctahedronGeometry(r * 0.8, 0).scale(1, 0.32, 1).translate(ox, (top ? 0.2 : r * 0.38) + r * 0.34, oz), it.x, it.z, -0.02, 0, 0, jit(algae[(it.c + i) % algae.length], it, 2));
+    }
+  }
+  for (const it of d.wood) {
+    const L = 1.0 + 0.8 * it.s;
+    const wood = [0x9a8264, 0xb09a78, 0x7d6a52][it.c % 3];
+    const rz = slopeOf(it.x, it.z, it.yaw, L);
+    put(it, cyl(0.04, 0.07, L, 5).rotateZ(Math.PI / 2), it.x, it.z, 0.05, it.yaw, rz, jit(wood, it));
+    put(it, cyl(0.016, 0.03, 0.45, 4).translate(0, 0.22, 0).rotateZ(-0.7).translate(L * 0.1, 0.03, 0), it.x, it.z, 0.05, it.yaw, rz, jit(wood, it, 0.5));
+    if (it.t > 0.4) put(it, cyl(0.012, 0.026, 0.35, 4).translate(0, 0.17, 0).rotateZ(0.8).translate(-L * 0.2, 0.03, 0), it.x, it.z, 0.05, it.yaw, rz, jit(wood, it, 0.5));
+  }
   for (const it of d.fan) {
     const [c1, c2] = pairOf(D.FAN_PAIRS, it);
     const sc = 0.4 + 0.45 * it.s;
@@ -169,6 +191,26 @@ export function decorGeometries() {
   for (const it of d.star) {
     const tones = D.STAR_TONES[it.zone];
     put(it, starGeo(0.1 + 0.08 * it.s, tones[it.c % tones.length]), it.x, it.z, 0.012, it.yaw, 0, null);
+  }
+  for (const it of d.shell) {
+    const tone = D.SHELL_TONES[it.c % D.SHELL_TONES.length];
+    if (it.c % 2) put(it, fanGeo(0.06 + 0.04 * it.s, tone, nudge(tone, 0, -0.1, -0.1), 6, Math.PI * 0.8).rotateX(-Math.PI / 2 + 0.3), it.x, it.z, 0.025, it.yaw, 0, null);
+    else put(it, new THREE.ConeGeometry(0.045, 0.14, 5).rotateZ(Math.PI / 2 - 0.2), it.x, it.z, 0.04, it.yaw, 0, tone);
+  }
+  for (const it of d.dollar) {
+    put(it, new THREE.CircleGeometry(0.09 + 0.03 * it.s, 8).rotateX(-Math.PI / 2), it.x, it.z, 0.035, 0, 0, 0xe9dcc0);
+    put(it, new THREE.CircleGeometry(0.05, 5).rotateX(-Math.PI / 2).translate(0, 0.006, 0), it.x, it.z, 0.035, it.yaw, 0, 0xc4b392);
+  }
+  for (const it of d.pebble) {
+    const tones = D.STONE_TONES[it.zone];
+    const r = 0.04 + 0.07 * it.s;
+    put(it, new THREE.OctahedronGeometry(r, 0).scale(1, 0.5, 1 + it.t * 0.5), it.x, it.z, r * 0.15, it.yaw, 0, jit(tones[it.c % tones.length], it));
+  }
+  for (const it of d.ripple) {
+    const L = 0.9 + 1.1 * it.s;
+    const ry = it.pyaw + (it.t - 0.5) * 0.25;
+    const rz = slopeOf(it.x, it.z, ry, L);
+    put(it, cyl(0.07, 0.07, L, 4).rotateZ(Math.PI / 2).scale(1, 0.32, 1), it.x, it.z, 0.0, ry, rz, 0xf3e5b5);
   }
   return { a, b };
 }

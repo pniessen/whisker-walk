@@ -177,6 +177,8 @@ export function scatterDecor() {
   const placed = []; // the big things keep clear of each other (and the seagrass keeps clear of them)
   const out = {};
   out.arch = scatterFamily('arch', { n: 6, sep: 4.5, rad: 0.1, lo: 1, hi: 1, foot: 1.0, placed }).items;
+  out.pile = scatterFamily('pile', { n: 24, sep: 4, rad: 0.2, lo: 1, hi: 1, foot: 0.8, placed }).items;
+  out.wood = scatterFamily('wood', { n: 9, sep: 6, rad: 0.2, lo: 1, hi: 1, foot: 1.0, placed }).items;
   out.fan = scatterFamily('fan', { n: 16, sep: 4, rad: 2.2, lo: 1, hi: 4, foot: 0.55, placed }).items;
   out.head = scatterFamily('head', { n: 13, sep: 3.5, rad: 1.8, lo: 2, hi: 5, foot: 0.4, placed }).items;
   out.sponge = scatterFamily('sponge', { n: 12, sep: 4, rad: 1.4, lo: 2, hi: 4, foot: 0.35, placed }).items;
@@ -188,6 +190,10 @@ export function scatterDecor() {
   out.grassPatches = grass.patches;
   out.star = scatterFamily('star', { n: 16, sep: 4, rad: 1.2, lo: 1, hi: 2, foot: 0.2 }).items;
   out.urchin = scatterFamily('urchin', { n: 11, sep: 4, rad: 1.2, lo: 1, hi: 3, foot: 0.2 }).items;
+  out.shell = scatterFamily('shell', { n: 22, sep: 3, rad: 1.2, lo: 1, hi: 3, foot: 0.12 }).items;
+  out.dollar = scatterFamily('dollar', { n: 12, sep: 3, rad: 1.2, lo: 1, hi: 3, foot: 0.12 }).items;
+  out.pebble = scatterFamily('pebble', { n: 28, sep: 2.6, rad: 1.1, lo: 3, hi: 7, foot: 0.1 }).items;
+  out.ripple = scatterFamily('ripple', { n: 14, sep: 5, rad: 0.7, lo: 3, hi: 4, foot: { r: 0.9 }, placed: null }).items;
   cached = out;
   return out;
 }
