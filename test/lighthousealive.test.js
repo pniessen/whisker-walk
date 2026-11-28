@@ -51,7 +51,7 @@ describe('the lighthouse alive layer', () => {
     const col = alive.objects[1].geometry.attributes.color;
     alive.update(0.03, 1, cam, 0.5, 0);
     const n = alive.objects[1].geometry.drawRange.count;
-    const TAIL = 4 * 60 + 3 * 18 + 12; // pass three's rings, mist and ship come after the cloud glow
+    const TAIL = 3 * 18 + 12; // pass three's mist and ship come after the cloud glow (her rings and the door's glow are packed after them only while in use)
     const lastFan = () => { let s = 0; for (let i = n - TAIL - 24; i < n - TAIL; i++) s += col.getX(i); return s; };
     expect(lastFan()).toBe(0);
     alive.update(0.03, 1, cam, 0.5, 1);
@@ -73,30 +73,27 @@ describe('the lighthouse alive layer', () => {
     for (let i = 0; i < steps; i++) alive.update(1 / 30, from + i / 30, cam, 0, 0, pos(i));
   };
   const brightness = (o, from, to) => { const col = o.geometry.attributes.color; let sum = 0; for (let i = from; i < to; i++) sum += col.getX(i); return sum; };
-  it('rings of foam spread where she wades, and fade away', () => {
+  it('rings of foam spread where she wades, and fade away (written only while they live: the draw range grows, then shrinks back)', () => {
     const { alive, cam } = rig();
     const fx = alive.objects[1];
-    const n = fx.geometry.drawRange.count;
-    const ringsFrom = n - 12 - 3 * 18 - 4 * 60;
+    alive.update(1 / 30, 0, cam, 0, 0, { x: 5, y: 0, z: 30 });
+    const n0 = fx.geometry.drawRange.count;
     walkIn(alive, cam, 40);
-    expect(brightness(fx, ringsFrom, ringsFrom + 240)).toBeGreaterThan(0.5);
+    expect(fx.geometry.drawRange.count).toBeGreaterThan(n0);
+    expect(brightness(fx, n0, n0 + 60)).toBeGreaterThan(0.5);
     for (let i = 0; i < 90; i++) alive.update(1 / 30, 2 + i / 30, cam, 0, 0, { x: 5, y: 0, z: 30 });
-    expect(brightness(fx, ringsFrom, ringsFrom + 240)).toBe(0);
+    expect(fx.geometry.drawRange.count).toBe(n0);
   });
   it('wet paws leave prints on the dry sand that fade, and dry sand with dry paws leaves none', () => {
     const wet = rig();
     walkIn(wet.alive, wet.cam, 30);
     for (let i = 0; i < 40; i++) wet.alive.update(1 / 30, 1 + i / 30, wet.cam, 0, 0, { x: POOL.x + 4 + i * 0.1, y: 0, z: POOL.z });
-    const m = wet.alive.objects[2];
-    const alphaAt = () => { let s = 0; const a = m.geometry.attributes.color; for (let i = 0; i < 8 * 12; i++) s += a.getW(i); return s; };
-    expect(alphaAt()).toBeGreaterThan(0.5);
+    expect(wet.alive.printVerts).toBeGreaterThan(0);
     for (let i = 0; i < 300; i++) wet.alive.update(1 / 30, 2.4 + i / 30, wet.cam, 0, 0, { x: 5, y: 0, z: 30 });
-    expect(alphaAt()).toBe(0);
+    expect(wet.alive.printVerts).toBe(0);
     const dry = rig();
     for (let i = 0; i < 40; i++) dry.alive.update(1 / 30, i / 30, dry.cam, 0, 0, { x: 0 + i * 0.1, y: 0, z: 36 });
-    const a = dry.alive.objects[2].geometry.attributes.color;
-    let s = 0; for (let i = 0; i < 8 * 12; i++) s += a.getW(i);
-    expect(s).toBe(0);
+    expect(dry.alive.printVerts).toBe(0);
   });
   it('running puts the gulls up, and they settle again', () => {
     const { alive, cam } = rig();
@@ -110,9 +107,7 @@ describe('the lighthouse alive layer', () => {
     const { alive, cam } = rig({ reducedMotion: true });
     walkIn(alive, cam, 40);
     for (let i = 0; i < 40; i++) alive.update(1 / 30, i / 30, cam, 0, 0, { x: POOL.x + 4 + i * 0.1, y: 0, z: POOL.z });
-    const m = alive.objects[2].geometry.attributes.color;
-    let s = 0; for (let i = 0; i < 8 * 12; i++) s += m.getW(i);
-    expect(s).toBe(0);
+    expect(alive.printVerts).toBe(0);
     expect(Math.max(...alive.gulls.map((x) => x.scare))).toBe(0);
   });
   it('the low tier has fewer rings and prints and no mist or ship', () => {

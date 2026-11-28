@@ -89,7 +89,7 @@
   if (PLACE) {
     const { build } = await import('/src/world/lighthouse.js');
     const { applyDusk, duskEnv, tintDuskLawn } = await import('/src/render/dusk.js');
-    area = build(scene, { season: params.get('season') });
+    area = build(scene, { season: params.get('season'), hour: params.get('hour') });
     const look = applyDusk({ scene, sun, fill, areaData: area });
     tintDuskLawn({ ground: scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint)), grass: null, look });
     scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
@@ -363,6 +363,11 @@
     lb4_cottage: { at: [-22, 2], face: [-0.5, -1], secs: 0, lit: true, warm: 6 },
     lb4_bench: { at: [-14, -2], face: [0.1, -1], secs: 0, lit: true, warm: 6, keepCat: true, cam: { pos: [-9, 8.2, 2], look: [-12, 6.3, -6], fov: 55 } },
     lb4_door: { at: [-22, 2], face: [-0.5, -1], secs: 0, lit: true, warm: 6, keepCat: true, cam: { pos: [-24.5, 8.2, -0.6], look: [-28.2, 6.2, -5.4], fov: 55 } },
+    // beauty pass 5 (2026-11-28): the little lives, the daily rhythm (?hour=6.5|12|18.5|23) and the tower door's glow
+    lb5_arrival: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 6 },
+    lb5_creature: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 6, keepCat: true, cam: { pos: [14.5, 1.5, 36.5], look: [19.5, 1.2, 30], fov: 62 } },
+    lb5_bay: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 6, keepCat: true, cam: { pos: [29, 1.5, 40], look: [44, 0.6, 31], fov: 62 } },
+    lb5_door: { at: [-14, -12], face: [-0.8, -0.7], secs: 0, lit: true, warm: 6 },
     card1: { at: [-6, 14], face: [-1, 0], secs: 0, keepCat: true, cam: { pos: [6, 7, 20], look: [-22, 10, -14], fov: 55 } },
     card2: { at: [-14, 9], face: [-1, -0.3], secs: 0, keepCat: true, cam: { pos: [-2, 9, 14], look: [-24, 11, -20], fov: 50 } },
     card3: { at: [-12, -4], face: [-1, -0.4], secs: 0, keepCat: true, cam: { pos: [-1, 4.8, 3], look: [-23, 12, -20], fov: 56 } },
