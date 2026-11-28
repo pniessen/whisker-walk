@@ -85,7 +85,7 @@ export const STORY_TEXT = Object.freeze({
   },
   greenhouse: {
     title: 'The Gardener’s Jobs',
-    intro: ['A warm, quiet garden under glass. The gardener could use a helping paw.'],
+    intro: ['A warm, quiet garden under glass. The gardener could use a helping paw.', 'Two jobs wait at the potting bench: find the seed packets, and water the pots with a little cloud over them.'],
     next: 'Next: {job}',
     count: '{n} of {total} jobs done.',
     jobs: {

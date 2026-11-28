@@ -25,6 +25,8 @@ export const LINES = Object.freeze({
   'greenhouse.intro1': 'Welcome to the Greenhouse! A warm, quiet garden under glass.',
   'greenhouse.intro2': 'Look around: butterflies, a pond, rooms to explore.',
   'greenhouse.intro3': 'Try the seed job at the potting bench and the watering job.',
+  'greenhouse.arrive': 'Two jobs for you at the potting bench: find the seed packets and water the thirsty plants.',
+  'greenhouse.can.hint': 'A cloud means a thirsty pot. Carry the can to it.',
   // the seed job: the gardener's lost packets, the count, the end, the seed tray's prompt and the sprouts
   'greenhouse.seed.offer': 'The gardener’s seed packets blew away! Five of them are lying about. 🌱',
   'greenhouse.seed.found': (n) => `A seed packet! ${n} of 5. 🌱`,

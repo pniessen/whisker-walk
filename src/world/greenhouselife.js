@@ -152,6 +152,7 @@ export function createGreenhouseLife(ctx) {
   let sprayAt = -1;
   let sprayPot = null;
   let canOffered = false;
+  let arrivedSaid = false;
   let allWatered = false;
   let target = null; // what the action button would do now: { kind, pot? }
 
@@ -198,6 +199,7 @@ export function createGreenhouseLife(ctx) {
         jobDone('seeds', 'ghjobseeds', 'greenhouse-seed-sown', phrase('greenhouse.seed.sown'));
       } else if (t.kind === 'can') {
         held = true;
+        say('greenhouse-can-hint', phrase('greenhouse.can.hint')); // once a walk: what the little cloud means
       } else if (t.kind === 'water') {
         t.pot.watered = true;
         t.pot.perkAt = clock;
@@ -259,6 +261,8 @@ export function createGreenhouseLife(ctx) {
             say(`greenhouse-seed-${i}`, seeds >= SEEDS ? phrase('greenhouse.seed.all') : phrase('greenhouse.seed.found', seeds));
           }
         }
+        // arriving away from the bench: one plain line says what the jobs are and where (the guide's ring already points at the bench until she has been near it)
+        if (!arrivedSaid) { arrivedSaid = true; if (dist(catPos, P.POTTING) >= OFFER_R) say('greenhouse-arrive', phrase('greenhouse.arrive')); }
         // the offers: the seed note and the can, said once, within OFFER_R of the bench
         if (!offered && dist(catPos, P.POTTING) < OFFER_R) { offered = true; say('greenhouse-seed-offer', phrase('greenhouse.seed.offer')); }
         if (!canOffered && offered && dist(catPos, P.POTTING) < OFFER_R * 0.6) { canOffered = true; say('greenhouse-can-offer', phrase('greenhouse.can.offer')); }

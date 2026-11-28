@@ -21,6 +21,10 @@ export const LINES = Object.freeze({
   'snowville.hill.got': 'Carry the candle down to the lantern at the foot of the sled hill!',
   'snowville.pond.find': 'Look for a little glint on a stump by the pond.',
   'snowville.hill.find': 'Look for a little glint on the rock at the top of the sled hill.',
+  // plain first-time hints (said once per step on a walk, never saved)
+  'snowville.hint.spark': 'Find the glowing candle spark and pick it up.',
+  'snowville.hint.carry': 'Carry it to a lantern.',
+  'snowville.hint.near': 'Press the action button to light the lantern.',
   'snowville.lantern.lit': `The lantern glows! ${T} twirls with joy.`,
 });
 addPhrases(LINES);
