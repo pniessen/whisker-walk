@@ -197,6 +197,24 @@ describe('createPerfHud', () => {
     Object.assign(adapter.status, { cap30: false });
   });
 
+  it('names the bottom rung and its settings row', () => {
+    hud.setEnabled(true);
+    const bare = { ...session, useComposer: false, tier: { name: 'low', label: 'bare', shadowMapSize: 0, postFx: false, normalMaps: false } };
+    adapter.bareNow = () => true;
+    Object.assign(adapter.status, { mode: 'auto', rung: 7, startRung: 7, startReason: 'device', cap30: true, change: '' });
+    hud.frameStart(1000, bare);
+    hud.frameEnd(bare, 1002);
+    expect(line(2)).toBe('tier bare · setting auto · touch no');
+    expect(line(4)).toBe('auto rung bare (lite, fewer pixels, no sparkle effects) + 30 fps cap · start bare (device)');
+    expect(line(5)).toMatch(/· bare: sparkle effects off, fog ≤ 85 m, no edge smoothing$/);
+    Object.assign(adapter.status, { mode: 'forced' });
+    hud.frameStart(1600, bare);
+    hud.frameEnd(bare, 1602);
+    expect(line(4)).toBe('forced rung bare (lite, fewer pixels, no sparkle effects) + 30 fps cap (?rung)');
+    delete adapter.bareNow;
+    Object.assign(adapter.status, { mode: 'auto', rung: 0, startRung: 0, startReason: 'top', cap30: false });
+  });
+
   it('prints the device profile from the adapter, live', () => {
     hud.setEnabled(true);
     hud.frameStart(1000, session);

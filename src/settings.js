@@ -48,10 +48,10 @@ const HOLIDAY_DECOR = ['auto', 'christmas', 'hanukkah', 'off'];
 
 // Resolved into a render tier by src/render/quality.js (resolveQuality) —
 // 'auto' starts every device on the high rung and adapts to its frame times
-// (game/adaptquality.js; prefers-reduced-motion stays low), 'high'/'low'
+// (game/adaptquality.js; prefers-reduced-motion stays low), 'high'/'low'/'bare'
 // force a tier and turn adaptation off. Applied at walk start, so a change
 // here takes effect on the next walk, not live.
-const QUALITY = ['auto', 'high', 'low'];
+const QUALITY = ['auto', 'high', 'low', 'bare'];
 
 // A whole step inside the zoom range, or the fallback. Junk (a string, a
 // fraction, an out-of-range number from some future build) gives the

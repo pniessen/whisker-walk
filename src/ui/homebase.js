@@ -780,6 +780,7 @@ export function createHomeBase({ players = null, progression, album, onStartWalk
               <option value="auto" ${s.quality === 'auto' ? 'selected' : ''}>Auto</option>
               <option value="high" ${s.quality === 'high' ? 'selected' : ''}>High detail</option>
               <option value="low" ${s.quality === 'low' ? 'selected' : ''}>Low detail</option>
+              <option value="bare" ${s.quality === 'bare' ? 'selected' : ''}>Smoothest (older iPads)</option>
             </select>
           </label>
         </div>${usageHtml(progression.state.usage, { visits: progression.state.visits, walks: Object.values(progression.state.walks ?? {}).reduce((a, b) => a + asFiniteNonNeg(b, 0), 0) })}

@@ -111,12 +111,15 @@ describe('startRungFor — the starting-rung table (estimates until real reading
     expect(start('iPhone30,2', 12)).toBe(0);
     expect(start('', 8)).toBe(0);
   });
-  it('A10-class iPads start at LOW: the iPad 7th generation, the weakest target', () => {
-    expect(start('iPad7,11', 2.9)).toBe(3);
-    expect(start('iPad7,12', 2.9)).toBe(3);
-    expect(start('iPad7,5', 1.9)).toBe(3);  // iPad 6th generation
-    expect(start('iPad7,3', 3.7)).toBe(3);  // iPad Pro 10.5 (A10X): same row, on purpose
-    expect(start('iPad6,11', 1.9)).toBe(3); // older still
+  it('A10-class iPads under 4 GB start on the bottom rung (7): the measured iPad7,11 ran lite at 48.5 ms', () => {
+    expect(start('iPad7,11', 2.9)).toBe(7);
+    expect(start('iPad7,12', 2.9)).toBe(7);
+    expect(start('iPad7,5', 1.9)).toBe(7);  // iPad 6th generation
+    expect(start('iPad6,11', 1.9)).toBe(7); // older still
+  });
+  it('an A10X iPad with 4 GB (the iPad Pro 10.5) and the old iPhones stay on LOW', () => {
+    expect(start('iPad7,3', 3.7)).toBe(3);
+    expect(start('iPad7,1', 3.7)).toBe(3);
     expect(start('iPhone9,3', 1.9)).toBe(3);
   });
   it('A11 and A12 start on rung 2', () => {
@@ -144,19 +147,26 @@ describe('startRungFor — the starting-rung table (estimates until real reading
     // A "4 GB" device reports about 3.7: not under 4 GB.
     expect(start('iPad13,1', 3.7)).toBe(0);
     // ...and it never RAISES a rung the chip already put lower.
-    expect(start('iPad7,11', 2.9)).toBe(3);
+    expect(start('iPad7,11', 2.9)).toBe(7);
+  });
+  it('the rows around the bottom rung are unchanged: iPad8, iPad11, iPad12, iPad13 and iPhone19', () => {
+    expect(start('iPad12,2', 2.9)).toBe(1);
+    expect(start('iPad13,16', 7.6)).toBe(0);
+    expect(start('iPad11,6', 2.9)).toBe(2);
+    expect(start('iPad8,9', 5.6)).toBe(1);
+    expect(start('iPhone19,2', 11.2)).toBe(0);
+    expect(start('iPhone12,1', 3.7)).toBe(1);
   });
   it('memory unknown leaves the chip\'s row alone', () => {
     expect(startRungFor({ model: 'iPad13,1' })).toBe(0);
-    expect(startRungFor({ model: 'iPad7,11' })).toBe(3);
+    expect(startRungFor({ model: 'iPad7,11' })).toBe(7);
   });
-  it('never starts below LOW: the rungs under it are earned by real frame times', () => {
-    for (const model of ['iPad1,1', 'iPad7,11', 'iPhone1,1', 'iPhone9,1']) {
-      expect(start(model, 0.5)).toBeLessThanOrEqual(3);
-    }
+  it('only an old iPad ever starts on the bottom rung; a phone never starts below LOW', () => {
+    for (const model of ['iPhone1,1', 'iPhone9,1']) expect(start(model, 0.5)).toBeLessThanOrEqual(3);
+    for (const model of ['iPad1,1', 'iPad7,11']) expect(start(model, 0.5)).toBe(7);
   });
   it('heat and Low Power Mode are not part of the table', () => {
-    expect(startRungFor({ ...iPad7, thermal: 'critical', lowPower: true })).toBe(3);
+    expect(startRungFor({ ...iPad7, thermal: 'critical', lowPower: true })).toBe(7);
     expect(startRungFor({ model: 'iPhone18,1', memoryGB: 11.2, thermal: 'critical', lowPower: true })).toBe(0);
   });
 });

@@ -59,7 +59,8 @@ import { createNearby, pickBridge, NEARBY_EVENT } from './game/nearby.js';
 import { createHomebaseCloud } from './game/homebasecloud.js';
 import { createComposerRig } from './game/composer.js';
 import { createQualityAdapter } from './game/adaptquality.js';
-import { parseForcedRung } from './render/quality.js';
+import { parseForcedRung, BARE } from './render/quality.js';
+import { wantsNoAntialias, clampFog } from './render/baregate.js';
 import { readDeviceProfile, DEVICE_EVENT } from './render/deviceprofile.js';
 import { releaseThumbnails } from './thumbnails.js';
 import { createHaptics, hapticForDiscovery } from './haptics.js';
@@ -140,7 +141,8 @@ const overlay = document.getElementById('overlay');
 
 let renderer = null;
 try {
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  // The bottom rung builds its canvas without anti-aliasing (render/baregate.js): it cannot be switched off later.
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: !wantsNoAntialias({ search: location.search, storage: window.localStorage, device: readDeviceProfile() }) });
 } catch (err) {
   renderer = null;
   note('gl', err);
@@ -1778,6 +1780,7 @@ function init() {
     // canvas.width, which clears the buffer, so doing it after renderFrame()
     // would present a blank frame (a visible flash at a step-down).
     qualityAdapter.frame(session, performance.now());
+    if (session && qualityAdapter.bareNow()) clampFog(session.scene, BARE.fogFar);
     renderFrame();
     perfHud.frameEnd(session, performance.now());
     perfLog?.end();

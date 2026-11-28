@@ -93,6 +93,7 @@ import { moveAbilities } from '../traversal.js';
 import { groundOf } from '../ground.js';
 import { isFearless } from '../dogs.js';
 import { createBorderMarks } from '../render/bordermarks.js';
+import { setBareGate } from '../render/baregate.js';
 import { addBorderDressing } from '../world/borderpost.js';
 import { liveEndsFor, endById } from '../gateways.js';
 import { postsFor, postById, postArrival } from '../borderposts.js';
@@ -773,6 +774,8 @@ export function createWalkLifecycle({
     // walk gets and every later walk inherits. Setting it after the build
     // would give the first walk of a session the wrong one, permanently.
     setTextureTier(tier);
+    // The bottom rung: the pooled Points life is not drawn (render/baregate.js). Before the build, so every Points made after it is gated; adaptquality turns it off on any other rung.
+    if (tier.bare) setBareGate(THREE.Points, true);
     // The shared per-walk stream. In a room walk every client seeds it from
     // the same roomSeed, so co-walkers agree about the world only as long as
     // they take the SAME DRAWS IN THE SAME ORDER. Solo it is Math.random and

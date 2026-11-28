@@ -9,7 +9,7 @@
 // warm-up skips shader compiles. Reasons in full, and the retry rule, in
 // docs/superpowers/plans/2026-10-25-whisker-walk-v21-stream4-adaptive.md.
 
-import { CAP_RUNG } from './quality.js';
+import { BARE_RUNG } from './quality.js';
 
 export const ADAPT = Object.freeze({
   warmupMs: 5000,  // walk start compiles shaders and uploads textures
@@ -185,10 +185,17 @@ export function createFrameGovernor(opts = ADAPT) {
   };
 }
 
+// The step past lite onto the bottom rung (quality.js BARE). Taken in place of
+// "frames already steady at 30 or slower, so the cap is skipped" only when the
+// frames are not merely steady at 30 but well short of it: a display or power
+// mode held at 30 shows a 33 ms mean, a device that cannot keep up with lite
+// shows 40 ms and more (the measured A10: 48.5 ms). 38 ms sits between them.
+export const BARE_STEP = Object.freeze({ minMeanMs: 38 });
+
 // Per-device memory: the rung this device settled on and the retry clock.
-// `rung` runs 0 to CAP_RUNG: the six tiers, then the lite rung with the 30 fps
-// cap on. A value written before the lower rungs existed (0 to 3) reads as
-// it always did.
+// `rung` runs 0 to BARE_RUNG: the six tiers, the lite rung with the 30 fps
+// cap on (6), then the bare bottom rung (7). A value written before the lower
+// rungs existed (0 to 3, or 6 at most) reads as it always did.
 export const MEMORY_KEY = 'whisker-walk-adapt';
 export const DEFAULT_MEMORY = Object.freeze({
   rung: 0, steppedAt: 0, walks: 0, waitDays: 7, retrying: false,
@@ -206,7 +213,7 @@ function sanitize(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ...DEFAULT_MEMORY };
   const d = DEFAULT_MEMORY;
   return {
-    rung: isNum(raw.rung) ? clamp(Math.trunc(raw.rung), 0, CAP_RUNG) : d.rung,
+    rung: isNum(raw.rung) ? clamp(Math.trunc(raw.rung), 0, BARE_RUNG) : d.rung,
     steppedAt: isNum(raw.steppedAt) ? Math.max(0, raw.steppedAt) : d.steppedAt,
     walks: isNum(raw.walks) ? Math.max(0, Math.trunc(raw.walks)) : d.walks,
     waitDays: isNum(raw.waitDays) ? clamp(raw.waitDays, MIN_WAIT_DAYS, MAX_WAIT_DAYS) : d.waitDays,
@@ -248,7 +255,11 @@ export function writeMemory(storage, mem) {
 }
 
 // Which rung this walk starts on, and the memory to write back.
-export function planWalkStart(mem, nowMs) {
+// floorRung: the highest rung the retry may climb to (0 for most devices).
+// A device whose table row is the bottom rung (render/deviceprofile.js: A10
+// and older iPads) is held there, because its table row came from a reading
+// of a real one: climbing back to lite would only repeat five walks of 20 fps.
+export function planWalkStart(mem, nowMs, floorRung = 0) {
   const next = { ...mem };
   // A clock that went backwards (or a hand-edited value) must not stretch the
   // wait: the wait starts now.
@@ -262,7 +273,7 @@ export function planWalkStart(mem, nowMs) {
   }
   let reason = next.rung === 0 ? 'top' : 'remembered';
   if (
-    next.rung > 0 &&
+    next.rung > floorRung &&
     next.walks >= RETRY_WALKS &&
     nowMs - next.steppedAt >= next.waitDays * DAY_MS
   ) {

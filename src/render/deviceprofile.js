@@ -15,7 +15,7 @@
 // everything here answers the way the game behaved before the bridge existed:
 // no profile, start at the top, nothing temporary.
 
-import { LOW_RUNG } from './quality.js';
+import { LOW_RUNG, BARE_RUNG } from './quality.js';
 import { note } from '../diagnostics.js';
 
 export const DEVICE_GLOBAL = '__whiskerDevice';
@@ -93,8 +93,9 @@ const UNDER_4GB = 3.4;
 // The model identifier's first number is, near enough, the chip generation:
 //
 //   chip          identifiers                               starts on
-//   A10 or older  iPad up to 7,x (iPad 6th and 7th gen,     3  LOW
-//                 iPad Pro 10.5); iPhone up to 9,x
+//   A10 or older  iPad up to 7,x (iPad 6th and 7th gen,     7  BARE (an iPad with 4 GB
+//                 iPad Pro 10.5)                               or more keeps 3)
+//                 iPhone up to 9,x                          3  LOW
 //   A11           iPhone10,x                                2
 //   A12           iPad11,x (iPad 8th gen, Air 3, mini 5);   2
 //                 iPhone11,x
@@ -119,7 +120,10 @@ export function startRungFor(profile) {
   if (family) {
     const { kind, major } = family;
     if (kind === 'iPad') {
-      if (major <= 7) rung = LOW_RUNG;
+      // The measured iPad7,11 (A10, 2.9 GB) ran lite at a 48.5 ms median.
+      // An older iPad whose memory is not under 4 GB (the 10.5 inch Pro has
+      // 4) keeps LOW; with memory unknown the identifier is what is known.
+      if (major <= 7) rung = p.memoryGB === null || p.memoryGB < UNDER_4GB ? BARE_RUNG : LOW_RUNG;
       else if (major === 8) rung = 1;
       else if (major === 11) rung = 2;
       else if (major === 12) rung = 1;

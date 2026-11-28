@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { createQualityAdapter } from '../src/game/adaptquality.js';
-import { LADDER } from '../src/render/quality.js';
+import { LADDER, BARE } from '../src/render/quality.js';
 import { MEMORY_KEY } from '../src/render/adaptive.js';
 
 // Fakes: a renderer that remembers its pixel ratio, a composer rig of spies,
@@ -515,7 +515,8 @@ describe('below LOW: the shadow-light and lite rungs', () => {
     const { adapter } = setup({ memory: atLow });
     adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 });
     expect(() => run(adapter, { useComposer: false }, 0, 30_000, 40)).not.toThrow();
-    expect(adapter.status.rung).toBe(5);
+    // 40 ms every frame is steady and slow: past lite onto the bottom rung.
+    expect(adapter.status.rung).toBe(7);
   });
 
   it('?rung=4 and ?rung=5 hold those rungs', () => {
@@ -644,7 +645,11 @@ describe('the 30 fps cap, the last resort', () => {
 
 // The iPhone and iPad app's device profile (render/deviceprofile.js). Without
 // one (every test above) nothing here applies.
-const iPad7 = { model: 'iPad7,11', memoryGB: 2.9, thermal: 'nominal', lowPower: false };
+// The iPad Pro 10.5 inch (A10X, 4 GB): an older iPad that is NOT on the bottom
+// rung, so the ordinary ladder is exercised from LOW. The measured iPad7,11
+// (A10, 2.9 GB) is `iPad7Measured` and starts on the bottom rung.
+const iPad7 = { model: 'iPad7,3', memoryGB: 3.7, thermal: 'nominal', lowPower: false };
+const iPad7Measured = { model: 'iPad7,11', memoryGB: 2.9, thermal: 'nominal', lowPower: false };
 const begin = (adapter, nowMs = 0) => adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs });
 
 describe('the device profile: where a device with no memory starts', () => {
@@ -652,7 +657,7 @@ describe('the device profile: where a device with no memory starts', () => {
     const { adapter, renderer, storage } = setup({ device: iPad7 });
     expect(begin(adapter)).toBe(LADDER[3]);
     expect(adapter.status).toMatchObject({ rung: 3, startRung: 3, startReason: 'device' });
-    expect(adapter.status.device).toBe('iPad7,11 · 2.9 GB · thermal nominal · low power off');
+    expect(adapter.status.device).toBe('iPad7,3 · 3.7 GB · thermal nominal · low power off');
     expect(renderer.getPixelRatio()).toBe(1.5);
     expect(stored(storage)).toEqual({ rung: 3, steppedAt: 0, walks: 1, waitDays: 7, retrying: false });
     begin(adapter, 9000);
@@ -718,6 +723,71 @@ describe('the device profile: where a device with no memory starts', () => {
   });
 });
 
+describe('the bottom rung (bare)', () => {
+  const steady = (ms) => () => ms;
+  const atLite = { rung: 5, steppedAt: WALL - DAY, walks: 2, waitDays: 7, retrying: false };
+  it('the measured iPad7,11 starts on it, at 0.75 pixels, with the 30 fps pacer on', () => {
+    const { adapter, renderer, storage } = setup({ device: iPad7Measured });
+    expect(begin(adapter)).toBe(BARE);
+    expect(adapter.status).toMatchObject({ rung: 7, startRung: 7, startReason: 'device', cap30: true });
+    expect(renderer.getPixelRatio()).toBe(0.75);
+    expect(stored(storage)).toMatchObject({ rung: 7, walks: 1 });
+  });
+  it('lite frames that stay slow AND steady step down to it, remembered, with the pixels at once', () => {
+    const { adapter, renderer, storage } = setup({ memory: atLite });
+    begin(adapter);
+    const session = lowSession();
+    drive(adapter, session, 0, 12_000, steady(48));
+    expect(adapter.status).toMatchObject({ rung: 7, cap30: true });
+    expect(adapter.status.change).toMatch(/→bare/);
+    expect(renderer.getPixelRatio()).toBe(0.75);
+    expect(stored(storage).rung).toBe(7);
+    expect(adapter.bareNow()).toBe(true);
+  });
+  it('a display held at 30 (a 33 ms mean) is not mistaken for a slow device', () => {
+    const { adapter, storage } = setup({ memory: atLite });
+    begin(adapter);
+    drive(adapter, lowSession(), 0, 12_000, steady(33.3));
+    expect(adapter.status.rung).toBe(5);
+    expect(adapter.status.cap30).toBe(false);
+    expect(stored(storage).rung).toBe(5);
+  });
+  it('a memory saved before it existed (rung 6, the cap) still loads as it did', () => {
+    const { adapter } = setup({ memory: { rung: 6, steppedAt: WALL - DAY, walks: 2, waitDays: 7, retrying: false } });
+    expect(begin(adapter)).toBe(LADDER[5]);
+    expect(adapter.status).toMatchObject({ rung: 6, cap30: true });
+    expect(adapter.bareNow()).toBe(false);
+  });
+  it('a saved bottom rung loads, and a number past it is clamped to it', () => {
+    for (const rung of [7, 9, 99]) {
+      const { adapter } = setup({ memory: { rung, steppedAt: WALL - DAY, walks: 2, waitDays: 7, retrying: false } });
+      expect(begin(adapter)).toBe(BARE);
+      expect(adapter.status.rung).toBe(7);
+    }
+  });
+  it('a table-seeded bottom rung is held: the retry never climbs above it', () => {
+    const { adapter, storage } = setup({ device: iPad7Measured });
+    for (let i = 0; i < 12; i++) begin(adapter, i * 1000);
+    expect(adapter.status.rung).toBe(7);
+    expect(stored(storage).retrying).toBe(false);
+  });
+  it('an ordinary device that earned the bottom rung may retry upward, one rung at a time', () => {
+    const { adapter } = setup({ memory: { rung: 7, steppedAt: 0, walks: 5, waitDays: 7, retrying: false } });
+    begin(adapter);
+    expect(adapter.status).toMatchObject({ rung: 6, startReason: 'retry' });
+  });
+  it('hot, from lite, goes to the cap first and then to the bottom rung, never remembered', () => {
+    const { adapter, storage } = setup({ memory: atLite, device: { model: 'iPhone18,1', memoryGB: 11, thermal: 'nominal' } });
+    begin(adapter);
+    const session = lowSession();
+    adapter.deviceChanged({ model: 'iPhone18,1', memoryGB: 11, thermal: 'serious' });
+    adapter.deviceChanged({ model: 'iPhone18,1', memoryGB: 11, thermal: 'serious', memoryWarning: true });
+    run(adapter, session, 0, 3000, 16);
+    expect(adapter.status.rung).toBe(7);
+    expect(stored(storage).rung).toBe(5);
+  });
+});
+
 describe('the device profile: running hot is a temporary rung', () => {
   const rung1 = { rung: 1, steppedAt: WALL - DAY, walks: 2, waitDays: 7, retrying: false };
 
@@ -750,7 +820,7 @@ describe('the device profile: running hot is a temporary rung', () => {
     adapter.frame(session, 2016);
     expect(adapter.status.rung).toBe(1);
     expect(adapter.status.change).toBe('0→1: running hot (not remembered)');
-    expect(adapter.status.device).toBe('iPad7,11 · 2.9 GB · thermal serious · low power off');
+    expect(adapter.status.device).toBe('iPad7,3 · 3.7 GB · thermal serious · low power off');
     expect(renderer.getPixelRatio()).toBe(1.5);
     expect(stored(storage)).toEqual(before);
     expect(storage.setItem.mock.calls.length).toBe(writes);
@@ -934,7 +1004,7 @@ describe('the device profile: Low Power Mode says the display is held at 30', ()
     run(adapter, session, 0, 20_000, 33.3);
     expect(adapter.status.rung).toBe(0);
     adapter.deviceChanged(iPad7);
-    expect(adapter.status.device).toBe('iPad7,11 · 2.9 GB · thermal nominal · low power off');
+    expect(adapter.status.device).toBe('iPad7,3 · 3.7 GB · thermal nominal · low power off');
     run(adapter, session, 20_030, 24_900, 30);
     expect(adapter.status.rung).toBe(0); // warming up again
     run(adapter, session, 24_930, 29_500, 30);

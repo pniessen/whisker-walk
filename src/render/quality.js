@@ -101,6 +101,12 @@ const HIGH = Object.freeze({
   // (a pair every 0.16 s for 1.2 s, plus the head rings), so 20 is the floor.
   splashDrops: 64,
   splashRings: 32,
+  // The bottom rung's two extra levers (see BARE): `bare` is the flag the
+  // game checks to hide the pooled Points life (render/baregate.js), and
+  // `fogFar` is a cap on the fog's far distance in metres (0: leave the
+  // area's own fog alone, which is every rung above the bottom one).
+  bare: false,
+  fogFar: 0,
 });
 
 const LOW = Object.freeze({
@@ -154,6 +160,8 @@ const LOW = Object.freeze({
   // Half the droplets; 20 rings is the floor a swimming wake needs.
   splashDrops: 32,
   splashRings: 20,
+  bare: false,
+  fogFar: 0,
 });
 
 // ---------------------------------------------------------------------------
@@ -255,6 +263,38 @@ const LITE = Object.freeze({
   // the thing the children notice, and 48 prints are one draw call.
 });
 
+// RUNG 7, "bare": the bottom rung, for a device lite is still too much for
+// (a measured iPad 7th generation, A10, ran lite at a median 48.5 ms with 81%
+// of frames over 40 ms). Not in LADDER, so LADDER keeps its six rows: it is
+// reached by BARE_RUNG (resolveQuality, the settings picker's 'bare', ?rung=7)
+// and by Auto stepping past lite when frames stay slow AND steady (see
+// adaptquality.js). The number 6 stays the lite rung with the 30 fps cap, so
+// a memory written before this rung existed reads as it always did.
+//
+// What it gives up beyond lite, and why those: pixels (0.75 of lite's cap,
+// so the GPU shades 56% of the pixels; the HUD is DOM and stays sharp),
+// anti-aliasing (the page builds its canvas without it on this rung,
+// main.js), every pooled Points effect (render/baregate.js: weather motes,
+// ambient creatures' glints, halos, fireflies, dust, confetti, sprays: all
+// are cosmetic and each is a draw call), the fog's far half (fogFar), and
+// grass, strays and splash pools a notch thinner. It keeps what the child
+// needs: every cat and person that is part of the walk, the goals, prompts,
+// colliders and the contact decals that stop things floating. The frame is
+// paced to an even 30 (the CAP30 pacer) on this rung always.
+const BARE = Object.freeze({
+  ...LITE,
+  label: 'bare',
+  rung: 7,
+  pixelRatioCap: 0.75,
+  strays: 5,
+  ambientScale: 0,
+  grassRadius: 3.5,
+  grassSpacing: 0.6,
+  splashDrops: 16,
+  bare: true,
+  fogFar: 85,
+});
+
 // The adaptive ladder. Order is fill rate first (pixel ratio, then post-fx and
 // MSAA, then today's LOW), then the shadow pass, then scenery: see "Rung
 // order" in
@@ -278,16 +318,23 @@ export const FLOOR_RUNG = 5;
 // a rung, retried like a rung. resolveQuality clamps to FLOOR_RUNG, so a
 // walk on CAP_RUNG is built from the lite tier.
 export const CAP_RUNG = FLOOR_RUNG + 1;
+// The bottom rung (BARE above): lite, thinner, with the 30 fps cap always on.
+// Numbered after the cap so that every number a device may have saved keeps
+// its old meaning.
+export const BARE_RUNG = CAP_RUNG + 1;
+export { BARE };
 
 // reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').
-// override: the persisted 'quality' setting — 'auto' adapts, 'high'/'low'
-// force a tier regardless of device.
+// override: the persisted 'quality' setting — 'auto' adapts, 'high'/'low'/
+// 'bare' force a tier regardless of device.
 // rung: the adaptive governor's current rung; only read in auto mode.
 export function resolveQuality({ reducedMotion, override, rung = 0 } = {}) {
   if (override === 'high') return HIGH;
   if (override === 'low') return LOW;
+  if (override === 'bare') return BARE;
   if (reducedMotion) return LOW;
   const r = Number.isFinite(rung) ? Math.trunc(rung) : 0;
+  if (r >= BARE_RUNG) return BARE;
   return LADDER[Math.min(FLOOR_RUNG, Math.max(0, r))];
 }
 
@@ -297,10 +344,10 @@ export function resolveQuality({ reducedMotion, override, rung = 0 } = {}) {
 // writes the adapt memory (game/adaptquality.js), so a look at the floor on a
 // fast phone leaves no trace. Returns the rung, or null when the switch is
 // absent or is not a whole number; a number past the end means the end.
-// ?rung=6 (CAP_RUNG) is the lite rung with the 30 fps cap on, so that state
-// can be looked at too. `search` is location.search (the iOS app passes it
+// ?rung=6 (CAP_RUNG) is the lite rung with the 30 fps cap on, ?rung=7 the
+// bare bottom rung, so those states can be looked at too. `search` is location.search (the iOS app passes it
 // too: see AppScheme.startURL in ios/).
-export function parseForcedRung(search, maxRung = CAP_RUNG) {
+export function parseForcedRung(search, maxRung = BARE_RUNG) {
   let text = null;
   try {
     text = new URLSearchParams(search ?? '').get('rung');

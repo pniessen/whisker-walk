@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { resolveQuality, isAdaptive, LADDER, LOW_RUNG, FLOOR_RUNG, CAP_RUNG, parseForcedRung } from '../src/render/quality.js';
+import { resolveQuality, isAdaptive, LADDER, LOW_RUNG, FLOOR_RUNG, CAP_RUNG, BARE_RUNG, BARE, parseForcedRung } from '../src/render/quality.js';
 
-const high = { name: 'high', label: 'high', rung: 0, strays: 22, shadowMapSize: 2048, shadows: true, shadowMinPart: 0, keepFedCats: false, envIntensity: 0.45, postFx: true, pixelRatioCap: 2, msaaSamples: 4, shadowFitRadius: 20, normalMaps: true, grassRadius: 9, grassSpacing: 0.3, pawPrints: 96, pawFade: 9, cloudCount: 10, ambientScale: 1, splashDrops: 64, splashRings: 32 };
-const low  = { name: 'low',  label: 'low',  rung: 3, strays: 14, shadowMapSize: 1024, shadows: true, shadowMinPart: 0, keepFedCats: false, envIntensity: 0.32, postFx: false, pixelRatioCap: 1.5, msaaSamples: 0, shadowFitRadius: 20, normalMaps: false, grassRadius: 6, grassSpacing: 0.42, pawPrints: 48, pawFade: 6, cloudCount: 6, ambientScale: 0.5, splashDrops: 32, splashRings: 20 };
+const high = { name: 'high', label: 'high', rung: 0, strays: 22, shadowMapSize: 2048, shadows: true, shadowMinPart: 0, keepFedCats: false, envIntensity: 0.45, postFx: true, pixelRatioCap: 2, msaaSamples: 4, shadowFitRadius: 20, normalMaps: true, grassRadius: 9, grassSpacing: 0.3, pawPrints: 96, pawFade: 9, cloudCount: 10, ambientScale: 1, splashDrops: 64, splashRings: 32, bare: false, fogFar: 0 };
+const low  = { name: 'low',  label: 'low',  rung: 3, strays: 14, shadowMapSize: 1024, shadows: true, shadowMinPart: 0, keepFedCats: false, envIntensity: 0.32, postFx: false, pixelRatioCap: 1.5, msaaSamples: 0, shadowFitRadius: 20, normalMaps: false, grassRadius: 6, grassSpacing: 0.42, pawPrints: 48, pawFade: 6, cloudCount: 6, ambientScale: 0.5, splashDrops: 32, splashRings: 20, bare: false, fogFar: 0 };
 
 describe('resolveQuality', () => {
   it('auto → high on a desktop pointer with motion allowed', () => {
@@ -136,7 +136,9 @@ describe('the quality ladder', () => {
   });
   it('rung 3 is exactly low', () => { expect(auto(3)).toEqual(low); });
   it('clamps and sanitises the rung', () => {
-    expect(auto(7)).toEqual(LADDER[5]);
+    expect(auto(6)).toEqual(LADDER[5]);
+    expect(auto(7)).toBe(BARE);
+    expect(auto(99)).toBe(BARE);
     expect(auto(-1)).toEqual(high);
     expect(auto(NaN)).toEqual(high);
     expect(auto(undefined)).toEqual(high);
@@ -182,8 +184,41 @@ describe('parseForcedRung', () => {
     expect(parseForcedRung('?rung=6')).toBe(CAP_RUNG);
     expect(resolveQuality({ override: 'auto', reducedMotion: false, rung: CAP_RUNG })).toBe(LADDER[FLOOR_RUNG]);
   });
+  it('7 is the bare bottom rung', () => {
+    expect(BARE_RUNG).toBe(CAP_RUNG + 1);
+    expect(parseForcedRung('?rung=7')).toBe(7);
+  });
   it('a number past the end means the end', () => {
-    expect(parseForcedRung('?rung=99')).toBe(CAP_RUNG);
+    expect(parseForcedRung('?rung=99')).toBe(BARE_RUNG);
     expect(parseForcedRung('?rung=99', 2)).toBe(2);
+  });
+});
+
+// The bottom rung (render/quality.js BARE): pinned row by row, because it is
+// the one tier whose every number was chosen for a measured A10 iPad.
+describe('the bare bottom rung', () => {
+  it('is lite with fewer pixels, no sparkle effects, a short fog and thinner scenery', () => {
+    expect(Object.isFrozen(BARE)).toBe(true);
+    expect(BARE).toEqual({ ...LADDER[FLOOR_RUNG], label: 'bare', rung: 7, pixelRatioCap: 0.75, strays: 5, ambientScale: 0, grassRadius: 3.5, grassSpacing: 0.6, splashDrops: 16, bare: true, fogFar: 85 });
+    // What lite already gave up, bare keeps given up.
+    expect(BARE.shadows).toBe(false);
+    expect(BARE.postFx).toBe(false);
+    expect(BARE.msaaSamples).toBe(0);
+    expect(BARE.name).toBe('low');
+    expect(BARE.keepFedCats).toBe(true);
+  });
+  it('keeps the pixel ratio at 0.75 of lite and above the 0.6 floor', () => {
+    expect(BARE.pixelRatioCap).toBeCloseTo(LADDER[FLOOR_RUNG].pixelRatioCap * 0.75, 5);
+    expect(BARE.pixelRatioCap).toBeGreaterThanOrEqual(0.6);
+  });
+  it('has every knob every rung has, and nothing above it carries the new flags', () => {
+    expect(Object.keys(BARE).sort()).toEqual(Object.keys(LADDER[0]).sort());
+    for (const t of LADDER) { expect(t.bare).toBe(false); expect(t.fogFar).toBe(0); }
+  });
+  it('is reached by the picker, ?rung=7 and any rung number from 7', () => {
+    expect(resolveQuality({ override: 'bare', reducedMotion: false })).toBe(BARE);
+    expect(resolveQuality({ override: 'bare', reducedMotion: true })).toBe(BARE);
+    expect(resolveQuality({ override: 'auto', reducedMotion: false, rung: 7 })).toBe(BARE);
+    expect(isAdaptive({ override: 'bare', reducedMotion: false })).toBe(false);
   });
 });

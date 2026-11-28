@@ -29,6 +29,13 @@
 //                                            walk already steady at 30 (a
 //                                            capped display) gains nothing
 //                                            and is left alone
+//   bare    after rung 5, when the frames are slow and STEADY (a mean
+//           over BARE_STEP.minMeanMs, so not a display held at 30):
+//           0.75 pixel ratio, the pooled Points life gone, the fog's far
+//           end pulled in   live; strays, grass, splash pools next walk.
+//           Always on the 30 fps pacer. Reached from the table for an
+//           A10-class iPad (render/deviceprofile.js), and held there:
+//           the retry never climbs above a table-seeded bottom rung.
 // Every step is written to storage at once, so the next walk starts there,
 // with one exception: if the live steps bought under ADAPT.minGain by the
 // time LOW is due, the frames are capped (Low Power Mode, 30 Hz), so
@@ -53,9 +60,10 @@
 //     governor judges against that instead of inferring a cap;
 //   - the profile is shown in the ?perf readout.
 
-import { resolveQuality, isAdaptive, LADDER, LOW_RUNG, FLOOR_RUNG, CAP_RUNG } from '../render/quality.js';
+import { resolveQuality, isAdaptive, LADDER, LOW_RUNG, FLOOR_RUNG, CAP_RUNG, BARE_RUNG, BARE } from '../render/quality.js';
+import { setBareGate } from '../render/baregate.js';
 import {
-  ADAPT, ADAPT_CAPPED, CAP30, DEFAULT_MEMORY, createFrameGovernor, createFramePacer, hasMemory, readMemory,
+  ADAPT, ADAPT_CAPPED, BARE_STEP, CAP30, DEFAULT_MEMORY, createFrameGovernor, createFramePacer, hasMemory, readMemory,
   writeMemory, planWalkStart, noteStepDown, noteRetryHeld,
 } from '../render/adaptive.js';
 import { sanitizeProfile, startRungFor, isHot, describeProfile } from '../render/deviceprofile.js';
@@ -168,14 +176,14 @@ export function createQualityAdapter({
       const fresh = !hasMemory(storage);
       const seeded = fresh ? startRungFor(device) : 0;
       const remembered = fresh ? { ...DEFAULT_MEMORY, rung: seeded } : readMemory(storage);
-      const plan = planWalkStart(remembered, wallClock());
+      const plan = planWalkStart(remembered, wallClock(), startRungFor(device) >= BARE_RUNG ? BARE_RUNG : 0);
       mem = plan.mem;
       startMem = { ...mem };
       writeMemory(storage, mem);
       retryPending = plan.reason === 'retry';
       // Running hot, or warned about memory: one rung lower each for this
       // walk, on top of the remembered rung and never written to it.
-      tempDrop = Math.min(tempWanted(), CAP_RUNG - plan.rung);
+      tempDrop = Math.min(tempWanted(), BARE_RUNG - plan.rung);
       startRung = plan.rung + tempDrop;
       tier = resolveQuality({ reducedMotion, override, rung: startRung });
       status.mode = 'auto';
@@ -193,6 +201,7 @@ export function createQualityAdapter({
     status.startRung = startRung;
     status.change = '';
     status.cap30 = startRung >= CAP_RUNG;
+    if (startRung < BARE_RUNG) setBareGate(null, false);
     pacer.reset();
 
     applyPixelRatio(tier);
@@ -211,8 +220,11 @@ export function createQualityAdapter({
   // at the top of this file). Everything else about the rung waits for the
   // next walk to be built on it.
   function applyLive(to, session, nowMs) {
-    const tier = LADDER[to];
-    if (to === 1) {
+    const tier = LADDER[to] ?? BARE;
+    if (to === BARE_RUNG) {
+      applyPixelRatio(BARE);
+      setBareGate(null, true, session?.scene);
+    } else if (to === 1) {
       applyPixelRatio(tier);
     } else if (to === 2) {
       fadeSession = session;
@@ -235,23 +247,28 @@ export function createQualityAdapter({
   // temporary rung (hot, memory warning) it is one less, so the heat is not
   // remembered along with the slowness.
   const rememberedAfterStep = () => Math.min(CAP_RUNG, mem.rung + 1);
+  const bareNow = () => status.rung >= BARE_RUNG;
 
   // A temporary step: the same live changes as a step the frames earned,
   // with nothing judged and nothing written. On the floor rung the step is
   // the 30 fps cap, taken without the evenness test (nothing was measured).
   function tempStep(session, nowMs, why) {
     const from = status.rung;
-    if (from >= CAP_RUNG) return;
+    if (from >= BARE_RUNG) return;
     const to = from + 1;
     if (to === CAP_RUNG) {
       status.cap30 = true;
       pacer.reset();
+    } else if (to === BARE_RUNG) {
+      status.cap30 = true;
+      pacer.reset();
+      applyLive(to, session, nowMs);
     } else {
       applyLive(to, session, nowMs);
     }
     tempDrop += 1;
     status.rung = to;
-    status.change = `${from}→${to === CAP_RUNG ? '30 fps' : to}: ${why} (not remembered` +
+    status.change = `${from}→${to === CAP_RUNG ? '30 fps' : to === BARE_RUNG ? 'bare' : to}: ${why} (not remembered` +
       (to === LOW_RUNG ? ', next walk)' : ')');
     governor.restart(nowMs, ADAPT.settleMs);
   }
@@ -349,6 +366,19 @@ export function createQualityAdapter({
       // Mode, a 30 Hz display, or a device missing every refresh), and a
       // cap would change nothing on screen. Not taken, not remembered.
       if (governor.lastFastFraction() < CAP30.unevenMin) {
+        // Steady but SLOW, not steady at 30: the bottom rung, not a skip.
+        if (limits === ADAPT && mean >= BARE_STEP.minMeanMs) {
+          applyLive(BARE_RUNG, session, nowMs);
+          status.cap30 = true;
+          pacer.reset();
+          mem = noteStepDown(mem, BARE_RUNG, wallClock());
+          writeMemory(storage, mem);
+          retryPending = false;
+          status.rung = BARE_RUNG;
+          status.change = `${from}→bare: frames averaging ${Math.round(mean)} ms, ${pct}% over ${limits.slowMs} ms for ${limits.windowMs / 1000} s (fewer pixels, no sparkle effects; fewer strays next walk)`;
+          governor.restart(nowMs, ADAPT.settleMs);
+          return;
+        }
         halted = true;
         status.change = `${from}→30 fps skipped: frames already steady at 30 or slower (display cap?)`;
         return;
@@ -439,5 +469,5 @@ export function createQualityAdapter({
     return !status.cap30 || pacer.due(nowMs);
   }
 
-  return { beginWalk, frame, shouldRender, deviceChanged, couch, status };
+  return { beginWalk, frame, shouldRender, deviceChanged, couch, status, bareNow };
 }

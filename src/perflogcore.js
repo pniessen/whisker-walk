@@ -79,7 +79,7 @@ export function cleanRow(raw) {
     return row;
   }
   row.place = txt(raw.place, ID);
-  row.rung = num(raw.rung, 0, 6, 0);
+  row.rung = num(raw.rung, 0, 7, 0);
   row.tier = txt(raw.tier, TIER);
   row.medianMs = num(raw.medianMs, 0, 1000, 1);
   row.p95Ms = num(raw.p95Ms, 0, 1000, 1);

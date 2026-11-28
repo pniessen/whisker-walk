@@ -9,7 +9,7 @@
 // stats and reuses one snapshot object. Strings are built only in the 500 ms
 // text refresh, so measuring does not disturb what is being measured.
 import { createFrameStats, createRenderCounter } from '../render/perfstats.js';
-import { FLOOR_RUNG } from '../render/quality.js';
+import { FLOOR_RUNG, BARE_RUNG } from '../render/quality.js';
 import { escapeHtml } from '../game/util.js';
 
 const REFRESH_MS = 500;
@@ -31,7 +31,7 @@ export function formatPerfLines(s) {
     `tier ${s.tierName} · setting ${s.quality} · touch ${s.coarse ? 'yes' : 'no'}`,
     `shadow ${s.shadowMapSize > 0 ? s.shadowMapSize : 'off'} · postFx ${onOff(s.postFx)} · normals ${onOff(s.normalMaps)}`,
     s.adapt,
-    `px ratio ${+s.pixelRatio.toFixed(2)} · ${s.bufferW}×${s.bufferH} · strays ${s.strays}`,
+    `px ratio ${+s.pixelRatio.toFixed(2)} · ${s.bufferW}×${s.bufferH} · strays ${s.strays}${s.bare ? ' · bare: sparkle effects off, fog ≤ 85 m, no edge smoothing' : ''}`,
     `draws ${f.calls} · shadow ${f.shadowCalls} · scene ${f.sceneCalls} · other ${f.otherCalls}`,
     `tris ${f.triangles.toLocaleString('en-US')} · scene passes ${f.sceneRenders}`,
     // Only in the iPhone and iPad app, which says what it is running on
@@ -48,10 +48,12 @@ export function formatAdapt(st) {
   if (st.mode === 'reduced-motion') return 'reduced motion';
   // ?rung=N: held there for the page load, nothing stepped or remembered.
   // The 30 fps cap is the step after the last rung (CAP_RUNG): shown as the
-  // floor rung plus the cap, never as a seventh rung.
-  const rung = (r) => `${Math.min(r, FLOOR_RUNG)}/${FLOOR_RUNG}${r > FLOOR_RUNG || (r === st.rung && st.cap30) ? ' + 30 fps cap' : ''}`;
+  // floor rung plus the cap, never as a seventh rung. The bottom rung past it
+  // (BARE_RUNG) is named: 'bare' with its 30 fps pacer.
+  const rung = (r) => (r >= BARE_RUNG ? 'bare (lite, fewer pixels, no sparkle effects) + 30 fps cap'
+    : `${Math.min(r, FLOOR_RUNG)}/${FLOOR_RUNG}${r > FLOOR_RUNG || (r === st.rung && st.cap30) ? ' + 30 fps cap' : ''}`);
   if (st.mode === 'forced') return `forced rung ${rung(st.rung)} (?rung)`;
-  const start = `${Math.min(st.startRung, FLOOR_RUNG)}${st.startRung > FLOOR_RUNG ? ' + cap' : ''}`;
+  const start = st.startRung >= BARE_RUNG ? 'bare' : `${Math.min(st.startRung, FLOOR_RUNG)}${st.startRung > FLOOR_RUNG ? ' + cap' : ''}`;
   const base = `auto rung ${rung(st.rung)} · start ${start} (${st.startReason})`;
   return st.change ? `${base} · ${st.change}` : base;
 }
@@ -104,7 +106,7 @@ export function createPerfHud({ renderer, settings, coarse, adapter, diagnostics
     fps: 0, frameMs: 0, worstMs: 0, workMs: 0,
     tierName: '', quality: '', coarse: !!coarse,
     shadowMapSize: 0, postFx: false, normalMaps: false,
-    pixelRatio: 1, bufferW: 0, bufferH: 0, strays: 0,
+    pixelRatio: 1, bufferW: 0, bufferH: 0, strays: 0, bare: false,
     adapt: '',
     device: '',
     build: String(build || ''),
@@ -204,6 +206,7 @@ export function createPerfHud({ renderer, settings, coarse, adapter, diagnostics
     snap.postFx = !!session.useComposer;
     snap.normalMaps = !!tier?.normalMaps;
     snap.pixelRatio = renderer.getPixelRatio();
+    snap.bare = !!adapter?.bareNow?.();
     snap.bufferW = renderer.domElement.width;
     snap.bufferH = renderer.domElement.height;
     snap.strays = session.strayCats?.strays?.length ?? 0;
