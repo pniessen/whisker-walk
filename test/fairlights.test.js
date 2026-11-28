@@ -275,3 +275,59 @@ describe('the midway after dark (beauty pass 2)', () => {
     expect(MIDWAY.hear).toBeGreaterThan(MIDWAY.bellHear);
   });
 });
+
+// Beauty pass 3: the fair notices her and lives (fairalive.js, fairkit.js setFairCat).
+describe('the fair reacts to her (beauty pass 3)', () => {
+  it('the shaders read where she is, and the numbers follow her and hold still with reduced motion', async () => {
+    const { setFairCat, CAT_LOOK } = await import('../src/world/fairkit.js');
+    const gs = compiled(glowMaterial());
+    expect(gs.vertexShader).toContain('fairCatK');
+    expect(gs.uniforms.fairCatX).toBe(FAIR_CLOCK.catX);
+    const cs = compiled(meshes.find((n) => n.name === 'fairBunting').material);
+    expect(cs.vertexShader).toContain('fairCatOn');
+    setFairCat(3, -4, 100.1, 0.5);
+    expect([FAIR_CLOCK.catX.value, FAIR_CLOCK.catZ.value, FAIR_CLOCK.catOn.value]).toEqual([3, -4, 1]);
+    expect(FAIR_CLOCK.beat.value).toBeGreaterThan(0);
+    setFairCat(3, -4, 100.1, 0.5, true);
+    expect([FAIR_CLOCK.catOn.value, FAIR_CLOCK.beat.value, FAIR_CLOCK.breath.value]).toEqual([0, 0, 0]);
+    expect(CAT_LOOK.flutter).toBeGreaterThan(0);
+  });
+  it('kicked bits, steam and a dusk firework are three Points and no mesh; reduced motion draws none; a lite pool is smaller', async () => {
+    const { createFairAlive, fireAt, ALIVE } = await import('../src/fairalive.js');
+    const sc = new THREE.Scene();
+    const a = createFairAlive({ scene: sc });
+    const pts = []; sc.traverse((o) => { if (o.isPoints) pts.push(o); });
+    expect(pts.length).toBe(3);
+    expect(sc.children.some((c) => c.isMesh)).toBe(false);
+    let moved = 0;
+    for (let i = 0; i < 90; i++) { a.update(1 / 30, 5000 + i / 30, { x: i * 0.06, z: 20 }, 1, 2); }
+    const bits = pts.find((p) => p.name === 'fair:bits');
+    for (let i = 0; i < a.counts.bits; i++) if (bits.geometry.attributes.position.array[i * 3 + 1] > -900) moved++;
+    expect(moved).toBeGreaterThan(0);
+    a.dispose();
+    const rm = createFairAlive({ scene: new THREE.Scene(), reducedMotion: true });
+    expect(rm.counts.bits + rm.counts.steam + rm.counts.spark).toBe(0);
+    const lite = createFairAlive({ scene: new THREE.Scene(), scale: 0.25 });
+    expect(lite.counts.bits).toBeLessThan(a.counts.bits);
+    expect(lite.counts.spark).toBe(0);
+    const f = fireAt(1000);
+    expect(f.local).toBeGreaterThanOrEqual(0);
+    expect(f.local).toBeLessThan(ALIVE.fireEvery);
+  });
+  it('a ride that she walks up to rings and whooshes, never while she is riding', () => {
+    const events = [];
+    let T = 100;
+    const live = createFairLive(scene, area, { now: () => T, onEvent: (e) => events.push(e) });
+    const cat = new THREE.Object3D(); cat.position.set(0, 0, 4.5);
+    const player = { speed: 0, perchY: 0, halt() {}, setViewYaw() {} };
+    for (let i = 0; i < 120; i++) { T += 1 / 30; live.update(1 / 30, i / 30, { cat, player, session: { perched: null } }); }
+    const kinds = events.map((e) => e.type);
+    expect(kinds).toContain('ride-whoosh');
+    const rings = events.filter((e) => e.type === 'bell' && e.volume === 0.7).length;
+    expect(rings).toBeLessThanOrEqual(1);
+    events.length = 0;
+    for (let i = 0; i < 120; i++) { T += 1 / 30; live.update(1 / 30, i / 30, { cat, player, session: { perched: { id: 'seat' } } }); }
+    expect(events.some((e) => e.type === 'ride-whoosh')).toBe(false);
+    live.dispose();
+  });
+});

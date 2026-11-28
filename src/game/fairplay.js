@@ -134,6 +134,7 @@ export function handleFairEvent(e, ctx) {
     case 'calliope': audio.calliope?.(e.freq, e.chord, e.volume); break;
     case 'murmur': audio.crowdMurmur?.(e.volume); break;
     case 'bell': audio.rideBell?.(e.volume); break;
+    case 'ride-whoosh': audio.crowdMurmur?.(e.volume * 0.7); break; // the air of a ride going by: the same soft noise swell
     case 'ride':
       crumb(`ride:${e.ride}`);
       if (e.ride === 'boat') once('fair-boat', RIDE_TOASTS.boat());

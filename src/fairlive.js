@@ -31,7 +31,8 @@ import { createFairSim, RIDE } from './fairsim.js';
 import { waterClearance } from './world/builder.js';
 import { CAT_LOOK_Y } from './cat/model.js';
 import { FLAT_GROUND } from './ground.js';
-import { setFairClock } from './world/fairkit.js';
+import { setFairClock, setFairCat, FAIR_CLOCK } from './world/fairkit.js';
+import { createFairAlive } from './fairalive.js';
 
 export { NO_FAIR } from './fairnone.js';
 
@@ -93,6 +94,7 @@ export const TUNE = Object.freeze({
 // so the far corners of the field are quiet.
 export const MIDWAY = Object.freeze({
   hear: 30, bellHear: 22, murmur: 2.4,
+  dayCalliope: 0.75, duskCrowd: 0.35, passBy: 3.5, bellEvery: 14, whooshEvery: 3.2,
   bass: Object.freeze([131, 131, 98, 131, 175, 131, 98, 131]), // per bar of three notes
   chord: Object.freeze([[330, 392], [330, 392], [294, 392], [330, 392], [349, 440], [330, 392], [294, 392], [330, 392]]),
 });
@@ -127,7 +129,7 @@ const CAM_EASE = 2.6; // 1/seconds: how fast the ride's camera takes over, and l
 //                      { type: 'boat-lap' } a whole swing of the boat ridden to the end (it pays: game/fairplay.js),
 //                      { type: 'calliope', freq, chord: [f, f], volume } the bass and chord of each bar, { type: 'murmur' | 'bell', volume } the crowd, the merry-go-round's bell (MIDWAY),
 //                      { type: 'boat-whoosh' | 'boat-creak', volume } the swing of the Viking boat, heard from near it
-export function createFairLive(scene, area, { camera = null, reducedMotion = false, now = wallClock, onEvent = () => {}, ground = FLAT_GROUND } = {}) {
+export function createFairLive(scene, area, { camera = null, reducedMotion = false, scale = 1, now = wallClock, onEvent = () => {}, ground = FLAT_GROUND } = {}) {
   const sim = createFairSim(area, { reducedMotion });
   const rides = area.rides;
   const musicBox = rides.merryGoRound.musicBoxDrum.parent.position; // the music box stands behind the merry-go-round
@@ -147,6 +149,11 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
   let murmurAt = -1;
   let calliopeAt = -1;
   let bellAt = null;
+  let nearBellAt = -99; // when the merry-go-round's bell last rang for her coming close
+  let whooshAt = -99;   // when a ride last whooshed past her
+  let prevXZ = null;
+  // beauty pass 3: kicked confetti, steam and a firework (fairalive.js), drawn only when the scene can take them
+  const alive = scene?.add ? createFairAlive({ scene, reducedMotion, scale }) : null;
   let boatSwung = false; // on the boat, and it has swung since she got on: the lap is hers once it is calm again
   let quarterAt = -1; // the swing of the boat, in quarters: a whoosh at the bottom, a creak at each end
 
@@ -386,6 +393,14 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
       poseRides(rides, sim);
       // the bulbs' chase and the bunting's flutter run on the same clock (none with reduced motion)
       setFairClock(T, reducedMotion);
+      setFairCat(cat.position.x, cat.position.z, T, TUNE.NOTE, reducedMotion);
+      {
+        const sp = prevXZ && dt > 0 ? Math.hypot(cat.position.x - prevXZ.x, cat.position.z - prevXZ.z) / dt : 0;
+        const onFoot = !session?.perched && !hop.on;
+        if (alive) alive.update(dt, T, onFoot ? cat.position : null, FAIR_CLOCK.lit.value, sp, cat.rotation.y);
+        prevXZ ??= { x: 0, z: 0 };
+        prevXZ.x = cat.position.x; prevXZ.z = cat.position.z;
+      }
 
       // the music box: one note at a time, quieter with distance, silent far away
       const n = Math.floor(T / TUNE.NOTE);
@@ -402,12 +417,12 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
         if (dm < MIDWAY.hear && ((n % 3) + 3) % 3 === 0 && calliopeAt !== n) {
           calliopeAt = n;
           const bar = (((Math.floor(n / 3)) % MIDWAY.bass.length) + MIDWAY.bass.length) % MIDWAY.bass.length;
-          onEvent({ type: 'calliope', freq: MIDWAY.bass[bar], chord: MIDWAY.chord[bar], volume: 1 - dm / MIDWAY.hear });
+          onEvent({ type: 'calliope', freq: MIDWAY.bass[bar], chord: MIDWAY.chord[bar], volume: Math.min(1, (1 - dm / MIDWAY.hear) * (MIDWAY.dayCalliope + (1 - MIDWAY.dayCalliope) * 1.4 * FAIR_CLOCK.lit.value)) });
         }
         const mu = Math.floor(T / MIDWAY.murmur);
         if (mu !== murmurAt) {
           murmurAt = mu;
-          if (dm < MIDWAY.hear) onEvent({ type: 'murmur', volume: 1 - dm / MIDWAY.hear });
+          if (dm < MIDWAY.hear) onEvent({ type: 'murmur', volume: (1 - dm / MIDWAY.hear) * (1 - MIDWAY.duskCrowd * FAIR_CLOCK.lit.value) });
         }
         const lap = Math.floor(T / RIDE.MGR_TURN);
         if (bellAt === null) bellAt = lap;
@@ -415,6 +430,18 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
           bellAt = lap;
           if (dm < MIDWAY.bellHear) onEvent({ type: 'bell', volume: 1 - dm / MIDWAY.bellHear });
         }
+      }
+
+      // beauty pass 3: she walks up to a moving ride. Its bell rings once for her coming near the merry-go-round, and a soft whoosh
+      // of air goes by as she passes the teacups, the big wheel or the merry-go-round (not while she rides; never in the same moment twice)
+      if (!session?.perched && !hop.on) {
+        const rides = [[sim.mgr.cx, sim.mgr.cz, sim.mgr.baseR], [sim.cups.cx, sim.cups.cz, sim.cups.baseR], [sim.wheel.cx, sim.wheel.cz, 2.2]];
+        let close = 0;
+        for (const [x, z, r] of rides) close = Math.max(close, 1 - (Math.hypot(cat.position.x - x, cat.position.z - z) - r) / MIDWAY.passBy);
+        close = Math.min(1, close);
+        const dm2 = Math.hypot(cat.position.x - sim.mgr.cx, cat.position.z - sim.mgr.cz) - sim.mgr.baseR;
+        if (dm2 < 1.4 && T - nearBellAt > MIDWAY.bellEvery) { nearBellAt = T; onEvent({ type: 'bell', volume: 0.7 }); }
+        if (close > 0.15 && T - whooshAt > MIDWAY.whooshEvery) { whooshAt = T; onEvent({ type: 'ride-whoosh', volume: close }); }
       }
 
       // the Viking boat: a gentle whoosh as it passes the bottom, a creak at each end, quieter with distance
@@ -531,6 +558,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
     },
 
     dispose() {
+      alive?.dispose();
       if (show) { show.dispose(); show = null; }
       sim.endSlide();
       sim.resetChase();
