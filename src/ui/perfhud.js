@@ -66,16 +66,25 @@ function clockOf(ms) {
   const d = new Date(ms);
   return Number.isFinite(d.getTime()) ? `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}` : '--:--:--';
 }
-export function formatDiagHtml(entries, total, open, shown = DIAG_SHOWN) {
-  if (!total || !entries.length) return '';
-  const head = `<div class="diag-head">⚠ ${total} ${total === 1 ? 'error' : 'errors'} ${open ? '▾' : '▸'}</div>`;
+// `earlier`: failures kept on this device from earlier loads (crashlog.js
+// records), listed under this load's own, marked 'earlier'.
+export function formatDiagHtml(entries, total, open, shown = DIAG_SHOWN, earlier = []) {
+  const hasNow = !!total && entries.length > 0;
+  if (!hasNow && !earlier.length) return '';
+  const earlyWord = earlier.length ? `${hasNow ? ' · ' : ''}${earlier.length} earlier` : '';
+  const head = `<div class="diag-head">⚠ ${hasNow ? `${total} ${total === 1 ? 'error' : 'errors'}` : ''}${earlyWord} ${open ? '▾' : '▸'}</div>`;
   if (!open) return head;
-  const lines = entries.slice(-shown).reverse().map((e) => {
+  const earlyLines = earlier.slice(-shown).reverse().map((r) => {
+    const where = r.file ? ` (${r.file}${r.line ? `:${r.line}` : ''})` : '';
+    const times = r.count > 1 ? ` ×${r.count}` : '';
+    return `<div class="diag-line">earlier · ${escapeHtml(r.kind)}${times} · ${escapeHtml(r.msg)}${escapeHtml(where)}</div>`;
+  });
+  const lines = !hasNow ? [] : entries.slice(-shown).reverse().map((e) => {
     const where = e.source ? ` (${e.source}${e.line ? `:${e.line}` : ''})` : '';
     const times = e.count > 1 ? ` ×${e.count}` : '';
     return `<div class="diag-line">${clockOf(e.time)} ${escapeHtml(e.kind)}${times} · ${escapeHtml(e.message)}${escapeHtml(where)}</div>`;
   });
-  return head + lines.join('');
+  return head + lines.join('') + earlyLines.join('');
 }
 
 // The renderer's memory counts read at the last walk end (diagnostics.js
@@ -117,7 +126,7 @@ export function createPerfHud({ renderer, settings, coarse, adapter, diagnostics
     if (!diagnostics || diagnostics.version === diagDrawn) return;
     diagDrawn = diagnostics.version;
     const memory = formatMemoryLine(diagnostics.memory().at(-1));
-    const html = formatDiagHtml(diagnostics.entries(), diagnostics.total, diagOpen)
+    const html = formatDiagHtml(diagnostics.entries(), diagnostics.total, diagOpen, DIAG_SHOWN, diagnostics.earlier?.() ?? [])
       + (memory ? `<div class="diag-line">${escapeHtml(memory)}</div>` : '');
     if (!html) { if (diagEl) diagEl.classList.add('hidden'); return; }
     if (!diagEl) {

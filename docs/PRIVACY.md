@@ -46,7 +46,7 @@ Whisker Walk is a small game about walking a cat. It is run by one person, a par
 - The game has no ads, no tracking and no analytics.
 - Your game is saved on your own device.
 - **Nothing is stored online until you tap Save to cloud or save a cat name in Play together.**
-- **Until then the game does not contact its online database at all.** The only other things that reach it are ones you tap yourself: Load from cloud (it sends the code you typed) and Delete my online data. The details are in "What goes online, and when".
+- **Until then the game does not contact its online database at all.** The only other things that reach it are ones you tap or switch on yourself: Load from cloud (it sends the code you typed), Delete my online data, and the Send crash reports switch (off until turned on). The details are in "What goes online, and when".
 - The only thing you type that other players can see is your cat's name. Please pick a cat name, not your real name.
 - Online data is not removed automatically. You can delete it from inside the game, or ask for it to be deleted.
 
@@ -71,6 +71,7 @@ The game saves these in your browser's storage (or inside the app on an iPhone o
 - Your album: small pictures the game takes of the game world. The game never uses your camera or your photo library.
 - Your settings, and a count of how often each screen has been opened (numbers only, no times of day). The count is part of your save. It stays on the device unless you use Cloud save: the save is uploaded as it is, so the counts go with it (see "Cloud save").
 - Backup copies of your save, kept so a mistake can be undone.
+- A short crash log: the last 20 or so things that went wrong in the game, as a line each (what kind, a trimmed message with every quoted word, link, code and number taken out, the name of the game file and the line number, which place the walk was in, the game's version, a rough device and quality word, whether two-player couch mode and an online room were on, the time, and the last few step names before it). It holds no cat name, room code, save or id. Settings has a **Copy report** button that copies it as text, so a grown-up can paste it to the game maker if they choose to.
 - A random id and a random secret that the game makes up for this device the first time it opens. They do not come from your name, an account or the device's serial number.
 - If you use cloud save: the save code and its secret.
 - The list of players you have met, the list of visitors you have hidden, and which gift codes have been used.
@@ -95,6 +96,12 @@ Three buttons reach the database before that, and only when they are tapped:
 - **Delete my online data** asks the database to delete whatever is stored for this device, even if nothing is.
 
 The website itself is still fetched from its host like any web page (see "Other services involved"). That is not the database, and it carries nothing from your game.
+
+### Crash reports (only if a grown-up turns them on)
+
+Settings has a switch, **Send crash reports to the game maker**. It is **off** on every device until somebody turns it on, and it is per device. While it is off, the crash log above never leaves the device, and it does not cause any request to the database.
+
+While it is on, each *new* kind of failure is sent once, at most five per time the game is opened, to the same database service as the cloud save. What is sent is exactly the crash log line described above: kind, trimmed message, game file name and line, place id, game version, rough device word, two yes/no flags, step names, and a count. It does not include a cat name, a room code, the save, the device's random id or secret, or anything typed. Nothing is sent if the device is offline, and a send that fails is dropped, not retried. Turning the switch off stops sending at once. The table allows the game to add rows but not to read any. Rows are not removed automatically; ask for them to be deleted, like any other online data.
 
 ### Once a cat name is saved or the device is linked to a cloud save
 
