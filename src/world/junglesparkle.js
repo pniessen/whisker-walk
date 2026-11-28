@@ -12,6 +12,7 @@ import { mulberry32 } from '../rng.js';
 import * as P from './jungleplan.js';
 import { COL, paint, pad, dotTexture } from './jungleparts.js';
 import { isLowTier } from './junglelight.js';
+import { dayAt } from './junglereact.js';
 
 export const SPARKLE = Object.freeze({
   anchors: 7, perAnchor: 3, dapples: 14, flags: 20,
@@ -158,29 +159,41 @@ export function createJungleAir({ scene, tier = null, reducedMotion = false }) {
   const fGeo = new THREE.BufferGeometry();
   fGeo.setAttribute('position', new THREE.BufferAttribute(fPos, 3));
   fGeo.setAttribute('color', new THREE.BufferAttribute(fCol, 3));
-  const fires = new THREE.Points(fGeo, new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.01, size: 0.42, sizeAttenuation: true, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
+  const fires = new THREE.Points(fGeo, new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.01, size: 0.6, sizeAttenuation: true, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
   fires.name = 'jungle:fireflies';
   fires.frustumCulled = false;
   Object.assign(fires.userData, { noCast: true, noContactShadow: true, noMerge: true });
   scene.add(fires);
 
   const pose = { x: 0, y: 0, z: 0, yaw: 0 };
+  const pull = new Float32Array(nF);
   function draw(t, cat, rain, dt) {
+    const day = dayAt(t); const dusk = day.dusk;
     const tt = reducedMotion ? 0 : t;
     flies.forEach((b, i) => {
       butterflyAt(b, tt, pose);
       const near = cat && Math.hypot(cat.x - b.x, cat.z - b.z) < 3.2 ? 1 : 0; // she comes near: they rise a little and flutter faster, then settle back
       b.lift += (near - b.lift) * Math.min(1, Math.max(0, dt) * 2.5);
       const f = reducedMotion ? 0.8 : flapAt(t * (1 + 0.5 * b.lift), b.ph);
-      fillButterfly(bPos, i * 36, pose.x, pose.y + 0.7 * b.lift, pose.z, pose.yaw, f);
+      let sx = 0; let sz = 0; // pass 3: flushed by her, they scatter away from her as well as up, then drift back
+      if (cat && b.lift > 0.02) { const dx = b.x - cat.x; const dz = b.z - cat.z; const d = Math.hypot(dx, dz) || 1; sx = (dx / d) * 1.6 * b.lift; sz = (dz / d) * 1.6 * b.lift; }
+      fillButterfly(bPos, i * 36, pose.x + sx, pose.y + 1.0 * b.lift, pose.z + sz, pose.yaw, f);
     });
     bGeo.attributes.position.needsUpdate = true;
-    const dim = 1 - 0.85 * Math.min(1, rain);
+    const dim = (1 - 0.85 * Math.min(1, rain)) * (0.5 + 0.9 * dusk + 0.3 * day.dawn); // brightest at the humid dusk, dimmer in the noon glare
     for (let i = 0; i < nF; i++) {
       const h = homes[i];
-      const x = h.x + 0.9 * Math.sin(tt * h.a + h.ph); const z = h.z + 0.9 * Math.cos(tt * h.c + h.ph * 1.3);
-      fPos[i * 3] = x; fPos[i * 3 + 2] = z; fPos[i * 3 + 1] = P.jungleY(h.x, h.z) + h.y + 0.35 * Math.sin(tt * h.b + h.ph);
-      const g = (reducedMotion ? 0.45 : Math.max(0.05, Math.sin(t * 1.3 + h.ph * 3)) ** 2) * dim;
+      let x = h.x + 0.9 * Math.sin(tt * h.a + h.ph); let z = h.z + 0.9 * Math.cos(tt * h.c + h.ph * 1.3); let y = P.jungleY(h.x, h.z) + h.y + 0.35 * Math.sin(tt * h.b + h.ph);
+      // pass 3: fireflies within reach of her swirl in toward her, circling about her like a halo; they ease back home when she goes
+      const want = cat && !reducedMotion && Math.hypot(cat.x - h.x, cat.z - h.z) < 7 ? 1 : 0;
+      pull[i] += (want - pull[i]) * Math.min(1, Math.max(0, dt) * (want ? 1.1 : 0.5));
+      if (pull[i] > 0.01) {
+        const a = t * (1.1 + h.a) + h.ph * 5; const rr = 0.9 + 0.5 * h.b + 0.25 * Math.sin(t * 0.8 + h.ph);
+        const k = pull[i] * pull[i] * (3 - 2 * pull[i]);
+        x += (cat.x + Math.cos(a) * rr - x) * k; z += (cat.z + Math.sin(a) * rr - z) * k; y += (P.jungleY(cat.x, cat.z) + 0.5 + 0.7 * h.y * 0.5 + 0.2 * Math.sin(a * 2) - y) * k;
+      }
+      fPos[i * 3] = x; fPos[i * 3 + 2] = z; fPos[i * 3 + 1] = y;
+      const g = (reducedMotion ? 0.45 : Math.max(0.05 + 0.35 * pull[i], Math.sin(t * 1.3 + h.ph * 3)) ** 2) * dim;
       fCol[i * 3] = 0.95 * g; fCol[i * 3 + 1] = 0.85 * g; fCol[i * 3 + 2] = 0.3 * g;
     }
     fGeo.attributes.position.needsUpdate = true;
