@@ -235,9 +235,9 @@ export const stoneColliders = () => scatterStones().filter((k) => k.s >= 0.75).m
 
 // ---- the look: warm green shade, a pale gold sun, soft green mist ---------------------------------------------------------------
 export const JUNGLE_LOOK = Object.freeze({
-  top: 0x7ec4d6, horizon: 0xe2f0d8, fog: 0xd2e8d0, fogNear: 20, fogFar: 105,
-  sunColor: 0xfff0c8, sunIntensity: 1.0, hemiSky: 0xcfe8d4, hemiIntensity: 0.9, bounce: 0xc8e0b8,
-  grass: 0x5c9a4a, grassShade: 0x3e7a3a, mud: 0x8a6a45,
+  top: 0x62b8d2, horizon: 0xf0e6a4, fog: 0xe4e8b0, fogNear: 20, fogFar: 105, // beauty pass 2: a humid green-gold grade (golden haze, warmer sun, richer grass)
+  sunColor: 0xffe2a0, sunIntensity: 1.08, hemiSky: 0xc4e8b0, hemiIntensity: 0.9, bounce: 0xc4dc88,
+  grass: 0x56a63e, grassShade: 0x2f8434, mud: 0x8a6a45,
 });
 
 // ---- the rain: a seeded schedule of showers, each followed by a rainbow, read off the time it is handed ---------------------------

@@ -11,6 +11,7 @@ import { drawPolish } from './junglepolish.js';
 import { drawFoliage } from './junglefoliage.js';
 import { drawCarpet } from './junglecarpet.js';
 import { drawSparkle, createJungleAir } from './junglesparkle.js';
+import { drawBeauty2, createJungleBeauty2 } from './junglebeauty2.js';
 import { drawHouse } from './junglehouse.js';
 import { drawProps, propColliders } from './jungleprops.js';
 import { createWing } from './junglewinglive.js';
@@ -34,12 +35,15 @@ Object.assign(ST, {
   b: Object.freeze({
     finds: Object.freeze({ collectibles: jungleCollectibles, life: createJungleFindsLife }),
     critters: createJungleCritters,
-    air: createJungleAir, // beauty pass 1: butterflies and fireflies (junglesparkle.js)
+    air: (ctx) => { // beauty pass 1: butterflies and fireflies (junglesparkle.js); pass 2: the swaying vines, banners and flock, the sun shafts and the motes (junglebeauty2.js)
+      const one = createJungleAir(ctx); const two = createJungleBeauty2(ctx);
+      return { one, two, update(dt, t, catPos, rain, camera) { one.update(dt, t, catPos, rain); two.update(dt, t, catPos, rain, camera); }, dispose() { two.dispose(); one.dispose(); } };
+    },
     strays: createStraysLazy, // four friendly jungle cats made by the walk's own stray system (round two; junglestrays.js is its own lazy file)
     colliders: () => [...wingColliders(), ...propColliders()], // the wing's, and the crates, barrels and drying rack beside the lodge
     perches: wingPerches,
     story: wingStory(),
-    draw: (kit, M) => { drawWing(kit, M); drawPolish(kit, M); drawHouse(kit, M); drawFoliage(kit, M); drawProps(kit, M); drawCarpet(kit, M); drawSparkle(kit, M); }, // the wing, the J8 beauty round (shrubs, tufts, logs, roots, bromeliads, lianas), then round two: the lodge's detail, the foliage and the lived-in props
+    draw: (kit, M) => { drawWing(kit, M); drawPolish(kit, M); drawHouse(kit, M); drawFoliage(kit, M); drawProps(kit, M); drawCarpet(kit, M); drawSparkle(kit, M); drawBeauty2(kit, M); }, // the wing, the J8 beauty round (shrubs, tufts, logs, roots, bromeliads, lianas), then round two: the lodge's detail, the foliage and the lived-in props
     fruitModel,
     wing: createWing,
     errand: createJungleErrandLive, // Mossy's errand of the day and its leaf album (milestone J7)

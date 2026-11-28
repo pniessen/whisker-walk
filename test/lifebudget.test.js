@@ -28,7 +28,7 @@ const ROWS = [
   ['crystal', buildCrystal, 32, 2, 42200], // beauty pass 2 (2026-11-28, raised on purpose): +2,656 (hero crystals + halos, chamber washes, dome shafts, motes, ripples), measured 28 / 1 / 37,680 (35,024 before), bound 36,900 -> 42,200 (measured +12%); the street limit stays 62,000 for the whole frame
   ['treehouse', buildTreehouse, 23, 2, 66200],
   ['snowville', buildSnowville, 37, 3, 51800], // beauty pass 1 (2026-11-28): +1,596 built (eave bulbs, frost corners, sill planters, wreath bows, lintel holly, skates by the pond), measured 37 / 3 / 51,777, bound 50,231 -> 51,800; frost round (2026-11-27): +575 net (side drifts, west icicles, tufts, lane banks and prints, paid in part by open birch/stump/well cylinders and flat pads), measured 37 / 3 / 50,181, bound 49,620 -> 50,231 (measured +50); 46,500 before the ski slope (round three, +1,356 built), 47,700 after it; the snowmobile (round four): ring, marks and garage +1,162 built, the machine +1 non-casting mesh +686 (measured 37 / 3 / 49,514, bound +106)
-  ['jungle', buildJungle, 31, 4, 55700],
+  ['jungle', buildJungle, 31, 4, 61000], // beauty pass 2 (2026-11-28): 55,128 -> 60,857 measured (+5,729: shrubs, lanterns, totems, mushrooms in the build +2,362; the swaying vines, blossoms, leaves, banners, flock and the sun shafts in the life +3,367; test/junglebeauty2.test.js), meshes 28 -> 30 (sway + shafts; the motes are a Points), casters 3 unchanged; row 55,700 -> 61,000 on purpose, under the 62,000 design figure
 ];
 
 describe('build + life: the whole frame of the newest areas', () => {
