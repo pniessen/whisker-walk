@@ -90,7 +90,11 @@ const PATTERNS = {
   // the hall: cream with broad sage stripes and a fine line between them
   hall(x, y) {
     const m = x % 24;
-    const c = m < 7 ? hex(0xb7c4a4) : m === 12 ? hex(0xd4c9a8) : hex(0xece1c6);
+    let c = m < 7 ? hex(0xb7c4a4) : m === 12 ? hex(0xd4c9a8) : hex(0xece1c6);
+    // a tiny rosebud with two leaves, half-dropped between the stripes
+    const by = (y + (x >= 24 ? 24 : 0)) % 48;
+    if (near(x % 24, by, 15.5, 24) < 1.6) c = hex(0xc9776f);
+    else if (near(x % 24, by, 13, 27) < 1.1 || near(x % 24, by, 18, 27) < 1.1) c = hex(0x8aa27a);
     return mul(c, grain(x, y, 1, 0.025));
   },
   // the library: deep green with small gold diamonds
@@ -198,6 +202,10 @@ const PATTERNS = {
     else if (m < 6) c = hex(0xe0cca0);
     else if (m < 10) c = hex(0x2f3b5f);
     else c = hex(0x9b3b35);
+    for (const [fx, fy] of [[11, 11], [36, 11], [11, 36], [36, 36]]) {
+      if (near(x, y, fx, fy) < 1.4) c = hex(0xc9a151);
+      else if (near(x, y, fx, fy) < 3.6 && (x + y) % 2 === 0 && d >= 6 && m >= 10) c = hex(0xd9857a);
+    }
     return mul(c, grain(x, y, 14, 0.04));
   },
   // a blue runner with cream bands and a thin red line
@@ -207,7 +215,10 @@ const PATTERNS = {
     if (d < 3) c = hex(0xe3d7b9);
     else if (y % 12 < 2) c = hex(0xe3d7b9);
     else if (y % 12 === 6) c = hex(0xa84b41);
-    else c = hex(0x4b6189);
+    else {
+      c = hex(0x4b6189);
+      if (Math.abs(x - 23.5) + Math.abs((y % 12) - 8.5) < 2.6 && y % 12 > 6) c = hex(0xd9a35a); // a gold diamond in each band
+    }
     return mul(c, grain(x, y, 15, 0.04));
   },
   plaster(x, y) {
@@ -246,6 +257,11 @@ Object.assign(PATTERNS, {
     if (y > fore) c = hex(0x4a7640);
     if (x > 11 && x < 18 && y > 27 && y < 33) c = hex(0xf0e4cc);
     if (inTri(x, y, [10, 27], [19, 27], [14.5, 22])) c = hex(0xa8503c);
+    if (x > 13 && x < 16 && y > 28 && y < 32) c = hex(0xf2c75c); // a lit window
+    if (x === 17 && y > 20 && y < 24) c = hex(0x7a4030); // the chimney
+    if (near(x, y, 18, 18) < 2 || near(x, y, 20, 14) < 1.6 || near(x, y, 22, 10.5) < 1.3) c = lerpC(c, hex(0xffffff), 0.55); // smoke
+    for (const [bx, by] of [[24, 8], [28, 6]]) if ((x === bx && y === by) || (y === by - 1 && (x === bx - 1 || x === bx + 1))) c = hex(0x3a3a48); // two small birds
+    if (y > 36 && y < 45 && x % 5 === 0) c = hex(0xe8dcb4); // fence posts across the foreground
     return mul(c, grain(x, y, 26, 0.03));
   },
   // a ginger cat in a dark frame, ears pricked
@@ -259,7 +275,9 @@ Object.assign(PATTERNS, {
       if (near(x, y, 29.5, 26) < 2.4) c = hex(0x9cc86a);
       if (near(x, y, 18.5, 26) < 1 || near(x, y, 29.5, 26) < 1) c = hex(0x20201c);
       if (near(x, y, 24, 30) < 1.5) c = hex(0xd88a86);
+      if (y >= 29 && y <= 32 && (Math.abs(x - 24) > 5 && Math.abs(x - 24) < 11) && (Math.abs(x - 24) + y) % 3 === 0) c = hex(0xf0e4d0); // whiskers
     }
+    if (near(x, y, 7, 41) < 2.2 || near(x, y, 41, 41) < 2.2) c = hex(0xd89048); // a paw print in each lower corner
     return mul(c, grain(x, y, 27, 0.03));
   },
   // a blue vase of flowers on a table, warm wall behind
@@ -270,6 +288,8 @@ Object.assign(PATTERNS, {
     if (x > 22 && x < 26 && y < 22 && y > 14) c = hex(0x5c8a4c);
     for (const [cx, cy, col] of [[24, 13, 0xc4463c], [17, 18, 0xf0c050], [31, 18, 0xe0809a], [20, 10, 0xf0e4d0]]) if (near(x, y, cx, cy) < 3.6) c = hex(col);
     if (ell(x, y, 17, 24, 3.5, 1.6) || ell(x, y, 31, 24, 3.5, 1.6)) c = hex(0x5c8a4c);
+    if (y > 35 && ((Math.floor(x / 4) + Math.floor(y / 3)) % 2 === 0)) c = hex(0xb8503f); // a red checked cloth
+    if (inTri(x, y, [37, 14], [41, 9], [41, 19]) || inTri(x, y, [45, 14], [41, 9], [41, 19])) c = hex(0xf0a040); // a butterfly
     return mul(c, grain(x, y, 28, 0.03));
   },
   // a sailing boat on a calm sea at sunset
@@ -281,6 +301,10 @@ Object.assign(PATTERNS, {
     if (inTri(x, y, [22, 14], [22, 30], [33, 30])) c = hex(0xf2ead8);
     if (inTri(x, y, [20, 18], [20, 30], [13, 30])) c = hex(0xe4d4b4);
     if (y >= 30 && y <= 34 && x >= 13 && x <= 34 - (y - 30)) c = hex(0x5a3a28);
+    if (y > 29 && x > 34 && x < 39 && (y + x) % 3 === 0) c = hex(0xf6d070); // the sun's glitter on the water
+    if ((y === 8 && (x === 8 || x === 10)) || (y === 9 && x === 9) || (y === 12 && (x === 40 || x === 42)) || (y === 13 && x === 41)) c = hex(0x6a5a60); // two gulls
+    if (x === 22 && y > 8 && y < 14) c = hex(0x5a3a28); // the mast's top
+    if (inTri(x, y, [22, 8], [22, 12], [27, 11])) c = hex(0xc4463c); // a red pennant
     return mul(c, grain(x, y, 29, 0.03));
   },
   // a mirror: cool glass with two soft glints

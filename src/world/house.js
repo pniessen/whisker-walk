@@ -228,7 +228,10 @@ function gardenDetail(kit) {
       const x = cx + (hash01(k, i, 83) - 0.5) * 2.4, z = cz + (hash01(k, i, 84) - 0.5) * 2.4;
       if (!open(x, z) || (x > B.minX - 0.3 && x < B.maxX + 0.3 && z > B.minZ - 0.3 && z < B.maxZ + 0.3)) continue;
       const h = hash01(k, i, 85);
-      if (k % 3) pad(x, z, 0.5, 0.3, h * 6.28, leaf[Math.floor(h * 3)], 0.045); // above the beds' pads
+      if (k % 3) { // a leaf is one pointed triangle (was a quad): the beauty pass pays for its birdbath and washing line with the saving
+        const r = h * 6.28, c = Math.cos(r), n = Math.sin(r);
+        kit.fan([[-0.25, -0.15], [0.25, 0], [-0.25, 0.15]].map(([u, v]) => [x + u * c - v * n, 0.045, z + u * n + v * c]), [0, 1, 2].map(() => cellUV(leaf[Math.floor(h * 3)], 0.5, 0.5)), [0, 1, 0]);
+      } // above the beds' pads
       else { bloom(x, z, 0.14, 0.05, CELL.plaster); pad(x, z, 0.12, 0.12, 0, CELL.brass, 0.075); }
     }
   }
@@ -236,6 +239,60 @@ function gardenDetail(kit) {
   const found = (x, z, salt) => { if (ok(x, z)) bed(x, z, 2.6 + hash01(x, z, salt) * 1.2, salt); };
   for (let x = B.minX + 4; x < B.maxX - 3; x += 7.5 + 3 * hash01(x, 1, 71)) { found(x, B.minZ - 1.5, 72); found(x + 2, B.maxZ + 1.5, 73); }
   for (let z = B.minZ + 3; z < B.maxZ - 2; z += 7 + 3 * hash01(1, z, 74)) { found(B.minX - 1.5, z, 75); found(B.maxX + 1.5, z, 76); }
+  gardenLife(kit, B, gx);
+}
+
+// Beauty pass 1 (2026-11-28): a stone birdbath with two small birds in the front garden's west corner, a robin on the gate post, a
+// washing line along the back hedge (a sagging line, pegged shirts, towels and socks), and a few butterflies resting on the
+// beds' blooms. Boxes without undersides, in the garden's one non-casting atlas mesh: no mesh, draw or caster more, nothing to
+// walk on (they stand in the lawn's corners and the hedge's shade, where the cat has no use for them).
+function gardenLife(kit, B, gx) {
+  const bird = (x, y, z, dir, body, belly) => {
+    kitBox(kit, x - 0.05, x + 0.05, y, y + 0.09, z - 0.07, z + 0.07, body, { skip: ['y-'] });
+    kitBox(kit, x - 0.04, x + 0.04, y + 0.07, y + 0.15, z + dir * 0.06 - 0.04, z + dir * 0.06 + 0.04, body, { skip: ['y-'] });
+    kitBox(kit, x - 0.04, x + 0.04, y, y + 0.06, z + dir * 0.075, z + dir * 0.075 + dir * 0.03, belly, { skip: ['y-', dir > 0 ? 'z-' : 'z+'] }); // breast
+    kitBox(kit, x - 0.03, x + 0.03, y + 0.05, y + 0.07, z - dir * 0.07, z - dir * 0.18, CELL.darkWood, { skip: ['y-', dir > 0 ? 'z+' : 'z-'] }); // tail
+  };
+  // the birdbath: foot, stem, a wide shallow bowl with water, two birds, a few pebbles
+  const bx = HEDGE.minX + 3.2, bz = HEDGE.maxZ - 3.2;
+  kitBox(kit, bx - 0.3, bx + 0.3, 0, 0.1, bz - 0.3, bz + 0.3, CELL.stone, { skip: ['y-'] });
+  kitBox(kit, bx - 0.1, bx + 0.1, 0.1, 0.7, bz - 0.1, bz + 0.1, CELL.stone, { skip: ['y-', 'y+'] });
+  kitBox(kit, bx - 0.4, bx + 0.4, 0.7, 0.82, bz - 0.4, bz + 0.4, CELL.stone, { skip: ['y-'] });
+  kitFace(kit, 'y', 0.83, 1, [[bx - 0.32, bz - 0.32], [bx + 0.32, bz - 0.32], [bx + 0.32, bz + 0.32], [bx - 0.32, bz + 0.32]], CELL.curtainBlue);
+  bird(bx - 0.18, 0.83, bz + 0.05, 1, CELL.curtainBlue, CELL.plaster); // a bluebird at the water
+  bird(bx + 0.4, 0.82, bz - 0.2, -1, CELL.darkWood, CELL.brass); // a wren on the rim
+  for (let i = 0; i < 6; i++) {
+    const a = i * 1.1 + 0.4, r = 0.55 + 0.1 * hash01(i, 1, 91);
+    const px = bx + r * Math.cos(a), pz = bz + r * Math.sin(a);
+    kit.fan([[px - 0.07, 0.04, pz - 0.05], [px + 0.07, 0.04, pz - 0.05], [px + 0.04, 0.04, pz + 0.06], [px - 0.05, 0.04, pz + 0.05]],
+      [0, 1, 2, 3].map(() => cellUV(CELL.stone, 0.5, 0.5)), [0, 1, 0]);
+  }
+  // a robin on the gate post, facing the street
+  bird(gx - GATE_HALF - 0.05, 1.35, HEDGE.maxZ, 1, CELL.darkWood, CELL.curtainRed);
+  // the washing line: two poles, a line with a little sag, pegged washing
+  const lz = HEDGE.minZ + 1.9, lx0 = B.minX + 4, lx1 = B.minX + 13, top = 2.1;
+  for (const x of [lx0, lx1]) kitBox(kit, x - 0.05, x + 0.05, 0, top, lz - 0.05, lz + 0.05, CELL.darkWood, { skip: ['y-'] });
+  const line = (x) => top - 0.04 - 0.22 * Math.sin(((x - lx0) / (lx1 - lx0)) * Math.PI);
+  for (let i = 0; i < 6; i++) {
+    const xa = lx0 + ((lx1 - lx0) * i) / 6, xb = lx0 + ((lx1 - lx0) * (i + 1)) / 6;
+    kit.fan([[xa, line(xa), lz], [xb, line(xb), lz], [xb, line(xb) - 0.025, lz], [xa, line(xa) - 0.025, lz]], [0, 1, 2, 3].map(() => cellUV(CELL.plaster, 0.5, 0.5)), [0, 0, 1]);
+    kit.fan([[xb, line(xb), lz], [xa, line(xa), lz], [xa, line(xa) - 0.025, lz], [xb, line(xb) - 0.025, lz]], [0, 1, 2, 3].map(() => cellUV(CELL.plaster, 0.5, 0.5)), [0, 0, -1]);
+  }
+  // [x along the line, width, drop, cell]: a red shirt (with sleeves), a gingham towel, a sheet, a blue shirt, two socks
+  const wash = [[0.9, 0.34, 0.42, CELL.curtainRed], [2.1, 0.5, 0.36, CELL.gingham], [3.5, 0.9, 0.62, CELL.plaster], [5.2, 0.34, 0.42, CELL.curtainBlue], [6.2, 0.1, 0.22, CELL.brass], [6.45, 0.1, 0.22, CELL.curtainGreen]];
+  for (const [u, w, drop, cell] of wash) {
+    const x = lx0 + u, y = line(x);
+    kitBox(kit, x - w / 2, x + w / 2, y - drop, y - 0.02, lz - 0.012, lz + 0.012, cell, { skip: ['y+'] });
+    if (w === 0.34) for (const s of [-1, 1]) kitBox(kit, x + s * (w / 2 + 0.07), x + s * (w / 2 + 0.01), y - 0.2, y - 0.02, lz - 0.012, lz + 0.012, cell, { skip: ['y+', 'x-', 'x+'] });
+  }
+  // butterflies resting on beds: two small wings, tipped open (placed by the beds' own hash, so one every third bed or so)
+  for (let k = 0; k < 14; k++) {
+    const x = B.minX + 2 + hash01(k, 3, 92) * (B.maxX - B.minX - 4), z = (k % 2 ? B.maxZ + 1.5 : B.minZ - 1.5) + (hash01(k, 4, 92) - 0.5) * 0.6;
+    if (Math.abs(x - gx) < FRONT_DOOR_W / 2 + 3 && z > B.maxZ) continue;
+    const cell = [CELL.brass, CELL.curtainBlue, CELL.plaster, CELL.curtainRed][k % 4];
+    const y = 0.26;
+    for (const s of [-1, 1]) kit.fan([[x, y, z], [x + s * 0.1, y + 0.05, z - 0.07], [x + s * 0.1, y + 0.05, z + 0.07]], [0, 1, 2].map(() => cellUV(cell, 0.5, 0.5)));
+  }
 }
 
 // The hedge ring: clipped runs of slightly different heights and greens, one mesh.
