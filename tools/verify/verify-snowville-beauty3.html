@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snowville beauty picture page (round 3: the village reacts)</title>
+<!-- Snowville beauty pass 3 (the village reacts to her): the REAL build and life with the walk's tone mapping and bloom, and the walk's PLAY camera (behind and above her). NOT in the game's page.
+     URL params: size=WxH, tier=high|low|lite, bloom=0. window.__shot(name) with scripts/record-page.mjs. Shots: play run trail fir door star (scripted walks; the tag shows prints, puffs, fir shakes, door jingles). -->
+<style>html,body{margin:0;background:#cfdcec;overflow:hidden}canvas{position:fixed;left:0;top:0;display:block}</style>
+</head>
+<body>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier } from '/src/render/textures.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { facingYaw } from '/src/traversal.js';
+  import { applyDusk, duskEnv, tintDuskLawn } from '/src/render/dusk.js';
+  import { createComposerRig } from '/src/game/composer.js';
+  import { effectiveWear } from '/src/suithook.js';
+  import { mergeStaticProps } from '/src/render/mergeprops.js';
+  import { build } from '/src/world/snowville.js';
+  import { loadSnowvilleStages } from '/src/world/snowvillestages.js';
+  import { createProgression } from '/src/progression.js';
+  import { createDiscoveryLog } from '/src/discoveries.js';
+  import { createFx } from '/src/fx.js';
+  import * as P from '/src/world/snowvilleplan.js';
+  import { createStrayCats, strayStream } from '/src/straycats.js';
+
+  const params = new URLSearchParams(location.search);
+  const [W0, H0] = (params.get('size') || '960x540').split('x').map(Number);
+  const TIER = params.get('tier') || 'high';
+  const TIME = params.get('time') || 'noon';
+  const DT = 1 / 30;
+  const tier = TIER === 'lite' ? { name: 'low', rung: 5, shadows: false, envIntensity: 0.3 } : TIER === 'low' ? { name: 'low', rung: 3, shadows: true, envIntensity: 0.32 } : { name: 'high', shadows: true, envIntensity: 0.45, msaaSamples: 4 };
+  let W = W0, H = H0;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H); renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = tier.shadows; renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+  document.body.prepend(renderer.domElement);
+  setTextureTier(tier);
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  const sun = createSun(); scene.add(sun);
+  const fill = createFill(0x8d8c93); scene.add(fill);
+  await loadSnowvilleStages();
+  const area = build(scene, { water: { quality: tier, reducedMotion: false } });
+  const look = applyDusk({ scene, sun, fill, areaData: area });
+  tintDuskLawn({ ground: scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint)), grass: null, look });
+  scene.environmentIntensity = duskEnv(tier.envIntensity, look);
+  // the sun's three angles (the walk has the one look; these only stress the exposure)
+  const SUNS = { morning: [-60, 22, 30, 0xffe2c0, 1.0], noon: [10, 70, 20, null, 1.0], dusk: [70, 18, -20, 0xffc890, 0.9] };
+  const sp = SUNS[TIME] || SUNS.noon;
+  sun.position.set(sp[0], sp[1], sp[2]);
+  if (sp[3]) sun.color.set(sp[3]);
+  sun.intensity *= sp[4];
+  const ground = area.ground;
+  const wear = effectiveWear({ collar: null, head: null, face: null, neck: null, body: params.get('wear') || null, back: null, feet: null }, 'snowville');
+  const cat = buildCat('tabby', wear); scene.add(cat);
+  const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
+  const shadows = tier.shadows ? createShadowFit(sun, camera, { radius: 20, mapSize: tier.rung >= 3 ? 1024 : 2048 }) : null;
+  sun.shadow.bias = SUN_BIAS; sun.castShadow = tier.shadows;
+  assignShadowCasters(scene);
+  mergeStaticProps(scene);
+  const rig = createComposerRig(renderer, camera);
+  const useBloom = TIER === 'high' && params.get('bloom') !== '0';
+  if (useBloom) { rig.ensure(4); rig.attachScene(scene); rig.resize(W, H); }
+  const fx = createFx(scene, { reducedMotion: false });
+  const store = new Map();
+  const progression = createProgression({ getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) });
+  const log = createDiscoveryLog(progression); log.startWalk();
+  const player = { floatY: 0, perchY: 0, inputActive: false, inputDirection: () => ({ x: 0, z: 0 }), halt() {} };
+  const session = { cat, ground, perched: null, perchHold: null, idleTime: 0, fair: { update() {}, late() {}, jump: () => false, pawKind: () => null, groundSpot: () => null, riding: null } };
+  const life = area.life({ roomSeed: 7, sendEvent: () => {}, scene, sun, fill, ground, reducedMotion: false, tier, progression, log, audio: null, doc: document, win: window, clock: () => 250, visits: 3, player });
+  const strayCats = createStrayCats(scene, area, 4, strayStream(7), { roomSeed: 7, homes: area.strayHomes ?? [] }); // the four friendly strays (standing at their homes: not stepped here)
+  let t = 0;
+  const lookAt = (pos, tgt, fov = 70) => { camera.fov = fov; camera.updateProjectionMatrix(); camera.position.set(...pos); camera.lookAt(...tgt); };
+  let lock = null;
+  let follow = false;
+  function frame() {
+    t += DT;
+    if (lock) lookAt(...lock);
+    else if (!follow) playCam();
+    else if (follow) { const r = cat.rotation.y; camera.position.set(cat.position.x + Math.sin(r) * 3.0, cat.position.y + 1.6, cat.position.z + Math.cos(r) * 3.0); camera.lookAt(cat.position.x, cat.position.y + 0.5, cat.position.z); } // (the walk's follow camera puts the camera back every frame; the sled's live then carries it)
+    life.update(DT, t, cat.position, camera, session);
+    session.fair.update(DT, t, { cat, player, session });
+    fx.update(DT, camera);
+    animateCat(cat, session.perched ? 'requestPet' : 'idle', t, 0, false);
+    if (shadows) shadows.update(0, DT);
+    if (useBloom) rig.renderFrame({ useComposer: true, scene, cat: null }); else renderer.render(scene, camera);
+  }
+  const tag = Object.assign(document.createElement('div'), { style: 'position:fixed;left:6px;bottom:4px;font:11px monospace;color:#234;background:#fffa;padding:1px 4px' });
+  document.body.append(tag);
+  const settle = (n) => { for (let i = 0; i < n; i++) frame(); };
+  const put = (x, z, fx_, fz_, lift = 0) => { cat.position.set(x, ground.y(x, z) + lift, z); cat.rotation.set(0, facingYaw(fx_, fz_), 0); };
+  const cam = (pos, tgt, fov = 70, size = null) => { if (size) { W = size[0]; H = size[1]; } else { W = W0; H = H0; } renderer.setSize(W, H); camera.aspect = W / H; if (useBloom) rig.resize(W, H); lock = [pos, tgt, fov]; };
+  // Beauty pass 3 (the village reacts to her): scripted walks with the PLAY camera (behind and above her, the walk's own offset 0, 2.9, 4.4 turned with her heading).
+  // Shots: play (standing in the square), run (mid-run up the lane: puffs and a fresh trail), trail (stopped after the run: footprints behind her), fir (brushing a fir), door (at a cottage door), star (waiting for a shooting star).
+  const playCam = () => { const r = cat.rotation.y; const fx = -Math.sin(r); const fz = -Math.cos(r); camera.fov = 70; camera.updateProjectionMatrix(); camera.position.set(cat.position.x - fx * 4.4, cat.position.y + 2.9, cat.position.z - fz * 4.4); camera.lookAt(cat.position.x, cat.position.y + 0.6 + (window.__tilt || 0) * 4.4, cat.position.z); };
+  const walk = (x0, z0, x1, z1, frames, stopAt = frames) => {
+    const hx = x1 - x0; const hz = z1 - z0; const L = Math.hypot(hx, hz);
+    cat.rotation.set(0, facingYaw(hx / L, hz / L), 0);
+    for (let i = 0; i < Math.min(frames, stopAt); i++) { const u = (i + 1) / frames; cat.position.set(x0 + hx * u, ground.y(x0 + hx * u, z0 + hz * u), z0 + hz * u); frame(); }
+  };
+  const FIR = P.scatterFirs().filter((k) => !k.rim && k.s > 1.0).sort((a, b) => Math.hypot(a.x, a.z + 18) - Math.hypot(b.x, b.z + 18))[0];
+  const SC = {
+    play: () => { put(-2, 12, 0, -1); lock = null; follow = false; settle(40); },
+    run: () => { put(0, 29, 0, -1); walk(0, 29, -1, 14, 75, 62); },
+    trail: () => { put(0, 29, 0, -1); walk(0, 29, -1, 14, 75); walk(-1, 14, -1.4, 12.6, 18); },
+    fir: () => { const f = FIR; const A = life.light.alive.state; const n0 = A.shaken; const x0 = f.x + 0.3, z0 = f.z + 7; cat.rotation.set(0, facingYaw(f.x - x0, f.z - z0), 0); for (let i = 0; i < 90; i++) { const u = (i + 1) / 60; cat.position.set(x0 + (f.x - x0 - 0.5) * u, ground.y(x0, z0), z0 + (f.z - z0 - 0.9) * u); cat.position.y = ground.y(cat.position.x, cat.position.z); frame(); if (A.shaken > n0) { for (let k = 0; k < 14; k++) frame(); break; } } },
+    door: () => { put(-6, 12, -1, 0); walk(-2, 14, -7, 17, 40); },
+    star: () => { put(-4, -2, 1, 0.15); window.__tilt = 0.9; settle(1); for (let i = 0; i < 2400; i++) { frame(); if (window.__starLive?.()) break; } },
+  };
+  window.__shot = (name) => {
+    const f = SC[name]; if (!f) throw new Error('no shot ' + name);
+    W = W0; H = H0; renderer.setSize(W, H); camera.aspect = W / H; if (useBloom) rig.resize(W, H);
+    follow = false; lock = null; window.__tilt = 0;
+    f();
+    playCam(); frame(); playCam(); frame();
+    const i = renderer.info.render; const al = life.light.alive?.state; tag.textContent = `${name} ${TIER}: feet ${al?.feet} puffs ${al?.puffs} shaken ${al?.shaken} jingles ${al?.jingles} speed ${al?.speed?.toFixed(1)}`;
+    return name;
+  };
+  window.__starLive = () => { const A = life.light.alive.state; return A.starT >= 0 && t - A.starT > 0.45; };
+  window.__stats = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles });
+  window.__ready = true;
+</script>
+</body>
+</html>

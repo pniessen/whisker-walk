@@ -46,7 +46,7 @@ export function windGust(audio, k = 0.5) {
 }
 
 // Sleigh bells: a dozen tiny high tinkles in quick, uneven succession, drifting off. `k` varies the pitch of the cluster.
-export function sleighBells(audio, k = 0) {
+export function sleighBells(audio, k = 0, gain = 1) {
   const ac = soundCtx(audio);
   if (!ac) return false;
   const now = ac.currentTime;
@@ -58,10 +58,25 @@ export function sleighBells(audio, k = 0) {
     const f = base * (1 + 0.38 * hash01(k * 16 + i, 63));
     const o = ac.createOscillator(); const g = ac.createGain();
     o.type = 'sine'; o.frequency.value = f;
-    const peak = 0.007 * (1 - i / 16);
+    const peak = 0.007 * gain * (1 - i / 16);
     g.gain.setValueAtTime(0.0001, now + at); g.gain.exponentialRampToValueAtTime(peak, now + at + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, now + at + 0.35);
     o.connect(g); g.connect(out); o.start(now + at); o.stop(now + at + 0.4);
   }
+  return true;
+}
+
+// Snow slipping off a bough (beauty pass 3): a short soft hush of filtered noise, falling in pitch, as she brushes a fir.
+export function snowWhump(audio, k = 0) {
+  const ac = soundCtx(audio);
+  if (!ac) return false;
+  const now = ac.currentTime;
+  const src = ac.createBufferSource(); const flt = ac.createBiquadFilter(); const g = ac.createGain();
+  src.buffer = noiseBuffer(ac); src.loop = true;
+  flt.type = 'lowpass'; flt.Q.value = 0.5;
+  flt.frequency.setValueAtTime(900 + 200 * hash01(k, 67), now); flt.frequency.exponentialRampToValueAtTime(260, now + 0.6);
+  g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.03, now + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
+  src.connect(flt); flt.connect(g); g.connect(audio.getMaster?.() ?? ac.destination);
+  src.start(now); src.stop(now + 0.8);
   return true;
 }
 

@@ -11,7 +11,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { phrase } from '../clanphrases.js';
 import * as P from './snowvilleplan.js';
 import { paint, dotTexture } from './snowvilleparts.js';
-import { isLowTier } from './snowvillelight.js';
+import { isLowTier, gustAt } from './snowvillelight.js';
+import { smokeLean } from './snowvillealive.js';
 import './snowvillecritterwords.js';
 
 export const TAU = Math.PI * 2;
@@ -209,6 +210,7 @@ export function createSnowvilleCritters({ scene, reducedMotion = false, tier = n
     for (let c = 0; c < CHIMNEYS.length; c++) {
       for (let j = 0; j < N.puffs; j++) {
         puffAt(c, j, t, spuff);
+        spuff.x += smokeLean(spuff.u, gustAt(t)); // beauty pass 3: the smoke leans with the wind
         sPos[n * 3] = spuff.x; sPos[n * 3 + 1] = spuff.y; sPos[n * 3 + 2] = spuff.z;
         cTmp.copy(cA).lerp(cB, Math.min(1, spuff.u * 1.15));
         sCol[n * 3] = cTmp.r; sCol[n * 3 + 1] = cTmp.g; sCol[n * 3 + 2] = cTmp.b;
