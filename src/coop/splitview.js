@@ -37,6 +37,7 @@ export function createSplit({ renderer, camera, doc = typeof document !== 'undef
   let res = { mode: 'shared', t: 0, dividerX: 1, reason: 'start', active: false };
   let lastRule = -1;
   let divider = null;
+  let poseFrom = null; // S4: cat one's camera as the last shared frame left it
   if (doc) {
     divider = doc.createElement('div');
     divider.style.cssText = 'position:fixed;top:0;bottom:0;width:6px;margin-left:-3px;z-index:8;pointer-events:none;display:none;background:linear-gradient(90deg,rgba(0,0,0,0),rgba(0,0,0,.75) 35%,rgba(0,0,0,.75) 65%,rgba(0,0,0,0))';
@@ -59,6 +60,7 @@ export function createSplit({ renderer, camera, doc = typeof document !== 'undef
     const info0 = coop.splitInfo;
     if (!cam2 || !info0 || !session?.scene) {
       if (res.active) { rule.reset(); res = { mode: 'shared', t: 0, dividerX: 1, reason: 'start', active: false }; }
+      coop.splitRes = null; poseFrom = null;
       if (divider) divider.style.display = 'none';
       return false;
     }
@@ -66,7 +68,8 @@ export function createSplit({ renderer, camera, doc = typeof document !== 'undef
     const dtRule = lastRule >= 0 ? Math.min(0.25, (t0 - lastRule) / 1000) : 0;
     lastRule = t0;
     res = rule.step({ ...info0, reducedMotion: !!session.reducedMotion, dt: dtRule, nowMs: t0 });
-    if (!res.active) { if (divider) divider.style.display = 'none'; readout(t0); return false; }
+    coop.splitRes = res; // S4: the pads' mapping follows the picture (src/coop/padsplit.js)
+    if (!res.active) { poseFrom = null; if (divider) divider.style.display = 'none'; readout(t0); return false; }
     renderer.getSize(size);
     const dpr = renderer.getPixelRatio();
     const plan = res.t >= 1 ? splitPlan(size.x, size.y, dpr) : viewRects(size.x, size.y, dpr, res.dividerX);
@@ -84,6 +87,11 @@ export function createSplit({ renderer, camera, doc = typeof document !== 'undef
     info.autoReset = false; info.reset();
     cam2.fov = camera.fov; cam2.near = camera.near; cam2.far = camera.far;
     const cams = [camera, cam2];
+    // S4: the first slide eases cat one's camera in from the shared pose (kept from the last shared frame) to its own
+    if (!poseFrom && res.mode === 'split' && res.t < 1) poseFrom = { p: camera.position.clone(), q: camera.quaternion.clone() };
+    if (res.t >= 1) poseFrom = null;
+    const own = poseFrom && { p: camera.position.clone(), q: camera.quaternion.clone() };
+    if (own) { const w = 1 - res.t * res.t * (3 - 2 * res.t); camera.position.lerpVectors(own.p, poseFrom.p, w); camera.quaternion.slerpQuaternions(own.q, poseFrom.q, w); }
     try {
       renderer.setScissorTest(true);
       for (let i = 0; i < plan.css.length; i++) {
@@ -99,6 +107,7 @@ export function createSplit({ renderer, camera, doc = typeof document !== 'undef
       renderer.setScissorTest(false);
       renderer.setViewport(0, 0, size.x, size.y);
       renderer.setScissor(0, 0, size.x, size.y);
+      if (own) { camera.position.copy(own.p); camera.quaternion.copy(own.q); camera.updateMatrixWorld(true); }
       camera.aspect = mainAspect; camera.updateProjectionMatrix(); // the leash and the HUD read the full-screen aspect
       info.autoReset = wasAuto;
       if (pos) pos.set(pos.x - o.x, pos.y - o.y, pos.z - o.z);

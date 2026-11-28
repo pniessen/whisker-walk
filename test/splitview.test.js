@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { splitPlan, splitWanted, createSplit } from '../src/coop/splitview.js';
 import { coop } from '../src/coopseam.js';
+import * as THREE from 'three';
 
 describe('split view maths (S0)', () => {
   it('flag parses only ?split=1', () => {
@@ -48,7 +49,7 @@ function fakeRenderer(w = 1280, h = 720, pr = 2) {
     render: (s, c) => { calls.push(['render', c.name]); info.render.calls += 10; info.render.triangles += 500; },
   };
 }
-const cam = (name, aspect = 16 / 9) => ({ name, aspect, fov: 70, near: 0.1, far: 300, updateProjectionMatrix() {}, updateMatrixWorld() {} });
+const cam = (name, aspect = 16 / 9) => ({ name, aspect, position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), fov: 70, near: 0.1, far: 300, updateProjectionMatrix() {}, updateMatrixWorld() {} });
 
 describe('createSplit.draw', () => {
   it('is a no-op (false, nothing drawn) while cat two is not out', () => {
@@ -94,5 +95,24 @@ describe('createSplit.draw', () => {
       expect(s.active()).toBe(true);
       expect(els[0].style.display).toBe('block');
     } finally { delete coop.second; delete coop.splitInfo; }
+  });
+});
+
+describe('S4: the first slide eases cat one\'s camera in from the shared pose', () => {
+  it('draws from the shared pose at the start, restores its own pose after, and publishes the rule\'s answer', () => {
+    const r = fakeRenderer();
+    const one = cam('one'); one.position.set(10, 0, 0);
+    const drawn = [];
+    r.render = (sc, c) => { if (c.name === 'one') drawn.push(c.position.x); };
+    coop.second = () => cam('two'); coop.splitInfo = { gap: 30, maxSep: 10, top: true, sameLevel: true };
+    let t = 0; const s = createSplit({ renderer: r, camera: one, doc: null, now: () => t });
+    one.position.set(0, 0, 0); // the last shared frame's pose
+    s.draw({ scene: {} }); // first active frame: pose kept as the 'from'
+    one.position.set(10, 0, 0); t = 100; // the cat's own camera now
+    s.draw({ scene: {} });
+    expect(drawn[1]).toBeLessThan(10); expect(drawn[1]).toBeGreaterThanOrEqual(0); // eased, not popped
+    expect(one.position.x).toBe(10); // own pose put back
+    expect(coop.splitRes.active).toBe(true);
+    delete coop.second; delete coop.splitInfo; delete coop.splitRes;
   });
 });
