@@ -350,12 +350,12 @@
    "keys": "TV mode could not load. Try again later."
   },
   "settings.crash-upload": {
-   "touch": "Send crash reports to the game maker",
-   "keys": "Send crash reports to the game maker"
+   "touch": "Send crash reports and performance numbers to the game maker",
+   "keys": "Send crash reports and performance numbers to the game maker"
   },
   "settings.crash-upload-note": {
-   "touch": "No names or save data. Only what broke and where.",
-   "keys": "No names or save data. Only what broke and where."
+   "touch": "No names or save data. Only what broke and where, and how smoothly it runs.",
+   "keys": "No names or save data. Only what broke and where, and how smoothly it runs."
   },
   "settings.crash-copy": {
    "touch": "Copy report",
@@ -761,12 +761,12 @@
    "keys": "TV mode could not load. Try again later."
   },
   "settings.crash-upload": {
-   "touch": "Send crash reports to the game maker",
-   "keys": "Send crash reports to the game maker"
+   "touch": "Send crash reports and performance numbers to the game maker",
+   "keys": "Send crash reports and performance numbers to the game maker"
   },
   "settings.crash-upload-note": {
-   "touch": "No names or save data. Only what broke and where.",
-   "keys": "No names or save data. Only what broke and where."
+   "touch": "No names or save data. Only what broke and where, and how smoothly it runs.",
+   "keys": "No names or save data. Only what broke and where, and how smoothly it runs."
   },
   "settings.crash-copy": {
    "touch": "Copy report",

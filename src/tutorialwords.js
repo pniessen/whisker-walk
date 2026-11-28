@@ -143,8 +143,8 @@ export const WORDS = Object.freeze({
   'pad.settings.tv-note': two('Big text for the sofa.', 'Big text for the sofa. Full screen: ⌃⌘F.'),
   'pad.settings.tv-failed': same('TV mode could not load. Try again later.'),
   // Crash reports (src/crashlog.js): the Settings switch, its one-line note and the Copy report button.
-  'settings.crash-upload': same('Send crash reports to the game maker'),
-  'settings.crash-upload-note': same('No names or save data. Only what broke and where.'),
+  'settings.crash-upload': same('Send crash reports and performance numbers to the game maker'),
+  'settings.crash-upload-note': same('No names or save data. Only what broke and where, and how smoothly it runs.'),
   'settings.crash-copy': same('Copy report'),
   'settings.crash-copied': same('Report copied 📋'),
   'settings.crash-copy-hint': same('Touch and keep the text, then choose Copy.'),
