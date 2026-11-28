@@ -216,6 +216,7 @@ export function createLighthouseLife(ctx = {}) {
     const a = beamAngle(t, seed);
     const { beam, halo, glow, patch } = parts;
     beam.visible = glowK > 0;
+    sound.caps?.glow('beam', glowK * (0.45 + 0.2 * Math.min(1.4, wx.state.storm * 0.85 + wx.state.fog))); // (the hero: it counts in the budget but is not scaled by it)
     beam.rotation.y = -a;
     const wk = wx.state; const murk = Math.min(1.4, wk.storm * 0.85 + wk.fog); // in rain and fog the cone shows
     beam.scale.set(1, 1 + 0.45 * murk, 1 + 0.45 * murk);
@@ -325,6 +326,7 @@ export function createLighthouseLife(ctx = {}) {
       }
       if (arm) arm.rotation.z = -ARM_SWING * smooth(lit ? (t - litAt) / ARM_TIME : 0);
       const glowK = lit ? smooth((t - litAt) / LIGHT_UP) : 0;
+      sound.caps?.frame(dt); // beauty pass 10: the shared glow budget, event rule and accent cap (lighthousecaps.js)
       wx.update(dt, t, camera, catPos, sound, beamAngle(t, seed), lit);
       vistas.update(dt, t, catPos, wx, sound);
       placeBeam(glowK, catPos, camera);
