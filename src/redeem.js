@@ -1,5 +1,6 @@
 // Redeem codes: pure normalise + hash helpers (v21 §10.4).
 // DOM-free; its only imports are the plain-data code table, escapehtml.js and the phrase table.
+// A code that is not a gift may be the family's (createRedeemer's `family`, serieslock.js).
 // Only hashes of codes are ever stored or compared.
 import { REDEEM_CODES } from './redeemcodes.js';
 import { escapeHtml } from './escapehtml.js';
@@ -44,7 +45,7 @@ export const FIRST_REST_MS = 30000;
 export const MAX_REST_MS = 300000;
 export const FORGIVE_MS = 600000;
 
-export function createRedeemer({ progression, codes = REDEEM_CODES, hash = hashCode, now = Date.now, storage } = {}) {
+export function createRedeemer({ progression, codes = REDEEM_CODES, hash = hashCode, now = Date.now, storage, family = null } = {}) {
   const store = () => {
     try {
       return storage === undefined ? globalThis.localStorage : storage;
@@ -105,6 +106,20 @@ export function createRedeemer({ progression, codes = REDEEM_CODES, hash = hashC
       return { kind: 'unsupported' };
     }
     if (typeof h !== 'string' || !Object.hasOwn(codes, h)) {
+      // Not a gift: it may be this family's code (src/serieslock.js), which opens the family's words.
+      if (family) {
+        let opened = 'no';
+        try {
+          opened = await family.tryCode(normalized);
+        } catch {
+          opened = 'no';
+        }
+        if (opened === 'unlocked') {
+          writeRest({ misses: 0, until: 0, last: 0 });
+          return { kind: 'family' };
+        }
+        if (opened === 'unsupported') return { kind: 'unsupported' };
+      }
       countMiss();
       return { kind: 'unknown' };
     }
@@ -168,6 +183,7 @@ export function redeemMessage(result, catalog) {
       if (!parts.length) return `🎉 You opened it! There was nothing new inside this time — but thanks for trying it! 💛${party}`;
       return `🎉 Surprise! You got ${joinNice(parts)}!${party}`;
     }
+    case 'family': return '🎉 Your family words are on! You can switch them in Game settings.';
     case 'used': return 'You already opened this one — it’s safe in your collection. 💛';
     case 'unknown': return 'Hmm, that code isn’t one we know. Check the letters and try again! 🐾';
     case 'empty': return 'Type your code in the box first. 😺';
@@ -187,7 +203,7 @@ export function renderRedeemHtml({ text, busy, result, catalog }) {
     <section class="redeem-section"><h2>🎁 Got a gift code?</h2>
       <label class="code-label" for="redeem-input">Gift code</label>
       <form class="redeem-form">
-        <input id="redeem-input" class="redeem-input" type="text" value="${escapeHtml(text)}" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40"${dis}>
+        <input id="redeem-input" class="redeem-input" type="text" value="${escapeHtml(text)}" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="64"${dis}>
         <button type="submit" class="redeem-btn"${dis}>${busy ? 'Opening…' : 'Open it!'}</button>
       </form>
       <p class="redeem-msg" aria-live="polite">${escapeHtml(msg)}</p>

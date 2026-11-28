@@ -217,6 +217,15 @@ function init() {
     if (seriesMode() !== want) setSeriesMode(want);
   }
   applyWordSet();
+  // A typed family code turns the words on for this save (the box says "Your family words are on!").
+  async function tryFamilyCode(normalized) {
+    const answer = await family.tryCode(normalized);
+    if (answer === 'unlocked') {
+      progression.setWordSet('on');
+      applyWordSet();
+    }
+    return answer;
+  }
   wordsChanged = () => { applyWordSet(); try { homebase.refresh(); } catch { /* the home screen is not built yet */ } };
   // Fire and forget: asks the browser not to clear the save under storage pressure.
   askToKeepSaves();
@@ -714,7 +723,7 @@ function init() {
   const homebaseCloud = createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed: togetherAllowed, pushProfileNow, blockList });
   // "Delete my online data" on the Cloud save sheet (src/game/onlinedelete.js).
   const onlineDelete = createOnlineDelete({ MP, pid, getCloud: openCloud, getPsecret, sync, progression });
-  const homebase = createHomeBase({ players: PLAYER_BOOT.ok && RAW_STORAGE ? { raw: RAW_STORAGE, saveKey: SAVE_KEY } : null, progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onTvChange: (on) => tvLoader.apply(on), onVisitDen: beginDenWalk, onOpenDen: (o) => denShop.openHome(o), colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onBirthdaySong: () => audio.playTune(birthdayTune(), settings.get('musicVolume')), onAudioWake: () => { const c = audio.getContext(); if (c.state === 'suspended') c.resume?.()?.catch?.(() => {}); }, onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
+  const homebase = createHomeBase({ players: PLAYER_BOOT.ok && RAW_STORAGE ? { raw: RAW_STORAGE, saveKey: SAVE_KEY } : null, progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onTvChange: (on) => tvLoader.apply(on), onVisitDen: beginDenWalk, onOpenDen: (o) => denShop.openHome(o), colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onBirthdaySong: () => audio.playTune(birthdayTune(), settings.get('musicVolume')), onAudioWake: () => { const c = audio.getContext(); if (c.state === 'suspended') c.resume?.()?.catch?.(() => {}); }, onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch, family: { tryCode: tryFamilyCode }, onWordsChange: () => wordsChanged() });
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the

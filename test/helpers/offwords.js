@@ -6,7 +6,7 @@
 // everyday words only switches the mode here and switches back afterwards.
 import * as off from '../../src/offclanwords.js';
 import * as on from '../../src/clanwords.js';
-import { setSeriesMode, seriesMode, SERIES_ON } from '../../src/wordset.js';
+import { setSeriesMode, seriesMode, removeWordSet, installSeriesSet, SERIES_ON } from '../../src/wordset.js';
 
 export const OFF = off.OFF_ID;
 export const offWords = off;
@@ -21,6 +21,19 @@ export function withOffWords(fn) {
   } finally {
     setSeriesMode(SERIES_ON);
   }
+}
+
+// fn() as a stranger's device has it: the everyday words in use and the family's set not even
+// installed (no Family words switch, nothing of it in a sheet). It is back afterwards.
+export function withPublicWords(fn) {
+  return withOffWords(() => {
+    removeWordSet(SERIES_ON);
+    try {
+      return fn();
+    } finally {
+      installSeriesSet(on);
+    }
+  });
 }
 
 // Like withOffWords, for a fn that awaits: the everyday words stay in use until its promise is done.
