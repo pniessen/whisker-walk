@@ -655,7 +655,8 @@ export function start(ctx) {
     // then holds the cats no farther apart than they are (the plan's tight-place rule, in its first form).
     const top = maxZoomStep(s.areaId); // the Den stops at the default step: the leash is the room's own
     const wide = maxSeparation(lens, top) * LEASH_MARGIN;
-    const split = !!ctx.split?.(); // ?split=1 (the S0 spike): each cat has its own camera, so the shared picture and its leash are off
+    const splitNow = ctx.split?.(); // ?split=1 (docs/split-screen-s1.md): null = flag off; true while the split picture is (even partly) up, so each cat has its own camera and the shared picture and its leash are off
+    const split = !!splitNow;
     const limit = split ? 1e6 : tight ? Math.min(wide, Math.max(state.apart, 2)) : wide;
     state.leash = limit;
     const ride = rides.busy || s.fair?.riding || s.fair?.hopping || s.traversal?.busy; // a ride runs or cat one is on a crossing: the ride or the move carries the cat, so no leash holds it
@@ -668,6 +669,10 @@ export function start(ctx) {
     prev.a.set(cat.position.x, cat.position.z);
     prev.b.set(body.position.x, body.position.z);
     state.apart = Math.hypot(cat.position.x - body.position.x, cat.position.z - body.position.z);
+    if (splitNow !== null && splitNow !== undefined) { // the inputs of the dynamic split rule (src/coop/splitrule.js), read by splitview.js after this frame
+      const lv = !s.ground.flat && !s.ground.sameLevel(cat.position.x, cat.position.z, body.position.x, body.position.z);
+      coop.splitInfo = { gap: state.apart, maxSep: maxSeparation(lens, top), top: level >= top - 0.05, sameLevel: !lv };
+    }
     verbs(s, dt);
     // Pushing on at the stretch of the band: this cat's own hint says how to hop to the friend.
     const pushing = [ctx.player.inputActive && !trotting[0], mover.player.inputActive && !trotting[1]];
@@ -769,7 +774,7 @@ export function start(ctx) {
       leave(false);
       cards?.dispose();
       hud?.dispose();
-      coop.poll = null; coop.two = false; coop.pad = null; coop.frame = null; coop.late = null; delete coop.second;
+      coop.poll = null; coop.two = false; coop.pad = null; coop.frame = null; coop.late = null; delete coop.second; delete coop.splitInfo;
     },
   };
   if (import.meta.env?.DEV) globalThis.__coop = handle; // the browser pane's handle (development server only; not in a build)

@@ -59,10 +59,10 @@ describe('createSplit.draw', () => {
   });
   it('draws two scissored views, then restores the full viewport, aspect and autoReset', () => {
     const r = fakeRenderer(); const one = cam('one'); const two = cam('two');
-    coop.second = () => two;
+    coop.second = () => two; coop.splitInfo = { gap: 40, maxSep: 40, top: true, sameLevel: true };
     try {
       const s = createSplit({ renderer: r, camera: one, doc: null });
-      expect(s.draw({ scene: {} })).toBe(true);
+      expect(s.draw({ scene: {}, reducedMotion: true })).toBe(true);
       const names = r.calls.filter((c) => c[0] === 'render').map((c) => c[1]);
       expect(names).toEqual(['one', 'two']);
       expect(r.calls.filter((c) => c[0] === 'vp').slice(0, 2)).toEqual([['vp', 0, 0, 640, 720], ['vp', 640, 0, 640, 720]]);
@@ -73,6 +73,26 @@ describe('createSplit.draw', () => {
       expect(two.aspect).toBeCloseTo(640 / 720, 12);
       expect(r.info.autoReset).toBe(true);
       expect(s.stats()).toMatchObject({ calls: 20, tris: 1000 });
-    } finally { delete coop.second; }
+    } finally { delete coop.second; delete coop.splitInfo; }
+  });
+  it('shared: stays on the normal path and draws nothing; mid-slide draws two clipped views; the divider is a DOM strip', () => {
+    const els = [];
+    const doc = { createElement: () => { const e = { style: {}, remove() {} }; els.push(e); return e; }, body: { appendChild() {} } };
+    const r = fakeRenderer(1000, 500, 1); const one = cam('one'); const two = cam('two');
+    coop.second = () => two; coop.splitInfo = { gap: 5, maxSep: 40, top: true, sameLevel: true };
+    let t = 0; const s = createSplit({ renderer: r, camera: one, doc, now: () => t });
+    try {
+      expect(s.draw({ scene: {} })).toBe(false);
+      expect(r.calls).toEqual([]);
+      expect(s.active()).toBe(false);
+      coop.splitInfo = { gap: 35, maxSep: 40, top: true, sameLevel: true };
+      t = 16; expect(s.draw({ scene: {} })).toBe(true); // first frame of the slide (dt 16 ms)
+      const vps = r.calls.filter((c) => c[0] === 'vp').slice(0, 2);
+      expect(vps).toHaveLength(2);
+      expect(vps[0][3] + vps[1][3]).toBe(1000);
+      expect(vps[0][3]).toBeGreaterThan(500);
+      expect(s.active()).toBe(true);
+      expect(els[0].style.display).toBe('block');
+    } finally { delete coop.second; delete coop.splitInfo; }
   });
 });

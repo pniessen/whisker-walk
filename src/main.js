@@ -185,7 +185,7 @@ function init() {
   const composerRig = createComposerRig(renderer, camera);
   // ?split=1 (docs/split-screen-s0.md): a lazy two-view draw while couch play has two cats out; off, `split` stays null.
   let split = null;
-  if (/[?&]split=1\b/.test(location.search)) import('./coop/splitview.js').then((m) => { split = m.createSplit({ renderer, camera }); }).catch((err) => note('split', err));
+  if (/[?&]split=1\b/.test(location.search)) import('./coop/splitview.js').then((m) => { split = m.createSplit({ renderer, camera }); if (import.meta.env.DEV) window.__split = split; }).catch((err) => note('split', err));
   const renderFrame = () => { if (!(split && split.draw(session))) composerRig.renderFrame(session); };
 
   const player = createPlayer(camera, canvas);
@@ -416,7 +416,7 @@ function init() {
   loadCouch = () => {
     if (!couchOn()) return;
     loadCouch = null;
-    import('./coop/index.js').then((m) => m.start({ nav: navigator, enabled: couchOn, getSession: () => session, player, camera, split: () => !!split, getState: () => progression.state, catalog: CATALOG, progression, log, audio, act: (n) => handleTouchAction(n), couch: qualityAdapter.couch, voice: (p) => catVoice(p), toast: (m, p, o) => hud.toast(m, p, o), resume: () => player.setTouchEngaged(true), canResume: () => !!session && !session.walkingOn && !!overlay.querySelector('#btn-resume') })).catch((err) => note('coop', err));
+    import('./coop/index.js').then((m) => m.start({ nav: navigator, enabled: couchOn, getSession: () => session, player, camera, split: () => (split ? split.active() : null), getState: () => progression.state, catalog: CATALOG, progression, log, audio, act: (n) => handleTouchAction(n), couch: qualityAdapter.couch, voice: (p) => catVoice(p), toast: (m, p, o) => hud.toast(m, p, o), resume: () => player.setTouchEngaged(true), canResume: () => !!session && !session.walkingOn && !!overlay.querySelector('#btn-resume') })).catch((err) => note('coop', err));
   };
   loadCouch();
   // ?tv=1 / ?tv=0 force it for this page load only, never saved (like ?perf).
