@@ -97,20 +97,20 @@ export function createLiving({ scene, tier = null, reducedMotion = false, audio 
     if (!foxFirs.length) return;
     const cyc = still ? 0.3 : (t / 70); const k = Math.floor(cyc); const f = cyc - k; const a = still ? 1 : Math.min(1, f * 14, (0.62 - f) * 14); // out in the treeline for the first 0.6 of every 70 s
     if (a <= 0) return;
-    const F = foxFirs[(k + 1) % foxFirs.length]; const x = F.x + 1.0; const z = F.z + 1.5; const y = P.snowY(x, z); const yaw = 0.5 + 0.25 * Math.sin(t * 0.3 + k);
+    const F = foxFirs[(k + 1) % foxFirs.length]; const x = F.x + 1.0; const z = F.z + 1.5; const y = P.snowY(x, z); const yaw = 0.5 + 0.25 * Math.sin(t * 0.3 + k) * (t - SHARED.hear < 3.2 ? 0 : 1); const up = t - SHARED.hear < 3.2 ? 0.14 : 0;
     const flick = still ? 0 : Math.max(0, Math.sin(t * 1.9)) ** 6; const sw = 0.18 * Math.sin(t * 9) * flick + 0.1 * Math.sin(t * 0.8);
     sc = 2.1; dot(x, y + 0.16, z, 1.4, 0.4, 0.45, 0.6, 0.28 * a);
-    part(x, y, z, yaw, 0, 0.3, 0, 0.52, 0.92, 0.5, 0.2, a); part(x, y, z, yaw, 0, 0.34, 0.28, 0.4, 0.94, 0.52, 0.2, a); part(x, y, z, yaw, 0, 0.5, 0.48, 0.3, 0.94, 0.54, 0.22, a); // body, chest, head
-    part(x, y, z, yaw, 0, 0.45, 0.64, 0.12, 0.96, 0.92, 0.86, a); // muzzle
+    part(x, y, z, yaw, 0, 0.3, 0, 0.52, 0.92, 0.5, 0.2, a); part(x, y, z, yaw, 0, 0.34, 0.28, 0.4, 0.94, 0.52, 0.2, a); part(x, y, z, yaw, 0, 0.5 + up, 0.48, 0.3, 0.94, 0.54, 0.22, a); // body, chest, head
+    part(x, y, z, yaw, 0, 0.45 + up, 0.64, 0.12, 0.96, 0.92, 0.86, a); // muzzle
     part(x, y, z, yaw, sw * 0.6, 0.36, -0.42, 0.4, 0.9, 0.46, 0.17, a); part(x, y, z, yaw, sw, 0.4, -0.7, 0.34, 0.94, 0.5, 0.18, a); part(x, y, z, yaw, sw * 1.6, 0.42, -0.95, 0.24, 1, 0.97, 0.92, a); // the brush and its white tip
   }
   function owls(t) {
     sc = 2.1;
     owlFirs.forEach((F, i) => {
       const yaw = Math.atan2(-2 - F.x, 12 - F.z); const H = 4.5 * F.s; const rr = (1.55 - 1.1 * 0.62) * F.s * 1.3; const x = F.x + Math.sin(yaw) * rr; const z = F.z + Math.cos(yaw) * rr; const y = P.snowY(F.x, F.z) + H * 0.66;
-      const turn = still ? 0 : Math.max(-1, Math.min(1, 2.4 * Math.sin(t * 0.34 + i * 2.1))); const blink = !still && Math.sin(t * 0.9 + i * 5) > 0.97 ? 0.1 : 1; // it stares, then swivels, now and then it blinks
+      const heard = t - SHARED.hear < 3.2 || t - SHARED.heed < 4; const turn = still || heard ? 0 : Math.max(-1, Math.min(1, 2.4 * Math.sin(t * 0.34 + i * 2.1))); const blink = !still && Math.sin(t * 0.9 + i * 5) > 0.97 ? 0.1 : 1; // it stares, then swivels, now and then it blinks
       part(x, y, z, yaw, 0, 0.18, 0, 0.42, 0.52, 0.42, 0.36, 1); part(x, y, z, yaw, turn * 0.04, 0.45, 0.04, 0.34, 0.62, 0.52, 0.44, 1);
-      const eye = (1 - Math.abs(turn) * 0.8) * blink; // two big amber eyes slide across the face as it turns and narrow when it looks away
+      const eye = (1 - Math.abs(turn) * 0.8) * blink * (heard ? 1.3 : 1); // two big amber eyes slide across the face as it turns and narrow when it looks away
       for (const sx of [-1, 1]) part(x, y, z, yaw, sx * 0.075 + turn * 0.085, 0.45, 0.14, 0.15 * eye, 1.5, 1.1, 0.35, 1);
     });
   }
@@ -155,7 +155,7 @@ export function createLiving({ scene, tier = null, reducedMotion = false, audio 
     for (let i = 0; i < HARES.length; i++) {
       const h = st.hares[i]; const H = HARES[i]; const L = Math.hypot(H.x1 - H.x0, H.z1 - H.z0); const u = c01(h.s / L);
       const hx = (h.dir > 0 ? H.x0 + (H.x1 - H.x0) * u : H.x1 + (H.x0 - H.x1) * u) - cam.x; const hz = (h.dir > 0 ? H.z0 + (H.z1 - H.z0) * u : H.z1 + (H.z0 - H.z1) * u) - cam.z; const dd = Math.hypot(hx, hz) || 1;
-      const seen = !still && dd < 30 && (hx * fw.x + hz * fw.z) / (dd * fl) > 0.88; st.seen[i] = seen;
+      const seen = !still && ((dd < 30 && (hx * fw.x + hz * fw.z) / (dd * fl) > 0.88) || t - SHARED.hear < 3.2); st.seen[i] = seen;
       if (!still) hareStep(h, d, seen, L, H.wait); else if (h.s === 8 * i && !h.once) { h.once = true; h.s = L * 0.5; }
       hare(i, t, seen);
     }

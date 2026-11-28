@@ -16,6 +16,7 @@ import { createWonder } from './snowvillewonder.js';
 import { createLiving } from './snowvilleliving.js';
 import { createWeather } from './snowvilleweather.js';
 import { createVista } from './snowvillevista.js';
+import { createReactions } from './snowvillebeauty8.js';
 import { createAlive, waveAt, chase, glowNear, SHARED } from './snowvillealive.js';
 import { coldStep, cheekTint, lineStep, nearWarm } from './snowvillewarmth.js';
 import { phrase } from '../clanphrases.js';
@@ -82,6 +83,7 @@ function createCheeks() {
   };
 }
 const _pink = new THREE.Color(CHEEK_PINK);
+const _fw = new THREE.Vector3();
 
 // createSnowvilleLight({ scene, tier, reducedMotion }) -> { flakes, glints, light, cold, update(dt, t, catPos, camera, session), dispose() }
 export function createSnowvilleLight({ scene, tier = null, reducedMotion = false, audio = null, season = null, sun = null, fill = null, now = null }) {
@@ -132,7 +134,7 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
   let nearX = 1e9; let nearZ = 1e9; // her place (windows and lamps wake as she comes near; the bulbs' twinkle chases along their strings)
   const paintHalos = (L, t, level) => {
     L.list.forEach((s, i) => {
-      const k = level * weather.glow * (reducedMotion ? 0.8 : SHARED.breath * (L === smallL ? twinkle(s.ph, t) * chase(i, t) : (1 + HALO.flicker * Math.sin(t * 1.1 + s.ph * 40)) * glowNear(Math.hypot(s.x - nearX, s.z - nearZ)) * living.wakeAt(s.x, s.z, t)));
+      const k = level * weather.glow * (reducedMotion ? 0.8 : SHARED.breath * (L === smallL ? twinkle(s.ph, t) * chase(i, t) : (1 + HALO.flicker * Math.sin(t * 1.1 + s.ph * 40)) * glowNear(Math.hypot(s.x - nearX, s.z - nearZ)) * living.wakeAt(s.x, s.z, t) * rx.boost(s.x, s.z, t)));
       _h.setHex(s.hex);
       L.col[i * 3] = _h.r * k; L.col[i * 3 + 1] = _h.g * k; L.col[i * 3 + 2] = _h.b * k;
     });
@@ -140,6 +142,7 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
   };
   const weather = createWeather({ scene, sun, fill, audio, reducedMotion, low, now }); // beauty pass 6: the hour's weather and the rare events (the halos below glow with it)
   const vista = createVista({ scene, sun, fill, audio, reducedMotion, low }); // beauty pass 7: five photo spots (haze bands, a glowing focus, a warm grade, the golden moment)
+  const rx = createReactions({ scene, audio, rung: (tier?.rung ?? 0) >= 3 ? 'lite' : low ? 'low' : 'high', motion: !reducedMotion, targets: [{ x: P.STALL.x - 0.8, z: P.STALL.z, y: P.snowY(P.STALL.x, P.STALL.z) + 1.4 }, { x: 11, z: 1, y: P.snowY(11, 1) + 1.7 }] }); // beauty pass 8: the village answers her voice and her moves
   const living = createLiving({ scene, tier, reducedMotion, audio, low, sun }); // beauty pass 5: creatures, the arrival, the shared breath, hour and wind
   const smallL = haloLayer(smalls, HALO.bulb, 'snowville:halos');
   const bigL = haloLayer(bigs, HALO.big, 'snowville:glows');
@@ -193,6 +196,7 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
     living,
     weather,
     vista,
+    rx,
     update(dt, t, catPos, _camera, session) {
       const cx = catPos?.x ?? P.SNOWVILLE_SPAWN.x;
       const cz = catPos?.z ?? P.SNOWVILLE_SPAWN.z;
@@ -201,10 +205,11 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
       living.update(dt, t, catPos, _camera);
       alive.update(dt, t, catPos, _camera, session);
       weather.update(dt, t, catPos, _camera);
+      if (_camera?.getWorldDirection) { _camera.getWorldDirection(_fw); rx.step(dt, t, catPos ?? { x: cx, y: P.snowY(cx, cz), z: cz }, session, _fw); } else rx.step(dt, t, catPos ?? { x: cx, y: P.snowY(cx, cz), z: cz }, session);
       vista.update(dt, t, catPos, _camera, session); // (after the weather: it sets the fog and the fill each frame, the vista's grade goes on top)
       wonder.update(dt, t, catPos, _camera);
       if (weather.night > 0.8 && !wonder.state.kind && t >= auroraAt) { auroraAt = t + 200; wonder.trigger('aurora'); } // a clear night: the aurora of pass 4 every few minutes
-      bigL.pts.material.size = HALO.big * weather.halo; smallL.pts.material.size = HALO.bulb * (1 + 0.5 * (weather.halo - 1));
+      bigL.pts.material.size = HALO.big * weather.halo * (1 + 0.8 * rx.pulse(t)); smallL.pts.material.size = HALO.bulb * (1 + 0.5 * (weather.halo - 1));
       flakes.material.color.setRGB(0.9 + 0.1 * SHARED.hour, 0.94 + 0.06 * SHARED.hour, 1 - 0.06 * SHARED.hour); // the blue hour's flakes are a touch cooler
       if (!reducedMotion) { paintHalos(smallL, t, 0.9); paintHalos(bigL, t, 0.5); placeSteam(t); }
       if (!reducedMotion) glints.material.opacity = GLINT_LOOK.opacity - GLINT_LOOK.wobble * (0.5 + 0.5 * Math.sin(t * GLINT_LOOK.rate));
@@ -223,6 +228,7 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
       wonder.dispose();
       weather.dispose();
       vista.dispose();
+      rx.dispose();
       scene.remove(flakes, glints, smallL.pts, bigL.pts, steam);
       for (const L of [smallL, bigL]) { L.g.dispose(); L.pts.material.dispose(); }
       stGeo.dispose(); steam.material.dispose();
