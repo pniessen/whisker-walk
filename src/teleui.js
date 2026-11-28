@@ -4,6 +4,7 @@
 // and none uses a series word (test/teleport.test.js); the Clan set's lightly flavoured variants come with the real
 // art, milestone 1.
 import { addPhrases, phrase } from './clanphrases.js';
+import { wordRule } from './wordset.js';
 
 // padTag, lower, escapeHtml: handed in by teleport.js setup (so this chunk pulls no start-up module into one of its own).
 let padTag = () => '';
@@ -12,13 +13,15 @@ let escapeHtml = (s) => s;
 export function setup(host) { ({ padTag, lower, escapeHtml } = host); }
 
 const stones = (look) => look === 'stonering';
+// a set that says the gates plainly (RULES.plainGates) never says the stones-and-glow lines
+const plain = () => wordRule('plainGates');
 export const LINES = Object.freeze({
   'tele.go': 'Go through',
   'tele.notnow': 'Not now',
-  'tele.prompt': (name, look) => `${stones(look) ? 'The stones are' : 'The gate is'} glowing. Go through to ${name}?`,
-  'tele.wake': (look) => (stones(look) ? 'A gate! The stones are waking.' : 'A gate! It is waking up.'), // the wake beat (milestone 5)
+  'tele.prompt': (name, look) => (plain() ? `Go through to ${name}?` : `${stones(look) ? 'The stones are' : 'The gate is'} glowing. Go through to ${name}?`),
+  'tele.wake': (look) => (plain() ? 'A gate! It’s waking up.' : stones(look) ? 'A gate! The stones are waking.' : 'A gate! It is waking up.'), // the wake beat (milestone 5)
   'tele.suit': 'Your suit is on!', // the suit (milestone 2)
-  'tele.home': (look) => (stones(look) ? 'Take the stones home when you’re ready.' : 'Take the gate home when you’re ready.'),
+  'tele.home': (look) => (plain() ? 'Take the gate home when you’re ready.' : stones(look) ? 'Take the stones home when you’re ready.' : 'Take the gate home when you’re ready.'),
   'tele.hint': (host) => `Find the gate in ${host}.`, // the map's card (milestone 5)
   'tele.guest': (name) => `This way to ${name}.`, // a friend in a room reads the sign; the host chooses
   'tele.coop': 'The gate is waiting. Two cats go together when we’re ready!',
