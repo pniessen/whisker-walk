@@ -65,7 +65,7 @@ export function createCreatures({ scene, audio = null, reducedMotion = false, li
   const hide = (i) => { size[i] = 0; col[i * 4 + 3] = 0; };
   const put = (i, x, y, z, s, r, g, b, a = 1) => { pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z; size[i] = s; col[i * 4] = r * r; col[i * 4 + 1] = g * g; col[i * 4 + 2] = b * b; col[i * 4 + 3] = a; };
   for (let i = 0; i < N; i++) hide(i);
-  let clock = 0, disposed = false, arrivedAt = -1, chimed = false, fleeing = 0, away = 0;
+  let clock = 0, yawnAt = -1, disposed = false, arrivedAt = -1, chimed = false, fleeing = 0, away = 0;
   const hum = { x: BLOOM.x, y: BLOOM.y, z: BLOOM.z };
   const chime = () => { try { if (audio && audio.isMuted?.() === false) audio.chime?.(); } catch { /* sound is optional */ } };
   const sm = (k) => { const t = Math.min(1, Math.max(0, k)); return t * t * (3 - 2 * t); };
@@ -87,10 +87,12 @@ export function createCreatures({ scene, audio = null, reducedMotion = false, li
     put(CAT + 1, CAT_BED.x + 0.1, CAT_BED.y + 0.13, CAT_BED.z + 0.06, 0.22 * br, 0.5, 0.34, 0.2);
     put(CAT + 2, CAT_BED.x - 0.15, CAT_BED.y + 0.11, CAT_BED.z + 0.1, 0.16, 0.92, 0.86, 0.76);
     put(CAT + 3, CAT_BED.x - 0.2, CAT_BED.y + 0.19, CAT_BED.z + 0.12, 0.1, 0.8, 0.5, 0.22); // an ear
-    const awake = !reducedMotion && (t % 30) > 26.5 && (t % 30) < 28.7;
+    const yw = !reducedMotion && yawnAt >= 0 ? clock - yawnAt : 9, yo = yw < 2.4 ? Math.sin(Math.PI * yw / 2.4) : 0; // pass 8: she yawns when the walker stands still
+    const awake = !reducedMotion && ((t % 30) > 26.5 && (t % 30) < 28.7 || yo > 0.3);
     if (awake) put(CAT + 4, CAT_BED.x - 0.24, CAT_BED.y + 0.14, CAT_BED.z + 0.17, 0.045, 1, 0.85, 0.25);
     else hide(CAT + 4);
-    hide(CAT + 5);
+    if (yo > 0) put(CAT + 5, CAT_BED.x - 0.3, CAT_BED.y + 0.1 + 0.03 * yo, CAT_BED.z + 0.15, 0.05 + 0.09 * yo, 0.95, 0.4, 0.5); // the open mouth
+    else hide(CAT + 5);
   }
 
   function hummer(dt, catPos) {
@@ -135,7 +137,7 @@ export function createCreatures({ scene, audio = null, reducedMotion = false, li
     if (s > 7) { for (let i = 0; i < POL; i++) hide(POLLEN + i); hide(BEE); hide(BEE + 1); return; }
     for (let j = 0; j < POL; j++) { // a puff of pollen drifting up and inward from the door
       const u = s / 5, h1 = hash01(j, 1, SALT + 1), h2 = hash01(j, 2, SALT + 1), h3 = hash01(j, 3, SALT + 1);
-      put(POLLEN + j, (h1 - 0.5) * 2.4 + 0.5 * Math.sin(s * 0.9 + j) * u + X * 0.3, 0.6 + h2 * 0.9 + u * 0.9, -0.6 - u * (1 + 2 * h3), 0.1 + 0.07 * h3, 1, 0.84, 0.28, Math.max(0, 1 - u * u) * 0.9);
+      put(POLLEN + j, (h1 - 0.5) * 2.4 + 0.5 * Math.sin(s * 0.9 + j) * u + X * 0.3, 0.6 + h2 * 0.9 + u * 0.9, -0.6 - u * (1 + 2 * h3), 0.06 + 0.045 * h3, 1, 0.84, 0.28, Math.max(0, 1 - u * u) * 0.9);
     }
     // the bee salute: a loop in front of the cat, a pause hovering, then off to the hibiscus
     const loop = Math.min(1, s / 2.2), go = sm((s - 4.2) / 2.4);
@@ -149,6 +151,7 @@ export function createCreatures({ scene, audio = null, reducedMotion = false, li
     points,
     get hummingbird() { return { ...hum }; },
     get arrived() { return arrivedAt >= 0; },
+    yawn() { if (!reducedMotion && !disposed && (yawnAt < 0 || clock - yawnAt > 3)) yawnAt = clock; },
     update(dt, t, catPos = null, under = false) {
       if (disposed) return;
       void t;
