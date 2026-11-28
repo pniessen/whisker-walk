@@ -12,6 +12,7 @@ import { drawFoliage } from './junglefoliage.js';
 import { drawCarpet } from './junglecarpet.js';
 import { drawSparkle, createJungleAir } from './junglesparkle.js';
 import { drawBeauty2, createJungleBeauty2 } from './junglebeauty2.js';
+import { drawBeauty4 } from './junglebeauty4.js';
 import { drawHouse } from './junglehouse.js';
 import { drawProps, propColliders } from './jungleprops.js';
 import { createWing } from './junglewinglive.js';
@@ -43,7 +44,7 @@ Object.assign(ST, {
     colliders: () => [...wingColliders(), ...propColliders()], // the wing's, and the crates, barrels and drying rack beside the lodge
     perches: wingPerches,
     story: wingStory(),
-    draw: (kit, M) => { drawWing(kit, M); drawPolish(kit, M); drawHouse(kit, M); drawFoliage(kit, M); drawProps(kit, M); drawCarpet(kit, M); drawSparkle(kit, M); drawBeauty2(kit, M); }, // the wing, the J8 beauty round (shrubs, tufts, logs, roots, bromeliads, lianas), then round two: the lodge's detail, the foliage and the lived-in props
+    draw: (kit, M) => { drawWing(kit, M); drawPolish(kit, M); drawHouse(kit, M); drawFoliage(kit, M); drawProps(kit, M); drawCarpet(kit, M); drawSparkle(kit, M); drawBeauty2(kit, M); drawBeauty4(kit, M); }, // the wing, the J8 beauty round (shrubs, tufts, logs, roots, bromeliads, lianas), then round two: the lodge's detail, the foliage and the lived-in props
     fruitModel,
     wing: createWing,
     errand: createJungleErrandLive, // Mossy's errand of the day and its leaf album (milestone J7)

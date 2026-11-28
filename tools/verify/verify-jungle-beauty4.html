@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jungle Lodge beauty pass 4 picture page (play camera: stories in the details, seasons, a rare surprise)</title>
+<!-- The Jungle Lodge (flag-only place), picture page for beauty pass 4: the REAL build and life, seen from the walk's own camera (dist 4.5, height 2.2, pitch 0.18, fov 70). NOT in the game's page.
+     URL params: size=WxH (default 960x540), tier=high|low|lite, season=wet|dry (pass 4 only; main ignores it). window.__shot(name) with scripts/record-page.mjs.
+     Shots: path (the trail signs and paw prints), veranda (the half-carved cat and the tea set), bank (the river bank), rack (gourds on the drying rack), hammock (the book), totem (a cat's face), noon, wet, dry, parrots (the rare spiral), bloom (night-blooms at dusk).
+     The 'before' pictures are the same page run on main's code. -->
+<style>html,body{margin:0;background:#1c3a24;overflow:hidden}canvas{position:fixed;left:0;top:0;display:block}</style>
+</head>
+<body>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier } from '/src/render/textures.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { facingYaw } from '/src/traversal.js';
+  import { applyDusk, duskEnv, tintDuskLawn } from '/src/render/dusk.js';
+  import { effectiveWear } from '/src/suithook.js';
+  import { mergeStaticProps } from '/src/render/mergeprops.js';
+  import { build } from '/src/world/jungle.js';
+  import { ST, loadJungleStages } from '/src/world/junglestages.js';
+  import { drawWing } from '/src/world/junglewingparts.js';
+  import { drawPolish } from '/src/world/junglepolish.js';
+  import { drawHouse } from '/src/world/junglehouse.js';
+  import { drawFoliage } from '/src/world/junglefoliage.js';
+  import { drawProps } from '/src/world/jungleprops.js';
+  import { drawCarpet } from '/src/world/junglecarpet.js';
+  import { sparklePlan } from '/src/world/junglesparkle.js';
+  import { beauty2Plan } from '/src/world/junglebeauty2.js';
+  import * as P from '/src/world/jungleplan.js';
+  import { createProgression } from '/src/progression.js';
+  import { createDiscoveryLog } from '/src/discoveries.js';
+  import { createFx } from '/src/fx.js';
+
+  const params = new URLSearchParams(location.search);
+  const [W0, H0] = (params.get('size') || '960x540').split('x').map(Number);
+  const TIER = params.get('tier') || 'high';
+  const DT = 1 / 30;
+  const tier = TIER === 'lite' ? { name: 'low', rung: 5, shadows: false, envIntensity: 0.3 } : TIER === 'low' ? { name: 'low', rung: 3, shadows: true, envIntensity: 0.3 } : { name: 'high', shadows: true, envIntensity: 0.3 };
+  let W = W0, H = H0;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H); renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = tier.shadows; renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.95;
+  document.body.prepend(renderer.domElement);
+  setTextureTier(tier);
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+  const sun = createSun(); scene.add(sun);
+  const fill = createFill(0x8d8c93); scene.add(fill);
+  await loadJungleStages();
+  const area = build(scene);
+  const look = applyDusk({ scene, sun, fill, areaData: area });
+  tintDuskLawn({ ground: scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint)), grass: null, look });
+  scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
+  const ground = area.ground;
+  const wear = effectiveWear({ collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }, 'jungle');
+  const cat = buildCat('tabby', wear); scene.add(cat);
+  const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
+  const shadows = tier.shadows ? createShadowFit(sun, camera, { radius: 20, mapSize: tier.rung >= 3 ? 1024 : 2048 }) : null;
+  sun.shadow.bias = SUN_BIAS; sun.castShadow = tier.shadows;
+  assignShadowCasters(scene);
+  mergeStaticProps(scene);
+  const fx = createFx(scene, { reducedMotion: false });
+  const store = new Map();
+  const STEP = Number(params.get('step') ?? 2);
+  const progression = createProgression({ getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) });
+  const log = createDiscoveryLog(progression); log.startWalk();
+    const player = { floatY: 0 };
+  const life = area.life({ roomSeed: 7, sendEvent: () => {}, scene, sun, fill, ground, reducedMotion: false, tier, progression, log, audio: null, doc: document, win: window, clock: () => 250, visits: 3, player, season: params.get('season') || null });
+  let t = 0;
+  const CY = { v: 0 }; let walk = null; // walk: { x0, z0, dx, dz, speed, n, i }
+  const follow = () => {
+    const cy = CY.v; const p = 0.18; const back = 4.5 * Math.cos(p); const cp = cat.position;
+    camera.position.set(cp.x + Math.sin(cy) * back, cp.y + 2.2 + 4.5 * Math.sin(p) * 0.9, cp.z + Math.cos(cy) * back); camera.lookAt(cp.x, cp.y + 0.7, cp.z);
+  };
+  function frame() {
+    t += DT;
+    if (walk && walk.i < walk.n) { walk.i++; const x = walk.x0 + walk.dx * walk.speed * DT * walk.i; const z = walk.z0 + walk.dz * walk.speed * DT * walk.i; cat.position.set(x, ground.y(x, z), z); }
+    follow();
+    life.update(DT, t, cat.position, camera, { hopLift: 0 });
+    fx.update(DT, camera);
+    const moving = walk && walk.i < walk.n;
+    animateCat(cat, moving ? 'walk' : 'idle', t, moving ? walk.speed : 0, false);
+    if (shadows) shadows.update(0, DT);
+    renderer.render(scene, camera);
+  }
+  const settle = (n) => { for (let i = 0; i < n; i++) frame(); };
+  const plan = beauty2Plan();
+  const near = (arr, x, z) => arr.slice().sort((a, b) => Math.hypot(a.x - x, a.z - z) - Math.hypot(b.x - x, b.z - z))[0];
+  const leaf = near(plan.leaves, -5, 26); const vine = near(plan.vines, -3, 25); const shrub = near(plan.shrubs, -3, 26);
+  let wade = null; for (let z = -30; z < 35 && !wade; z += 0.5) for (let x = -35; x < 35 && !wade; x += 0.5) if (P.riverDist(x, z) < P.RIVER_W * 0.4 && P.riverDist(x - 3, z) < P.RIVER_W * 1.6) wade = { x, z };
+  // a walk of `n` frames at 3.4 m/s that ENDS `short` metres before the target (so a shot at the end is mid-reaction), approaching from `from` radians
+  const rack = { x: -16.8, z: 21.6 }; const hammock = { x: 3.4, z: 14.5 }; const bank = { x: -1.6, z: -3.5 };
+  const S = {
+    path: { obj: { x: -2.4, z: 23.4 }, from: 0.45, n: 24, short: 0, day: 0.3 },
+    veranda: { obj: { x: -10.2, z: 16.8 }, from: 1.2, n: 24, short: 1.0, day: 0.3 },
+    tea: { obj: { x: -2.4, z: 16.6 }, from: -1.2, n: 24, short: 1.0, day: 0.3 },
+    bank: { obj: bank, from: 3.0, n: 30, short: 1.6, day: 0.3 },
+    rack: { obj: rack, from: 0.5, n: 26, short: 1.8, day: 0.3 },
+    hammock: { obj: hammock, from: 1.57, n: 24, short: 1.4, day: 0.3 },
+    totem: { obj: { x: -12.4, z: 19.7 }, from: 0.2, n: 26, short: 1.4, day: 0.3 },
+    noon: { obj: { x: 0, z: 29 }, from: 0, n: 1, short: 0, day: 0.30 },
+    wet: { obj: { x: -5.0, z: 25.0 }, from: 0.3, n: 30, short: 0, day: 0.1 },
+    dry: { obj: { x: -5.0, z: 25.0 }, from: 0.3, n: 30, short: 0, day: 0.1 },
+    parrots: { obj: { x: -3, z: 27 }, from: 0.5, n: 20, short: 0, abs: 468 },
+    steps: { obj: { x: -6, z: 17.6 }, from: 0, n: 18, short: 0.5, day: 0.3 },
+    bloom1: { obj: { x: sparklePlan().anchors[1].x, z: sparklePlan().anchors[1].z }, from: 2.2, n: 34, short: 1.5, day: 0.66 },
+    bloom2: { obj: { x: sparklePlan().anchors[2].x, z: sparklePlan().anchors[2].z }, from: -1.0, n: 34, short: 1.5, day: 0.66 },
+    bloom: { obj: { x: sparklePlan().anchors[0].x, z: sparklePlan().anchors[0].z }, from: 0.6, n: 34, short: 0.5, day: 0.66 },
+  };
+  window.__shot = (name) => {
+    const s = S[name]; if (!s) throw new Error('no shot ' + name);
+    const sp = 3.4; const dist = sp * DT * s.n + s.short;
+    const dx = -Math.sin(s.from), dz = -Math.cos(s.from); // she walks toward the target, from the 'from' side
+    const x0 = s.obj.x - dx * dist, z0 = s.obj.z - dz * dist;
+    // far from everything first, so no earlier brush lingers, then the day's hour
+    CY.v = s.from; cat.position.set(x0, ground.y(x0, z0), z0); cat.rotation.set(0, facingYaw(dx, dz), 0);
+    t = s.abs ?? 420 * (s.day ?? 0.1); W = W0; H = H0; renderer.setSize(W, H); camera.aspect = W / H; camera.updateProjectionMatrix();
+    walk = null; settle(20);
+    if (s.n > 1) { walk = { x0, z0, dx, dz, speed: sp, n: s.n, i: 0 }; settle(s.n); } else settle(30);
+    if (params.get('dbg')) { const sw = scene.getObjectByName('jungle:sway'); const a = sw.geometry.attributes.position; const n = a.count; const v = new THREE.Vector3(a.getX(n - 5), a.getY(n - 5), a.getZ(n - 5)); const sv = v.clone().project(camera); let d = document.getElementById('dbg'); if (!d) { d = document.createElement('div'); d.id = 'dbg'; d.style.cssText = 'position:fixed;left:6px;top:6px;color:#fff;font:14px monospace;background:#000a'; document.body.append(d); } d.textContent = 't=' + t.toFixed(1) + ' bird ' + v.x.toFixed(1) + ',' + v.y.toFixed(1) + ',' + v.z.toFixed(1) + ' ndc ' + sv.x.toFixed(2) + ',' + sv.y.toFixed(2) + ' cam ' + camera.position.x.toFixed(1) + ',' + camera.position.y.toFixed(1) + ',' + camera.position.z.toFixed(1); }
+    return name;
+  };
+  window.__stats = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles });
+  window.__ready = true;
+</script>
+</body>
+</html>
