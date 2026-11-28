@@ -6,7 +6,7 @@
 <title>Treehouse beauty picture page</title>
 <!-- The Treehouse village, picture page for the beauty rounds (round two, 2026-11-27): the REAL build and life. NOT in the game's page.
      URL params: size=WxH (default 960x540), tier=high|low|lite, old=1 (the plain rim, ferns and canopy, no round-two nature or grass: the 'before'). window.__shot(name) with scripts/record-page.mjs.
-     Shots: spawn path bakery books crown rim beams phone. -->
+     Shots: spawn path bakery books crown rim beams phone, and the play-camera set play1..play5 (pass 2). -->
 <style>html,body{margin:0;background:#2a1a30;overflow:hidden}canvas{position:fixed;left:0;top:0;display:block}</style>
 </head>
 <body>
@@ -91,10 +91,18 @@
     crown: [0, -9, 0, -1, 0, [5, 3.0, -2], [0, 5.5, -17], 66],
     rim: [-14, 4, 0, -1, 0, [-9, 1.8, 10], [-32, 4.5, -2], 68],
     beams: [3, 18, 0, -1, 0, [5, 1.7, 26], [-2, 9.5, 0], 72],
+    // beauty pass 2 (2026-11-28): the PLAY camera, behind the cat at the walk's own zoom steps (1: 4.5 m back, 2.2 up; 2: 7 m back, 3.8 up), looking a little ahead
+    play1: ['p', 0, 23, 0, -1, 1], play2: ['p', -9.6, 12.8, 0, -1, 2], play3: ['p', 1.4, 7.8, 0.1, -1, 2], play4: ['p', 0, -11, 0, -1, 2], play5: ['p', -4, 18.5, -0.5, -1, 1],
     phone: [0, 25, 0, -1, 0, [0, 2.6, 30], [0, 2.2, 14], 62, [390, 760]],
   };
   window.__shot = (name) => {
-    const s = S[name]; if (!s) throw new Error('no shot ' + name);
+    let s = S[name]; if (!s) throw new Error('no shot ' + name);
+    if (s[0] === 'p') {
+      const [, x, z, dx, dz, step] = s; const n = Math.hypot(dx, dz); const ux = dx / n; const uz = dz / n;
+      const [dist, hgt] = step === 1 ? [4.5, 2.2] : [7, 3.8];
+      const gy = ground.y(x, z);
+      s = [x, z, dx, dz, 0, [x - ux * dist, gy + hgt, z - uz * dist], [x + ux * 2, gy + 0.8, z + uz * 2], 62];
+    }
     put(s[0], s[1], s[2], s[3], s[4]);
     cam(s[5], s[6], s[7], s[8]);
     settle(30);

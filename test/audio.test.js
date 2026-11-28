@@ -81,6 +81,20 @@ describe('layered ambience', () => {
     for (const src of bufferSources) expect(src.stopped).toBe(true);
   });
 
+  it('the Treehouse has its own forest bed: two wind layers (leaves and trunk)', () => {
+    const run = (opts) => {
+      const ctx = fakeCtx(); const srcs = [];
+      const orig = ctx.createBufferSource;
+      ctx.createBufferSource = () => { const n = orig(); srcs.push(n); return n; };
+      const audio = createAudio({ contextFactory: () => ctx });
+      audio.startAmbient('treehouse', opts); const n = srcs.length; audio.stopAmbient();
+      for (const s of srcs) expect(s.stopped).toBe(true);
+      return n;
+    };
+    const day = run({}); const dusk = run({ dusk: true });
+    expect(day).toBe(2); expect(dusk).toBe(2); // two noise layers either way (the birds are not noise buffers)
+  });
+
   it('starting ambience twice does not stack — the first set is stopped', () => {
     const ctx = fakeCtx();
     const bufferSources = [];

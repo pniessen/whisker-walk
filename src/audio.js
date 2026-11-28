@@ -1016,6 +1016,13 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       } else if (areaKey === 'snowville') {
         // Snowville: a very soft low hush of snow-wind, never birdsong or crickets (its bells and crunch come with a later milestone).
         layers.push(windLayer({ gain: 0.016, cutoff: 180 }));
+      } else if (areaKey === 'treehouse') {
+        // The Treehouse (beauty pass 2, 2026-11-28): a richer forest bed, a soft rustle of wind in the leaves (a brighter wind layer) over the low breath of the trunk, then the usual
+        // birdsong by day (none in rain or at dusk, as everywhere else). Its creaks and chimes are the place's own (treehousecritters.js).
+        layers.push(windLayer({ gain: 0.026, cutoff: 700 }));
+        layers.push(windLayer({ gain: 0.022, cutoff: 190 }));
+        if (rain) layers.push(rainLayer());
+        else if (!dusk) layers.push(birdsongLayer());
       } else if (areaKey === 'moon') {
         // The Moon has no air: nothing here (moonbaselive.js also stops the ambience, but never let wind or crickets start first).
       } else if (areaKey === 'reef') {

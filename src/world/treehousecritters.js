@@ -21,7 +21,7 @@ const fr = (v) => v - Math.floor(v);
 const smooth = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
 
 export const lifeRung = (tier) => (tier && tier.shadows === false ? 'lite' : isLowTier(tier) ? 'low' : 'high');
-export const COUNTS = Object.freeze({ high: Object.freeze({ birds: 3, flies: 18, leaves: 20 }), low: Object.freeze({ birds: 2, flies: 12, leaves: 12 }), lite: Object.freeze({ birds: 1, flies: 6, leaves: 6 }) });
+export const COUNTS = Object.freeze({ high: Object.freeze({ birds: 3, flies: 18, leaves: 30, motes: 14 }), low: Object.freeze({ birds: 2, flies: 12, leaves: 16, motes: 6 }), lite: Object.freeze({ birds: 1, flies: 6, leaves: 6, motes: 0 }) }); // motes: pollen in the sun (beauty pass 2), more falling leaves (their gust drift is leafAt's)
 export const STILL_LEAVES = 6; // reduced motion hangs a few leaves, no more
 export const RANGES = Object.freeze({ tl1: 9, tl2: 7, tl3: 8 }); // how near she must be (and facing it) to spot one
 
@@ -34,6 +34,7 @@ export const birdPosts = (i) => { const k = P.deckOf(BIRD_DECKS[i % BIRD_DECKS.l
 export const OWL = Object.freeze((() => { const k = P.deckOf('crown'); const h = k.hut; const y = k.y + h.h * 0.74; return { x: h.x + 1.05, y, z: h.z + h.r * 0.95 + 0.17, yaw: 0.35, ledgeY: y - 0.04 }; })());
 // The firefly places: where the evening gathers (each at its own level: the roots, the Bakery deck, the Bookshop deck, the Crown, the brook-side, the east edge).
 export const FIREFLY_PLACES = Object.freeze([[0, 17, 0.3], [-9, 8, 1.7], [9, 0, 3.1], [0, -12, 5.9], [-20, -9, 0.3], [18, 12, 0.3]].map(([x, z, y]) => Object.freeze({ x, z, y })));
+export const GUST_PUSH = 2.4; // metres a gust pushes a leaf that has just let go (the canopy sways on the same slow beat, treehouseglow.js)
 export const LEAF_FALL = Object.freeze({ top: 11, life: 40, spread: 56 }); // metres up where a leaf lets go, seconds a fall takes, metres across the village
 
 // ---- the poses (pure) ------------------------------------------------------------------------------------------------------------------------
@@ -68,9 +69,19 @@ export function leafAt(i, t, out = {}) {
   const life = LEAF_FALL.life * (0.8 + 0.4 * hash01(i, 71));
   const u = fr(t / life + hash01(i, 72));
   out.u = u;
-  out.x = (hash01(i, 73) - 0.5) * LEAF_FALL.spread + u * 3 + 1.4 * Math.sin(u * 9 + i);
+  out.x = (hash01(i, 73) - 0.5) * LEAF_FALL.spread + u * 3 + 1.4 * Math.sin(u * 9 + i) + GUST_PUSH * (0.5 + 0.5 * Math.sin(t * 0.31 + hash01(i, 75) * 2)) * (1 - u); // a gust leans the leaves still high up
   out.z = (hash01(i, 74) - 0.5) * LEAF_FALL.spread + 1.2 * Math.cos(u * 7 + i * 1.3);
   out.y = 0.1 + (LEAF_FALL.top - 0.1) * (1 - u);
+  return out;
+}
+
+// Pollen mote i at time t: a dim speck drifting slowly up through the sun among the firefly places ({ x, y, z, glow }); k counts from the first mote.
+export function moteAt(k, t, out = {}) {
+  const c = FIREFLY_PLACES[k % FIREFLY_PLACES.length];
+  out.x = c.x + (hash01(k, 81) - 0.5) * 9 + 1.2 * Math.sin(t * 0.17 + k * 1.3);
+  out.z = c.z + (hash01(k, 82) - 0.5) * 9 + 1.2 * Math.cos(t * 0.13 + k * 0.9);
+  out.y = 1.2 + 7 * fr(t / 70 + hash01(k, 83));
+  out.glow = 0.3 + 0.12 * Math.sin(t * 0.9 + k * 2.1);
   return out;
 }
 
@@ -162,6 +173,11 @@ export function creakNote(audio, k = 0) {
   o.start(now); o.stop(now + 0.32);
   return true;
 }
+// The two wind chimes under the Bakery's and the Bookshop's eaves (treehousetrim.js hangs them; the same spots): she brushes past one and it answers, at most once a few seconds.
+export const CHIME_SPOTS = Object.freeze([['bakery', 0.8], ['books', -0.8]].map(([id, a]) => { const k = P.deckOf(id); const R = k.hut.r + 0.45; return Object.freeze({ x: k.hut.x + Math.sin(a) * (R - 0.15), y: k.y + k.hut.h - 0.02, z: k.hut.z + Math.cos(a) * (R - 0.15) }); }));
+export const CHIME_REACH = 2.6; // metres from a chime (all three ways) that sets it ringing
+export const CHIME_COOL = 7; // seconds before the same walk can ring one again
+export const nearChime = (x, y, z) => CHIME_SPOTS.some((c) => Math.hypot(x - c.x, y - c.y + 2.2, z - c.z) < CHIME_REACH); // (her feet are a couple of metres under the eaves)
 // Is a spot over the bridge's planks (within a metre of the line), as far as the ground plan can tell? Pure, allocation-free.
 export function nearBridge(x, z) {
   for (const line of P.BRIDGE_LINES) {
@@ -196,8 +212,8 @@ export function createTreehouseCritters({ scene, reducedMotion = false, tier = n
     const o = mark(new THREE.Points(g, mat)); o.name = name; o.frustumCulled = false; scene.add(o);
     return { pos, col, g, o };
   };
-  const F = points(N.flies, 'treehouse:fireflies', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.34, sizeAttenuation: true, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
-  const L = points(N.leaves, 'treehouse:fallingleaves', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.26, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, fog: true }));
+  const F = points(N.flies + N.motes, 'treehouse:fireflies', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.34, sizeAttenuation: true, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
+  const L = points(N.leaves, 'treehouse:fallingleaves', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.34, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, fog: true }));
 
   // the journal subjects, one entry for each kind (the walk awards once a kind a walk)
   const spottable = [
@@ -224,6 +240,13 @@ export function createTreehouseCritters({ scene, reducedMotion = false, tier = n
       const gl = reducedMotion ? 0.8 : fly.glow;
       F.col[i * 3] = cFly.r * gl; F.col[i * 3 + 1] = cFly.g * gl; F.col[i * 3 + 2] = cFly.b * gl;
     }
+    for (let k = 0; k < N.motes; k++) {
+      const i = N.flies + k;
+      moteAt(k, t, fly);
+      F.pos[i * 3] = fly.x; F.pos[i * 3 + 1] = fly.y; F.pos[i * 3 + 2] = fly.z;
+      const gl = reducedMotion ? 0.35 : fly.glow;
+      F.col[i * 3] = cFly.r * gl; F.col[i * 3 + 1] = cFly.g * gl; F.col[i * 3 + 2] = cFly.b * gl * 0.8;
+    }
     spottable[2].pos.set(F.pos[0], F.pos[1], F.pos[2]);
     for (let i = 0; i < N.leaves; i++) {
       leafAt(i, t, leaf);
@@ -235,7 +258,7 @@ export function createTreehouseCritters({ scene, reducedMotion = false, tier = n
   }
   draw(0);
 
-  let nextChime = CHIME_GAP.first; let chimes = 0; let steps = 0; let walked = 0; let lx = 0; let lz = 0; let have = false;
+  let nextChime = CHIME_GAP.first; let nearUntil = 0; let wasNear = false; let chimes = 0; let steps = 0; let walked = 0; let lx = 0; let lz = 0; let have = false;
   return {
     rung,
     spottable,
@@ -244,6 +267,11 @@ export function createTreehouseCritters({ scene, reducedMotion = false, tier = n
       const d = dt > 0 ? Math.min(dt, 1) : 0;
       if (!reducedMotion) draw(t);
       if (t >= nextChime) { chimeNote(audio, chimes); chimes++; nextChime = t + CHIME_GAP.min + CHIME_GAP.span * hash01(chimes, 32); } // (the schedule runs on while muted: no catching up)
+      if (catPos && Number.isFinite(catPos.y)) { // a brush past a wind chime sets it ringing (once on coming near, then not again for a few seconds)
+        const near = nearChime(catPos.x, catPos.y, catPos.z);
+        if (near && !wasNear && t >= nearUntil) { chimeNote(audio, chimes + 7); chimes++; nearUntil = t + CHIME_COOL; }
+        wasNear = near;
+      }
       if (catPos && d > 0) {
         const moved = have ? Math.hypot(catPos.x - lx, catPos.z - lz) : 0;
         lx = catPos.x; lz = catPos.z; have = true;
