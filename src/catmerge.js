@@ -133,6 +133,26 @@ function mergeOutfits(L, C) {
   return out.sort((a, b) => T.OUTFIT_IDS.indexOf(a.id) - T.OUTFIT_IDS.indexOf(b.id));
 }
 
+// A cat's role (catrole.js catRole): when both sides hold the same cat in a slot, her role is one
+// choice (pick and stem together: the side that changed it, else the later save), her first walk
+// total is the smaller (nothing she earned is lost) and the card shown is the larger.
+// Read through plain keys (no import: this is a lazy chunk), and cleaned by sanitizeSave after.
+const roleOf = (c) => (isObj(c) && isObj(c.catRole) ? c.catRole : null);
+function withMergedRole(r, id, cat) {
+  const l = r.L.customCats.find((x) => x.id === id);
+  const c = r.C.customCats.find((x) => x.id === id);
+  if (!l || !c || content(l) !== content(c)) return cat;
+  const lr = roleOf(l); const cr = roleOf(c);
+  if (!lr && !cr) return cat;
+  const none = { born: 0, pick: null, stem: null, seen: 0 };
+  const a = lr ?? none; const b = cr ?? none;
+  const baseCat = Array.isArray(r.B?.customCats) ? r.B.customCats.find((x) => x.id === id) : undefined;
+  const br = roleOf(baseCat) ?? none;
+  const choice = newer({ pick: a.pick ?? null, stem: a.stem ?? null }, { pick: b.pick ?? null, stem: b.stem ?? null }, baseCat ? { pick: br.pick ?? null, stem: br.stem ?? null } : undefined, r.ctx);
+  const merged = { born: Math.min(num(a.born), num(b.born)), pick: choice.pick ?? null, stem: choice.stem ?? null, seen: Math.max(num(a.seen), num(b.seen)) };
+  return { ...cat, catRole: merged };
+}
+
 // ---- the rules ---------------------------------------------------------------
 // One rule per top-level key of a fresh save. `r` is the merge's working set:
 // L, C (cleaned saves, L re-slotted), B (base or null), ctx.
@@ -150,7 +170,7 @@ export const MERGE_RULES = Object.freeze({
     areas: union(r.L.unlocked.areas, r.C.unlocked.areas),
   }),
   equipped: (r) => newer(r.L.equipped, r.C.equipped, r.B?.equipped, r.ctx),
-  customCats: (r) => T.CUSTOM_IDS.filter((id) => r.cats.has(id)).map((id) => r.cats.get(id)),
+  customCats: (r) => T.CUSTOM_IDS.filter((id) => r.cats.has(id)).map((id) => withMergedRole(r, id, r.cats.get(id))),
   moreCatSlots: (r) => r.L.moreCatSlots || r.C.moreCatSlots,
   outfits: (r) => mergeOutfits(r.L, r.C),
   usage: (r) => T.mergeUsage(r.L.usage, r.C.usage),

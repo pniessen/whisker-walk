@@ -108,7 +108,7 @@ describe('the mode and the sets', () => {
     expect(seriesMode()).toBe('on'); // the test setup installs it and puts it in use (test/setup/familywords.js)
     expect(seriesModes()).toEqual(['on', 'off']);
     for (const name of TABLES) expect(words()[name], name).toBe(on[name]);
-    expect(Object.keys(words().PHRASES).length).toBe(11); // the lines only the family's game says (B2)
+    expect(Object.keys(words().PHRASES).length).toBe(19); // the lines only the family's game says (B2)
     // every table of the word file is on the list, bar the ids, the spares and the optional drawings
     expect([...TABLES, 'HOMAGE_CHOICES', 'EMBLEMS', 'PHRASES'].sort()).toEqual(Object.keys(on).sort());
   });
