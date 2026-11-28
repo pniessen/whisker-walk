@@ -125,6 +125,29 @@ export function drawWreck(kit, M, K) {
   // a little coral on the high rail, so the galleon is the reef's own now
   for (let i = 0; i < 6; i++) { const u = -6.4 + i * 1.9; put(cyl(0.05, 0.14, 0.34 + (i % 3) * 0.16, 6).translate(X + u, railTop(-2.9) + 0.2, Z - 2.9), COL.coral[i % 4], { noCast: true }); }
 
+  // ---- beauty pass 1: glowing portholes, barnacles and a coil of rope ----------------------------------------------------------------
+  for (const u of [-6.6, -4.4, -1.6, 0.8, 2.6]) { // round brass-rimmed portholes along the high rail's outer face, lit from inside
+    const y = reefBaseY(X + u, Z - 2.9) + 1.55;
+    put(new THREE.CircleGeometry(0.19, 10).rotateY(Math.PI).translate(X + u, y, Z - 3.08), 0xffe9a8, { noCast: true }); // (a pale warm pane in the paint bucket: the stage draws no other bucket)
+    put(new THREE.CylinderGeometry(0.25, 0.25, 0.05, 10, 1, true).rotateX(Math.PI / 2).translate(X + u, y, Z - 3.07), BRASS_DARK, { noCast: true });
+  }
+  for (let i = 0; i < 16; i++) { // barnacles crusting the planks below the portholes
+    const u = -7.4 + i * 0.62 + (i % 3) * 0.11;
+    const y = reefBaseY(X + u, Z - 2.9) + 0.25 + ((i * 5) % 7) * 0.09;
+    put(new THREE.CylinderGeometry(0.008, 0.045 + 0.01 * (i % 3), 0.08, 4, 1, true).rotateX(-Math.PI / 2).translate(X + u, y, Z - 3.1), i % 4 ? 0xd9d3c0 : 0xb8b4a4, { noCast: true });
+  }
+  { // a coil of rope on the deck, by the low rail
+    const p = W.wreckPoint(1.9, 1.7);
+    put(new THREE.TorusGeometry(0.3, 0.05, 4, 10).rotateX(Math.PI / 2 - TILT).translate(p.x, reefY(p.x, p.z) + 0.09, p.z), 0xb59a6a, { noCast: true });
+  }
+
+  for (const [u, v, a] of [[2.3, 1.9, 0.6], [-2.2, 1.3, 2.4], [5.2, -1.2, 4.0]]) { // three little red crabs on the deck and the bow
+    const p = W.wreckPoint(u, v);
+    const y = reefY(p.x, p.z) + 0.1;
+    put(new THREE.SphereGeometry(0.07, 5, 3).scale(1.4, 0.55, 1).rotateY(a).translate(p.x, y, p.z), 0xe0603f, { noCast: true });
+    for (const s of [-1, 1]) put(new THREE.SphereGeometry(0.035, 4, 2).translate(p.x + s * 0.11 * Math.cos(a), y + 0.015, p.z - s * 0.11 * Math.sin(a)), 0xf08a5d, { noCast: true });
+  }
+
   drawSuit(kit, M, paint);
 }
 
