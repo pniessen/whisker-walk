@@ -66,6 +66,7 @@ import { OLD_HOUSE_PLAN, SECRET_WARDROBE } from './houseplan.js';
 import { createHouseSound } from './housesound.js';
 import { createHouseAir } from './houseair.js';
 import { FIRE, dayPart } from './houseglow.js';
+import { seasonOf, createSurprises } from './housestories.js';
 import { hash01 } from './builder.js';
 import { createLedgeGuards, catScale } from './houseguards.js';
 
@@ -202,7 +203,10 @@ export function createHouseLife(scene, house, {
   // beauty pass 2 (houseglow.js): the light, firelight, curtains and garden sway are one shader patch on the house's material; LOW and LITE hold the flicker and sway still
   const glow = house.glow ?? null;
   const low = !!tier && (tier.name === 'low' || tier.name === 'lite' || tier.shadows === false || (tier.rung ?? 0) >= 3);
-  const glowOpts = { still: reducedMotion, dusk: !!dusk, low, part: dusk ? null : part, rain: rainK, burst: 0, energy: 0 };
+  // beauty pass 4 (housestories.js): the season by the date, and the rare surprises (the music box, the cuckoo, the old house's ghost cat)
+  const day0 = clockNow();
+  const surprises = glowLive ? createSurprises({ scene, audio, reducedMotion, low, dayKey: day0.getFullYear() * 400 + day0.getMonth() * 31 + day0.getDate(), floorY: (x, z) => floor.y(x, z) }) : null;
+  const glowOpts = { still: reducedMotion, dusk: !!dusk, low, part: dusk ? null : part, rain: rainK, burst: 0, energy: 0, season: seasonOf(day0), box: 0, cuckoo: 0 };
   let ex = 0, ez = 0, eSeen = false, energy = 0; // her walking, as a smoothed 0..1 (the paws' dust and the curtains' swell)
   const guards = createLedgeGuards(colliders, floor);
   const frontDoor = createFrontDoor(house.parts?.frontDoor ?? null, reducedMotion, P.frontDoor);
@@ -304,6 +308,9 @@ export function createHouseLife(scene, house, {
     wingFinds,
     settle,
     get frontDoorOpen() { return frontDoor.open; },
+    /** a surprise on demand (the picture page and tests): 'box', 'cuckoo' or 'ghost', `age` seconds in. */
+    surprise(which, age = 0) { return surprises ? surprises.start(which, age) : false; },
+    get surprising() { return surprises ? surprises.active : null; },
     /** her pace now as a share of her walk: the crinkly tunnel slows her (avatar.js reads it). */
     get pace() { return wingFinds.pace; },
     update(dt, t, catPos, camera, session) {
@@ -326,6 +333,7 @@ export function createHouseLife(scene, house, {
       partIn -= dt;
       if (partIn <= 0) { partIn = 5; retone(); }
       air.update(dt, t, drawing.full, catPos, glowOpts.energy);
+      if (surprises) { const o = surprises.update(dt, catPos, drawing.full); glowOpts.box = o.box; glowOpts.cuckoo = o.cuckoo; }
       glow?.update(t, catPos, glowOpts);
       finds.update(dt, t, catPos, camera.position, partners); // after the camera's move: the bookcase's fade hold
       wingFinds.update(dt, t, catPos, partners, camera.position);
@@ -348,6 +356,7 @@ export function createHouseLife(scene, house, {
       finds.dispose();
       wingFinds.dispose();
       sound.dispose();
+      surprises?.dispose();
       air.dispose();
       for (const p of fading) p.obj.userData.fadeHold = false;
       for (const m of lidMeshes) m.visible = true;

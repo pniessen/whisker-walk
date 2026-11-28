@@ -18,6 +18,7 @@
 // =============================================================================
 
 import * as THREE from 'three';
+import { STORY_FUNCS, SEASON_TONE, SEASON_BREEZE } from './housestories.js';
 
 export const WIN_SLOTS = 6;
 export const LIVE_WIN = Object.freeze({ high: 6, low: 2 });
@@ -107,16 +108,21 @@ uniform vec3 uTone;
 uniform vec3 uSunCol;
 uniform float uLampK;
 uniform float uBurst;
+uniform float uSeason;
+uniform float uBox;
+uniform float uCuckoo;
+uniform float uBreeze;
 varying vec3 vTw;
 varying vec3 vNw;
-float hCell(vec2 uv) { return floor(uv.x * 8.0) + 8.0 * floor(uv.y * 8.0); }`;
+float hCell(vec2 uv) { return floor(uv.x * 8.0) + 8.0 * floor(uv.y * 8.0); }
+${STORY_FUNCS}`;
 // the curtains (atlas cells 27 red, 28 green, 29 blue, 30 gingham) ripple: the fold pattern slides a few pixels either way
 const MAP_FRAG = `{
   float cid = hCell(vMapUv);
   vec2 huv = vMapUv;
   if (cid > 26.5 && cid < 30.5) {
     float nearC = (1.0 - smoothstep(0.7, 2.6, distance(vTw.xz, uCat.xz))) * (1.0 - smoothstep(2.0, 3.5, abs(vTw.y - uCat.y)));
-    huv.x += (3.0 / 512.0) * sin(uTime * (1.35 + 1.2 * nearC) + vTw.x * 0.9 + vTw.z * 0.9 + vTw.y * 2.2) * uFlick * (1.0 + 2.6 * nearC * (0.35 + 0.65 * uCat.w));
+    huv.x += (3.0 / 512.0) * sin(uTime * (1.35 + 1.2 * nearC) + vTw.x * 0.9 + vTw.z * 0.9 + vTw.y * 2.2) * uFlick * uBreeze * (1.0 + 2.6 * nearC * (0.35 + 0.65 * uCat.w));
   }
   vec4 sampledDiffuseColor = texture2D( map, huv );
   diffuseColor *= sampledDiffuseColor;
@@ -128,6 +134,7 @@ const COLOR_FRAG = `#include <color_fragment>
   bool rug = cid == 13.0 || cid == 14.0 || cid == 31.0;
   float sat = rug ? 1.6 : 1.3;
   diffuseColor.rgb = max(vec3(0.0), mix(vec3(lum), diffuseColor.rgb, sat));
+  diffuseColor.rgb = stories(diffuseColor.rgb, vTw, normalize(vNw), uSeason, uBox, uCuckoo, uTime);
   diffuseColor.rgb *= mix(uTone, vec3(1.0), uDusk);
 }`;
 const EMISSIVE_FRAG = `#include <emissivemap_fragment>
@@ -148,6 +155,7 @@ const EMISSIVE_FRAG = `#include <emissivemap_fragment>
     sunk += uWin[i].w * sa * sb * mix(0.35, 1.0, bar) * up * hgt;
   }
   totalEmissiveRadiance += (base * 0.95 + vec3(0.05, 0.035, 0.01)) * uSunCol * sunk * 1.7;
+  totalEmissiveRadiance += storiesGlow(base, vTw, n, uSeason, uBox, uTime);
   float pool = 0.0;
   for (int i = 0; i < ${LAMP_SLOTS}; i++) {
     vec3 d = vTw - uLamp[i].xyz;
@@ -187,7 +195,7 @@ function patch(material, uniforms, garden) {
       .replace('#include <color_fragment>', COLOR_FRAG)
       .replace('#include <emissivemap_fragment>', EMISSIVE_FRAG);
   };
-  material.customProgramCacheKey = () => (garden ? 'house-glow-garden-v1' : 'house-glow-v1');
+  material.customProgramCacheKey = () => (garden ? 'house-glow-garden-v2' : 'house-glow-v2');
   material.needsUpdate = true;
 }
 
@@ -197,12 +205,24 @@ function patchPane(material, uniforms) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = uniforms.uTime;
     shader.uniforms.uRain = uniforms.uRain;
+    shader.uniforms.uSeason = uniforms.uSeason;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vPw;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPw = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPw;\nvarying vec3 vPm;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPw = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvPm = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform float uRain;\nvarying vec3 vPw;\nfloat rh(float n) { return fract(sin(n * 91.7 + 13.1) * 43758.5); }')
+      .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform float uRain;\nuniform float uSeason;\nvarying vec3 vPw;\nvarying vec3 vPm;\nfloat rh(float n) { return fract(sin(n * 91.7 + 13.1) * 43758.5); }')
       .replace('#include <color_fragment>', `#include <color_fragment>
+  if (uSeason < 0.5) {
+    // winter (beauty pass 4): frost creeps in from the pane's edges (relative to the pane's middle, which is the mesh's origin), ferned and sparkling
+    vec3 mid = vPm;
+    float ly = vPw.y - mid.y;
+    float lr = (vPw.x + vPw.z) - (mid.x + mid.z);
+    float edge = max(smoothstep(0.1, 0.42, abs(ly)), smoothstep(0.12, 0.42, abs(lr)));
+    float frost = clamp(edge * (0.6 + 0.4 * sin(lr * 38.0 + ly * 23.0 + sin(ly * 31.0) * 1.8)) + step(0.97, rh(floor(lr * 40.0) * 11.0 + floor(ly * 40.0))) * edge, 0.0, 1.0);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.94, 1.0), frost * 0.95);
+    totalEmissiveRadiance += vec3(0.5, 0.58, 0.66) * frost * 0.5;
+    diffuseColor.a = max(diffuseColor.a, frost * 0.97);
+  }
   if (uRain > 0.0) {
     float run = vPw.x + vPw.z;
     float col = floor(run * 9.0);
@@ -219,7 +239,7 @@ function patchPane(material, uniforms) {
     diffuseColor.a = max(diffuseColor.a, drops * 0.95);
   }`);
   };
-  material.customProgramCacheKey = () => 'house-pane-rain-v1';
+  material.customProgramCacheKey = () => 'house-pane-rain-v2';
   material.needsUpdate = true;
 }
 
@@ -234,7 +254,7 @@ export function createHouseGlow({ windows = [], rooms = [], levels = [], lamps =
   const uniforms = {
     uTime: { value: 0 }, uDusk: { value: 0 }, uFlick: { value: 1 },
     uCat: { value: new THREE.Vector4(0, -100, 0, 0) }, uTone: { value: new THREE.Vector3(1.1, 1.0, 0.82) }, uSunCol: { value: new THREE.Vector3(1.0, 0.84, 0.5) },
-    uLampK: { value: 0 }, uBurst: { value: 0 }, uRain: { value: 0 },
+    uLampK: { value: 0 }, uBurst: { value: 0 }, uRain: { value: 0 }, uSeason: { value: 3 }, uBox: { value: 0 }, uCuckoo: { value: 0 }, uBreeze: { value: 1 },
     uWin: { value: Array.from({ length: WIN_SLOTS }, () => new THREE.Vector4(0, -100, 0, 0)) },
     uWinB: { value: Array.from({ length: WIN_SLOTS }, () => new THREE.Vector4(0, 1, 0.5, 1)) },
     uLamp: { value: Array.from({ length: LAMP_SLOTS }, () => new THREE.Vector4(0, -100, 0, 0)) },
@@ -251,13 +271,18 @@ export function createHouseGlow({ windows = [], rooms = [], levels = [], lamps =
     patchPane(material) { patchPane(material, uniforms); return material; },
     // t: the walk's clock; cat { x, y, z }; still: reduced motion; dusk: the lamplight look; low: LOW and LITE tiers
     // pass 3: part (dayPart's result, null: the afternoon the house always had), rain (0 or 1), burst (0..1, the fire's crackle), energy (0..1, how hard she is walking)
-    update(t, cat, { still = false, dusk = false, low = false, part = null, rain = 0, burst = 0, energy = 0 } = {}) {
+    update(t, cat, { still = false, dusk = false, low = false, part = null, rain = 0, burst = 0, energy = 0, season = 3, box = 0, cuckoo = 0 } = {}) {
       const calm = still || low;
       uniforms.uCat.value.set(cat?.x ?? 0, cat?.y ?? -100, cat?.z ?? 0, calm ? 0 : energy);
       uniforms.uBurst.value = calm ? 0 : burst;
       uniforms.uRain.value = rain;
+      uniforms.uSeason.value = season;
+      uniforms.uBox.value = box;
+      uniforms.uCuckoo.value = cuckoo;
+      uniforms.uBreeze.value = SEASON_BREEZE[season] ?? 1;
       const sunK = part ? part.sunK : 1;
-      if (part) { uniforms.uTone.value.set(part.tone[0], part.tone[1], part.tone[2]); uniforms.uLampK.value = part.lampK; } else { uniforms.uTone.value.set(1.1, 1.0, 0.82); uniforms.uLampK.value = 0; }
+      const st = SEASON_TONE[season] ?? SEASON_TONE[3];
+      if (part) { uniforms.uTone.value.set(part.tone[0] * st[0], part.tone[1] * st[1], part.tone[2] * st[2]); uniforms.uLampK.value = part.lampK; } else { uniforms.uTone.value.set(1.1 * st[0], 1.0 * st[1], 0.82 * st[2]); uniforms.uLampK.value = 0; }
       const sc = part ? part.sun : DEFAULT_SUN;
       uniforms.uSunCol.value.set(sc[0] + (0.7 - sc[0]) * rain * 0.5, sc[1] + (0.76 - sc[1]) * rain * 0.5, sc[2] + (0.85 - sc[2]) * rain * 0.5);
       uniforms.uTime.value = still || low ? 0 : t;
