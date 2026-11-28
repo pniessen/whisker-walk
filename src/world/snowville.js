@@ -87,8 +87,9 @@ export function build(scene, opts = {}) {
         const finds = ST.b?.finds?.life(ctx); // the six discoveries (milestone V3)
         const strayNotes = ST.b?.strayNotes?.(); // a line the first time she meets each of the four friendly strays (round two)
         const critters = ST.story?.critters?.(ctx); // the otters, hare, robin, fox kit, smoke, bells and crunch (milestone V4, in the story stage)
-        const bed = ST.story.createSoundBed(ctx.audio, ctx.reducedMotion ? () => 0 : gustAt); // beauty pass 2: wind with the gusts, sleigh bells, a distant carol chime (silent when muted)
-        const zones = ST.story.createZoneBed(ctx.audio, ctx.reducedMotion ? () => 0 : gustAt); // beauty pass 5: the pond's ice, the bakery's oven, the fir wood's wind and the village bell, cross-faded by where she stands
+        const calm = ctx.reducedMotion ? () => 0 : (t) => gustAt(t) * (1 - 0.8 * ST.story.SHARED.fest); // (the festival ducks the wind)
+        const bed = ST.story.createSoundBed(ctx.audio, calm); // beauty pass 2: wind with the gusts, sleigh bells, a distant carol chime (silent when muted)
+        const zones = ST.story.createZoneBed(ctx.audio, calm); // beauty pass 5: the pond's ice, the bakery's oven, the fir wood's wind and the village bell, cross-faded by where she stands
         return {
           light,
           spottable: critters?.spottable ?? [],
