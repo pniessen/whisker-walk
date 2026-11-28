@@ -271,11 +271,11 @@ export function drawSpawn(kit, M) {
   const wdt = 2.2; const hgt = 1.9;
   const dg = stand(new THREE.PlaneGeometry(wdt, hgt, 4, 4).toNonIndexed(), R.x, R.z + 0.02, hgt / 2 + 0.1);
   const dp = dg.attributes.position; const dc = new Float32Array(dp.count * 3);
-  const mid = new THREE.Color(0xf8f2c0); const edge = new THREE.Color(0xa6d68a);
+  const mid = new THREE.Color(0xd2e496); const edge = new THREE.Color(0x4f9a52); // pass 8: a glow, not a cream slab: gold-green, falling off to deep green at every edge
   for (let v = 0; v < dp.count; v++) {
     const u = Math.abs(dp.getX(v) - R.x) / (wdt / 2);
     const w = clamp01((dp.getY(v) - P.jungleY(R.x, R.z)) / (hgt + 0.2));
-    _c.copy(mid).lerp(edge, clamp01(0.55 * u * u + 0.5 * w * w));
+    _c.copy(mid).lerp(edge, clamp01(0.3 + 0.7 * u * u + 0.55 * w * w));
     dc[v * 3] = _c.r; dc[v * 3 + 1] = _c.g; dc[v * 3 + 2] = _c.b;
   }
   dg.setAttribute('color', new THREE.BufferAttribute(dc, 3));

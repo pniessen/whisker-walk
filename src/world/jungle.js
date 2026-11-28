@@ -91,7 +91,7 @@ export function build(scene) {
           interact: () => prompts.interact(),
           // a step done by anyone in the room (a `jl-` event): an errand done by a partner is credited to ours, a supper begun by a partner starts ours, any other step is Mossy's
           credit: (ev) => errand?.credit(ev) ?? wing?.credit(ev) ?? mossy.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); mossy.update(dt, t, catPos, camera, session); wing?.update(dt, t); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos, light.state); air?.update(dt, t, catPos, light.state.strength, camera); strays?.update(dt, t, catPos); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); mossy.update(dt, t, catPos, camera, session); wing?.update(dt, t); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos, light.state); air?.update(dt, t, catPos, light.state.strength, camera, session); strays?.update(dt, t, catPos); },
           dispose() { air?.dispose(); strays?.dispose(); errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); mossy.dispose(); light.dispose(); },
         };
       },

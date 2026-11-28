@@ -97,7 +97,7 @@ export function createCreatures(rung = 'high') {
   const dragons = plan.dragons.slice(0, B5.dragons[rung]).map((d) => ({ ...d, flee: 0, ax: 0, az: 0 }));
   const frogs = plan.frogs.slice(0, B5.frogs[rung]).map((f) => ({ ...f, hideUntil: -1, shown: 1 }));
   const beetles = plan.beetles.slice(0, B5.beetles[rung]);
-  const sl = { ...plan.sloth, ang: SLOTH_REST, want: SLOTH_REST, see: 0 };
+  const sl = { ...plan.sloth, ang: SLOTH_REST, want: SLOTH_REST, see: 0, hear: -1 };
   /** one frame of her effect: dragonflies shy, frogs plop (calls onPlop(x, y, z) once each), the sloth turns. cat may be null. */
   function step(dt, t, cat, onPlop) {
     for (const d of dragons) {
@@ -111,7 +111,7 @@ export function createCreatures(rung = 'high') {
     }
     if (cat) {
       const dx = cat.x - sl.x; const dz = cat.z - sl.z; const dd = Math.hypot(dx, dz);
-      sl.see = dd < CRITTER.slothSee ? 1 : 0; sl.want = sl.see ? Math.atan2(dz, dx) : SLOTH_REST + 1.6 * Math.sin(t * 0.045);
+      /* pass 8: after her meow it hears her from farther off */ sl.see = dd < CRITTER.slothSee * (t < sl.hear ? 2.6 : 1) ? 1 : 0; sl.want = sl.see ? Math.atan2(dz, dx) : SLOTH_REST + 1.6 * Math.sin(t * 0.045);
     } else sl.want = SLOTH_REST + 1.6 * Math.sin(t * 0.045);
     let da = sl.want - sl.ang; da = Math.atan2(Math.sin(da), Math.cos(da)); // the long way round never; slow as a sloth
     sl.ang += Math.max(-0.35 * dt, Math.min(0.35 * dt, da));

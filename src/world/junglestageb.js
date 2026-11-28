@@ -38,7 +38,7 @@ Object.assign(ST, {
     critters: createJungleCritters,
     air: (ctx) => { // beauty pass 1: butterflies and fireflies (junglesparkle.js); pass 2: the swaying vines, banners and flock, the sun shafts and the motes (junglebeauty2.js)
       const one = createJungleAir(ctx); const two = createJungleBeauty2(ctx);
-      return { one, two, update(dt, t, catPos, rain, camera) { one.update(dt, t, catPos, rain); two.update(dt, t, catPos, rain, camera); }, dispose() { two.dispose(); one.dispose(); } };
+      return { one, two, update(dt, t, catPos, rain, camera, session) { one.update(dt, t, catPos, rain); two.update(dt, t, catPos, rain, camera, session); }, dispose() { two.dispose(); one.dispose(); } };
     },
     strays: createStraysLazy, // four friendly jungle cats made by the walk's own stray system (round two; junglestrays.js is its own lazy file)
     colliders: () => [...wingColliders(), ...propColliders()], // the wing's, and the crates, barrels and drying rack beside the lodge
