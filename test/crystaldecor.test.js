@@ -20,7 +20,7 @@ const B = P.CRYSTAL_BOUNDS;
 describe('the plan', () => {
   it('is deterministic, with its own salts (none shared with the cave\'s other scatters)', () => {
     expect(D.planDecor('high')).toEqual(D.planDecor('high'));
-    const salts = [...Object.values(D.SALTS), 0x7374616c, 0x63727973, 0x72696d73, 0x70656262, 0x676c696e, 0x62756778, 0x64757374, 0x64726970];
+    const salts = [...Object.values(D.SALTS), ...Object.values(D.BEAUTY_SALTS), 0x7374616c, 0x63727973, 0x72696d73, 0x70656262, 0x676c696e, 0x62756778, 0x64757374, 0x64726970];
     expect(new Set(salts).size).toBe(salts.length);
   });
   it('keeps every count, and LOW keeps about half, each a prefix of HIGH', () => {
@@ -69,6 +69,32 @@ describe('the plan', () => {
   });
 });
 
+describe('beauty round 1', () => {
+  it('is deterministic, keeps every count, and LOW keeps about half, each a prefix of HIGH', () => {
+    const h = D.planBeauty('high'); const l = D.planBeauty('low');
+    expect(D.planBeauty('high')).toEqual(h);
+    for (const k of Object.keys(D.BEAUTY_COUNT.high)) {
+      expect(h[k].length, k).toBe(D.BEAUTY_COUNT.high[k]); expect(l[k].length, k).toBe(D.BEAUTY_COUNT.low[k]);
+      expect(l[k]).toEqual(h[k].slice(0, l[k].length));
+    }
+  });
+  it('the veins and small stalagmites stand in bounds, clear of every collider, find and the old small things, and of each other', () => {
+    const cols = P.crystalColliders(); const old = D.smallSites('high'); const mine = D.beautySites('high');
+    for (const m of mine) {
+      expect(m.x).toBeGreaterThan(B.minX + 2); expect(m.x).toBeLessThan(B.maxX - 2); expect(m.z).toBeGreaterThan(B.minZ + 2); expect(m.z).toBeLessThan(B.maxZ - 2);
+      for (const c of cols) expect(Math.hypot(m.x - c.x, m.z - c.z)).toBeGreaterThan(c.r + m.rad);
+      for (const f of Object.values(CRYSTAL_FIND_ZONES).flat()) expect(Math.hypot(m.x - f.x, m.z - f.z)).toBeGreaterThan(f.r + m.rad);
+      expect(Math.hypot(m.x - W.POOL.x, m.z - W.POOL.z)).toBeGreaterThan(W.POOL.r);
+      for (const o of old) expect(Math.hypot(m.x - o.x, m.z - o.z)).toBeGreaterThan(o.rad + m.rad);
+    }
+    for (let i = 0; i < mine.length; i++) for (let j = i + 1; j < mine.length; j++) expect(Math.hypot(mine[i].x - mine[j].x, mine[i].z - mine[j].z)).toBeGreaterThan(mine[i].rad + mine[j].rad);
+  });
+  it('the pockets carry both a warm and a cool colour', () => {
+    const rgb = D.planBeauty('high').pockets.map((p) => p.rgb[0] > p.rgb[2]);
+    expect(rgb.includes(true) && rgb.includes(false)).toBe(true);
+  });
+});
+
 describe('the drawing', () => {
   const mk = (tier) => { const scene = new THREE.Scene(); const d = createCrystalDecor({ scene, tier }); return { scene, d }; };
   it('is three draws at most, none a caster, and adds nothing solid to the walk', () => {
@@ -76,7 +102,7 @@ describe('the drawing', () => {
     expect(d.meshes.length).toBeLessThanOrEqual(3);
     expect(scene.children.length).toBe(3);
     for (const m of d.meshes) { expect(m.castShadow).toBe(false); expect(m.userData.noMerge).toBe(true); }
-    expect(d.triangles).toBeGreaterThan(500); expect(d.triangles).toBeLessThan(9000);
+    expect(d.triangles).toBeGreaterThan(500); expect(d.triangles).toBeLessThan(12000); // (beauty round 1, 2026-11-28: shard satellites, glints, veins, small stalagmites, pockets; measured below)
     d.dispose(); expect(scene.children.length).toBe(0);
   });
   it('LOW and LITE draw about half the triangles of HIGH', () => {
