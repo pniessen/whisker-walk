@@ -82,7 +82,8 @@ export const wingColliders = () => [
   f({ x: ORCHID.x, z: ORCHID.z, r: ORCHID.r }),
 ];
 // The one hop: the low branch (kind 'tree': a living limb; a hop of 1.0 m, no skill, from the ground beside it).
-export const wingPerches = () => [{ x: BRANCH.x, z: BRANCH.z, y: branchY(), kind: 'tree' }];
+// z -26.5, not BRANCH.z: the drawn limb ends at z -26.73, so the perch sits on it (the platform audit)
+export const wingPerches = () => [{ x: BRANCH.x, z: BRANCH.z - 0.5, y: branchY(), kind: 'tree' }];
 
 // The story's table for the base's Mossy (junglestory.js allFruits, and her goal spots for the meow's ring).
 export const wingStory = () => ({

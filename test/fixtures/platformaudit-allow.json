@@ -1,9 +1,1 @@
-{
- "jungle": [
-  {
-   "at": "26.00,-26.00,2.32",
-   "kind": "tree",
-   "reason": "the low branch IS drawn (junglewingparts.js, merged into jungle:paint, top at y 2.32) but its outer end stops 0.73 m short of the perch in z (drawn to z -26.73, perch at z -26.00; the audit allows 0.6 m). Owner to decide: lengthen the limb by about 0.2 m or move the perch to z -26.5; no prop or perch changed here"
-  }
- ]
-}
+{}
