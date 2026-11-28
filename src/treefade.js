@@ -219,9 +219,13 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
   }
   const faded = new Set();
   const moved = new Set(); // stands with a tree that eased this frame (reused)
-  const cam = { x: 0, y: 0, z: 0 }; // reused every frame
-  const far = { x: 0, y: 0, z: 0 }; // the fade line's end, PAST_LOOK beyond the look point (reused)
-  const shy = { x: 0, y: 0, z: 0 }; // a building's line end, SHY_OF_CAT short of the look point (reused)
+  // One view's line, reused every frame: the camera; far = the fade line's end, PAST_LOOK beyond the look point; shy = a
+  // building's line end, SHY_OF_CAT short of the look point. Split screen (coop/splitsys.js setSecond) adds cat two's
+  // as V1: the materials are shared by both views, so a tree fades when it is in the way of EITHER cat.
+  const mkView = () => ({ cam: { x: 0, y: 0, z: 0 }, far: { x: 0, y: 0, z: 0 }, shy: { x: 0, y: 0, z: 0 }, look: null, dist: 0 });
+  const V0 = mkView(); const V1 = mkView();
+  const second = { camera: null, look: null, ttl: 0 };
+  let two = false; let wantR = false; let closeR = false;
   let disposed = false;
 
   // First fade of a tree: find its meshes, remember their materials, clone.
@@ -351,7 +355,7 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
   // nothing between them, and the shed stays solid (owner's report 2026-11-19:
   // "all structures disappear when I enter"). Only asked once the line has met
   // the box, so it costs nothing for buildings that are not near the line.
-  function wallInTheWay(obj) {
+  function wallInTheWay(obj, { cam, shy }) {
     if (!obj) return true;
     _from.set(cam.x, cam.y, cam.z);
     _dir.set(shy.x - cam.x, shy.y - cam.y, shy.z - cam.z);
@@ -364,8 +368,9 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
     return _hits.length > 0;
   }
 
-  function step(t, dt, look, camDist, hidden) {
+  function evalWant(t, v) {
     const o = t.occ;
+    const { cam, far, shy, look, dist: camDist } = v;
     let want = false, close = false;
     if (o.box) {
       // a building: the camera inside (or within BUILDING_PAD), or the cam→look segment through it
@@ -374,7 +379,7 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
         want = (cam.x >= b.minX - BUILDING_PAD && cam.x <= b.maxX + BUILDING_PAD
           && cam.y >= b.minY - BUILDING_PAD && cam.y <= b.maxY
           && cam.z >= b.minZ - BUILDING_PAD && cam.z <= b.maxZ + BUILDING_PAD)
-          || (camDist > SHY_OF_CAT && segmentHitsBox(cam, shy, b) && wallInTheWay(o.obj));
+          || (camDist > SHY_OF_CAT && segmentHitsBox(cam, shy, b) && wallInTheWay(o.obj, v));
       }
     } else if (Math.hypot(o.x - look.x, o.z - look.z) <= camDist + Math.max(o.R, o.near || 0) + PAST_LOOK) {
       // quick reject passed: a tree farther from the cat than the fade line can reach is skipped
@@ -385,6 +390,15 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
         || segmentBlocked(cam, far, o, LINE_PAD);
       close = want && t.tree && dCam < o.R + NEAR_FOLIAGE && cam.y < o.top + 1;
     }
+    wantR = want; closeR = close;
+  }
+
+  function step(t, dt, hidden) {
+    const o = t.occ;
+    evalWant(t, V0);
+    if (!wantR && two) evalWant(t, V1);
+    let want = wantR;
+    const close = closeR;
     // A tagged shape its owner is holding solid for now (the Fairground's
     // slide while the cat is on it: src/fairlive.js).
     if (want && o.near !== undefined && o.obj?.userData.fadeHold) want = false;
@@ -399,35 +413,44 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
     return true;
   }
 
+  function aim(v, p, look) {
+    const { cam, far, shy } = v;
+    cam.x = p.x; cam.y = p.y; cam.z = p.z;
+    v.look = look;
+    const camDist = v.dist = Math.hypot(cam.x - look.x, cam.y - look.y, cam.z - look.z);
+    const h = Math.hypot(look.x - cam.x, look.z - cam.z);
+    if (h > 1e-3) {
+      far.x = look.x + ((look.x - cam.x) / h) * PAST_LOOK;
+      far.z = look.z + ((look.z - cam.z) / h) * PAST_LOOK;
+    } else { far.x = look.x; far.z = look.z; }
+    far.y = look.y;
+    if (camDist > SHY_OF_CAT) {
+      const k = 1 - SHY_OF_CAT / camDist;
+      shy.x = cam.x + (look.x - cam.x) * k; shy.y = cam.y + (look.y - cam.y) * k; shy.z = cam.z + (look.z - cam.z) * k;
+    }
+  }
+
   return {
+    // Split screen: cat two's camera and look point (live for a few updates, so it lapses by itself).
+    setSecond(camera, look) { second.camera = camera; second.look = look; second.ttl = 3; },
     update(dt, camera, look) {
       if (disposed || (trees.length === 0 && standTrees.length === 0)) return;
-      const p = camera.position;
-      cam.x = p.x; cam.y = p.y; cam.z = p.z;
-      const camDist = Math.hypot(cam.x - look.x, cam.y - look.y, cam.z - look.z);
-      const h = Math.hypot(look.x - cam.x, look.z - cam.z);
-      if (h > 1e-3) {
-        far.x = look.x + ((look.x - cam.x) / h) * PAST_LOOK;
-        far.z = look.z + ((look.z - cam.z) / h) * PAST_LOOK;
-      } else { far.x = look.x; far.z = look.z; }
-      far.y = look.y;
-      // the building line's end: SHY_OF_CAT back from the cat toward the camera
-      if (camDist > SHY_OF_CAT) {
-        const k = 1 - SHY_OF_CAT / camDist;
-        shy.x = cam.x + (look.x - cam.x) * k; shy.y = cam.y + (look.y - cam.y) * k; shy.z = cam.z + (look.z - cam.z) * k;
-      }
+      aim(V0, camera.position, look);
+      two = second.ttl > 0 && !!second.camera;
+      if (second.ttl > 0) second.ttl--;
+      if (two) aim(V1, second.camera.position, second.look);
       for (let i = 0; i < standTrees.length; i++) {
         const t = standTrees[i];
         const st = t.st;
         if (st.ok === false) continue;
-        if (!step(t, dt, look, camDist, st.group.visible === false)) continue;
+        if (!step(t, dt, st.group.visible === false)) continue;
         if (t.op < 1 && !prepareStand(st)) { for (const u of st.trees) u.op = 1; continue; }
         moved.add(st);
       }
       if (moved.size > 0) { for (const st of moved) syncStand(st); moved.clear(); }
       for (let i = 0; i < trees.length; i++) {
         const t = trees[i];
-        if (!step(t, dt, look, camDist, t.obj.visible === false)) continue;
+        if (!step(t, dt, t.obj.visible === false)) continue;
         if (t.op >= 1) {
           t.op = 1;
           if (t.swapped) swapOut(t);

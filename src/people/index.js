@@ -34,6 +34,11 @@ const _pos = new THREE.Vector3();
 const _cam = new THREE.Vector3();
 const _m = new THREE.Matrix4();
 const _frustum = new THREE.Frustum();
+// Every live kit, so split screen (coop/splitsys.js) can hand them all cat two's camera without reaching into each place.
+const liveKits = new Set();
+export function setSecondCameraAll(cam2) { for (const k of liveKits) k.setSecond(cam2); }
+const _cam2 = new THREE.Vector3();
+const _frustum2 = new THREE.Frustum();
 const _sphere = new THREE.Sphere();
 
 // reducedMotion is kept on the kit for its callers: the kit itself poses no
@@ -42,6 +47,7 @@ const _sphere = new THREE.Sphere();
 // stepGaze() (opts.reducedMotion: no glance, turns twice as slow). The head
 // scratch has no reduced-motion form (its hand is slow and eased already).
 export function createPeopleKit({ camera, reducedMotion = false, lodNear = () => LOD.NEAR } = {}) {
+  const second = { camera: null, ttl: 0 };
   // one material for everyone, its uuid drawn locally (no real Math.random)
   const material = withLocalUuids('people-shared',() => new THREE.MeshStandardMaterial({
     vertexColors: true,
@@ -69,31 +75,45 @@ export function createPeopleKit({ camera, reducedMotion = false, lodNear = () =>
       for (const p of spot.people) kit.people.push(p);
       return spot;
     },
+    // Split screen (coop/splitsys.js): cat two's camera. A person counts as near, and in view, for EITHER camera
+    // (live for a few updates, so it lapses by itself).
+    setSecond(cam2) { second.camera = cam2; second.ttl = 3; },
     update() {
       camera.updateMatrixWorld();
       camera.getWorldPosition(_cam);
       _m.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
       _frustum.setFromProjectionMatrix(_m);
+      const two = second.ttl > 0 && !!second.camera;
+      if (second.ttl > 0) second.ttl--;
+      if (two) {
+        second.camera.updateMatrixWorld();
+        second.camera.getWorldPosition(_cam2);
+        _m.multiplyMatrices(second.camera.projectionMatrix, second.camera.matrixWorldInverse);
+        _frustum2.setFromProjectionMatrix(_m);
+      }
       const near = lodNear();
       const nearIn = near - LOD.HYSTERESIS;
       const farOut = near + LOD.HYSTERESIS;
       for (const p of kit.people) {
         p.figure.getWorldPosition(_pos);
-        const d = _pos.distanceTo(_cam);
+        let d = _pos.distanceTo(_cam);
+        if (two) d = Math.min(d, _pos.distanceTo(_cam2));
         if (d >= farOut) { if (p.detail !== 'far') p.setDetail('far'); }
         else if (d <= nearIn) { if (p.detail !== 'near') p.setDetail('near'); }
         // (the figure's matrix, just refreshed by getWorldPosition; the
         // mesh's own waits for the render, and its local transform is the
         // identity)
         _sphere.copy(p.mesh.boundingSphere).applyMatrix4(p.figure.matrixWorld);
-        p.inView = _frustum.intersectsSphere(_sphere);
+        p.inView = _frustum.intersectsSphere(_sphere) || (two && _frustum2.intersectsSphere(_sphere));
       }
     },
     dispose() {
+      liveKits.delete(kit);
       for (const p of kit.people) p.dispose();
       kit.people.length = 0;
       material.dispose();
     },
   };
+  liveKits.add(kit);
   return kit;
 }

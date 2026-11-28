@@ -601,19 +601,25 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
       if (rings) rings.visible = !sheltered;
     }
   };
+  function poseRain(cameraPos, camera) {
+    rain.position.x = cameraPos.x;
+    rain.position.z = cameraPos.z;
+    if (!ground.flat) rain.position.y = ground.y(cameraPos.x, cameraPos.z);
+    if (camera) {
+      // Quads are drawn facing +z; turn them to look back at the viewer.
+      camera.getWorldDirection(viewDir);
+      if (Math.hypot(viewDir.x, viewDir.z) > 1e-3) rain.rotation.y = Math.atan2(-viewDir.x, -viewDir.z);
+    }
+  }
+  // Split screen (coop/splitsys.js), just before a view's render: the column round that view's camera.
+  // (update() poses it round the main camera again next frame.)
+  api.view = (camera) => { if (rain && rain.visible) { poseRain(camera.position, camera); rain.updateMatrixWorld(); } };
   api.update = (dt, cameraPos, camera) => {
     elapsed += dt;
     const phase = schedule.phase(elapsed);
     if (phase === 'rain') {
       if (rain) {
-        rain.position.x = cameraPos.x;
-        rain.position.z = cameraPos.z;
-        if (!ground.flat) rain.position.y = ground.y(cameraPos.x, cameraPos.z);
-        if (camera) {
-          // Quads are drawn facing +z; turn them to look back at the viewer.
-          camera.getWorldDirection(viewDir);
-          if (Math.hypot(viewDir.x, viewDir.z) > 1e-3) rain.rotation.y = Math.atan2(-viewDir.x, -viewDir.z);
-        }
+        poseRain(cameraPos, camera);
         fall(dt);
       }
       if (rings) ringsPose(elapsed);

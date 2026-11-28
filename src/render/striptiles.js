@@ -636,6 +636,8 @@ export function createStripTiles(scene, {
     standIns,
     standInMaterial,
     core,
+    // Split screen (coop/splitsys.js): cat two's spot, so the strips load round both cats (lapses after half a second).
+    setSecond(x, z) { for (let i = 0; i < streamers.length; i++) streamers[i].setSecond(x, z); },
     update(dt, x, z) {
       if (disposed) return;
       for (let i = 0; i < streamers.length; i++) streamers[i].update(x, z, dt);
@@ -765,6 +767,6 @@ const SMALL_REACH = Object.freeze({
 export const NO_STRIP_TILES = Object.freeze({
   streamers: Object.freeze([]),
   stats: Object.freeze({ geometries: 0, materials: 0, meshes: 0, triangles: 0, casters: 0, trees: 0, smallTiles: 0, maxStepMs: 0 }),
-  update() {}, settle() {}, dispose() {},
+  update() {}, settle() {}, setSecond() {}, dispose() {},
   counts: () => ({ meshes: 0, casters: 0, triangles: 0, standIns: 0 }),
 });

@@ -421,8 +421,21 @@ export function createAmbient(scene, {
   };
   const leafColours = LEAF_COLOURS;
 
-  const focus = new THREE.Vector3();
-  const catMid = new THREE.Vector3();
+  const focusA = new THREE.Vector3();
+  const focusB = new THREE.Vector3(); // split screen (coop/splitsys.js): cat two's view
+  let focus = focusA; // what the spawn and recycle rules read; odd particles read focusB while split
+  const second = { camera: null, cat: null, ttl: 0 };
+  // The lens and cat each particle keeps clear of: [0] cat one's, [1] cat two's (split screen only).
+  const views = [0, 1].map(() => ({ cam: null, has: false, mid: new THREE.Vector3(), sx: 0, sy: 0, sz: 0, sl2: 1 }));
+  function aim(v, camPos, catPos) {
+    v.cam = camPos;
+    v.has = !!catPos;
+    if (!v.has) return;
+    v.mid.set(catPos.x, catPos.y + CAT_MID_Y, catPos.z);
+    // Camera-to-cat sight line, for the capsule test.
+    v.sx = v.mid.x - camPos.x; v.sy = v.mid.y - camPos.y; v.sz = v.mid.z - camPos.z;
+    v.sl2 = v.sx * v.sx + v.sy * v.sy + v.sz * v.sz || 1;
+  }
   let wx = 0;
   let wz = 0;
 
@@ -686,7 +699,11 @@ export function createAmbient(scene, {
   else for (let i = 0; i < cap; i++) wait(i, 0, kind === 'leaves' ? 10 : 2);
 
   function simulate(t, dt, intensity) {
-    fitCentre(camera, LEAD, focus);
+    fitCentre(camera, LEAD, focusA);
+    focus = focusA;
+    const two = second.ttl > 0 && !!second.camera;
+    if (second.ttl > 0) second.ttl--;
+    if (two) fitCentre(second.camera, LEAD, focusB);
     const k = clamp(intensity, 0, MAX_INTENSITY);
     const gust = 1 + GUST_DEPTH * Math.sin(t * GUST_FREQUENCY);
     wx = WIND_DIR[0] * gust * k;
@@ -707,37 +724,34 @@ export function createAmbient(scene, {
       tg += (RAIN_TINT[1] - tg) * wet;
       tb += (RAIN_TINT[2] - tb) * wet;
     }
-    const cam = camera.position;
-    const hasCat = !!cat?.position;
-    if (hasCat) catMid.set(cat.position.x, cat.position.y + CAT_MID_Y, cat.position.z);
-    // Camera-to-cat sight line, for the capsule test.
-    const sx = catMid.x - cam.x;
-    const sy = catMid.y - cam.y;
-    const sz = catMid.z - cam.z;
-    const sl2 = sx * sx + sy * sy + sz * sz || 1;
+    aim(views[0], camera.position, cat?.position);
+    if (two) aim(views[1], second.camera.position, second.cat);
     visibleCount = 0;
     for (let i = 0; i < cap; i++) {
       out.rot = 0;
       out.squash = 1;
       out.scale = 1;
+      // Split screen: odd particles belong to cat two's view, so each half carries half the density.
+      const v = views[two ? i & 1 : 0];
+      focus = v === views[1] ? focusB : focusA;
       if (kind === 'leaves') stepLeaf(i, dt, out);
       else if (kind === 'spray') stepSpray(i, dt, out);
       else if (kind === 'moths') stepMoth(i, dt, t, out);
       else stepDrifter(i, dt, out);
       // Keep-clear: the lens, the cat, and the line between them.
-      const dx = out.x - cam.x;
-      const dy = out.y - cam.y;
-      const dz = out.z - cam.z;
+      const dx = out.x - v.cam.x;
+      const dy = out.y - v.cam.y;
+      const dz = out.z - v.cam.z;
       let f = smooth(keepIn, keepIn + KEEP_FADE, Math.sqrt(dx * dx + dy * dy + dz * dz));
-      if (hasCat && f > 0) {
-        const cx = out.x - catMid.x;
-        const cy = out.y - catMid.y;
-        const cz = out.z - catMid.z;
+      if (v.has && f > 0) {
+        const cx = out.x - v.mid.x;
+        const cy = out.y - v.mid.y;
+        const cz = out.z - v.mid.z;
         f *= smooth(CAT_CLEAR + pad, CAT_CLEAR + pad + 0.3, Math.sqrt(cx * cx + cy * cy + cz * cz));
-        const u = clamp((dx * sx + dy * sy + dz * sz) / sl2, 0, 1);
-        const ex = dx - sx * u;
-        const ey = dy - sy * u;
-        const ez = dz - sz * u;
+        const u = clamp((dx * v.sx + dy * v.sy + dz * v.sz) / v.sl2, 0, 1);
+        const ex = dx - v.sx * u;
+        const ey = dy - v.sy * u;
+        const ez = dz - v.sz * u;
         f *= smooth(SIGHT_CLEAR + pad, SIGHT_CLEAR + pad + 0.2, Math.sqrt(ex * ex + ey * ey + ez * ez));
       }
       const a = alpha[i] * f;
@@ -804,5 +818,7 @@ export function createAmbient(scene, {
     get visibleCount() { return visibleCount; },
     get wet() { return wet; },
     update, dispose,
+    // Split screen (coop/splitsys.js): cat two's camera and position; live for a few updates, so it lapses by itself.
+    setSecond(cam, catPos) { second.camera = cam; second.cat = catPos; second.ttl = 3; },
   };
 }

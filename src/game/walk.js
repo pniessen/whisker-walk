@@ -2814,6 +2814,7 @@ export function createWalkLifecycle({
         session.minimap.setMode(m);
       },
     });
+    session.minimapKit = isDen ? null : { createMinimap, buildMapLayer }; // the split HUD (src/coop/splithud.js) draws two more corner maps with these
     // Whether the map is showing; the render loop hides it while paused.
     session.minimapShown = null;
 

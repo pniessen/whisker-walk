@@ -63,7 +63,8 @@ export function createMover({ ground, state, pick, at, reducedMotion = false, pl
   const body = new THREE.Object3D();
   body.position.set(at.x, ground.y(at.x, at.z), at.z);
   body.rotation.y = at.yaw ?? 0;
-  const player = createPlayer(new THREE.PerspectiveCamera(), null, { headless: true });
+  const cam = new THREE.PerspectiveCamera();
+  const player = createPlayer(cam, null, { headless: true });
   const pace = 2.2 + (PERSONALITIES[pick.breed]?.speed ?? 2) * 0.8; // the same rule as cat one's pace
   player.setAvatar(body, placePace(pace, place)); // the place's own pace and float row (the Reef's slower swim and kick), as cat one's walk sets them
   player.setFloat(placeFloat(place));
@@ -72,5 +73,5 @@ export function createMover({ ground, state, pick, at, reducedMotion = false, pl
   player.setSwim(canSwim(state));
   player.setReducedMotion(reducedMotion);
   player.enable();
-  return { player, body };
+  return { player, body, cam };
 }

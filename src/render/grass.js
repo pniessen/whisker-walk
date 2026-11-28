@@ -746,8 +746,8 @@ attribute vec4 aFlower;`)
   // Flower tips: rgb is the plain linear flower colour (the shader divides
   // out the material colour live, see the color_vertex patch). a is 1 for a
   // flowered tuft, 0 otherwise. One attribute on the one mesh.
-  const flowerAttr = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 4), 4);
-  flowerAttr.setUsage(THREE.DynamicDrawUsage);
+  const buf = (n) => new THREE.InstancedBufferAttribute(new Float32Array(capacity * n), n).setUsage(THREE.DynamicDrawUsage);
+  let flowerAttr = buf(4);
   mesh.geometry.setAttribute('aFlower', flowerAttr);
   const flowerRGB = {};
   for (const [name, hex] of Object.entries(FLOWER_COLORS)) {
@@ -764,8 +764,29 @@ attribute vec4 aFlower;`)
   const c = new THREE.Color();
   const centre = new THREE.Vector3();
   const lead = radius * LEAD_FRACTION;
-  let lastCx = NaN;
-  let lastCz = NaN;
+  // Buffer slots: slot 0 is the game's own patch (update(), cat one's camera). Split screen (coop/splitsys.js) calls
+  // view(1, cam) for cat two's, which swaps in its own instance buffers (made on first use), so each patch is re-laid
+  // only when ITS cell changes (about 1/s), not twice a frame.
+  const slots = [{ m: mesh.instanceMatrix, c: mesh.instanceColor, f: flowerAttr, n: 0, cx: NaN, cz: NaN }];
+  let slot = 0;
+  function view(k, cam) {
+    if (k !== slot) {
+      slots[slot].n = mesh.count;
+      const sl = (slots[k] ??= { m: buf(16), c: buf(3), f: buf(4), n: 0, cx: NaN, cz: NaN });
+      mesh.instanceMatrix = sl.m; mesh.instanceColor = sl.c; mesh.geometry.setAttribute('aFlower', flowerAttr = sl.f);
+      mesh.count = sl.n;
+      slot = k;
+    }
+    fitCentre(cam, lead, centre);
+    const { cx, cz } = snapCentre(centre.x, centre.z, spacing, chunk);
+    const sl = slots[k];
+    if (cx !== sl.cx || cz !== sl.cz) {
+      relay(cx, cz);
+      sl.cx = cx;
+      sl.cz = cz;
+    }
+    uniforms.uFocus.value.set(centre.x, centre.z);
+  }
 
   function relay(cx, cz) {
     const n = layoutTufts(cx, cz, { radius, spacing }, mask, (t, i) => {
@@ -807,14 +828,7 @@ attribute vec4 aFlower;`)
   // time; 1 = breeze, 1.7 in rain) and the gust envelope is wind.js's own, so
   // the lawn and the bushes breathe together.
   function update(t = 0, intensity = 1) {
-    fitCentre(camera, lead, centre);
-    const { cx, cz } = snapCentre(centre.x, centre.z, spacing, chunk);
-    if (cx !== lastCx || cz !== lastCz) {
-      relay(cx, cz);
-      lastCx = cx;
-      lastCz = cz;
-    }
-    uniforms.uFocus.value.set(centre.x, centre.z);
+    view(0, camera);
     uniforms.uTime.value = t;
     const k = Math.min(Math.max(intensity, 0), MAX_INTENSITY);
     // Reduced motion: no sway at all (the same rule wind.js follows).
@@ -829,5 +843,5 @@ attribute vec4 aFlower;`)
   }
 
   update(0, 1); // lay out the first patch before the first frame
-  return { mesh, mask, tint, capacity, maskMs, get count() { return mesh.count; }, update, dispose };
+  return { mesh, mask, tint, capacity, maskMs, get count() { return mesh.count; }, update, view, dispose };
 }

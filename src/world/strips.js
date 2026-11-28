@@ -134,10 +134,13 @@ export function createStreamer({
     }
   }
 
+  // Split screen: a second focus (cat two). A tile is as near as its nearer focus; it lapses half a second after the last setSecond.
+  let x2 = 0; let z2 = 0; let ttl2 = 0;
   function look(x, z) {
     for (let i = 0; i < slots.length; i++) {
       const s = slots[i];
-      const d = tileDistance(s.tile, x, z);
+      let d = tileDistance(s.tile, x, z);
+      if (ttl2 > 0) { const d2 = tileDistance(s.tile, x2, z2); if (d2 < d) d = d2; }
       s.dist = d;
       if (s.state === ABSENT) {
         if (d < s.layer.show) enqueue(s);
@@ -181,10 +184,12 @@ export function createStreamer({
     slots,
     stats,
     get pending() { return queued; },
+    setSecond(x, z) { x2 = x; z2 = z; ttl2 = 0.5; }, // seconds
     update(x, z, dt) {
       stats.frames++;
       sinceCheck += dt;
       if (sinceCheck >= checkEvery) { sinceCheck = 0; look(x, z); }
+      if (ttl2 > 0) ttl2 -= dt;
       for (let i = 0; i < queued; i++) queue[i].waited += dt;
       return queued > 0 ? work() : 0;
     },
