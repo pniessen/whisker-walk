@@ -12,7 +12,7 @@ import { phrase } from '../clanphrases.js';
 import * as P from './snowvilleplan.js';
 import { paint, dotTexture } from './snowvilleparts.js';
 import { isLowTier, gustAt } from './snowvillelight.js';
-import { smokeLean } from './snowvillealive.js';
+import { smokeLean, SHARED } from './snowvillealive.js';
 import './snowvillecritterwords.js';
 
 export const TAU = Math.PI * 2;
@@ -186,7 +186,7 @@ export function createSnowvilleCritters({ scene, reducedMotion = false, tier = n
     { type: 'sw3', label: phrase('snowville.life.fox'), pos: new THREE.Vector3(FOX.x, P.snowY(FOX.x, FOX.z) + 0.2, FOX.z), range: RANGES.sw3 },
   ];
   const pose = {}; const spuff = {};
-  const cA = new THREE.Color(0xd8c6bc); const cB = new THREE.Color(P.SNOW_LOOK.horizon); const cTmp = new THREE.Color(); // (beauty pass 2: the smoke starts a warm grey, the hearth's glow in it, and thins into the haze)
+  const cA = new THREE.Color(0xd8c6bc); const cB = new THREE.Color(P.SNOW_LOOK.horizon); const cTmp = new THREE.Color(); const cBlue = new THREE.Color(0xa8b8e8); // (beauty pass 2: the smoke starts a warm grey, the hearth's glow in it, and thins into the haze)
 
   fox.position.set(FOX.x, P.snowY(FOX.x, FOX.z) - 0.02, FOX.z); fox.rotation.y = FOX.yaw;
   hare.position.set(HARE.x, P.snowY(HARE.x, HARE.z), HARE.z); hare.rotation.y = HARE.yaw;
@@ -210,9 +210,9 @@ export function createSnowvilleCritters({ scene, reducedMotion = false, tier = n
     for (let c = 0; c < CHIMNEYS.length; c++) {
       for (let j = 0; j < N.puffs; j++) {
         puffAt(c, j, t, spuff);
-        spuff.x += smokeLean(spuff.u, gustAt(t)); // beauty pass 3: the smoke leans with the wind
+        { const lean = smokeLean(spuff.u, gustAt(t)); spuff.x += lean; spuff.z += lean * SHARED.wz / SHARED.wx; } // beauty pass 3: the smoke leans with the wind (pass 5: the flakes' own direction)
         sPos[n * 3] = spuff.x; sPos[n * 3 + 1] = spuff.y; sPos[n * 3 + 2] = spuff.z;
-        cTmp.copy(cA).lerp(cB, Math.min(1, spuff.u * 1.15));
+        cTmp.copy(cA).lerp(cB, Math.min(1, spuff.u * 1.15)).lerp(cBlue, 0.45 * (1 - SHARED.hour)); // (pass 5: bluer in the blue hour)
         sCol[n * 3] = cTmp.r; sCol[n * 3 + 1] = cTmp.g; sCol[n * 3 + 2] = cTmp.b;
         n++;
       }

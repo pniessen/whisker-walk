@@ -82,6 +82,7 @@ export function snowWhump(audio, k = 0) {
 
 // A distant carol-like chime phrase: bell-like notes (a sine and a soft partial) a third of a second apart, very quiet.
 // The phrase carolChime(audio, k) plays (beauty pass 4: the chorus of bells flashes along the lights note for note).
+export const chimeClock = { t: -99 }; // when the carol last sounded (the warm lights pulse with it)
 export const carolPhrase = (k = 0) => CAROL_PHRASES[Math.floor(hash01(k, 64) * CAROL_PHRASES.length)];
 export function carolChime(audio, k = 0) {
   const ac = soundCtx(audio);
@@ -113,7 +114,54 @@ export function createSoundBed(audio, gust) {
       if (g > WIND.trigger && !st.up && t - st.lastWind > WIND.gap) { st.up = true; st.lastWind = t; st.winds++; windGust(audio, g); }
       else if (g <= WIND.trigger) st.up = false;
       if (t >= st.nextSleigh) { sleighBells(audio, st.sleighs); st.sleighs++; st.nextSleigh = t + SLEIGH_GAP.min + SLEIGH_GAP.span * hash01(st.sleighs, 65); } // (the schedule runs on while muted: no catching up)
-      if (t >= st.nextCarol) { carolChime(audio, st.carols); st.carols++; st.nextCarol = t + CAROL_GAP.min + CAROL_GAP.span * hash01(st.carols, 66); }
+      if (t >= st.nextCarol) { chimeClock.t = t; carolChime(audio, st.carols); st.carols++; st.nextCarol = t + CAROL_GAP.min + CAROL_GAP.span * hash01(st.carols, 66); }
     },
+  };
+}
+
+// ---- BEAUTY PASS 5: the village bell and the zones' own sounds, cross-faded by where she stands --------------------------------------------------------------------------------------------------------
+// The village bell: one low strike with its two inharmonic partials, ringing out. `k` varies the pitch a little, `gain` is the zone's weight.
+export function villageBell(audio, k = 0, gain = 1) {
+  const ac = soundCtx(audio);
+  if (!ac) return false;
+  const now = ac.currentTime; const out = audio.getMaster?.() ?? ac.destination; const f0 = 196 * (1 + 0.06 * hash01(k, 71));
+  for (const [m, v, len] of [[1, 1, 3.2], [2.76, 0.4, 1.8], [5.4, 0.12, 0.9]]) {
+    const o = ac.createOscillator(); const g = ac.createGain(); o.type = 'sine'; o.frequency.value = f0 * m;
+    g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.02 * v * gain + 0.0001, now + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, now + len);
+    o.connect(g); g.connect(out); o.start(now); o.stop(now + len + 0.1);
+  }
+  return true;
+}
+const smoothW = (d, r) => { const u = 1 - d / r; return u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u); };
+// Where each sound lives: [x, z, radius]. The weights blend smoothly as she walks (never a switch).
+export const ZONE_SOUNDS = Object.freeze({ ice: [-24, -10, 15], oven: [11, 1, 11], wood: [0, -26, 22], square: [-4, 8, 16] });
+export const zoneWeights = (x, z, out = {}) => { for (const k in ZONE_SOUNDS) { const Z = ZONE_SOUNDS[k]; out[k] = smoothW(Math.hypot(x - Z[0], z - Z[1]), Z[2]); } return out; };
+export function createZoneBed(audio, gust) {
+  const st = { w: {}, next: { ice: 3, oven: 1, bell: 20 }, n: 0, wind: null };
+  const nx = (k, t, lo, span) => { st.next[k] = t + lo + span * hash01(++st.n, 72); };
+  const play = (a, kind, w, n) => { // a long low creak of the ice, or a few tiny ticks of the oven's crackle
+    const out = audio.getMaster?.() ?? a.destination; const f = a.createBiquadFilter(); const g = a.createGain(); f.connect(g); g.connect(out); f.type = kind ? 'highpass' : 'lowpass'; f.frequency.value = kind ? 1800 : 420;
+    for (let i = 0; i < (kind ? 4 : 1); i++) {
+      const o = kind ? a.createBufferSource() : a.createOscillator(); const at = a.currentTime + i * 0.07 + (kind ? 0.05 * hash01(n * 4 + i, 73) : 0);
+      if (kind) o.buffer = noiseBuffer(a); else { o.type = 'sawtooth'; o.frequency.setValueAtTime(140, at); o.frequency.exponentialRampToValueAtTime(60, at + 0.9); }
+      g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime((kind ? 0.02 : 0.012) * w, at + (kind ? 0.002 : 0.2)); g.gain.exponentialRampToValueAtTime(0.0001, at + (kind ? 0.04 : 1));
+      o.connect(f); o.start(at); o.stop(at + 1.1);
+    }
+  };
+  return {
+    state: st,
+    update(t, x, z) {
+      const w = zoneWeights(x, z, st.w); const ac = soundCtx(audio);
+      if (ac && !st.wind) { // the fir wood's wind: one steady hush that swells with the gusts, its level set by how near the wood she is
+        const src = ac.createBufferSource(); const flt = ac.createBiquadFilter(); const g = ac.createGain();
+        src.buffer = noiseBuffer(ac); src.loop = true; flt.type = 'bandpass'; flt.frequency.value = 520; flt.Q.value = 0.5; g.gain.value = 0.0001;
+        src.connect(flt); flt.connect(g); g.connect(audio.getMaster?.() ?? ac.destination); src.start(); st.wind = { src, g };
+      }
+      st.wind?.g.gain.setTargetAtTime?.(ac ? 0.0001 + 0.016 * w.wood * (0.5 + gust(t)) : 0.0001, ac?.currentTime ?? 0, 0.6);
+      if (t >= st.next.ice) { if (ac && w.ice > 0.05) play(ac, 0, w.ice, st.n); nx('ice', t, 5, 7); }
+      if (t >= st.next.oven) { if (ac && w.oven > 0.05) play(ac, 1, w.oven, st.n); nx('oven', t, 1.2, 2.2); }
+      if (t >= st.next.bell) { if (w.square > 0.1) villageBell(audio, st.n, w.square); nx('bell', t, 40, 30); }
+    },
+    dispose() { try { st.wind?.src.stop(); } catch (e) { /* already stopped */ } st.wind = null; },
   };
 }
