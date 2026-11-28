@@ -5,6 +5,7 @@ import * as on from '../src/clanwords.js';
 import { packSet } from '../src/seriespack.js';
 import { plaintextDigest, SERIES_ITERATIONS } from '../src/seriescrypto.js';
 import { VAULT } from '../src/seriesvault.js';
+import { scanText } from '../scripts/bundlewords.mjs';
 
 test("the vault is the family's set of today", async () => {
   expect(VAULT.digest, 'the family set changed since it was sealed: run npm run series:seal').toBe(await plaintextDigest(packSet(on), webcrypto.subtle));
@@ -22,6 +23,5 @@ test('the vault is ciphertext with a way in', () => {
 test('the vault file holds no family word', () => {
   const text = readFileSync('src/seriesvault.js', 'utf8');
   expect(text).not.toMatch(/star names?|great oak|sun-warmed|meeting (ring|stone)|Rear-up Swat|Leap and Scratch|Rolling Tumble/i);
-  expect(text).not.toMatch(/Twolegplace|kittypet|Firestar|medicine cat/i);
-  expect(text).not.toContain('Clan');
+  expect(scanText(text)).toEqual([]);
 });
