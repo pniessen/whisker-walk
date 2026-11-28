@@ -32,7 +32,8 @@
 //       RULES       switches read with wordRule(): storedNames (a cat is shown
 //                   under the name it is stored with, never a composed one),
 //                   noStarNames (no top-rank names are offered), stoneSeat
-//                   (the camps' leader sits on the High Stone, world/camp.js)
+//                   (the camps' leader sits on the High Stone, world/camp.js),
+//                   plainGates (the teleport gates say their plain lines, teleui.js)
 //       RANK_AS     rank id -> the rank id it is shown as, for a set with
 //                   fewer ranks (rankShown, rankWord)
 //       LINES       guided-walk lines of its own, keyed as tutorialwords.js is
