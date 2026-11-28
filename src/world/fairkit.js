@@ -395,12 +395,28 @@ export const FAIR_CLOCK = Object.freeze({
   flutterA: { value: 0 },  // the bunting's two flutters, as angles (0..2pi)
   flutterB: { value: 0 },
   flutterOn: { value: 0 }, // 1: the pennants flutter; 0: still
+  // beauty pass 3: the fair notices her. catX/catZ where she stands, catOn 1 while it does (0: reduced motion, or no walk yet);
+  // beat 1 -> 0 after each calliope note (the lit bulbs flare on it); breath -1..1, a slow swell of the lights
+  catX: { value: 0 }, catZ: { value: 0 }, catOn: { value: 0 }, beat: { value: 0 }, breath: { value: 0 },
 });
 // The bunting's flutter: a slow swing and a quicker shiver (periods in
 // seconds), the tip moving at most `amp` metres across the line.
+// How she moves the fair (beauty pass 3). Pennants within flutterNear..flutterFar metres of her flutter up to (1 + flutter) times as hard; lit bulbs
+// within flareNear..flareFar swell (1 + flare) and glow (1 + glow) more; each calliope note flares every lit bulb `beat` more, and the lights breathe by `breath`.
+export const CAT_LOOK = Object.freeze({ flutter: 1.8, flutterNear: 2, flutterFar: 9, flare: 0.5, glow: 0.5, flareNear: 2.5, flareFar: 8, beat: 0.22, breath: 0.1 });
 export const FLUTTER = Object.freeze({ amp: 0.09, periodA: 1.7, periodB: 0.63 });
 
 const frac = (x) => x - Math.floor(x);
+// setFairCat(x, z, T, noteSeconds, reducedMotion): who is near (pennants flutter harder, bulbs flare), the calliope's beat and the slow breath of the lights.
+export const BREATH_PERIOD = 36;
+export function setFairCat(x, z, T, noteSeconds, reducedMotion = false) {
+  const on = reducedMotion || !Number.isFinite(x) || !Number.isFinite(z) ? 0 : 1;
+  FAIR_CLOCK.catOn.value = on;
+  if (on) { FAIR_CLOCK.catX.value = x; FAIR_CLOCK.catZ.value = z; }
+  const ok = !reducedMotion && Number.isFinite(T);
+  FAIR_CLOCK.beat.value = ok && noteSeconds > 0 ? Math.exp(-5 * frac(T / noteSeconds)) : 0;
+  FAIR_CLOCK.breath.value = ok ? Math.sin(frac(T / BREATH_PERIOD) * Math.PI * 2) : 0;
+}
 // setFairClock(T, reducedMotion): T the time of day in seconds (fairlive's clock).
 export function setFairClock(T, reducedMotion = false) {
   const on = reducedMotion ? 0 : 1;
@@ -426,19 +442,25 @@ export function canvasOf(P, name, { noCast = false } = {}) {
   for (const g of P) if (!g.attributes[SWAY]) setFloat(g, SWAY, new Float32Array(g.attributes.position.count));
   const m = meshOf(P, name, { roughness: 0.95, noCast, side: THREE.DoubleSide });
   m.material.onBeforeCompile = flutterShader;
-  m.material.customProgramCacheKey = () => 'fair-canvas-v1';
+  m.material.customProgramCacheKey = () => 'fair-canvas-v2';
   return m;
 }
 function flutterShader(shader) {
   shader.uniforms.fairFlutterA = FAIR_CLOCK.flutterA;
   shader.uniforms.fairFlutterB = FAIR_CLOCK.flutterB;
   shader.uniforms.fairFlutterOn = FAIR_CLOCK.flutterOn;
+  shader.uniforms.fairCatX = FAIR_CLOCK.catX;
+  shader.uniforms.fairCatZ = FAIR_CLOCK.catZ;
+  shader.uniforms.fairCatOn = FAIR_CLOCK.catOn;
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', `#include <common>
 attribute float fairSway;
 uniform float fairFlutterA;
 uniform float fairFlutterB;
-uniform float fairFlutterOn;`)
+uniform float fairFlutterOn;
+uniform float fairCatX;
+uniform float fairCatZ;
+uniform float fairCatOn;`)
     .replace('#include <begin_vertex>', `#include <begin_vertex>
 if (fairSway > 0.0 && fairFlutterOn > 0.0) {
   vec3 fairAcross = vec3(objectNormal.x, 0.0, objectNormal.z);
@@ -446,6 +468,9 @@ if (fairSway > 0.0 && fairFlutterOn > 0.0) {
   if (fairLen > 0.001) {
     float fairPh = position.x * 0.83 + position.z * 0.61;
     float fairW = 0.7 * sin(fairFlutterA + fairPh) + 0.3 * sin(fairFlutterB + fairPh * 1.9);
+    // she passes: the pennants beside her flutter up to ${glsl(1 + CAT_LOOK.flutter)} times as hard
+    vec3 fairWp = (modelMatrix * vec4(position, 1.0)).xyz;
+    fairW *= 1.0 + ${glsl(CAT_LOOK.flutter)} * fairCatOn * (1.0 - smoothstep(${glsl(CAT_LOOK.flutterNear)}, ${glsl(CAT_LOOK.flutterFar)}, distance(fairWp.xz, vec2(fairCatX, fairCatZ))));
     transformed += fairAcross / fairLen * (fairSway * ${glsl(FLUTTER.amp)} * fairW * fairFlutterOn);
     transformed.y += fairSway * ${glsl(FLUTTER.amp * 0.25)} * fairW * fairW * fairFlutterOn;
   }
@@ -492,7 +517,7 @@ export function glowMaterial() {
     vertexColors: true, roughness: 0.7, metalness: 0, emissive: 0xffffff, emissiveIntensity: 0,
   });
   m.onBeforeCompile = glowShader;
-  m.customProgramCacheKey = () => 'fair-glow-v3';
+  m.customProgramCacheKey = () => 'fair-glow-v4';
   m.name = 'fairGlow';
   return m;
 }
@@ -501,6 +526,11 @@ function glowShader(shader) {
   shader.uniforms.fairChasePhase = FAIR_CLOCK.chase;
   shader.uniforms.fairChaseOn = FAIR_CLOCK.chaseOn;
   shader.uniforms.fairLit = FAIR_CLOCK.lit;
+  shader.uniforms.fairCatX = FAIR_CLOCK.catX;
+  shader.uniforms.fairCatZ = FAIR_CLOCK.catZ;
+  shader.uniforms.fairCatOn = FAIR_CLOCK.catOn;
+  shader.uniforms.fairBeat = FAIR_CLOCK.beat;
+  shader.uniforms.fairBreath = FAIR_CLOCK.breath;
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', `#include <common>
 attribute float fairChase;
@@ -508,8 +538,14 @@ attribute float fairBulbR;
 uniform float fairChasePhase;
 uniform float fairChaseOn;
 uniform float fairLit;
+uniform float fairCatX;
+uniform float fairCatZ;
+uniform float fairCatOn;
+uniform float fairBeat;
+uniform float fairBreath;
 varying vec3 vFairGlow;`)
     .replace('#include <begin_vertex>', `#include <begin_vertex>
+float fairCatK = 0.0;
 if (fairBulbR > 0.0) {
   // a bulb right by the camera draws smaller: a bead, never a pane filling the view
   vec3 fairOut = normalize(objectNormal) * fairBulbR;
@@ -517,7 +553,10 @@ if (fairBulbR > 0.0) {
   float fairDm = distance((modelMatrix * vec4(fairMid, 1.0)).xyz, cameraPosition);
   // lit, a bulb swells into its own halo (more at the chase's crest): the same eight triangles, drawn bigger
   float fairCr = 0.5 + 0.5 * cos(6.2831853 * (fairChase - fairChasePhase));
-  float fairSwell = 1.0 + fairLit * smoothstep(2.0, 10.0, fairDm) * (${glsl(L.halo)} + ${glsl(L.pulse)} * fairCr * fairCr * (fairChase > -0.5 ? fairChaseOn : 0.0));
+  // she is near: the bulbs flare; the calliope's note flares them all; the lights breathe slowly
+  vec3 fairMw = (modelMatrix * vec4(fairMid, 1.0)).xyz;
+  fairCatK = fairCatOn * (1.0 - smoothstep(${glsl(CAT_LOOK.flareNear)}, ${glsl(CAT_LOOK.flareFar)}, distance(fairMw.xz, vec2(fairCatX, fairCatZ))));
+  float fairSwell = 1.0 + fairLit * smoothstep(2.0, 10.0, fairDm) * (${glsl(L.halo)} * (1.0 + ${glsl(CAT_LOOK.breath)} * fairBreath + ${glsl(CAT_LOOK.beat)} * fairBeat + ${glsl(CAT_LOOK.flare)} * fairCatK) + ${glsl(L.pulse)} * fairCr * fairCr * (fairChase > -0.5 ? fairChaseOn : 0.0));
   transformed = fairMid + fairOut * fairSwell * mix(${glsl(L.shrink)}, 1.0, smoothstep(${glsl(L.shrinkNear)}, ${glsl(L.shrinkFar)}, fairDm));
 }`)
     .replace('#include <project_vertex>', `#include <project_vertex>
@@ -538,7 +577,7 @@ if (fairBulbR > 0.0) {
     float fairS = 0.5 + 0.5 * cos(6.2831853 * (fairChase - fairChasePhase));
     fairRun = mix(1.0, mix(${glsl(L.low)}, 1.0, fairS * fairS), fairChaseOn);
   }
-  vFairGlow = fairC * (fairNear * fairRun);
+  vFairGlow = fairC * (fairNear * fairRun) * (1.0 + ${glsl(CAT_LOOK.glow)} * fairCatK + ${glsl(CAT_LOOK.beat)} * fairBeat * fairLit);
 }`);
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <common>', '#include <common>\nvarying vec3 vFairGlow;')

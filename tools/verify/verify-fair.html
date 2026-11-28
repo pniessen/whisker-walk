@@ -42,11 +42,13 @@
   import * as fair from '/src/world/fair.js';
   import { createFairLive } from '/src/fairlive.js';
   import { createFairShow } from '/src/fairshow.js';
+  import { FAIR_CLOCK } from '/src/world/fairkit.js';
   import { buildCat, CAT_LOOK_Y } from '/src/cat/model.js';
   import { animateCat } from '/src/cat/animator.js';
 
   const params = new URLSearchParams(location.search);
   const MOOD = params.get('mood') || 'day';
+  const BEFORE = params.has('before'); // pass 3 switched off: no reaction, no kicked bits, steam or fireworks, no beat or breath
   const W = window.innerWidth, H = window.innerHeight;
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setSize(W, H);
@@ -125,6 +127,10 @@
     live.update(dt, t, { cat, player, session });
     animateCat(cat, session.perched ? (session.perched.pose ?? 'perch') : 'follow', t, player.speed, false);
     ambient.update(t, 1);
+    if (BEFORE) {
+      FAIR_CLOCK.catOn.value = 0; FAIR_CLOCK.beat.value = 0; FAIR_CLOCK.breath.value = 0;
+      scene.traverse((o) => { if (o.isPoints && o.name.startsWith('fair:')) o.visible = false; });
+    }
   }
   function render() {
     shadows.update();
@@ -192,13 +198,34 @@
     'g-wheel': () => frameCat(6, -22, [10, -26]),
     'g-east': () => frameCat(14, 26, [18, 20]),
     'ride-horse': () => { /* set up in __shot below */ },
+    'run-midway': () => frameCat(1.5, 30, [0, 20]),
+    'run-plaza': () => frameCat(-9, 12, [-3, 4]),
   };
+  // beauty pass 3, mid-reaction: she runs (4.2 m/s) from a to b, the clock running, the camera behind her (the game's)
+  const RUNS = { 'run-midway': [[-1.2, 37], [0.4, 20]], 'run-plaza': [[-11, 15], [-4.5, 5]] };
+  function runShot(name) {
+    const [a, b] = RUNS[name];
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const FR = Math.round((len / 4.2) * 30);
+    session.perched = null;
+    for (let i = 0; i <= FR; i++) {
+      const u = i / FR;
+      frameCat(a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, b);
+      player.speed = 4.2;
+      step(1 / 30);
+    }
+    frameCat(b[0], b[1], [b[0] + (b[0] - a[0]), b[1] + (b[1] - a[1])]);
+    player.speed = 0;
+  }
   window.__shot = (name) => {
     const s = SHOTS[name];
     if (!s) throw new Error(`no shot "${name}"; there are ${Object.keys(SHOTS).join(', ')}`);
     camera.fov = 70; camera.updateProjectionMatrix();
     T = T0; t = 0;
-    if (name === 'ride-horse') {
+    if (RUNS[name]) {
+      for (let i = 0; i < 30; i++) step(1 / 30);
+      runShot(name);
+    } else if (name === 'ride-horse') {
       // her on a horse, and the ride's own camera (fairlive's cameraFor) brought in over 3 s
       const seat = live.sim.seats.find((q) => q.id === 'mgr-horse-2');
       cat.visible = true;
@@ -215,6 +242,7 @@
       s();
     }
     render();
+    if (params.has('stats')) console.error('stats', name, JSON.stringify(window.__stats()));
     const hud = document.getElementById('hud');
     if (hud) hud.textContent = `${MOOD} · ${name}`;
     return name;
@@ -290,6 +318,14 @@
     return { done: tour.f > DUR * 30 };
   };
 
+  // what the whole frame costs and holds: triangles drawn, meshes, shadow casters, points
+  window.__stats = () => {
+    let meshes = 0, casters = 0, points = 0;
+    scene.traverse((o) => { if (o.isMesh) { meshes++; if (o.castShadow) casters++; } else if (o.isPoints) points++; });
+    const bits = scene.getObjectByName('fair:bits');
+    const live = bits ? Array.from(bits.geometry.attributes.position.array).filter((v, i) => i % 3 === 1 && v > -900).length : 0;
+    return { ...window.__info(), meshes, casters, points, bitsLive: live };
+  };
   window.__scene = scene;
   window.__area = area;
   if (params.has('bare')) document.getElementById('hud').remove();

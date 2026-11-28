@@ -1702,6 +1702,7 @@ export function createWalkLifecycle({
     const fairLive = areaId !== 'fair' ? NO_FAIR : createFairLive(scene, areaData, {
       camera,
       reducedMotion,
+      scale: tier.ambientScale,
       ground,
       onEvent: (e) => handleFairEvent(e, { hud, audio, log, progression, session, once: fairOnce }),
     });
