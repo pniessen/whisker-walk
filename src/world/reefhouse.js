@@ -137,6 +137,8 @@ export function createHousewarming(ctx) {
   const litNow = () => marlo.lit; // lantern corals touched on this walk (Marlo keeps the count: his goal ring points at the next one)
   let par = null; // { t0, paid }
   let flash = 0; // the pay moment's brightening
+  let nudgeAt = -100; // when a coral touched out of order last flickered
+  let nudged = -1; // which coral flickered
   const later = [];
 
   // the lantern orbs and their halos
@@ -216,9 +218,10 @@ export function createHousewarming(ctx) {
       o.level += (target - o.level) * Math.min(1, (reducedMotion ? 1 : 0.12));
       const next = r.step === M.STEP.tried && i === lit && !on;
       const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(t * 3);
-      const strength = Math.min(1, o.level + (next ? 0.18 * pulse : 0) + flash * 0.4);
+      const flick = clock - nudgeAt < 1.2 && i === nudged && !reducedMotion ? 0.5 * Math.abs(Math.sin((clock - nudgeAt) * 14)) * (1 - (clock - nudgeAt) / 1.2) : 0; // a small flicker, never a fail
+      const strength = Math.min(1, o.level + (next ? 0.3 * pulse : 0) + flash * 0.4 + flick);
       o.mat.color.setHex(0x3b4a52).lerp(_glow.setHex(W.LANTERN_COLORS[i]), strength);
-      o.sp.material.opacity = 0.85 * (o.level > 0.02 || next ? Math.min(1, o.level + (next ? 0.18 * pulse : 0) + flash * 0.3) : 0);
+      o.sp.material.opacity = 0.85 * (o.level > 0.02 || next ? Math.min(1, o.level + (next ? 0.3 * pulse : 0) + flash * 0.3 + flick) : 0);
       o.sp.scale.setScalar(1.3 + 0.9 * strength + (reducedMotion ? 0 : 0.1 * Math.sin(t * 2 + i)));
       o.sp.visible = o.sp.material.opacity > 0.01;
     }
@@ -276,6 +279,12 @@ export function createHousewarming(ctx) {
       if (catPos && r.step === M.STEP.tried && litNow() < M.LANTERN_COUNT) {
         const l = W.LANTERNS[litNow()];
         if (dist(catPos, l) < l.touch) touchLantern(litNow());
+        else for (let i = litNow() + 1; i < W.LANTERNS.length; i++) { // a later coral first: a gentle nudge toward the right one, no fail
+          if (dist(catPos, W.LANTERNS[i]) < W.LANTERNS[i].touch && clock - nudgeAt > 6) {
+            nudgeAt = clock; nudged = litNow();
+            say('reef-lantern-try' + litNow(), litNow() === 0 ? phrase('reef.lantern.try.0') : litNow() === 1 ? phrase('reef.lantern.try.1') : phrase('reef.lantern.try.2'));
+          }
+        }
       }
       let k = -1;
       if (par) {

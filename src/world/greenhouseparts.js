@@ -133,6 +133,8 @@ export function thirstCloud() {
   col.add(tint(new THREE.IcosahedronGeometry(0.16, 0), 0xb9c4cf), -0.12, 0, 0, { scale: 1 });
   col.add(tint(new THREE.IcosahedronGeometry(0.2, 0), 0xc4ced8), 0.04, 0.04, 0.02, { scale: 1 });
   col.add(tint(new THREE.IcosahedronGeometry(0.14, 0), 0xb9c4cf), 0.2, -0.01, -0.02, { scale: 1 });
+  col.add(tint(new THREE.ConeGeometry(0.05, 0.12, 5), 0x4aa3e8), 0.04, -0.2, 0.02, { scale: 1 }); // a little blue water drop under it: thirsty
+  col.add(tint(new THREE.IcosahedronGeometry(0.055, 0), 0x4aa3e8), 0.04, -0.29, 0.02, { scale: 1 });
   const m = finishMesh('ghCloud', col.merged(), { material: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, transparent: true, opacity: 0.85 }) });
   m.scale.set(1, 0.6, 1);
   return m;

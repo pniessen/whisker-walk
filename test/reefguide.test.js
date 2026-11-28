@@ -24,7 +24,7 @@ const goalAt = (step, carrying = null, lit = 0) => {
 const words = (step, extra = {}, carrying = null, lit = 0) => G.goalWords({ goal: goalAt(step, carrying, lit), metres: 0, errand: false, ...extra });
 const EXPECT = [
   [0, /Say hello to Marlo/], [1, /shell 1 of 3.*Kelp Garden, about \d+ m (ahead|to your \w+|behind you)/], [2, /shell 2 of 3.*ledge.*kick button/], [3, /shell 3 of 3.*cave.*bubbles drift up/],
-  [4, /trying on/], [5, /three lantern corals.*\(0 of 3\)/], [6, /Start the housewarming/],
+  [4, /trying on/], [5, /glowing pink coral first.*\(0 of 3\)/], [6, /Start the housewarming/],
 ];
 
 describe('goalWords from where she stands now', () => {

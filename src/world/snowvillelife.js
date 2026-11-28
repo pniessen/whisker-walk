@@ -231,6 +231,24 @@ export function createTilly(ctx) {
   }
   const offMeow = bus.on('tip:did', (e) => { if (e && e.id === 'call') meowed = true; });
 
+  // The goal's words, said once each per candle: a few seconds after the goal turns to a candle, after it is picked up, and as she nears its lantern.
+  const hintAt = new Map();
+  function hints(catPos, r) {
+    const w = wanted();
+    if (w < 0 || r.step < M.STEP.met) return;
+    const once = (key, line, wait) => {
+      if (told.has(key)) return;
+      if (!hintAt.has(key)) hintAt.set(key, clock);
+      if (clock - hintAt.get(key) < wait) return;
+      told.add(key);
+      say('snowville-' + key, line());
+    };
+    if (carrying === null) { hintAt.delete('hint-carry' + w); once('hint-spark' + w, () => phrase('snowville.hint.spark'), 5); return; }
+    const l = LANT[carrying];
+    if (l && dist(catPos, l) < l.reach + 3) once('hint-near' + carrying, () => phrase('snowville.hint.near'), 0);
+    else once('hint-carry' + carrying, () => phrase('snowville.hint.carry'), 4);
+  }
+
   // ---- the action button -------------------------------------------------------------------------------------------------------
   function decide(catPos) {
     if (disposed || !catPos) return null;
@@ -389,6 +407,9 @@ export function createTilly(ctx) {
 
       for (let i = 0; i < candles.length; i++) placeCandle(i, t, catPos, session);
       placeLanterns(step);
+
+      // plain first-time hints, once per step on a walk (never saved): the glint to find, the candle to carry, the button at the lantern
+      if (catPos) hints(catPos, r);
 
       // the meow: Tilly shows the next picture and the ring rises
       if (meowed) { meowed = false; callTilly(); }

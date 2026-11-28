@@ -23,7 +23,7 @@ import * as M from '../reefmission.js';
 import * as S from './reefstory.js';
 import * as K from './reefparts.js';
 import { reefY } from './reefplan.js';
-import { LANTERNS, SNAIL_HOME } from './reefwing.js';
+import { LANTERNS, LANTERN_COLORS, SNAIL_HOME } from './reefwing.js';
 
 export const RING = Object.freeze({ secs: 6, bubble: 4, points: 30 });
 export const TRYON = Object.freeze({ near: 4.5, wait: 1.8 }); // seconds after shell three is given (and she is near) before he steps into it // how long the meow's ring and the picture stay
@@ -219,6 +219,7 @@ export function createMarlo(ctx) {
   let bubbleT = -100;
   let wobble = -100; // when a shell was tried on (the sigh)
   let lit = 0; // the lantern corals glowing on this walk (never saved; world/reefhouse.js sets it)
+  let hatchHintAt = -1; // after the first shell is given: when to point at the Sealab's ring (once a walk)
   let tryT = 0; // seconds she has waited near Marlo with shell three given
   let goalCur = null;
   let goalAt = -100;
@@ -365,6 +366,7 @@ export function createMarlo(ctx) {
     const gp = goal();
     const fade = smooth(rk / 0.4) * (1 - smooth((rk - (RING.secs - 1.2)) / 1.2));
     ring.material.opacity = 0.9 * fade;
+    ring.material.color.setHex(gp.g.kind === 'lantern' ? LANTERN_COLORS[gp.g.lantern] ?? 0xcff8ff : 0xcff8ff); // the next lantern coral's own colour
     ring.visible = true;
     const pos = ring.geometry.attributes.position;
     let k = 0;
@@ -421,7 +423,7 @@ export function createMarlo(ctx) {
         const effect = perform({ kind: 'bring', shell: id });
         wobble = clock;
         audio?.chime?.();
-        if (effect === 'small') { say('reef-shell-small', phrase('reef.marlo.small')); showBubble('question'); }
+        if (effect === 'small') { say('reef-shell-small', phrase('reef.marlo.small')); showBubble('question'); hatchHintAt = clock + 6; }
         else if (effect === 'big') { say('reef-shell-big', phrase('reef.marlo.big')); showBubble('heart'); }
         else if (effect === 'third') { say('reef-shell-third', phrase('reef.marlo.third')); showBubble('heart'); tryT = 0; }
       } else if (t.kind === 'parade') {
@@ -453,6 +455,7 @@ export function createMarlo(ctx) {
       if (catPos) S.marloStep(marlo, catPos, step, { follow: r.step >= M.STEP.met, eager: carrying !== null, colliders });
       else marlo.moving = false;
       if (catPos && !told.has('seen') && r.step < M.STEP.met && near < S.MARLO.seen) { told.add('seen'); showBubble('heart'); say('reef-marlo-hello', phrase('reef.marlo.hello')); }
+      if (hatchHintAt >= 0 && clock >= hatchHintAt) { hatchHintAt = -1; say('reef-hatch-hint', phrase('reef.hatch.hint')); } // once, a few seconds after the first shell
       const wob = clock - wobble < 1.4 && !reducedMotion ? Math.sin((clock - wobble) * 14) * 0.25 * (1 - (clock - wobble) / 1.4) : 0;
       const bobY = marlo.moving && !reducedMotion ? 0.03 * Math.abs(Math.sin(clock * 12)) : 0;
       group.position.set(marlo.x, reefY(marlo.x, marlo.z) + bobY, marlo.z);

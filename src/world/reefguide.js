@@ -34,7 +34,7 @@ export function goalWords(info) {
     case 'shell': return g.shell === 0 ? phrase('reef.guide.shell0').replace('{at}', placeWords(info, gp)) : g.shell === 1 ? phrase('reef.guide.shell1') : phrase('reef.guide.shell2');
     case 'deliver': { const m = round5(info.metres); return m > 0 ? phrase('reef.guide.carry').replace('{m}', String(m)) : phrase('reef.guide.carry.near'); }
     case 'tryon': return phrase('reef.guide.tryon');
-    case 'lantern': return phrase('reef.guide.lantern').replace('{n}', String(Math.max(0, Math.min(3, g.lantern | 0))));
+    case 'lantern': { const n = Math.max(0, Math.min(3, g.lantern | 0)); return (n === 0 ? phrase('reef.guide.lantern') : n === 1 ? phrase('reef.guide.lantern.1') : phrase('reef.guide.lantern.2')).replace('{n}', String(n)); }
     case 'parade': return phrase('reef.guide.parade');
     case 'rest': return info.errand ? phrase('reef.guide.errand') : '';
     // the Sealab's fuses (R14: world/reeflabstory.js goalNow())
