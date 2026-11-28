@@ -1,3 +1,4 @@
+import './playerboot.js'; // first: a later player's own storage must be in place before any save is read (src/players.js)
 import * as THREE from 'three';
 import { bus } from './events.js';
 import { createPlayer } from './player.js';
@@ -12,7 +13,8 @@ import { moonOn } from './moonflag.js';
 import { reefOn } from './reefflag.js';
 import { crystalOn } from './crystalflag.js';
 import { PERSONALITIES } from './cat/brain.js';
-import { createProgression, rankFor, CATALOG } from './progression.js';
+import { createProgression, rankFor, CATALOG, SAVE_KEY } from './progression.js';
+import { RAW_STORAGE, PLAYER_BOOT } from './playerboot.js';
 import { colonyNews, tradeEffect } from './colony.js';
 import { renderNewsHtml } from './ui/colonypanel.js';
 import { buildEnvMap } from './render/materials.js';
@@ -693,7 +695,7 @@ function init() {
   const homebaseCloud = createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed: togetherAllowed, pushProfileNow, blockList });
   // "Delete my online data" on the Cloud save sheet (src/game/onlinedelete.js).
   const onlineDelete = createOnlineDelete({ MP, pid, getCloud: openCloud, getPsecret, sync, progression });
-  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onTvChange: (on) => tvLoader.apply(on), onVisitDen: beginDenWalk, onOpenDen: (o) => denShop.openHome(o), colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onBirthdaySong: () => audio.playTune(birthdayTune(), settings.get('musicVolume')), onAudioWake: () => { const c = audio.getContext(); if (c.state === 'suspended') c.resume?.()?.catch?.(() => {}); }, onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
+  const homebase = createHomeBase({ players: PLAYER_BOOT.ok && RAW_STORAGE ? { raw: RAW_STORAGE, saveKey: SAVE_KEY } : null, progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onTvChange: (on) => tvLoader.apply(on), onVisitDen: beginDenWalk, onOpenDen: (o) => denShop.openHome(o), colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onBirthdaySong: () => audio.playTune(birthdayTune(), settings.get('musicVolume')), onAudioWake: () => { const c = audio.getContext(); if (c.state === 'suspended') c.resume?.()?.catch?.(() => {}); }, onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the
