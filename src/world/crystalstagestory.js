@@ -6,5 +6,6 @@ import { createCrystalAlive } from './crystalalive.js';
 import { createCaveLife } from './cavelifelive.js';
 import { createCrystalMood } from './crystalmood.js';
 import { createCaveErrandLive } from './crystalerrandlive.js';
+import { createCrystalVoice } from './crystalvoice.js'; // beauty pass 9: the cave answers her voice and moves
 
-Object.assign(ST, { story: Object.freeze({ createCrystalAlive, createCaveLife, createCrystalMood, createCaveErrandLive }) });
+Object.assign(ST, { story: Object.freeze({ createCrystalAlive, createCaveLife, createCrystalMood, createCaveErrandLive, createCrystalVoice }) });
