@@ -87,7 +87,7 @@ import { findBusy, handleFindArrival } from './foundwear/play.js';
 import { tickFindNose } from './foundwear/live.js';
 import { readResume, writeResume, clearResume, snapshotWalk, settleAbandoned, pickUpWalk } from './game/walkresume.js';
 import { sheetTopFrom } from './fightcam.js';
-import { diagnostics, note, listenForErrors } from './diagnostics.js';
+import { diagnostics, note, crumb, listenForErrors } from './diagnostics.js';
 import { createFrameGuard, claimAutoReload, stuckNoticeHtml, WALK_ENDED_LINE, RELOAD_BUTTON_ID } from './game/recovery.js';
 
 // Uncaught errors and rejections anywhere in the page go into the small
@@ -859,6 +859,7 @@ function init() {
       handleTouchAction('pause');
       return;
     }
+    if (session) crumb(locked ? 'resume' : 'pause');
     if (session) overlay.classList.toggle('hidden', locked);
     // The first engage is the walk beginning: from here on the card behind
     // the walk is the "Paused" one (walk.js pauseCardFor), and a touch walk

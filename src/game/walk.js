@@ -3180,6 +3180,7 @@ export function createWalkLifecycle({
   function endWalk({ crossTo = null, ledBy = null, together = null } = {}) {
     const session = getSession();
     if (!session) return;
+    crumb(`leave:${session.areaId}`);
     crumb('walk-end');
     onWalkEnded();
     const banked = bankWalk(session, { together, crossTo, ledBy });
@@ -3299,6 +3300,7 @@ export function createWalkLifecycle({
       const lines = arrivalLines(bankWalk(s));
       if (tp?.suitLine) lines.push(tp.suitLine);
       if (tp) lines.push(tp.line);
+      crumb(`gate:${to}`);
       const move = walkOnMove(progression.state, CATALOG, to, { guest });
       if (move === 'set') progression.setArea(to);
       else if (move === 'take' && progression.buy('areas', to)) progression.setArea(to);
