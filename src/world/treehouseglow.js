@@ -350,6 +350,7 @@ export function skyPatch(M) {
     // the vista's look (treehousevista.js): the focal point (x, y, z), the grade and haze, the edge dimming, the focal glow (0 = off)
     setVista(fx, fy, fz, grade, edge, focal) { uniforms.uVz.value.set(0, fx, fy, fz); uniforms.uVz2.value.set(grade, edge, focal, 0); },
     rk: 0, bow: 0, storm: 0,
+    fx: { flare: 0, sway: 0, flex: 0, shake: 0 }, lampList: lamps, // beauty pass 8: her voice and moves (treehousereact.js) set the lamps' flare and sway, the planks' flex and the canopy's shiver
     season: [0, 0, 1, 0],
     // Watches her speed and her falls: a drop of LAND.minFall m/s or more that ends is a landing (the strength grows to LAND.fullFall). Never allocates.
     react(t, cat, still, rung) {
@@ -370,8 +371,8 @@ export function skyPatch(M) {
       const age = r.landedAt > 0 ? t - r.landedAt : 99;
       const hit = age >= 0 ? r.land * Math.exp(-age * LAND.decay) : 0;
       const calm = still || rung === 'lite';
-      r.flex = calm ? 0 : Math.min(1.4, 0.3 * r.moving + hit * 1.6);
-      r.shake = calm ? 0 : Math.min(1, 0.25 * r.moving + (age < LAND.shake ? r.land * (1 - age / LAND.shake) : 0));
+      r.flex = calm ? 0 : Math.min(1.8, 0.3 * r.moving + hit * 1.6 + sky.fx.flex);
+      r.shake = calm ? 0 : Math.min(1, 0.25 * r.moving + (age < LAND.shake ? r.land * (1 - age / LAND.shake) : 0) + sky.fx.shake);
       uniforms.uReact.value.set(r.flex, r.shake, 0);
       if (cat) uniforms.uCat.value.set(cat.x, cat.y, cat.z, 1); else uniforms.uCat.value.set(0, -100, 0, 0);
     },
@@ -392,9 +393,9 @@ export function skyPatch(M) {
         taken[best] = 1;
         const l = lamps[best];
         const near = cat ? Math.max(0, 1 - Math.hypot(l.x - cat.x, l.z - cat.z) / 3.2) : 0; // a lantern she passes close to swings, and its pool with it
-        swing[best] = still || rung === 'lite' ? 0 : Math.max(swing[best] * 0.985, near * (0.5 + reaction.moving * 0.5), sky.storm * 0.85);
+        swing[best] = still || rung === 'lite' ? 0 : Math.max(swing[best] * 0.985, near * (0.5 + reaction.moving * 0.5), sky.storm * 0.85, sky.fx.sway);
         const sw = swing[best] * 0.55 * (1 + sky.storm * 1.5) * Math.sin(t * 2.6 + best * 1.7);
-        slot.set(l.x + sw, l.y - Math.abs(sw) * 0.1, l.z + sw * 0.6, l.w * (sky.lampK ?? 1) * (still ? 1 : 0.9 + 0.1 * Math.sin(t * 3.1 + best * 2.3) * Math.sin(t * 1.3 + best)));
+        slot.set(l.x + sw, l.y - Math.abs(sw) * 0.1, l.z + sw * 0.6, l.w * (sky.lampK ?? 1) * (1 + 1.2 * sky.fx.flare) * (still ? 1 : 0.9 + 0.1 * Math.sin(t * 3.1 + best * 2.3) * Math.sin(t * 1.3 + best)));
       }
     },
   };

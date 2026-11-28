@@ -35,7 +35,7 @@ const WOOD = { x: -0.7, y: 3.4, z: P.OAK.z + P.OAK.r + 0.1 }; // the woodpecker'
 /** createLiving(ctx, env) -> { flyK, update(dt, t, catPos), dispose() }. env: { dotTexture, hash01, season, reducedMotion, rung }. */
 export function createLiving(ctx, env) {
   const { scene, audio = null } = ctx; const { hash01, rung, reducedMotion: still } = env; const lite = rung === 'lite'; const high = rung === 'high';
-  const rh = rhythm(0); const out = {};
+  const rh = rhythm(0); const out = {}; const ears = { hear: -1 }; // pass 8: the squirrels sit up and listen when she calls (set by treehousereact.js)
   const NS = 4 + 2 + 2 + 1 + (lite ? 0 : 2) + (high ? 8 : 0); // squirrels, woodpecker, snail, bridge-rail gap, feeder, feeder birds, bats, dragonflies
   const pos = new Float32Array(NS * 3); const col = new Float32Array(NS * 3);
   const mk = (arr) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(arr, 3)); return g; };
@@ -62,10 +62,10 @@ export function createLiving(ctx, env) {
     for (let i = 0; i < 2; i++) { // squirrels run the bridge rails in hops and freeze, tail up
       if (!day) { away(); away(); continue; }
       const m = fr(t / (15 + 5 * i) + hash01(i, 501)) * 8; const k = Math.floor(m); const f = fr(m);
-      const raw = (k + sm(f * 1.7)) / 8; const p = raw < 0.5 ? raw * 2 : 2 - raw * 2; const dir = raw < 0.5 ? 1 : -1; const moving = f * 1.7 < 1;
+      const raw = (k + sm(f * 1.7)) / 8; const p = raw < 0.5 ? raw * 2 : 2 - raw * 2; const dir = raw < 0.5 ? 1 : -1; const up = t < ears.hear; const moving = f * 1.7 < 1 && !up;
       along(P.BRIDGE_LINES[i], 0.04 + 0.92 * p, 0.55 * (i ? -1 : 1), out); const hop = moving ? 0.05 * Math.abs(Math.sin(t * 11 + i)) : 0;
-      put(out.x, out.y + 0.07 + hop, out.z, 0x8a5a38);
-      put(out.x - dir * (i ? -0.1 : 0.1), out.y + 0.17 + hop + (moving ? 0 : 0.04), out.z, 0xc99a68);
+      put(out.x, out.y + 0.07 + hop + (up ? 0.03 : 0), out.z, 0x8a5a38);
+      put(out.x - dir * (i ? -0.1 : 0.1), out.y + 0.17 + hop + (moving ? 0 : 0.04) + (up ? 0.09 : 0), out.z, 0xc99a68); // (pass 8: after her meow they sit up tall)
     }
     if (day) { const c = fr(t / 9) < 0.18; const tap = c ? 0.035 * Math.sin(t * 60) : 0; put(WOOD.x, WOOD.y, WOOD.z + tap, 0x2c2a38); put(WOOD.x, WOOD.y + 0.09, WOOD.z + tap, 0xd8382a); } else { away(); away(); }
     { const k = D('bakery'); const p = fr(t / 380 + 0.2); const z = k.z - k.d / 2 + 0.1 + (k.d - 0.2) * p; const y = k.y + P.RAIL_H + 0.05; // a snail on the Bakery's west rail
@@ -123,6 +123,7 @@ export function createLiving(ctx, env) {
   }
   clock(); draw(0);
   return {
+    ears,
     get flyK() { return out2.flyK; },
     get pitch() { return out2.pitch; },
     get stormK() { return wx.stormK; },
