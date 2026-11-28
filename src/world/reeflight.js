@@ -13,7 +13,7 @@ import * as THREE from 'three';
 import * as P from './reefplan.js';
 
 export const SHIMMER = Object.freeze({ tile: 14, scroll: 0.018, opacity: 0.5, size: 64 });
-export const SHAFT_LOOK = Object.freeze({ opacity: 0.16, height: P.SURFACE_Y + 0.5, breath: 0.04, rate: 0.45, tint: 0x9fe6e2 });
+export const SHAFT_LOOK = Object.freeze({ opacity: 0.25, height: P.SURFACE_Y + 0.5, breath: 0.08, rate: 0.45, sway: 0.07, tint: 0x9fe6e2 });
 
 // The ripple's pixels: bright, thin, wandering lines (a few cosines in whole cycles, so the tile's edges meet). RGBA, white with an alpha of the line.
 export function shimmerPixels(size = SHIMMER.size) {
@@ -107,6 +107,7 @@ export function createReefLight({ scene, lowTier = false, reducedMotion = false 
       m.name = 'reef:shaft';
       m.position.set(s.x, P.reefY(s.x, s.z) - 0.2, s.z);
       m.rotation.set(0, s.yaw, s.lean, 'YXZ');
+      m.userData.lean = s.lean; // beauty pass 2: the shaft sways about it
       m.renderOrder = 1;
       m.frustumCulled = false;
       Object.assign(m.userData, { noCast: true, noContactShadow: true, noMerge: true });
@@ -130,7 +131,11 @@ export function createReefLight({ scene, lowTier = false, reducedMotion = false 
       shimmer.position.x = cx;
       shimmer.position.z = cz;
       tex.offset.set(cx / SHIMMER.tile + scroll, cz / SHIMMER.tile + scroll * 0.6);
-      if (!reducedMotion) shafts.forEach((m, i) => { m.material.opacity = SHAFT_LOOK.opacity + SHAFT_LOOK.breath * Math.sin(t * SHAFT_LOOK.rate + i * 2.1); });
+      if (!reducedMotion) shafts.forEach((m, i) => {
+        m.material.opacity = SHAFT_LOOK.opacity + SHAFT_LOOK.breath * Math.sin(t * SHAFT_LOOK.rate + i * 2.1);
+        m.rotation.z = m.userData.lean + SHAFT_LOOK.sway * Math.sin(t * 0.32 + i * 1.9); // the surface heaves, the light leans with it
+        m.rotation.x = SHAFT_LOOK.sway * 0.6 * Math.sin(t * 0.27 + i * 3.1);
+      });
     },
     dispose() {
       scene.remove(group);
