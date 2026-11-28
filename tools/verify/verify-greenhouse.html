@@ -86,6 +86,9 @@
   const life = area.life({ reducedMotion: rm, dusk: DUSK, weather: RAIN ? { isRaining: () => true, setSheltered() {} } : null, ground: { y: () => 0 }, visits: Number(params.get('visits') || 0), season: params.get('season') || undefined, now: params.get('hour') ? new Date(2026, 5, 15, Number(params.get('hour')), 0) : undefined, fx: params.get('fx') ? Object.fromEntries(params.get('fx').split(',').map((kv) => kv.split(':')).map(([k, v]) => [k, Number(v)])) : undefined });
 
   if (params.get('nocreat') === '1') life.creatures.points.visible = false; // the 'before' pictures of pass 5
+  const NOVOICE = params.get('voice') === '0'; // the 'before' pictures of pass 8: the voice does nothing
+  const sess = { cat, pounceTime: 0, sniffTime: 0, idleTime: 0, wasZooming: false, perched: null };
+  if (NOVOICE) { life.voice.points.visible = false; life.voice.update = () => {}; life.creatures.yawn = () => {}; }
   const player = createPlayer(camera, renderer.domElement);
   player.setReducedMotion(rm);
   let t = 0;
@@ -106,7 +109,7 @@
   function frame(dt) {
     t += dt;
     for (const w of area.waterFx ?? []) w.update?.(dt);
-    life.update(dt, t, cat.position, camera, { cat });
+    life.update(dt, t, cat.position, camera, sess);
     player.update(dt, area.colliders, area.bounds, area.waters);
     player.speedFactor = 1;
     animateCat(cat, 'follow', t, player.speed, rm);
@@ -214,6 +217,12 @@
     p7g_orchid: { at: [-18, -9], face: [-1, 0], secs: 4.5 },
     p7g_bench: { at: [20.6, 15.9], face: [0, -1], secs: 4.5 },
     p7g_court: { at: [0, 26], face: [0, -1], secs: 4.5 },
+    // beauty pass 8: the house answers her (play camera). act: meow | land | sniff | still | zoom; secs = how long after it the picture is taken
+    p8_meow: { at: [-2, -2], face: [-1, -0.3], act: 'meow', secs: 1.0, moving: true },
+    p8_land: { at: [-8, 14], face: [-1, -0.3], act: 'land', secs: 0.6, moving: true },
+    p8_sniff: { at: [-8, 14], face: [-1, 0], act: 'sniff', secs: 1.4, moving: true },
+    p8_still: { at: [20.6, 15.9], face: [0, -1], act: 'still', secs: 3.4, moving: true },
+    p8_zoom: { at: [0, 26], face: [0, -1], act: 'zoom', secs: 1.2, moving: true },
     p7g_shed: { at: [22, 20], face: [1, -0.3], secs: 4.5 },
     p7hd_hall: { at: [0, -3], face: [0, -1] },
     palms: { at: [-6, -9], face: [-1, 0], cam: { pos: [12, 2.4, -2.2], look: [-6, 4, -12], fov: 60 }, hold: true },
@@ -226,6 +235,8 @@
     reset(s.at[0], s.at[1], s.face[0], s.face[1]);
     if (s.stick) stick(...s.stick);
     if (s.moment) { life.startMoment?.(s.moment, s.momentAt); if (params.get('psize')) life.moments.points.material.size = Number(params.get('psize')); }
+    sess.sniffTime = 0; sess.idleTime = 0; sess.wasZooming = false;
+    if (s.act) { const a = s.act; if (a === 'meow') life.voice.meow(); else if (a === 'land') life.voice.land(); else if (a === 'sniff') sess.sniffTime = 1; else if (a === 'still') sess.idleTime = 3; else if (a === 'zoom') sess.wasZooming = true; }
     for (let k = 0; k < (s.secs ?? 0) / DT; k++) frame(DT);
     if (s.moving) { if (s.cam) { camera.fov = s.cam.fov ?? 70; camera.updateProjectionMatrix(); camera.position.set(...s.cam.pos); camera.lookAt(...s.cam.look); renderer.render(scene, camera); } else render(); return name; }
     stick(0, 0);
@@ -234,7 +245,7 @@
       if (s.cam) {
         camera.fov = s.cam.fov ?? 70; camera.updateProjectionMatrix();
         camera.position.set(...s.cam.pos); camera.lookAt(...s.cam.look);
-        t += DT; life.update(DT, t, cat.position, camera, { cat });
+        t += DT; life.update(DT, t, cat.position, camera, sess);
         fade.update(DT, camera, { x: cat.position.x, y: cat.position.y + 0.35, z: cat.position.z });
       } else frame(DT);
     }

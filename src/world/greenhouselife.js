@@ -41,6 +41,7 @@ import * as Story from './greenhousestory.js';
 import { createCreatures, dayLook } from './greenhousecreatures.js';
 import { createWeatherFx } from './greenhouseweather.js';
 import { createVistas } from './greenhousevista.js';
+import { createVoice } from './greenhousevoice.js';
 
 export const GH_SEED_SALT = 0x6e5d1;
 export const GH_WATER_SALT = 0x6e5d2;
@@ -124,6 +125,8 @@ export function createGreenhouseLife(ctx) {
   const wx = withLocalUuids('greenhouse-weather', () => createWeatherFx({ scene, reducedMotion, lite: ctx.quality === 'low', dusk: !!ctx.dusk, day, force: ctx.fx ?? null }));
   // beauty pass 7: five photogenic vistas (a warm grade, a halo on the focal point) and the golden moment (still 3+ s: pollen sparkles and a chime, once a walk)
   const vistas = withLocalUuids('greenhouse-vista', () => createVistas({ scene, audio: ctx.audio ?? null, reducedMotion, lite: ctx.quality === 'low' }));
+  // beauty pass 8: the house answers her voice and moves (a pooled Points and soft tones; no gameplay)
+  const voice = withLocalUuids('greenhouse-voice', () => createVoice({ scene, audio: ctx.audio ?? null, reducedMotion, lite: ctx.quality === 'low', yawn: () => creatures.yawn() }));
   const walkSeed = ctx.roomSeed === undefined || ctx.roomSeed === null ? ctx.visits ?? 0 : Number(ctx.roomSeed) % 9973;
   const walkMoment = hash01(walkSeed, 5, Story.GH_STORY_SALT + 5) < Story.MOMENT_CHANCE.walk ? (ctx.dusk ? 'moonbloom' : 'sprinkler') : null;
   const walkMomentAt = 20 + 40 * hash01(walkSeed, 6, Story.GH_STORY_SALT + 5);
@@ -211,6 +214,7 @@ export function createGreenhouseLife(ctx) {
     moments,
     creatures,
     vistas,
+    voice,
     startMoment(kind, at) { return disposed ? false : moments.start(kind, clock, at); }, // (pictures and tests; the walk starts its own)
     get state() { return { seeds, seedState, held, watered: wateredCount(), thirsty: thirsty.slice(), set: set.map((s) => ({ ...s })), allWatered }; },
     get meshes() { return { cues: cues.mesh, packets, sprouts, can, pots: pots.map((p) => p.leaves), clouds: pots.map((p) => p.cloud) }; },
@@ -339,6 +343,7 @@ export function createGreenhouseLife(ctx) {
         }
       }
       vistas.update(dt, catPos, spot.still);
+      voice.update(dt, t, catPos, session, camera?.position ?? null);
       // under the Palm House's glass the rain stays out (only on a change)
       const under = camera?.position ? P.underGlass(camera.position.x, camera.position.y, camera.position.z) : false;
       if (weather && camera?.position && under !== sheltered) { sheltered = under; weather.setSheltered(under); }
@@ -387,6 +392,7 @@ export function createGreenhouseLife(ctx) {
       creatures.dispose();
       wx.dispose();
       vistas.dispose();
+      voice.dispose();
       intro.dispose();
       cues.dispose();
       sound?.dispose();
