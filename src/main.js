@@ -246,7 +246,9 @@ function init() {
   // The app's news about the device while the game is open: running hot, Low
   // Power Mode, memory short. Never fired in a browser. A memory warning also
   // lets go of the menu pictures (thumbnails.js), which are remade on demand.
+  let perfLog = null; // the device performance log (src/perflog.js, its own small chunk, started below)
   window.addEventListener(DEVICE_EVENT, (e) => {
+    perfLog?.onDevice(e.detail);
     qualityAdapter.deviceChanged(e.detail);
     if (e.detail?.memoryWarning === true) releaseThumbnails();
   });
@@ -440,6 +442,22 @@ function init() {
     }),
     send: m.liveSender({ url: import.meta.env.VITE_SUPABASE_URL, key: import.meta.env.VITE_SUPABASE_ANON_KEY }),
   })).catch(() => {});
+  // The device performance log (src/perflog.js): one small row about every 30 s of walking, kept on this device only.
+  // Never sent anywhere; read from For grown-ups in Settings. Not started under tests.
+  if (import.meta.env.MODE !== 'test') {
+    import('./perflog.js').then((m) => {
+      perfLog = m.startPerfLog({
+        storage: window.localStorage,
+        renderer,
+        build: BUILD_STAMP,
+        isApp: !!readDeviceProfile(window),
+        device: () => readDeviceProfile(window),
+        paint: () => { const p = performance.getEntriesByName?.('first-contentful-paint')?.[0]; return p ? p.startTime / 1000 : null; },
+        rung: () => ({ rung: qualityAdapter.status?.rung, tier: String(session?.tier?.label ?? session?.tier?.name ?? '').toLowerCase().replace(/[^a-z0-9 -]/g, '').slice(0, 16) }),
+      });
+      perfLog.seed();
+    }).catch(() => {});
+  }
   loadCouch = () => {
     if (!couchOn()) return;
     loadCouch = null;
@@ -1334,6 +1352,7 @@ function init() {
     // at all, not even read the clock, so the next frame's dt covers both.
     if (session && !qualityAdapter.shouldRender(performance.now())) return false;
     perfHud.frameStart(performance.now(), session);
+    perfLog?.frame(performance.now(), session);
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
     coop.poll?.(dt);
@@ -1761,6 +1780,7 @@ function init() {
     qualityAdapter.frame(session, performance.now());
     renderFrame();
     perfHud.frameEnd(session, performance.now());
+    perfLog?.end();
     // Mid-walk resume: note the walk every 5 s. After the draw on purpose: a
     // walk picked up again that cannot get through a frame never reaches
     // this, so it is never marked healthy, its count of failed tries stands

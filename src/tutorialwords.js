@@ -148,6 +148,14 @@ export const WORDS = Object.freeze({
   'settings.crash-copy': same('Copy report'),
   'settings.crash-copied': same('Report copied 📋'),
   'settings.crash-copy-hint': same('Touch and keep the text, then choose Copy.'),
+  // Performance log (src/perflog.js): kept on this device, copied out by hand.
+  'settings.perf-note': same('How smooth the game runs. Kept here, never sent.'),
+  'settings.perf-show': same('Performance log'),
+  'settings.perf-copy': same('Copy log'),
+  'settings.perf-clear': same('Clear'),
+  'settings.perf-copied': same('Log copied 📋'),
+  'settings.perf-cleared': same('Log cleared'),
+  'settings.perf-empty': same('Nothing recorded yet. Play a walk and look again.'),
   // Shown only after a save write has failed; names no group or rank, so both sets share it.
   'settings.save-failed': same('This device could not save. Free up space, then play again.'),
 });
