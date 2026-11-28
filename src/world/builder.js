@@ -1653,17 +1653,18 @@ const SKYLINE_WINDOW = [0.6, 0.66, 0.78];
 // Floors every 2.6m, bays every 2.4m, a few windows left out per block by hash
 // so no two buildings share a pattern. Each window is one 2-triangle quad, so
 // a full 52-block skyline adds roughly a thousand triangles and no draw calls.
-function addSkylineWindows(out, bw, bh, bd, k, salt) {
-  const floors = Math.floor((bh - 1.6) / 2.6);
-  const bays = Math.floor((bw - 1.4) / 2.4);
+function addSkylineWindows(out, bw, bh, bd, k, salt, gap = 1) {
+  // `gap` (default 1, the old grid): 2 doubles the spacing and the size of a far block's windows, a quarter as many quads
+  const floors = Math.floor((bh - 1.6) / (2.6 * gap));
+  const bays = Math.floor((bw - 1.4) / (2.4 * gap));
   if (floors < 1 || bays < 1) return;
-  const x0 = -((bays - 1) * 2.4) / 2;
+  const x0 = -((bays - 1) * 2.4 * gap) / 2;
   for (let f = 0; f < floors; f++) {
     for (let c = 0; c < bays; c++) {
       if (hash01(k * 31 + f, c, salt + 11) < 0.14) continue;
-      const w = new THREE.PlaneGeometry(1.1, 1.3);
+      const w = new THREE.PlaneGeometry(1.1 * gap, 1.3 * gap);
       w.rotateY(Math.PI);
-      w.translate(x0 + c * 2.4, -bh / 2 + 1.5 + f * 2.6, -bd / 2 - 0.04);
+      w.translate(x0 + c * 2.4 * gap, -bh / 2 + 1.5 + f * 2.6 * gap, -bd / 2 - 0.04);
       out.push(w);
     }
   }
@@ -1763,7 +1764,7 @@ function roofPrism(bw, bd, rise) {
   return g;
 }
 
-function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint, pitched = false }) {
+function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint, pitched = false, windowGap = 1 }) {
   const before = parts.length;
   const wallTint = pitched ? tint.clone().lerp(WALL_CREAM, 0.55) : tint;
   const bw = 6 + 13 * hash01(k, 2, salt + 3);
@@ -1776,7 +1777,7 @@ function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint,
   // screen right behind the cat at the Docks' spawn.
   const tone = SKYLINE_TONES[Math.floor(hash01(k, 9, salt + 10) * SKYLINE_TONES.length)];
   const facade = [g];
-  addSkylineWindows(facade, bw, bh, bd, k, salt);
+  addSkylineWindows(facade, bw, bh, bd, k, salt, windowGap);
   for (const f of facade) {
     f.rotateY(yaw);
     f.translate(x, base + bh / 2, z);
@@ -2918,6 +2919,7 @@ export function horizonBand({
   edge = null,
   shoreLip = null,
   rect = null,
+  windowGap = 1,
 } = {}) {
   // Bigger areas: `rect` ({ cx, cz, ex, ez }, see rectAt) rings a rectangle
   // instead of the square. Hills only so far (the River's): a skyline or
@@ -3074,7 +3076,7 @@ export function horizonBand({
       // rather than corners. Squares of the perimeter parameter, not of the
       // block's own position, so a block on a side wall is parallel to it.
       const yaw = Math.atan2(px, pz);
-      addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint: sideTints ? sideTintColor(x, z, sideTints) : null });
+      addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint: sideTints ? sideTintColor(x, z, sideTints) : null, windowGap });
     }
   }
 

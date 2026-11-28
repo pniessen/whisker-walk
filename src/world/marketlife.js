@@ -38,6 +38,12 @@
 // bicycle's bell (below). All silent, the context never asked for, while the
 // game is muted.
 //
+// THE BREEZE AND THE SMOKE (beauty pass 2). Each frame the walk's seconds go to the awnings' and the
+// bunting's cloth shader (area.flutter: uMkT; marketparts.js addFlutter), and the three smoking
+// chimneys' puffs (area.chimneys, the Rooftops' own smoke, roofsair.js) are moved. Under reduced
+// motion the cloth holds still (amplitude 0) and the smoke runs at its half speed; on the lite rung
+// (no shadows, or rung 3 and up) neither is drawn.
+//
 // THE SIX FINDS (V6, world/marketfinds.js findAt). Every frame it fills one
 // spot from her paws (catPos), the session (rest, perched, the cat's heading),
 // her paws' own speed over the frame (a perch snap or a respawn not counted:
@@ -84,6 +90,7 @@ import { createMarketSound, BELL } from './marketsound.js';
 import { loudness } from './roofssound.js';
 import { findAt, noteMarketFind, MARKET_FIND_ANCHORS } from './marketfinds.js';
 import { createErrands } from './marketerrandlive.js';
+import { createRoofsSmoke } from './roofsair.js';
 
 export const MARKET_BUCKET_ID = 'market-bucket-1';
 const CRATE_KIND = 'applecrate';
@@ -147,6 +154,10 @@ export function createMarketLife(area, ctx = {}) {
   let bucket = null;
   let shown = false;
   let disposed = false;
+  const lite = !!ctx.tier && (ctx.tier.shadows === false || ctx.tier.name === 'low' || (ctx.tier.rung ?? 0) >= 3);
+  const flutter = area?.flutter ?? [];
+  for (const u of flutter) u.uMkAmp.value = reducedMotion || lite ? 0 : 1;
+  const smoke = scene && !lite && area?.chimneys?.length ? createRoofsSmoke(scene, area.chimneys, { reducedMotion }) : null;
   const people = typeof ctx.people === 'function' ? ctx.people : null;
   let musician = scene && people
     ? createMusician(scene, MUSICIAN, { people, lodNear: ctx.lodNear, reducedMotion, y: ctx.ground?.y?.(MUSICIAN.x, MUSICIAN.z) })
@@ -278,6 +289,8 @@ export function createMarketLife(area, ctx = {}) {
     second(p, session = null) { errands?.second(p, session); },
     update(dt, t, catPos = null, camera = null, session = null) {
       if (disposed) return;
+      for (const u of flutter) u.uMkT.value = t;
+      smoke?.update(t);
       musician?.update(t);
       if (musician && catPos) musician.detail(Math.hypot(catPos.x - MUSICIAN.x, catPos.z - MUSICIAN.z));
       sound?.update(dt, catPos, t);
@@ -344,6 +357,8 @@ export function createMarketLife(area, ctx = {}) {
       found.clear();
       partnersIn.clear();
       if (bicycle) bicycle.rotation.x = rockFrom;
+      for (const u of flutter) u.uMkAmp.value = 0;
+      smoke?.dispose();
       apples?.dispose();
       wool?.dispose();
       petals?.dispose();

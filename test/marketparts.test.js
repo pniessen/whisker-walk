@@ -157,14 +157,15 @@ describe('marketparts', () => {
     expect(mean).toBeLessThan(0.97);
   });
 
-  it('the materials are one set: awning and stall carry the atlas, the lantern is dark until dusk', () => {
+  it('the materials are one set: awning and stall carry the atlas, the lantern glows warm by day, full at dusk', () => {
     const m = marketMaterials();
     // only what the square draws with (the ground and the fountain have their own)
     expect(Object.keys(m).sort()).toEqual(['awning', 'cloth', 'front', 'lantern', 'metal', 'stall']);
     for (const k of Object.keys(m)) expect(m[k], k).toBeTruthy();
     expect(m.awning.map).toBeTruthy();
     expect(m.stall.map).toBe(m.awning.map);
-    expect(m.lantern.emissiveIntensity).toBe(0);
+    expect(m.lantern.emissiveIntensity).toBe(0.6); // beauty pass 2: a warm daytime glow (market.js LANTERN_DAY), full at dusk
+    expect(m.awning.userData.flutter.uMkAmp.value).toBe(0); // the breeze is the life's to start
   });
 
   it('every awning sheet\'s UVs stay inside its own cell', () => {

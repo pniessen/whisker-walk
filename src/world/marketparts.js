@@ -114,11 +114,17 @@ const inTri = (x, y, [ax, ay], [bx, by], [qx, qy]) => {
 
 // Each cell's pixel at (x, y) (y up from the bottom of the cell), [r, g, b].
 // cells 18-21 (2026-11-22): the toy stall's purple, the plant stall's teal, the bric-a-brac's orange, the butcher's maroon
-const STRIPES_NEW = Object.freeze([0x8a5cc2, 0x2f8f8a, 0xe08a2e, 0x9c2b3a]);
+// beauty pass 2 (2026-11-28): bolder stripes for the four new stalls, and cells 44-49 for the older six
+// (the same stripes as cells 0-5 but saturated: blue, red, gold, green, hot pink, orange; cells 0-15 stay as they were, pinned)
+const STRIPES_NEW = Object.freeze([0x7a3fd0, 0x14a39a, 0xf08a14, 0xc01f3a]);
+const STRIPES_BOLD = Object.freeze([0x1d5fd0, 0xd6262b, 0xf2a900, 0x1f9d55, 0xf0488a, 0xf07a1a]);
+export const BOLD_AWNING = 44; // cells 44-49: the awnings; 50-55: their valances (trim bands of a contrasting colour)
+export const BOLD_VALANCE = 50;
 function awningPixel(i, x) {
   // four px of stripe, four of cream, a faint fold shading across the cell
   const stripe = Math.floor(x / 4) % 2 === 0;
-  const base = rgbOf(stripe ? (i >= 18 ? STRIPES_NEW[i - 18] : STRIPES[i]) : CREAM);
+  const stripeColour = i >= BOLD_AWNING ? STRIPES_BOLD[i - BOLD_AWNING] : i >= 18 ? STRIPES_NEW[i - 18] : STRIPES[i];
+  const base = rgbOf(stripe ? stripeColour : CREAM);
   return mixc(base, [0, 0, 0], 0.06 * (1 - Math.abs(((x % 4) - 1.5) / 1.5)));
 }
 
@@ -568,10 +574,26 @@ function valancePixel(i, x, y) {
 
 // the atlas's unused cells (30, 31): plain cream, never drawn
 const SPARE = rgbOf(CREAM);
+// the older six stalls' valances: gold on blue, gold on red, red on gold, cream on green, plum on pink, green on orange
+const BOLD_TRIM = Object.freeze([0xf5c542, 0xf5c542, 0xb02a2a, 0xf3ead2, 0x6b2f6a, 0x2f8f4a]);
+function boldValancePixel(i, x, y) {
+  const k = i - BOLD_VALANCE;
+  const trim = rgbOf(BOLD_TRIM[k]);
+  if (y < 8) {
+    let c = trim;
+    if (inCircle(x % 4, y, 2, 3.6, 1.1)) c = rgbOf(k === 2 || k === 3 ? 0xf3ead2 : 0xffffff);
+    if (y < 1.2) c = mixc(trim, [0, 0, 0], 0.3);
+    return c;
+  }
+  if (y < 9.3) return mixc(trim, [0, 0, 0], 0.4);
+  return mixc(awningPixel(BOLD_AWNING + k, x), [0, 0, 0], 0.12 * (1 - (y - 9) / 23));
+}
 
 function cellPixel(i, x, y) {
   if (i === 36) return slatePixel(x, y);
   if (i >= 40 && i <= 43) return valancePixel(i, x, y);
+  if (i >= BOLD_AWNING && i < BOLD_AWNING + 6) return awningPixel(i, x);
+  if (i >= BOLD_VALANCE && i < BOLD_VALANCE + 6) return boldValancePixel(i, x, y);
   if (i === 38 || i === 39) return newGoodsPixel(i, x, y);
   if (i >= 18 && i <= 21) return awningPixel(i, x);
   if (i >= 22 && i <= 25) return newSignPixel(i, x, y);
@@ -697,15 +719,52 @@ export function createCobbleTexture() {
   return texture;
 }
 
+// Beauty pass 2: the breeze in the cloth. The awning material's vertices move along their own normal
+// by an amount that grows toward the front edge and the hem (the cell's local v: 1 at the back or the
+// top, 0 at the front or the hem, as makeAwningSheet and the valances lay their UVs), the valance more
+// than the sheet; the bunting's (kind 'flags') by their own `aFlap` (0 on a string, 1 at a pennant's tip),
+// downwind. Both from the walk's seconds in uMkT, and an amplitude in uMkAmp that the life sets (0: still,
+// reduced motion and the lite rung). No mesh, no allocation per frame; the drawn pose is the build's.
+export const FLUTTER = Object.freeze({ awning: 0.075, flags: 0.2, rate: 2.3 });
+export function addFlutter(material, kind) {
+  const uniforms = { uMkT: { value: 0 }, uMkAmp: { value: 0 } };
+  const body = kind === 'flags'
+    ? `{
+  float wv = aFlap * uMkAmp * ${FLUTTER.flags.toFixed(3)};
+  float ph = uMkT * ${FLUTTER.rate.toFixed(2)} + position.x * 1.3 + position.z * 0.9;
+  float sw = sin(ph) * 0.65 + sin(ph * 1.9 + 1.3) * 0.35;
+  transformed.x += 0.8 * wv * (0.55 + sw);
+  transformed.z += 0.6 * wv * (0.55 + sw);
+  transformed.y += wv * 0.12 * abs(sw);
+}`
+    : `{
+  float wv = (1.0 - fract(uv.y * ${ATLAS_ROWS.toFixed(1)})) * uMkAmp * ${FLUTTER.awning.toFixed(3)} * mix(1.0, 0.4, abs(objectNormal.y));
+  float ph = uMkT * ${FLUTTER.rate.toFixed(2)} + position.x * 2.1 + position.z * 1.4;
+  transformed += objectNormal * wv * (sin(ph) * 0.65 + sin(ph * 1.7 + 0.8) * 0.35);
+}`;
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+uniform float uMkT;
+uniform float uMkAmp;${kind === 'flags' ? '\nattribute float aFlap;' : ''}`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+${body}`);
+  };
+  material.customProgramCacheKey = () => `market-flutter-${kind}-v1`;
+  material.userData.flutter = uniforms;
+  return uniforms;
+}
+
 // The place's materials, made once per build (never at import).
 export function marketMaterials() {
   const { texture } = createMarketAtlas();
   const std = (color, roughness, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness, metalness: 0, ...extra });
   return {
     stall: std(0xffffff, 0.9, { map: texture }), // painted boards and signs: the atlas's cells, tinted by white
-    awning: std(0xffffff, 0.95, { map: texture, side: THREE.DoubleSide }),
+    awning: (() => { const m = std(0xffffff, 0.95, { map: texture, side: THREE.DoubleSide }); addFlutter(m, 'awning'); return m; })(),
     metal: std(0x6f777c, 0.5, { metalness: 0.5 }),
-    lantern: std(0xffe3a8, 0.6, { emissive: 0xffb84a, emissiveIntensity: 0 }), // lit at dusk by the build
+    lantern: std(0xffd078, 0.6, { emissive: 0xffb84a, emissiveIntensity: 0.6 }), // a warm glow by day (market.js LANTERN_DAY), lit fully at dusk by the build
     cloth: std(0xe6dcc2, 1, { side: THREE.DoubleSide }),
     front: std(0xffffff, 0.9, { map: createFrontsTexture() }), // the four new counter fronts, sharp
   };
