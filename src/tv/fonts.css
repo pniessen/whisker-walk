@@ -16,6 +16,7 @@ html.tv .hud-hint.chip { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .hud-hint.chip .hud-hint-pic { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .hud-hint.chip .hud-hint-keys kbd { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .guide-ring-thumb { font-size: calc(28px * var(--tv-s, 1)) !important; }
+html.tv .toast { font-size: calc(25.2px * var(--tv-s, 1)) !important; }
 html.tv .hud-controls { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .hud-viewfinder span { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .tui-badge { font-size: calc(20px * var(--tv-s, 1)) !important; }
@@ -211,5 +212,6 @@ html.tv .hud-badge { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .hud-badge-more { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv html.phone .hud-badge { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv html.phone .hud-badge-more { font-size: calc(24px * var(--tv-s, 1)) !important; }
+html.tv body.touch-mode .toast { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv .hud-top .hud-rank { font-size: calc(24px * var(--tv-s, 1)) !important; }
 html.tv body.touch-mode #hud-toasts .toast { font-size: calc(24px * var(--tv-s, 1)) !important; }

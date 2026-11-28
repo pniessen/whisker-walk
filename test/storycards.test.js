@@ -259,6 +259,19 @@ describe('the card on a walk', () => {
     const tv = createStoryCard({ doc: tvPage.doc, win: { innerWidth: 1920, getComputedStyle: () => ({ fontSize: '24px' }) }, place: 'moon', progression: prog('moon'), visits: 0 });
     expect(parseInt(tv.els.card.style.fontSize, 10)).toBeGreaterThan(24);
   });
+  it('on a phone, upright or on its side, the card is capped at 60% of the height and scrolls; desktop and tablet are unchanged', () => {
+    const mk = (win, touch = true) => createStoryCard({ doc: page().doc, win, touch, place: 'moon', progression: prog('moon'), visits: 0 }).els.card.style;
+    for (const s of [mk({ innerWidth: 390, innerHeight: 844 }), mk({ innerWidth: 844, innerHeight: 390 })]) {
+      expect(s.maxHeight).toBe('60vh');
+      expect(s.overflowY).toBe('auto');
+      expect(parseInt(s.fontSize, 10)).toBeLessThanOrEqual(12);
+    }
+    for (const s of [mk({ innerWidth: 820, innerHeight: 1180 }), mk({ innerWidth: 1180, innerHeight: 820 }), mk({ innerWidth: 1280, innerHeight: 400 }, false)]) {
+      expect(s.maxHeight).toBe('');
+      expect(s.top).toBe('22%');
+      expect(s.fontSize).toBe('18px');
+    }
+  });
   it('does nothing without a page, and nothing for a place with no story', () => {
     expect(createStoryCard({ doc: null, place: 'moon', progression: prog('moon') }).isOpen()).toBe(false);
     expect(createStoryCard({ doc: page().doc, place: 'park', progression: prog('park') }).isOpen()).toBe(false);

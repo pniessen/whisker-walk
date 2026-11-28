@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phone messages harness</title>
+<!-- Phone messages (playtester ask: "messages take 1/4 of the screen"; dev only, like the other verify-*.html). The REAL style.css and the REAL story card
+     over a stand-in walk at the size of the window (record it at 390x844, 844x390 and 1280x720): four toasts in #hud-toasts, then the story card, with the
+     joystick and the round buttons drawn where they live. For scripts/record-page.mjs: window.__shot(name), name one of toasts, card; sets window.__ready. -->
+<style>
+  html:root, html:root body { margin: 0; height: 100%; overflow: hidden; background: linear-gradient(#9fd0ee 0 45%, #8cba7a 45% 100%); font: 16px/1.4 Avenir, Nunito, 'Trebuchet MS', sans-serif; color: #fff; }
+  :root { --map-size: 88px; }
+  #hud { position: absolute; inset: 0; pointer-events: none; }
+  .fake { position: absolute; border-radius: 50%; background: rgba(255,255,255,.35); border: 2px solid #fff; }
+  #joy { left: 24px; bottom: 24px; width: 110px; height: 110px; }
+  #b1 { right: 24px; bottom: 88px; width: 56px; height: 56px; } #b2 { right: 90px; bottom: 88px; width: 56px; height: 56px; }
+  #b3 { right: 24px; bottom: 154px; width: 56px; height: 56px; } #b4 { right: 90px; bottom: 154px; width: 56px; height: 56px; }
+  #map { left: 16px; top: 16px; width: 88px; height: 88px; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="fake" id="map"></div><div class="fake" id="joy"></div><div class="fake" id="b1"></div><div class="fake" id="b2"></div><div class="fake" id="b3"></div><div class="fake" id="b4"></div>
+  <div id="hud-toasts" class="hud-toasts"></div>
+</div>
+<script type="module">
+  import '/src/style.css';
+  import { createStoryCard } from '/src/ui/storycard.js';
+  const touch = new URLSearchParams(location.search).get('desktop') !== '1';
+  if (touch) document.body.classList.add('touch-mode');
+  const card = createStoryCard({ doc: document, win: window, nav: null, place: 'snowville', progression: { state: { walks: {}, snowville: { step: 3, candles: 3 } } }, visits: 3, touch });
+  window.__shot = (name) => {
+    const box = document.getElementById('hud-toasts');
+    box.textContent = '';
+    if (name === 'toasts') {
+      card.close();
+      for (const t of ['+2 paws: you caught a mouse!', 'Nice pounce. Robbie the mouse is not impressed with how that went and tells everyone about it.', 'Your friend Pip is walking with you now', 'New place on the map: Snowville']) {
+        const el = document.createElement('div'); el.className = 'toast'; el.textContent = t; box.appendChild(el);
+      }
+    } else card.open();
+    return name;
+  };
+  window.__ready = true;
+  if (location.search.includes('dbg')) { window.__shot('toasts'); document.title = [...box0().children].map((e) => getComputedStyle(e).display + '/' + e.textContent.slice(0, 6)).join(' | '); }
+  function box0() { return document.getElementById('hud-toasts'); }
+</script>
+</body>
+</html>

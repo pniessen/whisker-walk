@@ -2885,6 +2885,26 @@ html.phone #hud:not(.lesson-on) .hud-goals:not(:focus) .goal.next::after { conte
 html.phone .hud-badge { width: 24px; height: 24px; font-size: 13px; }
 html.phone .hud-badge-more { font-size: 12px; }
 
+/* Phone messages (playtester ask: "messages take 1/4 of the screen"). On a phone, upright
+   (under 600px wide) or on its side (touch, under 500px tall), a toast is a small low pill,
+   only the newest two show, each is cut at two lines (one on its side), and the stack is
+   capped near 14% of the screen's height. Desktop and tablet keep the sizes above. The story
+   card gets its phone size in ui/storycard.js (it is styled inline). */
+@media (max-width: 599px), (pointer: coarse) and (max-height: 500px) {
+  .hud-toasts { gap: 3px; max-height: 14vh; }
+  .hud-toasts .toast:not(:nth-last-child(-n+2)) { display: none; }
+  .toast { font-size: 0.8rem; line-height: 1.2; padding: 3px 10px; border-radius: 10px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+}
+@media (pointer: coarse) and (max-height: 500px) {
+  .toast { -webkit-line-clamp: 1; }
+}
+/* The same on a hybrid that went into touch mode on a real touch (body.touch-mode; the pointer query above never matches there). */
+@media (max-height: 500px) {
+  body.touch-mode .hud-toasts { gap: 3px; max-height: 14vh; }
+  body.touch-mode .hud-toasts .toast:not(:nth-last-child(-n+2)) { display: none; }
+  body.touch-mode .toast { font-size: 0.8rem; line-height: 1.2; padding: 3px 10px; border-radius: 10px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
+}
+
 /* ===== Sideways phones, tiny windows and enlarged text (UX review, finding 11) =====
    Three cases the layouts above did not cover. Each one is behind its own
    media query, so an upright phone (390x844), a tablet and a laptop never see
