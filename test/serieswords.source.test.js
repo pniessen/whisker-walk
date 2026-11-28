@@ -61,7 +61,7 @@ const SHOWN = {
   HOME_LINES: 'whole',
 };
 // Exports that are not shown as they stand: a deny list, spare names, drawings.
-const NOT_SHOWN = ['DENIED_NAMES', 'HOMAGE_CHOICES', 'EMBLEMS'];
+const NOT_SHOWN = ['PHRASES', 'DENIED_NAMES', 'HOMAGE_CHOICES', 'EMBLEMS'];
 
 const valuesOf = (v) => (typeof v === 'string' ? [v] : v instanceof Set ? [...v] : Array.isArray(v) ? v.flatMap(valuesOf) : v && typeof v === 'object' ? Object.values(v).flatMap(valuesOf) : []);
 const appears = {

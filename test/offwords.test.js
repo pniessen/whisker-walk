@@ -685,8 +685,9 @@ describe('a save keeps its colony title\'s position across both sets', () => {
 // ---- 5. the family's game is untouched ---------------------------------------------------
 
 describe('with the family\'s words in use, none of this is there', () => {
-  it('the family\'s set carries no rule, no stand-in rank, no line and no badge word of its own', () => {
-    for (const extra of ['RULES', 'RANK_AS', 'LINES', 'BADGE_WORDS', 'PHRASES']) expect(words()[extra], extra).toBeUndefined();
+  it('the family\'s set carries no rule, no stand-in rank, no line and no badge word of its own, and its PHRASES are only the lines the base table says the everyday way', () => {
+    for (const extra of ['RULES', 'RANK_AS', 'LINES', 'BADGE_WORDS']) expect(words()[extra], extra).toBeUndefined();
+    expect(Object.keys(words().PHRASES).sort()).toEqual(Object.keys(on.PHRASES).sort());
     expect(wordRule('storedNames')).toBe(false);
     expect(wordRule('noStarNames')).toBe(false);
     expect(wordRule('stoneSeat')).toBe(false);

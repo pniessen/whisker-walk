@@ -228,8 +228,8 @@ export const PHRASES = Object.freeze({
   'pick.changeAskClick': 'Click a crew to make it your home.',
   'map.camp': (group) => `${group} home base`,
 
-  // not offered in this set (RULES.noStarNames), so there is nothing to say
-  'star.pick': '',
+  // (star.pick, the long fight-move names and the landmark labels are the base table's: clanphrases.js says the
+  // everyday thing there, and the family's set overrides it)
 
   // walking the bounds with a cat of your crew
   'patrol.prompt': (name) => `E — walk the bounds with ${name}`,
@@ -240,20 +240,8 @@ export const PHRASES = Object.freeze({
 
   'journal.chasedOff': 'Outsiders chased away',
 
-  // the fight moves keep their four short names; the long name is the same word
-  'move.rearUpSwat.name': 'Swat',
-  'move.leapScratch.name': 'Leap',
+  // the fight moves keep their four short names; the long name is the same word (the base table's)
   'move.pin.name': 'Pin',
-  'move.rollingTumble.name': 'Tumble',
-
-  // landmarks (her picks: grandfather oak, heron rocks, the stone ring)
-  'landmark.woods.oak': 'the grandfather oak',
-  'landmark.woods.oakLookout': 'grandfather oak lookout',
-  'landmark.woods.oakSquirrels': 'two squirrels racing up the grandfather oak',
-  'landmark.river.warmRocks': 'heron rocks',
-  'landmark.river.warmPebble': 'a warm pebble on the low rock',
-  'landmark.island.ring': 'the stone ring under the old ash',
-  'landmark.island.stoneFind': 'a bright beetle wing on a flat stone',
 
   // ---- the Woods' south strip (bigger areas, 2026-11-19; only seen with the
   // ?grow=1 switch on); builder's pick

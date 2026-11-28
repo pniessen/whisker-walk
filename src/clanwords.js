@@ -295,3 +295,20 @@ export const EMBLEMS = Object.freeze({
   pines: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path fill="#353d68" d="M14.5 3.5a9 9 0 1 0 6 13.5A7.5 7.5 0 0 1 14.5 3.5z"/><circle cx="17.5" cy="6.5" r="1.4" fill="#353d68"/></svg>',
   gorge: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path fill="#6b4128" d="M3 20.5L6.5 13.5h4L12.5 6H21v14.5z"/></svg>',
 });
+
+// The lines only the family's game says: where the base table (clanphrases.js)
+// says the everyday thing, this set says its own (wordset.js: a set's PHRASES win).
+// Strings only, so the set packs to JSON.
+export const PHRASES = Object.freeze({
+  'star.pick': 'Or pick a star name',
+  'landmark.woods.oak': 'the great oak',
+  'landmark.woods.oakLookout': 'great oak lookout',
+  'landmark.woods.oakSquirrels': 'two squirrels racing up the great oak',
+  'landmark.river.warmRocks': 'sun-warmed rocks',
+  'landmark.river.warmPebble': 'a sun-warmed pebble on the low rock',
+  'landmark.island.ring': 'the meeting ring under the old ash',
+  'landmark.island.stoneFind': 'a bright beetle wing on a meeting stone',
+  'move.rearUpSwat.name': 'Rear-up Swat',
+  'move.leapScratch.name': 'Leap and Scratch',
+  'move.rollingTumble.name': 'Rolling Tumble',
+});

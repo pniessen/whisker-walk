@@ -5,7 +5,10 @@
 // and pins by hand the eleven lines that used to be built inside closures.
 import { describe, it, expect } from 'vitest';
 import { readFileSync, globSync } from 'node:fs';
-import { PHRASE_IDS, phrase, hasPhrase, addPhrases } from '../src/clanphrases.js';
+import { PHRASE_IDS, LATER_PHRASE_IDS, phrase, hasPhrase, addPhrases } from '../src/clanphrases.js';
+import { WORDS as TUTORIAL_WORDS } from '../src/tutorialwords.js';
+import * as off from '../src/offclanwords.js';
+import { addWordSet, removeWordSet, setSeriesMode, SERIES_ON } from '../src/wordset.js';
 import { STAGE_LINES as MOON_STAGE_LINES } from '../src/world/moonlate.js';
 import { LINES as TELE_LINES } from '../src/teleui.js';
 import { REGION_LINES } from '../src/regions.js';
@@ -157,7 +160,7 @@ describe('the phrase table', () => {
     ];
     // Not searched, as in test/serieswords.source.test.js: the guided first
     // walk's own words, and a list of field notes nobody is shown.
-    const skip = ['src/clanphrases.js', 'src/offclanwords.js', 'src/tutorialwords.js', 'src/hints.js', 'src/game/tips.js', 'src/game/session.js'];
+    const skip = ['src/clanphrases.js', 'src/offclanwords.js', 'src/clanwords.js', 'src/tutorialwords.js', 'src/hints.js', 'src/game/tips.js', 'src/game/session.js'];
     const found = [];
     for (const f of FILES) {
       if (skip.includes(f)) continue;
@@ -211,5 +214,42 @@ describe('gate.sign, the name painted on a gate', () => {
     expect(phrase('gate.sign', 'Seaside')).toBe('Seaside');
     expect(phrase('gate.sign', 'Theatre Lane')).toBe('Theatre Lane');
     expect(phrase('gate.sign', '')).toBe('');
+  });
+});
+
+// What only the family's set may say. The base table says the everyday thing and the family's set
+// (clanwords.js PHRASES) puts its own lines over it, so a build without that set cannot say them.
+describe('what only the family set says', () => {
+  const ONLY_THE_FAMILY = /star names?|great oak|sun-warmed|meeting (ring|stone)|Rear-up Swat|Leap and Scratch|Rolling Tumble/i;
+  const strings = (v, out = []) => {
+    if (typeof v === 'string') out.push(v);
+    else if (typeof v === 'function') out.push(String(v('A', 'B', 'C', 'D')));
+    else if (v && typeof v === 'object') for (const x of Object.values(v)) strings(x, out);
+    return out;
+  };
+
+  it("the base table says nothing only the family's set may say", () => {
+    // a set with no PHRASES of its own: phrase() answers from the base table
+    addWordSet('bare', { ...off, PHRASES: {} });
+    try {
+      setSeriesMode('bare');
+      const leaks = [];
+      for (const id of [...PHRASE_IDS, ...LATER_PHRASE_IDS]) {
+        for (const t of strings(phrase(id, 'A', 'B', 'C', 'D'))) if (ONLY_THE_FAMILY.test(t)) leaks.push(`${id}: ${t}`);
+      }
+      expect(leaks).toEqual([]);
+      expect(phrase('star.pick')).toBe('');
+    } finally {
+      setSeriesMode(SERIES_ON);
+      removeWordSet('bare');
+    }
+    for (const t of strings(TUTORIAL_WORDS)) expect(t).not.toMatch(ONLY_THE_FAMILY);
+  });
+
+  it("the family's set still says them, word for word", () => {
+    expect(phrase('star.pick')).toBe('Or pick a star name');
+    expect(phrase('landmark.woods.oak')).toBe('the great oak');
+    expect(phrase('landmark.river.warmPebble')).toBe('a sun-warmed pebble on the low rock');
+    expect(phrase('move.rollingTumble.name')).toBe('Rolling Tumble');
   });
 });
