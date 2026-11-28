@@ -113,6 +113,30 @@ export function drawGround() {
 }
 
 // ---- the kit: pieces gathered by material, one merged mesh per bucket ------------------------------------------------------------
+// Down-facing triangles lying within 0.45 m of the snow (box bottoms, cylinder and cone floors on the ground, crates, pads) can never be seen: the kit drops them, a free trim of the merged buckets.
+function dropFloors(geo) {
+  const pos = geo.attributes.position; const n = pos.count;
+  if (geo.index || n % 3) return geo;
+  const keep = [];
+  for (let i = 0; i < n; i += 3) {
+    const ay = pos.getY(i); const by = pos.getY(i + 1); const cy = pos.getY(i + 2);
+    const flat = Math.abs(ay - by) < 1e-4 && Math.abs(by - cy) < 1e-4;
+    if (flat && ay < 0.45 && ay > -0.3) {
+      const e1x = pos.getX(i + 1) - pos.getX(i); const e1z = pos.getZ(i + 1) - pos.getZ(i); const e2x = pos.getX(i + 2) - pos.getX(i); const e2z = pos.getZ(i + 2) - pos.getZ(i);
+      if (e1x * e2z - e1z * e2x > 0) continue; // faces down (clockwise seen from above)
+    }
+    keep.push(i, i + 1, i + 2);
+  }
+  if (keep.length === n) return geo;
+  const out = new THREE.BufferGeometry();
+  for (const [name, attr] of Object.entries(geo.attributes)) {
+    const arr = new attr.array.constructor(keep.length * attr.itemSize);
+    keep.forEach((src, k) => { for (let c = 0; c < attr.itemSize; c++) arr[k * attr.itemSize + c] = attr.array[src * attr.itemSize + c]; });
+    out.setAttribute(name, new THREE.BufferAttribute(arr, attr.itemSize));
+  }
+  return out;
+}
+
 export function createKit(prefix) {
   const buckets = new Map();
   return {
@@ -123,7 +147,7 @@ export function createKit(prefix) {
     },
     meshes() {
       return [...buckets.values()].map((b) => {
-        const m = new THREE.Mesh(b.geos.length === 1 ? b.geos[0] : mergeGeometries(b.geos), b.mat);
+        const m = new THREE.Mesh(dropFloors(b.geos.length === 1 ? b.geos[0] : mergeGeometries(b.geos)), b.mat);
         m.name = `${prefix}:${b.key}`;
         m.castShadow = !b.noCast;
         m.receiveShadow = true;
