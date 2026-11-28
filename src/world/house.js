@@ -175,8 +175,10 @@ function drawLawn(scene) {
 }
 
 // A box without its underside (BoxGeometry's faces are px, nx, py, ny, pz, nz, six indices each): the hedge sits on the lawn.
-function noBottom(g) {
-  g.setIndex(Array.from(g.index.array).filter((_, i) => i < 18 || i > 23));
+// `ends`: also the two end faces of its length, 'x' (px, nx) or 'z' (pz, nz), which the next piece's slab hides but for a 0.25 m gap.
+function noBottom(g, ends) {
+  const gone = (i) => (i >= 18 && i < 24) || (ends === 'x' && i < 12) || (ends === 'z' && i >= 24);
+  g.setIndex(Array.from(g.index.array).filter((_, i) => !gone(i)));
   g.clearGroups();
   return g;
 }
@@ -188,9 +190,9 @@ function gardenDetail(kit) {
   const B = activePlan().bounds;
   const gx = HOUSE_FRONT_DOOR.x;
   const pw = FRONT_DOOR_W / 2 + 0.1;
-  const pad = (x, z, w, d, rot, cell) => {
+  const pad = (x, z, w, d, rot, cell, y = 0.03) => {
     const c = Math.cos(rot), n = Math.sin(rot);
-    const pts = [[-w, -d], [w, -d], [w, d], [-w, d]].map(([u, v]) => [x + (u * c - v * n) / 2, 0.03, z + (u * n + v * c) / 2]);
+    const pts = [[-w, -d], [w, -d], [w, d], [-w, d]].map(([u, v]) => [x + (u * c - v * n) / 2, y, z + (u * n + v * c) / 2]);
     kit.fan(pts, pts.map(() => cellUV(cell, 0.5, 0.5)), [0, 1, 0]);
   };
   const bloom = (x, z, r, h, cell) => {
@@ -208,6 +210,28 @@ function gardenDetail(kit) {
   };
   // a bed in front of the house keeps clear of the path
   const ok = (x, z) => Math.abs(x - gx) > pw + 3 || z < B.maxZ;
+  // path edging: flat dark stones laid along both edges of the flagstones, door to gate
+  const pz0 = HOUSE_FRONT_DOOR.z + WALL_T / 2 + 0.35, pz1 = HEDGE.maxZ - 0.6;
+  for (let z = pz0 + 0.3; z < pz1 - 0.2; z += 0.55) for (const s of [-1, 1]) {
+    const j = hash01(z, s, 81);
+    pad(gx + s * (pw + 0.12), z + (j - 0.5) * 0.12, 0.32 + 0.1 * j, 0.42, 0, CELL.darkWood);
+  }
+  // fallen leaves on the lawn (flat, turned every way, red, gold and brown) and daisies (white, a gold eye), thrown over the
+  // garden between the hedge and the walls and kept off the path
+  const leaf = [CELL.curtainRed, CELL.brass, CELL.darkWood];
+  const open = (x, z) => Math.abs(x - gx) > pw + 0.6 || z < B.maxZ;
+  // in drifts: a spot, then five or six things round it
+  for (let k = 0; k < 110; k++) {
+    const cx = HEDGE.minX + 2 + hash01(k, 1, 82) * (HEDGE.maxX - HEDGE.minX - 4);
+    const cz = HEDGE.minZ + 2 + hash01(k, 2, 82) * (HEDGE.maxZ - HEDGE.minZ - 4);
+    for (let i = 0; i < 5; i++) {
+      const x = cx + (hash01(k, i, 83) - 0.5) * 2.4, z = cz + (hash01(k, i, 84) - 0.5) * 2.4;
+      if (!open(x, z) || (x > B.minX - 0.3 && x < B.maxX + 0.3 && z > B.minZ - 0.3 && z < B.maxZ + 0.3)) continue;
+      const h = hash01(k, i, 85);
+      if (k % 3) pad(x, z, 0.5, 0.3, h * 6.28, leaf[Math.floor(h * 3)], 0.045); // above the beds' pads
+      else { bloom(x, z, 0.14, 0.05, CELL.plaster); pad(x, z, 0.12, 0.12, 0, CELL.brass, 0.075); }
+    }
+  }
   // foundation beds along the walls, where she sees the lawn
   const found = (x, z, salt) => { if (ok(x, z)) bed(x, z, 2.6 + hash01(x, z, salt) * 1.2, salt); };
   for (let x = B.minX + 4; x < B.maxX - 3; x += 7.5 + 3 * hash01(x, 1, 71)) { found(x, B.minZ - 1.5, 72); found(x + 2, B.maxZ + 1.5, 73); }
@@ -218,9 +242,9 @@ function gardenDetail(kit) {
 function drawHedge(scene) {
   const geos = [];
   const c = new THREE.Color();
-  const piece = (cx, cz, along, w, h, d, k) => {
-    for (const [bw, bh, bd, by] of [[w, h, d, h / 2], [w * 0.82, 0.22, d * 0.8, h + 0.08]]) {
-      const g = noBottom(along === 'x' ? new THREE.BoxGeometry(bw, bh, bd) : new THREE.BoxGeometry(bd, bh, bw)); // the underside is never seen
+  const piece = (cx, cz, along, w, h, d, k, endRun) => {
+    for (const [bw, bh, bd, by, slab] of [[w, h, d, h / 2], [w * 0.82, 0.22, d * 0.8, h + 0.08, true]]) {
+      const g = noBottom(along === 'x' ? new THREE.BoxGeometry(bw, bh, bd) : new THREE.BoxGeometry(bd, bh, bw), slab && !endRun ? along : undefined); // the underside is never seen
       g.translate(cx, by, cz);
       c.setHex(HEDGE_COLOR).multiplyScalar(k);
       const col = new Float32Array(g.attributes.position.count * 3);
@@ -238,7 +262,7 @@ function drawHedge(scene) {
       const z = along === 'x' ? fixed : m;
       const h = 1.3 + 0.35 * hash01(x, z, salt);
       const d = 1.05 + 0.2 * hash01(x, z, salt + 1);
-      piece(x, z, along, step + 0.12, h, d, 0.85 + 0.25 * hash01(x, z, salt + 2));
+      piece(x, z, along, step + 0.12, h, d, 0.85 + 0.25 * hash01(x, z, salt + 2), i === 0 || i === n - 1); // a run's ends stay closed
     }
   };
   const H = HEDGE;
