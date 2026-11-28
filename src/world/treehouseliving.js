@@ -1,5 +1,6 @@
 // The Treehouse, beauty pass 5 (2026-11-28): living creatures and one daily rhythm. Squirrels on the bridge rails, a woodpecker, a snail, feeder birds, dragonflies, bats at dusk and a morning mist,
 // all pooled Points (no mesh, no triangle); the real clock sets lamps, shafts, dapple, fireflies and chime pitch; sound beds cross-fade with her height. Reduced motion draws one still frame.
+import { takeVoice } from './treehousecaps.js';
 import * as THREE from 'three';
 import * as P from './treehouseplan.js';
 import { createWeather } from './treehouseweather.js';
@@ -113,7 +114,8 @@ export function createLiving(ctx, env) {
     const hk = sm(((Number.isFinite(y) ? y : 0) - 1.2) / 6); const now = ac.currentTime; const gust = 0.65 + 0.35 * Math.sin(t * 0.31);
     const wo = wx.state; bed.rain.gain.setTargetAtTime(0.011 * wo.rain * (0.4 + 0.6 * hk), now, 0.6); bed.up.gain.setTargetAtTime(0.011 * (hk * gust * (1 + 2 * wo.storm) + 1.5 * wo.storm + 0.4 * wo.rain), now, 0.8); bed.low.gain.setTargetAtTime(0.01 * (1 - hk) * (0.5 + 0.5 * rh.noon), now, 0.8); bed.cg.gain.setTargetAtTime(0.0035 * (1 - 0.6 * hk) * Math.min(1, rh.night + rh.gold * 0.5), now, 1.2);
   }
-  function blip(f, at, dur, gain, glide = 1.35) { const ac = aud(); if (!ac) return; const o = ac.createOscillator(); const g = ac.createGain(); const w = ac.currentTime + at; o.type = 'sine'; o.frequency.setValueAtTime(f, w); o.frequency.exponentialRampToValueAtTime(f * glide, w + dur); g.gain.setValueAtTime(0.0001, w); g.gain.exponentialRampToValueAtTime(gain, w + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, w + dur); o.connect(g); g.connect(audio.getMaster?.() ?? ac.destination); o.start(w); o.stop(w + dur + 0.02); }
+  function blip(f, at, dur, gain, glide = 1.35) { const ac = aud(); if (!ac) return; if (at === 0 && !takeVoice(ac.currentTime, dur + 0.5)) return; // pass 10: at most four voices at once (a run's first note takes the place, the rest follow)
+    const o = ac.createOscillator(); const g = ac.createGain(); const w = ac.currentTime + at; o.type = 'sine'; o.frequency.setValueAtTime(f, w); o.frequency.exponentialRampToValueAtTime(f * glide, w + dur); g.gain.setValueAtTime(0.0001, w); g.gain.exponentialRampToValueAtTime(gain, w + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, w + dur); o.connect(g); g.connect(audio.getMaster?.() ?? ac.destination); o.start(w); o.stop(w + dur + 0.02); }
 
   const sun0 = ctx.sun && !ctx.dusk ? { i: ctx.sun.intensity, c: ctx.sun.color.clone(), fi: ctx.fill?.intensity ?? 0, fc: ctx.fill?.color?.clone() ?? null } : null; const MOON = new THREE.Color(0x8fa6ea);
   function moon(k) { // the sun is dimmed and turned to moonlight after dark (the lamps and the lit windows carry the village); the cat keeps enough light to read

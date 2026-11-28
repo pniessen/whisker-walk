@@ -20,6 +20,7 @@ import { createLiving } from './treehouseliving.js';
 import { createVista } from './treehousevista.js';
 import { createReact, chirp, RX as RX_SLOTS } from './treehousereact.js';
 import { bus } from '../events.js';
+import { capGlow, setEvents, takeVoice, gate } from './treehousecaps.js';
 
 export const TAU = Math.PI * 2;
 export const hash01 = (n, s) => { let h = (Math.imul(n | 0, 0x9e3779b1) ^ Math.imul((s | 0) + 0x7f4a7c15, 0x85ebca6b)) | 0; h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12; return (h >>> 0) / 4294967296; };
@@ -158,6 +159,7 @@ export function chimeNote(audio, k = 0, pitch = 1) {
   const ac = soundCtx(audio);
   if (!ac) return false;
   const now = ac.currentTime;
+  if (!takeVoice(now, 2.4)) return false; // pass 10: at most four voices at once
   const first = Math.floor(hash01(k, 31) * (CHIME_NOTES.length - 1));
   for (let n = 0; n < 2; n++) {
     const at = now + n * 0.22;
@@ -430,6 +432,7 @@ export function createTreehouseCritters(ctx) {
         const want = t < hear.owl.hear ? Math.max(-1, Math.min(1, ((Math.atan2(catPos.x - OWL.x, catPos.z - OWL.z) - OWL.yaw + Math.PI * 3) % TAU) - Math.PI)) : 0;
         owlTurn += (want - owlTurn) * Math.min(1, 3 * d);
       }
+      setEvents({ wx: !!sky && (sky.rk > 0.3 || sky.storm > 0.3), voice: react.fx.flare > 0.15, gold: vista.gold > 0.05, visitor: !!sky && sky.uniforms.uNt.value > 0.5 && vista.gold < 0.05 }); // pass 10: at most two event effects at once (treehousecaps.js)
       if (!reducedMotion) draw(t);
       drawReact(t, catPos, session, camera);
       if (sky && catPos && sky.reaction.landedAt !== seenLand) { // she has just landed: a shower of leaves from the boughs over her and a soft thump (the leaves only when motion is allowed)
@@ -441,7 +444,7 @@ export function createTreehouseCritters(ctx) {
       runSurprise(t, catPos, camera);
       living.update(dt, t, catPos);
       vista.update(t, catPos, camera);
-      L.o.material.size = 0.46 * (1 + 0.5 * rxK) + (t - arriveAt < 2.7 ? 0.6 * (reducedMotion ? 0 : Math.max(0, 1 - (t - arriveAt) / 2.6)) : 0); F.o.material.size = 0.34 * (1 + 0.55 * rxK + 0.6 * react.fx.flare); // the leaves swell for a breath; the glints and leaves swell while she is being answered
+      L.o.material.size = 0.46 * (1 + 0.5 * rxK) + (t - arriveAt < 2.7 ? 0.6 * (reducedMotion ? 0 : Math.max(0, 1 - (t - arriveAt) / 2.6)) : 0); F.o.material.size = 0.34 * capGlow(1 + 0.55 * rxK + 0.6 * react.fx.flare * gate.voice); // the leaves swell for a breath; the glints and leaves swell while she is being answered
       if (!arrived && catPos && catPos.y > WOOD_Y) { arrived = true; if (burst) { showerAt = t; sx = catPos.x; sy = catPos.y; sz = catPos.z; } chimeNote(audio, 3, living.pitch); arriveAt = t; } // her first step onto a platform: leaves swirl and a chime
       if (living.stormK > 0.3 && t >= stormChime) { stormChime = t + 1.7 + 1.2 * hash01(chimes, 33); chimeNote(audio, chimes + 3, living.pitch); chimeNote(audio, chimes + 5, living.pitch * 1.0595); chimes++; } // the storm sets the chimes clashing (a note and its neighbour a semitone up)
       if (t >= nextChime) { chimeNote(audio, chimes, living.pitch); chimes++; nextChime = t + CHIME_GAP.min + CHIME_GAP.span * hash01(chimes, 32); } // (the schedule runs on while muted: no catching up)

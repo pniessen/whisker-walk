@@ -4,6 +4,7 @@
 // Reduced motion draws one still frame at time zero (no hoot, no toll). Pure numbers: draws no random number (a hash of the index) and reads no clock.
 import * as THREE from 'three';
 import * as P from './treehouseplan.js';
+import { gate } from './treehousecaps.js';
 
 const TAU = Math.PI * 2;
 const fr = (v) => v - Math.floor(v);
@@ -84,9 +85,9 @@ export function createNight(ctx, env) {
     for (const w of WIN) B(w.x, w.y, w.z, 0xffc968); // every hut's window lit
     B(BELL_AT.x, BELL_AT.y, BELL_AT.z, 0xffe29a); // the lit bell
     { const k = SLEEP; const br = still ? 0 : 0.012 * Math.sin(t * 0.9); B(k.x, k.y + br, k.z - 0.4, 0x1a1c30); B(k.x, k.y - 0.02 + br, k.z, 0x1a1c30); B(k.x, k.y + 0.03 + br, k.z + 0.42, 0x23263c); } // the sleeper in the hammock
-    B(CHIMNEY.x, CHIMNEY.y - 0.18, CHIMNEY.z, 0x7a5240); // the chimney's pot
-    if (nSq) { const g = glideAt(t, gl); B(g.x, g.y, g.z, 0x4a3a30, g.on); B(g.x, g.y - 0.1, g.z, 0xa09078, g.on && g.spread > 0.2); } // the flying squirrel and its spread skin
-    { const p = peekAt(t, still); const sh = p.k * p.blink; for (const sd of [-1, 1]) S(HOLLOW.x + HOLLOW.ox * 0.1 + sd * 0.13 * -HOLLOW.oz, HOLLOW.y, HOLLOW.z + HOLLOW.oz * 0.1 + sd * 0.13 * HOLLOW.ox, 0.35, 1.0, 0.45, sh * 1.3); } // glowing eyes, kind and curious
+    B(CHIMNEY.x, CHIMNEY.y - 0.05, CHIMNEY.z, 0x4a2a24); // the chimney's pot (a dark brick cap over the painted stack on the roof: treehouseglow.js)
+    if (nSq) { const g = glideAt(t, gl); B(g.x, g.y, g.z, 0x4a3a30, g.on && gate.visitor > 0); B(g.x, g.y - 0.1, g.z, 0xa09078, g.on && g.spread > 0.2 && gate.visitor > 0); } // the flying squirrel and its spread skin
+    { const p = peekAt(t, still); const sh = p.k * p.blink * gate.visitor; for (const sd of [-1, 1]) S(HOLLOW.x + HOLLOW.ox * 0.1 + sd * 0.13 * -HOLLOW.oz, HOLLOW.y, HOLLOW.z + HOLLOW.oz * 0.1 + sd * 0.13 * HOLLOW.ox, 0.35, 1.0, 0.45, sh * 1.3); } // glowing eyes, kind and curious
     for (let m = 0; m < nMoth; m++) { // moths round the lanterns nearest the oak's decks
       const L = MOTH_AT[m % MOTH_AT.length]; const a = still ? m : t * (1.6 + 0.3 * m) + m * 2; S(L.x + Math.cos(a) * 0.3, L.y + 0.12 * Math.sin(a * 1.7), L.z + Math.sin(a) * 0.3, 0.9, 0.9, 0.75, still ? 0.7 : 0.55 + 0.45 * Math.sin(a * 5));
     }

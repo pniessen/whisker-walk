@@ -31,6 +31,7 @@ import * as THREE from 'three';
 import * as P from './treehouseplan.js';
 import { talesPlan, TALE_SLOTS } from './treehousetales.js';
 
+const CHIM_P = (() => { const b = P.deckOf('bakery'); return { x: b.hut.x + 0.95, y: b.y + b.hut.h + 0.97, z: b.hut.z + 0.55 }; })(); // the Bakery's chimney (the night stage's CHIMNEY, copied)
 const HOLLOW_P = (() => { const r = (P.OAK.r - (P.OAK.r * 0.38 * 1.7) / P.OAK.h) * 0.97 + 0.04; return { x: P.OAK.x - 0.5 * r, y: 1.7, z: P.OAK.z + 0.866 * r }; })(); // the oak's knothole (the night stage's HOLLOW, copied)
 export const LAMP_RADIUS = 4.2; // metres a lantern's pool reaches
 export const LAMP_SLOTS = 6; // the shader's lamp array (the live count is lower on LOW and LITE)
@@ -303,7 +304,9 @@ float talGlow = 0.0;
     ${leaves ? 'diffuseColor.rgb *= mix(vec3(1.0), vec3(0.8, 0.96, 0.72), ed);' : ''}
   }
   ${leaves ? '' : `// KNOTHOLE: a dark hollow in the oak where a shy friend peeks out at night (treehousenight.js HOLLOW)
-  { float hd = length((vTw - vec3(${HOLLOW_P.x.toFixed(2)}, ${HOLLOW_P.y.toFixed(2)}, ${HOLLOW_P.z.toFixed(2)})) * vec3(1.0, 0.75, 1.0)); diffuseColor.rgb *= 1.0 - 0.92 * smoothstep(0.52, 0.34, hd) * step(vNw.y, 0.5); }
+  { float hd = length((vTw - vec3(${HOLLOW_P.x.toFixed(2)}, ${HOLLOW_P.y.toFixed(2)}, ${HOLLOW_P.z.toFixed(2)})) * vec3(1.0, 0.75, 1.0)); diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.62, 0.5, 0.4), 0.5 * smoothstep(0.5, 0.3, hd) * step(vNw.y, 0.5) * (1.0 - uNt)); diffuseColor.rgb *= 1.0 - 0.92 * uNt * smoothstep(0.52, 0.34, hd) * step(vNw.y, 0.5); }
+  // CHIMNEY: a brick stack painted on the Bakery's roof under the night's pot dot (it was a bare dark ball)
+  { vec2 cd = abs(vTw.xz - vec2(${CHIM_P.x.toFixed(2)}, ${CHIM_P.z.toFixed(2)})); float cm = step(max(cd.x, cd.y), 0.3) * step(0.25, vNw.y) * step(abs(vTw.y - ${CHIM_P.y.toFixed(2)}), 0.6); float mortar = step(0.5, fract(vTw.y * 9.0 + floor(vTw.x * 3.0) * 0.5)) * 0.18; diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.62, 0.28, 0.2) * (1.0 - mortar), 0.92 * cm); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.2, 0.1, 0.08), 0.5 * cm * smoothstep(0.14, 0.06, length(cd))); }
   // BARK: the big oak's trunk gets slow vertical furrows (it was one smooth brown slab close up)
   { vec2 oc = vTw.xz - vec2(0.0, -6.0); float orad = length(oc); if (orad < 3.5 && vTw.y > 0.3 && vTw.y < 16.0 && vNw.y < 0.5) { float oa = atan(oc.y, oc.x); float fur = sin(oa * 34.0 + sin(vTw.y * 0.8 + oa * 4.0) * 1.7) * 0.5 + 0.5; diffuseColor.rgb *= 0.78 + 0.34 * smoothstep(0.15, 0.85, fur); } }`}
   if (uTale > 0.5) { vec4 tl = tale(vTw, talGlow); diffuseColor.rgb = mix(diffuseColor.rgb, tl.rgb, tl.a); talGlow *= tl.a; }
