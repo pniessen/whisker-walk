@@ -57,6 +57,14 @@ export function createSplit({ renderer, camera, doc = typeof document !== 'undef
     sh.update(res, { session, cam2, camera, pos2: coop.secondPos?.() });
   }
 
+  // S2: the camera-following systems (shadows, grass, sky, rain, ...) for two views: src/coop/splitsys.js, a lazy chunk.
+  let sys = null; let sysLoad = false; let secondCatPos = null;
+  function sysStep() {
+    if (sys || sysLoad) return;
+    sysLoad = true;
+    import('./splitsys.js').then((m) => { sys = m.createSplitSys({ renderer }); secondCatPos = m.secondCatPos; }).catch(() => {});
+  }
+
   function readout(t1) {
     if (el && t1 - shown > 500) {
       shown = t1;
@@ -104,6 +112,10 @@ export function createSplit({ renderer, camera, doc = typeof document !== 'undef
     if (res.t >= 1) poseFrom = null;
     const own = poseFrom && { p: camera.position.clone(), q: camera.quaternion.clone() };
     if (own) { const w = 1 - res.t * res.t * (3 - 2 * res.t); camera.position.lerpVectors(own.p, poseFrom.p, w); camera.quaternion.slerpQuaternions(own.q, poseFrom.q, w); }
+    sysStep();
+    const two = !!sys && plan.css.length === 2;
+    const cats = two ? [session.cat.position, coop.secondPos?.() ?? secondCatPos(session) ?? session.cat.position] : null;
+    if (two) sys.beginFrame(session, cams, cats);
     try {
       renderer.setScissorTest(true);
       for (let i = 0; i < plan.css.length; i++) {
@@ -113,7 +125,9 @@ export function createSplit({ renderer, camera, doc = typeof document !== 'undef
         cams[i].aspect = plan.aspects[i];
         cams[i].updateProjectionMatrix();
         cams[i].updateMatrixWorld(true);
+        if (two) sys.beforeView(i, cams[i], cats[i], session);
         renderer.render(session.scene, cams[i]);
+        if (two) sys.afterView();
       }
     } finally {
       renderer.setScissorTest(false);

@@ -2,18 +2,8 @@
 
 S0 drew two views; several per-frame systems still centred on cat one's camera. S2 makes them right with the least code. Default play (no `?split=1`) is unchanged: every new path is behind a second-view flag that stays off, and start-up growth is listed below.
 
-## Wiring (the foreman adds this after merging split-s1; `splitview.js` is not edited here)
-`src/coop/splitsys.js` (lazy, imported only by `splitview.js`) exports `createSplitSys({ renderer })` -> `{ beginFrame, beforeView, afterView }` and `secondCatPos(session)`. In `splitview.js`'s `draw()`:
-
-```js
-import { createSplitSys, secondCatPos } from './splitsys.js';          // top
-const sys = createSplitSys({ renderer });                               // in createSplit
-const cats = [session.cat.position, secondCatPos(session) ?? session.cat.position];
-sys.beginFrame(session, cams, cats);                                    // once, before the loop over views
-sys.beforeView(i, cams[i], cats[i], session);                           // in the loop, before renderer.render
-sys.afterView();                                                        // in the loop, after renderer.render (the last call puts everything back)
-```
-`tools/verify/split-s2-run.mjs` applies exactly these lines (`wired()`), runs the game, and puts the file back.
+## Wiring (done after merging split-s4)
+`splitview.js` lazily imports `splitsys.js` on the first active split frame, calls `sys.beginFrame(session, cams, cats)` once per frame and `sys.beforeView` / `sys.afterView` around each `renderer.render`, only while two views are drawn (not in the shared part of a transition). Cat two's position is `coop.secondPos()`. `tools/verify/split-s2-run.mjs` drives the real game (`--teleport N` puts cat two N m away so the split opens). Merged-build pictures: `tools/verify/split-s2-merged-1920.png`, `split-s2-merged-1280.png`.
 
 ## Per system
 | system | what S2 does | compromise |

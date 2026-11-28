@@ -18,7 +18,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const arg = (name, d) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : d; };
 const place = arg('place', 'neighborhood');
 const mode = arg('mode', 'split');
-const wire = arg('wire', 'on') === 'on';
+const wire = false; // splitview.js now wires splitsys itself (S2 merge)
 const [W, H] = arg('size', '1920x1080').split('x').map(Number);
 const port = Number(arg('port', '5461'));
 const seconds = Number(arg('seconds', '6'));
@@ -100,8 +100,10 @@ async function main() {
       await ev("window.__press(1, 0)"); // A on pad two joins
       await sleep(2500);
       await ev(arg('dir', 'fb') === 'lr' ? "window.__stick(1, 1, 0)" : "window.__stick(1, 0, 1)"); await ev(arg('dir', 'fb') === 'lr' ? "window.__stick(0, -1, 0)" : "window.__stick(0, 0, -1)"); await sleep(Number(arg('apart', '7')) * 1000); // cat one forward, cat two the other way
-      await ev("window.__stick(1, 0, 0)"); await ev("window.__stick(0, 0, 0)");
+      if (!Number(arg('teleport', '0'))) { await ev("window.__stick(1, 0, 0)"); await ev("window.__stick(0, 0, 0)"); }
     }
+    const tp = Number(arg('teleport', '0'));
+    if (tp && mode !== 'one') { await ev(`import('/src/coopseam.js').then((m) => { const p = m.coop.secondPos?.(); if (p) { p.z -= ${tp}; p.x += ${tp / 2}; } })`); await ev('window.__stick(1, 0, -0.5)'); await ev('window.__stick(0, 0, -0.5)'); await sleep(3000); }
     await ev(okCard); await sleep(2500);
     const f0 = await ev('window.__frames()'); const t0 = Date.now();
     const readouts = [];
