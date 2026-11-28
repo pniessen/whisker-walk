@@ -943,6 +943,8 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         // Lighthouse Point has the Seaside's surf and gulls (its own bell, horn and echo are the place's, lighthousesound.js).
         layers.push(wavesLayer());
         layers.push(gullLayer());
+        // The Lighthouse's headland is windy (beauty pass 2, 2026-11-28): a low sea wind under the surf, its own layer (still muted when muted)
+        if (areaKey === 'lighthouse') layers.push(windLayer({ gain: 0.026, cutoff: 360 }));
       } else if (areaKey === 'docks') {
         // v18 Task 4.0. Without this branch the Docks fell through to the
         // generic case below and a NIGHT DOCK PLAYED BIRDSONG. Harbour, not

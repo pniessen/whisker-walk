@@ -3,6 +3,7 @@ import { withLocalUuids } from './localuuids.js';
 import { hash01 } from './builder.js';
 import { phrase } from '../clanphrases.js';
 import { bus } from '../events.js';
+import { createLighthouseAlive } from './lighthousealive.js';
 import { createLighthouseSound } from './lighthousesound.js';
 import './lighthousewords.js';
 import { TOWER, GALLERY_Y, LAMP_ROOM, LEVER, LEVER_KIND, BELL_KIND, BELL, GULL_ROCK, POOLS } from './lighthouseplan.js';
@@ -146,13 +147,13 @@ export function createLighthouseLife(ctx = {}) {
   let glassK = 1;
 
   const parts = withLocalUuids('lighthouse-life', () => {
-    const beam = new THREE.Mesh(coneGeometry(BEAM.length, BEAM.radius, 0xffd98a, 0.07), additive(0));
+    const beam = new THREE.Mesh(coneGeometry(BEAM.length, BEAM.radius, 0xffd98a, 0.17), additive(0));
     // the bright core: a narrower cone inside the wide one, merged into the same draw by being a second child
-    const core = new THREE.Mesh(coneGeometry(BEAM.length * 0.9, BEAM.inner, 0xfff0c4, 0.1), additive(0));
+    const core = new THREE.Mesh(coneGeometry(BEAM.length * 0.9, BEAM.inner, 0xfff0c4, 0.3), additive(0));
     beam.add(core);
     const halo = new THREE.Mesh(glowDisc(2.3, 0xffd48a, 0.3, 'xy', 20), additive(0));
     const glow = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 1.5, 18, 1, true), new THREE.MeshBasicMaterial({ color: 0xffe2a0, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0, fog: true }));
-    const patch = lowTier ? null : new THREE.Mesh(glowDisc(1, 0xffd490, 0.22, 'xz', 20), additive(0));
+    const patch = lowTier ? null : new THREE.Mesh(glowDisc(1, 0xffd490, 0.3, 'xz', 20), additive(0));
     if (patch) patch.scale.set(BEAM.patchLen, 1, BEAM.patchWid);
     const all = [beam, halo, glow, patch].filter(Boolean);
     for (const m of all) { m.visible = false; m.castShadow = false; m.receiveShadow = false; m.userData.noMerge = true; m.userData.noCast = true; m.frustumCulled = false; }
@@ -164,6 +165,7 @@ export function createLighthouseLife(ctx = {}) {
   });
   for (const m of parts.all) scene?.add(m);
   const sound = createLighthouseSound(audio);
+  const alive = withLocalUuids('lighthouse-alive', () => createLighthouseAlive({ scene, reducedMotion: !!ctx.reducedMotion, tier }));
   const looks = createFindLooks({ scene, ground, reducedMotion: !!ctx.reducedMotion });
   const cats = createKeeperCats({ scene, ground, colliders: ctx.colliders, waters: ctx.waters, sound, log, progression, roomSeed: seed, visits: ctx.visits, reducedMotion: !!ctx.reducedMotion });
   // her own meow button (game/interactions.js doMeow tells the bus): the cave's echo answers it
@@ -312,7 +314,9 @@ export function createLighthouseLife(ctx = {}) {
         if (lever.anim > 0) { lever.anim = 0; lever.group.rotation.z = 0; lever.group.position.y = lever.gy; }
       }
       if (arm) arm.rotation.z = -ARM_SWING * smooth(lit ? (t - litAt) / ARM_TIME : 0);
-      placeBeam(lit ? smooth((t - litAt) / LIGHT_UP) : 0, catPos, camera);
+      const glowK = lit ? smooth((t - litAt) / LIGHT_UP) : 0;
+      placeBeam(glowK, catPos, camera);
+      alive.update(dt, t, camera, beamAngle(t, seed), glowK);
 
       if (shipDue !== null && !shipDone && t >= shipDue) {
         shipDone = true;
@@ -343,6 +347,7 @@ export function createLighthouseLife(ctx = {}) {
       if (disposed) return;
       disposed = true;
       sound.dispose();
+      alive.dispose();
       offMeow?.();
       looks.dispose();
       cats.dispose();
