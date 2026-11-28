@@ -58,7 +58,7 @@ const loaders = {
     .then(([world, st, p, walk]) => ({ id: 'market', world, life: { walk, createMarketLive: st.live.createMarketLive, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } })), // the landing plus the life's stages (marketstages.js), in parallel
   house: () => Promise.all([import('./house.js'), import('./housestages.js').then((s) => s.loadHouseStages())]).then(([w]) => own('house', w)), // the landing plus the wing's one stage (housestagewing.js), in parallel
   // Lighthouse Point (a catalog row and the Seaside's gate since its milestone 4; ?lighthouse=1 stays a developer shortcut).
-  lighthouse: () => import('./lighthouse.js').then((w) => own('lighthouse', w)),
+  lighthouse: () => Promise.all([import('./lighthouse.js'), import('./lighthousestages.js').then((s) => s.loadLighthouseStages())]).then(([w]) => own('lighthouse', w)), // the landing plus the life's one stage (lighthousestagestory.js), in parallel
   // The Greenhouse (a catalog row, behind the gates switch, and the Park's archway since its milestone G4; ?greenhouse=1 stays a developer shortcut).
   greenhouse: () => import('./greenhouse.js').then((w) => own('greenhouse', w)),
   // The Moon (?moon=1 only: no catalog row, no gate; its milestone 0 is the seams and a bare plain).
@@ -101,7 +101,7 @@ const entryModules = {
   roofs: Object.freeze(['src/world/roofs.js']),
   market: Object.freeze(['src/world/market.js', 'src/people/index.js']), // stage A; the stages (src/marketlive.js, src/world/marketstagelife.js) are in STAGED_AREAS (scripts/buildjson.mjs), loaded with it by the loader above
   house: Object.freeze(['src/world/house.js']), // stage A; the one stage is in STAGED_AREAS (scripts/buildjson.mjs), loaded with it by the loader above
-  lighthouse: Object.freeze(['src/world/lighthouse.js']),
+  lighthouse: Object.freeze(['src/world/lighthouse.js']), // stage A; the one stage is in STAGED_AREAS (scripts/buildjson.mjs), loaded with it by the loader above
   greenhouse: Object.freeze(['src/world/greenhouse.js']),
   moon: Object.freeze(['src/world/moon.js']), // stage A, the only one the loader waits for; the three later stages and the late arrivals' code are MOON_STAGE_ENTRY_MODULES (scripts/buildjson.mjs), fetched in the background after it
   reef: Object.freeze(['src/world/reef.js']), // stage A; the three stages are REEF_STAGE_ENTRY_MODULES (scripts/buildjson.mjs), loaded with it by the loader above

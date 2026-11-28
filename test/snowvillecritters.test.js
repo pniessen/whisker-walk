@@ -62,7 +62,7 @@ describe('the poses are pure and gentle', () => {
 
 describe('the life on a walk', () => {
   it('is wired into the area, spottable as three journal pages, and cleans up after itself', () => {
-    expect(ST.b.critters).toBe(C.createSnowvilleCritters);
+    expect(ST.story.critters).toBe(C.createSnowvilleCritters);
     const scene = new THREE.Scene();
     const area = build(scene);
     const life = area.life({ scene, reducedMotion: false, tier: null, audio: null, progression: null, sendEvent: () => {} });

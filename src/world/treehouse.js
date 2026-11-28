@@ -68,8 +68,8 @@ export function build(scene) {
         const errand = ST.branches?.errand?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, send: ctx.sendEvent }); // Nutmeg's post round of the day (milestone T7, in the branches stage)
         const prompts = createTreehousePrompts(nutmeg, wing, errand);
         const finds = ST.branches?.finds?.life(ctx); // the six discoveries (milestone T3)
-        const critters = ST.branches?.critters?.(ctx); // the songbirds, owl, fireflies, leaves, creak and chime (milestone T4)
-        const treeCats = ST.branches?.cats?.(ctx); // the tree's own cats: a cushion, a rail, a limb and a hollow
+        const critters = ST.story?.critters?.(ctx); // the songbirds, owl, fireflies, leaves, creak and chime (milestone T4)
+        const treeCats = ST.story?.cats?.(ctx); // the tree's own cats: a cushion, a rail, a limb and a hollow
         return {
           light,
           treeCats,

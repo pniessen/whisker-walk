@@ -85,6 +85,6 @@ describe('the air', () => {
     expect(scene.children).toHaveLength(2); a.dispose(); expect(scene.children).toHaveLength(0);
   });
   it('is wired into the place: stage b offers it and the life carries it', () => {
-    expect(typeof ST.b.air).toBe('function');
+    expect(typeof ST.story.air).toBe('function');
   });
 });

@@ -68,7 +68,7 @@ describe('the poses are pure and gentle', () => {
 
 describe('the life on a walk', () => {
   it('is wired into the area, spottable as three journal pages, and cleans up after itself', () => {
-    expect(ST.branches.critters).toBe(C.createTreehouseCritters);
+    expect(ST.story.critters).toBe(C.createTreehouseCritters);
     expect(ST.branches.finds).toBeTruthy(); // the T3 slot stays
     const scene = new THREE.Scene();
     const area = build(scene);

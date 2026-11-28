@@ -76,12 +76,12 @@ export function build(scene) {
         const light = createJungleLight(ctx.roomSeed === undefined ? ctx : { ...ctx, schedule: createRainSchedule((ctx.roomSeed ^ RAIN_SEED) >>> 0) }); // in a room the showers are the room's (the same on every device)
         const mossy = createMossy({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
         const wing = ST.b?.wing?.({ scene: ctx.scene, mossy, light, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent }); // the table, the strings of lights and the Rain Supper (milestone J5)
-        const errand = ST.b?.errand?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, send: ctx.sendEvent }); // Mossy's errand of the day (milestone J7, in stage b)
+        const errand = ST.story?.errand?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, send: ctx.sendEvent }); // Mossy's errand of the day (milestone J7, in stage b)
         const strays = ST.b?.strays?.({ scene: ctx.scene, ground: ctx.ground, tier: ctx.tier, roomSeed: ctx.roomSeed, reducedMotion: ctx.reducedMotion, colliders: area.colliders }); // the four jungle strays (round two, in stage b)
         const prompts = createJunglePrompts(mossy, wing, errand, strays);
         const finds = ST.b?.finds?.life(ctx); // the six discoveries (milestone J3)
-        const critters = ST.b?.critters?.(ctx); // the macaws, toucan, frogs and the rain's patter (milestone J4)
-        const air = ST.b?.air?.(ctx); // butterflies and fireflies (beauty pass 1)
+        const critters = ST.story?.critters?.(ctx); // the macaws, toucan, frogs and the rain's patter (milestone J4)
+        const air = ST.story?.air?.(ctx); // butterflies and fireflies (beauty pass 1)
         return {
           light,
           spottable: critters?.spottable ?? [],

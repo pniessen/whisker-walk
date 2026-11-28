@@ -37,7 +37,7 @@ describe('the still pieces', () => {
     let meshes = 0; scene.traverse((o) => { if (o.isMesh) meshes++; });
     expect(meshes).toBeLessThanOrEqual(8);
   });
-  it('is stage b that draws them', () => { expect(typeof ST.b.air).toBe('function'); });
+  it('is stage b that draws them', () => { expect(typeof ST.story.air).toBe('function'); });
 });
 
 describe('the life', () => {
