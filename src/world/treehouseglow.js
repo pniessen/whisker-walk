@@ -37,7 +37,7 @@ export function lampPoints() {
   return out;
 }
 
-export const FLEX = Object.freeze({ dip: 0.07, near: 0.5, far: 3.2, band: 0.9 }); // metres a board gives at most, the ring it gives in, and how far above and below her feet a board still feels her
+export const FLEX = Object.freeze({ dip: 0.12, near: 0.5, far: 3.2, band: 0.9 }); // metres a board gives at most, the ring it gives in, and how far above and below her feet a board still feels her
 export const SHIVER = Object.freeze({ reach: 4.5, amp: 0.2 }); // metres a leaf feels her from, and how far it shakes at most
 export const LAND = Object.freeze({ minFall: 2.2, fullFall: 6, decay: 3.2, shake: 2.4 }); // m/s of fall that counts as a landing, a hard one, how fast the shock fades (1/s), seconds the leaves keep shivering
 const COMMON_VERT = `#include <common>
@@ -99,12 +99,12 @@ const COLOR_FRAG = (leaves) => `#include <color_fragment>
   // CLOUD SHADE: a slow patch of shadow drifting over the village (more on what faces up), the gaps between bright and warm
   float cl = sin(vTw.x * 0.075 + uTime * 0.24) * sin(vTw.z * 0.065 - uTime * 0.17 + 1.0) + 0.5 * sin(vTw.x * 0.031 - vTw.z * 0.044 + uTime * 0.09);
   float up = 0.55 + 0.45 * clamp(vNw.y, 0.0, 1.0);
-  diffuseColor.rgb *= 1.0 - 0.26 * smoothstep(0.05, 0.85, cl) * up;
-  diffuseColor.rgb *= 1.0 + 0.1 * smoothstep(-0.3, -0.9, cl) * up;
+  diffuseColor.rgb *= 1.0 - 0.3 * smoothstep(0.05, 0.85, cl) * up;
+  diffuseColor.rgb *= 1.0 + 0.16 * smoothstep(-0.3, -0.9, cl) * up;
   ${leaves ? 'diffuseColor.rgb *= 1.0 + 0.22 * vGf;' : ''}
   // FLOOR MIST: a pale haze low round the stilts, trunk feet and the undersides of the decks, thickest on the ground
-  float mst = (1.0 - smoothstep(0.0, 1.25, vTw.y)) * (0.8 + 0.2 * sin(vTw.x * 0.5 + vTw.z * 0.4 + uTime * 0.3));
-  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.72, 0.8, 0.82), 0.4 * mst);
+  float mst = (1.0 - smoothstep(0.0, 1.25, vTw.y)) * (1.0 - 0.85 * clamp(vNw.y, 0.0, 1.0)) * (0.8 + 0.2 * sin(vTw.x * 0.5 + vTw.z * 0.4 + uTime * 0.3));
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.72, 0.8, 0.82), 0.32 * mst);
   ${leaves ? `float n = sin(vTw.x * 0.21 + 1.3) * sin(vTw.z * 0.19 + 0.4) + 0.6 * sin(vTw.x * 0.07 + vTw.z * 0.11);
   float pop = smoothstep(0.2, 0.7, n) * smoothstep(3.5, 8.0, vTw.y);
   vec3 fall = mix(vec3(0.95, 0.62, 0.14), vec3(0.82, 0.3, 0.1), smoothstep(-0.3, 0.6, sin(vTw.x * 0.33 - vTw.z * 0.27)));

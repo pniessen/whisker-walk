@@ -22,7 +22,7 @@ const smooth = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
 
 export const lifeRung = (tier) => (tier && tier.shadows === false ? 'lite' : isLowTier(tier) ? 'low' : 'high');
 export const COUNTS = Object.freeze({ high: Object.freeze({ birds: 3, flies: 18, leaves: 30, motes: 14 }), low: Object.freeze({ birds: 2, flies: 12, leaves: 16, motes: 6 }), lite: Object.freeze({ birds: 1, flies: 6, leaves: 6, motes: 0 }) }); // motes: pollen in the sun (beauty pass 2), more falling leaves (their gust drift is leafAt's)
-export const BURST = Object.freeze({ high: 10, low: 6, lite: 0, life: 2.6, up: 2.2 }); // leaves a landing shakes loose (beauty pass 3: they are the last slots of the one falling-leaves Points), seconds they fall, metres above her they start
+export const BURST = Object.freeze({ high: 18, low: 10, lite: 0, life: 2.6, up: 2.2 }); // leaves a landing shakes loose (beauty pass 3: they are the last slots of the one falling-leaves Points), seconds they fall, metres above her they start
 export const STILL_LEAVES = 6; // reduced motion hangs a few leaves, no more
 export const RANGES = Object.freeze({ tl1: 9, tl2: 7, tl3: 8 }); // how near she must be (and facing it) to spot one
 
@@ -238,7 +238,7 @@ export function createTreehouseCritters({ scene, reducedMotion = false, tier = n
   };
   const F = points(N.flies + N.motes, 'treehouse:fireflies', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.34, sizeAttenuation: true, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
   const burst = reducedMotion ? 0 : BURST[rung];
-  const L = points(N.leaves + burst, 'treehouse:fallingleaves', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.34, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, fog: true }));
+  const L = points(N.leaves + burst, 'treehouse:fallingleaves', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.46, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false, fog: true }));
 
   // the journal subjects, one entry for each kind (the walk awards once a kind a walk)
   const spottable = [
