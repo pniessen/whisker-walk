@@ -204,6 +204,18 @@
     p6_court: { at: [0, 31], face: [0, -1] },
     p6_bench: { at: [20.6, 15.9], face: [0, -1] },
     p6_hall2: { at: [-6, -2], face: [1, -0.4] },
+    // beauty pass 7: photogenic vistas (play camera). secs: stood still that long; the golden moment (pollen + chime) comes at 3+ s still
+    p7_hall: { at: [0, -3], face: [0, -1] },
+    p7_orchid: { at: [-18, -9], face: [-1, 0] },
+    p7_bench: { at: [20.6, 15.9], face: [0, -1] },
+    p7_court: { at: [0, 26], face: [0, -1] },
+    p7_shed: { at: [22, 20], face: [1, -0.3] },
+    p7g_hall: { at: [0, -3], face: [0, -1], secs: 4.5 },
+    p7g_orchid: { at: [-18, -9], face: [-1, 0], secs: 4.5 },
+    p7g_bench: { at: [20.6, 15.9], face: [0, -1], secs: 4.5 },
+    p7g_court: { at: [0, 26], face: [0, -1], secs: 4.5 },
+    p7g_shed: { at: [22, 20], face: [1, -0.3], secs: 4.5 },
+    p7hd_hall: { at: [0, -3], face: [0, -1] },
     palms: { at: [-6, -9], face: [-1, 0], cam: { pos: [12, 2.4, -2.2], look: [-6, 4, -12], fov: 60 }, hold: true },
   };
   window.__shot = (name) => {
@@ -228,6 +240,7 @@
     }
     if (s.cam) { renderer.render(scene, camera); } else render();
     if (params.get('dbg') === '1' && s.moment) { const m = life.moments; throw new Error('DBG ' + JSON.stringify({ kind: m?.kind, vis: m?.points.visible, op: m?.points.material.opacity, dr: m?.points.geometry.drawRange, errs: window.__errs, p0: Array.from(m.points.geometry.attributes.position.array.slice(0, 6)), c0: Array.from(m.points.geometry.attributes.color.array.slice(0, 6)), s0: Array.from(m.points.geometry.attributes.aSize.array.slice(0, 3)), proj: (() => { const v = new THREE.Vector3(...m.points.geometry.attributes.position.array.slice(150, 153)).project(camera); return [v.x, v.y, v.z]; })(), cam: camera.position.toArray(), ren: renderer.info.render.points })); }
+    if (params.get('dbg') === '3') { const v = life.vistas; throw new Error('DBG3 ' + JSON.stringify({ st: v.state, vis: v.points.visible, a: Array.from(v.points.geometry.attributes.color.array.slice(0, 12)), pos: Array.from(v.points.geometry.attributes.position.array.slice(0, 6)), cat: cat.position.toArray() })); }
     if (params.get('dbg') === '2') { const c = life.creatures.points; throw new Error('DBG2 ' + JSON.stringify({ vis: c.visible, inScene: !!c.parent, op: c.material.opacity, sz: Array.from(c.geometry.attributes.aSize.array.slice(0, 4)), pts: renderer.info.render.points, errs: window.__errs })); }
     return name;
   };

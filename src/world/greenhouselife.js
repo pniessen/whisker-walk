@@ -40,6 +40,7 @@ import { createGreenhouseIntro } from './greenhouseintro.js';
 import * as Story from './greenhousestory.js';
 import { createCreatures, dayLook } from './greenhousecreatures.js';
 import { createWeatherFx } from './greenhouseweather.js';
+import { createVistas } from './greenhousevista.js';
 
 export const GH_SEED_SALT = 0x6e5d1;
 export const GH_WATER_SALT = 0x6e5d2;
@@ -121,6 +122,8 @@ export function createGreenhouseLife(ctx) {
   const creatures = withLocalUuids('greenhouse-creatures', () => createCreatures({ scene, audio: ctx.audio ?? null, reducedMotion, lite: ctx.quality === 'low', dusk: !!ctx.dusk }));
   // beauty pass 6: the weather as events (rain on glass, a sun burst, morning haze, dusk glow, a rare wind); ctx.fx forces values for pictures
   const wx = withLocalUuids('greenhouse-weather', () => createWeatherFx({ scene, reducedMotion, lite: ctx.quality === 'low', dusk: !!ctx.dusk, day, force: ctx.fx ?? null }));
+  // beauty pass 7: five photogenic vistas (a warm grade, a halo on the focal point) and the golden moment (still 3+ s: pollen sparkles and a chime, once a walk)
+  const vistas = withLocalUuids('greenhouse-vista', () => createVistas({ scene, audio: ctx.audio ?? null, reducedMotion, lite: ctx.quality === 'low' }));
   const walkSeed = ctx.roomSeed === undefined || ctx.roomSeed === null ? ctx.visits ?? 0 : Number(ctx.roomSeed) % 9973;
   const walkMoment = hash01(walkSeed, 5, Story.GH_STORY_SALT + 5) < Story.MOMENT_CHANCE.walk ? (ctx.dusk ? 'moonbloom' : 'sprinkler') : null;
   const walkMomentAt = 20 + 40 * hash01(walkSeed, 6, Story.GH_STORY_SALT + 5);
@@ -207,6 +210,7 @@ export function createGreenhouseLife(ctx) {
     get season() { return season; },
     moments,
     creatures,
+    vistas,
     startMoment(kind, at) { return disposed ? false : moments.start(kind, clock, at); }, // (pictures and tests; the walk starts its own)
     get state() { return { seeds, seedState, held, watered: wateredCount(), thirsty: thirsty.slice(), set: set.map((s) => ({ ...s })), allWatered }; },
     get meshes() { return { cues: cues.mesh, packets, sprouts, can, pots: pots.map((p) => p.leaves), clouds: pots.map((p) => p.cloud) }; },
@@ -264,10 +268,10 @@ export function createGreenhouseLife(ctx) {
         const goal = (raining ? 0.4 : 1) * (ctx.dusk ? 0.7 : 1) * (1 + 0.22 * day.noon - 0.25 * day.morning + 0.7 * wx.state.sun);
         react.gain += (goal - react.gain) * Math.min(1, step * 0.8);
         const cloud = reducedMotion ? 1 : 0.84 + 0.16 * Math.sin(t * 0.11);
-        const gain = react.gain * cloud;
+        const gain = react.gain * cloud * (1 + 0.3 * vistas.state.k);
         const warm = ctx.dusk ? 1 : day.warm;
         for (const sh of [shafts, ...roomShafts]) { if (sh) { sh.userData.shaft.uGain.value = gain; sh.userData.shaft.uWarm.value = warm; } }
-        for (const mm of [mist, roomMist]) if (mm) { mm.userData.mist.uWarm.value = Math.max(warm, season === 'winter' ? 0.65 : 0, wx.state.cosy, 0.3 * wx.state.haze); mm.material.opacity = 1 - 0.15 * day.noon; } // winter: the lamps' halos stay warm all day
+        for (const mm of [mist, roomMist]) if (mm) { mm.userData.mist.uWarm.value = Math.max(warm, season === 'winter' ? 0.65 : 0, wx.state.cosy, 0.3 * wx.state.haze, 0.4 * vistas.state.k); mm.material.opacity = 1 - 0.15 * day.noon; } // winter: the lamps' halos stay warm all day
         if (catPos && !reducedMotion) {
           const v = react.has && step > 0 ? Math.hypot(catPos.x - react.x, catPos.z - react.z) / step : 0;
           react.speed += (Math.min(1, v / 3) - react.speed) * Math.min(1, step * 6);
@@ -334,6 +338,7 @@ export function createGreenhouseLife(ctx) {
           can.position.y = ground.y(can.position.x, can.position.z);
         }
       }
+      vistas.update(dt, catPos, spot.still);
       // under the Palm House's glass the rain stays out (only on a change)
       const under = camera?.position ? P.underGlass(camera.position.x, camera.position.y, camera.position.z) : false;
       if (weather && camera?.position && under !== sheltered) { sheltered = under; weather.setSheltered(under); }
@@ -381,6 +386,7 @@ export function createGreenhouseLife(ctx) {
       moments.dispose();
       creatures.dispose();
       wx.dispose();
+      vistas.dispose();
       intro.dispose();
       cues.dispose();
       sound?.dispose();
