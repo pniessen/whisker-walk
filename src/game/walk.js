@@ -1704,6 +1704,7 @@ export function createWalkLifecycle({
       reducedMotion,
       scale: tier.ambientScale,
       ground,
+      weather,
       onEvent: (e) => handleFairEvent(e, { hud, audio, log, progression, session, once: fairOnce }),
     });
     // Step 3: its three games, its six things to find and its visitors

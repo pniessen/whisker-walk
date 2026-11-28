@@ -49,6 +49,7 @@
 
   const params = new URLSearchParams(location.search);
   const MOOD = params.get('mood') || 'day';
+  const WX = params.get('wx') || ''; // beauty pass 6: rain | clearing | sunny | golden | night | wind | finale (pair with ?T=, ?mood=, ?ff=seconds of walk to run first)
   const BEFORE = params.has('before'); // pass 3 switched off: no reaction, no kicked bits, steam or fireworks, no beat or breath
   const W = window.innerWidth, H = window.innerHeight;
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -87,7 +88,8 @@
   const player = { speed: 0, perchY: 0, halt() {}, setViewYaw() {} };
   const session = { perched: null, idleTime: 0 };
   let rideCam = null; // the camera fairlive steers, on a riding shot
-  const live = createFairLive(scene, area, { camera: { position: new THREE.Vector3(), lookAt() {} }, now: () => T });
+  let weatherRef = { condition: 'clear', rainbowVisible: false, isRaining: () => false };
+  const live = createFairLive(scene, area, { camera: { position: new THREE.Vector3(), lookAt() {} }, now: () => T, weather: { get condition() { return weatherRef.condition; }, get rainbowVisible() { return weatherRef.rainbowVisible; }, isRaining: () => weatherRef.isRaining?.() ?? false } });
   const show = createFairShow(scene, area, { swept: live.sim.swept, strays: tier.strays, camera, seed: 'fair-pictures' });
   live.attach(show);
 
@@ -102,7 +104,8 @@
     scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
     fair.setFairGlow(area, 1);
   } else {
-    weather = createWeather(scene, sun, MOOD === 'sunset' ? 'sunset' : 'clear', rng, true, undefined, { tier, fill, wet: [] });
+    weather = createWeather(scene, sun, WX === 'rain' || WX === 'clearing' ? 'rain' : MOOD === 'sunset' ? 'sunset' : 'clear', rng, WX !== 'rain' && WX !== 'clearing', undefined, { tier, fill, wet: groundOf().filter((c) => c.name === 'path' || c.userData.ground) });
+    weatherRef = weather;
     fair.setFairGlow(area, MOOD === 'sunset' ? fair.SUNSET_GLOW : 0);
   }
   const shadows = createShadowFit(sun, camera, { radius: tier.shadowFitRadius, mapSize: tier.shadowMapSize });
@@ -130,6 +133,7 @@
     live.update(dt, t, { cat, player, session });
     animateCat(cat, session.perched ? (session.perched.pose ?? 'perch') : 'follow', t, player.speed, false);
     ambient.update(t, 1);
+    weather?.update?.(dt, camera.position, camera);
     if (BEFORE) {
       FAIR_CLOCK.catOn.value = 0; FAIR_CLOCK.beat.value = 0; FAIR_CLOCK.breath.value = 0;
       scene.traverse((o) => { if (o.isPoints && o.name.startsWith('fair:')) o.visible = false; });
@@ -218,6 +222,12 @@
     'p5-bales': () => frameCat(-19.2, 36.2, [-20.4, 39.3]),
     'p5-wheel': () => frameCat(0.5, -9, [0, -30]),
     'p5-balloon': () => frameCat(1, 24, [0, -30]),
+    // beauty pass 6: weather and atmosphere as events (pair with ?wx= and ?T=: see tools/verify/fair-beauty6.html)
+    'p6-midway': () => frameCat(0, 36, [0, 20]),
+    'p6-wheel': () => frameCat(1, 14, [0, -30]),
+    'p6-bales': () => frameCat(-19.2, 36.2, [-20.4, 39.3]),
+    'p6-sky': () => frameCat(0.5, 24, [0, -30]),
+    'p6-plaza': () => frameCat(1.4, 17, [0, 0]),
     'run-midway': () => frameCat(1.5, 30, [0, 20]),
     'run-plaza': () => frameCat(-9, 12, [-3, 4]),
   };
@@ -242,6 +252,10 @@
     if (!s) throw new Error(`no shot "${name}"; there are ${Object.keys(SHOTS).join(', ')}`);
     camera.fov = 70; camera.updateProjectionMatrix();
     T = T0; t = 0;
+    if (WX === 'clearing') for (let i = 0; i < 400 && !weather.rainbowVisible; i++) step(0.5);
+    if (WX === 'clearing') for (let i = 0; i < 20; i++) step(0.5); // ten seconds into the rainbow
+    const ff = Number(params.get('ff') || 0);
+    if (ff) for (let i = 0; i < ff * 4; i++) step(0.25);
     if (RUNS[name]) {
       for (let i = 0; i < 30; i++) step(1 / 30);
       runShot(name);
@@ -345,7 +359,7 @@
     const bits = scene.getObjectByName('fair:bits');
     const live = bits ? Array.from(bits.geometry.attributes.position.array).filter((v, i) => i % 3 === 1 && v > -900).length : 0;
     const lv = (n) => { const o = scene.getObjectByName(n); return o ? Array.from(o.geometry.attributes.position.array).filter((v, i) => i % 3 === 1 && v > -900).length : 0; };
-    return { ...window.__info(), meshes, casters, points, bitsLive: live, glowLive: lv('fair:glow'), skyLive: lv('fair:sky'), paperLive: lv('fair:paper'), fireLive: lv('fair:fire') };
+    const rb = scene.children.find((o) => o.isGroup && o.children[0]?.geometry?.type === 'TorusGeometry'); return { rb: rb ? [rb.position.x, rb.position.y, rb.position.z, rb.visible] : null, rain: weather?.condition, rv: weather?.rainbowVisible, ...window.__info(), meshes, casters, points, bitsLive: live, glowLive: lv('fair:glow'), skyLive: lv('fair:sky'), paperLive: lv('fair:paper'), fireLive: lv('fair:fire') };
   };
   window.__scene = scene;
   window.__area = area;
