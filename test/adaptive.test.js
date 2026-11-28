@@ -177,8 +177,8 @@ describe('device memory', () => {
   it('out-of-range fields are sanitized', () => {
     const s = mapStorage();
     s.setItem(MEMORY_KEY, '{"rung":9,"walks":-3,"waitDays":1000,"retrying":"yes"}');
-    // 6 is the lite rung with the 30 fps cap on, the last step there is.
-    expect(readMemory(s)).toEqual({ rung: 6, steppedAt: 0, walks: 0, waitDays: 56, retrying: false });
+    // 7 is the bare bottom rung, the last step there is; 6 is lite with the cap.
+    expect(readMemory(s)).toEqual({ rung: 7, steppedAt: 0, walks: 0, waitDays: 56, retrying: false });
     s.setItem(MEMORY_KEY, '{"rung":-1.5,"steppedAt":-5,"walks":2.7,"waitDays":1}');
     expect(readMemory(s)).toEqual({ rung: 0, steppedAt: 0, walks: 2, waitDays: 7, retrying: false });
     s.setItem(MEMORY_KEY, '{"rung":"2","steppedAt":null,"walks":"x","waitDays":null}');
@@ -311,11 +311,11 @@ describe('the adapt memory and the rungs below LOW', () => {
       expect(readMemory(store(JSON.stringify(old)))).toEqual(old);
     }
   });
-  it('keeps rungs 4, 5 and the capped state 6', () => {
-    for (const rung of [4, 5, 6]) {
+  it('keeps rungs 4, 5, the capped state 6 and the bare bottom rung 7', () => {
+    for (const rung of [4, 5, 6, 7]) {
       expect(readMemory(store(JSON.stringify({ ...DEFAULT_MEMORY, rung }))).rung).toBe(rung);
     }
-    expect(readMemory(store(JSON.stringify({ ...DEFAULT_MEMORY, rung: 7 }))).rung).toBe(6);
+    expect(readMemory(store(JSON.stringify({ ...DEFAULT_MEMORY, rung: 8 }))).rung).toBe(7);
   });
   it('a retry from the capped state takes the cap off first: one step at a time', () => {
     const now = 200 * DAY;
