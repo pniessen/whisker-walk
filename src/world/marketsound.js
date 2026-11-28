@@ -368,6 +368,16 @@ export function createMarketSound(audio, { pigeons = [], musician = null, stalls
         }
       });
     },
+    // beauty pass 4: the fountain's surprise burst (marketseason.js): the first bars of the musician's tune hummed softly
+    // on sines, then three bright chimes; `level` 0..1 by her distance
+    sparkle(level = 1) {
+      const l = Math.min(1, Math.max(0, Number.isFinite(level) ? level : 0));
+      if (gone || l <= 0 || muted()) return;
+      withBus((c, now) => {
+        for (const n of MUSIC.notes.slice(0, 6)) tone(c, 'sine', n.f / 2, n.f / 2, now + n.at * 0.9, n.dur * 1.2, 0.05, MUSIC.gain * 0.6 * l);
+        [2093, 2637, 3136].forEach((f, i) => tone(c, 'sine', f, f, now + 0.1 + i * 0.16, 0.7, 0.006, 0.012 * l));
+      });
+    },
     // the part of the day: 0 morning .. 1 evening (marketlife.js)
     setPart(p) {
       if (Number.isFinite(p)) part = Math.min(1, Math.max(0, p));

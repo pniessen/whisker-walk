@@ -101,6 +101,7 @@ import { findAt, noteMarketFind, MARKET_FIND_ANCHORS } from './marketfinds.js';
 import { createErrands } from './marketerrandlive.js';
 import { createRoofsSmoke } from './roofsair.js';
 import { dayPart, toneAt } from './marketreact.js';
+import { seasonOf, applySeason, createDrift } from './marketseason.js';
 
 export const MARKET_BUCKET_ID = 'market-bucket-1';
 const CRATE_KIND = 'applecrate';
@@ -168,6 +169,11 @@ export function createMarketLife(area, ctx = {}) {
   const flutter = area?.flutter ?? [];
   for (const u of flutter) u.uMkAmp.value = reducedMotion || lite ? 0 : 1;
   const react = area?.react ?? null;
+  // beauty pass 4 (marketseason.js): the date's season tints the square, and one Points carries its air and a rare fountain burst
+  const season = ctx.season ?? seasonOf(ctx.now ?? new Date());
+  applySeason(react, season);
+  if (season === 'winter' && area?.look?.lantern?.emissive) area.look.lantern.emissive.multiplyScalar(1.3); // winter: the lanterns warmer
+  const drift = scene && react ? createDrift(scene, { season, reducedMotion, tier: ctx.tier }) : null;
   let rip = 0;
   const still = reducedMotion || lite;
   const smoke = scene && !lite && area?.chimneys?.length ? createRoofsSmoke(scene, area.chimneys, { reducedMotion }) : null;
@@ -304,6 +310,7 @@ export function createMarketLife(area, ctx = {}) {
       if (disposed) return;
       for (const u of flutter) u.uMkT.value = t;
       smoke?.update(t);
+      drift?.update(t, catPos, sound);
       musician?.update(t);
       if (musician && catPos) musician.detail(Math.hypot(catPos.x - MUSICIAN.x, catPos.z - MUSICIAN.z));
       sound?.update(dt, catPos, t);
@@ -390,6 +397,7 @@ export function createMarketLife(area, ctx = {}) {
       if (bicycle) bicycle.rotation.x = rockFrom;
       for (const u of flutter) u.uMkAmp.value = 0;
       smoke?.dispose();
+      drift?.dispose();
       apples?.dispose();
       wool?.dispose();
       petals?.dispose();
