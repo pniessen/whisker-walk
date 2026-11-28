@@ -35,3 +35,26 @@ describe('lighthouse weather as events (pass 6)', () => {
     expect(flashes).toBeGreaterThan(0);
   });
 });
+
+describe('lighthouse weather adds no mesh, triangle or caster', () => {
+  it('only two Points, restored on dispose', async () => {
+    const THREE = await import('three');
+    const { createLighthouseWeather } = await import('../src/world/lighthouseweather.js');
+    globalThis.document ??= { createElement: () => ({ width: 0, height: 0, getContext: () => ({ createRadialGradient: () => ({ addColorStop() {} }), createLinearGradient: () => ({ addColorStop() {} }), fillRect() {}, fillStyle: '' }) }) };
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0xf0c080, 45, 160);
+    const sun = new THREE.DirectionalLight(0xffb066, 1.2); const fill = new THREE.HemisphereLight(0xaab4dc, 0x886644, 0.62);
+    scene.add(sun, fill);
+    const before = scene.children.length;
+    const wx = createLighthouseWeather({ scene, sun, fill, force: 'storm', seed: 3 });
+    expect(scene.children.length - before).toBe(2);
+    expect(scene.children.filter((o) => o.isMesh).length).toBe(0);
+    wx.update(0.03, 4.4, null, { x: 14, y: 0, z: 36 });
+    expect(sun.intensity).toBeLessThan(1.2 * 0.6 + 1);
+    expect(scene.fog.far).toBeLessThan(160);
+    wx.dispose();
+    expect(sun.intensity).toBeCloseTo(1.2, 5);
+    expect(scene.fog.far).toBe(160);
+    expect(scene.children.length).toBe(before);
+  });
+});
