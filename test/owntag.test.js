@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { attachOwnTag, OWN_TAG_SCALE } from '../src/game/owntag.js';
 import { DEFAULT_LOOK } from '../src/customcats.js';
+import { makeNameTag } from '../src/nametag.js';
 
 // A minimal canvas so makeNameTag builds a real sprite headless.
 function withFakeDocument(fn) {
@@ -20,6 +21,7 @@ const customState = (name = 'Moonwhisker-Fern') => ({
   petName: 'Mittens',
   equipped: { cat: 'tabby', custom: 'mine1' },
   customCats: [{ id: 'mine1', name, personality: 'fearless', look: DEFAULT_LOOK }],
+  walks: { park: 10 }, // a warrior: full size (a kit or apprentice is drawn smaller: test/catrole.test.js)
 });
 
 describe('attachOwnTag', () => {
@@ -36,9 +38,10 @@ describe('attachOwnTag', () => {
       expect(tag.material.depthTest).toBe(false);
       expect(tag.renderOrder).toBeGreaterThan(0);
       expect(tag.userData.fit).toBe(true);
-      // smaller than a co-walker's 1.4 x 0.35 tag
-      expect(tag.scale.x).toBeCloseTo(1.4 * OWN_TAG_SCALE);
-      expect(tag.scale.y).toBeCloseTo(0.35 * OWN_TAG_SCALE);
+      // her role is the tag's second line (catrole.js), so it is the two-line sprite, smaller than a co-walker's
+      const twoLine = makeNameTag('x', { sub: 'y' });
+      expect(tag.scale.x).toBeCloseTo(twoLine.scale.x * OWN_TAG_SCALE);
+      expect(tag.scale.y).toBeCloseTo(twoLine.scale.y * OWN_TAG_SCALE);
       expect(OWN_TAG_SCALE).toBeLessThan(1);
     });
   });

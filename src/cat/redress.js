@@ -73,5 +73,7 @@ export function redressCat(cat, breed, accessories, opts = {}) {
   for (const k of BUILD_CACHES) delete runtime[k];
   cat.userData = { ...runtime, ...fresh.userData };
   cat.scale.copy(fresh.scale);
+  const roleScale = cat.userData.roleScale; // a kit or apprentice stays smaller (game/owntag.js)
+  if (typeof roleScale === 'number' && roleScale !== 1) cat.scale.multiplyScalar(roleScale);
   return cat;
 }
