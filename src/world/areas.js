@@ -51,11 +51,11 @@ const loaders = {
   gorge: () => import('./gorge.js').then((w) => own('gorge', w)),
   farm: () => Promise.all([import('./farm.js'), import('../farmanimals.js'), walkExtras()])
     .then(([world, a, walk]) => ({ id: 'farm', world, life: { walk, createFarmAnimals: a.createFarmAnimals } })),
-  fair: () => Promise.all([import('./fair.js'), import('../fairlive.js'), import('../fairshow.js'), import('../people/index.js'), walkExtras()])
-    .then(([world, live, show, p, walk]) => ({ id: 'fair', world, life: { walk, createFairLive: live.createFairLive, createFairShow: show.createFairShow, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } })),
+  fair: () => Promise.all([import('./fair.js'), import('./fairstages.js').then((s) => s.loadFairStages()), import('../people/index.js'), walkExtras()])
+    .then(([world, st, p, walk]) => ({ id: 'fair', world, life: { walk, createFairLive: st.live.createFairLive, createFairShow: st.show.createFairShow, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } })), // the landing plus the life's two stages (fairstages.js), in parallel
   roofs: () => import('./roofs.js').then((w) => own('roofs', w)),
-  market: () => Promise.all([import('./market.js'), import('../marketlive.js'), import('../people/index.js'), walkExtras()])
-    .then(([world, live, p, walk]) => ({ id: 'market', world, life: { walk, createMarketLive: live.createMarketLive, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } })),
+  market: () => Promise.all([import('./market.js'), import('./marketstages.js').then((s) => s.loadMarketStages()), import('../people/index.js'), walkExtras()])
+    .then(([world, st, p, walk]) => ({ id: 'market', world, life: { walk, createMarketLive: st.live.createMarketLive, createPeopleKit: p.createPeopleKit, lodNearFor: p.lodNearFor } })), // the landing plus the life's stages (marketstages.js), in parallel
   house: () => Promise.all([import('./house.js'), import('./housestages.js').then((s) => s.loadHouseStages())]).then(([w]) => own('house', w)), // the landing plus the wing's one stage (housestagewing.js), in parallel
   // Lighthouse Point (a catalog row and the Seaside's gate since its milestone 4; ?lighthouse=1 stays a developer shortcut).
   lighthouse: () => import('./lighthouse.js').then((w) => own('lighthouse', w)),
@@ -97,9 +97,9 @@ const entryModules = {
   pines: Object.freeze(['src/world/pines.js', 'src/world/birthdaygathering.js']),
   gorge: Object.freeze(['src/world/gorge.js']),
   farm: Object.freeze(['src/world/farm.js', 'src/farmanimals.js']),
-  fair: Object.freeze(['src/world/fair.js', 'src/fairlive.js', 'src/fairshow.js', 'src/people/index.js']),
+  fair: Object.freeze(['src/world/fair.js', 'src/people/index.js']), // stage A; the two stages (src/fairlive.js, src/fairshow.js) are in STAGED_AREAS (scripts/buildjson.mjs), loaded with it by the loader above
   roofs: Object.freeze(['src/world/roofs.js']),
-  market: Object.freeze(['src/world/market.js', 'src/marketlive.js', 'src/people/index.js']),
+  market: Object.freeze(['src/world/market.js', 'src/people/index.js']), // stage A; the stages (src/marketlive.js, src/world/marketstagelife.js) are in STAGED_AREAS (scripts/buildjson.mjs), loaded with it by the loader above
   house: Object.freeze(['src/world/house.js']), // stage A; the one stage is in STAGED_AREAS (scripts/buildjson.mjs), loaded with it by the loader above
   lighthouse: Object.freeze(['src/world/lighthouse.js']),
   greenhouse: Object.freeze(['src/world/greenhouse.js']),

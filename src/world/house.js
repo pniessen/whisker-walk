@@ -27,7 +27,6 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { createHouseGlow } from './houseglow.js';
 import { hash01, applySky, tree, house as neighbourHouse } from './builder.js';
 import { litMaterial, tileMetres } from '../render/materials.js';
 import { withLocalUuids } from './localuuids.js';
@@ -608,7 +607,7 @@ function buildPlan(scene, P, { wind, gateEnds }) {
     applySky(scene, HOUSE_SKY.top, HOUSE_SKY.horizon);
     const material = houseMaterial(createHouseAtlas());
     // beauty pass 2 (houseglow.js): window light, lamp and firelight, the golden grade, stirring curtains and the garden's sway, all in a shader patch on the atlas material
-    const glow = old ? createHouseGlow({
+    const glow = old ? ST.story.createHouseGlow({
       windows: P.windows, rooms: P.rooms, levels: plan.levels, lamps: P.lamps, sconces: houseSconceSpots(), keep: gardenKeep(P.bounds),
     }) : null;
     glow?.patch(material);

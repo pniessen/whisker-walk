@@ -131,8 +131,8 @@ describe('the prompt arbiter and the stages', () => {
     const a = S.loadCrystalStages();
     expect(S.loadCrystalStages()).toBe(a);
     await a;
-    expect(Object.keys(S.ST).sort()).toEqual(['deep', 'grotto', 'play', 'wingc']); // (grotto: the C2 grotto and forge shell, filled by crystalgrottostage.js)
-    expect(S.CRYSTAL_STAGE_MODULES).toHaveLength(3); // (the third, crystaldeep, is the second story's empty slot)
+    expect(Object.keys(S.ST).sort()).toEqual(['deep', 'grotto', 'play', 'story', 'wingc']); // (grotto: the C2 grotto and forge shell, filled by crystalgrottostage.js)
+    expect(S.CRYSTAL_STAGE_MODULES).toHaveLength(4); // (the third, crystaldeep, is the second story's empty slot; the fourth, crystalstory, is the cave's life side moved out of the landing)
   });
 });
 

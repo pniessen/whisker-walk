@@ -11,6 +11,7 @@ import { marketRig, buildSquare } from './helpers/marketrig.js';
 // =============================================================================
 
 const { createMarketLive } = await import('../src/marketlive.js');
+const { MARKET_STAGE_MODULES } = await import('../src/world/marketstages.js');
 const { marketFigure, personKeeper } = await import('../src/marketkeeper.js');
 const { createPeopleKit, LOD, lodNearFor } = await import('../src/people/index.js');
 const { LOW_RUNG } = await import('../src/render/quality.js');
@@ -71,7 +72,7 @@ describe('the treat ids and the no-market stand-in (marketnone.js)', () => {
   it("the Market's loader hands over its life", async () => {
     const pack = await AREA_LOADERS.market();
     expect(pack.life.createMarketLive).toBe(createMarketLive);
-    expect(AREA_ENTRY_MODULES.market).toContain('src/marketlive.js');
+    expect(MARKET_STAGE_MODULES).toContain('src/marketlive.js'); // a lazy stage of the Market, fetched with the landing (marketstages.js)
   });
 });
 

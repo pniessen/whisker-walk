@@ -24,14 +24,15 @@ import { createCrystalGuideLive } from './crystalguidelive.js'; // the written g
 import './crystalwingwords.js';
 import './crystalwingcwords.js'; // wing C's journal hints (X0)
 import { createPromptArbiter } from './promptarbiter.js';
-import { ST } from './crystalstages.js'; // the two wing C stages' slots (filled by their chunks, loaded with this one: areas.js)
+import { ST, loadCrystalStoryStage } from './crystalstages.js'; // the stages' slots (filled by their chunks, loaded with this one: areas.js)
+
+// Under vitest the story stage loads here (the cave's life side: beauty round 3's alive, layer 4's cave life and C7's errand), so every test that imports this file gets it; the wing stages stay opt-in for tests.
+// (The flag is undefined in a build, so this line and its top-level await are dropped; the game's own loader awaits every stage with this chunk.)
+if (import.meta.env?.VITEST) await loadCrystalStoryStage();
 import { crystalCollectibles, createCrystalFindsLife } from './crystalfinds.js';
 import { drawFindMarks } from './crystalfindparts.js';
 import { CRYSTAL_SCENICS } from './crystalfindsplan.js';
-import { createCrystalAlive } from './crystalalive.js'; // beauty round 3: the cave reacts to the cat and lives
 import { createCrystalDecor } from './crystaldecorparts.js'; // layer 3: mushrooms, gardens, moss, stalagmites, pools of light, pebbles (three draws)
-import { createCaveLife } from './cavelifelive.js'; // layer 4: fish, bats, fireflies, moths, salamander, beetles, crab
-import { createCaveErrandLive } from './crystalerrandlive.js'; // C7: Lumi's errand of the day
 
 export { CRYSTAL_NAME, CRYSTAL_BOUNDS, CRYSTAL_SPAWN } from './crystalplan.js';
 
@@ -89,8 +90,8 @@ export function build(scene) {
       life: (ctx) => {
         const light = createCrystalLight(ctx);
         const decor = createCrystalDecor(ctx);
-        const alive = createCrystalAlive({ scene: ctx.scene, decor, tier: ctx.tier, reducedMotion: ctx.reducedMotion });
-        const cave = createCaveLife(ctx);
+        const alive = ST.story.createCrystalAlive({ scene: ctx.scene, decor, tier: ctx.tier, reducedMotion: ctx.reducedMotion });
+        const cave = ST.story.createCaveLife(ctx);
         const lumi = createLumi({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion });
         const wingLife = createWing({ scene: ctx.scene, lumi, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
         const finds = createCrystalFindsLife(ctx); // the six discoveries (milestone C3)
@@ -99,7 +100,7 @@ export function build(scene) {
         const song = ST.play?.createSong?.(ctx) ?? null; // wing C's singing chamber (C5): the pads, the tunes
         const critters = createCrystalCritters(ctx); // glow-bugs, dust, drips (milestone C4)
         const sound = createCrystalSound(ctx); // the hum, the plinks, the crystals' notes
-        const errand = createCaveErrandLive({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, lumi }); // C7
+        const errand = ST.story.createCaveErrandLive({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, lumi }); // C7
         const intro = createCrystalIntro(ctx); // the arrival card (step 0 only)
         let forgeJob = null; // the forge job (C3), made below: the guide reads its goal when Lumi's is 'rest'
         const guideLumi = Object.create(lumi, { goalNow: { value: () => { const g = forgeJob ? forgeJob.goalFor(lumi.goalNow()) : lumi.goalNow(); return ST.deep?.goalFor?.(g, errand.state) ?? g; } } });

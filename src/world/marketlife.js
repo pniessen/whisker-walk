@@ -90,7 +90,7 @@
 // own lists and the life's own arrays, the spot is one object filled in place,
 // and the apples write into their one InstancedMesh.
 // =============================================================================
-import { setMarketDusk, LANTERN_DAY, LANTERN_MAX } from './market.js';
+import { setMarketDusk, LANTERN_DAY, LANTERN_MAX } from './marketdusk.js';
 import { MARKET_REGISTRATION, marketArea, MUSICIAN, PIGEON_PATCH, TREAT_STALLS, STALLS, stallById } from './marketplan.js';
 import { applePaths, createApples, createPetals, createBucketBlooms, rollPaths, createRollers, WOOL, WOOL_COLOURS, MARKET_WOOL_SALT } from './marketfruit.js';
 import { inWatchZone } from '../marketrules.js';

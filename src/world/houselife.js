@@ -59,14 +59,10 @@ import { makeView, createWallSink, createCellarLid, SINK } from '../housewalls.j
 import { createLevelDrawing } from '../houselevels.js';
 import { CAT_LOOK_Y } from '../cat/model.js';
 import { createHouseFinds, HOLD_PAD } from './housefinds.js';
-import { ST } from './housestages.js'; // the wing's discoveries' life and the sun's colours (the lazy wing stage, housestagewing.js)
+import { ST } from './housestages.js'; // the wing's discoveries' life and the sun's colours (the lazy wing stage, housestagewing.js), and the glow, sound, air and stories (the lazy story stage, housestagestory.js)
 import { segmentHitsBox } from '../treefade.js';
 import { toyStop, HOUSE_FINDS } from './housethings.js';
 import { OLD_HOUSE_PLAN, SECRET_WARDROBE } from './houseplan.js';
-import { createHouseSound } from './housesound.js';
-import { createHouseAir } from './houseair.js';
-import { FIRE, dayPart } from './houseglow.js';
-import { seasonOf, createSurprises } from './housestories.js';
 import { hash01 } from './builder.js';
 import { createLedgeGuards, catScale } from './houseguards.js';
 
@@ -174,7 +170,7 @@ export function createHouseLife(scene, house, {
   const glowLive = P === OLD_HOUSE_PLAN && !!house.glow;
   const LIT = new THREE.Color();
   const clockNow = () => (now ? now() : new Date());
-  const part = dayPart(12);
+  const part = ST.story.dayPart(12);
   let partIn = 0;
   const rainy = rain !== null && rain !== undefined ? !!rain : (() => { const d = clockNow(); return hash01(d.getFullYear() * 400 + d.getMonth() * 31 + d.getDate(), 5, 0x4a11) < 0.25; })();
   const rainK = rainy ? 1 : 0;
@@ -183,30 +179,30 @@ export function createHouseLife(scene, house, {
   const lights = !dusk && glowLive ? [sun, fill].filter(Boolean).map((l) => ({ l, c: l.color.clone(), g: l.groundColor ? l.groundColor.clone() : null })) : [];
   const retone = () => {
     const d = clockNow();
-    dayPart(d.getHours() + d.getMinutes() / 60, part);
+    ST.story.dayPart(d.getHours() + d.getMinutes() / 60, part);
     if (lights.length && typeof envBase === 'number') scene.environmentIntensity = envBase * part.env;
     for (const x of lights) { x.l.color.copy(x.c).multiply(LIT.fromArray(part.lit)); if (x.g) x.l.groundColor.copy(x.g).multiply(LIT); }
     air.setTone?.(part.sun, dusk ? 1 : part.sunK * (1 - 0.5 * rainK));
   };
   const WOOD = new Set(['hall', 'library', 'parlour', 'bedroom', 'attic', 'livingroom', 'kids']);
-  const sound = createHouseSound(audio, {
+  const sound = ST.story.createHouseSound(audio, {
     wood: P === OLD_HOUSE_PLAN ? P.rooms.filter((r) => WOOD.has(r.id)) : null,
     rain: rainy && P === OLD_HOUSE_PLAN,
     part: P === OLD_HOUSE_PLAN && !dusk ? part : null,
     clock: (P === OLD_HOUSE_PLAN ? HOUSE_FINDS : house.finds ?? []).find((f) => f.id === 'clock') ?? null,
     stairs: P.stairs,
     attic: P.rooms.find((r) => r.id === 'attic') ?? null,
-    fire: P === OLD_HOUSE_PLAN ? { x: FIRE.x, z: FIRE.z } : null,
+    fire: P === OLD_HOUSE_PLAN ? { x: ST.story.FIRE.x, z: ST.story.FIRE.z } : null,
   });
-  const air = createHouseAir(scene, { windows: P.windows, rooms: P.rooms, levels: house.levels, dusk: !!dusk, reducedMotion });
+  const air = ST.story.createHouseAir(scene, { windows: P.windows, rooms: P.rooms, levels: house.levels, dusk: !!dusk, reducedMotion });
   retone();
   // beauty pass 2 (houseglow.js): the light, firelight, curtains and garden sway are one shader patch on the house's material; LOW and LITE hold the flicker and sway still
   const glow = house.glow ?? null;
   const low = !!tier && (tier.name === 'low' || tier.name === 'lite' || tier.shadows === false || (tier.rung ?? 0) >= 3);
   // beauty pass 4 (housestories.js): the season by the date, and the rare surprises (the music box, the cuckoo, the old house's ghost cat)
   const day0 = clockNow();
-  const surprises = glowLive ? createSurprises({ scene, audio, reducedMotion, low, dayKey: day0.getFullYear() * 400 + day0.getMonth() * 31 + day0.getDate(), floorY: (x, z) => floor.y(x, z) }) : null;
-  const glowOpts = { still: reducedMotion, dusk: !!dusk, low, part: dusk ? null : part, rain: rainK, burst: 0, energy: 0, season: seasonOf(day0), box: 0, cuckoo: 0 };
+  const surprises = glowLive ? ST.story.createSurprises({ scene, audio, reducedMotion, low, dayKey: day0.getFullYear() * 400 + day0.getMonth() * 31 + day0.getDate(), floorY: (x, z) => floor.y(x, z) }) : null;
+  const glowOpts = { still: reducedMotion, dusk: !!dusk, low, part: dusk ? null : part, rain: rainK, burst: 0, energy: 0, season: ST.story.seasonOf(day0), box: 0, cuckoo: 0 };
   let ex = 0, ez = 0, eSeen = false, energy = 0; // her walking, as a smoothed 0..1 (the paws' dust and the curtains' swell)
   const guards = createLedgeGuards(colliders, floor);
   const frontDoor = createFrontDoor(house.parts?.frontDoor ?? null, reducedMotion, P.frontDoor);

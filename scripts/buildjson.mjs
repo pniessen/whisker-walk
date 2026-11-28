@@ -89,10 +89,12 @@ export function areaDownloads(manifest, entryModules = AREA_ENTRY_MODULES) {
 //   Moon (src/world/moonstages.js): four stage chunks (the Old Relay Station last) and the late arrivals' code. The total was 135 until the Old Relay Station: its stage adds about 20 kB.
 //   Reef (reefstages.js), Crystal Cave (crystalstages.js), Treehouse (treehousestages.js), Snowville (snowvillestages.js: B the pond, the hill and Lantern Night; C the sled run, still empty),
 //   Jungle lodge (junglestages.js: B the river's far bank, the canopy walk and the Rain Supper; C the raft): the same shape.
-//   Old House (housestages.js): one stage, the east wing and the wonder room; the landing stays under 55 kB.
+//   Market Square (marketstages.js) and the Fairground (fairstages.js): the life side as stages; their landing (stage A) is held under 80 kB, not 65, because each landing still carries the people figure and its whole drawing.
+//   Old House (housestages.js): two stages, the east wing and the wonder room, and the ambient story (glow, surprises, sound, air).
 export const STAGED_AREAS = Object.freeze([
   { id: 'house', label: 'house stages  ', stageCeiling: 65, totalCeiling: 150, stages: [
     ['housewing', 'wing', ['src/world/housestagewing.js']], // the east wing's drawing, far look and discoveries (housestages.js); there is no stage c
+    ['housestory', 'story', ['src/world/housestagestory.js']], // the glow, the seasons' surprises, the sound and the air: the walk's ambient side, out of the landing
   ] },
   { id: 'reef', label: 'reef stages   ', stageCeiling: 65, totalCeiling: 150, stages: [
     ['reeflab', 'lab', ['src/world/reefstagelab.js']],
@@ -100,10 +102,19 @@ export const STAGED_AREAS = Object.freeze([
     ['reefride', 'ride', ['src/world/reefstageride.js']],
     ['reefstory', 'story', ['src/world/reefstagestory.js']], // Marlo, the errand, the light, the critters and the guide: the walk's life side, out of the landing
   ] },
+  { id: 'market', label: 'market stages  ', stageCeiling: 80, totalCeiling: 150, stages: [
+    ['marketlive', 'live', ['src/marketlive.js']], // the stallholders' sneak game: out of the landing (the loader awaits it with the landing, marketstages.js)
+    ['marketstory', 'story', ['src/world/marketstagelife.js']], // the square's life: apples, petals, musician, sounds, errands, seasons, creatures
+  ] },
+  { id: 'fair', label: 'fair stages    ', stageCeiling: 80, totalCeiling: 150, stages: [
+    ['fairlive', 'live', ['src/fairlive.js']], // the rides' clock, the crowd and the beauty pass's small life: out of the landing (fairstages.js)
+    ['fairshow', 'show', ['src/fairshow.js']], // the games, the visitors and the stall show
+  ] },
   { id: 'crystal', label: 'crystal stages ', stageCeiling: 65, totalCeiling: 120, stages: [
     ['crystalwingc', 'wingc', ['src/world/crystalstagewingc.js']],
     ['crystalplay', 'play', ['src/world/crystalstageplay.js']],
     ['crystaldeep', 'deep', ['src/world/crystalstagedeep.js']], // the second story (the Echo Deep): empty until C1 to C7
+    ['crystalstory', 'story', ['src/world/crystalstagestory.js']], // the cave's life side (alive creatures, cave life, Lumi's errand): out of the landing
   ] },
   { id: 'treehouse', label: 'treehouse     ', stageCeiling: 65, totalCeiling: 150, stages: [
     ['treehousebranches', 'branches', ['src/world/treehousestagebranches.js']],

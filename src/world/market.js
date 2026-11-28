@@ -7,7 +7,8 @@ import { withLocalUuids } from './localuuids.js';
 import { hash01 } from './warehouselook.js';
 import { createMarketParts, marketMaterials, addFlutter, atlasCell, frontCell, buildTreatMesh, createCobbleTexture, bloomGeometry, BLOOMS, ATLAS_W, ATLAS_H } from './marketparts.js';
 import { buildAppleCrate, buildYarnBasket, buildPullToy } from './marketfruit.js';
-import { createMarketLife } from './marketlife.js';
+import { ST, loadMarketStages } from './marketstages.js';
+import { LANTERN_MAX, LANTERN_DAY, WINDOW_GLOW, setMarketDusk } from './marketdusk.js';
 import { createReact, addSquareLife } from './marketreact.js';
 import { STORY_SIGN_CELLS, STORY_TAG_CELLS, createFlagTexture, flagU } from './marketdetail.js';
 import {
@@ -85,12 +86,14 @@ import {
 // NOTHING FADES but the four lamp posts: no mesh carries userData.window.
 // =============================================================================
 
+// Under vitest the stages load here, so every test that imports this file gets the whole square; the game's own loader awaits them (areas.js).
+// (The flag is undefined in a build, so this line and its top-level await are dropped.)
+if (import.meta.env?.VITEST) await loadMarketStages();
+
 export const MARKET_COBBLE = 0x8b8478; // the cobbles, and the ground bounce
 export const MARKET_SKY = Object.freeze({ top: 0x8ec4ea, horizon: 0xe8e0cc }); // a clear, warm morning
 export const MARKET_SKY_DUSK = Object.freeze({ top: 0x2a3358, horizon: 0xa86e62 });
-export const LANTERN_MAX = 1.6; // the lanterns' emissiveIntensity at full dusk
-export const LANTERN_DAY = 0.6; // and by day (beauty pass 2: a lit lantern's warm glow shows in the sun too, no real light)
-export const WINDOW_GLOW = 1.0; // the lit shop and house windows' at full dusk
+// LANTERN_MAX, LANTERN_DAY, WINDOW_GLOW and setMarketDusk live in marketdusk.js (a leaf, shared with the life stage) and are re-exported below
 const GROUND_SIZE = 96;
 // The cobbles (Task 6): tiled at 0.6 m, so a tile's four rows are 15 cm stones
 // (the shared tile's are 30 cm, which read as big even tiles at a cat's height),
@@ -382,17 +385,7 @@ function scallopValance(sx, z, yTop, h, n = 8, SEG = 4) {
 // displays, crates stacked) and the baskets of produce are put away. The
 // treats stay. Idempotent.
 // ---------------------------------------------------------------------------
-export function setMarketDusk(area, k) {
-  const t = Math.min(1, Math.max(0, Number.isFinite(k) ? k : 0));
-  const look = area?.look;
-  if (!look) return;
-  look.lantern.emissiveIntensity = LANTERN_DAY + (LANTERN_MAX - LANTERN_DAY) * t;
-  look.windows.emissiveIntensity = WINDOW_GLOW * t;
-  const packed = t > 0.5;
-  look.packing.visible = packed;
-  look.baskets.visible = !packed;
-  look.level = t;
-}
+export { LANTERN_MAX, LANTERN_DAY, WINDOW_GLOW, setMarketDusk };
 
 // The record's `life` (walk.js: areaData.life(ctx), ctx.dusk the walk's
 // evening look) is world/marketlife.js's createMarketLife: it sets the
@@ -586,7 +579,7 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       // beauty pass 3: the shared uniforms of the square's reactions (marketreact.js), the life's to drive
       react,
     };
-    record.life = (ctx) => createMarketLife(record, ctx);
+    record.life = (ctx) => ST.life.createMarketLife(record, ctx);
     return record;
   });
 }
