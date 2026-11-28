@@ -38,6 +38,13 @@ export const LINES = Object.freeze({
   'coop.groomed': (a, b) => `${a} and ${b} groom each other 🫧`,
   'coop.tagstart': (by, other) => `${by} tagged ${other}! Pounce back! 🐾`,
   'coop.tagdone': (a, b) => `${a} and ${b} play tag! 🏃`,
+  'coop.seat.rover.in': 'hop in Dot', // cat two's seat in Dot (src/coop/seatmoon.js); the pad glyph is put in front by the couch walk
+  'coop.seat.rover.out': 'hop out',
+  'coop.seat.seal.on': 'ride the seal', // cat two on a swimming seal (src/coop/seatreef.js)
+  'coop.seat.seal.off': 'hop off the seal',
+  'coop.seat.seal.tip': 'Hold on tight!',
+  'coop.seat.seal.end': 'Wheee! That was a splashy ride!',
+  'coop.seat.seal.find': 'You rode a seal! It paddled you round the reef.',
   'coop.fightstart': (name, other) => `${name} takes the fight, and ${other} sits and cheers!`,
 });
 

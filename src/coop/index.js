@@ -20,9 +20,10 @@ import { createMarkers } from './markers.js';
 import { bandFactor, createFollow, edgeMarker, createToastQueue, FOLLOW_STOP } from './rules.js';
 import { createCoopHud } from './hud.js';
 import { createCards } from './cards.js';
-import { createFinds } from './finds.js';
+import { createFinds, padText } from './finds.js';
 import { createFights } from './fights.js';
 import { createRides } from './rides.js';
+const SEAT_AREAS = new Set(['moon', 'reef']); // the places with a seat for cat two (src/coop/seats.js)
 import { createGroom, createTag, GROOM_CALM_S, GROOM_NEAR } from './verbs.js';
 import { bus } from '../events.js';
 import { pickSecond, profileOf, createMover, SECOND_ID } from './second.js';
@@ -138,6 +139,9 @@ export function start(ctx) {
   const fights = createFights({ ctx }); // one fight at a time; the challenger's pad drives (src/coop/fights.js)
   let fightSaid = false; // the line for the fight on screen was said
   const groom = createGroom(), tagGame = createTag();
+  let seat = null; // cat two's way onto the place's own rides (src/coop/seats.js, lazy per place): { promptAt, interact, carry, release } or null
+  let areaOffer = false; // that seat's offer (hop in Dot, ride a seal) is on cat two's button now: its Square press goes to it
+  let carried = false; // an area (a seal, Dot's passenger seat) carries cat two this frame: its stick does not walk it
   const rides = createRides(); // cat two on the rides of the Fairground (src/coop/rides.js)
   const air = [false, false]; // each cat was in the air last frame (a landing beside the friend is a tag)
 
@@ -199,6 +203,8 @@ export function start(ctx) {
     const s = cur;
     release();
     if (finds && mover && s) finds.letGo(s, mover.body);
+    if (mover) seat?.release(mover.body, mover.player); // a seal or Dot's seat given back, nothing left held
+    seat = null; areaOffer = false; carried = false;
     rides.detach(s);
     fights.detach(); fightSaid = false;
     groom.cancel(); tagGame.reset(); air[0] = air[1] = false; own[0] = null;
@@ -237,6 +243,7 @@ export function start(ctx) {
     groom.cancel(); tagGame.reset(); air[0] = air[1] = false; own[0] = null;
     if (state.joined) { // its scene is being thrown away: nothing of the old walk is touched
       rides.detach(null);
+      seat = null; areaOffer = false; carried = false;
       finds = null; offBus?.(); offBus = null; own[1] = null;
       mover?.player.disable();
       mover = null; markers = null; tag = null; pick = null;
@@ -303,6 +310,8 @@ export function start(ctx) {
       offBus = bus.on('discovery', (e) => { if (finds && !finds.busy && isFind(e)) tally[0]++; });
     }
     rides.attach(s);
+    const SEATED = SEAT_AREAS.has(s.areaId) ? s : null; // a place with a seat for cat two: fetched now, in no solo walk
+    if (SEATED) import('./seats.js').then((m) => m.loadSeat(s.areaId, { life: s.areaLife, session: () => cur, log: ctx.log, progression: ctx.progression, say: (t) => ctx.toast?.(t) })).then((x) => { if (x && cur === SEATED && state.joined) seat = x; else x?.release(null, null); }).catch(() => {});
     fights.attach(s, { drawn: () => cur?.remotes?.list.find((e) => e.playerId === SECOND_ID)?.group, key: () => pick?.key, joined: () => state.joined && !!mover });
     cards?.hideTally(); tallyLeft = 0;
     idle = 0; level = ctx.player.cameraZoomLevel ?? 1; pull = 1;
@@ -344,13 +353,14 @@ export function start(ctx) {
   // X on cat two's pad: the walk's own finds (src/coop/finds.js), told in its own words.
   function interact() {
     if (!finds || !cur) return;
+    if (areaOffer && seat) { seat.interact(); return; } // the seat's own offer (a seal, Dot's seat): it hears the press
     const r = finds.interact(cur, mover, mover.body);
     if (r?.kind === 'sniff') ctx.toast?.(phrase(r.found ? 'coop.sniffed' : 'coop.nosniff'));
   }
 
   function hop() {
     if (mover && cur && rides.jump(cur, mover)) return; // a ride seat in reach: the jump boards it, hops on or gets off
-    if (clock < hopAt || !mover) return;
+    if (clock < hopAt || !mover || carried) return; // (carried: a seal or Dot's seat has it; the area's own press sets it down)
     if (mover.player.canFloat) return; // under the sea A is the kick (setKick), as for cat one: no pounce hop there
     hopAt = clock + HOP_COOLDOWN;
     mover.player.pounce(pounceArc(ctx.getState?.() ?? {}, { reducedMotion: !!cur.reducedMotion }));
@@ -363,7 +373,7 @@ export function start(ctx) {
     if (!s || !mover) return;
     const me = slot === 0 ? s.cat : mover.body;
     const friend = slot === 0 ? mover.body : s.cat;
-    if (slot === 1 && rides.busy) return; // on a ride she stays on it
+    if (slot === 1 && (rides.busy || carried)) return; // on a ride she stays on it
     if (s.traversal?.busy) return; // a crossing or a leap is cat one alone: a hop would land on the plank or in the yard under it
     let spot = null;
     for (const radius of [1.3, 2.2, 3.2, 4.4]) {
@@ -642,7 +652,7 @@ export function start(ctx) {
     }
     const near = !fights.showing && !groom.active && state.apart <= GROOM_NEAR && calm();
     own[0] = near && !s.prompt ? phrase('coop.groomhint', nameTwo()) : null; // cat one's own prompt wins
-    if (!finds) { own[1] = near ? phrase('coop.groomhint', nameOne()) : null; return; }
+    if (!finds) { areaOffer = false; own[1] = near ? phrase('coop.groomhint', nameOne()) : null; return; }
     hopT = Math.max(0, hopT - dt);
     const reveal = (PERSONALITIES[pick?.breed]?.special === 'keenNose' ? 14 : 7);
     for (const [id, m] of s.collectibleMeshes) { // a find lying near cat two shows, as it does near cat one
@@ -653,7 +663,10 @@ export function start(ctx) {
     finds.frame(dt, s, mover, body, hopT > 0 || mover.player.hopY > 0.01);
     const r = finds.reach(s, mover, body);
     const text = !r ? null : r.kind === 'collect' ? phrase('coop.pick', r.label) : r.kind === 'carry' ? phrase('coop.carry', r.label) : r.kind === 'drop' ? phrase('coop.drop', r.label) : r.kind === 'dig' ? phrase('coop.dig') : r.kind === 'farm' ? r.label : null;
-    own[1] = text ?? (near ? phrase('coop.groomhint', nameOne()) : null);
+    let area = null; // the seat's offer for cat two (src/coop/seats.js, through the per-cat arbiter): a find in reach comes first
+    if (!text && seat && !fights.showing) area = seat.promptAt(body.position);
+    areaOffer = !!area;
+    own[1] = text ?? (area ? padText(area) : null) ?? (near ? phrase('coop.groomhint', nameOne()) : null);
   };
 
   // After cat one's player.update: cat two's step, the leash, the picture of both.
@@ -665,8 +678,12 @@ export function start(ctx) {
     const cat = s.cat;
     const area = s.areaData;
     const fightAny = fights.on, fightTwo = fights.twoFights;
+    carried = false;
     if (fightTwo) ctx.player.halt?.(); // cat one watches: the fight is cat two's
-    else if (!rides.frame(dt, s, mover)) mover.player.update(dt, area.colliders, area.bounds, area.waters, s.fair?.show?.bumps ?? s.critters?.bumps);
+    else if (!rides.frame(dt, s, mover)) {
+      carried = !!seat?.carry(dt, mover.body, mover.player); // a seal or Dot carries it: the stick does not walk it
+      if (!carried) mover.player.update(dt, area.colliders, area.bounds, area.waters, s.fair?.show?.bumps ?? s.critters?.bumps);
+    }
     const body = mover.body;
     lens.fov = ctx.camera.fov;
     lens.aspect = ctx.camera.aspect;
@@ -682,7 +699,7 @@ export function start(ctx) {
     const split = !!splitNow;
     const limit = split ? 1e6 : tight ? Math.min(wide, Math.max(state.apart, 2)) : wide;
     state.leash = limit;
-    const ride = rides.busy || s.fair?.riding || s.fair?.hopping || s.traversal?.busy; // a ride runs or cat one is on a crossing: the ride or the move carries the cat, so no leash holds it
+    const ride = rides.busy || carried || s.fair?.riding || s.fair?.hopping || s.traversal?.busy; // a ride runs or cat one is on a crossing: the ride or the move carries the cat, so no leash holds it
     if (!fightAny && !ride) { // a fight puts the fighter where it stands and the other cat sits: no leash then
       stop(cat.position, prev.a, prev.b, limit);
       stop(body.position, prev.b, prev.a, limit);
@@ -710,13 +727,13 @@ export function start(ctx) {
     const gy = s.ground.y(body.position.x, body.position.z);
     const speed = mover.player.speed;
     if (fightAny && !fightTwo) idle = SIT_AT + 0.5; // cat two sits and cheers
-    else if (rides.busy || speed > 0.3 || mover.player.inputActive || mover.player.hopY > 0.01) idle = 0; else idle += dt;
+    else if (rides.busy || carried || speed > 0.3 || mover.player.inputActive || mover.player.hopY > 0.01) idle = 0; else idle += dt;
     msg.pos[0] = body.position.x; msg.pos[1] = body.position.z;
     msg.yaw = body.rotation.y;
     msg.speed = speed;
     msg.h = Math.max(0, body.position.y - gy) + mover.player.floatY; // the Reef's float rides the same height, as it does on the wire
     msg.seat = rides.seat?.rideId === 'slide' ? null : rides.seat?.id ?? null; // the slide is slid on the own clock of each device: drawn where she is
-    msg.pose = rides.busy ? 'perch' : mover.player.hopY > 0.01 ? 'pounce'
+    msg.pose = rides.busy || carried ? 'perch' : mover.player.hopY > 0.01 ? 'pounce'
       : speed > 0.3 ? (mover.player.stalking ? 'stalk' : 'follow')
         : idle > NAP_AT ? 'nap' : idle > SIT_AT ? 'requestPet' : idle > GROOM_AT ? 'groom' : 'follow';
     if (fightTwo) { // the fight's pose, lift and pace, on cat two's picture
