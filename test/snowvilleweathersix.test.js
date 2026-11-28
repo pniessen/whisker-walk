@@ -53,10 +53,10 @@ describe('snowville beauty pass 6: weather and atmosphere as events', () => {
     const w = W.createWeather({ scene, sun, audio, now: at(13) }); w.state.next = 1e9;
     const c = cam(); const p = { x: -2, y: 0, z: 12 };
     expect(w.trigger('blizzard')).toBe(true);
-    let t = 10; let clinks = 0; for (let i = 0; i < 900; i++) { t += 0.1; w.update(0.1, t, p, c); if (i === 300) { expect(lit(named(scene, 'snowville:weather'))).toBeGreaterThan(200); expect(scene.fog.near).toBeGreaterThan(8); expect(w.glow).toBeGreaterThan(1.5); } }
+    let t = 10; let clinks = 0; for (let i = 0; i < 900; i++) { t += 0.1; ac.currentTime = t; w.update(0.1, t, p, c); if (i === 300) { expect(lit(named(scene, 'snowville:weather'))).toBeGreaterThan(200); expect(scene.fog.near).toBeGreaterThan(8); expect(w.glow).toBeGreaterThan(1.5); } }
     clinks = osc.length; expect(clinks).toBeGreaterThan(0); expect(w.state.kind).toBe(null); expect(scene.fog.far).toBe(120);
     expect(w.trigger('hush')).toBe(true); let low = 1; let bell = 0;
-    for (let i = 0; i < 300; i++) { t += 0.1; w.update(0.1, t, p, c); low = Math.min(low, gain.value); if (i === 200) bell = osc.length; }
+    for (let i = 0; i < 300; i++) { t += 0.1; ac.currentTime = t; w.update(0.1, t, p, c); low = Math.min(low, gain.value); if (i === 200) bell = osc.length; }
     expect(low).toBeLessThan(0.4); expect(bell - clinks).toBeGreaterThanOrEqual(3); // (the bell's three partials)
     for (let i = 0; i < 400; i++) { t += 0.1; w.update(0.1, t, p, c); }
     expect(gain.value).toBeCloseTo(0.8, 5); expect(w.state.last).toBe('hush');

@@ -86,7 +86,7 @@ const _fw = new THREE.Vector3();
 
 // createSnowvilleLight({ scene, tier, reducedMotion }) -> { flakes, glints, light, cold, update(dt, t, catPos, camera, session), dispose() }
 export function createSnowvilleLight({ scene, tier = null, reducedMotion = false, audio = null, season = null, sun = null, fill = null, now = null, force = false }) {
-  const { createWonder, createLiving, createWeather, createVista, createReactions, createFestival, createAlive, waveAt, chase, glowNear, SHARED } = ST.story;
+  const { createWonder, createLiving, createWeather, createVista, createReactions, createFestival, createCoherence, createAlive, waveAt, chase, glowNear, SHARED } = ST.story;
   const low = isLowTier(tier);
   const nFlakes = reducedMotion ? P.FLAKES.reduced : low ? P.FLAKES.low : P.FLAKES.count;
 
@@ -170,6 +170,7 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
 
   const alive = createAlive({ scene, tier, reducedMotion, audio, low });
   const wonder = createWonder({ scene, tier, reducedMotion, audio, low, season }); // beauty pass 4: the season's tint, thaw drips, and the rare surprises
+  const coherence = createCoherence({ weather, vista, rx, festival, wonder, halos: [smallL.pts, bigL.pts] }); // beauty pass 10: one glow budget, one event rule
   weather.state.skipThaw = !!wonder.look.drips; // (the thaw season already has its own drips and puddles)
   const light = scene.getObjectByName('snowville:light') ?? null;
   const cheeks = createCheeks();
@@ -211,6 +212,7 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
       festival.step(dt, t, catPos ?? { x: cx, y: P.snowY(cx, cz), z: cz });
       vista.update(dt, t, catPos, _camera, session); // (after the weather: it sets the fog and the fill each frame, the vista's grade goes on top)
       wonder.update(dt, t, catPos, _camera);
+      coherence.apply(t);
       if (weather.night > 0.8 && !wonder.state.kind && t >= auroraAt) { auroraAt = t + 200; wonder.trigger('aurora'); } // a clear night: the aurora of pass 4 every few minutes
       bigL.pts.material.size = HALO.big * weather.halo * (1 + 0.8 * rx.pulse(t)); smallL.pts.material.size = HALO.bulb * (1 + 0.5 * (weather.halo - 1));
       flakes.material.color.setRGB(0.9 + 0.1 * SHARED.hour, 0.94 + 0.06 * SHARED.hour, 1 - 0.06 * SHARED.hour); // the blue hour's flakes are a touch cooler
