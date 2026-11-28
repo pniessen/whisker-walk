@@ -20,7 +20,9 @@ import { callNote, patterNote, croakNote } from './junglecritters.js';
 import { topHalf, tri3, seasonOf, SEASON, surpriseAt, bloomAt, bloomRamp, bloomSpots, spiralAt } from './junglebeauty4.js';
 import { B5, SLOTH_REST, creaturePlan, createCreatures, snakeIndex, snakeHex, gazeAt, zoneWeights, easeWeights, zoneColor, arrivalDue, bloomLight, chimeNote, createBeds, WIND } from './junglebeauty5.js';
 import { weatherPoints, weatherAt, eventsAt, swayBoost, gradeWeather, clothTint, shaftBoost, shaftTint, thunderDue, MIST_FAST, MIST_MORE } from './junglebeauty6.js';
-import { vistaAt, easeVista, goldenStep, newGolden, vistaPoints, vistaPoint, gradeVista, vistaCloth, vistaShaft } from './junglebeauty7.js';
+import { vistaAt, easeVista, goldenStep, newGolden, vistaPoints, vistaPoint, gradeVista, vistaCloth, vistaShaft, VISTAS } from './junglebeauty7.js';
+import { createReactions, inCamZone } from './junglebeauty8.js';
+import { bus } from '../events.js';
 import { dayAt, brush, brushOffset, createPool, REACT, RIPPLE, PETALS, DAY } from './junglereact.js';
 const SURPRISE_DUR = { spiral: 15, monkeys: 10 };
 
@@ -73,7 +75,9 @@ export function beauty2Plan() {
     const x = near ? -14 + rng() * 22 : B.minX + 4 + rng() * (B.maxX - B.minX - 8);
     const z = near ? 20 + rng() * 14 : B.minZ + 4 + rng() * (B.maxZ - B.minZ - 8);
     if (!free(x, z, 0.9) || leaves.some((o) => Math.hypot(o.x - x, o.z - z) < 2.2)) continue;
-    leaves.push({ x, z, yaw: rng() * TAU, len: 1.2 + rng() * 0.7, wide: 0.34 + rng() * 0.16, tone: Math.floor(rng() * PALMS.length), ph: rng() * TAU, w: 0.8 + rng() * 0.7, amp: 0.1 + rng() * 0.1 });
+    const lf = { x, z, yaw: rng() * TAU, len: 1.2 + rng() * 0.7, wide: 0.34 + rng() * 0.16, tone: Math.floor(rng() * PALMS.length), ph: rng() * TAU, w: 0.8 + rng() * 0.7, amp: 0.1 + rng() * 0.1 };
+    if (VISTAS.some((V) => inCamZone(x, z, V))) { lf.len *= 0.55; lf.wide *= 0.6; if (lf.tone === 0 || lf.tone === 3) lf.tone = 2; } // pass 8: no big lime leaf at the lens of a vista
+    leaves.push(lf);
   }
   const shrubs = [];
   for (let tries = 0; shrubs.length < B2.shrubs && tries++ < 4000;) {
@@ -411,6 +415,9 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
   crit.points().forEach((p) => pts.push(p));
   (rung === 'lite' ? [2.6] : [5, 2.6, 1.2]).forEach((size, k) => pts.push({ kind: 'lbloom', k, size, rgb: [0.5, 0.95, 0.8] }));
   vistaPoints(rung).forEach((p) => pts.push(p)); // pass 7: the five vistas' haze bands, focal glow and golden-moment sparkle: more points of the same mesh
+  const rx = createReactions({ rung, motion: !reducedMotion, ground: P.jungleY, sloth: crit.sloth, voice: { call: (k) => callNote(audio, k), croak: (k) => croakNote(audio, k), chime: (k, v) => chimeNote(audio, k, v) }, targets: [...plan.mushrooms.map((m) => ({ x: m.x, z: m.z, y: P.jungleY(m.x, m.z) + 0.3 })), ...plan.shrubs.map((m) => ({ x: m.x, z: m.z, y: P.jungleY(m.x, m.z) + 0.9 }))] });
+  rx.points().forEach((p) => pts.push(p)); // pass 8: the jungle answers her voice and moves (pooled points)
+  const offRx = [bus.on('tip:did', (e) => { if (e && e.id === 'call') rx.meow(); }), bus.on('pounce:land', () => rx.land())];
   weatherPoints(rung).forEach((p) => pts.push(p)); // pass 6: weather as events (rain, steam, dawn mist, golden hour, gust): more points of the same mesh
   const nP = pts.length;
   const mPos = new Float32Array(nP * 3); const mCol = new Float32Array(nP * 3); const mSize = Float32Array.from(pts, (p) => p.size);
@@ -519,6 +526,8 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
         weatherAt(p, t, ev, catAt, _cr); x = _cr.x; y = _cr.y; z = _cr.z; g = _cr.g; mSize[i] = _cr.size;
       } else if (p.kind === 'vs') {
         vistaPoint(p, t, vst, gold.k, catAt, Math.min(1, rain), _cr); x = _cr.x; y = _cr.y; z = _cr.z; g = _cr.g; mSize[i] = _cr.size;
+      } else if (p.kind === 'rx') {
+        rx.at(p.i, t, _cr); mSize[i] = _cr.size; mCol[i * 3] = _cr.rgb[0] * _cr.g; mCol[i * 3 + 1] = _cr.rgb[1] * _cr.g; mCol[i * 3 + 2] = _cr.rgb[2] * _cr.g; mPos[i * 3] = _cr.x; mPos[i * 3 + 1] = _cr.y; mPos[i * 3 + 2] = _cr.z; continue;
       } else if (p.kind === 'night') {
         const o = bloomNow(t); const sm = o * o * (3 - 2 * o); const s = p.s;
         x = s.x; z = s.z; y = s.y + 0.25 + 0.15 * sm; g = sm * (p.halo ? 0.3 : 0.85 + 0.15 * Math.sin(t * 2.1 + p.i)); mSize[i] = p.size * (0.15 + 0.85 * sm);
@@ -587,7 +596,7 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
     pool, react, season: SE,
     crit, zones: zw, beds, lbloom,
     trigger(kind, t) { if (kind === 'arrival' || kind === 'river') { forcedArrival = kind; return; } forced[kind] = t; if (kind === 'monkeys') nextMonkey = t; },
-    update(dt, t, catPos, rain = 0, camera = null) {
+    update(dt, t, catPos, rain = 0, camera = null, session = null) {
       const day = dayAt(t);
       // pass 5: where she stands sets the colour story and the sound beds; the weights ease so nothing jumps
       if (catPos) { zoneWeights(catPos.x, catPos.z, zt); if (!zInit) { Object.assign(zw, zt); zInit = true; } else easeWeights(zw, zt, dt); }
@@ -602,6 +611,7 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
         if (su && su.kind === 'monkeys' && t >= nextMonkey) { (monkeys % 2 ? croakNote : callNote)(audio, 200 + monkeys * 5); monkeys++; nextMonkey = t + 0.3 + 0.55 * hash(monkeys * 3 + 1); } // a chorus of distant monkeys, calling back and forth
         if (day.noon > 0.3 && t >= nextWind) { patterNote(audio, 0.3 + 0.5 * gustAt(t), 1); winds++; nextWind = t + 3.5 + 3 * hash(winds * 5 + 1); }
       }
+      if (camera) camera.getWorldDirection(_fwd); rx.step(dt, t, catPos, session, Math.min(1, rain), camera ? _fwd : null); // pass 8: her voice and moves, answered (the sounds even under reduced motion)
       if (reducedMotion) return;
       // her: how fast she goes (to know a stroll from a stand), the foliage she brushes, the river she wades, the flowers she touches
       const moving = !!(catPos && last) && dt > 0 && Math.hypot(catPos.x - last.x, catPos.z - last.z) / dt > 0.6;
@@ -637,7 +647,7 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
     dispose() {
       if (base.sunC) { sun.color.copy(base.sunC); sun.intensity = base.sunI; } if (fill && base.fillI) { fill.color.copy(base.fillC); fill.intensity = base.fillI; } if (base.env !== null) { scene.environmentIntensity = base.env; scene.backgroundIntensity = 1; }
       if (fog && orig.fogC) { fog.color.copy(orig.fogC); fog.near = orig.near; fog.far = orig.far; }
-      beds.dispose(); scene.remove(sway, motes); geo.dispose(); sway.material.dispose(); mGeo.dispose(); mMat.dispose();
+      offRx.forEach((f) => f()); beds.dispose(); scene.remove(sway, motes); geo.dispose(); sway.material.dispose(); mGeo.dispose(); mMat.dispose();
       if (shafts) { scene.remove(shafts); shafts.geometry.dispose(); shafts.material.dispose(); }
     },
   };
