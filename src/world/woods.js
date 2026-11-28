@@ -4,7 +4,6 @@ import * as b from './builder.js';
 import { addTrails } from './pathribbon.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
-import { sureClawsTreePerch } from '../climbing.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { segDist } from '../segdist.js';
 import { GOLD_MICE } from '../goldmice.js';
@@ -822,7 +821,6 @@ export function build(scene, { water = {}, wind } = {}) {
     scene.add(t);
     scatterTrees.push(t);
     addC(x, z, r2(0.5 * scale));
-    perches.push(sureClawsTreePerch(x, z, scale));
   }
 
   // --- the fallen log -----------------------------------------------------------
