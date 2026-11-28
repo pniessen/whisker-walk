@@ -71,7 +71,7 @@ describe('the life', () => {
     for (let t = 0; t < 400; t += 0.7) { expect(B.gustAt(t)).toBeGreaterThanOrEqual(0); expect(B.gustAt(t)).toBeLessThanOrEqual(1); }
   });
   it('fades the motes in rain', () => {
-    const a = mk(); const sum = () => a.motes.geometry.attributes.color.array.reduce((s, v) => s + v, 0);
+    const a = mk(); const sum = () => Array.from(a.motes.geometry.attributes.color.array).slice(0, -138 * 3).reduce((s, v) => s + v, 0); // pass 6's weather points (the last 138) light up in rain, on purpose
     a.update(1 / 30, 3, { x: 0, z: 0 }, 0, null); const dry = sum(); a.update(1 / 30, 3, { x: 0, z: 0 }, 1, null);
     expect(sum()).toBeLessThan(dry);
   });
