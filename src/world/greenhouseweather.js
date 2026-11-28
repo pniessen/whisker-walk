@@ -42,7 +42,7 @@ export function eventsAt(clock, { rain = 0, dusk = false, day = { morning: 0, wa
   return { rain, sun, haze, glow, wind: Math.max(0, wind), cosy: Math.max(rain * 0.45, glow * 0.5) };
 }
 
-function dotSprite() {
+export function dotSprite() {
   const c = document.createElement('canvas');
   c.width = c.height = 32;
   const x = c.getContext('2d'), g = x.createRadialGradient(16, 16, 0, 16, 16, 16);
@@ -55,12 +55,16 @@ function dotSprite() {
 
 export function createWeatherFx({ scene, reducedMotion = false, lite = false, dusk = false, day = { morning: 0, warm: 0 }, force = null } = {}) {
   const POL = lite ? 8 : 18, FF = lite ? 5 : 11, N = POL + FF;
-  const pos = new Float32Array(N * 3), col = new Float32Array(N * 4);
+  const pos = new Float32Array(N * 3), col = new Float32Array(N * 4), size = new Float32Array(N);
+  for (let i = 0; i < N; i++) size[i] = i < POL ? 0.7 : 1.8; // beauty pass 7: pollen small and gold, fireflies big enough to read from the camera behind her
   const geo = new THREE.BufferGeometry();
+  geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(col, 4));
   const sprite = dotSprite();
   const mat = new THREE.PointsMaterial({ size: 0.36, map: sprite, vertexColors: true, transparent: true, depthWrite: false, fog: false, sizeAttenuation: true });
+  mat.onBeforeCompile = (sh) => { sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aSize;').replace('gl_PointSize = size;', 'gl_PointSize = size * aSize;'); };
+  mat.customProgramCacheKey = () => 'greenhouse-weather-v2';
   const points = new THREE.Points(geo, mat);
   points.name = 'greenhouse:weather';
   points.frustumCulled = false;
@@ -78,12 +82,12 @@ export function createWeatherFx({ scene, reducedMotion = false, lite = false, du
     for (let i = 0; i < POL; i++) { // pollen: slow loops round the sun shafts, warm gold
       const [sx, sz] = SHAFT_SPOTS[i % SHAFT_SPOTS.length], h = hash01(i, 3, SALT), a = rm * t * (0.12 + 0.1 * h) + h * 6.3;
       pos.set([sx + 2.6 * Math.sin(a) * (0.5 + h), 0.5 + 2.2 * ((h * 7 + rm * t * 0.05) % 1), sz + 2.6 * Math.cos(a * 0.8) * (0.5 + h)], i * 3);
-      col.set([1, 0.86, 0.3, s * (0.8 + 0.2 * Math.sin(rm * t * 1.3 + h * 20) ** 2)], i * 4);
+      col.set([1, 0.62, 0.1, s * (0.8 + 0.2 * Math.sin(rm * t * 1.3 + h * 20) ** 2)], i * 4);
     }
     for (let j = 0; j < FF; j++) { // fireflies: drifting in through the hall, blinking
       const h = hash01(j, 4, SALT), a = rm * t * 0.25 + h * 6.3, i = POL + j;
-      pos.set([cx - 5 + 10 * h + 1.4 * Math.sin(a), 0.6 + 1.5 * hash01(j, 5, SALT) + 0.3 * Math.sin(a * 1.7), cz - 6.5 + 7 * hash01(j, 6, SALT) + 1.4 * Math.cos(a * 0.9)], i * 3); // round her, ahead and to the sides
-      col.set([0.95, 1, 0.5, g * (reducedMotion ? 0.8 : 0.25 + 0.75 * Math.max(0, Math.sin(t * 1.2 + h * 20)) ** 2)], i * 4);
+      pos.set([cx - 4 + 8 * h + 1.0 * Math.sin(a), 0.5 + 1.2 * hash01(j, 5, SALT) + 0.3 * Math.sin(a * 1.7), cz - 5 + 5.5 * hash01(j, 6, SALT) + 1.0 * Math.cos(a * 0.9)], i * 3); // round her, ahead and to the sides (closer in since pass 7: a row she can see)
+      col.set([0.62, 0.9, 0.18, g * (reducedMotion ? 0.9 : 0.4 + 0.6 * Math.max(0, Math.sin(t * 1.2 + h * 20)) ** 2)], i * 4);
     }
   }
 

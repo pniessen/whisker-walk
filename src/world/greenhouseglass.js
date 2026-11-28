@@ -25,7 +25,7 @@ export const COL = Object.freeze({
 // Frosted: 0.32 on the walls, 0.34 on the roof (the owner's 25 to 35 percent), a wetter edge in the lowest 0.4 m
 // that stays inside the band.
 // Beauty pass 4: the glass is drawn from both sides since pass 3, so the hall read milky; each layer is thinner now (0.21 / 0.23: about 0.38 seen through two).
-export const GLASS_ALPHA = Object.freeze({ wall: 0.21, roof: 0.23, wet: 0.01 });
+export const GLASS_ALPHA = Object.freeze({ wall: 0.2, roof: 0.22, wet: 0.01 });
 const ARC_SEGMENTS = 12;
 const RIB_X = [-14, -12, -10, -8, -6, -4, -1.5, 1.5, 4, 6, 8, 10, 12, 14]; // 14 ribs; the middle bay is the door's
 
@@ -307,7 +307,7 @@ ${runnels ? `    vec2 col = vec2(floor(q.x / 0.7), 0.0);
         streak = (1.0 - smoothstep(0.02, 0.045, abs(q.x - rx))) * (1.0 - rt) * step(rhead, q.y) * step(q.y, rhead + 1.4) + (1.0 - smoothstep(0.04, 0.07, length(vec2(q.x - rx, (q.y - rhead) * 0.8))));
       }
     }
-    float fogNear = uCat.w * (1.0 - smoothstep(2.5, 9.0, distance(vCondW.xz, uCat.xy))) * (0.75 + 0.25 * sin(q.x * 2.7 + q.y * 1.9 + uCondTime * 0.35)) * (0.5 + 0.5 * smoothstep(3.6, 0.3, vCondW.y));
+    float fogNear = uCat.w * (1.0 - smoothstep(2.0, 6.5, distance(vCondW.xz, uCat.xy))) * (0.75 + 0.25 * sin(q.x * 2.7 + q.y * 1.9 + uCondTime * 0.35)) * (0.5 + 0.5 * smoothstep(3.6, 0.3, vCondW.y));
     // beauty pass 4 (winter): frost creeps in from every pane edge (a 2 m grid, ragged) and up from the sill
     float fq = fract(q.x * 0.5), fe = min(fq, 1.0 - fq);
     float frost = uFrost * clamp((1.0 - smoothstep(0.0, 0.1 + 0.2 * cH(floor(q * 3.0)), fe)) + 0.9 * (1.0 - smoothstep(0.3, 1.4, vCondW.y)) * (0.5 + 0.5 * cH(floor(q * 6.0))), 0.0, 1.0) * (0.65 + 0.35 * cH(floor(q * 11.0)));
@@ -317,14 +317,14 @@ ${runnels ? `    vec2 col = vec2(floor(q.x / 0.7), 0.0);
     float sheen = pow(max(0.0, sin(vCondW.x * 0.55 + vCondW.y * 0.42 + vCondW.z * 0.2 - uCondTime * 0.32)), 18.0) * fade;
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 1.0, 0.96), 0.55 * cov + 0.3 * lit * tw * fade);
     diffuseColor.rgb += vec3(0.5, 0.55, 0.42) * sheen * 0.35;
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.97, 0.94), 0.55 * fogNear * fade);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.97, 0.94), 0.4 * fogNear * fade);
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.97, 1.0), 0.85 * frost * fade);
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.62, 0.7, 0.72), 0.22 * uRain * fade); // rain: the panes go a little grey
-    diffuseColor.a = min(1.0, diffuseColor.a + 0.34 * cov + 0.1 * sheen + 0.4 * fogNear * fade + 0.5 * frost * fade + 0.25 * streak * fade + 0.14 * uRain * fade);
+    diffuseColor.a = min(1.0, diffuseColor.a + 0.34 * cov + 0.1 * sheen + 0.26 * fogNear * fade + 0.5 * frost * fade + 0.25 * streak * fade + 0.14 * uRain * fade);
   }
 }`);
   };
-  material.customProgramCacheKey = () => `greenhouse-condensation-${runnels ? 'r' : 'b'}-v5`;
+  material.customProgramCacheKey = () => `greenhouse-condensation-${runnels ? 'r' : 'b'}-v6`;
   return material;
 }
 
