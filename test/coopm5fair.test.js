@@ -230,20 +230,24 @@ describe('couch play M5(e): getting off, follow, save', () => {
     expect(w.live.riding).toBeTruthy();
   });
 
-  it('cat two\'s rides write no ride event, no key and no save: only cat one\'s own boarding says so', () => {
+  it('cat two\'s rides write no ride event of their own; the household journal counts the ride once (S5b), and cat one\'s own boarding adds no second count', () => {
     const sim0 = createFairLive(world, area, { now: () => 3000 }).sim;
     const at = ring(sim0.mgr.cx, sim0.mgr.cz, sim0.mgr.baseR, 0.3);
     const w = fairWalk(at);
     w.putTwo(at.x + 0.3, at.z + 0.5);
     w.tick(2);
-    const before = JSON.stringify(w.r.progression.state);
+    const rest = (st) => JSON.stringify({ ...st, journal: {} }); // a ride's journal page is the household's (S5b)
+    const before = rest(w.r.progression.state);
+    const pages = () => Object.values(w.r.progression.state.journal).reduce((a, n) => a + n, 0);
     w.press(); w.press(); w.tick(30); // cat two alone: deck, horse
     expect(w.r.two().seatId).toBeTruthy();
     expect(events.filter((e) => e.type === 'ride')).toEqual([]);
-    expect(JSON.stringify(w.r.progression.state)).toBe(before);
-    // the own boarding of cat one still says its event, exactly once
+    expect(rest(w.r.progression.state)).toBe(before);
+    expect(pages()).toBe(1);
+    // the own boarding of cat one still says its event, exactly once, and the walk's log keeps the page from counting twice
     w.one(); w.tick(3);
     expect(events.filter((e) => e.type === 'ride').length).toBe(1);
+    expect(pages()).toBe(1);
   });
 
   it('cat two leaves the walk while seated: her seat is not held for her, and nothing of her stays in the scene', () => {

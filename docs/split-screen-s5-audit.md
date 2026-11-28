@@ -54,3 +54,30 @@ Remaining: everything marked M or L above. Template for the rest: path rides (sl
 ## Numbers
 
 Start-up 678.4 kB gzipped, the same as `split-s4` (0 change); coop chunk 20.9 kB (ceiling 25); Moon stage A 64.5, Reef stage A 65.0 (both unchanged or lower); `npm run test:pins` 920/920; coop*, reef*, moonrover*, lazybuild and the new tests 1116/1116.
+
+## S5b status per row (branch `split-s5b`, 2026-11-28)
+
+Three coop-side pieces, all lazy, no place file touched (every pinned chunk is unchanged): `src/coop/seatlend.js` (cat two is lent the place's own life for one asking at a time: `life.promptAt(pos2)` then `life.interact()`, each followed by an asking at cat one's position so her button slot is put back; the one-shot state lives in the life, so the second cat finds it done and awards stay keyed), `src/coop/seatpillion.js` (cat two hops on behind cat one on a path ride she is on: carried at her seat record, set down beside her the frame her ride ends or changes, on its own press, or when the walk or place changes; the ride's paws stay cat one's single award), and the Fairground credit in `src/coop/rides.js` (the same `ride` / `boat-lap` events cat one's ride sends, through `handleFairEvent`, keyed by the walk's log). `src/coop/seats.js` rows are now lists (a place can have several seat files). While cat one is on a ride (`session.fair.riding`) the lend offers cat two nothing, because the lives' first source is cat one's "Hop off".
+
+| # | Status | Notes |
+|---|---|---|
+| 1 Fair rides | **done** | journal page counted once per walk (log key) and the Viking boat swing pays through `noteBoatLap` (capped 2 a walk, keyed). A swing both cats ride is paid by cat one's event only. Tests: `coopseatsmore`, `coopm5fair`, `coopm5gaps` (updated: they asserted "no save"; now only the journal page moves). |
+| 2 Moon Dot | passenger seat done (S5a); **cat two driving deferred** (large: per-cat input in the rover sim) |
+| 3 Moon sled | **done** (pillion, id `moon-sled`; not exercised on the real sled) |
+| 4 Moon missions | **deferred**: the Moon arbiter's first sources are the rover's "riding" source and cat one's stage hooks; a lend there needs a guard on `rover.riding` and a real-life test; Moon A is pinned at 64.5 of 65 so the fix cannot go in the place |
+| 5 Reef seal | done (S5a) |
+| 6 Reef mounts | **deferred** (large) |
+| 7 Reef story | **deferred**: the Reef's first source is cat one's seal "Hop off" and swimming states; needs a guard on `sealRide.state.seal` and a test on the real Reef; Reef A is at 65.0 of 65 |
+| 8 Crystal boat, cart | **done** (pillion) |
+| 9 Crystal story/jobs | **done** (lend). Not run against a real Crystal life: only Greenhouse and Lighthouse have headless tests of the lend |
+| 10 Snowville sled, skis, snowmobile | **done** (pillion; cat two rides behind, not steering) |
+| 11 Snowville story/jobs | **done** (lend, same caveat as 9) |
+| 12 Jungle | **done** (lend, same caveat) |
+| 13 Treehouse | **done** (lend for Nutmeg, errand, wing); the lift stage is not built |
+| 16 Lighthouse | **done** (lend; tested: the kitten is found once) |
+| 17 Greenhouse | **done** (lend; tested: the can is taken once, cat one's slot restored) |
+| 19 Any-walk one-offs through `s.prompt` | **deferred**: a per-cat `s.prompt` slot is a change in `game/interactions.js` (start-up) |
+| 20 Roofs | **deferred** |
+| 14, 15, 18, 21 | none needed |
+
+What needs the owner: nothing blocking. A real two-pad walk through each lent place (Crystal Lumi, Snowville Tilly, Jungle Mossy, Treehouse Nutmeg) and one pillion ride per place is the check worth doing on a device; the headless tests cover the mechanism, not each place's wording on the pad glyph.

@@ -26,8 +26,8 @@ describe('the registry', () => {
     const { SEAL } = await import('../src/coop/seatreef.js');
     expect(SEAL).toEqual({ reach: SEAL_RIDE.reach, seconds: SEAL_RIDE.seconds, seatUp: SEAL_RIDE.seatUp, journalKey: SEAL_RIDE.journalKey, journalPage: SEAL_RIDE.journalPage });
   });
-  it('has a row for the Moon and the Reef only; a place with no row has no seat for cat two', async () => {
-    expect(Object.keys(SEATS).sort()).toEqual(['moon', 'reef']);
+  it('has rows for the places with a seat for cat two only; a place with no row has none', async () => {
+    expect(Object.keys(SEATS).sort()).toEqual(['crystal', 'greenhouse', 'jungle', 'lighthouse', 'moon', 'reef', 'snowville', 'treehouse']);
     expect(await loadSeat('farm', {})).toBeNull();
   });
 });

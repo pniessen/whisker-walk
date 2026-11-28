@@ -6,7 +6,9 @@
 // so two cats are two riders of one ride, never one seat. She sits where the
 // seat is and is drawn there (remotecats.js seat ids), is put down the way the
 // rides put cat one down (dismountSpot, the same hop), and nothing here writes
-// the save, the discovery log or a ride event: a ride is for cat one to earn.
+// the save, the discovery log or a ride event of its own: what a ride gives is the HOUSEHOLD's, so the walk hands in a `credit` ({ ride(id), lap() }, S5b) that sends the same
+// events cat one's ride sends (game/fairplay.js): the journal page and the boat's paws are keyed by the walk's discovery log, so two cats on one ride or one after the other count once,
+// and a boat swing both cats are on is paid by cat one's own event, never twice.
 const SLACK = 0.6; // metres a jump reaches past a ride from outside it (fairsim.js RIDE.JUMP_SLACK)
 const REACH_STAIR = 2.6; // metres across, from the ground or a landing to the next landing of the helter-skelter
 const STAIR_STEP = 1.3; // metres up a jump climbs there (the landings are 1.2 apart)
@@ -20,6 +22,9 @@ export function createRides() {
   let last = null; // the seat she last hopped from
   let wob = 0; // seconds of the teacup sway left (drawn only)
   let swayed = false; // the sway has touched her picture, so it is put straight once
+  let credit = null; // { ride(id), lap() } the household's own award calls (set by attach)
+  let rode = null; // the ride she has been credited on this boarding
+  let swung = false; // on the boat and it has swung since she got on
   let hold = false; // jumped on with the stick still held: it holds her until it is let go once
   const hop = { on: false, u: 0, dur: 0.3, x0: 0, z0: 0, x1: 0, z1: 0, h0: 0 };
   const at = { x: 0, y: 0, z: 0 };
@@ -30,8 +35,8 @@ export function createRides() {
     /** Up on a ride, its deck or the hop down: the stick is not walking her. */
     get busy() { return !!seat || !!perch || hop.on; },
     /** The seat cat one's jump keeps clear (and the wheel's lookout, a seat like any other). */
-    attach(s) { s.fair?.friendSeat?.(() => seat); },
-    detach(s) { s?.fair?.friendSeat?.(null); seat = null; perch = null; last = null; hop.on = false; wob = 0; },
+    attach(s, c = null) { credit = c; s.fair?.friendSeat?.(() => seat); },
+    detach(s) { s?.fair?.friendSeat?.(null); seat = null; perch = null; last = null; hop.on = false; wob = 0; credit = null; rode = null; swung = false; },
 
     /** The picture of cat two after the remote cats are drawn: ears back where the ride is fast, the sway after a teacup. Visual only. */
     look(dt, t, s, group) {
@@ -82,7 +87,15 @@ export function createRides() {
         if (hop.u >= 1) { hop.on = false; pl.perchY = 0; pl.halt?.(); }
         return true;
       }
+      if (!seat) { rode = null; swung = false; }
       if (!seat && !perch) return false;
+      if (seat && credit) {
+        if (rode !== seat.rideId) { rode = seat.rideId; credit.ride(rode); }
+        if (seat.rideId === 'boat') {
+          if (!sim0(s).boat.calm) swung = true;
+          else if (swung) { swung = false; if (s.fair.riding?.rideId !== 'boat') credit.lap(); }
+        }
+      }
       if (seat === sim0(s).slide.chute) { // on the slide nothing takes her off half way down; at the end she sits on the mat
         if (sim0(s).slide.done) { sim0(s).endSlide(); seat = sim0(s).slide.mat; hold = pl.inputActive; }
       } else if (!pl.inputActive) hold = false;

@@ -23,7 +23,8 @@ import { createCards } from './cards.js';
 import { createFinds, padText } from './finds.js';
 import { createFights } from './fights.js';
 import { createRides } from './rides.js';
-const SEAT_AREAS = new Set(['moon', 'reef']); // the places with a seat for cat two (src/coop/seats.js)
+import { handleFairEvent } from '../game/fairplay.js';
+const SEAT_AREAS = new Set(['moon', 'reef', 'crystal', 'snowville', 'greenhouse', 'lighthouse', 'jungle', 'treehouse']); // the places with a seat for cat two (src/coop/seats.js)
 import { createGroom, createTag, GROOM_CALM_S, GROOM_NEAR } from './verbs.js';
 import { bus } from '../events.js';
 import { pickSecond, profileOf, createMover, SECOND_ID } from './second.js';
@@ -197,6 +198,8 @@ export function start(ctx) {
     return ok(menuOwner) || !ok(1 - menuOwner) ? menuOwner : 1 - menuOwner;
   }
 
+  const fairCtx = (s) => ({ hud: { toast: (t) => ctx.toast?.(t) }, audio: {}, log: ctx.log, progression: ctx.progression, session: s, once: (_k, t) => ctx.toast?.(t) }); // cat two's ride gives, through the walk's own fair events
+
   function leave(toast, keep = false) {
     if (!keep) carry = false;
     if (!state.joined) return;
@@ -309,7 +312,10 @@ export function start(ctx) {
       // cat one's finds are the walk's own awards: counted here, so the summary says who found what
       offBus = bus.on('discovery', (e) => { if (finds && !finds.busy && isFind(e)) tally[0]++; });
     }
-    rides.attach(s);
+    rides.attach(s, ctx.log && ctx.progression ? { // what a ride gives is the household's: the walk's own fair events, keyed by its log
+      ride: (id) => handleFairEvent({ type: 'ride', ride: id }, fairCtx(s)),
+      lap: () => handleFairEvent({ type: 'boat-lap' }, fairCtx(s)),
+    } : null);
     const SEATED = SEAT_AREAS.has(s.areaId) ? s : null; // a place with a seat for cat two: fetched now, in no solo walk
     if (SEATED) import('./seats.js').then((m) => m.loadSeat(s.areaId, { life: s.areaLife, session: () => cur, log: ctx.log, progression: ctx.progression, say: (t) => ctx.toast?.(t) })).then((x) => { if (x && cur === SEATED && state.joined) seat = x; else x?.release(null, null); }).catch(() => {});
     fights.attach(s, { drawn: () => cur?.remotes?.list.find((e) => e.playerId === SECOND_ID)?.group, key: () => pick?.key, joined: () => state.joined && !!mover });

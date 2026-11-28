@@ -53,11 +53,12 @@ function fairWalk(at, T = 3000.37) {
 
 
 describe('couch play: the gaps of the Fairground rides', () => {
-  it('cat two climbs the helter-skelter stairs, slides, and ends on the mat; no ride event, no save', () => {
+  it('cat two climbs the helter-skelter stairs, slides, and ends on the mat; no ride event; the household journal counts the ride once (S5b), nothing else is saved', () => {
     const h = area.anchors.helterStairs;
     const door = area.anchors.helterDoor;
     const w = fairWalk({ x: area.spawn.x, z: area.spawn.z });
-    const before = JSON.stringify(w.r.progression.state);
+    const rest = (st) => JSON.stringify({ ...st, journal: {} }); // the journal page of a ride is the household's (S5b); everything else must not move
+    const before = rest(w.r.progression.state);
     w.putTwo(door.x, door.z); w.stickTwo(0, 0); w.tick(2);
     for (let i = 0; i < 8 && w.sim.slide.t0 === null; i++) w.press();
     expect(w.sim.slide.t0, 'the slide started').not.toBeNull();
@@ -67,7 +68,8 @@ describe('couch play: the gaps of the Fairground rides', () => {
     expect(flat(w.r.h.mover.body.position, w.sim.slide.mat)).toBeLessThan(0.2);
     expect(h.length).toBeGreaterThan(0);
     expect(events.filter((e) => e.type === 'slide' || e.type === 'ride')).toEqual([]);
-    expect(JSON.stringify(w.r.progression.state)).toBe(before);
+    expect(rest(w.r.progression.state)).toBe(before);
+    expect(w.r.progression.state.journal).toEqual({ rideslide: 1 }); // once, however many frames she sat on it
   }, 60_000);
 
   it('cat two does not start the slide under cat one, and cat one does not restart it under cat two', () => {

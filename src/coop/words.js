@@ -45,6 +45,10 @@ export const LINES = Object.freeze({
   'coop.seat.seal.tip': 'Hold on tight!',
   'coop.seat.seal.end': 'Wheee! That was a splashy ride!',
   'coop.seat.seal.find': 'You rode a seal! It paddled you round the reef.',
+  'coop.seat.pillion.on': 'hop on behind', // cat two on the back of cat one's ride (src/coop/seatpillion.js)
+  'coop.seat.pillion.off': 'hop off',
+  'coop.seat.pillion.tip': 'Hold on!',
+  'coop.seat.pillion.end': 'The ride is over. Hop down!',
   'coop.fightstart': (name, other) => `${name} takes the fight, and ${other} sits and cheers!`,
 });
 

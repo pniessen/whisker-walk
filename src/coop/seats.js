@@ -6,13 +6,21 @@
 //   host = { life, session: () => the walk's session, log, progression, say(text) }
 // A seat file exports createSeat(host) -> { sources: [prompt sources for cat two, forCats: 'two'], carry, release }; the prompts go through the per-cat arbiter
 // (src/world/promptarbitercat.js) on cat two's slot, so a seat is one source in a list and a later offer is added to it, never fought over.
-export const SEATS = { moon: () => import('./seatmoon.js'), reef: () => import('./seatreef.js') };
+const moon = () => import('./seatmoon.js'), reef = () => import('./seatreef.js'), pillion = () => import('./seatpillion.js'), lend = () => import('./seatlend.js');
+// a row is a list of seat files for the place (their sources join one arbiter; the first one that carries cat two holds it)
+export const SEATS = { moon: [moon, pillion], reef: [reef], crystal: [pillion, lend], snowville: [pillion, lend], greenhouse: [lend], lighthouse: [lend], jungle: [lend], treehouse: [lend] };
 
 export async function loadSeat(areaId, host) {
   const row = SEATS[areaId];
   if (!row) return null;
-  const [m, { createPromptArbiter }] = await Promise.all([row(), import('../world/promptarbitercat.js')]);
-  const seat = m.createSeat(host);
-  const arb = createPromptArbiter(seat.sources);
-  return { promptAt: (pos) => arb.promptAt(pos, 1), interact: () => arb.interact(1), carry: seat.carry, release: seat.release, get riding() { return !!seat.riding?.(); } };
+  const [mods, { createPromptArbiter }] = await Promise.all([Promise.all(row.map((f) => f())), import('../world/promptarbitercat.js')]);
+  const seats = mods.map((m) => m.createSeat(host));
+  const arb = createPromptArbiter(seats.flatMap((x) => x.sources));
+  return {
+    promptAt: (pos) => arb.promptAt(pos, 1),
+    interact: () => arb.interact(1),
+    carry(dt, body, player) { let held = false; for (const x of seats) { if (x.carry(dt, body, player)) { held = true; break; } } return held; },
+    release(body, player) { for (const x of seats) x.release(body, player); },
+    get riding() { return seats.some((x) => !!x.riding?.()); },
+  };
 }
