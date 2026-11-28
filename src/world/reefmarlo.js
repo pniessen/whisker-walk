@@ -25,6 +25,8 @@ import * as K from './reefparts.js';
 import { reefY } from './reefplan.js';
 import { LANTERNS, LANTERN_COLORS, SNAIL_HOME } from './reefwing.js';
 
+const _mouth = new THREE.Vector3();
+
 export const RING = Object.freeze({ secs: 6, bubble: 4, points: 30 });
 export const TRYON = Object.freeze({ near: 4.5, wait: 1.8 }); // seconds after shell three is given (and she is near) before he steps into it // how long the meow's ring and the picture stay
 export const GLINT = Object.freeze({ color: 0xfff2c0, size: 0.55 });
@@ -324,8 +326,9 @@ export function createMarlo(ctx) {
     let x = s.x; let z = s.z; let y = reefY(s.x, s.z) + s.y;
     let scale = g.userData.base;
     if (mode === 'carried' && catPos) {
-      const yaw = session?.cat?.rotation?.y ?? 0;
-      x = catPos.x + Math.sin(yaw) * 0.5; z = catPos.z + Math.cos(yaw) * 0.5; y = catPos.y + 0.18;
+      // held at the cat's mouth (its head's point, as the walk's other carried things are) and kept upright: only the mouth point follows her, the shell never spins with a turn
+      const head = session?.cat?.userData?.parts?.head;
+      if (head) { head.updateWorldMatrix(true, false); head.localToWorld(_mouth.set(0, -0.08, -0.24)); x = _mouth.x; y = _mouth.y; z = _mouth.z; } else { x = catPos.x; z = catPos.z; y = catPos.y + 0.5; }
       scale *= 0.8;
     } else if (mode === 'given' && i === 2 && rec().step >= M.STEP.tried) {
       // tried on: the just-right shell sits on his back (his old one is the sea snail's home now)
@@ -337,7 +340,7 @@ export function createMarlo(ctx) {
       scale *= 0.7;
     } else if (!reducedMotion) y += 0.04 * Math.sin(t * 1.6 + i);
     g.position.set(x, y, z);
-    g.rotation.y = mode === 'home' ? (reducedMotion ? 0.6 : t * 0.35 + i) : (session?.cat?.rotation?.y ?? 0);
+    g.rotation.y = mode === 'home' ? (reducedMotion ? 0.6 : t * 0.35 + i) : 0.6; // carried or given: a fixed upright pose, not the cat's turn
     g.scale.setScalar(scale);
     const gl = glints[i];
     gl.visible = mode === 'home' && wanted() === i;

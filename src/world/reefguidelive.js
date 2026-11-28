@@ -94,15 +94,18 @@ export function createReefGuideLive(ctx) {
     const f = tv ? 28 * s : narrow || touch ? 14 : 16;
     const D = tv ? 64 * s : touch ? 40 : 46;
     const a = tv ? 15 * s : touch ? 10 : 12;
-    U = { font: f, D, top: tv ? size.H * 0.05 + 76 * s : narrow ? 16 + (touch ? 110 : 150) + 34 : 64, edge: tv ? size.W * 0.05 + 40 * s : 30, touch, tv };
+    U = { font: f, D, top: tv ? size.H * 0.05 + 142 * s : narrow ? 16 + (touch ? 110 : 150) + 34 : 64, edge: tv ? size.W * 0.05 + 40 * s : 30, touch, tv };
+    root.style.zIndex = tv ? '30' : '1'; // on a TV the welcome card must cover the goals and badges, not show them through its words
     const pad = (k) => `${Math.round(f * k * 0.3)}px ${Math.round(f * k * 0.8)}px`;
     css(line, {
-      top: tv ? 'calc(var(--tv-s, 1) * 76px)' : narrow ? 'calc(max(16px, env(safe-area-inset-top)) + var(--map-size, 110px) + 34px)' : 'calc(max(16px, env(safe-area-inset-top)) + 48px)',
-      left: tv ? '0' : 'max(16px, env(safe-area-inset-left))',
+      // on a TV it sits in the band right of the goals column (tv.css: goals 560 px wide), under the mission banner, so it never lies over either
+      top: tv ? 'calc(var(--tv-s, 1) * 142px)' : narrow ? 'calc(max(16px, env(safe-area-inset-top)) + var(--map-size, 110px) + 34px)' : 'calc(max(16px, env(safe-area-inset-top)) + 48px)',
+      left: tv ? 'calc(var(--tv-s, 1) * (560px + 32px))' : 'max(16px, env(safe-area-inset-left))',
       right: tv ? 'calc(var(--map-size, 220px) + 12px)' : narrow ? 'max(16px, env(safe-area-inset-right))' : 'calc(max(16px, env(safe-area-inset-right)) + var(--map-size, 150px) + 12px)',
-      fontSize: `${f}px`, lineHeight: '1.28', padding: pad(1), borderRadius: `${f}px`,
+      margin: tv ? '0' : '0 auto', maxWidth: tv ? 'none' : '', fontSize: `${f}px`, lineHeight: '1.28', padding: pad(1), borderRadius: `${f}px`,
     });
-    css(card, { fontSize: `${f + 2}px`, lineHeight: '1.35', padding: '0.7em 1em', borderRadius: '1em' });
+    // on a TV the welcome card sits in the middle of the screen and is solid, so the goals and badges behind it do not show through its words
+    css(card, { fontSize: `${f + 2}px`, lineHeight: '1.35', padding: '0.7em 1em', borderRadius: '1em', top: tv ? '50%' : '22%', transform: tv ? 'translate(-50%,-50%)' : 'translateX(-50%)', width: tv ? 'min(70vw, 26em)' : 'min(86vw, 26em)', background: tv ? '#0c2634' : INK });
     css(disc, { width: `${D}px`, height: `${D}px`, left: `${-D / 2}px`, top: `${-D / 2}px` });
     css(tri, { left: `${-a}px`, top: `${-a * 0.8}px`, borderLeft: `${a}px solid transparent`, borderRight: `${a}px solid transparent`, borderBottom: `${a * 1.6}px solid ${AQUA}` });
     css(label, { fontSize: `${f - 2}px`, top: `${D / 2 + 3}px`, transform: 'translateX(-50%)' });

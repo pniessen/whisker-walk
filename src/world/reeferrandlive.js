@@ -21,6 +21,8 @@ import { reefY } from './reefplan.js';
 import { REEF_COLLECTIBLES } from './reeffindsplan.js';
 import './reeferrandwords.js';
 
+const _mouth = new THREE.Vector3();
+
 export const PROP_NEAR = 45; // m: a prop farther than this from her is not drawn
 export const PICK_REACH = 1.8; // m: pick the glove or the hat shell up
 const say = (key, label) => bus.emit('discovery', { type: 'greenhousenote', key, label, points: 0, repeat: false });
@@ -278,9 +280,9 @@ export function createErrandLive(ctx) {
         const m = kind === 'glove' ? gloveMesh : hatMesh;
         const home = kind === 'glove' ? spot : E.HAT;
         if (item === 'carried' && catPos) {
-          const yaw = session?.cat?.rotation?.y ?? 0;
-          m.position.set(catPos.x - Math.sin(yaw) * 0.45, catPos.y + 0.62, catPos.z - Math.cos(yaw) * 0.45);
-          m.rotation.set(-0.9, yaw, 0, 'YXZ');
+          const head = session?.cat?.userData?.parts?.head; // held at the mouth, upright: it never swings round with a turn
+          if (head) { head.updateWorldMatrix(true, false); head.localToWorld(_mouth.set(0, -0.08, -0.24)); m.position.copy(_mouth); } else m.position.set(catPos.x, catPos.y + 0.5, catPos.z);
+          m.rotation.set(0, 0.6, 0);
           m.scale.setScalar(kind === 'glove' ? 1.0 : 0.8);
           m.visible = true;
         } else {
