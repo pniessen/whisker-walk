@@ -168,12 +168,19 @@ const CARD = memo(() => tint(new THREE.PlaneGeometry(0.1, 0.075), 0xffffff));
 const CARDS = [0xfaf3dc, 0xf6c4d4, 0xc4e4f4, 0xf8e08a];
 
 // each of the garden pots: a saucer with a damp ring in it, and a plant label on a stick, each a different colour
+// (beauty pass 4: the label is bigger and carries a hand-drawn picture, a drop, a sun, a leaf or a flower, over two lines of lettering)
+const PICTO = [[3, 0x3f8fd8], [6, 0xf4b81a], [4, 0x3f9a46], [5, 0xe0509a]]; // CircleGeometry segments, colour: drop, sun, leaf, flower
 export function potDetail(col, x, z, i) {
   col.add(SAUCER(), x, 0.014, z, { k: lerp(0.9, 1.1, h(i, 1, 60)) });
   col.add(WET(), x, 0.02, z, {});
   const a = h(i, 2, 61) * TAU;
-  col.add(STICK(), x + Math.cos(a) * 0.2, 0.52, z + Math.sin(a) * 0.2, { yaw: a, tilt: 0.12 });
-  col.add(tint(new THREE.PlaneGeometry(0.1, 0.075), CARDS[i % CARDS.length]), x + Math.cos(a) * 0.2, 0.65, z + Math.sin(a) * 0.2, { yaw: a, tilt: 0.12 });
+  const sx = x + Math.cos(a) * 0.2, sz = z + Math.sin(a) * 0.2;
+  col.add(STICK(), sx, 0.52, sz, { yaw: a, tilt: 0.12 });
+  col.add(tint(new THREE.PlaneGeometry(0.15, 0.11), CARDS[i % CARDS.length]), sx, 0.66, sz, { yaw: a, tilt: 0.12 });
+  const [segs, hex] = PICTO[i % PICTO.length];
+  const nx = Math.sin(a) * 0.006, nz = Math.cos(a) * 0.006;
+  col.add(tint(new THREE.CircleGeometry(0.03, segs), hex), sx + nx, 0.675, sz + nz, { yaw: a, tilt: 0.12 });
+  col.add(tint(new THREE.PlaneGeometry(0.1, 0.012), 0x5a4030), sx + nx, 0.628, sz + nz, { yaw: a, tilt: 0.12 });
 }
 
 // the potting bench: a sack of compost with a folded top, a ball of twine, three seed cards propped on the back edge, a mossy shelf
@@ -186,6 +193,59 @@ export function benchDetail(col) {
   for (let i = 0; i < 3; i++) col.add(tint(new THREE.PlaneGeometry(0.14, 0.2), CARDS[i]), B.x - 0.3 + i * 0.2, B.h + 0.1, B.z - 0.36, { tilt: -0.25, yaw: (i - 1) * 0.12 });
   col.add(MOSS(), B.x + 0.4, 0.33, B.z + 0.2, { scale: 0.18, k: 1 });
   col.add(MOSS(), B.x - 0.5, 0.33, B.z - 0.18, { scale: 0.12, k: 0.9 });
+  gardenersTableau(col);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// BEAUTY PASS 4 (stories in the details): THE GARDENER'S TABLEAU. Whoever works here has only just stepped away: a straw hat on the
+// hook, a coat on a peg, a tea cup (still full) and an open notebook of pressed flowers on the bench, a seed catalogue, a cat's bed
+// by the bench and a pair of boots at the shed door. Everything is bigger than life (a cup is 14 cm) so it reads from the play camera,
+// and folds into ghBench and ghStreet, which already exist. Standing boxes have no underside, flat things are one quad.
+const flatQ = (w, d, hex) => tint(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), hex);
+const stand = (w, hh, d, hex) => { const g = new THREE.BoxGeometry(w, hh, d); const idx = Array.from(g.index.array); g.setIndex(idx.slice(0, 18).concat(idx.slice(24))); return tint(g, hex); };
+const cyl = (rt, rb, hh, seg, hex) => tint(new THREE.CylinderGeometry(rt, rb, hh, seg, 1, true), hex);
+export function gardenersTableau(col) {
+  const B = P.POTTING;
+  const hx = B.canHome.x - 0.6, hz = B.canHome.z - 0.3; // the can's hook post (greenhouseparts.js)
+  // the straw hat on the end of the hook's arm, crown to the front, a red band round the crown
+  const hatX = hx + 0.3, hatY = 1.17, hatZ = hz + 0.02;
+  col.add(tint(new THREE.CircleGeometry(0.21, 8), 0xe2c56a), hatX, hatY, hatZ + 0.07, {});
+  col.add(tint(new THREE.CylinderGeometry(0.095, 0.115, 0.13, 6, 1, true).rotateX(Math.PI / 2), 0xe8cc74), hatX, hatY, hatZ + 0.14, {});
+  col.add(tint(new THREE.CylinderGeometry(0.117, 0.119, 0.04, 6, 1, true).rotateX(Math.PI / 2), 0xb3402e), hatX, hatY, hatZ + 0.1, {});
+  col.add(tint(new THREE.CircleGeometry(0.095, 6), 0xd2b45c), hatX, hatY, hatZ + 0.2, {});
+  // the coat on a peg below the notice: olive, two sleeves, a pocket, a lighter collar
+  col.add(stand(0.04, 0.04, 0.14, 0x5a3a22), hx, 1.18, hz + 0.1, {});
+  col.add(stand(0.34, 0.6, 0.08, 0x6b7a3e), hx, 0.86, hz + 0.1, { tilt: 0.04 });
+  for (const sx of [-1, 1]) col.add(stand(0.1, 0.46, 0.08, 0x5a6934), hx + sx * 0.22, 0.88, hz + 0.1, { roll: sx * 0.08 });
+  col.add(tint(new THREE.PlaneGeometry(0.14, 0.1), 0x56632f), hx + 0.05, 0.78, hz + 0.145, {});
+  col.add(tint(new THREE.PlaneGeometry(0.2, 0.07), 0xc8c08a), hx, 1.14, hz + 0.145, {});
+  // on the bench: a tea cup with the tea in it, a saucer under; an open notebook with three pressed flowers; a seed catalogue
+  const cx = B.x - 0.15, cz = B.z + 0.22;
+  col.add(flatQ(0.2, 0.2, 0xe4eaf0), cx, B.h + 0.004, cz, {});
+  col.add(cyl(0.085, 0.06, 0.11, 7, 0xcfe0f2), cx, B.h + 0.06, cz, {});
+  col.add(tint(new THREE.CircleGeometry(0.075, 7).rotateX(-Math.PI / 2), 0x8a4a22), cx, B.h + 0.1, cz, {});
+  col.add(stand(0.025, 0.07, 0.05, 0xcfe0f2), cx + 0.1, B.h + 0.06, cz, {});
+  const nx = B.x - 0.72, nz = B.z + 0.1;
+  col.add(flatQ(0.5, 0.34, 0x3e5a46), nx, B.h + 0.004, nz, { yaw: 0.2 });
+  col.add(flatQ(0.23, 0.3, 0xf3ead2), nx - 0.12, B.h + 0.008, nz + 0.02, { yaw: 0.2 });
+  col.add(flatQ(0.23, 0.3, 0xf7efd9), nx + 0.12, B.h + 0.008, nz - 0.01, { yaw: 0.2 });
+  [[0xe0509a, 0.04, 0.05], [0xf4b81a, 0.14, -0.02], [0x8a5cff, 0.1, 0.08]].forEach(([hex, ox, oz], k) => {
+    col.add(flatQ(0.012, 0.09, 0x4f8a42), nx + ox + 0.02, B.h + 0.011, nz + oz, { yaw: 0.2 + k });
+    col.add(tint(new THREE.CircleGeometry(0.036, 5).rotateX(-Math.PI / 2), hex), nx + ox + 0.02, B.h + 0.014, nz + oz, { yaw: k });
+  });
+  col.add(flatQ(0.26, 0.34, 0xd8573a), B.x - 1.2, B.h + 0.006, B.z + 0.05, { yaw: 0.45 });
+  col.add(flatQ(0.16, 0.06, 0xf6ecc8), B.x - 1.2, B.h + 0.01, B.z + 0.05, { yaw: 0.45 });
+  // a cat's bed, half under the bench's front edge: a terracotta rim, a cream cushion, a blue blanket
+  const bx = B.x + 0.3, bz = B.z + B.d / 2 + 0.12;
+  col.add(cyl(0.34, 0.32, 0.12, 8, 0xb85a46), bx, 0.06, bz, {});
+  col.add(tint(new THREE.CircleGeometry(0.3, 8).rotateX(-Math.PI / 2), 0xf4e4c8), bx, 0.07, bz, {});
+  col.add(flatQ(0.3, 0.2, 0x7aa6d6), bx - 0.04, 0.085, bz, { yaw: 0.5 });
+  // boots by the shed door
+  const S = P.SHED.door;
+  for (const k of [0, 1]) {
+    col.add(stand(0.14, 0.34, 0.1, 0x3f5a8a), S.x - 0.5, 0.17, S.z + 0.75 + k * 0.2, { yaw: 0.2 });
+    col.add(stand(0.2, 0.1, 0.1, 0x2c3f64), S.x - 0.56, 0.05, S.z + 0.75 + k * 0.2, { yaw: 0.2 });
+  }
 }
 
 // a hanging basket from a bracket on each court lamp: a bowl, two chains, flowers in the lamp's own colours, vines trailing
@@ -236,6 +296,7 @@ export function discBloom({ r = 0.2, petal, centre = 0xfff0a0 }) {
   const g = new THREE.SphereGeometry(r, 6, 2);
   g.scale(1, 0.8, 1);
   g.deleteAttribute('uv');
+  g.setIndex(Array.from(g.index.array).slice(0, 18)); // beauty pass 4: no underside (6 of the 12 triangles; the play camera is always above a bloom)
   const pos = g.attributes.position, col = new Float32Array(pos.count * 3);
   const c0 = new THREE.Color(centre), c1 = new THREE.Color(petal);
   for (let i = 0; i < pos.count; i++) {
@@ -249,6 +310,8 @@ export function discBloom({ r = 0.2, petal, centre = 0xfff0a0 }) {
 }
 const BLOOMS = memo(() => BLOOM_PAL.map((petal) => discBloom({ r: 0.19, petal })));
 const BLOOM_STEM = memo(() => tint(new THREE.PlaneGeometry(0.02, 0.5), 0x3f7a3a));
+const TAG_STICK = memo(() => tint(new THREE.PlaneGeometry(0.014, 0.4), 0x8a6642));
+const TAG_BACK = memo(() => tint(new THREE.PlaneGeometry(0.16, 0.12), 0xf6efd6));
 const BED_EARTH = memo(() => tint(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), 0x4a3524));
 export function pathBeds(col) {
   const spots = [];
@@ -259,6 +322,11 @@ export function pathBeds(col) {
     for (const side of [-1, 1]) {
       const x = side * (2.0 + 0.2 * h(n, 1, 90));
       col.add(BED_EARTH(), x, 0.028, z, { scale: 0.85, sy: 0.85 });
+      // beauty pass 4: one named flower in the bed, a coloured tag on a stick by it (the tag is the bloom's own colour, on a pale card)
+      const tagHex = BLOOM_PAL[Math.floor(h(n, 3, 93) * BLOOM_PAL.length) % BLOOM_PAL.length];
+      col.add(TAG_STICK(), x + 0.46, 0.2, z + 0.3, { yaw: -side * 0.6 });
+      col.add(TAG_BACK(), x + 0.46, 0.4, z + 0.3, { yaw: -side * 0.6 });
+      col.add(tint(new THREE.PlaneGeometry(0.12, 0.08), tagHex), x + 0.46, 0.4, z + 0.3 + 0.004, { yaw: -side * 0.6 });
       for (let k = 0; k < 5; k++) {
         const bx = x + (k - 2) * 0.2 + (h(n, k, 91) - 0.5) * 0.12, bz = z + ((k * 7 + n) % 3 - 1) * 0.2;
         const hh = 0.28 + 0.26 * h(n, k, 92);

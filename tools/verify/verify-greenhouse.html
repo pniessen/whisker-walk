@@ -79,7 +79,7 @@
   sun.shadow.bias = SUN_BIAS;
   assignShadowCasters(scene);
   const fade = createTreeFade(findFadeOccluders(scene), { reducedMotion: rm });
-  const life = area.life({ reducedMotion: rm, dusk: DUSK, weather: RAIN ? { isRaining: () => true, setSheltered() {} } : null, ground: { y: () => 0 }, visits: Number(params.get('visits') || 0) });
+  const life = area.life({ reducedMotion: rm, dusk: DUSK, weather: RAIN ? { isRaining: () => true, setSheltered() {} } : null, ground: { y: () => 0 }, visits: Number(params.get('visits') || 0), season: params.get('season') || undefined });
 
   const player = createPlayer(camera, renderer.domElement);
   player.setReducedMotion(rm);
@@ -173,6 +173,17 @@
     p3_bend: { at: [-2.9, -0.9], face: [0, -1], stick: [0, -1], secs: 0.5, moving: true, cam: { pos: [-0.2, 1.5, -2.2], look: [-2.9, 0.9, -3.3], fov: 60 } },
     p3_pots: { at: [8, 19], face: [0, -1], cam: { pos: [11.3, 1.2, 14.2], look: [9, 0.35, 12], fov: 45 }, hold: true },
     p3_hall: { at: [0, -3], face: [0, -1] },
+    // beauty pass 4: stories, seasons and surprises (play camera). moment: a surprise is started first (?moment= is set per page, or here)
+    p4_bench: { at: [20.6, 15.9], face: [0, -1] },
+    p4_bench2: { at: [19.6, 16.4], face: [0.4, -1] },
+    p4_beds: { at: [0, 26], face: [0, -1] },
+    p4_pots: { at: [8, 19], face: [0, -1], cam: { pos: [11.3, 1.2, 14.2], look: [9, 0.35, 12], fov: 45 }, hold: true },
+    p4_hall: { at: [0, -3], face: [0, -1] },
+    p4_court: { at: [0, 31], face: [0, -1] },
+    p4_rainbow: { at: [0, 7.5], face: [0, -1], moment: 'rainbow', secs: 10 },
+    p4_rainbow2: { at: [0, -9], face: [0, 1], moment: 'rainbow', secs: 10, cam: { pos: [-8, 2.2, 9], look: [0, 6, -30], fov: 62 }, hold: true },
+    p4_sprinkler: { at: [0, 29], face: [0, -1], moment: 'sprinkler', secs: 14 },
+    p4_moon: { at: [10.4, 16], face: [0.2, -1], moment: 'moonbloom', secs: 16, momentAt: { x: 12, z: 11.5 } },
     palms: { at: [-6, -9], face: [-1, 0], cam: { pos: [12, 2.4, -2.2], look: [-6, 4, -12], fov: 60 }, hold: true },
   };
   window.__shot = (name) => {
@@ -182,6 +193,7 @@
     stick(0, 0);
     reset(s.at[0], s.at[1], s.face[0], s.face[1]);
     if (s.stick) stick(...s.stick);
+    if (s.moment) { life.startMoment?.(s.moment, s.momentAt); if (params.get('psize')) life.moments.points.material.size = Number(params.get('psize')); }
     for (let k = 0; k < (s.secs ?? 0) / DT; k++) frame(DT);
     if (s.moving) { if (s.cam) { camera.fov = s.cam.fov ?? 70; camera.updateProjectionMatrix(); camera.position.set(...s.cam.pos); camera.lookAt(...s.cam.look); renderer.render(scene, camera); } else render(); return name; }
     stick(0, 0);
@@ -195,6 +207,7 @@
       } else frame(DT);
     }
     if (s.cam) { renderer.render(scene, camera); } else render();
+    if (params.get('dbg') === '1' && s.moment) { const m = life.moments; throw new Error('DBG ' + JSON.stringify({ kind: m?.kind, vis: m?.points.visible, op: m?.points.material.opacity, dr: m?.points.geometry.drawRange, errs: window.__errs, p0: Array.from(m.points.geometry.attributes.position.array.slice(0, 6)), c0: Array.from(m.points.geometry.attributes.color.array.slice(0, 6)), s0: Array.from(m.points.geometry.attributes.aSize.array.slice(0, 3)), proj: (() => { const v = new THREE.Vector3(...m.points.geometry.attributes.position.array.slice(150, 153)).project(camera); return [v.x, v.y, v.z]; })(), cam: camera.position.toArray(), ren: renderer.info.render.points })); }
     return name;
   };
   window.__snap = (q = 0.85) => { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/jpeg', q); };
