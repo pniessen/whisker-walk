@@ -635,6 +635,7 @@ export function start(ctx) {
   };
 
   // After cat one's player.update: cat two's step, the leash, the picture of both.
+  coop.second = () => (state.joined && mover ? mover.cam : null); // cat two's own follow camera (the split view draws through it)
   coop.frame = (dt) => {
     const s = cur;
     if (!state.joined || !mover || !s) return;
@@ -654,7 +655,8 @@ export function start(ctx) {
     // then holds the cats no farther apart than they are (the plan's tight-place rule, in its first form).
     const top = maxZoomStep(s.areaId); // the Den stops at the default step: the leash is the room's own
     const wide = maxSeparation(lens, top) * LEASH_MARGIN;
-    const limit = tight ? Math.min(wide, Math.max(state.apart, 2)) : wide;
+    const split = !!ctx.split?.(); // ?split=1 (the S0 spike): each cat has its own camera, so the shared picture and its leash are off
+    const limit = split ? 1e6 : tight ? Math.min(wide, Math.max(state.apart, 2)) : wide;
     state.leash = limit;
     const ride = rides.busy || s.fair?.riding || s.fair?.hopping || s.traversal?.busy; // a ride runs or cat one is on a crossing: the ride or the move carries the cat, so no leash holds it
     if (!fightAny && !ride) { // a fight puts the fighter where it stands and the other cat sits: no leash then
@@ -703,37 +705,39 @@ export function start(ctx) {
     one.set(cat.position.x, cat.position.y, cat.position.z);
     two.set(body.position.x, body.position.y + mover.player.floatY, body.position.z); // cat one's own y already holds her float
     mid.set((one.x + two.x) / 2, (one.y + two.y) / 2, (one.z + two.z) / 2);
-    const base = ctx.player.cameraZoomLevel ?? 1;
-    // the widening looks a moment ahead, so cats running apart are not caught by the easing
-    soon1.copy(one); soon2.copy(two);
-    ahead(soon1, vel.a); ahead(soon2, vel.b);
-    const need = neededLevel(catPoints(soon1, soon2), Math.min(base, top), mid, heading.yaw, lens, top);
-    level = Math.min(top, easeLevel(Math.max(level, Math.min(base, top)), Math.max(need, Math.min(base, top)), dt, !!s.reducedMotion));
-    state.level = level;
-    offsetAt(level, heading.yaw, DEFAULT_PITCH, off);
-    const dist = Math.hypot(off.x, off.z);
-    let want = cameraPullScale(mid, off, dist, area.colliders, area.bounds);
-    const gnd = area.cameraGround ?? s.ground;
-    if (!gnd.flat) { // raised ground (the Gorge, the Old House): the camera keeps out of rock and under ceilings, and comes in close under a cave's roof, as cat one's own does (M5)
-      look.set(mid.x, mid.y + CAT_LOOK_Y, mid.z);
-      wish.set(mid.x + off.x, Math.max(MIN_CAMERA_Y, mid.y + off.y), mid.z + off.z);
-      want = Math.min(want, cameraClearFraction(look, wish, gnd));
-      if (underCeiling(s.ground, cat.position.x, cat.position.y, cat.position.z) || underCeiling(s.ground, body.position.x, body.position.y, body.position.z)) want = Math.min(want, CAVE_VIEW.dist / dist);
-      want = Math.max(want, MIN_CAM_DIST / Math.hypot(off.x, off.y, off.z));
+    if (!split) {
+      const base = ctx.player.cameraZoomLevel ?? 1;
+      // the widening looks a moment ahead, so cats running apart are not caught by the easing
+      soon1.copy(one); soon2.copy(two);
+      ahead(soon1, vel.a); ahead(soon2, vel.b);
+      const need = neededLevel(catPoints(soon1, soon2), Math.min(base, top), mid, heading.yaw, lens, top);
+      level = Math.min(top, easeLevel(Math.max(level, Math.min(base, top)), Math.max(need, Math.min(base, top)), dt, !!s.reducedMotion));
+      state.level = level;
+      offsetAt(level, heading.yaw, DEFAULT_PITCH, off);
+      const dist = Math.hypot(off.x, off.z);
+      let want = cameraPullScale(mid, off, dist, area.colliders, area.bounds);
+      const gnd = area.cameraGround ?? s.ground;
+      if (!gnd.flat) { // raised ground (the Gorge, the Old House): the camera keeps out of rock and under ceilings, and comes in close under a cave's roof, as cat one's own does (M5)
+        look.set(mid.x, mid.y + CAT_LOOK_Y, mid.z);
+        wish.set(mid.x + off.x, Math.max(MIN_CAMERA_Y, mid.y + off.y), mid.z + off.z);
+        want = Math.min(want, cameraClearFraction(look, wish, gnd));
+        if (underCeiling(s.ground, cat.position.x, cat.position.y, cat.position.z) || underCeiling(s.ground, body.position.x, body.position.y, body.position.z)) want = Math.min(want, CAVE_VIEW.dist / dist);
+        want = Math.max(want, MIN_CAM_DIST / Math.hypot(off.x, off.y, off.z));
+      }
+      pull = want < pull ? pull + (want - pull) * (1 - Math.exp(-20 * dt)) : pull + (want - pull) * (1 - Math.exp(-2 * dt));
+      if (s.reducedMotion) pull = want;
+      ctx.camera.position.set(mid.x + off.x * pull, Math.max(MIN_CAMERA_Y, mid.y + off.y * pull), mid.z + off.z * pull);
+      if (!gnd.flat) {
+        const cp = ctx.camera.position;
+        cp.y = Math.min(Math.max(cp.y, gnd.y(cp.x, cp.z) + MIN_CAMERA_Y), gnd.ceil(cp.x, cp.z) - CAM_CEIL_CLEAR);
+      }
+      ctx.camera.lookAt(mid.x, mid.y + CAT_LOOK_Y, mid.z);
+      ctx.camera.updateMatrixWorld(true);
+      tight = pull < TIGHT_PULL || !inBox(catPoints(one, two), ctx.camera); // a building has pulled the camera in, or a cat is out of the safe box
+      state.tight = tight;
+      state.pull = pull;
     }
-    pull = want < pull ? pull + (want - pull) * (1 - Math.exp(-20 * dt)) : pull + (want - pull) * (1 - Math.exp(-2 * dt));
-    if (s.reducedMotion) pull = want;
-    ctx.camera.position.set(mid.x + off.x * pull, Math.max(MIN_CAMERA_Y, mid.y + off.y * pull), mid.z + off.z * pull);
-    if (!gnd.flat) {
-      const cp = ctx.camera.position;
-      cp.y = Math.min(Math.max(cp.y, gnd.y(cp.x, cp.z) + MIN_CAMERA_Y), gnd.ceil(cp.x, cp.z) - CAM_CEIL_CLEAR);
-    }
-    ctx.camera.lookAt(mid.x, mid.y + CAT_LOOK_Y, mid.z);
-    ctx.camera.updateMatrixWorld(true);
-    tight = pull < TIGHT_PULL || !inBox(catPoints(one, two), ctx.camera); // a building has pulled the camera in, or a cat is out of the safe box
-    state.tight = tight;
-    state.pull = pull;
-    if (hud) {
+    if (hud && !split) {
       const { w, h } = view();
       const holds = hub.holds();
       const pts = [one, two];
@@ -765,7 +769,7 @@ export function start(ctx) {
       leave(false);
       cards?.dispose();
       hud?.dispose();
-      coop.poll = null; coop.two = false; coop.pad = null; coop.frame = null; coop.late = null;
+      coop.poll = null; coop.two = false; coop.pad = null; coop.frame = null; coop.late = null; delete coop.second;
     },
   };
   if (import.meta.env?.DEV) globalThis.__coop = handle; // the browser pane's handle (development server only; not in a build)
