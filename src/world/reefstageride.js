@@ -7,6 +7,7 @@ import { useKit, buildRacks } from './reefrideparts.js';
 import { createRideLive } from './reefridelive.js';
 import { createReefDiversLive } from './reefdiverslive.js';
 import { makeEel } from './reefrideeel.js';
+import { createSealRide } from './reefsealride.js'; // the free seal ride lives in this stage's chunk (the landing is near its ceiling)
 
 function draw(scene, kit, reefY, tier) {
   useKit(kit);
@@ -20,4 +21,4 @@ function live(kit, ctx, area, base, P) {
   });
 }
 
-Object.assign(ST, { ride: Object.freeze({ plan, buildRacks: draw, createRideLive: live, colliders: plan.rackColliders, createDiversLive: createReefDiversLive, makeEel }) });
+Object.assign(ST, { ride: Object.freeze({ plan, buildRacks: draw, createRideLive: live, colliders: plan.rackColliders, createDiversLive: createReefDiversLive, makeEel, createSealRide }) });
