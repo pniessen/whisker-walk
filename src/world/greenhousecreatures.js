@@ -80,12 +80,12 @@ export function createCreatures({ scene, audio = null, reducedMotion = false, li
     put(SNAIL + 1, sx + dir * 0.1, ey + 0.015, ez, 0.15, 0.86, 0.78, 0.62);
     // the ladybird up the hook post (the front face), a loop of 70 s that rests at the top a while
     const up = reducedMotion ? 0.45 : sm(((t / 70) % 1) / 0.85);
-    put(LADY, POST.x + 0.012 * Math.sin(t * 2.2), 0.2 + 1.2 * up, POST.z + 0.03, 0.11, 0.9, 0.12, 0.1);
+    put(LADY, POST.x + 0.012 * Math.sin(t * 2.2), 0.2 + 1.2 * up, POST.z + 0.03, 0.085, 0.82, 0.14, 0.12);
     // the sleepy cat in the cat's bed: a tabby ring, a head on its paws, one eye that opens for two seconds every half minute
     const br = 1 + (reducedMotion ? 0 : 0.035 * Math.sin(t * 1.5));
-    put(CAT, CAT_BED.x + 0.02, CAT_BED.y + 0.12, CAT_BED.z, 0.46 * br, 0.86, 0.55, 0.26);
-    put(CAT + 1, CAT_BED.x + 0.1, CAT_BED.y + 0.13, CAT_BED.z + 0.06, 0.28 * br, 0.66, 0.4, 0.18);
-    put(CAT + 2, CAT_BED.x - 0.15, CAT_BED.y + 0.11, CAT_BED.z + 0.1, 0.22, 0.96, 0.9, 0.78);
+    put(CAT, CAT_BED.x + 0.02, CAT_BED.y + 0.12, CAT_BED.z, 0.36 * br, 0.7, 0.5, 0.3);
+    put(CAT + 1, CAT_BED.x + 0.1, CAT_BED.y + 0.13, CAT_BED.z + 0.06, 0.22 * br, 0.5, 0.34, 0.2);
+    put(CAT + 2, CAT_BED.x - 0.15, CAT_BED.y + 0.11, CAT_BED.z + 0.1, 0.16, 0.92, 0.86, 0.76);
     put(CAT + 3, CAT_BED.x - 0.2, CAT_BED.y + 0.19, CAT_BED.z + 0.12, 0.1, 0.8, 0.5, 0.22); // an ear
     const awake = !reducedMotion && (t % 30) > 26.5 && (t % 30) < 28.7;
     if (awake) put(CAT + 4, CAT_BED.x - 0.24, CAT_BED.y + 0.14, CAT_BED.z + 0.17, 0.045, 1, 0.85, 0.25);
@@ -125,7 +125,7 @@ export function createCreatures({ scene, audio = null, reducedMotion = false, li
     for (let j = 0; j < FF; j++) { // fireflies, in the garden
       const bx = -26 + 52 * hash01(j, 1, SALT), bz = 7 + 27 * hash01(j, 2, SALT), ph = hash01(j, 3, SALT) * 6.3;
       const blink = reducedMotion ? 0.8 : Math.max(0, Math.sin(t * 1.1 + ph * 3)) ** 3;
-      put(FIRE + j, bx + 0.9 * Math.sin(t * 0.3 + ph), 0.5 + 0.5 * hash01(j, 4, SALT) + 0.25 * Math.sin(t * 0.5 + ph), bz + 0.9 * Math.cos(t * 0.27 + ph), 0.22, 0.8, 1, 0.35, blink * dk);
+      put(FIRE + j, bx + 0.9 * Math.sin(t * 0.3 + ph), 0.5 + 0.5 * hash01(j, 4, SALT) + 0.25 * Math.sin(t * 0.5 + ph), bz + 0.9 * Math.cos(t * 0.27 + ph), 0.34, 0.9, 1, 0.4, blink * dk);
     }
   }
 
