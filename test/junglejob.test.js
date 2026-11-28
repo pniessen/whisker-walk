@@ -211,7 +211,7 @@ describe('on a walk: each errand, once, with no way to fail', () => {
     expect(r.awards).toHaveLength(1);
   });
   it('the life hands the room\'s events to the errand first, stage b fills the slot and stage c stays empty', () => {
-    expect(typeof ST.b.errand).toBe('function');
+    expect(typeof ST.story.errand).toBe('function');
     expect(read('src/world/jungle.js')).toMatch(/errand\?\.credit\(ev\) \?\? wing\?\.credit\(ev\) \?\? mossy\.credit\(ev\)/);
     expect(read('src/world/junglestagec.js')).not.toMatch(/job/); // nothing went into the empty stage
     expect(read('src/world/junglestageb.js')).toMatch(/junglejoblive/);

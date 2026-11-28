@@ -74,7 +74,7 @@ describe('the poses are pure and gentle', () => {
 
 describe('the life on a walk', () => {
   it('is wired into the area (stage b, finds kept), spottable as three journal pages, and cleans up after itself', () => {
-    expect(ST.b.critters).toBe(C.createJungleCritters);
+    expect(ST.story.critters).toBe(C.createJungleCritters);
     expect(ST.b.finds).toBeTruthy();
     const scene = new THREE.Scene();
     const area = build(scene);

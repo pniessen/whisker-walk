@@ -90,7 +90,7 @@ describe('the wing\'s places', () => {
     expect(S.allFruits().map((c) => c.id)).toEqual([0, 1, 2]);
     expect(S.allFruits().map((c) => c.kind)).toEqual(['mango', 'banana', 'cacao']);
     expect(Object.keys(ST.b.story.spots)).toEqual(['set', 'supper']);
-    expect(ST.b.finds.collectibles).toBeTypeOf('function'); expect(ST.b.critters).toBeTypeOf('function');
+    expect(ST.b.finds.collectibles).toBeTypeOf('function'); expect(ST.story.critters).toBeTypeOf('function');
     expect(area.collectibles).toHaveLength(6);
   });
   it('every solid place is inside the walk, clear of the place\'s colliders, the find rings (except the ones it stands beside), the golden mice and the anklet\'s spots', () => {
