@@ -497,6 +497,13 @@ export function createMarketSound(audio, { pigeons = [], musician = null, stalls
         MUSIC.notes.slice(0, 10).forEach((n) => tone(c, 'triangle', n.f * 1.5, n.f * 1.5, now + n.at * 0.8, n.dur, 0.02, MUSIC.gain * 0.7 * level));
       });
     },
+    // beauty pass 7: the golden moment at a vista: three soft rising bells that invite a photo
+    vista() {
+      if (gone || muted()) return;
+      withBus((c, now) => {
+        [1568, 1976, 2349].forEach((f, i) => tone(c, 'sine', f, f, now + i * 0.14, 1.2, 0.006, 0.012));
+      });
+    },
     // the part of the day: 0 morning .. 1 evening (marketlife.js)
     setPart(p) {
       if (Number.isFinite(p)) part = Math.min(1, Math.max(0, p));
