@@ -248,6 +248,9 @@ export function presents() {
   return [[0.9, 0.3, 0.5, 0xc8483f], [1.3, -0.4, 0.4, 0x2f8f8a], [-0.2, 1.2, 0.45, 0xf2c14e], [-1.1, 0.8, 0.5, 0x6a4a9a]].map(([dx, dz, s, hex], i) => ({ x: F.x + dx * 1.25, z: F.z + dz * 1.25, s, hex, a: i * 0.7 }));
 }
 
+// Where each cottage's door and wreath are, in the world (beauty pass 3: she jingles the bells there). Pure.
+export const toDoors = () => P.COTTAGES.map((c) => { const w = toWorld(c, 0, 1.2, c.d / 2 + 0.6); return { x: w[0], z: w[2] }; });
+
 // Every lit thing's halo: { x, y, z, hex, big (a window or lamp glow, else a bulb), ph (its own twinkle phase) }, in world coordinates. Pure; no clock.
 let _spots = null;
 export function litSpots() {
