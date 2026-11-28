@@ -297,7 +297,7 @@ float talGlow = 0.0;
     diffuseColor.rgb *= 1.0 - ${leaves ? '0.36' : '0.2'} * ed;
     ${leaves ? 'diffuseColor.rgb *= mix(vec3(1.0), vec3(0.8, 0.96, 0.72), ed);' : ''}
   }
-  ${leaves ? '' : `// BARK: the great oak's trunk gets slow vertical furrows (it was one smooth brown slab close up)
+  ${leaves ? '' : `// BARK: the big oak's trunk gets slow vertical furrows (it was one smooth brown slab close up)
   { vec2 oc = vTw.xz - vec2(0.0, -6.0); float orad = length(oc); if (orad < 3.5 && vTw.y > 0.3 && vTw.y < 16.0 && vNw.y < 0.5) { float oa = atan(oc.y, oc.x); float fur = sin(oa * 34.0 + sin(vTw.y * 0.8 + oa * 4.0) * 1.7) * 0.5 + 0.5; diffuseColor.rgb *= 0.78 + 0.34 * smoothstep(0.15, 0.85, fur); } }`}
   if (uTale > 0.5) { vec4 tl = tale(vTw, talGlow); diffuseColor.rgb = mix(diffuseColor.rgb, tl.rgb, tl.a); talGlow *= tl.a; }
 }`;
