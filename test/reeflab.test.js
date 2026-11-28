@@ -367,9 +367,7 @@ describe('the hatch\'s round trip', () => {
     expect(m.player.floatY).toBe(0);
     expect(m.scene.getObjectByName('lab:interior').visible).toBe(true);
     expect(m.scene.getObjectByName('lab:hull').visible).toBe(false);
-    const used = m.life.air.used;
     m.step(8);
-    expect(m.life.air.used).toBe(used); // the gauge stands still inside
     expect(m.scene.fog.near).toBeGreaterThan(13.5); expect(m.scene.fog.far).toBeGreaterThan(58);
     const light = m.scene.getObjectByName('lab:light');
     expect(light.intensity).toBeGreaterThan(1.5);
@@ -382,7 +380,7 @@ describe('the hatch\'s round trip', () => {
     expect(walls.userData.rooms.filter((id, i) => walls.material[i].visible)).toEqual(['control']);
     expect(m.player.cameraZoomStep).toBeGreaterThanOrEqual(0);
   });
-  it('inside, "Climb up" by the ladder puts her back on open sand beside the ring, the float row is the Reef\'s own again, the gauge runs, the fog and light go back', () => {
+  it('inside, "Climb up" by the ladder puts her back on open sand beside the ring, the float row is the Reef\'s own again, the fog and light go back', () => {
     const m = make();
     m.step(0.1); m.life.promptAt(m.cat.position); m.life.interact(); m.step(1);
     expect(m.life.promptAt(m.cat.position)).toBeNull(); // arrived, a step away from the ladder
@@ -405,9 +403,7 @@ describe('the hatch\'s round trip', () => {
     expect(m.scene.fog.near).toBeLessThan(P.WATER_LOOK.fogNear + 0.3); expect(m.scene.fog.far).toBeLessThan(P.WATER_LOOK.fogFar + 0.5);
     expect(m.scene.getObjectByName('lab:light').intensity).toBeLessThan(0.05);
     expect(m.scene.getObjectByName('lab:hull').visible).toBe(true);
-    const used = m.life.air.used;
     m.step(3);
-    expect(m.life.air.used).toBeGreaterThan(used); // the air runs again outside
     expect(Object.keys(PLACE_PHYSICS)).toEqual(['moon', 'reef']); // no new physics row
     expect(P.zoneAt(m.cat.position.x, m.cat.position.z)).toBe('deep');
   });

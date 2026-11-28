@@ -26,7 +26,7 @@ export const CAVE = Object.freeze({
   lintel: Object.freeze({ x: 26, z: -22.9, w: 6.2, d: 1.1, y: 2.2 }), // a slab laid across the two sides, over the back (an arch, not a roof)
 });
 export const SHELL_THREE = Object.freeze({ id: 2, kind: 'right', x: 26, z: -20.4, y: 0, minLift: 0, reach: 1.7 });
-// The air pocket that rings the cave's floor (it refills the gauge: shell three teaches that a pocket gives air again).
+// The column of bubbles that rings the cave's floor (scenery that marks where shell three lies).
 export const CAVE_POCKET = Object.freeze({ x: 26, z: -19.2 });
 
 // ---- the three lantern corals, touched in this order -----------------------------------------------------------------------

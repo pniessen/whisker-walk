@@ -135,7 +135,7 @@ describe('where the float is read (and nowhere else)', () => {
   it('only the allow-listed files name it (the plan\'s rule): this milestone widened nothing', () => {
     const named = ['src/player.js', 'src/main.js', 'src/game/avatar.js', 'src/remotecats.js', 'src/coop/index.js'];
     for (const f of named) expect(readFileSync(f, 'utf8'), f).toMatch(/\bfloatY\b/);
-    for (const f of ['src/world/reeflife.js', 'src/world/reefair.js', 'src/world/reeflight.js', 'src/gamepad.js', 'src/ui/touchui.js', 'src/game/interactions.js']) {
+    for (const f of ['src/world/reeflife.js', 'src/world/reeflight.js', 'src/gamepad.js', 'src/ui/touchui.js', 'src/game/interactions.js']) {
       expect(readFileSync(f, 'utf8').replace(/\/\/.*$/gm, ''), f).not.toMatch(/\bfloatY\b/);
     }
   });

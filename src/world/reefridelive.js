@@ -8,7 +8,7 @@
 // `session.fair` (NO_FAIR in the Reef) for a copy with its own update (after the player), late (after the cat is posed), jump, pawKind and groundSpot, puts the
 // walk's `session.perched` on the seat record (pose 'requestPet', speedFactor 0 by the perch, `perchHold` every frame so a pushed stick does not take her off,
 // `swim: true` so game/avatar.js draws the swim pose), sets the player's perchY to the seat's height (which also turns the Reef's float off: player.js), and
-// carries the camera in the late step. The air gauge is paused while she rides (reefair.stepAir's `paused`, through setPaused): the bubbles do not drain.
+// carries the camera in the late step.
 //
 // NEVER STUCK: the sim cannot leave a mount in a collider, a keepOut rectangle (the Sealab's footprint, the galleon's) or out of the bounds, and "Hop off" is one
 // press, anywhere, onto free ground (dismountSpot). A walk that ends while she rides sets her down the same way (dispose, and groundSpot for the saved walk).
@@ -28,7 +28,7 @@ export const TRAIL = Object.freeze({ max: 16, low: 8, every: 0.1, ttl: 1.2, size
 const LOOK_Y = 0.54;
 
 // createRideLive(ctx) -> { promptAt, interact, update, hooks, install, state, dispose }
-// ctx: { THREE, scene, reefY, ground, colliders (the walk's live list), keepOut (extra rectangles), player, reducedMotion, tier, say, setPaused, progression, busy (true while a warm bubble lifts her), bounds }
+// ctx: { THREE, scene, reefY, ground, colliders (the walk's live list), keepOut (extra rectangles), player, reducedMotion, tier, say, progression, bounds }
 export function createRideLive(ctx) {
   const { THREE, scene, reefY, reducedMotion = false, player: ctxPlayer = null } = ctx;
   const ground = ctx.ground;
@@ -153,7 +153,6 @@ export function createRideLive(ctx) {
 
   function blocked(session) {
     if (session?.perched) return true;
-    if (ctx.busy?.()) return true; // a warm bubble is carrying her (it ends by itself)
     if ((ctxPlayer?.floatY ?? 0) > 1.6) return true; // she climbs on from the sand, not from high over it
     return false;
   }
@@ -168,7 +167,6 @@ export function createRideLive(ctx) {
     player.clearFloat?.();
     session.perched = seatRec;
     if (session.fair) session.fair.riding = { id: RACKS[id].seatId, rideId: 'reef' };
-    ctx.setPaused?.(true); // the gauge stands still while she rides
     seatCat(cat, player, session);
     if (!told[id]) {
       told[id] = true;
@@ -191,7 +189,6 @@ export function createRideLive(ctx) {
     cat.rotation.set(0, sim.yaw + Math.PI, 0);
     player.halt?.();
     player.clearFloat?.();
-    ctx.setPaused?.(false);
     setParked(id, true);
   }
 

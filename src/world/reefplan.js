@@ -1,6 +1,6 @@
 // =============================================================================
 // THE REEF: THE PLAN (milestone R1, the water world). Every coordinate of the seabed, its zones, the spawn arch and ladder, the light shafts, the kelp
-// and the coral, the air gauge's numbers: pure data and pure functions (no THREE, no clock, no Math.random; the scatters use a seeded stream).
+// and the coral: pure data and pure functions (no THREE, no clock, no Math.random; the scatters use a seeded stream).
 // reefparts.js draws from these; the tests read them. North is -z, east is +x, heights are metres over the seabed's zero.
 // docs/superpowers/plans/2026-11-26-reef.md sections 4 and 5. The numbers marked "start" are tuned from pictures.
 // =============================================================================
@@ -128,11 +128,6 @@ export const SHAFTS = Object.freeze([
 ]);
 // The fog and the sky of the sea (the colour at the horizon is the fog's, so the two agree) and the sun's cool light.
 export const WATER_LOOK = Object.freeze({ top: 0x2a7fa0, horizon: 0x4aa6a8, fogNear: 6, fogFar: 40, sunColor: 0xdff4ff, sunIntensity: 1.6, hemiSky: 0x7ec8d8, sand: 0xecd9a0, sandShade: 0xc9b57e });
-
-// ---- the air gauge (plan section 5) -------------------------------------------------------------------------------------
-// Five bubbles, 90 s from full, hidden (and not draining) the first 20 s of a first visit; at two bubbles a soft line; at zero a warm bubble lifts
-// her to the ladder, the gauge refills at once, nothing is lost.
-export const AIR = Object.freeze({ bubbles: 5, seconds: 90, hideFirst: 20, softAt: 2, lift: 2.4, rise: 2.6 });
 
 // ---- the kelp and the coral -------------------------------------------------------------------------------------------------
 // Where nothing may stand: round the spawn, the ladder and arch, and every zone's middle (the story's places come in later milestones), plus

@@ -265,7 +265,7 @@ describe('the Reef is off for everything the walk rolls', () => {
 describe('every other place is byte-for-byte what it was', () => {
   it('the flat-trace and grow-trace fixtures were not touched by this milestone', () => {
     // the fixtures are read by test/flattrace*.test.js and test/growtrace*.test.js; this file only pins that the Reef\'s own sources never name them
-    for (const f of ['src/world/reefplan.js', 'src/world/reefparts.js', 'src/world/reeflight.js', 'src/world/reeflife.js', 'src/world/reefair.js']) {
+    for (const f of ['src/world/reefplan.js', 'src/world/reefparts.js', 'src/world/reeflight.js', 'src/world/reeflife.js']) {
       expect(readFileSync(f, 'utf8'), f).not.toMatch(/traversal(live)?\.js/);
     }
   });
