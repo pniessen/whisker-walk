@@ -11,10 +11,10 @@
 // drawings for EMBLEMS, a table every set may carry. No module
 // asks "is the set 'off'?": they ask the set in use for a table or a rule.
 //
-// NOT IN USE YET. Nothing in src/ imports this file and no build holds the
-// set: the game is the family's ('on') for everyone until the switch is built
-// (phase 3 adds it to wordset.js and decides who may turn it). The tests put
-// it in use through test/helpers/offwords.js.
+// The set every build holds, and the one a player has until a family code
+// opens the family's own (wordset.js: it starts on this set, and the family's
+// is added next to it as 'on'). The tests put the family's set in use through
+// test/setup/familywords.js and this one through test/helpers/offwords.js.
 //
 // What a reader of this set never sees: a name that changes with rank, a
 // name made of two halves, a top-rank name to pick, a label on the player's

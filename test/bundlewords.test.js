@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, globSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as on from '../src/clanwords.js';
 import * as off from '../src/offclanwords.js';
+import { realBuild } from './helpers/realbuild.js';
+import { IOS_MODE } from '../vite.config.js';
 import { scanText, scanDir, bundleDenyList, ORDINARY_DENIED } from '../scripts/bundlewords.mjs';
 
 describe('scanText', () => {
@@ -58,5 +60,29 @@ describe('scanDir', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+// What the public actually gets: the website build and the app build, built in memory.
+describe('the public files say nothing of the series', () => {
+  for (const [name, mode] of [['website', 'production'], ['app', IOS_MODE]]) {
+    it(`the ${name} build holds only the everyday words`, async () => {
+      const b = await realBuild(mode);
+      const offences = [];
+      for (const o of b.outputs) {
+        expect(o.fileName, 'a file named for the family set or a source map').not.toMatch(/clanwords|\.map$/);
+        const text = o.type === 'chunk' ? o.code : typeof o.source === 'string' ? o.source : Buffer.from(o.source).toString('utf8');
+        if (!/\.(js|css|html|json|svg|webmanifest|txt|mjs)$/.test(o.fileName)) continue;
+        for (const f of scanText(text)) offences.push(`${o.fileName}: ${f}`);
+      }
+      expect(offences).toEqual([]);
+    }, 300_000);
+  }
+
+  it('index.html and every file in public/ say nothing of the series either', () => {
+    const files = ['index.html', ...globSync('public/**/*').filter((f) => /\.(html|js|json|css|svg|webmanifest|txt)$/.test(f))];
+    expect(files.length).toBeGreaterThan(2);
+    const offences = files.flatMap((f) => scanText(readFileSync(f, 'utf8')).map((o) => `${f}: ${o}`));
+    expect(offences).toEqual([]);
   });
 });

@@ -55,15 +55,10 @@ const scanFile = (file) => {
 // KNOWN_HITS: "file :: word" -> one-line reason. Filled in from the first run.
 const KNOWN_HITS = new Map([
   ["src/clanphrases.js :: camp", "the family's line; the everyday set replaces it through phrase()/line() (offwords.test.js), only the raw default stays"],
-  ["src/clanphrases.js :: star name", "the family's line; the everyday set replaces it through phrase()/line() (offwords.test.js), only the raw default stays"],
   ["src/clanphrases.js :: patrol", "the family's line; the everyday set replaces it through phrase()/line() (offwords.test.js), only the raw default stays"],
   ["src/clanphrases.js :: intruders", "the family's line; the everyday set replaces it through phrase()/line() (offwords.test.js), only the raw default stays"],
-  ["src/clanphrases.js :: great oak", "the family's line; the everyday set replaces it through phrase()/line() (offwords.test.js), only the raw default stays"],
-  ["src/clanphrases.js :: sun-warmed", "the family's line; the everyday set replaces it through phrase()/line() (offwords.test.js), only the raw default stays"],
-  ["src/clanphrases.js :: meeting", "the family's line; the everyday set replaces it through phrase()/line() (offwords.test.js), only the raw default stays"],
   ["src/clanphrases.js :: gathering", "the family's line; the everyday set replaces it through phrase()/line() (offwords.test.js), only the raw default stays (the birthday line)"],
   ["src/game/session.js :: patrol", "a code comment inside a string (a doc line), never drawn"],
-  ["src/game/session.js :: gathering", "a code comment inside a string (a doc line), never drawn"],
   ["src/game/session.js :: camp", "a code comment inside a string (a doc line), never drawn"],
   ["src/skills.js :: dusk", "OWNER DECIDES: 'Dusk' is the dusk-lighting skill, also the name word of DuskClan; shown in the everyday set as written"],
   ["src/tutorialwords.js :: camp", "the family's 'camp' line, the same one allwords.test.js lists (the everyday set overrides it through line())"],

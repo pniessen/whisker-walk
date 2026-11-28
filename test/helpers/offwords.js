@@ -1,39 +1,36 @@
 // The everyday word set ('off', src/offclanwords.js) for tests, and the list
 // of words it must never show.
 //
-// No build holds the 'off' set yet (the switch is a later phase), so a test
-// that wants it puts it in use here and takes it out again afterwards.
+// Every build holds the everyday set (src/wordset.js) and the test setup
+// (test/setup/familywords.js) installs the family's, so a test that wants the
+// everyday words only switches the mode here and switches back afterwards.
 import * as off from '../../src/offclanwords.js';
 import * as on from '../../src/clanwords.js';
-import { addWordSet, removeWordSet, setSeriesMode, seriesMode, SERIES_ON } from '../../src/wordset.js';
+import { setSeriesMode, seriesMode, SERIES_ON } from '../../src/wordset.js';
 
 export const OFF = off.OFF_ID;
 export const offWords = off;
 
-// fn() with the everyday words in use; the family's words are back afterwards
-// and the set is taken out again, whatever fn does.
+// fn() with the everyday words in use; the family's words are back afterwards,
+// whatever fn does.
 export function withOffWords(fn) {
   if (seriesMode() !== SERIES_ON) throw new Error('withOffWords: already inside another word set');
-  addWordSet(OFF, off);
   try {
     setSeriesMode(OFF);
     return fn();
   } finally {
     setSeriesMode(SERIES_ON);
-    removeWordSet(OFF);
   }
 }
 
 // Like withOffWords, for a fn that awaits: the everyday words stay in use until its promise is done.
 export async function withOffWordsAsync(fn) {
   if (seriesMode() !== SERIES_ON) throw new Error('withOffWordsAsync: already inside another word set');
-  addWordSet(OFF, off);
   try {
     setSeriesMode(OFF);
     return await fn();
   } finally {
     setSeriesMode(SERIES_ON);
-    removeWordSet(OFF);
   }
 }
 

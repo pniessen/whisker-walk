@@ -251,9 +251,8 @@ describe('M4: every new word is in both word sets', () => {
     for (const id of ['coop.groomhint', 'coop.groomed', 'coop.tagstart', 'coop.tagdone', 'coop.fightstart']) {
       expect(LINES[id], id).toBeTruthy();
       for (const mode of ['on', 'off']) {
-        if (mode === 'off') addWordSet('off', off);
         setSeriesMode(mode);
-        try { expect(phrase(id, 'Mochi', 'Siamese'), `${id} ${mode}`).toMatch(/Mochi/); } finally { setSeriesMode('on'); if (mode === 'off') removeWordSet('off'); }
+        try { expect(phrase(id, 'Mochi', 'Siamese'), `${id} ${mode}`).toMatch(/Mochi/); } finally { setSeriesMode('on'); }
       }
     }
   });

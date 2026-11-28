@@ -10,7 +10,7 @@
 // counting. It is NOT the plain game's word set; the owner chooses that.
 // The five test/serieswords*.test.js files use the same stand-in to check
 // whole screens.
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { readFileSync, globSync } from 'node:fs';
 import * as on from '../src/clanwords.js';
 import {
@@ -41,7 +41,7 @@ const read = (f) => readFileSync(f, 'utf8');
 afterEach(() => {
   // whatever a test did, the next one starts with the family's words
   setSeriesMode(SERIES_ON);
-  for (const id of seriesModes()) removeWordSet(id);
+  for (const id of seriesModes()) if (id !== SERIES_ON && id !== 'off') removeWordSet(id);
 });
 
 // ---- 1. the door is the only way in -----------------------------------------
@@ -55,15 +55,15 @@ const importsOf = (src) => [
 const isWordFile = (spec) => /(^|\/)clanwords\.js$/.test(spec);
 
 describe('the word file has one door', () => {
-  it('no module in src/ but wordset.js imports clanwords.js', () => {
-    const offenders = FILES.filter((f) => f !== 'src/wordset.js' && f !== 'src/clanwords.js')
+  it('no module in src/ imports clanwords.js', () => {
+    const offenders = FILES.filter((f) => f !== 'src/clanwords.js')
       .filter((f) => importsOf(read(f)).some(isWordFile));
     expect(offenders, `these import the word file directly; ask src/wordset.js for words() instead:\n${offenders.join('\n')}\n`).toEqual([]);
     expect(FILES.length).toBeGreaterThan(100);
   });
 
-  it('wordset.js imports the word file and nothing else, and the word file imports nothing', () => {
-    expect(importsOf(read('src/wordset.js'))).toEqual(['./clanwords.js', './wordids.js', './wordids.js']);
+  it('wordset.js imports the everyday set and the ids, and the family file imports nothing', () => {
+    expect(importsOf(read('src/wordset.js'))).toEqual(['./offclanwords.js', './wordids.js', './wordids.js']);
     expect(importsOf(read('src/clanwords.js'))).toEqual([]);
   });
 
@@ -99,8 +99,8 @@ describe('the word file has one door', () => {
 
 describe('the mode and the sets', () => {
   it('starts on the family\'s words, and those are the word file\'s own tables', () => {
-    expect(seriesMode()).toBe('on');
-    expect(seriesModes()).toEqual(['on']);
+    expect(seriesMode()).toBe('on'); // the test setup installs it and puts it in use (test/setup/familywords.js)
+    expect(seriesModes()).toEqual(['on', 'off']);
     for (const name of TABLES) expect(words()[name], name).toBe(on[name]);
     expect(Object.keys(words().PHRASES).length).toBe(11); // the lines only the family's game says (B2)
     // every table of the word file is on the list, bar the ids, the spares and the optional drawings
@@ -117,7 +117,7 @@ describe('the mode and the sets', () => {
   });
 
   it('a set this build does not hold cannot be put in use', () => {
-    expect(() => setSeriesMode('off')).toThrow(/no word set "off"/);
+    expect(() => setSeriesMode('nothing')).toThrow(/no word set "nothing"/);
     expect(() => setSeriesMode(STAND_IN)).toThrow();
     expect(seriesMode()).toBe('on');
   });
@@ -125,15 +125,16 @@ describe('the mode and the sets', () => {
   it('puts a whole set in use and takes it out again', () => {
     const set = standInWords();
     addWordSet(STAND_IN, set);
-    expect(seriesModes()).toEqual(['on', STAND_IN]);
+    expect(seriesModes()).toEqual(['on', 'off', STAND_IN]);
     expect(seriesMode()).toBe('on'); // adding is not using
     setSeriesMode(STAND_IN);
     expect(words()).toBe(set);
-    removeWordSet(STAND_IN); // taking out the set in use goes back to 'on'
-    expect(seriesMode()).toBe('on');
-    expect(seriesModes()).toEqual(['on']);
-    removeWordSet('on'); // the family's set cannot be taken out
-    expect(seriesModes()).toEqual(['on']);
+    removeWordSet(STAND_IN); // taking out the set in use goes back to the everyday words
+    expect(seriesMode()).toBe('off');
+    setSeriesMode('on');
+    expect(seriesModes()).toEqual(['on', 'off']);
+    removeWordSet('off'); // the everyday set cannot be taken out
+    expect(seriesModes()).toEqual(['on', 'off']);
   });
 
   it('refuses a half-written set, so "undefined" can never reach a name tag', () => {
@@ -151,12 +152,12 @@ describe('the mode and the sets', () => {
     expect(() => addWordSet('bad', null)).toThrow();
     expect(() => addWordSet('', whole)).toThrow();
     expect(() => addWordSet('on', whole)).toThrow(/taken/);
-    expect(seriesModes()).toEqual(['on']);
+    expect(seriesModes()).toEqual(['on', 'off']);
   });
 
   it('inEachWordSet visits every set and always comes back', () => {
     addWordSet(STAND_IN, standInWords());
-    expect(inEachWordSet((id) => `${id}:${seriesMode()}:${words().CLAN_SUFFIX}`)).toEqual([`on:on:${on.CLAN_SUFFIX}`, `${STAND_IN}:${STAND_IN}:Zzmob`]);
+    expect(inEachWordSet((id) => `${id}:${seriesMode()}:${words().CLAN_SUFFIX}`)).toEqual([`on:on:${on.CLAN_SUFFIX}`, 'off:off:Crew', `${STAND_IN}:${STAND_IN}:Zzmob`]);
     expect(seriesMode()).toBe('on');
     expect(() => inEachWordSet(() => { throw new Error('boom'); })).toThrow('boom');
     expect(seriesMode()).toBe('on');
@@ -168,7 +169,44 @@ describe('the mode and the sets', () => {
   it('withStandInWords leaves the family\'s words in use, even when the work throws', () => {
     expect(() => withStandInWords(() => { throw new Error('boom'); })).toThrow('boom');
     expect(seriesMode()).toBe('on');
-    expect(seriesModes()).toEqual(['on']);
+    expect(seriesModes()).toEqual(['on', 'off']);
+  });
+});
+
+describe('a fresh build (as the public has it)', () => {
+  it('starts on the everyday words and holds no family set', async () => {
+    vi.resetModules();
+    const fresh = await vi.importActual('../src/wordset.js');
+    expect(fresh.seriesMode()).toBe('off');
+    expect(fresh.seriesAvailable()).toBe(false);
+    expect(fresh.seriesModes()).toEqual(['off']);
+    expect(fresh.words().CLAN_SUFFIX).toBe('Crew');
+    expect(() => fresh.setSeriesMode('on')).toThrow(/no word set "on"/);
+    fresh.removeWordSet('off');
+    expect(fresh.seriesModes()).toEqual(['off']);
+  });
+
+  it('installs the family set once: the same object again is nothing, another throws', async () => {
+    vi.resetModules();
+    const fresh = await vi.importActual('../src/wordset.js');
+    fresh.installSeriesSet(on);
+    expect(fresh.seriesAvailable()).toBe(true);
+    expect(fresh.seriesModes()).toEqual(['on', 'off']);
+    expect(() => fresh.installSeriesSet(on)).not.toThrow();
+    expect(() => fresh.installSeriesSet({ ...on })).toThrow(/already installed/);
+    expect(fresh.seriesMode()).toBe('off'); // installing is not choosing
+    expect(() => fresh.installSeriesSet({ ...on, PREFIXES: [] })).toThrow();
+  });
+
+  it('refuses an incomplete set, and removing the one in use falls back to everyday words', async () => {
+    vi.resetModules();
+    const fresh = await vi.importActual('../src/wordset.js');
+    expect(() => fresh.installSeriesSet({ ...on, RANK_WORDS: {} })).toThrow(/RANK_WORDS/);
+    expect(fresh.seriesAvailable()).toBe(false);
+    fresh.installSeriesSet(on);
+    fresh.setSeriesMode('on');
+    fresh.removeWordSet('on');
+    expect(fresh.seriesMode()).toBe('off');
   });
 });
 

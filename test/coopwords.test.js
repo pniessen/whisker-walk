@@ -12,7 +12,6 @@ const NAME = 'Mochi';
 describe('couch play words', () => {
   for (const mode of ['on', 'off']) {
     it(`says every line in the ${mode} word set, with the cat's name and no button left as a token`, () => {
-      if (mode === 'off') addWordSet('off', off);
       setSeriesMode(mode);
       try {
         for (const id of Object.keys(LINES)) {
@@ -25,7 +24,7 @@ describe('couch play words', () => {
         }
         expect(phrase('coop.lost.title', NAME)).toContain(NAME);
         expect(phrase('coop.joined', NAME)).toContain(NAME);
-      } finally { setSeriesMode('on'); if (mode === 'off') removeWordSet('off'); }
+      } finally { setSeriesMode('on'); }
     });
   }
 

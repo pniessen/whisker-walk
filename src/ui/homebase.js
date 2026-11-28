@@ -2233,7 +2233,7 @@ export function createHomeBase({ players = null, progression, album, onStartWalk
     }
     // A picked star name goes through the same validated path as the text
     // field: the chosen name IS state.petName (no new field, spec §6.1).
-    const starPick = e.target.dataset?.starName;
+    const starPick = e.target.dataset?.topName;
     if (starPick !== undefined) {
       if (goodNewPetName(starPick)) {
         progression.setPetName(starPick);

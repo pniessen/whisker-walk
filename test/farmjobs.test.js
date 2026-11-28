@@ -82,7 +82,7 @@ function world(seed = 'test') {
 
 afterEach(() => {
   setSeriesMode(SERIES_ON);
-  for (const id of seriesModes()) removeWordSet(id);
+  for (const id of seriesModes()) if (id !== 'on' && id !== 'off') removeWordSet(id);
 });
 
 // =============================================================================
