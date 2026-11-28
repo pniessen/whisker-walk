@@ -21,6 +21,7 @@ import { STALLS, FOUNTAIN, MARKET_BOUNDS, CAFE, AWNING, awningHeight, fromStall,
 import { DAY_PERIOD } from './marketreact.js';
 import { loudness } from './roofssound.js';
 import { VISTA_N, defVista, paintVista } from './marketvista.js';
+import { NIGHT_N, defNight, createNight } from './marketnight.js';
 
 export const WSALT = 257;
 const ss = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
@@ -68,7 +69,7 @@ const KIND = { soft: 0, streak: 1, dot: 2, bird: 3, rect: 4, shaft: 5, pennant: 
 const FEST_COLOURS = [0xf06fa0, 0xf3d54a, 0x6fb8f0, 0xff8a50, 0x9be08a, 0xb48ad8];
 const BOW = [0xe84a4a, 0xf0a030, 0xf0e050, 0x60c860, 0x5090e8, 0x9060d0];
 const SHOPS = STALLS.filter((s) => s.w > 0);
-const N = { mist: 26, shaft: 5, steam: 14, bird: 6, rain: 64, drip: 20, halo: 20, bulb: 56, pennant: 18, confetti: 36, leaf: 22, bow: 6 * 18, ...VISTA_N };
+const N = { mist: 26, shaft: 5, steam: 14, bird: 6, rain: 64, drip: 20, halo: 20, bulb: 56, pennant: 18, confetti: 36, leaf: 22, bow: 6 * 18, ...VISTA_N, ...NIGHT_N };
 const I = {};
 let total = 0;
 for (const k of Object.keys(N)) { I[k] = total; total += N[k]; }
@@ -143,6 +144,7 @@ export function createMarketWeather(scene, area, ctx = {}) {
     scene.add(points);
     api.points = points;
   }
+  const night = createNight({ ...ctx, scene, reducedMotion: reduced });
   const hex = new THREE.Color();
   const def = (k, i, kd, sz, h) => { const j = I[k] + i; kind[j] = KIND[kd]; size[j] = sz; hex.setHex(h); col.set([hex.r, hex.g, hex.b], j * 3); return j; };
   const put = (j, x, y, z, a, r = 0) => { pos[j * 3] = x; pos[j * 3 + 1] = y; pos[j * 3 + 2] = z; alpha[j] = a; rot[j] = r; };
@@ -193,6 +195,7 @@ export function createMarketWeather(scene, area, ctx = {}) {
     for (let i = 0; i < N.leaf; i++) def('leaf', i, 'rect', 0.4, [0xe8dcc0, 0xc8a050, 0x7aa84a, 0xf4f0e0][i % 4]);
     for (let b = 0; b < 6; b++) for (let i = 0; i < 18; i++) def('bow', b * 18 + i, 'dot', 2.3, BOW[b]);
     defVista(def); // beauty pass 7 (marketvista.js)
+    defNight(def); // beauty pass 8 (marketnight.js)
   }
 
   // the rainbow's plane, set when a clearing begins: behind the fountain from where the camera looks
@@ -244,7 +247,7 @@ export function createMarketWeather(scene, area, ctx = {}) {
       }
     } else off('drip');
     // halos on the lanterns: warmer in rain, in the golden hour and at the festival
-    const lit = Math.min(1, cur.wet * 0.9 + cur.fest + cur.golden * 0.6);
+    const lit = Math.min(1, cur.wet * 0.9 + cur.fest + cur.golden * 0.6 + night.state.w);
     for (let i = 0; i < N.halo; i++) {
       const j = halos[i * 4 + 3];
       put(j, halos[i * 4], halos[i * 4 + 1], halos[i * 4 + 2], lit > 0.02 ? 0.3 * lit * (0.9 + 0.1 * Math.sin(t * 2 + i)) : 0);
@@ -289,6 +292,7 @@ export function createMarketWeather(scene, area, ctx = {}) {
   function sounds(t, cat, sound) {
     if (!sound) return;
     sound.air?.(cur.wet, cur.gust);
+    sound.night?.(night.state.w, t);
     if (cur.wet > 0.8 && t > state.thunderAt) {
       if (state.thunderAt > 0) sound.thunder?.(0.5);
       state.thunderAt = t + 14 + 10 * hash01(state.thunderN++, 28, WSALT);
@@ -318,19 +322,22 @@ export function createMarketWeather(scene, area, ctx = {}) {
         if (fill) fill.intensity = fill0 * (1 - 0.15 * cur.wet) * (1 + 0.12 * (vs?.rim ?? 0)); // a vista's warm rim on her fur
         sun.color.copy(sun0.c).lerp(warm, 0.55 * cur.golden);
       }
-      api.glow = 0.5 * cur.wet + 0.35 * cur.fest + 0.2 * cur.golden + (vs?.glow ?? 0);
+      const nw = night.grade(dt, react, lite);
+      api.glow = 0.25 * nw + 0.5 * cur.wet + 0.35 * cur.fest + 0.2 * cur.golden + (vs?.glow ?? 0);
       api.amp = 1 + 1.5 * cur.gust + 0.3 * cur.wet * Math.max(0, Math.sin(t * 7)) ** 2;
       api.gust = cur.gust;
       if (!live) return;
       if (typeof window !== 'undefined' && window.innerHeight) mat.uniforms.uPx.value = window.innerHeight * Math.min(window.devicePixelRatio || 1, 2) * 0.5;
       paint(dt, t, cat, camera);
       if (vs) paintVista(slot, vs, t, camera, cat);
+      if (night.on) night.paint(slot, t, cat, sound);
       for (const a of ['position', 'aAlpha', 'aRot', 'aCol', 'aSize']) geo.attributes[a].needsUpdate = true;
       sounds(t, cat, sound);
     },
     dispose() {
       if (sun0) { sun.color.copy(sun0.c); sun.intensity = sun0.i; }
       if (fill) fill.intensity = fill0;
+      night.restore();
       if (react) { react.uMkWet.value = 0; react.uMkVig.value = 0; }
       if (live) { scene.remove(points); geo.dispose(); mat.dispose(); }
       live = false;

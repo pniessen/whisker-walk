@@ -311,6 +311,8 @@ export function createMarketSound(audio, { pigeons = [], musician = null, stalls
 
   // The beds: two always-on voices (the water's hush, the bees' hum) whose gains ease toward her nearness, and two that
   // call now and then (a gull's cry, a bakery bell) at that loudness. All off while muted.
+  let nightW = 0;
+  const nightAt = { cricket: 0, box: 12, murmur: 0 };
   const bed = { air: null, made: false, water: null, bees: null, wGain: 0, bGain: 0, gullDue: 0, bellDue: 0, gullN: 0, bellN: 0, greeted: false };
   function makeBeds(c) {
     bed.made = true;
@@ -504,6 +506,32 @@ export function createMarketSound(audio, { pigeons = [], musician = null, stalls
         [1568, 1976, 2349].forEach((f, i) => tone(c, 'sine', f, f, now + i * 0.14, 1.2, 0.006, 0.012));
       });
     },
+    // beauty pass 8: the night's owl, one soft two-note hoot
+    hoot() {
+      if (gone || muted()) return;
+      withBus((c, now) => {
+        tone(c, 'sine', 420, 380, now, 0.45, 0.05, 0.02);
+        tone(c, 'sine', 400, 330, now + 0.6, 0.7, 0.05, 0.02);
+      });
+    },
+    // beauty pass 8: the night's sound (marketlife.js through the weather, every frame): w 0..1; crickets, a music-box phrase far off,
+    // a low murmur of the late market and the fountain louder (zones() reads nightW)
+    night(w, t) {
+      if (gone || muted() || !(w > 0.05)) { nightW = 0; return; }
+      nightW = w;
+      if (t >= nightAt.cricket) {
+        nightAt.cricket = t + 1.1 + 0.5 * ((Math.floor(t) * 7) % 5) / 5;
+        withBus((c, now) => [0, 0.09, 0.18].forEach((d) => tone(c, 'sine', 4300, 4300, now + d, 0.05, 0.004, 0.0035 * w)));
+      }
+      if (t >= nightAt.box) {
+        nightAt.box = t + 38;
+        withBus((c, now) => [784, 988, 880, 1175, 988, 784].forEach((f, i) => tone(c, 'sine', f, f, now + i * 0.55, 1.4, 0.006, 0.01 * w)));
+      }
+      if (t >= nightAt.murmur) {
+        nightAt.murmur = t + 4.5;
+        withBus((c, now) => { tone(c, 'sine', 140, 128, now, 3.2, 0.9, 0.006 * w); tone(c, 'sine', 196, 180, now + 0.4, 3.0, 0.9, 0.004 * w); });
+      }
+    },
     // the part of the day: 0 morning .. 1 evening (marketlife.js)
     setPart(p) {
       if (Number.isFinite(p)) part = Math.min(1, Math.max(0, p));
@@ -517,7 +545,7 @@ export function createMarketSound(audio, { pigeons = [], musician = null, stalls
       try {
         if (!bed.made) makeBeds(c);
         const now = c.currentTime;
-        const w = quiet ? 0 : ZONES.water.gain * loudness(Math.hypot(catPos.x - ZONES.water.at.x, catPos.z - ZONES.water.at.z), ZONES.water.ear);
+        const w = quiet ? 0 : (1 + 0.6 * nightW) * ZONES.water.gain * loudness(Math.hypot(catPos.x - ZONES.water.at.x, catPos.z - ZONES.water.at.z), ZONES.water.ear);
         const b = quiet ? 0 : ZONES.bees.gain * loudness(dist(catPos, zones.bees), ZONES.bees.ear);
         if (bed.water) ease(bed.water.g, w, now);
         if (bed.bees) ease(bed.bees.g, b, now);

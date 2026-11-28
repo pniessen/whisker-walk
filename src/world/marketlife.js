@@ -181,7 +181,7 @@ export function createMarketLife(area, ctx = {}) {
   // beauty pass 5 (marketcreatures.js): the square's small creatures, one pooled Points
   const creatures = scene && react ? createCreatures(scene, { reducedMotion, tier: ctx.tier }) : null;
   // beauty pass 6 (marketweather.js): weather and atmosphere as events: rain, morning mist, golden hour, a festival evening, a gust
-  const weather = scene && react && ctx.force !== 'off' ? createMarketWeather(scene, area, { reducedMotion, tier: ctx.tier, dusk: ctx.dusk, now: ctx.now, weather: ctx.weather, sun: ctx.sun, fill: ctx.fill, force: ctx.force, festival: ctx.festival }) : null;
+  const weather = scene && react && ctx.force !== 'off' ? createMarketWeather(scene, area, { reducedMotion, tier: ctx.tier, dusk: ctx.dusk, now: ctx.now, weather: ctx.weather, sun: ctx.sun, fill: ctx.fill, force: ctx.force, festival: ctx.festival, night: ctx.night }) : null;
   // beauty pass 7 (marketvista.js): five photogenic spots tuned for the play camera and a golden moment; ctx.vista 'off' is the square without them (a picture's 'before'), ctx.vgold a picture's quick moment
   const vista = weather && ctx.vista !== 'off' ? createVista({ reducedMotion, force: !!ctx.vgold }) : null;
   let greeted = false;
