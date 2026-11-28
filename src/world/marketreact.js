@@ -39,6 +39,7 @@ export function createReact(puddles = []) {
     uMkRip: { value: 0 },
     uMkSpark: { value: 0 },
     uMkSway: { value: 0 },
+    uMkWet: { value: 0 }, // beauty pass 6: how wet the cobbles are (marketweather.js): the sheen and the drops' rings
     uMkSea: { value: new THREE.Vector4(0, 0, 0, 0) }, // beauty pass 4: the season's weights, x autumn, y winter, z spring, w summer (marketseason.js)
     uMkPud: { value: pud },
     // beauty pass 5: the day's rhythm (x: how open, the morning's lift; y: how shut, the evening's dim), and the ten stalls
@@ -113,7 +114,14 @@ ${kind === 'ground' ? `    if (w.y < 0.03) {
     diffuseColor.rgb += vec3(0.5, 0.68, 0.8) * wave * min(pr, 1.0) * uMkRip * 0.9;
   }` : ''}
 }`;
-  const glow = kind === 'ground' ? '' : kind === 'water' ? `{
+  const glow = kind === 'ground' ? `if (uMkWet > 0.0 && vMkN.y > 0.8) {
+  vec2 g = vMkW.xz * 2.4;
+  vec2 cell = floor(g);
+  float h = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
+  float ph = fract(uMkR * 0.8 + h * 7.0);
+  float ring = (1.0 - smoothstep(0.0, 0.05, abs(length(fract(g) - 0.5) - ph * 0.45))) * (1.0 - ph) * step(0.6, h);
+  totalEmissiveRadiance += vec3(0.42, 0.5, 0.62) * uMkWet * (0.07 + 0.1 * (0.5 + 0.5 * sin(vMkW.x * 1.3 + sin(vMkW.z * 0.9) * 2.0)) + 0.6 * ring);
+}` : kind === 'water' ? `{
   vec2 gp = vMkW.xz * 6.0 + vec2(uMkR * 0.3, uMkR * 0.17);
   vec2 cell = floor(gp);
   float h = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
@@ -141,11 +149,11 @@ varying vec3 vMkW;
 varying vec3 vMkN;
 uniform float uMkR; uniform vec3 uMkCat; uniform vec3 uMkTone; uniform float uMkCloud; uniform float uMkRip; uniform float uMkSpark;
 uniform vec4 uMkPud[5];
-uniform vec4 uMkSea;\nuniform vec2 uMkDay;\nuniform vec4 uMkSt[10];\nuniform vec3 uMkStC[10];`)
+uniform vec4 uMkSea;\nuniform float uMkWet;\nuniform vec2 uMkDay;\nuniform vec4 uMkSt[10];\nuniform vec3 uMkStC[10];`)
       .replace('#include <color_fragment>', `#include <color_fragment>\n${colour}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${glow}`);
   };
-  material.customProgramCacheKey = () => `${prevKey ? prevKey.call(material) : ''}|market-life-${kind}-v3`;
+  material.customProgramCacheKey = () => `${prevKey ? prevKey.call(material) : ''}|market-life-${kind}-v4`;
 }
 
 // The part of the day for walk second t: 0 morning .. 1 evening, over `period` seconds, then back

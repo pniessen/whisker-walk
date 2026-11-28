@@ -102,6 +102,7 @@ import { createErrands } from './marketerrandlive.js';
 import { createRoofsSmoke } from './roofsair.js';
 import { dayPart, toneAt, openAt, closeAt } from './marketreact.js';
 import { createCreatures } from './marketcreatures.js';
+import { createMarketWeather } from './marketweather.js';
 import { seasonOf, applySeason, createDrift } from './marketseason.js';
 
 export const MARKET_BUCKET_ID = 'market-bucket-1';
@@ -178,6 +179,8 @@ export function createMarketLife(area, ctx = {}) {
   let rip = 0;
   // beauty pass 5 (marketcreatures.js): the square's small creatures, one pooled Points
   const creatures = scene && react ? createCreatures(scene, { reducedMotion, tier: ctx.tier }) : null;
+  // beauty pass 6 (marketweather.js): weather and atmosphere as events: rain, morning mist, golden hour, a festival evening, a gust
+  const weather = scene && react && ctx.force !== 'off' ? createMarketWeather(scene, area, { reducedMotion, tier: ctx.tier, dusk: ctx.dusk, now: ctx.now, weather: ctx.weather, sun: ctx.sun, fill: ctx.fill, force: ctx.force, festival: ctx.festival }) : null;
   let greeted = false;
   const still = reducedMotion || lite;
   const smoke = scene && !lite && area?.chimneys?.length ? createRoofsSmoke(scene, area.chimneys, { reducedMotion }) : null;
@@ -314,7 +317,7 @@ export function createMarketLife(area, ctx = {}) {
       if (disposed) return;
       for (const u of flutter) u.uMkT.value = t;
       smoke?.update(t);
-      drift?.update(t, catPos, sound);
+      drift?.update(t, catPos, sound, camera);
       if (creatures && typeof window !== 'undefined' && window.innerHeight) creatures.setViewHeight(window.innerHeight * Math.min(window.devicePixelRatio || 1, 2));
       if (creatures && catPos && !creatures.arrived) { creatures.arrive(t); sound?.arrive(); }
       musician?.update(t);
@@ -354,7 +357,8 @@ export function createMarketLife(area, ctx = {}) {
         const open = openAt(part);
         const close = closeAt(part);
         react.uMkDay.value.set(lite ? 0 : open, lite ? 0 : close);
-        if (!ctx.dusk && area?.look?.lantern) area.look.lantern.emissiveIntensity = LANTERN_DAY + (LANTERN_MAX - LANTERN_DAY) * close * 0.85;
+        weather?.update(dt, t, catPos, camera, part, session, sound);
+        if (area?.look?.lantern && (!ctx.dusk || weather)) area.look.lantern.emissiveIntensity = (ctx.dusk ? LANTERN_MAX : LANTERN_DAY + (LANTERN_MAX - LANTERN_DAY) * close * 0.85) + (weather?.glow ?? 0);
         creatures?.update(dt, t, catPos, { part, tone: react.uMkTone.value, dusk: !!ctx.dusk });
         sound?.zones(dt, catPos);
         if (!greeted && catPos && sound) greeted = sound.greetNear(catPos);
@@ -367,9 +371,9 @@ export function createMarketLife(area, ctx = {}) {
           rip += (k - rip) * Math.min(1, dt * (k > rip ? 10 : 2.5));
           react.uMkRip.value = rip;
           react.uMkCloud.value = 1;
-          react.uMkSway.value = moving ? 1 : 0.4;
+          react.uMkSway.value = Math.max(moving ? 1 : 0.4, weather?.gust ?? 0);
           const gust = Math.max(0, Math.sin(t * 0.23) * Math.sin(t * 0.37 + 1.1));
-          for (const u of flutter) u.uMkAmp.value = 1 + 0.9 * gust * gust;
+          for (const u of flutter) u.uMkAmp.value = (1 + 0.9 * gust * gust) * (weather?.amp ?? 1);
         }
       }
       if (!apples && scene && crateAt) {
@@ -413,6 +417,7 @@ export function createMarketLife(area, ctx = {}) {
       smoke?.dispose();
       drift?.dispose();
       creatures?.dispose();
+      weather?.dispose();
       apples?.dispose();
       wool?.dispose();
       petals?.dispose();

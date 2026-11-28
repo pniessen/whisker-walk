@@ -311,7 +311,7 @@ export function createMarketSound(audio, { pigeons = [], musician = null, stalls
 
   // The beds: two always-on voices (the water's hush, the bees' hum) whose gains ease toward her nearness, and two that
   // call now and then (a gull's cry, a bakery bell) at that loudness. All off while muted.
-  const bed = { made: false, water: null, bees: null, wGain: 0, bGain: 0, gullDue: 0, bellDue: 0, gullN: 0, bellN: 0, greeted: false };
+  const bed = { air: null, made: false, water: null, bees: null, wGain: 0, bGain: 0, gullDue: 0, bellDue: 0, gullN: 0, bellN: 0, greeted: false };
   function makeBeds(c) {
     bed.made = true;
     try {
@@ -436,6 +436,67 @@ export function createMarketSound(audio, { pigeons = [], musician = null, stalls
         [2093, 2637, 3136].forEach((f, i) => tone(c, 'sine', f, f, now + 0.1 + i * 0.16, 0.7, 0.006, 0.012 * l));
       });
     },
+    // beauty pass 6 (marketweather.js): the weather's sounds, all soft and optional. thunder far off; the rain's hiss and the wind's
+    // rush as one eased bed; the dawn's chirps; the festival's little street tune (the musician's notes, a fifth up, brighter)
+    thunder(level = 1) {
+      if (gone || muted() || !(level > 0)) return;
+      withBus((c, now) => {
+        const src = c.createBufferSource();
+        src.buffer = noiseBuffer(c);
+        src.loop = true;
+        const lp = c.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.setValueAtTime(220, now);
+        lp.frequency.exponentialRampToValueAtTime(60, now + 2.6);
+        const g = c.createGain();
+        g.gain.value = FLOOR;
+        g.gain.setValueAtTime(FLOOR, now);
+        g.gain.linearRampToValueAtTime(0.05 * level, now + 0.5);
+        g.gain.exponentialRampToValueAtTime(FLOOR, now + 2.8);
+        src.connect(lp).connect(g).connect(master);
+        src.onended = letGo(src, lp, g);
+        src.start(now);
+        src.stop(now + 2.9);
+        sounding.push({ osc: src, g, end: now + 2.9 });
+      });
+    },
+    air(rain = 0, wind = 0) {
+      if (gone) return;
+      const c = bus();
+      if (!c) return;
+      try {
+        if (!bed.air && (rain > 0.02 || wind > 0.02)) {
+          const src = c.createBufferSource();
+          src.buffer = noiseBuffer(c);
+          src.loop = true;
+          const f = c.createBiquadFilter();
+          f.type = 'bandpass';
+          f.Q.value = 0.5;
+          const g = c.createGain();
+          g.gain.value = 0;
+          src.connect(f).connect(g).connect(master);
+          src.start();
+          bed.air = { src, f, g };
+        }
+        if (!bed.air) return;
+        const now = c.currentTime;
+        const q = muted() ? 0 : 1;
+        bed.air.f.frequency.setTargetAtTime(rain > wind ? 3800 : 650, now, 0.4);
+        ease(bed.air.g, q * (0.011 * rain + 0.016 * wind), now);
+      } catch {
+        bed.air = null;
+      }
+    },
+    dawn(level = 1) {
+      if (gone || muted() || !(level > 0)) return;
+      chirp(CALLS.sparrow, Math.min(1, level));
+    },
+    festive(level = 1) {
+      if (gone || muted() || !(level > 0)) return;
+      withBus((c, now) => {
+        MUSIC.notes.slice(0, 10).forEach((n) => tone(c, 'triangle', n.f * 1.5, n.f * 1.5, now + n.at * 0.8, n.dur, 0.02, MUSIC.gain * 0.7 * level));
+      });
+    },
     // the part of the day: 0 morning .. 1 evening (marketlife.js)
     setPart(p) {
       if (Number.isFinite(p)) part = Math.min(1, Math.max(0, p));
@@ -495,7 +556,7 @@ export function createMarketSound(audio, { pigeons = [], musician = null, stalls
     dispose() {
       hush();
       gone = true;
-      for (const v of [bed.water, bed.bees]) {
+      for (const v of [bed.water, bed.bees, bed.air]) {
         if (!v) continue;
         for (const n of [v.src, v.o, v.lfo]) { try { n?.stop(); n?.disconnect(); } catch { /* done */ } }
         try { v.g.disconnect(); } catch { /* done */ }

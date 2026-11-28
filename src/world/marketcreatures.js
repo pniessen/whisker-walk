@@ -22,7 +22,7 @@ const ROWS = 3;
 
 // atlas cells
 export const CELLS = Object.freeze({ sparrow: 0, sparrowUp: 1, pigeon: 0, pigeonUp: 1, cat: 4, catStretch: 5, dog: 6, dogWag: 7, wing: 8, wingShut: 9, petal: 10 });
-const SIZES = Object.freeze({ sparrow: 0.46, pigeon: 0.7, cat: 0.86, catStretch: 1.1, dog: 1.1, wing: 0.5, petal: 0.11 });
+const SIZES = Object.freeze({ sparrow: 0.46, pigeon: 0.7, cat: 0.7, catStretch: 0.9, dog: 0.95, wing: 0.5, petal: 0.11 });
 
 // 16 x 16 pixel pictures, facing right ('.' clear); the letters are PAL's colours
 const PAL = { b: 0x8a5a38, d: 0x4a3424, c: 0xe2d2b0, o: 0xe0a040, k: 0x161616, t: 0xd98a3e, s: 0xa8581e, w: 0xf2e6d0, p: 0xf2b6b0, n: 0xc0894a, e: 0x5a3418, g: 0x2a2a2a, a: 0xa87238, W: 0xffffff };
