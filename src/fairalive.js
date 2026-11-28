@@ -95,7 +95,7 @@ function makePoints(count, size, additive, name) {
 
 // createFairAlive({ scene, reducedMotion, scale }) -> { update(dt, T, catPos, lit, speed), counts, dispose() }
 // scale: the quality tier's ambientScale (1, 0.5, 0.25): the pools shrink with it.
-export function createFairAlive({ scene, reducedMotion = false, scale = 1, area = null, onEvent = () => {}, weather = null }) {
+export function createFairAlive({ scene, reducedMotion = false, scale = 1, area = null, onEvent = () => {}, weather = null, ground }) {
   const k = Math.max(0.25, Math.min(1, Number.isFinite(scale) ? scale : 1));
   const nBits = reducedMotion ? 0 : Math.max(4, Math.round(ALIVE.bits * k));
   const nSteam = reducedMotion ? 0 : Math.max(2, Math.round(ALIVE.steam * k));
@@ -121,7 +121,7 @@ export function createFairAlive({ scene, reducedMotion = false, scale = 1, area 
   const tint = new THREE.Color();
   const calli = new THREE.Vector3(0, 2, 0); // the calliope's pipes, where its sparks rise
   if (area?.rides?.merryGoRound?.musicBoxDrum) { area.rides.merryGoRound.musicBoxDrum.updateWorldMatrix(true, false); area.rides.merryGoRound.musicBoxDrum.getWorldPosition(calli); }
-  const wx = reducedMotion ? null : createFairWx({ scene, area, k, onEvent, weather, hub, mgr: { x: 0, z: 0 }, calli, bulbs: ALIVE.bulbs, glow: { pos: glow.pos, col: glow.col, siz: glow.siz, at: nSteam + 2 + nLant }, bits: { pos: bits.pos, col: bits.col, siz: bits.siz, at: nBits + nDrift }, fire: { pos: fire.pos, col: fire.col, siz: fire.siz, at: nSpark, n: wc.fire } });
+  const wx = reducedMotion ? null : createFairWx({ scene, area, k, onEvent, weather, ground, hub, mgr: { x: 0, z: 0 }, calli, bulbs: ALIVE.bulbs, glow: { pos: glow.pos, col: glow.col, siz: glow.siz, at: nSteam + 2 + nLant }, bits: { pos: bits.pos, col: bits.col, siz: bits.siz, at: nBits + nDrift }, fire: { pos: fire.pos, col: fire.col, siz: fire.siz, at: nSpark, n: wc.fire } });
   const pals = createFairPals({ scene, reducedMotion, scale: k, makePoints, hub: area?.anchors?.wheelHub ? hub : null, onEvent, puff: (x, z) => { for (let i = 0; i < 16; i++) spawn(x, z, 9, 0); } });
 
   function spawn(x, z, speed, yaw) {
