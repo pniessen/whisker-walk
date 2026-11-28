@@ -222,7 +222,7 @@ function drawSand(kit, M) {
     const w = 0.32 + 0.3 * h01(i, 4, 331);
     const pts = [];
     for (let k = 0; k < 5; k++) pts.push([x + 0.4 * Math.sin(k * 1.3 + i), z + (k / 4 - 0.5) * len]);
-    const edge = 0xbfab84; const mid = i % 3 === 0 ? 0xcab68c : 0xaa9670;
+    const edge = 0xbfab84; const mid = i % 3 === 0 ? 0xc6b289 : 0xb5a07a; // (pass 8: the darker bands were half as dark again, and read as a stray line at the grazing arrival view)
     for (let k = 0; k + 1 < pts.length; k++) {
       const [ax, az] = pts[k]; const [bx2, bz] = pts[k + 1];
       const fa = k === 0 ? edge : mid; const fb = k + 2 === pts.length ? edge : mid;
@@ -289,7 +289,7 @@ function drawSand(kit, M) {
     for (let m = 0; m < 9; m++) {
       const a = h01(k, m, 371) * 6.283; const rr = p.r + 0.4 + 0.7 * h01(k, m, 373);
       const dark = m % 3 === 0;
-      shell(W, p.x + Math.cos(a) * rr, 0.06, p.z + Math.sin(a) * rr, 0.07 + 0.05 * h01(k, m, 375), m, dark ? 0x2c3347 : 0xc9bfa8);
+      shell(W, p.x + Math.cos(a) * rr, 0.06, p.z + Math.sin(a) * rr, 0.07 + 0.05 * h01(k, m, 375), m, dark ? 0x5b6785 : 0xc9bfa8);
     }
     starfish(W, p.x + Math.cos(k * 1.7) * (p.r + 0.9), 0.065, p.z + Math.sin(k * 1.7) * (p.r + 0.9), 0.16, k, [0xe0793c, 0xc2402f, 0xe9a04a][k % 3]);
     // weed fringe on the shelf's rim

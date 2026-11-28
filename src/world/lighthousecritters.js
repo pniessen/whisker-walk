@@ -57,10 +57,10 @@ export function createCritters({ low = false, still = false } = {}) {
           if (c.away > 3) { c.mode = 'out'; c.x = c.hx; c.z = c.hz; }
         }
       }
-      // the hole: a dark spot in the sand
-      const hole = [[c.hx - 0.28, 0.16, c.hz], [c.hx + 0.28, 0.16, c.hz - 0.1], [c.hx, 0.16, c.hz + 0.26]];
-      const hc = rgba(0x1c150f, 0.85);
-      if (!emit(hole[0], hole[1], hole[2], hc, hc, hc)) return;
+      // the hole: a small damp-brown burrow mouth, soft at two corners (it was a near-black, 85 % opaque, half-metre wedge that read as a black triangle on the sand)
+      const hole = [[c.hx - 0.16, 0.16, c.hz], [c.hx + 0.16, 0.16, c.hz - 0.06], [c.hx, 0.16, c.hz + 0.15]];
+      const hc = rgba(0x4a3424, 0.6); const hs = rgba(0x6a4e36, 0.12);
+      if (!emit(hole[0], hole[1], hole[2], hs, hs, hc)) return;
       if (c.mode === 'gone') continue;
       const A = B(c.x, 0.2, c.z, 1.6);
       const shell = rgba(0xd2573a); const lite = rgba(0xf08a56); const dark = rgba(0x7a2c20);
