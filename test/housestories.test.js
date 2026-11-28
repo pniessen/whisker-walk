@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.stubGlobal('document', { createElement: () => ({ getContext: () => null }) });
 
 const S = await import('../src/world/housestories.js');
-const { createHouseGlow } = await import('../src/world/houseglow.js');
+const { createHouseGlow, gustAt } = await import('../src/world/houseglow.js');
 const { HOUSE_WINDOWS, HOUSE_ROOMS, HOUSE_LEVELS, HOUSE_LAMPS } = await import('../src/world/houseplan.js');
 
 // The Old House beauty pass 4 (2026-11-28): the season by the date, the rare surprises, the painted stories (shader only: no geometry).
@@ -24,12 +24,12 @@ describe('the seasons', () => {
     const g = createHouseGlow({ windows: HOUSE_WINDOWS, rooms: HOUSE_ROOMS, levels: HOUSE_LEVELS, lamps: HOUSE_LAMPS });
     g.update(1, { x: 0, y: 0, z: 7 }, { season: 0 });
     expect(g.uniforms.uSeason.value).toBe(0);
-    expect(g.uniforms.uBreeze.value).toBe(S.SEASON_BREEZE[0]);
+    expect(g.uniforms.uBreeze.value).toBeCloseTo(S.SEASON_BREEZE[0] * (0.7 + 0.5 * gustAt(1)), 10); // the curtains breathe with the garden's gust (beauty pass 5)
     g.update(1, { x: 0, y: 0, z: 7 }, { season: 2, box: 0.5, cuckoo: 1 });
     expect(g.uniforms.uSeason.value).toBe(2);
     expect(g.uniforms.uBox.value).toBe(0.5);
     expect(g.uniforms.uCuckoo.value).toBe(1);
-    expect(g.uniforms.uBreeze.value).toBe(S.SEASON_BREEZE[2]);
+    expect(g.uniforms.uBreeze.value).toBeCloseTo(S.SEASON_BREEZE[2] * (0.7 + 0.5 * gustAt(1)), 10);
   });
   it('writes every story into the shader chunk', () => {
     for (const word of ['stories(', 'storiesGlow(', 'uSeason'.slice(0, 0)]) expect(S.STORY_FUNCS).toContain(word);
