@@ -403,13 +403,15 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
       quad(f.v, [a[0], 0.1, a[2]], [a[0] + sea.dir * w, 0.1, a[2]], [b[0], 0.1, b[2]], [b[0] + sea.dir * w, 0.1, b[2]]);
       tint(f.v, 6, FOAM, bright);
     }
+    const cpA = sound?.caps; const gkA = cpA ? cpA.gk() : 1; const sE = cpA ? cpA.k('surprise') : 1; let shipLit = 0; // pass 10: shared caps (glow budget; the surprise is the last of the event rule)
+    if (cpA) cpA.glow('lanterns', 0.1 + 0.15 * night + 0.2 * W.fog);
     // glints: each a flat diamond that flares and fades (gold and brighter at sunset, pale blue-green on a starry night)
     glintCol.setRGB(GOLD.r * TN[0], GOLD.g * TN[1], GOLD.b * TN[2]).lerp(GLINT_STAR, W.stars * 0.85);
     for (const g of glints) {
       const k = still ? 0.35 : Math.max(0, Math.sin(t * g.rate + g.ph)) ** 3;
       const r = g.r * (0.55 + 0.6 * k);
       quad(g.v, [g.x - r, 0.095, g.z], [g.x, 0.095, g.z - r * 0.4], [g.x, 0.095, g.z + r * 0.4], [g.x + r, 0.095, g.z]);
-      tint(g.v, 6, glintCol, (0.2 + 0.9 * k) * (1 + 0.6 * W.sunset));
+      tint(g.v, 6, glintCol, (0.2 + 0.9 * k) * (1 + 0.6 * W.sunset) * gkA);
     }
     // sheens breathe
     for (const sh of sheens) {
@@ -431,7 +433,7 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
         const v = l.v + q * 3; const a0 = (q / HALO_FAN) * TAU; const a1 = ((q + 1) / HALO_FAN) * TAU;
         const rim = (a) => [cx + (right.x * Math.cos(a) + up.x * Math.sin(a)) * sz, cy + (right.y * Math.cos(a) + up.y * Math.sin(a)) * sz, cz + (right.z * Math.cos(a) + up.z * Math.sin(a)) * sz];
         put(v, 0, [cx, cy, cz]); put(v, 1, rim(a0)); put(v, 2, rim(a1));
-        tint(v, 1, WARM, 0.55 * flick * (1 + 0.6 * night + 1.3 * W.fog + 0.4 * W.storm)); tint(v + 1, 2, WARM, 0); // (the lanterns burn brighter as the night comes on)
+        tint(v, 1, WARM, 0.55 * flick * (1 + 0.6 * night + 1.3 * W.fog + 0.4 * W.storm) * gkA); tint(v + 1, 2, WARM, 0); // (the lanterns burn brighter as the night comes on)
       }
     }
     // the beam's glow on the clouds (only while the lamp is lit)
@@ -497,7 +499,7 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
       const ph = (t + 20) % SHIP_PERIOD;
       const on = !still && ph < SHIP_SPAN;
       const k = ph / SHIP_SPAN;
-      const sx = 104 - 54 * k; const fade = on ? Math.sin(Math.PI * k) ** 0.5 : 0;
+      const sx = 104 - 54 * k; const fade = (on ? Math.sin(Math.PI * k) ** 0.5 : 0) * sE; shipLit = on ? fade / sE : 0;
       const dia = (v, cx0, cy0, cz0, r) => { put(v, 0, [cx0 - r * flatRight.x, cy0, cz0 - r * flatRight.z]); put(v, 1, [cx0, cy0 + r, cz0]); put(v, 2, [cx0 + r * flatRight.x, cy0, cz0 + r * flatRight.z]); };
       const sk = clamp01((W.sunset - 0.35) / 0.4); // at sunset the far sails are lit gold instead of the ship's lights
       if (sk > 0) {
@@ -524,7 +526,7 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
         if (wi >= nWonder) return false;
         const v = wonderV + wi * 3; wi++;
         put(v, 0, a); put(v, 1, b); put(v, 2, c);
-        V.setCol(v, ca[0], ca[1], ca[2]); V.setCol(v + 1, cb[0], cb[1], cb[2]); V.setCol(v + 2, cc[0], cc[1], cc[2]);
+        V.setCol(v, ca[0] * sE, ca[1] * sE, ca[2] * sE); V.setCol(v + 1, cb[0] * sE, cb[1] * sE, cb[2] * sE); V.setCol(v + 2, cc[0] * sE, cc[1] * sE, cc[2] * sE);
         return true;
       });
       for (let i = wi; i < nWonder; i++) { const v = wonderV + i * 3; for (let q = 0; q < 3; q++) put(v, q, [0, 0, 0]); }
@@ -532,6 +534,7 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
     }
     if (playing) for (let i = dynUsed; i < wonderV; i++) { put(i, 0, [0, 0, 0]); col[i * 3] = 0; col[i * 3 + 1] = 0; col[i * 3 + 2] = 0; } // (the unused packed slots, drawn while the surprise plays, are empty)
     momentOn = playing;
+    if (cpA) cpA.level('surprise', Math.max(playing ? 1 : 0, shipLit));
     fGeo.setDrawRange(0, playing ? V.n : dynUsed);
     fGeo.attributes.position.needsUpdate = true;
     fGeo.attributes.color.needsUpdate = true;

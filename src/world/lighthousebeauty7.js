@@ -127,13 +127,15 @@ export function createLighthouseVistas({ scene, ground = null, reducedMotion = f
     if (!still && goldenStep(gold, dt, tg.w * (1 - q), moving)) { sound?.chime?.(); }
     if (wx?.rig) gradeVista(vs, q, { fog: wx.rig.fog, sun: wx.rig.sun, fill: wx.rig.fill, scene });
     const on = vs.v >= 0 && vs.w > 0.004;
+    const cp = sound?.caps; const gE = cp ? cp.k('golden') : 1; const gk = cp ? cp.gk() : 1; // pass 10: the event rule (golden is second to her voice) and the shared glow budget
+    if (cp) { cp.level('golden', gold.k); cp.glow('vista', on && q < 0.6 ? vs.w * (1 - q) * 0.4 : 0); cp.glow('golden', gold.k * 0.4); }
     haze.p.visible = glow.p.visible = on && q < 0.6; // (clear weather only)
     spark.p.visible = on && gold.k > 0.004;
     if (on) {
       const gy = ground?.y ? ground.y(cat.x, cat.z) : 0; const tt = still ? 0 : t;
-      const dim = 1 - q;
-      fill(haze, 'haze', tt, cat, gy, dim); fill(glow, 'glow', tt, cat, gy, gold.k);
-      if (spark.p.visible) fill(spark, 'spark', tt, cat, gy, gold.k);
+      const dim = (1 - q) * gk; const gg = gold.k * gE * gk;
+      fill(haze, 'haze', tt, cat, gy, dim); fill(glow, 'glow', tt, cat, gy, gg);
+      if (spark.p.visible) fill(spark, 'spark', tt, cat, gy, gg);
     }
     // the foreground: the sand a little warmer and deeper while she is in a vista (the frame's edge dims)
     if (sand === null) { scene?.traverse?.((m) => { if (!sand && m.userData?.duskLawnTint && m.material?.color) sand = m; }); sand = sand || false; if (sand) sand0 = sand.material.color.clone(); }

@@ -107,7 +107,7 @@ export function createLighthouseVoice({ scene, ground = null, audio = null, soun
     for (let i = 0; i < n(3); i++) take(0, t, 0.9, { x: bx, y: c.y + 0.2, z: bz, vx: -c.hx * 1.4 + (h(60 + i) - 0.5) * 1.6, vz: -c.hz * 1.4 + (h(61 + i) - 0.5) * 1.6, vy: 1.3 + h(62 + i), ay: -8, floor: c.y + 0.04, size: 0.6, rgb: SAND, fade: 0.4 });
     take(1, t, 1.1, { x: bx - c.hx * 0.3, y: c.y + 0.3, z: bz - c.hz * 0.3, vx: -c.hx * 0.5, vz: -c.hz * 0.5, vy: 0.4, size: 0.8, rgb: wet(c.x, c.z) ? FOAM : GOLD, fl: 0.5, fw: 12, fade: 0.7 });
   }
-  const voice = { gull: () => sound?.gull?.(), chime: () => sound?.chime?.(), seal: () => { try { if (audio && !audio.isMuted?.()) audio['ba' + 'rk']?.(); } catch { /* optional */ } } };
+  const voice = { gull: () => sound?.gull?.(), chime: () => sound?.chime?.(), seal: () => { try { if (audio && !audio.isMuted?.()) { const go = () => audio['ba' + 'rk']?.(); if (sound?.accent) sound.accent(1.2, go); else go(); } } catch { /* optional */ } } };
 
   /** One frame. cat { x, y, z } | null, session (pounceTime, sniffTime, idleTime, wasZooming, perched) | null, fwd the camera's ground direction { x, z } or null. */
   function step(dt, t, cat, session, fwd = null) {
@@ -131,6 +131,7 @@ export function createLighthouseVoice({ scene, ground = null, audio = null, soun
       if (st.zoomOn) { st.zoomT += dt; if (st.zoomT > 4) st.zoomOn = false; else if (t >= st.nextTrail && motion) { trail(t); st.nextTrail = t + 0.13; } }
     }
   }
+  const tellCaps = () => { const cp = sound?.caps; if (!cp) return; const on = (solid.p.visible || glow.p.visible) ? 1 : 0; cp.level('voice', on); cp.glow('voice', glow.p.visible ? 0.3 : 0); };
   /** One point at time t: fills out { x, y, z, g, size, rgb }. Pure. */
   function at(i, t, out) {
     const p = ps[i]; const age = t - p.t0; out.size = p.size; out.rgb = p.rgb; out.g = 0; out.x = c.x; out.z = c.z; out.y = -50;
@@ -165,7 +166,7 @@ export function createLighthouseVoice({ scene, ground = null, audio = null, soun
     if (disposed) return;
     let fwd = null; if (camera) { camera.getWorldDirection(_dir); fwd = _dir; }
     step(dt, t, cat, session, fwd);
-    let live = [0, 0];
+    const cp = sound?.caps; const gk = cp ? cp.gk() : 1; let live = [0, 0];
     for (const g of [solid, glow]) {
       const base = g === solid ? 0 : NS;
       for (let i = 0; i < g.n; i++) {
@@ -174,8 +175,10 @@ export function createLighthouseVoice({ scene, ground = null, audio = null, soun
         g.col[i * 3] = _o.rgb[0] * k; g.col[i * 3 + 1] = _o.rgb[1] * k; g.col[i * 3 + 2] = _o.rgb[2] * k;
       }
       g.p.visible = !!live[g === solid ? 0 : 1];
+      if (g === glow) for (let i = 0; i < g.n * 3; i++) g.col[i] *= gk; // (the shared glow budget scales the sprays)
       if (g.p.visible) { g.geo.attributes.position.needsUpdate = true; g.geo.attributes.color.needsUpdate = true; g.geo.attributes.aSize.needsUpdate = true; }
     }
+    tellCaps();
   }
   function dispose() {
     if (disposed) return; disposed = true; offs.forEach((o) => o?.());

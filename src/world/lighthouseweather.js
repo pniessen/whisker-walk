@@ -175,7 +175,9 @@ export function createLighthouseWeather({ scene, sun = null, fill = null, waterF
     const raining = !!(weather && typeof weather.isRaining === 'function' && weather.isRaining());
     const ev = eventsAt(t, { hour, night, seed, rain: raining, reducedMotion: still, force });
     state.storm = ev.storm; state.fog = ev.fog; state.sunset = ev.sunset; state.stars = ev.stars; state.flash = ev.flash; state.clock = t;
-    const { storm, fog, sunset, stars, flash } = state;
+    const { storm, fog, sunset, stars } = state;
+    const cp = sound?.caps; const gk = cp ? cp.gk() : 1; const wE = cp ? cp.k('weather') : 1; // pass 10: shared caps (the event rule and the glow budget)
+    const flash = state.flash * wE; // (the lightning's flash eases with its layer)
     const base = B.base;
 
     // light, sky, fog, clouds
@@ -210,7 +212,7 @@ export function createLighthouseWeather({ scene, sun = null, fill = null, waterF
     // rain streaks past her
     rain.visible = storm > 0.02 && !still;
     if (rain.visible) {
-      rain.material.opacity = 0.62 * Math.min(1, storm * 1.2);
+      rain.material.opacity = 0.62 * Math.min(1, storm * 1.2) * wE;
       for (let i = 0; i < RAIN; i++) {
         const o = rOff[i]; const y = (((o[1] * 11 - t * 17) % 11) + 11) % 11;
         const x = px + o[0] * 13 + (y - 5) * 0.28; const z = pz + o[2] * 13;
@@ -219,6 +221,8 @@ export function createLighthouseWeather({ scene, sun = null, fill = null, waterF
       rGeo.attributes.position.needsUpdate = true;
     }
 
+    if (cp) { cp.level('weather', Math.max(storm, fog * 0.8)); cp.glow('sunglints', sunset * 0.4 + stars * 0.35); }
+    dots.material.opacity = gk;
     dots.visible = dotsOn;
     if (dotsOn) {
       const tt = still ? 0 : t;
@@ -230,7 +234,7 @@ export function createLighthouseWeather({ scene, sun = null, fill = null, waterF
         let x; let z; let drift = 0;
         if (rock) { const an = ph * TAU; x = rock.x + Math.cos(an) * rock.r * 1.5; z = rock.z + Math.sin(an) * rock.r * 1.5; drift = 0.7; x += Math.cos(an) * drift * u; z += Math.sin(an) * drift * u; }
         else { x = SEA_EAST.minX + 0.3 + 2 * hash01(i, 3, SALT + 60) - 1.1 * u; z = pz + (hash01(i, 4, SALT + 60) - 0.5) * 56; }
-        const k = storm * Math.sin(Math.PI * u) ** 0.8 * 0.85;
+        const k = storm * Math.sin(Math.PI * u) ** 0.8 * 0.85 * wE;
         put(S0 + i, x, 0.2 + arc * (rock ? 3.2 : 2.4), z, k, k, k * 1.02);
       }
       // the sea's dots: white caps in a storm, gold glitter at sunset, star glints at night (the nearer sea, a box round her)

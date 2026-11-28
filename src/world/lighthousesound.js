@@ -22,6 +22,7 @@
 // under a 22 Hz tremolo for 1.6 s (gain 0.035). Every call is its own function and each one is silent while muted.
 // =============================================================================
 
+import { createCaps } from './lighthousecaps.js';
 export const HORN = Object.freeze({
   gain: 0.05,
   toots: Object.freeze([
@@ -45,6 +46,9 @@ export const PURR = Object.freeze({ gain: 0.035, f: 48, dur: 1.6, tremolo: 22 })
 
 export function createLighthouseSound(audio) {
   let dead = false;
+  const caps = createCaps(); // beauty pass 10: the shared glow budget, event rule and four-accent cap (lighthousecaps.js)
+  // a transient accent (gull, seal, chime, swell) takes one of four slots on the audio clock, or is skipped; a stub clock or a muted walk passes straight through
+  const accent = (dur, fn) => { try { const now = audio?.isMuted?.() === false ? audio.getContext?.()?.currentTime : undefined; if (Number.isFinite(now) && !caps.slot(now, dur)) return false; } catch { /* optional */ } return fn(); };
   const live = new Set();
 
   function hush() {
@@ -110,10 +114,10 @@ export function createLighthouseSound(audio) {
   const bell = () => play((c, master, now) => { for (const [mul, k] of BELL.partials) voice(c, master, { f: BELL.f * mul, dur: BELL.dur / (1 + (mul - 1) * 0.25), gain: BELL.gain * k, attack: BELL.attack, now }); });
   const echo = () => play((c, master, now) => { ECHO.delays.forEach((d, i) => voice(c, master, { type: 'triangle', f: ECHO.f, to: ECHO.to, at: d, dur: ECHO.dur, gain: ECHO.gains[i], now })); });
   let hushGulls = false; // fog: the gulls fall silent (lighthouseweather.js)
-  const gull = () => !hushGulls && play((c, master, now) => { for (const p of GULL.parts) voice(c, master, { type: 'sawtooth', ...p, gain: GULL.gain, attack: 0.02, now }); });
+  const gull = () => !hushGulls && accent(1.1, () => play((c, master, now) => { for (const p of GULL.parts) voice(c, master, { type: 'sawtooth', ...p, gain: GULL.gain, attack: 0.02, now }); }));
   // a swell of surf as a foam row lands (lighthousealive.js times it): deterministic noise (a small LCG, never Math.random) through a
   // low-pass that opens as the wave comes in and closes as it drains; k (0..1) is how near she is to the water
-  const surf = (k = 1) => play((c, master, now) => {
+  const surf = (k = 1) => accent(SURF.dur, () => play((c, master, now) => {
     if (typeof c.createBuffer !== 'function' || typeof c.createBufferSource !== 'function' || typeof c.createBiquadFilter !== 'function') return; // (a context without noise nodes: this swell is skipped, the walk's other sounds are not silenced)
     const n = Math.floor(c.sampleRate * 1.5);
     const buf = c.createBuffer(1, n, c.sampleRate);
@@ -135,7 +139,7 @@ export function createLighthouseSound(audio) {
     src.start(now); src.stop(now + SURF.dur + 0.05);
     live.add(src);
     src.onended = () => { live.delete(src); try { src.disconnect(); lp.disconnect(); g.disconnect(); } catch { /* gone */ } };
-  });
+  }));
   const mew = () => play((c, master, now) => voice(c, master, { type: 'triangle', ...MEW, now }));
   const purr = () => play((c, master, now) => voice(c, master, { type: 'sawtooth', f: PURR.f, dur: PURR.dur, gain: PURR.gain, attack: 0.2, tremolo: PURR.tremolo, now }));
 
@@ -181,8 +185,8 @@ export function createLighthouseSound(audio) {
   }
 
   // the golden moment's one soft chime (beauty pass 7): a bright fifth, two sines that ring and fade
-  const chime = () => play((c, master, now) => { [[784, 0], [1175, 0.16]].forEach(([f, at]) => voice(c, master, { f, at, dur: 1.7, gain: 0.022, attack: 0.02, now })); });
+  const chime = () => accent(1.9, () => play((c, master, now) => { [[784, 0], [1175, 0.16]].forEach(([f, at]) => voice(c, master, { f, at, dur: 1.7, gain: 0.022, attack: 0.02, now })); }));
   const weather = (storm = 0, fog = 0) => { stormK = storm; fogK = fog; };
   const quiet = (on) => { hushGulls = !!on; };
-  return { weather, quiet, chime, horn, bell, echo, gull, surf, mew, purr, beds, ambient, dispose() { dead = true; hush(); bed = null; } };
+  return { caps, accent, weather, quiet, chime, horn, bell, echo, gull, surf, mew, purr, beds, ambient, dispose() { dead = true; hush(); bed = null; } };
 }
