@@ -121,6 +121,7 @@ const CAM_EASE = 2.6; // 1/seconds: how fast the ride's camera takes over, and l
 //   opts.camera        the game's camera (the rides place it while she is on one)
 //   opts.reducedMotion no wobble after the teacups
 //   opts.ground        the walk's ground (src/ground.js); the Fairground's is flat
+//   opts.weather       the walk's weather ({ condition, isRaining(), rainbowVisible }): rain, clearing and golden hour change the fair's lights and air (fairwx.js)
 //   opts.now()         the clock, in seconds
 //   opts.onEvent(e)    { type: 'ride', ride } the first frame on a ride's seat, { type: 'hop' },
 //                      { type: 'dismount' } when she is down, { type: 'note', freq, volume } the tune,
@@ -129,7 +130,7 @@ const CAM_EASE = 2.6; // 1/seconds: how fast the ride's camera takes over, and l
 //                      { type: 'boat-lap' } a whole swing of the boat ridden to the end (it pays: game/fairplay.js),
 //                      { type: 'calliope', freq, chord: [f, f], volume } the bass and chord of each bar, { type: 'murmur' | 'bell', volume } the crowd, the merry-go-round's bell (MIDWAY),
 //                      { type: 'boat-whoosh' | 'boat-creak', volume } the swing of the Viking boat, heard from near it
-export function createFairLive(scene, area, { camera = null, reducedMotion = false, scale = 1, now = wallClock, onEvent = () => {}, ground = FLAT_GROUND } = {}) {
+export function createFairLive(scene, area, { camera = null, reducedMotion = false, scale = 1, now = wallClock, onEvent = () => {}, ground = FLAT_GROUND, weather = null } = {}) {
   const sim = createFairSim(area, { reducedMotion });
   const rides = area.rides;
   const musicBox = rides.merryGoRound.musicBoxDrum.parent.position; // the music box stands behind the merry-go-round
@@ -153,7 +154,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
   let whooshAt = -99;   // when a ride last whooshed past her
   let prevXZ = null;
   // beauty pass 3: kicked confetti, steam and a firework (fairalive.js), drawn only when the scene can take them
-  const alive = scene?.add ? createFairAlive({ scene, reducedMotion, scale, area, onEvent }) : null;
+  const alive = scene?.add ? createFairAlive({ scene, reducedMotion, scale, area, onEvent, weather }) : null;
   let boatSwung = false; // on the boat, and it has swung since she got on: the lap is hers once it is calm again
   let quarterAt = -1; // the swing of the boat, in quarters: a whoosh at the bottom, a creak at each end
 

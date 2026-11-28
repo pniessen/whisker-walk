@@ -141,6 +141,9 @@ export function handleFairEvent(e, ctx) {
       if (e.bed === 'hawkers') audio.crowdMurmur?.(v);
       else if (e.bed === 'sizzle') audio.crowdMurmur?.(v * 0.6); // (no sizzle sound of its own yet: the same soft noise, a little quieter)
       else if (e.bed === 'birds') audio.peep?.(v * 0.5);
+      else if (e.bed === 'drum') audio.crowdMurmur?.(v * 0.6); // rain drumming on the canvas (the same soft noise)
+      else if (e.bed === 'thunder') audio.landThump?.(); // thunder, far away
+      else if (e.bed === 'gust') audio.pounceWhoosh?.(); // a gust whooshes over the fair
       else if (e.bed === 'farm') { if ((e.n ?? 0) % 2) audio.cluck?.(v * 0.5); else audio.moo?.(v * 0.45); }
       break;
     }
