@@ -110,6 +110,7 @@ export function createLighthouseSound(audio) {
   // a swell of surf as a foam row lands (lighthousealive.js times it): deterministic noise (a small LCG, never Math.random) through a
   // low-pass that opens as the wave comes in and closes as it drains; k (0..1) is how near she is to the water
   const surf = (k = 1) => play((c, master, now) => {
+    if (typeof c.createBuffer !== 'function' || typeof c.createBufferSource !== 'function' || typeof c.createBiquadFilter !== 'function') return; // (a context without noise nodes: this swell is skipped, the walk's other sounds are not silenced)
     const n = Math.floor(c.sampleRate * 1.5);
     const buf = c.createBuffer(1, n, c.sampleRate);
     const d = buf.getChannelData(0);
