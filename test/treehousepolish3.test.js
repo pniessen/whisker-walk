@@ -28,7 +28,7 @@ describe('lamp pools and gusts', () => {
     const live = sky.uniforms.uLamp.value.filter((v) => v.w > 0);
     expect(live.length).toBe(G.LIVE.high);
     const near = Math.min(...G.lampPoints().map((l) => Math.hypot(l.x - cat.x, l.z - cat.z)));
-    expect(Math.min(...live.map((v) => Math.hypot(v.x - cat.x, v.z - cat.z)))).toBeCloseTo(near, 5);
+    expect(Math.min(...live.map((v) => Math.hypot(v.x - cat.x, v.z - cat.z)))).toBeLessThan(near + 0.7) // (a lantern she is close to swings its pool by up to half a metre, pass 3);
     sky.update(10, cat, false, 'lite'); expect(sky.uniforms.uLamp.value.filter((v) => v.w > 0).length).toBe(G.LIVE.lite); expect(sky.uniforms.uSway.value).toBe(0);
     sky.update(10, cat, true, 'high'); expect(sky.uniforms.uTime.value).toBe(0); expect(sky.uniforms.uSway.value).toBe(0);
   });

@@ -22,6 +22,7 @@ const smooth = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
 
 export const lifeRung = (tier) => (tier && tier.shadows === false ? 'lite' : isLowTier(tier) ? 'low' : 'high');
 export const COUNTS = Object.freeze({ high: Object.freeze({ birds: 3, flies: 18, leaves: 30, motes: 14 }), low: Object.freeze({ birds: 2, flies: 12, leaves: 16, motes: 6 }), lite: Object.freeze({ birds: 1, flies: 6, leaves: 6, motes: 0 }) }); // motes: pollen in the sun (beauty pass 2), more falling leaves (their gust drift is leafAt's)
+export const BURST = Object.freeze({ high: 10, low: 6, lite: 0, life: 2.6, up: 2.2 }); // leaves a landing shakes loose (beauty pass 3: they are the last slots of the one falling-leaves Points), seconds they fall, metres above her they start
 export const STILL_LEAVES = 6; // reduced motion hangs a few leaves, no more
 export const RANGES = Object.freeze({ tl1: 9, tl2: 7, tl3: 8 }); // how near she must be (and facing it) to spot one
 
@@ -173,6 +174,29 @@ export function creakNote(audio, k = 0) {
   o.start(now); o.stop(now + 0.32);
   return true;
 }
+// A leaf shaken loose by a landing: burst leaf k of n, `age` seconds after it let go, over the landing spot (cx, cy, cz). Pure ({ x, y, z, fade }), each leaf its own seeded scatter.
+export function burstLeaf(k, age, cx, cy, cz, out = {}) {
+  const a = hash01(k, 91) * TAU; const r = 0.4 + 1.6 * hash01(k, 92);
+  const u = age / BURST.life;
+  out.x = cx + Math.cos(a) * r * (0.4 + u) + 0.5 * Math.sin(age * 3 + k);
+  out.z = cz + Math.sin(a) * r * (0.4 + u) + 0.5 * Math.cos(age * 2.6 + k * 1.3);
+  out.y = cy + BURST.up * (0.6 + 0.6 * hash01(k, 93)) - 2.3 * age * (0.65 + 0.35 * hash01(k, 94)) * (0.5 + 0.5 * Math.min(1, age * 2)) + 0.3 * Math.sin(age * 5 + k);
+  out.fade = u >= 1 ? 0 : Math.min(1, (1 - u) * 3);
+  return out;
+}
+// The soft thump of a landing on the boards: a low sine dropping fast through a lowpass, with a creak after it; `strength` is 0..1.
+export function thumpNote(audio, strength = 0.5) {
+  const ac = soundCtx(audio);
+  if (!ac) return false;
+  const now = ac.currentTime;
+  const o = ac.createOscillator(); const flt = ac.createBiquadFilter(); const g = ac.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(110, now); o.frequency.exponentialRampToValueAtTime(48, now + 0.18);
+  flt.type = 'lowpass'; flt.frequency.value = 320;
+  g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.02 + 0.03 * strength, now + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+  o.connect(flt); flt.connect(g); g.connect(audio.getMaster?.() ?? ac.destination);
+  o.start(now); o.stop(now + 0.32);
+  return true;
+}
 // The two wind chimes under the Bakery's and the Bookshop's eaves (treehousetrim.js hangs them; the same spots): she brushes past one and it answers, at most once a few seconds.
 export const CHIME_SPOTS = Object.freeze([['bakery', 0.8], ['books', -0.8]].map(([id, a]) => { const k = P.deckOf(id); const R = k.hut.r + 0.45; return Object.freeze({ x: k.hut.x + Math.sin(a) * (R - 0.15), y: k.y + k.hut.h - 0.02, z: k.hut.z + Math.cos(a) * (R - 0.15) }); }));
 export const CHIME_REACH = 2.6; // metres from a chime (all three ways) that sets it ringing
@@ -213,7 +237,8 @@ export function createTreehouseCritters({ scene, reducedMotion = false, tier = n
     return { pos, col, g, o };
   };
   const F = points(N.flies + N.motes, 'treehouse:fireflies', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.34, sizeAttenuation: true, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
-  const L = points(N.leaves, 'treehouse:fallingleaves', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.34, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, fog: true }));
+  const burst = reducedMotion ? 0 : BURST[rung];
+  const L = points(N.leaves + burst, 'treehouse:fallingleaves', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.34, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, fog: true }));
 
   // the journal subjects, one entry for each kind (the walk awards once a kind a walk)
   const spottable = [
@@ -254,10 +279,26 @@ export function createTreehouseCritters({ scene, reducedMotion = false, tier = n
       cTmp.copy(cLeaf[i % 3]).lerp(cFloor, smooth((leaf.u - 0.9) / 0.1)); // on the floor it is just litter
       L.col[i * 3] = cTmp.r; L.col[i * 3 + 1] = cTmp.g; L.col[i * 3 + 2] = cTmp.b;
     }
+    for (let k = 0; k < burst; k++) { const i = N.leaves + k; L.pos[i * 3 + 1] = -200; } // the shower waits out of sight
     F.g.attributes.position.needsUpdate = true; F.g.attributes.color.needsUpdate = true; L.g.attributes.position.needsUpdate = true; L.g.attributes.color.needsUpdate = true;
   }
   draw(0);
 
+  // the shower from a landing (its leaves are the last `burst` slots of L): sky.reaction.landedAt says when
+  const sky = scene.getObjectByName('treehouse:leaves')?.material?.userData?.sky ?? null;
+  let seenLand = sky ? sky.reaction.landedAt : 0; let showerAt = -99; let sx = 0; let sy = 0; let sz = 0;
+  const shower = (t) => {
+    const age = t - showerAt;
+    for (let k = 0; k < burst; k++) {
+      const i = N.leaves + k;
+      if (age < 0 || age > BURST.life) { L.pos[i * 3 + 1] = -200; continue; }
+      burstLeaf(k, age, sx, sy, sz, fly);
+      L.pos[i * 3] = fly.x; L.pos[i * 3 + 1] = Math.max(fly.y, sy + 0.05); L.pos[i * 3 + 2] = fly.z;
+      cTmp.copy(cLeaf[k % 3]).multiplyScalar(fly.fade);
+      L.col[i * 3] = cTmp.r; L.col[i * 3 + 1] = cTmp.g; L.col[i * 3 + 2] = cTmp.b;
+    }
+    L.g.attributes.position.needsUpdate = true; L.g.attributes.color.needsUpdate = true;
+  };
   let nextChime = CHIME_GAP.first; let nearUntil = 0; let wasNear = false; let chimes = 0; let steps = 0; let walked = 0; let lx = 0; let lz = 0; let have = false;
   return {
     rung,
@@ -266,6 +307,12 @@ export function createTreehouseCritters({ scene, reducedMotion = false, tier = n
     update(dt, t, catPos) {
       const d = dt > 0 ? Math.min(dt, 1) : 0;
       if (!reducedMotion) draw(t);
+      if (sky && catPos && sky.reaction.landedAt !== seenLand) { // she has just landed: a shower of leaves from the boughs over her and a soft thump (the leaves only when motion is allowed)
+        seenLand = sky.reaction.landedAt;
+        if (burst) { showerAt = t; sx = catPos.x; sy = catPos.y; sz = catPos.z; }
+        thumpNote(audio, sky.reaction.land);
+      }
+      if (burst && t - showerAt <= BURST.life + 0.1) shower(t);
       if (t >= nextChime) { chimeNote(audio, chimes); chimes++; nextChime = t + CHIME_GAP.min + CHIME_GAP.span * hash01(chimes, 32); } // (the schedule runs on while muted: no catching up)
       if (catPos && Number.isFinite(catPos.y)) { // a brush past a wind chime sets it ringing (once on coming near, then not again for a few seconds)
         const near = nearChime(catPos.x, catPos.y, catPos.z);
