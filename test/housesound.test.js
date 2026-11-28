@@ -143,3 +143,42 @@ describe('the house bed', () => {
     expect(log.filter((e) => e[0] === 'creak')).toHaveLength(2);
   });
 });
+
+describe('the house sound, pass 3 (the house reacts and lives)', () => {
+  const PARLOUR = HOUSE_ROOMS.find((r) => r.id === 'parlour');
+  const mk3 = (extra) => {
+    const log = [];
+    const audio = { tick: (v) => log.push(['tick', v]), creak: (v) => log.push(['creak', v]), peep: (v) => log.push(['peep', v]) };
+    return { log, sound: createHouseSound(audio, { clock: CLOCK, stairs: HOUSE_STAIRS, attic: ATTIC, ...extra }) };
+  };
+  it('creaks softly under her paws on a wooden room, and not when she stands', () => {
+    const { log, sound } = mk3({ wood: [PARLOUR] });
+    const cx = (PARLOUR.minX + PARLOUR.maxX) / 2;
+    for (let i = 0; i < 120; i++) sound.update(DT, i * DT, { x: cx + i * 0.05 * DT * 60 * 0.3, z: PARLOUR.minZ + 1 }); // ~0.9 m/s over 2 s: 1.8 m
+    for (let i = 0; i < 300; i++) sound.update(DT, i * DT, { x: cx + 30, z: PARLOUR.minZ + 1 });
+    const walked = log.filter((e) => e[0] === 'creak' && e[1] === 0.12).length;
+    expect(walked).toBe(0);
+    const w = mk3({ wood: [PARLOUR] });
+    for (let i = 0; i < 240; i++) w.sound.update(DT, i * DT, { x: PARLOUR.minX + 0.5 + i * 0.02, z: PARLOUR.minZ + 1 }); // 4.8 m in 4 s
+    expect(w.log.filter((e) => e[0] === 'creak' && e[1] === 0.12).length).toBeGreaterThanOrEqual(2);
+  });
+  it('patters on the glass only on a rainy day, and a pop of the fire raises the burst', () => {
+    const dry = mk3({});
+    const wet = mk3({ rain: true });
+    for (let i = 0; i < 120; i++) { dry.sound.update(DT, i * DT, { x: -40, z: -40 }); wet.sound.update(DT, i * DT, { x: -40, z: -40 }); }
+    expect(dry.log.filter((e) => e[0] === 'tick')).toHaveLength(0);
+    expect(wet.log.filter((e) => e[0] === 'tick').length).toBeGreaterThan(8);
+    const f = mk3({ fire: { x: 13.7, z: 7 } });
+    let peak = 0;
+    for (let i = 0; i < 600; i++) { f.sound.update(DT, i * DT, { x: 12.5, z: 7 }); peak = Math.max(peak, f.sound.burst); }
+    expect(peak).toBeGreaterThan(0.5);
+    expect(f.sound.burst).toBeLessThan(peak);
+  });
+  it('a small bird peeps by morning and not at noon', () => {
+    const am = mk3({ part: { night: 0, lampK: 0.15, sunK: 0.8 } });
+    const noon = mk3({ part: { night: 0, lampK: 0, sunK: 1 } });
+    for (let i = 0; i < 60 * 30; i++) { am.sound.update(DT, i * DT, { x: -40, z: -40 }); noon.sound.update(DT, i * DT, { x: -40, z: -40 }); }
+    expect(am.log.filter((e) => e[0] === 'peep').length).toBeGreaterThan(0);
+    expect(noon.log.filter((e) => e[0] === 'peep')).toHaveLength(0);
+  });
+});

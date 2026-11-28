@@ -54,6 +54,7 @@
 // partner marked `local`, src/coop/second.js), where the one camera shows both cats: the walls
 // sink for either and the levels either stands on are drawn (M5(d)).
 
+import * as THREE from 'three';
 import { makeView, createWallSink, createCellarLid, SINK } from '../housewalls.js';
 import { createLevelDrawing } from '../houselevels.js';
 import { CAT_LOOK_Y } from '../cat/model.js';
@@ -64,7 +65,8 @@ import { toyStop, HOUSE_FINDS } from './housethings.js';
 import { OLD_HOUSE_PLAN, SECRET_WARDROBE } from './houseplan.js';
 import { createHouseSound } from './housesound.js';
 import { createHouseAir } from './houseair.js';
-import { FIRE } from './houseglow.js';
+import { FIRE, dayPart } from './houseglow.js';
+import { hash01 } from './builder.js';
 import { createLedgeGuards, catScale } from './houseguards.js';
 
 const NO_PANES = Object.freeze([]);
@@ -130,7 +132,7 @@ const TELEPORT = 25; // m/s: no ball rolls this fast
 const DOORS = [false, true].map((a) => [false, true].map((b) => Object.freeze({ secretOpen: a, wardrobeOpen: b })));
 
 export function createHouseLife(scene, house, {
-  reducedMotion = false, log = null, audio = null, toy = null, colliders = [], now, dusk = false, tier = null,
+  reducedMotion = false, log = null, audio = null, toy = null, colliders = [], now, dusk = false, tier = null, rain = null, sun = null, fill = null,
 } = {}) {
   const { sections, sectionMeshes, panes } = house;
   const P = house.plan ?? OLD_HOUSE_PLAN; // the plan this house was built from (house.js)
@@ -166,17 +168,42 @@ export function createHouseLife(scene, house, {
     sunMat.color.setRGB(sunColour[0] * k, sunColour[1] * k, sunColour[2] * k);
   };
   paintSun(0);
+  // beauty pass 3: the day's light by the clock (`now`, else the device's), and a rainy day (`rain` true or false from the picture page; null: about one day in four, by the date).
+  // Indoors the walk rolls no weather (indoor.js), so the house keeps its own.
+  const glowLive = P === OLD_HOUSE_PLAN && !!house.glow;
+  const LIT = new THREE.Color();
+  const clockNow = () => (now ? now() : new Date());
+  const part = dayPart(12);
+  let partIn = 0;
+  const rainy = rain !== null && rain !== undefined ? !!rain : (() => { const d = clockNow(); return hash01(d.getFullYear() * 400 + d.getMonth() * 31 + d.getDate(), 5, 0x4a11) < 0.25; })();
+  const rainK = rainy ? 1 : 0;
+  // the real lights take the day's colour too (the walk's own sun and fill, put back at dispose); a dusk walk keeps its own look
+  const envBase = scene.environmentIntensity;
+  const lights = !dusk && glowLive ? [sun, fill].filter(Boolean).map((l) => ({ l, c: l.color.clone(), g: l.groundColor ? l.groundColor.clone() : null })) : [];
+  const retone = () => {
+    const d = clockNow();
+    dayPart(d.getHours() + d.getMinutes() / 60, part);
+    if (lights.length && typeof envBase === 'number') scene.environmentIntensity = envBase * part.env;
+    for (const x of lights) { x.l.color.copy(x.c).multiply(LIT.fromArray(part.lit)); if (x.g) x.l.groundColor.copy(x.g).multiply(LIT); }
+    air.setTone?.(part.sun, dusk ? 1 : part.sunK * (1 - 0.5 * rainK));
+  };
+  const WOOD = new Set(['hall', 'library', 'parlour', 'bedroom', 'attic', 'livingroom', 'kids']);
   const sound = createHouseSound(audio, {
+    wood: P === OLD_HOUSE_PLAN ? P.rooms.filter((r) => WOOD.has(r.id)) : null,
+    rain: rainy && P === OLD_HOUSE_PLAN,
+    part: P === OLD_HOUSE_PLAN && !dusk ? part : null,
     clock: (P === OLD_HOUSE_PLAN ? HOUSE_FINDS : house.finds ?? []).find((f) => f.id === 'clock') ?? null,
     stairs: P.stairs,
     attic: P.rooms.find((r) => r.id === 'attic') ?? null,
     fire: P === OLD_HOUSE_PLAN ? { x: FIRE.x, z: FIRE.z } : null,
   });
   const air = createHouseAir(scene, { windows: P.windows, rooms: P.rooms, levels: house.levels, dusk: !!dusk, reducedMotion });
+  retone();
   // beauty pass 2 (houseglow.js): the light, firelight, curtains and garden sway are one shader patch on the house's material; LOW and LITE hold the flicker and sway still
   const glow = house.glow ?? null;
   const low = !!tier && (tier.name === 'low' || tier.name === 'lite' || tier.shadows === false || (tier.rung ?? 0) >= 3);
-  const glowOpts = { still: reducedMotion, dusk: !!dusk, low };
+  const glowOpts = { still: reducedMotion, dusk: !!dusk, low, part: dusk ? null : part, rain: rainK, burst: 0, energy: 0 };
+  let ex = 0, ez = 0, eSeen = false, energy = 0; // her walking, as a smoothed 0..1 (the paws' dust and the curtains' swell)
   const guards = createLedgeGuards(colliders, floor);
   const frontDoor = createFrontDoor(house.parts?.frontDoor ?? null, reducedMotion, P.frontDoor);
   let sized = false;
@@ -291,7 +318,14 @@ export function createHouseLife(scene, house, {
       lid?.update(dt, sink);
       drawing.update(floorY(catPos), catPos.x, catPos.z, camera.position.x, camera.position.z, two && at2(two));
       write();
-      air.update(dt, t, drawing.full);
+      const stepM = eSeen ? Math.hypot(catPos.x - ex, catPos.z - ez) : 0;
+      ex = catPos.x; ez = catPos.z; eSeen = true;
+      energy += ((dt > 0 && stepM < 3 ? Math.min(1, stepM / dt / 3.5) : 0) - energy) * Math.min(1, dt * 6);
+      glowOpts.energy = low || reducedMotion ? 0 : energy;
+      glowOpts.burst = sound.burst;
+      partIn -= dt;
+      if (partIn <= 0) { partIn = 5; retone(); }
+      air.update(dt, t, drawing.full, catPos, glowOpts.energy);
       glow?.update(t, catPos, glowOpts);
       finds.update(dt, t, catPos, camera.position, partners); // after the camera's move: the bookcase's fade hold
       wingFinds.update(dt, t, catPos, partners, camera.position);
@@ -308,6 +342,8 @@ export function createHouseLife(scene, house, {
     dispose() {
       tagRest.forEach((r, g) => { g.material.depthTest = r[0]; g.renderOrder = r[1]; });
       frontDoor.dispose();
+      if (lights.length && typeof envBase === 'number') scene.environmentIntensity = envBase;
+      for (const x of lights) { x.l.color.copy(x.c); if (x.g) x.l.groundColor.copy(x.g); }
       guards.dispose();
       finds.dispose();
       wingFinds.dispose();
