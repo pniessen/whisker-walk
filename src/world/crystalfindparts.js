@@ -21,8 +21,8 @@ export function drawFindMarks() {
   const geos = [];
   { // the Echo Wall: a tall slab of rock with a pale ring set in it
     const { x, z } = CRYSTAL_FIND_MARKS.echo;
-    geos.push(paint(at(new THREE.BoxGeometry(2.4, 2.2, 0.5), x - 1.4, z - 0.4, 1.1, 0.5), 0x8a7a92));
-    geos.push(paint(at(new THREE.TorusGeometry(0.5, 0.07, 5, 12).rotateY(0.5), x - 1.1, z - 0.15, 1.3, 0), 0xe8d8f4));
+    geos.push(paint(at(new THREE.BoxGeometry(1.7, 1.5, 0.45), x - 1.4, z - 0.4, 0.75, 0.5), 0x4a3c58)); // (pass 8: a deep plum, a smaller deep-plum slab; it was a big pale grey one that hid the camp)
+    geos.push(paint(at(new THREE.TorusGeometry(0.36, 0.06, 5, 12).rotateY(0.5), x - 1.1, z - 0.15, 0.9, 0), 0xb89ad0));
   }
   { // the Crystal Garden: tiny crystals of every hue, sprouting like flowers
     const { x, z } = CRYSTAL_FIND_MARKS.garden;
