@@ -3,14 +3,15 @@
 // reserves the slots (each stage is empty but valid); the milestones fill them. Each piece grows under its own budget (scripts/buildjson.mjs, REEF_STAGE_MODULES).
 //   lab:   the Sealab (R13 to R15): building, hatch, fuses, shark, dome show
 //   wreck: the galleon (R16, R17): ship, brass suit prop, map trail, Captain's Chest
+//   story: Marlo and chapter one, the errand, the housewarming, the light, the critters and the written guide (moved out of the landing chunk, 2026-11)
 //   ride:  the two mounts (R11, R12): Sea Scooter and Diving Saucer, racks and riding
 export const ST = {};
 
-export const REEF_STAGE_MODULES = Object.freeze(['src/world/reefstagelab.js', 'src/world/reefstagewreck.js', 'src/world/reefstageride.js']);
+export const REEF_STAGE_MODULES = Object.freeze(['src/world/reefstagelab.js', 'src/world/reefstagewreck.js', 'src/world/reefstageride.js', 'src/world/reefstagestory.js']);
 
 let loading = null;
-/** Loads the three stages together; the same promise every time. */
+/** Loads the four stages together; the same promise every time. */
 export function loadReefStages() {
-  loading ??= Promise.all([import('./reefstagelab.js'), import('./reefstagewreck.js'), import('./reefstageride.js')]).then(() => ST).catch((e) => { loading = null; throw e; });
+  loading ??= Promise.all([import('./reefstagelab.js'), import('./reefstagewreck.js'), import('./reefstageride.js'), import('./reefstagestory.js')]).then(() => ST).catch((e) => { loading = null; throw e; });
   return loading;
 }
