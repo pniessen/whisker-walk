@@ -17,6 +17,7 @@ import { GH_STORY_SALT } from './greenhousestory.js';
 import * as P from './greenhouseplan.js';
 import { dotSprite } from './greenhouseweather.js';
 import { bus } from '../events.js';
+import { voiceFree } from './greenhousebudget.js';
 
 const SALT = GH_STORY_SALT + 90;
 const TAU = Math.PI * 2;
@@ -63,7 +64,7 @@ export function createVoice({ scene, audio = null, reducedMotion = false, lite =
   // sound: the game's own audio object, only while it is unmuted, a soft sine or two through the master
   const tone = (f, at, len, gain) => {
     try {
-      if (!audio || audio.isMuted?.() !== false) return;
+      if (!audio || audio.isMuted?.() !== false || !voiceFree(audio, at + len)) return;
       const ac = audio.getContext?.(); if (!ac || ac.state === 'closed' || ac.state === 'suspended') return;
       const t = ac.currentTime + at, o = ac.createOscillator(), g = ac.createGain();
       o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 1.18, t + len * 0.7);
@@ -112,7 +113,7 @@ export function createVoice({ scene, audio = null, reducedMotion = false, lite =
   const offs = [bus.on('tip:did', (e) => { if (e && e.id === 'call') st.meowed = true; }), bus.on('pounce:land', () => { st.landed = true; })];
 
   return {
-    points, state: st, ps,
+    points, state: st, ps, get live() { return points.visible; },
     meow() { st.meowed = true; }, land() { st.landed = true; },
     /** dt, the clock, her place { x, y, z }, the walk's session (pounceTime, sniffTime, idleTime, wasZooming, perched) or null, the camera's place (for the way she looks) */
     update(dt, t, c, session = null, camPos = null) {
@@ -141,7 +142,7 @@ export function createVoice({ scene, audio = null, reducedMotion = false, lite =
         else { const u = sst(age / p.dur), r = p.r0 + (p.r1 - p.r0) * u, a = p.a0 + p.spin * age; x = cat.x + Math.cos(a) * r; z = cat.z + Math.sin(a) * r; y = p.y0 + (p.y1 - p.y0) * u + p.bob * Math.sin(age * 3 + p.ph); }
         const env = Math.min(1, age / 0.15) * Math.min(1, (p.life - age) / p.fade);
         pos[j] = x; pos[j + 1] = y; pos[j + 2] = z; size[i] = p.size;
-        col[k] = p.rgb[0] * p.rgb[0]; col[k + 1] = p.rgb[1] * p.rgb[1]; col[k + 2] = p.rgb[2] * p.rgb[2]; col[k + 3] = Math.max(0, p.g * env * (1 - p.fl + p.fl * (0.5 + 0.5 * Math.sin(age * p.fw + p.ph))));
+        col[k] = p.rgb[0] * p.rgb[0]; col[k + 1] = p.rgb[1] * p.rgb[1]; col[k + 2] = p.rgb[2] * p.rgb[2]; col[k + 3] = Math.max(0, p.g * env * 0.9 * (1 - p.fl + p.fl * (0.5 + 0.5 * Math.sin(age * p.fw + p.ph))));
         live = true;
       }
       points.visible = live;

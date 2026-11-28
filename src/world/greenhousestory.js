@@ -11,6 +11,7 @@
 //     walk; no Math.random, no clock of its own. Reduced motion shows each still (no drift, no pulse); the low tier draws half the points.
 // =============================================================================
 
+import { voiceFree } from './greenhousebudget.js';
 import * as THREE from 'three';
 import { hash01 } from './warehouselook.js';
 import * as P from './greenhouseplan.js';
@@ -147,7 +148,7 @@ export function createMoments({ scene, audio = null, reducedMotion = false, lite
   const white = new THREE.Color(0x4aa6ff), gold = new THREE.Color(0xfff0a0), glow = new THREE.Color(0xb8c8ff);
 
   function chime() {
-    try { if (audio && audio.isMuted?.() === false) audio.chime?.(); } catch { /* sound is optional */ }
+    try { if (audio && audio.isMuted?.() === false && voiceFree(audio, 1.2)) audio.chime?.(); } catch { /* sound is optional */ }
   }
   function start(which, nowT = 0, at2 = null) {
     if (disposed || kind || !MOMENT[which]) return false;

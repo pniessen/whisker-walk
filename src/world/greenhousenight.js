@@ -35,6 +35,7 @@ export function nightLook(hour = 12) {
 export function createNight({ pool, scene = null, sun = null, fill = null, reducedMotion = false, lite = false, dusk = false, hour = 12, mist = [], hoot = null, enabled = true } = {}) {
   const d = nightLook(hour), st = enabled ? { grade: dusk ? 0.6 + 0.4 * d : 0, life: dusk ? 1 : d >= 0.5 ? 0.7 * d : 0 } : { grade: 0, life: 0 }; // (enabled: false is the 'before' of the pictures)
   const rm = reducedMotion;
+  let dim = 1;
   let clock = 0, disposed = false, nextHoot = 7 + 6 * hash01(0, 1, SALT), hoots = 0, hootAt = -9;
   if (!enabled) nextHoot = 1e9;
   let n = 0;
@@ -129,11 +130,13 @@ export function createNight({ pool, scene = null, sun = null, fill = null, reduc
   }
 
   return {
+    get active() { return st.life > 0; },
+    setDim(v) { dim = v; }, // pass 10: the shared event budget (greenhousebudget.js) may dim the visitors
     update(dt, t, cat = null, cam = null) {
       if (disposed) return;
       clock += dt > 0 ? dt : 0;
       void t;
-      const T = rm ? 0 : clock, g = st.grade, l = st.life;
+      const T = rm ? 0 : clock, g = st.grade, l = st.life * dim;
       if (g > 0) sky(T, g); else for (let i = 0; i < NS + 2; i++) hide(S0 + i);
       if (l <= 0) { hideAll(); return; }
       house(T, g, l, cat, cam);

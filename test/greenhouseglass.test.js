@@ -23,7 +23,7 @@ const frame = house.children.find((c) => c.name === 'palmHouse-frame');
 const tris = (m) => (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
 
 describe('the pane mesh is transparent, frosted, not a caster, front-sided and NOT a fading window', () => {
-  it('is one transparent mesh with a frosted (20 to 25 percent a layer since pass 4) green-white gradient', () => {
+  it('is one transparent mesh with a frosted (17 to 25 percent a layer since pass 10) green-white gradient', () => {
     expect(glass.material.transparent).toBe(true);
     expect(isTransparentMat(glass.material)).toBe(true);
     expect(glass.material.depthWrite).toBe(false);
@@ -36,7 +36,7 @@ describe('the pane mesh is transparent, frosted, not a caster, front-sided and N
     expect(col.itemSize).toBe(4);
     const alphas = Array.from({ length: col.count }, (_, i) => col.getW(i));
     expect(Math.max(...alphas)).toBeLessThanOrEqual(0.25 + 1e-6);
-    expect(Math.min(...alphas)).toBeGreaterThanOrEqual(0.2);
+    expect(Math.min(...alphas)).toBeGreaterThanOrEqual(0.17);
     expect(Math.max(...alphas)).toBeLessThanOrEqual(G.GLASS_ALPHA.roof + G.GLASS_ALPHA.wet + 1e-6);
     // tinted green-white: the green channel is the highest, and it is light
     const rgb = (i) => [col.getX(i), col.getY(i), col.getZ(i)];

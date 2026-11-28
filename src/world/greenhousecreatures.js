@@ -7,6 +7,7 @@
 // Pure functions of the walk's clock, the cat's place and the hash of the walk: no random number, no clock of its own (the hour of the day is
 // handed in). Reduced motion shows every creature still (no flee, no drift); lite draws about a third fewer points.
 // =============================================================================
+import { voiceFree } from './greenhousebudget.js';
 import * as THREE from 'three';
 import { hash01 } from './warehouselook.js';
 import { GH_STORY_SALT } from './greenhousestory.js';
@@ -70,7 +71,7 @@ export function createCreatures({ scene, audio = null, reducedMotion = false, li
   for (let i = 0; i < N; i++) hide(i);
   let clock = 0, yawnAt = -1, disposed = false, arrivedAt = -1, chimed = false, fleeing = 0, away = 0;
   const hum = { x: BLOOM.x, y: BLOOM.y, z: BLOOM.z };
-  const chime = () => { try { if (audio && audio.isMuted?.() === false) audio.chime?.(); } catch { /* sound is optional */ } };
+  const chime = () => { try { if (audio && audio.isMuted?.() === false && voiceFree(audio, 1.2)) audio.chime?.(); } catch { /* sound is optional */ } };
   const sm = (k) => { const t = Math.min(1, Math.max(0, k)); return t * t * (3 - 2 * t); };
 
   function still(s) { // the static creatures (the snail, the ladybird, the cat), moving a little unless reduced
@@ -79,11 +80,11 @@ export function createCreatures({ scene, audio = null, reducedMotion = false, li
     const sx = B.x + (reducedMotion ? 0.5 : 1.25 * Math.sin(t * 0.055 + 1));
     const dir = Math.cos(t * 0.055 + 1) >= 0 || reducedMotion ? 1 : -1;
     const ey = B.h + 0.05, ez = B.z + B.d / 2 - 0.08;
-    put(SNAIL, sx, ey + 0.07, ez, 0.2, 0.62, 0.38, 0.2);
-    put(SNAIL + 1, sx + dir * 0.1, ey + 0.015, ez, 0.15, 0.86, 0.78, 0.62);
+    put(SNAIL, sx, ey + 0.07, ez, 0.27, 0.72, 0.42, 0.2);
+    put(SNAIL + 1, sx + dir * 0.12, ey + 0.015, ez, 0.2, 0.9, 0.8, 0.62);
     // the ladybird up the hook post (the front face), a loop of 70 s that rests at the top a while
     const up = reducedMotion ? 0.45 : sm(((t / 70) % 1) / 0.85);
-    put(LADY, POST.x + 0.012 * Math.sin(t * 2.2), 0.2 + 1.2 * up, POST.z + 0.03, 0.085, 0.82, 0.14, 0.12);
+    put(LADY, POST.x + 0.012 * Math.sin(t * 2.2), 0.2 + 1.2 * up, POST.z + 0.03, 0.13, 0.95, 0.12, 0.1);
     // the sleepy cat in the cat's bed: a tabby ring, a head on its paws, one eye that opens for two seconds every half minute
     const br = 1 + (reducedMotion ? 0 : 0.035 * Math.sin(t * 1.5));
     put(CAT, CAT_BED.x + 0.02, CAT_BED.y + 0.12, CAT_BED.z, 0.36 * br, 0.7, 0.5, 0.3);
@@ -92,7 +93,7 @@ export function createCreatures({ scene, audio = null, reducedMotion = false, li
     put(CAT + 3, CAT_BED.x - 0.2, CAT_BED.y + 0.19, CAT_BED.z + 0.12, 0.1, 0.8, 0.5, 0.22); // an ear
     const yw = !reducedMotion && yawnAt >= 0 ? clock - yawnAt : 9, yo = yw < 2.4 ? Math.sin(Math.PI * yw / 2.4) : 0; // pass 8: she yawns when the walker stands still
     const awake = !reducedMotion && ((t % 30) > 26.5 && (t % 30) < 28.7 || yo > 0.3);
-    if (awake) put(CAT + 4, CAT_BED.x - 0.24, CAT_BED.y + 0.14, CAT_BED.z + 0.17, 0.045, 1, 0.85, 0.25);
+    if (awake) put(CAT + 4, CAT_BED.x - 0.24, CAT_BED.y + 0.14, CAT_BED.z + 0.17, 0.07, 1, 0.85, 0.25);
     else hide(CAT + 4);
     if (yo > 0) put(CAT + 5, CAT_BED.x - 0.3, CAT_BED.y + 0.1 + 0.03 * yo, CAT_BED.z + 0.15, 0.05 + 0.09 * yo, 0.95, 0.4, 0.5); // the open mouth
     else hide(CAT + 5);
@@ -129,8 +130,8 @@ export function createCreatures({ scene, audio = null, reducedMotion = false, li
     }
     for (let j = 0; j < FF; j++) { // fireflies, in the garden
       const bx = -26 + 52 * hash01(j, 1, SALT), bz = 7 + 27 * hash01(j, 2, SALT), ph = hash01(j, 3, SALT) * 6.3;
-      const blink = reducedMotion ? 0.8 : Math.max(0, Math.sin(t * 1.1 + ph * 3)) ** 3;
-      put(FIRE + j, bx + 0.9 * Math.sin(t * 0.3 + ph), 0.5 + 0.5 * hash01(j, 4, SALT) + 0.25 * Math.sin(t * 0.5 + ph), bz + 0.9 * Math.cos(t * 0.27 + ph), 0.34, 0.9, 1, 0.4, blink * dk);
+      const blink = reducedMotion ? 0.85 : 0.3 + 0.7 * Math.max(0, Math.sin(t * 1.1 + ph * 3)) ** 2; // pass 10: a floor so the row never goes fully dark
+      put(FIRE + j, bx + 0.9 * Math.sin(t * 0.3 + ph), 0.5 + 0.5 * hash01(j, 4, SALT) + 0.25 * Math.sin(t * 0.5 + ph), bz + 0.9 * Math.cos(t * 0.27 + ph), 0.5, 0.9, 1, 0.4, blink * dk);
     }
   }
 
