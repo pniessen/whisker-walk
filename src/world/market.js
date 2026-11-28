@@ -112,6 +112,7 @@ export const MARKET_HORIZON = Object.freeze({
 // a small third bowl on its finial, and a mast for the bunting.
 const FOUNTAIN_SCALE = FOUNTAIN.r / BASIN_PROFILE[0][0];
 const MAST_TOP = 6.2;
+const SPIRE_SEGMENTS = 20; // the Park's spire is 32-sided; at under 0.6 m wide, 20 reads round (beauty pass 1 trimmed it to pay for detail)
 const TOP_BOWL_PROFILE = Object.freeze([
   [0.05, 2.04], [0.14, 2.08], [0.25, 2.13], [0.32, 2.18], [0.33, 2.21], [0.3, 2.23],
   [0.23, 2.2], [0.1, 2.19], [0.0, 2.19],
@@ -471,6 +472,7 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       const box = drawClutter(c, clutterKit, { PARTS, M, paint, barrel, wheel, tyre, disc, quad });
       scene.add(clutterAnchor(c, box, anchorGeo, anchorMat));
     }
+    drawGroundDecor(clutterKit, { paint, quad, disc });
     const clutter = new THREE.Group();
     clutter.name = 'marketClutter';
     for (const m of clutterKit.meshes()) clutter.add(m);
@@ -636,7 +638,7 @@ function drawFountain(scene, M, water) {
   pool.castShadow = false;
   pool.userData.noCast = true;
   pool.userData.noMerge = true;
-  const spire = new THREE.Mesh(latheGeometry(SPIRE_PROFILE), stone());
+  const spire = new THREE.Mesh(latheGeometry(SPIRE_PROFILE, SPIRE_SEGMENTS), stone());
   spire.name = 'fountainSpire';
   const bowl = new THREE.Mesh(latheGeometry(TOP_BOWL_PROFILE, 16), stone());
   bowl.name = 'fountainTopBowl';
@@ -1384,16 +1386,32 @@ function scallopedValance(w, band, scallop) {
 }
 
 // --- the bunting: six strings from the stalls' poles to the fountain's mast
+// A thread of length 1 along x: two thin strips crossed, seen from any side.
+function crossedString() {
+  const h = 0.007;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute([
+    -0.5, -h, 0, 0.5, -h, 0, 0.5, h, 0, -0.5, h, 0,
+    -0.5, 0, -h, 0.5, 0, -h, 0.5, 0, h, -0.5, 0, h,
+  ], 3));
+  g.setIndex([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]); // the bunting's material draws both sides
+  return g;
+}
+
 function drawBunting(PARTS, flags, poles) {
   const K = makeKit('marketBunting');
   const mast = new THREE.Vector3(FOUNTAIN.x, MAST_TOP, FOUNTAIN.z);
-  const string = new THREE.BoxGeometry(1, 0.014, 0.014);
+  const string = crossedString(); // two crossed strips (4 triangles), not a box (12)
   const at = (a, t) => ({
     x: a.x + (mast.x - a.x) * t,
     y: a.y + (mast.y - a.y) * t - 4 * BUNTING_SAG * t * (1 - t),
     z: a.z + (mast.z - a.z) * t,
   });
+  const ribbon = new THREE.PlaneGeometry(0.07, 0.7).translate(0, -0.35, 0);
   poles.forEach((a, k) => {
+    // two streamers hang from each pole's top (beauty pass 1)
+    K.put('flags', flags, ribbon, mat4(a.x, a.y - 0.05, a.z, { yaw: k * 1.3, roll: 0.08 }), { color: PENNANT_COLORS[k % PENNANT_COLORS.length], noCast: true });
+    K.put('flags', flags, ribbon, mat4(a.x, a.y - 0.05, a.z, { yaw: k * 1.3 + 1.2, roll: -0.08, sy: 0.8 }), { color: PENNANT_COLORS[(k + 3) % PENNANT_COLORS.length], noCast: true });
     const len = Math.hypot(mast.x - a.x, mast.z - a.z);
     const yaw = -Math.atan2(mast.z - a.z, mast.x - a.x);
     const segs = Math.max(6, Math.round(len / 1.5));
@@ -1413,10 +1431,85 @@ function drawBunting(PARTS, flags, poles) {
     }
   });
   string.dispose();
+  ribbon.dispose();
   const m = K.meshes()[0];
   m.name = 'marketBunting';
   m.userData.bunting = true;
   return m;
+}
+
+// --- beauty pass 1: what lies on the cobbles (flat, no collider, no new mesh: it joins
+// the clutter's paint bucket). A paved ring and short runs of pale setts out from the
+// fountain, a few puddles with a sky glint, the bench's crumbs at the pigeons' patch and
+// petals in front of the flower stall. Hash-placed: draws no random number.
+const DECOR_Y = 0.016;
+const SETT_TONES = Object.freeze([0xa89f8c, 0xb4ab98, 0x9a9180, 0xbdb4a0]);
+const PETAL_TONES = Object.freeze([0xe58fb0, 0xf3d54a, 0xf6f0e2, 0xb48ad8, 0xe8613f]);
+const PUDDLES = Object.freeze([[-3.4, -4.2, 1.0, 0.7], [4.6, 7.4, 1.3, 0.8], [-13.5, 8.2, 1.1, 0.75], [10.2, -4.6, 0.9, 0.6], [2.4, -12.6, 1.2, 0.7]]);
+function flatRing(r0, r1, segs) {
+  return new THREE.RingGeometry(r0, r1, segs, 1).rotateX(-Math.PI / 2);
+}
+function drawGroundDecor(K, { paint, quad, disc }) {
+  const flat = (geo, x, z, o, color) => K.put('paint', paint, geo, mat4(x, DECOR_Y + (o.dy ?? 0), z, { yaw: o.yaw ?? 0, pitch: o.pitch ?? 0, sx: o.sx ?? 1, sy: o.sy ?? 1, sz: o.sz ?? 1 }), { color, noCast: true });
+  const slab = (x, z, w, d, yaw, color, dy = 0) => flat(quad, x, z, { yaw, pitch: -Math.PI / 2, sx: w, sy: d, dy }, color);
+  // the paved ring and its two edge lines, a little way outside the flagstones
+  const ring = flatRing(5.55, 5.78, 40);
+  K.put('paint', paint, ring, mat4(FOUNTAIN.x, DECOR_Y, FOUNTAIN.z), { color: 0xb4ab98, noCast: true });
+  const edge = flatRing(5.86, 5.94, 40);
+  K.put('paint', paint, edge, mat4(FOUNTAIN.x, DECOR_Y, FOUNTAIN.z), { color: 0x6d6659, noCast: true });
+  ring.dispose();
+  edge.dispose();
+  // eight runs of pale setts, laid out from the ring like a compass rose
+  for (let k = 0; k < 8; k++) {
+    const a = (k + 0.5) * Math.PI / 4;
+    for (let i = 0; i < 5; i++) {
+      const r = 6.3 + i * 0.75;
+      const w = 0.42 - i * 0.04;
+      slab(FOUNTAIN.x + Math.cos(a) * r, FOUNTAIN.z + Math.sin(a) * r, w, 0.3, -a + Math.PI / 2, SETT_TONES[Math.floor(hash01(k, i, 61) * SETT_TONES.length) % SETT_TONES.length]);
+    }
+  }
+  // puddles: a dark wet patch, a pale sky glint on one side
+  for (const [x, z, rx, rz] of PUDDLES) {
+    flat(disc, x, z, { sx: rx * 2, sz: rz * 2 }, 0x5d7488);
+    flat(disc, x - rx * 0.22, z - rz * 0.2, { sx: rx * 1.0, sz: rz * 0.8, dy: 0.003 }, 0xa9c4d6);
+  }
+  // the bench's crumbs and a feather or two, where the pigeons gather
+  for (let i = 0; i < 16; i++) {
+    const a = hash01(i, 3, 71) * Math.PI * 2;
+    const r = PIGEON_PATCH.r * Math.sqrt(hash01(i, 5, 73));
+    slab(PIGEON_PATCH.x + Math.cos(a) * r, PIGEON_PATCH.z + Math.sin(a) * r, 0.05 + 0.03 * hash01(i, 7, 79), 0.04 + 0.03 * hash01(i, 9, 83), a, i % 3 === 0 ? 0xc9a063 : 0xe6d3a5);
+  }
+  for (let i = 0; i < 3; i++) {
+    const a = hash01(i, 11, 89) * Math.PI * 2;
+    slab(PIGEON_PATCH.x + Math.cos(a) * 0.9, PIGEON_PATCH.z + Math.sin(a) * 0.9, 0.04, 0.16, a, 0x9aa0a8);
+  }
+  // a striped doormat of cloth in front of each stall, in the stall's own turn of the bunting's colours
+  STALLS.forEach((st, n) => {
+    if (st.w <= 0) return;
+    const at = fromStall(st, 0, st.d / 2 + 0.6);
+    const yaw = Math.atan2(-st.face.x, -st.face.z);
+    const w = st.w * 0.7;
+    const a = PENNANT_COLORS[n % PENNANT_COLORS.length];
+    const b = PENNANT_COLORS[(n + 4) % PENNANT_COLORS.length];
+    for (let j = 0; j < 5; j++) {
+      const off = (j - 2) * (w / 5);
+      const x = at.x + Math.cos(yaw) * off;
+      const z = at.z - Math.sin(yaw) * off;
+      slab(x, z, w / 5, 0.7, yaw, j % 2 ? b : a, 0.001);
+    }
+  });
+  // wishing-coins on the fountain's low ledge, between the basin and the flagstones
+  for (let i = 0; i < 7; i++) {
+    const t = hash01(i, 23, 107) * Math.PI * 2;
+    const r = 2.5 * FOUNTAIN_SCALE + 0.05 + 0.1 * hash01(i, 29, 109);
+    flat(disc, FOUNTAIN.x + Math.cos(t) * r, FOUNTAIN.z + Math.sin(t) * r, { sx: 0.07, sz: 0.07, dy: 0.158 }, i % 3 === 0 ? 0xd9dde2 : 0xe9be3c);
+  }
+  // petals dropped in front of the flower stall
+  const fl = stallById('flowers');
+  for (let i = 0; i < 14; i++) {
+    const at = fromStall(fl, (hash01(i, 13, 97) - 0.5) * 3.2, 1.2 + hash01(i, 17, 101) * 1.1);
+    slab(at.x, at.z, 0.07, 0.05, hash01(i, 19, 103) * Math.PI, PETAL_TONES[i % PETAL_TONES.length], 0.002);
+  }
 }
 
 // --- the shop fronts: one row of town buildings a side, one mesh
