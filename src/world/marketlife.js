@@ -103,6 +103,7 @@ import { createRoofsSmoke } from './roofsair.js';
 import { dayPart, toneAt, openAt, closeAt } from './marketreact.js';
 import { createCreatures } from './marketcreatures.js';
 import { createMarketWeather } from './marketweather.js';
+import { createVista } from './marketvista.js';
 import { seasonOf, applySeason, createDrift } from './marketseason.js';
 
 export const MARKET_BUCKET_ID = 'market-bucket-1';
@@ -181,6 +182,8 @@ export function createMarketLife(area, ctx = {}) {
   const creatures = scene && react ? createCreatures(scene, { reducedMotion, tier: ctx.tier }) : null;
   // beauty pass 6 (marketweather.js): weather and atmosphere as events: rain, morning mist, golden hour, a festival evening, a gust
   const weather = scene && react && ctx.force !== 'off' ? createMarketWeather(scene, area, { reducedMotion, tier: ctx.tier, dusk: ctx.dusk, now: ctx.now, weather: ctx.weather, sun: ctx.sun, fill: ctx.fill, force: ctx.force, festival: ctx.festival }) : null;
+  // beauty pass 7 (marketvista.js): five photogenic spots tuned for the play camera and a golden moment; ctx.vista 'off' is the square without them (a picture's 'before'), ctx.vgold a picture's quick moment
+  const vista = weather && ctx.vista !== 'off' ? createVista({ reducedMotion, force: !!ctx.vgold }) : null;
   let greeted = false;
   const still = reducedMotion || lite;
   const smoke = scene && !lite && area?.chimneys?.length ? createRoofsSmoke(scene, area.chimneys, { reducedMotion }) : null;
@@ -311,6 +314,7 @@ export function createMarketLife(area, ctx = {}) {
   return {
     get musician() { return musician; },
     get sound() { return sound; },
+    get vista() { return vista; }, // beauty pass 7: the vista (state, done), for the tests and the pictures
     // Couch play's cat two (src/coop/finds.js), once a frame: its spot, speed and mouth for the six missions; null when it leaves.
     second(p, session = null) { errands?.second(p, session); },
     update(dt, t, catPos = null, camera = null, session = null) {
@@ -357,6 +361,7 @@ export function createMarketLife(area, ctx = {}) {
         const open = openAt(part);
         const close = closeAt(part);
         react.uMkDay.value.set(lite ? 0 : open, lite ? 0 : close);
+        if (weather) weather.vista = vista ? vista.update(dt, t, catPos, camera, sound) : null;
         weather?.update(dt, t, catPos, camera, part, session, sound);
         if (area?.look?.lantern && (!ctx.dusk || weather)) area.look.lantern.emissiveIntensity = (ctx.dusk ? LANTERN_MAX : LANTERN_DAY + (LANTERN_MAX - LANTERN_DAY) * close * 0.85) + (weather?.glow ?? 0);
         creatures?.update(dt, t, catPos, { part, tone: react.uMkTone.value, dusk: !!ctx.dusk });

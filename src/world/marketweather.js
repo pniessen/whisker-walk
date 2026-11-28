@@ -20,6 +20,7 @@ import { withLocalUuids } from './localuuids.js';
 import { STALLS, FOUNTAIN, MARKET_BOUNDS, CAFE, AWNING, awningHeight, fromStall, stallById } from './marketplan.js';
 import { DAY_PERIOD } from './marketreact.js';
 import { loudness } from './roofssound.js';
+import { VISTA_N, defVista, paintVista } from './marketvista.js';
 
 export const WSALT = 257;
 const ss = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
@@ -67,7 +68,7 @@ const KIND = { soft: 0, streak: 1, dot: 2, bird: 3, rect: 4, shaft: 5, pennant: 
 const FEST_COLOURS = [0xf06fa0, 0xf3d54a, 0x6fb8f0, 0xff8a50, 0x9be08a, 0xb48ad8];
 const BOW = [0xe84a4a, 0xf0a030, 0xf0e050, 0x60c860, 0x5090e8, 0x9060d0];
 const SHOPS = STALLS.filter((s) => s.w > 0);
-const N = { mist: 26, shaft: 5, steam: 14, bird: 6, rain: 64, drip: 20, halo: 20, bulb: 56, pennant: 18, confetti: 36, leaf: 22, bow: 6 * 18 };
+const N = { mist: 26, shaft: 5, steam: 14, bird: 6, rain: 64, drip: 20, halo: 20, bulb: 56, pennant: 18, confetti: 36, leaf: 22, bow: 6 * 18, ...VISTA_N };
 const I = {};
 let total = 0;
 for (const k of Object.keys(N)) { I[k] = total; total += N[k]; }
@@ -123,7 +124,7 @@ export function createMarketWeather(scene, area, ctx = {}) {
   const cur = { wet: 0, clear: 0, mist: 0, golden: 0, fest: 0, gust: 0, rain: 0 };
   const tgt = { wet: 0, clear: 0, mist: 0, golden: 0, fest: 0, gust: 0, rain: 0 };
   const tone = new THREE.Vector3();
-  const api = { points: null, mood: cur, glow: 0, amp: 1, gust: 0 };
+  const api = { points: null, mood: cur, glow: 0, amp: 1, gust: 0, vista: null };
   let live = scene && !lite && !reduced;
   let pos; let kind; let size; let alpha; let rot; let col; let geo; let mat; let points;
   if (live) {
@@ -145,6 +146,8 @@ export function createMarketWeather(scene, area, ctx = {}) {
   const hex = new THREE.Color();
   const def = (k, i, kd, sz, h) => { const j = I[k] + i; kind[j] = KIND[kd]; size[j] = sz; hex.setHex(h); col.set([hex.r, hex.g, hex.b], j * 3); return j; };
   const put = (j, x, y, z, a, r = 0) => { pos[j * 3] = x; pos[j * 3 + 1] = y; pos[j * 3 + 2] = z; alpha[j] = a; rot[j] = r; };
+  const colour = (j, c) => col.set(c, j * 3);
+  const slot = { put, I, get alpha() { return alpha; }, get size() { return size; }, colour };
   const off = (k, from = 0) => { for (let j = I[k] + from; j < I[k] + N[k]; j++) alpha[j] = 0; };
 
   // the fixed spots
@@ -161,7 +164,7 @@ export function createMarketWeather(scene, area, ctx = {}) {
     for (let i = 0; i < N.shaft; i++) def('shaft', i, 'shaft', 7.5, 0xfff0c0);
     for (let i = 0; i < N.steam; i++) def('steam', i, 'soft', 1.5 + hash01(i, 6, WSALT), 0xf4f6f8);
     for (let i = 0; i < N.bird; i++) def('bird', i, 'bird', 1.5, 0x2e2e36);
-    for (let i = 0; i < N.rain; i++) def('rain', i, 'streak', 1.0, 0xdcebf8);
+    for (let i = 0; i < N.rain; i++) def('rain', i, 'streak', 0.5, 0xdcebf8);
     SHOPS.forEach((s, si) => [-0.3, 0.3].forEach((f, k) => {
       const lx = f * s.w; const lz = s.d / 2 + EDGE;
       const p = fromStall(s, lx, lz);
@@ -189,6 +192,7 @@ export function createMarketWeather(scene, area, ctx = {}) {
     for (let i = 0; i < N.confetti; i++) def('confetti', i, 'rect', 0.16, FEST_COLOURS[i % FEST_COLOURS.length]);
     for (let i = 0; i < N.leaf; i++) def('leaf', i, 'rect', 0.4, [0xe8dcc0, 0xc8a050, 0x7aa84a, 0xf4f0e0][i % 4]);
     for (let b = 0; b < 6; b++) for (let i = 0; i < 18; i++) def('bow', b * 18 + i, 'dot', 2.3, BOW[b]);
+    defVista(def); // beauty pass 7 (marketvista.js)
   }
 
   // the rainbow's plane, set when a clearing begins: behind the fountain from where the camera looks
@@ -300,30 +304,34 @@ export function createMarketWeather(scene, area, ctx = {}) {
     update(dt, t, cat, camera, part, session, sound) {
       const w = ctx.weather ?? session?.weather ?? null;
       moodAt(t, { part, cond: w?.condition ?? 'clear', raining: !!w?.isRaining?.(), rainbow: !!w?.rainbowVisible, festival, dusk: !!ctx.dusk, still: reduced, force: ctx.force }, tgt);
+      const vs = api.vista; // beauty pass 7: the vista's weight, set by marketlife.js just before
+      if (vs && !ctx.force) tgt.golden = Math.max(tgt.golden, vs.warm);
       const k = Math.min(1, dt * 1.6);
       for (const key of Object.keys(cur)) cur[key] += (tgt[key] - cur[key]) * k;
       if (react) {
         react.uMkWet.value = cur.wet;
         react.uMkTone.value.multiply(tone.set(1 - 0.2 * cur.wet + 0.1 * cur.golden - 0.04 * cur.fest, 1 - 0.14 * cur.wet + 0.02 * cur.golden - 0.04 * cur.fest, 1 + 0.02 * cur.wet - 0.15 * cur.golden - 0.02 * cur.fest));
+        react.uMkVig.value = vs ? 0.3 * vs.w : 0; // the screen's edges dim a little at a vista (the square's own materials read it)
       }
       if (sun0 && !ctx.dusk && (w?.condition ?? 'clear') === 'clear') { // a clear walk's own sun: dimmer in the shower, warm in the golden hour (put back at the end)
         sun.intensity = sun0.i * (1 - 0.4 * cur.wet) * (1 + 0.1 * cur.golden);
-        if (fill) fill.intensity = fill0 * (1 - 0.15 * cur.wet);
+        if (fill) fill.intensity = fill0 * (1 - 0.15 * cur.wet) * (1 + 0.12 * (vs?.rim ?? 0)); // a vista's warm rim on her fur
         sun.color.copy(sun0.c).lerp(warm, 0.55 * cur.golden);
       }
-      api.glow = 0.5 * cur.wet + 0.35 * cur.fest + 0.2 * cur.golden;
+      api.glow = 0.5 * cur.wet + 0.35 * cur.fest + 0.2 * cur.golden + (vs?.glow ?? 0);
       api.amp = 1 + 1.5 * cur.gust + 0.3 * cur.wet * Math.max(0, Math.sin(t * 7)) ** 2;
       api.gust = cur.gust;
       if (!live) return;
       if (typeof window !== 'undefined' && window.innerHeight) mat.uniforms.uPx.value = window.innerHeight * Math.min(window.devicePixelRatio || 1, 2) * 0.5;
       paint(dt, t, cat, camera);
-      for (const a of ['position', 'aAlpha', 'aRot']) geo.attributes[a].needsUpdate = true;
+      if (vs) paintVista(slot, vs, t, camera, cat);
+      for (const a of ['position', 'aAlpha', 'aRot', 'aCol', 'aSize']) geo.attributes[a].needsUpdate = true;
       sounds(t, cat, sound);
     },
     dispose() {
       if (sun0) { sun.color.copy(sun0.c); sun.intensity = sun0.i; }
       if (fill) fill.intensity = fill0;
-      if (react) react.uMkWet.value = 0;
+      if (react) { react.uMkWet.value = 0; react.uMkVig.value = 0; }
       if (live) { scene.remove(points); geo.dispose(); mat.dispose(); }
       live = false;
     },
