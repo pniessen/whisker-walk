@@ -74,7 +74,7 @@ export function ffmpegArgs(framesDir, fps, outFile) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Chrome writes its DevTools port as the first line of this file once it is listening.
-async function readPort(profile) {
+export async function readPort(profile) {
   const file = join(profile, 'DevToolsActivePort');
   const deadline = Date.now() + PORT_TIMEOUT;
   while (Date.now() < deadline) {
@@ -88,7 +88,7 @@ async function readPort(profile) {
 }
 
 // One DevTools session over a WebSocket: send(method, params) → result.
-function connect(wsUrl) {
+export function connect(wsUrl) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(wsUrl);
     const pending = new Map();
@@ -122,7 +122,7 @@ function connect(wsUrl) {
 }
 
 // Evaluates `expression` in the page (awaiting a promise) and returns its value.
-async function evaluate(cdp, expression) {
+export async function evaluate(cdp, expression) {
   const r = await cdp.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
   if (r.exceptionDetails) throw new Error(`page: ${r.exceptionDetails.exception?.description ?? r.exceptionDetails.text}`);
   return r.result.value;
